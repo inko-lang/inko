@@ -3,6 +3,50 @@
 # The methods in this module are intended for use within the standard library
 # only, and must be used with extreme care due to their unsafe nature.
 
+# Returns `true` if the `left` pointer's data starts with the data of the
+# `right` pointer.
+#
+# # Safety
+#
+# The data pointed to by both pointers _must_ be valid/initialized memory, and
+# must contain at least the number of bytes of their corresponding size argument
+# (e.g. `left` must contain at least `left_size` bytes).
+fn starts_with?(
+  left: Pointer[UInt8],
+  left_size: Int,
+  right: Pointer[UInt8],
+  right_size: Int,
+) -> Bool {
+  if left_size < right_size or right_size == 0 {
+    false
+  } else {
+    equal(left, right, right_size)
+  }
+}
+
+# Returns `true` if the `left` pointer's data ends with the data of the `right`
+# pointer.
+#
+# # Safety
+#
+# The data pointed to by both pointers _must_ be valid/initialized memory, and
+# must contain at least the number of bytes of their corresponding size argument
+# (e.g. `left` must contain at least `left_size` bytes).
+fn ends_with?(
+  left: Pointer[UInt8],
+  left_size: Int,
+  right: Pointer[UInt8],
+  right_size: Int,
+) -> Bool {
+  if left_size < right_size or right_size == 0 {
+    false
+  } else {
+    let lhs = (left as Int + left_size - right_size) as Pointer[UInt8]
+
+    equal(lhs, right, right_size)
+  }
+}
+
 # Returns `true` if `left` and `right` point to a sequence of bytes that is the
 # same.
 #

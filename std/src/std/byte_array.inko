@@ -448,6 +448,47 @@ class builtin ByteArray {
   fn pub last -> Option[Int] {
     opt(size - 1)
   }
+
+  # Returns `true` if `self` starts with the given sequence of bytes.
+  #
+  # # Examples
+  #
+  # ```inko
+  # 'hello'.to_byte_array.starts_with?('h'.to_byte_array) # => true
+  # 'hello'.to_byte_array.starts_with?('h')               # => true
+  # ```
+  fn pub starts_with?[T: Bytes](prefix: ref T) -> Bool {
+    ptr.starts_with?(to_pointer, size, prefix.to_pointer, prefix.size)
+  }
+
+  # Returns `true` if `self` ends with the given sequence of bytes.
+  #
+  # # Examples
+  #
+  # ```inko
+  # 'hello'.to_byte_array.ends_with?('o'.to_byte_array) # => true
+  # 'hello'.to_byte_array.ends_with?('o')               # => true
+  # ```
+  fn pub ends_with?[T: Bytes](suffix: ref T) -> Bool {
+    ptr.ends_with?(to_pointer, size, suffix.to_pointer, suffix.size)
+  }
+
+  # Returns `true` if `self` is the same as the given `String`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # 'hello'.to_byte_array.equals_string?('hello') # => true
+  # ```
+  fn pub equals_string?(string: String) -> Bool {
+    let size = self.size
+
+    if size == string.size {
+      ptr.equal(to_pointer, string.to_pointer, size)
+    } else {
+      false
+    }
+  }
 }
 
 impl Bytes for ByteArray {

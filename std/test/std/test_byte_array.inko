@@ -230,6 +230,71 @@ fn pub tests(t: mut Tests) {
     t.not_equal('aaaaaaaaa'.to_byte_array, 'aaaaaaaab'.to_byte_array)
   })
 
+  t.test('ByteArray.equals_string?', fn (t) {
+    t.true('a'.to_byte_array.equals_string?('a'))
+    t.true('ab'.to_byte_array.equals_string?('ab'))
+    t.true('abc'.to_byte_array.equals_string?('abc'))
+    t.true('abcd'.to_byte_array.equals_string?('abcd'))
+    t.true('abcde'.to_byte_array.equals_string?('abcde'))
+    t.true('abcdef'.to_byte_array.equals_string?('abcdef'))
+    t.true('abcdefg'.to_byte_array.equals_string?('abcdefg'))
+    t.true('abcdefgh'.to_byte_array.equals_string?('abcdefgh'))
+    t.true('abcdefghi'.to_byte_array.equals_string?('abcdefghi'))
+    t.true('abcdefghij'.to_byte_array.equals_string?('abcdefghij'))
+    t.true('abcdefghijk'.to_byte_array.equals_string?('abcdefghijk'))
+    t.true('abcdefghijkl'.to_byte_array.equals_string?('abcdefghijkl'))
+    t.true('abcdefghijklm'.to_byte_array.equals_string?('abcdefghijklm'))
+    t.true('abcdefghijklmn'.to_byte_array.equals_string?('abcdefghijklmn'))
+    t.true('abcdefghijklmno'.to_byte_array.equals_string?('abcdefghijklmno'))
+    t.true('abcdefghijklmnop'.to_byte_array.equals_string?('abcdefghijklmnop'))
+    t.true(
+      'abcdefghijklmnopq'.to_byte_array.equals_string?('abcdefghijklmnopq'),
+    )
+    t.true(
+      'abcdefghijklmnopqr'.to_byte_array.equals_string?('abcdefghijklmnopqr'),
+    )
+    t.true(
+      'abcdefghijklmnopqrs'.to_byte_array.equals_string?('abcdefghijklmnopqrs'),
+    )
+    t.true('Ä'.to_byte_array.equals_string?('Ä'))
+    t.true('AÄ'.to_byte_array.equals_string?('AÄ'))
+    t.true('쿠키'.to_byte_array.equals_string?('쿠키'))
+
+    t.false('foo'.to_byte_array.equals_string?('bar'))
+    t.false('Ä'.to_byte_array.equals_string?('쿠'))
+    t.false('AÄ'.to_byte_array.equals_string?('A쿠'))
+    t.false('쿠Ä'.to_byte_array.equals_string?('쿠키'))
+    t.false('a'.to_byte_array.equals_string?('A'))
+    t.false('ab'.to_byte_array.equals_string?('AB'))
+    t.false('abc'.to_byte_array.equals_string?('ABC'))
+    t.false('abcd'.to_byte_array.equals_string?('ABCD'))
+    t.false('abcde'.to_byte_array.equals_string?('ABCDE'))
+    t.false('abcdef'.to_byte_array.equals_string?('ABCDEF'))
+    t.false('abcdefg'.to_byte_array.equals_string?('ABCDEFG'))
+    t.false('abcdefgh'.to_byte_array.equals_string?('ABCDEFGH'))
+    t.false('abcdefghi'.to_byte_array.equals_string?('ABCDEFGHI'))
+    t.false('abcdefghij'.to_byte_array.equals_string?('ABCDEFGHIJ'))
+    t.false('abcdefghijk'.to_byte_array.equals_string?('ABCDEFGHIJK'))
+    t.false('abcdefghijkl'.to_byte_array.equals_string?('ABCDEFGHIJKL'))
+    t.false('abcdefghijklm'.to_byte_array.equals_string?('ABCDEFGHIJKLM'))
+    t.false('abcdefghijklmn'.to_byte_array.equals_string?('ABCDEFGHIJKLMN'))
+    t.false('abcdefghijklmno'.to_byte_array.equals_string?('ABCDEFGHIJKLMNO'))
+    t.false('abcdefghijklmnop'.to_byte_array.equals_string?('ABCDEFGHIJKLMNOP'))
+    t.false(
+      'abcdefghijklmnopq'.to_byte_array.equals_string?('ABCDEFGHIJKLMNOPQ'),
+    )
+    t.false(
+      'abcdefghijklmnopqr'.to_byte_array.equals_string?('ABCDEFGHIJKLMNOPQR'),
+    )
+    t.false(
+      'abcdefghijklmnopqrs'.to_byte_array.equals_string?('ABCDEFGHIJKLMNOPQRS'),
+    )
+    t.false('aaaaaaaaa'.to_byte_array.equals_string?('aaaaaaaab'))
+    t.false('aaaaaaaaaaaa'.to_byte_array.equals_string?('aaaaaaaabbbb'))
+    t.false('aaaaaaaaaa'.to_byte_array.equals_string?('aaaaaaaabb'))
+    t.false('aaaaaaaaa'.to_byte_array.equals_string?('aaaaaaaab'))
+  })
+
   t.test('ByteArray.clone', fn (t) {
     let bytes = ByteArray.from_array([10, 20])
 
@@ -299,5 +364,53 @@ fn pub tests(t: mut Tests) {
   t.test('ByteArray.last', fn (t) {
     t.equal(ByteArray.new.last, Option.None)
     t.equal(ByteArray.from_array([10, 20]).last, Option.Some(20))
+  })
+
+  t.test('ByteArray.starts_with?', fn (t) {
+    t.true('hello'.to_byte_array.starts_with?('hello'.to_byte_array))
+    t.true('😀foo'.to_byte_array.starts_with?('😀'.to_byte_array))
+    t.true('foo😀'.to_byte_array.starts_with?('foo'.to_byte_array))
+
+    t.false(''.to_byte_array.starts_with?('x'.to_byte_array))
+    t.false(''.to_byte_array.starts_with?(''.to_byte_array))
+    t.false('hello'.to_byte_array.starts_with?(''.to_byte_array))
+    t.false('hello'.to_byte_array.starts_with?('x'.to_byte_array))
+    t.false('😀foo'.to_byte_array.starts_with?('foo'.to_byte_array))
+
+    t.true('hello'.to_byte_array.starts_with?('hello'))
+    t.true('😀foo'.to_byte_array.starts_with?('😀'))
+    t.true('foo😀'.to_byte_array.starts_with?('foo'))
+
+    t.false(''.to_byte_array.starts_with?('x'))
+    t.false(''.to_byte_array.starts_with?(''))
+    t.false('hello'.to_byte_array.starts_with?(''))
+    t.false('hello'.to_byte_array.starts_with?('x'))
+    t.false('😀foo'.to_byte_array.starts_with?('foo'))
+  })
+
+  t.test('ByteArray.ends_with?', fn (t) {
+    t.true('hello_world'.to_byte_array.ends_with?('world'.to_byte_array))
+    t.true('hello_world'.to_byte_array.ends_with?('d'.to_byte_array))
+    t.true('foo😀'.to_byte_array.ends_with?('😀'.to_byte_array))
+
+    t.false('hello_world'.to_byte_array.ends_with?(''.to_byte_array))
+    t.false(
+      'hello_world'.to_byte_array.ends_with?(
+        'this is a long string'.to_byte_array,
+      ),
+    )
+    t.false('hello_world'.to_byte_array.ends_with?('x'.to_byte_array))
+    t.false(''.to_byte_array.ends_with?('x'.to_byte_array))
+    t.false(''.to_byte_array.ends_with?(''.to_byte_array))
+
+    t.true('hello_world'.to_byte_array.ends_with?('world'))
+    t.true('hello_world'.to_byte_array.ends_with?('d'))
+    t.true('foo😀'.to_byte_array.ends_with?('😀'))
+
+    t.false('hello_world'.to_byte_array.ends_with?(''))
+    t.false('hello_world'.to_byte_array.ends_with?('this is a long string'))
+    t.false('hello_world'.to_byte_array.ends_with?('x'))
+    t.false(''.to_byte_array.ends_with?('x'))
+    t.false(''.to_byte_array.ends_with?(''))
   })
 }
