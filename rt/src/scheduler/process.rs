@@ -10,10 +10,12 @@ use crossbeam_utils::atomic::AtomicCell;
 use crossbeam_utils::thread::scope;
 use rand::rngs::ThreadRng;
 use rand::thread_rng;
+use std::cell::Cell;
 use std::cmp::min;
 use std::collections::VecDeque;
 use std::mem::{size_of, swap};
 use std::ops::Drop;
+use std::ptr::null_mut;
 use std::sync::atomic::{AtomicBool, AtomicU16, AtomicU64, Ordering};
 use std::sync::{Condvar, Mutex};
 use std::thread::sleep;
@@ -85,6 +87,18 @@ const MONITOR_INTERVAL: u64 = 100;
 /// incurs a cost on threads entering a blocking operation. To reduce this cost
 /// we perform a number of regular cycles before entering a deep sleep.
 const MAX_IDLE_CYCLES: u64 = 1_000_000 / MONITOR_INTERVAL;
+
+thread_local! {
+    /// The process that's currently running.
+    ///
+    /// This threat-local should only be used when access to the current process
+    /// is needed, but the process can't be passed in as an argument. An example
+    /// is the patched version of rustls-platform-verifier: it needs access to
+    /// the current process, but the rustls API doesn't make this possible.
+    pub(crate) static CURRENT_PROCESS: Cell<*mut Process> = const {
+        Cell::new(null_mut())
+    };
+}
 
 pub(crate) fn epoch_loop(state: &State) {
     while state.scheduler.pool.is_alive() {
@@ -533,15 +547,19 @@ impl Thread {
 
             match process.next_task() {
                 Task::Resume => {
+                    CURRENT_PROCESS.set(process.as_ptr());
                     process.resume(state, self);
                     unsafe { context::switch(process) }
                 }
                 Task::Start(func, args) => {
+                    CURRENT_PROCESS.set(process.as_ptr());
                     process.resume(state, self);
                     unsafe { context::start(process, func, args) }
                 }
                 Task::Wait => return,
             }
+
+            CURRENT_PROCESS.set(null_mut());
         }
 
         match self.action.take() {

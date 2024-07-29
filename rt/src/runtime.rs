@@ -14,6 +14,7 @@ mod stdio;
 mod string;
 mod sys;
 mod time;
+mod tls;
 
 use crate::config::Config;
 use crate::mem::ClassPointer;
@@ -66,6 +67,12 @@ pub unsafe extern "system" fn inko_runtime_new(
     // thread. This also takes care of ignoring SIGPIPE, which Rust normally
     // does for us when compiling an executable.
     signal_sched::block_all();
+
+    // Configure the TLS provider. This must be done once before we start the
+    // program.
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("failed to set up the default TLS cryptography provider");
 
     Box::into_raw(Box::new(Runtime::new(&*counts, args)))
 }

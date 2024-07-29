@@ -5,6 +5,7 @@ import std.fs (DirectoryEntry, FileType)
 import std.fs.file (self, ReadOnlyFile, WriteOnlyFile)
 import std.fs.path (self, Path)
 import std.io (Error)
+import std.stdio (STDOUT)
 import std.sys
 import std.test (Tests)
 import std.time (DateTime)
@@ -153,16 +154,36 @@ fn pub tests(t: mut Tests) {
   t.test('Path.fmt', fn (t) { t.equal(fmt(Path.new('foo')), '"foo"') })
 
   t.test('Path.expand', fn (t) {
-    let temp = env.temporary_directory
-    let bar = temp.join('foo').join('bar')
+    with_directory(t.id, fn (temp) {
+      let bar = temp.join('foo').join('bar')
 
-    bar.create_directory_all.get
+      bar.create_directory_all.get
 
-    let expanded = bar.join('..').join('..').expand
+      let expanded = bar.join('..').join('..').expand
 
-    t.equal(expanded, Result.Ok(temp))
-    bar.remove_directory_all
+      t.equal(expanded, Result.Ok(temp.clone))
+    })
+
+    t.equal(Path.new('~').expand.ok, env.home_directory)
+    t.equal(Path.new('~/').expand.ok, env.home_directory)
+    t.true(Path.new('~foo').expand.error?)
+    t.true(Path.new('/~').expand.error?)
+    t.true(Path.new('~/this-directory-should-not-exist').expand.error?)
   })
+
+  t.fork(
+    'Path.expand with a missing home directory',
+    child: fn {
+      let out = STDOUT.new
+      let res = Path.new('~').expand.map(fn (v) { v.to_string }).or('ERROR')
+
+      out.write_string(res)
+    },
+    test: fn (test, proc) {
+      proc.variable('HOME', '')
+      test.equal(proc.spawn.stdout, 'ERROR')
+    },
+  )
 
   t.test('Path.tail', fn (t) {
     t.equal(Path.new('foo').tail, 'foo')

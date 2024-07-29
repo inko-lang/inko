@@ -1,0 +1,41 @@
+import std.crypto.x509 (Certificate, PrivateKey)
+import std.fmt (fmt)
+import std.test (Tests)
+
+fn pub tests(t: mut Tests) {
+  t.test('Certificate.fmt', fn (t) {
+    t.equal(
+      fmt(Certificate.new(ByteArray.from_array([1, 2]))),
+      'Certificate(2 bytes)',
+    )
+  })
+
+  t.test('Certificate.==', fn (t) {
+    t.equal(
+      Certificate.new(ByteArray.from_array([1])),
+      Certificate.new(ByteArray.from_array([1])),
+    )
+    t.not_equal(
+      Certificate.new(ByteArray.from_array([1])),
+      Certificate.new(ByteArray.new),
+    )
+  })
+
+  t.test('PrivateKey.fmt', fn (t) {
+    t.equal(
+      fmt(PrivateKey.new(ByteArray.from_array([1, 2]))),
+      'PrivateKey(2 bytes)',
+    )
+  })
+
+  t.test('PrivateKey.==', fn (t) {
+    t.equal(
+      PrivateKey.new(ByteArray.from_array([1])),
+      PrivateKey.new(ByteArray.from_array([1])),
+    )
+    t.not_equal(
+      PrivateKey.new(ByteArray.from_array([1])),
+      PrivateKey.new(ByteArray.new),
+    )
+  })
+}

@@ -191,6 +191,42 @@ class pub enum Option[T] {
       case None -> true
     }
   }
+
+  # Transforms `self` into a `Result[T, E]`, mapping an `Option.Some(T)` to
+  # `Result.Ok(T)` and a `Option.None` to `Result.Error(E)`.
+  #
+  # The argument is eagerly evaluated. If this isn't desired, use
+  # `Option.ok_or_else` instead.
+  #
+  # # Examples
+  #
+  # ```inko
+  # Option.Some(10).ok_or('oops!') # => Result.Ok(10)
+  # Option.None.ok_or('oops!')     # => Result.Error('oops!')
+  # ```
+  fn pub move ok_or[E](error: E) -> Result[T, E] {
+    match self {
+      case Some(v) -> Result.Ok(v)
+      case _ -> Result.Error(error)
+    }
+  }
+
+  # Transforms `self` into a `Result[T, E]`, mapping an `Option.Some(T)` to
+  # `Result.Ok(T)` and a `Option.None` to `Result.Error(E)` where `E` is the
+  # return value of the given closure.
+  #
+  # # Examples
+  #
+  # ```inko
+  # Option.Some(10).ok_or_else(fn { 'oops!' }) # => Result.Ok(10)
+  # Option.None.ok_or_else(fn { 'oops!' })     # => Result.Error('oops!')
+  # ```
+  fn pub move ok_or_else[E](error: fn -> E) -> Result[T, E] {
+    match self {
+      case Some(v) -> Result.Ok(v)
+      case _ -> Result.Error(error.call)
+    }
+  }
 }
 
 impl Option if T: mut {

@@ -44,6 +44,20 @@ fn pub tests(t: mut Tests) {
     }
   })
 
+  t.fork(
+    'env.home_directory with a missing home directory',
+    child: fn {
+      let out = STDOUT.new
+      let res = env.home_directory.map(fn (v) { v.to_string }).or('ERROR')
+
+      out.write_string(res)
+    },
+    test: fn (test, proc) {
+      proc.variable('HOME', '')
+      test.equal(proc.spawn.stdout, 'ERROR')
+    },
+  )
+
   t.test('env.working_directory', fn (t) {
     let path = env.working_directory.get
 

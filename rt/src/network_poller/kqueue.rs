@@ -40,18 +40,20 @@ impl Poller {
         source: impl AsFd,
         interest: Interest,
     ) {
-        let fd = source.as_fd().as_raw_fd();
-        let (add, del) = match interest {
-            Interest::Read => (EventFilter::Read(fd), EventFilter::Write(fd)),
-            Interest::Write => (EventFilter::Write(fd), EventFilter::Read(fd)),
-        };
         let id = process.identifier() as isize;
+        let fd = source.as_fd().as_raw_fd();
         let flags =
             EventFlags::CLEAR | EventFlags::ONESHOT | EventFlags::RECEIPT;
-        let events = [
-            Event::new(add, EventFlags::ADD | flags, id),
-            Event::new(del, EventFlags::DELETE, 0),
-        ];
+        let events = match interest {
+            Interest::Read => [
+                Event::new(EventFilter::Read(fd), EventFlags::ADD | flags, id),
+                Event::new(EventFilter::Write(fd), EventFlags::DELETE, 0),
+            ],
+            Interest::Write => [
+                Event::new(EventFilter::Write(fd), EventFlags::ADD | flags, id),
+                Event::new(EventFilter::Read(fd), EventFlags::DELETE, 0),
+            ],
+        };
 
         self.apply(&events);
     }

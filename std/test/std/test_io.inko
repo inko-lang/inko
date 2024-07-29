@@ -1,5 +1,8 @@
 import std.fmt (fmt)
-import std.io (Buffer, BufferedReader, DEFAULT_BUFFER_SIZE, Error, Read, Write)
+import std.io (
+  Buffer, BufferedReader, DEFAULT_BUFFER_SIZE, Error, INVALID_DATA, Read,
+  UNEXPECTED_EOF, Write,
+)
 import std.libc.bsd.errors if bsd
 import std.libc.linux.errors if linux
 import std.libc.mac.errors if mac
@@ -114,7 +117,7 @@ fn pub tests(t: mut Tests) {
     t.equal(Error.from_os_error(errors.EADDRINUSE), Error.AddressInUse)
     t.equal(Error.from_os_error(errors.EADDRNOTAVAIL), Error.AddressUnavailable)
     t.equal(Error.from_os_error(errors.ENETDOWN), Error.NetworkDown)
-    t.equal(Error.from_os_error(errors.ENETUNREACH), Error.NetworkUnreachable)
+    t.equal(Error.from_os_error(errors.ENETUNREACH), Error.NetworkDown)
     t.equal(Error.from_os_error(errors.ECONNABORTED), Error.ConnectionAborted)
     t.equal(Error.from_os_error(errors.ECONNRESET), Error.ConnectionReset)
     t.equal(Error.from_os_error(errors.EISCONN), Error.AlreadyConnected)
@@ -123,6 +126,8 @@ fn pub tests(t: mut Tests) {
     t.equal(Error.from_os_error(errors.ECONNREFUSED), Error.ConnectionRefused)
     t.equal(Error.from_os_error(errors.EHOSTUNREACH), Error.HostUnreachable)
     t.equal(Error.from_os_error(errors.EINPROGRESS), Error.InProgress)
+    t.equal(Error.from_os_error(INVALID_DATA), Error.InvalidData)
+    t.equal(Error.from_os_error(UNEXPECTED_EOF), Error.EndOfInput)
     t.equal(Error.from_os_error(999), Error.Other(999))
   })
 
@@ -146,7 +151,6 @@ fn pub tests(t: mut Tests) {
     t.equal(fmt(Error.InvalidSeek), 'InvalidSeek')
     t.equal(fmt(Error.IsADirectory), 'IsADirectory')
     t.equal(fmt(Error.NetworkDown), 'NetworkDown')
-    t.equal(fmt(Error.NetworkUnreachable), 'NetworkUnreachable')
     t.equal(fmt(Error.NotADirectory), 'NotADirectory')
     t.equal(fmt(Error.NotConnected), 'NotConnected')
     t.equal(fmt(Error.NotFound), 'NotFound')
@@ -157,6 +161,8 @@ fn pub tests(t: mut Tests) {
     t.equal(fmt(Error.StorageFull), 'StorageFull')
     t.equal(fmt(Error.TimedOut), 'TimedOut')
     t.equal(fmt(Error.WouldBlock), 'WouldBlock')
+    t.equal(fmt(Error.InvalidData), 'InvalidData')
+    t.equal(fmt(Error.EndOfInput), 'EndOfInput')
     t.equal(fmt(Error.Other(999)), 'Other(999)')
   })
 
@@ -167,6 +173,26 @@ fn pub tests(t: mut Tests) {
 
     t.equal(size, 3)
     t.equal(bytes, ByteArray.from_array([1, 2, 3]))
+  })
+
+  t.test('Read.read_exact', fn (t) {
+    let reader = Reader.new
+    let bytes = ByteArray.new
+
+    t.equal(reader.read_exact(into: bytes, size: 3), Result.Ok(nil))
+    t.equal(bytes, ByteArray.from_array([1, 2, 3]))
+
+    t.equal(
+      reader.read_exact(into: bytes, size: 3),
+      Result.Error(Error.EndOfInput),
+    )
+    t.equal(bytes, ByteArray.from_array([1, 2, 3]))
+
+    reader.index = 0
+    t.equal(
+      reader.read_exact(into: bytes, size: 6),
+      Result.Error(Error.EndOfInput),
+    )
   })
 
   t.test('Write.print', fn (t) {

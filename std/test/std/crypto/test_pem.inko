@@ -1,0 +1,258 @@
+import std.crypto.pem (Item, ParseError, PemFile)
+import std.crypto.x509 (Certificate, PrivateKey)
+import std.fmt (fmt)
+import std.io (Buffer, Error)
+import std.rand (Random)
+import std.test (Tests)
+
+fn pub tests(t: mut Tests) {
+  t.test('Item.fmt', fn (t) {
+    t.equal(
+      fmt(Item.Certificate(Certificate.new(ByteArray.from_array([1, 2, 3])))),
+      'Certificate(Certificate(3 bytes))',
+    )
+    t.equal(
+      fmt(Item.PrivateKey(PrivateKey.new(ByteArray.from_array([1, 2, 3])))),
+      'PrivateKey(PrivateKey(3 bytes))',
+    )
+  })
+
+  t.test('ParseError.fmt', fn (t) {
+    t.equal(fmt(ParseError.Read(Error.EndOfInput)), 'Read(EndOfInput)')
+    t.equal(fmt(ParseError.InvalidSectionStart(1)), 'InvalidSectionStart(1)')
+    t.equal(fmt(ParseError.InvalidSectionEnd(1)), 'InvalidSectionEnd(1)')
+    t.equal(fmt(ParseError.InvalidBase64(1)), 'InvalidBase64(1)')
+  })
+
+  t.test('PemFile.next_certificate with valid input', fn (t) {
+    let input = Buffer.new(
+      '
+-----BEGIN PRIVATE KEY-----
+a2V5
+-----END PRIVATE KEY-----
+
+-----BEGIN CERTIFICATE-----
+Y2VydA==
+-----END CERTIFICATE-----
+      ',
+    )
+
+    let pem = PemFile.new(input)
+
+    t.equal(
+      pem.next_certificate,
+      Result.Ok(Option.Some(Certificate.new('cert'.to_byte_array))),
+    )
+    t.equal(pem.next_certificate, Result.Ok(Option.None))
+  })
+
+  t.test('PemFile.next_certificate with invalid input', fn (t) {
+    let input = Buffer.new(
+      '
+-----BEGIN CERTIFICATE-----
+wat
+-----END CERTIFICATE-----
+      ',
+    )
+
+    let pem = PemFile.new(input)
+
+    t.equal(pem.next_certificate, Result.Error(ParseError.InvalidBase64(3)))
+  })
+
+  t.test('PemFile.next_private_key with valid input', fn (t) {
+    let input = Buffer.new(
+      '
+-----BEGIN CERTIFICATE-----
+Y2VydA==
+-----END CERTIFICATE-----
+
+-----BEGIN PRIVATE KEY-----
+a2V5
+-----END PRIVATE KEY-----
+      ',
+    )
+
+    let pem = PemFile.new(input)
+
+    t.equal(
+      pem.next_private_key,
+      Result.Ok(Option.Some(PrivateKey.new('key'.to_byte_array))),
+    )
+    t.equal(pem.next_private_key, Result.Ok(Option.None))
+  })
+
+  t.test('PemFile.next_private_key with invalid input', fn (t) {
+    let input = Buffer.new(
+      '
+-----BEGIN PRIVATE KEY-----
+wat
+-----END PRIVATE KEY-----
+      ',
+    )
+
+    let pem = PemFile.new(input)
+
+    t.equal(pem.next_private_key, Result.Error(ParseError.InvalidBase64(3)))
+  })
+
+  t.test('PemFile.next with valid input', fn (t) {
+    let input = Buffer.new(
+      '
+-----BEGIN CERTIFICATE-----
+Y2VydA==
+-----END CERTIFICATE-----
+
+-----BEGIN PRIVATE KEY-----
+a2V5
+-----END PRIVATE KEY-----
+      ',
+    )
+
+    let pem = PemFile.new(input)
+
+    t.equal(
+      pem.next,
+      Option.Some(
+        Result.Ok(Item.Certificate(Certificate.new('cert'.to_byte_array))),
+      ),
+    )
+    t.equal(
+      pem.next,
+      Option.Some(
+        Result.Ok(Item.PrivateKey(PrivateKey.new('key'.to_byte_array))),
+      ),
+    )
+  })
+
+  t.test('PemFile.next with invalid input', fn (t) {
+    let input = Buffer.new(
+      '
+-----BEGIN CERTIFICATE-----
+wat
+-----END CERTIFICATE-----
+
+-----BEGIN PRIVATE KEY-----
+a2V5
+-----END PRIVATE KEY-----
+      ',
+    )
+
+    let pem = PemFile.new(input)
+
+    t.equal(pem.next, Option.Some(Result.Error(ParseError.InvalidBase64(3))))
+  })
+
+  t.test('PemFile.parse with empty input', fn (t) {
+    t.equal(PemFile.new(Buffer.new('')).parse, Result.Ok(Option.None))
+    t.equal(PemFile.new(Buffer.new('\n\t\r  ')).parse, Result.Ok(Option.None))
+  })
+
+  t.test('PemFile.parse with random invalid garbage as its input', fn (t) {
+    let input = Buffer.new(Random.new.bytes(size: 32))
+
+    t.true(PemFile.new(input).parse.error?)
+  })
+
+  t.test('PemFile.parse with an invalid section start', fn (t) {
+    let inputs = [
+      '-BEGIN CERTIFICATE-----\nY2VydA==\n-----END CERTIFICATE-----',
+      '-----BEG CERTIFICATE-----\nY2VydA==\n-----END CERTIFICATE-----',
+      '-----BEGIN CERTIFICATE\nY2VydA==\n-----END CERTIFICATE-----',
+      '-----BEGIN CERT-----\nY2VydA==\n-----END CERTIFICATE-----',
+      '-----BEGIN CERTIFICATE     -----\nY2VydA==\n-----END CERTIFICATE-----',
+      '-----     BEGIN CERTIFICATE-----\nY2VydA==\n-----END CERTIFICATE-----',
+    ]
+
+    inputs.into_iter.each(fn (input) {
+      t.equal(
+        PemFile.new(Buffer.new(input)).parse,
+        Result.Error(ParseError.InvalidSectionStart(1)),
+      )
+    })
+  })
+
+  t.test('PemFile.parse with invalid base64', fn (t) {
+    let inputs = [
+      ('-----BEGIN CERTIFICATE-----\nabc\n-----END CERTIFICATE-----', 2),
+      ('-----BEGIN CERTIFICATE-----\nY2Vy\ndA\n-----END CERTIFICATE-----', 3),
+    ]
+
+    inputs.into_iter.each(fn (input_line) {
+      t.equal(
+        PemFile.new(Buffer.new(input_line.0)).parse,
+        Result.Error(ParseError.InvalidBase64(input_line.1)),
+      )
+    })
+  })
+
+  t.test('PemFile.parse with an invalid section end', fn (t) {
+    let inputs = [
+      '-----BEGIN CERTIFICATE-----\nY2VydA==\n-----END CERTIFICATE',
+      '-----BEGIN CERTIFICATE-----\nY2VydA==\n-END CERTIFICATE-----',
+      '-----BEGIN CERTIFICATE-----\nY2VydA==\n-----END EXAMPLE-----',
+      '-----BEGIN CERTIFICATE-----\nY2VydA==\n-----END PRIVATE KEY-----',
+      '-----BEGIN CERTIFICATE-----\nY2VydA==\n-----CERTIFICATE-----',
+    ]
+
+    inputs.into_iter.each(fn (input) {
+      t.equal(
+        PemFile.new(Buffer.new(input)).parse,
+        Result.Error(ParseError.InvalidSectionEnd(3)),
+      )
+    })
+  })
+
+  t.test('PemFile.parse when running out of input', fn (t) {
+    let inputs = [
+      '---',
+      '-----BEGIN CERTIFICATE',
+      '-----BEGIN CERTIFICATE-----',
+      '-----BEGIN CERTIFICATE-----\nY2VydA==\n',
+      '-----BEGIN CERTIFICATE-----\nY2VydA==\n-',
+    ]
+
+    inputs.into_iter.each(fn (input) {
+      t.equal(
+        PemFile.new(Buffer.new(input)).parse,
+        Result.Error(ParseError.Read(Error.EndOfInput)),
+      )
+    })
+  })
+
+  t.test('PemFile.parse with wrapped base64', fn (t) {
+    let input = Buffer.new(
+      '
+-----BEGIN CERTIFICATE-----
+Y2Vy
+dA==
+-----END CERTIFICATE-----
+      ',
+    )
+
+    t.equal(
+      PemFile.new(input).parse,
+      Result.Ok(
+        Option.Some(Item.Certificate(Certificate.new('cert'.to_byte_array))),
+      ),
+    )
+  })
+
+  t.test('PemFile.parse with indented base64', fn (t) {
+    let input = Buffer.new(
+      '
+-----BEGIN CERTIFICATE-----
+  Y2Vy
+  dA==
+-----END CERTIFICATE-----
+      ',
+    )
+
+    t.equal(
+      PemFile.new(input).parse,
+      Result.Ok(
+        Option.Some(Item.Certificate(Certificate.new('cert'.to_byte_array))),
+      ),
+    )
+  })
+}

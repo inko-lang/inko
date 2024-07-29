@@ -535,7 +535,8 @@ fn pub tests(t: mut Tests) {
                        lorem ipsum
       --example
   -x                   Foo'
-        .strip_prefix('\n'),
+        .strip_prefix('\n')
+        .get,
     )
 
     opts.single('o', 'option-with-a-much-longer-name', '', 'Example')
@@ -552,7 +553,8 @@ fn pub tests(t: mut Tests) {
       --example
   -x                                      Foo
   -o, --option-with-a-much-longer-name    Example'
-        .strip_prefix('\n'),
+        .strip_prefix('\n')
+        .get,
     )
   })
 

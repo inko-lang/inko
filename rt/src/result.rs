@@ -13,7 +13,11 @@ pub(crate) fn error_to_int(error: io::Error) -> i64 {
         // raw_os_error() above returns a None.
         Errno::TIMEDOUT.raw_os_error()
     } else {
-        -1
+        match error.kind() {
+            io::ErrorKind::InvalidData => -2,
+            io::ErrorKind::UnexpectedEof => -3,
+            _ => -1,
+        }
     };
 
     code as i64
@@ -60,7 +64,7 @@ impl Result {
     }
 
     pub(crate) fn io_error(error: io::Error) -> Result {
-        Self::error({ error_to_int(error) } as _)
+        Self::error(error_to_int(error) as _)
     }
 }
 

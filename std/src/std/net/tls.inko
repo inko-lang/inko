@@ -1,0 +1,639 @@
+# TLS support for sockets.
+#
+# This module provides socket support for TLS 1.2 and TLS 1.3.
+#
+# The two main socket types are `Client` and `Server`, both acting as wrappers
+# around existing socket types (e.g. `std.net.socket.TcpClient`) that
+# transparently handle TLS encryption and decryption.
+#
+# For more details on how to set up a client and/or server socket, refer to the
+# documentation of `Client.new` and `Server.new`.
+#
+# # Handling closing of connections
+#
+# The TLS specification states that clients _should_ send the `close_notify`
+# message when they disconnect, but not every TLS implementation/user sends it.
+# The `Client` and `Server` types provided by this module automatically send the
+# `close_notify` message when they're dropped.
+#
+# When performing an IO operation on a socket closed without an explicit
+# `close_notify` message being sent first, an `Error.EndOfInput` error is
+# produced.
+#
+# When receiving a `close_notify` message during or after an IO operation (e.g.
+# a write), a `Error.InvalidData` or `Error.BrokenPipe` error may be produced.
+import std.clone (Clone)
+import std.cmp (Equal)
+import std.crypto.x509 (Certificate, PrivateKey)
+import std.drop (Drop)
+import std.fmt (Format, Formatter)
+import std.io (Error, Read, Write, WriteInternal)
+import std.net.socket (RawSocket, RawSocketOperations)
+import std.string (ToString)
+
+# The error code produced when a TLS certificate is invalid.
+let INVALID_CERT = -1
+
+fn extern inko_tls_client_config_new -> Pointer[UInt8]
+
+fn extern inko_tls_client_config_clone(config: Pointer[UInt8]) -> Pointer[UInt8]
+
+fn extern inko_tls_client_config_drop(config: Pointer[UInt8])
+
+fn extern inko_tls_client_config_with_certificate(
+  certificate: ref ByteArray,
+) -> AnyResult
+
+fn extern inko_tls_client_connection_new(
+  config: Pointer[UInt8],
+  name: String,
+) -> AnyResult
+
+fn extern inko_tls_client_connection_drop(connection: Pointer[UInt8])
+
+fn extern inko_tls_server_config_new(
+  certificate: ref ByteArray,
+  key: ref ByteArray,
+) -> AnyResult
+
+fn extern inko_tls_server_config_clone(config: Pointer[UInt8]) -> Pointer[UInt8]
+
+fn extern inko_tls_server_config_drop(config: Pointer[UInt8])
+
+fn extern inko_tls_server_connection_new(
+  config: Pointer[UInt8],
+) -> Pointer[UInt8]
+
+fn extern inko_tls_server_connection_drop(connection: Pointer[UInt8])
+
+fn extern inko_tls_client_read(
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
+  socket: Pointer[RawSocket],
+  connection: Pointer[UInt8],
+  buffer: mut ByteArray,
+  amount: Int,
+  deadline: Int,
+) -> IntResult
+
+fn extern inko_tls_client_write(
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
+  socket: Pointer[RawSocket],
+  connection: Pointer[UInt8],
+  data: Pointer[UInt8],
+  size: Int,
+  deadline: Int,
+) -> IntResult
+
+fn extern inko_tls_client_flush(
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
+  socket: Pointer[RawSocket],
+  connection: Pointer[UInt8],
+) -> IntResult
+
+fn extern inko_tls_client_close(
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
+  socket: Pointer[RawSocket],
+  connection: Pointer[UInt8],
+  deadline: Int,
+) -> IntResult
+
+fn extern inko_tls_server_read(
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
+  socket: Pointer[RawSocket],
+  connection: Pointer[UInt8],
+  buffer: mut ByteArray,
+  amount: Int,
+  deadline: Int,
+) -> IntResult
+
+fn extern inko_tls_server_write(
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
+  socket: Pointer[RawSocket],
+  connection: Pointer[UInt8],
+  data: Pointer[UInt8],
+  size: Int,
+  deadline: Int,
+) -> IntResult
+
+fn extern inko_tls_server_flush(
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
+  socket: Pointer[RawSocket],
+  connection: Pointer[UInt8],
+) -> IntResult
+
+fn extern inko_tls_server_close(
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
+  socket: Pointer[RawSocket],
+  connection: Pointer[UInt8],
+  deadline: Int,
+) -> IntResult
+
+class extern AnyResult {
+  let @tag: Int
+  let @value: UInt64
+}
+
+class extern IntResult {
+  let @tag: Int
+  let @value: Int
+}
+
+# An error produced when creating a `ServerConfig`.
+class pub enum ServerConfigError {
+  # The certificate exists but is invalid, such as when it's revoked or not
+  # encoded correctly.
+  case InvalidCertificate
+
+  # The private key exists but is invalid.
+  case InvalidPrivateKey
+}
+
+impl Equal[ref ServerConfigError] for ServerConfigError {
+  fn pub ==(other: ref ServerConfigError) -> Bool {
+    match (self, other) {
+      case (InvalidCertificate, InvalidCertificate) -> true
+      case (InvalidPrivateKey, InvalidPrivateKey) -> true
+      case _ -> false
+    }
+  }
+}
+
+impl ToString for ServerConfigError {
+  fn pub to_string -> String {
+    match self {
+      case InvalidCertificate -> 'the certificate is invalid'
+      case InvalidPrivateKey -> 'the private key is invalid'
+    }
+  }
+}
+
+impl Format for ServerConfigError {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case InvalidCertificate -> formatter.tuple('InvalidCertificate').finish
+      case InvalidPrivateKey -> formatter.tuple('InvalidPrivateKey').finish
+    }
+  }
+}
+
+# A type storing the configuration details for TLS clients.
+#
+# To configure a `Server`, use `ServerConfig` instead.
+#
+# Creating a `ClientConfig` is potentially expensive, depending on the amount of
+# certificates that need to be processed. As such, it's recommended to only
+# create a `ClientConfig` once and use `ClientConfig.clone` to clone it whenever
+# necessary (e.g. when sharing a `ClientConfig` between processes), as cloning a
+# `ClientConfig` is cheap.
+class pub ClientConfig {
+  let @raw: Pointer[UInt8]
+
+  # Returns a new `ClientConfig` that uses the system's certificate store.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.tls (ClientConfig)
+  #
+  # ClientConfig.new
+  # ```
+  fn pub static new -> ClientConfig {
+    ClientConfig(inko_tls_client_config_new)
+  }
+
+  # Returns a new `ClientConfig` using the specified PEM encoded X.509
+  # certificate.
+  #
+  # # Errors
+  #
+  # If the certificate isn't valid, a `None` is returned.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.tls (ClientConfig)
+  # import std.crypto.x509 (Certificate)
+  #
+  # # In a real program you'd load the certificate from a file or a database.
+  # let cert = Certificate.new(ByteArray.from_array[1, 2, 3, 4])
+  #
+  # ClientConfig
+  #   .with_certificate(cert)
+  #   .or_panic('the client configuration is invalid')
+  # ```
+  fn pub static with_certificate(
+    certificate: ref Certificate,
+  ) -> Option[ClientConfig] {
+    match inko_tls_client_config_with_certificate(certificate.bytes) {
+      case { @tag = 0, @value = v } -> {
+        Option.Some(ClientConfig(v as Pointer[UInt8]))
+      }
+      case _ -> Option.None
+    }
+  }
+}
+
+impl Drop for ClientConfig {
+  fn mut drop {
+    inko_tls_client_config_drop(@raw)
+  }
+}
+
+impl Clone[ClientConfig] for ClientConfig {
+  fn pub clone -> ClientConfig {
+    ClientConfig(inko_tls_client_config_clone(@raw))
+  }
+}
+
+# A type that acts as the client in a TLS session.
+#
+# `Client` values wrap existing sockets such as `std.net.socket.TcpClient` and
+# apply TLS encryption/decryption to IO operations.
+#
+# # Closing TLS connections
+#
+# When a `Client` is dropped, the TLS connection is closed by sending the TLS
+# `close_notify` message.
+#
+# # Examples
+#
+# ```inko
+# import std.net.ip (IpAddress)
+# import std.net.socket (TcpClient)
+# import std.net.tls (Client, ClientConfig)
+#
+# let conf = ClientConfig.new
+# let sock = TcpClient
+#   .new(ip: IpAddress.v4(127, 0, 0, 1), port: 9000)
+#   .or_panic('failed to connect to the server')
+# let client = Client
+#   .new(socket, conf, name: 'localhost')
+#   .or_panic('the server name is invalid')
+#
+# client.write_string('ping').or_panic('failed to write the message')
+#
+# let response = ByteArray.new
+#
+# client.read_all(response).or_panic('failed to read the response')
+# ```
+class pub Client[T: mut + RawSocketOperations] {
+  # The socket wrapped by this `Client`.
+  let pub @socket: T
+
+  # The TLS connection state.
+  let @state: Pointer[UInt8]
+
+  # Returns a `Client` acting as the client in a TLS session.
+  #
+  # The `socket` argument is the socket (e.g. `std.net.socket.TcpClient`) to
+  # wrap. This can be either an owned socket or a mutable borrow of a socket.
+  #
+  # The `name` argument is the DNS name to use for Server Name Indication (SNI).
+  # Setting this to an IP address disables the use of SNI. In most cases you'll
+  # want to set this to the DNS name of the server the socket is connecting to.
+  #
+  # The `config` argument is a `ClientConfig` instance to use for configuring
+  # the TLS connection.
+  #
+  # # Errors
+  #
+  # This method returns an `Option.None` if the `name` argument contains an
+  # invalid value.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.ip (IpAddress)
+  # import std.net.socket (TcpClient)
+  # import std.net.tls (Client, ClientConfig)
+  #
+  # let conf = ClientConfig.new
+  # let sock = TcpClient
+  #   .new(ip: IpAddress.v4(127, 0, 0, 1), port: 9000)
+  #   .or_panic('failed to connect to the server')
+  #
+  # Client
+  #   .new(sock, conf, name: 'localhost')
+  #   .or_panic('the server name is invalid')
+  # ```
+  fn pub static new(
+    socket: T,
+    config: ref ClientConfig,
+    name: String,
+  ) -> Option[Client[T]] {
+    let state = match inko_tls_client_connection_new(config.raw, name) {
+      case { @tag = 0, @value = v } -> v as Pointer[UInt8]
+      case _ -> return Option.None
+    }
+
+    Option.Some(Client(socket, state))
+  }
+
+  # Sends the TLS `close_notify` message to the socket, informing the peer that
+  # the connection is being closed.
+  fn mut close -> Result[Nil, Error] {
+    match
+      inko_tls_client_close(
+        _INKO.state,
+        _INKO.process,
+        @socket.raw_socket,
+        @state,
+        @socket.raw_deadline,
+      )
+    {
+      case { @tag = 1 } -> Result.Ok(nil)
+      case { @value = e } -> Result.Error(Error.from_os_error(e))
+    }
+  }
+}
+
+impl Drop for Client {
+  fn mut drop {
+    # Per the TLS specification, the connection _should_ be closed explicitly
+    # when discarding the socket.
+    let _ = close
+
+    inko_tls_client_connection_drop(@state)
+  }
+}
+
+impl Read for Client {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
+    match
+      inko_tls_client_read(
+        _INKO.state,
+        _INKO.process,
+        @socket.raw_socket,
+        @state,
+        into,
+        size,
+        @socket.raw_deadline,
+      )
+    {
+      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
+    }
+  }
+}
+
+impl WriteInternal for Client {
+  fn mut write_internal(data: Pointer[UInt8], size: Int) -> Result[Int, Error] {
+    match
+      inko_tls_client_write(
+        _INKO.state,
+        _INKO.process,
+        @socket.raw_socket,
+        @state,
+        data,
+        size,
+        @socket.raw_deadline,
+      )
+    {
+      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @value = e } -> Result.Error(Error.from_os_error(e))
+    }
+  }
+}
+
+impl Write for Client {
+  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
+    write_all_internal(bytes.to_pointer, bytes.size)
+  }
+
+  fn pub mut write_string(string: String) -> Result[Nil, Error] {
+    write_all_internal(string.to_pointer, string.size)
+  }
+
+  fn pub mut flush -> Result[Nil, Never] {
+    Result.Ok(nil)
+  }
+}
+
+# A type storing the configuration details for TLS servers.
+#
+# To configure a `Client`, use `ClientConfig` instead.
+#
+# Creating a `ServerConfig` is potentially expensive, depending on the
+# certificate and private key that are used. As such, it's recommended to only
+# create a `ServerConfig` once and use `ServerConfig.clone` to clone it whenever
+# necessary, as cloning a `ServerConfig` is cheap.
+class pub ServerConfig {
+  let @raw: Pointer[UInt8]
+
+  # Returns a new `ClientConfig` using the specified PEM encoded X.509
+  # certificate and private key.
+  #
+  # # Errors
+  #
+  # A `ServerConfigError` is returned if any of the following is true:
+  #
+  # - The certificate is invalid
+  # - The private key is invalid
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.tls (ServerConfig)
+  # import std.crypto.x509 (Certificate, PrivateKey)
+  #
+  # let cert = Certificate.new(ByteArray.from_array([1, 2, 3]))
+  # let key = PrivateKey.new(ByteArray.from_array([4, 5, 6]))
+  #
+  # ServerConfig.new(cert, key).or_panic('failed to create the configuration')
+  # ```
+  fn pub static new(
+    certificate: ref Certificate,
+    key: ref PrivateKey,
+  ) -> Result[ServerConfig, ServerConfigError] {
+    match inko_tls_server_config_new(certificate.bytes, key.bytes) {
+      case { @tag = 0, @value = v } -> {
+        Result.Ok(ServerConfig(v as Pointer[UInt8]))
+      }
+      case { @value = e } if e as Int == INVALID_CERT -> {
+        Result.Error(ServerConfigError.InvalidCertificate)
+      }
+      case _ -> Result.Error(ServerConfigError.InvalidPrivateKey)
+    }
+  }
+}
+
+impl Drop for ServerConfig {
+  fn mut drop {
+    inko_tls_server_config_drop(@raw)
+  }
+}
+
+impl Clone[ServerConfig] for ServerConfig {
+  fn pub clone -> ServerConfig {
+    ServerConfig(inko_tls_server_config_clone(@raw))
+  }
+}
+
+# A type that acts as the server in a TLS session.
+#
+# `Server` values wrap existing sockets such as `std.net.socket.TcpClient` and
+# apply TLS encryption/decryption to IO operations.
+#
+# # Closing TLS connections
+#
+# When a `Client` is dropped the TLS connection is closed by sending the TLS
+# `close_notify` message.
+#
+# # Examples
+#
+# ```inko
+# import std.crypto.x509 (Certificate, PrivateKey)
+# import std.net.ip (IpAddress)
+# import std.net.socket (TcpServer)
+# import std.net.tls (Server, ServerConfig)
+#
+# let cert = Certificate.new(ByteArray.from_array([1, 2, 3]))
+# let key = PrivateKey.new(ByteArray.from_array([4, 5, 6]))
+#
+# let conf = ServerConfig
+#   .new(cert, key)
+#   .or_panic('failed to create the server configuration')
+#
+# let server = TcpServer
+#   .new(ip: IpAddress.v4(0, 0, 0, 0), port: 9000)
+#   .or_panic('failed to start the server')
+#
+# let con = server
+#   .accept
+#   .map(fn (sock) { Server.new(sock, conf) })
+#   .or_panic('failed to accept the new connection')
+#
+# let bytes = ByteArray.new
+#
+# con.read(into: bytes, size: 32).or_panic('failed to read the data')
+# ```
+class pub Server[T: mut + RawSocketOperations] {
+  # The socket wrapped by this `Server`.
+  let pub @socket: T
+
+  # The TLS connection state.
+  let @state: Pointer[UInt8]
+
+  # Returns a `Server` acting as the server in a TLS session.
+  #
+  # The `socket` argument is the socket (e.g. `std.net.socket.TcpClient`) to
+  # wrap. This can be either an owned socket or a mutable borrow of a socket.
+  #
+  # The `config` argument is a `ServerConfig` instance to use for configuring
+  # the TLS connection.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.crypto.x509 (Certificate, PrivateKey)
+  # import std.net.ip (IpAddress)
+  # import std.net.socket (TcpServer)
+  # import std.net.tls (Server, ServerConfig)
+  #
+  # let cert = Certificate.new(ByteArray.from_array([1, 2, 3]))
+  # let key = PrivateKey.new(ByteArray.from_array([4, 5, 6]))
+  #
+  # let conf = ServerConfig
+  #   .new(cert, key)
+  #   .or_panic('failed to create the server configuration')
+  #
+  # let server = TcpServer
+  #   .new(ip: IpAddress.v4(0, 0, 0, 0), port: 9000)
+  #   .or_panic('failed to start the server')
+  #
+  # server
+  #   .accept
+  #   .map(fn (sock) { Server.new(sock, conf) })
+  #   .or_panic('failed to accept the new connection')
+  # ```
+  fn pub static new(socket: T, config: ref ServerConfig) -> Server[T] {
+    Server(socket, inko_tls_server_connection_new(config.raw))
+  }
+
+  # Sends the TLS `close_notify` message to the socket, informing the peer that
+  # the connection is being closed.
+  fn mut close -> Result[Nil, Error] {
+    match
+      inko_tls_server_close(
+        _INKO.state,
+        _INKO.process,
+        @socket.raw_socket,
+        @state,
+        @socket.raw_deadline,
+      )
+    {
+      case { @tag = 1 } -> Result.Ok(nil)
+      case { @value = e } -> Result.Error(Error.from_os_error(e))
+    }
+  }
+}
+
+impl Drop for Server {
+  fn mut drop {
+    # Per the TLS specification, the connection _should_ be closed explicitly
+    # when discarding the socket.
+    let _ = close
+
+    inko_tls_server_connection_drop(@state)
+  }
+}
+
+impl Read for Server {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
+    match
+      inko_tls_server_read(
+        _INKO.state,
+        _INKO.process,
+        @socket.raw_socket,
+        @state,
+        into,
+        size,
+        @socket.raw_deadline,
+      )
+    {
+      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
+    }
+  }
+}
+
+impl WriteInternal for Server {
+  fn mut write_internal(data: Pointer[UInt8], size: Int) -> Result[Int, Error] {
+    match
+      inko_tls_server_write(
+        _INKO.state,
+        _INKO.process,
+        @socket.raw_socket,
+        @state,
+        data,
+        size,
+        @socket.raw_deadline,
+      )
+    {
+      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @value = e } -> Result.Error(Error.from_os_error(e))
+    }
+  }
+}
+
+impl Write for Server {
+  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
+    write_all_internal(bytes.to_pointer, bytes.size)
+  }
+
+  fn pub mut write_string(string: String) -> Result[Nil, Error] {
+    write_all_internal(string.to_pointer, string.size)
+  }
+
+  fn pub mut flush -> Result[Nil, Never] {
+    Result.Ok(nil)
+  }
+}

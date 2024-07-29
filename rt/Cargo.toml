@@ -23,6 +23,35 @@ unicode-segmentation = "^1.10"
 backtrace = "^0.3"
 rustix = { version = "^0.38", features = ["fs", "mm", "param", "process", "net", "std", "time", "event"], default-features = false }
 
+# The dependencies needed for TLS support.
+#
+# We use ring instead of the default aws-lc-sys because:
+#
+# 1. aws-lc-sys requires cmake to be installed when building on FreeBSD (and
+#    potentially other platforms), as aws-lc-sys only provides generated
+#    bindings for a limited set of platforms
+# 2. aws-lc-sys increases compile times quite a bit
+# 3. We don't care about FIPS compliance at the time of writing
+rustls = { version = "^0.23", features = ["ring", "tls12", "std"], default-features = false }
+rustls-pemfile = "^2.1"
+
+# These dependencies are used by the customized version of
+# rustls-platform-modifier. We include a custom version so we can deal with the
+# platform verification process being potentially slow. See
+# https://github.com/rustls/rustls/issues/850 and
+# https://github.com/inko-lang/inko/issues/329 for more details.
+once_cell = "1.9"
+
+[target.'cfg(all(unix, not(target_os = "macos"), not(target_os = "ios"), not(target_os = "tvos")))'.dependencies]
+rustls-native-certs = "0.7"
+webpki = { package = "rustls-webpki", version = "0.102", default-features = false }
+
+[target.'cfg(any(target_os = "macos", target_os = "ios", target_os = "tvos"))'.dependencies]
+core-foundation = "0.9"
+core-foundation-sys = "0.8"
+security-framework = { version = "2.10", features = ["OSX_10_14"] }
+security-framework-sys = { version = "2.10", features = ["OSX_10_14"] }
+
 [dependencies.socket2]
 version = "^0.5"
 features = ["all"]

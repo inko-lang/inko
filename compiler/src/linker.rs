@@ -256,7 +256,13 @@ pub(crate) fn link(
             cmd.arg("-lm");
             cmd.arg("-lpthread");
         }
-        _ => {}
+        OperatingSystem::Mac => {
+            // This is needed for TLS support.
+            for name in ["Security", "CoreFoundation"] {
+                cmd.arg("-framework");
+                cmd.arg(name);
+            }
+        }
     }
 
     let mut static_linking = state.config.static_linking;

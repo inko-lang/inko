@@ -1,0 +1,51 @@
+# X.509 private keys and certificates.
+import std.cmp (Equal)
+import std.fmt (Format, Formatter)
+
+# An X.509 certificate.
+#
+# This is currently just an opaque wrapper around a `ByteArray`.
+class pub Certificate {
+  let @bytes: ByteArray
+
+  # Returns a new `Certificate` that wraps the given `ByteArray`.
+  fn pub static new(bytes: ByteArray) -> Certificate {
+    Certificate(bytes)
+  }
+}
+
+impl Format for Certificate {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter.write('Certificate(${@bytes.size} bytes)')
+  }
+}
+
+impl Equal[ref Certificate] for Certificate {
+  fn pub ==(other: ref Certificate) -> Bool {
+    @bytes == other.bytes
+  }
+}
+
+# An X.509 private key.
+#
+# This is currently just an opaque wrapper around a `ByteArray`.
+class pub PrivateKey {
+  let @bytes: ByteArray
+
+  # Returns a new `PrivateKey` that wraps the given `ByteArray`.
+  fn pub static new(bytes: ByteArray) -> PrivateKey {
+    PrivateKey(bytes)
+  }
+}
+
+impl Format for PrivateKey {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter.write('PrivateKey(${@bytes.size} bytes)')
+  }
+}
+
+impl Equal[ref PrivateKey] for PrivateKey {
+  fn pub ==(other: ref PrivateKey) -> Bool {
+    @bytes == other.bytes
+  }
+}

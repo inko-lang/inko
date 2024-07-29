@@ -480,28 +480,38 @@ class builtin String {
 
   # Returns a new `String` without the given prefix.
   #
+  # If `self` starts with the prefix, a `Option.Some` is returned containing the
+  # substring after the prefix. If `self` doesn't start with the prefix, an
+  # `Option.None` is returned.
+  #
   # # Examples
   #
   # ```inko
-  # 'xhellox'.strip_prefix('x') # => 'hellox'
+  # 'xhellox'.strip_prefix('x') # => Option.Some('hellox')
+  # 'xhellox'.strip_prefix('y') # => Option.None
   # ```
-  fn pub strip_prefix(prefix: String) -> String {
-    if starts_with?(prefix).false? { return clone }
+  fn pub strip_prefix(prefix: String) -> Option[String] {
+    if starts_with?(prefix).false? { return Option.None }
 
-    slice(start: prefix.size, size: size - prefix.size).into_string
+    Option.Some(slice(start: prefix.size, size: size - prefix.size).into_string)
   }
 
   # Returns a new `String` without the given suffix.
   #
+  # If `self` ends with the suffix, a `Option.Some` is returned containing the
+  # substring before the prefix. If `self` doesn't end with the suffix, an
+  # `Option.None` is returned.
+  #
   # # Examples
   #
   # ```inko
-  # 'xhellox'.strip_suffix('x') # => 'xhello'
+  # 'xhellox'.strip_suffix('x') # => Option.Some('xhello')
+  # 'xhellox'.strip_suffix('y') # => Option.None
   # ```
-  fn pub strip_suffix(suffix: String) -> String {
-    if ends_with?(suffix).false? { return clone }
+  fn pub strip_suffix(suffix: String) -> Option[String] {
+    if ends_with?(suffix).false? { return Option.None }
 
-    slice(start: 0, size: size - suffix.size).into_string
+    Option.Some(slice(start: 0, size: size - suffix.size).into_string)
   }
 
   # Returns a new `String` without any leading whitespace.

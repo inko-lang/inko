@@ -5,7 +5,7 @@ use crate::process::ProcessPointer;
 use crate::socket::socket_address::SocketAddress;
 use crate::state::State;
 use rustix::io::Errno;
-use socket2::{Domain, SockAddr, Socket as RawSocket, Type};
+use socket2::{Domain, Protocol, SockAddr, Socket as RawSocket, Type};
 use std::io::{self, Read};
 use std::mem::transmute;
 use std::net::Shutdown;
@@ -62,46 +62,57 @@ fn encode_sockaddr(
 /// The slice has enough space to store up to `bytes` of data.
 fn socket_output_slice(buffer: &mut Vec<u8>, bytes: usize) -> &mut [u8] {
     let len = buffer.len();
-    let available = buffer.capacity() - len;
 
-    if bytes > available {
-        let to_reserve = bytes - available;
-
-        if to_reserve > 0 {
-            // Only increasing capacity when needed is done for two reasons:
-            //
-            // 1. It saves us from increasing capacity when there is enough
-            //    space.
-            //
-            // 2. Due to sockets being non-blocking, a socket operation may
-            //    fail. This will result in this code being called multiple
-            //    times. If we were to simply increase capacity every time we'd
-            //    end up growing the buffer much more than necessary.
-            buffer.reserve_exact(to_reserve);
-        }
-    }
-
+    buffer.reserve_exact(bytes);
     unsafe { slice::from_raw_parts_mut(buffer.as_mut_ptr().add(len), bytes) }
 }
 
-fn update_buffer_length_and_capacity(buffer: &mut Vec<u8>, read: usize) {
+fn update_buffer_length(buffer: &mut Vec<u8>, read: usize) {
     unsafe {
         buffer.set_len(buffer.len() + read);
     }
-
-    buffer.shrink_to_fit();
 }
 
 fn socket_type(kind: i64) -> io::Result<Type> {
     match kind {
         0 => Ok(Type::STREAM),
         1 => Ok(Type::DGRAM),
-        2 => Ok(Type::SEQPACKET),
-        3 => Ok(Type::RAW),
+        2 => Ok(Type::RAW),
         _ => Err(io::Error::new(
             io::ErrorKind::Other,
             format!("{} is not a valid socket type", kind),
         )),
+    }
+}
+
+fn socket_protocol(value: i64) -> Option<Protocol> {
+    if value == 0 {
+        None
+    } else {
+        Some(Protocol::from(value as i32))
+    }
+}
+
+pub(crate) fn read_from<R: Read>(
+    reader: &mut R,
+    into: &mut Vec<u8>,
+    amount: usize,
+) -> io::Result<usize> {
+    if amount > 0 {
+        // We don't use take(), because that only terminates if:
+        //
+        // 1. We hit EOF, or
+        // 2. We have read the desired number of bytes
+        //
+        // For files this is fine, but for sockets EOF is not triggered
+        // until the socket is closed; which is almost always too late.
+        let slice = socket_output_slice(into, amount);
+        let read = reader.read(slice)?;
+
+        update_buffer_length(into, read);
+        Ok(read)
+    } else {
+        Ok(reader.read_to_end(into)?)
     }
 }
 
@@ -133,12 +144,12 @@ impl Socket {
     pub(crate) fn new(
         domain: Domain,
         kind: Type,
+        protocol: Option<Protocol>,
         unix: bool,
     ) -> io::Result<Self> {
-        let socket = RawSocket::new(domain, kind, None)?;
+        let socket = RawSocket::new(domain, kind, protocol)?;
 
         socket.set_nonblocking(true)?;
-
         Ok(Socket {
             inner: socket,
             registered: AtomicI8::new(NOT_REGISTERED),
@@ -146,17 +157,27 @@ impl Socket {
         })
     }
 
-    pub(crate) fn ipv4(kind_int: i64) -> io::Result<Socket> {
-        Self::new(Domain::IPV4, socket_type(kind_int)?, false)
+    pub(crate) fn ipv4(kind_int: i64, protocol: i64) -> io::Result<Socket> {
+        Self::new(
+            Domain::IPV4,
+            socket_type(kind_int)?,
+            socket_protocol(protocol),
+            false,
+        )
     }
 
-    pub(crate) fn ipv6(kind_int: i64) -> io::Result<Socket> {
-        Self::new(Domain::IPV6, socket_type(kind_int)?, false)
+    pub(crate) fn ipv6(kind_int: i64, protocol: i64) -> io::Result<Socket> {
+        Self::new(
+            Domain::IPV6,
+            socket_type(kind_int)?,
+            socket_protocol(protocol),
+            false,
+        )
     }
 
     #[cfg(unix)]
     pub(crate) fn unix(kind_int: i64) -> io::Result<Socket> {
-        Self::new(Domain::UNIX, socket_type(kind_int)?, true)
+        Self::new(Domain::UNIX, socket_type(kind_int)?, None, true)
     }
 
     #[cfg(not(unix))]
@@ -260,29 +281,6 @@ impl Socket {
         })
     }
 
-    pub(crate) fn read(
-        &self,
-        buffer: &mut Vec<u8>,
-        amount: usize,
-    ) -> io::Result<usize> {
-        if amount > 0 {
-            // We don't use take(), because that only terminates if:
-            //
-            // 1. We hit EOF, or
-            // 2. We have read the desired number of bytes
-            //
-            // For files this is fine, but for sockets EOF is not triggered
-            // until the socket is closed; which is almost always too late.
-            let slice = socket_output_slice(buffer, amount);
-            let read = self.inner.recv(unsafe { transmute(slice) })?;
-
-            update_buffer_length_and_capacity(buffer, read);
-            Ok(read)
-        } else {
-            Ok((&self.inner).read_to_end(buffer)?)
-        }
-    }
-
     pub(crate) fn recv_from(
         &self,
         buffer: &mut Vec<u8>,
@@ -292,8 +290,7 @@ impl Socket {
         let (read, sockaddr) =
             self.inner.recv_from(unsafe { transmute(slice) })?;
 
-        update_buffer_length_and_capacity(buffer, read);
-
+        update_buffer_length(buffer, read);
         decode_sockaddr(sockaddr, self.unix)
             .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
     }
@@ -358,7 +355,7 @@ impl io::Write for Socket {
 
 impl io::Read for Socket {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.inner.recv(unsafe { transmute(buf) })
+        self.inner.read(buf)
     }
 }
 
@@ -369,7 +366,7 @@ mod tests {
 
     #[test]
     fn test_try_clone() {
-        let socket1 = Socket::ipv4(0).unwrap();
+        let socket1 = Socket::ipv4(0, 0).unwrap();
 
         socket1.registered.store(2, Ordering::Release);
 

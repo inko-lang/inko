@@ -1,6 +1,7 @@
 # Cross-platform path manipulation.
 import std.clone (Clone)
 import std.cmp (Equal)
+import std.env (home_directory)
 import std.fmt (Format, Formatter)
 import std.fs (DirectoryEntry)
 import std.hash (Hash, Hasher)
@@ -84,6 +85,13 @@ let pub SEPARATOR = '/'
 
 # The byte used to represent the path separator.
 let SEPARATOR_BYTE = 47
+
+# The character used to signal the user's home directory.
+let HOME = '~'
+
+# The prefix of a path that indicates a path relative to the user's home
+# directory.
+let HOME_WITH_SEPARATOR = HOME + SEPARATOR
 
 # Returns the number of bytes leading up to the last path separator.
 #
@@ -623,11 +631,20 @@ class pub Path {
 
   # Returns the canonical, absolute version of `self`.
   #
+  # # Resolving home directories
+  #
+  # If `self` is equal to `~`, this method returns the path to the user's home
+  # directory. If `self` starts with `~/`, this prefix is replaced with the path
+  # to the user's home directory (e.g. `~/foo` becomes `/var/home/alice/foo`).
+  #
   # # Errors
   #
-  # This method may return an `Error` for cases such as when `self` doesn't
-  # exist, or when a component that isn't the last component is _not_ a
-  # directory.
+  # This method may return an `Error` for cases such as:
+  #
+  # - `self` doesn't exist
+  # - a component that isn't the last component is _not_ a directory
+  # - `self` is equal to `~` or starts with `~/`, but the home directory can't
+  #   be found (e.g. it doesn't exist)
   #
   # # Examples
   #
@@ -635,9 +652,30 @@ class pub Path {
   # import std.fs.path (Path)
   #
   # Path.new('/foo/../bar').expand.get # => Path.new('/bar')
+  # Path.new('~').expand.get           # => '/var/home/...'
+  # Path.new('~/').expand.get          # => '/var/home/...'
   # ```
   fn pub expand -> Result[Path, Error] {
-    match inko_path_expand(_INKO.state, @path) {
+    if @path == HOME {
+      return match home_directory {
+        case Some(v) -> Result.Ok(v)
+        case _ -> Result.Error(Error.NotFound)
+      }
+    }
+
+    let mut target = @path
+
+    match @path.strip_prefix(HOME_WITH_SEPARATOR) {
+      case Some(tail) -> {
+        target = match home_directory {
+          case Some(v) -> join_strings(v.path, tail)
+          case _ -> throw Error.NotFound
+        }
+      }
+      case _ -> {}
+    }
+
+    match inko_path_expand(_INKO.state, target) {
       case { @tag = 0, @value = v } -> Result.Ok(Path.new(v as String))
       case { @tag = _, @value = e } -> {
         Result.Error(Error.from_os_error(e as Int))

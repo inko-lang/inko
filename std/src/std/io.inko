@@ -19,6 +19,15 @@ let MAX_READ_ALL_SIZE = 1024 * 1024
 # The default size of the buffer maintained by `BufferedReader`.
 let DEFAULT_BUFFER_SIZE = 8 * 1024
 
+# The error code used to signal invalid data.
+#
+# This error code isn't produced by libc, instead it's specific to the runtime
+# library.
+let INVALID_DATA = -2
+
+# The error code used when encountering an unexpected end of the input.
+let UNEXPECTED_EOF = -3
+
 fn extern inko_last_error -> Int32
 
 # An error type for I/O operations.
@@ -85,9 +94,6 @@ class pub enum Error {
   # The network is down.
   case NetworkDown
 
-  # The network is unreachable.
-  case NetworkUnreachable
-
   # The resource isn't a directory.
   case NotADirectory
 
@@ -120,6 +126,18 @@ class pub enum Error {
 
   # A memory address used (e.g. as an argument) is in an invalid range.
   case BadAddress
+
+  # The data provided for the operation is invalid, such as when using an
+  # invalid TLS certificate or when a TLS socket encountered invalid TLS data
+  # (e.g. an invalid handshake message).
+  case InvalidData
+
+  # The operation encountered the end of the input stream, but more input is
+  # required.
+  #
+  # An example of where this error is encountered is when reading from a TLS
+  # socket that was closed without sending the `close_notify` message.
+  case EndOfInput
 
   # An error not covered by the other variants.
   #
@@ -160,7 +178,7 @@ class pub enum Error {
       case errors.EADDRINUSE -> Error.AddressInUse
       case errors.EADDRNOTAVAIL -> Error.AddressUnavailable
       case errors.ENETDOWN -> Error.NetworkDown
-      case errors.ENETUNREACH -> Error.NetworkUnreachable
+      case errors.ENETUNREACH -> Error.NetworkDown
       case errors.ECONNABORTED -> Error.ConnectionAborted
       case errors.ECONNRESET -> Error.ConnectionReset
       case errors.EISCONN -> Error.AlreadyConnected
@@ -170,6 +188,8 @@ class pub enum Error {
       case errors.EHOSTUNREACH -> Error.HostUnreachable
       case errors.EINPROGRESS -> Error.InProgress
       case errors.EFAULT -> Error.BadAddress
+      case INVALID_DATA -> Error.InvalidData
+      case UNEXPECTED_EOF -> Error.EndOfInput
       case val -> Error.Other(val)
     }
   }
@@ -202,7 +222,6 @@ impl ToString for Error {
       case InvalidSeek -> 'the seek operation is invalid'
       case IsADirectory -> 'the resource is a directory'
       case NetworkDown -> 'the network is down'
-      case NetworkUnreachable -> 'the network is unreachable'
       case NotADirectory -> "the resource isn't a directory"
       case NotConnected -> "a connection isn't established"
       case NotFound -> "the resource isn't found"
@@ -214,6 +233,10 @@ impl ToString for Error {
       case TimedOut -> 'the operation timed out'
       case WouldBlock -> 'the operation would block'
       case BadAddress -> 'a memory address is in an invalid range'
+      case InvalidData -> "the data provided isn't valid for the operation"
+      case EndOfInput -> {
+        'the end of the input stream is reached, but more input is required'
+      }
       case Other(code) -> 'an other error with code ${code} occurred'
     }
   }
@@ -241,7 +264,6 @@ impl Format for Error {
       case InvalidSeek -> 'InvalidSeek'
       case IsADirectory -> 'IsADirectory'
       case NetworkDown -> 'NetworkDown'
-      case NetworkUnreachable -> 'NetworkUnreachable'
       case NotADirectory -> 'NotADirectory'
       case NotConnected -> 'NotConnected'
       case NotFound -> 'NotFound'
@@ -253,6 +275,8 @@ impl Format for Error {
       case TimedOut -> 'TimedOut'
       case WouldBlock -> 'WouldBlock'
       case BadAddress -> 'BadAddress'
+      case InvalidData -> 'InvalidData'
+      case EndOfInput -> 'EndOfInput'
       case Other(code) -> {
         formatter.tuple('Other').field(code).finish
         return
@@ -285,7 +309,6 @@ impl Equal[ref Error] for Error {
       case (InvalidSeek, InvalidSeek) -> true
       case (IsADirectory, IsADirectory) -> true
       case (NetworkDown, NetworkDown) -> true
-      case (NetworkUnreachable, NetworkUnreachable) -> true
       case (NotADirectory, NotADirectory) -> true
       case (NotConnected, NotConnected) -> true
       case (NotFound, NotFound) -> true
@@ -297,6 +320,8 @@ impl Equal[ref Error] for Error {
       case (TimedOut, TimedOut) -> true
       case (WouldBlock, WouldBlock) -> true
       case (Other(a), Other(b)) -> a == b
+      case (InvalidData, InvalidData) -> true
+      case (EndOfInput, EndOfInput) -> true
       case _ -> false
     }
   }
@@ -323,6 +348,34 @@ trait pub Read {
   # different reasons, such as when all input is consumed or not enough data is
   # available (yet).
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error]
+
+  # Reads exactly `size` bytes into `into`.
+  #
+  # Whereas `Read.read` might return early if fewer bytes are available in the
+  # input stream, `Read.read_exact` continues reading until the desired amount
+  # of bytes is read.
+  #
+  # # Errors
+  #
+  # If the end of the input stream is encountered before filling the buffer, an
+  # `Error.EndOfInput` error is returned.
+  #
+  # If an error is returned, no assumption can be made about the state of the
+  # `into` buffer, i.e. there's no guarantee data read so far is in the buffer
+  # in the event of an error.
+  fn pub mut read_exact(into: mut ByteArray, size: Int) -> Result[Nil, Error] {
+    let mut pending = size
+
+    while pending > 0 {
+      match read(into, pending) {
+        case Ok(0) if pending > 0 -> throw Error.EndOfInput
+        case Ok(n) -> pending -= n
+        case Error(e) -> throw e
+      }
+    }
+
+    Result.Ok(nil)
+  }
 
   # Reads from `self` into the given `ByteArray`, returning when all input is
   # consumed.

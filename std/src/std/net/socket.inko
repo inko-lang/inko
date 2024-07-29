@@ -71,31 +71,22 @@ import std.net.ip (IpAddress)
 import std.string (ToString)
 import std.time (Duration, ToInstant)
 
-class extern Linger {
-  let @l_onoff: Int32
-  let @l_linger: Int32
-}
+# The maximum value valid for a listen() call.
+#
+# Linux and FreeBSD do not allow for values greater than this as they internally
+# use an u16, so we'll limit the backlog to this value. We don't use SOMAXCONN
+# because it might be hardcoded. This means that setting `net.core.somaxconn` on
+# Linux (for example) would have no effect.
+let MAXIMUM_LISTEN_BACKLOG = 65_535
 
-class extern RawSocket {
-  let @inner: Int32
-  let @registered: UInt8
-  let @unix: UInt8
-}
-
-class extern RawAddress {
-  let @address: String
-  let @port: Int
-}
-
-class extern AnyResult {
-  let @tag: Int
-  let @value: UInt64
-}
-
-class extern IntResult {
-  let @tag: Int
-  let @value: Int
-}
+# A value that signals the lack of a socket deadline.
+let NO_DEADLINE = -1
+let IPV4 = 0
+let IPV6 = 1
+let UNIX = 2
+let STREAM = 0
+let DGRAM = 1
+let RAW = 2
 
 fn extern setsockopt(
   socket: Int32,
@@ -114,8 +105,9 @@ fn extern getsockopt(
 ) -> Int32
 
 fn extern inko_socket_new(
-  proto: Int,
+  domain: Int,
   kind: Int,
+  protocol: Int,
   out: Pointer[RawSocket],
 ) -> Int64
 
@@ -222,130 +214,146 @@ fn extern inko_socket_shutdown_read_write(
   socket: Pointer[RawSocket],
 ) -> IntResult
 
-# The maximum value valid for a listen() call.
-#
-# Linux and FreeBSD do not allow for values greater than this as they internally
-# use an u16, so we'll limit the backlog to this value. We don't use SOMAXCONN
-# because it might be hardcoded. This means that setting `net.core.somaxconn` on
-# Linux (for example) would have no effect.
-let MAXIMUM_LISTEN_BACKLOG = 65_535
+class extern Linger {
+  let @l_onoff: Int32
+  let @l_linger: Int32
+}
 
-# A value that signals the lack of a socket deadline.
-let NO_DEADLINE = -1
-let IPV4 = 0
-let IPV6 = 1
-let UNIX = 2
+class extern RawSocket {
+  let @inner: Int32
+  let @registered: UInt8
+  let @unix: UInt8
+}
 
-# The type of a socket.
-class pub enum Type {
-  # The type corresponding to `SOCK_STREAM`.
-  case STREAM
+class extern RawAddress {
+  let @address: String
+  let @port: Int
+}
 
-  # The type corresponding to `SOCK_DGRAM`.
-  case DGRAM
+class extern IntResult {
+  let @tag: Int
+  let @value: Int
+}
 
-  # The type corresponding to `SOCK_SEQPACKET`.
-  case SEQPACKET
+trait RawSocketOperations {
+  fn mut raw_socket -> Pointer[RawSocket]
 
-  # The type corresponding to `SOCK_RAW`.
-  case RAW
-
-  # Converts a `Type` into the underlying `SOCK_*` integer.
-  fn pub move into_int -> Int {
-    match self {
-      case STREAM -> 0
-      case DGRAM -> 1
-      case SEQPACKET -> 2
-      case RAW -> 3
-    }
-  }
+  fn raw_deadline -> Int
 }
 
 # An IPv4 or IPv6 socket address.
 class pub SocketAddress {
   # The IPv4/IPv6 address of this socket address.
-  #
-  # This is stored as a `String` so we don't need to parse the address every
-  # time a `SocketAddress` is created.
-  let pub @address: String
+  let pub @ip: IpAddress
 
   # The port number of this socket address.
   let pub @port: Int
 
-  fn pub static new(address: String, port: Int) -> SocketAddress {
-    SocketAddress(address: address, port: port)
-  }
+  fn static from_raw(raw: ref RawAddress) -> SocketAddress {
+    # The address passed to this method is one filled in by the system. Assuming
+    # our IP address parsing logic is complete (which it should be),
+    # encountering an address we can't parse is a bug and should terminate the
+    # program.
+    let ip = match IpAddress.parse(raw.address) {
+      case Some(v) -> v
+      case _ -> panic("IpAddress.parse doesn't support '${raw.address}'")
+    }
 
-  # Returns the IPv4/IPv6 address associated with `self`.
-  fn pub ip -> Option[IpAddress] {
-    IpAddress.parse(@address)
+    SocketAddress(ip, raw.port)
   }
 }
 
 impl Equal[ref SocketAddress] for SocketAddress {
   # Returns `true` if `self` and `other` are the same.
   fn pub ==(other: ref SocketAddress) -> Bool {
-    @address == other.address and @port == other.port
+    @ip == other.ip and @port == other.port
   }
 }
 
 impl Format for SocketAddress {
   fn pub fmt(formatter: mut Formatter) {
-    formatter.write('${@address}:${@port}')
+    formatter.write('${@ip}:${@port}')
   }
 }
 
 # A low-level, non-blocking IPv4 or IPv6 socket.
 class pub Socket {
-  let @raw: RawSocket
+  let @socket: RawSocket
 
   # A point in time after which socket operations time out.
   #
   # We use an `Int` to remove the need for using `Option[Instant]`.
   let @deadline: Int
 
-  # Creates a new IPv4 socket.
-  #
-  # # Examples
-  #
-  # ```inko
-  # import std.net.socket (Type, Socket)
-  #
-  # Socket.ipv4(Type.DGRAM).get
-  # ```
-  fn pub static ipv4(type: Type) -> Result[Socket, Error] {
+  fn static new(
+    domain: Int,
+    type: Int,
+    protocol: Int,
+  ) -> Result[Socket, Error] {
     let sock = RawSocket(
       inner: 0 as Int32,
       registered: 0 as UInt8,
       unix: 0 as UInt8,
     )
 
-    match inko_socket_new(IPV4, type.into_int, mut sock) as Int {
-      case 0 -> Result.Ok(Socket(raw: sock, deadline: NO_DEADLINE))
+    match inko_socket_new(domain, type, protocol, mut sock) as Int {
+      case 0 -> Result.Ok(Socket(socket: sock, deadline: NO_DEADLINE))
       case e -> Result.Error(Error.from_os_error(e))
     }
   }
 
-  # Creates a new IPv6 socket.
+  # Returns a new `Socket` configured as a stream socket.
+  #
+  # The `ipv6` argument specifies if the socket is an IPv4 socket (`false`) or
+  # an IPv6 socket (`true`).
   #
   # # Examples
   #
   # ```inko
-  # import std.net.socket (Type, Socket)
+  # import std.net.socket (Socket)
   #
-  # Socket.ipv6(Type.DGRAM).get
+  # Socket.stream(ipv6: false)
   # ```
-  fn pub static ipv6(type: Type) -> Result[Socket, Error] {
-    let sock = RawSocket(
-      inner: 0 as Int32,
-      registered: 0 as UInt8,
-      unix: 0 as UInt8,
-    )
+  fn pub static stream(ipv6: Bool) -> Result[Socket, Error] {
+    Socket.new(ipv6.to_int, STREAM, protocol: 0)
+  }
 
-    match inko_socket_new(IPV6, type.into_int, mut sock) as Int {
-      case 0 -> Result.Ok(Socket(raw: sock, deadline: NO_DEADLINE))
-      case e -> Result.Error(Error.from_os_error(e))
-    }
+  # Returns a new `Socket` configured as a datagram socket.
+  #
+  # The `ipv6` argument specifies if the socket is an IPv4 socket (`false`) or
+  # an IPv6 socket (`true`).
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.socket (Socket)
+  #
+  # Socket.datagram(ipv6: false)
+  # ```
+  fn pub static datagram(ipv6: Bool) -> Result[Socket, Error] {
+    Socket.new(ipv6.to_int, DGRAM, protocol: 0)
+  }
+
+  # Returns a new `Socket` configured as a raw socket.
+  #
+  # The `ipv6` argument specifies if the socket is an IPv4 socket (`false`) or
+  # an IPv6 socket (`true`).
+  #
+  # The `protocol` argument must specify a valid IANA IP protocol as defined in
+  # RFC 1700.
+  #
+  # Note that on certain platforms (e.g. Linux, and probably most other Unix
+  # systems) you'll need root privileges in order to create a raw socket.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.socket (Socket)
+  #
+  # Socket.raw(ipv6: false, protocol: 1)
+  # ```
+  fn pub static raw(ipv6: Bool, protocol: Int) -> Result[Socket, Error] {
+    Socket.new(ipv6.to_int, RAW, protocol)
   }
 
   # Sets the point in time after which socket operations must time out, known as
@@ -357,10 +365,10 @@ class pub Socket {
   # after which operations time out:
   #
   # ```inko
-  # import std.net.socket (Socket, Type)
+  # import std.net.socket (Socket)
   # import std.time (Duration)
   #
-  # let socket = Socket.ipv4(Type.DGRAM)
+  # let socket = Socket.datagram(ipv6: false)
   #
   # socket.timeout_after = Duration.from_secs(5)
   # ```
@@ -368,10 +376,10 @@ class pub Socket {
   # We can also use an `Instant`:
   #
   # ```inko
-  # import std.net.socket (Socket, Type)
+  # import std.net.socket (Socket)
   # import std.time (Duration, Instant)
   #
-  # let socket = Socket.ipv4(Type.DGRAM)
+  # let socket = Socket.datagram(ipv6: false)
   #
   # socket.timeout_after = Instant.new + Duration.from_secs(5)
   # ```
@@ -391,15 +399,15 @@ class pub Socket {
   # Binding a socket:
   #
   # ```inko
-  # import std.net.socket (Socket, Type)
+  # import std.net.socket (Socket)
   # import std.net.ip (IpAddress)
   #
-  # let socket = Socket.ipv4(Type.DGRAM).get
+  # let socket = Socket.datagram(ipv6: false).get
   #
   # socket.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).get
   # ```
   fn pub mut bind(ip: ref IpAddress, port: Int) -> Result[Nil, Error] {
-    match inko_socket_bind(@raw, ip.to_string, port) {
+    match inko_socket_bind(@socket, ip.to_string, port) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
@@ -412,11 +420,11 @@ class pub Socket {
   # Connecting a socket:
   #
   # ```inko
-  # import std.net.socket (Socket, Type)
+  # import std.net.socket (Socket)
   # import std.net.ip (IpAddress)
   #
-  # let listener = Socket.ipv4(Type.STREAM).get
-  # let client = Socket.ipv4(Type.STREAM).get
+  # let listener = Socket.stream(ipv6: false).get
+  # let client = Socket.stream(ipv6: false).get
   #
   # socket.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).get
   # socket.listen.get
@@ -427,7 +435,7 @@ class pub Socket {
       inko_socket_connect(
         _INKO.state,
         _INKO.process,
-        @raw,
+        @socket,
         ip.to_string,
         port,
         @deadline,
@@ -446,16 +454,16 @@ class pub Socket {
   # Marking a socket as a listener:
   #
   # ```inko
-  # import std.net.socket (Socket, Type)
+  # import std.net.socket (Socket)
   # import std.net.ip (IpAddress)
   #
-  # let socket = Socket.ipv4(Type.STREAM).get
+  # let socket = Socket.stream(ipv6: false).get
   #
   # socket.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).get
   # socket.listen.get
   # ```
   fn pub mut listen -> Result[Nil, Error] {
-    match inko_socket_listen(@raw, MAXIMUM_LISTEN_BACKLOG) {
+    match inko_socket_listen(@socket, MAXIMUM_LISTEN_BACKLOG) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
@@ -470,11 +478,11 @@ class pub Socket {
   # Accepting a connection and reading data from the connection:
   #
   # ```inko
-  # import std.net.socket (Socket, Type)
+  # import std.net.socket (Socket)
   # import std.net.ip (IpAddress)
   #
-  # let listener = Socket.ipv4(Type.STREAM).get
-  # let stream = Socket.ipv4(Type.STREAM).get
+  # let listener = Socket.stream(ipv6: false).get
+  # let stream = Socket.stream(ipv6: false).get
   #
   # listener.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).get
   # listener.listen.get
@@ -497,10 +505,16 @@ class pub Socket {
     )
 
     match
-      inko_socket_accept(_INKO.state, _INKO.process, @raw, @deadline, mut sock)
+      inko_socket_accept(
+        _INKO.state,
+        _INKO.process,
+        @socket,
+        @deadline,
+        mut sock,
+      )
         as Int
     {
-      case 0 -> Result.Ok(Socket(raw: sock, deadline: NO_DEADLINE))
+      case 0 -> Result.Ok(Socket(socket: sock, deadline: NO_DEADLINE))
       case e -> Result.Error(Error.from_os_error(e))
     }
   }
@@ -512,10 +526,10 @@ class pub Socket {
   # # Examples
   #
   # ```inko
-  # import std.net.socket (Socket, Type)
+  # import std.net.socket (Socket)
   # import std.net.ip (IpAddress)
   #
-  # let socket = Socket.ipv4(Type.DGRAM).get
+  # let socket = Socket.datagram(ipv6: false).get
   #
   # socket.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).get
   # socket
@@ -535,7 +549,7 @@ class pub Socket {
       inko_socket_send_string_to(
         _INKO.state,
         _INKO.process,
-        @raw,
+        @socket,
         string,
         ip.to_string,
         port,
@@ -554,10 +568,10 @@ class pub Socket {
   # # Examples
   #
   # ```inko
-  # import std.net.socket (Socket, Type)
+  # import std.net.socket (Socket)
   # import std.net.ip (IpAddress)
   #
-  # let socket = Socket.ipv4(Type.DGRAM).get
+  # let socket = Socket.datagram(ipv6: false).get
   # let bytes = 'hello'.to_byte_array
   #
   # socket.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).get
@@ -578,7 +592,7 @@ class pub Socket {
       inko_socket_send_bytes_to(
         _INKO.state,
         _INKO.process,
-        @raw,
+        @socket,
         bytes,
         ip.to_string,
         port,
@@ -601,10 +615,10 @@ class pub Socket {
   # Sending a message to ourselves and receiving it:
   #
   # ```inko
-  # import std.net.socket (Socket, Type)
+  # import std.net.socket (Socket)
   # import std.net.ip (IpAddress)
   #
-  # let socket = Socket.ipv4(Type.DGRAM).get
+  # let socket = Socket.datagram(ipv6: false).get
   # let bytes = ByteArray.new
   #
   # socket
@@ -631,7 +645,7 @@ class pub Socket {
       inko_socket_receive_from(
         _INKO.state,
         _INKO.process,
-        @raw,
+        @socket,
         bytes,
         size,
         @deadline,
@@ -639,7 +653,7 @@ class pub Socket {
       )
         as Int
     {
-      case 0 -> Result.Ok(SocketAddress.new(raw.address, raw.port))
+      case 0 -> Result.Ok(SocketAddress.from_raw(raw))
       case e -> Result.Error(Error.from_os_error(e))
     }
   }
@@ -648,8 +662,8 @@ class pub Socket {
   fn pub local_address -> Result[SocketAddress, Error] {
     let raw = RawAddress(address: '', port: 0)
 
-    match inko_socket_local_address(_INKO.state, @raw, mut raw) as Int {
-      case 0 -> Result.Ok(SocketAddress.new(raw.address, raw.port))
+    match inko_socket_local_address(_INKO.state, @socket, mut raw) as Int {
+      case 0 -> Result.Ok(SocketAddress.from_raw(raw))
       case e -> Result.Error(Error.from_os_error(e))
     }
   }
@@ -658,8 +672,8 @@ class pub Socket {
   fn pub peer_address -> Result[SocketAddress, Error] {
     let raw = RawAddress(address: '', port: 0)
 
-    match inko_socket_peer_address(_INKO.state, @raw, mut raw) as Int {
-      case 0 -> Result.Ok(SocketAddress.new(raw.address, raw.port))
+    match inko_socket_peer_address(_INKO.state, @socket, mut raw) as Int {
+      case 0 -> Result.Ok(SocketAddress.from_raw(raw))
       case e -> Result.Error(Error.from_os_error(e))
     }
   }
@@ -710,7 +724,7 @@ class pub Socket {
     }
 
     let res = setsockopt(
-      @raw.inner,
+      @socket.inner,
       const.SOL_SOCKET as Int32,
       const.SO_LINGER as Int32,
       (mut linger) as Pointer[UInt8],
@@ -726,7 +740,7 @@ class pub Socket {
     let linger = Linger(l_onoff: 0 as Int32, l_linger: 0 as Int32)
     let size = 8 as Int32
     let res = getsockopt(
-      @raw.inner,
+      @socket.inner,
       const.SOL_SOCKET as Int32,
       const.SO_LINGER as Int32,
       (mut linger) as Pointer[UInt8],
@@ -775,7 +789,7 @@ class pub Socket {
 
   # Shuts down the reading half of this socket.
   fn pub mut shutdown_read -> Result[Nil, Error] {
-    match inko_socket_shutdown_read(@raw) {
+    match inko_socket_shutdown_read(@socket) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
@@ -783,7 +797,7 @@ class pub Socket {
 
   # Shuts down the writing half of this socket.
   fn pub mut shutdown_write -> Result[Nil, Error] {
-    match inko_socket_shutdown_write(@raw) {
+    match inko_socket_shutdown_write(@socket) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
@@ -791,7 +805,7 @@ class pub Socket {
 
   # Shuts down both the reading and writing half of this socket.
   fn pub mut shutdown -> Result[Nil, Error] {
-    match inko_socket_shutdown_read_write(@raw) {
+    match inko_socket_shutdown_read_write(@socket) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
@@ -808,8 +822,8 @@ class pub Socket {
       unix: 0 as UInt8,
     )
 
-    match inko_socket_try_clone(@raw, mut sock) as Int {
-      case 0 -> Result.Ok(Socket(raw: sock, deadline: NO_DEADLINE))
+    match inko_socket_try_clone(@socket, mut sock) as Int {
+      case 0 -> Result.Ok(Socket(socket: sock, deadline: NO_DEADLINE))
       case e -> Result.Error(Error.from_os_error(e))
     }
   }
@@ -817,7 +831,7 @@ class pub Socket {
   fn mut set_option(level: Int, option: Int, value: Int) -> Result[Nil, Error] {
     let val = value as Int32
     let res = setsockopt(
-      @raw.inner,
+      @socket.inner,
       level as Int32,
       option as Int32,
       (mut val) as Pointer[UInt8],
@@ -832,7 +846,7 @@ class pub Socket {
     let size = 4 as Int32
     let val = 0 as Int32
     let res = getsockopt(
-      @raw.inner,
+      @socket.inner,
       level as Int32,
       option as Int32,
       (mut val) as Pointer[UInt8],
@@ -852,16 +866,33 @@ class pub Socket {
   }
 }
 
+impl RawSocketOperations for Socket {
+  fn mut raw_socket -> Pointer[RawSocket] {
+    @socket
+  }
+
+  fn raw_deadline -> Int {
+    @deadline
+  }
+}
+
 impl Drop for Socket {
   fn mut drop {
-    inko_socket_drop(@raw)
+    inko_socket_drop(@socket)
   }
 }
 
 impl Read for Socket {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     match
-      inko_socket_read(_INKO.state, _INKO.process, @raw, into, size, @deadline)
+      inko_socket_read(
+        _INKO.state,
+        _INKO.process,
+        @socket,
+        into,
+        size,
+        @deadline,
+      )
     {
       case { @tag = 0, @value = v } -> Result.Ok(v)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
@@ -874,7 +905,7 @@ impl WriteInternal for Socket {
     let state = _INKO.state
     let proc = _INKO.process
 
-    match inko_socket_write(state, proc, @raw, data, size, @deadline) {
+    match inko_socket_write(state, proc, @socket, data, size, @deadline) {
       case { @tag = 0, @value = n } -> Result.Ok(n)
       case { @value = e } -> Result.Error(Error.from_os_error(e))
     }
@@ -913,16 +944,10 @@ class pub UdpSocket {
   # import std.net.socket (UdpSocket)
   # import std.net.ip (IpAddress)
   #
-  # let ip = IpAddress.parse('0.0.0.0').get
-  #
-  # UdpSocket.new(ip, port: 0).get
+  # UdpSocket.new(IpAddress.v4(0, 0, 0, 0), port: 0).get
   # ```
   fn pub static new(ip: ref IpAddress, port: Int) -> Result[UdpSocket, Error] {
-    let socket = if ip.v6? {
-      try Socket.ipv6(Type.DGRAM)
-    } else {
-      try Socket.ipv4(Type.DGRAM)
-    }
+    let socket = try Socket.datagram(ip.v6?)
 
     try socket.bind(ip, port)
     Result.Ok(UdpSocket(socket))
@@ -1039,6 +1064,16 @@ class pub UdpSocket {
   }
 }
 
+impl RawSocketOperations for UdpSocket {
+  fn mut raw_socket -> Pointer[RawSocket] {
+    @socket.socket
+  }
+
+  fn raw_deadline -> Int {
+    @socket.deadline
+  }
+}
+
 impl Read for UdpSocket {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     @socket.read(into, size)
@@ -1084,16 +1119,10 @@ class pub TcpClient {
   # import std.net.socket (TcpClient)
   # import std.net.ip (IpAddress)
   #
-  # let ip = IpAddress.parse('127.0.0.1').get
-  #
-  # TcpClient.new(ip, port: 40_000).get
+  # TcpClient.new(IpAddress.v4(127, 0, 0, 1), port: 40_000).get
   # ```
   fn pub static new(ip: ref IpAddress, port: Int) -> Result[TcpClient, Error] {
-    let socket = if ip.v6? {
-      try Socket.ipv6(Type.STREAM)
-    } else {
-      try Socket.ipv4(Type.STREAM)
-    }
+    let socket = try Socket.stream(ip.v6?)
 
     try socket.connect(ip, port)
     from(socket)
@@ -1125,13 +1154,9 @@ class pub TcpClient {
   fn pub static with_timeout[T: ToInstant](
     ip: ref IpAddress,
     port: Int,
-    timeout_after: T,
+    timeout_after: ref T,
   ) -> Result[TcpClient, Error] {
-    let socket = if ip.v6? {
-      try Socket.ipv6(Type.STREAM)
-    } else {
-      try Socket.ipv4(Type.STREAM)
-    }
+    let socket = try Socket.stream(ip.v6?)
 
     socket.timeout_after = timeout_after
     try socket.connect(ip, port)
@@ -1177,6 +1202,16 @@ class pub TcpClient {
   }
 }
 
+impl RawSocketOperations for TcpClient {
+  fn mut raw_socket -> Pointer[RawSocket] {
+    @socket.socket
+  }
+
+  fn raw_deadline -> Int {
+    @socket.deadline
+  }
+}
+
 impl Read for TcpClient {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     @socket.read(into, size)
@@ -1209,26 +1244,16 @@ class pub TcpServer {
   # rebinding of sockets. `SO_REUSEPORT` is only used on platforms that support
   # it.
   #
-  # The `only_ipv6` argument is ignored when binding to an IPv4 address.
-  #
   # # Examples
   #
-  # Creating a `TcpServer`:
-  #
   # ```inko
-  # import std.net.socket (TcpServer)
   # import std.net.ip (IpAddress)
+  # import std.net.socket (TcpServer)
   #
-  # let ip = IpAddress.parse('0.0.0.0').get
-  #
-  # TcpServer.new(ip, port: 40_000).get
+  # TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 40_000).get
   # ```
   fn pub static new(ip: ref IpAddress, port: Int) -> Result[TcpServer, Error] {
-    let socket = if ip.v6? {
-      try Socket.ipv6(Type.STREAM)
-    } else {
-      try Socket.ipv4(Type.STREAM)
-    }
+    let socket = try Socket.stream(ip.v6?)
 
     try socket.no_delay = true
     try socket.reuse_address = true
@@ -1284,6 +1309,16 @@ class pub TcpServer {
   }
 }
 
+impl RawSocketOperations for TcpServer {
+  fn mut raw_socket -> Pointer[RawSocket] {
+    @socket.socket
+  }
+
+  fn raw_deadline -> Int {
+    @socket.deadline
+  }
+}
+
 # A Unix domain socket address.
 class pub UnixAddress {
   # The path or name of the address.
@@ -1291,37 +1326,6 @@ class pub UnixAddress {
   # This is a `String` since using a `Path` does not make sense for abstract
   # and unnamed addresses.
   let pub @address: String
-
-  # Creates a new `UnixAddress` from the given path or name.
-  #
-  # # Examples
-  #
-  # Creating a `UnixAddress` that uses a path:
-  #
-  # ```inko
-  # import std.net.socket (UnixAddress)
-  #
-  # UnixAddress.new('/tmp/test.sock'.to_path)
-  # ```
-  #
-  # Creating a `UnixAddress` that uses an unnamed address:
-  #
-  # ```inko
-  # import std.net.socket (UnixAddress)
-  #
-  # UnixAddress.new(''.to_path)
-  # ```
-  #
-  # Creating a `UnixAddress` that uses an abstract address:
-  #
-  # ```inko
-  # import std.net.socket (UnixAddress)
-  #
-  # UnixAddress.new("\0example".to_path)
-  # ```
-  fn pub static new(address: ref Path) -> UnixAddress {
-    UnixAddress(address.to_string)
-  }
 
   # Returns the path of this address.
   #
@@ -1419,35 +1423,50 @@ impl ToString for UnixAddress {
 
 # A low-level, non-blocking Unix domain socket.
 class pub UnixSocket {
-  let @raw: RawSocket
+  let @socket: RawSocket
 
   # A point in time after which socket operations time out.
   #
   # We use an `Int` to remove the need for using `Option[Instant]`.
   let @deadline: Int
 
-  # Creates a new Unix domain socket.
-  #
-  # # Examples
-  #
-  # Creating a new socket:
-  #
-  # ```inko
-  # import std.net.socket (Type, UnixSocket)
-  #
-  # UnixSocket.new(Type.DGRAM).get
-  # ```
-  fn pub static new(type: Type) -> Result[UnixSocket, Error] {
+  fn static new(type: Int) -> Result[UnixSocket, Error] {
     let sock = RawSocket(
       inner: 0 as Int32,
       registered: 0 as UInt8,
       unix: 1 as UInt8,
     )
 
-    match inko_socket_new(UNIX, type.into_int, mut sock) as Int {
-      case 0 -> Result.Ok(UnixSocket(raw: sock, deadline: NO_DEADLINE))
+    match inko_socket_new(UNIX, type, 0, mut sock) as Int {
+      case 0 -> Result.Ok(UnixSocket(socket: sock, deadline: NO_DEADLINE))
       case e -> Result.Error(Error.from_os_error(e))
     }
+  }
+
+  # Returns a new `UnixSocket` configured as a stream socket.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.socket (UnixSocket)
+  #
+  # UnixSocket.stream
+  # ```
+  fn pub static stream -> Result[UnixSocket, Error] {
+    UnixSocket.new(STREAM)
+  }
+
+  # Returns a new `UnixSocket` configured as a datagram socket.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.socket (UnixSocket)
+  #
+  # UnixSocket.datagram
+  # ```
+  fn pub static datagram -> Result[UnixSocket, Error] {
+    UnixSocket.new(DGRAM)
   }
 
   # Sets the point in time after which socket operations must time out, known as
@@ -1459,10 +1478,10 @@ class pub UnixSocket {
   # after which operations time out:
   #
   # ```inko
-  # import std.net.socket (UnixSocket, Type)
+  # import std.net.socket (UnixSocket)
   # import std.time (Duration)
   #
-  # let socket = UnixSocket.new(Type.DGRAM)
+  # let socket = UnixSocket.datagram
   #
   # socket.timeout_after = Duration.from_secs(5)
   # ```
@@ -1470,10 +1489,10 @@ class pub UnixSocket {
   # We can also use an `Instant`:
   #
   # ```inko
-  # import std.net.socket (UnixSocket, Type)
+  # import std.net.socket (UnixSocket)
   # import std.time (Duration, Instant)
   #
-  # let socket = UnixSocket.new(Type.DGRAM)
+  # let socket = UnixSocket.datagram
   #
   # socket.timeout_after = Instant.new + Duration.from_secs(5)
   # ```
@@ -1493,14 +1512,14 @@ class pub UnixSocket {
   # Binding a Unix socket to a path:
   #
   # ```inko
-  # import std.net.socket (Type, UnixSocket)
+  # import std.net.socket (UnixSocket)
   #
-  # let socket = UnixSocket.new(Type.DGRAM).get
+  # let socket = UnixSocket.datagram.get
   #
   # socket.bind('/tmp/test.sock'.to_path).get
   # ```
   fn pub mut bind(path: ref Path) -> Result[Nil, Error] {
-    match inko_socket_bind(@raw, path.to_string, 0) {
+    match inko_socket_bind(@socket, path.to_string, 0) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
@@ -1513,10 +1532,10 @@ class pub UnixSocket {
   # Connecting a Unix socket:
   #
   # ```inko
-  # import std.net.socket (Type, UnixSocket)
+  # import std.net.socket (UnixSocket)
   #
-  # let listener = UnixSocket.new(Type.STREAM).get
-  # let stream = UnixSocket.new(Type.STREAM).get
+  # let listener = UnixSocket.stream.get
+  # let stream = UnixSocket.stream.get
   #
   # listener.bind('/tmp/test.sock'.to_path).get
   # listener.listen.get
@@ -1528,7 +1547,7 @@ class pub UnixSocket {
       inko_socket_connect(
         _INKO.state,
         _INKO.process,
-        @raw,
+        @socket,
         path.to_string,
         0,
         @deadline,
@@ -1547,15 +1566,15 @@ class pub UnixSocket {
   # Marking a socket as a listener:
   #
   # ```inko
-  # import std.net.socket (Type, UnixSocket)
+  # import std.net.socket (UnixSocket)
   #
-  # let socket = UnixSocket.new(Type.STREAM).get
+  # let socket = UnixSocket.stream.get
   #
   # socket.bind('/tmp/test.sock'.to_path).get
   # socket.listen.get
   # ```
   fn pub mut listen -> Result[Nil, Error] {
-    match inko_socket_listen(@raw, MAXIMUM_LISTEN_BACKLOG) {
+    match inko_socket_listen(@socket, MAXIMUM_LISTEN_BACKLOG) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
@@ -1570,10 +1589,10 @@ class pub UnixSocket {
   # Accepting a connection and reading data from the connection:
   #
   # ```inko
-  # import std.net.socket (Type, UnixSocket)
+  # import std.net.socket (UnixSocket)
   #
-  # let listener = UnixSocket.new(Type.STREAM).get
-  # let stream = UnixSocket.new(Type.STREAM).get
+  # let listener = UnixSocket.stream.get
+  # let stream = UnixSocket.stream.get
   #
   # listener.bind('/tmp/test.sock'.to_path).get
   # listener.listen.get
@@ -1596,10 +1615,16 @@ class pub UnixSocket {
     )
 
     match
-      inko_socket_accept(_INKO.state, _INKO.process, @raw, @deadline, mut sock)
+      inko_socket_accept(
+        _INKO.state,
+        _INKO.process,
+        @socket,
+        @deadline,
+        mut sock,
+      )
         as Int
     {
-      case 0 -> Result.Ok(UnixSocket(raw: sock, deadline: NO_DEADLINE))
+      case 0 -> Result.Ok(UnixSocket(socket: sock, deadline: NO_DEADLINE))
       case e -> Result.Error(Error.from_os_error(e))
     }
   }
@@ -1611,9 +1636,9 @@ class pub UnixSocket {
   # # Examples
   #
   # ```inko
-  # import std.net.socket (Type, UnixSocket)
+  # import std.net.socket (UnixSocket)
   #
-  # let socket = UnixSocket.new(Type.DGRAM).get
+  # let socket = UnixSocket.datagram.get
   #
   # socket.bind('/tmp/test.sock'.to_path).get
   # socket
@@ -1630,7 +1655,7 @@ class pub UnixSocket {
       inko_socket_send_string_to(
         _INKO.state,
         _INKO.process,
-        @raw,
+        @socket,
         string,
         addr,
         0,
@@ -1649,9 +1674,9 @@ class pub UnixSocket {
   # # Examples
   #
   # ```inko
-  # import std.net.socket (Type, UnixSocket)
+  # import std.net.socket (UnixSocket)
   #
-  # let socket = UnixSocket.new(Type.DGRAM).get
+  # let socket = UnixSocket.datagram.get
   # let bytes = 'hello'.to_byte_array
   #
   # socket.bind('/tmp/test.sock'.to_path).get
@@ -1669,7 +1694,7 @@ class pub UnixSocket {
       inko_socket_send_bytes_to(
         _INKO.state,
         _INKO.process,
-        @raw,
+        @socket,
         bytes,
         addr,
         0,
@@ -1692,9 +1717,9 @@ class pub UnixSocket {
   # Sending a message to ourselves and receiving it:
   #
   # ```inko
-  # import std.net.socket (Type, UnixSocket)
+  # import std.net.socket (UnixSocket)
   #
-  # let socket = UnixSocket.new(Type.DGRAM).get
+  # let socket = UnixSocket.datagram.get
   # let bytes = ByteArray.new
   #
   # socket.send_string_to('hello', address: '/tmp/test.sock'.to_path).get
@@ -1714,7 +1739,7 @@ class pub UnixSocket {
       inko_socket_receive_from(
         _INKO.state,
         _INKO.process,
-        @raw,
+        @socket,
         bytes,
         size,
         @deadline,
@@ -1722,7 +1747,7 @@ class pub UnixSocket {
       )
         as Int
     {
-      case 0 -> Result.Ok(UnixAddress.new(raw.address.to_path))
+      case 0 -> Result.Ok(UnixAddress(raw.address))
       case e -> Result.Error(Error.from_os_error(e))
     }
   }
@@ -1731,8 +1756,8 @@ class pub UnixSocket {
   fn pub local_address -> Result[UnixAddress, Error] {
     let raw = RawAddress(address: '', port: 0)
 
-    match inko_socket_local_address(_INKO.state, @raw, mut raw) as Int {
-      case 0 -> Result.Ok(UnixAddress.new(raw.address.to_path))
+    match inko_socket_local_address(_INKO.state, @socket, mut raw) as Int {
+      case 0 -> Result.Ok(UnixAddress(raw.address))
       case e -> Result.Error(Error.from_os_error(e))
     }
   }
@@ -1741,8 +1766,8 @@ class pub UnixSocket {
   fn pub peer_address -> Result[UnixAddress, Error] {
     let raw = RawAddress(address: '', port: 0)
 
-    match inko_socket_peer_address(_INKO.state, @raw, mut raw) as Int {
-      case 0 -> Result.Ok(UnixAddress.new(raw.address.to_path))
+    match inko_socket_peer_address(_INKO.state, @socket, mut raw) as Int {
+      case 0 -> Result.Ok(UnixAddress(raw.address))
       case e -> Result.Error(Error.from_os_error(e))
     }
   }
@@ -1759,7 +1784,7 @@ class pub UnixSocket {
 
   # Shuts down the reading half of this socket.
   fn pub mut shutdown_read -> Result[Nil, Error] {
-    match inko_socket_shutdown_read(@raw) {
+    match inko_socket_shutdown_read(@socket) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
@@ -1767,7 +1792,7 @@ class pub UnixSocket {
 
   # Shuts down the writing half of this socket.
   fn pub mut shutdown_write -> Result[Nil, Error] {
-    match inko_socket_shutdown_write(@raw) {
+    match inko_socket_shutdown_write(@socket) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
@@ -1775,7 +1800,7 @@ class pub UnixSocket {
 
   # Shuts down both the reading and writing half of this socket.
   fn pub mut shutdown -> Result[Nil, Error] {
-    match inko_socket_shutdown_read_write(@raw) {
+    match inko_socket_shutdown_read_write(@socket) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
@@ -1792,8 +1817,8 @@ class pub UnixSocket {
       unix: 1 as UInt8,
     )
 
-    match inko_socket_try_clone(@raw, mut sock) as Int {
-      case 0 -> Result.Ok(UnixSocket(raw: sock, deadline: NO_DEADLINE))
+    match inko_socket_try_clone(@socket, mut sock) as Int {
+      case 0 -> Result.Ok(UnixSocket(socket: sock, deadline: NO_DEADLINE))
       case e -> Result.Error(Error.from_os_error(e))
     }
   }
@@ -1801,7 +1826,7 @@ class pub UnixSocket {
   fn mut set_option(level: Int, option: Int, value: Int) -> Result[Nil, Error] {
     let val = value as Int32
     let res = setsockopt(
-      @raw.inner,
+      @socket.inner,
       level as Int32,
       option as Int32,
       (mut val) as Pointer[UInt8],
@@ -1813,16 +1838,33 @@ class pub UnixSocket {
   }
 }
 
+impl RawSocketOperations for UnixSocket {
+  fn mut raw_socket -> Pointer[RawSocket] {
+    @socket
+  }
+
+  fn raw_deadline -> Int {
+    @deadline
+  }
+}
+
 impl Drop for UnixSocket {
   fn mut drop {
-    inko_socket_drop(@raw)
+    inko_socket_drop(@socket)
   }
 }
 
 impl Read for UnixSocket {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     match
-      inko_socket_read(_INKO.state, _INKO.process, @raw, into, size, @deadline)
+      inko_socket_read(
+        _INKO.state,
+        _INKO.process,
+        @socket,
+        into,
+        size,
+        @deadline,
+      )
     {
       case { @tag = 0, @value = v } -> Result.Ok(v)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
@@ -1835,7 +1877,7 @@ impl WriteInternal for UnixSocket {
     let state = _INKO.state
     let proc = _INKO.process
 
-    match inko_socket_write(state, proc, @raw, data, size, @deadline) {
+    match inko_socket_write(state, proc, @socket, data, size, @deadline) {
       case { @tag = 0, @value = n } -> Result.Ok(n)
       case { @value = e } -> Result.Error(Error.from_os_error(e))
     }
@@ -1873,7 +1915,7 @@ class pub UnixDatagram {
   # UnixDatagram.new('/tmp/test.sock'.to_path).get
   # ```
   fn pub static new(address: ref Path) -> Result[UnixDatagram, Error] {
-    let socket = try UnixSocket.new(Type.DGRAM)
+    let socket = try UnixSocket.datagram
 
     try socket.bind(address)
     Result.Ok(UnixDatagram(socket))
@@ -1973,6 +2015,16 @@ class pub UnixDatagram {
   }
 }
 
+impl RawSocketOperations for UnixDatagram {
+  fn mut raw_socket -> Pointer[RawSocket] {
+    @socket.socket
+  }
+
+  fn raw_deadline -> Int {
+    @socket.deadline
+  }
+}
+
 impl Read for UnixDatagram {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     @socket.read(into, size)
@@ -2016,7 +2068,7 @@ class pub UnixClient {
   # UnixClient.new('/tmp/test.sock'.to_path).get
   # ```
   fn pub static new(address: ref Path) -> Result[UnixClient, Error] {
-    let socket = try UnixSocket.new(Type.STREAM)
+    let socket = try UnixSocket.stream
 
     try socket.connect(address)
     Result.Ok(UnixClient(socket))
@@ -2043,11 +2095,11 @@ class pub UnixClient {
   #   )
   #   .get
   # ```
-  fn pub static with_timeout[I: ToInstant](
+  fn pub static with_timeout[T: ToInstant](
     address: ref Path,
-    timeout_after: I,
+    timeout_after: ref T,
   ) -> Result[UnixClient, Error] {
-    let socket = try UnixSocket.new(Type.STREAM)
+    let socket = try UnixSocket.stream
 
     socket.timeout_after = timeout_after
     try socket.connect(address)
@@ -2093,6 +2145,16 @@ class pub UnixClient {
   }
 }
 
+impl RawSocketOperations for UnixClient {
+  fn mut raw_socket -> Pointer[RawSocket] {
+    @socket.socket
+  }
+
+  fn raw_deadline -> Int {
+    @socket.deadline
+  }
+}
+
 impl Read for UnixClient {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     @socket.read(into, size)
@@ -2132,7 +2194,7 @@ class pub UnixServer {
   # UnixServer.new('/tmp/test.sock'.to_path).get
   # ```
   fn pub static new(address: ref Path) -> Result[UnixServer, Error] {
-    let socket = try UnixSocket.new(Type.STREAM)
+    let socket = try UnixSocket.stream
 
     try socket.bind(address)
     try socket.listen
@@ -2179,5 +2241,15 @@ class pub UnixServer {
   # descriptors.
   fn pub try_clone -> Result[UnixServer, Error] {
     @socket.try_clone.map(fn (sock) { UnixServer(sock) })
+  }
+}
+
+impl RawSocketOperations for UnixServer {
+  fn mut raw_socket -> Pointer[RawSocket] {
+    @socket.socket
+  }
+
+  fn raw_deadline -> Int {
+    @socket.deadline
   }
 }

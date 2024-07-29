@@ -41,26 +41,6 @@ pub unsafe extern "system" fn inko_env_size(state: *const State) -> i64 {
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_env_home_directory(
-    state: *const State,
-) -> InkoResult {
-    let state = &*state;
-
-    // Rather than performing all sorts of magical incantations to get the home
-    // directory, we're just going to require that HOME is set.
-    //
-    // If the home is explicitly set to an empty string we still ignore it,
-    // because there's no scenario in which Some("") is useful.
-    state
-        .environment
-        .get("HOME")
-        .filter(|&path| !path.is_empty())
-        .cloned()
-        .map(|v| InkoResult::ok(InkoString::alloc(state.string_class, v) as _))
-        .unwrap_or_else(InkoResult::none)
-}
-
-#[no_mangle]
 pub unsafe extern "system" fn inko_env_temp_directory(
     state: *const State,
 ) -> *const InkoString {

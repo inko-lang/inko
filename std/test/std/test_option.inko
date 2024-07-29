@@ -97,4 +97,17 @@ fn pub tests(t: mut Tests) {
     t.equal(fmt(Option.Some(42)), 'Some(42)')
     t.equal(fmt(Option.None as Option[Int]), 'None')
   })
+
+  t.test('Option.ok_or', fn (t) {
+    t.equal(Option.Some(10).ok_or('oops'), Result.Ok(10))
+    t.equal((Option.None as Option[Int]).ok_or('oops'), Result.Error('oops'))
+  })
+
+  t.test('Option.ok_or_else', fn (t) {
+    t.equal(Option.Some(10).ok_or_else(fn { 'oops' }), Result.Ok(10))
+    t.equal(
+      (Option.None as Option[Int]).ok_or_else(fn { 'oops' }),
+      Result.Error('oops'),
+    )
+  })
 }

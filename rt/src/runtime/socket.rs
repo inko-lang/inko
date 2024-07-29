@@ -1,10 +1,9 @@
-use crate::context;
 use crate::mem::{ByteArray, String as InkoString};
 use crate::network_poller::Interest;
 use crate::process::ProcessPointer;
 use crate::result::{error_to_int, Result};
-use crate::scheduler::timeouts::Timeout;
-use crate::socket::Socket;
+use crate::runtime::helpers::poll;
+use crate::socket::{read_from, Socket};
 use crate::state::State;
 use std::io::{self, Write};
 use std::ptr::{drop_in_place, write};
@@ -24,66 +23,33 @@ impl RawAddress {
     }
 }
 
-fn blocking<T>(
+fn run<T>(
     state: &State,
-    mut process: ProcessPointer,
+    process: ProcessPointer,
     socket: &mut Socket,
     interest: Interest,
     deadline: i64,
     mut func: impl FnMut(&mut Socket) -> io::Result<T>,
 ) -> io::Result<T> {
     match func(socket) {
-        Err(err) if err.kind() == io::ErrorKind::WouldBlock => {}
-        val => return val,
-    }
-
-    let poll_id = unsafe { process.thread() }.network_poller;
-
-    // We must keep the process' state lock open until everything is registered,
-    // otherwise a timeout thread may reschedule the process (i.e. the timeout
-    // is very short) before we finish registering the socket with a poller.
-    {
-        let mut proc_state = process.state();
-
-        // A deadline of -1 signals that we should wait indefinitely.
-        if deadline >= 0 {
-            let time = Timeout::until(deadline as u64);
-
-            proc_state.waiting_for_io(Some(time.clone()));
-            state.timeout_worker.suspend(process, time);
-        } else {
-            proc_state.waiting_for_io(None);
+        Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
+            poll(state, process, socket, interest, deadline)
+                .and_then(|_| func(socket))
         }
-
-        socket.register(state, process, poll_id, interest);
+        val => val,
     }
-
-    // Safety: the current thread is holding on to the process' run lock, so if
-    // the process gets rescheduled onto a different thread, said thread won't
-    // be able to use it until we finish this context switch.
-    unsafe { context::switch(process) };
-
-    if process.timeout_expired() {
-        // The socket is still registered at this point, so we have to
-        // deregister first. If we don't and suspend for another IO operation,
-        // the poller could end up rescheduling the process multiple times (as
-        // there are multiple events still in flight for the process).
-        socket.deregister(state);
-        return Err(io::Error::from(io::ErrorKind::TimedOut));
-    }
-
-    func(socket)
 }
 
 #[no_mangle]
 pub(crate) unsafe extern "system" fn inko_socket_new(
-    proto: i64,
+    domain: i64,
     kind: i64,
+    proto: i64,
     out: *mut Socket,
 ) -> i64 {
-    let sock = match proto {
-        0 => Socket::ipv4(kind),
-        1 => Socket::ipv6(kind),
+    let sock = match domain {
+        0 => Socket::ipv4(kind, proto),
+        1 => Socket::ipv6(kind, proto),
         _ => Socket::unix(kind),
     };
 
@@ -108,7 +74,7 @@ pub(crate) unsafe extern "system" fn inko_socket_write(
     let state = &*state;
     let slice = std::slice::from_raw_parts(data, size as _);
 
-    blocking(state, process, &mut *socket, Interest::Write, deadline, |sock| {
+    run(state, process, &mut *socket, Interest::Write, deadline, |sock| {
         sock.write(slice)
     })
     .map(|v| Result::ok(v as _))
@@ -126,8 +92,8 @@ pub unsafe extern "system" fn inko_socket_read(
 ) -> Result {
     let state = &*state;
 
-    blocking(state, process, &mut *socket, Interest::Read, deadline, |sock| {
-        sock.read(&mut (*buffer).value, amount as usize)
+    run(state, process, &mut *socket, Interest::Read, deadline, |sock| {
+        read_from(sock, &mut (*buffer).value, amount as usize)
     })
     .map(|size| Result::ok(size as _))
     .unwrap_or_else(Result::io_error)
@@ -169,7 +135,7 @@ pub unsafe extern "system" fn inko_socket_connect(
 ) -> Result {
     let state = &*state;
 
-    blocking(state, process, &mut *socket, Interest::Write, deadline, |sock| {
+    run(state, process, &mut *socket, Interest::Write, deadline, |sock| {
         sock.connect(InkoString::read(address), port as u16)
     })
     .map(|_| Result::none())
@@ -184,14 +150,10 @@ pub unsafe extern "system" fn inko_socket_accept(
     deadline: i64,
     out: *mut Socket,
 ) -> i64 {
-    let res = blocking(
-        &*state,
-        process,
-        &mut *socket,
-        Interest::Read,
-        deadline,
-        |sock| sock.accept(),
-    );
+    let res =
+        run(&*state, process, &mut *socket, Interest::Read, deadline, |sock| {
+            sock.accept()
+        });
 
     match res {
         Ok(val) => {
@@ -213,14 +175,10 @@ pub unsafe extern "system" fn inko_socket_receive_from(
     out: *mut RawAddress,
 ) -> i64 {
     let state = &*state;
-    let res = blocking(
-        state,
-        process,
-        &mut *socket,
-        Interest::Read,
-        deadline,
-        |sock| sock.recv_from(&mut (*buffer).value, amount as _),
-    );
+    let res =
+        run(state, process, &mut *socket, Interest::Read, deadline, |sock| {
+            sock.recv_from(&mut (*buffer).value, amount as _)
+        });
 
     match res {
         Ok((addr, port)) => {
@@ -244,7 +202,7 @@ pub unsafe extern "system" fn inko_socket_send_bytes_to(
     let state = &*state;
     let addr = InkoString::read(address);
 
-    blocking(state, process, &mut *socket, Interest::Write, deadline, |sock| {
+    run(state, process, &mut *socket, Interest::Write, deadline, |sock| {
         sock.send_to(&(*buffer).value, addr, port as _)
     })
     .map(|size| Result::ok(size as _))
@@ -264,7 +222,7 @@ pub unsafe extern "system" fn inko_socket_send_string_to(
     let state = &*state;
     let addr = InkoString::read(address);
 
-    blocking(state, process, &mut *socket, Interest::Write, deadline, |sock| {
+    run(state, process, &mut *socket, Interest::Write, deadline, |sock| {
         sock.send_to(InkoString::read(buffer).as_bytes(), addr, port as _)
     })
     .map(|size| Result::ok(size as _))

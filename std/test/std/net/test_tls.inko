@@ -1,0 +1,519 @@
+import std.crypto.pem (PemFile)
+import std.crypto.x509 (Certificate, PrivateKey)
+import std.fmt (fmt)
+import std.io (Buffer, Error)
+import std.net.ip (IpAddress)
+import std.net.socket (Socket, TcpClient, TcpServer)
+import std.net.tls (
+  Client, ClientConfig, Server, ServerConfig, ServerConfigError,
+)
+import std.test (Tests)
+
+# A private key of which the content is invalid.
+let INVALID_KEY = '
+-----BEGIN PRIVATE KEY-----
+MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCyU87LWHj+r1Dj
+dZQtA0EWy5TmBjf8Rr5tv4eiSolFYAD1kfyelutxj6mMzgk1cvePpC8npPzZRhwO
+/8vGZshRw2D0Vdgq8XN8B6G35S4PhhdgHsvGMSX6s5EBk4Xj730YKR9NaSpyHSIa
+LEYcmM3Ryv+iKEwnEPw+/oFHeW56J197dWiLIHEDM8oC82lX5MT/cYm2QG4CsC/7
+TCDDT1sEVhkdPB60Scks/Ln5ACsWYInH67AvXWDOaBSebBRR+wFGckgu2kldahIc
+e0ejawKa5xgvOX00JmQyigDwqm3NMxjdGOg7y27aNWw8Vbo/oRDif775DvtNIn9C
+1nJB8wNjAgMBAAECggEAFuAJo2u7yE6HQvOmvdLF4IgzQgHjNaEs4AQqgHGCRAbJ
+fgwrinu+mQh+OI8yKYvlYM+FXaxcOPzgMDZflpmXBxICgmVD/6zjDQfSQWDh3zZA
+EmGbmdayfK3YeIogKeSN40cHJRV2pJZtyktf9Ql5ls4CVnPyjNewxoiRidsfBlvc
+IoCRjiTD6+MHOQjp4AzwVvbXH1Sr7OsngA4glQJjFlXllyVYQNXBr1sWTVl3TS2L
+OQfqYzHWlRtty88z7ExK3D03Jz0PD7qWtTwgJkq1ON+PjgCf7rMvZbVmCoUgX759
+LLxY1NE6ogdoRlPyZG3fvSfmxo2PWOqawboZMvirAQKBgQDVwkYwlbY00XuHA4UF
+bGwTyk5Yp0/DVSR4jZyAJN6J5xln0JUWYKeps8kxLfDlPgmn6qIaine9Ewf1D9qt
+DGr19mzEHzP07OBRo0l34XE5WUMvV4ter3swwmI5w/ysgds7Mz7xA9a69ukF/7SW
+C+2RiVW7hJs1pydQw7+NY9YIYwKBgQDVkRv4tvmITtfPpVjAkw0gPIQ2WLw4uIvk
+PIX/A58dg952ga+C4MZ7OFtcKI7CF7anr0gCNdGQS6I3SA18YS49U/zycuzPh9v7
+lcIMV+R0Wvo2B6QIGJpt7FzfZBXGdv/ft5l+MII3jpoGqGu1K3Ifj/zUrDlUJDQq
+ivrkH+CJAQKBgQDFcbCRugfWW9TlDhw1uUNPOGQLwWeMvr10WSHAv82KxZsS6Hh9
+dgQIXZeuRIgpx5b1smXPbC1TyRtlgiJ0C29VCCzJLyU3zAEbh18aS3PhDBFhzlRe
+vmpkzHgccWqYEU5mLVyrFOeoRN9S+jFdE2F6N8en8MHI2kAXeugZeqk9jwKBgCmV
+pMWsEzCIcZs8DekJeR/SyMewRY4h2RNq+YhrUxszJykaHWu1itBJa/io6QtABM/n
+4HSVuCWJpJ9xBzc10QQeC33GBPhv8tStF2jB4HkLkfbdTAJLkB5hTMAuw9KuLyqH
+-----END PRIVATE KEY-----
+'
+
+# A certificate of which the content is invalid.
+let INVALID_CERT = '
+-----BEGIN CERTIFICATE-----
+MIIDvDCCAqSgAwIBAgIUBwbzzsn/P9HmSv1o2tAoIH6ZYE0wDQYJKoZIhvcNAQEL
+BQAwaTELMAkGA1UEBhMCTkwxEDAOBgNVBAgMB0V4YW1wbGUxEDAOBgNVBAcMB0V4
+YW1wbGUxEDAOBgNVBAoMB0V4YW1wbGUxEDAOBgNVBAsMB2V4YW1wbGUxEjAQBgNV
+BAMMCWxvY2FsaG9zdDAeFw0yNDA3MTcxMzA3MDVaFw0yNTA3MTcxMzA3MDVaMGkx
+CzAJBgNVBAYTAk5MMRAwDgYDVQQIDAdFeGFtcGxlMRAwDgYDVQQHDAdFeGFtcGxl
+MRAwDgYDVQQKDAdFeGFtcGxlMRAwDgYDVQQLDAdleGFtcGxlMRIwEAYDVQQDDAls
+b2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCyU87LWHj+
+r1DjdZQtA0EWy5TmBjf8Rr5tv4eiSolFYAD1kfyelutxj6mMzgk1cvePpC8npPzZ
+-----END CERTIFICATE-----
+'
+
+# A valid private key. Do not actually use this key outside of this test suite.
+let VALID_KEY = '
+-----BEGIN PRIVATE KEY-----
+MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCyU87LWHj+r1Dj
+dZQtA0EWy5TmBjf8Rr5tv4eiSolFYAD1kfyelutxj6mMzgk1cvePpC8npPzZRhwO
+/8vGZshRw2D0Vdgq8XN8B6G35S4PhhdgHsvGMSX6s5EBk4Xj730YKR9NaSpyHSIa
+LEYcmM3Ryv+iKEwnEPw+/oFHeW56J197dWiLIHEDM8oC82lX5MT/cYm2QG4CsC/7
+TCDDT1sEVhkdPB60Scks/Ln5ACsWYInH67AvXWDOaBSebBRR+wFGckgu2kldahIc
+e0ejawKa5xgvOX00JmQyigDwqm3NMxjdGOg7y27aNWw8Vbo/oRDif775DvtNIn9C
+1nJB8wNjAgMBAAECggEAFuAJo2u7yE6HQvOmvdLF4IgzQgHjNaEs4AQqgHGCRAbJ
+fgwrinu+mQh+OI8yKYvlYM+FXaxcOPzgMDZflpmXBxICgmVD/6zjDQfSQWDh3zZA
+EmGbmdayfK3YeIogKeSN40cHJRV2pJZtyktf9Ql5ls4CVnPyjNewxoiRidsfBlvc
+IoCRjiTD6+MHOQjp4AzwVvbXH1Sr7OsngA4glQJjFlXllyVYQNXBr1sWTVl3TS2L
+OQfqYzHWlRtty88z7ExK3D03Jz0PD7qWtTwgJkq1ON+PjgCf7rMvZbVmCoUgX759
+LLxY1NE6ogdoRlPyZG3fvSfmxo2PWOqawboZMvirAQKBgQDVwkYwlbY00XuHA4UF
+bGwTyk5Yp0/DVSR4jZyAJN6J5xln0JUWYKeps8kxLfDlPgmn6qIaine9Ewf1D9qt
+DGr19mzEHzP07OBRo0l34XE5WUMvV4ter3swwmI5w/ysgds7Mz7xA9a69ukF/7SW
+C+2RiVW7hJs1pydQw7+NY9YIYwKBgQDVkRv4tvmITtfPpVjAkw0gPIQ2WLw4uIvk
+PIX/A58dg952ga+C4MZ7OFtcKI7CF7anr0gCNdGQS6I3SA18YS49U/zycuzPh9v7
+lcIMV+R0Wvo2B6QIGJpt7FzfZBXGdv/ft5l+MII3jpoGqGu1K3Ifj/zUrDlUJDQq
+ivrkH+CJAQKBgQDFcbCRugfWW9TlDhw1uUNPOGQLwWeMvr10WSHAv82KxZsS6Hh9
+dgQIXZeuRIgpx5b1smXPbC1TyRtlgiJ0C29VCCzJLyU3zAEbh18aS3PhDBFhzlRe
+vmpkzHgccWqYEU5mLVyrFOeoRN9S+jFdE2F6N8en8MHI2kAXeugZeqk9jwKBgCmV
+pMWsEzCIcZs8DekJeR/SyMewRY4h2RNq+YhrUxszJykaHWu1itBJa/io6QtABM/n
+4HSVuCWJpJ9xBzc10QQeC33GBPhv8tStF2jB4HkLkfbdTAJLkB5hTMAuw9KuLyqH
+nHqmxWQ9/x3Ww4o2WHVu2wMqOct5dTLnduzejCEBAoGATsOUSv3+Gm5TdhyB64Y9
+eCk+GwSiZuZUsWKLs68wmF4fmKM53rgJK2qZzW8gEpl6hhehhr/XJbJc7jY1Hmmk
+567RIPm2hyj7npLo5sCL2moo21j2XJfqvVikHaXPg782e3nqqdnNZmV7+D32tl6M
+AwI2G5eWOxC5PQckr7blIpM=
+-----END PRIVATE KEY-----
+'
+
+# A valid certificate. Do not actually use this key outside of this test suite.
+let VALID_CERT = '
+-----BEGIN CERTIFICATE-----
+MIIDvDCCAqSgAwIBAgIUBwbzzsn/P9HmSv1o2tAoIH6ZYE0wDQYJKoZIhvcNAQEL
+BQAwaTELMAkGA1UEBhMCTkwxEDAOBgNVBAgMB0V4YW1wbGUxEDAOBgNVBAcMB0V4
+YW1wbGUxEDAOBgNVBAoMB0V4YW1wbGUxEDAOBgNVBAsMB2V4YW1wbGUxEjAQBgNV
+BAMMCWxvY2FsaG9zdDAeFw0yNDA3MTcxMzA3MDVaFw0yNTA3MTcxMzA3MDVaMGkx
+CzAJBgNVBAYTAk5MMRAwDgYDVQQIDAdFeGFtcGxlMRAwDgYDVQQHDAdFeGFtcGxl
+MRAwDgYDVQQKDAdFeGFtcGxlMRAwDgYDVQQLDAdleGFtcGxlMRIwEAYDVQQDDAls
+b2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCyU87LWHj+
+r1DjdZQtA0EWy5TmBjf8Rr5tv4eiSolFYAD1kfyelutxj6mMzgk1cvePpC8npPzZ
+RhwO/8vGZshRw2D0Vdgq8XN8B6G35S4PhhdgHsvGMSX6s5EBk4Xj730YKR9NaSpy
+HSIaLEYcmM3Ryv+iKEwnEPw+/oFHeW56J197dWiLIHEDM8oC82lX5MT/cYm2QG4C
+sC/7TCDDT1sEVhkdPB60Scks/Ln5ACsWYInH67AvXWDOaBSebBRR+wFGckgu2kld
+ahIce0ejawKa5xgvOX00JmQyigDwqm3NMxjdGOg7y27aNWw8Vbo/oRDif775DvtN
+In9C1nJB8wNjAgMBAAGjXDBaMA4GA1UdDwEB/wQEAwIDiDATBgNVHSUEDDAKBggr
+BgEFBQcDATAUBgNVHREEDTALgglsb2NhbGhvc3QwHQYDVR0OBBYEFAMp7neOF3LS
+LEM8S3tQfXZeaxbvMA0GCSqGSIb3DQEBCwUAA4IBAQAAlLAzA+qDahYG8TvC1GYY
+GO61UWwom/PTNHkr7M0ByNjz5XlPEq5zIWJZpcvHbr29ayh70xiZ2lr0a3xQstQF
+8lNo0QgV0rQDqWkTXujMW5qos0NkLHhz/wNa5CLeGLHOxez4Yb3lmHg5n071bqQU
+F/AhrLg17klvLB+I9QRpJ5RuGMeml+pJtrdQOXKjttZ+eX6vfI8iHG+5dVn50wYB
+dSDVknR4MhaqJfLeXAz1JS1a6OJbSD4J8JglGiXvEMQdeXsmkYMRwIZOoiGFiJpu
+OzLLhs1TsfEwTGLiapfCFXO610FVPsVynY4Ylr6LRodiFCzIlx2k9O3p6GRAkKy7
+-----END CERTIFICATE-----
+'
+
+class async DummyServer {
+  let @socket: TcpServer
+  let @config: ServerConfig
+
+  fn static new -> Result[(DummyServer, Int), String] {
+    let conf = recover {
+      try ServerConfig
+        .new(certificate(VALID_CERT), private_key(VALID_KEY))
+        .map_error(fn (e) { 'failed to create the server config: ${e}' })
+    }
+
+    # We bind to port zero so we get a random port number, such that we don't
+    # accidentally pick one that's already in use.
+    let sock = recover {
+      try TcpServer.new(ip: IpAddress.v4(0, 0, 0, 0), port: 0).map_error(
+        fn (e) { 'failed to start the server: ${e}' },
+      )
+    }
+    let addr = try sock.local_address.map_error(fn (e) {
+      'failed to get the server address: ${e}'
+    })
+
+    Result.Ok((DummyServer(sock, conf), addr.port))
+  }
+
+  fn async hello {
+    # We may encounter an error such as when the client closes the connection.
+    # We want to ignore those so we don't terminate the test suite.
+    let _ = @socket.accept.then(fn (sock) {
+      Server.new(sock, @config).write_string('hello')
+    })
+  }
+
+  fn async reply {
+    # We may encounter an error such as when the client closes the connection.
+    # We want to ignore those so we don't terminate the test suite.
+    let _ = @socket.accept.then(fn (sock) {
+      let con = Server.new(sock, @config)
+      let bytes = ByteArray.new
+
+      try con.read(into: bytes, size: 32)
+      con.write_bytes(bytes)
+    })
+  }
+}
+
+class async DummyClient {
+  fn async connect(
+    port: Int,
+    output: Channel[uni Result[Client[TcpClient], String]],
+  ) {
+    output.send(recover client(port))
+  }
+
+  fn async write(
+    port: Int,
+    output: Channel[uni Result[Client[TcpClient], String]],
+  ) {
+    let res = recover {
+      client(port).then(fn (s) {
+        s.write_string('hello').map_error(fn (e) { 'write failed: ${e}' })
+        Result.Ok(s)
+      })
+    }
+
+    output.send(res)
+  }
+
+  fn async reply(port: Int, output: Channel[uni Result[String, String]]) {
+    let res = recover {
+      client(port).then(fn (s) {
+        let buf = ByteArray.new
+
+        try s.read(into: buf, size: 5).map_error(fn (e) { 'read failed: ${e}' })
+        Result.Ok(buf.into_string)
+      })
+    }
+
+    output.send(res)
+  }
+
+  fn client(port: Int) -> Result[Client[TcpClient], String] {
+    let conf = try client_config
+    let sock = try TcpClient.new(IpAddress.v4(127, 0, 0, 1), port).map_error(
+      fn (e) { 'failed to connect: ${e}' },
+    )
+
+    Client.new(sock, conf, name: 'localhost').ok_or('invalid server name')
+  }
+}
+
+fn connect(port: Int) -> Result[TcpClient, String] {
+  TcpClient.new(IpAddress.v4(127, 0, 0, 1), port).map_error(fn (e) {
+    'failed to connect to the server: ${e}'
+  })
+}
+
+fn certificate(data: String) -> Certificate {
+  let reader = PemFile.new(Buffer.new(data))
+
+  match reader.next {
+    case Some(Ok(Certificate(cert))) -> cert
+    case _ -> panic('the certificate data is invalid')
+  }
+}
+
+fn private_key(data: String) -> PrivateKey {
+  let reader = PemFile.new(Buffer.new(data))
+
+  match reader.next {
+    case Some(Ok(PrivateKey(cert))) -> cert
+    case _ -> panic('the private key data is invalid')
+  }
+}
+
+fn client_config -> Result[ClientConfig, String] {
+  ClientConfig.with_certificate(certificate(VALID_CERT)).ok_or(
+    'failed to create the client configuration',
+  )
+}
+
+fn server_config -> Result[ServerConfig, String] {
+  ServerConfig.new(certificate(VALID_CERT), private_key(VALID_KEY)).map_error(
+    fn (e) { e.to_string },
+  )
+}
+
+fn dummy_socket -> Result[Socket, String] {
+  Socket.stream(ipv6: false).map_error(fn (e) { e.to_string })
+}
+
+fn accept(socket: mut TcpServer) -> Result[Server[TcpClient], String] {
+  let conf = try server_config
+  let server = Server.new(
+    try socket.accept.map_error(fn (e) { 'accept failed: ${e}' }),
+    conf,
+  )
+
+  Result.Ok(server)
+}
+
+fn listener -> Result[(TcpServer, Int), String] {
+  let sock = try TcpServer.new(ip: IpAddress.v4(0, 0, 0, 0), port: 0).map_error(
+    fn (e) { 'failed to start the server: ${e}' },
+  )
+  let addr = try sock.local_address.map_error(fn (e) {
+    'failed to get the server address: ${e}'
+  })
+
+  Result.Ok((sock, addr.port))
+}
+
+fn pub tests(t: mut Tests) {
+  t.test('ServerConfigError.to_string', fn (t) {
+    t.false(ServerConfigError.InvalidCertificate.to_string.empty?)
+    t.false(ServerConfigError.InvalidPrivateKey.to_string.empty?)
+  })
+
+  t.test('ServerConfigError.fmt', fn (t) {
+    t.equal(fmt(ServerConfigError.InvalidCertificate), 'InvalidCertificate')
+    t.equal(fmt(ServerConfigError.InvalidPrivateKey), 'InvalidPrivateKey')
+  })
+
+  t.test('ServerConfigError.==', fn (t) {
+    t.equal(
+      ServerConfigError.InvalidCertificate,
+      ServerConfigError.InvalidCertificate,
+    )
+    t.equal(
+      ServerConfigError.InvalidPrivateKey,
+      ServerConfigError.InvalidPrivateKey,
+    )
+  })
+
+  t.test('ClientConfig.with_certificate with a valid certificate', fn (t) {
+    t.true(ClientConfig.with_certificate(certificate(VALID_CERT)).some?)
+  })
+
+  t.test('ClientConfig.with_certificate with an invalid certificate', fn (t) {
+    t.true(ClientConfig.with_certificate(certificate(INVALID_CERT)).none?)
+  })
+
+  t.ok('ClientConfig.clone', fn (t) {
+    let a = try client_config
+    let b = a.clone
+
+    t.equal(a.raw as Int, b.raw as Int)
+    Result.Ok(nil)
+  })
+
+  t.test('ServerConfig.new with a valid certificate and private key', fn (t) {
+    let cert = certificate(VALID_CERT)
+    let key = private_key(VALID_KEY)
+
+    t.true(ServerConfig.new(cert, key).ok?)
+  })
+
+  t.test('ServerConfig with an invalid certificate', fn (t) {
+    let key = private_key(VALID_KEY)
+
+    t.equal(
+      ServerConfig.new(certificate(INVALID_CERT), key).error,
+      Option.Some(ServerConfigError.InvalidCertificate),
+    )
+  })
+
+  t.test('ServerConfig with an invalid private key', fn (t) {
+    let cert = certificate(VALID_CERT)
+
+    t.equal(
+      ServerConfig.new(cert, private_key(INVALID_KEY)).error,
+      Option.Some(ServerConfigError.InvalidPrivateKey),
+    )
+  })
+
+  t.ok('ServerConfig.clone', fn (t) {
+    let a = try server_config
+    let b = a.clone
+
+    t.equal(b.raw as Int, a.raw as Int)
+    Result.Ok(nil)
+  })
+
+  t.ok('Client.new with a valid DNS name as the server name', fn (t) {
+    let conf = try client_config
+    let sock = try dummy_socket
+
+    t.true(Client.new(sock, conf, name: 'localhost').some?)
+    Result.Ok(nil)
+  })
+
+  t.ok('Client.new with a valid IP address as the server name', fn (t) {
+    let conf = try client_config
+    let sock = try dummy_socket
+
+    t.true(Client.new(sock, conf, name: '127.0.0.1').some?)
+    Result.Ok(nil)
+  })
+
+  t.ok('Client.new with an invalid DNS name as the server name', fn (t) {
+    let conf = try client_config
+    let sock = try dummy_socket
+
+    t.true(Client.new(sock, conf, name: 'what?!').none?)
+    Result.Ok(nil)
+  })
+
+  t.ok('Client.new with an invalid IP address as the server name', fn (t) {
+    let conf = try client_config
+    let sock = try dummy_socket
+
+    t.true(Client.new(sock, conf, name: '1.2.3.4.5').none?)
+    Result.Ok(nil)
+  })
+
+  t.ok('Client.read', fn (t) {
+    let port = match DummyServer.new {
+      case Ok((server, port)) -> {
+        server.hello
+        port
+      }
+      case Error(e) -> throw e
+    }
+
+    let conf = try client_config
+    let sock = try connect(port)
+    let client = Client.new(sock, conf, name: 'localhost').get
+    let bytes = ByteArray.new
+
+    t.equal(client.read(into: bytes, size: 5), Result.Ok(5))
+    t.equal(bytes.into_string, 'hello')
+    Result.Ok(nil)
+  })
+
+  t.ok('Client.write_bytes', fn (t) {
+    let port = match DummyServer.new {
+      case Ok((server, port)) -> {
+        server.reply
+        port
+      }
+      case Error(e) -> throw e
+    }
+
+    let conf = try client_config
+    let sock = try connect(port)
+    let client = Client.new(sock, conf, name: 'localhost').get
+    let bytes = ByteArray.new
+
+    t.equal(client.write_bytes('ping'.to_byte_array), Result.Ok(nil))
+    t.equal(client.read(into: bytes, size: 4), Result.Ok(4))
+    t.equal(bytes.into_string, 'ping')
+    Result.Ok(nil)
+  })
+
+  t.ok('Client.write_string', fn (t) {
+    let port = match DummyServer.new {
+      case Ok((server, port)) -> {
+        server.reply
+        port
+      }
+      case Error(e) -> throw e
+    }
+
+    let conf = try client_config
+    let sock = try connect(port)
+    let client = Client.new(sock, conf, name: 'localhost').get
+    let bytes = ByteArray.new
+
+    t.equal(client.write_string('ping'), Result.Ok(nil))
+    t.equal(client.read(into: bytes, size: 4), Result.Ok(4))
+    t.equal(bytes.into_string, 'ping')
+    Result.Ok(nil)
+  })
+
+  t.ok('Client.close', fn (t) {
+    let port = match DummyServer.new {
+      case Ok((server, port)) -> {
+        server.reply
+        port
+      }
+      case Error(e) -> throw e
+    }
+
+    let conf = try client_config
+    let sock = try connect(port)
+    let client = Client.new(sock, conf, name: 'localhost').get
+
+    t.equal(client.close, Result.Ok(nil))
+    Result.Ok(nil)
+  })
+
+  # Not much to test here, so this test mostly exists to make sure the
+  # underlying code doesn't blow up outright.
+  t.ok('Server.new', fn (t) {
+    let conf = try server_config
+    let sock = try dummy_socket
+    let server = Server.new(sock, conf)
+
+    t.not_equal(server.state as Int, 0)
+    Result.Ok(nil)
+  })
+
+  t.ok('Server.close', fn (t) {
+    let out = Channel.new(size: 1)
+    let sock = match try listener {
+      case (sock, port) -> {
+        DummyClient().connect(port, out)
+        sock
+      }
+    }
+    let server = try accept(sock)
+
+    # There's not really a sensible way we can test close_notify handling as
+    # it's timing/ordering sensitive, so we just test that the initial call
+    # doesn't fail outright.
+    t.equal(server.close, Result.Ok(nil))
+    t.true(out.receive.ok?)
+    Result.Ok(nil)
+  })
+
+  t.ok('Server.read', fn (t) {
+    let out = Channel.new(size: 1)
+    let sock = match try listener {
+      case (sock, port) -> {
+        DummyClient().write(port, out)
+        sock
+      }
+    }
+    let server = try accept(sock)
+    let bytes = ByteArray.new
+
+    t.equal(server.read(into: bytes, size: 5), Result.Ok(5))
+    t.equal(bytes.into_string, 'hello')
+    t.true(out.receive.ok?)
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Server.write_string', fn (t) {
+    let out = Channel.new(size: 1)
+    let sock = match try listener {
+      case (sock, port) -> {
+        DummyClient().reply(port, out)
+        sock
+      }
+    }
+    let server = try accept(sock)
+
+    t.equal(server.write_string('hello'), Result.Ok(nil))
+    t.equal(recover out.receive, Result.Ok('hello'))
+    Result.Ok(nil)
+  })
+
+  t.ok('Server.write_bytes', fn (t) {
+    let out = Channel.new(size: 1)
+    let sock = match try listener {
+      case (sock, port) -> {
+        DummyClient().reply(port, out)
+        sock
+      }
+    }
+    let server = try accept(sock)
+
+    t.equal(server.write_bytes('hello'.to_byte_array), Result.Ok(nil))
+    t.equal(recover out.receive, Result.Ok('hello'))
+    Result.Ok(nil)
+  })
+}

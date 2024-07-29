@@ -4,7 +4,6 @@ use crate::scheduler::process::Thread;
 use crate::scheduler::timeouts::Timeout;
 use crate::stack::Stack;
 use crate::state::State;
-use backtrace;
 use std::alloc::{alloc, dealloc, handle_alloc_error, Layout};
 use std::cell::UnsafeCell;
 use std::collections::VecDeque;

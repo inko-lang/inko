@@ -25,6 +25,7 @@ const CAPACITY: usize = 1024;
 pub(crate) type NetworkPoller = sys::Poller;
 
 /// The type of event a poller should wait for.
+#[derive(Debug)]
 pub(crate) enum Interest {
     Read,
     Write,
