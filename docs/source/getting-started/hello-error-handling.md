@@ -45,21 +45,19 @@ type of error that terminates the program. Panics are the result of bugs in your
 code, and as such can't be handled at runtime. In a well written program, such
 errors shouldn't occur.
 
-## Handling the error
-
 Writing to the terminal may fail for different reasons. We're not going to cover
 these cases as that's out of the scope of this tutorial. Instead, we'll explore
 how to prevent such errors from terminating our program.
 
 In this case we have two options:
 
-1. We just ignore the error
-1. We somehow log the error in an external system
+1. We ignore the error
+1. We handle it somehow
 
-The second option relies on external systems (e.g. syslog) and this is way too
-much to cover, so we'll go with the first option.
+## Ignoring the error
 
-To ignore the error, change `hello.inko` to the following:
+We'll start with the first option: ignoring the error. To do so, change
+`hello.inko` to the following:
 
 ```inko
 import std.stdio (STDOUT)
@@ -93,3 +91,29 @@ makes your code more future-proof.
 
 If we run the program using just `inko run hello.inko`, we get the expected
 "Hello, world!" output, confirming our program still works.
+
+## Handling the error
+
+The second and (almost always) better option is to handle the error in a way
+other than ignoring it.
+
+For example, imagine a hypothetical method with the signature `log(message:
+String)`, which logs the message to an external logging system (e.g. syslog). We
+can use this method to log the error instead of ignoring it:
+
+```inko
+import std.stdio (STDOUT)
+
+class async Main {
+  fn async main {
+    match STDOUT.new.print('Hello, world!') {
+      case Ok(_) -> {}
+      case Error(e) -> log(e.to_string)
+    }
+  }
+}
+```
+
+Here we don't do anything if the call to `print` succeeds, as there's nothing
+special to be done. If the call fails instead, we convert the error to a
+`String` and log it.
