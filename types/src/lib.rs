@@ -1941,6 +1941,7 @@ pub enum BuiltinFunction {
     IntCheckedAdd,
     IntCheckedMul,
     IntCheckedSub,
+    IntSwapBytes,
 }
 
 impl BuiltinFunction {
@@ -1991,6 +1992,7 @@ impl BuiltinFunction {
             BuiltinFunction::Process,
             BuiltinFunction::FloatRound,
             BuiltinFunction::FloatPowi,
+            BuiltinFunction::IntSwapBytes,
         ]
         .into_iter()
         .fold(HashMap::new(), |mut map, func| {
@@ -2046,6 +2048,7 @@ impl BuiltinFunction {
             BuiltinFunction::Process => "process",
             BuiltinFunction::FloatRound => "float_round",
             BuiltinFunction::FloatPowi => "float_powi",
+            BuiltinFunction::IntSwapBytes => "int_swap_bytes",
         }
     }
 
@@ -2104,6 +2107,7 @@ impl BuiltinFunction {
             }
             BuiltinFunction::FloatRound => TypeRef::float(),
             BuiltinFunction::FloatPowi => TypeRef::float(),
+            BuiltinFunction::IntSwapBytes => TypeRef::int(),
         }
     }
 }

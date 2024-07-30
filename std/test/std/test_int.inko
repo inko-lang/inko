@@ -387,4 +387,9 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Int.sum', fn (t) { t.equal(Int.sum([10, 20, 30].into_iter), 60) })
+
+  t.test('Int.swap_bytes', fn (t) {
+    t.equal(12345.swap_bytes, 4120793659044003840)
+    t.equal(4120793659044003840.swap_bytes, 12345)
+  })
 }

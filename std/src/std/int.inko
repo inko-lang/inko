@@ -551,6 +551,17 @@ class builtin Int {
     }
   }
 
+  # Returns a copy of `self` with the byte order reversed.
+  #
+  # # Examples
+  #
+  # ```inko
+  # 14640.swap_bytes # => 12345
+  # ```
+  fn pub swap_bytes -> Int {
+    _INKO.int_swap_bytes(self)
+  }
+
   fn unchecked_div(other: Int) -> Int {
     # This implements floored division, rather than rounding towards zero. This
     # makes division work more natural when using negative numbers.
