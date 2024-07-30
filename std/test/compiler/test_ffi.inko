@@ -1,0 +1,19 @@
+import std.test (Tests)
+
+class extern Example {
+  let @foo: Int32
+  let @bar: Int32
+  let @baz: Pointer[Example]
+}
+
+fn pub tests(t: mut Tests) {
+  t.test('Reading a field storing a pointer through another pointer', fn (t) {
+    let ex = Example(
+      foo: 1 as Int32,
+      bar: 2 as Int32,
+      baz: 0x42 as Pointer[Example],
+    )
+
+    t.equal(ex.baz as Int, 0x42)
+  })
+}

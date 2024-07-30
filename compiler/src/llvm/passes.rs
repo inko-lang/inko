@@ -2217,6 +2217,30 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                     self.builder.store_field(layout, rec_var, index, val);
                 }
             }
+            Instruction::SetField(ins) => {
+                let rec_var = self.variables[&ins.receiver];
+                let rec_typ = self.variable_types[&ins.receiver];
+                let val_var = self.variables[&ins.value];
+                let val_typ = self.variable_types[&ins.value];
+                let base = if ins.class.kind(&self.shared.state.db).is_async() {
+                    PROCESS_FIELD_OFFSET
+                } else {
+                    FIELD_OFFSET
+                };
+
+                let index =
+                    (base + ins.field.index(&self.shared.state.db)) as u32;
+                let val = self.builder.load(val_typ, val_var);
+                let layout = self.layouts.instances[ins.class.0 as usize];
+                let rec = self.builder.load(rec_typ, rec_var);
+
+                self.builder.store_field(
+                    layout,
+                    rec.into_pointer_value(),
+                    index,
+                    val,
+                );
+            }
             Instruction::GetField(ins) => {
                 let reg_var = self.variables[&ins.register];
                 let rec_var = self.variables[&ins.receiver];
@@ -2238,6 +2262,24 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 );
 
                 self.builder.store(reg_var, field);
+            }
+            Instruction::FieldPointer(ins)
+                if ins.class.kind(&self.shared.state.db).is_extern() =>
+            {
+                let reg_var = self.variables[&ins.register];
+                let rec_var = self.variables[&ins.receiver];
+                let rec_typ = self.variable_types[&ins.receiver];
+                let layout = self.layouts.instances[ins.class.0 as usize];
+                let rec = self.builder.load(rec_typ, rec_var);
+                let index = ins.field.index(&self.shared.state.db) as u32;
+                let src = if rec_typ.is_pointer_type() {
+                    rec.into_pointer_value()
+                } else {
+                    rec_var
+                };
+                let addr = self.builder.field_address(layout, src, index);
+
+                self.builder.store(reg_var, addr);
             }
             Instruction::FieldPointer(ins) => {
                 let reg_var = self.variables[&ins.register];
@@ -2268,30 +2310,6 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 let ptr = func.as_global_value().as_pointer_value();
 
                 self.builder.store(reg_var, ptr);
-            }
-            Instruction::SetField(ins) => {
-                let rec_var = self.variables[&ins.receiver];
-                let rec_typ = self.variable_types[&ins.receiver];
-                let val_var = self.variables[&ins.value];
-                let val_typ = self.variable_types[&ins.value];
-                let base = if ins.class.kind(&self.shared.state.db).is_async() {
-                    PROCESS_FIELD_OFFSET
-                } else {
-                    FIELD_OFFSET
-                };
-
-                let index =
-                    (base + ins.field.index(&self.shared.state.db)) as u32;
-                let val = self.builder.load(val_typ, val_var);
-                let layout = self.layouts.instances[ins.class.0 as usize];
-                let rec = self.builder.load(rec_typ, rec_var);
-
-                self.builder.store_field(
-                    layout,
-                    rec.into_pointer_value(),
-                    index,
-                    val,
-                );
             }
             Instruction::CheckRefs(ins) => {
                 self.set_debug_location(ins.location);

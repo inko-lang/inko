@@ -3716,7 +3716,13 @@ impl TypeRef {
     /// Returns `true` if `self` is an instance of a class that's allocated on
     /// and passed around using the stack.
     pub fn is_stack_class_instance(self, db: &Database) -> bool {
-        self.class_id(db).map_or(false, |c| c.kind(db).is_extern())
+        match self {
+            TypeRef::Owned(TypeId::ClassInstance(ins))
+            | TypeRef::Uni(TypeId::ClassInstance(ins)) => {
+                ins.instance_of().kind(db).is_extern()
+            }
+            _ => false,
+        }
     }
 
     pub fn is_pointer(self, db: &Database) -> bool {
@@ -4959,8 +4965,8 @@ mod tests {
     use crate::test::{
         any, closure, generic_instance_id, generic_trait_instance, immutable,
         immutable_uni, instance, mutable, mutable_uni, new_async_class,
-        new_class, new_module, new_parameter, new_trait, owned, parameter,
-        placeholder, rigid, trait_instance, uni,
+        new_class, new_extern_class, new_module, new_parameter, new_trait,
+        owned, parameter, placeholder, pointer, rigid, trait_instance, uni,
     };
     use std::mem::size_of;
 
@@ -6154,5 +6160,17 @@ mod tests {
             id.as_owned(),
             TypePlaceholderId { id: 1, ownership: Ownership::Owned }
         );
+    }
+
+    #[test]
+    fn test_type_ref_is_stack_class_instance() {
+        let mut db = Database::new();
+        let ext = new_extern_class(&mut db, "A");
+
+        assert!(owned(instance(ext)).is_stack_class_instance(&db));
+        assert!(uni(instance(ext)).is_stack_class_instance(&db));
+        assert!(!immutable(instance(ext)).is_stack_class_instance(&db));
+        assert!(!mutable(instance(ext)).is_stack_class_instance(&db));
+        assert!(!pointer(instance(ext)).is_stack_class_instance(&db));
     }
 }
