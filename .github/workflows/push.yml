@@ -51,6 +51,9 @@ jobs:
     needs:
       - changes
     if: needs.changes.outputs.ci == 'true'
+    permissions:
+      contents: read
+      packages: write
 
   tests:
     uses: ./.github/workflows/tests.yml
