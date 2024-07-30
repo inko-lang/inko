@@ -23,6 +23,7 @@ jobs:
     name: 'Detect changes'
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - run: git config --global --add safe.directory $PWD
       - uses: dorny/paths-filter@v3
         id: changes
