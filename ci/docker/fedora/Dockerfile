@@ -15,3 +15,9 @@ RUN sudo dnf install --assumeyes --quiet gcc make tar git rustup rclone \
 
 RUN rustup-init --quiet -y --no-modify-path --profile minimal \
     --component clippy,rustfmt --default-toolchain $RUST_VERSION
+
+# idoc targets the latest stable release of Inko, but our tests run against a
+# newer version. This allows us to use an existing idoc executable without
+# having to compile it ourselves.
+COPY --from=ghcr.io/inko-lang/idoc:latest ["/usr/bin/idoc", "/usr/bin/idoc"]
+COPY --from=ghcr.io/inko-lang/idoc:latest ["/usr/share/idoc/assets", "/usr/share/idoc/assets"]

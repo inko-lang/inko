@@ -25,7 +25,3 @@ jobs:
     uses: ./.github/workflows/container.yml
     with:
       name: 'ubuntu'
-  idoc:
-    uses: ./.github/workflows/container.yml
-    with:
-      name: 'idoc'
