@@ -118,5 +118,4 @@ jobs:
           key: std-docs-main
       - run: git config --global --add safe.directory $PWD
       - name: Deploy the documentation
-        if: steps.changes.outputs.docs == 'true'
         run: make std-docs/publish
