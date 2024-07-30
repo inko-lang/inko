@@ -603,10 +603,14 @@ impl ToString for Ipv6Address {
       let compression_end = compression_start + compression_len
 
       segments.iter.each_with_index(fn (index, hextet) {
-        if index == compression_start { buffer.push(':') }
-
-        if index < compression_start or index >= compression_end {
+        if index < compression_start {
           if index > 0 { buffer.push(':') }
+
+          buffer.push(hextet.format(format))
+        } else if index == compression_start {
+          buffer.push('::')
+        } else if index >= compression_end {
+          if index > compression_end { buffer.push(':') }
 
           buffer.push(hextet.format(format))
         }

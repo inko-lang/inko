@@ -259,30 +259,37 @@ fn pub tests(t: mut Tests) {
       Ipv6Address.new(1, 0, 0, 0, 0, 0, 0xc000, 0x2ff).to_string,
       '1::c000:2ff',
     )
-
     t.equal(
       Ipv6Address.new(1, 0, 1, 0, 0, 0, 0xc000, 0x2ff).to_string,
       '1:0:1::c000:2ff',
     )
-
     t.equal(
       Ipv6Address.new(1, 0, 0, 0, 0, 0xffff, 0xc000, 0x2ff).to_string,
       '1::ffff:c000:2ff',
     )
-
     t.equal(
       Ipv6Address.new(1, 0, 1, 0, 0, 0xffff, 0xc000, 0x2ff).to_string,
       '1:0:1::ffff:c000:2ff',
     )
-
     t.equal(
       Ipv6Address.new(0, 0, 0, 0, 0, 0, 0xc000, 0x2ff).to_string,
       '::192.0.2.255',
     )
-
     t.equal(
       Ipv6Address.new(0, 0, 0, 0, 0, 0xffff, 0xc000, 0x2ff).to_string,
       '::ffff:192.0.2.255',
+    )
+    t.equal(
+      Ipv6Address.new(0x2a, 0x6, 0x98, 0xc1, 0x31, 0x21, 0, 0).to_string,
+      '2a:6:98:c1:31:21::',
+    )
+    t.equal(
+      Ipv6Address.new(0x2a, 0x6, 0x98, 0xc1, 0, 0, 0x1, 0x1).to_string,
+      '2a:6:98:c1::1:1',
+    )
+    t.equal(
+      Ipv6Address.new(0x2a, 0, 0x98, 0xc1, 0, 0, 0x1, 0x1).to_string,
+      '2a:0:98:c1::1:1',
     )
   })
 
