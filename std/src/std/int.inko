@@ -556,7 +556,8 @@ class builtin Int {
   # # Examples
   #
   # ```inko
-  # 14640.swap_bytes # => 12345
+  # 12345.swap_bytes               # => 4120793659044003840
+  # 4120793659044003840.swap_bytes # => 12345
   # ```
   fn pub swap_bytes -> Int {
     _INKO.int_swap_bytes(self)
