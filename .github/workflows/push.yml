@@ -43,9 +43,9 @@ jobs:
               - '.github/**'
               - 'ci/**'
     outputs:
-      docs: ${{ steps.filter.outputs.docs }}
-      std: ${{ steps.filter.outputs.std }}
-      ci: ${{ steps.filter.outputs.ci }}
+      docs: ${{ steps.changes.outputs.docs }}
+      std: ${{ steps.changes.outputs.std }}
+      ci: ${{ steps.changes.outputs.ci }}
 
   ci-containers:
     name: CI containers
