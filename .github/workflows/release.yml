@@ -8,6 +8,9 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  CARGO_HOME: ${{ github.workspace }}/.cargo-home
+  RUSTUP_HOME: ${{ github.workspace }}/.rustup-home
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
 
 jobs:
   lints:
@@ -133,7 +136,7 @@ jobs:
   std-docs:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/inko-lang/ci:idoc
+      image: ghcr.io/inko-lang/ci:fedora
     env:
       RCLONE_S3_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_ACCESS_KEY_ID }}
       RCLONE_S3_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
@@ -152,7 +155,8 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: |
-            ~/.local/share/inko/packages
+            ${{ env.CARGO_HOME }}
+            target
           key: std-docs-release
       - run: git config --global --add safe.directory $PWD
       - name: Deploy the documentation

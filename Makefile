@@ -160,7 +160,8 @@ docs/publish: docs/setup docs/build
 
 std-docs/build:
 	rm -rf std/build
-	cd std && idoc
+	cargo build
+	cd std && idoc --compiler ../target/debug/inko
 
 std-docs/publish: std-docs/build
 	rclone sync --config rclone.conf --checksum --verbose \

@@ -3,6 +3,11 @@ name: Linux tests
 on:
   workflow_call:
 
+env:
+  CARGO_HOME: ${{ github.workspace }}/.cargo-home
+  RUSTUP_HOME: ${{ github.workspace }}/.rustup-home
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+
 jobs:
   amd64:
     strategy:

@@ -96,7 +96,7 @@ jobs:
   std-docs:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/inko-lang/ci:idoc
+      image: ghcr.io/inko-lang/ci:fedora
     env:
       RCLONE_S3_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_ACCESS_KEY_ID }}
       RCLONE_S3_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
@@ -113,18 +113,10 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: |
-            ~/.local/share/inko/packages
+            ${{ env.CARGO_HOME }}
+            target
           key: std-docs-main
-      # This is needed so the paths-filter action doesn't fail with a "dubious
-      # path" error.
       - run: git config --global --add safe.directory $PWD
-      - uses: dorny/paths-filter@v3
-        id: changes
-        with:
-          filters: |
-            docs:
-              - 'std/**'
-              - .github/workflows/push.yml
       - name: Deploy the documentation
         if: steps.changes.outputs.docs == 'true'
         run: make std-docs/publish
