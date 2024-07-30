@@ -47,6 +47,7 @@ jobs:
       ci: ${{ steps.filter.outputs.ci }}
 
   ci-containers:
+    name: CI containers
     uses: ./.github/workflows/containers.yml
     needs:
       - changes
@@ -56,11 +57,13 @@ jobs:
       packages: write
 
   tests:
+    name: Tests
     uses: ./.github/workflows/tests.yml
     needs:
       - ci-containers
 
   nightly-container:
+    name: Nightly container
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -87,6 +90,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
 
   docs:
+    name: Documentation
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/inko-lang/inko:latest
@@ -113,6 +117,7 @@ jobs:
         run: make docs/publish
 
   std-docs:
+    name: Standard library documentation
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/inko-lang/ci:fedora
