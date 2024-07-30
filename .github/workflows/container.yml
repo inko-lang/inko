@@ -1,5 +1,5 @@
 ---
-name: CI container
+name: Build CI container
 on:
   workflow_call:
     inputs:

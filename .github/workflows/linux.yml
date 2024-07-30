@@ -26,6 +26,7 @@ jobs:
         with:
           path: |
             ${{ env.CARGO_HOME }}
+            ${{ env.RUSTUP_HOME }}
             target
           key: ${{ matrix.image }}
       - name: Show version info

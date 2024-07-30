@@ -1,12 +1,7 @@
 ---
-name: CI containers
+name: Build CI containers
 on:
-  workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - 'ci/**/*'
+  workflow_call:
 
 permissions:
   contents: read

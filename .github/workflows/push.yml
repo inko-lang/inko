@@ -1,5 +1,5 @@
 ---
-name: Build
+name: Push
 
 on:
   push:
@@ -15,16 +15,47 @@ concurrency:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  CARGO_HOME: ${{ github.workspace }}/.cargo-home
+  RUSTUP_HOME: ${{ github.workspace }}/.rustup-home
 
 jobs:
-  lints:
-    uses: ./.github/workflows/lint.yml
-  linux:
-    uses: ./.github/workflows/linux.yml
-  mac:
-    uses: ./.github/workflows/mac.yml
-  freebsd:
-    uses: ./.github/workflows/freebsd.yml
+  changes:
+    name: 'Detect changes'
+    runs-on: ubuntu-latest
+    steps:
+      - run: git config --global --add safe.directory $PWD
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            docs:
+              - '.github/**'
+              - 'ci/**'
+              - 'docs/**'
+              - Makefile
+            std:
+              - 'ci/**'
+              - 'compiler/**'
+              - 'std/**'
+              - Makefile
+            ci:
+              - '.github/**'
+              - 'ci/**'
+    outputs:
+      docs: ${{ steps.filter.outputs.docs }}
+      std: ${{ steps.filter.outputs.std }}
+      ci: ${{ steps.filter.outputs.ci }}
+
+  ci-containers:
+    uses: ./.github/workflows/containers.yml
+    needs:
+      - changes
+    if: needs.changes.outputs.ci == 'true'
+
+  tests:
+    uses: ./.github/workflows/tests.yml
+    needs:
+      - ci-containers
 
   nightly-container:
     runs-on: ubuntu-latest
@@ -32,12 +63,8 @@ jobs:
       contents: read
       packages: write
     needs:
-      - lints
-      - linux
-      - mac
-      - freebsd
-    if: |
-      github.repository == 'inko-lang/inko' && github.ref_name == 'main'
+      - tests
+    if: github.ref_name == 'main'
     steps:
       - uses: actions/checkout@v4
       - uses: docker/login-action@v3
@@ -65,9 +92,9 @@ jobs:
       RCLONE_S3_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
       RCLONE_S3_ENDPOINT: https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
     needs:
-      - nightly-container
-    if: |
-      github.repository == 'inko-lang/inko' && github.ref_name == 'main'
+      - changes
+      - tests
+    if: github.ref_name == 'main' && needs.changes.outputs.docs
     steps:
       - name: Install dependencies
         run: microdnf install --quiet --assumeyes rclone git tar make
@@ -78,19 +105,8 @@ jobs:
             docs/build
             ~/.local/share/inko/packages
           key: docs-main
-      # This is needed so the paths-filter action doesn't fail with a "dubious
-      # path" error.
       - run: git config --global --add safe.directory $PWD
-      - uses: dorny/paths-filter@v3
-        id: changes
-        with:
-          filters: |
-            docs:
-              - 'docs/**'
-              - Makefile
-              - .github/workflows/push.yml
       - name: Deploy the documentation
-        if: steps.changes.outputs.docs == 'true'
         run: make docs/publish
 
   std-docs:
@@ -102,18 +118,17 @@ jobs:
       RCLONE_S3_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
       RCLONE_S3_ENDPOINT: https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
     needs:
-      - lints
-      - linux
-      - mac
-      - freebsd
+      - changes
+      - tests
     if: |
-      github.repository == 'inko-lang/inko' && github.ref_name == 'main'
+      github.ref_name == 'main' && needs.changes.outputs.std
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
         with:
           path: |
             ${{ env.CARGO_HOME }}
+            ${{ env.RUSTUP_HOME }}
             target
           key: std-docs-main
       - run: git config --global --add safe.directory $PWD

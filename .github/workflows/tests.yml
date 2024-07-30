@@ -1,0 +1,14 @@
+---
+name: Run tests
+on:
+  workflow_call:
+
+jobs:
+  lints:
+    uses: ./.github/workflows/lint.yml
+  linux:
+    uses: ./.github/workflows/linux.yml
+  mac:
+    uses: ./.github/workflows/mac.yml
+  freebsd:
+    uses: ./.github/workflows/freebsd.yml
