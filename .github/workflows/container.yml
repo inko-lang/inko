@@ -13,7 +13,7 @@ env:
   NAMESPACE: inko-lang/ci
 
 jobs:
-  container:
+  build:
     runs-on: ubuntu-latest
     permissions:
       contents: read
