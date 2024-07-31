@@ -18,15 +18,7 @@ permissions:
   packages: write
 
 jobs:
-  debian:
-    uses: ./.github/workflows/container.yml
-    with:
-      name: 'debian'
   fedora:
     uses: ./.github/workflows/container.yml
     with:
       name: 'fedora'
-  ubuntu:
-    uses: ./.github/workflows/container.yml
-    with:
-      name: 'ubuntu'
