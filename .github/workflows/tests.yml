@@ -38,7 +38,7 @@ jobs:
             ${{ env.CARGO_HOME }}
             ${{ env.RUSTUP_HOME }}
             target
-          key: fedora
+          key: linux-amd64
       - name: Run clippy
         run: 'cargo clippy -- -D warnings'
 
@@ -48,13 +48,6 @@ jobs:
       image: ghcr.io/inko-lang/ci:fedora
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ${{ env.CARGO_HOME }}
-            ${{ env.RUSTUP_HOME }}
-            target
-          key: fedora
       - name: Run rustfmt
         run: 'cargo fmt --all --check'
 
@@ -70,7 +63,7 @@ jobs:
             ${{ env.CARGO_HOME }}
             ${{ env.RUSTUP_HOME }}
             target
-          key: fedora
+          key: linux-amd64
       - name: Show version info
         run: rustc --version
       - name: Build the compiler
