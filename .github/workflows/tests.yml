@@ -3,6 +3,11 @@ name: Run tests
 on:
   workflow_call:
 
+env:
+  CARGO_HOME: ${{ github.workspace }}/.cargo-home
+  RUSTUP_HOME: ${{ github.workspace }}/.rustup-home
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+
 jobs:
   vale:
     runs-on: ubuntu-latest
@@ -31,6 +36,7 @@ jobs:
         with:
           path: |
             ${{ env.CARGO_HOME }}
+            ${{ env.RUSTUP_HOME }}
             target
           key: fedora
       - name: Run clippy
@@ -46,6 +52,7 @@ jobs:
         with:
           path: |
             ${{ env.CARGO_HOME }}
+            ${{ env.RUSTUP_HOME }}
             target
           key: fedora
       - name: Run rustfmt
@@ -61,6 +68,7 @@ jobs:
         with:
           path: |
             ${{ env.CARGO_HOME }}
+            ${{ env.RUSTUP_HOME }}
             target
           key: fedora
       - name: Show version info
