@@ -10,6 +10,7 @@ env:
 
 jobs:
   amd64:
+    name: macOS AMD64
     runs-on: macos-12
     steps:
       - uses: actions/checkout@v4
@@ -27,6 +28,7 @@ jobs:
       - name: Run stdlib tests
         run: 'cd std && cargo run -- test'
   arm64:
+    name: macOS ARM64
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
