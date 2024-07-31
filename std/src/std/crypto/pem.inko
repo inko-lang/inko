@@ -72,7 +72,7 @@ let WHITESPACE = [
   false, false, false, false, false, false, false, false, false, false, false,
   false, false, false, false, false, false, false, false, false, false, false,
   false, false, false, false, false, false, false, false, false, false, false,
-  false, false,
+  false, false, false,
 ]
 
 # A value/section parsed from a PEM file.

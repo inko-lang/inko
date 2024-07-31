@@ -149,9 +149,8 @@ a2V5
   })
 
   t.test('PemFile.parse with random invalid garbage as its input', fn (t) {
-    let input = Buffer.new(Random.new.bytes(size: 32))
-
-    t.true(PemFile.new(input).parse.error?)
+    t.true(PemFile.new(Buffer.new(Random.new.bytes(size: 32))).parse.error?)
+    t.true(PemFile.new(Buffer.new(ByteArray.from_array([255]))).parse.error?)
   })
 
   t.test('PemFile.parse with an invalid section start', fn (t) {
