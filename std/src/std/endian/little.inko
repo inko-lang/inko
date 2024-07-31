@@ -6,6 +6,11 @@
 # If `value` is greater than the maximum value of a 32-bits unsigned integer,
 # the additional bits are ignored (i.e. the value wraps around).
 #
+# # Panics
+#
+# This method panics if `into` doesn't contain at least 4 values starting at
+# index `at`.
+#
 # # Examples
 #
 # ```inko
@@ -17,14 +22,18 @@
 # bytes # => ByteArray.from_array([21, 205, 91, 7])
 # ```
 fn pub write_i32(value: Int, into: mut ByteArray, at: Int) {
-  into.set(at, value)
-  into.set(at + 1, value >> 8)
-  into.set(at + 2, value >> 16)
-  into.set(at + 3, value >> 24)
+  if into.size - at < 4 { panic('the ByteArray must contain at least 4 bytes') }
+
+  (into.to_pointer as Int + at as Pointer[UInt32]).0 = value as UInt32
 }
 
 # Writes a value interpreted as a 64-bits signed integer into `into` as a series
 # of bytes, starting at the index `at`.
+#
+# # Panics
+#
+# This method panics if `into` doesn't contain at least 8 values starting at
+# index `at`.
 #
 # # Examples
 #
@@ -37,22 +46,17 @@ fn pub write_i32(value: Int, into: mut ByteArray, at: Int) {
 # bytes # => ByteArray.from_array([21, 205, 91, 7])
 # ```
 fn pub write_i64(value: Int, into: mut ByteArray, at: Int) {
-  into.set(at, value)
-  into.set(at + 1, value >> 8)
-  into.set(at + 2, value >> 16)
-  into.set(at + 3, value >> 24)
-  into.set(at + 4, value >> 32)
-  into.set(at + 5, value >> 40)
-  into.set(at + 6, value >> 48)
-  into.set(at + 7, value >> 56)
+  if into.size - at < 8 { panic('the ByteArray must contain at least 8 bytes') }
+
+  (into.to_pointer as Int + at as Pointer[UInt64]).0 = value as UInt64
 }
 
 # Reads four bytes starting at `at` as a 32-bits signed integer.
 #
 # # Panics
 #
-# This method panics if there are less than four bytes available starting at
-# `at`.
+# This method panics if `from` doesn't contain at least 4 values starting at
+# index `at`.
 #
 # # Examples
 #
@@ -65,18 +69,17 @@ fn pub write_i64(value: Int, into: mut ByteArray, at: Int) {
 # little.read_i32(from: bytes, at: 0) # => 123456789
 # ```
 fn pub read_i32(from: ref ByteArray, at: Int) -> Int {
-  (from.get(at + 3) << 24)
-    | (from.get(at + 2) << 16)
-    | (from.get(at + 1) << 8)
-    | from.get(at)
+  if from.size - at < 4 { panic('the ByteArray must contain at least 4 bytes') }
+
+  (from.to_pointer as Int + at as Pointer[UInt32]).0 as Int
 }
 
 # Reads eight bytes starting at `at` as a 64-bits signed integer.
 #
 # # Panics
 #
-# This method panics if there are less than eight bytes available starting at
-# `at`.
+# This method panics if `from` doesn't contain at least 8 values starting at
+# index `at`.
 #
 # # Examples
 #
@@ -89,12 +92,7 @@ fn pub read_i32(from: ref ByteArray, at: Int) -> Int {
 # little.read_i64(from: bytes, at: 0) # => 123456789
 # ```
 fn pub read_i64(from: ref ByteArray, at: Int) -> Int {
-  (from.get(at + 7) << 56)
-    | (from.get(at + 6) << 48)
-    | (from.get(at + 5) << 40)
-    | (from.get(at + 4) << 32)
-    | (from.get(at + 3) << 24)
-    | (from.get(at + 2) << 16)
-    | (from.get(at + 1) << 8)
-    | from.get(at)
+  if from.size - at < 8 { panic('the ByteArray must contain at least 8 bytes') }
+
+  (from.to_pointer as Int + at as Pointer[UInt64]).0 as Int
 }

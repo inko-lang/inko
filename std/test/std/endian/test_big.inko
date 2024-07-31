@@ -54,7 +54,11 @@ fn pub tests(t: mut Tests) {
     t.equal(big.read_i64(from: b3, at: 0), MIN)
   })
 
-  t.panic('big.read_i64 with not enough bytes', fn {
+  t.panic('big.read_i64 with an empty ByteArray', fn {
     big.read_i64(from: ByteArray.new, at: 0)
+  })
+
+  t.panic('big.read_i64 with not enough bytes', fn {
+    big.read_i64(from: ByteArray.filled(with: 0, times: 4), at: 0)
   })
 }
