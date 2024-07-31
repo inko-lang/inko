@@ -71,14 +71,85 @@ jobs:
       - name: Check the formatting
         run: 'cd std && cargo run -- fmt --check'
 
-  linux:
-    name: Linux
-    uses: ./.github/workflows/linux.yml
+  linux-amd64:
+    name: Linux AMD64
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/inko-lang/ci:fedora
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.CARGO_HOME }}
+            ${{ env.RUSTUP_HOME }}
+            target
+          key: linux-amd64
+      - name: Show version info
+        run: rustc --version
+      - name: Run compiler tests
+        run: cargo test
+      - name: Run stdlib tests
+        run: 'cd std && cargo run -- test'
 
-  mac:
-    name: macOS
-    uses: ./.github/workflows/mac.yml
+  macos-amd64:
+    name: macOS AMD64
+    runs-on: macos-12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.CARGO_HOME }}
+            ${{ env.RUSTUP_HOME }}
+            target
+          key: mac-amd64
+      - name: Install dependencies
+        run: ./ci/mac.sh
+      - name: Run compiler tests
+        run: cargo test
+      - name: Run stdlib tests
+        run: 'cd std && cargo run -- test'
 
-  freebsd:
-    name: FreeBSD
-    uses: ./.github/workflows/freebsd.yml
+  macos-arm64:
+    name: macOS ARM64
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.CARGO_HOME }}
+            ${{ env.RUSTUP_HOME }}
+            target
+          key: mac-arm64
+      - name: Install dependencies
+        run: ./ci/mac.sh
+      - name: Run compiler tests
+        run: cargo test
+      - name: Run stdlib tests
+        run: 'cd std && cargo run -- test'
+
+  freebsd-amd64:
+    name: FreeBSD AMD64
+    runs-on: ubuntu-latest
+    env:
+      LIBRARY_PATH: /usr/local/lib
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.CARGO_HOME }}
+            ${{ env.RUSTUP_HOME }}
+            target
+          key: freebsd
+      - name: Run tests
+        uses: cross-platform-actions/action@v0.24.0
+        with:
+          operating_system: freebsd
+          version: '14.0'
+          memory: 8G
+          environment_variables: 'CARGO_HOME RUSTUP_HOME LIBRARY_PATH CARGO_REGISTRIES_CRATES_IO_PROTOCOL'
+          image_url: 'https://github.com/inko-lang/freebsd-builder/releases/download/v0.8.0/freebsd-14.0-x86-64.qcow2'
+          run: ./ci/freebsd.sh
