@@ -38,7 +38,7 @@ jobs:
             ${{ env.CARGO_HOME }}
             ${{ env.RUSTUP_HOME }}
             target
-          key: linux-amd64
+          key: cargo-clippy
       - name: Run clippy
         run: 'cargo clippy -- -D warnings'
 
@@ -63,7 +63,7 @@ jobs:
             ${{ env.CARGO_HOME }}
             ${{ env.RUSTUP_HOME }}
             target
-          key: linux-amd64
+          key: inko-fmt
       - name: Show version info
         run: rustc --version
       - name: Build the compiler
