@@ -71,10 +71,13 @@ jobs:
         run: 'cd std && cargo run -- fmt --check'
 
   linux:
+    name: Linux
     uses: ./.github/workflows/linux.yml
 
   mac:
+    name: macOS
     uses: ./.github/workflows/mac.yml
 
   freebsd:
+    name: FreeBSD
     uses: ./.github/workflows/freebsd.yml
