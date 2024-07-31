@@ -35,17 +35,23 @@ jobs:
               - 'docs/**'
               - Makefile
             std:
+              - '**/*.inko'
+              - '**/*.rs'
               - 'ci/**'
-              - 'compiler/**'
-              - 'std/**'
               - Makefile
             ci:
               - '.github/**'
               - 'ci/**'
+            container:
+              - '**/*.inko'
+              - '**/*.rs'
+              - '.github/**'
+              - Dockerfile
     outputs:
       docs: ${{ steps.changes.outputs.docs }}
       std: ${{ steps.changes.outputs.std }}
       ci: ${{ steps.changes.outputs.ci }}
+      container: ${{ steps.changes.outputs.container }}
 
   ci-containers:
     name: CI containers
@@ -70,8 +76,9 @@ jobs:
       contents: read
       packages: write
     needs:
+      - changes
       - tests
-    if: github.ref_name == 'main'
+    if: github.ref_name == 'main' && needs.changes.outputs.container == 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: docker/login-action@v3
