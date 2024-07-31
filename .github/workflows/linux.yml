@@ -10,17 +10,10 @@ env:
 
 jobs:
   amd64:
-    name: ${{ matrix.image }} AMD64
-    strategy:
-      fail-fast: false
-      matrix:
-        image:
-          - debian
-          - fedora
-          - ubuntu
+    name: Linux AMD64
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/inko-lang/ci:${{ matrix.image }}
+      image: ghcr.io/inko-lang/ci:fedora
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
@@ -29,7 +22,7 @@ jobs:
             ${{ env.CARGO_HOME }}
             ${{ env.RUSTUP_HOME }}
             target
-          key: ${{ matrix.image }}
+          key: linux-amd64
       - name: Show version info
         run: rustc --version
       - name: Run compiler tests
