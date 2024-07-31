@@ -1,7 +1,17 @@
 ---
 name: Build CI containers
 on:
-  workflow_call:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/container.yml'
+      - '.github/workflows/containers.yml'
+      - 'ci/**/*'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
 
 permissions:
   contents: read

@@ -19,55 +19,9 @@ env:
   RUSTUP_HOME: ${{ github.workspace }}/.rustup-home
 
 jobs:
-  changes:
-    name: 'Detect changes'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: git config --global --add safe.directory $PWD
-      - uses: dorny/paths-filter@v3
-        id: changes
-        with:
-          filters: |
-            docs:
-              - '.github/**'
-              - 'ci/**'
-              - 'docs/**'
-              - Makefile
-            std:
-              - '**/*.inko'
-              - '**/*.rs'
-              - 'ci/**'
-              - Makefile
-            ci:
-              - '.github/**'
-              - 'ci/**'
-            container:
-              - '**/*.inko'
-              - '**/*.rs'
-              - '.github/**'
-              - Dockerfile
-    outputs:
-      docs: ${{ steps.changes.outputs.docs }}
-      std: ${{ steps.changes.outputs.std }}
-      ci: ${{ steps.changes.outputs.ci }}
-      container: ${{ steps.changes.outputs.container }}
-
-  ci-containers:
-    name: CI containers
-    uses: ./.github/workflows/containers.yml
-    needs:
-      - changes
-    if: needs.changes.outputs.ci == 'true'
-    permissions:
-      contents: read
-      packages: write
-
   tests:
     name: Tests
     uses: ./.github/workflows/tests.yml
-    needs:
-      - ci-containers
 
   nightly-container:
     name: Nightly container
@@ -76,9 +30,8 @@ jobs:
       contents: read
       packages: write
     needs:
-      - changes
       - tests
-    if: github.ref_name == 'main' && needs.changes.outputs.container == 'true'
+    if: github.ref_name == 'main'
     steps:
       - uses: actions/checkout@v4
       - uses: docker/login-action@v3
@@ -107,9 +60,8 @@ jobs:
       RCLONE_S3_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
       RCLONE_S3_ENDPOINT: https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
     needs:
-      - changes
       - tests
-    if: github.ref_name == 'main' && needs.changes.outputs.docs
+    if: github.ref_name == 'main'
     steps:
       - name: Install dependencies
         run: microdnf install --quiet --assumeyes rclone git tar make
@@ -134,10 +86,9 @@ jobs:
       RCLONE_S3_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
       RCLONE_S3_ENDPOINT: https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
     needs:
-      - changes
       - tests
     if: |
-      github.ref_name == 'main' && needs.changes.outputs.std
+      github.ref_name == 'main'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
