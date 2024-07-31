@@ -10,7 +10,7 @@ env:
 
 jobs:
   amd64:
-    name: Linux AMD64
+    name: ${{ matrix.image }} AMD64
     strategy:
       fail-fast: false
       matrix:
