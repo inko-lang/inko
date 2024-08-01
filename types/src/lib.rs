@@ -3339,7 +3339,13 @@ impl ConstantId {
 /// method or type.
 #[derive(Clone)]
 pub struct Closure {
+    /// A flag indicating this closure is a moving closure (= a closure that can
+    /// only be called once).
     moving: bool,
+
+    /// A flag indicating that captured variables are moved into the closure,
+    /// instead of being borrowed.
+    move_captures: bool,
 
     /// The variables captured by this closure, and the types the variables are
     /// captured as.
@@ -3365,9 +3371,10 @@ impl Closure {
         ClosureId(id)
     }
 
-    fn new(moving: bool) -> Self {
+    fn new(move_captures: bool) -> Self {
         Self {
-            moving,
+            moving: false,
+            move_captures,
             captured_self_type: None,
             captured: HashSet::new(),
             arguments: Arguments::new(),
@@ -3407,8 +3414,12 @@ impl ClosureId {
         closure.arguments.new_argument("_".to_string(), value_type, var);
     }
 
-    pub fn is_moving(self, db: &Database) -> bool {
-        self.get(db).moving
+    pub fn set_moving(self, db: &mut Database) {
+        self.get_mut(db).moving = true;
+    }
+
+    pub fn moves_captures(self, db: &Database) -> bool {
+        self.get(db).move_captures
     }
 
     pub fn set_captured_self_type(

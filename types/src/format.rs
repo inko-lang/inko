@@ -373,7 +373,7 @@ impl FormatType for ClosureId {
         buffer.descend(|buffer| {
             let fun = self.get(buffer.db);
 
-            if fun.moving {
+            if fun.move_captures {
                 buffer.write("fn move");
             } else {
                 buffer.write("fn");

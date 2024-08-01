@@ -2374,7 +2374,7 @@ impl<'a> CheckMethodBody<'a> {
         let moving = node.moving
             || expected
                 .as_ref()
-                .map_or(false, |(id, _, _)| id.is_moving(self.db()));
+                .map_or(false, |(id, _, _)| id.moves_captures(self.db()));
 
         let closure = Closure::alloc(self.db_mut(), moving);
         let bounds = self.bounds;
@@ -4532,7 +4532,7 @@ impl<'a> CheckMethodBody<'a> {
                     expose_as = expose_as.as_uni_reference(self.db());
                 }
                 ScopeKind::Closure(closure) => {
-                    let moving = closure.is_moving(self.db());
+                    let moving = closure.moves_captures(self.db());
 
                     if (expose_as.is_uni(self.db()) && !moving)
                         || expose_as.is_uni_ref(self.db())

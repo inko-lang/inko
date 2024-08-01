@@ -3406,7 +3406,7 @@ impl<'a> LowerMethod<'a> {
 
         let module = self.module;
         let closure_id = node.closure_id.unwrap();
-        let moving = closure_id.is_moving(self.db());
+        let moving = closure_id.moves_captures(self.db());
         let loc = Location::new(
             node.location.lines.clone(),
             node.location.columns.clone(),
