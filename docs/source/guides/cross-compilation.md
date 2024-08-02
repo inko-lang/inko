@@ -6,7 +6,7 @@
 
 Inko code can be cross compiled to different targets. For example, you can
 compile your code for macOS while running on Linux. Inko supports cross
-compiling to x86-64 and AArch64 Linux and macOS, and x86-64 FreeBSD.
+compiling to [a variety of targets](#target-triples).
 
 Cross compilation involves the following steps:
 
@@ -212,7 +212,7 @@ class async Main {
 }
 ```
 
-To build this for AARch64 Linux, run the following:
+To build this for AArch64 Linux, run the following:
 
 ```bash
 inko runtime add arm64-linux-gnu # If not done already
