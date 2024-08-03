@@ -273,40 +273,11 @@ Older versions of Fedora aren't supported.
 sudo pkg install llvm17 rust git
 ```
 
-You may have to set the `LIBRARY_PATH` variable as follows:
-
-```bash
-export LIBRARY_PATH="/usr/local/lib"
-```
-
-Without this the linker may fail to find the zstd and libffi libraries, which
-are needed by LLVM on FreeBSD.
-
 ### macOS
 
 ```bash
 brew install llvm@17 rust git
 ```
-
-You may have to set `LIBRARY_PATH` as follows:
-
-```bash
-export LIBRARY_PATH="$(brew --prefix llvm@17)/lib:$(brew --prefix zstd)/lib"
-```
-
-You may also have to add the LLVM `bin` directory to your `PATH` as follows:
-
-```bash
-export PATH="$(brew --prefix llvm@17)/bin:$PATH"
-```
-
-Without setting these variables, it's possible building of Inko fails due to the
-build process not finding the necessary LLVM libraries.
-
-::: tip
-See [this Homebrew issue](https://github.com/Homebrew/brew/issues/13481) for
-details on why this might be necessary.
-:::
 
 ### Ubuntu
 

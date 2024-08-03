@@ -133,8 +133,6 @@ jobs:
   freebsd-amd64:
     name: FreeBSD AMD64
     runs-on: ubuntu-latest
-    env:
-      LIBRARY_PATH: /usr/local/lib
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
@@ -150,6 +148,6 @@ jobs:
           operating_system: freebsd
           version: '14.0'
           memory: 8G
-          environment_variables: 'CARGO_HOME RUSTUP_HOME LIBRARY_PATH CARGO_REGISTRIES_CRATES_IO_PROTOCOL'
+          environment_variables: 'CARGO_HOME RUSTUP_HOME CARGO_REGISTRIES_CRATES_IO_PROTOCOL'
           image_url: 'https://github.com/inko-lang/freebsd-builder/releases/download/v0.8.0/freebsd-14.0-x86-64.qcow2'
           run: ./ci/freebsd.sh
