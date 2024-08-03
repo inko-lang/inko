@@ -21,10 +21,16 @@ isn't supported.
 
 - A 64-bits little-endian platform
 - Rust 1.78 or newer
-- LLVM 17
+- LLVM 17 or newer
 - A C compiler such as [GCC](https://gcc.gnu.org/) or
   [clang](https://clang.llvm.org/)
 - Git, for managing packages using the `inko pkg` command
+
+::: note
+While using newer versions of LLVM may work, it's possible for a newer version
+to introduce breaking changes. As such, we recommend only using a newer version
+of LLVM if your platform doesn't offer a package for the version listed above.
+:::
 
 ## Cross-platform
 
@@ -206,13 +212,6 @@ necessary dependencies.
 ```bash
 sudo pacman -Sy llvm rust git base-devel
 ```
-
-::: note
-Arch Linux being a rolling release distribution means the `llvm` package could
-be upgraded to a newer (and incompatible) version of LLVM. If this is the case,
-you'll need to change the package name to e.g. `llvm17` and install it from the
-[AUR](https://aur.archlinux.org/).
-:::
 
 ### Alpine
 
