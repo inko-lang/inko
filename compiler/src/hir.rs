@@ -227,6 +227,16 @@ pub(crate) struct AssignSetter {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ReplaceSetter {
+    pub(crate) field_id: Option<types::FieldId>,
+    pub(crate) receiver: Expression,
+    pub(crate) name: Identifier,
+    pub(crate) value: Expression,
+    pub(crate) location: SourceLocation,
+    pub(crate) resolved_type: types::TypeRef,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ImportSymbol {
     pub(crate) name: Identifier,
     pub(crate) import_as: Identifier,
@@ -501,6 +511,7 @@ pub(crate) enum Expression {
     AssignField(Box<AssignField>),
     ReplaceField(Box<ReplaceField>),
     AssignSetter(Box<AssignSetter>),
+    ReplaceSetter(Box<ReplaceSetter>),
     AssignVariable(Box<AssignVariable>),
     ReplaceVariable(Box<ReplaceVariable>),
     Break(Box<Break>),
@@ -541,6 +552,7 @@ impl Expression {
             Expression::AssignField(ref n) => &n.location,
             Expression::ReplaceField(ref n) => &n.location,
             Expression::AssignSetter(ref n) => &n.location,
+            Expression::ReplaceSetter(ref n) => &n.location,
             Expression::AssignVariable(ref n) => &n.location,
             Expression::ReplaceVariable(ref n) => &n.location,
             Expression::Break(ref n) => &n.location,
@@ -2297,6 +2309,9 @@ impl<'a> LowerToHir<'a> {
             ast::Expression::AssignSetter(node) => {
                 Expression::AssignSetter(self.assign_setter(*node))
             }
+            ast::Expression::ReplaceSetter(node) => {
+                Expression::ReplaceSetter(self.replace_setter(*node))
+            }
             ast::Expression::BinaryAssignVariable(node) => {
                 Expression::AssignVariable(self.binary_assign_variable(*node))
             }
@@ -2650,6 +2665,20 @@ impl<'a> LowerToHir<'a> {
             value: self.expression(node.value),
             location: node.location,
             expected_type: types::TypeRef::Unknown,
+        })
+    }
+
+    fn replace_setter(
+        &mut self,
+        node: ast::ReplaceSetter,
+    ) -> Box<ReplaceSetter> {
+        Box::new(ReplaceSetter {
+            field_id: None,
+            resolved_type: types::TypeRef::Unknown,
+            receiver: self.expression(node.receiver),
+            name: self.identifier(node.name),
+            value: self.expression(node.value),
+            location: node.location,
         })
     }
 

@@ -1364,6 +1364,9 @@ impl<'a> CheckMethodBody<'a> {
             hir::Expression::AssignSetter(ref mut n) => {
                 self.assign_setter(n, scope)
             }
+            hir::Expression::ReplaceSetter(ref mut n) => {
+                self.replace_setter(n, scope)
+            }
             hir::Expression::AssignVariable(ref mut n) => {
                 self.assign_variable(n, scope)
             }
@@ -1610,8 +1613,12 @@ impl<'a> CheckMethodBody<'a> {
         let value_type = self.input_expression(&mut node.value, scope);
 
         if value_type.is_uni_ref(self.db()) {
-            self.state.diagnostics.cant_assign_type(
-                &format_type(self.db(), value_type),
+            self.state.diagnostics.error(
+                DiagnosticId::InvalidType,
+                format!(
+                    "values of type '{}' can't be assigned to variables",
+                    format_type(self.db(), value_type)
+                ),
                 self.file(),
                 node.value.location().clone(),
             );
@@ -2340,15 +2347,6 @@ impl<'a> CheckMethodBody<'a> {
         }
 
         let val_type = self.expression(value_node, scope);
-
-        if val_type.is_uni_ref(self.db()) {
-            self.state.diagnostics.cant_assign_type(
-                &format_type(self.db(), val_type),
-                self.file(),
-                value_node.location().clone(),
-            );
-        }
-
         let var_type = var.value_type(self.db());
 
         if !TypeChecker::check(self.db(), val_type, var_type) {
@@ -2765,6 +2763,14 @@ impl<'a> CheckMethodBody<'a> {
             &node.field.location,
             scope,
         ) {
+            if scope.in_recover() && !typ.is_value_type(self.db()) {
+                self.state.diagnostics.unsendable_old_value(
+                    &node.field.name,
+                    self.file(),
+                    node.location.clone(),
+                );
+            }
+
             node.field_id = Some(field);
             node.resolved_type = typ;
             node.resolved_type
@@ -2781,14 +2787,6 @@ impl<'a> CheckMethodBody<'a> {
         scope: &mut LexicalScope,
     ) -> Option<(FieldId, TypeRef)> {
         let val_type = self.expression(value_node, scope);
-
-        if val_type.is_uni_ref(self.db()) {
-            self.state.diagnostics.cant_assign_type(
-                &format_type(self.db(), val_type),
-                self.file(),
-                value_node.location().clone(),
-            );
-        }
 
         let (field, var_type) = if let Some(typ) = self.field_type(name) {
             typ
@@ -3303,6 +3301,82 @@ impl<'a> CheckMethodBody<'a> {
         returns
     }
 
+    fn replace_setter(
+        &mut self,
+        node: &mut hir::ReplaceSetter,
+        scope: &mut LexicalScope,
+    ) -> TypeRef {
+        let rec = self.expression(&mut node.receiver, scope);
+        let Some(rec_id) = self.receiver_id(rec, &node.location) else {
+            return TypeRef::Error;
+        };
+        let Some((ins, field)) =
+            self.lookup_field_with_receiver(rec_id, &node.name)
+        else {
+            self.state.diagnostics.undefined_field(
+                &node.name.name,
+                self.file(),
+                node.name.location.clone(),
+            );
+
+            return TypeRef::Error;
+        };
+
+        if !rec.allow_mutating(self.db()) {
+            self.state.diagnostics.immutable_receiver_for_assignment(
+                &node.name.name,
+                self.module.file(self.db()),
+                node.location.clone(),
+            );
+
+            return TypeRef::Error;
+        }
+
+        let value = self.expression(&mut node.value, scope);
+        let targs = TypeArguments::for_class(self.db(), ins);
+        let raw_type = field.value_type(self.db());
+        let bounds = self.bounds;
+        let var_type =
+            TypeResolver::new(self.db_mut(), &targs, bounds).resolve(raw_type);
+        let value = value.cast_according_to(var_type, self.db());
+
+        if !TypeChecker::check(self.db(), value, var_type) {
+            self.state.diagnostics.type_error(
+                self.fmt(value),
+                self.fmt(var_type),
+                self.file(),
+                node.location.clone(),
+            );
+
+            return TypeRef::Error;
+        }
+
+        if rec.require_sendable_arguments(self.db())
+            && !value.is_sendable(self.db())
+        {
+            self.state.diagnostics.unsendable_field_value(
+                &node.name.name,
+                self.fmt(value),
+                self.file(),
+                node.location.clone(),
+            );
+
+            return TypeRef::Error;
+        }
+
+        if scope.in_recover() && !var_type.is_value_type(self.db()) {
+            self.state.diagnostics.unsendable_old_value(
+                &node.name.name,
+                self.file(),
+                node.location.clone(),
+            );
+        }
+
+        node.field_id = Some(field);
+        node.resolved_type = var_type;
+        var_type
+    }
+
     fn assign_field_with_receiver(
         &mut self,
         node: &mut hir::AssignSetter,
@@ -3312,23 +3386,11 @@ impl<'a> CheckMethodBody<'a> {
         scope: &mut LexicalScope,
     ) -> bool {
         let name = &node.name.name;
-        let (ins, field) = if let TypeId::ClassInstance(ins) = receiver_id {
-            if let Some(field) = ins.instance_of().field(self.db(), name) {
-                (ins, field)
-            } else {
-                return false;
-            }
-        } else {
+        let Some((ins, field)) =
+            self.lookup_field_with_receiver(receiver_id, &node.name)
+        else {
             return false;
         };
-
-        if ins.instance_of().kind(self.db()).is_async() {
-            self.state.diagnostics.unavailable_process_field(
-                name,
-                self.file(),
-                node.location.clone(),
-            );
-        }
 
         // When using `self.field = value`, none of the below is applicable, nor
         // do we need to calculate the field type as it's already cached.
@@ -3352,22 +3414,9 @@ impl<'a> CheckMethodBody<'a> {
             };
         }
 
-        if !field.is_visible_to(self.db(), self.module) {
-            self.state.diagnostics.private_field(
-                name,
-                self.file(),
-                node.location.clone(),
-            );
-        }
-
         if !receiver.allow_mutating(self.db()) {
-            self.state.diagnostics.error(
-                DiagnosticId::InvalidCall,
-                format!(
-                    "can't assign a new value to field '{}', as its receiver \
-                    is immutable",
-                    name,
-                ),
+            self.state.diagnostics.immutable_receiver_for_assignment(
+                name,
                 self.module.file(self.db()),
                 node.location.clone(),
             );
@@ -3959,33 +4008,8 @@ impl<'a> CheckMethodBody<'a> {
         receiver: TypeRef,
         receiver_id: TypeId,
     ) -> Option<TypeRef> {
-        let name = &node.name.name;
-        let (ins, field) = if let TypeId::ClassInstance(ins) = receiver_id {
-            ins.instance_of().field(self.db(), name).map(|field| (ins, field))
-        } else {
-            None
-        }?;
-
-        // We disallow `receiver.field` even when `receiver` is `self`, because
-        // we can't tell the difference between two different instances of the
-        // same non-generic process (e.g. every instance `class async Foo {}`
-        // has the same TypeId).
-        if ins.instance_of().kind(self.db()).is_async() {
-            self.state.diagnostics.unavailable_process_field(
-                name,
-                self.file(),
-                node.location.clone(),
-            );
-        }
-
-        if !field.is_visible_to(self.db(), self.module) {
-            self.state.diagnostics.private_field(
-                &node.name.name,
-                self.file(),
-                node.location.clone(),
-            );
-        }
-
+        let (ins, field) =
+            self.lookup_field_with_receiver(receiver_id, &node.name)?;
         let raw_type = field.value_type(self.db_mut());
         let immutable = receiver.is_ref(self.db_mut());
         let args = ins.type_arguments(self.db_mut()).clone();
@@ -4594,5 +4618,41 @@ impl<'a> CheckMethodBody<'a> {
         }
 
         Some((var, expose_as, allow_assignment))
+    }
+
+    fn lookup_field_with_receiver(
+        &mut self,
+        receiver_id: TypeId,
+        name: &hir::Identifier,
+    ) -> Option<(ClassInstance, FieldId)> {
+        let (ins, field) = if let TypeId::ClassInstance(ins) = receiver_id {
+            ins.instance_of()
+                .field(self.db(), &name.name)
+                .map(|field| (ins, field))
+        } else {
+            None
+        }?;
+
+        // We disallow `receiver.field` even when `receiver` is `self`, because
+        // we can't tell the difference between two different instances of the
+        // same non-generic process (e.g. every instance `class async Foo {}`
+        // has the same TypeId).
+        if ins.instance_of().kind(self.db()).is_async() {
+            self.state.diagnostics.unavailable_process_field(
+                &name.name,
+                self.file(),
+                name.location.clone(),
+            );
+        }
+
+        if !field.is_visible_to(self.db(), self.module) {
+            self.state.diagnostics.private_field(
+                &name.name,
+                self.file(),
+                name.location.clone(),
+            );
+        }
+
+        Some((ins, field))
     }
 }

@@ -270,6 +270,24 @@ impl Diagnostics {
         );
     }
 
+    pub(crate) fn immutable_receiver_for_assignment(
+        &mut self,
+        name: &str,
+        file: PathBuf,
+        location: SourceLocation,
+    ) {
+        self.error(
+            DiagnosticId::InvalidAssign,
+            format!(
+                "can't assign a new value to field '{}', as its receiver \
+                is immutable",
+                name,
+            ),
+            file,
+            location,
+        );
+    }
+
     pub(crate) fn public_field_private_class(
         &mut self,
         file: PathBuf,
@@ -633,6 +651,24 @@ impl Diagnostics {
         );
     }
 
+    pub(crate) fn unsendable_old_value(
+        &mut self,
+        name: &str,
+        file: PathBuf,
+        location: SourceLocation,
+    ) {
+        self.error(
+            DiagnosticId::InvalidAssign,
+            format!(
+                "the value of '{}' can't be replaced inside a 'recover', \
+                as the old value isn't sendable",
+                name
+            ),
+            file,
+            location,
+        );
+    }
+
     pub(crate) fn unsendable_async_type(
         &mut self,
         name: String,
@@ -779,23 +815,6 @@ impl Diagnostics {
             file,
             location,
         );
-    }
-
-    pub(crate) fn cant_assign_type(
-        &mut self,
-        name: &str,
-        file: PathBuf,
-        location: SourceLocation,
-    ) {
-        self.error(
-            DiagnosticId::InvalidType,
-            format!(
-                "values of type '{}' can't be assigned to variables or fields",
-                name
-            ),
-            file,
-            location,
-        )
     }
 
     pub(crate) fn string_literal_too_large(

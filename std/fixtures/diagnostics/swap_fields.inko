@@ -1,0 +1,33 @@
+class Person {
+  let @name: String
+  let @numbers: Array[Int]
+
+  fn example1 {
+    @name := 'Alice'
+  }
+
+  fn mut example2 {
+    @name := 'Alice'
+  }
+}
+
+fn example1(person: ref Person) {
+  person.name := 'Alice'
+}
+
+fn example2(person: mut Person) {
+  person.name := 'Alice' # This is valid
+}
+
+fn example3(person: uni Person) {
+  person.name := 'Alice' # This is valid
+  person.numbers := recover [10] # This is also valid
+}
+
+fn example4(person: uni Person) {
+  person.numbers := [10]
+}
+
+# swap_fields.inko:6:5 error(invalid-assign): can't assign a new value to field 'name', as the surrounding method is immutable
+# swap_fields.inko:15:3 error(invalid-assign): can't assign a new value to field 'name', as its receiver is immutable
+# swap_fields.inko:28:3 error(invalid-symbol): the field 'numbers' can't be assigned a value of type 'Array[Int]', as it's not sendable

@@ -240,6 +240,20 @@ impl Node for AssignSetter {
 }
 
 #[derive(Debug, PartialEq, Eq)]
+pub struct ReplaceSetter {
+    pub receiver: Expression,
+    pub name: Identifier,
+    pub value: Expression,
+    pub location: SourceLocation,
+}
+
+impl Node for ReplaceSetter {
+    fn location(&self) -> &SourceLocation {
+        &self.location
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub struct BinaryAssignVariable {
     pub operator: Operator,
     pub variable: Identifier,
@@ -712,6 +726,7 @@ pub enum Expression {
     AssignField(Box<AssignField>),
     ReplaceField(Box<ReplaceField>),
     AssignSetter(Box<AssignSetter>),
+    ReplaceSetter(Box<ReplaceSetter>),
     BinaryAssignVariable(Box<BinaryAssignVariable>),
     BinaryAssignField(Box<BinaryAssignField>),
     BinaryAssignSetter(Box<BinaryAssignSetter>),
@@ -788,6 +803,7 @@ impl Node for Expression {
             Expression::AssignField(ref typ) => typ.location(),
             Expression::ReplaceField(ref typ) => typ.location(),
             Expression::AssignSetter(ref typ) => typ.location(),
+            Expression::ReplaceSetter(ref typ) => typ.location(),
             Expression::AssignVariable(ref typ) => typ.location(),
             Expression::ReplaceVariable(ref typ) => typ.location(),
             Expression::Binary(ref typ) => typ.location(),

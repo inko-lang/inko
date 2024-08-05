@@ -1487,6 +1487,7 @@ impl<'a> LowerMethod<'a> {
             hir::Expression::AssignField(n) => self.assign_field(*n),
             hir::Expression::ReplaceField(n) => self.replace_field(*n),
             hir::Expression::AssignSetter(n) => self.assign_setter(*n),
+            hir::Expression::ReplaceSetter(n) => self.replace_setter(*n),
             hir::Expression::AssignVariable(n) => self.assign_variable(*n),
             hir::Expression::ReplaceVariable(n) => self.replace_variable(*n),
             hir::Expression::Break(n) => self.break_expression(*n),
@@ -2163,6 +2164,20 @@ impl<'a> LowerMethod<'a> {
         reg
     }
 
+    fn replace_setter(&mut self, node: hir::ReplaceSetter) -> RegisterId {
+        let id = node.field_id.unwrap();
+        let loc = self.add_location(node.location);
+        let exp = node.resolved_type;
+        let new_val = self.input_expression(node.value, Some(exp));
+        let old_val = self.new_register(exp);
+        let rec = self.expression(node.receiver);
+        let class = self.register_type(rec).class_id(self.db()).unwrap();
+
+        self.current_block_mut().get_field(old_val, rec, class, id, loc);
+        self.current_block_mut().set_field(rec, class, id, new_val, loc);
+        old_val
+    }
+
     fn assign_variable(&mut self, node: hir::AssignVariable) -> RegisterId {
         let id = node.variable_id.unwrap();
         let exp = id.value_type(self.db());
@@ -2283,13 +2298,11 @@ impl<'a> LowerMethod<'a> {
         let exp = node.resolved_type;
         let new_val = self.input_expression(node.value, Some(exp));
         let old_val = self.new_register(exp);
-
         let (rec, check_reg) = if let Some(&reg) = self.field_mapping.get(&id) {
             (self.surrounding_type_register, reg)
         } else {
             (self.self_register, self.self_register)
         };
-
         let class = self.register_type(rec).class_id(self.db()).unwrap();
 
         self.check_if_moved(check_reg, &node.field.name, &node.field.location);

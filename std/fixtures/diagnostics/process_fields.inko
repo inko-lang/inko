@@ -15,5 +15,5 @@ fn example {
   foo.value = 50
 }
 
-# process_fields.inko:14:3 error(invalid-symbol): the field 'value' can only be used by the owning process
-# process_fields.inko:15:3 error(invalid-symbol): the field 'value' can only be used by the owning process
+# process_fields.inko:14:7 error(invalid-symbol): the field 'value' can only be used by the owning process
+# process_fields.inko:15:7 error(invalid-symbol): the field 'value' can only be used by the owning process

@@ -2026,6 +2026,9 @@ impl Parser {
             TokenKind::Assign => {
                 return self.assign_setter(receiver, name_token);
             }
+            TokenKind::Replace => {
+                return self.replace_setter(receiver, name_token);
+            }
             TokenKind::AddAssign => {
                 return self.binary_assign_setter(
                     receiver,
@@ -2140,6 +2143,27 @@ impl Parser {
             SourceLocation::start_end(receiver.location(), value.location());
 
         Ok(Expression::AssignSetter(Box::new(AssignSetter {
+            receiver,
+            name,
+            value,
+            location,
+        })))
+    }
+
+    fn replace_setter(
+        &mut self,
+        receiver: Expression,
+        name_token: Token,
+    ) -> Result<Expression, ParseError> {
+        self.next();
+
+        let name = Identifier::from(name_token);
+        let value_token = self.require()?;
+        let value = self.expression(value_token)?;
+        let location =
+            SourceLocation::start_end(receiver.location(), value.location());
+
+        Ok(Expression::ReplaceSetter(Box::new(ReplaceSetter {
             receiver,
             name,
             value,
@@ -7655,6 +7679,25 @@ mod tests {
                     location: cols(10, 11)
                 })),
                 location: cols(1, 11)
+            }))
+        );
+
+        assert_eq!(
+            expr("10.foo := 20"),
+            Expression::ReplaceSetter(Box::new(ReplaceSetter {
+                receiver: Expression::Int(Box::new(IntLiteral {
+                    value: "10".to_string(),
+                    location: cols(1, 2)
+                })),
+                name: Identifier {
+                    name: "foo".to_string(),
+                    location: cols(4, 6)
+                },
+                value: Expression::Int(Box::new(IntLiteral {
+                    value: "20".to_string(),
+                    location: cols(11, 12)
+                })),
+                location: cols(1, 12)
             }))
         );
 

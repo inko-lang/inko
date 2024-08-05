@@ -1271,6 +1271,7 @@ impl Document {
             Expression::AssignField(n) => self.assign_field(n),
             Expression::ReplaceField(n) => self.replace_field(n),
             Expression::AssignSetter(n) => self.assign_setter(n),
+            Expression::ReplaceSetter(n) => self.replace_setter(n),
             Expression::BinaryAssignVariable(n) => {
                 self.binary_assign_variable(n)
             }
@@ -1630,13 +1631,21 @@ impl Document {
     }
 
     fn assign_setter(&mut self, node: &nodes::AssignSetter) -> Node {
-        Node::Nodes(vec![
-            self.expression(&node.receiver),
-            Node::text("."),
-            Node::text(&node.name.name),
-            Node::text(" = "),
-            self.expression(&node.value),
-        ])
+        self.field_with_receiver(
+            &node.receiver,
+            &node.name.name,
+            "=",
+            &node.value,
+        )
+    }
+
+    fn replace_setter(&mut self, node: &nodes::ReplaceSetter) -> Node {
+        self.field_with_receiver(
+            &node.receiver,
+            &node.name.name,
+            ":=",
+            &node.value,
+        )
     }
 
     fn binary_assign_setter(
@@ -1645,12 +1654,38 @@ impl Document {
     ) -> Node {
         let op = Operator::from_ast(node.operator.kind).method_name();
 
+        self.field_with_receiver(
+            &node.receiver,
+            &node.name.name,
+            &format!("{}=", op),
+            &node.value,
+        )
+    }
+
+    fn field_with_receiver(
+        &mut self,
+        receiver: &Expression,
+        name: &str,
+        operator: &str,
+        value: &Expression,
+    ) -> Node {
+        let hid = self.new_group_id();
+        let head = vec![
+            self.expression(receiver),
+            Node::Line,
+            Node::Indent(vec![Node::text("."), Node::text(name)]),
+        ];
+
+        let val = self.expression(value);
+
         Node::Nodes(vec![
-            self.expression(&node.receiver),
-            Node::text("."),
-            Node::text(&node.name.name),
-            Node::text(&format!(" {}= ", op)),
-            self.expression(&node.value),
+            Node::Group(hid, head),
+            Node::Text(format!(" {} ", operator)),
+            Node::IfWrap(
+                hid,
+                Box::new(Node::IndentNext(vec![val.clone()])),
+                Box::new(val),
+            ),
         ])
     }
 
