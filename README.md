@@ -1,4 +1,4 @@
-# Inko
+# <img src="https://inko-lang.org/images/logo.png?hash=4949e4795aafcdb1e6bbc31a555a9d4e82e65680656b8520831b1ced17c2a4d0" width="32" alt="Inko logo" /> Inko
 
 Inko is a language for building concurrent software with confidence. Inko makes
 it easy to build concurrent software, without having to worry about
@@ -8,12 +8,52 @@ Inko features deterministic automatic memory management, move semantics, static
 typing, type-safe concurrency, efficient error handling, and more. Inko source
 code is compiled to machine code using [LLVM](https://llvm.org/).
 
-For more information, refer to the [Inko website](https://inko-lang.org/) or
-[the documentation](https://docs.inko-lang.org). If you'd like to follow the
+For more information, refer to the [Inko website][website] or [the
+documentation](https://docs.inko-lang.org). If you'd like to follow the
 development of Inko, consider joining [our Discord
 server](https://discord.gg/seeURxHxCb).
 
-## Installing
+## Examples
+
+Hello world:
+
+```inko
+import std.stdio (STDOUT)
+
+class async Main {
+  fn async main {
+    STDOUT.new.print('Hello, world!')
+  }
+}
+```
+
+A simple concurrent program:
+
+```inko
+class async Calculator {
+  fn async fact(size: Int, output: Channel[Int]) {
+    let result = 1.to(size).iter.reduce(1, fn (product, val) { product * val })
+
+    output.send(result)
+  }
+}
+
+class async Main {
+  fn async main {
+    let calc = Calculator()
+    let out = Channel.new(size: 1)
+
+    # This calculates the factorial of 15 in the background, then we wait for
+    # the result to be sent back to us via a channel.
+    calc.fact(15, out)
+    out.receive # => 1307674368000
+  }
+}
+```
+
+For more examples, refer to the [website][website].
+
+## Installation
 
 Details about how to install Inko and its requirements can be found in the
 ["Installing
@@ -25,3 +65,5 @@ Inko manual.
 All source code in this repository is licensed under the Mozilla Public License
 version 2.0, unless stated otherwise. A copy of this license can be found in the
 file "LICENSE".
+
+[website]: https://inko-lang.org/
