@@ -64,14 +64,14 @@ pattern matching bodies).
 ## Option
 
 `Option` is an algebraic data type/enum class used to represent an optional
-value. It has two variants: `Some(T)` and `None`, with `None` signalling the
+value. It has two constructor: `Some(T)` and `None`, with `None` signalling the
 lack of a value.
 
 ## Result
 
 `Result` is an algebraic data type/enum class used for error handling. It has
-two variants: `Ok(T)` and `Error(E)`. The `Ok` variant signals the success of an
-operation, while `Error` signals an error occurred.
+two constructors: `Ok(T)` and `Error(E)`. The `Ok` constructor signals the
+success of an operation, while `Error` signals an error occurred.
 
 ## String
 

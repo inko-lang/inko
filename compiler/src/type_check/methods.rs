@@ -439,7 +439,7 @@ impl<'a> DefineMethods<'a> {
                     );
                 }
                 hir::ClassExpression::Variant(ref mut node) => {
-                    self.define_variant_method(class_id, node);
+                    self.define_constructor_method(class_id, node);
                 }
                 _ => {}
             }
@@ -1011,7 +1011,7 @@ impl<'a> DefineMethods<'a> {
         node.method_id = Some(method);
     }
 
-    fn define_variant_method(
+    fn define_constructor_method(
         &mut self,
         class_id: ClassId,
         node: &mut hir::DefineVariant,
@@ -1034,9 +1034,12 @@ impl<'a> DefineMethods<'a> {
             MethodKind::Constructor,
         );
 
-        let variant = class_id.variant(self.db(), &node.name.name).unwrap();
+        let constructor =
+            class_id.constructor(self.db(), &node.name.name).unwrap();
 
-        for (index, typ) in variant.members(self.db()).into_iter().enumerate() {
+        for (index, typ) in
+            constructor.members(self.db()).into_iter().enumerate()
+        {
             let var_type = typ.as_rigid_type(self.db_mut(), &bounds);
             let loc = VariableLocation::from_ranges(
                 &node.location.lines,
@@ -1074,7 +1077,7 @@ impl<'a> DefineMethods<'a> {
         class_id.add_method(self.db_mut(), name, method);
 
         node.method_id = Some(method);
-        node.variant_id = Some(variant);
+        node.constructor_id = Some(constructor);
     }
 }
 

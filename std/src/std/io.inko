@@ -33,9 +33,9 @@ fn extern inko_last_error -> Int32
 # An error type for I/O operations.
 #
 # This type is typically constructed from raw OS error codes such as `ENOENT` on
-# Unix systems. This enum doesn't define a variant for every possible error.
-# Instead, we define a variant for the most commonly used errors, and represent
-# other errors using the `Other` variant.
+# Unix systems. This enum doesn't define a constructor for every possible error.
+# Instead, we define a constructor for the most commonly used errors, and
+# represent other errors using the `Other` constructor.
 class pub enum Error {
   # The address is already in use.
   case AddressInUse
@@ -139,7 +139,7 @@ class pub enum Error {
   # socket that was closed without sending the `close_notify` message.
   case EndOfInput
 
-  # An error not covered by the other variants.
+  # An error not covered by the other constructor.
   #
   # The wrapped `Int` is the raw error code.
   case Other(Int)

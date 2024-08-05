@@ -1692,7 +1692,7 @@ impl<'a> CheckMethodBody<'a> {
                 self.constant_pattern(n, value_type);
             }
             hir::Pattern::Variant(ref mut n) => {
-                self.variant_pattern(n, value_type, pattern);
+                self.constructor_pattern(n, value_type, pattern);
             }
             hir::Pattern::Wildcard(_) => {
                 // Nothing to do for wildcards, as we just ignore the value.
@@ -1797,21 +1797,22 @@ impl<'a> CheckMethodBody<'a> {
         let name = &node.name;
 
         if let Some(ins) = value_type.as_enum_instance(self.db()) {
-            let variant =
-                if let Some(v) = ins.instance_of().variant(self.db(), name) {
-                    v
-                } else {
-                    self.state.diagnostics.undefined_variant(
-                        name,
-                        format_type(self.db(), value_type),
-                        self.file(),
-                        node.location.clone(),
-                    );
+            let constructor = if let Some(v) =
+                ins.instance_of().constructor(self.db(), name)
+            {
+                v
+            } else {
+                self.state.diagnostics.undefined_constructor(
+                    name,
+                    format_type(self.db(), value_type),
+                    self.file(),
+                    node.location.clone(),
+                );
 
-                    return;
-                };
+                return;
+            };
 
-            let members = variant.members(self.db());
+            let members = constructor.members(self.db());
 
             if !members.is_empty() {
                 self.state.diagnostics.incorrect_pattern_arguments(
@@ -1824,7 +1825,7 @@ impl<'a> CheckMethodBody<'a> {
                 return;
             }
 
-            node.kind = ConstantPatternKind::Variant(variant);
+            node.kind = ConstantPatternKind::Variant(constructor);
 
             return;
         }
@@ -2117,7 +2118,7 @@ impl<'a> CheckMethodBody<'a> {
         }
     }
 
-    fn variant_pattern(
+    fn constructor_pattern(
         &mut self,
         node: &mut hir::VariantPattern,
         value_type: TypeRef,
@@ -2149,10 +2150,10 @@ impl<'a> CheckMethodBody<'a> {
         let name = &node.name.name;
         let class = ins.instance_of();
 
-        let variant = if let Some(v) = class.variant(self.db(), name) {
+        let constructor = if let Some(v) = class.constructor(self.db(), name) {
             v
         } else {
-            self.state.diagnostics.undefined_variant(
+            self.state.diagnostics.undefined_constructor(
                 name,
                 format_type(self.db(), value_type),
                 self.file(),
@@ -2163,7 +2164,7 @@ impl<'a> CheckMethodBody<'a> {
             return;
         };
 
-        let members = variant.members(self.db());
+        let members = constructor.members(self.db());
 
         if members.len() != node.values.len() {
             self.state.diagnostics.incorrect_pattern_arguments(
@@ -2190,7 +2191,7 @@ impl<'a> CheckMethodBody<'a> {
             self.pattern(patt, typ, pattern);
         }
 
-        node.variant_id = Some(variant);
+        node.constructor_id = Some(constructor);
     }
 
     fn or_pattern(

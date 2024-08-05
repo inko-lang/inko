@@ -17,8 +17,8 @@ use types::{
     RESULT_MODULE, VARIANTS_LIMIT,
 };
 
-/// The maximum number of members a single variant can store. We subtract one as
-/// the tag is its own field.
+/// The maximum number of arguments a single constructor can accept. We subtract
+/// one as the tag is its own field.
 const MAX_MEMBERS: usize = FIELDS_LIMIT - 1;
 
 /// A compiler pass that defines classes and traits.
@@ -1019,7 +1019,7 @@ impl<'a> InsertPrelude<'a> {
     }
 }
 
-/// A compiler pass that defines the variants for an enum class.
+/// A compiler pass that defines the constructors for an enum class.
 pub(crate) struct DefineVariants<'a> {
     state: &'a mut State,
     module: ModuleId,
@@ -1050,7 +1050,7 @@ impl<'a> DefineVariants<'a> {
         let is_enum = class_id.kind(self.db()).is_enum();
         let rules = Rules::default();
         let scope = TypeScope::new(self.module, TypeId::Class(class_id), None);
-        let mut variants_count = 0;
+        let mut constructors_count = 0;
         let mut members_count = 0;
 
         for expr in &mut node.body {
@@ -1064,7 +1064,7 @@ impl<'a> DefineVariants<'a> {
             if !is_enum {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidSymbol,
-                    "variants can only be defined for enum classes",
+                    "constructors can only be defined for enum classes",
                     self.file(),
                     node.location.clone(),
                 );
@@ -1074,10 +1074,10 @@ impl<'a> DefineVariants<'a> {
 
             let name = &node.name.name;
 
-            if class_id.variant(self.db(), name).is_some() {
+            if class_id.constructor(self.db(), name).is_some() {
                 self.state.diagnostics.error(
                     DiagnosticId::DuplicateSymbol,
-                    format!("the variant '{}' is already defined", name),
+                    format!("the constructor '{}' is already defined", name),
                     self.file(),
                     node.name.location.clone(),
                 );
@@ -1109,7 +1109,7 @@ impl<'a> DefineVariants<'a> {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidSymbol,
                     format!(
-                        "enum variants can't contain more than {} members",
+                        "enum constructors can't contain more than {} members",
                         MAX_MEMBERS
                     ),
                     self.file(),
@@ -1119,11 +1119,11 @@ impl<'a> DefineVariants<'a> {
                 continue;
             }
 
-            if variants_count == VARIANTS_LIMIT {
+            if constructors_count == VARIANTS_LIMIT {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidSymbol,
                     format!(
-                        "enums can't specify more than {} variants",
+                        "enums can't specify more than {} constructors",
                         VARIANTS_LIMIT
                     ),
                     self.file(),
@@ -1133,21 +1133,26 @@ impl<'a> DefineVariants<'a> {
                 continue;
             }
 
-            variants_count += 1;
+            constructors_count += 1;
 
             let loc = Location::new(
                 node.location.lines.clone(),
                 node.location.columns.clone(),
             );
 
-            class_id.new_variant(self.db_mut(), name.to_string(), members, loc);
+            class_id.new_constructor(
+                self.db_mut(),
+                name.to_string(),
+                members,
+                loc,
+            );
         }
 
         if is_enum {
-            if variants_count == 0 {
+            if constructors_count == 0 {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidType,
-                    "enum classes must define at least a single variant",
+                    "enum classes must define at least a single constructor",
                     self.file(),
                     node.location.clone(),
                 );

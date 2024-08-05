@@ -35,7 +35,7 @@ pub(crate) fn error_to_int(error: io::Error) -> i64 {
 /// use it as if this type were defined in the generated code directly.
 ///
 /// The order of this type is and must stay fixed, as rearranging the order of
-/// the variants breaks generated code (unless it too is updated accordingly).
+/// the fields breaks generated code (unless it too is updated accordingly).
 ///
 /// We're using a struct here instead of an enum as this gives us more precise
 /// control over the layout, and lets us test the exact field offsets.

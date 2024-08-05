@@ -761,7 +761,7 @@ impl Document {
                     matches!(next, Some(ClassExpression::DefineField(_))),
                 ),
                 ClassExpression::DefineVariant(n) => (
-                    self.define_variant(n),
+                    self.define_constructor(n),
                     matches!(next, Some(ClassExpression::DefineVariant(_))),
                 ),
                 ClassExpression::Comment(n) => (self.comment(n), true),
@@ -1040,7 +1040,7 @@ impl Document {
         Node::Nodes(group)
     }
 
-    fn define_variant(&mut self, node: &nodes::DefineVariant) -> Node {
+    fn define_constructor(&mut self, node: &nodes::DefineVariant) -> Node {
         let mut group = vec![Node::text("case "), Node::text(&node.name.name)];
 
         if let Some(nodes) =

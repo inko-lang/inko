@@ -35,7 +35,7 @@ fn unix_socket_path(_sockaddr: &SockAddr) -> String {
 pub(crate) enum SocketAddress {
     /// A UNIX socket.
     ///
-    /// We use a separate enum variant because datagram UNIX sockets will have
+    /// We use a separate constructor because datagram UNIX sockets will have
     /// the family field set to AF_UNSPEC when using certain functions such as
     /// recvfrom().
     Unix(SockAddr),

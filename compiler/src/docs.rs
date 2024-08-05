@@ -196,7 +196,7 @@ impl<'a> DefineDocumentation<'a> {
                     );
                 }
                 hir::ClassExpression::Variant(n) => {
-                    n.variant_id.unwrap().set_documentation(
+                    n.constructor_id.unwrap().set_documentation(
                         self.db_mut(),
                         take(&mut n.documentation),
                     );
@@ -570,7 +570,7 @@ impl<'a> GenerateDocumentation<'a> {
     fn constructors(&self, id: ClassId) -> Json {
         let mut cons = Vec::new();
 
-        for con in id.variants(self.db()) {
+        for con in id.constructors(self.db()) {
             let mut obj = Object::new();
             let name = con.name(self.db()).clone();
             let args: Vec<String> = con

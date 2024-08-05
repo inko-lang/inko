@@ -31,8 +31,8 @@ pub struct TypeSpecializer<'a, 'b, 'c> {
 
     /// A cache of existing shapes to use when encountering a type parameter.
     ///
-    /// When specializing a class, it may have fields or variants that are or
-    /// contain its type parameter (e.g. `Array[T]` for a `Foo[T]`). When
+    /// When specializing a class, it may have fields or constructors that are
+    /// or contain its type parameter (e.g. `Array[T]` for a `Foo[T]`). When
     /// encountering such types, we need to reuse the shape of the type
     /// parameter as it was determined when creating the newly specialized
     /// class.
@@ -157,7 +157,7 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
                     TypeId::ClassInstance(self.specialize_closure_instance(ins))
                 } else {
                     // Regular types may contain generic types in their fields
-                    // or variants, so we'll need to update those types.
+                    // or constructors, so we'll need to update those types.
                     TypeId::ClassInstance(self.specialize_regular_instance(ins))
                 }
             }
@@ -181,7 +181,7 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
         self.classes.push(class);
 
         if class.kind(self.db).is_enum() {
-            for var in class.get(self.db).variants.values().clone() {
+            for var in class.get(self.db).constructors.values().clone() {
                 let members = var
                     .members(self.db)
                     .into_iter()
@@ -288,7 +288,7 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
         new.set_shapes(self.db, key.clone());
         class.get_mut(self.db).specializations.insert(key.clone(), new);
 
-        // When specializing fields and variants, we want them to reuse the
+        // When specializing fields and constructors, we want them to reuse the
         // shapes we just created.
         let class_mapping = class
             .type_parameters(self.db)
@@ -307,7 +307,7 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
             if kind.is_closure() { self.shapes } else { &class_mapping };
 
         if kind.is_enum() {
-            for old_var in class.get(self.db).variants.values().clone() {
+            for old_var in class.get(self.db).constructors.values().clone() {
                 let name = old_var.name(self.db).clone();
                 let loc = old_var.location(self.db).clone();
                 let members = old_var
@@ -319,7 +319,7 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
                     })
                     .collect();
 
-                new.new_variant(self.db, name, members, loc);
+                new.new_constructor(self.db, name, members, loc);
             }
         }
 
@@ -534,14 +534,14 @@ mod tests {
         let opt = new_enum_class(&mut db, "Option");
         let opt_param = opt.new_type_parameter(&mut db, "T".to_string());
 
-        opt.new_variant(
+        opt.new_constructor(
             &mut db,
             "Some".to_string(),
             vec![any(parameter(opt_param))],
             Location::default(),
         );
 
-        opt.new_variant(
+        opt.new_constructor(
             &mut db,
             "None".to_string(),
             Vec::new(),
@@ -568,7 +568,7 @@ mod tests {
         assert!(ins.instance_of().kind(&db).is_enum());
         assert_eq!(ins.instance_of().shapes(&db), &[Shape::Int]);
         assert_eq!(
-            ins.instance_of().variant(&db, "Some").unwrap().members(&db),
+            ins.instance_of().constructor(&db, "Some").unwrap().members(&db),
             vec![TypeRef::int()]
         );
     }

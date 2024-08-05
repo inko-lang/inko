@@ -402,7 +402,7 @@ pub(crate) struct DefineExternClass {
 pub(crate) struct DefineVariant {
     pub(crate) documentation: String,
     pub(crate) method_id: Option<types::MethodId>,
-    pub(crate) variant_id: Option<types::VariantId>,
+    pub(crate) constructor_id: Option<types::VariantId>,
     pub(crate) name: Constant,
     pub(crate) members: Vec<Type>,
     pub(crate) location: SourceLocation,
@@ -1000,7 +1000,7 @@ pub(crate) struct ClassPattern {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct VariantPattern {
-    pub(crate) variant_id: Option<types::VariantId>,
+    pub(crate) constructor_id: Option<types::VariantId>,
     pub(crate) name: Constant,
     pub(crate) values: Vec<Pattern>,
     pub(crate) location: SourceLocation,
@@ -1416,7 +1416,7 @@ impl<'a> LowerToHir<'a> {
         ClassExpression::Variant(Box::new(DefineVariant {
             documentation,
             method_id: None,
-            variant_id: None,
+            constructor_id: None,
             name: self.constant(node.name),
             members: self.optional_types(node.members),
             location: node.location,
@@ -3049,7 +3049,7 @@ impl<'a> LowerToHir<'a> {
             ast::Pattern::False(n) => Pattern::False(self.false_literal(*n)),
             ast::Pattern::Variant(n) => {
                 Pattern::Variant(Box::new(VariantPattern {
-                    variant_id: None,
+                    constructor_id: None,
                     name: self.constant(n.name),
                     values: self.patterns(n.values),
                     location: n.location,
@@ -6332,7 +6332,7 @@ mod tests {
                     ClassExpression::Variant(Box::new(DefineVariant {
                         documentation: String::new(),
                         method_id: None,
-                        variant_id: None,
+                        constructor_id: None,
                         name: Constant {
                             name: "Some".to_string(),
                             location: cols(29, 32)
@@ -6352,7 +6352,7 @@ mod tests {
                     ClassExpression::Variant(Box::new(DefineVariant {
                         documentation: String::new(),
                         method_id: None,
-                        variant_id: None,
+                        constructor_id: None,
                         name: Constant {
                             name: "None".to_string(),
                             location: cols(42, 45)

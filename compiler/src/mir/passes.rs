@@ -374,8 +374,7 @@ struct DecisionState {
     /// the variables.
     registers: Vec<RegisterId>,
 
-    /// The action to take per register when destructuring a value such as an
-    /// enum variant of class.
+    /// The action to take per register when destructuring a value.
     actions: HashMap<RegisterId, RegisterAction>,
 
     /// A mapping of parent registers to their child registers.
@@ -541,7 +540,7 @@ impl<'a> GenerateDropper<'a> {
             );
         }
 
-        let variants = class.variants(lower.db());
+        let cons = class.constructors(lower.db());
         let mut blocks = Vec::new();
         let before_block = lower.current_block;
         let after_block = lower.add_block();
@@ -550,12 +549,12 @@ impl<'a> GenerateDropper<'a> {
             class.field_by_index(lower.db(), types::ENUM_TAG_INDEX).unwrap();
         let tag_reg = lower.new_register(TypeRef::int());
 
-        for var in variants {
+        for con in cons {
             let block = lower.add_current_block();
 
             lower.add_edge(before_block, block);
 
-            let members = var.members(lower.db());
+            let members = con.members(lower.db());
             let fields = &enum_fields[0..members.len()];
 
             for (&field, typ) in fields.iter().zip(members.into_iter()).rev() {
@@ -1058,7 +1057,7 @@ impl<'a> LowerToMir<'a> {
                     methods.push(self.define_async_method(*n));
                 }
                 hir::ClassExpression::Variant(n) => {
-                    methods.push(self.define_variant_method(*n, id));
+                    methods.push(self.define_constructor_method(*n, id));
                 }
                 _ => {}
             }
@@ -1159,13 +1158,13 @@ impl<'a> LowerToMir<'a> {
         self.mir.methods.insert(id, method);
     }
 
-    fn define_variant_method(
+    fn define_constructor_method(
         &mut self,
         node: hir::DefineVariant,
         class: types::ClassId,
     ) -> Method {
         let id = node.method_id.unwrap();
-        let variant_id = node.variant_id.unwrap();
+        let constructor_id = node.constructor_id.unwrap();
         let loc = self.mir.add_location(node.location);
         let mut method = Method::new(id, loc);
         let fields = class.enum_fields(self.db());
@@ -1180,7 +1179,7 @@ impl<'a> LowerToMir<'a> {
 
         let ins_reg = lower.new_register(ins);
         let tag_reg = lower.new_register(TypeRef::int());
-        let tag_val = variant_id.id(lower.db()) as i64;
+        let tag_val = constructor_id.id(lower.db()) as i64;
         let tag_field =
             class.field_by_index(lower.db(), types::ENUM_TAG_INDEX).unwrap();
 
@@ -2371,11 +2370,11 @@ impl<'a> LowerMethod<'a> {
         let out_reg = match node.kind {
             types::ThrowKind::Option(typ) => {
                 let some_id = class
-                    .variant(self.db(), OPTION_SOME)
+                    .constructor(self.db(), OPTION_SOME)
                     .unwrap()
                     .id(self.db());
                 let none_id = class
-                    .variant(self.db(), OPTION_NONE)
+                    .constructor(self.db(), OPTION_NONE)
                     .unwrap()
                     .id(self.db());
                 let ok_reg = self.new_untracked_register(typ);
@@ -2409,10 +2408,12 @@ impl<'a> LowerMethod<'a> {
                 ok_reg
             }
             types::ThrowKind::Result(ok_typ, err_typ) => {
-                let ok_id =
-                    class.variant(self.db(), RESULT_OK).unwrap().id(self.db());
+                let ok_id = class
+                    .constructor(self.db(), RESULT_OK)
+                    .unwrap()
+                    .id(self.db());
                 let err_id = class
-                    .variant(self.db(), RESULT_ERROR)
+                    .constructor(self.db(), RESULT_ERROR)
                     .unwrap()
                     .id(self.db());
                 let ok_reg = self.new_untracked_register(ok_typ);
@@ -2465,7 +2466,7 @@ impl<'a> LowerMethod<'a> {
         let reg = self.expression(node.value);
         let class = self.db().class_in_module(RESULT_MODULE, RESULT_CLASS);
         let err_id =
-            class.variant(self.db(), RESULT_ERROR).unwrap().id(self.db());
+            class.constructor(self.db(), RESULT_ERROR).unwrap().id(self.db());
         let tag_field =
             class.field_by_index(self.db(), types::ENUM_TAG_INDEX).unwrap();
         let val_field = class.enum_fields(self.db())[0];
@@ -2827,13 +2828,14 @@ impl<'a> LowerMethod<'a> {
                         parent_block,
                         registers,
                     ),
-                    pmatch::Constructor::Variant(_) => self.variant_patterns(
-                        state,
-                        test,
-                        cases,
-                        parent_block,
-                        registers,
-                    ),
+                    pmatch::Constructor::Variant(_) => self
+                        .constructor_patterns(
+                            state,
+                            test,
+                            cases,
+                            parent_block,
+                            registers,
+                        ),
                 }
             }
             pmatch::Decision::Fail => {
@@ -3245,7 +3247,7 @@ impl<'a> LowerMethod<'a> {
         self.decision(state, case.node, parent_block, registers)
     }
 
-    fn variant_patterns(
+    fn constructor_patterns(
         &mut self,
         state: &mut DecisionState,
         test_reg: RegisterId,

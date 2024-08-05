@@ -1073,7 +1073,7 @@ impl Parser {
         })))
     }
 
-    fn define_variant(
+    fn define_constructor(
         &mut self,
         start: Token,
     ) -> Result<DefineVariant, ParseError> {
@@ -1162,7 +1162,7 @@ impl Parser {
                 self.define_method(start)?,
             )),
             TokenKind::Case => ClassExpression::DefineVariant(Box::new(
-                self.define_variant(start)?,
+                self.define_constructor(start)?,
             )),
             TokenKind::Comment => ClassExpression::Comment(self.comment(start)),
             _ => {

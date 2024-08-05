@@ -91,9 +91,9 @@ fn add_missing_patterns(
 
                         terms.push(Term::new(*var, name, args));
                     }
-                    Constructor::Variant(variant) => {
+                    Constructor::Variant(constructor) => {
                         let args = case.arguments.clone();
-                        let name = variant.name(db).clone();
+                        let name = constructor.name(db).clone();
 
                         terms.push(Term::new(*var, name, args));
                     }
@@ -198,7 +198,7 @@ impl Body {
 ///
 /// This structure is created from a `TypeRef` and allows us to re-use the same
 /// compilation logic for different types. For example, both tuples and enums
-/// translate to the `Type::Finite` variant.
+/// translate to the `Type::Finite` constructor.
 #[derive(Debug)]
 enum Type {
     Int,
@@ -315,7 +315,7 @@ impl Pattern {
                     .collect();
 
                 Pattern::Constructor(
-                    Constructor::Variant(n.variant_id.unwrap()),
+                    Constructor::Variant(n.constructor_id.unwrap()),
                     args,
                 )
             }
@@ -862,13 +862,13 @@ impl<'a> Compiler<'a> {
             _ => match class_id.kind(self.db()) {
                 ClassKind::Enum => {
                     let cons = class_id
-                        .variants(self.db())
+                        .constructors(self.db())
                         .into_iter()
-                        .map(|variant| {
-                            let members = variant.members(self.db());
+                        .map(|constructor| {
+                            let members = constructor.members(self.db());
 
                             (
-                                Constructor::Variant(variant),
+                                Constructor::Variant(constructor),
                                 self.new_variables(class_ins, typ, members),
                                 Vec::new(),
                             )
@@ -1217,13 +1217,13 @@ mod tests {
             module,
             Location::default(),
         );
-        let some = option_type.new_variant(
+        let some = option_type.new_constructor(
             &mut state.db,
             "Some".to_string(),
             vec![TypeRef::int()],
             Location::default(),
         );
-        let none = option_type.new_variant(
+        let none = option_type.new_constructor(
             &mut state.db,
             "None".to_string(),
             Vec::new(),
@@ -1286,13 +1286,13 @@ mod tests {
             module,
             Location::default(),
         );
-        let some = option_type.new_variant(
+        let some = option_type.new_constructor(
             &mut state.db,
             "Some".to_string(),
             vec![TypeRef::int()],
             Location::default(),
         );
-        let none = option_type.new_variant(
+        let none = option_type.new_constructor(
             &mut state.db,
             "None".to_string(),
             Vec::new(),

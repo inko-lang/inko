@@ -487,7 +487,7 @@ impl Diagnostics {
         );
     }
 
-    pub(crate) fn undefined_variant(
+    pub(crate) fn undefined_constructor(
         &mut self,
         name: &str,
         type_name: String,
@@ -497,7 +497,7 @@ impl Diagnostics {
         self.error(
             DiagnosticId::InvalidSymbol,
             format!(
-                "the variant '{}' doesn't exist for type '{}'",
+                "the constructor '{}' doesn't exist for type '{}'",
                 name, type_name
             ),
             file,

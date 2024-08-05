@@ -915,12 +915,12 @@ mod tests {
         TypeId, TypeRef, Visibility,
     };
 
-    macro_rules! variant {
+    macro_rules! constructor {
         ($enum: expr, $pattern: path) => {{
             if let $pattern(ref node) = $enum {
                 node
             } else {
-                panic!("unexpected enum variant")
+                panic!("unexpected enum constructor")
             }
         }};
     }
@@ -1105,7 +1105,10 @@ mod tests {
 
         assert!(!state.diagnostics.has_errors());
         assert_eq!(type_ref, TypeRef::Owned(class_instance));
-        assert_eq!(variant!(node, hir::Type::Named).resolved_type, type_ref);
+        assert_eq!(
+            constructor!(node, hir::Type::Named).resolved_type,
+            type_ref
+        );
     }
 
     #[test]
@@ -1155,7 +1158,10 @@ mod tests {
 
         assert!(!state.diagnostics.has_errors());
         assert_eq!(type_ref, TypeRef::Owned(class_instance));
-        assert_eq!(variant!(node, hir::Type::Named).resolved_type, type_ref);
+        assert_eq!(
+            constructor!(node, hir::Type::Named).resolved_type,
+            type_ref
+        );
     }
 
     #[test]
@@ -1234,8 +1240,8 @@ mod tests {
         assert_eq!(type_ref, TypeRef::Ref(class_instance));
 
         assert_eq!(
-            variant!(
-                variant!(node, hir::Type::Ref).type_reference,
+            constructor!(
+                constructor!(node, hir::Type::Ref).type_reference,
                 hir::ReferrableType::Named
             )
             .resolved_type,
@@ -1270,7 +1276,10 @@ mod tests {
 
         assert_eq!(type_ref, TypeRef::Owned(TypeId::Closure(ClosureId(0))));
         assert!(!state.diagnostics.has_errors());
-        assert_eq!(variant!(node, hir::Type::Closure).resolved_type, type_ref);
+        assert_eq!(
+            constructor!(node, hir::Type::Closure).resolved_type,
+            type_ref
+        );
     }
 
     #[test]

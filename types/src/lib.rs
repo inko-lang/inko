@@ -98,7 +98,8 @@ pub const DEREF_POINTER_FIELD: &str = "0";
 pub const ENUM_TAG_FIELD: &str = "tag";
 pub const ENUM_TAG_INDEX: usize = 0;
 
-/// The maximum number of enum variants that can be defined in a single class.
+/// The maximum number of enum constructors that can be defined in a single
+/// class.
 pub const VARIANTS_LIMIT: usize = u16::MAX as usize;
 
 /// The maximum number of fields a class can define.
@@ -1043,7 +1044,7 @@ pub struct TraitImplementation {
     pub bounds: TypeBounds,
 }
 
-/// A single variant defined in a enum class.
+/// A single constructor defined in a enum class.
 pub struct Variant {
     id: u16,
     name: String,
@@ -1060,9 +1061,9 @@ impl Variant {
         members: Vec<TypeRef>,
         location: Location,
     ) -> VariantId {
-        let global_id = db.variants.len();
+        let global_id = db.constructors.len();
 
-        db.variants.push(Variant {
+        db.constructors.push(Variant {
             id,
             name,
             members,
@@ -1110,11 +1111,11 @@ impl VariantId {
     }
 
     fn get(self, db: &Database) -> &Variant {
-        &db.variants[self.0]
+        &db.constructors[self.0]
     }
 
     fn get_mut(self, db: &mut Database) -> &mut Variant {
-        &mut db.variants[self.0]
+        &mut db.constructors[self.0]
     }
 }
 
@@ -1196,7 +1197,7 @@ pub struct Class {
     type_parameters: IndexMap<String, TypeParameterId>,
     methods: HashMap<String, MethodId>,
     implemented_traits: HashMap<TraitId, TraitImplementation>,
-    variants: IndexMap<String, VariantId>,
+    constructors: IndexMap<String, VariantId>,
     specializations: HashMap<Vec<Shape>, ClassId>,
 
     /// The ID of the class this class is a specialization of.
@@ -1242,7 +1243,7 @@ impl Class {
             type_parameters: IndexMap::new(),
             methods: HashMap::new(),
             implemented_traits: HashMap::new(),
-            variants: IndexMap::new(),
+            constructors: IndexMap::new(),
             module,
             location,
             specializations: HashMap::new(),
@@ -1424,18 +1425,19 @@ impl ClassId {
         self.get(db).implemented_traits.values()
     }
 
-    pub fn new_variant(
+    pub fn new_constructor(
         self,
         db: &mut Database,
         name: String,
         members: Vec<TypeRef>,
         location: Location,
     ) -> VariantId {
-        let id = self.get(db).variants.len() as u16;
-        let variant = Variant::alloc(db, id, name.clone(), members, location);
+        let id = self.get(db).constructors.len() as u16;
+        let constructor =
+            Variant::alloc(db, id, name.clone(), members, location);
 
-        self.get_mut(db).variants.insert(name, variant);
-        variant
+        self.get_mut(db).constructors.insert(name, constructor);
+        constructor
     }
 
     pub fn named_type(self, db: &Database, name: &str) -> Option<Symbol> {
@@ -1532,16 +1534,16 @@ impl ClassId {
         self.get_mut(db).methods.insert(name, method);
     }
 
-    pub fn variant(self, db: &Database, name: &str) -> Option<VariantId> {
-        self.get(db).variants.get(name).cloned()
+    pub fn constructor(self, db: &Database, name: &str) -> Option<VariantId> {
+        self.get(db).constructors.get(name).cloned()
     }
 
-    pub fn variants(self, db: &Database) -> Vec<VariantId> {
-        self.get(db).variants.values().clone()
+    pub fn constructors(self, db: &Database) -> Vec<VariantId> {
+        self.get(db).constructors.values().clone()
     }
 
-    pub fn number_of_variants(self, db: &Database) -> usize {
-        self.get(db).variants.len()
+    pub fn number_of_constructors(self, db: &Database) -> usize {
+        self.get(db).constructors.len()
     }
 
     pub fn number_of_fields(self, db: &Database) -> usize {
@@ -3564,9 +3566,9 @@ pub enum TypeRef {
 
     /// A type of which the ownership can be anything.
     ///
-    /// This variant is only used with type parameters. We wrap a TypeId here so
-    /// we can reuse various functions more easily, such as those used for
-    /// type-checking; instead of having to special-case this variant.
+    /// This constructor is only used with type parameters. We wrap a TypeId
+    /// here so we can reuse various functions more easily, such as those used
+    /// for type-checking; instead of having to special-case this constructor.
     Any(TypeId),
 
     /// A type that signals something never happens.
@@ -4676,9 +4678,9 @@ pub enum TypeId {
 
     /// A type parameter that uses atomic reference counting for aliases.
     ///
-    /// This variant isn't produced by users through the type system, instead
-    /// it's produced when specializing type parameters that are assigned atomic
-    /// types, such as channels and processes.
+    /// This constructor isn't produced by users through the type system,
+    /// instead it's produced when specializing type parameters that are
+    /// assigned atomic types, such as channels and processes.
     AtomicTypeParameter(TypeParameterId),
     Closure(ClosureId),
     Foreign(ForeignType),
@@ -4803,7 +4805,7 @@ pub struct Database {
     constants: Vec<Constant>,
     builtin_functions: HashMap<String, BuiltinFunction>,
     type_placeholders: Vec<TypePlaceholder>,
-    variants: Vec<Variant>,
+    constructors: Vec<Variant>,
 
     /// The module that acts as the entry point of the program.
     ///
@@ -4854,7 +4856,7 @@ impl Database {
             constants: Vec::new(),
             builtin_functions: BuiltinFunction::mapping(),
             type_placeholders: Vec::new(),
-            variants: Vec::new(),
+            constructors: Vec::new(),
             main_module: None,
             main_method: None,
             main_class: None,
