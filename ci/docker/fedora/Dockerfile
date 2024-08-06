@@ -5,6 +5,7 @@ ENV RUST_VERSION 1.78
 
 ENV PATH /opt/cargo/bin:$PATH
 ENV RUSTUP_HOME /opt/rustup
+ENV CARGO_HOME /opt/cargo
 
 RUN sudo dnf install --assumeyes --quiet gcc make tar git rustup rclone \
     llvm$LLVM_VERSION llvm$LLVM_VERSION-devel \
