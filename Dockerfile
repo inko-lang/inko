@@ -1,7 +1,5 @@
 FROM registry.fedoraproject.org/fedora-minimal:40 AS builder
 
-ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL sparse
-
 # Fedora builds LLVM with libffi support, and when statically linking against
 # LLVM the build will fail if libffi-devel isn't installed, hence we include it
 # here. See https://gitlab.com/taricorp/llvm-sys.rs/-/issues/41 for some extra

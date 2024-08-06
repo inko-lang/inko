@@ -16,7 +16,8 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
   CARGO_HOME: ${{ github.workspace }}/.cargo-home
-  RUSTUP_HOME: ${{ github.workspace }}/.rustup-home
+  # We set an explicit version to only install the components we need for CI.
+  RUSTUP_TOOLCHAIN: '1.78'
 
 jobs:
   tests:
@@ -68,10 +69,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
         with:
-          path: |
-            docs/build
-            ~/.local/share/inko/packages
-          key: docs-main
+          path: '~/.local/share/inko/packages'
+          key: docs-main-${{ hashFiles('docs/inko.pkg') }}
       - run: git config --global --add safe.directory $PWD
       - name: Deploy the documentation
         run: make docs/publish
@@ -93,11 +92,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
         with:
-          path: |
-            ${{ env.CARGO_HOME }}
-            ${{ env.RUSTUP_HOME }}
-            target
-          key: std-docs-main
+          path: '${{ env.CARGO_HOME }}'
+          key: std-docs-main-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
       - run: git config --global --add safe.directory $PWD
       - name: Deploy the documentation
         run: make std-docs/publish

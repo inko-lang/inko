@@ -1,11 +1,9 @@
 FROM registry.fedoraproject.org/fedora:40
 
-ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL sparse
 ENV LLVM_VERSION 17
 ENV RUST_VERSION 1.78
 
 ENV PATH /opt/cargo/bin:$PATH
-ENV CARGO_HOME /opt/cargo
 ENV RUSTUP_HOME /opt/rustup
 
 RUN sudo dnf install --assumeyes --quiet gcc make tar git rustup rclone \
