@@ -36,8 +36,6 @@
     "guides/tests.md",
     "guides/documentation.md",
     "guides/packages.md",
-    "guides/conditional-compilation.md",
-    "guides/compile-time-variables.md",
     "guides/cross-compilation.md",
     "guides/operators.md"
   ],
@@ -48,6 +46,8 @@
     "references/structure.md",
     "references/core-types.md",
     "references/prelude.md",
+    "references/conditional-compilation.md",
+    "references/compile-time-variables.md",
     "references/tuning.md",
     "references/contributing.md"
   ],
