@@ -2502,34 +2502,26 @@ impl<'a> CheckMethodBody<'a> {
 
                     return TypeRef::Error;
                 }
-                _ => {
-                    match self.module.symbol(self.db(), &node.name) {
-                        Some(Symbol::Constant(id)) => {
-                            node.resolved_type = id.value_type(self.db());
-                            node.kind = ConstantKind::Constant(id);
+                _ => match module.symbol(self.db(), &node.name) {
+                    Some(Symbol::Constant(id)) => {
+                        node.resolved_type = id.value_type(self.db());
+                        node.kind = ConstantKind::Constant(id);
 
-                            return node.resolved_type;
-                        }
-                        Some(Symbol::Class(id)) if receiver => {
-                            return TypeRef::Owned(TypeId::Class(id));
-                        }
-                        Some(Symbol::Class(_) | Symbol::Trait(_))
-                            if !receiver =>
-                        {
-                            self.state.diagnostics.symbol_not_a_value(
-                                &node.name,
-                                self.file(),
-                                node.location.clone(),
-                            );
-
-                            return TypeRef::Error;
-                        }
-                        _ => {}
+                        return node.resolved_type;
                     }
+                    Some(Symbol::Class(id)) if receiver => {
+                        return TypeRef::Owned(TypeId::Class(id));
+                    }
+                    Some(Symbol::Class(_) | Symbol::Trait(_)) if !receiver => {
+                        self.state.diagnostics.symbol_not_a_value(
+                            &node.name,
+                            self.file(),
+                            node.location.clone(),
+                        );
 
-                    if let Some(Symbol::Method(method)) =
-                        module.symbol(self.db(), &node.name)
-                    {
+                        return TypeRef::Error;
+                    }
+                    Some(Symbol::Method(method)) => {
                         let id = method.module(self.db());
 
                         (
@@ -2538,7 +2530,8 @@ impl<'a> CheckMethodBody<'a> {
                             Receiver::with_module(self.db(), method),
                             method,
                         )
-                    } else {
+                    }
+                    _ => {
                         self.state.diagnostics.undefined_symbol(
                             &node.name,
                             self.file(),
@@ -2547,7 +2540,7 @@ impl<'a> CheckMethodBody<'a> {
 
                         return TypeRef::Error;
                     }
-                }
+                },
             }
         };
 

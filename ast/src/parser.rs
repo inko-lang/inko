@@ -2672,28 +2672,6 @@ impl Parser {
             }
         }
 
-        // loop {
-        //     match self.peek().kind {
-        //         TokenKind::Identifier
-        //         | TokenKind::Constant
-        //         | TokenKind::Integer
-        //         | TokenKind::DoubleStringOpen
-        //         | TokenKind::SingleStringOpen
-        //         | TokenKind::True
-        //         | TokenKind::False
-        //         | TokenKind::ParenOpen
-        //         | TokenKind::Mut
-        //         | TokenKind::CurlyOpen => patterns.push(self.pattern()?),
-        //         _ => break,
-        //     }
-        //
-        //     if self.peek().kind == TokenKind::Comma {
-        //         self.next();
-        //     } else {
-        //         break;
-        //     }
-        // }
-
         Ok(patterns)
     }
 
