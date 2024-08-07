@@ -34,22 +34,22 @@
   ],
   "Guides": [
     "guides/tests.md",
+    "guides/documentation.md",
+    "guides/packages.md",
     "guides/conditional-compilation.md",
     "guides/compile-time-variables.md",
     "guides/cross-compilation.md",
-    "guides/operators.md",
-    "guides/contributing.md"
+    "guides/operators.md"
   ],
   "References": [
+    "references/cli.md",
     "references/syntax.md",
     "references/style.md",
     "references/structure.md",
     "references/core-types.md",
     "references/prelude.md",
-    "references/cli.md",
-    "references/packages.md",
     "references/tuning.md",
-    "references/documentation.md"
+    "references/contributing.md"
   ],
   "Design": [
     "design/compiler.md",
