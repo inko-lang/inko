@@ -16,3 +16,19 @@ and that you are familiar with terminal emulators.
 
 You can contribute to the manual by submitting changes or bug reports to the
 [Inko repository](https://github.com/inko-lang/inko).
+
+## Structure
+
+The manual is divided into the following sections:
+
+- **Setting up**: how to set up your development environment for Inko
+- **Getting started**: everything you need to know to get started with Inko
+- **Guides**: how to perform specific tasks such as writing unit tests or
+  generating documentation
+- **References**: reference material, such as an overview of the syntax, how to
+  structure projects, or how to contribute to Inko's development
+- **Design**: details on various design and implementation decisions, the goals
+  of the project, and more
+
+If you're new to Inko, start by working your way through the "Setting up" and
+"Getting started" sections.
