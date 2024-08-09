@@ -85,14 +85,14 @@ fn download_dependency(
 ) -> Result<(Package, Option<Manifest>), Error> {
     let dir = cache_dir.join(dependency.url.directory_name());
     let url = dependency.url.to_string();
+    let tag_name = dependency.version.tag_name();
     let (mut repo, fetch) = if dir.is_dir() {
         (Repository::open(&dir)?, true)
     } else {
         println!("Downloading {} v{}", dependency.url, dependency.version);
-        (Repository::clone(&url, &dir)?, false)
+        (Repository::clone(&url, &dir, &tag_name)?, false)
     };
 
-    let tag_name = dependency.version.tag_name();
     let tag = if let Some(tag) = repo.tag(&tag_name) {
         Some(tag)
     } else if fetch {

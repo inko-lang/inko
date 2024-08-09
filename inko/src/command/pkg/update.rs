@@ -60,7 +60,11 @@ pub(crate) fn run(args: &[String]) -> Result<i32, Error> {
             repo.fetch()?;
             repo
         } else {
-            Repository::clone(&dep.url.to_string(), &dir)?
+            Repository::clone(
+                &dep.url.to_string(),
+                &dir,
+                &dep.version.tag_name(),
+            )?
         };
 
         let tag_names = repo.version_tag_names();

@@ -26,9 +26,23 @@ impl Repository {
         }
     }
 
-    pub(crate) fn clone(url: &str, path: &Path) -> Result<Self, String> {
-        run("clone", None, &[OsStr::new(url), path.as_os_str()])
-            .map_err(|err| format!("Failed to clone {}: {}", url, err))?;
+    pub(crate) fn clone(
+        url: &str,
+        path: &Path,
+        branch: &str,
+    ) -> Result<Self, String> {
+        run(
+            "clone",
+            None,
+            &[
+                OsStr::new("--single-branch"),
+                OsStr::new("--branch"),
+                OsStr::new(branch),
+                OsStr::new(url),
+                path.as_os_str(),
+            ],
+        )
+        .map_err(|err| format!("Failed to clone {}: {}", url, err))?;
 
         Ok(Self { path: path.to_path_buf() })
     }
