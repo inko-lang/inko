@@ -45,19 +45,19 @@ pub(crate) fn run(args: &[String]) -> Result<i32, Error> {
         matches.free.get(1).and_then(|uri| Version::parse(uri)).ok_or_else(
             || Error::from("The package version is invalid".to_string()),
         )?;
+    let tag_name = version.tag_name();
 
     let dir = data_dir()?.join(url.directory_name());
     let (mut repo, fetch) = if dir.is_dir() {
         (Repository::open(&dir)?, true)
     } else {
-        (Repository::clone(&url.to_string(), &dir)?, false)
+        (Repository::clone(&url.to_string(), &dir, &tag_name)?, false)
     };
 
     if fetch {
         repo.fetch()?;
     }
 
-    let tag_name = version.tag_name();
     let tag = if let Some(tag) = repo.tag(&tag_name) {
         Some(tag)
     } else if fetch {
