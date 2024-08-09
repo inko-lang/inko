@@ -2,6 +2,9 @@
 members = ["ast", "inko", "compiler", "rt"]
 resolver = "2"
 
+[workspace.package]
+version = "0.15.0" # VERSION
+
 [profile.release]
 panic = "abort"
 

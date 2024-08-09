@@ -103,7 +103,7 @@ release/changelog:
 	clogs "${VERSION}"
 
 release/versions:
-	ruby scripts/update_versions.rb ${VERSION}
+	scripts/update_versions.sh ${VERSION}
 
 release/commit:
 	git add */Cargo.toml Cargo.toml Cargo.lock CHANGELOG.md
