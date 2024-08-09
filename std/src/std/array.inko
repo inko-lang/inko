@@ -9,12 +9,6 @@ import std.libc.unix.alloc (self as alloc_imp) if unix
 import std.option (Option)
 import std.rand (Shuffle)
 
-# The size of each value in an Array.
-#
-# Inko values stored in an Array are always heap allocated, thus each value is
-# the size of a pointer, or 8 bytes.
-let VALUE_SIZE = 8
-
 # The capacity to use when resizing an array for the first time.
 let START_CAPACITY = 4
 
@@ -118,7 +112,8 @@ class builtin Array[T] {
   fn pub static with_capacity(size: Int) -> Array[T] {
     if size < 0 { panic('The capacity must be greater than or equal to zero') }
 
-    let buffer = alloc_imp.resize(0x0 as Pointer[T], size: size * VALUE_SIZE)
+    let vsize = _INKO.size_of_type_parameter(T)
+    let buffer = alloc_imp.resize(0x0 as Pointer[T], size: size * vsize)
       as Pointer[UInt64]
 
     Array(size: 0, capacity: size, buffer: buffer)
@@ -156,8 +151,10 @@ class builtin Array[T] {
   fn pub mut reserve(size: Int) {
     if @capacity - @size >= size { return }
 
+    let vsize = _INKO.size_of_type_parameter(T)
+
     @capacity = max(@capacity * 2, @capacity + size)
-    @buffer = alloc_imp.resize(@buffer, @capacity * VALUE_SIZE)
+    @buffer = alloc_imp.resize(@buffer, @capacity * vsize)
   }
 
   # Removes all values in the Array.
@@ -252,11 +249,12 @@ class builtin Array[T] {
 
     let addr = address_of(index)
     let val = addr.0
+    let vsize = _INKO.size_of_type_parameter(T)
 
     alloc_imp.copy(
-      from: addr as Int + VALUE_SIZE as Pointer[T],
+      from: addr as Int + vsize as Pointer[T],
       to: addr,
-      size: len - index - 1 * VALUE_SIZE,
+      size: len - index - 1 * vsize,
     )
 
     @size = len - 1
@@ -599,8 +597,9 @@ class builtin Array[T] {
     if index < @size {
       let from = address_of(index)
       let to = address_of(index + 1)
+      let vsize = _INKO.size_of_type_parameter(T)
 
-      alloc_imp.copy(from, to, size: @size - index * VALUE_SIZE)
+      alloc_imp.copy(from, to, size: @size - index * vsize)
     }
 
     write_to(index, value)
@@ -649,7 +648,7 @@ class builtin Array[T] {
   }
 
   fn address_of(index: Int) -> Pointer[T] {
-    @buffer as Int + (index * VALUE_SIZE) as Pointer[T]
+    @buffer as Int + (index * _INKO.size_of_type_parameter(T)) as Pointer[T]
   }
 }
 

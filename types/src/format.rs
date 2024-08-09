@@ -1,7 +1,7 @@
 //! Formatting of types.
 use crate::{
     Arguments, ClassId, ClassInstance, ClassKind, ClosureId, Database,
-    ForeignType, MethodId, MethodKind, ModuleId, Ownership, TraitId,
+    ForeignType, MethodId, MethodKind, ModuleId, Ownership, Sign, TraitId,
     TraitInstance, TypeArguments, TypeId, TypeParameterId, TypePlaceholderId,
     TypeRef, Visibility,
 };
@@ -451,10 +451,10 @@ impl FormatType for TypeId {
                 );
             }
             TypeId::Closure(id) => id.format_type(buffer),
-            TypeId::Foreign(ForeignType::Int(size, true)) => {
+            TypeId::Foreign(ForeignType::Int(size, Sign::Signed)) => {
                 buffer.write(&format!("Int{}", size))
             }
-            TypeId::Foreign(ForeignType::Int(size, false)) => {
+            TypeId::Foreign(ForeignType::Int(size, Sign::Unsigned)) => {
                 buffer.write(&format!("UInt{}", size))
             }
             TypeId::Foreign(ForeignType::Float(size)) => {
@@ -1041,14 +1041,20 @@ mod tests {
         assert_eq!(
             format_type(
                 &db,
-                TypeRef::pointer(TypeId::Foreign(ForeignType::Int(8, true)))
+                TypeRef::pointer(TypeId::Foreign(ForeignType::Int(
+                    8,
+                    Sign::Signed
+                )))
             ),
             "Pointer[Int8]"
         );
         assert_eq!(
             format_type(
                 &db,
-                TypeRef::pointer(TypeId::Foreign(ForeignType::Int(8, false)))
+                TypeRef::pointer(TypeId::Foreign(ForeignType::Int(
+                    8,
+                    Sign::Unsigned
+                )))
             ),
             "Pointer[UInt8]"
         );

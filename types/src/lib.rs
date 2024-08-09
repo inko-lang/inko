@@ -19,6 +19,7 @@ use crate::module_name::ModuleName;
 use crate::resolve::TypeResolver;
 use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
+use std::fmt;
 use std::ops::RangeInclusive;
 use std::path::PathBuf;
 
@@ -1677,8 +1678,8 @@ impl ClassId {
 
     fn shape(self, db: &Database, default: Shape) -> Shape {
         match self.0 {
-            INT_ID => Shape::Int,
-            FLOAT_ID => Shape::Float,
+            INT_ID => Shape::int(),
+            FLOAT_ID => Shape::float(),
             BOOL_ID => Shape::Boolean,
             NIL_ID => Shape::Nil,
             STRING_ID => Shape::String,
@@ -2104,12 +2105,12 @@ impl BuiltinFunction {
             BuiltinFunction::Moved => TypeRef::nil(),
             BuiltinFunction::Panic => TypeRef::Never,
             BuiltinFunction::StringConcat => TypeRef::string(),
-            BuiltinFunction::State => {
-                TypeRef::pointer(TypeId::Foreign(ForeignType::Int(8, false)))
-            }
-            BuiltinFunction::Process => {
-                TypeRef::pointer(TypeId::Foreign(ForeignType::Int(8, false)))
-            }
+            BuiltinFunction::State => TypeRef::pointer(TypeId::Foreign(
+                ForeignType::Int(8, Sign::Unsigned),
+            )),
+            BuiltinFunction::Process => TypeRef::pointer(TypeId::Foreign(
+                ForeignType::Int(8, Sign::Unsigned),
+            )),
             BuiltinFunction::FloatRound => TypeRef::float(),
             BuiltinFunction::FloatPowi => TypeRef::float(),
             BuiltinFunction::IntSwapBytes => TypeRef::int(),
@@ -3494,6 +3495,18 @@ impl Block for ClosureId {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+pub enum Sign {
+    Signed,
+    Unsigned,
+}
+
+impl Sign {
+    pub fn is_signed(self) -> bool {
+        matches!(self, Sign::Signed)
+    }
+}
+
 /// A type describing the "shape" of a type, which describes its size on the
 /// stack, how to create aliases, etc.
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
@@ -3509,40 +3522,63 @@ pub enum Shape {
 
     /// A 64-bits unboxed integer.
     ///
-    /// These values are passed around using a simple copy.
-    Int,
+    /// The arguments are:
+    ///
+    /// 1. The size in bits
+    /// 2. The sign of the integer
+    Int(u32, Sign),
 
     /// A 64-bits unboxed float.
     ///
-    /// These values are passed around using a simple copy. In native code,
-    /// these values use the appropriate floating point registers.
-    Float,
+    /// The argument is the size in bits.
+    Float(u32),
 
-    /// The value is a boolean.
+    /// A boolean.
     Boolean,
 
-    /// The value is a string.
+    /// A string using atomic reference counting.
     String,
 
-    /// The value is the Nil singleton.
+    /// The nil singleton.
     Nil,
 
-    /// The value is an owned value that uses atomic reference counting.
+    /// An owned value that uses atomic reference counting.
     Atomic,
+
+    /// A raw C pointer.
+    ///
+    /// This is a dedicated shape because:
+    ///
+    /// - Pointers aren't necessarily integers (e.g. with CHERI)
+    /// - It better signals the purpose is for raw pointers and not random
+    ///   integers
+    Pointer,
 }
 
 impl Shape {
-    pub fn identifier(&self) -> &'static str {
+    pub fn int() -> Shape {
+        Shape::Int(64, Sign::Signed)
+    }
+
+    pub fn float() -> Shape {
+        Shape::Float(64)
+    }
+}
+
+impl fmt::Display for Shape {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Shape::Owned => "o",
-            Shape::Mut => "m",
-            Shape::Ref => "r",
-            Shape::Int => "i",
-            Shape::Float => "f",
-            Shape::Boolean => "b",
-            Shape::String => "s",
-            Shape::Atomic => "a",
-            Shape::Nil => "n",
+            Shape::Owned => write!(f, "o"),
+            Shape::Mut => write!(f, "m"),
+            Shape::Ref => write!(f, "r"),
+            Shape::Int(s, Sign::Signed) => write!(f, "i{}", s),
+            Shape::Int(s, Sign::Unsigned) => write!(f, "u{}", s),
+            Shape::Float(s) => write!(f, "f{}", s),
+            Shape::Boolean => write!(f, "b"),
+            Shape::String => write!(f, "s"),
+            Shape::Atomic => write!(f, "a"),
+            Shape::Nil => write!(f, "n"),
+            Shape::Pointer => write!(f, "p"),
         }
     }
 }
@@ -3635,12 +3671,28 @@ impl TypeRef {
         )))
     }
 
+    pub fn int_with_sign(size: u32, sign: Sign) -> TypeRef {
+        match sign {
+            Sign::Signed if size == 64 => TypeRef::int(),
+            Sign::Signed => TypeRef::foreign_signed_int(size),
+            _ => TypeRef::foreign_unsigned_int(size),
+        }
+    }
+
+    pub fn float_with_size(size: u32) -> TypeRef {
+        if size == 64 {
+            TypeRef::float()
+        } else {
+            TypeRef::foreign_float(size)
+        }
+    }
+
     pub fn foreign_signed_int(size: u32) -> TypeRef {
-        TypeRef::Owned(TypeId::Foreign(ForeignType::Int(size, true)))
+        TypeRef::Owned(TypeId::Foreign(ForeignType::Int(size, Sign::Signed)))
     }
 
     pub fn foreign_unsigned_int(size: u32) -> TypeRef {
-        TypeRef::Owned(TypeId::Foreign(ForeignType::Int(size, false)))
+        TypeRef::Owned(TypeId::Foreign(ForeignType::Int(size, Sign::Unsigned)))
     }
 
     pub fn foreign_float(size: u32) -> TypeRef {
@@ -4653,6 +4705,13 @@ impl TypeRef {
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(Shape::Owned, |v| v.shape(db, shapes))
             }
+            TypeRef::Owned(TypeId::Foreign(ForeignType::Int(size, sign))) => {
+                Shape::Int(size, sign)
+            }
+            TypeRef::Owned(TypeId::Foreign(ForeignType::Float(size))) => {
+                Shape::Float(size)
+            }
+            TypeRef::Pointer(_) => Shape::Pointer,
             _ => Shape::Owned,
         }
     }
@@ -4664,8 +4723,7 @@ impl TypeRef {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum ForeignType {
-    // An integer of a given bit size, that is optionally signed.
-    Int(u32, bool),
+    Int(u32, Sign),
     Float(u32),
 }
 
@@ -6065,11 +6123,11 @@ mod tests {
         let param2 = new_parameter(&mut db, "X");
         let mut shapes = HashMap::new();
 
-        shapes.insert(param1, Shape::Int);
+        shapes.insert(param1, Shape::int());
         var.assign(&mut db, TypeRef::int());
 
-        assert_eq!(TypeRef::int().shape(&db, &shapes), Shape::Int);
-        assert_eq!(TypeRef::float().shape(&db, &shapes), Shape::Float);
+        assert_eq!(TypeRef::int().shape(&db, &shapes), Shape::int());
+        assert_eq!(TypeRef::float().shape(&db, &shapes), Shape::float());
         assert_eq!(TypeRef::boolean().shape(&db, &shapes), Shape::Boolean);
         assert_eq!(TypeRef::nil().shape(&db, &shapes), Shape::Nil);
         assert_eq!(TypeRef::string().shape(&db, &shapes), Shape::String);
@@ -6078,13 +6136,16 @@ mod tests {
         assert_eq!(immutable(instance(class)).shape(&db, &shapes), Shape::Ref);
         assert_eq!(mutable(instance(class)).shape(&db, &shapes), Shape::Mut);
         assert_eq!(uni(instance(class)).shape(&db, &shapes), Shape::Owned);
-        assert_eq!(placeholder(var).shape(&db, &shapes), Shape::Int);
-        assert_eq!(owned(parameter(param1)).shape(&db, &shapes), Shape::Int);
+        assert_eq!(placeholder(var).shape(&db, &shapes), Shape::int());
+        assert_eq!(owned(parameter(param1)).shape(&db, &shapes), Shape::int());
         assert_eq!(
             immutable(parameter(param1)).shape(&db, &shapes),
-            Shape::Int
+            Shape::int()
         );
-        assert_eq!(mutable(parameter(param1)).shape(&db, &shapes), Shape::Int);
+        assert_eq!(
+            mutable(parameter(param1)).shape(&db, &shapes),
+            Shape::int()
+        );
         assert_eq!(
             owned(TypeId::AtomicTypeParameter(param2)).shape(&db, &shapes),
             Shape::Atomic
@@ -6102,10 +6163,10 @@ mod tests {
             immutable(instance(string)).shape(&db, &shapes),
             Shape::String
         );
-        assert_eq!(immutable(instance(int)).shape(&db, &shapes), Shape::Int);
+        assert_eq!(immutable(instance(int)).shape(&db, &shapes), Shape::int());
         assert_eq!(
             immutable(instance(float)).shape(&db, &shapes),
-            Shape::Float
+            Shape::float()
         );
         assert_eq!(
             immutable(instance(boolean)).shape(&db, &shapes),
@@ -6115,8 +6176,11 @@ mod tests {
             mutable(instance(string)).shape(&db, &shapes),
             Shape::String
         );
-        assert_eq!(mutable(instance(int)).shape(&db, &shapes), Shape::Int);
-        assert_eq!(mutable(instance(float)).shape(&db, &shapes), Shape::Float);
+        assert_eq!(mutable(instance(int)).shape(&db, &shapes), Shape::int());
+        assert_eq!(
+            mutable(instance(float)).shape(&db, &shapes),
+            Shape::float()
+        );
         assert_eq!(
             mutable(instance(boolean)).shape(&db, &shapes),
             Shape::Boolean
@@ -6129,6 +6193,29 @@ mod tests {
             ))
             .shape(&db, &shapes),
             Shape::Atomic
+        );
+        assert_eq!(
+            owned(TypeId::Foreign(ForeignType::Int(32, Sign::Signed)))
+                .shape(&db, &shapes),
+            Shape::Int(32, Sign::Signed)
+        );
+        assert_eq!(
+            owned(TypeId::Foreign(ForeignType::Int(32, Sign::Unsigned)))
+                .shape(&db, &shapes),
+            Shape::Int(32, Sign::Unsigned)
+        );
+        assert_eq!(
+            owned(TypeId::Foreign(ForeignType::Float(32))).shape(&db, &shapes),
+            Shape::Float(32)
+        );
+        assert_eq!(
+            owned(TypeId::Foreign(ForeignType::Float(64))).shape(&db, &shapes),
+            Shape::Float(64)
+        );
+        assert_eq!(
+            pointer(TypeId::Foreign(ForeignType::Int(64, Sign::Signed)))
+                .shape(&db, &shapes),
+            Shape::Pointer
         );
     }
 

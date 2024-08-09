@@ -13,8 +13,8 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use types::collections::IndexMap;
 use types::{
-    BuiltinFunction, Database, ForeignType, MethodId, Shape, TypeArguments,
-    TypeId, TypeRef, BOOL_ID, FLOAT_ID, INT_ID, NIL_ID,
+    BuiltinFunction, Database, ForeignType, MethodId, Shape, Sign,
+    TypeArguments, TypeId, TypeRef, BOOL_ID, FLOAT_ID, INT_ID, NIL_ID,
 };
 
 /// The register ID of the register that stores `self`.
@@ -673,6 +673,19 @@ impl Block {
             location,
         })));
     }
+
+    pub(crate) fn size_of(
+        &mut self,
+        register: RegisterId,
+        argument: TypeRef,
+        location: LocationId,
+    ) {
+        self.instructions.push(Instruction::SizeOf(Box::new(SizeOf {
+            register,
+            argument,
+            location,
+        })));
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -1004,10 +1017,7 @@ pub(crate) struct Cast {
 
 #[derive(Clone, Debug, Copy)]
 pub(crate) enum CastType {
-    /// We're casting to/from an integer.
-    ///
-    /// The boolean indicates if the integer is signed or not.
-    Int(u32, bool),
+    Int(u32, Sign),
     Float(u32),
     Pointer,
     Object,
@@ -1019,17 +1029,17 @@ impl CastType {
             CastType::Pointer
         } else {
             match typ.type_id(db) {
-                Ok(TypeId::Foreign(ForeignType::Int(8, signed))) => {
-                    CastType::Int(8, signed)
+                Ok(TypeId::Foreign(ForeignType::Int(8, sign))) => {
+                    CastType::Int(8, sign)
                 }
-                Ok(TypeId::Foreign(ForeignType::Int(16, signed))) => {
-                    CastType::Int(16, signed)
+                Ok(TypeId::Foreign(ForeignType::Int(16, sign))) => {
+                    CastType::Int(16, sign)
                 }
-                Ok(TypeId::Foreign(ForeignType::Int(32, signed))) => {
-                    CastType::Int(32, signed)
+                Ok(TypeId::Foreign(ForeignType::Int(32, sign))) => {
+                    CastType::Int(32, sign)
                 }
-                Ok(TypeId::Foreign(ForeignType::Int(64, signed))) => {
-                    CastType::Int(64, signed)
+                Ok(TypeId::Foreign(ForeignType::Int(64, sign))) => {
+                    CastType::Int(64, sign)
                 }
                 Ok(TypeId::Foreign(ForeignType::Float(32))) => {
                     CastType::Float(32)
@@ -1038,7 +1048,9 @@ impl CastType {
                     CastType::Float(64)
                 }
                 Ok(TypeId::ClassInstance(ins)) => match ins.instance_of().0 {
-                    INT_ID | NIL_ID | BOOL_ID => CastType::Int(64, true),
+                    INT_ID | NIL_ID | BOOL_ID => {
+                        CastType::Int(64, Sign::Signed)
+                    }
                     FLOAT_ID => CastType::Float(64),
                     _ => CastType::Object,
                 },
@@ -1082,6 +1094,13 @@ pub(crate) struct ReadPointer {
 pub(crate) struct WritePointer {
     pub(crate) pointer: RegisterId,
     pub(crate) value: RegisterId,
+    pub(crate) location: LocationId,
+}
+
+#[derive(Clone, Debug, Copy)]
+pub(crate) struct SizeOf {
+    pub(crate) register: RegisterId,
+    pub(crate) argument: types::TypeRef,
     pub(crate) location: LocationId,
 }
 
@@ -1131,6 +1150,7 @@ pub(crate) enum Instruction {
     WritePointer(Box<WritePointer>),
     FieldPointer(Box<FieldPointer>),
     MethodPointer(Box<MethodPointer>),
+    SizeOf(Box<SizeOf>),
 }
 
 impl Instruction {
@@ -1176,6 +1196,7 @@ impl Instruction {
             Instruction::WritePointer(ref v) => v.location,
             Instruction::FieldPointer(ref v) => v.location,
             Instruction::MethodPointer(ref v) => v.location,
+            Instruction::SizeOf(ref v) => v.location,
         }
     }
 
@@ -1383,6 +1404,13 @@ impl Instruction {
                     "r{} = method_pointer {}",
                     v.register.0,
                     method_name(db, v.method)
+                )
+            }
+            Instruction::SizeOf(v) => {
+                format!(
+                    "r{} = size_of {}",
+                    v.register.0,
+                    types::format::format_type(db, v.argument)
                 )
             }
         }

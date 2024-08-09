@@ -94,15 +94,9 @@ Pointer-pointers don't have a dedicated type (i.e. there's no
 There's no equivalent of C's `size_t` type, as Inko only supports 64-bits
 platforms, and thus you can just use `UInt64` instead.
 
-C types don't support methods or operators, nor can they be passed to
-generically typed values/arguments. For example, `Array[Int32]` isn't a valid
-type. In practise this means you'll need to cast or wrap C types before you can
-do anything with them, apart from passing them around.
-
-::: note
-C types not being compatible with generics is a limitation due to how
-generics are compiled. This is unlikely to change any time soon, if ever.
-:::
+C types don't support methods and operators, and C structures aren't compatible
+with generic type parameters. This means you'll either need to cast the types
+(e.g. casting an `Int32` to `Int`), or wrap the data in a custom type.
 
 C types are treated as value types and are allocated on the stack, including
 structs (which we'll discuss later).

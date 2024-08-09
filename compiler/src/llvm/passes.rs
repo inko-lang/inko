@@ -903,7 +903,7 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
             Constant::Array(values) => {
                 let (shape, val_typ) = match values.first() {
                     Some(Constant::Int(_)) => (
-                        Shape::Int,
+                        Shape::int(),
                         builder.context.i64_type().as_basic_type_enum(),
                     ),
                     Some(Constant::Bool(_)) => (
@@ -911,7 +911,7 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
                         builder.context.i64_type().as_basic_type_enum(),
                     ),
                     Some(Constant::Float(_)) => (
-                        Shape::Float,
+                        Shape::float(),
                         builder.context.f64_type().as_basic_type_enum(),
                     ),
                     Some(Constant::String(_)) => (
@@ -2528,8 +2528,9 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 let src_var = self.variables[&ins.source];
                 let src_typ = self.variable_types[&ins.source];
                 let res = match (ins.from, ins.to) {
-                    (CastType::Int(_, signed), CastType::Int(size, _)) => {
+                    (CastType::Int(_, sign), CastType::Int(size, _)) => {
                         let src = self.builder.load(src_typ, src_var);
+                        let signed = sign.is_signed();
 
                         self.builder
                             .int_to_int(src.into_int_value(), size, signed)
@@ -2617,6 +2618,16 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 let val_var = self.variables[&ins.value];
 
                 self.builder.store(reg_var, val_var);
+            }
+            Instruction::SizeOf(ins) => {
+                let reg_var = self.variables[&ins.register];
+                let typ = self.builder.context.llvm_type(
+                    &self.shared.state.db,
+                    self.layouts,
+                    ins.argument,
+                );
+
+                self.builder.store(reg_var, typ.size_of().unwrap());
             }
             Instruction::Reference(_) => unreachable!(),
             Instruction::Drop(_) => unreachable!(),

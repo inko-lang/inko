@@ -63,8 +63,10 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
             | TypeRef::Uni(
                 TypeId::TypeParameter(pid) | TypeId::RigidTypeParameter(pid),
             ) => match self.shapes.get(&pid) {
-                Some(Shape::Int) => TypeRef::int(),
-                Some(Shape::Float) => TypeRef::float(),
+                Some(&Shape::Int(size, sign)) => {
+                    TypeRef::int_with_sign(size, sign)
+                }
+                Some(&Shape::Float(s)) => TypeRef::float_with_size(s),
                 Some(Shape::Boolean) => TypeRef::boolean(),
                 Some(Shape::String) => TypeRef::string(),
                 Some(Shape::Nil) => TypeRef::nil(),
@@ -81,8 +83,10 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
             | TypeRef::UniRef(
                 TypeId::TypeParameter(id) | TypeId::RigidTypeParameter(id),
             ) => match self.shapes.get(&id) {
-                Some(Shape::Int) => TypeRef::int(),
-                Some(Shape::Float) => TypeRef::float(),
+                Some(&Shape::Int(size, sign)) => {
+                    TypeRef::int_with_sign(size, sign)
+                }
+                Some(&Shape::Float(s)) => TypeRef::float_with_size(s),
                 Some(Shape::Boolean) => TypeRef::boolean(),
                 Some(Shape::String) => TypeRef::string(),
                 Some(Shape::Nil) => TypeRef::nil(),
@@ -97,8 +101,10 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
             | TypeRef::UniMut(
                 TypeId::TypeParameter(id) | TypeId::RigidTypeParameter(id),
             ) => match self.shapes.get(&id) {
-                Some(Shape::Int) => TypeRef::int(),
-                Some(Shape::Float) => TypeRef::float(),
+                Some(&Shape::Int(size, sign)) => {
+                    TypeRef::int_with_sign(size, sign)
+                }
+                Some(&Shape::Float(s)) => TypeRef::float_with_size(s),
                 Some(Shape::Boolean) => TypeRef::boolean(),
                 Some(Shape::String) => TypeRef::string(),
                 Some(Shape::Nil) => TypeRef::nil(),
@@ -378,7 +384,7 @@ mod tests {
         assert_eq!(class.get(&db).specializations.len(), 1);
 
         let new_class =
-            *class.get(&db).specializations.get(&vec![Shape::Int]).unwrap();
+            *class.get(&db).specializations.get(&vec![Shape::int()]).unwrap();
 
         assert_eq!(classes, &[ClassId::int(), new_class]);
         assert_eq!(new_class.specialization_source(&db), Some(class));
@@ -566,7 +572,7 @@ mod tests {
         };
 
         assert!(ins.instance_of().kind(&db).is_enum());
-        assert_eq!(ins.instance_of().shapes(&db), &[Shape::Int]);
+        assert_eq!(ins.instance_of().shapes(&db), &[Shape::int()]);
         assert_eq!(
             ins.instance_of().constructor(&db, "Some").unwrap().members(&db),
             vec![TypeRef::int()]

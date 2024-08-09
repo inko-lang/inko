@@ -1,6 +1,7 @@
 //! Mangled symbol names for native code.
 use crate::mir::Mir;
 use std::collections::HashMap;
+use std::fmt::Write as _;
 use types::{ClassId, ConstantId, Database, MethodId, ModuleId, Shape};
 
 pub(crate) const SYMBOL_PREFIX: &str = "_I";
@@ -12,7 +13,13 @@ pub(crate) const STATE_GLOBAL: &str = "_IG_INKO_STATE";
 pub(crate) const STACK_MASK_GLOBAL: &str = "_IG_INKO_STACK_MASK";
 
 pub(crate) fn shapes(shapes: &[Shape]) -> String {
-    shapes.iter().fold(String::new(), |res, shape| res + shape.identifier())
+    let mut name = String::new();
+
+    for shape in shapes {
+        let _ = write!(name, "{}", shape);
+    }
+
+    name
 }
 
 pub(crate) fn class_name(db: &Database, id: ClassId) -> String {
