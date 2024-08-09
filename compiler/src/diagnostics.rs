@@ -430,7 +430,7 @@ impl Diagnostics {
         );
     }
 
-    pub(crate) fn invalid_builtin_function(
+    pub(crate) fn builtin_function_not_available(
         &mut self,
         file: PathBuf,
         location: SourceLocation,

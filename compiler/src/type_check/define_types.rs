@@ -680,6 +680,23 @@ impl<'a> DefineFields<'a> {
             )
             .define_type(&mut node.value_type);
 
+            // We can't allow regular Inko types in external classes, as that
+            // would allow violating their ownership constraints.
+            if !typ.is_error(self.db())
+                && !typ.is_foreign_type(self.db())
+                && !typ.is_value_type(self.db())
+            {
+                self.state.diagnostics.error(
+                    DiagnosticId::InvalidType,
+                    format!(
+                        "'{}' isn't a C type or value type",
+                        format_type(self.db(), typ)
+                    ),
+                    self.file(),
+                    node.value_type.location().clone(),
+                );
+            }
+
             if !class_id.is_public(self.db()) && vis == Visibility::Public {
                 self.state.diagnostics.public_field_private_class(
                     self.file(),

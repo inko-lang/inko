@@ -2,6 +2,7 @@ use crate::llvm::constants::{CLOSURE_CALL_INDEX, DROPPER_INDEX};
 use crate::llvm::method_hasher::MethodHasher;
 use crate::mir::Mir;
 use std::cmp::max;
+use std::fmt::Write as _;
 use types::{Database, MethodId, Shape, CALL_METHOD, DROPPER_METHOD};
 
 /// Method table sizes are multiplied by this value in an attempt to reduce the
@@ -42,10 +43,13 @@ fn round_methods(mut value: usize) -> usize {
 }
 
 fn hash_key(db: &Database, method: MethodId, shapes: &[Shape]) -> String {
-    shapes.iter().fold(method.name(db).clone(), |mut name, shape| {
-        name.push_str(shape.identifier());
-        name
-    })
+    let mut key = method.name(db).clone();
+
+    for shape in shapes {
+        let _ = write!(key, "{}", shape);
+    }
+
+    key
 }
 
 #[derive(Copy, Clone)]

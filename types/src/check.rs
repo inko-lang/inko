@@ -818,6 +818,15 @@ impl<'a> TypeChecker<'a> {
         env: &mut Environment,
         rules: Rules,
     ) -> bool {
+        // We don't support specializing stack allocated structures at this
+        // point, so we disallow passing such types to type
+        // parameters/placeholders.
+        if let TypeId::ClassInstance(ins) = left_id {
+            if ins.instance_of().kind(self.db).is_extern() {
+                return false;
+            }
+        }
+
         // By assigning the placeholder first, recursive checks against the same
         // placeholder don't keep recursing into this method, instead checking
         // against the value on the left.
@@ -1187,7 +1196,7 @@ mod tests {
         uni,
     };
     use crate::{
-        Block, Class, ClassId, ClassKind, Closure, Location, ModuleId,
+        Block, Class, ClassId, ClassKind, Closure, Location, ModuleId, Sign,
         TraitImplementation, TypePlaceholder, VariableLocation, Visibility,
     };
 
@@ -1959,6 +1968,15 @@ mod tests {
     }
 
     #[test]
+    fn test_struct_with_placeholder() {
+        let mut db = Database::new();
+        let class = new_extern_class(&mut db, "A");
+        let var = TypePlaceholder::alloc(&mut db, None);
+
+        check_err(&db, owned(instance(class)), placeholder(var));
+    }
+
+    #[test]
     fn test_pointer_with_rigid_parameter() {
         let mut db = Database::new();
         let param1 = new_parameter(&mut db, "A");
@@ -2599,32 +2617,50 @@ mod tests {
         check_ok_cast(&db, TypeRef::int(), TypeRef::float());
         check_ok_cast(
             &db,
-            TypeRef::pointer(TypeId::Foreign(ForeignType::Int(8, true))),
+            TypeRef::pointer(TypeId::Foreign(ForeignType::Int(
+                8,
+                Sign::Signed,
+            ))),
             TypeRef::foreign_signed_int(8),
         );
         check_ok_cast(
             &db,
-            TypeRef::pointer(TypeId::Foreign(ForeignType::Int(8, false))),
+            TypeRef::pointer(TypeId::Foreign(ForeignType::Int(
+                8,
+                Sign::Unsigned,
+            ))),
             TypeRef::foreign_signed_int(8),
         );
         check_ok_cast(
             &db,
-            TypeRef::pointer(TypeId::Foreign(ForeignType::Int(8, true))),
+            TypeRef::pointer(TypeId::Foreign(ForeignType::Int(
+                8,
+                Sign::Signed,
+            ))),
             TypeRef::int(),
         );
         check_ok_cast(
             &db,
             TypeRef::int(),
-            TypeRef::pointer(TypeId::Foreign(ForeignType::Int(8, true))),
+            TypeRef::pointer(TypeId::Foreign(ForeignType::Int(
+                8,
+                Sign::Signed,
+            ))),
         );
         check_ok_cast(
             &db,
             TypeRef::foreign_signed_int(8),
-            TypeRef::pointer(TypeId::Foreign(ForeignType::Int(8, true))),
+            TypeRef::pointer(TypeId::Foreign(ForeignType::Int(
+                8,
+                Sign::Signed,
+            ))),
         );
         check_ok_cast(
             &db,
-            TypeRef::pointer(TypeId::Foreign(ForeignType::Int(8, true))),
+            TypeRef::pointer(TypeId::Foreign(ForeignType::Int(
+                8,
+                Sign::Signed,
+            ))),
             TypeRef::pointer(TypeId::Foreign(ForeignType::Float(32))),
         );
 

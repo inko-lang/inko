@@ -14,7 +14,7 @@ use types::{
     Block, BuiltinCallInfo, CallInfo, CallKind, ClassId, ClassInstance,
     Closure, ClosureCallInfo, ClosureId, ConstantKind, ConstantPatternKind,
     Database, FieldId, FieldInfo, IdentifierKind, MethodId, MethodLookup,
-    ModuleId, Receiver, Symbol, ThrowKind, TraitId, TraitInstance,
+    ModuleId, Receiver, Sign, Symbol, ThrowKind, TraitId, TraitInstance,
     TypeArguments, TypeBounds, TypeId, TypeRef, Variable, VariableId,
     VariableLocation, CALL_METHOD, DEREF_POINTER_FIELD,
 };
@@ -1387,11 +1387,11 @@ impl<'a> CheckMethodBody<'a> {
             }
             hir::Expression::False(ref mut n) => self.false_literal(n),
             hir::Expression::FieldRef(ref mut n) => self.field(n, scope),
-            hir::Expression::Float(ref mut n) => self.float_literal(n, scope),
+            hir::Expression::Float(ref mut n) => self.float_literal(n),
             hir::Expression::IdentifierRef(ref mut n) => {
                 self.identifier(n, scope, false)
             }
-            hir::Expression::Int(ref mut n) => self.int_literal(n, scope),
+            hir::Expression::Int(ref mut n) => self.int_literal(n),
             hir::Expression::Loop(ref mut n) => self.loop_expression(n, scope),
             hir::Expression::Match(ref mut n) => {
                 self.match_expression(n, scope)
@@ -1420,6 +1420,7 @@ impl<'a> CheckMethodBody<'a> {
             hir::Expression::TypeCast(ref mut n) => self.type_cast(n, scope),
             hir::Expression::Try(ref mut n) => self.try_expression(n, scope),
             hir::Expression::Noop(_) => TypeRef::nil(),
+            hir::Expression::SizeOf(ref mut n) => self.size_of(n),
         }
     }
 
@@ -1477,20 +1478,12 @@ impl<'a> CheckMethodBody<'a> {
         node.resolved_type
     }
 
-    fn int_literal(
-        &mut self,
-        node: &mut hir::IntLiteral,
-        _: &mut LexicalScope,
-    ) -> TypeRef {
+    fn int_literal(&mut self, node: &mut hir::IntLiteral) -> TypeRef {
         node.resolved_type = TypeRef::int();
         node.resolved_type
     }
 
-    fn float_literal(
-        &mut self,
-        node: &mut hir::FloatLiteral,
-        _: &mut LexicalScope,
-    ) -> TypeRef {
+    fn float_literal(&mut self, node: &mut hir::FloatLiteral) -> TypeRef {
         node.resolved_type = TypeRef::float();
         node.resolved_type
     }
@@ -3109,7 +3102,7 @@ impl<'a> CheckMethodBody<'a> {
                 if m.uses_c_calling_convention(self.db()) {
                     node.pointer_to_method = Some(m);
                     node.resolved_type = TypeRef::pointer(TypeId::Foreign(
-                        types::ForeignType::Int(8, false),
+                        types::ForeignType::Int(8, Sign::Unsigned),
                     ));
 
                     return node.resolved_type;
@@ -4106,6 +4099,13 @@ impl<'a> CheckMethodBody<'a> {
 
         node.resolved_type = cast_type;
         node.resolved_type
+    }
+
+    fn size_of(&mut self, node: &mut hir::SizeOf) -> TypeRef {
+        node.resolved_type =
+            self.type_signature(&mut node.argument, self.self_type);
+
+        TypeRef::int()
     }
 
     fn try_expression(

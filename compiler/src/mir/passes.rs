@@ -1519,6 +1519,7 @@ impl<'a> LowerMethod<'a> {
             hir::Expression::Recover(n) => self.recover_expression(*n),
             hir::Expression::Try(n) => self.try_expression(*n),
             hir::Expression::Noop(n) => self.noop(n.location),
+            hir::Expression::SizeOf(n) => self.size_of(*n),
         }
     }
 
@@ -2472,6 +2473,14 @@ impl<'a> LowerMethod<'a> {
         let loc = self.add_location(location);
 
         self.get_nil(loc)
+    }
+
+    fn size_of(&mut self, node: hir::SizeOf) -> RegisterId {
+        let loc = self.add_location(node.location);
+        let reg = self.new_register(TypeRef::int());
+
+        self.current_block_mut().size_of(reg, node.resolved_type, loc);
+        reg
     }
 
     fn throw_expression(&mut self, node: hir::Throw) -> RegisterId {

@@ -471,6 +471,14 @@ impl<'a, 'b> Specialize<'a, 'b> {
                         ins.from = CastType::from(&self.state.db, from);
                         ins.to = CastType::from(&self.state.db, to);
                     }
+                    Instruction::SizeOf(ins) => {
+                        ins.argument = TypeSpecializer::new(
+                            &mut self.state.db,
+                            &self.shapes,
+                            &mut self.classes,
+                        )
+                        .specialize(ins.argument);
+                    }
                     _ => {}
                 }
             }
@@ -1136,7 +1144,11 @@ impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
         let typ = self.method.registers.value_type(val);
 
         match typ.shape(self.db, self.shapes) {
-            Shape::Int | Shape::Float | Shape::Nil | Shape::Boolean => {
+            Shape::Int(_, _)
+            | Shape::Float(_)
+            | Shape::Nil
+            | Shape::Boolean
+            | Shape::Pointer => {
                 self.ignore_value(block_id, after_id);
             }
             Shape::Mut | Shape::Ref => {
@@ -1327,7 +1339,11 @@ impl<'a, 'b, 'c> ExpandReference<'a, 'b, 'c> {
             Shape::Owned if is_extern || typ.is_permanent(self.db) => {
                 // Extern and permanent values are to be left as-is.
             }
-            Shape::Int | Shape::Float | Shape::Nil | Shape::Boolean => {
+            Shape::Int(_, _)
+            | Shape::Float(_)
+            | Shape::Nil
+            | Shape::Boolean
+            | Shape::Pointer => {
                 // These are unboxed value types, or permanent types, both which
                 // we should leave as-is.
             }

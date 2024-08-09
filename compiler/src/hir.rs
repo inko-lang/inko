@@ -506,6 +506,13 @@ pub(crate) struct Noop {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct SizeOf {
+    pub(crate) argument: Type,
+    pub(crate) resolved_type: types::TypeRef,
+    pub(crate) location: SourceLocation,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Expression {
     And(Box<And>),
     AssignField(Box<AssignField>),
@@ -543,6 +550,7 @@ pub(crate) enum Expression {
     Recover(Box<Recover>),
     Try(Box<Try>),
     Noop(Box<Noop>),
+    SizeOf(Box<SizeOf>),
 }
 
 impl Expression {
@@ -584,6 +592,7 @@ impl Expression {
             Expression::Recover(ref n) => &n.location,
             Expression::Try(ref n) => &n.location,
             Expression::Noop(ref n) => &n.location,
+            Expression::SizeOf(ref n) => &n.location,
         }
     }
 
@@ -2447,10 +2456,17 @@ impl<'a> LowerToHir<'a> {
     fn call(&mut self, node: ast::Call) -> Expression {
         if self.is_builtin_call(&node) {
             if !self.module.is_std(&self.state.db) {
-                self.state.diagnostics.invalid_builtin_function(
+                self.state.diagnostics.builtin_function_not_available(
                     self.file(),
                     node.location.clone(),
                 );
+            }
+
+            // We special-case this instruction because we need to attach extra
+            // type information, but don't want to introduce a dedicated
+            // `size_of` keyword just for this.
+            if node.name.name == "size_of_type_parameter" {
+                return self.size_of(node);
             }
 
             return Expression::BuiltinCall(Box::new(BuiltinCall {
@@ -2469,6 +2485,35 @@ impl<'a> LowerToHir<'a> {
             arguments: self.optional_call_arguments(node.arguments),
             location: node.location,
         }))
+    }
+
+    fn size_of(&mut self, node: ast::Call) -> Expression {
+        if let Some(ast::Argument::Positional(ast::Expression::Constant(n))) =
+            node.arguments.and_then(|mut v| v.values.pop())
+        {
+            let argument = Type::Named(Box::new(TypeName {
+                source: None,
+                resolved_type: types::TypeRef::Unknown,
+                name: Constant { name: n.name, location: n.location.clone() },
+                arguments: Vec::new(),
+                location: n.location,
+            }));
+
+            Expression::SizeOf(Box::new(SizeOf {
+                argument,
+                resolved_type: types::TypeRef::Unknown,
+                location: node.location,
+            }))
+        } else {
+            self.state.diagnostics.error(
+                DiagnosticId::InvalidCall,
+                "this builtin function call is invalid",
+                self.file(),
+                node.location.clone(),
+            );
+
+            Expression::Noop(Box::new(Noop { location: node.location }))
+        }
     }
 
     fn optional_builtin_call_arguments(

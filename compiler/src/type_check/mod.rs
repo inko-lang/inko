@@ -513,19 +513,15 @@ impl<'a> DefineTypeSignature<'a> {
 
                 match arg {
                     TypeRef::Owned(v) => Some(TypeRef::Pointer(v)),
-                    TypeRef::Pointer(_) => {
-                        self.state.diagnostics.error(
-                            DiagnosticId::InvalidType,
-                            "nested pointers (e.g. 'Pointer[Pointer[UInt8]]') \
-                            aren't supported, you should use regular \
-                            pointers instead",
+                    _ => {
+                        self.state.diagnostics.invalid_c_type(
+                            &format_type(self.db(), arg),
                             self.file(),
                             location.clone(),
                         );
 
                         None
                     }
-                    _ => Some(arg),
                 }
             }
             name => match self.scope.symbol(self.db(), name) {
