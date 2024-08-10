@@ -269,6 +269,10 @@ impl<'ctx> Builder<'ctx> {
         self.inner.build_ptr_to_int(value, self.context.i64_type(), "").unwrap()
     }
 
+    pub(crate) fn bool_literal(&self, value: bool) -> IntValue<'ctx> {
+        self.context.bool_type().const_int(value as u64, false)
+    }
+
     pub(crate) fn u8_literal(&self, value: u8) -> IntValue<'ctx> {
         self.context.i8_type().const_int(value as u64, false)
     }

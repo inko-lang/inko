@@ -1684,6 +1684,22 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
+                    BuiltinFunction::IntAbsolute => {
+                        let reg_var = self.variables[&ins.register];
+                        let val_var = self.variables[&ins.arguments[0]];
+                        let val = self.builder.load_int(val_var);
+                        let fun = self.module.intrinsic(
+                            "llvm.abs",
+                            &[self.builder.context.i64_type().into()],
+                        );
+                        let no_poison = self.builder.bool_literal(false);
+                        let res = self
+                            .builder
+                            .call(fun, &[val.into(), no_poison.into()])
+                            .into_int_value();
+
+                        self.builder.store(reg_var, res);
+                    }
                     BuiltinFunction::Panic => {
                         let val_var = self.variables[&ins.arguments[0]];
                         let val = self.builder.load_untyped_pointer(val_var);

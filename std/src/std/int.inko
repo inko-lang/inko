@@ -287,14 +287,18 @@ class builtin Int {
 
   # Returns the absolute value of `self`.
   #
+  # If `self` is equal to `std.int.MIN`, then the returned value is also
+  # `std.int.MIN`.
+  #
   # # Examples
   #
   # ```inko
-  # -4.absolute # => 4
-  # 4.absolute  # => 4
+  # -4.absolute                        # => 4
+  # 4.absolute                         # => 4
+  # -9_223_372_036_854_775808.absolute # => -9_223_372_036_854_775808
   # ```
   fn pub absolute -> Int {
-    if self < 0 { 0 - self } else { clone }
+    _INKO.int_absolute(self)
   }
 
   # Returns a value with the opposite sign of `self`.

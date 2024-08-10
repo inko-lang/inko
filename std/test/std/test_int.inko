@@ -130,6 +130,7 @@ fn pub tests(t: mut Tests) {
     t.equal(1.absolute, 1)
     t.equal(-1.absolute, 1)
     t.equal(-9223372036854775807.absolute, 9223372036854775807)
+    t.equal(-9_223_372_036_854_775_808.absolute, -9_223_372_036_854_775_808)
   })
 
   t.test('Int.opposite', fn (t) {
