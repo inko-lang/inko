@@ -1,10 +1,10 @@
 use crate::error::Error;
 use crate::options::print_usage;
-use crate::pkg::git::Repository;
-use crate::pkg::util::data_dir;
+use compiler::pkg::git::Repository;
 use compiler::pkg::manifest::{
     Checksum, Dependency, Manifest, Url, MANIFEST_FILE,
 };
+use compiler::pkg::util::data_dir;
 use compiler::pkg::version::Version;
 use getopts::Options;
 

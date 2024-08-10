@@ -4,18 +4,18 @@ use std::process::{Command, Stdio};
 
 const REMOTE: &str = "origin";
 
-pub(crate) struct Repository {
+pub struct Repository {
     /// The path to the local clone of the repository.
-    pub(crate) path: PathBuf,
+    pub path: PathBuf,
 }
 
-pub(crate) struct Tag {
+pub struct Tag {
     /// The SHA of the commit the tag points to.
-    pub(crate) target: String,
+    pub target: String,
 }
 
 impl Repository {
-    pub(crate) fn open(path: &Path) -> Result<Self, String> {
+    pub fn open(path: &Path) -> Result<Self, String> {
         if path.is_dir() {
             Ok(Self { path: path.to_path_buf() })
         } else {
@@ -26,11 +26,7 @@ impl Repository {
         }
     }
 
-    pub(crate) fn clone(
-        url: &str,
-        path: &Path,
-        branch: &str,
-    ) -> Result<Self, String> {
+    pub fn clone(url: &str, path: &Path, branch: &str) -> Result<Self, String> {
         run(
             "clone",
             None,
@@ -47,7 +43,7 @@ impl Repository {
         Ok(Self { path: path.to_path_buf() })
     }
 
-    pub(crate) fn fetch(&mut self) -> Result<(), String> {
+    pub fn fetch(&mut self) -> Result<(), String> {
         run(
             "fetch",
             Some(self.path.as_path()),
@@ -60,7 +56,7 @@ impl Repository {
         Ok(())
     }
 
-    pub(crate) fn tag(&self, name: &str) -> Option<Tag> {
+    pub fn tag(&self, name: &str) -> Option<Tag> {
         run(
             "rev-list",
             Some(self.path.as_path()),
@@ -70,7 +66,7 @@ impl Repository {
         .map(|output| Tag { target: output.trim().to_string() })
     }
 
-    pub(crate) fn version_tag_names(&self) -> Vec<String> {
+    pub fn version_tag_names(&self) -> Vec<String> {
         if let Ok(output) = run(
             "tag",
             Some(self.path.as_path()),
@@ -82,7 +78,7 @@ impl Repository {
         }
     }
 
-    pub(crate) fn checkout(&self, name: &str) -> Result<(), String> {
+    pub fn checkout(&self, name: &str) -> Result<(), String> {
         run("checkout", Some(self.path.as_path()), &[OsStr::new(name)])?;
         Ok(())
     }

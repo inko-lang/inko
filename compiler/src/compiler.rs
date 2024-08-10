@@ -12,6 +12,7 @@ use crate::mir::specialize::Specialize;
 use crate::mir::Mir;
 use crate::modules_parser::{ModulesParser, ParsedModule};
 use crate::pkg::manifest::Manifest;
+use crate::pkg::sync::sync_if_needed;
 use crate::pkg::version::Version;
 use crate::state::State;
 use crate::type_check::define_types::{
@@ -163,6 +164,12 @@ pub enum CompileError {
 
     /// The compiler produced an internal error and couldn't proceed.
     Internal(String),
+}
+
+impl From<String> for CompileError {
+    fn from(value: String) -> CompileError {
+        CompileError::Internal(value)
+    }
 }
 
 pub struct Compiler {
@@ -550,6 +557,7 @@ LLVM module timings:
             }
         }
 
+        sync_if_needed(&self.state.config.dependencies)?;
         Ok(())
     }
 }

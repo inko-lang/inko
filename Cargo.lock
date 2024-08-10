@@ -291,6 +291,7 @@ dependencies = [
 name = "inko"
 version = "0.15.0"
 dependencies = [
+ "blake3",
  "compiler",
  "flate2",
  "getopts",

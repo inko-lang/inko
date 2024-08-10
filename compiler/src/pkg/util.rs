@@ -1,14 +1,14 @@
-use compiler::config;
+use crate::config;
 use std::fs::{copy, create_dir_all, read_dir};
 use std::path::{Path, PathBuf};
 
-pub(crate) fn data_dir() -> Result<PathBuf, String> {
+pub fn data_dir() -> Result<PathBuf, String> {
     config::data_directory()
         .map(|p| p.join("packages"))
         .ok_or_else(|| "No data directory could be determined".to_string())
 }
 
-pub(crate) fn cp_r(source: &Path, target: &Path) -> Result<(), String> {
+pub fn cp_r(source: &Path, target: &Path) -> Result<(), String> {
     create_dir_all(target).map_err(|e| e.to_string())?;
 
     let mut pending = vec![source.to_path_buf()];

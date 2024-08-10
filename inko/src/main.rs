@@ -4,7 +4,6 @@ mod command;
 mod error;
 mod http;
 mod options;
-mod pkg;
 
 use crate::command::main;
 use std::io::{stdout, IsTerminal as _};
