@@ -576,6 +576,7 @@ impl<'a> TypeChecker<'a> {
                     (Mut, TypeRef::Any(_)) => !rules.kind.is_return(),
                     (Mut, TypeRef::Ref(_) | TypeRef::Mut(_)) => true,
                     (Mut, TypeRef::Owned(_) | TypeRef::Uni(_)) => rval,
+                    (Pointer, TypeRef::Pointer(_)) => true,
                     _ => false,
                 };
 
@@ -598,7 +599,7 @@ impl<'a> TypeChecker<'a> {
                 }
                 TypeRef::Placeholder(right_id) => {
                     match right_id.ownership {
-                        Ownership::Any => {}
+                        Ownership::Any | Ownership::Pointer => {}
                         _ => return false,
                     }
 
@@ -833,9 +834,23 @@ impl<'a> TypeChecker<'a> {
         //
         // When comparing `ref A` with `ref B` or `mut A` with `mut B`, we want
         // to assign `B` to `A`, not `ref A`/`mut A`.
-        if left.has_ownership(self.db) && original_right.has_ownership(self.db)
+        if left.has_ownership(self.db)
+            && (original_right.has_ownership(self.db)
+                || placeholder.has_ownership())
         {
-            placeholder.assign_internal(self.db, TypeRef::Owned(left_id));
+            // Any() is meant for type parameters _only_, i.e. Any(Int) makes no
+            // sense. We don't use Owned() because Owned() isn't compatible with
+            // Any() when using type parameters, which in turn would disallow
+            // certain forms of type inference.
+            let assign = if let TypeId::TypeParameter(_)
+            | TypeId::RigidTypeParameter(_) = left_id
+            {
+                TypeRef::Any(left_id)
+            } else {
+                TypeRef::Owned(left_id)
+            };
+
+            placeholder.assign_internal(self.db, assign);
         } else {
             placeholder.assign_internal(self.db, left);
         }
@@ -1142,8 +1157,7 @@ impl<'a> TypeChecker<'a> {
             TypeRef::Uni(TypeId::TypeParameter(id)) => self
                 .resolve_type_parameter(typ, id, arguments, rules)
                 .as_uni(self.db),
-            TypeRef::Any(TypeId::TypeParameter(id))
-            | TypeRef::Pointer(TypeId::TypeParameter(id)) => {
+            TypeRef::Any(TypeId::TypeParameter(id)) => {
                 self.resolve_type_parameter(typ, id, arguments, rules)
             }
             TypeRef::Ref(TypeId::TypeParameter(id)) => self
@@ -1152,6 +1166,9 @@ impl<'a> TypeChecker<'a> {
             TypeRef::Mut(TypeId::TypeParameter(id)) => self
                 .resolve_type_parameter(typ, id, arguments, rules)
                 .as_mut(self.db),
+            TypeRef::Pointer(TypeId::TypeParameter(id)) => self
+                .resolve_type_parameter(typ, id, arguments, rules)
+                .as_pointer(self.db),
             TypeRef::Placeholder(id) => id
                 .value(self.db)
                 .map_or(typ, |v| self.resolve(v, arguments, rules)),
@@ -1752,7 +1769,7 @@ mod tests {
         );
 
         assert!(res);
-        assert_eq!(var.value(&db), Some(owned(rigid(param))));
+        assert_eq!(var.value(&db), Some(any(rigid(param))));
     }
 
     #[test]
@@ -1774,6 +1791,69 @@ mod tests {
 
         assert!(res);
         assert_eq!(var.value(&db), Some(owned(instance(thing))));
+    }
+
+    #[test]
+    fn test_pointer_instance_with_pointer_type_parameter() {
+        let mut db = Database::new();
+        let thing = new_class(&mut db, "Thing");
+        let param = new_parameter(&mut db, "T");
+        let var = TypePlaceholder::alloc(&mut db, None);
+        let mut env = Environment::new(
+            TypeArguments::new(),
+            type_arguments(vec![(param, placeholder(var))]),
+        );
+
+        let res = TypeChecker::new(&db).run(
+            pointer(instance(thing)),
+            pointer(parameter(param)),
+            &mut env,
+        );
+
+        assert!(res);
+        assert_eq!(var.value(&db), Some(owned(instance(thing))));
+    }
+
+    #[test]
+    fn test_ref_instance_with_type_parameter_with_ref_ownership() {
+        let mut db = Database::new();
+        let thing = new_class(&mut db, "Thing");
+        let param = new_parameter(&mut db, "T");
+        let var = TypePlaceholder::alloc(&mut db, None).as_ref();
+        let mut env = Environment::new(
+            TypeArguments::new(),
+            type_arguments(vec![(param, placeholder(var))]),
+        );
+        let res = TypeChecker::new(&db).run(
+            immutable(instance(thing)),
+            any(parameter(param)),
+            &mut env,
+        );
+
+        assert!(res);
+        assert_eq!(var.value(&db), Some(immutable(instance(thing))));
+        assert_eq!(var.get(&db).value.get(), owned(instance(thing)));
+    }
+
+    #[test]
+    fn test_pointer_instance_with_type_parameter_with_pointer_ownership() {
+        let mut db = Database::new();
+        let thing = new_class(&mut db, "Thing");
+        let param = new_parameter(&mut db, "T");
+        let var = TypePlaceholder::alloc(&mut db, None).as_pointer();
+        let mut env = Environment::new(
+            TypeArguments::new(),
+            type_arguments(vec![(param, placeholder(var))]),
+        );
+        let res = TypeChecker::new(&db).run(
+            pointer(instance(thing)),
+            any(parameter(param)),
+            &mut env,
+        );
+
+        assert!(res);
+        assert_eq!(var.value(&db), Some(pointer(instance(thing))));
+        assert_eq!(var.get(&db).value.get(), owned(instance(thing)));
     }
 
     #[test]

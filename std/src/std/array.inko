@@ -100,7 +100,7 @@ class builtin Array[T] {
   # without also updating the compiler.
   let @size: Int
   let @capacity: Int
-  let @buffer: Pointer[UInt64]
+  let @buffer: Pointer[T]
 
   # Returns a new `Array` with enough space for at least `amount` values.
   #
@@ -114,7 +114,6 @@ class builtin Array[T] {
 
     let vsize = _INKO.size_of_type_parameter(T)
     let buffer = alloc_imp.resize(0x0 as Pointer[T], size: size * vsize)
-      as Pointer[UInt64]
 
     Array(size: 0, capacity: size, buffer: buffer)
   }
@@ -628,7 +627,7 @@ class builtin Array[T] {
   }
 
   fn to_pointer -> Pointer[T] {
-    @buffer as Pointer[T]
+    @buffer
   }
 
   fn get_unchecked(index: Int) -> ref T {

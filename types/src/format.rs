@@ -251,6 +251,18 @@ impl FormatType for TypePlaceholderId {
             Ownership::Mut => "mut ",
             Ownership::UniMut => "uni mut ",
             Ownership::UniRef => "uni ref ",
+            Ownership::Pointer => {
+                buffer.write("Pointer[");
+
+                if let Some(req) = self.required(buffer.db) {
+                    req.format_type(buffer);
+                } else {
+                    buffer.write("?");
+                }
+
+                buffer.write("]");
+                return;
+            }
         };
 
         if !ownership.is_empty() {
@@ -1073,6 +1085,7 @@ mod tests {
             (Ownership::Mut, "mut T"),
             (Ownership::UniRef, "uni ref T"),
             (Ownership::UniMut, "uni mut T"),
+            (Ownership::Pointer, "Pointer[T]"),
         ];
 
         for (ownership, format) in tests {

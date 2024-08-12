@@ -201,6 +201,7 @@ enum Ownership {
     Mut,
     UniRef,
     UniMut,
+    Pointer,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -238,6 +239,10 @@ impl TypePlaceholderId {
         self.with_ownership(Ownership::Ref)
     }
 
+    fn as_pointer(self) -> TypePlaceholderId {
+        self.with_ownership(Ownership::Pointer)
+    }
+
     fn as_mut(self) -> TypePlaceholderId {
         self.with_ownership(Ownership::Mut)
     }
@@ -269,6 +274,7 @@ impl TypePlaceholderId {
                     Ownership::Mut => typ.force_as_mut(db),
                     Ownership::UniRef => typ.as_uni_ref(db),
                     Ownership::UniMut => typ.force_as_uni_mut(db),
+                    Ownership::Pointer => typ.as_pointer(db),
                 };
 
                 Some(res)
@@ -304,6 +310,10 @@ impl TypePlaceholderId {
     /// ensures one can't concurrently modify a `TypePlaceholder`.
     pub fn assign(self, db: &mut Database, value: TypeRef) {
         self.assign_internal(db, value);
+    }
+
+    pub(crate) fn has_ownership(self) -> bool {
+        !matches!(self.ownership, Ownership::Any)
     }
 
     fn get(self, db: &Database) -> &TypePlaceholder {
@@ -3995,7 +4005,8 @@ impl TypeRef {
             TypeRef::Owned(_)
             | TypeRef::Uni(_)
             | TypeRef::Ref(_)
-            | TypeRef::Mut(_) => true,
+            | TypeRef::Mut(_)
+            | TypeRef::Pointer(_) => true,
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(false, |v| v.has_ownership(db))
             }
@@ -4262,7 +4273,11 @@ impl TypeRef {
 
     pub fn as_pointer(self, db: &Database) -> TypeRef {
         match self {
-            TypeRef::Owned(id) | TypeRef::Uni(id) => TypeRef::Pointer(id),
+            TypeRef::Owned(id)
+            | TypeRef::Uni(id)
+            | TypeRef::Any(id)
+            | TypeRef::Mut(id)
+            | TypeRef::Ref(id) => TypeRef::Pointer(id),
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(self, |v| v.as_pointer(db))
             }

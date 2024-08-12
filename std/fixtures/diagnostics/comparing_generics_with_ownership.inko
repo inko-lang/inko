@@ -1,0 +1,43 @@
+class A[T] {
+  let @value: ref T
+}
+
+class B[T] {
+  let @value: T
+}
+
+class C[T] {
+  let @value: Pointer[T]
+}
+
+class List[T] {
+  let @buffer: Pointer[T]
+}
+
+fn example1 -> A[String] {
+  A('hello')
+}
+
+fn example2 -> A[Array[Int]] {
+  A(ref [10])
+}
+
+fn example3 -> A[Array[Int]] {
+  A(mut [10])
+}
+
+fn example4 -> B[String] {
+  B('hello')
+}
+
+fn example5 -> B[Pointer[String]] {
+  B(0x0 as Pointer[String])
+}
+
+fn example6 -> C[String] {
+  C(0x0 as Pointer[String])
+}
+
+fn example7[A] -> List[A] {
+  List(buffer: 0x0 as Pointer[A])
+}

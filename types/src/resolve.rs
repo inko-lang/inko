@@ -123,6 +123,9 @@ impl<'a> TypeResolver<'a> {
             },
             TypeRef::Pointer(id) => match self.resolve_type_id(id) {
                 Either::Left(res) => TypeRef::Pointer(res),
+                Either::Right(TypeRef::Placeholder(id)) => {
+                    TypeRef::Placeholder(id.as_pointer())
+                }
                 Either::Right(
                     TypeRef::Owned(id)
                     | TypeRef::Any(id)
@@ -367,6 +370,24 @@ mod tests {
             resolve(&mut db, &args, &bounds, pointer(instance(string))),
             pointer(instance(string))
         );
+    }
+
+    #[test]
+    fn test_pointer_to_placeholder() {
+        let mut db = Database::new();
+        let param = new_parameter(&mut db, "T");
+        let var = TypePlaceholder::alloc(&mut db, None);
+        let mut args = TypeArguments::new();
+
+        args.assign(param, placeholder(var));
+
+        let bounds = TypeBounds::new();
+        let res = resolve(&mut db, &args, &bounds, pointer(parameter(param)));
+        let TypeRef::Placeholder(res_id) = res else {
+            panic!("expected a placeholder");
+        };
+
+        assert_eq!(res_id.ownership, Ownership::Pointer);
     }
 
     #[test]
