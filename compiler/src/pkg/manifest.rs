@@ -1,11 +1,40 @@
+use crate::config::Config;
 use crate::pkg::version::Version;
 use blake3;
 use std::fmt;
-use std::fs::{File, OpenOptions};
-use std::io::{BufRead, BufReader, Read, Write};
-use std::path::Path;
+use std::fs::{read_dir, File, OpenOptions};
+use std::io::{BufRead, BufReader, Error, Read, Write};
+use std::path::{Path, PathBuf};
 
 pub const MANIFEST_FILE: &str = "inko.pkg";
+
+fn dependency_manifests(config: &Config) -> Result<Vec<PathBuf>, Error> {
+    let mut paths = vec![PathBuf::from(MANIFEST_FILE)];
+
+    if !config.dependencies.is_dir() {
+        return Ok(paths);
+    }
+
+    for entry in read_dir(&config.dependencies)? {
+        let entry = entry?;
+        let dep_dir = entry.path();
+
+        if !dep_dir.is_dir() {
+            continue;
+        }
+
+        for entry in read_dir(dep_dir)? {
+            let entry = entry?;
+            let ver_dir = entry.path();
+
+            if ver_dir.is_dir() {
+                paths.push(ver_dir.join(MANIFEST_FILE));
+            }
+        }
+    }
+
+    Ok(paths)
+}
 
 /// The URL of a package.
 #[derive(Eq, PartialEq, Debug, Clone, Hash)]
@@ -112,6 +141,7 @@ pub enum Entry {
     Comment(String),
     Dependency(Dependency),
     EmptyLine,
+    InkoVersion(Version),
 }
 
 impl fmt::Display for Entry {
@@ -120,6 +150,9 @@ impl fmt::Display for Entry {
             Entry::Comment(comment) => write!(f, "#{}", comment),
             Entry::EmptyLine => Ok(()),
             Entry::Dependency(dep) => dep.fmt(f),
+            Entry::InkoVersion(version) => {
+                write!(f, "require inko {}", version)
+            }
         }
     }
 }
@@ -131,6 +164,27 @@ pub struct Manifest {
 }
 
 impl Manifest {
+    pub fn all(config: &Config) -> Result<Vec<Manifest>, String> {
+        let mut manifests = Vec::new();
+        let paths = dependency_manifests(config).map_err(|e| {
+            format!("Failed to read the dependency manifests: {}", e)
+        })?;
+
+        for path in paths.into_iter().filter(|v| v.is_file()) {
+            let manifest = Manifest::load(&path).map_err(|e| {
+                format!(
+                    "Failed to load the manifest '{}': {}",
+                    path.display(),
+                    e
+                )
+            })?;
+
+            manifests.push(manifest);
+        }
+
+        Ok(manifests)
+    }
+
     pub fn load<P: AsRef<Path>>(path: &P) -> Result<Self, String> {
         let path = path.as_ref();
 
@@ -140,13 +194,14 @@ impl Manifest {
             .create(true)
             .truncate(false)
             .open(path)
-            .map_err(|e| format!("Failed to read {}: {}", path.display(), e))
+            .map_err(|e| e.to_string())
             .and_then(|mut file| Self::parse(&mut file))
     }
 
     fn parse<R: Read>(stream: &mut R) -> Result<Self, String> {
         let reader = BufReader::new(stream);
         let mut manifest = Self { entries: Vec::new() };
+        let mut inko_req_line_num = 0;
 
         for (index, line) in reader.lines().enumerate() {
             let lnum = index + 1;
@@ -168,38 +223,73 @@ impl Manifest {
 
             let chunks: Vec<_> = trimmed.split(' ').collect();
 
-            if chunks.len() != 4 {
-                return Err(format!("The entry on line {} is invalid", lnum));
+            match chunks[..] {
+                [action, ..] if action != "require" => {
+                    return Err(format!(
+                        "Expected line {} to start with 'require', not '{}'",
+                        lnum, action
+                    ));
+                }
+                ["require", "inko", version] if inko_req_line_num == 0 => {
+                    inko_req_line_num = lnum;
+
+                    let version = Version::parse(version).ok_or_else(|| {
+                        format!("The version on line {} is invalid", lnum)
+                    })?;
+
+                    manifest.entries.push(Entry::InkoVersion(version));
+                }
+                ["require", "inko", _] => {
+                    return Err(format!(
+                        "The Inko version requirement on line {} is invalid \
+                        as a requirement is already specified on line {}",
+                        lnum, inko_req_line_num,
+                    ));
+                }
+                ["require", url, version, checksum] => {
+                    let url = Url::parse(url).ok_or_else(|| {
+                        format!("The URI on line {} is invalid", lnum)
+                    })?;
+                    let name = url.import_name();
+                    let version = Version::parse(version).ok_or_else(|| {
+                        format!("The version on line {} is invalid", lnum)
+                    })?;
+                    let checksum =
+                        Checksum::parse(checksum).ok_or_else(|| {
+                            format!("The checksum on line {} is invalid", lnum)
+                        })?;
+
+                    manifest.entries.push(Entry::Dependency(Dependency {
+                        url,
+                        name,
+                        version,
+                        checksum,
+                    }));
+                }
+                _ => {
+                    return Err(format!(
+                        "The entry on line {} is invalid",
+                        lnum
+                    ));
+                }
             }
-
-            // Currently this is the only action we support.
-            if chunks[0] != "require" {
-                return Err(format!(
-                    "Expected line {} to start with 'require', not '{}'",
-                    lnum, chunks[0]
-                ));
-            }
-
-            let url = Url::parse(chunks[1]).ok_or_else(|| {
-                format!("The URI on line {} is invalid", lnum)
-            })?;
-            let name = url.import_name();
-            let version = Version::parse(chunks[2]).ok_or_else(|| {
-                format!("The version on line {} is invalid", lnum)
-            })?;
-            let checksum = Checksum::parse(chunks[3]).ok_or_else(|| {
-                format!("The checksum on line {} is invalid", lnum)
-            })?;
-
-            manifest.entries.push(Entry::Dependency(Dependency {
-                url,
-                name,
-                version,
-                checksum,
-            }));
         }
 
         Ok(manifest)
+    }
+
+    pub fn set_inko_version(&mut self, version: Version) {
+        let inko_version = Entry::InkoVersion(version);
+
+        if let Some(entry) = self
+            .entries
+            .iter_mut()
+            .find(|entry| matches!(entry, Entry::InkoVersion(_)))
+        {
+            *entry = inko_version;
+        } else {
+            self.entries.push(inko_version);
+        }
     }
 
     pub fn add_dependency(
@@ -256,6 +346,13 @@ impl Manifest {
         File::create(path)
             .and_then(|mut file| file.write_all(self.to_string().as_bytes()))
             .map_err(|e| format!("Failed to update {}: {}", path.display(), e))
+    }
+
+    pub fn minimum_inko_version(&self) -> Option<Version> {
+        self.entries.iter().find_map(|e| match e {
+            Entry::InkoVersion(v) => Some(v.clone()),
+            _ => None,
+        })
     }
 }
 
@@ -339,6 +436,11 @@ mod tests {
         let invalid_checksum =
             "require https://gitlab.com/inko-lang/foo 1.2.3 abc";
 
+        let invalid_inko_version = "require inko 1.2";
+        let invalid_inko_version_extra_chunk = "require inko 1.2.3 abc";
+        let invalid_inko_version_redundant =
+            "require inko 1.2.3\nrequire inko 4.5.6";
+
         assert_eq!(
             Manifest::parse(&mut missing_chunks.as_bytes()),
             Err("The entry on line 2 is invalid".to_string())
@@ -356,6 +458,20 @@ mod tests {
             Manifest::parse(&mut invalid_checksum.as_bytes()),
             Err("The checksum on line 1 is invalid".to_string())
         );
+        assert_eq!(
+            Manifest::parse(&mut invalid_inko_version.as_bytes()),
+            Err("The version on line 1 is invalid".to_string())
+        );
+        assert_eq!(
+            Manifest::parse(&mut invalid_inko_version_extra_chunk.as_bytes()),
+            Err("The checksum on line 1 is invalid".to_string())
+        );
+        assert_eq!(
+            Manifest::parse(&mut invalid_inko_version_redundant.as_bytes()),
+            Err("The Inko version requirement on line 2 is invalid as a \
+                requirement is already specified on line 1"
+                .to_string())
+        );
     }
 
     #[test]
@@ -363,6 +479,7 @@ mod tests {
         let input = "# Ignore me
 #
 
+require inko 1.2.3
 require https://gitlab.com/inko-lang/foo 1.2.3 633d02e92b2a96623c276b7d7fe09568f9f2e1ad";
 
         assert_eq!(
@@ -372,6 +489,7 @@ require https://gitlab.com/inko-lang/foo 1.2.3 633d02e92b2a96623c276b7d7fe09568f
                     Entry::Comment(" Ignore me".to_string()),
                     Entry::Comment(String::new()),
                     Entry::EmptyLine,
+                    Entry::InkoVersion(Version::new(1, 2, 3)),
                     Entry::Dependency(Dependency {
                         url: Url::new("https://gitlab.com/inko-lang/foo"),
                         name: "foo".to_string(),
@@ -392,6 +510,7 @@ require https://gitlab.com/inko-lang/foo 1.2.3 633d02e92b2a96623c276b7d7fe09568f
                 Entry::Comment(" Ignore me".to_string()),
                 Entry::Comment(String::new()),
                 Entry::EmptyLine,
+                Entry::InkoVersion(Version::new(1, 2, 3)),
                 Entry::Dependency(Dependency {
                     url: Url::new("https://gitlab.com/inko-lang/foo"),
                     name: "foo".to_string(),
@@ -410,6 +529,7 @@ require https://gitlab.com/inko-lang/foo 1.2.3 633d02e92b2a96623c276b7d7fe09568f
         let output = "# Ignore me
 #
 
+require inko 1.2.3
 require https://gitlab.com/inko-lang/foo 1.2.3 abc
 require https://github.com/inko-lang/bar 4.5.6 def
 ";
@@ -513,5 +633,25 @@ require https://github.com/inko-lang/bar 4.5.6 def
                 checksum: Checksum::new("abc")
             }]
         );
+    }
+
+    #[test]
+    fn test_manifest_set_inko_version() {
+        let mut manifest = Manifest { entries: Vec::new() };
+
+        assert_eq!(manifest.minimum_inko_version(), None);
+
+        manifest.set_inko_version(Version::new(1, 2, 3));
+        assert_eq!(
+            manifest.minimum_inko_version(),
+            Some(Version::new(1, 2, 3))
+        );
+
+        manifest.set_inko_version(Version::new(4, 5, 6));
+        assert_eq!(
+            manifest.minimum_inko_version(),
+            Some(Version::new(4, 5, 6))
+        );
+        assert_eq!(manifest.entries.len(), 1);
     }
 }

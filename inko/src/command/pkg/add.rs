@@ -6,16 +6,20 @@ use compiler::pkg::manifest::{Checksum, Manifest, Url, MANIFEST_FILE};
 use compiler::pkg::version::Version;
 use getopts::Options;
 
-const USAGE: &str = "inko pkg add [OPTIONS] [URL] [VERSION]
+const USAGE: &str = "inko pkg add [OPTIONS] [URL | \"inko\"] [VERSION]
 
 Add a dependency to the current project.
 
 This command merely adds the dependency to the manifest. To download it along
 with its dependencies, run `inko pkg sync`.
 
+When the first argument is \"inko\", this command sets the minimum required Inko
+version to [VERSION], instead of adding a dependency.
+
 Examples:
 
-    inko pkg add github.com/inko-lang/example 1.2.3";
+    inko pkg add github.com/inko-lang/example 1.2.3 # Adds a dependency
+    inko pkg add inko 1.2.3                         # Sets the required version to 1.2.3";
 
 pub(crate) fn run(args: &[String]) -> Result<i32, Error> {
     let mut options = Options::new();
@@ -33,6 +37,24 @@ pub(crate) fn run(args: &[String]) -> Result<i32, Error> {
         return Err(Error::from(
             "You must specify a package and version to add".to_string(),
         ));
+    }
+
+    if matches.free.first().map(String::as_ref) == Some("inko") {
+        let version = matches
+            .free
+            .get(1)
+            .and_then(|version| Version::parse(version))
+            .ok_or_else(|| {
+                Error::from("The Inko version is invalid".to_string())
+            })?;
+
+        let mut manifest = Manifest::load(&MANIFEST_FILE)
+            .map_err(|e| format!("Failed to load the manifest: {}", e))?;
+
+        manifest.set_inko_version(version);
+        manifest.save(&MANIFEST_FILE)?;
+
+        return Ok(0);
     }
 
     let url =
@@ -73,7 +95,8 @@ pub(crate) fn run(args: &[String]) -> Result<i32, Error> {
     })?;
 
     let checksum = Checksum::new(hash);
-    let mut manifest = Manifest::load(&MANIFEST_FILE)?;
+    let mut manifest = Manifest::load(&MANIFEST_FILE)
+        .map_err(|e| format!("Failed to load the manifest: {}", e))?;
 
     if let Some(existing) = manifest.find_dependency(&url) {
         existing.version = version;

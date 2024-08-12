@@ -36,7 +36,8 @@ pub(crate) fn run(args: &[String]) -> Result<i32, Error> {
     }
 
     let major = matches.opt_present("m");
-    let mut manifest = Manifest::load(&MANIFEST_FILE)?;
+    let mut manifest = Manifest::load(&MANIFEST_FILE)
+        .map_err(|e| format!("Failed to load the manifest: {}", e))?;
     let update = if let Some(url) =
         matches.free.first().and_then(|uri| Url::parse(uri))
     {

@@ -11,6 +11,8 @@ use crate::mir::printer::to_dot;
 use crate::mir::specialize::Specialize;
 use crate::mir::Mir;
 use crate::modules_parser::{ModulesParser, ParsedModule};
+use crate::pkg::manifest::Manifest;
+use crate::pkg::version::Version;
 use crate::state::State;
 use crate::type_check::define_types::{
     CheckTraitImplementations, CheckTraitRequirements, CheckTypeParameters,
@@ -174,6 +176,8 @@ impl Compiler {
     }
 
     pub fn check(&mut self, file: Option<PathBuf>) -> Result<(), CompileError> {
+        self.prepare()?;
+
         let start = Instant::now();
 
         // When checking a project we want to fall back to checking _all_ files
@@ -205,6 +209,8 @@ impl Compiler {
         &mut self,
         file: Option<PathBuf>,
     ) -> Result<PathBuf, CompileError> {
+        self.prepare()?;
+
         let start = Instant::now();
         let file = self.main_module_path(file)?;
         let main_mod = self.state.db.main_module().unwrap().clone();
@@ -232,6 +238,8 @@ impl Compiler {
     }
 
     pub fn document(&mut self, config: DocsConfig) -> Result<(), CompileError> {
+        self.prepare()?;
+
         // When generating documentation we don't include the unit tests.
         let input = all_source_modules(&self.state.config, false)
             .map_err(CompileError::Internal)?;
@@ -523,5 +531,25 @@ LLVM module timings:
         self.timings.link = start.elapsed();
 
         Ok(exe)
+    }
+
+    fn prepare(&mut self) -> Result<(), CompileError> {
+        let cur_ver = Version::parse(env!("CARGO_PKG_VERSION")).unwrap();
+        let iter = Manifest::all(&self.state.config)
+            .map_err(CompileError::Internal)?;
+
+        for manifest in iter {
+            let Some(ver) = manifest.minimum_inko_version() else { continue };
+
+            if ver > cur_ver {
+                return Err(CompileError::Internal(format!(
+                    "This project requires Inko {} or newer, \
+                    but the current version is {}",
+                    ver, cur_ver
+                )));
+            }
+        }
+
+        Ok(())
     }
 }
