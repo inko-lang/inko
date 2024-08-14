@@ -122,4 +122,4 @@ jobs:
           path: tmp/runtimes
           merge-multiple: true
       - name: Upload runtimes
-        run: rclone sync --dry-run --config rclone.conf --checksum --verbose tmp/runtimes "production:inko-releases/runtimes/${{ github.ref_name }}"
+        run: bash ci/upload_runtimes.sh
