@@ -23,4 +23,5 @@ RUN curl --proto '=https' --tlsv1.2 --retry 10 --retry-connrefused --location \
     --component clippy,rustfmt --default-toolchain $RUST_VERSION
 
 RUN dpkg --add-architecture arm64 \
+    && apt update --quiet \
     && apt install --quiet --yes gcc-aarch64-linux-gnu musl-tools:arm64
