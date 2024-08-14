@@ -67,6 +67,8 @@ jobs:
 
   runtimes:
     name: Runtimes
+    needs:
+      - tests
     uses: ./.github/workflows/runtimes.yml
 
   docs:
