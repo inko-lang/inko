@@ -238,9 +238,9 @@ Debian 12:
 
 ```bash
 curl https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
-sudo add-apt-repository "deb http://apt.llvm.org/bookworm/ llvm-toolchain-bookworm-17 main"
+echo -e "deb http://apt.llvm.org/bookworm/ llvm-toolchain-bookworm-17 main" | sudo tee /etc/apt/sources.list.d/llvm17.list
 sudo apt-get update
-sudo apt-get install --yes git build-essential llvm-17 llvm-17-dev libstdc++-10-dev libclang-common-17-dev zlib1g-dev libpolly-17-dev libzstd-dev
+sudo apt-get install --yes git build-essential llvm-17 llvm-17-dev libstdc++-11-dev libclang-common-17-dev zlib1g-dev libpolly-17-dev libzstd-dev
 ```
 
 For older versions, refer to [LLVM's Debian/Ubuntu packages page][llvm-apt] and
@@ -291,9 +291,9 @@ For 23.10:
 
 ```bash
 curl https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
-sudo add-apt-repository "deb http://apt.llvm.org/mantic/ llvm-toolchain-mantic-17 main"
+echo -e "deb http://apt.llvm.org/mantic/ llvm-toolchain-mantic-17 main" | sudo tee /etc/apt/sources.list.d/llvm17.list
 sudo apt-get update
-sudo apt-get install --yes rustc cargo git build-essential llvm-17 llvm-17-dev libstdc++-10-dev libclang-common-17-dev zlib1g-dev libpolly-17-dev libzstd-dev
+sudo apt-get install --yes rustc cargo git build-essential llvm-17 llvm-17-dev libstdc++-11-dev libclang-common-17-dev zlib1g-dev libpolly-17-dev libzstd-dev
 ```
 
 For older versions, refer to [LLVM's Debian/Ubuntu packages page][llvm-apt] and

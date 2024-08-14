@@ -22,3 +22,11 @@ jobs:
     uses: ./.github/workflows/container.yml
     with:
       name: 'fedora'
+  debian-amd64:
+    uses: ./.github/workflows/container.yml
+    with:
+      name: 'debian-amd64'
+  debian-arm64:
+    uses: ./.github/workflows/container.yml
+    with:
+      name: 'debian-arm64'

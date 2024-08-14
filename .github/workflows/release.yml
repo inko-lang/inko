@@ -67,19 +67,7 @@ jobs:
 
   runtimes:
     name: Runtimes
-    runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/inko-lang/ci:fedora
-    needs:
-      - tests
-    env:
-      RCLONE_S3_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_ACCESS_KEY_ID }}
-      RCLONE_S3_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
-      RCLONE_S3_ENDPOINT: https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
-    steps:
-      - uses: actions/checkout@v4
-      - name: Upload runtimes
-        run: make runtimes
+    uses: ./.github/workflows/runtimes.yml
 
   docs:
     name: Documentation

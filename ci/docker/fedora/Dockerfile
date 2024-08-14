@@ -10,7 +10,7 @@ ENV CARGO_HOME /opt/cargo
 RUN sudo dnf install --assumeyes --quiet gcc make tar git rustup rclone \
     llvm$LLVM_VERSION llvm$LLVM_VERSION-devel \
     llvm$LLVM_VERSION-static libstdc++-devel libstdc++-static \
-    libffi-devel zlib-devel musl-gcc
+    libffi-devel zlib-devel
 
 RUN rustup-init --quiet -y --no-modify-path --profile minimal \
     --component clippy,rustfmt --default-toolchain $RUST_VERSION

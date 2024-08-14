@@ -1,0 +1,125 @@
+---
+name: Build runtimes
+on:
+  workflow_call:
+  workflow_dispatch:
+
+env:
+  CARGO_HOME: ${{ github.workspace }}/.cargo-home
+  # We set an explicit version to only install the components we need for CI.
+  RUSTUP_TOOLCHAIN: '1.78'
+
+jobs:
+  linux-amd64:
+    name: Linux AMD64
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/inko-lang/ci:debian-amd64
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build runtimes
+        run: bash ci/runtimes.sh amd64-linux
+      - uses: actions/upload-artifact@v4
+        with:
+          name: amd64-linux
+          path: tmp/runtimes/${{ github.ref_name }}/*.tar.gz
+          overwrite: true
+          retention-days: 2
+          compression-level: 0
+
+  linux-arm64:
+    name: Linux ARM64
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/inko-lang/ci:debian-arm64
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build runtimes
+        run: bash ci/runtimes.sh arm64-linux
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arm64-linux
+          path: tmp/runtimes/${{ github.ref_name }}/*.tar.gz
+          overwrite: true
+          retention-days: 2
+          compression-level: 0
+
+  macos-amd64:
+    name: macOS AMD64
+    runs-on: macos-12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: ./ci/mac.sh
+      - name: Build runtimes
+        run: bash ci/runtimes.sh amd64-mac
+      - uses: actions/upload-artifact@v4
+        with:
+          name: amd64-mac
+          path: tmp/runtimes/${{ github.ref_name }}/*.tar.gz
+          overwrite: true
+          retention-days: 2
+          compression-level: 0
+
+  macos-arm64:
+    name: macOS ARM64
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: ./ci/mac.sh
+      - name: Build runtimes
+        run: bash ci/runtimes.sh arm64-mac
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arm64-mac
+          path: tmp/runtimes/${{ github.ref_name }}/*.tar.gz
+          overwrite: true
+          retention-days: 2
+          compression-level: 0
+
+  freebsd-amd64:
+    name: FreeBSD AMD64
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build runtimes
+        uses: cross-platform-actions/action@v0.24.0
+        with:
+          operating_system: freebsd
+          version: '14.0'
+          memory: 8G
+          environment_variables: 'CARGO_HOME RUSTUP_HOME'
+          image_url: 'https://github.com/inko-lang/freebsd-builder/releases/download/v0.8.0/freebsd-14.0-x86-64.qcow2'
+          run: bash ci/runtimes.sh amd64-freebsd
+      - uses: actions/upload-artifact@v4
+        with:
+          name: amd64-freebsd
+          path: tmp/runtimes/${{ github.ref_name }}/*.tar.gz
+          overwrite: true
+          retention-days: 2
+          compression-level: 0
+
+  upload:
+    name: Upload runtimes
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/inko-lang/ci:fedora
+    env:
+      RCLONE_S3_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_ACCESS_KEY_ID }}
+      RCLONE_S3_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
+      RCLONE_S3_ENDPOINT: https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
+    needs:
+      - linux-amd64
+      - linux-arm64
+      - macos-amd64
+      - macos-arm64
+      - freebsd-amd64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: tmp/runtimes
+          merge-multiple: true
+      - name: Upload runtimes
+        run: rclone sync --dry-run --config rclone.conf --checksum --verbose tmp/runtimes "production:inko-releases/runtimes/${{ github.ref_name }}"

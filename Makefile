@@ -167,11 +167,8 @@ std-docs/publish: std-docs/build
 	rclone sync --config rclone.conf --checksum --verbose \
 		std/build/idoc/public "production:${DOCS_BUCKET}/std/${DOCS_REF}"
 
-runtimes:
-	bash scripts/runtimes.sh ${VERSION}
-
 .PHONY: release/source release/manifest release/changelog release/versions
 .PHONY: release/commit release/publish release/tag
-.PHONY: build install clean runtimes
+.PHONY: build install clean
 .PHONY: docs/setup docs/build docs/watch docs/publish
 .PHONY: std-docs/build std-docs/publish
