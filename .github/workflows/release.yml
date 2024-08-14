@@ -36,35 +36,6 @@ jobs:
       - name: Update manifest
         run: make release/manifest
 
-  container:
-    name: Container
-    runs-on: ubuntu-latest
-    needs:
-      - tests
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/metadata-action@v5
-        id: meta
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-      - uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-
   runtimes:
     name: Runtimes
     needs:
@@ -80,7 +51,6 @@ jobs:
     needs:
       - tests
       - source
-      - container
       - runtimes
     env:
       RCLONE_S3_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_ACCESS_KEY_ID }}
@@ -116,7 +86,6 @@ jobs:
     needs:
       - tests
       - source
-      - container
       - runtimes
     steps:
       - uses: actions/checkout@v4
@@ -133,3 +102,36 @@ jobs:
           then
             make std-docs/publish DOCS_REF=latest
           fi
+
+  container:
+    name: Container
+    runs-on: ubuntu-latest
+    needs:
+      - docs
+      - runtimes
+      - source
+      - std-docs
+      - tests
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
