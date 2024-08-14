@@ -14,7 +14,6 @@ env:
 
 jobs:
   build:
-    name: ${{ inputs.name }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
