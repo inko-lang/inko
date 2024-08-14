@@ -70,6 +70,7 @@ jobs:
     needs:
       - tests
     uses: ./.github/workflows/runtimes.yml
+    secrets: inherit
 
   docs:
     name: Documentation

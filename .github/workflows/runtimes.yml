@@ -2,7 +2,6 @@
 name: Build runtimes
 on:
   workflow_call:
-  workflow_dispatch:
 
 env:
   CARGO_HOME: ${{ github.workspace }}/.cargo-home
