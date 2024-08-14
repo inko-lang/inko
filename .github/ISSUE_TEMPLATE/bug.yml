@@ -11,17 +11,18 @@ body:
     validations:
       required: true
 
-  - type: textarea
-    id: reproduce
-    attributes:
-      label: Please list the exact steps necessary to reproduce the bug
-    validations:
-      required: true
-
-  - type: input
+  - type: dropdown
     id: operating-system
     attributes:
       label: Operating system
+      options:
+        - Arch Linux
+        - Debian
+        - Fedora
+        - FreeBSD
+        - Ubuntu
+        - macOS
+        - Other
     validations:
       required: true
 
@@ -29,12 +30,5 @@ body:
     id: inko-version
     attributes:
       label: Inko version
-    validations:
-      required: true
-
-  - type: input
-    id: rust-version
-    attributes:
-      label: Rust version
     validations:
       required: true
