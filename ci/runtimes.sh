@@ -61,13 +61,6 @@ function install_rust {
     export PATH="${CARGO_HOME}/bin:${PATH}"
 }
 
-function init_rust {
-    rustup-init --quiet -y --no-modify-path --profile minimal \
-        --default-toolchain $RUST_VERSION
-
-    export PATH="${CARGO_HOME}/bin:${PATH}"
-}
-
 mkdir -p "${DIR}"
 
 case "$1" in
@@ -80,11 +73,9 @@ case "$1" in
         build "aarch64-unknown-linux-musl" "arm64-linux-musl"
     ;;
     "amd64-mac")
-        init_rust
         build "x86_64-apple-darwin" "amd64-mac-native"
     ;;
     "arm64-mac")
-        init_rust
         build "aarch64-apple-darwin" "arm64-mac-native"
     ;;
     "amd64-freebsd")

@@ -22,7 +22,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: amd64-linux
-          path: tmp/runtimes/${{ github.ref_name }}/*.tar.gz
+          path: tmp/runtimes/*.tar.gz
           overwrite: true
           retention-days: 2
           compression-level: 0
@@ -39,7 +39,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: arm64-linux
-          path: tmp/runtimes/${{ github.ref_name }}/*.tar.gz
+          path: tmp/runtimes/*.tar.gz
           overwrite: true
           retention-days: 2
           compression-level: 0
@@ -56,7 +56,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: amd64-mac
-          path: tmp/runtimes/${{ github.ref_name }}/*.tar.gz
+          path: tmp/runtimes/*.tar.gz
           overwrite: true
           retention-days: 2
           compression-level: 0
@@ -73,7 +73,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: arm64-mac
-          path: tmp/runtimes/${{ github.ref_name }}/*.tar.gz
+          path: tmp/runtimes/*.tar.gz
           overwrite: true
           retention-days: 2
           compression-level: 0
@@ -95,7 +95,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: amd64-freebsd
-          path: tmp/runtimes/${{ github.ref_name }}/*.tar.gz
+          path: tmp/runtimes/*.tar.gz
           overwrite: true
           retention-days: 2
           compression-level: 0
