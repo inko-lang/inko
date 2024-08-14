@@ -4,6 +4,49 @@
 Entries from before version 0.10.0 are no longer included, but can be viewed
 [here](https://github.com/inko-lang/inko/blob/f9c01b86af70596021e649be5d43ec2a22b6d298/CHANGELOG.md).
 
+## 0.16.0 (2024-08-14)
+
+### Added
+
+- [3047976](https://github.com/inko-lang/inko/commit/30479762979249ccc68ce937555c0902e3c33d39): Automatically install dependencies when building
+- [bc06c3e](https://github.com/inko-lang/inko/commit/bc06c3e06847e29645c4949081168845202b2a74): Support requiring a minimum Inko version
+- [f156a36](https://github.com/inko-lang/inko/commit/f156a367f015bb4e0292058719f551139bda6d0c): Support different Int/Float sizes in generics
+- [616c0e7](https://github.com/inko-lang/inko/commit/616c0e73701857c817433cc27c5b363c8a606821): Support swapping of fields with explicit receivers
+- [54af751](https://github.com/inko-lang/inko/commit/54af751344fd8a26d54af1cf4b8e4f9936bfaf93): Add Int.swap_bytes
+- [a9c7bd7](https://github.com/inko-lang/inko/commit/a9c7bd726c34682ce7c12afdac4d90879c39d778): Add support for TLS sockets
+- [42db383](https://github.com/inko-lang/inko/commit/42db383dc9b2a747fc0afea454980555b177825e): Allow comparing ByteArray with String values
+- [97d385a](https://github.com/inko-lang/inko/commit/97d385aa537a622722def3c82f48427a6cb68ccc): Add inclusive argument to Read.read_until/read_line
+- [09ad36e](https://github.com/inko-lang/inko/commit/09ad36e6c37f231b241cb6a535fad872a72c6089): Add std.base64 for encoding and decoding base64
+
+### Fixed
+
+- [119e77b](https://github.com/inko-lang/inko/commit/119e77bc25edc6962c5267a03395a7f54aa1ec94): Fix assigning types with ownership to placeholders
+- [d023bfe](https://github.com/inko-lang/inko/commit/d023bfebaef1b5dfb283ddd82313a734ae969fef): Fix trailing compression in Ipv6Address.to_string
+- [e72c6a2](https://github.com/inko-lang/inko/commit/e72c6a259ce96a115a4971ae93b286aaefb656f9): Fix referring to fields storing pointers
+- [b3cc7cf](https://github.com/inko-lang/inko/commit/b3cc7cfc629289d93bb5bcb3c8866997f763b156): Fix underflows when formatting certain call chains
+- [2c3cc1f](https://github.com/inko-lang/inko/commit/2c3cc1fc4cf0cb21fc1bc10edf250addfd8c9b1d): Fix BufferedReader.fill_buffer
+
+### Changed
+
+- [8e13a9e](https://github.com/inko-lang/inko/commit/8e13a9ec145526779ddf2fd9570682b634671722): Fix naming for std.endian read/write methods
+- [f3d5cd5](https://github.com/inko-lang/inko/commit/f3d5cd5b5948b4d40ccb30ab10fc9f2cc200af19): Bump LLVM version requirement to LLVM 17
+- [79c0220](https://github.com/inko-lang/inko/commit/79c02206052c121adc435cff5e3df753ceb55b80): Remove deprecated syntax
+
+### Performance improvements
+
+- [00a0d18](https://github.com/inko-lang/inko/commit/00a0d186c7d0ab102e92a645d9d65a4f71f01b22): Use llvm.abs for Int.absolute
+- [ab90f67](https://github.com/inko-lang/inko/commit/ab90f67c99fcbef66ddac13a5e5d694414cebfd9): Optimize pkg sync by cloning a single ref
+- [9423067](https://github.com/inko-lang/inko/commit/9423067572a294ab86fa21437635e7a9245680a1): Optimize std.endian.big and std.endian.little
+- [9dc7fd4](https://github.com/inko-lang/inko/commit/9dc7fd4d58fa22c8023559b373c2870ce4356164): Optimize String.starts_with/ends_with
+- [8bae816](https://github.com/inko-lang/inko/commit/8bae81628bbf48313ab5f1fda50a13a585911ad6): Improve performance of String.==
+- [0384162](https://github.com/inko-lang/inko/commit/03841622f635d6129ce6f39edc8144364fc6eb11): Only increase read sizes when beneficial
+
+### Other
+
+- [86c1592](https://github.com/inko-lang/inko/commit/86c1592df5fa1918a7a9a19dd1a0ef33ca1b58bc): Replace "variant" with "constructor"
+- [f5aa237](https://github.com/inko-lang/inko/commit/f5aa237531ccca23c50cc4ce08446ba51f54bbcd): Update llvm-sys to make building easier
+- [63086b2](https://github.com/inko-lang/inko/commit/63086b26d2008be2b9053994b415c7c56ce06208): Bump Rust requirement to 1.78
+
 ## 0.15.0 (2024-06-29)
 
 ### Added

@@ -37,7 +37,7 @@ checksum = "96d30a06541fbafbc7f82ed10c06164cfbd2c401138f6addd8404629c4b16711"
 
 [[package]]
 name = "ast"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "getopts",
  "similar-asserts",
@@ -121,7 +121,7 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "compiler"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "ast",
  "blake3",
@@ -289,7 +289,7 @@ dependencies = [
 
 [[package]]
 name = "inko"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "blake3",
  "compiler",
@@ -525,7 +525,7 @@ dependencies = [
 
 [[package]]
 name = "rt"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "backtrace",
  "core-foundation",
@@ -759,7 +759,7 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "types"
-version = "0.15.0"
+version = "0.16.0"
 
 [[package]]
 name = "unicode-bidi"
