@@ -2,10 +2,7 @@
 
 set -e
 
-# The version of Rust to use.
 RUST_VERSION='1.78'
-
-# The directory to place the runtimes in.
 DIR="tmp/runtimes"
 
 function rustup_lib {
