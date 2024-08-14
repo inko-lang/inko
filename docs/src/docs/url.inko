@@ -3,7 +3,7 @@ import wobsite.url (relative_to_absolute)
 
 fn link_from(page: ref Page, to: String) -> String {
   if page.url == '/' {
-    to.strip_prefix('/')
+    to.strip_prefix('/').or_panic('the target URL must start with a /')
   } else {
     let mut steps = page.url.split('/').select(fn (v) { v != '' }).count
     let to_abs = to.starts_with?('/')
