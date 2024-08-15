@@ -134,6 +134,17 @@ Inko is available in [Homebrew](https://brew.sh/):
 brew install inko
 ```
 
+## Nix
+
+Inko is available in the [unstable
+channel](https://search.nixos.org/packages?channel=unstable&show=inko&type=packages&query=inko):
+
+```bash
+nix-channel --add https://nixos.org/channels/nixpkgs-unstable nixpkgs-unstable
+nix-channel --update
+nix-shell -p inko
+```
+
 ## From source
 
 When building from Git, first clone the repository:

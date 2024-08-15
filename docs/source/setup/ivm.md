@@ -30,6 +30,17 @@ sudo dnf copr enable yorickpeterse/inko
 sudo dnf install ivm
 ```
 
+### Nix
+
+ivm is available in the [unstable
+channel](https://search.nixos.org/packages?channel=unstable&show=ivm&type=packages&query=ivm):
+
+```bash
+nix-channel --add https://nixos.org/channels/nixpkgs-unstable nixpkgs-unstable
+nix-channel --update
+nix-shell -p ivm
+```
+
 ### From source
 
 Clone the repository:
