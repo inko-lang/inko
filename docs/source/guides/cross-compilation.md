@@ -109,17 +109,19 @@ package(s) based on your host distribution:
 
 ### To and from macOS
 
-[osxcross](https://github.com/tpoechtrager/osxcross) may prove useful when cross
-compiling _to_ macOS, but the setup process is difficult and we don't have any
-experience using it ourselves.
+Cross compiling from Linux or FreeBSD to macOS is difficult, as one needs a copy
+of the appropriate macOS SDK but the license of these SDKs forbids their use on
+non-Apple platforms. [osxcross](https://github.com/tpoechtrager/osxcross) may
+prove useful when cross compiling _to_ macOS, but we don't have any experience
+using it ourselves.
 
-Cross compiling _from_ macOS to Linux or FreeBSD is perhaps even more difficult,
-as there don't appear to be any commonly used packages to do so. Instead, it
-appears the usual approach is to use a virtual machine running Linux or FreeBSD
-and compile the code in the virtual machine.
+Cross compiling from macOS to Linux or FreeBSD is also difficult, as there don't
+appear to be any commonly used packages to do so. Instead, it appears the usual
+approach is to use a virtual machine running Linux or FreeBSD and compile the
+code in the virtual machine.
 
-Because of these complications, we _highly_ recommend using Zig when compiling
-to/from macOS.
+Cross compiling from one macOS target to another macOS target (e.g.
+amd64-mac-native to arm64-mac-native) is not a problem.
 
 ### To and from FreeBSD
 
@@ -127,8 +129,8 @@ Similar to compiling to macOS, Linux distributions don't provide the necessary
 packages to target FreeBSD. FreeBSD in turn doesn't provide packages to compile
 to Linux or macOS.
 
-Zig should be able to cross compile from FreeBSD to Linux or macOS, but it
-[doesn't support cross compiling to
+Zig should be able to cross compile from FreeBSD to Linux, but it
+[doesn't support cross compiling _to_
 FreeBSD](https://github.com/ziglang/zig/issues/2876).
 
 ## Target triples
@@ -221,14 +223,6 @@ inko build --target=arm64-linux-gnu test.inko
 
 If all went well, the resulting `test` executable is located at
 `./build/arm64-linux-gnu/test`.
-
-If Zig is installed, we can also cross compile to macOS without having to
-install anything extra:
-
-```bash
-inko runtime add amd64-mac-native
-inko build --target=amd64-mac-native test.inko
-```
 
 ### Using a custom linker
 
