@@ -215,7 +215,10 @@ class Diagnostic {
     # We remove the directory leading up to the file, that way the diagnostic
     # lines in the test file don't need to specify the full file paths, and
     # debugging failing tests is a little less annoying due to noisy output.
-    let file = (try string(map, 'file')).strip_prefix('${directory}/').get
+    let mut file = try string(map, 'file')
+
+    file = file.strip_prefix('${directory}/').or(file)
+
     let line = try location(map, 'lines')
     let column = try location(map, 'columns')
     let message = try string(map, 'message')
