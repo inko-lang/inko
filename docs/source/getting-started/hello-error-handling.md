@@ -104,6 +104,10 @@ can use this method to log the error instead of ignoring it:
 ```inko
 import std.stdio (STDOUT)
 
+fn log(message: String) {
+  # This is just an example, so the method doesn't actually do anything.
+}
+
 class async Main {
   fn async main {
     match STDOUT.new.print('Hello, world!') {
