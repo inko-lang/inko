@@ -356,6 +356,29 @@ fn pub tests(t: mut Tests) {
     t.equal(err.read_byte, Result.Error(Error.TimedOut))
   })
 
+  t.test('BufferedReader.peek', fn (t) {
+    let ok = BufferedReader.new(Reader.new)
+    let err = BufferedReader.new(ErrorReader())
+
+    t.equal(ok.peek, Result.Ok(Option.Some(1)))
+    t.equal(ok.peek, Result.Ok(Option.Some(1)))
+    t.equal(ok.read_byte, Result.Ok(Option.Some(1)))
+
+    t.equal(ok.peek, Result.Ok(Option.Some(2)))
+    t.equal(ok.peek, Result.Ok(Option.Some(2)))
+    t.equal(ok.read_byte, Result.Ok(Option.Some(2)))
+
+    t.equal(ok.peek, Result.Ok(Option.Some(3)))
+    t.equal(ok.peek, Result.Ok(Option.Some(3)))
+    t.equal(ok.read_byte, Result.Ok(Option.Some(3)))
+
+    t.equal(ok.peek, Result.Ok(Option.None))
+    t.equal(ok.peek, Result.Ok(Option.None))
+    t.equal(ok.read_byte, Result.Ok(Option.None))
+
+    t.equal(err.peek, Result.Error(Error.TimedOut))
+  })
+
   t.test('BufferedReader.read with a small read size', fn (t) {
     let reader = BufferedReader.new(Reader.new)
     let bytes = ByteArray.new
@@ -417,6 +440,26 @@ fn pub tests(t: mut Tests) {
     t.equal(buffer.read_byte, Result.Ok(Option.Some(97)))
     t.equal(buffer.read_byte, Result.Ok(Option.Some(98)))
     t.equal(buffer.read_byte, Result.Ok(Option.Some(99)))
+    t.equal(buffer.read_byte, Result.Ok(Option.None))
+  })
+
+  t.test('Buffer.peek', fn (t) {
+    let buffer = Buffer.new('abc')
+
+    t.equal(buffer.peek, Result.Ok(Option.Some(97)))
+    t.equal(buffer.peek, Result.Ok(Option.Some(97)))
+    t.equal(buffer.read_byte, Result.Ok(Option.Some(97)))
+
+    t.equal(buffer.peek, Result.Ok(Option.Some(98)))
+    t.equal(buffer.peek, Result.Ok(Option.Some(98)))
+    t.equal(buffer.read_byte, Result.Ok(Option.Some(98)))
+
+    t.equal(buffer.peek, Result.Ok(Option.Some(99)))
+    t.equal(buffer.peek, Result.Ok(Option.Some(99)))
+    t.equal(buffer.read_byte, Result.Ok(Option.Some(99)))
+
+    t.equal(buffer.peek, Result.Ok(Option.None))
+    t.equal(buffer.peek, Result.Ok(Option.None))
     t.equal(buffer.read_byte, Result.Ok(Option.None))
   })
 

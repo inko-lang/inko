@@ -468,7 +468,7 @@ trait pub Seek {
 # A `Read` type using an internal buffer, allowing more efficient reading and
 # additional operations.
 trait pub BufferedRead: Read {
-  # Fills the internal buffer by reading from the underlying iterator.
+  # Fills the internal buffer by reading from the underlying stream.
   #
   # Upon success, this method returns `Ok(n)` where `n` is the number of bytes
   # remaining in the buffer. If the underlying read fails, an `Error` is
@@ -493,15 +493,34 @@ trait pub BufferedRead: Read {
   # # Examples
   #
   # ```inko
-  # import std.fs.file (ReadOnlyFile)
-  # import std.io (BufferedReader)
+  # import std.io (Buffer, BufferedReader)
   #
-  # let file = ReadOnlyFile.new('README.md').get
-  # let reader = BufferedReader.new(file)
+  # let buffer = Buffer.new('hello')
+  # let reader = BufferedReader.new(buffer)
   #
-  # reader.read_byte # => Result.Ok(Option.Some(35))
+  # reader.read_byte # => Result.Ok(Option.Some(104))
+  # reader.read_byte # => Result.Ok(Option.Some(101))
   # ```
   fn pub mut read_byte -> Result[Option[Int], Error]
+
+  # Reads the current byte from the buffer, without consuming it from the
+  # underlying buffer.
+  #
+  # If a byte is read, `Ok(Some(n))` is returned where `n` is the byte. A
+  # `Ok(None)` indicates the end of the input.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.io (Buffer, BufferedReader)
+  #
+  # let buffer = Buffer.new('hello')
+  # let reader = BufferedReader.new(buffer)
+  #
+  # reader.peek # => Result.Ok(Option.Some(104))
+  # reader.peek # => Result.Ok(Option.Some(104))
+  # ```
+  fn pub mut peek -> Result[Option[Int], Error]
 
   # Read bytes into `into` up to and including the byte specified in the `byte`
   # argument.
@@ -704,6 +723,13 @@ impl BufferedRead for BufferedReader {
       case _ -> Result.Ok(Option.Some(@buffer.get(@offset := @offset + 1)))
     }
   }
+
+  fn pub mut peek -> Result[Option[Int], Error] {
+    match try fill_buffer {
+      case 0 -> Result.Ok(Option.None)
+      case _ -> Result.Ok(Option.Some(@buffer.get(@offset)))
+    }
+  }
 }
 
 impl Read for BufferedReader {
@@ -794,6 +820,14 @@ impl BufferedRead for Buffer {
   fn pub mut read_byte -> Result[Option[Int], Never] {
     if @offset < @bytes.size {
       Result.Ok(Option.Some(@bytes.byte(@offset := @offset + 1)))
+    } else {
+      Result.Ok(Option.None)
+    }
+  }
+
+  fn pub mut peek -> Result[Option[Int], Error] {
+    if @offset < @bytes.size {
+      Result.Ok(Option.Some(@bytes.byte(@offset)))
     } else {
       Result.Ok(Option.None)
     }
