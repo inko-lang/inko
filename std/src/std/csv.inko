@@ -1,0 +1,823 @@
+# Parsing and generating of CSV data.
+#
+# This module provides support for parsing and generating [RFC
+# 4180](https://www.rfc-editor.org/rfc/rfc4180) compliant CSV data.
+#
+# # Examples
+#
+# Parsing CSV data:
+#
+# ```inko
+# import std.csv (Parser)
+# import std.io (Buffer)
+#
+# let parser = Parser.new(Buffer.new('foo,bar'))
+# let rows = parser
+#   .try_reduce([], fn (rows, res) {
+#     rows.push(try res)
+#     Result.Ok(rows)
+#   })
+#   .get
+#
+# rows # => [['foo', 'bar']]
+# ```
+#
+# Generating CSV data:
+#
+# ```inko
+# import std.csv (Generator)
+# import std.stdio (STDOUT)
+#
+# let gen = Generator.new(STDOUT.new)
+#
+# gen.write(['foo', 'bar'])
+# ```
+import std.cmp (Equal)
+import std.fmt (Format, Formatter)
+import std.int (ToInt)
+import std.io (BufferedReader, Error as IoError, Read, Write)
+import std.iter (Iter)
+import std.string (ToString)
+
+let LF = 0xA
+let CR = 0xD
+let COMMA = 0x2C
+let DQUOTE = 0x22
+
+fn quote?(value: String, separator: Int) -> Bool {
+  let mut i = 0
+  let max = value.size
+
+  while i < max {
+    match value.byte(i) {
+      case DQUOTE or COMMA or CR or LF -> return true
+      case val if val == separator -> return true
+      case _ -> {}
+    }
+
+    i += 1
+  }
+
+  false
+}
+
+# An error produced when parsing a CSV stream.
+class pub Error {
+  # The kind of error that's produced.
+  let pub @kind: ErrorKind
+
+  # The byte offset at which the error is produced.
+  let pub @offset: Int
+}
+
+impl ToString for Error {
+  fn pub to_string -> String {
+    match @kind {
+      case Read(e) -> {
+        'failed to read more bytes at byte offset ${@offset}: ${e}'
+      }
+      case MissingColumn -> 'a column is expected at byte offset ${@offset}'
+      case UnexpectedCharacter -> {
+        'the character at byte offset ${@offset} is unexpected'
+      }
+    }
+  }
+}
+
+impl Format for Error {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter
+      .object('Error')
+      .field('kind', @kind)
+      .field('offset', @offset)
+      .finish
+  }
+}
+
+impl Equal[ref Error] for Error {
+  fn pub ==(other: ref Error) -> Bool {
+    @kind == other.kind and @offset == other.offset
+  }
+}
+
+# A type indicating what kind of error is produced.
+class pub enum ErrorKind {
+  # An error produced when reading input.
+  #
+  # This error is produced when the underlying stream of a `Parser` produces an
+  # error, or when more input is expected when parsing data such as a column, in
+  # which case the error is `std.io.Error.EndOfInput`.
+  case Read(IoError)
+
+  # A column is expected, but we've either reached the end of the line or the
+  # end of the input stream.
+  case MissingColumn
+
+  # An unexpected character is encountered when parsing data (e.g. a double
+  # quote in an unquoted column).
+  case UnexpectedCharacter
+}
+
+impl Format for ErrorKind {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case Read(v) -> formatter.tuple('Read').field(v).finish
+      case MissingColumn -> formatter.tuple('MissingColumn').finish
+      case UnexpectedCharacter -> formatter.tuple('UnexpectedCharacter').finish
+    }
+  }
+}
+
+impl Equal[ref ErrorKind] for ErrorKind {
+  fn pub ==(other: ref ErrorKind) -> Bool {
+    match (self, other) {
+      case (Read(a), Read(b)) -> a == b
+      case (MissingColumn, MissingColumn) -> true
+      case (UnexpectedCharacter, UnexpectedCharacter) -> true
+      case _ -> false
+    }
+  }
+}
+
+# A type describing the column separator.
+class pub enum Separator {
+  # Columns are separated using a comma (",").
+  case Comma
+
+  # Columns are separated using a semicolon (";").
+  case Semicolon
+
+  # Columns are separated using a tab ("\t").
+  case Tab
+}
+
+impl ToString for Separator {
+  fn pub to_string -> String {
+    match self {
+      case Comma -> ','
+      case Semicolon -> ';'
+      case Tab -> '\t'
+    }
+  }
+}
+
+impl ToInt for Separator {
+  fn pub to_int -> Int {
+    match self {
+      case Comma -> COMMA
+      case Semicolon -> 0x3B
+      case Tab -> 0x9
+    }
+  }
+}
+
+# A type for parsing a CSV stream.
+#
+# A `Parser` can parse any type that implements `std.io.Read`, and offers two
+# ways of parsing the data:
+#
+# - A low-level API optimized for low memory usage and control over the parsing
+#   process
+# - A high-level iterator API that prioritises ease of use of control and memory
+#   usage
+#
+# The `Parser` type is capable of handling both `\r\n` and `\n` as the line
+# endings. Lines that end with _just_ `\r` are considered invalid and result in
+# the parser producing an `Error`.
+#
+# The default separator used is a comma, this can be changed using the method
+# `Parser.separator=`.
+#
+# # Low-level parsing
+#
+# The low-level API gives full control over the parsing process and makes it
+# possible to parse large CSV streams while keeping memory usage as low as
+# possible.
+#
+# Parsing using the low-level API is done using the following methods:
+#
+# - `Parser.column?` to check if there's data to parse as a column
+# - `Parser.column` to parse column data as a `String`
+# - `Parser.next_line` to advance the stream to the next line
+#
+# A typical parsing loop (ignoring proper error handling for the sake of
+# clarity) using this API looks as follows:
+#
+# ```inko
+# import std.csv (Parser)
+# import std.io (Buffer)
+#
+# let parser = Parser.new(Buffer.new('foo,bar,baz\r\n1,2,3'))
+# let rows = []
+#
+# loop {
+#   let row = []
+#
+#   # Parse each column, until we reach the end of the line.
+#   while parser.column?.get { row.push(parser.column.get) }
+#
+#   # This ensures empty rows don't result in an empty `[]`, which isn't useful.
+#   if row.size > 0 { rows.push(row) }
+#
+#   # Advance to the next line, and break the loop if there's no more data to
+#   # parse.
+#   if parser.next_line.get.false? { break }
+# }
+# ```
+#
+# If the number of columns and their positions is known, you can also write the
+# following:
+#
+# ```inko
+# import std.csv (Parser)
+# import std.io (Buffer)
+#
+# let parser = Parser.new(Buffer.new('foo,bar,baz\r\n1,2,3'))
+# let rows = []
+#
+# loop {
+#   # This ensures that if the row is entirely empty we just skip it, instead
+#   # of producing an error.
+#   if parser.column?.get {
+#     rows.push([parser.column.get, parser.column.get, parser.column.get])
+#   }
+#
+#   if parser.next_line.get.false? { break }
+# }
+# ```
+#
+# You can also skip columns and entire lines using `Parser.skip_column` and
+# `Parser.skip_line` respectively, and skip multiple columns in a single call
+# using `Parser.skip_columns`.
+#
+# # High-level parsing
+#
+# For cases where the CSV data is small, or you just want to parse something
+# quickly and don't care about the amount of memory used, the low-level API can
+# be a bit verbose. To make dealing with such cases easier, the `Parser` type
+# implements `std.iter.Iter`. For example, to iterate over the results of
+# parsing each line:
+#
+# ```inko
+# import std.csv (Parser)
+# import std.io (Buffer)
+#
+# let parser = Parser.new(Buffer.new('foo,bar,baz\r\n1,2,3'))
+#
+# parser.each(fn (result) {
+#   # ...
+# })
+# ```
+#
+# Because parsing a line may produce an error, `Parser` yields values of type
+# `Option[Result[Array[String], Error]]` rather than `Option[Array[String]]`.
+# This means you need to handle errors when processing the result values. A
+# simple way of doing so is to use `std.iter.Iter.try_reduce`:
+#
+# ```inko
+# import std.csv (Parser)
+# import std.io (Buffer)
+#
+# let parser = Parser.new(Buffer.new('foo,bar,baz\r\n1,2,3'))
+# let rows = parser
+#   .try_reduce([], fn (rows, result) {
+#     rows.push(try result)
+#     Result.Ok(rows)
+#   })
+#   .get
+#
+# rows # => [['foo', 'bar', 'baz'], ['1', '2', '3']]
+# ```
+class pub Parser[I: mut + Read] {
+  let @input: BufferedReader[I]
+  let @buffer: ByteArray
+  let @offset: Int
+  let @separator: Int
+
+  # Returns a new `Parser` that uses a comma as the column separator.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.csv (Parser)
+  # import std.io (Buffer)
+  #
+  # Parser.new(Buffer.new('foo,bar,baz'))
+  # ```
+  fn pub static new(input: I) -> Parser[I] {
+    Parser(
+      input: BufferedReader.new(input),
+      buffer: ByteArray.new,
+      offset: 0,
+      separator: Separator.Comma.to_int,
+    )
+  }
+
+  # Changes the separator to use for separating columns to the given
+  # `Separator`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.csv (Separator, Parser)
+  # import std.io (Buffer)
+  #
+  # let parser = Parser.new(Buffer.new('foo,bar,baz'))
+  #
+  # parser.separator = Separator.Tab
+  # ```
+  fn pub mut separator=(separator: ref Separator) {
+    @separator = separator.to_int
+  }
+
+  # Returns the current byte offset of the underlying stream.
+  fn pub offset -> Int {
+    @offset
+  }
+
+  # Skips all (remaining) data on the current line and moves the cursor to the
+  # start of the next line.
+  #
+  # # Errors
+  #
+  # This method returns an `Error` if the data can't be read from the underlying
+  # stream.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.csv (Parser)
+  # import std.io (Buffer)
+  #
+  # let parser = Parser.new(Buffer.new('foo,bar'))
+  #
+  # parser.skip_line # => Result.Ok(nil)
+  # ```
+  fn pub mut skip_line -> Result[Nil, Error] {
+    loop {
+      match try read_byte {
+        case Some(LF) -> break
+        case Some(_) -> {}
+        case None -> break
+      }
+    }
+
+    Result.Ok(nil)
+  }
+
+  # Advances the cursor to the start of the next line.
+  #
+  # This method must be called at the end of each line in order to allow parsing
+  # of the next line.
+  #
+  # If the next line may contain more data to parse, this method returns
+  # `Result.Ok(true)`, otherwise it returns `Result.Ok(false)`.
+  #
+  # # Errors
+  #
+  # This method returns an `Error` if the current byte is _not_ a cariage return
+  # ("\r") or a newline ("\n").
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.csv (Parser)
+  # import std.io (Buffer)
+  #
+  # let parser = Parser.new(Buffer.new('\nfoo,bar'))
+  #
+  # parser.next_line # => Result.Ok(true)
+  # ```
+  fn pub mut next_line -> Result[Bool, Error] {
+    match try peek {
+      case Some(CR) -> {
+        try read_byte
+        try require_newline
+      }
+      case Some(LF) -> try read_byte
+      case Some(_) -> throw error(ErrorKind.UnexpectedCharacter)
+      case None -> return Result.Ok(false)
+    }
+
+    match try peek {
+      case Some(_) -> Result.Ok(true)
+      case None -> {
+        try read_byte
+        Result.Ok(false)
+      }
+    }
+  }
+
+  # Parses the current line as a list of headers and their corresponding column
+  # indexes.
+  #
+  # # Errors
+  #
+  # This method returns an `Error` if parsing a column or advancing to the next
+  # line fails.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.csv (Parser)
+  # import std.io (Buffer)
+  #
+  # let parser = Parser.new(Buffer.new('foo,bar'))
+  # let headers = parser.headers.or_panic('failed to parse the headers')
+  #
+  # headers.get('foo') # => 0
+  # headers.get('bar') # => 1
+  # ```
+  fn pub mut headers -> Result[Map[String, Int], Error] {
+    let map = Map.new
+    let mut i = 0
+
+    while try column? { map.set(try column, i := i + 1) }
+
+    try next_line
+    Result.Ok(map)
+  }
+
+  # Returns a boolean indicating if there's data left to parse as a column.
+  #
+  # # Errors
+  #
+  # This method may need to read from the underlying stream to determine if data
+  # is available. If this fails, an `Error` is returned.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.csv (Parser)
+  # import std.io (Buffer)
+  #
+  # let parser = Parser.new(Buffer.new('foo'))
+  #
+  # parser.column? # => true
+  # ```
+  fn pub mut column? -> Result[Bool, Error] {
+    match try peek {
+      case Some(CR or LF) or None -> Result.Ok(false)
+      case Some(_) -> Result.Ok(true)
+    }
+  }
+
+  # Parses a single column, returning its value as a `String`.
+  #
+  # # Errors
+  #
+  # This method returns an `Error` for cases such as:
+  #
+  # - Reading data from the underlying stream fails
+  # - No more columns remain
+  # - The column format is invalid
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.csv (Parser)
+  # import std.io (Buffer)
+  #
+  # let parser = Parser.new(Buffer.new('foo'))
+  #
+  # parser.column # => Result.Ok('foo')
+  # ```
+  fn pub mut column -> Result[String, Error] {
+    try read_column
+    Result.Ok(@buffer.drain_to_string)
+  }
+
+  # Parses a single column and discards its value.
+  #
+  # Unlike `Parser.column`, this method doesn't allocate a `String`, making it a
+  # little more efficient when skipping over large or many columns.
+  #
+  # # Errors
+  #
+  # This method returns an `Error` for cases such as:
+  #
+  # - Reading data from the underlying stream fails
+  # - No more columns remain
+  # - The column format is invalid
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.csv (Parser)
+  # import std.io (Buffer)
+  #
+  # let parser = Parser.new(Buffer.new('foo,bar'))
+  #
+  # parser.skip_column # => Result.Ok(nil)
+  # parser.column      # => Result.Ok('bar')
+  # ```
+  fn pub mut skip_column -> Result[Nil, Error] {
+    try read_column
+    @buffer.clear
+    Result.Ok(nil)
+  }
+
+  # Parses and discards the values of multiple columns.
+  #
+  # This method calls `Parser.skip_column` in a loop `amount` times, so refer to
+  # its documentation for more details.
+  #
+  # # Errors
+  #
+  # This method returns an `Error` if skipping one of the columns fails. Refer
+  # to the documentation of `Parser.skip_column` for more details.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.csv (Parser)
+  # import std.io (Buffer)
+  #
+  # let parser = Parser.new(Buffer.new('foo,bar,baz'))
+  #
+  # parser.skip_columns(2) # => Result.Ok(nil)
+  # parser.column          # => Result.Ok('baz')
+  # ```
+  fn pub mut skip_columns(amount: Int) -> Result[Nil, Error] {
+    let mut i = 0
+
+    while (i := i + 1) < amount { try skip_column }
+
+    Result.Ok(nil)
+  }
+
+  fn mut read_column -> Result[Nil, Error] {
+    match try peek {
+      case Some(DQUOTE) -> {
+        try read_byte
+
+        loop {
+          try read_until_quote
+
+          match try peek {
+            case Some(DQUOTE) -> {
+              try read_byte
+              @buffer.push(DQUOTE)
+            }
+            case Some(v) if v == @separator -> {
+              try read_byte
+              break
+            }
+            case Some(CR or LF) or None -> break
+            case Some(_) -> throw error(ErrorKind.UnexpectedCharacter)
+          }
+        }
+      }
+      case Some(CR or LF) -> throw error(ErrorKind.MissingColumn)
+      case Some(v) -> {
+        try read_byte
+        @buffer.push(v)
+
+        loop {
+          match try peek {
+            case Some(DQUOTE) -> throw error(ErrorKind.UnexpectedCharacter)
+            case Some(v) if v == @separator -> {
+              try read_byte
+              break
+            }
+            case Some(CR or LF) or None -> break
+            case Some(v) -> {
+              try read_byte
+              @buffer.push(v)
+            }
+          }
+        }
+      }
+      case None -> throw error(ErrorKind.MissingColumn)
+    }
+
+    Result.Ok(nil)
+  }
+
+  fn mut require_newline -> Result[Nil, Error] {
+    match try read_byte {
+      case Some(LF) -> {}
+      case Some(_) -> throw error(ErrorKind.UnexpectedCharacter)
+      case None -> throw error(ErrorKind.Read(IoError.EndOfInput))
+    }
+
+    Result.Ok(nil)
+  }
+
+  fn mut read_byte -> Result[Option[Int], Error] {
+    match @input.read_byte {
+      case Ok(Some(v)) -> {
+        @offset += 1
+        Result.Ok(Option.Some(v))
+      }
+      case Ok(None) -> Result.Ok(Option.None)
+      case Error(e) -> Result.Error(error(ErrorKind.Read(e)))
+    }
+  }
+
+  fn mut peek -> Result[Option[Int], Error] {
+    match @input.peek {
+      case Ok(Some(v)) -> Result.Ok(Option.Some(v))
+      case Ok(None) -> Result.Ok(Option.None)
+      case Error(e) -> Result.Error(error(ErrorKind.Read(e)))
+    }
+  }
+
+  fn mut read_until_quote -> Result[Int, Error] {
+    match @input.read_until(DQUOTE, into: @buffer, inclusive: true) {
+      case Ok(v) -> {
+        @offset += v
+
+        match @buffer.pop {
+          case Some(DQUOTE) -> Result.Ok(v)
+          case _ -> Result.Error(error(ErrorKind.Read(IoError.EndOfInput)))
+        }
+      }
+      case Error(e) -> Result.Error(error(ErrorKind.Read(e)))
+    }
+  }
+
+  fn error(kind: ErrorKind) -> Error {
+    Error(kind: kind, offset: @offset)
+  }
+}
+
+impl Iter[Result[Array[String], Error]] for Parser {
+  # Parses the current line as an `Array` of `String` values.
+  #
+  # This method skips empty lines rather than returning a
+  # `Option.Some(Result.Ok([]))`.
+  #
+  # # Errors
+  #
+  # This method returns an `Option.Some(Result.Error(Error))` if parsing the
+  # data on a line fails. Refer to the documentation of `Parser.column?` and
+  # `Parser.column` for more details.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.csv (Parser)
+  # import std.io (Buffer)
+  #
+  # let parser = Parser.new(Buffer.new('a,b\n\nc,d'))
+  #
+  # parser.to_array # => [Result.Ok(['a', 'b']), Result.Ok(['c', 'd'])]
+  # ```
+  fn pub mut next -> Option[Result[Array[String], Error]] {
+    let mut cols = []
+
+    loop {
+      loop {
+        match column? {
+          case Ok(true) -> {
+            match column {
+              case Ok(v) -> cols.push(v)
+              case Error(e) -> return Option.Some(Result.Error(e))
+            }
+          }
+          case Ok(false) -> break
+          case Error(e) -> return Option.Some(Result.Error(e))
+        }
+      }
+
+      match next_line {
+        case Ok(false) if cols.empty? -> return Option.None
+        case Ok(true) if cols.empty? -> {}
+        case Ok(_) -> return Option.Some(Result.Ok(cols))
+        case Error(e) -> return Option.Some(Result.Error(e))
+      }
+    }
+  }
+}
+
+# A type for generating CSV data.
+#
+# A `Generator` writes its data to any type that implements `std.iter.Write`,
+# allowing you to generate large amounts of CSV data without needing to buffer
+# the lines into memory. To generate a CSV line, simply call `Generator.write`
+# with an array of columns to write to a line.
+#
+# The default separator used is a comma, this can be changed using the method
+# `Generator.separator=`.
+#
+# For line endings this type always uses `\r\n` to conform to RFC 4180.
+#
+# # Examples
+#
+# ```inko
+# import std.csv (Generator)
+# import std.stdio (STDOUT)
+#
+# let gen = Generator.new(STDOUT.new)
+#
+# gen.write(['foo', 'bar', 'baz'])
+# gen.write(['1', '2', '3'])
+# ```
+class pub Generator[I: mut + Write] {
+  let @output: I
+  let @separator_string: String
+  let @separator_byte: Int
+
+  # Returns a new `Generator` that uses a comma as the column separator.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.csv (Generator)
+  # import std.stdio (STDOUT)
+  #
+  # Generator.new(STDOUT.new)
+  # ```
+  fn pub static new(output: I) -> Generator[I] {
+    Generator(output: output, separator_string: ',', separator_byte: COMMA)
+  }
+
+  # Changes the separator to use for separating columns to the given
+  # `Separator`.
+  #
+  # Changing the separator only affects data written _after_ a call to this
+  # method.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.csv (Generator, Separator)
+  # import std.stdio (STDOUT)
+  #
+  # let gen = Generator.new(STDOUT.new)
+  #
+  # gen.separator = Separator.Tab
+  # ```
+  fn pub mut separator=(separator: ref Separator) {
+    @separator_string = separator.to_string
+    @separator_byte = separator.to_int
+  }
+
+  # Writes a single row of columns to the underlying stream.
+  #
+  # This method doesn't explicitly flush any pending writes. If this is needed,
+  # you should call `Generator.flush` manually. Dropping a `Generator`
+  # guarantees pending writes are flushed.
+  #
+  # # Errors
+  #
+  # This method returns a `std.io.Error` if the data couldn't be written to the
+  # underlying stream.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.csv (Generator)
+  # import std.stdio (STDOUT)
+  #
+  # let gen = Generator.new(STDOUT.new)
+  #
+  # gen.write(['foo', 'bar', 'baz']) # => Result.Ok(nil)
+  # ```
+  fn pub mut write(columns: ref Array[String]) -> Result[Nil, IoError] {
+    let mut i = 0
+
+    columns.iter.try_each(fn move (col) {
+      if i > 0 { try @output.write_string(@separator_string) }
+
+      if quote?(col, @separator_byte) {
+        try @output
+          .write_string('"')
+          .then(fn (_) { @output.write_string(col.replace('"', '""')) })
+          .then(fn (_) { @output.write_string('"') })
+      } else {
+        try @output.write_string(col)
+      }
+
+      i += 1
+      Result.Ok(nil)
+    })
+
+    if columns.size > 0 { try @output.write_string('\r\n') }
+
+    Result.Ok(nil)
+  }
+
+  # Flushes any pending writes for the underlying stream.
+  #
+  # # Errors
+  #
+  # This method returns a `std.io.Error` if the underlying stream failed to
+  # flush the data.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.csv (Generator)
+  # import std.stdio (STDOUT)
+  #
+  # let gen = Generator.new(STDOUT.new)
+  #
+  # gen.write(['foo', 'bar', 'baz']) # => Result.Ok(nil)
+  # gen.flush                        # => Result.Ok(nil)
+  # ```
+  fn pub mut flush -> Result[Nil, IoError] {
+    @output.flush
+  }
+}

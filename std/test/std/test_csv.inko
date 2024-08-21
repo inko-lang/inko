@@ -1,0 +1,325 @@
+import std.csv (Error, ErrorKind, Generator, Parser, Separator)
+import std.fmt (fmt)
+import std.io (Buffer, Error as IoError, Write)
+import std.test (Tests)
+
+class Output {
+  let @buffer: ByteArray
+  let @flushed: Bool
+
+  fn static new -> Output {
+    Output(buffer: ByteArray.new, flushed: false)
+  }
+}
+
+impl Write for Output {
+  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Never] {
+    @buffer.copy_from(bytes, at: 0, size: bytes.size)
+    Result.Ok(nil)
+  }
+
+  fn pub mut write_string(string: String) -> Result[Nil, Never] {
+    let bytes = string.to_byte_array
+
+    @buffer.copy_from(bytes, at: 0, size: bytes.size)
+    Result.Ok(nil)
+  }
+
+  fn pub mut flush -> Result[Nil, Never] {
+    @flushed = true
+    Result.Ok(nil)
+  }
+}
+
+fn parse(input: String) -> Result[Array[Array[String]], Error] {
+  let rows = []
+  let parser = Parser.new(Buffer.new(input))
+
+  loop {
+    let row = []
+
+    while try parser.column? { row.push(try parser.column) }
+
+    if row.size > 0 { rows.push(row) }
+
+    if (try parser.next_line).false? { break }
+  }
+
+  Result.Ok(rows)
+}
+
+fn iter(input: String) -> Result[Array[Array[String]], Error] {
+  Parser.new(Buffer.new(input)).try_reduce([], fn (rows, res) {
+    rows.push(try res)
+    Result.Ok(rows)
+  })
+}
+
+fn eof_error(offset: Int) -> Error {
+  Error(kind: ErrorKind.Read(IoError.EndOfInput), offset: offset)
+}
+
+fn unexpected(offset: Int) -> Error {
+  Error(kind: ErrorKind.UnexpectedCharacter, offset: offset)
+}
+
+fn pub tests(t: mut Tests) {
+  t.test('Error.to_string', fn (t) {
+    let e1 = Error(kind: ErrorKind.Read(IoError.EndOfInput), offset: 0)
+    let e2 = Error(kind: ErrorKind.UnexpectedCharacter, offset: 0)
+
+    t.equal(
+      e1.to_string,
+      'failed to read more bytes at byte offset 0: '
+        + 'the end of the input stream is reached, but more input is required',
+    )
+    t.equal(e2.to_string, 'the character at byte offset 0 is unexpected')
+  })
+
+  t.test('Error.fmt', fn (t) {
+    t.equal(
+      fmt(Error(kind: ErrorKind.Read(IoError.EndOfInput), offset: 0)),
+      'Error(kind: Read(EndOfInput), offset: 0)',
+    )
+    t.equal(
+      fmt(Error(kind: ErrorKind.MissingColumn, offset: 0)),
+      'Error(kind: MissingColumn, offset: 0)',
+    )
+    t.equal(
+      fmt(Error(kind: ErrorKind.UnexpectedCharacter, offset: 0)),
+      'Error(kind: UnexpectedCharacter, offset: 0)',
+    )
+  })
+
+  t.test('Error.==', fn (t) {
+    t.equal(
+      Error(kind: ErrorKind.Read(IoError.EndOfInput), offset: 0),
+      Error(kind: ErrorKind.Read(IoError.EndOfInput), offset: 0),
+    )
+    t.equal(
+      Error(kind: ErrorKind.MissingColumn, offset: 0),
+      Error(kind: ErrorKind.MissingColumn, offset: 0),
+    )
+    t.equal(
+      Error(kind: ErrorKind.UnexpectedCharacter, offset: 0),
+      Error(kind: ErrorKind.UnexpectedCharacter, offset: 0),
+    )
+
+    t.not_equal(
+      Error(kind: ErrorKind.Read(IoError.EndOfInput), offset: 0),
+      Error(kind: ErrorKind.Read(IoError.EndOfInput), offset: 1),
+    )
+    t.not_equal(
+      Error(kind: ErrorKind.Read(IoError.EndOfInput), offset: 0),
+      Error(kind: ErrorKind.Read(IoError.InvalidArgument), offset: 0),
+    )
+    t.not_equal(
+      Error(kind: ErrorKind.MissingColumn, offset: 0),
+      Error(kind: ErrorKind.UnexpectedCharacter, offset: 0),
+    )
+  })
+
+  t.test('Parser.new', fn (t) {
+    t.equal(Parser.new(Buffer.new('foo')).separator, 0x2C)
+  })
+
+  t.test('Parser.separator=', fn (t) {
+    let parser = Parser.new(Buffer.new('foo'))
+
+    parser.separator = Separator.Tab
+    t.equal(parser.separator, 0x9)
+  })
+
+  t.test('Parser.skip_line', fn (t) {
+    let parser = Parser.new(Buffer.new('foo\nbar'))
+
+    t.equal(parser.skip_line, Result.Ok(nil))
+    t.equal(parser.peek, Result.Ok(Option.Some(0x62)))
+  })
+
+  t.test('Parser.next_line', fn (t) {
+    let parser = Parser.new(Buffer.new('foo\nbar'))
+
+    t.equal(
+      parser.next_line,
+      Result.Error(Error(kind: ErrorKind.UnexpectedCharacter, offset: 0)),
+    )
+    t.equal(parser.column, Result.Ok('foo'))
+    t.equal(parser.next_line, Result.Ok(true))
+
+    t.equal(parser.column, Result.Ok('bar'))
+    t.equal(parser.next_line, Result.Ok(false))
+  })
+
+  t.test('Parser.column?', fn (t) {
+    let parser = Parser.new(Buffer.new('foo\n'))
+
+    t.equal(parser.column?, Result.Ok(true))
+    t.equal(parser.column, Result.Ok('foo'))
+    t.equal(parser.column?, Result.Ok(false))
+  })
+
+  t.test('Parser.column', fn (t) {
+    let parser = Parser.new(Buffer.new('foo'))
+
+    t.equal(parser.column, Result.Ok('foo'))
+    t.equal(
+      parser.column,
+      Result.Error(Error(kind: ErrorKind.MissingColumn, offset: 3)),
+    )
+  })
+
+  t.test('Parser.column with different inputs', fn (t) {
+    let tests = [
+      # Valid inputs
+      ('', Result.Ok([])),
+      ('\na,b', Result.Ok([['a', 'b']])),
+      ('foo,bar', Result.Ok([['foo', 'bar']])),
+      ('foo,  bar', Result.Ok([['foo', '  bar']])),
+      ('foo,bar ', Result.Ok([['foo', 'bar ']])),
+      (' foo , bar ', Result.Ok([[' foo ', ' bar ']])),
+      ('foo,"bar"', Result.Ok([['foo', 'bar']])),
+      ('"foo",bar', Result.Ok([['foo', 'bar']])),
+      ('"foo","bar"', Result.Ok([['foo', 'bar']])),
+      ('foo\n', Result.Ok([['foo']])),
+      ('foo\nbar', Result.Ok([['foo'], ['bar']])),
+      ('foo\r\n', Result.Ok([['foo']])),
+      ('foo\r\nbar', Result.Ok([['foo'], ['bar']])),
+      ('foo,', Result.Ok([['foo']])),
+      ('"foo",', Result.Ok([['foo']])),
+      ('"a""b",c', Result.Ok([['a"b', 'c']])),
+      ('a,b\n\nc,d', Result.Ok([['a', 'b'], ['c', 'd']])),
+
+      # Invalid inputs
+      ('foo,\r', Result.Error(eof_error(5))),
+      ('"foo', Result.Error(eof_error(4))),
+      (' "foo"', Result.Error(unexpected(1))),
+      ('"foo", "bar"', Result.Error(unexpected(7))),
+      ('"foo",bar"', Result.Error(unexpected(9))),
+      ('"a" "b"', Result.Error(unexpected(3))),
+    ]
+
+    tests.into_iter.each(fn (in_out) { t.equal(parse(in_out.0), in_out.1) })
+  })
+
+  t.test('Parser.skip_column', fn (t) {
+    let parser = Parser.new(Buffer.new('foo,bar'))
+
+    t.equal(parser.skip_column, Result.Ok(nil))
+    t.equal(parser.column, Result.Ok('bar'))
+  })
+
+  t.test('Parser.skip_columns', fn (t) {
+    let parser = Parser.new(Buffer.new('foo,bar,baz'))
+
+    t.equal(parser.skip_columns(2), Result.Ok(nil))
+    t.equal(parser.column, Result.Ok('baz'))
+  })
+
+  t.test('Parser.offset', fn (t) {
+    let parser = Parser.new(Buffer.new('foo,bar,baz'))
+
+    t.equal(parser.offset, 0)
+
+    t.equal(parser.column, Result.Ok('foo'))
+    t.equal(parser.offset, 4)
+
+    t.equal(parser.column, Result.Ok('bar'))
+    t.equal(parser.offset, 8)
+
+    t.equal(parser.column, Result.Ok('baz'))
+    t.equal(parser.offset, 11)
+  })
+
+  t.ok('Parser.headers', fn (t) {
+    let parser = Parser.new(Buffer.new('foo,bar\n10,20'))
+    let map = try parser.headers
+
+    t.equal(map.opt('foo'), Option.Some(0))
+    t.equal(map.opt('bar'), Option.Some(1))
+    t.equal(parser.column, Result.Ok('10'))
+    t.equal(parser.column, Result.Ok('20'))
+
+    Result.Ok(nil)
+  })
+
+  t.test('Parser.next', fn (t) {
+    let tests = [
+      # Valid inputs
+      ('', Result.Ok([])),
+      ('\na,b', Result.Ok([['a', 'b']])),
+      ('foo,bar', Result.Ok([['foo', 'bar']])),
+      ('foo,  bar', Result.Ok([['foo', '  bar']])),
+      ('foo,bar ', Result.Ok([['foo', 'bar ']])),
+      (' foo , bar ', Result.Ok([[' foo ', ' bar ']])),
+      ('foo,"bar"', Result.Ok([['foo', 'bar']])),
+      ('"foo",bar', Result.Ok([['foo', 'bar']])),
+      ('"foo","bar"', Result.Ok([['foo', 'bar']])),
+      ('foo\n', Result.Ok([['foo']])),
+      ('foo\nbar', Result.Ok([['foo'], ['bar']])),
+      ('foo\r\n', Result.Ok([['foo']])),
+      ('foo\r\nbar', Result.Ok([['foo'], ['bar']])),
+      ('foo,', Result.Ok([['foo']])),
+      ('"foo",', Result.Ok([['foo']])),
+      ('"a""b",c', Result.Ok([['a"b', 'c']])),
+      ('a,b\n\nc,d', Result.Ok([['a', 'b'], ['c', 'd']])),
+
+      # Invalid inputs
+      ('foo,\r', Result.Error(eof_error(5))),
+      ('"foo', Result.Error(eof_error(4))),
+      (' "foo"', Result.Error(unexpected(1))),
+      ('"foo", "bar"', Result.Error(unexpected(7))),
+      ('"foo",bar"', Result.Error(unexpected(9))),
+      ('"a" "b"', Result.Error(unexpected(3))),
+    ]
+
+    tests.into_iter.each(fn (in_out) { t.equal(iter(in_out.0), in_out.1) })
+  })
+
+  t.test('Generator.separator', fn (t) {
+    let gen = Generator.new(Output.new)
+
+    t.equal(gen.separator_string, ',')
+    t.equal(gen.separator_byte, 0x2C)
+
+    gen.separator = Separator.Tab
+    t.equal(gen.separator_string, '\t')
+    t.equal(gen.separator_byte, 0x9)
+  })
+
+  t.test('Generator.write', fn (t) {
+    let tests = [
+      (Separator.Comma, [[]], ''),
+      (Separator.Comma, [['foo']], 'foo\r\n'),
+      (Separator.Comma, [['foo', 'bar']], 'foo,bar\r\n'),
+      (Separator.Comma, [['foo', 'bar'], ['baz']], 'foo,bar\r\nbaz\r\n'),
+      (Separator.Comma, [['foo"bar', 'baz']], '"foo""bar",baz\r\n'),
+      (Separator.Comma, [['foo,bar', 'baz']], '"foo,bar",baz\r\n'),
+      (Separator.Comma, [['foo\rbar', 'baz']], '"foo\rbar",baz\r\n'),
+      (Separator.Comma, [['foo\r\nbar', 'baz']], '"foo\r\nbar",baz\r\n'),
+      (Separator.Comma, [['foo\nbar', 'baz']], '"foo\nbar",baz\r\n'),
+      (Separator.Comma, [['foo\tbar', 'baz']], 'foo\tbar,baz\r\n'),
+      (Separator.Tab, [['foo\tbar', 'baz']], '"foo\tbar"\tbaz\r\n'),
+      (Separator.Semicolon, [['foo;bar', 'baz']], '"foo;bar";baz\r\n'),
+    ]
+
+    tests.into_iter.each(fn (sep_in_out) {
+      match sep_in_out {
+        case (sep, in, out) -> {
+          let gen = Generator.new(Output.new)
+
+          gen.separator = sep
+          in.iter.each(fn (row) { gen.write(row) })
+          t.equal(gen.output.buffer.to_string, out)
+        }
+      }
+    })
+  })
+
+  t.test('Generator.flush', fn (t) {
+    let gen = Generator.new(Output.new)
+
+    t.equal(gen.flush, Result.Ok(nil))
+    t.true(gen.output.flushed)
+  })
+}
