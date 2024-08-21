@@ -3,6 +3,7 @@
 # The IO module provides the basic building blocks for IO operations such as
 # reading from and writing to a file.
 import std.cmp (Equal)
+import std.drop (Drop)
 import std.fmt (Format, Formatter)
 import std.iter (Stream)
 import std.libc.bsd.errors if bsd
@@ -17,7 +18,10 @@ let INITIAL_READ_ALL_SIZE = 1024
 let MAX_READ_ALL_SIZE = 1024 * 1024
 
 # The default size of the buffer maintained by `BufferedReader`.
-let DEFAULT_BUFFER_SIZE = 8 * 1024
+let READ_BUFFER_SIZE = 8 * 1024
+
+# The default size of the buffer maintained by `BufferedWriter`.
+let WRITE_BUFFER_SIZE = 8 * 1024
 
 # The error code used to signal invalid data.
 #
@@ -668,7 +672,7 @@ class pub BufferedReader[T: mut + Read] {
   # Returns a new buffered reader that wraps the given `Read` type, using the
   # default buffer size.
   fn pub static new(reader: T) -> BufferedReader[T] {
-    with_capacity(reader, DEFAULT_BUFFER_SIZE)
+    with_capacity(reader, READ_BUFFER_SIZE)
   }
 
   # Returns a new buffered reader that wraps the given `Read` type, using the
@@ -760,6 +764,161 @@ impl Read for BufferedReader {
     }
 
     Result.Ok(total)
+  }
+}
+
+# A type that wraps a `Write` type and buffers the output.
+#
+# Writing to a `Write` type can be expensive. The `BufferedWriter` type
+# maintains an in-memory buffer of data to write, flushing it to an underlying
+# stream whenever necessary. This can improve performance when performing many
+# small writes using the same stream. If writes instead involve large data sizes
+# or the writes are rare, the use of this type isn't likely to bring any
+# benefits.
+#
+# It's recommended to call `BufferedWriter.flush` before dropping a
+# `BufferedWriter`. While this type implements `std.drop.Drop` and tries to
+# flush the buffer when it's dropped, any errors produced by the flush are
+# ignored.
+#
+# # Examples
+#
+# ```inko
+# import std.fs.file (WriteOnlyFile)
+# import std.io (BufferedWriter)
+#
+# let file = WriteOnlyFile.new('out.txt').or_panic('failed to open the file')
+# let writer = BufferedWriter.new(file)
+#
+# writer.write_string('hello') # => Result.Ok(nil)
+# writer.flush                 # => Result.Ok(nil)
+# ```
+class pub BufferedWriter[T: mut + Write] {
+  let @writer: T
+  let @buffer: ByteArray
+  let @size: Int
+
+  # Returns a `BufferedWriter` that writes to `writer`, using the default buffer
+  # size of 8 KiB.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.fs.file (WriteOnlyFile)
+  # import std.io (BufferedWriter)
+  #
+  # let file = WriteOnlyFile
+  #   .new('out.txt'.to_path)
+  #   .or_panic('failed to open the file')
+  #
+  # BufferedWriter.new(file)
+  # ```
+  fn pub static new(writer: T) -> BufferedWriter[T] {
+    with_capacity(writer, WRITE_BUFFER_SIZE)
+  }
+
+  # Returns a `BufferedWriter` that writes to `writer` with a custom buffer
+  # size (in bytes).
+  #
+  # # Panics
+  #
+  # This method panics if `capacity` is less than or equal to zero.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.fs.file (WriteOnlyFile)
+  # import std.io (BufferedWriter)
+  #
+  # let file = WriteOnlyFile
+  #   .new('out.txt'.to_path)
+  #   .or_panic('failed to open the file')
+  #
+  # BufferedWriter.with_capacity(file, capacity: 16 * 1024)
+  # ```
+  fn pub static with_capacity(writer: T, size: Int) -> BufferedWriter[T] {
+    if size <= 0 { panic('The buffer size must be greater than zero') }
+
+    BufferedWriter(writer: writer, buffer: ByteArray.new, size: size)
+  }
+}
+
+impl Write for BufferedWriter {
+  # Writes the entirety of `bytes` to the buffer, flushing it if necessary.
+  #
+  # # Errors
+  #
+  # This method returns a `std.io.Error` if the data can't be written to the
+  # underlying stream.
+  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
+    let len = bytes.size
+
+    # If the data size is the same as the buffer size we might as well just
+    # write to the stream directly.
+    if len >= @size {
+      try flush
+      try @writer.write_bytes(bytes)
+      return Result.Ok(nil)
+    }
+
+    if @buffer.size == @size { try flush }
+
+    let rem = @size - @buffer.size
+
+    if len <= rem {
+      @buffer.copy_from(bytes, at: 0, size: len)
+      return Result.Ok(nil)
+    }
+
+    # The buffer isn't full but our data doesn't fit into it. We fill it up and
+    # flush it, then write the data to the buffer. This ensures future calls to
+    # this method have more buffer space to work with, compared to just a flush
+    # plus appending the _entire_ data to the now empty buffer.
+    let copied = @buffer.copy_from(bytes, at: 0, size: rem)
+
+    try flush
+    @buffer.copy_from(bytes, at: copied, size: len)
+    Result.Ok(nil)
+  }
+
+  # Writes the entirety of `string` to the buffer, flushing it if necessary.
+  #
+  # Due to the internal buffer being a `ByteArray`, this method copies the bytes
+  # in `string`, rather than writing the `String` directly.
+  #
+  # Refer to the documentation of `BufferedWriter.write_bytes` and
+  # `Writer.write_bytes` for more details.
+  #
+  # # Errors
+  #
+  # This method returns a `std.io.Error` if the data can't be written to the
+  # underlying stream.
+  fn pub mut write_string(string: String) -> Result[Nil, Error] {
+    write_bytes(string.to_byte_array)
+  }
+
+  # Writes any data stored in the buffer to the underlying stream, clearing the
+  # buffer in the process.
+  #
+  # Refer to the documentation of `Writer.flush` for more details.
+  #
+  # # Errors
+  #
+  # This method returns a `std.io.Error` if the data can't be written to the
+  # underlying stream.
+  fn pub mut flush -> Result[Nil, Error] {
+    if @buffer.size > 0 {
+      try @writer.write_bytes(@buffer)
+      @buffer.clear
+    }
+
+    Result.Ok(nil)
+  }
+}
+
+impl Drop for BufferedWriter {
+  fn mut drop {
+    let _ = flush
   }
 }
 

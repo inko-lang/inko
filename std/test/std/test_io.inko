@@ -1,7 +1,8 @@
+import std.drop (drop)
 import std.fmt (fmt)
 import std.io (
-  Buffer, BufferedReader, DEFAULT_BUFFER_SIZE, Error, INVALID_DATA, Read,
-  UNEXPECTED_EOF, Write,
+  Buffer, BufferedReader, BufferedWriter, Error, INVALID_DATA, READ_BUFFER_SIZE,
+  Read, UNEXPECTED_EOF, WRITE_BUFFER_SIZE, Write,
 )
 import std.libc.bsd.errors if bsd
 import std.libc.linux.errors if linux
@@ -294,7 +295,7 @@ fn pub tests(t: mut Tests) {
   t.test('BufferedReader.new', fn (t) {
     let reader = BufferedReader.new(Reader.new)
 
-    t.equal(reader.capacity, DEFAULT_BUFFER_SIZE)
+    t.equal(reader.capacity, READ_BUFFER_SIZE)
   })
 
   t.test('BufferedReader.with_capacity', fn (t) {
@@ -477,5 +478,89 @@ fn pub tests(t: mut Tests) {
     t.equal(buffer.seek(-1), Result.Ok(2))
     t.equal(buffer.read_byte, Result.Ok(Option.Some(99)))
     t.equal(buffer.read_byte, Result.Ok(Option.None))
+  })
+
+  t.test('BufferedWriter.new', fn (t) {
+    let writer = BufferedWriter.new(Writer.new)
+
+    t.equal(writer.size, WRITE_BUFFER_SIZE)
+  })
+
+  t.test('BufferedWriter.with_capacity', fn (t) {
+    let writer = BufferedWriter.with_capacity(Writer.new, size: 4)
+
+    t.equal(writer.size, 4)
+  })
+
+  t.panic('BufferedWriter.with_capacity with a size of zero', fn {
+    BufferedWriter.with_capacity(Writer.new, size: 0)
+  })
+
+  t.panic('BufferedWriter.with_capacity with a negative size ', fn {
+    BufferedWriter.with_capacity(Writer.new, size: -4)
+  })
+
+  t.test('BufferedWriter.write_bytes', fn (t) {
+    let writer = BufferedWriter.with_capacity(Writer.new, size: 8)
+
+    t.equal(writer.write_bytes('abcd'.to_byte_array), Result.Ok(nil))
+    t.equal(writer.buffer, 'abcd'.to_byte_array)
+    t.equal(writer.writer.buffer, ByteArray.new)
+
+    t.equal(writer.write_bytes('efgh'.to_byte_array), Result.Ok(nil))
+    t.equal(writer.buffer, 'abcdefgh'.to_byte_array)
+    t.equal(writer.writer.buffer, ByteArray.new)
+
+    t.equal(writer.write_bytes('i'.to_byte_array), Result.Ok(nil))
+    t.equal(writer.buffer, 'i'.to_byte_array)
+    t.equal(writer.writer.buffer, 'abcdefgh'.to_byte_array)
+
+    t.equal(writer.write_bytes('123456789'.to_byte_array), Result.Ok(nil))
+    t.equal(writer.buffer, ByteArray.new)
+    t.equal(writer.writer.buffer, 'abcdefghi123456789'.to_byte_array)
+
+    writer.writer.buffer.clear
+    t.equal(writer.write_bytes('abcdefg'.to_byte_array), Result.Ok(nil))
+    t.equal(writer.buffer, 'abcdefg'.to_byte_array)
+    t.equal(writer.writer.buffer, ByteArray.new)
+
+    t.equal(writer.write_bytes('hi'.to_byte_array), Result.Ok(nil))
+    t.equal(writer.buffer, 'i'.to_byte_array)
+    t.equal(writer.writer.buffer, 'abcdefgh'.to_byte_array)
+  })
+
+  t.test('BufferedWriter.write_string', fn (t) {
+    let writer = BufferedWriter.with_capacity(Writer.new, size: 8)
+
+    t.equal(writer.write_string('abcd'), Result.Ok(nil))
+    t.equal(writer.buffer, 'abcd'.to_byte_array)
+    t.equal(writer.writer.buffer, ByteArray.new)
+
+    t.equal(writer.write_string('efgh'), Result.Ok(nil))
+    t.equal(writer.buffer, 'abcdefgh'.to_byte_array)
+    t.equal(writer.writer.buffer, ByteArray.new)
+
+    t.equal(writer.write_string('i'), Result.Ok(nil))
+    t.equal(writer.buffer, 'i'.to_byte_array)
+    t.equal(writer.writer.buffer, 'abcdefgh'.to_byte_array)
+  })
+
+  t.test('BufferedWriter.flush', fn (t) {
+    let writer = BufferedWriter.with_capacity(Writer.new, size: 8)
+
+    t.equal(writer.write_string('abcd'), Result.Ok(nil))
+    t.equal(writer.buffer, 'abcd'.to_byte_array)
+    t.equal(writer.flush, Result.Ok(nil))
+    t.equal(writer.buffer, ByteArray.new)
+    t.equal(writer.writer.buffer, 'abcd'.to_byte_array)
+  })
+
+  t.test('BufferedWriter.drop', fn (t) {
+    let raw = Writer.new
+    let writer = BufferedWriter.with_capacity(mut raw, size: 8)
+
+    t.equal(writer.write_string('abcd'), Result.Ok(nil))
+    drop(writer)
+    t.equal(raw.buffer, 'abcd'.to_byte_array)
   })
 }
