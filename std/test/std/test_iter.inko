@@ -116,6 +116,13 @@ fn pub tests(t: mut Tests) {
     t.equal(iter.next, Option.Some(ref 30))
   })
 
+  t.test('Iter.chain', fn (t) {
+    let a = [10, 20, 30]
+    let b = [40, 50, 60]
+
+    t.equal(a.iter.chain(b.iter).to_array, [10, 20, 30, 40, 50, 60])
+  })
+
   t.test('Iter.zip', fn (t) {
     let a = [10, 20]
     let b = [30, 40]
