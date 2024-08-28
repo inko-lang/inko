@@ -141,11 +141,11 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
 
     let mut config = Config::default();
 
-    if let Some(val) = matches.opt_str("f") {
+    if let Some(val) = matches.opt_str("format") {
         config.set_presenter(&val)?;
     }
 
-    if let Some(val) = matches.opt_str("t") {
+    if let Some(val) = matches.opt_str("target") {
         config.set_target(&val)?;
     }
 

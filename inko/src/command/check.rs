@@ -25,7 +25,12 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         "The output format to use for diagnostics",
         "FORMAT",
     );
-
+    options.optopt(
+        "t",
+        "target",
+        "The target platform to compile for",
+        "TARGET",
+    );
     options.optmulti(
         "i",
         "include",
@@ -42,8 +47,12 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
 
     let mut config = CompilerConfig::default();
 
-    if let Some(format) = matches.opt_str("f") {
+    if let Some(format) = matches.opt_str("format") {
         config.set_presenter(&format)?;
+    }
+
+    if let Some(val) = matches.opt_str("target") {
+        config.set_target(&val)?;
     }
 
     for path in matches.opt_strs("i") {

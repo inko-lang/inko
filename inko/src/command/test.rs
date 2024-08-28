@@ -24,6 +24,12 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     let mut options = Options::new();
 
     options.optflag("h", "help", "Show this help message");
+    options.optopt(
+        "t",
+        "target",
+        "The target platform to compile for",
+        "TARGET",
+    );
 
     let matches = options.parse(arguments)?;
 
@@ -33,6 +39,11 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     }
 
     let mut config = Config::default();
+
+    if let Some(val) = matches.opt_str("target") {
+        config.set_target(&val)?;
+    }
+
     let input = config.main_test_module();
 
     if !config.tests.is_dir() {
