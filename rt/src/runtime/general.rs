@@ -53,8 +53,8 @@ pub unsafe extern "system" fn inko_alloc_error(class: ClassPointer) -> ! {
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_last_error() -> i32 {
-    Error::last_os_error().raw_os_error().unwrap_or(-1)
+pub unsafe extern "system" fn inko_last_error() -> i64 {
+    Error::last_os_error().raw_os_error().unwrap_or(-1) as i64
 }
 
 #[no_mangle]

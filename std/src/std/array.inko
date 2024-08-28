@@ -5,7 +5,7 @@ import std.drop (Drop)
 import std.fmt (Format, Formatter)
 import std.hash (Hash, Hasher)
 import std.iter (Iter, Stream)
-import std.libc.unix.alloc (self as alloc_imp) if unix
+import std.libc
 import std.option (Option)
 import std.rand (Shuffle)
 
@@ -113,7 +113,7 @@ class builtin Array[T] {
     if size < 0 { panic('The capacity must be greater than or equal to zero') }
 
     let vsize = _INKO.size_of_type_parameter(T)
-    let buffer = alloc_imp.resize(0x0 as Pointer[T], size: size * vsize)
+    let buffer = libc.resize(0x0 as Pointer[T], size: size * vsize)
 
     Array(size: 0, capacity: size, buffer: buffer)
   }
@@ -153,7 +153,7 @@ class builtin Array[T] {
     let vsize = _INKO.size_of_type_parameter(T)
 
     @capacity = max(@capacity * 2, @capacity + size)
-    @buffer = alloc_imp.resize(@buffer, @capacity * vsize)
+    @buffer = libc.resize(@buffer, @capacity * vsize)
   }
 
   # Removes all values in the Array.
@@ -250,7 +250,7 @@ class builtin Array[T] {
     let val = addr.0
     let vsize = _INKO.size_of_type_parameter(T)
 
-    alloc_imp.copy(
+    libc.copy(
       from: addr as Int + vsize as Pointer[T],
       to: addr,
       size: len - index - 1 * vsize,
@@ -478,7 +478,7 @@ class builtin Array[T] {
   # # Examples
   #
   # ```inko
-  # Array.with_capacity(2).capacity # => 4
+  # Array.with_capacity(2).capacity # => 2
   # ```
   fn pub capacity -> Int {
     @capacity
@@ -598,7 +598,7 @@ class builtin Array[T] {
       let to = address_of(index + 1)
       let vsize = _INKO.size_of_type_parameter(T)
 
-      alloc_imp.copy(from, to, size: @size - index * vsize)
+      libc.copy(from, to, size: @size - index * vsize)
     }
 
     write_to(index, value)
@@ -733,7 +733,7 @@ impl Array if T: mut {
 impl Drop for Array {
   fn mut drop {
     clear
-    alloc_imp.free(@buffer as Pointer[UInt8])
+    libc.free(@buffer as Pointer[UInt8])
   }
 }
 

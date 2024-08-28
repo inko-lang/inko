@@ -3,79 +3,18 @@ import std.clone (Clone)
 import std.cmp (Equal)
 import std.env (home_directory)
 import std.fmt (Format, Formatter)
-import std.fs (DirectoryEntry)
+import std.fs (DirectoryEntry, Metadata)
 import std.hash (Hash, Hasher)
-import std.io (Error, Size)
+import std.io (Error)
 import std.iter (Iter, Stream)
-import std.libc.unix.dir (ReadDirectory as ReadDirectoryInner) if unix
 import std.string (IntoString, StringBuffer, ToString)
-import std.sys
+import std.sys.unix.fs (self as sys) if unix
 import std.time (DateTime)
-
-class extern IntResult {
-  let @tag: Int
-  let @value: Int
-}
 
 class extern AnyResult {
   let @tag: Int
   let @value: UInt64
 }
-
-fn extern inko_file_remove(process: Pointer[UInt8], path: String) -> AnyResult
-
-fn extern inko_file_copy(
-  process: Pointer[UInt8],
-  from: String,
-  to: String,
-) -> AnyResult
-
-fn extern inko_directory_remove(
-  process: Pointer[UInt8],
-  path: String,
-) -> AnyResult
-
-fn extern inko_directory_create(
-  process: Pointer[UInt8],
-  path: String,
-) -> AnyResult
-
-fn extern inko_directory_create_recursive(
-  process: Pointer[UInt8],
-  path: String,
-) -> AnyResult
-
-fn extern inko_directory_remove_recursive(
-  process: Pointer[UInt8],
-  path: String,
-) -> AnyResult
-
-fn extern inko_file_size(process: Pointer[UInt8], path: String) -> IntResult
-
-fn extern inko_path_accessed_at(
-  process: Pointer[UInt8],
-  path: String,
-) -> AnyResult
-
-fn extern inko_path_created_at(
-  process: Pointer[UInt8],
-  path: String,
-) -> AnyResult
-
-fn extern inko_path_modified_at(
-  process: Pointer[UInt8],
-  path: String,
-) -> AnyResult
-
-fn extern inko_path_exists(process: Pointer[UInt8], path: String) -> Bool
-
-fn extern inko_path_is_file(process: Pointer[UInt8], path: String) -> Bool
-
-fn extern inko_path_is_directory(process: Pointer[UInt8], path: String) -> Bool
-
-fn extern inko_path_expand(state: Pointer[UInt8], path: String) -> AnyResult
-
-fn extern inko_time_system_offset -> Int64
 
 # The byte used to represent a single dot/period.
 let DOT_BYTE = 46
@@ -146,7 +85,7 @@ fn join_strings(base: ref String, with: ref String) -> String {
 # See the documentation of `std.fs.path.Path.list` for more details.
 class pub ReadDirectory {
   let @path: String
-  let @inner: ReadDirectoryInner
+  let @inner: sys.ReadDirectory
 }
 
 impl Iter[Result[DirectoryEntry, Error]] for ReadDirectory {
@@ -284,113 +223,17 @@ class pub Path {
 
   # Returns `true` if the path points to a file.
   fn pub file? -> Bool {
-    inko_path_is_file(_INKO.process, @path)
+    metadata.map(fn (m) { m.type.file? }).or(false)
   }
 
   # Returns `true` if the path points to a directory.
   fn pub directory? -> Bool {
-    inko_path_is_directory(_INKO.process, @path)
+    metadata.map(fn (m) { m.type.directory? }).or(false)
   }
 
-  # Returns `true` if the path points to an existing file or directory.
+  # Returns `true` if the path points to a file/directory/etc that exists.
   fn pub exists? -> Bool {
-    inko_path_exists(_INKO.process, @path)
-  }
-
-  # Returns the creation time of `self`.
-  #
-  # The target platform may not supported getting the creation time, in which
-  # case an `Error` is returned. musl targets are an example of such a platform.
-  #
-  # # Examples
-  #
-  # Obtaining the creation time of a `Path`:
-  #
-  # ```inko
-  # import std.fs.path (Path)
-  #
-  # let path = Path.new('README.md')
-  #
-  # path.created_at.get # => DateTime(...)
-  # ```
-  fn pub created_at -> Result[DateTime, Error] {
-    match inko_path_created_at(_INKO.process, @path) {
-      case { @tag = 0, @value = val } -> {
-        Result.Ok(
-          DateTime.from_timestamp(
-            Float.from_bits(val as Int),
-            inko_time_system_offset as Int,
-          ),
-        )
-      }
-      case { @tag = _, @value = e } -> {
-        Result.Error(Error.from_os_error(e as Int))
-      }
-    }
-  }
-
-  # Returns the modification time of `self`.
-  #
-  # The target platform may not supported getting the creation time, in which
-  # case an `Error` is returned.
-  #
-  # # Examples
-  #
-  # Obtaining the modification time of a `Path`:
-  #
-  # ```inko
-  # import std.fs.path (Path)
-  #
-  # let path = Path.new('README.md')
-  #
-  # path.modified_at.get # => DateTime(...)
-  # ```
-  fn pub modified_at -> Result[DateTime, Error] {
-    match inko_path_modified_at(_INKO.process, @path) {
-      case { @tag = 0, @value = val } -> {
-        Result.Ok(
-          DateTime.from_timestamp(
-            Float.from_bits(val as Int),
-            inko_time_system_offset as Int,
-          ),
-        )
-      }
-      case { @tag = _, @value = e } -> {
-        Result.Error(Error.from_os_error(e as Int))
-      }
-    }
-  }
-
-  # Returns the access time of `self`.
-  #
-  # The target platform may not supported getting the creation time, in which
-  # case an `Error` is returned.
-  #
-  # # Examples
-  #
-  # Obtaining the access time of a `Path`:
-  #
-  # ```inko
-  # import std.fs.path (Path)
-  #
-  # let path = Path.new('README.md')
-  #
-  # path.accessed_at.get # => DateTime(...)
-  # ```
-  fn pub accessed_at -> Result[DateTime, Error] {
-    match inko_path_accessed_at(_INKO.process, @path) {
-      case { @tag = 0, @value = val } -> {
-        Result.Ok(
-          DateTime.from_timestamp(
-            Float.from_bits(val as Int),
-            inko_time_system_offset as Int,
-          ),
-        )
-      }
-      case { @tag = _, @value = e } -> {
-        Result.Error(Error.from_os_error(e as Int))
-      }
-    }
+    metadata.ok?
   }
 
   # Returns `true` if this `Path` is an absolute path.
@@ -675,12 +518,7 @@ class pub Path {
       case _ -> {}
     }
 
-    match inko_path_expand(_INKO.state, target) {
-      case { @tag = 0, @value = v } -> Result.Ok(Path.new(v as String))
-      case { @tag = _, @value = e } -> {
-        Result.Error(Error.from_os_error(e as Int))
-      }
-    }
+    sys.expand_path(target).map(fn (v) { Path.new(v) })
   }
 
   # Returns an iterator yielding the entries in the directory `self` points to.
@@ -722,7 +560,7 @@ class pub Path {
   # }
   # ```
   fn pub list -> Result[ReadDirectory, Error] {
-    ReadDirectoryInner.new(@path).map(fn (inner) {
+    sys.ReadDirectory.new(@path).map(fn (inner) {
       ReadDirectory(path: @path, inner: inner)
     })
   }
@@ -776,7 +614,10 @@ class pub Path {
 
   # Removes the file `self` points to.
   #
-  # If `self` points to a directory, an error is returned.
+  # # Errors
+  #
+  # This method returns an `Error` if the file `self` points to can't be removed
+  # (e.g. it doesn't exist) or isn't a file.
   #
   # # Examples
   #
@@ -787,21 +628,19 @@ class pub Path {
   # let path = Path.new('/tmp/test.txt')
   # let handle = WriteOnlyFile.new(path).get
   #
-  # handle.write_string('hello').get
-  # path.remove_file.get
+  # handle.write_string('hello') # => Result.Ok(nil)
+  # path.remove_file             # => Result.Ok(nil)
   # ```
   fn pub remove_file -> Result[Nil, Error] {
-    match inko_file_remove(_INKO.process, @path) {
-      case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> {
-        Result.Error(Error.from_os_error(e as Int))
-      }
-    }
+    sys.remove_file(@path)
   }
 
   # Removes the directory `self` points to.
   #
-  # If `self` points to a file, an error is returned.
+  # # Errors
+  #
+  # This method returns an error if `self` points to a file or if the directory
+  # can't be removed (e.g. the user lacks the necessary permissions).
   #
   # # Examples
   #
@@ -810,26 +649,23 @@ class pub Path {
   #
   # let path = Path.new('/tmp/foo')
   #
-  # path.create_directory.get
-  # path.remove_directory.get
+  # path.create_directory # => Result.Ok(nil)
+  # path.remove_directory # => Result.Ok(nil)
   # ```
   fn pub remove_directory -> Result[Nil, Error] {
-    match inko_directory_remove(_INKO.process, @path) {
-      case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> {
-        Result.Error(Error.from_os_error(e as Int))
-      }
-    }
+    sys.remove_directory(@path)
   }
 
   # Removes the directory and its contents `self` points to.
   #
+  # When encountering symbolic links, the link itself is removed instead of the
+  # file it points to.
+  #
   # # Errors
   #
-  # This method returns an `Error` if any of the following conditions are met:
-  #
-  # 1. The user lacks the necessary permissions to remove the directory.
-  # 2. The directory does not exist.
+  # This method returns an enty if any of the directories or the contents can't
+  # be removed, such as when the user lacks the necessary permissions, or if
+  # `self` points to something other than a directory.
   #
   # # Examples
   #
@@ -838,16 +674,48 @@ class pub Path {
   # ```inko
   # import std.fs.path (Path)
   #
-  # Path.new('/tmp/foo/bar').create_directory_all.get
-  # Path.new('/tmp/foo').remove_directory_all.get
+  # Path.new('/tmp/foo/bar').create_directory_all # => Result.Ok(nil)
+  # Path.new('/tmp/foo').remove_directory_all     # => Result.Ok(nil)
   # ```
   fn pub remove_directory_all -> Result[Nil, Error] {
-    match inko_directory_remove_recursive(_INKO.process, @path) {
-      case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> {
-        Result.Error(Error.from_os_error(e as Int))
+    let stack = [@path]
+    let dirs = [@path]
+
+    # First we remove all the files and gather the directories that need to be
+    # removed.
+    loop {
+      let dir = match stack.pop {
+        case Some(v) -> v
+        case _ -> break
+      }
+
+      let iter = try sys.ReadDirectory.new(dir)
+
+      try iter.try_each(fn (entry) {
+        match entry {
+          case Ok((name, Directory)) -> {
+            let path = join_strings(dir, name)
+
+            stack.push(path)
+            dirs.push(path)
+          }
+          case Ok((name, _)) -> try sys.remove_file(join_strings(dir, name))
+          case Error(e) -> throw e
+        }
+
+        Result.Ok(nil)
+      })
+    }
+
+    # Now we can remove the directories in a depth-first order.
+    loop {
+      match dirs.pop {
+        case Some(v) -> try sys.remove_directory(v)
+        case _ -> break
       }
     }
+
+    Result.Ok(nil)
   }
 
   # Creates a new empty directory at the path `self` points to.
@@ -864,46 +732,61 @@ class pub Path {
   # ```inko
   # import std.fs.path (Path)
   #
-  # Path.new('/tmp/test').create_directory.get
+  # Path.new('/tmp/test').create_directory # => Result.Ok(nil)
   # ```
   fn pub create_directory -> Result[Nil, Error] {
-    match inko_directory_create(_INKO.process, @path) {
-      case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> {
-        Result.Error(Error.from_os_error(e as Int))
-      }
-    }
+    sys.create_directory(@path)
   }
 
   # Creates a new empty directory at the path `self` points to, while also
   # creating any intermediate directories.
   #
+  # Unlike `Path.create_directory`, this method _doesn't_ return an `Error` if
+  # any of the directories already exist.
+  #
   # # Errors
   #
-  # This method returns an `Error` if any of the following conditions are met:
-  #
-  # 1. The user lacks the necessary permissions to create the directory.
+  # This method returns an `Error` if any of the directories can't be created,
+  # such as when the user doesn't have the required permissions to do so.
   #
   # # Examples
   #
   # ```inko
   # import std.fs.path (Path)
   #
-  # Path.new('/tmp/foo/bar/test').create_directory_all.get
+  # Path.new('/tmp/foo/bar/test').create_directory_all # => Result.Ok(nil)
   # ```
   fn pub create_directory_all -> Result[Nil, Error] {
-    match inko_directory_create_recursive(_INKO.process, @path) {
-      case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> {
-        Result.Error(Error.from_os_error(e as Int))
-      }
+    # A common case is when all leading directories already exist, in which case
+    # we can avoid the more expensive loop to create the intermediate
+    # directories.
+    match create_directory {
+      case Ok(_) or Error(AlreadyExists) -> return Result.Ok(nil)
+      case Error(NotFound) -> {}
+      case Error(e) -> throw e
     }
+
+    try components.try_reduce('', fn (leading, cur) {
+      let path = join_strings(leading, cur)
+
+      match sys.create_directory(path) {
+        case Ok(_) or Error(AlreadyExists) -> Result.Ok(path)
+        case Error(e) -> Result.Error(e)
+      }
+    })
+
+    Result.Ok(nil)
   }
 
   # Copies the file `self` points to the file `to` points to, returning the
-  # number of copied bytes.
+  # number of bytes copied.
   #
-  # If `self` or `to` points to a directory, an error is returned.
+  # If the target file already exists, it's overwritten.
+  #
+  # # Errors
+  #
+  # This method returns an `Error` if the file couldn't be copied, such as when
+  # the source file doesn't exist or the user lacks the necessary permissions.
   #
   # # Examples
   #
@@ -914,16 +797,11 @@ class pub Path {
   # let path = Path.new('/tmp/test.txt')
   # let file = WriteOnlyFile.new(path).get
   #
-  # file.write_string('hello').get
-  # path.copy(to: '/tmp/test2.txt').get
+  # file.write_string('hello')      # => Result.Ok(nil)
+  # path.copy(to: '/tmp/test2.txt') # => Result.Ok(5)
   # ```
   fn pub copy[T: ToString](to: ref T) -> Result[Int, Error] {
-    match inko_file_copy(_INKO.process, @path, to.to_string) {
-      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
-      case { @tag = _, @value = e } -> {
-        Result.Error(Error.from_os_error(e as Int))
-      }
-    }
+    sys.copy_file(@path, to.to_string)
   }
 
   # Returns an iterator over the components in `self`.
@@ -983,6 +861,29 @@ class pub Path {
       Option.None
     }
   }
+
+  # Returns a metadata about the current path, such as its size and creation
+  # time.
+  #
+  # # Errors
+  #
+  # This method returns an `Error` if the underlying system call fails, such as
+  # when the file no longer exists.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.fs.path (Path)
+  #
+  # Path
+  #   .new('/tmp/test.txt')
+  #   .metadata
+  #   .or_panic('failed to get the metadata')
+  #   .size # => 1234
+  # ```
+  fn pub metadata -> Result[Metadata, Error] {
+    sys.path_metadata(@path)
+  }
 }
 
 impl Equal[ref Path] for Path {
@@ -1027,28 +928,6 @@ impl ToString for Path {
 impl IntoString for Path {
   fn pub move into_string -> String {
     @path
-  }
-}
-
-impl Size for Path {
-  # Returns the size of the path in bytes.
-  #
-  # # Examples
-  #
-  # Getting the size of a path:
-  #
-  # ```inko
-  # import std.fs.path (Path)
-  #
-  # let path = Path.new('/dev/null')
-  #
-  # path.size.get # => 0
-  # ```
-  fn pub size -> Result[Int, Error] {
-    match inko_file_size(_INKO.process, @path) {
-      case { @tag = 0, @value = v } -> Result.Ok(v)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
   }
 }
 

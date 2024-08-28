@@ -4,7 +4,7 @@ use crate::state::State;
 use crate::target::OperatingSystem;
 use inkwell::targets::TargetData;
 use inkwell::types::{
-    BasicMetadataTypeEnum, BasicType, FunctionType, StructType,
+    AnyType, BasicMetadataTypeEnum, BasicType, FunctionType, StructType,
 };
 use inkwell::AddressSpace;
 use types::{
@@ -14,6 +14,11 @@ use types::{
 
 /// The size of an object header.
 const HEADER_SIZE: u32 = 16;
+
+fn size_of_type(target_data: &TargetData, typ: &dyn AnyType) -> u64 {
+    target_data.get_bit_size(typ)
+        / (target_data.get_pointer_byte_size(None) as u64)
+}
 
 #[derive(Copy, Clone)]
 pub(crate) struct Method<'ctx> {
@@ -258,11 +263,54 @@ impl<'ctx> Layouts<'ctx> {
                     );
                 }
 
-                for field in fields {
-                    let typ =
-                        context.llvm_type(db, &layouts, field.value_type(db));
+                if kind.is_enum() {
+                    // For enums we generate a base/opaque layout for when the
+                    // constructor isn't known, and one layout for each
+                    // constructor.
+                    types.push(context.llvm_type(
+                        db,
+                        &layouts,
+                        fields[0].value_type(db),
+                    ));
 
-                    types.push(typ);
+                    let cons = id.constructors(db);
+                    let mut opaque_types = vec![
+                        context
+                            .i8_type()
+                            .array_type(1)
+                            .as_basic_type_enum();
+                        fields.len() - 1
+                    ];
+
+                    for con in &cons {
+                        for (idx, typ) in
+                            con.members(db).into_iter().enumerate()
+                        {
+                            let typ = context.llvm_type(db, &layouts, typ);
+                            let size = size_of_type(target_data, &typ);
+                            let ex =
+                                size_of_type(target_data, &opaque_types[idx]);
+
+                            if size > ex {
+                                opaque_types[idx] = context
+                                    .i8_type()
+                                    .array_type(size as _)
+                                    .as_basic_type_enum();
+                            }
+                        }
+                    }
+
+                    types.append(&mut opaque_types);
+                } else {
+                    for field in fields {
+                        let typ = context.llvm_type(
+                            db,
+                            &layouts,
+                            field.value_type(db),
+                        );
+
+                        types.push(typ);
+                    }
                 }
             }
 
@@ -416,7 +464,6 @@ impl<'ctx> Layouts<'ctx> {
     pub(crate) fn size_of_class(&self, class: ClassId) -> u64 {
         let layout = &self.instances[class.0 as usize];
 
-        self.target_data.get_bit_size(layout)
-            / (self.target_data.get_pointer_byte_size(None) as u64)
+        size_of_type(self.target_data, layout)
     }
 }

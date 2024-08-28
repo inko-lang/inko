@@ -11,6 +11,17 @@ pub unsafe extern "system" fn inko_byte_array_new(
 }
 
 #[no_mangle]
+pub unsafe extern "system" fn inko_byte_array_with_capacity(
+    state: *const State,
+    size: i64,
+) -> *mut ByteArray {
+    ByteArray::alloc(
+        (*state).byte_array_class,
+        Vec::with_capacity(size as usize),
+    )
+}
+
+#[no_mangle]
 pub unsafe extern "system" fn inko_byte_array_push(
     bytes: *mut ByteArray,
     value: i64,
@@ -56,10 +67,25 @@ pub unsafe extern "system" fn inko_byte_array_remove(
 }
 
 #[no_mangle]
+pub unsafe extern "system" fn inko_byte_array_capacity(
+    bytes: *const ByteArray,
+) -> i64 {
+    (*bytes).value.capacity() as i64
+}
+
+#[no_mangle]
 pub unsafe extern "system" fn inko_byte_array_size(
     bytes: *const ByteArray,
 ) -> i64 {
     (*bytes).value.len() as i64
+}
+
+#[no_mangle]
+pub unsafe extern "system" fn inko_byte_array_set_size(
+    bytes: *mut ByteArray,
+    size: i64,
+) {
+    (*bytes).value.set_len(size as usize)
 }
 
 #[no_mangle]
@@ -144,6 +170,14 @@ pub unsafe extern "system" fn inko_byte_array_resize(
     filler: i64,
 ) {
     (*bytes).value.resize(size as usize, filler as u8);
+}
+
+#[no_mangle]
+pub unsafe extern "system" fn inko_byte_array_reserve(
+    bytes: *mut ByteArray,
+    size: i64,
+) {
+    (*bytes).value.reserve_exact(size as usize);
 }
 
 #[no_mangle]

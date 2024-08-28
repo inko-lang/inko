@@ -1037,18 +1037,18 @@ impl<'a> InsertPrelude<'a> {
 }
 
 /// A compiler pass that defines the constructors for an enum class.
-pub(crate) struct DefineVariants<'a> {
+pub(crate) struct DefineConstructors<'a> {
     state: &'a mut State,
     module: ModuleId,
 }
 
-impl<'a> DefineVariants<'a> {
+impl<'a> DefineConstructors<'a> {
     pub(crate) fn run_all(
         state: &'a mut State,
         modules: &mut Vec<hir::Module>,
     ) -> bool {
         for module in modules {
-            DefineVariants { state, module: module.module_id }.run(module);
+            DefineConstructors { state, module: module.module_id }.run(module);
         }
 
         !state.diagnostics.has_errors()
@@ -1071,12 +1071,12 @@ impl<'a> DefineVariants<'a> {
         let mut members_count = 0;
 
         for expr in &mut node.body {
-            let node = if let hir::ClassExpression::Variant(ref mut node) = expr
-            {
-                node
-            } else {
-                continue;
-            };
+            let node =
+                if let hir::ClassExpression::Constructor(ref mut node) = expr {
+                    node
+                } else {
+                    continue;
+                };
 
             if !is_enum {
                 self.state.diagnostics.error(
@@ -1194,7 +1194,13 @@ impl<'a> DefineVariants<'a> {
 
             for index in 0..members_count {
                 let id = index + 1;
-                let typ = TypeRef::int();
+
+                // The type of the field is the largest constructor argument for
+                // this position, but the exact type might not be known yet
+                // (e.g. if it's generic). As such we define the type to be
+                // Unknown and handle casting it when loading it, and when
+                // generating the LLVM layouts.
+                let typ = TypeRef::Unknown;
 
                 class_id.new_field(
                     db,
@@ -1338,7 +1344,7 @@ mod tests {
         let mut modules = parse(&mut state, "class enum A {}");
 
         assert!(DefineTypes::run_all(&mut state, &mut modules));
-        assert!(!DefineVariants::run_all(&mut state, &mut modules));
+        assert!(!DefineConstructors::run_all(&mut state, &mut modules));
         assert_eq!(state.diagnostics.iter().count(), 1);
     }
 

@@ -329,6 +329,20 @@ impl Diagnostics {
         );
     }
 
+    pub(crate) fn not_a_module(
+        &mut self,
+        name: &str,
+        file: PathBuf,
+        location: SourceLocation,
+    ) {
+        self.error(
+            DiagnosticId::InvalidSymbol,
+            format!("the symbol '{}' isn't a module", name),
+            file,
+            location,
+        );
+    }
+
     pub(crate) fn duplicate_method(
         &mut self,
         method_name: &str,

@@ -2,7 +2,6 @@ mod byte_array;
 mod class;
 mod env;
 mod float;
-mod fs;
 mod general;
 mod helpers;
 mod int;

@@ -41,7 +41,12 @@ fn pub compiler_path -> Path {
   let debug = target.join('debug').join('inko')
   let release = target.join('release').join('inko')
 
-  match (debug.modified_at, release.modified_at) {
+  match
+    (
+      debug.metadata.map(fn (m) { m.modified_at }),
+      release.metadata.map(fn (m) { m.modified_at }),
+    )
+  {
     case (Ok(deb), Ok(rel)) -> if deb >= rel { debug } else { release }
     case (Ok(_), Error(_)) -> debug
     case (Error(_), Ok(_)) -> release

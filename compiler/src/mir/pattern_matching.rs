@@ -24,8 +24,8 @@ use crate::state::State;
 use std::collections::{HashMap, HashSet};
 use types::resolve::TypeResolver;
 use types::{
-    ClassInstance, ClassKind, Database, FieldId, TypeArguments, TypeBounds,
-    TypeId, TypeRef, VariableId, VariantId, BOOL_ID, INT_ID, STRING_ID,
+    ClassInstance, ClassKind, ConstructorId, Database, FieldId, TypeArguments,
+    TypeBounds, TypeId, TypeRef, VariableId, BOOL_ID, INT_ID, STRING_ID,
 };
 
 fn add_missing_patterns(
@@ -91,7 +91,7 @@ fn add_missing_patterns(
 
                         terms.push(Term::new(*var, name, args));
                     }
-                    Constructor::Variant(constructor) => {
+                    Constructor::Constructor(constructor) => {
                         let args = case.arguments.clone();
                         let name = constructor.name(db).clone();
 
@@ -224,7 +224,7 @@ pub(crate) enum Constructor {
     String(String),
     True,
     Tuple(Vec<FieldId>),
-    Variant(VariantId),
+    Constructor(ConstructorId),
 }
 
 impl Constructor {
@@ -237,7 +237,7 @@ impl Constructor {
             | Constructor::Class(_)
             | Constructor::Tuple(_) => 0,
             Constructor::True => 1,
-            Constructor::Variant(id) => id.id(db) as usize,
+            Constructor::Constructor(id) => id.id(db) as usize,
         }
     }
 }
@@ -288,8 +288,11 @@ impl Pattern {
                         _ => unreachable!(),
                     }
                 }
-                types::ConstantPatternKind::Variant(id) => {
-                    Pattern::Constructor(Constructor::Variant(id), Vec::new())
+                types::ConstantPatternKind::Constructor(id) => {
+                    Pattern::Constructor(
+                        Constructor::Constructor(id),
+                        Vec::new(),
+                    )
                 }
                 types::ConstantPatternKind::Unknown => unreachable!(),
             },
@@ -307,7 +310,7 @@ impl Pattern {
 
                 Pattern::Constructor(Constructor::Tuple(n.field_ids), args)
             }
-            hir::Pattern::Variant(n) => {
+            hir::Pattern::Constructor(n) => {
                 let args = n
                     .values
                     .into_iter()
@@ -315,7 +318,7 @@ impl Pattern {
                     .collect();
 
                 Pattern::Constructor(
-                    Constructor::Variant(n.constructor_id.unwrap()),
+                    Constructor::Constructor(n.constructor_id.unwrap()),
                     args,
                 )
             }
@@ -868,7 +871,7 @@ impl<'a> Compiler<'a> {
                             let members = constructor.members(self.db());
 
                             (
-                                Constructor::Variant(constructor),
+                                Constructor::Constructor(constructor),
                                 self.new_variables(class_ins, typ, members),
                                 Vec::new(),
                             )
@@ -1238,7 +1241,7 @@ mod tests {
             input,
             vec![(
                 Pattern::Constructor(
-                    Constructor::Variant(some),
+                    Constructor::Constructor(some),
                     vec![Pattern::Int(4)],
                 ),
                 BlockId(1),
@@ -1251,7 +1254,7 @@ mod tests {
                 input,
                 vec![
                     Case::new(
-                        Constructor::Variant(some),
+                        Constructor::Constructor(some),
                         vec![int_var],
                         Decision::Switch(
                             int_var,
@@ -1263,7 +1266,11 @@ mod tests {
                             Some(Box::new(fail()))
                         ),
                     ),
-                    Case::new(Constructor::Variant(none), Vec::new(), fail())
+                    Case::new(
+                        Constructor::Constructor(none),
+                        Vec::new(),
+                        fail()
+                    )
                 ],
                 None
             )
@@ -1308,14 +1315,14 @@ mod tests {
             vec![
                 (
                     Pattern::Constructor(
-                        Constructor::Variant(some),
+                        Constructor::Constructor(some),
                         vec![Pattern::Wildcard],
                     ),
                     BlockId(1),
                 ),
                 (
                     Pattern::Constructor(
-                        Constructor::Variant(none),
+                        Constructor::Constructor(none),
                         Vec::new(),
                     ),
                     BlockId(2),
@@ -1329,7 +1336,7 @@ mod tests {
                 input,
                 vec![
                     Case::new(
-                        Constructor::Variant(some),
+                        Constructor::Constructor(some),
                         vec![int_var],
                         success_with_bindings(
                             vec![Binding::Ignored(int_var)],
@@ -1337,7 +1344,7 @@ mod tests {
                         ),
                     ),
                     Case::new(
-                        Constructor::Variant(none),
+                        Constructor::Constructor(none),
                         Vec::new(),
                         success(BlockId(2))
                     )

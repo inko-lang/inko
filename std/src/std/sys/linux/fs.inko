@@ -1,0 +1,215 @@
+import std.fs (FileType, Metadata, Time)
+import std.fs.file (ReadOnlyFile, WriteOnlyFile)
+import std.io (Error, start_blocking, stop_blocking)
+import std.libc.linux (self as libc)
+import std.sys.unix.fs (self as unix)
+
+# The maximum number of bytes we can copy in a single system call.
+let MAX_COPY = 0x7ffff000
+
+fn statx_time(time: Pointer[libc.StatxTimestamp]) -> Time {
+  Time(secs: time.tv_sec as Int, nanos: time.tv_nsec as Int)
+}
+
+fn statx(fd: Int32, path: String) -> Result[Metadata, Error] {
+  let buf = libc.StatxBuf(
+    stx_mask: 0 as UInt32,
+    stx_blksize: 0 as UInt32,
+    stx_attributes: 0 as UInt64,
+    stx_nlink: 0 as UInt32,
+    stx_uid: 0 as UInt32,
+    stx_gid: 0 as UInt32,
+    stx_mode: 0 as UInt16,
+    __pad0: 0 as UInt16,
+    stx_ino: 0 as UInt64,
+    stx_size: 0 as UInt64,
+    stx_blocks: 0 as UInt64,
+    stx_attributes_mask: 0 as UInt64,
+    stx_atime: libc.StatxTimestamp(
+      tv_sec: 0 as Int64,
+      tv_nsec: 0 as UInt32,
+      __pad0: 0 as Int32,
+    ),
+    stx_btime: libc.StatxTimestamp(
+      tv_sec: 0 as Int64,
+      tv_nsec: 0 as UInt32,
+      __pad0: 0 as Int32,
+    ),
+    stx_ctime: libc.StatxTimestamp(
+      tv_sec: 0 as Int64,
+      tv_nsec: 0 as UInt32,
+      __pad0: 0 as Int32,
+    ),
+    stx_mtime: libc.StatxTimestamp(
+      tv_sec: 0 as Int64,
+      tv_nsec: 0 as UInt32,
+      __pad0: 0 as Int32,
+    ),
+    stx_rdev_major: 0 as UInt32,
+    stx_rdev_minor: 0 as UInt32,
+    stx_dev_major: 0 as UInt32,
+    stx_dev_minor: 0 as UInt32,
+    stx_mnt_id: 0 as UInt64,
+    stx_dio_mem_align: 0 as UInt32,
+    stx_dio_offset_align: 0 as UInt32,
+    __pad1: 0 as UInt64,
+    __pad2: 0 as UInt64,
+    __pad3: 0 as UInt64,
+    __pad4: 0 as UInt64,
+    __pad5: 0 as UInt64,
+    __pad6: 0 as UInt64,
+    __pad7: 0 as UInt64,
+    __pad8: 0 as UInt64,
+    __pad9: 0 as UInt64,
+    __pad10: 0 as UInt64,
+    __pad11: 0 as UInt64,
+    __pad12: 0 as UInt64,
+  )
+
+  start_blocking
+
+  let res = libc.statx(
+    fd,
+    name: path,
+    flags: libc.AT_EMPTY_PATH,
+    mask: libc.STATX_BASIC_STATS | libc.STATX_BTIME,
+    buf: mut buf,
+  )
+  let err = stop_blocking
+
+  if res == -1 { throw Error.from_os_error(err) }
+
+  Result.Ok(
+    Metadata(
+      type: match buf.stx_mode as Int & libc.S_IFMT {
+        case libc.S_IFREG -> FileType.File
+        case libc.S_IFDIR -> FileType.Directory
+        case libc.S_IFLNK -> FileType.SymbolicLink
+        case _ -> FileType.Other
+      },
+      mode: buf.stx_mode as Int,
+      size: buf.stx_size as Int,
+      created_at: if buf.stx_mask as Int & libc.STATX_BTIME == 0 {
+        Option.None
+      } else {
+        Option.Some(statx_time(buf.stx_btime))
+      },
+      modified_at: statx_time(buf.stx_mtime),
+      accessed_at: statx_time(buf.stx_atime),
+    ),
+  )
+}
+
+fn file_metadata(fd: Int32) -> Result[Metadata, Error] {
+  statx(fd, path: '')
+}
+
+fn path_metadata(path: String) -> Result[Metadata, Error] {
+  statx(libc.AT_FDCWD as Int32, path: path)
+}
+
+fn sendfile_copy(from: Int32, to: Int32) -> Result[Int, Int] {
+  let mut copied = 0
+  let max = MAX_COPY as UInt64
+
+  loop {
+    start_blocking
+
+    let res = libc.sendfile(to, from, 0x0 as Pointer[Int64], max) as Int
+    let err = stop_blocking
+
+    match res {
+      case 0 -> break
+      case -1 -> throw err
+      case n -> copied += n
+    }
+  }
+
+  Result.Ok(copied)
+}
+
+fn kernel_copy(from: Int32, to: Int32) -> Result[Int, Error] {
+  let mut copied = 0
+  let mut fallback = false
+
+  loop {
+    start_blocking
+
+    let res = libc.copy_file_range(
+      in: from,
+      off_in: 0x0 as Pointer[Int64],
+      out: to,
+      off_out: 0x0 as Pointer[Int64],
+      len: MAX_COPY as UInt64,
+      flags: 0 as UInt32,
+    )
+      as Int
+    let err = stop_blocking
+
+    match res {
+      case 0 -> break
+      case -1 -> {
+        match err {
+          # copy_file_range() doesn't support copying files across devices, and
+          # certain file systems might not support it. In some cases ENOSYS is
+          # produced instead of e.g. EOPNOTSUPP
+          # (https://github.com/libuv/libuv/issues/3069).
+          #
+          # EINVAL is produced if the source and destination are the same.
+          case
+            libc.EXDEV
+              or libc.EINVAL
+              or libc.EIO
+              or libc.ENOSYS
+              or libc.EOPNOTSUPP
+          -> {
+            fallback = true
+            break
+          }
+          case _ -> throw Error.from_os_error(err)
+        }
+      }
+      case n -> copied += n
+    }
+  }
+
+  # Certain versions of Linux return 0 when trying to copy from special file
+  # systems (https://github.com/golang/go/issues/44272). When encountering such
+  # a case we fall back to using sendfile.
+  #
+  # In case of an empty file this may result in a redundant system call, but due
+  # to the file being empty the cost of that should be minimal.
+  if fallback or copied == 0 {
+    match sendfile_copy(from, to) {
+      case Ok(n) -> Result.Ok(n)
+      case Error(libc.ENOSYS or libc.EINVAL) -> {
+        # sendfile() might fail when copying certain "files" such as /dev/stdin.
+        Result.Ok(-1)
+      }
+      case Error(e) -> throw Error.from_os_error(e)
+    }
+  } else {
+    Result.Ok(copied)
+  }
+}
+
+fn copy_file(from: String, to: String) -> Result[Int, Error] {
+  let from_file = try ReadOnlyFile.new(from.to_path)
+  let from_meta = try from_file.metadata
+  let to_file = try WriteOnlyFile.new(to.to_path)
+  let copied = match try kernel_copy(from_file.fd, to_file.fd) {
+    case -1 -> try unix.copy_file_fallback(from_file, to)
+    case n -> n
+  }
+
+  start_blocking
+
+  let res = libc.fchmod(to_file.fd, from_meta.mode as UInt16) as Int
+  let err = stop_blocking
+
+  if res == 0 {
+    Result.Ok(copied)
+  } else {
+    Result.Error(Error.from_os_error(err))
+  }
+}

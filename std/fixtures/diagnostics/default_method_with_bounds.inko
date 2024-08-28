@@ -1,0 +1,32 @@
+trait A {
+  fn foo
+
+  fn bar {}
+}
+
+trait B {}
+
+class Box[T] {
+  let @value: T
+}
+
+impl A for Box if T: B {
+  fn foo {}
+}
+
+class Thing {}
+
+impl B for Thing {}
+
+fn valid {
+  Box(Thing()).foo
+  Box(Thing()).bar
+}
+
+fn invalid {
+  Box(10).foo
+  Box(10).bar
+}
+
+# default_method_with_bounds.inko:27:3 error(invalid-symbol): the method 'foo' exists but isn't available because one or more type parameter bounds aren't met
+# default_method_with_bounds.inko:28:3 error(invalid-symbol): the method 'bar' exists but isn't available because one or more type parameter bounds aren't met

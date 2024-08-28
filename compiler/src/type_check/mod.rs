@@ -233,9 +233,8 @@ impl<'a> DefineTypeSignature<'a> {
             {
                 module.symbol(self.db(), name)
             } else {
-                self.state.diagnostics.error(
-                    DiagnosticId::InvalidSymbol,
-                    format!("the symbol '{}' isn't a module", source.name),
+                self.state.diagnostics.not_a_module(
+                    &source.name,
                     self.file(),
                     source.location.clone(),
                 );
@@ -308,6 +307,7 @@ impl<'a> DefineTypeSignature<'a> {
                 }
                 name => {
                     if let Some(ctype) = self.resolve_foreign_type(
+                        None,
                         name,
                         &node.arguments,
                         &node.location,
@@ -474,6 +474,7 @@ impl<'a> DefineTypeSignature<'a> {
 
     fn resolve_foreign_type(
         &mut self,
+        source: Option<ModuleId>,
         name: &str,
         arguments: &[hir::Type],
         location: &SourceLocation,
@@ -502,7 +503,26 @@ impl<'a> DefineTypeSignature<'a> {
                 }
 
                 let arg = if let hir::Type::Named(n) = &arguments[0] {
+                    let src = if let Some(src) = n.source.as_ref() {
+                        if let Some(Symbol::Module(m)) =
+                            self.scope.symbol(self.db(), &src.name)
+                        {
+                            Some(m)
+                        } else {
+                            self.state.diagnostics.not_a_module(
+                                &src.name,
+                                self.file(),
+                                src.location.clone(),
+                            );
+
+                            return None;
+                        }
+                    } else {
+                        None
+                    };
+
                     self.resolve_foreign_type(
+                        src,
                         &n.name.name,
                         &n.arguments,
                         &n.location,
@@ -524,38 +544,46 @@ impl<'a> DefineTypeSignature<'a> {
                     }
                 }
             }
-            name => match self.scope.symbol(self.db(), name) {
-                Some(Symbol::Class(id)) => Some(TypeRef::Owned(
-                    TypeId::ClassInstance(ClassInstance::new(id)),
-                )),
-                Some(Symbol::TypeParameter(id)) => {
-                    let tid = if self.rules.type_parameters_as_rigid {
-                        TypeId::RigidTypeParameter(id)
-                    } else {
-                        TypeId::TypeParameter(id)
-                    };
+            name => {
+                let sym = if let Some(m) = source {
+                    m.symbol(self.db(), name)
+                } else {
+                    self.scope.symbol(self.db(), name)
+                };
 
-                    Some(TypeRef::Owned(tid))
-                }
-                Some(_) => {
-                    self.state.diagnostics.invalid_c_type(
-                        name,
-                        self.file(),
-                        location.clone(),
-                    );
+                match sym {
+                    Some(Symbol::Class(id)) => Some(TypeRef::Owned(
+                        TypeId::ClassInstance(ClassInstance::new(id)),
+                    )),
+                    Some(Symbol::TypeParameter(id)) => {
+                        let tid = if self.rules.type_parameters_as_rigid {
+                            TypeId::RigidTypeParameter(id)
+                        } else {
+                            TypeId::TypeParameter(id)
+                        };
 
-                    None
-                }
-                _ => {
-                    self.state.diagnostics.undefined_symbol(
-                        name,
-                        self.file(),
-                        location.clone(),
-                    );
+                        Some(TypeRef::Owned(tid))
+                    }
+                    Some(_) => {
+                        self.state.diagnostics.invalid_c_type(
+                            name,
+                            self.file(),
+                            location.clone(),
+                        );
 
-                    None
+                        None
+                    }
+                    _ => {
+                        self.state.diagnostics.undefined_symbol(
+                            name,
+                            self.file(),
+                            location.clone(),
+                        );
+
+                        None
+                    }
                 }
-            },
+            }
         }
     }
 

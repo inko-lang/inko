@@ -1937,7 +1937,6 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 let info = &self.shared.methods.info[ins.method.0 as usize];
                 let fn_typ =
                     self.layouts.methods[ins.method.0 as usize].signature;
-
                 let rec_class = self
                     .builder
                     .load_field(
@@ -2274,9 +2273,11 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
             }
             Instruction::GetField(ins) => {
                 let reg_var = self.variables[&ins.register];
+                let reg_typ = self.variable_types[&ins.register];
                 let rec_var = self.variables[&ins.receiver];
                 let rec_typ = self.variable_types[&ins.receiver];
-                let base = if ins.class.kind(&self.shared.state.db).is_async() {
+                let class_kind = ins.class.kind(&self.shared.state.db);
+                let base = if class_kind.is_async() {
                     PROCESS_FIELD_OFFSET
                 } else {
                     FIELD_OFFSET
@@ -2286,10 +2287,17 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                     (base + ins.field.index(&self.shared.state.db)) as u32;
                 let layout = self.layouts.instances[ins.class.0 as usize];
                 let rec = self.builder.load(rec_typ, rec_var);
-                let field = self.builder.load_field(
+
+                // When loading fields from enums we may load from an opaque
+                // field type, depending on what constructor we're dealing with.
+                // To ensure we always use the correct type, we use the type of
+                // the return value instead of using the layout's field type
+                // as-is.
+                let field = self.builder.load_field_as(
                     layout,
                     rec.into_pointer_value(),
                     index,
+                    reg_typ,
                 );
 
                 self.builder.store(reg_var, field);

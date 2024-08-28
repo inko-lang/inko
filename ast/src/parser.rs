@@ -1076,7 +1076,7 @@ impl Parser {
     fn define_constructor(
         &mut self,
         start: Token,
-    ) -> Result<DefineVariant, ParseError> {
+    ) -> Result<DefineConstructor, ParseError> {
         let name = Constant::from(self.expect(TokenKind::Constant)?);
         let members = if self.peek().kind == TokenKind::ParenOpen {
             let (values, location) = self.list(
@@ -1094,7 +1094,7 @@ impl Parser {
             members.as_ref().map(|n| &n.location).unwrap_or(&start.location);
         let location = SourceLocation::start_end(&start.location, end_loc);
 
-        Ok(DefineVariant { name, members, location })
+        Ok(DefineConstructor { name, members, location })
     }
 
     fn class_expressions(&mut self) -> Result<ClassExpressions, ParseError> {
@@ -1161,7 +1161,7 @@ impl Parser {
             TokenKind::Fn => ClassExpression::DefineMethod(Box::new(
                 self.define_method(start)?,
             )),
-            TokenKind::Case => ClassExpression::DefineVariant(Box::new(
+            TokenKind::Case => ClassExpression::DefineConstructor(Box::new(
                 self.define_constructor(start)?,
             )),
             TokenKind::Comment => ClassExpression::Comment(self.comment(start)),
@@ -2734,7 +2734,7 @@ impl Parser {
                 let location =
                     SourceLocation::start_end(&name.location, &close.location);
 
-                Pattern::Variant(Box::new(VariantPattern {
+                Pattern::Constructor(Box::new(ConstructorPattern {
                     name,
                     values,
                     location,
@@ -9184,18 +9184,20 @@ mod tests {
                     location: cols(7, 7)
                 })),
                 expressions: vec![MatchExpression::Case(Box::new(MatchCase {
-                    pattern: Pattern::Variant(Box::new(VariantPattern {
-                        name: Constant {
-                            source: None,
-                            name: "A".to_string(),
-                            location: cols(16, 16)
-                        },
-                        values: vec![Pattern::Int(Box::new(IntLiteral {
-                            value: "1".to_string(),
-                            location: cols(18, 18)
-                        }))],
-                        location: cols(16, 19)
-                    })),
+                    pattern: Pattern::Constructor(Box::new(
+                        ConstructorPattern {
+                            name: Constant {
+                                source: None,
+                                name: "A".to_string(),
+                                location: cols(16, 16)
+                            },
+                            values: vec![Pattern::Int(Box::new(IntLiteral {
+                                value: "1".to_string(),
+                                location: cols(18, 18)
+                            }))],
+                            location: cols(16, 19)
+                        }
+                    )),
                     guard: None,
                     body: Expressions {
                         values: vec![Expression::Int(Box::new(IntLiteral {
@@ -9448,8 +9450,8 @@ mod tests {
                 }),
                 body: ClassExpressions {
                     values: vec![
-                        ClassExpression::DefineVariant(Box::new(
-                            DefineVariant {
+                        ClassExpression::DefineConstructor(Box::new(
+                            DefineConstructor {
                                 name: Constant {
                                     source: None,
                                     name: "Some".to_string(),
@@ -9475,8 +9477,8 @@ mod tests {
                                 location: cols(24, 35)
                             },
                         )),
-                        ClassExpression::DefineVariant(Box::new(
-                            DefineVariant {
+                        ClassExpression::DefineConstructor(Box::new(
+                            DefineConstructor {
                                 name: Constant {
                                     source: None,
                                     name: "None".to_string(),

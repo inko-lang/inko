@@ -1,0 +1,7 @@
+import std.string
+
+fn valid(pointer: Pointer[string.String]) {}
+
+fn invalid(pointer: Pointer[nope.String]) {}
+
+# pointer_with_scoped_argument.inko:5:29 error(invalid-symbol): the symbol 'nope' isn't a module

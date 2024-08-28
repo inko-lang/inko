@@ -1,0 +1,31 @@
+import std.libc.mac (Dirent, StatBuf)
+
+# When using macOS on an amd64 platform, opendir/readdir produce data using
+# 32-bit inodes, unless we use the $INODE64 suffix. See the following for more
+# information:
+#
+# - <https://assert.cc/posts/darwin_use_64_bit_inode_vs_ctypes/>
+# - <https://github.com/rust-lang/libc/issues/414>
+fn extern opendir$INODE64(path: Pointer[UInt8]) -> Pointer[UInt8]
+
+fn extern readdir$INODE64(stream: Pointer[UInt8]) -> Pointer[Dirent]
+
+fn extern fstat$INODE64(fd: Int32, buf: Pointer[StatBuf]) -> Int32
+
+fn extern stat$INODE64(path: Pointer[UInt8], buf: Pointer[StatBuf]) -> Int32
+
+fn opendir(path: Pointer[UInt8]) -> Pointer[UInt8] {
+  opendir$INODE64(path)
+}
+
+fn readdir(path: Pointer[UInt8]) -> Pointer[Dirent] {
+  readdir$INODE64(path)
+}
+
+fn fstat(fd: Int32, buf: Pointer[StatBuf]) -> Int32 {
+  fstat$INODE64(fd, buf)
+}
+
+fn stat(path: Pointer[UInt8], buf: Pointer[StatBuf]) -> Int32 {
+  stat$INODE64(path, buf)
+}

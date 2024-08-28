@@ -1,0 +1,175 @@
+import std.fs (FileType, Metadata, Time)
+import std.fs.file (ReadOnlyFile, WriteOnlyFile)
+import std.io (Error, start_blocking, stop_blocking)
+import std.libc.mac (self as libc)
+import std.sys.unix.fs (self as unix)
+
+fn stat_to_metadata(buf: Pointer[libc.StatBuf]) -> Metadata {
+  Metadata(
+    type: match buf.st_mode as Int & libc.S_IFMT {
+      case libc.S_IFREG -> FileType.File
+      case libc.S_IFDIR -> FileType.Directory
+      case libc.S_IFLNK -> FileType.SymbolicLink
+      case _ -> FileType.Other
+    },
+    mode: buf.st_mode as Int,
+    size: buf.st_size as Int,
+    created_at: Option.Some(
+      Time(secs: buf.st_birthtime as Int, nanos: buf.st_birthtime_nsec as Int),
+    ),
+    modified_at: Time(
+      secs: buf.st_mtime as Int,
+      nanos: buf.st_mtime_nsec as Int,
+    ),
+    accessed_at: Time(
+      secs: buf.st_atime as Int,
+      nanos: buf.st_atime_nsec as Int,
+    ),
+  )
+}
+
+fn file_metadata(fd: Int32) -> Result[Metadata, Error] {
+  let buf = libc.StatBuf(
+    st_dev: 0 as Int32,
+    st_mode: 0 as UInt16,
+    st_nlink: 0 as UInt16,
+    st_ino: 0 as UInt64,
+    st_uid: 0 as UInt32,
+    st_gid: 0 as UInt32,
+    st_rdev: 0 as Int32,
+    st_atime: 0 as Int64,
+    st_atime_nsec: 0 as Int64,
+    st_mtime: 0 as Int64,
+    st_mtime_nsec: 0 as Int64,
+    st_ctime: 0 as Int64,
+    st_ctime_nsec: 0 as Int64,
+    st_birthtime: 0 as Int64,
+    st_birthtime_nsec: 0 as Int64,
+    st_size: 0 as Int64,
+    st_blocks: 0 as Int64,
+    st_blksize: 0 as Int32,
+    st_flags: 0 as UInt32,
+    st_gen: 0 as UInt32,
+    st_lspare: 0 as Int32,
+    st_qspare0: 0 as Int64,
+    st_qspare1: 0 as Int64,
+  )
+
+  start_blocking
+
+  let res = libc.fstat(fd, mut buf) as Int
+  let err = stop_blocking
+
+  if res == -1 { throw Error.from_os_error(err) }
+
+  Result.Ok(stat_to_metadata(mut buf))
+}
+
+fn path_metadata(path: String) -> Result[Metadata, Error] {
+  let buf = libc.StatBuf(
+    st_dev: 0 as Int32,
+    st_mode: 0 as UInt16,
+    st_nlink: 0 as UInt16,
+    st_ino: 0 as UInt64,
+    st_uid: 0 as UInt32,
+    st_gid: 0 as UInt32,
+    st_rdev: 0 as Int32,
+    st_atime: 0 as Int64,
+    st_atime_nsec: 0 as Int64,
+    st_mtime: 0 as Int64,
+    st_mtime_nsec: 0 as Int64,
+    st_ctime: 0 as Int64,
+    st_ctime_nsec: 0 as Int64,
+    st_birthtime: 0 as Int64,
+    st_birthtime_nsec: 0 as Int64,
+    st_size: 0 as Int64,
+    st_blocks: 0 as Int64,
+    st_blksize: 0 as Int32,
+    st_flags: 0 as UInt32,
+    st_gen: 0 as UInt32,
+    st_lspare: 0 as Int32,
+    st_qspare0: 0 as Int64,
+    st_qspare1: 0 as Int64,
+  )
+
+  start_blocking
+
+  let res = libc.stat(path.to_pointer, mut buf) as Int
+  let err = stop_blocking
+
+  if res == -1 { throw Error.from_os_error(err) }
+
+  Result.Ok(stat_to_metadata(mut buf))
+}
+
+fn kernel_copy(from_file: mut ReadOnlyFile, to: String) -> Result[Bool, Error] {
+  start_blocking
+
+  let res = libc.fclonefileat(
+    from_file.fd,
+    libc.AT_FDCWD as Int32,
+    to.to_pointer,
+    0 as Int32,
+  )
+    as Int
+  let err = stop_blocking
+
+  if res == -1 {
+    match err {
+      case libc.ENOTSUP or libc.EXDEV or libc.EIO or libc.EEXIST -> {
+        # fclonefileat() fails if the target file already exists. Simply
+        # removing the target file first introduces a race condition where
+        # EEXIST can be produced if the file is created again _after_ removing
+        # it but _before_ the call to fclonefileat().
+        #
+        # Instead, we fall back to using fcopyfile().
+      }
+      case _ -> throw Error.from_os_error(err)
+    }
+
+    let to_file = try WriteOnlyFile.new(to.to_path)
+
+    start_blocking
+
+    let res = libc.fcopyfile(
+      from_file.fd,
+      to_file.fd,
+      0x0 as Pointer[UInt8],
+      libc.COPYFILE_ALL as UInt32,
+    )
+      as Int
+    let err = stop_blocking
+
+    if res < 0 {
+      if err == libc.ENOTSUP { return Result.Ok(false) }
+
+      throw Error.from_os_error(err)
+    }
+  }
+
+  Result.Ok(true)
+}
+
+fn copy_file(from: String, to: String) -> Result[Int, Error] {
+  let from_file = try ReadOnlyFile.new(from.to_path)
+  let from_meta = try from_file.metadata
+
+  # Both fclonefileat() and fcopyfile() copy the metadata (e.g. permissions), so
+  # we don't need to manually apply those unlike on other platforms.
+  if try kernel_copy(from_file, to) { return Result.Ok(from_meta.size) }
+
+  # If the input file is a special file such as /dev/stdin, the only way to copy
+  # it is by doing so manually.
+  let copied = try unix.copy_file_fallback(from_file, to)
+
+  start_blocking
+
+  let res = libc.chmod(to.to_pointer, from_meta.mode as UInt16) as Int
+  let err = stop_blocking
+
+  if res == 0 {
+    Result.Ok(copied)
+  } else {
+    Result.Error(Error.from_os_error(err))
+  }
+}

@@ -2,6 +2,7 @@
 import std.cmp (Equal)
 import std.fmt (Format, Formatter)
 import std.fs.path (Path)
+import std.time (DateTime)
 
 # A type describing the type of file, such as a file or directory.
 class pub enum FileType {
@@ -16,6 +17,30 @@ class pub enum FileType {
 
   # The file is something else that isn't explicitly covered by this type.
   case Other
+
+  # Returns `true` if `self` is a file.
+  fn pub file? -> Bool {
+    match self {
+      case File -> true
+      case _ -> false
+    }
+  }
+
+  # Returns `true` if `self` is a directory.
+  fn pub directory? -> Bool {
+    match self {
+      case Directory -> true
+      case _ -> false
+    }
+  }
+
+  # Returns `true` if `self` is a symbolic link.
+  fn pub symbolic_link? -> Bool {
+    match self {
+      case SymbolicLink -> true
+      case _ -> false
+    }
+  }
 }
 
 impl Equal[ref FileType] for FileType {
@@ -68,5 +93,78 @@ impl Format for DirectoryEntry {
       .field('path', @path)
       .field('type', @type)
       .finish
+  }
+}
+
+# A file timestamp expressed as a number of seconds and nanoseconds.
+#
+# The seconds and nanoseconds are stored separately to ensure no loss of
+# precision, something that might happen when storing the time as a `Float`.
+class Time {
+  let @secs: Int
+  let @nanos: Int
+
+  fn to_date_time -> DateTime {
+    let time = @secs.to_float + (@nanos.to_float / 1_000_000_000.0)
+
+    DateTime.from_timestamp(time, utc_offset: 0)
+  }
+}
+
+# A type containing metadata of a file or directory, such as its type and
+# creation time.
+class pub Metadata {
+  # The type of the file.
+  let pub @type: FileType
+
+  # The ownership/mode of the file.
+  let @mode: Int
+
+  # The size of the file in bytes.
+  let pub @size: Int
+
+  # The Unix epoch at which the file was created.
+  let @created_at: Option[Time]
+
+  # The Unix epoch at which the file was last modified.
+  let @modified_at: Time
+
+  # The Unix epoch at which the file was last accessed.
+  let @accessed_at: Time
+
+  # Returns the time at which the file was created.
+  #
+  # This corresponds to the `btime` field of `statx()` on Linux, and the
+  # `birthtime` field on other Unix platforms.
+  #
+  # Support for creationg times is a bit inconsistent: FreeBSD and macOS have
+  # supported it for a long time, but Linux only supports it since 4.11. Even
+  # then, depending on the file system the creation time might not be available
+  # (e.g. `/proc/stat` on Linux doesn't have one), or the system call might not
+  # be available for other reasons (e.g. it's blocked).
+  #
+  # Rather than dealing with this by returning a nonsensical value (e.g.
+  # 1970-01-01 00:00:00), an `Option[DateTime]` is returned. If the creation
+  # time is available, the value is a `Option.Some(DateTime)`, otherwise it's a
+  # `None`.
+  fn pub created_at -> Option[DateTime] {
+    match @created_at {
+      case Some(v) -> Option.Some(v.to_date_time)
+      case _ -> Option.None
+    }
+  }
+
+  # Returns the time at which the file was last modified.
+  #
+  # This corresponds to the "mtime" field of `stat()` on Unix systems.
+  fn pub modified_at -> DateTime {
+    @modified_at.to_date_time
+  }
+
+  # Returns the time at which the file was last accessed.
+  #
+  # This corresponds to the `atime` field of `stat()` on Unix systems.
+  fn pub accessed_at -> DateTime {
+    @accessed_at.to_date_time
   }
 }

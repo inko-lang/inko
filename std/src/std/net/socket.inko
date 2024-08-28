@@ -64,9 +64,7 @@ import std.drop (Drop)
 import std.fmt (Format, Formatter)
 import std.fs.path (Path)
 import std.io (Error, Read, Write, WriteInternal)
-import std.libc.bsd.socket (self as const) if bsd
-import std.libc.linux.socket (self as const) if linux
-import std.libc.mac.socket (self as const) if mac
+import std.libc
 import std.net.ip (IpAddress)
 import std.string (ToString)
 import std.time (Duration, ToInstant)
@@ -680,27 +678,27 @@ class pub Socket {
 
   # Sets the value of the `IP_TTL` option.
   fn pub mut ttl=(value: Int) -> Result[Nil, Error] {
-    set_option(const.IPPROTO_IP, const.IP_TTL, value)
+    set_option(libc.IPPROTO_IP, libc.IP_TTL, value)
   }
 
   # Sets the value of the `IPV6_V6ONLY` option.
   fn pub mut only_ipv6=(value: Bool) -> Result[Nil, Error] {
-    set_option(const.IPPROTO_IPV6, const.IPV6_V6ONLY, value.to_int)
+    set_option(libc.IPPROTO_IPV6, libc.IPV6_V6ONLY, value.to_int)
   }
 
   # Sets the value of the `TCP_NODELAY` option.
   fn pub mut no_delay=(value: Bool) -> Result[Nil, Error] {
-    set_option(const.IPPROTO_TCP, const.TCP_NODELAY, value.to_int)
+    set_option(libc.IPPROTO_TCP, libc.TCP_NODELAY, value.to_int)
   }
 
   # Returns `true` if the `TCP_NODELAY` option is set.
   fn pub no_delay? -> Bool {
-    get_option(const.IPPROTO_TCP, const.TCP_NODELAY) != 0
+    get_option(libc.IPPROTO_TCP, libc.TCP_NODELAY) != 0
   }
 
   # Sets the value of the `SO_BROADCAST` option.
   fn pub mut broadcast=(value: Bool) -> Result[Nil, Error] {
-    set_option(const.SOL_SOCKET, const.SO_BROADCAST, value.to_int)
+    set_option(libc.SOL_SOCKET, libc.SO_BROADCAST, value.to_int)
   }
 
   # Sets the value of the `SO_LINGER` option.
@@ -725,8 +723,8 @@ class pub Socket {
 
     let res = setsockopt(
       @socket.inner,
-      const.SOL_SOCKET as Int32,
-      const.SO_LINGER as Int32,
+      libc.SOL_SOCKET as Int32,
+      libc.SO_LINGER as Int32,
       (mut linger) as Pointer[UInt8],
       8 as Int32,
     )
@@ -741,8 +739,8 @@ class pub Socket {
     let size = 8 as Int32
     let res = getsockopt(
       @socket.inner,
-      const.SOL_SOCKET as Int32,
-      const.SO_LINGER as Int32,
+      libc.SOL_SOCKET as Int32,
+      libc.SO_LINGER as Int32,
       (mut linger) as Pointer[UInt8],
       mut size,
     )
@@ -761,22 +759,22 @@ class pub Socket {
 
   # Sets the value of the `SO_RCVBUF` option.
   fn pub mut receive_buffer_size=(value: Int) -> Result[Nil, Error] {
-    set_option(const.SOL_SOCKET, const.SO_RCVBUF, value.to_int)
+    set_option(libc.SOL_SOCKET, libc.SO_RCVBUF, value.to_int)
   }
 
   # Sets the value of the `SO_SNDBUF` option.
   fn pub mut send_buffer_size=(value: Int) -> Result[Nil, Error] {
-    set_option(const.SOL_SOCKET, const.SO_SNDBUF, value.to_int)
+    set_option(libc.SOL_SOCKET, libc.SO_SNDBUF, value.to_int)
   }
 
   # Sets the value of the `SO_KEEPALIVE` option.
   fn pub mut keepalive=(value: Bool) -> Result[Nil, Error] {
-    set_option(const.SOL_SOCKET, const.SO_KEEPALIVE, value.to_int)
+    set_option(libc.SOL_SOCKET, libc.SO_KEEPALIVE, value.to_int)
   }
 
   # Sets the value of the `SO_REUSEADDR` option.
   fn pub mut reuse_address=(value: Bool) -> Result[Nil, Error] {
-    set_option(const.SOL_SOCKET, const.SO_REUSEADDR, value.to_int)
+    set_option(libc.SOL_SOCKET, libc.SO_REUSEADDR, value.to_int)
   }
 
   # Sets the value of the `SO_REUSEPORT` option.
@@ -784,7 +782,7 @@ class pub Socket {
   # Not all platforms may support this option, in which case the supplied
   # argument will be ignored.
   fn pub mut reuse_port=(value: Bool) -> Result[Nil, Error] {
-    set_option(const.SOL_SOCKET, const.SO_REUSEPORT, value.to_int)
+    set_option(libc.SOL_SOCKET, libc.SO_REUSEPORT, value.to_int)
   }
 
   # Shuts down the reading half of this socket.
@@ -1774,12 +1772,12 @@ class pub UnixSocket {
 
   # Sets the value of the `SO_RCVBUF` option.
   fn pub mut receive_buffer_size=(value: Int) -> Result[Nil, Error] {
-    set_option(const.SOL_SOCKET, const.SO_RCVBUF, value.to_int)
+    set_option(libc.SOL_SOCKET, libc.SO_RCVBUF, value.to_int)
   }
 
   # Sets the value of the `SO_SNDBUF` option.
   fn pub mut send_buffer_size=(value: Int) -> Result[Nil, Error] {
-    set_option(const.SOL_SOCKET, const.SO_SNDBUF, value.to_int)
+    set_option(libc.SOL_SOCKET, libc.SO_SNDBUF, value.to_int)
   }
 
   # Shuts down the reading half of this socket.

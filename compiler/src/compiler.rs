@@ -17,11 +17,11 @@ use crate::pkg::version::Version;
 use crate::state::State;
 use crate::type_check::define_types::{
     CheckTraitImplementations, CheckTraitRequirements, CheckTypeParameters,
-    DefineFields, DefineTraitRequirements, DefineTypeParameterRequirements,
-    DefineTypeParameters, DefineTypes, DefineVariants, ImplementTraits,
-    InsertPrelude,
+    DefineConstructors, DefineFields, DefineTraitRequirements,
+    DefineTypeParameterRequirements, DefineTypeParameters, DefineTypes,
+    ImplementTraits, InsertPrelude,
 };
-use crate::type_check::expressions::{DefineConstants, Expressions};
+use crate::type_check::expressions::{define_constants, Expressions};
 use crate::type_check::imports::{CollectExternImports, DefineImportedTypes};
 use crate::type_check::methods::{
     CheckMainMethod, DefineMethods, DefineModuleMethodNames,
@@ -448,12 +448,12 @@ LLVM module timings:
             && ImplementTraits::run_all(state, modules)
             && CheckTraitImplementations::run_all(state, modules)
             && CheckTypeParameters::run_all(state, modules)
-            && DefineVariants::run_all(state, modules)
+            && DefineConstructors::run_all(state, modules)
             && DefineFields::run_all(state, modules)
             && DefineMethods::run_all(state, modules)
             && CheckMainMethod::run(state)
             && ImplementTraitMethods::run_all(state, modules)
-            && DefineConstants::run_all(state, modules)
+            && define_constants(state, modules)
             && Expressions::run_all(state, modules);
 
         self.timings.type_check = start.elapsed();

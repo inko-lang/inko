@@ -1,0 +1,285 @@
+import std.drop (Drop)
+import std.fs (FileType, Metadata)
+import std.fs.file (ReadOnlyFile, WriteOnlyFile)
+import std.io (Error, reset_os_error, start_blocking, stop_blocking)
+import std.iter (Iter)
+import std.libc
+import std.sys.freebsd.fs (self as sys) if freebsd
+import std.sys.linux.fs (self as sys) if linux
+import std.sys.mac.fs (self as sys) if mac
+
+let DOT = 46
+let FILE_MODE = 0x1B6 # 666
+let DIR_MODE = 0x1FF # 777
+
+fn open_file(
+  path: String,
+  read: Bool,
+  write: Bool,
+  append: Bool,
+  truncate: Bool,
+) -> Result[Int32, Error] {
+  let path_ptr = path.to_pointer
+  let mut flags = libc.O_CLOEXEC
+    | if read and (write or append) {
+      libc.O_RDWR | libc.O_CREAT
+    } else if write {
+      libc.O_WRONLY | libc.O_CREAT
+    } else {
+      libc.O_RDONLY
+    }
+
+  if append { flags |= libc.O_APPEND }
+
+  if truncate { flags |= libc.O_TRUNC }
+
+  start_blocking
+
+  let file = libc.open(path_ptr, flags as Int32, FILE_MODE as Int32)
+  let err = stop_blocking
+
+  if file as Int >= 0 {
+    Result.Ok(file)
+  } else {
+    Result.Error(Error.from_os_error(err))
+  }
+}
+
+fn close_file(file: Int32) {
+  start_blocking
+  libc.close(file)
+  stop_blocking
+}
+
+fn read_file(
+  file: Int32,
+  into: mut ByteArray,
+  size: Int,
+) -> Result[Int, Error] {
+  into.reserve(size)
+
+  let len = into.size
+  let ptr = (into.to_pointer as Int + len) as Pointer[UInt8]
+
+  start_blocking
+
+  let res = libc.read(file, ptr, size as UInt64)
+  let err = stop_blocking
+
+  if res >= 0 {
+    into.size = len + res
+    Result.Ok(res)
+  } else {
+    Result.Error(Error.from_os_error(err))
+  }
+}
+
+fn write_file(
+  file: Int32,
+  data: Pointer[UInt8],
+  size: Int,
+) -> Result[Int, Error] {
+  start_blocking
+
+  let res = libc.write(file, data, size as UInt64)
+  let err = stop_blocking
+
+  if res >= 0 { Result.Ok(res) } else { Result.Error(Error.from_os_error(err)) }
+}
+
+fn flush_file(file: Int32) -> Result[Nil, Error] {
+  start_blocking
+
+  let res = libc.flush(file) as Int
+  let err = stop_blocking
+
+  if res == 0 { Result.Ok(nil) } else { Result.Error(Error.from_os_error(err)) }
+}
+
+fn seek_to(file: Int32, position: Int) -> Result[Int, Error] {
+  let whence = if position < 0 { libc.SEEK_END } else { libc.SEEK_SET } as Int32
+
+  start_blocking
+
+  let res = libc.lseek(file, position, whence)
+  let err = stop_blocking
+
+  if res >= 0 { Result.Ok(res) } else { Result.Error(Error.from_os_error(err)) }
+}
+
+fn file_metadata(fd: Int32) -> Result[Metadata, Error] {
+  sys.file_metadata(fd)
+}
+
+fn path_metadata(path: String) -> Result[Metadata, Error] {
+  sys.path_metadata(path)
+}
+
+fn create_directory(path: String) -> Result[Nil, Error] {
+  start_blocking
+
+  let res = libc.mkdir(path.to_pointer, DIR_MODE as UInt32) as Int
+  let err = stop_blocking
+
+  if res == 0 {
+    Result.Ok(nil)
+  } else {
+    # FreeBSD produces EISDIR for /, first reported in
+    # https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=59739 way back in 2003,
+    # and still not fixed as of 2024.
+    Result.Error(
+      if err == libc.EISDIR {
+        Error.AlreadyExists
+      } else {
+        Error.from_os_error(err)
+      },
+    )
+  }
+}
+
+fn remove_directory(path: String) -> Result[Nil, Error] {
+  start_blocking
+
+  let res = libc.rmdir(path.to_pointer) as Int
+  let err = stop_blocking
+
+  if res == 0 { Result.Ok(nil) } else { Result.Error(Error.from_os_error(err)) }
+}
+
+fn remove_file(path: String) -> Result[Nil, Error] {
+  start_blocking
+
+  let res = libc.unlink(path.to_pointer) as Int
+  let err = stop_blocking
+
+  if res == 0 { Result.Ok(nil) } else { Result.Error(Error.from_os_error(err)) }
+}
+
+fn copy_file(from: String, to: String) -> Result[Int, Error] {
+  sys.copy_file(from, to)
+}
+
+fn expand_path(path: String) -> Result[String, Error] {
+  start_blocking
+
+  let res = libc.realpath(path.to_pointer, 0x0 as Pointer[UInt8])
+  let err = stop_blocking
+
+  if res as Int == 0x0 { throw Error.from_os_error(err) }
+
+  let str = String.from_pointer(res)
+
+  libc.free(res)
+  Result.Ok(str)
+}
+
+fn copy_file_fallback(
+  from: mut ReadOnlyFile,
+  to_path: String,
+) -> Result[Int, Error] {
+  # To provide a balance between performance and memory usage, we've chosen the
+  # arbitrary buffer size of 1 MiB.
+  let buffer = ByteArray.with_capacity(1024 * 1024)
+  let mut copied = 0
+  let to = try WriteOnlyFile.new(to_path.to_path)
+
+  loop {
+    let mut pending = buffer.capacity
+
+    match from.read(into: buffer, size: buffer.capacity) {
+      case Ok(0) if buffer.size > 0 -> {
+        # The file is smaller than the buffer capacity, so we need to flush
+        # the remaining data.
+        try to.write_bytes(buffer)
+        break
+      }
+      case Ok(0) -> break
+      case Ok(n) -> {
+        pending -= n
+        copied += n
+
+        # In case we end up reading less than the requested amount we buffer up
+        # the data. This ensures that if we have many instances of smaller
+        # reads, we still keep the number of writes to a minimum.
+        if pending == 0 {
+          try to.write_bytes(buffer)
+          buffer.clear
+          pending = buffer.capacity
+        }
+      }
+      case Error(e) -> throw e
+    }
+  }
+
+  # Make sure the changes are actually persisted. This may be overly expensive
+  # in some cases, but it's better to be safe than sorry.
+  try to.flush
+  Result.Ok(copied)
+}
+
+class ReadDirectory {
+  let @stream: Pointer[UInt8]
+
+  fn static new(path: String) -> Result[ReadDirectory, Error] {
+    let stream = libc.opendir(path.to_pointer)
+
+    if stream as Int != 0 {
+      Result.Ok(ReadDirectory(stream))
+    } else {
+      Result.Error(Error.last_os_error)
+    }
+  }
+}
+
+impl Iter[Result[(String, FileType), Error]] for ReadDirectory {
+  fn pub mut next -> Option[Result[(String, FileType), Error]] {
+    loop {
+      # This call must come _directly_ before the readdir() call, to ensure we
+      # don't reschedule the process until after the call and the `errno` check.
+      reset_os_error
+
+      let entry = libc.readdir(@stream)
+
+      if entry as Int == 0 {
+        return match Error.last_os_error {
+          case Other(0) -> Option.None
+          case err -> Option.Some(Result.Error(err))
+        }
+      }
+
+      let name_ptr = libc.dirent_name(entry)
+      let name_len = libc.strlen(name_ptr) as Int
+      let first = name_ptr.0 as Int
+
+      # Skip "."
+      if name_len == 1 and first == 46 { next }
+
+      # Skip ".."
+      if
+        name_len == 2
+          and first == DOT
+          and (name_ptr as Int + 1 as Pointer[UInt8]).0 as Int == DOT
+      {
+        next
+      }
+
+      let name = String.from_pointer(name_ptr)
+      let type = match libc.dirent_type(entry) {
+        case libc.DT_DIR -> FileType.Directory
+        case libc.DT_REG -> FileType.File
+        case libc.DT_LNK -> FileType.SymbolicLink
+        case _ -> FileType.Other
+      }
+
+      return Option.Some(Result.Ok((name, type)))
+    }
+  }
+}
+
+impl Drop for ReadDirectory {
+  fn mut drop {
+    # closedir() only errors if the stream itself is invalid, which shouldn't be
+    # the case at this point.
+    libc.closedir(@stream)
+  }
+}

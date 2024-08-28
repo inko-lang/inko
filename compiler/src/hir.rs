@@ -375,7 +375,7 @@ pub(crate) enum ClassExpression {
     StaticMethod(Box<DefineStaticMethod>),
     AsyncMethod(Box<DefineAsyncMethod>),
     Field(Box<DefineField>),
-    Variant(Box<DefineVariant>),
+    Constructor(Box<DefineConstructor>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -409,10 +409,10 @@ pub(crate) struct DefineExternClass {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct DefineVariant {
+pub(crate) struct DefineConstructor {
     pub(crate) documentation: String,
     pub(crate) method_id: Option<types::MethodId>,
-    pub(crate) constructor_id: Option<types::VariantId>,
+    pub(crate) constructor_id: Option<types::ConstructorId>,
     pub(crate) name: Constant,
     pub(crate) members: Vec<Type>,
     pub(crate) location: SourceLocation,
@@ -641,17 +641,6 @@ impl ConstExpression {
             Self::True(ref n) => &n.location,
             Self::False(ref n) => &n.location,
         }
-    }
-
-    pub(crate) fn is_simple_literal(&self) -> bool {
-        matches!(
-            self,
-            ConstExpression::Int(_)
-                | ConstExpression::Float(_)
-                | ConstExpression::String(_)
-                | ConstExpression::True(_)
-                | ConstExpression::False(_)
-        )
     }
 }
 
@@ -1020,8 +1009,8 @@ pub(crate) struct ClassPattern {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct VariantPattern {
-    pub(crate) constructor_id: Option<types::VariantId>,
+pub(crate) struct ConstructorPattern {
+    pub(crate) constructor_id: Option<types::ConstructorId>,
     pub(crate) name: Constant,
     pub(crate) values: Vec<Pattern>,
     pub(crate) location: SourceLocation,
@@ -1069,7 +1058,7 @@ pub(crate) enum Pattern {
     Int(Box<IntLiteral>),
     String(Box<StringPattern>),
     Tuple(Box<TuplePattern>),
-    Variant(Box<VariantPattern>),
+    Constructor(Box<ConstructorPattern>),
     Wildcard(Box<WildcardPattern>),
     True(Box<True>),
     False(Box<False>),
@@ -1080,7 +1069,7 @@ impl Pattern {
     pub(crate) fn location(&self) -> &SourceLocation {
         match self {
             Pattern::Constant(ref n) => &n.location,
-            Pattern::Variant(ref n) => &n.location,
+            Pattern::Constructor(ref n) => &n.location,
             Pattern::Int(ref n) => &n.location,
             Pattern::String(ref n) => &n.location,
             Pattern::Identifier(ref n) => &n.location,
@@ -1400,7 +1389,7 @@ impl<'a> LowerToHir<'a> {
                         self.define_field(*node, doc),
                     )));
                 }
-                ast::ClassExpression::DefineVariant(node) => {
+                ast::ClassExpression::DefineConstructor(node) => {
                     let doc = comments.documentation_for(&node.location);
 
                     exprs.push(self.define_case(*node, doc));
@@ -1431,10 +1420,10 @@ impl<'a> LowerToHir<'a> {
 
     fn define_case(
         &mut self,
-        node: ast::DefineVariant,
+        node: ast::DefineConstructor,
         documentation: String,
     ) -> ClassExpression {
-        ClassExpression::Variant(Box::new(DefineVariant {
+        ClassExpression::Constructor(Box::new(DefineConstructor {
             documentation,
             method_id: None,
             constructor_id: None,
@@ -3121,8 +3110,8 @@ impl<'a> LowerToHir<'a> {
             }
             ast::Pattern::True(n) => Pattern::True(self.true_literal(*n)),
             ast::Pattern::False(n) => Pattern::False(self.false_literal(*n)),
-            ast::Pattern::Variant(n) => {
-                Pattern::Variant(Box::new(VariantPattern {
+            ast::Pattern::Constructor(n) => {
+                Pattern::Constructor(Box::new(ConstructorPattern {
                     constructor_id: None,
                     name: self.constant(n.name),
                     values: self.patterns(n.values),
@@ -6403,7 +6392,7 @@ mod tests {
                     location: cols(19, 19)
                 }],
                 body: vec![
-                    ClassExpression::Variant(Box::new(DefineVariant {
+                    ClassExpression::Constructor(Box::new(DefineConstructor {
                         documentation: String::new(),
                         method_id: None,
                         constructor_id: None,
@@ -6423,7 +6412,7 @@ mod tests {
                         }))],
                         location: cols(24, 35)
                     },)),
-                    ClassExpression::Variant(Box::new(DefineVariant {
+                    ClassExpression::Constructor(Box::new(DefineConstructor {
                         documentation: String::new(),
                         method_id: None,
                         constructor_id: None,

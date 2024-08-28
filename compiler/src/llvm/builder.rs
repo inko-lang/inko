@@ -62,9 +62,20 @@ impl<'ctx> Builder<'ctx> {
         index: u32,
     ) -> BasicValueEnum<'ctx> {
         let vtype = receiver_type.get_field_type_at_index(index).unwrap();
+
+        self.load_field_as(receiver_type, receiver, index, vtype)
+    }
+
+    pub(crate) fn load_field_as<T: BasicType<'ctx>>(
+        &self,
+        receiver_type: StructType<'ctx>,
+        receiver: PointerValue<'ctx>,
+        index: u32,
+        typ: T,
+    ) -> BasicValueEnum<'ctx> {
         let field_ptr = self.field_address(receiver_type, receiver, index);
 
-        self.inner.build_load(vtype, field_ptr, "").unwrap()
+        self.inner.build_load(typ, field_ptr, "").unwrap()
     }
 
     pub(crate) fn field_address(

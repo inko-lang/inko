@@ -18,6 +18,27 @@ fn pub tests(t: mut Tests) {
     t.equal(fmt(FileType.Other), 'Other')
   })
 
+  t.test('FileType.file?', fn (t) {
+    t.true(FileType.File.file?)
+    t.false(FileType.Directory.file?)
+    t.false(FileType.SymbolicLink.file?)
+    t.false(FileType.Other.file?)
+  })
+
+  t.test('FileType.directory?', fn (t) {
+    t.false(FileType.File.directory?)
+    t.true(FileType.Directory.directory?)
+    t.false(FileType.SymbolicLink.directory?)
+    t.false(FileType.Other.directory?)
+  })
+
+  t.test('FileType.symbolic_link?', fn (t) {
+    t.false(FileType.File.symbolic_link?)
+    t.false(FileType.Directory.symbolic_link?)
+    t.true(FileType.SymbolicLink.symbolic_link?)
+    t.false(FileType.Other.symbolic_link?)
+  })
+
   t.test('DirectoryEntry.==', fn (t) {
     let entry1 = DirectoryEntry(path: 'foo'.to_path, type: FileType.File)
     let entry2 = DirectoryEntry(path: 'foo'.to_path, type: FileType.File)

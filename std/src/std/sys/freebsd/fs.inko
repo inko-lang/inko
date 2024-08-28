@@ -1,0 +1,177 @@
+import std.fs (FileType, Metadata, Time)
+import std.fs.file (ReadOnlyFile, WriteOnlyFile)
+import std.io (Error, start_blocking, stop_blocking)
+import std.libc.freebsd (self as libc)
+import std.sys.unix.fs (self as unix)
+
+# The maximum number of bytes we can copy in a single system call.
+let MAX_COPY = 0x7fffffffffffffff
+
+fn stat_time(time: Pointer[libc.Timespec]) -> Time {
+  Time(secs: time.tv_sec as Int, nanos: time.tv_nsec as Int)
+}
+
+fn stat_to_metadata(buf: Pointer[libc.StatBuf]) -> Metadata {
+  Metadata(
+    type: match buf.st_mode as Int & libc.S_IFMT {
+      case libc.S_IFREG -> FileType.File
+      case libc.S_IFDIR -> FileType.Directory
+      case libc.S_IFLNK -> FileType.SymbolicLink
+      case _ -> FileType.Other
+    },
+    mode: buf.st_mode as Int,
+    size: buf.st_size as Int,
+    created_at: Option.Some(stat_time(buf.st_birthtim)),
+    modified_at: stat_time(buf.st_mtim),
+    accessed_at: stat_time(buf.st_atim),
+  )
+}
+
+fn file_metadata(fd: Int32) -> Result[Metadata, Error] {
+  let buf = libc.StatBuf(
+    st_dev: 0 as UInt64,
+    st_ino: 0 as UInt64,
+    st_nlink: 0 as UInt64,
+    st_mode: 0 as UInt16,
+    __pad0: 0 as Int16,
+    st_uid: 0 as UInt32,
+    st_gid: 0 as UInt32,
+    __pad1: 0 as Int32,
+    st_rdev: 0 as UInt64,
+    st_atim: libc.Timespec(tv_sec: 0 as Int64, tv_nsec: 0 as Int64),
+    st_mtim: libc.Timespec(tv_sec: 0 as Int64, tv_nsec: 0 as Int64),
+    st_ctim: libc.Timespec(tv_sec: 0 as Int64, tv_nsec: 0 as Int64),
+    st_birthtim: libc.Timespec(tv_sec: 0 as Int64, tv_nsec: 0 as Int64),
+    st_size: 0 as Int64,
+    st_blocks: 0 as Int64,
+    st_blksize: 0 as Int32,
+    st_flags: 0 as UInt32,
+    st_gen: 0 as UInt64,
+    st_spare0: 0 as Int64,
+    st_spare1: 0 as Int64,
+    st_spare2: 0 as Int64,
+    st_spare3: 0 as Int64,
+    st_spare4: 0 as Int64,
+    st_spare5: 0 as Int64,
+    st_spare6: 0 as Int64,
+    st_spare7: 0 as Int64,
+    st_spare8: 0 as Int64,
+    st_spare9: 0 as Int64,
+  )
+
+  start_blocking
+
+  let res = libc.fstat(fd, mut buf) as Int
+  let err = stop_blocking
+
+  if res == -1 { throw Error.from_os_error(err) }
+
+  Result.Ok(stat_to_metadata(mut buf))
+}
+
+fn path_metadata(path: String) -> Result[Metadata, Error] {
+  let buf = libc.StatBuf(
+    st_dev: 0 as UInt64,
+    st_ino: 0 as UInt64,
+    st_nlink: 0 as UInt64,
+    st_mode: 0 as UInt16,
+    __pad0: 0 as Int16,
+    st_uid: 0 as UInt32,
+    st_gid: 0 as UInt32,
+    __pad1: 0 as Int32,
+    st_rdev: 0 as UInt64,
+    st_atim: libc.Timespec(tv_sec: 0 as Int64, tv_nsec: 0 as Int64),
+    st_mtim: libc.Timespec(tv_sec: 0 as Int64, tv_nsec: 0 as Int64),
+    st_ctim: libc.Timespec(tv_sec: 0 as Int64, tv_nsec: 0 as Int64),
+    st_birthtim: libc.Timespec(tv_sec: 0 as Int64, tv_nsec: 0 as Int64),
+    st_size: 0 as Int64,
+    st_blocks: 0 as Int64,
+    st_blksize: 0 as Int32,
+    st_flags: 0 as UInt32,
+    st_gen: 0 as UInt64,
+    st_spare0: 0 as Int64,
+    st_spare1: 0 as Int64,
+    st_spare2: 0 as Int64,
+    st_spare3: 0 as Int64,
+    st_spare4: 0 as Int64,
+    st_spare5: 0 as Int64,
+    st_spare6: 0 as Int64,
+    st_spare7: 0 as Int64,
+    st_spare8: 0 as Int64,
+    st_spare9: 0 as Int64,
+  )
+
+  start_blocking
+
+  let res = libc.stat(path.to_pointer, mut buf) as Int
+  let err = stop_blocking
+
+  if res == -1 { throw Error.from_os_error(err) }
+
+  Result.Ok(stat_to_metadata(mut buf))
+}
+
+fn kernel_copy(from: Int32, to: Int32) -> Result[Int, Error] {
+  let mut copied = 0
+
+  loop {
+    start_blocking
+
+    let res = libc.copy_file_range(
+      in: from,
+      off_in: 0x0 as Pointer[Int64],
+      out: to,
+      off_out: 0x0 as Pointer[Int64],
+      len: MAX_COPY as UInt64,
+      flags: 0 as UInt32,
+    )
+      as Int
+    let err = stop_blocking
+
+    match res {
+      case 0 -> break
+      case -1 -> {
+        match err {
+          # Starting with FreeBSD 14, copy_file_range() shouldn't produce EXDEV,
+          # but it's not clear what FreeBSD 13 does, so we handle it just in
+          # case. Some of the wording in https://reviews.freebsd.org/D42603
+          # suggests that at least on ZFS it should never be produced.
+          case
+            libc.EXDEV
+              or libc.EINVAL
+              or libc.EIO
+              or libc.ENOSYS
+              or libc.EOPNOTSUPP
+          -> {
+            return Result.Ok(-1)
+          }
+          case _ -> throw Error.from_os_error(err)
+        }
+      }
+      case n -> copied += n
+    }
+  }
+
+  if copied == 0 { Result.Ok(-1) } else { Result.Ok(copied) }
+}
+
+fn copy_file(from: String, to: String) -> Result[Int, Error] {
+  let from_file = try ReadOnlyFile.new(from.to_path)
+  let from_meta = try from_file.metadata
+  let to_file = try WriteOnlyFile.new(to.to_path)
+  let copied = match try kernel_copy(from_file.fd, to_file.fd) {
+    case -1 -> try unix.copy_file_fallback(from_file, to)
+    case n -> n
+  }
+
+  start_blocking
+
+  let res = libc.fchmod(to_file.fd, from_meta.mode as UInt16) as Int
+  let err = stop_blocking
+
+  if res == 0 {
+    Result.Ok(copied)
+  } else {
+    Result.Error(Error.from_os_error(err))
+  }
+}

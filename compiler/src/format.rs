@@ -760,9 +760,9 @@ impl Document {
                     self.define_field(n),
                     matches!(next, Some(ClassExpression::DefineField(_))),
                 ),
-                ClassExpression::DefineVariant(n) => (
+                ClassExpression::DefineConstructor(n) => (
                     self.define_constructor(n),
-                    matches!(next, Some(ClassExpression::DefineVariant(_))),
+                    matches!(next, Some(ClassExpression::DefineConstructor(_))),
                 ),
                 ClassExpression::Comment(n) => (self.comment(n), true),
             };
@@ -1040,7 +1040,7 @@ impl Document {
         Node::Nodes(group)
     }
 
-    fn define_constructor(&mut self, node: &nodes::DefineVariant) -> Node {
+    fn define_constructor(&mut self, node: &nodes::DefineConstructor) -> Node {
         let mut group = vec![Node::text("case "), Node::text(&node.name.name)];
 
         if let Some(nodes) =
@@ -2098,7 +2098,7 @@ impl Document {
             nodes::Pattern::Constant(n) => {
                 vec![self.constant(n)]
             }
-            nodes::Pattern::Variant(n) => {
+            nodes::Pattern::Constructor(n) => {
                 let mut group = vec![Node::text(&n.name.name)];
 
                 if !n.values.is_empty() {

@@ -1,7 +1,9 @@
 import std.env
+import std.fs (FileType)
 import std.fs.file (self, ReadOnlyFile, ReadWriteFile, WriteOnlyFile)
 import std.fs.path (Path)
 import std.test (Tests)
+import std.time (DateTime, Duration)
 
 fn write(string: String, to: ref Path) {
   let file = WriteOnlyFile.new(to.clone).get
@@ -62,34 +64,67 @@ fn pub tests(t: mut Tests) {
     path.remove_file.get
   })
 
-  t.test('ReadOnlyFile.size', fn (t) {
+  t.ok('ReadOnlyFile.metadata', fn (t) {
     let path = env.temporary_directory.join('inko-test-${t.id}')
 
     write('test', to: path)
 
-    let handle = ReadOnlyFile.new(path.clone).get
+    let today = DateTime.utc - Duration.from_secs(60)
+    let handle = try ReadOnlyFile.new(path.clone)
+    let meta = try handle.metadata
 
-    t.true(handle.size.get >= 0)
+    t.true(meta.size >= 4)
+    t.true(meta.type.file?)
+    t.true(meta.modified_at >= today)
+    t.true(meta.accessed_at >= today)
 
-    path.remove_file.get
+    match meta.created_at {
+      case Some(v) -> t.true(v >= today)
+      case _ -> {}
+    }
+
+    try path.remove_file
+    Result.Ok(nil)
   })
 
-  t.test('WriteOnlyFile.new', fn (t) {
+  t.ok('WriteOnlyFile.new', fn (t) {
     let path = env.temporary_directory.join('inko-test-${t.id}')
 
-    t.true(WriteOnlyFile.new(path.clone).ok?)
-    t.true(WriteOnlyFile.new(path.clone).ok?)
+    {
+      let file = try WriteOnlyFile.new(path.clone)
 
-    path.remove_file.get
+      try file.write_string('hello')
+      try file.flush
+
+      t.equal(read(path), 'hello')
+    }
+
+    # Opening an existing file should truncate it.
+    try WriteOnlyFile.new(path.clone)
+
+    t.equal(read(path), '')
+    path.remove_file
   })
 
-  t.test('WriteOnlyFile.append', fn (t) {
+  t.ok('WriteOnlyFile.append', fn (t) {
     let path = env.temporary_directory.join('inko-test-${t.id}')
 
-    t.true(WriteOnlyFile.append(path.clone).ok?)
-    t.true(WriteOnlyFile.append(path.clone).ok?)
+    {
+      let file = try WriteOnlyFile.append(path.clone)
 
-    path.remove_file.get
+      try file.write_string('hello')
+      try file.flush
+    }
+
+    {
+      let file = try WriteOnlyFile.append(path.clone)
+
+      try file.write_string('world')
+      try file.flush
+    }
+
+    t.equal(read(path), 'helloworld')
+    path.remove_file
   })
 
   t.test('WriteOnlyFile.write_bytes', fn (t) {
@@ -137,8 +172,8 @@ fn pub tests(t: mut Tests) {
     let handle = WriteOnlyFile.new(path.clone).get
 
     handle.write_string('test').get
-    handle.flush.get
 
+    t.equal(handle.flush, Result.Ok(nil))
     t.equal(read(path), 'test')
 
     path.remove_file.get
@@ -157,13 +192,52 @@ fn pub tests(t: mut Tests) {
     path.remove_file.get
   })
 
-  t.test('ReadWriteFile.new', fn (t) {
+  t.ok('WriteOnlyFile.metadata', fn (t) {
+    let path = env.temporary_directory.join('inko-test-${t.id}')
+    let today = DateTime.utc - Duration.from_secs(60)
+    let handle = try WriteOnlyFile.new(path.clone)
+
+    try handle.write_string('test')
+
+    let meta = try handle.metadata
+
+    t.true(meta.size >= 4)
+    t.true(meta.type.file?)
+    t.true(meta.modified_at >= today)
+    t.true(meta.accessed_at >= today)
+
+    match meta.created_at {
+      case Some(v) -> t.true(v >= today)
+      case _ -> {}
+    }
+
+    try path.remove_file
+    Result.Ok(nil)
+  })
+
+  t.ok('ReadWriteFile.new', fn (t) {
     let path = env.temporary_directory.join('inko-test-${t.id}')
 
-    t.true(ReadWriteFile.new(path.clone).ok?)
-    t.true(ReadWriteFile.new(path.clone).ok?)
+    {
+      let file = try ReadWriteFile.new(path.clone)
+      let buf = ByteArray.new
 
-    path.remove_file.get
+      try file.write_string('hello')
+      try file.flush
+      try file.seek(0)
+      try file.read_all(buf)
+
+      t.equal(buf.into_string, 'hello')
+    }
+
+    # Opening an existing file _shouldn't_ truncate it.
+    let file = try ReadWriteFile.new(path.clone)
+    let buf = ByteArray.new
+
+    try file.read_all(buf)
+
+    t.equal(buf.into_string, 'hello')
+    path.remove_file
   })
 
   t.test('ReadWriteFile.append', fn (t) {
@@ -235,8 +309,8 @@ fn pub tests(t: mut Tests) {
     let handle = ReadWriteFile.new(path.clone).get
 
     handle.write_string('test').get
-    handle.flush.get
 
+    t.equal(handle.flush, Result.Ok(nil))
     t.equal(read(path), 'test')
 
     path.remove_file.get
@@ -255,15 +329,26 @@ fn pub tests(t: mut Tests) {
     path.remove_file.get
   })
 
-  t.test('ReadWriteFile.size', fn (t) {
+  t.ok('ReadWriteFile.metadata', fn (t) {
     let path = env.temporary_directory.join('inko-test-${t.id}')
+    let today = DateTime.utc - Duration.from_secs(60)
+    let handle = try ReadWriteFile.new(path.clone)
 
-    write('test', to: path)
+    try handle.write_string('test')
 
-    let handle = ReadWriteFile.new(path.clone).get
+    let meta = try handle.metadata
 
-    t.true(handle.size.get >= 0)
+    t.true(meta.size >= 4)
+    t.true(meta.type.file?)
+    t.true(meta.modified_at >= today)
+    t.true(meta.accessed_at >= today)
 
-    path.remove_file.get
+    match meta.created_at {
+      case Some(v) -> t.true(v >= today)
+      case _ -> {}
+    }
+
+    try path.remove_file
+    Result.Ok(nil)
   })
 }

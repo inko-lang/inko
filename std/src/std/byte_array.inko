@@ -13,6 +13,11 @@ import std.string (Bytes, IntoString, ToString)
 
 fn extern inko_byte_array_new(state: Pointer[UInt8]) -> ByteArray
 
+fn extern inko_byte_array_with_capacity(
+  state: Pointer[UInt8],
+  size: Int,
+) -> ByteArray
+
 fn extern inko_byte_array_clear(bytes: mut ByteArray)
 
 fn extern inko_byte_array_append(target: mut ByteArray, source: mut ByteArray)
@@ -40,6 +45,10 @@ fn extern inko_byte_array_get(bytes: ref ByteArray, index: Int) -> Int
 
 fn extern inko_byte_array_size(bytes: ref ByteArray) -> Int
 
+fn extern inko_byte_array_set_size(bytes: ref ByteArray, size: Int) -> Int
+
+fn extern inko_byte_array_capacity(bytes: ref ByteArray) -> Int
+
 fn extern inko_byte_array_push(bytes: mut ByteArray, byte: Int)
 
 fn extern inko_byte_array_pop(bytes: mut ByteArray) -> Int
@@ -47,6 +56,8 @@ fn extern inko_byte_array_pop(bytes: mut ByteArray) -> Int
 fn extern inko_byte_array_remove(bytes: mut ByteArray, index: Int) -> Int
 
 fn extern inko_byte_array_resize(bytes: mut ByteArray, size: Int, filler: Int)
+
+fn extern inko_byte_array_reserve(bytes: mut ByteArray, size: Int)
 
 fn extern inko_byte_array_set(
   bytes: mut ByteArray,
@@ -97,6 +108,38 @@ class builtin ByteArray {
   # Returns a new empty `ByteArray`.
   fn pub static new -> ByteArray {
     inko_byte_array_new(_INKO.state)
+  }
+
+  # Returns a `ByteArray` with enough space for `size` bytes.
+  #
+  # The actual capacity may be greater than the given value.
+  #
+  # # Panics
+  #
+  # This method panics of `size` if less than zero.
+  #
+  # # Examples
+  #
+  # ```inko
+  # ByteArray.with_capacity(32).capacity # => 32
+  # ```
+  fn pub static with_capacity(size: Int) -> ByteArray {
+    if size < 0 { panic('The capacity must be greater than or equal to zero') }
+
+    inko_byte_array_with_capacity(_INKO.state, size)
+  }
+
+  # Returns the number of bytes that can be stored in `self` before `self` needs
+  # to be resized.
+  #
+  # # Examples
+  #
+  # ```inko
+  # ByteArray.new.capacity               # => 0
+  # ByteArray.with_capacity(32).capacity # => 32
+  # ```
+  fn pub capacity -> Int {
+    inko_byte_array_capacity(self)
   }
 
   # Returns a new `ByteArray` created from the given `Array`.
@@ -437,6 +480,16 @@ class builtin ByteArray {
     inko_byte_array_resize(self, size, value)
   }
 
+  # Reserves space for exactly `size` additional values.
+  #
+  # If the capacity is great enough or the given size is less than zero, this
+  # method does nothing.
+  fn pub mut reserve(size: Int) {
+    if capacity - self.size >= size { return }
+
+    inko_byte_array_reserve(self, size)
+  }
+
   # Returns the last byte in `self`
   #
   # # Examples
@@ -488,6 +541,10 @@ class builtin ByteArray {
     } else {
       false
     }
+  }
+
+  fn mut size=(value: Int) {
+    inko_byte_array_set_size(self, value)
   }
 }
 

@@ -1,0 +1,183 @@
+import std.libc.mac.amd64 (self as sys) if amd64
+import std.libc.mac.arm64 (self as sys) if arm64
+
+let AT_FDCWD = -2
+let COPYFILE_ALL = 15
+let DT_DIR = 4
+let DT_LNK = 10
+let DT_REG = 8
+let EACCES = 13
+let EADDRINUSE = 48
+let EADDRNOTAVAIL = 49
+let EAGAIN = 35
+let EBUSY = 16
+let ECONNABORTED = 53
+let ECONNREFUSED = 61
+let ECONNRESET = 54
+let EDEADLK = 11
+let EEXIST = 17
+let EFAULT = 14
+let EFBIG = 27
+let EHOSTUNREACH = 65
+let EINPROGRESS = 36
+let EINTR = 4
+let EINVAL = 22
+let EIO = 5
+let EISCONN = 56
+let EISDIR = 21
+let ENAMETOOLONG = 63
+let ENETDOWN = 50
+let ENETUNREACH = 51
+let ENOENT = 2
+let ENOMEM = 12
+let ENOSPC = 28
+let ENOTCONN = 57
+let ENOTDIR = 20
+let ENOTEMPTY = 66
+let ENOTSUP = 45
+let EOPNOTSUPP = 102
+let EPERM = 1
+let EPIPE = 32
+let EROFS = 30
+let ESPIPE = 29
+let ETIME = 101
+let ETIMEDOUT = 60
+let EXDEV = 18
+let F_BARRIERFSYNC = 85
+let F_FULLFSYNC = 51
+let IPPROTO_IP = 0
+let IPPROTO_IPV6 = 41
+let IPPROTO_TCP = 6
+let IPV6_V6ONLY = 27
+let IP_TTL = 4
+let O_APPEND = 0x8
+let O_CLOEXEC = 0x1000000
+let O_CREAT = 0x200
+let O_RDONLY = 0
+let O_RDWR = 0x2
+let O_TRUNC = 0x400
+let O_WRONLY = 0x1
+let SEEK_END = 2
+let SEEK_SET = 0
+let SOL_SOCKET = 0xFFFF
+let SO_BROADCAST = 0x20
+let SO_KEEPALIVE = 0x8
+let SO_LINGER_SEC = 0x1080
+let SO_RCVBUF = 0x1002
+let SO_REUSEADDR = 0x4
+let SO_REUSEPORT = 0x200
+let SO_SNDBUF = 0x1001
+let S_IFDIR = 0x4000
+let S_IFLNK = 0xA000
+let S_IFMT = 0xF000
+let S_IFREG = 0x8000
+let TCP_NODELAY = 1
+
+# For macOS we need to use `SO_LINGER_SEC` to control the time in seconds
+# instead of ticks, and `SO_LINGER` itself isn't useful.
+let SO_LINGER = SO_LINGER_SEC
+
+class extern Dirent {
+  let @d_ino: UInt64
+  let @d_seekoff: UInt64
+  let @d_reclen: UInt16
+  let @d_namlen: UInt16
+  let @d_type: UInt8
+}
+
+class extern StatBuf {
+  let @st_dev: Int32
+  let @st_mode: UInt16
+  let @st_nlink: UInt16
+  let @st_ino: UInt64
+  let @st_uid: UInt32
+  let @st_gid: UInt32
+  let @st_rdev: Int32
+  let @st_atime: Int64
+  let @st_atime_nsec: Int64
+  let @st_mtime: Int64
+  let @st_mtime_nsec: Int64
+  let @st_ctime: Int64
+  let @st_ctime_nsec: Int64
+  let @st_birthtime: Int64
+  let @st_birthtime_nsec: Int64
+  let @st_size: Int64
+  let @st_blocks: Int64
+  let @st_blksize: Int32
+  let @st_flags: UInt32
+  let @st_gen: UInt32
+  let @st_lspare: Int32
+  let @st_qspare0: Int64
+  let @st_qspare1: Int64
+}
+
+fn extern chmod(path: Pointer[UInt8], mode: UInt16) -> Int32
+
+fn extern fsync(fd: Int32) -> Int32
+
+fn extern fcntl(fd: Int32, cmd: Int32, ...) -> Int32
+
+fn extern fclonefileat(
+  from: Int32,
+  dir: Int32,
+  to: Pointer[UInt8],
+  flags: Int32,
+) -> Int32
+
+fn extern fcopyfile(
+  from: Int32,
+  to: Int32,
+  state: Pointer[UInt8],
+  flags: UInt32,
+) -> Int32
+
+fn fstat(fd: Int32, buf: Pointer[StatBuf]) -> Int32 {
+  sys.fstat(fd, buf)
+}
+
+fn stat(path: Pointer[UInt8], buf: Pointer[StatBuf]) -> Int32 {
+  sys.stat(path, buf)
+}
+
+fn opendir(path: Pointer[UInt8]) -> Pointer[UInt8] {
+  sys.opendir(path)
+}
+
+fn readdir(path: Pointer[UInt8]) -> Pointer[Dirent] {
+  sys.readdir(path)
+}
+
+fn flush(fd: Int32) -> Int32 {
+  # On macOS the guarantees of fsync() aren't as strong as on Linux
+  # (https://mjtsai.com/blog/2022/02/17/apple-ssd-benchmarks-and-f_fullsync/),
+  # instead one has to use a macOS specific fcntl() command to achieve the same
+  # result.
+  #
+  # In addition, some non-Apple drives may not support F_FULLSYNC or
+  # F_BARRIERFSYNC, in which case one should fall back to using fsync():
+  #
+  # You'd think Apple would fix this somehow, but instead every project that
+  # intends to flush some data has te reimplement this logic (or rely on a
+  # library that does).
+  #
+  # - https://github.com/libuv/libuv/issues/1579
+  # - https://github.com/neovim/neovim/issues/9611
+  # - https://github.com/mackyle/sqlite/blob/a03874b4f2a43506a571c47b84c50376921023e9/src/os_unix.c#L3485
+  # - https://github.com/libuv/libuv/blob/f00d4b677556a007a28fcb0bb3548ecdb54a29ae/src/unix/fs.c#L174
+  # - https://github.com/vim/vim/pull/4025
+  if fcntl(fd, F_FULLFSYNC as Int32) as Int == 0 {
+    0 as Int32
+  } else if fcntl(fd, F_BARRIERFSYNC as Int32) as Int == 0 {
+    0 as Int32
+  } else {
+    fsync(fd)
+  }
+}
+
+fn dirent_type(pointer: Pointer[Dirent]) -> Int {
+  pointer.d_type as Int
+}
+
+fn dirent_name(pointer: Pointer[Dirent]) -> Pointer[UInt8] {
+  pointer as Int + 21 as Pointer[UInt8]
+}

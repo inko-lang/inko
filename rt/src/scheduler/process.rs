@@ -175,6 +175,9 @@ pub struct Thread {
     /// A value of 0 indicates the thread isn't blocked.
     blocked_at: u64,
 
+    /// The number of nested blocking calls we're in.
+    blocked_nesting: u64,
+
     /// The ID of the network poller assigned to this thread.
     ///
     /// Threads are each assigned a network poller in a round-robin fashion.
@@ -206,6 +209,7 @@ impl Thread {
             work: pool.threads[id].queue.clone(),
             backup: false,
             blocked_at: NOT_BLOCKING,
+            blocked_nesting: 0,
             network_poller,
             rng: thread_rng(),
             stacks: StackPool::new(pool.stack_size),
@@ -222,6 +226,7 @@ impl Thread {
             work: pool.threads[0].queue.clone(),
             backup: true,
             blocked_at: NOT_BLOCKING,
+            blocked_nesting: 0,
             network_poller,
             rng: thread_rng(),
             stacks: StackPool::new(pool.stack_size),
@@ -260,10 +265,27 @@ impl Thread {
     }
 
     pub(crate) fn start_blocking(&mut self) {
+        // The main thread only ever runs the main process. We need to ensure it
+        // never turns into a backup thread, which we do by just running the
+        // blocking code as-is.
+        if self.is_main() {
+            return;
+        }
+
+        // It's possible a user signals the start of a blocking call while this
+        // was already done so. This ensures that we handle such cases
+        // gracefully instead of potentially leaving the thread in a weird
+        // state.
+        if self.blocked_nesting > 0 {
+            self.blocked_nesting += 1;
+            return;
+        }
+
         let epoch = self.pool.current_epoch();
         let shared = &self.pool.threads[self.id];
 
         self.blocked_at = epoch;
+        self.blocked_nesting = 1;
         shared.blocked_at.store(epoch, Ordering::Release);
 
         // The monitor thread may be sleeping indefinitely if we're the first
@@ -284,7 +306,44 @@ impl Thread {
         }
     }
 
-    pub(crate) fn finish_blocking(&mut self) {
+    pub(crate) fn stop_blocking(&mut self, process: ProcessPointer) {
+        if self.is_main() {
+            return;
+        }
+
+        self.blocked_nesting = self.blocked_nesting.saturating_sub(1);
+
+        if self.blocked_nesting > 0 {
+            return;
+        }
+
+        self.reset_blocked_at();
+
+        // If the operation took too long to run, we have to give up running the
+        // process. If we continue running we could mess up whatever thread has
+        // taken over our queue/work, and we'd be using the OS thread even
+        // longer than we already have.
+        //
+        // We schedule onto the global queue because if another thread took over
+        // but found no other work, it may have gone to sleep. In that case
+        // scheduling onto the local queue may result in the work never getting
+        // picked up (e.g. if all other threads are also sleeping).
+        if self.backup {
+            // Safety: the current thread is holding on to the run lock, so
+            // another thread can't run the process until we finish the context
+            // switch.
+            self.schedule_global(process);
+
+            // This is disabled when running tests, as context switching won't
+            // work there.
+            #[cfg(not(test))]
+            unsafe {
+                context::switch(process)
+            };
+        }
+    }
+
+    fn reset_blocked_at(&mut self) {
         let shared = &self.pool.threads[self.id];
         let epoch = self.blocked_at;
 
@@ -304,47 +363,6 @@ impl Thread {
         }
 
         self.blocked_at = NOT_BLOCKING;
-    }
-
-    pub(crate) fn blocking<F, R>(
-        &mut self,
-        process: ProcessPointer,
-        function: F,
-    ) -> R
-    where
-        F: FnOnce() -> R,
-    {
-        // The main thread only ever runs the main process. We need to ensure it
-        // never turns into a backup thread, which we do by just running the
-        // blocking code as-is.
-        if self.is_main() {
-            return function();
-        }
-
-        self.start_blocking();
-
-        let res = function();
-
-        self.finish_blocking();
-
-        // If the closure took too long to run (e.g. an IO operation took too
-        // long), we have to give up running the process. If we continue running
-        // we could mess up whatever thread has taken over our queue/work, and
-        // we'd be using the OS thread even longer than we already have.
-        //
-        // We schedule onto the global queue because if another thread took over
-        // but found no other work, it may have gone to sleep. In that case
-        // scheduling onto the local queue may result in the work never getting
-        // picked up (e.g. if all other threads are also sleeping).
-        if self.backup {
-            // Safety: the current thread is holding on to the run lock, so
-            // another thread can't run the process until we finish the context
-            // switch.
-            self.schedule_global(process);
-            unsafe { context::switch(process) };
-        }
-
-        res
     }
 
     fn run(&mut self, state: &State) {
@@ -560,6 +578,15 @@ impl Thread {
             }
 
             CURRENT_PROCESS.set(null_mut());
+        }
+
+        // It's possible that we finish work with an uneven number of calls to
+        // `start_blocking` and `stop_blocking`, such as when the developer
+        // didn't pay attention to the documentation telling them to do just
+        // that.
+        if self.blocked_nesting > 0 {
+            self.blocked_nesting = 0;
+            self.reset_blocked_at();
         }
 
         match self.action.take() {
@@ -1203,27 +1230,89 @@ mod tests {
         thread.start_blocking();
 
         assert_eq!(thread.blocked_at, 4);
+        assert_eq!(thread.blocked_nesting, 1);
         assert_eq!(pool.threads[1].blocked_at.load(Ordering::Acquire), 4);
         assert_eq!(pool.monitor.status.load(), MonitorStatus::Notified);
     }
 
     #[test]
-    fn test_thread_finish_blocking() {
+    fn test_thread_stop_blocking() {
+        let state = setup();
+        let pool = &state.scheduler.pool;
+        let mut thread = Thread::new(1, 0, pool.clone());
+        let class = empty_process_class("A");
+        let process = new_process(*class).take_and_forget();
+
+        thread.start_blocking();
+        thread.stop_blocking(process);
+
+        assert!(!thread.backup);
+        assert!(pool.global.lock().unwrap().is_empty());
+        assert_eq!(thread.blocked_nesting, 0);
+
+        thread.start_blocking();
+        pool.threads[1].blocked_at.store(NOT_BLOCKING, Ordering::Release);
+        thread.stop_blocking(process);
+
+        assert!(thread.backup);
+        assert_eq!(thread.blocked_at, NOT_BLOCKING);
+        assert_eq!(pool.global.lock().unwrap().len(), 1);
+        assert_eq!(thread.blocked_nesting, 0);
+    }
+
+    #[test]
+    fn test_thread_start_blocking_nested() {
+        let state = setup();
+        let pool = &state.scheduler.pool;
+        let mut thread = Thread::new(1, 0, pool.clone());
+        let class = empty_process_class("A");
+        let process = new_process(*class).take_and_forget();
+
+        thread.start_blocking();
+        thread.start_blocking();
+        thread.start_blocking();
+        pool.threads[1].blocked_at.store(NOT_BLOCKING, Ordering::Release);
+
+        thread.stop_blocking(process);
+        assert!(!thread.backup);
+        assert!(pool.global.lock().unwrap().is_empty());
+        assert_eq!(thread.blocked_nesting, 2);
+
+        thread.stop_blocking(process);
+        assert!(!thread.backup);
+        assert!(pool.global.lock().unwrap().is_empty());
+        assert_eq!(thread.blocked_nesting, 1);
+
+        thread.stop_blocking(process);
+        assert!(thread.backup);
+        assert_eq!(pool.global.lock().unwrap().len(), 1);
+        assert_eq!(thread.blocked_nesting, 0);
+        assert_eq!(thread.blocked_at, NOT_BLOCKING);
+    }
+
+    #[test]
+    fn test_thread_start_blocking_without_stop_blocking() {
+        let class = empty_process_class("A");
+        let proc = new_process_with_message(*class, method).take_and_forget();
         let state = setup();
         let pool = &state.scheduler.pool;
         let mut thread = Thread::new(1, 0, pool.clone());
 
-        thread.start_blocking();
-        thread.finish_blocking();
+        pool.epoch.store(4, Ordering::Release);
+        pool.monitor.status.store(MonitorStatus::Sleeping);
 
-        assert!(!thread.backup);
-
+        thread.schedule(proc);
         thread.start_blocking();
         pool.threads[1].blocked_at.store(NOT_BLOCKING, Ordering::Release);
-        thread.finish_blocking();
+        thread.run(&state);
 
         assert!(thread.backup);
-        assert_eq!(thread.blocked_at, NOT_BLOCKING);
+        assert_eq!(thread.blocked_nesting, 0);
+        assert_eq!(
+            pool.threads[1].blocked_at.load(Ordering::Acquire),
+            NOT_BLOCKING
+        );
+        assert_eq!(pool.monitor.status.load(), MonitorStatus::Notified);
     }
 
     #[test]

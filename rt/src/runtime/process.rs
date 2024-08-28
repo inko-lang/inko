@@ -205,6 +205,20 @@ pub unsafe extern "system" fn inko_process_stacktrace_drop(
 }
 
 #[no_mangle]
+pub unsafe extern "system" fn inko_process_start_blocking(
+    process: ProcessPointer,
+) {
+    process.start_blocking();
+}
+
+#[no_mangle]
+pub unsafe extern "system" fn inko_process_stop_blocking(
+    process: ProcessPointer,
+) {
+    process.stop_blocking();
+}
+
+#[no_mangle]
 pub unsafe extern "system" fn inko_channel_new(capacity: i64) -> *mut Channel {
     Box::into_raw(Box::new(Channel::new(max(capacity, 1) as usize)))
 }

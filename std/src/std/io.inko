@@ -6,9 +6,7 @@ import std.cmp (Equal)
 import std.drop (Drop)
 import std.fmt (Format, Formatter)
 import std.iter (Stream)
-import std.libc.bsd.errors if bsd
-import std.libc.linux.errors if linux
-import std.libc.mac.errors if mac
+import std.libc
 import std.string (Bytes, ToString)
 
 # The initial number of bytes to read in `Read.read_all`
@@ -32,7 +30,79 @@ let INVALID_DATA = -2
 # The error code used when encountering an unexpected end of the input.
 let UNEXPECTED_EOF = -3
 
-fn extern inko_last_error -> Int32
+fn extern inko_last_error -> Int
+
+fn extern inko_reset_error
+
+fn extern inko_process_start_blocking(process: Pointer[UInt8])
+
+fn extern inko_process_stop_blocking(process: Pointer[UInt8])
+
+# Signals the start of a C function call that may perform blocking IO
+# operations.
+#
+# This method should be called immediately before a C function call that might
+# block the current OS thread. It _must not_ be used for anything else.
+#
+# If this method is called multiple times in the same process, it is required
+# for there to be an equal number of calls to `stop_blocking`. For example, this
+# is OK:
+#
+# ```inko
+# import std.io (start_blocking, stop_blocking)
+#
+# start_blocking
+# start_blocking
+# perform_c_function_call(...)
+# stop_blocking
+# stop_blocking
+# ```
+#
+# # Examples
+#
+# ```inko
+# import std.io (Error, start_blocking, stop_blocking)
+#
+# fn extern open(path: Pointer[UInt8], flags: Int32, ...) -> Int32
+#
+# start_blocking
+#
+# let fd = open('test.txt'.to_pointer, 0 as Int32, 0 as Int32)
+# let err = stop_blocking
+#
+# if fd as Int == -1 {
+#   panic('failed to open the file: ${Error.from_os_error(err)}')
+# }
+# ```
+fn pub start_blocking {
+  inko_process_start_blocking(_INKO.process)
+}
+
+# Signals the end of a C function call that may perform blocking IO operations.
+#
+# The return value is the value of `errno` as an `Int`. This value is read
+# _before_ signalling the end of the blocking call, ensuring we read the value
+# from the same thread the IO call is performed on.
+#
+# If `start_blocking` is called multiple times, this method _must_ be called the
+# same number of times. In this case only the _last_ call may reschedule the
+# current process. If a C function call mutates any global state, that state
+# _must_ be retrieved before the final call to this method, as upon being
+# rescheduled the current process may run on a different OS thread and thus read
+# a different state.
+fn pub stop_blocking -> Int {
+  let err = inko_last_error
+
+  # If the operation took too long, this reschedules the current process. This
+  # means that any global state read after this point may not be from the same
+  # thread as the IO call is performed on.
+  inko_process_stop_blocking(_INKO.process)
+  err
+}
+
+fn reset_os_error {
+  inko_reset_error
+}
 
 # An error type for I/O operations.
 #
@@ -143,6 +213,13 @@ class pub enum Error {
   # socket that was closed without sending the `close_notify` message.
   case EndOfInput
 
+  # A file couldn't be renamed, linked or copied because the operation takes
+  # places across different devices.
+  case CrossDeviceLink
+
+  # The operation isn't supported.
+  case NotSupported
+
   # An error not covered by the other constructor.
   #
   # The wrapped `Int` is the raw error code.
@@ -159,39 +236,41 @@ class pub enum Error {
   # ```
   fn pub static from_os_error(code: Int) -> Error {
     match code {
-      case errors.EPERM -> Error.PermissionDenied
-      case errors.ENOENT -> Error.NotFound
-      case errors.EINTR -> Error.Interrupted
-      case errors.EAGAIN -> Error.WouldBlock
-      case errors.ENOMEM -> Error.OutOfMemory
-      case errors.EACCES -> Error.PermissionDenied
-      case errors.EBUSY -> Error.ResourceBusy
-      case errors.EEXIST -> Error.AlreadyExists
-      case errors.ENOTDIR -> Error.NotADirectory
-      case errors.EISDIR -> Error.IsADirectory
-      case errors.EINVAL -> Error.InvalidArgument
-      case errors.EFBIG -> Error.FileTooLarge
-      case errors.ENOSPC -> Error.StorageFull
-      case errors.ESPIPE -> Error.InvalidSeek
-      case errors.EROFS -> Error.ReadOnlyFilesystem
-      case errors.EPIPE -> Error.BrokenPipe
-      case errors.EDEADLK -> Error.Deadlock
-      case errors.ENAMETOOLONG -> Error.InvalidFileName
-      case errors.ENOTEMPTY -> Error.DirectoryNotEmpty
-      case errors.ETIME -> Error.TimedOut
-      case errors.EADDRINUSE -> Error.AddressInUse
-      case errors.EADDRNOTAVAIL -> Error.AddressUnavailable
-      case errors.ENETDOWN -> Error.NetworkDown
-      case errors.ENETUNREACH -> Error.NetworkDown
-      case errors.ECONNABORTED -> Error.ConnectionAborted
-      case errors.ECONNRESET -> Error.ConnectionReset
-      case errors.EISCONN -> Error.AlreadyConnected
-      case errors.ENOTCONN -> Error.NotConnected
-      case errors.ETIMEDOUT -> Error.TimedOut
-      case errors.ECONNREFUSED -> Error.ConnectionRefused
-      case errors.EHOSTUNREACH -> Error.HostUnreachable
-      case errors.EINPROGRESS -> Error.InProgress
-      case errors.EFAULT -> Error.BadAddress
+      case libc.EPERM -> Error.PermissionDenied
+      case libc.ENOENT -> Error.NotFound
+      case libc.EINTR -> Error.Interrupted
+      case libc.EAGAIN -> Error.WouldBlock
+      case libc.ENOMEM -> Error.OutOfMemory
+      case libc.EACCES -> Error.PermissionDenied
+      case libc.EBUSY -> Error.ResourceBusy
+      case libc.EEXIST -> Error.AlreadyExists
+      case libc.ENOTDIR -> Error.NotADirectory
+      case libc.EISDIR -> Error.IsADirectory
+      case libc.EINVAL -> Error.InvalidArgument
+      case libc.EFBIG -> Error.FileTooLarge
+      case libc.ENOSPC -> Error.StorageFull
+      case libc.ESPIPE -> Error.InvalidSeek
+      case libc.EROFS -> Error.ReadOnlyFilesystem
+      case libc.EPIPE -> Error.BrokenPipe
+      case libc.EDEADLK -> Error.Deadlock
+      case libc.ENAMETOOLONG -> Error.InvalidFileName
+      case libc.ENOTEMPTY -> Error.DirectoryNotEmpty
+      case libc.ETIME -> Error.TimedOut
+      case libc.EADDRINUSE -> Error.AddressInUse
+      case libc.EADDRNOTAVAIL -> Error.AddressUnavailable
+      case libc.ENETDOWN -> Error.NetworkDown
+      case libc.ENETUNREACH -> Error.NetworkDown
+      case libc.ECONNABORTED -> Error.ConnectionAborted
+      case libc.ECONNRESET -> Error.ConnectionReset
+      case libc.EISCONN -> Error.AlreadyConnected
+      case libc.ENOTCONN -> Error.NotConnected
+      case libc.ETIMEDOUT -> Error.TimedOut
+      case libc.ECONNREFUSED -> Error.ConnectionRefused
+      case libc.EHOSTUNREACH -> Error.HostUnreachable
+      case libc.EINPROGRESS -> Error.InProgress
+      case libc.EFAULT -> Error.BadAddress
+      case libc.EXDEV -> Error.CrossDeviceLink
+      case libc.ENOTSUP or libc.EOPNOTSUPP -> Error.NotSupported
       case INVALID_DATA -> Error.InvalidData
       case UNEXPECTED_EOF -> Error.EndOfInput
       case val -> Error.Other(val)
@@ -200,7 +279,7 @@ class pub enum Error {
 
   # Returns the last OS error produced by the current OS thread.
   fn pub static last_os_error -> Error {
-    from_os_error(inko_last_error as Int)
+    from_os_error(inko_last_error)
   }
 }
 
@@ -238,9 +317,13 @@ impl ToString for Error {
       case WouldBlock -> 'the operation would block'
       case BadAddress -> 'a memory address is in an invalid range'
       case InvalidData -> "the data provided isn't valid for the operation"
+      case CrossDeviceLink -> {
+        "the operation failed because it can't be performed across devices"
+      }
       case EndOfInput -> {
         'the end of the input stream is reached, but more input is required'
       }
+      case NotSupported -> "the operation isn't supported"
       case Other(code) -> 'an other error with code ${code} occurred'
     }
   }
@@ -281,6 +364,8 @@ impl Format for Error {
       case BadAddress -> 'BadAddress'
       case InvalidData -> 'InvalidData'
       case EndOfInput -> 'EndOfInput'
+      case CrossDeviceLink -> 'CrossDeviceLink'
+      case NotSupported -> 'NotSupported'
       case Other(code) -> {
         formatter.tuple('Other').field(code).finish
         return
@@ -326,14 +411,11 @@ impl Equal[ref Error] for Error {
       case (Other(a), Other(b)) -> a == b
       case (InvalidData, InvalidData) -> true
       case (EndOfInput, EndOfInput) -> true
+      case (CrossDeviceLink, CrossDeviceLink) -> true
+      case (NotSupported, NotSupported) -> true
       case _ -> false
     }
   }
-}
-
-# Trait for retrieving the size of an IO object.
-trait pub Size {
-  fn pub size -> Result[Int, Error]
 }
 
 # A type data can be read from (e.g. a File).
@@ -456,7 +538,16 @@ trait pub Write {
     write_string(string).then(fn (_) { write_string('\n') })
   }
 
-  # Flushes any pending writes.
+  # Flushes any pending writes to the file system.
+  #
+  # Flushing writes is a potentially expensive operation, and unnecessarily
+  # calling this method may degrade performance.
+  #
+  # When flushing data to disk it's important to remember that the actual
+  # behaviour may vary based on the type of file system, operating system and
+  # storage hardware that's used. In particular, it's possible for one of these
+  # components to say "Yup, I totally flushed the data, you're all good!" when
+  # in fact they have not fully flushed the data.
   fn pub mut flush -> Result[Nil, Error]
 }
 

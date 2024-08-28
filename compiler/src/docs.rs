@@ -195,7 +195,7 @@ impl<'a> DefineDocumentation<'a> {
                         take(&mut n.documentation),
                     );
                 }
-                hir::ClassExpression::Variant(n) => {
+                hir::ClassExpression::Constructor(n) => {
                     n.constructor_id.unwrap().set_documentation(
                         self.db_mut(),
                         take(&mut n.documentation),

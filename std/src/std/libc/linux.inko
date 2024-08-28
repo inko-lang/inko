@@ -1,0 +1,192 @@
+import std.libc.linux.amd64 (self as arch) if amd64
+import std.libc.linux.arm64 (self as arch) if arm64
+
+# Generic libc constants (e.g. `errno` values).
+
+let DT_DIR = 4
+let DT_LNK = 10
+let DT_REG = 8
+let EACCES = 13
+let EADDRINUSE = 98
+let EADDRNOTAVAIL = 99
+let EAGAIN = 11
+let EBUSY = 16
+let ECONNABORTED = 103
+let ECONNREFUSED = 111
+let ECONNRESET = 104
+let EDEADLK = 35
+let EEXIST = 17
+let EFAULT = 14
+let EFBIG = 27
+let EHOSTUNREACH = 113
+let EINPROGRESS = 115
+let EINTR = 4
+let EINVAL = 22
+let EIO = 5
+let EISCONN = 106
+let EISDIR = 21
+let ENAMETOOLONG = 36
+let ENETDOWN = 100
+let ENETUNREACH = 101
+let ENOENT = 2
+let ENOMEM = 12
+let ENOSPC = 28
+let ENOSYS = 38
+let ENOTCONN = 107
+let ENOTDIR = 20
+let ENOTEMPTY = 39
+let ENOTSUP = 95
+let EOPNOTSUPP = 95
+let EPERM = 1
+let EPIPE = 32
+let EROFS = 30
+let ESPIPE = 29
+let ETIME = 62
+let ETIMEDOUT = 110
+let EXDEV = 18
+let IPPROTO_IP = 0
+let IPPROTO_IPV6 = 41
+let IPPROTO_TCP = 6
+let IPV6_V6ONLY = 26
+let IP_TTL = 2
+let O_APPEND = 0x400
+let O_CLOEXEC = 0x80000
+let O_CREAT = 0x40
+let O_RDONLY = 0
+let O_RDWR = 0x2
+let O_TRUNC = 0x200
+let O_WRONLY = 0x1
+let SEEK_END = 2
+let SEEK_SET = 0
+let SOL_SOCKET = 1
+let SO_BROADCAST = 6
+let SO_KEEPALIVE = 9
+let SO_LINGER = 13
+let SO_RCVBUF = 8
+let SO_REUSEADDR = 2
+let SO_REUSEPORT = 15
+let SO_SNDBUF = 7
+let S_IFDIR = 0x4000
+let S_IFLNK = 0xA000
+let S_IFMT = 0xF000
+let S_IFREG = 0x8000
+let TCP_NODELAY = 1
+
+# Constants specific to the statx() call.
+
+let AT_EMPTY_PATH = 0x1000
+let AT_FDCWD = -0x64
+let STATX_BASIC_STATS = 0x7FF
+let STATX_BTIME = 0x800
+
+class extern Dirent {
+  let @d_ino: UInt64
+  let @d_off: UInt64
+  let @d_reclen: UInt16
+  let @d_type: UInt8
+}
+
+class extern StatxBuf {
+  let @stx_mask: UInt32
+  let @stx_blksize: UInt32
+  let @stx_attributes: UInt64
+  let @stx_nlink: UInt32
+  let @stx_uid: UInt32
+  let @stx_gid: UInt32
+  let @stx_mode: UInt16
+  let @__pad0: UInt16
+  let @stx_ino: UInt64
+  let @stx_size: UInt64
+  let @stx_blocks: UInt64
+  let @stx_attributes_mask: UInt64
+  let @stx_atime: StatxTimestamp
+  let @stx_btime: StatxTimestamp
+  let @stx_ctime: StatxTimestamp
+  let @stx_mtime: StatxTimestamp
+  let @stx_rdev_major: UInt32
+  let @stx_rdev_minor: UInt32
+  let @stx_dev_major: UInt32
+  let @stx_dev_minor: UInt32
+  let @stx_mnt_id: UInt64
+  let @stx_dio_mem_align: UInt32
+  let @stx_dio_offset_align: UInt32
+  let @__pad1: UInt64
+  let @__pad2: UInt64
+  let @__pad3: UInt64
+  let @__pad4: UInt64
+  let @__pad5: UInt64
+  let @__pad6: UInt64
+  let @__pad7: UInt64
+  let @__pad8: UInt64
+  let @__pad9: UInt64
+  let @__pad10: UInt64
+  let @__pad11: UInt64
+  let @__pad12: UInt64
+}
+
+class extern StatxTimestamp {
+  let @tv_sec: Int64
+  let @tv_nsec: UInt32
+  let @__pad0: Int32
+}
+
+fn extern fchmod(fd: Int32, mode: UInt16) -> Int32
+
+fn extern syscall(number: Int32, ...) -> Int32
+
+fn extern opendir(path: Pointer[UInt8]) -> Pointer[UInt8]
+
+fn extern readdir(stream: Pointer[UInt8]) -> Pointer[Dirent]
+
+fn extern fsync(fd: Int32) -> Int32
+
+fn extern sendfile(
+  out: Int32,
+  in: Int32,
+  offset: Pointer[Int64],
+  count: UInt64,
+) -> Int64
+
+fn extern copy_file_range(
+  in: Int32,
+  off_in: Pointer[Int64],
+  out: Int32,
+  off_out: Pointer[Int64],
+  len: UInt64,
+  flags: UInt32,
+) -> Int64
+
+fn flush(fd: Int32) -> Int32 {
+  fsync(fd)
+}
+
+fn dirent_type(pointer: Pointer[Dirent]) -> Int {
+  pointer.d_type as Int
+}
+
+fn dirent_name(pointer: Pointer[Dirent]) -> Pointer[UInt8] {
+  pointer as Int + 19 as Pointer[UInt8]
+}
+
+# statx() has been available in glibc since version 2.28 (August 2018), but for
+# musl it's only available starting version 1.2.5 (February 2024). Meanwhile,
+# the system call is available since Linux 4.11 (April 2017). Rather than try to
+# use statx() with some sort of fallback (e.g. when using an older version of
+# musl), we just use the system call directly.
+fn statx(
+  fd: Int32,
+  name: String,
+  flags: Int,
+  mask: Int,
+  buf: Pointer[StatxBuf],
+) -> Int {
+  syscall(
+    arch.SYS_statx as Int32,
+    fd,
+    name.to_pointer,
+    flags as Int32,
+    mask as UInt32,
+    buf,
+  )
+    as Int
+}

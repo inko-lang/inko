@@ -11,137 +11,102 @@
 #
 # Files are automatically closed when they are dropped. Any errors that may
 # occur when closing a file are ignored.
+#
+# The `WriteOnlyFile` and `ReadWriteFile` _don't_ explicitly flush any writes
+# upon being dropped, as any errors produced by this call would be ignored. It's
+# _highly_ recommended to call `WriteOnlyFile.flush` / `ReadWriteFile.flush`
+# before dropping a file if you need to guarantee any pending writes are flushed
+# to the underlying storage medium.
 import std.drop (Drop)
+import std.fs (Metadata)
 import std.fs.path (Path)
-import std.io (Error, Read, Seek, Size, Write, WriteInternal)
-
-let FILE_READ_ONLY = 0
-let FILE_WRITE_ONLY = 1
-let FILE_APPEND_ONLY = 2
-let FILE_READ_WRITE = 3
-let FILE_READ_APPEND = 4
-
-class extern AnyResult {
-  let @tag: Int
-  let @value: UInt64
-}
-
-class extern IntResult {
-  let @tag: Int
-  let @value: Int
-}
-
-class extern PointerResult {
-  let @tag: Int
-  let @value: Pointer[UInt8]
-}
-
-fn extern inko_file_flush(
-  process: Pointer[UInt8],
-  file: Pointer[UInt8],
-) -> AnyResult
-
-fn extern inko_file_drop(file: Pointer[UInt8])
-
-fn extern inko_file_open(
-  process: Pointer[UInt8],
-  path: String,
-  mode: Int,
-) -> PointerResult
-
-fn extern inko_file_read(
-  process: Pointer[UInt8],
-  file: Pointer[UInt8],
-  buffer: mut ByteArray,
-  size: Int,
-) -> IntResult
-
-fn extern inko_file_seek(
-  process: Pointer[UInt8],
-  file: Pointer[UInt8],
-  offset: Int,
-) -> IntResult
-
-fn extern inko_file_size(process: Pointer[UInt8], path: String) -> IntResult
-
-fn extern inko_file_write(
-  process: Pointer[UInt8],
-  file: Pointer[UInt8],
-  data: Pointer[UInt8],
-  size: Int,
-) -> IntResult
+import std.io (Error, Read, Seek, Write, WriteInternal)
+import std.sys.unix.fs (self as sys) if unix
 
 # A file that can only be used for reads.
 class pub ReadOnlyFile {
+  let @fd: Int32
+
   # The path of the file.
   let pub @path: Path
 
-  # The internal file descriptor.
-  let @fd: Pointer[UInt8]
-
   # Returns a new `ReadOnlyFile`.
   #
-  # # Examples
+  # # Errors
   #
-  # Opening a file in read-only mode:
+  # This method returns a `std.io.Error` if opening of the file fails.
+  #
+  # # Examples
   #
   # ```inko
   # import std.fs.file (ReadOnlyFile)
   #
-  # let handle = ReadOnlyFile.new('/dev/null'.to_path).get
+  # ReadOnlyFile.new('/dev/null'.to_path)
   # ```
   fn pub static new(path: Path) -> Result[ReadOnlyFile, Error] {
-    match inko_file_open(_INKO.process, path.to_string, FILE_READ_ONLY) {
-      case { @tag = 0, @value = v } -> {
-        Result.Ok(ReadOnlyFile(path: path, fd: v))
-      }
-      case { @tag = _, @value = e } -> {
-        Result.Error(Error.from_os_error(e as Int))
-      }
+    match
+      sys.open_file(
+        path.to_string,
+        read: true,
+        write: false,
+        append: false,
+        truncate: false,
+      )
+    {
+      case Ok(fd) -> Result.Ok(ReadOnlyFile(fd: fd, path: path))
+      case Error(e) -> Result.Error(e)
     }
+  }
+
+  # Returns a metadata about the current file, such as its size and creation
+  # time.
+  #
+  # # Errors
+  #
+  # This method returns an `Error` if the underlying system call fails, such as
+  # when the file no longer exists.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.fs.file (ReadOnlyFile)
+  #
+  # ReadOnlyFile
+  #   .new('/test.txt')
+  #   .or_panic('failed to open the file')
+  #   .metadata
+  #   .or_panic('failed to get the metadata')
+  #   .size # => 1234
+  # ```
+  fn pub metadata -> Result[Metadata, Error] {
+    sys.file_metadata(@fd)
   }
 }
 
 impl Drop for ReadOnlyFile {
   fn mut drop {
-    inko_file_drop(@fd)
+    sys.close_file(@fd)
   }
 }
 
 impl Read for ReadOnlyFile {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
-    match inko_file_read(_INKO.process, @fd, into, size) {
-      case { @tag = 0, @value = v } -> Result.Ok(v)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    sys.read_file(@fd, into, size)
   }
 }
 
 impl Seek for ReadOnlyFile {
   fn pub mut seek(position: Int) -> Result[Int, Error] {
-    match inko_file_seek(_INKO.process, @fd, position) {
-      case { @tag = 0, @value = v } -> Result.Ok(v)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
-  }
-}
-
-impl Size for ReadOnlyFile {
-  fn pub size -> Result[Int, Error] {
-    match inko_file_size(_INKO.process, @path.to_string) {
-      case { @tag = 0, @value = v } -> Result.Ok(v)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    sys.seek_to(@fd, position)
   }
 }
 
 # A file that can only be used for writes.
 class pub WriteOnlyFile {
+  let @fd: Int32
+
   # The path of the file.
   let pub @path: Path
-
-  # The internal file descriptor.
-  let @fd: Pointer[UInt8]
 
   # Opens a file in write-only mode.
   #
@@ -150,16 +115,20 @@ class pub WriteOnlyFile {
   # ```inko
   # import std.fs.file (WriteOnlyFile)
   #
-  # let file = WriteOnlyFile.new('/dev/null'.to_path).get
+  # WriteOnlyFile.new('/dev/null'.to_path)
   # ```
   fn pub static new(path: Path) -> Result[WriteOnlyFile, Error] {
-    match inko_file_open(_INKO.process, path.to_string, FILE_WRITE_ONLY) {
-      case { @tag = 0, @value = v } -> {
-        Result.Ok(WriteOnlyFile(path: path, fd: v))
-      }
-      case { @tag = _, @value = e } -> {
-        Result.Error(Error.from_os_error(e as Int))
-      }
+    match
+      sys.open_file(
+        path.to_string,
+        read: false,
+        write: true,
+        append: false,
+        truncate: true,
+      )
+    {
+      case Ok(fd) -> Result.Ok(WriteOnlyFile(fd: fd, path: path))
+      case Error(e) -> Result.Error(e)
     }
   }
 
@@ -170,32 +139,57 @@ class pub WriteOnlyFile {
   # ```inko
   # import std.fs.file (WriteOnlyFile)
   #
-  # let file = WriteOnlyFile.append('/dev/null'.to_path).get
+  # WriteOnlyFile.append('/dev/null'.to_path)
   # ```
   fn pub static append(path: Path) -> Result[WriteOnlyFile, Error] {
-    match inko_file_open(_INKO.process, path.to_string, FILE_APPEND_ONLY) {
-      case { @tag = 0, @value = v } -> {
-        Result.Ok(WriteOnlyFile(path: path, fd: v))
-      }
-      case { @tag = _, @value = e } -> {
-        Result.Error(Error.from_os_error(e as Int))
-      }
+    match
+      sys.open_file(
+        path.to_string,
+        read: false,
+        write: true,
+        append: true,
+        truncate: false,
+      )
+    {
+      case Ok(fd) -> Result.Ok(WriteOnlyFile(fd: fd, path: path))
+      case Error(e) -> Result.Error(e)
     }
+  }
+
+  # Returns a metadata about the current file, such as its size and creation
+  # time.
+  #
+  # # Errors
+  #
+  # This method returns an `Error` if the underlying system call fails, such as
+  # when the file no longer exists.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.fs.file (WriteOnlyFile)
+  #
+  # WriteOnlyFile
+  #   .new('/test.txt')
+  #   .or_panic('failed to open the file')
+  #   .metadata
+  #   .or_panic('failed to get the metadata')
+  #   .size # => 1234
+  # ```
+  fn pub metadata -> Result[Metadata, Error] {
+    sys.file_metadata(@fd)
   }
 }
 
 impl Drop for WriteOnlyFile {
   fn mut drop {
-    inko_file_drop(@fd)
+    sys.close_file(@fd)
   }
 }
 
 impl WriteInternal for WriteOnlyFile {
   fn mut write_internal(data: Pointer[UInt8], size: Int) -> Result[Int, Error] {
-    match inko_file_write(_INKO.process, @fd, data, size) {
-      case { @tag = 0, @value = n } -> Result.Ok(n)
-      case { @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    sys.write_file(@fd, data, size)
   }
 }
 
@@ -209,31 +203,22 @@ impl Write for WriteOnlyFile {
   }
 
   fn pub mut flush -> Result[Nil, Error] {
-    match inko_file_flush(_INKO.process, @fd) {
-      case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> {
-        Result.Error(Error.from_os_error(e as Int))
-      }
-    }
+    sys.flush_file(@fd)
   }
 }
 
 impl Seek for WriteOnlyFile {
   fn pub mut seek(position: Int) -> Result[Int, Error] {
-    match inko_file_seek(_INKO.process, @fd, position) {
-      case { @tag = 0, @value = v } -> Result.Ok(v)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    sys.seek_to(@fd, position)
   }
 }
 
 # A file that can be used for both reads and writes.
 class pub ReadWriteFile {
+  let @fd: Int32
+
   # The path of the file.
   let pub @path: Path
-
-  # The internal file descriptor.
-  let @fd: Pointer[UInt8]
 
   # Opens a file for both reading and writing:
   #
@@ -242,16 +227,20 @@ class pub ReadWriteFile {
   # ```inko
   # import std.fs.file (ReadWriteFile)
   #
-  # let handle = ReadWriteFile.new('/dev/null'.to_path).get
+  # ReadWriteFile.new('/dev/null'.to_path)
   # ```
   fn pub static new(path: Path) -> Result[ReadWriteFile, Error] {
-    match inko_file_open(_INKO.process, path.to_string, FILE_READ_WRITE) {
-      case { @tag = 0, @value = v } -> {
-        Result.Ok(ReadWriteFile(path: path, fd: v))
-      }
-      case { @tag = _, @value = e } -> {
-        Result.Error(Error.from_os_error(e as Int))
-      }
+    match
+      sys.open_file(
+        path.to_string,
+        read: true,
+        write: true,
+        append: false,
+        truncate: false,
+      )
+    {
+      case Ok(fd) -> Result.Ok(ReadWriteFile(fd: fd, path: path))
+      case Error(e) -> Result.Error(e)
     }
   }
 
@@ -262,41 +251,63 @@ class pub ReadWriteFile {
   # ```inko
   # import std.fs.file (ReadWriteFile)
   #
-  # let handle = ReadWriteFile.append('/dev/null'.to_path).get
+  # ReadWriteFile.append('/dev/null'.to_path)
   # ```
   fn pub static append(path: Path) -> Result[ReadWriteFile, Error] {
-    match inko_file_open(_INKO.process, path.to_string, FILE_READ_APPEND) {
-      case { @tag = 0, @value = v } -> {
-        Result.Ok(ReadWriteFile(path: path, fd: v))
-      }
-      case { @tag = _, @value = e } -> {
-        Result.Error(Error.from_os_error(e as Int))
-      }
+    match
+      sys.open_file(
+        path.to_string,
+        read: true,
+        write: true,
+        append: true,
+        truncate: false,
+      )
+    {
+      case Ok(fd) -> Result.Ok(ReadWriteFile(fd: fd, path: path))
+      case Error(e) -> Result.Error(e)
     }
+  }
+
+  # Returns a metadata about the current file, such as its size and creation
+  # time.
+  #
+  # # Errors
+  #
+  # This method returns an `Error` if the underlying system call fails, such as
+  # when the file no longer exists.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.fs.file (ReadWriteFile)
+  #
+  # ReadWriteFile
+  #   .new('/test.txt')
+  #   .or_panic('failed to open the file')
+  #   .metadata
+  #   .or_panic('failed to get the metadata')
+  #   .size # => 1234
+  # ```
+  fn pub metadata -> Result[Metadata, Error] {
+    sys.file_metadata(@fd)
   }
 }
 
 impl Drop for ReadWriteFile {
   fn mut drop {
-    inko_file_drop(@fd)
+    sys.close_file(@fd)
   }
 }
 
 impl Read for ReadWriteFile {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
-    match inko_file_read(_INKO.process, @fd, into, size) {
-      case { @tag = 0, @value = v } -> Result.Ok(v)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    sys.read_file(@fd, into, size)
   }
 }
 
 impl WriteInternal for ReadWriteFile {
   fn mut write_internal(data: Pointer[UInt8], size: Int) -> Result[Int, Error] {
-    match inko_file_write(_INKO.process, @fd, data, size) {
-      case { @tag = 0, @value = n } -> Result.Ok(n)
-      case { @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    sys.write_file(@fd, data, size)
   }
 }
 
@@ -310,29 +321,12 @@ impl Write for ReadWriteFile {
   }
 
   fn pub mut flush -> Result[Nil, Error] {
-    match inko_file_flush(_INKO.process, @fd) {
-      case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> {
-        Result.Error(Error.from_os_error(e as Int))
-      }
-    }
+    sys.flush_file(@fd)
   }
 }
 
 impl Seek for ReadWriteFile {
   fn pub mut seek(position: Int) -> Result[Int, Error] {
-    match inko_file_seek(_INKO.process, @fd, position) {
-      case { @tag = 0, @value = v } -> Result.Ok(v)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
-  }
-}
-
-impl Size for ReadWriteFile {
-  fn pub size -> Result[Int, Error] {
-    match inko_file_size(_INKO.process, @path.to_string) {
-      case { @tag = 0, @value = v } -> Result.Ok(v)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    sys.seek_to(@fd, position)
   }
 }

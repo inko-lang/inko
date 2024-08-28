@@ -8,7 +8,7 @@ use crate::mir::{
 };
 use crate::state::State;
 use ast::source_location::SourceLocation;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::iter::repeat_with;
 use std::mem::swap;
 use std::path::PathBuf;
@@ -701,7 +701,7 @@ impl<'a> GenerateDropper<'a> {
 pub(crate) struct DefineConstants<'a> {
     state: &'a mut State,
     mir: &'a mut Mir,
-    module_id: types::ModuleId,
+    module_id: ModuleId,
 }
 
 impl<'a> DefineConstants<'a> {
@@ -710,81 +710,80 @@ impl<'a> DefineConstants<'a> {
         mir: &mut Mir,
         modules: &Vec<hir::Module>,
     ) -> bool {
-        // Literal constants are defined first, as binary constants may depend
-        // on their values.
-        for module in modules {
-            let module_id = module.module_id;
+        let mut work: VecDeque<(ModuleId, &hir::DefineConstant)> =
+            VecDeque::new();
+        let mut new_work: VecDeque<(ModuleId, &hir::DefineConstant)> =
+            VecDeque::new();
 
-            DefineConstants { state, mir, module_id }.define_literal(module);
+        for module in modules {
+            for expr in &module.expressions {
+                if let hir::TopLevelExpression::Constant(ref n) = expr {
+                    work.push_back((module.module_id, n));
+                }
+            }
         }
 
-        for module in modules {
-            let module_id = module.module_id;
+        while !work.is_empty() {
+            while let Some((module_id, node)) = work.pop_front() {
+                let mut pass = DefineConstants { state, mir, module_id };
 
-            DefineConstants { state, mir, module_id }.define_binary(module);
+                if !pass.run(node) {
+                    new_work.push_back((module_id, node));
+                }
+            }
+
+            swap(&mut work, &mut new_work);
         }
 
         !state.diagnostics.has_errors()
     }
 
-    /// Defines constants who's values are literals.
-    fn define_literal(&mut self, module: &hir::Module) {
-        for expr in &module.expressions {
-            if let hir::TopLevelExpression::Constant(n) = expr {
-                let id = n.constant_id.unwrap();
-                let val = match n.value {
-                    hir::ConstExpression::Int(ref n) => Constant::Int(n.value),
-                    hir::ConstExpression::String(ref n) => {
-                        Constant::String(n.value.clone())
-                    }
-                    hir::ConstExpression::Float(ref n) => {
-                        Constant::Float(n.value)
-                    }
-                    _ => continue,
-                };
-
-                self.mir.constants.insert(id, val);
+    fn run(&mut self, node: &hir::DefineConstant) -> bool {
+        match self.expression(&node.value) {
+            Some(v) => {
+                self.mir.constants.insert(node.constant_id.unwrap(), v);
+                true
             }
+            _ => false,
         }
     }
 
-    /// Defines constants who's values are binary expressions.
-    fn define_binary(&mut self, module: &hir::Module) {
-        for expr in &module.expressions {
-            if let hir::TopLevelExpression::Constant(n) = expr {
-                let id = n.constant_id.unwrap();
-                let val = self.expression(&n.value);
-
-                self.mir.constants.insert(id, val);
-            }
-        }
-    }
-
-    fn expression(&mut self, node: &hir::ConstExpression) -> Constant {
+    fn expression(&mut self, node: &hir::ConstExpression) -> Option<Constant> {
         match node {
-            hir::ConstExpression::Int(ref n) => Constant::Int(n.value),
+            hir::ConstExpression::Int(ref n) => Some(Constant::Int(n.value)),
             hir::ConstExpression::String(ref n) => {
-                Constant::String(n.value.clone())
+                Some(Constant::String(n.value.clone()))
             }
-            hir::ConstExpression::Float(ref n) => Constant::Float(n.value),
+            hir::ConstExpression::Float(ref n) => {
+                Some(Constant::Float(n.value))
+            }
             hir::ConstExpression::Binary(ref n) => self.binary(n),
-            hir::ConstExpression::True(_) => Constant::Bool(true),
-            hir::ConstExpression::False(_) => Constant::Bool(false),
-            hir::ConstExpression::ConstantRef(ref n) => match n.kind {
-                types::ConstantKind::Constant(id) => {
-                    self.mir.constants.get(&id).cloned().unwrap()
+            hir::ConstExpression::True(_) => Some(Constant::Bool(true)),
+            hir::ConstExpression::False(_) => Some(Constant::Bool(false)),
+            hir::ConstExpression::ConstantRef(ref n) => {
+                // We may refer to a constant for which we have yet to generate
+                // the MIR value. In this case we return a `None` so we can
+                // retry this constant definition at a later stage.
+                if let types::ConstantKind::Constant(id) = n.kind {
+                    self.mir.constants.get(&id).cloned()
+                } else {
+                    unreachable!()
                 }
-                _ => unreachable!(),
-            },
-            hir::ConstExpression::Array(ref n) => Constant::Array(
-                n.values.iter().map(|n| self.expression(n)).collect(),
-            ),
+            }
+            hir::ConstExpression::Array(ref n) => n
+                .values
+                .iter()
+                .try_fold(Vec::new(), |mut vals, node| {
+                    vals.push(self.expression(node)?);
+                    Some(vals)
+                })
+                .map(Constant::Array),
         }
     }
 
-    fn binary(&mut self, node: &hir::ConstBinary) -> Constant {
-        let left = self.expression(&node.left);
-        let right = self.expression(&node.right);
+    fn binary(&mut self, node: &hir::ConstBinary) -> Option<Constant> {
+        let left = self.expression(&node.left)?;
+        let right = self.expression(&node.right)?;
         let op = node.operator;
         let loc = &node.location;
 
@@ -813,10 +812,10 @@ impl<'a> DefineConstants<'a> {
                 }
 
                 if let Some(val) = res {
-                    Constant::Int(val)
+                    Some(Constant::Int(val))
                 } else {
                     self.const_expr_error(&left, op, &right, loc);
-                    Constant::Int(0)
+                    Some(Constant::Int(0))
                 }
             }
             Constant::Float(lhs) => {
@@ -835,10 +834,10 @@ impl<'a> DefineConstants<'a> {
                 }
 
                 if let Some(val) = res {
-                    Constant::Float(val)
+                    Some(Constant::Float(val))
                 } else {
                     self.const_expr_error(&left, op, &right, loc);
-                    Constant::Float(0.0)
+                    Some(Constant::Float(0.0))
                 }
             }
             Constant::String(ref lhs) => {
@@ -851,10 +850,10 @@ impl<'a> DefineConstants<'a> {
                 }
 
                 if let Some(val) = res {
-                    Constant::String(val)
+                    Some(Constant::String(val))
                 } else {
                     self.const_expr_error(&left, op, &right, loc);
-                    Constant::String(String::new())
+                    Some(Constant::String(String::new()))
                 }
             }
             Constant::Array(_) | Constant::Bool(_) => {
@@ -866,7 +865,7 @@ impl<'a> DefineConstants<'a> {
                     node.location.clone(),
                 );
 
-                left
+                Some(left)
             }
         }
     }
@@ -1056,7 +1055,7 @@ impl<'a> LowerToMir<'a> {
                 hir::ClassExpression::AsyncMethod(n) => {
                     methods.push(self.define_async_method(*n));
                 }
-                hir::ClassExpression::Variant(n) => {
+                hir::ClassExpression::Constructor(n) => {
                     methods.push(self.define_constructor_method(*n, id));
                 }
                 _ => {}
@@ -1160,7 +1159,7 @@ impl<'a> LowerToMir<'a> {
 
     fn define_constructor_method(
         &mut self,
-        node: hir::DefineVariant,
+        node: hir::DefineConstructor,
         class: types::ClassId,
     ) -> Method {
         let id = node.method_id.unwrap();
@@ -2850,7 +2849,7 @@ impl<'a> LowerMethod<'a> {
                         parent_block,
                         registers,
                     ),
-                    pmatch::Constructor::Variant(_) => self
+                    pmatch::Constructor::Constructor(_) => self
                         .constructor_patterns(
                             state,
                             test,

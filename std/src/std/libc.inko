@@ -1,0 +1,163 @@
+# A thin wrapper around the C standard library.
+#
+# This module only covers what we need in the standard library, and thus all
+# symbols defined are private.
+#
+# For some symbols this module provides a wrapper, such as `opendir()`. These
+# wrappers are meant to handle target specific differences, such as different
+# names.
+import std.io (Error)
+import std.libc.freebsd (self as sys) if freebsd
+import std.libc.linux (self as sys) if linux
+import std.libc.mac (self as sys) if mac
+
+# The various C constants are re-exported here so the various standard library
+# modules don't need to import the platform specific modules.
+
+let DT_DIR = sys.DT_DIR
+let DT_LNK = sys.DT_LNK
+let DT_REG = sys.DT_REG
+let EACCES = sys.EACCES
+let EADDRINUSE = sys.EADDRINUSE
+let EADDRNOTAVAIL = sys.EADDRNOTAVAIL
+let EAGAIN = sys.EAGAIN
+let EBUSY = sys.EBUSY
+let ECONNABORTED = sys.ECONNABORTED
+let ECONNREFUSED = sys.ECONNREFUSED
+let ECONNRESET = sys.ECONNRESET
+let EDEADLK = sys.EDEADLK
+let EEXIST = sys.EEXIST
+let EFAULT = sys.EFAULT
+let EFBIG = sys.EFBIG
+let EHOSTUNREACH = sys.EHOSTUNREACH
+let EINPROGRESS = sys.EINPROGRESS
+let EINTR = sys.EINTR
+let EINVAL = sys.EINVAL
+let EISCONN = sys.EISCONN
+let EISDIR = sys.EISDIR
+let ENAMETOOLONG = sys.ENAMETOOLONG
+let ENETDOWN = sys.ENETDOWN
+let ENETUNREACH = sys.ENETUNREACH
+let ENOENT = sys.ENOENT
+let ENOMEM = sys.ENOMEM
+let ENOSPC = sys.ENOSPC
+let ENOTCONN = sys.ENOTCONN
+let ENOTDIR = sys.ENOTDIR
+let ENOTEMPTY = sys.ENOTEMPTY
+let ENOTSUP = sys.ENOTSUP
+let EOPNOTSUPP = sys.EOPNOTSUPP
+let EPERM = sys.EPERM
+let EPIPE = sys.EPIPE
+let EROFS = sys.EROFS
+let ESPIPE = sys.ESPIPE
+let ETIME = sys.ETIME
+let ETIMEDOUT = sys.ETIMEDOUT
+let EXDEV = sys.EXDEV
+let IPPROTO_IP = sys.IPPROTO_IP
+let IPPROTO_IPV6 = sys.IPPROTO_IPV6
+let IPPROTO_TCP = sys.IPPROTO_TCP
+let IPV6_V6ONLY = sys.IPV6_V6ONLY
+let IP_TTL = sys.IP_TTL
+let O_APPEND = sys.O_APPEND
+let O_CLOEXEC = sys.O_CLOEXEC
+let O_CREAT = sys.O_CREAT
+let O_RDONLY = sys.O_RDONLY
+let O_RDWR = sys.O_RDWR
+let O_TRUNC = sys.O_TRUNC
+let O_WRONLY = sys.O_WRONLY
+let SEEK_END = sys.SEEK_END
+let SEEK_SET = sys.SEEK_SET
+let SOL_SOCKET = sys.SOL_SOCKET
+let SO_BROADCAST = sys.SO_BROADCAST
+let SO_KEEPALIVE = sys.SO_KEEPALIVE
+let SO_LINGER = sys.SO_LINGER
+let SO_RCVBUF = sys.SO_RCVBUF
+let SO_REUSEADDR = sys.SO_REUSEADDR
+let SO_REUSEPORT = sys.SO_REUSEPORT
+let SO_SNDBUF = sys.SO_SNDBUF
+let TCP_NODELAY = sys.TCP_NODELAY
+
+fn opendir(path: Pointer[UInt8]) -> Pointer[UInt8] {
+  sys.opendir(path)
+}
+
+fn readdir(path: Pointer[UInt8]) -> Pointer[sys.Dirent] {
+  sys.readdir(path)
+}
+
+fn extern closedir(stream: Pointer[UInt8]) -> Int32
+
+fn extern mkdir(path: Pointer[UInt8], mode: UInt32) -> Int32
+
+fn extern rmdir(path: Pointer[UInt8]) -> Int32
+
+fn extern unlink(path: Pointer[UInt8]) -> Int32
+
+# Opens the file at `path` with a set of flags and an optional mode. See
+# `open(2)` for more details.
+#
+# Since Inko requires a 64-bits platform, and all 64-bits platforms implement
+# `open()` the same as `open64()`, we can just use `open()`. This also removes
+# the need for dealing with some platforms that _don't_ offer `open64()` such as
+# musl.
+fn extern open(path: Pointer[UInt8], flags: Int32, ...) -> Int32
+
+fn extern read(fd: Int32, buf: Pointer[UInt8], size: UInt64) -> Int
+
+fn extern write(fd: Int32, buf: Pointer[UInt8], size: UInt64) -> Int
+
+fn extern realpath(
+  path: Pointer[UInt8],
+  resolved: Pointer[UInt8],
+) -> Pointer[UInt8]
+
+fn flush(fd: Int32) -> Int32 {
+  sys.flush(fd)
+}
+
+fn extern lseek(fd: Int32, offset: Int, whence: Int32) -> Int
+
+fn extern close(fd: Int32) -> Int32
+
+fn extern strlen(pointer: Pointer[UInt8]) -> UInt64
+
+fn extern realloc(pointer: Pointer[UInt8], size: Int) -> Pointer[UInt8]
+
+fn extern memmove(
+  to: Pointer[UInt8],
+  from: Pointer[UInt8],
+  size: Int,
+) -> Pointer[UInt8]
+
+fn extern free(pointer: Pointer[UInt8])
+
+# A thin wrapper around `realloc()`.
+#
+# # Panics
+#
+# This method panics if `realloc()` returns `NULL` and the `size` argument
+# _isn't_ zero.
+fn resize[T](buffer: Pointer[T], size: Int) -> Pointer[T] {
+  let ptr = realloc(buffer as Pointer[UInt8], size)
+
+  # In this case there's nothing we can do but abort.
+  if ptr as Int == 0 and size != 0 {
+    panic('std.libc.resize() failed: ${Error.last_os_error}')
+  }
+
+  ptr as Pointer[T]
+}
+
+fn copy[T](from: Pointer[T], to: Pointer[T], size: Int) {
+  memmove(to as Pointer[UInt8], from as Pointer[UInt8], size)
+}
+
+# Returns the type of a directory entry.
+fn dirent_type(pointer: Pointer[sys.Dirent]) -> Int {
+  sys.dirent_type(pointer)
+}
+
+# Returns a pointer to the start of a directory entry's name.
+fn dirent_name(pointer: Pointer[sys.Dirent]) -> Pointer[UInt8] {
+  sys.dirent_name(pointer)
+}

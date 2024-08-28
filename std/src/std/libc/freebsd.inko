@@ -1,0 +1,149 @@
+let DT_DIR = 4
+let DT_LNK = 10
+let DT_REG = 8
+let EACCES = 13
+let EADDRINUSE = 48
+let EADDRNOTAVAIL = 49
+let EAGAIN = 35
+let EBUSY = 16
+let ECONNABORTED = 53
+let ECONNREFUSED = 61
+let ECONNRESET = 54
+let EDEADLK = 11
+let EEXIST = 17
+let EFAULT = 14
+let EFBIG = 27
+let EHOSTUNREACH = 65
+let EINPROGRESS = 36
+let EINTR = 4
+let EINVAL = 22
+let EIO = 5
+let EISCONN = 56
+let EISDIR = 21
+let ENAMETOOLONG = 63
+let ENETDOWN = 50
+let ENETUNREACH = 51
+let ENOENT = 2
+let ENOMEM = 12
+let ENOSPC = 28
+let ENOSYS = 78
+let ENOTCONN = 57
+let ENOTDIR = 20
+let ENOTEMPTY = 66
+let ENOTSUP = 45
+let EOPNOTSUPP = 45
+let EPERM = 1
+let EPIPE = 32
+let EROFS = 30
+let ESPIPE = 29
+let ETIMEDOUT = 60
+let EXDEV = 18
+let IPPROTO_IP = 0
+let IPPROTO_IPV6 = 41
+let IPPROTO_TCP = 6
+let IPV6_V6ONLY = 27
+let IP_TTL = 4
+let O_APPEND = 0x8
+let O_CLOEXEC = 0x100000
+let O_CREAT = 0x200
+let O_RDONLY = 0
+let O_RDWR = 0x2
+let O_TRUNC = 0x400
+let O_WRONLY = 0x1
+let SEEK_END = 2
+let SEEK_SET = 0
+let SOL_SOCKET = 0xFFFF
+let SO_BROADCAST = 0x20
+let SO_KEEPALIVE = 0x8
+let SO_LINGER = 0x80
+let SO_RCVBUF = 0x1002
+let SO_REUSEADDR = 0x4
+let SO_REUSEPORT = 0x200
+let SO_SNDBUF = 0x1001
+let S_IFDIR = 0x4000
+let S_IFLNK = 0xA000
+let S_IFMT = 0xF000
+let S_IFREG = 0x8000
+let TCP_NODELAY = 1
+
+# FreeBSD doesn't define this constant, but we still define it here to make it
+# easier to handle platform differences.
+let ETIME = -1
+
+class extern Dirent {
+  let @d_fileno: UInt64
+  let @d_off: UInt64
+  let @d_reclen: UInt16
+  let @d_type: UInt8
+  let @d_namlen: UInt8
+  let @d_pad0: UInt32
+}
+
+class extern Timespec {
+  let @tv_sec: Int64
+  let @tv_nsec: Int64
+}
+
+class extern StatBuf {
+  let @st_dev: UInt64
+  let @st_ino: UInt64
+  let @st_nlink: UInt64
+  let @st_mode: UInt16
+  let @__pad0: Int16
+  let @st_uid: UInt32
+  let @st_gid: UInt32
+  let @__pad1: Int32
+  let @st_rdev: UInt64
+  let @st_atim: Timespec
+  let @st_mtim: Timespec
+  let @st_ctim: Timespec
+  let @st_birthtim: Timespec
+  let @st_size: Int64
+  let @st_blocks: Int64
+  let @st_blksize: Int32
+  let @st_flags: UInt32
+  let @st_gen: UInt64
+  let @st_spare0: Int64
+  let @st_spare1: Int64
+  let @st_spare2: Int64
+  let @st_spare3: Int64
+  let @st_spare4: Int64
+  let @st_spare5: Int64
+  let @st_spare6: Int64
+  let @st_spare7: Int64
+  let @st_spare8: Int64
+  let @st_spare9: Int64
+}
+
+fn extern fchmod(fd: Int32, mode: UInt16) -> Int32
+
+fn extern fstat(fd: Int32, buf: Pointer[StatBuf]) -> Int32
+
+fn extern stat(path: Pointer[UInt8], buf: Pointer[StatBuf]) -> Int32
+
+fn extern opendir(path: Pointer[UInt8]) -> Pointer[UInt8]
+
+fn extern readdir(stream: Pointer[UInt8]) -> Pointer[Dirent]
+
+fn extern fsync(fd: Int32) -> Int32
+
+fn extern copy_file_range(
+  in: Int32,
+  off_in: Pointer[Int64],
+  out: Int32,
+  off_out: Pointer[Int64],
+  len: UInt64,
+  flags: UInt32,
+) -> Int64
+
+fn flush(fd: Int32) -> Int32 {
+  fsync(fd)
+}
+
+fn dirent_type(pointer: Pointer[Dirent]) -> Int {
+  pointer.d_type as Int
+}
+
+fn dirent_name(pointer: Pointer[Dirent]) -> Pointer[UInt8] {
+  pointer as Int + 24 as Pointer[UInt8]
+}

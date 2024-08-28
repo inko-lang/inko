@@ -438,7 +438,7 @@ impl<'a> DefineMethods<'a> {
                         TypeBounds::new(),
                     );
                 }
-                hir::ClassExpression::Variant(ref mut node) => {
+                hir::ClassExpression::Constructor(ref mut node) => {
                     self.define_constructor_method(class_id, node);
                 }
                 _ => {}
@@ -1014,7 +1014,7 @@ impl<'a> DefineMethods<'a> {
     fn define_constructor_method(
         &mut self,
         class_id: ClassId,
-        node: &mut hir::DefineVariant,
+        node: &mut hir::DefineConstructor,
     ) {
         // Enums are desugared when lowering to MIR. We define the static method
         // types to construct instances here, so the type checker doesn't need
@@ -1286,6 +1286,7 @@ impl<'a> ImplementTraitMethods<'a> {
             copy.set_source(self.db_mut(), source);
             copy.set_receiver(self.db_mut(), new_rec);
             class_id.add_method(self.db_mut(), name, copy);
+            copy.set_bounds(self.db_mut(), bounds.clone());
         }
     }
 

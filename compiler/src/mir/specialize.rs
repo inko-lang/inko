@@ -41,6 +41,25 @@ fn specialize_constants(db: &mut Database, mir: &mut Mir) {
     }
 }
 
+/// Returns `true` if the given shapes are _not_ compatible with the method
+/// bounds, if there are any.
+///
+/// It's possible to trigger method specialization for types such as
+/// `Result[Int32, String]`. Since foreign types don't implement traits, don't
+/// have headers and thus don't support dynamic dispatch, we have to skip
+/// generating methods for such cases, otherwise we may generate incorrect code.
+fn shapes_not_compatible_with_bounds(
+    db: &Database,
+    method: MethodId,
+    shapes: &HashMap<TypeParameterId, Shape>,
+) -> bool {
+    let bounds = method.bounds(db);
+
+    shapes.iter().any(|(&param, shape)| {
+        bounds.get(param).is_some() && shape.is_foreign()
+    })
+}
+
 struct Job {
     /// The ID of the method that's being specialized.
     method: MethodId,
@@ -556,6 +575,14 @@ impl<'a, 'b> Specialize<'a, 'b> {
                         shapes.insert(par, shape);
                     }
 
+                    if shapes_not_compatible_with_bounds(
+                        &self.state.db,
+                        call.method,
+                        &shapes,
+                    ) {
+                        continue;
+                    }
+
                     self.add_implementation_shapes(call.method, &mut shapes);
                     self.add_method_bound_shapes(call.method, &mut shapes);
                     self.specialize_method(class, call.method, &shapes);
@@ -701,6 +728,14 @@ impl<'a, 'b> Specialize<'a, 'b> {
                     // loop.
                     for (&param, shape) in params.iter().zip(key) {
                         shapes.insert(param, shape);
+                    }
+
+                    if shapes_not_compatible_with_bounds(
+                        &self.state.db,
+                        method_impl,
+                        &shapes,
+                    ) {
+                        continue;
                     }
 
                     // We have to repeat these two calls for every specialized

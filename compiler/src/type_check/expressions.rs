@@ -5,7 +5,8 @@ use crate::state::State;
 use crate::type_check::{DefineAndCheckTypeSignature, Rules, TypeScope};
 use ast::source_location::SourceLocation;
 use std::cell::Cell;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::mem::swap;
 use std::path::PathBuf;
 use types::check::{Environment, TypeChecker};
 use types::format::{format_type, format_type_with_arguments};
@@ -601,60 +602,70 @@ impl MethodCall {
     }
 }
 
-/// A compiler pass for type-checking constant definitions.
-pub(crate) struct DefineConstants<'a> {
-    state: &'a mut State,
-    module: ModuleId,
-}
+/// A compiler pass for defining the types of constants.
+pub(crate) fn define_constants(
+    state: &mut State,
+    modules: &mut [hir::Module],
+) -> bool {
+    // We use a work list such that we can handle constants defined and referred
+    // to in any order, as well as nested dependencies (e.g. `A = B = C = D`).
+    //
+    // We need explicit type annotations here due to
+    // https://github.com/rust-lang/rust/issues/129694.
+    let mut work: VecDeque<(ModuleId, &mut hir::DefineConstant)> =
+        VecDeque::new();
+    let mut new_work: VecDeque<(ModuleId, &mut hir::DefineConstant)> =
+        VecDeque::new();
 
-impl<'a> DefineConstants<'a> {
-    pub(crate) fn run_all(
-        state: &'a mut State,
-        modules: &mut [hir::Module],
-    ) -> bool {
-        // Regular constants must be defined first such that complex constants
-        // (e.g. `A + B` or `[A, B]`) can refer to them, regardless of the order
-        // in which modules are processed.
-        for module in modules.iter_mut() {
-            DefineConstants { state, module: module.module_id }
-                .run(module, true);
-        }
-
-        for module in modules.iter_mut() {
-            DefineConstants { state, module: module.module_id }
-                .run(module, false);
-        }
-
-        !state.diagnostics.has_errors()
-    }
-
-    fn run(mut self, module: &mut hir::Module, simple_only: bool) {
-        for expression in module.expressions.iter_mut() {
-            let node = if let hir::TopLevelExpression::Constant(ref mut node) =
-                expression
-            {
-                node
-            } else {
-                continue;
-            };
-
-            if node.value.is_simple_literal() == simple_only {
-                self.define_constant(node);
+    for module in modules.iter_mut() {
+        for expr in &mut module.expressions {
+            if let hir::TopLevelExpression::Constant(ref mut n) = expr {
+                work.push_back((module.module_id, n));
             }
         }
     }
 
-    fn define_constant(&mut self, node: &mut hir::DefineConstant) {
-        let id = node.constant_id.unwrap();
-        let typ = CheckConstant::new(self.state, self.module)
-            .expression(&mut node.value);
+    while !work.is_empty() {
+        // This flag is used to track if _any_ constant in the stack is resolved
+        // to a type. If this isn't the case, we produce an error.
+        let mut resolved = false;
 
-        id.set_value_type(self.db_mut(), typ);
+        while let Some((mid, node)) = work.pop_front() {
+            let id = node.constant_id.unwrap();
+
+            match CheckConstant::new(state, mid).expression(&mut node.value) {
+                // The type will be unknown if our constant depends on one or
+                // more other constants that we have yet to process.
+                TypeRef::Unknown => {
+                    new_work.push_back((mid, node));
+                }
+                typ => {
+                    id.set_value_type(&mut state.db, typ);
+                    resolved = true;
+                }
+            }
+        }
+
+        swap(&mut work, &mut new_work);
+
+        // If we're unable to determine the type for _any_ of the constants,
+        // it's due to a circular dependency (e.g. `A = B` and `B = A`). In
+        // this case there's nothing we can do other than produce an error.
+        if resolved {
+            continue;
+        }
+
+        for (module, node) in work.drain(0..) {
+            state.diagnostics.error(
+                DiagnosticId::InvalidType,
+                "the type of this constant can't be inferred",
+                module.file(&state.db),
+                node.name.location.clone(),
+            );
+        }
     }
 
-    fn db_mut(&mut self) -> &mut Database {
-        &mut self.state.db
-    }
+    !state.diagnostics.has_errors()
 }
 
 /// A compiler pass for type-checking expressions in methods.
@@ -1046,7 +1057,17 @@ impl<'a> CheckConstant<'a> {
     }
 
     fn binary(&mut self, node: &mut hir::ConstBinary) -> TypeRef {
-        let left = self.expression(&mut node.left);
+        #[allow(clippy::needless_match)]
+        let left = match self.expression(&mut node.left) {
+            TypeRef::Unknown => return TypeRef::Unknown,
+            typ => typ,
+        };
+
+        #[allow(clippy::needless_match)]
+        let right = match self.expression(&mut node.right) {
+            TypeRef::Unknown => return TypeRef::Unknown,
+            typ => typ,
+        };
         let name = node.operator.method_name();
         let (left_id, method) = if let Some(found) =
             self.lookup_method(left, name, &node.location)
@@ -1067,7 +1088,19 @@ impl<'a> CheckConstant<'a> {
 
         call.check_mutability(self.state, &node.location);
         call.check_type_bounds(self.state, &node.location);
-        self.positional_argument(&mut call, &mut node.right);
+        call.arguments = 1;
+
+        if let Some(expected) =
+            call.method.positional_argument_input_type(self.db(), 0)
+        {
+            call.check_argument(
+                self.state,
+                right,
+                expected,
+                node.right.location(),
+            );
+        }
+
         call.check_arguments(self.state, &node.location);
         call.resolve_return_type(self.state);
         call.check_sendable(self.state, &node.location);
@@ -1124,11 +1157,14 @@ impl<'a> CheckConstant<'a> {
     }
 
     fn array(&mut self, node: &mut hir::ConstArray) -> TypeRef {
-        let types = node
-            .values
-            .iter_mut()
-            .map(|n| self.expression(n))
-            .collect::<Vec<_>>();
+        let mut types = Vec::with_capacity(node.values.len());
+
+        for n in &mut node.values {
+            match self.expression(n) {
+                TypeRef::Unknown => return TypeRef::Unknown,
+                typ => types.push(typ),
+            }
+        }
 
         if types.len() > 1 {
             let &first = types.first().unwrap();
@@ -1224,22 +1260,6 @@ impl<'a> CheckConstant<'a> {
         }
 
         None
-    }
-
-    fn positional_argument(
-        &mut self,
-        call: &mut MethodCall,
-        node: &mut hir::ConstExpression,
-    ) {
-        call.arguments += 1;
-
-        let given = self.expression(node);
-
-        if let Some(expected) =
-            call.method.positional_argument_input_type(self.db(), 0)
-        {
-            call.check_argument(self.state, given, expected, node.location());
-        }
     }
 
     fn file(&self) -> PathBuf {
@@ -1691,7 +1711,7 @@ impl<'a> CheckMethodBody<'a> {
             hir::Pattern::Constant(ref mut n) => {
                 self.constant_pattern(n, value_type);
             }
-            hir::Pattern::Variant(ref mut n) => {
+            hir::Pattern::Constructor(ref mut n) => {
                 self.constructor_pattern(n, value_type, pattern);
             }
             hir::Pattern::Wildcard(_) => {
@@ -1825,7 +1845,7 @@ impl<'a> CheckMethodBody<'a> {
                 return;
             }
 
-            node.kind = ConstantPatternKind::Variant(constructor);
+            node.kind = ConstantPatternKind::Constructor(constructor);
 
             return;
         }
@@ -2120,7 +2140,7 @@ impl<'a> CheckMethodBody<'a> {
 
     fn constructor_pattern(
         &mut self,
-        node: &mut hir::VariantPattern,
+        node: &mut hir::ConstructorPattern,
         value_type: TypeRef,
         pattern: &mut Pattern,
     ) {

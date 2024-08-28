@@ -1056,7 +1056,7 @@ pub struct TraitImplementation {
 }
 
 /// A single constructor defined in a enum class.
-pub struct Variant {
+pub struct Constructor {
     id: u16,
     name: String,
     documentation: String,
@@ -1064,31 +1064,31 @@ pub struct Variant {
     members: Vec<TypeRef>,
 }
 
-impl Variant {
+impl Constructor {
     pub fn alloc(
         db: &mut Database,
         id: u16,
         name: String,
         members: Vec<TypeRef>,
         location: Location,
-    ) -> VariantId {
+    ) -> ConstructorId {
         let global_id = db.constructors.len();
 
-        db.constructors.push(Variant {
+        db.constructors.push(Constructor {
             id,
             name,
             members,
             location,
             documentation: String::new(),
         });
-        VariantId(global_id)
+        ConstructorId(global_id)
     }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub struct VariantId(usize);
+pub struct ConstructorId(pub usize);
 
-impl VariantId {
+impl ConstructorId {
     pub fn id(self, db: &Database) -> u16 {
         self.get(db).id
     }
@@ -1121,11 +1121,11 @@ impl VariantId {
         &self.get(db).documentation
     }
 
-    fn get(self, db: &Database) -> &Variant {
+    fn get(self, db: &Database) -> &Constructor {
         &db.constructors[self.0]
     }
 
-    fn get_mut(self, db: &mut Database) -> &mut Variant {
+    fn get_mut(self, db: &mut Database) -> &mut Constructor {
         &mut db.constructors[self.0]
     }
 }
@@ -1208,7 +1208,7 @@ pub struct Class {
     type_parameters: IndexMap<String, TypeParameterId>,
     methods: HashMap<String, MethodId>,
     implemented_traits: HashMap<TraitId, TraitImplementation>,
-    constructors: IndexMap<String, VariantId>,
+    constructors: IndexMap<String, ConstructorId>,
     specializations: HashMap<Vec<Shape>, ClassId>,
 
     /// The ID of the class this class is a specialization of.
@@ -1442,10 +1442,10 @@ impl ClassId {
         name: String,
         members: Vec<TypeRef>,
         location: Location,
-    ) -> VariantId {
+    ) -> ConstructorId {
         let id = self.get(db).constructors.len() as u16;
         let constructor =
-            Variant::alloc(db, id, name.clone(), members, location);
+            Constructor::alloc(db, id, name.clone(), members, location);
 
         self.get_mut(db).constructors.insert(name, constructor);
         constructor
@@ -1545,11 +1545,15 @@ impl ClassId {
         self.get_mut(db).methods.insert(name, method);
     }
 
-    pub fn constructor(self, db: &Database, name: &str) -> Option<VariantId> {
+    pub fn constructor(
+        self,
+        db: &Database,
+        name: &str,
+    ) -> Option<ConstructorId> {
         self.get(db).constructors.get(name).cloned()
     }
 
-    pub fn constructors(self, db: &Database) -> Vec<VariantId> {
+    pub fn constructors(self, db: &Database) -> Vec<ConstructorId> {
         self.get(db).constructors.values().clone()
     }
 
@@ -2867,7 +2871,7 @@ pub enum ConstantKind {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ConstantPatternKind {
     Unknown,
-    Variant(VariantId),
+    Constructor(ConstructorId),
     String(ConstantId),
     Int(ConstantId),
 }
@@ -3572,6 +3576,16 @@ impl Shape {
 
     pub fn float() -> Shape {
         Shape::Float(64)
+    }
+
+    pub fn is_foreign(self) -> bool {
+        match self {
+            Shape::Int(64, Sign::Signed) => false,
+            Shape::Int(_, Sign::Unsigned) => true,
+            Shape::Int(_, Sign::Signed) => true,
+            Shape::Float(32) => true,
+            _ => false,
+        }
     }
 }
 
@@ -4882,7 +4896,7 @@ pub struct Database {
     constants: Vec<Constant>,
     builtin_functions: HashMap<String, BuiltinFunction>,
     type_placeholders: Vec<TypePlaceholder>,
-    constructors: Vec<Variant>,
+    constructors: Vec<Constructor>,
 
     /// The module that acts as the entry point of the program.
     ///

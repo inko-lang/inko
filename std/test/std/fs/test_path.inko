@@ -1,26 +1,14 @@
-import helpers (hash, with_directory)
+import helpers (compiler_path, hash, with_directory)
 import std.env
 import std.fmt (fmt)
 import std.fs (DirectoryEntry, FileType)
 import std.fs.file (self, ReadOnlyFile, WriteOnlyFile)
 import std.fs.path (self, Path)
 import std.io (Error)
-import std.stdio (STDOUT)
+import std.stdio (STDIN, STDOUT)
 import std.sys
 import std.test (Tests)
-import std.time (DateTime)
-
-fn created_at? -> Bool {
-  env.temporary_directory.created_at.ok?
-}
-
-fn modified_at? -> Bool {
-  env.temporary_directory.modified_at.ok?
-}
-
-fn accessed_at? -> Bool {
-  env.temporary_directory.accessed_at.ok?
-}
+import std.time (DateTime, Duration)
 
 fn valid_date?(time: Result[DateTime, Error]) -> Bool {
   match time {
@@ -75,24 +63,6 @@ fn pub tests(t: mut Tests) {
     t.false(Path.new('inko-test-doesnt-exist').exists?)
   })
 
-  if created_at? {
-    t.test('Path.created_at', fn (t) {
-      t.true(valid_date?(env.temporary_directory.created_at))
-    })
-  }
-
-  if modified_at? {
-    t.test('Path.modified_at', fn (t) {
-      t.true(valid_date?(env.temporary_directory.modified_at))
-    })
-  }
-
-  if accessed_at? {
-    t.test('Path.accessed_at', fn (t) {
-      t.true(valid_date?(env.temporary_directory.accessed_at))
-    })
-  }
-
   t.test('Path.absolute?', fn (t) {
     t.true(Path.new('/foo').absolute?)
     t.false(Path.new('foo').absolute?)
@@ -145,23 +115,22 @@ fn pub tests(t: mut Tests) {
     t.equal(Path.new('foo').into_string, 'foo')
   })
 
-  t.test('Path.size', fn (t) { t.true(env.temporary_directory.size.get >= 0) })
-
   t.test('Path.clone', fn (t) {
     t.equal(Path.new('foo').clone, Path.new('foo'))
   })
 
   t.test('Path.fmt', fn (t) { t.equal(fmt(Path.new('foo')), '"foo"') })
 
-  t.test('Path.expand', fn (t) {
-    with_directory(t.id, fn (temp) {
+  t.ok('Path.expand', fn (t) {
+    try with_directory(t.id, fn (temp) {
       let bar = temp.join('foo').join('bar')
 
-      bar.create_directory_all.get
+      try bar.create_directory_all
 
       let expanded = bar.join('..').join('..').expand
 
       t.equal(expanded, Result.Ok(temp.clone))
+      Result.Ok(nil)
     })
 
     t.equal(Path.new('~').expand.ok, env.home_directory)
@@ -169,6 +138,7 @@ fn pub tests(t: mut Tests) {
     t.true(Path.new('~foo').expand.error?)
     t.true(Path.new('/~').expand.error?)
     t.true(Path.new('~/this-directory-should-not-exist').expand.error?)
+    Result.Ok(nil)
   })
 
   t.fork(
@@ -205,12 +175,12 @@ fn pub tests(t: mut Tests) {
     t.equal(Path.new('.//').tail, '')
   })
 
-  t.test('Path.list with a valid directory', fn (t) {
+  t.ok('Path.list with a valid directory', fn (t) {
     with_directory(t.id, fn (root) {
       let foo = root.join('foo')
 
-      root.create_directory.get
-      foo.create_directory.get
+      try root.create_directory
+      try foo.create_directory
 
       let entry = root.list.get.select_map(fn (e) { e.ok }).find(fn (e) {
         e.path == foo
@@ -220,6 +190,7 @@ fn pub tests(t: mut Tests) {
         entry,
         Option.Some(DirectoryEntry(path: foo, type: FileType.Directory)),
       )
+      Result.Ok(nil)
     })
   })
 
@@ -227,13 +198,13 @@ fn pub tests(t: mut Tests) {
     with_directory(t.id, fn (root) { t.true(root.list.error?) })
   })
 
-  t.test('Path.list_recursive with a valid directory', fn (t) {
+  t.ok('Path.list_recursive with a valid directory', fn (t) {
     with_directory(t.id, fn (root) {
       let foo = root.join('foo')
       let bar = foo.join('bar')
       let baz = bar.join('baz')
 
-      baz.create_directory_all.get
+      try baz.create_directory_all
       write('a', foo.join('a.txt'))
       write('b', foo.join('b.txt'))
       write('c', bar.join('c.txt'))
@@ -258,6 +229,7 @@ fn pub tests(t: mut Tests) {
       t.true(paths.contains?(foo.join('b.txt')))
       t.true(paths.contains?(bar.join('c.txt')))
       t.true(paths.contains?(baz.join('d.txt')))
+      Result.Ok(nil)
     })
   })
 
@@ -276,14 +248,15 @@ fn pub tests(t: mut Tests) {
     t.false(path.exists?)
   })
 
-  t.test('Path.remove_directory', fn (t) {
+  t.ok('Path.remove_directory', fn (t) {
     with_directory(t.id, fn (path) {
       t.true(path.remove_directory.error?)
 
-      path.create_directory.get
+      try path.create_directory
 
       t.true(path.remove_directory.ok?)
       t.false(path.directory?)
+      Result.Ok(nil)
     })
   })
 
@@ -305,40 +278,77 @@ fn pub tests(t: mut Tests) {
     })
   })
 
-  t.test('Path.remove_directory', fn (t) {
+  t.ok('Path.remove_directory', fn (t) {
     with_directory(t.id, fn (path) {
-      path.create_directory.get
+      try path.create_directory
 
       t.true(path.remove_directory.ok?)
       t.true(path.remove_directory.error?)
       t.false(path.directory?)
+      Result.Ok(nil)
     })
   })
 
-  t.test('Path.remove_directory_all', fn (t) {
+  t.ok('Path.remove_directory_all', fn (t) {
     with_directory(t.id, fn (root) {
       let path = root.join('foo').join('bar')
 
-      path.create_directory_all.get
+      try path.create_directory_all
 
       t.true(root.remove_directory_all.ok?)
       t.true(root.remove_directory_all.error?)
       t.false(root.directory?)
+      Result.Ok(nil)
     })
   })
 
-  t.test('Path.copy', fn (t) {
+  t.ok('Path.copy using regular files', fn (t) {
+    # Source and destination on the same file system.
     let path1 = env.temporary_directory.join('inko-test-${t.id}-1')
     let path2 = env.temporary_directory.join('inko-test-${t.id}-2')
 
-    write('test', to: path1)
+    {
+      write('test', to: path1)
 
-    t.true(path1.copy(to: path2).ok?)
-    t.equal(read(path2), 'test')
+      t.true(path1.copy(to: path2).ok?)
+      t.equal(read(path2), 'test')
+
+      let meta1 = try path1.metadata
+      let meta2 = try path2.metadata
+
+      t.equal(meta1.size, meta2.size)
+      t.equal(meta1.mode, meta2.mode)
+    }
+
+    # Source and destination (almost certainly) not on the same file system.
+    t.true('fixtures/hello.txt'.to_path.copy(to: path2).ok?)
+    t.equal(read(path2), 'hello\n')
 
     path1.remove_file.get
     path2.remove_file.get
+    Result.Ok(nil)
   })
+
+  t.fork(
+    'Path.copy with a special file as the source',
+    child: fn {
+      let buf = ByteArray.new
+
+      STDIN.new.read_all(buf).get
+
+      let path = buf.into_string.to_path
+
+      Path.new('/dev/stdin').copy(path).get
+      path.remove_file.get
+      STDOUT.new.write_string('ok')
+    },
+    test: fn (t, proc) {
+      let path = env.temporary_directory.join('inko-test-${t.id}')
+
+      proc.stdin(path.to_string)
+      t.equal(proc.spawn.stdout, 'ok')
+    },
+  )
 
   t.test('Path.extension', fn (t) {
     t.equal(Path.new('').extension, Option.None)
@@ -440,5 +450,28 @@ fn pub tests(t: mut Tests) {
 
   t.panic('Path.with_extension with an invalid extension', fn {
     Path.new('a.txt').with_extension('txt/foo')
+  })
+
+  t.ok('Path.metadata', fn (t) {
+    let path = env.temporary_directory.join('inko-test-${t.id}')
+
+    write('test', path)
+
+    let today = DateTime.utc - Duration.from_secs(60)
+    let meta = try path.metadata
+
+    t.true(meta.size >= 4)
+    t.true(meta.type.file?)
+    t.true(meta.modified_at >= today)
+    t.true(meta.accessed_at >= today)
+
+    match meta.created_at {
+      case Some(v) -> t.true(v >= today)
+      case _ -> {}
+    }
+
+    path.remove_file.get
+
+    Result.Ok(nil)
   })
 }

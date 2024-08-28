@@ -452,7 +452,7 @@ impl Node for DefineField {
 pub enum ClassExpression {
     DefineMethod(Box<DefineMethod>),
     DefineField(Box<DefineField>),
-    DefineVariant(Box<DefineVariant>),
+    DefineConstructor(Box<DefineConstructor>),
     Comment(Box<Comment>),
 }
 
@@ -461,7 +461,7 @@ impl Node for ClassExpression {
         match self {
             ClassExpression::DefineMethod(n) => &n.location,
             ClassExpression::DefineField(n) => &n.location,
-            ClassExpression::DefineVariant(n) => &n.location,
+            ClassExpression::DefineConstructor(n) => &n.location,
             ClassExpression::Comment(n) => &n.location,
         }
     }
@@ -505,7 +505,7 @@ impl Node for DefineClass {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct DefineVariant {
+pub struct DefineConstructor {
     pub name: Constant,
     pub members: Option<Types>,
     pub location: SourceLocation,
@@ -1438,7 +1438,7 @@ pub struct TuplePattern {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct VariantPattern {
+pub struct ConstructorPattern {
     pub name: Constant,
     pub values: Vec<Pattern>,
     pub location: SourceLocation,
@@ -1485,7 +1485,7 @@ pub struct StringPattern {
 #[derive(Debug, PartialEq, Eq)]
 pub enum Pattern {
     Constant(Box<Constant>),
-    Variant(Box<VariantPattern>),
+    Constructor(Box<ConstructorPattern>),
     Class(Box<ClassPattern>),
     Int(Box<IntLiteral>),
     True(Box<True>),
@@ -1501,7 +1501,7 @@ impl Pattern {
     pub fn location(&self) -> &SourceLocation {
         match self {
             Pattern::Constant(ref n) => &n.location,
-            Pattern::Variant(ref n) => &n.location,
+            Pattern::Constructor(ref n) => &n.location,
             Pattern::Class(ref n) => &n.location,
             Pattern::Int(ref n) => n.location(),
             Pattern::True(ref n) => n.location(),
