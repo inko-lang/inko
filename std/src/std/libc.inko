@@ -119,6 +119,8 @@ fn extern lseek(fd: Int32, offset: Int, whence: Int32) -> Int
 
 fn extern close(fd: Int32) -> Int32
 
+fn extern isatty(fd: Int32) -> Int32
+
 fn extern strlen(pointer: Pointer[UInt8]) -> UInt64
 
 fn extern realloc(pointer: Pointer[UInt8], size: Int) -> Pointer[UInt8]

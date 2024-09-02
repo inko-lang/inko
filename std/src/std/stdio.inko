@@ -41,6 +41,19 @@ class pub Stdin {
   fn pub static new -> Stdin {
     Stdin(sys.stdin)
   }
+
+  # Returns `true` if the input stream is connected to a terminal/TTY.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.stdio (Stdin)
+  #
+  # Stdin.new.terminal? # => true
+  # ```
+  fn pub terminal? -> Bool {
+    sys.terminal?(@fd)
+  }
 }
 
 impl Read for Stdin {
@@ -67,6 +80,19 @@ class pub Stdout {
   # Returns a new `Stdout`.
   fn pub static new -> Stdout {
     Stdout(sys.stdout)
+  }
+
+  # Returns `true` if the output stream is connected to a terminal/TTY.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.stdio (Stdout)
+  #
+  # Stdout.new.terminal? # => true
+  # ```
+  fn pub terminal? -> Bool {
+    sys.terminal?(@fd)
   }
 }
 
@@ -106,6 +132,19 @@ class pub Stderr {
   # Returns a new `Stderr`.
   fn pub static new -> Stderr {
     Stderr(sys.stderr)
+  }
+
+  # Returns `true` if the output stream is connected to a terminal/TTY.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.stdio (Stderr)
+  #
+  # Stderr.new.terminal? # => true
+  # ```
+  fn pub terminal? -> Bool {
+    sys.terminal?(@fd)
   }
 }
 

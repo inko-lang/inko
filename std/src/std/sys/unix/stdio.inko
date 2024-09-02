@@ -1,4 +1,5 @@
-import std.io (Error)
+import std.io (Error, start_blocking, stop_blocking)
+import std.libc
 import std.sys.unix.fs
 
 let STDIN = 0
@@ -21,6 +22,15 @@ fn write(fd: Int32, data: Pointer[UInt8], size: Int) -> Result[Int, Error] {
   fs.write_file(fd, data, size)
 }
 
-fn read(file: Int32, into: mut ByteArray, size: Int) -> Result[Int, Error] {
-  fs.read_file(file, into, size)
+fn read(fd: Int32, into: mut ByteArray, size: Int) -> Result[Int, Error] {
+  fs.read_file(fd, into, size)
+}
+
+fn terminal?(fd: Int32) -> Bool {
+  start_blocking
+
+  let res = libc.isatty(fd) as Int
+  let _ = stop_blocking
+
+  res == 1
 }

@@ -18,6 +18,16 @@ fn pub tests(t: mut Tests) {
   )
 
   t.fork(
+    'Stdin.terminal? in a pipe',
+    child: fn {
+      let stdout = Stdout.new
+      let stdin = Stdin.new
+      let _ = stdout.write_string(stdin.terminal?.to_string)
+    },
+    test: fn (test, process) { test.equal(process.spawn.stdout, 'false') },
+  )
+
+  t.fork(
     'Stdout.write_bytes',
     child: fn { let _ = Stdout.new.write_bytes('hello'.to_byte_array) },
     test: fn (test, process) { test.equal(process.spawn.stdout, 'hello') },
@@ -46,6 +56,15 @@ fn pub tests(t: mut Tests) {
   )
 
   t.fork(
+    'Stdout.terminal? in a pipe',
+    child: fn {
+      let stdout = Stdout.new
+      let _ = stdout.write_string(stdout.terminal?.to_string)
+    },
+    test: fn (test, process) { test.equal(process.spawn.stdout, 'false') },
+  )
+
+  t.fork(
     'Stderr.write_bytes',
     child: fn { let _ = Stderr.new.write_bytes('hello'.to_byte_array) },
     test: fn (test, process) { test.equal(process.spawn.stderr, 'hello') },
@@ -71,5 +90,15 @@ fn pub tests(t: mut Tests) {
       let _ = out.flush
     },
     test: fn (test, process) { test.equal(process.spawn.stderr, 'hello') },
+  )
+
+  t.fork(
+    'Stderr.terminal? in a pipe',
+    child: fn {
+      let stdout = Stdout.new
+      let stderr = Stderr.new
+      let _ = stdout.write_string(stderr.terminal?.to_string)
+    },
+    test: fn (test, process) { test.equal(process.spawn.stdout, 'false') },
   )
 }
