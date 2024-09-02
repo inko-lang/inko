@@ -1,4 +1,4 @@
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 
 let pub STRING = 'foo'
 let pub INT = 42
@@ -7,7 +7,7 @@ let PRIVATE = 42
 
 class async Main {
   fn async main {
-    let out = STDOUT.new
+    let out = Stdout.new
 
     out.print(STRING)
     out.print(INT.to_string)

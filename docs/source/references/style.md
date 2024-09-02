@@ -189,7 +189,7 @@ before any imports:
 
 ```inko
 # The documentation of the module goes here.
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 ```
 
 ## Imports

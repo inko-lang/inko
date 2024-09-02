@@ -4,11 +4,11 @@
 }
 ---
 
-In previous tutorials we've seen expressions such as `STDOUT.new` and
+In previous tutorials we've seen expressions such as `Stdout.new` and
 `out.print(...)`. In such expressions, `new` and `print` are method calls. But
 what are methods? Well, they are functions that are bound to some object. In
-case of `print`, the method is bound to an instance of `STDOUT`. This means you
-first have to create an instance of `STDOUT` before you can call `print`.
+case of `print`, the method is bound to an instance of `Stdout`. This means you
+first have to create an instance of `Stdout` before you can call `print`.
 
 Methods are defined using the `fn` keyword. An example of this which we've seen
 so far is the `main` method defined like so:
@@ -245,11 +245,11 @@ anonymous functions that (optionally) capture data, and can be moved around as
 values. Closures are defined using the `fn` keyword while leaving out a name:
 
 ```inko
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 
 class async Main {
   fn async main {
-    let out = STDOUT.new
+    let out = Stdout.new
 
     fn { out.print('Hello!') }.call
   }
@@ -261,11 +261,11 @@ regular methods, closures can also define arguments. Unlike regular methods, the
 argument types and the return type are inferred:
 
 ```inko
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 
 class async Main {
   fn async main {
-    let out = STDOUT.new
+    let out = Stdout.new
 
     fn (message) { out.print(message) }.call('Hello!')
   }
@@ -276,11 +276,11 @@ The compiler might not always be able to infer the types though, in which case
 explicit type signatures are necessary:
 
 ```inko
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 
 class async Main {
   fn async main {
-    let out = STDOUT.new
+    let out = Stdout.new
 
     fn (message: String) -> Int {
       out.print(message)

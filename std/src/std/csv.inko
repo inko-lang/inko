@@ -26,9 +26,9 @@
 #
 # ```inko
 # import std.csv (Generator)
-# import std.stdio (STDOUT)
+# import std.stdio (Stdout)
 #
-# let gen = Generator.new(STDOUT.new)
+# let gen = Generator.new(Stdout.new)
 #
 # gen.write(['foo', 'bar'])
 # ```
@@ -707,9 +707,9 @@ impl Iter[Result[Array[String], Error]] for Parser {
 #
 # ```inko
 # import std.csv (Generator)
-# import std.stdio (STDOUT)
+# import std.stdio (Stdout)
 #
-# let gen = Generator.new(STDOUT.new)
+# let gen = Generator.new(Stdout.new)
 #
 # gen.write(['foo', 'bar', 'baz'])
 # gen.write(['1', '2', '3'])
@@ -725,9 +725,9 @@ class pub Generator[I: mut + Write] {
   #
   # ```inko
   # import std.csv (Generator)
-  # import std.stdio (STDOUT)
+  # import std.stdio (Stdout)
   #
-  # Generator.new(STDOUT.new)
+  # Generator.new(Stdout.new)
   # ```
   fn pub static new(output: I) -> Generator[I] {
     Generator(output: output, separator_string: ',', separator_byte: COMMA)
@@ -743,9 +743,9 @@ class pub Generator[I: mut + Write] {
   #
   # ```inko
   # import std.csv (Generator, Separator)
-  # import std.stdio (STDOUT)
+  # import std.stdio (Stdout)
   #
-  # let gen = Generator.new(STDOUT.new)
+  # let gen = Generator.new(Stdout.new)
   #
   # gen.separator = Separator.Tab
   # ```
@@ -769,9 +769,9 @@ class pub Generator[I: mut + Write] {
   #
   # ```inko
   # import std.csv (Generator)
-  # import std.stdio (STDOUT)
+  # import std.stdio (Stdout)
   #
-  # let gen = Generator.new(STDOUT.new)
+  # let gen = Generator.new(Stdout.new)
   #
   # gen.write(['foo', 'bar', 'baz']) # => Result.Ok(nil)
   # ```
@@ -810,9 +810,9 @@ class pub Generator[I: mut + Write] {
   #
   # ```inko
   # import std.csv (Generator)
-  # import std.stdio (STDOUT)
+  # import std.stdio (Stdout)
   #
-  # let gen = Generator.new(STDOUT.new)
+  # let gen = Generator.new(Stdout.new)
   #
   # gen.write(['foo', 'bar', 'baz']) # => Result.Ok(nil)
   # gen.flush                        # => Result.Ok(nil)

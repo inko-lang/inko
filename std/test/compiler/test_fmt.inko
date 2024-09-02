@@ -2,7 +2,7 @@ import helpers (compiler_path)
 import std.env
 import std.fs.file (ReadOnlyFile)
 import std.fs.path (Path)
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 import std.sys (Command, Stream)
 import std.test (Failure, Test, Tests)
 

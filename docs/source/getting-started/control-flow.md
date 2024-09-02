@@ -12,11 +12,11 @@ Inko has the following control flow constructs: `if`, `and`, `or`, `while`,
 For conditionals we use `if`:
 
 ```inko
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 
 class async Main {
   fn async main {
-    let out = STDOUT.new
+    let out = Stdout.new
     let num = 42
 
     if num == 42 { out.print('yes') } else { out.print('no') }
@@ -30,11 +30,11 @@ to e.g. `50`, the output is instead "no".
 Inko also supports `else if` like so:
 
 ```inko
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 
 class async Main {
   fn async main {
-    let out = STDOUT.new
+    let out = Stdout.new
     let num = 50
 
     if num == 42 {
@@ -54,11 +54,11 @@ To perform boolean AND and OR operations, you can use the `and` and `or`
 keywords:
 
 ```inko
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 
 class async Main {
   fn async main {
-    let out = STDOUT.new
+    let out = Stdout.new
     let num = 50
 
     if num == 42 or num == 50 {
@@ -83,11 +83,11 @@ keyword, and conditional loops that use the `while` keyword.
 Here we use a conditional loop to print a number 10 times:
 
 ```inko
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 
 class async Main {
   fn async main {
-    let out = STDOUT.new
+    let out = Stdout.new
     let mut num = 0
 
     while num < 10 {
@@ -118,12 +118,12 @@ every 500 milliseconds:
 
 ```inko
 import std.process (sleep)
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 import std.time (Duration)
 
 class async Main {
   fn async main {
-    let out = STDOUT.new
+    let out = Stdout.new
     let mut num = 0
 
     loop {
@@ -140,11 +140,11 @@ You can control the iteration of a loop using the `next` and `break` keywords:
 the inner-most loop:
 
 ```inko
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 
 class async Main {
   fn async main {
-    let out = STDOUT.new
+    let out = Stdout.new
 
     loop {
       out.print('hello')

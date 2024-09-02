@@ -542,9 +542,9 @@ class pub Path {
   #
   # ```inko
   # import std.fs.path (Path)
-  # import std.stdio (STDOUT)
+  # import std.stdio (Stdout)
   #
-  # let out = STDOUT.new
+  # let out = Stdout.new
   # let path = Path.new('.')
   # let iter = path.list.or_panic('failed to create the iterator')
   #

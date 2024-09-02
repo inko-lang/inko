@@ -205,11 +205,11 @@ compiling our code. We'll cross compile the following program located in the
 file `test.inko`:
 
 ```inko
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 
 class async Main {
   fn async main {
-    STDOUT.new.print('hello')
+    Stdout.new.print('hello')
   }
 }
 ```

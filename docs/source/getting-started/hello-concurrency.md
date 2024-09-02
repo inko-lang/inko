@@ -10,12 +10,12 @@ contents:
 
 ```inko
 import std.process (sleep)
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 import std.time (Duration)
 
 class async Printer {
   fn async print(message: String) {
-    let _ = STDOUT.new.print(message)
+    let _ = Stdout.new.print(message)
   }
 }
 
@@ -64,11 +64,11 @@ stop right away when the output is produced. We achieve this by changing the
 program to the following:
 
 ```inko
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 
 class async Printer {
   fn async print(message: String, channel: Channel[Nil]) {
-    let _ = STDOUT.new.print(message)
+    let _ = Stdout.new.print(message)
 
     channel.send(nil)
   }

@@ -11,11 +11,11 @@ To start, create the file `files.inko` with the following contents:
 
 ```inko
 import std.fs.file (ReadWriteFile)
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 
 class async Main {
   fn async main {
-    let out = STDOUT.new
+    let out = Stdout.new
     let file = ReadWriteFile.new('hello.txt'.to_path).get
     let bytes = ByteArray.new
 
@@ -57,11 +57,11 @@ If we just want to read a file, we'd do so as follows:
 
 ```inko
 import std.fs.file (ReadOnlyFile)
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 
 class async Main {
   fn async main {
-    let out = STDOUT.new
+    let out = Stdout.new
     let file = ReadOnlyFile.new('hello.txt'.to_path).get
     let bytes = ByteArray.new
 

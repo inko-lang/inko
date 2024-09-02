@@ -60,7 +60,7 @@
 # import std.env
 # import std.fmt (fmt)
 # import std.optparse (Options)
-# import std.stdio (STDOUT)
+# import std.stdio (Stdout)
 #
 # class async Main {
 #   fn async main {
@@ -71,7 +71,7 @@
 #
 #     let matches = opts.parse(env.arguments).get
 #
-#     STDOUT.new.print(fmt(matches.remaining))
+#     Stdout.new.print(fmt(matches.remaining))
 #   }
 # }
 # ```
@@ -90,7 +90,7 @@
 # import std.env
 # import std.fmt (fmt)
 # import std.optparse (Help, Options)
-# import std.stdio (STDERR, STDOUT)
+# import std.stdio (Stderr, Stdout)
 # import std.sys
 #
 # class async Main {
@@ -108,7 +108,7 @@
 #     let matches = match opts.parse(env.arguments) {
 #       case Ok(v) -> v
 #       case Error(e) -> {
-#         STDERR.new.print('test: ${e}')
+#         Stderr.new.print('test: ${e}')
 #         sys.exit(1)
 #       }
 #     }
@@ -125,9 +125,9 @@
 #         .options(opts)
 #         .to_string
 #
-#       STDOUT.new.write_string(help)
+#       Stdout.new.write_string(help)
 #     } else {
-#       STDOUT.new.print(fmt(matches.remaining))
+#       Stdout.new.print(fmt(matches.remaining))
 #     }
 #   }
 # }

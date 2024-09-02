@@ -5,7 +5,7 @@ import std.fmt (fmt)
 import std.fs.path (Path)
 import std.hash (Hash, Hasher)
 import std.hash.siphash (SipHasher13)
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 
 fn pub hash[T: Hash](value: ref T) -> Int {
   let hasher = SipHasher13.default

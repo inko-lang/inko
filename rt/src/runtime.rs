@@ -9,7 +9,6 @@ mod process;
 mod random;
 mod signal;
 mod socket;
-mod stdio;
 mod string;
 mod sys;
 mod time;

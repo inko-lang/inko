@@ -11,11 +11,11 @@ To start things off, create a file called `match.inko` with the following
 contents:
 
 ```inko
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 
 class async Main {
   fn async main {
-    let out = STDOUT.new
+    let out = Stdout.new
     let val = Option.Some((42, 'hello'))
 
     match val {
@@ -216,11 +216,11 @@ Guards allow you to set an extra condition for a pattern to be considered a
 match:
 
 ```inko
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 
 class async Main {
   fn async main {
-    let out = STDOUT.new
+    let out = Stdout.new
     let val = Option.Some((42, 'hello'))
 
     match val {
@@ -355,11 +355,11 @@ When performing pattern matching, the match must be exhaustive, meaning all
 possible cases must be covered:
 
 ```inko
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 
 class async Main {
   fn async main {
-    let out = STDOUT.new
+    let out = Stdout.new
     let val = Option.Some((42, 'hello'))
 
     match val {
@@ -381,11 +381,11 @@ pattern, known as a "wildcard pattern", which matches everything. We can make
 the match exhaustive in a variety of ways, such as the following:
 
 ```inko
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 
 class async Main {
   fn async main {
-    let out = STDOUT.new
+    let out = Stdout.new
     let val = Option.Some((42, 'hello'))
 
     match val {
@@ -403,11 +403,11 @@ Apart from requiring the match to be exhaustive, the compiler also notifies you
 of redundant patterns:
 
 ```inko
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 
 class async Main {
   fn async main {
-    let out = STDOUT.new
+    let out = Stdout.new
     let val = Option.Some((42, 'hello'))
 
     match val {
@@ -429,11 +429,11 @@ The second `case` is unreachable because it's the same as the first `case`. Of
 course the compiler is also able to detect more complicated redundant patterns:
 
 ```inko
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 
 class async Main {
   fn async main {
-    let out = STDOUT.new
+    let out = Stdout.new
     let val = Option.Some((42, 'hello'))
 
     match val {

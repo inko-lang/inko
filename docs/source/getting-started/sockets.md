@@ -13,11 +13,11 @@ contents:
 ```inko
 import std.net.ip (IpAddress)
 import std.net.socket (UdpSocket)
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 
 class async Main {
   fn async main {
-    let stdout = STDOUT.new
+    let stdout = Stdout.new
     let server = UdpSocket.new(IpAddress.v4(0, 0, 0, 0), port: 0).get
     let client = UdpSocket.new(IpAddress.v4(0, 0, 0, 0), port: 0).get
     let addr = server.local_address.get
@@ -97,11 +97,11 @@ Let's change the program to use TCP sockets instead. We'll start by changing
 ```inko
 import std.net.ip (IpAddress)
 import std.net.socket (TcpServer)
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 
 class async Main {
   fn async main {
-    let stdout = STDOUT.new
+    let stdout = Stdout.new
     let server = TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 9999).get
     let client = server.accept.get
     let bytes = ByteArray.new

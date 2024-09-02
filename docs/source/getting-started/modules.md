@@ -12,16 +12,16 @@ keyword. For example, in the tutorials covered so far we've seen instances of
 this such as:
 
 ```inko
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 
 class async Main {
   fn async main {
-    STDOUT.new.print('hello')
+    Stdout.new.print('hello')
   }
 }
 ```
 
-Here we import the `STDOUT` class from the module `std.stdio`. We can also
+Here we import the `Stdout` class from the module `std.stdio`. We can also
 import modules as a whole:
 
 ```inko
@@ -29,7 +29,7 @@ import std.stdio
 
 class async Main {
   fn async main {
-    stdio.STDOUT.new.print('hello')
+    stdio.Stdout.new.print('hello')
   }
 }
 ```
@@ -37,12 +37,12 @@ class async Main {
 Importing multiple symbols at once is also possible:
 
 ```inko
-import std.stdio (STDERR, STDOUT)
+import std.stdio (Stderr, Stdout)
 
 class async Main {
   fn async main {
-    STDOUT.new.print('hello')
-    STDERR.new.print('world')
+    Stdout.new.print('hello')
+    Stderr.new.print('world')
   }
 }
 ```
@@ -51,7 +51,7 @@ When importing different symbols with the same name, you can prevent name
 conflicts by using a custom alias:
 
 ```inko
-import std.stdio (STDERR as ERR, STDOUT as OUT)
+import std.stdio (Stderr as ERR, Stdout as OUT)
 
 class async Main {
   fn async main {

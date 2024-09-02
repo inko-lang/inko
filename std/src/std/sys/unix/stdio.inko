@@ -1,0 +1,26 @@
+import std.io (Error)
+import std.sys.unix.fs
+
+let STDIN = 0
+let STDOUT = 1
+let STDERR = 2
+
+fn stdout -> Int32 {
+  STDOUT as Int32
+}
+
+fn stderr -> Int32 {
+  STDERR as Int32
+}
+
+fn stdin -> Int32 {
+  STDIN as Int32
+}
+
+fn write(fd: Int32, data: Pointer[UInt8], size: Int) -> Result[Int, Error] {
+  fs.write_file(fd, data, size)
+}
+
+fn read(file: Int32, into: mut ByteArray, size: Int) -> Result[Int, Error] {
+  fs.read_file(file, into, size)
+}

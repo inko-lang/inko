@@ -10,7 +10,7 @@ Types can define a method to run when before they are dropped, known as a
 
 ```inko
 import std.drop (Drop)
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 
 class Person {
   let @name: String
@@ -18,7 +18,7 @@ class Person {
 
 impl Drop for Person {
   fn mut drop {
-    STDOUT.new.print('dropping ${@name}')
+    Stdout.new.print('dropping ${@name}')
   }
 }
 
@@ -42,7 +42,7 @@ dropped escaping the `drop` call:
 
 ```inko
 import std.drop (Drop)
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 
 class Person {
   let @name: String
@@ -52,7 +52,7 @@ class Person {
 impl Drop for Person {
   fn mut drop {
     @people.push(self)
-    STDOUT.new.print('dropping ${@name}')
+    Stdout.new.print('dropping ${@name}')
   }
 }
 

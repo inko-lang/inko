@@ -5,7 +5,7 @@ import std.fs (DirectoryEntry, FileType)
 import std.fs.file (self, ReadOnlyFile, WriteOnlyFile)
 import std.fs.path (self, Path)
 import std.io (Error)
-import std.stdio (STDIN, STDOUT)
+import std.stdio (Stdin, Stdout)
 import std.sys
 import std.test (Tests)
 import std.time (DateTime, Duration)
@@ -144,7 +144,7 @@ fn pub tests(t: mut Tests) {
   t.fork(
     'Path.expand with a missing home directory',
     child: fn {
-      let out = STDOUT.new
+      let out = Stdout.new
       let res = Path.new('~').expand.map(fn (v) { v.to_string }).or('ERROR')
 
       out.write_string(res)
@@ -334,13 +334,13 @@ fn pub tests(t: mut Tests) {
     child: fn {
       let buf = ByteArray.new
 
-      STDIN.new.read_all(buf).get
+      Stdin.new.read_all(buf).get
 
       let path = buf.into_string.to_path
 
       Path.new('/dev/stdin').copy(path).get
       path.remove_file.get
-      STDOUT.new.write_string('ok')
+      Stdout.new.write_string('ok')
     },
     test: fn (t, proc) {
       let path = env.temporary_directory.join('inko-test-${t.id}')

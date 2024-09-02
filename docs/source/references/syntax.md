@@ -23,9 +23,9 @@ Unlike languages such as Ruby and Python, it's not valid to include expressions
 directly in a module, i.e. this is invalid:
 
 ```inko
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 
-STDOUT.new.print('hello')
+Stdout.new.print('hello')
 
 class async Main {
   fn async main {}

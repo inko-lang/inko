@@ -1,68 +1,82 @@
-# STDIN, STDOUT, and STDERR streams.
+# Standard input and output streams.
+#
+# This module provides types for working with STDOUT, STDERR, and STDIN.
+#
+# # Examples
+#
+# Writing to STDOUT:
+#
+# ```inko
+# import std.stdio (Stdout)
+#
+# Stdout.new.print('hello')
+# ```
+#
+# Writing to STDERR:
+#
+# ```inko
+# import std.stdio (Stderr)
+#
+# Stderr.new.print('hello')
+# ```
+#
+# Reading from STDIN:
+#
+# ```inko
+# import std.stdio (Stdin)
+#
+# let bytes = ByteArray.new
+# let stdin = Stdin.new
+#
+# stdin.read_all(bytes).or_panic('failed to read from STDIN')
+# ```
 import std.io (Error, Read, Write, WriteInternal)
-
-class extern IntResult {
-  let @tag: Int
-  let @value: Int
-}
-
-fn extern inko_stdout_write(
-  process: Pointer[UInt8],
-  data: Pointer[UInt8],
-  size: Int,
-) -> IntResult
-
-fn extern inko_stderr_write(
-  process: Pointer[UInt8],
-  data: Pointer[UInt8],
-  size: Int,
-) -> IntResult
-
-fn extern inko_stdin_read(
-  process: Pointer[UInt8],
-  buffer: mut ByteArray,
-  size: Int,
-) -> IntResult
-
-fn extern inko_stdout_flush(process: Pointer[UInt8])
-
-fn extern inko_stderr_flush(process: Pointer[UInt8])
+import std.sys.unix.stdio (self as sys) if unix
 
 # The standard input stream of the current OS process.
-class pub STDIN {
-  # Returns a new handle to the input stream.
-  fn pub static new -> STDIN {
-    STDIN()
+class pub Stdin {
+  let @fd: Int32
+
+  # Returns a new `Stdin`.
+  fn pub static new -> Stdin {
+    Stdin(sys.stdin)
   }
 }
 
-impl Read for STDIN {
+impl Read for Stdin {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
-    match inko_stdin_read(_INKO.process, into, size) {
-      case { @tag = 0, @value = v } -> Result.Ok(v)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    sys.read(@fd, into, size)
   }
 }
 
 # The standard output stream of the current OS process.
-class pub STDOUT {
-  # Returns a new handle to the output stream.
-  fn pub static new -> STDOUT {
-    STDOUT()
+#
+# # Buffering
+#
+# This output stream _does not_ use any form of buffering and instead writes its
+# output directly. If buffering is desired, you can do so by wrapping a `Stdout`
+# in a `std.io.BufferedWriter`.
+#
+# Coming from other languages that apply buffering this may be surprising. The
+# reason for this is simple: it's easy to apply buffering by combining `Stdout`
+# with existing types, but opting out of buffering would require additional
+# flags or types, resulting in a messy API.
+class pub Stdout {
+  let @fd: Int32
+
+  # Returns a new `Stdout`.
+  fn pub static new -> Stdout {
+    Stdout(sys.stdout)
   }
 }
 
-impl WriteInternal for STDOUT {
+impl WriteInternal for Stdout {
   fn mut write_internal(data: Pointer[UInt8], size: Int) -> Result[Int, Error] {
-    match inko_stdout_write(_INKO.process, data, size) {
-      case { @tag = 0, @value = n } -> Result.Ok(n)
-      case { @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    sys.write(@fd, data, size)
   }
 }
 
-impl Write for STDOUT {
+impl Write for Stdout {
   fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
     write_all_internal(bytes.to_pointer, bytes.size)
   }
@@ -71,29 +85,37 @@ impl Write for STDOUT {
     write_all_internal(string.to_pointer, string.size)
   }
 
+  # Flushes any pending writes.
+  #
+  # Since this type doesn't use any buffering, this method is a no-op.
   fn pub mut flush -> Result[Nil, Never] {
-    Result.Ok(inko_stdout_flush(_INKO.process))
+    Result.Ok(nil)
   }
 }
 
 # The standard error stream of the current OS process.
-class pub STDERR {
-  # Returns a new handle to the error stream.
-  fn pub static new -> STDERR {
-    STDERR()
+#
+# # Buffering
+#
+# This output stream _does not_ use any form of buffering and instead writes its
+# output directly. If buffering is desired, you can do so by wrapping a `Stdout`
+# in a `std.io.BufferedWriter`.
+class pub Stderr {
+  let @fd: Int32
+
+  # Returns a new `Stderr`.
+  fn pub static new -> Stderr {
+    Stderr(sys.stderr)
   }
 }
 
-impl WriteInternal for STDERR {
+impl WriteInternal for Stderr {
   fn mut write_internal(data: Pointer[UInt8], size: Int) -> Result[Int, Error] {
-    match inko_stderr_write(_INKO.process, data, size) {
-      case { @tag = 0, @value = n } -> Result.Ok(n)
-      case { @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    sys.write(@fd, data, size)
   }
 }
 
-impl Write for STDERR {
+impl Write for Stderr {
   fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
     write_all_internal(bytes.to_pointer, bytes.size)
   }
@@ -102,7 +124,10 @@ impl Write for STDERR {
     write_all_internal(string.to_pointer, string.size)
   }
 
+  # Flushes any pending writes.
+  #
+  # Since this type doesn't use any buffering, this method is a no-op.
   fn pub mut flush -> Result[Nil, Never] {
-    Result.Ok(inko_stderr_flush(_INKO.process))
+    Result.Ok(nil)
   }
 }

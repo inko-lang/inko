@@ -1,12 +1,12 @@
-import std.stdio (STDERR, STDIN, STDOUT)
+import std.stdio (Stderr, Stdin, Stdout)
 import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
   t.fork(
-    'STDIN.read',
+    'Stdin.read',
     child: fn {
-      let out = STDOUT.new
-      let in = STDIN.new
+      let out = Stdout.new
+      let in = Stdin.new
       let bytes = ByteArray.new
       let _ = in.read_all(bytes)
       let _ = out.write_bytes(bytes)
@@ -18,27 +18,27 @@ fn pub tests(t: mut Tests) {
   )
 
   t.fork(
-    'STDOUT.write_bytes',
-    child: fn { let _ = STDOUT.new.write_bytes('hello'.to_byte_array) },
+    'Stdout.write_bytes',
+    child: fn { let _ = Stdout.new.write_bytes('hello'.to_byte_array) },
     test: fn (test, process) { test.equal(process.spawn.stdout, 'hello') },
   )
 
   t.fork(
-    'STDOUT.write_string',
-    child: fn { let _ = STDOUT.new.write_string('hello') },
+    'Stdout.write_string',
+    child: fn { let _ = Stdout.new.write_string('hello') },
     test: fn (test, process) { test.equal(process.spawn.stdout, 'hello') },
   )
 
   t.fork(
-    'STDOUT.print',
-    child: fn { let _ = STDOUT.new.print('hello') },
+    'Stdout.print',
+    child: fn { let _ = Stdout.new.print('hello') },
     test: fn (test, process) { test.equal(process.spawn.stdout, 'hello\n') },
   )
 
   t.fork(
-    'STDOUT.flush',
+    'Stdout.flush',
     child: fn {
-      let out = STDOUT.new
+      let out = Stdout.new
       let _ = out.write_string('hello')
       let _ = out.flush
     },
@@ -46,27 +46,27 @@ fn pub tests(t: mut Tests) {
   )
 
   t.fork(
-    'STDERR.write_bytes',
-    child: fn { let _ = STDERR.new.write_bytes('hello'.to_byte_array) },
+    'Stderr.write_bytes',
+    child: fn { let _ = Stderr.new.write_bytes('hello'.to_byte_array) },
     test: fn (test, process) { test.equal(process.spawn.stderr, 'hello') },
   )
 
   t.fork(
-    'STDERR.write_string',
-    child: fn { let _ = STDERR.new.write_string('hello') },
+    'Stderr.write_string',
+    child: fn { let _ = Stderr.new.write_string('hello') },
     test: fn (test, process) { test.equal(process.spawn.stderr, 'hello') },
   )
 
   t.fork(
-    'STDERR.print',
-    child: fn { let _ = STDERR.new.print('hello') },
+    'Stderr.print',
+    child: fn { let _ = Stderr.new.print('hello') },
     test: fn (test, process) { test.equal(process.spawn.stderr, 'hello\n') },
   )
 
   t.fork(
-    'STDERR.flush',
+    'Stderr.flush',
     child: fn {
-      let out = STDERR.new
+      let out = Stderr.new
       let _ = out.write_string('hello')
       let _ = out.flush
     },

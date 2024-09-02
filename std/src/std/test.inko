@@ -70,7 +70,7 @@ import std.int (Format as IntFormat)
 import std.io (Write)
 import std.process
 import std.rand (Random, Shuffle)
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 import std.sys (Command, ExitStatus, Stream, cpu_cores, exit)
 import std.time (Duration, Instant)
 
@@ -443,7 +443,7 @@ class pub Output {
   # The exit status of the process.
   let pub @status: ExitStatus
 
-  # The data written to STDOUT.
+  # The data written to Stdout.
   let pub @stdout: String
 
   # The data written to STDERR.
@@ -492,7 +492,7 @@ class pub Tests {
       tests: [],
       children: [],
       concurrency: cpu_cores,
-      reporter: Plain.new(out: STDOUT.new, colors: true) as Reporter,
+      reporter: Plain.new(out: Stdout.new, colors: true) as Reporter,
       filter: Filter.None,
       seed: Option.None,
     )

@@ -228,14 +228,14 @@ the C type `void` (i.e. no value is returned).
 C functions are called like regular Inko methods:
 
 ```inko
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 import extern "m"
 
 fn extern ceil(value: Float64) -> Float64
 
 class async Main {
   fn async main {
-    let out = STDOUT.new
+    let out = Stdout.new
 
     # Float64 is a C type and we can't call methods on such types, so we must
     # explicitly cast the returned value to Float (Inko's floating point type).
@@ -338,7 +338,7 @@ copy, instead you get a pointer to the structure. This makes it easier to work
 with structures stored in Inko classes:
 
 ```inko
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 
 class extern Timespec {
   let @tv_sec: Int64
@@ -351,7 +351,7 @@ class Box {
 
 class async Main {
   fn async main {
-    let out = STDOUT.new
+    let out = Stdout.new
     let spec = Timespec(tv_sec: 123 as Int64, tv_nsec: 456 as Int64)
     let box = Box(time: spec)
 
@@ -376,7 +376,7 @@ the libc function `clock_gettime()`, which expects a `timespec` pointer as its
 second argument:
 
 ```inko
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 
 let CLOCK_REALTIME = 0
 
@@ -389,7 +389,7 @@ fn extern clock_gettime(id: Int32, time: Pointer[Timespec]) -> Int32
 
 class async Main {
   fn async main {
-    let out = STDOUT.new
+    let out = Stdout.new
     let spec = Timespec(tv_sec: 0 as Int64, tv_nsec: 0 as Int64)
 
     clock_gettime(CLOCK_REALTIME as Int32, mut spec)
@@ -438,7 +438,7 @@ Dereferencing a pointer is done by reading from and writing to the pseudo field
 `0`. Doing so returns a copy of the value pointed to:
 
 ```inko
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 
 class extern Timespec {
   let @tv_sec: Int64
@@ -447,7 +447,7 @@ class extern Timespec {
 
 class async Main {
   fn async main {
-    let out = STDOUT.new
+    let out = Stdout.new
     let spec = Timespec(tv_sec: 0 as Int64, tv_nsec: 0 as Int64)
     let ptr = mut spec
 
@@ -466,7 +466,7 @@ Inko objects. This avoids the need for intermediate copies, allowing you to
 mutate data pointed to in-place:
 
 ```inko
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 
 class extern Timespec {
   let @tv_sec: Int64
@@ -475,7 +475,7 @@ class extern Timespec {
 
 class async Main {
   fn async main {
-    let out = STDOUT.new
+    let out = Stdout.new
     let spec = Timespec(tv_sec: 0 as Int64, tv_nsec: 0 as Int64)
     let ptr = mut spec
 
@@ -503,7 +503,7 @@ pointer to an `Int`, perform the computation, then cast the result back to a
 pointer. For example, here we mutate `tv_nsec` using such an approach:
 
 ```inko
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 
 class extern Timespec {
   let @tv_sec: Int64
@@ -512,7 +512,7 @@ class extern Timespec {
 
 class async Main {
   fn async main {
-    let out = STDOUT.new
+    let out = Stdout.new
     let spec = Timespec(tv_sec: 0 as Int64, tv_nsec: 0 as Int64)
     let ptr = mut spec
 
@@ -535,7 +535,7 @@ Many C functions return some sort of flag upon encountering an error, and set
 `std.io.Error.last_os_error`:
 
 ```inko
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 import std.io (Error)
 
 let CLOCK_REALTIME = 0
@@ -549,7 +549,7 @@ fn extern clock_gettime(id: Int32, time: Pointer[Timespec]) -> Int32
 
 class async Main {
   fn async main {
-    let out = STDOUT.new
+    let out = Stdout.new
     let spec = Timespec(tv_sec: 0 as Int64, tv_nsec: 0 as Int64)
     let res = clock_gettime(CLOCK_REALTIME as Int32, mut spec)
 

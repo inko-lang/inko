@@ -1,5 +1,5 @@
 import std.env
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
@@ -11,7 +11,7 @@ fn pub tests(t: mut Tests) {
 
   t.fork(
     'env.opt',
-    child: fn { STDOUT.new.write_string(env.opt('INKO_TEST').or('?')) },
+    child: fn { Stdout.new.write_string(env.opt('INKO_TEST').or('?')) },
     test: fn (test, process) {
       process.variable('INKO_TEST', 'foo')
       test.equal(process.spawn.stdout, 'foo')
@@ -21,7 +21,7 @@ fn pub tests(t: mut Tests) {
   t.fork(
     'env.variables',
     child: fn {
-      let out = STDOUT.new
+      let out = Stdout.new
       let vars = env.variables
 
       out.print(vars.get('INKO_FOO'))
@@ -47,7 +47,7 @@ fn pub tests(t: mut Tests) {
   t.fork(
     'env.home_directory with a missing home directory',
     child: fn {
-      let out = STDOUT.new
+      let out = Stdout.new
       let res = env.home_directory.map(fn (v) { v.to_string }).or('ERROR')
 
       out.write_string(res)
@@ -67,7 +67,7 @@ fn pub tests(t: mut Tests) {
   t.fork(
     'env.working_directory=',
     child: fn {
-      let out = STDOUT.new
+      let out = Stdout.new
 
       env.working_directory = env.temporary_directory
       out.write_string(env.working_directory.get.to_string)
@@ -80,7 +80,7 @@ fn pub tests(t: mut Tests) {
   t.fork(
     'env.arguments',
     child: fn {
-      let out = STDOUT.new
+      let out = Stdout.new
       let args = env.arguments
 
       out.print(args.get(0))

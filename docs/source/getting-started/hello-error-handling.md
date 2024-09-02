@@ -12,11 +12,11 @@ can't fail? Well, it can! To showcase this, we'll start with our `hello.inko`
 from the previous tutorial and change it to the following:
 
 ```inko
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 
 class async Main {
   fn async main {
-    STDOUT.new.print('Hello, world!').get
+    Stdout.new.print('Hello, world!').get
   }
 }
 ```
@@ -60,11 +60,11 @@ We'll start with the first option: ignoring the error. To do so, change
 `hello.inko` to the following:
 
 ```inko
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 
 class async Main {
   fn async main {
-    let _ = STDOUT.new.print('Hello, world!')
+    let _ = Stdout.new.print('Hello, world!')
   }
 }
 ```
@@ -102,7 +102,7 @@ String)`, which logs the message to an external logging system (e.g. syslog). We
 can use this method to log the error instead of ignoring it:
 
 ```inko
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 
 fn log(message: String) {
   # This is just an example, so the method doesn't actually do anything.
@@ -110,7 +110,7 @@ fn log(message: String) {
 
 class async Main {
   fn async main {
-    match STDOUT.new.print('Hello, world!') {
+    match Stdout.new.print('Hello, world!') {
       case Ok(_) -> {}
       case Error(e) -> log(e.to_string)
     }

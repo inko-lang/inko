@@ -8,11 +8,11 @@ For our first program, we'll start off simple by printing "Hello, world!" to the
 terminal. Create a file called `hello.inko` with the following contents:
 
 ```inko
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 
 class async Main {
   fn async main {
-    STDOUT.new.print('Hello, world!')
+    Stdout.new.print('Hello, world!')
   }
 }
 ```
@@ -30,10 +30,10 @@ If all went well, the output is "Hello, world!".
 Let's explore what the program does. We first encounter the following line:
 
 ```inko
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 ```
 
-This imports the `STDOUT` type, used for writing text to the terminal's standard
+This imports the `Stdout` type, used for writing text to the terminal's standard
 output stream. After the import we encounter the following:
 
 ```inko
@@ -52,8 +52,8 @@ called "Main", and is required to define an "async" instance method called
 The final line writes the message to STDOUT:
 
 ```inko
-STDOUT.new.print('Hello, world!')
+Stdout.new.print('Hello, world!')
 ```
 
-`STDOUT.new` creates a new instance of the `STDOUT` type, and `print(...)`
+`Stdout.new` creates a new instance of the `Stdout` type, and `print(...)`
 prints the message to the standard output stream.
