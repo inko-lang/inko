@@ -459,7 +459,9 @@ class pub Tests {
 
   # The reporter to use for producing test output.
   #
-  # This defaults to the `Plain` reporter that writes to STDOUT.
+  # This defaults to the `Plain` reporter that writes to STDOUT. The use of
+  # colors is enabled if STDOUT is connected to a terminal, unless the
+  # `NO_COLOR` environment variable is set to a non-empty value.
   let pub @reporter: Reporter
 
   # The filter to apply to decide which tests to run.
@@ -488,11 +490,17 @@ class pub Tests {
 
   # Returns a new test tests with its default settings.
   fn pub static new -> Tests {
+    let out = Stdout.new
+    let colors = match env.opt('NO_COLOR') {
+      case Some(v) if v.size > 0 -> false
+      case _ -> out.terminal?
+    }
+
     Tests(
       tests: [],
       children: [],
       concurrency: cpu_cores,
-      reporter: Plain.new(out: Stdout.new, colors: true) as Reporter,
+      reporter: Plain.new(out, colors) as Reporter,
       filter: Filter.None,
       seed: Option.None,
     )
