@@ -12,59 +12,7 @@ fn statx_time(time: Pointer[libc.StatxTimestamp]) -> Time {
 }
 
 fn statx(fd: Int32, path: String) -> Result[Metadata, Error] {
-  let buf = libc.StatxBuf(
-    stx_mask: 0 as UInt32,
-    stx_blksize: 0 as UInt32,
-    stx_attributes: 0 as UInt64,
-    stx_nlink: 0 as UInt32,
-    stx_uid: 0 as UInt32,
-    stx_gid: 0 as UInt32,
-    stx_mode: 0 as UInt16,
-    __pad0: 0 as UInt16,
-    stx_ino: 0 as UInt64,
-    stx_size: 0 as UInt64,
-    stx_blocks: 0 as UInt64,
-    stx_attributes_mask: 0 as UInt64,
-    stx_atime: libc.StatxTimestamp(
-      tv_sec: 0 as Int64,
-      tv_nsec: 0 as UInt32,
-      __pad0: 0 as Int32,
-    ),
-    stx_btime: libc.StatxTimestamp(
-      tv_sec: 0 as Int64,
-      tv_nsec: 0 as UInt32,
-      __pad0: 0 as Int32,
-    ),
-    stx_ctime: libc.StatxTimestamp(
-      tv_sec: 0 as Int64,
-      tv_nsec: 0 as UInt32,
-      __pad0: 0 as Int32,
-    ),
-    stx_mtime: libc.StatxTimestamp(
-      tv_sec: 0 as Int64,
-      tv_nsec: 0 as UInt32,
-      __pad0: 0 as Int32,
-    ),
-    stx_rdev_major: 0 as UInt32,
-    stx_rdev_minor: 0 as UInt32,
-    stx_dev_major: 0 as UInt32,
-    stx_dev_minor: 0 as UInt32,
-    stx_mnt_id: 0 as UInt64,
-    stx_dio_mem_align: 0 as UInt32,
-    stx_dio_offset_align: 0 as UInt32,
-    __pad1: 0 as UInt64,
-    __pad2: 0 as UInt64,
-    __pad3: 0 as UInt64,
-    __pad4: 0 as UInt64,
-    __pad5: 0 as UInt64,
-    __pad6: 0 as UInt64,
-    __pad7: 0 as UInt64,
-    __pad8: 0 as UInt64,
-    __pad9: 0 as UInt64,
-    __pad10: 0 as UInt64,
-    __pad11: 0 as UInt64,
-    __pad12: 0 as UInt64,
-  )
+  let buf = libc.StatxBuf()
 
   start_blocking
 

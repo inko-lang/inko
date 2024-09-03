@@ -1,0 +1,19 @@
+class extern Foo {
+  let @a: Int32
+  let @b: Int32
+  let @c: Int32
+}
+
+fn example1 {
+  let foo = Foo()
+}
+
+fn example2 {
+  let foo = Foo(a: 0 as Int32, b: 1 as Int32, c: 2 as Int32)
+}
+
+fn example3 {
+  let foo = Foo(a: 0 as Int32, b: 1 as Int32)
+}
+
+# class_extern_without_fields.inko:16:13 error(missing-field): the field 'c' must be assigned a value

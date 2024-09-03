@@ -3849,7 +3849,8 @@ impl<'a> CheckMethodBody<'a> {
             );
         }
 
-        let require_send = class.kind(self.db()).is_async();
+        let kind = class.kind(self.db());
+        let require_send = kind.is_async();
         let ins = ClassInstance::empty(self.db_mut(), class);
         let mut assigned = HashSet::new();
         let mut fields = Vec::new();
@@ -3984,17 +3985,27 @@ impl<'a> CheckMethodBody<'a> {
             fields.push((field, expected));
         }
 
-        for field in class.field_names(self.db()) {
-            if assigned.contains(&field) {
-                continue;
-            }
+        // For extern classes we allow either all fields to be specified, or all
+        // fields to be left out. The latter is useful when dealing with C
+        // structures that start on the stack as uninitialized data and are
+        // initialized using a dedicated function.
+        //
+        // If an extern class has one or more fields specifid, then we require
+        // _all_ fields to be specified, as leaving out fields in this case is
+        // likely the result of a mistake.
+        if !kind.is_extern() || !assigned.is_empty() {
+            for field in class.field_names(self.db()) {
+                if assigned.contains(&field) {
+                    continue;
+                }
 
-            self.state.diagnostics.error(
-                DiagnosticId::MissingField,
-                format!("the field '{}' must be assigned a value", field),
-                self.file(),
-                node.location.clone(),
-            );
+                self.state.diagnostics.error(
+                    DiagnosticId::MissingField,
+                    format!("the field '{}' must be assigned a value", field),
+                    self.file(),
+                    node.location.clone(),
+                );
+            }
         }
 
         let resolved_type = TypeRef::Owned(TypeId::ClassInstance(ins));

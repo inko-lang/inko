@@ -309,6 +309,25 @@ class async Main {
 }
 ```
 
+When creating an instance of a struct we can leave out all the fields. This
+reserves the necessary stack space but doesn't initialize it. This is useful
+when dealing with large structs that are initialized by a C function:
+
+```inko
+class extern Timespec {
+  let @tv_sec: Int64
+  let @tv_nsec: Int64
+}
+
+class async Main {
+  fn async main {
+    let spec = Timespec()
+
+    hypothetical_initialization_function_that_sets_the_fields(mut spec)
+  }
+}
+```
+
 Structures are allocated on the stack and are value types, meaning a move
 results in a copy (unless this is optimised away). Reading and writing of
 structure fields uses the same syntax as regular Inko classes:

@@ -29,31 +29,7 @@ fn stat_to_metadata(buf: Pointer[libc.StatBuf]) -> Metadata {
 }
 
 fn file_metadata(fd: Int32) -> Result[Metadata, Error] {
-  let buf = libc.StatBuf(
-    st_dev: 0 as Int32,
-    st_mode: 0 as UInt16,
-    st_nlink: 0 as UInt16,
-    st_ino: 0 as UInt64,
-    st_uid: 0 as UInt32,
-    st_gid: 0 as UInt32,
-    st_rdev: 0 as Int32,
-    st_atime: 0 as Int64,
-    st_atime_nsec: 0 as Int64,
-    st_mtime: 0 as Int64,
-    st_mtime_nsec: 0 as Int64,
-    st_ctime: 0 as Int64,
-    st_ctime_nsec: 0 as Int64,
-    st_birthtime: 0 as Int64,
-    st_birthtime_nsec: 0 as Int64,
-    st_size: 0 as Int64,
-    st_blocks: 0 as Int64,
-    st_blksize: 0 as Int32,
-    st_flags: 0 as UInt32,
-    st_gen: 0 as UInt32,
-    st_lspare: 0 as Int32,
-    st_qspare0: 0 as Int64,
-    st_qspare1: 0 as Int64,
-  )
+  let buf = libc.StatBuf()
 
   start_blocking
 
@@ -66,31 +42,7 @@ fn file_metadata(fd: Int32) -> Result[Metadata, Error] {
 }
 
 fn path_metadata(path: String) -> Result[Metadata, Error] {
-  let buf = libc.StatBuf(
-    st_dev: 0 as Int32,
-    st_mode: 0 as UInt16,
-    st_nlink: 0 as UInt16,
-    st_ino: 0 as UInt64,
-    st_uid: 0 as UInt32,
-    st_gid: 0 as UInt32,
-    st_rdev: 0 as Int32,
-    st_atime: 0 as Int64,
-    st_atime_nsec: 0 as Int64,
-    st_mtime: 0 as Int64,
-    st_mtime_nsec: 0 as Int64,
-    st_ctime: 0 as Int64,
-    st_ctime_nsec: 0 as Int64,
-    st_birthtime: 0 as Int64,
-    st_birthtime_nsec: 0 as Int64,
-    st_size: 0 as Int64,
-    st_blocks: 0 as Int64,
-    st_blksize: 0 as Int32,
-    st_flags: 0 as UInt32,
-    st_gen: 0 as UInt32,
-    st_lspare: 0 as Int32,
-    st_qspare0: 0 as Int64,
-    st_qspare1: 0 as Int64,
-  )
+  let buf = libc.StatBuf()
 
   start_blocking
 
