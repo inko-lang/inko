@@ -3564,7 +3564,20 @@ impl<'a> LowerMethod<'a> {
                 );
             }
 
-            let val = self.input_register(raw, captured_as, None, loc);
+            // If the value is an external class, it's always captured as a
+            // pointer to the data. This is useful when dealing with FFI code
+            // where a closure is used to mutate a C structure (e.g. as part of
+            // a loop) in-place.
+            let val = if captured_as.is_pointer(self.db())
+                && !self.register_type(raw).is_pointer(self.db())
+            {
+                let reg = self.new_register(captured_as);
+
+                self.current_block_mut().pointer(reg, raw, loc);
+                reg
+            } else {
+                self.input_register(raw, captured_as, None, loc)
+            };
 
             self.current_block_mut().set_field(
                 gen_class_reg,

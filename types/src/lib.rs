@@ -4201,6 +4201,11 @@ impl TypeRef {
 
     pub fn as_ref(self, db: &Database) -> Self {
         match self {
+            TypeRef::Owned(TypeId::ClassInstance(ins))
+                if ins.instance_of().kind(db).is_extern() =>
+            {
+                TypeRef::Pointer(TypeId::ClassInstance(ins))
+            }
             TypeRef::Owned(id) | TypeRef::Any(id) | TypeRef::Mut(id) => {
                 TypeRef::Ref(id)
             }
@@ -4257,6 +4262,11 @@ impl TypeRef {
                     TypeRef::Ref(id)
                 }
             }
+            TypeRef::Owned(TypeId::ClassInstance(ins))
+                if ins.instance_of().kind(db).is_extern() =>
+            {
+                TypeRef::Pointer(TypeId::ClassInstance(ins))
+            }
             TypeRef::Owned(id) => TypeRef::Mut(id),
             TypeRef::Uni(id) => TypeRef::UniMut(id),
             TypeRef::Placeholder(id) => {
@@ -4272,6 +4282,11 @@ impl TypeRef {
 
     pub fn force_as_mut(self, db: &Database) -> Self {
         match self {
+            TypeRef::Owned(TypeId::ClassInstance(ins))
+                if ins.instance_of().kind(db).is_extern() =>
+            {
+                TypeRef::Pointer(TypeId::ClassInstance(ins))
+            }
             TypeRef::Owned(id) | TypeRef::Any(id) => TypeRef::Mut(id),
             TypeRef::Uni(id) => TypeRef::UniMut(id),
             TypeRef::Placeholder(id) => {
@@ -5883,6 +5898,7 @@ mod tests {
     fn test_type_ref_as_ref() {
         let mut db = Database::new();
         let int = ClassId::int();
+        let ext = new_extern_class(&mut db, "Extern");
         let param = new_parameter(&mut db, "A");
 
         assert_eq!(owned(instance(int)).as_ref(&db), immutable(instance(int)));
@@ -5891,12 +5907,14 @@ mod tests {
             TypeRef::UniRef(instance(int))
         );
         assert_eq!(owned(rigid(param)).as_ref(&db), immutable(rigid(param)));
+        assert_eq!(owned(instance(ext)).as_ref(&db), pointer(instance(ext)));
     }
 
     #[test]
     fn test_type_ref_as_mut() {
         let mut db = Database::new();
         let int = ClassId::int();
+        let ext = new_extern_class(&mut db, "Extern");
         let param1 = new_parameter(&mut db, "A");
         let param2 = new_parameter(&mut db, "A");
 
@@ -5920,6 +5938,7 @@ mod tests {
             owned(parameter(param2)).as_mut(&db),
             mutable(parameter(param2))
         );
+        assert_eq!(owned(instance(ext)).as_mut(&db), pointer(instance(ext)));
     }
 
     #[test]

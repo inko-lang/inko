@@ -1,0 +1,46 @@
+class extern Foo {
+  let @value: Int32
+}
+
+fn example1 {
+  let foo = Foo(value: 42 as Int32)
+
+  fn { foo.TEST }
+}
+
+fn example2 {
+  let foo = Foo(value: 42 as Int32)
+
+  fn move { foo.TEST }
+}
+
+fn example3 {
+  let foo = Foo(value: 42 as Int32)
+
+  fn { fn { foo.TEST } }
+}
+
+fn example4 {
+  let foo = Foo(value: 42 as Int32)
+
+  fn move { fn move { foo.TEST } }
+}
+
+fn example5 {
+  let foo = Foo(value: 42 as Int32)
+
+  fn { fn move { foo.TEST } }
+}
+
+fn example6 {
+  let foo = Foo(value: 42 as Int32)
+
+  fn move { fn { foo.TEST } }
+}
+
+# closure_capturing_struct.inko:8:8 error(invalid-symbol): the method 'TEST' isn't defined for type 'Pointer[Foo]'
+# closure_capturing_struct.inko:14:13 error(invalid-symbol): the method 'TEST' isn't defined for type 'Pointer[Foo]'
+# closure_capturing_struct.inko:20:13 error(invalid-symbol): the method 'TEST' isn't defined for type 'Pointer[Foo]'
+# closure_capturing_struct.inko:26:23 error(invalid-symbol): the method 'TEST' isn't defined for type 'Pointer[Foo]'
+# closure_capturing_struct.inko:32:18 error(invalid-symbol): the method 'TEST' isn't defined for type 'Pointer[Foo]'
+# closure_capturing_struct.inko:38:18 error(invalid-symbol): the method 'TEST' isn't defined for type 'Pointer[Foo]'
