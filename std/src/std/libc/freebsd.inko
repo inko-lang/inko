@@ -1,3 +1,5 @@
+import std.io (Error)
+
 let DT_DIR = 4
 let DT_LNK = 10
 let DT_REG = 8
@@ -50,6 +52,8 @@ let O_RDONLY = 0
 let O_RDWR = 0x2
 let O_TRUNC = 0x400
 let O_WRONLY = 0x1
+let POSIX_SPAWN_SETSIGDEF = 0x10
+let POSIX_SPAWN_SETSIGMASK = 0x20
 let SEEK_END = 2
 let SEEK_SET = 0
 let SOL_SOCKET = 0xFFFF
@@ -65,6 +69,7 @@ let S_IFLNK = 0xA000
 let S_IFMT = 0xF000
 let S_IFREG = 0x8000
 let TCP_NODELAY = 1
+let WNOHANG = 0x00000001
 
 # FreeBSD doesn't define this constant, but we still define it here to make it
 # easier to handle platform differences.
@@ -115,6 +120,26 @@ class extern StatBuf {
   let @st_spare9: Int64
 }
 
+class extern Pipes {
+  let @reader: Int32
+  let @writer: Int32
+}
+
+class extern SigSet {
+  let @__val0: UInt32
+  let @__val1: UInt32
+  let @__val2: UInt32
+  let @__val3: UInt32
+}
+
+class extern PosixSpawnAttrs {
+  let @inner: Pointer[UInt8]
+}
+
+class extern PosixSpawnFileActions {
+  let @inner: Pointer[UInt8]
+}
+
 fn extern fchmod(fd: Int32, mode: UInt16) -> Int32
 
 fn extern fstat(fd: Int32, buf: Pointer[StatBuf]) -> Int32
@@ -136,6 +161,8 @@ fn extern copy_file_range(
   flags: UInt32,
 ) -> Int64
 
+fn extern pipe2(pipes: Pointer[Pipes], flags: Int32) -> Int32
+
 fn flush(fd: Int32) -> Int32 {
   fsync(fd)
 }
@@ -146,4 +173,14 @@ fn dirent_type(pointer: Pointer[Dirent]) -> Int {
 
 fn dirent_name(pointer: Pointer[Dirent]) -> Pointer[UInt8] {
   pointer as Int + 24 as Pointer[UInt8]
+}
+
+fn pipes -> Result[(Int32, Int32), Error] {
+  let pipes = Pipes()
+
+  if pipe2(mut pipes, O_CLOEXEC as Int32) as Int != 0 {
+    throw Error.last_os_error
+  }
+
+  Result.Ok((pipes.reader, pipes.writer))
 }

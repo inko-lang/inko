@@ -13,16 +13,16 @@ fn compile(
 ) -> Result[Nil, String] {
   let cmd = Command.new(compiler_path)
 
-  cmd.arguments(['build', input.to_string, '-o', output.to_string])
-  cmd.directory(directory)
-  cmd.stdin(Stream.Null)
-  cmd.stderr(Stream.Piped)
-  cmd.stdout(Stream.Piped)
+  cmd.arguments = ['build', input.to_string, '-o', output.to_string]
+  cmd.directory = directory.clone
+  cmd.stdin = Stream.Null
+  cmd.stderr = Stream.Piped
+  cmd.stdout = Stream.Piped
 
   match define {
     case Some(v) -> {
-      cmd.argument('--define')
-      cmd.argument(v)
+      cmd.arguments.push('--define')
+      cmd.arguments.push(v)
     }
     case _ -> {}
   }
@@ -42,8 +42,10 @@ fn compile(
 
     try child
       .stdout
+      .as_mut
+      .get
       .read_all(out)
-      .then(fn (_) { child.stderr.read_all(out) })
+      .then(fn (_) { child.stderr.as_mut.get.read_all(out) })
       .map_error(fn (e) { 'failed reading the output: ${e}' })
 
     Result.Error(out.into_string)
@@ -63,14 +65,13 @@ fn run(id: Int, define: Option[String]) -> Result[String, String] {
 
     let cmd = Command.new(output)
 
-    cmd.stdin(Stream.Null)
-    cmd.stderr(Stream.Piped)
-    cmd.stdout(Stream.Piped)
+    cmd.stdin = Stream.Null
+    cmd.stderr = Stream.Piped
+    cmd.stdout = Stream.Piped
 
     let child = try cmd.spawn.map_error(fn (e) {
       'failed to spawn the executable: ${e}'
     })
-
     let status = try child.wait.map_error(fn (e) {
       'the executable produced an error: ${e}'
     })
@@ -78,8 +79,10 @@ fn run(id: Int, define: Option[String]) -> Result[String, String] {
 
     try child
       .stdout
+      .as_mut
+      .get
       .read_all(out)
-      .then(fn (_) { child.stderr.read_all(out) })
+      .then(fn (_) { child.stderr.as_mut.get.read_all(out) })
       .map_error(fn (e) { 'failed reading the output: ${e}' })
 
     let out = out.into_string

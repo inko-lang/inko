@@ -1,75 +1,11 @@
 # Types and methods for interacting with the underlying system.
-import std.drop (Drop)
+import std.drop (Drop, drop)
+import std.env
 import std.fs.path (Path)
 import std.int (ToInt)
-import std.io (Error, Read, Write, WriteInternal)
+import std.io (Error, Read, Write, WriteInternal, start_blocking, stop_blocking)
 import std.string (ToString)
-
-class extern AnyResult {
-  let @tag: Int
-  let @value: UInt64
-}
-
-class extern IntResult {
-  let @tag: Int
-  let @value: Int
-}
-
-fn extern inko_child_process_spawn(
-  process: Pointer[UInt8],
-  program: String,
-  args: Pointer[String],
-  args_size: Int,
-  env: Pointer[String],
-  env_size: Int,
-  stdin: Int,
-  stdout: Int,
-  stderr: Int,
-  directory: String,
-) -> AnyResult
-
-fn extern inko_child_process_drop(child: Pointer[UInt8])
-
-fn extern inko_child_process_stdout_close(child: Pointer[UInt8])
-
-fn extern inko_child_process_stderr_close(child: Pointer[UInt8])
-
-fn extern inko_child_process_stdin_close(child: Pointer[UInt8])
-
-fn extern inko_child_process_stderr_read(
-  process: Pointer[UInt8],
-  child: Pointer[UInt8],
-  buffer: mut ByteArray,
-  size: Int,
-) -> IntResult
-
-fn extern inko_child_process_stdout_read(
-  process: Pointer[UInt8],
-  child: Pointer[UInt8],
-  buffer: mut ByteArray,
-  size: Int,
-) -> IntResult
-
-fn extern inko_child_process_stdin_flush(
-  process: Pointer[UInt8],
-  child: Pointer[UInt8],
-) -> IntResult
-
-fn extern inko_child_process_stdin_write(
-  process: Pointer[UInt8],
-  child: Pointer[UInt8],
-  data: Pointer[UInt8],
-  size: Int,
-) -> IntResult
-
-fn extern inko_child_process_try_wait(child: Pointer[UInt8]) -> IntResult
-
-fn extern inko_child_process_wait(
-  process: Pointer[UInt8],
-  child: Pointer[UInt8],
-) -> IntResult
-
-fn extern inko_exit(status: Int) -> Never
+import std.sys.unix.sys if unix
 
 # Returns the number of available CPU cores of the current system.
 #
@@ -99,7 +35,7 @@ fn pub cpu_cores -> Int {
 # sys.exit(1)
 # ```
 fn pub exit(status: Int) -> Never {
-  inko_exit(status)
+  sys.exit(status)
 }
 
 # A type that describes what to do with an input/output stream of a command.
@@ -142,7 +78,10 @@ impl ToInt for Stream {
 # ```inko
 # import std.sys (Command, Stream)
 #
-# Command.new('ls').stdout(Stream.Piped).spawn.get
+# let cmd = Command.new('ls')
+#
+# cmd.stdout = Stream.Piped
+# cmd.spawn.get
 # ```
 #
 # We can also ignore a stream:
@@ -150,7 +89,10 @@ impl ToInt for Stream {
 # ```inko
 # import std.sys (Command, Stream)
 #
-# Command.new('ls').stderr(Stream.Null).spawn.get
+# let cmd = Command.new('ls')
+#
+# cmd.stderr = Stream.Null
+# cmd.spawn.get
 # ```
 #
 # # Waiting for the child process
@@ -162,50 +104,57 @@ impl ToInt for Stream {
 # ```inko
 # import std.sys (Command)
 #
-# let child = Command.new('ls').get
-#
-# child.wait.get
+# let child = Command.new('ls').spawn
+# let status = child.wait.get
 # ```
 #
 # There's also `ChildProcess.try_wait`, which returns immediately if the process
-# is still running; instead of waiting for it to finish.
+# is still running, instead of waiting for it to finish.
 #
 # The input and output streams are accessed using `ChildProcess.stdin`,
 # `ChildProcess.stdout`, and `ChildProcess.stderr`. For example, to read from
 # STDOUT:
 #
 # ```inko
-# import std.sys (Command)
+# import std.sys (Command, Stream)
 #
-# let child = Command.new('ls').get
+# let cmd = Command.new('ls')
+#
+# cmd.stdout = Stream.Piped
+#
+# let child = cmd.spawn.get
+# let status = child.wait.get
 # let bytes = ByteArray.new
 #
-# child.wait.get
-# child.stdout.read_all(bytes).get
+# match child.stdout {
+#   case Some(v) -> v.read_all(bytes).get
+#   case _ -> {}
+# }
 # ```
 class pub Command {
   # The path to the program to spawn.
-  let @program: String
+  let pub @program: String
 
   # What to do with the STDIN stream.
-  let @stdin: Stream
+  let pub @stdin: Stream
 
   # What to do with the STDOUT stream.
-  let @stdout: Stream
+  let pub @stdout: Stream
 
   # What to do with the STDERR stream.
-  let @stderr: Stream
+  let pub @stderr: Stream
 
   # The arguments to pass to the command.
-  let @arguments: Array[String]
+  let pub @arguments: Array[String]
 
   # The environment variables to pass to the command.
   #
-  # The order in which variables are passed isn't guaranteed.
-  let @variables: Map[String, String]
+  # This `Map` defaults to all the environment variables available at the time
+  # the program started.
+  let pub @variables: Map[String, String]
 
   # The working directory to use for the command.
-  let @directory: Option[String]
+  let pub @directory: Option[Path]
 
   # Creates a new `Command` that will run the given program.
   #
@@ -240,113 +189,29 @@ class pub Command {
       stdout: Stream.Inherit,
       stderr: Stream.Inherit,
       arguments: [],
-      variables: Map.new,
+      variables: env.variables,
       directory: Option.None,
     )
   }
 
-  # Returns the program to start.
-  fn pub program -> String {
-    @program
+  # Returns the working directory to use for the child process, if any.
+  fn pub mut directory -> Option[Path] {
+    @directory.clone
   }
 
-  # Sets the working directory of the command.
+  # Sets the working directory to use for the child process.
   #
   # # Examples
   #
   # ```inko
   # import std.sys (Command)
   #
-  # Command.new('ls').directory('/tmp')
+  # let cmd = Command.new('ls')
+  #
+  # cmd.directory = '/'.to_path
   # ```
-  fn pub mut directory[T: ToString](path: ref T) {
-    @directory = Option.Some(path.to_string)
-  }
-
-  # Returns the current working directory, if any was set.
-  fn pub current_directory -> ref Option[String] {
-    @directory
-  }
-
-  # Adds a single argument to the command.
-  #
-  # # Examples
-  #
-  # ```inko
-  # import std.sys (Command)
-  #
-  # Command.new('ls').argument('/tmp')
-  # ```
-  fn pub mut argument(value: String) {
-    @arguments.push(value)
-  }
-
-  # Adds multiple arguments to the command.
-  #
-  # # Examples
-  #
-  # ```inko
-  # import std.sys (Command)
-  #
-  # Command.new('ls').arguments(['/tmp', '/usr'])
-  # ```
-  fn pub mut arguments(values: Array[String]) {
-    @arguments.append(values)
-  }
-
-  # Returns the arguments added so far.
-  fn pub current_arguments -> ref Array[String] {
-    @arguments
-  }
-
-  # Adds or updates an environment variable to the command.
-  #
-  # # Examples
-  #
-  # ```inko
-  # import std.sys (Command)
-  #
-  # Command.new('env').variable(name: 'FOO', value: 'bar')
-  # ```
-  fn pub mut variable(name: String, value: String) {
-    @variables.set(name, value)
-  }
-
-  # Adds or updates multiple environment variables to the command.
-  #
-  # # Examples
-  #
-  # ```inko
-  # import std.sys (Command)
-  #
-  # let vars = Map.new
-  #
-  # vars['FOO'] = 'bar'
-  #
-  # Command.new('env').variables(vars)
-  # ```
-  fn pub mut variables(values: Map[String, String]) {
-    @variables.merge(values)
-  }
-
-  # Returns the variables added so far.
-  fn pub current_variables -> ref Map[String, String] {
-    @variables
-  }
-
-  # Configures the STDIN stream.
-  fn pub mut stdin(stream: Stream) {
-    @stdin = stream
-  }
-
-  # Configures the STDOUT stream.
-  fn pub mut stdout(stream: Stream) {
-    @stdout = stream
-  }
-
-  # Configures the STDERR stream.
-  fn pub mut stderr(stream: Stream) {
-    @stderr = stream
+  fn pub mut directory=(path: Path) {
+    @directory = Option.Some(path)
   }
 
   # Spawns a child process that runs the command.
@@ -354,39 +219,24 @@ class pub Command {
   # # Examples
   #
   # ```inko
+  # import std.sys (Command)
+  #
   # let child = Command.new('ls').spawn.get
   #
   # child.wait.get
   # ```
   fn pub spawn -> Result[ChildProcess, Error] {
-    let vars = []
-
-    @variables.iter.each(fn (entry) {
-      vars.push(entry.key)
-      vars.push(entry.value)
-    })
-
-    match
-      inko_child_process_spawn(
-        _INKO.process,
-        @program.to_string,
-        @arguments.to_pointer,
-        @arguments.size,
-        vars.to_pointer,
-        vars.size,
-        @stdin.to_int,
-        @stdout.to_int,
-        @stderr.to_int,
-        @directory.as_ref.or(ref ''),
+    sys
+      .spawn(
+        @program,
+        @arguments,
+        @variables,
+        @directory.as_ref.map(fn (v) { v.to_string }),
+        @stdin,
+        @stdout,
+        @stderr,
       )
-    {
-      case { @tag = 0, @value = v } -> {
-        Result.Ok(ChildProcess(v as Pointer[UInt8]))
-      }
-      case { @tag = _, @value = e } -> {
-        Result.Error(Error.from_os_error(e as Int))
-      }
-    }
+      .map(fn (v) { ChildProcess.new(v) })
   }
 }
 
@@ -420,30 +270,20 @@ impl ToInt for ExitStatus {
   }
 }
 
-# The standard input stream.
+# The standard input stream of a child process.
 class pub Stdin {
-  # The child process the stream is connected to.
-  let @process: ref ChildProcess
-
-  fn pub static new(process: ref ChildProcess) -> Stdin {
-    Stdin(process)
-  }
+  let @fd: Int32
 }
 
 impl Drop for Stdin {
   fn mut drop {
-    inko_child_process_stdin_close(@process.raw)
+    sys.close(@fd)
   }
 }
 
 impl WriteInternal for Stdin {
   fn mut write_internal(data: Pointer[UInt8], size: Int) -> Result[Int, Error] {
-    match
-      inko_child_process_stdin_write(_INKO.process, @process.raw, data, size)
-    {
-      case { @tag = 0, @value = n } -> Result.Ok(n)
-      case { @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    sys.write(@fd, data, size)
   }
 }
 
@@ -456,114 +296,108 @@ impl Write for Stdin {
     write_all_internal(string.to_pointer, string.size)
   }
 
-  fn pub mut flush -> Result[Nil, Error] {
-    match inko_child_process_stdin_flush(_INKO.process, @process.raw) {
-      case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+  fn pub mut flush -> Result[Nil, Never] {
+    Result.Ok(nil)
   }
 }
 
-# The standard output stream.
+# The standard output stream of a child process.
 class pub Stdout {
-  # The child process the stream is connected to.
-  let @process: ref ChildProcess
-
-  fn pub static new(process: ref ChildProcess) -> Stdout {
-    Stdout(process)
-  }
+  let @fd: Int32
 }
 
 impl Drop for Stdout {
   fn mut drop {
-    inko_child_process_stdout_close(@process.raw)
+    sys.close(@fd)
   }
 }
 
 impl Read for Stdout {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
-    match
-      inko_child_process_stdout_read(_INKO.process, @process.raw, into, size)
-    {
-      case { @tag = 0, @value = v } -> Result.Ok(v)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    sys.read(@fd, into, size)
   }
 }
 
-# The standard error output stream.
+# The standard error stream of a child process.
 class pub Stderr {
-  # The child process the stream is connected to.
-  let @process: ref ChildProcess
-
-  fn pub static new(process: ref ChildProcess) -> Stderr {
-    Stderr(process)
-  }
+  let @fd: Int32
 }
 
 impl Drop for Stderr {
   fn mut drop {
-    inko_child_process_stderr_close(@process.raw)
+    sys.close(@fd)
   }
 }
 
 impl Read for Stderr {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
-    match
-      inko_child_process_stderr_read(_INKO.process, @process.raw, into, size)
-    {
-      case { @tag = 0, @value = v } -> Result.Ok(v)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    sys.read(@fd, into, size)
   }
 }
 
 # A running or exited child OS process.
 class pub ChildProcess {
-  # A raw pointer to the OS process.
-  let @raw: Pointer[UInt8]
+  # The ID of the child process.
+  let @id: Int32
 
-  # Returns a handle to the standard output stream.
-  fn pub stdout -> Stdout {
-    Stdout.new(self)
-  }
+  # A handle to the captured input stream of the child process.
+  let pub @stdin: Option[Stdin]
 
-  # Returns a handle to the standard error stream.
-  fn pub stderr -> Stderr {
-    Stderr.new(self)
-  }
+  # A handle to the captured output stream of the child process.
+  let pub @stdout: Option[Stdout]
 
-  # Returns a handle to the standard input stream.
-  fn pub stdin -> Stdin {
-    Stdin.new(self)
-  }
+  # A handle to the captured error stream of the child process.
+  let pub @stderr: Option[Stderr]
 
-  # Waits for the process to terminate.
-  #
-  # The STDIN stream is closed before waiting.
-  fn pub wait -> Result[ExitStatus, Error] {
-    match inko_child_process_wait(_INKO.process, @raw) {
-      case { @tag = 0, @value = v } -> Result.Ok(ExitStatus.new(v))
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
+  fn static new(inner: sys.ChildProcess) -> ChildProcess {
+    let stdin = match inner.stdin {
+      case Some(v) -> Option.Some(Stdin(v))
+      case _ -> Option.None
     }
+    let stdout = match inner.stdout {
+      case Some(v) -> Option.Some(Stdout(v))
+      case _ -> Option.None
+    }
+    let stderr = match inner.stderr {
+      case Some(v) -> Option.Some(Stderr(v))
+      case _ -> Option.None
+    }
+
+    ChildProcess(id: inner.id, stdin: stdin, stdout: stdout, stderr: stderr)
   }
 
-  # Returns the exit status without blocking.
+  # Waits for the child process to finish running, and returns an `ExitStatus`
+  # containing the exit status.
   #
-  # If the process is still running, a None is returned.
+  # The child's STDIN stream (if any) is closed before waiting, avoiding
+  # deadlocks caused by child processes waiting for input from the parent while
+  # the parent waits for the child to exit.
   #
-  # This method doesn't close the STDIN stream before waiting.
+  # Note that if you try to read from STDOUT or STDERR before calling
+  # `ChildProcess.wait` _without_ closing STDIN first, the parent process may
+  # still deadlock as the read might not return and thus prevent
+  # `ChildProcess.wait` from first closing STDIN.
+  #
+  # To prevent this from happening, always make sure STDIN is closed _before_
+  # reading from STDOUT or STDERR _if_ the read happens _before_ a call to
+  # `ChildProcess.wait`.
+  fn pub mut wait -> Result[ExitStatus, Error] {
+    drop(@stdin := Option.None)
+    sys.wait(@id).map(fn (v) { ExitStatus(v) })
+  }
+
+  # Returns the exit status of the child process without blocking the calling
+  # process.
+  #
+  # If the process is still running, an `Option.None` is returned. If the
+  # process exited, an `Option.Some(ExitStatus)` is returned.
+  #
+  # This method doesn't close STDIN before waiting.
   fn pub try_wait -> Result[Option[ExitStatus], Error] {
-    match inko_child_process_try_wait(@raw) {
-      case { @tag = 0, @value = -1 } -> Result.Ok(Option.None)
-      case { @tag = 0, @value = v } -> Result.Ok(Option.Some(ExitStatus.new(v)))
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
+    match sys.try_wait(@id) {
+      case Ok(None) -> Result.Ok(Option.None)
+      case Ok(Some(n)) -> Result.Ok(Option.Some(ExitStatus(n)))
+      case Error(e) -> Result.Error(e)
     }
-  }
-}
-
-impl Drop for ChildProcess {
-  fn mut drop {
-    inko_child_process_drop(@raw)
   }
 }

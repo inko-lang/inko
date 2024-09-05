@@ -5,12 +5,12 @@ use crate::process::{
     ReceiveResult, RescheduleRights, SendResult, StackFrame,
 };
 use crate::result::Result as InkoResult;
-use crate::runtime::exit;
 use crate::scheduler::process::Action;
 use crate::scheduler::timeouts::Timeout;
 use crate::state::State;
 use std::cmp::max;
 use std::fmt::Write as _;
+use std::process::exit;
 use std::str;
 use std::time::Duration;
 

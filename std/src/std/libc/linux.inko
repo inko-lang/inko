@@ -1,8 +1,9 @@
+import std.io (Error)
 import std.libc.linux.amd64 (self as arch) if amd64
 import std.libc.linux.arm64 (self as arch) if arm64
 
-# Generic libc constants (e.g. `errno` values).
-
+let AT_EMPTY_PATH = 0x1000
+let AT_FDCWD = -0x64
 let DT_DIR = 4
 let DT_LNK = 10
 let DT_REG = 8
@@ -56,6 +57,8 @@ let O_RDONLY = 0
 let O_RDWR = 0x2
 let O_TRUNC = 0x200
 let O_WRONLY = 0x1
+let POSIX_SPAWN_SETSIGDEF = 0x04
+let POSIX_SPAWN_SETSIGMASK = 0x08
 let SEEK_END = 2
 let SEEK_SET = 0
 let SOL_SOCKET = 1
@@ -66,18 +69,14 @@ let SO_RCVBUF = 8
 let SO_REUSEADDR = 2
 let SO_REUSEPORT = 15
 let SO_SNDBUF = 7
+let STATX_BASIC_STATS = 0x7FF
+let STATX_BTIME = 0x800
 let S_IFDIR = 0x4000
 let S_IFLNK = 0xA000
 let S_IFMT = 0xF000
 let S_IFREG = 0x8000
 let TCP_NODELAY = 1
-
-# Constants specific to the statx() call.
-
-let AT_EMPTY_PATH = 0x1000
-let AT_FDCWD = -0x64
-let STATX_BASIC_STATS = 0x7FF
-let STATX_BTIME = 0x800
+let WNOHANG = 0x00000001
 
 class extern Dirent {
   let @d_ino: UInt64
@@ -130,6 +129,77 @@ class extern StatxTimestamp {
   let @__pad0: Int32
 }
 
+class extern SigSet {
+  let @__val0: UInt64
+  let @__val1: UInt64
+  let @__val2: UInt64
+  let @__val3: UInt64
+  let @__val4: UInt64
+  let @__val5: UInt64
+  let @__val6: UInt64
+  let @__val7: UInt64
+  let @__val8: UInt64
+  let @__val9: UInt64
+  let @__val10: UInt64
+  let @__val11: UInt64
+  let @__val12: UInt64
+  let @__val13: UInt64
+  let @__val14: UInt64
+  let @__val15: UInt64
+}
+
+class extern PosixSpawnAttrs {
+  let @__flags: Int16
+  let @__pgrp: Int32
+  let @__sd: SigSet
+  let @__ss: SigSet
+  let @__sp: Int32
+  let @__policy: Int32
+  let @__cgroup: Int32
+  let @__pad0: Int32
+  let @__pad1: Int32
+  let @__pad2: Int32
+  let @__pad3: Int32
+  let @__pad4: Int32
+  let @__pad5: Int32
+  let @__pad6: Int32
+  let @__pad7: Int32
+  let @__pad8: Int32
+  let @__pad9: Int32
+  let @__pad10: Int32
+  let @__pad11: Int32
+  let @__pad12: Int32
+  let @__pad13: Int32
+  let @__pad14: Int32
+}
+
+class extern PosixSpawnFileActions {
+  let @__allocated: Int32
+  let @__used: Int32
+  let @__actions: Pointer[UInt8]
+  let @__pad0: Int32
+  let @__pad1: Int32
+  let @__pad2: Int32
+  let @__pad3: Int32
+  let @__pad4: Int32
+  let @__pad5: Int32
+  let @__pad6: Int32
+  let @__pad7: Int32
+  let @__pad8: Int32
+  let @__pad9: Int32
+  let @__pad10: Int32
+  let @__pad11: Int32
+  let @__pad12: Int32
+  let @__pad13: Int32
+  let @__pad14: Int32
+  let @__pad15: Int32
+}
+
+class extern Pipes {
+  let @reader: Int32
+  let @writer: Int32
+}
+
 fn extern fchmod(fd: Int32, mode: UInt16) -> Int32
 
 fn extern syscall(number: Int32, ...) -> Int32
@@ -155,6 +225,8 @@ fn extern copy_file_range(
   len: UInt64,
   flags: UInt32,
 ) -> Int64
+
+fn extern pipe2(pipes: Pointer[Pipes], flags: Int32) -> Int32
 
 fn flush(fd: Int32) -> Int32 {
   fsync(fd)
@@ -189,4 +261,14 @@ fn statx(
     buf,
   )
     as Int
+}
+
+fn pipes -> Result[(Int32, Int32), Error] {
+  let pipes = Pipes()
+
+  if pipe2(mut pipes, O_CLOEXEC as Int32) as Int != 0 {
+    throw Error.last_os_error
+  }
+
+  Result.Ok((pipes.reader, pipes.writer))
 }

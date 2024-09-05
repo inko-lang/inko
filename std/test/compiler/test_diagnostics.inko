@@ -67,11 +67,11 @@ fn check(compiler: String, name: String, file: Path) -> Array[Diagnostic] {
   let cmd = Command.new(compiler)
   let dir = file.directory
 
-  cmd.stdout(Stream.Null)
-  cmd.stdin(Stream.Null)
-  cmd.stderr(Stream.Piped)
-  cmd.directory(dir.clone)
-  cmd.arguments(['check', '--format=json', file.to_string])
+  cmd.stdout = Stream.Null
+  cmd.stdin = Stream.Null
+  cmd.stderr = Stream.Piped
+  cmd.directory = dir.clone
+  cmd.arguments = ['check', '--format=json', file.to_string]
 
   # Given a test called `foo.inko`, if the directory `foo` exists we add it to
   # the include path. This way you can move separate files that are imported
@@ -79,15 +79,15 @@ fn check(compiler: String, name: String, file: Path) -> Array[Diagnostic] {
   let extra_src = dir.join(name)
 
   if extra_src.directory? {
-    cmd.argument('--include')
-    cmd.argument(extra_src.to_string)
+    cmd.arguments.push('--include')
+    cmd.arguments.push(extra_src.to_string)
   }
 
   let child = cmd.spawn.or_panic('failed to start the compiler')
   let output = ByteArray.new
 
   child.wait.or_panic('failed to wait for the compiler')
-  child.stderr.read_all(output)
+  child.stderr.as_mut.get.read_all(output)
 
   match parse_output(dir.to_string, output) {
     case Ok(v) -> v

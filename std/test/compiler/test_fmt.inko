@@ -13,23 +13,27 @@ fn run(
 ) -> Result[String, String] {
   let cmd = Command.new(name)
 
-  cmd.arguments(arguments)
-  cmd.stdin(Stream.Piped)
-  cmd.stderr(Stream.Piped)
-  cmd.stdout(Stream.Piped)
+  cmd.arguments = arguments
+  cmd.stdin = Stream.Piped
+  cmd.stderr = Stream.Piped
+  cmd.stdout = Stream.Piped
 
   let child = try cmd.spawn.map_error(fn (e) { 'failed to spawn ${name}: ${e}' })
 
-  try child.stdin.write_string(input).then(fn (_) { child.wait }).map_error(
-    fn (e) { '${name} failed: ${e}' },
-  )
+  try child.stdin.as_mut.get.write_string(input).map_error(fn (e) {
+    'failed to write to STDIN: ${e}'
+  })
+
+  try child.wait.map_error(fn (e) { '${name} failed: ${e}' })
 
   let out = ByteArray.new
 
   try child
     .stdout
+    .as_mut
+    .get
     .read_all(out)
-    .then(fn (_) { child.stderr.read_all(out) })
+    .then(fn (_) { child.stderr.as_mut.get.read_all(out) })
     .map_error(fn (e) { 'failed reading the output: ${e}' })
   Result.Ok(out.into_string)
 }

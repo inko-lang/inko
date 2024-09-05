@@ -390,21 +390,21 @@ class pub Process {
   fn static new(id: Int) -> Process {
     let cmd = Command.new(env.executable.get)
 
-    cmd.stdin(Stream.Piped)
-    cmd.stdout(Stream.Piped)
-    cmd.stderr(Stream.Piped)
-    cmd.variable(CHILD_VAR, id.to_string)
+    cmd.stdin = Stream.Piped
+    cmd.stdout = Stream.Piped
+    cmd.stderr = Stream.Piped
+    cmd.variables.set(CHILD_VAR, id.to_string)
     Process(cmd: cmd, stdin: '')
   }
 
   # Adds an argument to the process.
   fn pub mut argument(value: String) {
-    @cmd.argument(value)
+    @cmd.arguments.push(value)
   }
 
   # Adds or updates an environment variable to the process.
   fn pub mut variable(name: String, value: String) {
-    @cmd.variable(name, value)
+    @cmd.variables.set(name, value)
   }
 
   # Sets the data to write to STDIN.
@@ -420,11 +420,11 @@ class pub Process {
       case Error(err) -> panic('Failed to spawn the child process: ${err}')
     }
 
-    let _ = child.stdin.write_string(@stdin)
+    let _ = (child.stdin := Option.None).get.write_string(@stdin)
     let stdout = ByteArray.new
     let stderr = ByteArray.new
-    let _ = child.stdout.read_all(stdout)
-    let _ = child.stderr.read_all(stderr)
+    let _ = child.stdout.as_mut.get.read_all(stdout)
+    let _ = child.stderr.as_mut.get.read_all(stderr)
     let status = match child.wait {
       case Ok(val) -> val
       case Error(err) -> panic('Failed to wait for the child process: ${err}')

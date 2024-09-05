@@ -10,7 +10,6 @@ mod random;
 mod signal;
 mod socket;
 mod string;
-mod sys;
 mod time;
 mod tls;
 
@@ -25,8 +24,6 @@ use crate::stack::Stack;
 use crate::state::{MethodCounts, RcState, State};
 use rustix::param::page_size;
 use std::ffi::CStr;
-use std::io::{stdout, Write as _};
-use std::process::exit as rust_exit;
 use std::slice;
 use std::thread;
 
@@ -87,7 +84,6 @@ pub unsafe extern "system" fn inko_runtime_start(
     method: NativeAsyncMethod,
 ) {
     (*runtime).start(class, method);
-    flush_stdout();
 }
 
 #[no_mangle]
@@ -105,17 +101,6 @@ pub unsafe extern "system" fn inko_runtime_stack_mask(
     let total = total_stack_size(raw_size as _, page_size()) as u64;
 
     !(total - 1)
-}
-
-fn flush_stdout() {
-    // STDOUT is buffered by default, and not flushing it upon exit may result
-    // in parent processes not observing the output.
-    let _ = stdout().lock().flush();
-}
-
-pub(crate) fn exit(status: i32) -> ! {
-    flush_stdout();
-    rust_exit(status);
 }
 
 /// An Inko runtime along with all its state.

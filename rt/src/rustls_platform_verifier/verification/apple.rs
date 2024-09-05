@@ -123,11 +123,19 @@ impl Verifier {
         // Safety: well, technically none, but due to the way the runtime uses
         // the verifier this should never misbehave.
         let process = unsafe { ProcessPointer::new(CURRENT_PROCESS.get()) };
-        let trust_error =
-            match process.blocking(|| trust_evaluation.evaluate_with_error()) {
-                Ok(()) => return Ok(()),
-                Err(e) => e,
-            };
+
+        process.start_blocking();
+
+        let trust_error = match trust_evaluation.evaluate_with_error() {
+            Ok(()) => {
+                process.stop_blocking();
+                return Ok(());
+            }
+            Err(e) => {
+                process.stop_blocking();
+                e
+            }
+        };
 
         let err_code = trust_error.code();
 

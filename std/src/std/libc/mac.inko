@@ -1,3 +1,4 @@
+import std.io (Error)
 import std.libc.mac.amd64 (self as sys) if amd64
 import std.libc.mac.arm64 (self as sys) if arm64
 
@@ -43,8 +44,10 @@ let ESPIPE = 29
 let ETIME = 101
 let ETIMEDOUT = 60
 let EXDEV = 18
+let FD_CLOEXEC = 1
 let F_BARRIERFSYNC = 85
 let F_FULLFSYNC = 51
+let F_SETFD = 2
 let IPPROTO_IP = 0
 let IPPROTO_IPV6 = 41
 let IPPROTO_TCP = 6
@@ -57,6 +60,8 @@ let O_RDONLY = 0
 let O_RDWR = 0x2
 let O_TRUNC = 0x400
 let O_WRONLY = 0x1
+let POSIX_SPAWN_SETSIGDEF = 0x04
+let POSIX_SPAWN_SETSIGMASK = 0x08
 let SEEK_END = 2
 let SEEK_SET = 0
 let SOL_SOCKET = 0xFFFF
@@ -72,6 +77,7 @@ let S_IFLNK = 0xA000
 let S_IFMT = 0xF000
 let S_IFREG = 0x8000
 let TCP_NODELAY = 1
+let WNOHANG = 0x00000001
 
 # For macOS we need to use `SO_LINGER_SEC` to control the time in seconds
 # instead of ticks, and `SO_LINGER` itself isn't useful.
@@ -111,6 +117,23 @@ class extern StatBuf {
   let @st_qspare1: Int64
 }
 
+class extern Pipes {
+  let @reader: Int32
+  let @writer: Int32
+}
+
+class extern SigSet {
+  let @inner: UInt32
+}
+
+class extern PosixSpawnAttrs {
+  let @inner: Pointer[UInt8]
+}
+
+class extern PosixSpawnFileActions {
+  let @inner: Pointer[UInt8]
+}
+
 fn extern chmod(path: Pointer[UInt8], mode: UInt16) -> Int32
 
 fn extern fsync(fd: Int32) -> Int32
@@ -130,6 +153,8 @@ fn extern fcopyfile(
   state: Pointer[UInt8],
   flags: UInt32,
 ) -> Int32
+
+fn extern pipe(pipes: Pointer[Pipes]) -> Int32
 
 fn fstat(fd: Int32, buf: Pointer[StatBuf]) -> Int32 {
   sys.fstat(fd, buf)
@@ -180,4 +205,21 @@ fn dirent_type(pointer: Pointer[Dirent]) -> Int {
 
 fn dirent_name(pointer: Pointer[Dirent]) -> Pointer[UInt8] {
   pointer as Int + 21 as Pointer[UInt8]
+}
+
+fn pipes -> Result[(Int32, Int32), Error] {
+  let pipes = Pipes()
+
+  if pipe(mut pipes) as Int != 0 { throw Error.last_os_error }
+
+  # macOS has no pipe2() function, so we have to manually set the CLOEXEC flag.
+  if fcntl(pipes.reader, F_SETFD as Int32, FD_CLOEXEC as Int32) as Int != 0 {
+    throw Error.last_os_error
+  }
+
+  if fcntl(pipes.writer, F_SETFD as Int32, FD_CLOEXEC as Int32) as Int != 0 {
+    throw Error.last_os_error
+  }
+
+  Result.Ok((pipes.reader, pipes.writer))
 }

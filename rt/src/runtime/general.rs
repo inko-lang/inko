@@ -1,6 +1,5 @@
 use crate::mem::{header_of, ClassPointer};
 use crate::process::ProcessPointer;
-use crate::runtime::exit;
 use crate::runtime::process::panic;
 use std::alloc::handle_alloc_error;
 use std::io::Error;
@@ -24,11 +23,6 @@ extern "C" {
         link_name = "__error"
     )]
     fn errno_location() -> *mut i32;
-}
-
-#[no_mangle]
-pub unsafe extern "system" fn inko_exit(status: i64) {
-    exit(status as i32);
 }
 
 #[no_mangle]

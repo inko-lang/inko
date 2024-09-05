@@ -746,19 +746,6 @@ impl ProcessPointer {
         self.as_ptr() as usize
     }
 
-    // TODO: remove
-    pub(crate) fn blocking<R>(mut self, function: impl FnOnce() -> R) -> R {
-        // Safety: threads are stored in processes before running them.
-        let thread = unsafe { self.thread() };
-
-        thread.start_blocking();
-
-        let res = function();
-
-        thread.stop_blocking(self);
-        res
-    }
-
     pub(crate) fn start_blocking(mut self) {
         // Safety: threads are stored in processes before running them.
         unsafe { self.thread() }.start_blocking();

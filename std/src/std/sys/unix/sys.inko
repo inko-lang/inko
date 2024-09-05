@@ -1,0 +1,265 @@
+import std.alloc
+import std.drop (Drop)
+import std.io (Error, start_blocking, stop_blocking)
+import std.libc
+import std.ptr
+import std.sys (Stream)
+import std.sys.unix.fs
+import std.sys.unix.stdio
+
+class FileActions {
+  let @raw: libc.PosixSpawnFileActions
+  let @close: Array[Int32]
+
+  fn static new -> Result[FileActions, Error] {
+    let actions = FileActions(raw: libc.PosixSpawnFileActions(), close: [])
+
+    if libc.posix_spawn_file_actions_init(actions.raw) as Int != 0 {
+      throw Error.last_os_error
+    }
+
+    Result.Ok(actions)
+  }
+
+  fn mut directory=(path: String) {
+    libc.posix_spawn_file_actions_addchdir_np(@raw, path.to_pointer)
+  }
+
+  fn mut redirect(
+    stream: ref Stream,
+    fd: Int32,
+    write: Bool,
+  ) -> Result[Option[Int32], Error] {
+    let res = match stream {
+      case Null -> {
+        let null = try fs.open_file(
+          '/dev/null',
+          read: write.false?,
+          write: write,
+          append: false,
+          truncate: false,
+        )
+
+        dup(null, fd)
+        Option.None
+      }
+      case Piped -> {
+        match try libc.pipes {
+          case (parent, child) if write -> {
+            dup(child, fd)
+            Option.Some(parent)
+          }
+          case (child, parent) -> {
+            dup(child, fd)
+            Option.Some(parent)
+          }
+        }
+      }
+      case Inherit -> Option.None
+    }
+
+    Result.Ok(res)
+  }
+
+  fn mut dup(source: Int32, target: Int32) {
+    libc.posix_spawn_file_actions_adddup2(@raw, source, target)
+
+    # The child process gets a _copy_ of the file descriptor. This means we have
+    # to make sure to close them in the parent, otherwise reads/writes could
+    # block forever.
+    @close.push(source)
+  }
+}
+
+impl Drop for FileActions {
+  fn mut drop {
+    libc.posix_spawn_file_actions_destroy(@raw)
+
+    # Due to https://github.com/inko-lang/inko/issues/757 we can't use a closure
+    # here.
+    loop {
+      match @close.pop {
+        case Some(v) -> close(v)
+        case _ -> break
+      }
+    }
+  }
+}
+
+class StringPointers {
+  let @raw: Pointer[UInt64]
+
+  fn static new(size: Int) -> StringPointers {
+    let raw = alloc.resize(0 as Pointer[UInt64], size + 1)
+
+    # The argv/envp arrays passed to posix_spawnp() must be NULL terminated.
+    ptr.add(raw, size).0 = 0 as UInt64
+    StringPointers(raw)
+  }
+
+  fn mut set(index: Int, value: String) {
+    ptr.add(@raw, index).0 = value.to_pointer as UInt64
+  }
+}
+
+impl Drop for StringPointers {
+  fn mut drop {
+    alloc.free(@raw)
+  }
+}
+
+fn add_null(pointer: Pointer[UInt64], size: Int) {
+  let target = if size == 0 {
+    ptr.add(pointer, 1)
+  } else {
+    ptr.add(pointer, size - 1)
+  }
+
+  target.0 = 0 as UInt64
+}
+
+# The WEXITSTATUS() macro as described in `wait(2)`.
+fn exit_status(value: Int32) -> Int {
+  value as Int >> 8 & 0xFF
+}
+
+# The WIFEXITED() macro as described in `wait(2)`.
+fn exited?(value: Int32) -> Bool {
+  value as Int & 0x7F == 0
+}
+
+fn spawn(
+  program: String,
+  args: ref Array[String],
+  env: ref Map[String, String],
+  directory: Option[String],
+  stdin: ref Stream,
+  stdout: ref Stream,
+  stderr: ref Stream,
+) -> Result[ChildProcess, Error] {
+  let argv = StringPointers.new(args.size + 1)
+  let envp = StringPointers.new(env.size)
+
+  # The list of arguments starts with the program that's being executed, and is
+  # terminated by a NULL pointer.
+  argv.set(0, program)
+  args.iter.each_with_index(fn (idx, arg) { argv.set(idx + 1, arg) })
+
+  # Environment variables are exposed as a list of `KEY=VALUE` values,
+  # terminated by a NULL pointer.
+  #
+  # We MUST keep these pairs around until AFTER the program is started.
+  let pairs = []
+
+  env.iter.each_with_index(fn (idx, kv) {
+    let pair = '${kv.key}=${kv.value}'
+
+    pairs.push(pair)
+    envp.set(idx, pair)
+  })
+
+  let actions = try FileActions.new
+  let attrs = libc.PosixSpawnAttrs()
+
+  if libc.posix_spawnattr_init(mut attrs) as Int != 0 {
+    throw Error.last_os_error
+  }
+
+  let signals = libc.SigSet()
+
+  # Unmask all signals for the child process. This is needed because Inko
+  # threads mask all signals.
+  libc.sigemptyset(mut signals)
+  libc.posix_spawnattr_setsigmask(mut attrs, mut signals)
+
+  # Reset the default behaviour for all the signals.
+  libc.sigfillset(mut signals)
+  libc.posix_spawnattr_setsigdefault(mut attrs, mut signals)
+
+  libc.posix_spawnattr_setflags(mut attrs, libc.POSIX_SPAWN_SETSIGDEF as Int16)
+  libc.posix_spawnattr_setflags(mut attrs, libc.POSIX_SPAWN_SETSIGMASK as Int16)
+
+  match directory {
+    case Some(v) -> actions.directory = v
+    case _ -> {}
+  }
+
+  let in = try actions.redirect(stdin, stdio.stdin, write: false)
+  let out = try actions.redirect(stdout, stdio.stdout, write: true)
+  let err = try actions.redirect(stderr, stdio.stderr, write: true)
+
+  start_blocking
+
+  let pid = 0 as Int32
+  let res = libc.posix_spawnp(
+    pid: mut pid,
+    file: program.to_pointer,
+    file_actions: actions.raw,
+    attrp: mut attrs,
+    argv: argv.raw,
+    envp: envp.raw,
+  )
+    as Int
+
+  stop_blocking
+
+  if res != 0 { throw Error.from_os_error(res) }
+
+  if libc.posix_spawnattr_destroy(mut attrs) as Int != 0 {
+    throw Error.last_os_error
+  }
+
+  Result.Ok(ChildProcess(id: pid, stdin: in, stdout: out, stderr: err))
+}
+
+fn wait(pid: Int32) -> Result[Int, Error] {
+  let status = 0 as Int32
+
+  start_blocking
+
+  let res = libc.waitpid(pid, mut status, 0 as Int32) as Int
+  let err = stop_blocking
+
+  if res == -1 { throw Error.from_os_error(err) }
+
+  stop_blocking
+  Result.Ok(exit_status(status))
+}
+
+fn try_wait(pid: Int32) -> Result[Option[Int], Error] {
+  let status = 0 as Int32
+  let res = libc.waitpid(pid, mut status, libc.WNOHANG as Int32) as Int
+
+  if res == -1 { throw Error.last_os_error }
+
+  Result.Ok(
+    if exited?(status) {
+      Option.Some(exit_status(status))
+    } else {
+      Option.None
+    },
+  )
+}
+
+fn read(fd: Int32, into: mut ByteArray, size: Int) -> Result[Int, Error] {
+  fs.read_file(fd, into, size)
+}
+
+fn write(fd: Int32, data: Pointer[UInt8], size: Int) -> Result[Int, Error] {
+  fs.write_file(fd, data, size)
+}
+
+fn close(fd: Int32) {
+  fs.close_file(fd)
+}
+
+fn exit(status: Int) -> Never {
+  libc.exit(status as Int32)
+}
+
+class ChildProcess {
+  let @id: Int32
+  let @stdin: Option[Int32]
+  let @stdout: Option[Int32]
+  let @stderr: Option[Int32]
+}

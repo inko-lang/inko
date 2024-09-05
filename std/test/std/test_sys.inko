@@ -20,65 +20,62 @@ fn pub tests(t: mut Tests) {
 
   t.test('Command.program', fn (t) { t.equal(Command.new('ls').program, 'ls') })
 
-  t.test('Command.directory', fn (t) {
+  t.ok('Command.directory', fn (t) {
     let cmd = Command.new('ls')
 
-    t.equal(cmd.current_directory, Option.None)
-    cmd.directory('/foo')
-    t.equal(cmd.current_directory, Option.Some('/foo'))
-  })
+    t.equal(cmd.directory, Option.None)
+    cmd.directory = 'fixtures'.to_path
+    t.equal(cmd.directory, Option.Some('fixtures'.to_path))
 
-  t.test('Command.argument', fn (t) {
-    let cmd = Command.new('ls')
+    # Make sure the command _actually_ uses the directory.
+    cmd.stdin = Stream.Null
+    cmd.stdout = Stream.Piped
+    cmd.stderr = Stream.Null
 
-    t.equal(cmd.current_arguments, [])
-    cmd.argument('foo')
-    t.equal(cmd.current_arguments, ['foo'])
+    let child = try cmd.spawn
+    let bytes = ByteArray.new
+
+    child.stdout.as_mut.get.read_all(bytes)
+
+    t.true(bytes.into_string.contains?('hello.txt'))
+    try child.wait
+    Result.Ok(nil)
   })
 
   t.test('Command.arguments', fn (t) {
     let cmd = Command.new('ls')
 
-    t.equal(cmd.current_arguments, [])
-    cmd.arguments(['foo'])
-    t.equal(cmd.current_arguments, ['foo'])
-  })
-
-  t.test('Command.variable', fn (t) {
-    let cmd = Command.new('ls')
-
-    t.equal(cmd.current_variables, Map.new)
-    cmd.variable('TEST', 'foo')
-    t.equal(cmd.current_variables.get('TEST'), 'foo')
+    t.equal(cmd.arguments, [])
+    cmd.arguments.push('foo')
+    t.equal(cmd.arguments, ['foo'])
   })
 
   t.test('Command.variables', fn (t) {
     let cmd = Command.new('ls')
-    let vars = Map.new
 
-    vars.set('TEST', 'foo')
+    t.equal(cmd.variables, env.variables)
 
-    t.equal(cmd.current_variables, Map.new)
-    cmd.variables(vars)
-    t.equal(cmd.current_variables.get('TEST'), 'foo')
+    cmd.variables.set('TEST', 'foo')
+    t.equal(cmd.variables.opt('TEST'), Option.Some('foo'))
   })
 
-  t.test('Command.spawn with a valid command', fn (t) {
+  t.ok('Command.spawn with a valid command', fn (t) {
     let cmd = Command.new(compiler_path)
 
-    cmd.stdin(Stream.Null)
-    cmd.stderr(Stream.Null)
-    cmd.stdout(Stream.Piped)
-    cmd.argument('--help')
+    cmd.stdin = Stream.Null
+    cmd.stderr = Stream.Null
+    cmd.stdout = Stream.Piped
+    cmd.arguments.push('--help')
 
-    let child = cmd.spawn.get
+    let child = try cmd.spawn
 
-    child.wait.get
+    try child.wait
 
     let bytes = ByteArray.new
 
-    child.stdout.read_all(bytes).get
+    try child.stdout.as_mut.get.read_all(bytes)
     t.true(bytes.into_string.contains?('Usage: inko'))
+    Result.Ok(nil)
   })
 
   t.test('Command.spawn with an invalid command', fn (t) {

@@ -1,12 +1,13 @@
 # An ordered, integer-indexed generic collection of values.
+import std.alloc
 import std.clone (Clone)
 import std.cmp (Compare, Contains, Equal, Ordering, max, min)
 import std.drop (Drop)
 import std.fmt (Format, Formatter)
 import std.hash (Hash, Hasher)
 import std.iter (Iter, Stream)
-import std.libc
 import std.option (Option)
+import std.ptr
 import std.rand (Shuffle)
 
 # The capacity to use when resizing an array for the first time.
@@ -112,10 +113,7 @@ class builtin Array[T] {
   fn pub static with_capacity(size: Int) -> Array[T] {
     if size < 0 { panic('The capacity must be greater than or equal to zero') }
 
-    let vsize = _INKO.size_of_type_parameter(T)
-    let buffer = libc.resize(0x0 as Pointer[T], size: size * vsize)
-
-    Array(size: 0, capacity: size, buffer: buffer)
+    Array(size: 0, capacity: size, buffer: alloc.resize(0 as Pointer[T], size))
   }
 
   # Returns an array filled with a certain amount of values.
@@ -150,10 +148,8 @@ class builtin Array[T] {
   fn pub mut reserve(size: Int) {
     if @capacity - @size >= size { return }
 
-    let vsize = _INKO.size_of_type_parameter(T)
-
     @capacity = max(@capacity * 2, @capacity + size)
-    @buffer = libc.resize(@buffer, @capacity * vsize)
+    @buffer = alloc.resize(@buffer, @capacity)
   }
 
   # Removes all values in the Array.
@@ -248,13 +244,8 @@ class builtin Array[T] {
 
     let addr = address_of(index)
     let val = addr.0
-    let vsize = _INKO.size_of_type_parameter(T)
 
-    libc.copy(
-      from: addr as Int + vsize as Pointer[T],
-      to: addr,
-      size: len - index - 1 * vsize,
-    )
+    alloc.copy(from: ptr.add(addr, 1), to: addr, size: len - index - 1)
 
     @size = len - 1
     val
@@ -596,9 +587,8 @@ class builtin Array[T] {
     if index < @size {
       let from = address_of(index)
       let to = address_of(index + 1)
-      let vsize = _INKO.size_of_type_parameter(T)
 
-      libc.copy(from, to, size: @size - index * vsize)
+      alloc.copy(from, to, size: @size - index)
     }
 
     write_to(index, value)
@@ -733,7 +723,7 @@ impl Array if T: mut {
 impl Drop for Array {
   fn mut drop {
     clear
-    libc.free(@buffer as Pointer[UInt8])
+    alloc.free(@buffer)
   }
 }
 

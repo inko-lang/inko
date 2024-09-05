@@ -13,9 +13,9 @@ choice.
 
 ## Supported platforms
 
-Inko supports Linux, macOS, and FreeBSD (13.2 or newer). Inko might also work on
-other platforms, but we only provide support for the listed platforms. Windows
-isn't supported.
+Inko supports Linux (4.11 or newer), macOS (10.15 or newer), and FreeBSD (13.2
+or newer). Inko might also work on other platforms, but we only provide support
+for the listed platforms. Windows isn't supported.
 
 ## Requirements
 

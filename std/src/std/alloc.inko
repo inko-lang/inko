@@ -1,0 +1,34 @@
+import std.io (Error)
+import std.libc
+
+# Allocates or resizes a chunk of raw memory such that it can fit `size`
+# _elements_ (not bytes).
+#
+# This method is a thin wrapper around the `realloc(2)`.
+#
+# # Panics
+#
+# This method panics if `realloc()` returns `NULL` and the `size` argument
+# _isn't_ zero.
+fn resize[T](buffer: Pointer[T], size: Int) -> Pointer[T] {
+  let bytes = size * _INKO.size_of_type_parameter(T)
+  let ptr = libc.realloc(buffer as Pointer[UInt8], bytes)
+
+  # In this case there's nothing we can do but abort.
+  if ptr as Int == 0 and size != 0 {
+    panic('std.alloc.resize() failed: ${Error.last_os_error}')
+  }
+
+  ptr as Pointer[T]
+}
+
+fn free[T](pointer: Pointer[T]) {
+  libc.free(pointer as Pointer[UInt8])
+}
+
+# Copies `size` _elements_ from the pointer `from` to the pointer `to`.
+fn copy[T](from: Pointer[T], to: Pointer[T], size: Int) {
+  let bytes = size * _INKO.size_of_type_parameter(T)
+
+  libc.memmove(to as Pointer[UInt8], from as Pointer[UInt8], bytes as UInt64)
+}

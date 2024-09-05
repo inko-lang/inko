@@ -65,6 +65,8 @@ let O_RDONLY = sys.O_RDONLY
 let O_RDWR = sys.O_RDWR
 let O_TRUNC = sys.O_TRUNC
 let O_WRONLY = sys.O_WRONLY
+let POSIX_SPAWN_SETSIGDEF = sys.POSIX_SPAWN_SETSIGDEF
+let POSIX_SPAWN_SETSIGMASK = sys.POSIX_SPAWN_SETSIGMASK
 let SEEK_END = sys.SEEK_END
 let SEEK_SET = sys.SEEK_SET
 let SOL_SOCKET = sys.SOL_SOCKET
@@ -76,6 +78,19 @@ let SO_REUSEADDR = sys.SO_REUSEADDR
 let SO_REUSEPORT = sys.SO_REUSEPORT
 let SO_SNDBUF = sys.SO_SNDBUF
 let TCP_NODELAY = sys.TCP_NODELAY
+let WNOHANG = sys.WNOHANG
+
+class extern SigSet {
+  let @inner: sys.SigSet
+}
+
+class extern PosixSpawnAttrs {
+  let @inner: sys.PosixSpawnAttrs
+}
+
+class extern PosixSpawnFileActions {
+  let @inner: sys.PosixSpawnFileActions
+}
 
 fn opendir(path: Pointer[UInt8]) -> Pointer[UInt8] {
   sys.opendir(path)
@@ -123,36 +138,70 @@ fn extern isatty(fd: Int32) -> Int32
 
 fn extern strlen(pointer: Pointer[UInt8]) -> UInt64
 
+fn extern posix_spawnp(
+  pid: Pointer[Int32],
+  file: Pointer[UInt8],
+  file_actions: Pointer[PosixSpawnFileActions],
+  attrp: Pointer[PosixSpawnAttrs],
+  argv: Pointer[UInt64],
+  envp: Pointer[UInt64],
+) -> Int32
+
+fn extern posix_spawn_file_actions_init(
+  actions: Pointer[PosixSpawnFileActions],
+) -> Int32
+
+fn extern posix_spawn_file_actions_destroy(
+  actions: Pointer[PosixSpawnFileActions],
+) -> Int32
+
+fn extern posix_spawn_file_actions_adddup2(
+  actions: Pointer[PosixSpawnFileActions],
+  fd: Int32,
+  new_fd: Int32,
+) -> Int32
+
+fn extern posix_spawn_file_actions_addchdir_np(
+  actions: mut Pointer[PosixSpawnFileActions],
+  path: Pointer[UInt8],
+) -> Int32
+
+fn extern posix_spawnattr_init(attr: mut Pointer[PosixSpawnAttrs]) -> Int32
+
+fn extern posix_spawnattr_destroy(attr: mut Pointer[PosixSpawnAttrs]) -> Int32
+
+fn extern posix_spawnattr_setflags(
+  attr: mut Pointer[PosixSpawnAttrs],
+  flags: Int16,
+) -> Int32
+
+fn extern posix_spawnattr_setsigdefault(
+  attr: mut Pointer[PosixSpawnAttrs],
+  mask: mut Pointer[SigSet],
+) -> Int32
+
+fn extern posix_spawnattr_setsigmask(
+  attr: mut Pointer[PosixSpawnAttrs],
+  mask: mut Pointer[SigSet],
+) -> Int32
+
+fn extern sigemptyset(set: mut Pointer[SigSet]) -> Int32
+
+fn extern sigfillset(set: mut Pointer[SigSet]) -> Int32
+
+fn extern waitpid(pid: Int32, status: Pointer[Int32], options: Int32) -> Int32
+
 fn extern realloc(pointer: Pointer[UInt8], size: Int) -> Pointer[UInt8]
 
 fn extern memmove(
   to: Pointer[UInt8],
   from: Pointer[UInt8],
-  size: Int,
+  size: UInt64,
 ) -> Pointer[UInt8]
 
 fn extern free(pointer: Pointer[UInt8])
 
-# A thin wrapper around `realloc()`.
-#
-# # Panics
-#
-# This method panics if `realloc()` returns `NULL` and the `size` argument
-# _isn't_ zero.
-fn resize[T](buffer: Pointer[T], size: Int) -> Pointer[T] {
-  let ptr = realloc(buffer as Pointer[UInt8], size)
-
-  # In this case there's nothing we can do but abort.
-  if ptr as Int == 0 and size != 0 {
-    panic('std.libc.resize() failed: ${Error.last_os_error}')
-  }
-
-  ptr as Pointer[T]
-}
-
-fn copy[T](from: Pointer[T], to: Pointer[T], size: Int) {
-  memmove(to as Pointer[UInt8], from as Pointer[UInt8], size)
-}
+fn extern exit(status: Int32) -> Never
 
 # Returns the type of a directory entry.
 fn dirent_type(pointer: Pointer[sys.Dirent]) -> Int {
@@ -162,4 +211,8 @@ fn dirent_type(pointer: Pointer[sys.Dirent]) -> Int {
 # Returns a pointer to the start of a directory entry's name.
 fn dirent_name(pointer: Pointer[sys.Dirent]) -> Pointer[UInt8] {
   sys.dirent_name(pointer)
+}
+
+fn pipes -> Result[(Int32, Int32), Error] {
+  sys.pipes
 }
