@@ -216,3 +216,7 @@ fn dirent_name(pointer: Pointer[sys.Dirent]) -> Pointer[UInt8] {
 fn pipes -> Result[(Int32, Int32), Error] {
   sys.pipes
 }
+
+fn errno_location -> Pointer[Int32] {
+  sys.errno_location
+}

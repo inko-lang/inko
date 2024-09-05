@@ -163,6 +163,8 @@ fn extern copy_file_range(
 
 fn extern pipe2(pipes: Pointer[Pipes], flags: Int32) -> Int32
 
+fn extern __error -> Pointer[Int32]
+
 fn flush(fd: Int32) -> Int32 {
   fsync(fd)
 }
@@ -183,4 +185,8 @@ fn pipes -> Result[(Int32, Int32), Error] {
   }
 
   Result.Ok((pipes.reader, pipes.writer))
+}
+
+fn errno_location -> Pointer[Int32] {
+  __error
 }

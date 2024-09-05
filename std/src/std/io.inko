@@ -30,10 +30,6 @@ let INVALID_DATA = -2
 # The error code used when encountering an unexpected end of the input.
 let UNEXPECTED_EOF = -3
 
-fn extern inko_last_error -> Int
-
-fn extern inko_reset_error
-
 fn extern inko_process_start_blocking(process: Pointer[UInt8])
 
 fn extern inko_process_stop_blocking(process: Pointer[UInt8])
@@ -91,7 +87,7 @@ fn pub start_blocking {
 # rescheduled the current process may run on a different OS thread and thus read
 # a different state.
 fn pub stop_blocking -> Int {
-  let err = inko_last_error
+  let err = libc.errno_location.0 as Int
 
   # If the operation took too long, this reschedules the current process. This
   # means that any global state read after this point may not be from the same
@@ -101,7 +97,7 @@ fn pub stop_blocking -> Int {
 }
 
 fn reset_os_error {
-  inko_reset_error
+  libc.errno_location.0 = 0 as Int32
 }
 
 # An error type for I/O operations.
@@ -279,7 +275,7 @@ class pub enum Error {
 
   # Returns the last OS error produced by the current OS thread.
   fn pub static last_os_error -> Error {
-    from_os_error(inko_last_error)
+    from_os_error(libc.errno_location.0 as Int)
   }
 }
 

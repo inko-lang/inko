@@ -156,6 +156,8 @@ fn extern fcopyfile(
 
 fn extern pipe(pipes: Pointer[Pipes]) -> Int32
 
+fn extern __error -> Pointer[Int32]
+
 fn fstat(fd: Int32, buf: Pointer[StatBuf]) -> Int32 {
   sys.fstat(fd, buf)
 }
@@ -222,4 +224,8 @@ fn pipes -> Result[(Int32, Int32), Error] {
   }
 
   Result.Ok((pipes.reader, pipes.writer))
+}
+
+fn errno_location -> Pointer[Int32] {
+  __error
 }
