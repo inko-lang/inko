@@ -234,7 +234,7 @@ perhaps an -L flag is missing?".
 :::
 
 ```bash
-sudo apk add build-base rust cargo llvm17 llvm17-dev llvm17-static git
+sudo apk add build-base rust cargo llvm17 llvm17-dev libstdc++-dev git
 ```
 
 ### Debian
