@@ -401,7 +401,11 @@ mod tests {
                 Abi::Native
             )
             .to_string(),
-            "amd64-linux-gnu"
+            if cfg!(target_env = "musl") {
+                "amd64-linux-musl"
+            } else {
+                "amd64-linux-gnu"
+            }
         );
         assert_eq!(
             Target::new(Architecture::Amd64, OperatingSystem::Linux, Abi::Musl)

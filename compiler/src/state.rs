@@ -265,7 +265,13 @@ mod tests {
         assert!(linux.is_defined("amd64"));
         assert!(linux.is_defined("linux"));
         assert!(linux.is_defined("unix"));
-        assert!(linux.is_defined("gnu"));
+
+        if cfg!(target_env = "musl") {
+            assert!(linux.is_defined("musl"));
+        } else {
+            assert!(linux.is_defined("gnu"));
+        }
+
         assert!(!linux.is_defined("bsd"));
 
         assert!(bsd.is_defined("amd64"));
