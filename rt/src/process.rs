@@ -4,14 +4,13 @@ use crate::scheduler::process::Thread;
 use crate::scheduler::timeouts::Timeout;
 use crate::stack::Stack;
 use crate::state::State;
-use std::alloc::{alloc, dealloc, handle_alloc_error, Layout};
+use std::alloc::dealloc;
 use std::cell::UnsafeCell;
 use std::collections::VecDeque;
-use std::mem::{align_of, forget, size_of, ManuallyDrop};
+use std::mem::ManuallyDrop;
 use std::ops::Drop;
 use std::ops::{Deref, DerefMut};
 use std::ptr::{drop_in_place, null_mut, write, NonNull};
-use std::slice;
 use std::sync::atomic::Ordering;
 use std::sync::{Mutex, MutexGuard};
 
@@ -42,90 +41,20 @@ pub struct StackFrame {
 }
 
 /// A message sent between two processes.
-#[repr(C)]
-pub struct Message {
-    /// The native function to run.
-    pub method: NativeAsyncMethod,
+pub(crate) struct Message {
+    /// A pointer to the method to run.
+    pub(crate) method: NativeAsyncMethod,
 
-    /// The number of arguments of this message.
-    pub length: u8,
-
-    /// The arguments of the message.
-    pub arguments: [*mut u8; 0],
-}
-
-impl Message {
-    pub(crate) fn alloc(method: NativeAsyncMethod, length: u8) -> OwnedMessage {
-        unsafe {
-            let layout = Self::layout(length);
-            let raw_ptr = alloc(layout) as *mut Self;
-
-            if raw_ptr.is_null() {
-                handle_alloc_error(layout);
-            }
-
-            let msg = &mut *raw_ptr;
-
-            init!(msg.method => method);
-            init!(msg.length => length);
-
-            OwnedMessage(NonNull::new_unchecked(raw_ptr))
-        }
-    }
-
-    unsafe fn layout(length: u8) -> Layout {
-        let size = size_of::<Self>() + (length as usize * size_of::<*mut u8>());
-
-        // Messages are sent often, so we don't want the overhead of size and
-        // alignment checks.
-        Layout::from_size_align_unchecked(size, align_of::<Self>())
-    }
-}
-
-#[repr(C)]
-pub(crate) struct OwnedMessage(NonNull<Message>);
-
-impl OwnedMessage {
-    pub(crate) unsafe fn from_raw(message: *mut Message) -> OwnedMessage {
-        OwnedMessage(NonNull::new_unchecked(message))
-    }
-
-    pub(crate) fn into_raw(mut self) -> *mut Message {
-        let ptr = unsafe { self.0.as_mut() };
-
-        forget(self);
-        ptr
-    }
-}
-
-impl Deref for OwnedMessage {
-    type Target = Message;
-
-    fn deref(&self) -> &Message {
-        unsafe { self.0.as_ref() }
-    }
-}
-
-impl DerefMut for OwnedMessage {
-    fn deref_mut(&mut self) -> &mut Message {
-        unsafe { self.0.as_mut() }
-    }
-}
-
-impl Drop for OwnedMessage {
-    fn drop(&mut self) {
-        unsafe {
-            let layout = Message::layout(self.0.as_ref().length);
-
-            drop_in_place(self.0.as_ptr());
-            dealloc(self.0.as_ptr() as *mut u8, layout);
-        }
-    }
+    /// A pointer to a structure containing the arguments of the message.
+    ///
+    /// This is managed by the standard library/generated code. If no arguments
+    /// are passed, this field is set to NULL.
+    pub(crate) data: *mut u8,
 }
 
 /// A collection of messages to be processed by a process.
 struct Mailbox {
-    messages: VecDeque<OwnedMessage>,
+    messages: VecDeque<Message>,
 }
 
 impl Mailbox {
@@ -133,18 +62,18 @@ impl Mailbox {
         Mailbox { messages: VecDeque::new() }
     }
 
-    fn send(&mut self, message: OwnedMessage) {
+    fn send(&mut self, message: Message) {
         self.messages.push_back(message);
     }
 
-    fn receive(&mut self) -> Option<OwnedMessage> {
+    fn receive(&mut self) -> Option<Message> {
         self.messages.pop_front()
     }
 }
 
 pub(crate) enum Task {
     Resume,
-    Start(NativeAsyncMethod, Vec<*mut u8>),
+    Start(Message),
     Wait,
 }
 
@@ -531,7 +460,7 @@ impl Process {
         stack: Stack,
     ) -> ProcessPointer {
         let mut process = Self::alloc(class, stack);
-        let message = Message::alloc(method, 0);
+        let message = Message { method, data: null_mut() };
 
         process.set_main();
         process.send_message(message);
@@ -546,10 +475,9 @@ impl Process {
         self.state.lock().unwrap().status.is_main()
     }
 
-    /// Sends a synchronous message to this process.
     pub(crate) fn send_message(
         &mut self,
-        message: OwnedMessage,
+        message: Message,
     ) -> RescheduleRights {
         let mut state = self.state.lock().unwrap();
 
@@ -573,15 +501,9 @@ impl Process {
             }
         };
 
-        let func = message.method;
-        let len = message.length as usize;
-        let args = unsafe {
-            slice::from_raw_parts(message.arguments.as_ptr(), len).to_vec()
-        };
-
         self.stack_pointer = self.stack.stack_pointer();
         state.status.set_running(true);
-        Task::Start(func, args)
+        Task::Start(message)
     }
 
     pub(crate) fn take_stack(&mut self) -> Option<Stack> {
@@ -980,6 +902,7 @@ mod tests {
     use super::*;
     use crate::test::{empty_process_class, setup, OwnedProcess};
     use rustix::param::page_size;
+    use std::mem::size_of;
     use std::time::Duration;
 
     macro_rules! offset_of {
@@ -1436,16 +1359,9 @@ mod tests {
     }
 
     #[test]
-    fn test_message_new() {
-        let message = Message::alloc(method, 2);
-
-        assert_eq!(message.length, 2);
-    }
-
-    #[test]
     fn test_mailbox_send() {
         let mut mail = Mailbox::new();
-        let msg = Message::alloc(method, 0);
+        let msg = Message { method, data: null_mut() };
 
         mail.send(msg);
         assert!(mail.receive().is_some());
@@ -1456,7 +1372,7 @@ mod tests {
         let proc_class = empty_process_class("A");
         let stack = Stack::new(32, page_size());
         let mut process = OwnedProcess::new(Process::alloc(*proc_class, stack));
-        let msg = Message::alloc(method, 0);
+        let msg = Message { method, data: null_mut() };
 
         assert_eq!(process.send_message(msg), RescheduleRights::Acquired);
         assert_eq!(process.state().mailbox.messages.len(), 1);
@@ -1476,11 +1392,10 @@ mod tests {
         let proc_class = empty_process_class("A");
         let stack = Stack::new(32, page_size());
         let mut process = OwnedProcess::new(Process::alloc(*proc_class, stack));
-        let msg = Message::alloc(method, 0);
+        let msg = Message { method, data: null_mut() };
 
         process.send_message(msg);
-
-        assert!(matches!(process.next_task(), Task::Start(_, _)));
+        assert!(matches!(process.next_task(), Task::Start(_)));
     }
 
     #[test]
@@ -1488,8 +1403,8 @@ mod tests {
         let proc_class = empty_process_class("A");
         let stack = Stack::new(32, page_size());
         let mut process = OwnedProcess::new(Process::alloc(*proc_class, stack));
-        let msg1 = Message::alloc(method, 0);
-        let msg2 = Message::alloc(method, 0);
+        let msg1 = Message { method, data: null_mut() };
+        let msg2 = Message { method, data: null_mut() };
 
         process.send_message(msg1);
         process.next_task();

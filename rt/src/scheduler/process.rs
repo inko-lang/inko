@@ -569,10 +569,10 @@ impl Thread {
                     process.resume(state, self);
                     unsafe { context::switch(process) }
                 }
-                Task::Start(func, args) => {
+                Task::Start(msg) => {
                     CURRENT_PROCESS.set(process.as_ptr());
                     process.resume(state, self);
-                    unsafe { context::start(process, func, args) }
+                    unsafe { context::start(process, msg.method, msg.data) }
                 }
                 Task::Wait => return,
             }
@@ -1061,15 +1061,13 @@ impl Scheduler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::context::Context;
     use crate::test::{
         empty_process_class, new_process, new_process_with_message, setup,
     };
     use std::thread::sleep;
 
-    unsafe extern "system" fn method(ctx: *mut u8) {
-        let ctx = &mut *(ctx as *mut Context);
-        let mut proc = *(ctx.arguments as *mut ProcessPointer);
+    unsafe extern "system" fn method(data: *mut u8) {
+        let mut proc = ProcessPointer::new(data as _);
 
         proc.thread().action = Action::Terminate;
         proc.thread().pool.terminate();

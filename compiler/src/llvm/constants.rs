@@ -14,9 +14,6 @@ pub(crate) const CLASS_METHODS_INDEX: u32 = 3;
 pub(crate) const METHOD_HASH_INDEX: u32 = 0;
 pub(crate) const METHOD_FUNCTION_INDEX: u32 = 1;
 
-pub(crate) const CONTEXT_ARGS_INDEX: u32 = 0;
-
-pub(crate) const MESSAGE_ARGUMENTS_INDEX: u32 = 2;
 pub(crate) const DROPPER_INDEX: u32 = 0;
 pub(crate) const CLOSURE_CALL_INDEX: u32 = 1;
 

@@ -101,11 +101,7 @@ pub(crate) fn new_process_with_message(
     // We use a custom message that takes the process as an argument. This way
     // the tests have access to the current process, without needing to fiddle
     // with the stack like the generated code does.
-    let mut message = Message::alloc(method, 1);
-
-    unsafe {
-        *message.arguments.as_mut_ptr() = proc.as_ptr() as _;
-    }
+    let message = Message { method, data: proc.as_ptr() as _ };
 
     proc.send_message(message);
     OwnedProcess::new(proc)

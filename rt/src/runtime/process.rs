@@ -1,7 +1,7 @@
 use crate::context;
 use crate::mem::{ClassPointer, String as InkoString};
 use crate::process::{
-    Channel, Message, NativeAsyncMethod, OwnedMessage, Process, ProcessPointer,
+    Channel, Message, NativeAsyncMethod, Process, ProcessPointer,
     ReceiveResult, RescheduleRights, SendResult, StackFrame,
 };
 use crate::result::Result as InkoResult;
@@ -13,6 +13,10 @@ use std::fmt::Write as _;
 use std::process::exit;
 use std::str;
 use std::time::Duration;
+
+/// There's no real standard across programs for exit codes. Rust uses 101 so
+/// for the sake of "we don't know a better value", we also use 101.
+pub(crate) const PANIC_STATUS: i32 = 101;
 
 /// Terminates the current program with an Inko panic (opposed to a panic
 /// triggered using the `panic!` macro).
@@ -48,10 +52,7 @@ pub(crate) fn panic(process: ProcessPointer, message: &str) -> ! {
     );
 
     eprintln!("{}", buffer);
-
-    // There's no real standard across programs for exit codes. Rust uses 101 so
-    // for the sake of "we don't know a better value", we also use 101.
-    exit(101);
+    exit(PANIC_STATUS);
 }
 
 #[no_mangle]
@@ -73,21 +74,14 @@ pub unsafe extern "system" fn inko_process_new(
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_message_new(
-    method: NativeAsyncMethod,
-    length: u8,
-) -> *mut Message {
-    Message::alloc(method, length).into_raw()
-}
-
-#[no_mangle]
 pub unsafe extern "system" fn inko_process_send_message(
     state: *const State,
     mut sender: ProcessPointer,
     mut receiver: ProcessPointer,
-    message: *mut Message,
+    method: NativeAsyncMethod,
+    data: *mut u8,
 ) {
-    let message = OwnedMessage::from_raw(message);
+    let message = Message { method, data };
     let state = &*state;
     let reschedule = match receiver.send_message(message) {
         RescheduleRights::AcquiredWithTimeout => {

@@ -8,8 +8,7 @@ use inkwell::types::{
 };
 use inkwell::AddressSpace;
 use types::{
-    CallConvention, ClassId, BOOL_ID, BYTE_ARRAY_ID, FLOAT_ID, INT_ID, NIL_ID,
-    STRING_ID,
+    CallConvention, BOOL_ID, BYTE_ARRAY_ID, FLOAT_ID, INT_ID, NIL_ID, STRING_ID,
 };
 
 /// The size of an object header.
@@ -64,9 +63,6 @@ pub(crate) struct Layouts<'ctx> {
     /// The layout of object headers.
     pub(crate) header: StructType<'ctx>,
 
-    /// The layout of the context type passed to async methods.
-    pub(crate) context: StructType<'ctx>,
-
     /// The layout to use for the type that stores the built-in type method
     /// counts.
     pub(crate) method_counts: StructType<'ctx>,
@@ -75,9 +71,6 @@ pub(crate) struct Layouts<'ctx> {
     ///
     /// This `Vec` is indexed using `MethodId` values.
     pub(crate) methods: Vec<Method<'ctx>>,
-
-    /// The layout of messages sent to processes.
-    pub(crate) message: StructType<'ctx>,
 
     /// The layout of a process' stack data.
     pub(crate) process_stack_data: StructType<'ctx>,
@@ -91,7 +84,6 @@ impl<'ctx> Layouts<'ctx> {
         target_data: &'ctx TargetData,
     ) -> Self {
         let db = &state.db;
-        let space = AddressSpace::default();
         let empty_struct = context.struct_type(&[]);
         let num_classes = db.number_of_classes();
 
@@ -124,19 +116,9 @@ impl<'ctx> Layouts<'ctx> {
             context.i32_type().into(),     // scheduler_epoch
         ]);
 
-        let context_layout = context.struct_type(&[
-            context.pointer_type().into(), // Arguments pointer
-        ]);
-
         let method_counts_layout = context.struct_type(&[
             context.i16_type().into(), // String
             context.i16_type().into(), // ByteArray
-        ]);
-
-        let message_layout = context.struct_type(&[
-            context.pointer_type().into(), // Function
-            context.i8_type().into(),      // Length
-            context.pointer_type().array_type(0).into(), // Arguments
         ]);
 
         let stack_data_layout = context.struct_type(&[
@@ -194,10 +176,8 @@ impl<'ctx> Layouts<'ctx> {
             instances,
             state: state_layout,
             header,
-            context: context_layout,
             method_counts: method_counts_layout,
             methods: vec![dummy_method; num_methods],
-            message: message_layout,
             process_stack_data: stack_data_layout,
         };
 
@@ -350,10 +330,9 @@ impl<'ctx> Layouts<'ctx> {
             // table slots.
             for &method in &mir_class.methods {
                 let typ = if method.is_async(db) {
-                    context.void_type().fn_type(
-                        &[context_layout.ptr_type(space).into()],
-                        false,
-                    )
+                    context
+                        .void_type()
+                        .fn_type(&[context.pointer_type().into()], false)
                 } else {
                     let mut args: Vec<BasicMetadataTypeEnum> = Vec::new();
 
@@ -459,11 +438,5 @@ impl<'ctx> Layouts<'ctx> {
         }
 
         layouts
-    }
-
-    pub(crate) fn size_of_class(&self, class: ClassId) -> u64 {
-        let layout = &self.instances[class.0 as usize];
-
-        size_of_type(self.target_data, layout)
     }
 }

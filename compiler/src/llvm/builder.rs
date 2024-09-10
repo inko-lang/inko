@@ -116,29 +116,6 @@ impl<'ctx> Builder<'ctx> {
         }
     }
 
-    pub(crate) fn load_array_index(
-        &self,
-        array_type: ArrayType<'ctx>,
-        array: PointerValue<'ctx>,
-        index: usize,
-    ) -> BasicValueEnum<'ctx> {
-        let ptr = unsafe {
-            self.inner
-                .build_gep(
-                    array_type,
-                    array,
-                    &[
-                        self.context.i32_type().const_int(0, false),
-                        self.context.i32_type().const_int(index as _, false),
-                    ],
-                    "",
-                )
-                .unwrap()
-        };
-
-        self.inner.build_load(array_type.get_element_type(), ptr, "").unwrap()
-    }
-
     pub(crate) fn store_array_field<V: BasicValue<'ctx>>(
         &self,
         array_type: ArrayType<'ctx>,
@@ -282,10 +259,6 @@ impl<'ctx> Builder<'ctx> {
 
     pub(crate) fn bool_literal(&self, value: bool) -> IntValue<'ctx> {
         self.context.bool_type().const_int(value as u64, false)
-    }
-
-    pub(crate) fn u8_literal(&self, value: u8) -> IntValue<'ctx> {
-        self.context.i8_type().const_int(value as u64, false)
     }
 
     pub(crate) fn i64_literal(&self, value: i64) -> IntValue<'ctx> {
@@ -782,7 +755,7 @@ impl<'ctx> Builder<'ctx> {
         self.function.set_subprogram(function);
     }
 
-    pub(crate) fn allocate<'a, 'b>(
+    pub(crate) fn allocate_instance<'a, 'b>(
         &self,
         module: &'a mut Module<'b, 'ctx>,
         db: &Database,
@@ -793,27 +766,9 @@ impl<'ctx> Builder<'ctx> {
         let name = &names.classes[&class];
         let global = module.add_class(class, name).as_pointer_value();
         let class_ptr = self.load_untyped_pointer(global);
-        let size = module.layouts.size_of_class(class);
-        let err_func =
-            module.runtime_function(RuntimeFunction::AllocationError);
-        let alloc_func = module.runtime_function(RuntimeFunction::Allocate);
-        let size = self.u64_literal(size).into();
-        let res = self.call(alloc_func, &[size]).into_pointer_value();
-
-        let err_block = self.add_block();
-        let ok_block = self.add_block();
-        let is_null = self.pointer_is_null(res);
+        let typ = module.layouts.instances[class.0 as usize];
+        let res = self.malloc(module, typ);
         let header = module.layouts.header;
-
-        self.branch(is_null, err_block, ok_block);
-
-        // The block to jump to when the allocation failed.
-        self.switch_to_block(err_block);
-        self.call_void(err_func, &[class_ptr.into()]);
-        self.unreachable();
-
-        // The block to jump to when the allocation succeeds.
-        self.switch_to_block(ok_block);
 
         // Atomic values start with a reference count of 1, so atomic decrements
         // returns the correct result for a value for which no extra references
@@ -823,6 +778,35 @@ impl<'ctx> Builder<'ctx> {
         self.store_field(header, res, HEADER_CLASS_INDEX, class_ptr);
         self.store_field(header, res, HEADER_REFS_INDEX, refs);
         res
+    }
+
+    pub(crate) fn malloc<'a, 'b, T: BasicType<'ctx>>(
+        &self,
+        module: &'a mut Module<'b, 'ctx>,
+        typ: T,
+    ) -> PointerValue<'ctx> {
+        let err_func =
+            module.runtime_function(RuntimeFunction::AllocationError);
+        let size = typ.size_of().unwrap();
+        let res = self.inner.build_malloc(typ, "").unwrap();
+        let err_block = self.add_block();
+        let ok_block = self.add_block();
+        let is_null = self.pointer_is_null(res);
+
+        self.branch(is_null, err_block, ok_block);
+
+        // The block to jump to when the allocation failed.
+        self.switch_to_block(err_block);
+        self.call_void(err_func, &[size.into()]);
+        self.unreachable();
+
+        // The block to jump to when the allocation succeeds.
+        self.switch_to_block(ok_block);
+        res
+    }
+
+    pub(crate) fn free(&self, value: PointerValue<'ctx>) {
+        self.inner.build_free(value).unwrap();
     }
 }
 

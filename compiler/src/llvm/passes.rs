@@ -3,10 +3,9 @@ use crate::llvm::builder::Builder;
 use crate::llvm::constants::{
     ARRAY_BUF_INDEX, ARRAY_CAPA_INDEX, ARRAY_LENGTH_INDEX,
     CLASS_METHODS_COUNT_INDEX, CLASS_METHODS_INDEX, CLOSURE_CALL_INDEX,
-    CONTEXT_ARGS_INDEX, DROPPER_INDEX, FIELD_OFFSET, HEADER_CLASS_INDEX,
-    HEADER_REFS_INDEX, MESSAGE_ARGUMENTS_INDEX, METHOD_FUNCTION_INDEX,
-    METHOD_HASH_INDEX, PROCESS_FIELD_OFFSET, STACK_DATA_EPOCH_INDEX,
-    STACK_DATA_PROCESS_INDEX, STATE_EPOCH_INDEX,
+    DROPPER_INDEX, FIELD_OFFSET, HEADER_CLASS_INDEX, HEADER_REFS_INDEX,
+    METHOD_FUNCTION_INDEX, METHOD_HASH_INDEX, PROCESS_FIELD_OFFSET,
+    STACK_DATA_EPOCH_INDEX, STACK_DATA_PROCESS_INDEX, STATE_EPOCH_INDEX,
 };
 use crate::llvm::context::Context;
 use crate::llvm::layouts::Layouts;
@@ -931,7 +930,7 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
                 let class_id = ClassId::array()
                     .specializations(&self.shared.state.db)[&vec![shape]];
                 let layout = self.layouts.instances[class_id.0 as usize];
-                let array = builder.allocate(
+                let array = builder.allocate_instance(
                     self.module,
                     &self.shared.state.db,
                     self.shared.names,
@@ -1080,28 +1079,20 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
         let entry_block = self.builder.add_block();
 
         self.builder.switch_to_block(entry_block);
-
-        let space = AddressSpace::default();
-        let num_args = self.method.arguments.len() as u32;
-        let args_type =
-            self.builder.context.pointer_type().array_type(num_args);
-        let args_var = self.builder.new_stack_slot(args_type.ptr_type(space));
-        let ctx_var =
-            self.builder.new_stack_slot(self.layouts.context.ptr_type(space));
-
         self.define_register_variables();
 
-        // Destructure the context into its components. This is necessary as the
-        // context only lives until the first yield.
-        self.builder.store(ctx_var, self.builder.argument(0));
+        let space = AddressSpace::default();
+        let arg_types = self
+            .method
+            .arguments
+            .iter()
+            .skip(1)
+            .map(|r| self.variable_types[r])
+            .collect::<Vec<_>>();
+        let args_type = self.builder.context.struct_type(&arg_types);
+        let args_var = self.builder.new_stack_slot(args_type.ptr_type(space));
 
-        let ctx = self.builder.load_pointer(self.layouts.context, ctx_var);
-        let args = self
-            .builder
-            .load_field(self.layouts.context, ctx, CONTEXT_ARGS_INDEX)
-            .into_pointer_value();
-
-        self.builder.store(args_var, args);
+        self.builder.store(args_var, self.builder.argument(0));
 
         // For async methods we don't include the receiver in the message, as
         // we can instead just read the process from the private stack data.
@@ -1115,12 +1106,17 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
         for (index, reg) in self.method.arguments.iter().skip(1).enumerate() {
             let var = self.variables[reg];
             let args = self.builder.load_pointer(args_type, args_var);
-            let val = self
-                .builder
-                .load_array_index(args_type, args, index)
-                .into_pointer_value();
+            let val = self.builder.load_field(args_type, args, index as _);
 
             self.builder.store(var, val);
+        }
+
+        // Now that the arguments are unpacked, we can deallocate the heap
+        // structure passed as part of the message.
+        //
+        // If no arguments are passed, the data pointer is NULL.
+        if !arg_types.is_empty() {
+            self.builder.free(self.builder.load_pointer(args_type, args_var));
         }
 
         let (line, _) =
@@ -2163,34 +2159,34 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                     .as_global_value()
                     .as_pointer_value()
                     .into();
-                let len =
-                    self.builder.u8_literal(ins.arguments.len() as u8).into();
-                let message_new =
-                    self.module.runtime_function(RuntimeFunction::MessageNew);
                 let send_message = self
                     .module
                     .runtime_function(RuntimeFunction::ProcessSendMessage);
-                let message = self
-                    .builder
-                    .call(message_new, &[method, len])
-                    .into_pointer_value();
+                let arg_types = ins
+                    .arguments
+                    .iter()
+                    .map(|r| self.variable_types[r])
+                    .collect::<Vec<_>>();
+                let args = if arg_types.is_empty() {
+                    self.builder.context.pointer_type().const_null()
+                } else {
+                    let args_type =
+                        self.builder.context.struct_type(&arg_types);
+                    let args = self.builder.malloc(self.module, args_type);
 
-                // The receiver doesn't need to be stored in the message, as
-                // each async method sets `self` to the process running it.
-                for (index, reg) in ins.arguments.iter().enumerate() {
-                    let typ = self.variable_types[reg];
-                    let var = self.variables[reg];
-                    let val = self.builder.load(typ, var);
-                    let slot = self.builder.u32_literal(index as u32);
-                    let addr = self.builder.array_field_index_address(
-                        self.layouts.message,
-                        message,
-                        MESSAGE_ARGUMENTS_INDEX,
-                        slot,
-                    );
+                    // The receiver doesn't need to be stored in the message, as
+                    // each async method sets `self` to the process running it.
+                    for (index, reg) in ins.arguments.iter().enumerate() {
+                        let typ = self.variable_types[reg];
+                        let var = self.variables[reg];
+                        let val = self.builder.load(typ, var);
 
-                    self.builder.store(addr, val);
-                }
+                        self.builder
+                            .store_field(args_type, args, index as _, val);
+                    }
+
+                    args
+                };
 
                 let state = self.load_state();
                 let sender = self.load_process().into();
@@ -2198,7 +2194,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                 self.builder.call_void(
                     send_message,
-                    &[state.into(), sender, rec, message.into()],
+                    &[state.into(), sender, rec, method, args.into()],
                 );
             }
             Instruction::GetField(ins)
@@ -2771,7 +2767,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
     }
 
     fn allocate(&mut self, class: ClassId) -> PointerValue<'ctx> {
-        self.builder.allocate(
+        self.builder.allocate_instance(
             self.module,
             &self.shared.state.db,
             self.shared.names,
@@ -2922,7 +2918,7 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
             .add_function(
                 &self.names.methods[&main_method_id],
                 self.module.context.void_type().fn_type(
-                    &[self.layouts.context.ptr_type(space).into()],
+                    &[self.module.context.pointer_type().into()],
                     false,
                 ),
                 None,

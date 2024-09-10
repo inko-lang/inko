@@ -7,7 +7,6 @@ pub(crate) enum RuntimeFunction {
     ReferenceCountError,
     ClassObject,
     ClassProcess,
-    MessageNew,
     ProcessFinishMessage,
     ProcessNew,
     ProcessPanic,
@@ -20,7 +19,6 @@ pub(crate) enum RuntimeFunction {
     StringConcat,
     StringNew,
     RuntimeStackMask,
-    Allocate,
     Free,
     AllocationError,
 }
@@ -33,7 +31,6 @@ impl RuntimeFunction {
             }
             RuntimeFunction::ClassObject => "inko_class_object",
             RuntimeFunction::ClassProcess => "inko_class_process",
-            RuntimeFunction::MessageNew => "inko_message_new",
             RuntimeFunction::ProcessFinishMessage => {
                 "inko_process_finish_message"
             }
@@ -48,7 +45,6 @@ impl RuntimeFunction {
             RuntimeFunction::StringConcat => "inko_string_concat",
             RuntimeFunction::StringNew => "inko_string_new",
             RuntimeFunction::RuntimeStackMask => "inko_runtime_stack_mask",
-            RuntimeFunction::Allocate => "malloc",
             RuntimeFunction::Free => "free",
             RuntimeFunction::AllocationError => "inko_alloc_error",
         }
@@ -125,21 +121,15 @@ impl RuntimeFunction {
 
                 ret.fn_type(&[name, size, methods], false)
             }
-            RuntimeFunction::MessageNew => {
-                let method = context.pointer_type().into();
-                let length = context.i8_type().into();
-                let ret = module.layouts.message.ptr_type(space);
-
-                ret.fn_type(&[method, length], false)
-            }
             RuntimeFunction::ProcessSendMessage => {
                 let state = module.layouts.state.ptr_type(space).into();
                 let sender = context.pointer_type().into();
                 let receiver = context.pointer_type().into();
-                let message = module.layouts.message.ptr_type(space).into();
+                let func = context.pointer_type().into();
+                let data = context.pointer_type().into();
                 let ret = context.void_type();
 
-                ret.fn_type(&[state, sender, receiver, message], false)
+                ret.fn_type(&[state, sender, receiver, func, data], false)
             }
             RuntimeFunction::ProcessNew => {
                 let process = context.pointer_type().into();
@@ -170,12 +160,6 @@ impl RuntimeFunction {
 
                 ret.fn_type(&[state], false)
             }
-            RuntimeFunction::Allocate => {
-                let size = context.i64_type().into();
-                let ret = context.pointer_type();
-
-                ret.fn_type(&[size], false)
-            }
             RuntimeFunction::Free => {
                 let ptr = context.pointer_type().into();
                 let ret = context.void_type();
@@ -183,10 +167,10 @@ impl RuntimeFunction {
                 ret.fn_type(&[ptr], false)
             }
             RuntimeFunction::AllocationError => {
-                let ptr = context.pointer_type().into();
+                let size = context.i64_type().into();
                 let ret = context.void_type();
 
-                ret.fn_type(&[ptr], false)
+                ret.fn_type(&[size], false)
             }
         };
 

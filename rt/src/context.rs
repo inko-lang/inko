@@ -13,26 +13,13 @@
 use crate::process::{NativeAsyncMethod, ProcessPointer};
 mod unix;
 
-/// A type storing state used when first starting a process.
-///
-/// Using this type allows us to keep the assembly used for setting up a process
-/// simple, as we only need to pass a small number of arguments (which all fit
-/// in registers).
-///
-/// This type is dropped after the first yield from a process back to its
-/// thread.
-#[repr(C)]
-pub struct Context {
-    pub arguments: *mut u8,
-}
-
 // These functions are defined in the inline assembly macros, found in modules
 // such as context/unix/x86_64.rs.
 extern "system" {
     fn inko_context_init(
         high: *mut *mut u8,
         func: NativeAsyncMethod,
-        ctx: *mut u8,
+        data: *mut u8,
     );
 
     fn inko_context_switch(stack: *mut *mut u8);
@@ -42,15 +29,9 @@ extern "system" {
 pub(crate) unsafe fn start(
     mut process: ProcessPointer,
     func: NativeAsyncMethod,
-    mut args: Vec<*mut u8>,
+    data: *mut u8,
 ) {
-    let ctx = Context { arguments: args.as_mut_ptr() as _ };
-
-    inko_context_init(
-        &mut process.stack_pointer,
-        func as _,
-        &ctx as *const _ as _,
-    );
+    inko_context_init(&mut process.stack_pointer, func as _, data);
 }
 
 #[inline(always)]
