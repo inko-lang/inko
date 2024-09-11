@@ -13,7 +13,10 @@ const SHRINK_AGE: u16 = 10;
 ///
 /// The value here is arbitrary and mostly meant to avoid the shrinking overhead
 /// for cases where it's pretty much just a waste of time.
-const MIN_STACKS: usize = 4;
+///
+/// Threads also reserve this number of stacks at startup to reduce the cost of
+/// allocating stacks a bit.
+const MIN_STACKS: usize = 16;
 
 pub(crate) fn total_stack_size(size: usize, page: usize) -> usize {
     // Round the user-provided size up to the nearest multiple of the page size.
@@ -76,13 +79,16 @@ pub(crate) struct StackPool {
 
 impl StackPool {
     pub fn new(size: usize) -> Self {
-        Self {
-            page_size: page_size(),
-            size,
-            stacks: VecDeque::new(),
-            epoch: 0,
-            epochs: VecDeque::new(),
+        let page_size = page_size();
+        let mut stacks = VecDeque::with_capacity(MIN_STACKS);
+        let mut epochs = VecDeque::with_capacity(MIN_STACKS);
+
+        for _ in 0..MIN_STACKS {
+            stacks.push_back(Stack::new(size, page_size));
+            epochs.push_back(0);
         }
+
+        Self { page_size, size, stacks, epoch: 0, epochs }
     }
 
     pub(crate) fn alloc(&mut self) -> Stack {
@@ -107,7 +113,7 @@ impl StackPool {
     /// For example, if we suddenly need many stacks but then never reuse most
     /// of them, this is a waste of memory.
     pub(crate) fn shrink(&mut self) {
-        if self.stacks.len() < MIN_STACKS {
+        if self.stacks.len() <= MIN_STACKS {
             return;
         }
 
@@ -170,6 +176,19 @@ impl Stack {
             You may need to increase the number of memory map areas allowed",
         );
 
+        // Because the stack is managed using mmap, its memory is only allocated
+        // on demand. When starting a process we need to write some data to the
+        // stack, triggering a page fault and thus increasing the amount of time
+        // it takes to spawn a process.
+        //
+        // To ensure the first page is committed in a portable manner, we simply
+        // write some dummy data to the start of the stack. We can then combine
+        // this with reserving stacks on a per-thread basis to reduce the time
+        // it takes to spawn a process.
+        unsafe {
+            std::ptr::write_volatile(mem.ptr, 0);
+        }
+
         Self { mem }
     }
 
@@ -202,10 +221,16 @@ mod tests {
         let stack = pool.alloc();
 
         pool.add(stack);
-        assert_eq!(pool.stacks.len(), 1);
-        assert_eq!(pool.epochs, vec![0]);
+        assert_eq!(pool.stacks.len(), 16);
+        assert_eq!(
+            pool.epochs,
+            vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]
+        );
 
-        pool.alloc();
+        for _ in 0..MIN_STACKS {
+            pool.alloc();
+        }
+
         assert!(pool.stacks.is_empty());
         assert!(pool.epochs.is_empty());
 
@@ -214,7 +239,7 @@ mod tests {
         pool.alloc();
         pool.alloc();
 
-        assert_eq!(pool.epoch, 3);
+        assert_eq!(pool.epoch, 19);
     }
 
     #[test]
@@ -249,7 +274,10 @@ mod tests {
         // excessive shrinking.
         pool.shrink();
 
-        assert_eq!(pool.stacks.len(), 3);
-        assert_eq!(&pool.epochs, &[14, 14, 14]);
+        assert_eq!(pool.stacks.len(), 13);
+        assert_eq!(
+            &pool.epochs,
+            &[14, 14, 3, 4, 11, 12, 14, 14, 14, 14, 14, 14, 14]
+        );
     }
 }

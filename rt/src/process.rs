@@ -431,6 +431,11 @@ impl Process {
         // is set accordingly.
         state.status.set_waiting_for_message(true);
 
+        // Generated code needs access to the current process. Rust's way of
+        // handling thread-locals is such that we can't reliably expose them to
+        // generated code. As such, we instead write the necessary data to the
+        // start of the stack, which the generated code can then access whenever
+        // necessary.
         unsafe {
             write(
                 stack.private_data_pointer() as *mut StackData,
