@@ -1032,7 +1032,7 @@ impl Scheduler {
                         pin_thread_to_core(id % cores);
                         Thread::new(id, poll_id, self.pool.clone()).run(state)
                     })
-                    .unwrap();
+                    .expect("failed to start a process thread");
             }
 
             for id in 0..self.backup {
@@ -1044,7 +1044,7 @@ impl Scheduler {
                         pin_thread_to_core(id % cores);
                         Thread::backup(poll_id, self.pool.clone()).run(state)
                     })
-                    .unwrap();
+                    .expect("failed to start a backup thread");
             }
 
             self.pool.schedule(process);
