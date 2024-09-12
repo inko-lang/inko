@@ -394,6 +394,13 @@ class pub Process {
     cmd.stdout = Stream.Piped
     cmd.stderr = Stream.Piped
     cmd.variables.set(CHILD_VAR, id.to_string)
+
+    # Inko uses a set of thread pools for running processes, with their sizes
+    # depending on the number of CPU cores. We limit the number of threads here
+    # so we don't overload the system when running sub process tests on systems
+    # with many CPU cores.
+    cmd.variables.set('INKO_PROCESS_THREADS', '1')
+    cmd.variables.set('INKO_BACKUP_THREADS', '1')
     Process(cmd: cmd, stdin: '')
   }
 
