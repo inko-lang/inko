@@ -226,15 +226,8 @@ sudo pacman -Sy llvm rust git base-devel
 
 ### Alpine
 
-::: warn
-Due to [this bug](https://gitlab.com/taricorp/llvm-sys.rs/-/issues/44) in
-the llvm-sys crate, compiling the compiler for musl targets (which includes
-Alpine) fails with the error "could not find native static library `rt`,
-perhaps an -L flag is missing?".
-:::
-
 ```bash
-sudo apk add build-base rust cargo llvm17 llvm17-dev libstdc++-dev git
+sudo apk add build-base rust cargo llvm17 llvm17-dev llvm17-static libstdc++-dev zlib-static zstd-static libxml2-static git
 ```
 
 ### Debian
