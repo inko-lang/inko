@@ -8,7 +8,7 @@ on:
     paths:
       - '.github/workflows/container.yml'
       - '.github/workflows/containers.yml'
-      - 'ci/docker/*'
+      - 'ci/docker/*/*'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
