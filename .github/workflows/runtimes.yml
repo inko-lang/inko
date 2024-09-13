@@ -9,8 +9,7 @@ env:
   RUSTUP_TOOLCHAIN: '1.78'
 
 jobs:
-  linux-amd64:
-    name: Linux AMD64
+  amd64-linux:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/inko-lang/ci:debian-amd64
@@ -26,8 +25,7 @@ jobs:
           retention-days: 2
           compression-level: 0
 
-  linux-arm64:
-    name: Linux ARM64
+  arm64-linux:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/inko-lang/ci:debian-arm64
@@ -43,8 +41,7 @@ jobs:
           retention-days: 2
           compression-level: 0
 
-  macos-amd64:
-    name: macOS AMD64
+  amd64-mac:
     runs-on: macos-12
     steps:
       - uses: actions/checkout@v4
@@ -60,8 +57,7 @@ jobs:
           retention-days: 2
           compression-level: 0
 
-  macos-arm64:
-    name: macOS ARM64
+  arm64-mac:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
@@ -77,8 +73,7 @@ jobs:
           retention-days: 2
           compression-level: 0
 
-  freebsd-amd64:
-    name: FreeBSD AMD64
+  amd64-freebsd:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -109,11 +104,11 @@ jobs:
       RCLONE_S3_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
       RCLONE_S3_ENDPOINT: https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
     needs:
-      - linux-amd64
-      - linux-arm64
-      - macos-amd64
-      - macos-arm64
-      - freebsd-amd64
+      - amd64-linux
+      - arm64-linux
+      - amd64-mac
+      - arm64-mac
+      - amd64-freebsd
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4

@@ -6,7 +6,6 @@ use inkwell::targets::TargetData;
 use inkwell::types::{
     AnyType, BasicMetadataTypeEnum, BasicType, FunctionType, StructType,
 };
-use inkwell::AddressSpace;
 use types::{
     CallConvention, BOOL_ID, BYTE_ARRAY_ID, FLOAT_ID, INT_ID, NIL_ID, STRING_ID,
 };
@@ -46,11 +45,6 @@ pub(crate) struct Layouts<'ctx> {
 
     /// The type to use for Inko methods (used for dynamic dispatch).
     pub(crate) method: StructType<'ctx>,
-
-    /// All MIR classes and their corresponding structure layouts.
-    ///
-    /// This `Vec` is indexed using `ClassId` values.
-    pub(crate) classes: Vec<StructType<'ctx>>,
 
     /// The structure layouts for all class instances.
     ///
@@ -93,7 +87,6 @@ impl<'ctx> Layouts<'ctx> {
         //
         // This may over-allocate the number of classes, depending on how many
         // are removed through optimizations, but at worst we'd waste a few KiB.
-        let mut classes = vec![empty_struct; num_classes];
         let mut instances = vec![empty_struct; num_classes];
         let header = context.struct_type(&[
             context.pointer_type().into(), // Class
@@ -154,7 +147,6 @@ impl<'ctx> Layouts<'ctx> {
                 }
             };
 
-            classes[id.0 as usize] = context.class_type(method);
             instances[id.0 as usize] = instance;
         }
 
@@ -172,7 +164,6 @@ impl<'ctx> Layouts<'ctx> {
             target_data,
             empty_class: context.class_type(method),
             method,
-            classes,
             instances,
             state: state_layout,
             header,
@@ -410,7 +401,7 @@ impl<'ctx> Layouts<'ctx> {
                     if target_data.get_bit_size(&typ)
                         > state.config.target.pass_struct_size()
                     {
-                        args.push(typ.ptr_type(AddressSpace::default()).into());
+                        args.push(context.pointer_type().into());
                         sret = Some(typ);
                     } else {
                         ret = Some(typ.as_basic_type_enum());

@@ -1,6 +1,5 @@
 use crate::llvm::module::Module;
 use inkwell::values::FunctionValue;
-use inkwell::AddressSpace;
 
 #[derive(Copy, Clone)]
 pub(crate) enum RuntimeFunction {
@@ -55,7 +54,6 @@ impl RuntimeFunction {
         module: &Module<'_, 'ctx>,
     ) -> FunctionValue<'ctx> {
         let context = module.context;
-        let space = AddressSpace::default();
         let fn_type = match self {
             RuntimeFunction::ReferenceCountError => {
                 let proc = context.pointer_type().into();
@@ -85,10 +83,9 @@ impl RuntimeFunction {
                 ret.fn_type(&[proc, terminate], false)
             }
             RuntimeFunction::RuntimeNew => {
-                let counts =
-                    module.layouts.method_counts.ptr_type(space).into();
+                let counts = context.pointer_type().into();
                 let argc = context.i32_type().into();
-                let argv = context.i8_type().ptr_type(space).into();
+                let argv = context.pointer_type().into();
                 let ret = context.pointer_type();
 
                 ret.fn_type(&[counts, argc, argv], false)
@@ -122,7 +119,7 @@ impl RuntimeFunction {
                 ret.fn_type(&[name, size, methods], false)
             }
             RuntimeFunction::ProcessSendMessage => {
-                let state = module.layouts.state.ptr_type(space).into();
+                let state = context.pointer_type().into();
                 let sender = context.pointer_type().into();
                 let receiver = context.pointer_type().into();
                 let func = context.pointer_type().into();
@@ -139,7 +136,7 @@ impl RuntimeFunction {
                 ret.fn_type(&[process, class], false)
             }
             RuntimeFunction::StringConcat => {
-                let state = module.layouts.state.ptr_type(space).into();
+                let state = context.pointer_type().into();
                 let strings = context.pointer_type().into();
                 let length = context.i64_type().into();
                 let ret = context.pointer_type();
@@ -147,7 +144,7 @@ impl RuntimeFunction {
                 ret.fn_type(&[state, strings, length], false)
             }
             RuntimeFunction::StringNew => {
-                let state = module.layouts.state.ptr_type(space).into();
+                let state = context.pointer_type().into();
                 let bytes = context.pointer_type().into();
                 let length = context.i64_type().into();
                 let ret = context.pointer_type();
@@ -155,7 +152,7 @@ impl RuntimeFunction {
                 ret.fn_type(&[state, bytes, length], false)
             }
             RuntimeFunction::RuntimeStackMask => {
-                let state = module.layouts.state.ptr_type(space).into();
+                let state = context.pointer_type().into();
                 let ret = context.i64_type();
 
                 ret.fn_type(&[state], false)

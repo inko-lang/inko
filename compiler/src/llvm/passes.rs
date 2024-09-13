@@ -36,7 +36,6 @@ use inkwell::values::{
     BasicMetadataValueEnum, BasicValue, BasicValueEnum, FloatValue,
     FunctionValue, GlobalValue, IntValue, PointerValue,
 };
-use inkwell::AddressSpace;
 use inkwell::OptimizationLevel;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs::{read, write};
@@ -704,7 +703,6 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
 
     fn setup_classes(&mut self) {
         let mod_id = self.shared.mir.modules[self.index].id;
-        let space = AddressSpace::default();
         let fn_name = &self.shared.names.setup_classes[&mod_id];
         let fn_val = self.module.add_setup_function(fn_name);
         let builder = Builder::new(self.module.context, fn_val);
@@ -739,14 +737,17 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
                 self.module.runtime_function(RuntimeFunction::ClassObject)
             };
 
-            let layout = self.layouts.classes[class_id.0 as usize];
             let global_name = &self.shared.names.classes[&class_id];
-            let global = self.module.add_class(class_id, global_name);
+            let global = self.module.add_class(global_name);
 
             // The class globals must have an initializer, otherwise LLVM treats
             // them as external globals.
             global.set_initializer(
-                &layout.ptr_type(space).const_null().as_basic_value_enum(),
+                &builder
+                    .context
+                    .pointer_type()
+                    .const_null()
+                    .as_basic_value_enum(),
             );
 
             // Built-in classes are defined in the runtime library, so we should
@@ -992,8 +993,7 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
     fn load_state(&mut self, builder: &Builder<'ctx>) -> PointerValue<'ctx> {
         let state_global = self.module.add_constant(STATE_GLOBAL);
 
-        builder
-            .load_pointer(self.layouts.state, state_global.as_pointer_value())
+        builder.load_pointer(state_global.as_pointer_value())
     }
 }
 
@@ -1081,7 +1081,6 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
         self.builder.switch_to_block(entry_block);
         self.define_register_variables();
 
-        let space = AddressSpace::default();
         let arg_types = self
             .method
             .arguments
@@ -1090,7 +1089,8 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
             .map(|r| self.variable_types[r])
             .collect::<Vec<_>>();
         let args_type = self.builder.context.struct_type(&arg_types);
-        let args_var = self.builder.new_stack_slot(args_type.ptr_type(space));
+        let args_var =
+            self.builder.new_stack_slot(self.builder.context.pointer_type());
 
         self.builder.store(args_var, self.builder.argument(0));
 
@@ -1105,7 +1105,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
         // in the context structure.
         for (index, reg) in self.method.arguments.iter().skip(1).enumerate() {
             let var = self.variables[reg];
-            let args = self.builder.load_pointer(args_type, args_var);
+            let args = self.builder.load_pointer(args_var);
             let val = self.builder.load_field(args_type, args, index as _);
 
             self.builder.store(var, val);
@@ -1116,7 +1116,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
         //
         // If no arguments are passed, the data pointer is NULL.
         if !arg_types.is_empty() {
-            self.builder.free(self.builder.load_pointer(args_type, args_var));
+            self.builder.free(self.builder.load_pointer(args_var));
         }
 
         let (line, _) =
@@ -1698,7 +1698,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                     }
                     BuiltinFunction::Panic => {
                         let val_var = self.variables[&ins.arguments[0]];
-                        let val = self.builder.load_untyped_pointer(val_var);
+                        let val = self.builder.load_pointer(val_var);
                         let func_name = RuntimeFunction::ProcessPanic;
                         let func = self.module.runtime_function(func_name);
                         let proc = self.load_process().into();
@@ -1964,9 +1964,9 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                 self.builder.store(idx_var, hash);
 
-                let space = AddressSpace::default();
-                let fn_var =
-                    self.builder.new_stack_slot(fn_typ.ptr_type(space));
+                let fn_var = self
+                    .builder
+                    .new_stack_slot(self.builder.context.pointer_type());
 
                 self.builder.jump(loop_start);
 
@@ -2031,8 +2031,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                     args.push(self.builder.load(typ, var).into());
                 }
 
-                let func_val =
-                    self.builder.load_function_pointer(fn_typ, fn_var);
+                let func_val = self.builder.load_pointer(fn_var);
 
                 self.indirect_call(ins.register, fn_typ, func_val, &args);
             }
@@ -2350,7 +2349,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 self.set_debug_location(ins.location);
 
                 let var = self.variables[&ins.register];
-                let val = self.builder.load_untyped_pointer(var);
+                let val = self.builder.load_pointer(var);
                 let zero = self.builder.u32_literal(0);
                 let header = self.layouts.header;
                 let idx = HEADER_REFS_INDEX;
@@ -2379,14 +2378,14 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
             }
             Instruction::Free(ins) => {
                 let var = self.variables[&ins.register];
-                let ptr = self.builder.load_untyped_pointer(var);
+                let ptr = self.builder.load_pointer(var);
                 let func = self.module.runtime_function(RuntimeFunction::Free);
 
                 self.builder.call_void(func, &[ptr.into()]);
             }
             Instruction::Increment(ins) => {
                 let reg_var = self.variables[&ins.register];
-                let val = self.builder.load_untyped_pointer(reg_var);
+                let val = self.builder.load_pointer(reg_var);
                 let one = self.builder.u32_literal(1);
                 let header = self.layouts.header;
                 let idx = HEADER_REFS_INDEX;
@@ -2399,7 +2398,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
             }
             Instruction::Decrement(ins) => {
                 let var = self.variables[&ins.register];
-                let val = self.builder.load_untyped_pointer(var);
+                let val = self.builder.load_pointer(var);
                 let header = self.layouts.header;
                 let idx = HEADER_REFS_INDEX;
                 let old_refs =
@@ -2412,7 +2411,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
             }
             Instruction::IncrementAtomic(ins) => {
                 let var = self.variables[&ins.register];
-                let val = self.builder.load_untyped_pointer(var);
+                let val = self.builder.load_pointer(var);
                 let one = self.builder.u32_literal(1);
                 let field = self.builder.field_address(
                     self.layouts.header,
@@ -2424,8 +2423,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
             }
             Instruction::DecrementAtomic(ins) => {
                 let var = self.variables[&ins.register];
-                let header =
-                    self.builder.load_pointer(self.layouts.header, var);
+                let header = self.builder.load_pointer(var);
                 let drop_block = all_blocks[ins.if_true.0];
                 let after_block = all_blocks[ins.if_false.0];
                 let one = self.builder.u32_literal(1);
@@ -2455,9 +2453,8 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
             Instruction::Spawn(ins) => {
                 let reg_var = self.variables[&ins.register];
                 let name = &self.shared.names.classes[&ins.class];
-                let global =
-                    self.module.add_class(ins.class, name).as_pointer_value();
-                let class = self.builder.load_untyped_pointer(global).into();
+                let global = self.module.add_class(name).as_pointer_value();
+                let class = self.builder.load_pointer(global).into();
                 let proc = self.load_process().into();
                 let func =
                     self.module.runtime_function(RuntimeFunction::ProcessNew);
@@ -2755,7 +2752,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
     fn load_state(&mut self) -> PointerValue<'ctx> {
         let var = self.module.add_constant(STATE_GLOBAL);
 
-        self.builder.load_pointer(self.layouts.state, var.as_pointer_value())
+        self.builder.load_pointer(var.as_pointer_value())
     }
 
     fn load_stack_mask(&mut self) -> IntValue<'ctx> {
@@ -2796,11 +2793,10 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
         names: &'a SymbolNames,
         module: &'a Module<'a, 'ctx>,
     ) -> GenerateMain<'a, 'ctx> {
-        let space = AddressSpace::default();
         let typ = module.context.i32_type().fn_type(
             &[
                 module.context.i32_type().into(),
-                module.context.i8_type().ptr_type(space).into(),
+                module.context.pointer_type().into(),
             ],
             false,
         );
@@ -2811,13 +2807,12 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
     }
 
     fn run(self) {
-        let space = AddressSpace::default();
         let entry_block = self.builder.add_block();
 
         self.builder.switch_to_block(entry_block);
 
         let argc_typ = self.builder.context.i32_type();
-        let argv_typ = self.builder.context.i8_type().ptr_type(space);
+        let argv_typ = self.builder.context.pointer_type();
         let argc_var = self.builder.new_temporary(argc_typ);
         let argv_var = self.builder.new_temporary(argv_typ);
 
@@ -2856,9 +2851,9 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
 
         state_global.set_initializer(
             &self
-                .layouts
-                .state
-                .ptr_type(AddressSpace::default())
+                .builder
+                .context
+                .pointer_type()
                 .const_null()
                 .as_basic_value_enum(),
         );
@@ -2926,8 +2921,7 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
             .as_global_value()
             .as_pointer_value();
 
-        let main_class =
-            self.builder.load_pointer(self.layouts.empty_class, main_class_ptr);
+        let main_class = self.builder.load_pointer(main_class_ptr);
 
         self.builder.call_void(
             rt_start,

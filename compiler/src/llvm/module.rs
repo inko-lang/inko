@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use std::path::Path;
 use types::module_name::ModuleName;
-use types::{CallConvention, ClassId, MethodId};
+use types::{CallConvention, MethodId};
 
 /// A wrapper around an LLVM Module that provides some additional methods.
 pub(crate) struct Module<'a, 'ctx> {
@@ -84,14 +84,10 @@ impl<'a, 'ctx> Module<'a, 'ctx> {
             .unwrap_or_else(|| self.add_global_pointer(name))
     }
 
-    pub(crate) fn add_class(
-        &mut self,
-        id: ClassId,
-        name: &str,
-    ) -> GlobalValue<'ctx> {
+    pub(crate) fn add_class(&mut self, name: &str) -> GlobalValue<'ctx> {
         self.inner.get_global(name).unwrap_or_else(|| {
-            let space = AddressSpace::default();
-            let typ = self.layouts.classes[id.0 as usize].ptr_type(space);
+            let typ = self.context.pointer_type();
+            let space = typ.get_address_space();
 
             self.inner.add_global(typ, Some(space), name)
         })

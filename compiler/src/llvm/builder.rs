@@ -16,9 +16,7 @@ use inkwell::values::{
     BasicValueEnum, CallSiteValue, FloatValue, FunctionValue,
     InstructionOpcode, IntValue, PointerValue,
 };
-use inkwell::{
-    AddressSpace, AtomicOrdering, AtomicRMWBinOp, FloatPredicate, IntPredicate,
-};
+use inkwell::{AtomicOrdering, AtomicRMWBinOp, FloatPredicate, IntPredicate};
 use std::path::Path;
 use types::{ClassId, Database};
 
@@ -188,36 +186,11 @@ impl<'ctx> Builder<'ctx> {
             .into_float_value()
     }
 
-    pub(crate) fn load_untyped_pointer(
+    pub(crate) fn load_pointer(
         &self,
         variable: PointerValue<'ctx>,
     ) -> PointerValue<'ctx> {
-        self.load(
-            self.context.i8_type().ptr_type(AddressSpace::default()),
-            variable,
-        )
-        .into_pointer_value()
-    }
-
-    pub(crate) fn load_pointer<T: BasicType<'ctx>>(
-        &self,
-        typ: T,
-        variable: PointerValue<'ctx>,
-    ) -> PointerValue<'ctx> {
-        self.load(
-            typ.as_basic_type_enum().ptr_type(AddressSpace::default()),
-            variable,
-        )
-        .into_pointer_value()
-    }
-
-    pub(crate) fn load_function_pointer(
-        &self,
-        typ: FunctionType<'ctx>,
-        variable: PointerValue<'ctx>,
-    ) -> PointerValue<'ctx> {
-        self.load(typ.ptr_type(AddressSpace::default()), variable)
-            .into_pointer_value()
+        self.load(self.context.pointer_type(), variable).into_pointer_value()
     }
 
     pub(crate) fn call(
@@ -656,7 +629,7 @@ impl<'ctx> Builder<'ctx> {
         value: V,
         typ: T,
     ) -> BasicValueEnum<'ctx> {
-        self.inner.build_bitcast(value, typ, "").unwrap()
+        self.inner.build_bit_cast(value, typ, "").unwrap()
     }
 
     pub(crate) fn first_block(&self) -> BasicBlock<'ctx> {
@@ -764,8 +737,8 @@ impl<'ctx> Builder<'ctx> {
     ) -> PointerValue<'ctx> {
         let atomic = class.is_atomic(db);
         let name = &names.classes[&class];
-        let global = module.add_class(class, name).as_pointer_value();
-        let class_ptr = self.load_untyped_pointer(global);
+        let global = module.add_class(name).as_pointer_value();
+        let class_ptr = self.load_pointer(global);
         let typ = module.layouts.instances[class.0 as usize];
         let res = self.malloc(module, typ);
         let header = module.layouts.header;

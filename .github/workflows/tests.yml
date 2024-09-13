@@ -63,8 +63,7 @@ jobs:
       - name: Check the formatting
         run: 'cd std && cargo run -- fmt --check'
 
-  linux-amd64:
-    name: Linux AMD64
+  amd64-linux-gnu:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/inko-lang/ci:fedora
@@ -73,14 +72,28 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: '${{ env.CARGO_HOME }}'
-          key: linux-amd64-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+          key: amd64-linux-gnu-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
       - name: Run compiler tests
         run: cargo test
       - name: Run stdlib tests
         run: 'cd std && cargo run -- test'
 
-  macos-amd64:
-    name: macOS AMD64
+  amd64-linux-musl:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/inko-lang/ci:alpine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: '${{ env.CARGO_HOME }}'
+          key: amd64-linux-musl-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+      - name: Run compiler tests
+        run: cargo test
+      - name: Run stdlib tests
+        run: 'cd std && cargo run -- test'
+
+  amd64-mac-native:
     runs-on: macos-12
     env:
       RUSTUP_HOME: ${{ github.workspace }}/.rustup-home
@@ -91,7 +104,7 @@ jobs:
           path: |
             ${{ env.CARGO_HOME }}
             ${{ env.RUSTUP_HOME }}
-          key: mac-amd64-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+          key: amd64-mac-native-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
       - name: Install dependencies
         run: ./ci/mac.sh
       - name: Run compiler tests
@@ -99,8 +112,7 @@ jobs:
       - name: Run stdlib tests
         run: 'cd std && cargo run -- test'
 
-  macos-arm64:
-    name: macOS ARM64
+  arm64-mac-native:
     runs-on: macos-14
     env:
       RUSTUP_HOME: ${{ github.workspace }}/.rustup-home
@@ -111,7 +123,7 @@ jobs:
           path: |
             ${{ env.CARGO_HOME }}
             ${{ env.RUSTUP_HOME }}
-          key: mac-arm64-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+          key: arm64-mac-native-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
       - name: Install dependencies
         run: ./ci/mac.sh
       - name: Run compiler tests
@@ -119,8 +131,7 @@ jobs:
       - name: Run stdlib tests
         run: 'cd std && cargo run -- test'
 
-  freebsd-amd64:
-    name: FreeBSD AMD64
+  amd64-freebsd-native:
     runs-on: ubuntu-latest
     env:
       RUSTUP_HOME: ${{ github.workspace }}/.rustup-home
@@ -131,7 +142,7 @@ jobs:
           path: |
             ${{ env.CARGO_HOME }}
             ${{ env.RUSTUP_HOME }}
-          key: freebsd-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+          key: amd64-freebsd-native-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
       - name: Run tests
         uses: cross-platform-actions/action@v0.24.0
         with:

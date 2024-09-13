@@ -42,7 +42,7 @@ impl Context {
     }
 
     pub(crate) fn pointer_type(&self) -> PointerType<'_> {
-        self.inner.i8_type().ptr_type(AddressSpace::default())
+        self.inner.ptr_type(AddressSpace::default())
     }
 
     pub(crate) fn bool_type(&self) -> IntType {
@@ -190,9 +190,7 @@ impl Context {
                             self.i64_type().as_basic_type_enum()
                         }
                         FLOAT_ID => self.f64_type().as_basic_type_enum(),
-                        _ => layouts.instances[ins.instance_of().0 as usize]
-                            .ptr_type(AddressSpace::default())
-                            .as_basic_type_enum(),
+                        _ => self.pointer_type().as_basic_type_enum(),
                     }
                 }
             }
@@ -200,7 +198,7 @@ impl Context {
         };
 
         if let TypeRef::Pointer(_) = type_ref {
-            base.ptr_type(AddressSpace::default()).as_basic_type_enum()
+            self.pointer_type().as_basic_type_enum()
         } else {
             base
         }

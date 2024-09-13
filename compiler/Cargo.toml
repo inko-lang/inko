@@ -17,8 +17,8 @@ ast = { path = "../ast" }
 types = { path = "../types" }
 fnv = "^1.0"
 blake3 = "^1.5"
-inkwell = { version = "^0.4", features = ["llvm17-0"] }
-llvm-sys-170 = { package = "llvm-sys", version = "^170.1", features = ["prefer-static"] }
+inkwell = { version = "^0.5", features = ["llvm17-0"] }
+llvm-sys-170 = { package = "llvm-sys", version = "^170.2", features = ["prefer-static"] }
 
 [dev-dependencies]
 similar-asserts = "^1.1"
