@@ -22,6 +22,10 @@ jobs:
     uses: ./.github/workflows/container.yml
     with:
       name: 'fedora'
+  alpine:
+    uses: ./.github/workflows/container.yml
+    with:
+      name: 'alpine'
   debian-amd64:
     uses: ./.github/workflows/container.yml
     with:
