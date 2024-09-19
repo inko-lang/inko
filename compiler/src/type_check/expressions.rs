@@ -12,9 +12,9 @@ use types::check::{Environment, TypeChecker};
 use types::format::{format_type, format_type_with_arguments};
 use types::resolve::TypeResolver;
 use types::{
-    Block, BuiltinCallInfo, CallInfo, CallKind, ClassId, ClassInstance,
-    Closure, ClosureCallInfo, ClosureId, ConstantKind, ConstantPatternKind,
-    Database, FieldId, FieldInfo, IdentifierKind, MethodId, MethodLookup,
+    Block, CallInfo, CallKind, ClassId, ClassInstance, Closure,
+    ClosureCallInfo, ClosureId, ConstantKind, ConstantPatternKind, Database,
+    FieldId, FieldInfo, IdentifierKind, IntrinsicCall, MethodId, MethodLookup,
     ModuleId, Receiver, Sign, Symbol, ThrowKind, TraitId, TraitInstance,
     TypeArguments, TypeBounds, TypeId, TypeRef, Variable, VariableId,
     VariableLocation, CALL_METHOD, DEREF_POINTER_FIELD,
@@ -4034,8 +4034,8 @@ impl<'a> CheckMethodBody<'a> {
         let mut returns = TypeResolver::new(self.db_mut(), &args, bounds)
             .with_immutable(immutable)
             .resolve(raw_type);
-
-        let as_pointer = returns.is_stack_class_instance(self.db());
+        let as_pointer = returns.is_extern_instance(self.db())
+            || (node.in_mut && returns.is_foreign_type(self.db()));
 
         if returns.is_value_type(self.db()) {
             returns = if as_pointer {
@@ -4070,7 +4070,7 @@ impl<'a> CheckMethodBody<'a> {
             self.expression(n, scope);
         }
 
-        let id = if let Some(id) = self.db().builtin_function(&node.name.name) {
+        let id = if let Some(id) = self.db().intrinsic(&node.name.name) {
             id
         } else {
             self.state.diagnostics.undefined_symbol(
@@ -4084,7 +4084,7 @@ impl<'a> CheckMethodBody<'a> {
 
         let returns = id.return_type();
 
-        node.info = Some(BuiltinCallInfo { id, returns });
+        node.info = Some(IntrinsicCall { id, returns });
 
         returns
     }

@@ -2,7 +2,6 @@
 import std.array
 import std.bool
 import std.byte_array
-import std.channel
 import std.clone
 import std.drop
 import std.float

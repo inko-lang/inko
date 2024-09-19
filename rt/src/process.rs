@@ -95,8 +95,8 @@ impl ProcessStatus {
     /// The process is waiting for a message.
     const WAITING_FOR_MESSAGE: u8 = 0b00_0010;
 
-    /// The process is waiting for a channel.
-    const WAITING_FOR_CHANNEL: u8 = 0b00_0100;
+    /// The process is waiting for a value to be sent over some data structure.
+    const WAITING_FOR_VALUE: u8 = 0b00_0100;
 
     /// The process is waiting for an IO operation to complete.
     const WAITING_FOR_IO: u8 = 0b00_1000;
@@ -112,7 +112,7 @@ impl ProcessStatus {
 
     /// The process is waiting for something, or suspended for a period of time.
     const WAITING: u8 =
-        Self::WAITING_FOR_CHANNEL | Self::SLEEPING | Self::WAITING_FOR_IO;
+        Self::WAITING_FOR_VALUE | Self::SLEEPING | Self::WAITING_FOR_IO;
 
     pub(crate) fn new() -> Self {
         Self { bits: Self::NORMAL }
@@ -142,8 +142,8 @@ impl ProcessStatus {
         self.bit_is_set(Self::WAITING_FOR_MESSAGE)
     }
 
-    fn set_waiting_for_channel(&mut self, enable: bool) {
-        self.update_bits(Self::WAITING_FOR_CHANNEL, enable);
+    fn set_waiting_for_value(&mut self, enable: bool) {
+        self.update_bits(Self::WAITING_FOR_VALUE, enable);
     }
 
     fn set_waiting_for_io(&mut self, enable: bool) {
@@ -154,8 +154,8 @@ impl ProcessStatus {
         self.bit_is_set(Self::WAITING_FOR_IO)
     }
 
-    fn is_waiting_for_channel(&self) -> bool {
-        self.bit_is_set(Self::WAITING_FOR_CHANNEL)
+    fn is_waiting_for_value(&self) -> bool {
+        self.bit_is_set(Self::WAITING_FOR_VALUE)
     }
 
     fn is_waiting(&self) -> bool {
@@ -254,8 +254,7 @@ impl ProcessState {
             return RescheduleRights::Failed;
         }
 
-        if self.status.is_waiting_for_channel()
-            || self.status.is_waiting_for_io()
+        if self.status.is_waiting_for_value() || self.status.is_waiting_for_io()
         {
             // We may be suspended for some time without actually waiting for
             // anything, in that case we don't want to update the process
@@ -272,13 +271,12 @@ impl ProcessState {
         }
     }
 
-    pub(crate) fn waiting_for_channel(
+    pub(crate) fn waiting_for_value(
         &mut self,
         timeout: Option<ArcWithoutWeak<Timeout>>,
     ) {
         self.timeout = timeout;
-
-        self.status.set_waiting_for_channel(true);
+        self.status.set_waiting_for_value(true);
     }
 
     pub(crate) fn waiting_for_io(
@@ -286,7 +284,6 @@ impl ProcessState {
         timeout: Option<ArcWithoutWeak<Timeout>>,
     ) {
         self.timeout = timeout;
-
         self.status.set_waiting_for_io(true);
     }
 
@@ -299,12 +296,12 @@ impl ProcessState {
         RescheduleRights::Acquired
     }
 
-    fn try_reschedule_for_channel(&mut self) -> RescheduleRights {
-        if !self.status.is_waiting_for_channel() {
+    pub(crate) fn try_reschedule_for_value(&mut self) -> RescheduleRights {
+        if !self.status.is_waiting_for_value() {
             return RescheduleRights::Failed;
         }
 
-        self.status.set_waiting_for_channel(false);
+        self.status.set_waiting_for_value(false);
 
         if self.timeout.take().is_some() {
             RescheduleRights::AcquiredWithTimeout
@@ -708,200 +705,6 @@ impl DerefMut for ProcessPointer {
     }
 }
 
-#[derive(Eq, PartialEq, Debug)]
-pub(crate) enum SendResult {
-    Sent,
-    Full,
-    Reschedule(ProcessPointer),
-    RescheduleWithTimeout(ProcessPointer),
-}
-
-#[derive(Eq, PartialEq, Debug)]
-pub(crate) enum ReceiveResult {
-    None,
-    Some(*mut u8),
-    Reschedule(*mut u8, ProcessPointer),
-}
-
-/// The internal (synchronised) state of a channel.
-pub(crate) struct ChannelState {
-    /// The index into the ring buffer to use for sending a new value.
-    send_index: usize,
-
-    /// The index into the ring buffer to use for receiving a value.
-    receive_index: usize,
-
-    /// The fixed-size ring buffer of messages.
-    ///
-    /// NULL is a valid value, as Inko uses 0x0/0 for `nil` and `false`.
-    messages: Box<[*mut u8]>,
-
-    /// The number of messages in the channel.
-    len: usize,
-
-    /// Processes waiting for a message to be sent to this channel.
-    waiting_for_message: Vec<ProcessPointer>,
-
-    /// Processes that tried to send a message when the channel was full.
-    waiting_for_space: Vec<ProcessPointer>,
-}
-
-impl ChannelState {
-    fn new(capacity: usize) -> ChannelState {
-        ChannelState {
-            messages: (0..capacity).map(|_| null_mut()).collect(),
-            len: 0,
-            send_index: 0,
-            receive_index: 0,
-            waiting_for_message: Vec::new(),
-            waiting_for_space: Vec::new(),
-        }
-    }
-
-    fn capacity(&self) -> usize {
-        self.messages.len()
-    }
-
-    fn is_full(&self) -> bool {
-        self.capacity() == self.len
-    }
-
-    fn send(&mut self, value: *mut u8) -> bool {
-        if self.is_full() {
-            return false;
-        }
-
-        let index = self.send_index;
-
-        self.messages[index] = value;
-        self.send_index = self.next_index(index);
-        self.len += 1;
-        true
-    }
-
-    fn receive(&mut self) -> Option<*mut u8> {
-        if self.len == 0 {
-            return None;
-        }
-
-        let index = self.receive_index;
-        let value = self.messages[index];
-
-        self.receive_index = self.next_index(index);
-        self.len -= 1;
-        Some(value)
-    }
-
-    fn next_index(&self, index: usize) -> usize {
-        // The & operator can't be used as we don't guarantee/require message
-        // sizes to be a power of two. The % operator is quite expensive to use:
-        // a simple micro benchmark at the time of writing suggested that the %
-        // operator is about three times slower compared to a branch like the
-        // one here.
-        if index == self.capacity() - 1 {
-            0
-        } else {
-            index + 1
-        }
-    }
-}
-
-/// A multiple publisher, multiple consumer first-in-first-out channel.
-///
-/// Messages are sent and received in FIFO order. However, processes waiting for
-/// messages or for space to be available (in case the channel is full) aren't
-/// woken up in FIFO order. Currently this uses a LIFO order, but this isn't
-/// guaranteed nor should this be relied upon.
-///
-/// Channels are not lock-free, and as such may perform worse compared to
-/// channels found in other languages (e.g. Rust or Go). This is because in its
-/// current form we favour simplicity and correctness over performance. This may
-/// be improved upon in the future.
-///
-/// Channels are always bounded and have a minimum capacity of 1, even if the
-/// user-specified capacity is 0. When a channel is full, processes sending
-/// messages are to be suspended and woken up again when space is available.
-#[repr(C)]
-pub struct Channel {
-    pub(crate) state: Mutex<ChannelState>,
-}
-
-impl Channel {
-    pub(crate) fn new(capacity: usize) -> Channel {
-        Channel { state: Mutex::new(ChannelState::new(capacity)) }
-    }
-
-    pub(crate) unsafe fn drop(ptr: *mut Channel) {
-        drop_in_place(ptr);
-    }
-
-    pub(crate) fn send(
-        &self,
-        sender: ProcessPointer,
-        message: *mut u8,
-    ) -> SendResult {
-        let mut state = self.state.lock().unwrap();
-
-        if !state.send(message) {
-            state.waiting_for_space.push(sender);
-            return SendResult::Full;
-        }
-
-        if let Some(receiver) = state.waiting_for_message.pop() {
-            // We don't need to keep the lock any longer than necessary.
-            drop(state);
-
-            // The process may be waiting for more than one channel to receive a
-            // message. In this case it's possible that multiple different
-            // processes try to reschedule the same waiting process, so we have
-            // to acquire the rescheduling rights first.
-            match receiver.state().try_reschedule_for_channel() {
-                RescheduleRights::Failed => SendResult::Sent,
-                RescheduleRights::Acquired => SendResult::Reschedule(receiver),
-                RescheduleRights::AcquiredWithTimeout => {
-                    SendResult::RescheduleWithTimeout(receiver)
-                }
-            }
-        } else {
-            SendResult::Sent
-        }
-    }
-
-    pub(crate) fn receive(
-        &self,
-        receiver: ProcessPointer,
-        timeout: Option<ArcWithoutWeak<Timeout>>,
-    ) -> ReceiveResult {
-        let mut state = self.state.lock().unwrap();
-
-        if let Some(msg) = state.receive() {
-            if let Some(proc) = state.waiting_for_space.pop() {
-                ReceiveResult::Reschedule(msg, proc)
-            } else {
-                ReceiveResult::Some(msg)
-            }
-        } else {
-            receiver.state().waiting_for_channel(timeout);
-            state.waiting_for_message.push(receiver);
-            ReceiveResult::None
-        }
-    }
-
-    pub(crate) fn try_receive(&self) -> ReceiveResult {
-        let mut state = self.state.lock().unwrap();
-
-        if let Some(msg) = state.receive() {
-            if let Some(proc) = state.waiting_for_space.pop() {
-                ReceiveResult::Reschedule(msg, proc)
-            } else {
-                ReceiveResult::Some(msg)
-            }
-        } else {
-            ReceiveResult::None
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -930,16 +733,13 @@ mod tests {
         if cfg!(any(target_os = "linux", target_os = "freebsd")) {
             assert_eq!(size_of::<UnsafeCell<Mutex<()>>>(), 8);
             assert_eq!(size_of::<Process>(), 104);
-            assert_eq!(size_of::<Channel>(), 96);
         } else {
             assert_eq!(size_of::<UnsafeCell<Mutex<()>>>(), 16);
             assert_eq!(size_of::<Process>(), 120);
-            assert_eq!(size_of::<Channel>(), 104);
         }
 
         assert_eq!(size_of::<ProcessState>(), 48);
         assert_eq!(size_of::<Option<NonNull<Thread>>>(), 8);
-        assert_eq!(size_of::<ChannelState>(), 88);
     }
 
     #[test]
@@ -987,14 +787,14 @@ mod tests {
     }
 
     #[test]
-    fn test_process_status_set_waiting_for_channel() {
+    fn test_process_status_set_waiting_for_value() {
         let mut status = ProcessStatus::new();
 
-        status.set_waiting_for_channel(true);
-        assert!(status.is_waiting_for_channel());
+        status.set_waiting_for_value(true);
+        assert!(status.is_waiting_for_value());
 
-        status.set_waiting_for_channel(false);
-        assert!(!status.is_waiting_for_channel());
+        status.set_waiting_for_value(false);
+        assert!(!status.is_waiting_for_value());
     }
 
     #[test]
@@ -1002,13 +802,13 @@ mod tests {
         let mut status = ProcessStatus::new();
 
         status.set_running(true);
-        status.set_waiting_for_channel(true);
+        status.set_waiting_for_value(true);
         status.set_waiting_for_io(true);
         status.set_sleeping(true);
         status.no_longer_waiting();
 
         assert!(status.is_running());
-        assert!(!status.is_waiting_for_channel());
+        assert!(!status.is_waiting_for_value());
         assert!(!status.is_waiting_for_io());
         assert!(!status.bit_is_set(ProcessStatus::SLEEPING));
         assert!(!status.is_waiting());
@@ -1022,12 +822,12 @@ mod tests {
         assert!(status.is_waiting());
 
         status.set_sleeping(false);
-        status.set_waiting_for_channel(true);
+        status.set_waiting_for_value(true);
         assert!(status.is_waiting());
 
         status.no_longer_waiting();
 
-        assert!(!status.is_waiting_for_channel());
+        assert!(!status.is_waiting_for_value());
         assert!(!status.is_waiting());
     }
 
@@ -1072,43 +872,43 @@ mod tests {
             RescheduleRights::Failed
         );
 
-        proc_state.waiting_for_channel(None);
+        proc_state.waiting_for_value(None);
 
         assert_eq!(
             proc_state.try_reschedule_after_timeout(),
             RescheduleRights::Acquired
         );
 
-        assert!(!proc_state.status.is_waiting_for_channel());
+        assert!(!proc_state.status.is_waiting_for_value());
         assert!(!proc_state.status.is_waiting());
 
         let timeout = Timeout::duration(&state, Duration::from_secs(0));
 
-        proc_state.waiting_for_channel(Some(timeout));
+        proc_state.waiting_for_value(Some(timeout));
 
         assert_eq!(
             proc_state.try_reschedule_after_timeout(),
             RescheduleRights::AcquiredWithTimeout
         );
 
-        assert!(!proc_state.status.is_waiting_for_channel());
+        assert!(!proc_state.status.is_waiting_for_value());
         assert!(!proc_state.status.is_waiting());
     }
 
     #[test]
-    fn test_process_state_waiting_for_channel() {
+    fn test_process_state_waiting_for_value() {
         let state = setup();
         let mut proc_state = ProcessState::new();
         let timeout = Timeout::duration(&state, Duration::from_secs(0));
 
-        proc_state.waiting_for_channel(None);
+        proc_state.waiting_for_value(None);
 
-        assert!(proc_state.status.is_waiting_for_channel());
+        assert!(proc_state.status.is_waiting_for_value());
         assert!(proc_state.timeout.is_none());
 
-        proc_state.waiting_for_channel(Some(timeout));
+        proc_state.waiting_for_value(Some(timeout));
 
-        assert!(proc_state.status.is_waiting_for_channel());
+        assert!(proc_state.status.is_waiting_for_value());
         assert!(proc_state.timeout.is_some());
     }
 
@@ -1131,31 +931,31 @@ mod tests {
     }
 
     #[test]
-    fn test_process_state_try_reschedule_for_channel() {
+    fn test_process_state_try_reschedule_for_value() {
         let state = setup();
         let mut proc_state = ProcessState::new();
 
         assert_eq!(
-            proc_state.try_reschedule_for_channel(),
+            proc_state.try_reschedule_for_value(),
             RescheduleRights::Failed
         );
 
-        proc_state.status.set_waiting_for_channel(true);
+        proc_state.status.set_waiting_for_value(true);
         assert_eq!(
-            proc_state.try_reschedule_for_channel(),
+            proc_state.try_reschedule_for_value(),
             RescheduleRights::Acquired
         );
-        assert!(!proc_state.status.is_waiting_for_channel());
+        assert!(!proc_state.status.is_waiting_for_value());
 
-        proc_state.status.set_waiting_for_channel(true);
+        proc_state.status.set_waiting_for_value(true);
         proc_state.timeout =
             Some(Timeout::duration(&state, Duration::from_secs(0)));
 
         assert_eq!(
-            proc_state.try_reschedule_for_channel(),
+            proc_state.try_reschedule_for_value(),
             RescheduleRights::AcquiredWithTimeout
         );
-        assert!(!proc_state.status.is_waiting_for_channel());
+        assert!(!proc_state.status.is_waiting_for_value());
     }
 
     #[test]
@@ -1226,141 +1026,6 @@ mod tests {
         let ptr = unsafe { ProcessPointer::new(0x4 as *mut _) };
 
         assert_eq!(ptr.identifier(), 0x4);
-    }
-
-    #[test]
-    fn test_channel_alloc() {
-        let chan = Channel::new(4);
-        let state = chan.state.lock().unwrap();
-
-        assert_eq!(state.messages.len(), 4);
-    }
-
-    #[test]
-    fn test_channel_send_empty() {
-        let process_class = empty_process_class("A");
-        let sender = OwnedProcess::new(Process::alloc(
-            *process_class,
-            Stack::new(32, page_size()),
-        ));
-        let chan = Channel::new(4);
-        let msg = 42;
-
-        assert_eq!(chan.send(*sender, msg as _), SendResult::Sent);
-    }
-
-    #[test]
-    fn test_channel_send_full() {
-        let process_class = empty_process_class("A");
-        let process = OwnedProcess::new(Process::alloc(
-            *process_class,
-            Stack::new(32, page_size()),
-        ));
-        let chan = Channel::new(1);
-        let msg = 42;
-
-        assert_eq!(chan.send(*process, msg as _), SendResult::Sent);
-        assert_eq!(chan.send(*process, msg as _), SendResult::Full);
-    }
-
-    #[test]
-    fn test_channel_send_with_waiting() {
-        let process_class = empty_process_class("A");
-        let process = OwnedProcess::new(Process::alloc(
-            *process_class,
-            Stack::new(32, page_size()),
-        ));
-        let chan = Channel::new(1);
-        let msg = 42;
-
-        chan.receive(*process, None);
-
-        assert_eq!(
-            chan.send(*process, msg as _),
-            SendResult::Reschedule(*process)
-        );
-    }
-
-    #[test]
-    fn test_channel_send_with_waiting_with_timeout() {
-        let state = setup();
-        let process_class = empty_process_class("A");
-        let process = OwnedProcess::new(Process::alloc(
-            *process_class,
-            Stack::new(32, page_size()),
-        ));
-        let chan = Channel::new(1);
-        let msg = 42;
-
-        chan.receive(
-            *process,
-            Some(Timeout::duration(&state, Duration::from_secs(0))),
-        );
-
-        assert_eq!(
-            chan.send(*process, msg as _),
-            SendResult::RescheduleWithTimeout(*process)
-        );
-    }
-
-    #[test]
-    fn test_channel_receive_empty() {
-        let process_class = empty_process_class("A");
-        let process = OwnedProcess::new(Process::alloc(
-            *process_class,
-            Stack::new(32, page_size()),
-        ));
-        let chan = Channel::new(1);
-
-        assert_eq!(chan.receive(*process, None), ReceiveResult::None);
-        assert!(process.state().status.is_waiting_for_channel());
-    }
-
-    #[test]
-    fn test_channel_try_receive_empty() {
-        let process_class = empty_process_class("A");
-        let process = OwnedProcess::new(Process::alloc(
-            *process_class,
-            Stack::new(32, page_size()),
-        ));
-        let chan = Channel::new(1);
-
-        assert_eq!(chan.try_receive(), ReceiveResult::None);
-        assert!(!process.state().status.is_waiting_for_channel());
-    }
-
-    #[test]
-    fn test_channel_receive_with_messages() {
-        let process_class = empty_process_class("A");
-        let process = OwnedProcess::new(Process::alloc(
-            *process_class,
-            Stack::new(32, page_size()),
-        ));
-        let chan = Channel::new(1);
-        let msg = 42;
-
-        chan.send(*process, msg as _);
-
-        assert_eq!(chan.receive(*process, None), ReceiveResult::Some(msg as _));
-    }
-
-    #[test]
-    fn test_channel_receive_with_messages_with_blocked_sender() {
-        let process_class = empty_process_class("A");
-        let process = OwnedProcess::new(Process::alloc(
-            *process_class,
-            Stack::new(32, page_size()),
-        ));
-        let chan = Channel::new(1);
-        let msg = 42;
-
-        chan.send(*process, msg as _);
-        chan.send(*process, msg as _);
-
-        assert_eq!(
-            chan.receive(*process, None),
-            ReceiveResult::Reschedule(msg as _, *process)
-        );
     }
 
     #[test]
@@ -1436,40 +1101,5 @@ mod tests {
 
         assert!(!process.finish_message());
         assert!(process.state().status.is_waiting_for_message());
-    }
-
-    #[test]
-    fn test_channel_state_send() {
-        let mut state = ChannelState::new(2);
-
-        assert!(!state.is_full());
-        assert_eq!(state.capacity(), 2);
-
-        assert!(state.send(0x1 as _));
-        assert!(state.send(0x2 as _));
-        assert!(!state.send(0x3 as _));
-        assert!(!state.send(0x4 as _));
-
-        assert_eq!(state.messages[0], 0x1 as _);
-        assert_eq!(state.messages[1], 0x2 as _);
-        assert!(state.is_full());
-    }
-
-    #[test]
-    fn test_channel_state_receive() {
-        let mut state = ChannelState::new(2);
-
-        assert!(state.receive().is_none());
-
-        state.send(0x1 as _);
-        state.send(0x2 as _);
-
-        assert!(state.is_full());
-        assert_eq!(state.receive(), Some(0x1 as _));
-        assert!(!state.is_full());
-
-        assert_eq!(state.receive(), Some(0x2 as _));
-        assert_eq!(state.receive(), None);
-        assert!(!state.is_full());
     }
 }

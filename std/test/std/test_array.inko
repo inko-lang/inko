@@ -44,7 +44,9 @@ fn pub tests(t: mut Tests) {
     let ary2: Array[Int] = Array.with_capacity(2)
 
     t.equal(ary1.capacity, 0)
+    t.equal(ary1.buffer as Int, 0)
     t.equal(ary2.capacity, 2)
+    t.not_equal(ary2.buffer as Int, 0)
   })
 
   t.panic('Array.with_capacity with an invalid size', fn {

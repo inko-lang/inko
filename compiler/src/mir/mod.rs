@@ -13,8 +13,8 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use types::collections::IndexMap;
 use types::{
-    BuiltinFunction, Database, ForeignType, MethodId, Shape, Sign,
-    TypeArguments, TypeId, TypeRef, BOOL_ID, FLOAT_ID, INT_ID, NIL_ID,
+    Database, ForeignType, Intrinsic, MethodId, Shape, Sign, TypeArguments,
+    TypeId, TypeRef, BOOL_ID, FLOAT_ID, INT_ID, NIL_ID,
 };
 
 /// The register ID of the register that stores `self`.
@@ -496,7 +496,7 @@ impl Block {
     pub(crate) fn call_builtin(
         &mut self,
         register: RegisterId,
-        name: BuiltinFunction,
+        name: Intrinsic,
         arguments: Vec<RegisterId>,
         location: LocationId,
     ) {
@@ -942,7 +942,7 @@ pub(crate) struct CallClosure {
 #[derive(Clone)]
 pub(crate) struct CallBuiltin {
     pub(crate) register: RegisterId,
-    pub(crate) name: BuiltinFunction,
+    pub(crate) name: Intrinsic,
     pub(crate) arguments: Vec<RegisterId>,
     pub(crate) location: LocationId,
 }
@@ -1048,9 +1048,8 @@ impl CastType {
                     CastType::Float(64)
                 }
                 Ok(TypeId::ClassInstance(ins)) => match ins.instance_of().0 {
-                    INT_ID | NIL_ID | BOOL_ID => {
-                        CastType::Int(64, Sign::Signed)
-                    }
+                    BOOL_ID | NIL_ID => CastType::Int(1, Sign::Unsigned),
+                    INT_ID => CastType::Int(64, Sign::Signed),
                     FLOAT_ID => CastType::Float(64),
                     _ => CastType::Object,
                 },

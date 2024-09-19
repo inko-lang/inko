@@ -22,9 +22,6 @@ The prelude includes the following types and methods:
 | `ByteArray`
 | `std.byte_array`
 |-
-| `Channel`
-| `std.channel`
-|-
 | `Float`
 | `std.float`
 |-

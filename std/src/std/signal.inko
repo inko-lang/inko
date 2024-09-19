@@ -37,10 +37,11 @@
 # # Waiting for multiple signals
 #
 # If you need to wait for multiple signals at once, you can do so using a
-# `Channel` and a process for each signal. For example:
+# `std.sync.Channel` and a process for each signal. For example:
 #
 # ```inko
 # import std.signal (Signal)
+# import std.sync (Channel)
 #
 # class async Waiter {
 #   let @channel: Channel[Signal]
@@ -53,10 +54,10 @@
 #
 # class async Main {
 #   fn async main {
-#     let chan = Channel.new(size: 2)
+#     let chan = Channel.new
 #
-#     Waiter(chan).wait(recover Signal.User1)
-#     Waiter(chan).wait(recover Signal.User2)
+#     Waiter(recover chan.clone).wait(recover Signal.User1)
+#     Waiter(recover chan.clone).wait(recover Signal.User2)
 #     chan.receive
 #   }
 # }

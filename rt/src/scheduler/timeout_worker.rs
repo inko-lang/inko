@@ -234,7 +234,7 @@ mod tests {
         for time in &[10_u64, 5_u64] {
             let timeout = Timeout::duration(&state, Duration::from_secs(*time));
 
-            process.state().waiting_for_channel(Some(timeout.clone()));
+            process.state().waiting_for_value(Some(timeout.clone()));
             worker.suspend(process, timeout);
         }
 
@@ -258,7 +258,7 @@ mod tests {
         let worker = TimeoutWorker::new();
         let timeout = Timeout::duration(&state, Duration::from_secs(10));
 
-        process.state().waiting_for_channel(Some(timeout.clone()));
+        process.state().waiting_for_value(Some(timeout.clone()));
         worker.suspend(process, timeout);
         worker.run_iteration(&state);
 
@@ -273,7 +273,7 @@ mod tests {
         let worker = TimeoutWorker::new();
         let timeout = Timeout::duration(&state, Duration::from_secs(0));
 
-        process.state().waiting_for_channel(Some(timeout.clone()));
+        process.state().waiting_for_value(Some(timeout.clone()));
         worker.suspend(process, timeout);
         worker.run_iteration(&state);
 
@@ -288,7 +288,7 @@ mod tests {
         let worker = TimeoutWorker::new();
         let timeout = Timeout::duration(&state, Duration::from_secs(1));
 
-        process.state().waiting_for_channel(Some(timeout.clone()));
+        process.state().waiting_for_value(Some(timeout.clone()));
         worker.suspend(process, timeout);
         worker.move_messages();
         worker.handle_pending_messages();
@@ -308,7 +308,7 @@ mod tests {
         for time in &[1_u64, 1_u64] {
             let timeout = Timeout::duration(&state, Duration::from_secs(*time));
 
-            process.state().waiting_for_channel(Some(timeout.clone()));
+            process.state().waiting_for_value(Some(timeout.clone()));
             worker.suspend(process, timeout);
         }
 

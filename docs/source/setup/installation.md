@@ -13,9 +13,9 @@ choice.
 
 ## Supported platforms
 
-Inko supports Linux (4.11 or newer), macOS (10.15 or newer), and FreeBSD (13.2
-or newer). Inko might also work on other platforms, but we only provide support
-for the listed platforms. Windows isn't supported.
+Inko supports Linux (4.11 or newer), macOS (11.0 or newer), and FreeBSD (13.2 or
+newer). Inko might also work on other platforms, but we only provide support for
+the listed platforms. Windows isn't supported.
 
 ## Requirements
 
@@ -25,6 +25,10 @@ for the listed platforms. Windows isn't supported.
 - A C compiler such as [GCC](https://gcc.gnu.org/) or
   [clang](https://clang.llvm.org/)
 - Git, for managing packages using the `inko pkg` command
+- An AMD64 CPU with [SSE2](https://en.wikipedia.org/wiki/SSE2) support or an
+  ARM64 CPU with
+  [Neon](https://en.wikipedia.org/wiki/ARM_architecture_family#Advanced_SIMD_(Neon))
+  support (only for the generated code)
 
 ::: note
 While using newer versions of LLVM may work, it's possible for a newer version

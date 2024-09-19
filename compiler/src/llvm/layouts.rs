@@ -125,13 +125,7 @@ impl<'ctx> Layouts<'ctx> {
         // defined.
         for &id in mir.classes.keys() {
             let instance = match id.0 {
-                INT_ID => {
-                    context.builtin_type(header, context.i64_type().into())
-                }
-                FLOAT_ID => {
-                    context.builtin_type(header, context.f64_type().into())
-                }
-                BOOL_ID | NIL_ID => {
+                INT_ID | FLOAT_ID | BOOL_ID | NIL_ID => {
                     let typ = context.opaque_struct("");
 
                     typ.set_body(&[header.into()], false);
@@ -190,10 +184,6 @@ impl<'ctx> Layouts<'ctx> {
         for id in mir.classes.keys() {
             // String is a built-in class, but it's defined like a regular one,
             // so we _don't_ want to skip it here.
-            //
-            // Channel is a generic class and as such is specialized, so the
-            // builtin check doesn't cover it and we process it as normal, as
-            // intended.
             if id.is_builtin() && id.0 != STRING_ID {
                 continue;
             }

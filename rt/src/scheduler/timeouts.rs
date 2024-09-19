@@ -323,7 +323,7 @@ mod tests {
             let mut timeouts = Timeouts::new();
             let timeout = Timeout::duration(&state, Duration::from_secs(10));
 
-            process.state().waiting_for_channel(Some(timeout.clone()));
+            process.state().waiting_for_value(Some(timeout.clone()));
             timeouts.insert(process, timeout);
 
             assert_eq!(timeouts.remove_invalid_entries(), 0);
@@ -369,7 +369,7 @@ mod tests {
             let mut timeouts = Timeouts::new();
             let timeout = Timeout::duration(&state, Duration::from_secs(10));
 
-            process.state().waiting_for_channel(Some(timeout.clone()));
+            process.state().waiting_for_value(Some(timeout.clone()));
             timeouts.insert(process, timeout);
 
             let (reschedule, expiration) =
@@ -388,7 +388,7 @@ mod tests {
             let mut timeouts = Timeouts::new();
             let timeout = Timeout::duration(&state, Duration::from_secs(0));
 
-            process.state().waiting_for_channel(Some(timeout.clone()));
+            process.state().waiting_for_value(Some(timeout.clone()));
             timeouts.insert(*process, timeout);
 
             let (reschedule, expiration) =

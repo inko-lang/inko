@@ -185,18 +185,6 @@ This isn't valid because `a` is of type `uni Array[ByteArray]`, and `push` takes
 an argument of type `ByteArray` which isn't sendable, thus the `push` method
 isn't available.
 
-## Channels
-
-Aside from passing arguments along with `async` method calls, you can also use
-the `Channel` type to send data between processes. `Channel` is a fixed size,
-multiple-producer multiple-consumer, first-in-first-out queue. `Channel` is a
-value type, so you can share it between processes.
-
-Channels are useful if one process schedules work to be performed by a group of
-other processes, and wants to wait for the results to come in. In this case the
-process gives the other processes a reference to a `Channel`, then waits for
-these processes to send over the channel.
-
 ## Spawning processes with fields
 
 When spawning a process, the values assigned to its fields must be sendable:
@@ -219,8 +207,7 @@ When defining an `async` method, the following rules are enforced by the
 compiler:
 
 - The arguments must be sendable
-- Return types aren't allowed, instead you can use the `Channel` type to send
-  data back (if needed)
+- Return types aren't allowed
 
 ## Calling async methods
 
@@ -228,6 +215,8 @@ Calling `async` methods is done using the same syntax as for calling regular
 methods:
 
 ```inko
+import std.sync (Future, Promise)
+
 class async Counter {
   let @value: Int
 
@@ -235,19 +224,23 @@ class async Counter {
     @value += 1
   }
 
-  fn async value(output: Channel[Int]) {
-    output.send(@value)
+  fn async value(output: uni Promise[Int]) {
+    output.set(@value)
   }
 }
 
 class async Main {
   fn async main {
     let counter = Counter(value: 0)
-    let output = Channel.new(size: 1)
 
     counter.increment
-    counter.value(output)
-    output.receive # => 1
+
+    match Future.new {
+      case (future, promise) -> {
+        counter.value(promise)
+        future.get # => 1
+      }
+    }
   }
 }
 ```

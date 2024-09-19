@@ -186,6 +186,16 @@ impl<'ctx> Builder<'ctx> {
             .into_float_value()
     }
 
+    pub(crate) fn load_bool(
+        &self,
+        variable: PointerValue<'ctx>,
+    ) -> IntValue<'ctx> {
+        self.inner
+            .build_load(self.context.bool_type(), variable, "")
+            .unwrap()
+            .into_int_value()
+    }
+
     pub(crate) fn load_pointer(
         &self,
         variable: PointerValue<'ctx>,
@@ -297,6 +307,26 @@ impl<'ctx> Builder<'ctx> {
                 AtomicOrdering::AcquireRelease,
             )
             .unwrap()
+    }
+
+    pub(crate) fn atomic_swap<V: BasicValue<'ctx>>(
+        &self,
+        pointer: PointerValue<'ctx>,
+        old: V,
+        new: V,
+    ) -> IntValue<'ctx> {
+        let res = self
+            .inner
+            .build_cmpxchg(
+                pointer,
+                old,
+                new,
+                AtomicOrdering::AcquireRelease,
+                AtomicOrdering::Acquire,
+            )
+            .unwrap();
+
+        self.extract_field(res, 1).into_int_value()
     }
 
     pub(crate) fn load_atomic_counter(
@@ -482,18 +512,6 @@ impl<'ctx> Builder<'ctx> {
         };
 
         self.inner.build_int_cast_sign_flag(value, target, signed, "").unwrap()
-    }
-
-    pub(crate) fn bool_to_int(&self, value: IntValue<'ctx>) -> IntValue<'ctx> {
-        let typ = self.context.i64_type();
-
-        self.inner.build_int_cast_sign_flag(value, typ, false, "").unwrap()
-    }
-
-    pub(crate) fn int_to_bool(&self, value: IntValue<'ctx>) -> IntValue<'ctx> {
-        let typ = self.context.bool_type();
-
-        self.inner.build_int_cast_sign_flag(value, typ, true, "").unwrap()
     }
 
     pub(crate) fn float_to_float(

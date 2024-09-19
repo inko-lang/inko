@@ -1,19 +1,40 @@
 import std.test (Tests)
 
-class extern Example {
+class extern Foo {
   let @foo: Int32
   let @bar: Int32
-  let @baz: Pointer[Example]
+  let @baz: Pointer[Foo]
+}
+
+class Bar {
+  let @value: Int64
+
+  fn mut ptr1 -> Pointer[Int64] {
+    mut @value
+  }
+
+  fn mut ptr2 -> Pointer[Int64] {
+    mut self.value
+  }
 }
 
 fn pub tests(t: mut Tests) {
   t.test('Reading a field storing a pointer through another pointer', fn (t) {
-    let ex = Example(
-      foo: 1 as Int32,
-      bar: 2 as Int32,
-      baz: 0x42 as Pointer[Example],
-    )
+    let ex = Foo(foo: 1 as Int32, bar: 2 as Int32, baz: 0x42 as Pointer[Foo])
 
     t.equal(ex.baz as Int, 0x42)
+  })
+
+  t.test('Creating pointers using the mut expression', fn (t) {
+    let bar = Bar(value: 42 as Int64)
+
+    bar.ptr1.0 = 100 as Int64
+    t.equal(bar.value as Int, 100)
+
+    bar.ptr2.0 = 200 as Int64
+    t.equal(bar.value as Int, 200)
+
+    (mut bar.value).0 = 300 as Int64
+    t.equal(bar.value as Int, 300)
   })
 }

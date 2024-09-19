@@ -57,7 +57,7 @@ The `sleep(...)` line is needed such that the main process (defined using
 `class async Main`) doesn't stop before the `Printer` processes print the
 messages to the terminal.
 
-## Stopping right away when output is produced
+## Futures and Promises
 
 Instead of waiting for a fixed 500 milliseconds, we can change the program to
 stop right away when the output is produced. We achieve this by changing the
@@ -65,29 +65,88 @@ program to the following:
 
 ```inko
 import std.stdio (Stdout)
+import std.sync (Future, Promise)
 
 class async Printer {
-  fn async print(message: String, channel: Channel[Nil]) {
+  fn async print(message: String, output: uni Promise[Nil]) {
     let _ = Stdout.new.print(message)
 
-    channel.send(nil)
+    output.set(nil)
   }
 }
 
 class async Main {
   fn async main {
-    let channel = Channel.new(size: 2)
+    let future1 = match Future.new {
+      case (future, promise) -> {
+        Printer().print('Hello', promise)
+        future
+      }
+    }
+    let future2 = match Future.new {
+      case (future, promise) -> {
+        Printer().print('world', promise)
+        future
+      }
+    }
 
-    Printer().print('Hello', channel)
-    Printer().print('world', channel)
-    channel.receive
-    channel.receive
+    future1.get
+    future2.get
   }
 }
 ```
 
-What we changed here is that we're using the `Channel` type, and instead of
-sleeping we wait for two messages to be received using `channel.receive`. The
-`Printer` types are changed to send `nil` to the channel when they are finished.
-The combination of the two results in the `Main` process waiting for both
-`Printer` processes to write their output, then it stops.
+`Future` and `Promise` are types used for waiting for and resolving values
+concurrently. A `Future` is a proxy for a value to be computed in the future,
+while a `Promise` is used to assign a value to a `Future`.
+
+In the above example, a `Promise` is passed along with the `Printer.print`
+message, which is assigned to `nil`. The `Main` process in turn waits for this
+to complete by calling `Future.get` on the two `Future` values. The result is
+that the `Main` process doesn't stop until the `Printer` processes finished
+their work.
+
+The `Future` and `Promise` types are useful if a parent process wants to wait
+for some result produced by a child process, without knowing what that parent
+process is.
+
+An example of this is a library function that wishes to perform computations in
+parallel. The function doesn't know what processes it will be called from,
+meaning any child processes can't communicate their results back to the parent
+using messages. Using the `Future` and `Promise` types we _can_ achieve this.
+
+## Channels
+
+Inko also provides a `Channel` type in the `std.sync` module, acting is an
+unbounded multiple publisher, multiple subscriber channel. This type is useful
+when M jobs need to be performed by N processes, where `M > N`. While sending
+messages is certainly possible, it may result in an uneven workload across the
+processes, but by using `std.sync.Channel` the workload is balanced
+automatically.
+
+We can rewrite the example from earlier using `Channel` as follows:
+
+```inko
+import std.stdio (Stdout)
+import std.sync (Channel)
+
+class async Printer {
+  fn async print(message: String, output: uni Channel[Nil]) {
+    let _ = Stdout.new.print(message)
+
+    output.send(nil)
+  }
+}
+
+class async Main {
+  fn async main {
+    let chan = Channel.new
+
+    Printer().print('Hello', recover chan.clone)
+    Printer().print('world', recover chan.clone)
+
+    chan.receive
+    chan.receive
+  }
+}
+```

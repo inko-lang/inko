@@ -71,6 +71,7 @@ import std.io (Write)
 import std.process
 import std.rand (Random, Shuffle)
 import std.stdio (Stdout)
+import std.sync (Channel)
 import std.sys (Command, ExitStatus, Stream, cpu_cores, exit)
 import std.time (Duration, Instant)
 
@@ -267,26 +268,37 @@ ${indent}        ${red('got:')} ${fail.got}',
   }
 }
 
+class async Jobs {
+  let @pending: Array[uni Test]
+
+  fn async mut schedule(runner: Runner) {
+    match @pending.pop {
+      case Some(t) -> runner.run(t)
+      case _ -> {
+        # No more tests remain, so the Runner can shut itself down.
+      }
+    }
+  }
+}
+
 class async Runner {
-  let @input: Channel[uni Test]
+  let @jobs: Jobs
   let @output: Channel[uni Test]
 
-  fn async run {
-    loop {
-      let test = match @input.try_receive {
-        case Some(test) -> test
-        case None -> return
-      }
+  fn async schedule {
+    @jobs.schedule(self)
+  }
 
-      let result = recover {
-        let test = recover test
+  fn async run(test: uni Test) {
+    let result = recover {
+      let test = recover test
 
-        test.code.call(test)
-        test
-      }
-
-      @output.send(result)
+      test.code.call(test)
+      test
     }
+
+    @output.send(result)
+    schedule
   }
 }
 
@@ -642,34 +654,34 @@ class pub Tests {
       case _ -> {}
     }
 
-    let filter = @filter
-    let tests = @tests
-      .into_iter
-      .select_map(fn (test) {
-        if test.matches?(filter) { Option.Some(test) } else { Option.None }
-      })
-      .to_array
-
     let seed = match @seed {
       case Some(seed) -> seed
       case _ -> Random.new.int
     }
 
     # We shuffle tests in a random order to ensure they don't end up
-    # (implicitly) depending on a specific execution order.
-    Shuffle.from_int(seed).sort(tests)
+    # (implicitly) depending on a specific execution order. We do this first so
+    # we can build a unique list of filtered tests (which retain the order).
+    Shuffle.from_int(seed).sort(@tests)
 
+    let filter = @filter
+    let tests = @tests
+      .into_iter
+      .select_map(fn (test) {
+        if test.matches?(filter) { Option.Some(test) } else { Option.None }
+      })
+      .reduce(recover [], fn (tests, test) {
+        tests.push(test)
+        tests
+      })
+
+    let size = tests.size
     let rep = @reporter
     let start = Instant.new
-    let input = Channel.new(tests.size)
-    let output = Channel.new(tests.size)
-    let size = tests.size
+    let jobs = Jobs(tests)
+    let output = Channel.new
 
-    # We send the tests first, as the test runners abort when the input channel
-    # is empty.
-    tests.into_iter.each(fn (test) { input.send(test) })
-
-    @concurrency.times(fn (_) { Runner(input: input, output: output).run })
+    @concurrency.times(fn (_) { Runner(jobs, recover output.clone).schedule })
 
     size.times(fn (_) {
       let test = recover output.receive

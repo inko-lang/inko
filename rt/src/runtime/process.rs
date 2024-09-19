@@ -1,17 +1,16 @@
 use crate::context;
 use crate::mem::{ClassPointer, String as InkoString};
 use crate::process::{
-    Channel, Message, NativeAsyncMethod, Process, ProcessPointer,
-    ReceiveResult, RescheduleRights, SendResult, StackFrame,
+    Message, NativeAsyncMethod, Process, ProcessPointer, RescheduleRights,
+    StackFrame,
 };
-use crate::result::Result as InkoResult;
 use crate::scheduler::process::Action;
 use crate::scheduler::timeouts::Timeout;
 use crate::state::State;
-use std::cmp::max;
 use std::fmt::Write as _;
 use std::process::exit;
 use std::str;
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::Duration;
 
 /// There's no real standard across programs for exit codes. Rust uses 101 so
@@ -213,109 +212,75 @@ pub unsafe extern "system" fn inko_process_stop_blocking(
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_channel_new(capacity: i64) -> *mut Channel {
-    Box::into_raw(Box::new(Channel::new(max(capacity, 1) as usize)))
+pub unsafe extern "system" fn inko_process_wait_for_value(
+    process: ProcessPointer,
+    lock: *const AtomicU8,
+    current: u8,
+    new: u8,
+) {
+    let mut state = process.state();
+
+    state.waiting_for_value(None);
+
+    let _ = (*lock).compare_exchange(
+        current,
+        new,
+        Ordering::AcqRel,
+        Ordering::Acquire,
+    );
+
+    drop(state);
+    context::switch(process);
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_channel_send(
+pub unsafe extern "system" fn inko_process_wait_for_value_until(
+    state: *const State,
+    process: ProcessPointer,
+    lock: *const AtomicU8,
+    current: u8,
+    new: u8,
+    nanos: u64,
+) -> bool {
+    let state = &*state;
+    let deadline = Timeout::until(nanos);
+    let mut proc_state = process.state();
+
+    proc_state.waiting_for_value(Some(deadline.clone()));
+
+    let _ = (*lock).compare_exchange(
+        current,
+        new,
+        Ordering::AcqRel,
+        Ordering::Acquire,
+    );
+
+    drop(proc_state);
+
+    // Safety: the current thread is holding on to the run lock
+    state.timeout_worker.suspend(process, deadline);
+    context::switch(process);
+    process.timeout_expired()
+}
+
+#[no_mangle]
+pub unsafe extern "system" fn inko_process_reschedule_for_value(
     state: *const State,
     mut process: ProcessPointer,
-    channel: *const Channel,
-    message: *mut u8,
+    waiter: ProcessPointer,
 ) {
     let state = &*state;
-
-    loop {
-        match (*channel).send(process, message) {
-            SendResult::Sent => break,
-            SendResult::Full => context::switch(process),
-            SendResult::Reschedule(receiver) => {
-                process.thread().schedule_global(receiver);
-                break;
-            }
-            SendResult::RescheduleWithTimeout(receiver) => {
-                state.timeout_worker.increase_expired_timeouts();
-                process.thread().schedule_global(receiver);
-                break;
-            }
+    let mut waiter_state = waiter.state();
+    let reschedule = match waiter_state.try_reschedule_for_value() {
+        RescheduleRights::Failed => false,
+        RescheduleRights::Acquired => true,
+        RescheduleRights::AcquiredWithTimeout => {
+            state.timeout_worker.increase_expired_timeouts();
+            true
         }
+    };
+
+    if reschedule {
+        process.thread().schedule(waiter);
     }
-}
-
-#[no_mangle]
-pub unsafe extern "system" fn inko_channel_receive(
-    mut process: ProcessPointer,
-    channel: *const Channel,
-) -> *const u8 {
-    loop {
-        match (*channel).receive(process, None) {
-            ReceiveResult::None => context::switch(process),
-            ReceiveResult::Some(msg) => return msg,
-            ReceiveResult::Reschedule(msg, sender) => {
-                // We schedule onto the global queue because the current process
-                // wants to do something with the message.
-                process.thread().schedule_global(sender);
-                return msg;
-            }
-        }
-    }
-}
-
-#[no_mangle]
-pub unsafe extern "system" fn inko_channel_try_receive(
-    mut process: ProcessPointer,
-    channel: *const Channel,
-) -> InkoResult {
-    match (*channel).try_receive() {
-        ReceiveResult::None => InkoResult::none(),
-        ReceiveResult::Some(msg) => InkoResult::ok(msg as _),
-        ReceiveResult::Reschedule(msg, sender) => {
-            // We schedule onto the global queue because the current process
-            // wants to do something with the message.
-            process.thread().schedule_global(sender);
-            InkoResult::ok(msg as _)
-        }
-    }
-}
-
-#[no_mangle]
-pub unsafe extern "system" fn inko_channel_receive_until(
-    state: *const State,
-    mut process: ProcessPointer,
-    channel: *const Channel,
-    nanos: u64,
-) -> InkoResult {
-    let state = &(*state);
-    let deadline = Timeout::until(nanos);
-
-    loop {
-        match (*channel).receive(process, Some(deadline.clone())) {
-            ReceiveResult::None => {
-                // Safety: the current thread is holding on to the run lock
-                state.timeout_worker.suspend(process, deadline.clone());
-                context::switch(process);
-
-                if process.timeout_expired() {
-                    return InkoResult::none();
-                }
-
-                // It's possible another process received all messages before we
-                // got a chance to try again. In this case we continue waiting
-                // for a message.
-            }
-            ReceiveResult::Some(msg) => return InkoResult::ok(msg as _),
-            ReceiveResult::Reschedule(msg, sender) => {
-                // We schedule onto the global queue because the current process
-                // wants to do something with the message.
-                process.thread().schedule_global(sender);
-                return InkoResult::ok(msg as _);
-            }
-        }
-    }
-}
-
-#[no_mangle]
-pub unsafe extern "system" fn inko_channel_drop(channel: *mut Channel) {
-    Channel::drop(channel);
 }

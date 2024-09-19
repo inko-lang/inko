@@ -1,0 +1,203 @@
+import std.deque (Deque)
+import std.test (Tests)
+
+fn pub tests(t: mut Tests) {
+  t.test('Deque.new', fn (t) {
+    let q = Deque.new
+
+    t.equal(q.size, 0)
+    t.equal(q.capacity, 0)
+    t.equal(q.head, 0)
+    t.equal(q.buffer as Int, 0)
+  })
+
+  t.test('Deque.with_capacity', fn (t) {
+    let q = Deque.with_capacity(4)
+
+    t.equal(q.size, 0)
+    t.equal(q.capacity, 4)
+    t.equal(q.head, 0)
+    t.not_equal(q.buffer as Int, 0)
+  })
+
+  t.test('Deque.size', fn (t) {
+    let q = Deque.new
+
+    t.equal(q.size, 0)
+
+    q.push_back(10)
+    t.equal(q.size, 1)
+
+    q.pop_back
+    t.equal(q.size, 0)
+  })
+
+  t.test('Deque.capacity', fn (t) {
+    let q = Deque.new
+
+    t.equal(q.capacity, 0)
+
+    q.push_back(10)
+    t.equal(q.capacity, 1)
+
+    q.push_back(10)
+    t.equal(q.capacity, 2)
+
+    q.push_back(10)
+    t.equal(q.capacity, 4)
+
+    q.pop_back
+    q.pop_back
+    q.pop_back
+    t.equal(q.capacity, 4)
+  })
+
+  t.test('Deque.push_front', fn (t) {
+    let q = Deque.new
+
+    q.push_front(10)
+    q.push_front(20)
+    q.push_front(30)
+
+    t.equal(q.size, 3)
+    t.equal(q.get(0), 30)
+    t.equal(q.get(1), 20)
+    t.equal(q.get(2), 10)
+  })
+
+  t.test('Deque.pop_front', fn (t) {
+    let q = Deque.new
+
+    q.push_front(10)
+    q.push_front(20)
+    q.push_front(30)
+
+    t.equal(q.pop_front, Option.Some(30))
+    t.equal(q.pop_front, Option.Some(20))
+    t.equal(q.pop_front, Option.Some(10))
+    t.equal(q.pop_front, Option.None)
+    t.equal(q.size, 0)
+  })
+
+  t.test('Deque.push_back', fn (t) {
+    let q = Deque.new
+
+    q.push_back(10)
+    q.push_back(20)
+    q.push_back(30)
+
+    t.equal(q.size, 3)
+    t.equal(q.get(0), 10)
+    t.equal(q.get(1), 20)
+    t.equal(q.get(2), 30)
+  })
+
+  t.test('Deque.pop_back', fn (t) {
+    let q = Deque.new
+
+    q.push_back(10)
+    q.push_back(20)
+    q.push_back(30)
+
+    t.equal(q.pop_back, Option.Some(30))
+    t.equal(q.pop_back, Option.Some(20))
+    t.equal(q.pop_back, Option.Some(10))
+    t.equal(q.pop_back, Option.None)
+    t.equal(q.size, 0)
+  })
+
+  t.test('Deque.reserve', fn (t) {
+    let q: Deque[Int] = Deque.new
+
+    t.equal(q.capacity, 0)
+
+    q.reserve(4)
+    t.equal(q.capacity, 4)
+
+    # Enough space left, so the capacity stays the same.
+    q.reserve(4)
+    t.equal(q.capacity, 4)
+  })
+
+  t.test('Deque.clear', fn (t) {
+    let q = Deque.new
+
+    q.push_back(10)
+    q.push_back(20)
+    q.clear
+
+    t.equal(q.size, 0)
+    t.equal(q.pop_back, Option.None)
+    t.equal(q.pop_front, Option.None)
+  })
+
+  t.test('Deque.iter', fn (t) {
+    let q = Deque.new
+
+    q.push_back(20)
+    q.push_back(30)
+    q.push_front(10)
+
+    t.equal(q.iter.to_array, [10, 20, 30])
+  })
+
+  t.test('Deque.iter_mut', fn (t) {
+    let q = Deque.new
+
+    q.push_back(20)
+    q.push_back(30)
+    q.push_front(10)
+
+    t.equal(q.iter_mut.to_array, [10, 20, 30])
+  })
+
+  t.test('Deque.into_iter', fn (t) {
+    let q = Deque.new
+
+    q.push_back(20)
+    q.push_back(30)
+    q.push_front(10)
+
+    t.equal(q.into_iter.to_array, [10, 20, 30])
+  })
+
+  t.test('Deque.get with a valid index', fn (t) {
+    let q = Deque.new
+
+    q.push_back(10)
+    q.push_back(20)
+
+    t.equal(q.get(0), 10)
+    t.equal(q.get(1), 20)
+  })
+
+  t.panic('Deque.get with an index that is out of bounds', fn {
+    let q: Deque[Int] = Deque.new
+
+    q.get(0)
+  })
+
+  t.panic('Deque.get with an index that is less than zero', fn {
+    let q: Deque[Int] = Deque.new
+
+    q.get(-4)
+  })
+
+  t.test('Deque.opt', fn (t) {
+    let q = Deque.new
+
+    q.push_back(10)
+
+    t.equal(q.opt(0), Option.Some(10))
+    t.equal(q.opt(1), Option.None)
+  })
+
+  t.test('Deque.opt_mut', fn (t) {
+    let q = Deque.new
+
+    q.push_back(10)
+
+    t.equal(q.opt_mut(0), Option.Some(10))
+    t.equal(q.opt_mut(1), Option.None)
+  })
+}

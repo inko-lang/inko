@@ -1787,7 +1787,7 @@ impl<'a> LowerMethod<'a> {
 
                 self.current_block_mut().call_builtin(
                     reg,
-                    types::BuiltinFunction::StringConcat,
+                    types::Intrinsic::StringConcat,
                     vals,
                     loc,
                 );
@@ -2323,7 +2323,7 @@ impl<'a> LowerMethod<'a> {
             node.arguments.into_iter().map(|n| self.expression(n)).collect();
 
         match info.id {
-            types::BuiltinFunction::Moved => {
+            types::Intrinsic::Moved => {
                 self.mark_register_as_moved(args[0]);
                 self.get_nil(loc)
             }
@@ -2565,8 +2565,24 @@ impl<'a> LowerMethod<'a> {
             self.current_block_mut().method_pointer(reg, id, loc);
             reg
         } else if node.resolved_type.is_pointer(self.db()) {
+            let expr = match node.value {
+                // For expressions `mut value.field` we defer to the call()
+                // method since that already has the necessary logic in place.
+                hir::Expression::Call(mut n) => {
+                    if let types::CallKind::GetField(_) = &mut n.kind {
+                        return self.call(*n);
+                    }
+
+                    hir::Expression::Call(n)
+                }
+                // For `mut @field` the same is true: field() takes care of
+                // things.
+                hir::Expression::FieldRef(n) => return self.field(*n),
+                expr => expr,
+            };
+
             let loc = self.add_location(node.location);
-            let val = self.expression(node.value);
+            let val = self.expression(expr);
             let reg = self.new_register(node.resolved_type);
 
             self.current_block_mut().pointer(reg, val, loc);
@@ -3205,7 +3221,7 @@ impl<'a> LowerMethod<'a> {
                     self.block_mut(test_block).int_literal(val_reg, val, loc);
                     self.block_mut(test_block).call_builtin(
                         res_reg,
-                        types::BuiltinFunction::IntEq,
+                        types::Intrinsic::IntEq,
                         vec![test_reg, val_reg],
                         loc,
                     );
@@ -3385,15 +3401,19 @@ impl<'a> LowerMethod<'a> {
             }
         }
 
-        if id.value_type(self.db()).is_stack_class_instance(self.db())
-            && self.register_type(reg).is_pointer(self.db())
+        let typ = id.value_type(self.db());
+
+        if (node.in_mut && typ.is_foreign_type(self.db()))
+            || typ.is_extern_instance(self.db())
         {
+            let reg = self.new_register(typ.as_pointer(self.db()));
+
             self.current_block_mut().field_pointer(reg, rec, class, id, loc);
+            reg
         } else {
             self.current_block_mut().get_field(reg, rec, class, id, loc);
+            reg
         }
-
-        reg
     }
 
     fn constant(&mut self, node: hir::ConstantRef) -> RegisterId {

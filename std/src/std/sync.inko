@@ -1,0 +1,567 @@
+# Types for synchronizing operations.
+#
+# # Futures and promises
+#
+# Two important types for synchronizing operations are `Future` and `Promise`. A
+# future is a proxy value to be resolved into a final value using a `Promise`. A
+# `Future` and its corresponding `Promise` are created using the `Future.new`
+# method. For example:
+#
+# ```inko
+# import std.sync (Future, Promise)
+#
+# class async Example {
+#   fn async write(promise: uni Promise[Int]) {
+#     promise.set(42)
+#   }
+# }
+#
+# class async Main {
+#   fn async main {
+#     match Future.new {
+#       case (future, promise) -> {
+#         Example().write(promise)
+#         future.get # => 42
+#       }
+#     }
+#   }
+# }
+# ```
+import std.clone (Clone)
+import std.deque (Deque)
+import std.drop (Drop, drop as drop_value)
+import std.time (ToInstant)
+
+fn extern inko_process_wait_for_value(
+  process: Pointer[UInt8],
+  lock: Pointer[UInt8],
+  current: UInt8,
+  new: UInt8,
+)
+
+fn extern inko_process_wait_for_value_until(
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
+  lock: Pointer[UInt8],
+  current: UInt8,
+  new: UInt8,
+  nanos: UInt64,
+) -> Bool
+
+fn extern inko_process_reschedule_for_value(
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
+  waiter: Pointer[UInt8],
+)
+
+let NO_WAITER = 0
+let UNLOCKED = 0
+let LOCKED = 1
+
+# The state shared between a `Future` and a `Promise`.
+class FutureState[T] {
+  # A spinlock used to restrict access to the state to a single thread/process
+  # at a time.
+  #
+  # The lock can be in one of two states:
+  #
+  # - `0`: the lock is unlocked
+  # - `1`: the lock is locked
+  #
+  # This field is of type `UInt8` such that we can take a pointer to it, which
+  # is only supported for foreign types.
+  #
+  # The reason for using a spinlock is to avoid the complexity and platform
+  # differences of pthread mutexes, and because it's unlikely we actually need
+  # them to begin with for this particular workload.
+  let @locked: UInt8
+
+  # A flag indicating if both the `Future` and `Promise` still exist.
+  #
+  # When either the `Future` or `Promise` is dropped, it sets this flag to
+  # `false` and the other half is responsible for cleaning up the shared state.
+  let @connected: Bool
+
+  # The process waiting for a value to be written to the future.
+  #
+  # A value of NULL means no process is waiting.
+  let @waiter: Pointer[UInt8]
+
+  # The value the future resolves to, if any.
+  let @value: Option[T]
+
+  fn mut lock {
+    while
+      _INKO
+        .int_compare_swap(mut @locked, UNLOCKED as UInt8, LOCKED as UInt8)
+        .false?
+    {
+      # Since a future can only have a single reader and a single writer,
+      # contention is limited to at most two OS threads. Combined with the
+      # locked workload being fast (in the order of a few hundred nanoseconds at
+      # most), it's unlikely we'll ever reach this point.
+      #
+      # If we do, the spin loop hint ensures we don't set the CPU on fire. In
+      # addition, Inko's scheduler takes care of rescheduling the process
+      # automatically if we spin for too long.
+      _INKO.spin_loop_hint
+    }
+  }
+
+  fn mut unlock {
+    _INKO.int_compare_swap(mut @locked, LOCKED as UInt8, UNLOCKED as UInt8)
+  }
+}
+
+# A proxy value to resolve into the result of some asynchronous operation.
+#
+# The value of a `Future` is set by its corresponding `Promise`.
+#
+# A `Future[T]` is resolved into its `T` using one of the following methods:
+#
+# - `Future.get`
+# - `Future.try_get`
+# - `Future.get_until`
+class pub Future[T] {
+  let @state: UInt64
+
+  # Returns a new `Future` along with its corresponding `Promise`.
+  #
+  # The `Future` and `Promise` are returned as unique references, allowing them
+  # to be moved between processes.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.sync (Future)
+  #
+  # match Future.new {
+  #   case (future, promise) -> {
+  #     promise.set(42)
+  #     future.get # => 42
+  #   }
+  # }
+  # ```
+  fn pub static new -> (uni Future[uni T], uni Promise[uni T]) {
+    let fut: FutureState[uni T] = FutureState(
+      waiter: NO_WAITER as Pointer[UInt8],
+      locked: UNLOCKED as UInt8,
+      connected: true,
+      value: Option.None,
+    )
+
+    # The `Future` and `Promise` need shared access of the underlying data. This
+    # technically violates Inko's single-ownership rules, so to allow that we
+    # cast the state reference to an address, then cast that back where
+    # necessary.
+    #
+    # This is of course highly unsafe, but it's how this particular sausage is
+    # made.
+    let fut = fut as UInt64
+
+    (recover Future(fut), recover Promise(fut))
+  }
+
+  # Returns the value of the `Future`, blocking the calling process until a
+  # value is available.
+  #
+  # This method consumes the `Future`, ensuring a value can only be resolved
+  # once.
+  #
+  # # Deadlocks
+  #
+  # If a `Promise` is dropped before a call to `Future.get` or while the
+  # `Future` waits for a value to be written, the calling process of
+  # `Future.get` will deadlock. This method makes no attempt at detecting such
+  # cases as doing so is notoriously difficult.
+  #
+  # To avoid a deadlock, make sure to always write a value to a `Promise`
+  # _before_ discarding it.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.sync (Future)
+  #
+  # match Future.new {
+  #   case (future, promise) -> {
+  #     promise.set(42)
+  #     future.get # => 42
+  #   }
+  # }
+  # ```
+  fn pub move get -> uni T {
+    loop {
+      let fut = lock
+
+      match fut.value := Option.None {
+        case Some(val) -> {
+          fut.unlock
+
+          # Ensure the shared state isn't dropped.
+          _INKO.moved(fut)
+          return val
+        }
+        case _ -> {
+          fut.waiter = _INKO.process
+
+          # This atomically changes the process status, unlocks the future lock
+          # and yields back to the scheduler.
+          inko_process_wait_for_value(
+            _INKO.process,
+            mut fut.locked,
+            1 as UInt8,
+            0 as UInt8,
+          )
+
+          # Ensure the shared state isn't dropped.
+          _INKO.moved(fut)
+        }
+      }
+    }
+  }
+
+  # Returns the value of the future, blocking the calling process until a value
+  # is available or the given deadline is exceeded.
+  #
+  # If a value is resolved within the deadline, a `Result.Ok` containing the
+  # value is returned. If the timeout expired, a `Result.Error` is returned
+  # containing a new `Future` to use for resolving the value.
+  #
+  # # Deadlocks
+  #
+  # Unlike `Future.get`, this method can't deadlock a calling process forever
+  # due to the use of a deadline. However, if the `Promise` is dropped before or
+  # during a call to `Future.get_until`, the calling process will be suspended
+  # until the deadline expires.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.sync (Future)
+  # import std.time (Duration)
+  #
+  # match Future.new {
+  #   case (future, promise) -> {
+  #     promise.set(42)
+  #     future.get_until(Duration.from_secs(1)) # => Result.Ok(42)
+  #   }
+  # }
+  # ```
+  fn pub move get_until[D: ToInstant](
+    deadline: ref D,
+  ) -> Result[uni T, Future[T]] {
+    let nanos = deadline.to_instant.to_int as UInt64
+
+    loop {
+      let fut = lock
+
+      match fut.value := Option.None {
+        case Some(val) -> {
+          fut.unlock
+
+          # Ensure the shared state isn't dropped.
+          _INKO.moved(fut)
+          return Result.Ok(val)
+        }
+        case _ -> {
+          fut.waiter = _INKO.process
+
+          # This atomically changes the process status, unlocks the future lock
+          # and yields back to the scheduler.
+          let timed_out = inko_process_wait_for_value_until(
+            _INKO.state,
+            _INKO.process,
+            mut fut.locked,
+            1 as UInt8,
+            0 as UInt8,
+            nanos,
+          )
+
+          # Ensure the shared state isn't dropped.
+          _INKO.moved(fut)
+
+          if timed_out { return Result.Error(self) }
+        }
+      }
+    }
+  }
+
+  # Returns the value of the future if one is present, without blocking the
+  # calling process.
+  #
+  # If a value is present, a `Result.Ok` is returned containing the value. If no
+  # value is present, a `Result.Error` is returned containing a new `Future` to
+  # use for resolving the value.
+  #
+  # # Deadlocks
+  #
+  # This method never deadlocks.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.sync (Future)
+  #
+  # match Future.new {
+  #   case (future, promise) -> {
+  #     promise.set(42)
+  #     future.try_get # => Result.Ok(42)
+  #   }
+  # }
+  # ```
+  fn pub move try_get -> Result[uni T, Future[T]] {
+    let fut = lock
+    let val = fut.value := Option.None
+
+    fut.unlock
+
+    # Ensure the shared state isn't dropped.
+    _INKO.moved(fut)
+
+    match val {
+      case Some(v) -> Result.Ok(v)
+      case _ -> Result.Error(self)
+    }
+  }
+
+  fn lock -> FutureState[uni T] {
+    let fut = @state as FutureState[uni T]
+
+    fut.lock
+    fut
+  }
+}
+
+impl Drop for Future {
+  fn mut drop {
+    let fut = lock
+
+    if fut.connected {
+      # The `Promise` is still present, so it will be tasked with cleaning up
+      # the shared state.
+      fut.connected = false
+      fut.unlock
+
+      # Ensure the shared state isn't dropped.
+      _INKO.moved(fut)
+    } else {
+      # The `Promise` is already dropped, so it's our job to clean up the shared
+      # state.
+      drop_value(fut)
+    }
+  }
+}
+
+# The writing half of a future.
+#
+# A `Promise` is used to write a value to a future, such that a corresponding
+# `Future` can be resolved into this value.
+class pub Promise[T] {
+  let @state: UInt64
+
+  # Sets the value of the `Future` that belongs to this `Promise` to the given
+  # value.
+  #
+  # This method consumes `self` as to ensure a value can only be written once.
+  #
+  # This method never blocks the calling process.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.sync (Future)
+  #
+  # match Future.new {
+  #   case (future, promise) -> {
+  #     promise.set(42)
+  #     future.get # => 42
+  #   }
+  # }
+  # ```
+  fn pub move set(value: uni T) {
+    let fut = lock
+    let waiter = fut.waiter := NO_WAITER as Pointer[UInt8]
+
+    fut.value = Option.Some(value)
+    fut.unlock
+
+    # Ensure we don't drop the shared state.
+    _INKO.moved(fut)
+
+    # If the waiter is waiting for a value, we have to reschedule it.
+    if waiter as Int != NO_WAITER {
+      inko_process_reschedule_for_value(_INKO.state, _INKO.process, waiter)
+    }
+  }
+
+  fn lock -> FutureState[uni T] {
+    let fut = @state as FutureState[uni T]
+
+    fut.lock
+    fut
+  }
+}
+
+impl Drop for Promise {
+  fn mut drop {
+    let fut = lock
+
+    if fut.connected {
+      # The `Future` is still present, so it will be tasked with cleaning up the
+      # shared state.
+      fut.connected = false
+      fut.unlock
+      _INKO.moved(fut)
+    } else {
+      # The `Future` is already dropped, so it's our job to clean up the shared
+      # state.
+      drop_value(fut)
+    }
+  }
+}
+
+# The shared state of a channel.
+class async ChannelState[T] {
+  let @values: Deque[uni T]
+  let @promises: Deque[Promise[uni T]]
+
+  fn static new -> ChannelState[uni T] {
+    ChannelState(values: recover Deque.new, promises: recover Deque.new)
+  }
+
+  fn async mut send(value: uni T) {
+    match @promises.pop_front {
+      case Some(p) -> p.set(value)
+      case _ -> @values.push_back(value)
+    }
+  }
+
+  fn async mut receive(promise: uni Promise[uni T]) {
+    match @values.pop_front {
+      case Some(v) -> promise.set(v)
+      case _ -> @promises.push_back(promise)
+    }
+  }
+}
+
+# An unbounded multiple publisher multiple consumer channel, implemented using a
+# process and the `Future` and `Promise` types.
+#
+# A `Channel` is useful when you have multiple processes that need to consume
+# work from some sort of shared queue, with the work being balanced across those
+# processes automatically.
+#
+# Values are sent and received in First Out First In (FIFO) order.
+#
+# # Getting values without blocking
+#
+# Due to the shared state being implemented as a process, which requires
+# asynchronous message passing, there is no way to see if a value is present and
+# return it without blocking (e.g. a `try_get` method). If such a method were
+# provided, it would likely return no value (e.g. an `Option.None`) even if
+# values are in fact present, as the call to `Future.try_get` would finish
+# before the underlying process has time to try and resolve the corresponding
+# `Promise`.
+#
+# If you need to retrieve a value without blocking indefinitely, use
+# `Channel.try_receive` with an appropriate deadline instead.
+#
+# # Sharing channels
+#
+# `Channel` implements `Clone`, and cloning a `Channel` results in the copy
+# using the same underlying shared state. To send a `Channel` to a different
+# process, combine `clone` with `recover`. For example:
+#
+# ```inko
+# import std.sync (Channel)
+#
+# class async Example {
+#   fn async example(channel: uni Channel[Int]) {}
+# }
+#
+# let chan1 = Channel.new
+# let chan2 = recover chan1.clone
+#
+# Example().example(chan2)
+# ```
+class pub Channel[T] {
+  let @state: ChannelState[T]
+
+  # Returns a new `Channel`.
+  fn pub static new -> Channel[uni T] {
+    Channel(ChannelState.new)
+  }
+
+  # Sends a new value to `self`.
+  #
+  # This method never blocks the calling process.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.sync (Channel)
+  #
+  # let chan = Channel.new
+  #
+  # chan.send(42)
+  # ```
+  fn pub send(value: uni T) {
+    @state.send(value)
+  }
+
+  # Receives a value from the channel, blocking the calling process until a
+  # value is available.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.sync (Channel)
+  #
+  # let chan = Channel.new
+  #
+  # chan.send(42)
+  # chan.receive # => 42
+  # ```
+  fn pub receive -> uni T {
+    match Future.new {
+      case (future, promise) -> {
+        @state.receive(promise)
+        future.get
+      }
+    }
+  }
+
+  # Receives a value from the channel, blocking the calling process until a
+  # value is available or the deadline expires.
+  #
+  # If a value is received within the given deadline, a `Option.Some` is
+  # returned containing the value, otherwise an `Option.None` is returned.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.sync (Channel)
+  # import std.time (Duration)
+  #
+  # let chan = Channel.new
+  #
+  # chan.receive_until(Duration.from_millis(10)) # => Option.None
+  # chan.send(42)
+  # chan.receive_until(Duration.from_millis(10)) # => Option.Some(42)
+  # ```
+  fn pub receive_until[D: ToInstant](deadline: ref D) -> Option[uni T] {
+    match Future.new {
+      case (future, promise) -> {
+        @state.receive(promise)
+        future.get_until(deadline).ok
+      }
+    }
+  }
+}
+
+impl Clone[Channel[T]] for Channel {
+  fn pub clone -> Channel[T] {
+    Channel(@state)
+  }
+}

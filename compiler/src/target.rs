@@ -1,5 +1,11 @@
 use std::fmt;
 
+/// The minimum SDK version to target when compiling for macOS.
+///
+/// This version must match the minimum version required by Rust when compiling
+/// the runtime library.
+pub(crate) const MAC_SDK_VERSION: &str = "11.0.0";
+
 /// The supported CPU architectures.
 #[derive(Eq, PartialEq, Debug)]
 pub(crate) enum Architecture {
@@ -167,10 +173,12 @@ impl Target {
         };
 
         let os = match self.os {
-            OperatingSystem::Freebsd => "unknown-freebsd",
-            OperatingSystem::Mac => "apple-darwin",
-            OperatingSystem::Linux if self.abi.is_musl() => "linux-musl",
-            OperatingSystem::Linux => "linux-gnu",
+            OperatingSystem::Freebsd => "unknown-freebsd".to_string(),
+            OperatingSystem::Mac => format!("apple-darwin{}", MAC_SDK_VERSION),
+            OperatingSystem::Linux if self.abi.is_musl() => {
+                "linux-musl".to_string()
+            }
+            OperatingSystem::Linux => "linux-gnu".to_string(),
         };
 
         format!("{}-{}", arch, os)
@@ -356,7 +364,7 @@ mod tests {
         assert_eq!(
             Target::new(Architecture::Arm64, OperatingSystem::Mac, Abi::Native)
                 .llvm_triple(),
-            "aarch64-apple-darwin"
+            format!("aarch64-apple-darwin{}", MAC_SDK_VERSION)
         );
     }
 

@@ -31,18 +31,17 @@ pub const INT_ID: u32 = 2;
 pub const FLOAT_ID: u32 = 3;
 pub const BOOL_ID: u32 = 4;
 pub const NIL_ID: u32 = 5;
-pub const CHANNEL_ID: u32 = 6;
 
-const TUPLE1_ID: u32 = 7;
-const TUPLE2_ID: u32 = 8;
-const TUPLE3_ID: u32 = 9;
-const TUPLE4_ID: u32 = 10;
-const TUPLE5_ID: u32 = 11;
-const TUPLE6_ID: u32 = 12;
-const TUPLE7_ID: u32 = 13;
-const TUPLE8_ID: u32 = 14;
-const ARRAY_ID: u32 = 15;
-const CHECKED_INT_RESULT_ID: u32 = 16;
+const TUPLE1_ID: u32 = 6;
+const TUPLE2_ID: u32 = 7;
+const TUPLE3_ID: u32 = 8;
+const TUPLE4_ID: u32 = 9;
+const TUPLE5_ID: u32 = 10;
+const TUPLE6_ID: u32 = 11;
+const TUPLE7_ID: u32 = 12;
+const TUPLE8_ID: u32 = 13;
+const ARRAY_ID: u32 = 14;
+const CHECKED_INT_RESULT_ID: u32 = 15;
 
 pub const FIRST_USER_CLASS_ID: u32 = CHECKED_INT_RESULT_ID + 1;
 
@@ -58,7 +57,6 @@ const ARRAY_NAME: &str = "Array";
 const BOOL_NAME: &str = "Bool";
 const NIL_NAME: &str = "Nil";
 const BYTE_ARRAY_NAME: &str = "ByteArray";
-const CHANNEL_NAME: &str = "Channel";
 const TUPLE1_NAME: &str = "Tuple1";
 const TUPLE2_NAME: &str = "Tuple2";
 const TUPLE3_NAME: &str = "Tuple3";
@@ -1332,10 +1330,6 @@ impl ClassId {
         ClassId(NIL_ID)
     }
 
-    pub fn channel() -> ClassId {
-        ClassId(CHANNEL_ID)
-    }
-
     pub fn array() -> ClassId {
         ClassId(ARRAY_ID)
     }
@@ -1651,7 +1645,7 @@ impl ClassId {
     }
 
     pub fn is_builtin(self) -> bool {
-        self.0 <= CHANNEL_ID
+        self.0 <= NIL_ID
     }
 
     pub fn is_value_type(self, db: &Database) -> bool {
@@ -1912,7 +1906,7 @@ impl Visibility {
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
-pub enum BuiltinFunction {
+pub enum Intrinsic {
     FloatAdd,
     FloatCeil,
     FloatDiv,
@@ -1960,58 +1954,64 @@ pub enum BuiltinFunction {
     IntCheckedSub,
     IntSwapBytes,
     IntAbsolute,
+    IntCompareSwap,
+    SpinLoopHint,
+    BoolEq,
 }
 
-impl BuiltinFunction {
+impl Intrinsic {
     pub fn mapping() -> HashMap<String, Self> {
         vec![
-            BuiltinFunction::FloatAdd,
-            BuiltinFunction::FloatCeil,
-            BuiltinFunction::FloatDiv,
-            BuiltinFunction::FloatEq,
-            BuiltinFunction::FloatFloor,
-            BuiltinFunction::FloatFromBits,
-            BuiltinFunction::FloatGe,
-            BuiltinFunction::FloatGt,
-            BuiltinFunction::FloatIsInf,
-            BuiltinFunction::FloatIsNan,
-            BuiltinFunction::FloatLe,
-            BuiltinFunction::FloatLt,
-            BuiltinFunction::FloatMod,
-            BuiltinFunction::FloatMul,
-            BuiltinFunction::FloatSub,
-            BuiltinFunction::FloatToBits,
-            BuiltinFunction::IntBitAnd,
-            BuiltinFunction::IntBitNot,
-            BuiltinFunction::IntBitOr,
-            BuiltinFunction::IntBitXor,
-            BuiltinFunction::IntDiv,
-            BuiltinFunction::IntEq,
-            BuiltinFunction::IntGe,
-            BuiltinFunction::IntGt,
-            BuiltinFunction::IntLe,
-            BuiltinFunction::IntLt,
-            BuiltinFunction::IntRem,
-            BuiltinFunction::IntRotateLeft,
-            BuiltinFunction::IntRotateRight,
-            BuiltinFunction::IntShl,
-            BuiltinFunction::IntShr,
-            BuiltinFunction::IntUnsignedShr,
-            BuiltinFunction::IntWrappingAdd,
-            BuiltinFunction::IntWrappingMul,
-            BuiltinFunction::IntWrappingSub,
-            BuiltinFunction::IntCheckedAdd,
-            BuiltinFunction::IntCheckedMul,
-            BuiltinFunction::IntCheckedSub,
-            BuiltinFunction::Moved,
-            BuiltinFunction::Panic,
-            BuiltinFunction::StringConcat,
-            BuiltinFunction::State,
-            BuiltinFunction::Process,
-            BuiltinFunction::FloatRound,
-            BuiltinFunction::FloatPowi,
-            BuiltinFunction::IntSwapBytes,
-            BuiltinFunction::IntAbsolute,
+            Intrinsic::FloatAdd,
+            Intrinsic::FloatCeil,
+            Intrinsic::FloatDiv,
+            Intrinsic::FloatEq,
+            Intrinsic::FloatFloor,
+            Intrinsic::FloatFromBits,
+            Intrinsic::FloatGe,
+            Intrinsic::FloatGt,
+            Intrinsic::FloatIsInf,
+            Intrinsic::FloatIsNan,
+            Intrinsic::FloatLe,
+            Intrinsic::FloatLt,
+            Intrinsic::FloatMod,
+            Intrinsic::FloatMul,
+            Intrinsic::FloatSub,
+            Intrinsic::FloatToBits,
+            Intrinsic::IntBitAnd,
+            Intrinsic::IntBitNot,
+            Intrinsic::IntBitOr,
+            Intrinsic::IntBitXor,
+            Intrinsic::IntDiv,
+            Intrinsic::IntEq,
+            Intrinsic::IntGe,
+            Intrinsic::IntGt,
+            Intrinsic::IntLe,
+            Intrinsic::IntLt,
+            Intrinsic::IntRem,
+            Intrinsic::IntRotateLeft,
+            Intrinsic::IntRotateRight,
+            Intrinsic::IntShl,
+            Intrinsic::IntShr,
+            Intrinsic::IntUnsignedShr,
+            Intrinsic::IntWrappingAdd,
+            Intrinsic::IntWrappingMul,
+            Intrinsic::IntWrappingSub,
+            Intrinsic::IntCheckedAdd,
+            Intrinsic::IntCheckedMul,
+            Intrinsic::IntCheckedSub,
+            Intrinsic::Moved,
+            Intrinsic::Panic,
+            Intrinsic::StringConcat,
+            Intrinsic::State,
+            Intrinsic::Process,
+            Intrinsic::FloatRound,
+            Intrinsic::FloatPowi,
+            Intrinsic::IntSwapBytes,
+            Intrinsic::IntAbsolute,
+            Intrinsic::IntCompareSwap,
+            Intrinsic::SpinLoopHint,
+            Intrinsic::BoolEq,
         ]
         .into_iter()
         .fold(HashMap::new(), |mut map, func| {
@@ -2022,53 +2022,56 @@ impl BuiltinFunction {
 
     pub fn name(self) -> &'static str {
         match self {
-            BuiltinFunction::FloatAdd => "float_add",
-            BuiltinFunction::FloatCeil => "float_ceil",
-            BuiltinFunction::FloatDiv => "float_div",
-            BuiltinFunction::FloatEq => "float_eq",
-            BuiltinFunction::FloatFloor => "float_floor",
-            BuiltinFunction::FloatFromBits => "float_from_bits",
-            BuiltinFunction::FloatGe => "float_ge",
-            BuiltinFunction::FloatGt => "float_gt",
-            BuiltinFunction::FloatIsInf => "float_is_inf",
-            BuiltinFunction::FloatIsNan => "float_is_nan",
-            BuiltinFunction::FloatLe => "float_le",
-            BuiltinFunction::FloatLt => "float_lt",
-            BuiltinFunction::FloatMod => "float_mod",
-            BuiltinFunction::FloatMul => "float_mul",
-            BuiltinFunction::FloatSub => "float_sub",
-            BuiltinFunction::FloatToBits => "float_to_bits",
-            BuiltinFunction::IntBitAnd => "int_bit_and",
-            BuiltinFunction::IntBitNot => "int_bit_not",
-            BuiltinFunction::IntBitOr => "int_bit_or",
-            BuiltinFunction::IntBitXor => "int_bit_xor",
-            BuiltinFunction::IntDiv => "int_div",
-            BuiltinFunction::IntEq => "int_eq",
-            BuiltinFunction::IntGe => "int_ge",
-            BuiltinFunction::IntGt => "int_gt",
-            BuiltinFunction::IntLe => "int_le",
-            BuiltinFunction::IntLt => "int_lt",
-            BuiltinFunction::IntRem => "int_rem",
-            BuiltinFunction::IntRotateLeft => "int_rotate_left",
-            BuiltinFunction::IntRotateRight => "int_rotate_right",
-            BuiltinFunction::IntShl => "int_shl",
-            BuiltinFunction::IntShr => "int_shr",
-            BuiltinFunction::IntUnsignedShr => "int_unsigned_shr",
-            BuiltinFunction::IntWrappingAdd => "int_wrapping_add",
-            BuiltinFunction::IntWrappingMul => "int_wrapping_mul",
-            BuiltinFunction::IntWrappingSub => "int_wrapping_sub",
-            BuiltinFunction::IntCheckedAdd => "int_checked_add",
-            BuiltinFunction::IntCheckedMul => "int_checked_mul",
-            BuiltinFunction::IntCheckedSub => "int_checked_sub",
-            BuiltinFunction::Moved => "moved",
-            BuiltinFunction::Panic => "panic",
-            BuiltinFunction::StringConcat => "string_concat",
-            BuiltinFunction::State => "state",
-            BuiltinFunction::Process => "process",
-            BuiltinFunction::FloatRound => "float_round",
-            BuiltinFunction::FloatPowi => "float_powi",
-            BuiltinFunction::IntSwapBytes => "int_swap_bytes",
-            BuiltinFunction::IntAbsolute => "int_absolute",
+            Intrinsic::FloatAdd => "float_add",
+            Intrinsic::FloatCeil => "float_ceil",
+            Intrinsic::FloatDiv => "float_div",
+            Intrinsic::FloatEq => "float_eq",
+            Intrinsic::FloatFloor => "float_floor",
+            Intrinsic::FloatFromBits => "float_from_bits",
+            Intrinsic::FloatGe => "float_ge",
+            Intrinsic::FloatGt => "float_gt",
+            Intrinsic::FloatIsInf => "float_is_inf",
+            Intrinsic::FloatIsNan => "float_is_nan",
+            Intrinsic::FloatLe => "float_le",
+            Intrinsic::FloatLt => "float_lt",
+            Intrinsic::FloatMod => "float_mod",
+            Intrinsic::FloatMul => "float_mul",
+            Intrinsic::FloatSub => "float_sub",
+            Intrinsic::FloatToBits => "float_to_bits",
+            Intrinsic::IntBitAnd => "int_bit_and",
+            Intrinsic::IntBitNot => "int_bit_not",
+            Intrinsic::IntBitOr => "int_bit_or",
+            Intrinsic::IntBitXor => "int_bit_xor",
+            Intrinsic::IntDiv => "int_div",
+            Intrinsic::IntEq => "int_eq",
+            Intrinsic::IntGe => "int_ge",
+            Intrinsic::IntGt => "int_gt",
+            Intrinsic::IntLe => "int_le",
+            Intrinsic::IntLt => "int_lt",
+            Intrinsic::IntRem => "int_rem",
+            Intrinsic::IntRotateLeft => "int_rotate_left",
+            Intrinsic::IntRotateRight => "int_rotate_right",
+            Intrinsic::IntShl => "int_shl",
+            Intrinsic::IntShr => "int_shr",
+            Intrinsic::IntUnsignedShr => "int_unsigned_shr",
+            Intrinsic::IntWrappingAdd => "int_wrapping_add",
+            Intrinsic::IntWrappingMul => "int_wrapping_mul",
+            Intrinsic::IntWrappingSub => "int_wrapping_sub",
+            Intrinsic::IntCheckedAdd => "int_checked_add",
+            Intrinsic::IntCheckedMul => "int_checked_mul",
+            Intrinsic::IntCheckedSub => "int_checked_sub",
+            Intrinsic::Moved => "moved",
+            Intrinsic::Panic => "panic",
+            Intrinsic::StringConcat => "string_concat",
+            Intrinsic::State => "state",
+            Intrinsic::Process => "process",
+            Intrinsic::FloatRound => "float_round",
+            Intrinsic::FloatPowi => "float_powi",
+            Intrinsic::IntSwapBytes => "int_swap_bytes",
+            Intrinsic::IntAbsolute => "int_absolute",
+            Intrinsic::IntCompareSwap => "int_compare_swap",
+            Intrinsic::SpinLoopHint => "spin_loop_hint",
+            Intrinsic::BoolEq => "bool_eq",
         }
     }
 
@@ -2078,57 +2081,60 @@ impl BuiltinFunction {
         ));
 
         match self {
-            BuiltinFunction::FloatAdd => TypeRef::float(),
-            BuiltinFunction::FloatCeil => TypeRef::float(),
-            BuiltinFunction::FloatDiv => TypeRef::float(),
-            BuiltinFunction::FloatEq => TypeRef::boolean(),
-            BuiltinFunction::FloatFloor => TypeRef::float(),
-            BuiltinFunction::FloatFromBits => TypeRef::float(),
-            BuiltinFunction::FloatGe => TypeRef::boolean(),
-            BuiltinFunction::FloatGt => TypeRef::boolean(),
-            BuiltinFunction::FloatIsInf => TypeRef::boolean(),
-            BuiltinFunction::FloatIsNan => TypeRef::boolean(),
-            BuiltinFunction::FloatLe => TypeRef::boolean(),
-            BuiltinFunction::FloatLt => TypeRef::boolean(),
-            BuiltinFunction::FloatMod => TypeRef::float(),
-            BuiltinFunction::FloatMul => TypeRef::float(),
-            BuiltinFunction::FloatSub => TypeRef::float(),
-            BuiltinFunction::FloatToBits => TypeRef::int(),
-            BuiltinFunction::IntBitAnd => TypeRef::int(),
-            BuiltinFunction::IntBitNot => TypeRef::int(),
-            BuiltinFunction::IntBitOr => TypeRef::int(),
-            BuiltinFunction::IntBitXor => TypeRef::int(),
-            BuiltinFunction::IntDiv => TypeRef::int(),
-            BuiltinFunction::IntEq => TypeRef::boolean(),
-            BuiltinFunction::IntGe => TypeRef::boolean(),
-            BuiltinFunction::IntGt => TypeRef::boolean(),
-            BuiltinFunction::IntLe => TypeRef::boolean(),
-            BuiltinFunction::IntLt => TypeRef::boolean(),
-            BuiltinFunction::IntRem => TypeRef::int(),
-            BuiltinFunction::IntRotateLeft => TypeRef::int(),
-            BuiltinFunction::IntRotateRight => TypeRef::int(),
-            BuiltinFunction::IntShl => TypeRef::int(),
-            BuiltinFunction::IntShr => TypeRef::int(),
-            BuiltinFunction::IntUnsignedShr => TypeRef::int(),
-            BuiltinFunction::IntWrappingAdd => TypeRef::int(),
-            BuiltinFunction::IntWrappingMul => TypeRef::int(),
-            BuiltinFunction::IntWrappingSub => TypeRef::int(),
-            BuiltinFunction::IntCheckedAdd => checked_result,
-            BuiltinFunction::IntCheckedMul => checked_result,
-            BuiltinFunction::IntCheckedSub => checked_result,
-            BuiltinFunction::Moved => TypeRef::nil(),
-            BuiltinFunction::Panic => TypeRef::Never,
-            BuiltinFunction::StringConcat => TypeRef::string(),
-            BuiltinFunction::State => TypeRef::pointer(TypeId::Foreign(
+            Intrinsic::FloatAdd => TypeRef::float(),
+            Intrinsic::FloatCeil => TypeRef::float(),
+            Intrinsic::FloatDiv => TypeRef::float(),
+            Intrinsic::FloatEq => TypeRef::boolean(),
+            Intrinsic::FloatFloor => TypeRef::float(),
+            Intrinsic::FloatFromBits => TypeRef::float(),
+            Intrinsic::FloatGe => TypeRef::boolean(),
+            Intrinsic::FloatGt => TypeRef::boolean(),
+            Intrinsic::FloatIsInf => TypeRef::boolean(),
+            Intrinsic::FloatIsNan => TypeRef::boolean(),
+            Intrinsic::FloatLe => TypeRef::boolean(),
+            Intrinsic::FloatLt => TypeRef::boolean(),
+            Intrinsic::FloatMod => TypeRef::float(),
+            Intrinsic::FloatMul => TypeRef::float(),
+            Intrinsic::FloatSub => TypeRef::float(),
+            Intrinsic::FloatToBits => TypeRef::int(),
+            Intrinsic::IntBitAnd => TypeRef::int(),
+            Intrinsic::IntBitNot => TypeRef::int(),
+            Intrinsic::IntBitOr => TypeRef::int(),
+            Intrinsic::IntBitXor => TypeRef::int(),
+            Intrinsic::IntDiv => TypeRef::int(),
+            Intrinsic::IntEq => TypeRef::boolean(),
+            Intrinsic::IntGe => TypeRef::boolean(),
+            Intrinsic::IntGt => TypeRef::boolean(),
+            Intrinsic::IntLe => TypeRef::boolean(),
+            Intrinsic::IntLt => TypeRef::boolean(),
+            Intrinsic::IntRem => TypeRef::int(),
+            Intrinsic::IntRotateLeft => TypeRef::int(),
+            Intrinsic::IntRotateRight => TypeRef::int(),
+            Intrinsic::IntShl => TypeRef::int(),
+            Intrinsic::IntShr => TypeRef::int(),
+            Intrinsic::IntUnsignedShr => TypeRef::int(),
+            Intrinsic::IntWrappingAdd => TypeRef::int(),
+            Intrinsic::IntWrappingMul => TypeRef::int(),
+            Intrinsic::IntWrappingSub => TypeRef::int(),
+            Intrinsic::IntCheckedAdd => checked_result,
+            Intrinsic::IntCheckedMul => checked_result,
+            Intrinsic::IntCheckedSub => checked_result,
+            Intrinsic::Moved => TypeRef::nil(),
+            Intrinsic::Panic => TypeRef::Never,
+            Intrinsic::StringConcat => TypeRef::string(),
+            Intrinsic::State => TypeRef::pointer(TypeId::Foreign(
                 ForeignType::Int(8, Sign::Unsigned),
             )),
-            BuiltinFunction::Process => TypeRef::pointer(TypeId::Foreign(
+            Intrinsic::Process => TypeRef::pointer(TypeId::Foreign(
                 ForeignType::Int(8, Sign::Unsigned),
             )),
-            BuiltinFunction::FloatRound => TypeRef::float(),
-            BuiltinFunction::FloatPowi => TypeRef::float(),
-            BuiltinFunction::IntSwapBytes => TypeRef::int(),
-            BuiltinFunction::IntAbsolute => TypeRef::int(),
+            Intrinsic::FloatRound => TypeRef::float(),
+            Intrinsic::FloatPowi => TypeRef::float(),
+            Intrinsic::IntSwapBytes => TypeRef::int(),
+            Intrinsic::IntAbsolute => TypeRef::int(),
+            Intrinsic::IntCompareSwap => TypeRef::boolean(),
+            Intrinsic::SpinLoopHint => TypeRef::nil(),
+            Intrinsic::BoolEq => TypeRef::boolean(),
         }
     }
 }
@@ -2820,8 +2826,8 @@ pub struct ClosureCallInfo {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct BuiltinCallInfo {
-    pub id: BuiltinFunction,
+pub struct IntrinsicCall {
+    pub id: Intrinsic,
     pub returns: TypeRef,
 }
 
@@ -3799,9 +3805,7 @@ impl TypeRef {
         }
     }
 
-    /// Returns `true` if `self` is an instance of a class that's allocated on
-    /// and passed around using the stack.
-    pub fn is_stack_class_instance(self, db: &Database) -> bool {
+    pub fn is_extern_instance(self, db: &Database) -> bool {
         match self {
             TypeRef::Owned(TypeId::ClassInstance(ins))
             | TypeRef::Uni(TypeId::ClassInstance(ins)) => {
@@ -4117,14 +4121,6 @@ impl TypeRef {
         match self {
             TypeRef::Uni(_) | TypeRef::Never | TypeRef::Error => true,
             TypeRef::Owned(TypeId::Closure(id)) => id.can_infer_as_uni(db),
-            TypeRef::Owned(TypeId::ClassInstance(id))
-            | TypeRef::Ref(TypeId::ClassInstance(id))
-            | TypeRef::Mut(TypeId::ClassInstance(id))
-                if id.instance_of.0 == CHANNEL_ID =>
-            {
-                // Channels may contain non-sendable types.
-                id.type_arguments(db).iter().all(|(_, typ)| typ.is_sendable(db))
-            }
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(true, |v| v.is_sendable(db))
             }
@@ -4135,16 +4131,6 @@ impl TypeRef {
     pub fn is_sendable_output(self, db: &Database) -> bool {
         match self {
             TypeRef::Uni(_) | TypeRef::Never | TypeRef::Error => true,
-            TypeRef::Owned(TypeId::ClassInstance(id))
-            | TypeRef::Ref(TypeId::ClassInstance(id))
-            | TypeRef::Mut(TypeId::ClassInstance(id))
-                if id.instance_of.0 == CHANNEL_ID =>
-            {
-                // Channels may contain non-sendable types.
-                id.type_arguments(db)
-                    .iter()
-                    .all(|(_, typ)| typ.is_sendable_output(db))
-            }
             TypeRef::Owned(TypeId::ClassInstance(id)) => {
                 let class = id.instance_of;
 
@@ -4173,9 +4159,7 @@ impl TypeRef {
         if self.is_value_type(db) {
             return if other.is_uni(db) {
                 self.as_uni(db)
-            } else if other.is_ref_or_mut(db)
-                && self.is_stack_class_instance(db)
-            {
+            } else if other.is_ref_or_mut(db) && self.is_extern_instance(db) {
                 self.as_pointer(db)
             } else {
                 self.as_owned(db)
@@ -4749,10 +4733,12 @@ impl TypeRef {
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(Shape::Owned, |v| v.shape(db, shapes))
             }
-            TypeRef::Owned(TypeId::Foreign(ForeignType::Int(size, sign))) => {
+            TypeRef::Owned(TypeId::Foreign(ForeignType::Int(size, sign)))
+            | TypeRef::Uni(TypeId::Foreign(ForeignType::Int(size, sign))) => {
                 Shape::Int(size, sign)
             }
-            TypeRef::Owned(TypeId::Foreign(ForeignType::Float(size))) => {
+            TypeRef::Owned(TypeId::Foreign(ForeignType::Float(size)))
+            | TypeRef::Uni(TypeId::Foreign(ForeignType::Float(size))) => {
                 Shape::Float(size)
             }
             TypeRef::Pointer(_) => Shape::Pointer,
@@ -4786,7 +4772,7 @@ pub enum TypeId {
     ///
     /// This constructor isn't produced by users through the type system,
     /// instead it's produced when specializing type parameters that are
-    /// assigned atomic types, such as channels and processes.
+    /// assigned atomic types, such as processes.
     AtomicTypeParameter(TypeParameterId),
     Closure(ClosureId),
     Foreign(ForeignType),
@@ -4909,7 +4895,7 @@ pub struct Database {
     closures: Vec<Closure>,
     variables: Vec<Variable>,
     constants: Vec<Constant>,
-    builtin_functions: HashMap<String, BuiltinFunction>,
+    intrinsics: HashMap<String, Intrinsic>,
     type_placeholders: Vec<TypePlaceholder>,
     constructors: Vec<Constructor>,
 
@@ -4935,7 +4921,6 @@ impl Database {
                 Class::value_type(FLOAT_NAME.to_string()),
                 Class::value_type(BOOL_NAME.to_string()),
                 Class::value_type(NIL_NAME.to_string()),
-                Class::atomic(CHANNEL_NAME.to_string()),
                 Class::tuple(TUPLE1_NAME.to_string()),
                 Class::tuple(TUPLE2_NAME.to_string()),
                 Class::tuple(TUPLE3_NAME.to_string()),
@@ -4960,7 +4945,7 @@ impl Database {
             closures: Vec::new(),
             variables: Vec::new(),
             constants: Vec::new(),
-            builtin_functions: BuiltinFunction::mapping(),
+            intrinsics: Intrinsic::mapping(),
             type_placeholders: Vec::new(),
             constructors: Vec::new(),
             main_module: None,
@@ -4978,7 +4963,6 @@ impl Database {
             BOOL_NAME => Some(ClassId::boolean()),
             NIL_NAME => Some(ClassId::nil()),
             BYTE_ARRAY_NAME => Some(ClassId::byte_array()),
-            CHANNEL_NAME => Some(ClassId::channel()),
             TUPLE1_NAME => Some(ClassId::tuple1()),
             TUPLE2_NAME => Some(ClassId::tuple2()),
             TUPLE3_NAME => Some(ClassId::tuple3()),
@@ -4992,8 +4976,8 @@ impl Database {
         }
     }
 
-    pub fn builtin_function(&self, name: &str) -> Option<BuiltinFunction> {
-        self.builtin_functions.get(name).cloned()
+    pub fn intrinsic(&self, name: &str) -> Option<Intrinsic> {
+        self.intrinsics.get(name).cloned()
     }
 
     pub fn module(&self, name: &str) -> ModuleId {
@@ -5075,10 +5059,10 @@ impl Database {
 mod tests {
     use super::*;
     use crate::test::{
-        any, closure, generic_instance_id, generic_trait_instance, immutable,
-        immutable_uni, instance, mutable, mutable_uni, new_async_class,
-        new_class, new_extern_class, new_module, new_parameter, new_trait,
-        owned, parameter, placeholder, pointer, rigid, trait_instance, uni,
+        any, closure, generic_trait_instance, immutable, immutable_uni,
+        instance, mutable, mutable_uni, new_async_class, new_class,
+        new_extern_class, new_module, new_parameter, new_trait, owned,
+        parameter, placeholder, pointer, rigid, trait_instance, uni,
     };
     use std::mem::size_of;
 
@@ -5769,7 +5753,6 @@ mod tests {
         assert_eq!(&db.classes[BOOL_ID as usize].name, BOOL_NAME);
         assert_eq!(&db.classes[NIL_ID as usize].name, NIL_NAME);
         assert_eq!(&db.classes[BYTE_ARRAY_ID as usize].name, BYTE_ARRAY_NAME);
-        assert_eq!(&db.classes[CHANNEL_ID as usize].name, CHANNEL_NAME);
     }
 
     #[test]
@@ -5939,30 +5922,6 @@ mod tests {
             mutable(parameter(param2))
         );
         assert_eq!(owned(instance(ext)).as_mut(&db), pointer(instance(ext)));
-    }
-
-    #[test]
-    fn test_type_ref_is_sendable_with_channel() {
-        let mut db = Database::new();
-        let foo = new_class(&mut db, "Foo");
-        let cls = ClassId::channel();
-
-        cls.new_type_parameter(&mut db, "T".to_string());
-
-        let chan_with_ref =
-            generic_instance_id(&mut db, cls, vec![immutable(instance(foo))]);
-        let chan_with_owned =
-            generic_instance_id(&mut db, cls, vec![owned(instance(foo))]);
-        let chan_with_uni =
-            generic_instance_id(&mut db, cls, vec![uni(instance(foo))]);
-
-        assert!(!owned(chan_with_ref).is_sendable(&db));
-        assert!(!owned(chan_with_owned).is_sendable(&db));
-        assert!(owned(chan_with_uni).is_sendable(&db));
-
-        assert!(!owned(chan_with_ref).is_sendable_output(&db));
-        assert!(owned(chan_with_owned).is_sendable_output(&db));
-        assert!(owned(chan_with_uni).is_sendable_output(&db));
     }
 
     #[test]
@@ -6234,15 +6193,6 @@ mod tests {
             Shape::Boolean
         );
         assert_eq!(
-            owned(generic_instance_id(
-                &mut db,
-                ClassId::channel(),
-                vec![TypeRef::int()]
-            ))
-            .shape(&db, &shapes),
-            Shape::Atomic
-        );
-        assert_eq!(
             owned(TypeId::Foreign(ForeignType::Int(32, Sign::Signed)))
                 .shape(&db, &shapes),
             Shape::Int(32, Sign::Signed)
@@ -6253,11 +6203,20 @@ mod tests {
             Shape::Int(32, Sign::Unsigned)
         );
         assert_eq!(
+            uni(TypeId::Foreign(ForeignType::Int(32, Sign::Unsigned)))
+                .shape(&db, &shapes),
+            Shape::Int(32, Sign::Unsigned)
+        );
+        assert_eq!(
             owned(TypeId::Foreign(ForeignType::Float(32))).shape(&db, &shapes),
             Shape::Float(32)
         );
         assert_eq!(
             owned(TypeId::Foreign(ForeignType::Float(64))).shape(&db, &shapes),
+            Shape::Float(64)
+        );
+        assert_eq!(
+            uni(TypeId::Foreign(ForeignType::Float(64))).shape(&db, &shapes),
             Shape::Float(64)
         );
         assert_eq!(
@@ -6312,10 +6271,10 @@ mod tests {
         let mut db = Database::new();
         let ext = new_extern_class(&mut db, "A");
 
-        assert!(owned(instance(ext)).is_stack_class_instance(&db));
-        assert!(uni(instance(ext)).is_stack_class_instance(&db));
-        assert!(!immutable(instance(ext)).is_stack_class_instance(&db));
-        assert!(!mutable(instance(ext)).is_stack_class_instance(&db));
-        assert!(!pointer(instance(ext)).is_stack_class_instance(&db));
+        assert!(owned(instance(ext)).is_extern_instance(&db));
+        assert!(uni(instance(ext)).is_extern_instance(&db));
+        assert!(!immutable(instance(ext)).is_extern_instance(&db));
+        assert!(!mutable(instance(ext)).is_extern_instance(&db));
+        assert!(!pointer(instance(ext)).is_extern_instance(&db));
     }
 }

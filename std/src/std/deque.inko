@@ -1,0 +1,504 @@
+# A double-ended queue (= "deque").
+import std.alloc
+import std.array (bounds_check)
+import std.cmp (max)
+import std.drop (Drop)
+import std.iter (Iter, Stream)
+import std.ptr
+
+# A double-ended queue (= "deque").
+#
+# This type is implemented as a growable ring buffer, and supports fast inserts
+# and removals at the head and tail of the queue.
+#
+# The implementation is currently based on Rust's `VecDeque` type, which in turn
+# is based on a comment by dizzy57 on [this
+# article](https://www.snellman.net/blog/archive/2016-12-13-ring-buffers/).
+class pub Deque[T] {
+  # The number of values stored in the deque.
+  let @size: Int
+
+  # The number of values that can be stored in the deque before a resize is
+  # needed.
+  let @capacity: Int
+
+  # The index at which to perform operations that act on the head/start of the
+  # deque.
+  let @head: Int
+
+  # The buffer storing the values.
+  let @buffer: Pointer[T]
+
+  # Returns a `Deque` with enough space for at least `size` values.
+  #
+  # # Panics
+  #
+  # This method panics of `size` if less than zero.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.deque (Deque)
+  #
+  # Deque.with_capacity(42)
+  # ```
+  fn pub static with_capacity(size: Int) -> Deque[T] {
+    if size < 0 { panic('the capacity must be greater than or equal to zero') }
+
+    Deque(
+      size: 0,
+      capacity: size,
+      head: 0,
+      buffer: alloc.resize(0 as Pointer[T], size),
+    )
+  }
+
+  # Returns a `Deque` with a capacity of zero.
+  #
+  # See `Deque.with_capacity` for more details.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.deque (Deque)
+  #
+  # Deque.new
+  # ```
+  fn pub static new -> Deque[T] {
+    with_capacity(0)
+  }
+
+  # Returns the number of values in `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.deque (Deque)
+  #
+  # let q = Deque.new
+  #
+  # q.size # => 0
+  # q.push_back(10)
+  # q.size # => 1
+  # ```
+  fn pub size -> Int {
+    @size
+  }
+
+  # Returns the number of values that can be stored in `self` before `self`
+  # needs to be resized.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.deque (Deque)
+  #
+  # let q = Deque.with_capacity(4)
+  #
+  # q.capacity # => 4
+  # q.push_back(10)
+  # q.capacity # => 4
+  # ```
+  fn pub capacity -> Int {
+    @capacity
+  }
+
+  # Pushes a value to the front of `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.deque (Deque)
+  #
+  # let q = Deque.new
+  #
+  # q.push_front(42)
+  # ```
+  fn pub mut push_front(value: T) {
+    reserve(1)
+    @head = @head.wrapping_sub(1).wrapping_add(@capacity) % @capacity
+    @size += 1
+    write_to(@head, value)
+  }
+
+  # Removes a value from the front of `self`, returning the removed value.
+  #
+  # If no value was found, a None is returned.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.deque (Deque)
+  #
+  # let q = Deque.new
+  #
+  # q.push_front(10)
+  # q.push_front(20)
+  #
+  # q.pop_front # => Option.Some(20)
+  # q.pop_front # => Option.Some(10)
+  # q.pop_front # => Option.None
+  # ```
+  fn pub mut pop_front -> Option[T] {
+    if @size == 0 { return Option.None }
+
+    @size -= 1
+    Option.Some(read_from(@head := to_buffer_index(1)))
+  }
+
+  # Pushes a value to the back of `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.deque (Deque)
+  #
+  # let q = Deque.new
+  #
+  # q.push_back(42)
+  # ```
+  fn pub mut push_back(value: T) {
+    reserve(1)
+    write_to(to_buffer_index(@size), value)
+    @size += 1
+  }
+
+  # Removes a value from the back of `self`, returning the removed value.
+  #
+  # If no value was found, a None is returned.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.deque (Deque)
+  #
+  # let q = Deque.new
+  #
+  # q.push_back(10)
+  # q.push_back(20)
+  #
+  # q.pop_back # => Option.Some(20)
+  # q.pop_back # => Option.Some(10)
+  # q.pop_back # => Option.None
+  # ```
+  fn pub mut pop_back -> Option[T] {
+    if @size == 0 { return Option.None }
+
+    @size -= 1
+    Option.Some(read_from(to_buffer_index(@size)))
+  }
+
+  # Reserves space for `size` additional values.
+  #
+  # The actual space reserved may be greater to prevent frequent reallocations.
+  # After calling this method, the capacity will be greater than or equal to
+  # `self.size + size`.
+  #
+  # If the capacity is great enough or the given size is less than zero, this
+  # method does nothing.
+  fn pub mut reserve(size: Int) {
+    if @capacity - @size >= size { return }
+
+    let old_cap = @capacity
+
+    @capacity = max(@capacity * 2, @capacity + size)
+    @buffer = alloc.resize(@buffer, @capacity)
+    handle_increase(old_cap)
+  }
+
+  # Removes all values in `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.deque (Deque)
+  #
+  # let q = Deque.new
+  #
+  # q.push_back(10)
+  # q.push_back(20)
+  # q.clear
+  # q.size # => 0
+  # ```
+  fn pub mut clear {
+    while @size > 0 {
+      read_from(@head := to_buffer_index(1))
+      @size -= 1
+    }
+
+    @head = 0
+  }
+
+  # Returns an iterator that yields immutable borrows of the values in `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.deque (Deque)
+  #
+  # let q = Deque.new
+  #
+  # q.push_back(10)
+  # q.push_front(20)
+  # q.push_back(30)
+  #
+  # q.iter.to_array # => [20, 10, 30]
+  # ```
+  fn pub iter -> Stream[ref T] {
+    indexes.map(fn (i) { get_unchecked(i) })
+  }
+
+  # Returns an iterator that moves the values out of `self`, yielding from the
+  # front to the back of the deque.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.deque (Deque)
+  #
+  # let q = Deque.new
+  #
+  # q.push_back(10)
+  # q.push_back(20)
+  # q.into_iter.to_array # => [10, 20]
+  # ```
+  fn pub move into_iter -> IntoIter[T] {
+    IntoIter(indexes: indexes, deque: self)
+  }
+
+  # Returns an immutable borrow of the value at the given index.
+  #
+  # # Panics
+  #
+  # This method panics if the index is out of bounds.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.deque (Deque)
+  #
+  # let q = Deque.new
+  #
+  # q.push_front(10)
+  # q.push_front(20)
+  # q.get(0) # => 20
+  # q.get(1) # => 10
+  # ```
+  fn pub get(index: Int) -> ref T {
+    bounds_check(index, @size)
+    get_unchecked(to_buffer_index(index))
+  }
+
+  # Returns an optional immutable borrow of the value at the given index.
+  #
+  # If the index is out of bounds, an `Option.None` is returned.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.deque (Deque)
+  #
+  # let q = Deque.new
+  #
+  # q.push_front(10)
+  # q.push_front(20)
+  # q.opt(0)  # => Option.Some(20)
+  # q.opt(1)  # => Option.Some(10)
+  # q.opt(42) # => Option.None
+  # ```
+  fn pub opt(index: Int) -> Option[ref T] {
+    if index < 0 or index >= @size { return Option.None }
+
+    Option.Some(get_unchecked(to_buffer_index(index)))
+  }
+
+  fn indexes -> Stream[Int] {
+    let start = to_buffer_index(0)
+    let head_size = @capacity - start
+    let mut idx = start
+    let mut iter_tail = true
+    let mut max = @capacity
+
+    if head_size >= @size {
+      iter_tail = false
+      max = start + @size
+    }
+
+    Stream.new(fn move {
+      loop {
+        if idx < max {
+          return Option.Some(idx := idx + 1)
+        } else if iter_tail {
+          iter_tail = false
+          idx = 0
+          max = @size - head_size
+        } else {
+          return Option.None
+        }
+      }
+    })
+  }
+
+  fn read_from(index: Int) -> T {
+    address_of(index).0
+  }
+
+  fn mut write_to(index: Int, value: T) {
+    address_of(index).0 = value
+  }
+
+  fn address_of(index: Int) -> Pointer[T] {
+    @buffer as Int + (index * _INKO.size_of_type_parameter(T)) as Pointer[T]
+  }
+
+  fn get_unchecked(index: Int) -> ref T {
+    let val = read_from(index)
+    let ret = ref val
+
+    _INKO.moved(val)
+    ret
+  }
+
+  fn to_buffer_index(index: Int) -> Int {
+    @head.wrapping_add(index) % @capacity
+  }
+
+  fn mut handle_increase(old_capacity: Int) {
+    if @head <= (old_capacity - @size) {
+      return
+      # Nothing to do for this case.
+    }
+
+    let head_size = old_capacity - @head
+    let tail_size = @size - head_size
+
+    if head_size > tail_size and @capacity - old_capacity >= tail_size {
+      alloc.copy(
+        from: @buffer,
+        to: ptr.add(@buffer, old_capacity),
+        size: tail_size,
+      )
+      return
+    }
+
+    let new_head = @capacity - head_size
+
+    alloc.copy(
+      from: ptr.add(@buffer, @head),
+      to: ptr.add(@buffer, new_head),
+      size: head_size,
+    )
+    @head = new_head
+  }
+}
+
+impl Deque if T: mut {
+  # Returns a mutable borrow of the value at the given index.
+  #
+  # # Panics
+  #
+  # This method panics if the index is out of bounds.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.deque (Deque)
+  #
+  # let q = Deque.new
+  #
+  # q.push_front(10)
+  # q.push_front(20)
+  # q.get_mut(0) # => 20
+  # q.get_mut(1) # => 10
+  # ```
+  fn pub mut get_mut(index: Int) -> mut T {
+    bounds_check(index, @size)
+    get_unchecked_mut(to_buffer_index(index))
+  }
+
+  # Returns an optional mutable borrow of the value at the given index.
+  #
+  # If the index is out of bounds, an `Option.None` is returned.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.deque (Deque)
+  #
+  # let q = Deque.new
+  #
+  # q.push_front(10)
+  # q.push_front(20)
+  # q.opt(0)  # => Option.Some(20)
+  # q.opt(1)  # => Option.Some(10)
+  # q.opt(42) # => Option.None
+  # ```
+  fn pub mut opt_mut(index: Int) -> Option[mut T] {
+    if index < 0 or index >= @size { return Option.None }
+
+    Option.Some(get_unchecked_mut(to_buffer_index(index)))
+  }
+
+  # Returns an iterator that yields mutable borrows of the values in `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.deque (Deque)
+  #
+  # let q = Deque.new
+  #
+  # q.push_back(10)
+  # q.push_front(20)
+  # q.push_back(30)
+  #
+  # q.iter_mut.to_array # => [20, 10, 30]
+  # ```
+  fn pub mut iter_mut -> Stream[mut T] {
+    indexes.map(fn (i) { get_unchecked_mut(i) })
+  }
+
+  fn mut get_unchecked_mut(index: Int) -> mut T {
+    let val = read_from(index)
+    let ret = mut val
+
+    _INKO.moved(val)
+    ret
+  }
+}
+
+impl Drop for Deque {
+  fn mut drop {
+    clear
+    alloc.free(@buffer)
+  }
+}
+
+# An iterator that moves values out of a `Deque`.
+#
+# When this iterator is dropped, any values not yet moved out of the `Deque` are
+# dropped.
+class pub IntoIter[T] {
+  let @deque: Deque[T]
+  let @indexes: Stream[Int]
+}
+
+impl Iter[T] for IntoIter {
+  fn pub mut next -> Option[T] {
+    @indexes.next.map(fn (i) { @deque.read_from(i) })
+  }
+}
+
+impl Drop for IntoIter {
+  fn mut drop {
+    loop {
+      match @indexes.next {
+        case Some(i) -> @deque.read_from(i)
+        case _ -> break
+      }
+    }
+
+    # This is needed to prevent `Deque.clear` from dropping the data again.
+    @deque.size = 0
+  }
+}

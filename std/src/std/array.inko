@@ -103,15 +103,13 @@ class builtin Array[T] {
   let @capacity: Int
   let @buffer: Pointer[T]
 
-  # Returns a new `Array` with enough space for at least `amount` values.
-  #
-  # The actual capacity may be greater than the given value.
+  # Returns a new `Array` with enough space for at least `size` values.
   #
   # # Panics
   #
   # This method panics of `size` if less than zero.
   fn pub static with_capacity(size: Int) -> Array[T] {
-    if size < 0 { panic('The capacity must be greater than or equal to zero') }
+    if size < 0 { panic('the capacity must be greater than or equal to zero') }
 
     Array(size: 0, capacity: size, buffer: alloc.resize(0 as Pointer[T], size))
   }
@@ -381,8 +379,7 @@ class builtin Array[T] {
     })
   }
 
-  # Returns an `Iter` that iterates over all values in `self`, returning them
-  # by value.
+  # Returns an iterator that moves the values out of `self`.
   #
   # # Examples
   #
@@ -444,7 +441,7 @@ class builtin Array[T] {
     other.into_iter.each(fn (v) { push(v) })
   }
 
-  # Returns the number of values in this Array.
+  # Returns the number of values in `self`.
   #
   # # Examples
   #
@@ -616,6 +613,9 @@ class builtin Array[T] {
     })
   }
 
+  # Returns a raw pointer to the buffer of `self`.
+  #
+  # If `self` is empty, this returns `NULL`.
   fn to_pointer -> Pointer[T] {
     @buffer
   }

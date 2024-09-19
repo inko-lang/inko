@@ -7,6 +7,7 @@ import std.net.socket (Socket, TcpClient, TcpServer)
 import std.net.tls (
   Client, ClientConfig, Server, ServerConfig, ServerConfigError,
 )
+import std.sync (Future, Promise)
 import std.test (Tests)
 
 # A private key of which the content is invalid.
@@ -158,14 +159,14 @@ class async DummyServer {
 class async DummyClient {
   fn async connect(
     port: Int,
-    output: Channel[uni Result[Client[TcpClient], String]],
+    output: uni Promise[uni Result[Client[TcpClient], String]],
   ) {
-    output.send(recover client(port))
+    output.set(recover client(port))
   }
 
   fn async write(
     port: Int,
-    output: Channel[uni Result[Client[TcpClient], String]],
+    output: uni Promise[uni Result[Client[TcpClient], String]],
   ) {
     let res = recover {
       client(port).then(fn (s) {
@@ -174,10 +175,10 @@ class async DummyClient {
       })
     }
 
-    output.send(res)
+    output.set(res)
   }
 
-  fn async reply(port: Int, output: Channel[uni Result[String, String]]) {
+  fn async reply(port: Int, output: uni Promise[uni Result[String, String]]) {
     let res = recover {
       client(port).then(fn (s) {
         let buf = ByteArray.new
@@ -187,7 +188,7 @@ class async DummyClient {
       })
     }
 
-    output.send(res)
+    output.set(res)
   }
 
   fn client(port: Int) -> Result[Client[TcpClient], String] {
@@ -452,68 +453,103 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('Server.close', fn (t) {
-    let out = Channel.new(size: 1)
-    let sock = match try listener {
-      case (sock, port) -> {
-        DummyClient().connect(port, out)
-        sock
+    let sock_fut = match Future.new {
+      case (future, promise) -> {
+        match try listener {
+          case (sock, port) -> {
+            DummyClient().connect(port, promise)
+            (sock, future)
+          }
+        }
       }
     }
-    let server = try accept(sock)
 
-    # There's not really a sensible way we can test close_notify handling as
-    # it's timing/ordering sensitive, so we just test that the initial call
-    # doesn't fail outright.
-    t.equal(server.close, Result.Ok(nil))
-    t.true(out.receive.ok?)
+    match sock_fut {
+      case (sock, out) -> {
+        let server = try accept(sock)
+
+        # There's not really a sensible way we can test close_notify handling as
+        # it's timing/ordering sensitive, so we just test that the initial call
+        # doesn't fail outright.
+        t.equal(server.close, Result.Ok(nil))
+        t.true(out.get.ok?)
+      }
+    }
+
     Result.Ok(nil)
   })
 
   t.ok('Server.read', fn (t) {
-    let out = Channel.new(size: 1)
-    let sock = match try listener {
-      case (sock, port) -> {
-        DummyClient().write(port, out)
-        sock
+    let sock_fut = match Future.new {
+      case (future, promise) -> {
+        match try listener {
+          case (sock, port) -> {
+            DummyClient().write(port, promise)
+            (sock, future)
+          }
+        }
       }
     }
-    let server = try accept(sock)
-    let bytes = ByteArray.new
 
-    t.equal(server.read(into: bytes, size: 5), Result.Ok(5))
-    t.equal(bytes.into_string, 'hello')
-    t.true(out.receive.ok?)
+    match sock_fut {
+      case (sock, out) -> {
+        let server = try accept(sock)
+        let bytes = ByteArray.new
+
+        t.equal(server.read(into: bytes, size: 5), Result.Ok(5))
+        t.equal(bytes.into_string, 'hello')
+        t.true(out.get.ok?)
+      }
+    }
 
     Result.Ok(nil)
   })
 
   t.ok('Server.write_string', fn (t) {
-    let out = Channel.new(size: 1)
-    let sock = match try listener {
-      case (sock, port) -> {
-        DummyClient().reply(port, out)
-        sock
+    let sock_fut = match Future.new {
+      case (future, promise) -> {
+        match try listener {
+          case (sock, port) -> {
+            DummyClient().reply(port, promise)
+            (sock, future)
+          }
+        }
       }
     }
-    let server = try accept(sock)
 
-    t.equal(server.write_string('hello'), Result.Ok(nil))
-    t.equal(recover out.receive, Result.Ok('hello'))
+    match sock_fut {
+      case (sock, out) -> {
+        let server = try accept(sock)
+
+        t.equal(server.write_string('hello'), Result.Ok(nil))
+        t.equal(recover out.get, Result.Ok('hello'))
+      }
+    }
+
     Result.Ok(nil)
   })
 
   t.ok('Server.write_bytes', fn (t) {
-    let out = Channel.new(size: 1)
-    let sock = match try listener {
-      case (sock, port) -> {
-        DummyClient().reply(port, out)
-        sock
+    let sock_fut = match Future.new {
+      case (future, promise) -> {
+        match try listener {
+          case (sock, port) -> {
+            DummyClient().reply(port, promise)
+            (sock, future)
+          }
+        }
       }
     }
-    let server = try accept(sock)
 
-    t.equal(server.write_bytes('hello'.to_byte_array), Result.Ok(nil))
-    t.equal(recover out.receive, Result.Ok('hello'))
+    match sock_fut {
+      case (sock, out) -> {
+        let server = try accept(sock)
+
+        t.equal(server.write_bytes('hello'.to_byte_array), Result.Ok(nil))
+        t.equal(recover out.get, Result.Ok('hello'))
+      }
+    }
+
     Result.Ok(nil)
   })
 }

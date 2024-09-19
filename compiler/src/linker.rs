@@ -1,6 +1,6 @@
 use crate::config::{local_runtimes_directory, Linker};
 use crate::state::State;
-use crate::target::{OperatingSystem, Target};
+use crate::target::{OperatingSystem, Target, MAC_SDK_VERSION};
 use std::io::Read as _;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -262,6 +262,10 @@ pub(crate) fn link(
                 cmd.arg("-framework");
                 cmd.arg(name);
             }
+
+            // We need to ensure that we target the same minimum version as Rust
+            // uses when building the runtime library.
+            cmd.arg(format!("-mmacosx-version-min={}", MAC_SDK_VERSION));
         }
     }
 

@@ -2790,7 +2790,6 @@ mod tests {
             ClassId::boolean(),
             ClassId::nil(),
             ClassId::string(),
-            ClassId::channel(),
         ] {
             class.add_trait_implementation(
                 &mut db,
@@ -2802,18 +2801,12 @@ mod tests {
         }
 
         let to_string_ins = owned(trait_instance_id(to_string));
-        let chan = owned(generic_instance_id(
-            &mut db,
-            ClassId::channel(),
-            vec![TypeRef::int()],
-        ));
 
         check_err_cast(&db, TypeRef::int(), to_string_ins);
         check_err_cast(&db, TypeRef::float(), to_string_ins);
         check_err_cast(&db, TypeRef::boolean(), to_string_ins);
         check_err_cast(&db, TypeRef::nil(), to_string_ins);
         check_err_cast(&db, TypeRef::string(), to_string_ins);
-        check_err_cast(&db, chan, to_string_ins);
         check_err_cast(&db, TypeRef::int(), owned(parameter(param)));
         check_err_cast(&db, to_string_ins, owned(parameter(param)));
     }

@@ -237,8 +237,7 @@ The following shapes are used:
 |-
 | Atomic
 | Dynamic
-| Used for other atomic reference counting types, such as `Channel` and
-  processes.
+| Used for other atomic reference counting types, such as processes.
 
 This approach means that the following two methods compile to the same code,
 provided the `foo` method is given an owned value:

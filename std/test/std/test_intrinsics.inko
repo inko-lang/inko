@@ -1,0 +1,16 @@
+# Intrinsics technically aren't provided by the standard library, but we test
+# them here since they can only be used in modules that reside in the `std`
+# namespace.
+import std.test (Tests)
+
+fn pub tests(t: mut Tests) {
+  t.test('int_compare_swap', fn (t) {
+    let val = 0 as Int64
+
+    t.true(_INKO.int_compare_swap(mut val, 0, 1))
+    t.equal(val as Int, 1)
+
+    t.false(_INKO.int_compare_swap(mut val, 0, 2))
+    t.equal(val as Int, 1)
+  })
+}

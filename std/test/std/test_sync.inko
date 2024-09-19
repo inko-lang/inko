@@ -1,0 +1,130 @@
+import std.drop (drop)
+import std.process (sleep)
+import std.sync (Channel, Future, Promise)
+import std.test (Tests)
+import std.time (Duration)
+
+class async AsyncWriter {
+  fn async write(writer: uni Promise[Int]) {
+    # This doesn't strictly guarantee the reader is in fact waiting, but it's
+    # the closest we can get to that.
+    sleep(Duration.from_millis(10))
+    writer.set(42)
+  }
+}
+
+fn int_future -> (uni Future[Int], uni Promise[Int]) {
+  Future.new
+}
+
+fn pub tests(t: mut Tests) {
+  t.test('Future.get', fn (t) {
+    match Future.new {
+      case (r, w) -> {
+        w.set(42)
+        t.equal(r.get, 42)
+      }
+    }
+  })
+
+  t.ok('Future.get_until', fn (t) {
+    match int_future {
+      case (r, w) -> {
+        let r = match r.get_until(Duration.from_millis(1)) {
+          case Ok(_) -> throw 'expected an Error'
+          case Error(r) -> r
+        }
+
+        w.set(42)
+        t.equal(r.get_until(Duration.from_millis(1)).ok, Option.Some(42))
+      }
+    }
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Future.try_get', fn (t) {
+    match int_future {
+      case (r, w) -> {
+        let r = match r.try_get {
+          case Ok(_) -> throw 'expected an Error'
+          case Error(r) -> r
+        }
+
+        w.set(42)
+        t.equal(r.try_get.ok, Option.Some(42))
+      }
+    }
+
+    Result.Ok(nil)
+  })
+
+  t.test('Future.get_until with a dropped Promise', fn (t) {
+    match int_future {
+      case (r, w) -> {
+        drop(w)
+        t.true(r.get_until(Duration.from_millis(1)).error?)
+      }
+    }
+  })
+
+  t.test('Future.try_get with a dropped Promise', fn (t) {
+    match int_future {
+      case (r, w) -> {
+        drop(w)
+        t.true(r.try_get.error?)
+      }
+    }
+  })
+
+  t.test('Promise.set with a dropped Future', fn (t) {
+    match int_future {
+      case (r, w) -> {
+        drop(r)
+        w.set(42)
+      }
+    }
+  })
+
+  t.test('Promise.set wakes up a Future', fn (t) {
+    match int_future {
+      case (r, w) -> {
+        AsyncWriter().write(w)
+        t.equal(r.get, 42)
+      }
+    }
+  })
+
+  t.test('Channel.receive', fn (t) {
+    let chan = Channel.new
+
+    chan.send(10)
+    chan.send(20)
+
+    t.equal(chan.receive, 10)
+    t.equal(chan.receive, 20)
+  })
+
+  t.test('Channel.receive_until', fn (t) {
+    let chan = Channel.new
+    let deadline = Duration.from_millis(5)
+
+    chan.send(10)
+    chan.send(20)
+
+    t.equal(chan.receive_until(deadline), Option.Some(10))
+    t.equal(chan.receive_until(deadline), Option.Some(20))
+    t.equal(chan.receive_until(deadline), Option.None)
+  })
+
+  t.test('Channel.clone', fn (t) {
+    let chan1 = Channel.new
+    let chan2 = chan1.clone
+    let deadline = Duration.from_millis(5)
+
+    chan1.send(10)
+
+    t.equal(chan2.receive_until(deadline), Option.Some(10))
+    t.equal(chan1.receive_until(deadline), Option.None)
+  })
+}

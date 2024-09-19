@@ -155,11 +155,15 @@ impl Context {
         layouts: &Layouts<'a>,
         type_ref: TypeRef,
     ) -> BasicTypeEnum<'a> {
+        if let TypeRef::Pointer(_) = type_ref {
+            return self.pointer_type().as_basic_type_enum();
+        }
+
         let Ok(id) = type_ref.type_id(db) else {
             return self.pointer_type().as_basic_type_enum();
         };
 
-        let base = match id {
+        match id {
             TypeId::Foreign(ForeignType::Int(8, _)) => {
                 self.i8_type().as_basic_type_enum()
             }
@@ -186,21 +190,16 @@ impl Context {
                         .as_basic_type_enum()
                 } else {
                     match cls.0 {
-                        INT_ID | BOOL_ID | NIL_ID => {
-                            self.i64_type().as_basic_type_enum()
+                        BOOL_ID | NIL_ID => {
+                            self.bool_type().as_basic_type_enum()
                         }
+                        INT_ID => self.i64_type().as_basic_type_enum(),
                         FLOAT_ID => self.f64_type().as_basic_type_enum(),
                         _ => self.pointer_type().as_basic_type_enum(),
                     }
                 }
             }
             _ => self.pointer_type().as_basic_type_enum(),
-        };
-
-        if let TypeRef::Pointer(_) = type_ref {
-            self.pointer_type().as_basic_type_enum()
-        } else {
-            base
         }
     }
 

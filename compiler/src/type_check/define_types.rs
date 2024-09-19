@@ -977,7 +977,6 @@ impl<'a> InsertPrelude<'a> {
         self.add_class(ClassId::boolean());
         self.add_class(ClassId::nil());
         self.add_class(ClassId::byte_array());
-        self.add_class(ClassId::channel());
 
         self.import_class(OPTION_MODULE, OPTION_CLASS);
         self.import_class(RESULT_MODULE, RESULT_CLASS);

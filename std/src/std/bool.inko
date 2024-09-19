@@ -38,8 +38,8 @@ class builtin Bool {
   # # Examples
   #
   # ```inko
-  # true.then fn { 10 }  # => Option.Some(10)
-  # false.then fn { 10 } # => Option.None
+  # true.then(fn { 10 })  # => Option.Some(10)
+  # false.then(fn { 10 }) # => Option.None
   # ```
   fn pub then[T](func: fn -> T) -> Option[T] {
     if self { Option.Some(func.call) } else { Option.None }
@@ -66,7 +66,7 @@ impl Clone[Bool] for Bool {
 
 impl Equal[ref Bool] for Bool {
   fn pub ==(other: ref Bool) -> Bool {
-    _INKO.int_eq(self, other)
+    _INKO.bool_eq(self, other)
   }
 }
 

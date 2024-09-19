@@ -169,12 +169,14 @@ pub(crate) struct Call {
     /// `Option<Vec<Argument>>` since we don't care about the presence (or lack)
     /// of parentheses 99% of the time.
     pub(crate) parens: bool,
+    /// A flag indicating if the call resides directly in a `mut` expression.
+    pub(crate) in_mut: bool,
     pub(crate) location: SourceLocation,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct BuiltinCall {
-    pub(crate) info: Option<types::BuiltinCallInfo>,
+    pub(crate) info: Option<types::IntrinsicCall>,
     pub(crate) name: Identifier,
     pub(crate) arguments: Vec<Expression>,
     pub(crate) location: SourceLocation,
@@ -859,6 +861,7 @@ pub(crate) struct FieldRef {
     pub(crate) name: String,
     pub(crate) resolved_type: types::TypeRef,
     pub(crate) location: SourceLocation,
+    pub(crate) in_mut: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -2065,6 +2068,7 @@ impl<'a> LowerToHir<'a> {
                             location: loc.clone(),
                         },
                         parens: false,
+                        in_mut: false,
                         arguments: Vec::new(),
                         location: loc,
                     }));
@@ -2131,6 +2135,7 @@ impl<'a> LowerToHir<'a> {
                     location: node.location.clone(),
                 },
                 parens: true,
+                in_mut: false,
                 arguments: vec![Argument::Positional(Box::new(
                     PositionalArgument {
                         value: Expression::Int(Box::new(IntLiteral {
@@ -2165,6 +2170,7 @@ impl<'a> LowerToHir<'a> {
                     location: node.location.clone(),
                 },
                 parens: true,
+                in_mut: false,
                 arguments: vec![Argument::Positional(Box::new(
                     PositionalArgument {
                         value: arg,
@@ -2405,6 +2411,7 @@ impl<'a> LowerToHir<'a> {
                 location: node.operator.location,
             },
             parens: true,
+            in_mut: false,
             arguments: vec![Argument::Positional(Box::new(
                 PositionalArgument {
                     value: self.expression(node.right),
@@ -2420,6 +2427,7 @@ impl<'a> LowerToHir<'a> {
             field_id: None,
             name: node.name,
             resolved_type: types::TypeRef::Unknown,
+            in_mut: false,
             location: node.location,
         })
     }
@@ -2445,7 +2453,7 @@ impl<'a> LowerToHir<'a> {
     fn call(&mut self, node: ast::Call) -> Expression {
         if self.is_builtin_call(&node) {
             if !self.module.is_std(&self.state.db) {
-                self.state.diagnostics.builtin_function_not_available(
+                self.state.diagnostics.intrinsic_not_available(
                     self.file(),
                     node.location.clone(),
                 );
@@ -2471,6 +2479,7 @@ impl<'a> LowerToHir<'a> {
             receiver: node.receiver.map(|n| self.expression(n)),
             name: self.identifier(node.name),
             parens: node.arguments.is_some(),
+            in_mut: false,
             arguments: self.optional_call_arguments(node.arguments),
             location: node.location,
         }))
@@ -2641,6 +2650,7 @@ impl<'a> LowerToHir<'a> {
                 },
                 receiver: Some(receiver),
                 parens: true,
+                in_mut: false,
                 arguments: vec![Argument::Positional(Box::new(
                     PositionalArgument {
                         value: self.expression(node.value),
@@ -2664,6 +2674,7 @@ impl<'a> LowerToHir<'a> {
             field_id: None,
             name: field.name.clone(),
             resolved_type: types::TypeRef::Unknown,
+            in_mut: false,
             location: field.location.clone(),
         }));
 
@@ -2678,6 +2689,7 @@ impl<'a> LowerToHir<'a> {
                 },
                 receiver: Some(receiver),
                 parens: true,
+                in_mut: false,
                 arguments: vec![Argument::Positional(Box::new(
                     PositionalArgument {
                         value: self.expression(node.value),
@@ -2730,6 +2742,7 @@ impl<'a> LowerToHir<'a> {
             receiver: Some(setter_rec.clone()),
             name: name.clone(),
             parens: false,
+            in_mut: false,
             arguments: Vec::new(),
             location: getter_loc,
         }));
@@ -2742,6 +2755,7 @@ impl<'a> LowerToHir<'a> {
                 kind: types::CallKind::Unknown,
                 receiver: Some(getter_rec),
                 parens: true,
+                in_mut: false,
                 arguments: vec![Argument::Positional(Box::new(
                     PositionalArgument {
                         value: self.expression(node.value),
@@ -2855,10 +2869,18 @@ impl<'a> LowerToHir<'a> {
     }
 
     fn mut_reference(&mut self, node: ast::Mut) -> Box<Mut> {
+        let mut value = self.expression(node.value);
+
+        match &mut value {
+            Expression::Call(n) => n.in_mut = true,
+            Expression::FieldRef(n) => n.in_mut = true,
+            _ => {}
+        }
+
         Box::new(Mut {
             pointer_to_method: None,
             resolved_type: types::TypeRef::Unknown,
-            value: self.expression(node.value),
+            value,
             location: node.location,
         })
     }
@@ -5172,6 +5194,7 @@ mod tests {
                             location: cols(12, 13)
                         },
                         parens: false,
+                        in_mut: false,
                         arguments: Vec::new(),
                         location: cols(12, 13)
                     })),
@@ -5220,6 +5243,7 @@ mod tests {
                                 location: cols(8, 11),
                             },
                             parens: true,
+                            in_mut: false,
                             arguments: vec![Argument::Positional(Box::new(
                                 PositionalArgument {
                                     value: Expression::Int(Box::new(
@@ -5251,6 +5275,7 @@ mod tests {
                             location: cols(8, 11),
                         },
                         parens: true,
+                        in_mut: false,
                         arguments: vec![Argument::Positional(Box::new(
                             PositionalArgument {
                                 value: Expression::Int(Box::new(IntLiteral {
@@ -5308,6 +5333,7 @@ mod tests {
                     location: cols(8, 8)
                 }))),
                 parens: true,
+                in_mut: false,
                 arguments: vec![Argument::Positional(Box::new(
                     PositionalArgument {
                         value: Expression::Int(Box::new(IntLiteral {
@@ -5337,6 +5363,7 @@ mod tests {
                 field_id: None,
                 name: "a".to_string(),
                 resolved_type: types::TypeRef::Unknown,
+                in_mut: false,
                 location: cols(8, 9)
             }))
         );
@@ -5378,6 +5405,7 @@ mod tests {
                     location: cols(10, 10)
                 },
                 parens: false,
+                in_mut: false,
                 arguments: Vec::new(),
                 location: cols(8, 10)
             }))
@@ -5412,6 +5440,7 @@ mod tests {
                     location: cols(8, 8)
                 },
                 parens: true,
+                in_mut: false,
                 arguments: vec![Argument::Positional(Box::new(
                     PositionalArgument {
                         value: Expression::Int(Box::new(IntLiteral {
@@ -5441,6 +5470,7 @@ mod tests {
                     location: cols(8, 8)
                 },
                 parens: true,
+                in_mut: false,
                 arguments: vec![Argument::Named(Box::new(NamedArgument {
                     index: 0,
                     name: Identifier {
@@ -5480,6 +5510,7 @@ mod tests {
                     location: cols(10, 10)
                 },
                 parens: false,
+                in_mut: false,
                 arguments: Vec::new(),
                 location: cols(8, 10)
             }))
@@ -5655,6 +5686,7 @@ mod tests {
                         }
                     ))),
                     parens: true,
+                    in_mut: false,
                     arguments: vec![Argument::Positional(Box::new(
                         PositionalArgument {
                             value: Expression::Int(Box::new(IntLiteral {
@@ -5738,10 +5770,12 @@ mod tests {
                             location: cols(10, 10)
                         },
                         parens: false,
+                        in_mut: false,
                         arguments: Vec::new(),
                         location: cols(8, 10)
                     }))),
                     parens: true,
+                    in_mut: false,
                     arguments: vec![Argument::Positional(Box::new(
                         PositionalArgument {
                             value: Expression::Int(Box::new(IntLiteral {
@@ -5779,9 +5813,11 @@ mod tests {
                         field_id: None,
                         name: "a".to_string(),
                         resolved_type: types::TypeRef::Unknown,
+                        in_mut: false,
                         location: cols(8, 9)
                     }))),
                     parens: true,
+                    in_mut: false,
                     arguments: vec![Argument::Positional(Box::new(
                         PositionalArgument {
                             value: Expression::Int(Box::new(IntLiteral {
@@ -6167,6 +6203,7 @@ mod tests {
                         location: cols(12, 12)
                     },
                     parens: true,
+                    in_mut: false,
                     arguments: Vec::new(),
                     location: cols(12, 14)
                 })),

@@ -30,23 +30,28 @@ class async Main {
 A simple concurrent program:
 
 ```inko
+import std.sync (Future, Promise)
+
 class async Calculator {
-  fn async fact(size: Int, output: Channel[Int]) {
+  fn async fact(size: Int, output: uni Promise[Int]) {
     let result = 1.to(size).iter.reduce(1, fn (product, val) { product * val })
 
-    output.send(result)
+    output.set(result)
   }
 }
 
 class async Main {
   fn async main {
     let calc = Calculator()
-    let out = Channel.new(size: 1)
 
-    # This calculates the factorial of 15 in the background, then we wait for
-    # the result to be sent back to us via a channel.
-    calc.fact(15, out)
-    out.receive # => 1307674368000
+    match Future.new {
+      case (future, promise) -> {
+        # This calculates the factorial of 15 in the background, then we wait
+        # for the result to be sent back to us.
+        calc.fact(15, promise)
+        future.get # => 1307674368000
+      }
+    }
   }
 }
 ```

@@ -330,6 +330,5 @@ Now run it using `inko run values.inko`, and the output is as follows:
 The reason this program works is because `42` is an instance of the `Int` type,
 which is a 64-bits signed integer, and `Int` is a value type.
 
-Other value types are floats (`Float`), strings (`String`), processes, channels
-(`Channel`), nil (`Nil`), booleans (`Bool`), and C structures used as part of
-the FFI.
+Other value types are floats (`Float`), strings (`String`), processes, nil
+(`Nil`), booleans (`Bool`), and C structures used as part of the FFI.

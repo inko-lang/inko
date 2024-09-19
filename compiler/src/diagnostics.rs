@@ -444,14 +444,14 @@ impl Diagnostics {
         );
     }
 
-    pub(crate) fn builtin_function_not_available(
+    pub(crate) fn intrinsic_not_available(
         &mut self,
         file: PathBuf,
         location: SourceLocation,
     ) {
         self.error(
             DiagnosticId::InvalidCall,
-            "builtin functions can only be used in the standard library",
+            "intrinsics can only be used in the standard library",
             file,
             location,
         );

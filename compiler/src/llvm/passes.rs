@@ -46,9 +46,11 @@ use std::thread::scope;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use types::module_name::ModuleName;
 use types::{
-    BuiltinFunction, ClassId, Database, Module as ModuleType, Shape, TypeRef,
+    ClassId, Database, Intrinsic, Module as ModuleType, Shape, TypeRef,
     BYTE_ARRAY_ID, STRING_ID,
 };
+
+const NIL_VALUE: bool = false;
 
 fn object_path(directories: &BuildDirectories, name: &ModuleName) -> PathBuf {
     let hash = hash(name.as_str().as_bytes()).to_string();
@@ -513,9 +515,24 @@ impl<'a> Worker<'a> {
         let model = CodeModel::Default;
         let triple_name = shared.state.config.target.llvm_triple();
         let triple = TargetTriple::create(&triple_name);
+
+        // We require SSE2 for the pause() instruction, and also require it and
+        // both Neon on ARM64 to allow generated code to take advantage of their
+        // instructions.
+        let features = match shared.state.config.target.arch {
+            Architecture::Amd64 => "+sse2",
+            Architecture::Arm64 => "+neon",
+        };
         let machine = Target::from_triple(&triple)
             .unwrap()
-            .create_target_machine(&triple, "", "", shared.level, reloc, model)
+            .create_target_machine(
+                &triple,
+                "",
+                features,
+                shared.level,
+                reloc,
+                model,
+            )
             .unwrap();
 
         Worker { shared, main, machine, timings: HashMap::new() }
@@ -894,12 +911,7 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
                 builder.f64_literal(*val).as_basic_value_enum()
             }
             Constant::String(val) => self.new_string(builder, state, val),
-            Constant::Bool(true) => {
-                builder.i64_literal(1).as_basic_value_enum()
-            }
-            Constant::Bool(false) => {
-                builder.i64_literal(0).as_basic_value_enum()
-            }
+            Constant::Bool(v) => builder.bool_literal(*v).as_basic_value_enum(),
             Constant::Array(values) => {
                 let (shape, val_typ) = match values.first() {
                     Some(Constant::Int(_)) => (
@@ -908,7 +920,7 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
                     ),
                     Some(Constant::Bool(_)) => (
                         Shape::Boolean,
-                        builder.context.i64_type().as_basic_type_enum(),
+                        builder.context.bool_type().as_basic_type_enum(),
                     ),
                     Some(Constant::Float(_)) => (
                         Shape::float(),
@@ -1172,7 +1184,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 self.set_debug_location(ins.location);
 
                 match ins.name {
-                    BuiltinFunction::IntDiv => {
+                    Intrinsic::IntDiv => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
@@ -1182,7 +1194,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::IntRem => {
+                    Intrinsic::IntRem => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
@@ -1192,7 +1204,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::IntBitAnd => {
+                    Intrinsic::IntBitAnd => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
@@ -1202,7 +1214,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::IntBitOr => {
+                    Intrinsic::IntBitOr => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
@@ -1212,7 +1224,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::IntBitNot => {
+                    Intrinsic::IntBitNot => {
                         let reg_var = self.variables[&ins.register];
                         let val_var = self.variables[&ins.arguments[0]];
                         let val = self.builder.load_int(val_var);
@@ -1220,7 +1232,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::IntBitXor => {
+                    Intrinsic::IntBitXor => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
@@ -1230,62 +1242,57 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::IntEq => {
+                    Intrinsic::IntEq => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
                         let lhs = self.builder.load_int(lhs_var);
                         let rhs = self.builder.load_int(rhs_var);
-                        let raw = self.builder.int_eq(lhs, rhs);
-                        let res = self.builder.bool_to_int(raw);
+                        let res = self.builder.int_eq(lhs, rhs);
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::IntGt => {
+                    Intrinsic::IntGt => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
                         let lhs = self.builder.load_int(lhs_var);
                         let rhs = self.builder.load_int(rhs_var);
-                        let raw = self.builder.int_gt(lhs, rhs);
-                        let res = self.builder.bool_to_int(raw);
+                        let res = self.builder.int_gt(lhs, rhs);
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::IntGe => {
+                    Intrinsic::IntGe => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
                         let lhs = self.builder.load_int(lhs_var);
                         let rhs = self.builder.load_int(rhs_var);
-                        let raw = self.builder.int_ge(lhs, rhs);
-                        let res = self.builder.bool_to_int(raw);
+                        let res = self.builder.int_ge(lhs, rhs);
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::IntLe => {
+                    Intrinsic::IntLe => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
                         let lhs = self.builder.load_int(lhs_var);
                         let rhs = self.builder.load_int(rhs_var);
-                        let raw = self.builder.int_le(lhs, rhs);
-                        let res = self.builder.bool_to_int(raw);
+                        let res = self.builder.int_le(lhs, rhs);
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::IntLt => {
+                    Intrinsic::IntLt => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
                         let lhs = self.builder.load_int(lhs_var);
                         let rhs = self.builder.load_int(rhs_var);
-                        let raw = self.builder.int_lt(lhs, rhs);
-                        let res = self.builder.bool_to_int(raw);
+                        let res = self.builder.int_lt(lhs, rhs);
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::FloatAdd => {
+                    Intrinsic::FloatAdd => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
@@ -1295,7 +1302,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::FloatSub => {
+                    Intrinsic::FloatSub => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
@@ -1305,7 +1312,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::FloatDiv => {
+                    Intrinsic::FloatDiv => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
@@ -1315,7 +1322,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::FloatMul => {
+                    Intrinsic::FloatMul => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
@@ -1325,7 +1332,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::FloatMod => {
+                    Intrinsic::FloatMod => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
@@ -1341,7 +1348,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::FloatCeil => {
+                    Intrinsic::FloatCeil => {
                         let reg_var = self.variables[&ins.register];
                         let val_var = self.variables[&ins.arguments[0]];
                         let val = self.builder.load_float(val_var);
@@ -1357,7 +1364,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::FloatFloor => {
+                    Intrinsic::FloatFloor => {
                         let reg_var = self.variables[&ins.register];
                         let val_var = self.variables[&ins.arguments[0]];
                         let val = self.builder.load_float(val_var);
@@ -1373,18 +1380,17 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::FloatEq => {
+                    Intrinsic::FloatEq => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
                         let lhs = self.builder.load_float(lhs_var);
                         let rhs = self.builder.load_float(rhs_var);
-                        let raw = self.builder.float_eq(lhs, rhs);
-                        let res = self.builder.bool_to_int(raw);
+                        let res = self.builder.float_eq(lhs, rhs);
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::FloatToBits => {
+                    Intrinsic::FloatToBits => {
                         let reg_var = self.variables[&ins.register];
                         let val_var = self.variables[&ins.arguments[0]];
                         let val = self.builder.load_float(val_var);
@@ -1395,7 +1401,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::FloatFromBits => {
+                    Intrinsic::FloatFromBits => {
                         let reg_var = self.variables[&ins.register];
                         let val_var = self.variables[&ins.arguments[0]];
                         let val = self.builder.load_int(val_var);
@@ -1406,51 +1412,47 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::FloatGt => {
+                    Intrinsic::FloatGt => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
                         let lhs = self.builder.load_float(lhs_var);
                         let rhs = self.builder.load_float(rhs_var);
-                        let raw = self.builder.float_gt(lhs, rhs);
-                        let res = self.builder.bool_to_int(raw);
+                        let res = self.builder.float_gt(lhs, rhs);
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::FloatGe => {
+                    Intrinsic::FloatGe => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
                         let lhs = self.builder.load_float(lhs_var);
                         let rhs = self.builder.load_float(rhs_var);
-                        let raw = self.builder.float_ge(lhs, rhs);
-                        let res = self.builder.bool_to_int(raw);
+                        let res = self.builder.float_ge(lhs, rhs);
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::FloatLt => {
+                    Intrinsic::FloatLt => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
                         let lhs = self.builder.load_float(lhs_var);
                         let rhs = self.builder.load_float(rhs_var);
-                        let raw = self.builder.float_lt(lhs, rhs);
-                        let res = self.builder.bool_to_int(raw);
+                        let res = self.builder.float_lt(lhs, rhs);
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::FloatLe => {
+                    Intrinsic::FloatLe => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
                         let lhs = self.builder.load_float(lhs_var);
                         let rhs = self.builder.load_float(rhs_var);
-                        let raw = self.builder.float_le(lhs, rhs);
-                        let res = self.builder.bool_to_int(raw);
+                        let res = self.builder.float_le(lhs, rhs);
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::FloatIsInf => {
+                    Intrinsic::FloatIsInf => {
                         let reg_var = self.variables[&ins.register];
                         let val_var = self.variables[&ins.arguments[0]];
                         let val = self.builder.load_float(val_var);
@@ -1465,21 +1467,19 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                             .into_float_value();
 
                         let pos_inf = self.builder.f64_literal(f64::INFINITY);
-                        let cond = self.builder.float_eq(pos_val, pos_inf);
-                        let res = self.builder.bool_to_int(cond);
+                        let res = self.builder.float_eq(pos_val, pos_inf);
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::FloatIsNan => {
+                    Intrinsic::FloatIsNan => {
                         let reg_var = self.variables[&ins.register];
                         let val_var = self.variables[&ins.arguments[0]];
                         let val = self.builder.load_float(val_var);
-                        let raw = self.builder.float_is_nan(val);
-                        let res = self.builder.bool_to_int(raw);
+                        let res = self.builder.float_is_nan(val);
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::FloatRound => {
+                    Intrinsic::FloatRound => {
                         let reg_var = self.variables[&ins.register];
                         let val_var = self.variables[&ins.arguments[0]];
                         let val = self.builder.load_float(val_var);
@@ -1495,7 +1495,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::FloatPowi => {
+                    Intrinsic::FloatPowi => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
@@ -1517,7 +1517,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::IntRotateLeft => {
+                    Intrinsic::IntRotateLeft => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
@@ -1534,7 +1534,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::IntRotateRight => {
+                    Intrinsic::IntRotateRight => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
@@ -1551,7 +1551,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::IntShl => {
+                    Intrinsic::IntShl => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
@@ -1561,7 +1561,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::IntShr => {
+                    Intrinsic::IntShr => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
@@ -1571,7 +1571,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::IntUnsignedShr => {
+                    Intrinsic::IntUnsignedShr => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
@@ -1581,7 +1581,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::IntWrappingAdd => {
+                    Intrinsic::IntWrappingAdd => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
@@ -1591,7 +1591,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::IntWrappingMul => {
+                    Intrinsic::IntWrappingMul => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
@@ -1601,7 +1601,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::IntWrappingSub => {
+                    Intrinsic::IntWrappingSub => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
@@ -1611,7 +1611,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::IntCheckedAdd => {
+                    Intrinsic::IntCheckedAdd => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
@@ -1629,7 +1629,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::IntCheckedMul => {
+                    Intrinsic::IntCheckedMul => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
@@ -1647,7 +1647,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::IntCheckedSub => {
+                    Intrinsic::IntCheckedSub => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
@@ -1665,7 +1665,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::IntSwapBytes => {
+                    Intrinsic::IntSwapBytes => {
                         let reg_var = self.variables[&ins.register];
                         let val_var = self.variables[&ins.arguments[0]];
                         let val = self.builder.load_int(val_var);
@@ -1680,7 +1680,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::IntAbsolute => {
+                    Intrinsic::IntAbsolute => {
                         let reg_var = self.variables[&ins.register];
                         let val_var = self.variables[&ins.arguments[0]];
                         let val = self.builder.load_int(val_var);
@@ -1696,7 +1696,21 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::Panic => {
+                    Intrinsic::IntCompareSwap => {
+                        let reg_var = self.variables[&ins.register];
+                        let ptr_var = self.variables[&ins.arguments[0]];
+                        let old_var = self.variables[&ins.arguments[1]];
+                        let old_typ = self.variable_types[&ins.arguments[1]];
+                        let new_var = self.variables[&ins.arguments[2]];
+                        let new_typ = self.variable_types[&ins.arguments[2]];
+                        let ptr = self.builder.load_pointer(ptr_var);
+                        let old = self.builder.load(old_typ, old_var);
+                        let new = self.builder.load(new_typ, new_var);
+                        let res = self.builder.atomic_swap(ptr, old, new);
+
+                        self.builder.store(reg_var, res);
+                    }
+                    Intrinsic::Panic => {
                         let val_var = self.variables[&ins.arguments[0]];
                         let val = self.builder.load_pointer(val_var);
                         let func_name = RuntimeFunction::ProcessPanic;
@@ -1706,7 +1720,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                         self.builder.call_void(func, &[proc, val.into()]);
                         self.builder.unreachable();
                     }
-                    BuiltinFunction::StringConcat => {
+                    Intrinsic::StringConcat => {
                         let reg_var = self.variables[&ins.register];
                         let len =
                             self.builder.i64_literal(ins.arguments.len() as _);
@@ -1737,19 +1751,54 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::State => {
+                    Intrinsic::State => {
                         let reg_var = self.variables[&ins.register];
                         let state = self.load_state();
 
                         self.builder.store(reg_var, state);
                     }
-                    BuiltinFunction::Process => {
+                    Intrinsic::Process => {
                         let reg_var = self.variables[&ins.register];
                         let proc = self.load_process();
 
                         self.builder.store(reg_var, proc);
                     }
-                    BuiltinFunction::Moved => unreachable!(),
+                    Intrinsic::SpinLoopHint => {
+                        let reg_var = self.variables[&ins.register];
+                        let nil = self.builder.bool_literal(NIL_VALUE);
+
+                        match self.shared.state.config.target.arch {
+                            Architecture::Amd64 => {
+                                let func = self
+                                    .module
+                                    .intrinsic("llvm.x86.sse2.pause", &[]);
+                                self.builder.call_void(func, &[]);
+                            }
+                            Architecture::Arm64 => {
+                                // For ARM64 we use the same approach as Rust by
+                                // using the ISB SY instruction.
+                                let sy = self.builder.u32_literal(15);
+                                let func = self
+                                    .module
+                                    .intrinsic("llvm.aarch64.isb", &[]);
+
+                                self.builder.call_void(func, &[sy.into()]);
+                            }
+                        };
+
+                        self.builder.store(reg_var, nil)
+                    }
+                    Intrinsic::BoolEq => {
+                        let reg_var = self.variables[&ins.register];
+                        let lhs_var = self.variables[&ins.arguments[0]];
+                        let rhs_var = self.variables[&ins.arguments[1]];
+                        let lhs = self.builder.load_bool(lhs_var);
+                        let rhs = self.builder.load_bool(rhs_var);
+                        let res = self.builder.int_eq(lhs, rhs);
+
+                        self.builder.store(reg_var, res);
+                    }
+                    Intrinsic::Moved => unreachable!(),
                 }
             }
             Instruction::Goto(ins) => {
@@ -1764,11 +1813,10 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
             }
             Instruction::Branch(ins) => {
                 let var = self.variables[&ins.condition];
-                let val = self.builder.load_int(var);
-                let status = self.builder.int_to_bool(val);
+                let val = self.builder.load_bool(var);
 
                 self.builder.branch(
-                    status,
+                    val,
                     all_blocks[ins.if_true.0],
                     all_blocks[ins.if_false.0],
                 );
@@ -1789,19 +1837,19 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
             }
             Instruction::Nil(ins) => {
                 let var = self.variables[&ins.register];
-                let val = self.builder.i64_literal(0);
+                let val = self.builder.bool_literal(NIL_VALUE);
 
                 self.builder.store(var, val);
             }
             Instruction::True(ins) => {
                 let var = self.variables[&ins.register];
-                let val = self.builder.i64_literal(1);
+                let val = self.builder.bool_literal(true);
 
                 self.builder.store(var, val);
             }
             Instruction::False(ins) => {
                 let var = self.variables[&ins.register];
-                let val = self.builder.i64_literal(0);
+                let val = self.builder.bool_literal(false);
 
                 self.builder.store(var, val);
             }
@@ -2091,10 +2139,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                     .extract_field(method, METHOD_FUNCTION_INDEX)
                     .into_pointer_value();
 
-                let func_type = self
-                    .builder
-                    .context
-                    .pointer_type()
+                let func_type = self.variable_types[&ins.register]
                     .fn_type(&sig_args, false);
 
                 self.indirect_call(ins.register, func_type, func_val, &args);
@@ -2138,10 +2183,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                     .extract_field(method, METHOD_FUNCTION_INDEX)
                     .into_pointer_value();
 
-                let func_type = self
-                    .builder
-                    .context
-                    .pointer_type()
+                let func_type = self.variable_types[&ins.register]
                     .fn_type(&sig_args, false);
 
                 self.indirect_call(ins.register, func_type, func_val, &args);
@@ -2511,12 +2553,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
             }
             Instruction::Finish(ins) => {
                 let proc = self.load_process().into();
-                let terminate = self
-                    .builder
-                    .context
-                    .bool_type()
-                    .const_int(ins.terminate as _, false)
-                    .into();
+                let terminate = self.builder.bool_literal(ins.terminate).into();
                 let func = self
                     .module
                     .runtime_function(RuntimeFunction::ProcessFinishMessage);

@@ -27,13 +27,6 @@ Inko's boolean type is `Bool`. Instances of `Bool` are created using `true` and
 `ByteArray` needs less memory compared to an `Array`, but can only store `Int`
 values in the range of 0 up to (and including) 255.
 
-## Channel
-
-`Channel` is used for sending values between processes, and allows multiple
-processes to send and receive values concurrently.
-
-`Channel` is a value type.
-
 ## Float
 
 The `Float` class is used for IEEE 754 double-precision floating point numbers.
