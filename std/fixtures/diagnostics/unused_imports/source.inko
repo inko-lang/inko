@@ -1,0 +1,7 @@
+class pub UnusedClass {}
+
+class pub UsedClass {}
+
+fn pub unused_method {}
+
+fn pub used_method {}

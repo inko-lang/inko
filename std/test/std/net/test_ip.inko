@@ -1,5 +1,5 @@
 import std.fmt (fmt)
-import std.net.ip (self, IpAddress, Ipv4Address, Ipv6Address)
+import std.net.ip (IpAddress, Ipv4Address, Ipv6Address)
 import std.test (Tests)
 
 fn pub tests(t: mut Tests) {

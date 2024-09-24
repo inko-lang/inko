@@ -21,7 +21,9 @@ use crate::type_check::define_types::{
     DefineTypeParameterRequirements, DefineTypeParameters, DefineTypes,
     ImplementTraits, InsertPrelude,
 };
-use crate::type_check::expressions::{define_constants, Expressions};
+use crate::type_check::expressions::{
+    check_unused_imports, define_constants, Expressions,
+};
 use crate::type_check::imports::{CollectExternImports, DefineImportedTypes};
 use crate::type_check::methods::{
     CheckMainMethod, DefineMethods, DefineModuleMethodNames,
@@ -454,7 +456,8 @@ LLVM module timings:
             && CheckMainMethod::run(state)
             && ImplementTraitMethods::run_all(state, modules)
             && define_constants(state, modules)
-            && Expressions::run_all(state, modules);
+            && Expressions::run_all(state, modules)
+            && check_unused_imports(state, modules);
 
         self.timings.type_check = start.elapsed();
 

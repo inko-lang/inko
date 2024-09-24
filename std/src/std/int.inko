@@ -4,13 +4,13 @@ import std.cmp (Compare, Equal, Ordering)
 import std.float (ToFloat)
 import std.fmt (Format as FormatTrait, Formatter)
 import std.hash (Hash, Hasher)
-import std.iter (Iter, Peekable)
+import std.iter (Iter)
 import std.ops (
   Add, BitAnd, BitOr, BitXor, Divide, Modulo, Multiply, Power, ShiftLeft,
   ShiftRight, Subtract, UnsignedShiftRight,
 )
 import std.range (ExclusiveRange, InclusiveRange)
-import std.string (Bytes, StringBuffer, ToString)
+import std.string (Bytes, ToString)
 
 # A type that can be converted to a Int.
 trait pub ToInt {

@@ -76,7 +76,11 @@ impl<'a> TypeScope<'a> {
         Self { module, self_type, method, bounds: Some(bounds) }
     }
 
-    pub(crate) fn symbol(&self, db: &Database, name: &str) -> Option<Symbol> {
+    pub(crate) fn symbol(
+        &self,
+        db: &mut Database,
+        name: &str,
+    ) -> Option<Symbol> {
         if let Some(id) = self.method {
             if let Some(sym) = id.named_type(db, name) {
                 return Some(sym);
@@ -90,13 +94,13 @@ impl<'a> TypeScope<'a> {
                         Some(Symbol::TypeParameter(pid))
                     }
                 }
-                None => self.module.symbol(db, name),
+                None => self.module.use_symbol(db, name),
                 sym => sym,
             }
         } else {
             self.self_type
                 .named_type(db, name)
-                .or_else(|| self.module.symbol(db, name))
+                .or_else(|| self.module.use_symbol(db, name))
         }
     }
 }
@@ -229,9 +233,9 @@ impl<'a> DefineTypeSignature<'a> {
         let name = &node.name.name;
         let symbol = if let Some(source) = node.source.as_ref() {
             if let Some(Symbol::Module(module)) =
-                self.scope.symbol(self.db(), &source.name)
+                self.scope.symbol(self.db_mut(), &source.name)
             {
-                module.symbol(self.db(), name)
+                module.use_symbol(self.db_mut(), name)
             } else {
                 self.state.diagnostics.not_a_module(
                     &source.name,
@@ -242,7 +246,7 @@ impl<'a> DefineTypeSignature<'a> {
                 return TypeRef::Error;
             }
         } else {
-            self.scope.symbol(self.db(), name)
+            self.scope.symbol(self.db_mut(), name)
         };
 
         node.resolved_type = if let Some(symbol) = symbol {
@@ -505,7 +509,7 @@ impl<'a> DefineTypeSignature<'a> {
                 let arg = if let hir::Type::Named(n) = &arguments[0] {
                     let src = if let Some(src) = n.source.as_ref() {
                         if let Some(Symbol::Module(m)) =
-                            self.scope.symbol(self.db(), &src.name)
+                            self.scope.symbol(self.db_mut(), &src.name)
                         {
                             Some(m)
                         } else {
@@ -546,9 +550,9 @@ impl<'a> DefineTypeSignature<'a> {
             }
             name => {
                 let sym = if let Some(m) = source {
-                    m.symbol(self.db(), name)
+                    m.use_symbol(self.db_mut(), name)
                 } else {
-                    self.scope.symbol(self.db(), name)
+                    self.scope.symbol(self.db_mut(), name)
                 };
 
                 match sym {
@@ -1005,18 +1009,18 @@ mod tests {
         let scope = TypeScope::new(module, array_ins, Some(method));
 
         assert_eq!(
-            scope.symbol(&state.db, "A"),
+            scope.symbol(&mut state.db, "A"),
             Some(Symbol::TypeParameter(method_param))
         );
         assert_eq!(
-            scope.symbol(&state.db, "B"),
+            scope.symbol(&mut state.db, "B"),
             Some(Symbol::TypeParameter(self_param))
         );
         assert_eq!(
-            scope.symbol(&state.db, "Array"),
+            scope.symbol(&mut state.db, "Array"),
             Some(Symbol::Class(array))
         );
-        assert!(scope.symbol(&state.db, "Foo").is_none());
+        assert!(scope.symbol(&mut state.db, "Foo").is_none());
     }
 
     #[test]

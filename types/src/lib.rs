@@ -107,6 +107,10 @@ pub const FIELDS_LIMIT: usize = u8::MAX as usize;
 /// The maximum number of values that can be stored in an array literal.
 pub const ARRAY_LIMIT: usize = u16::MAX as usize;
 
+/// When a symbol is using this name, the source module should be imported
+/// instead of the symbol.
+pub const IMPORT_MODULE_ITSELF_NAME: &str = "self";
+
 /// The location at which a symbol is defined.
 #[derive(Clone)]
 pub struct Location {
@@ -2917,7 +2921,7 @@ impl ThrowKind {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum Symbol {
     Class(ClassId),
     Trait(TraitId),
@@ -2959,6 +2963,11 @@ impl Symbol {
     }
 }
 
+struct ModuleSymbol {
+    symbol: Symbol,
+    used: bool,
+}
+
 /// An Inko module.
 pub struct Module {
     name: ModuleName,
@@ -2972,10 +2981,21 @@ pub struct Module {
     /// is used when generating symbol names for methods, such that debug info
     /// uses a human readable name instead of the generated one.
     method_symbol_name: ModuleName,
+
+    /// The ID of the class that's generated for the modle (containing the
+    /// static methods).
     class: ClassId,
+
+    /// The path to the source file of the module.
     file: PathBuf,
+
+    /// The constants defined in this module.
     constants: Vec<ConstantId>,
-    symbols: HashMap<String, Symbol>,
+
+    /// The symbols defined and imported into this module.
+    symbols: HashMap<String, ModuleSymbol>,
+
+    /// The external methods defined in this module.
     extern_methods: HashMap<String, MethodId>,
 }
 
@@ -3044,15 +3064,30 @@ impl ModuleId {
         self.get(db).file.clone()
     }
 
-    pub fn symbol(self, db: &Database, name: &str) -> Option<Symbol> {
-        self.get(db).symbols.get(name).cloned()
+    pub fn use_symbol(self, db: &mut Database, name: &str) -> Option<Symbol> {
+        let module = self.get_mut(db);
+
+        if let Some(sym) = module.symbols.get_mut(name) {
+            sym.used = true;
+            Some(sym.symbol)
+        } else {
+            None
+        }
+    }
+
+    fn symbol(self, db: &Database, name: &str) -> Option<Symbol> {
+        self.get(db).symbols.get(name).map(|v| v.symbol)
+    }
+
+    pub fn symbol_is_used(self, db: &Database, name: &str) -> bool {
+        self.get(db).symbols.get(name).map_or(false, |v| v.used)
     }
 
     pub fn symbols(self, db: &Database) -> Vec<(String, Symbol)> {
         self.get(db)
             .symbols
             .iter()
-            .map(|(name, value)| (name.clone(), *value))
+            .map(|(name, value)| (name.clone(), value.symbol))
             .collect()
     }
 
@@ -3060,8 +3095,12 @@ impl ModuleId {
         self.get(db).symbols.contains_key(name)
     }
 
-    pub fn import_symbol(self, db: &Database, name: &str) -> Option<Symbol> {
-        let symbol = self.symbol(db, name)?;
+    pub fn import_symbol(
+        self,
+        db: &mut Database,
+        name: &str,
+    ) -> Option<Symbol> {
+        let symbol = self.use_symbol(db, name)?;
         let module_id = match symbol {
             Symbol::Class(id) => id.module(db),
             Symbol::Trait(id) => id.module(db),
@@ -3080,7 +3119,9 @@ impl ModuleId {
     }
 
     pub fn new_symbol(self, db: &mut Database, name: String, symbol: Symbol) {
-        self.get_mut(db).symbols.insert(name, symbol);
+        self.get_mut(db)
+            .symbols
+            .insert(name, ModuleSymbol { symbol, used: false });
     }
 
     pub fn method(self, db: &Database, name: &str) -> Option<MethodId> {
@@ -3095,13 +3136,13 @@ impl ModuleId {
         self.get(db)
             .symbols
             .iter()
-            .filter_map(|(name, s)| match s {
+            .filter_map(|(name, s)| match s.symbol {
                 // Generated symbol names start with "$", which we never want to
                 // include.
                 Symbol::Class(id)
                     if id.module(db) == self && !name.starts_with('$') =>
                 {
-                    Some(*id)
+                    Some(id)
                 }
                 _ => None,
             })
@@ -3112,8 +3153,8 @@ impl ModuleId {
         self.get(db)
             .symbols
             .values()
-            .filter_map(|s| match s {
-                Symbol::Trait(id) if id.module(db) == self => Some(*id),
+            .filter_map(|s| match s.symbol {
+                Symbol::Trait(id) if id.module(db) == self => Some(id),
                 _ => None,
             })
             .collect()
@@ -4779,9 +4820,9 @@ pub enum TypeId {
 }
 
 impl TypeId {
-    pub fn named_type(self, db: &Database, name: &str) -> Option<Symbol> {
+    pub fn named_type(self, db: &mut Database, name: &str) -> Option<Symbol> {
         match self {
-            TypeId::Module(id) => id.symbol(db, name),
+            TypeId::Module(id) => id.use_symbol(db, name),
             TypeId::Trait(id) => id.named_type(db, name),
             TypeId::Class(id) => id.named_type(db, name),
             TypeId::ClassInstance(id) => id.named_type(db, name),
@@ -5497,6 +5538,22 @@ mod tests {
         id.new_symbol(&mut db, "A".to_string(), Symbol::Module(id));
 
         assert_eq!(id.symbol(&db, "A"), Some(Symbol::Module(id)));
+        assert!(!id.get(&db).symbols["A"].used);
+    }
+
+    #[test]
+    fn test_module_id_use_symbol() {
+        let mut db = Database::new();
+        let id = Module::alloc(
+            &mut db,
+            ModuleName::new("foo"),
+            PathBuf::from("test.inko"),
+        );
+
+        id.new_symbol(&mut db, "A".to_string(), Symbol::Module(id));
+
+        assert_eq!(id.use_symbol(&mut db, "A"), Some(Symbol::Module(id)));
+        assert!(id.get(&db).symbols["A"].used);
     }
 
     #[test]
@@ -5557,21 +5614,27 @@ mod tests {
             Symbol::TypeParameter(type_param),
         );
 
-        assert_eq!(foo.import_symbol(&db, "unknown"), None);
-        assert_eq!(foo.import_symbol(&db, "A"), Some(Symbol::Class(class)));
-        assert_eq!(bar.import_symbol(&db, "A"), None);
-        assert_eq!(foo.import_symbol(&db, "B"), Some(Symbol::Trait(trait_)));
-        assert_eq!(bar.import_symbol(&db, "B"), None);
+        assert_eq!(foo.import_symbol(&mut db, "unknown"), None);
+        assert_eq!(foo.import_symbol(&mut db, "A"), Some(Symbol::Class(class)));
+        assert_eq!(bar.import_symbol(&mut db, "A"), None);
         assert_eq!(
-            foo.import_symbol(&db, "C"),
+            foo.import_symbol(&mut db, "B"),
+            Some(Symbol::Trait(trait_))
+        );
+        assert_eq!(bar.import_symbol(&mut db, "B"), None);
+        assert_eq!(
+            foo.import_symbol(&mut db, "C"),
             Some(Symbol::Constant(constant))
         );
-        assert_eq!(bar.import_symbol(&db, "C"), None);
-        assert_eq!(foo.import_symbol(&db, "D"), Some(Symbol::Method(method)));
-        assert_eq!(bar.import_symbol(&db, "D"), None);
-        assert_eq!(foo.import_symbol(&db, "E"), None);
-        assert_eq!(bar.import_symbol(&db, "E"), None);
-        assert_eq!(foo.import_symbol(&db, "fizz"), None);
+        assert_eq!(bar.import_symbol(&mut db, "C"), None);
+        assert_eq!(
+            foo.import_symbol(&mut db, "D"),
+            Some(Symbol::Method(method))
+        );
+        assert_eq!(bar.import_symbol(&mut db, "D"), None);
+        assert_eq!(foo.import_symbol(&mut db, "E"), None);
+        assert_eq!(bar.import_symbol(&mut db, "E"), None);
+        assert_eq!(foo.import_symbol(&mut db, "fizz"), None);
     }
 
     #[test]
@@ -5628,7 +5691,7 @@ mod tests {
         let param = array.new_type_parameter(&mut db, "T".to_string());
 
         assert_eq!(
-            TypeId::Class(array).named_type(&db, "T"),
+            TypeId::Class(array).named_type(&mut db, "T"),
             Some(Symbol::TypeParameter(param))
         );
     }
@@ -5646,7 +5709,7 @@ mod tests {
         let param = to_array.new_type_parameter(&mut db, "T".to_string());
 
         assert_eq!(
-            TypeId::Trait(to_array).named_type(&db, "T"),
+            TypeId::Trait(to_array).named_type(&mut db, "T"),
             Some(Symbol::TypeParameter(param))
         );
     }
@@ -5670,8 +5733,8 @@ mod tests {
 
         module.new_symbol(&mut db, "String".to_string(), symbol);
 
-        assert_eq!(type_id.named_type(&db, "String"), Some(symbol));
-        assert!(type_id.named_type(&db, "Foo").is_none());
+        assert_eq!(type_id.named_type(&mut db, "String"), Some(symbol));
+        assert!(type_id.named_type(&mut db, "Foo").is_none());
     }
 
     #[test]
@@ -5693,10 +5756,10 @@ mod tests {
         ));
 
         assert_eq!(
-            ins.named_type(&db, "T"),
+            ins.named_type(&mut db, "T"),
             Some(Symbol::TypeParameter(param))
         );
-        assert!(ins.named_type(&db, "E").is_none());
+        assert!(ins.named_type(&mut db, "E").is_none());
     }
 
     #[test]
@@ -5717,10 +5780,10 @@ mod tests {
         ));
 
         assert_eq!(
-            ins.named_type(&db, "T"),
+            ins.named_type(&mut db, "T"),
             Some(Symbol::TypeParameter(param))
         );
-        assert!(ins.named_type(&db, "E").is_none());
+        assert!(ins.named_type(&mut db, "E").is_none());
     }
 
     #[test]
@@ -5731,7 +5794,7 @@ mod tests {
             "T".to_string(),
         ));
 
-        assert!(param.named_type(&db, "T").is_none());
+        assert!(param.named_type(&mut db, "T").is_none());
     }
 
     #[test]
@@ -5739,7 +5802,7 @@ mod tests {
         let mut db = Database::new();
         let block = TypeId::Closure(Closure::alloc(&mut db, false));
 
-        assert!(block.named_type(&db, "T").is_none());
+        assert!(block.named_type(&mut db, "T").is_none());
     }
 
     #[test]

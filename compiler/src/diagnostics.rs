@@ -27,7 +27,7 @@ pub(crate) enum DiagnosticId {
     MissingTrait,
     Moved,
     Unreachable,
-    UnusedVariable,
+    UnusedSymbol,
 }
 
 impl fmt::Display for DiagnosticId {
@@ -54,7 +54,7 @@ impl fmt::Display for DiagnosticId {
             DiagnosticId::LimitReached => "limit-reached",
             DiagnosticId::MissingMain => "missing-main",
             DiagnosticId::InvalidCast => "invalid-cast",
-            DiagnosticId::UnusedVariable => "unused-variable",
+            DiagnosticId::UnusedSymbol => "unused-symbol",
         };
 
         write!(f, "{}", id)
@@ -955,15 +955,15 @@ impl Diagnostics {
         );
     }
 
-    pub(crate) fn unused_variable(
+    pub(crate) fn unused_symbol(
         &mut self,
         name: &str,
         file: PathBuf,
         location: SourceLocation,
     ) {
         self.warn(
-            DiagnosticId::UnusedVariable,
-            format!("the variable '{}' is unused", name),
+            DiagnosticId::UnusedSymbol,
+            format!("the symbol '{}' is unused", name),
             file,
             location,
         );

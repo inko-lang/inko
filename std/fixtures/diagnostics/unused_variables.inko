@@ -27,6 +27,6 @@ fn example5 {
   fn (a: Int) {}
 }
 
-# unused_variables.inko:2:7 warning(unused-variable): the variable 'a' is unused
-# unused_variables.inko:10:11 warning(unused-variable): the variable 'a' is unused
-# unused_variables.inko:21:11 warning(unused-variable): the variable 'a' is unused
+# unused_variables.inko:2:7 warning(unused-symbol): the symbol 'a' is unused
+# unused_variables.inko:10:11 warning(unused-symbol): the symbol 'a' is unused
+# unused_variables.inko:21:11 warning(unused-symbol): the symbol 'a' is unused

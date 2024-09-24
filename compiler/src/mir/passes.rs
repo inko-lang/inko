@@ -89,14 +89,14 @@ pub(crate) fn define_default_compile_time_variables(state: &mut State) {
 }
 
 pub(crate) fn apply_compile_time_variables(
-    state: &State,
+    state: &mut State,
     mir: &mut Mir,
 ) -> Result<(), String> {
     for ((mod_name, const_name), val) in &state.config.compile_time_variables {
         let Some(Symbol::Constant(id)) = state
             .db
             .optional_module(mod_name.as_str())
-            .and_then(|m| m.symbol(&state.db, const_name))
+            .and_then(|m| m.use_symbol(&mut state.db, const_name))
             .filter(|s| s.is_public(&state.db))
         else {
             return Err(format!(
@@ -4597,7 +4597,7 @@ impl<'a> LowerMethod<'a> {
                 var_loc.start_column..=var_loc.end_column,
             );
 
-            self.state.diagnostics.unused_variable(&name, self.file(), src_loc);
+            self.state.diagnostics.unused_symbol(&name, self.file(), src_loc);
         }
     }
 }

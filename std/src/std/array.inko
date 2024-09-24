@@ -1,7 +1,7 @@
 # An ordered, integer-indexed generic collection of values.
 import std.alloc
 import std.clone (Clone)
-import std.cmp (Compare, Contains, Equal, Ordering, max, min)
+import std.cmp (Compare, Contains, Equal, Ordering, max)
 import std.drop (Drop)
 import std.fmt (Format, Formatter)
 import std.hash (Hash, Hasher)

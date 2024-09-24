@@ -6,11 +6,7 @@ use crate::hir;
 use crate::state::State;
 use ast::source_location::SourceLocation;
 use types::module_name::ModuleName;
-use types::{Database, ModuleId, Symbol};
-
-/// When a symbol is using this name, the source module should be imported
-/// instead of the symbol.
-const IMPORT_MODULE_ITSELF_NAME: &str = "self";
+use types::{Database, ModuleId, Symbol, IMPORT_MODULE_ITSELF_NAME};
 
 /// A compiler pass that defines any imported types.
 ///
@@ -36,14 +32,14 @@ impl<'a> DefineImportedTypes<'a> {
     }
 
     fn run(mut self, module: &mut hir::Module) {
-        for expr in &module.expressions {
-            if let hir::TopLevelExpression::Import(ref node) = expr {
+        for expr in &mut module.expressions {
+            if let hir::TopLevelExpression::Import(node) = expr {
                 self.import(node);
             }
         }
     }
 
-    fn import(&mut self, node: &hir::Import) {
+    fn import(&mut self, node: &mut hir::Import) {
         let source_name = self.import_source(&node.source);
         let source = self.db().module(&source_name.to_string());
 
@@ -55,7 +51,7 @@ impl<'a> DefineImportedTypes<'a> {
                 &node.source.last().unwrap().location,
             );
         } else {
-            for symbol in &node.symbols {
+            for symbol in &mut node.symbols {
                 let name = symbol.name.name.clone();
                 let import_as = symbol.import_as.name.clone();
 
@@ -97,11 +93,15 @@ impl<'a> DefineImportedTypes<'a> {
         }
     }
 
-    fn import_symbol(&mut self, source: ModuleId, node: &hir::ImportSymbol) {
+    fn import_symbol(
+        &mut self,
+        source: ModuleId,
+        node: &mut hir::ImportSymbol,
+    ) {
         let name = &node.name.name;
         let import_as = &node.import_as.name;
 
-        if let Some(symbol) = source.import_symbol(self.db(), name) {
+        if let Some(symbol) = source.import_symbol(self.db_mut(), name) {
             if self.module.symbol_exists(self.db(), import_as) {
                 self.state.diagnostics.duplicate_symbol(
                     import_as,
@@ -218,7 +218,7 @@ mod tests {
 
         assert!(foo_mod.symbol_exists(&state.db, &tail));
         assert_eq!(
-            foo_mod.symbol(&state.db, &tail),
+            foo_mod.use_symbol(&mut state.db, &tail),
             Some(Symbol::Module(bar_mod))
         );
     }
@@ -299,7 +299,7 @@ mod tests {
 
         assert!(foo_mod.symbol_exists(&state.db, &tail));
         assert_eq!(
-            foo_mod.symbol(&state.db, &tail),
+            foo_mod.use_symbol(&mut state.db, &tail),
             Some(Symbol::Module(bar_mod))
         );
     }
@@ -344,7 +344,7 @@ mod tests {
         assert!(foo_mod.symbol_exists(&state.db, &symbol));
         assert!(!foo_mod.symbol_exists(&state.db, "bar"));
         assert_eq!(
-            foo_mod.symbol(&state.db, &symbol),
+            foo_mod.use_symbol(&mut state.db, &symbol),
             Some(Symbol::Module(bar_mod))
         );
     }
@@ -444,7 +444,7 @@ mod tests {
 
         assert!(foo_mod.symbol_exists(&state.db, &symbol));
         assert_eq!(
-            foo_mod.symbol(&state.db, &symbol),
+            foo_mod.use_symbol(&mut state.db, &symbol),
             Some(Symbol::Module(bar_mod))
         );
     }
@@ -495,7 +495,7 @@ mod tests {
         assert!(foo_mod.symbol_exists(&state.db, &symbol));
         assert!(!foo_mod.symbol_exists(&state.db, "Foo"));
         assert_eq!(
-            foo_mod.symbol(&state.db, &symbol),
+            foo_mod.use_symbol(&mut state.db, &symbol),
             Some(Symbol::Module(bar_mod))
         );
     }

@@ -1,12 +1,11 @@
-import helpers (compiler_path, hash, with_directory)
+import helpers (hash, with_directory)
 import std.env
 import std.fmt (fmt)
 import std.fs (DirectoryEntry, FileType)
-import std.fs.file (self, ReadOnlyFile, WriteOnlyFile)
+import std.fs.file (ReadOnlyFile, WriteOnlyFile)
 import std.fs.path (self, Path)
 import std.io (Error)
 import std.stdio (Stdin, Stdout)
-import std.sys
 import std.test (Tests)
 import std.time (DateTime, Duration)
 

@@ -1,5 +1,3 @@
-import helpers (hash)
-import std.fmt (fmt)
 import std.rand (Random, Shuffle)
 import std.test (Tests)
 

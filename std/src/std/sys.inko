@@ -3,7 +3,7 @@ import std.drop (Drop, drop)
 import std.env
 import std.fs.path (Path)
 import std.int (ToInt)
-import std.io (Error, Read, Write, WriteInternal, start_blocking, stop_blocking)
+import std.io (Error, Read, Write, WriteInternal)
 import std.string (ToString)
 import std.sys.unix.sys if unix
 

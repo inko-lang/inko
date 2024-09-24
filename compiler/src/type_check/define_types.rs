@@ -258,7 +258,7 @@ impl<'a> ImplementTraits<'a> {
 
     fn implement_trait(&mut self, node: &mut hir::ImplementTrait) {
         let class_name = &node.class_name.name;
-        let class_id = match self.module.symbol(self.db(), class_name) {
+        let class_id = match self.module.use_symbol(self.db_mut(), class_name) {
             Some(Symbol::Class(id)) => id,
             Some(_) => {
                 self.state.diagnostics.not_a_class(
@@ -1242,16 +1242,16 @@ mod tests {
         FIRST_USER_CLASS_ID,
     };
 
-    fn get_trait(db: &Database, module: ModuleId, name: &str) -> TraitId {
-        if let Some(Symbol::Trait(id)) = module.symbol(db, name) {
+    fn get_trait(db: &mut Database, module: ModuleId, name: &str) -> TraitId {
+        if let Some(Symbol::Trait(id)) = module.use_symbol(db, name) {
             id
         } else {
             panic!("expected a Trait");
         }
     }
 
-    fn get_class(db: &Database, module: ModuleId, name: &str) -> ClassId {
-        if let Some(Symbol::Class(id)) = module.symbol(db, name) {
+    fn get_class(db: &mut Database, module: ModuleId, name: &str) -> ClassId {
+        if let Some(Symbol::Class(id)) = module.use_symbol(db, name) {
             id
         } else {
             panic!("expected a Class");
@@ -1289,7 +1289,7 @@ mod tests {
 
         assert!(DefineTypes::run_all(&mut state, &mut modules));
 
-        let sym = modules[0].module_id.symbol(&state.db, "A");
+        let sym = modules[0].module_id.use_symbol(&mut state.db, "A");
         let id = ConstantId(0);
 
         assert_eq!(state.diagnostics.iter().count(), 0);
@@ -1312,7 +1312,7 @@ mod tests {
         assert_eq!(id.name(&state.db), &"A".to_string());
         assert!(!id.kind(&state.db).is_async());
         assert_eq!(
-            modules[0].module_id.symbol(&state.db, "A"),
+            modules[0].module_id.use_symbol(&mut state.db, "A"),
             Some(Symbol::Class(id))
         );
     }
@@ -1332,7 +1332,7 @@ mod tests {
         assert_eq!(id.name(&state.db), &"A".to_string());
         assert!(id.kind(&state.db).is_async());
         assert_eq!(
-            modules[0].module_id.symbol(&state.db, "A"),
+            modules[0].module_id.use_symbol(&mut state.db, "A"),
             Some(Symbol::Class(id))
         );
     }
@@ -1360,7 +1360,7 @@ mod tests {
         assert_eq!(trait_expr(&modules[0]).trait_id, Some(id));
 
         assert_eq!(
-            modules[0].module_id.symbol(&state.db, "A"),
+            modules[0].module_id.use_symbol(&mut state.db, "A"),
             Some(Symbol::Trait(id))
         );
     }
@@ -1625,7 +1625,7 @@ mod tests {
 
         DefineTypes::run_all(&mut state, &mut modules);
 
-        let debug = get_trait(&state.db, module, "Debug");
+        let debug = get_trait(&mut state.db, module, "Debug");
 
         assert!(DefineTraitRequirements::run_all(&mut state, &mut modules));
         assert_eq!(
@@ -1774,7 +1774,7 @@ mod tests {
 
         assert!(DefineFields::run_all(&mut state, &mut modules));
 
-        let person = get_class(&state.db, module, "Person");
+        let person = get_class(&mut state.db, module, "Person");
         let field = person.field(&state.db, "name").unwrap();
 
         assert_eq!(
@@ -1820,7 +1820,7 @@ mod tests {
 
         assert!(!DefineFields::run_all(&mut state, &mut modules));
 
-        let person = get_class(&state.db, module, "Person");
+        let person = get_class(&mut state.db, module, "Person");
         let field = person.field(&state.db, "name").unwrap();
         let string_ins = ClassInstance::new(string);
 
@@ -1896,7 +1896,7 @@ mod tests {
 
         DefineTypes::run_all(&mut state, &mut modules);
 
-        let trait_a = get_trait(&state.db, module, "A");
+        let trait_a = get_trait(&mut state.db, module, "A");
 
         assert!(DefineTypeParameters::run_all(&mut state, &mut modules));
 
@@ -1939,7 +1939,7 @@ mod tests {
 
         assert!(DefineTypeParameters::run_all(&mut state, &mut modules));
 
-        let class_a = get_class(&state.db, module, "A");
+        let class_a = get_class(&mut state.db, module, "A");
         let params = class_a.type_parameters(&state.db);
 
         assert_eq!(params.len(), 1);
@@ -1996,7 +1996,7 @@ mod tests {
             &mut modules
         ));
 
-        let array = get_class(&state.db, module, "Array");
+        let array = get_class(&mut state.db, module, "Array");
         let param = array.type_parameters(&state.db)[0];
 
         assert_eq!(param.requirements(&state.db)[0].instance_of(), debug);
@@ -2029,7 +2029,7 @@ mod tests {
             &mut modules
         ));
 
-        let to_array = get_trait(&state.db, module, "ToArray");
+        let to_array = get_trait(&mut state.db, module, "ToArray");
         let param = to_array.type_parameters(&state.db)[0];
 
         assert_eq!(param.requirements(&state.db)[0].instance_of(), debug);

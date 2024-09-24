@@ -5,7 +5,6 @@ import std.cmp (Contains, Equal)
 import std.drop (Drop)
 import std.fmt (Format, Formatter)
 import std.hash (Hash, Hasher)
-import std.io (Read)
 import std.iter (Stream)
 import std.option (Option)
 import std.ptr

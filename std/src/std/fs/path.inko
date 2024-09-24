@@ -9,7 +9,6 @@ import std.io (Error)
 import std.iter (Iter, Stream)
 import std.string (IntoString, StringBuffer, ToString)
 import std.sys.unix.fs (self as sys) if unix
-import std.time (DateTime)
 
 class extern AnyResult {
   let @tag: Int

@@ -68,7 +68,7 @@ trait MethodDefiner {
             let name = &param_node.name.name;
 
             if let Some(Symbol::TypeParameter(_)) =
-                receiver_id.named_type(self.db(), name)
+                receiver_id.named_type(self.db_mut(), name)
             {
                 let rec_name = format_type(self.db(), receiver_id);
                 let file = self.file();
@@ -494,7 +494,7 @@ impl<'a> DefineMethods<'a> {
 
     fn reopen_class(&mut self, node: &mut hir::ReopenClass) {
         let class_name = &node.class_name.name;
-        let class_id = match self.module.symbol(self.db(), class_name) {
+        let class_id = match self.module.use_symbol(self.db_mut(), class_name) {
             Some(Symbol::Class(id)) => id,
             Some(_) => {
                 self.state.diagnostics.not_a_class(
@@ -1139,9 +1139,9 @@ impl<'a> CheckMainMethod<'a> {
         }
     }
 
-    fn main_method(&self, mod_id: ModuleId) -> Option<(ClassId, MethodId)> {
+    fn main_method(&mut self, mod_id: ModuleId) -> Option<(ClassId, MethodId)> {
         let class = if let Some(Symbol::Class(class_id)) =
-            mod_id.symbol(self.db(), MAIN_CLASS)
+            mod_id.use_symbol(self.db_mut(), MAIN_CLASS)
         {
             class_id
         } else {

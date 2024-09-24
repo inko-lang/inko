@@ -18,6 +18,7 @@ use types::{
     ModuleId, Receiver, Sign, Symbol, ThrowKind, TraitId, TraitInstance,
     TypeArguments, TypeBounds, TypeId, TypeRef, Variable, VariableId,
     VariableLocation, CALL_METHOD, DEREF_POINTER_FIELD,
+    IMPORT_MODULE_ITSELF_NAME,
 };
 
 const IGNORE_VARIABLE: &str = "_";
@@ -1113,9 +1114,9 @@ impl<'a> CheckConstant<'a> {
         let name = &node.name;
         let symbol = if let Some(src) = node.source.as_ref() {
             if let Some(Symbol::Module(module)) =
-                self.module.symbol(self.db(), &src.name)
+                self.module.use_symbol(self.db_mut(), &src.name)
             {
-                module.symbol(self.db(), name)
+                module.use_symbol(self.db_mut(), name)
             } else {
                 self.state.diagnostics.symbol_not_a_module(
                     &src.name,
@@ -1126,7 +1127,7 @@ impl<'a> CheckConstant<'a> {
                 return TypeRef::Error;
             }
         } else {
-            self.module.symbol(self.db(), name)
+            self.module.use_symbol(self.db_mut(), name)
         };
 
         match symbol {
@@ -2515,7 +2516,7 @@ impl<'a> CheckMethodBody<'a> {
 
                     return TypeRef::Error;
                 }
-                _ => match module.symbol(self.db(), &node.name) {
+                _ => match module.use_symbol(self.db_mut(), &node.name) {
                     Some(Symbol::Constant(id)) => {
                         node.resolved_type = id.value_type(self.db());
                         node.kind = ConstantKind::Constant(id);
@@ -2640,7 +2641,7 @@ impl<'a> CheckMethodBody<'a> {
                 }
                 _ => {
                     if let Some(Symbol::Module(id)) =
-                        module.symbol(self.db(), name)
+                        module.use_symbol(self.db_mut(), name)
                     {
                         if !receiver {
                             self.state.diagnostics.symbol_not_a_value(
@@ -2656,7 +2657,7 @@ impl<'a> CheckMethodBody<'a> {
                     }
 
                     if let Some(Symbol::Method(method)) =
-                        module.symbol(self.db(), name)
+                        module.use_symbol(self.db_mut(), name)
                     {
                         let id = method.module(self.db());
 
@@ -3636,7 +3637,7 @@ impl<'a> CheckMethodBody<'a> {
                 }
 
                 if let TypeId::Module(id) = rec_id {
-                    match id.symbol(self.db(), &node.name.name) {
+                    match id.use_symbol(self.db_mut(), &node.name.name) {
                         Some(Symbol::Constant(id)) => {
                             node.kind = CallKind::GetConstant(id);
 
@@ -3684,7 +3685,7 @@ impl<'a> CheckMethodBody<'a> {
             MethodLookup::None => {
                 if let TypeId::Module(mod_id) = rec_id {
                     if let Some(Symbol::Class(id)) =
-                        mod_id.symbol(self.db(), &node.name.name)
+                        mod_id.use_symbol(self.db_mut(), &node.name.name)
                     {
                         return self.new_class_instance(node, scope, id);
                     }
@@ -3770,7 +3771,7 @@ impl<'a> CheckMethodBody<'a> {
                     return TypeRef::Error;
                 }
                 MethodLookup::None => {
-                    match self.module.symbol(self.db(), name) {
+                    match self.module.use_symbol(self.db_mut(), name) {
                         Some(Symbol::Method(method)) => {
                             // The receiver of imported module methods is the
                             // module they are defined in.
@@ -4265,9 +4266,9 @@ impl<'a> CheckMethodBody<'a> {
     ) -> Result<Option<Symbol>, ()> {
         if let Some(src) = source {
             if let Some(Symbol::Module(module)) =
-                self.module.symbol(self.db(), &src.name)
+                self.module.use_symbol(self.db_mut(), &src.name)
             {
-                Ok(module.symbol(self.db(), name))
+                Ok(module.use_symbol(self.db_mut(), name))
             } else {
                 self.state.diagnostics.symbol_not_a_module(
                     &src.name,
@@ -4278,7 +4279,7 @@ impl<'a> CheckMethodBody<'a> {
                 Err(())
             }
         } else {
-            Ok(self.module.symbol(self.db(), name))
+            Ok(self.module.use_symbol(self.db_mut(), name))
         }
     }
 
@@ -4679,4 +4680,56 @@ impl<'a> CheckMethodBody<'a> {
 
         Some((ins, field))
     }
+}
+
+/// A pass that checks for any unused imported symbols.
+pub(crate) fn check_unused_imports(
+    state: &mut State,
+    modules: &[hir::Module],
+) -> bool {
+    for module in modules {
+        let mod_id = module.module_id;
+
+        for expr in &module.expressions {
+            let import = if let hir::TopLevelExpression::Import(v) = expr {
+                v
+            } else {
+                continue;
+            };
+
+            let tail = &import.source.last().unwrap().name;
+
+            if import.symbols.is_empty() {
+                if mod_id.symbol_is_used(&state.db, tail) {
+                    continue;
+                }
+
+                let file = mod_id.file(&state.db);
+                let loc = import.location.clone();
+
+                state.diagnostics.unused_symbol(tail, file, loc);
+            } else {
+                for sym in &import.symbols {
+                    let mut name = &sym.import_as.name;
+
+                    if name == IMPORT_MODULE_ITSELF_NAME {
+                        name = tail;
+                    }
+
+                    if mod_id.symbol_is_used(&state.db, name)
+                        || name.starts_with('_')
+                    {
+                        continue;
+                    }
+
+                    let file = mod_id.file(&state.db);
+                    let loc = sym.location.clone();
+
+                    state.diagnostics.unused_symbol(name, file, loc);
+                }
+            }
+        }
+    }
+
+    !state.diagnostics.has_errors()
 }

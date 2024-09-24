@@ -1,5 +1,4 @@
 import std.debug (StackFrame, stacktrace)
-import std.env
 import std.test (Tests)
 
 fn pub tests(t: mut Tests) {

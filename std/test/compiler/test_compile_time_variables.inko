@@ -1,6 +1,5 @@
 import helpers (compiler_path, with_directory)
 import std.env
-import std.fs.file (WriteOnlyFile)
 import std.fs.path (Path)
 import std.sys (Command, Stream)
 import std.test (Tests)

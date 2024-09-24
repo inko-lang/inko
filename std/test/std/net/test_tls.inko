@@ -1,7 +1,7 @@
 import std.crypto.pem (PemFile)
 import std.crypto.x509 (Certificate, PrivateKey)
 import std.fmt (fmt)
-import std.io (Buffer, Error)
+import std.io (Buffer)
 import std.net.ip (IpAddress)
 import std.net.socket (Socket, TcpClient, TcpServer)
 import std.net.tls (

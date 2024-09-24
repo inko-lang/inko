@@ -1,16 +1,16 @@
 # Modules that must be imported for every Inko program.
-import std.array
-import std.bool
-import std.byte_array
-import std.clone
-import std.drop
-import std.float
-import std.int
-import std.iter
-import std.map
-import std.nil
-import std.option
-import std.process
-import std.result
-import std.string
-import std.tuple
+import std.array (self as _array)
+import std.bool (self as _bool)
+import std.byte_array (self as _byte_array)
+import std.clone (self as _clone)
+import std.drop (self as _drop)
+import std.float (self as _float)
+import std.int (self as _int)
+import std.iter (self as _iter)
+import std.map (self as _map)
+import std.nil (self as _nil)
+import std.option (self as _option)
+import std.process (self as _process)
+import std.result (self as _result)
+import std.string (self as _string)
+import std.tuple (self as _tuple)

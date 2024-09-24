@@ -1,11 +1,7 @@
-import std.drop (drop)
 import std.env
-import std.fmt (Format, Formatter)
-import std.fmt (fmt)
 import std.fs.path (Path)
-import std.hash (Hash, Hasher)
+import std.hash (Hash)
 import std.hash.siphash (SipHasher13)
-import std.stdio (Stdout)
 
 fn pub hash[T: Hash](value: ref T) -> Int {
   let hasher = SipHasher13.default

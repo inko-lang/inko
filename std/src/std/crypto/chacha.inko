@@ -6,7 +6,6 @@
 # - <https://datatracker.ietf.org/doc/html/rfc8439>
 # - <https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-xchacha>
 import std.crypto.cipher (Cipher)
-import std.crypto.hash (Hash, Hasher)
 import std.crypto.math (rotate_left_u32, to_u32)
 import std.endian.little
 

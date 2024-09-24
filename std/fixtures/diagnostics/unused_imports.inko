@@ -1,0 +1,24 @@
+import empty_module
+import empty_module (self as _no_warnings_for_me)
+import source (UnusedClass, UsedClass, unused_method, used_method)
+import source (self)
+import source (self as unused_module)
+import source (self as used_module)
+
+fn example1(value: Array[UsedClass]) -> Array[UsedClass] {
+  value
+}
+
+fn example2 {
+  used_method
+}
+
+fn example3 {
+  used_module.used_method
+}
+
+# unused_imports.inko:1:1 warning(unused-symbol): the symbol 'empty_module' is unused
+# unused_imports.inko:3:16 warning(unused-symbol): the symbol 'UnusedClass' is unused
+# unused_imports.inko:3:40 warning(unused-symbol): the symbol 'unused_method' is unused
+# unused_imports.inko:4:16 warning(unused-symbol): the symbol 'source' is unused
+# unused_imports.inko:5:16 warning(unused-symbol): the symbol 'unused_module' is unused
