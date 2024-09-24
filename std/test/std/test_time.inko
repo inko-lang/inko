@@ -74,6 +74,14 @@ fn pub tests(t: mut Tests) {
     Duration.from_nanos(-9_223_372_036_854_775_808) - Duration.from_nanos(1)
   })
 
+  t.test('Duration.*', fn (t) {
+    t.equal(Duration.from_secs(1) * 5, Duration.from_secs(5))
+  })
+
+  t.panic('Duration.* with an argument that overflows', fn {
+    Duration.from_secs(1) * -9_223_372_036_854_775_808
+  })
+
   t.test('Duration.cmp', fn (t) {
     let a = Duration.from_secs(1)
     let b = Duration.from_secs(2)

@@ -4,7 +4,7 @@ import std.cmp (Compare, Equal, Ordering)
 import std.float (ToFloat)
 import std.fmt (Format, Formatter)
 import std.int (ToInt)
-import std.ops (Add, Subtract)
+import std.ops (Add, Multiply, Subtract)
 
 fn extern inko_time_monotonic(state: Pointer[UInt8]) -> Int64
 
@@ -188,6 +188,12 @@ impl Add[Duration, Duration] for Duration {
 impl Subtract[Duration, Duration] for Duration {
   fn pub -(other: ref Duration) -> Duration {
     Duration(@nanos - other.nanos)
+  }
+}
+
+impl Multiply[Int, Duration] for Duration {
+  fn pub *(other: ref Int) -> Duration {
+    Duration(@nanos * other)
   }
 }
 
