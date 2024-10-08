@@ -67,14 +67,10 @@ class RelativeLinks {
     }
 
     let rel = link_from(@page, href)
-    let title = match title(rel) {
-      case Some(v) -> v
-      case _ -> return
-    }
 
-    if element.nodes.empty? {
-      element.nodes.clear
-      element.text(title)
+    match title(rel) {
+      case Some(v) if element.nodes.empty? -> element.text(v)
+      case _ -> {}
     }
 
     element.attributes.set('href', rel)

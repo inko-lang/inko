@@ -1,0 +1,55 @@
+fn inline module_method1 {}
+fn pub inline module_method2 {}
+
+class A {
+  fn inline instance_method1 {}
+  fn inline mut instance_method2 {}
+  fn inline move instance_method3 {}
+
+  fn pub inline instance_method4 {}
+  fn pub inline mut instance_method5 {}
+  fn pub inline move instance_method6 {}
+}
+
+impl A {
+  fn inline instance_method7 {}
+  fn inline mut instance_method8 {}
+  fn inline move instance_method9 {}
+
+  fn pub inline instance_method10 {}
+  fn pub inline mut instance_method11 {}
+  fn pub inline move instance_method12 {}
+}
+
+trait B {
+  fn inline invalid1
+  fn inline mut invalid2
+  fn inline move invalid3
+
+  fn inline valid1 {}
+  fn inline mut valid2 {}
+  fn inline move valid3 {}
+
+  fn pub inline valid4 {}
+  fn pub inline mut valid5 {}
+  fn pub inline move valid6 {}
+}
+
+class async C {
+  fn inline async invalid1 {}
+  fn inline async mut invalid2 {}
+
+  fn pub inline async invalid3 {}
+  fn pub inline async mut invalid4 {}
+
+  fn inline valid1 {}
+  fn inline mut valid2 {}
+}
+
+# inline_methods.inko:25:3 error(invalid-method): the 'inline' keyword can't be used for this type of method
+# inline_methods.inko:26:3 error(invalid-method): the 'inline' keyword can't be used for this type of method
+# inline_methods.inko:27:3 error(invalid-method): the 'inline' keyword can't be used for this type of method
+# inline_methods.inko:39:3 error(invalid-method): the 'inline' keyword can't be used for this type of method
+# inline_methods.inko:40:3 error(invalid-method): the 'inline' keyword can't be used for this type of method
+# inline_methods.inko:42:3 error(invalid-method): the 'inline' keyword can't be used for this type of method
+# inline_methods.inko:43:3 error(invalid-method): the 'inline' keyword can't be used for this type of method

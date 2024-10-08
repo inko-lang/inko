@@ -16,7 +16,7 @@ class builtin Bool {
   # true.true?  # => true
   # false.true? # => false
   # ```
-  fn pub true? -> Bool {
+  fn pub inline true? -> Bool {
     self
   }
 
@@ -28,7 +28,7 @@ class builtin Bool {
   # true.false?  # => false
   # false.false? # => true
   # ```
-  fn pub false? -> Bool {
+  fn pub inline false? -> Bool {
     self == false
   }
 
@@ -41,43 +41,43 @@ class builtin Bool {
   # true.then(fn { 10 })  # => Option.Some(10)
   # false.then(fn { 10 }) # => Option.None
   # ```
-  fn pub then[T](func: fn -> T) -> Option[T] {
+  fn pub inline then[T](func: fn -> T) -> Option[T] {
     if self { Option.Some(func.call) } else { Option.None }
   }
 }
 
 impl ToInt for Bool {
-  fn pub to_int -> Int {
+  fn pub inline to_int -> Int {
     self as Int64 as Int
   }
 }
 
 impl ToString for Bool {
-  fn pub to_string -> String {
+  fn pub inline to_string -> String {
     if self { 'true' } else { 'false' }
   }
 }
 
 impl Clone[Bool] for Bool {
-  fn pub clone -> Bool {
+  fn pub inline clone -> Bool {
     self
   }
 }
 
 impl Equal[ref Bool] for Bool {
-  fn pub ==(other: ref Bool) -> Bool {
+  fn pub inline ==(other: ref Bool) -> Bool {
     _INKO.bool_eq(self, other)
   }
 }
 
 impl Compare[Bool] for Bool {
-  fn pub cmp(other: ref Bool) -> Ordering {
+  fn pub inline cmp(other: ref Bool) -> Ordering {
     to_int.cmp(other.to_int)
   }
 }
 
 impl Hash for Bool {
-  fn pub hash[H: mut + Hasher](hasher: mut H) {
+  fn pub inline hash[H: mut + Hasher](hasher: mut H) {
     hasher.write(to_int)
   }
 }

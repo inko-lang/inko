@@ -3,7 +3,7 @@ use crate::diagnostics::DiagnosticId;
 use crate::state::{BuildTags, State};
 use ast::nodes::{Module, Node, TopLevelExpression};
 use ast::parser::Parser;
-use ast::source_location::SourceLocation;
+use location::Location;
 use std::collections::{HashMap, HashSet};
 use std::fs::read;
 use std::path::PathBuf;
@@ -12,7 +12,7 @@ use types::module_name::ModuleName;
 fn imported_modules(
     module: &mut Module,
     tags: &BuildTags,
-) -> Vec<(ModuleName, SourceLocation)> {
+) -> Vec<(ModuleName, Location)> {
     let mut names = Vec::new();
 
     for expr in &mut module.expressions {
@@ -26,7 +26,7 @@ fn imported_modules(
                     continue;
                 }
 
-                (&node.path, node.location().clone())
+                (&node.path, *node.location())
             }
             _ => continue,
         };
@@ -85,7 +85,7 @@ impl<'a> ModulesParser<'a> {
         }
 
         let init = &self.state.config.init_module;
-        let init_id = self.state.dependency_graph.add_module(init.clone());
+        let init_id = self.state.dependency_graph.add_module(init);
 
         {
             let path = self.state.config.std.join(init.to_path());
@@ -98,7 +98,7 @@ impl<'a> ModulesParser<'a> {
             if let Some(mut ast) = self.parse(&file) {
                 let deps = imported_modules(&mut ast, &self.state.build_tags);
                 let depending_id =
-                    self.state.dependency_graph.add_module(qname.clone());
+                    self.state.dependency_graph.add_module(&qname);
 
                 self.state
                     .dependency_graph
@@ -124,7 +124,7 @@ impl<'a> ModulesParser<'a> {
                     };
 
                     let dependency_id =
-                        self.state.dependency_graph.add_module(dep.clone());
+                        self.state.dependency_graph.add_module(&dep);
 
                     self.state
                         .dependency_graph
@@ -156,7 +156,7 @@ impl<'a> ModulesParser<'a> {
                     DiagnosticId::InvalidFile,
                     e.to_string(),
                     file.clone(),
-                    SourceLocation::new(1..=1, 1..=1),
+                    Location::default(),
                 );
 
                 return None;

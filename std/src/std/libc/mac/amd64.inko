@@ -14,18 +14,18 @@ fn extern fstat$INODE64(fd: Int32, buf: Pointer[StatBuf]) -> Int32
 
 fn extern stat$INODE64(path: Pointer[UInt8], buf: Pointer[StatBuf]) -> Int32
 
-fn opendir(path: Pointer[UInt8]) -> Pointer[UInt8] {
+fn inline opendir(path: Pointer[UInt8]) -> Pointer[UInt8] {
   opendir$INODE64(path)
 }
 
-fn readdir(path: Pointer[UInt8]) -> Pointer[Dirent] {
+fn inline readdir(path: Pointer[UInt8]) -> Pointer[Dirent] {
   readdir$INODE64(path)
 }
 
-fn fstat(fd: Int32, buf: Pointer[StatBuf]) -> Int32 {
+fn inline fstat(fd: Int32, buf: Pointer[StatBuf]) -> Int32 {
   fstat$INODE64(fd, buf)
 }
 
-fn stat(path: Pointer[UInt8], buf: Pointer[StatBuf]) -> Int32 {
+fn inline stat(path: Pointer[UInt8], buf: Pointer[StatBuf]) -> Int32 {
   stat$INODE64(path, buf)
 }

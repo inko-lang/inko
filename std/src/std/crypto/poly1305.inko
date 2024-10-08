@@ -25,6 +25,10 @@ fn mul(a: Int, b: Int) -> Int {
   to_u32(a) * b
 }
 
+fn key_size_error(size: Int) -> Never {
+  panic('the key must be exactly ${KEY_SIZE} bytes long, not ${size} bytes')
+}
+
 # The Poly1305 universal hash function.
 class pub Poly1305 {
   let @block: Block
@@ -83,9 +87,7 @@ class pub Poly1305 {
   #
   # This method panics if the key isn't exactly 32 bytes long.
   fn pub static new(key: ref ByteArray) -> Poly1305 {
-    if key.size != KEY_SIZE {
-      panic('Poly1305 keys must be exactly ${KEY_SIZE} bytes')
-    }
+    if key.size != KEY_SIZE { key_size_error(key.size) }
 
     Poly1305(
       block: Block.new(BLOCK_SIZE),

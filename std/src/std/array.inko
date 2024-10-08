@@ -13,7 +13,10 @@ import std.rand (Shuffle)
 # The capacity to use when resizing an array for the first time.
 let START_CAPACITY = 4
 
-fn stable_sort[T](array: mut Array[T], compare: mut fn (ref T, ref T) -> Bool) {
+fn inline stable_sort[T](
+  array: mut Array[T],
+  compare: mut fn (ref T, ref T) -> Bool,
+) {
   let len = array.size
 
   # The algorithm here is the recursive merge sort algorithm. While faster
@@ -66,15 +69,25 @@ fn merge_sort[T](
   }
 }
 
+fn invalid_capacity(size: Int) -> Never {
+  panic('the capacity (${size}) must be greater than or equal to zero')
+}
+
+# Panics with an out of bounds message.
+#
+# This method is separate from `bounds_check` so we don't try to inline the
+# formatting code all over the place.
+fn out_of_bounds(index: Int, size: Int) -> Never {
+  panic('the index ${index} is out of bounds (size: ${size})')
+}
+
 # Checks if `index` is in the range of zero up to (but excluding) `size`.
 #
 # # Panics
 #
 # This method panics if the index is out of bounds.
-fn pub bounds_check(index: Int, size: Int) {
-  if index >= 0 and index < size { return }
-
-  panic('The index ${index} is out of bounds (size: ${size})')
+fn pub inline bounds_check(index: Int, size: Int) {
+  if index < 0 or index >= size { out_of_bounds(index, size) }
 }
 
 # An ordered, integer-indexed generic collection of values.
@@ -109,7 +122,7 @@ class builtin Array[T] {
   #
   # This method panics of `size` if less than zero.
   fn pub static with_capacity(size: Int) -> Array[T] {
-    if size < 0 { panic('the capacity must be greater than or equal to zero') }
+    if size < 0 { invalid_capacity(size) }
 
     Array(size: 0, capacity: size, buffer: alloc.resize(0 as Pointer[T], size))
   }
@@ -564,9 +577,7 @@ class builtin Array[T] {
   # nums # => [10, 20, 30]
   # ```
   fn pub mut insert(index: Int, value: T) {
-    if index < 0 or index > @size {
-      panic('The index ${index} is out of bounds (size: ${@size})')
-    }
+    if index < 0 or index > @size { out_of_bounds(index, @size) }
 
     reserve(1)
 
@@ -616,11 +627,11 @@ class builtin Array[T] {
   # Returns a raw pointer to the buffer of `self`.
   #
   # If `self` is empty, this returns `NULL`.
-  fn to_pointer -> Pointer[T] {
+  fn inline to_pointer -> Pointer[T] {
     @buffer
   }
 
-  fn get_unchecked(index: Int) -> ref T {
+  fn inline get_unchecked(index: Int) -> ref T {
     let val = read_from(index)
     let ret = ref val
 
@@ -628,15 +639,15 @@ class builtin Array[T] {
     ret
   }
 
-  fn read_from(index: Int) -> T {
+  fn inline read_from(index: Int) -> T {
     address_of(index).0
   }
 
-  fn mut write_to(index: Int, value: T) {
+  fn inline mut write_to(index: Int, value: T) {
     address_of(index).0 = value
   }
 
-  fn address_of(index: Int) -> Pointer[T] {
+  fn inline address_of(index: Int) -> Pointer[T] {
     @buffer as Int + (index * _INKO.size_of_type_parameter(T)) as Pointer[T]
   }
 }
@@ -711,7 +722,7 @@ impl Array if T: mut {
     opt_mut(size - 1)
   }
 
-  fn mut get_unchecked_mut(index: Int) -> mut T {
+  fn inline mut get_unchecked_mut(index: Int) -> mut T {
     let val = read_from(index)
     let ret = mut val
 

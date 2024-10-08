@@ -158,23 +158,23 @@ fn extern pipe(pipes: Pointer[Pipes]) -> Int32
 
 fn extern __error -> Pointer[Int32]
 
-fn fstat(fd: Int32, buf: Pointer[StatBuf]) -> Int32 {
+fn inline fstat(fd: Int32, buf: Pointer[StatBuf]) -> Int32 {
   sys.fstat(fd, buf)
 }
 
-fn stat(path: Pointer[UInt8], buf: Pointer[StatBuf]) -> Int32 {
+fn inline stat(path: Pointer[UInt8], buf: Pointer[StatBuf]) -> Int32 {
   sys.stat(path, buf)
 }
 
-fn opendir(path: Pointer[UInt8]) -> Pointer[UInt8] {
+fn inline opendir(path: Pointer[UInt8]) -> Pointer[UInt8] {
   sys.opendir(path)
 }
 
-fn readdir(path: Pointer[UInt8]) -> Pointer[Dirent] {
+fn inline readdir(path: Pointer[UInt8]) -> Pointer[Dirent] {
   sys.readdir(path)
 }
 
-fn flush(fd: Int32) -> Int32 {
+fn inline flush(fd: Int32) -> Int32 {
   # On macOS the guarantees of fsync() aren't as strong as on Linux
   # (https://mjtsai.com/blog/2022/02/17/apple-ssd-benchmarks-and-f_fullsync/),
   # instead one has to use a macOS specific fcntl() command to achieve the same
@@ -201,15 +201,15 @@ fn flush(fd: Int32) -> Int32 {
   }
 }
 
-fn dirent_type(pointer: Pointer[Dirent]) -> Int {
+fn inline dirent_type(pointer: Pointer[Dirent]) -> Int {
   pointer.d_type as Int
 }
 
-fn dirent_name(pointer: Pointer[Dirent]) -> Pointer[UInt8] {
+fn inline dirent_name(pointer: Pointer[Dirent]) -> Pointer[UInt8] {
   pointer as Int + 21 as Pointer[UInt8]
 }
 
-fn pipes -> Result[(Int32, Int32), Error] {
+fn inline pipes -> Result[(Int32, Int32), Error] {
   let pipes = Pipes()
 
   if pipe(mut pipes) as Int != 0 { throw Error.last_os_error }
@@ -226,6 +226,6 @@ fn pipes -> Result[(Int32, Int32), Error] {
   Result.Ok((pipes.reader, pipes.writer))
 }
 
-fn errno_location -> Pointer[Int32] {
+fn inline errno_location -> Pointer[Int32] {
   __error
 }

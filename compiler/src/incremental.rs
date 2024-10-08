@@ -28,15 +28,15 @@ impl DependencyGraph {
         DependencyGraph { nodes: Vec::new(), mapping: HashMap::new() }
     }
 
-    pub(crate) fn add_module(&mut self, name: ModuleName) -> usize {
-        if let Some(&id) = self.mapping.get(&name) {
+    pub(crate) fn add_module(&mut self, name: &ModuleName) -> usize {
+        if let Some(&id) = self.mapping.get(name) {
             return id;
         }
 
         let id = self.nodes.len();
 
         self.nodes.push(Node::new());
-        self.mapping.insert(name, id);
+        self.mapping.insert(name.clone(), id);
         id
     }
 

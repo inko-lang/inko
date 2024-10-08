@@ -34,6 +34,10 @@ fn extern inko_process_start_blocking(process: Pointer[UInt8])
 
 fn extern inko_process_stop_blocking(process: Pointer[UInt8])
 
+fn invalid_buffer_size(size: Int) -> Never {
+  panic('the buffer size (${size}) must be greater than zero')
+}
+
 # Signals the start of a C function call that may perform blocking IO
 # operations.
 #
@@ -768,7 +772,7 @@ class pub BufferedReader[T: mut + Read] {
   # The `reader` argument can be any `Read` type, provided it allows mutation
   # (e.g. a `ref Reader` isn't valid).
   fn pub static with_capacity(reader: T, size: Int) -> BufferedReader[T] {
-    if size <= 0 { panic('The buffer size must be greater than zero') }
+    if size <= 0 { invalid_buffer_size(size) }
 
     BufferedReader(
       reader: reader,
@@ -924,7 +928,7 @@ class pub BufferedWriter[T: mut + Write] {
   # BufferedWriter.with_capacity(file, capacity: 16 * 1024)
   # ```
   fn pub static with_capacity(writer: T, size: Int) -> BufferedWriter[T] {
-    if size <= 0 { panic('The buffer size must be greater than zero') }
+    if size <= 0 { invalid_buffer_size(size) }
 
     BufferedWriter(writer: writer, buffer: ByteArray.new, size: size)
   }

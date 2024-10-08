@@ -1,9 +1,9 @@
 //! Formatting of types.
 use crate::{
     Arguments, ClassId, ClassInstance, ClassKind, ClosureId, Database,
-    ForeignType, MethodId, MethodKind, ModuleId, Ownership, Sign, TraitId,
-    TraitInstance, TypeArguments, TypeId, TypeParameterId, TypePlaceholderId,
-    TypeRef, Visibility,
+    ForeignType, Inline, MethodId, MethodKind, ModuleId, Ownership, Sign,
+    TraitId, TraitInstance, TypeArguments, TypeId, TypeParameterId,
+    TypePlaceholderId, TypeRef, Visibility,
 };
 
 const MAX_FORMATTING_DEPTH: usize = 8;
@@ -353,6 +353,10 @@ impl FormatType for MethodId {
             buffer.write("pub ");
         }
 
+        if let Inline::Always = block.inline {
+            buffer.write("inline ");
+        }
+
         match block.kind {
             MethodKind::Async => buffer.write("async "),
             MethodKind::AsyncMutable => buffer.write("async mut "),
@@ -481,10 +485,10 @@ mod tests {
     use super::*;
     use crate::test::{new_parameter, placeholder};
     use crate::{
-        Block, Class, ClassInstance, ClassKind, Closure, Database, Location,
-        Method, MethodKind, Module, ModuleId, ModuleName, Trait, TraitInstance,
-        TypeArguments, TypeId, TypeParameter, TypePlaceholder, TypeRef,
-        VariableLocation, Visibility,
+        Block, Class, ClassInstance, ClassKind, Closure, Database, Inline,
+        Location, Method, MethodKind, Module, ModuleId, ModuleName, Trait,
+        TraitInstance, TypeArguments, TypeId, TypeParameter, TypePlaceholder,
+        TypeRef, Visibility,
     };
 
     #[test]
@@ -555,7 +559,7 @@ mod tests {
         let block = Method::alloc(
             &mut db,
             ModuleId(0),
-            Location::new(1..=1, 1..=1),
+            Location::default(),
             "foo".to_string(),
             Visibility::Private,
             MethodKind::Instance,
@@ -570,7 +574,7 @@ mod tests {
         let ins_d =
             TypeRef::Owned(TypeId::ClassInstance(ClassInstance::new(class_d)));
 
-        let loc = VariableLocation::new(1, 1, 1);
+        let loc = Location::default();
 
         block.new_argument(&mut db, "a".to_string(), ins_a, ins_a, loc);
         block.new_argument(&mut db, "b".to_string(), ins_b, ins_b, loc);
@@ -585,7 +589,7 @@ mod tests {
         let block = Method::alloc(
             &mut db,
             ModuleId(0),
-            Location::new(1..=1, 1..=1),
+            Location::default(),
             "foo".to_string(),
             Visibility::Private,
             MethodKind::Moving,
@@ -602,7 +606,7 @@ mod tests {
         let block = Method::alloc(
             &mut db,
             ModuleId(0),
-            Location::new(1..=1, 1..=1),
+            Location::default(),
             "foo".to_string(),
             Visibility::Private,
             MethodKind::Static,
@@ -620,11 +624,11 @@ mod tests {
     #[test]
     fn test_method_id_format_type_with_static_method() {
         let mut db = Database::new();
-        let loc = VariableLocation::new(1, 1, 1);
+        let loc = Location::default();
         let block = Method::alloc(
             &mut db,
             ModuleId(0),
-            Location::new(1..=1, 1..=1),
+            Location::default(),
             "foo".to_string(),
             Visibility::Private,
             MethodKind::Static,
@@ -645,11 +649,11 @@ mod tests {
     #[test]
     fn test_method_id_format_type_with_async_method() {
         let mut db = Database::new();
-        let loc = VariableLocation::new(1, 1, 1);
+        let loc = Location::default();
         let block = Method::alloc(
             &mut db,
             ModuleId(0),
-            Location::new(1..=1, 1..=1),
+            Location::default(),
             "foo".to_string(),
             Visibility::Private,
             MethodKind::Async,
@@ -665,6 +669,35 @@ mod tests {
         block.set_return_type(&mut db, TypeRef::int());
 
         assert_eq!(format_type(&db, block), "fn async foo(a: Int) -> Int");
+    }
+
+    #[test]
+    fn test_method_id_format_type_with_inline_method() {
+        let mut db = Database::new();
+        let loc = Location::default();
+        let method = Method::alloc(
+            &mut db,
+            ModuleId(0),
+            Location::default(),
+            "foo".to_string(),
+            Visibility::Public,
+            MethodKind::Mutable,
+        );
+
+        method.set_inline(&mut db, Inline::Always);
+        method.new_argument(
+            &mut db,
+            "a".to_string(),
+            TypeRef::int(),
+            TypeRef::int(),
+            loc,
+        );
+        method.set_return_type(&mut db, TypeRef::int());
+
+        assert_eq!(
+            format_type(&db, method),
+            "fn pub inline mut foo(a: Int) -> Int"
+        );
     }
 
     #[test]
@@ -941,7 +974,7 @@ mod tests {
     #[test]
     fn test_type_id_format_type_with_closure() {
         let mut db = Database::new();
-        let loc = VariableLocation::new(1, 1, 1);
+        let loc = Location::default();
         let class_a = Class::alloc(
             &mut db,
             "A".to_string(),

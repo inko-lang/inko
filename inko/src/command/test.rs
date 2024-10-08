@@ -30,6 +30,7 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         "The target platform to compile for",
         "TARGET",
     );
+    options.optopt("", "opt", "The optimization level to use", "LEVEL");
 
     let matches = options.parse(arguments)?;
 
@@ -42,6 +43,10 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
 
     if let Some(val) = matches.opt_str("target") {
         config.set_target(&val)?;
+    }
+
+    if let Some(val) = matches.opt_str("opt") {
+        config.set_opt(&val)?;
     }
 
     let input = config.main_test_module();

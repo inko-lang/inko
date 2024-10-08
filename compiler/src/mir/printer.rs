@@ -1,5 +1,6 @@
 //! Pretty-printing of MIR for debugging purposes.
-use crate::mir::{BlockId, Method, Mir};
+use crate::mir::inline::method_weight;
+use crate::mir::{BlockId, Method};
 use std::fmt::Write;
 use types::{Database, MethodId, TypeId};
 
@@ -9,12 +10,12 @@ fn method_name(db: &Database, id: MethodId) -> String {
 
 /// Returns a String containing Dot/graphviz code for visualising the MIR of one
 /// or more methods.
-pub(crate) fn to_dot(db: &Database, mir: &Mir, methods: &[&Method]) -> String {
+pub(crate) fn to_dot(db: &Database, methods: &[&Method]) -> String {
     let mut buffer = String::new();
 
     buffer.push_str("digraph MIR {\n");
 
-    for (method_index, method) in methods.iter().enumerate() {
+    for (method_index, &method) in methods.iter().enumerate() {
         let _ = writeln!(buffer, "subgraph cluster_MIR_{} {{", method_index);
 
         buffer.push_str("graph[fontname=\"monospace\", fontsize=10];\n");
@@ -35,8 +36,27 @@ pub(crate) fn to_dot(db: &Database, mir: &Mir, methods: &[&Method]) -> String {
             format!("{}.{}()", rec_name, method_name(db, method.id),)
         };
 
-        let _ = writeln!(buffer, "label=\"{}\";", name);
+        let _ = writeln!(
+            buffer,
+            "label=\"{}\nroot = b{}, inline weight = {}\";",
+            name,
+            method.body.start_id.0,
+            method_weight(db, method),
+        );
         let reachable_blocks = method.body.reachable();
+
+        // Render a hidden node that points to the entry block, ensuring the
+        // entry block is always placed at the top of the graph.
+        let _ = writeln!(
+            buffer,
+            "  root{}[style=invis,height=0,wight=0,margin=0]",
+            method_index
+        );
+        let _ = writeln!(
+            buffer,
+            "  root{} -> b{}{} [style=invis,constraint=false]",
+            method_index, method_index, method.body.start_id.0
+        );
 
         for (index, block) in method.body.blocks.iter().enumerate() {
             let reachable = reachable_blocks.contains(&BlockId(index));
@@ -71,7 +91,7 @@ pub(crate) fn to_dot(db: &Database, mir: &Mir, methods: &[&Method]) -> String {
                     buffer,
                     "<tr><td>{}</td><td>{}</td></tr>",
                     ins.format(db).replace('>', "&gt;").replace('<', "&lt;"),
-                    mir.location(ins.location()).lines.start(),
+                    ins.location().line_start,
                 );
             }
 

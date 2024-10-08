@@ -5,15 +5,15 @@ use crate::state::State;
 use crate::type_check::{
     define_type_bounds, DefineAndCheckTypeSignature, Rules, TypeScope,
 };
-use ast::source_location::SourceLocation;
+use location::Location;
 use std::path::PathBuf;
 use types::check::{Environment, TypeChecker};
 use types::format::{format_type, format_type_with_arguments};
 use types::{
-    Block, ClassId, ClassInstance, Database, Location, Method, MethodId,
-    MethodKind, MethodSource, ModuleId, Symbol, TraitId, TraitInstance,
-    TypeArguments, TypeBounds, TypeId, TypeRef, VariableLocation, Visibility,
-    DROP_METHOD, MAIN_CLASS, MAIN_METHOD,
+    Block, ClassId, ClassInstance, Database, Method, MethodId, MethodKind,
+    MethodSource, ModuleId, Symbol, TraitId, TraitInstance, TypeArguments,
+    TypeBounds, TypeId, TypeRef, Visibility, DROP_METHOD, MAIN_CLASS,
+    MAIN_METHOD,
 };
 
 fn method_kind(kind: hir::MethodKind) -> MethodKind {
@@ -81,7 +81,7 @@ trait MethodDefiner {
                         name, rec_name
                     ),
                     file,
-                    param_node.name.location.clone(),
+                    param_node.name.location,
                 );
 
                 // We don't bail out here so we can type-check the rest of the
@@ -155,7 +155,7 @@ trait MethodDefiner {
 
         if nodes.len() > max {
             let file = self.file();
-            let location = SourceLocation::start_end(
+            let location = Location::start_end(
                 &nodes[0].location,
                 &nodes.last().unwrap().location,
             );
@@ -174,11 +174,12 @@ trait MethodDefiner {
             if require_send && !arg_type.is_sendable(self.db()) {
                 let name = format_type(self.db(), arg_type);
                 let file = self.file();
-                let loc = node.location.clone();
 
-                self.state_mut()
-                    .diagnostics
-                    .unsendable_async_type(name, file, loc);
+                self.state_mut().diagnostics.unsendable_async_type(
+                    name,
+                    file,
+                    node.location,
+                );
             }
 
             let var_type = arg_type.as_rigid_type(
@@ -186,17 +187,12 @@ trait MethodDefiner {
                 scope.bounds.unwrap_or(&empty_bounds),
             );
 
-            let var_loc = VariableLocation::from_ranges(
-                &node.location.lines,
-                &node.location.columns,
-            );
-
             method.new_argument(
                 self.db_mut(),
                 node.name.name.clone(),
                 var_type,
                 arg_type,
-                var_loc,
+                node.location,
             );
         }
     }
@@ -214,11 +210,12 @@ trait MethodDefiner {
             if method.is_async(self.db()) && !typ.is_sendable(self.db()) {
                 let name = format_type(self.db(), typ);
                 let file = self.file();
-                let loc = node.location().clone();
 
-                self.state_mut()
-                    .diagnostics
-                    .unsendable_async_type(name, file, loc);
+                self.state_mut().diagnostics.unsendable_async_type(
+                    name,
+                    file,
+                    node.location(),
+                );
             }
 
             typ
@@ -234,18 +231,15 @@ trait MethodDefiner {
         method: MethodId,
         class_id: ClassId,
         name: &str,
-        location: &SourceLocation,
+        location: Location,
     ) {
         if class_id.method_exists(self.db(), name) {
             let class_name = format_type(self.db(), class_id);
             let file = self.file();
 
-            self.state_mut().diagnostics.duplicate_method(
-                name,
-                class_name,
-                file,
-                location.clone(),
-            );
+            self.state_mut()
+                .diagnostics
+                .duplicate_method(name, class_name, file, location);
         } else {
             class_id.add_method(self.db_mut(), name.to_string(), method);
         }
@@ -297,14 +291,15 @@ impl<'a> DefineModuleMethodNames<'a> {
         let method = Method::alloc(
             self.db_mut(),
             module,
-            Location::new(
-                node.location.lines.clone(),
-                node.location.columns.clone(),
-            ),
+            node.location,
             name.clone(),
             Visibility::public(node.public),
             MethodKind::Static,
         );
+
+        if node.inline {
+            method.always_inline(self.db_mut());
+        }
 
         if node.c_calling_convention {
             method.use_c_calling_convention(self.db_mut());
@@ -314,7 +309,7 @@ impl<'a> DefineModuleMethodNames<'a> {
             self.state.diagnostics.duplicate_symbol(
                 name,
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
         } else {
             self.module.new_symbol(
@@ -335,10 +330,7 @@ impl<'a> DefineModuleMethodNames<'a> {
         let method = Method::alloc(
             self.db_mut(),
             module,
-            Location::new(
-                node.location.lines.clone(),
-                node.location.columns.clone(),
-            ),
+            node.location,
             name.clone(),
             Visibility::public(node.public),
             MethodKind::Extern,
@@ -352,7 +344,7 @@ impl<'a> DefineModuleMethodNames<'a> {
             self.state.diagnostics.duplicate_symbol(
                 name,
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
         } else {
             self.module.new_symbol(
@@ -486,7 +478,7 @@ impl<'a> DefineMethods<'a> {
                         format_type(self.db(), trait_id),
                     ),
                     self.file(),
-                    req_node.location.clone(),
+                    req_node.location,
                 );
             }
         }
@@ -500,7 +492,7 @@ impl<'a> DefineMethods<'a> {
                 self.state.diagnostics.not_a_class(
                     class_name,
                     self.file(),
-                    node.class_name.location.clone(),
+                    node.class_name.location,
                 );
 
                 return;
@@ -509,7 +501,7 @@ impl<'a> DefineMethods<'a> {
                 self.state.diagnostics.undefined_symbol(
                     class_name,
                     self.file(),
-                    node.class_name.location.clone(),
+                    node.class_name.location,
                 );
 
                 return;
@@ -521,7 +513,7 @@ impl<'a> DefineMethods<'a> {
                 DiagnosticId::InvalidImplementation,
                 "methods can't be defined for extern classes",
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
         }
 
@@ -593,12 +585,8 @@ impl<'a> DefineMethods<'a> {
         for arg in &mut node.arguments {
             let name = arg.name.name.clone();
             let typ = self.type_check(&mut arg.value_type, rules, &scope);
-            let loc = VariableLocation::from_ranges(
-                &arg.location.lines,
-                &arg.location.columns,
-            );
 
-            func.new_argument(self.db_mut(), name, typ, typ, loc);
+            func.new_argument(self.db_mut(), name, typ, typ, arg.location);
         }
 
         let ret = node
@@ -626,14 +614,15 @@ impl<'a> DefineMethods<'a> {
         let method = Method::alloc(
             self.db_mut(),
             module,
-            Location::new(
-                node.location.lines.clone(),
-                node.location.columns.clone(),
-            ),
+            node.location,
             node.name.name.clone(),
             Visibility::public(node.public),
             MethodKind::Static,
         );
+
+        if node.inline {
+            method.always_inline(self.db_mut());
+        }
 
         method.set_receiver(self.db_mut(), receiver);
 
@@ -665,7 +654,7 @@ impl<'a> DefineMethods<'a> {
             method,
             class_id,
             &node.name.name,
-            &node.location,
+            node.location,
         );
 
         node.method_id = Some(method);
@@ -684,7 +673,7 @@ impl<'a> DefineMethods<'a> {
                 DiagnosticId::InvalidMethod,
                 "moving methods can't be defined for async classes",
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
         }
 
@@ -703,14 +692,15 @@ impl<'a> DefineMethods<'a> {
         let method = Method::alloc(
             self.db_mut(),
             module,
-            Location::new(
-                node.location.lines.clone(),
-                node.location.columns.clone(),
-            ),
+            node.location,
             node.name.name.clone(),
             vis,
             kind,
         );
+
+        if node.inline {
+            method.always_inline(self.db_mut());
+        }
 
         if !method.is_mutable(self.db()) {
             bounds.make_immutable(self.db_mut());
@@ -723,7 +713,7 @@ impl<'a> DefineMethods<'a> {
                 DiagnosticId::InvalidMethod,
                 "regular instance methods for async classes must be private",
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
         }
 
@@ -766,7 +756,7 @@ impl<'a> DefineMethods<'a> {
             method,
             class_id,
             &node.name.name,
-            &node.location,
+            node.location,
         );
 
         method.set_bounds(self.db_mut(), bounds);
@@ -789,10 +779,7 @@ impl<'a> DefineMethods<'a> {
         let method = Method::alloc(
             self.db_mut(),
             module,
-            Location::new(
-                node.location.lines.clone(),
-                node.location.columns.clone(),
-            ),
+            node.location,
             node.name.name.clone(),
             Visibility::public(node.public),
             kind,
@@ -809,7 +796,7 @@ impl<'a> DefineMethods<'a> {
                 DiagnosticId::InvalidMethod,
                 "async methods can only be used in async classes".to_string(),
                 file,
-                node.location.clone(),
+                node.location,
             );
         }
 
@@ -854,7 +841,7 @@ impl<'a> DefineMethods<'a> {
                 DiagnosticId::InvalidMethod,
                 "async methods can't return values",
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
         }
 
@@ -862,7 +849,7 @@ impl<'a> DefineMethods<'a> {
             method,
             class_id,
             &node.name.name,
-            &node.location,
+            node.location,
         );
 
         method.set_bounds(self.db_mut(), bounds);
@@ -881,10 +868,7 @@ impl<'a> DefineMethods<'a> {
         let method = Method::alloc(
             self.db_mut(),
             module,
-            Location::new(
-                node.location.lines.clone(),
-                node.location.columns.clone(),
-            ),
+            node.location,
             name.clone(),
             Visibility::public(node.public),
             kind,
@@ -931,7 +915,7 @@ impl<'a> DefineMethods<'a> {
                 name,
                 format_type(self.db(), trait_id),
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
         } else {
             trait_id.add_required_method(self.db_mut(), name.clone(), method);
@@ -952,14 +936,15 @@ impl<'a> DefineMethods<'a> {
         let method = Method::alloc(
             self.db_mut(),
             module,
-            Location::new(
-                node.location.lines.clone(),
-                node.location.columns.clone(),
-            ),
+            node.location,
             name.clone(),
             Visibility::public(node.public),
             kind,
         );
+
+        if node.inline {
+            method.always_inline(self.db_mut());
+        }
 
         self.define_type_parameters(&mut node.type_parameters, method, self_id);
 
@@ -1002,7 +987,7 @@ impl<'a> DefineMethods<'a> {
                 name,
                 format_type(self.db(), trait_id),
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
         } else {
             trait_id.add_default_method(self.db_mut(), name.clone(), method);
@@ -1025,14 +1010,15 @@ impl<'a> DefineMethods<'a> {
         let method = Method::alloc(
             self.db_mut(),
             module,
-            Location::new(
-                node.location.lines.clone(),
-                node.location.columns.clone(),
-            ),
+            node.location,
             name.clone(),
             Visibility::Public,
             MethodKind::Constructor,
         );
+
+        // Constructor methods just set a bunch of fields so we can and should
+        // always inline them.
+        method.always_inline(self.db_mut());
 
         let constructor =
             class_id.constructor(self.db(), &node.name.name).unwrap();
@@ -1041,17 +1027,13 @@ impl<'a> DefineMethods<'a> {
             constructor.members(self.db()).into_iter().enumerate()
         {
             let var_type = typ.as_rigid_type(self.db_mut(), &bounds);
-            let loc = VariableLocation::from_ranges(
-                &node.location.lines,
-                &node.location.columns,
-            );
 
             method.new_argument(
                 self.db_mut(),
                 format!("arg{}", index),
                 var_type,
                 typ,
-                loc,
+                node.location,
             );
         }
 
@@ -1132,7 +1114,7 @@ impl<'a> CheckMainMethod<'a> {
                     MAIN_CLASS, MAIN_METHOD
                 ),
                 mod_id.file(self.db()),
-                SourceLocation::new(1..=1, 1..=1),
+                Location::default(),
             );
 
             false
@@ -1231,7 +1213,7 @@ impl<'a> ImplementTraitMethods<'a> {
                     trait_name, class_name, method_name, class_name
                 ),
                 file,
-                node.location.clone(),
+                node.location,
             );
         }
 
@@ -1263,7 +1245,7 @@ impl<'a> ImplementTraitMethods<'a> {
                     method_name, class_name
                 ),
                 file,
-                node.location.clone(),
+                node.location,
             );
         }
 
@@ -1314,7 +1296,7 @@ impl<'a> ImplementTraitMethods<'a> {
                     name, trait_name
                 ),
                 file,
-                node.location.clone(),
+                node.location,
             );
 
             return;
@@ -1325,14 +1307,15 @@ impl<'a> ImplementTraitMethods<'a> {
         let method = Method::alloc(
             self.db_mut(),
             module,
-            Location::new(
-                node.location.lines.clone(),
-                node.location.columns.clone(),
-            ),
+            node.location,
             name.clone(),
             Visibility::public(node.public),
             method_kind(node.kind),
         );
+
+        if node.inline {
+            method.always_inline(self.db_mut());
+        }
 
         if !method.is_mutable(self.db()) {
             bounds.make_immutable(self.db_mut());
@@ -1394,7 +1377,7 @@ impl<'a> ImplementTraitMethods<'a> {
                 DiagnosticId::InvalidMethod,
                 format!("the method '{}' isn't compatible with '{}'", lhs, rhs),
                 file,
-                node.location.clone(),
+                node.location,
             );
         }
 
@@ -1412,7 +1395,7 @@ impl<'a> ImplementTraitMethods<'a> {
             method,
             class_instance.instance_of(),
             &node.name.name,
-            &node.location,
+            node.location,
         );
 
         node.method_id = Some(method);

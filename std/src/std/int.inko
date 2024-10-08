@@ -46,8 +46,12 @@ class builtin CheckedIntResult {
 
 fn extern inko_int_checked_pow(left: Int, right: Int) -> CheckedIntResult
 
-fn overflow(left: Int, op: String, right: Int) -> Never {
-  panic("'${left} ${op} ${right}' overflowed")
+# Produces a panic in response to an overflowed operation.
+#
+# We don't pass the operator as a String to ensure no unnecessary code is
+# inlined into the callers of the operator methods.
+fn overflow(left: Int, right: Int) -> Never {
+  panic('Int operation overflowed, left: ${left}, right: ${right}')
 }
 
 # The format to use for parsing and formatting an `Int`.
@@ -297,7 +301,7 @@ class builtin Int {
   # 4.absolute                         # => 4
   # -9_223_372_036_854_775808.absolute # => -9_223_372_036_854_775808
   # ```
-  fn pub absolute -> Int {
+  fn pub inline absolute -> Int {
     _INKO.int_absolute(self)
   }
 
@@ -309,7 +313,7 @@ class builtin Int {
   # -42.opposite # => 42
   # 42.opposite  # => -42
   # ```
-  fn pub opposite -> Int {
+  fn pub inline opposite -> Int {
     0 - self
   }
 
@@ -386,7 +390,7 @@ class builtin Int {
   # ```inko
   # 12.not # => -13
   # ```
-  fn pub not -> Int {
+  fn pub inline not -> Int {
     _INKO.int_bit_not(self)
   }
 
@@ -398,7 +402,7 @@ class builtin Int {
   # ```inko
   # 0xaa00000000006e1.rotate_left(12) # => 0x6e10aa
   # ```
-  fn pub rotate_left(amount: Int) -> Int {
+  fn pub inline rotate_left(amount: Int) -> Int {
     _INKO.int_rotate_left(self, amount)
   }
 
@@ -410,7 +414,7 @@ class builtin Int {
   # ```inko
   # 0x6e10aa.rotate_right(12) # => 0xaa00000000006e1
   # ```
-  fn pub rotate_right(amount: Int) -> Int {
+  fn pub inline rotate_right(amount: Int) -> Int {
     _INKO.int_rotate_right(self, amount)
   }
 
@@ -424,7 +428,7 @@ class builtin Int {
   # 1.wrapping_add(1)   # => 2
   # MAX.wrapping_add(1) # => MIN
   # ```
-  fn pub wrapping_add(other: Int) -> Int {
+  fn pub inline wrapping_add(other: Int) -> Int {
     _INKO.int_wrapping_add(self, other)
   }
 
@@ -438,7 +442,7 @@ class builtin Int {
   # 1.wrapping_sub(1)   # => 0
   # MIN.wrapping_sub(1) # => MAX
   # ```
-  fn pub wrapping_sub(other: Int) -> Int {
+  fn pub inline wrapping_sub(other: Int) -> Int {
     _INKO.int_wrapping_sub(self, other)
   }
 
@@ -452,7 +456,7 @@ class builtin Int {
   # 1.wrapping_mul(2)   # => 2
   # MAX.wrapping_mul(2) # => -2
   # ```
-  fn pub wrapping_mul(other: Int) -> Int {
+  fn pub inline wrapping_mul(other: Int) -> Int {
     _INKO.int_wrapping_mul(self, other)
   }
 
@@ -466,7 +470,7 @@ class builtin Int {
   # 1.checked_add(5)   # => Option.Some(6)
   # MAX.checked_add(1) # => Option.None
   # ```
-  fn pub checked_add(other: Int) -> Option[Int] {
+  fn pub inline checked_add(other: Int) -> Option[Int] {
     let res = _INKO.int_checked_add(self, other)
 
     if res.tag as Int == 0 {
@@ -486,7 +490,7 @@ class builtin Int {
   # 1.checked_sub(1)   # => Option.Some(0)
   # MIN.checked_sub(1) # => Option.None
   # ```
-  fn pub checked_sub(other: Int) -> Option[Int] {
+  fn pub inline checked_sub(other: Int) -> Option[Int] {
     let res = _INKO.int_checked_sub(self, other)
 
     if res.tag as Int == 0 {
@@ -506,7 +510,7 @@ class builtin Int {
   # 1.checked_mul(2)   # => Option.Some(2)
   # MAX.checked_mul(2) # => Option.None
   # ```
-  fn pub checked_mul(other: Int) -> Option[Int] {
+  fn pub inline checked_mul(other: Int) -> Option[Int] {
     let res = _INKO.int_checked_mul(self, other)
 
     if res.tag as Int == 0 {
@@ -527,7 +531,7 @@ class builtin Int {
   # 10.checked_div(0) # => Option.None
   # 10.checked_div(2) # => Option.Some(5)
   # ```
-  fn pub checked_div(other: Int) -> Option[Int] {
+  fn pub inline checked_div(other: Int) -> Option[Int] {
     if other == 0 or (self == MIN and other == -1) {
       Option.None
     } else {
@@ -545,7 +549,7 @@ class builtin Int {
   # 2.checked_pow(2)   # => Option.Some(4)
   # MAX.checked_pow(2) # => Option.None
   # ```
-  fn pub checked_pow(other: Int) -> Option[Int] {
+  fn pub inline checked_pow(other: Int) -> Option[Int] {
     let res = inko_int_checked_pow(self, other)
 
     if res.tag as Int == 0 {
@@ -563,11 +567,11 @@ class builtin Int {
   # 12345.swap_bytes               # => 4120793659044003840
   # 4120793659044003840.swap_bytes # => 12345
   # ```
-  fn pub swap_bytes -> Int {
+  fn pub inline swap_bytes -> Int {
     _INKO.int_swap_bytes(self)
   }
 
-  fn unchecked_div(other: Int) -> Int {
+  fn inline unchecked_div(other: Int) -> Int {
     # This implements floored division, rather than rounding towards zero. This
     # makes division work more natural when using negative numbers.
     #
@@ -581,19 +585,19 @@ class builtin Int {
 }
 
 impl ToInt for Int {
-  fn pub to_int -> Int {
+  fn pub inline to_int -> Int {
     clone
   }
 }
 
 impl ToFloat for Int {
-  fn pub to_float -> Float {
+  fn pub inline to_float -> Float {
     self as Float
   }
 }
 
 impl Compare[Int] for Int {
-  fn pub cmp(other: ref Int) -> Ordering {
+  fn pub inline cmp(other: ref Int) -> Ordering {
     if self > other {
       Ordering.Greater
     } else if self < other {
@@ -603,31 +607,31 @@ impl Compare[Int] for Int {
     }
   }
 
-  fn pub <(other: ref Int) -> Bool {
+  fn pub inline <(other: ref Int) -> Bool {
     _INKO.int_lt(self, other)
   }
 
-  fn pub <=(other: ref Int) -> Bool {
+  fn pub inline <=(other: ref Int) -> Bool {
     _INKO.int_le(self, other)
   }
 
-  fn pub >(other: ref Int) -> Bool {
+  fn pub inline >(other: ref Int) -> Bool {
     _INKO.int_gt(self, other)
   }
 
-  fn pub >=(other: ref Int) -> Bool {
+  fn pub inline >=(other: ref Int) -> Bool {
     _INKO.int_ge(self, other)
   }
 }
 
 impl Equal[ref Int] for Int {
-  fn pub ==(other: ref Int) -> Bool {
+  fn pub inline ==(other: ref Int) -> Bool {
     _INKO.int_eq(self, other)
   }
 }
 
 impl Clone[Int] for Int {
-  fn pub clone -> Int {
+  fn pub inline clone -> Int {
     self
   }
 }
@@ -639,123 +643,103 @@ impl ToString for Int {
 }
 
 impl Add[Int, Int] for Int {
-  fn pub +(other: ref Int) -> Int {
+  fn pub inline +(other: ref Int) -> Int {
     let res = _INKO.int_checked_add(self, other)
 
-    if res.tag as Int == 0 {
-      res.value as Int
-    } else {
-      overflow(self, '+', other)
-    }
+    if res.tag as Int == 0 { res.value as Int } else { overflow(self, other) }
   }
 }
 
 impl Subtract[Int, Int] for Int {
-  fn pub -(other: ref Int) -> Int {
+  fn pub inline -(other: ref Int) -> Int {
     let res = _INKO.int_checked_sub(self, other)
 
-    if res.tag as Int == 0 {
-      res.value as Int
-    } else {
-      overflow(self, '-', other)
-    }
+    if res.tag as Int == 0 { res.value as Int } else { overflow(self, other) }
   }
 }
 
 impl Divide[Int, Int] for Int {
-  fn pub /(other: ref Int) -> Int {
-    if other == 0 or (self == MIN and other == -1) {
-      overflow(self, '-', other)
-    }
+  fn pub inline /(other: ref Int) -> Int {
+    if other == 0 or (self == MIN and other == -1) { overflow(self, other) }
 
     unchecked_div(other)
   }
 }
 
 impl Multiply[Int, Int] for Int {
-  fn pub *(other: ref Int) -> Int {
+  fn pub inline *(other: ref Int) -> Int {
     let res = _INKO.int_checked_mul(self, other)
 
-    if res.tag as Int == 0 {
-      res.value as Int
-    } else {
-      overflow(self, '*', other)
-    }
+    if res.tag as Int == 0 { res.value as Int } else { overflow(self, other) }
   }
 }
 
 impl Modulo[Int, Int] for Int {
-  fn pub %(other: ref Int) -> Int {
-    if other == 0 or (self == MIN and other == -1) {
-      overflow(self, '%', other)
-    }
+  fn pub inline %(other: ref Int) -> Int {
+    if other == 0 or (self == MIN and other == -1) { overflow(self, other) }
 
     let sum = _INKO.int_checked_add(_INKO.int_rem(self, other), other)
 
     if sum.tag as Int == 0 {
       _INKO.int_rem(sum.value as Int, other)
     } else {
-      overflow(self, '%', other)
+      overflow(self, other)
     }
   }
 }
 
 impl BitAnd[Int, Int] for Int {
-  fn pub &(other: ref Int) -> Int {
+  fn pub inline &(other: ref Int) -> Int {
     _INKO.int_bit_and(self, other)
   }
 }
 
 impl BitOr[Int, Int] for Int {
-  fn pub |(other: ref Int) -> Int {
+  fn pub inline |(other: ref Int) -> Int {
     _INKO.int_bit_or(self, other)
   }
 }
 
 impl BitXor[Int, Int] for Int {
-  fn pub ^(other: ref Int) -> Int {
+  fn pub inline ^(other: ref Int) -> Int {
     _INKO.int_bit_xor(self, other)
   }
 }
 
 impl ShiftLeft[Int, Int] for Int {
-  fn pub <<(other: ref Int) -> Int {
-    if other >= BITS { overflow(self, '<<', other) }
+  fn pub inline <<(other: ref Int) -> Int {
+    if other >= BITS { overflow(self, other) }
 
     _INKO.int_shl(self, other)
   }
 }
 
 impl ShiftRight[Int, Int] for Int {
-  fn pub >>(other: ref Int) -> Int {
-    if other >= BITS { overflow(self, '>>', other) }
+  fn pub inline >>(other: ref Int) -> Int {
+    if other >= BITS { overflow(self, other) }
 
     _INKO.int_shr(self, other)
   }
 }
 
 impl UnsignedShiftRight[Int, Int] for Int {
-  fn pub >>>(other: ref Int) -> Int {
-    if other >= BITS { overflow(self, '>>>', other) }
+  fn pub inline >>>(other: ref Int) -> Int {
+    if other >= BITS { overflow(self, other) }
 
     _INKO.int_unsigned_shr(self, other)
   }
 }
 
 impl Power[Int, Int] for Int {
-  fn pub **(other: ref Int) -> Int {
+  fn pub inline **(other: ref Int) -> Int {
     let res = inko_int_checked_pow(self, other)
 
-    if res.tag as Int == 0 {
-      res.value as Int
-    } else {
-      overflow(self, '**', other)
-    }
+    if res.tag as Int == 0 { res.value as Int } else { overflow(self, other) }
   }
 }
 
 impl Hash for Int {
-  fn pub hash[H: mut + Hasher](hasher: mut H) {
+  fn pub inline hash[H: mut + Hasher](hasher: mut H) {
     hasher.write(clone)
   }
 }

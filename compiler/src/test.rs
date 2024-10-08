@@ -1,15 +1,20 @@
 //! Various test helper functions and types.
 use crate::hir;
 use crate::state::State;
-use ast::source_location::SourceLocation;
+use location::Location;
 use types::module_name::ModuleName;
 use types::{
-    Location, Module, ModuleId, Symbol, Trait, TypeRef, Visibility,
-    DROP_MODULE, DROP_TRAIT,
+    Module, ModuleId, Symbol, Trait, TypeRef, Visibility, DROP_MODULE,
+    DROP_TRAIT,
 };
 
-pub(crate) fn cols(start: usize, stop: usize) -> SourceLocation {
-    SourceLocation::new(1..=1, start..=stop)
+pub(crate) fn cols(start: u32, stop: u32) -> Location {
+    Location {
+        line_start: 1,
+        line_end: 1,
+        column_start: start,
+        column_end: stop,
+    }
 }
 
 pub(crate) fn hir_module(
@@ -28,15 +33,12 @@ pub(crate) fn hir_module(
 pub(crate) fn hir_type_name(
     name: &str,
     arguments: Vec<hir::Type>,
-    location: SourceLocation,
+    location: Location,
 ) -> hir::TypeName {
     hir::TypeName {
         source: None,
         resolved_type: TypeRef::Unknown,
-        name: hir::Constant {
-            name: name.to_string(),
-            location: location.clone(),
-        },
+        name: hir::Constant { name: name.to_string(), location },
         arguments,
         location,
     }

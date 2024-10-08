@@ -1,5 +1,5 @@
 [package]
-name = "types"
+name = "location"
 version.workspace = true
 authors = ["Yorick Peterse <yorick@yorickpeterse.com>"]
 edition = "2021"
@@ -8,6 +8,3 @@ rust-version.workspace = true
 
 [lib]
 doctest = false
-
-[dependencies]
-location = { path = "../location" }

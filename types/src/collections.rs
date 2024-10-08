@@ -73,6 +73,10 @@ impl<K: Eq + Hash, V> IndexMap<K, V> {
         &mut self.values
     }
 
+    pub fn into_values(self) -> Vec<V> {
+        self.values
+    }
+
     pub fn contains_key<Q: ?Sized + Hash + Eq>(&self, k: &Q) -> bool
     where
         K: Borrow<Q>,

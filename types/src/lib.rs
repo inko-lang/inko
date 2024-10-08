@@ -17,10 +17,10 @@ pub mod specialize;
 use crate::collections::IndexMap;
 use crate::module_name::ModuleName;
 use crate::resolve::TypeResolver;
+use location::Location;
 use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
-use std::ops::RangeInclusive;
 use std::path::PathBuf;
 
 // The IDs of these built-in types must match the order of the fields in the
@@ -107,31 +107,15 @@ pub const FIELDS_LIMIT: usize = u8::MAX as usize;
 /// The maximum number of values that can be stored in an array literal.
 pub const ARRAY_LIMIT: usize = u16::MAX as usize;
 
+/// The maximum number of methods supported.
+///
+/// This is one less than the u32 maximum such that we can use `u32::MAX` as a
+/// sentinel value in various places.
+const METHODS_LIMIT: usize = (u32::MAX - 1) as usize;
+
 /// When a symbol is using this name, the source module should be imported
 /// instead of the symbol.
 pub const IMPORT_MODULE_ITSELF_NAME: &str = "self";
-
-/// The location at which a symbol is defined.
-#[derive(Clone)]
-pub struct Location {
-    pub lines: RangeInclusive<usize>,
-    pub columns: RangeInclusive<usize>,
-}
-
-impl Location {
-    pub fn new(
-        lines: RangeInclusive<usize>,
-        columns: RangeInclusive<usize>,
-    ) -> Location {
-        Location { lines, columns }
-    }
-}
-
-impl Default for Location {
-    fn default() -> Self {
-        Location::new(1..=1, 1..=1)
-    }
-}
 
 /// The requirement of a type inference placeholder.
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
@@ -763,7 +747,7 @@ impl TraitId {
     }
 
     pub fn location(self, db: &Database) -> Location {
-        self.get(db).location.clone()
+        self.get(db).location
     }
 
     pub fn set_documentation(self, db: &mut Database, value: String) {
@@ -969,7 +953,7 @@ impl FieldId {
     }
 
     pub fn location(self, db: &Database) -> Location {
-        self.get(db).location.clone()
+        self.get(db).location
     }
 
     pub fn set_documentation(self, db: &mut Database, value: String) {
@@ -1112,7 +1096,7 @@ impl ConstructorId {
     }
 
     pub fn location(self, db: &Database) -> Location {
-        self.get(db).location.clone()
+        self.get(db).location
     }
 
     pub fn set_documentation(self, db: &mut Database, value: String) {
@@ -1681,7 +1665,7 @@ impl ClassId {
     }
 
     pub fn location(self, db: &Database) -> Location {
-        self.get(db).location.clone()
+        self.get(db).location
     }
 
     pub fn set_location(self, db: &mut Database, value: Location) {
@@ -1877,7 +1861,7 @@ pub trait Block {
         name: String,
         variable_type: TypeRef,
         argument_type: TypeRef,
-        location: VariableLocation,
+        location: Location,
     ) -> VariableId;
     fn return_type(&self, db: &Database) -> TypeRef;
     fn set_return_type(&self, db: &mut Database, typ: TypeRef);
@@ -2231,6 +2215,19 @@ impl CallConvention {
     }
 }
 
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+pub enum Inline {
+    /// The method must never be inlined.
+    Never,
+
+    /// The need for inlining should be determined based on some set of
+    /// heuristics.
+    Infer,
+
+    /// The method must be inlined into every static call site.
+    Always,
+}
+
 /// A static or instance method.
 #[derive(Clone)]
 pub struct Method {
@@ -2241,6 +2238,7 @@ pub struct Method {
     kind: MethodKind,
     call_convention: CallConvention,
     visibility: Visibility,
+    inline: Inline,
     type_parameters: IndexMap<String, TypeParameterId>,
     arguments: Arguments,
     bounds: TypeBounds,
@@ -2278,13 +2276,20 @@ impl Method {
         visibility: Visibility,
         kind: MethodKind,
     ) -> MethodId {
-        assert!(db.methods.len() < u32::MAX as usize);
+        assert!(db.methods.len() < METHODS_LIMIT);
 
-        let call_convention = if let MethodKind::Extern = kind {
-            CallConvention::C
-        } else {
-            CallConvention::Inko
-        };
+        let mut call_convention = CallConvention::Inko;
+        let mut inline = Inline::Infer;
+
+        if let MethodKind::Extern = kind {
+            call_convention = CallConvention::C;
+
+            // External functions are never inlined because they're either
+            // defined externally (such that there's nothing to inline) _or_
+            // they're meant to be called from C code, in which case the
+            // function _must_ in fact exist in generated code.
+            inline = Inline::Never;
+        }
 
         let id = db.methods.len();
         let method = Method {
@@ -2306,6 +2311,7 @@ impl Method {
             variadic: false,
             specializations: HashMap::new(),
             shapes: Vec::new(),
+            inline,
         };
 
         db.methods.push(method);
@@ -2414,7 +2420,7 @@ impl MethodId {
     }
 
     pub fn location(self, db: &Database) -> Location {
-        self.get(db).location.clone()
+        self.get(db).location
     }
 
     pub fn set_documentation(self, db: &mut Database, value: String) {
@@ -2537,7 +2543,14 @@ impl MethodId {
     }
 
     pub fn mark_as_destructor(self, db: &mut Database) {
-        self.get_mut(db).kind = MethodKind::Destructor;
+        let method = self.get_mut(db);
+
+        method.kind = MethodKind::Destructor;
+
+        // Since destructors are always called through dropper methods, we want
+        // to avoid the extra function call, so we inline these into their
+        // droppers.
+        method.inline = Inline::Always;
     }
 
     pub fn kind(self, db: &Database) -> MethodKind {
@@ -2641,23 +2654,29 @@ impl MethodId {
         self.get(db).specializations.get(shapes).cloned()
     }
 
+    pub fn specializations(self, db: &Database) -> Vec<MethodId> {
+        self.get(db).specializations.values().cloned().collect()
+    }
+
     pub fn clone_for_specialization(self, db: &mut Database) -> MethodId {
-        let (module, location, name, vis, kind, source) = {
+        let (module, location, name, vis, kind, source, inline) = {
             let old = self.get(db);
 
             (
                 old.module,
-                old.location.clone(),
+                old.location,
                 old.name.clone(),
                 old.visibility,
                 old.kind,
                 old.source,
+                old.inline,
             )
         };
 
         let new = Method::alloc(db, module, location, name, vis, kind);
 
         new.set_source(db, source);
+        new.set_inline(db, inline);
         new
     }
 
@@ -2720,6 +2739,18 @@ impl MethodId {
         self.get(db).call_convention
     }
 
+    pub fn always_inline(self, db: &mut Database) {
+        self.get_mut(db).inline = Inline::Always;
+    }
+
+    pub fn set_inline(self, db: &mut Database, inline: Inline) {
+        self.get_mut(db).inline = inline;
+    }
+
+    pub fn inline(self, db: &Database) -> Inline {
+        self.get(db).inline
+    }
+
     fn get(self, db: &Database) -> &Method {
         &db.methods[self.0 as usize]
     }
@@ -2736,7 +2767,7 @@ impl Block for MethodId {
         name: String,
         variable_type: TypeRef,
         argument_type: TypeRef,
-        location: VariableLocation,
+        location: Location,
     ) -> VariableId {
         let var =
             Variable::alloc(db, name.clone(), variable_type, false, location);
@@ -2746,7 +2777,15 @@ impl Block for MethodId {
     }
 
     fn set_return_type(&self, db: &mut Database, typ: TypeRef) {
-        self.get_mut(db).return_type = typ;
+        let method = self.get_mut(db);
+
+        // If a method never returns there's no point in inlining it, because it
+        // can only be called once upon which the program terminates.
+        if let TypeRef::Never = typ {
+            method.inline = Inline::Never;
+        }
+
+        method.return_type = typ;
     }
 
     fn return_type(&self, db: &Database) -> TypeRef {
@@ -3216,30 +3255,6 @@ impl ModuleId {
     }
 }
 
-#[derive(Copy, Clone)]
-pub struct VariableLocation {
-    pub line: usize,
-    pub start_column: usize,
-    pub end_column: usize,
-}
-
-impl VariableLocation {
-    pub fn from_ranges(
-        lines: &RangeInclusive<usize>,
-        columns: &RangeInclusive<usize>,
-    ) -> VariableLocation {
-        VariableLocation::new(*lines.start(), *columns.start(), *columns.end())
-    }
-
-    pub fn new(
-        line: usize,
-        start_column: usize,
-        end_column: usize,
-    ) -> VariableLocation {
-        VariableLocation { line, start_column, end_column }
-    }
-}
-
 /// A local variable.
 pub struct Variable {
     /// The user-defined name of the variable.
@@ -3252,7 +3267,7 @@ pub struct Variable {
     mutable: bool,
 
     /// The location of the variable.
-    location: VariableLocation,
+    location: Location,
 }
 
 impl Variable {
@@ -3261,7 +3276,7 @@ impl Variable {
         name: String,
         value_type: TypeRef,
         mutable: bool,
-        location: VariableLocation,
+        location: Location,
     ) -> VariableId {
         let id = VariableId(db.variables.len());
 
@@ -3290,8 +3305,8 @@ impl VariableId {
         self.get(db).mutable
     }
 
-    pub fn location(self, db: &Database) -> &VariableLocation {
-        &self.get(db).location
+    pub fn location(self, db: &Database) -> Location {
+        self.get(db).location
     }
 
     fn get(self, db: &Database) -> &Variable {
@@ -3359,7 +3374,7 @@ impl ConstantId {
     }
 
     pub fn location(self, db: &Database) -> Location {
-        self.get(db).location.clone()
+        self.get(db).location
     }
 
     pub fn name(self, db: &Database) -> &String {
@@ -3538,7 +3553,7 @@ impl Block for ClosureId {
         name: String,
         variable_type: TypeRef,
         argument_type: TypeRef,
-        location: VariableLocation,
+        location: Location,
     ) -> VariableId {
         let var =
             Variable::alloc(db, name.clone(), variable_type, false, location);
@@ -5443,6 +5458,37 @@ mod tests {
     }
 
     #[test]
+    fn test_method_alloc_extern() {
+        let mut db = Database::new();
+        let id = Method::alloc(
+            &mut db,
+            ModuleId(0),
+            Location::default(),
+            "foo".to_string(),
+            Visibility::Private,
+            MethodKind::Extern,
+        );
+
+        assert_eq!(id.inline(&db), Inline::Never);
+    }
+
+    #[test]
+    fn test_method_set_never_return_type() {
+        let mut db = Database::new();
+        let id = Method::alloc(
+            &mut db,
+            ModuleId(0),
+            Location::default(),
+            "foo".to_string(),
+            Visibility::Private,
+            MethodKind::Instance,
+        );
+
+        id.set_return_type(&mut db, TypeRef::Never);
+        assert_eq!(id.inline(&db), Inline::Never);
+    }
+
+    #[test]
     fn test_method_id_named_type() {
         let mut db = Database::new();
         let method = Method::alloc(
@@ -5994,7 +6040,7 @@ mod tests {
         let func2 = Closure::alloc(&mut db, false);
         let thing = new_class(&mut db, "Thing");
         let var_type = immutable(instance(thing));
-        let loc = VariableLocation::new(1, 1, 1);
+        let loc = Location::default();
         let var =
             Variable::alloc(&mut db, "thing".to_string(), var_type, false, loc);
 

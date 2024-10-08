@@ -6,6 +6,10 @@ import std.drop (Drop)
 import std.iter (Iter, Stream)
 import std.ptr
 
+fn invalid_capacity(size: Int) -> Never {
+  panic('the capacity (${size}) must be greater than or equal to zero')
+}
+
 # A double-ended queue (= "deque").
 #
 # This type is implemented as a growable ring buffer, and supports fast inserts
@@ -43,7 +47,7 @@ class pub Deque[T] {
   # Deque.with_capacity(42)
   # ```
   fn pub static with_capacity(size: Int) -> Deque[T] {
-    if size < 0 { panic('the capacity must be greater than or equal to zero') }
+    if size < 0 { invalid_capacity(size) }
 
     Deque(
       size: 0,
@@ -339,19 +343,19 @@ class pub Deque[T] {
     })
   }
 
-  fn read_from(index: Int) -> T {
+  fn inline read_from(index: Int) -> T {
     address_of(index).0
   }
 
-  fn mut write_to(index: Int, value: T) {
+  fn inline mut write_to(index: Int, value: T) {
     address_of(index).0 = value
   }
 
-  fn address_of(index: Int) -> Pointer[T] {
+  fn inline address_of(index: Int) -> Pointer[T] {
     @buffer as Int + (index * _INKO.size_of_type_parameter(T)) as Pointer[T]
   }
 
-  fn get_unchecked(index: Int) -> ref T {
+  fn inline get_unchecked(index: Int) -> ref T {
     let val = read_from(index)
     let ret = ref val
 
@@ -359,7 +363,7 @@ class pub Deque[T] {
     ret
   }
 
-  fn to_buffer_index(index: Int) -> Int {
+  fn inline to_buffer_index(index: Int) -> Int {
     @head.wrapping_add(index) % @capacity
   }
 
@@ -458,7 +462,7 @@ impl Deque if T: mut {
     indexes.map(fn (i) { get_unchecked_mut(i) })
   }
 
-  fn mut get_unchecked_mut(index: Int) -> mut T {
+  fn inline mut get_unchecked_mut(index: Int) -> mut T {
     let val = read_from(index)
     let ret = mut val
 

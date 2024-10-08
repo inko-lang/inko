@@ -2,23 +2,30 @@
 //!
 //! MIR is used for various optimisations, analysing moves of values, compiling
 //! pattern matching into decision trees, and more.
+pub(crate) mod inline;
 pub(crate) mod passes;
 pub(crate) mod pattern_matching;
 pub(crate) mod printer;
 pub(crate) mod specialize;
 
-use ast::source_location::SourceLocation;
+use crate::state::State;
+use crate::symbol_names::{shapes, SymbolNames};
+use location::Location;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::hash::{Hash, Hasher};
+use std::mem::swap;
+use std::ops::{Add, AddAssign, Sub, SubAssign};
 use types::collections::IndexMap;
+use types::module_name::ModuleName;
 use types::{
-    Database, ForeignType, Intrinsic, MethodId, Shape, Sign, TypeArguments,
-    TypeId, TypeRef, BOOL_ID, FLOAT_ID, INT_ID, NIL_ID,
+    Database, ForeignType, Intrinsic, MethodId, Module as ModuleType, Shape,
+    Sign, TypeArguments, TypeId, TypeRef, BOOL_ID, DROPPER_METHOD, FLOAT_ID,
+    INT_ID, NIL_ID,
 };
 
 /// The register ID of the register that stores `self`.
-pub(crate) const SELF_ID: u32 = 0;
+pub(crate) const SELF_ID: usize = 0;
 
 fn method_name(db: &Database, id: MethodId) -> String {
     format!("{}#{}", id.name(db), id.0,)
@@ -46,11 +53,11 @@ impl Registers {
     }
 
     pub(crate) fn get(&self, register: RegisterId) -> &Register {
-        &self.values[register.0 as usize]
+        &self.values[register.0]
     }
 
     pub(crate) fn get_mut(&mut self, register: RegisterId) -> &mut Register {
-        &mut self.values[register.0 as usize]
+        &mut self.values[register.0]
     }
 
     pub(crate) fn value_type(&self, register: RegisterId) -> types::TypeRef {
@@ -63,6 +70,13 @@ impl Registers {
 
     pub(crate) fn iter_mut(&mut self) -> impl Iterator<Item = &mut Register> {
         self.values.iter_mut()
+    }
+
+    pub(crate) fn merge(&mut self, mut other: Registers) {
+        // Reserve the exact amount so we don't allocate more memory than
+        // necessary, which can have a big impact when e.g. inlining methods.
+        self.values.reserve_exact(other.values.len());
+        self.values.append(&mut other.values);
     }
 }
 
@@ -88,6 +102,10 @@ impl Graph {
     pub(crate) fn add_block(&mut self) -> BlockId {
         let id = BlockId(self.blocks.len());
 
+        // We don't want to allocate more than necessary, and blocks aren't
+        // added in tight loops so we explicitly reserve the amount of memory
+        // necessary.
+        self.blocks.reserve_exact(1);
         self.blocks.push(Block::new());
         id
     }
@@ -97,8 +115,18 @@ impl Graph {
     }
 
     pub(crate) fn add_edge(&mut self, source: BlockId, target: BlockId) {
-        self.blocks[target.0].predecessors.push(source);
-        self.blocks[source.0].successors.push(target);
+        // Edges aren't added that often, and we don't want to allocate more
+        // memory than necessary, so we explicitly reserve the exact amount
+        // necessary.
+        let target_block = &mut self.blocks[target.0];
+
+        target_block.predecessors.reserve_exact(1);
+        target_block.predecessors.push(source);
+
+        let source_block = &mut self.blocks[source.0];
+
+        source_block.successors.reserve_exact(1);
+        source_block.successors.push(target);
     }
 
     pub(crate) fn is_connected(&self, block: BlockId) -> bool {
@@ -135,11 +163,44 @@ impl Graph {
 
         reachable
     }
+
+    pub(crate) fn merge(&mut self, mut other: Graph) {
+        self.blocks.reserve_exact(other.blocks.len());
+        self.blocks.append(&mut other.blocks);
+    }
 }
 
 /// The ID/index to a basic block within a method.
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub(crate) struct BlockId(pub(crate) usize);
+
+impl Add<usize> for BlockId {
+    type Output = BlockId;
+
+    fn add(self, rhs: usize) -> Self::Output {
+        BlockId(self.0 + rhs)
+    }
+}
+
+impl AddAssign<usize> for BlockId {
+    fn add_assign(&mut self, rhs: usize) {
+        self.0 += rhs;
+    }
+}
+
+impl Sub<usize> for BlockId {
+    type Output = BlockId;
+
+    fn sub(self, rhs: usize) -> Self::Output {
+        BlockId(self.0 - rhs)
+    }
+}
+
+impl SubAssign<usize> for BlockId {
+    fn sub_assign(&mut self, rhs: usize) {
+        self.0 -= rhs;
+    }
+}
 
 /// A basic block in a control flow graph.
 #[derive(Clone)]
@@ -163,7 +224,7 @@ impl Block {
         }
     }
 
-    pub(crate) fn goto(&mut self, block: BlockId, location: LocationId) {
+    pub(crate) fn goto(&mut self, block: BlockId, location: Location) {
         self.instructions
             .push(Instruction::Goto(Box::new(Goto { block, location })));
     }
@@ -173,7 +234,7 @@ impl Block {
         condition: RegisterId,
         if_true: BlockId,
         if_false: BlockId,
-        location: LocationId,
+        location: Location,
     ) {
         self.instructions.push(Instruction::Branch(Box::new(Branch {
             condition,
@@ -187,7 +248,7 @@ impl Block {
         &mut self,
         register: RegisterId,
         blocks: Vec<BlockId>,
-        location: LocationId,
+        location: Location,
     ) {
         self.instructions.push(Instruction::Switch(Box::new(Switch {
             register,
@@ -199,13 +260,13 @@ impl Block {
     pub(crate) fn return_value(
         &mut self,
         register: RegisterId,
-        location: LocationId,
+        location: Location,
     ) {
         self.instructions
             .push(Instruction::Return(Box::new(Return { register, location })));
     }
 
-    pub(crate) fn finish(&mut self, terminate: bool, location: LocationId) {
+    pub(crate) fn finish(&mut self, terminate: bool, location: Location) {
         self.instructions.push(Instruction::Finish(Box::new(Finish {
             location,
             terminate,
@@ -215,7 +276,7 @@ impl Block {
     pub(crate) fn nil_literal(
         &mut self,
         register: RegisterId,
-        location: LocationId,
+        location: Location,
     ) {
         self.instructions.push(Instruction::Nil(Box::new(NilLiteral {
             register,
@@ -223,24 +284,15 @@ impl Block {
         })));
     }
 
-    pub(crate) fn false_literal(
+    pub(crate) fn bool_literal(
         &mut self,
         register: RegisterId,
-        location: LocationId,
+        value: bool,
+        location: Location,
     ) {
-        self.instructions.push(Instruction::False(Box::new(FalseLiteral {
+        self.instructions.push(Instruction::Bool(Box::new(BoolLiteral {
             register,
-            location,
-        })));
-    }
-
-    pub(crate) fn true_literal(
-        &mut self,
-        register: RegisterId,
-        location: LocationId,
-    ) {
-        self.instructions.push(Instruction::True(Box::new(TrueLiteral {
-            register,
+            value,
             location,
         })));
     }
@@ -249,7 +301,7 @@ impl Block {
         &mut self,
         register: RegisterId,
         value: i64,
-        location: LocationId,
+        location: Location,
     ) {
         self.instructions.push(Instruction::Int(Box::new(IntLiteral {
             register,
@@ -262,7 +314,7 @@ impl Block {
         &mut self,
         register: RegisterId,
         value: f64,
-        location: LocationId,
+        location: Location,
     ) {
         self.instructions.push(Instruction::Float(Box::new(FloatLiteral {
             register,
@@ -275,7 +327,7 @@ impl Block {
         &mut self,
         register: RegisterId,
         value: String,
-        location: LocationId,
+        location: Location,
     ) {
         self.instructions.push(Instruction::String(Box::new(StringLiteral {
             register,
@@ -288,10 +340,21 @@ impl Block {
         &mut self,
         target: RegisterId,
         source: RegisterId,
-        location: LocationId,
+        location: Location,
     ) {
         self.instructions.push(Instruction::MoveRegister(Box::new(
-            MoveRegister { source, target, location },
+            MoveRegister { source, target, volatile: false, location },
+        )));
+    }
+
+    pub(crate) fn move_volatile_register(
+        &mut self,
+        target: RegisterId,
+        source: RegisterId,
+        location: Location,
+    ) {
+        self.instructions.push(Instruction::MoveRegister(Box::new(
+            MoveRegister { source, target, volatile: true, location },
         )));
     }
 
@@ -299,7 +362,7 @@ impl Block {
         &mut self,
         register: RegisterId,
         value: RegisterId,
-        location: LocationId,
+        location: Location,
     ) {
         self.instructions.push(Instruction::Reference(Box::new(Reference {
             register,
@@ -308,11 +371,7 @@ impl Block {
         })));
     }
 
-    pub(crate) fn increment(
-        &mut self,
-        value: RegisterId,
-        location: LocationId,
-    ) {
+    pub(crate) fn increment(&mut self, value: RegisterId, location: Location) {
         self.instructions.push(Instruction::Increment(Box::new(Increment {
             register: value,
             location,
@@ -322,7 +381,7 @@ impl Block {
     pub(crate) fn decrement(
         &mut self,
         register: RegisterId,
-        location: LocationId,
+        location: Location,
     ) {
         self.instructions.push(Instruction::Decrement(Box::new(Decrement {
             register,
@@ -333,7 +392,7 @@ impl Block {
     pub(crate) fn increment_atomic(
         &mut self,
         value: RegisterId,
-        location: LocationId,
+        location: Location,
     ) {
         self.instructions.push(Instruction::IncrementAtomic(Box::new(
             IncrementAtomic { register: value, location },
@@ -345,14 +404,14 @@ impl Block {
         register: RegisterId,
         if_true: BlockId,
         if_false: BlockId,
-        location: LocationId,
+        location: Location,
     ) {
         self.instructions.push(Instruction::DecrementAtomic(Box::new(
             DecrementAtomic { register, if_true, if_false, location },
         )));
     }
 
-    pub(crate) fn drop(&mut self, register: RegisterId, location: LocationId) {
+    pub(crate) fn drop(&mut self, register: RegisterId, location: Location) {
         self.instructions.push(Instruction::Drop(Box::new(Drop {
             register,
             dropper: true,
@@ -363,7 +422,7 @@ impl Block {
     pub(crate) fn drop_without_dropper(
         &mut self,
         register: RegisterId,
-        location: LocationId,
+        location: Location,
     ) {
         self.instructions.push(Instruction::Drop(Box::new(Drop {
             register,
@@ -376,7 +435,7 @@ impl Block {
         &mut self,
         register: RegisterId,
         class: types::ClassId,
-        location: LocationId,
+        location: Location,
     ) {
         self.instructions.push(Instruction::Free(Box::new(Free {
             register,
@@ -388,7 +447,7 @@ impl Block {
     pub(crate) fn check_refs(
         &mut self,
         register: RegisterId,
-        location: LocationId,
+        location: Location,
     ) {
         self.instructions.push(Instruction::CheckRefs(Box::new(CheckRefs {
             register,
@@ -402,7 +461,7 @@ impl Block {
         method: types::MethodId,
         arguments: Vec<RegisterId>,
         type_arguments: Option<usize>,
-        location: LocationId,
+        location: Location,
     ) {
         self.instructions.push(Instruction::CallStatic(Box::new(CallStatic {
             register,
@@ -420,7 +479,7 @@ impl Block {
         method: types::MethodId,
         arguments: Vec<RegisterId>,
         type_arguments: Option<usize>,
-        location: LocationId,
+        location: Location,
     ) {
         self.instructions.push(Instruction::CallInstance(Box::new(
             CallInstance {
@@ -439,7 +498,7 @@ impl Block {
         register: RegisterId,
         method: types::MethodId,
         arguments: Vec<RegisterId>,
-        location: LocationId,
+        location: Location,
     ) {
         self.instructions.push(Instruction::CallExtern(Box::new(CallExtern {
             register,
@@ -456,7 +515,7 @@ impl Block {
         method: types::MethodId,
         arguments: Vec<RegisterId>,
         type_arguments: Option<usize>,
-        location: LocationId,
+        location: Location,
     ) {
         self.instructions.push(Instruction::CallDynamic(Box::new(
             CallDynamic {
@@ -475,7 +534,7 @@ impl Block {
         register: RegisterId,
         receiver: RegisterId,
         arguments: Vec<RegisterId>,
-        location: LocationId,
+        location: Location,
     ) {
         self.instructions.push(Instruction::CallClosure(Box::new(
             CallClosure { register, receiver, arguments, location },
@@ -486,7 +545,7 @@ impl Block {
         &mut self,
         register: RegisterId,
         receiver: RegisterId,
-        location: LocationId,
+        location: Location,
     ) {
         self.instructions.push(Instruction::CallDropper(Box::new(
             CallDropper { register, receiver, location },
@@ -498,7 +557,7 @@ impl Block {
         register: RegisterId,
         name: Intrinsic,
         arguments: Vec<RegisterId>,
-        location: LocationId,
+        location: Location,
     ) {
         self.instructions.push(Instruction::CallBuiltin(Box::new(
             CallBuiltin { register, name, arguments, location },
@@ -511,7 +570,7 @@ impl Block {
         method: types::MethodId,
         arguments: Vec<RegisterId>,
         type_arguments: Option<usize>,
-        location: LocationId,
+        location: Location,
     ) {
         self.instructions.push(Instruction::Send(Box::new(Send {
             receiver,
@@ -528,7 +587,7 @@ impl Block {
         receiver: RegisterId,
         class: types::ClassId,
         field: types::FieldId,
-        location: LocationId,
+        location: Location,
     ) {
         self.instructions.push(Instruction::GetField(Box::new(GetField {
             class,
@@ -545,7 +604,7 @@ impl Block {
         class: types::ClassId,
         field: types::FieldId,
         value: RegisterId,
-        location: LocationId,
+        location: Location,
     ) {
         self.instructions.push(Instruction::SetField(Box::new(SetField {
             receiver,
@@ -560,7 +619,7 @@ impl Block {
         &mut self,
         register: RegisterId,
         value: RegisterId,
-        location: LocationId,
+        location: Location,
     ) {
         self.instructions.push(Instruction::Pointer(Box::new(Pointer {
             register,
@@ -575,7 +634,7 @@ impl Block {
         receiver: RegisterId,
         class: types::ClassId,
         field: types::FieldId,
-        location: LocationId,
+        location: Location,
     ) {
         self.instructions.push(Instruction::FieldPointer(Box::new(
             FieldPointer { class, register, receiver, field, location },
@@ -586,7 +645,7 @@ impl Block {
         &mut self,
         register: RegisterId,
         method: types::MethodId,
-        location: LocationId,
+        location: Location,
     ) {
         self.instructions.push(Instruction::MethodPointer(Box::new(
             MethodPointer { register, method, location },
@@ -597,7 +656,7 @@ impl Block {
         &mut self,
         register: RegisterId,
         pointer: RegisterId,
-        location: LocationId,
+        location: Location,
     ) {
         self.instructions.push(Instruction::ReadPointer(Box::new(
             ReadPointer { register, pointer, location },
@@ -608,7 +667,7 @@ impl Block {
         &mut self,
         pointer: RegisterId,
         value: RegisterId,
-        location: LocationId,
+        location: Location,
     ) {
         self.instructions.push(Instruction::WritePointer(Box::new(
             WritePointer { pointer, value, location },
@@ -619,7 +678,7 @@ impl Block {
         &mut self,
         register: RegisterId,
         class: types::ClassId,
-        location: LocationId,
+        location: Location,
     ) {
         self.instructions.push(Instruction::Allocate(Box::new(Allocate {
             register,
@@ -632,7 +691,7 @@ impl Block {
         &mut self,
         register: RegisterId,
         class: types::ClassId,
-        location: LocationId,
+        location: Location,
     ) {
         self.instructions.push(Instruction::Spawn(Box::new(Spawn {
             register,
@@ -645,14 +704,14 @@ impl Block {
         &mut self,
         register: RegisterId,
         id: types::ConstantId,
-        location: LocationId,
+        location: Location,
     ) {
         self.instructions.push(Instruction::GetConstant(Box::new(
             GetConstant { register, id, location },
         )));
     }
 
-    pub(crate) fn preempt(&mut self, location: LocationId) {
+    pub(crate) fn preempt(&mut self, location: Location) {
         self.instructions
             .push(Instruction::Preempt(Box::new(Preempt { location })))
     }
@@ -663,7 +722,7 @@ impl Block {
         source: RegisterId,
         from: CastType,
         to: CastType,
-        location: LocationId,
+        location: Location,
     ) {
         self.instructions.push(Instruction::Cast(Box::new(Cast {
             register,
@@ -678,13 +737,27 @@ impl Block {
         &mut self,
         register: RegisterId,
         argument: TypeRef,
-        location: LocationId,
+        location: Location,
     ) {
         self.instructions.push(Instruction::SizeOf(Box::new(SizeOf {
             register,
             argument,
             location,
         })));
+    }
+
+    pub(crate) fn push_debug_scope(
+        &mut self,
+        method: MethodId,
+        location: Location,
+    ) {
+        self.instructions.push(Instruction::PushDebugScope(Box::new(
+            PushDebugScope { method, location },
+        )));
+    }
+
+    pub(crate) fn pop_debug_scope(&mut self, location: Location) {
+        self.instructions.push(Instruction::PopDebugScope(location));
     }
 }
 
@@ -755,40 +828,61 @@ pub(crate) struct Register {
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
-pub(crate) struct RegisterId(pub(crate) u32);
+pub(crate) struct RegisterId(pub(crate) usize);
+
+impl Add<usize> for RegisterId {
+    type Output = RegisterId;
+
+    fn add(self, rhs: usize) -> Self::Output {
+        RegisterId(self.0 + rhs)
+    }
+}
+
+impl AddAssign<usize> for RegisterId {
+    fn add_assign(&mut self, rhs: usize) {
+        self.0 += rhs;
+    }
+}
 
 #[derive(Clone)]
 pub(crate) struct Branch {
     pub(crate) condition: RegisterId,
     pub(crate) if_true: BlockId,
     pub(crate) if_false: BlockId,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone)]
 pub(crate) struct Switch {
     pub(crate) register: RegisterId,
     pub(crate) blocks: Vec<BlockId>,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone)]
 pub(crate) struct Goto {
     pub(crate) block: BlockId,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone)]
 pub(crate) struct MoveRegister {
-    pub(crate) source: RegisterId,
     pub(crate) target: RegisterId,
-    pub(crate) location: LocationId,
+    pub(crate) source: RegisterId,
+    /// When set to `true`, the instruction must never be optimized away at the
+    /// MIR level.
+    ///
+    /// This flag is/should be set when assigning the registers used for local
+    /// variables, otherwise we may optimize them away such that e.g. loops no
+    /// longer work.
+    pub(crate) volatile: bool,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone)]
 pub(crate) struct CheckRefs {
     pub(crate) register: RegisterId,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
 /// Drops a value according to its type.
@@ -799,46 +893,46 @@ pub(crate) struct CheckRefs {
 pub(crate) struct Drop {
     pub(crate) register: RegisterId,
     pub(crate) dropper: bool,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone)]
 pub(crate) struct CallDropper {
     pub(crate) register: RegisterId,
     pub(crate) receiver: RegisterId,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone)]
 pub(crate) struct Free {
     pub(crate) class: types::ClassId,
     pub(crate) register: RegisterId,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone)]
 pub(crate) struct Reference {
     pub(crate) register: RegisterId,
     pub(crate) value: RegisterId,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone)]
 pub(crate) struct Increment {
     pub(crate) register: RegisterId,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone)]
 pub(crate) struct Decrement {
     pub(crate) register: RegisterId,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone)]
 pub(crate) struct IncrementAtomic {
     pub(crate) register: RegisterId,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone)]
@@ -846,52 +940,47 @@ pub(crate) struct DecrementAtomic {
     pub(crate) register: RegisterId,
     pub(crate) if_true: BlockId,
     pub(crate) if_false: BlockId,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone)]
-pub(crate) struct TrueLiteral {
+pub(crate) struct BoolLiteral {
+    pub(crate) value: bool,
     pub(crate) register: RegisterId,
-    pub(crate) location: LocationId,
-}
-
-#[derive(Clone)]
-pub(crate) struct FalseLiteral {
-    pub(crate) register: RegisterId,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone)]
 pub(crate) struct NilLiteral {
     pub(crate) register: RegisterId,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone)]
 pub(crate) struct Return {
     pub(crate) register: RegisterId,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone)]
 pub(crate) struct IntLiteral {
     pub(crate) register: RegisterId,
     pub(crate) value: i64,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone)]
 pub(crate) struct FloatLiteral {
     pub(crate) register: RegisterId,
     pub(crate) value: f64,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone)]
 pub(crate) struct StringLiteral {
     pub(crate) register: RegisterId,
     pub(crate) value: String,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone)]
@@ -900,7 +989,7 @@ pub(crate) struct CallStatic {
     pub(crate) method: types::MethodId,
     pub(crate) arguments: Vec<RegisterId>,
     pub(crate) type_arguments: Option<usize>,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone)]
@@ -910,7 +999,7 @@ pub(crate) struct CallInstance {
     pub(crate) method: types::MethodId,
     pub(crate) arguments: Vec<RegisterId>,
     pub(crate) type_arguments: Option<usize>,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone)]
@@ -918,7 +1007,7 @@ pub(crate) struct CallExtern {
     pub(crate) register: RegisterId,
     pub(crate) method: types::MethodId,
     pub(crate) arguments: Vec<RegisterId>,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone)]
@@ -928,7 +1017,7 @@ pub(crate) struct CallDynamic {
     pub(crate) method: types::MethodId,
     pub(crate) arguments: Vec<RegisterId>,
     pub(crate) type_arguments: Option<usize>,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone)]
@@ -936,7 +1025,7 @@ pub(crate) struct CallClosure {
     pub(crate) register: RegisterId,
     pub(crate) receiver: RegisterId,
     pub(crate) arguments: Vec<RegisterId>,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone)]
@@ -944,7 +1033,7 @@ pub(crate) struct CallBuiltin {
     pub(crate) register: RegisterId,
     pub(crate) name: Intrinsic,
     pub(crate) arguments: Vec<RegisterId>,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone)]
@@ -953,7 +1042,7 @@ pub(crate) struct Send {
     pub(crate) method: types::MethodId,
     pub(crate) arguments: Vec<RegisterId>,
     pub(crate) type_arguments: Option<usize>,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone)]
@@ -962,7 +1051,7 @@ pub(crate) struct GetField {
     pub(crate) register: RegisterId,
     pub(crate) receiver: RegisterId,
     pub(crate) field: types::FieldId,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone)]
@@ -971,39 +1060,39 @@ pub(crate) struct SetField {
     pub(crate) receiver: RegisterId,
     pub(crate) value: RegisterId,
     pub(crate) field: types::FieldId,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone)]
 pub(crate) struct GetConstant {
     pub(crate) register: RegisterId,
     pub(crate) id: types::ConstantId,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone)]
 pub(crate) struct Allocate {
     pub(crate) register: RegisterId,
     pub(crate) class: types::ClassId,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone)]
 pub(crate) struct Spawn {
     pub(crate) register: RegisterId,
     pub(crate) class: types::ClassId,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone)]
 pub(crate) struct Preempt {
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone)]
 pub(crate) struct Finish {
     pub(crate) terminate: bool,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone)]
@@ -1012,7 +1101,7 @@ pub(crate) struct Cast {
     pub(crate) source: RegisterId,
     pub(crate) from: CastType,
     pub(crate) to: CastType,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, Copy)]
@@ -1059,18 +1148,18 @@ impl CastType {
     }
 }
 
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Copy)]
 pub(crate) struct Pointer {
     pub(crate) register: RegisterId,
     pub(crate) value: RegisterId,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Copy)]
 pub(crate) struct MethodPointer {
     pub(crate) register: RegisterId,
     pub(crate) method: types::MethodId,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone)]
@@ -1079,28 +1168,34 @@ pub(crate) struct FieldPointer {
     pub(crate) register: RegisterId,
     pub(crate) receiver: RegisterId,
     pub(crate) field: types::FieldId,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Copy)]
 pub(crate) struct ReadPointer {
     pub(crate) register: RegisterId,
     pub(crate) pointer: RegisterId,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Copy)]
 pub(crate) struct WritePointer {
     pub(crate) pointer: RegisterId,
     pub(crate) value: RegisterId,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Copy)]
 pub(crate) struct SizeOf {
     pub(crate) register: RegisterId,
     pub(crate) argument: types::TypeRef,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct PushDebugScope {
+    pub(crate) method: types::MethodId,
+    pub(crate) location: Location,
 }
 
 /// A MIR instruction.
@@ -1111,7 +1206,6 @@ pub(crate) struct SizeOf {
 pub(crate) enum Instruction {
     Branch(Box<Branch>),
     Switch(Box<Switch>),
-    False(Box<FalseLiteral>),
     Float(Box<FloatLiteral>),
     Goto(Box<Goto>),
     Int(Box<IntLiteral>),
@@ -1119,7 +1213,7 @@ pub(crate) enum Instruction {
     Nil(Box<NilLiteral>),
     Return(Box<Return>),
     String(Box<StringLiteral>),
-    True(Box<TrueLiteral>),
+    Bool(Box<BoolLiteral>),
     CallStatic(Box<CallStatic>),
     CallInstance(Box<CallInstance>),
     CallExtern(Box<CallExtern>),
@@ -1150,15 +1244,16 @@ pub(crate) enum Instruction {
     FieldPointer(Box<FieldPointer>),
     MethodPointer(Box<MethodPointer>),
     SizeOf(Box<SizeOf>),
+    PushDebugScope(Box<PushDebugScope>),
+    PopDebugScope(Location),
 }
 
 impl Instruction {
-    pub(crate) fn location(&self) -> LocationId {
+    pub(crate) fn location(&self) -> Location {
         match self {
             Instruction::Branch(ref v) => v.location,
             Instruction::Switch(ref v) => v.location,
-            Instruction::False(ref v) => v.location,
-            Instruction::True(ref v) => v.location,
+            Instruction::Bool(ref v) => v.location,
             Instruction::Goto(ref v) => v.location,
             Instruction::MoveRegister(ref v) => v.location,
             Instruction::Return(ref v) => v.location,
@@ -1196,6 +1291,8 @@ impl Instruction {
             Instruction::FieldPointer(ref v) => v.location,
             Instruction::MethodPointer(ref v) => v.location,
             Instruction::SizeOf(ref v) => v.location,
+            Instruction::PushDebugScope(ref v) => v.location,
+            Instruction::PopDebugScope(ref v) => *v,
         }
     }
 
@@ -1219,11 +1316,8 @@ impl Instruction {
                         .join(", ")
                 )
             }
-            Instruction::False(ref v) => {
-                format!("r{} = false", v.register.0)
-            }
-            Instruction::True(ref v) => {
-                format!("r{} = true", v.register.0)
+            Instruction::Bool(ref v) => {
+                format!("r{} = {}", v.register.0, v.value)
             }
             Instruction::Nil(ref v) => {
                 format!("r{} = nil", v.register.0)
@@ -1241,7 +1335,12 @@ impl Instruction {
                 format!("goto b{}", v.block.0)
             }
             Instruction::MoveRegister(ref v) => {
-                format!("r{} = move r{}", v.target.0, v.source.0)
+                format!(
+                    "r{} = move r{}{}",
+                    v.target.0,
+                    v.source.0,
+                    if v.volatile { " (volatile)" } else { "" }
+                )
             }
             Instruction::Drop(ref v) => {
                 format!("drop r{}", v.register.0)
@@ -1412,6 +1511,10 @@ impl Instruction {
                     types::format::format_type(db, v.argument)
                 )
             }
+            Instruction::PushDebugScope(v) => {
+                format!("push_debug_scope {}", method_name(db, v.method))
+            }
+            Instruction::PopDebugScope(_) => "pop_debug_scope".to_string(),
         }
     }
 }
@@ -1443,6 +1546,11 @@ pub(crate) struct Module {
     pub(crate) classes: Vec<types::ClassId>,
     pub(crate) constants: Vec<types::ConstantId>,
     pub(crate) methods: Vec<types::MethodId>,
+
+    /// The methods inlined into this module.
+    ///
+    /// This is used to flush incremental compilation caches when necessary.
+    pub(crate) inlined_methods: HashSet<types::MethodId>,
 }
 
 impl Module {
@@ -1452,6 +1560,7 @@ impl Module {
             classes: Vec::new(),
             constants: Vec::new(),
             methods: Vec::new(),
+            inlined_methods: HashSet::new(),
         }
     }
 }
@@ -1462,11 +1571,11 @@ pub(crate) struct Method {
     pub(crate) registers: Registers,
     pub(crate) body: Graph,
     pub(crate) arguments: Vec<RegisterId>,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
 impl Method {
-    pub(crate) fn new(id: types::MethodId, location: LocationId) -> Self {
+    pub(crate) fn new(id: types::MethodId, location: Location) -> Self {
         Self {
             id,
             body: Graph::new(),
@@ -1475,17 +1584,119 @@ impl Method {
             location,
         }
     }
-}
 
-#[derive(Copy, Clone, Debug)]
-pub(crate) struct LocationId(usize);
+    fn register_use_counts(&self) -> Vec<usize> {
+        let mut uses = vec![0_usize; self.registers.len()];
+
+        for block in &self.body.blocks {
+            for ins in &block.instructions {
+                match ins {
+                    Instruction::Branch(i) => {
+                        uses[i.condition.0] += 1;
+                    }
+                    Instruction::Switch(i) => {
+                        uses[i.register.0] += 1;
+                    }
+                    Instruction::MoveRegister(i) => {
+                        uses[i.source.0] += 1;
+
+                        if i.volatile {
+                            uses[i.target.0] += 1;
+                        }
+                    }
+                    Instruction::Return(i) => {
+                        uses[i.register.0] += 1;
+                    }
+                    Instruction::CallStatic(i) => {
+                        i.arguments.iter().for_each(|r| uses[r.0] += 1);
+                    }
+                    Instruction::CallInstance(i) => {
+                        uses[i.receiver.0] += 1;
+                        i.arguments.iter().for_each(|r| uses[r.0] += 1);
+                    }
+                    Instruction::CallExtern(i) => {
+                        i.arguments.iter().for_each(|r| uses[r.0] += 1);
+                    }
+                    Instruction::CallDynamic(i) => {
+                        uses[i.receiver.0] += 1;
+                        i.arguments.iter().for_each(|r| uses[r.0] += 1);
+                    }
+                    Instruction::CallClosure(i) => {
+                        uses[i.receiver.0] += 1;
+                        i.arguments.iter().for_each(|r| uses[r.0] += 1);
+                    }
+                    Instruction::CallDropper(i) => {
+                        uses[i.receiver.0] += 1;
+                    }
+                    Instruction::CallBuiltin(i) => {
+                        i.arguments.iter().for_each(|r| uses[r.0] += 1);
+                    }
+                    Instruction::Send(i) => {
+                        uses[i.receiver.0] += 1;
+                        i.arguments.iter().for_each(|r| uses[r.0] += 1);
+                    }
+                    Instruction::GetField(i) => {
+                        uses[i.receiver.0] += 1;
+                    }
+                    Instruction::SetField(i) => {
+                        uses[i.receiver.0] += 1;
+                        uses[i.value.0] += 1;
+                    }
+                    Instruction::CheckRefs(i) => {
+                        uses[i.register.0] += 1;
+                    }
+                    Instruction::Drop(i) => {
+                        uses[i.register.0] += 1;
+                    }
+                    Instruction::Free(i) => {
+                        uses[i.register.0] += 1;
+                    }
+                    Instruction::Reference(i) => {
+                        uses[i.value.0] += 1;
+                    }
+                    Instruction::Increment(i) => {
+                        uses[i.register.0] += 1;
+                    }
+                    Instruction::Decrement(i) => {
+                        uses[i.register.0] += 1;
+                    }
+                    Instruction::IncrementAtomic(i) => {
+                        uses[i.register.0] += 1;
+                    }
+                    Instruction::DecrementAtomic(i) => {
+                        uses[i.register.0] += 1;
+                    }
+                    Instruction::Cast(i) => {
+                        uses[i.source.0] += 1;
+                    }
+                    Instruction::Pointer(i) => {
+                        uses[i.value.0] += 1;
+                    }
+                    Instruction::ReadPointer(i) => {
+                        uses[i.pointer.0] += 1;
+                    }
+                    Instruction::WritePointer(i) => {
+                        uses[i.pointer.0] += 1;
+                        uses[i.value.0] += 1;
+                    }
+                    Instruction::FieldPointer(i) => {
+                        uses[i.receiver.0] += 1;
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        uses
+    }
+}
 
 /// An Inko program in its MIR form.
 pub(crate) struct Mir {
     pub(crate) constants: HashMap<types::ConstantId, Constant>,
     pub(crate) modules: IndexMap<types::ModuleId, Module>,
     pub(crate) classes: HashMap<types::ClassId, Class>,
-    pub(crate) methods: HashMap<types::MethodId, Method>,
+    pub(crate) methods: IndexMap<types::MethodId, Method>,
 
     /// Externally defined methods/functions that are called at some point.
     ///
@@ -1509,8 +1720,6 @@ pub(crate) struct Mir {
     /// dispatch hashes for.
     pub(crate) dynamic_calls:
         HashMap<MethodId, HashSet<(MethodId, Vec<Shape>)>>,
-
-    locations: Vec<SourceLocation>,
 }
 
 impl Mir {
@@ -1519,11 +1728,10 @@ impl Mir {
             constants: HashMap::new(),
             modules: IndexMap::new(),
             classes: HashMap::new(),
-            methods: HashMap::new(),
+            methods: IndexMap::new(),
             extern_methods: HashSet::new(),
             type_arguments: Vec::new(),
             dynamic_calls: HashMap::new(),
-            locations: Vec::new(),
         }
     }
 
@@ -1545,26 +1753,474 @@ impl Mir {
         }
     }
 
-    pub(crate) fn add_location(
-        &mut self,
-        location: SourceLocation,
-    ) -> LocationId {
-        let id = LocationId(self.locations.len());
+    pub(crate) fn sort(&mut self, db: &Database, names: &SymbolNames) {
+        // We sort the data by their generated symbol names, as these are
+        // already unique for each ID and take into account data such as the
+        // shapes. If we sorted just by IDs we'd get an inconsistent order
+        // between compilations, and if we just sorted by names we may get an
+        // inconsistent order when many values share the same name.
+        for module in self.modules.values_mut() {
+            module.constants.sort_by_key(|i| &names.constants[i]);
+            module.classes.sort_by_key(|i| &names.classes[i]);
+            module.methods.sort_by_key(|i| &names.methods[i]);
+        }
 
-        self.locations.push(location);
-        id
-    }
+        for class in self.classes.values_mut() {
+            class.methods.sort_by_key(|i| &names.methods[i]);
+        }
 
-    pub(crate) fn last_location(&self) -> Option<LocationId> {
-        if self.locations.is_empty() {
-            None
-        } else {
-            Some(LocationId(self.locations.len() - 1))
+        // When populating object caches we need to be able to iterate over the
+        // MIR modules in a stable order. We do this here (and once) such that
+        // from this point forward, we can rely on a stable order, as it's too
+        // easy to forget to first sort this list every time we want to iterate
+        // over it.
+        //
+        // Because `mir.modules` is an IndexMap, sorting it is a bit more
+        // involved compared to just sorting a `Vec`.
+        let mut values = self.modules.take_values();
+
+        values.sort_by_key(|m| m.id.name(db));
+
+        for module in values {
+            self.modules.insert(module.id, module);
+        }
+
+        // Also sort the method objects themselves, so passes that wish to
+        // iterate over this data directly can do so in a stable order.
+        let mut methods = self.methods.take_values();
+
+        methods.sort_by_key(|m| &names.methods[&m.id]);
+
+        for method in methods {
+            self.methods.insert(method.id, method);
         }
     }
 
-    pub(crate) fn location(&self, index: LocationId) -> &SourceLocation {
-        &self.locations[index.0]
+    /// Splits modules into smaller ones, such that each specialized
+    /// type has its own module.
+    ///
+    /// This is done to make caching and parallel compilation more effective,
+    /// such that adding a newly specialized type won't flush many caches
+    /// unnecessarily.
+    pub(crate) fn split_modules(&mut self, state: &mut State) {
+        let mut new_modules = Vec::new();
+
+        for old_module in self.modules.values_mut() {
+            let mut moved_classes = HashSet::new();
+            let mut moved_methods = HashSet::new();
+
+            for &class_id in &old_module.classes {
+                if class_id.specialization_source(&state.db).unwrap_or(class_id)
+                    == class_id
+                    || class_id.kind(&state.db).is_closure()
+                {
+                    // Non-generic and closure classes always originate from the
+                    // source modules, so there's no need to move them
+                    // elsewhere.
+                    continue;
+                }
+
+                let file = old_module.id.file(&state.db);
+                let orig_name = old_module.id.name(&state.db).clone();
+                let name = ModuleName::new(format!(
+                    "{}({}#{})",
+                    orig_name,
+                    class_id.name(&state.db),
+                    shapes(class_id.shapes(&state.db))
+                ));
+
+                let new_mod_id =
+                    ModuleType::alloc(&mut state.db, name.clone(), file);
+
+                // For symbols/stack traces we want to use the original name,
+                // not the generated one.
+                new_mod_id
+                    .set_method_symbol_name(&mut state.db, orig_name.clone());
+
+                // We have to record the new module in the dependency graph,
+                // that way a change to the original module also affects these
+                // generated modules.
+                let new_node_id = state.dependency_graph.add_module(&name);
+                let old_node_id =
+                    state.dependency_graph.module_id(&orig_name).unwrap();
+
+                state.dependency_graph.add_depending(old_node_id, new_node_id);
+
+                let mut new_module = Module::new(new_mod_id);
+
+                // We don't deal with static methods as those have their
+                // receiver typed as the original class ID, because they don't
+                // really belong to a class (i.e. they're basically scoped
+                // module methods).
+                new_module.methods = self.classes[&class_id].methods.clone();
+                new_module.classes.push(class_id);
+                moved_classes.insert(class_id);
+
+                // When generating symbol names we use the module as stored in
+                // the method, so we need to make sure that's set to our newly
+                // generated module.
+                for &id in &new_module.methods {
+                    id.set_module(&mut state.db, new_mod_id);
+                    moved_methods.insert(id);
+                }
+
+                class_id.set_module(&mut state.db, new_mod_id);
+                new_modules.push(new_module);
+            }
+
+            old_module.methods.retain(|id| !moved_methods.contains(id));
+            old_module.classes.retain(|i| !moved_classes.contains(i));
+        }
+
+        for module in new_modules {
+            self.modules.insert(module.id, module);
+        }
+    }
+
+    pub(crate) fn remove_empty_blocks(&mut self) {
+        for method in self.methods.values_mut() {
+            for idx in 0..method.body.blocks.len() {
+                // Unreachable blocks are removed separately, so we can skip
+                // them entirely.
+                if !method.body.is_connected(BlockId(idx)) {
+                    continue;
+                }
+
+                let (preds, succ) = {
+                    let block = &mut method.body.blocks[idx];
+
+                    if !block.instructions.is_empty() {
+                        continue;
+                    }
+
+                    // Empty blocks never have more than one successor. Since we
+                    // already skip unreachable blocks, we'll also never find a
+                    // block that doesn't have _any_ successors.
+                    let succ = block.successors.pop().unwrap();
+                    let mut pred = Vec::new();
+
+                    swap(&mut pred, &mut block.predecessors);
+                    (pred, succ)
+                };
+
+                let cur_id = BlockId(idx);
+
+                for pred in preds {
+                    let block = &mut method.body.blocks[pred.0];
+
+                    // If the predecessor block ends with a terminator
+                    // instruction, we need to make sure the instruction jumps
+                    // to the _successor_ of the current block.
+                    match block.instructions.last_mut() {
+                        Some(Instruction::Goto(ins)) => {
+                            ins.block = succ;
+                        }
+                        Some(Instruction::Branch(ins)) => {
+                            if ins.if_true == cur_id {
+                                ins.if_true = succ;
+                            }
+
+                            if ins.if_false == cur_id {
+                                ins.if_false = succ;
+                            }
+                        }
+                        Some(Instruction::Switch(ins)) => {
+                            for id in &mut ins.blocks {
+                                if *id == cur_id {
+                                    *id = cur_id;
+                                }
+                            }
+                        }
+                        Some(Instruction::DecrementAtomic(ins)) => {
+                            if ins.if_true == cur_id {
+                                ins.if_true = succ;
+                            }
+
+                            if ins.if_false == cur_id {
+                                ins.if_false = succ;
+                            }
+                        }
+                        _ => {}
+                    }
+
+                    block.successors.retain(|i| i.0 != idx);
+                    method.body.add_edge(pred, succ);
+                }
+
+                method.body.blocks[succ.0].predecessors.retain(|i| i.0 != idx);
+
+                if idx == method.body.start_id.0 {
+                    method.body.start_id = succ;
+                }
+            }
+        }
+
+        // The above loop may produce instructions that now point to blocks that
+        // are unreachable. Since this is an implementation detail of this pass,
+        // we immediately run an iteration of the dead block removal pass.
+        self.remove_unreachable_blocks();
+    }
+
+    pub(crate) fn remove_unreachable_blocks(&mut self) {
+        for method in self.methods.values_mut() {
+            // This Vec maps block IDs to the value to subtract from the ID in
+            // order to derive the ID to use after unreachable blocks are
+            // removed.
+            let mut shift_map = vec![0; method.body.blocks.len()];
+            let mut reachable = vec![false; method.body.blocks.len()];
+
+            for idx in 0..shift_map.len() {
+                if method.body.is_connected(BlockId(idx)) {
+                    reachable[idx] = true;
+                } else {
+                    for incr in (idx + 1)..shift_map.len() {
+                        shift_map[incr] += 1;
+                    }
+                }
+            }
+
+            let mut blocks = Vec::with_capacity(reachable.len());
+
+            swap(&mut blocks, &mut method.body.blocks);
+
+            for (idx, mut block) in blocks.into_iter().enumerate() {
+                if !reachable[idx] {
+                    continue;
+                }
+
+                block
+                    .predecessors
+                    .iter_mut()
+                    .for_each(|b| *b -= shift_map[b.0]);
+                block.successors.iter_mut().for_each(|b| *b -= shift_map[b.0]);
+
+                match block.instructions.last_mut() {
+                    Some(Instruction::Goto(ins)) => {
+                        ins.block -= shift_map[ins.block.0];
+                    }
+                    Some(Instruction::Branch(ins)) => {
+                        ins.if_true -= shift_map[ins.if_true.0];
+                        ins.if_false -= shift_map[ins.if_false.0];
+                    }
+                    Some(Instruction::Switch(ins)) => {
+                        for id in &mut ins.blocks {
+                            *id -= shift_map[id.0];
+                        }
+                    }
+                    Some(Instruction::DecrementAtomic(ins)) => {
+                        ins.if_true -= shift_map[ins.if_true.0];
+                        ins.if_false -= shift_map[ins.if_false.0];
+                    }
+                    _ => {}
+                }
+
+                method.body.blocks.push(block);
+            }
+
+            method.body.start_id -= shift_map[method.body.start_id.0];
+        }
+    }
+
+    pub(crate) fn terminate_basic_blocks(&mut self) {
+        for method in self.methods.values_mut() {
+            for block in &mut method.body.blocks {
+                let location = match block.instructions.last() {
+                    Some(
+                        Instruction::Branch(_)
+                        | Instruction::Switch(_)
+                        | Instruction::Return(_)
+                        | Instruction::Goto(_)
+                        | Instruction::DecrementAtomic(_),
+                    ) => continue,
+                    Some(ins) if block.successors.len() == 1 => ins.location(),
+                    _ => continue,
+                };
+
+                block.instructions.push(Instruction::Goto(Box::new(Goto {
+                    block: block.successors[0],
+                    location,
+                })));
+            }
+        }
+    }
+
+    pub(crate) fn remove_unused_methods(&mut self, db: &Database) {
+        let mut used = vec![false; db.number_of_methods()];
+
+        // `Main.main` is always used because it's the entry point.
+        used[db.main_method().unwrap().0 as usize] = true;
+
+        for method in self.methods.values() {
+            for block in &method.body.blocks {
+                for ins in &block.instructions {
+                    match ins {
+                        Instruction::CallStatic(i) => {
+                            used[i.method.0 as usize] = true;
+                        }
+                        Instruction::CallInstance(i) => {
+                            used[i.method.0 as usize] = true;
+                        }
+                        Instruction::Send(i) => {
+                            used[i.method.0 as usize] = true;
+                        }
+                        Instruction::CallDynamic(i) => {
+                            let id = i.method;
+                            let tid = id
+                                .receiver(db)
+                                .as_trait_instance(db)
+                                .unwrap()
+                                .instance_of();
+
+                            // For dynamic dispatch call sites we'll flag all
+                            // possible target methods as used, since we can't
+                            // statically determine which implementation is
+                            // called.
+                            for &class in tid.implemented_by(db) {
+                                let method_impl =
+                                    class.method(db, id.name(db)).unwrap();
+                                let mut methods =
+                                    method_impl.specializations(db);
+
+                                if methods.is_empty() {
+                                    methods.push(method_impl);
+                                }
+
+                                for id in methods {
+                                    used[id.0 as usize] = true;
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        // If all methods are used (unlikely but certainly possible) then
+        // there's nothing else to do.
+        if used.iter().filter(|&&v| v).count() == self.methods.len() {
+            return;
+        }
+
+        let mut removed = vec![false; db.number_of_methods()];
+        let mut methods = IndexMap::new();
+
+        swap(&mut methods, &mut self.methods);
+
+        for method in methods.into_values() {
+            // We don't inline closures at this stage, so any methods defined on
+            // closures are kept.
+            //
+            // Dropper methods are never inlined but called through a dedicated
+            // instruction with the exact receiver type not always being known,
+            // so these too we must always keep.
+            let keep = method
+                .id
+                .receiver(db)
+                .class_id(db)
+                .map_or(false, |v| v.is_closure(db))
+                || used[method.id.0 as usize]
+                || method.id.name(db) == DROPPER_METHOD;
+
+            if keep {
+                self.methods.insert(method.id, method);
+            } else {
+                removed[method.id.0 as usize] = true;
+            }
+        }
+
+        for module in self.modules.values_mut() {
+            module.methods.retain(|i| !removed[i.0 as usize]);
+        }
+
+        for class in self.classes.values_mut() {
+            class.methods.retain(|i| !removed[i.0 as usize]);
+        }
+    }
+
+    /// Simplify the CFG of each method, such as by merging redundant basic
+    /// blocks.
+    pub(crate) fn simplify_graph(&mut self) {
+        for method in self.methods.values_mut() {
+            let mut idx = 0;
+
+            while idx < method.body.blocks.len() {
+                let block = &method.body.blocks[idx];
+                let merge = if let Some(Instruction::Goto(_)) =
+                    block.instructions.last()
+                {
+                    // We need to make sure the target block isn't the start of
+                    // a loop, as in that case we can't merge the blocks.
+                    block.successors.len() == 1
+                        && method.body.blocks[block.successors[0].0]
+                            .predecessors
+                            .len()
+                            == 1
+                        && block.successors[0] != method.body.start_id
+                } else {
+                    false
+                };
+
+                if merge {
+                    let mut next_succ = Vec::new();
+                    let mut next_ins = Vec::new();
+                    let next_id = block.successors[0].0;
+                    let next_block = &mut method.body.blocks[next_id];
+
+                    swap(&mut next_succ, &mut next_block.successors);
+                    swap(&mut next_ins, &mut next_block.instructions);
+                    next_block.predecessors.clear();
+
+                    let block = &mut method.body.blocks[idx];
+
+                    block.successors = next_succ;
+                    block.instructions.pop();
+                    block.instructions.append(&mut next_ins);
+                } else {
+                    // Merging a block into its predecessor may result in a new
+                    // goto() at the end that requires merging, so we only
+                    // advance if there's nothing to merge.
+                    idx += 1;
+                }
+            }
+        }
+
+        // The above code is likely to produce many unreachable basic blocks, so
+        // we need to remove those.
+        self.remove_unreachable_blocks();
+    }
+
+    /// Removes instructions that write to an unused register without side
+    /// effects.
+    ///
+    /// Instructions such as `Int` and `String` don't produce side effects,
+    /// meaning that if the register they write to isn't used, the entire
+    /// instruction can be removed.
+    ///
+    /// This method isn't terribly useful on its own, but when combined with
+    /// e.g. copy propagation it can result in the removal of many redundant
+    /// instructions.
+    pub(crate) fn remove_unused_instructions(&mut self) {
+        for method in self.methods.values_mut() {
+            let uses = method.register_use_counts();
+
+            for block in &mut method.body.blocks {
+                block.instructions.retain(|ins| match ins {
+                    Instruction::Float(i) => uses[i.register.0] > 0,
+                    Instruction::Int(i) => uses[i.register.0] > 0,
+                    Instruction::Nil(i) => uses[i.register.0] > 0,
+                    Instruction::String(i) => uses[i.register.0] > 0,
+                    Instruction::Bool(i) => uses[i.register.0] > 0,
+                    Instruction::Allocate(i) => uses[i.register.0] > 0,
+                    Instruction::Spawn(i) => uses[i.register.0] > 0,
+                    Instruction::GetConstant(i) => uses[i.register.0] > 0,
+                    Instruction::MethodPointer(i) => uses[i.register.0] > 0,
+                    Instruction::SizeOf(i) => uses[i.register.0] > 0,
+                    Instruction::MoveRegister(i) => uses[i.target.0] > 0,
+                    _ => true,
+                });
+            }
+        }
     }
 }
 

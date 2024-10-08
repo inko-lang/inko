@@ -318,8 +318,8 @@ mod tests {
     };
     use crate::{
         Block, ClassId, Closure, Ownership, TypePlaceholder, TypePlaceholderId,
-        VariableLocation,
     };
+    use location::Location;
 
     fn resolve(
         db: &mut Database,
@@ -815,7 +815,7 @@ mod tests {
         let mut db = Database::new();
         let fun = Closure::alloc(&mut db, false);
         let param = new_parameter(&mut db, "T");
-        let loc = VariableLocation::new(1, 1, 1);
+        let loc = Location::default();
 
         fun.set_return_type(&mut db, owned(parameter(param)));
         fun.new_argument(

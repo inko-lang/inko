@@ -1,5 +1,5 @@
 //! Types and methods for producing compiler diagnostics.
-use ast::source_location::SourceLocation;
+use location::Location;
 use std::fmt;
 use std::path::PathBuf;
 
@@ -89,7 +89,7 @@ pub(crate) struct Diagnostic {
     id: DiagnosticId,
     message: String,
     file: PathBuf,
-    location: SourceLocation,
+    location: Location,
 }
 
 impl Diagnostic {
@@ -98,7 +98,7 @@ impl Diagnostic {
         id: DiagnosticId,
         message: String,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) -> Self {
         Self { kind, id, message, file, location }
     }
@@ -123,7 +123,7 @@ impl Diagnostic {
         &self.file
     }
 
-    pub(crate) fn location(&self) -> &SourceLocation {
+    pub(crate) fn location(&self) -> &Location {
         &self.location
     }
 }
@@ -154,7 +154,7 @@ impl Diagnostics {
         id: DiagnosticId,
         message: S,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.values.push(Diagnostic::new(
             DiagnosticType::Warning,
@@ -170,7 +170,7 @@ impl Diagnostics {
         id: DiagnosticId,
         message: S,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.errors = true;
 
@@ -187,7 +187,7 @@ impl Diagnostics {
         &mut self,
         name: &str,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidSymbol,
@@ -201,7 +201,7 @@ impl Diagnostics {
         &mut self,
         name: &str,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidSymbol,
@@ -215,7 +215,7 @@ impl Diagnostics {
         &mut self,
         name: &str,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidSymbol,
@@ -232,7 +232,7 @@ impl Diagnostics {
         &mut self,
         name: &str,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::DuplicateSymbol,
@@ -246,7 +246,7 @@ impl Diagnostics {
         &mut self,
         name: &str,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::DuplicateSymbol,
@@ -260,7 +260,7 @@ impl Diagnostics {
         &mut self,
         name: &str,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::DuplicateSymbol,
@@ -274,7 +274,7 @@ impl Diagnostics {
         &mut self,
         name: &str,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidAssign,
@@ -291,7 +291,7 @@ impl Diagnostics {
     pub(crate) fn public_field_private_class(
         &mut self,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::DuplicateSymbol,
@@ -305,7 +305,7 @@ impl Diagnostics {
         &mut self,
         name: &str,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::DuplicateSymbol,
@@ -319,7 +319,7 @@ impl Diagnostics {
         &mut self,
         name: &str,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidType,
@@ -333,7 +333,7 @@ impl Diagnostics {
         &mut self,
         name: &str,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidSymbol,
@@ -348,7 +348,7 @@ impl Diagnostics {
         method_name: &str,
         type_name: String,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::DuplicateSymbol,
@@ -365,7 +365,7 @@ impl Diagnostics {
         &mut self,
         name: &str,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidCall,
@@ -379,7 +379,7 @@ impl Diagnostics {
         &mut self,
         name: &str,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidSymbol,
@@ -394,7 +394,7 @@ impl Diagnostics {
         given: String,
         expected: String,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidType,
@@ -412,7 +412,7 @@ impl Diagnostics {
         given: String,
         expected: String,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidType,
@@ -431,7 +431,7 @@ impl Diagnostics {
         name: &str,
         receiver: String,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidSymbol,
@@ -447,7 +447,7 @@ impl Diagnostics {
     pub(crate) fn intrinsic_not_available(
         &mut self,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidCall,
@@ -460,7 +460,7 @@ impl Diagnostics {
     pub(crate) fn tuple_size_error(
         &mut self,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidType,
@@ -475,7 +475,7 @@ impl Diagnostics {
         given: usize,
         expected: usize,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidCall,
@@ -491,7 +491,7 @@ impl Diagnostics {
     pub(crate) fn closure_with_named_argument(
         &mut self,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidCall,
@@ -506,7 +506,7 @@ impl Diagnostics {
         given: usize,
         expected: usize,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidPattern,
@@ -524,7 +524,7 @@ impl Diagnostics {
         name: &str,
         type_name: String,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidSymbol,
@@ -541,7 +541,7 @@ impl Diagnostics {
         &mut self,
         name: &str,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidSymbol,
@@ -555,7 +555,7 @@ impl Diagnostics {
         &mut self,
         name: &str,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidSymbol,
@@ -570,7 +570,7 @@ impl Diagnostics {
         name: &str,
         receiver: String,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidCall,
@@ -589,7 +589,7 @@ impl Diagnostics {
         name: &str,
         receiver: String,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidCall,
@@ -603,11 +603,7 @@ impl Diagnostics {
         );
     }
 
-    pub(crate) fn unreachable(
-        &mut self,
-        file: PathBuf,
-        location: SourceLocation,
-    ) {
+    pub(crate) fn unreachable(&mut self, file: PathBuf, location: Location) {
         self.warn(
             DiagnosticId::Unreachable,
             "this code is unreachable",
@@ -619,7 +615,7 @@ impl Diagnostics {
     pub(crate) fn unreachable_pattern(
         &mut self,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.warn(
             DiagnosticId::Unreachable,
@@ -633,7 +629,7 @@ impl Diagnostics {
         &mut self,
         argument: String,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidType,
@@ -651,7 +647,7 @@ impl Diagnostics {
         &mut self,
         name: String,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidCall,
@@ -669,7 +665,7 @@ impl Diagnostics {
         &mut self,
         name: &str,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidAssign,
@@ -687,7 +683,7 @@ impl Diagnostics {
         &mut self,
         name: String,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidType,
@@ -705,7 +701,7 @@ impl Diagnostics {
         field_name: &str,
         type_name: String,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidSymbol,
@@ -722,7 +718,7 @@ impl Diagnostics {
     pub(crate) fn self_in_closure_in_recover(
         &mut self,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidType,
@@ -738,7 +734,7 @@ impl Diagnostics {
         operator: &str,
         right: &str,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidConstExpr,
@@ -755,7 +751,7 @@ impl Diagnostics {
         &mut self,
         name: &str,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::Moved,
@@ -769,7 +765,7 @@ impl Diagnostics {
         &mut self,
         name: &str,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::Moved,
@@ -783,7 +779,7 @@ impl Diagnostics {
         &mut self,
         name: &str,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::Moved,
@@ -800,7 +796,7 @@ impl Diagnostics {
         &mut self,
         name: &str,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::Moved,
@@ -818,7 +814,7 @@ impl Diagnostics {
         &mut self,
         name: String,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidType,
@@ -835,7 +831,7 @@ impl Diagnostics {
         &mut self,
         limit: usize,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::LimitReached,
@@ -849,7 +845,7 @@ impl Diagnostics {
         &mut self,
         name: &str,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidType,
@@ -863,7 +859,7 @@ impl Diagnostics {
         &mut self,
         name: String,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidThrow,
@@ -880,7 +876,7 @@ impl Diagnostics {
     pub(crate) fn try_not_available(
         &mut self,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidThrow,
@@ -894,7 +890,7 @@ impl Diagnostics {
     pub(crate) fn throw_not_available(
         &mut self,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidThrow,
@@ -909,7 +905,7 @@ impl Diagnostics {
         error: String,
         returns: String,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidThrow,
@@ -928,7 +924,7 @@ impl Diagnostics {
         required: usize,
         given: usize,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidType,
@@ -945,7 +941,7 @@ impl Diagnostics {
         &mut self,
         name: &str,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidType,
@@ -959,11 +955,24 @@ impl Diagnostics {
         &mut self,
         name: &str,
         file: PathBuf,
-        location: SourceLocation,
+        location: Location,
     ) {
         self.warn(
             DiagnosticId::UnusedSymbol,
             format!("the symbol '{}' is unused", name),
+            file,
+            location,
+        );
+    }
+
+    pub(crate) fn invalid_inline_method(
+        &mut self,
+        file: PathBuf,
+        location: Location,
+    ) {
+        self.error(
+            DiagnosticId::InvalidMethod,
+            "the 'inline' keyword can't be used for this type of method",
             file,
             location,
         );

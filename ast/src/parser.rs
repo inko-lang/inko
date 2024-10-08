@@ -6,7 +6,7 @@
 //! the input.
 use crate::lexer::{Lexer, Token, TokenKind};
 use crate::nodes::*;
-use crate::source_location::SourceLocation;
+use location::Location;
 use std::path::PathBuf;
 
 /// Produces a parser error and returns from the surrounding function.
@@ -47,7 +47,7 @@ pub struct ParseError {
     pub message: String,
 
     /// The location the error originated from.
-    pub location: SourceLocation,
+    pub location: Location,
 }
 
 /// A recursive-descent parser that turns Inko source code into an AST.
@@ -85,8 +85,7 @@ impl Parser {
 
             if token.kind == TokenKind::Null {
                 let file = self.file.clone();
-                let location =
-                    SourceLocation::start_end(&start_loc, &token.location);
+                let location = Location::start_end(&start_loc, &token.location);
 
                 return Ok(Module { expressions, file, location });
             }
@@ -132,7 +131,7 @@ impl Parser {
         let path = self.import_path()?;
         let symbols = self.import_symbols()?;
         let tags = self.build_tags()?;
-        let location = SourceLocation::start_end(
+        let location = Location::start_end(
             &start.location,
             location!(tags)
                 .or_else(|| location!(symbols))
@@ -169,7 +168,7 @@ impl Parser {
 
         let start_loc = steps.first().map(|s| &s.location).unwrap();
         let end_loc = steps.last().map(|s| &s.location).unwrap();
-        let location = SourceLocation::start_end(start_loc, end_loc);
+        let location = Location::start_end(start_loc, end_loc);
 
         Ok(ImportPath { steps, location })
     }
@@ -257,7 +256,7 @@ impl Parser {
             }
         }
 
-        let location = SourceLocation::start_end(
+        let location = Location::start_end(
             &start.location,
             location!(values.last()).unwrap_or_else(|| &start.location),
         );
@@ -274,8 +273,7 @@ impl Parser {
 
         let path_start = self.require()?;
         let path = self.extern_import_path(path_start)?;
-        let location =
-            SourceLocation::start_end(&start.location, &path.location);
+        let location = Location::start_end(&start.location, &path.location);
 
         Ok(TopLevelExpression::ExternImport(Box::new(ExternImport {
             path,
@@ -301,8 +299,7 @@ impl Parser {
 
         let text = self.expect(TokenKind::StringText)?;
         let close = self.expect(close)?;
-        let location =
-            SourceLocation::start_end(&start.location, &close.location);
+        let location = Location::start_end(&start.location, &close.location);
 
         Ok(ExternImportPath { path: text.value, location })
     }
@@ -318,8 +315,7 @@ impl Parser {
 
         let value_start = self.require()?;
         let value = self.const_expression(value_start)?;
-        let location =
-            SourceLocation::start_end(&start.location, value.location());
+        let location = Location::start_end(&start.location, value.location());
 
         Ok(TopLevelExpression::DefineConstant(Box::new(DefineConstant {
             public,
@@ -339,7 +335,7 @@ impl Parser {
             let rhs_token = self.require()?;
             let right = self.const_value(rhs_token)?;
             let location =
-                SourceLocation::start_end(left.location(), right.location());
+                Location::start_end(left.location(), right.location());
 
             left = Expression::Binary(Box::new(Binary {
                 operator,
@@ -373,10 +369,8 @@ impl Parser {
 
                 let source = Identifier::from(start);
                 let const_tok = self.expect(TokenKind::Constant)?;
-                let location = SourceLocation::start_end(
-                    &source.location,
-                    &const_tok.location,
-                );
+                let location =
+                    Location::start_end(&source.location, &const_tok.location);
 
                 Expression::Constant(Box::new(Constant {
                     source: Some(source),
@@ -403,8 +397,7 @@ impl Parser {
         let value_token = self.require()?;
         let value = self.const_expression(value_token)?;
         let end = self.expect(TokenKind::ParenClose)?;
-        let location =
-            SourceLocation::start_end(&start.location, &end.location);
+        let location = Location::start_end(&start.location, &end.location);
 
         Ok(Expression::Group(Box::new(Group { value, location })))
     }
@@ -417,7 +410,7 @@ impl Parser {
 
             if token.kind == TokenKind::BracketClose {
                 let location =
-                    SourceLocation::start_end(&start.location, &token.location);
+                    Location::start_end(&start.location, &token.location);
 
                 return Ok(Expression::Array(Box::new(Array {
                     values,
@@ -481,7 +474,7 @@ impl Parser {
             .as_ref()
             .map(|a| &a.location)
             .unwrap_or_else(|| name.location());
-        let location = SourceLocation::start_end(name.location(), end_loc);
+        let location = Location::start_end(name.location(), end_loc);
 
         Ok(TypeName { name, arguments, location })
     }
@@ -499,7 +492,7 @@ impl Parser {
             .as_ref()
             .map(|a| &a.location)
             .unwrap_or(&name_token.location);
-        let location = SourceLocation::start_end(source.location(), end_loc);
+        let location = Location::start_end(source.location(), end_loc);
         let name = Constant {
             source: Some(source),
             name: name_token.value,
@@ -568,7 +561,7 @@ impl Parser {
         let requirements = self.optional_type_parameter_requirements()?;
         let end_loc =
             location!(requirements).unwrap_or_else(|| name.location());
-        let location = SourceLocation::start_end(name.location(), end_loc);
+        let location = Location::start_end(name.location(), end_loc);
 
         Ok(TypeParameter { name, requirements, location })
     }
@@ -600,7 +593,7 @@ impl Parser {
                 }
                 _ => {
                     error!(
-                        after.location.clone(),
+                        after.location,
                         "expected a '+' or a '{{', found '{}' instead",
                         after.value
                     );
@@ -608,7 +601,7 @@ impl Parser {
             }
         }
 
-        let location = SourceLocation::start_end(
+        let location = Location::start_end(
             values.first().unwrap().location(),
             values.last().unwrap().location(),
         );
@@ -651,10 +644,8 @@ impl Parser {
             ),
         };
 
-        let location = SourceLocation::start_end(
-            &start.location,
-            type_reference.location(),
-        );
+        let location =
+            Location::start_end(&start.location, type_reference.location());
 
         Ok(ReferenceType { type_reference, location })
     }
@@ -674,7 +665,7 @@ impl Parser {
                 }
 
                 let location =
-                    SourceLocation::start_end(&start.location, &token.location);
+                    Location::start_end(&start.location, &token.location);
 
                 return Ok(TupleType { values, location });
             }
@@ -696,7 +687,7 @@ impl Parser {
         let end_loc = location!(return_type)
             .or_else(|| location!(arguments))
             .unwrap_or(&start.location);
-        let location = SourceLocation::start_end(&start.location, end_loc);
+        let location = Location::start_end(&start.location, end_loc);
 
         Ok(ClosureType { arguments, return_type, location })
     }
@@ -745,10 +736,8 @@ impl Parser {
             }
 
             if token.kind == TokenKind::ParenClose {
-                let location = SourceLocation::start_end(
-                    &open_token.location,
-                    &token.location,
-                );
+                let location =
+                    Location::start_end(&open_token.location, &token.location);
 
                 return Ok(Some(MethodArguments {
                     values,
@@ -771,7 +760,7 @@ impl Parser {
         &mut self,
         start: Token,
     ) -> Result<MethodArgument, ParseError> {
-        let start_loc = start.location.clone();
+        let start_loc = start.location;
 
         self.require_token_kind(&start, TokenKind::Identifier)?;
         self.expect(TokenKind::Colon)?;
@@ -779,8 +768,7 @@ impl Parser {
         let name = Identifier::from(start);
         let type_token = self.require()?;
         let value_type = self.type_reference(type_token)?;
-        let location =
-            SourceLocation::start_end(&start_loc, value_type.location());
+        let location = Location::start_end(&start_loc, value_type.location());
 
         Ok(MethodArgument { name, value_type, location })
     }
@@ -805,7 +793,7 @@ impl Parser {
         &mut self,
         start: Token,
     ) -> Result<BlockArgument, ParseError> {
-        let start_loc = start.location.clone();
+        let start_loc = start.location;
 
         self.require_token_kind(&start, TokenKind::Identifier)?;
 
@@ -821,9 +809,18 @@ impl Parser {
         };
 
         let end_loc = location!(value_type).unwrap_or_else(|| name.location());
-        let location = SourceLocation::start_end(&start_loc, end_loc);
+        let location = Location::start_end(&start_loc, end_loc);
 
         Ok(BlockArgument { name, value_type, location })
+    }
+
+    fn optional_inline_keyword(&mut self) -> bool {
+        if let TokenKind::Inline = self.peek().kind {
+            self.next();
+            true
+        } else {
+            false
+        }
     }
 
     fn optional_return_type(&mut self) -> Result<Option<Type>, ParseError> {
@@ -844,6 +841,7 @@ impl Parser {
     ) -> Result<TopLevelExpression, ParseError> {
         let public = self.next_is_public();
         let mut allow_variadic = false;
+        let inline = self.optional_inline_keyword();
         let kind = match self.peek().kind {
             TokenKind::Extern => {
                 self.next();
@@ -874,7 +872,7 @@ impl Parser {
             None
         };
 
-        let location = SourceLocation::start_end(
+        let location = Location::start_end(
             &start.location,
             location!(body)
                 .or_else(|| location!(return_type))
@@ -883,6 +881,7 @@ impl Parser {
         );
 
         Ok(TopLevelExpression::DefineMethod(Box::new(DefineMethod {
+            inline,
             public,
             operator,
             name,
@@ -900,6 +899,7 @@ impl Parser {
         start: Token,
     ) -> Result<DefineMethod, ParseError> {
         let public = self.next_is_public();
+        let inline = self.optional_inline_keyword();
         let kind = match self.peek().kind {
             TokenKind::Async => {
                 self.next();
@@ -932,10 +932,10 @@ impl Parser {
         let return_type = self.optional_return_type()?;
         let body_token = self.expect(TokenKind::CurlyOpen)?;
         let body = self.expressions(body_token)?;
-        let location =
-            SourceLocation::start_end(&start.location, &body.location);
+        let location = Location::start_end(&start.location, &body.location);
 
         Ok(DefineMethod {
+            inline,
             public,
             operator,
             name,
@@ -953,6 +953,7 @@ impl Parser {
         start: Token,
     ) -> Result<DefineMethod, ParseError> {
         let public = self.next_is_public();
+        let inline = self.optional_inline_keyword();
         let kind = match self.peek().kind {
             TokenKind::Move => {
                 self.next();
@@ -971,10 +972,10 @@ impl Parser {
         let return_type = self.optional_return_type()?;
         let body_token = self.expect(TokenKind::CurlyOpen)?;
         let body = self.expressions(body_token)?;
-        let location =
-            SourceLocation::start_end(&start.location, &body.location);
+        let location = Location::start_end(&start.location, &body.location);
 
         Ok(DefineMethod {
+            inline,
             public,
             operator,
             name,
@@ -1008,8 +1009,7 @@ impl Parser {
 
                 name.push('=');
 
-                location =
-                    SourceLocation::start_end(&location, &assign.location);
+                location = Location::start_end(&location, &assign.location);
             }
 
             Ok((Identifier { name, location }, false))
@@ -1060,8 +1060,7 @@ impl Parser {
             self.class_expressions()?
         };
 
-        let location =
-            SourceLocation::start_end(&start.location, &body.location);
+        let location = Location::start_end(&start.location, &body.location);
 
         Ok(TopLevelExpression::DefineClass(Box::new(DefineClass {
             public,
@@ -1092,7 +1091,7 @@ impl Parser {
 
         let end_loc =
             members.as_ref().map(|n| &n.location).unwrap_or(&start.location);
-        let location = SourceLocation::start_end(&start.location, end_loc);
+        let location = Location::start_end(&start.location, end_loc);
 
         Ok(DefineConstructor { name, members, location })
     }
@@ -1106,7 +1105,7 @@ impl Parser {
 
             if token.kind == TokenKind::CurlyClose {
                 let location =
-                    SourceLocation::start_end(&start.location, &token.location);
+                    Location::start_end(&start.location, &token.location);
 
                 return Ok(ClassExpressions { values, location });
             }
@@ -1126,7 +1125,7 @@ impl Parser {
 
             if token.kind == TokenKind::CurlyClose {
                 let location =
-                    SourceLocation::start_end(&start.location, &token.location);
+                    Location::start_end(&start.location, &token.location);
 
                 return Ok(ClassExpressions { values, location });
             }
@@ -1189,7 +1188,7 @@ impl Parser {
         let value_type_token = self.require()?;
         let value_type = self.type_reference(value_type_token)?;
         let location =
-            SourceLocation::start_end(&start.location, value_type.location());
+            Location::start_end(&start.location, value_type.location());
 
         Ok(DefineField { name, public, value_type, location })
     }
@@ -1222,8 +1221,7 @@ impl Parser {
         let class_name = Constant::from(self.expect(TokenKind::Constant)?);
         let bounds = self.optional_type_bounds()?;
         let body = self.trait_implementation_expressions()?;
-        let location =
-            SourceLocation::start_end(&start.location, body.location());
+        let location = Location::start_end(&start.location, body.location());
 
         Ok(TopLevelExpression::ImplementTrait(Box::new(ImplementTrait {
             trait_name,
@@ -1263,7 +1261,7 @@ impl Parser {
 
         let start_loc = values.first().unwrap().location();
         let end_loc = values.last().unwrap().location();
-        let location = SourceLocation::start_end(start_loc, end_loc);
+        let location = Location::start_end(start_loc, end_loc);
 
         Ok(Some(TypeBounds { values, location }))
     }
@@ -1272,7 +1270,7 @@ impl Parser {
         let name = Constant::from(start);
         let requirements = self.requirements()?;
         let location =
-            SourceLocation::start_end(name.location(), requirements.location());
+            Location::start_end(name.location(), requirements.location());
 
         Ok(TypeBound { name, requirements, location })
     }
@@ -1305,7 +1303,7 @@ impl Parser {
             }
         }
 
-        let location = SourceLocation::start_end(
+        let location = Location::start_end(
             values.first().unwrap().location(),
             values.last().unwrap().location(),
         );
@@ -1322,7 +1320,7 @@ impl Parser {
         let bounds = self.optional_type_bounds()?;
         let body = self.reopen_class_expressions()?;
         let end_loc = location!(bounds).unwrap_or_else(|| body.location());
-        let location = SourceLocation::start_end(&start.location, end_loc);
+        let location = Location::start_end(&start.location, end_loc);
 
         Ok(TopLevelExpression::ReopenClass(Box::new(ReopenClass {
             class_name,
@@ -1343,7 +1341,7 @@ impl Parser {
 
             if token.kind == TokenKind::CurlyClose {
                 let location =
-                    SourceLocation::start_end(&start.location, &token.location);
+                    Location::start_end(&start.location, &token.location);
 
                 return Ok(ImplementationExpressions { values, location });
             }
@@ -1376,7 +1374,7 @@ impl Parser {
 
             if token.kind == TokenKind::CurlyClose {
                 let location =
-                    SourceLocation::start_end(&start.location, &token.location);
+                    Location::start_end(&start.location, &token.location);
 
                 return Ok(ImplementationExpressions { values, location });
             }
@@ -1407,8 +1405,7 @@ impl Parser {
         let type_parameters = self.optional_type_parameter_definitions()?;
         let requirements = self.optional_trait_requirements()?;
         let body = self.trait_expressions()?;
-        let location =
-            SourceLocation::start_end(&start.location, &body.location);
+        let location = Location::start_end(&start.location, &body.location);
 
         Ok(TopLevelExpression::DefineTrait(Box::new(DefineTrait {
             public,
@@ -1429,7 +1426,7 @@ impl Parser {
 
             if token.kind == TokenKind::CurlyClose {
                 let location =
-                    SourceLocation::start_end(&start.location, &token.location);
+                    Location::start_end(&start.location, &token.location);
 
                 return Ok(TraitExpressions { values, location });
             }
@@ -1458,6 +1455,7 @@ impl Parser {
         start: Token,
     ) -> Result<DefineMethod, ParseError> {
         let public = self.next_is_public();
+        let inline = self.optional_inline_keyword();
         let kind = match self.peek().kind {
             TokenKind::Move => {
                 self.next();
@@ -1486,9 +1484,10 @@ impl Parser {
             .or_else(|| location!(arguments))
             .or_else(|| location!(type_parameters))
             .unwrap_or_else(|| name.location());
-        let location = SourceLocation::start_end(&start.location, end_loc);
+        let location = Location::start_end(&start.location, end_loc);
 
         Ok(DefineMethod {
+            inline,
             public,
             operator,
             name,
@@ -1509,7 +1508,7 @@ impl Parser {
 
             if token.kind == TokenKind::CurlyClose {
                 let location =
-                    SourceLocation::start_end(&start.location, &token.location);
+                    Location::start_end(&start.location, &token.location);
 
                 return Ok(Expressions { values, location });
             }
@@ -1527,7 +1526,7 @@ impl Parser {
             self.expressions(start)
         } else {
             let expr = self.expression(start)?;
-            let location = expr.location().clone();
+            let location = *expr.location();
 
             Ok(Expressions { values: vec![expr], location })
         }
@@ -1576,7 +1575,7 @@ impl Parser {
                 let rhs_token = self.require()?;
                 let rhs = self.postfix(rhs_token)?;
                 let location =
-                    SourceLocation::start_end(node.location(), rhs.location());
+                    Location::start_end(node.location(), rhs.location());
 
                 node = Expression::Binary(Box::new(Binary {
                     operator: op,
@@ -1589,10 +1588,8 @@ impl Parser {
 
                 let cast_token = self.require()?;
                 let cast_to = self.type_reference(cast_token)?;
-                let location = SourceLocation::start_end(
-                    node.location(),
-                    cast_to.location(),
-                );
+                let location =
+                    Location::start_end(node.location(), cast_to.location());
 
                 node = Expression::TypeCast(Box::new(TypeCast {
                     value: node,
@@ -1747,10 +1744,8 @@ impl Parser {
                     let value_token = self.require()?;
                     let value = self.expression(value_token)?;
                     let close = self.expect(TokenKind::StringExprClose)?;
-                    let location = SourceLocation::start_end(
-                        &token.location,
-                        &close.location,
-                    );
+                    let location =
+                        Location::start_end(&token.location, &close.location);
 
                     values.push(StringValue::Expression(Box::new(
                         StringExpression { value, location },
@@ -1769,10 +1764,8 @@ impl Parser {
                     );
                 }
                 kind if kind == close => {
-                    let location = SourceLocation::start_end(
-                        &start.location,
-                        &token.location,
-                    );
+                    let location =
+                        Location::start_end(&start.location, &token.location);
 
                     return Ok(StringLiteral { values, location });
                 }
@@ -1791,7 +1784,7 @@ impl Parser {
     #[allow(clippy::redundant_clone)]
     fn string_text(&mut self, start: Token) -> StringText {
         let mut value = start.value;
-        let mut end_loc = start.location.clone();
+        let mut end_loc = start.location;
 
         while matches!(self.peek().kind, TokenKind::StringText) {
             let token = self.next();
@@ -1800,7 +1793,7 @@ impl Parser {
             end_loc = token.location;
         }
 
-        let location = SourceLocation::start_end(&start.location, &end_loc);
+        let location = Location::start_end(&start.location, &end_loc);
 
         StringText { value, location }
     }
@@ -1820,7 +1813,7 @@ impl Parser {
 
             if token.kind == TokenKind::BracketClose {
                 let location =
-                    SourceLocation::start_end(&start.location, &token.location);
+                    Location::start_end(&start.location, &token.location);
 
                 return Ok(Expression::Array(Box::new(Array {
                     values,
@@ -1887,7 +1880,7 @@ impl Parser {
         if let Some(args) = self.arguments(&start.location)? {
             let name = Identifier::from(start);
             let location =
-                SourceLocation::start_end(name.location(), args.location());
+                Location::start_end(name.location(), args.location());
 
             return Ok(Expression::Call(Box::new(Call {
                 receiver: None,
@@ -1947,7 +1940,7 @@ impl Parser {
         if let Some(args) = self.arguments(&start.location)? {
             let name = Identifier::from(start);
             let location =
-                SourceLocation::start_end(name.location(), args.location());
+                Location::start_end(name.location(), args.location());
 
             return Ok(Expression::Call(Box::new(Call {
                 receiver: None,
@@ -1962,12 +1955,12 @@ impl Parser {
 
     fn arguments(
         &mut self,
-        start_location: &SourceLocation,
+        start_location: &Location,
     ) -> Result<Option<Arguments>, ParseError> {
         let peeked = self.peek();
 
         if peeked.kind != TokenKind::ParenOpen
-            || peeked.location.lines.start() != start_location.lines.start()
+            || peeked.location.line_start != start_location.line_start
         {
             return Ok(None);
         }
@@ -2119,7 +2112,7 @@ impl Parser {
         let name = Identifier::from(name_token);
         let arguments = self.arguments(name.location())?;
         let end_loc = location!(arguments).unwrap_or_else(|| name.location());
-        let location = SourceLocation::start_end(receiver.location(), end_loc);
+        let location = Location::start_end(receiver.location(), end_loc);
 
         Ok(Expression::Call(Box::new(Call {
             receiver: Some(receiver),
@@ -2140,7 +2133,7 @@ impl Parser {
         let value_token = self.require()?;
         let value = self.expression(value_token)?;
         let location =
-            SourceLocation::start_end(receiver.location(), value.location());
+            Location::start_end(receiver.location(), value.location());
 
         Ok(Expression::AssignSetter(Box::new(AssignSetter {
             receiver,
@@ -2161,7 +2154,7 @@ impl Parser {
         let value_token = self.require()?;
         let value = self.expression(value_token)?;
         let location =
-            SourceLocation::start_end(receiver.location(), value.location());
+            Location::start_end(receiver.location(), value.location());
 
         Ok(Expression::ReplaceSetter(Box::new(ReplaceSetter {
             receiver,
@@ -2183,7 +2176,7 @@ impl Parser {
         let value_token = self.require()?;
         let value = self.expression(value_token)?;
         let location =
-            SourceLocation::start_end(receiver.location(), value.location());
+            Location::start_end(receiver.location(), value.location());
 
         Ok(Expression::BinaryAssignSetter(Box::new(BinaryAssignSetter {
             operator,
@@ -2203,8 +2196,7 @@ impl Parser {
         let name = Identifier::from(start);
         let value_token = self.require()?;
         let value = self.expression(value_token)?;
-        let location =
-            SourceLocation::start_end(name.location(), value.location());
+        let location = Location::start_end(name.location(), value.location());
 
         Ok(NamedArgument { name, value, location })
     }
@@ -2219,7 +2211,7 @@ impl Parser {
         let value_token = self.require()?;
         let value = self.expression(value_token)?;
         let location =
-            SourceLocation::start_end(variable.location(), value.location());
+            Location::start_end(variable.location(), value.location());
 
         Ok(Expression::AssignVariable(Box::new(AssignVariable {
             variable,
@@ -2238,7 +2230,7 @@ impl Parser {
         let value_token = self.require()?;
         let value = self.expression(value_token)?;
         let location =
-            SourceLocation::start_end(variable.location(), value.location());
+            Location::start_end(variable.location(), value.location());
 
         Ok(Expression::ReplaceVariable(Box::new(ReplaceVariable {
             variable,
@@ -2253,8 +2245,7 @@ impl Parser {
         let field = Field::from(start);
         let value_token = self.require()?;
         let value = self.expression(value_token)?;
-        let location =
-            SourceLocation::start_end(field.location(), value.location());
+        let location = Location::start_end(field.location(), value.location());
 
         Ok(Expression::AssignField(Box::new(AssignField {
             field,
@@ -2272,8 +2263,7 @@ impl Parser {
         let field = Field::from(start);
         let value_token = self.require()?;
         let value = self.expression(value_token)?;
-        let location =
-            SourceLocation::start_end(field.location(), value.location());
+        let location = Location::start_end(field.location(), value.location());
 
         Ok(Expression::ReplaceField(Box::new(ReplaceField {
             field,
@@ -2284,7 +2274,7 @@ impl Parser {
 
     fn scope(&mut self, start: Token) -> Result<Expression, ParseError> {
         let body = self.expressions(start)?;
-        let location = body.location.clone();
+        let location = body.location;
 
         Ok(Expression::Scope(Box::new(Scope { body, location })))
     }
@@ -2300,8 +2290,7 @@ impl Parser {
         let return_type = self.optional_return_type()?;
         let body_token = self.expect(TokenKind::CurlyOpen)?;
         let body = self.expressions(body_token)?;
-        let location =
-            SourceLocation::start_end(&start.location, &body.location);
+        let location = Location::start_end(&start.location, &body.location);
         let closure =
             Closure { moving, body, arguments, return_type, location };
 
@@ -2319,7 +2308,7 @@ impl Parser {
         let value_token = self.require()?;
         let value = self.expression(value_token)?;
         let location =
-            SourceLocation::start_end(variable.location(), value.location());
+            Location::start_end(variable.location(), value.location());
 
         Ok(Expression::BinaryAssignVariable(Box::new(BinaryAssignVariable {
             operator,
@@ -2339,8 +2328,7 @@ impl Parser {
         let field = Field::from(start);
         let value_token = self.require()?;
         let value = self.expression(value_token)?;
-        let location =
-            SourceLocation::start_end(field.location(), value.location());
+        let location = Location::start_end(field.location(), value.location());
 
         Ok(Expression::BinaryAssignField(Box::new(BinaryAssignField {
             operator,
@@ -2368,8 +2356,7 @@ impl Parser {
 
         let value_start = self.require()?;
         let value = self.expression(value_start)?;
-        let location =
-            SourceLocation::start_end(&start.location, value.location());
+        let location = Location::start_end(&start.location, value.location());
 
         Ok(Expression::DefineVariable(Box::new(DefineVariable {
             mutable,
@@ -2414,10 +2401,8 @@ impl Parser {
                 let token = self.require()?;
 
                 if token.kind == TokenKind::ParenClose {
-                    let location = SourceLocation::start_end(
-                        &start.location,
-                        &token.location,
-                    );
+                    let location =
+                        Location::start_end(&start.location, &token.location);
 
                     return Ok(Expression::Tuple(Box::new(Tuple {
                         values,
@@ -2434,8 +2419,7 @@ impl Parser {
         }
 
         let end = self.expect(TokenKind::ParenClose)?;
-        let location =
-            SourceLocation::start_end(&start.location, &end.location);
+        let location = Location::start_end(&start.location, &end.location);
 
         Ok(Expression::Group(Box::new(Group { value, location })))
     }
@@ -2451,8 +2435,7 @@ impl Parser {
     fn reference(&mut self, start: Token) -> Result<Expression, ParseError> {
         let value_token = self.require()?;
         let value = self.expression(value_token)?;
-        let location =
-            SourceLocation::start_end(&start.location, value.location());
+        let location = Location::start_end(&start.location, value.location());
 
         Ok(Expression::Ref(Box::new(Ref { value, location })))
     }
@@ -2462,8 +2445,7 @@ impl Parser {
         start: Token,
     ) -> Result<Expression, ParseError> {
         let body = self.expressions_with_optional_curly_braces()?;
-        let location =
-            SourceLocation::start_end(&start.location, &body.location);
+        let location = Location::start_end(&start.location, &body.location);
 
         Ok(Expression::Recover(Box::new(Recover { body, location })))
     }
@@ -2474,8 +2456,7 @@ impl Parser {
     ) -> Result<Expression, ParseError> {
         let value_token = self.require()?;
         let value = self.expression(value_token)?;
-        let location =
-            SourceLocation::start_end(&start.location, value.location());
+        let location = Location::start_end(&start.location, value.location());
 
         Ok(Expression::Mut(Box::new(Mut { value, location })))
     }
@@ -2486,8 +2467,7 @@ impl Parser {
     ) -> Result<Expression, ParseError> {
         let value_token = self.require()?;
         let value = self.expression(value_token)?;
-        let location =
-            SourceLocation::start_end(&start.location, value.location());
+        let location = Location::start_end(&start.location, value.location());
 
         Ok(Expression::Throw(Box::new(Throw { value, location })))
     }
@@ -2497,8 +2477,7 @@ impl Parser {
         start: Token,
     ) -> Result<Expression, ParseError> {
         let peeked = self.peek();
-        let same_line =
-            peeked.location.lines.start() == start.location.lines.start();
+        let same_line = peeked.location.line_start == start.location.line_start;
 
         let value = match peeked.kind {
             TokenKind::BracketOpen
@@ -2539,7 +2518,7 @@ impl Parser {
         };
 
         let end_loc = location!(value).unwrap_or(&start.location);
-        let location = SourceLocation::start_end(&start.location, end_loc);
+        let location = Location::start_end(&start.location, end_loc);
 
         Ok(Expression::Return(Box::new(Return { value, location })))
     }
@@ -2551,7 +2530,7 @@ impl Parser {
         let expr_token = self.require()?;
         let expression = self.expression(expr_token)?;
         let end_loc = expression.location();
-        let location = SourceLocation::start_end(&start.location, end_loc);
+        let location = Location::start_end(&start.location, end_loc);
 
         Ok(Expression::Try(Box::new(Try { value: expression, location })))
     }
@@ -2581,7 +2560,7 @@ impl Parser {
         let end_loc = location!(else_body)
             .or_else(|| location!(else_if.last()))
             .unwrap_or_else(|| if_true.location());
-        let location = SourceLocation::start_end(&start.location, end_loc);
+        let location = Location::start_end(&start.location, end_loc);
 
         Ok(Expression::If(Box::new(If {
             if_true,
@@ -2626,8 +2605,7 @@ impl Parser {
         }
 
         let close = self.expect(TokenKind::CurlyClose)?;
-        let location =
-            SourceLocation::start_end(&start.location, &close.location);
+        let location = Location::start_end(&start.location, &close.location);
 
         Ok(Expression::Match(Box::new(Match {
             expression,
@@ -2643,8 +2621,7 @@ impl Parser {
         self.expect(TokenKind::Arrow)?;
 
         let body = self.match_case_body()?;
-        let location =
-            SourceLocation::start_end(&start.location, body.location());
+        let location = Location::start_end(&start.location, body.location());
 
         Ok(MatchCase { pattern, guard, body, location })
     }
@@ -2686,7 +2663,7 @@ impl Parser {
                 patterns.push(self.pattern_without_or()?);
             }
 
-            let location = SourceLocation::start_end(
+            let location = Location::start_end(
                 patterns[0].location(),
                 patterns.last().unwrap().location(),
             );
@@ -2711,10 +2688,8 @@ impl Parser {
                 self.next();
 
                 let name_token = self.expect(TokenKind::Constant)?;
-                let location = SourceLocation::start_end(
-                    &source.location,
-                    &name_token.location,
-                );
+                let location =
+                    Location::start_end(&source.location, &name_token.location);
 
                 Pattern::Constant(Box::new(Constant {
                     source: Some(source),
@@ -2732,7 +2707,7 @@ impl Parser {
                 let values = self.patterns()?;
                 let close = self.expect(TokenKind::ParenClose)?;
                 let location =
-                    SourceLocation::start_end(&name.location, &close.location);
+                    Location::start_end(&name.location, &close.location);
 
                 Pattern::Constructor(Box::new(ConstructorPattern {
                     name,
@@ -2763,7 +2738,7 @@ impl Parser {
                 let values = self.patterns()?;
                 let close = self.expect(TokenKind::ParenClose)?;
                 let location =
-                    SourceLocation::start_end(&token.location, &close.location);
+                    Location::start_end(&token.location, &close.location);
 
                 Pattern::Tuple(Box::new(TuplePattern { values, location }))
             }
@@ -2800,7 +2775,7 @@ impl Parser {
             let value_type = self.optional_type_annotation()?;
             let end_loc =
                 location!(value_type).unwrap_or_else(|| name.location());
-            let location = SourceLocation::start_end(&start.location, end_loc);
+            let location = Location::start_end(&start.location, end_loc);
 
             return Ok(IdentifierPattern {
                 name,
@@ -2815,7 +2790,7 @@ impl Parser {
             let value_type = self.optional_type_annotation()?;
             let end_loc =
                 location!(value_type).unwrap_or_else(|| name.location());
-            let location = SourceLocation::start_end(name.location(), end_loc);
+            let location = Location::start_end(name.location(), end_loc);
 
             return Ok(IdentifierPattern {
                 name,
@@ -2844,7 +2819,7 @@ impl Parser {
 
             let pattern = self.pattern()?;
             let location =
-                SourceLocation::start_end(&field.location, pattern.location());
+                Location::start_end(&field.location, pattern.location());
 
             values.push(FieldPattern { field, pattern, location });
 
@@ -2856,8 +2831,7 @@ impl Parser {
         }
 
         let close = self.expect(TokenKind::CurlyClose)?;
-        let location =
-            SourceLocation::start_end(&start.location, &close.location);
+        let location = Location::start_end(&start.location, &close.location);
 
         Ok(ClassPattern { values, location })
     }
@@ -2885,7 +2859,7 @@ impl Parser {
             self.expressions(start)?
         } else {
             let expr = self.expression(start)?;
-            let loc = expr.location().clone();
+            let loc = *expr.location();
 
             Expressions { values: vec![expr], location: loc }
         };
@@ -2899,8 +2873,7 @@ impl Parser {
     ) -> Result<Expression, ParseError> {
         let body_token = self.expect(TokenKind::CurlyOpen)?;
         let body = self.expressions(body_token)?;
-        let location =
-            SourceLocation::start_end(&start.location, body.location());
+        let location = Location::start_end(&start.location, body.location());
 
         Ok(Expression::Loop(Box::new(Loop { body, location })))
     }
@@ -2913,8 +2886,7 @@ impl Parser {
         let condition = self.expression(cond_start)?;
         let body_token = self.expect(TokenKind::CurlyOpen)?;
         let body = self.expressions(body_token)?;
-        let location =
-            SourceLocation::start_end(&start.location, body.location());
+        let location = Location::start_end(&start.location, body.location());
 
         Ok(Expression::While(Box::new(While { condition, body, location })))
     }
@@ -2925,7 +2897,7 @@ impl Parser {
         let token = self.expect(TokenKind::CurlyOpen)?;
         let body = self.expressions(token)?;
         let location =
-            SourceLocation::start_end(condition.location(), body.location());
+            Location::start_end(condition.location(), body.location());
 
         Ok(IfCondition { condition, body, location })
     }
@@ -2958,14 +2930,11 @@ impl Parser {
     fn require_valid_token(&self, token: &Token) -> Result<(), ParseError> {
         match token.kind {
             TokenKind::Invalid => {
-                error!(
-                    token.location.clone(),
-                    "A '{}' is not allowed", token.value
-                )
+                error!(token.location, "A '{}' is not allowed", token.value)
             }
             TokenKind::Null => {
                 error!(
-                    token.location.clone(),
+                    token.location,
                     "The end of the file is reached, but more input is expected"
                 )
             }
@@ -2982,7 +2951,7 @@ impl Parser {
 
         if token.kind != kind {
             error!(
-                token.location.clone(),
+                token.location,
                 "expected {}, found '{}' instead",
                 kind.description(),
                 token.value.clone()
@@ -3011,7 +2980,7 @@ impl Parser {
         open: TokenKind,
         close: TokenKind,
         mut func: F,
-    ) -> Result<(Vec<T>, SourceLocation), ParseError>
+    ) -> Result<(Vec<T>, Location), ParseError>
     where
         F: FnMut(&mut Self, Token) -> Result<T, ParseError>,
     {
@@ -3024,10 +2993,7 @@ impl Parser {
             if token.kind == close {
                 return Ok((
                     values,
-                    SourceLocation::start_end(
-                        &open_token.location,
-                        &token.location,
-                    ),
+                    Location::start_end(&open_token.location, &token.location),
                 ));
             }
 
@@ -3057,15 +3023,20 @@ mod tests {
     use similar_asserts::assert_eq;
     use std::ops::RangeInclusive;
 
-    pub(crate) fn cols(start: usize, stop: usize) -> SourceLocation {
-        SourceLocation::new(1..=1, start..=stop)
+    pub(crate) fn cols(start: u32, stop: u32) -> Location {
+        Location {
+            line_start: 1,
+            line_end: 1,
+            column_start: start,
+            column_end: stop,
+        }
     }
 
     fn location(
-        line_range: RangeInclusive<usize>,
-        column_range: RangeInclusive<usize>,
-    ) -> SourceLocation {
-        SourceLocation::new(line_range, column_range)
+        line_range: RangeInclusive<u32>,
+        column_range: RangeInclusive<u32>,
+    ) -> Location {
+        Location::new(&line_range, &column_range)
     }
 
     fn parser(input: &str) -> Parser {
@@ -4114,6 +4085,7 @@ mod tests {
         assert_eq!(
             top(parse("fn foo {}")),
             TopLevelExpression::DefineMethod(Box::new(DefineMethod {
+                inline: false,
                 public: false,
                 operator: false,
                 kind: MethodKind::Instance,
@@ -4133,8 +4105,31 @@ mod tests {
         );
 
         assert_eq!(
+            top(parse("fn inline foo {}")),
+            TopLevelExpression::DefineMethod(Box::new(DefineMethod {
+                inline: true,
+                public: false,
+                operator: false,
+                kind: MethodKind::Instance,
+                name: Identifier {
+                    name: "foo".to_string(),
+                    location: cols(11, 13)
+                },
+                type_parameters: None,
+                arguments: None,
+                return_type: None,
+                body: Some(Expressions {
+                    values: Vec::new(),
+                    location: cols(15, 16)
+                }),
+                location: cols(1, 16)
+            }))
+        );
+
+        assert_eq!(
             top(parse("fn FOO {}")),
             TopLevelExpression::DefineMethod(Box::new(DefineMethod {
+                inline: false,
                 public: false,
                 operator: false,
                 kind: MethodKind::Instance,
@@ -4156,6 +4151,7 @@ mod tests {
         assert_eq!(
             top(parse("fn pub foo {}")),
             TopLevelExpression::DefineMethod(Box::new(DefineMethod {
+                inline: false,
                 public: true,
                 operator: false,
                 kind: MethodKind::Instance,
@@ -4175,8 +4171,31 @@ mod tests {
         );
 
         assert_eq!(
+            top(parse("fn pub inline foo {}")),
+            TopLevelExpression::DefineMethod(Box::new(DefineMethod {
+                inline: true,
+                public: true,
+                operator: false,
+                kind: MethodKind::Instance,
+                name: Identifier {
+                    name: "foo".to_string(),
+                    location: cols(15, 17)
+                },
+                type_parameters: None,
+                arguments: None,
+                return_type: None,
+                body: Some(Expressions {
+                    values: Vec::new(),
+                    location: cols(19, 20)
+                }),
+                location: cols(1, 20)
+            }))
+        );
+
+        assert_eq!(
             top(parse("fn 123 {}")),
             TopLevelExpression::DefineMethod(Box::new(DefineMethod {
+                inline: false,
                 public: false,
                 operator: false,
                 kind: MethodKind::Instance,
@@ -4198,6 +4217,7 @@ mod tests {
         assert_eq!(
             top(parse("fn ab= {}")),
             TopLevelExpression::DefineMethod(Box::new(DefineMethod {
+                inline: false,
                 public: false,
                 operator: false,
                 kind: MethodKind::Instance,
@@ -4219,6 +4239,7 @@ mod tests {
         assert_eq!(
             top(parse("fn 12= {}")),
             TopLevelExpression::DefineMethod(Box::new(DefineMethod {
+                inline: false,
                 public: false,
                 operator: false,
                 kind: MethodKind::Instance,
@@ -4240,6 +4261,7 @@ mod tests {
         assert_eq!(
             top(parse("fn let {}")),
             TopLevelExpression::DefineMethod(Box::new(DefineMethod {
+                inline: false,
                 public: false,
                 operator: false,
                 kind: MethodKind::Instance,
@@ -4264,6 +4286,7 @@ mod tests {
         assert_eq!(
             top(parse("fn foo [T] {}")),
             TopLevelExpression::DefineMethod(Box::new(DefineMethod {
+                inline: false,
                 public: false,
                 operator: false,
                 kind: MethodKind::Instance,
@@ -4296,6 +4319,7 @@ mod tests {
         assert_eq!(
             top(parse("fn foo [T: A + B] {}")),
             TopLevelExpression::DefineMethod(Box::new(DefineMethod {
+                inline: false,
                 public: false,
                 operator: false,
                 kind: MethodKind::Instance,
@@ -4353,6 +4377,7 @@ mod tests {
         assert_eq!(
             top(parse("fn foo (a: A, b: B) {}")),
             TopLevelExpression::DefineMethod(Box::new(DefineMethod {
+                inline: false,
                 public: false,
                 operator: false,
                 kind: MethodKind::Instance,
@@ -4414,6 +4439,7 @@ mod tests {
         assert_eq!(
             top(parse("fn foo -> A {}")),
             TopLevelExpression::DefineMethod(Box::new(DefineMethod {
+                inline: false,
                 public: false,
                 operator: false,
                 kind: MethodKind::Instance,
@@ -4446,6 +4472,7 @@ mod tests {
         assert_eq!(
             top(parse("fn foo { 10 }")),
             TopLevelExpression::DefineMethod(Box::new(DefineMethod {
+                inline: false,
                 public: false,
                 operator: false,
                 kind: MethodKind::Instance,
@@ -4473,6 +4500,7 @@ mod tests {
         assert_eq!(
             top(parse("fn extern foo")),
             TopLevelExpression::DefineMethod(Box::new(DefineMethod {
+                inline: false,
                 public: false,
                 operator: false,
                 kind: MethodKind::Extern,
@@ -4491,6 +4519,7 @@ mod tests {
         assert_eq!(
             top(parse("fn extern foo {}")),
             TopLevelExpression::DefineMethod(Box::new(DefineMethod {
+                inline: false,
                 public: false,
                 operator: false,
                 kind: MethodKind::Extern,
@@ -4512,6 +4541,7 @@ mod tests {
         assert_eq!(
             top(parse("fn extern foo(...)")),
             TopLevelExpression::DefineMethod(Box::new(DefineMethod {
+                inline: false,
                 public: false,
                 operator: false,
                 kind: MethodKind::Extern,
@@ -4534,6 +4564,7 @@ mod tests {
         assert_eq!(
             top(parse("fn extern foo(...,)")),
             TopLevelExpression::DefineMethod(Box::new(DefineMethod {
+                inline: false,
                 public: false,
                 operator: false,
                 kind: MethodKind::Extern,
@@ -4668,6 +4699,7 @@ mod tests {
                 body: ClassExpressions {
                     values: vec![ClassExpression::DefineMethod(Box::new(
                         DefineMethod {
+                            inline: false,
                             public: false,
                             operator: false,
                             kind: MethodKind::Async,
@@ -4705,6 +4737,7 @@ mod tests {
                 body: ClassExpressions {
                     values: vec![ClassExpression::DefineMethod(Box::new(
                         DefineMethod {
+                            inline: false,
                             public: false,
                             operator: false,
                             kind: MethodKind::AsyncMutable,
@@ -4844,6 +4877,7 @@ mod tests {
                 body: ClassExpressions {
                     values: vec![ClassExpression::DefineMethod(Box::new(
                         DefineMethod {
+                            inline: false,
                             public: false,
                             operator: false,
                             kind: MethodKind::Instance,
@@ -4881,6 +4915,7 @@ mod tests {
                 body: ClassExpressions {
                     values: vec![ClassExpression::DefineMethod(Box::new(
                         DefineMethod {
+                            inline: false,
                             public: true,
                             operator: false,
                             kind: MethodKind::Instance,
@@ -4921,6 +4956,7 @@ mod tests {
                 body: ClassExpressions {
                     values: vec![ClassExpression::DefineMethod(Box::new(
                         DefineMethod {
+                            inline: false,
                             public: false,
                             operator: false,
                             kind: MethodKind::Moving,
@@ -4946,6 +4982,47 @@ mod tests {
     }
 
     #[test]
+    fn test_class_with_inline_method() {
+        assert_eq!(
+            top(parse("class A { fn inline foo {} }")),
+            TopLevelExpression::DefineClass(Box::new(DefineClass {
+                public: false,
+                name: Constant {
+                    source: None,
+                    name: "A".to_string(),
+                    location: cols(7, 7)
+                },
+                kind: ClassKind::Regular,
+                type_parameters: None,
+                body: ClassExpressions {
+                    values: vec![ClassExpression::DefineMethod(Box::new(
+                        DefineMethod {
+                            inline: true,
+                            public: false,
+                            operator: false,
+                            kind: MethodKind::Instance,
+                            name: Identifier {
+                                name: "foo".to_string(),
+                                location: cols(21, 23)
+                            },
+                            type_parameters: None,
+                            arguments: None,
+                            return_type: None,
+                            body: Some(Expressions {
+                                values: Vec::new(),
+                                location: cols(25, 26)
+                            }),
+                            location: cols(11, 26)
+                        }
+                    ))],
+                    location: cols(9, 28)
+                },
+                location: cols(1, 28)
+            }))
+        )
+    }
+
+    #[test]
     fn test_class_with_mutating_method() {
         assert_eq!(
             top(parse("class A { fn mut foo {} }")),
@@ -4961,6 +5038,7 @@ mod tests {
                 body: ClassExpressions {
                     values: vec![ClassExpression::DefineMethod(Box::new(
                         DefineMethod {
+                            inline: false,
                             public: false,
                             operator: false,
                             kind: MethodKind::Mutable,
@@ -5001,6 +5079,7 @@ mod tests {
                 body: ClassExpressions {
                     values: vec![ClassExpression::DefineMethod(Box::new(
                         DefineMethod {
+                            inline: false,
                             public: false,
                             operator: false,
                             kind: MethodKind::Static,
@@ -5280,6 +5359,7 @@ mod tests {
                 body: ImplementationExpressions {
                     values: vec![ImplementationExpression::DefineMethod(
                         Box::new(DefineMethod {
+                            inline: false,
                             public: false,
                             operator: false,
                             kind: MethodKind::Instance,
@@ -5335,6 +5415,7 @@ mod tests {
                 body: ImplementationExpressions {
                     values: vec![ImplementationExpression::DefineMethod(
                         Box::new(DefineMethod {
+                            inline: false,
                             public: false,
                             operator: false,
                             kind: MethodKind::Instance,
@@ -5370,6 +5451,7 @@ mod tests {
                 body: ImplementationExpressions {
                     values: vec![ImplementationExpression::DefineMethod(
                         Box::new(DefineMethod {
+                            inline: false,
                             public: false,
                             operator: false,
                             kind: MethodKind::Async,
@@ -5470,9 +5552,49 @@ mod tests {
                 body: ImplementationExpressions {
                     values: vec![ImplementationExpression::DefineMethod(
                         Box::new(DefineMethod {
+                            inline: false,
                             public: false,
                             operator: false,
                             kind: MethodKind::Static,
+                            name: Identifier {
+                                name: "foo".to_string(),
+                                location: cols(20, 22)
+                            },
+                            type_parameters: None,
+                            arguments: None,
+                            return_type: None,
+                            body: Some(Expressions {
+                                values: Vec::new(),
+                                location: cols(24, 25)
+                            }),
+                            location: cols(10, 25)
+                        })
+                    )],
+                    location: cols(8, 27)
+                },
+                bounds: None,
+                location: cols(1, 27)
+            }))
+        );
+    }
+
+    #[test]
+    fn test_reopen_with_inline_method() {
+        assert_eq!(
+            top(parse("impl A { fn inline foo {} }")),
+            TopLevelExpression::ReopenClass(Box::new(ReopenClass {
+                class_name: Constant {
+                    source: None,
+                    name: "A".to_string(),
+                    location: cols(6, 6)
+                },
+                body: ImplementationExpressions {
+                    values: vec![ImplementationExpression::DefineMethod(
+                        Box::new(DefineMethod {
+                            inline: true,
+                            public: false,
+                            operator: false,
+                            kind: MethodKind::Instance,
                             name: Identifier {
                                 name: "foo".to_string(),
                                 location: cols(20, 22)
@@ -5691,6 +5813,7 @@ mod tests {
                 body: TraitExpressions {
                     values: vec![TraitExpression::DefineMethod(Box::new(
                         DefineMethod {
+                            inline: false,
                             public: false,
                             operator: false,
                             kind: MethodKind::Instance,
@@ -5728,6 +5851,7 @@ mod tests {
                 body: TraitExpressions {
                     values: vec![TraitExpression::DefineMethod(Box::new(
                         DefineMethod {
+                            inline: false,
                             public: false,
                             operator: false,
                             kind: MethodKind::Instance,
@@ -5765,6 +5889,7 @@ mod tests {
                 body: TraitExpressions {
                     values: vec![TraitExpression::DefineMethod(Box::new(
                         DefineMethod {
+                            inline: false,
                             public: false,
                             operator: false,
                             kind: MethodKind::Instance,
@@ -5812,6 +5937,7 @@ mod tests {
                 body: TraitExpressions {
                     values: vec![TraitExpression::DefineMethod(Box::new(
                         DefineMethod {
+                            inline: false,
                             public: false,
                             operator: false,
                             kind: MethodKind::Instance,
@@ -5870,6 +5996,7 @@ mod tests {
                 body: TraitExpressions {
                     values: vec![TraitExpression::DefineMethod(Box::new(
                         DefineMethod {
+                            inline: false,
                             public: false,
                             operator: false,
                             kind: MethodKind::Instance,
@@ -5918,6 +6045,7 @@ mod tests {
                 body: TraitExpressions {
                     values: vec![TraitExpression::DefineMethod(Box::new(
                         DefineMethod {
+                            inline: false,
                             public: false,
                             operator: false,
                             kind: MethodKind::Instance,
@@ -5943,6 +6071,47 @@ mod tests {
     }
 
     #[test]
+    fn test_trait_with_inline_method() {
+        assert_eq!(
+            top(parse("trait A { fn inline foo {} }")),
+            TopLevelExpression::DefineTrait(Box::new(DefineTrait {
+                public: false,
+                name: Constant {
+                    source: None,
+                    name: "A".to_string(),
+                    location: cols(7, 7)
+                },
+                type_parameters: None,
+                requirements: None,
+                body: TraitExpressions {
+                    values: vec![TraitExpression::DefineMethod(Box::new(
+                        DefineMethod {
+                            inline: true,
+                            public: false,
+                            operator: false,
+                            kind: MethodKind::Instance,
+                            name: Identifier {
+                                name: "foo".to_string(),
+                                location: cols(21, 23)
+                            },
+                            type_parameters: None,
+                            arguments: None,
+                            return_type: None,
+                            body: Some(Expressions {
+                                values: Vec::new(),
+                                location: cols(25, 26)
+                            }),
+                            location: cols(11, 26)
+                        }
+                    ))],
+                    location: cols(9, 28)
+                },
+                location: cols(1, 28)
+            }))
+        );
+    }
+
+    #[test]
     fn test_trait_with_default_moving_method() {
         assert_eq!(
             top(parse("trait A { fn move foo {} }")),
@@ -5958,6 +6127,7 @@ mod tests {
                 body: TraitExpressions {
                     values: vec![TraitExpression::DefineMethod(Box::new(
                         DefineMethod {
+                            inline: false,
                             public: false,
                             operator: false,
                             kind: MethodKind::Moving,

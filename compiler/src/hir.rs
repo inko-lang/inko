@@ -7,7 +7,7 @@ use crate::diagnostics::DiagnosticId;
 use crate::modules_parser::ParsedModule;
 use crate::state::State;
 use ::ast::nodes::{self as ast, Node as _};
-use ::ast::source_location::SourceLocation;
+use location::Location;
 use std::path::PathBuf;
 use std::str::FromStr;
 use types::{
@@ -27,8 +27,8 @@ impl Comments {
     }
 
     fn push(&mut self, comment: ast::Comment) {
-        let end = *comment.location.lines.end();
-        let last = self.nodes.last().map_or(0, |c| *c.location.lines.end());
+        let end = comment.location.line_end;
+        let last = self.nodes.last().map_or(0, |c| c.location.line_end);
 
         if end - last > 1 && !self.nodes.is_empty() {
             self.nodes.clear();
@@ -37,10 +37,11 @@ impl Comments {
         self.nodes.push(comment);
     }
 
-    fn documentation_for(&mut self, location: &SourceLocation) -> String {
-        let should_take = self.nodes.last().map_or(false, |c| {
-            location.lines.start() - c.location.lines.end() == 1
-        });
+    fn documentation_for(&mut self, location: &Location) -> String {
+        let should_take = self
+            .nodes
+            .last()
+            .map_or(false, |c| location.line_start - c.location.line_end == 1);
 
         if should_take {
             self.generate()
@@ -73,14 +74,14 @@ impl Comments {
 pub(crate) struct IntLiteral {
     pub(crate) value: i64,
     pub(crate) resolved_type: types::TypeRef,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug)]
 pub(crate) struct FloatLiteral {
     pub(crate) value: f64,
     pub(crate) resolved_type: types::TypeRef,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 impl PartialEq for FloatLiteral {
@@ -95,7 +96,7 @@ impl Eq for FloatLiteral {}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct StringText {
     pub(crate) value: String,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -108,14 +109,14 @@ pub(crate) enum StringValue {
 pub(crate) struct StringLiteral {
     pub(crate) values: Vec<StringValue>,
     pub(crate) resolved_type: types::TypeRef,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ConstStringLiteral {
     pub(crate) value: String,
     pub(crate) resolved_type: types::TypeRef,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -124,19 +125,19 @@ pub(crate) struct TupleLiteral {
     pub(crate) value_types: Vec<types::TypeRef>,
     pub(crate) resolved_type: types::TypeRef,
     pub(crate) values: Vec<Expression>,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Identifier {
     pub(crate) name: String,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Constant {
     pub(crate) name: String,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -145,14 +146,14 @@ pub(crate) struct ConstantRef {
     pub(crate) source: Option<Identifier>,
     pub(crate) name: String,
     pub(crate) resolved_type: types::TypeRef,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct IdentifierRef {
     pub(crate) name: String,
     pub(crate) kind: types::IdentifierKind,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -171,7 +172,7 @@ pub(crate) struct Call {
     pub(crate) parens: bool,
     /// A flag indicating if the call resides directly in a `mut` expression.
     pub(crate) in_mut: bool,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -179,7 +180,7 @@ pub(crate) struct BuiltinCall {
     pub(crate) info: Option<types::IntrinsicCall>,
     pub(crate) name: Identifier,
     pub(crate) arguments: Vec<Expression>,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -188,7 +189,7 @@ pub(crate) struct AssignField {
     pub(crate) resolved_type: types::TypeRef,
     pub(crate) field: Field,
     pub(crate) value: Expression,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -197,7 +198,7 @@ pub(crate) struct ReplaceField {
     pub(crate) resolved_type: types::TypeRef,
     pub(crate) field: Field,
     pub(crate) value: Expression,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -206,7 +207,7 @@ pub(crate) struct AssignVariable {
     pub(crate) resolved_type: types::TypeRef,
     pub(crate) variable: Identifier,
     pub(crate) value: Expression,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -215,7 +216,7 @@ pub(crate) struct ReplaceVariable {
     pub(crate) resolved_type: types::TypeRef,
     pub(crate) variable: Identifier,
     pub(crate) value: Expression,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -224,7 +225,7 @@ pub(crate) struct AssignSetter {
     pub(crate) receiver: Expression,
     pub(crate) name: Identifier,
     pub(crate) value: Expression,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
     pub(crate) expected_type: types::TypeRef,
 }
 
@@ -234,7 +235,7 @@ pub(crate) struct ReplaceSetter {
     pub(crate) receiver: Expression,
     pub(crate) name: Identifier,
     pub(crate) value: Expression,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
     pub(crate) resolved_type: types::TypeRef,
 }
 
@@ -242,20 +243,20 @@ pub(crate) struct ReplaceSetter {
 pub(crate) struct ImportSymbol {
     pub(crate) name: Identifier,
     pub(crate) import_as: Identifier,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Import {
     pub(crate) source: Vec<Identifier>,
     pub(crate) symbols: Vec<ImportSymbol>,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ExternImport {
     pub(crate) source: String,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -265,7 +266,7 @@ pub(crate) struct DefineConstant {
     pub(crate) constant_id: Option<types::ConstantId>,
     pub(crate) name: Constant,
     pub(crate) value: ConstExpression,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -285,13 +286,14 @@ impl MethodKind {
 pub(crate) struct DefineInstanceMethod {
     pub(crate) documentation: String,
     pub(crate) public: bool,
+    pub(crate) inline: bool,
     pub(crate) kind: MethodKind,
     pub(crate) name: Identifier,
     pub(crate) type_parameters: Vec<TypeParameter>,
     pub(crate) arguments: Vec<MethodArgument>,
     pub(crate) return_type: Option<Type>,
     pub(crate) body: Vec<Expression>,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
     pub(crate) method_id: Option<types::MethodId>,
 }
 
@@ -299,13 +301,14 @@ pub(crate) struct DefineInstanceMethod {
 pub(crate) struct DefineModuleMethod {
     pub(crate) documentation: String,
     pub(crate) public: bool,
+    pub(crate) inline: bool,
     pub(crate) c_calling_convention: bool,
     pub(crate) name: Identifier,
     pub(crate) type_parameters: Vec<TypeParameter>,
     pub(crate) arguments: Vec<MethodArgument>,
     pub(crate) return_type: Option<Type>,
     pub(crate) body: Vec<Expression>,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
     pub(crate) method_id: Option<types::MethodId>,
 }
 
@@ -317,7 +320,7 @@ pub(crate) struct DefineExternFunction {
     pub(crate) arguments: Vec<MethodArgument>,
     pub(crate) variadic: bool,
     pub(crate) return_type: Option<Type>,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
     pub(crate) method_id: Option<types::MethodId>,
 }
 
@@ -331,19 +334,20 @@ pub(crate) struct DefineRequiredMethod {
     pub(crate) arguments: Vec<MethodArgument>,
     pub(crate) return_type: Option<Type>,
     pub(crate) method_id: Option<types::MethodId>,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct DefineStaticMethod {
     pub(crate) documentation: String,
     pub(crate) public: bool,
+    pub(crate) inline: bool,
     pub(crate) name: Identifier,
     pub(crate) type_parameters: Vec<TypeParameter>,
     pub(crate) arguments: Vec<MethodArgument>,
     pub(crate) return_type: Option<Type>,
     pub(crate) body: Vec<Expression>,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
     pub(crate) method_id: Option<types::MethodId>,
 }
 
@@ -357,7 +361,7 @@ pub(crate) struct DefineAsyncMethod {
     pub(crate) arguments: Vec<MethodArgument>,
     pub(crate) return_type: Option<Type>,
     pub(crate) body: Vec<Expression>,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
     pub(crate) method_id: Option<types::MethodId>,
 }
 
@@ -368,7 +372,7 @@ pub(crate) struct DefineField {
     pub(crate) field_id: Option<types::FieldId>,
     pub(crate) name: Identifier,
     pub(crate) value_type: Type,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -397,7 +401,7 @@ pub(crate) struct DefineClass {
     pub(crate) name: Constant,
     pub(crate) type_parameters: Vec<TypeParameter>,
     pub(crate) body: Vec<ClassExpression>,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -407,7 +411,7 @@ pub(crate) struct DefineExternClass {
     pub(crate) class_id: Option<types::ClassId>,
     pub(crate) name: Constant,
     pub(crate) fields: Vec<DefineField>,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -417,7 +421,7 @@ pub(crate) struct DefineConstructor {
     pub(crate) constructor_id: Option<types::ConstructorId>,
     pub(crate) name: Constant,
     pub(crate) members: Vec<Type>,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -435,7 +439,7 @@ pub(crate) struct DefineTrait {
     pub(crate) type_parameters: Vec<TypeParameter>,
     pub(crate) requirements: Vec<TypeName>,
     pub(crate) body: Vec<TraitExpression>,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -458,7 +462,7 @@ pub(crate) struct ReopenClass {
     pub(crate) class_name: Constant,
     pub(crate) body: Vec<ReopenClassExpression>,
     pub(crate) bounds: Vec<TypeBound>,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -473,7 +477,7 @@ pub(crate) struct TypeBound {
     pub(crate) name: Constant,
     pub(crate) requirements: Vec<TypeName>,
     pub(crate) mutable: bool,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -481,7 +485,7 @@ pub(crate) struct ImplementTrait {
     pub(crate) trait_name: TypeName,
     pub(crate) class_name: Constant,
     pub(crate) body: Vec<DefineInstanceMethod>,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
     pub(crate) bounds: Vec<TypeBound>,
     pub(crate) trait_instance: Option<types::TraitInstance>,
     pub(crate) class_instance: Option<types::ClassInstance>,
@@ -491,27 +495,27 @@ pub(crate) struct ImplementTrait {
 pub(crate) struct Scope {
     pub(crate) resolved_type: types::TypeRef,
     pub(crate) body: Vec<Expression>,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Try {
     pub(crate) expression: Expression,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
     pub(crate) kind: types::ThrowKind,
     pub(crate) return_type: types::TypeRef,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Noop {
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct SizeOf {
     pub(crate) argument: Type,
     pub(crate) resolved_type: types::TypeRef,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -556,45 +560,45 @@ pub(crate) enum Expression {
 }
 
 impl Expression {
-    pub(crate) fn location(&self) -> &SourceLocation {
+    pub(crate) fn location(&self) -> Location {
         match self {
-            Expression::And(ref n) => &n.location,
-            Expression::AssignField(ref n) => &n.location,
-            Expression::ReplaceField(ref n) => &n.location,
-            Expression::AssignSetter(ref n) => &n.location,
-            Expression::ReplaceSetter(ref n) => &n.location,
-            Expression::AssignVariable(ref n) => &n.location,
-            Expression::ReplaceVariable(ref n) => &n.location,
-            Expression::Break(ref n) => &n.location,
-            Expression::BuiltinCall(ref n) => &n.location,
-            Expression::Call(ref n) => &n.location,
-            Expression::Closure(ref n) => &n.location,
-            Expression::ConstantRef(ref n) => &n.location,
-            Expression::DefineVariable(ref n) => &n.location,
-            Expression::False(ref n) => &n.location,
-            Expression::FieldRef(ref n) => &n.location,
-            Expression::Float(ref n) => &n.location,
-            Expression::IdentifierRef(ref n) => &n.location,
-            Expression::Int(ref n) => &n.location,
-            Expression::Loop(ref n) => &n.location,
-            Expression::Match(ref n) => &n.location,
-            Expression::Mut(ref n) => &n.location,
-            Expression::Next(ref n) => &n.location,
-            Expression::Or(ref n) => &n.location,
-            Expression::Ref(ref n) => &n.location,
-            Expression::Return(ref n) => &n.location,
-            Expression::Scope(ref n) => &n.location,
-            Expression::SelfObject(ref n) => &n.location,
-            Expression::String(ref n) => &n.location,
-            Expression::Throw(ref n) => &n.location,
-            Expression::True(ref n) => &n.location,
-            Expression::Nil(ref n) => &n.location,
-            Expression::Tuple(ref n) => &n.location,
-            Expression::TypeCast(ref n) => &n.location,
-            Expression::Recover(ref n) => &n.location,
-            Expression::Try(ref n) => &n.location,
-            Expression::Noop(ref n) => &n.location,
-            Expression::SizeOf(ref n) => &n.location,
+            Expression::And(ref n) => n.location,
+            Expression::AssignField(ref n) => n.location,
+            Expression::ReplaceField(ref n) => n.location,
+            Expression::AssignSetter(ref n) => n.location,
+            Expression::ReplaceSetter(ref n) => n.location,
+            Expression::AssignVariable(ref n) => n.location,
+            Expression::ReplaceVariable(ref n) => n.location,
+            Expression::Break(ref n) => n.location,
+            Expression::BuiltinCall(ref n) => n.location,
+            Expression::Call(ref n) => n.location,
+            Expression::Closure(ref n) => n.location,
+            Expression::ConstantRef(ref n) => n.location,
+            Expression::DefineVariable(ref n) => n.location,
+            Expression::False(ref n) => n.location,
+            Expression::FieldRef(ref n) => n.location,
+            Expression::Float(ref n) => n.location,
+            Expression::IdentifierRef(ref n) => n.location,
+            Expression::Int(ref n) => n.location,
+            Expression::Loop(ref n) => n.location,
+            Expression::Match(ref n) => n.location,
+            Expression::Mut(ref n) => n.location,
+            Expression::Next(ref n) => n.location,
+            Expression::Or(ref n) => n.location,
+            Expression::Ref(ref n) => n.location,
+            Expression::Return(ref n) => n.location,
+            Expression::Scope(ref n) => n.location,
+            Expression::SelfObject(ref n) => n.location,
+            Expression::String(ref n) => n.location,
+            Expression::Throw(ref n) => n.location,
+            Expression::True(ref n) => n.location,
+            Expression::Nil(ref n) => n.location,
+            Expression::Tuple(ref n) => n.location,
+            Expression::TypeCast(ref n) => n.location,
+            Expression::Recover(ref n) => n.location,
+            Expression::Try(ref n) => n.location,
+            Expression::Noop(ref n) => n.location,
+            Expression::SizeOf(ref n) => n.location,
         }
     }
 
@@ -632,16 +636,16 @@ pub(crate) enum ConstExpression {
 }
 
 impl ConstExpression {
-    pub(crate) fn location(&self) -> &SourceLocation {
+    pub(crate) fn location(&self) -> Location {
         match self {
-            Self::Int(ref n) => &n.location,
-            Self::String(ref n) => &n.location,
-            Self::Float(ref n) => &n.location,
-            Self::Binary(ref n) => &n.location,
-            Self::ConstantRef(ref n) => &n.location,
-            Self::Array(ref n) => &n.location,
-            Self::True(ref n) => &n.location,
-            Self::False(ref n) => &n.location,
+            Self::Int(ref n) => n.location,
+            Self::String(ref n) => n.location,
+            Self::Float(ref n) => n.location,
+            Self::Binary(ref n) => n.location,
+            Self::ConstantRef(ref n) => n.location,
+            Self::Array(ref n) => n.location,
+            Self::True(ref n) => n.location,
+            Self::False(ref n) => n.location,
         }
     }
 }
@@ -652,14 +656,14 @@ pub(crate) struct TypeParameter {
     pub(crate) name: Constant,
     pub(crate) requirements: Vec<TypeName>,
     pub(crate) mutable: bool,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct MethodArgument {
     pub(crate) name: Identifier,
     pub(crate) value_type: Type,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -674,7 +678,7 @@ pub(crate) struct NamedArgument {
     pub(crate) name: Identifier,
     pub(crate) value: Expression,
     pub(crate) expected_type: types::TypeRef,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -684,10 +688,10 @@ pub(crate) enum Argument {
 }
 
 impl Argument {
-    pub fn location(&self) -> &SourceLocation {
+    pub fn location(&self) -> Location {
         match self {
             Argument::Positional(n) => n.value.location(),
-            Argument::Named(n) => &n.location,
+            Argument::Named(n) => n.location,
         }
     }
 
@@ -705,13 +709,13 @@ pub(crate) struct TypeName {
     pub(crate) resolved_type: types::TypeRef,
     pub(crate) name: Constant,
     pub(crate) arguments: Vec<Type>,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ReferenceType {
     pub(crate) type_reference: ReferrableType,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -725,7 +729,7 @@ pub(crate) enum ReferrableType {
 pub(crate) struct ClosureType {
     pub(crate) arguments: Vec<Type>,
     pub(crate) return_type: Option<Type>,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
     pub(crate) resolved_type: types::TypeRef,
 }
 
@@ -733,7 +737,7 @@ pub(crate) struct ClosureType {
 pub(crate) struct TupleType {
     pub(crate) resolved_type: types::TypeRef,
     pub(crate) values: Vec<Type>,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -748,15 +752,15 @@ pub(crate) enum Type {
 }
 
 impl Type {
-    pub(crate) fn location(&self) -> &SourceLocation {
+    pub(crate) fn location(&self) -> Location {
         match self {
-            Type::Named(ref node) => &node.location,
-            Type::Ref(ref node) => &node.location,
-            Type::Mut(ref node) => &node.location,
-            Type::Uni(ref node) => &node.location,
-            Type::Owned(ref node) => &node.location,
-            Type::Closure(ref node) => &node.location,
-            Type::Tuple(ref node) => &node.location,
+            Type::Named(ref node) => node.location,
+            Type::Ref(ref node) => node.location,
+            Type::Mut(ref node) => node.location,
+            Type::Uni(ref node) => node.location,
+            Type::Owned(ref node) => node.location,
+            Type::Closure(ref node) => node.location,
+            Type::Tuple(ref node) => node.location,
         }
     }
 }
@@ -839,20 +843,20 @@ pub(crate) struct ConstBinary {
     pub(crate) right: ConstExpression,
     pub(crate) operator: Operator,
     pub(crate) resolved_type: types::TypeRef,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ConstArray {
     pub(crate) resolved_type: types::TypeRef,
     pub(crate) values: Vec<ConstExpression>,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Field {
     pub(crate) name: String,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -860,7 +864,7 @@ pub(crate) struct FieldRef {
     pub(crate) field_id: Option<types::FieldId>,
     pub(crate) name: String,
     pub(crate) resolved_type: types::TypeRef,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
     pub(crate) in_mut: bool,
 }
 
@@ -869,7 +873,7 @@ pub(crate) struct BlockArgument {
     pub(crate) variable_id: Option<types::VariableId>,
     pub(crate) name: Identifier,
     pub(crate) value_type: Option<Type>,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -880,7 +884,7 @@ pub(crate) struct Closure {
     pub(crate) arguments: Vec<BlockArgument>,
     pub(crate) return_type: Option<Type>,
     pub(crate) body: Vec<Expression>,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -891,48 +895,48 @@ pub(crate) struct DefineVariable {
     pub(crate) name: Identifier,
     pub(crate) value_type: Option<Type>,
     pub(crate) value: Expression,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct SelfObject {
     pub(crate) resolved_type: types::TypeRef,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct True {
     pub(crate) resolved_type: types::TypeRef,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Nil {
     pub(crate) resolved_type: types::TypeRef,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct False {
     pub(crate) resolved_type: types::TypeRef,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Next {
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Break {
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Ref {
     pub(crate) resolved_type: types::TypeRef,
     pub(crate) value: Expression,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -940,14 +944,14 @@ pub(crate) struct Mut {
     pub(crate) pointer_to_method: Option<types::MethodId>,
     pub(crate) resolved_type: types::TypeRef,
     pub(crate) value: Expression,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Recover {
     pub(crate) resolved_type: types::TypeRef,
     pub(crate) body: Vec<Expression>,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -955,7 +959,7 @@ pub(crate) struct And {
     pub(crate) resolved_type: types::TypeRef,
     pub(crate) left: Expression,
     pub(crate) right: Expression,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -963,7 +967,7 @@ pub(crate) struct Or {
     pub(crate) resolved_type: types::TypeRef,
     pub(crate) left: Expression,
     pub(crate) right: Expression,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -971,7 +975,7 @@ pub(crate) struct TypeCast {
     pub(crate) resolved_type: types::TypeRef,
     pub(crate) value: Expression,
     pub(crate) cast_to: Type,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -979,21 +983,21 @@ pub(crate) struct Throw {
     pub(crate) resolved_type: types::TypeRef,
     pub(crate) return_type: types::TypeRef,
     pub(crate) value: Expression,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Return {
     pub(crate) resolved_type: types::TypeRef,
     pub(crate) value: Option<Expression>,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct TuplePattern {
     pub(crate) field_ids: Vec<types::FieldId>,
     pub(crate) values: Vec<Pattern>,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1001,14 +1005,14 @@ pub(crate) struct FieldPattern {
     pub(crate) field_id: Option<types::FieldId>,
     pub(crate) field: Field,
     pub(crate) pattern: Pattern,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ClassPattern {
     pub(crate) class_id: Option<types::ClassId>,
     pub(crate) values: Vec<FieldPattern>,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1016,12 +1020,12 @@ pub(crate) struct ConstructorPattern {
     pub(crate) constructor_id: Option<types::ConstructorId>,
     pub(crate) name: Constant,
     pub(crate) values: Vec<Pattern>,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct WildcardPattern {
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1030,7 +1034,7 @@ pub(crate) struct IdentifierPattern {
     pub(crate) name: Identifier,
     pub(crate) mutable: bool,
     pub(crate) value_type: Option<Type>,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1038,19 +1042,19 @@ pub(crate) struct ConstantPattern {
     pub(crate) kind: types::ConstantPatternKind,
     pub(crate) source: Option<Identifier>,
     pub(crate) name: String,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct OrPattern {
     pub(crate) patterns: Vec<Pattern>,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StringPattern {
     pub value: String,
-    pub location: SourceLocation,
+    pub location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1069,19 +1073,19 @@ pub(crate) enum Pattern {
 }
 
 impl Pattern {
-    pub(crate) fn location(&self) -> &SourceLocation {
+    pub(crate) fn location(&self) -> Location {
         match self {
-            Pattern::Constant(ref n) => &n.location,
-            Pattern::Constructor(ref n) => &n.location,
-            Pattern::Int(ref n) => &n.location,
-            Pattern::String(ref n) => &n.location,
-            Pattern::Identifier(ref n) => &n.location,
-            Pattern::Tuple(ref n) => &n.location,
-            Pattern::Class(ref n) => &n.location,
-            Pattern::Wildcard(ref n) => &n.location,
-            Pattern::True(ref n) => &n.location,
-            Pattern::False(ref n) => &n.location,
-            Pattern::Or(ref n) => &n.location,
+            Pattern::Constant(ref n) => n.location,
+            Pattern::Constructor(ref n) => n.location,
+            Pattern::Int(ref n) => n.location,
+            Pattern::String(ref n) => n.location,
+            Pattern::Identifier(ref n) => n.location,
+            Pattern::Tuple(ref n) => n.location,
+            Pattern::Class(ref n) => n.location,
+            Pattern::Wildcard(ref n) => n.location,
+            Pattern::True(ref n) => n.location,
+            Pattern::False(ref n) => n.location,
+            Pattern::Or(ref n) => n.location,
         }
     }
 }
@@ -1092,7 +1096,7 @@ pub(crate) struct MatchCase {
     pub(crate) pattern: Pattern,
     pub(crate) guard: Option<Expression>,
     pub(crate) body: Vec<Expression>,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1100,14 +1104,14 @@ pub(crate) struct Match {
     pub(crate) resolved_type: types::TypeRef,
     pub(crate) expression: Expression,
     pub(crate) cases: Vec<MatchCase>,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
     pub(crate) write_result: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Loop {
     pub(crate) body: Vec<Expression>,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1115,7 +1119,7 @@ pub(crate) struct Module {
     pub(crate) documentation: String,
     pub(crate) module_id: types::ModuleId,
     pub(crate) expressions: Vec<TopLevelExpression>,
-    pub(crate) location: SourceLocation,
+    pub(crate) location: Location,
 }
 
 /// A compiler pass for lowering ASTs to HIR modules.
@@ -1169,7 +1173,7 @@ impl<'a> LowerToHir<'a> {
         let mut doc = String::new();
 
         while let Some(ast::TopLevelExpression::Comment(c)) = nodes.peek() {
-            let line = *c.location.lines.start();
+            let line = c.location.line_start;
 
             if line - last_line == 1 {
                 if !doc.is_empty() {
@@ -1261,7 +1265,7 @@ impl<'a> LowerToHir<'a> {
         node: ast::DefineMethod,
         documentation: String,
     ) -> TopLevelExpression {
-        self.operator_method_not_allowed(node.operator, &node.location);
+        self.operator_method_not_allowed(node.operator, node.location);
 
         let external = matches!(node.kind, ast::MethodKind::Extern);
 
@@ -1278,6 +1282,7 @@ impl<'a> LowerToHir<'a> {
             }))
         } else {
             TopLevelExpression::ModuleMethod(Box::new(DefineModuleMethod {
+                inline: node.inline,
                 documentation,
                 public: node.public,
                 c_calling_convention: external,
@@ -1461,9 +1466,10 @@ impl<'a> LowerToHir<'a> {
         node: ast::DefineMethod,
         documentation: String,
     ) -> Box<DefineStaticMethod> {
-        self.operator_method_not_allowed(node.operator, &node.location);
+        self.operator_method_not_allowed(node.operator, node.location);
 
         Box::new(DefineStaticMethod {
+            inline: node.inline,
             documentation,
             public: node.public,
             name: self.identifier(node.name),
@@ -1482,7 +1488,8 @@ impl<'a> LowerToHir<'a> {
         node: ast::DefineMethod,
         documentation: String,
     ) -> Box<DefineAsyncMethod> {
-        self.operator_method_not_allowed(node.operator, &node.location);
+        self.operator_method_not_allowed(node.operator, node.location);
+        self.disallow_inline_method(&node);
 
         Box::new(DefineAsyncMethod {
             documentation,
@@ -1505,6 +1512,7 @@ impl<'a> LowerToHir<'a> {
         documentation: String,
     ) -> DefineInstanceMethod {
         DefineInstanceMethod {
+            inline: node.inline,
             documentation,
             public: node.public,
             kind: match node.kind {
@@ -1528,6 +1536,8 @@ impl<'a> LowerToHir<'a> {
         node: ast::DefineMethod,
         documentation: String,
     ) -> Box<DefineRequiredMethod> {
+        self.disallow_inline_method(&node);
+
         Box::new(DefineRequiredMethod {
             documentation,
             public: node.public,
@@ -1758,10 +1768,8 @@ impl<'a> LowerToHir<'a> {
 
         if let Some(symbols) = node {
             for symbol in symbols.values {
-                let name = Identifier {
-                    name: symbol.name,
-                    location: symbol.location.clone(),
-                };
+                let name =
+                    Identifier { name: symbol.name, location: symbol.location };
 
                 let import_as = if let Some(n) = symbol.alias {
                     Identifier { name: n.name, location: n.location }
@@ -1769,10 +1777,8 @@ impl<'a> LowerToHir<'a> {
                     name.clone()
                 };
 
-                let location = SourceLocation::start_end(
-                    &name.location,
-                    &import_as.location,
-                );
+                let location =
+                    Location::start_end(&name.location, &import_as.location);
 
                 values.push(ImportSymbol { name, import_as, location });
             }
@@ -1997,7 +2003,7 @@ impl<'a> LowerToHir<'a> {
                     DiagnosticId::InvalidSyntax,
                     format!("this Int literal is invalid: {}", e),
                     self.file(),
-                    node.location.clone(),
+                    node.location,
                 );
 
                 0
@@ -2025,7 +2031,7 @@ impl<'a> LowerToHir<'a> {
                     DiagnosticId::InvalidSyntax,
                     format!("this Float literal is invalid: {}", e),
                     self.file(),
-                    node.location.clone(),
+                    node.location,
                 );
 
                 0.0
@@ -2059,13 +2065,13 @@ impl<'a> LowerToHir<'a> {
                     }
 
                     let rec = self.expression(node.value);
-                    let loc = rec.location().clone();
+                    let loc = rec.location();
                     let val = StringValue::Expression(Box::new(Call {
                         kind: types::CallKind::Unknown,
                         receiver: Some(rec),
                         name: Identifier {
                             name: types::TO_STRING_METHOD.to_string(),
-                            location: loc.clone(),
+                            location: loc,
                         },
                         parens: false,
                         in_mut: false,
@@ -2080,7 +2086,7 @@ impl<'a> LowerToHir<'a> {
 
             if let Some(text) = text_node.as_mut() {
                 text.value.push_str(&val);
-                text.location = SourceLocation::start_end(&text.location, &loc);
+                text.location = Location::start_end(&text.location, &loc);
             } else {
                 text_node = Some(StringText { value: val, location: loc });
             }
@@ -2106,7 +2112,7 @@ impl<'a> LowerToHir<'a> {
                     ARRAY_LIMIT
                 ),
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
         }
 
@@ -2116,7 +2122,7 @@ impl<'a> LowerToHir<'a> {
             mutable: false,
             name: Identifier {
                 name: ARRAY_LIT_VAR.to_string(),
-                location: node.location.clone(),
+                location: node.location,
             },
             value_type: None,
             value: Expression::Call(Box::new(Call {
@@ -2127,12 +2133,12 @@ impl<'a> LowerToHir<'a> {
                         source: None,
                         name: ARRAY_INTERNAL_NAME.to_string(),
                         resolved_type: types::TypeRef::Unknown,
-                        location: node.location.clone(),
+                        location: node.location,
                     },
                 ))),
                 name: Identifier {
                     name: ARRAY_WITH_CAPACITY.to_string(),
-                    location: node.location.clone(),
+                    location: node.location,
                 },
                 parens: true,
                 in_mut: false,
@@ -2141,33 +2147,33 @@ impl<'a> LowerToHir<'a> {
                         value: Expression::Int(Box::new(IntLiteral {
                             value: node.values.len() as _,
                             resolved_type: types::TypeRef::Unknown,
-                            location: node.location.clone(),
+                            location: node.location,
                         })),
                         expected_type: types::TypeRef::Unknown,
                     },
                 ))],
-                location: node.location.clone(),
+                location: node.location,
             })),
-            location: node.location.clone(),
+            location: node.location,
         }));
 
         let var_ref = Expression::IdentifierRef(Box::new(IdentifierRef {
             name: ARRAY_LIT_VAR.to_string(),
             kind: types::IdentifierKind::Unknown,
-            location: node.location.clone(),
+            location: node.location,
         }));
 
         let mut body = vec![def_var];
 
         for n in node.values {
             let arg = self.expression(n);
-            let loc = arg.location().clone();
+            let loc = arg.location();
             let push = Expression::Call(Box::new(Call {
                 kind: types::CallKind::Unknown,
                 receiver: Some(var_ref.clone()),
                 name: Identifier {
                     name: ARRAY_PUSH.to_string(),
-                    location: node.location.clone(),
+                    location: node.location,
                 },
                 parens: true,
                 in_mut: false,
@@ -2453,10 +2459,9 @@ impl<'a> LowerToHir<'a> {
     fn call(&mut self, node: ast::Call) -> Expression {
         if self.is_builtin_call(&node) {
             if !self.module.is_std(&self.state.db) {
-                self.state.diagnostics.intrinsic_not_available(
-                    self.file(),
-                    node.location.clone(),
-                );
+                self.state
+                    .diagnostics
+                    .intrinsic_not_available(self.file(), node.location);
             }
 
             // We special-case this instruction because we need to attach extra
@@ -2492,7 +2497,7 @@ impl<'a> LowerToHir<'a> {
             let argument = Type::Named(Box::new(TypeName {
                 source: None,
                 resolved_type: types::TypeRef::Unknown,
-                name: Constant { name: n.name, location: n.location.clone() },
+                name: Constant { name: n.name, location: n.location },
                 arguments: Vec::new(),
                 location: n.location,
             }));
@@ -2507,7 +2512,7 @@ impl<'a> LowerToHir<'a> {
                 DiagnosticId::InvalidCall,
                 "this builtin function call is invalid",
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
 
             Expression::Noop(Box::new(Noop { location: node.location }))
@@ -2636,7 +2641,7 @@ impl<'a> LowerToHir<'a> {
         let receiver = Expression::IdentifierRef(Box::new(IdentifierRef {
             kind: types::IdentifierKind::Unknown,
             name: variable.name.clone(),
-            location: variable.location.clone(),
+            location: variable.location,
         }));
 
         Box::new(AssignVariable {
@@ -2657,7 +2662,7 @@ impl<'a> LowerToHir<'a> {
                         expected_type: types::TypeRef::Unknown,
                     },
                 ))],
-                location: node.location.clone(),
+                location: node.location,
             })),
             resolved_type: types::TypeRef::Unknown,
             location: node.location,
@@ -2675,7 +2680,7 @@ impl<'a> LowerToHir<'a> {
             name: field.name.clone(),
             resolved_type: types::TypeRef::Unknown,
             in_mut: false,
-            location: field.location.clone(),
+            location: field.location,
         }));
 
         Box::new(AssignField {
@@ -2696,7 +2701,7 @@ impl<'a> LowerToHir<'a> {
                         expected_type: types::TypeRef::Unknown,
                     },
                 ))],
-                location: node.location.clone(),
+                location: node.location,
             })),
             resolved_type: types::TypeRef::Unknown,
             location: node.location,
@@ -2736,7 +2741,7 @@ impl<'a> LowerToHir<'a> {
         let name = self.identifier(node.name);
         let setter_rec = self.expression(node.receiver);
         let getter_loc =
-            SourceLocation::start_end(setter_rec.location(), &name.location);
+            Location::start_end(&setter_rec.location(), &name.location);
         let getter_rec = Expression::Call(Box::new(Call {
             kind: types::CallKind::Unknown,
             receiver: Some(setter_rec.clone()),
@@ -2766,7 +2771,7 @@ impl<'a> LowerToHir<'a> {
                     name: op.method_name().to_string(),
                     location: node.operator.location,
                 },
-                location: node.location.clone(),
+                location: node.location,
             })),
             location: node.location,
             expected_type: types::TypeRef::Unknown,
@@ -2953,7 +2958,7 @@ impl<'a> LowerToHir<'a> {
             variable_ids: Vec::new(),
             pattern: Pattern::True(Box::new(True {
                 resolved_type: types::TypeRef::Unknown,
-                location: node.if_true.condition.location().clone(),
+                location: *node.if_true.condition.location(),
             })),
             guard: None,
             body: self.expressions(node.if_true.body),
@@ -2964,7 +2969,7 @@ impl<'a> LowerToHir<'a> {
             cases.push(MatchCase {
                 variable_ids: Vec::new(),
                 pattern: Pattern::Wildcard(Box::new(WildcardPattern {
-                    location: cond.location.clone(),
+                    location: cond.location,
                 })),
                 guard: Some(self.expression(cond.condition)),
                 body: self.expressions(cond.body),
@@ -2975,14 +2980,14 @@ impl<'a> LowerToHir<'a> {
         let mut has_else = false;
 
         if let Some(body) = node.else_body {
-            let location = body.location.clone();
+            let location = body.location;
 
             has_else = true;
 
             cases.push(MatchCase {
                 variable_ids: Vec::new(),
                 pattern: Pattern::Wildcard(Box::new(WildcardPattern {
-                    location: body.location.clone(),
+                    location: body.location,
                 })),
                 guard: None,
                 body: self.expressions(body),
@@ -2992,14 +2997,14 @@ impl<'a> LowerToHir<'a> {
             cases.push(MatchCase {
                 variable_ids: Vec::new(),
                 pattern: Pattern::Wildcard(Box::new(WildcardPattern {
-                    location: node.location.clone(),
+                    location: node.location,
                 })),
                 guard: None,
                 body: vec![Expression::Nil(Box::new(Nil {
                     resolved_type: types::TypeRef::Unknown,
-                    location: node.location.clone(),
+                    location: node.location,
                 }))],
-                location: node.location.clone(),
+                location: node.location,
             });
         }
 
@@ -3037,7 +3042,7 @@ impl<'a> LowerToHir<'a> {
     ///       }
     ///     }
     fn while_expression(&mut self, node: ast::While) -> Box<Loop> {
-        let location = node.condition.location().clone();
+        let location = *node.condition.location();
         let condition = self.expression(node.condition);
         let cond_body = self.expressions(node.body);
         let body = vec![Expression::Match(Box::new(Match {
@@ -3048,23 +3053,23 @@ impl<'a> LowerToHir<'a> {
                     variable_ids: Vec::new(),
                     pattern: Pattern::True(Box::new(True {
                         resolved_type: types::TypeRef::Unknown,
-                        location: location.clone(),
+                        location,
                     })),
                     guard: None,
                     body: cond_body,
-                    location: location.clone(),
+                    location,
                 },
                 MatchCase {
                     variable_ids: Vec::new(),
                     pattern: Pattern::Wildcard(Box::new(WildcardPattern {
-                        location: location.clone(),
+                        location,
                     })),
                     guard: None,
                     body: vec![self.break_expression(location)],
-                    location: node.location.clone(),
+                    location: node.location,
                 },
             ],
-            location: node.location.clone(),
+            location: node.location,
             write_result: true,
         }))];
 
@@ -3186,14 +3191,14 @@ impl<'a> LowerToHir<'a> {
         nodes.into_iter().map(|n| self.pattern(n)).collect()
     }
 
-    fn break_expression(&self, location: SourceLocation) -> Expression {
+    fn break_expression(&self, location: Location) -> Expression {
         Expression::Break(Box::new(Break { location }))
     }
 
     fn operator_method_not_allowed(
         &mut self,
         operator: bool,
-        location: &SourceLocation,
+        location: Location,
     ) {
         if !operator {
             return;
@@ -3203,8 +3208,16 @@ impl<'a> LowerToHir<'a> {
             DiagnosticId::InvalidMethod,
             "operator methods must be regular instance methods",
             self.file(),
-            location.clone(),
+            location,
         );
+    }
+
+    fn disallow_inline_method(&mut self, node: &ast::DefineMethod) {
+        if node.inline {
+            self.state
+                .diagnostics
+                .invalid_inline_method(self.file(), node.location);
+        }
     }
 }
 
@@ -3663,6 +3676,7 @@ mod tests {
         assert_eq!(
             hir,
             TopLevelExpression::ModuleMethod(Box::new(DefineModuleMethod {
+                inline: false,
                 documentation: String::new(),
                 public: false,
                 c_calling_convention: false,
@@ -3728,6 +3742,32 @@ mod tests {
     }
 
     #[test]
+    fn test_lower_inline_module_method() {
+        let (hir, diags) = lower_top_expr("fn inline foo {}");
+
+        assert_eq!(diags, 0);
+        assert_eq!(
+            hir,
+            TopLevelExpression::ModuleMethod(Box::new(DefineModuleMethod {
+                inline: true,
+                documentation: String::new(),
+                public: false,
+                c_calling_convention: false,
+                name: Identifier {
+                    name: "foo".to_string(),
+                    location: cols(11, 13)
+                },
+                type_parameters: Vec::new(),
+                arguments: Vec::new(),
+                return_type: None,
+                body: Vec::new(),
+                method_id: None,
+                location: cols(1, 16),
+            })),
+        );
+    }
+
+    #[test]
     fn test_lower_extern_function() {
         let (hir, diags) = lower_top_expr("fn extern foo");
 
@@ -3760,6 +3800,7 @@ mod tests {
         assert_eq!(
             hir,
             TopLevelExpression::ModuleMethod(Box::new(DefineModuleMethod {
+                inline: false,
                 documentation: String::new(),
                 public: false,
                 c_calling_convention: true,
@@ -4083,6 +4124,7 @@ mod tests {
                 type_parameters: Vec::new(),
                 body: vec![ClassExpression::StaticMethod(Box::new(
                     DefineStaticMethod {
+                        inline: false,
                         documentation: String::new(),
                         public: false,
                         name: Identifier {
@@ -4229,6 +4271,7 @@ mod tests {
                 type_parameters: Vec::new(),
                 body: vec![ClassExpression::InstanceMethod(Box::new(
                     DefineInstanceMethod {
+                        inline: false,
                         documentation: String::new(),
                         public: false,
                         kind: MethodKind::Regular,
@@ -4283,6 +4326,42 @@ mod tests {
                     }
                 ))],
                 location: cols(1, 37)
+            })),
+        );
+    }
+
+    #[test]
+    fn test_lower_class_with_inline_method() {
+        let hir = lower_top_expr("class A { fn inline foo {} }").0;
+
+        assert_eq!(
+            hir,
+            TopLevelExpression::Class(Box::new(DefineClass {
+                documentation: String::new(),
+                public: false,
+                class_id: None,
+                kind: ClassKind::Regular,
+                name: Constant { name: "A".to_string(), location: cols(7, 7) },
+                type_parameters: Vec::new(),
+                body: vec![ClassExpression::InstanceMethod(Box::new(
+                    DefineInstanceMethod {
+                        inline: true,
+                        documentation: String::new(),
+                        public: false,
+                        kind: MethodKind::Regular,
+                        name: Identifier {
+                            name: "foo".to_string(),
+                            location: cols(21, 23)
+                        },
+                        type_parameters: Vec::new(),
+                        arguments: Vec::new(),
+                        return_type: None,
+                        body: Vec::new(),
+                        method_id: None,
+                        location: cols(11, 26)
+                    }
+                ))],
+                location: cols(1, 28)
             })),
         );
     }
@@ -4477,6 +4556,7 @@ mod tests {
                 type_parameters: Vec::new(),
                 body: vec![TraitExpression::InstanceMethod(Box::new(
                     DefineInstanceMethod {
+                        inline: false,
                         documentation: String::new(),
                         public: false,
                         kind: MethodKind::Moving,
@@ -4512,6 +4592,7 @@ mod tests {
                 type_parameters: Vec::new(),
                 body: vec![TraitExpression::InstanceMethod(Box::new(
                     DefineInstanceMethod {
+                        inline: false,
                         documentation: String::new(),
                         public: false,
                         kind: MethodKind::Regular,
@@ -4571,6 +4652,42 @@ mod tests {
     }
 
     #[test]
+    fn test_lower_trait_with_inline_method() {
+        let hir = lower_top_expr("trait A { fn inline foo {} }").0;
+
+        assert_eq!(
+            hir,
+            TopLevelExpression::Trait(Box::new(DefineTrait {
+                documentation: String::new(),
+                public: false,
+                trait_id: None,
+                name: Constant { name: "A".to_string(), location: cols(7, 7) },
+                requirements: Vec::new(),
+                type_parameters: Vec::new(),
+                body: vec![TraitExpression::InstanceMethod(Box::new(
+                    DefineInstanceMethod {
+                        inline: true,
+                        documentation: String::new(),
+                        public: false,
+                        kind: MethodKind::Regular,
+                        name: Identifier {
+                            name: "foo".to_string(),
+                            location: cols(21, 23)
+                        },
+                        type_parameters: Vec::new(),
+                        arguments: Vec::new(),
+                        return_type: None,
+                        body: Vec::new(),
+                        method_id: None,
+                        location: cols(11, 26)
+                    }
+                ))],
+                location: cols(1, 28)
+            }))
+        );
+    }
+
+    #[test]
     fn test_lower_reopen_empty_class() {
         assert_eq!(
             lower_top_expr("impl A {}").0,
@@ -4623,6 +4740,7 @@ mod tests {
                 },
                 body: vec![ReopenClassExpression::InstanceMethod(Box::new(
                     DefineInstanceMethod {
+                        inline: false,
                         documentation: String::new(),
                         public: false,
                         kind: MethodKind::Regular,
@@ -4658,6 +4776,7 @@ mod tests {
                 },
                 body: vec![ReopenClassExpression::StaticMethod(Box::new(
                     DefineStaticMethod {
+                        inline: false,
                         documentation: String::new(),
                         public: false,
                         name: Identifier {
@@ -4887,6 +5006,7 @@ mod tests {
                 },
                 bounds: Vec::new(),
                 body: vec![DefineInstanceMethod {
+                    inline: false,
                     documentation: String::new(),
                     public: false,
                     kind: MethodKind::Regular,
@@ -4931,6 +5051,7 @@ mod tests {
                 },
                 bounds: Vec::new(),
                 body: vec![DefineInstanceMethod {
+                    inline: false,
                     documentation: String::new(),
                     public: false,
                     kind: MethodKind::Moving,

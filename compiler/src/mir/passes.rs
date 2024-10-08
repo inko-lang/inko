@@ -3,11 +3,11 @@ use crate::diagnostics::DiagnosticId;
 use crate::hir;
 use crate::mir::pattern_matching as pmatch;
 use crate::mir::{
-    Block, BlockId, CastType, Class, Constant, Goto, Instruction, LocationId,
-    Method, Mir, Module, RegisterId, SELF_ID,
+    Block, BlockId, CastType, Class, Constant, Method, Mir, Module, RegisterId,
+    SELF_ID,
 };
 use crate::state::State;
-use ast::source_location::SourceLocation;
+use location::Location;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::iter::repeat_with;
 use std::mem::swap;
@@ -16,55 +16,17 @@ use std::str::FromStr;
 use types::format::format_type;
 use types::module_name::ModuleName;
 use types::{
-    self, Block as _, ClassId, ConstantId, Location, MethodId, ModuleId,
-    Symbol, TypeBounds, TypeRef, EQ_METHOD, FIELDS_LIMIT, OPTION_NONE,
-    OPTION_SOME, RESULT_CLASS, RESULT_ERROR, RESULT_MODULE, RESULT_OK,
+    self, Block as _, ClassId, ConstantId, Inline, MethodId, ModuleId, Symbol,
+    TypeBounds, TypeRef, EQ_METHOD, FIELDS_LIMIT, OPTION_NONE, OPTION_SOME,
+    RESULT_CLASS, RESULT_ERROR, RESULT_MODULE, RESULT_OK,
 };
 
 const SELF_NAME: &str = "self";
-
-const MODULES_LIMIT: usize = u32::MAX as usize;
-const CLASSES_LIMIT: usize = u32::MAX as usize;
-const METHODS_LIMIT: usize = u32::MAX as usize;
 
 fn modulo(lhs: i64, rhs: i64) -> Option<i64> {
     lhs.checked_rem(rhs)
         .and_then(|res| res.checked_add(rhs))
         .and_then(|res| res.checked_rem(rhs))
-}
-
-/// A compiler pass that verifies various global limits, such as the number of
-/// defined classes.
-pub(crate) fn check_global_limits(state: &mut State) -> Result<(), String> {
-    let num_mods = state.db.number_of_modules();
-    let num_classes = state.db.number_of_classes();
-    let num_methods = state.db.number_of_methods();
-
-    if num_mods > MODULES_LIMIT {
-        return Err(format!(
-            "the total number of modules ({}) \
-            exceeds the maximum of {} modules",
-            num_mods, MODULES_LIMIT
-        ));
-    }
-
-    if num_classes > CLASSES_LIMIT {
-        return Err(format!(
-            "the total number of classes ({}) \
-            exceeds the maximum of {} classes",
-            num_classes, CLASSES_LIMIT
-        ));
-    }
-
-    if num_methods > METHODS_LIMIT {
-        return Err(format!(
-            "the total number of methods ({}) \
-            exceeds the maximum of {} methods",
-            num_methods, METHODS_LIMIT
-        ));
-    }
-
-    Ok(())
 }
 
 pub(crate) fn define_default_compile_time_variables(state: &mut State) {
@@ -284,7 +246,7 @@ struct Scope {
     /// This uses a HashMap as a register may be assigned a new value after it
     /// has been moved, only to be moved _again_. Using a Vec would result in
     /// outdated entries.
-    moved_in_loop: HashMap<RegisterId, LocationId>,
+    moved_in_loop: HashMap<RegisterId, Location>,
 }
 
 impl Scope {
@@ -385,13 +347,10 @@ struct DecisionState {
     child_registers: HashMap<RegisterId, Vec<RegisterId>>,
 
     /// The basic blocks for every case body, and the code to compile for them.
-    bodies: HashMap<
-        BlockId,
-        (Vec<hir::Expression>, Vec<RegisterId>, SourceLocation),
-    >,
+    bodies: HashMap<BlockId, (Vec<hir::Expression>, Vec<RegisterId>, Location)>,
 
     /// The location of the `match` expression.
-    location: LocationId,
+    location: Location,
 
     /// If the result of a match arm should be written to a register or ignored.
     write_result: bool,
@@ -402,7 +361,7 @@ impl DecisionState {
         output: RegisterId,
         after_block: BlockId,
         write_result: bool,
-        location: LocationId,
+        location: Location,
     ) -> Self {
         Self {
             output,
@@ -436,7 +395,7 @@ pub(crate) struct GenerateDropper<'a> {
     pub(crate) mir: &'a mut Mir,
     pub(crate) module: ModuleId,
     pub(crate) class: ClassId,
-    pub(crate) location: LocationId,
+    pub(crate) location: Location,
 }
 
 impl<'a> GenerateDropper<'a> {
@@ -666,11 +625,10 @@ impl<'a> GenerateDropper<'a> {
     }
 
     fn method_type(&mut self, name: &str, kind: types::MethodKind) -> MethodId {
-        let loc = self.mir.location(self.location);
         let id = types::Method::alloc(
             &mut self.state.db,
             self.module,
-            Location::new(loc.lines.clone(), loc.columns.clone()),
+            self.location,
             name.to_string(),
             types::Visibility::TypePrivate,
             kind,
@@ -686,6 +644,13 @@ impl<'a> GenerateDropper<'a> {
 
         id.set_receiver(&mut self.state.db, receiver);
         id.set_return_type(&mut self.state.db, TypeRef::nil());
+
+        // Droppers already inline the destructor and depending on the number of
+        // fields may produce many instructions to drop the data. As such,
+        // inlining these methods may inhibit inlining other methods, resulting
+        // in worse performance and compile times. To avoid this, droppers are
+        // never inlined.
+        id.set_inline(&mut self.state.db, Inline::Never);
         id
     }
 
@@ -785,7 +750,7 @@ impl<'a> DefineConstants<'a> {
         let left = self.expression(&node.left)?;
         let right = self.expression(&node.right)?;
         let op = node.operator;
-        let loc = &node.location;
+        let loc = node.location;
 
         match left {
             Constant::Int(lhs) => {
@@ -862,7 +827,7 @@ impl<'a> DefineConstants<'a> {
                     "constant Array and Bool values don't support \
                     binary operations",
                     self.file(),
-                    node.location.clone(),
+                    node.location,
                 );
 
                 Some(left)
@@ -883,14 +848,14 @@ impl<'a> DefineConstants<'a> {
         lhs: &Constant,
         operator: hir::Operator,
         rhs: &Constant,
-        location: &SourceLocation,
+        location: Location,
     ) {
         self.state.diagnostics.invalid_const_expression(
             &lhs.to_string(),
             operator.method_name(),
             &rhs.to_string(),
             self.file(),
-            location.clone(),
+            location,
         );
     }
 }
@@ -1063,7 +1028,6 @@ impl<'a> LowerToMir<'a> {
         }
 
         let mut class = Class::new(id);
-        let loc = self.mir.add_location(node.location);
 
         class.add_methods(&methods);
         self.mir.add_methods(methods);
@@ -1074,7 +1038,7 @@ impl<'a> LowerToMir<'a> {
             mir: self.mir,
             module: self.module,
             class: id,
-            location: loc,
+            location: node.location,
         }
         .run();
     }
@@ -1112,11 +1076,10 @@ impl<'a> LowerToMir<'a> {
         node: hir::DefineModuleMethod,
     ) -> Method {
         let id = node.method_id.unwrap();
-        let loc = self.mir.add_location(node.location.clone());
-        let mut method = Method::new(id, loc);
+        let mut method = Method::new(id, node.location);
 
         LowerMethod::new(self.state, self.mir, self.module, &mut method)
-            .run(node.body, loc);
+            .run(node.body, node.location);
 
         method
     }
@@ -1126,33 +1089,30 @@ impl<'a> LowerToMir<'a> {
         node: hir::DefineInstanceMethod,
     ) -> Method {
         let id = node.method_id.unwrap();
-        let loc = self.mir.add_location(node.location.clone());
-        let mut method = Method::new(id, loc);
+        let mut method = Method::new(id, node.location);
 
         LowerMethod::new(self.state, self.mir, self.module, &mut method)
-            .run(node.body, loc);
+            .run(node.body, node.location);
 
         method
     }
 
     fn define_async_method(&mut self, node: hir::DefineAsyncMethod) -> Method {
         let id = node.method_id.unwrap();
-        let loc = self.mir.add_location(node.location.clone());
-        let mut method = Method::new(id, loc);
+        let mut method = Method::new(id, node.location);
 
         LowerMethod::new(self.state, self.mir, self.module, &mut method)
-            .run(node.body, loc);
+            .run(node.body, node.location);
 
         method
     }
 
     fn define_static_method(&mut self, node: hir::DefineStaticMethod) {
         let id = node.method_id.unwrap();
-        let loc = self.mir.add_location(node.location.clone());
-        let mut method = Method::new(id, loc);
+        let mut method = Method::new(id, node.location);
 
         LowerMethod::new(self.state, self.mir, self.module, &mut method)
-            .run(node.body, loc);
+            .run(node.body, node.location);
 
         self.mir.methods.insert(id, method);
     }
@@ -1164,7 +1124,7 @@ impl<'a> LowerToMir<'a> {
     ) -> Method {
         let id = node.method_id.unwrap();
         let constructor_id = node.constructor_id.unwrap();
-        let loc = self.mir.add_location(node.location);
+        let loc = node.location;
         let mut method = Method::new(id, loc);
         let fields = class.enum_fields(self.db());
         let bounds = TypeBounds::new();
@@ -1301,11 +1261,11 @@ impl<'a> LowerMethod<'a> {
         }
     }
 
-    fn prepare(&mut self, location: LocationId) {
+    fn prepare(&mut self, location: Location) {
         self.define_base_registers(location);
     }
 
-    fn run(mut self, nodes: Vec<hir::Expression>, location: LocationId) {
+    fn run(mut self, nodes: Vec<hir::Expression>, location: Location) {
         self.prepare(location);
         self.lower_method_body(nodes, location);
     }
@@ -1315,7 +1275,7 @@ impl<'a> LowerMethod<'a> {
         nodes: Vec<hir::Expression>,
         self_field: types::FieldId,
         self_type: TypeRef,
-        location: LocationId,
+        location: Location,
     ) {
         self.prepare(location);
         self.define_captured_self_register(self_field, self_type, location);
@@ -1325,7 +1285,7 @@ impl<'a> LowerMethod<'a> {
     fn lower_method_body(
         mut self,
         nodes: Vec<hir::Expression>,
-        location: LocationId,
+        location: Location,
     ) {
         if nodes.is_empty() {
             let reg = self.get_nil(location);
@@ -1350,7 +1310,7 @@ impl<'a> LowerMethod<'a> {
                 continue;
             }
 
-            let loc = self.add_location(node.location().clone());
+            let loc = node.location();
             let rets = node.returns_value();
             let ret = if rets && !ignore_ret {
                 self.output_expression(node)
@@ -1370,19 +1330,15 @@ impl<'a> LowerMethod<'a> {
         }
     }
 
-    fn end_of_method_body(
-        mut self,
-        register: RegisterId,
-        location: LocationId,
-    ) {
+    fn end_of_method_body(mut self, register: RegisterId, location: Location) {
         self.mark_register_as_moved(register);
         self.partially_move_self_if_field(register);
-        self.drop_all_registers();
+        self.drop_all_registers(location);
         self.check_for_unused_variables();
         self.return_register(register, location);
     }
 
-    fn define_base_registers(&mut self, location: LocationId) {
+    fn define_base_registers(&mut self, location: Location) {
         // The first register in a method is reserved for the receiver of the
         // method (e.g. `self`). For closures this points to the generated
         // closure object, not the outer `self` as captured by the closure.
@@ -1440,7 +1396,7 @@ impl<'a> LowerMethod<'a> {
         &mut self,
         field: types::FieldId,
         field_type: TypeRef,
-        location: LocationId,
+        location: Location,
     ) {
         // Within a closure, explicit and implicit references to `self` should
         // use the _captured_ `self` (i.e. point to the outer `self` value), not
@@ -1457,7 +1413,7 @@ impl<'a> LowerMethod<'a> {
     fn body(
         &mut self,
         nodes: Vec<hir::Expression>,
-        location: LocationId,
+        location: Location,
     ) -> RegisterId {
         let mut res = None;
         let max_index = if nodes.is_empty() { 0 } else { nodes.len() - 1 };
@@ -1523,7 +1479,7 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn binary_and(&mut self, node: hir::And) -> RegisterId {
-        let loc = self.add_location(node.location);
+        let loc = node.location;
         let reg = self.new_untracked_register(node.resolved_type);
         let before_id = self.current_block;
         let lhs_id = self.add_current_block();
@@ -1538,7 +1494,7 @@ impl<'a> LowerMethod<'a> {
         self.add_edge(self.current_block, rhs_id);
         self.add_edge(self.current_block, after_id);
         self.current_block_mut().move_register(reg, lhs_reg, loc);
-        self.exit_scope();
+        self.exit_scope(loc);
         self.current_block_mut().branch(reg, rhs_id, after_id, loc);
 
         self.current_block = rhs_id;
@@ -1549,7 +1505,7 @@ impl<'a> LowerMethod<'a> {
 
         self.current_block_mut().move_register(reg, rhs_reg, loc);
         self.add_edge(self.current_block, after_id);
-        self.exit_scope();
+        self.exit_scope(loc);
 
         self.current_block = after_id;
 
@@ -1558,7 +1514,7 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn binary_or(&mut self, node: hir::Or) -> RegisterId {
-        let loc = self.add_location(node.location);
+        let loc = node.location;
         let reg = self.new_untracked_register(node.resolved_type);
         let before_id = self.current_block;
         let lhs_id = self.add_current_block();
@@ -1573,7 +1529,7 @@ impl<'a> LowerMethod<'a> {
         self.add_edge(self.current_block, rhs_id);
         self.add_edge(self.current_block, after_id);
         self.current_block_mut().move_register(reg, lhs_reg, loc);
-        self.exit_scope();
+        self.exit_scope(loc);
         self.current_block_mut().branch(reg, after_id, rhs_id, loc);
 
         self.current_block = rhs_id;
@@ -1584,7 +1540,7 @@ impl<'a> LowerMethod<'a> {
 
         self.current_block_mut().move_register(reg, rhs_reg, loc);
         self.add_edge(self.current_block, after_id);
-        self.exit_scope();
+        self.exit_scope(loc);
 
         self.current_block = after_id;
 
@@ -1593,7 +1549,7 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn loop_expression(&mut self, node: hir::Loop) -> RegisterId {
-        let loc = self.add_location(node.location);
+        let loc = node.location;
         let before_loop = self.current_block;
         let loop_start = self.add_current_block();
         let after_loop = self.add_block();
@@ -1616,7 +1572,7 @@ impl<'a> LowerMethod<'a> {
             self.check_loop_moves();
         }
 
-        self.exit_scope();
+        self.exit_scope(loc);
 
         if connected {
             self.add_edge(self.current_block, loop_start);
@@ -1655,7 +1611,7 @@ impl<'a> LowerMethod<'a> {
                 self.state.diagnostics.moved_variable_in_loop(
                     &name,
                     self.file(),
-                    self.mir.location(loc).clone(),
+                    loc,
                 );
             }
         }
@@ -1690,9 +1646,9 @@ impl<'a> LowerMethod<'a> {
         None
     }
 
-    fn jump_out_of_loop(&mut self, target: BlockId, location: SourceLocation) {
+    fn jump_out_of_loop(&mut self, target: BlockId, location: Location) {
         let source = self.current_block;
-        let loc = self.add_location(location);
+        let loc = location;
 
         self.drop_loop_registers(loc);
         self.current_block_mut().preempt(loc);
@@ -1702,11 +1658,11 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn tuple_literal(&mut self, node: hir::TupleLiteral) -> RegisterId {
-        self.check_inferred(node.resolved_type, &node.location);
+        self.check_inferred(node.resolved_type, node.location);
 
         let tup = self.new_register(node.resolved_type);
         let id = node.class_id.unwrap();
-        let loc = self.add_location(node.location);
+        let loc = node.location;
         let fields = id.fields(self.db());
 
         self.current_block_mut().allocate(tup, id, loc);
@@ -1714,7 +1670,7 @@ impl<'a> LowerMethod<'a> {
         for (index, val) in node.values.into_iter().enumerate() {
             let field = fields[index];
             let exp = node.value_types[index];
-            let loc = self.add_location(val.location().clone());
+            let loc = val.location();
             let reg = self.input_expression(val, Some(exp));
 
             self.current_block_mut().set_field(tup, id, field, reg, loc);
@@ -1724,29 +1680,29 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn true_literal(&mut self, node: hir::True) -> RegisterId {
-        let loc = self.add_location(node.location);
+        let loc = node.location;
         let reg = self.new_register(node.resolved_type);
 
-        self.current_block_mut().true_literal(reg, loc);
+        self.current_block_mut().bool_literal(reg, true, loc);
         reg
     }
 
     fn false_literal(&mut self, node: hir::False) -> RegisterId {
-        let loc = self.add_location(node.location);
+        let loc = node.location;
         let reg = self.new_register(node.resolved_type);
 
-        self.current_block_mut().false_literal(reg, loc);
+        self.current_block_mut().bool_literal(reg, false, loc);
         reg
     }
 
     fn nil_literal(&mut self, node: hir::Nil) -> RegisterId {
-        let loc = self.add_location(node.location);
+        let loc = node.location;
 
         self.get_nil(loc)
     }
 
     fn int_literal(&mut self, node: hir::IntLiteral) -> RegisterId {
-        let loc = self.add_location(node.location);
+        let loc = node.location;
         let reg = self.new_register(node.resolved_type);
 
         self.current_block_mut().int_literal(reg, node.value, loc);
@@ -1754,7 +1710,7 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn float_literal(&mut self, node: hir::FloatLiteral) -> RegisterId {
-        let loc = self.add_location(node.location);
+        let loc = node.location;
         let reg = self.new_register(node.resolved_type);
 
         self.current_block_mut().float_literal(reg, node.value, loc);
@@ -1782,7 +1738,7 @@ impl<'a> LowerMethod<'a> {
                     });
                 }
 
-                let loc = self.add_location(node.location);
+                let loc = node.location;
                 let reg = self.new_register(node.resolved_type);
 
                 self.current_block_mut().call_builtin(
@@ -1796,13 +1752,9 @@ impl<'a> LowerMethod<'a> {
         }
     }
 
-    fn string_text(
-        &mut self,
-        value: String,
-        location: SourceLocation,
-    ) -> RegisterId {
+    fn string_text(&mut self, value: String, location: Location) -> RegisterId {
         let reg = self.new_register(TypeRef::string());
-        let loc = self.add_location(location);
+        let loc = location;
         let block = self.current_block;
 
         self.permanent_string(reg, value, block, loc);
@@ -1811,12 +1763,11 @@ impl<'a> LowerMethod<'a> {
 
     fn call(&mut self, node: hir::Call) -> RegisterId {
         let entered = self.enter_call_scope();
-        let loc = self.add_location(node.name.location);
+        let loc = node.name.location;
         let reg = match node.kind {
             types::CallKind::Call(info) => {
-                self.check_inferred(info.returns, &node.location);
+                self.check_inferred(info.returns, node.location);
 
-                let returns = info.returns;
                 let rec = if info.receiver.is_explicit() {
                     node.receiver.map(|expr| self.expression(expr))
                 } else {
@@ -1826,16 +1777,10 @@ impl<'a> LowerMethod<'a> {
                 let args =
                     node.arguments.into_iter().map(Argument::Regular).collect();
 
-                let result = self.call_method(info, rec, args, loc);
-
-                if returns.is_never(self.db()) {
-                    self.add_current_block();
-                }
-
-                result
+                self.call_method(info, rec, args, loc)
             }
             types::CallKind::GetField(info) => {
-                self.check_inferred(info.variable_type, &node.location);
+                self.check_inferred(info.variable_type, node.location);
 
                 let typ = info.variable_type;
                 let rec = self.expression(node.receiver.unwrap());
@@ -1869,7 +1814,7 @@ impl<'a> LowerMethod<'a> {
                 }
             }
             types::CallKind::CallClosure(info) => {
-                self.check_inferred(info.returns, &node.location);
+                self.check_inferred(info.returns, node.location);
 
                 let returns = info.returns;
                 let rec = self.expression(node.receiver.unwrap());
@@ -1886,11 +1831,7 @@ impl<'a> LowerMethod<'a> {
                 let res = self.new_register(returns);
 
                 self.current_block_mut().call_closure(res, rec, args, loc);
-
-                if returns.is_never(self.db()) {
-                    self.add_current_block();
-                }
-
+                self.after_call(returns);
                 res
             }
             types::CallKind::ReadPointer(typ) => {
@@ -1902,17 +1843,17 @@ impl<'a> LowerMethod<'a> {
             }
             types::CallKind::GetConstant(id) => {
                 let reg = self.new_register(id.value_type(self.db()));
-                let loc = self.add_location(node.location);
+                let loc = node.location;
 
                 self.get_constant(reg, id, loc);
                 reg
             }
             types::CallKind::ClassInstance(info) => {
-                self.check_inferred(info.resolved_type, &node.location);
+                self.check_inferred(info.resolved_type, node.location);
 
                 let ins = self.new_register(info.resolved_type);
                 let class = info.class_id;
-                let loc = self.add_location(node.location);
+                let loc = node.location;
 
                 if class.kind(self.db()).is_async() {
                     self.current_block_mut().spawn(ins, class, loc);
@@ -1923,7 +1864,7 @@ impl<'a> LowerMethod<'a> {
                 for (arg, (id, exp)) in
                     node.arguments.into_iter().zip(info.fields.into_iter())
                 {
-                    let loc = self.add_location(arg.location().clone());
+                    let loc = arg.location();
                     let val =
                         self.input_expression(arg.into_value(), Some(exp));
 
@@ -1936,7 +1877,7 @@ impl<'a> LowerMethod<'a> {
             _ => unreachable!(),
         };
 
-        self.exit_call_scope(entered, reg);
+        self.exit_call_scope(entered, reg, loc);
         reg
     }
 
@@ -1945,7 +1886,7 @@ impl<'a> LowerMethod<'a> {
         info: types::CallInfo,
         receiver: Option<RegisterId>,
         arguments: Vec<Argument>,
-        location: LocationId,
+        location: Location,
     ) -> RegisterId {
         let mut rec = match info.receiver {
             types::Receiver::Explicit => receiver.unwrap(),
@@ -1958,7 +1899,7 @@ impl<'a> LowerMethod<'a> {
                     self.state.diagnostics.implicit_receiver_moved(
                         &name,
                         self.file(),
-                        self.mir.location(location).clone(),
+                        location,
                     );
                 }
 
@@ -1994,6 +1935,7 @@ impl<'a> LowerMethod<'a> {
 
                 self.current_block_mut()
                     .call_static(result, info.id, arg_regs, targs, location);
+                self.after_call(info.returns);
 
                 return result;
             }
@@ -2030,6 +1972,7 @@ impl<'a> LowerMethod<'a> {
                 .call_instance(result, rec, info.id, arg_regs, targs, location);
         }
 
+        self.after_call(info.returns);
         result
     }
 
@@ -2065,7 +2008,13 @@ impl<'a> LowerMethod<'a> {
         args
     }
 
-    fn check_inferred(&mut self, typ: TypeRef, location: &SourceLocation) {
+    fn after_call(&mut self, returns: TypeRef) {
+        if returns.is_never(self.db()) {
+            self.add_current_block();
+        }
+    }
+
+    fn check_inferred(&mut self, typ: TypeRef, location: Location) {
         if typ.is_inferred(self.db()) {
             return;
         }
@@ -2073,7 +2022,7 @@ impl<'a> LowerMethod<'a> {
         self.state.diagnostics.cant_infer_type(
             format_type(self.db(), typ),
             self.file(),
-            location.clone(),
+            location,
         );
     }
 
@@ -2082,7 +2031,7 @@ impl<'a> LowerMethod<'a> {
         expression: hir::Expression,
         expected: Option<TypeRef>,
     ) -> RegisterId {
-        let loc = self.add_location(expression.location().clone());
+        let loc = expression.location();
         let reg = self.expression(expression);
         let typ = self.register_type(reg);
 
@@ -2095,7 +2044,7 @@ impl<'a> LowerMethod<'a> {
         expression: hir::Expression,
         expected: Option<TypeRef>,
     ) -> RegisterId {
-        let loc = self.add_location(expression.location().clone());
+        let loc = expression.location();
         let reg = self.expression(expression);
 
         // Arguments passed to extern functions are passed as-is. This way we
@@ -2110,32 +2059,25 @@ impl<'a> LowerMethod<'a> {
 
     fn assign_setter(&mut self, node: hir::AssignSetter) -> RegisterId {
         let entered = self.enter_call_scope();
+        let loc = node.location;
         let reg = match node.kind {
             types::CallKind::Call(info) => {
-                self.check_inferred(info.returns, &node.location);
+                self.check_inferred(info.returns, node.location);
 
-                let loc = self.add_location(node.location);
                 let rec = if info.receiver.is_explicit() {
                     Some(self.expression(node.receiver))
                 } else {
                     None
                 };
 
-                let returns = info.returns;
                 let args =
                     vec![Argument::Input(node.value, node.expected_type)];
-                let result = self.call_method(info, rec, args, loc);
 
-                if returns.is_never(self.db()) {
-                    self.add_current_block();
-                }
-
-                result
+                self.call_method(info, rec, args, loc)
             }
             types::CallKind::SetField(info) => {
                 let rec = self.expression(node.receiver);
                 let exp = info.variable_type;
-                let loc = self.add_location(node.location);
                 let arg = self.input_expression(node.value, Some(exp));
                 let old = self.new_register(info.variable_type);
 
@@ -2152,7 +2094,6 @@ impl<'a> LowerMethod<'a> {
             types::CallKind::WritePointer => {
                 let rec = self.expression(node.receiver);
                 let arg = self.input_expression(node.value, None);
-                let loc = self.add_location(node.location);
 
                 self.current_block_mut().write_pointer(rec, arg, loc);
                 self.get_nil(loc)
@@ -2160,13 +2101,13 @@ impl<'a> LowerMethod<'a> {
             _ => unreachable!(),
         };
 
-        self.exit_call_scope(entered, reg);
+        self.exit_call_scope(entered, reg, loc);
         reg
     }
 
     fn replace_setter(&mut self, node: hir::ReplaceSetter) -> RegisterId {
         let id = node.field_id.unwrap();
-        let loc = self.add_location(node.location);
+        let loc = node.location;
         let exp = node.resolved_type;
         let new_val = self.input_expression(node.value, Some(exp));
         let old_val = self.new_register(exp);
@@ -2181,7 +2122,7 @@ impl<'a> LowerMethod<'a> {
     fn assign_variable(&mut self, node: hir::AssignVariable) -> RegisterId {
         let id = node.variable_id.unwrap();
         let exp = id.value_type(self.db());
-        let loc = self.add_location(node.location);
+        let loc = node.location;
         let val = self.input_expression(node.value, Some(exp));
 
         if let Some(&reg) = self.variable_mapping.get(&id) {
@@ -2190,7 +2131,7 @@ impl<'a> LowerMethod<'a> {
             }
 
             self.mark_register_as_available(reg);
-            self.current_block_mut().move_register(reg, val, loc);
+            self.current_block_mut().move_volatile_register(reg, val, loc);
         } else {
             let &field = self.variable_fields.get(&id).unwrap();
             let rec = self.surrounding_type_register;
@@ -2214,7 +2155,7 @@ impl<'a> LowerMethod<'a> {
 
     fn replace_variable(&mut self, node: hir::ReplaceVariable) -> RegisterId {
         let id = node.variable_id.unwrap();
-        let loc = self.add_location(node.location);
+        let loc = node.location;
         let exp = node.resolved_type;
         let new_val = self.input_expression(node.value, Some(exp));
         let old_val = self.new_register(exp);
@@ -2223,11 +2164,11 @@ impl<'a> LowerMethod<'a> {
             self.check_if_moved(
                 reg,
                 &node.variable.name,
-                &node.variable.location,
+                node.variable.location,
             );
 
             self.current_block_mut().move_register(old_val, reg, loc);
-            self.current_block_mut().move_register(reg, new_val, loc);
+            self.current_block_mut().move_volatile_register(reg, new_val, loc);
         } else {
             let &field = self.variable_fields.get(&id).unwrap();
             let rec = self.surrounding_type_register;
@@ -2242,7 +2183,7 @@ impl<'a> LowerMethod<'a> {
 
     fn assign_field(&mut self, node: hir::AssignField) -> RegisterId {
         let id = node.field_id.unwrap();
-        let loc = self.add_location(node.location);
+        let loc = node.location;
         let exp = node.resolved_type;
         let new_val = self.input_expression(node.value, Some(exp));
 
@@ -2294,7 +2235,7 @@ impl<'a> LowerMethod<'a> {
 
     fn replace_field(&mut self, node: hir::ReplaceField) -> RegisterId {
         let id = node.field_id.unwrap();
-        let loc = self.add_location(node.location);
+        let loc = node.location;
         let exp = node.resolved_type;
         let new_val = self.input_expression(node.value, Some(exp));
         let old_val = self.new_register(exp);
@@ -2305,14 +2246,14 @@ impl<'a> LowerMethod<'a> {
         };
         let class = self.register_type(rec).class_id(self.db()).unwrap();
 
-        self.check_if_moved(check_reg, &node.field.name, &node.field.location);
+        self.check_if_moved(check_reg, &node.field.name, node.field.location);
         self.current_block_mut().get_field(old_val, rec, class, id, loc);
         self.current_block_mut().set_field(rec, class, id, new_val, loc);
         old_val
     }
 
     fn builtin_call(&mut self, node: hir::BuiltinCall) -> RegisterId {
-        let loc = self.add_location(node.location);
+        let loc = node.location;
         let info = node.info.unwrap();
         let returns = info.returns;
 
@@ -2333,18 +2274,14 @@ impl<'a> LowerMethod<'a> {
                 // Builtin calls don't reduce as they're exposed through regular
                 // methods, which already trigger reductions.
                 self.current_block_mut().call_builtin(reg, name, args, loc);
-
-                if returns.is_never(self.db()) {
-                    self.add_current_block();
-                }
-
+                self.after_call(returns);
                 reg
             }
         }
     }
 
     fn return_expression(&mut self, node: hir::Return) -> RegisterId {
-        let loc = self.add_location(node.location);
+        let loc = node.location;
         let reg = if let Some(value) = node.value {
             self.output_expression(value)
         } else {
@@ -2352,14 +2289,14 @@ impl<'a> LowerMethod<'a> {
         };
 
         self.mark_register_as_moved(reg);
-        self.drop_all_registers();
+        self.drop_all_registers(loc);
         self.return_register(reg, loc);
         self.add_current_block();
         self.new_register(TypeRef::Never)
     }
 
     fn try_expression(&mut self, node: hir::Try) -> RegisterId {
-        let loc = self.add_location(node.location);
+        let loc = node.location;
         let reg = self.expression(node.expression);
         let class = self.register_type(reg).class_id(self.db()).unwrap();
         let tag_reg = self.new_untracked_register(TypeRef::int());
@@ -2416,7 +2353,7 @@ impl<'a> LowerMethod<'a> {
                     .set_field(ret_reg, class, tag_field, err_tag, loc);
                 self.current_block_mut().drop_without_dropper(reg, loc);
 
-                self.drop_all_registers();
+                self.drop_all_registers(loc);
                 self.current_block_mut().return_value(ret_reg, loc);
                 ok_reg
             }
@@ -2456,7 +2393,7 @@ impl<'a> LowerMethod<'a> {
                     .set_field(ret_reg, class, val_field, err_val, loc);
                 self.current_block_mut().drop_without_dropper(reg, loc);
 
-                self.drop_all_registers();
+                self.drop_all_registers(loc);
                 self.current_block_mut().return_value(ret_reg, loc);
                 ok_reg
             }
@@ -2468,14 +2405,14 @@ impl<'a> LowerMethod<'a> {
         out_reg
     }
 
-    fn noop(&mut self, location: SourceLocation) -> RegisterId {
-        let loc = self.add_location(location);
+    fn noop(&mut self, location: Location) -> RegisterId {
+        let loc = location;
 
         self.get_nil(loc)
     }
 
     fn size_of(&mut self, node: hir::SizeOf) -> RegisterId {
-        let loc = self.add_location(node.location);
+        let loc = node.location;
         let reg = self.new_register(TypeRef::int());
 
         self.current_block_mut().size_of(reg, node.resolved_type, loc);
@@ -2483,7 +2420,7 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn throw_expression(&mut self, node: hir::Throw) -> RegisterId {
-        let loc = self.add_location(node.location);
+        let loc = node.location;
         let reg = self.expression(node.value);
         let class = self.db().class_in_module(RESULT_MODULE, RESULT_CLASS);
         let err_id =
@@ -2503,7 +2440,7 @@ impl<'a> LowerMethod<'a> {
 
         self.mark_register_as_moved(reg);
         self.mark_register_as_moved(result_reg);
-        self.drop_all_registers();
+        self.drop_all_registers(loc);
 
         self.current_block_mut().return_value(result_reg, loc);
 
@@ -2511,7 +2448,7 @@ impl<'a> LowerMethod<'a> {
         self.new_register(TypeRef::Never)
     }
 
-    fn return_register(&mut self, register: RegisterId, location: LocationId) {
+    fn return_register(&mut self, register: RegisterId, location: Location) {
         if self.method.id.is_async(self.db()) {
             let terminate = self.method.id.is_main(self.db());
 
@@ -2528,7 +2465,7 @@ impl<'a> LowerMethod<'a> {
     fn type_cast(&mut self, node: hir::TypeCast) -> RegisterId {
         let src = self.expression(node.value);
         let reg = self.new_register(node.resolved_type);
-        let loc = self.add_location(node.location);
+        let loc = node.location;
         let from_type = self.register_type(src);
         let to_type = node.resolved_type;
 
@@ -2559,7 +2496,7 @@ impl<'a> LowerMethod<'a> {
 
     fn mut_expression(&mut self, node: hir::Mut) -> RegisterId {
         if let Some(id) = node.pointer_to_method {
-            let loc = self.add_location(node.location);
+            let loc = node.location;
             let reg = self.new_register(node.resolved_type);
 
             self.current_block_mut().method_pointer(reg, id, loc);
@@ -2581,7 +2518,7 @@ impl<'a> LowerMethod<'a> {
                 expr => expr,
             };
 
-            let loc = self.add_location(node.location);
+            let loc = node.location;
             let val = self.expression(expr);
             let reg = self.new_register(node.resolved_type);
 
@@ -2596,9 +2533,9 @@ impl<'a> LowerMethod<'a> {
         &mut self,
         value: hir::Expression,
         return_type: TypeRef,
-        location: SourceLocation,
+        location: Location,
     ) -> RegisterId {
-        let loc = self.add_location(location);
+        let loc = location;
         let val = self.expression(value);
         let val_type = self.register_type(val);
 
@@ -2618,11 +2555,11 @@ impl<'a> LowerMethod<'a> {
     fn recover_expression(&mut self, node: hir::Recover) -> RegisterId {
         self.enter_scope();
 
-        let loc = self.add_location(node.location);
+        let loc = node.location;
         let val = self.body(node.body, loc);
 
         self.mark_register_as_moved(val);
-        self.exit_scope();
+        self.exit_scope(loc);
 
         let reg = self.new_register(node.resolved_type);
 
@@ -2633,11 +2570,11 @@ impl<'a> LowerMethod<'a> {
     fn scope_expression(&mut self, node: hir::Scope) -> RegisterId {
         self.enter_scope();
 
-        let loc = self.add_location(node.location);
+        let loc = node.location;
         let val = self.body(node.body, loc);
 
         self.mark_register_as_moved(val);
-        self.exit_scope();
+        self.exit_scope(loc);
 
         let reg = self.new_register(node.resolved_type);
 
@@ -2646,7 +2583,7 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn define_variable(&mut self, node: hir::DefineVariable) -> RegisterId {
-        let loc = self.add_location(node.location);
+        let loc = node.location;
         let exp = node.resolved_type;
 
         if let Some(id) = node.variable_id {
@@ -2655,14 +2592,14 @@ impl<'a> LowerMethod<'a> {
 
             self.variable_mapping.insert(id, reg);
             self.add_drop_flag(reg, loc);
-            self.current_block_mut().move_register(reg, src, loc);
+            self.current_block_mut().move_volatile_register(reg, src, loc);
         } else {
             let src = self.input_expression(node.value, Some(exp));
             let reg = self.new_register(node.resolved_type);
 
             // We don't drop immediately as this would break e.g. guards bounds
             // to `_` (e.g. `let _ = something_that_returns_a_guard`).
-            self.current_block_mut().move_register(reg, src, loc);
+            self.current_block_mut().move_volatile_register(reg, src, loc);
         }
 
         self.get_nil(loc)
@@ -2680,7 +2617,7 @@ impl<'a> LowerMethod<'a> {
         let mut vars = pmatch::Variables::new();
         let input_var = vars.new_variable(input_type);
         let after_block = self.add_block();
-        let loc = self.add_location(node.location.clone());
+        let loc = node.location;
         let mut state =
             DecisionState::new(output_reg, after_block, node.write_result, loc);
 
@@ -2793,9 +2730,10 @@ impl<'a> LowerMethod<'a> {
 
                 self.current_block = guard;
 
+                let guard_loc = guard_node.location();
                 let reg = self.expression(guard_node);
 
-                self.exit_scope();
+                self.exit_scope(guard_loc);
 
                 for (id, old_reg, new_reg) in restore {
                     let state = self.register_state(new_reg);
@@ -2983,7 +2921,7 @@ impl<'a> LowerMethod<'a> {
             } else {
                 // Don't forget to exit the scope here, since we entered a new
                 // one bofer calling this method.
-                self.exit_scope();
+                self.exit_scope(state.location);
 
                 return start_block;
             };
@@ -2992,7 +2930,7 @@ impl<'a> LowerMethod<'a> {
 
         self.scope.created.append(&mut var_regs);
 
-        let loc = self.add_location(body_loc);
+        let loc = body_loc;
         let reg = self.body(exprs, loc);
 
         if state.write_result {
@@ -3004,7 +2942,7 @@ impl<'a> LowerMethod<'a> {
         // We don't enter a scope in this method, because we must enter a new
         // scope _before_ defining the match bindings, otherwise e.g. a `return`
         // could attempt to drop bindings from another match case.
-        self.exit_scope();
+        self.exit_scope(loc);
 
         if self.in_connected_block() {
             if state.write_result {
@@ -3063,7 +3001,7 @@ impl<'a> LowerMethod<'a> {
         &mut self,
         state: &mut DecisionState,
         register: RegisterId,
-        location: LocationId,
+        location: Location,
     ) {
         self.drop_register(register, location);
 
@@ -3146,13 +3084,7 @@ impl<'a> LowerMethod<'a> {
             };
 
             let test_block = blocks[index];
-            let fail_block = if let Some(&fail) = blocks.get(index + 1) {
-                self.add_edge(test_block, fail);
-                fail
-            } else {
-                fallback
-            };
-
+            let fail_block = blocks.get(index + 1).cloned().unwrap_or(fallback);
             let res_reg = self.new_untracked_register(TypeRef::boolean());
             let val_reg = self.new_untracked_register(TypeRef::string());
             let eq_method = ClassId::string()
@@ -3204,13 +3136,7 @@ impl<'a> LowerMethod<'a> {
 
         for (index, case) in cases.into_iter().enumerate() {
             let test_block = blocks[index];
-            let fail_block = if let Some(&fail) = blocks.get(index + 1) {
-                self.add_edge(test_block, fail);
-                fail
-            } else {
-                fallback
-            };
-
+            let fail_block = blocks.get(index + 1).cloned().unwrap_or(fallback);
             let res_reg = self.new_untracked_register(TypeRef::boolean());
 
             let test_end_block = match case.constructor {
@@ -3338,20 +3264,20 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn identifier(&mut self, node: hir::IdentifierRef) -> RegisterId {
-        let loc = self.add_location(node.location.clone());
+        let loc = node.location;
 
         match node.kind {
             types::IdentifierKind::Variable(id) => {
                 let reg = self.get_local(id, loc);
 
-                self.check_if_moved(reg, &node.name, &node.location);
+                self.check_if_moved(reg, &node.name, node.location);
                 reg
             }
             types::IdentifierKind::Method(info) => {
                 let entered = self.enter_call_scope();
                 let reg = self.call_method(info, None, Vec::new(), loc);
 
-                self.exit_call_scope(entered, reg);
+                self.exit_call_scope(entered, reg, loc);
                 reg
             }
             types::IdentifierKind::Field(info) => {
@@ -3359,7 +3285,7 @@ impl<'a> LowerMethod<'a> {
                     self.state.diagnostics.implicit_receiver_moved(
                         &node.name,
                         self.file(),
-                        self.mir.location(loc).clone(),
+                        loc,
                     );
                 }
 
@@ -3375,7 +3301,7 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn field(&mut self, node: hir::FieldRef) -> RegisterId {
-        let loc = self.add_location(node.location.clone());
+        let loc = node.location;
         let id = node.field_id.unwrap();
         let reg = if self.in_closure() {
             self.new_field(id, node.resolved_type)
@@ -3386,7 +3312,7 @@ impl<'a> LowerMethod<'a> {
         let rec = self.self_register;
         let class = self.register_type(rec).class_id(self.db()).unwrap();
         let name = &node.name;
-        let check_loc = &node.location;
+        let check_loc = node.location;
 
         match self.register_state(rec) {
             RegisterState::Available | RegisterState::PartiallyMoved => {
@@ -3396,7 +3322,7 @@ impl<'a> LowerMethod<'a> {
                 self.state.diagnostics.implicit_receiver_moved(
                     name,
                     self.file(),
-                    node.location.clone(),
+                    node.location,
                 );
             }
         }
@@ -3417,20 +3343,20 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn constant(&mut self, node: hir::ConstantRef) -> RegisterId {
+        let loc = node.location;
+
         match node.kind {
             types::ConstantKind::Constant(id) => {
                 let reg = self.new_register(node.resolved_type);
-                let loc = self.add_location(node.location);
 
                 self.get_constant(reg, id, loc);
                 reg
             }
             types::ConstantKind::Method(info) => {
                 let entered = self.enter_call_scope();
-                let loc = self.add_location(node.location);
                 let reg = self.call_method(info, None, Vec::new(), loc);
 
-                self.exit_call_scope(entered, reg);
+                self.exit_call_scope(entered, reg, loc);
                 reg
             }
             _ => unreachable!(),
@@ -3440,20 +3366,17 @@ impl<'a> LowerMethod<'a> {
     fn self_expression(&mut self, node: hir::SelfObject) -> RegisterId {
         let reg = self.self_register;
 
-        self.check_if_moved(reg, SELF_NAME, &node.location);
+        self.check_if_moved(reg, SELF_NAME, node.location);
         reg
     }
 
     fn closure(&mut self, node: hir::Closure) -> RegisterId {
-        self.check_inferred(node.resolved_type, &node.location);
+        self.check_inferred(node.resolved_type, node.location);
 
         let module = self.module;
         let closure_id = node.closure_id.unwrap();
         let moving = closure_id.is_moving(self.db());
-        let loc = Location::new(
-            node.location.lines.clone(),
-            node.location.columns.clone(),
-        );
+        let loc = node.location;
         let class_id = types::Class::alloc(
             self.db_mut(),
             format!("Closure{}", closure_id.0),
@@ -3466,10 +3389,7 @@ impl<'a> LowerMethod<'a> {
         let method_id = types::Method::alloc(
             self.db_mut(),
             module,
-            Location::new(
-                node.location.lines.clone(),
-                node.location.columns.clone(),
-            ),
+            loc,
             types::CALL_METHOD.to_string(),
             types::Visibility::Public,
             types::MethodKind::Mutable,
@@ -3500,7 +3420,7 @@ impl<'a> LowerMethod<'a> {
 
         let gen_class_type = TypeRef::Owned(gen_class_ins);
         let gen_class_reg = self.new_register(gen_class_type);
-        let loc = self.add_location(node.location.clone());
+        let loc = node.location;
 
         // We generate the allocation first, that way when we generate any
         // fields we can populate then right away, without having to store field
@@ -3542,7 +3462,7 @@ impl<'a> LowerMethod<'a> {
                 self.state.diagnostics.moved_while_captured(
                     SELF_NAME,
                     self.file(),
-                    node.location.clone(),
+                    node.location,
                 );
             }
 
@@ -3580,7 +3500,7 @@ impl<'a> LowerMethod<'a> {
                 self.state.diagnostics.moved_while_captured(
                     &name,
                     self.file(),
-                    node.location.clone(),
+                    node.location,
                 );
             }
 
@@ -3621,7 +3541,7 @@ impl<'a> LowerMethod<'a> {
                     FIELDS_LIMIT
                 ),
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
         }
 
@@ -3649,7 +3569,7 @@ impl<'a> LowerMethod<'a> {
         self.mir.classes.insert(class_id, mir_class);
         self.mir.modules.get_mut(&mod_id).unwrap().classes.push(class_id);
 
-        let loc = self.mir.add_location(node.location);
+        let loc = node.location;
 
         GenerateDropper {
             state: self.state,
@@ -3666,7 +3586,7 @@ impl<'a> LowerMethod<'a> {
     fn get_local(
         &mut self,
         id: types::VariableId,
-        location: LocationId,
+        location: Location,
     ) -> RegisterId {
         self.mark_variable_as_used(id);
 
@@ -3684,7 +3604,7 @@ impl<'a> LowerMethod<'a> {
         }
     }
 
-    fn get_nil(&mut self, location: LocationId) -> RegisterId {
+    fn get_nil(&mut self, location: Location) -> RegisterId {
         let reg = self.new_register(TypeRef::nil());
 
         self.current_block_mut().nil_literal(reg, location);
@@ -3731,7 +3651,7 @@ impl<'a> LowerMethod<'a> {
     /// Returns the register to use for an output expression (`return` or
     /// `throw`).
     fn output_expression(&mut self, node: hir::Expression) -> RegisterId {
-        let loc = self.add_location(node.location().clone());
+        let loc = node.location();
         let reg = self.expression(node);
 
         self.check_field_move(reg, loc);
@@ -3749,7 +3669,7 @@ impl<'a> LowerMethod<'a> {
             self.partially_move_self_if_field(reg);
 
             if let Some(flag) = self.drop_flags.get(&reg).cloned() {
-                self.current_block_mut().false_literal(flag, loc);
+                self.current_block_mut().bool_literal(flag, false, loc);
             }
 
             return reg;
@@ -3776,20 +3696,16 @@ impl<'a> LowerMethod<'a> {
         &mut self,
         register: RegisterId,
         name: &str,
-        location: &SourceLocation,
+        location: Location,
     ) {
         if self.register_is_available(register) {
             return;
         }
 
-        self.state.diagnostics.moved_variable(
-            name,
-            self.file(),
-            location.clone(),
-        );
+        self.state.diagnostics.moved_variable(name, self.file(), location);
     }
 
-    fn record_loop_move(&mut self, register: RegisterId, location: LocationId) {
+    fn record_loop_move(&mut self, register: RegisterId, location: Location) {
         if self.scope.loop_depth == 0 {
             return;
         }
@@ -3813,7 +3729,7 @@ impl<'a> LowerMethod<'a> {
         }
     }
 
-    fn check_field_move(&mut self, register: RegisterId, location: LocationId) {
+    fn check_field_move(&mut self, register: RegisterId, location: Location) {
         if !self.register_kind(register).is_field() {
             return;
         }
@@ -3830,8 +3746,6 @@ impl<'a> LowerMethod<'a> {
             return;
         }
 
-        let loc = self.mir.location(location).clone();
-
         self.state.diagnostics.error(
             DiagnosticId::Moved,
             format!(
@@ -3840,14 +3754,14 @@ impl<'a> LowerMethod<'a> {
                 format_type(self.db(), self.surrounding_type()),
             ),
             self.file(),
-            loc,
+            location,
         );
     }
 
     fn receiver_for_moving_method(
         &mut self,
         register: RegisterId,
-        location: LocationId,
+        location: Location,
     ) -> RegisterId {
         let typ = self.register_type(register);
 
@@ -3865,7 +3779,7 @@ impl<'a> LowerMethod<'a> {
         }
 
         if let Some(flag) = self.drop_flags.get(&register).cloned() {
-            self.current_block_mut().false_literal(flag, location);
+            self.current_block_mut().bool_literal(flag, false, location);
         }
 
         register
@@ -3876,7 +3790,7 @@ impl<'a> LowerMethod<'a> {
         register: RegisterId,
         register_type: TypeRef,
         expected: Option<TypeRef>,
-        location: LocationId,
+        location: Location,
     ) -> RegisterId {
         if register_type.is_permanent(self.db()) {
             return register;
@@ -3930,7 +3844,7 @@ impl<'a> LowerMethod<'a> {
             self.mark_register_as_moved(register);
 
             if let Some(flag) = self.drop_flags.get(&register).cloned() {
-                self.current_block_mut().false_literal(flag, location);
+                self.current_block_mut().bool_literal(flag, false, location);
             }
 
             return register;
@@ -3968,7 +3882,7 @@ impl<'a> LowerMethod<'a> {
         source: RegisterId,
         typ: TypeRef,
         force_clone: bool,
-        location: LocationId,
+        location: Location,
     ) -> RegisterId {
         if typ.is_permanent(self.db())
             || (self.register_kind(source).is_regular() && !force_clone)
@@ -4024,8 +3938,8 @@ impl<'a> LowerMethod<'a> {
         self.scope.parent = Some(scope);
     }
 
-    fn exit_scope(&mut self) -> Box<Scope> {
-        self.drop_scope_registers();
+    fn exit_scope(&mut self, location: Location) -> Box<Scope> {
+        self.drop_scope_registers(location);
 
         if let Some(mut scope) = self.scope.parent.take() {
             swap(&mut scope, &mut self.scope);
@@ -4035,7 +3949,12 @@ impl<'a> LowerMethod<'a> {
         }
     }
 
-    fn exit_call_scope(&mut self, entered: bool, register: RegisterId) {
+    fn exit_call_scope(
+        &mut self,
+        entered: bool,
+        register: RegisterId,
+        location: Location,
+    ) {
         if !entered {
             // We perform this check here so one can't unconditionally call this
             // method by accident.
@@ -4045,7 +3964,7 @@ impl<'a> LowerMethod<'a> {
         // Temporarily mark the register as moved so it won't get dropped when
         // we exit the scope.
         self.mark_register_as_moved(register);
-        self.exit_scope();
+        self.exit_scope(location);
         self.mark_register_as_available(register);
 
         // Since the register was created in a child scope, we need to store it
@@ -4054,24 +3973,21 @@ impl<'a> LowerMethod<'a> {
         self.scope.created.push(register);
     }
 
-    fn drop_scope_registers(&mut self) {
+    fn drop_scope_registers(&mut self, location: Location) {
         if !self.in_connected_block() {
             return;
         }
-
-        let loc = self.last_location();
 
         for index in (0..self.scope.created.len()).rev() {
             let reg = self.scope.created[index];
 
             if self.should_drop_register(reg) {
-                self.drop_register(reg, loc);
+                self.drop_register(reg, location);
             }
         }
     }
 
-    fn drop_all_registers(&mut self) {
-        let loc = self.last_location();
+    fn drop_all_registers(&mut self, location: Location) {
         let mut registers = Vec::new();
         let mut scope = Some(&self.scope);
 
@@ -4085,7 +4001,7 @@ impl<'a> LowerMethod<'a> {
 
         for reg in registers {
             if self.should_drop_register(reg) {
-                self.drop_register(reg, loc);
+                self.drop_register(reg, location);
             }
         }
 
@@ -4114,22 +4030,23 @@ impl<'a> LowerMethod<'a> {
                     continue;
                 }
 
-                self.drop_field(self_reg, *id, reg, loc);
+                self.drop_field(self_reg, *id, reg, location);
             }
         }
 
         match self.register_state(self_reg) {
             RegisterState::PartiallyMoved => {
-                self.current_block_mut().drop_without_dropper(self_reg, loc);
+                self.current_block_mut()
+                    .drop_without_dropper(self_reg, location);
             }
             RegisterState::Available | RegisterState::MaybeMoved => {
-                self.drop_register(self_reg, loc);
+                self.drop_register(self_reg, location);
             }
             RegisterState::Moved => {}
         }
     }
 
-    fn drop_loop_registers(&mut self, location: LocationId) {
+    fn drop_loop_registers(&mut self, location: Location) {
         let mut registers = Vec::new();
         let mut scope = Some(&self.scope);
 
@@ -4154,7 +4071,7 @@ impl<'a> LowerMethod<'a> {
         }
     }
 
-    fn drop_register(&mut self, register: RegisterId, location: LocationId) {
+    fn drop_register(&mut self, register: RegisterId, location: Location) {
         if self.register_might_be_moved(register) {
             let before_block = self.current_block;
             let drop_block = self.add_block();
@@ -4174,7 +4091,7 @@ impl<'a> LowerMethod<'a> {
 
             self.current_block = drop_block;
 
-            self.current_block_mut().false_literal(drop_flag, location);
+            self.current_block_mut().bool_literal(drop_flag, false, location);
             self.unconditional_drop_register(register, location);
 
             self.current_block = after_block;
@@ -4192,7 +4109,7 @@ impl<'a> LowerMethod<'a> {
     fn unconditional_drop_register(
         &mut self,
         register: RegisterId,
-        location: LocationId,
+        location: Location,
     ) {
         self.current_block_mut().drop(register, location);
 
@@ -4206,7 +4123,7 @@ impl<'a> LowerMethod<'a> {
         receiver: RegisterId,
         field: types::FieldId,
         register: RegisterId,
-        location: LocationId,
+        location: Location,
     ) {
         if self.register_might_be_moved(register) {
             let before_block = self.current_block;
@@ -4227,7 +4144,7 @@ impl<'a> LowerMethod<'a> {
 
             self.current_block = drop_block;
 
-            self.current_block_mut().false_literal(drop_flag, location);
+            self.current_block_mut().bool_literal(drop_flag, false, location);
             self.unconditional_drop_field(receiver, field, register, location);
 
             self.current_block = after_block;
@@ -4242,7 +4159,7 @@ impl<'a> LowerMethod<'a> {
         receiver: RegisterId,
         field: types::FieldId,
         register: RegisterId,
-        location: LocationId,
+        location: Location,
     ) {
         let class = self.register_type(receiver).class_id(self.db()).unwrap();
 
@@ -4251,7 +4168,7 @@ impl<'a> LowerMethod<'a> {
         self.unconditional_drop_register(register, location);
     }
 
-    fn add_drop_flag(&mut self, register: RegisterId, location: LocationId) {
+    fn add_drop_flag(&mut self, register: RegisterId, location: Location) {
         let typ = self.register_type(register);
 
         if typ.use_reference_counting(self.db())
@@ -4263,7 +4180,7 @@ impl<'a> LowerMethod<'a> {
 
         let flag = self.new_register(TypeRef::boolean());
 
-        self.current_block_mut().true_literal(flag, location);
+        self.current_block_mut().bool_literal(flag, true, location);
         self.drop_flags.insert(register, flag);
     }
 
@@ -4347,7 +4264,7 @@ impl<'a> LowerMethod<'a> {
         &mut self,
         id: types::FieldId,
         value_type: TypeRef,
-        location: LocationId,
+        location: Location,
     ) -> RegisterId {
         if let Some(reg) = self.field_mapping.get(&id).cloned() {
             return reg;
@@ -4365,7 +4282,7 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn register_kind(&self, register: RegisterId) -> RegisterKind {
-        self.register_kinds[register.0 as usize]
+        self.register_kinds[register.0]
     }
 
     fn register_is_available(&mut self, register: RegisterId) -> bool {
@@ -4500,14 +4417,6 @@ impl<'a> LowerMethod<'a> {
         self.register_states.set(self.current_block, register, state);
     }
 
-    fn add_location(&mut self, range: SourceLocation) -> LocationId {
-        self.mir.add_location(range)
-    }
-
-    fn last_location(&self) -> LocationId {
-        self.mir.last_location().unwrap()
-    }
-
     fn db(&self) -> &types::Database {
         &self.state.db
     }
@@ -4532,16 +4441,16 @@ impl<'a> LowerMethod<'a> {
         self.self_register != self.surrounding_type_register
     }
 
-    fn warn_unreachable(&mut self, location: &SourceLocation) {
+    fn warn_unreachable(&mut self, location: Location) {
         self.check_for_unused_variables();
-        self.state.diagnostics.unreachable(self.file(), location.clone());
+        self.state.diagnostics.unreachable(self.file(), location);
     }
 
     fn get_constant(
         &mut self,
         register: RegisterId,
         id: ConstantId,
-        location: LocationId,
+        location: Location,
     ) {
         self.current_block_mut().get_constant(register, id, location);
 
@@ -4557,7 +4466,7 @@ impl<'a> LowerMethod<'a> {
         register: RegisterId,
         value: String,
         block: BlockId,
-        location: LocationId,
+        location: Location,
     ) {
         self.block_mut(block).string_literal(register, value, location);
 
@@ -4591,150 +4500,9 @@ impl<'a> LowerMethod<'a> {
 
         for id in unused {
             let name = id.name(self.db()).clone();
-            let var_loc = id.location(self.db());
-            let src_loc = SourceLocation::new(
-                var_loc.line..=var_loc.line,
-                var_loc.start_column..=var_loc.end_column,
-            );
+            let loc = id.location(self.db());
 
-            self.state.diagnostics.unused_symbol(&name, self.file(), src_loc);
+            self.state.diagnostics.unused_symbol(&name, self.file(), loc);
         }
     }
-}
-
-/// A compiler pass that cleans up basic blocks.
-///
-/// This pass does the following:
-///
-/// 1. Empty basic blocks are removed.
-/// 2. Basic blocks that implicitly flow into another block are updated to end
-///    with a goto to said block.
-///
-/// These changes make it easier to visualize the MIR code, and result in a
-/// smaller IR to pass to LLVM.
-pub(crate) fn clean_up_basic_blocks(mir: &mut Mir) {
-    for method in mir.methods.values_mut() {
-        let blocks = &method.body.blocks;
-        let mut new_blocks = Vec::new();
-        let mut id_map = vec![BlockId(0); blocks.len()];
-        let mut valid = Vec::with_capacity(blocks.len());
-
-        for (index, block) in blocks.iter().enumerate() {
-            if block.instructions.is_empty()
-                || !method.body.is_connected(BlockId(index))
-            {
-                // Empty and unreachable blocks are useless, so we get rid of
-                // them here.
-                continue;
-            }
-
-            id_map[index] = BlockId(new_blocks.len());
-            valid.push((index, block));
-            new_blocks.push(Block::new());
-        }
-
-        for (index, block) in valid {
-            let block_id = id_map[index];
-
-            new_blocks[block_id.0].instructions = block.instructions.clone();
-
-            let successors =
-                match new_blocks[block_id.0].instructions.last_mut().unwrap() {
-                    Instruction::Branch(ins) => {
-                        let ok = id_map[find_successor(blocks, ins.if_true).0];
-                        let err =
-                            id_map[find_successor(blocks, ins.if_false).0];
-
-                        ins.if_true = ok;
-                        ins.if_false = err;
-
-                        vec![ok, err]
-                    }
-                    Instruction::DecrementAtomic(ins) => {
-                        let ok = id_map[find_successor(blocks, ins.if_true).0];
-                        let err =
-                            id_map[find_successor(blocks, ins.if_false).0];
-
-                        ins.if_true = ok;
-                        ins.if_false = err;
-
-                        vec![ok, err]
-                    }
-                    Instruction::Switch(ins) => {
-                        for index in 0..ins.blocks.len() {
-                            let old_id = ins.blocks[index];
-
-                            ins.blocks[index] =
-                                id_map[find_successor(blocks, old_id).0];
-                        }
-
-                        ins.blocks.clone()
-                    }
-                    Instruction::Goto(ins) => {
-                        ins.block = id_map[find_successor(blocks, ins.block).0];
-
-                        vec![ins.block]
-                    }
-                    _ if block.successors.len() == 1 => {
-                        let new_id = id_map
-                            [find_successor(blocks, block.successors[0]).0];
-
-                        let location =
-                            block.instructions.last().unwrap().location();
-
-                        new_blocks[block_id.0].instructions.push(
-                            Instruction::Goto(Box::new(Goto {
-                                block: new_id,
-                                location,
-                            })),
-                        );
-
-                        vec![new_id]
-                    }
-                    _ => {
-                        // A block without an exit can only have one successor,
-                        // and we handle that case above. This means this code
-                        // only runs for blocks without successors, for which no
-                        // extra work is necessary.
-                        continue;
-                    }
-                };
-
-            for &succ in &successors {
-                new_blocks[succ.0].predecessors.push(block_id);
-            }
-
-            new_blocks[block_id.0].successors = successors;
-        }
-
-        // The first block (ID 0) may be empty, depending on the MIR that was
-        // generated. The above code will remove that block, meaning we have to
-        // determine a new start block. Since this only happens when the block
-        // is empty, and empty blocks only have one successor, we just make the
-        // successor the new starting block.
-        let old_start = &blocks[method.body.start_id.0];
-
-        if old_start.instructions.is_empty() {
-            method.body.start_id =
-                id_map[find_successor(blocks, old_start.successors[0]).0];
-        }
-
-        method.body.blocks = new_blocks;
-    }
-}
-
-fn find_successor(blocks: &[Block], old_id: BlockId) -> BlockId {
-    let mut id = old_id;
-
-    loop {
-        let block = &blocks[id.0];
-
-        if !block.instructions.is_empty() {
-            break;
-        }
-
-        id = block.successors[0];
-    }
-
-    id
 }

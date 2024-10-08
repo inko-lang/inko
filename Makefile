@@ -85,6 +85,7 @@ ${SOURCE_TAR}: ${TMP_DIR}
 		std/src \
 		rt \
 		types \
+		location \
 		| gzip > "${@}"
 
 release/source: ${SOURCE_TAR}

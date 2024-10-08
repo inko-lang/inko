@@ -75,8 +75,13 @@ jobs:
           key: amd64-linux-gnu-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
       - name: Run compiler tests
         run: cargo test
-      - name: Run stdlib tests
+      # We run tests with and without optimizations, such that we can catch any
+      # potential miscompilations introduced by optimizations. We only do this
+      # for this particular target as our optimizations aren't target specific.
+      - name: Run stdlib tests with optimizations
         run: 'cd std && cargo run -- test'
+      - name: Run stdlib tests without optimizations
+        run: 'cd std && cargo run -- test --opt=none'
 
   amd64-linux-musl:
     runs-on: ubuntu-latest

@@ -1,5 +1,8 @@
-import std.io (Error)
 import std.libc
+
+fn resize_error -> Never {
+  panic('std.alloc.resize() failed as not enough memory is available')
+}
 
 # Allocates or resizes a chunk of raw memory such that it can fit `size`
 # _elements_ (not bytes).
@@ -17,9 +20,7 @@ fn resize[T](buffer: Pointer[T], size: Int) -> Pointer[T] {
   let ptr = libc.realloc(buffer as Pointer[UInt8], bytes)
 
   # In this case there's nothing we can do but abort.
-  if ptr as Int == 0 and size != 0 {
-    panic('std.alloc.resize() failed: ${Error.last_os_error}')
-  }
+  if ptr as Int == 0 and size != 0 { resize_error }
 
   ptr as Pointer[T]
 }

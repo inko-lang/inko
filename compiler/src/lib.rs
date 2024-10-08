@@ -1,6 +1,7 @@
 #![allow(clippy::new_without_default)]
 #![allow(clippy::enum_variant_names)]
 #![allow(clippy::assigning_clones)]
+#![allow(clippy::needless_range_loop)]
 
 mod diagnostics;
 pub mod docs;

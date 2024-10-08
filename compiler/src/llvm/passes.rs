@@ -12,17 +12,13 @@ use crate::llvm::layouts::Layouts;
 use crate::llvm::methods::Methods;
 use crate::llvm::module::Module;
 use crate::llvm::runtime_function::RuntimeFunction;
-use crate::mir::{
-    CastType, Constant, Instruction, LocationId, Method, Mir,
-    Module as MirModule, RegisterId,
-};
+use crate::mir::{CastType, Constant, Instruction, Method, Mir, RegisterId};
 use crate::state::State;
-use crate::symbol_names::{
-    shapes, SymbolNames, STACK_MASK_GLOBAL, STATE_GLOBAL,
-};
+use crate::symbol_names::{SymbolNames, STACK_MASK_GLOBAL, STATE_GLOBAL};
 use crate::target::Architecture;
 use blake3::{hash, Hasher};
 use inkwell::basic_block::BasicBlock;
+use inkwell::debug_info::{AsDIScope as _, DILocation, DIScope};
 use inkwell::module::Linkage;
 use inkwell::passes::PassBuilderOptions;
 use inkwell::targets::{
@@ -37,6 +33,7 @@ use inkwell::values::{
     FunctionValue, GlobalValue, IntValue, PointerValue,
 };
 use inkwell::OptimizationLevel;
+use location::Location;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs::{read, write};
 use std::path::Path;
@@ -46,8 +43,7 @@ use std::thread::scope;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use types::module_name::ModuleName;
 use types::{
-    ClassId, Database, Intrinsic, Module as ModuleType, Shape, TypeRef,
-    BYTE_ARRAY_ID, STRING_ID,
+    ClassId, Database, Intrinsic, Shape, TypeRef, BYTE_ARRAY_ID, STRING_ID,
 };
 
 const NIL_VALUE: bool = false;
@@ -187,6 +183,20 @@ fn check_object_cache(
             hasher.update(name.as_bytes());
         }
 
+        // We include the list of inlined methods in the hash such that if this
+        // changes, we flush the cache.
+        let mut inlined: Vec<_> = module
+            .inlined_methods
+            .iter()
+            .map(|id| &symbol_names.methods[id])
+            .collect();
+
+        inlined.sort();
+
+        for name in inlined {
+            hasher.update(name.as_bytes());
+        }
+
         // The module may contain dynamic dispatch call sites. If the need for
         // probing changes, we need to update the module's code accordingly. We
         // do this by hashing the collision states of all dynamic calls in the
@@ -194,7 +204,7 @@ fn check_object_cache(
         for &mid in &module.methods {
             hasher.update(&methods.info[mid.0 as usize].hash.to_le_bytes());
 
-            for block in &mir.methods[&mid].body.blocks {
+            for block in &mir.methods.get(&mid).unwrap().body.blocks {
                 for ins in &block.instructions {
                     if let Instruction::CallDynamic(op) = ins {
                         let val = methods.info[op.method.0 as usize].collision;
@@ -250,133 +260,15 @@ fn check_object_cache(
     Ok(())
 }
 
-fn sort_mir(db: &Database, mir: &mut Mir, names: &SymbolNames) {
-    // We sort the data by their generated symbol names, as these are already
-    // unique for each ID and take into account data such as the shapes. If we
-    // sorted just by IDs we'd get an inconsistent order between compilations,
-    // and if we just sorted by names we may get an inconsistent order when many
-    // values share the same name.
-    for module in mir.modules.values_mut() {
-        module.constants.sort_by_key(|i| &names.constants[i]);
-        module.classes.sort_by_key(|i| &names.classes[i]);
-        module.methods.sort_by_key(|i| &names.methods[i]);
-    }
-
-    for class in mir.classes.values_mut() {
-        class.methods.sort_by_key(|i| &names.methods[i]);
-    }
-
-    // When populating object caches we need to be able to iterate over the MIR
-    // modules in a stable order. We do this here (and once) such that from this
-    // point forward, we can rely on a stable order, as it's too easy to forget
-    // to first sort this list every time we want to iterate over it.
-    //
-    // Because `mir.modules` is an IndexMap, sorting it is a bit more involved
-    // compared to just sorting a `Vec`.
-    let mut values = mir.modules.take_values();
-
-    values.sort_by_key(|m| m.id.name(db));
-
-    for module in values {
-        mir.modules.insert(module.id, module);
-    }
-}
-
-/// A pass that splits modules into smaller ones, such that each specialized
-/// type has its own module.
-///
-/// This pass is used to make caching and parallel compilation more effective,
-/// such that adding a newly specialized type won't flush many caches
-/// unnecessarily.
-pub(crate) fn split_modules(
-    state: &mut State,
-    mir: &mut Mir,
-) -> Result<(), String> {
-    let mut new_modules = Vec::new();
-
-    for old_module in mir.modules.values_mut() {
-        let mut moved_classes = HashSet::new();
-        let mut moved_methods = HashSet::new();
-
-        for &class_id in &old_module.classes {
-            if class_id.specialization_source(&state.db).unwrap_or(class_id)
-                == class_id
-                || class_id.kind(&state.db).is_closure()
-            {
-                // Non-generic and closure classes always originate from the
-                // source modules, so there's no need to move them elsewhere.
-                continue;
-            }
-
-            let file = old_module.id.file(&state.db);
-            let orig_name = old_module.id.name(&state.db).clone();
-            let name = ModuleName::new(format!(
-                "{}({}#{})",
-                orig_name,
-                class_id.name(&state.db),
-                shapes(class_id.shapes(&state.db))
-            ));
-
-            let new_mod_id =
-                ModuleType::alloc(&mut state.db, name.clone(), file);
-
-            // For symbols/stack traces we want to use the original name, not
-            // the generated one.
-            new_mod_id.set_method_symbol_name(&mut state.db, orig_name.clone());
-
-            // We have to record the new module in the dependency graph, that
-            // way a change to the original module also affects these generated
-            // modules.
-            let new_node_id = state.dependency_graph.add_module(name);
-            let old_node_id =
-                state.dependency_graph.module_id(&orig_name).unwrap();
-
-            state.dependency_graph.add_depending(old_node_id, new_node_id);
-
-            let mut new_module = MirModule::new(new_mod_id);
-
-            // We don't deal with static methods as those have their receiver
-            // typed as the original class ID, because they don't really belong
-            // to a class (i.e. they're basically scoped module methods).
-            new_module.methods = mir.classes[&class_id].methods.clone();
-            new_module.classes.push(class_id);
-            moved_classes.insert(class_id);
-
-            // When generating symbol names we use the module as stored in the
-            // method, so we need to make sure that's set to our newly generated
-            // module.
-            for &id in &new_module.methods {
-                id.set_module(&mut state.db, new_mod_id);
-                moved_methods.insert(id);
-            }
-
-            class_id.set_module(&mut state.db, new_mod_id);
-            new_modules.push(new_module);
-        }
-
-        old_module.methods.retain(|id| !moved_methods.contains(id));
-        old_module.classes.retain(|i| !moved_classes.contains(i));
-    }
-
-    for module in new_modules {
-        mir.modules.insert(module.id, module);
-    }
-
-    Ok(())
-}
-
 /// Compiles all the modules into object files.
 ///
 /// The return value is a list of file paths to the generated object files.
 pub(crate) fn lower_all(
     state: &mut State,
     directories: &BuildDirectories,
-    mut mir: Mir,
+    mir: Mir,
+    names: &SymbolNames,
 ) -> Result<CompileResult, String> {
-    let names = SymbolNames::new(&state.db, &mir);
-
-    sort_mir(&state.db, &mut mir, &names);
-
     let methods = Methods::new(&state.db, &mir);
 
     // The object paths are generated using Blake2, and are needed in several
@@ -389,7 +281,7 @@ pub(crate) fn lower_all(
         .map(|m| object_path(directories, m.id.name(&state.db)))
         .collect();
 
-    check_object_cache(state, &names, &methods, directories, &obj_paths, &mir)?;
+    check_object_cache(state, names, &methods, directories, &obj_paths, &mir)?;
 
     if state.config.write_llvm {
         directories.create_llvm()?;
@@ -430,7 +322,7 @@ pub(crate) fn lower_all(
         state,
         mir: &mir,
         methods: &methods,
-        names: &names,
+        names,
         queue: &queue,
         directories,
         object_paths: &obj_paths,
@@ -708,7 +600,7 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
                 self.shared,
                 self.layouts,
                 self.module,
-                &self.shared.mir.methods[method],
+                self.shared.mir.methods.get(method).unwrap(),
             )
             .run();
         }
@@ -1028,6 +920,9 @@ pub struct LowerMethod<'shared, 'module, 'ctx> {
 
     /// The LLVM types for each MIR register.
     variable_types: HashMap<RegisterId, BasicTypeEnum<'ctx>>,
+
+    /// The stack of function debug scopes, used for inlined method calls.
+    debug_scopes: Vec<(DIScope<'ctx>, DILocation<'ctx>)>,
 }
 
 impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
@@ -1049,6 +944,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
             builder,
             variables: HashMap::new(),
             variable_types: HashMap::new(),
+            debug_scopes: Vec::new(),
         }
     }
 
@@ -1072,15 +968,12 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
             self.builder.store(self.variables[reg], arg);
         }
 
-        let (line, _) =
-            self.shared.mir.location(self.method.location).line_column();
+        let line = self.method.location.line_start;
         let debug_func = self.module.debug_builder.new_function(
-            self.method.id.name(&self.shared.state.db),
-            &self.shared.names.methods[&self.method.id],
-            &self.method.id.source_file(&self.shared.state.db),
+            &self.shared.state.db,
+            self.shared.names,
+            self.method.id,
             line,
-            self.method.id.is_private(&self.shared.state.db),
-            false,
         );
 
         self.builder.set_debug_function(debug_func);
@@ -1131,15 +1024,12 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
             self.builder.free(self.builder.load_pointer(args_var));
         }
 
-        let (line, _) =
-            self.shared.mir.location(self.method.location).line_column();
+        let line = self.method.location.line_start;
         let debug_func = self.module.debug_builder.new_function(
-            self.method.id.name(&self.shared.state.db),
-            &self.shared.names.methods[&self.method.id],
-            &self.method.id.source_file(&self.shared.state.db),
+            &self.shared.state.db,
+            self.shared.names,
+            self.method.id,
             line,
-            self.method.id.is_private(&self.shared.state.db),
-            false,
         );
 
         self.builder.set_debug_function(debug_func);
@@ -1841,15 +1731,9 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                 self.builder.store(var, val);
             }
-            Instruction::True(ins) => {
+            Instruction::Bool(ins) => {
                 let var = self.variables[&ins.register];
-                let val = self.builder.bool_literal(true);
-
-                self.builder.store(var, val);
-            }
-            Instruction::False(ins) => {
-                let var = self.variables[&ins.register];
-                let val = self.builder.bool_literal(false);
+                let val = self.builder.bool_literal(ins.value);
 
                 self.builder.store(var, val);
             }
@@ -2667,6 +2551,22 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                 self.builder.store(reg_var, typ.size_of().unwrap());
             }
+            Instruction::PushDebugScope(ins) => {
+                let callee_loc = self.set_debug_location(ins.location);
+                let line = ins.location.line_start;
+                let new = self.module.debug_builder.new_function(
+                    &self.shared.state.db,
+                    self.shared.names,
+                    ins.method,
+                    line,
+                );
+
+                self.debug_scopes.push((new.as_debug_info_scope(), callee_loc));
+            }
+            Instruction::PopDebugScope(loc) => {
+                self.debug_scopes.pop().unwrap();
+                self.set_debug_location(*loc);
+            }
             Instruction::Reference(_) => unreachable!(),
             Instruction::Drop(_) => unreachable!(),
         }
@@ -2731,12 +2631,21 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
         }
     }
 
-    fn set_debug_location(&self, location_id: LocationId) {
-        let scope = self.builder.debug_scope();
-        let (line, col) = self.shared.mir.location(location_id).line_column();
-        let loc = self.module.debug_builder.new_location(line, col, scope);
+    fn set_debug_location(&self, location: Location) -> DILocation<'ctx> {
+        let line = location.line_start;
+        let col = location.column_start;
+        let loc = if let Some(&(scope, callee_loc)) = self.debug_scopes.last() {
+            self.module
+                .debug_builder
+                .new_inlined_location(line, col, scope, callee_loc)
+        } else {
+            let scope = self.builder.debug_scope();
+
+            self.module.debug_builder.new_location(line, col, scope)
+        };
 
         self.builder.set_debug_location(loc);
+        loc
     }
 
     fn float_to_int(

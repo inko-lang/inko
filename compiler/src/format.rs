@@ -471,9 +471,7 @@ impl Document {
                     // turned into a comment for the _type_ instead of the
                     // module.
                     if let Some(node) = iter.peek() {
-                        if node.location().lines.start()
-                            - c.location.lines.end()
-                            > 1
+                        if node.location().line_start - c.location.line_end > 1
                         {
                             self.gen.new_line();
                         }
@@ -1069,8 +1067,13 @@ impl Document {
             nodes::MethodKind::Extern => " extern ",
         };
         let kw = if node.public { "fn pub" } else { "fn" };
-        let mut header =
-            vec![Node::text(kw), Node::text(kind), Node::text(&node.name.name)];
+        let inline = if node.inline { " inline" } else { "" };
+        let mut header = vec![
+            Node::text(kw),
+            Node::text(inline),
+            Node::text(kind),
+            Node::text(&node.name.name),
+        ];
 
         if let Some(nodes) =
             node.type_parameters.as_ref().filter(|v| !v.values.is_empty())
@@ -1203,8 +1206,8 @@ impl Document {
             }
 
             if let Some(next) = iter.peek() {
-                let sep = if next.location().lines.start()
-                    - expr.location().lines.end()
+                let sep = if next.location().line_start
+                    - expr.location().line_end
                     > 1
                 {
                     // Multiple empty lines are condensed into a single empty

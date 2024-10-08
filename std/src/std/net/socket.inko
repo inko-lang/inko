@@ -212,6 +212,10 @@ fn extern inko_socket_shutdown_read_write(
   socket: Pointer[RawSocket],
 ) -> IntResult
 
+fn getsockopt_error -> Never {
+  panic('getsockopt(2) failed: ${Error.last_os_error}')
+}
+
 class extern Linger {
   let @l_onoff: Int32
   let @l_linger: Int32
@@ -748,7 +752,7 @@ class pub Socket {
 
     # Similar to get_option(), this method shouldn't ever reach this point, but
     # we panic just in case we do.
-    if res != 0 { panic('getsockopt(2) failed: ${Error.last_os_error}') }
+    if res != 0 { getsockopt_error }
 
     if linger.l_onoff as Int != 0 {
       Option.Some(Duration.from_secs(linger.l_linger as Int))
@@ -859,7 +863,7 @@ class pub Socket {
       # won't be invalid, this method isn't expected to fail at runtime. To
       # remove the need for unneccesary error handling, we panic instead should
       # we encounter an error after all.
-      panic('getsockopt(2) failed: ${Error.last_os_error}')
+      getsockopt_error
     }
   }
 }

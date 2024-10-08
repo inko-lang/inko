@@ -1,5 +1,9 @@
 # Methods for converting values to/from big-endian encoded bytes.
 
+fn size_error(min: Int) -> Never {
+  panic('the ByteArray must contain at least ${min} bytes')
+}
+
 # Writes a value interpreted as a 32-bits unsigned integer into `into` as a
 # series of bytes, starting at the index `at`.
 #
@@ -22,7 +26,7 @@
 # bytes # => ByteArray.from_array([7, 91, 205, 21])
 # ```
 fn pub write_i32(value: Int, into: mut ByteArray, at: Int) {
-  if into.size - at < 4 { panic('the ByteArray must contain at least 4 bytes') }
+  if into.size - at < 4 { size_error(4) }
 
   (into.to_pointer as Int + at as Pointer[UInt32]).0 = value.swap_bytes >>> 32
     as UInt32
@@ -47,7 +51,7 @@ fn pub write_i32(value: Int, into: mut ByteArray, at: Int) {
 # bytes # => ByteArray.from_array([7, 91, 205, 21])
 # ```
 fn pub write_i64(value: Int, into: mut ByteArray, at: Int) {
-  if into.size - at < 8 { panic('the ByteArray must contain at least 8 bytes') }
+  if into.size - at < 8 { size_error(8) }
 
   (into.to_pointer as Int + at as Pointer[UInt64]).0 = value.swap_bytes
     as UInt64
@@ -71,7 +75,7 @@ fn pub write_i64(value: Int, into: mut ByteArray, at: Int) {
 # big.read_i32(from: bytes, at: 0) # => 123456789
 # ```
 fn pub read_i32(from: ref ByteArray, at: Int) -> Int {
-  if from.size - at < 4 { panic('the ByteArray must contain at least 4 bytes') }
+  if from.size - at < 4 { size_error(4) }
 
   ((from.to_pointer as Int + at as Pointer[UInt32]).0 as Int).swap_bytes >>> 32
 }
@@ -94,7 +98,7 @@ fn pub read_i32(from: ref ByteArray, at: Int) -> Int {
 # big.read_i64(from: bytes, at: 0) # => 123456789
 # ```
 fn pub read_i64(from: ref ByteArray, at: Int) -> Int {
-  if from.size - at < 8 { panic('the ByteArray must contain at least 8 bytes') }
+  if from.size - at < 8 { size_error(8) }
 
   ((from.to_pointer as Int + at as Pointer[UInt64]).0 as Int).swap_bytes
 }

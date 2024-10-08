@@ -1,5 +1,5 @@
 //! Lexical analysis of Inko source code.
-use crate::source_location::SourceLocation;
+use location::Location;
 use unicode_segmentation::UnicodeSegmentation;
 
 const NULL: u8 = 0;
@@ -166,6 +166,7 @@ pub enum TokenKind {
     While,
     Whitespace,
     Extern,
+    Inline,
 }
 
 impl TokenKind {
@@ -268,6 +269,7 @@ impl TokenKind {
             TokenKind::Nil => "the 'nil' keyword",
             TokenKind::Replace => "a '=:'",
             TokenKind::Extern => "the 'extern' keyword",
+            TokenKind::Inline => "the 'inline' keyword",
         }
     }
 }
@@ -276,23 +278,23 @@ impl TokenKind {
 pub struct Token {
     pub kind: TokenKind,
     pub value: String,
-    pub location: SourceLocation,
+    pub location: Location,
 }
 
 impl Token {
-    fn new(kind: TokenKind, value: String, location: SourceLocation) -> Self {
+    fn new(kind: TokenKind, value: String, location: Location) -> Self {
         Self { kind, value, location }
     }
 
     /// Returns a token signalling unexpected input. The token contains the
     /// invalid character.
-    fn invalid(value: String, location: SourceLocation) -> Self {
+    fn invalid(value: String, location: Location) -> Self {
         Self::new(TokenKind::Invalid, value, location)
     }
 
     /// Returns a token that signals the end of the input stream. We use null
     /// tokens so we don't need to wrap/unwrap every token using an Option type.
-    fn null(location: SourceLocation) -> Self {
+    fn null(location: Location) -> Self {
         Self::new(TokenKind::Null, String::new(), location)
     }
 
@@ -335,6 +337,7 @@ impl Token {
                 | TokenKind::Case
                 | TokenKind::Enum
                 | TokenKind::Extern
+                | TokenKind::Inline
         )
     }
 
@@ -363,7 +366,7 @@ impl Token {
     }
 
     pub fn same_line_as(&self, token: &Token) -> bool {
-        self.location.lines.start() == token.location.lines.start()
+        self.location.line_start == token.location.line_start
     }
 }
 
@@ -422,10 +425,10 @@ pub struct Lexer {
     states: Vec<State>,
 
     /// The current line number.
-    line: usize,
+    line: u32,
 
     /// The current (starting) column number.
-    column: usize,
+    column: u32,
 }
 
 impl Lexer {
@@ -443,8 +446,13 @@ impl Lexer {
         }
     }
 
-    pub fn start_location(&self) -> SourceLocation {
-        SourceLocation::new(self.line..=self.line, self.column..=self.column)
+    pub fn start_location(&self) -> Location {
+        Location {
+            line_start: self.line,
+            line_end: self.line,
+            column_start: self.column,
+            column_end: self.column,
+        }
     }
 
     pub fn next_token(&mut self) -> Token {
@@ -457,18 +465,16 @@ impl Lexer {
         }
     }
 
-    fn source_location(
-        &self,
-        start_line: usize,
-        start_column: usize,
-    ) -> SourceLocation {
-        SourceLocation::new(
-            start_line..=self.line,
+    fn source_location(&self, start_line: u32, start_column: u32) -> Location {
+        Location {
+            line_start: start_line,
+            line_end: self.line,
             // The end column points to whatever comes _after_ the last
             // processed character. This means the end column is one column
             // earlier.
-            start_column..=(self.column - 1),
-        )
+            column_start: start_column,
+            column_end: self.column - 1,
+        }
     }
 
     fn current_byte(&self) -> u8 {
@@ -500,7 +506,7 @@ impl Lexer {
     }
 
     fn advance_column(&mut self, value: &str) {
-        self.column += value.graphemes(true).count();
+        self.column += value.graphemes(true).count() as u32;
     }
 
     fn advance_char(&mut self) {
@@ -997,6 +1003,7 @@ impl Lexer {
                 "return" => TokenKind::Return,
                 "static" => TokenKind::Static,
                 "extern" => TokenKind::Extern,
+                "inline" => TokenKind::Inline,
                 _ => TokenKind::Identifier,
             },
             7 => match value.as_str() {
@@ -1087,14 +1094,14 @@ impl Lexer {
         &mut self,
         kind: TokenKind,
         buffer: Vec<u8>,
-        line: usize,
-        column: usize,
+        line: u32,
+        column: u32,
         new_line: bool,
     ) -> Token {
         let value = String::from_utf8_lossy(&buffer).into_owned();
 
         if !value.is_empty() {
-            self.column += value.graphemes(true).count();
+            self.column += value.graphemes(true).count() as u32;
         }
 
         let location = self.source_location(line, column);
@@ -1175,8 +1182,8 @@ impl Lexer {
         &mut self,
         kind: TokenKind,
         start: usize,
-        line: usize,
-        column: usize,
+        line: u32,
+        column: u32,
     ) -> Token {
         let value = self.slice_string(start, self.position);
 
@@ -1187,7 +1194,7 @@ impl Lexer {
         Token::new(kind, value, location)
     }
 
-    fn token(&mut self, kind: TokenKind, start: usize, line: usize) -> Token {
+    fn token(&mut self, kind: TokenKind, start: usize, line: u32) -> Token {
         self.token_with_column(kind, start, line, self.column)
     }
 
@@ -1223,13 +1230,22 @@ impl Lexer {
         // When we encounter the end of the input, we want the location to point
         // to the last column that came before it. This way any errors are
         // reported within the bounds of the column range.
-        let lines = self.line..=self.line;
         let location = if self.column == 1 {
-            SourceLocation::new(lines, 1..=1)
+            Location {
+                line_start: self.line,
+                line_end: self.line,
+                column_start: 1,
+                column_end: 1,
+            }
         } else {
             let column = self.column - 1;
 
-            SourceLocation::new(lines, column..=column)
+            Location {
+                line_start: self.line,
+                line_end: self.line,
+                column_start: column,
+                column_end: column,
+            }
         };
 
         Token::null(location)
@@ -1247,17 +1263,17 @@ mod tests {
     }
 
     fn location(
-        line_range: RangeInclusive<usize>,
-        column_range: RangeInclusive<usize>,
-    ) -> SourceLocation {
-        SourceLocation::new(line_range, column_range)
+        line_range: RangeInclusive<u32>,
+        column_range: RangeInclusive<u32>,
+    ) -> Location {
+        Location::new(&line_range, &column_range)
     }
 
     fn tok(
         kind: TokenKind,
         value: &str,
-        line_range: RangeInclusive<usize>,
-        column_range: RangeInclusive<usize>,
+        line_range: RangeInclusive<u32>,
+        column_range: RangeInclusive<u32>,
     ) -> Token {
         Token::new(kind, value.to_string(), location(line_range, column_range))
     }
@@ -1337,6 +1353,7 @@ mod tests {
         assert!(tok(TokenKind::While, "", 1..=1, 1..=1).is_keyword());
         assert!(tok(TokenKind::Recover, "", 1..=1, 1..=1).is_keyword());
         assert!(tok(TokenKind::Nil, "", 1..=1, 1..=1).is_keyword());
+        assert!(tok(TokenKind::Inline, "", 1..=1, 1..=1).is_keyword());
     }
 
     #[test]
@@ -1978,6 +1995,7 @@ mod tests {
         assert_token!("return", Return, "return", 1..=1, 1..=6);
         assert_token!("static", Static, "static", 1..=1, 1..=6);
         assert_token!("extern", Extern, "extern", 1..=1, 1..=6);
+        assert_token!("inline", Inline, "inline", 1..=1, 1..=6);
 
         assert_token!("builtin", Builtin, "builtin", 1..=1, 1..=7);
         assert_token!("recover", Recover, "recover", 1..=1, 1..=7);

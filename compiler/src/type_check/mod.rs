@@ -2,7 +2,7 @@
 use crate::diagnostics::DiagnosticId;
 use crate::hir;
 use crate::state::State;
-use ast::source_location::SourceLocation;
+use location::Location;
 use std::path::PathBuf;
 use types::check::{Environment, TypeChecker};
 use types::format::format_type;
@@ -164,7 +164,7 @@ impl<'a> DefineTypeSignature<'a> {
                     DiagnosticId::InvalidType,
                     format!("'{}' isn't a trait", node.name.name),
                     self.file(),
-                    node.location.clone(),
+                    node.location,
                 );
 
                 None
@@ -182,7 +182,7 @@ impl<'a> DefineTypeSignature<'a> {
                     DiagnosticId::DuplicateSymbol,
                     "references to types aren't allowed here",
                     self.file(),
-                    node.location().clone(),
+                    node.location(),
                 );
                 TypeRef::Error
             }
@@ -240,7 +240,7 @@ impl<'a> DefineTypeSignature<'a> {
                 self.state.diagnostics.not_a_module(
                     &source.name,
                     self.file(),
-                    source.location.clone(),
+                    source.location,
                 );
 
                 return TypeRef::Error;
@@ -258,7 +258,7 @@ impl<'a> DefineTypeSignature<'a> {
                         name
                     ),
                     self.file(),
-                    node.name.location.clone(),
+                    node.name.location,
                 );
 
                 return TypeRef::Error;
@@ -284,7 +284,7 @@ impl<'a> DefineTypeSignature<'a> {
                         DiagnosticId::InvalidType,
                         format!("'{}' isn't a type", name),
                         self.file(),
-                        node.name.location.clone(),
+                        node.name.location,
                     );
 
                     return TypeRef::Error;
@@ -303,7 +303,7 @@ impl<'a> DefineTypeSignature<'a> {
                             DiagnosticId::InvalidType,
                             "'Never' can't be used as a reference",
                             self.file(),
-                            node.location.clone(),
+                            node.location,
                         );
 
                         return TypeRef::Error;
@@ -314,7 +314,7 @@ impl<'a> DefineTypeSignature<'a> {
                         None,
                         name,
                         &node.arguments,
-                        &node.location,
+                        node.location,
                     ) {
                         ctype
                     } else {
@@ -335,9 +335,7 @@ impl<'a> DefineTypeSignature<'a> {
         let class = if let Some(id) = ClassId::tuple(node.values.len()) {
             id
         } else {
-            self.state
-                .diagnostics
-                .tuple_size_error(self.file(), node.location.clone());
+            self.state.diagnostics.tuple_size_error(self.file(), node.location);
 
             return TypeRef::Error;
         };
@@ -400,7 +398,7 @@ impl<'a> DefineTypeSignature<'a> {
                 DiagnosticId::InvalidType,
                 "type parameters don't support type arguments",
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
         }
 
@@ -423,7 +421,7 @@ impl<'a> DefineTypeSignature<'a> {
                         name = id.name(self.db()),
                     ),
                     self.file(),
-                    node.location.clone(),
+                    node.location,
                 );
             }
         }
@@ -481,7 +479,7 @@ impl<'a> DefineTypeSignature<'a> {
         source: Option<ModuleId>,
         name: &str,
         arguments: &[hir::Type],
-        location: &SourceLocation,
+        location: Location,
     ) -> Option<TypeRef> {
         match name {
             "Int8" => Some(TypeRef::foreign_signed_int(8)),
@@ -500,7 +498,7 @@ impl<'a> DefineTypeSignature<'a> {
                         1,
                         arguments.len(),
                         self.file(),
-                        location.clone(),
+                        location,
                     );
 
                     return None;
@@ -516,7 +514,7 @@ impl<'a> DefineTypeSignature<'a> {
                             self.state.diagnostics.not_a_module(
                                 &src.name,
                                 self.file(),
-                                src.location.clone(),
+                                src.location,
                             );
 
                             return None;
@@ -529,7 +527,7 @@ impl<'a> DefineTypeSignature<'a> {
                         src,
                         &n.name.name,
                         &n.arguments,
-                        &n.location,
+                        n.location,
                     )
                 } else {
                     None
@@ -541,7 +539,7 @@ impl<'a> DefineTypeSignature<'a> {
                         self.state.diagnostics.invalid_c_type(
                             &format_type(self.db(), arg),
                             self.file(),
-                            location.clone(),
+                            location,
                         );
 
                         None
@@ -572,7 +570,7 @@ impl<'a> DefineTypeSignature<'a> {
                         self.state.diagnostics.invalid_c_type(
                             name,
                             self.file(),
-                            location.clone(),
+                            location,
                         );
 
                         None
@@ -581,7 +579,7 @@ impl<'a> DefineTypeSignature<'a> {
                         self.state.diagnostics.undefined_symbol(
                             name,
                             self.file(),
-                            location.clone(),
+                            location,
                         );
 
                         None
@@ -740,7 +738,7 @@ impl<'a> CheckTypeSignature<'a> {
                 required,
                 given,
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
 
             return false;
@@ -778,7 +776,7 @@ impl<'a> CheckTypeSignature<'a> {
                         format_type(self.db(), param)
                     ),
                     self.file(),
-                    node.location().clone(),
+                    node.location(),
                 );
             }
 
@@ -884,7 +882,7 @@ pub(crate) fn define_type_bounds(
             state.diagnostics.undefined_symbol(
                 name,
                 module.file(&state.db),
-                bound.name.location.clone(),
+                bound.name.location,
             );
 
             continue;
@@ -898,7 +896,7 @@ pub(crate) fn define_type_bounds(
                     name
                 ),
                 module.file(&state.db),
-                bound.location.clone(),
+                bound.location,
             );
 
             continue;
@@ -938,9 +936,10 @@ mod tests {
     use crate::hir;
     use crate::test::{cols, hir_type_name, module_type};
     use crate::type_check::{DefineTypeSignature, TypeScope};
+    use location::Location;
     use types::{
-        Class, ClassKind, ClosureId, Location, Method, MethodKind, Trait,
-        TypeId, TypeRef, Visibility,
+        Class, ClassKind, ClosureId, Method, MethodKind, Trait, TypeId,
+        TypeRef, Visibility,
     };
 
     macro_rules! constructor {
@@ -980,7 +979,7 @@ mod tests {
         let method = Method::alloc(
             &mut state.db,
             module,
-            Location::new(1..=1, 1..=1),
+            Location::default(),
             "foo".to_string(),
             Visibility::Private,
             MethodKind::Instance,

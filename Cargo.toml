@@ -1,5 +1,5 @@
 [workspace]
-members = ["ast", "inko", "compiler", "rt"]
+members = ["ast", "inko", "compiler", "rt", "location"]
 resolver = "2"
 
 [workspace.package]

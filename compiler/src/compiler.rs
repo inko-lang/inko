@@ -1,11 +1,12 @@
 use crate::config::{BuildDirectories, Output};
-use crate::config::{Config, SOURCE, SOURCE_EXT, TESTS};
+use crate::config::{Config, Opt, SOURCE, SOURCE_EXT, TESTS};
 use crate::docs::{
     Config as DocsConfig, DefineDocumentation, GenerateDocumentation,
 };
 use crate::hir;
 use crate::linker::link;
 use crate::llvm;
+use crate::mir::inline::InlineMethod;
 use crate::mir::passes as mir;
 use crate::mir::printer::to_dot;
 use crate::mir::specialize::Specialize;
@@ -15,6 +16,7 @@ use crate::pkg::manifest::Manifest;
 use crate::pkg::sync::sync_if_needed;
 use crate::pkg::version::Version;
 use crate::state::State;
+use crate::symbol_names::SymbolNames;
 use crate::type_check::define_types::{
     CheckTraitImplementations, CheckTraitRequirements, CheckTypeParameters,
     DefineConstructors, DefineFields, DefineTraitRequirements,
@@ -137,6 +139,8 @@ struct Timings {
     hir: Duration,
     type_check: Duration,
     mir: Duration,
+    specialize_mir: Duration,
+    inline_mir: Duration,
     optimize_mir: Duration,
     llvm: Duration,
     llvm_modules: Vec<(ModuleName, Duration)>,
@@ -151,6 +155,8 @@ impl Timings {
             hir: Duration::from_secs(0),
             type_check: Duration::from_secs(0),
             mir: Duration::from_secs(0),
+            specialize_mir: Duration::from_secs(0),
+            inline_mir: Duration::from_secs(0),
             optimize_mir: Duration::from_secs(0),
             llvm: Duration::from_secs(0),
             llvm_modules: Vec::new(),
@@ -230,6 +236,24 @@ impl Compiler {
 
         let mut mir = self.compile_mir(hir)?;
 
+        // Type specialization _must_ be done before optimizations and lowering
+        // MIR to LLVM, otherwise we may generate incorrect code.
+        self.specialize_mir(&mut mir);
+
+        // Splitting is done _after_ specialization, since specialization
+        // introduces new types and methods.
+        mir.split_modules(&mut self.state);
+
+        // Symbol names are needed to ensure certain passes can operate on data
+        // in a stable order, which in turn is needed to ensure incremental
+        // caches aren't flushed unnecessarily.
+        //
+        // Creating the symbol names and sorting MIR _must_ be done _after_
+        // splitting modules but _before_ optimizing MIR, such that the
+        // optimization passes can perform their work in a stable order.
+        let symbols = SymbolNames::new(&self.state.db, &mir);
+
+        mir.sort(&self.state.db, &symbols);
         self.optimise_mir(&mut mir);
 
         let dirs = BuildDirectories::new(&self.state.config);
@@ -240,7 +264,7 @@ impl Compiler {
             self.write_dot(&dirs, &mir)?;
         }
 
-        let res = self.compile_machine_code(&dirs, mir, file);
+        let res = self.compile_machine_code(&dirs, mir, &symbols, file);
 
         self.timings.total = start.elapsed();
         res
@@ -283,22 +307,30 @@ impl Compiler {
         // to still get the diagnostics without these timings messing things up.
         println!(
             "\
-Compilation stages:
+Frontend:
+  Parse       {ast}
+  AST to HIR  {hir}
+  Type check  {type_check}
+  HIR to MIR  {mir}
 
-\x1b[1mStage\x1b[0m            \x1b[1mTime\x1b[0m
-Source to AST    {ast}
-AST to HIR       {hir}
-Type check       {type_check}
-HIR to MIR       {mir}
-Optimize MIR     {optimize}
-Generate LLVM    {llvm}
-Link             {link}
-Total            {total}\
+Optimizations:
+  Specialize  {specialize}
+  Inline      {inline}
+  Total       {optimize}
+
+Backend:
+  LLVM        {llvm}
+  Linker      {link}
+
+Total: {total}\
             ",
             ast = format_timing(self.timings.ast, Some(total)),
             hir = format_timing(self.timings.hir, Some(total)),
             type_check = format_timing(self.timings.type_check, Some(total)),
             mir = format_timing(self.timings.mir, Some(total)),
+            specialize =
+                format_timing(self.timings.specialize_mir, Some(total)),
+            inline = format_timing(self.timings.inline_mir, Some(total)),
             optimize = format_timing(self.timings.optimize_mir, Some(total)),
             llvm = format_timing(self.timings.llvm, Some(total)),
             link = format_timing(self.timings.link, Some(total)),
@@ -381,9 +413,6 @@ LLVM module timings:
         let start = Instant::now();
         let mut mir = Mir::new();
         let state = &mut self.state;
-
-        mir::check_global_limits(state).map_err(CompileError::Internal)?;
-
         let ok = if mir::DefineConstants::run_all(state, &mut mir, &modules) {
             mir::define_default_compile_time_variables(state);
             mir::apply_compile_time_variables(state, &mut mir)
@@ -468,11 +497,48 @@ LLVM module timings:
         }
     }
 
-    fn optimise_mir(&mut self, mir: &mut Mir) {
+    fn specialize_mir(&mut self, mir: &mut Mir) {
         let start = Instant::now();
 
         Specialize::run_all(&mut self.state, mir);
-        mir::clean_up_basic_blocks(mir);
+        self.timings.specialize_mir = start.elapsed();
+    }
+
+    fn optimise_mir(&mut self, mir: &mut Mir) {
+        let start = Instant::now();
+
+        // Lowering from HIR to MIR may produce empty blocks, which we don't
+        // want for future passes. This pass also automatically removes
+        // unreachable blocks.
+        mir.remove_empty_blocks();
+
+        // Other passes depend on basic blocks ending with a terminator
+        // instruction, so let's make sure this is actually the case.
+        mir.terminate_basic_blocks();
+
+        // These passes are optional and thus only enabled if optimizations are
+        // enabled.
+        if !matches!(self.state.config.opt, Opt::None) {
+            let start = Instant::now();
+
+            InlineMethod::run_all(&mut self.state, mir);
+            self.timings.inline_mir = start.elapsed();
+
+            // After inlining it's possible certain methods that can't be called
+            // through dynamic dispatch are all inlined, in which case there's
+            // no point in keeping them around.
+            mir.remove_unused_methods(&self.state.db);
+
+            // Optimization passes may remove instructions or mutate blocks in
+            // such a way that they are a bit messy. By simplifying the graph we
+            // reduce the amount of LLVM IR we need to generate.
+            mir.simplify_graph();
+
+            // Inlining and other optimizations may result in unused
+            // instructions, so let's get rid of those.
+            mir.remove_unused_instructions();
+        }
+
         self.timings.optimize_mir = start.elapsed();
     }
 
@@ -484,10 +550,13 @@ LLVM module timings:
         directories.create_dot().map_err(CompileError::Internal)?;
 
         for module in mir.modules.values() {
-            let methods: Vec<_> =
-                module.methods.iter().map(|m| &mir.methods[m]).collect();
+            let methods: Vec<_> = module
+                .methods
+                .iter()
+                .map(|m| mir.methods.get(m).unwrap())
+                .collect();
 
-            let output = to_dot(&self.state.db, mir, &methods);
+            let output = to_dot(&self.state.db, &methods);
             let name = module.id.name(&self.state.db).normalized_name();
             let path = directories.dot.join(format!("{}.dot", name));
 
@@ -506,7 +575,8 @@ LLVM module timings:
     fn compile_machine_code(
         &mut self,
         directories: &BuildDirectories,
-        mut mir: Mir,
+        mir: Mir,
+        symbols: &SymbolNames,
         main_file: PathBuf,
     ) -> Result<PathBuf, CompileError> {
         let start = Instant::now();
@@ -523,11 +593,8 @@ LLVM module timings:
             Output::Path(path) => path.clone(),
         };
 
-        llvm::passes::split_modules(&mut self.state, &mut mir)
-            .map_err(CompileError::Internal)?;
-
         let mut res =
-            llvm::passes::lower_all(&mut self.state, directories, mir)
+            llvm::passes::lower_all(&mut self.state, directories, mir, symbols)
                 .map_err(CompileError::Internal)?;
 
         self.timings.llvm = start.elapsed();

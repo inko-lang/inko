@@ -924,19 +924,19 @@ impl<'a> Compiler<'a> {
 mod tests {
     use super::*;
     use crate::config::Config;
-    use ast::source_location::SourceLocation;
+    use location::Location;
     use similar_asserts::assert_eq;
     use types::module_name::ModuleName;
     use types::{
-        Class, ClassInstance, ClassKind, Location, Module, TypeId,
-        Variable as VariableType, VariableLocation, Visibility,
+        Class, ClassInstance, ClassKind, Module, TypeId,
+        Variable as VariableType, Visibility,
     };
 
     fn expr(value: i64) -> hir::Expression {
         hir::Expression::Int(Box::new(hir::IntLiteral {
             resolved_type: types::TypeRef::Unknown,
             value,
-            location: SourceLocation::new(1..=1, 1..=1),
+            location: Location::default(),
         }))
     }
 
@@ -1182,7 +1182,7 @@ mod tests {
     #[test]
     fn test_variable() {
         let mut state = state();
-        let loc = VariableLocation::new(1, 1, 1);
+        let loc = Location::default();
         let bind = VariableType::alloc(
             &mut state.db,
             "a".to_string(),

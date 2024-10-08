@@ -49,6 +49,7 @@
     "references/conditional-compilation.md",
     "references/compile-time-variables.md",
     "references/tuning.md",
+    "references/optimizations.md",
     "references/contributing.md"
   ],
   "Design": [

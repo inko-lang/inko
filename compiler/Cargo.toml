@@ -15,6 +15,7 @@ unicode-segmentation = "^1.10"
 getopts = "^0.2"
 ast = { path = "../ast" }
 types = { path = "../types" }
+location = { path = "../location" }
 fnv = "^1.0"
 blake3 = "^1.5"
 inkwell = { version = "^0.5", features = ["llvm17-0"] }

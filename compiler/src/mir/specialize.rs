@@ -1,10 +1,11 @@
 use crate::mir::{
     Block, BlockId, CallDynamic, CallInstance, CastType, Class as MirClass,
-    Drop, Instruction, LocationId, Method, Mir, Reference, RegisterId, SELF_ID,
+    Drop, Instruction, Location, Method, Mir, Reference, RegisterId, SELF_ID,
 };
 use crate::state::State;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::mem::swap;
+use types::collections::IndexMap;
 use types::specialize::{ordered_shapes_from_map, TypeSpecializer};
 use types::{
     Block as _, ClassId, ClassInstance, Database, MethodId, Shape,
@@ -270,7 +271,15 @@ impl<'a, 'b> Specialize<'a, 'b> {
         // them as-is could result in incorrect code being generated. As such,
         // we end up removing all methods we haven't processed (i.e they're
         // unused).
-        mir.methods.retain(|id, _| work.done.contains(id));
+        let mut old = IndexMap::new();
+
+        swap(&mut mir.methods, &mut old);
+
+        for method in old.into_values() {
+            if work.done.contains(&method.id) {
+                mir.methods.insert(method.id, method);
+            }
+        }
 
         // The specialization source is also set for regular classes that we
         // encounter. Thus, this filters out any classes that we don't encounter
@@ -299,8 +308,36 @@ impl<'a, 'b> Specialize<'a, 'b> {
             return;
         }
 
-        method.registers.get_mut(RegisterId(SELF_ID)).value_type =
-            method.id.receiver(&self.state.db);
+        let self_type = method.id.receiver(&self.state.db);
+        let mut self_regs = vec![false; method.registers.len()];
+
+        // This ensures that if `self` is assigned to other registers, we also
+        // update those registers' types.
+        for block in &method.body.blocks {
+            for instruction in &block.instructions {
+                match instruction {
+                    Instruction::Reference(ins) if ins.value.0 == SELF_ID => {
+                        self_regs[ins.register.0] = true;
+                    }
+                    Instruction::MoveRegister(ins)
+                        if ins.source.0 == SELF_ID
+                            || self_regs[ins.source.0] =>
+                    {
+                        self_regs[ins.target.0] = true;
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        method.registers.get_mut(RegisterId(SELF_ID)).value_type = self_type;
+
+        for (idx, val) in self_regs.into_iter().enumerate() {
+            if val {
+                method.registers.get_mut(RegisterId(idx)).value_type =
+                    self_type;
+            }
+        }
     }
 
     fn process_instructions(
@@ -333,14 +370,6 @@ impl<'a, 'b> Specialize<'a, 'b> {
                 // methods by their names at and beyond this point, we just not
                 // store them in the class types to begin with.
                 match instruction {
-                    Instruction::MoveRegister(ins) => {
-                        // For trait methods `self` is updated to point to the
-                        // class instance receiver of a method. We need to make
-                        // sure that new type is propagated to any registers
-                        // `self` is assigned to.
-                        method.registers.get_mut(ins.target).value_type =
-                            method.registers.get(ins.source).value_type;
-                    }
                     Instruction::Reference(ins) => {
                         let src = method.registers.value_type(ins.value);
                         let target = method.registers.value_type(ins.register);
@@ -597,7 +626,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
         }
 
         for &(old, new) in &self.specialized_methods {
-            let mut method = mir.methods[&old].clone();
+            let mut method = mir.methods.get(&old).unwrap().clone();
 
             method.id = new;
             mir.methods.insert(new, method);
@@ -954,7 +983,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
             .specialize(arg.value_type);
 
             let raw_var_type = arg.variable.value_type(&self.state.db);
-            let var_loc = *arg.variable.location(&self.state.db);
+            let var_loc = arg.variable.location(&self.state.db);
             let var_type = TypeSpecializer::new(
                 &mut self.state.db,
                 shapes,
@@ -1216,7 +1245,7 @@ impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
         before_id: BlockId,
         after_id: BlockId,
         value: RegisterId,
-        location: LocationId,
+        location: Location,
     ) {
         self.block_mut(before_id).decrement(value, location);
         self.block_mut(before_id).goto(after_id, location);
@@ -1228,7 +1257,7 @@ impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
         before_id: BlockId,
         after_id: BlockId,
         value: RegisterId,
-        location: LocationId,
+        location: Location,
     ) {
         let drop_id = self.add_block();
         let check = self.block_mut(before_id);
@@ -1251,7 +1280,7 @@ impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
         after_id: BlockId,
         value: RegisterId,
         dropper: bool,
-        location: LocationId,
+        location: Location,
     ) {
         if dropper {
             self.call_dropper(before_id, value, location);
@@ -1275,7 +1304,7 @@ impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
         &mut self,
         block: BlockId,
         value: RegisterId,
-        location: LocationId,
+        location: Location,
     ) {
         let typ = self.method.registers.value_type(value);
         let reg = self.method.registers.alloc(TypeRef::nil());

@@ -2,13 +2,13 @@ use crate::config::BuildDirectories;
 use crate::hir;
 use crate::json::{Json, Object};
 use crate::state::State;
+use location::Location;
 use std::fs::{read_to_string, write};
 use std::mem::take;
 use std::path::Path;
 use types::format::format_type;
 use types::{
-    ClassId, ClassKind, Database, Location, MethodId, ModuleId, TraitId,
-    TypeBounds,
+    ClassId, ClassKind, Database, MethodId, ModuleId, TraitId, TypeBounds,
 };
 
 fn location_to_json(location: Location) -> Json {
@@ -16,10 +16,10 @@ fn location_to_json(location: Location) -> Json {
     let mut lines = Object::new();
     let mut cols = Object::new();
 
-    lines.add("start", Json::Int(*location.lines.start() as i64));
-    lines.add("end", Json::Int(*location.lines.end() as i64));
-    cols.add("start", Json::Int(*location.columns.start() as i64));
-    cols.add("end", Json::Int(*location.columns.end() as i64));
+    lines.add("start", Json::Int(location.line_start as i64));
+    lines.add("end", Json::Int(location.line_end as i64));
+    cols.add("start", Json::Int(location.column_start as i64));
+    cols.add("end", Json::Int(location.column_end as i64));
     obj.add("lines", Json::Object(lines));
     obj.add("columns", Json::Object(cols));
     Json::Object(obj)

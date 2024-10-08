@@ -2,6 +2,7 @@ use crate::llvm::constants::{HEADER_CLASS_INDEX, HEADER_REFS_INDEX};
 use crate::llvm::context::Context;
 use crate::llvm::module::Module;
 use crate::llvm::runtime_function::RuntimeFunction;
+use crate::symbol_names::SymbolNames;
 use inkwell::basic_block::BasicBlock;
 use inkwell::builder;
 use inkwell::debug_info::{
@@ -17,8 +18,9 @@ use inkwell::values::{
     InstructionOpcode, IntValue, PointerValue,
 };
 use inkwell::{AtomicOrdering, AtomicRMWBinOp, FloatPredicate, IntPredicate};
+use std::collections::HashMap;
 use std::path::Path;
-use types::{ClassId, Database};
+use types::{ClassId, Database, MethodId};
 
 /// A wrapper around an LLVM Builder that provides some additional methods.
 pub(crate) struct Builder<'ctx> {
@@ -806,6 +808,7 @@ pub(crate) struct DebugBuilder<'ctx> {
     inner: DebugInfoBuilder<'ctx>,
     unit: DICompileUnit<'ctx>,
     context: &'ctx Context,
+    functions: HashMap<MethodId, DISubprogram<'ctx>>,
 }
 
 impl<'ctx> DebugBuilder<'ctx> {
@@ -844,30 +847,70 @@ impl<'ctx> DebugBuilder<'ctx> {
             "",
         );
 
-        DebugBuilder { inner, context, unit }
+        DebugBuilder { inner, context, unit, functions: HashMap::new() }
     }
 
     pub(crate) fn new_location(
         &self,
-        line: usize,
-        column: usize,
+        line: u32,
+        column: u32,
         scope: DIScope<'ctx>,
     ) -> DILocation<'ctx> {
         self.inner.create_debug_location(
             &self.context.inner,
-            line as u32,
-            column as u32,
+            line,
+            column,
             scope,
             None,
         )
     }
 
+    pub(crate) fn new_inlined_location(
+        &self,
+        line: u32,
+        column: u32,
+        scope: DIScope<'ctx>,
+        inlined_at: DILocation<'ctx>,
+    ) -> DILocation<'ctx> {
+        self.inner.create_debug_location(
+            &self.context.inner,
+            line,
+            column,
+            scope,
+            Some(inlined_at),
+        )
+    }
+
     pub(crate) fn new_function(
+        &mut self,
+        db: &Database,
+        names: &SymbolNames,
+        id: MethodId,
+        line: u32,
+    ) -> DISubprogram<'ctx> {
+        if let Some(&val) = self.functions.get(&id) {
+            return val;
+        }
+
+        let func = self.create_function(
+            id.name(db),
+            &names.methods[&id],
+            &id.source_file(db),
+            line,
+            id.is_private(db),
+            false,
+        );
+
+        self.functions.insert(id, func);
+        func
+    }
+
+    pub(crate) fn create_function(
         &self,
         name: &str,
         mangled_name: &str,
         path: &Path,
-        line: usize,
+        line: u32,
         private: bool,
         optimised: bool,
     ) -> DISubprogram<'ctx> {
@@ -889,11 +932,11 @@ impl<'ctx> DebugBuilder<'ctx> {
             name,
             Some(mangled_name),
             file,
-            line as u32,
+            line,
             typ,
             private,
             true,
-            line as u32,
+            line,
             DIFlags::PUBLIC,
             optimised,
         )

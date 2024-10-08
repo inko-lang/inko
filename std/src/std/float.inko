@@ -25,17 +25,17 @@ trait pub ToFloat {
 # A 64-bit floating point number.
 class builtin Float {
   # Returns a NaN.
-  fn pub static not_a_number -> Float {
+  fn pub inline static not_a_number -> Float {
     0.0 / 0.0
   }
 
   # Returns the positive infinity value.
-  fn pub static infinity -> Float {
+  fn pub inline static infinity -> Float {
     1.0 / 0.0
   }
 
   # Returns the negative infinity value.
-  fn pub static negative_infinity -> Float {
+  fn pub inline static negative_infinity -> Float {
     -1.0 / 0.0
   }
 
@@ -46,7 +46,7 @@ class builtin Float {
   # ```inko
   # Float.from_bits(0x4029000000000000) # => 12.5
   # ```
-  fn pub static from_bits(bits: Int) -> Float {
+  fn pub inline static from_bits(bits: Int) -> Float {
     _INKO.float_from_bits(bits)
   }
 
@@ -88,7 +88,7 @@ class builtin Float {
   # 42.0.absolute  # => 42
   # -42.0.absolute # => 42
   # ```
-  fn pub absolute -> Float {
+  fn pub inline absolute -> Float {
     Float.from_bits(to_bits & MAX)
   }
 
@@ -100,7 +100,7 @@ class builtin Float {
   # 42.0.opposite  # => -42
   # -42.0.opposite # => 42
   # ```
-  fn pub opposite -> Float {
+  fn pub inline opposite -> Float {
     Float.from_bits(to_bits ^ MIN)
   }
 
@@ -119,7 +119,7 @@ class builtin Float {
   # ```inko
   # Float.not_a_number.not_a_number? # => true
   # ```
-  fn pub not_a_number? -> Bool {
+  fn pub inline not_a_number? -> Bool {
     _INKO.float_is_nan(self)
   }
 
@@ -138,7 +138,7 @@ class builtin Float {
   # ```inko
   # (10.0 / 0.0).infinite? # => true
   # ```
-  fn pub infinite? -> Bool {
+  fn pub inline infinite? -> Bool {
     _INKO.float_is_inf(self)
   }
 
@@ -157,7 +157,7 @@ class builtin Float {
   # ```inko
   # Float.not_a_number.floor.not_a_number? # => true
   # ```
-  fn pub floor -> Float {
+  fn pub inline floor -> Float {
     _INKO.float_floor(self)
   }
 
@@ -176,7 +176,7 @@ class builtin Float {
   # ```inko
   # Float.not_a_number.ceil.not_a_number? # => true
   # ```
-  fn pub ceil -> Float {
+  fn pub inline ceil -> Float {
     _INKO.float_ceil(self)
   }
 
@@ -211,7 +211,7 @@ class builtin Float {
   # ```inko
   # Float.not_a_number.round.not_a_number? # => true
   # ```
-  fn pub round(decimals: Int) -> Float {
+  fn pub inline round(decimals: Int) -> Float {
     if decimals <= 0 { return _INKO.float_round(self) }
 
     if decimals > 4_294_967_295 { return self }
@@ -231,7 +231,7 @@ class builtin Float {
   # ```inko
   # 3.5.fract => 0.5
   # ```
-  fn pub fractional -> Float {
+  fn pub inline fractional -> Float {
     absolute % 1.0
   }
 
@@ -247,68 +247,74 @@ class builtin Float {
   # ```inko
   # 1.0.to_bits # => 4607182418800017408
   # ```
-  fn pub to_bits -> Int {
+  fn pub inline to_bits -> Int {
     _INKO.float_to_bits(self)
   }
 
   # Returns `true` if `self` has a negative sign, including `-0.0`, NaNs with a
   # negative sign bit, and negative infinity.
-  fn pub negative_sign? -> Bool {
+  fn pub inline negative_sign? -> Bool {
     to_bits & MIN != 0
   }
 
   # Returns `true` if `self` has a positive sign, including `+0.0`, NaNs with a
   # positive sign bit, and positive infinity.
-  fn pub positive_sign? -> Bool {
+  fn pub inline positive_sign? -> Bool {
     negative_sign?.false?
   }
 }
 
 impl ToInt for Float {
-  fn pub to_int -> Int {
+  fn pub inline to_int -> Int {
     self as Int
   }
 }
 
 impl ToFloat for Float {
-  fn pub to_float -> Float {
+  fn pub inline to_float -> Float {
     clone
   }
 }
 
 impl Clone[Float] for Float {
-  fn pub clone -> Float {
+  fn pub inline clone -> Float {
     self
   }
 }
 
 impl Add[Float, Float] for Float {
-  fn pub +(other: ref Float) -> Float {
+  fn pub inline +(other: ref Float) -> Float {
     _INKO.float_add(self, other)
   }
 }
 
 impl Subtract[Float, Float] for Float {
-  fn pub -(other: ref Float) -> Float {
+  fn pub inline -(other: ref Float) -> Float {
     _INKO.float_sub(self, other)
   }
 }
 
 impl Divide[Float, Float] for Float {
-  fn pub /(other: ref Float) -> Float {
+  fn pub inline /(other: ref Float) -> Float {
     _INKO.float_div(self, other)
   }
 }
 
 impl Multiply[Float, Float] for Float {
-  fn pub *(other: ref Float) -> Float {
+  fn pub inline *(other: ref Float) -> Float {
     _INKO.float_mul(self, other)
   }
 }
 
 impl Modulo[Float, Float] for Float {
-  fn pub %(other: ref Float) -> Float {
+  fn pub inline %(other: ref Float) -> Float {
     _INKO.float_mod(self, other)
+  }
+}
+
+impl Power[Int, Float] for Float {
+  fn pub inline **(other: ref Int) -> Float {
+    _INKO.float_powi(self, other)
   }
 }
 
@@ -330,7 +336,7 @@ impl Compare[Float] for Float {
   # - positive infinity
   # - positive signaling NaN
   # - positive quiet NaN
-  fn pub cmp(other: ref Float) -> Ordering {
+  fn pub inline cmp(other: ref Float) -> Ordering {
     let mut lhs = to_bits
     let mut rhs = other.to_bits
 
@@ -340,19 +346,19 @@ impl Compare[Float] for Float {
     lhs.cmp(rhs)
   }
 
-  fn pub <(other: ref Float) -> Bool {
+  fn pub inline <(other: ref Float) -> Bool {
     _INKO.float_lt(self, other)
   }
 
-  fn pub <=(other: ref Float) -> Bool {
+  fn pub inline <=(other: ref Float) -> Bool {
     _INKO.float_le(self, other)
   }
 
-  fn pub >(other: ref Float) -> Bool {
+  fn pub inline >(other: ref Float) -> Bool {
     _INKO.float_gt(self, other)
   }
 
-  fn pub >=(other: ref Float) -> Bool {
+  fn pub inline >=(other: ref Float) -> Bool {
     _INKO.float_ge(self, other)
   }
 }
@@ -369,7 +375,7 @@ impl Equal[ref Float] for Float {
   #
   # See https://randomascii.wordpress.com/2012/02/25/comparing-floating-point-numbers-2012-edition/
   # for more details on how ULPs work.
-  fn pub ==(other: ref Float) -> Bool {
+  fn pub inline ==(other: ref Float) -> Bool {
     # Handle simple comparisons such as `1.2 == 1.2` and `0.0 == -0.0`.
     if _INKO.float_eq(self, other) { return true }
 
@@ -417,7 +423,7 @@ impl ToString for Float {
 }
 
 impl Hash for Float {
-  fn pub hash[H: mut + Hasher](hasher: mut H) {
+  fn pub inline hash[H: mut + Hasher](hasher: mut H) {
     hasher.write(to_bits)
   }
 }
@@ -425,11 +431,5 @@ impl Hash for Float {
 impl Format for Float {
   fn pub fmt(formatter: mut Formatter) {
     formatter.write(to_string)
-  }
-}
-
-impl Power[Int, Float] for Float {
-  fn pub **(other: ref Int) -> Float {
-    _INKO.float_powi(self, other)
   }
 }

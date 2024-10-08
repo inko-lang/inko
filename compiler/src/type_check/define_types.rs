@@ -6,15 +6,16 @@ use crate::type_check::{
     define_type_bounds, CheckTypeSignature, DefineAndCheckTypeSignature,
     DefineTypeSignature, Rules, TypeScope,
 };
+use location::Location;
 use std::path::PathBuf;
 use types::check::TypeChecker;
 use types::format::format_type;
 use types::{
-    Class, ClassId, ClassInstance, ClassKind, Constant, Database, Location,
-    ModuleId, Symbol, Trait, TraitId, TraitImplementation, TypeId, TypeRef,
-    Visibility, ARRAY_INTERNAL_NAME, ENUM_TAG_FIELD, ENUM_TAG_INDEX,
-    FIELDS_LIMIT, MAIN_CLASS, OPTION_CLASS, OPTION_MODULE, RESULT_CLASS,
-    RESULT_MODULE, VARIANTS_LIMIT,
+    Class, ClassId, ClassInstance, ClassKind, Constant, Database, ModuleId,
+    Symbol, Trait, TraitId, TraitImplementation, TypeId, TypeRef, Visibility,
+    ARRAY_INTERNAL_NAME, ENUM_TAG_FIELD, ENUM_TAG_INDEX, FIELDS_LIMIT,
+    MAIN_CLASS, OPTION_CLASS, OPTION_MODULE, RESULT_CLASS, RESULT_MODULE,
+    VARIANTS_LIMIT,
 };
 
 /// The maximum number of arguments a single constructor can accept. We subtract
@@ -66,10 +67,7 @@ impl<'a> DefineTypes<'a> {
         let name = node.name.name.clone();
         let module = self.module;
         let vis = Visibility::public(node.public);
-        let loc = Location::new(
-            node.location.lines.clone(),
-            node.location.columns.clone(),
-        );
+        let loc = node.location;
         let id = match node.kind {
             hir::ClassKind::Builtin => {
                 if !self.module.is_std(self.db()) {
@@ -77,7 +75,7 @@ impl<'a> DefineTypes<'a> {
                         DiagnosticId::InvalidType,
                         "builtin classes can only be defined in 'std' modules",
                         self.file(),
-                        node.location.clone(),
+                        node.location,
                     );
                 }
 
@@ -89,7 +87,7 @@ impl<'a> DefineTypes<'a> {
                         DiagnosticId::InvalidType,
                         format!("'{}' isn't a valid builtin class", name),
                         self.file(),
-                        node.location.clone(),
+                        node.location,
                     );
 
                     return;
@@ -125,7 +123,7 @@ impl<'a> DefineTypes<'a> {
             self.state.diagnostics.duplicate_symbol(
                 &name,
                 self.file(),
-                node.name.location.clone(),
+                node.name.location,
             );
         } else {
             self.module.new_symbol(self.db_mut(), name, Symbol::Class(id));
@@ -138,10 +136,7 @@ impl<'a> DefineTypes<'a> {
         let name = node.name.name.clone();
         let module = self.module;
         let vis = Visibility::public(node.public);
-        let loc = Location::new(
-            node.location.lines.clone(),
-            node.location.columns.clone(),
-        );
+        let loc = node.location;
         let id = Class::alloc(
             self.db_mut(),
             name.clone(),
@@ -155,7 +150,7 @@ impl<'a> DefineTypes<'a> {
             self.state.diagnostics.duplicate_symbol(
                 &name,
                 self.file(),
-                node.name.location.clone(),
+                node.name.location,
             );
         } else {
             self.module.new_symbol(self.db_mut(), name, Symbol::Class(id));
@@ -179,7 +174,7 @@ impl<'a> DefineTypes<'a> {
             self.state.diagnostics.duplicate_symbol(
                 &name,
                 self.file(),
-                node.name.location.clone(),
+                node.name.location,
             );
         } else {
             self.module.new_symbol(self.db_mut(), name, Symbol::Trait(id));
@@ -196,7 +191,7 @@ impl<'a> DefineTypes<'a> {
             self.state.diagnostics.duplicate_symbol(
                 &name,
                 self.file(),
-                node.name.location.clone(),
+                node.name.location,
             );
 
             return;
@@ -204,10 +199,7 @@ impl<'a> DefineTypes<'a> {
 
         let db = self.db_mut();
         let vis = Visibility::public(node.public);
-        let loc = Location::new(
-            node.location.lines.clone(),
-            node.location.columns.clone(),
-        );
+        let loc = node.location;
         let id = Constant::alloc(db, module, loc, name, vis, TypeRef::Unknown);
 
         node.constant_id = Some(id);
@@ -264,7 +256,7 @@ impl<'a> ImplementTraits<'a> {
                 self.state.diagnostics.not_a_class(
                     class_name,
                     self.file(),
-                    node.class_name.location.clone(),
+                    node.class_name.location,
                 );
 
                 return;
@@ -273,7 +265,7 @@ impl<'a> ImplementTraits<'a> {
                 self.state.diagnostics.undefined_symbol(
                     class_name,
                     self.file(),
-                    node.class_name.location.clone(),
+                    node.class_name.location,
                 );
 
                 return;
@@ -285,7 +277,7 @@ impl<'a> ImplementTraits<'a> {
                 DiagnosticId::InvalidImplementation,
                 "traits can't be implemented for this class",
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
 
             return;
@@ -324,7 +316,7 @@ impl<'a> ImplementTraits<'a> {
                         name, class_name
                     ),
                     self.file(),
-                    node.location.clone(),
+                    node.location,
                 );
             } else {
                 class_id.add_trait_implementation(
@@ -340,7 +332,7 @@ impl<'a> ImplementTraits<'a> {
                         "the trait 'std::drop::Drop' doesn't support type \
                         parameter bounds",
                         self.file(),
-                        node.location.clone(),
+                        node.location,
                     );
                 }
 
@@ -502,7 +494,7 @@ impl<'a> CheckTraitImplementations<'a> {
                         class_ins.instance_of().name(self.db())
                     ),
                     self.file(),
-                    node.location.clone(),
+                    node.location,
                 );
             }
         }
@@ -576,7 +568,7 @@ impl<'a> DefineFields<'a> {
                 self.state.diagnostics.fields_not_allowed(
                     &node.name.name,
                     self.file(),
-                    fnode.location.clone(),
+                    fnode.location,
                 );
 
                 break;
@@ -590,7 +582,7 @@ impl<'a> DefineFields<'a> {
                         FIELDS_LIMIT
                     ),
                     self.file(),
-                    fnode.location.clone(),
+                    fnode.location,
                 );
 
                 break;
@@ -600,7 +592,7 @@ impl<'a> DefineFields<'a> {
                 self.state.diagnostics.duplicate_field(
                     &name,
                     self.file(),
-                    fnode.location.clone(),
+                    fnode.location,
                 );
 
                 continue;
@@ -621,17 +613,13 @@ impl<'a> DefineFields<'a> {
             .define_type(&mut fnode.value_type);
 
             if !class_id.is_public(self.db()) && vis == Visibility::Public {
-                self.state.diagnostics.public_field_private_class(
-                    self.file(),
-                    fnode.location.clone(),
-                );
+                self.state
+                    .diagnostics
+                    .public_field_private_class(self.file(), fnode.location);
             }
 
             let module = self.module;
-            let loc = Location::new(
-                fnode.location.lines.clone(),
-                fnode.location.columns.clone(),
-            );
+            let loc = fnode.location;
             let field = class_id.new_field(
                 self.db_mut(),
                 name,
@@ -659,7 +647,7 @@ impl<'a> DefineFields<'a> {
                 self.state.diagnostics.duplicate_field(
                     &name,
                     self.file(),
-                    node.location.clone(),
+                    node.location,
                 );
 
                 continue;
@@ -693,22 +681,18 @@ impl<'a> DefineFields<'a> {
                         format_type(self.db(), typ)
                     ),
                     self.file(),
-                    node.value_type.location().clone(),
+                    node.value_type.location(),
                 );
             }
 
             if !class_id.is_public(self.db()) && vis == Visibility::Public {
-                self.state.diagnostics.public_field_private_class(
-                    self.file(),
-                    node.location.clone(),
-                );
+                self.state
+                    .diagnostics
+                    .public_field_private_class(self.file(), node.location);
             }
 
             let module = self.module;
-            let loc = Location::new(
-                node.location.lines.clone(),
-                node.location.columns.clone(),
-            );
+            let loc = node.location;
             let field = class_id.new_field(
                 self.db_mut(),
                 name,
@@ -781,7 +765,7 @@ impl<'a> DefineTypeParameters<'a> {
                 self.state.diagnostics.duplicate_type_parameter(
                     name,
                     self.module.file(self.db()),
-                    param.name.location.clone(),
+                    param.name.location,
                 );
             } else {
                 let pid = id.new_type_parameter(self.db_mut(), name.clone());
@@ -805,7 +789,7 @@ impl<'a> DefineTypeParameters<'a> {
                 self.state.diagnostics.duplicate_type_parameter(
                     name,
                     self.module.file(self.db()),
-                    param.name.location.clone(),
+                    param.name.location,
                 );
             } else {
                 let pid = id.new_type_parameter(self.db_mut(), name.clone());
@@ -1082,7 +1066,7 @@ impl<'a> DefineConstructors<'a> {
                     DiagnosticId::InvalidSymbol,
                     "constructors can only be defined for enum classes",
                     self.file(),
-                    node.location.clone(),
+                    node.location,
                 );
 
                 continue;
@@ -1095,7 +1079,7 @@ impl<'a> DefineConstructors<'a> {
                     DiagnosticId::DuplicateSymbol,
                     format!("the constructor '{}' is already defined", name),
                     self.file(),
-                    node.name.location.clone(),
+                    node.name.location,
                 );
 
                 continue;
@@ -1129,7 +1113,7 @@ impl<'a> DefineConstructors<'a> {
                         MAX_MEMBERS
                     ),
                     self.file(),
-                    node.location.clone(),
+                    node.location,
                 );
 
                 continue;
@@ -1143,24 +1127,18 @@ impl<'a> DefineConstructors<'a> {
                         VARIANTS_LIMIT
                     ),
                     self.file(),
-                    node.location.clone(),
+                    node.location,
                 );
 
                 continue;
             }
 
             constructors_count += 1;
-
-            let loc = Location::new(
-                node.location.lines.clone(),
-                node.location.columns.clone(),
-            );
-
             class_id.new_constructor(
                 self.db_mut(),
                 name.to_string(),
                 members,
-                loc,
+                node.location,
             );
         }
 
@@ -1170,7 +1148,7 @@ impl<'a> DefineConstructors<'a> {
                     DiagnosticId::InvalidType,
                     "enum classes must define at least a single constructor",
                     self.file(),
-                    node.location.clone(),
+                    node.location,
                 );
             }
 
@@ -1188,7 +1166,7 @@ impl<'a> DefineConstructors<'a> {
                 tag_typ,
                 vis,
                 module,
-                loc.clone(),
+                loc,
             );
 
             for index in 0..members_count {
@@ -1208,7 +1186,7 @@ impl<'a> DefineConstructors<'a> {
                     typ,
                     vis,
                     module,
-                    loc.clone(),
+                    loc,
                 );
             }
         }

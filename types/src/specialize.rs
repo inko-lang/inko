@@ -315,7 +315,7 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
         if kind.is_enum() {
             for old_var in class.get(self.db).constructors.values().clone() {
                 let name = old_var.name(self.db).clone();
-                let loc = old_var.location(self.db).clone();
+                let loc = old_var.location(self.db);
                 let members = old_var
                     .members(self.db)
                     .into_iter()
@@ -338,7 +338,7 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
                     field.value_type,
                     field.visibility,
                     field.module,
-                    field.location.clone(),
+                    field.location,
                 )
             };
 

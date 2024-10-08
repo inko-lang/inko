@@ -84,6 +84,14 @@ fn extern inko_byte_array_from_pointer(
   size: Int,
 ) -> ByteArray
 
+fn invalid_capacity(size: Int) -> Never {
+  panic('the capacity (${size}) must be greater than or equal to zero')
+}
+
+fn invalid_size(size: Int) -> Never {
+  panic('the new size (${size}) must be greater than zero')
+}
+
 # A type from which a new `ByteArray` can be created.
 trait pub ToByteArray {
   fn pub to_byte_array -> ByteArray
@@ -123,7 +131,7 @@ class builtin ByteArray {
   # ByteArray.with_capacity(32).capacity # => 32
   # ```
   fn pub static with_capacity(size: Int) -> ByteArray {
-    if size < 0 { panic('The capacity must be greater than or equal to zero') }
+    if size < 0 { invalid_capacity(size) }
 
     inko_byte_array_with_capacity(_INKO.state, size)
   }
@@ -474,7 +482,7 @@ class builtin ByteArray {
   # bytes # => ByteArray.new
   # ```
   fn pub mut resize(size: Int, value: Int) {
-    if size < 0 { panic('The new size must be greater than zero') }
+    if size < 0 { invalid_size(size) }
 
     inko_byte_array_resize(self, size, value)
   }

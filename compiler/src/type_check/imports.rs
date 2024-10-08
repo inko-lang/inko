@@ -1,10 +1,9 @@
 //! Type-checking of import statements.
-use std::path::PathBuf;
-
 use crate::diagnostics::DiagnosticId;
 use crate::hir;
 use crate::state::State;
-use ast::source_location::SourceLocation;
+use location::Location;
+use std::path::PathBuf;
 use types::module_name::ModuleName;
 use types::{Database, ModuleId, Symbol, IMPORT_MODULE_ITSELF_NAME};
 
@@ -48,7 +47,7 @@ impl<'a> DefineImportedTypes<'a> {
                 source,
                 &source_name,
                 source_name.tail().to_string(),
-                &node.source.last().unwrap().location,
+                node.source.last().unwrap().location,
             );
         } else {
             for symbol in &mut node.symbols {
@@ -60,7 +59,7 @@ impl<'a> DefineImportedTypes<'a> {
                         source,
                         &source_name,
                         import_as,
-                        &symbol.import_as.location,
+                        symbol.import_as.location,
                     );
                 } else {
                     self.import_symbol(source, symbol);
@@ -74,7 +73,7 @@ impl<'a> DefineImportedTypes<'a> {
         source: ModuleId,
         source_name: &ModuleName,
         import_as: String,
-        location: &SourceLocation,
+        location: Location,
     ) {
         let name = if import_as == IMPORT_MODULE_ITSELF_NAME {
             source_name.tail().to_string()
@@ -86,7 +85,7 @@ impl<'a> DefineImportedTypes<'a> {
             self.state.diagnostics.duplicate_symbol(
                 &name,
                 self.file(),
-                location.clone(),
+                location,
             );
         } else {
             self.module.new_symbol(self.db_mut(), name, Symbol::Module(source));
@@ -106,7 +105,7 @@ impl<'a> DefineImportedTypes<'a> {
                 self.state.diagnostics.duplicate_symbol(
                     import_as,
                     self.file(),
-                    node.import_as.location.clone(),
+                    node.import_as.location,
                 );
             } else if !symbol.is_visible_to(self.db(), self.module) {
                 self.state.diagnostics.error(
@@ -116,7 +115,7 @@ impl<'a> DefineImportedTypes<'a> {
                         name
                     ),
                     self.file(),
-                    node.name.location.clone(),
+                    node.name.location,
                 );
             } else {
                 self.module.new_symbol(
@@ -129,7 +128,7 @@ impl<'a> DefineImportedTypes<'a> {
             self.state.diagnostics.undefined_symbol(
                 name,
                 self.file(),
-                node.name.location.clone(),
+                node.name.location,
             );
         }
     }
@@ -185,9 +184,10 @@ mod tests {
     use crate::config::Config;
     use crate::hir;
     use crate::test::{cols, hir_module};
+    use location::Location;
     use std::path::PathBuf;
     use types::module_name::ModuleName;
-    use types::{Location, Method, MethodKind, Module, Visibility};
+    use types::{Method, MethodKind, Module, Visibility};
 
     #[test]
     fn test_import_module() {
@@ -699,7 +699,7 @@ mod tests {
         let foo = Method::alloc(
             &mut state.db,
             bar_mod,
-            Location::new(1..=1, 1..=1),
+            Location::default(),
             symbol.clone(),
             Visibility::Private,
             MethodKind::Instance,
@@ -776,7 +776,7 @@ mod tests {
         let fizz = Method::alloc(
             &mut state.db,
             fizz_mod,
-            Location::new(1..=1, 1..=1),
+            Location::default(),
             symbol.clone(),
             Visibility::Public,
             MethodKind::Instance,

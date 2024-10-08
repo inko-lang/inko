@@ -165,19 +165,19 @@ fn extern pipe2(pipes: Pointer[Pipes], flags: Int32) -> Int32
 
 fn extern __error -> Pointer[Int32]
 
-fn flush(fd: Int32) -> Int32 {
+fn inline flush(fd: Int32) -> Int32 {
   fsync(fd)
 }
 
-fn dirent_type(pointer: Pointer[Dirent]) -> Int {
+fn inline dirent_type(pointer: Pointer[Dirent]) -> Int {
   pointer.d_type as Int
 }
 
-fn dirent_name(pointer: Pointer[Dirent]) -> Pointer[UInt8] {
+fn inline dirent_name(pointer: Pointer[Dirent]) -> Pointer[UInt8] {
   pointer as Int + 24 as Pointer[UInt8]
 }
 
-fn pipes -> Result[(Int32, Int32), Error] {
+fn inline pipes -> Result[(Int32, Int32), Error] {
   let pipes = Pipes()
 
   if pipe2(mut pipes, O_CLOEXEC as Int32) as Int != 0 {
@@ -187,6 +187,6 @@ fn pipes -> Result[(Int32, Int32), Error] {
   Result.Ok((pipes.reader, pipes.writer))
 }
 
-fn errno_location -> Pointer[Int32] {
+fn inline errno_location -> Pointer[Int32] {
   __error
 }

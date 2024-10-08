@@ -86,12 +86,7 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         "A directory to add to the list of source directories",
         "PATH",
     );
-    options.optopt(
-        "",
-        "opt",
-        "The amount of optimisations to apply",
-        "none,balanced,aggressive",
-    );
+    options.optopt("", "opt", "The optimization level to use", "LEVEL");
     options.optflag("", "static", "Statically link imported C libraries");
     options.optflag("", "dot", "Output the MIR of every module as DOT files");
     options.optflag("", "verify-llvm", "Verify LLVM IR when generating code");

@@ -130,6 +130,12 @@ fn valid? {}
 
 # Method names may also end with a =, this is used for setters:
 fn value= {}
+
+# Static and instance methods can use the `inline` keyword to ensure they're
+# always inlined:
+fn inline foo {}
+fn pub inline foo {}
+fn pub inline mut foo {}
 ```
 
 Methods with arguments are defined like so, optional arguments aren't supported:

@@ -3,7 +3,7 @@ use crate::diagnostics::DiagnosticId;
 use crate::hir;
 use crate::state::State;
 use crate::type_check::{DefineAndCheckTypeSignature, Rules, TypeScope};
-use ast::source_location::SourceLocation;
+use location::Location;
 use std::cell::Cell;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::mem::swap;
@@ -17,8 +17,7 @@ use types::{
     FieldId, FieldInfo, IdentifierKind, IntrinsicCall, MethodId, MethodLookup,
     ModuleId, Receiver, Sign, Symbol, ThrowKind, TraitId, TraitInstance,
     TypeArguments, TypeBounds, TypeId, TypeRef, Variable, VariableId,
-    VariableLocation, CALL_METHOD, DEREF_POINTER_FIELD,
-    IMPORT_MODULE_ITSELF_NAME,
+    CALL_METHOD, DEREF_POINTER_FIELD, IMPORT_MODULE_ITSELF_NAME,
 };
 
 const IGNORE_VARIABLE: &str = "_";
@@ -84,7 +83,7 @@ impl VariableScope {
         name: String,
         value_type: TypeRef,
         mutable: bool,
-        location: VariableLocation,
+        location: Location,
     ) -> VariableId {
         let var =
             Variable::alloc(db, name.clone(), value_type, mutable, location);
@@ -262,7 +261,7 @@ struct MethodCall {
     require_sendable: bool,
 
     /// Arguments of which we need to check if they are sendable.
-    check_sendable: Vec<(TypeRef, SourceLocation)>,
+    check_sendable: Vec<(TypeRef, Location)>,
 
     /// The resolved return type of the call.
     return_type: TypeRef,
@@ -405,11 +404,7 @@ impl MethodCall {
         }
     }
 
-    fn check_type_bounds(
-        &mut self,
-        state: &mut State,
-        location: &SourceLocation,
-    ) {
+    fn check_type_bounds(&mut self, state: &mut State, location: Location) {
         let args = self.type_arguments.clone();
         let mut scope = Environment::new(args.clone(), args);
         let mut checker = TypeChecker::new(&state.db);
@@ -423,16 +418,12 @@ impl MethodCall {
                     self.method.name(&state.db),
                 ),
                 self.module.file(&state.db),
-                location.clone(),
+                location,
             );
         }
     }
 
-    fn check_arguments(
-        &mut self,
-        state: &mut State,
-        location: &SourceLocation,
-    ) {
+    fn check_arguments(&mut self, state: &mut State, location: Location) {
         let expected = self.method.number_of_arguments(&state.db);
 
         if self.arguments > expected && self.method.is_variadic(&state.db) {
@@ -444,16 +435,12 @@ impl MethodCall {
                 self.arguments,
                 expected,
                 self.module.file(&state.db),
-                location.clone(),
+                location,
             );
         }
     }
 
-    fn check_mutability(
-        &mut self,
-        state: &mut State,
-        location: &SourceLocation,
-    ) {
+    fn check_mutability(&mut self, state: &mut State, location: Location) {
         let name = self.method.name(&state.db);
         let rec = self.receiver;
 
@@ -471,7 +458,7 @@ impl MethodCall {
                     )
                 ),
                 self.module.file(&state.db),
-                location.clone(),
+                location,
             );
 
             return;
@@ -491,7 +478,7 @@ impl MethodCall {
                     )
                 ),
                 self.module.file(&state.db),
-                location.clone(),
+                location,
             );
         }
     }
@@ -504,12 +491,12 @@ impl MethodCall {
         state: &mut State,
         argument: TypeRef,
         expected: TypeRef,
-        location: &SourceLocation,
+        location: Location,
     ) -> TypeRef {
         let given = argument.cast_according_to(expected, &state.db);
 
         if self.require_sendable || given.is_uni_ref(&state.db) {
-            self.check_sendable.push((given, location.clone()));
+            self.check_sendable.push((given, location));
         }
 
         let mut env = Environment::new(
@@ -524,7 +511,7 @@ impl MethodCall {
                 format_type_with_arguments(&state.db, &env.left, given),
                 format_type_with_arguments(&state.db, &env.right, expected),
                 self.module.file(&state.db),
-                location.clone(),
+                location,
             );
         }
 
@@ -532,7 +519,7 @@ impl MethodCall {
             .resolve(expected)
     }
 
-    fn check_sendable(&mut self, state: &mut State, location: &SourceLocation) {
+    fn check_sendable(&mut self, state: &mut State, location: Location) {
         if self.check_sendable.is_empty() {
             return;
         }
@@ -545,7 +532,7 @@ impl MethodCall {
                 typ.is_sendable(&state.db) || typ.is_sendable_ref(&state.db)
             });
 
-        for (given, loc) in &self.check_sendable {
+        for &(given, loc) in &self.check_sendable {
             if given.is_sendable(&state.db)
                 || (given.is_sendable_ref(&state.db) && ref_safe)
             {
@@ -555,9 +542,9 @@ impl MethodCall {
             let targs = &self.type_arguments;
 
             state.diagnostics.unsendable_argument(
-                format_type_with_arguments(&state.db, targs, *given),
+                format_type_with_arguments(&state.db, targs, given),
                 self.module.file(&state.db),
-                loc.clone(),
+                loc,
             );
         }
 
@@ -581,7 +568,7 @@ impl MethodCall {
                     self.return_type,
                 ),
                 self.module.file(&state.db),
-                location.clone(),
+                location,
             );
         }
     }
@@ -661,7 +648,7 @@ pub(crate) fn define_constants(
                 DiagnosticId::InvalidType,
                 "the type of this constant can't be inferred",
                 module.file(&state.db),
-                node.name.location.clone(),
+                node.name.location,
             );
         }
     }
@@ -723,7 +710,7 @@ impl<'a> Expressions<'a> {
                     num_methods, METHODS_IN_CLASS_LIMIT
                 ),
                 self.module.file(self.db()),
-                node.location.clone(),
+                node.location,
             );
         }
 
@@ -808,7 +795,7 @@ impl<'a> Expressions<'a> {
             returns,
             &mut node.body,
             &mut scope,
-            &node.location,
+            node.location,
         );
     }
 
@@ -841,7 +828,7 @@ impl<'a> Expressions<'a> {
             returns,
             &mut node.body,
             &mut scope,
-            &node.location,
+            node.location,
         );
     }
 
@@ -873,7 +860,7 @@ impl<'a> Expressions<'a> {
             returns,
             &mut node.body,
             &mut scope,
-            &node.location,
+            node.location,
         );
     }
 
@@ -904,7 +891,7 @@ impl<'a> Expressions<'a> {
             returns,
             &mut node.body,
             &mut scope,
-            &node.location,
+            node.location,
         );
     }
 
@@ -982,7 +969,7 @@ impl<'a> Expressions<'a> {
                         format_type(self.db(), req_id),
                     ),
                     self.module.file(self.db()),
-                    req.location.clone(),
+                    req.location,
                 );
             }
         }
@@ -1039,7 +1026,7 @@ impl<'a> CheckConstant<'a> {
             self.state.diagnostics.string_literal_too_large(
                 STRING_LITERAL_LIMIT,
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
         }
 
@@ -1071,7 +1058,7 @@ impl<'a> CheckConstant<'a> {
         };
         let name = node.operator.method_name();
         let (left_id, method) = if let Some(found) =
-            self.lookup_method(left, name, &node.location)
+            self.lookup_method(left, name, node.location)
         {
             found
         } else {
@@ -1087,8 +1074,8 @@ impl<'a> CheckConstant<'a> {
             method,
         );
 
-        call.check_mutability(self.state, &node.location);
-        call.check_type_bounds(self.state, &node.location);
+        call.check_mutability(self.state, node.location);
+        call.check_type_bounds(self.state, node.location);
         call.arguments = 1;
 
         if let Some(expected) =
@@ -1102,9 +1089,9 @@ impl<'a> CheckConstant<'a> {
             );
         }
 
-        call.check_arguments(self.state, &node.location);
+        call.check_arguments(self.state, node.location);
         call.resolve_return_type(self.state);
-        call.check_sendable(self.state, &node.location);
+        call.check_sendable(self.state, node.location);
 
         node.resolved_type = call.return_type;
         node.resolved_type
@@ -1121,7 +1108,7 @@ impl<'a> CheckConstant<'a> {
                 self.state.diagnostics.symbol_not_a_module(
                     &src.name,
                     self.file(),
-                    src.location.clone(),
+                    src.location,
                 );
 
                 return TypeRef::Error;
@@ -1140,7 +1127,7 @@ impl<'a> CheckConstant<'a> {
                 self.state.diagnostics.symbol_not_a_value(
                     name,
                     self.file(),
-                    node.location.clone(),
+                    node.location,
                 );
 
                 TypeRef::Error
@@ -1149,7 +1136,7 @@ impl<'a> CheckConstant<'a> {
                 self.state.diagnostics.undefined_symbol(
                     name,
                     self.file(),
-                    node.location.clone(),
+                    node.location,
                 );
 
                 TypeRef::Error
@@ -1176,7 +1163,7 @@ impl<'a> CheckConstant<'a> {
                         format_type(self.db(), typ),
                         format_type(self.db(), first),
                         self.file(),
-                        node.location().clone(),
+                        node.location(),
                     );
                 }
             }
@@ -1190,7 +1177,7 @@ impl<'a> CheckConstant<'a> {
                     CONST_ARRAY_LIMIT
                 ),
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
         }
 
@@ -1208,7 +1195,7 @@ impl<'a> CheckConstant<'a> {
         &mut self,
         receiver: TypeRef,
         name: &str,
-        location: &SourceLocation,
+        location: Location,
     ) -> Option<(TypeId, MethodId)> {
         let rec_id = match receiver.type_id(self.db()) {
             Ok(id) => id,
@@ -1218,7 +1205,7 @@ impl<'a> CheckConstant<'a> {
                     name,
                     format_type(self.db(), typ),
                     self.file(),
-                    location.clone(),
+                    location,
                 );
 
                 return None;
@@ -1231,7 +1218,7 @@ impl<'a> CheckConstant<'a> {
                 self.state.diagnostics.private_method_call(
                     name,
                     self.file(),
-                    location.clone(),
+                    location,
                 );
             }
             MethodLookup::InstanceOnStatic => {
@@ -1239,7 +1226,7 @@ impl<'a> CheckConstant<'a> {
                     name,
                     format_type(self.db(), receiver),
                     self.file(),
-                    location.clone(),
+                    location,
                 );
             }
             MethodLookup::StaticOnInstance => {
@@ -1247,7 +1234,7 @@ impl<'a> CheckConstant<'a> {
                     name,
                     format_type(self.db(), receiver),
                     self.file(),
-                    location.clone(),
+                    location,
                 );
             }
             MethodLookup::None => {
@@ -1255,7 +1242,7 @@ impl<'a> CheckConstant<'a> {
                     name,
                     format_type(self.db(), receiver),
                     self.file(),
-                    location.clone(),
+                    location,
                 );
             }
         }
@@ -1346,7 +1333,7 @@ impl<'a> CheckMethodBody<'a> {
         returns: TypeRef,
         nodes: &mut [hir::Expression],
         scope: &mut LexicalScope,
-        fallback_location: &SourceLocation,
+        fallback_location: Location,
     ) {
         let typ = self.last_expression_type(nodes, scope);
 
@@ -1364,7 +1351,7 @@ impl<'a> CheckMethodBody<'a> {
                 format_type(self.db(), typ),
                 format_type(self.db(), returns),
                 self.file(),
-                loc.clone(),
+                loc,
             );
         }
     }
@@ -1528,7 +1515,7 @@ impl<'a> CheckMethodBody<'a> {
                                 format_type(self.db(), val)
                             ),
                             self.file(),
-                            v.location.clone(),
+                            v.location,
                         );
                     }
                 }
@@ -1537,7 +1524,7 @@ impl<'a> CheckMethodBody<'a> {
                         self.state.diagnostics.string_literal_too_large(
                             STRING_LITERAL_LIMIT,
                             self.file(),
-                            node.location.clone(),
+                            node.location,
                         );
                     }
                 }
@@ -1557,9 +1544,7 @@ impl<'a> CheckMethodBody<'a> {
         let class = if let Some(id) = ClassId::tuple(types.len()) {
             id
         } else {
-            self.state
-                .diagnostics
-                .tuple_size_error(self.file(), node.location.clone());
+            self.state.diagnostics.tuple_size_error(self.file(), node.location);
 
             return TypeRef::Error;
         };
@@ -1586,7 +1571,7 @@ impl<'a> CheckMethodBody<'a> {
                 DiagnosticId::InvalidSymbol,
                 "'self' can only be used in instance methods",
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
 
             return TypeRef::Error;
@@ -1594,7 +1579,7 @@ impl<'a> CheckMethodBody<'a> {
 
         // Closures inside a `recover` can't refer to `self`, because they can't
         // capture `uni ref T` / `uni mut T` values.
-        self.check_if_self_is_allowed(scope, &node.location);
+        self.check_if_self_is_allowed(scope, node.location);
 
         if scope.in_recover() {
             typ = typ.as_uni_reference(self.db());
@@ -1634,7 +1619,7 @@ impl<'a> CheckMethodBody<'a> {
                     format_type(self.db(), value_type)
                 ),
                 self.file(),
-                node.value.location().clone(),
+                node.value.location(),
             );
         }
 
@@ -1648,7 +1633,7 @@ impl<'a> CheckMethodBody<'a> {
                     format_type(self.db(), value_type),
                     format_type(self.db(), exp_type),
                     self.file(),
-                    node.value.location().clone(),
+                    node.value.location(),
                 );
             }
 
@@ -1671,10 +1656,7 @@ impl<'a> CheckMethodBody<'a> {
             name.clone(),
             var_type,
             node.mutable,
-            VariableLocation::from_ranges(
-                &node.name.location.lines,
-                &node.name.location.columns,
-            ),
+            node.name.location,
         );
 
         node.variable_id = Some(id);
@@ -1738,7 +1720,7 @@ impl<'a> CheckMethodBody<'a> {
                     format_type(self.db(), value_type),
                     format_type(self.db(), exp_type),
                     self.file(),
-                    node.location.clone(),
+                    node.location,
                 );
             }
 
@@ -1757,7 +1739,7 @@ impl<'a> CheckMethodBody<'a> {
             self.state.diagnostics.duplicate_symbol(
                 &name,
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
         }
 
@@ -1774,7 +1756,7 @@ impl<'a> CheckMethodBody<'a> {
                         format_type(self.db(), var_type),
                     ),
                     self.file(),
-                    node.location.clone(),
+                    node.location,
                 );
             }
 
@@ -1784,7 +1766,7 @@ impl<'a> CheckMethodBody<'a> {
                     "the mutability of this binding must be the same \
                     in all patterns",
                     self.file(),
-                    node.location.clone(),
+                    node.location,
                 );
             }
 
@@ -1799,10 +1781,7 @@ impl<'a> CheckMethodBody<'a> {
             name.clone(),
             var_type,
             node.mutable,
-            VariableLocation::from_ranges(
-                &node.name.location.lines,
-                &node.name.location.columns,
-            ),
+            node.name.location,
         );
 
         node.variable_id = Some(id);
@@ -1827,7 +1806,7 @@ impl<'a> CheckMethodBody<'a> {
                     name,
                     format_type(self.db(), value_type),
                     self.file(),
-                    node.location.clone(),
+                    node.location,
                 );
 
                 return;
@@ -1840,7 +1819,7 @@ impl<'a> CheckMethodBody<'a> {
                     0,
                     members.len(),
                     self.file(),
-                    node.location.clone(),
+                    node.location,
                 );
 
                 return;
@@ -1868,7 +1847,7 @@ impl<'a> CheckMethodBody<'a> {
                             format_type(self.db(), typ),
                         ),
                         self.file(),
-                        node.location.clone(),
+                        node.location,
                     );
 
                     return;
@@ -1881,7 +1860,7 @@ impl<'a> CheckMethodBody<'a> {
                     DiagnosticId::InvalidSymbol,
                     format!("the symbol '{}' is not a constant", name),
                     self.file(),
-                    node.location.clone(),
+                    node.location,
                 );
 
                 return;
@@ -1890,7 +1869,7 @@ impl<'a> CheckMethodBody<'a> {
                 self.state.diagnostics.undefined_symbol(
                     name,
                     self.file(),
-                    node.location.clone(),
+                    node.location,
                 );
 
                 return;
@@ -1905,7 +1884,7 @@ impl<'a> CheckMethodBody<'a> {
                 format_type(self.db(), value_type),
                 format_type(self.db(), exp_type),
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
         }
     }
@@ -1939,7 +1918,7 @@ impl<'a> CheckMethodBody<'a> {
                         format_type(self.db(), value_type),
                     ),
                     self.file(),
-                    node.location.clone(),
+                    node.location,
                 );
 
                 self.error_patterns(&mut node.values, pattern);
@@ -1959,7 +1938,7 @@ impl<'a> CheckMethodBody<'a> {
                     node.values.len()
                 ),
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
 
             self.error_patterns(&mut node.values, pattern);
@@ -2012,7 +1991,7 @@ impl<'a> CheckMethodBody<'a> {
                         format_type(self.db(), value_type),
                     ),
                     self.file(),
-                    node.location.clone(),
+                    node.location,
                 );
 
                 self.field_error_patterns(&mut node.values, pattern);
@@ -2031,7 +2010,7 @@ impl<'a> CheckMethodBody<'a> {
                     format_type(self.db(), value_type)
                 ),
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
         }
 
@@ -2040,7 +2019,7 @@ impl<'a> CheckMethodBody<'a> {
                 DiagnosticId::InvalidType,
                 "enum classes don't support class patterns",
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
         }
 
@@ -2060,7 +2039,7 @@ impl<'a> CheckMethodBody<'a> {
                         name
                     ),
                     self.file(),
-                    node.field.location.clone(),
+                    node.field.location,
                 );
 
                 self.pattern(&mut node.pattern, TypeRef::Error, pattern);
@@ -2085,7 +2064,7 @@ impl<'a> CheckMethodBody<'a> {
     fn int_pattern(&mut self, node: &mut hir::IntLiteral, input_type: TypeRef) {
         let typ = TypeRef::int();
 
-        self.expression_pattern(typ, input_type, &node.location);
+        self.expression_pattern(typ, input_type, node.location);
     }
 
     fn string_pattern(
@@ -2095,26 +2074,26 @@ impl<'a> CheckMethodBody<'a> {
     ) {
         let typ = TypeRef::string();
 
-        self.expression_pattern(typ, input_type, &node.location);
+        self.expression_pattern(typ, input_type, node.location);
     }
 
     fn true_pattern(&mut self, node: &mut hir::True, input_type: TypeRef) {
         let typ = TypeRef::boolean();
 
-        self.expression_pattern(typ, input_type, &node.location);
+        self.expression_pattern(typ, input_type, node.location);
     }
 
     fn false_pattern(&mut self, node: &mut hir::False, input_type: TypeRef) {
         let typ = TypeRef::boolean();
 
-        self.expression_pattern(typ, input_type, &node.location);
+        self.expression_pattern(typ, input_type, node.location);
     }
 
     fn expression_pattern(
         &mut self,
         pattern_type: TypeRef,
         input_type: TypeRef,
-        location: &SourceLocation,
+        location: Location,
     ) {
         let compare = if input_type.is_owned_or_uni(self.db()) {
             input_type
@@ -2134,7 +2113,7 @@ impl<'a> CheckMethodBody<'a> {
                     format_type(self.db(), input_type),
                 ),
                 self.file(),
-                location.clone(),
+                location,
             );
         }
     }
@@ -2161,7 +2140,7 @@ impl<'a> CheckMethodBody<'a> {
                     format_type(self.db(), value_type),
                 ),
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
 
             self.error_patterns(&mut node.values, pattern);
@@ -2178,7 +2157,7 @@ impl<'a> CheckMethodBody<'a> {
                 name,
                 format_type(self.db(), value_type),
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
 
             self.error_patterns(&mut node.values, pattern);
@@ -2192,7 +2171,7 @@ impl<'a> CheckMethodBody<'a> {
                 node.values.len(),
                 members.len(),
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
 
             self.error_patterns(&mut node.values, pattern);
@@ -2232,7 +2211,7 @@ impl<'a> CheckMethodBody<'a> {
             if unreachable {
                 self.state
                     .diagnostics
-                    .unreachable_pattern(self.file(), node.location().clone());
+                    .unreachable_pattern(self.file(), node.location());
             } else if matches!(
                 node,
                 hir::Pattern::Wildcard(_) | hir::Pattern::Identifier(_)
@@ -2262,7 +2241,7 @@ impl<'a> CheckMethodBody<'a> {
                     DiagnosticId::InvalidPattern,
                     format!("this pattern must define the variable '{}'", name),
                     self.file(),
-                    (*location).clone(),
+                    *location,
                 );
             }
         }
@@ -2282,7 +2261,7 @@ impl<'a> CheckMethodBody<'a> {
         if let Some((var, _)) = self.check_variable_assignment(
             &node.variable.name,
             &mut node.value,
-            &node.variable.location,
+            node.variable.location,
             scope,
         ) {
             node.variable_id = Some(var);
@@ -2301,7 +2280,7 @@ impl<'a> CheckMethodBody<'a> {
         if let Some((var, typ)) = self.check_variable_assignment(
             &node.variable.name,
             &mut node.value,
-            &node.variable.location,
+            node.variable.location,
             scope,
         ) {
             node.variable_id = Some(var);
@@ -2316,7 +2295,7 @@ impl<'a> CheckMethodBody<'a> {
         &mut self,
         name: &str,
         value_node: &mut hir::Expression,
-        location: &SourceLocation,
+        location: Location,
         scope: &mut LexicalScope,
     ) -> Option<(VariableId, TypeRef)> {
         let (var, _, allow_assignment) =
@@ -2326,7 +2305,7 @@ impl<'a> CheckMethodBody<'a> {
                 self.state.diagnostics.undefined_symbol(
                     name,
                     self.file(),
-                    location.clone(),
+                    location,
                 );
 
                 return None;
@@ -2339,7 +2318,7 @@ impl<'a> CheckMethodBody<'a> {
                 new values"
                     .to_string(),
                 self.file(),
-                location.clone(),
+                location,
             );
 
             return None;
@@ -2354,7 +2333,7 @@ impl<'a> CheckMethodBody<'a> {
                     name
                 ),
                 self.file(),
-                location.clone(),
+                location,
             );
 
             return None;
@@ -2368,7 +2347,7 @@ impl<'a> CheckMethodBody<'a> {
                 format_type(self.db(), val_type),
                 format_type(self.db(), var_type),
                 self.file(),
-                location.clone(),
+                location,
             );
 
             return None;
@@ -2442,13 +2421,12 @@ impl<'a> CheckMethodBody<'a> {
                     .unwrap_or_else(|| TypeRef::placeholder(db, None))
             };
 
-            let loc = &arg.location;
             let var = closure.new_argument(
                 self.db_mut(),
                 name.clone(),
                 typ,
                 typ,
-                VariableLocation::from_ranges(&loc.lines, &loc.columns),
+                arg.location,
             );
 
             new_scope.variables.add_variable(name, var);
@@ -2458,7 +2436,7 @@ impl<'a> CheckMethodBody<'a> {
             return_type,
             &mut node.body,
             &mut new_scope,
-            &node.location,
+            node.location,
         );
 
         node.resolved_type = match expected.as_ref() {
@@ -2507,12 +2485,12 @@ impl<'a> CheckMethodBody<'a> {
                     (rec, rec_id, rec_info, method)
                 }
                 MethodLookup::StaticOnInstance => {
-                    self.invalid_static_call(&node.name, rec, &node.location);
+                    self.invalid_static_call(&node.name, rec, node.location);
 
                     return TypeRef::Error;
                 }
                 MethodLookup::InstanceOnStatic => {
-                    self.invalid_instance_call(&node.name, rec, &node.location);
+                    self.invalid_instance_call(&node.name, rec, node.location);
 
                     return TypeRef::Error;
                 }
@@ -2530,7 +2508,7 @@ impl<'a> CheckMethodBody<'a> {
                         self.state.diagnostics.symbol_not_a_value(
                             &node.name,
                             self.file(),
-                            node.location.clone(),
+                            node.location,
                         );
 
                         return TypeRef::Error;
@@ -2549,7 +2527,7 @@ impl<'a> CheckMethodBody<'a> {
                         self.state.diagnostics.undefined_symbol(
                             &node.name,
                             self.file(),
-                            node.location.clone(),
+                            node.location,
                         );
 
                         return TypeRef::Error;
@@ -2567,11 +2545,11 @@ impl<'a> CheckMethodBody<'a> {
             method,
         );
 
-        call.check_mutability(self.state, &node.location);
-        call.check_type_bounds(self.state, &node.location);
-        call.check_arguments(self.state, &node.location);
+        call.check_mutability(self.state, node.location);
+        call.check_type_bounds(self.state, node.location);
+        call.check_arguments(self.state, node.location);
         call.resolve_return_type(self.state);
-        call.check_sendable(self.state, &node.location);
+        call.check_sendable(self.state, node.location);
 
         let returns = call.return_type;
 
@@ -2597,7 +2575,7 @@ impl<'a> CheckMethodBody<'a> {
         let module = self.module;
 
         if let Some((var, typ, _)) =
-            self.lookup_variable(name, scope, &node.location)
+            self.lookup_variable(name, scope, node.location)
         {
             node.kind = IdentifierKind::Variable(var);
 
@@ -2613,7 +2591,7 @@ impl<'a> CheckMethodBody<'a> {
                     (rec, rec_id, Receiver::Extern, method)
                 }
                 MethodLookup::Ok(method) => {
-                    self.check_if_self_is_allowed(scope, &node.location);
+                    self.check_if_self_is_allowed(scope, node.location);
 
                     if method.is_instance(self.db()) {
                         scope.mark_closures_as_capturing_self(self.db_mut());
@@ -2625,17 +2603,17 @@ impl<'a> CheckMethodBody<'a> {
                     (rec, rec_id, rec_info, method)
                 }
                 MethodLookup::StaticOnInstance => {
-                    self.invalid_static_call(name, rec, &node.location);
+                    self.invalid_static_call(name, rec, node.location);
 
                     return TypeRef::Error;
                 }
                 MethodLookup::InstanceOnStatic => {
-                    self.invalid_instance_call(name, rec, &node.location);
+                    self.invalid_instance_call(name, rec, node.location);
 
                     return TypeRef::Error;
                 }
                 MethodLookup::Private => {
-                    self.private_method_call(name, &node.location);
+                    self.private_method_call(name, node.location);
 
                     return TypeRef::Error;
                 }
@@ -2647,7 +2625,7 @@ impl<'a> CheckMethodBody<'a> {
                             self.state.diagnostics.symbol_not_a_value(
                                 name,
                                 self.file(),
-                                node.location.clone(),
+                                node.location,
                             );
 
                             return TypeRef::Error;
@@ -2671,7 +2649,7 @@ impl<'a> CheckMethodBody<'a> {
                         self.state.diagnostics.undefined_symbol(
                             name,
                             self.file(),
-                            node.location.clone(),
+                            node.location,
                         );
 
                         return TypeRef::Error;
@@ -2689,11 +2667,11 @@ impl<'a> CheckMethodBody<'a> {
             method,
         );
 
-        call.check_mutability(self.state, &node.location);
-        call.check_type_bounds(self.state, &node.location);
-        call.check_arguments(self.state, &node.location);
+        call.check_mutability(self.state, node.location);
+        call.check_type_bounds(self.state, node.location);
+        call.check_arguments(self.state, node.location);
         call.resolve_return_type(self.state);
-        call.check_sendable(self.state, &node.location);
+        call.check_sendable(self.state, node.location);
         let returns = call.return_type;
 
         node.kind = IdentifierKind::Method(CallInfo {
@@ -2719,7 +2697,7 @@ impl<'a> CheckMethodBody<'a> {
             self.state.diagnostics.undefined_field(
                 name,
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
 
             return TypeRef::Error;
@@ -2747,7 +2725,7 @@ impl<'a> CheckMethodBody<'a> {
         if let Some((field, typ)) = self.check_field_assignment(
             &node.field.name,
             &mut node.value,
-            &node.field.location,
+            node.field.location,
             scope,
         ) {
             node.field_id = Some(field);
@@ -2767,14 +2745,14 @@ impl<'a> CheckMethodBody<'a> {
         if let Some((field, typ)) = self.check_field_assignment(
             &node.field.name,
             &mut node.value,
-            &node.field.location,
+            node.field.location,
             scope,
         ) {
             if scope.in_recover() && !typ.is_value_type(self.db()) {
                 self.state.diagnostics.unsendable_old_value(
                     &node.field.name,
                     self.file(),
-                    node.location.clone(),
+                    node.location,
                 );
             }
 
@@ -2790,7 +2768,7 @@ impl<'a> CheckMethodBody<'a> {
         &mut self,
         name: &str,
         value_node: &mut hir::Expression,
-        location: &SourceLocation,
+        location: Location,
         scope: &mut LexicalScope,
     ) -> Option<(FieldId, TypeRef)> {
         let val_type = self.expression(value_node, scope);
@@ -2798,11 +2776,7 @@ impl<'a> CheckMethodBody<'a> {
         let (field, var_type) = if let Some(typ) = self.field_type(name) {
             typ
         } else {
-            self.state.diagnostics.undefined_field(
-                name,
-                self.file(),
-                location.clone(),
-            );
+            self.state.diagnostics.undefined_field(name, self.file(), location);
 
             return None;
         };
@@ -2812,7 +2786,7 @@ impl<'a> CheckMethodBody<'a> {
                 format_type(self.db(), val_type),
                 format_type(self.db(), var_type),
                 self.file(),
-                location.clone(),
+                location,
             );
         }
 
@@ -2825,7 +2799,7 @@ impl<'a> CheckMethodBody<'a> {
                     name
                 ),
                 self.file(),
-                location.clone(),
+                location,
             );
         }
 
@@ -2834,7 +2808,7 @@ impl<'a> CheckMethodBody<'a> {
                 name,
                 self.fmt(val_type),
                 self.file(),
-                location.clone(),
+                location,
             );
         }
 
@@ -2887,7 +2861,7 @@ impl<'a> CheckMethodBody<'a> {
                 DiagnosticId::InvalidLoopKeyword,
                 "the 'break' keyword can only be used inside loops",
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
         }
 
@@ -2904,7 +2878,7 @@ impl<'a> CheckMethodBody<'a> {
                 DiagnosticId::InvalidLoopKeyword,
                 "the 'next' keyword can only be used inside loops",
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
         }
 
@@ -2963,7 +2937,7 @@ impl<'a> CheckMethodBody<'a> {
                 format_type(self.db(), returned),
                 format_type(self.db(), expected),
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
         }
 
@@ -2996,7 +2970,7 @@ impl<'a> CheckMethodBody<'a> {
             ThrowKind::Unknown | ThrowKind::Option(_) => self
                 .state
                 .diagnostics
-                .throw_not_available(self.file(), node.location.clone()),
+                .throw_not_available(self.file(), node.location),
             ThrowKind::Infer(pid) => {
                 let var = TypeRef::placeholder(self.db_mut(), None);
                 let typ = TypeRef::result_type(self.db_mut(), var, expr);
@@ -3010,7 +2984,7 @@ impl<'a> CheckMethodBody<'a> {
                             .throw_type_name(self.db(), ret_ok),
                         format_type(self.db(), ret_type),
                         self.file(),
-                        node.location.clone(),
+                        node.location,
                     );
                 }
             }
@@ -3050,11 +3024,8 @@ impl<'a> CheckMethodBody<'a> {
             if typ.is_nil(self.db()) {
                 has_nil = true;
             } else if !typ.is_never(self.db()) {
-                let loc = case
-                    .body
-                    .last()
-                    .map_or(&case.location, |n| n.location())
-                    .clone();
+                let loc =
+                    case.body.last().map_or(case.location, |n| n.location());
 
                 types.push((typ, loc));
             }
@@ -3098,7 +3069,7 @@ impl<'a> CheckMethodBody<'a> {
                     self.fmt(expr)
                 ),
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
 
             return TypeRef::Error;
@@ -3141,7 +3112,7 @@ impl<'a> CheckMethodBody<'a> {
                     self.fmt(expr)
                 ),
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
 
             return TypeRef::Error;
@@ -3187,7 +3158,7 @@ impl<'a> CheckMethodBody<'a> {
                     self.fmt(last_type)
                 ),
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
 
             return TypeRef::Error;
@@ -3207,12 +3178,12 @@ impl<'a> CheckMethodBody<'a> {
         let value = self.expression(&mut node.value, scope);
         let setter = node.name.name.clone() + "=";
         let module = self.module;
-        let rec_id =
-            if let Some(id) = self.receiver_id(receiver, &node.location) {
-                id
-            } else {
-                return TypeRef::Error;
-            };
+        let rec_id = if let Some(id) = self.receiver_id(receiver, node.location)
+        {
+            id
+        } else {
+            return TypeRef::Error;
+        };
 
         let method = match rec_id.lookup_method(
             self.db(),
@@ -3222,17 +3193,17 @@ impl<'a> CheckMethodBody<'a> {
         ) {
             MethodLookup::Ok(id) => id,
             MethodLookup::Private => {
-                self.private_method_call(&setter, &node.location);
+                self.private_method_call(&setter, node.location);
 
                 return TypeRef::Error;
             }
             MethodLookup::InstanceOnStatic => {
-                self.invalid_instance_call(&setter, receiver, &node.location);
+                self.invalid_instance_call(&setter, receiver, node.location);
 
                 return TypeRef::Error;
             }
             MethodLookup::StaticOnInstance => {
-                self.invalid_static_call(&setter, receiver, &node.location);
+                self.invalid_static_call(&setter, receiver, node.location);
 
                 return TypeRef::Error;
             }
@@ -3254,7 +3225,7 @@ impl<'a> CheckMethodBody<'a> {
                                 self.fmt(value),
                                 self.fmt(exp),
                                 self.file(),
-                                node.location.clone(),
+                                node.location,
                             );
                         }
 
@@ -3266,7 +3237,7 @@ impl<'a> CheckMethodBody<'a> {
                             &setter,
                             self.fmt(receiver),
                             self.file(),
-                            node.location.clone(),
+                            node.location,
                         );
 
                         TypeRef::Error
@@ -3275,7 +3246,7 @@ impl<'a> CheckMethodBody<'a> {
             }
         };
 
-        let loc = &node.location;
+        let loc = node.location;
         let mut call = MethodCall::new(
             self.state,
             self.module,
@@ -3292,7 +3263,7 @@ impl<'a> CheckMethodBody<'a> {
 
         call.check_arguments(self.state, loc);
         call.resolve_return_type(self.state);
-        call.check_sendable(self.state, &node.location);
+        call.check_sendable(self.state, node.location);
 
         let returns = call.return_type;
         let rec_info = Receiver::with_receiver(self.db(), receiver, method);
@@ -3314,7 +3285,7 @@ impl<'a> CheckMethodBody<'a> {
         scope: &mut LexicalScope,
     ) -> TypeRef {
         let rec = self.expression(&mut node.receiver, scope);
-        let Some(rec_id) = self.receiver_id(rec, &node.location) else {
+        let Some(rec_id) = self.receiver_id(rec, node.location) else {
             return TypeRef::Error;
         };
         let Some((ins, field)) =
@@ -3323,7 +3294,7 @@ impl<'a> CheckMethodBody<'a> {
             self.state.diagnostics.undefined_field(
                 &node.name.name,
                 self.file(),
-                node.name.location.clone(),
+                node.name.location,
             );
 
             return TypeRef::Error;
@@ -3333,7 +3304,7 @@ impl<'a> CheckMethodBody<'a> {
             self.state.diagnostics.immutable_receiver_for_assignment(
                 &node.name.name,
                 self.module.file(self.db()),
-                node.location.clone(),
+                node.location,
             );
 
             return TypeRef::Error;
@@ -3352,7 +3323,7 @@ impl<'a> CheckMethodBody<'a> {
                 self.fmt(value),
                 self.fmt(var_type),
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
 
             return TypeRef::Error;
@@ -3365,7 +3336,7 @@ impl<'a> CheckMethodBody<'a> {
                 &node.name.name,
                 self.fmt(value),
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
 
             return TypeRef::Error;
@@ -3375,7 +3346,7 @@ impl<'a> CheckMethodBody<'a> {
             self.state.diagnostics.unsendable_old_value(
                 &node.name.name,
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
         }
 
@@ -3405,7 +3376,7 @@ impl<'a> CheckMethodBody<'a> {
             return if let Some((field, typ)) = self.check_field_assignment(
                 name,
                 &mut node.value,
-                &node.name.location,
+                node.name.location,
                 scope,
             ) {
                 node.kind = CallKind::SetField(FieldInfo {
@@ -3425,7 +3396,7 @@ impl<'a> CheckMethodBody<'a> {
             self.state.diagnostics.immutable_receiver_for_assignment(
                 name,
                 self.module.file(self.db()),
-                node.location.clone(),
+                node.location,
             );
         }
 
@@ -3442,7 +3413,7 @@ impl<'a> CheckMethodBody<'a> {
                 self.fmt(value),
                 self.fmt(var_type),
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
         }
 
@@ -3453,7 +3424,7 @@ impl<'a> CheckMethodBody<'a> {
                 name,
                 self.fmt(value),
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
         }
 
@@ -3504,7 +3475,7 @@ impl<'a> CheckMethodBody<'a> {
                 &node.name.name,
                 self.fmt(receiver),
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
 
             return TypeRef::Error;
@@ -3515,7 +3486,7 @@ impl<'a> CheckMethodBody<'a> {
                 DiagnosticId::InvalidCall,
                 "closures can only be called using owned or mutable references",
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
 
             return TypeRef::Error;
@@ -3529,7 +3500,7 @@ impl<'a> CheckMethodBody<'a> {
                 num_given,
                 num_exp,
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
 
             return TypeRef::Error;
@@ -3546,10 +3517,9 @@ impl<'a> CheckMethodBody<'a> {
             let pos_node = match arg_node {
                 hir::Argument::Positional(expr) => expr,
                 hir::Argument::Named(n) => {
-                    self.state.diagnostics.closure_with_named_argument(
-                        self.file(),
-                        n.location.clone(),
-                    );
+                    self.state
+                        .diagnostics
+                        .closure_with_named_argument(self.file(), n.location);
 
                     continue;
                 }
@@ -3564,7 +3534,7 @@ impl<'a> CheckMethodBody<'a> {
                     format_type(self.db(), given),
                     format_type(self.db(), exp),
                     self.file(),
-                    pos_node.value.location().clone(),
+                    pos_node.value.location(),
                 );
             }
 
@@ -3592,12 +3562,12 @@ impl<'a> CheckMethodBody<'a> {
         allow_type_private: bool,
         as_receiver: bool,
     ) -> TypeRef {
-        let rec_id =
-            if let Some(id) = self.receiver_id(receiver, &node.location) {
-                id
-            } else {
-                return TypeRef::Error;
-            };
+        let rec_id = if let Some(id) = self.receiver_id(receiver, node.location)
+        {
+            id
+        } else {
+            return TypeRef::Error;
+        };
 
         let method = match rec_id.lookup_method(
             self.db(),
@@ -3607,7 +3577,7 @@ impl<'a> CheckMethodBody<'a> {
         ) {
             MethodLookup::Ok(id) => id,
             MethodLookup::Private => {
-                self.private_method_call(&node.name.name, &node.location);
+                self.private_method_call(&node.name.name, node.location);
 
                 return TypeRef::Error;
             }
@@ -3615,7 +3585,7 @@ impl<'a> CheckMethodBody<'a> {
                 self.invalid_instance_call(
                     &node.name.name,
                     receiver,
-                    &node.location,
+                    node.location,
                 );
 
                 return TypeRef::Error;
@@ -3624,7 +3594,7 @@ impl<'a> CheckMethodBody<'a> {
                 self.invalid_static_call(
                     &node.name.name,
                     receiver,
-                    &node.location,
+                    node.location,
                 );
 
                 return TypeRef::Error;
@@ -3652,7 +3622,7 @@ impl<'a> CheckMethodBody<'a> {
                             self.state.diagnostics.symbol_not_a_value(
                                 &node.name.name,
                                 self.file(),
-                                node.location.clone(),
+                                node.location,
                             );
 
                             return TypeRef::Error;
@@ -3675,7 +3645,7 @@ impl<'a> CheckMethodBody<'a> {
                             &node.name.name,
                             self.fmt(receiver),
                             self.file(),
-                            node.location.clone(),
+                            node.location,
                         );
 
                         TypeRef::Error
@@ -3695,7 +3665,7 @@ impl<'a> CheckMethodBody<'a> {
                     &node.name.name,
                     self.fmt(receiver),
                     self.file(),
-                    node.location.clone(),
+                    node.location,
                 );
 
                 return TypeRef::Error;
@@ -3711,12 +3681,12 @@ impl<'a> CheckMethodBody<'a> {
             method,
         );
 
-        call.check_mutability(self.state, &node.location);
-        call.check_type_bounds(self.state, &node.location);
+        call.check_mutability(self.state, node.location);
+        call.check_type_bounds(self.state, node.location);
         self.call_arguments(&mut node.arguments, &mut call, scope);
-        call.check_arguments(self.state, &node.location);
+        call.check_arguments(self.state, node.location);
         call.resolve_return_type(self.state);
-        call.check_sendable(self.state, &node.location);
+        call.check_sendable(self.state, node.location);
 
         let returns = call.return_type;
         let rec_info = Receiver::with_receiver(self.db(), receiver, method);
@@ -3744,7 +3714,7 @@ impl<'a> CheckMethodBody<'a> {
         let (rec_info, rec, rec_id, method) =
             match rec_id.lookup_method(self.db(), name, module, true) {
                 MethodLookup::Ok(method) => {
-                    self.check_if_self_is_allowed(scope, &node.location);
+                    self.check_if_self_is_allowed(scope, node.location);
 
                     if method.is_instance(self.db()) {
                         scope.mark_closures_as_capturing_self(self.db_mut());
@@ -3756,17 +3726,17 @@ impl<'a> CheckMethodBody<'a> {
                     (rec_info, rec, rec_id, method)
                 }
                 MethodLookup::Private => {
-                    self.private_method_call(name, &node.location);
+                    self.private_method_call(name, node.location);
 
                     return TypeRef::Error;
                 }
                 MethodLookup::StaticOnInstance => {
-                    self.invalid_static_call(name, rec, &node.location);
+                    self.invalid_static_call(name, rec, node.location);
 
                     return TypeRef::Error;
                 }
                 MethodLookup::InstanceOnStatic => {
-                    self.invalid_instance_call(name, rec, &node.location);
+                    self.invalid_instance_call(name, rec, node.location);
 
                     return TypeRef::Error;
                 }
@@ -3796,7 +3766,7 @@ impl<'a> CheckMethodBody<'a> {
                             self.state.diagnostics.undefined_symbol(
                                 name,
                                 self.file(),
-                                node.location.clone(),
+                                node.location,
                             );
 
                             return TypeRef::Error;
@@ -3814,12 +3784,12 @@ impl<'a> CheckMethodBody<'a> {
             method,
         );
 
-        call.check_mutability(self.state, &node.location);
-        call.check_type_bounds(self.state, &node.location);
+        call.check_mutability(self.state, node.location);
+        call.check_type_bounds(self.state, node.location);
         self.call_arguments(&mut node.arguments, &mut call, scope);
-        call.check_arguments(self.state, &node.location);
+        call.check_arguments(self.state, node.location);
         call.resolve_return_type(self.state);
-        call.check_sendable(self.state, &node.location);
+        call.check_sendable(self.state, node.location);
 
         let returns = call.return_type;
 
@@ -3846,7 +3816,7 @@ impl<'a> CheckMethodBody<'a> {
                 "instances of builtin classes can't be created using the \
                 class literal syntax",
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
         }
 
@@ -3873,7 +3843,7 @@ impl<'a> CheckMethodBody<'a> {
                                     idx, num,
                                 ),
                                 self.file(),
-                                n.value.location().clone(),
+                                n.value.location(),
                             );
 
                             continue;
@@ -3893,7 +3863,7 @@ impl<'a> CheckMethodBody<'a> {
                                     &n.name.name
                                 ),
                                 self.file(),
-                                n.location.clone(),
+                                n.location,
                             );
 
                             continue;
@@ -3909,7 +3879,7 @@ impl<'a> CheckMethodBody<'a> {
                 self.state.diagnostics.private_field(
                     &name,
                     self.file(),
-                    node.location.clone(),
+                    node.location,
                 );
             }
 
@@ -3953,7 +3923,7 @@ impl<'a> CheckMethodBody<'a> {
                     format_type_with_arguments(self.db(), &env.left, value),
                     format_type_with_arguments(self.db(), &env.right, expected),
                     self.file(),
-                    val_expr.location().clone(),
+                    val_expr.location(),
                 );
             }
 
@@ -3969,7 +3939,7 @@ impl<'a> CheckMethodBody<'a> {
                     &name,
                     format_type(self.db(), value),
                     self.file(),
-                    val_expr.location().clone(),
+                    val_expr.location(),
                 );
             }
 
@@ -3978,7 +3948,7 @@ impl<'a> CheckMethodBody<'a> {
                     DiagnosticId::DuplicateSymbol,
                     format!("the field '{}' is already assigned", name),
                     self.file(),
-                    arg.location().clone(),
+                    arg.location(),
                 );
             }
 
@@ -4004,7 +3974,7 @@ impl<'a> CheckMethodBody<'a> {
                     DiagnosticId::MissingField,
                     format!("the field '{}' must be assigned a value", field),
                     self.file(),
-                    node.location.clone(),
+                    node.location,
                 );
             }
         }
@@ -4077,7 +4047,7 @@ impl<'a> CheckMethodBody<'a> {
             self.state.diagnostics.undefined_symbol(
                 &node.name.name,
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
 
             return TypeRef::Error;
@@ -4123,7 +4093,7 @@ impl<'a> CheckMethodBody<'a> {
                     format_type(self.db(), cast_type)
                 ),
                 self.file(),
-                node.location.clone(),
+                node.location,
             );
 
             return TypeRef::Error;
@@ -4190,27 +4160,27 @@ impl<'a> CheckMethodBody<'a> {
                     expr_kind.throw_type_name(self.db(), ret_ok),
                     format_type(self.db(), ret_type),
                     self.file(),
-                    node.location.clone(),
+                    node.location,
                 );
             }
             (ThrowKind::Unknown | ThrowKind::Infer(_), _) => {
                 self.state.diagnostics.invalid_try(
                     format_type(self.db(), expr),
                     self.file(),
-                    node.expression.location().clone(),
+                    node.expression.location(),
                 );
             }
             (_, ThrowKind::Unknown) => {
                 self.state
                     .diagnostics
-                    .try_not_available(self.file(), node.location.clone());
+                    .try_not_available(self.file(), node.location);
             }
             (ThrowKind::Option(_), ThrowKind::Result(ret_ok, _)) => {
                 self.state.diagnostics.invalid_throw(
                     expr_kind.throw_type_name(self.db(), ret_ok),
                     format_type(self.db(), ret_type),
                     self.file(),
-                    node.location.clone(),
+                    node.location,
                 );
             }
             (ThrowKind::Result(_, _), ThrowKind::Option(ok)) => {
@@ -4218,7 +4188,7 @@ impl<'a> CheckMethodBody<'a> {
                     expr_kind.throw_type_name(self.db(), ok),
                     format_type(self.db(), ret_type),
                     self.file(),
-                    node.location.clone(),
+                    node.location,
                 );
             }
         }
@@ -4229,7 +4199,7 @@ impl<'a> CheckMethodBody<'a> {
     fn receiver_id(
         &mut self,
         receiver: TypeRef,
-        location: &SourceLocation,
+        location: Location,
     ) -> Option<TypeId> {
         match receiver.type_id(self.db()) {
             Ok(id) => Some(id),
@@ -4238,7 +4208,7 @@ impl<'a> CheckMethodBody<'a> {
                 self.state.diagnostics.cant_infer_type(
                     format_type(self.db(), receiver),
                     self.file(),
-                    location.clone(),
+                    location,
                 );
 
                 None
@@ -4251,7 +4221,7 @@ impl<'a> CheckMethodBody<'a> {
                         self.fmt(typ)
                     ),
                     self.file(),
-                    location.clone(),
+                    location,
                 );
 
                 None
@@ -4273,7 +4243,7 @@ impl<'a> CheckMethodBody<'a> {
                 self.state.diagnostics.symbol_not_a_module(
                     &src.name,
                     self.file(),
-                    src.location.clone(),
+                    src.location,
                 );
 
                 Err(())
@@ -4380,7 +4350,7 @@ impl<'a> CheckMethodBody<'a> {
                         name
                     ),
                     self.file(),
-                    node.name.location.clone(),
+                    node.name.location,
                 );
             } else {
                 call.named_arguments.insert(name.to_string());
@@ -4403,7 +4373,7 @@ impl<'a> CheckMethodBody<'a> {
                     call.method.name(self.db()),
                 ),
                 self.file(),
-                node.name.location.clone(),
+                node.name.location,
             );
 
             TypeRef::Error
@@ -4413,7 +4383,7 @@ impl<'a> CheckMethodBody<'a> {
     fn check_if_self_is_allowed(
         &mut self,
         scope: &LexicalScope,
-        location: &SourceLocation,
+        location: Location,
     ) {
         if scope.surrounding_type.is_value_type(self.db()) {
             return;
@@ -4422,11 +4392,11 @@ impl<'a> CheckMethodBody<'a> {
         if scope.in_closure_in_recover() {
             self.state
                 .diagnostics
-                .self_in_closure_in_recover(self.file(), location.clone());
+                .self_in_closure_in_recover(self.file(), location);
         }
     }
 
-    fn require_boolean(&mut self, typ: TypeRef, location: &SourceLocation) {
+    fn require_boolean(&mut self, typ: TypeRef, location: Location) {
         if typ == TypeRef::Error || typ.is_bool(self.db()) {
             return;
         }
@@ -4439,7 +4409,7 @@ impl<'a> CheckMethodBody<'a> {
                 format_type(self.db(), typ),
             ),
             self.file(),
-            location.clone(),
+            location,
         );
     }
 
@@ -4510,13 +4480,13 @@ impl<'a> CheckMethodBody<'a> {
         &mut self,
         name: &str,
         receiver: TypeRef,
-        location: &SourceLocation,
+        location: Location,
     ) {
         self.state.diagnostics.invalid_static_call(
             name,
             self.fmt(receiver),
             self.file(),
-            location.clone(),
+            location,
         );
     }
 
@@ -4524,29 +4494,25 @@ impl<'a> CheckMethodBody<'a> {
         &mut self,
         name: &str,
         receiver: TypeRef,
-        location: &SourceLocation,
+        location: Location,
     ) {
         self.state.diagnostics.invalid_instance_call(
             name,
             self.fmt(receiver),
             self.file(),
-            location.clone(),
+            location,
         );
     }
 
-    fn private_method_call(&mut self, name: &str, location: &SourceLocation) {
-        self.state.diagnostics.private_method_call(
-            name,
-            self.file(),
-            location.clone(),
-        );
+    fn private_method_call(&mut self, name: &str, location: Location) {
+        self.state.diagnostics.private_method_call(name, self.file(), location);
     }
 
     fn lookup_variable(
         &mut self,
         name: &str,
         scope: &LexicalScope,
-        location: &SourceLocation,
+        location: Location,
     ) -> Option<(VariableId, TypeRef, bool)> {
         let mut source = Some(scope);
         let mut scopes = Vec::new();
@@ -4596,7 +4562,7 @@ impl<'a> CheckMethodBody<'a> {
                                 self.fmt(expose_as)
                             ),
                             self.file(),
-                            location.clone(),
+                            location,
                         );
                     }
 
@@ -4666,7 +4632,7 @@ impl<'a> CheckMethodBody<'a> {
             self.state.diagnostics.unavailable_process_field(
                 &name.name,
                 self.file(),
-                name.location.clone(),
+                name.location,
             );
         }
 
@@ -4674,7 +4640,7 @@ impl<'a> CheckMethodBody<'a> {
             self.state.diagnostics.private_field(
                 &name.name,
                 self.file(),
-                name.location.clone(),
+                name.location,
             );
         }
 
@@ -4705,7 +4671,7 @@ pub(crate) fn check_unused_imports(
                 }
 
                 let file = mod_id.file(&state.db);
-                let loc = import.location.clone();
+                let loc = import.location;
 
                 state.diagnostics.unused_symbol(tail, file, loc);
             } else {
@@ -4723,7 +4689,7 @@ pub(crate) fn check_unused_imports(
                     }
 
                     let file = mod_id.file(&state.db);
-                    let loc = sym.location.clone();
+                    let loc = sym.location;
 
                     state.diagnostics.unused_symbol(name, file, loc);
                 }
