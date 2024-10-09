@@ -90,7 +90,10 @@ pub(crate) fn to_dot(db: &Database, methods: &[&Method]) -> String {
                 let _ = write!(
                     buffer,
                     "<tr><td>{}</td><td>{}</td></tr>",
-                    ins.format(db).replace('>', "&gt;").replace('<', "&lt;"),
+                    ins.format(db)
+                        .replace('>', "&gt;")
+                        .replace('<', "&lt;")
+                        .replace("&", "&amp;"),
                     ins.location().line_start,
                 );
             }
