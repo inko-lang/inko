@@ -93,7 +93,7 @@ pub(crate) fn to_dot(db: &Database, methods: &[&Method]) -> String {
                     ins.format(db)
                         .replace('>', "&gt;")
                         .replace('<', "&lt;")
-                        .replace("&", "&amp;"),
+                        .replace('&', "&amp;"),
                     ins.location().line_start,
                 );
             }
