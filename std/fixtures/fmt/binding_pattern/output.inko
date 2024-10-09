@@ -1,0 +1,36 @@
+fn example1 {
+  match (10, 20) {
+    case (a: Int, b: Int) -> {}
+  }
+}
+
+fn example2 {
+  match 42 {
+    case mut a -> {}
+  }
+}
+
+fn example3 {
+  match 42 {
+    case
+      mut loooooooooooooooooooooooooong_naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaameeeeeeeeee
+    -> {}
+  }
+}
+
+fn example4 {
+  match 42 {
+    case
+      mut loooooooooooooooooooooooooong_naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaameeeeeeeeee: TypeNameHere
+    -> {}
+  }
+}
+
+fn example5 {
+  match 42 {
+    case
+      mut loooooooooooooooooooooooooong_naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaameeeeeeeeee: TypeNameHere
+    if true
+    -> {}
+  }
+}

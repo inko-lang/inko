@@ -2045,6 +2045,7 @@ impl Document {
             nodes::Pattern::Or(_)
                 | nodes::Pattern::Class(_)
                 | nodes::Pattern::Tuple(_)
+                | nodes::Pattern::Identifier(_)
         ) || node.guard.is_some()
         {
             Node::HardLine
@@ -2138,7 +2139,22 @@ impl Document {
             nodes::Pattern::Int(n) => vec![Node::text(&n.value)],
             nodes::Pattern::True(_) => vec![Node::text("true")],
             nodes::Pattern::False(_) => vec![Node::text("false")],
-            nodes::Pattern::Identifier(n) => vec![Node::text(&n.name.name)],
+            nodes::Pattern::Identifier(n) => {
+                let mut nodes = Vec::new();
+
+                if n.mutable {
+                    nodes.push(Node::text("mut "));
+                }
+
+                nodes.push(Node::text(&n.name.name));
+
+                if let Some(typ) = &n.value_type {
+                    nodes.push(Node::text(": "));
+                    nodes.push(self.type_reference(typ));
+                }
+
+                vec![self.group(nodes)]
+            }
             nodes::Pattern::Tuple(n) => {
                 let gid = self.new_group_id();
                 let vals = self.list(&n.values, gid, |s, n| s.pattern(n));
