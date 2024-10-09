@@ -33,17 +33,18 @@ pub(crate) fn run(
 
     for target in Target::supported() {
         let dir = runtimes.join(target.to_string());
-
-        if dir.is_dir() {
-            let line = format!("{} (installed)", target);
-
-            if is_term {
-                println!("\x1b[1m{}\x1b[0m", line);
-            } else {
-                println!("{}", line);
-            }
+        let (line, bold) = if target.is_native() {
+            (format!("{} (native)", target), true)
+        } else if dir.is_dir() {
+            (format!("{} (installed)", target), true)
         } else {
-            println!("{}", target);
+            (target.to_string(), false)
+        };
+
+        if is_term && bold {
+            println!("\x1b[1m{}\x1b[0m", line);
+        } else {
+            println!("{}", line);
         }
     }
 
