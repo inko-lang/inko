@@ -18,11 +18,11 @@ server](https://discord.gg/seeURxHxCb).
 Hello world:
 
 ```inko
-import std.stdio (STDOUT)
+import std.stdio (Stdout)
 
 class async Main {
   fn async main {
-    STDOUT.new.print('Hello, world!')
+    Stdout.new.print('Hello, world!')
   }
 }
 ```
