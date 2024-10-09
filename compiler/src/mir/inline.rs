@@ -391,6 +391,9 @@ struct InlineNode {
     ///
     /// This value has no meaning once the graph is built.
     epoch: u32,
+
+    /// A boolean indicating the method returns a value or not.
+    returns: bool,
 }
 
 /// A graph/collection of statistics for each method that we may consider for
@@ -415,13 +418,17 @@ struct InlineGraph {
 impl InlineGraph {
     fn new(db: &Database, mir: &Mir) -> InlineGraph {
         let mut epoch = 0_u32;
-        let mut nodes: Vec<_> = (0..mir.methods.len())
-            .map(|_| InlineNode {
+        let mut nodes: Vec<_> = mir
+            .methods
+            .values()
+            .iter()
+            .map(|m| InlineNode {
                 weight: 0,
                 calls: 0,
                 recursive: false,
                 callees: Vec::new(),
                 epoch: 0,
+                returns: m.id.returns_value(db),
             })
             .collect();
 
@@ -545,24 +552,46 @@ impl InlineGraph {
                 }
 
                 if low[node] == ids[node] {
-                    let mut flagged = false;
+                    let mut tail = None;
+                    let mut recursive = true;
 
                     while let Some(connected) = stack.pop() {
                         on_stack[connected] = false;
 
-                        if !flagged {
+                        // If a call in the chain never returns then we never
+                        // inline it, and at runtime the recursion is "broken"
+                        // by the program terminating.
+                        //
+                        // An example of where this is important is `Int`: when
+                        // operators ovewflor, they call a method to present the
+                        // error and passes the LHS and RHS of the operation.
+                        // These values are then formatted to a String, which
+                        // may result in the code recursing back into the
+                        // operator.
+                        //
+                        // The check here ensures that we don't end up flagging
+                        // such operators as "recursive" just because the
+                        // overflow handling.
+                        if !self.nodes[connected].returns {
+                            recursive = false;
+                        }
+
+                        if tail.is_none() {
                             result.push(connected);
                         }
 
                         if connected == node {
                             break;
-                        } else if !flagged {
+                        } else if tail.is_none() {
                             // If the SCC contains more than one node, it means
                             // it's part of a recursive call, so we flag it
                             // accordingly.
-                            self.nodes[connected].recursive = true;
-                            flagged = true;
+                            tail = Some(connected);
                         }
+                    }
+
+                    if let Some(node) = tail {
+                        self.nodes[node].recursive = recursive;
                     }
                 }
 
@@ -589,6 +618,10 @@ impl InlineGraph {
 
     fn is_recursive(&self, id: MethodId) -> bool {
         self.nodes[self.indexes[id.0 as usize]].recursive
+    }
+
+    fn returns(&self, id: MethodId) -> bool {
+        self.nodes[self.indexes[id.0 as usize]].returns
     }
 }
 
@@ -716,27 +749,25 @@ impl<'a, 'b, 'c> InlineMethod<'a, 'b, 'c> {
 
         for (blk_idx, block) in caller.body.blocks.iter().enumerate() {
             for (ins_idx, ins) in block.instructions.iter().enumerate() {
-                let callee =
-                    match self.inline_result(caller.id, caller_weight, ins) {
-                        Some(call) => {
-                            let weight = self.graph.node(call.id).weight;
+                let callee = match self.inline_result(caller_weight, ins) {
+                    Some(call) => {
+                        let weight = self.graph.node(call.id).weight;
 
-                            sites.push(CallSite::new(
-                                call.register,
-                                BlockId(blk_idx),
-                                ins_idx,
-                                call.receiver,
-                                call.arguments,
-                                self.mir.methods.get(&call.id).unwrap(),
-                                call.location,
-                            ));
+                        sites.push(CallSite::new(
+                            call.register,
+                            BlockId(blk_idx),
+                            ins_idx,
+                            call.receiver,
+                            call.arguments,
+                            self.mir.methods.get(&call.id).unwrap(),
+                            call.location,
+                        ));
 
-                            caller_weight =
-                                caller_weight.saturating_add(weight);
-                            call.id
-                        }
-                        _ => continue,
-                    };
+                        caller_weight = caller_weight.saturating_add(weight);
+                        call.id
+                    }
+                    _ => continue,
+                };
 
                 // The calling module might not directly depend on the module
                 // that defines the method. To ensure incremental caches are
@@ -777,17 +808,9 @@ impl<'a, 'b, 'c> InlineMethod<'a, 'b, 'c> {
 
     fn inline_result<'ins>(
         &self,
-        caller: MethodId,
         caller_weight: u16,
         instruction: &'ins Instruction,
     ) -> Option<Call<'ins>> {
-        // If the caller never returns then there's no point in inlining
-        // anything into it, because the program will terminate after the call,
-        // which in turn suggests a branch/path we'll almost never take.
-        if !caller.returns_value(&self.state.db) {
-            return None;
-        }
-
         let call = match instruction {
             Instruction::CallStatic(ins) => Call {
                 id: ins.method,
@@ -805,6 +828,15 @@ impl<'a, 'b, 'c> InlineMethod<'a, 'b, 'c> {
             },
             _ => return None,
         };
+
+        // If either the caller or callee never returns then there's no point in
+        // inlining the methods, because the program will terminate after the
+        // call, which in turn suggests a branch/path we'll almost never take.
+        if !self.graph.nodes[self.method].returns
+            || !self.graph.returns(call.id)
+        {
+            return None;
+        }
 
         // When encountering a recursive method we simply don't inline it at
         // all, as this is likely a waste of the inline budget better served
