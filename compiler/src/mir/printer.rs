@@ -91,9 +91,9 @@ pub(crate) fn to_dot(db: &Database, methods: &[&Method]) -> String {
                     buffer,
                     "<tr><td>{}</td><td>{}</td></tr>",
                     ins.format(db)
+                        .replace('&', "&amp;")
                         .replace('>', "&gt;")
-                        .replace('<', "&lt;")
-                        .replace('&', "&amp;"),
+                        .replace('<', "&lt;"),
                     ins.location().line_start,
                 );
             }
