@@ -1689,6 +1689,151 @@ impl Method {
 
         uses
     }
+
+    fn remove_empty_blocks(&mut self) {
+        for idx in 0..self.body.blocks.len() {
+            // Unreachable blocks are removed separately, so we can skip them
+            // entirely.
+            if !self.body.is_connected(BlockId(idx)) {
+                continue;
+            }
+
+            let (preds, succ) = {
+                let block = &mut self.body.blocks[idx];
+
+                if !block.instructions.is_empty() {
+                    continue;
+                }
+
+                // Empty blocks never have more than one successor. Since we
+                // already skip unreachable blocks, we'll also never find a
+                // block that doesn't have _any_ successors.
+                let succ = block.successors.pop().unwrap();
+                let mut pred = Vec::new();
+
+                swap(&mut pred, &mut block.predecessors);
+                (pred, succ)
+            };
+
+            let cur_id = BlockId(idx);
+
+            for pred in preds {
+                let block = &mut self.body.blocks[pred.0];
+
+                // If the predecessor block ends with a terminator instruction,
+                // we need to make sure the instruction jumps to the _successor_
+                // of the current block.
+                match block.instructions.last_mut() {
+                    Some(Instruction::Goto(ins)) => {
+                        ins.block = succ;
+                    }
+                    Some(Instruction::Branch(ins)) => {
+                        if ins.if_true == cur_id {
+                            ins.if_true = succ;
+                        }
+
+                        if ins.if_false == cur_id {
+                            ins.if_false = succ;
+                        }
+                    }
+                    Some(Instruction::Switch(ins)) => {
+                        for id in &mut ins.blocks {
+                            if *id == cur_id {
+                                *id = succ;
+                            }
+                        }
+                    }
+                    Some(Instruction::DecrementAtomic(ins)) => {
+                        if ins.if_true == cur_id {
+                            ins.if_true = succ;
+                        }
+
+                        if ins.if_false == cur_id {
+                            ins.if_false = succ;
+                        }
+                    }
+                    _ => {}
+                }
+
+                block.successors.retain(|i| i.0 != idx);
+                self.body.add_edge(pred, succ);
+            }
+
+            self.body.blocks[succ.0].predecessors.retain(|i| i.0 != idx);
+
+            if idx == self.body.start_id.0 {
+                self.body.start_id = succ;
+            }
+        }
+
+        // The above loop may make many empty blocks unreachable, so we need to
+        // remove such blocks
+        self.remove_unreachable_blocks();
+    }
+
+    fn remove_unreachable_blocks(&mut self) {
+        // This Vec maps block IDs to the value to subtract from the ID in
+        // order to derive the ID to use after unreachable blocks are
+        // removed.
+        let mut shift_map = vec![0; self.body.blocks.len()];
+        let mut reachable = vec![false; self.body.blocks.len()];
+
+        for idx in 0..shift_map.len() {
+            if self.body.is_connected(BlockId(idx)) {
+                reachable[idx] = true;
+            } else {
+                for incr in (idx + 1)..shift_map.len() {
+                    shift_map[incr] += 1;
+                }
+            }
+        }
+
+        let num_reachable = reachable.iter().filter(|&&v| v).count();
+        let mut blocks = Vec::with_capacity(num_reachable);
+
+        swap(&mut blocks, &mut self.body.blocks);
+
+        for (idx, mut block) in blocks.into_iter().enumerate() {
+            if !reachable[idx] {
+                continue;
+            }
+
+            block.predecessors.iter_mut().for_each(|b| *b -= shift_map[b.0]);
+            block.successors.iter_mut().for_each(|b| *b -= shift_map[b.0]);
+
+            match block.instructions.last_mut() {
+                Some(Instruction::Goto(ins)) => {
+                    ins.block -= shift_map[ins.block.0];
+                }
+                Some(Instruction::Branch(ins)) => {
+                    ins.if_true -= shift_map[ins.if_true.0];
+                    ins.if_false -= shift_map[ins.if_false.0];
+                }
+                Some(Instruction::Switch(ins)) => {
+                    for id in &mut ins.blocks {
+                        *id -= shift_map[id.0];
+
+                        // TODO: remove
+                        assert!(
+                            block.successors.contains(id),
+                            "block {:?} not in successors {:?}",
+                            id,
+                            block.successors
+                        );
+                    }
+                }
+                Some(Instruction::DecrementAtomic(ins)) => {
+                    ins.if_true -= shift_map[ins.if_true.0];
+                    ins.if_false -= shift_map[ins.if_false.0];
+                }
+                _ => {}
+            }
+
+            self.body.blocks.push(block);
+        }
+
+        self.body.start_id -= shift_map[self.body.start_id.0];
+    }
 }
 
 /// An Inko program in its MIR form.
@@ -1887,145 +2032,13 @@ impl Mir {
 
     pub(crate) fn remove_empty_blocks(&mut self) {
         for method in self.methods.values_mut() {
-            for idx in 0..method.body.blocks.len() {
-                // Unreachable blocks are removed separately, so we can skip
-                // them entirely.
-                if !method.body.is_connected(BlockId(idx)) {
-                    continue;
-                }
-
-                let (preds, succ) = {
-                    let block = &mut method.body.blocks[idx];
-
-                    if !block.instructions.is_empty() {
-                        continue;
-                    }
-
-                    // Empty blocks never have more than one successor. Since we
-                    // already skip unreachable blocks, we'll also never find a
-                    // block that doesn't have _any_ successors.
-                    let succ = block.successors.pop().unwrap();
-                    let mut pred = Vec::new();
-
-                    swap(&mut pred, &mut block.predecessors);
-                    (pred, succ)
-                };
-
-                let cur_id = BlockId(idx);
-
-                for pred in preds {
-                    let block = &mut method.body.blocks[pred.0];
-
-                    // If the predecessor block ends with a terminator
-                    // instruction, we need to make sure the instruction jumps
-                    // to the _successor_ of the current block.
-                    match block.instructions.last_mut() {
-                        Some(Instruction::Goto(ins)) => {
-                            ins.block = succ;
-                        }
-                        Some(Instruction::Branch(ins)) => {
-                            if ins.if_true == cur_id {
-                                ins.if_true = succ;
-                            }
-
-                            if ins.if_false == cur_id {
-                                ins.if_false = succ;
-                            }
-                        }
-                        Some(Instruction::Switch(ins)) => {
-                            for id in &mut ins.blocks {
-                                if *id == cur_id {
-                                    *id = cur_id;
-                                }
-                            }
-                        }
-                        Some(Instruction::DecrementAtomic(ins)) => {
-                            if ins.if_true == cur_id {
-                                ins.if_true = succ;
-                            }
-
-                            if ins.if_false == cur_id {
-                                ins.if_false = succ;
-                            }
-                        }
-                        _ => {}
-                    }
-
-                    block.successors.retain(|i| i.0 != idx);
-                    method.body.add_edge(pred, succ);
-                }
-
-                method.body.blocks[succ.0].predecessors.retain(|i| i.0 != idx);
-
-                if idx == method.body.start_id.0 {
-                    method.body.start_id = succ;
-                }
-            }
+            method.remove_empty_blocks();
         }
-
-        // The above loop may produce instructions that now point to blocks that
-        // are unreachable. Since this is an implementation detail of this pass,
-        // we immediately run an iteration of the dead block removal pass.
-        self.remove_unreachable_blocks();
     }
 
     pub(crate) fn remove_unreachable_blocks(&mut self) {
         for method in self.methods.values_mut() {
-            // This Vec maps block IDs to the value to subtract from the ID in
-            // order to derive the ID to use after unreachable blocks are
-            // removed.
-            let mut shift_map = vec![0; method.body.blocks.len()];
-            let mut reachable = vec![false; method.body.blocks.len()];
-
-            for idx in 0..shift_map.len() {
-                if method.body.is_connected(BlockId(idx)) {
-                    reachable[idx] = true;
-                } else {
-                    for incr in (idx + 1)..shift_map.len() {
-                        shift_map[incr] += 1;
-                    }
-                }
-            }
-
-            let mut blocks = Vec::with_capacity(reachable.len());
-
-            swap(&mut blocks, &mut method.body.blocks);
-
-            for (idx, mut block) in blocks.into_iter().enumerate() {
-                if !reachable[idx] {
-                    continue;
-                }
-
-                block
-                    .predecessors
-                    .iter_mut()
-                    .for_each(|b| *b -= shift_map[b.0]);
-                block.successors.iter_mut().for_each(|b| *b -= shift_map[b.0]);
-
-                match block.instructions.last_mut() {
-                    Some(Instruction::Goto(ins)) => {
-                        ins.block -= shift_map[ins.block.0];
-                    }
-                    Some(Instruction::Branch(ins)) => {
-                        ins.if_true -= shift_map[ins.if_true.0];
-                        ins.if_false -= shift_map[ins.if_false.0];
-                    }
-                    Some(Instruction::Switch(ins)) => {
-                        for id in &mut ins.blocks {
-                            *id -= shift_map[id.0];
-                        }
-                    }
-                    Some(Instruction::DecrementAtomic(ins)) => {
-                        ins.if_true -= shift_map[ins.if_true.0];
-                        ins.if_false -= shift_map[ins.if_false.0];
-                    }
-                    _ => {}
-                }
-
-                method.body.blocks.push(block);
-            }
-
-            method.body.start_id -= shift_map[method.body.start_id.0];
+            method.remove_unreachable_blocks();
         }
     }
 
@@ -2241,5 +2254,73 @@ mod tests {
         assert_eq!(Constant::Float(0.0), Constant::Float(0.0));
         assert_ne!(Constant::Float(0.0), Constant::Float(-0.0));
         assert_ne!(Constant::Float(-0.0), Constant::Float(0.0));
+    }
+
+    #[test]
+    fn test_method_remove_unreachable_blocks() {
+        let mut method = Method::new(MethodId(0), Location::default());
+
+        method.body.add_block(); // BlockId(0)
+
+        let b1 = method.body.add_block();
+        let b2 = method.body.add_block();
+        let b3 = method.body.add_block();
+
+        method.body.start_id = b3;
+        method.body.block_mut(b3).goto(b2, Location::default());
+        method.body.add_edge(b3, b2);
+        method.body.block_mut(b2).goto(b1, Location::default());
+        method.body.add_edge(b2, b1);
+        method.remove_unreachable_blocks();
+
+        assert_eq!(method.body.start_id, BlockId(2));
+        assert_eq!(method.body.blocks.len(), 3);
+    }
+
+    #[test]
+    fn test_method_remove_empty_blocks() {
+        let mut method = Method::new(MethodId(0), Location::default());
+
+        let b0 = method.body.add_block();
+        let b1 = method.body.add_block();
+        let b2 = method.body.add_block();
+        let b3 = method.body.add_block();
+        let b4 = method.body.add_block();
+
+        //     b0
+        //    /  \
+        //   b1  b2
+        //   |    |
+        //   b3  b4
+        method.body.start_id = b0;
+        method.body.add_edge(b0, b1);
+        method.body.add_edge(b0, b2);
+        method.body.block_mut(b0).switch(
+            RegisterId(0),
+            vec![b1, b2],
+            Location::default(),
+        );
+
+        method.body.add_edge(b1, b3);
+        method.body.add_edge(b2, b4);
+        method
+            .body
+            .block_mut(b3)
+            .return_value(RegisterId(10), Location::default());
+        method
+            .body
+            .block_mut(b4)
+            .return_value(RegisterId(20), Location::default());
+
+        method.remove_empty_blocks();
+
+        let Some(Instruction::Switch(ins)) =
+            method.body.blocks[0].instructions.last()
+        else {
+            unreachable!()
+        };
+
+        assert_eq!(method.body.blocks.len(), 3);
+        assert_eq!(ins.blocks, vec![BlockId(1), BlockId(2)]);
     }
 }
