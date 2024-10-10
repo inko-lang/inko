@@ -7,16 +7,15 @@
 pub mod test;
 
 pub mod check;
-pub mod collections;
 pub mod either;
 pub mod format;
 pub mod module_name;
 pub mod resolve;
 pub mod specialize;
 
-use crate::collections::IndexMap;
 use crate::module_name::ModuleName;
 use crate::resolve::TypeResolver;
+use indexmap::IndexMap;
 use location::Location;
 use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
@@ -618,7 +617,7 @@ impl Trait {
     }
 
     fn is_generic(&self) -> bool {
-        self.type_parameters.len() > 0
+        !self.type_parameters.is_empty()
     }
 }
 
@@ -631,7 +630,7 @@ impl TraitId {
     }
 
     pub fn type_parameters(self, db: &Database) -> Vec<TypeParameterId> {
-        self.get(db).type_parameters.values().clone()
+        self.get(db).type_parameters.values().cloned().collect()
     }
 
     pub fn required_traits(self, db: &Database) -> Vec<TraitInstance> {
@@ -639,11 +638,11 @@ impl TraitId {
     }
 
     pub fn required_methods(self, db: &Database) -> Vec<MethodId> {
-        self.get(db).required_methods.values().clone()
+        self.get(db).required_methods.values().cloned().collect()
     }
 
     pub fn default_methods(self, db: &Database) -> Vec<MethodId> {
-        self.get(db).default_methods.values().clone()
+        self.get(db).default_methods.values().cloned().collect()
     }
 
     pub fn add_required_trait(
@@ -1290,7 +1289,7 @@ impl Class {
     }
 
     fn is_generic(&self) -> bool {
-        self.type_parameters.len() > 0
+        !self.type_parameters.is_empty()
     }
 }
 
@@ -1389,7 +1388,7 @@ impl ClassId {
     }
 
     pub fn type_parameters(self, db: &Database) -> Vec<TypeParameterId> {
-        self.get(db).type_parameters.values().clone()
+        self.get(db).type_parameters.values().cloned().collect()
     }
 
     pub fn add_trait_implementation(
@@ -1454,7 +1453,7 @@ impl ClassId {
         db: &Database,
         index: usize,
     ) -> Option<FieldId> {
-        self.get(db).fields.get_index(index).cloned()
+        self.get(db).fields.get_index(index).map(|(_, &v)| v)
     }
 
     pub fn field_names(self, db: &Database) -> Vec<String> {
@@ -1462,7 +1461,7 @@ impl ClassId {
     }
 
     pub fn fields(self, db: &Database) -> Vec<FieldId> {
-        self.get(db).fields.values().clone()
+        self.get(db).fields.values().cloned().collect()
     }
 
     pub fn new_field(
@@ -1536,7 +1535,7 @@ impl ClassId {
     }
 
     pub fn constructors(self, db: &Database) -> Vec<ConstructorId> {
-        self.get(db).constructors.values().clone()
+        self.get(db).constructors.values().cloned().collect()
     }
 
     pub fn number_of_constructors(self, db: &Database) -> usize {
@@ -1556,7 +1555,7 @@ impl ClassId {
 
         if obj.kind == ClassKind::Enum {
             // The first value is the tag, so we skip it.
-            obj.fields.values()[1..].into()
+            obj.fields[1..].values().cloned().collect()
         } else {
             Vec::new()
         }
@@ -1828,6 +1827,9 @@ impl Arguments {
         let index = self.mapping.len();
         let arg = Argument { index, name: name.clone(), value_type, variable };
 
+        // Since indexes of arguments are incremented with insertions, we need
+        // to make sure we're not updating an existing argument by mistake.
+        debug_assert!(self.mapping.get(&name).is_none());
         self.mapping.insert(name, arg);
     }
 
@@ -1836,7 +1838,7 @@ impl Arguments {
     }
 
     fn iter(&self) -> impl Iterator<Item = &Argument> {
-        self.mapping.values().iter()
+        self.mapping.values()
     }
 
     fn len(&self) -> usize {
@@ -2335,7 +2337,7 @@ impl MethodId {
     }
 
     pub fn type_parameters(self, db: &Database) -> Vec<TypeParameterId> {
-        self.get(db).type_parameters.values().clone()
+        self.get(db).type_parameters.values().cloned().collect()
     }
 
     pub fn new_type_parameter(
@@ -2492,18 +2494,23 @@ impl MethodId {
         db: &Database,
         index: usize,
     ) -> Option<TypeRef> {
-        self.get(db).arguments.mapping.get_index(index).map(|a| a.value_type)
+        self.get(db)
+            .arguments
+            .mapping
+            .get_index(index)
+            .map(|(_, a)| a.value_type)
     }
 
     pub fn arguments(self, db: &Database) -> Vec<Argument> {
-        self.get(db).arguments.mapping.values().clone()
+        self.get(db).arguments.mapping.values().cloned().collect()
     }
 
+    // TODO: why borrows?
     pub fn argument_types(
         self,
         db: &Database,
     ) -> impl Iterator<Item = &TypeRef> {
-        self.get(db).arguments.mapping.values().iter().map(|a| &a.value_type)
+        self.get(db).arguments.mapping.values().map(|a| &a.value_type)
     }
 
     pub fn update_argument_types(
@@ -2681,7 +2688,7 @@ impl MethodId {
     }
 
     pub fn is_generic(self, db: &Database) -> bool {
-        self.get(db).type_parameters.len() > 0
+        !self.get(db).type_parameters.is_empty()
     }
 
     pub fn original_method(self, db: &Database) -> Option<MethodId> {
@@ -3472,7 +3479,11 @@ impl ClosureId {
         db: &Database,
         index: usize,
     ) -> Option<TypeRef> {
-        self.get(db).arguments.mapping.get_index(index).map(|a| a.value_type)
+        self.get(db)
+            .arguments
+            .mapping
+            .get_index(index)
+            .map(|(_, a)| a.value_type)
     }
 
     pub fn new_anonymous_argument(
@@ -3486,8 +3497,9 @@ impl ClosureId {
         // used. As such we just set it to ID 0 so we don't need to wrap it in
         // an `Option` type.
         let var = VariableId(0);
+        let name = format!("_arg{}", closure.arguments.len());
 
-        closure.arguments.new_argument("_".to_string(), value_type, var);
+        closure.arguments.new_argument(name, value_type, var);
     }
 
     pub fn is_moving(self, db: &Database) -> bool {
@@ -3520,7 +3532,7 @@ impl ClosureId {
     }
 
     pub fn arguments(self, db: &Database) -> Vec<Argument> {
-        self.get(db).arguments.mapping.values().clone()
+        self.get(db).arguments.mapping.values().cloned().collect()
     }
 
     pub fn can_infer_as_uni(self, db: &Database) -> bool {

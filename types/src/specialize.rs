@@ -187,7 +187,7 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
         self.classes.push(class);
 
         if class.kind(self.db).is_enum() {
-            for var in class.get(self.db).constructors.values().clone() {
+            for var in class.constructors(self.db) {
                 let members = var
                     .members(self.db)
                     .into_iter()
@@ -313,7 +313,7 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
             if kind.is_closure() { self.shapes } else { &class_mapping };
 
         if kind.is_enum() {
-            for old_var in class.get(self.db).constructors.values().clone() {
+            for old_var in class.constructors(self.db) {
                 let name = old_var.name(self.db).clone();
                 let loc = old_var.location(self.db);
                 let members = old_var

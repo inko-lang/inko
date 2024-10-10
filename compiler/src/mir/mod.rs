@@ -10,13 +10,13 @@ pub(crate) mod specialize;
 
 use crate::state::State;
 use crate::symbol_names::{shapes, SymbolNames};
+use indexmap::IndexMap;
 use location::Location;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::mem::swap;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
-use types::collections::IndexMap;
 use types::module_name::ModuleName;
 use types::{
     Database, ForeignType, Intrinsic, MethodId, Module as ModuleType, Shape,
@@ -1777,7 +1777,11 @@ impl Mir {
         //
         // Because `mir.modules` is an IndexMap, sorting it is a bit more
         // involved compared to just sorting a `Vec`.
-        let mut values = self.modules.take_values();
+        let mut modules = IndexMap::new();
+
+        swap(&mut modules, &mut self.modules);
+
+        let mut values: Vec<_> = modules.into_values().collect();
 
         values.sort_by_key(|m| m.id.name(db));
 
@@ -1787,7 +1791,11 @@ impl Mir {
 
         // Also sort the method objects themselves, so passes that wish to
         // iterate over this data directly can do so in a stable order.
-        let mut methods = self.methods.take_values();
+        let mut methods = IndexMap::new();
+
+        swap(&mut methods, &mut self.methods);
+
+        let mut methods: Vec<_> = methods.into_values().collect();
 
         methods.sort_by_key(|m| &names.methods[&m.id]);
 

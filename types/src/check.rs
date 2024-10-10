@@ -237,8 +237,7 @@ impl<'a> TypeChecker<'a> {
         if !lhs
             .type_parameters
             .values()
-            .iter()
-            .zip(rhs.type_parameters.values().iter())
+            .zip(rhs.type_parameters.values())
             .all(|(&lhs, &rhs)| self.check_parameters(lhs, rhs, env, rules))
         {
             return false;
@@ -1094,7 +1093,7 @@ impl<'a> TypeChecker<'a> {
             return false;
         }
 
-        left.mapping.values().iter().zip(right.mapping.values().iter()).all(
+        left.mapping.values().zip(right.mapping.values()).all(
             |(ours, theirs)| {
                 if same_name && ours.name != theirs.name {
                     return false;

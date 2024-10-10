@@ -3377,9 +3377,14 @@ impl<'a> LowerMethod<'a> {
         let closure_id = node.closure_id.unwrap();
         let moving = closure_id.is_moving(self.db());
         let loc = node.location;
+
+        // We need a deterministic name for the class as to not flush
+        // incremental caches unnecessarily, so we use the line and column
+        // number, as within a module only one closure can be defined on a given
+        // line+column pair.
         let class_id = types::Class::alloc(
             self.db_mut(),
-            format!("Closure{}", closure_id.0),
+            format!("Closure{}{}", loc.line_start, loc.column_start),
             types::ClassKind::Closure,
             types::Visibility::Private,
             module,

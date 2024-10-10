@@ -297,12 +297,13 @@ impl FormatType for TraitInstance {
 
             buffer.write(&ins_of.name);
 
-            if ins_of.type_parameters.len() > 0 {
-                let params = ins_of.type_parameters.values();
+            if !ins_of.type_parameters.is_empty() {
+                let params: Vec<_> =
+                    ins_of.type_parameters.values().cloned().collect();
                 let args = self.type_arguments(buffer.db);
 
                 buffer.write("[");
-                buffer.type_arguments(params, args);
+                buffer.type_arguments(&params, args);
                 buffer.write("]");
             }
         });
@@ -325,18 +326,19 @@ impl FormatType for ClassInstance {
                 buffer.write(&ins_of.name);
             }
 
-            if ins_of.type_parameters.len() > 0 {
+            if !ins_of.type_parameters.is_empty() {
                 let (open, close) = if ins_of.kind == ClassKind::Tuple {
                     ("(", ")")
                 } else {
                     ("[", "]")
                 };
 
-                let params = ins_of.type_parameters.values();
+                let params: Vec<_> =
+                    ins_of.type_parameters.values().cloned().collect();
                 let args = self.type_arguments(buffer.db);
 
                 buffer.write(open);
-                buffer.type_arguments(params, args);
+                buffer.type_arguments(&params, args);
                 buffer.write(close);
             }
         });
@@ -371,8 +373,10 @@ impl FormatType for MethodId {
             MethodKind::Instance => {}
         }
 
+        let params: Vec<_> = block.type_parameters.values().cloned().collect();
+
         buffer.write(&block.name);
-        buffer.type_parameters(block.type_parameters.values());
+        buffer.type_parameters(&params);
         buffer.arguments(&block.arguments, true);
         buffer.return_type(block.return_type);
     }

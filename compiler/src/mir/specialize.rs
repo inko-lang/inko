@@ -3,9 +3,9 @@ use crate::mir::{
     Drop, Instruction, Location, Method, Mir, Reference, RegisterId, SELF_ID,
 };
 use crate::state::State;
+use indexmap::{IndexMap, IndexSet};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::mem::swap;
-use types::collections::IndexMap;
 use types::specialize::{ordered_shapes_from_map, TypeSpecializer};
 use types::{
     Block as _, ClassId, ClassInstance, Database, MethodId, Shape,
@@ -103,6 +103,24 @@ impl Work {
     }
 }
 
+#[derive(Eq, PartialEq, Hash)]
+struct DynamicCall {
+    method: MethodId,
+
+    /// The shapes for the method's type parameters.
+    ///
+    /// This also acts as the specialization key.
+    key: Vec<Shape>,
+
+    /// Extra shapes to expose to the method.
+    ///
+    /// These are shapes from the type arguments of a trait implementation, type
+    /// parameters inherited from parent traits.
+    ///
+    /// We use a Vec here as `HashMap` doesn't implement `Hash`.
+    shapes: Vec<(TypeParameterId, Shape)>,
+}
+
 /// A type that tracks classes along with their methods that are called using
 /// dynamic dispatch, and the shapes of those calls.
 ///
@@ -140,25 +158,10 @@ impl Work {
 /// methods may be called on it through dynamic dispatch, and schedule them for
 /// specialization if necessary.
 struct DynamicCalls {
-    mapping: HashMap<ClassId, HashSet<DynamicCall>>,
-}
-
-#[derive(Eq, PartialEq, Hash)]
-struct DynamicCall {
-    method: MethodId,
-
-    /// The shapes for the method's type parameters.
-    ///
-    /// This also acts as the specialization key.
-    key: Vec<Shape>,
-
-    /// Extra shapes to expose to the method.
-    ///
-    /// These are shapes from the type arguments of a trait implementation, type
-    /// parameters inherited from parent traits.
-    ///
-    /// We use a Vec here as `HashMap` doesn't implement `Hash`.
-    shapes: Vec<(TypeParameterId, Shape)>,
+    /// The values are an _ordered_ hash set to ensure the data is always
+    /// processed in a deterministic order. This is important in order to
+    /// maintain the incremental compilation caches.
+    mapping: HashMap<ClassId, IndexSet<DynamicCall>>,
 }
 
 impl DynamicCalls {
@@ -180,7 +183,7 @@ impl DynamicCalls {
         });
     }
 
-    fn get(&self, class: ClassId) -> Option<&HashSet<DynamicCall>> {
+    fn get(&self, class: ClassId) -> Option<&IndexSet<DynamicCall>> {
         self.mapping.get(&class)
     }
 }

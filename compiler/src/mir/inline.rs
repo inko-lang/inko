@@ -421,7 +421,6 @@ impl InlineGraph {
         let mut nodes: Vec<_> = mir
             .methods
             .values()
-            .iter()
             .map(|m| InlineNode {
                 weight: 0,
                 calls: 0,
@@ -434,11 +433,11 @@ impl InlineGraph {
 
         let mut indexes = vec![u32::MAX as usize; db.number_of_methods()];
 
-        for (idx, method) in mir.methods.values().iter().enumerate() {
+        for (idx, method) in mir.methods.values().enumerate() {
             indexes[method.id.0 as usize] = idx;
         }
 
-        for (idx, method) in mir.methods.values().iter().enumerate() {
+        for (idx, method) in mir.methods.values().enumerate() {
             let mut callees = Vec::new();
 
             for block in &method.body.blocks {

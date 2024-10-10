@@ -122,7 +122,7 @@ fn check_object_cache(
         })?;
     }
 
-    for (module, obj_path) in mir.modules.values().iter().zip(object_paths) {
+    for (module, obj_path) in mir.modules.values().zip(object_paths) {
         let name = module.id.name(&state.db);
         let src_path = module.id.file(&state.db);
         let mut changed = force;
@@ -179,7 +179,7 @@ fn check_object_cache(
 
         let mut hasher = Hasher::new();
 
-        for name in names {
+        for name in &names {
             hasher.update(name.as_bytes());
         }
 
@@ -277,7 +277,6 @@ pub(crate) fn lower_all(
     let obj_paths: Vec<PathBuf> = mir
         .modules
         .values()
-        .iter()
         .map(|m| object_path(directories, m.id.name(&state.db)))
         .collect();
 

@@ -11,3 +11,4 @@ doctest = false
 
 [dependencies]
 location = { path = "../location" }
+indexmap = "^2.6"
