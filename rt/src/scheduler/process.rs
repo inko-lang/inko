@@ -91,7 +91,7 @@ const MAX_IDLE_CYCLES: u64 = 1_000_000 / MONITOR_INTERVAL;
 thread_local! {
     /// The process that's currently running.
     ///
-    /// This threat-local should only be used when access to the current process
+    /// This thread-local should only be used when access to the current process
     /// is needed, but the process can't be passed in as an argument. An example
     /// is the patched version of rustls-platform-verifier: it needs access to
     /// the current process, but the rustls API doesn't make this possible.
