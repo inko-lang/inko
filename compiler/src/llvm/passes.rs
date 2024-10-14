@@ -12,13 +12,16 @@ use crate::llvm::layouts::Layouts;
 use crate::llvm::methods::Methods;
 use crate::llvm::module::Module;
 use crate::llvm::runtime_function::RuntimeFunction;
-use crate::mir::{CastType, Constant, Instruction, Method, Mir, RegisterId};
+use crate::mir::{
+    CastType, Constant, Instruction, InstructionLocation, Method, Mir,
+    RegisterId,
+};
 use crate::state::State;
 use crate::symbol_names::{SymbolNames, STACK_MASK_GLOBAL, STATE_GLOBAL};
 use crate::target::Architecture;
 use blake3::{hash, Hasher};
 use inkwell::basic_block::BasicBlock;
-use inkwell::debug_info::{AsDIScope as _, DILocation, DIScope};
+use inkwell::debug_info::AsDIScope as _;
 use inkwell::module::Linkage;
 use inkwell::passes::PassBuilderOptions;
 use inkwell::targets::{
@@ -33,7 +36,6 @@ use inkwell::values::{
     FunctionValue, GlobalValue, IntValue, PointerValue,
 };
 use inkwell::OptimizationLevel;
-use location::Location;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs::{read, write};
 use std::path::Path;
@@ -919,9 +921,6 @@ pub struct LowerMethod<'shared, 'module, 'ctx> {
 
     /// The LLVM types for each MIR register.
     variable_types: HashMap<RegisterId, BasicTypeEnum<'ctx>>,
-
-    /// The stack of function debug scopes, used for inlined method calls.
-    debug_scopes: Vec<(DIScope<'ctx>, DILocation<'ctx>)>,
 }
 
 impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
@@ -943,7 +942,6 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
             builder,
             variables: HashMap::new(),
             variable_types: HashMap::new(),
-            debug_scopes: Vec::new(),
         }
     }
 
@@ -967,12 +965,10 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
             self.builder.store(self.variables[reg], arg);
         }
 
-        let line = self.method.location.line_start;
         let debug_func = self.module.debug_builder.new_function(
             &self.shared.state.db,
             self.shared.names,
             self.method.id,
-            line,
         );
 
         self.builder.set_debug_function(debug_func);
@@ -1023,12 +1019,10 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
             self.builder.free(self.builder.load_pointer(args_var));
         }
 
-        let line = self.method.location.line_start;
         let debug_func = self.module.debug_builder.new_function(
             &self.shared.state.db,
             self.shared.names,
             self.method.id,
-            line,
         );
 
         self.builder.set_debug_function(debug_func);
@@ -2550,22 +2544,6 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                 self.builder.store(reg_var, typ.size_of().unwrap());
             }
-            Instruction::PushDebugScope(ins) => {
-                let callee_loc = self.set_debug_location(ins.location);
-                let line = ins.location.line_start;
-                let new = self.module.debug_builder.new_function(
-                    &self.shared.state.db,
-                    self.shared.names,
-                    ins.method,
-                    line,
-                );
-
-                self.debug_scopes.push((new.as_debug_info_scope(), callee_loc));
-            }
-            Instruction::PopDebugScope(loc) => {
-                self.debug_scopes.pop().unwrap();
-                self.set_debug_location(*loc);
-            }
             Instruction::Reference(_) => unreachable!(),
             Instruction::Drop(_) => unreachable!(),
         }
@@ -2630,13 +2608,56 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
         }
     }
 
-    fn set_debug_location(&self, location: Location) -> DILocation<'ctx> {
-        let line = location.line_start;
-        let col = location.column_start;
-        let loc = if let Some(&(scope, callee_loc)) = self.debug_scopes.last() {
+    fn set_debug_location(&mut self, location: InstructionLocation) {
+        let line = location.line;
+        let col = location.column;
+        let loc = if let Some(id) = location.inlined_call_id() {
+            let chain = &self.method.inlined_calls[id as usize];
+            let mut parent = None;
+
+            // We process the list in reverse order such that the first entry we
+            // process is the outer-most call in the chain (since we inline
+            // in bottom-up order).
+            for call in chain.chain.iter().rev() {
+                let line = call.location.line;
+                let col = call.location.column;
+                let loc = if let Some(parent) = parent {
+                    let scope = self
+                        .module
+                        .debug_builder
+                        .new_function(
+                            &self.shared.state.db,
+                            self.shared.names,
+                            call.caller,
+                        )
+                        .as_debug_info_scope();
+
+                    self.module
+                        .debug_builder
+                        .new_inlined_location(line, col, scope, parent)
+                } else {
+                    let scope = self.builder.debug_scope();
+
+                    self.module.debug_builder.new_location(line, col, scope)
+                };
+
+                parent = Some(loc);
+            }
+
+            let parent = parent.unwrap();
+            let scope = self
+                .module
+                .debug_builder
+                .new_function(
+                    &self.shared.state.db,
+                    self.shared.names,
+                    chain.source_method,
+                )
+                .as_debug_info_scope();
+
             self.module
                 .debug_builder
-                .new_inlined_location(line, col, scope, callee_loc)
+                .new_inlined_location(line, col, scope, parent)
         } else {
             let scope = self.builder.debug_scope();
 
@@ -2644,7 +2665,6 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
         };
 
         self.builder.set_debug_location(loc);
-        loc
     }
 
     fn float_to_int(

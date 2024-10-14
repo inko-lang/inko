@@ -1,6 +1,6 @@
 use crate::mir::{
-    BlockId, Goto, Graph, Instruction, Location, Method, Mir, MoveRegister,
-    RegisterId, Registers,
+    BlockId, Goto, Graph, InlinedCall, InlinedCalls, Instruction,
+    InstructionLocation, Method, Mir, MoveRegister, RegisterId, Registers,
 };
 use crate::state::State;
 use std::cmp::min;
@@ -77,11 +77,10 @@ pub(crate) fn method_weight(db: &Database, method: &Method) -> u16 {
 }
 
 struct Callee {
-    id: MethodId,
     registers: Registers,
     body: Graph,
     arguments: Vec<RegisterId>,
-    location: Location,
+    inlined_calls: Vec<InlinedCalls>,
 }
 
 struct CallSite {
@@ -104,7 +103,7 @@ struct CallSite {
     arguments: Vec<RegisterId>,
 
     /// The source location of the call.
-    location: Location,
+    location: InstructionLocation,
 }
 
 impl CallSite {
@@ -115,7 +114,7 @@ impl CallSite {
         receiver: Option<RegisterId>,
         arguments: &[RegisterId],
         callee: &Method,
-        location: Location,
+        location: InstructionLocation,
     ) -> CallSite {
         let mut caller_args =
             if let Some(rec) = receiver { vec![rec] } else { Vec::new() };
@@ -151,6 +150,23 @@ impl CallSite {
         caller.registers.merge(callee.registers);
         caller.body.merge(callee.body);
 
+        // Ensure we can generate correct debug info for inlined instructions by
+        // maintaining a chain of calls they're inlined through.
+        let inline_offset = caller.inlined_calls.len() as u32;
+        let chain = InlinedCalls::new(caller.id, self.id, loc);
+
+        caller.inlined_calls.push(chain);
+
+        if !callee.inlined_calls.is_empty() {
+            for calls in &mut callee.inlined_calls {
+                let call = InlinedCall { caller: caller.id, location: loc };
+
+                calls.chain.push(call);
+            }
+
+            caller.inlined_calls.append(&mut callee.inlined_calls);
+        }
+
         // Now that the registers and blocks have been added to the caller, we
         // need to update the references accordingly. Since both are stored as a
         // Vec, we just need to "shift" the IDs to the right.
@@ -168,34 +184,44 @@ impl CallSite {
             for ins in &mut block.instructions {
                 match ins {
                     Instruction::Branch(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
                         ins.condition += reg_start;
                         ins.if_true += blk_start;
                         ins.if_false += blk_start;
                     }
                     Instruction::Switch(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
                         ins.register += reg_start;
                         ins.blocks.iter_mut().for_each(|b| *b += blk_start);
                     }
                     Instruction::Bool(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
                         ins.register += reg_start;
                     }
                     Instruction::Float(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
                         ins.register += reg_start;
                     }
                     Instruction::Goto(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
                         ins.block += blk_start;
                     }
                     Instruction::Int(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
                         ins.register += reg_start;
                     }
                     Instruction::MoveRegister(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
                         ins.source += reg_start;
                         ins.target += reg_start;
                     }
                     Instruction::Nil(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
                         ins.register += reg_start;
                     }
                     Instruction::Return(ret) => {
+                        ret.location.set_inlined_call_id(inline_offset);
+
                         let reg = ret.register + reg_start;
                         let loc = ret.location;
 
@@ -214,117 +240,148 @@ impl CallSite {
                         add_goto = Some(loc);
                     }
                     Instruction::String(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
                         ins.register += reg_start;
                     }
                     Instruction::CallStatic(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
                         ins.register += reg_start;
                         ins.arguments.iter_mut().for_each(|r| *r += reg_start);
                     }
                     Instruction::CallInstance(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
                         ins.register += reg_start;
                         ins.receiver += reg_start;
                         ins.arguments.iter_mut().for_each(|r| *r += reg_start);
                     }
                     Instruction::CallExtern(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
                         ins.register += reg_start;
                         ins.arguments.iter_mut().for_each(|r| *r += reg_start);
                     }
                     Instruction::CallDynamic(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
                         ins.register += reg_start;
                         ins.receiver += reg_start;
                         ins.arguments.iter_mut().for_each(|r| *r += reg_start);
                     }
                     Instruction::CallClosure(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
                         ins.register += reg_start;
                         ins.receiver += reg_start;
                         ins.arguments.iter_mut().for_each(|r| *r += reg_start);
                     }
                     Instruction::CallDropper(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
                         ins.register += reg_start;
                         ins.receiver += reg_start;
                     }
                     Instruction::CallBuiltin(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
                         ins.register += reg_start;
                         ins.arguments.iter_mut().for_each(|r| *r += reg_start);
                     }
                     Instruction::Send(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
                         ins.receiver += reg_start;
                         ins.arguments.iter_mut().for_each(|r| *r += reg_start);
                     }
                     Instruction::GetField(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
                         ins.register += reg_start;
                         ins.receiver += reg_start;
                     }
                     Instruction::SetField(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
                         ins.receiver += reg_start;
                         ins.value += reg_start;
                     }
                     Instruction::CheckRefs(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
                         ins.register += reg_start;
                     }
                     Instruction::Drop(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
                         ins.register += reg_start;
                     }
                     Instruction::Free(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
                         ins.register += reg_start;
                     }
                     Instruction::Reference(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
                         ins.register += reg_start;
                         ins.value += reg_start;
                     }
                     Instruction::Increment(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
                         ins.register += reg_start;
                     }
                     Instruction::Decrement(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
                         ins.register += reg_start;
                     }
                     Instruction::IncrementAtomic(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
                         ins.register += reg_start;
                     }
                     Instruction::DecrementAtomic(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
                         ins.register += reg_start;
                         ins.if_true += blk_start;
                         ins.if_false += blk_start;
                     }
                     Instruction::Allocate(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
                         ins.register += reg_start;
                     }
                     Instruction::Spawn(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
                         ins.register += reg_start;
                     }
                     Instruction::GetConstant(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
                         ins.register += reg_start;
                     }
                     Instruction::Cast(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
                         ins.register += reg_start;
                         ins.source += reg_start;
                     }
                     Instruction::Pointer(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
                         ins.register += reg_start;
                         ins.value += reg_start;
                     }
                     Instruction::ReadPointer(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
                         ins.register += reg_start;
                         ins.pointer += reg_start;
                     }
                     Instruction::WritePointer(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
                         ins.pointer += reg_start;
                         ins.value += reg_start;
                     }
                     Instruction::FieldPointer(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
                         ins.register += reg_start;
                         ins.receiver += reg_start;
                     }
                     Instruction::MethodPointer(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
                         ins.register += reg_start;
                     }
                     Instruction::SizeOf(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
                         ins.register += reg_start;
                     }
-                    Instruction::Preempt(_) => {}
-                    Instruction::Finish(_) => {}
-                    Instruction::PushDebugScope(_) => {}
-                    Instruction::PopDebugScope(_) => {}
+                    Instruction::Preempt(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
+                    }
+                    Instruction::Finish(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
+                    }
                 }
             }
 
@@ -364,12 +421,7 @@ impl CallSite {
             caller.body.add_edge(after_call, id);
         }
 
-        caller
-            .body
-            .block_mut(self.block)
-            .push_debug_scope(callee.id, callee.location);
-
-        caller.body.block_mut(self.block).goto(inline_start, self.location);
+        caller.body.block_mut(self.block).goto(inline_start, loc);
         caller.body.add_edge(self.block, inline_start);
     }
 }
@@ -629,7 +681,7 @@ struct Call<'a> {
     register: RegisterId,
     receiver: Option<RegisterId>,
     arguments: &'a [RegisterId],
-    location: Location,
+    location: InstructionLocation,
 }
 
 /// A compiler pass that inlines static method calls into their call sites.
@@ -701,11 +753,10 @@ impl<'a, 'b, 'c> InlineMethod<'a, 'b, 'c> {
                     let m = self.mir.methods.get(&call.id).unwrap();
 
                     Callee {
-                        id: call.id,
                         registers: m.registers.clone(),
                         body: m.body.clone(),
                         arguments: m.arguments.clone(),
-                        location: call.location,
+                        inlined_calls: m.inlined_calls.clone(),
                     }
                 };
 
@@ -715,12 +766,6 @@ impl<'a, 'b, 'c> InlineMethod<'a, 'b, 'c> {
                 // Blocks are guaranteed to have a terminator instruction at this
                 // point, meaning a call to inline is never the last instruction in
                 // the block.
-                let call_loc = caller.body.blocks[call.block.0].instructions
-                    [call.instruction]
-                    .location();
-
-                caller.body.block_mut(after).pop_debug_scope(call_loc);
-
                 let mut after_ins = caller
                     .body
                     .block_mut(call.block)

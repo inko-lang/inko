@@ -2505,7 +2505,6 @@ impl MethodId {
         self.get(db).arguments.mapping.values().cloned().collect()
     }
 
-    // TODO: why borrows?
     pub fn argument_types(
         self,
         db: &Database,

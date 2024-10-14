@@ -3,8 +3,8 @@ use crate::diagnostics::DiagnosticId;
 use crate::hir;
 use crate::mir::pattern_matching as pmatch;
 use crate::mir::{
-    Block, BlockId, CastType, Class, Constant, Method, Mir, Module, RegisterId,
-    SELF_ID,
+    Block, BlockId, CastType, Class, Constant, InstructionLocation, Method,
+    Mir, Module, RegisterId, SELF_ID,
 };
 use crate::state::State;
 use location::Location;
@@ -350,7 +350,7 @@ struct DecisionState {
     bodies: HashMap<BlockId, (Vec<hir::Expression>, Vec<RegisterId>, Location)>,
 
     /// The location of the `match` expression.
-    location: Location,
+    location: InstructionLocation,
 
     /// If the result of a match arm should be written to a register or ignored.
     write_result: bool,
@@ -361,7 +361,7 @@ impl DecisionState {
         output: RegisterId,
         after_block: BlockId,
         write_result: bool,
-        location: Location,
+        location: InstructionLocation,
     ) -> Self {
         Self {
             output,
@@ -428,7 +428,6 @@ impl<'a> GenerateDropper<'a> {
     /// the async dropper is the last message. When run, it cleans up the object
     /// like a regular class, and the process shuts down.
     fn async_class(&mut self) -> MethodId {
-        let loc = self.location;
         let async_dropper = self.generate_dropper(
             types::ASYNC_DROPPER_METHOD,
             types::MethodKind::AsyncMutable,
@@ -437,13 +436,14 @@ impl<'a> GenerateDropper<'a> {
         );
         let dropper_type =
             self.method_type(types::DROPPER_METHOD, types::MethodKind::Mutable);
-        let mut dropper_method = Method::new(dropper_type, loc);
+        let mut dropper_method = Method::new(dropper_type);
         let mut lower = LowerMethod::new(
             self.state,
             self.mir,
             self.module,
             &mut dropper_method,
         );
+        let loc = InstructionLocation::new(self.location);
 
         lower.prepare(loc);
 
@@ -472,14 +472,14 @@ impl<'a> GenerateDropper<'a> {
     /// tag, certain fields may be set to NULL. As such we branch based on the
     /// tag value, and only drop the fields relevant for that tag.
     fn enum_class(&mut self) -> MethodId {
-        let loc = self.location;
         let name = types::DROPPER_METHOD;
         let class = self.class;
         let drop_method_opt = class.method(&self.state.db, types::DROP_METHOD);
         let method_type = self.method_type(name, types::MethodKind::Mutable);
-        let mut method = Method::new(method_type, loc);
+        let mut method = Method::new(method_type);
         let mut lower =
             LowerMethod::new(self.state, self.mir, self.module, &mut method);
+        let loc = InstructionLocation::new(self.location);
 
         lower.prepare(loc);
 
@@ -562,10 +562,10 @@ impl<'a> GenerateDropper<'a> {
         let class = self.class;
         let drop_method_opt = class.method(&self.state.db, types::DROP_METHOD);
         let method_type = self.method_type(name, kind);
-        let loc = self.location;
-        let mut method = Method::new(method_type, loc);
+        let mut method = Method::new(method_type);
         let mut lower =
             LowerMethod::new(self.state, self.mir, self.module, &mut method);
+        let loc = InstructionLocation::new(self.location);
 
         lower.prepare(loc);
 
@@ -1076,11 +1076,12 @@ impl<'a> LowerToMir<'a> {
         node: hir::DefineModuleMethod,
     ) -> Method {
         let id = node.method_id.unwrap();
-        let mut method = Method::new(id, node.location);
+        let mut method = Method::new(id);
+        let lower =
+            LowerMethod::new(self.state, self.mir, self.module, &mut method);
+        let loc = InstructionLocation::new(node.location);
 
-        LowerMethod::new(self.state, self.mir, self.module, &mut method)
-            .run(node.body, node.location);
-
+        lower.run(node.body, loc);
         method
     }
 
@@ -1089,31 +1090,34 @@ impl<'a> LowerToMir<'a> {
         node: hir::DefineInstanceMethod,
     ) -> Method {
         let id = node.method_id.unwrap();
-        let mut method = Method::new(id, node.location);
+        let mut method = Method::new(id);
+        let lower =
+            LowerMethod::new(self.state, self.mir, self.module, &mut method);
+        let loc = InstructionLocation::new(node.location);
 
-        LowerMethod::new(self.state, self.mir, self.module, &mut method)
-            .run(node.body, node.location);
-
+        lower.run(node.body, loc);
         method
     }
 
     fn define_async_method(&mut self, node: hir::DefineAsyncMethod) -> Method {
         let id = node.method_id.unwrap();
-        let mut method = Method::new(id, node.location);
+        let mut method = Method::new(id);
+        let lower =
+            LowerMethod::new(self.state, self.mir, self.module, &mut method);
+        let loc = InstructionLocation::new(node.location);
 
-        LowerMethod::new(self.state, self.mir, self.module, &mut method)
-            .run(node.body, node.location);
-
+        lower.run(node.body, loc);
         method
     }
 
     fn define_static_method(&mut self, node: hir::DefineStaticMethod) {
         let id = node.method_id.unwrap();
-        let mut method = Method::new(id, node.location);
+        let mut method = Method::new(id);
+        let lower =
+            LowerMethod::new(self.state, self.mir, self.module, &mut method);
+        let loc = InstructionLocation::new(node.location);
 
-        LowerMethod::new(self.state, self.mir, self.module, &mut method)
-            .run(node.body, node.location);
-
+        lower.run(node.body, loc);
         self.mir.methods.insert(id, method);
     }
 
@@ -1124,8 +1128,7 @@ impl<'a> LowerToMir<'a> {
     ) -> Method {
         let id = node.method_id.unwrap();
         let constructor_id = node.constructor_id.unwrap();
-        let loc = node.location;
-        let mut method = Method::new(id, loc);
+        let mut method = Method::new(id);
         let fields = class.enum_fields(self.db());
         let bounds = TypeBounds::new();
         let ins = TypeRef::Owned(types::TypeId::ClassInstance(
@@ -1133,6 +1136,7 @@ impl<'a> LowerToMir<'a> {
         ));
         let mut lower =
             LowerMethod::new(self.state, self.mir, self.module, &mut method);
+        let loc = InstructionLocation::new(node.location);
 
         lower.prepare(loc);
 
@@ -1261,11 +1265,15 @@ impl<'a> LowerMethod<'a> {
         }
     }
 
-    fn prepare(&mut self, location: Location) {
+    fn prepare(&mut self, location: InstructionLocation) {
         self.define_base_registers(location);
     }
 
-    fn run(mut self, nodes: Vec<hir::Expression>, location: Location) {
+    fn run(
+        mut self,
+        nodes: Vec<hir::Expression>,
+        location: InstructionLocation,
+    ) {
         self.prepare(location);
         self.lower_method_body(nodes, location);
     }
@@ -1275,7 +1283,7 @@ impl<'a> LowerMethod<'a> {
         nodes: Vec<hir::Expression>,
         self_field: types::FieldId,
         self_type: TypeRef,
-        location: Location,
+        location: InstructionLocation,
     ) {
         self.prepare(location);
         self.define_captured_self_register(self_field, self_type, location);
@@ -1285,7 +1293,7 @@ impl<'a> LowerMethod<'a> {
     fn lower_method_body(
         mut self,
         nodes: Vec<hir::Expression>,
-        location: Location,
+        location: InstructionLocation,
     ) {
         if nodes.is_empty() {
             let reg = self.get_nil(location);
@@ -1310,7 +1318,7 @@ impl<'a> LowerMethod<'a> {
                 continue;
             }
 
-            let loc = node.location();
+            let loc = InstructionLocation::new(node.location());
             let rets = node.returns_value();
             let ret = if rets && !ignore_ret {
                 self.output_expression(node)
@@ -1330,7 +1338,11 @@ impl<'a> LowerMethod<'a> {
         }
     }
 
-    fn end_of_method_body(mut self, register: RegisterId, location: Location) {
+    fn end_of_method_body(
+        mut self,
+        register: RegisterId,
+        location: InstructionLocation,
+    ) {
         self.mark_register_as_moved(register);
         self.partially_move_self_if_field(register);
         self.drop_all_registers(location);
@@ -1338,7 +1350,7 @@ impl<'a> LowerMethod<'a> {
         self.return_register(register, location);
     }
 
-    fn define_base_registers(&mut self, location: Location) {
+    fn define_base_registers(&mut self, location: InstructionLocation) {
         // The first register in a method is reserved for the receiver of the
         // method (e.g. `self`). For closures this points to the generated
         // closure object, not the outer `self` as captured by the closure.
@@ -1396,7 +1408,7 @@ impl<'a> LowerMethod<'a> {
         &mut self,
         field: types::FieldId,
         field_type: TypeRef,
-        location: Location,
+        location: InstructionLocation,
     ) {
         // Within a closure, explicit and implicit references to `self` should
         // use the _captured_ `self` (i.e. point to the outer `self` value), not
@@ -1413,7 +1425,7 @@ impl<'a> LowerMethod<'a> {
     fn body(
         &mut self,
         nodes: Vec<hir::Expression>,
-        location: Location,
+        location: InstructionLocation,
     ) -> RegisterId {
         let mut res = None;
         let max_index = if nodes.is_empty() { 0 } else { nodes.len() - 1 };
@@ -1479,7 +1491,7 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn binary_and(&mut self, node: hir::And) -> RegisterId {
-        let loc = node.location;
+        let loc = InstructionLocation::new(node.location);
         let reg = self.new_untracked_register(node.resolved_type);
         let before_id = self.current_block;
         let lhs_id = self.add_current_block();
@@ -1514,7 +1526,7 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn binary_or(&mut self, node: hir::Or) -> RegisterId {
-        let loc = node.location;
+        let loc = InstructionLocation::new(node.location);
         let reg = self.new_untracked_register(node.resolved_type);
         let before_id = self.current_block;
         let lhs_id = self.add_current_block();
@@ -1549,7 +1561,7 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn loop_expression(&mut self, node: hir::Loop) -> RegisterId {
-        let loc = node.location;
+        let loc = InstructionLocation::new(node.location);
         let before_loop = self.current_block;
         let loop_start = self.add_current_block();
         let after_loop = self.add_block();
@@ -1618,17 +1630,19 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn break_expression(&mut self, node: hir::Break) -> RegisterId {
+        let loc = InstructionLocation::new(node.location);
         let target = self.loop_target().unwrap().1;
 
-        self.jump_out_of_loop(target, node.location);
+        self.jump_out_of_loop(target, loc);
         self.new_register(TypeRef::Never)
     }
 
     fn next_expression(&mut self, node: hir::Next) -> RegisterId {
+        let loc = InstructionLocation::new(node.location);
         let target = self.loop_target().unwrap().0;
 
         self.check_loop_moves();
-        self.jump_out_of_loop(target, node.location);
+        self.jump_out_of_loop(target, loc);
         self.new_register(TypeRef::Never)
     }
 
@@ -1646,13 +1660,16 @@ impl<'a> LowerMethod<'a> {
         None
     }
 
-    fn jump_out_of_loop(&mut self, target: BlockId, location: Location) {
+    fn jump_out_of_loop(
+        &mut self,
+        target: BlockId,
+        location: InstructionLocation,
+    ) {
         let source = self.current_block;
-        let loc = location;
 
-        self.drop_loop_registers(loc);
-        self.current_block_mut().preempt(loc);
-        self.current_block_mut().goto(target, loc);
+        self.drop_loop_registers(location);
+        self.current_block_mut().preempt(location);
+        self.current_block_mut().goto(target, location);
         self.add_edge(source, target);
         self.add_current_block();
     }
@@ -1662,7 +1679,7 @@ impl<'a> LowerMethod<'a> {
 
         let tup = self.new_register(node.resolved_type);
         let id = node.class_id.unwrap();
-        let loc = node.location;
+        let loc = InstructionLocation::new(node.location);
         let fields = id.fields(self.db());
 
         self.current_block_mut().allocate(tup, id, loc);
@@ -1670,7 +1687,7 @@ impl<'a> LowerMethod<'a> {
         for (index, val) in node.values.into_iter().enumerate() {
             let field = fields[index];
             let exp = node.value_types[index];
-            let loc = val.location();
+            let loc = InstructionLocation::new(val.location());
             let reg = self.input_expression(val, Some(exp));
 
             self.current_block_mut().set_field(tup, id, field, reg, loc);
@@ -1680,7 +1697,7 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn true_literal(&mut self, node: hir::True) -> RegisterId {
-        let loc = node.location;
+        let loc = InstructionLocation::new(node.location);
         let reg = self.new_register(node.resolved_type);
 
         self.current_block_mut().bool_literal(reg, true, loc);
@@ -1688,7 +1705,7 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn false_literal(&mut self, node: hir::False) -> RegisterId {
-        let loc = node.location;
+        let loc = InstructionLocation::new(node.location);
         let reg = self.new_register(node.resolved_type);
 
         self.current_block_mut().bool_literal(reg, false, loc);
@@ -1696,13 +1713,13 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn nil_literal(&mut self, node: hir::Nil) -> RegisterId {
-        let loc = node.location;
+        let loc = InstructionLocation::new(node.location);
 
         self.get_nil(loc)
     }
 
     fn int_literal(&mut self, node: hir::IntLiteral) -> RegisterId {
-        let loc = node.location;
+        let loc = InstructionLocation::new(node.location);
         let reg = self.new_register(node.resolved_type);
 
         self.current_block_mut().int_literal(reg, node.value, loc);
@@ -1710,7 +1727,7 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn float_literal(&mut self, node: hir::FloatLiteral) -> RegisterId {
-        let loc = node.location;
+        let loc = InstructionLocation::new(node.location);
         let reg = self.new_register(node.resolved_type);
 
         self.current_block_mut().float_literal(reg, node.value, loc);
@@ -1719,11 +1736,13 @@ impl<'a> LowerMethod<'a> {
 
     fn string_literal(&mut self, mut node: hir::StringLiteral) -> RegisterId {
         match node.values.len() {
-            0 => self.string_text(String::new(), node.location),
+            0 => self.string_text(
+                String::new(),
+                InstructionLocation::new(node.location),
+            ),
             1 => match node.values.pop().unwrap() {
-                hir::StringValue::Text(n) => {
-                    self.string_text(n.value, n.location)
-                }
+                hir::StringValue::Text(n) => self
+                    .string_text(n.value, InstructionLocation::new(n.location)),
                 hir::StringValue::Expression(n) => self.call(*n),
             },
             _ => {
@@ -1731,14 +1750,15 @@ impl<'a> LowerMethod<'a> {
 
                 for val in node.values {
                     vals.push(match val {
-                        hir::StringValue::Text(n) => {
-                            self.string_text(n.value, n.location)
-                        }
+                        hir::StringValue::Text(n) => self.string_text(
+                            n.value,
+                            InstructionLocation::new(n.location),
+                        ),
                         hir::StringValue::Expression(n) => self.call(*n),
                     });
                 }
 
-                let loc = node.location;
+                let loc = InstructionLocation::new(node.location);
                 let reg = self.new_register(node.resolved_type);
 
                 self.current_block_mut().call_builtin(
@@ -1752,18 +1772,21 @@ impl<'a> LowerMethod<'a> {
         }
     }
 
-    fn string_text(&mut self, value: String, location: Location) -> RegisterId {
+    fn string_text(
+        &mut self,
+        value: String,
+        location: InstructionLocation,
+    ) -> RegisterId {
         let reg = self.new_register(TypeRef::string());
-        let loc = location;
         let block = self.current_block;
 
-        self.permanent_string(reg, value, block, loc);
+        self.permanent_string(reg, value, block, location);
         reg
     }
 
     fn call(&mut self, node: hir::Call) -> RegisterId {
         let entered = self.enter_call_scope();
-        let loc = node.name.location;
+        let loc = InstructionLocation::new(node.name.location);
         let reg = match node.kind {
             types::CallKind::Call(info) => {
                 self.check_inferred(info.returns, node.location);
@@ -1777,7 +1800,7 @@ impl<'a> LowerMethod<'a> {
                 let args =
                     node.arguments.into_iter().map(Argument::Regular).collect();
 
-                self.call_method(info, rec, args, loc)
+                self.call_method(info, rec, args, node.name.location)
             }
             types::CallKind::GetField(info) => {
                 self.check_inferred(info.variable_type, node.location);
@@ -1843,7 +1866,6 @@ impl<'a> LowerMethod<'a> {
             }
             types::CallKind::GetConstant(id) => {
                 let reg = self.new_register(id.value_type(self.db()));
-                let loc = node.location;
 
                 self.get_constant(reg, id, loc);
                 reg
@@ -1853,7 +1875,6 @@ impl<'a> LowerMethod<'a> {
 
                 let ins = self.new_register(info.resolved_type);
                 let class = info.class_id;
-                let loc = node.location;
 
                 if class.kind(self.db()).is_async() {
                     self.current_block_mut().spawn(ins, class, loc);
@@ -1864,7 +1885,7 @@ impl<'a> LowerMethod<'a> {
                 for (arg, (id, exp)) in
                     node.arguments.into_iter().zip(info.fields.into_iter())
                 {
-                    let loc = arg.location();
+                    let loc = InstructionLocation::new(arg.location());
                     let val =
                         self.input_expression(arg.into_value(), Some(exp));
 
@@ -1888,6 +1909,7 @@ impl<'a> LowerMethod<'a> {
         arguments: Vec<Argument>,
         location: Location,
     ) -> RegisterId {
+        let ins_loc = InstructionLocation::new(location);
         let mut rec = match info.receiver {
             types::Receiver::Explicit => receiver.unwrap(),
             types::Receiver::Implicit => {
@@ -1910,12 +1932,12 @@ impl<'a> LowerMethod<'a> {
                 let result = self.new_register(info.returns);
 
                 self.current_block_mut()
-                    .call_extern(result, info.id, arg_regs, location);
+                    .call_extern(result, info.id, arg_regs, ins_loc);
 
                 if info.id.return_type(self.db()).is_never(self.db()) {
                     self.add_current_block();
                 } else if !info.id.has_return_type(self.db()) {
-                    self.current_block_mut().nil_literal(result, location);
+                    self.current_block_mut().nil_literal(result, ins_loc);
                 }
 
                 // We don't reduce for extern calls for two reasons:
@@ -1934,7 +1956,7 @@ impl<'a> LowerMethod<'a> {
                 let result = self.new_register(info.returns);
 
                 self.current_block_mut()
-                    .call_static(result, info.id, arg_regs, targs, location);
+                    .call_static(result, info.id, arg_regs, targs, ins_loc);
                 self.after_call(info.returns);
 
                 return result;
@@ -1959,17 +1981,17 @@ impl<'a> LowerMethod<'a> {
             // When sending messages we must increment the reference count,
             // otherwise we may end up scheduling the async dropper prematurely
             // (e.g. if new references are created before it runs).
-            self.current_block_mut().increment_atomic(rec, location);
+            self.current_block_mut().increment_atomic(rec, ins_loc);
             self.current_block_mut()
-                .send(rec, info.id, arg_regs, targs, location);
+                .send(rec, info.id, arg_regs, targs, ins_loc);
 
-            self.current_block_mut().nil_literal(result, location);
+            self.current_block_mut().nil_literal(result, ins_loc);
         } else if info.dynamic {
             self.current_block_mut()
-                .call_dynamic(result, rec, info.id, arg_regs, targs, location);
+                .call_dynamic(result, rec, info.id, arg_regs, targs, ins_loc);
         } else {
             self.current_block_mut()
-                .call_instance(result, rec, info.id, arg_regs, targs, location);
+                .call_instance(result, rec, info.id, arg_regs, targs, ins_loc);
         }
 
         self.after_call(info.returns);
@@ -2059,7 +2081,7 @@ impl<'a> LowerMethod<'a> {
 
     fn assign_setter(&mut self, node: hir::AssignSetter) -> RegisterId {
         let entered = self.enter_call_scope();
-        let loc = node.location;
+        let loc = InstructionLocation::new(node.location);
         let reg = match node.kind {
             types::CallKind::Call(info) => {
                 self.check_inferred(info.returns, node.location);
@@ -2073,7 +2095,7 @@ impl<'a> LowerMethod<'a> {
                 let args =
                     vec![Argument::Input(node.value, node.expected_type)];
 
-                self.call_method(info, rec, args, loc)
+                self.call_method(info, rec, args, node.location)
             }
             types::CallKind::SetField(info) => {
                 let rec = self.expression(node.receiver);
@@ -2107,7 +2129,7 @@ impl<'a> LowerMethod<'a> {
 
     fn replace_setter(&mut self, node: hir::ReplaceSetter) -> RegisterId {
         let id = node.field_id.unwrap();
-        let loc = node.location;
+        let loc = InstructionLocation::new(node.location);
         let exp = node.resolved_type;
         let new_val = self.input_expression(node.value, Some(exp));
         let old_val = self.new_register(exp);
@@ -2122,7 +2144,7 @@ impl<'a> LowerMethod<'a> {
     fn assign_variable(&mut self, node: hir::AssignVariable) -> RegisterId {
         let id = node.variable_id.unwrap();
         let exp = id.value_type(self.db());
-        let loc = node.location;
+        let loc = InstructionLocation::new(node.location);
         let val = self.input_expression(node.value, Some(exp));
 
         if let Some(&reg) = self.variable_mapping.get(&id) {
@@ -2155,7 +2177,7 @@ impl<'a> LowerMethod<'a> {
 
     fn replace_variable(&mut self, node: hir::ReplaceVariable) -> RegisterId {
         let id = node.variable_id.unwrap();
-        let loc = node.location;
+        let loc = InstructionLocation::new(node.location);
         let exp = node.resolved_type;
         let new_val = self.input_expression(node.value, Some(exp));
         let old_val = self.new_register(exp);
@@ -2183,7 +2205,7 @@ impl<'a> LowerMethod<'a> {
 
     fn assign_field(&mut self, node: hir::AssignField) -> RegisterId {
         let id = node.field_id.unwrap();
-        let loc = node.location;
+        let loc = InstructionLocation::new(node.location);
         let exp = node.resolved_type;
         let new_val = self.input_expression(node.value, Some(exp));
 
@@ -2235,7 +2257,7 @@ impl<'a> LowerMethod<'a> {
 
     fn replace_field(&mut self, node: hir::ReplaceField) -> RegisterId {
         let id = node.field_id.unwrap();
-        let loc = node.location;
+        let loc = InstructionLocation::new(node.location);
         let exp = node.resolved_type;
         let new_val = self.input_expression(node.value, Some(exp));
         let old_val = self.new_register(exp);
@@ -2253,7 +2275,7 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn builtin_call(&mut self, node: hir::BuiltinCall) -> RegisterId {
-        let loc = node.location;
+        let loc = InstructionLocation::new(node.location);
         let info = node.info.unwrap();
         let returns = info.returns;
 
@@ -2281,7 +2303,7 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn return_expression(&mut self, node: hir::Return) -> RegisterId {
-        let loc = node.location;
+        let loc = InstructionLocation::new(node.location);
         let reg = if let Some(value) = node.value {
             self.output_expression(value)
         } else {
@@ -2296,7 +2318,7 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn try_expression(&mut self, node: hir::Try) -> RegisterId {
-        let loc = node.location;
+        let loc = InstructionLocation::new(node.location);
         let reg = self.expression(node.expression);
         let class = self.register_type(reg).class_id(self.db()).unwrap();
         let tag_reg = self.new_untracked_register(TypeRef::int());
@@ -2406,13 +2428,11 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn noop(&mut self, location: Location) -> RegisterId {
-        let loc = location;
-
-        self.get_nil(loc)
+        self.get_nil(InstructionLocation::new(location))
     }
 
     fn size_of(&mut self, node: hir::SizeOf) -> RegisterId {
-        let loc = node.location;
+        let loc = InstructionLocation::new(node.location);
         let reg = self.new_register(TypeRef::int());
 
         self.current_block_mut().size_of(reg, node.resolved_type, loc);
@@ -2420,7 +2440,7 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn throw_expression(&mut self, node: hir::Throw) -> RegisterId {
-        let loc = node.location;
+        let loc = InstructionLocation::new(node.location);
         let reg = self.expression(node.value);
         let class = self.db().class_in_module(RESULT_MODULE, RESULT_CLASS);
         let err_id =
@@ -2448,7 +2468,11 @@ impl<'a> LowerMethod<'a> {
         self.new_register(TypeRef::Never)
     }
 
-    fn return_register(&mut self, register: RegisterId, location: Location) {
+    fn return_register(
+        &mut self,
+        register: RegisterId,
+        location: InstructionLocation,
+    ) {
         if self.method.id.is_async(self.db()) {
             let terminate = self.method.id.is_main(self.db());
 
@@ -2465,7 +2489,7 @@ impl<'a> LowerMethod<'a> {
     fn type_cast(&mut self, node: hir::TypeCast) -> RegisterId {
         let src = self.expression(node.value);
         let reg = self.new_register(node.resolved_type);
-        let loc = node.location;
+        let loc = InstructionLocation::new(node.location);
         let from_type = self.register_type(src);
         let to_type = node.resolved_type;
 
@@ -2474,7 +2498,8 @@ impl<'a> LowerMethod<'a> {
             CastType::from(self.db(), to_type),
         ) {
             (CastType::Object, CastType::Object) => {
-                let out = self.input_register(src, from_type, None, loc);
+                let out =
+                    self.input_register(src, from_type, None, node.location);
 
                 self.current_block_mut().move_register(reg, out, loc);
             }
@@ -2491,12 +2516,15 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn ref_expression(&mut self, node: hir::Ref) -> RegisterId {
-        self.increment(node.value, node.resolved_type, node.location)
+        let loc = InstructionLocation::new(node.location);
+
+        self.increment(node.value, node.resolved_type, loc)
     }
 
     fn mut_expression(&mut self, node: hir::Mut) -> RegisterId {
+        let loc = InstructionLocation::new(node.location);
+
         if let Some(id) = node.pointer_to_method {
-            let loc = node.location;
             let reg = self.new_register(node.resolved_type);
 
             self.current_block_mut().method_pointer(reg, id, loc);
@@ -2518,14 +2546,13 @@ impl<'a> LowerMethod<'a> {
                 expr => expr,
             };
 
-            let loc = node.location;
             let val = self.expression(expr);
             let reg = self.new_register(node.resolved_type);
 
             self.current_block_mut().pointer(reg, val, loc);
             reg
         } else {
-            self.increment(node.value, node.resolved_type, node.location)
+            self.increment(node.value, node.resolved_type, loc)
         }
     }
 
@@ -2533,21 +2560,20 @@ impl<'a> LowerMethod<'a> {
         &mut self,
         value: hir::Expression,
         return_type: TypeRef,
-        location: Location,
+        location: InstructionLocation,
     ) -> RegisterId {
-        let loc = location;
         let val = self.expression(value);
         let val_type = self.register_type(val);
 
         if val_type.is_value_type(self.db()) {
-            let reg = self.clone_value_type(val, return_type, false, loc);
+            let reg = self.clone_value_type(val, return_type, false, location);
 
             self.mark_register_as_available(reg);
             reg
         } else {
             let reg = self.new_register(return_type);
 
-            self.current_block_mut().reference(reg, val, loc);
+            self.current_block_mut().reference(reg, val, location);
             reg
         }
     }
@@ -2555,7 +2581,7 @@ impl<'a> LowerMethod<'a> {
     fn recover_expression(&mut self, node: hir::Recover) -> RegisterId {
         self.enter_scope();
 
-        let loc = node.location;
+        let loc = InstructionLocation::new(node.location);
         let val = self.body(node.body, loc);
 
         self.mark_register_as_moved(val);
@@ -2570,7 +2596,7 @@ impl<'a> LowerMethod<'a> {
     fn scope_expression(&mut self, node: hir::Scope) -> RegisterId {
         self.enter_scope();
 
-        let loc = node.location;
+        let loc = InstructionLocation::new(node.location);
         let val = self.body(node.body, loc);
 
         self.mark_register_as_moved(val);
@@ -2583,7 +2609,7 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn define_variable(&mut self, node: hir::DefineVariable) -> RegisterId {
-        let loc = node.location;
+        let loc = InstructionLocation::new(node.location);
         let exp = node.resolved_type;
 
         if let Some(id) = node.variable_id {
@@ -2617,7 +2643,7 @@ impl<'a> LowerMethod<'a> {
         let mut vars = pmatch::Variables::new();
         let input_var = vars.new_variable(input_type);
         let after_block = self.add_block();
-        let loc = node.location;
+        let loc = InstructionLocation::new(node.location);
         let mut state =
             DecisionState::new(output_reg, after_block, node.write_result, loc);
 
@@ -2730,7 +2756,7 @@ impl<'a> LowerMethod<'a> {
 
                 self.current_block = guard;
 
-                let guard_loc = guard_node.location();
+                let guard_loc = InstructionLocation::new(guard_node.location());
                 let reg = self.expression(guard_node);
 
                 self.exit_scope(guard_loc);
@@ -2930,7 +2956,7 @@ impl<'a> LowerMethod<'a> {
 
         self.scope.created.append(&mut var_regs);
 
-        let loc = body_loc;
+        let loc = InstructionLocation::new(body_loc);
         let reg = self.body(exprs, loc);
 
         if state.write_result {
@@ -3001,7 +3027,7 @@ impl<'a> LowerMethod<'a> {
         &mut self,
         state: &mut DecisionState,
         register: RegisterId,
-        location: Location,
+        location: InstructionLocation,
     ) {
         self.drop_register(register, location);
 
@@ -3265,10 +3291,11 @@ impl<'a> LowerMethod<'a> {
 
     fn identifier(&mut self, node: hir::IdentifierRef) -> RegisterId {
         let loc = node.location;
+        let ins_loc = InstructionLocation::new(loc);
 
         match node.kind {
             types::IdentifierKind::Variable(id) => {
-                let reg = self.get_local(id, loc);
+                let reg = self.get_local(id, ins_loc);
 
                 self.check_if_moved(reg, &node.name, node.location);
                 reg
@@ -3277,7 +3304,7 @@ impl<'a> LowerMethod<'a> {
                 let entered = self.enter_call_scope();
                 let reg = self.call_method(info, None, Vec::new(), loc);
 
-                self.exit_call_scope(entered, reg, loc);
+                self.exit_call_scope(entered, reg, ins_loc);
                 reg
             }
             types::IdentifierKind::Field(info) => {
@@ -3293,7 +3320,7 @@ impl<'a> LowerMethod<'a> {
                 let reg = self.new_field(info.id, info.variable_type);
 
                 self.current_block_mut()
-                    .get_field(reg, rec, info.class, info.id, loc);
+                    .get_field(reg, rec, info.class, info.id, ins_loc);
                 reg
             }
             types::IdentifierKind::Unknown => unreachable!(),
@@ -3301,7 +3328,7 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn field(&mut self, node: hir::FieldRef) -> RegisterId {
-        let loc = node.location;
+        let loc = InstructionLocation::new(node.location);
         let id = node.field_id.unwrap();
         let reg = if self.in_closure() {
             self.new_field(id, node.resolved_type)
@@ -3344,19 +3371,20 @@ impl<'a> LowerMethod<'a> {
 
     fn constant(&mut self, node: hir::ConstantRef) -> RegisterId {
         let loc = node.location;
+        let ins_loc = InstructionLocation::new(loc);
 
         match node.kind {
             types::ConstantKind::Constant(id) => {
                 let reg = self.new_register(node.resolved_type);
 
-                self.get_constant(reg, id, loc);
+                self.get_constant(reg, id, ins_loc);
                 reg
             }
             types::ConstantKind::Method(info) => {
                 let entered = self.enter_call_scope();
                 let reg = self.call_method(info, None, Vec::new(), loc);
 
-                self.exit_call_scope(entered, reg, loc);
+                self.exit_call_scope(entered, reg, ins_loc);
                 reg
             }
             _ => unreachable!(),
@@ -3426,11 +3454,12 @@ impl<'a> LowerMethod<'a> {
         let gen_class_type = TypeRef::Owned(gen_class_ins);
         let gen_class_reg = self.new_register(gen_class_type);
         let loc = node.location;
+        let ins_loc = InstructionLocation::new(loc);
 
         // We generate the allocation first, that way when we generate any
         // fields we can populate then right away, without having to store field
         // IDs.
-        self.current_block_mut().allocate(gen_class_reg, class_id, loc);
+        self.current_block_mut().allocate(gen_class_reg, class_id, ins_loc);
 
         let mut field_index = 0;
         let field_vis = types::Visibility::TypePrivate;
@@ -3478,7 +3507,7 @@ impl<'a> LowerMethod<'a> {
                 class_id,
                 field,
                 val,
-                loc,
+                ins_loc,
             );
             method_id.set_field_type(self.db_mut(), name, field, captured_as);
 
@@ -3499,7 +3528,7 @@ impl<'a> LowerMethod<'a> {
                 field_loc,
             );
 
-            let raw = self.get_local(var, loc);
+            let raw = self.get_local(var, ins_loc);
 
             if !self.register_is_available(raw) {
                 self.state.diagnostics.moved_while_captured(
@@ -3518,7 +3547,7 @@ impl<'a> LowerMethod<'a> {
             {
                 let reg = self.new_register(captured_as);
 
-                self.current_block_mut().pointer(reg, raw, loc);
+                self.current_block_mut().pointer(reg, raw, ins_loc);
                 reg
             } else {
                 self.input_register(raw, captured_as, None, loc)
@@ -3529,7 +3558,7 @@ impl<'a> LowerMethod<'a> {
                 class_id,
                 field,
                 val,
-                loc,
+                ins_loc,
             );
 
             field_index += 1;
@@ -3551,7 +3580,7 @@ impl<'a> LowerMethod<'a> {
         }
 
         let mut mir_class = Class::new(class_id);
-        let mut mir_method = Method::new(method_id, loc);
+        let mut mir_method = Method::new(method_id);
         let mut lower = LowerMethod::new(
             self.state,
             self.mir,
@@ -3562,9 +3591,9 @@ impl<'a> LowerMethod<'a> {
         lower.variable_fields = variable_fields;
 
         if let Some((id, typ)) = captured_self_field {
-            lower.run_with_captured_self(node.body, id, typ, loc);
+            lower.run_with_captured_self(node.body, id, typ, ins_loc);
         } else {
-            lower.run(node.body, loc);
+            lower.run(node.body, ins_loc);
         }
 
         let mod_id = self.module;
@@ -3591,7 +3620,7 @@ impl<'a> LowerMethod<'a> {
     fn get_local(
         &mut self,
         id: types::VariableId,
-        location: Location,
+        location: InstructionLocation,
     ) -> RegisterId {
         self.mark_variable_as_used(id);
 
@@ -3609,7 +3638,7 @@ impl<'a> LowerMethod<'a> {
         }
     }
 
-    fn get_nil(&mut self, location: Location) -> RegisterId {
+    fn get_nil(&mut self, location: InstructionLocation) -> RegisterId {
         let reg = self.new_register(TypeRef::nil());
 
         self.current_block_mut().nil_literal(reg, location);
@@ -3657,6 +3686,7 @@ impl<'a> LowerMethod<'a> {
     /// `throw`).
     fn output_expression(&mut self, node: hir::Expression) -> RegisterId {
         let loc = node.location();
+        let ins_loc = InstructionLocation::new(loc);
         let reg = self.expression(node);
 
         self.check_field_move(reg, loc);
@@ -3666,7 +3696,7 @@ impl<'a> LowerMethod<'a> {
         if typ.is_value_type(self.db()) {
             let force_clone = !typ.is_owned_or_uni(self.db());
 
-            return self.clone_value_type(reg, typ, force_clone, loc);
+            return self.clone_value_type(reg, typ, force_clone, ins_loc);
         }
 
         if typ.is_owned_or_uni(self.db()) {
@@ -3674,7 +3704,7 @@ impl<'a> LowerMethod<'a> {
             self.partially_move_self_if_field(reg);
 
             if let Some(flag) = self.drop_flags.get(&reg).cloned() {
-                self.current_block_mut().bool_literal(flag, false, loc);
+                self.current_block_mut().bool_literal(flag, false, ins_loc);
             }
 
             return reg;
@@ -3689,7 +3719,7 @@ impl<'a> LowerMethod<'a> {
         if self.register_kind(reg).new_reference_on_return() {
             let res = self.new_register(typ);
 
-            self.current_block_mut().reference(res, reg, loc);
+            self.current_block_mut().reference(res, reg, ins_loc);
 
             return res;
         }
@@ -3768,10 +3798,11 @@ impl<'a> LowerMethod<'a> {
         register: RegisterId,
         location: Location,
     ) -> RegisterId {
+        let ins_loc = InstructionLocation::new(location);
         let typ = self.register_type(register);
 
         if typ.is_value_type(self.db()) {
-            return self.clone_value_type(register, typ, false, location);
+            return self.clone_value_type(register, typ, false, ins_loc);
         }
 
         self.check_field_move(register, location);
@@ -3784,7 +3815,7 @@ impl<'a> LowerMethod<'a> {
         }
 
         if let Some(flag) = self.drop_flags.get(&register).cloned() {
-            self.current_block_mut().bool_literal(flag, false, location);
+            self.current_block_mut().bool_literal(flag, false, ins_loc);
         }
 
         register
@@ -3797,6 +3828,8 @@ impl<'a> LowerMethod<'a> {
         expected: Option<TypeRef>,
         location: Location,
     ) -> RegisterId {
+        let ins_loc = InstructionLocation::new(location);
+
         if register_type.is_permanent(self.db()) {
             return register;
         }
@@ -3814,7 +3847,7 @@ impl<'a> LowerMethod<'a> {
                 register,
                 register_type,
                 true,
-                location,
+                ins_loc,
             );
         }
 
@@ -3827,7 +3860,7 @@ impl<'a> LowerMethod<'a> {
                     let reg = self.new_register(typ);
 
                     self.mark_register_as_moved(reg);
-                    self.current_block_mut().reference(reg, register, location);
+                    self.current_block_mut().reference(reg, register, ins_loc);
 
                     return reg;
                 }
@@ -3840,7 +3873,7 @@ impl<'a> LowerMethod<'a> {
                     register,
                     register_type,
                     false,
-                    location,
+                    ins_loc,
                 );
             }
 
@@ -3849,7 +3882,7 @@ impl<'a> LowerMethod<'a> {
             self.mark_register_as_moved(register);
 
             if let Some(flag) = self.drop_flags.get(&register).cloned() {
-                self.current_block_mut().bool_literal(flag, false, location);
+                self.current_block_mut().bool_literal(flag, false, ins_loc);
             }
 
             return register;
@@ -3863,7 +3896,7 @@ impl<'a> LowerMethod<'a> {
         {
             let reg = self.new_register(register_type);
 
-            self.current_block_mut().reference(reg, register, location);
+            self.current_block_mut().reference(reg, register, ins_loc);
             self.mark_register_as_moved(reg);
 
             return reg;
@@ -3887,7 +3920,7 @@ impl<'a> LowerMethod<'a> {
         source: RegisterId,
         typ: TypeRef,
         force_clone: bool,
-        location: Location,
+        location: InstructionLocation,
     ) -> RegisterId {
         if typ.is_permanent(self.db())
             || (self.register_kind(source).is_regular() && !force_clone)
@@ -3943,7 +3976,7 @@ impl<'a> LowerMethod<'a> {
         self.scope.parent = Some(scope);
     }
 
-    fn exit_scope(&mut self, location: Location) -> Box<Scope> {
+    fn exit_scope(&mut self, location: InstructionLocation) -> Box<Scope> {
         self.drop_scope_registers(location);
 
         if let Some(mut scope) = self.scope.parent.take() {
@@ -3958,7 +3991,7 @@ impl<'a> LowerMethod<'a> {
         &mut self,
         entered: bool,
         register: RegisterId,
-        location: Location,
+        location: InstructionLocation,
     ) {
         if !entered {
             // We perform this check here so one can't unconditionally call this
@@ -3978,7 +4011,7 @@ impl<'a> LowerMethod<'a> {
         self.scope.created.push(register);
     }
 
-    fn drop_scope_registers(&mut self, location: Location) {
+    fn drop_scope_registers(&mut self, location: InstructionLocation) {
         if !self.in_connected_block() {
             return;
         }
@@ -3992,7 +4025,7 @@ impl<'a> LowerMethod<'a> {
         }
     }
 
-    fn drop_all_registers(&mut self, location: Location) {
+    fn drop_all_registers(&mut self, location: InstructionLocation) {
         let mut registers = Vec::new();
         let mut scope = Some(&self.scope);
 
@@ -4051,7 +4084,7 @@ impl<'a> LowerMethod<'a> {
         }
     }
 
-    fn drop_loop_registers(&mut self, location: Location) {
+    fn drop_loop_registers(&mut self, location: InstructionLocation) {
         let mut registers = Vec::new();
         let mut scope = Some(&self.scope);
 
@@ -4076,7 +4109,11 @@ impl<'a> LowerMethod<'a> {
         }
     }
 
-    fn drop_register(&mut self, register: RegisterId, location: Location) {
+    fn drop_register(
+        &mut self,
+        register: RegisterId,
+        location: InstructionLocation,
+    ) {
         if self.register_might_be_moved(register) {
             let before_block = self.current_block;
             let drop_block = self.add_block();
@@ -4114,7 +4151,7 @@ impl<'a> LowerMethod<'a> {
     fn unconditional_drop_register(
         &mut self,
         register: RegisterId,
-        location: Location,
+        location: InstructionLocation,
     ) {
         self.current_block_mut().drop(register, location);
 
@@ -4128,7 +4165,7 @@ impl<'a> LowerMethod<'a> {
         receiver: RegisterId,
         field: types::FieldId,
         register: RegisterId,
-        location: Location,
+        location: InstructionLocation,
     ) {
         if self.register_might_be_moved(register) {
             let before_block = self.current_block;
@@ -4164,7 +4201,7 @@ impl<'a> LowerMethod<'a> {
         receiver: RegisterId,
         field: types::FieldId,
         register: RegisterId,
-        location: Location,
+        location: InstructionLocation,
     ) {
         let class = self.register_type(receiver).class_id(self.db()).unwrap();
 
@@ -4173,7 +4210,11 @@ impl<'a> LowerMethod<'a> {
         self.unconditional_drop_register(register, location);
     }
 
-    fn add_drop_flag(&mut self, register: RegisterId, location: Location) {
+    fn add_drop_flag(
+        &mut self,
+        register: RegisterId,
+        location: InstructionLocation,
+    ) {
         let typ = self.register_type(register);
 
         if typ.use_reference_counting(self.db())
@@ -4269,7 +4310,7 @@ impl<'a> LowerMethod<'a> {
         &mut self,
         id: types::FieldId,
         value_type: TypeRef,
-        location: Location,
+        location: InstructionLocation,
     ) -> RegisterId {
         if let Some(reg) = self.field_mapping.get(&id).cloned() {
             return reg;
@@ -4455,7 +4496,7 @@ impl<'a> LowerMethod<'a> {
         &mut self,
         register: RegisterId,
         id: ConstantId,
-        location: Location,
+        location: InstructionLocation,
     ) {
         self.current_block_mut().get_constant(register, id, location);
 
@@ -4471,7 +4512,7 @@ impl<'a> LowerMethod<'a> {
         register: RegisterId,
         value: String,
         block: BlockId,
-        location: Location,
+        location: InstructionLocation,
     ) {
         self.block_mut(block).string_literal(register, value, location);
 

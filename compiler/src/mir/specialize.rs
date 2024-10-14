@@ -1,6 +1,7 @@
 use crate::mir::{
     Block, BlockId, CallDynamic, CallInstance, CastType, Class as MirClass,
-    Drop, Instruction, Location, Method, Mir, Reference, RegisterId, SELF_ID,
+    Drop, Instruction, InstructionLocation, Method, Mir, Reference, RegisterId,
+    SELF_ID,
 };
 use crate::state::State;
 use indexmap::{IndexMap, IndexSet};
@@ -1248,7 +1249,7 @@ impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
         before_id: BlockId,
         after_id: BlockId,
         value: RegisterId,
-        location: Location,
+        location: InstructionLocation,
     ) {
         self.block_mut(before_id).decrement(value, location);
         self.block_mut(before_id).goto(after_id, location);
@@ -1260,7 +1261,7 @@ impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
         before_id: BlockId,
         after_id: BlockId,
         value: RegisterId,
-        location: Location,
+        location: InstructionLocation,
     ) {
         let drop_id = self.add_block();
         let check = self.block_mut(before_id);
@@ -1283,7 +1284,7 @@ impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
         after_id: BlockId,
         value: RegisterId,
         dropper: bool,
-        location: Location,
+        location: InstructionLocation,
     ) {
         if dropper {
             self.call_dropper(before_id, value, location);
@@ -1307,7 +1308,7 @@ impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
         &mut self,
         block: BlockId,
         value: RegisterId,
-        location: Location,
+        location: InstructionLocation,
     ) {
         let typ = self.method.registers.value_type(value);
         let reg = self.method.registers.alloc(TypeRef::nil());
