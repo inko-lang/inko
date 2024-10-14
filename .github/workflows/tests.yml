@@ -99,7 +99,7 @@ jobs:
         run: 'cd std && cargo run -- test'
 
   amd64-mac-native:
-    runs-on: macos-12
+    runs-on: macos-13
     env:
       RUSTUP_HOME: ${{ github.workspace }}/.rustup-home
     steps:
