@@ -1186,10 +1186,9 @@ impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
                     }
                 };
 
-                let mut succ = Vec::new();
                 let after_id = self.add_block();
+                let succ = self.block_mut(block_id).take_successors();
 
-                swap(&mut succ, &mut self.block_mut(block_id).successors);
                 self.insert(*ins, block_id, after_id);
 
                 // The new end block must be properly connected to the block(s)
@@ -1376,10 +1375,9 @@ impl<'a, 'b, 'c> ExpandReference<'a, 'b, 'c> {
                     }
                 };
 
-                let mut succ = Vec::new();
                 let after_id = self.method.body.add_block();
+                let succ = self.block_mut(block_id).take_successors();
 
-                swap(&mut succ, &mut self.block_mut(block_id).successors);
                 self.insert(*ins, block_id, after_id);
 
                 for succ_id in succ {

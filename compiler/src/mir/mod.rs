@@ -224,6 +224,13 @@ impl Block {
         }
     }
 
+    pub(crate) fn take_successors(&mut self) -> Vec<BlockId> {
+        let mut succ = Vec::new();
+
+        swap(&mut succ, &mut self.successors);
+        succ
+    }
+
     pub(crate) fn goto(
         &mut self,
         block: BlockId,
@@ -1834,14 +1841,32 @@ impl Method {
         // removed.
         let mut shift_map = vec![0; self.body.blocks.len()];
         let mut reachable = vec![false; self.body.blocks.len()];
+        let mut queue: Vec<_> =
+            (0..self.body.blocks.len()).map(BlockId).collect();
 
-        for idx in 0..shift_map.len() {
-            if self.body.is_connected(BlockId(idx)) {
-                reachable[idx] = true;
-            } else {
-                for incr in (idx + 1)..shift_map.len() {
-                    shift_map[incr] += 1;
+        while let Some(block) = queue.pop() {
+            if self.body.is_connected(block) {
+                reachable[block.0] = true;
+                continue;
+            }
+
+            // We may revisit a block that was initially reachable but is now
+            // unreachable.
+            reachable[block.0] = false;
+
+            // If our block isn't reachable we need to ensure any successor
+            // blocks are also marked as unreachable, otherwise we might only
+            // remove the entry block of an unreachable chain of blocks.
+            for id in self.body.block_mut(block).take_successors() {
+                self.body.remove_predecessor(id, block);
+
+                if !self.body.is_connected(id) {
+                    queue.push(id);
                 }
+            }
+
+            for incr in (block.0 + 1)..shift_map.len() {
+                shift_map[incr] += 1;
             }
         }
 
@@ -2232,20 +2257,26 @@ impl Mir {
                 };
 
                 if merge {
-                    let mut next_succ = Vec::new();
                     let mut next_ins = Vec::new();
-                    let next_id = block.successors[0].0;
-                    let next_block = &mut method.body.blocks[next_id];
+                    let next_id = block.successors[0];
+                    let next_block = &mut method.body.blocks[next_id.0];
+                    let next_succ = next_block.take_successors();
 
-                    swap(&mut next_succ, &mut next_block.successors);
                     swap(&mut next_ins, &mut next_block.instructions);
                     next_block.predecessors.clear();
 
                     let block = &mut method.body.blocks[idx];
 
-                    block.successors = next_succ;
+                    block.successors.clear();
                     block.instructions.pop();
                     block.instructions.append(&mut next_ins);
+
+                    // Connect the block we merged into with the successors of
+                    // the block we merged.
+                    for id in next_succ {
+                        method.body.remove_predecessor(id, next_id);
+                        method.body.add_edge(BlockId(idx), id);
+                    }
                 } else {
                     // Merging a block into its predecessor may result in a new
                     // goto() at the end that requires merging, so we only
@@ -2309,12 +2340,15 @@ mod tests {
     fn test_method_remove_unreachable_blocks() {
         let mut method = Method::new(MethodId(0));
 
-        method.body.add_block(); // BlockId(0)
-
+        let b0 = method.body.add_block();
         let b1 = method.body.add_block();
         let b2 = method.body.add_block();
         let b3 = method.body.add_block();
+        let b4 = method.body.add_block();
         let loc = InstructionLocation::new(Location::default());
+
+        method.body.block_mut(b0).goto(b4, loc);
+        method.body.add_edge(b0, b4);
 
         method.body.start_id = b3;
         method.body.block_mut(b3).goto(b2, loc);

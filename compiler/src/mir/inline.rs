@@ -5,7 +5,6 @@ use crate::mir::{
 use crate::state::State;
 use std::cmp::min;
 use std::collections::HashSet;
-use std::mem::swap;
 use types::{Database, Inline, MethodId, ModuleId};
 
 /// If a method wouldn't be inlined but is called at most this many times, it
@@ -412,9 +411,7 @@ impl CallSite {
 
         // Fix up the successor and predecossor blocks of the call block and
         // its successor blocks, ensuring the CFG remains correct.
-        let mut succ = Vec::new();
-
-        swap(&mut caller.body.block_mut(self.block).successors, &mut succ);
+        let succ = caller.body.block_mut(self.block).take_successors();
 
         for id in succ {
             caller.body.remove_predecessor(id, self.block);
