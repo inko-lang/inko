@@ -36,7 +36,7 @@ use inkwell::values::{
     FunctionValue, GlobalValue, IntValue, PointerValue,
 };
 use inkwell::OptimizationLevel;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::HashMap;
 use std::fs::{read, write};
 use std::path::Path;
 use std::path::PathBuf;
@@ -1030,8 +1030,6 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
     }
 
     fn method_body(&mut self) {
-        let mut queue = VecDeque::new();
-        let mut visited = HashSet::new();
         let mut llvm_blocks = Vec::with_capacity(self.method.body.blocks.len());
 
         for _ in 0..self.method.body.blocks.len() {
@@ -1040,23 +1038,13 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
         self.builder.jump(llvm_blocks[self.method.body.start_id.0]);
 
-        queue.push_back(self.method.body.start_id);
-        visited.insert(self.method.body.start_id);
-
-        while let Some(block_id) = queue.pop_front() {
-            let mir_block = &self.method.body.blocks[block_id.0];
-            let llvm_block = llvm_blocks[block_id.0];
+        for (idx, block) in self.method.body.blocks.iter().enumerate() {
+            let llvm_block = llvm_blocks[idx];
 
             self.builder.switch_to_block(llvm_block);
 
-            for ins in &mir_block.instructions {
+            for ins in &block.instructions {
                 self.instruction(&llvm_blocks, ins);
-            }
-
-            for &child in &mir_block.successors {
-                if visited.insert(child) {
-                    queue.push_back(child);
-                }
             }
         }
     }
