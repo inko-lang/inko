@@ -1,0 +1,54 @@
+import std.io (Error)
+import std.libc
+import std.sys.freebsd.net (self as sys) if freebsd
+import std.sys.linux.net (self as sys) if linux
+import std.sys.mac.net (self as sys) if mac
+
+fn inline socket(ipv6: Bool, type: Int) -> Result[Int32, Error] {
+  let domain = if ipv6 { libc.AF_INET6 } else { libc.AF_INET }
+  let fd = sys.socket(domain, type, protocol: 0)
+
+  if fd as Int == -1 {
+    Result.Error(Error.last_os_error)
+  } else {
+    Result.Ok(fd)
+  }
+}
+
+fn inline set_int32_option(
+  fd: Int32,
+  level: Int,
+  option: Int,
+  value: Int,
+) -> Result[Nil, Error] {
+  let val = value as Int32
+  let res = libc.setsockopt(
+    fd,
+    level as Int32,
+    option as Int32,
+    (mut val) as Pointer[UInt8],
+    4 as Int32,
+  )
+    as Int
+
+  if res == 0 { Result.Ok(nil) } else { Result.Error(Error.last_os_error) }
+}
+
+fn inline set_int64_option(
+  fd: Int32,
+  level: Int,
+  option: Int,
+  value: Int,
+) -> Result[Nil, Error] {
+  let val = value as Int64
+  let res = libc.setsockopt(
+    fd,
+    level as Int32,
+    option as Int32,
+    (mut val) as Pointer[UInt8],
+    8 as Int32,
+  )
+    as Int
+
+  if res == 0 { Result.Ok(nil) } else { Result.Error(Error.last_os_error) }
+}

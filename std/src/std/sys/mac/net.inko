@@ -1,0 +1,38 @@
+import std.libc
+import std.libc.mac (self as sys)
+
+# macOS doesn't have `SOCK_CLOEXEC` and `SOCK_NONBLOCK`, so we need to use
+# `fcntl()` to make a socket non-blocking.
+fn inline socket(domain: Int, type: Int, protocol: Int) -> Int32 {
+  let fd = libc.socket(domain as Int32, type as Int32, protocol as Int32)
+
+  if fd as Int == -1 { return -1 as Int32 }
+
+  if configure_socket(fd) == -1 { return -1 as Int32 }
+
+  fd
+}
+
+# macOS doesn't have the `accept4()` system call, so we have to emulate it using
+# `accept()` and `fcntl()`.
+fn inline accept(
+  fd: Int32,
+  addr: Pointer[sys.SockAddr],
+  size: Pointer[UInt32],
+) -> Int32 {
+  let peer = sys.accept(fd, addr, size)
+
+  if peer as Int == -1 { return -1 as Int32 }
+
+  if configure_socket(fd) == -1 { return -1 as Int32 }
+
+  peer
+}
+
+fn inline configure_socket(fd: Int32) -> Int {
+  if sys.fcntl(fd, sys.F_SETFD as Int32, sys.FD_CLOEXEC as Int32) as Int == -1 {
+    return -1
+  }
+
+  sys.fcntl(fd, sys.F_SETFL as Int32, sys.O_NONBLOCK as Int32) as Int
+}

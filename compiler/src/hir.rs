@@ -2458,11 +2458,12 @@ impl<'a> LowerToHir<'a> {
 
     fn call(&mut self, node: ast::Call) -> Expression {
         if self.is_builtin_call(&node) {
-            if !self.module.is_std(&self.state.db) {
-                self.state
-                    .diagnostics
-                    .intrinsic_not_available(self.file(), node.location);
-            }
+            // TODO: re-enable
+            //if !self.module.is_std(&self.state.db) {
+            //    self.state
+            //        .diagnostics
+            //        .intrinsic_not_available(self.file(), node.location);
+            //}
 
             // We special-case this instruction because we need to attach extra
             // type information, but don't want to introduce a dedicated

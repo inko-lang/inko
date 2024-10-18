@@ -1,0 +1,16 @@
+import std.libc
+import std.libc.freebsd (self as sys)
+
+fn inline socket(domain: Int, type: Int, protocol: Int) -> Int32 {
+  let type = type | sys.SOCK_CLOEXEC | sys.SOCK_NONBLOCK
+
+  libc.socket(domain as Int32, type as Int32, protocol as Int32)
+}
+
+fn inline accept(
+  fd: Int32,
+  addr: Pointer[sys.SockAddr],
+  size: Pointer[UInt32],
+) -> Int32 {
+  sys.accept4(fd, addr, size, sys.SOCK_CLOEXEC | sys.SOCK_NONBLOCK as Int32)
+}

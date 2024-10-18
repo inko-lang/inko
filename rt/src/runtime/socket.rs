@@ -41,6 +41,19 @@ fn run<T>(
 }
 
 #[no_mangle]
+pub(crate) unsafe extern "system" fn inko_socket_poll(
+    state: *const State,
+    process: ProcessPointer,
+    socket: *mut Socket,
+    interest: i64,
+    deadline: i64,
+) -> bool {
+    let interest = if interest == 1 { Interest::Write } else { Interest::Read };
+
+    poll(&*state, process, &mut *socket, interest, deadline).is_ok()
+}
+
+#[no_mangle]
 pub(crate) unsafe extern "system" fn inko_socket_new(
     domain: i64,
     kind: i64,

@@ -1,5 +1,7 @@
 import std.io (Error)
 
+let AF_INET = 2
+let AF_INET6 = 28
 let DT_DIR = 4
 let DT_LNK = 10
 let DT_REG = 8
@@ -56,6 +58,11 @@ let POSIX_SPAWN_SETSIGDEF = 0x10
 let POSIX_SPAWN_SETSIGMASK = 0x20
 let SEEK_END = 2
 let SEEK_SET = 0
+let SOCK_CLOEXEC = 0x10000000
+let SOCK_DGRAM = 2
+let SOCK_NONBLOCK = 0x20000000
+let SOCK_RAW = 3
+let SOCK_STREAM = 1
 let SOL_SOCKET = 0xFFFF
 let SO_BROADCAST = 0x20
 let SO_KEEPALIVE = 0x8
@@ -140,6 +147,45 @@ class extern PosixSpawnFileActions {
   let @inner: Pointer[UInt8]
 }
 
+class extern SockAddrIn {
+  let @sin_len: UInt8
+  let @sin_family: UInt8
+  let @sin_port: UInt16
+  let @sin_addr: UInt32
+  let @sin_zero: UInt64
+}
+
+class extern SockAddrIn6 {
+  let @sin6_len: UInt8
+  let @sin6_family: UInt8
+  let @sin6_port: UInt16
+  let @sin6_flowinfo: UInt32
+  let @sin6_addr0: UInt32
+  let @sin6_addr1: UInt32
+  let @sin6_addr2: UInt32
+  let @sin6_addr3: UInt32
+  let @sin6_scope_id: UInt32
+}
+
+class extern SockAddr {
+  let @sa_len: UInt8
+  let @sa_family: UInt8
+  let @sa_data0: UInt8
+  let @sa_data1: UInt8
+  let @sa_data2: UInt8
+  let @sa_data3: UInt8
+  let @sa_data4: UInt8
+  let @sa_data5: UInt8
+  let @sa_data6: UInt8
+  let @sa_data7: UInt8
+  let @sa_data8: UInt8
+  let @sa_data9: UInt8
+  let @sa_data10: UInt8
+  let @sa_data11: UInt8
+  let @sa_data12: UInt8
+  let @sa_data13: UInt8
+}
+
 fn extern fchmod(fd: Int32, mode: UInt16) -> Int32
 
 fn extern fstat(fd: Int32, buf: Pointer[StatBuf]) -> Int32
@@ -164,6 +210,13 @@ fn extern copy_file_range(
 fn extern pipe2(pipes: Pointer[Pipes], flags: Int32) -> Int32
 
 fn extern __error -> Pointer[Int32]
+
+fn extern accept4(
+  socket: Int32,
+  addr: Pointer[SockAddr],
+  size: Pointer[UInt32],
+  flags: Int32,
+) -> Int32
 
 fn inline flush(fd: Int32) -> Int32 {
   fsync(fd)
