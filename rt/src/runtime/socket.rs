@@ -41,25 +41,16 @@ fn run<T>(
 }
 
 #[no_mangle]
-pub(crate) unsafe extern "system" fn inko_socket_new(
-    domain: i64,
-    kind: i64,
-    proto: i64,
-    out: *mut Socket,
-) -> i64 {
-    let sock = match domain {
-        0 => Socket::ipv4(kind, proto),
-        1 => Socket::ipv6(kind, proto),
-        _ => Socket::unix(kind),
-    };
+pub(crate) unsafe extern "system" fn inko_socket_poll(
+    state: *const State,
+    process: ProcessPointer,
+    socket: *mut Socket,
+    interest: i64,
+    deadline: i64,
+) -> bool {
+    let interest = if interest == 1 { Interest::Write } else { Interest::Read };
 
-    match sock {
-        Ok(val) => {
-            write(out, val);
-            0
-        }
-        Err(err) => error_to_int(err),
-    }
+    poll(&*state, process, &mut *socket, interest, deadline).is_ok()
 }
 
 #[no_mangle]
@@ -96,49 +87,6 @@ pub unsafe extern "system" fn inko_socket_read(
         read_from(sock, &mut (*buffer).value, amount as usize)
     })
     .map(|size| Result::ok(size as _))
-    .unwrap_or_else(Result::io_error)
-}
-
-#[no_mangle]
-pub unsafe extern "system" fn inko_socket_listen(
-    socket: *mut Socket,
-    value: i64,
-) -> Result {
-    (*socket)
-        .listen(value as i32)
-        .map(|_| Result::none())
-        .unwrap_or_else(Result::io_error)
-}
-
-#[no_mangle]
-pub unsafe extern "system" fn inko_socket_bind(
-    socket: *mut Socket,
-    address: *const InkoString,
-    port: i64,
-) -> Result {
-    // POSX states that bind(2) _can_ produce EINPROGRESS, but in practise it
-    // seems no system out there actually does this.
-    (*socket)
-        .bind(InkoString::read(address), port as u16)
-        .map(|_| Result::none())
-        .unwrap_or_else(Result::io_error)
-}
-
-#[no_mangle]
-pub unsafe extern "system" fn inko_socket_connect(
-    state: *const State,
-    process: ProcessPointer,
-    socket: *mut Socket,
-    address: *const InkoString,
-    port: i64,
-    deadline: i64,
-) -> Result {
-    let state = &*state;
-
-    run(state, process, &mut *socket, Interest::Write, deadline, |sock| {
-        sock.connect(InkoString::read(address), port as u16)
-    })
-    .map(|_| Result::none())
     .unwrap_or_else(Result::io_error)
 }
 

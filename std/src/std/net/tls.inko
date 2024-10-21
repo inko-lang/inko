@@ -28,8 +28,9 @@ import std.crypto.x509 (Certificate, PrivateKey)
 import std.drop (Drop)
 import std.fmt (Format, Formatter)
 import std.io (Error, Read, Write, WriteInternal)
-import std.net.socket (RawSocket, RawSocketOperations)
+import std.net.socket (RawSocketOperations)
 import std.string (ToString)
+import std.sys.unix.net (RawSocket)
 
 # The error code produced when a TLS certificate is invalid.
 let INVALID_CERT = -1

@@ -1,0 +1,252 @@
+import std.fs.path (Path)
+import std.io (Error)
+import std.libc
+import std.libc.freebsd (self as sys_libc) if freebsd
+import std.libc.linux (self as sys_libc) if linux
+import std.libc.mac (self as sys_libc) if mac
+import std.net.ip (IpAddress, Ipv4Address)
+import std.sys.freebsd.net (self as sys) if freebsd
+import std.sys.linux.net (self as sys) if linux
+import std.sys.mac.net (self as sys) if mac
+
+fn extern inko_socket_poll(
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
+  socket: Pointer[RawSocket],
+  interest: Int,
+  deadline: Int,
+) -> Bool
+
+# A value that signals a socket isn't registered with a poller.
+let NOT_REGISTERED = -1
+
+class extern RawSocket {
+  let @inner: Int32
+  let @registered: UInt8
+  let @unix: Bool
+}
+
+fn inline poll(
+  socket: Pointer[RawSocket],
+  deadline: Int,
+  write: Bool,
+) -> Result[Nil, Error] {
+  if
+    inko_socket_poll(_INKO.state, _INKO.process, socket, write.to_int, deadline)
+  {
+    Result.Ok(nil)
+  } else {
+    Result.Error(Error.TimedOut)
+  }
+}
+
+fn inline htons(value: Int) -> Int {
+  _INKO.int_swap_bytes(value as UInt16)
+}
+
+fn inline pack_v4(ip: ref Ipv4Address) -> Int {
+  ip.a | (ip.b << 8) | (ip.c << 16) | (ip.d << 24)
+}
+
+fn inline pack_v6_pair(a: Int, b: Int) -> Int {
+  htons(b) << 16 | htons(a)
+}
+
+fn getsockopt_error -> Never {
+  panic('getsockopt(2) failed: ${Error.last_os_error}')
+}
+
+fn inline socket(
+  domain: Int,
+  type: Int,
+  protocol: Int,
+  socket: Pointer[RawSocket],
+) -> Result[Nil, Error] {
+  let fd = sys.socket(domain, type, protocol)
+
+  if fd as Int == -1 { throw Error.last_os_error }
+
+  socket.inner = fd
+  Result.Ok(nil)
+}
+
+fn inline raw_socket(unix: Bool) -> RawSocket {
+  RawSocket(inner: 0 as Int32, registered: NOT_REGISTERED as UInt8, unix: unix)
+}
+
+fn inline bind_ip(
+  fd: Int32,
+  ip: ref IpAddress,
+  port: Int,
+) -> Result[Nil, Error] {
+  let res = match ip {
+    case V4(ip) -> {
+      let size = sys_libc.sockaddr_in_size as UInt32
+      let addr = sys_libc.SockAddrIn()
+      let addr_ptr = mut addr
+
+      sys.init_v4_address(addr_ptr, ip, port)
+      libc.bind(fd, addr_ptr as Pointer[UInt8], size) as Int
+    }
+    case V6(ip) -> {
+      let size = sys_libc.sockaddr_in6_size as UInt32
+      let addr = sys_libc.SockAddrIn6()
+      let addr_ptr = mut addr
+
+      sys.init_v6_address(addr_ptr, ip, port)
+      libc.bind(fd, addr_ptr as Pointer[UInt8], size) as Int
+    }
+  }
+
+  if res == 0 { Result.Ok(nil) } else { Result.Error(Error.last_os_error) }
+}
+
+fn inline bind_unix(fd: Int32, path: ref Path) -> Result[Nil, Error] {
+  let addr = sys_libc.SockAddrUn()
+  let addr_ptr = mut addr
+  let size = try sys.init_unix_address(addr_ptr, path)
+
+  if libc.bind(fd, addr_ptr as Pointer[UInt8], size as UInt32) as Int == 0 {
+    Result.Ok(nil)
+  } else {
+    Result.Error(Error.last_os_error)
+  }
+}
+
+fn inline set_int32_option(
+  fd: Int32,
+  level: Int,
+  option: Int,
+  value: Int,
+) -> Result[Nil, Error] {
+  let val = value as Int32
+  let res = libc.setsockopt(
+    fd,
+    level as Int32,
+    option as Int32,
+    (mut val) as Pointer[UInt8],
+    4 as Int32,
+  )
+    as Int
+
+  if res == 0 { Result.Ok(nil) } else { Result.Error(Error.last_os_error) }
+}
+
+fn inline get_int32_option(fd: Int32, level: Int, option: Int) -> Int {
+  let size = 4 as Int32
+  let val = 0 as Int32
+  let res = libc.getsockopt(
+    fd,
+    level as Int32,
+    option as Int32,
+    (mut val) as Pointer[UInt8],
+    mut size,
+  )
+    as Int
+
+  if res == 0 {
+    val as Int
+  } else {
+    # Since we control the arguments passed to getsockopt() such that they
+    # won't be invalid, this method isn't expected to fail at runtime. To
+    # remove the need for unneccesary error handling, we panic instead should
+    # we encounter an error after all.
+    getsockopt_error
+  }
+}
+
+fn inline listen(fd: Int32, backlog: Int) -> Result[Nil, Error] {
+  if libc.listen(fd, backlog as Int32) as Int == 0 {
+    Result.Ok(nil)
+  } else {
+    Result.Error(Error.last_os_error)
+  }
+}
+
+fn inline accept(
+  socket: Pointer[RawSocket],
+  peer: Pointer[RawSocket],
+  deadline: Int,
+) -> Result[Nil, Error] {
+  loop {
+    let fd = sys.accept(socket.inner)
+
+    if fd as Int >= 0 {
+      peer.inner = fd
+      return Result.Ok(nil)
+    }
+
+    match libc.errno {
+      case libc.EAGAIN -> try poll(socket, deadline, write: false)
+      case e -> throw Error.from_os_error(e)
+    }
+  }
+}
+
+fn inline connect_ip(
+  socket: Pointer[RawSocket],
+  ip: ref IpAddress,
+  port: Int,
+  deadline: Int,
+) -> Result[Nil, Error] {
+  match ip {
+    case V4(ip) -> {
+      let addr = sys_libc.SockAddrIn()
+      let addr_ptr = mut addr
+      let size = sys_libc.sockaddr_in_size
+
+      sys.init_v4_address(addr_ptr, ip, port)
+      connect(socket, deadline, addr_ptr as Pointer[UInt8], size)
+    }
+    case V6(ip) -> {
+      let addr = sys_libc.SockAddrIn6()
+      let addr_ptr = mut addr
+      let size = sys_libc.sockaddr_in6_size
+
+      sys.init_v6_address(addr_ptr, ip, port)
+      connect(socket, deadline, addr_ptr as Pointer[UInt8], size)
+    }
+  }
+}
+
+fn inline connect_unix(
+  socket: Pointer[RawSocket],
+  path: ref Path,
+  deadline: Int,
+) -> Result[Nil, Error] {
+  let addr = sys_libc.SockAddrUn()
+  let addr_ptr = mut addr
+  let size = try sys.init_unix_address(addr_ptr, path)
+
+  connect(socket, deadline, addr_ptr as Pointer[UInt8], size)
+}
+
+fn inline connect(
+  socket: Pointer[RawSocket],
+  deadline: Int,
+  address: Pointer[UInt8],
+  size: Int,
+) -> Result[Nil, Error] {
+  loop {
+    let res = libc.connect(socket.inner, address, size as UInt32) as Int
+
+    if res == 0 { break }
+
+    match libc.errno {
+      # Depending on the platform we may encounter EAGAIN or EINPROGRESS. In
+      # both cases the actual error may be stored in SO_ERROR.
+      case libc.EAGAIN or libc.EINPROGRESS -> {
+        match get_int32_option(socket.inner, libc.SOL_SOCKET, libc.SO_ERROR) {
+          case 0 -> try poll(socket, deadline, write: true)
+          case e -> throw Error.from_os_error(e)
+        }
+      }
+      # We may run into an EISCONN if a previous connect(2) attempt would block.
+      # In this case we can just continue.
+      case libc.EISCONN -> break
+      case e -> throw Error.from_os_error(e)
+    }
+  }
+
+  Result.Ok(nil)
+}

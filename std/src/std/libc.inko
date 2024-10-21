@@ -14,6 +14,9 @@ import std.libc.mac (self as sys) if mac
 # The various C constants are re-exported here so the various standard library
 # modules don't need to import the platform specific modules.
 
+let AF_INET = sys.AF_INET
+let AF_INET6 = sys.AF_INET6
+let AF_UNIX = sys.AF_UNIX
 let DT_DIR = sys.DT_DIR
 let DT_LNK = sys.DT_LNK
 let DT_REG = sys.DT_REG
@@ -69,8 +72,12 @@ let POSIX_SPAWN_SETSIGDEF = sys.POSIX_SPAWN_SETSIGDEF
 let POSIX_SPAWN_SETSIGMASK = sys.POSIX_SPAWN_SETSIGMASK
 let SEEK_END = sys.SEEK_END
 let SEEK_SET = sys.SEEK_SET
+let SOCK_DGRAM = sys.SOCK_DGRAM
+let SOCK_RAW = sys.SOCK_RAW
+let SOCK_STREAM = sys.SOCK_STREAM
 let SOL_SOCKET = sys.SOL_SOCKET
 let SO_BROADCAST = sys.SO_BROADCAST
+let SO_ERROR = sys.SO_ERROR
 let SO_KEEPALIVE = sys.SO_KEEPALIVE
 let SO_LINGER = sys.SO_LINGER
 let SO_RCVBUF = sys.SO_RCVBUF
@@ -193,6 +200,12 @@ fn extern waitpid(pid: Int32, status: Pointer[Int32], options: Int32) -> Int32
 
 fn extern realloc(pointer: Pointer[UInt8], size: Int) -> Pointer[UInt8]
 
+fn extern memset(
+  pointer: Pointer[UInt8],
+  byte: Int,
+  size: UInt64,
+) -> Pointer[UInt8]
+
 fn extern memmove(
   to: Pointer[UInt8],
   from: Pointer[UInt8],
@@ -202,6 +215,30 @@ fn extern memmove(
 fn extern free(pointer: Pointer[UInt8])
 
 fn extern exit(status: Int32) -> Never
+
+fn extern socket(domain: Int32, type: Int32, protocol: Int32) -> Int32
+
+fn extern bind(socket: Int32, addr: Pointer[UInt8], size: UInt32) -> Int32
+
+fn extern connect(socket: Int32, addr: Pointer[UInt8], size: UInt32) -> Int32
+
+fn extern listen(socket: Int32, backlog: Int32) -> Int32
+
+fn extern setsockopt(
+  socket: Int32,
+  level: Int32,
+  option: Int32,
+  value: Pointer[UInt8],
+  size: Int32,
+) -> Int32
+
+fn extern getsockopt(
+  socket: Int32,
+  level: Int32,
+  option: Int32,
+  value: Pointer[UInt8],
+  size: Pointer[Int32],
+) -> Int32
 
 # Returns the type of a directory entry.
 fn inline dirent_type(pointer: Pointer[sys.Dirent]) -> Int {
@@ -219,4 +256,8 @@ fn inline pipes -> Result[(Int32, Int32), Error] {
 
 fn inline errno_location -> Pointer[Int32] {
   sys.errno_location
+}
+
+fn inline errno -> Int {
+  errno_location.0 as Int
 }

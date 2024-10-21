@@ -4,8 +4,7 @@ use crate::network_poller::Interest;
 use crate::process::ProcessPointer;
 use crate::socket::socket_address::SocketAddress;
 use crate::state::State;
-use rustix::io::Errno;
-use socket2::{Domain, Protocol, SockAddr, Socket as RawSocket, Type};
+use socket2::{SockAddr, Socket as RawSocket};
 use std::io::{self, Read};
 use std::mem::transmute;
 use std::net::Shutdown;
@@ -73,26 +72,6 @@ fn update_buffer_length(buffer: &mut Vec<u8>, read: usize) {
     }
 }
 
-fn socket_type(kind: i64) -> io::Result<Type> {
-    match kind {
-        0 => Ok(Type::STREAM),
-        1 => Ok(Type::DGRAM),
-        2 => Ok(Type::RAW),
-        _ => Err(io::Error::new(
-            io::ErrorKind::Other,
-            format!("{} is not a valid socket type", kind),
-        )),
-    }
-}
-
-fn socket_protocol(value: i64) -> Option<Protocol> {
-    if value == 0 {
-        None
-    } else {
-        Some(Protocol::from(value as i32))
-    }
-}
-
 pub(crate) fn read_from<R: Read>(
     reader: &mut R,
     into: &mut Vec<u8>,
@@ -141,93 +120,6 @@ pub struct Socket {
 }
 
 impl Socket {
-    pub(crate) fn new(
-        domain: Domain,
-        kind: Type,
-        protocol: Option<Protocol>,
-        unix: bool,
-    ) -> io::Result<Self> {
-        let socket = RawSocket::new(domain, kind, protocol)?;
-
-        socket.set_nonblocking(true)?;
-        Ok(Socket {
-            inner: socket,
-            registered: AtomicI8::new(NOT_REGISTERED),
-            unix,
-        })
-    }
-
-    pub(crate) fn ipv4(kind_int: i64, protocol: i64) -> io::Result<Socket> {
-        Self::new(
-            Domain::IPV4,
-            socket_type(kind_int)?,
-            socket_protocol(protocol),
-            false,
-        )
-    }
-
-    pub(crate) fn ipv6(kind_int: i64, protocol: i64) -> io::Result<Socket> {
-        Self::new(
-            Domain::IPV6,
-            socket_type(kind_int)?,
-            socket_protocol(protocol),
-            false,
-        )
-    }
-
-    #[cfg(unix)]
-    pub(crate) fn unix(kind_int: i64) -> io::Result<Socket> {
-        Self::new(Domain::UNIX, socket_type(kind_int)?, None, true)
-    }
-
-    #[cfg(not(unix))]
-    pub(crate) fn unix(_: i64) -> io::Result<Socket> {
-        Err(io::Error::new(
-            io::ErrorKind::Other,
-            "UNIX sockets aren't supported on this platform",
-        ))
-    }
-
-    pub(crate) fn bind(&self, address: &str, port: u16) -> io::Result<()> {
-        let sockaddr = encode_sockaddr(address, port, self.unix)?;
-
-        self.inner.bind(&sockaddr)
-    }
-
-    pub(crate) fn listen(&self, backlog: i32) -> io::Result<()> {
-        self.inner.listen(backlog)
-    }
-
-    pub(crate) fn connect(&self, address: &str, port: u16) -> io::Result<()> {
-        let sockaddr = encode_sockaddr(address, port, self.unix)?;
-
-        match self.inner.connect(&sockaddr) {
-            Ok(_) => Ok(()),
-            Err(ref e)
-                if e.kind() == io::ErrorKind::WouldBlock
-                    || e.raw_os_error()
-                        == Some(Errno::INPROGRESS.raw_os_error()) =>
-            {
-                if let Ok(Some(err)) = self.inner.take_error() {
-                    // When performing a connect(), the error returned may be
-                    // WouldBlock, with the actual error being stored in
-                    // SO_ERROR on the socket.
-                    return Err(err);
-                }
-
-                Err(io::Error::from(io::ErrorKind::WouldBlock))
-            }
-            Err(ref e)
-                if e.raw_os_error() == Some(Errno::ISCONN.raw_os_error()) =>
-            {
-                // We may run into an ISCONN if a previous connect(2) attempt
-                // would block. In this case we can just continue.
-                Ok(())
-            }
-            Err(e) => Err(e),
-        }
-    }
-
     pub(crate) fn register(
         &mut self,
         state: &State,
@@ -363,18 +255,6 @@ impl io::Read for Socket {
 mod tests {
     use super::*;
     use std::mem::size_of;
-
-    #[test]
-    fn test_try_clone() {
-        let socket1 = Socket::ipv4(0, 0).unwrap();
-
-        socket1.registered.store(2, Ordering::Release);
-
-        let socket2 = socket1.try_clone().unwrap();
-
-        assert_eq!(socket2.registered.load(Ordering::Acquire), NOT_REGISTERED);
-        assert!(!socket2.unix);
-    }
 
     #[test]
     fn test_type_size() {

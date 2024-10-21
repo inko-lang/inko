@@ -648,7 +648,7 @@ class builtin Array[T] {
   }
 
   fn inline address_of(index: Int) -> Pointer[T] {
-    @buffer as Int + (index * _INKO.size_of_type_parameter(T)) as Pointer[T]
+    @buffer as Int + (index * _INKO.size_of_type_name(T)) as Pointer[T]
   }
 }
 

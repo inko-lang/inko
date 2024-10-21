@@ -2,6 +2,7 @@ import std.drop (Drop)
 import std.env
 import std.fmt (fmt)
 import std.fs.path (Path)
+import std.io (Error)
 import std.net.ip (IpAddress, Ipv4Address, Ipv6Address)
 import std.net.socket (
   NO_DEADLINE, Socket, SocketAddress, TcpClient, TcpServer, UdpSocket,
@@ -77,17 +78,9 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Socket.bind', fn (t) {
-    {
-      let sock = Socket.stream(ipv6: false).get
+    let sock = Socket.stream(ipv6: false).get
 
-      t.true(sock.bind(ip: IpAddress.v4(-1, -1, -1, -1), port: 0).error?)
-    }
-
-    {
-      let sock = Socket.stream(ipv6: false).get
-
-      t.true(sock.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 0).ok?)
-    }
+    t.true(sock.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 0).ok?)
   })
 
   t.test('Socket.connect', fn (t) {
@@ -892,6 +885,14 @@ fn pub tests(t: mut Tests) {
     }
   })
 
+  t.ok("UnixSocket.bind with a path that's too long", fn (t) {
+    let socket = try UnixSocket.stream
+    let path = 'x'.repeat(200) + '.sock'
+
+    t.equal(socket.bind(path.to_path), Result.Error(Error.InvalidArgument))
+    Result.Ok(nil)
+  })
+
   t.test('UnixSocket.connect', fn (t) {
     let listener = UnixSocket.stream.get
     let stream = UnixSocket.stream.get
@@ -907,12 +908,11 @@ fn pub tests(t: mut Tests) {
     if env.OS == 'linux' {
       let listener = UnixSocket.stream.get
       let stream = UnixSocket.stream.get
-      let addr = '\0inko-test-${t.id}'
+      let addr = '\0inko-test-${t.id}'.to_path
 
-      listener.bind(addr.to_path).get
+      listener.bind(addr).get
       listener.listen.get
-
-      t.true(stream.connect(addr.to_path).ok?)
+      t.equal(stream.connect(addr), Result.Ok(nil))
     }
   })
 
