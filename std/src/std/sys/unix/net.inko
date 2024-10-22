@@ -1,0 +1,531 @@
+import std.fs.path (Path)
+import std.io (Error)
+import std.libc
+import std.libc.freebsd (self as sys_libc) if freebsd
+import std.libc.linux (self as sys_libc) if linux
+import std.libc.mac (self as sys_libc) if mac
+import std.net.ip (IpAddress)
+import std.ptr
+import std.sys.freebsd.net (self as sys) if freebsd
+import std.sys.linux.net (self as sys) if linux
+import std.sys.mac.net (self as sys) if mac
+import std.sys.net
+
+fn getsockopt_error -> Never {
+  panic('getsockopt(2) failed: ${Error.last_os_error}')
+}
+
+fn address_family_error(value: Int) -> Never {
+  panic("the socket address family ${value} isn't supported")
+}
+
+fn inline init_socket(
+  socket: Pointer[net.RawSocket],
+  domain: Int,
+  type: Int,
+  protocol: Int,
+) -> Result[Nil, Error] {
+  let fd = sys.socket(domain, type, protocol)
+
+  if fd as Int == -1 { throw Error.last_os_error }
+
+  socket.inner = fd
+  Result.Ok(nil)
+}
+
+fn inline init_ip_address(
+  storage: Pointer[sys_libc.SockAddrStorage],
+  ip: ref IpAddress,
+  port: Int,
+) -> Int {
+  match ip {
+    case V4(ip) -> {
+      sys.init_v4_address(storage as Pointer[sys_libc.SockAddrIn], ip, port)
+      sys_libc.sockaddr_in_size
+    }
+    case V6(ip) -> {
+      sys.init_v6_address(storage as Pointer[sys_libc.SockAddrIn6], ip, port)
+      sys_libc.sockaddr_in6_size
+    }
+  }
+}
+
+fn inline bind_ip(
+  fd: Int32,
+  ip: ref IpAddress,
+  port: Int,
+) -> Result[Nil, Error] {
+  let addr = sys_libc.SockAddrStorage()
+  let addr_ptr = mut addr
+  let size = init_ip_address(addr_ptr, ip, port)
+  let res = libc.bind(fd, addr_ptr as Pointer[UInt8], size as UInt32) as Int
+
+  if res == 0 { Result.Ok(nil) } else { Result.Error(Error.last_os_error) }
+}
+
+fn inline bind_unix(fd: Int32, path: ref Path) -> Result[Nil, Error] {
+  let addr = sys_libc.SockAddrUn()
+  let addr_ptr = mut addr
+  let size = try sys.init_unix_address(addr_ptr, path)
+
+  if libc.bind(fd, addr_ptr as Pointer[UInt8], size as UInt32) as Int == 0 {
+    Result.Ok(nil)
+  } else {
+    Result.Error(Error.last_os_error)
+  }
+}
+
+fn inline set_int32_option(
+  fd: Int32,
+  level: Int,
+  option: Int,
+  value: Int,
+) -> Result[Nil, Error] {
+  let val = value as Int32
+  let res = libc.setsockopt(
+    fd,
+    level as Int32,
+    option as Int32,
+    (mut val) as Pointer[UInt8],
+    4 as Int32,
+  )
+    as Int
+
+  if res == 0 { Result.Ok(nil) } else { Result.Error(Error.last_os_error) }
+}
+
+fn inline get_int32_option(fd: Int32, level: Int, option: Int) -> Int {
+  let size = 4 as Int32
+  let val = 0 as Int32
+  let res = libc.getsockopt(
+    fd,
+    level as Int32,
+    option as Int32,
+    (mut val) as Pointer[UInt8],
+    mut size,
+  )
+    as Int
+
+  if res == 0 {
+    val as Int
+  } else {
+    # Since we control the arguments passed to getsockopt() such that they
+    # won't be invalid, this method isn't expected to fail at runtime. To
+    # remove the need for unneccesary error handling, we panic instead should
+    # we encounter an error after all.
+    getsockopt_error
+  }
+}
+
+fn inline listen(fd: Int32, backlog: Int) -> Result[Nil, Error] {
+  if libc.listen(fd, backlog as Int32) as Int == 0 {
+    Result.Ok(nil)
+  } else {
+    Result.Error(Error.last_os_error)
+  }
+}
+
+fn inline accept(
+  socket: Pointer[net.RawSocket],
+  peer: Pointer[net.RawSocket],
+  deadline: Int,
+) -> Result[Nil, Error] {
+  loop {
+    let fd = sys.accept(socket.inner)
+
+    if fd as Int >= 0 {
+      peer.inner = fd
+      return Result.Ok(nil)
+    }
+
+    match libc.errno {
+      case libc.EAGAIN -> try net.poll(socket, deadline, write: false)
+      case e -> throw Error.from_os_error(e)
+    }
+  }
+}
+
+fn inline connect_ip(
+  socket: Pointer[net.RawSocket],
+  ip: ref IpAddress,
+  port: Int,
+  deadline: Int,
+) -> Result[Nil, Error] {
+  let addr = sys_libc.SockAddrStorage()
+  let addr_ptr = mut addr
+  let size = init_ip_address(addr_ptr, ip, port)
+
+  connect(socket, deadline, addr_ptr as Pointer[UInt8], size)
+}
+
+fn inline connect_unix(
+  socket: Pointer[net.RawSocket],
+  path: ref Path,
+  deadline: Int,
+) -> Result[Nil, Error] {
+  let addr = sys_libc.SockAddrUn()
+  let addr_ptr = mut addr
+  let size = try sys.init_unix_address(addr_ptr, path)
+
+  connect(socket, deadline, addr_ptr as Pointer[UInt8], size)
+}
+
+fn inline connect(
+  socket: Pointer[net.RawSocket],
+  deadline: Int,
+  address: Pointer[UInt8],
+  size: Int,
+) -> Result[Nil, Error] {
+  loop {
+    let res = libc.connect(socket.inner, address, size as UInt32) as Int
+
+    if res == 0 { break }
+
+    match libc.errno {
+      # Depending on the platform we may encounter EAGAIN or EINPROGRESS. In
+      # both cases the actual error may be stored in SO_ERROR.
+      case libc.EAGAIN or libc.EINPROGRESS -> {
+        match get_int32_option(socket.inner, libc.SOL_SOCKET, libc.SO_ERROR) {
+          case 0 -> try net.poll(socket, deadline, write: true)
+          case e -> throw Error.from_os_error(e)
+        }
+      }
+      # We may run into an EISCONN if a previous connect(2) attempt would block.
+      # In this case we can just continue.
+      case libc.EISCONN -> break
+      case e -> throw Error.from_os_error(e)
+    }
+  }
+
+  Result.Ok(nil)
+}
+
+fn inline parse_ip_socket_address(
+  address: Pointer[sys_libc.SockAddrStorage],
+) -> (IpAddress, Int) {
+  match address.ss_family as Int {
+    case libc.AF_INET -> {
+      let addr_ptr = address as Pointer[sys_libc.SockAddrIn]
+      let port = net.htons(addr_ptr.sin_port as Int)
+      let ip_ptr = (mut addr_ptr.sin_addr) as Pointer[UInt8]
+      let a = ip_ptr.0 as Int
+      let b = ptr.add(ip_ptr, 1).0 as Int
+      let c = ptr.add(ip_ptr, 2).0 as Int
+      let d = ptr.add(ip_ptr, 3).0 as Int
+
+      (IpAddress.v4(a, b, c, d), port)
+    }
+    case libc.AF_INET6 -> {
+      let addr_ptr = address as Pointer[sys_libc.SockAddrIn6]
+      let port = net.htons(addr_ptr.sin6_port as Int)
+      let ip_ptr = (mut addr_ptr.sin6_addr0) as Pointer[UInt16]
+      let a = net.htons(ip_ptr.0 as Int)
+      let b = net.htons(ptr.add(ip_ptr, 1).0 as Int)
+      let c = net.htons(ptr.add(ip_ptr, 2).0 as Int)
+      let d = net.htons(ptr.add(ip_ptr, 3).0 as Int)
+      let e = net.htons(ptr.add(ip_ptr, 4).0 as Int)
+      let f = net.htons(ptr.add(ip_ptr, 5).0 as Int)
+      let g = net.htons(ptr.add(ip_ptr, 6).0 as Int)
+      let h = net.htons(ptr.add(ip_ptr, 7).0 as Int)
+
+      (IpAddress.v6(a, b, c, d, e, f, g, h), port)
+    }
+    case other -> address_family_error(other)
+  }
+}
+
+fn inline ip_local_address(
+  socket: Pointer[net.RawSocket],
+) -> Result[(IpAddress, Int), Error] {
+  let size = sys_libc.sockaddr_storage_size as UInt32
+  let addr = sys_libc.SockAddrStorage()
+  let addr_ptr = (mut addr) as Pointer[UInt8]
+  let res = libc.getsockname(socket.inner, addr_ptr, mut size) as Int
+
+  if res == 0 {
+    Result.Ok(parse_ip_socket_address(mut addr))
+  } else {
+    Result.Error(Error.last_os_error)
+  }
+}
+
+fn inline ip_peer_address(
+  socket: Pointer[net.RawSocket],
+) -> Result[(IpAddress, Int), Error] {
+  let size = sys_libc.sockaddr_storage_size as UInt32
+  let addr = sys_libc.SockAddrStorage()
+  let addr_ptr = (mut addr) as Pointer[UInt8]
+  let res = libc.getpeername(socket.inner, addr_ptr, mut size) as Int
+
+  if res == 0 {
+    Result.Ok(parse_ip_socket_address(mut addr))
+  } else {
+    Result.Error(Error.last_os_error)
+  }
+}
+
+fn inline unix_local_address(
+  socket: Pointer[net.RawSocket],
+) -> Result[String, Error] {
+  let size = sys_libc.sockaddr_un_size as UInt32
+  let addr = sys_libc.SockAddrUn()
+  let addr_ptr = (mut addr) as Pointer[UInt8]
+  let res = libc.getsockname(socket.inner, addr_ptr, mut size) as Int
+
+  if res == -1 { throw Error.last_os_error }
+
+  Result.Ok(sys.parse_unix_address(mut addr, size as Int))
+}
+
+fn inline unix_peer_address(
+  socket: Pointer[net.RawSocket],
+) -> Result[String, Error] {
+  let size = sys_libc.sockaddr_un_size as UInt32
+  let addr = sys_libc.SockAddrUn()
+  let addr_ptr = (mut addr) as Pointer[UInt8]
+  let res = libc.getpeername(socket.inner, addr_ptr, mut size) as Int
+
+  if res == -1 { throw Error.last_os_error }
+
+  Result.Ok(sys.parse_unix_address(mut addr, size as Int))
+}
+
+fn inline read(
+  socket: Pointer[net.RawSocket],
+  into: mut ByteArray,
+  size: Int,
+  deadline: Int,
+) -> Result[Int, Error] {
+  into.reserve(size)
+
+  let len = into.size
+  let ptr = ptr.add(into.to_pointer, len)
+
+  match read_raw(socket, ptr, size, deadline) {
+    case Ok(v) -> {
+      into.size = len + v
+      Result.Ok(v)
+    }
+    case Error(e) -> Result.Error(Error.from_os_error(e))
+  }
+}
+
+fn inline read_raw(
+  socket: Pointer[net.RawSocket],
+  data: Pointer[UInt8],
+  size: Int,
+  deadline: Int,
+) -> Result[Int, Int] {
+  loop {
+    let res = libc.recv(socket.inner, data, size as UInt64, flags: 0 as Int32)
+
+    if res >= 0 { return Result.Ok(res) }
+
+    match libc.errno {
+      case libc.EAGAIN -> {
+        if net.poll_raw(socket, deadline, write: false) { next }
+
+        throw libc.ETIMEDOUT
+      }
+      case e -> throw e
+    }
+  }
+}
+
+fn inline write(
+  socket: Pointer[net.RawSocket],
+  data: Pointer[UInt8],
+  size: Int,
+  deadline: Int,
+) -> Result[Int, Error] {
+  match write_raw(socket, data, size, deadline) {
+    case Ok(v) -> Result.Ok(v)
+    case Error(e) -> Result.Error(Error.from_os_error(e))
+  }
+}
+
+fn inline write_raw(
+  socket: Pointer[net.RawSocket],
+  data: Pointer[UInt8],
+  size: Int,
+  deadline: Int,
+) -> Result[Int, Int] {
+  loop {
+    let res = libc.send(socket.inner, data, size as UInt64, flags: 0 as Int32)
+
+    if res >= 0 { return Result.Ok(res) }
+
+    match libc.errno {
+      case libc.EAGAIN -> {
+        if net.poll_raw(socket, deadline, write: true) { next }
+
+        throw libc.ETIMEDOUT
+      }
+      case e -> throw e
+    }
+  }
+}
+
+fn inline send_to_ip(
+  socket: Pointer[net.RawSocket],
+  data: Pointer[UInt8],
+  size: Int,
+  ip: ref IpAddress,
+  port: Int,
+  deadline: Int,
+) -> Result[Int, Error] {
+  let addr = sys_libc.SockAddrStorage()
+  let addr_ptr = mut addr
+  let addr_size = init_ip_address(addr_ptr, ip, port)
+
+  loop {
+    let flags = 0 as Int32
+    let res = libc.sendto(
+      socket.inner,
+      data,
+      size as UInt64,
+      flags,
+      addr_ptr as Pointer[UInt8],
+      addr_size as UInt32,
+    )
+
+    if res >= 0 { return Result.Ok(res) }
+
+    match libc.errno {
+      case libc.EAGAIN -> try net.poll(socket, deadline, write: true)
+      case e -> throw Error.from_os_error(e)
+    }
+  }
+}
+
+fn inline send_to_unix(
+  socket: Pointer[net.RawSocket],
+  data: Pointer[UInt8],
+  size: Int,
+  path: ref Path,
+  deadline: Int,
+) -> Result[Int, Error] {
+  let addr = sys_libc.SockAddrUn()
+  let addr_ptr = mut addr
+  let addr_size = try sys.init_unix_address(addr_ptr, path)
+
+  loop {
+    let flags = 0 as Int32
+    let res = libc.sendto(
+      socket.inner,
+      data,
+      size as UInt64,
+      flags,
+      addr_ptr as Pointer[UInt8],
+      addr_size as UInt32,
+    )
+
+    if res >= 0 { return Result.Ok(res) }
+
+    match libc.errno {
+      case libc.EAGAIN -> try net.poll(socket, deadline, write: true)
+      case e -> throw Error.from_os_error(e)
+    }
+  }
+}
+
+fn inline receive_from_ip(
+  socket: Pointer[net.RawSocket],
+  into: mut ByteArray,
+  size: Int,
+  deadline: Int,
+) -> Result[(Int, IpAddress, Int), Error] {
+  into.reserve(size)
+
+  let len = into.size
+  let ptr = ptr.add(into.to_pointer, len)
+  let addr = sys_libc.SockAddrStorage()
+  let addr_size = sys_libc.sockaddr_storage_size as UInt32
+  let addr_ptr = mut addr
+  let flags = 0 as Int32
+
+  loop {
+    let size = size as UInt64
+    let addr = addr_ptr as Pointer[UInt8]
+    let res = libc.recvfrom(socket.inner, ptr, size, flags, addr, mut addr_size)
+
+    if res >= 0 {
+      into.size = len + res
+
+      match parse_ip_socket_address(addr_ptr) {
+        case (ip, port) -> return Result.Ok((res, ip, port))
+      }
+    }
+
+    match libc.errno {
+      case libc.EAGAIN -> try net.poll(socket, deadline, write: false)
+      case e -> throw Error.from_os_error(e)
+    }
+  }
+}
+
+fn inline receive_from_unix(
+  socket: Pointer[net.RawSocket],
+  into: mut ByteArray,
+  size: Int,
+  deadline: Int,
+) -> Result[(Int, String), Error] {
+  into.reserve(size)
+
+  let len = into.size
+  let ptr = ptr.add(into.to_pointer, len)
+  let addr = sys_libc.SockAddrUn()
+  let addr_size = sys_libc.sockaddr_un_size as UInt32
+  let addr_ptr = mut addr
+  let flags = 0 as Int32
+
+  loop {
+    let size = size as UInt64
+    let addr = addr_ptr as Pointer[UInt8]
+    let res = libc.recvfrom(socket.inner, ptr, size, flags, addr, mut addr_size)
+
+    if res >= 0 {
+      into.size = len + res
+
+      return Result.Ok((res, sys.parse_unix_address(addr_ptr, size as Int)))
+    }
+
+    match libc.errno {
+      case libc.EAGAIN -> try net.poll(socket, deadline, write: false)
+      case e -> throw Error.from_os_error(e)
+    }
+  }
+}
+
+fn inline try_clone(
+  socket: Pointer[net.RawSocket],
+  copy: Pointer[net.RawSocket],
+) -> Result[Nil, Error] {
+  let fd = libc.fcntl(socket.inner, libc.F_DUPFD_CLOEXEC as Int32, 0 as Int32)
+
+  if fd as Int == -1 { throw Error.last_os_error }
+
+  copy.inner = fd
+  Result.Ok(nil)
+}
+
+fn inline shutdown(
+  socket: Pointer[net.RawSocket],
+  read: Bool,
+  write: Bool,
+) -> Result[Nil, Error] {
+  let how = if read and write {
+    libc.SHUT_RDWR
+  } else if write {
+    libc.SHUT_WR
+  } else {
+    libc.SHUT_RD
+  }
+  let res = libc.shutdown(socket.inner, how as Int32) as Int
+
+  if res == 0 { Result.Ok(nil) } else { Result.Error(Error.last_os_error) }
+}
+
+fn inline close(socket: Pointer[net.RawSocket]) {
+  libc.close(socket.inner)
+}

@@ -2158,6 +2158,11 @@ impl Mir {
                         Instruction::Send(i) => {
                             used[i.method.0 as usize] = true;
                         }
+                        // Extern methods with a body shouldn't be removed if we
+                        // create pointers to them.
+                        Instruction::MethodPointer(i) => {
+                            used[i.method.0 as usize] = true;
+                        }
                         Instruction::CallDynamic(i) => {
                             let id = i.method;
                             let tid = id

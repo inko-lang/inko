@@ -67,6 +67,8 @@ import std.io (Error, Read, Write, WriteInternal)
 import std.libc
 import std.net.ip (IpAddress)
 import std.string (ToString)
+import std.sys.net
+import std.sys.unix.net (self as sys) if unix
 import std.time (Duration, ToInstant)
 
 # The maximum value valid for a listen() call.
@@ -77,168 +79,8 @@ import std.time (Duration, ToInstant)
 # Linux (for example) would have no effect.
 let MAXIMUM_LISTEN_BACKLOG = 65_535
 
-# A value that signals the lack of a socket deadline.
-let NO_DEADLINE = -1
-let IPV4 = 0
-let IPV6 = 1
-let UNIX = 2
-let STREAM = 0
-let DGRAM = 1
-let RAW = 2
-
-fn extern setsockopt(
-  socket: Int32,
-  level: Int32,
-  option: Int32,
-  value: Pointer[UInt8],
-  size: Int32,
-) -> Int32
-
-fn extern getsockopt(
-  socket: Int32,
-  level: Int32,
-  option: Int32,
-  value: Pointer[UInt8],
-  size: Pointer[Int32],
-) -> Int32
-
-fn extern inko_socket_new(
-  domain: Int,
-  kind: Int,
-  protocol: Int,
-  out: Pointer[RawSocket],
-) -> Int64
-
-fn extern inko_socket_accept(
-  state: Pointer[UInt8],
-  process: Pointer[UInt8],
-  socket: Pointer[RawSocket],
-  deadline: Int,
-  out: Pointer[RawSocket],
-) -> Int64
-
-fn extern inko_socket_local_address(
-  state: Pointer[UInt8],
-  socket: Pointer[RawSocket],
-  out: Pointer[RawAddress],
-) -> Int64
-
-fn extern inko_socket_peer_address(
-  state: Pointer[UInt8],
-  socket: Pointer[RawSocket],
-  out: Pointer[RawAddress],
-) -> Int64
-
-fn extern inko_socket_receive_from(
-  state: Pointer[UInt8],
-  process: Pointer[UInt8],
-  socket: Pointer[RawSocket],
-  buffer: mut ByteArray,
-  amount: Int,
-  deadline: Int,
-  out: Pointer[RawAddress],
-) -> Int64
-
-fn extern inko_socket_bind(
-  socket: Pointer[RawSocket],
-  address: String,
-  port: Int,
-) -> IntResult
-
-fn extern inko_socket_read(
-  state: Pointer[UInt8],
-  process: Pointer[UInt8],
-  socket: Pointer[RawSocket],
-  buffer: mut ByteArray,
-  amount: Int,
-  deadline: Int,
-) -> IntResult
-
-fn extern inko_socket_connect(
-  state: Pointer[UInt8],
-  process: Pointer[UInt8],
-  socket: Pointer[RawSocket],
-  address: String,
-  port: Int,
-  deadline: Int,
-) -> IntResult
-
-fn extern inko_socket_listen(
-  socket: Pointer[RawSocket],
-  value: Int,
-) -> IntResult
-
-fn extern inko_socket_drop(socket: Pointer[RawSocket])
-
-fn extern inko_socket_send_bytes_to(
-  state: Pointer[UInt8],
-  process: Pointer[UInt8],
-  socket: Pointer[RawSocket],
-  buffer: ref ByteArray,
-  address: String,
-  port: Int,
-  deadline: Int,
-) -> IntResult
-
-fn extern inko_socket_send_string_to(
-  state: Pointer[UInt8],
-  process: Pointer[UInt8],
-  socket: Pointer[RawSocket],
-  buffer: String,
-  address: String,
-  port: Int,
-  deadline: Int,
-) -> IntResult
-
-fn extern inko_socket_write(
-  state: Pointer[UInt8],
-  process: Pointer[UInt8],
-  socket: Pointer[RawSocket],
-  data: Pointer[UInt8],
-  size: Int,
-  deadline: Int,
-) -> IntResult
-
-fn extern inko_socket_try_clone(
-  socket: Pointer[RawSocket],
-  out: Pointer[RawSocket],
-) -> Int64
-
-fn extern inko_socket_shutdown_read(socket: Pointer[RawSocket]) -> IntResult
-
-fn extern inko_socket_shutdown_write(socket: Pointer[RawSocket]) -> IntResult
-
-fn extern inko_socket_shutdown_read_write(
-  socket: Pointer[RawSocket],
-) -> IntResult
-
-fn getsockopt_error -> Never {
-  panic('getsockopt(2) failed: ${Error.last_os_error}')
-}
-
-class extern Linger {
-  let @l_onoff: Int32
-  let @l_linger: Int32
-}
-
-class extern RawSocket {
-  let @inner: Int32
-  let @registered: UInt8
-  let @unix: UInt8
-}
-
-class extern RawAddress {
-  let @address: String
-  let @port: Int
-}
-
-class extern IntResult {
-  let @tag: Int
-  let @value: Int
-}
-
 trait RawSocketOperations {
-  fn mut raw_socket -> Pointer[RawSocket]
+  fn mut raw_socket -> Pointer[net.RawSocket]
 
   fn raw_deadline -> Int
 }
@@ -250,19 +92,6 @@ class pub SocketAddress {
 
   # The port number of this socket address.
   let pub @port: Int
-
-  fn static from_raw(raw: ref RawAddress) -> SocketAddress {
-    # The address passed to this method is one filled in by the system. Assuming
-    # our IP address parsing logic is complete (which it should be),
-    # encountering an address we can't parse is a bug and should terminate the
-    # program.
-    let ip = match IpAddress.parse(raw.address) {
-      case Some(v) -> v
-      case _ -> panic("IpAddress.parse doesn't support '${raw.address}'")
-    }
-
-    SocketAddress(ip, raw.port)
-  }
 }
 
 impl Equal[ref SocketAddress] for SocketAddress {
@@ -280,28 +109,19 @@ impl Format for SocketAddress {
 
 # A low-level, non-blocking IPv4 or IPv6 socket.
 class pub Socket {
-  let @socket: RawSocket
+  let @socket: net.RawSocket
 
   # A point in time after which socket operations time out.
   #
   # We use an `Int` to remove the need for using `Option[Instant]`.
   let @deadline: Int
 
-  fn static new(
-    domain: Int,
-    type: Int,
-    protocol: Int,
-  ) -> Result[Socket, Error] {
-    let sock = RawSocket(
-      inner: 0 as Int32,
-      registered: 0 as UInt8,
-      unix: 0 as UInt8,
-    )
+  fn static new(ipv6: Bool, type: Int, protocol: Int) -> Result[Socket, Error] {
+    let sock = net.raw_socket
+    let domain = if ipv6 { libc.AF_INET6 } else { libc.AF_INET }
 
-    match inko_socket_new(domain, type, protocol, mut sock) as Int {
-      case 0 -> Result.Ok(Socket(socket: sock, deadline: NO_DEADLINE))
-      case e -> Result.Error(Error.from_os_error(e))
-    }
+    try sys.init_socket(mut sock, domain, type, protocol)
+    Result.Ok(Socket(socket: sock, deadline: net.NO_DEADLINE))
   }
 
   # Returns a new `Socket` configured as a stream socket.
@@ -317,7 +137,7 @@ class pub Socket {
   # Socket.stream(ipv6: false)
   # ```
   fn pub static stream(ipv6: Bool) -> Result[Socket, Error] {
-    Socket.new(ipv6.to_int, STREAM, protocol: 0)
+    Socket.new(ipv6, libc.SOCK_STREAM, protocol: 0)
   }
 
   # Returns a new `Socket` configured as a datagram socket.
@@ -333,7 +153,7 @@ class pub Socket {
   # Socket.datagram(ipv6: false)
   # ```
   fn pub static datagram(ipv6: Bool) -> Result[Socket, Error] {
-    Socket.new(ipv6.to_int, DGRAM, protocol: 0)
+    Socket.new(ipv6, libc.SOCK_DGRAM, protocol: 0)
   }
 
   # Returns a new `Socket` configured as a raw socket.
@@ -355,7 +175,7 @@ class pub Socket {
   # Socket.raw(ipv6: false, protocol: 1)
   # ```
   fn pub static raw(ipv6: Bool, protocol: Int) -> Result[Socket, Error] {
-    Socket.new(ipv6.to_int, RAW, protocol)
+    Socket.new(ipv6, libc.SOCK_RAW, protocol)
   }
 
   # Sets the point in time after which socket operations must time out, known as
@@ -391,7 +211,7 @@ class pub Socket {
 
   # Clears the deadline to apply to socket operations.
   fn pub mut reset_deadline {
-    @deadline = NO_DEADLINE
+    @deadline = net.NO_DEADLINE
   }
 
   # Binds this socket to the specified address.
@@ -409,10 +229,7 @@ class pub Socket {
   # socket.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).get
   # ```
   fn pub mut bind(ip: ref IpAddress, port: Int) -> Result[Nil, Error] {
-    match inko_socket_bind(@socket, ip.to_string, port) {
-      case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    sys.bind_ip(@socket.inner, ip, port)
   }
 
   # Connects this socket to the specified address.
@@ -433,19 +250,7 @@ class pub Socket {
   # client.connect(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).get
   # ```
   fn pub mut connect(ip: ref IpAddress, port: Int) -> Result[Nil, Error] {
-    match
-      inko_socket_connect(
-        _INKO.state,
-        _INKO.process,
-        @socket,
-        ip.to_string,
-        port,
-        @deadline,
-      )
-    {
-      case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    sys.connect_ip(@socket, ip, port, @deadline)
   }
 
   # Marks this socket as being ready to accept incoming connections using
@@ -465,10 +270,7 @@ class pub Socket {
   # socket.listen.get
   # ```
   fn pub mut listen -> Result[Nil, Error] {
-    match inko_socket_listen(@socket, MAXIMUM_LISTEN_BACKLOG) {
-      case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    sys.listen(@socket.inner, MAXIMUM_LISTEN_BACKLOG)
   }
 
   # Accepts a new incoming connection from this socket.
@@ -500,25 +302,10 @@ class pub Socket {
   # buffer.to_string # => 'ping'
   # ```
   fn pub accept -> Result[Socket, Error] {
-    let sock = RawSocket(
-      inner: 0 as Int32,
-      registered: 0 as UInt8,
-      unix: 0 as UInt8,
-    )
+    let peer = net.raw_socket
 
-    match
-      inko_socket_accept(
-        _INKO.state,
-        _INKO.process,
-        @socket,
-        @deadline,
-        mut sock,
-      )
-        as Int
-    {
-      case 0 -> Result.Ok(Socket(socket: sock, deadline: NO_DEADLINE))
-      case e -> Result.Error(Error.from_os_error(e))
-    }
+    try sys.accept(@socket, mut peer, @deadline)
+    Result.Ok(Socket(socket: peer, deadline: net.NO_DEADLINE))
   }
 
   # Sends a `String` to the given address.
@@ -547,20 +334,7 @@ class pub Socket {
     ip: ref IpAddress,
     port: Int,
   ) -> Result[Int, Error] {
-    match
-      inko_socket_send_string_to(
-        _INKO.state,
-        _INKO.process,
-        @socket,
-        string,
-        ip.to_string,
-        port,
-        @deadline,
-      )
-    {
-      case { @tag = 0, @value = v } -> Result.Ok(v)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    sys.send_to_ip(@socket, string.to_pointer, string.size, ip, port, @deadline)
   }
 
   # Sends a `ByteArray` to the given address.
@@ -590,24 +364,11 @@ class pub Socket {
     ip: ref IpAddress,
     port: Int,
   ) -> Result[Int, Error] {
-    match
-      inko_socket_send_bytes_to(
-        _INKO.state,
-        _INKO.process,
-        @socket,
-        bytes,
-        ip.to_string,
-        port,
-        @deadline,
-      )
-    {
-      case { @tag = 0, @value = v } -> Result.Ok(v)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    sys.send_to_ip(@socket, bytes.to_pointer, bytes.size, ip, port, @deadline)
   }
 
-  # Receives a single datagram message on the socket, returning the address the
-  # message was sent from.
+  # Receives a single datagram message on the socket, returning the size of the
+  # message and the address the message was sent from.
   #
   # The message is read into the given `ByteArray`, and up to `size` bytes will
   # be read.
@@ -633,50 +394,34 @@ class pub Socket {
   #
   # let received_from = socket.receive_from(bytes: bytes, size: 5).get
   #
-  # bytes.to_string       # => 'hello'
-  # received_from.address # => '0.0.0.0'
-  # received_from.port    # => 9999
+  # bytes.to_string         # => 'hello'
+  # received_from.0         # => 5
+  # received_from.1.address # => '0.0.0.0'
+  # received_from.1.port    # => 9999
   # ```
   fn pub mut receive_from(
     bytes: mut ByteArray,
     size: Int,
-  ) -> Result[SocketAddress, Error] {
-    let raw = RawAddress(address: '', port: 0)
-
-    match
-      inko_socket_receive_from(
-        _INKO.state,
-        _INKO.process,
-        @socket,
-        bytes,
-        size,
-        @deadline,
-        mut raw,
-      )
-        as Int
-    {
-      case 0 -> Result.Ok(SocketAddress.from_raw(raw))
-      case e -> Result.Error(Error.from_os_error(e))
+  ) -> Result[(Int, SocketAddress), Error] {
+    match sys.receive_from_ip(@socket, bytes, size, @deadline) {
+      case Ok((read, ip, port)) -> Result.Ok((read, SocketAddress(ip, port)))
+      case Error(e) -> Result.Error(e)
     }
   }
 
   # Returns the local address of this socket.
   fn pub local_address -> Result[SocketAddress, Error] {
-    let raw = RawAddress(address: '', port: 0)
-
-    match inko_socket_local_address(_INKO.state, @socket, mut raw) as Int {
-      case 0 -> Result.Ok(SocketAddress.from_raw(raw))
-      case e -> Result.Error(Error.from_os_error(e))
+    match sys.ip_local_address(@socket) {
+      case Ok((ip, port)) -> Result.Ok(SocketAddress(ip, port))
+      case Error(e) -> Result.Error(e)
     }
   }
 
   # Returns the peer address of this socket.
   fn pub peer_address -> Result[SocketAddress, Error] {
-    let raw = RawAddress(address: '', port: 0)
-
-    match inko_socket_peer_address(_INKO.state, @socket, mut raw) as Int {
-      case 0 -> Result.Ok(SocketAddress.from_raw(raw))
-      case e -> Result.Error(Error.from_os_error(e))
+    match sys.ip_peer_address(@socket) {
+      case Ok((ip, port)) -> Result.Ok(SocketAddress(ip, port))
+      case Error(e) -> Result.Error(e)
     }
   }
 
@@ -715,7 +460,7 @@ class pub Socket {
   # fractional seconds, the value may be truncated or rounded to the nearest
   # second.
   fn pub mut linger=(value: Option[Duration]) -> Result[Nil, Error] {
-    let linger = Linger(l_onoff: 0 as Int32, l_linger: 0 as Int32)
+    let linger = libc.Linger(l_onoff: 0 as Int32, l_linger: 0 as Int32)
 
     match value {
       case Some(d) -> {
@@ -725,7 +470,7 @@ class pub Socket {
       case _ -> {}
     }
 
-    let res = setsockopt(
+    let res = libc.setsockopt(
       @socket.inner,
       libc.SOL_SOCKET as Int32,
       libc.SO_LINGER as Int32,
@@ -739,9 +484,9 @@ class pub Socket {
 
   # Returns the value of the `SO_LINGER` option.
   fn pub linger -> Option[Duration] {
-    let linger = Linger(l_onoff: 0 as Int32, l_linger: 0 as Int32)
+    let linger = libc.Linger(l_onoff: 0 as Int32, l_linger: 0 as Int32)
     let size = 8 as Int32
-    let res = getsockopt(
+    let res = libc.getsockopt(
       @socket.inner,
       libc.SOL_SOCKET as Int32,
       libc.SO_LINGER as Int32,
@@ -752,7 +497,7 @@ class pub Socket {
 
     # Similar to get_option(), this method shouldn't ever reach this point, but
     # we panic just in case we do.
-    if res != 0 { getsockopt_error }
+    if res != 0 { sys.getsockopt_error }
 
     if linger.l_onoff as Int != 0 {
       Option.Some(Duration.from_secs(linger.l_linger as Int))
@@ -791,26 +536,17 @@ class pub Socket {
 
   # Shuts down the reading half of this socket.
   fn pub mut shutdown_read -> Result[Nil, Error] {
-    match inko_socket_shutdown_read(@socket) {
-      case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    sys.shutdown(@socket, read: true, write: false)
   }
 
   # Shuts down the writing half of this socket.
   fn pub mut shutdown_write -> Result[Nil, Error] {
-    match inko_socket_shutdown_write(@socket) {
-      case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    sys.shutdown(@socket, read: false, write: true)
   }
 
   # Shuts down both the reading and writing half of this socket.
   fn pub mut shutdown -> Result[Nil, Error] {
-    match inko_socket_shutdown_read_write(@socket) {
-      case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    sys.shutdown(@socket, read: true, write: true)
   }
 
   # Attempts to clone the socket.
@@ -818,58 +554,23 @@ class pub Socket {
   # Cloning a socket may fail, such as when the program has too many open file
   # descriptors.
   fn pub try_clone -> Result[Socket, Error] {
-    let sock = RawSocket(
-      inner: 0 as Int32,
-      registered: 0 as UInt8,
-      unix: 0 as UInt8,
-    )
+    let sock = net.raw_socket
 
-    match inko_socket_try_clone(@socket, mut sock) as Int {
-      case 0 -> Result.Ok(Socket(socket: sock, deadline: NO_DEADLINE))
-      case e -> Result.Error(Error.from_os_error(e))
-    }
+    try sys.try_clone(@socket, mut sock)
+    Result.Ok(Socket(socket: sock, deadline: net.NO_DEADLINE))
   }
 
   fn mut set_option(level: Int, option: Int, value: Int) -> Result[Nil, Error] {
-    let val = value as Int32
-    let res = setsockopt(
-      @socket.inner,
-      level as Int32,
-      option as Int32,
-      (mut val) as Pointer[UInt8],
-      4 as Int32,
-    )
-      as Int
-
-    if res == 0 { Result.Ok(nil) } else { Result.Error(Error.last_os_error) }
+    sys.set_int32_option(@socket.inner, level, option, value)
   }
 
   fn get_option(level: Int, option: Int) -> Int {
-    let size = 4 as Int32
-    let val = 0 as Int32
-    let res = getsockopt(
-      @socket.inner,
-      level as Int32,
-      option as Int32,
-      (mut val) as Pointer[UInt8],
-      mut size,
-    )
-      as Int
-
-    if res == 0 {
-      val as Int
-    } else {
-      # Since we control the arguments passed to getsockopt() such that they
-      # won't be invalid, this method isn't expected to fail at runtime. To
-      # remove the need for unneccesary error handling, we panic instead should
-      # we encounter an error after all.
-      getsockopt_error
-    }
+    sys.get_int32_option(@socket.inner, level, option)
   }
 }
 
 impl RawSocketOperations for Socket {
-  fn mut raw_socket -> Pointer[RawSocket] {
+  fn mut raw_socket -> Pointer[net.RawSocket] {
     @socket
   }
 
@@ -880,37 +581,19 @@ impl RawSocketOperations for Socket {
 
 impl Drop for Socket {
   fn mut drop {
-    inko_socket_drop(@socket)
+    sys.close(@socket)
   }
 }
 
 impl Read for Socket {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
-    match
-      inko_socket_read(
-        _INKO.state,
-        _INKO.process,
-        @socket,
-        into,
-        size,
-        @deadline,
-      )
-    {
-      case { @tag = 0, @value = v } -> Result.Ok(v)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    sys.read(@socket, into, size, @deadline)
   }
 }
 
 impl WriteInternal for Socket {
   fn mut write_internal(data: Pointer[UInt8], size: Int) -> Result[Int, Error] {
-    let state = _INKO.state
-    let proc = _INKO.process
-
-    match inko_socket_write(state, proc, @socket, data, size, @deadline) {
-      case { @tag = 0, @value = n } -> Result.Ok(n)
-      case { @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    sys.write(@socket, data, size, @deadline)
   }
 }
 
@@ -1039,14 +722,14 @@ class pub UdpSocket {
     @socket.send_bytes_to(bytes, ip, port)
   }
 
-  # Receives a single datagram message on the socket, returning the address the
-  # message was sent from.
+  # Receives a single datagram message on the socket, returning the size of the
+  # message and the address the message was sent from.
   #
   # See the documentation of `Socket.receive_from` for more information.
   fn pub mut receive_from(
     bytes: mut ByteArray,
     size: Int,
-  ) -> Result[SocketAddress, Error] {
+  ) -> Result[(Int, SocketAddress), Error] {
     @socket.receive_from(bytes, size)
   }
 
@@ -1067,7 +750,7 @@ class pub UdpSocket {
 }
 
 impl RawSocketOperations for UdpSocket {
-  fn mut raw_socket -> Pointer[RawSocket] {
+  fn mut raw_socket -> Pointer[net.RawSocket] {
     @socket.socket
   }
 
@@ -1205,7 +888,7 @@ class pub TcpClient {
 }
 
 impl RawSocketOperations for TcpClient {
-  fn mut raw_socket -> Pointer[RawSocket] {
+  fn mut raw_socket -> Pointer[net.RawSocket] {
     @socket.socket
   }
 
@@ -1312,7 +995,7 @@ class pub TcpServer {
 }
 
 impl RawSocketOperations for TcpServer {
-  fn mut raw_socket -> Pointer[RawSocket] {
+  fn mut raw_socket -> Pointer[net.RawSocket] {
     @socket.socket
   }
 
@@ -1353,7 +1036,7 @@ class pub UnixAddress {
   # UnixAddress.new("\0example-address".to_path).abstract? # => true
   # ```
   fn pub abstract? -> Bool {
-    @address.starts_with?('\0')
+    @address.size > 0 and @address.byte(0) == 0
   }
 
   # Returns `true` if `self` is an unnamed address.
@@ -1425,7 +1108,7 @@ impl ToString for UnixAddress {
 
 # A low-level, non-blocking Unix domain socket.
 class pub UnixSocket {
-  let @socket: RawSocket
+  let @socket: net.RawSocket
 
   # A point in time after which socket operations time out.
   #
@@ -1433,16 +1116,10 @@ class pub UnixSocket {
   let @deadline: Int
 
   fn static new(type: Int) -> Result[UnixSocket, Error] {
-    let sock = RawSocket(
-      inner: 0 as Int32,
-      registered: 0 as UInt8,
-      unix: 1 as UInt8,
-    )
+    let sock = net.raw_socket
 
-    match inko_socket_new(UNIX, type, 0, mut sock) as Int {
-      case 0 -> Result.Ok(UnixSocket(socket: sock, deadline: NO_DEADLINE))
-      case e -> Result.Error(Error.from_os_error(e))
-    }
+    try sys.init_socket(mut sock, libc.AF_UNIX, type, protocol: 0)
+    Result.Ok(UnixSocket(socket: sock, deadline: net.NO_DEADLINE))
   }
 
   # Returns a new `UnixSocket` configured as a stream socket.
@@ -1455,7 +1132,7 @@ class pub UnixSocket {
   # UnixSocket.stream
   # ```
   fn pub static stream -> Result[UnixSocket, Error] {
-    UnixSocket.new(STREAM)
+    UnixSocket.new(libc.SOCK_STREAM)
   }
 
   # Returns a new `UnixSocket` configured as a datagram socket.
@@ -1468,7 +1145,7 @@ class pub UnixSocket {
   # UnixSocket.datagram
   # ```
   fn pub static datagram -> Result[UnixSocket, Error] {
-    UnixSocket.new(DGRAM)
+    UnixSocket.new(libc.SOCK_DGRAM)
   }
 
   # Sets the point in time after which socket operations must time out, known as
@@ -1504,10 +1181,35 @@ class pub UnixSocket {
 
   # Clears the deadline to apply to socket operations.
   fn pub mut reset_deadline {
-    @deadline = NO_DEADLINE
+    @deadline = net.NO_DEADLINE
   }
 
   # Binds this socket to the specified path or abstract address.
+  #
+  # # Abstract sockets
+  #
+  # Linux supports the concept of an "abstract" socket. These are sockets that
+  # don't use regular file paths, instead the path starts with a NULL byte and
+  # is followed by zero or more additional (and optional) bytes. While this
+  # method supports creating such sockets, this isn't portable across platforms
+  # (e.g. macOS and FreeBSD don't support it).
+  #
+  # # Unnamed sockets
+  #
+  # Linux supports the concept of an "unnamed" socket. These are sockets that
+  # don't specify a path to bind to, resulting in the kernel assigning them an
+  # address. Such sockets are created by using an empty `Path` as the argument
+  # for this method.
+  #
+  # On non-Linux platforms this isn't supported and providing an empty `Path`
+  # will result in an `Error.InvalidArgument` error.
+  #
+  # # Path sizes
+  #
+  # Different platforms enforce different limits on the maximum size of `path`.
+  # For example, on Linux the path size limit is 108 bytes (including the
+  # trailing NULL byte). If the path is too long, this method returns an
+  # `Error.InvalidArgument` error.
   #
   # # Examples
   #
@@ -1521,10 +1223,7 @@ class pub UnixSocket {
   # socket.bind('/tmp/test.sock'.to_path).get
   # ```
   fn pub mut bind(path: ref Path) -> Result[Nil, Error] {
-    match inko_socket_bind(@socket, path.to_string, 0) {
-      case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    sys.bind_unix(@socket.inner, path)
   }
 
   # Connects this socket to the specified address.
@@ -1545,19 +1244,7 @@ class pub UnixSocket {
   # stream.connect('/tmp/test.sock').get
   # ```
   fn pub mut connect(path: ref Path) -> Result[Nil, Error] {
-    match
-      inko_socket_connect(
-        _INKO.state,
-        _INKO.process,
-        @socket,
-        path.to_string,
-        0,
-        @deadline,
-      )
-    {
-      case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    sys.connect_unix(@socket, path, @deadline)
   }
 
   # Marks this socket as being ready to accept incoming connections using
@@ -1576,10 +1263,7 @@ class pub UnixSocket {
   # socket.listen.get
   # ```
   fn pub mut listen -> Result[Nil, Error] {
-    match inko_socket_listen(@socket, MAXIMUM_LISTEN_BACKLOG) {
-      case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    sys.listen(@socket.inner, MAXIMUM_LISTEN_BACKLOG)
   }
 
   # Accepts a new incoming connection from this socket.
@@ -1610,25 +1294,10 @@ class pub UnixSocket {
   # buffer.to_string # => 'ping'
   # ```
   fn pub accept -> Result[UnixSocket, Error] {
-    let sock = RawSocket(
-      inner: 0 as Int32,
-      registered: 0 as UInt8,
-      unix: 1 as UInt8,
-    )
+    let peer = net.raw_socket
 
-    match
-      inko_socket_accept(
-        _INKO.state,
-        _INKO.process,
-        @socket,
-        @deadline,
-        mut sock,
-      )
-        as Int
-    {
-      case 0 -> Result.Ok(UnixSocket(socket: sock, deadline: NO_DEADLINE))
-      case e -> Result.Error(Error.from_os_error(e))
-    }
+    try sys.accept(@socket, mut peer, @deadline)
+    Result.Ok(UnixSocket(socket: peer, deadline: net.NO_DEADLINE))
   }
 
   # Sends a `String` to the given address.
@@ -1651,22 +1320,13 @@ class pub UnixSocket {
     string: String,
     address: ref Path,
   ) -> Result[Int, Error] {
-    let addr = address.to_string
-
-    match
-      inko_socket_send_string_to(
-        _INKO.state,
-        _INKO.process,
-        @socket,
-        string,
-        addr,
-        0,
-        @deadline,
-      )
-    {
-      case { @tag = 0, @value = v } -> Result.Ok(v)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    sys.send_to_unix(
+      @socket,
+      string.to_pointer,
+      string.size,
+      address,
+      @deadline,
+    )
   }
 
   # Sends a `ByteArray` to the given address.
@@ -1690,26 +1350,11 @@ class pub UnixSocket {
     bytes: ref ByteArray,
     address: ref Path,
   ) -> Result[Int, Error] {
-    let addr = address.to_string
-
-    match
-      inko_socket_send_bytes_to(
-        _INKO.state,
-        _INKO.process,
-        @socket,
-        bytes,
-        addr,
-        0,
-        @deadline,
-      )
-    {
-      case { @tag = 0, @value = v } -> Result.Ok(v)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    sys.send_to_unix(@socket, bytes.to_pointer, bytes.size, address, @deadline)
   }
 
-  # Receives a single datagram message on the socket, returning the address the
-  # message was sent from.
+  # Receives a single datagram message on the socket, returning the size of the
+  # message and the address the message was sent from.
   #
   # The message is read into the given `ByteArray`, and up to `size` bytes will
   # be read.
@@ -1728,49 +1373,33 @@ class pub UnixSocket {
   #
   # let received_from = socket.receive_from(bytes: bytes, size: 5).get
   #
-  # bytes.to_string         # => 'hello'
-  # received_from.to_string # => '/tmp/test.sock'
+  # bytes.to_string           # => 'hello'
+  # received_from.0           # => 5
+  # received_from.1.to_string # => '/tmp/test.sock'
   # ```
   fn pub mut receive_from(
     bytes: mut ByteArray,
     size: Int,
-  ) -> Result[UnixAddress, Error] {
-    let raw = RawAddress(address: '', port: 0)
-
-    match
-      inko_socket_receive_from(
-        _INKO.state,
-        _INKO.process,
-        @socket,
-        bytes,
-        size,
-        @deadline,
-        mut raw,
-      )
-        as Int
-    {
-      case 0 -> Result.Ok(UnixAddress(raw.address))
-      case e -> Result.Error(Error.from_os_error(e))
+  ) -> Result[(Int, UnixAddress), Error] {
+    match sys.receive_from_unix(@socket, bytes, size, @deadline) {
+      case Ok((read, path)) -> Result.Ok((read, UnixAddress(path)))
+      case Error(e) -> Result.Error(e)
     }
   }
 
   # Returns the local address of this socket.
   fn pub local_address -> Result[UnixAddress, Error] {
-    let raw = RawAddress(address: '', port: 0)
-
-    match inko_socket_local_address(_INKO.state, @socket, mut raw) as Int {
-      case 0 -> Result.Ok(UnixAddress(raw.address))
-      case e -> Result.Error(Error.from_os_error(e))
+    match sys.unix_local_address(@socket) {
+      case Ok(path) -> Result.Ok(UnixAddress(path))
+      case Error(e) -> Result.Error(e)
     }
   }
 
   # Returns the peer address of this socket.
   fn pub peer_address -> Result[UnixAddress, Error] {
-    let raw = RawAddress(address: '', port: 0)
-
-    match inko_socket_peer_address(_INKO.state, @socket, mut raw) as Int {
-      case 0 -> Result.Ok(UnixAddress(raw.address))
-      case e -> Result.Error(Error.from_os_error(e))
+    match sys.unix_peer_address(@socket) {
+      case Ok(path) -> Result.Ok(UnixAddress(path))
+      case Error(e) -> Result.Error(e)
     }
   }
 
@@ -1786,26 +1415,17 @@ class pub UnixSocket {
 
   # Shuts down the reading half of this socket.
   fn pub mut shutdown_read -> Result[Nil, Error] {
-    match inko_socket_shutdown_read(@socket) {
-      case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    sys.shutdown(@socket, read: true, write: false)
   }
 
   # Shuts down the writing half of this socket.
   fn pub mut shutdown_write -> Result[Nil, Error] {
-    match inko_socket_shutdown_write(@socket) {
-      case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    sys.shutdown(@socket, read: false, write: true)
   }
 
   # Shuts down both the reading and writing half of this socket.
   fn pub mut shutdown -> Result[Nil, Error] {
-    match inko_socket_shutdown_read_write(@socket) {
-      case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    sys.shutdown(@socket, read: true, write: true)
   }
 
   # Attempts to clone the socket.
@@ -1813,35 +1433,19 @@ class pub UnixSocket {
   # Cloning a socket may fail, such as when the program has too many open file
   # descriptors.
   fn pub try_clone -> Result[UnixSocket, Error] {
-    let sock = RawSocket(
-      inner: 0 as Int32,
-      registered: 0 as UInt8,
-      unix: 1 as UInt8,
-    )
+    let sock = net.raw_socket
 
-    match inko_socket_try_clone(@socket, mut sock) as Int {
-      case 0 -> Result.Ok(UnixSocket(socket: sock, deadline: NO_DEADLINE))
-      case e -> Result.Error(Error.from_os_error(e))
-    }
+    try sys.try_clone(@socket, mut sock)
+    Result.Ok(UnixSocket(socket: sock, deadline: net.NO_DEADLINE))
   }
 
   fn mut set_option(level: Int, option: Int, value: Int) -> Result[Nil, Error] {
-    let val = value as Int32
-    let res = setsockopt(
-      @socket.inner,
-      level as Int32,
-      option as Int32,
-      (mut val) as Pointer[UInt8],
-      4 as Int32,
-    )
-      as Int
-
-    if res == 0 { Result.Ok(nil) } else { Result.Error(Error.last_os_error) }
+    sys.set_int32_option(@socket.inner, level, option, value)
   }
 }
 
 impl RawSocketOperations for UnixSocket {
-  fn mut raw_socket -> Pointer[RawSocket] {
+  fn mut raw_socket -> Pointer[net.RawSocket] {
     @socket
   }
 
@@ -1852,37 +1456,19 @@ impl RawSocketOperations for UnixSocket {
 
 impl Drop for UnixSocket {
   fn mut drop {
-    inko_socket_drop(@socket)
+    sys.close(@socket)
   }
 }
 
 impl Read for UnixSocket {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
-    match
-      inko_socket_read(
-        _INKO.state,
-        _INKO.process,
-        @socket,
-        into,
-        size,
-        @deadline,
-      )
-    {
-      case { @tag = 0, @value = v } -> Result.Ok(v)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    sys.read(@socket, into, size, @deadline)
   }
 }
 
 impl WriteInternal for UnixSocket {
   fn mut write_internal(data: Pointer[UInt8], size: Int) -> Result[Int, Error] {
-    let state = _INKO.state
-    let proc = _INKO.process
-
-    match inko_socket_write(state, proc, @socket, data, size, @deadline) {
-      case { @tag = 0, @value = n } -> Result.Ok(n)
-      case { @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    sys.write(@socket, data, size, @deadline)
   }
 }
 
@@ -1990,14 +1576,14 @@ class pub UnixDatagram {
     @socket.send_bytes_to(bytes, address)
   }
 
-  # Receives a single datagram message on the socket, returning the address the
-  # message was sent from.
+  # Receives a single datagram message on the socket, returning the size of the
+  # message and the address the message was sent from.
   #
   # See the documentation of `UnixSocket.receive_from` for more information.
   fn pub mut receive_from(
     bytes: mut ByteArray,
     size: Int,
-  ) -> Result[UnixAddress, Error] {
+  ) -> Result[(Int, UnixAddress), Error] {
     @socket.receive_from(bytes, size)
   }
 
@@ -2018,7 +1604,7 @@ class pub UnixDatagram {
 }
 
 impl RawSocketOperations for UnixDatagram {
-  fn mut raw_socket -> Pointer[RawSocket] {
+  fn mut raw_socket -> Pointer[net.RawSocket] {
     @socket.socket
   }
 
@@ -2148,7 +1734,7 @@ class pub UnixClient {
 }
 
 impl RawSocketOperations for UnixClient {
-  fn mut raw_socket -> Pointer[RawSocket] {
+  fn mut raw_socket -> Pointer[net.RawSocket] {
     @socket.socket
   }
 
@@ -2247,7 +1833,7 @@ class pub UnixServer {
 }
 
 impl RawSocketOperations for UnixServer {
-  fn mut raw_socket -> Pointer[RawSocket] {
+  fn mut raw_socket -> Pointer[net.RawSocket] {
     @socket.socket
   }
 

@@ -2,6 +2,9 @@ import std.io (Error)
 import std.libc.linux.amd64 (self as arch) if amd64
 import std.libc.linux.arm64 (self as arch) if arm64
 
+let AF_INET = 2
+let AF_INET6 = 10
+let AF_UNIX = 1
 let AT_EMPTY_PATH = 0x1000
 let AT_FDCWD = -0x64
 let DT_DIR = 4
@@ -45,6 +48,7 @@ let ESPIPE = 29
 let ETIME = 62
 let ETIMEDOUT = 110
 let EXDEV = 18
+let F_DUPFD_CLOEXEC = 1030
 let IPPROTO_IP = 0
 let IPPROTO_IPV6 = 41
 let IPPROTO_TCP = 6
@@ -61,8 +65,17 @@ let POSIX_SPAWN_SETSIGDEF = 0x04
 let POSIX_SPAWN_SETSIGMASK = 0x08
 let SEEK_END = 2
 let SEEK_SET = 0
+let SHUT_RD = 0
+let SHUT_RDWR = 2
+let SHUT_WR = 1
+let SOCK_CLOEXEC = 0x80000
+let SOCK_DGRAM = 2
+let SOCK_NONBLOCK = 0x800
+let SOCK_RAW = 3
+let SOCK_STREAM = 1
 let SOL_SOCKET = 1
 let SO_BROADCAST = 6
+let SO_ERROR = 4
 let SO_KEEPALIVE = 9
 let SO_LINGER = 13
 let SO_RCVBUF = 8
@@ -200,6 +213,175 @@ class extern Pipes {
   let @writer: Int32
 }
 
+class extern SockAddrIn {
+  let @sin_family: UInt16
+  let @sin_port: UInt16
+  let @sin_addr: UInt32
+  let @sin_zero: UInt64
+}
+
+class extern SockAddrIn6 {
+  let @sin6_family: UInt16
+  let @sin6_port: UInt16
+  let @sin6_flowinfo: UInt32
+  let @sin6_addr0: UInt32
+  let @sin6_addr1: UInt32
+  let @sin6_addr2: UInt32
+  let @sin6_addr3: UInt32
+  let @sin6_scope_id: UInt32
+}
+
+class extern SockAddrUn {
+  let @sun_family: UInt16
+  let @sun_path0: UInt8
+  let @sun_path1: UInt8
+  let @sun_path2: UInt8
+  let @sun_path3: UInt8
+  let @sun_path4: UInt8
+  let @sun_path5: UInt8
+  let @sun_path6: UInt8
+  let @sun_path7: UInt8
+  let @sun_path8: UInt8
+  let @sun_path9: UInt8
+  let @sun_path10: UInt8
+  let @sun_path11: UInt8
+  let @sun_path12: UInt8
+  let @sun_path13: UInt8
+  let @sun_path14: UInt8
+  let @sun_path15: UInt8
+  let @sun_path16: UInt8
+  let @sun_path17: UInt8
+  let @sun_path18: UInt8
+  let @sun_path19: UInt8
+  let @sun_path20: UInt8
+  let @sun_path21: UInt8
+  let @sun_path22: UInt8
+  let @sun_path23: UInt8
+  let @sun_path24: UInt8
+  let @sun_path25: UInt8
+  let @sun_path26: UInt8
+  let @sun_path27: UInt8
+  let @sun_path28: UInt8
+  let @sun_path29: UInt8
+  let @sun_path30: UInt8
+  let @sun_path31: UInt8
+  let @sun_path32: UInt8
+  let @sun_path33: UInt8
+  let @sun_path34: UInt8
+  let @sun_path35: UInt8
+  let @sun_path36: UInt8
+  let @sun_path37: UInt8
+  let @sun_path38: UInt8
+  let @sun_path39: UInt8
+  let @sun_path40: UInt8
+  let @sun_path41: UInt8
+  let @sun_path42: UInt8
+  let @sun_path43: UInt8
+  let @sun_path44: UInt8
+  let @sun_path45: UInt8
+  let @sun_path46: UInt8
+  let @sun_path47: UInt8
+  let @sun_path48: UInt8
+  let @sun_path49: UInt8
+  let @sun_path50: UInt8
+  let @sun_path51: UInt8
+  let @sun_path52: UInt8
+  let @sun_path53: UInt8
+  let @sun_path54: UInt8
+  let @sun_path55: UInt8
+  let @sun_path56: UInt8
+  let @sun_path57: UInt8
+  let @sun_path58: UInt8
+  let @sun_path59: UInt8
+  let @sun_path60: UInt8
+  let @sun_path61: UInt8
+  let @sun_path62: UInt8
+  let @sun_path63: UInt8
+  let @sun_path64: UInt8
+  let @sun_path65: UInt8
+  let @sun_path66: UInt8
+  let @sun_path67: UInt8
+  let @sun_path68: UInt8
+  let @sun_path69: UInt8
+  let @sun_path70: UInt8
+  let @sun_path71: UInt8
+  let @sun_path72: UInt8
+  let @sun_path73: UInt8
+  let @sun_path74: UInt8
+  let @sun_path75: UInt8
+  let @sun_path76: UInt8
+  let @sun_path77: UInt8
+  let @sun_path78: UInt8
+  let @sun_path79: UInt8
+  let @sun_path80: UInt8
+  let @sun_path81: UInt8
+  let @sun_path82: UInt8
+  let @sun_path83: UInt8
+  let @sun_path84: UInt8
+  let @sun_path85: UInt8
+  let @sun_path86: UInt8
+  let @sun_path87: UInt8
+  let @sun_path88: UInt8
+  let @sun_path89: UInt8
+  let @sun_path90: UInt8
+  let @sun_path91: UInt8
+  let @sun_path92: UInt8
+  let @sun_path93: UInt8
+  let @sun_path94: UInt8
+  let @sun_path95: UInt8
+  let @sun_path96: UInt8
+  let @sun_path97: UInt8
+  let @sun_path98: UInt8
+  let @sun_path99: UInt8
+  let @sun_path100: UInt8
+  let @sun_path101: UInt8
+  let @sun_path102: UInt8
+  let @sun_path103: UInt8
+  let @sun_path104: UInt8
+  let @sun_path105: UInt8
+  let @sun_path106: UInt8
+  let @sun_path107: UInt8
+}
+
+class extern SockAddr {
+  let @sa_family: UInt16
+  let @sa_data0: UInt8
+  let @sa_data1: UInt8
+  let @sa_data2: UInt8
+  let @sa_data3: UInt8
+  let @sa_data4: UInt8
+  let @sa_data5: UInt8
+  let @sa_data6: UInt8
+  let @sa_data7: UInt8
+  let @sa_data8: UInt8
+  let @sa_data9: UInt8
+  let @sa_data10: UInt8
+  let @sa_data11: UInt8
+  let @sa_data12: UInt8
+  let @sa_data13: UInt8
+}
+
+class extern SockAddrStorage {
+  let @ss_family: UInt16
+  let @__pad0: UInt16
+  let @__pad1: UInt32
+  let @__val0: UInt64
+  let @__val1: UInt64
+  let @__val2: UInt64
+  let @__val3: UInt64
+  let @__val4: UInt64
+  let @__val5: UInt64
+  let @__val6: UInt64
+  let @__val7: UInt64
+  let @__val8: UInt64
+  let @__val9: UInt64
+  let @__val10: UInt64
+  let @__val11: UInt64
+  let @__val12: UInt64
+  let @__val13: UInt64
+  let @__val14: UInt64
+}
+
 fn extern fchmod(fd: Int32, mode: UInt16) -> Int32
 
 fn extern syscall(number: Int32, ...) -> Int32
@@ -229,6 +411,13 @@ fn extern copy_file_range(
 fn extern pipe2(pipes: Pointer[Pipes], flags: Int32) -> Int32
 
 fn extern __errno_location -> Pointer[Int32]
+
+fn extern accept4(
+  socket: Int32,
+  addr: Pointer[SockAddr],
+  size: Pointer[UInt32],
+  flags: Int32,
+) -> Int32
 
 fn inline flush(fd: Int32) -> Int32 {
   fsync(fd)
@@ -277,4 +466,28 @@ fn inline pipes -> Result[(Int32, Int32), Error] {
 
 fn inline errno_location -> Pointer[Int32] {
   __errno_location
+}
+
+fn inline sockaddr_in_size -> Int {
+  _INKO.size_of_type_name(SockAddrIn)
+}
+
+fn inline sockaddr_in6_size -> Int {
+  _INKO.size_of_type_name(SockAddrIn6)
+}
+
+fn inline sockaddr_un_size -> Int {
+  _INKO.size_of_type_name(SockAddrUn)
+}
+
+fn inline sockaddr_un_name_offset -> Int {
+  2
+}
+
+fn inline unix_socket_path_limit -> Int {
+  108
+}
+
+fn inline sockaddr_storage_size -> Int {
+  _INKO.size_of_type_name(SockAddrStorage)
 }

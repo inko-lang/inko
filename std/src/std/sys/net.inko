@@ -1,0 +1,63 @@
+import std.io (Error)
+import std.net.ip (Ipv4Address)
+
+# A value that signals a socket isn't registered with a poller.
+let NOT_REGISTERED = -1
+
+# A value that signals the lack of a socket deadline.
+let NO_DEADLINE = -1
+
+fn extern inko_socket_poll(
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
+  socket: Pointer[RawSocket],
+  interest: Int,
+  deadline: Int,
+) -> Bool
+
+# The raw socket type used by the runtime library.
+class extern RawSocket {
+  # The file descriptor of the socket.
+  let @inner: Int32
+
+  # The ID of the poller the socket is registered with.
+  #
+  # This field is modified atomically by the runtime library.
+  let @registered: UInt8
+}
+
+fn inline raw_socket -> RawSocket {
+  RawSocket(inner: 0 as Int32, registered: NOT_REGISTERED as UInt8)
+}
+
+fn inline poll_raw(
+  socket: Pointer[RawSocket],
+  deadline: Int,
+  write: Bool,
+) -> Bool {
+  inko_socket_poll(_INKO.state, _INKO.process, socket, write.to_int, deadline)
+}
+
+fn inline poll(
+  socket: Pointer[RawSocket],
+  deadline: Int,
+  write: Bool,
+) -> Result[Nil, Error] {
+  if poll_raw(socket, deadline, write) {
+    Result.Ok(nil)
+  } else {
+    Result.Error(Error.TimedOut)
+  }
+}
+
+fn inline htons(value: Int) -> Int {
+  _INKO.int_swap_bytes(value as UInt16)
+}
+
+fn inline pack_v4(ip: ref Ipv4Address) -> Int {
+  ip.a | (ip.b << 8) | (ip.c << 16) | (ip.d << 24)
+}
+
+fn inline pack_v6_pair(a: Int, b: Int) -> Int {
+  htons(b) << 16 | htons(a)
+}

@@ -3,7 +3,6 @@ mod class;
 mod env;
 mod float;
 mod general;
-mod helpers;
 mod int;
 mod process;
 mod random;

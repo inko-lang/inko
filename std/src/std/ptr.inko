@@ -105,5 +105,5 @@ fn equal(left: Pointer[UInt8], right: Pointer[UInt8], size: Int) -> Bool {
 
 # Takes a pointer and increments it offset by `amount` _values_.
 fn add[T](pointer: Pointer[T], amount: Int) -> Pointer[T] {
-  pointer as Int + (amount * _INKO.size_of_type_parameter(T)) as Pointer[T]
+  pointer as Int + (amount * _INKO.size_of_type_name(T)) as Pointer[T]
 }

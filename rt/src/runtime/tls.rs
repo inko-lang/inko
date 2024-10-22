@@ -1,18 +1,15 @@
 use crate::mem::{ByteArray, String as InkoString};
-use crate::network_poller::Interest;
-use crate::process::ProcessPointer;
-use crate::result::Result;
-use crate::runtime::helpers::poll;
+use crate::result::{self, Result};
 use crate::rustls_platform_verifier::tls_config;
-use crate::socket::{read_from, Socket};
-use crate::state::State;
+use crate::socket::Socket;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, ServerName};
 use rustls::{
     ClientConfig, ClientConnection, Error as TlsError, RootCertStore,
     ServerConfig, ServerConnection, SideData, Stream,
 };
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 use std::ops::{Deref, DerefMut};
+use std::slice;
 use std::sync::Arc;
 
 /// The error code produced when a TLS certificate is invalid.
@@ -21,34 +18,58 @@ const INVALID_CERT: isize = -1;
 /// The error code produced when a TLS private key is invalid.
 const INVALID_KEY: isize = -2;
 
-unsafe fn run<
-    C: Deref<Target = rustls::ConnectionCommon<S>> + DerefMut,
-    R,
-    S: SideData,
->(
-    state: *const State,
-    process: ProcessPointer,
+type Callback = unsafe extern "system" fn(
     socket: *mut Socket,
-    con: *mut C,
+    buffer: *mut u8,
+    size: i64,
     deadline: i64,
-    mut func: impl FnMut(&mut Stream<C, Socket>) -> io::Result<R>,
-) -> io::Result<R> {
-    let state = &*state;
-    let mut stream = Stream::new(&mut *con, &mut *socket);
+) -> Result;
 
-    loop {
-        match func(&mut stream) {
-            Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
-                let interest = if stream.conn.wants_write() {
-                    Interest::Write
-                } else {
-                    Interest::Read
-                };
+struct CallbackIo {
+    /// The socket to read data from/write data to.
+    socket: *mut Socket,
 
-                poll(state, process, stream.sock, interest, deadline)?;
-            }
-            val => return val,
+    /// The callback function to use when data must be read.
+    reader: Callback,
+
+    /// The callback function to use when data must be written.
+    writer: Callback,
+
+    /// The deadline (in nanoseconds) after which operations will time out.
+    deadline: i64,
+}
+
+impl Read for CallbackIo {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let fun = self.reader;
+        let res = unsafe {
+            fun(self.socket, buf.as_mut_ptr(), buf.len() as i64, self.deadline)
+        };
+
+        if res.tag as i64 == result::OK {
+            Ok(res.value as usize)
+        } else {
+            Err(io::Error::from_raw_os_error(res.value as i32))
         }
+    }
+}
+
+impl Write for CallbackIo {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        let fun = self.writer;
+        let res = unsafe {
+            fun(self.socket, buf.as_ptr() as _, buf.len() as i64, self.deadline)
+        };
+
+        if res.tag as i64 == result::OK {
+            Ok(res.value as usize)
+        } else {
+            Err(io::Error::from_raw_os_error(res.value as i32))
+        }
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
     }
 }
 
@@ -56,16 +77,19 @@ unsafe fn tls_close<
     C: Deref<Target = rustls::ConnectionCommon<S>> + DerefMut,
     S: SideData,
 >(
-    state: *const State,
-    proc: ProcessPointer,
-    sock: *mut Socket,
+    socket: *mut Socket,
     con: *mut C,
     deadline: i64,
+    reader: Callback,
+    writer: Callback,
 ) -> io::Result<()> {
-    (*con).send_close_notify();
+    let mut io = CallbackIo { socket, reader, writer, deadline };
+    let mut stream = Stream::new(&mut *con, &mut io);
 
-    while (*con).wants_write() {
-        run(state, proc, sock, con, deadline, |s| s.conn.write_tls(s.sock))?;
+    stream.conn.send_close_notify();
+
+    while stream.conn.wants_write() {
+        stream.conn.write_tls(&mut stream.sock)?;
     }
 
     Ok(())
@@ -214,96 +238,102 @@ pub unsafe extern "system" fn inko_tls_server_connection_drop(
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_tls_client_write(
-    state: *const State,
-    proc: ProcessPointer,
-    sock: *mut Socket,
+    socket: *mut Socket,
     con: *mut ClientConnection,
-    data: *mut u8,
+    buffer: *mut u8,
     size: i64,
     deadline: i64,
+    reader: Callback,
+    writer: Callback,
 ) -> Result {
-    let buf = std::slice::from_raw_parts(data, size as _);
+    let mut io = CallbackIo { socket, reader, writer, deadline };
+    let buf = std::slice::from_raw_parts(buffer, size as _);
 
-    run(state, proc, sock, con, deadline, |s| s.write(buf))
+    Stream::new(&mut *con, &mut io)
+        .write(buf)
         .map(|v| Result::ok(v as _))
         .unwrap_or_else(Result::io_error)
 }
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_tls_client_read(
-    state: *const State,
-    proc: ProcessPointer,
-    sock: *mut Socket,
+    socket: *mut Socket,
     con: *mut ClientConnection,
-    buffer: *mut ByteArray,
-    amount: i64,
+    buffer: *mut u8,
+    size: i64,
     deadline: i64,
+    reader: Callback,
+    writer: Callback,
 ) -> Result {
-    let buf = &mut (*buffer).value;
-    let len = amount as usize;
+    let mut io = CallbackIo { socket, reader, writer, deadline };
+    let buf = slice::from_raw_parts_mut(buffer, size as usize);
 
-    run(state, proc, sock, con, deadline, |s| read_from(s, buf, len))
+    Stream::new(&mut *con, &mut io)
+        .read(buf)
         .map(|v| Result::ok(v as _))
         .unwrap_or_else(Result::io_error)
 }
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_tls_client_close(
-    state: *const State,
-    proc: ProcessPointer,
     sock: *mut Socket,
     con: *mut ClientConnection,
     deadline: i64,
+    reader: Callback,
+    writer: Callback,
 ) -> Result {
-    tls_close(state, proc, sock, con, deadline)
+    tls_close(sock, con, deadline, reader, writer)
         .map(|_| Result::none())
         .unwrap_or_else(Result::io_error)
 }
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_tls_server_write(
-    state: *const State,
-    proc: ProcessPointer,
-    sock: *mut Socket,
+    socket: *mut Socket,
     con: *mut ServerConnection,
-    data: *mut u8,
+    buffer: *mut u8,
     size: i64,
     deadline: i64,
+    reader: Callback,
+    writer: Callback,
 ) -> Result {
-    let buf = std::slice::from_raw_parts(data, size as _);
+    let mut io = CallbackIo { socket, reader, writer, deadline };
+    let buf = std::slice::from_raw_parts(buffer, size as _);
 
-    run(state, proc, sock, con, deadline, |s| s.write(buf))
+    Stream::new(&mut *con, &mut io)
+        .write(buf)
         .map(|v| Result::ok(v as _))
         .unwrap_or_else(Result::io_error)
 }
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_tls_server_read(
-    state: *const State,
-    proc: ProcessPointer,
-    sock: *mut Socket,
+    socket: *mut Socket,
     con: *mut ServerConnection,
-    buffer: *mut ByteArray,
-    amount: i64,
+    buffer: *mut u8,
+    size: i64,
     deadline: i64,
+    reader: Callback,
+    writer: Callback,
 ) -> Result {
-    let buf = &mut (*buffer).value;
-    let len = amount as usize;
+    let mut io = CallbackIo { socket, reader, writer, deadline };
+    let buf = slice::from_raw_parts_mut(buffer, size as usize);
 
-    run(state, proc, sock, con, deadline, |s| read_from(s, buf, len))
+    Stream::new(&mut *con, &mut io)
+        .read(buf)
         .map(|v| Result::ok(v as _))
         .unwrap_or_else(Result::io_error)
 }
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_tls_server_close(
-    state: *const State,
-    proc: ProcessPointer,
     sock: *mut Socket,
     con: *mut ServerConnection,
     deadline: i64,
+    reader: Callback,
+    writer: Callback,
 ) -> Result {
-    tls_close(state, proc, sock, con, deadline)
+    tls_close(sock, con, deadline, reader, writer)
         .map(|_| Result::none())
         .unwrap_or_else(Result::io_error)
 }

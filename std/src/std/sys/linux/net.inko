@@ -1,0 +1,103 @@
+import std.alloc
+import std.fs.path (Path)
+import std.io (Error)
+import std.libc
+import std.libc.linux (self as sys)
+import std.net.ip (Ipv4Address, Ipv6Address)
+import std.sys.net
+
+fn inline socket(domain: Int, type: Int, protocol: Int) -> Int32 {
+  let type = type | sys.SOCK_CLOEXEC | sys.SOCK_NONBLOCK
+
+  libc.socket(domain as Int32, type as Int32, protocol as Int32)
+}
+
+fn inline accept(fd: Int32) -> Int32 {
+  sys.accept4(
+    fd,
+    0 as Pointer[sys.SockAddr],
+    0 as Pointer[UInt32],
+    sys.SOCK_CLOEXEC | sys.SOCK_NONBLOCK as Int32,
+  )
+}
+
+fn inline init_v4_address(
+  address: Pointer[sys.SockAddrIn],
+  ip: ref Ipv4Address,
+  port: Int,
+) {
+  address.sin_family = libc.AF_INET as UInt16
+  address.sin_port = net.htons(port) as UInt16
+  address.sin_addr = net.pack_v4(ip) as UInt32
+  address.sin_zero = 0 as UInt64
+}
+
+fn inline init_v6_address(
+  address: Pointer[sys.SockAddrIn6],
+  ip: ref Ipv6Address,
+  port: Int,
+) {
+  address.sin6_family = libc.AF_INET6 as UInt16
+  address.sin6_port = net.htons(port) as UInt16
+  address.sin6_addr0 = net.pack_v6_pair(ip.a, ip.b) as UInt32
+  address.sin6_addr1 = net.pack_v6_pair(ip.c, ip.d) as UInt32
+  address.sin6_addr2 = net.pack_v6_pair(ip.e, ip.f) as UInt32
+  address.sin6_addr3 = net.pack_v6_pair(ip.g, ip.h) as UInt32
+  address.sin6_flowinfo = 0 as UInt32
+  address.sin6_scope_id = 0 as UInt32
+}
+
+fn inline init_unix_address(
+  address: Pointer[sys.SockAddrUn],
+  path: ref Path,
+) -> Result[Int, Error] {
+  let path = path.to_string
+
+  # Add 1 to the size to include the NULL byte.
+  let path_size = path.size + 1
+  let name_offset = sys.sockaddr_un_name_offset
+  let max_size = sys.unix_socket_path_limit
+
+  if path_size > max_size { throw Error.InvalidArgument }
+
+  address.sun_family = libc.AF_UNIX as UInt16
+
+  let addr_path_ptr = address as Int + name_offset as Pointer[UInt8]
+
+  # For abstract sockets the remaining bytes are significant, so we must zero
+  # them out first.
+  if path.empty? or path.byte(0) == 0 { alloc.zero(addr_path_ptr, max_size) }
+
+  # For unnamed sockets, the size must be equal to the family field's size.
+  if path.empty? { return Result.Ok(name_offset) }
+
+  let addr_size = if path.byte(0) == 0 {
+    # For abstract sockets the entire sun_path field is treated as part of the
+    # name, so we need to specify the right size as to _not_ include trailing
+    # NULL bytes.
+    name_offset + path.size
+  } else {
+    name_offset + path_size
+  }
+
+  alloc.copy(path.to_pointer, addr_path_ptr, path_size)
+  Result.Ok(addr_size)
+}
+
+fn inline parse_unix_address(
+  address: Pointer[sys.SockAddrUn],
+  size: Int,
+) -> String {
+  let name_start = mut address.sun_path0
+  let name_offset = sys.sockaddr_un_name_offset
+
+  # For unnamed sockets the bytes stored in the socket path are unspecified, so
+  # we must ignore them.
+  if size == name_offset { return '' }
+
+  if name_start.0 as Int == 0 {
+    ByteArray.from_pointer(name_start, size - name_offset).into_string
+  } else {
+    String.from_pointer(name_start)
+  }
+}

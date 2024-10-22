@@ -4813,6 +4813,16 @@ impl TypeRef {
         }
     }
 
+    pub fn is_signed_int(self, db: &Database) -> bool {
+        let Ok(id) = self.type_id(db) else { return false };
+
+        match id {
+            TypeId::Foreign(ForeignType::Int(_, Sign::Signed)) => true,
+            TypeId::ClassInstance(ins) => ins.instance_of().0 == INT_ID,
+            _ => false,
+        }
+    }
+
     fn is_instance_of(self, db: &Database, id: ClassId) -> bool {
         self.class_id(db) == Some(id)
     }

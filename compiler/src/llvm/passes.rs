@@ -1538,16 +1538,29 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                     }
                     Intrinsic::IntSwapBytes => {
                         let reg_var = self.variables[&ins.register];
-                        let val_var = self.variables[&ins.arguments[0]];
-                        let val = self.builder.load_int(val_var);
-                        let fun = self.module.intrinsic(
-                            "llvm.bswap",
-                            &[self.builder.context.i64_type().into()],
-                        );
-                        let res = self
+                        let val_reg = ins.arguments[0];
+                        let val_var = self.variables[&val_reg];
+
+                        // This is done such that we can use this intrinsic with
+                        // different integer types.
+                        let val_typ = self.variable_types[&val_reg];
+                        let signed = self
+                            .method
+                            .registers
+                            .value_type(val_reg)
+                            .is_signed_int(&self.shared.state.db);
+                        let val = self
+                            .builder
+                            .load(val_typ, val_var)
+                            .into_int_value();
+                        let fun =
+                            self.module.intrinsic("llvm.bswap", &[val_typ]);
+                        let swapped = self
                             .builder
                             .call(fun, &[val.into()])
                             .into_int_value();
+
+                        let res = self.builder.int_to_int(swapped, 64, signed);
 
                         self.builder.store(reg_var, res);
                     }

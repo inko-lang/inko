@@ -91,7 +91,7 @@ fn pub start_blocking {
 # rescheduled the current process may run on a different OS thread and thus read
 # a different state.
 fn pub stop_blocking -> Int {
-  let err = libc.errno_location.0 as Int
+  let err = libc.errno
 
   # If the operation took too long, this reschedules the current process. This
   # means that any global state read after this point may not be from the same
@@ -226,20 +226,12 @@ class pub enum Error {
   case Other(Int)
 
   # Returns an `Error` from a raw OS error code.
-  #
-  # # Examples
-  #
-  # ```inko
-  # import std.unix.errors (ENOENT)
-  #
-  # Error.from_os_error(ENOENT) # => Error.NotFound
-  # ```
   fn pub static from_os_error(code: Int) -> Error {
     match code {
+      case libc.EAGAIN -> Error.WouldBlock
       case libc.EPERM -> Error.PermissionDenied
       case libc.ENOENT -> Error.NotFound
       case libc.EINTR -> Error.Interrupted
-      case libc.EAGAIN -> Error.WouldBlock
       case libc.ENOMEM -> Error.OutOfMemory
       case libc.EACCES -> Error.PermissionDenied
       case libc.EBUSY -> Error.ResourceBusy
@@ -279,7 +271,7 @@ class pub enum Error {
 
   # Returns the last OS error produced by the current OS thread.
   fn pub static last_os_error -> Error {
-    from_os_error(libc.errno_location.0 as Int)
+    from_os_error(libc.errno)
   }
 }
 

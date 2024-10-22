@@ -28,8 +28,11 @@ import std.crypto.x509 (Certificate, PrivateKey)
 import std.drop (Drop)
 import std.fmt (Format, Formatter)
 import std.io (Error, Read, Write, WriteInternal)
-import std.net.socket (RawSocket, RawSocketOperations)
+import std.net.socket (RawSocketOperations)
+import std.ptr
 import std.string (ToString)
+import std.sys.net
+import std.sys.unix.net (self as sys)
 
 # The error code produced when a TLS certificate is invalid.
 let INVALID_CERT = -1
@@ -67,74 +70,77 @@ fn extern inko_tls_server_connection_new(
 fn extern inko_tls_server_connection_drop(connection: Pointer[UInt8])
 
 fn extern inko_tls_client_read(
-  state: Pointer[UInt8],
-  process: Pointer[UInt8],
-  socket: Pointer[RawSocket],
+  socket: Pointer[net.RawSocket],
   connection: Pointer[UInt8],
-  buffer: mut ByteArray,
-  amount: Int,
+  buffer: Pointer[UInt8],
+  size: Int,
   deadline: Int,
+  reader: Pointer[UInt8],
+  writer: Pointer[UInt8],
 ) -> IntResult
 
 fn extern inko_tls_client_write(
-  state: Pointer[UInt8],
-  process: Pointer[UInt8],
-  socket: Pointer[RawSocket],
+  socket: Pointer[net.RawSocket],
   connection: Pointer[UInt8],
-  data: Pointer[UInt8],
+  buffer: Pointer[UInt8],
   size: Int,
   deadline: Int,
+  reader: Pointer[UInt8],
+  writer: Pointer[UInt8],
 ) -> IntResult
 
 fn extern inko_tls_client_flush(
   state: Pointer[UInt8],
   process: Pointer[UInt8],
-  socket: Pointer[RawSocket],
+  socket: Pointer[net.RawSocket],
   connection: Pointer[UInt8],
 ) -> IntResult
 
 fn extern inko_tls_client_close(
-  state: Pointer[UInt8],
-  process: Pointer[UInt8],
-  socket: Pointer[RawSocket],
+  socket: Pointer[net.RawSocket],
   connection: Pointer[UInt8],
   deadline: Int,
+  reader: Pointer[UInt8],
+  writer: Pointer[UInt8],
 ) -> IntResult
 
 fn extern inko_tls_server_read(
-  state: Pointer[UInt8],
-  process: Pointer[UInt8],
-  socket: Pointer[RawSocket],
+  socket: Pointer[net.RawSocket],
   connection: Pointer[UInt8],
-  buffer: mut ByteArray,
-  amount: Int,
+  buffer: Pointer[UInt8],
+  size: Int,
   deadline: Int,
+  reader: Pointer[UInt8],
+  writer: Pointer[UInt8],
 ) -> IntResult
 
 fn extern inko_tls_server_write(
-  state: Pointer[UInt8],
-  process: Pointer[UInt8],
-  socket: Pointer[RawSocket],
+  socket: Pointer[net.RawSocket],
   connection: Pointer[UInt8],
-  data: Pointer[UInt8],
+  buffer: Pointer[UInt8],
   size: Int,
   deadline: Int,
+  reader: Pointer[UInt8],
+  writer: Pointer[UInt8],
 ) -> IntResult
 
 fn extern inko_tls_server_flush(
   state: Pointer[UInt8],
   process: Pointer[UInt8],
-  socket: Pointer[RawSocket],
+  socket: Pointer[net.RawSocket],
   connection: Pointer[UInt8],
 ) -> IntResult
 
 fn extern inko_tls_server_close(
-  state: Pointer[UInt8],
-  process: Pointer[UInt8],
-  socket: Pointer[RawSocket],
+  socket: Pointer[net.RawSocket],
   connection: Pointer[UInt8],
   deadline: Int,
+  reader: Pointer[UInt8],
+  writer: Pointer[UInt8],
 ) -> IntResult
+
+let OK = 0
+let ERROR = 2
 
 class extern AnyResult {
   let @tag: Int
@@ -144,6 +150,30 @@ class extern AnyResult {
 class extern IntResult {
   let @tag: Int
   let @value: Int
+}
+
+fn extern read_callback(
+  socket: Pointer[net.RawSocket],
+  buffer: Pointer[UInt8],
+  size: Int,
+  deadline: Int,
+) -> IntResult {
+  match sys.read_raw(socket, buffer, size, deadline) {
+    case Ok(v) -> IntResult(tag: OK, value: v)
+    case Error(e) -> IntResult(tag: ERROR, value: e)
+  }
+}
+
+fn extern write_callback(
+  socket: Pointer[net.RawSocket],
+  buffer: Pointer[UInt8],
+  size: Int,
+  deadline: Int,
+) -> IntResult {
+  match sys.write_raw(socket, buffer, size, deadline) {
+    case Ok(v) -> IntResult(tag: OK, value: v)
+    case Error(e) -> IntResult(tag: ERROR, value: e)
+  }
 }
 
 # An error produced when creating a `ServerConfig`.
@@ -342,11 +372,11 @@ class pub Client[T: mut + RawSocketOperations] {
   fn mut close -> Result[Nil, Error] {
     match
       inko_tls_client_close(
-        _INKO.state,
-        _INKO.process,
         @socket.raw_socket,
         @state,
         @socket.raw_deadline,
+        mut read_callback,
+        mut write_callback,
       )
     {
       case { @tag = 1 } -> Result.Ok(nil)
@@ -367,18 +397,26 @@ impl Drop for Client {
 
 impl Read for Client {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
+    into.reserve(size)
+
+    let len = into.size
+    let ptr = ptr.add(into.to_pointer, len)
+
     match
       inko_tls_client_read(
-        _INKO.state,
-        _INKO.process,
         @socket.raw_socket,
         @state,
-        into,
+        ptr,
         size,
         @socket.raw_deadline,
+        mut read_callback,
+        mut write_callback,
       )
     {
-      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @tag = 0, @value = v } -> {
+        into.size = len + v
+        Result.Ok(v)
+      }
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
@@ -388,13 +426,13 @@ impl WriteInternal for Client {
   fn mut write_internal(data: Pointer[UInt8], size: Int) -> Result[Int, Error] {
     match
       inko_tls_client_write(
-        _INKO.state,
-        _INKO.process,
         @socket.raw_socket,
         @state,
         data,
         size,
         @socket.raw_deadline,
+        mut read_callback,
+        mut write_callback,
       )
     {
       case { @tag = 0, @value = v } -> Result.Ok(v)
@@ -563,11 +601,11 @@ class pub Server[T: mut + RawSocketOperations] {
   fn mut close -> Result[Nil, Error] {
     match
       inko_tls_server_close(
-        _INKO.state,
-        _INKO.process,
         @socket.raw_socket,
         @state,
         @socket.raw_deadline,
+        mut read_callback,
+        mut write_callback,
       )
     {
       case { @tag = 1 } -> Result.Ok(nil)
@@ -588,18 +626,26 @@ impl Drop for Server {
 
 impl Read for Server {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
+    into.reserve(size)
+
+    let len = into.size
+    let ptr = ptr.add(into.to_pointer, len)
+
     match
       inko_tls_server_read(
-        _INKO.state,
-        _INKO.process,
         @socket.raw_socket,
         @state,
-        into,
+        ptr,
         size,
         @socket.raw_deadline,
+        mut read_callback,
+        mut write_callback,
       )
     {
-      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @tag = 0, @value = v } -> {
+        into.size = len + v
+        Result.Ok(v)
+      }
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
@@ -609,13 +655,13 @@ impl WriteInternal for Server {
   fn mut write_internal(data: Pointer[UInt8], size: Int) -> Result[Int, Error] {
     match
       inko_tls_server_write(
-        _INKO.state,
-        _INKO.process,
         @socket.raw_socket,
         @state,
         data,
         size,
         @socket.raw_deadline,
+        mut read_callback,
+        mut write_callback,
       )
     {
       case { @tag = 0, @value = v } -> Result.Ok(v)

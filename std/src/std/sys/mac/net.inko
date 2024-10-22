@@ -1,0 +1,96 @@
+import std.alloc
+import std.fs.path (Path)
+import std.io (Error)
+import std.libc
+import std.libc.mac (self as sys)
+import std.net.ip (Ipv4Address, Ipv6Address)
+import std.sys.net
+
+# macOS doesn't have `SOCK_CLOEXEC` and `SOCK_NONBLOCK`, so we need to use
+# `fcntl()` to make a socket non-blocking.
+fn inline socket(domain: Int, type: Int, protocol: Int) -> Int32 {
+  let fd = libc.socket(domain as Int32, type as Int32, protocol as Int32)
+
+  if fd as Int == -1 { return -1 as Int32 }
+
+  if configure_socket(fd) == -1 { return -1 as Int32 }
+
+  fd
+}
+
+# macOS doesn't have the `accept4()` system call, so we have to emulate it using
+# `accept()` and `fcntl()`.
+fn inline accept(fd: Int32) -> Int32 {
+  let peer = sys.accept(fd, 0 as Pointer[sys.SockAddr], 0 as Pointer[UInt32])
+
+  if peer as Int == -1 { return -1 as Int32 }
+
+  if configure_socket(fd) == -1 { return -1 as Int32 }
+
+  peer
+}
+
+fn inline configure_socket(fd: Int32) -> Int {
+  if sys.fcntl(fd, sys.F_SETFD as Int32, sys.FD_CLOEXEC as Int32) as Int == -1 {
+    return -1
+  }
+
+  sys.fcntl(fd, sys.F_SETFL as Int32, sys.O_NONBLOCK as Int32) as Int
+}
+
+fn inline init_v4_address(
+  address: Pointer[sys.SockAddrIn],
+  ip: ref Ipv4Address,
+  port: Int,
+) {
+  address.sin_len = sys.sockaddr_in_size as UInt8
+  address.sin_family = libc.AF_INET as UInt8
+  address.sin_port = net.htons(port) as UInt16
+  address.sin_addr = net.pack_v4(ip) as UInt32
+  address.sin_zero = 0 as UInt64
+}
+
+fn inline init_v6_address(
+  address: Pointer[sys.SockAddrIn6],
+  ip: ref Ipv6Address,
+  port: Int,
+) {
+  address.sin6_len = sys.sockaddr_in6_size as UInt8
+  address.sin6_family = libc.AF_INET6 as UInt8
+  address.sin6_port = net.htons(port) as UInt16
+  address.sin6_addr0 = net.pack_v6_pair(ip.a, ip.b) as UInt32
+  address.sin6_addr1 = net.pack_v6_pair(ip.c, ip.d) as UInt32
+  address.sin6_addr2 = net.pack_v6_pair(ip.e, ip.f) as UInt32
+  address.sin6_addr3 = net.pack_v6_pair(ip.g, ip.h) as UInt32
+  address.sin6_flowinfo = 0 as UInt32
+  address.sin6_scope_id = 0 as UInt32
+}
+
+fn inline init_unix_address(
+  address: Pointer[sys.SockAddrUn],
+  path: ref Path,
+) -> Result[Int, Error] {
+  let path = path.to_string
+
+  # Add 1 to the size to include the NULL byte.
+  let path_size = path.size + 1
+  let name_offset = sys.sockaddr_un_name_offset
+  let max_size = sys.unix_socket_path_limit
+
+  if path.empty? or path_size > max_size { throw Error.InvalidArgument }
+
+  let addr_path_ptr = address as Int + name_offset as Pointer[UInt8]
+  let addr_size = name_offset + path_size
+
+  address.sun_family = libc.AF_UNIX as UInt8
+  address.sun_len = addr_size as UInt8
+  alloc.copy(path.to_pointer, addr_path_ptr, path_size)
+  Result.Ok(addr_size)
+}
+
+fn inline parse_unix_address(
+  address: Pointer[sys.SockAddrUn],
+  size: Int,
+) -> String {
+  String.from_pointer(mut address.sun_path0)
+}

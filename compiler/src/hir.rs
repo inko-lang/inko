@@ -2467,7 +2467,7 @@ impl<'a> LowerToHir<'a> {
             // We special-case this instruction because we need to attach extra
             // type information, but don't want to introduce a dedicated
             // `size_of` keyword just for this.
-            if node.name.name == "size_of_type_parameter" {
+            if node.name.name == "size_of_type_name" {
                 return self.size_of(node);
             }
 

@@ -64,6 +64,7 @@ jobs:
         run: 'cd std && cargo run -- fmt --check'
 
   amd64-linux-gnu:
+    timeout-minutes: 15
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/inko-lang/ci:fedora
@@ -84,6 +85,7 @@ jobs:
         run: 'cd std && cargo run -- test --opt=none'
 
   amd64-linux-musl:
+    timeout-minutes: 15
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/inko-lang/ci:alpine
@@ -99,6 +101,7 @@ jobs:
         run: 'cd std && cargo run -- test'
 
   amd64-mac-native:
+    timeout-minutes: 15
     runs-on: macos-13
     env:
       RUSTUP_HOME: ${{ github.workspace }}/.rustup-home
@@ -118,6 +121,7 @@ jobs:
         run: 'cd std && cargo run -- test'
 
   arm64-mac-native:
+    timeout-minutes: 15
     runs-on: macos-14
     env:
       RUSTUP_HOME: ${{ github.workspace }}/.rustup-home
@@ -137,6 +141,7 @@ jobs:
         run: 'cd std && cargo run -- test'
 
   amd64-freebsd-native:
+    timeout-minutes: 15
     runs-on: ubuntu-latest
     env:
       RUSTUP_HOME: ${{ github.workspace }}/.rustup-home

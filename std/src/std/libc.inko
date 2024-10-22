@@ -14,6 +14,9 @@ import std.libc.mac (self as sys) if mac
 # The various C constants are re-exported here so the various standard library
 # modules don't need to import the platform specific modules.
 
+let AF_INET = sys.AF_INET
+let AF_INET6 = sys.AF_INET6
+let AF_UNIX = sys.AF_UNIX
 let DT_DIR = sys.DT_DIR
 let DT_LNK = sys.DT_LNK
 let DT_REG = sys.DT_REG
@@ -53,6 +56,7 @@ let ESPIPE = sys.ESPIPE
 let ETIME = sys.ETIME
 let ETIMEDOUT = sys.ETIMEDOUT
 let EXDEV = sys.EXDEV
+let F_DUPFD_CLOEXEC = sys.F_DUPFD_CLOEXEC
 let IPPROTO_IP = sys.IPPROTO_IP
 let IPPROTO_IPV6 = sys.IPPROTO_IPV6
 let IPPROTO_TCP = sys.IPPROTO_TCP
@@ -69,8 +73,15 @@ let POSIX_SPAWN_SETSIGDEF = sys.POSIX_SPAWN_SETSIGDEF
 let POSIX_SPAWN_SETSIGMASK = sys.POSIX_SPAWN_SETSIGMASK
 let SEEK_END = sys.SEEK_END
 let SEEK_SET = sys.SEEK_SET
+let SHUT_RD = sys.SHUT_RD
+let SHUT_RDWR = sys.SHUT_RDWR
+let SHUT_WR = sys.SHUT_WR
+let SOCK_DGRAM = sys.SOCK_DGRAM
+let SOCK_RAW = sys.SOCK_RAW
+let SOCK_STREAM = sys.SOCK_STREAM
 let SOL_SOCKET = sys.SOL_SOCKET
 let SO_BROADCAST = sys.SO_BROADCAST
+let SO_ERROR = sys.SO_ERROR
 let SO_KEEPALIVE = sys.SO_KEEPALIVE
 let SO_LINGER = sys.SO_LINGER
 let SO_RCVBUF = sys.SO_RCVBUF
@@ -90,6 +101,11 @@ class extern PosixSpawnAttrs {
 
 class extern PosixSpawnFileActions {
   let @inner: sys.PosixSpawnFileActions
+}
+
+class extern Linger {
+  let @l_onoff: Int32
+  let @l_linger: Int32
 }
 
 fn opendir(path: Pointer[UInt8]) -> Pointer[UInt8] {
@@ -193,6 +209,12 @@ fn extern waitpid(pid: Int32, status: Pointer[Int32], options: Int32) -> Int32
 
 fn extern realloc(pointer: Pointer[UInt8], size: Int) -> Pointer[UInt8]
 
+fn extern memset(
+  pointer: Pointer[UInt8],
+  byte: Int,
+  size: UInt64,
+) -> Pointer[UInt8]
+
 fn extern memmove(
   to: Pointer[UInt8],
   from: Pointer[UInt8],
@@ -202,6 +224,78 @@ fn extern memmove(
 fn extern free(pointer: Pointer[UInt8])
 
 fn extern exit(status: Int32) -> Never
+
+fn extern socket(domain: Int32, type: Int32, protocol: Int32) -> Int32
+
+fn extern bind(socket: Int32, addr: Pointer[UInt8], size: UInt32) -> Int32
+
+fn extern connect(socket: Int32, addr: Pointer[UInt8], size: UInt32) -> Int32
+
+fn extern listen(socket: Int32, backlog: Int32) -> Int32
+
+fn extern setsockopt(
+  socket: Int32,
+  level: Int32,
+  option: Int32,
+  value: Pointer[UInt8],
+  size: Int32,
+) -> Int32
+
+fn extern getsockopt(
+  socket: Int32,
+  level: Int32,
+  option: Int32,
+  value: Pointer[UInt8],
+  size: Pointer[Int32],
+) -> Int32
+
+fn extern getsockname(
+  socket: Int32,
+  address: Pointer[UInt8],
+  size: Pointer[UInt32],
+) -> Int32
+
+fn extern getpeername(
+  socket: Int32,
+  address: Pointer[UInt8],
+  size: Pointer[UInt32],
+) -> Int32
+
+fn extern recv(
+  socket: Int32,
+  buf: Pointer[UInt8],
+  size: UInt64,
+  flags: Int32,
+) -> Int
+
+fn extern send(
+  socket: Int32,
+  buf: Pointer[UInt8],
+  size: UInt64,
+  flags: Int32,
+) -> Int
+
+fn extern sendto(
+  socket: Int32,
+  buf: Pointer[UInt8],
+  size: UInt64,
+  flags: Int32,
+  address: Pointer[UInt8],
+  address_size: UInt32,
+) -> Int
+
+fn extern recvfrom(
+  socket: Int32,
+  buf: Pointer[UInt8],
+  size: UInt64,
+  flags: Int32,
+  address: Pointer[UInt8],
+  address_size: Pointer[UInt32],
+) -> Int
+
+fn extern shutdown(fd: Int32, how: Int32) -> Int32
+
+fn extern fcntl(fd: Int32, cmd: Int32, ...) -> Int32
 
 # Returns the type of a directory entry.
 fn inline dirent_type(pointer: Pointer[sys.Dirent]) -> Int {
@@ -219,4 +313,8 @@ fn inline pipes -> Result[(Int32, Int32), Error] {
 
 fn inline errno_location -> Pointer[Int32] {
   sys.errno_location
+}
+
+fn inline errno -> Int {
+  errno_location.0 as Int
 }

@@ -16,7 +16,7 @@ fn resize_error -> Never {
 fn resize[T](buffer: Pointer[T], size: Int) -> Pointer[T] {
   if size == 0 { return 0 as Pointer[T] }
 
-  let bytes = size * _INKO.size_of_type_parameter(T)
+  let bytes = size * _INKO.size_of_type_name(T)
   let ptr = libc.realloc(buffer as Pointer[UInt8], bytes)
 
   # In this case there's nothing we can do but abort.
@@ -31,7 +31,12 @@ fn free[T](pointer: Pointer[T]) {
 
 # Copies `size` _elements_ from the pointer `from` to the pointer `to`.
 fn copy[T](from: Pointer[T], to: Pointer[T], size: Int) {
-  let bytes = size * _INKO.size_of_type_parameter(T)
+  let bytes = size * _INKO.size_of_type_name(T)
 
   libc.memmove(to as Pointer[UInt8], from as Pointer[UInt8], bytes as UInt64)
+}
+
+# Writes `size` zeroes to `pointer`.
+fn zero(pointer: Pointer[UInt8], size: Int) {
+  libc.memset(pointer, byte: 0, size: size as UInt64)
 }

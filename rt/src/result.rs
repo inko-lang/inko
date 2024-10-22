@@ -1,9 +1,9 @@
 use rustix::io::Errno;
 use std::io;
 
-const OK: i64 = 0;
-const NONE: i64 = 1;
-const ERROR: i64 = 2;
+pub(crate) const OK: i64 = 0;
+pub(crate) const NONE: i64 = 1;
+pub(crate) const ERROR: i64 = 2;
 
 pub(crate) fn error_to_int(error: io::Error) -> i64 {
     let code = if let Some(code) = error.raw_os_error() {

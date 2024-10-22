@@ -2,12 +2,14 @@ import std.drop (Drop)
 import std.env
 import std.fmt (fmt)
 import std.fs.path (Path)
+import std.io (Error)
 import std.net.ip (IpAddress, Ipv4Address, Ipv6Address)
 import std.net.socket (
-  NO_DEADLINE, Socket, SocketAddress, TcpClient, TcpServer, UdpSocket,
-  UnixAddress, UnixClient, UnixDatagram, UnixServer, UnixSocket,
+  Socket, SocketAddress, TcpClient, TcpServer, UdpSocket, UnixAddress,
+  UnixClient, UnixDatagram, UnixServer, UnixSocket,
 )
 import std.string (ToString)
+import std.sys.net (NO_DEADLINE)
 import std.test (Tests)
 import std.time (Duration)
 
@@ -77,17 +79,9 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Socket.bind', fn (t) {
-    {
-      let sock = Socket.stream(ipv6: false).get
+    let sock = Socket.stream(ipv6: false).get
 
-      t.true(sock.bind(ip: IpAddress.v4(-1, -1, -1, -1), port: 0).error?)
-    }
-
-    {
-      let sock = Socket.stream(ipv6: false).get
-
-      t.true(sock.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 0).ok?)
-    }
+    t.true(sock.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 0).ok?)
   })
 
   t.test('Socket.connect', fn (t) {
@@ -170,14 +164,14 @@ fn pub tests(t: mut Tests) {
     t.equal(buffer.into_string, 'ping')
   })
 
-  t.test('Socket.receive_from', fn (t) {
-    let listener = Socket.datagram(ipv6: false).get
-    let client = Socket.datagram(ipv6: false).get
+  t.ok('Socket.receive_from', fn (t) {
+    let listener = try Socket.datagram(ipv6: false)
+    let client = try Socket.datagram(ipv6: false)
 
-    listener.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0).get
-    client.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0).get
+    try listener.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0)
+    try client.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0)
 
-    let send_to = listener.local_address.get
+    let send_to = try listener.local_address
 
     t.equal(
       client.send_string_to('ping', send_to.ip, send_to.port.clone),
@@ -185,9 +179,11 @@ fn pub tests(t: mut Tests) {
     )
 
     let bytes = ByteArray.new
+    let addr = try client.local_address
 
-    t.equal(listener.receive_from(bytes: bytes, size: 4), client.local_address)
+    t.equal(listener.receive_from(bytes: bytes, size: 4), Result.Ok((4, addr)))
     t.equal(bytes.into_string, 'ping')
+    Result.Ok(nil)
   })
 
   t.test('Socket.local_address with an unbound socket', fn (t) {
@@ -502,18 +498,20 @@ fn pub tests(t: mut Tests) {
     t.equal(bytes.into_string, 'ping')
   })
 
-  t.test('UdpSocket.receive_from', fn (t) {
+  t.ok('UdpSocket.receive_from', fn (t) {
     let ip = IpAddress.V4(Ipv4Address.new(127, 0, 0, 1))
-    let listener = UdpSocket.new(ip: ip.clone, port: 0).get
-    let client = UdpSocket.new(ip: ip, port: 0).get
-    let addr = listener.local_address.get
+    let listener = try UdpSocket.new(ip: ip.clone, port: 0)
+    let client = try UdpSocket.new(ip: ip, port: 0)
+    let addr = try listener.local_address
 
-    client.send_string_to('ping', addr.ip, addr.port).get
+    try client.send_string_to('ping', addr.ip, addr.port)
 
     let bytes = ByteArray.new
+    let addr = try client.local_address
 
-    t.equal(listener.receive_from(bytes: bytes, size: 4), client.local_address)
+    t.equal(listener.receive_from(bytes: bytes, size: 4), Result.Ok((4, addr)))
     t.equal(bytes.into_string, 'ping')
+    Result.Ok(nil)
   })
 
   t.test('UdpSocket.local_address', fn (t) {
@@ -892,6 +890,26 @@ fn pub tests(t: mut Tests) {
     }
   })
 
+  t.ok("UnixSocket.bind with a path that's too long", fn (t) {
+    let socket = try UnixSocket.stream
+    let path = 'x'.repeat(200) + '.sock'
+
+    t.equal(socket.bind(path.to_path), Result.Error(Error.InvalidArgument))
+    Result.Ok(nil)
+  })
+
+  t.ok('UnixSocket.bind with an empty path', fn (t) {
+    let socket = try UnixSocket.stream
+    let expected = if env.OS == 'linux' {
+      Result.Ok(nil)
+    } else {
+      Result.Error(Error.InvalidArgument)
+    }
+
+    t.equal(socket.bind(''.to_path), expected)
+    Result.Ok(nil)
+  })
+
   t.test('UnixSocket.connect', fn (t) {
     let listener = UnixSocket.stream.get
     let stream = UnixSocket.stream.get
@@ -907,12 +925,11 @@ fn pub tests(t: mut Tests) {
     if env.OS == 'linux' {
       let listener = UnixSocket.stream.get
       let stream = UnixSocket.stream.get
-      let addr = '\0inko-test-${t.id}'
+      let addr = '\0inko-test-${t.id}'.to_path
 
-      listener.bind(addr.to_path).get
+      listener.bind(addr).get
       listener.listen.get
-
-      t.true(stream.connect(addr.to_path).ok?)
+      t.equal(stream.connect(addr), Result.Ok(nil))
     }
   })
 
@@ -965,19 +982,21 @@ fn pub tests(t: mut Tests) {
     t.equal(bytes.into_string, 'ping')
   })
 
-  t.test('UnixSocket.receive_from', fn (t) {
+  t.ok('UnixSocket.receive_from', fn (t) {
     let pair = SocketPath.pair(t.id)
-    let listener = UnixSocket.datagram.get
-    let client = UnixSocket.datagram.get
+    let listener = try UnixSocket.datagram
+    let client = try UnixSocket.datagram
 
     t.equal(listener.bind(pair.0.path), Result.Ok(nil))
     t.equal(client.bind(pair.1.path), Result.Ok(nil))
     t.equal(client.send_string_to('ping', pair.0.path), Result.Ok(4))
 
     let bytes = ByteArray.new
+    let addr = try client.local_address
 
-    t.equal(listener.receive_from(bytes: bytes, size: 4), client.local_address)
+    t.equal(listener.receive_from(bytes: bytes, size: 4), Result.Ok((4, addr)))
     t.equal(bytes.into_string, 'ping')
+    Result.Ok(nil)
   })
 
   t.test('UnixSocket.local_address with an unbound socket', fn (t) {
@@ -1191,17 +1210,19 @@ fn pub tests(t: mut Tests) {
     t.equal(bytes.into_string, 'ping')
   })
 
-  t.test('UnixDatagram.receive_from', fn (t) {
+  t.ok('UnixDatagram.receive_from', fn (t) {
     let pair = SocketPath.pair(t.id)
-    let listener = UnixDatagram.new(pair.0.path).get
-    let client = UnixDatagram.new(pair.1.path).get
+    let listener = try UnixDatagram.new(pair.0.path)
+    let client = try UnixDatagram.new(pair.1.path)
 
     t.equal(client.send_string_to('ping', pair.0.path), Result.Ok(4))
 
     let bytes = ByteArray.new
+    let addr = try client.local_address
 
-    t.equal(listener.receive_from(bytes: bytes, size: 4), client.local_address)
+    t.equal(listener.receive_from(bytes: bytes, size: 4), Result.Ok((4, addr)))
     t.equal(bytes.into_string, 'ping')
+    Result.Ok(nil)
   })
 
   t.test('UnixDatagram.local_address', fn (t) {
