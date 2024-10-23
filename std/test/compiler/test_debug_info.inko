@@ -1,0 +1,74 @@
+import helpers (compiler_path)
+import std.env
+import std.fs.path (Path)
+import std.io (BufferedReader)
+import std.sys (Command, Stream)
+import std.test (Failure, Tests)
+
+fn run(compiler: String, file: ref Path, opt: String, id: Int) -> String {
+  let cmd = Command.new(compiler)
+  let dir = 'inko-test-debug-info-${id}'
+  let pwd = env.working_directory.map(fn (p) { p.to_string }).or('') + '/'
+
+  cmd.stdout = Stream.Null
+  cmd.stdin = Stream.Null
+  cmd.stderr = Stream.Piped
+  cmd.arguments = ['run', '--opt', opt, '--directory', dir, file.to_string]
+
+  let child = cmd.spawn.or_panic('failed to start the compiler')
+
+  child.wait.or_panic('failed to wait for the compiler')
+
+  let reader = BufferedReader.new(child.stderr.as_mut.get)
+  let lines = []
+  let buf = ByteArray.new
+
+  loop {
+    match reader.read_line(into: buf, inclusive: false) {
+      case Ok(0) -> break
+      case Ok(_) -> {
+        let line = buf.drain_to_string.trim
+        let line = line.strip_prefix(pwd).or(line)
+
+        lines.push('               ${line}')
+      }
+      case Error(e) -> panic('failed to read a line: ${e}')
+    }
+  }
+
+  # Strip the first and last lines as those contain some extra non-stacktrace
+  # info we don't care about.
+  lines.pop
+  lines.remove_at(0)
+  String.join(lines.into_iter, '\n')
+}
+
+fn pub tests(t: mut Tests) {
+  let base = env
+    .working_directory
+    .or_else(fn (_) { '.'.to_path })
+    .join('fixtures')
+    .join('debug_info')
+  let compiler = compiler_path.to_string
+
+  base.list.or_panic("fixtures/debug_info doesn't exist").each(fn (e) {
+    let test_file = match e {
+      case Ok({ @path = p, @type = File }) if p.tail.ends_with?('.inko') -> {
+        recover p.clone
+      }
+      case Ok(_) -> return
+      case Error(e) -> panic('failed to read the directory: ${e}')
+    }
+
+    let name = test_file.tail.strip_suffix('.inko').get
+
+    t.test('debug info ${name}', fn move (t) {
+      let none = run(compiler, test_file, 'none', t.id)
+      let balanced = run(compiler, test_file, 'balanced', t.id)
+
+      if none == balanced { return }
+
+      t.failures.push(Failure.new(got: '\n${balanced}', expected: '\n${none}'))
+    })
+  })
+}

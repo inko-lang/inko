@@ -1,0 +1,20 @@
+class async Main {
+  fn async main {
+    foo
+  }
+}
+
+fn foo {
+  bar(fn {
+    # This comment is here to ensure the next call is on its own line.
+    baz
+  })
+}
+
+fn bar(fun: fn) {
+  fun.call
+}
+
+fn baz {
+  ''.byte(0)
+}

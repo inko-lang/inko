@@ -271,7 +271,7 @@ fn pub tests(t: mut Tests) {
     .join('diagnostics')
   let compiler = compiler_path.to_string
 
-  base.list.or_panic("the fixtures/diagnostics doesn't exist").each(fn (e) {
+  base.list.or_panic("fixtures/diagnostics doesn't exist").each(fn (e) {
     let test_file = match e {
       case Ok({ @path = p, @type = File }) if p.tail.ends_with?('.inko') -> {
         recover p.clone

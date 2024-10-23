@@ -76,7 +76,22 @@ import std.sys (Command, ExitStatus, Stream, cpu_cores, exit)
 import std.time (Duration, Instant)
 
 let CHILD_VAR = 'INKO_TEST_CHILD'
-let TEST_PREFIX = 'test_'
+
+# Returns the last stack frame that originates from a unit test file.
+fn unit_test_stack_frame -> debug.StackFrame {
+  let frames = debug.stacktrace(skip: 2)
+
+  loop {
+    match frames.pop {
+      case Some(frame) -> {
+        if frame.path.tail.starts_with?('test_') { return frame }
+      }
+      case _ -> break
+    }
+  }
+
+  panic('failed to find a stack frame originating from a unit test file')
+}
 
 # A single unit test.
 class pub Test {
@@ -320,13 +335,7 @@ class pub Failure {
   #
   # The source location is determined automatically based on the call stack.
   fn pub static new(got: String, expected: String) -> Failure {
-    # This skips the call to stacktrace(), the call to this new(), and its
-    # caller (which would be e.g. `assert_equal`).
-    let frame = debug.stacktrace(skip: 3).pop.or_panic(
-      'at least one stack frame must be present',
-    )
-
-    match frame {
+    match unit_test_stack_frame {
       case { @path = path, @line = line } -> {
         Failure(got: got, expected: expected, path: path, line: line)
       }
@@ -529,15 +538,11 @@ class pub Tests {
   fn pub mut test(name: String, code: uni fn (mut Test)) {
     let id = @tests.size
     let test = recover {
-      let trace = debug.stacktrace(skip: 2)
-      let frame = trace
-        .reverse_iter
-        .find(fn (frame) { frame.path.tail.starts_with?(TEST_PREFIX) })
-        .else(fn { trace.opt(trace.size - 1) })
-        .or_panic('at least one stack frame must be present')
-        .clone
-
-      Test.new(id, name, frame.path.clone, frame.line, code)
+      match unit_test_stack_frame {
+        case { @path = path, @line = line } -> {
+          Test.new(id, name, path, line, code)
+        }
+      }
     }
 
     @tests.push(test)

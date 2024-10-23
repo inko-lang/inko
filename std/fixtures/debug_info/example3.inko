@@ -1,0 +1,17 @@
+class async Main {
+  fn async main {
+    foo
+  }
+}
+
+fn inline foo {
+  bar
+}
+
+fn inline bar {
+  baz
+}
+
+fn inline baz {
+  panic('example')
+}

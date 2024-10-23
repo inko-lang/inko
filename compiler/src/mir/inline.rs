@@ -152,9 +152,8 @@ impl CallSite {
         // Ensure we can generate correct debug info for inlined instructions by
         // maintaining a chain of calls they're inlined through.
         let inline_offset = caller.inlined_calls.len() as u32;
-        let chain = InlinedCalls::new(caller.id, self.id, loc);
 
-        caller.inlined_calls.push(chain);
+        caller.inlined_calls.push(InlinedCalls::new(caller.id, self.id, loc));
 
         if !callee.inlined_calls.is_empty() {
             for calls in &mut callee.inlined_calls {
