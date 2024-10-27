@@ -886,8 +886,9 @@ impl InstructionLocation {
         }
     }
 
-    pub(crate) fn inlined_call_id(self) -> Option<u32> {
-        (self.inlined_call_id != u32::MAX).then_some(self.inlined_call_id)
+    pub(crate) fn inlined_call_id(self) -> Option<usize> {
+        (self.inlined_call_id != u32::MAX)
+            .then_some(self.inlined_call_id as usize)
     }
 }
 
@@ -1607,6 +1608,15 @@ pub(crate) struct InlinedCall {
     pub(crate) location: InstructionLocation,
 }
 
+impl InlinedCall {
+    pub(crate) fn new(
+        caller: MethodId,
+        location: InstructionLocation,
+    ) -> InlinedCall {
+        InlinedCall { caller, location }
+    }
+}
+
 #[derive(Clone)]
 pub(crate) struct InlinedCalls {
     /// The method the instructions were defined in.
@@ -1617,15 +1627,11 @@ pub(crate) struct InlinedCalls {
 }
 
 impl InlinedCalls {
-    fn new(
-        caller: MethodId,
-        callee: MethodId,
-        location: InstructionLocation,
+    pub(crate) fn new(
+        source_method: MethodId,
+        chain: Vec<InlinedCall>,
     ) -> InlinedCalls {
-        InlinedCalls {
-            source_method: callee,
-            chain: vec![InlinedCall { caller, location }],
-        }
+        InlinedCalls { source_method, chain }
     }
 }
 

@@ -1,0 +1,17 @@
+class async Main {
+  fn async main {
+    foo
+  }
+}
+
+fn foo {
+  bar
+}
+
+fn bar {
+  baz
+}
+
+fn baz {
+  ''.byte(0)
+}

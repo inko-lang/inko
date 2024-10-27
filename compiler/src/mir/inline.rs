@@ -149,22 +149,29 @@ impl CallSite {
         caller.registers.merge(callee.registers);
         caller.body.merge(callee.body);
 
-        // Ensure we can generate correct debug info for inlined instructions by
-        // maintaining a chain of calls they're inlined through.
+        // For inlined instructions we need to maintain the inline call stack so
+        // we can produce correct debug information.
         let inline_offset = caller.inlined_calls.len() as u32;
-        let chain = InlinedCalls::new(caller.id, self.id, loc);
+        let chain = if let Some(id) = self.location.inlined_call_id() {
+            // If the instruction originates from an inlined call, we need to
+            // add the source method as the caller instead of `caller.id`,
+            // because the latter refers to the method we're inlining into.
+            let calls = &caller.inlined_calls[id];
+            let mut chain = vec![InlinedCall::new(calls.source_method, loc)];
 
-        caller.inlined_calls.push(chain);
+            chain.extend(calls.chain.clone());
+            chain
+        } else {
+            vec![InlinedCall::new(caller.id, loc)]
+        };
 
-        if !callee.inlined_calls.is_empty() {
-            for calls in &mut callee.inlined_calls {
-                let call = InlinedCall { caller: caller.id, location: loc };
+        caller.inlined_calls.push(InlinedCalls::new(self.id, chain.clone()));
 
-                calls.chain.push(call);
-            }
-
-            caller.inlined_calls.append(&mut callee.inlined_calls);
+        for calls in &mut callee.inlined_calls {
+            calls.chain.append(&mut chain.clone());
         }
+
+        caller.inlined_calls.append(&mut callee.inlined_calls);
 
         // Now that the registers and blocks have been added to the caller, we
         // need to update the references accordingly. Since both are stored as a
@@ -739,8 +746,9 @@ impl<'a, 'b, 'c> InlineMethod<'a, 'b, 'c> {
             }
 
             // We process the work list in reverse order so that modifying the
-            // basic blocks doesn't invalidate instruction indexes, ensuring we only
-            // need a single pass to determine which instructions need inlining.
+            // basic blocks doesn't invalidate instruction indexes, ensuring we
+            // only need a single pass to determine which instructions need
+            // inlining.
             while let Some(call) = work.pop() {
                 // We can't both mutably borrow the method we want to inline
                 // _into_ and immutably borrow the source method, so we have to

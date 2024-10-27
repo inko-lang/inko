@@ -2613,7 +2613,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
         let line = location.line;
         let col = location.column;
         let loc = if let Some(id) = location.inlined_call_id() {
-            let chain = &self.method.inlined_calls[id as usize];
+            let chain = &self.method.inlined_calls[id];
             let mut parent = None;
 
             // We process the list in reverse order such that the first entry we

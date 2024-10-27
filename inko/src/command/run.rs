@@ -45,6 +45,13 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     );
 
     options.optflag("", "static", "Statically link imported C libraries");
+    options.optopt("", "opt", "The optimization level to use", "LEVEL");
+    options.optopt(
+        "",
+        "directory",
+        "A custom name for the temporary build directory",
+        "NAME",
+    );
 
     let matches = options.parse(arguments)?;
 
@@ -57,11 +64,11 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     let arguments =
         if matches.free.len() > 1 { &matches.free[1..] } else { &[] };
 
-    if let Some(format) = matches.opt_str("f") {
+    if let Some(format) = matches.opt_str("format") {
         config.set_presenter(&format)?;
     }
 
-    for path in matches.opt_strs("i") {
+    for path in matches.opt_strs("include") {
         config.add_source_directory(path.into());
     }
 
@@ -69,11 +76,23 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         config.static_linking = true;
     }
 
-    let time = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_else(|_| Duration::from_secs(0))
-        .as_secs();
-    let build_dir = temp_dir().join(format!("inko-run-{}", time));
+    if let Some(val) = matches.opt_str("opt") {
+        config.set_opt(&val)?;
+    }
+
+    let dir_name = matches
+        .opt_str("directory")
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| {
+            let time = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_else(|_| Duration::from_secs(0))
+                .as_secs();
+
+            format!("inko-run-{}", time)
+        });
+
+    let build_dir = temp_dir().join(dir_name);
 
     if !build_dir.is_dir() {
         create_dir(&build_dir).map_err(|err| {
