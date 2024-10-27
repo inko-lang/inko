@@ -14,7 +14,7 @@ Prepare the release:
 
 Publish the release:
 
-- [ ] Set up a pull
+- [ ] Set up a pull request for the release post in https://github.com/inko-lang/website
 - [ ] Update `source/documentation.md` to include links to the manual and standard library of the specific release
 - [ ] Merge the release post
 
