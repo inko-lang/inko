@@ -4,6 +4,50 @@
 Entries from before version 0.10.0 are no longer included, but can be viewed
 [here](https://github.com/inko-lang/inko/blob/f9c01b86af70596021e649be5d43ec2a22b6d298/CHANGELOG.md).
 
+## 0.17.0 (2024-10-28)
+
+### Added
+
+- [06c1375](https://github.com/inko-lang/inko/commit/06c13752c683f2a2f5a8c3ba73836323abc80a67): Highlight the native target in for `runtime list`
+- [489c710](https://github.com/inko-lang/inko/commit/489c7109bb09112a12c263287c1cd845c219075e): Add support for inlining method calls
+- [9f68de6](https://github.com/inko-lang/inko/commit/9f68de6759a37f1a4e0631fc2d348b445e33301d): Add Duration.*
+- [15ed990](https://github.com/inko-lang/inko/commit/15ed990da4693c93f10a91952d63932941e87bfd): Add warnings for unused imports
+- [f89f2b6](https://github.com/inko-lang/inko/commit/f89f2b654d8dc79eff525db30dcbf26a0c72d3cf): Allow creating uninitialized C structs
+- [fc50814](https://github.com/inko-lang/inko/commit/fc50814ac97462b572888b1ba33501c68f1c53c0): Add TTY/terminal checking to input/output streams
+- [ac83133](https://github.com/inko-lang/inko/commit/ac83133fd6f641e28754ea4622c8a7e847cb6759): Add target option to check and test commands
+- [4aae094](https://github.com/inko-lang/inko/commit/4aae09454d31f241fc49c2c8219f065fba30a8cf): Add Iter.chain
+- [988b721](https://github.com/inko-lang/inko/commit/988b72191f4aa66a3ac4f95dcf07b88634bad7de): Add std.io.BufferedWriter
+- [9e73235](https://github.com/inko-lang/inko/commit/9e7323540c766e9da868e57ea063610018516e93): Add support for parsing and generating CSV data
+- [d22a556](https://github.com/inko-lang/inko/commit/d22a5567c8bac92988fd5dde27600e5f47044717): Add BufferedRead.peek
+
+### Fixed
+
+- [a77e53b](https://github.com/inko-lang/inko/commit/a77e53ba09f4e2ed13579b16940ff010477c0737): Fix unreliable ordering when specializing types
+- [f94e4d1](https://github.com/inko-lang/inko/commit/f94e4d1ecd81f8d53a8659e65f81763fd1397f23): Fix formatting of binding patterns
+- [0bcb617](https://github.com/inko-lang/inko/commit/0bcb617187a1c663f8a30d67f6044183581821cc): Escape ampersands in MIR Graphviz output
+- [e0feaae](https://github.com/inko-lang/inko/commit/e0feaaee9d5050056737bd473afe8fb2f7109df4): Fix building the compiler on Alpine/musl
+- [3a17396](https://github.com/inko-lang/inko/commit/3a17396f1a58f7f8986f9ccf51577fa94e040f89): Limit the number of threads for subprocess tests
+- [33408cb](https://github.com/inko-lang/inko/commit/33408cb07a55a771cc78e46e29fe052d79ab021d): Refactor messages to support non-word arguments
+- [125a4a8](https://github.com/inko-lang/inko/commit/125a4a8b6ecc056019ae0a62ad31e6c62db8e007): Fix capturing of C structures
+
+### Changed
+
+- [ef10a60](https://github.com/inko-lang/inko/commit/ef10a60e20b9a3238f2e9349780be6a6b2c6d127): Implement socket operations in Inko
+- [fa651e2](https://github.com/inko-lang/inko/commit/fa651e2ecc31f5b3a4721053cc6229e635bc264a): Reintroduce futures using Future and Promise
+- [e93cb49](https://github.com/inko-lang/inko/commit/e93cb49313a734f8eb0c8389e6b708d091bb9afe): Use Inko for getting the errno location
+- [e65d1e7](https://github.com/inko-lang/inko/commit/e65d1e725a15e8c779ee85c1f19bddcd9c88d0f3): Implement std.sys in Inko
+- [47907c4](https://github.com/inko-lang/inko/commit/47907c4bce2849a0862d42d6d90569f7547a60a6): Enable std.test colors for terminals only
+- [becc67f](https://github.com/inko-lang/inko/commit/becc67fbd1cac4ac88108a940072ff6b2cc4cdcd): Implement std.stdio in pure Inko
+- [7d0a787](https://github.com/inko-lang/inko/commit/7d0a787d9269b47ac0d22d104f069aaf20504100): Implement file IO in Inko
+
+### Performance improvements
+
+- [f463691](https://github.com/inko-lang/inko/commit/f463691ea8938b767447631c514cba8e66b398fb): Reduce cost of creating process stacks
+
+### Other
+
+- [6ac1062](https://github.com/inko-lang/inko/commit/6ac10622670cdeece75e1dca50c741249525191b): Simplify generating LLVM blocks
+
 ## 0.16.0 (2024-08-14)
 
 ### Added
