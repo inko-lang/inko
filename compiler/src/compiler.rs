@@ -38,6 +38,14 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use types::module_name::ModuleName;
 
+fn measure<R, F: FnOnce() -> R>(time: &mut Duration, func: F) -> R {
+    let start = Instant::now();
+    let res = func();
+
+    *time = start.elapsed();
+    res
+}
+
 fn module_name_from_path(config: &Config, file: &Path) -> ModuleName {
     file.strip_prefix(&config.source)
         .ok()
@@ -134,14 +142,22 @@ fn format_timing(duration: Duration, total: Option<Duration>) -> String {
     }
 }
 
+struct OptimizationTimings {
+    prepare: Duration,
+    inline: Duration,
+    remove_methods: Duration,
+    remove_instructions: Duration,
+    simplify_graph: Duration,
+    total: Duration,
+}
+
 struct Timings {
     ast: Duration,
     hir: Duration,
     type_check: Duration,
     mir: Duration,
     specialize_mir: Duration,
-    inline_mir: Duration,
-    optimize_mir: Duration,
+    optimize: OptimizationTimings,
     llvm: Duration,
     llvm_modules: Vec<(ModuleName, Duration)>,
     link: Duration,
@@ -156,8 +172,14 @@ impl Timings {
             type_check: Duration::from_secs(0),
             mir: Duration::from_secs(0),
             specialize_mir: Duration::from_secs(0),
-            inline_mir: Duration::from_secs(0),
-            optimize_mir: Duration::from_secs(0),
+            optimize: OptimizationTimings {
+                prepare: Duration::from_secs(0),
+                inline: Duration::from_secs(0),
+                remove_methods: Duration::from_secs(0),
+                remove_instructions: Duration::from_secs(0),
+                simplify_graph: Duration::from_secs(0),
+                total: Duration::from_secs(0),
+            },
             llvm: Duration::from_secs(0),
             llvm_modules: Vec::new(),
             link: Duration::from_secs(0),
@@ -312,15 +334,19 @@ Frontend:
   AST to HIR  {hir}
   Type check  {type_check}
   HIR to MIR  {mir}
+  Specialize  {specialize}
 
 Optimizations:
-  Specialize  {specialize}
-  Inline      {inline}
-  Total       {optimize}
+  Prepare                     {opt_prep}
+  Inline                      {opt_inline}
+  Remove unused methods       {opt_unused_methods}
+  Remove unused instructions  {opt_unused_instr}
+  Simplify graph              {opt_simplify}
+  Total                       {opt_total}
 
 Backend:
-  LLVM        {llvm}
-  Linker      {link}
+  LLVM    {llvm}
+  Linker  {link}
 
 Total: {total}\
             ",
@@ -330,8 +356,23 @@ Total: {total}\
             mir = format_timing(self.timings.mir, Some(total)),
             specialize =
                 format_timing(self.timings.specialize_mir, Some(total)),
-            inline = format_timing(self.timings.inline_mir, Some(total)),
-            optimize = format_timing(self.timings.optimize_mir, Some(total)),
+            opt_prep =
+                format_timing(self.timings.optimize.prepare, Some(total)),
+            opt_inline =
+                format_timing(self.timings.optimize.inline, Some(total)),
+            opt_unused_methods = format_timing(
+                self.timings.optimize.remove_methods,
+                Some(total)
+            ),
+            opt_unused_instr = format_timing(
+                self.timings.optimize.remove_instructions,
+                Some(total)
+            ),
+            opt_simplify = format_timing(
+                self.timings.optimize.simplify_graph,
+                Some(total)
+            ),
+            opt_total = format_timing(self.timings.optimize.total, Some(total)),
             llvm = format_timing(self.timings.llvm, Some(total)),
             link = format_timing(self.timings.link, Some(total)),
             total = format_timing(self.timings.total, None),
@@ -507,39 +548,46 @@ LLVM module timings:
     fn optimise_mir(&mut self, mir: &mut Mir) {
         let start = Instant::now();
 
-        // Lowering from HIR to MIR may produce empty blocks, which we don't
-        // want for future passes. This pass also automatically removes
-        // unreachable blocks.
-        mir.remove_empty_blocks();
+        measure(&mut self.timings.optimize.prepare, || {
+            // Lowering from HIR to MIR may produce empty blocks, which we don't
+            // want for future passes. This pass also automatically removes
+            // unreachable blocks.
+            mir.remove_empty_blocks();
 
-        // Other passes depend on basic blocks ending with a terminator
-        // instruction, so let's make sure this is actually the case.
-        mir.terminate_basic_blocks();
+            // Other passes depend on basic blocks ending with a terminator
+            // instruction, so let's make sure this is actually the case.
+            mir.terminate_basic_blocks();
+        });
 
         // These passes are optional and thus only enabled if optimizations are
         // enabled.
         if !matches!(self.state.config.opt, Opt::None) {
-            let start = Instant::now();
-
-            InlineMethod::run_all(&mut self.state, mir);
-            self.timings.inline_mir = start.elapsed();
+            measure(&mut self.timings.optimize.inline, || {
+                InlineMethod::run_all(&mut self.state, mir);
+            });
 
             // After inlining it's possible certain methods that can't be called
             // through dynamic dispatch are all inlined, in which case there's
             // no point in keeping them around.
-            mir.remove_unused_methods(&self.state.db);
+            measure(&mut self.timings.optimize.remove_methods, || {
+                mir.remove_unused_methods(&self.state.db);
+            });
 
             // Optimization passes may remove instructions or mutate blocks in
             // such a way that they are a bit messy. By simplifying the graph we
             // reduce the amount of LLVM IR we need to generate.
-            mir.simplify_graph();
+            measure(&mut self.timings.optimize.simplify_graph, || {
+                mir.simplify_graph();
+            });
 
             // Inlining and other optimizations may result in unused
             // instructions, so let's get rid of those.
-            mir.remove_unused_instructions();
+            measure(&mut self.timings.optimize.remove_instructions, || {
+                mir.remove_unused_instructions();
+            });
         }
 
-        self.timings.optimize_mir = start.elapsed();
+        self.timings.optimize.total = start.elapsed();
     }
 
     fn write_dot(
