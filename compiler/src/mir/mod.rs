@@ -114,6 +114,10 @@ impl Graph {
         self.blocks.get_mut(index.0).unwrap()
     }
 
+    pub(crate) fn block(&self, index: BlockId) -> &Block {
+        &self.blocks[index.0]
+    }
+
     pub(crate) fn add_edge(&mut self, source: BlockId, target: BlockId) {
         // Edges aren't added that often, and we don't want to allocate more
         // memory than necessary, so we explicitly reserve the exact amount
@@ -1847,31 +1851,27 @@ impl Method {
         // removed.
         let mut shift_map = vec![0; self.body.blocks.len()];
         let mut reachable = vec![false; self.body.blocks.len()];
-        let mut queue: Vec<_> =
-            (0..self.body.blocks.len()).map(BlockId).collect();
+        let mut queue = vec![self.body.start_id];
 
-        while let Some(block) = queue.pop() {
-            if self.body.is_connected(block) {
-                reachable[block.0] = true;
+        // We don't really care about the order in which we visit blocks, so we
+        // just use a Vec here instead of a VecDeque.
+        while let Some(id) = queue.pop() {
+            reachable[id.0] = true;
+
+            for &edge in &self.body.block(id).successors {
+                if !reachable[edge.0] {
+                    queue.push(edge);
+                }
+            }
+        }
+
+        for index in 0..self.body.blocks.len() {
+            if reachable[index] {
                 continue;
             }
 
-            // We may revisit a block that was initially reachable but is now
-            // unreachable.
-            reachable[block.0] = false;
-
-            // If our block isn't reachable we need to ensure any successor
-            // blocks are also marked as unreachable, otherwise we might only
-            // remove the entry block of an unreachable chain of blocks.
-            for id in self.body.block_mut(block).take_successors() {
-                self.body.remove_predecessor(id, block);
-
-                if !self.body.is_connected(id) {
-                    queue.push(id);
-                }
-            }
-
-            for incr in (block.0 + 1)..shift_map.len() {
+            // The blocks _after_ the current one must be shifted to the left.
+            for incr in (index + 1)..shift_map.len() {
                 shift_map[incr] += 1;
             }
         }
@@ -2370,6 +2370,66 @@ mod tests {
 
         assert_eq!(method.body.start_id, BlockId(2));
         assert_eq!(method.body.blocks.len(), 3);
+    }
+
+    #[test]
+    fn test_method_remove_unreachable_blocks_visit_same_block_multiple_times() {
+        let mut method = Method::new(MethodId(0));
+
+        let b0 = method.body.add_block();
+        let b1 = method.body.add_block();
+        let b2 = method.body.add_block();
+        let b3 = method.body.add_block();
+        let b4 = method.body.add_block();
+        let b5 = method.body.add_block();
+        let loc = InstructionLocation::new(Location::default());
+
+        method.body.start_id = b0;
+
+        method.body.block_mut(b0).goto(b4, loc);
+        method.body.add_edge(b0, b4);
+
+        method.body.block_mut(b1).branch(RegisterId(0), b2, b3, loc);
+        method.body.add_edge(b1, b2);
+        method.body.add_edge(b1, b3);
+        method.body.block_mut(b2).branch(RegisterId(0), b3, b3, loc);
+
+        // We add duplicate edges here so we can test what happens if we visit
+        // the same block multiple times. This in turn is important to test for
+        // since we don't want to shift multiple times for the same unreachable
+        // block.
+        method.body.add_edge(b2, b3);
+        method.body.add_edge(b2, b3);
+        method.body.add_edge(b2, b3);
+        method.body.block_mut(b3).goto(b4, loc);
+        method.body.add_edge(b3, b4);
+        method.body.add_edge(b4, b5);
+
+        method.remove_unreachable_blocks();
+
+        assert_eq!(method.body.start_id, BlockId(0));
+        assert_eq!(method.body.blocks.len(), 3);
+    }
+
+    #[test]
+    fn test_method_remove_unreachable_blocks_with_cycles() {
+        let mut method = Method::new(MethodId(0));
+
+        let b0 = method.body.add_block();
+        let b1 = method.body.add_block();
+        let b2 = method.body.add_block();
+        let loc = InstructionLocation::new(Location::default());
+
+        method.body.start_id = b0;
+        method.body.block_mut(b1).goto(b2, loc);
+        method.body.add_edge(b1, b2);
+        method.body.block_mut(b2).goto(b1, loc);
+        method.body.add_edge(b2, b1);
+
+        method.remove_unreachable_blocks();
+
+        assert_eq!(method.body.start_id, BlockId(0));
+        assert_eq!(method.body.blocks.len(), 1);
     }
 
     #[test]
