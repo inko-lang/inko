@@ -8,6 +8,15 @@ use types::{
     DROP_TRAIT,
 };
 
+pub(crate) fn loc(
+    line_start: u32,
+    line_end: u32,
+    column_start: u32,
+    column_end: u32,
+) -> Location {
+    Location { line_start, line_end, column_start, column_end }
+}
+
 pub(crate) fn cols(start: u32, stop: u32) -> Location {
     Location {
         line_start: 1,

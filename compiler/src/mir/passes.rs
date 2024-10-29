@@ -1485,7 +1485,6 @@ impl<'a> LowerMethod<'a> {
             hir::Expression::TypeCast(n) => self.type_cast(*n),
             hir::Expression::Recover(n) => self.recover_expression(*n),
             hir::Expression::Try(n) => self.try_expression(*n),
-            hir::Expression::Noop(n) => self.noop(n.location),
             hir::Expression::SizeOf(n) => self.size_of(*n),
         }
     }
@@ -2425,10 +2424,6 @@ impl<'a> LowerMethod<'a> {
         self.current_block = after_block;
         self.scope.created.push(out_reg);
         out_reg
-    }
-
-    fn noop(&mut self, location: Location) -> RegisterId {
-        self.get_nil(InstructionLocation::new(location))
     }
 
     fn size_of(&mut self, node: hir::SizeOf) -> RegisterId {

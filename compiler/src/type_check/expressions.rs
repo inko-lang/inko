@@ -1427,7 +1427,6 @@ impl<'a> CheckMethodBody<'a> {
             hir::Expression::Tuple(ref mut n) => self.tuple_literal(n, scope),
             hir::Expression::TypeCast(ref mut n) => self.type_cast(n, scope),
             hir::Expression::Try(ref mut n) => self.try_expression(n, scope),
-            hir::Expression::Noop(_) => TypeRef::nil(),
             hir::Expression::SizeOf(ref mut n) => self.size_of(n),
         }
     }

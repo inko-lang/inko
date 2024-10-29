@@ -1,0 +1,21 @@
+class Example {
+  fn example1 {
+    return
+    42
+  }
+
+  fn example2 {
+    return
+    self
+  }
+
+  fn example3 {
+    loop {}
+
+    42
+  }
+}
+
+# unreachable.inko:4:5 warning(unreachable): this code is unreachable
+# unreachable.inko:9:5 warning(unreachable): this code is unreachable
+# unreachable.inko:15:5 warning(unreachable): this code is unreachable
