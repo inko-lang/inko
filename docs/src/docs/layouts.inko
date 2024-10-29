@@ -1,15 +1,12 @@
 import builder.html
-import builder.xml
 import docs.config (Config)
 import docs.filters (AddCopyButton, AutoTableOfContents, RelativeLinks)
 import docs.menu (Item, Menu)
 import docs.url (link_from)
 import markdown
-import markdown.html (Filter, TableOfContents)
-import std.string (StringBuffer)
-import wobsite (Files, Page)
+import markdown.html (Filter)
+import wobsite (Page)
 import wobsite.markdown (Admonitions, SyntaxHighlight)
-import wobsite.time (human_readable_date, iso_date)
 
 let GIT_NOTICE = "You're looking at the documentation for the \"main\" branch, [click here](/manual/latest) to view the documentation for the latest stable release."
 

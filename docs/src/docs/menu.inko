@@ -3,7 +3,7 @@ import std.clone (Clone)
 import std.fs.file (ReadOnlyFile)
 import std.fs.path (Path)
 import std.json (Json)
-import wobsite (Files, FrontMatter)
+import wobsite (FrontMatter)
 import wobsite.url (file_url)
 
 fn parse_front_matter(path: ref Path) -> Result[FrontMatter, String] {

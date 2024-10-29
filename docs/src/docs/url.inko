@@ -1,5 +1,4 @@
 import wobsite (Page)
-import wobsite.url (relative_to_absolute)
 
 fn link_from(page: ref Page, to: String) -> String {
   if page.url == '/' {
