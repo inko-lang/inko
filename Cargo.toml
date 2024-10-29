@@ -3,7 +3,7 @@ members = ["ast", "inko", "compiler", "rt", "location"]
 resolver = "2"
 
 [workspace.package]
-version = "0.17.0" # VERSION
+version = "0.17.1" # VERSION
 rust-version = "1.78"
 
 [profile.release]

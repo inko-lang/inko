@@ -4,6 +4,12 @@
 Entries from before version 0.10.0 are no longer included, but can be viewed
 [here](https://github.com/inko-lang/inko/blob/f9c01b86af70596021e649be5d43ec2a22b6d298/CHANGELOG.md).
 
+## 0.17.1 (2024-10-29)
+
+### Fixed
+
+- [1905500](https://github.com/inko-lang/inko/commit/1905500807bebba9890b3289f7b4671893c47401): Fix underflow when removing unreachable blocks
+
 ## 0.17.0 (2024-10-28)
 
 ### Added
