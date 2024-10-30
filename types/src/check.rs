@@ -1349,6 +1349,7 @@ mod tests {
         check_err(&db, owned(instance(foo)), mutable(instance(foo)));
         check_err(&db, owned(instance(foo)), owned(instance(bar)));
         check_err(&db, owned(instance(foo)), TypeRef::Never);
+        check_err(&db, owned(instance(foo)), pointer(instance(foo)));
     }
 
     #[test]
@@ -1725,6 +1726,7 @@ mod tests {
         check_err(&db, immutable(instance(thing)), owned(instance(thing)));
         check_err(&db, immutable(instance(thing)), any(parameter(param)));
         check_err(&db, immutable(instance(thing)), placeholder(mutable_var));
+        check_err(&db, immutable(instance(thing)), pointer(instance(thing)));
     }
 
     #[test]
@@ -1749,6 +1751,7 @@ mod tests {
 
         check_err(&db, mutable(instance(thing)), owned(instance(thing)));
         check_err(&db, mutable(instance(thing)), uni(instance(thing)));
+        check_err(&db, mutable(instance(thing)), pointer(instance(thing)));
     }
 
     #[test]
@@ -1790,6 +1793,26 @@ mod tests {
 
         assert!(res);
         assert_eq!(var.value(&db), Some(owned(instance(thing))));
+    }
+
+    #[test]
+    fn test_owned_instance_with_pointer_type_parameter() {
+        let mut db = Database::new();
+        let thing = new_class(&mut db, "Thing");
+        let param = new_parameter(&mut db, "T");
+        let var = TypePlaceholder::alloc(&mut db, None);
+        let mut env = Environment::new(
+            TypeArguments::new(),
+            type_arguments(vec![(param, placeholder(var))]),
+        );
+
+        let res = TypeChecker::new(&db).run(
+            owned(instance(thing)),
+            pointer(parameter(param)),
+            &mut env,
+        );
+
+        assert!(!res);
     }
 
     #[test]

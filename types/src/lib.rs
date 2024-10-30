@@ -4359,7 +4359,11 @@ impl TypeRef {
             | TypeRef::Mut(id)
             | TypeRef::Ref(id) => TypeRef::Pointer(id),
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(self, |v| v.as_pointer(db))
+                if let Some(v) = id.value(db) {
+                    v.as_pointer(db)
+                } else {
+                    TypeRef::Placeholder(id.as_pointer())
+                }
             }
             _ => self,
         }
@@ -6055,6 +6059,30 @@ mod tests {
     }
 
     #[test]
+    fn test_type_ref_as_pointer() {
+        let mut db = Database::new();
+        let int = ClassId::int();
+        let ext = new_extern_class(&mut db, "Extern");
+        let param = new_parameter(&mut db, "A");
+        let var = TypePlaceholder::alloc(&mut db, None);
+
+        assert_eq!(
+            owned(instance(int)).as_pointer(&db),
+            pointer(instance(int))
+        );
+        assert_eq!(uni(instance(int)).as_pointer(&db), pointer(instance(int)));
+        assert_eq!(owned(rigid(param)).as_pointer(&db), pointer(rigid(param)));
+        assert_eq!(
+            owned(instance(ext)).as_pointer(&db),
+            pointer(instance(ext))
+        );
+        assert_eq!(
+            placeholder(var).as_pointer(&db),
+            placeholder(var.as_pointer())
+        );
+    }
+
+    #[test]
     fn test_type_ref_is_sendable_with_closure() {
         let mut db = Database::new();
         let func1 = Closure::alloc(&mut db, false);
@@ -6072,69 +6100,57 @@ mod tests {
     }
 
     #[test]
-    fn test_test_type_ref_as_owned_with_placeholder() {
+    fn test_type_ref_as_owned_with_placeholder() {
         let mut db = Database::new();
         let var = TypePlaceholder::alloc(&mut db, None);
 
-        assert!(matches!(
-            placeholder(var).as_owned(&db),
-            TypeRef::Placeholder(id) if id.ownership == Ownership::Owned,
-        ));
+        assert_eq!(placeholder(var).as_owned(&db), placeholder(var.as_owned()),);
     }
 
     #[test]
-    fn test_test_type_ref_as_uni_with_placeholder() {
+    fn test_type_ref_as_uni_with_placeholder() {
         let mut db = Database::new();
         let var = TypePlaceholder::alloc(&mut db, None);
 
-        assert!(matches!(
-            placeholder(var).as_uni(&db),
-            TypeRef::Placeholder(id) if id.ownership == Ownership::Uni,
-        ));
+        assert_eq!(placeholder(var).as_uni(&db), placeholder(var.as_uni()));
     }
 
     #[test]
-    fn test_test_type_ref_as_ref_with_placeholder() {
+    fn test_type_ref_as_ref_with_placeholder() {
         let mut db = Database::new();
         let var = TypePlaceholder::alloc(&mut db, None);
 
-        assert!(matches!(
-            placeholder(var).as_ref(&db),
-            TypeRef::Placeholder(id) if id.ownership == Ownership::Ref,
-        ));
+        assert_eq!(placeholder(var).as_ref(&db), placeholder(var.as_ref()));
     }
 
     #[test]
-    fn test_test_type_ref_as_mut_with_placeholder() {
+    fn test_type_ref_as_mut_with_placeholder() {
         let mut db = Database::new();
         let var = TypePlaceholder::alloc(&mut db, None);
 
-        assert!(matches!(
-            placeholder(var).as_mut(&db),
-            TypeRef::Placeholder(id) if id.ownership == Ownership::Mut,
-        ));
+        assert_eq!(placeholder(var).as_mut(&db), placeholder(var.as_mut()));
     }
 
     #[test]
-    fn test_test_type_ref_as_uni_ref_with_placeholder() {
+    fn test_type_ref_as_uni_ref_with_placeholder() {
         let mut db = Database::new();
         let var = TypePlaceholder::alloc(&mut db, None);
 
-        assert!(matches!(
+        assert_eq!(
             placeholder(var).as_uni_ref(&db),
-            TypeRef::Placeholder(id) if id.ownership == Ownership::UniRef,
-        ));
+            placeholder(var.as_uni_ref())
+        );
     }
 
     #[test]
-    fn test_test_type_ref_force_as_uni_mut_with_placeholder() {
+    fn test_type_ref_force_as_uni_mut_with_placeholder() {
         let mut db = Database::new();
         let var = TypePlaceholder::alloc(&mut db, None);
 
-        assert!(matches!(
+        assert_eq!(
             placeholder(var).force_as_uni_mut(&db),
-            TypeRef::Placeholder(id) if id.ownership == Ownership::UniMut,
-        ));
+            placeholder(var.as_uni_mut())
+        );
     }
 
     #[test]

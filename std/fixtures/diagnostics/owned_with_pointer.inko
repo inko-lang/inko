@@ -1,0 +1,16 @@
+class Thing {}
+
+fn pointer_owned(value: Pointer[Thing]) {}
+
+fn pointer_generic[T](value: Pointer[T]) {}
+
+fn example1 {
+  pointer_owned(Thing())
+}
+
+fn example2 {
+  pointer_generic(Thing())
+}
+
+# owned_with_pointer.inko:8:17 error(invalid-type): expected a value of type 'Pointer[Thing]', found 'Thing'
+# owned_with_pointer.inko:12:19 error(invalid-type): expected a value of type 'Pointer[T]', found 'Thing'
