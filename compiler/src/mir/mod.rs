@@ -1914,6 +1914,55 @@ impl Method {
 
         self.body.start_id -= shift_map[self.body.start_id.0];
     }
+
+    fn simplify_graph(&mut self) {
+        let mut idx = 0;
+
+        while idx < self.body.blocks.len() {
+            let block = &self.body.blocks[idx];
+            let merge =
+                if let Some(Instruction::Goto(_)) = block.instructions.last() {
+                    // We need to make sure the target block isn't the start of
+                    // a loop, as in that case we can't merge the blocks.
+                    block.successors.len() == 1
+                        && self.body.blocks[block.successors[0].0]
+                            .predecessors
+                            .len()
+                            == 1
+                        && block.successors[0] != self.body.start_id
+                } else {
+                    false
+                };
+
+            if merge {
+                let mut next_ins = Vec::new();
+                let next_id = block.successors[0];
+                let next_block = &mut self.body.blocks[next_id.0];
+                let next_succ = next_block.take_successors();
+
+                swap(&mut next_ins, &mut next_block.instructions);
+                next_block.predecessors.clear();
+
+                let block = &mut self.body.blocks[idx];
+
+                block.successors.clear();
+                block.instructions.pop();
+                block.instructions.append(&mut next_ins);
+
+                // Connect the block we merged into with the successors of
+                // the block we merged.
+                for id in next_succ {
+                    self.body.remove_predecessor(id, next_id);
+                    self.body.add_edge(BlockId(idx), id);
+                }
+            } else {
+                // Merging a block into its predecessor may result in a new
+                // goto() at the end that requires merging, so we only
+                // advance if there's nothing to merge.
+                idx += 1;
+            }
+        }
+    }
 }
 
 /// An Inko program in its MIR form.
@@ -2116,12 +2165,6 @@ impl Mir {
         }
     }
 
-    pub(crate) fn remove_unreachable_blocks(&mut self) {
-        for method in self.methods.values_mut() {
-            method.remove_unreachable_blocks();
-        }
-    }
-
     pub(crate) fn terminate_basic_blocks(&mut self) {
         for method in self.methods.values_mut() {
             for block in &mut method.body.blocks {
@@ -2248,58 +2291,12 @@ impl Mir {
     /// blocks.
     pub(crate) fn simplify_graph(&mut self) {
         for method in self.methods.values_mut() {
-            let mut idx = 0;
+            method.simplify_graph();
 
-            while idx < method.body.blocks.len() {
-                let block = &method.body.blocks[idx];
-                let merge = if let Some(Instruction::Goto(_)) =
-                    block.instructions.last()
-                {
-                    // We need to make sure the target block isn't the start of
-                    // a loop, as in that case we can't merge the blocks.
-                    block.successors.len() == 1
-                        && method.body.blocks[block.successors[0].0]
-                            .predecessors
-                            .len()
-                            == 1
-                        && block.successors[0] != method.body.start_id
-                } else {
-                    false
-                };
-
-                if merge {
-                    let mut next_ins = Vec::new();
-                    let next_id = block.successors[0];
-                    let next_block = &mut method.body.blocks[next_id.0];
-                    let next_succ = next_block.take_successors();
-
-                    swap(&mut next_ins, &mut next_block.instructions);
-                    next_block.predecessors.clear();
-
-                    let block = &mut method.body.blocks[idx];
-
-                    block.successors.clear();
-                    block.instructions.pop();
-                    block.instructions.append(&mut next_ins);
-
-                    // Connect the block we merged into with the successors of
-                    // the block we merged.
-                    for id in next_succ {
-                        method.body.remove_predecessor(id, next_id);
-                        method.body.add_edge(BlockId(idx), id);
-                    }
-                } else {
-                    // Merging a block into its predecessor may result in a new
-                    // goto() at the end that requires merging, so we only
-                    // advance if there's nothing to merge.
-                    idx += 1;
-                }
-            }
+            // The above code is likely to produce many unreachable basic
+            // blocks, so we need to remove those.
+            method.remove_unreachable_blocks();
         }
-
-        // The above code is likely to produce many unreachable basic blocks, so
-        // we need to remove those.
-        self.remove_unreachable_blocks();
     }
 
     /// Removes instructions that write to an unused register without side
