@@ -1851,7 +1851,9 @@ impl Method {
         // removed.
         let mut shift_map = vec![0; self.body.blocks.len()];
         let mut reachable = vec![false; self.body.blocks.len()];
-        let mut queue = vec![self.body.start_id];
+        let mut queue = Vec::with_capacity(self.body.blocks.len());
+
+        queue.push(self.body.start_id);
 
         // We don't really care about the order in which we visit blocks, so we
         // just use a Vec here instead of a VecDeque.
