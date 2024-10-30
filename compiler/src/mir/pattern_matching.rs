@@ -545,14 +545,15 @@ impl Variables {
     }
 }
 
+#[derive(Eq, PartialEq, Hash)]
+enum Key {
+    Int(i64),
+    String(String),
+}
+
 /// A type for compiling a HIR `match` expression into a decision tree.
 pub(crate) struct Compiler<'a> {
     state: &'a mut State,
-
-    /// The basic blocks that are reachable in the match expression.
-    ///
-    /// If a block isn't in this list it means its pattern is redundant.
-    reachable: HashSet<BlockId>,
 
     /// A flag indicating one or more patterns are missing.
     missing: bool,
@@ -570,13 +571,7 @@ impl<'a> Compiler<'a> {
         variables: Variables,
         bounds: TypeBounds,
     ) -> Self {
-        Self {
-            state,
-            reachable: HashSet::new(),
-            missing: false,
-            variables,
-            bounds,
-        }
+        Self { state, missing: false, variables, bounds }
     }
 
     pub(crate) fn compile(mut self, rows: Vec<Row>) -> Match {
@@ -610,8 +605,6 @@ impl<'a> Compiler<'a> {
         if rows.first().map_or(false, |c| c.columns.is_empty()) {
             let row = rows.remove(0);
 
-            self.reachable.insert(row.body.block_id);
-
             return if let Some(guard) = row.guard {
                 Decision::Guard(
                     guard,
@@ -626,15 +619,9 @@ impl<'a> Compiler<'a> {
         let branch_var = self.branch_variable(&rows);
 
         match self.variable_type(&branch_var) {
-            Type::Int => {
+            Type::Int | Type::String => {
                 let (cases, fallback) =
-                    self.compile_int_cases(rows, branch_var);
-
-                Decision::Switch(branch_var, cases, Some(fallback))
-            }
-            Type::String => {
-                let (cases, fallback) =
-                    self.compile_string_cases(rows, branch_var);
+                    self.compile_infinite_cases(rows, branch_var);
 
                 Decision::Switch(branch_var, cases, Some(fallback))
             }
@@ -646,7 +633,7 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    fn compile_int_cases(
+    fn compile_infinite_cases(
         &mut self,
         rows: Vec<Row>,
         branch_var: Variable,
@@ -654,18 +641,25 @@ impl<'a> Compiler<'a> {
         let mut raw_cases: Vec<(Constructor, Vec<Variable>, Vec<Row>)> =
             Vec::new();
         let mut fallback_rows = Vec::new();
-        let mut indexes: HashMap<(i64, i64), usize> = HashMap::new();
+        let mut indexes: HashMap<Key, usize> = HashMap::new();
 
         for mut row in rows {
             let col = if let Some(col) = row.remove_column(&branch_var) {
                 col
             } else {
+                for (_, _, rows) in &mut raw_cases {
+                    rows.push(row.clone());
+                }
+
                 fallback_rows.push(row);
                 continue;
             };
 
             let (key, cons) = match col.pattern {
-                Pattern::Int(val) => ((val, val), Constructor::Int(val)),
+                Pattern::Int(v) => (Key::Int(v), Constructor::Int(v)),
+                Pattern::String(v) => {
+                    (Key::String(v.clone()), Constructor::String(v))
+                }
                 _ => unreachable!(),
             };
 
@@ -674,46 +668,21 @@ impl<'a> Compiler<'a> {
                 continue;
             }
 
+            let mut rows = fallback_rows.clone();
+
+            rows.push(row);
             indexes.insert(key, raw_cases.len());
-            raw_cases.push((cons, Vec::new(), vec![row]));
+            raw_cases.push((cons, Vec::new(), rows));
         }
 
-        self.compile_literal_cases(raw_cases, fallback_rows)
-    }
+        let cases = raw_cases
+            .into_iter()
+            .map(|(cons, vars, rows)| {
+                Case::new(cons, vars, self.compile_rows(rows))
+            })
+            .collect();
 
-    fn compile_string_cases(
-        &mut self,
-        rows: Vec<Row>,
-        branch_var: Variable,
-    ) -> (Vec<Case>, Box<Decision>) {
-        let mut raw_cases: Vec<(Constructor, Vec<Variable>, Vec<Row>)> =
-            Vec::new();
-        let mut fallback_rows = Vec::new();
-        let mut indexes: HashMap<String, usize> = HashMap::new();
-
-        for mut row in rows {
-            let col = if let Some(col) = row.remove_column(&branch_var) {
-                col
-            } else {
-                fallback_rows.push(row);
-                continue;
-            };
-
-            let key = match col.pattern {
-                Pattern::String(val) => val,
-                _ => unreachable!(),
-            };
-
-            if let Some(&index) = indexes.get(&key) {
-                raw_cases[index].2.push(row);
-                continue;
-            }
-
-            indexes.insert(key.clone(), raw_cases.len());
-            raw_cases.push((Constructor::String(key), Vec::new(), vec![row]));
-        }
-
-        self.compile_literal_cases(raw_cases, fallback_rows)
+        (cases, Box::new(self.compile_rows(fallback_rows)))
     }
 
     /// Compiles the cases and sub cases for the constructor located at the
@@ -773,25 +742,6 @@ impl<'a> Compiler<'a> {
                 Case::new(cons, vars, self.compile_rows(rows))
             })
             .collect()
-    }
-
-    fn compile_literal_cases(
-        &mut self,
-        mut raw: Vec<(Constructor, Vec<Variable>, Vec<Row>)>,
-        fallback: Vec<Row>,
-    ) -> (Vec<Case>, Box<Decision>) {
-        for (_, _, rows) in &mut raw {
-            rows.append(&mut fallback.clone());
-        }
-
-        let cases = raw
-            .into_iter()
-            .map(|(cons, vars, rows)| {
-                Case::new(cons, vars, self.compile_rows(rows))
-            })
-            .collect();
-
-        (cases, Box::new(self.compile_rows(fallback)))
     }
 
     /// Given a row, returns the variable in that row that's referred to the
@@ -1078,6 +1028,47 @@ mod tests {
     }
 
     #[test]
+    fn test_unreachable_int() {
+        let mut state = state();
+        let mut compiler = compiler(&mut state);
+        let input = compiler.new_variable(TypeRef::int());
+        let result = compiler.compile(rules(
+            input,
+            vec![
+                (Pattern::Int(4), BlockId(1)),
+                (Pattern::Wildcard, BlockId(2)),
+                (Pattern::Int(5), BlockId(3)),
+            ],
+        ));
+
+        assert_eq!(
+            result.tree,
+            Decision::Switch(
+                input,
+                vec![
+                    Case::new(
+                        Constructor::Int(4),
+                        Vec::new(),
+                        success(BlockId(1))
+                    ),
+                    Case::new(
+                        Constructor::Int(5),
+                        Vec::new(),
+                        success_with_bindings(
+                            vec![Binding::Ignored(input)],
+                            BlockId(2)
+                        )
+                    )
+                ],
+                Some(Box::new(success_with_bindings(
+                    vec![Binding::Ignored(input)],
+                    BlockId(2)
+                )))
+            )
+        );
+    }
+
+    #[test]
     fn test_nonexhaustive_string() {
         let mut state = state();
         let mut compiler = compiler(&mut state);
@@ -1123,6 +1114,47 @@ mod tests {
                     Vec::new(),
                     success(BlockId(1))
                 )],
+                Some(Box::new(success_with_bindings(
+                    vec![Binding::Ignored(input)],
+                    BlockId(2)
+                )))
+            )
+        );
+    }
+
+    #[test]
+    fn test_unreachable_string() {
+        let mut state = state();
+        let mut compiler = compiler(&mut state);
+        let input = compiler.new_variable(TypeRef::string());
+        let result = compiler.compile(rules(
+            input,
+            vec![
+                (Pattern::String("a".to_string()), BlockId(1)),
+                (Pattern::Wildcard, BlockId(2)),
+                (Pattern::String("b".to_string()), BlockId(3)),
+            ],
+        ));
+
+        assert_eq!(
+            result.tree,
+            Decision::Switch(
+                input,
+                vec![
+                    Case::new(
+                        Constructor::String("a".to_string()),
+                        Vec::new(),
+                        success(BlockId(1))
+                    ),
+                    Case::new(
+                        Constructor::String("b".to_string()),
+                        Vec::new(),
+                        success_with_bindings(
+                            vec![Binding::Ignored(input)],
+                            BlockId(2)
+                        )
+                    ),
+                ],
                 Some(Box::new(success_with_bindings(
                     vec![Binding::Ignored(input)],
                     BlockId(2)

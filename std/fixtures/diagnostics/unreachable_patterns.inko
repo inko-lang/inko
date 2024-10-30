@@ -1,0 +1,20 @@
+fn example1 {
+  match 3 {
+    case 1 -> 'one'
+    case 2 -> 'two'
+    case _ -> 'else'
+    case 3 -> 'three'
+  }
+}
+
+fn example2 {
+  match '3' {
+    case '1' -> 'one'
+    case '2' -> 'two'
+    case _ -> 'else'
+    case '3' -> 'three'
+  }
+}
+
+# unreachable_patterns.inko:6:5 warning(unreachable): this code is unreachable
+# unreachable_patterns.inko:15:5 warning(unreachable): this code is unreachable
