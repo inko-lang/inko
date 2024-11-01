@@ -1391,12 +1391,6 @@ class pub ObjectParser {
   # When encountering a key for which no rule is defined, its value is
   # (recursively) skipped.
   fn pub mut parse -> Result[Nil, Error] {
-    # We need to skip any leading whitespace such that the offset points to the
-    # "{" and not any whitespace before it.
-    # try @parser.skip_whitespace
-    #
-    # let start = @parser.offset
-
     @parser.keys(fn (key) {
       match @keys.opt_mut(key) {
         case Some(func) -> func.call
