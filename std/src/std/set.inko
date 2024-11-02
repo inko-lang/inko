@@ -15,8 +15,27 @@ class pub Set[V: Equal[ref V] + Hash] {
   # `true`.
   let @map: Map[V, Bool]
 
+  # Returns a new empty `Set`.
   fn pub static new -> Set[V] {
     Set(Map.new)
+  }
+
+  # Returns a `Set` containing the values from `values`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.set (Set)
+  #
+  # let set = Set.from_array([10, 20, 30])
+  #
+  # set.contains?(10) # => true
+  # ```
+  fn pub static from_array(values: Array[V]) -> Set[V] {
+    values.into_iter.reduce(new, fn (set, val) {
+      set.insert(val)
+      set
+    })
   }
 
   # Inserts a new value into the `Set`.

@@ -3,6 +3,14 @@ import std.set (Set)
 import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
+  t.test('Set.from_array', fn (t) {
+    let set = Set.from_array([10, 20, 30])
+
+    t.true(set.contains?(10))
+    t.true(set.contains?(20))
+    t.true(set.contains?(30))
+  })
+
   t.test('Set.insert', fn (t) {
     let set = Set.new
 
