@@ -356,7 +356,7 @@ class pub Map[K: Equal[ref K] + Hash, V] {
   # ```
   fn pub get(index: ref K) -> ref V {
     match entries_index(index) {
-      case EMPTY -> panic("The key doesn't exist")
+      case EMPTY -> panic("the key doesn't exist")
       case index -> @entries.get(index).value
     }
   }
@@ -442,6 +442,25 @@ class pub Map[K: Equal[ref K] + Hash, V] {
   # ```
   fn pub capacity -> Int {
     @slots.size
+  }
+
+  # Returns the `Entry` for the given key, if any.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let map = Map.new
+  #
+  # map.set('name', 'Alice')
+  # map.entry('name').get.value = 'Bob'
+  #
+  # map.get('name') # => 'Bob'
+  # ```
+  fn pub mut entry(key: ref K) -> Option[mut Entry[K, V]] {
+    match entries_index(key) {
+      case EMPTY -> Option.None
+      case index -> Option.Some(@entries.get_mut(index))
+    }
   }
 
   fn mut resize {
@@ -603,7 +622,7 @@ impl Map if V: mut {
   # This method panics if the key doesn't exist.
   fn pub mut get_mut(index: ref K) -> mut V {
     match entries_index(index) {
-      case EMPTY -> panic("The key doesn't exist")
+      case EMPTY -> panic("the key doesn't exist")
       case index -> @entries.get_mut(index).value
     }
   }

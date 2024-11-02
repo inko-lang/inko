@@ -148,6 +148,20 @@ fn pub tests(t: mut Tests) {
     t.equal(map.opt_mut('city'), Option.None)
   })
 
+  t.test('Map.entry', fn (t) {
+    let map = Map.new
+
+    map.set('name', 'Alice')
+
+    match map.entry('name') {
+      case Some(e) -> e.value = 'Bob'
+      case _ -> {}
+    }
+
+    t.equal(map.get('name'), 'Bob')
+    t.true(map.entry('city').none?)
+  })
+
   t.test('Map.merge', fn (t) {
     let map1 = Map.new
     let map2 = Map.new
