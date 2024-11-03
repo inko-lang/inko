@@ -5,7 +5,7 @@ import std.fmt (Format, Formatter)
 import std.fs.file (ReadOnlyFile)
 import std.fs.path (Path)
 import std.int
-import std.io (BufferedReader)
+import std.io (Buffer, BufferedReader)
 import std.json (Json)
 import std.sys (Command, Stream)
 import std.test (Tests)
@@ -52,7 +52,7 @@ fn parse_output(
   directory: String,
   bytes: ref ByteArray,
 ) -> Result[Array[Diagnostic], String] {
-  match Json.parse(bytes) {
+  match Json.parse(Buffer.new(bytes)) {
     case Ok(Array(vals)) -> {
       vals.into_iter.try_reduce([], fn (diags, entry) {
         diags.push(try Diagnostic.from_json(directory, entry))

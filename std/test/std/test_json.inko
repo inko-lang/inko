@@ -1,14 +1,22 @@
 import std.fmt (fmt)
-import std.io (Error as IoError)
+import std.io (Buffer, Error as IoError)
 import std.json (
   Error, ErrorKind, Json, Number, ObjectParser, Parser, PullParser, Type,
 )
 import std.test (Tests)
 
 fn parse_invalid(input: String) -> Option[String] {
-  let bytes = input.to_byte_array
+  let bytes = Buffer.new(input.to_byte_array)
 
   Parser.new(bytes).parse.error.map(fn (v) { v.to_string })
+}
+
+fn parse(input: String) -> Result[Json, Error] {
+  Json.parse(Buffer.new(input))
+}
+
+fn pull(input: String) -> PullParser[Buffer[String]] {
+  PullParser.new(Buffer.new(input))
 }
 
 fn pub tests(t: mut Tests) {
@@ -68,34 +76,34 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('PullParser.value_type', fn (t) {
-    t.equal(PullParser.new('10').value_type, Result.Ok(Type.Number))
-    t.equal(PullParser.new('10.2').value_type, Result.Ok(Type.Number))
-    t.equal(PullParser.new('"a"').value_type, Result.Ok(Type.String))
-    t.equal(PullParser.new('true').value_type, Result.Ok(Type.Bool))
-    t.equal(PullParser.new('false').value_type, Result.Ok(Type.Bool))
-    t.equal(PullParser.new('null').value_type, Result.Ok(Type.Null))
-    t.equal(PullParser.new('[]').value_type, Result.Ok(Type.Array))
-    t.equal(PullParser.new('{}').value_type, Result.Ok(Type.Object))
+    t.equal(pull('10').value_type, Result.Ok(Type.Number))
+    t.equal(pull('10.2').value_type, Result.Ok(Type.Number))
+    t.equal(pull('"a"').value_type, Result.Ok(Type.String))
+    t.equal(pull('true').value_type, Result.Ok(Type.Bool))
+    t.equal(pull('false').value_type, Result.Ok(Type.Bool))
+    t.equal(pull('null').value_type, Result.Ok(Type.Null))
+    t.equal(pull('[]').value_type, Result.Ok(Type.Array))
+    t.equal(pull('{}').value_type, Result.Ok(Type.Object))
   })
 
   t.test('PullParser.skip', fn (t) {
-    let parser = PullParser.new('10')
+    let parser = pull('10')
 
     t.equal(parser.skip, Result.Ok(nil))
     t.equal(parser.offset, 1)
   })
 
   t.test('PullParser.skip with invalid data', fn (t) {
-    t.true(PullParser.new('10.a').skip.error?)
-    t.true(PullParser.new('[').skip.error?)
-    t.true(PullParser.new('{').skip.error?)
-    t.true(PullParser.new('"').skip.error?)
-    t.true(PullParser.new('t').skip.error?)
-    t.true(PullParser.new('f').skip.error?)
+    t.true(pull('10.a').skip.error?)
+    t.true(pull('[').skip.error?)
+    t.true(pull('{').skip.error?)
+    t.true(pull('"').skip.error?)
+    t.true(pull('t').skip.error?)
+    t.true(pull('f').skip.error?)
   })
 
   t.test('PullParser.values with valid input', fn (t) {
-    let parser = PullParser.new('[10,20]')
+    let parser = pull('[10,20]')
     let values = []
     let res = parser.values(fn { parser.int.map(fn (v) { values.push(v) }) })
 
@@ -105,14 +113,14 @@ fn pub tests(t: mut Tests) {
 
   t.test('PullParser.values with invalid input', fn (t) {
     ['', '10', '[,]', '[10,]'].into_iter.each(fn (input) {
-      let parser = PullParser.new(input)
+      let parser = pull(input)
 
       t.true(parser.values(fn { parser.int.map(fn (_) { nil }) }).error?)
     })
   })
 
   t.test('PullParser.keys with valid input', fn (t) {
-    let parser = PullParser.new('{"a": 10, "b": 20}')
+    let parser = pull('{"a": 10, "b": 20}')
     let positions = []
     let values = []
     let res = parser.keys(fn (pos, k) {
@@ -129,67 +137,67 @@ fn pub tests(t: mut Tests) {
 
   t.test('PullParser.keys with invalid input', fn (t) {
     ['', '10', '{,}', '{"a":10,}'].into_iter.each(fn (input) {
-      let parser = PullParser.new(input)
+      let parser = pull(input)
 
       t.true(parser.keys(fn (_p, k) { parser.int.map(fn (_) { nil }) }).error?)
     })
   })
 
   t.test('PullParser.bool', fn (t) {
-    t.equal(PullParser.new('true').bool, Result.Ok(true))
-    t.equal(PullParser.new('false').bool, Result.Ok(false))
-    t.true(PullParser.new('null').bool.error?)
-    t.true(PullParser.new('').bool.error?)
+    t.equal(pull('true').bool, Result.Ok(true))
+    t.equal(pull('false').bool, Result.Ok(false))
+    t.true(pull('null').bool.error?)
+    t.true(pull('').bool.error?)
   })
 
   t.test('PullParser.null', fn (t) {
-    t.equal(PullParser.new('null').null, Result.Ok(nil))
-    t.true(PullParser.new('n').null.error?)
-    t.true(PullParser.new('').null.error?)
+    t.equal(pull('null').null, Result.Ok(nil))
+    t.true(pull('n').null.error?)
+    t.true(pull('').null.error?)
   })
 
   t.test('PullParser.string', fn (t) {
-    t.equal(PullParser.new('"hello"').string, Result.Ok('hello'))
-    t.true(PullParser.new('"hello').string.error?)
-    t.true(PullParser.new('').string.error?)
+    t.equal(pull('"hello"').string, Result.Ok('hello'))
+    t.true(pull('"hello').string.error?)
+    t.true(pull('').string.error?)
   })
 
   t.test('PullParser.int', fn (t) {
-    t.equal(PullParser.new('10').int, Result.Ok(10))
-    t.equal(PullParser.new('10.5').int, Result.Ok(10))
-    t.true(PullParser.new('null').int.error?)
-    t.true(PullParser.new('').int.error?)
+    t.equal(pull('10').int, Result.Ok(10))
+    t.equal(pull('10.5').int, Result.Ok(10))
+    t.true(pull('null').int.error?)
+    t.true(pull('').int.error?)
   })
 
   t.test('PullParser.float', fn (t) {
-    t.equal(PullParser.new('10.5').float, Result.Ok(10.5))
-    t.equal(PullParser.new('10').float, Result.Ok(10.0))
-    t.true(PullParser.new('null').float.error?)
-    t.true(PullParser.new('').float.error?)
+    t.equal(pull('10.5').float, Result.Ok(10.5))
+    t.equal(pull('10').float, Result.Ok(10.0))
+    t.true(pull('null').float.error?)
+    t.true(pull('').float.error?)
   })
 
   t.test('PullParser.number', fn (t) {
-    t.equal(PullParser.new('10.5').number, Result.Ok(Number.Float(10.5)))
-    t.equal(PullParser.new('10').number, Result.Ok(Number.Int(10)))
-    t.true(PullParser.new('null').number.error?)
-    t.true(PullParser.new('').number.error?)
+    t.equal(pull('10.5').number, Result.Ok(Number.Float(10.5)))
+    t.equal(pull('10').number, Result.Ok(Number.Int(10)))
+    t.true(pull('null').number.error?)
+    t.true(pull('').number.error?)
   })
 
   t.test('PullParser.offset', fn (t) {
-    let parser = PullParser.new('10')
+    let parser = pull('10')
 
     parser.offset = 10
     t.equal(parser.offset, 10)
   })
 
   t.test('PullParser.start_of_next_value', fn (t) {
-    t.equal(PullParser.new('10').start_of_next_value, Result.Ok(0))
-    t.equal(PullParser.new('  10').start_of_next_value, Result.Ok(2))
-    t.equal(PullParser.new('  ,').start_of_next_value, Result.Ok(2))
+    t.equal(pull('10').start_of_next_value, Result.Ok(0))
+    t.equal(pull('  10').start_of_next_value, Result.Ok(2))
+    t.equal(pull('  ,').start_of_next_value, Result.Ok(2))
   })
 
   t.test('PullParser.object', fn (t) {
-    let parser = PullParser.new('{ "a": 10 }')
+    let parser = pull('{ "a": 10 }')
     let nums = []
     let res = parser.object(fn (o) { o.int('a', fn (v) { nums.push(v) }) })
 
@@ -198,7 +206,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('ObjectParser.key', fn (t) {
-    let parser = PullParser.new('{"a":10,"b":10}')
+    let parser = pull('{"a":10,"b":10}')
     let values = []
     let obj = ObjectParser.new
 
@@ -211,7 +219,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('ObjectParser.string', fn (t) {
-    let parser = PullParser.new('{"a":"foo","b":10}')
+    let parser = pull('{"a":"foo","b":10}')
     let values = []
     let obj = ObjectParser.new
 
@@ -224,7 +232,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('ObjectParser.int', fn (t) {
-    let parser = PullParser.new('{"a":10,"b":10}')
+    let parser = pull('{"a":10,"b":10}')
     let values = []
     let obj = ObjectParser.new
 
@@ -237,7 +245,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('ObjectParser.float', fn (t) {
-    let parser = PullParser.new('{"a":10.5,"b":10}')
+    let parser = pull('{"a":10.5,"b":10}')
     let values = []
     let obj = ObjectParser.new
 
@@ -250,7 +258,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('ObjectParser.bool', fn (t) {
-    let parser = PullParser.new('{"a":true,"b":10}')
+    let parser = pull('{"a":true,"b":10}')
     let values = []
     let obj = ObjectParser.new
 
@@ -263,7 +271,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('ObjectParser.keys', fn (t) {
-    let parser = PullParser.new('{"a":{"foo":10}}')
+    let parser = pull('{"a":{"foo":10}}')
     let values = []
     let positions = []
     let obj = ObjectParser.new
@@ -281,7 +289,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('ObjectParser.values', fn (t) {
-    let parser = PullParser.new('{"a":[10,20]}')
+    let parser = pull('{"a":[10,20]}')
     let values = []
     let obj = ObjectParser.new
 
@@ -294,7 +302,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('ObjectParser.parse with all required keys present', fn (t) {
-    let parser = PullParser.new('{"a":10}')
+    let parser = pull('{"a":10}')
     let values = []
     let obj = ObjectParser.new
 
@@ -307,7 +315,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('ObjectParser.parse with a missing optional key', fn (t) {
-    let parser = PullParser.new(' {"a":10} ')
+    let parser = pull(' {"a":10} ')
     let values = []
     let obj = ObjectParser.new
 
@@ -321,7 +329,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('ObjectParser.parse with a missing key', fn (t) {
-    let parser = PullParser.new(' {"a":10} ')
+    let parser = pull(' {"a":10} ')
     let values = []
     let obj = ObjectParser.new
 
@@ -482,49 +490,49 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Json.parse with integers', fn (t) {
-    t.equal(Json.parse('0'), Result.Ok(Json.Int(0)))
-    t.equal(Json.parse('42'), Result.Ok(Json.Int(42)))
-    t.equal(Json.parse('  42'), Result.Ok(Json.Int(42)))
-    t.equal(Json.parse('42   '), Result.Ok(Json.Int(42)))
-    t.equal(Json.parse('\t42'), Result.Ok(Json.Int(42)))
-    t.equal(Json.parse('\r42'), Result.Ok(Json.Int(42)))
-    t.equal(Json.parse('-42'), Result.Ok(Json.Int(-42)))
+    t.equal(parse('0'), Result.Ok(Json.Int(0)))
+    t.equal(parse('42'), Result.Ok(Json.Int(42)))
+    t.equal(parse('  42'), Result.Ok(Json.Int(42)))
+    t.equal(parse('42   '), Result.Ok(Json.Int(42)))
+    t.equal(parse('\t42'), Result.Ok(Json.Int(42)))
+    t.equal(parse('\r42'), Result.Ok(Json.Int(42)))
+    t.equal(parse('-42'), Result.Ok(Json.Int(-42)))
 
-    t.true(Json.parse('00').error?)
-    t.true(Json.parse('10,').error?)
-    t.true(Json.parse('-').error?)
-    t.true(Json.parse('-01').error?)
-    t.true(Json.parse('01').error?)
-    t.true(Json.parse('1a').error?)
-    t.true(Json.parse('-a').error?)
-    t.true(Json.parse('- ').error?)
+    t.true(parse('00').error?)
+    t.true(parse('10,').error?)
+    t.true(parse('-').error?)
+    t.true(parse('-01').error?)
+    t.true(parse('01').error?)
+    t.true(parse('1a').error?)
+    t.true(parse('-a').error?)
+    t.true(parse('- ').error?)
   })
 
   t.test('Json.parse with floats', fn (t) {
-    t.equal(Json.parse('  1.2'), Result.Ok(Json.Float(1.2)))
-    t.equal(Json.parse('1.2   '), Result.Ok(Json.Float(1.2)))
-    t.equal(Json.parse('1.2'), Result.Ok(Json.Float(1.2)))
-    t.equal(Json.parse('-1.2'), Result.Ok(Json.Float(-1.2)))
-    t.equal(Json.parse('1.2e+123'), Result.Ok(Json.Float(1.2e+123)))
-    t.equal(Json.parse('1.2e-123'), Result.Ok(Json.Float(1.2e-123)))
-    t.equal(Json.parse('1.2E+123'), Result.Ok(Json.Float(1.2e+123)))
-    t.equal(Json.parse('1.2E-123'), Result.Ok(Json.Float(1.2e-123)))
-    t.equal(Json.parse('-1.2E-123'), Result.Ok(Json.Float(-1.2e-123)))
-    t.equal(Json.parse('0.0'), Result.Ok(Json.Float(0.0)))
-    t.equal(Json.parse('0E0'), Result.Ok(Json.Float(0.0)))
-    t.equal(Json.parse('0e+1'), Result.Ok(Json.Float(0.0)))
-    t.equal(Json.parse('1.2E1'), Result.Ok(Json.Float(1.2e1)))
-    t.equal(Json.parse('1.2e1'), Result.Ok(Json.Float(1.2e1)))
+    t.equal(parse('  1.2'), Result.Ok(Json.Float(1.2)))
+    t.equal(parse('1.2   '), Result.Ok(Json.Float(1.2)))
+    t.equal(parse('1.2'), Result.Ok(Json.Float(1.2)))
+    t.equal(parse('-1.2'), Result.Ok(Json.Float(-1.2)))
+    t.equal(parse('1.2e+123'), Result.Ok(Json.Float(1.2e+123)))
+    t.equal(parse('1.2e-123'), Result.Ok(Json.Float(1.2e-123)))
+    t.equal(parse('1.2E+123'), Result.Ok(Json.Float(1.2e+123)))
+    t.equal(parse('1.2E-123'), Result.Ok(Json.Float(1.2e-123)))
+    t.equal(parse('-1.2E-123'), Result.Ok(Json.Float(-1.2e-123)))
+    t.equal(parse('0.0'), Result.Ok(Json.Float(0.0)))
+    t.equal(parse('0E0'), Result.Ok(Json.Float(0.0)))
+    t.equal(parse('0e+1'), Result.Ok(Json.Float(0.0)))
+    t.equal(parse('1.2E1'), Result.Ok(Json.Float(1.2e1)))
+    t.equal(parse('1.2e1'), Result.Ok(Json.Float(1.2e1)))
     t.equal(
-      Json.parse('1.7976931348623157e+310'),
+      parse('1.7976931348623157e+310'),
       Result.Ok(Json.Float(Float.infinity)),
     )
     t.equal(
-      Json.parse('4.940656458412465441765687928682213723651e-330'),
+      parse('4.940656458412465441765687928682213723651e-330'),
       Result.Ok(Json.Float(0.0)),
     )
     t.equal(
-      Json.parse(
+      parse(
         '-0.000000000000000000000000000000000000000000000000000000000000000000000000000001',
       ),
       Result.Ok(Json.Float(-1.0E-78)),
@@ -533,25 +541,25 @@ fn pub tests(t: mut Tests) {
     # These numbers are too big for regular integers, so we promote them to
     # floats.
     t.equal(
-      Json.parse('11111111111111111111111111111111111111111'),
+      parse('11111111111111111111111111111111111111111'),
       Result.Ok(Json.Float(11111111111111111111111111111111111111111.0)),
     )
     t.equal(
-      Json.parse('10000000000000000999'),
+      parse('10000000000000000999'),
       Result.Ok(Json.Float(10000000000000000999.0)),
     )
 
-    t.true(Json.parse('00.0').error?)
-    t.true(Json.parse('1.2e').error?)
-    t.true(Json.parse('1.2e+').error?)
-    t.true(Json.parse('1.2e-').error?)
-    t.true(Json.parse('1.2E').error?)
-    t.true(Json.parse('1.2E+').error?)
-    t.true(Json.parse('1.2E-').error?)
-    t.true(Json.parse('1.2E+a').error?)
-    t.true(Json.parse('1.2E-a').error?)
-    t.true(Json.parse('0E').error?)
-    t.true(Json.parse('10.2,').error?)
+    t.true(parse('00.0').error?)
+    t.true(parse('1.2e').error?)
+    t.true(parse('1.2e+').error?)
+    t.true(parse('1.2e-').error?)
+    t.true(parse('1.2E').error?)
+    t.true(parse('1.2E+').error?)
+    t.true(parse('1.2E-').error?)
+    t.true(parse('1.2E+a').error?)
+    t.true(parse('1.2E-a').error?)
+    t.true(parse('0E').error?)
+    t.true(parse('10.2,').error?)
 
     t.equal(
       parse_invalid('\n1.2e'),
@@ -562,25 +570,24 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Json.parse with arrays', fn (t) {
-    t.equal(Json.parse('[]'), Result.Ok(Json.Array([])))
-    t.equal(Json.parse('[10]'), Result.Ok(Json.Array([Json.Int(10)])))
+    t.equal(parse('[]'), Result.Ok(Json.Array([])))
+    t.equal(parse('[10]'), Result.Ok(Json.Array([Json.Int(10)])))
     t.equal(
-      Json.parse('[10, 20]'),
+      parse('[10, 20]'),
       Result.Ok(Json.Array([Json.Int(10), Json.Int(20)])),
     )
 
-    t.true(Json.parse('[').error?)
-    t.true(Json.parse(']').error?)
-    t.true(Json.parse('[,10]').error?)
-    t.true(Json.parse('[10,]').error?)
-    t.true(Json.parse('[10').error?)
-    t.true(Json.parse('[10,').error?)
-    t.true(Json.parse('[10true]').error?)
-    t.true(Json.parse('[],').error?)
+    t.true(parse('[').error?)
+    t.true(parse(']').error?)
+    t.true(parse('[,10]').error?)
+    t.true(parse('[10,]').error?)
+    t.true(parse('[10').error?)
+    t.true(parse('[10,').error?)
+    t.true(parse('[10true]').error?)
+    t.true(parse('[],').error?)
 
     {
-      let bytes = '[[[[10]]]]'.to_byte_array
-      let parser = Parser.new(bytes)
+      let parser = Parser.new(Buffer.new('[[[[10]]]]'.to_byte_array))
 
       parser.max_depth = 2
       t.true(parser.parse.error?)
@@ -588,63 +595,60 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Json.parse with booleans', fn (t) {
-    t.equal(Json.parse('true'), Result.Ok(Json.Bool(true)))
-    t.equal(Json.parse('false'), Result.Ok(Json.Bool(false)))
+    t.equal(parse('true'), Result.Ok(Json.Bool(true)))
+    t.equal(parse('false'), Result.Ok(Json.Bool(false)))
 
-    t.true(Json.parse('t').error?)
-    t.true(Json.parse('tr').error?)
-    t.true(Json.parse('tru').error?)
-    t.true(Json.parse('f').error?)
-    t.true(Json.parse('fa').error?)
-    t.true(Json.parse('fal').error?)
-    t.true(Json.parse('fals').error?)
+    t.true(parse('t').error?)
+    t.true(parse('tr').error?)
+    t.true(parse('tru').error?)
+    t.true(parse('f').error?)
+    t.true(parse('fa').error?)
+    t.true(parse('fal').error?)
+    t.true(parse('fals').error?)
   })
 
   t.test('Json.parse with NULL', fn (t) {
-    t.equal(Json.parse('null'), Result.Ok(Json.Null))
+    t.equal(parse('null'), Result.Ok(Json.Null))
 
-    t.true(Json.parse('n').error?)
-    t.true(Json.parse('nu').error?)
-    t.true(Json.parse('nul').error?)
+    t.true(parse('n').error?)
+    t.true(parse('nu').error?)
+    t.true(parse('nul').error?)
   })
 
   t.test('Json.parse with strings', fn (t) {
-    t.equal(Json.parse('"foo"'), Result.Ok(Json.String('foo')))
-    t.equal(Json.parse('"foo bar"'), Result.Ok(Json.String('foo bar')))
-    t.equal(Json.parse('"foo\\nbar"'), Result.Ok(Json.String('foo\nbar')))
-    t.equal(Json.parse('"foo\\tbar"'), Result.Ok(Json.String('foo\tbar')))
-    t.equal(Json.parse('"foo\\rbar"'), Result.Ok(Json.String('foo\rbar')))
-    t.equal(Json.parse('"foo\\bbar"'), Result.Ok(Json.String('foo\u{8}bar')))
-    t.equal(Json.parse('"foo\\fbar"'), Result.Ok(Json.String('foo\u{C}bar')))
-    t.equal(Json.parse('"foo\\"bar"'), Result.Ok(Json.String('foo"bar')))
-    t.equal(Json.parse('"foo\\/bar"'), Result.Ok(Json.String('foo/bar')))
-    t.equal(Json.parse('"foo\\\\bar"'), Result.Ok(Json.String('foo\\bar')))
-    t.equal(Json.parse('"foo\\u005Cbar"'), Result.Ok(Json.String('foo\\bar')))
+    t.equal(parse('"foo"'), Result.Ok(Json.String('foo')))
+    t.equal(parse('"foo bar"'), Result.Ok(Json.String('foo bar')))
+    t.equal(parse('"foo\\nbar"'), Result.Ok(Json.String('foo\nbar')))
+    t.equal(parse('"foo\\tbar"'), Result.Ok(Json.String('foo\tbar')))
+    t.equal(parse('"foo\\rbar"'), Result.Ok(Json.String('foo\rbar')))
+    t.equal(parse('"foo\\bbar"'), Result.Ok(Json.String('foo\u{8}bar')))
+    t.equal(parse('"foo\\fbar"'), Result.Ok(Json.String('foo\u{C}bar')))
+    t.equal(parse('"foo\\"bar"'), Result.Ok(Json.String('foo"bar')))
+    t.equal(parse('"foo\\/bar"'), Result.Ok(Json.String('foo/bar')))
+    t.equal(parse('"foo\\\\bar"'), Result.Ok(Json.String('foo\\bar')))
+    t.equal(parse('"foo\\u005Cbar"'), Result.Ok(Json.String('foo\\bar')))
+    t.equal(parse('"foo\\u001Fbar"'), Result.Ok(Json.String('foo\u{1F}bar')))
+    t.equal(parse('"\\uD834\\uDD1E"'), Result.Ok(Json.String('\u{1D11E}')))
     t.equal(
-      Json.parse('"foo\\u001Fbar"'),
-      Result.Ok(Json.String('foo\u{1F}bar')),
-    )
-    t.equal(Json.parse('"\\uD834\\uDD1E"'), Result.Ok(Json.String('\u{1D11E}')))
-    t.equal(
-      Json.parse('"\\uE000\\uE000"'),
+      parse('"\\uE000\\uE000"'),
       Result.Ok(Json.String('\u{E000}\u{E000}')),
     )
 
-    t.true(Json.parse('"\0"').error?)
-    t.true(Json.parse('"\n"').error?)
-    t.true(Json.parse('"\t"').error?)
-    t.true(Json.parse('"\r"').error?)
-    t.true(Json.parse('"\u{8}"').error?) # \b
-    t.true(Json.parse('"\u{C}"').error?) # \f
+    t.true(parse('"\0"').error?)
+    t.true(parse('"\n"').error?)
+    t.true(parse('"\t"').error?)
+    t.true(parse('"\r"').error?)
+    t.true(parse('"\u{8}"').error?) # \b
+    t.true(parse('"\u{C}"').error?) # \f
 
-    t.true(Json.parse('"\\x42"').error?)
-    t.true(Json.parse('"\\u1"').error?)
-    t.true(Json.parse('"\\u12"').error?)
-    t.true(Json.parse('"\\u123"').error?)
-    t.true(Json.parse('"\\u{XXXX}"').error?)
-    t.true(Json.parse('"\\uD834\\uE000"').error?)
-    t.true(Json.parse('"\\uD834\\uZZZZ"').error?)
-    t.true(Json.parse('"\\uDFFF\\uDFFF"').error?)
+    t.true(parse('"\\x42"').error?)
+    t.true(parse('"\\u1"').error?)
+    t.true(parse('"\\u12"').error?)
+    t.true(parse('"\\u123"').error?)
+    t.true(parse('"\\u{XXXX}"').error?)
+    t.true(parse('"\\uD834\\uE000"').error?)
+    t.true(parse('"\\uD834\\uZZZZ"').error?)
+    t.true(parse('"\\uDFFF\\uDFFF"').error?)
 
     t.equal(
       parse_invalid('"a'),
@@ -668,12 +672,12 @@ fn pub tests(t: mut Tests) {
     map5.set('a', Json.Int(10))
     map5.set('b', Json.Int(20))
 
-    t.equal(Json.parse('{}'), Result.Ok(Json.Object(map1)))
-    t.equal(Json.parse('{ "a" : 10 }'), Result.Ok(Json.Object(map2)))
-    t.equal(Json.parse('{"a": 10, "a": 20}'), Result.Ok(Json.Object(map3)))
-    t.equal(Json.parse('{"a": 10, "b": 20}'), Result.Ok(Json.Object(map4)))
+    t.equal(parse('{}'), Result.Ok(Json.Object(map1)))
+    t.equal(parse('{ "a" : 10 }'), Result.Ok(Json.Object(map2)))
+    t.equal(parse('{"a": 10, "a": 20}'), Result.Ok(Json.Object(map3)))
+    t.equal(parse('{"a": 10, "b": 20}'), Result.Ok(Json.Object(map4)))
     t.equal(
-      Json.parse(
+      parse(
         '{
           "a": 10,
           "b": 20
@@ -682,19 +686,19 @@ fn pub tests(t: mut Tests) {
       Result.Ok(Json.Object(map5)),
     )
 
-    t.true(Json.parse('{').error?)
-    t.true(Json.parse('}').error?)
-    t.true(Json.parse('{{}}').error?)
-    t.true(Json.parse('{"a"}').error?)
-    t.true(Json.parse('{"a":}').error?)
-    t.true(Json.parse('{"a":10,}').error?)
-    t.true(Json.parse('{"a":10 "b": 20}').error?)
-    t.true(Json.parse('{a":10,}').error?)
-    t.true(Json.parse('{},').error?)
-    t.true(Json.parse('{"a": true} "x"').error?)
+    t.true(parse('{').error?)
+    t.true(parse('}').error?)
+    t.true(parse('{{}}').error?)
+    t.true(parse('{"a"}').error?)
+    t.true(parse('{"a":}').error?)
+    t.true(parse('{"a":10,}').error?)
+    t.true(parse('{"a":10 "b": 20}').error?)
+    t.true(parse('{a":10,}').error?)
+    t.true(parse('{},').error?)
+    t.true(parse('{"a": true} "x"').error?)
 
     {
-      let bytes = '{"a": {"b": {"c": 10}}}'.to_byte_array
+      let bytes = Buffer.new('{"a": {"b": {"c": 10}}}'.to_byte_array)
       let parser = Parser.new(bytes)
 
       parser.max_depth = 2
@@ -710,9 +714,9 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Json.parse with Unicode BOMs', fn (t) {
-    t.true(Json.parse('\u{FEFF}10').error?)
-    t.true(Json.parse('\u{FFFE}10').error?)
-    t.true(Json.parse('\u{EF}\u{BB}\u{BF}10').error?)
+    t.true(parse('\u{FEFF}10').error?)
+    t.true(parse('\u{FFFE}10').error?)
+    t.true(parse('\u{EF}\u{BB}\u{BF}10').error?)
   })
 
   t.test('Json.query', fn (t) {

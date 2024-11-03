@@ -11,9 +11,10 @@
 # The easiest way to parse JSON is using `Json.parse`:
 #
 # ```inko
+# import std.io (buffer)
 # import std.json (Json)
 #
-# Json.parse('[10]').get # => Json.Array([Json.Int(10)])
+# Json.parse(Buffer.new('[10]')).get # => Json.Array([Json.Int(10)])
 # ```
 #
 # The parser enforces limits on the number of nested objects and the size of
@@ -21,9 +22,10 @@
 # so:
 #
 # ```inko
+# import std.io (Buffer)
 # import std.json (Parser)
 #
-# let parser = Parser.new('[10]')
+# let parser = Parser.new(Buffer.new('[10]'))
 #
 # parser.max_depth = 4
 # parser.max_string_size = 128
@@ -71,9 +73,8 @@
 import std.cmp (Equal)
 import std.fmt (Format as FormatTrait, Formatter)
 import std.int (Format)
-import std.io (Error as IoError)
-import std.iter (Peekable)
-import std.string (Bytes, StringBuffer, ToString)
+import std.io (BufferedReader, Error as IoError, Read)
+import std.string (StringBuffer, ToString)
 import std.utf8
 
 let BRACKET_OPEN = 0x5B
@@ -448,7 +449,7 @@ class pub enum Json {
   case Bool(Bool)
   case Null
 
-  # Parses a `Bytes` into a JSON object.
+  # Parses a `Read` type into a JSON object.
   #
   # # Examples
   #
@@ -456,18 +457,20 @@ class pub enum Json {
   #
   # ```inko
   # import std.json (Json)
+  # import std.io (Buffer)
   #
-  # Json.parse('[10]') # => Result.Ok(Json.Array([Json.Int(10)]))
+  # Json.parse(Buffer.new('[10]')) # => Result.Ok(Json.Array([Json.Int(10)]))
   # ```
   #
   # Parsing a `ByteArray`:
   #
   # ```inko
+  # import std.io (Buffer)
   # import std.json (Json)
   #
-  # Json.parse('[10]'.to_byte_array) # => Result.Ok(Json.Array([Json.Int(10)]))
+  # Json.parse(Buffer.new('[10]'.to_byte_array)) # => Result.Ok(Json.Array([Json.Int(10)]))
   # ```
-  fn pub static parse[T: Bytes](bytes: ref T) -> Result[Json, Error] {
+  fn pub static parse[T: mut + Read](bytes: T) -> Result[Json, Error] {
     Parser.new(bytes).parse
   }
 
@@ -655,9 +658,10 @@ impl FormatTrait for Type {
 # parsing an array of integers is done as follows:
 #
 # ```inko
+# import std.io (Buffer)
 # import std.json (PullParser)
 #
-# let parser = PullParser.new('[10, 20]')
+# let parser = PullParser.new(Buffer.new('[10, 20]'))
 # let values = []
 #
 # parser.values(fn { Result.Ok(values.push(try parser.int)) }).get
@@ -669,6 +673,7 @@ impl FormatTrait for Type {
 # compile-time. For example:
 #
 # ```inko
+# import std.io (Buffer)
 # import std.json (PullParser)
 #
 # class Person {
@@ -676,7 +681,7 @@ impl FormatTrait for Type {
 #   let @age: Int
 # }
 #
-# let parser = PullParser.new('{ "name": "Alice", "age": 42 }')
+# let parser = PullParser.new(Buffer.new('{ "name": "Alice", "age": 42 }'))
 # let person = Person(name: '', age: 0)
 #
 # parser
@@ -686,14 +691,18 @@ impl FormatTrait for Type {
 #   .parse
 #   .get
 # ```
-class pub PullParser {
-  let @input: Peekable[Int]
+class pub PullParser[T: mut + Read] {
+  let @input: BufferedReader[T]
   let @offset: Int
   let @buffer: ByteArray
 
-  # Returns a new parser that parses the given `Bytes` value.
-  fn pub static new[T: Bytes](input: ref T) -> PullParser {
-    PullParser(input: input.bytes.peekable, offset: -1, buffer: ByteArray.new)
+  # Returns a new parser that parses the given `Read` type.
+  fn pub static new(input: T) -> PullParser[T] {
+    PullParser(
+      input: BufferedReader.new(input),
+      offset: -1,
+      buffer: ByteArray.new,
+    )
   }
 
   # Returns the current byte offset in the input stream.
@@ -710,9 +719,10 @@ class pub PullParser {
   # # Examples
   #
   # ```inko
+  # import std.io (Buffer)
   # import std.json (PullParser)
   #
-  # let parser = PullParser.new('  10')
+  # let parser = PullParser.new(Buffer.new('  10'))
   #
   # parser.start_of_next_value # => Result.Ok(2)
   # ```
@@ -747,9 +757,10 @@ class pub PullParser {
   # # Examples
   #
   # ```inko
+  # import std.io (Buffer)
   # import std.json (PullParser)
   #
-  # PullParser.new('[10, 20]').skip # => Result.Ok(nil)
+  # PullParser.new(Buffer.new('[10, 20]')).skip # => Result.Ok(nil)
   # ```
   fn pub mut skip -> Result[Nil, Error] {
     match value_type {
@@ -776,9 +787,10 @@ class pub PullParser {
   # # Examples
   #
   # ```inko
+  # import std.io (Buffer)
   # import std.json (PullParser)
   #
-  # let parser = PullParser.new('[10, 20]')
+  # let parser = PullParser.new(Buffer.new('[10, 20]'))
   # let values = []
   #
   # parser
@@ -819,6 +831,7 @@ class pub PullParser {
   # # Examples
   #
   # ```inko
+  # import std.io (Buffer)
   # import std.json (PullParser)
   #
   # class Person {
@@ -826,7 +839,7 @@ class pub PullParser {
   #   let @age: Int
   # }
   #
-  # let parser = PullParser.new('{ "name": "Alice", "age": 42 }')
+  # let parser = PullParser.new(Buffer.new('{ "name": "Alice", "age": 42 }'))
   # let person = Person(name: '', age: 0)
   #
   # parser
@@ -880,20 +893,21 @@ class pub PullParser {
   # # Examples
   #
   # ```inko
+  # import std.io (Buffer)
   # import std.json (PullParser)
   #
   # class Person {
   #   let @name: String
   # }
   #
-  # let parser = PullParser.new('{ "name": "String" }')
+  # let parser = PullParser.new(Buffer.new('{ "name": "String" }'))
   # let person = Person(name: '')
   #
   # parser
   #   .object(fn (o) { o.string('name', fn (v) { person.name = v }) })
   #   .or_panic('failed to parse the JSON')
   # ```
-  fn pub mut object(rules: fn (mut ObjectParser)) -> Result[Nil, Error] {
+  fn pub mut object(rules: fn (mut ObjectParser[T])) -> Result[Nil, Error] {
     let obj = ObjectParser.new
 
     rules.call(obj)
@@ -905,9 +919,10 @@ class pub PullParser {
   # # Examples
   #
   # ```inko
+  # import std.io (Buffer)
   # import std.json (PullParser)
   #
-  # PullParser.new('true').bool # => Result.Ok(true)
+  # PullParser.new(Buffer.new('true')).bool # => Result.Ok(true)
   # ```
   fn pub mut bool -> Result[Bool, Error] {
     match try peek {
@@ -929,9 +944,10 @@ class pub PullParser {
   # # Examples
   #
   # ```inko
+  # import std.io (Buffer)
   # import std.json (PullParser)
   #
-  # PullParser.new('null').null # => Result.Ok(nil)
+  # PullParser.new(Buffer.new('null')).null # => Result.Ok(nil)
   # ```
   fn pub mut null -> Result[Nil, Error] {
     identifier('null')
@@ -942,9 +958,10 @@ class pub PullParser {
   # # Examples
   #
   # ```inko
+  # import std.io (Buffer)
   # import std.json (PullParser)
   #
-  # PullParser.new('"hello"').string # => Result.Ok('hello')
+  # PullParser.new(Buffer.new('"hello"')).string # => Result.Ok('hello')
   # ```
   fn pub mut string -> Result[String, Error] {
     match try peek {
@@ -1044,10 +1061,11 @@ class pub PullParser {
   # # Examples
   #
   # ```inko
+  # import std.io (Buffer)
   # import std.json (PullParser)
   #
-  # Parser.new('10').int  # => Result.Ok(10)
-  # Parser.new('1.2').int # => Result.Ok(1)
+  # Parser.new(Buffer.new('10')).int  # => Result.Ok(10)
+  # Parser.new(Buffer.new('1.2')).int # => Result.Ok(1)
   # ```
   fn pub mut int -> Result[Int, Error] {
     match number {
@@ -1066,10 +1084,11 @@ class pub PullParser {
   # # Examples
   #
   # ```inko
+  # import std.io (Buffer)
   # import std.json (PullParser)
   #
-  # Parser.new('1.2').float # => Result.Ok(1.2)
-  # Parser.new('1').float   # => Result.Ok(1.0)
+  # Parser.new(Buffer.new('1.2')).float # => Result.Ok(1.2)
+  # Parser.new(Buffer.new('1')).float   # => Result.Ok(1.0)
   # ```
   fn pub mut float -> Result[Float, Error] {
     match number {
@@ -1088,10 +1107,11 @@ class pub PullParser {
   # # Examples
   #
   # ```inko
+  # import std.io (Buffer)
   # import std.json (PullParser)
   #
-  # Parser.new('1.2').number # => Result.Ok(Number.Float(1.2))
-  # Parser.new('1').number   # => Result.Ok(Number.Int(1))
+  # Parser.new(Buffer.new('1.2')).number # => Result.Ok(Number.Float(1.2))
+  # Parser.new(Buffer.new('1')).number   # => Result.Ok(Number.Int(1))
   # ```
   fn pub mut number -> Result[Number, Error] {
     match try peek {
@@ -1211,12 +1231,13 @@ class pub PullParser {
   }
 
   fn mut advance -> Result[Option[Int], Error] {
-    match @input.next {
-      case Some(v) -> {
+    match @input.read_byte {
+      case Ok(Some(v)) -> {
         @offset += 1
         Result.Ok(Option.Some(v))
       }
-      case _ -> Result.Ok(Option.None)
+      case Ok(None) -> Result.Ok(Option.None)
+      case Error(e) -> Result.Error(error(ErrorKind.Read(e)))
     }
   }
 
@@ -1238,7 +1259,11 @@ class pub PullParser {
   }
 
   fn mut peek_next -> Result[Option[Int], Error] {
-    Result.Ok(@input.peek)
+    match @input.peek {
+      case Ok(Some(v)) -> Result.Ok(Option.Some(v))
+      case Ok(None) -> Result.Ok(Option.None)
+      case Error(e) -> Result.Error(error(ErrorKind.Read(e)))
+    }
   }
 
   fn mut peek -> Result[Option[Int], Error] {
@@ -1306,9 +1331,9 @@ class pub PullParser {
 }
 
 # A parsing rule defined for an `ObjectParser`.
-class pub Rule {
+class pub Rule[T: mut + Read] {
   let @id: Int
-  let @parser: fn (mut PullParser) -> Result[Nil, Error]
+  let @parser: fn (mut PullParser[T]) -> Result[Nil, Error]
   let @required: Bool
 
   # Marks this rule as an optional rule.
@@ -1325,9 +1350,10 @@ class pub Rule {
 # optional using `Rule.optional`. For example:
 #
 # ```inko
+# import std.io (Buffer)
 # import std.json (ObjectParser, PullParser)
 #
-# let parser = PullParser.new('{ "a": 10 }')
+# let parser = PullParser.new(Buffer.new('{ "a": 10 }'))
 # let obj = ObjectParser.new
 # let nums = []
 #
@@ -1335,12 +1361,12 @@ class pub Rule {
 # obj.int('b', fn (v) { nums.push(v) }).optional
 # obj.parse(parser).or_panic('failed to parse the JSON')
 # ```
-class pub ObjectParser {
+class pub ObjectParser[T: mut + Read] {
   # The keys to parse along with the closures that parse their values.
-  let @rules: Map[String, Rule]
+  let @rules: Map[String, Rule[T]]
 
   # Returns a new, empty `ObjectParser`.
-  fn static new -> ObjectParser {
+  fn static new -> ObjectParser[T] {
     ObjectParser(Map.new)
   }
 
@@ -1350,32 +1376,32 @@ class pub ObjectParser {
   # parser in the process.
   fn pub mut key(
     name: String,
-    value: fn (mut PullParser) -> Result[Nil, Error],
-  ) -> mut Rule {
+    value: fn (mut PullParser[T]) -> Result[Nil, Error],
+  ) -> mut Rule[T] {
     add(name, value)
   }
 
   # Parses the key `name` as a `String`, passing the parsed value to the `value`
   # closure.
-  fn pub mut string(name: String, value: fn (String)) -> mut Rule {
+  fn pub mut string(name: String, value: fn (String)) -> mut Rule[T] {
     add(name, fn move (p) { p.string.map(fn (v) { value.call(v) }) })
   }
 
   # Parses the key `name` as an `Int`, passing the parsed value to the `value`
   # closure.
-  fn pub mut int(name: String, value: fn (Int)) -> mut Rule {
+  fn pub mut int(name: String, value: fn (Int)) -> mut Rule[T] {
     add(name, fn move (p) { p.int.map(fn (v) { value.call(v) }) })
   }
 
   # Parses the key `name` as a `Float`, passing the parsed value to the `value`
   # closure.
-  fn pub mut float(name: String, value: fn (Float)) -> mut Rule {
+  fn pub mut float(name: String, value: fn (Float)) -> mut Rule[T] {
     add(name, fn move (p) { p.float.map(fn (v) { value.call(v) }) })
   }
 
   # Parses the key `name` as a `Bool`, passing the parsed value to the `value`
   # closure.
-  fn pub mut bool(name: String, value: fn (Bool)) -> mut Rule {
+  fn pub mut bool(name: String, value: fn (Bool)) -> mut Rule[T] {
     add(name, fn move (p) { p.bool.map(fn (v) { value.call(v) }) })
   }
 
@@ -1385,8 +1411,8 @@ class pub ObjectParser {
   # For more information, refer to the documentation of `PullParser.keys`.
   fn pub mut keys(
     name: String,
-    value: fn (mut PullParser, Int, String) -> Result[Nil, Error],
-  ) -> mut Rule {
+    value: fn (mut PullParser[T], Int, String) -> Result[Nil, Error],
+  ) -> mut Rule[T] {
     add(name, fn move (p) { p.keys(fn (pos, key) { value.call(p, pos, key) }) })
   }
 
@@ -1396,13 +1422,13 @@ class pub ObjectParser {
   # For more information, refer to the documentation of `PullParser.values`.
   fn pub mut values(
     name: String,
-    value: fn (mut PullParser) -> Result[Nil, Error],
-  ) -> mut Rule {
+    value: fn (mut PullParser[T]) -> Result[Nil, Error],
+  ) -> mut Rule[T] {
     add(name, fn move (p) { p.values(fn { value.call(p) }) })
   }
 
   # Parses the current object according to the rules in `self`.
-  fn pub mut parse(parser: mut PullParser) -> Result[Nil, Error] {
+  fn pub mut parse(parser: mut PullParser[T]) -> Result[Nil, Error] {
     let found = Array.filled(with: false, times: @rules.size)
     let start = try parser.start_of_next_value
 
@@ -1427,8 +1453,8 @@ class pub ObjectParser {
 
   fn mut add(
     name: String,
-    parser: fn (mut PullParser) -> Result[Nil, Error],
-  ) -> mut Rule {
+    parser: fn (mut PullParser[T]) -> Result[Nil, Error],
+  ) -> mut Rule[T] {
     let rule = Rule(id: @rules.size, parser: parser, required: true)
     let ret = mut rule
 
@@ -1448,8 +1474,8 @@ class pub ObjectParser {
 # This parser enforces a limit on the number of nested arrays and objects. The
 # default is sufficiently large that most documents won't result in an error
 # being thrown. This limit is controlled by the field `Parser.max_depth`.
-class pub Parser {
-  let @pull: PullParser
+class pub Parser[T: mut + Read] {
+  let @pull: PullParser[T]
   let @depth: Int
 
   # The maximum number of nested values.
@@ -1457,8 +1483,8 @@ class pub Parser {
   # When parsing an array or object that exceeds this depth, an error is thrown.
   let pub @max_depth: Int
 
-  # Returns a new parser that will parse the given `Bytes` value.
-  fn pub static new[T: Bytes](input: ref T) -> Parser {
+  # Returns a new parser that will parse the given `Read` type.
+  fn pub static new(input: T) -> Parser[T] {
     Parser(PullParser.new(input), depth: 0, max_depth: 100)
   }
 
@@ -1469,9 +1495,10 @@ class pub Parser {
   # # Examples
   #
   # ```inko
+  # import std.io (Buffer)
   # import std.json (Parser)
   #
-  # let parser = Parser.new('[10, 20]')
+  # let parser = Parser.new(Buffer.new('[10, 20]'))
   #
   # parser.parse.get # => Json.Array([Json.Int(10), Json.Int(20)])
   # ```
