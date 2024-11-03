@@ -73,7 +73,6 @@ import std.fmt (Format as FormatTrait, Formatter)
 import std.int (Format)
 import std.io (Error as IoError)
 import std.iter (Peekable)
-import std.set (Set)
 import std.string (Bytes, StringBuffer, ToString)
 import std.utf8
 
@@ -759,7 +758,7 @@ class pub PullParser {
         nil
       }
       case Ok(Array) -> try values(fn { skip })
-      case Ok(Object) -> try keys(fn (_) { skip })
+      case Ok(Object) -> try keys(fn (_pos, _key) { skip })
       case Ok(String) -> try string
       case Ok(Null) -> try null
       case Ok(Bool) -> try bool
@@ -811,8 +810,8 @@ class pub PullParser {
     Result.Ok(nil)
   }
 
-  # Parses an object, calling `value` for each key and passing it the name of
-  # the key.
+  # Parses an object, calling `value` for each key and passing it the position
+  # and name of the key.
   #
   # It's expected that the `value` closure advances the parser by parsing the
   # value in it's desired format.
@@ -831,7 +830,7 @@ class pub PullParser {
   # let person = Person(name: '', age: 0)
   #
   # parser
-  #   .keys(fn (key) {
+  #   .keys(fn (pos, key) {
   #     match key {
   #       case 'name' -> person.name = parser.string.get
   #       case 'age' -> person.age = parser.int.get
@@ -846,7 +845,7 @@ class pub PullParser {
   # person.age  # => 42
   # ```
   fn pub mut keys(
-    value: fn (String) -> Result[Nil, Error],
+    value: fn (Int, String) -> Result[Nil, Error],
   ) -> Result[Nil, Error] {
     try expect(CURLY_OPEN, skip_whitespace: true)
 
@@ -857,10 +856,11 @@ class pub PullParser {
           break
         }
         case Some(DQUOTE) -> {
+          let pos = @offset + 1
           let key = try string
 
           try expect(COLON, skip_whitespace: true)
-          try value.call(key)
+          try value.call(pos, key)
           try separator(CURLY_CLOSE)
         }
         case Some(byte) -> throw unexpected(byte)
@@ -871,10 +871,11 @@ class pub PullParser {
     Result.Ok(nil)
   }
 
-  # Returns an `ObjectParser` for parsing an object with a known set of keys.
+  # Creates a new `ObjectParser` and passes it to the provided closure, which is
+  # used to define the parsing rules. Upon returning from the closure, the
+  # `ObjectParser` is used to parse the data at the current byte offset.
   #
-  # For more information, refer to the various methods of the `ObjectParser`
-  # type.
+  # For more information, refer to the documentation of the `ObjectParser` type.
   #
   # # Examples
   #
@@ -888,10 +889,15 @@ class pub PullParser {
   # let parser = PullParser.new('{ "name": "String" }')
   # let person = Person(name: '')
   #
-  # parser.object.string('name', fn (v) { person.name = v }).parse.get
+  # parser
+  #   .object(fn (o) { o.string('name', fn (v) { person.name = v }) })
+  #   .or_panic('failed to parse the JSON')
   # ```
-  fn pub mut object -> ObjectParser {
-    ObjectParser.new(self)
+  fn pub mut object(rules: fn (mut ObjectParser)) -> Result[Nil, Error] {
+    let obj = ObjectParser.new
+
+    rules.call(obj)
+    obj.parse(self)
   }
 
   # Parses the boolean value `true` or `false`.
@@ -1299,18 +1305,43 @@ class pub PullParser {
   }
 }
 
+# A parsing rule defined for an `ObjectParser`.
+class pub Rule {
+  let @id: Int
+  let @parser: fn (mut PullParser) -> Result[Nil, Error]
+  let @required: Bool
+
+  # Marks this rule as an optional rule.
+  fn pub mut optional {
+    @required = false
+  }
+}
+
 # A type for parsing an object with a known set of keys.
+#
+# # Required vs optional keys
+#
+# By default all keys defined using this type are required. A key can be made
+# optional using `Rule.optional`. For example:
+#
+# ```inko
+# import std.json (ObjectParser, PullParser)
+#
+# let parser = PullParser.new('{ "a": 10 }')
+# let obj = ObjectParser.new
+# let nums = []
+#
+# obj.int('a', fn (v) { nums.push(v) })
+# obj.int('b', fn (v) { nums.push(v) }).optional
+# obj.parse(parser).or_panic('failed to parse the JSON')
+# ```
 class pub ObjectParser {
-  # The parser this `ObjectParser` instance uses to process input.
-  let pub @parser: mut PullParser
-
   # The keys to parse along with the closures that parse their values.
-  let @keys: Map[String, fn -> Result[Nil, Error]]
+  let @rules: Map[String, Rule]
 
-  # Returns a new `ObjectParser` that uses the given `PullParser` to parse an
-  # input stream.
-  fn static new(parser: mut PullParser) -> ObjectParser {
-    ObjectParser(parser, keys: Map.new)
+  # Returns a new, empty `ObjectParser`.
+  fn static new -> ObjectParser {
+    ObjectParser(Map.new)
   }
 
   # Parses the key `name` as a custom value.
@@ -1319,123 +1350,90 @@ class pub ObjectParser {
   # parser in the process.
   fn pub mut key(
     name: String,
-    value: fn -> Result[Nil, Error],
-  ) -> mut ObjectParser {
-    @keys.set(name, value)
-    self
+    value: fn (mut PullParser) -> Result[Nil, Error],
+  ) -> mut Rule {
+    add(name, value)
   }
 
   # Parses the key `name` as a `String`, passing the parsed value to the `value`
   # closure.
-  fn pub mut string(name: String, value: fn (String)) -> mut ObjectParser {
-    key(name, fn move { @parser.string.map(fn (v) { value.call(v) }) })
+  fn pub mut string(name: String, value: fn (String)) -> mut Rule {
+    add(name, fn move (p) { p.string.map(fn (v) { value.call(v) }) })
   }
 
   # Parses the key `name` as an `Int`, passing the parsed value to the `value`
   # closure.
-  fn pub mut int(name: String, value: fn (Int)) -> mut ObjectParser {
-    key(name, fn move { @parser.int.map(fn (v) { value.call(v) }) })
+  fn pub mut int(name: String, value: fn (Int)) -> mut Rule {
+    add(name, fn move (p) { p.int.map(fn (v) { value.call(v) }) })
   }
 
   # Parses the key `name` as a `Float`, passing the parsed value to the `value`
   # closure.
-  fn pub mut float(name: String, value: fn (Float)) -> mut ObjectParser {
-    key(name, fn move { @parser.float.map(fn (v) { value.call(v) }) })
+  fn pub mut float(name: String, value: fn (Float)) -> mut Rule {
+    add(name, fn move (p) { p.float.map(fn (v) { value.call(v) }) })
   }
 
   # Parses the key `name` as a `Bool`, passing the parsed value to the `value`
   # closure.
-  fn pub mut bool(name: String, value: fn (Bool)) -> mut ObjectParser {
-    key(name, fn move { @parser.bool.map(fn (v) { value.call(v) }) })
+  fn pub mut bool(name: String, value: fn (Bool)) -> mut Rule {
+    add(name, fn move (p) { p.bool.map(fn (v) { value.call(v) }) })
   }
 
   # Parses the key `name` as an object without a known structure, passing each
-  # key to the `value` closure. It's expected that the `value` closure parses
-  # the value, advancing the parser in the process.
+  # key to the `value` closure.
+  #
+  # For more information, refer to the documentation of `PullParser.keys`.
   fn pub mut keys(
     name: String,
-    value: fn (String) -> Result[Nil, Error],
-  ) -> mut ObjectParser {
-    key(name, fn move { @parser.keys(fn (key) { value.call(key) }) })
+    value: fn (mut PullParser, Int, String) -> Result[Nil, Error],
+  ) -> mut Rule {
+    add(name, fn move (p) { p.keys(fn (pos, key) { value.call(p, pos, key) }) })
   }
 
   # Parses the key `name` as an array of arbitrary values, using the `value`
   # closure to parse the values and advance the parser.
+  #
+  # For more information, refer to the documentation of `PullParser.values`.
   fn pub mut values(
     name: String,
-    value: fn -> Result[Nil, Error],
-  ) -> mut ObjectParser {
-    key(name, fn move { @parser.values(fn { value.call }) })
-  }
-
-  # Parses the key `name` as an array of strings, passing each `String` to the
-  # `value` closure.
-  fn pub mut strings(name: String, value: fn (String)) -> mut ObjectParser {
-    values(name, fn move { @parser.string.map(fn (v) { value.call(v) }) })
-  }
-
-  # Parses the key `name` as an array of integers, passing each `Int` to the
-  # `value` closure.
-  fn pub mut ints(name: String, value: fn (Int)) -> mut ObjectParser {
-    values(name, fn move { @parser.int.map(fn (v) { value.call(v) }) })
-  }
-
-  # Parses the key `name` as an array of integers, passing each `Int` to the
-  # `value` closure.
-  fn pub mut floats(name: String, value: fn (Float)) -> mut ObjectParser {
-    values(name, fn move { @parser.float.map(fn (v) { value.call(v) }) })
+    value: fn (mut PullParser) -> Result[Nil, Error],
+  ) -> mut Rule {
+    add(name, fn move (p) { p.values(fn { value.call(p) }) })
   }
 
   # Parses the current object according to the rules in `self`.
-  #
-  # When encountering a key for which no rule is defined, its value is
-  # (recursively) skipped.
-  fn pub mut parse -> Result[Nil, Error] {
-    @parser.keys(fn (key) {
-      match @keys.opt_mut(key) {
-        case Some(func) -> func.call
-        case _ -> @parser.skip
-      }
-    })
-  }
+  fn pub mut parse(parser: mut PullParser) -> Result[Nil, Error] {
+    let found = Array.filled(with: false, times: @rules.size)
+    let start = try parser.start_of_next_value
 
-  # Parses the current object according to the rules in `self`, while requiring
-  # the given keys to be present.
-  #
-  # This method returns a `Result.Error` for the first missing key that it
-  # encounters.
-  fn pub mut require(keys: ref Array[String]) -> Result[Nil, Error] {
-    let mut found = Set.new
-
-    try @parser.keys(fn (key) {
-      match @keys.opt_mut(key) {
-        case Some(func) -> {
-          found.insert(key)
-          func.call
+    try parser.keys(fn (_pos, key) {
+      match @rules.opt_mut(key) {
+        case Some(rule) -> {
+          found.set(rule.id, true)
+          rule.parser.call(parser)
         }
-        case _ -> @parser.skip
+        case _ -> parser.skip
       }
     })
 
-    keys.iter.try_each(fn (key) {
-      if found.contains?(key) {
+    @rules.iter.try_each(fn (entry) {
+      if entry.value.required.false? or found.get(entry.value.id) {
         Result.Ok(nil)
       } else {
-        let pos = @parser.offset
-
-        Result.Error(
-          Error(ErrorKind.Generic('the key "${key}" is required'), pos),
-        )
+        Result.Error(Error.generic('the key "${entry.key}" is required', start))
       }
     })
   }
 
-  # Parses the current object according to the rules in `self`, and requires all
-  # keys to be present.
-  #
-  # See `ObjectParser.require` and `ObjectParser.parse` for more details.
-  fn pub mut require_all -> Result[Nil, Error] {
-    require(@keys.keys.to_array)
+  fn mut add(
+    name: String,
+    parser: fn (mut PullParser) -> Result[Nil, Error],
+  ) -> mut Rule {
+    let rule = Rule(id: @rules.size, parser: parser, required: true)
+    let ret = mut rule
+
+    @rules.set(name, rule)
+    ret
   }
 }
 
@@ -1529,7 +1527,7 @@ class pub Parser {
     let map = Map.new
 
     @depth += 1
-    try @pull.keys(fn (k) {
+    try @pull.keys(fn (_pos, k) {
       map.set(k, try value)
       Result.Ok(nil)
     })

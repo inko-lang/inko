@@ -1,6 +1,8 @@
 import std.fmt (fmt)
 import std.io (Error as IoError)
-import std.json (Error, ErrorKind, Json, Number, Parser, PullParser, Type)
+import std.json (
+  Error, ErrorKind, Json, Number, ObjectParser, Parser, PullParser, Type,
+)
 import std.test (Tests)
 
 fn parse_invalid(input: String) -> Option[String] {
@@ -111,20 +113,25 @@ fn pub tests(t: mut Tests) {
 
   t.test('PullParser.keys with valid input', fn (t) {
     let parser = PullParser.new('{"a": 10, "b": 20}')
+    let positions = []
     let values = []
-    let res = parser.keys(fn (k) {
-      parser.int.map(fn (v) { values.push((k, v)) })
+    let res = parser.keys(fn (pos, k) {
+      parser.int.map(fn (v) {
+        positions.push(pos)
+        values.push((k, v))
+      })
     })
 
     t.true(res.ok?)
     t.equal(values, [('a', 10), ('b', 20)])
+    t.equal(positions, [1, 10])
   })
 
   t.test('PullParser.keys with invalid input', fn (t) {
     ['', '10', '{,}', '{"a":10,}'].into_iter.each(fn (input) {
       let parser = PullParser.new(input)
 
-      t.true(parser.keys(fn (k) { parser.int.map(fn (_) { nil }) }).error?)
+      t.true(parser.keys(fn (_p, k) { parser.int.map(fn (_) { nil }) }).error?)
     })
   })
 
@@ -181,13 +188,23 @@ fn pub tests(t: mut Tests) {
     t.equal(PullParser.new('  ,').start_of_next_value, Result.Ok(2))
   })
 
+  t.test('PullParser.object', fn (t) {
+    let parser = PullParser.new('{ "a": 10 }')
+    let nums = []
+    let res = parser.object(fn (o) { o.int('a', fn (v) { nums.push(v) }) })
+
+    t.true(res.ok?)
+    t.equal(nums, [10])
+  })
+
   t.test('ObjectParser.key', fn (t) {
     let parser = PullParser.new('{"a":10,"b":10}')
     let values = []
-    let res = parser
-      .object
-      .key('a', fn { parser.int.map(fn (v) { values.push(v) }) })
-      .parse
+    let obj = ObjectParser.new
+
+    obj.key('a', fn (p) { p.int.map(fn (v) { values.push(v) }) })
+
+    let res = obj.parse(parser)
 
     t.true(res.ok?)
     t.equal(values, [10])
@@ -196,7 +213,11 @@ fn pub tests(t: mut Tests) {
   t.test('ObjectParser.string', fn (t) {
     let parser = PullParser.new('{"a":"foo","b":10}')
     let values = []
-    let res = parser.object.string('a', fn (v) { values.push(v) }).parse
+    let obj = ObjectParser.new
+
+    obj.string('a', fn (v) { values.push(v) })
+
+    let res = obj.parse(parser)
 
     t.true(res.ok?)
     t.equal(values, ['foo'])
@@ -205,7 +226,11 @@ fn pub tests(t: mut Tests) {
   t.test('ObjectParser.int', fn (t) {
     let parser = PullParser.new('{"a":10,"b":10}')
     let values = []
-    let res = parser.object.int('a', fn (v) { values.push(v) }).parse
+    let obj = ObjectParser.new
+
+    obj.int('a', fn (v) { values.push(v) })
+
+    let res = obj.parse(parser)
 
     t.true(res.ok?)
     t.equal(values, [10])
@@ -214,7 +239,11 @@ fn pub tests(t: mut Tests) {
   t.test('ObjectParser.float', fn (t) {
     let parser = PullParser.new('{"a":10.5,"b":10}')
     let values = []
-    let res = parser.object.float('a', fn (v) { values.push(v) }).parse
+    let obj = ObjectParser.new
+
+    obj.float('a', fn (v) { values.push(v) })
+
+    let res = obj.parse(parser)
 
     t.true(res.ok?)
     t.equal(values, [10.5])
@@ -223,7 +252,11 @@ fn pub tests(t: mut Tests) {
   t.test('ObjectParser.bool', fn (t) {
     let parser = PullParser.new('{"a":true,"b":10}')
     let values = []
-    let res = parser.object.bool('a', fn (v) { values.push(v) }).parse
+    let obj = ObjectParser.new
+
+    obj.bool('a', fn (v) { values.push(v) })
+
+    let res = obj.parse(parser)
 
     t.true(res.ok?)
     t.equal(values, [true])
@@ -232,101 +265,75 @@ fn pub tests(t: mut Tests) {
   t.test('ObjectParser.keys', fn (t) {
     let parser = PullParser.new('{"a":{"foo":10}}')
     let values = []
-    let res = parser
-      .object
-      .keys('a', fn (k) { parser.int.map(fn (v) { values.push((k, v)) }) })
-      .parse
+    let positions = []
+    let obj = ObjectParser.new
+
+    obj.keys('a', fn (parser, pos, k) {
+      positions.push(pos)
+      parser.int.map(fn (v) { values.push((k, v)) })
+    })
+
+    let res = obj.parse(parser)
 
     t.true(res.ok?)
     t.equal(values, [('foo', 10)])
+    t.equal(positions, [6])
   })
 
   t.test('ObjectParser.values', fn (t) {
     let parser = PullParser.new('{"a":[10,20]}')
     let values = []
-    let res = parser
-      .object
-      .values('a', fn { parser.int.map(fn (v) { values.push(v) }) })
-      .parse
+    let obj = ObjectParser.new
+
+    obj.values('a', fn (p) { p.int.map(fn (v) { values.push(v) }) })
+
+    let res = obj.parse(parser)
 
     t.true(res.ok?)
     t.equal(values, [10, 20])
   })
 
-  t.test('ObjectParser.strings', fn (t) {
-    let parser = PullParser.new('{"a":["foo","bar"]}')
-    let values = []
-    let res = parser.object.strings('a', fn (v) { values.push(v) }).parse
-
-    t.true(res.ok?)
-    t.equal(values, ['foo', 'bar'])
-  })
-
-  t.test('ObjectParser.ints', fn (t) {
-    let parser = PullParser.new('{"a":[10,20]}')
-    let values = []
-    let res = parser.object.ints('a', fn (v) { values.push(v) }).parse
-
-    t.true(res.ok?)
-    t.equal(values, [10, 20])
-  })
-
-  t.test('ObjectParser.floats', fn (t) {
-    let parser = PullParser.new('{"a":[10.5,20.5]}')
-    let values = []
-    let res = parser.object.floats('a', fn (v) { values.push(v) }).parse
-
-    t.true(res.ok?)
-    t.equal(values, [10.5, 20.5])
-  })
-
-  t.test('ObjectParser.require with all required keys present', fn (t) {
+  t.test('ObjectParser.parse with all required keys present', fn (t) {
     let parser = PullParser.new('{"a":10}')
     let values = []
-    let res = parser.object.int('a', fn (v) { values.push(v) }).require(['a'])
+    let obj = ObjectParser.new
+
+    obj.int('a', fn (v) { values.push(v) })
+
+    let res = obj.parse(parser)
 
     t.true(res.ok?)
     t.equal(values, [10])
   })
 
-  t.test('ObjectParser.require with a missing key', fn (t) {
+  t.test('ObjectParser.parse with a missing optional key', fn (t) {
     let parser = PullParser.new(' {"a":10} ')
     let values = []
-    let res = parser.object.int('a', fn (v) { values.push(v) }).require(
-      ['a', 'b'],
-    )
+    let obj = ObjectParser.new
+
+    obj.int('a', fn (v) { values.push(v) })
+    obj.int('b', fn (v) { values.push(v) }).optional
+
+    let res = obj.parse(parser)
+
+    t.true(res.ok?)
+    t.equal(values, [10])
+  })
+
+  t.test('ObjectParser.parse with a missing key', fn (t) {
+    let parser = PullParser.new(' {"a":10} ')
+    let values = []
+    let obj = ObjectParser.new
+
+    obj.int('a', fn (v) { values.push(v) })
+    obj.int('b', fn (v) { values.push(v) })
+
+    let res = obj.parse(parser)
 
     t.equal(
       res,
       Result.Error(
-        Error(kind: ErrorKind.Generic('the key "b" is required'), offset: 8),
-      ),
-    )
-    t.equal(values, [10])
-  })
-
-  t.test('ObjectParser.require_all with all required keys present', fn (t) {
-    let parser = PullParser.new('{"a":10}')
-    let values = []
-    let res = parser.object.int('a', fn (v) { values.push(v) }).require_all
-
-    t.true(res.ok?)
-    t.equal(values, [10])
-  })
-
-  t.test('ObjectParser.require_all with a missing key', fn (t) {
-    let parser = PullParser.new(' {"a":10} ')
-    let values = []
-    let res = parser
-      .object
-      .int('a', fn (v) { values.push(v) })
-      .int('b', fn (v) { values.push(v) })
-      .require_all
-
-    t.equal(
-      res,
-      Result.Error(
-        Error(kind: ErrorKind.Generic('the key "b" is required'), offset: 8),
+        Error(kind: ErrorKind.Generic('the key "b" is required'), offset: 1),
       ),
     )
     t.equal(values, [10])
