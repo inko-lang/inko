@@ -308,32 +308,6 @@ class builtin ByteArray {
     inko_byte_array_drain_to_string(_INKO.state, self)
   }
 
-  # Returns the byte at the given index, returning None if the index is out of
-  # bounds.
-  #
-  # # Examples
-  #
-  # Retrieving an existing byte:
-  #
-  # ```inko
-  # let bytes = ByteArray.from_array([10, 20])
-  #
-  # bytes.opt(0) # => Option.Some(10)
-  # ```
-  #
-  # Retrieving a non-existing byte:
-  #
-  # ```inko
-  # let bytes = ByteArray.from_array([10, 20])
-  #
-  # bytes.opt(5) # => Option.None
-  # ```
-  fn pub opt(index: Int) -> Option[Int] {
-    if index < 0 or index >= size { return Option.None }
-
-    Option.Some(inko_byte_array_get(self, index))
-  }
-
   # Returns the byte at the given index.
   #
   # # Panics
@@ -556,6 +530,32 @@ class builtin ByteArray {
 }
 
 impl Bytes for ByteArray {
+  # Returns the byte at the given index, returning None if the index is out of
+  # bounds.
+  #
+  # # Examples
+  #
+  # Retrieving an existing byte:
+  #
+  # ```inko
+  # let bytes = ByteArray.from_array([10, 20])
+  #
+  # bytes.opt(0) # => Option.Some(10)
+  # ```
+  #
+  # Retrieving a non-existing byte:
+  #
+  # ```inko
+  # let bytes = ByteArray.from_array([10, 20])
+  #
+  # bytes.opt(5) # => Option.None
+  # ```
+  fn pub opt(index: Int) -> Option[Int] {
+    if index < 0 or index >= size { return Option.None }
+
+    Option.Some(inko_byte_array_get(self, index))
+  }
+
   # An alias for `ByteArray.get`.
   fn pub byte(index: Int) -> Int {
     get(index)

@@ -123,6 +123,10 @@ trait pub ToString {
 # (e.g. by iterating over them), but don't care if the input is a `String` or
 # `ByteArray`.
 trait pub Bytes {
+  # Returns the byte at the given index, returning an `Option.None` if the index
+  # is out of bounds.
+  fn pub opt(index: Int) -> Option[Int]
+
   # Returns the byte at the given byte index.
   #
   # # Panics
@@ -677,6 +681,21 @@ class builtin String {
 }
 
 impl Bytes for String {
+  # Returns the byte at the given index, returning None if the index is out of
+  # bounds.
+  #
+  # # Examples
+  #
+  # ```inko
+  # 'abc'.opt(0)  # => Option.Some(97)
+  # 'abc'.opt(10) # => Option.None
+  # ```
+  fn pub opt(index: Int) -> Option[Int] {
+    if index < 0 or index >= size { return Option.None }
+
+    Option.Some(byte_unchecked(index))
+  }
+
   # Returns the byte at the given byte index.
   #
   # # Examples

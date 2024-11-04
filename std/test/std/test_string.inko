@@ -29,6 +29,11 @@ fn pub tests(t: mut Tests) {
     t.equal('AÄ'.size, 3)
   })
 
+  t.test('String.opt', fn (t) {
+    t.equal('foo'.opt(0), Option.Some(102))
+    t.equal('foo'.opt(10), Option.None)
+  })
+
   t.test('String.byte', fn (t) {
     t.equal('foo'.byte(0), 102)
     t.equal('foo'.byte(1), 111)
