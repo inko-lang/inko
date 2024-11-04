@@ -455,11 +455,9 @@ impl Format for DateTime {
     let offset = if @utc_offset == 0 {
       ' UTC'
     } else {
-      let hh = (@utc_offset / SECS_PER_HOUR).to_string.pad_start(
-        with: '0',
-        chars: 2,
-      )
-      let mm = (@utc_offset % SECS_PER_HOUR / 60).to_string.pad_start(
+      let off = @utc_offset.absolute
+      let hh = (off / SECS_PER_HOUR).to_string.pad_start(with: '0', chars: 2)
+      let mm = (off % SECS_PER_HOUR / SECS_PER_MIN).to_string.pad_start(
         with: '0',
         chars: 2,
       )

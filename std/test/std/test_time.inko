@@ -243,10 +243,12 @@ fn pub tests(t: mut Tests) {
     let t1 = DateTime.from_timestamp(time: 1661538868, utc_offset: 7200)
     let t2 = DateTime.from_timestamp(time: 0, utc_offset: 0)
     let t3 = DateTime.from_timestamp(time: -3600, utc_offset: 0)
+    let t4 = DateTime.from_timestamp(time: 1661538868, utc_offset: -7200)
 
     t.equal(fmt(t1), '2022-08-26 20:34:28 +0200')
     t.equal(fmt(t2), '1970-01-01 00:00:00 UTC')
     t.equal(fmt(t3), '1969-12-31 23:00:00 UTC')
+    t.equal(fmt(t4), '2022-08-26 16:34:28 -0200')
   })
 
   t.test('DateTime.to_int', fn (t) {
