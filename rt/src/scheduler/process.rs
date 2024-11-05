@@ -1,5 +1,6 @@
 //! Scheduling and execution of lightweight Inko processes.
 use crate::arc_without_weak::ArcWithoutWeak;
+use crate::bump::BumpAllocator;
 use crate::context;
 use crate::process::{Process, ProcessPointer, Task};
 use crate::scheduler::pin_thread_to_core;
@@ -196,6 +197,9 @@ pub struct Thread {
     /// The default is to not do anything with a process after it yields back to
     /// the thread.
     pub(crate) action: Action,
+
+    /// The bump allocators to use for the different size classes.
+    pub(crate) bump_allocators: [BumpAllocator; 4],
 }
 
 impl Thread {
@@ -215,6 +219,7 @@ impl Thread {
             stacks: StackPool::new(pool.stack_size),
             action: Action::Ignore,
             pool,
+            bump_allocators: BumpAllocator::new_classes(),
         }
     }
 
@@ -232,6 +237,7 @@ impl Thread {
             stacks: StackPool::new(pool.stack_size),
             action: Action::Ignore,
             pool,
+            bump_allocators: BumpAllocator::new_classes(),
         }
     }
 

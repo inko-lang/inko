@@ -8,7 +8,7 @@ use crate::llvm::constants::{
     STACK_DATA_EPOCH_INDEX, STACK_DATA_PROCESS_INDEX, STATE_EPOCH_INDEX,
 };
 use crate::llvm::context::Context;
-use crate::llvm::layouts::Layouts;
+use crate::llvm::layouts::{size_of_type, Layouts};
 use crate::llvm::methods::Methods;
 use crate::llvm::module::Module;
 use crate::llvm::runtime_function::RuntimeFunction;
@@ -2299,9 +2299,8 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
             Instruction::Free(ins) => {
                 let var = self.variables[&ins.register];
                 let ptr = self.builder.load_pointer(var);
-                let func = self.module.runtime_function(RuntimeFunction::Free);
 
-                self.builder.call_void(func, &[ptr.into()]);
+                self.free(ins.class, ptr);
             }
             Instruction::Increment(ins) => {
                 let reg_var = self.variables[&ins.register];
@@ -2729,13 +2728,69 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
             .into_int_value()
     }
 
+    fn free(&mut self, class: ClassId, pointer: PointerValue<'ctx>) {
+        if self.bump_allocation_size(class).is_some() {
+            let func = self.module.runtime_function(RuntimeFunction::BumpFree);
+
+            self.builder.call_void(func, &[pointer.into()]);
+            return;
+        }
+
+        let func = self.module.runtime_function(RuntimeFunction::Free);
+
+        self.builder.call_void(func, &[pointer.into()]);
+    }
+
     fn allocate(&mut self, class: ClassId) -> PointerValue<'ctx> {
+        if let Some(size) = self.bump_allocation_size(class) {
+            let func =
+                self.module.runtime_function(RuntimeFunction::BumpAllocate);
+            let proc = self.load_process();
+            let size = self.builder.u64_literal(size);
+            let ptr = self
+                .builder
+                .call(func, &[proc.into(), size.into()])
+                .into_pointer_value();
+
+            self.builder.init_instance(
+                self.module,
+                &self.shared.state.db,
+                self.shared.names,
+                class,
+                ptr,
+            );
+            return ptr;
+        }
+
         self.builder.allocate_instance(
             self.module,
             &self.shared.state.db,
             self.shared.names,
             class,
         )
+    }
+
+    fn bump_allocation_size(&self, class: ClassId) -> Option<u64> {
+        // Builtin types are either unboxed (Int, Float, etc) or use a special
+        // allocation strategy (String, ByteArray).
+        if class.is_builtin() {
+            return None;
+        }
+
+        let layout = self.layouts.instances[class.0 as usize];
+        let size = size_of_type(&self.layouts.target_data, &layout)
+            .next_power_of_two();
+
+        if size >= 16 && size <= 128 {
+            Some(size)
+        } else {
+            println!(
+                "not bumping {}, size = {}",
+                class.name(&self.shared.state.db),
+                size,
+            );
+            None
+        }
     }
 }
 

@@ -20,6 +20,8 @@ pub(crate) enum RuntimeFunction {
     RuntimeStackMask,
     Free,
     AllocationError,
+    BumpAllocate,
+    BumpFree,
 }
 
 impl RuntimeFunction {
@@ -46,6 +48,8 @@ impl RuntimeFunction {
             RuntimeFunction::RuntimeStackMask => "inko_runtime_stack_mask",
             RuntimeFunction::Free => "free",
             RuntimeFunction::AllocationError => "inko_alloc_error",
+            RuntimeFunction::BumpAllocate => "inko_bump_allocate",
+            RuntimeFunction::BumpFree => "inko_bump_free",
         }
     }
 
@@ -168,6 +172,19 @@ impl RuntimeFunction {
                 let ret = context.void_type();
 
                 ret.fn_type(&[size], false)
+            }
+            RuntimeFunction::BumpAllocate => {
+                let proc = context.pointer_type().into();
+                let size = context.i64_type().into();
+                let ret = context.pointer_type();
+
+                ret.fn_type(&[proc, size], false)
+            }
+            RuntimeFunction::BumpFree => {
+                let ptr = context.pointer_type().into();
+                let ret = context.void_type();
+
+                ret.fn_type(&[ptr], false)
             }
         };
 

@@ -755,12 +755,25 @@ impl<'ctx> Builder<'ctx> {
         names: &crate::symbol_names::SymbolNames,
         class: ClassId,
     ) -> PointerValue<'ctx> {
+        let typ = module.layouts.instances[class.0 as usize];
+        let ptr = self.malloc(module, typ);
+
+        self.init_instance(module, db, names, class, ptr);
+        ptr
+    }
+
+    pub(crate) fn init_instance<'a, 'b>(
+        &self,
+        module: &'a mut Module<'b, 'ctx>,
+        db: &Database,
+        names: &crate::symbol_names::SymbolNames,
+        class: ClassId,
+        pointer: PointerValue<'ctx>,
+    ) {
         let atomic = class.is_atomic(db);
         let name = &names.classes[&class];
         let global = module.add_class(name).as_pointer_value();
         let class_ptr = self.load_pointer(global);
-        let typ = module.layouts.instances[class.0 as usize];
-        let res = self.malloc(module, typ);
         let header = module.layouts.header;
 
         // Atomic values start with a reference count of 1, so atomic decrements
@@ -768,9 +781,8 @@ impl<'ctx> Builder<'ctx> {
         // have been created (instead of underflowing).
         let refs = self.u32_literal(if atomic { 1 } else { 0 });
 
-        self.store_field(header, res, HEADER_CLASS_INDEX, class_ptr);
-        self.store_field(header, res, HEADER_REFS_INDEX, refs);
-        res
+        self.store_field(header, pointer, HEADER_CLASS_INDEX, class_ptr);
+        self.store_field(header, pointer, HEADER_REFS_INDEX, refs);
     }
 
     pub(crate) fn malloc<'a, 'b, T: BasicType<'ctx>>(

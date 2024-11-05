@@ -6,6 +6,7 @@
 mod macros;
 
 mod arc_without_weak;
+mod bump;
 mod config;
 mod context;
 mod mem;

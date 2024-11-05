@@ -13,7 +13,7 @@ use types::{
 /// The size of an object header.
 const HEADER_SIZE: u32 = 16;
 
-fn size_of_type(target_data: &TargetData, typ: &dyn AnyType) -> u64 {
+pub(crate) fn size_of_type(target_data: &TargetData, typ: &dyn AnyType) -> u64 {
     target_data.get_bit_size(typ)
         / (target_data.get_pointer_byte_size(None) as u64)
 }
