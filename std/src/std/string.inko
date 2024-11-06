@@ -675,7 +675,7 @@ class builtin String {
     Path.new(self)
   }
 
-  fn byte_unchecked(index: Int) -> Int {
+  fn inline byte_unchecked(index: Int) -> Int {
     (@ptr as Int + index as Pointer[UInt8]).0 as Int
   }
 }
