@@ -2297,6 +2297,8 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 self.builder.switch_to_block(ok_block);
             }
             Instruction::Free(ins) => {
+                self.set_debug_location(ins.location);
+
                 let var = self.variables[&ins.register];
                 let ptr = self.builder.load_pointer(var);
                 let func = self.module.runtime_function(RuntimeFunction::Free);
@@ -2365,12 +2367,16 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 // fields is done using separate instructions.
             }
             Instruction::Allocate(ins) => {
+                self.set_debug_location(ins.location);
+
                 let reg_var = self.variables[&ins.register];
                 let ptr = self.allocate(ins.class).as_basic_value_enum();
 
                 self.builder.store(reg_var, ptr);
             }
             Instruction::Spawn(ins) => {
+                self.set_debug_location(ins.location);
+
                 let reg_var = self.variables[&ins.register];
                 let name = &self.shared.names.classes[&ins.class];
                 let global = self.module.add_class(name).as_pointer_value();
@@ -2391,7 +2397,9 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                 self.builder.store(var, value);
             }
-            Instruction::Preempt(_) => {
+            Instruction::Preempt(ins) => {
+                self.set_debug_location(ins.location);
+
                 let state = self.load_state();
                 let data = self.process_stack_data_pointer();
                 let layout = self.layouts.process_stack_data;
@@ -2430,6 +2438,8 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 self.builder.switch_to_block(cont_block);
             }
             Instruction::Finish(ins) => {
+                self.set_debug_location(ins.location);
+
                 let proc = self.load_process().into();
                 let terminate = self.builder.bool_literal(ins.terminate).into();
                 let func = self
