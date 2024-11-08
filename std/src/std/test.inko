@@ -648,7 +648,14 @@ class pub Tests {
 
       let got = output.stderr.split('\n').last.or('the process panicked')
 
-      test.failures.push(Failure.new(got, 'the process not to panic'))
+      test.failures.push(
+        Failure(
+          got: got,
+          expected: 'the process not to panic',
+          path: test.path.clone,
+          line: test.line,
+        ),
+      )
     })
   }
 
