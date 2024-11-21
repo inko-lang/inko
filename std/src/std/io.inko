@@ -110,7 +110,7 @@ fn reset_os_error {
 # Unix systems. This enum doesn't define a constructor for every possible error.
 # Instead, we define a constructor for the most commonly used errors, and
 # represent other errors using the `Other` constructor.
-class pub enum Error {
+class pub inline enum Error {
   # The address is already in use.
   case AddressInUse
 
