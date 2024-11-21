@@ -43,7 +43,7 @@ fn octets_to_hextet(first: Int, second: Int) -> Int {
 }
 
 # An IPv4 or IPv6 address.
-class pub enum IpAddress {
+class pub inline enum IpAddress {
   # An IPv4 address.
   case V4(Ipv4Address)
 
@@ -169,7 +169,7 @@ class pub enum IpAddress {
 }
 
 impl Equal[ref IpAddress] for IpAddress {
-  fn pub ==(other: ref IpAddress) -> Bool {
+  fn pub inline ==(other: ref IpAddress) -> Bool {
     match self {
       case V4(a) -> {
         match other {
@@ -206,7 +206,7 @@ impl ToString for IpAddress {
 }
 
 impl Clone[IpAddress] for IpAddress {
-  fn pub clone -> IpAddress {
+  fn pub inline clone -> IpAddress {
     match self {
       case V4(ip) -> IpAddress.V4(ip.clone)
       case V6(ip) -> IpAddress.V6(ip.clone)
@@ -221,7 +221,7 @@ impl FormatTrait for IpAddress {
 }
 
 # An IPv6 address.
-class pub Ipv6Address {
+class pub inline Ipv6Address {
   let @a: Int
   let @b: Int
   let @c: Int
@@ -517,7 +517,7 @@ impl Equal[ref Ipv6Address] for Ipv6Address {
   # addr1 == addr2 # => true
   # addr1 == addr3 # => false
   # ```
-  fn pub ==(other: ref Ipv6Address) -> Bool {
+  fn pub inline ==(other: ref Ipv6Address) -> Bool {
     @a == other.a
       and @b == other.b
       and @c == other.c
@@ -639,13 +639,13 @@ impl IntoString for Ipv6Address {
 }
 
 impl Clone[Ipv6Address] for Ipv6Address {
-  fn pub clone -> Ipv6Address {
+  fn pub inline clone -> Ipv6Address {
     Ipv6Address(a: @a, b: @b, c: @c, d: @d, e: @e, f: @f, g: @g, h: @h)
   }
 }
 
 # An IPv4 address.
-class pub Ipv4Address {
+class pub inline Ipv4Address {
   let @a: Int
   let @b: Int
   let @c: Int
@@ -908,7 +908,7 @@ impl Equal[ref Ipv4Address] for Ipv4Address {
   # addr1 == addr2 # => true
   # addr1 == addr3 # => false
   # ```
-  fn pub ==(other: ref Ipv4Address) -> Bool {
+  fn pub inline ==(other: ref Ipv4Address) -> Bool {
     @a == other.a and @b == other.b and @c == other.c and @d == other.d
   }
 }
@@ -938,7 +938,7 @@ impl IntoString for Ipv4Address {
 }
 
 impl Clone[Ipv4Address] for Ipv4Address {
-  fn pub clone -> Ipv4Address {
+  fn pub inline clone -> Ipv4Address {
     Ipv4Address(a: @a, b: @b, c: @c, d: @d)
   }
 }
