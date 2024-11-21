@@ -4,33 +4,168 @@ use crate::state::State;
 use crate::target::OperatingSystem;
 use inkwell::targets::TargetData;
 use inkwell::types::{
-    AnyType, BasicMetadataTypeEnum, BasicType, FunctionType, StructType,
+    BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType, StructType,
 };
+use std::collections::VecDeque;
 use types::{
-    CallConvention, BOOL_ID, BYTE_ARRAY_ID, FLOAT_ID, INT_ID, NIL_ID, STRING_ID,
+    CallConvention, ClassId, Database, MethodId, TypeId, TypeRef, BOOL_ID,
+    BYTE_ARRAY_ID, FLOAT_ID, INT_ID, NIL_ID, STRING_ID,
 };
 
 /// The size of an object header.
 const HEADER_SIZE: u32 = 16;
 
-fn size_of_type(target_data: &TargetData, typ: &dyn AnyType) -> u64 {
-    target_data.get_bit_size(typ)
-        / (target_data.get_pointer_byte_size(None) as u64)
+struct Sized {
+    map: Vec<bool>,
+}
+
+impl Sized {
+    fn new(amount: usize) -> Sized {
+        Sized { map: vec![false; amount] }
+    }
+
+    fn has_size(&self, db: &Database, typ: TypeRef) -> bool {
+        match typ {
+            TypeRef::Owned(TypeId::ClassInstance(ins))
+            | TypeRef::Uni(TypeId::ClassInstance(ins)) => {
+                let cls = ins.instance_of();
+
+                cls.is_heap_allocated(db) || self.map[cls.0 as usize]
+            }
+            // Everything else (e.g. borrows) uses pointers and thus have a
+            // known size.
+            _ => true,
+        }
+    }
+
+    fn set_has_size(&mut self, id: ClassId) {
+        self.map[id.0 as usize] = true;
+    }
 }
 
 #[derive(Copy, Clone)]
-pub(crate) struct Method<'ctx> {
-    pub(crate) signature: FunctionType<'ctx>,
+pub(crate) enum ArgumentType<'ctx> {
+    /// The argument should be passed as a normal value.
+    Regular(BasicTypeEnum<'ctx>),
 
+    /// The argument should be passed as a pointer.
+    Pointer,
+
+    /// The argument should be a pointer to a struct that's passed using the
+    /// "byval" attribute.
+    StructValue(StructType<'ctx>),
+
+    /// The argument is the struct return argument.
+    StructReturn(StructType<'ctx>),
+}
+
+#[derive(Copy, Clone)]
+pub(crate) enum ReturnType<'ctx> {
+    /// The function doesn't return anything.
+    None,
+
+    /// The function returns a regular value.
+    Regular(BasicTypeEnum<'ctx>),
+
+    /// The function returns a structure using the ABIs struct return
+    /// convention.
+    Struct(StructType<'ctx>),
+}
+
+impl<'ctx> ReturnType<'ctx> {
+    pub(crate) fn is_struct(self) -> bool {
+        matches!(self, ReturnType::Struct(_))
+    }
+
+    pub(crate) fn is_regular(self) -> bool {
+        matches!(self, ReturnType::Regular(_))
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct Method<'ctx> {
     /// The calling convention to use for this method.
     pub(crate) call_convention: CallConvention,
 
-    /// If the function returns a structure on the stack, its type is stored
-    /// here.
-    ///
-    /// This is needed separately because the signature's return type will be
-    /// `void` in this case.
-    pub(crate) struct_return: Option<StructType<'ctx>>,
+    /// If the method is a variadic method or not.
+    pub(crate) variadic: bool,
+
+    /// The return type, if any.
+    pub(crate) returns: ReturnType<'ctx>,
+
+    /// The types of the arguments.
+    pub(crate) arguments: Vec<ArgumentType<'ctx>>,
+}
+
+impl<'ctx> Method<'ctx> {
+    pub(crate) fn new() -> Method<'ctx> {
+        Method {
+            call_convention: CallConvention::Inko,
+            variadic: false,
+            returns: ReturnType::None,
+            arguments: Vec::new(),
+        }
+    }
+
+    pub(crate) fn regular(
+        state: &State,
+        context: &'ctx Context,
+        layouts: &Layouts<'ctx>,
+        method: MethodId,
+    ) -> Method<'ctx> {
+        let db = &state.db;
+        let ret = context.method_return_type(state, layouts, method);
+        let mut args = if let ReturnType::Struct(t) = ret {
+            vec![ArgumentType::StructReturn(t)]
+        } else {
+            Vec::new()
+        };
+
+        for &typ in method
+            .is_instance(db)
+            .then(|| method.receiver(db))
+            .iter()
+            .chain(method.argument_types(db))
+        {
+            let raw = context.llvm_type(db, layouts, typ);
+            let typ = context.argument_type(state, layouts, raw);
+
+            args.push(typ);
+        }
+
+        Method {
+            call_convention: CallConvention::new(method.is_extern(db)),
+            variadic: method.is_variadic(db),
+            arguments: args,
+            returns: ret,
+        }
+    }
+
+    pub(crate) fn signature(
+        &self,
+        context: &'ctx Context,
+    ) -> FunctionType<'ctx> {
+        let var = self.variadic;
+        let mut args: Vec<BasicMetadataTypeEnum> = Vec::new();
+
+        for &arg in &self.arguments {
+            match arg {
+                ArgumentType::Regular(t) => args.push(t.into()),
+                ArgumentType::StructValue(_)
+                | ArgumentType::StructReturn(_)
+                | ArgumentType::Pointer => {
+                    args.push(context.pointer_type().into())
+                }
+            }
+        }
+
+        match self.returns {
+            ReturnType::None | ReturnType::Struct(_) => {
+                context.void_type().fn_type(&args, var)
+            }
+            ReturnType::Regular(t) => t.fn_type(&args, var),
+        }
+    }
 }
 
 /// Types and layout information to expose to all modules.
@@ -148,12 +283,6 @@ impl<'ctx> Layouts<'ctx> {
         // optimizations, but that's OK as in the worst case we just waste a few
         // KiB.
         let num_methods = db.number_of_methods();
-        let dummy_method = Method {
-            call_convention: CallConvention::Inko,
-            signature: context.void_type().fn_type(&[], false),
-            struct_return: None,
-        };
-
         let mut layouts = Self {
             target_data,
             empty_class: context.class_type(method),
@@ -162,10 +291,26 @@ impl<'ctx> Layouts<'ctx> {
             state: state_layout,
             header,
             method_counts: method_counts_layout,
-            methods: vec![dummy_method; num_methods],
+            methods: vec![Method::new(); num_methods],
             process_stack_data: stack_data_layout,
         };
 
+        // The order here is important: types must come first, then the dynamic
+        // calls, then the methods (as those depend on the types).
+        layouts.define_types(state, mir, context);
+        layouts.define_dynamic_calls(state, mir, context);
+        layouts.define_methods(state, mir, context);
+        layouts
+    }
+
+    fn define_types(
+        &mut self,
+        state: &State,
+        mir: &Mir,
+        context: &'ctx Context,
+    ) {
+        let db = &state.db;
+        let num_classes = db.number_of_classes();
         let process_size = match state.config.target.os {
             OperatingSystem::Linux | OperatingSystem::Freebsd => {
                 // Mutexes are smaller on Linux, resulting in a smaller process
@@ -181,31 +326,103 @@ impl<'ctx> Layouts<'ctx> {
         // stable).
         let process_private_size = process_size - HEADER_SIZE;
 
-        for id in mir.classes.keys() {
+        // Type A might depend on type B, which in turn may depend on type C.
+        // This means that to calculate the size of A, we'd first have to
+        // calculate it of B and C. We do this using a work list approach: if
+        // the size of a type can be calculated immediately we do just that,
+        // otherwise we reschedule it for later (re)processing.
+        let mut queue = mir.classes.keys().cloned().collect::<VecDeque<_>>();
+        let mut sized = Sized::new(num_classes);
+
+        // These types have a fixed size and don't define any fields. To ensure
+        // the work loop terminates, we manually flag them as known.
+        for id in [BYTE_ARRAY_ID, INT_ID, FLOAT_ID, BOOL_ID, NIL_ID] {
+            sized.set_has_size(ClassId(id as _));
+        }
+
+        while let Some(id) = queue.pop_front() {
+            let kind = id.kind(db);
+
             // String is a built-in class, but it's defined like a regular one,
             // so we _don't_ want to skip it here.
             if id.is_builtin() && id.0 != STRING_ID {
                 continue;
             }
 
-            let layout = layouts.instances[id.0 as usize];
-            let kind = id.kind(db);
+            // If the type we're checking is _not_ a class instance then we
+            // default to _true_ instead of false, since this means we can
+            // trivially calculate the size of that field (e.g. it's a pointer).
+            let size_known = if kind.is_enum() {
+                id.constructors(db).into_iter().all(|c| {
+                    c.arguments(db).iter().all(|&t| sized.has_size(db, t))
+                })
+            } else {
+                id.fields(db)
+                    .into_iter()
+                    .all(|f| sized.has_size(db, f.value_type(db)))
+            };
+
+            if !size_known {
+                queue.push_back(id);
+                continue;
+            }
+
+            if kind.is_enum() {
+                let layout = self.instances[id.0 as usize];
+                let fields = id.fields(db);
+                let mut types = Vec::with_capacity(fields.len() + 1);
+
+                if id.has_object_header(db) {
+                    types.push(self.header.into());
+                }
+
+                // Add the type for the tag.
+                let tag_typ = fields[0].value_type(db);
+
+                types.push(context.llvm_type(db, self, tag_typ));
+
+                // For each constructor argument we generate a field with an
+                // opaque type. The size of this type must equal that of the
+                // largest type.
+                let mut opaque =
+                    vec![
+                        context.i8_type().array_type(0).as_basic_type_enum();
+                        fields.len() - 1
+                    ];
+
+                for con in id.constructors(db) {
+                    for (idx, &typ) in con.arguments(db).iter().enumerate() {
+                        let llvm_typ = context.llvm_type(db, self, typ);
+                        let size = self.target_data.get_abi_size(&llvm_typ);
+                        let ex = self.target_data.get_abi_size(&opaque[idx]);
+
+                        if size > ex {
+                            opaque[idx] = context
+                                .i8_type()
+                                .array_type(size as _)
+                                .as_basic_type_enum();
+                        }
+                    }
+                }
+
+                types.append(&mut opaque);
+                sized.set_has_size(id);
+                layout.set_body(&types, false);
+                continue;
+            }
+
+            let layout = self.instances[id.0 as usize];
             let fields = id.fields(db);
 
             // We add 1 to account for the header that almost all classes
             // processed here will have.
             let mut types = Vec::with_capacity(fields.len() + 1);
 
-            if kind.is_extern() {
-                for field in fields {
-                    let typ =
-                        context.llvm_type(db, &layouts, field.value_type(db));
+            if id.has_object_header(db) {
+                types.push(self.header.into());
+            }
 
-                    types.push(typ);
-                }
-            } else {
-                types.push(header.into());
-
+            if kind.is_async() {
                 // For processes, the memory layout is as follows:
                 //
                 //     +--------------------------+
@@ -215,209 +432,69 @@ impl<'ctx> Layouts<'ctx> {
                 //     +--------------------------+
                 //     |    user-defined fields   |
                 //     +--------------------------+
-                if kind.is_async() {
-                    types.push(
-                        context
-                            .i8_type()
-                            .array_type(process_private_size)
-                            .into(),
-                    );
-                }
+                types.push(
+                    context.i8_type().array_type(process_private_size).into(),
+                );
+            }
 
-                if kind.is_enum() {
-                    // For enums we generate a base/opaque layout for when the
-                    // constructor isn't known, and one layout for each
-                    // constructor.
-                    types.push(context.llvm_type(
-                        db,
-                        &layouts,
-                        fields[0].value_type(db),
-                    ));
-
-                    let cons = id.constructors(db);
-                    let mut opaque_types = vec![
-                        context
-                            .i8_type()
-                            .array_type(1)
-                            .as_basic_type_enum();
-                        fields.len() - 1
-                    ];
-
-                    for con in &cons {
-                        for (idx, typ) in
-                            con.members(db).into_iter().enumerate()
-                        {
-                            let typ = context.llvm_type(db, &layouts, typ);
-                            let size = size_of_type(target_data, &typ);
-                            let ex =
-                                size_of_type(target_data, &opaque_types[idx]);
-
-                            if size > ex {
-                                opaque_types[idx] = context
-                                    .i8_type()
-                                    .array_type(size as _)
-                                    .as_basic_type_enum();
-                            }
-                        }
-                    }
-
-                    types.append(&mut opaque_types);
-                } else {
-                    for field in fields {
-                        let typ = context.llvm_type(
-                            db,
-                            &layouts,
-                            field.value_type(db),
-                        );
-
-                        types.push(typ);
-                    }
-                }
+            for field in fields {
+                types.push(context.llvm_type(db, self, field.value_type(db)));
             }
 
             layout.set_body(&types, false);
+            sized.set_has_size(id);
         }
+    }
 
+    fn define_dynamic_calls(
+        &mut self,
+        state: &State,
+        mir: &Mir,
+        context: &'ctx Context,
+    ) {
         for calls in mir.dynamic_calls.values() {
-            for (method, _) in calls {
-                let mut args: Vec<BasicMetadataTypeEnum> = vec![
-                    context.pointer_type().into(), // Receiver
-                ];
-
-                for &typ in method.argument_types(db) {
-                    args.push(context.llvm_type(db, &layouts, typ).into());
-                }
-
-                let signature = context
-                    .return_type(db, &layouts, *method)
-                    .map(|t| t.fn_type(&args, false))
-                    .unwrap_or_else(|| {
-                        context.void_type().fn_type(&args, false)
-                    });
-
-                layouts.methods[method.0 as usize] = Method {
-                    call_convention: CallConvention::new(method.is_extern(db)),
-                    signature,
-                    struct_return: None,
-                };
+            for (id, _) in calls {
+                self.methods[id.0 as usize] =
+                    Method::regular(state, context, self, *id);
             }
         }
+    }
 
-        // Now that all the LLVM structs are defined, we can process all
-        // methods.
+    fn define_methods(
+        &mut self,
+        state: &State,
+        mir: &Mir,
+        context: &'ctx Context,
+    ) {
+        let db = &state.db;
+
         for mir_class in mir.classes.values() {
-            // Define the method signatures once (so we can cheaply retrieve
-            // them whenever needed), and assign the methods to their method
-            // table slots.
-            for &method in &mir_class.methods {
-                let typ = if method.is_async(db) {
-                    context
-                        .void_type()
-                        .fn_type(&[context.pointer_type().into()], false)
+            for &id in &mir_class.methods {
+                self.methods[id.0 as usize] = if id.is_async(db) {
+                    let args = vec![ArgumentType::Regular(
+                        context.pointer_type().as_basic_type_enum(),
+                    )];
+
+                    Method {
+                        call_convention: CallConvention::Inko,
+                        variadic: false,
+                        arguments: args,
+                        returns: ReturnType::None,
+                    }
                 } else {
-                    let mut args: Vec<BasicMetadataTypeEnum> = Vec::new();
-
-                    // For instance methods, the receiver is passed as an
-                    // explicit argument before any user-defined arguments.
-                    if method.is_instance(db) {
-                        args.push(
-                            context
-                                .llvm_type(db, &layouts, method.receiver(db))
-                                .into(),
-                        );
-                    }
-
-                    for &typ in method.argument_types(db) {
-                        args.push(context.llvm_type(db, &layouts, typ).into());
-                    }
-
-                    context
-                        .return_type(db, &layouts, method)
-                        .map(|t| t.fn_type(&args, false))
-                        .unwrap_or_else(|| {
-                            context.void_type().fn_type(&args, false)
-                        })
-                };
-
-                layouts.methods[method.0 as usize] = Method {
-                    call_convention: CallConvention::new(method.is_extern(db)),
-                    signature: typ,
-                    struct_return: None,
+                    Method::regular(state, context, self, id)
                 };
             }
         }
 
-        for &method in mir.methods.keys().filter(|m| m.is_static(db)) {
-            let mut args: Vec<BasicMetadataTypeEnum> = Vec::new();
-
-            for &typ in method.argument_types(db) {
-                args.push(context.llvm_type(db, &layouts, typ).into());
-            }
-
-            let typ = context
-                .return_type(db, &layouts, method)
-                .map(|t| t.fn_type(&args, false))
-                .unwrap_or_else(|| context.void_type().fn_type(&args, false));
-
-            layouts.methods[method.0 as usize] = Method {
-                call_convention: CallConvention::new(method.is_extern(db)),
-                signature: typ,
-                struct_return: None,
-            };
+        for &id in mir.methods.keys().filter(|m| m.is_static(db)) {
+            self.methods[id.0 as usize] =
+                Method::regular(state, context, self, id);
         }
 
-        for &method in &mir.extern_methods {
-            let mut args: Vec<BasicMetadataTypeEnum> =
-                Vec::with_capacity(method.number_of_arguments(db) + 1);
-
-            // The regular return type, and the type of the structure to pass
-            // with the `sret` attribute. If `ret` is `None`, it means the
-            // function returns `void`. If `sret` is `None`, it means the
-            // function doesn't return a struct.
-            let mut ret = None;
-            let mut sret = None;
-
-            if let Some(typ) = context.return_type(db, &layouts, method) {
-                // The C ABI mandates that structures are either passed through
-                // registers (if small enough), or using a pointer. LLVM doesn't
-                // detect when this is needed for us, so sadly we (and everybody
-                // else using LLVM) have to do this ourselves.
-                //
-                // In the future we may want/need to also handle this for Inko
-                // methods, but for now they always return pointers.
-                if typ.is_struct_type() {
-                    let typ = typ.into_struct_type();
-
-                    if target_data.get_bit_size(&typ)
-                        > state.config.target.pass_struct_size()
-                    {
-                        args.push(context.pointer_type().into());
-                        sret = Some(typ);
-                    } else {
-                        ret = Some(typ.as_basic_type_enum());
-                    }
-                } else {
-                    ret = Some(typ);
-                }
-            }
-
-            for &typ in method.argument_types(db) {
-                args.push(context.llvm_type(db, &layouts, typ).into());
-            }
-
-            let variadic = method.is_variadic(db);
-            let sig =
-                ret.map(|t| t.fn_type(&args, variadic)).unwrap_or_else(|| {
-                    context.void_type().fn_type(&args, variadic)
-                });
-
-            layouts.methods[method.0 as usize] = Method {
-                call_convention: CallConvention::C,
-                signature: sig,
-                struct_return: sret,
-            };
+        for &id in &mir.extern_methods {
+            self.methods[id.0 as usize] =
+                Method::regular(state, context, self, id);
         }
-
-        layouts
     }
 }

@@ -149,3 +149,91 @@ class Example[B: Equal[B]] {
 
 In this example `B: Equal[B]` means that for a type `Foo` to be compatible with
 `B`, it must implement the trait `Equal[Foo]`.
+
+Apart from using traits as requirements, you can also use the following
+capabilities in the requirements list:
+
+- `mut`: restricts types owned types and mutable borrows, and allows the use of
+  `fn mut` methods
+- `inline`: restricts types to those that are `inline`
+
+::: warn
+It's a compile-time error to specify _both_ the `mut` and `inline` requirements,
+as `inline` types are immutable.
+:::
+
+Take this type for example:
+
+```inko
+trait Update {
+  fn mut update
+}
+
+class Example[T: Update] {
+  let @value: T
+
+  fn mut update {
+    @value.update
+  }
+}
+```
+
+If you try to compile this code it will fail with a compile-time error:
+
+```
+test.inko:9:12 error(invalid-call): the method 'update' requires a mutable receiver, but 'ref T' isn't mutable
+```
+
+The reason for this error is that `T` allows the assignment of immutable types,
+such as a `ref Something`, and we can't call mutating methods on such types.
+We'd get a similar compile-time error when trying to create a mutable borrow of
+`@value`, as we can't borrow something mutably without ensuring it's in fact
+mutable.
+
+To fix such compile-time errors, specify the `mut` requirement like so:
+
+```inko
+trait Update {
+  fn mut update
+}
+
+class Example[T: mut + Update] {
+  let @value: T
+
+  fn mut update {
+    @value.update
+  }
+}
+```
+
+Type parameter requirements can also be specified when reopening a generic
+class:
+
+```inko
+trait Update {
+  fn mut update
+}
+
+class Example[T] {
+  let @value: T
+}
+
+impl Example if T: mut + Update {
+  fn mut update {
+    @value.update
+  }
+}
+```
+
+This allows adding of methods with additional requirements to an existing type,
+without requiring the extra requirements for all instances of the type. For
+example, the standard library uses this for methods such as `Array.get_mut`:
+
+```inko
+impl Array if T: mut {
+  fn pub mut get_mut(index: Int) -> mut T {
+    bounds_check(index, @size)
+    get_unchecked_mut(index)
+  }
+}
+```

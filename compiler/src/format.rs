@@ -28,6 +28,21 @@ const INDENT: char = ' ';
 /// 3. At least for prose it's generally considered the ideal line limit
 const LIMIT: usize = 80;
 
+enum Order<'a> {
+    Position(usize),
+    Name(&'a str),
+}
+
+impl<'a> Order<'a> {
+    fn for_requirement(node: &'a nodes::Requirement) -> Order<'a> {
+        match node {
+            Requirement::Trait(n) => Order::Name(&n.name.name),
+            Requirement::Mutable(_) => Order::Position(1),
+            Requirement::Inline(_) => Order::Position(0),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 enum Node {
     /// A node for which to (recursively) disable wrapping.
@@ -715,6 +730,10 @@ impl Document {
 
         if node.public {
             header.push(Node::text("pub "));
+        }
+
+        if node.inline {
+            header.push(Node::text("inline "));
         }
 
         match node.kind {
@@ -2351,14 +2370,12 @@ impl Document {
         let mut pairs = Vec::new();
         let mut reqs = nodes.values.iter().collect::<Vec<_>>();
 
-        reqs.sort_by(|a, b| match (a, b) {
-            (Requirement::Mutable(_), Requirement::Mutable(_)) => {
-                Ordering::Equal
-            }
-            (Requirement::Mutable(_), _) => Ordering::Less,
-            (_, Requirement::Mutable(_)) => Ordering::Greater,
-            (Requirement::Trait(lhs), Requirement::Trait(rhs)) => {
-                lhs.name.name.cmp(&rhs.name.name)
+        reqs.sort_by(|a, b| {
+            match (Order::for_requirement(a), Order::for_requirement(b)) {
+                (Order::Position(a), Order::Position(b)) => a.cmp(&b),
+                (Order::Name(a), Order::Name(b)) => a.cmp(b),
+                (Order::Name(_), _) => Ordering::Greater,
+                (Order::Position(_), _) => Ordering::Less,
             }
         });
 
@@ -2373,6 +2390,7 @@ impl Document {
             let val = match node {
                 nodes::Requirement::Trait(n) => self.type_name(n, None),
                 nodes::Requirement::Mutable(_) => Node::text("mut"),
+                nodes::Requirement::Inline(_) => Node::text("inline"),
             };
 
             pair.push(val);

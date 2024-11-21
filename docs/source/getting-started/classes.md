@@ -4,8 +4,9 @@
 }
 ---
 
-Classes are used for storing state used by methods. One such class we've seen
-many times so far is the `Main` class, which defines the main process to run.
+Classes are used for storing state used by methods, and instances of classes are
+allocated on the heap. One such class we've seen many times so far is the `Main`
+class, which defines the main process to run.
 
 Classes are defined using the `class` keyword like so:
 
@@ -83,6 +84,26 @@ out of `self`, and the fields are exposed using their original types (i.e.
 When moving a field, the remaining fields are dropped individually and the owner
 of the moved field is partially dropped. If a type defines a custom destructor,
 a `move` method can't move the fields out of its receiver.
+
+## Reopening classes
+
+A class can be reopened using the `impl` keyword like so:
+
+```inko
+class Person {
+  let @name: String
+  let @age: Int
+}
+
+impl Person {
+  fn greet -> String {
+    'Hello ${@name}'
+  }
+}
+```
+
+When reopening a class, only new methods can be added to the class. It's a
+compile-time error to try to add a field or overwrite an existing method.
 
 ## Swapping field values
 
@@ -190,6 +211,78 @@ OptionalString.Some('hello')
 
 Unlike other types of classes, you can't use the syntax `OptionalString(...)`
 to create an instance of an enum class.
+
+## Value types
+
+While allocating instances of classes on the heap increases flexibility (e.g.
+they can be moved around while they're also borrowed), this can reduce
+performance when many such instances are allocated.
+
+We can avoid this by using the `inline` modifier when defining a class:
+
+```inko
+class inline Number {
+  let @value: Int
+}
+```
+
+The `inline` modifier is also available for enums:
+
+```inko
+class inline enum Example {
+  case A(Int)
+  case B(Float)
+}
+```
+
+When using this modifier, instances of the class are allocated on the stack and
+become _immutable_ value types that are copied upon a move. Unlike their heap
+counterparts, such types don't use an object header. For the above `Number`
+example that means the memory representation is the same as that of the `Int`
+type.
+
+Because these types are immutable, it's not possible to assign fields new values
+or define `fn mut` methods on such types. Instead, the approach to "mutation" is
+to return a new copy of the instance containing the appropriate changes. For
+example:
+
+```inko
+class inline Number {
+  let @value: Int
+
+  fn increment(amount: Int) -> Number {
+    Number(@value + amount)
+  }
+}
+```
+
+Classes defined using the `inline` modifier can only store the following types:
+
+- `Int`, `Float`, `Bool`, `Nil`
+- Other `inline` types
+
+Most notably, `String` values can't be stored in an `inline` type since `String`
+uses atomic reference counting. This means the following definition is invalid:
+
+```inko
+class inline InvalidType {
+  let @value: Array[Int] # Array[Int] isn't an `inline` type
+}
+```
+
+The same restriction applies to generic type parameters:
+
+```inko
+class inline Box[T] {
+  let @value: T
+}
+
+Box([10]) # T requires an `inline` type, but `Array[Int]` isn't such a type
+```
+
+It's recommended to use the `inline` modifier whenever possible (i.e. a class
+just stores a bunch of `Int` values), provided the above restrictions don't get
+in your way of course.
 
 ## Processes
 

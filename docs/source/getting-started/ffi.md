@@ -655,9 +655,7 @@ of the C libraries out there. Most notably, the following isn't supported:
   support this it wouldn't make your life easier.
 - Compiling C source code as part of the Inko build process.
 - Compile-time expressions such as `sizeof()` to automatically get type sizes.
-- Setting `errno` to a custom value. `errno` is implemented differently across
-  libc implementations, and Rust (which we use for getting the value) doesn't
-  support writing to `errno`.
+- Setting `errno` to a custom value.
 
 [^1]: On 32-bit platforms this type would have a size of 32 bits, but Inko
   doesn't support 32-bit platforms, so in practise this value is always 64

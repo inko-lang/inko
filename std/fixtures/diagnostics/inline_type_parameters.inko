@@ -1,0 +1,15 @@
+class Example[T: inline] {
+  let @value: T
+}
+
+fn example[T: inline](value: T) {}
+
+fn examples {
+  Example(42)
+  Example([10])
+  example(42)
+  example([10])
+}
+
+# inline_type_parameters.inko:9:11 error(invalid-type): expected a value of type 'T: inline', found 'Array[Int]'
+# inline_type_parameters.inko:11:11 error(invalid-type): expected a value of type 'T: inline', found 'Array[Int]'

@@ -1,0 +1,23 @@
+class inline A {
+  let @value: Int
+}
+
+class inline B {
+  let @value1: A
+  let @value2: C
+}
+
+class extern C {
+  let @value: Int
+}
+
+class inline D[T] {
+  let @value: T
+}
+
+class inline E {
+  let @valid: D[Int]
+  let @invalid: D[String]
+}
+
+# inline_types_with_fields.inko:20:19 error(invalid-type): 'String' can't be assigned to type parameter 'T: inline'

@@ -2,7 +2,7 @@
 use crate::mir::Mir;
 use std::collections::HashMap;
 use std::fmt::Write as _;
-use types::{ClassId, ConstantId, Database, MethodId, ModuleId, Shape};
+use types::{ClassId, ConstantId, Database, MethodId, ModuleId, Shape, Sign};
 
 pub(crate) const SYMBOL_PREFIX: &str = "_I";
 
@@ -12,18 +12,65 @@ pub(crate) const STATE_GLOBAL: &str = "_IG_INKO_STATE";
 /// The name of the global variable that stores the stack mask.
 pub(crate) const STACK_MASK_GLOBAL: &str = "_IG_INKO_STACK_MASK";
 
-pub(crate) fn shapes(shapes: &[Shape]) -> String {
-    let mut name = String::new();
+pub(crate) fn format_shape(db: &Database, shape: Shape, buf: &mut String) {
+    let _ = match shape {
+        Shape::Owned => write!(buf, "o"),
+        Shape::Mut => write!(buf, "m"),
+        Shape::Ref => write!(buf, "r"),
+        Shape::Int(s, Sign::Signed) => write!(buf, "i{}", s),
+        Shape::Int(s, Sign::Unsigned) => write!(buf, "u{}", s),
+        Shape::Float(s) => write!(buf, "f{}", s),
+        Shape::Boolean => write!(buf, "b"),
+        Shape::String => write!(buf, "s"),
+        Shape::Atomic => write!(buf, "a"),
+        Shape::Nil => write!(buf, "n"),
+        Shape::Pointer => write!(buf, "p"),
+        Shape::Stack(ins) => {
+            let cls = ins.instance_of();
+            let _ = write!(buf, "S{}.", cls.module(db).name(db));
 
-    for shape in shapes {
-        let _ = write!(name, "{}", shape);
-    }
-
-    name
+            format_class_name(db, cls, buf);
+            Ok(())
+        }
+    };
 }
 
-pub(crate) fn class_name(db: &Database, id: ClassId) -> String {
-    format!("{}#{}", id.name(db), shapes(id.shapes(db)))
+pub(crate) fn format_shapes(db: &Database, shapes: &[Shape], buf: &mut String) {
+    for &shape in shapes {
+        format_shape(db, shape, buf);
+    }
+}
+
+pub(crate) fn format_class_name(db: &Database, id: ClassId, buf: &mut String) {
+    buf.push_str(id.name(db));
+
+    let is_stack = id.is_stack_allocated(db);
+    let shapes = id.shapes(db);
+
+    if !shapes.is_empty() || is_stack {
+        buf.push('#');
+    }
+
+    // In case we infer a type to be stack allocated (or we did so in the past
+    // but it's no longer the case), this ensures we flush the object cache.
+    if is_stack {
+        buf.push('S');
+    }
+
+    if !shapes.is_empty() {
+        format_shapes(db, shapes, buf);
+    }
+}
+
+pub(crate) fn qualified_class_name(
+    db: &Database,
+    module: ModuleId,
+    class: ClassId,
+) -> String {
+    let mut name = format!("{}.", module.name(db));
+
+    format_class_name(db, class, &mut name);
+    name
 }
 
 pub(crate) fn method_name(
@@ -31,12 +78,17 @@ pub(crate) fn method_name(
     class: ClassId,
     id: MethodId,
 ) -> String {
-    format!(
-        "{}#{}{}",
-        id.name(db),
-        shapes(class.shapes(db)),
-        shapes(id.shapes(db)),
-    )
+    let mut name = id.name(db).to_string();
+    let cshapes = class.shapes(db);
+    let mshapes = id.shapes(db);
+
+    if !cshapes.is_empty() || !mshapes.is_empty() {
+        name.push('#');
+        format_shapes(db, cshapes, &mut name);
+        format_shapes(db, mshapes, &mut name);
+    }
+
+    name
 }
 
 fn mangled_method_name(db: &Database, method: MethodId) -> String {
@@ -91,10 +143,9 @@ impl SymbolNames {
         for module in mir.modules.values() {
             for &class in &module.classes {
                 let class_name = format!(
-                    "{}T_{}.{}",
+                    "{}T_{}",
                     SYMBOL_PREFIX,
-                    module.id.name(db).as_str(),
-                    class_name(db, class)
+                    qualified_class_name(db, module.id, class)
                 );
 
                 classes.insert(class, class_name);
@@ -126,5 +177,57 @@ impl SymbolNames {
         }
 
         Self { classes, methods, constants, setup_classes, setup_constants }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use location::Location;
+    use types::module_name::ModuleName;
+    use types::{Class, ClassInstance, ClassKind, Module, Visibility};
+
+    fn name(db: &Database, shape: Shape) -> String {
+        let mut buf = String::new();
+
+        format_shape(db, shape, &mut buf);
+        buf
+    }
+
+    #[test]
+    fn test_format_shape() {
+        let mut db = Database::new();
+        let mid =
+            Module::alloc(&mut db, ModuleName::new("a.b.c"), "c.inko".into());
+        let kind = ClassKind::Regular;
+        let vis = Visibility::Public;
+        let loc = Location::default();
+        let cls1 = Class::alloc(&mut db, "A".to_string(), kind, vis, mid, loc);
+        let cls2 = Class::alloc(&mut db, "B".to_string(), kind, vis, mid, loc);
+
+        cls1.set_shapes(
+            &mut db,
+            vec![
+                Shape::Int(64, Sign::Signed),
+                Shape::Stack(ClassInstance::new(cls2)),
+            ],
+        );
+        cls2.set_shapes(&mut db, vec![Shape::String]);
+
+        assert_eq!(name(&db, Shape::Owned), "o");
+        assert_eq!(name(&db, Shape::Mut), "m");
+        assert_eq!(name(&db, Shape::Ref), "r");
+        assert_eq!(name(&db, Shape::Int(32, Sign::Signed)), "i32");
+        assert_eq!(name(&db, Shape::Int(32, Sign::Unsigned)), "u32");
+        assert_eq!(name(&db, Shape::Float(32)), "f32");
+        assert_eq!(name(&db, Shape::Boolean), "b");
+        assert_eq!(name(&db, Shape::String), "s");
+        assert_eq!(name(&db, Shape::Atomic), "a");
+        assert_eq!(name(&db, Shape::Nil), "n");
+        assert_eq!(name(&db, Shape::Pointer), "p");
+        assert_eq!(
+            name(&db, Shape::Stack(ClassInstance::new(cls1))),
+            "Sa.b.c.A#i64Sa.b.c.B#s"
+        );
     }
 }

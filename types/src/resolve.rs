@@ -209,7 +209,7 @@ impl<'a> TypeResolver<'a> {
                     return Either::Left(id);
                 }
 
-                let mut args = ins.type_arguments(self.db).clone();
+                let mut args = ins.type_arguments(self.db).unwrap().clone();
 
                 self.resolve_arguments(&mut args);
 
@@ -224,7 +224,7 @@ impl<'a> TypeResolver<'a> {
                     return Either::Left(id);
                 }
 
-                let mut args = ins.type_arguments(self.db).clone();
+                let mut args = ins.type_arguments(self.db).unwrap().clone();
 
                 self.resolve_arguments(&mut args);
 
@@ -746,7 +746,7 @@ mod tests {
 
         let arg = match resolve(&mut db, &args, &bounds, input) {
             TypeRef::Owned(TypeId::ClassInstance(ins)) => {
-                ins.type_arguments(&db).get(array_param).unwrap()
+                ins.type_arguments(&db).unwrap().get(array_param).unwrap()
             }
             _ => TypeRef::Unknown,
         };
@@ -777,7 +777,7 @@ mod tests {
 
         let arg = match resolve(&mut db, &args, &bounds, input) {
             TypeRef::Owned(TypeId::ClassInstance(ins)) => {
-                ins.type_arguments(&db).get(array_param).unwrap()
+                ins.type_arguments(&db).unwrap().get(array_param).unwrap()
             }
             _ => TypeRef::Unknown,
         };
@@ -802,7 +802,7 @@ mod tests {
 
         let arg = match resolve(&mut db, &args, &bounds, input) {
             TypeRef::Owned(TypeId::TraitInstance(ins)) => {
-                ins.type_arguments(&db).get(trait_param).unwrap()
+                ins.type_arguments(&db).unwrap().get(trait_param).unwrap()
             }
             _ => TypeRef::Unknown,
         };

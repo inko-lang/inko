@@ -1,0 +1,33 @@
+import std.string (ToString)
+
+class inline A {}
+
+impl ToString for A {
+  fn pub to_string -> String {
+    'A'
+  }
+}
+
+class B {}
+
+impl ToString for B {
+  fn pub to_string -> String {
+    'B'
+  }
+}
+
+fn example {
+  '10' as ToString
+  10 as ToString
+  1.0 as ToString
+  A() as ToString
+  B() as ToString
+  A() as UInt64
+  0x4 as Pointer[UInt64] as UInt64
+}
+
+# casting_value_types.inko:20:3 error(invalid-cast): the type 'String' can't be cast to 'ToString'
+# casting_value_types.inko:21:3 error(invalid-cast): the type 'Int' can't be cast to 'ToString'
+# casting_value_types.inko:22:3 error(invalid-cast): the type 'Float' can't be cast to 'ToString'
+# casting_value_types.inko:23:3 error(invalid-cast): the type 'A' can't be cast to 'ToString'
+# casting_value_types.inko:25:3 error(invalid-cast): the type 'A' can't be cast to 'UInt64'

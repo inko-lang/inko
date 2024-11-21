@@ -492,6 +492,7 @@ pub enum ClassKind {
 #[derive(Debug, PartialEq, Eq)]
 pub struct DefineClass {
     pub public: bool,
+    pub inline: bool,
     pub kind: ClassKind,
     pub name: Constant,
     pub type_parameters: Option<TypeParameters>,
@@ -637,6 +638,7 @@ impl Node for ReopenClass {
 pub enum Requirement {
     Trait(TypeName),
     Mutable(Location),
+    Inline(Location),
 }
 
 impl Node for Requirement {
@@ -644,6 +646,7 @@ impl Node for Requirement {
         match self {
             Requirement::Trait(n) => &n.location,
             Requirement::Mutable(loc) => loc,
+            Requirement::Inline(loc) => loc,
         }
     }
 }

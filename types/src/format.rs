@@ -20,6 +20,23 @@ pub fn format_type_with_arguments<T: FormatType>(
     TypeFormatter::new(db, Some(arguments)).format(typ)
 }
 
+pub fn type_parameter_capabilities(
+    db: &Database,
+    id: TypeParameterId,
+) -> Option<&'static str> {
+    let param = id.get(db);
+
+    if param.stack && param.mutable {
+        Some("inline + mut")
+    } else if param.stack {
+        Some("inline")
+    } else if param.mutable {
+        Some("mut")
+    } else {
+        None
+    }
+}
+
 fn format_type_parameter_without_argument(
     id: TypeParameterId,
     buffer: &mut TypeFormatter,
@@ -34,12 +51,16 @@ fn format_type_parameter_without_argument(
 
     buffer.write(&param.name);
 
-    if param.mutable {
-        buffer.write(": mut");
-    }
+    let capa = if let Some(v) = type_parameter_capabilities(buffer.db, id) {
+        buffer.write(": ");
+        buffer.write(v);
+        true
+    } else {
+        false
+    };
 
     if requirements && id.has_requirements(buffer.db) {
-        if param.mutable {
+        if capa {
             buffer.write(" + ");
         } else {
             buffer.write(": ");
@@ -172,14 +193,14 @@ impl<'a> TypeFormatter<'a> {
     pub(crate) fn type_arguments(
         &mut self,
         parameters: &[TypeParameterId],
-        arguments: &TypeArguments,
+        arguments: Option<&TypeArguments>,
     ) {
         for (index, &param) in parameters.iter().enumerate() {
             if index > 0 {
                 self.write(", ");
             }
 
-            match arguments.get(param) {
+            match arguments.and_then(|a| a.get(param)) {
                 Some(TypeRef::Placeholder(id))
                     if id.value(self.db).is_none() =>
                 {
@@ -300,10 +321,9 @@ impl FormatType for TraitInstance {
             if !ins_of.type_parameters.is_empty() {
                 let params: Vec<_> =
                     ins_of.type_parameters.values().cloned().collect();
-                let args = self.type_arguments(buffer.db);
 
                 buffer.write("[");
-                buffer.type_arguments(&params, args);
+                buffer.type_arguments(&params, self.type_arguments(buffer.db));
                 buffer.write("]");
             }
         });
@@ -322,12 +342,12 @@ impl FormatType for ClassInstance {
         buffer.descend(|buffer| {
             let ins_of = self.instance_of.get(buffer.db);
 
-            if ins_of.kind != ClassKind::Tuple {
+            if !matches!(ins_of.kind, ClassKind::Tuple) {
                 buffer.write(&ins_of.name);
             }
 
             if !ins_of.type_parameters.is_empty() {
-                let (open, close) = if ins_of.kind == ClassKind::Tuple {
+                let (open, close) = if let ClassKind::Tuple = ins_of.kind {
                     ("(", ")")
                 } else {
                     ("[", "]")
@@ -335,10 +355,9 @@ impl FormatType for ClassInstance {
 
                 let params: Vec<_> =
                     ins_of.type_parameters.values().cloned().collect();
-                let args = self.type_arguments(buffer.db);
 
                 buffer.write(open);
-                buffer.type_arguments(&params, args);
+                buffer.type_arguments(&params, self.type_arguments(buffer.db));
                 buffer.write(close);
             }
         });
@@ -423,23 +442,38 @@ impl FormatType for TypeRef {
             TypeRef::Owned(id) => id.format_type(buffer),
             TypeRef::Any(id) => id.format_type(buffer),
             TypeRef::Uni(id) => {
-                buffer.write_ownership("uni ");
+                if !self.is_value_type(buffer.db) {
+                    buffer.write_ownership("uni ");
+                }
+
                 id.format_type(buffer);
             }
             TypeRef::UniRef(id) => {
-                buffer.write_ownership("uni ref ");
+                if !self.is_value_type(buffer.db) {
+                    buffer.write_ownership("uni ref ");
+                }
+
                 id.format_type(buffer);
             }
             TypeRef::UniMut(id) => {
-                buffer.write_ownership("uni mut ");
+                if !self.is_value_type(buffer.db) {
+                    buffer.write_ownership("uni mut ");
+                }
+
                 id.format_type(buffer);
             }
             TypeRef::Ref(id) => {
-                buffer.write_ownership("ref ");
+                if !self.is_value_type(buffer.db) {
+                    buffer.write_ownership("ref ");
+                }
+
                 id.format_type(buffer);
             }
             TypeRef::Mut(id) => {
-                buffer.write_ownership("mut ");
+                if !self.is_value_type(buffer.db) {
+                    buffer.write_ownership("mut ");
+                }
+
                 id.format_type(buffer);
             }
             TypeRef::Never => buffer.write("Never"),
@@ -487,7 +521,10 @@ impl FormatType for TypeId {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test::{new_parameter, placeholder};
+    use crate::test::{
+        any, immutable, immutable_uni, instance, mutable, mutable_uni,
+        new_class, new_parameter, owned, placeholder, uni,
+    };
     use crate::{
         Block, Class, ClassInstance, ClassKind, Closure, Database, Inline,
         Location, Method, MethodKind, Module, ModuleId, ModuleName, Trait,
@@ -849,6 +886,26 @@ mod tests {
     }
 
     #[test]
+    fn test_type_id_format_type_with_generic_class_instance_without_arguments()
+    {
+        let mut db = Database::new();
+        let id = Class::alloc(
+            &mut db,
+            "Array".to_string(),
+            ClassKind::Regular,
+            Visibility::Private,
+            ModuleId(0),
+            Location::default(),
+        );
+
+        id.new_type_parameter(&mut db, "T".to_string());
+
+        let ins = TypeId::ClassInstance(ClassInstance::new(id));
+
+        assert_eq!(format_type(&db, ins), "Array[T]");
+    }
+
+    #[test]
     fn test_type_id_format_type_with_tuple_instance() {
         let mut db = Database::new();
         let id = Class::alloc(
@@ -1026,41 +1083,39 @@ mod tests {
     #[test]
     fn test_type_ref_type_name() {
         let mut db = Database::new();
-        let string = Class::alloc(
-            &mut db,
-            "String".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-            Location::default(),
-        );
-        let string_ins = TypeId::ClassInstance(ClassInstance::new(string));
+        let cls = new_class(&mut db, "A");
+        let ins = instance(cls);
+        let int = instance(ClassId::int());
         let param = TypeId::TypeParameter(TypeParameter::alloc(
             &mut db,
             "T".to_string(),
         ));
+        let var1 = TypePlaceholder::alloc(&mut db, None);
+        let var2 = TypePlaceholder::alloc(&mut db, None);
 
+        var1.assign(&mut db, owned(ins));
+        var2.assign(&mut db, owned(int));
+
+        // Regular types
+        assert_eq!(format_type(&db, owned(ins)), "A".to_string());
+        assert_eq!(format_type(&db, uni(ins)), "uni A".to_string());
+        assert_eq!(format_type(&db, mutable_uni(ins)), "uni mut A".to_string());
         assert_eq!(
-            format_type(&db, TypeRef::Owned(string_ins)),
-            "String".to_string()
+            format_type(&db, immutable_uni(ins)),
+            "uni ref A".to_string()
         );
-        assert_eq!(
-            format_type(&db, TypeRef::Uni(string_ins)),
-            "uni String".to_string()
-        );
-        assert_eq!(
-            format_type(&db, TypeRef::UniMut(string_ins)),
-            "uni mut String".to_string()
-        );
-        assert_eq!(
-            format_type(&db, TypeRef::UniRef(string_ins)),
-            "uni ref String".to_string()
-        );
-        assert_eq!(format_type(&db, TypeRef::Any(param)), "T".to_string());
-        assert_eq!(
-            format_type(&db, TypeRef::Ref(string_ins)),
-            "ref String".to_string()
-        );
+        assert_eq!(format_type(&db, any(param)), "T".to_string());
+        assert_eq!(format_type(&db, immutable(ins)), "ref A".to_string());
+        assert_eq!(format_type(&db, mutable(ins)), "mut A".to_string());
+
+        // Value types
+        assert_eq!(format_type(&db, owned(int)), "Int".to_string());
+        assert_eq!(format_type(&db, uni(int)), "Int".to_string());
+        assert_eq!(format_type(&db, mutable_uni(int)), "Int".to_string());
+        assert_eq!(format_type(&db, immutable_uni(int)), "Int".to_string());
+        assert_eq!(format_type(&db, immutable(int)), "Int".to_string());
+        assert_eq!(format_type(&db, mutable(int)), "Int".to_string());
+
         assert_eq!(format_type(&db, TypeRef::Never), "Never".to_string());
         assert_eq!(format_type(&db, TypeRef::Error), "<error>".to_string());
         assert_eq!(format_type(&db, TypeRef::Unknown), "<unknown>".to_string());
@@ -1128,6 +1183,38 @@ mod tests {
         for (ownership, format) in tests {
             p1.ownership = ownership;
             assert_eq!(format_type(&db, placeholder(p1)), format);
+        }
+    }
+
+    #[test]
+    fn test_format_placeholder_with_assigned_value() {
+        let mut db = Database::new();
+        let heap = owned(instance(new_class(&mut db, "Heap")));
+        let stack = owned(instance(ClassId::int()));
+        let mut var = TypePlaceholder::alloc(&mut db, None);
+        let tests = vec![
+            (heap, Ownership::Any, "Heap"),
+            (heap, Ownership::Owned, "Heap"),
+            (heap, Ownership::Uni, "uni Heap"),
+            (heap, Ownership::Ref, "ref Heap"),
+            (heap, Ownership::Mut, "mut Heap"),
+            (heap, Ownership::UniRef, "uni ref Heap"),
+            (heap, Ownership::UniMut, "uni mut Heap"),
+            (heap, Ownership::Pointer, "Pointer[Heap]"),
+            (stack, Ownership::Any, "Int"),
+            (stack, Ownership::Owned, "Int"),
+            (stack, Ownership::Uni, "Int"),
+            (stack, Ownership::Ref, "Int"),
+            (stack, Ownership::Mut, "Int"),
+            (stack, Ownership::UniRef, "Int"),
+            (stack, Ownership::UniMut, "Int"),
+            (stack, Ownership::Pointer, "Pointer[Int]"),
+        ];
+
+        for (typ, ownership, format) in tests {
+            var.ownership = ownership;
+            var.assign(&mut db, typ);
+            assert_eq!(format_type(&db, placeholder(var)), format);
         }
     }
 

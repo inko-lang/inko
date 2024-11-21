@@ -774,7 +774,7 @@ impl<'a> Compiler<'a> {
                 .into_iter()
                 .map(|t| {
                     self.new_variable(
-                        t.cast_according_to(source_variable_type, self.db()),
+                        t.cast_according_to(self.db(), source_variable_type),
                     )
                 })
                 .collect();
@@ -788,7 +788,7 @@ impl<'a> Compiler<'a> {
                 let inferred =
                     TypeResolver::new(&mut self.state.db, &args, &self.bounds)
                         .resolve(raw_type)
-                        .cast_according_to(source_variable_type, self.db());
+                        .cast_according_to(self.db(), source_variable_type);
 
                 self.new_variable(inferred)
             })
@@ -818,7 +818,8 @@ impl<'a> Compiler<'a> {
                         .constructors(self.db())
                         .into_iter()
                         .map(|constructor| {
-                            let members = constructor.members(self.db());
+                            let members =
+                                constructor.arguments(self.db()).to_vec();
 
                             (
                                 Constructor::Constructor(constructor),

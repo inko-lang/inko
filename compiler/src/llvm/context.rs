@@ -1,4 +1,6 @@
-use crate::llvm::layouts::Layouts;
+use crate::llvm::layouts::{ArgumentType, Layouts, ReturnType};
+use crate::state::State;
+use crate::target::Architecture;
 use inkwell::attributes::Attribute;
 use inkwell::basic_block::BasicBlock;
 use inkwell::builder::Builder;
@@ -47,6 +49,10 @@ impl Context {
 
     pub(crate) fn bool_type(&self) -> IntType {
         self.inner.bool_type()
+    }
+
+    pub(crate) fn custom_int(&self, bits: u32) -> IntType {
+        self.inner.custom_width_int_type(bits)
     }
 
     pub(crate) fn i8_type(&self) -> IntType {
@@ -185,35 +191,142 @@ impl Context {
             TypeId::ClassInstance(ins) => {
                 let cls = ins.instance_of();
 
-                if cls.kind(db).is_extern() {
-                    layouts.instances[ins.instance_of().0 as usize]
-                        .as_basic_type_enum()
-                } else {
-                    match cls.0 {
-                        BOOL_ID | NIL_ID => {
-                            self.bool_type().as_basic_type_enum()
-                        }
-                        INT_ID => self.i64_type().as_basic_type_enum(),
-                        FLOAT_ID => self.f64_type().as_basic_type_enum(),
-                        _ => self.pointer_type().as_basic_type_enum(),
+                match cls.0 {
+                    BOOL_ID | NIL_ID => self.bool_type().as_basic_type_enum(),
+                    INT_ID => self.i64_type().as_basic_type_enum(),
+                    FLOAT_ID => self.f64_type().as_basic_type_enum(),
+                    _ if cls.is_stack_allocated(db) => {
+                        layouts.instances[cls.0 as usize].as_basic_type_enum()
                     }
+                    _ => self.pointer_type().as_basic_type_enum(),
                 }
             }
             _ => self.pointer_type().as_basic_type_enum(),
         }
     }
 
-    pub(crate) fn return_type<'a>(
-        &'a self,
-        db: &Database,
-        layouts: &Layouts<'a>,
-        method: MethodId,
-    ) -> Option<BasicTypeEnum<'a>> {
-        if method.returns_value(db) {
-            Some(self.llvm_type(db, layouts, method.return_type(db)))
-        } else {
-            None
+    pub(crate) fn argument_type<'ctx>(
+        &'ctx self,
+        state: &State,
+        layouts: &Layouts<'ctx>,
+        typ: BasicTypeEnum<'ctx>,
+    ) -> ArgumentType<'ctx> {
+        let BasicTypeEnum::StructType(typ) = typ else {
+            return ArgumentType::Regular(typ);
+        };
+        let bytes = layouts.target_data.get_abi_size(&typ) as u32;
+
+        match state.config.target.arch {
+            Architecture::Amd64 => {
+                if bytes <= 8 {
+                    let bits = self.custom_int(bytes * 8);
+
+                    ArgumentType::Regular(bits.as_basic_type_enum())
+                } else if bytes <= 16 {
+                    ArgumentType::Regular(
+                        self.abi_struct_type(layouts, typ).as_basic_type_enum(),
+                    )
+                } else {
+                    ArgumentType::StructValue(typ)
+                }
+            }
+            Architecture::Arm64 => {
+                if bytes <= 8 {
+                    ArgumentType::Regular(self.i64_type().as_basic_type_enum())
+                } else if bytes <= 16 {
+                    let word = self.i64_type().into();
+                    let sret = self.struct_type(&[word, word]);
+
+                    ArgumentType::Regular(sret.as_basic_type_enum())
+                } else {
+                    // clang and Rust don't use "byval" for ARM64 when the
+                    // struct is too large, so neither do we.
+                    ArgumentType::Pointer
+                }
+            }
         }
+    }
+
+    pub(crate) fn method_return_type<'ctx>(
+        &'ctx self,
+        state: &State,
+        layouts: &Layouts<'ctx>,
+        method: MethodId,
+    ) -> ReturnType<'ctx> {
+        if method.returns_value(&state.db) {
+            let typ = self.llvm_type(
+                &state.db,
+                layouts,
+                method.return_type(&state.db),
+            );
+
+            self.return_type(state, layouts, typ)
+        } else {
+            ReturnType::None
+        }
+    }
+
+    pub(crate) fn return_type<'ctx>(
+        &'ctx self,
+        state: &State,
+        layouts: &Layouts<'ctx>,
+        typ: BasicTypeEnum<'ctx>,
+    ) -> ReturnType<'ctx> {
+        let BasicTypeEnum::StructType(typ) = typ else {
+            return ReturnType::Regular(typ);
+        };
+
+        let bytes = layouts.target_data.get_abi_size(&typ) as u32;
+
+        match state.config.target.arch {
+            Architecture::Amd64 => {
+                if bytes <= 8 {
+                    let bits = self.custom_int(bytes * 8);
+
+                    ReturnType::Regular(bits.as_basic_type_enum())
+                } else if bytes <= 16 {
+                    ReturnType::Regular(
+                        self.abi_struct_type(layouts, typ).as_basic_type_enum(),
+                    )
+                } else {
+                    ReturnType::Struct(typ)
+                }
+            }
+            Architecture::Arm64 => {
+                if bytes <= 8 {
+                    let bits = self.custom_int(bytes * 8);
+
+                    ReturnType::Regular(bits.as_basic_type_enum())
+                } else if bytes <= 16 {
+                    let word = self.i64_type().into();
+                    let sret = self.struct_type(&[word, word]);
+
+                    ReturnType::Regular(sret.as_basic_type_enum())
+                } else {
+                    ReturnType::Struct(typ)
+                }
+            }
+        }
+    }
+
+    fn abi_struct_type<'ctx>(
+        &'ctx self,
+        layouts: &Layouts<'ctx>,
+        typ: StructType<'ctx>,
+    ) -> StructType<'ctx> {
+        // We need to ensure each field is treated as a single/whole value,
+        // otherwise (e.g. if a field is an array of bytes) we may end up
+        // generating code that's not ABI compliant.
+        let fields: Vec<_> = typ
+            .get_field_types_iter()
+            .map(|t| {
+                let bits = layouts.target_data.get_abi_size(&t) as u32 * 8;
+
+                self.custom_int(bits).as_basic_type_enum()
+            })
+            .collect();
+
+        self.struct_type(&fields)
     }
 }
 

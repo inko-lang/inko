@@ -276,12 +276,6 @@ pub(crate) enum MethodKind {
     Mutable,
 }
 
-impl MethodKind {
-    pub(crate) fn is_moving(self) -> bool {
-        self == Self::Moving
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct DefineInstanceMethod {
     pub(crate) documentation: String,
@@ -396,6 +390,7 @@ pub(crate) enum ClassKind {
 pub(crate) struct DefineClass {
     pub(crate) documentation: String,
     pub(crate) public: bool,
+    pub(crate) inline: bool,
     pub(crate) class_id: Option<types::ClassId>,
     pub(crate) kind: ClassKind,
     pub(crate) name: Constant,
@@ -477,6 +472,7 @@ pub(crate) struct TypeBound {
     pub(crate) name: Constant,
     pub(crate) requirements: Vec<TypeName>,
     pub(crate) mutable: bool,
+    pub(crate) inline: bool,
     pub(crate) location: Location,
 }
 
@@ -649,6 +645,7 @@ pub(crate) struct TypeParameter {
     pub(crate) name: Constant,
     pub(crate) requirements: Vec<TypeName>,
     pub(crate) mutable: bool,
+    pub(crate) inline: bool,
     pub(crate) location: Location,
 }
 
@@ -854,9 +851,8 @@ pub(crate) struct Field {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct FieldRef {
-    pub(crate) field_id: Option<types::FieldId>,
+    pub(crate) info: Option<types::FieldInfo>,
     pub(crate) name: String,
-    pub(crate) resolved_type: types::TypeRef,
     pub(crate) location: Location,
     pub(crate) in_mut: bool,
 }
@@ -1315,6 +1311,21 @@ impl<'a> LowerToHir<'a> {
         node: ast::DefineClass,
         documentation: String,
     ) -> TopLevelExpression {
+        if node.inline {
+            match node.kind {
+                ast::ClassKind::Enum | ast::ClassKind::Regular => {}
+                _ => {
+                    self.state.diagnostics.error(
+                        DiagnosticId::InvalidType,
+                        "only regular and 'enum' types support the 'inline' \
+                        attribute",
+                        self.file(),
+                        node.name.location,
+                    );
+                }
+            }
+        }
+
         if let ast::ClassKind::Extern = node.kind {
             return self.define_extern_class(node, documentation);
         }
@@ -1322,6 +1333,7 @@ impl<'a> LowerToHir<'a> {
         TopLevelExpression::Class(Box::new(DefineClass {
             documentation,
             public: node.public,
+            inline: node.inline,
             class_id: None,
             kind: match node.kind {
                 ast::ClassKind::Async => ClassKind::Async,
@@ -1562,28 +1574,68 @@ impl<'a> LowerToHir<'a> {
 
     fn type_bound(&mut self, node: ast::TypeBound) -> TypeBound {
         let name = self.constant(node.name);
+        let (reqs, mutable, inline) = self.define_type_parameter_requirements(
+            &name.name,
+            node.requirements.values,
+        );
+
+        TypeBound {
+            name,
+            requirements: reqs,
+            mutable,
+            inline,
+            location: node.location,
+        }
+    }
+
+    fn define_type_parameter_requirements(
+        &mut self,
+        name: &str,
+        nodes: Vec<ast::Requirement>,
+    ) -> (Vec<TypeName>, bool, bool) {
         let mut mutable = false;
+        let mut inline = false;
         let mut requirements = Vec::new();
 
-        for req in node.requirements.values {
+        for req in nodes {
             match req {
                 ast::Requirement::Trait(n) => {
                     requirements.push(self.type_name(n))
                 }
                 ast::Requirement::Mutable(loc) if mutable => {
-                    self.state.diagnostics.type_parameter_already_mutable(
-                        &name.name,
-                        self.file(),
-                        loc,
-                    );
+                    let file = self.file();
+
+                    self.state
+                        .diagnostics
+                        .duplicate_type_parameter_requirement(
+                            name, "mut", file, loc,
+                        );
                 }
-                ast::Requirement::Mutable(_) => {
-                    mutable = true;
+                ast::Requirement::Mutable(loc) if inline => {
+                    self.state
+                        .diagnostics
+                        .mutable_inline_type_parameter(self.file(), loc);
                 }
+                ast::Requirement::Inline(loc) if inline => {
+                    let file = self.file();
+
+                    self.state
+                        .diagnostics
+                        .duplicate_type_parameter_requirement(
+                            name, "mut", file, loc,
+                        );
+                }
+                ast::Requirement::Inline(loc) if mutable => {
+                    self.state
+                        .diagnostics
+                        .mutable_inline_type_parameter(self.file(), loc);
+                }
+                ast::Requirement::Mutable(_) => mutable = true,
+                ast::Requirement::Inline(_) => inline = true,
             }
         }
 
-        TypeBound { name, requirements, mutable, location: node.location }
+        (requirements, mutable, inline)
     }
 
     fn define_trait(
@@ -1893,35 +1945,19 @@ impl<'a> LowerToHir<'a> {
     fn type_parameter(&mut self, node: ast::TypeParameter) -> TypeParameter {
         let name = self.constant(node.name);
         let location = node.location;
-        let mut mutable = false;
-        let mut requirements = Vec::new();
-
-        if let Some(reqs) = node.requirements {
-            for req in reqs.values {
-                match req {
-                    ast::Requirement::Trait(n) => {
-                        requirements.push(self.type_name(n))
-                    }
-                    ast::Requirement::Mutable(loc) if mutable => {
-                        self.state.diagnostics.type_parameter_already_mutable(
-                            &name.name,
-                            self.file(),
-                            loc,
-                        );
-                    }
-                    ast::Requirement::Mutable(_) => {
-                        mutable = true;
-                    }
-                }
-            }
-        }
+        let (reqs, mutable, inline) = if let Some(reqs) = node.requirements {
+            self.define_type_parameter_requirements(&name.name, reqs.values)
+        } else {
+            (Vec::new(), false, false)
+        };
 
         TypeParameter {
             type_parameter_id: None,
             name,
-            requirements,
+            requirements: reqs,
             location,
             mutable,
+            inline,
         }
     }
 
@@ -2444,9 +2480,8 @@ impl<'a> LowerToHir<'a> {
 
     fn field_ref(&self, node: ast::Field) -> Box<FieldRef> {
         Box::new(FieldRef {
-            field_id: None,
+            info: None,
             name: node.name,
-            resolved_type: types::TypeRef::Unknown,
             in_mut: false,
             location: node.location,
         })
@@ -2526,7 +2561,7 @@ impl<'a> LowerToHir<'a> {
                 DiagnosticId::InvalidCall,
                 "this builtin function call is invalid",
                 self.file(),
-                node.location,
+                node.name.location,
             );
 
             Expression::Nil(Box::new(Nil {
@@ -2551,7 +2586,7 @@ impl<'a> LowerToHir<'a> {
                             DiagnosticId::InvalidCall,
                             "builtin calls don't support named arguments",
                             self.file(),
-                            node.location,
+                            node.name.location,
                         );
 
                         self.expression(node.value)
@@ -2693,9 +2728,8 @@ impl<'a> LowerToHir<'a> {
         let op = Operator::from_ast(node.operator.kind);
         let field = self.field(node.field);
         let receiver = Expression::FieldRef(Box::new(FieldRef {
-            field_id: None,
+            info: None,
             name: field.name.clone(),
-            resolved_type: types::TypeRef::Unknown,
             in_mut: false,
             location: field.location,
         }));
@@ -3752,6 +3786,7 @@ mod tests {
                         location: cols(11, 11)
                     }],
                     mutable: false,
+                    inline: false,
                     location: cols(8, 11)
                 }],
                 arguments: vec![MethodArgument {
@@ -3932,6 +3967,7 @@ mod tests {
             TopLevelExpression::Class(Box::new(DefineClass {
                 documentation: String::new(),
                 public: false,
+                inline: false,
                 kind: ClassKind::Regular,
                 class_id: None,
                 name: Constant { name: "A".to_string(), location: cols(7, 7) },
@@ -3952,6 +3988,7 @@ mod tests {
                         location: cols(12, 12)
                     }],
                     mutable: false,
+                    inline: false,
                     location: cols(9, 12)
                 }],
                 body: vec![ClassExpression::Field(Box::new(DefineField {
@@ -4019,6 +4056,48 @@ mod tests {
     }
 
     #[test]
+    fn test_lower_inline_class() {
+        let hir = lower_top_expr("class inline A { let @a: B }").0;
+
+        assert_eq!(
+            hir,
+            TopLevelExpression::Class(Box::new(DefineClass {
+                documentation: String::new(),
+                public: false,
+                inline: true,
+                class_id: None,
+                kind: ClassKind::Regular,
+                name: Constant {
+                    name: "A".to_string(),
+                    location: cols(14, 14)
+                },
+                body: vec![ClassExpression::Field(Box::new(DefineField {
+                    documentation: String::new(),
+                    public: false,
+                    field_id: None,
+                    name: Identifier {
+                        name: "a".to_string(),
+                        location: cols(22, 23)
+                    },
+                    value_type: Type::Named(Box::new(TypeName {
+                        source: None,
+                        resolved_type: types::TypeRef::Unknown,
+                        name: Constant {
+                            name: "B".to_string(),
+                            location: cols(26, 26)
+                        },
+                        arguments: Vec::new(),
+                        location: cols(26, 26)
+                    })),
+                    location: cols(18, 26),
+                }))],
+                type_parameters: Vec::new(),
+                location: cols(1, 28)
+            })),
+        );
+    }
+
+    #[test]
     fn test_lower_public_class() {
         let hir = lower_top_expr("class pub A {}").0;
 
@@ -4027,6 +4106,7 @@ mod tests {
             TopLevelExpression::Class(Box::new(DefineClass {
                 documentation: String::new(),
                 public: true,
+                inline: false,
                 kind: ClassKind::Regular,
                 class_id: None,
                 name: Constant {
@@ -4049,6 +4129,7 @@ mod tests {
             TopLevelExpression::Class(Box::new(DefineClass {
                 documentation: String::new(),
                 public: false,
+                inline: false,
                 kind: ClassKind::Regular,
                 class_id: None,
                 name: Constant { name: "A".to_string(), location: cols(7, 7) },
@@ -4087,6 +4168,7 @@ mod tests {
             TopLevelExpression::Class(Box::new(DefineClass {
                 documentation: String::new(),
                 public: false,
+                inline: false,
                 class_id: None,
                 kind: ClassKind::Builtin,
                 name: Constant {
@@ -4110,6 +4192,7 @@ mod tests {
                         location: cols(20, 20)
                     }],
                     mutable: false,
+                    inline: false,
                     location: cols(17, 20)
                 }],
                 body: vec![ClassExpression::Field(Box::new(DefineField {
@@ -4146,6 +4229,7 @@ mod tests {
             TopLevelExpression::Class(Box::new(DefineClass {
                 documentation: String::new(),
                 public: false,
+                inline: false,
                 class_id: None,
                 kind: ClassKind::Async,
                 name: Constant {
@@ -4169,6 +4253,7 @@ mod tests {
             TopLevelExpression::Class(Box::new(DefineClass {
                 documentation: String::new(),
                 public: false,
+                inline: false,
                 class_id: None,
                 kind: ClassKind::Regular,
                 name: Constant { name: "A".to_string(), location: cols(7, 7) },
@@ -4190,6 +4275,7 @@ mod tests {
                             },
                             requirements: Vec::new(),
                             mutable: false,
+                            inline: false,
                             location: cols(23, 23)
                         }],
                         arguments: vec![MethodArgument {
@@ -4243,6 +4329,7 @@ mod tests {
             TopLevelExpression::Class(Box::new(DefineClass {
                 documentation: String::new(),
                 public: false,
+                inline: false,
                 class_id: None,
                 kind: ClassKind::Regular,
                 name: Constant { name: "A".to_string(), location: cols(7, 7) },
@@ -4264,6 +4351,7 @@ mod tests {
                             },
                             requirements: Vec::new(),
                             mutable: false,
+                            inline: false,
                             location: cols(22, 22)
                         }],
                         arguments: vec![MethodArgument {
@@ -4316,6 +4404,7 @@ mod tests {
             TopLevelExpression::Class(Box::new(DefineClass {
                 documentation: String::new(),
                 public: false,
+                inline: false,
                 class_id: None,
                 kind: ClassKind::Regular,
                 name: Constant { name: "A".to_string(), location: cols(7, 7) },
@@ -4338,6 +4427,7 @@ mod tests {
                             },
                             requirements: Vec::new(),
                             mutable: false,
+                            inline: false,
                             location: cols(16, 16)
                         }],
                         arguments: vec![MethodArgument {
@@ -4390,6 +4480,7 @@ mod tests {
             TopLevelExpression::Class(Box::new(DefineClass {
                 documentation: String::new(),
                 public: false,
+                inline: false,
                 class_id: None,
                 kind: ClassKind::Regular,
                 name: Constant { name: "A".to_string(), location: cols(7, 7) },
@@ -4450,6 +4541,7 @@ mod tests {
                     },
                     requirements: Vec::new(),
                     mutable: false,
+                    inline: false,
                     location: cols(9, 9)
                 }],
                 requirements: vec![TypeName {
@@ -4520,6 +4612,7 @@ mod tests {
                             },
                             requirements: Vec::new(),
                             mutable: false,
+                            inline: false,
                             location: cols(16, 16)
                         }],
                         arguments: vec![MethodArgument {
@@ -4659,6 +4752,7 @@ mod tests {
                             },
                             requirements: Vec::new(),
                             mutable: false,
+                            inline: false,
                             location: cols(16, 16)
                         }],
                         arguments: vec![MethodArgument {
@@ -4769,6 +4863,7 @@ mod tests {
                     },
                     requirements: Vec::new(),
                     mutable: true,
+                    inline: false,
                     location: cols(11, 16),
                 }],
                 body: Vec::new(),
@@ -5024,6 +5119,7 @@ mod tests {
                         location: cols(20, 20)
                     },],
                     mutable: true,
+                    inline: false,
                     location: cols(17, 26)
                 }],
                 body: Vec::new(),
@@ -5630,9 +5726,8 @@ mod tests {
         assert_eq!(
             hir,
             Expression::FieldRef(Box::new(FieldRef {
-                field_id: None,
+                info: None,
                 name: "a".to_string(),
-                resolved_type: types::TypeRef::Unknown,
                 in_mut: false,
                 location: cols(8, 9)
             }))
@@ -6080,9 +6175,8 @@ mod tests {
                 value: Expression::Call(Box::new(Call {
                     kind: types::CallKind::Unknown,
                     receiver: Some(Expression::FieldRef(Box::new(FieldRef {
-                        field_id: None,
+                        info: None,
                         name: "a".to_string(),
-                        resolved_type: types::TypeRef::Unknown,
                         in_mut: false,
                         location: cols(8, 9)
                     }))),
@@ -6682,6 +6776,7 @@ mod tests {
             TopLevelExpression::Class(Box::new(DefineClass {
                 documentation: String::new(),
                 public: false,
+                inline: false,
                 kind: ClassKind::Enum,
                 class_id: None,
                 name: Constant {
@@ -6696,6 +6791,7 @@ mod tests {
                     },
                     requirements: Vec::new(),
                     mutable: false,
+                    inline: false,
                     location: cols(19, 19)
                 }],
                 body: vec![

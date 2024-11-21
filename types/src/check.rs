@@ -286,7 +286,13 @@ impl<'a> TypeChecker<'a> {
             let mut env = env.with_left_as_right();
             let rules = Rules::new().with_subtyping();
 
-            if bound.is_mutable(self.db) && !val.is_mutable(self.db) {
+            if bound.is_mutable(self.db) && !val.allow_mutating(self.db) {
+                return false;
+            }
+
+            if bound.is_stack_allocated(self.db)
+                && !val.is_stack_allocated(self.db)
+            {
                 return false;
             }
 
@@ -325,6 +331,7 @@ impl<'a> TypeChecker<'a> {
         // This indicates if the value on the left of the check is a value type
         // (e.g. Int or String).
         let is_val = left.is_value_type(self.db);
+        let allow_mut = left.allow_mutating(self.db);
 
         // If at this point we encounter a type placeholder, it means the
         // placeholder is yet to be assigned a value.
@@ -355,20 +362,26 @@ impl<'a> TypeChecker<'a> {
                 TypeRef::Owned(right_id) => {
                     self.check_type_id(left_id, right_id, env, rules)
                 }
-                TypeRef::Ref(right_id) | TypeRef::Mut(right_id)
-                    if is_val || allow_ref =>
-                {
+                TypeRef::Mut(right_id) if allow_mut && allow_ref => {
                     let rules = rules.without_implicit_root_ref();
 
                     self.check_type_id(left_id, right_id, env, rules)
                 }
-                TypeRef::Uni(right_id) if is_val => {
+                TypeRef::Ref(right_id) if is_val || allow_ref => {
+                    let rules = rules.without_implicit_root_ref();
+
+                    self.check_type_id(left_id, right_id, env, rules)
+                }
+                TypeRef::Uni(right_id) | TypeRef::UniRef(right_id)
+                    if is_val =>
+                {
                     self.check_type_id(left_id, right_id, env, rules)
                 }
                 TypeRef::Placeholder(id) => {
                     let allow = match id.ownership {
                         Ownership::Any | Ownership::Owned => true,
-                        Ownership::Ref | Ownership::Mut => is_val || allow_ref,
+                        Ownership::Ref => is_val || allow_ref,
+                        Ownership::Mut => allow_mut && allow_ref,
                         Ownership::Uni => is_val,
                         _ => false,
                     };
@@ -407,7 +420,6 @@ impl<'a> TypeChecker<'a> {
                             rules.uni_compatible_with_owned || is_val
                         }
                         Ownership::Any | Ownership::Uni => true,
-                        Ownership::Ref | Ownership::Mut => is_val,
                         _ => false,
                     };
 
@@ -449,8 +461,6 @@ impl<'a> TypeChecker<'a> {
                 }
                 TypeRef::Owned(right_id)
                 | TypeRef::Uni(right_id)
-                | TypeRef::Mut(right_id)
-                | TypeRef::UniMut(right_id)
                 | TypeRef::UniRef(right_id)
                     if is_val =>
                 {
@@ -459,14 +469,9 @@ impl<'a> TypeChecker<'a> {
                 TypeRef::Placeholder(id) => {
                     match id.ownership {
                         Ownership::Any | Ownership::Ref => {}
+                        Ownership::Mut => return false,
                         _ if is_val => {}
                         _ => return false,
-                    }
-
-                    if let Some(req) = id.required(self.db) {
-                        if req.is_mutable(self.db) && !is_val {
-                            return false;
-                        }
                     }
 
                     self.check_type_id_with_placeholder(
@@ -650,8 +655,8 @@ impl<'a> TypeChecker<'a> {
                         return true;
                     }
 
-                    let lhs_args = lhs.type_arguments(self.db);
-                    let rhs_args = rhs.type_arguments(self.db);
+                    let lhs_args = lhs.type_arguments(self.db).unwrap();
+                    let rhs_args = rhs.type_arguments(self.db).unwrap();
 
                     lhs.instance_of.type_parameters(self.db).into_iter().all(
                         |param| {
@@ -664,11 +669,9 @@ impl<'a> TypeChecker<'a> {
                         },
                     )
                 }
-                TypeId::TraitInstance(rhs)
-                    if !lhs.instance_of().kind(self.db).is_extern() =>
-                {
+                TypeId::TraitInstance(rhs) => {
                     if rules.kind.is_cast()
-                        && !lhs.instance_of().allow_cast(self.db)
+                        && !lhs.instance_of().allow_cast_to_trait(self.db)
                     {
                         return false;
                     }
@@ -676,9 +679,13 @@ impl<'a> TypeChecker<'a> {
                     self.check_class_with_trait(lhs, rhs, env, trait_rules)
                 }
                 TypeId::TypeParameter(_) if rules.kind.is_cast() => false,
-                TypeId::TypeParameter(rhs)
-                    if !lhs.instance_of().kind(self.db).is_extern() =>
-                {
+                TypeId::TypeParameter(rhs) => {
+                    if rhs.is_stack_allocated(self.db)
+                        && !lhs.instance_of().is_stack_allocated(self.db)
+                    {
+                        return false;
+                    }
+
                     rhs.requirements(self.db).into_iter().all(|req| {
                         // One-time subtyping is enabled because we want to
                         // allow passing classes to type parameters with
@@ -691,7 +698,10 @@ impl<'a> TypeChecker<'a> {
                         )
                     })
                 }
-                TypeId::Foreign(_) => rules.kind.is_cast(),
+                TypeId::Foreign(_) => {
+                    rules.kind.is_cast()
+                        && lhs.instance_of().allow_cast_to_foreign(self.db)
+                }
                 _ => false,
             },
             TypeId::TraitInstance(lhs) => match right_id {
@@ -699,6 +709,11 @@ impl<'a> TypeChecker<'a> {
                     self.check_traits(lhs, rhs, env, rules)
                 }
                 TypeId::TypeParameter(_) if rules.kind.is_cast() => false,
+                TypeId::TypeParameter(rhs)
+                    if rhs.is_stack_allocated(self.db) =>
+                {
+                    false
+                }
                 TypeId::TypeParameter(rhs) => rhs
                     .requirements(self.db)
                     .into_iter()
@@ -740,7 +755,7 @@ impl<'a> TypeChecker<'a> {
                     // Closures can't implement traits, so they're only
                     // compatible with type parameters that don't have any
                     // requirements.
-                    true
+                    !rhs.is_stack_allocated(self.db)
                 }
                 _ => false,
             },
@@ -800,6 +815,12 @@ impl<'a> TypeChecker<'a> {
                     return true;
                 }
 
+                if left.is_stack_allocated(self.db)
+                    != rhs.is_stack_allocated(self.db)
+                {
+                    return false;
+                }
+
                 rhs.requirements(self.db).into_iter().all(|req| {
                     self.check_parameter_with_trait(left, req, env, rules)
                 })
@@ -818,15 +839,6 @@ impl<'a> TypeChecker<'a> {
         env: &mut Environment,
         rules: Rules,
     ) -> bool {
-        // We don't support specializing stack allocated structures at this
-        // point, so we disallow passing such types to type
-        // parameters/placeholders.
-        if let TypeId::ClassInstance(ins) = left_id {
-            if ins.instance_of().kind(self.db).is_extern() {
-                return false;
-            }
-        }
-
         // By assigning the placeholder first, recursive checks against the same
         // placeholder don't keep recursing into this method, instead checking
         // against the value on the left.
@@ -859,6 +871,14 @@ impl<'a> TypeChecker<'a> {
         } else {
             return true;
         };
+
+        if (req.is_mutable(self.db) && !left.allow_mutating(self.db))
+            || (req.is_stack_allocated(self.db)
+                && !left.is_stack_allocated(self.db))
+        {
+            placeholder.assign_internal(self.db, TypeRef::Unknown);
+            return false;
+        }
 
         let reqs = req.requirements(self.db);
 
@@ -960,7 +980,9 @@ impl<'a> TypeChecker<'a> {
             // implementing class, so we need to expose those using a new scope.
             let mut sub_scope = env.clone();
 
-            left.type_arguments(self.db).copy_into(&mut sub_scope.left);
+            left.type_arguments(self.db)
+                .unwrap()
+                .copy_into(&mut sub_scope.left);
 
             self.check_bounds(&imp.bounds, &mut sub_scope)
                 && self.check_traits(imp.instance, right, &mut sub_scope, rules)
@@ -1035,6 +1057,11 @@ impl<'a> TypeChecker<'a> {
             return true;
         }
 
+        if left.is_stack_allocated(self.db) != right.is_stack_allocated(self.db)
+        {
+            return false;
+        }
+
         right
             .requirements(self.db)
             .into_iter()
@@ -1068,8 +1095,8 @@ impl<'a> TypeChecker<'a> {
             return true;
         }
 
-        let lhs_args = left.type_arguments(self.db);
-        let rhs_args = right.type_arguments(self.db);
+        let lhs_args = left.type_arguments(self.db).unwrap();
+        let rhs_args = right.type_arguments(self.db).unwrap();
 
         left.instance_of.type_parameters(self.db).into_iter().all(|param| {
             lhs_args
@@ -1313,11 +1340,14 @@ mod tests {
         let int = ClassId::int();
         let var1 = TypePlaceholder::alloc(&mut db, None);
         let to_string = new_trait(&mut db, "ToString");
-        let param = new_parameter(&mut db, "T");
-        let var2 = TypePlaceholder::alloc(&mut db, Some(param));
-        let var3 = TypePlaceholder::alloc(&mut db, Some(param));
+        let p1 = new_parameter(&mut db, "T");
+        let p2 = new_parameter(&mut db, "X");
+        let var2 = TypePlaceholder::alloc(&mut db, Some(p1));
+        let var3 = TypePlaceholder::alloc(&mut db, Some(p1));
+        let var4 = TypePlaceholder::alloc(&mut db, Some(p2));
 
-        param.add_requirements(&mut db, vec![trait_instance(to_string)]);
+        p2.set_stack_allocated(&mut db);
+        p1.add_requirements(&mut db, vec![trait_instance(to_string)]);
         implement(&mut db, trait_instance(to_string), bar);
 
         check_ok(&db, owned(instance(foo)), owned(instance(foo)));
@@ -1342,14 +1372,44 @@ mod tests {
 
         // Value types can be passed to a reference/unique values.
         check_ok(&db, owned(instance(int)), immutable(instance(int)));
-        check_ok(&db, owned(instance(int)), mutable(instance(int)));
         check_ok(&db, owned(instance(int)), uni(instance(int)));
+        check_ok(&db, owned(instance(int)), immutable_uni(instance(int)));
         check_ok(&db, owned(instance(foo)), TypeRef::Error);
+        check_ok(&db, owned(instance(int)), owned(parameter(p2)));
+
+        check_err(&db, owned(instance(int)), mutable(instance(int)));
+        check_err(&db, owned(instance(int)), mutable_uni(instance(int)));
         check_err(&db, owned(instance(foo)), immutable(instance(foo)));
         check_err(&db, owned(instance(foo)), mutable(instance(foo)));
         check_err(&db, owned(instance(foo)), owned(instance(bar)));
         check_err(&db, owned(instance(foo)), TypeRef::Never);
         check_err(&db, owned(instance(foo)), pointer(instance(foo)));
+
+        check_err(&db, owned(instance(foo)), owned(parameter(p2)));
+        check_err(&db, owned(instance(foo)), placeholder(var4));
+        check_err(&db, owned(parameter(p1)), placeholder(var4));
+        check_err(&db, uni(instance(foo)), uni(parameter(p2)));
+        check_err(&db, mutable(instance(foo)), mutable(parameter(p2)));
+        check_err(&db, immutable(instance(foo)), immutable(parameter(p2)));
+
+        // Trait values are always on the heap.
+        check_err(
+            &db,
+            owned(trait_instance_id(to_string)),
+            owned(parameter(p2)),
+        );
+        check_err(&db, owned(trait_instance_id(to_string)), placeholder(var4));
+        check_err(&db, uni(trait_instance_id(to_string)), uni(parameter(p2)));
+        check_err(
+            &db,
+            mutable(trait_instance_id(to_string)),
+            mutable(parameter(p2)),
+        );
+        check_err(
+            &db,
+            immutable(trait_instance_id(to_string)),
+            immutable(parameter(p2)),
+        );
     }
 
     #[test]
@@ -1362,8 +1422,8 @@ mod tests {
         check_ok(&db, owned(instance(foo)), owned(instance(foo)));
 
         check_err(&db, owned(instance(foo)), owned(instance(bar)));
-        check_err(&db, owned(instance(foo)), owned(parameter(param)));
-        check_err(&db, uni(instance(foo)), owned(parameter(param)));
+        check_ok(&db, owned(instance(foo)), owned(parameter(param)));
+        check_ok(&db, uni(instance(foo)), owned(parameter(param)));
     }
 
     #[test]
@@ -1711,7 +1771,6 @@ mod tests {
         check_ok(&db, immutable(instance(thing)), any(instance(thing)));
 
         // Value types can be passed around this way.
-        check_ok(&db, immutable(instance(int)), mutable(instance(int)));
         check_ok(&db, immutable(instance(int)), owned(instance(int)));
         check_ok(&db, immutable(instance(int)), uni(instance(int)));
 
@@ -1722,6 +1781,7 @@ mod tests {
         check_ok(&db, immutable(instance(int)), any(parameter(param)));
         check_ok(&db, immutable(instance(int)), placeholder(mutable_var));
 
+        check_err(&db, immutable(instance(int)), mutable(instance(int)));
         check_err(&db, immutable(instance(thing)), mutable(instance(thing)));
         check_err(&db, immutable(instance(thing)), owned(instance(thing)));
         check_err(&db, immutable(instance(thing)), any(parameter(param)));
@@ -1988,8 +2048,8 @@ mod tests {
         check_err(&db, owned(instance(thing)), placeholder(uni_var));
 
         check_ok(&db, owned(instance(int)), placeholder(ref_var));
-        check_ok(&db, owned(instance(int)), placeholder(mut_var));
         check_ok(&db, owned(instance(int)), placeholder(uni_var));
+        check_err(&db, owned(instance(int)), placeholder(mut_var));
     }
 
     #[test]
@@ -2075,7 +2135,7 @@ mod tests {
         let class = new_extern_class(&mut db, "A");
         let var = TypePlaceholder::alloc(&mut db, None);
 
-        check_err(&db, owned(instance(class)), placeholder(var));
+        check_ok(&db, owned(instance(class)), placeholder(var));
     }
 
     #[test]
@@ -2283,20 +2343,28 @@ mod tests {
     #[test]
     fn test_parameters() {
         let mut db = Database::new();
-        let param1 = new_parameter(&mut db, "A");
-        let param2 = new_parameter(&mut db, "B");
-        let param3 = new_parameter(&mut db, "C");
-        let param4 = new_parameter(&mut db, "D");
+        let p1 = new_parameter(&mut db, "A");
+        let p2 = new_parameter(&mut db, "B");
+        let p3 = new_parameter(&mut db, "C");
+        let p4 = new_parameter(&mut db, "D");
+        let p5 = new_parameter(&mut db, "E");
+        let p6 = new_parameter(&mut db, "F");
         let equal = new_trait(&mut db, "Equal");
         let test = new_trait(&mut db, "Test");
 
         test.add_required_trait(&mut db, trait_instance(equal));
-        param3.add_requirements(&mut db, vec![trait_instance(equal)]);
-        param4.add_requirements(&mut db, vec![trait_instance(test)]);
+        p3.add_requirements(&mut db, vec![trait_instance(equal)]);
+        p4.add_requirements(&mut db, vec![trait_instance(test)]);
+        p5.set_stack_allocated(&mut db);
+        p6.set_stack_allocated(&mut db);
 
-        check_ok(&db, owned(parameter(param1)), owned(parameter(param2)));
-        check_ok(&db, owned(parameter(param4)), owned(parameter(param3)));
-        check_err(&db, owned(parameter(param3)), owned(parameter(param4)));
+        check_ok(&db, owned(parameter(p1)), owned(parameter(p2)));
+        check_ok(&db, owned(parameter(p4)), owned(parameter(p3)));
+        check_ok(&db, owned(parameter(p5)), owned(parameter(p6)));
+
+        check_err(&db, owned(parameter(p3)), owned(parameter(p4)));
+        check_err(&db, owned(parameter(p1)), owned(parameter(p5)));
+        check_err(&db, owned(parameter(p5)), owned(parameter(p1)));
     }
 
     #[test]
@@ -2318,23 +2386,31 @@ mod tests {
     #[test]
     fn test_rigid() {
         let mut db = Database::new();
-        let param1 = new_parameter(&mut db, "A");
-        let param2 = new_parameter(&mut db, "B");
+        let p1 = new_parameter(&mut db, "A");
+        let p2 = new_parameter(&mut db, "B");
+        let p3 = new_parameter(&mut db, "C");
+        let p4 = new_parameter(&mut db, "C");
         let var = TypePlaceholder::alloc(&mut db, None);
 
-        check_ok(&db, owned(rigid(param1)), TypeRef::Error);
-        check_ok(&db, immutable(rigid(param1)), immutable(rigid(param1)));
-        check_ok(&db, owned(rigid(param1)), owned(rigid(param1)));
-        check_ok(&db, owned(rigid(param1)), any(rigid(param1)));
-        check_ok(&db, owned(rigid(param1)), any(parameter(param1)));
-        check_ok(&db, immutable(rigid(param1)), immutable(parameter(param1)));
-        check_ok(&db, owned(rigid(param1)), owned(parameter(param1)));
+        p3.set_stack_allocated(&mut db);
 
-        check_ok(&db, owned(rigid(param1)), placeholder(var));
-        assert_eq!(var.value(&db), Some(owned(rigid(param1))));
+        check_ok(&db, owned(rigid(p1)), TypeRef::Error);
+        check_ok(&db, immutable(rigid(p1)), immutable(rigid(p1)));
+        check_ok(&db, owned(rigid(p1)), owned(rigid(p1)));
+        check_ok(&db, owned(rigid(p1)), any(rigid(p1)));
+        check_ok(&db, owned(rigid(p1)), any(parameter(p1)));
+        check_ok(&db, immutable(rigid(p1)), immutable(parameter(p1)));
+        check_ok(&db, owned(rigid(p1)), owned(parameter(p1)));
+        check_ok(&db, owned(rigid(p3)), owned(rigid(p3)));
 
-        check_err(&db, owned(rigid(param1)), owned(rigid(param2)));
-        check_err(&db, immutable(rigid(param1)), immutable(rigid(param2)));
+        check_ok(&db, owned(rigid(p1)), placeholder(var));
+        assert_eq!(var.value(&db), Some(owned(rigid(p1))));
+
+        check_err(&db, owned(rigid(p1)), owned(rigid(p2)));
+        check_err(&db, owned(rigid(p1)), owned(rigid(p3)));
+        check_err(&db, owned(rigid(p3)), owned(rigid(p1)));
+        check_err(&db, owned(rigid(p3)), owned(parameter(p4)));
+        check_err(&db, immutable(rigid(p1)), immutable(rigid(p2)));
     }
 
     #[test]
@@ -2420,13 +2496,16 @@ mod tests {
         let mut db = Database::new();
         let fun = Closure::alloc(&mut db, false);
         let equal = new_trait(&mut db, "Equal");
-        let param1 = new_parameter(&mut db, "A");
-        let param2 = new_parameter(&mut db, "B");
+        let p1 = new_parameter(&mut db, "A");
+        let p2 = new_parameter(&mut db, "B");
+        let p3 = new_parameter(&mut db, "C");
 
-        param2.add_requirements(&mut db, vec![trait_instance(equal)]);
+        p2.add_requirements(&mut db, vec![trait_instance(equal)]);
+        p3.set_stack_allocated(&mut db);
 
-        check_ok(&db, owned(closure(fun)), owned(parameter(param1)));
-        check_err(&db, owned(closure(fun)), owned(parameter(param2)));
+        check_ok(&db, owned(closure(fun)), owned(parameter(p1)));
+        check_err(&db, owned(closure(fun)), owned(parameter(p2)));
+        check_err(&db, owned(closure(fun)), owned(parameter(p3)));
     }
 
     #[test]
@@ -2495,6 +2574,46 @@ mod tests {
 
         // `ref Thing` isn't mutable, so this check should fail.
         check_err(&db, ref_things, owned(parameter(exp_param)));
+    }
+
+    #[test]
+    fn test_inline_bounds() {
+        let mut db = Database::new();
+        let array = ClassId::array();
+        let heap = new_class(&mut db, "Heap");
+        let stack = new_class(&mut db, "Stack");
+
+        stack.set_stack_allocated(&mut db);
+
+        let update = new_trait(&mut db, "Update");
+        let array_param = array.new_type_parameter(&mut db, "T".to_string());
+        let array_bounds = new_parameter(&mut db, "T");
+        let exp_param = new_parameter(&mut db, "Expected");
+
+        exp_param.add_requirements(&mut db, vec![trait_instance(update)]);
+        array_bounds.set_stack_allocated(&mut db);
+        array.add_trait_implementation(
+            &mut db,
+            TraitImplementation {
+                instance: trait_instance(update),
+                bounds: type_bounds(vec![(array_param, array_bounds)]),
+            },
+        );
+
+        let stack_ary = owned(generic_instance_id(
+            &mut db,
+            array,
+            vec![owned(instance(stack))],
+        ));
+
+        let heap_ary = owned(generic_instance_id(
+            &mut db,
+            array,
+            vec![owned(instance(heap))],
+        ));
+
+        check_ok(&db, stack_ary, owned(parameter(exp_param)));
+        check_err(&db, heap_ary, owned(parameter(exp_param)));
     }
 
     #[test]
@@ -2805,6 +2924,9 @@ mod tests {
         let mut db = Database::new();
         let to_string = new_trait(&mut db, "ToString");
         let param = new_parameter(&mut db, "T");
+        let stack = new_class(&mut db, "Stack");
+
+        stack.set_stack_allocated(&mut db);
 
         for class in [
             ClassId::int(),
@@ -2831,6 +2953,11 @@ mod tests {
         check_err_cast(&db, TypeRef::string(), to_string_ins);
         check_err_cast(&db, TypeRef::int(), owned(parameter(param)));
         check_err_cast(&db, to_string_ins, owned(parameter(param)));
+        check_err_cast(
+            &db,
+            owned(instance(stack)),
+            owned(TypeId::Foreign(ForeignType::Int(32, Sign::Signed))),
+        );
     }
 
     #[test]

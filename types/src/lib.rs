@@ -19,7 +19,6 @@ use indexmap::IndexMap;
 use location::Location;
 use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
-use std::fmt;
 use std::path::PathBuf;
 
 // The IDs of these built-in types must match the order of the fields in the
@@ -98,7 +97,7 @@ pub const ENUM_TAG_INDEX: usize = 0;
 
 /// The maximum number of enum constructors that can be defined in a single
 /// class.
-pub const VARIANTS_LIMIT: usize = u16::MAX as usize;
+pub const CONSTRUCTORS_LIMIT: usize = u16::MAX as usize;
 
 /// The maximum number of fields a class can define.
 pub const FIELDS_LIMIT: usize = u8::MAX as usize;
@@ -329,6 +328,9 @@ pub struct TypeParameter {
     /// If mutable references to this type parameter are allowed.
     mutable: bool,
 
+    /// If types assigned to this parameter must be allocated on the stack.
+    stack: bool,
+
     /// The ID of the original type parameter in case the current one is a
     /// parameter introduced through additional type bounds.
     original: Option<TypeParameterId>,
@@ -347,7 +349,13 @@ impl TypeParameter {
     }
 
     fn new(name: String) -> Self {
-        Self { name, requirements: Vec::new(), mutable: false, original: None }
+        Self {
+            name,
+            requirements: Vec::new(),
+            mutable: false,
+            stack: false,
+            original: None,
+        }
     }
 }
 
@@ -399,10 +407,25 @@ impl TypeParameterId {
         self.get(db).mutable
     }
 
+    pub fn set_stack_allocated(self, db: &mut Database) {
+        self.get_mut(db).stack = true;
+    }
+
+    pub fn is_stack_allocated(self, db: &Database) -> bool {
+        self.get(db).stack
+    }
+
     pub fn as_immutable(self, db: &mut Database) -> TypeParameterId {
         let mut copy = self.get(db).clone();
 
         copy.mutable = false;
+        TypeParameter::add(db, copy)
+    }
+
+    pub fn clone_for_bound(self, db: &mut Database) -> TypeParameterId {
+        let mut copy = self.get(db).clone();
+
+        copy.original = Some(self);
         TypeParameter::add(db, copy)
     }
 
@@ -434,7 +457,7 @@ pub struct TypeArguments {
 impl TypeArguments {
     pub fn for_class(db: &Database, instance: ClassInstance) -> TypeArguments {
         if instance.instance_of().is_generic(db) {
-            instance.type_arguments(db).clone()
+            instance.type_arguments(db).unwrap().clone()
         } else {
             TypeArguments::new()
         }
@@ -442,7 +465,7 @@ impl TypeArguments {
 
     pub fn for_trait(db: &Database, instance: TraitInstance) -> TypeArguments {
         if instance.instance_of().is_generic(db) {
-            instance.type_arguments(db).clone()
+            instance.type_arguments(db).unwrap().clone()
         } else {
             TypeArguments::new()
         }
@@ -528,6 +551,77 @@ impl TypeArguments {
         &self,
     ) -> std::collections::hash_map::Iter<TypeParameterId, TypeRef> {
         self.mapping.iter()
+    }
+}
+
+/// A type that maps/interns type arguments, such that structurually different
+/// but semantically equivalent type arguments all map to the same type arguments
+/// ID.
+///
+/// As part of type specialization we want to specialize over specific types,
+/// such as when using `Shape::Stack`. Since type argument IDs differ for
+/// different occurrences of the same generic type instance, we need a way to
+/// map those to a common type arguments ID. If we don't do this, we may end up
+/// specializing the same type many times.
+pub struct InternedTypeArguments {
+    /// A cache that maps the raw class instances to their interned type
+    /// arguments ID.
+    ///
+    /// This cache is used to avoid the more expensive key generation process
+    /// when comparing the exact same type many times.
+    cache: HashMap<ClassInstance, u32>,
+
+    /// A mapping of the flattened type IDs from a class instance to the common
+    /// type arguments ID.
+    ///
+    /// For ClassInstance and TraitInstance types, the TypeId is stripped of its
+    /// TypeArguments ID such that it's consistent when hashed.
+    mapping: HashMap<Vec<TypeId>, u32>,
+}
+
+impl InternedTypeArguments {
+    pub fn new() -> InternedTypeArguments {
+        InternedTypeArguments { cache: HashMap::new(), mapping: HashMap::new() }
+    }
+
+    pub fn intern(&mut self, db: &Database, instance: ClassInstance) -> u32 {
+        // The cache is used such that if we use the exact same type N times, we
+        // only perform the more expensive type walking once.
+        if let Some(&id) = self.cache.get(&instance) {
+            return id;
+        }
+
+        let mut key = Vec::new();
+        let mut stack = vec![TypeId::ClassInstance(instance)];
+
+        // The order of the values in the key doesn't matter, as long as it's
+        // consistent.
+        while let Some(tid) = stack.pop() {
+            let (val, args) = match tid {
+                TypeId::ClassInstance(i) if i.instance_of().is_generic(db) => (
+                    TypeId::ClassInstance(ClassInstance::new(i.instance_of())),
+                    i.type_arguments(db),
+                ),
+                TypeId::TraitInstance(i) if i.instance_of().is_generic(db) => (
+                    TypeId::TraitInstance(TraitInstance::new(i.instance_of())),
+                    i.type_arguments(db),
+                ),
+                _ => (tid, None),
+            };
+
+            if let Some(args) = args {
+                for id in args.iter().flat_map(|(_, t)| t.type_id(db).ok()) {
+                    stack.push(id);
+                }
+            }
+
+            key.push(val);
+        }
+
+        let id = *self.mapping.entry(key).or_insert(instance.type_arguments);
+
+        self.cache.insert(instance, id);
+        id
     }
 }
 
@@ -654,7 +748,7 @@ impl TraitId {
             requirement.instance_of.get(db).inherited_type_arguments.clone();
 
         if requirement.instance_of.is_generic(db) {
-            requirement.type_arguments(db).copy_into(&mut base);
+            requirement.type_arguments(db).unwrap().copy_into(&mut base);
         }
 
         let self_typ = self.get_mut(db);
@@ -789,6 +883,9 @@ pub struct TraitInstance {
     ///
     /// If the trait is a regular trait, this ID is always 0 and shouldn't be
     /// used.
+    ///
+    /// After type specialization takes place, this value shouldn't be used any
+    /// more as specialized types won't have their type arguments set.
     type_arguments: u32,
 }
 
@@ -835,8 +932,8 @@ impl TraitInstance {
         self.instance_of
     }
 
-    pub fn type_arguments(self, db: &Database) -> &TypeArguments {
-        &db.type_arguments[self.type_arguments as usize]
+    pub fn type_arguments(self, db: &Database) -> Option<&TypeArguments> {
+        db.type_arguments.get(self.type_arguments as usize)
     }
 
     pub fn copy_new_arguments_from(
@@ -863,7 +960,7 @@ impl TraitInstance {
             return;
         }
 
-        self.type_arguments(db).copy_into(target);
+        self.type_arguments(db).unwrap().copy_into(target);
     }
 
     pub fn method(self, db: &Database, name: &str) -> Option<MethodId> {
@@ -1046,7 +1143,7 @@ pub struct Constructor {
     name: String,
     documentation: String,
     location: Location,
-    members: Vec<TypeRef>,
+    arguments: Vec<TypeRef>,
 }
 
 impl Constructor {
@@ -1062,7 +1159,7 @@ impl Constructor {
         db.constructors.push(Constructor {
             id,
             name,
-            members,
+            arguments: members,
             location,
             documentation: String::new(),
         });
@@ -1082,16 +1179,20 @@ impl ConstructorId {
         &self.get(db).name
     }
 
-    pub fn members(self, db: &Database) -> Vec<TypeRef> {
-        self.get(db).members.clone()
+    /// Returns the arguments of a constructor.
+    ///
+    /// The arguments are returned as a slice so one can inspect a constructor's
+    /// arguments without always cloning the arguments.
+    pub fn arguments(self, db: &Database) -> &[TypeRef] {
+        &self.get(db).arguments
     }
 
-    pub fn set_members(self, db: &mut Database, members: Vec<TypeRef>) {
-        self.get_mut(db).members = members;
+    pub fn set_arguments(self, db: &mut Database, members: Vec<TypeRef>) {
+        self.get_mut(db).arguments = members;
     }
 
-    pub fn number_of_members(self, db: &Database) -> usize {
-        self.get(db).members.len()
+    pub fn number_of_arguments(self, db: &Database) -> usize {
+        self.get(db).arguments.len()
     }
 
     pub fn location(self, db: &Database) -> Location {
@@ -1115,17 +1216,41 @@ impl ConstructorId {
     }
 }
 
+/// A type describing where something should be allocated.
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+pub enum Storage {
+    /// The value must be allocated on the heap.
+    Heap,
+
+    /// The value must be allocated inline/on the stack.
+    Stack,
+}
+
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub enum ClassKind {
+    /// The type is an async type, aka a process.
     Async,
+
+    /// The type is a type that uses atomic reference counting.
     Atomic,
+
+    /// The type is a closure.
     Closure,
+
+    /// The type is an enumeration.
     Enum,
+
+    /// The type is a C structure.
     Extern,
+
+    /// The type is a module.
     Module,
+
+    /// The type is a regular user-defined type.
     Regular,
+
+    /// The type is a N-arity tuple.
     Tuple,
-    ValueType,
 }
 
 impl ClassKind {
@@ -1135,10 +1260,6 @@ impl ClassKind {
 
     pub fn is_enum(self) -> bool {
         matches!(self, ClassKind::Enum)
-    }
-
-    pub fn is_regular(self) -> bool {
-        matches!(self, ClassKind::Regular)
     }
 
     pub fn is_tuple(self) -> bool {
@@ -1164,16 +1285,6 @@ impl ClassKind {
     fn is_atomic(self) -> bool {
         matches!(self, ClassKind::Async | ClassKind::Atomic)
     }
-
-    fn is_value_type(self) -> bool {
-        matches!(
-            self,
-            ClassKind::Async
-                | ClassKind::Atomic
-                | ClassKind::Extern
-                | ClassKind::ValueType
-        )
-    }
 }
 
 /// An Inko class as declared using the `class` keyword.
@@ -1181,11 +1292,16 @@ pub struct Class {
     kind: ClassKind,
     name: String,
     documentation: String,
+
     // A flag indicating the presence of a custom destructor.
     //
     // We store a flag for this so we can check for the presence of a destructor
     // without having to look up traits.
     destructor: bool,
+
+    /// A type describing how instances of this type should be stored.
+    storage: Storage,
+
     module: ModuleId,
     location: Location,
     visibility: Visibility,
@@ -1213,10 +1329,15 @@ impl Class {
         module: ModuleId,
         location: Location,
     ) -> ClassId {
+        let class = Class::new(name, kind, visibility, module, location);
+
+        Class::add(db, class)
+    }
+
+    fn add(db: &mut Database, class: Class) -> ClassId {
         assert!(db.classes.len() < u32::MAX as usize);
 
         let id = db.classes.len() as u32;
-        let class = Class::new(name, kind, visibility, module, location);
 
         db.classes.push(class);
         ClassId(id)
@@ -1229,11 +1350,18 @@ impl Class {
         module: ModuleId,
         location: Location,
     ) -> Self {
+        let storage = if let ClassKind::Extern = kind {
+            Storage::Stack
+        } else {
+            Storage::Heap
+        };
+
         Self {
             name,
             documentation: String::new(),
             kind,
             visibility,
+            storage,
             destructor: false,
             fields: IndexMap::new(),
             type_parameters: IndexMap::new(),
@@ -1259,13 +1387,16 @@ impl Class {
     }
 
     fn value_type(name: String) -> Self {
-        Self::new(
+        let mut cls = Self::new(
             name,
-            ClassKind::ValueType,
+            ClassKind::Regular,
             Visibility::Public,
             ModuleId(DEFAULT_BUILTIN_MODULE_ID),
             Location::default(),
-        )
+        );
+
+        cls.storage = Storage::Stack;
+        cls
     }
 
     fn atomic(name: String) -> Self {
@@ -1553,7 +1684,7 @@ impl ClassId {
     pub fn enum_fields(self, db: &Database) -> Vec<FieldId> {
         let obj = self.get(db);
 
-        if obj.kind == ClassKind::Enum {
+        if let ClassKind::Enum = obj.kind {
             // The first value is the tag, so we skip it.
             obj.fields[1..].values().cloned().collect()
         } else {
@@ -1636,7 +1767,30 @@ impl ClassId {
     }
 
     pub fn is_value_type(self, db: &Database) -> bool {
-        self.kind(db).is_value_type()
+        let typ = self.get(db);
+
+        match typ.kind {
+            // These types are allocated on the heap but treated as value types.
+            ClassKind::Async | ClassKind::Atomic => true,
+            _ => matches!(typ.storage, Storage::Stack),
+        }
+    }
+
+    pub fn is_heap_allocated(self, db: &Database) -> bool {
+        matches!(self.get(db).storage, Storage::Heap)
+    }
+
+    pub fn is_stack_allocated(self, db: &Database) -> bool {
+        matches!(self.get(db).storage, Storage::Stack)
+    }
+
+    pub fn has_object_header(self, db: &Database) -> bool {
+        // Currently heap objects always have an object header and stack objects
+        // never have one, but this may change at some point. For example, if an
+        // object is somehow promoted from the heap to the stack it might retain
+        // its header. Using a separate method for this helps future proof
+        // things.
+        !self.is_stack_allocated(db)
     }
 
     pub fn is_closure(self, db: &Database) -> bool {
@@ -1647,12 +1801,24 @@ impl ClassId {
         matches!(self.0, INT_ID | FLOAT_ID)
     }
 
-    pub fn allow_cast(self, db: &Database) -> bool {
-        match self.0 {
-            INT_ID | FLOAT_ID | BOOL_ID | NIL_ID | STRING_ID => false,
-            _ if self.kind(db).is_atomic() => false,
-            _ => true,
+    pub fn allow_cast_to_trait(self, db: &Database) -> bool {
+        let typ = self.get(db);
+
+        match typ.kind {
+            // Only heap allocated versions of these types have a header and
+            // thus can be casted to a trait.
+            ClassKind::Enum | ClassKind::Regular | ClassKind::Tuple => {
+                matches!(typ.storage, Storage::Heap)
+            }
+            // Other types such as closures, processes and extern classes can't
+            // ever be casted to a trait.
+            _ => false,
         }
+    }
+
+    pub fn allow_cast_to_foreign(self, db: &Database) -> bool {
+        matches!(self.get(db).storage, Storage::Heap)
+            || matches!(self.0, INT_ID | FLOAT_ID | BOOL_ID)
     }
 
     pub fn documentation(self, db: &Database) -> &String {
@@ -1671,15 +1837,31 @@ impl ClassId {
         self.get_mut(db).location = value;
     }
 
-    fn shape(self, db: &Database, default: Shape) -> Shape {
-        match self.0 {
-            INT_ID => Shape::int(),
-            FLOAT_ID => Shape::float(),
-            BOOL_ID => Shape::Boolean,
-            NIL_ID => Shape::Nil,
-            STRING_ID => Shape::String,
-            _ if self.kind(db).is_atomic() => Shape::Atomic,
-            _ => default,
+    pub fn set_stack_allocated(self, db: &mut Database) {
+        self.get_mut(db).storage = Storage::Stack;
+    }
+
+    pub fn clone_for_specialization(self, db: &mut Database) -> ClassId {
+        let src = self.get(db);
+        let mut new = Class::new(
+            src.name.clone(),
+            src.kind,
+            src.visibility,
+            src.module,
+            src.location,
+        );
+
+        new.storage = src.storage;
+        Class::add(db, new)
+    }
+
+    pub fn allow_mutating(self, db: &Database) -> bool {
+        let obj = self.get(db);
+
+        match obj.kind {
+            ClassKind::Extern => true,
+            ClassKind::Atomic => false,
+            _ => matches!(obj.storage, Storage::Heap),
         }
     }
 
@@ -1704,6 +1886,9 @@ pub struct ClassInstance {
     ///
     /// If the class isn't generic, this index shouldn't be used to obtain the
     /// type arguments, as it won't be used.
+    ///
+    /// After type specialization takes place, this value shouldn't be used any
+    /// more as specialized types won't have their type arguments set.
     type_arguments: u32,
 }
 
@@ -1784,8 +1969,8 @@ impl ClassInstance {
         self.instance_of
     }
 
-    pub fn type_arguments(self, db: &Database) -> &TypeArguments {
-        &db.type_arguments[self.type_arguments as usize]
+    pub fn type_arguments(self, db: &Database) -> Option<&TypeArguments> {
+        db.type_arguments.get(self.type_arguments as usize)
     }
 
     pub fn method(self, db: &Database, name: &str) -> Option<MethodId> {
@@ -1794,12 +1979,45 @@ impl ClassInstance {
 
     pub fn ordered_type_arguments(self, db: &Database) -> Vec<TypeRef> {
         let params = self.instance_of.type_parameters(db);
-        let args = self.type_arguments(db);
+        let args = self.type_arguments(db).unwrap();
 
         params
             .into_iter()
             .map(|p| args.get(p).unwrap_or(TypeRef::Unknown))
             .collect()
+    }
+
+    fn shape(
+        self,
+        db: &Database,
+        interned: &mut InternedTypeArguments,
+        default: Shape,
+    ) -> Shape {
+        match self.instance_of.0 {
+            INT_ID => Shape::int(),
+            FLOAT_ID => Shape::float(),
+            BOOL_ID => Shape::Boolean,
+            NIL_ID => Shape::Nil,
+            STRING_ID => Shape::String,
+            _ if self.instance_of.kind(db).is_atomic() => Shape::Atomic,
+            _ if self.instance_of.is_stack_allocated(db) => {
+                let targs = if self.instance_of.is_generic(db) {
+                    // We need to make sure that for different references to the
+                    // same type (e.g. `SomeType[Int]`), the type arguments ID
+                    // is the same so we can reliable compare and hash the
+                    // returned Shape.
+                    interned.intern(db, self)
+                } else {
+                    0
+                };
+
+                Shape::Stack(ClassInstance {
+                    instance_of: self.instance_of,
+                    type_arguments: targs,
+                })
+            }
+            _ => default,
+        }
     }
 
     fn named_type(self, db: &Database, name: &str) -> Option<Symbol> {
@@ -2446,39 +2664,42 @@ impl MethodId {
     }
 
     pub fn is_mutable(self, db: &Database) -> bool {
-        matches!(
-            self.get(db).kind,
-            MethodKind::Mutable | MethodKind::AsyncMutable
-        )
+        matches!(self.kind(db), MethodKind::Mutable | MethodKind::AsyncMutable)
     }
 
     pub fn is_immutable(self, db: &Database) -> bool {
         matches!(
-            self.get(db).kind,
+            self.kind(db),
             MethodKind::Async | MethodKind::Static | MethodKind::Instance
         )
     }
 
     pub fn is_async(self, db: &Database) -> bool {
-        matches!(
-            self.get(db).kind,
-            MethodKind::Async | MethodKind::AsyncMutable
-        )
+        matches!(self.kind(db), MethodKind::Async | MethodKind::AsyncMutable)
     }
 
     pub fn is_static(self, db: &Database) -> bool {
-        matches!(
-            self.get(db).kind,
-            MethodKind::Static | MethodKind::Constructor
-        )
+        matches!(self.kind(db), MethodKind::Static | MethodKind::Constructor)
     }
 
     pub fn is_extern(self, db: &Database) -> bool {
-        matches!(self.get(db).kind, MethodKind::Extern)
+        matches!(self.kind(db), MethodKind::Extern)
     }
 
     pub fn is_moving(self, db: &Database) -> bool {
-        matches!(self.get(db).kind, MethodKind::Moving)
+        matches!(self.kind(db), MethodKind::Moving)
+    }
+
+    pub fn is_instance(self, db: &Database) -> bool {
+        matches!(
+            self.kind(db),
+            MethodKind::Async
+                | MethodKind::AsyncMutable
+                | MethodKind::Instance
+                | MethodKind::Moving
+                | MethodKind::Mutable
+                | MethodKind::Destructor
+        )
     }
 
     pub fn set_variadic(self, db: &mut Database) {
@@ -2561,10 +2782,6 @@ impl MethodId {
 
     pub fn kind(self, db: &Database) -> MethodKind {
         self.get(db).kind
-    }
-
-    pub fn is_instance(self, db: &Database) -> bool {
-        !self.is_static(db)
     }
 
     pub fn module(self, db: &Database) -> ModuleId {
@@ -2913,7 +3130,6 @@ pub enum IdentifierKind {
     Unknown,
     Variable(VariableId),
     Method(CallInfo),
-    Field(FieldInfo),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -3542,7 +3758,7 @@ impl ClosureId {
         }
 
         match closure.captured_self_type {
-            Some(typ) if typ.is_permanent(db) => true,
+            Some(typ) if typ.is_stack_allocated(db) => true,
             Some(_) => false,
             _ => true,
         }
@@ -3640,6 +3856,16 @@ pub enum Shape {
     /// - It better signals the purpose is for raw pointers and not random
     ///   integers
     Pointer,
+
+    /// A shape for a specific stack allocated type.
+    ///
+    /// While comparing `ClassInstance` values for equality is normally not
+    /// reliable (as different occurrences of the same generic type use
+    /// different type argument IDs), this is made reliable by interning
+    /// structurually different but semantically equivalent `ClassInstance`
+    /// values into a single common `ClassInstance`, such that the comparison
+    /// _is_ reliable.
+    Stack(ClassInstance),
 }
 
 impl Shape {
@@ -3658,24 +3884,6 @@ impl Shape {
             Shape::Int(_, Sign::Signed) => true,
             Shape::Float(32) => true,
             _ => false,
-        }
-    }
-}
-
-impl fmt::Display for Shape {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Shape::Owned => write!(f, "o"),
-            Shape::Mut => write!(f, "m"),
-            Shape::Ref => write!(f, "r"),
-            Shape::Int(s, Sign::Signed) => write!(f, "i{}", s),
-            Shape::Int(s, Sign::Unsigned) => write!(f, "u{}", s),
-            Shape::Float(s) => write!(f, "f{}", s),
-            Shape::Boolean => write!(f, "b"),
-            Shape::String => write!(f, "s"),
-            Shape::Atomic => write!(f, "a"),
-            Shape::Nil => write!(f, "n"),
-            Shape::Pointer => write!(f, "p"),
         }
     }
 }
@@ -4000,19 +4208,19 @@ impl TypeRef {
             Ok(TypeId::TraitInstance(ins))
                 if ins.instance_of.is_generic(db) =>
             {
-                ins.type_arguments(db).clone()
+                ins.type_arguments(db).unwrap().clone()
             }
             Ok(TypeId::ClassInstance(ins))
                 if ins.instance_of.is_generic(db) =>
             {
-                ins.type_arguments(db).clone()
+                ins.type_arguments(db).unwrap().clone()
             }
             Ok(TypeId::TypeParameter(id) | TypeId::RigidTypeParameter(id)) => {
                 id.requirements(db)
                     .into_iter()
                     .filter(|r| r.instance_of.is_generic(db))
                     .fold(TypeArguments::new(), |mut targs, req| {
-                        req.type_arguments(db).copy_into(&mut targs);
+                        req.type_arguments(db).unwrap().copy_into(&mut targs);
                         req.instance_of()
                             .get(db)
                             .inherited_type_arguments
@@ -4099,23 +4307,6 @@ impl TypeRef {
         }
     }
 
-    pub fn is_mutable(self, db: &Database) -> bool {
-        match self {
-            TypeRef::Owned(_)
-            | TypeRef::Uni(_)
-            | TypeRef::Mut(_)
-            | TypeRef::Any(_)
-            | TypeRef::Pointer(_)
-            | TypeRef::Error
-            | TypeRef::Unknown
-            | TypeRef::Never => true,
-            TypeRef::Placeholder(id) => {
-                id.value(db).map_or(true, |v| v.is_mutable(db))
-            }
-            _ => false,
-        }
-    }
-
     pub fn use_reference_counting(self, db: &Database) -> bool {
         match self {
             TypeRef::Ref(_)
@@ -4149,12 +4340,26 @@ impl TypeRef {
         self.is_instance_of(db, ClassId::nil())
     }
 
-    pub fn allow_moving(self) -> bool {
-        matches!(self, TypeRef::Owned(_) | TypeRef::Uni(_))
+    pub fn allow_moving(self, db: &Database) -> bool {
+        match self {
+            TypeRef::Owned(_) | TypeRef::Uni(_) => true,
+            TypeRef::UniRef(TypeId::ClassInstance(i))
+            | TypeRef::UniMut(TypeId::ClassInstance(i)) => {
+                i.instance_of.is_stack_allocated(db)
+            }
+            TypeRef::Placeholder(id) => {
+                id.value(db).map_or(false, |v| v.allow_moving(db))
+            }
+            _ => false,
+        }
     }
 
     pub fn allow_mutating(self, db: &Database) -> bool {
         match self {
+            TypeRef::Owned(TypeId::ClassInstance(ins))
+            | TypeRef::Mut(TypeId::ClassInstance(ins)) => {
+                ins.instance_of.allow_mutating(db)
+            }
             TypeRef::Owned(_)
             | TypeRef::Uni(_)
             | TypeRef::Mut(_)
@@ -4171,6 +4376,26 @@ impl TypeRef {
                 id.value(db).map_or(false, |v| v.allow_mutating(db))
             }
             _ => false,
+        }
+    }
+
+    pub fn as_class_instance_for_pattern_matching(
+        self,
+        db: &Database,
+    ) -> Option<ClassInstance> {
+        match self {
+            TypeRef::Owned(TypeId::ClassInstance(ins))
+            | TypeRef::Uni(TypeId::ClassInstance(ins))
+            | TypeRef::Mut(TypeId::ClassInstance(ins))
+            | TypeRef::Ref(TypeId::ClassInstance(ins))
+                if ins.instance_of.kind(db).allow_pattern_matching() =>
+            {
+                Some(ins)
+            }
+            TypeRef::Placeholder(id) => id
+                .value(db)
+                .and_then(|v| v.as_class_instance_for_pattern_matching(db)),
+            _ => None,
         }
     }
 
@@ -4204,6 +4429,7 @@ impl TypeRef {
                 if class.is_generic(db)
                     && !id
                         .type_arguments(db)
+                        .unwrap()
                         .iter()
                         .all(|(_, v)| v.is_sendable_output(db))
                 {
@@ -4222,7 +4448,7 @@ impl TypeRef {
         }
     }
 
-    pub fn cast_according_to(self, other: Self, db: &Database) -> Self {
+    pub fn cast_according_to(self, db: &Database, other: TypeRef) -> Self {
         if self.is_value_type(db) {
             return if other.is_uni(db) {
                 self.as_uni(db)
@@ -4257,9 +4483,23 @@ impl TypeRef {
             {
                 TypeRef::Pointer(TypeId::ClassInstance(ins))
             }
-            TypeRef::Owned(id) | TypeRef::Any(id) | TypeRef::Mut(id) => {
-                TypeRef::Ref(id)
+            TypeRef::Owned(TypeId::ClassInstance(ins))
+                if ins.instance_of().is_stack_allocated(db) =>
+            {
+                TypeRef::Owned(TypeId::ClassInstance(ins))
             }
+            TypeRef::Owned(id)
+            | TypeRef::Any(id)
+            | TypeRef::Mut(id)
+            | TypeRef::Ref(id) => match id {
+                TypeId::TypeParameter(pid)
+                | TypeId::RigidTypeParameter(pid)
+                    if pid.is_stack_allocated(db) =>
+                {
+                    TypeRef::Owned(id)
+                }
+                _ => TypeRef::Ref(id),
+            },
             TypeRef::Uni(id) | TypeRef::UniMut(id) => TypeRef::UniRef(id),
             TypeRef::Placeholder(id) => {
                 if let Some(v) = id.value(db) {
@@ -4287,36 +4527,47 @@ impl TypeRef {
         }
     }
 
-    pub fn allow_as_mut(self, db: &Database) -> bool {
-        match self {
-            TypeRef::Owned(TypeId::RigidTypeParameter(id))
-            | TypeRef::Any(TypeId::RigidTypeParameter(id)) => id.is_mutable(db),
-            TypeRef::Owned(_) | TypeRef::Mut(_) | TypeRef::Uni(_) => true,
-            TypeRef::Pointer(_) => true,
-            TypeRef::Placeholder(id) => {
-                id.value(db).map_or(false, |v| v.allow_as_mut(db))
-            }
-            TypeRef::Error => true,
-            _ => false,
-        }
-    }
-
     pub fn as_mut(self, db: &Database) -> Self {
         match self {
             TypeRef::Any(
                 id @ TypeId::RigidTypeParameter(pid)
                 | id @ TypeId::TypeParameter(pid),
             ) => {
-                if pid.is_mutable(db) {
+                if pid.is_stack_allocated(db) {
+                    TypeRef::Owned(id)
+                } else if pid.is_mutable(db) {
                     TypeRef::Mut(id)
                 } else {
                     TypeRef::Ref(id)
                 }
             }
+            TypeRef::Owned(
+                id @ TypeId::RigidTypeParameter(pid)
+                | id @ TypeId::TypeParameter(pid),
+            )
+            | TypeRef::Mut(
+                id @ TypeId::RigidTypeParameter(pid)
+                | id @ TypeId::TypeParameter(pid),
+            ) => {
+                if pid.is_stack_allocated(db) {
+                    TypeRef::Owned(id)
+                } else {
+                    TypeRef::Mut(id)
+                }
+            }
+            TypeRef::Uni(
+                id @ TypeId::RigidTypeParameter(pid)
+                | id @ TypeId::TypeParameter(pid),
+            ) if pid.is_stack_allocated(db) => TypeRef::Owned(id),
             TypeRef::Owned(TypeId::ClassInstance(ins))
                 if ins.instance_of().kind(db).is_extern() =>
             {
                 TypeRef::Pointer(TypeId::ClassInstance(ins))
+            }
+            TypeRef::Owned(TypeId::ClassInstance(ins))
+                if ins.instance_of().is_value_type(db) =>
+            {
+                TypeRef::Owned(TypeId::ClassInstance(ins))
             }
             TypeRef::Owned(id) => TypeRef::Mut(id),
             TypeRef::Uni(id) => TypeRef::UniMut(id),
@@ -4338,8 +4589,31 @@ impl TypeRef {
             {
                 TypeRef::Pointer(TypeId::ClassInstance(ins))
             }
-            TypeRef::Owned(id) | TypeRef::Any(id) => TypeRef::Mut(id),
-            TypeRef::Uni(id) => TypeRef::UniMut(id),
+            TypeRef::Owned(TypeId::ClassInstance(ins))
+                if ins.instance_of().is_value_type(db) =>
+            {
+                TypeRef::Owned(TypeId::ClassInstance(ins))
+            }
+            TypeRef::Owned(id) | TypeRef::Any(id) | TypeRef::Mut(id) => {
+                match id {
+                    TypeId::TypeParameter(tid)
+                    | TypeId::RigidTypeParameter(tid)
+                        if tid.is_stack_allocated(db) =>
+                    {
+                        TypeRef::Owned(id)
+                    }
+                    _ => TypeRef::Mut(id),
+                }
+            }
+            TypeRef::Uni(id) => match id {
+                TypeId::TypeParameter(tid)
+                | TypeId::RigidTypeParameter(tid)
+                    if tid.is_stack_allocated(db) =>
+                {
+                    TypeRef::Owned(id)
+                }
+                _ => TypeRef::UniMut(id),
+            },
             TypeRef::Placeholder(id) => {
                 if let Some(v) = id.value(db) {
                     v.force_as_mut(db)
@@ -4369,7 +4643,7 @@ impl TypeRef {
         }
     }
 
-    pub fn as_uni_reference(self, db: &Database) -> Self {
+    pub fn as_uni_borrow(self, db: &Database) -> Self {
         // Value types can always be exposed to recover blocks, as we can simply
         // copy them upon moving them around.
         if self.is_value_type(db) {
@@ -4381,7 +4655,7 @@ impl TypeRef {
             TypeRef::Ref(id) => TypeRef::UniRef(id),
             TypeRef::Placeholder(id) => {
                 if let Some(v) = id.value(db) {
-                    v.as_uni_reference(db)
+                    v.as_uni_borrow(db)
                 } else {
                     TypeRef::Placeholder(id.as_uni_mut())
                 }
@@ -4396,12 +4670,34 @@ impl TypeRef {
             | TypeRef::Any(id)
             | TypeRef::Uni(id)
             | TypeRef::Mut(id)
-            | TypeRef::Ref(id) => TypeRef::UniRef(id),
+            | TypeRef::Ref(id)
+            | TypeRef::UniRef(id)
+            | TypeRef::UniMut(id) => TypeRef::UniRef(id),
             TypeRef::Placeholder(id) => {
                 if let Some(v) = id.value(db) {
                     v.as_uni_ref(db)
                 } else {
                     TypeRef::Placeholder(id.as_uni_ref())
+                }
+            }
+            _ => self,
+        }
+    }
+
+    pub fn as_uni_mut(self, db: &Database) -> Self {
+        match self {
+            TypeRef::Owned(id)
+            | TypeRef::Uni(id)
+            | TypeRef::Mut(id)
+            | TypeRef::UniMut(id) => TypeRef::UniMut(id),
+            TypeRef::Ref(id) | TypeRef::Any(id) | TypeRef::UniRef(id) => {
+                TypeRef::UniRef(id)
+            }
+            TypeRef::Placeholder(id) => {
+                if let Some(v) = id.value(db) {
+                    v.as_uni_mut(db)
+                } else {
+                    TypeRef::Placeholder(id.as_uni_mut())
                 }
             }
             _ => self,
@@ -4427,6 +4723,10 @@ impl TypeRef {
     }
 
     pub fn as_uni(self, db: &Database) -> Self {
+        if self.is_value_type(db) {
+            return self;
+        }
+
         match self {
             TypeRef::Owned(id)
             | TypeRef::Any(id)
@@ -4527,7 +4827,9 @@ impl TypeRef {
             TypeRef::Owned(TypeId::ClassInstance(ins))
             | TypeRef::Uni(TypeId::ClassInstance(ins))
             | TypeRef::Mut(TypeId::ClassInstance(ins))
-            | TypeRef::Ref(TypeId::ClassInstance(ins)) => {
+            | TypeRef::Ref(TypeId::ClassInstance(ins))
+            | TypeRef::UniRef(TypeId::ClassInstance(ins))
+            | TypeRef::UniMut(TypeId::ClassInstance(ins)) => {
                 ins.instance_of().fields(db)
             }
             TypeRef::Placeholder(id) => {
@@ -4570,6 +4872,11 @@ impl TypeRef {
         }
     }
 
+    /// Returns `true` if `self` is a value type.
+    ///
+    /// Value types are types that use atomic reference counting (processes and
+    /// strings), those allocated on the stack (Int, pointers, inline types,
+    /// etc), or non-values (e.g. modules).
     pub fn is_value_type(self, db: &Database) -> bool {
         match self {
             TypeRef::Owned(TypeId::ClassInstance(ins))
@@ -4589,31 +4896,35 @@ impl TypeRef {
             TypeRef::Owned(TypeId::Foreign(_)) => true,
             TypeRef::Pointer(_) => true,
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(true, |v| v.is_value_type(db))
+                id.value(db).map_or(false, |v| v.is_value_type(db))
             }
             _ => false,
         }
     }
 
-    pub fn is_permanent(self, db: &Database) -> bool {
+    /// Returns `true` if the type is allocated on the stack.
+    pub fn is_stack_allocated(self, db: &Database) -> bool {
         match self {
-            TypeRef::Owned(TypeId::ClassInstance(ins))
-            | TypeRef::Ref(TypeId::ClassInstance(ins))
-            | TypeRef::Mut(TypeId::ClassInstance(ins))
-            | TypeRef::Uni(TypeId::ClassInstance(ins))
-            | TypeRef::UniMut(TypeId::ClassInstance(ins))
-            | TypeRef::UniRef(TypeId::ClassInstance(ins)) => {
-                ins.instance_of.kind(db).is_extern()
-            }
-            TypeRef::Owned(TypeId::Foreign(_)) => true,
-            TypeRef::Owned(TypeId::Module(_)) => true,
-            TypeRef::Owned(TypeId::Class(_)) => true,
-            TypeRef::Never => true,
+            TypeRef::Owned(id)
+            | TypeRef::Uni(id)
+            | TypeRef::Ref(id)
+            | TypeRef::UniRef(id)
+            | TypeRef::Mut(id)
+            | TypeRef::UniMut(id)
+            | TypeRef::Any(id) => match id {
+                TypeId::ClassInstance(ins) => {
+                    ins.instance_of().is_stack_allocated(db)
+                }
+                TypeId::TypeParameter(tid)
+                | TypeId::RigidTypeParameter(tid) => tid.is_stack_allocated(db),
+                TypeId::Foreign(_) => true,
+                _ => false,
+            },
+            TypeRef::Error | TypeRef::Pointer(_) => true,
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(true, |v| v.is_permanent(db))
+                id.value(db).map_or(false, |v| v.is_stack_allocated(db))
             }
-            TypeRef::Pointer(_) => true,
-            _ => false,
+            TypeRef::Never | TypeRef::Unknown => false,
         }
     }
 
@@ -4630,6 +4941,7 @@ impl TypeRef {
                     if ins.instance_of.is_generic(db) =>
                 {
                     ins.type_arguments(db)
+                        .unwrap()
                         .mapping
                         .values()
                         .all(|v| v.is_inferred(db))
@@ -4638,6 +4950,7 @@ impl TypeRef {
                     if ins.instance_of.is_generic(db) =>
                 {
                     ins.type_arguments(db)
+                        .unwrap()
                         .mapping
                         .values()
                         .all(|v| v.is_inferred(db))
@@ -4688,13 +5001,13 @@ impl TypeRef {
                 let params = ins.instance_of.type_parameters(db);
 
                 if ins.instance_of == res_class {
-                    let args = ins.type_arguments(db);
+                    let args = ins.type_arguments(db).unwrap();
                     let ok = args.get(params[0]).unwrap();
                     let err = args.get(params[1]).unwrap();
 
                     ThrowKind::Result(ok, err)
                 } else if ins.instance_of == opt_class {
-                    let args = ins.type_arguments(db);
+                    let args = ins.type_arguments(db).unwrap();
                     let some = args.get(params[0]).unwrap();
 
                     ThrowKind::Option(some)
@@ -4741,20 +5054,21 @@ impl TypeRef {
     pub fn shape(
         self,
         db: &Database,
+        interned: &mut InternedTypeArguments,
         shapes: &HashMap<TypeParameterId, Shape>,
     ) -> Shape {
         match self {
             TypeRef::Owned(TypeId::ClassInstance(ins))
             | TypeRef::Uni(TypeId::ClassInstance(ins)) => {
-                ins.instance_of.shape(db, Shape::Owned)
+                ins.shape(db, interned, Shape::Owned)
             }
             TypeRef::Mut(TypeId::ClassInstance(ins))
             | TypeRef::UniMut(TypeId::ClassInstance(ins)) => {
-                ins.instance_of.shape(db, Shape::Mut)
+                ins.shape(db, interned, Shape::Mut)
             }
             TypeRef::Ref(TypeId::ClassInstance(ins))
             | TypeRef::UniRef(TypeId::ClassInstance(ins)) => {
-                ins.instance_of.shape(db, Shape::Ref)
+                ins.shape(db, interned, Shape::Ref)
             }
             TypeRef::Any(
                 TypeId::TypeParameter(id) | TypeId::RigidTypeParameter(id),
@@ -4780,7 +5094,6 @@ impl TypeRef {
             TypeRef::Owned(TypeId::AtomicTypeParameter(_))
             | TypeRef::Ref(TypeId::AtomicTypeParameter(_))
             | TypeRef::Mut(TypeId::AtomicTypeParameter(_)) => Shape::Atomic,
-
             TypeRef::Mut(
                 TypeId::TypeParameter(id) | TypeId::RigidTypeParameter(id),
             )
@@ -4801,9 +5114,9 @@ impl TypeRef {
             },
             TypeRef::Mut(_) | TypeRef::UniMut(_) => Shape::Mut,
             TypeRef::Ref(_) | TypeRef::UniRef(_) => Shape::Ref,
-            TypeRef::Placeholder(id) => {
-                id.value(db).map_or(Shape::Owned, |v| v.shape(db, shapes))
-            }
+            TypeRef::Placeholder(id) => id
+                .value(db)
+                .map_or(Shape::Owned, |v| v.shape(db, interned, shapes)),
             TypeRef::Owned(TypeId::Foreign(ForeignType::Int(size, sign)))
             | TypeRef::Uni(TypeId::Foreign(ForeignType::Int(size, sign))) => {
                 Shape::Int(size, sign)
@@ -5035,6 +5348,14 @@ impl Database {
         }
     }
 
+    pub fn compact(&mut self) {
+        // After specialization, the type arguments are no longer in use.
+        // Removing them here frees the memory, and ensures we don't continue to
+        // use them by mistake.
+        self.type_arguments.clear();
+        self.type_arguments.shrink_to_fit();
+    }
+
     pub fn builtin_class(&self, name: &str) -> Option<ClassId> {
         match name {
             INT_NAME => Some(ClassId::int()),
@@ -5140,10 +5461,11 @@ impl Database {
 mod tests {
     use super::*;
     use crate::test::{
-        any, closure, generic_trait_instance, immutable, immutable_uni,
-        instance, mutable, mutable_uni, new_async_class, new_class,
-        new_extern_class, new_module, new_parameter, new_trait, owned,
-        parameter, placeholder, pointer, rigid, trait_instance, uni,
+        any, closure, generic_instance_id, generic_trait_instance, immutable,
+        immutable_uni, instance, mutable, mutable_uni, new_async_class,
+        new_class, new_enum_class, new_extern_class, new_module, new_parameter,
+        new_trait, owned, parameter, placeholder, pointer, rigid,
+        trait_instance, uni,
     };
     use std::mem::size_of;
 
@@ -5169,6 +5491,23 @@ mod tests {
 
         assert_eq!(id.0, 0);
         assert_eq!(&db.type_parameters[0].name, &"A".to_string());
+    }
+
+    #[test]
+    fn test_type_parameter_clone_for_bound() {
+        let mut db = Database::new();
+        let param1 = TypeParameter::alloc(&mut db, "A".to_string());
+
+        param1.set_mutable(&mut db);
+        param1.set_stack_allocated(&mut db);
+
+        let param2 = param1.clone_for_bound(&mut db);
+
+        assert_eq!(param1.is_mutable(&db), param2.is_mutable(&db));
+        assert_eq!(
+            param1.is_stack_allocated(&db),
+            param2.is_stack_allocated(&db)
+        );
     }
 
     #[test]
@@ -5356,6 +5695,18 @@ mod tests {
             db.classes[FIRST_USER_CLASS_ID as usize].kind,
             ClassKind::Regular
         );
+    }
+
+    #[test]
+    fn test_class_clone_for_specialization() {
+        let mut db = Database::new();
+        let class1 = new_class(&mut db, "A");
+
+        class1.set_stack_allocated(&mut db);
+
+        let class2 = class1.clone_for_specialization(&mut db);
+
+        assert!(class2.is_stack_allocated(&db));
     }
 
     #[test]
@@ -5992,39 +6343,27 @@ mod tests {
     }
 
     #[test]
-    fn test_type_ref_allow_as_mut() {
-        let mut db = Database::new();
-        let int = ClassId::int();
-        let var = TypePlaceholder::alloc(&mut db, None);
-        let param1 = new_parameter(&mut db, "A");
-        let param2 = new_parameter(&mut db, "A");
-
-        param2.set_mutable(&mut db);
-        var.assign(&mut db, owned(instance(int)));
-
-        assert!(owned(instance(int)).allow_as_mut(&db));
-        assert!(mutable(instance(int)).allow_as_mut(&db));
-        assert!(placeholder(var).allow_as_mut(&db));
-        assert!(owned(rigid(param2)).allow_as_mut(&db));
-        assert!(!immutable(instance(int)).allow_as_mut(&db));
-        assert!(!owned(rigid(param1)).allow_as_mut(&db));
-        assert!(uni(instance(int)).allow_as_mut(&db));
-    }
-
-    #[test]
     fn test_type_ref_as_ref() {
         let mut db = Database::new();
         let int = ClassId::int();
         let ext = new_extern_class(&mut db, "Extern");
-        let param = new_parameter(&mut db, "A");
+        let p1 = new_parameter(&mut db, "A");
+        let p2 = new_parameter(&mut db, "A");
 
-        assert_eq!(owned(instance(int)).as_ref(&db), immutable(instance(int)));
+        p2.set_stack_allocated(&mut db);
+
+        assert_eq!(owned(instance(int)).as_ref(&db), owned(instance(int)));
         assert_eq!(
             uni(instance(int)).as_ref(&db),
             TypeRef::UniRef(instance(int))
         );
-        assert_eq!(owned(rigid(param)).as_ref(&db), immutable(rigid(param)));
+        assert_eq!(owned(rigid(p1)).as_ref(&db), immutable(rigid(p1)));
         assert_eq!(owned(instance(ext)).as_ref(&db), pointer(instance(ext)));
+
+        assert_eq!(owned(parameter(p2)).as_ref(&db), owned(parameter(p2)));
+        assert_eq!(immutable(parameter(p2)).as_ref(&db), owned(parameter(p2)));
+        assert_eq!(mutable(parameter(p2)).as_ref(&db), owned(parameter(p2)));
+        assert_eq!(owned(rigid(p2)).as_ref(&db), owned(rigid(p2)));
     }
 
     #[test]
@@ -6032,30 +6371,31 @@ mod tests {
         let mut db = Database::new();
         let int = ClassId::int();
         let ext = new_extern_class(&mut db, "Extern");
-        let param1 = new_parameter(&mut db, "A");
-        let param2 = new_parameter(&mut db, "A");
+        let p1 = new_parameter(&mut db, "A");
+        let p2 = new_parameter(&mut db, "A");
+        let p3 = new_parameter(&mut db, "A");
 
-        param2.set_mutable(&mut db);
+        p2.set_mutable(&mut db);
+        p3.set_stack_allocated(&mut db);
 
-        assert_eq!(owned(instance(int)).as_mut(&db), mutable(instance(int)));
+        assert_eq!(owned(instance(int)).as_mut(&db), owned(instance(int)));
         assert_eq!(
             uni(instance(int)).as_mut(&db),
             TypeRef::UniMut(instance(int))
         );
 
-        assert_eq!(any(rigid(param1)).as_mut(&db), immutable(rigid(param1)));
-        assert_eq!(
-            owned(parameter(param1)).as_mut(&db),
-            mutable(parameter(param1))
-        );
+        assert_eq!(any(rigid(p1)).as_mut(&db), immutable(rigid(p1)));
+        assert_eq!(owned(parameter(p1)).as_mut(&db), mutable(parameter(p1)));
 
-        assert_eq!(owned(rigid(param1)).as_mut(&db), mutable(rigid(param1)));
-        assert_eq!(owned(rigid(param2)).as_mut(&db), mutable(rigid(param2)));
-        assert_eq!(
-            owned(parameter(param2)).as_mut(&db),
-            mutable(parameter(param2))
-        );
+        assert_eq!(owned(rigid(p1)).as_mut(&db), mutable(rigid(p1)));
+        assert_eq!(owned(rigid(p2)).as_mut(&db), mutable(rigid(p2)));
+        assert_eq!(owned(parameter(p2)).as_mut(&db), mutable(parameter(p2)));
         assert_eq!(owned(instance(ext)).as_mut(&db), pointer(instance(ext)));
+
+        assert_eq!(owned(parameter(p3)).as_mut(&db), owned(parameter(p3)));
+        assert_eq!(mutable(parameter(p3)).as_mut(&db), owned(parameter(p3)));
+        assert_eq!(uni(parameter(p3)).as_mut(&db), owned(parameter(p3)));
+        assert_eq!(owned(rigid(p3)).as_mut(&db), owned(rigid(p3)));
     }
 
     #[test]
@@ -6143,6 +6483,32 @@ mod tests {
     }
 
     #[test]
+    fn test_type_ref_force_as_mut() {
+        let mut db = Database::new();
+        let p1 = new_parameter(&mut db, "A");
+        let p2 = new_parameter(&mut db, "A");
+
+        p2.set_stack_allocated(&mut db);
+
+        assert_eq!(
+            owned(parameter(p1)).force_as_mut(&db),
+            mutable(parameter(p1))
+        );
+        assert_eq!(owned(rigid(p1)).force_as_mut(&db), mutable(rigid(p1)));
+
+        assert_eq!(
+            owned(parameter(p2)).force_as_mut(&db),
+            owned(parameter(p2))
+        );
+        assert_eq!(
+            mutable(parameter(p2)).force_as_mut(&db),
+            owned(parameter(p2))
+        );
+        assert_eq!(uni(parameter(p2)).force_as_mut(&db), owned(parameter(p2)));
+        assert_eq!(owned(rigid(p2)).force_as_mut(&db), owned(rigid(p2)));
+    }
+
+    #[test]
     fn test_type_ref_force_as_uni_mut_with_placeholder() {
         let mut db = Database::new();
         let var = TypePlaceholder::alloc(&mut db, None);
@@ -6160,24 +6526,79 @@ mod tests {
         let int = ClassId::int();
 
         assert_eq!(
-            owned(instance(foo)).as_uni_reference(&db),
+            owned(instance(foo)).as_uni_borrow(&db),
             TypeRef::UniMut(instance(foo))
         );
         assert_eq!(
-            owned(instance(int)).as_uni_reference(&db),
+            owned(instance(int)).as_uni_borrow(&db),
             TypeRef::Owned(instance(int))
         );
         assert_eq!(
-            immutable(instance(foo)).as_uni_reference(&db),
+            immutable(instance(foo)).as_uni_borrow(&db),
             TypeRef::UniRef(instance(foo))
         );
         assert_eq!(
-            mutable(instance(foo)).as_uni_reference(&db),
+            mutable(instance(foo)).as_uni_borrow(&db),
             TypeRef::UniMut(instance(foo))
         );
+        assert_eq!(uni(instance(foo)).as_uni_borrow(&db), uni(instance(foo)));
+    }
+
+    #[test]
+    fn test_type_ref_as_uni_ref() {
+        let mut db = Database::new();
+        let foo = new_class(&mut db, "Foo");
+
         assert_eq!(
-            uni(instance(foo)).as_uni_reference(&db),
-            uni(instance(foo))
+            owned(instance(foo)).as_uni_ref(&db),
+            immutable_uni(instance(foo))
+        );
+        assert_eq!(
+            mutable(instance(foo)).as_uni_ref(&db),
+            immutable_uni(instance(foo))
+        );
+        assert_eq!(
+            uni(instance(foo)).as_uni_ref(&db),
+            immutable_uni(instance(foo))
+        );
+        assert_eq!(
+            immutable_uni(instance(foo)).as_uni_ref(&db),
+            immutable_uni(instance(foo))
+        );
+        assert_eq!(
+            mutable_uni(instance(foo)).as_uni_ref(&db),
+            immutable_uni(instance(foo))
+        );
+    }
+
+    #[test]
+    fn test_type_ref_as_uni_mut() {
+        let mut db = Database::new();
+        let foo = new_class(&mut db, "Foo");
+
+        assert_eq!(
+            owned(instance(foo)).as_uni_mut(&db),
+            mutable_uni(instance(foo))
+        );
+        assert_eq!(
+            any(instance(foo)).as_uni_mut(&db),
+            immutable_uni(instance(foo))
+        );
+        assert_eq!(
+            mutable(instance(foo)).as_uni_mut(&db),
+            mutable_uni(instance(foo))
+        );
+        assert_eq!(
+            uni(instance(foo)).as_uni_mut(&db),
+            mutable_uni(instance(foo))
+        );
+        assert_eq!(
+            immutable_uni(instance(foo)).as_uni_mut(&db),
+            immutable_uni(instance(foo))
+        );
+        assert_eq!(
+            mutable_uni(instance(foo)).as_uni_mut(&db),
+            mutable_uni(instance(foo))
         );
     }
 
@@ -6186,24 +6607,47 @@ mod tests {
         let mut db = Database::new();
         let param1 = new_parameter(&mut db, "T");
         let param2 = new_parameter(&mut db, "T");
+        let proc = new_async_class(&mut db, "X");
 
         param2.set_mutable(&mut db);
 
-        assert!(TypeRef::int().allow_mutating(&db));
         assert!(uni(instance(ClassId::string())).allow_mutating(&db));
-        assert!(owned(instance(ClassId::string())).allow_mutating(&db));
         assert!(immutable(instance(ClassId::string())).allow_mutating(&db));
         assert!(mutable(parameter(param1)).allow_mutating(&db));
         assert!(mutable(rigid(param1)).allow_mutating(&db));
         assert!(owned(parameter(param1)).allow_mutating(&db));
         assert!(owned(rigid(param1)).allow_mutating(&db));
-        assert!(!any(parameter(param1)).allow_mutating(&db));
-        assert!(!any(rigid(param1)).allow_mutating(&db));
         assert!(any(parameter(param2)).allow_mutating(&db));
         assert!(any(rigid(param2)).allow_mutating(&db));
         assert!(uni(parameter(param2)).allow_mutating(&db));
         assert!(uni(rigid(param2)).allow_mutating(&db));
+        assert!(owned(instance(proc)).allow_mutating(&db));
+        assert!(mutable(instance(proc)).allow_mutating(&db));
+
+        assert!(!immutable(instance(proc)).allow_mutating(&db));
         assert!(!immutable(parameter(param1)).allow_mutating(&db));
+        assert!(!owned(instance(ClassId::string())).allow_mutating(&db));
+        assert!(!any(parameter(param1)).allow_mutating(&db));
+        assert!(!any(rigid(param1)).allow_mutating(&db));
+        assert!(!TypeRef::int().allow_mutating(&db));
+    }
+
+    #[test]
+    fn test_type_ref_allow_moving() {
+        let mut db = Database::new();
+        let heap = new_class(&mut db, "A");
+        let stack = new_class(&mut db, "B");
+
+        stack.set_stack_allocated(&mut db);
+
+        assert!(owned(instance(heap)).allow_moving(&db));
+        assert!(uni(instance(heap)).allow_moving(&db));
+        assert!(owned(instance(stack)).allow_moving(&db));
+        assert!(uni(instance(stack)).allow_moving(&db));
+        assert!(immutable_uni(instance(stack)).allow_moving(&db));
+        assert!(mutable_uni(instance(stack)).allow_moving(&db));
+        assert!(!mutable(instance(heap)).allow_moving(&db));
+        assert!(!immutable(instance(heap)).allow_moving(&db));
     }
 
     #[test]
@@ -6266,109 +6710,170 @@ mod tests {
     #[test]
     fn test_type_ref_shape() {
         let mut db = Database::new();
+        let mut inter = InternedTypeArguments::new();
         let string = ClassId::string();
         let int = ClassId::int();
         let float = ClassId::float();
         let boolean = ClassId::boolean();
-        let class = new_class(&mut db, "Thing");
+        let cls1 = new_class(&mut db, "Thing");
+        let cls2 = new_class(&mut db, "Foo");
         let var = TypePlaceholder::alloc(&mut db, None);
         let param1 = new_parameter(&mut db, "T");
         let param2 = new_parameter(&mut db, "X");
         let mut shapes = HashMap::new();
 
+        cls2.set_stack_allocated(&mut db);
         shapes.insert(param1, Shape::int());
         var.assign(&mut db, TypeRef::int());
 
-        assert_eq!(TypeRef::int().shape(&db, &shapes), Shape::int());
-        assert_eq!(TypeRef::float().shape(&db, &shapes), Shape::float());
-        assert_eq!(TypeRef::boolean().shape(&db, &shapes), Shape::Boolean);
-        assert_eq!(TypeRef::nil().shape(&db, &shapes), Shape::Nil);
-        assert_eq!(TypeRef::string().shape(&db, &shapes), Shape::String);
-        assert_eq!(uni(instance(class)).shape(&db, &shapes), Shape::Owned);
-        assert_eq!(owned(instance(class)).shape(&db, &shapes), Shape::Owned);
-        assert_eq!(immutable(instance(class)).shape(&db, &shapes), Shape::Ref);
-        assert_eq!(mutable(instance(class)).shape(&db, &shapes), Shape::Mut);
-        assert_eq!(uni(instance(class)).shape(&db, &shapes), Shape::Owned);
-        assert_eq!(placeholder(var).shape(&db, &shapes), Shape::int());
-        assert_eq!(owned(parameter(param1)).shape(&db, &shapes), Shape::int());
         assert_eq!(
-            immutable(parameter(param1)).shape(&db, &shapes),
+            TypeRef::int().shape(&db, &mut inter, &shapes),
             Shape::int()
         );
         assert_eq!(
-            mutable(parameter(param1)).shape(&db, &shapes),
+            TypeRef::float().shape(&db, &mut inter, &shapes),
+            Shape::float()
+        );
+        assert_eq!(
+            TypeRef::boolean().shape(&db, &mut inter, &shapes),
+            Shape::Boolean
+        );
+        assert_eq!(TypeRef::nil().shape(&db, &mut inter, &shapes), Shape::Nil);
+        assert_eq!(
+            TypeRef::string().shape(&db, &mut inter, &shapes),
+            Shape::String
+        );
+        assert_eq!(
+            uni(instance(cls1)).shape(&db, &mut inter, &shapes),
+            Shape::Owned
+        );
+        assert_eq!(
+            owned(instance(cls1)).shape(&db, &mut inter, &shapes),
+            Shape::Owned
+        );
+        assert_eq!(
+            immutable(instance(cls1)).shape(&db, &mut inter, &shapes),
+            Shape::Ref
+        );
+        assert_eq!(
+            mutable(instance(cls1)).shape(&db, &mut inter, &shapes),
+            Shape::Mut
+        );
+        assert_eq!(
+            uni(instance(cls1)).shape(&db, &mut inter, &shapes),
+            Shape::Owned
+        );
+        assert_eq!(
+            placeholder(var).shape(&db, &mut inter, &shapes),
             Shape::int()
         );
         assert_eq!(
-            owned(TypeId::AtomicTypeParameter(param2)).shape(&db, &shapes),
+            owned(parameter(param1)).shape(&db, &mut inter, &shapes),
+            Shape::int()
+        );
+        assert_eq!(
+            immutable(parameter(param1)).shape(&db, &mut inter, &shapes),
+            Shape::int()
+        );
+        assert_eq!(
+            mutable(parameter(param1)).shape(&db, &mut inter, &shapes),
+            Shape::int()
+        );
+        assert_eq!(
+            owned(TypeId::AtomicTypeParameter(param2))
+                .shape(&db, &mut inter, &shapes),
             Shape::Atomic
         );
         assert_eq!(
-            immutable(TypeId::AtomicTypeParameter(param2)).shape(&db, &shapes),
+            immutable(TypeId::AtomicTypeParameter(param2))
+                .shape(&db, &mut inter, &shapes),
             Shape::Atomic
         );
         assert_eq!(
-            mutable(TypeId::AtomicTypeParameter(param2)).shape(&db, &shapes),
+            mutable(TypeId::AtomicTypeParameter(param2))
+                .shape(&db, &mut inter, &shapes),
             Shape::Atomic
         );
 
         assert_eq!(
-            immutable(instance(string)).shape(&db, &shapes),
+            immutable(instance(string)).shape(&db, &mut inter, &shapes),
             Shape::String
         );
-        assert_eq!(immutable(instance(int)).shape(&db, &shapes), Shape::int());
         assert_eq!(
-            immutable(instance(float)).shape(&db, &shapes),
+            immutable(instance(int)).shape(&db, &mut inter, &shapes),
+            Shape::int()
+        );
+        assert_eq!(
+            immutable(instance(float)).shape(&db, &mut inter, &shapes),
             Shape::float()
         );
         assert_eq!(
-            immutable(instance(boolean)).shape(&db, &shapes),
+            immutable(instance(boolean)).shape(&db, &mut inter, &shapes),
             Shape::Boolean
         );
         assert_eq!(
-            mutable(instance(string)).shape(&db, &shapes),
+            mutable(instance(string)).shape(&db, &mut inter, &shapes),
             Shape::String
         );
-        assert_eq!(mutable(instance(int)).shape(&db, &shapes), Shape::int());
         assert_eq!(
-            mutable(instance(float)).shape(&db, &shapes),
+            mutable(instance(int)).shape(&db, &mut inter, &shapes),
+            Shape::int()
+        );
+        assert_eq!(
+            mutable(instance(float)).shape(&db, &mut inter, &shapes),
             Shape::float()
         );
         assert_eq!(
-            mutable(instance(boolean)).shape(&db, &shapes),
+            mutable(instance(boolean)).shape(&db, &mut inter, &shapes),
             Shape::Boolean
         );
         assert_eq!(
             owned(TypeId::Foreign(ForeignType::Int(32, Sign::Signed)))
-                .shape(&db, &shapes),
+                .shape(&db, &mut inter, &shapes),
             Shape::Int(32, Sign::Signed)
         );
         assert_eq!(
             owned(TypeId::Foreign(ForeignType::Int(32, Sign::Unsigned)))
-                .shape(&db, &shapes),
+                .shape(&db, &mut inter, &shapes),
             Shape::Int(32, Sign::Unsigned)
         );
         assert_eq!(
             uni(TypeId::Foreign(ForeignType::Int(32, Sign::Unsigned)))
-                .shape(&db, &shapes),
+                .shape(&db, &mut inter, &shapes),
             Shape::Int(32, Sign::Unsigned)
         );
         assert_eq!(
-            owned(TypeId::Foreign(ForeignType::Float(32))).shape(&db, &shapes),
+            owned(TypeId::Foreign(ForeignType::Float(32)))
+                .shape(&db, &mut inter, &shapes),
             Shape::Float(32)
         );
         assert_eq!(
-            owned(TypeId::Foreign(ForeignType::Float(64))).shape(&db, &shapes),
+            owned(TypeId::Foreign(ForeignType::Float(64)))
+                .shape(&db, &mut inter, &shapes),
             Shape::Float(64)
         );
         assert_eq!(
-            uni(TypeId::Foreign(ForeignType::Float(64))).shape(&db, &shapes),
+            uni(TypeId::Foreign(ForeignType::Float(64)))
+                .shape(&db, &mut inter, &shapes),
             Shape::Float(64)
         );
         assert_eq!(
             pointer(TypeId::Foreign(ForeignType::Int(64, Sign::Signed)))
-                .shape(&db, &shapes),
+                .shape(&db, &mut inter, &shapes),
             Shape::Pointer
+        );
+
+        assert_eq!(
+            owned(instance(cls2)).shape(&db, &mut inter, &shapes),
+            Shape::Stack(ClassInstance::new(cls2))
+        );
+        assert_eq!(
+            mutable(instance(cls2)).shape(&db, &mut inter, &shapes),
+            Shape::Stack(ClassInstance::new(cls2))
+        );
+        assert_eq!(
+            immutable(instance(cls2)).shape(&db, &mut inter, &shapes),
+            Shape::Stack(ClassInstance::new(cls2))
         );
     }
 
@@ -6422,5 +6927,65 @@ mod tests {
         assert!(!immutable(instance(ext)).is_extern_instance(&db));
         assert!(!mutable(instance(ext)).is_extern_instance(&db));
         assert!(!pointer(instance(ext)).is_extern_instance(&db));
+    }
+
+    #[test]
+    fn test_class_id_allow_cast() {
+        let mut db = Database::new();
+        let enum_class = new_enum_class(&mut db, "Option");
+        let regular_class = new_class(&mut db, "Regular");
+        let tuple_class = Class::alloc(
+            &mut db,
+            "Tuple1".to_string(),
+            ClassKind::Tuple,
+            Visibility::Public,
+            ModuleId(0),
+            Location::default(),
+        );
+
+        assert!(!ClassId::int().allow_cast_to_trait(&db));
+        assert!(!ClassId::float().allow_cast_to_trait(&db));
+        assert!(!ClassId::boolean().allow_cast_to_trait(&db));
+        assert!(!ClassId::nil().allow_cast_to_trait(&db));
+        assert!(!ClassId::string().allow_cast_to_trait(&db));
+        assert!(enum_class.allow_cast_to_trait(&db));
+        assert!(tuple_class.allow_cast_to_trait(&db));
+        assert!(regular_class.allow_cast_to_trait(&db));
+    }
+
+    #[test]
+    fn test_interned_type_arguments() {
+        let mut db = Database::new();
+        let mut intern = InternedTypeArguments::new();
+        let ary = ClassId::array();
+        let int = TypeRef::int();
+        let param = ary.new_type_parameter(&mut db, "T".to_string());
+        let val1 = {
+            let sub = owned(generic_instance_id(&mut db, ary, vec![int]));
+
+            owned(generic_instance_id(&mut db, ary, vec![sub]))
+        };
+        let val2 = {
+            let sub = owned(generic_instance_id(&mut db, ary, vec![int]));
+
+            owned(generic_instance_id(&mut db, ary, vec![sub]))
+        };
+        let mut targs1 = TypeArguments::new();
+        let mut targs2 = TypeArguments::new();
+
+        targs1.assign(param, val1);
+        targs2.assign(param, val2);
+
+        let ins1 = ClassInstance::generic(&mut db, ary, targs1);
+        let ins2 = ClassInstance::generic(&mut db, ary, targs2);
+        let id1 = intern.intern(&db, ins1);
+        let id2 = intern.intern(&db, ins2);
+        let id3 = intern.intern(&db, ins1);
+        let id4 = intern.intern(&db, ins2);
+
+        assert_eq!(id1, ins1.type_arguments);
+        assert_eq!(id2, id1);
+        assert_eq!(id3, id1);
+        assert_eq!(id4, id1);
     }
 }

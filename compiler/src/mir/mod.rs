@@ -9,7 +9,7 @@ pub(crate) mod printer;
 pub(crate) mod specialize;
 
 use crate::state::State;
-use crate::symbol_names::{shapes, SymbolNames};
+use crate::symbol_names::{qualified_class_name, SymbolNames};
 use indexmap::IndexMap;
 use location::Location;
 use std::collections::{HashMap, HashSet};
@@ -377,13 +377,13 @@ impl Block {
         )));
     }
 
-    pub(crate) fn reference(
+    pub(crate) fn borrow(
         &mut self,
         register: RegisterId,
         value: RegisterId,
         location: InstructionLocation,
     ) {
-        self.instructions.push(Instruction::Reference(Box::new(Reference {
+        self.instructions.push(Instruction::Borrow(Box::new(Borrow {
             register,
             value,
             location,
@@ -772,6 +772,24 @@ impl Block {
             location,
         })));
     }
+
+    fn split_when<R, W: Fn(&Instruction) -> bool, T: Fn(Instruction) -> R>(
+        &mut self,
+        when: W,
+        then: T,
+    ) -> Option<(R, Vec<Instruction>)> {
+        if let Some(idx) = self.instructions.iter().position(when) {
+            let ins = then(self.instructions.remove(idx));
+            let rest = self.instructions.split_off(idx);
+
+            // This ensures we don't keep redundant memory around if
+            // the number of instructions was very large.
+            self.instructions.shrink_to_fit();
+            Some((ins, rest))
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -963,7 +981,7 @@ pub(crate) struct Free {
 }
 
 #[derive(Clone)]
-pub(crate) struct Reference {
+pub(crate) struct Borrow {
     pub(crate) register: RegisterId,
     pub(crate) value: RegisterId,
     pub(crate) location: InstructionLocation,
@@ -1273,7 +1291,7 @@ pub(crate) enum Instruction {
     CheckRefs(Box<CheckRefs>),
     Drop(Box<Drop>),
     Free(Box<Free>),
-    Reference(Box<Reference>),
+    Borrow(Box<Borrow>),
     Increment(Box<Increment>),
     Decrement(Box<Decrement>),
     IncrementAtomic(Box<IncrementAtomic>),
@@ -1318,7 +1336,7 @@ impl Instruction {
             Instruction::CheckRefs(ref v) => v.location,
             Instruction::Drop(ref v) => v.location,
             Instruction::Free(ref v) => v.location,
-            Instruction::Reference(ref v) => v.location,
+            Instruction::Borrow(ref v) => v.location,
             Instruction::Increment(ref v) => v.location,
             Instruction::Decrement(ref v) => v.location,
             Instruction::IncrementAtomic(ref v) => v.location,
@@ -1489,8 +1507,8 @@ impl Instruction {
                     v.value.0
                 )
             }
-            Instruction::Reference(ref v) => {
-                format!("r{} = ref r{}", v.register.0, v.value.0)
+            Instruction::Borrow(ref v) => {
+                format!("r{} = borrow r{}", v.register.0, v.value.0)
             }
             Instruction::Increment(ref v) => {
                 format!("increment r{}", v.register.0)
@@ -1725,7 +1743,7 @@ impl Method {
                     Instruction::Free(i) => {
                         uses[i.register.0] += 1;
                     }
-                    Instruction::Reference(i) => {
+                    Instruction::Borrow(i) => {
                         uses[i.value.0] += 1;
                     }
                     Instruction::Increment(i) => {
@@ -2080,8 +2098,8 @@ impl Mir {
         }
     }
 
-    /// Splits modules into smaller ones, such that each specialized
-    /// type has its own module.
+    /// Splits modules into smaller ones, such that each specialized type has
+    /// its own module.
     ///
     /// This is done to make caching and parallel compilation more effective,
     /// such that adding a newly specialized type won't flush many caches
@@ -2106,13 +2124,11 @@ impl Mir {
 
                 let file = old_module.id.file(&state.db);
                 let orig_name = old_module.id.name(&state.db).clone();
-                let name = ModuleName::new(format!(
-                    "{}({}#{})",
-                    orig_name,
-                    class_id.name(&state.db),
-                    shapes(class_id.shapes(&state.db))
+                let name = ModuleName::new(qualified_class_name(
+                    &state.db,
+                    old_module.id,
+                    class_id,
                 ));
-
                 let new_mod_id =
                     ModuleType::alloc(&mut state.db, name.clone(), file);
 

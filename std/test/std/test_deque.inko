@@ -3,7 +3,7 @@ import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
   t.test('Deque.new', fn (t) {
-    let q = Deque.new
+    let q: Deque[Int] = Deque.new
 
     t.equal(q.size, 0)
     t.equal(q.capacity, 0)
@@ -12,7 +12,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Deque.with_capacity', fn (t) {
-    let q = Deque.with_capacity(4)
+    let q: Deque[Int] = Deque.with_capacity(4)
 
     t.equal(q.size, 0)
     t.equal(q.capacity, 4)
@@ -143,12 +143,15 @@ fn pub tests(t: mut Tests) {
 
   t.test('Deque.iter_mut', fn (t) {
     let q = Deque.new
+    let a = (1, 0)
+    let b = (2, 0)
+    let c = (3, 0)
 
-    q.push_back(20)
-    q.push_back(30)
-    q.push_front(10)
+    q.push_back((2, 0))
+    q.push_back((3, 0))
+    q.push_front((1, 0))
 
-    t.equal(q.iter_mut.to_array, [10, 20, 30])
+    t.equal(q.iter_mut.to_array, [mut a, mut b, mut c])
   })
 
   t.test('Deque.into_iter', fn (t) {
@@ -194,10 +197,11 @@ fn pub tests(t: mut Tests) {
 
   t.test('Deque.opt_mut', fn (t) {
     let q = Deque.new
+    let exp = (1, 0)
 
-    q.push_back(10)
+    q.push_back((1, 0))
 
-    t.equal(q.opt_mut(0), Option.Some(10))
+    t.equal(q.opt_mut(0), Option.Some(mut exp))
     t.equal(q.opt_mut(1), Option.None)
   })
 }

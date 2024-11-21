@@ -1,0 +1,11 @@
+fn a[P: A] {}
+
+fn b[P: B + A] {}
+
+fn c[P: B + A + mut] {}
+
+fn d[P: B + A + inline] {}
+
+fn e[P: B + A + inline + mut] {}
+
+fn f[P: mut + inline] {}

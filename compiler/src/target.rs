@@ -237,17 +237,6 @@ impl Target {
         self == &Target::native()
     }
 
-    /// Returns the maximum size (in bits) of a struct that can be passed
-    /// through registers.
-    ///
-    /// If a struct is larger than this size, it must be passed using a pointer.
-    pub(crate) fn pass_struct_size(&self) -> u64 {
-        // The exact size may differ per platform, but both amd64 and arm64 have
-        // the same requirement, and those are the only platforms we support at
-        // this time.
-        128
-    }
-
     pub(crate) fn stack_pointer_register_name(&self) -> &str {
         match self.arch {
             Architecture::Amd64 => "rsp",

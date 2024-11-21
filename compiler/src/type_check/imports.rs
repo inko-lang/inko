@@ -178,6 +178,58 @@ impl<'a> CollectExternImports<'a> {
     }
 }
 
+/// A pass that checks for any unused imported symbols.
+pub(crate) fn check_unused_imports(
+    state: &mut State,
+    modules: &[hir::Module],
+) -> bool {
+    for module in modules {
+        let mod_id = module.module_id;
+
+        for expr in &module.expressions {
+            let import = if let hir::TopLevelExpression::Import(v) = expr {
+                v
+            } else {
+                continue;
+            };
+
+            let tail = &import.source.last().unwrap().name;
+
+            if import.symbols.is_empty() {
+                if mod_id.symbol_is_used(&state.db, tail) {
+                    continue;
+                }
+
+                let file = mod_id.file(&state.db);
+                let loc = import.location;
+
+                state.diagnostics.unused_symbol(tail, file, loc);
+            } else {
+                for sym in &import.symbols {
+                    let mut name = &sym.import_as.name;
+
+                    if name == IMPORT_MODULE_ITSELF_NAME {
+                        name = tail;
+                    }
+
+                    if mod_id.symbol_is_used(&state.db, name)
+                        || name.starts_with('_')
+                    {
+                        continue;
+                    }
+
+                    let file = mod_id.file(&state.db);
+                    let loc = sym.location;
+
+                    state.diagnostics.unused_symbol(name, file, loc);
+                }
+            }
+        }
+    }
+
+    !state.diagnostics.has_errors()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

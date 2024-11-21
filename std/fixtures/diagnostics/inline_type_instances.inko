@@ -1,0 +1,15 @@
+class inline A[T] {
+  let @value: T
+}
+
+class extern B {
+  let @value: Int
+}
+
+fn example1 {
+  A(value: 42)
+  A(value: B(value: 42))
+  A(value: 'not a stack type')
+}
+
+# inline_type_instances.inko:12:12 error(invalid-type): expected a value of type 'T: inline', found 'String'

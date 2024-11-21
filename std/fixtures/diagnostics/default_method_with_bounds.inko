@@ -28,5 +28,5 @@ fn invalid {
   Box(10).bar
 }
 
-# default_method_with_bounds.inko:27:3 error(invalid-symbol): the method 'foo' exists but isn't available because one or more type parameter bounds aren't met
-# default_method_with_bounds.inko:28:3 error(invalid-symbol): the method 'bar' exists but isn't available because one or more type parameter bounds aren't met
+# default_method_with_bounds.inko:27:11 error(invalid-symbol): the method 'foo' exists but isn't available because one or more type parameter bounds aren't met
+# default_method_with_bounds.inko:28:11 error(invalid-symbol): the method 'bar' exists but isn't available because one or more type parameter bounds aren't met

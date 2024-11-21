@@ -17,7 +17,7 @@ use types::{
     FieldId, FieldInfo, IdentifierKind, IntrinsicCall, MethodId, MethodLookup,
     ModuleId, Receiver, Sign, Symbol, ThrowKind, TraitId, TraitInstance,
     TypeArguments, TypeBounds, TypeId, TypeRef, Variable, VariableId,
-    CALL_METHOD, DEREF_POINTER_FIELD, IMPORT_MODULE_ITSELF_NAME,
+    CALL_METHOD, DEREF_POINTER_FIELD,
 };
 
 const IGNORE_VARIABLE: &str = "_";
@@ -444,7 +444,7 @@ impl MethodCall {
         let name = self.method.name(&state.db);
         let rec = self.receiver;
 
-        if self.method.is_moving(&state.db) && !rec.allow_moving() {
+        if self.method.is_moving(&state.db) && !rec.allow_moving(&state.db) {
             state.diagnostics.error(
                 DiagnosticId::InvalidCall,
                 format!(
@@ -493,7 +493,7 @@ impl MethodCall {
         expected: TypeRef,
         location: Location,
     ) -> TypeRef {
-        let given = argument.cast_according_to(expected, &state.db);
+        let given = argument.cast_according_to(&state.db, expected);
 
         if self.require_sendable || given.is_uni_ref(&state.db) {
             self.check_sendable.push((given, location));
@@ -1065,6 +1065,7 @@ impl<'a> CheckConstant<'a> {
             return TypeRef::Error;
         };
 
+        let loc = node.location;
         let mut call = MethodCall::new(
             self.state,
             self.module,
@@ -1074,8 +1075,8 @@ impl<'a> CheckConstant<'a> {
             method,
         );
 
-        call.check_mutability(self.state, node.location);
-        call.check_type_bounds(self.state, node.location);
+        call.check_mutability(self.state, loc);
+        call.check_type_bounds(self.state, loc);
         call.arguments = 1;
 
         if let Some(expected) =
@@ -1089,9 +1090,9 @@ impl<'a> CheckConstant<'a> {
             );
         }
 
-        call.check_arguments(self.state, node.location);
+        call.check_arguments(self.state, loc);
         call.resolve_return_type(self.state);
-        call.check_sendable(self.state, node.location);
+        call.check_sendable(self.state, loc);
 
         node.resolved_type = call.return_type;
         node.resolved_type
@@ -1581,7 +1582,7 @@ impl<'a> CheckMethodBody<'a> {
         self.check_if_self_is_allowed(scope, node.location);
 
         if scope.in_recover() {
-            typ = typ.as_uni_reference(self.db());
+            typ = typ.as_uni_borrow(self.db());
         }
 
         scope.mark_closures_as_capturing_self(self.db_mut());
@@ -1625,7 +1626,7 @@ impl<'a> CheckMethodBody<'a> {
         let var_type = if let Some(tnode) = node.value_type.as_mut() {
             let exp_type = self.type_signature(tnode, self.self_type);
             let value_casted =
-                value_type.cast_according_to(exp_type, self.db());
+                value_type.cast_according_to(self.db(), exp_type);
 
             if !TypeChecker::check(self.db(), value_casted, exp_type) {
                 self.state.diagnostics.type_error(
@@ -1811,7 +1812,7 @@ impl<'a> CheckMethodBody<'a> {
                 return;
             };
 
-            let members = constructor.members(self.db());
+            let members = constructor.arguments(self.db());
 
             if !members.is_empty() {
                 self.state.diagnostics.incorrect_pattern_arguments(
@@ -1949,7 +1950,7 @@ impl<'a> CheckMethodBody<'a> {
         let fields = ins.instance_of().fields(self.db());
 
         for (patt, vtype) in node.values.iter_mut().zip(raw_types.into_iter()) {
-            let typ = vtype.cast_according_to(value_type, self.db());
+            let typ = vtype.cast_according_to(self.db(), value_type);
 
             self.pattern(patt, typ, pattern);
             values.push(typ);
@@ -1969,33 +1970,21 @@ impl<'a> CheckMethodBody<'a> {
             return;
         }
 
-        let ins = match value_type {
-            TypeRef::Owned(TypeId::ClassInstance(ins))
-            | TypeRef::Uni(TypeId::ClassInstance(ins))
-            | TypeRef::Mut(TypeId::ClassInstance(ins))
-            | TypeRef::Ref(TypeId::ClassInstance(ins))
-                if ins
-                    .instance_of()
-                    .kind(self.db())
-                    .allow_pattern_matching() =>
-            {
-                ins
-            }
-            _ => {
-                self.state.diagnostics.error(
-                    DiagnosticId::InvalidType,
-                    format!(
-                        "a regular or extern class instance is expected, \
-                        but the input type is an instance of type '{}'",
-                        format_type(self.db(), value_type),
-                    ),
-                    self.file(),
-                    node.location,
-                );
+        let Some(ins) =
+            value_type.as_class_instance_for_pattern_matching(self.db())
+        else {
+            self.state.diagnostics.error(
+                DiagnosticId::InvalidType,
+                format!(
+                    "this pattern can't be used with values of type '{}'",
+                    format_type(self.db(), value_type),
+                ),
+                self.file(),
+                node.location,
+            );
 
-                self.field_error_patterns(&mut node.values, pattern);
-                return;
-            }
+            self.field_error_patterns(&mut node.values, pattern);
+            return;
         };
 
         let class = ins.instance_of();
@@ -2050,7 +2039,7 @@ impl<'a> CheckMethodBody<'a> {
                 TypeResolver::new(&mut self.state.db, &args, self.bounds)
                     .with_immutable(immutable)
                     .resolve(raw_type)
-                    .cast_according_to(value_type, self.db());
+                    .cast_according_to(self.db(), value_type);
 
             node.field_id = Some(field);
 
@@ -2163,7 +2152,7 @@ impl<'a> CheckMethodBody<'a> {
             return;
         };
 
-        let members = constructor.members(self.db());
+        let members = constructor.arguments(self.db()).to_vec();
 
         if members.len() != node.values.len() {
             self.state.diagnostics.incorrect_pattern_arguments(
@@ -2185,7 +2174,7 @@ impl<'a> CheckMethodBody<'a> {
             let typ = TypeResolver::new(self.db_mut(), &args, bounds)
                 .with_immutable(immutable)
                 .resolve(member)
-                .cast_according_to(value_type, self.db());
+                .cast_according_to(self.db(), value_type);
 
             self.pattern(patt, typ, pattern);
         }
@@ -2535,6 +2524,7 @@ impl<'a> CheckMethodBody<'a> {
             }
         };
 
+        let loc = node.location;
         let mut call = MethodCall::new(
             self.state,
             module,
@@ -2544,11 +2534,11 @@ impl<'a> CheckMethodBody<'a> {
             method,
         );
 
-        call.check_mutability(self.state, node.location);
-        call.check_type_bounds(self.state, node.location);
-        call.check_arguments(self.state, node.location);
+        call.check_mutability(self.state, loc);
+        call.check_type_bounds(self.state, loc);
+        call.check_arguments(self.state, loc);
         call.resolve_return_type(self.state);
-        call.check_sendable(self.state, node.location);
+        call.check_sendable(self.state, loc);
 
         let returns = call.return_type;
 
@@ -2657,6 +2647,7 @@ impl<'a> CheckMethodBody<'a> {
             }
         };
 
+        let loc = node.location;
         let mut call = MethodCall::new(
             self.state,
             module,
@@ -2666,11 +2657,11 @@ impl<'a> CheckMethodBody<'a> {
             method,
         );
 
-        call.check_mutability(self.state, node.location);
-        call.check_type_bounds(self.state, node.location);
-        call.check_arguments(self.state, node.location);
+        call.check_mutability(self.state, loc);
+        call.check_type_bounds(self.state, loc);
+        call.check_arguments(self.state, loc);
         call.resolve_return_type(self.state);
-        call.check_sendable(self.state, node.location);
+        call.check_sendable(self.state, loc);
         let returns = call.return_type;
 
         node.kind = IdentifierKind::Method(CallInfo {
@@ -2702,18 +2693,26 @@ impl<'a> CheckMethodBody<'a> {
             return TypeRef::Error;
         };
 
-        node.field_id = Some(field);
-
-        let mut ret =
-            raw_type.cast_according_to(scope.surrounding_type, self.db());
+        let (mut ret, as_pointer) = self.borrow_field(
+            scope.surrounding_type,
+            raw_type,
+            node.in_mut,
+            false,
+        );
 
         if scope.in_recover() {
-            ret = ret.as_uni_reference(self.db());
+            ret = ret.as_uni_borrow(self.db());
         }
 
+        node.info = Some(FieldInfo {
+            class: scope.surrounding_type.class_id(self.db()).unwrap(),
+            id: field,
+            variable_type: ret,
+            as_pointer,
+        });
+
         scope.mark_closures_as_capturing_self(self.db_mut());
-        node.resolved_type = ret;
-        node.resolved_type
+        ret
     }
 
     fn assign_field(
@@ -3103,7 +3102,7 @@ impl<'a> CheckMethodBody<'a> {
 
         let expr = self.expression(&mut node.value, scope);
 
-        if !expr.allow_as_mut(self.db()) {
+        if !expr.allow_mutating(self.db()) {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidType,
                 format!(
@@ -3245,7 +3244,7 @@ impl<'a> CheckMethodBody<'a> {
             }
         };
 
-        let loc = node.location;
+        let loc = node.name.location;
         let mut call = MethodCall::new(
             self.state,
             self.module,
@@ -3262,7 +3261,7 @@ impl<'a> CheckMethodBody<'a> {
 
         call.check_arguments(self.state, loc);
         call.resolve_return_type(self.state);
-        call.check_sendable(self.state, node.location);
+        call.check_sendable(self.state, loc);
 
         let returns = call.return_type;
         let rec_info = Receiver::with_receiver(self.db(), receiver, method);
@@ -3315,7 +3314,7 @@ impl<'a> CheckMethodBody<'a> {
         let bounds = self.bounds;
         let var_type =
             TypeResolver::new(self.db_mut(), &targs, bounds).resolve(raw_type);
-        let value = value.cast_according_to(var_type, self.db());
+        let value = value.cast_according_to(self.db(), var_type);
 
         if !TypeChecker::check(self.db(), value, var_type) {
             self.state.diagnostics.type_error(
@@ -3405,7 +3404,7 @@ impl<'a> CheckMethodBody<'a> {
         let var_type =
             TypeResolver::new(self.db_mut(), &targs, bounds).resolve(raw_type);
 
-        let value = value.cast_according_to(var_type, self.db());
+        let value = value.cast_according_to(self.db(), var_type);
 
         if !TypeChecker::check(self.db(), value, var_type) {
             self.state.diagnostics.type_error(
@@ -3526,7 +3525,7 @@ impl<'a> CheckMethodBody<'a> {
 
             let given = self
                 .argument_expression(exp, &mut pos_node.value, scope, &targs)
-                .cast_according_to(exp, self.db());
+                .cast_according_to(self.db(), exp);
 
             if !TypeChecker::check(self.db(), given, exp) {
                 self.state.diagnostics.type_error(
@@ -3671,6 +3670,7 @@ impl<'a> CheckMethodBody<'a> {
             }
         };
 
+        let loc = node.name.location;
         let mut call = MethodCall::new(
             self.state,
             self.module,
@@ -3680,12 +3680,12 @@ impl<'a> CheckMethodBody<'a> {
             method,
         );
 
-        call.check_mutability(self.state, node.location);
-        call.check_type_bounds(self.state, node.location);
+        call.check_mutability(self.state, loc);
+        call.check_type_bounds(self.state, loc);
         self.call_arguments(&mut node.arguments, &mut call, scope);
-        call.check_arguments(self.state, node.location);
+        call.check_arguments(self.state, loc);
         call.resolve_return_type(self.state);
-        call.check_sendable(self.state, node.location);
+        call.check_sendable(self.state, loc);
 
         let returns = call.return_type;
         let rec_info = Receiver::with_receiver(self.db(), receiver, method);
@@ -3765,7 +3765,7 @@ impl<'a> CheckMethodBody<'a> {
                             self.state.diagnostics.undefined_symbol(
                                 name,
                                 self.file(),
-                                node.location,
+                                node.name.location,
                             );
 
                             return TypeRef::Error;
@@ -3774,6 +3774,7 @@ impl<'a> CheckMethodBody<'a> {
                 }
             };
 
+        let loc = node.name.location;
         let mut call = MethodCall::new(
             self.state,
             self.module,
@@ -3783,12 +3784,12 @@ impl<'a> CheckMethodBody<'a> {
             method,
         );
 
-        call.check_mutability(self.state, node.location);
-        call.check_type_bounds(self.state, node.location);
+        call.check_mutability(self.state, loc);
+        call.check_type_bounds(self.state, loc);
         self.call_arguments(&mut node.arguments, &mut call, scope);
-        call.check_arguments(self.state, node.location);
+        call.check_arguments(self.state, loc);
         call.resolve_return_type(self.state);
-        call.check_sendable(self.state, node.location);
+        call.check_sendable(self.state, loc);
 
         let returns = call.return_type;
 
@@ -3882,7 +3883,7 @@ impl<'a> CheckMethodBody<'a> {
                 );
             }
 
-            let targs = ins.type_arguments(self.db()).clone();
+            let targs = ins.type_arguments(self.db()).unwrap().clone();
 
             // The field type is the _raw_ type, but we want one that takes into
             // account what we have inferred thus far. Consider the following
@@ -3912,7 +3913,7 @@ impl<'a> CheckMethodBody<'a> {
             };
 
             let value = self.expression(val_expr, scope);
-            let value_casted = value.cast_according_to(expected, self.db());
+            let value_casted = value.cast_according_to(self.db(), expected);
             let checker = TypeChecker::new(self.db());
             let mut env =
                 Environment::new(value_casted.type_arguments(self.db()), targs);
@@ -3999,26 +4000,17 @@ impl<'a> CheckMethodBody<'a> {
             self.lookup_field_with_receiver(receiver_id, &node.name)?;
         let raw_type = field.value_type(self.db_mut());
         let immutable = receiver.is_ref(self.db_mut());
-        let args = ins.type_arguments(self.db_mut()).clone();
+        let args = ins.type_arguments(self.db_mut()).unwrap().clone();
         let bounds = self.bounds;
-        let mut returns = TypeResolver::new(self.db_mut(), &args, bounds)
+        let returns = TypeResolver::new(self.db_mut(), &args, bounds)
             .with_immutable(immutable)
             .resolve(raw_type);
-        let as_pointer = returns.is_extern_instance(self.db())
-            || (node.in_mut && returns.is_foreign_type(self.db()));
 
-        if returns.is_value_type(self.db()) {
-            returns = if as_pointer {
-                returns.as_pointer(self.db())
-            } else {
-                returns.as_owned(self.db())
-            };
-        } else if !immutable && raw_type.is_owned_or_uni(self.db()) {
-            returns = returns.as_mut(self.db());
-        }
+        let (mut returns, as_pointer) =
+            self.borrow_field(receiver, returns, node.in_mut, true);
 
         if receiver.require_sendable_arguments(self.db()) {
-            returns = returns.as_uni_reference(self.db());
+            returns = returns.as_uni_borrow(self.db());
         }
 
         node.kind = CallKind::GetField(FieldInfo {
@@ -4046,7 +4038,7 @@ impl<'a> CheckMethodBody<'a> {
             self.state.diagnostics.undefined_symbol(
                 &node.name.name,
                 self.file(),
-                node.location,
+                node.name.location,
             );
 
             return TypeRef::Error;
@@ -4544,7 +4536,7 @@ impl<'a> CheckMethodBody<'a> {
         while let Some(scope) = scopes.pop() {
             match scope.kind {
                 ScopeKind::Recover => {
-                    expose_as = expose_as.as_uni_reference(self.db());
+                    expose_as = expose_as.as_uni_borrow(self.db());
                 }
                 ScopeKind::Closure(closure) => {
                     let moving = closure.is_moving(self.db());
@@ -4645,56 +4637,31 @@ impl<'a> CheckMethodBody<'a> {
 
         Some((ins, field))
     }
-}
 
-/// A pass that checks for any unused imported symbols.
-pub(crate) fn check_unused_imports(
-    state: &mut State,
-    modules: &[hir::Module],
-) -> bool {
-    for module in modules {
-        let mod_id = module.module_id;
+    fn borrow_field(
+        &self,
+        receiver: TypeRef,
+        typ: TypeRef,
+        in_mut: bool,
+        borrow: bool,
+    ) -> (TypeRef, bool) {
+        let db = self.db();
 
-        for expr in &module.expressions {
-            let import = if let hir::TopLevelExpression::Import(v) = expr {
-                v
-            } else {
-                continue;
-            };
-
-            let tail = &import.source.last().unwrap().name;
-
-            if import.symbols.is_empty() {
-                if mod_id.symbol_is_used(&state.db, tail) {
-                    continue;
-                }
-
-                let file = mod_id.file(&state.db);
-                let loc = import.location;
-
-                state.diagnostics.unused_symbol(tail, file, loc);
-            } else {
-                for sym in &import.symbols {
-                    let mut name = &sym.import_as.name;
-
-                    if name == IMPORT_MODULE_ITSELF_NAME {
-                        name = tail;
-                    }
-
-                    if mod_id.symbol_is_used(&state.db, name)
-                        || name.starts_with('_')
-                    {
-                        continue;
-                    }
-
-                    let file = mod_id.file(&state.db);
-                    let loc = sym.location;
-
-                    state.diagnostics.unused_symbol(name, file, loc);
-                }
-            }
+        // Foreign types are as raw pointers when necessary for FFI purposes.
+        if (in_mut && typ.is_foreign_type(db)) || typ.is_extern_instance(db) {
+            return (typ.as_pointer(db), true);
         }
-    }
 
-    !state.diagnostics.has_errors()
+        let res = if typ.is_value_type(db) {
+            typ
+        } else if receiver.is_ref(db) {
+            typ.as_ref(db)
+        } else if receiver.is_mut(db) || borrow {
+            typ.as_mut(db)
+        } else {
+            typ
+        };
+
+        (res, false)
+    }
 }

@@ -97,6 +97,10 @@ trait MethodDefiner {
                 pid.set_mutable(self.db_mut());
             }
 
+            if param_node.inline {
+                pid.set_stack_allocated(self.db_mut());
+            }
+
             param_node.type_parameter_id = Some(pid);
         }
     }
@@ -243,6 +247,33 @@ trait MethodDefiner {
         } else {
             class_id.add_method(self.db_mut(), name.to_string(), method);
         }
+    }
+
+    fn check_if_mutating_method_is_allowed(
+        &mut self,
+        kind: hir::MethodKind,
+        class: ClassId,
+        location: Location,
+    ) {
+        if !matches!(kind, hir::MethodKind::Mutable)
+            || class.allow_mutating(self.db())
+        {
+            return;
+        }
+
+        let name = class.name(self.db()).clone();
+        let file = self.file();
+
+        self.state_mut().diagnostics.error(
+            DiagnosticId::InvalidMethod,
+            format!(
+                "'{}' doesn't support mutating methods because it's an \
+                immutable type",
+                name
+            ),
+            file,
+            location,
+        );
     }
 }
 
@@ -668,14 +699,20 @@ impl<'a> DefineMethods<'a> {
     ) {
         let async_class = class_id.kind(self.db()).is_async();
 
-        if node.kind.is_moving() && async_class {
+        if matches!(node.kind, hir::MethodKind::Moving) && async_class {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidMethod,
-                "moving methods can't be defined for async classes",
+                "moving methods can't be defined for 'async' types",
                 self.file(),
                 node.location,
             );
         }
+
+        self.check_if_mutating_method_is_allowed(
+            node.kind,
+            class_id,
+            node.location,
+        );
 
         let self_id = TypeId::Class(class_id);
         let module = self.module;
@@ -711,7 +748,7 @@ impl<'a> DefineMethods<'a> {
         if async_class && method.is_public(self.db()) {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidMethod,
-                "regular instance methods for async classes must be private",
+                "instance methods defined on 'async' types must be private",
                 self.file(),
                 node.location,
             );
@@ -996,6 +1033,7 @@ impl<'a> DefineMethods<'a> {
         node.method_id = Some(method);
     }
 
+    #[allow(clippy::unnecessary_to_owned)]
     fn define_constructor_method(
         &mut self,
         class_id: ClassId,
@@ -1024,7 +1062,7 @@ impl<'a> DefineMethods<'a> {
             class_id.constructor(self.db(), &node.name.name).unwrap();
 
         for (index, typ) in
-            constructor.members(self.db()).into_iter().enumerate()
+            constructor.arguments(self.db()).to_vec().into_iter().enumerate()
         {
             let var_type = typ.as_rigid_type(self.db_mut(), &bounds);
 
@@ -1194,8 +1232,23 @@ impl<'a> ImplementTraitMethods<'a> {
         let trait_id = trait_ins.instance_of();
         let class_ins = node.class_instance.unwrap();
         let class_id = class_ins.instance_of();
+        let mut mut_error = false;
+        let allow_mut = class_id.allow_mutating(self.db());
 
         for method in trait_id.default_methods(self.db()) {
+            if method.is_mutable(self.db()) && !allow_mut && !mut_error {
+                self.state.diagnostics.error(
+                    DiagnosticId::InvalidImplementation,
+                    "the trait '{}' can't be implemented because it defines \
+                    one or more mutating methods, and '{}' is an immutable \
+                    type",
+                    self.file(),
+                    node.location,
+                );
+
+                mut_error = true;
+            }
+
             if !class_id.method_exists(self.db(), method.name(self.db())) {
                 continue;
             }
@@ -1205,7 +1258,7 @@ impl<'a> ImplementTraitMethods<'a> {
             let method_name = format_type(self.db(), method);
             let file = self.file();
 
-            self.state_mut().diagnostics.error(
+            self.state.diagnostics.error(
                 DiagnosticId::InvalidImplementation,
                 format!(
                     "the trait '{}' can't be implemented for '{}', as its \
@@ -1302,6 +1355,20 @@ impl<'a> ImplementTraitMethods<'a> {
             return;
         };
 
+        let is_drop = trait_instance.instance_of() == self.drop_trait
+            && name == DROP_METHOD;
+
+        // `Drop.drop` is the only exception because it may be used to e.g.
+        // deallocate memory, which is an immutable type (as is the case for
+        // `String.drop`).
+        if !is_drop {
+            self.check_if_mutating_method_is_allowed(
+                node.kind,
+                class_instance.instance_of(),
+                node.location,
+            );
+        }
+
         let self_type = TypeId::ClassInstance(class_instance);
         let module = self.module;
         let method = Method::alloc(
@@ -1381,9 +1448,7 @@ impl<'a> ImplementTraitMethods<'a> {
             );
         }
 
-        if trait_instance.instance_of() == self.drop_trait
-            && name == DROP_METHOD
-        {
+        if is_drop {
             // We do this after the type-check so incorrect implementations are
             // detected properly.
             method.mark_as_destructor(self.db_mut());

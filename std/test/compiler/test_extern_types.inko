@@ -1,0 +1,17 @@
+import std.test (Tests)
+
+class extern Example {
+  let @a: Int
+  let @b: Int
+}
+
+fn pub tests(t: mut Tests) {
+  t.test('extern types can be used in generic contexts', fn (t) {
+    t.true(
+      match Option.Some(Example(a: 10, b: 20)) {
+        case Some({ @a = 10, @b = 20 }) -> true
+        case _ -> false
+      },
+    )
+  })
+}

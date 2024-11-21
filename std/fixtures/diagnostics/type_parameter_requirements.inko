@@ -1,0 +1,10 @@
+class A[T: mut] {}
+
+class B[T: inline] {}
+
+class C[T: mut + inline] {}
+
+class D[T: inline + mut] {}
+
+# type_parameter_requirements.inko:5:18 error(invalid-type): type parameters can't be both 'mut' and 'inline', as 'inline' types are immutable
+# type_parameter_requirements.inko:7:21 error(invalid-type): type parameters can't be both 'mut' and 'inline', as 'inline' types are immutable

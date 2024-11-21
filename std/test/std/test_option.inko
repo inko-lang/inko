@@ -11,10 +11,11 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Option.as_mut', fn (t) {
-    let a = Option.Some('thing')
-    let b: Option[String] = Option.None
+    let a = Option.Some((1, 0))
+    let b: Option[(Int, Int)] = Option.None
+    let exp = (1, 0)
 
-    t.equal(a.as_mut, Option.Some(mut 'thing'))
+    t.equal(a.as_mut, Option.Some(mut exp))
     t.equal(b.as_mut, Option.None)
   })
 

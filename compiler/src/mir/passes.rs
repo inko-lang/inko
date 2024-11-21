@@ -399,12 +399,18 @@ pub(crate) struct GenerateDropper<'a> {
 }
 
 impl<'a> GenerateDropper<'a> {
-    pub(crate) fn run(mut self) -> MethodId {
+    pub(crate) fn run(mut self) {
+        // Stack values don't support destructors and won't have object headers,
+        // so we don't generate droppers.
+        if self.class.is_stack_allocated(&self.state.db) {
+            return;
+        }
+
         match self.class.kind(&self.state.db) {
             types::ClassKind::Async => self.async_class(),
             types::ClassKind::Enum => self.enum_class(),
             _ => self.regular_class(),
-        }
+        };
     }
 
     /// Generates the dropper method for a regular class.
@@ -513,10 +519,14 @@ impl<'a> GenerateDropper<'a> {
 
             lower.add_edge(before_block, block);
 
-            let members = con.members(lower.db());
+            let members = con.arguments(lower.db()).to_vec();
             let fields = &enum_fields[0..members.len()];
 
             for (&field, typ) in fields.iter().zip(members.into_iter()).rev() {
+                if typ.is_stack_allocated(lower.db()) {
+                    continue;
+                }
+
                 let reg = lower.new_register(typ);
 
                 lower
@@ -540,10 +550,13 @@ impl<'a> GenerateDropper<'a> {
         // Destructors may introduce new references, so we have to check again.
         // We do this _after_ processing fields so we can correctly drop cyclic
         // types.
-        lower.current_block_mut().check_refs(self_reg, loc);
+        if class.has_object_header(lower.db()) {
+            lower.current_block_mut().check_refs(self_reg, loc);
+        }
 
-        lower.drop_register(tag_reg, loc);
-        lower.current_block_mut().free(self_reg, class, loc);
+        if class.is_heap_allocated(lower.db()) {
+            lower.current_block_mut().free(self_reg, class, loc);
+        }
 
         let nil_reg = lower.get_nil(loc);
 
@@ -588,7 +601,7 @@ impl<'a> GenerateDropper<'a> {
         for field in class.fields(lower.db()).into_iter().rev() {
             let typ = field.value_type(lower.db());
 
-            if typ.is_permanent(lower.db()) {
+            if typ.is_stack_allocated(lower.db()) {
                 continue;
             }
 
@@ -601,12 +614,14 @@ impl<'a> GenerateDropper<'a> {
             lower.drop_register(reg, loc);
         }
 
-        // Destructors may introduce new references, so we have to check again.
-        // We do this _after_ processing fields so we can correctly drop cyclic
-        // types.
-        lower.current_block_mut().check_refs(self_reg, loc);
+        if class.has_object_header(lower.db()) {
+            // Destructors may introduce new references, so we have to check
+            // again. We do this _after_ processing fields so we can correctly
+            // drop cyclic types.
+            lower.current_block_mut().check_refs(self_reg, loc);
+        }
 
-        if free_self {
+        if class.is_heap_allocated(lower.db()) && free_self {
             lower.current_block_mut().free(self_reg, class, loc);
         }
 
@@ -1164,7 +1179,6 @@ impl<'a> LowerToMir<'a> {
         }
 
         lower.mark_register_as_moved(ins_reg);
-        lower.mark_register_as_moved(tag_reg);
         lower.current_block_mut().return_value(ins_reg, loc);
         method
     }
@@ -1393,7 +1407,7 @@ impl<'a> LowerMethod<'a> {
             for (id, typ) in self.method.id.fields(self.db()) {
                 self.field_register(
                     id,
-                    typ.cast_according_to(rec, self.db()),
+                    typ.cast_according_to(self.db(), rec),
                     location,
                 );
             }
@@ -1819,7 +1833,7 @@ impl<'a> LowerMethod<'a> {
                 // When returning a field using the syntax `x.y`, we _must_ copy
                 // or create a reference, otherwise it's possible to drop `x`
                 // while the result of `y` is still in use.
-                if typ.is_permanent(self.db()) || info.as_pointer {
+                if info.as_pointer || typ.is_stack_allocated(self.db()) {
                     reg
                 } else if typ.is_value_type(self.db()) {
                     let copy = self.clone_value_type(reg, typ, true, loc);
@@ -1830,7 +1844,7 @@ impl<'a> LowerMethod<'a> {
                 } else {
                     let ref_reg = self.new_register(typ);
 
-                    self.current_block_mut().reference(ref_reg, reg, loc);
+                    self.current_block_mut().borrow(ref_reg, reg, loc);
                     self.mark_register_as_moved(reg);
                     ref_reg
                 }
@@ -1972,8 +1986,8 @@ impl<'a> LowerMethod<'a> {
         // Argument registers must be defined _before_ the receiver register,
         // ensuring we drop them _after_ dropping the receiver (i.e in
         // reverse-lexical order).
-        let arg_regs = self.call_arguments(info.id, arguments);
-        let result = self.new_register(info.returns);
+        let args = self.call_arguments(info.id, arguments);
+        let res = self.new_register(info.returns);
         let targs = self.mir.add_type_arguments(info.type_arguments);
 
         if info.id.is_async(self.db()) {
@@ -1981,20 +1995,18 @@ impl<'a> LowerMethod<'a> {
             // otherwise we may end up scheduling the async dropper prematurely
             // (e.g. if new references are created before it runs).
             self.current_block_mut().increment_atomic(rec, ins_loc);
-            self.current_block_mut()
-                .send(rec, info.id, arg_regs, targs, ins_loc);
-
-            self.current_block_mut().nil_literal(result, ins_loc);
+            self.current_block_mut().send(rec, info.id, args, targs, ins_loc);
+            self.current_block_mut().nil_literal(res, ins_loc);
         } else if info.dynamic {
             self.current_block_mut()
-                .call_dynamic(result, rec, info.id, arg_regs, targs, ins_loc);
+                .call_dynamic(res, rec, info.id, args, targs, ins_loc);
         } else {
             self.current_block_mut()
-                .call_instance(result, rec, info.id, arg_regs, targs, ins_loc);
+                .call_instance(res, rec, info.id, args, targs, ins_loc);
         }
 
         self.after_call(info.returns);
-        result
+        res
     }
 
     fn call_arguments(
@@ -2102,7 +2114,7 @@ impl<'a> LowerMethod<'a> {
                 let arg = self.input_expression(node.value, Some(exp));
                 let old = self.new_register(info.variable_type);
 
-                if !info.variable_type.is_permanent(self.db()) {
+                if !info.variable_type.is_stack_allocated(self.db()) {
                     self.current_block_mut()
                         .get_field(old, rec, info.class, info.id, loc);
                     self.drop_register(old, loc);
@@ -2158,7 +2170,7 @@ impl<'a> LowerMethod<'a> {
             let rec = self.surrounding_type_register;
             let class = self.register_type(rec).class_id(self.db()).unwrap();
 
-            if !exp.is_permanent(self.db()) {
+            if !exp.is_stack_allocated(self.db()) {
                 // The captured variable may be exposed as a reference in `reg`,
                 // but if the value is owned we need to drop it, not decrement
                 // it.
@@ -2213,7 +2225,7 @@ impl<'a> LowerMethod<'a> {
             let class = self.register_type(rec).class_id(self.db()).unwrap();
             let is_moved = self.register_is_moved(reg);
 
-            if !is_moved && !exp.is_permanent(self.db()) {
+            if !is_moved && !exp.is_stack_allocated(self.db()) {
                 // `reg` may be a reference for a non-moving method, so we need
                 // a temporary register using the raw field type and drop that
                 // instead.
@@ -2239,7 +2251,7 @@ impl<'a> LowerMethod<'a> {
             let rec = self.self_register;
             let class = self.register_type(rec).class_id(self.db()).unwrap();
 
-            if !exp.is_permanent(self.db()) {
+            if !exp.is_stack_allocated(self.db()) {
                 let old = self.new_register(exp);
 
                 // Closures capture `self` as a whole, so we can't end up with a
@@ -2456,9 +2468,7 @@ impl<'a> LowerMethod<'a> {
         self.mark_register_as_moved(reg);
         self.mark_register_as_moved(result_reg);
         self.drop_all_registers(loc);
-
         self.current_block_mut().return_value(result_reg, loc);
-
         self.add_current_block();
         self.new_register(TypeRef::Never)
     }
@@ -2568,7 +2578,7 @@ impl<'a> LowerMethod<'a> {
         } else {
             let reg = self.new_register(return_type);
 
-            self.current_block_mut().reference(reg, val, location);
+            self.current_block_mut().borrow(reg, val, location);
             reg
         }
     }
@@ -2633,7 +2643,6 @@ impl<'a> LowerMethod<'a> {
         // The result is untracked as otherwise an explicit return may drop it
         // before we write to it.
         let output_reg = self.new_untracked_register(node.resolved_type);
-
         let mut rows = Vec::new();
         let mut vars = pmatch::Variables::new();
         let input_var = vars.new_variable(input_type);
@@ -2865,7 +2874,7 @@ impl<'a> LowerMethod<'a> {
                     let source = state.registers[pvar.0];
                     let target = *self.variable_mapping.get(&id).unwrap();
 
-                    self.mark_register_as_moved(source);
+                    self.mark_local_register_as_moved(source);
                     self.add_drop_flag(target, loc);
 
                     match state.actions.get(&source) {
@@ -2884,12 +2893,12 @@ impl<'a> LowerMethod<'a> {
                                 let copy = self
                                     .clone_value_type(source, typ, false, loc);
 
-                                self.mark_register_as_moved(copy);
+                                self.mark_local_register_as_moved(copy);
                                 self.current_block_mut()
                                     .move_register(target, copy, loc);
                             } else {
                                 self.current_block_mut()
-                                    .reference(target, source, loc);
+                                    .borrow(target, source, loc);
                             }
                         }
                         None => {
@@ -2901,23 +2910,16 @@ impl<'a> LowerMethod<'a> {
                 pmatch::Binding::Ignored(pvar) => {
                     let reg = state.registers[pvar.0];
 
+                    if self.register_is_stack_allocated(reg) {
+                        continue;
+                    }
+
                     match state.actions.get(&reg) {
                         Some(&RegisterAction::Move(parent)) => {
                             self.mark_register_as_partially_moved(parent);
-
-                            if self.register_type(reg).is_permanent(self.db()) {
-                                self.mark_register_as_moved(reg);
-                            } else {
-                                self.drop_with_children(state, reg, loc);
-                            }
+                            self.drop_with_children(state, reg, loc);
                         }
-                        None => {
-                            if self.register_type(reg).is_permanent(self.db()) {
-                                self.mark_register_as_moved(reg);
-                            } else {
-                                self.drop_with_children(state, reg, loc);
-                            }
-                        }
+                        None => self.drop_with_children(state, reg, loc),
                         _ => self.mark_register_as_moved(reg),
                     }
                 }
@@ -2954,10 +2956,12 @@ impl<'a> LowerMethod<'a> {
         let loc = InstructionLocation::new(body_loc);
         let reg = self.body(exprs, loc);
 
-        if state.write_result {
-            self.mark_register_as_moved(reg);
-        } else if self.in_connected_block() {
-            self.drop_register(reg, loc);
+        if !self.register_is_stack_allocated(reg) {
+            if state.write_result {
+                self.mark_register_as_moved(reg);
+            } else if self.in_connected_block() {
+                self.drop_register(reg, loc);
+            }
         }
 
         // We don't enter a scope in this method, because we must enter a new
@@ -2987,7 +2991,7 @@ impl<'a> LowerMethod<'a> {
         while let Some(reg) = registers.pop() {
             // We may encounter values partially moved, such as for the pattern
             // `(a, b)` where the surrounding tuple is partially moved.
-            if self.register_is_moved(reg) {
+            if self.register_is_moved_or_permanent(reg) {
                 continue;
             }
 
@@ -3009,11 +3013,6 @@ impl<'a> LowerMethod<'a> {
             }
 
             self.mark_register_as_moved(reg);
-
-            if self.register_type(reg).is_permanent(self.db()) {
-                continue;
-            }
-
             self.current_block_mut().drop_without_dropper(reg, loc);
         }
     }
@@ -3041,10 +3040,14 @@ impl<'a> LowerMethod<'a> {
         };
 
         while let Some(regs) = work.pop() {
-            for reg in regs {
-                self.mark_register_as_moved(*reg);
+            for &reg in regs {
+                if self.register_is_stack_allocated(reg) {
+                    continue;
+                }
 
-                if let Some(regs) = state.child_registers.get(reg) {
+                self.mark_register_as_moved(reg);
+
+                if let Some(regs) = state.child_registers.get(&reg) {
                     work.push(regs);
                 }
             }
@@ -3209,15 +3212,14 @@ impl<'a> LowerMethod<'a> {
         };
 
         let test_type = self.register_type(test_reg);
+        let owned = test_type.is_owned_or_uni(self.db());
+        let class = self.register_type(test_reg).class_id(self.db()).unwrap();
 
         registers.push(test_reg);
 
         for (arg, field) in case.arguments.into_iter().zip(fields.into_iter()) {
             let reg = state.registers[arg.0];
-            let class =
-                self.register_type(test_reg).class_id(self.db()).unwrap();
-
-            let action = if test_type.is_owned_or_uni(self.db()) {
+            let action = if owned {
                 RegisterAction::Move(test_reg)
             } else {
                 RegisterAction::Increment(test_reg)
@@ -3302,37 +3304,25 @@ impl<'a> LowerMethod<'a> {
                 self.exit_call_scope(entered, reg, ins_loc);
                 reg
             }
-            types::IdentifierKind::Field(info) => {
-                if !self.register_is_available(self.self_register) {
-                    self.state.diagnostics.implicit_receiver_moved(
-                        &node.name,
-                        self.file(),
-                        loc,
-                    );
-                }
-
-                let rec = self.self_register;
-                let reg = self.new_field(info.id, info.variable_type);
-
-                self.current_block_mut()
-                    .get_field(reg, rec, info.class, info.id, ins_loc);
-                reg
-            }
             types::IdentifierKind::Unknown => unreachable!(),
         }
     }
 
     fn field(&mut self, node: hir::FieldRef) -> RegisterId {
         let loc = InstructionLocation::new(node.location);
-        let id = node.field_id.unwrap();
+        let info = node.info.unwrap();
+        let id = info.id;
+        let typ = info.variable_type;
         let reg = if self.in_closure() {
-            self.new_field(id, node.resolved_type)
+            self.new_field(id, typ)
+        } else if info.as_pointer {
+            self.new_register(typ)
         } else {
             self.field_mapping.get(&id).cloned().unwrap()
         };
 
         let rec = self.self_register;
-        let class = self.register_type(rec).class_id(self.db()).unwrap();
+        let class = info.class;
         let name = &node.name;
         let check_loc = node.location;
 
@@ -3349,19 +3339,13 @@ impl<'a> LowerMethod<'a> {
             }
         }
 
-        let typ = id.value_type(self.db());
-
-        if (node.in_mut && typ.is_foreign_type(self.db()))
-            || typ.is_extern_instance(self.db())
-        {
-            let reg = self.new_register(typ.as_pointer(self.db()));
-
+        if info.as_pointer {
             self.current_block_mut().field_pointer(reg, rec, class, id, loc);
-            reg
         } else {
             self.current_block_mut().get_field(reg, rec, class, id, loc);
-            reg
         }
+
+        reg
     }
 
     fn constant(&mut self, node: hir::ConstantRef) -> RegisterId {
@@ -3714,8 +3698,7 @@ impl<'a> LowerMethod<'a> {
         if self.register_kind(reg).new_reference_on_return() {
             let res = self.new_register(typ);
 
-            self.current_block_mut().reference(res, reg, ins_loc);
-
+            self.current_block_mut().borrow(res, reg, ins_loc);
             return res;
         }
 
@@ -3825,7 +3808,7 @@ impl<'a> LowerMethod<'a> {
     ) -> RegisterId {
         let ins_loc = InstructionLocation::new(location);
 
-        if register_type.is_permanent(self.db()) {
+        if register_type.is_stack_allocated(self.db()) {
             return register;
         }
 
@@ -3851,11 +3834,11 @@ impl<'a> LowerMethod<'a> {
                 // Regular owned values passed to references are implicitly
                 // passed as references.
                 if !exp.is_owned_or_uni(self.db()) {
-                    let typ = register_type.cast_according_to(exp, self.db());
+                    let typ = register_type.cast_according_to(self.db(), exp);
                     let reg = self.new_register(typ);
 
                     self.mark_register_as_moved(reg);
-                    self.current_block_mut().reference(reg, register, ins_loc);
+                    self.current_block_mut().borrow(reg, register, ins_loc);
 
                     return reg;
                 }
@@ -3891,7 +3874,7 @@ impl<'a> LowerMethod<'a> {
         {
             let reg = self.new_register(register_type);
 
-            self.current_block_mut().reference(reg, register, ins_loc);
+            self.current_block_mut().borrow(reg, register, ins_loc);
             self.mark_register_as_moved(reg);
 
             return reg;
@@ -3917,9 +3900,11 @@ impl<'a> LowerMethod<'a> {
         force_clone: bool,
         location: InstructionLocation,
     ) -> RegisterId {
-        if typ.is_permanent(self.db())
-            || (self.register_kind(source).is_regular() && !force_clone)
-        {
+        if typ.is_stack_allocated(self.db()) {
+            return source;
+        }
+
+        if self.register_kind(source).is_regular() && !force_clone {
             self.mark_register_as_moved(source);
 
             // Value types not bound to any variables/fields don't need to be
@@ -4042,7 +4027,7 @@ impl<'a> LowerMethod<'a> {
         let self_type = self.register_type(self_reg);
 
         if !self.method.id.is_moving(self.db())
-            || self_type.is_permanent(self.db())
+            || self_type.is_stack_allocated(self.db())
         {
             return;
         }
@@ -4059,10 +4044,9 @@ impl<'a> LowerMethod<'a> {
             for (id, _) in &fields {
                 let reg = self.field_mapping.get(id).cloned().unwrap();
 
-                if self.register_is_moved(reg) {
+                if self.register_is_moved_or_permanent(reg) {
                     continue;
                 }
-
                 self.drop_field(self_reg, *id, reg, location);
             }
         }
@@ -4212,9 +4196,7 @@ impl<'a> LowerMethod<'a> {
     ) {
         let typ = self.register_type(register);
 
-        if typ.use_reference_counting(self.db())
-            || typ.is_value_type(self.db())
-            || typ.is_permanent(self.db())
+        if typ.use_reference_counting(self.db()) || typ.is_value_type(self.db())
         {
             return;
         }
@@ -4330,6 +4312,10 @@ impl<'a> LowerMethod<'a> {
         self.register_state(register) == RegisterState::Available
     }
 
+    fn register_is_stack_allocated(&self, register: RegisterId) -> bool {
+        self.register_type(register).is_stack_allocated(self.db())
+    }
+
     fn register_is_moved(&mut self, register: RegisterId) -> bool {
         self.register_state(register) == RegisterState::Moved
     }
@@ -4338,9 +4324,14 @@ impl<'a> LowerMethod<'a> {
         self.register_state(register) == RegisterState::MaybeMoved
     }
 
+    fn register_is_moved_or_permanent(&mut self, register: RegisterId) -> bool {
+        self.register_is_moved(register)
+            || self.register_is_stack_allocated(register)
+    }
+
     fn should_drop_register(&mut self, register: RegisterId) -> bool {
         if self.register_is_moved(register)
-            || self.register_type(register).is_permanent(self.db())
+            || self.register_is_stack_allocated(register)
         {
             return false;
         }
@@ -4440,6 +4431,12 @@ impl<'a> LowerMethod<'a> {
 
     fn mark_register_as_partially_moved(&mut self, register: RegisterId) {
         self.update_register_state(register, RegisterState::PartiallyMoved);
+    }
+
+    fn mark_local_register_as_moved(&mut self, register: RegisterId) {
+        if !self.register_is_stack_allocated(register) {
+            self.update_register_state(register, RegisterState::Moved);
+        }
     }
 
     fn mark_register_as_moved(&mut self, register: RegisterId) {

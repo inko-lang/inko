@@ -142,10 +142,10 @@ fn pub tests(t: mut Tests) {
   t.test('Map.opt_mut', fn (t) {
     let map = Map.new
 
-    map.set('name', 'Alice')
+    map.set('foo', (1, 0))
 
-    t.equal(map.opt_mut('name'), Option.Some(mut 'Alice'))
-    t.equal(map.opt_mut('city'), Option.None)
+    t.equal(map.opt_mut('foo'), Option.Some(mut (1, 0)))
+    t.equal(map.opt_mut('bar'), Option.None)
   })
 
   t.test('Map.entry', fn (t) {

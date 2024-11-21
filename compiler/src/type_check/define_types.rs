@@ -2,6 +2,7 @@
 use crate::diagnostics::DiagnosticId;
 use crate::hir;
 use crate::state::State;
+use crate::type_check::graph::RecursiveClassChecker;
 use crate::type_check::{
     define_type_bounds, CheckTypeSignature, DefineAndCheckTypeSignature,
     DefineTypeSignature, Rules, TypeScope,
@@ -13,9 +14,9 @@ use types::format::format_type;
 use types::{
     Class, ClassId, ClassInstance, ClassKind, Constant, Database, ModuleId,
     Symbol, Trait, TraitId, TraitImplementation, TypeId, TypeRef, Visibility,
-    ARRAY_INTERNAL_NAME, ENUM_TAG_FIELD, ENUM_TAG_INDEX, FIELDS_LIMIT,
-    MAIN_CLASS, OPTION_CLASS, OPTION_MODULE, RESULT_CLASS, RESULT_MODULE,
-    VARIANTS_LIMIT,
+    ARRAY_INTERNAL_NAME, CONSTRUCTORS_LIMIT, ENUM_TAG_FIELD, ENUM_TAG_INDEX,
+    FIELDS_LIMIT, MAIN_CLASS, OPTION_CLASS, OPTION_MODULE, RESULT_CLASS,
+    RESULT_MODULE,
 };
 
 /// The maximum number of arguments a single constructor can accept. We subtract
@@ -68,55 +69,51 @@ impl<'a> DefineTypes<'a> {
         let module = self.module;
         let vis = Visibility::public(node.public);
         let loc = node.location;
-        let id = match node.kind {
-            hir::ClassKind::Builtin => {
-                if !self.module.is_std(self.db()) {
-                    self.state.diagnostics.error(
-                        DiagnosticId::InvalidType,
-                        "builtin classes can only be defined in 'std' modules",
-                        self.file(),
-                        node.location,
-                    );
-                }
-
-                if let Some(id) = self.db().builtin_class(&name) {
-                    id.set_module(self.db_mut(), module);
-                    id
-                } else {
-                    self.state.diagnostics.error(
-                        DiagnosticId::InvalidType,
-                        format!("'{}' isn't a valid builtin class", name),
-                        self.file(),
-                        node.location,
-                    );
-
-                    return;
-                }
+        let id = if let hir::ClassKind::Builtin = node.kind {
+            if !self.module.is_std(self.db()) {
+                self.state.diagnostics.error(
+                    DiagnosticId::InvalidType,
+                    "builtin classes can only be defined in 'std' modules",
+                    self.file(),
+                    node.location,
+                );
             }
-            hir::ClassKind::Regular => Class::alloc(
+
+            if let Some(id) = self.db().builtin_class(&name) {
+                id.set_module(self.db_mut(), module);
+                id
+            } else {
+                self.state.diagnostics.error(
+                    DiagnosticId::InvalidType,
+                    format!("'{}' isn't a valid builtin class", name),
+                    self.file(),
+                    node.location,
+                );
+
+                return;
+            }
+        } else {
+            let kind = match node.kind {
+                hir::ClassKind::Regular => ClassKind::Regular,
+                hir::ClassKind::Async => ClassKind::Async,
+                hir::ClassKind::Enum => ClassKind::Enum,
+                _ => unreachable!(),
+            };
+
+            let cls = Class::alloc(
                 self.db_mut(),
                 name.clone(),
-                ClassKind::Regular,
+                kind,
                 vis,
                 module,
                 loc,
-            ),
-            hir::ClassKind::Async => Class::alloc(
-                self.db_mut(),
-                name.clone(),
-                ClassKind::Async,
-                vis,
-                module,
-                loc,
-            ),
-            hir::ClassKind::Enum => Class::alloc(
-                self.db_mut(),
-                name.clone(),
-                ClassKind::Enum,
-                vis,
-                module,
-                loc,
-            ),
+            );
+
+            if node.inline {
+                cls.set_stack_allocated(self.db_mut());
+            }
+
+            cls
         };
 
         if self.module.symbol_exists(self.db(), &name) {
@@ -275,7 +272,7 @@ impl<'a> ImplementTraits<'a> {
         if !class_id.allow_trait_implementations(self.db()) {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidImplementation,
-                "traits can't be implemented for this class",
+                "traits can't be implemented for this type",
                 self.file(),
                 node.location,
             );
@@ -329,16 +326,23 @@ impl<'a> ImplementTraits<'a> {
                 if !node.bounds.is_empty() {
                     self.state.diagnostics.error(
                         DiagnosticId::InvalidImplementation,
-                        "the trait 'std::drop::Drop' doesn't support type \
-                        parameter bounds",
+                        "type parameter bounds can't be applied to \
+                        implementations of this trait",
                         self.file(),
                         node.location,
                     );
                 }
 
-                class_ins
-                    .instance_of()
-                    .mark_as_having_destructor(self.db_mut());
+                if class_id.is_stack_allocated(self.db()) {
+                    self.state.diagnostics.error(
+                        DiagnosticId::InvalidImplementation,
+                        "this trait can't be implemented for 'inline' types",
+                        self.file(),
+                        node.location,
+                    );
+                }
+
+                class_id.mark_as_having_destructor(self.db_mut());
             }
 
             node.trait_instance = Some(instance);
@@ -551,8 +555,9 @@ impl<'a> DefineFields<'a> {
     fn define_class(&mut self, node: &mut hir::DefineClass) {
         let class_id = node.class_id.unwrap();
         let mut id: usize = 0;
-        let is_enum = class_id.kind(self.db()).is_enum();
         let scope = TypeScope::new(self.module, TypeId::Class(class_id), None);
+        let is_enum = class_id.kind(self.db()).is_enum();
+        let is_stack = class_id.is_stack_allocated(self.db());
         let is_main = self.main_module && node.name.name == MAIN_CLASS;
 
         for expr in &mut node.body {
@@ -612,6 +617,14 @@ impl<'a> DefineFields<'a> {
             )
             .define_type(&mut fnode.value_type);
 
+            if is_stack && !typ.is_stack_allocated(self.db()) {
+                self.state.diagnostics.not_a_stack_type(
+                    &format_type(self.db(), typ),
+                    self.file(),
+                    fnode.location,
+                );
+            }
+
             if !class_id.is_public(self.db()) && vis == Visibility::Public {
                 self.state
                     .diagnostics
@@ -668,18 +681,11 @@ impl<'a> DefineFields<'a> {
             )
             .define_type(&mut node.value_type);
 
-            // We can't allow regular Inko types in external classes, as that
-            // would allow violating their ownership constraints.
-            if !typ.is_error(self.db())
-                && !typ.is_foreign_type(self.db())
-                && !typ.is_value_type(self.db())
-            {
-                self.state.diagnostics.error(
-                    DiagnosticId::InvalidType,
-                    format!(
-                        "'{}' isn't a C type or value type",
-                        format_type(self.db(), typ)
-                    ),
+            // We can't allow heap values in external classes, as that would
+            // allow violating their single ownership constraints.
+            if !typ.is_stack_allocated(self.db()) {
+                self.state.diagnostics.not_a_stack_type(
+                    &format_type(self.db(), typ),
                     self.file(),
                     node.value_type.location(),
                 );
@@ -757,6 +763,7 @@ impl<'a> DefineTypeParameters<'a> {
 
     fn define_class(&mut self, node: &mut hir::DefineClass) {
         let id = node.class_id.unwrap();
+        let is_stack = id.is_stack_allocated(self.db());
 
         for param in &mut node.type_parameters {
             let name = &param.name.name;
@@ -772,6 +779,10 @@ impl<'a> DefineTypeParameters<'a> {
 
                 if param.mutable {
                     pid.set_mutable(self.db_mut());
+                }
+
+                if is_stack || param.inline {
+                    pid.set_stack_allocated(self.db_mut());
                 }
 
                 param.type_parameter_id = Some(pid);
@@ -796,6 +807,10 @@ impl<'a> DefineTypeParameters<'a> {
 
                 if param.mutable {
                     pid.set_mutable(self.db_mut());
+                }
+
+                if param.inline {
+                    pid.set_stack_allocated(self.db_mut());
                 }
 
                 param.type_parameter_id = Some(pid);
@@ -1048,10 +1063,11 @@ impl<'a> DefineConstructors<'a> {
     fn define_class(&mut self, node: &mut hir::DefineClass) {
         let class_id = node.class_id.unwrap();
         let is_enum = class_id.kind(self.db()).is_enum();
+        let is_stack = class_id.is_stack_allocated(self.db());
         let rules = Rules::default();
         let scope = TypeScope::new(self.module, TypeId::Class(class_id), None);
         let mut constructors_count = 0;
-        let mut members_count = 0;
+        let mut args_count = 0;
 
         for expr in &mut node.body {
             let node =
@@ -1064,7 +1080,7 @@ impl<'a> DefineConstructors<'a> {
             if !is_enum {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidSymbol,
-                    "constructors can only be defined for enum classes",
+                    "constructors can only be defined for 'enum' types",
                     self.file(),
                     node.location,
                 );
@@ -1085,24 +1101,32 @@ impl<'a> DefineConstructors<'a> {
                 continue;
             }
 
-            let members: Vec<_> = node
-                .members
-                .iter_mut()
-                .map(|n| {
-                    DefineAndCheckTypeSignature::new(
-                        self.state,
-                        self.module,
-                        &scope,
-                        rules,
-                    )
-                    .define_type(n)
-                })
-                .collect();
+            let mut args = Vec::new();
 
-            let len = members.len();
+            for n in node.members.iter_mut() {
+                let typ = DefineAndCheckTypeSignature::new(
+                    self.state,
+                    self.module,
+                    &scope,
+                    rules,
+                )
+                .define_type(n);
 
-            if len > members_count {
-                members_count = len;
+                if is_stack && !typ.is_stack_allocated(self.db()) {
+                    self.state.diagnostics.not_a_stack_type(
+                        &format_type(self.db(), typ),
+                        self.file(),
+                        n.location(),
+                    );
+                }
+
+                args.push(typ);
+            }
+
+            let len = args.len();
+
+            if len > args_count {
+                args_count = len;
             }
 
             if len > MAX_MEMBERS {
@@ -1119,12 +1143,12 @@ impl<'a> DefineConstructors<'a> {
                 continue;
             }
 
-            if constructors_count == VARIANTS_LIMIT {
+            if constructors_count == CONSTRUCTORS_LIMIT {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidSymbol,
                     format!(
-                        "enums can't specify more than {} constructors",
-                        VARIANTS_LIMIT
+                        "enums can't define more than {} constructors",
+                        CONSTRUCTORS_LIMIT
                     ),
                     self.file(),
                     node.location,
@@ -1137,7 +1161,7 @@ impl<'a> DefineConstructors<'a> {
             class_id.new_constructor(
                 self.db_mut(),
                 name.to_string(),
-                members,
+                args,
                 node.location,
             );
         }
@@ -1146,7 +1170,7 @@ impl<'a> DefineConstructors<'a> {
             if constructors_count == 0 {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidType,
-                    "enum classes must define at least a single constructor",
+                    "'enum' types must define at least a single constructor",
                     self.file(),
                     node.location,
                 );
@@ -1169,7 +1193,7 @@ impl<'a> DefineConstructors<'a> {
                 loc,
             );
 
-            for index in 0..members_count {
+            for index in 0..args_count {
                 let id = index + 1;
 
                 // The type of the field is the largest constructor argument for
@@ -1203,6 +1227,49 @@ impl<'a> DefineConstructors<'a> {
     fn db_mut(&mut self) -> &mut Database {
         &mut self.state.db
     }
+}
+
+/// A compiler pass that adds errors for recursive stack allocated classes.
+pub(crate) fn check_recursive_types(
+    state: &mut State,
+    modules: &[hir::Module],
+) -> bool {
+    for module in modules {
+        for expr in &module.expressions {
+            let (class, loc) = match expr {
+                hir::TopLevelExpression::Class(ref n) => {
+                    let id = n.class_id.unwrap();
+
+                    // Heap types _are_ allowed to be recursive as they can't
+                    // recursive into themselves without indirection.
+                    if !id.is_stack_allocated(&state.db) {
+                        continue;
+                    }
+
+                    (id, n.location)
+                }
+                hir::TopLevelExpression::ExternClass(ref n) => {
+                    (n.class_id.unwrap(), n.location)
+                }
+                _ => continue,
+            };
+
+            // The recursion check is extracted into a separate type so we can
+            // separate visiting the IR and performing the actual check.
+            if !RecursiveClassChecker::new(&state.db).is_recursive(class) {
+                continue;
+            }
+
+            state.diagnostics.error(
+                DiagnosticId::InvalidType,
+                "'inline' and 'extern' types can't be recursive",
+                module.module_id.file(&state.db),
+                loc,
+            );
+        }
+    }
+
+    !state.diagnostics.has_errors()
 }
 
 #[cfg(test)]
@@ -1423,7 +1490,8 @@ mod tests {
         assert!(ImplementTraits::run_all(&mut state, &mut modules));
 
         let imp = string.trait_implementation(&state.db, to_string).unwrap();
-        let arg = imp.instance.type_arguments(&state.db).get(param).unwrap();
+        let arg =
+            imp.instance.type_arguments(&state.db).unwrap().get(param).unwrap();
 
         assert_eq!(imp.instance.instance_of(), to_string);
 

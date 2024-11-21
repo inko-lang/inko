@@ -75,7 +75,7 @@ impl<'ctx> Builder<'ctx> {
     ) -> BasicValueEnum<'ctx> {
         let field_ptr = self.field_address(receiver_type, receiver, index);
 
-        self.inner.build_load(typ, field_ptr, "").unwrap()
+        self.load(typ, field_ptr)
     }
 
     pub(crate) fn field_address(
@@ -172,30 +172,21 @@ impl<'ctx> Builder<'ctx> {
         &self,
         variable: PointerValue<'ctx>,
     ) -> IntValue<'ctx> {
-        self.inner
-            .build_load(self.context.i64_type(), variable, "")
-            .unwrap()
-            .into_int_value()
+        self.load(self.context.i64_type(), variable).into_int_value()
     }
 
     pub(crate) fn load_float(
         &self,
         variable: PointerValue<'ctx>,
     ) -> FloatValue<'ctx> {
-        self.inner
-            .build_load(self.context.f64_type(), variable, "")
-            .unwrap()
-            .into_float_value()
+        self.load(self.context.f64_type(), variable).into_float_value()
     }
 
     pub(crate) fn load_bool(
         &self,
         variable: PointerValue<'ctx>,
     ) -> IntValue<'ctx> {
-        self.inner
-            .build_load(self.context.bool_type(), variable, "")
-            .unwrap()
-            .into_int_value()
+        self.load(self.context.bool_type(), variable).into_int_value()
     }
 
     pub(crate) fn load_pointer(
@@ -205,7 +196,7 @@ impl<'ctx> Builder<'ctx> {
         self.load(self.context.pointer_type(), variable).into_pointer_value()
     }
 
-    pub(crate) fn call(
+    pub(crate) fn call_with_return(
         &self,
         function: FunctionValue<'ctx>,
         arguments: &[BasicMetadataValueEnum<'ctx>],
@@ -227,12 +218,12 @@ impl<'ctx> Builder<'ctx> {
         self.inner.build_indirect_call(typ, func, args, "").unwrap()
     }
 
-    pub(crate) fn call_void(
+    pub(crate) fn direct_call(
         &self,
         function: FunctionValue<'ctx>,
         arguments: &[BasicMetadataValueEnum<'ctx>],
-    ) {
-        self.inner.build_call(function, arguments, "").unwrap();
+    ) -> CallSiteValue<'ctx> {
+        self.inner.build_call(function, arguments, "").unwrap()
     }
 
     pub(crate) fn pointer_to_int(
@@ -335,10 +326,7 @@ impl<'ctx> Builder<'ctx> {
         &self,
         variable: PointerValue<'ctx>,
     ) -> IntValue<'ctx> {
-        let res = self
-            .inner
-            .build_load(self.context.i32_type(), variable, "")
-            .unwrap();
+        let res = self.load(self.context.i32_type(), variable);
         let ins = res.as_instruction_value().unwrap();
 
         // If the alignment doesn't match the value size, LLVM compiles this to
@@ -790,7 +778,7 @@ impl<'ctx> Builder<'ctx> {
 
         // The block to jump to when the allocation failed.
         self.switch_to_block(err_block);
-        self.call_void(err_func, &[size.into()]);
+        self.direct_call(err_func, &[size.into()]);
         self.unreachable();
 
         // The block to jump to when the allocation succeeds.

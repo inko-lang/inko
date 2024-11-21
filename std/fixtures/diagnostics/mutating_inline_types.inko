@@ -1,0 +1,11 @@
+class inline A {
+  let @value: Int
+}
+
+fn example {
+  let a = A(value: 1)
+
+  a.value = 2
+}
+
+# mutating_inline_types.inko:8:3 error(invalid-assign): can't assign a new value to field 'value', as its receiver is immutable

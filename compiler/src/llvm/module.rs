@@ -1,6 +1,6 @@
 use crate::llvm::builder::DebugBuilder;
 use crate::llvm::context::Context;
-use crate::llvm::layouts::Layouts;
+use crate::llvm::layouts::{ArgumentType, Layouts};
 use crate::llvm::runtime_function::RuntimeFunction;
 use crate::symbol_names::SYMBOL_PREFIX;
 use inkwell::attributes::AttributeLoc;
@@ -100,7 +100,8 @@ impl<'a, 'ctx> Module<'a, 'ctx> {
     ) -> FunctionValue<'ctx> {
         self.inner.get_function(name).unwrap_or_else(|| {
             let info = &self.layouts.methods[method.0 as usize];
-            let func = self.inner.add_function(name, info.signature, None);
+            let fn_typ = info.signature(self.context);
+            let fn_val = self.inner.add_function(name, fn_typ, None);
             let conv = match info.call_convention {
                 // LLVM uses 0 for the C calling convention.
                 CallConvention::C => 0,
@@ -110,19 +111,33 @@ impl<'a, 'ctx> Module<'a, 'ctx> {
                 CallConvention::Inko => 0,
             };
 
-            func.set_call_conventions(conv);
+            fn_val.set_call_conventions(conv);
 
-            if let Some(typ) = info.struct_return {
-                let sret = self.context.type_attribute("sret", typ.into());
-                let noalias = self.context.enum_attribute("noalias", 0);
-                let nocapt = self.context.enum_attribute("nocapture", 0);
+            for (idx, &arg) in info.arguments.iter().enumerate() {
+                match arg {
+                    ArgumentType::StructValue(t) => {
+                        fn_val.add_attribute(
+                            AttributeLoc::Param(idx as _),
+                            self.context.type_attribute("byval", t.into()),
+                        );
+                    }
+                    ArgumentType::StructReturn(t) => {
+                        let loc = AttributeLoc::Param(0);
+                        let sret =
+                            self.context.type_attribute("sret", t.into());
+                        let noalias = self.context.enum_attribute("noalias", 0);
+                        let nocapt =
+                            self.context.enum_attribute("nocapture", 0);
 
-                func.add_attribute(AttributeLoc::Param(0), sret);
-                func.add_attribute(AttributeLoc::Param(0), noalias);
-                func.add_attribute(AttributeLoc::Param(0), nocapt);
+                        fn_val.add_attribute(loc, sret);
+                        fn_val.add_attribute(loc, noalias);
+                        fn_val.add_attribute(loc, nocapt);
+                    }
+                    _ => {}
+                }
             }
 
-            func
+            fn_val
         })
     }
 

@@ -268,15 +268,15 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Peekable.peek_mut with an iterator with values', fn (t) {
-    let vals = [1, 2, 3]
+    let vals = [(1, 0), (2, 0), (3, 0)]
     let iter = vals.iter_mut.peekable
 
-    t.equal(iter.peek_mut, Option.Some(1))
-    t.equal(iter.peek_mut, Option.Some(1))
-    t.equal(iter.next, Option.Some(1))
-    t.equal(iter.peek_mut, Option.Some(2))
-    t.equal(iter.next, Option.Some(2))
-    t.equal(iter.next, Option.Some(3))
+    t.equal(iter.peek_mut, Option.Some(mut (1, 0)))
+    t.equal(iter.peek_mut, Option.Some(mut (1, 0)))
+    t.equal(iter.next, Option.Some(mut (1, 0)))
+    t.equal(iter.peek_mut, Option.Some(mut (2, 0)))
+    t.equal(iter.next, Option.Some(mut (2, 0)))
+    t.equal(iter.next, Option.Some(mut (3, 0)))
     t.equal(iter.next, Option.None)
     t.equal(iter.peek_mut, Option.None)
   })

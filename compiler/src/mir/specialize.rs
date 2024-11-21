@@ -1,7 +1,7 @@
 use crate::mir::{
-    Block, BlockId, CallDynamic, CallInstance, CastType, Class as MirClass,
-    Drop, Instruction, InstructionLocation, Method, Mir, Reference, RegisterId,
-    SELF_ID,
+    Block, BlockId, Borrow, CallDynamic, CallInstance, CastType,
+    Class as MirClass, Drop, Instruction, InstructionLocation, Method, Mir,
+    RegisterId, SELF_ID,
 };
 use crate::state::State;
 use indexmap::{IndexMap, IndexSet};
@@ -9,27 +9,33 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::mem::swap;
 use types::specialize::{ordered_shapes_from_map, TypeSpecializer};
 use types::{
-    Block as _, ClassId, ClassInstance, Database, MethodId, Shape,
-    TypeArguments, TypeParameterId, TypeRef, CALL_METHOD, DROPPER_METHOD,
+    Block as _, ClassId, ClassInstance, Database, InternedTypeArguments,
+    MethodId, Shape, TypeArguments, TypeParameterId, TypeRef, CALL_METHOD,
+    DROPPER_METHOD,
 };
 
 fn argument_shape(
     db: &Database,
+    interned: &mut InternedTypeArguments,
     shapes: &HashMap<TypeParameterId, Shape>,
     arguments: &TypeArguments,
     parameter: TypeParameterId,
 ) -> Shape {
-    arguments.get_recursive(db, parameter).unwrap().shape(db, shapes)
+    arguments.get_recursive(db, parameter).unwrap().shape(db, interned, shapes)
 }
 
-fn specialize_constants(db: &mut Database, mir: &mut Mir) {
+fn specialize_constants(
+    db: &mut Database,
+    mir: &mut Mir,
+    interned: &mut InternedTypeArguments,
+) {
     let mut classes = Vec::new();
     let shapes = HashMap::new();
 
     for &id in mir.constants.keys() {
         let old_typ = id.value_type(db);
-        let new_typ =
-            TypeSpecializer::new(db, &shapes, &mut classes).specialize(old_typ);
+        let new_typ = TypeSpecializer::new(db, interned, &shapes, &mut classes)
+            .specialize(old_typ);
 
         id.set_value_type(db, new_typ);
     }
@@ -43,23 +49,56 @@ fn specialize_constants(db: &mut Database, mir: &mut Mir) {
     }
 }
 
-/// Returns `true` if the given shapes are _not_ compatible with the method
-/// bounds, if there are any.
+/// Returns `true` if the given shapes are compatible with the method bounds, if
+/// there are any.
 ///
 /// It's possible to trigger method specialization for types such as
 /// `Result[Int32, String]`. Since foreign types don't implement traits, don't
 /// have headers and thus don't support dynamic dispatch, we have to skip
 /// generating methods for such cases, otherwise we may generate incorrect code.
-fn shapes_not_compatible_with_bounds(
+fn shapes_compatible_with_bounds(
     db: &Database,
     method: MethodId,
     shapes: &HashMap<TypeParameterId, Shape>,
 ) -> bool {
     let bounds = method.bounds(db);
 
-    shapes.iter().any(|(&param, shape)| {
-        bounds.get(param).is_some() && shape.is_foreign()
-    })
+    for (&param, &shape) in shapes {
+        if let Some(bound) = bounds.get(param) {
+            // Foreign types don't support traits, so these are never
+            // compatible.
+            if shape.is_foreign() {
+                return false;
+            }
+
+            // When encountering a shape for a specific type, we'll end up
+            // trying to devirtualize calls in the method to specialize. This is
+            // only possible if the type is compatible with the bounds, i.e. all
+            // the required traits are implemented.
+            //
+            // We don't need to perform a full type-check here: if a trait _is_
+            // implemented then correctness is already enforced at the call/cast
+            // site, so all we need to do here is check if the trait is
+            // implemented in the first place.
+            if let Shape::Stack(ins) = shape {
+                // For specialized types the trait implementations are stored in
+                // the base class.
+                let cls = ins
+                    .instance_of()
+                    .specialization_source(db)
+                    .unwrap_or(ins.instance_of());
+                let valid = bound.requirements(db).into_iter().all(|r| {
+                    cls.trait_implementation(db, r.instance_of()).is_some()
+                });
+
+                if !valid {
+                    return false;
+                }
+            }
+        }
+    }
+
+    true
 }
 
 struct Job {
@@ -194,6 +233,7 @@ pub(crate) struct Specialize<'a, 'b> {
     method: MethodId,
     state: &'a mut State,
     work: &'b mut Work,
+    intern: &'b mut InternedTypeArguments,
     shapes: HashMap<TypeParameterId, Shape>,
 
     /// Regular methods that have been processed.
@@ -232,6 +272,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
 
         let mut work = Work::new();
         let mut dcalls = DynamicCalls::new();
+        let mut intern = InternedTypeArguments::new();
         let main_class = state.db.main_class().unwrap();
         let main_method = state.db.main_method().unwrap();
         let main_mod = main_class.module(&state.db);
@@ -246,6 +287,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
         while let Some(job) = work.pop() {
             Specialize {
                 state,
+                intern: &mut intern,
                 method: job.method,
                 shapes: job.shapes,
                 work: &mut work,
@@ -268,7 +310,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
         // 2. The type isn't used anywhere else (highly unlikely). In this case
         //    we don't need to generate a dropper, because constants are never
         //    dropped.
-        specialize_constants(&mut state.db, mir);
+        specialize_constants(&mut state.db, mir, &mut intern);
 
         // Specialization may create many new methods, and in the process makes
         // the original generic methods redundant and unused. In fact, compiling
@@ -320,7 +362,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
         for block in &method.body.blocks {
             for instruction in &block.instructions {
                 match instruction {
-                    Instruction::Reference(ins) if ins.value.0 == SELF_ID => {
+                    Instruction::Borrow(ins) if ins.value.0 == SELF_ID => {
                         self_regs[ins.register.0] = true;
                     }
                     Instruction::MoveRegister(ins)
@@ -359,6 +401,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
         for reg in method.registers.iter_mut() {
             reg.value_type = TypeSpecializer::new(
                 &mut self.state.db,
+                self.intern,
                 &self.shapes,
                 &mut self.classes,
             )
@@ -367,22 +410,17 @@ impl<'a, 'b> Specialize<'a, 'b> {
 
         for block in &mut method.body.blocks {
             for instruction in &mut block.instructions {
-                // When specializing a method, we _don't_ store them in any
-                // class types. Different specializations of the same method use
-                // the same name, so if they are stored on the same class they'd
-                // overwrite each other. Since we don't need to look up any
-                // methods by their names at and beyond this point, we just not
-                // store them in the class types to begin with.
                 match instruction {
-                    Instruction::Reference(ins) => {
+                    Instruction::Borrow(ins) => {
                         let src = method.registers.value_type(ins.value);
-                        let target = method.registers.value_type(ins.register);
+                        let reg = method.registers.value_type(ins.register);
+                        let db = &self.state.db;
 
                         method.registers.get_mut(ins.register).value_type =
-                            if target.is_ref(&self.state.db) {
-                                src.as_ref(&self.state.db)
-                            } else if target.is_mut(&self.state.db) {
-                                src.force_as_mut(&self.state.db)
+                            if reg.is_ref(db) {
+                                src.as_ref(db)
+                            } else if reg.is_mut(db) {
+                                src.force_as_mut(db)
                             } else {
                                 src
                             };
@@ -526,6 +564,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
                     Instruction::SizeOf(ins) => {
                         ins.argument = TypeSpecializer::new(
                             &mut self.state.db,
+                            self.intern,
                             &self.shapes,
                             &mut self.classes,
                         )
@@ -540,10 +579,21 @@ impl<'a, 'b> Specialize<'a, 'b> {
     fn expand_instructions(&mut self, mir: &mut Mir) {
         let method = mir.methods.get_mut(&self.method).unwrap();
 
-        ExpandDrop { db: &self.state.db, method, shapes: &self.shapes }.run();
+        ExpandDrop {
+            db: &self.state.db,
+            intern: self.intern,
+            method,
+            shapes: &self.shapes,
+        }
+        .run();
 
-        ExpandReference { db: &self.state.db, method, shapes: &self.shapes }
-            .run();
+        ExpandBorrow {
+            db: &self.state.db,
+            intern: self.intern,
+            method,
+            shapes: &self.shapes,
+        }
+        .run();
     }
 
     fn process_specialized_types(
@@ -608,7 +658,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
                         shapes.insert(par, shape);
                     }
 
-                    if shapes_not_compatible_with_bounds(
+                    if !shapes_compatible_with_bounds(
                         &self.state.db,
                         call.method,
                         &shapes,
@@ -763,7 +813,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
                         shapes.insert(param, shape);
                     }
 
-                    if shapes_not_compatible_with_bounds(
+                    if !shapes_compatible_with_bounds(
                         &self.state.db,
                         method_impl,
                         &shapes,
@@ -910,7 +960,11 @@ impl<'a, 'b> Specialize<'a, 'b> {
 
     fn generate_dropper(&mut self, original: ClassId, class: ClassId) {
         let name = DROPPER_METHOD;
-        let method = original.method(&self.state.db, name).unwrap();
+
+        // Stack types won't have droppers, so there's nothing to do here.
+        let Some(method) = original.method(&self.state.db, name) else {
+            return;
+        };
 
         if original == class {
             if self.work.push(method, HashMap::new()) {
@@ -970,7 +1024,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
             method.type_parameters(&self.state.db)
         };
 
-        let method_shapes = shape_params
+        let method_shapes: Vec<_> = shape_params
             .into_iter()
             .map(|p| *shapes.get(&p).unwrap())
             .collect();
@@ -981,6 +1035,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
         for arg in method.arguments(&self.state.db) {
             let arg_type = TypeSpecializer::new(
                 &mut self.state.db,
+                self.intern,
                 shapes,
                 &mut self.classes,
             )
@@ -990,6 +1045,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
             let var_loc = arg.variable.location(&self.state.db);
             let var_type = TypeSpecializer::new(
                 &mut self.state.db,
+                self.intern,
                 shapes,
                 &mut self.classes,
             )
@@ -1004,9 +1060,13 @@ impl<'a, 'b> Specialize<'a, 'b> {
             );
         }
 
-        let new_ret =
-            TypeSpecializer::new(&mut self.state.db, shapes, &mut self.classes)
-                .specialize(old_ret);
+        let new_ret = TypeSpecializer::new(
+            &mut self.state.db,
+            self.intern,
+            shapes,
+            &mut self.classes,
+        )
+        .specialize(old_ret);
 
         let bounds = method.bounds(&self.state.db).clone();
 
@@ -1034,6 +1094,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
         {
             let arg_type = TypeSpecializer::new(
                 &mut self.state.db,
+                self.intern,
                 shapes,
                 &mut self.classes,
             )
@@ -1042,6 +1103,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
             let raw_var_type = arg.variable.value_type(&self.state.db);
             let var_type = TypeSpecializer::new(
                 &mut self.state.db,
+                self.intern,
                 shapes,
                 &mut self.classes,
             )
@@ -1056,9 +1118,13 @@ impl<'a, 'b> Specialize<'a, 'b> {
         }
 
         let old_ret = method.return_type(&self.state.db);
-        let new_ret =
-            TypeSpecializer::new(&mut self.state.db, shapes, &mut self.classes)
-                .specialize(old_ret);
+        let new_ret = TypeSpecializer::new(
+            &mut self.state.db,
+            self.intern,
+            shapes,
+            &mut self.classes,
+        )
+        .specialize(old_ret);
 
         method.set_return_type(&mut self.state.db, new_ret);
     }
@@ -1071,8 +1137,13 @@ impl<'a, 'b> Specialize<'a, 'b> {
         let mut shapes = HashMap::new();
 
         for (&par, &bound) in method.bounds(&self.state.db).iter() {
-            let shape =
-                argument_shape(&self.state.db, &self.shapes, arguments, par);
+            let shape = argument_shape(
+                &self.state.db,
+                self.intern,
+                &self.shapes,
+                arguments,
+                par,
+            );
 
             shapes.insert(bound, shape);
             shapes.insert(par, shape);
@@ -1090,7 +1161,10 @@ impl<'a, 'b> Specialize<'a, 'b> {
                 }
             }
 
-            shapes.insert(par, arg.shape(&self.state.db, &self.shapes));
+            shapes.insert(
+                par,
+                arg.shape(&self.state.db, self.intern, &self.shapes),
+            );
         }
 
         shapes
@@ -1107,7 +1181,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
     }
 
     fn add_implementation_shapes(
-        &self,
+        &mut self,
         method: MethodId,
         shapes: &mut HashMap<TypeParameterId, Shape>,
     ) {
@@ -1118,12 +1192,18 @@ impl<'a, 'b> Specialize<'a, 'b> {
             // (e.g. `Equal.!=`). We need to make sure we map those parameters
             // to their shapes.
             if tins.instance_of().is_generic(&self.state.db) {
-                let args = tins.type_arguments(&self.state.db);
+                let args = tins.type_arguments(&self.state.db).unwrap();
 
                 for &par in args.keys() {
                     shapes.insert(
                         par,
-                        argument_shape(&self.state.db, shapes, args, par),
+                        argument_shape(
+                            &self.state.db,
+                            self.intern,
+                            shapes,
+                            args,
+                            par,
+                        ),
                     );
                 }
             }
@@ -1138,7 +1218,13 @@ impl<'a, 'b> Specialize<'a, 'b> {
             for &par in args.keys() {
                 shapes.insert(
                     par,
-                    argument_shape(&self.state.db, shapes, args, par),
+                    argument_shape(
+                        &self.state.db,
+                        self.intern,
+                        shapes,
+                        args,
+                        par,
+                    ),
                 );
             }
         }
@@ -1151,54 +1237,34 @@ struct ExpandDrop<'a, 'b, 'c> {
     db: &'a Database,
     method: &'b mut Method,
     shapes: &'c HashMap<TypeParameterId, Shape>,
+    intern: &'c mut InternedTypeArguments,
 }
 
 impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
     fn run(mut self) {
         let mut block_idx = 0;
 
-        // We use a `while` loop here as both the list of blocks and
-        // instructions are modified during iteration, meaning we can't use a
-        // fixed range to iterate over.
         while block_idx < self.method.body.blocks.len() {
-            let block_id = BlockId(block_idx);
+            let bid = BlockId(block_idx);
 
-            if let Some(ins_idx) = self
-                .block_mut(block_id)
-                .instructions
-                .iter()
-                .position(|ins| matches!(ins, Instruction::Drop(_)))
-            {
-                let (ins, remaining_ins) = {
-                    let block = self.block_mut(block_id);
+            if let Some((ins, remaining_ins)) = self.block_mut(bid).split_when(
+                |ins| matches!(ins, Instruction::Drop(_)),
+                |ins| match ins {
+                    Instruction::Drop(i) => i,
+                    _ => unreachable!(),
+                },
+            ) {
+                let after = self.add_block();
+                let succ = self.block_mut(bid).take_successors();
 
-                    if let Instruction::Drop(ins) =
-                        block.instructions.remove(ins_idx)
-                    {
-                        let ret = (ins, block.instructions.split_off(ins_idx));
+                self.insert(*ins, bid, after);
 
-                        // This ensures we don't keep redundant memory around if
-                        // the number of instructions was very large.
-                        block.instructions.shrink_to_fit();
-                        ret
-                    } else {
-                        unreachable!()
-                    }
-                };
-
-                let after_id = self.add_block();
-                let succ = self.block_mut(block_id).take_successors();
-
-                self.insert(*ins, block_id, after_id);
-
-                // The new end block must be properly connected to the block(s)
-                // the original block was connected to.
                 for succ_id in succ {
-                    self.method.body.remove_predecessor(succ_id, block_id);
-                    self.method.body.add_edge(after_id, succ_id);
+                    self.method.body.remove_predecessor(succ_id, bid);
+                    self.method.body.add_edge(after, succ_id);
                 }
 
-                self.block_mut(after_id).instructions = remaining_ins;
+                self.block_mut(after).instructions = remaining_ins;
             }
 
             block_idx += 1;
@@ -1210,12 +1276,13 @@ impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
         let val = ins.register;
         let typ = self.method.registers.value_type(val);
 
-        match typ.shape(self.db, self.shapes) {
+        match typ.shape(self.db, self.intern, self.shapes) {
             Shape::Int(_, _)
             | Shape::Float(_)
             | Shape::Nil
             | Shape::Boolean
-            | Shape::Pointer => {
+            | Shape::Pointer
+            | Shape::Stack(_) => {
                 self.ignore_value(block_id, after_id);
             }
             Shape::Mut | Shape::Ref => {
@@ -1223,9 +1290,6 @@ impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
             }
             Shape::Atomic | Shape::String => {
                 self.drop_atomic(block_id, after_id, val, loc);
-            }
-            Shape::Owned if typ.is_permanent(self.db) => {
-                self.ignore_value(block_id, after_id);
             }
             Shape::Owned => {
                 self.drop_owned(block_id, after_id, val, ins.dropper, loc);
@@ -1295,8 +1359,13 @@ impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
                 .class_id(self.db)
                 .unwrap();
 
-            self.block_mut(before_id).check_refs(value, location);
-            self.block_mut(before_id).free(value, class, location);
+            if class.has_object_header(self.db) {
+                self.block_mut(before_id).check_refs(value, location);
+            }
+
+            if class.is_heap_allocated(self.db) {
+                self.block_mut(before_id).free(value, class, location);
+            }
         }
 
         self.block_mut(before_id).goto(after_id, location);
@@ -1325,7 +1394,7 @@ impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
                 None,
                 location,
             );
-        } else if !typ.is_permanent(self.db) {
+        } else if !typ.is_stack_allocated(self.db) {
             self.block_mut(block).call_dropper(reg, value, location);
         }
     }
@@ -1339,79 +1408,58 @@ impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
     }
 }
 
-struct ExpandReference<'a, 'b, 'c> {
+struct ExpandBorrow<'a, 'b, 'c> {
     db: &'a types::Database,
     method: &'b mut Method,
     shapes: &'c HashMap<TypeParameterId, Shape>,
+    intern: &'c mut InternedTypeArguments,
 }
 
-impl<'a, 'b, 'c> ExpandReference<'a, 'b, 'c> {
+impl<'a, 'b, 'c> ExpandBorrow<'a, 'b, 'c> {
     fn run(mut self) {
         let mut block_idx = 0;
 
         while block_idx < self.method.body.blocks.len() {
-            let block_id = BlockId(block_idx);
+            let bid = BlockId(block_idx);
 
-            if let Some(ins_idx) = self
-                .block_mut(block_id)
-                .instructions
-                .iter()
-                .position(|ins| matches!(ins, Instruction::Reference(_)))
-            {
-                let (ins, remaining_ins) = {
-                    let block = self.block_mut(block_id);
+            if let Some((ins, remaining_ins)) = self.block_mut(bid).split_when(
+                |ins| matches!(ins, Instruction::Borrow(_)),
+                |ins| match ins {
+                    Instruction::Borrow(i) => i,
+                    _ => unreachable!(),
+                },
+            ) {
+                let after = self.method.body.add_block();
+                let succ = self.block_mut(bid).take_successors();
 
-                    if let Instruction::Reference(ins) =
-                        block.instructions.remove(ins_idx)
-                    {
-                        let ret = (ins, block.instructions.split_off(ins_idx));
-
-                        // This ensures we don't keep redundant memory around if
-                        // the number of instructions was very large.
-                        block.instructions.shrink_to_fit();
-                        ret
-                    } else {
-                        unreachable!()
-                    }
-                };
-
-                let after_id = self.method.body.add_block();
-                let succ = self.block_mut(block_id).take_successors();
-
-                self.insert(*ins, block_id, after_id);
+                self.insert(*ins, bid, after);
 
                 for succ_id in succ {
-                    self.method.body.remove_predecessor(succ_id, block_id);
-                    self.method.body.add_edge(after_id, succ_id);
+                    self.method.body.remove_predecessor(succ_id, bid);
+                    self.method.body.add_edge(after, succ_id);
                 }
 
-                self.block_mut(after_id).instructions = remaining_ins;
+                self.block_mut(after).instructions = remaining_ins;
             }
 
             block_idx += 1;
         }
     }
 
-    fn insert(&mut self, ins: Reference, block_id: BlockId, after_id: BlockId) {
+    fn insert(&mut self, ins: Borrow, block_id: BlockId, after_id: BlockId) {
         let loc = ins.location;
         let reg = ins.register;
         let val = ins.value;
         let typ = self.method.registers.value_type(val);
-        let is_extern = typ
-            .class_id(self.db)
-            .map_or(false, |i| i.kind(self.db).is_extern());
 
-        match typ.shape(self.db, self.shapes) {
-            Shape::Owned if is_extern || typ.is_permanent(self.db) => {
-                // Extern and permanent values are to be left as-is.
-            }
+        match typ.shape(self.db, self.intern, self.shapes) {
             Shape::Int(_, _)
             | Shape::Float(_)
             | Shape::Nil
             | Shape::Boolean
-            | Shape::Pointer => {
-                // These are unboxed value types, or permanent types, both which
-                // we should leave as-is.
+            | Shape::Pointer
+            | Shape::Stack(_) => {
+                // These values should be left as-is.
             }
             Shape::Mut | Shape::Ref | Shape::Owned => {
                 self.block_mut(block_id).increment(val, loc);

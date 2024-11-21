@@ -325,3 +325,11 @@ slot = hash & (size - 1)
 To handle conflicts we use linear probing, resulting in an efficient
 implementation of dynamic dispatch. For more information, refer to the article
 ["Shenanigans With Hash Tables"](https://thume.ca/2019/07/29/shenanigans-with-hash-tables/).
+
+### ABI
+
+Officially generated code has no stable ABI, and this is unlikely to change any
+time soon. Internally, we implement the C/system ABI as we need to do so for
+interacting with foreign code anyway. This means that for example structures on
+the stack are passed and returned the same way as is done by C compilers such as
+clang.

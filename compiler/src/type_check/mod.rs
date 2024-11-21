@@ -9,15 +9,16 @@ use types::format::format_type;
 use types::{
     Block, ClassId, ClassInstance, Closure, Database, MethodId, ModuleId,
     Symbol, TraitId, TraitInstance, TypeArguments, TypeBounds, TypeId,
-    TypeParameter, TypeParameterId, TypeRef,
+    TypeParameterId, TypeRef,
 };
 
 pub(crate) mod define_types;
 pub(crate) mod expressions;
+pub(crate) mod graph;
 pub(crate) mod imports;
 pub(crate) mod methods;
 
-#[derive(Eq, PartialEq)]
+#[derive(Eq, PartialEq, Debug)]
 enum RefKind {
     Default,
     Owned,
@@ -270,6 +271,19 @@ impl<'a> DefineTypeSignature<'a> {
                         id,
                     )))
                 }
+                Symbol::Class(id) if id.is_stack_allocated(&self.state.db) => {
+                    if matches!(kind, RefKind::Mut) {
+                        let name = &id.name(self.db()).clone();
+
+                        self.state.diagnostics.invalid_mut_type(
+                            name,
+                            self.file(),
+                            node.location,
+                        );
+                    }
+
+                    TypeRef::Owned(self.define_class_instance(id, node))
+                }
                 Symbol::Class(id) => {
                     kind.into_type_ref(self.define_class_instance(id, node))
                 }
@@ -413,13 +427,10 @@ impl<'a> DefineTypeSignature<'a> {
 
         if let RefKind::Mut = kind {
             if !param_id.is_mutable(self.db()) {
-                self.state.diagnostics.error(
-                    DiagnosticId::InvalidType,
-                    format!(
-                        "the type 'mut {name}' is invalid, as '{name}' \
-                            might be immutable at runtime",
-                        name = id.name(self.db()),
-                    ),
+                let name = id.name(self.db()).clone();
+
+                self.state.diagnostics.invalid_mut_type(
+                    &name,
                     self.file(),
                     node.location,
                 );
@@ -696,7 +707,7 @@ impl<'a> CheckTypeSignature<'a> {
             self.check_argument_types(
                 node,
                 instance.instance_of().type_parameters(self.db()),
-                instance.type_arguments(self.db()).clone(),
+                instance.type_arguments(self.db()).unwrap().clone(),
             );
         }
     }
@@ -717,7 +728,7 @@ impl<'a> CheckTypeSignature<'a> {
             self.check_argument_types(
                 node,
                 instance.instance_of().type_parameters(self.db()),
-                instance.type_arguments(self.db()).clone(),
+                instance.type_arguments(self.db()).unwrap().clone(),
             );
         }
     }
@@ -902,8 +913,8 @@ pub(crate) fn define_type_bounds(
             continue;
         }
 
-        let mut reqs = param.requirements(&state.db);
-        let new_param = TypeParameter::alloc(&mut state.db, name.clone());
+        let mut reqs = Vec::new();
+        let new_param = param.clone_for_bound(&mut state.db);
 
         for req in &mut bound.requirements {
             let rules = Rules::default();
@@ -920,7 +931,10 @@ pub(crate) fn define_type_bounds(
             new_param.set_mutable(&mut state.db);
         }
 
-        new_param.set_original(&mut state.db, param);
+        if bound.inline {
+            new_param.set_stack_allocated(&mut state.db);
+        }
+
         new_param.add_requirements(&mut state.db, reqs);
         bounds.set(param, new_param);
     }

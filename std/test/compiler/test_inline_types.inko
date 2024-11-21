@@ -1,0 +1,83 @@
+import std.string (ToString)
+import std.test (Tests)
+
+class inline Example[A, B] {
+  let @a: A
+  let @b: B
+}
+
+impl ToString for Example if A: ToString, B: ToString {
+  fn pub to_string -> String {
+    @a.to_string + @b.to_string
+  }
+}
+
+fn to_string[T: ToString](value: T) -> String {
+  value.to_string
+}
+
+class inline enum Enum[A, B] {
+  case A(Example[A, B])
+  case B(Int)
+}
+
+fn pub tests(t: mut Tests) {
+  t.test('inline types can be used in generic contexts', fn (t) {
+    t.true(
+      match Option.Some(Example(a: 10, b: 20)) {
+        case Some({ @a = 10, @b = 20 }) -> true
+        case _ -> false
+      },
+    )
+  })
+
+  # This is just a simple smoke test to make sure field sizes and offsets are
+  # correct for the different specializations.
+  t.test('Generic inline types are specialized correctly', fn (t) {
+    let a = Example(a: 10, b: 20)
+    let b = Example(a: 1.0, b: 2.0)
+    let c = Enum.A(Example(a: 100, b: 200))
+    let d: Enum[Int32, Int] = Enum.B(42)
+
+    t.equal(a.a, 10)
+    t.equal(a.b, 20)
+    t.equal(b.a, 1.0)
+    t.equal(b.b, 2.0)
+    t.true(
+      match c {
+        case A({ @a = 100, @b = 200 }) -> true
+        case _ -> false
+      },
+    )
+    t.true(
+      match d {
+        case B(42) -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('Inline types are copied when they are moved', fn (t) {
+    let a = Example(a: 10, b: 20)
+    let b = a
+
+    t.equal(a.a, 10)
+    t.equal(a.b, 20)
+    t.equal(b.a, 10)
+    t.equal(b.b, 20)
+  })
+
+  t.test('Closures capture inline values by copying them', fn (t) {
+    let a = Example(a: 10, b: 20)
+    let f1 = fn { t.equal(a.b, 20) }
+    let f2 = fn move { t.equal(a.b, 20) }
+
+    f1.call
+    f2.call
+    t.equal(a.b, 20)
+  })
+
+  t.test('Inline types support method calls in generic contexts', fn (t) {
+    t.equal(to_string(Example(a: 10, b: 20)), '1020')
+  })
+}

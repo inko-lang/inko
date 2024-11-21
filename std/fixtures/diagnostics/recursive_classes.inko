@@ -1,0 +1,66 @@
+class A {
+  let @a: A
+}
+
+class inline B {
+  let @a: Int
+  let @b: Float
+  let @c: Pointer[Int64]
+}
+
+class inline C {
+  let @a: D
+}
+
+class inline D {
+  let @a: Int
+}
+
+class inline E {
+  let @a: E
+}
+
+class inline F {
+  let @a: G[F]
+}
+
+class inline G[T] {
+  let @a: T
+}
+
+class inline H {
+  let @a: I[Int]
+}
+
+class inline I[T] {
+  let @a: T
+  let @b: H
+}
+
+class extern J {
+  let @a: Int64
+}
+
+class extern K {
+  let @a: K
+}
+
+class extern L {
+  let @a: M
+}
+
+class extern M {
+  let @a: L
+}
+
+class extern N {
+  let @a: Pointer[N]
+}
+
+# recursive_classes.inko:19:1 error(invalid-type): 'inline' and 'extern' types can't be recursive
+# recursive_classes.inko:23:1 error(invalid-type): 'inline' and 'extern' types can't be recursive
+# recursive_classes.inko:31:1 error(invalid-type): 'inline' and 'extern' types can't be recursive
+# recursive_classes.inko:35:1 error(invalid-type): 'inline' and 'extern' types can't be recursive
+# recursive_classes.inko:44:1 error(invalid-type): 'inline' and 'extern' types can't be recursive
+# recursive_classes.inko:48:1 error(invalid-type): 'inline' and 'extern' types can't be recursive
+# recursive_classes.inko:52:1 error(invalid-type): 'inline' and 'extern' types can't be recursive

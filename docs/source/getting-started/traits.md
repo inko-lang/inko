@@ -146,3 +146,24 @@ It's possible for different traits to define methods with the same name. If a
 type tries to implement such traits, a compile-time error is produced. Inko
 doesn't support renaming of trait methods as part of the implementation, so
 you'll need to find a way to resolve such conflicts yourself.
+
+## Conditional trait implementations
+
+Sometimes we want to implement a trait, but only if additional requirements are
+met. For example, we want to implement `std.cmp.Equal` for `Array` but only if
+its sub values also implement `std.cmp.Equal`. This is done as follows:
+
+```inko
+import std.cmp (Equal)
+
+impl Equal[ref Array[T]] for Array if T: Equal[ref T] {
+  fn pub ==(other: ref Array[T]) -> Bool {
+    ...
+  }
+}
+```
+
+What happens here is that we implement `Equal` over `ref Array[T]`, for any
+`Array[T]` _provided_ that whatever is assigned to `T` also implements
+`Equal[ref T]`. For example, given an `Array[User]`, the `Array.==` method is
+only available if `User` implements `Equal[ref User]`.

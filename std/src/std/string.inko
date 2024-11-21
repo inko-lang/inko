@@ -19,7 +19,7 @@ import std.ptr
 
 class extern StringResult {
   let @tag: Int
-  let @value: String
+  let @value: Pointer[UInt8]
 }
 
 fn extern inko_string_to_lower(state: Pointer[UInt8], string: String) -> String
@@ -916,7 +916,7 @@ class pub Chars {
 impl Iter[String] for Chars {
   fn pub mut next -> Option[String] {
     match inko_string_chars_next(_INKO.state, @iter) {
-      case { @tag = 0, @value = v } -> Option.Some(v)
+      case { @tag = 0, @value = v } -> Option.Some(v as UInt64 as String)
       case _ -> Option.None
     }
   }

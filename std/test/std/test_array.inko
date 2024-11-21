@@ -97,15 +97,16 @@ fn pub tests(t: mut Tests) {
   t.test('Array.opt', fn (t) {
     let vals = [10, 20, 30]
 
-    t.equal(vals.opt(1), Option.Some(ref 20))
+    t.equal(vals.opt(1), Option.Some(20))
     t.equal(vals.opt(5), Option.None)
     t.equal(vals.opt(-5), Option.None)
   })
 
   t.test('Array.opt_mut', fn (t) {
-    let vals = [10, 20, 30]
+    let vals = [(1, 2), (2, 3), (3, 4)]
+    let exp = (2, 3)
 
-    t.equal(vals.opt_mut(1), Option.Some(mut 20))
+    t.equal(vals.opt_mut(1), Option.Some(mut exp))
     t.equal(vals.opt_mut(5), Option.None)
     t.equal(vals.opt_mut(-5), Option.None)
   })
@@ -131,13 +132,15 @@ fn pub tests(t: mut Tests) {
   t.test('Array.iter', fn (t) {
     let vals = [10, 20, 30]
 
-    t.equal(vals.iter.to_array, [ref 10, ref 20, ref 30])
+    t.equal(vals.iter.to_array, [10, 20, 30])
   })
 
   t.test('Array.iter_mut', fn (t) {
-    let vals = [10, 20, 30]
+    let vals = [(1, 2), (2, 3)]
+    let a = (1, 2)
+    let b = (2, 3)
 
-    t.equal(vals.iter_mut.to_array, [mut 10, mut 20, mut 30])
+    t.equal(vals.iter_mut.to_array, [mut a, mut b])
   })
 
   t.test('Array.into_iter', fn (t) {
@@ -149,7 +152,7 @@ fn pub tests(t: mut Tests) {
   t.test('Array.reverse_iter', fn (t) {
     let vals = [10, 20, 30]
 
-    t.equal(vals.reverse_iter.to_array, [ref 30, ref 20, ref 10])
+    t.equal(vals.reverse_iter.to_array, [30, 20, 10])
   })
 
   t.test('Array.append', fn (t) {
@@ -221,9 +224,13 @@ fn pub tests(t: mut Tests) {
 
   t.panic('Array.get with an invalid index', fn { [10].get(1) })
 
-  t.test('Array.get_mut', fn (t) { t.equal([10].get_mut(0), 10) })
+  t.test('Array.get_mut', fn (t) {
+    let exp = (1, 2)
 
-  t.panic('Array.get_mut with an invalid index', fn { [10].get_mut(1) })
+    t.equal([(1, 2)].get_mut(0), mut exp)
+  })
+
+  t.panic('Array.get_mut with an invalid index', fn { [(1, 2)].get_mut(1) })
 
   t.test('Array.set', fn (t) {
     let count = Counter.new
@@ -295,8 +302,10 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Array.last_mut', fn (t) {
-    t.equal([].last_mut as Option[Int], Option.None)
-    t.equal([10, 20].last_mut, Option.Some(20))
+    let exp = (2, 3)
+
+    t.equal(([] as Array[(Int, Int)]).last_mut, Option.None)
+    t.equal([(1, 2), (2, 3)].last_mut, Option.Some(mut exp))
   })
 
   t.test('Array.reserve', fn (t) {

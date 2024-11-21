@@ -1,0 +1,51 @@
+class A {
+  let @b: Int
+}
+
+class pub B {
+  let @b: Int
+}
+
+class async C {
+  let @b: Int
+}
+
+class pub async D {
+  let @b: Int
+}
+
+class builtin E {
+  let @b: Int
+}
+
+class enum F {
+  case A(Int)
+}
+
+class pub enum G {
+  case A(Int)
+}
+
+class extern H {
+  let @a: Int
+}
+
+class pub extern I {
+  let @a: Int
+}
+
+class inline J {
+  let @a: Int
+}
+
+class pub inline K {
+  let @a: Int
+}
+
+class L {
+  let @a: Int
+}
+
+class pub M {
+  let @a: Int
+}

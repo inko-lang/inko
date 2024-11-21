@@ -256,6 +256,24 @@ impl Diagnostics {
         );
     }
 
+    pub(crate) fn not_a_stack_type(
+        &mut self,
+        name: &str,
+        file: PathBuf,
+        location: Location,
+    ) {
+        self.error(
+            DiagnosticId::InvalidType,
+            format!(
+                "an 'inline' or 'extern' type is expected, \
+                but '{}' is a heap type",
+                name
+            ),
+            file,
+            location,
+        );
+    }
+
     pub(crate) fn fields_not_allowed(
         &mut self,
         name: &str,
@@ -841,15 +859,34 @@ impl Diagnostics {
         );
     }
 
-    pub(crate) fn type_parameter_already_mutable(
+    pub(crate) fn duplicate_type_parameter_requirement(
         &mut self,
-        name: &str,
+        param: &str,
+        req: &str,
         file: PathBuf,
         location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidType,
-            format!("the type parameter '{}' is already mutable", name),
+            format!(
+                "type parameter '{}' already defines the '{}' requirement",
+                param, req
+            ),
+            file,
+            location,
+        );
+    }
+
+    pub(crate) fn mutable_inline_type_parameter(
+        &mut self,
+        file: PathBuf,
+        location: Location,
+    ) {
+        self.error(
+            DiagnosticId::InvalidType,
+            "type parameters can't be both 'mut' and 'inline', \
+            as 'inline' types are immutable"
+                .to_string(),
             file,
             location,
         );
@@ -973,6 +1010,23 @@ impl Diagnostics {
         self.error(
             DiagnosticId::InvalidMethod,
             "the 'inline' keyword can't be used for this type of method",
+            file,
+            location,
+        );
+    }
+
+    pub(crate) fn invalid_mut_type(
+        &mut self,
+        name: &str,
+        file: PathBuf,
+        location: Location,
+    ) {
+        self.error(
+            DiagnosticId::InvalidType,
+            format!(
+                "mutable borrows of type '{}' are invalid as '{}' is immutable",
+                name, name
+            ),
             file,
             location,
         );

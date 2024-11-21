@@ -32,7 +32,7 @@ fn instruction_weight(db: &Database, instruction: &Instruction) -> u16 {
         // give them a weight of zero. Regular allocations and spawning
         // processes translate into a function call, so we give them the same
         // weight as calls.
-        Instruction::Allocate(ins) if ins.class.kind(db).is_extern() => 0,
+        Instruction::Allocate(ins) if ins.class.is_stack_allocated(db) => 0,
         Instruction::Allocate(_) => 1,
         Instruction::Spawn(_) => 1,
 
@@ -314,7 +314,7 @@ impl CallSite {
                         ins.location.set_inlined_call_id(inline_offset);
                         ins.register += reg_start;
                     }
-                    Instruction::Reference(ins) => {
+                    Instruction::Borrow(ins) => {
                         ins.location.set_inlined_call_id(inline_offset);
                         ins.register += reg_start;
                         ins.value += reg_start;

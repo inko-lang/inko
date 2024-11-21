@@ -18,15 +18,15 @@ use crate::pkg::version::Version;
 use crate::state::State;
 use crate::symbol_names::SymbolNames;
 use crate::type_check::define_types::{
-    CheckTraitImplementations, CheckTraitRequirements, CheckTypeParameters,
-    DefineConstructors, DefineFields, DefineTraitRequirements,
-    DefineTypeParameterRequirements, DefineTypeParameters, DefineTypes,
-    ImplementTraits, InsertPrelude,
+    check_recursive_types, CheckTraitImplementations, CheckTraitRequirements,
+    CheckTypeParameters, DefineConstructors, DefineFields,
+    DefineTraitRequirements, DefineTypeParameterRequirements,
+    DefineTypeParameters, DefineTypes, ImplementTraits, InsertPrelude,
 };
-use crate::type_check::expressions::{
-    check_unused_imports, define_constants, Expressions,
+use crate::type_check::expressions::{define_constants, Expressions};
+use crate::type_check::imports::{
+    check_unused_imports, CollectExternImports, DefineImportedTypes,
 };
-use crate::type_check::imports::{CollectExternImports, DefineImportedTypes};
 use crate::type_check::methods::{
     CheckMainMethod, DefineMethods, DefineModuleMethodNames,
     ImplementTraitMethods,
@@ -261,6 +261,10 @@ impl Compiler {
         // Type specialization _must_ be done before optimizations and lowering
         // MIR to LLVM, otherwise we may generate incorrect code.
         self.specialize_mir(&mut mir);
+
+        // At this point we can get rid of various data structures stored in the
+        // type database. This must be done _after_ specialization.
+        self.state.db.compact();
 
         // Splitting is done _after_ specialization, since specialization
         // introduces new types and methods.
@@ -522,6 +526,7 @@ LLVM module timings:
             && CheckTypeParameters::run_all(state, modules)
             && DefineConstructors::run_all(state, modules)
             && DefineFields::run_all(state, modules)
+            && check_recursive_types(state, modules)
             && DefineMethods::run_all(state, modules)
             && CheckMainMethod::run(state)
             && ImplementTraitMethods::run_all(state, modules)
