@@ -45,12 +45,9 @@ trait pub Range: Contains[Int] + Hash + Format {
 }
 
 # An inclusive range of integers.
-class pub InclusiveRange {
-  # The start value of the range.
-  let pub @start: Int
-
-  # The end value of the range.
-  let pub @end: Int
+class pub inline InclusiveRange {
+  let @start: Int
+  let @end: Int
 
   # Returns a new `InclusiveRange` over the given values.
   fn pub static new(start: Int, end: Int) -> InclusiveRange {
@@ -59,25 +56,25 @@ class pub InclusiveRange {
 }
 
 impl Clone[InclusiveRange] for InclusiveRange {
-  fn pub clone -> InclusiveRange {
+  fn pub inline clone -> InclusiveRange {
     InclusiveRange(start: @start, end: @end)
   }
 }
 
 impl Range for InclusiveRange {
-  fn pub start -> Int {
+  fn pub inline start -> Int {
     @start
   }
 
-  fn pub end -> Int {
+  fn pub inline end -> Int {
     @end
   }
 
-  fn pub inclusive? -> Bool {
+  fn pub inline inclusive? -> Bool {
     true
   }
 
-  fn pub size -> Int {
+  fn pub inline size -> Int {
     if @end >= @start { @end - @start + 1 } else { 0 }
   }
 
@@ -106,7 +103,7 @@ impl Contains[Int] for InclusiveRange {
   # 1.to(10).contains?(5)  # => true
   # 1.to(10).contains?(10) # => true
   # ```
-  fn pub contains?(value: ref Int) -> Bool {
+  fn pub inline contains?(value: ref Int) -> Bool {
     @start <= value and value <= @end
   }
 }
@@ -127,7 +124,7 @@ impl Equal[ref InclusiveRange] for InclusiveRange {
   # ```inko
   # 1.to(10) == 1.to(5) # => false
   # ```
-  fn pub ==(other: ref InclusiveRange) -> Bool {
+  fn pub inline ==(other: ref InclusiveRange) -> Bool {
     @start == other.start and @end == other.end
   }
 }
@@ -148,39 +145,39 @@ impl Format for InclusiveRange {
 }
 
 # An exclusive range of integers.
-class pub ExclusiveRange {
+class pub inline ExclusiveRange {
   # The start value of the range.
-  let pub @start: Int
+  let @start: Int
 
   # The end value of the range.
-  let pub @end: Int
+  let @end: Int
 
   # Returns a new `ExclusiveRange` over the given values.
-  fn pub static new(start: Int, end: Int) -> ExclusiveRange {
+  fn pub inline static new(start: Int, end: Int) -> ExclusiveRange {
     ExclusiveRange(start: start, end: end)
   }
 }
 
 impl Clone[ExclusiveRange] for ExclusiveRange {
-  fn pub clone -> ExclusiveRange {
+  fn pub inline clone -> ExclusiveRange {
     ExclusiveRange(start: @start, end: @end)
   }
 }
 
 impl Range for ExclusiveRange {
-  fn pub start -> Int {
+  fn pub inline start -> Int {
     @start
   }
 
-  fn pub end -> Int {
+  fn pub inline end -> Int {
     @end
   }
 
-  fn pub inclusive? -> Bool {
+  fn pub inline inclusive? -> Bool {
     false
   }
 
-  fn pub size -> Int {
+  fn pub inline size -> Int {
     if @end >= @start { @end - @start } else { 0 }
   }
 
@@ -209,7 +206,7 @@ impl Contains[Int] for ExclusiveRange {
   # 1.until(10).cover?(5)  # => true
   # 1.until(10).cover?(15) # => false
   # ```
-  fn pub contains?(value: ref Int) -> Bool {
+  fn pub inline contains?(value: ref Int) -> Bool {
     @start <= value and value < @end
   }
 }
@@ -230,7 +227,7 @@ impl Equal[ref ExclusiveRange] for ExclusiveRange {
   # ```inko
   # 1.until(10) == 1.until(5) # => false
   # ```
-  fn pub ==(other: ref ExclusiveRange) -> Bool {
+  fn pub inline ==(other: ref ExclusiveRange) -> Bool {
     @start == other.start and @end == other.end
   }
 }
