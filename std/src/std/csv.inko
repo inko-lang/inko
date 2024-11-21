@@ -140,7 +140,7 @@ impl Equal[ref ErrorKind] for ErrorKind {
 }
 
 # A type describing the column separator.
-class pub enum Separator {
+class pub inline enum Separator {
   # Columns are separated using a comma (",").
   case Comma
 
