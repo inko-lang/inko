@@ -28,6 +28,10 @@ let LEAP_DAYS = [0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 205, 335]
 # year.
 let NORMAL_DAYS = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 204, 334]
 
+fn negative_time_error(time: Int) -> Never {
+  panic("Instant can't represent a negative time (${time})")
+}
+
 # A span of time measured in nanoseconds.
 #
 # A `Duration` can be used to measure the span of time without having to worry
@@ -42,7 +46,7 @@ let NORMAL_DAYS = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 204, 334]
 # is useful when performing arithmetic on `Duration` objects, as you won't have
 # to worry about overflows. It also lets you represent a duration that goes back
 # in time, i.e. "something that happened 5 seconds ago".
-class pub Duration {
+class pub inline Duration {
   let @nanos: Int
 
   # Creates a new `Duration` from the given number of seconds.
@@ -54,7 +58,7 @@ class pub Duration {
   #
   # Duration.from_secs(10.5)
   # ```
-  fn pub static from_secs[T: ToFloat](secs: ref T) -> Duration {
+  fn pub inline static from_secs[T: ToFloat](secs: ref T) -> Duration {
     Duration((secs.to_float * NANOS_PER_SEC).to_int)
   }
 
@@ -67,7 +71,7 @@ class pub Duration {
   #
   # Duration.from_millis(10)
   # ```
-  fn pub static from_millis[T: ToInt](millis: ref T) -> Duration {
+  fn pub inline static from_millis[T: ToInt](millis: ref T) -> Duration {
     Duration(millis.to_int * MICROS_PER_SEC)
   }
 
@@ -80,7 +84,7 @@ class pub Duration {
   #
   # Duration.from_micros(10)
   # ```
-  fn pub static from_micros[T: ToInt](micros: ref T) -> Duration {
+  fn pub inline static from_micros[T: ToInt](micros: ref T) -> Duration {
     Duration(micros.to_int * MILLIS_PER_SEC)
   }
 
@@ -93,7 +97,7 @@ class pub Duration {
   #
   # Duration.from_nanos(10)
   # ```
-  fn pub static from_nanos[T: ToInt](nanos: ref T) -> Duration {
+  fn pub inline static from_nanos[T: ToInt](nanos: ref T) -> Duration {
     Duration(nanos.to_int)
   }
 
@@ -106,7 +110,7 @@ class pub Duration {
   #
   # Duration.from_secs(5).to_secs # => 5.0
   # ```
-  fn pub to_secs -> Float {
+  fn pub inline to_secs -> Float {
     @nanos.to_float / NANOS_PER_SEC
   }
 
@@ -119,7 +123,7 @@ class pub Duration {
   #
   # Duration.from_secs(5).to_millis # => 5000
   # ```
-  fn pub to_millis -> Int {
+  fn pub inline to_millis -> Int {
     @nanos / MICROS_PER_SEC
   }
 
@@ -132,7 +136,7 @@ class pub Duration {
   #
   # Duration.from_secs(5).to_micros # => 5000000
   # ```
-  fn pub to_micros -> Int {
+  fn pub inline to_micros -> Int {
     @nanos / MILLIS_PER_SEC
   }
 
@@ -145,7 +149,7 @@ class pub Duration {
   #
   # Duration.from_secs(5).to_nanos # => 5000000000
   # ```
-  fn pub to_nanos -> Int {
+  fn pub inline to_nanos -> Int {
     @nanos
   }
 }
@@ -168,43 +172,43 @@ impl ToInstant for Duration {
   #
   # This method panics if the resulting `Instant` is invalid, such as when it's
   # a negative time.
-  fn pub to_instant -> Instant {
+  fn pub inline to_instant -> Instant {
     Instant.new + self
   }
 }
 
 impl Clone[Duration] for Duration {
-  fn pub clone -> Duration {
+  fn pub inline clone -> Duration {
     Duration(@nanos)
   }
 }
 
 impl Add[Duration, Duration] for Duration {
-  fn pub +(other: ref Duration) -> Duration {
+  fn pub inline +(other: ref Duration) -> Duration {
     Duration(@nanos + other.nanos)
   }
 }
 
 impl Subtract[Duration, Duration] for Duration {
-  fn pub -(other: ref Duration) -> Duration {
+  fn pub inline -(other: ref Duration) -> Duration {
     Duration(@nanos - other.nanos)
   }
 }
 
 impl Multiply[Int, Duration] for Duration {
-  fn pub *(other: ref Int) -> Duration {
+  fn pub inline *(other: ref Int) -> Duration {
     Duration(@nanos * other)
   }
 }
 
 impl Compare[Duration] for Duration {
-  fn pub cmp(other: ref Duration) -> Ordering {
+  fn pub inline cmp(other: ref Duration) -> Ordering {
     @nanos.cmp(other.nanos)
   }
 }
 
 impl Equal[ref Duration] for Duration {
-  fn pub ==(other: ref Duration) -> Bool {
+  fn pub inline ==(other: ref Duration) -> Bool {
     @nanos == other.nanos
   }
 }
@@ -435,7 +439,7 @@ class pub DateTime {
 }
 
 impl Clone[DateTime] for DateTime {
-  fn pub clone -> DateTime {
+  fn pub inline clone -> DateTime {
     DateTime(
       year: @year,
       month: @month,
@@ -527,7 +531,7 @@ impl Compare[DateTime] for DateTime {
 }
 
 impl Equal[ref DateTime] for DateTime {
-  fn pub ==(other: ref DateTime) -> Bool {
+  fn pub inline ==(other: ref DateTime) -> Bool {
     @year == other.year
       and @month == other.month
       and @day == other.day
@@ -558,11 +562,11 @@ trait pub ToInstant {
 # tasks such as measuring the execution time of a block of code.
 #
 # An `Instant` can never represent a negative time (e.g. -5).
-class pub Instant {
+class pub inline Instant {
   let @nanos: Int
 
   # Returns a new `Instant` representing the current time.
-  fn pub static new -> Instant {
+  fn pub inline static new -> Instant {
     Instant(inko_time_monotonic(_INKO.state) as Int)
   }
 
@@ -587,7 +591,7 @@ class pub Instant {
   #
   # start.elapsed.to_secs >= 1.0 # => true
   # ```
-  fn pub elapsed -> Duration {
+  fn pub inline elapsed -> Duration {
     Duration(inko_time_monotonic(_INKO.state) as Int - @nanos)
   }
 
@@ -604,63 +608,63 @@ class pub Instant {
   #
   # time.remaining # => Duration.from_secs(5)
   # ```
-  fn pub remaining -> Duration {
+  fn pub inline remaining -> Duration {
     Duration(@nanos - (inko_time_monotonic(_INKO.state) as Int))
   }
 }
 
 impl ToInstant for Instant {
-  fn pub to_instant -> Instant {
+  fn pub inline to_instant -> Instant {
     clone
   }
 }
 
 impl Clone[Instant] for Instant {
-  fn pub clone -> Instant {
+  fn pub inline clone -> Instant {
     Instant(@nanos)
   }
 }
 
 impl ToInt for Instant {
-  fn pub to_int -> Int {
+  fn pub inline to_int -> Int {
     @nanos.to_int
   }
 }
 
 impl ToFloat for Instant {
-  fn pub to_float -> Float {
+  fn pub inline to_float -> Float {
     @nanos.to_float
   }
 }
 
 impl Add[Duration, Instant] for Instant {
-  fn pub +(other: ref Duration) -> Instant {
+  fn pub inline +(other: ref Duration) -> Instant {
     let nanos = @nanos + other.nanos
 
-    if nanos < 0 { panic("Instant can't represent a negative time (${nanos})") }
+    if nanos < 0 { negative_time_error(nanos) }
 
     Instant(nanos)
   }
 }
 
 impl Subtract[Duration, Instant] for Instant {
-  fn pub -(other: ref Duration) -> Instant {
+  fn pub inline -(other: ref Duration) -> Instant {
     let nanos = @nanos - other.nanos
 
-    if nanos < 0 { panic("Instant can't represent a negative time (${nanos})") }
+    if nanos < 0 { negative_time_error(nanos) }
 
     Instant(nanos)
   }
 }
 
 impl Compare[Instant] for Instant {
-  fn pub cmp(other: ref Instant) -> Ordering {
+  fn pub inline cmp(other: ref Instant) -> Ordering {
     @nanos.cmp(other.nanos)
   }
 }
 
 impl Equal[ref Instant] for Instant {
-  fn pub ==(other: ref Instant) -> Bool {
+  fn pub inline ==(other: ref Instant) -> Bool {
     @nanos == other.nanos
   }
 }
