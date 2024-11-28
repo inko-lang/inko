@@ -39,7 +39,7 @@ fn pub exit(status: Int) -> Never {
 }
 
 # A type that describes what to do with an input/output stream of a command.
-class pub enum Stream {
+class pub inline enum Stream {
   # A stream that should be redirected to the null device.
   case Null
 
@@ -241,7 +241,7 @@ class pub Command {
 }
 
 # The status of a process after it terminated.
-class pub ExitStatus {
+class pub inline ExitStatus {
   # The raw exit code.
   let @code: Int
 
