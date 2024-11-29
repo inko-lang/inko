@@ -419,7 +419,9 @@ impl<'a> Worker<'a> {
         // both Neon on ARM64 to allow generated code to take advantage of their
         // instructions.
         let features = match shared.state.config.target.arch {
-            Architecture::Amd64 => "+sse2",
+            Architecture::Amd64 => {
+                "+fxsr,+sse2,+sse3,+sse4.1,+sse4.2,+popcnt,+cx16"
+            }
             Architecture::Arm64 => "+neon",
         };
         let machine = Target::from_triple(&triple)
