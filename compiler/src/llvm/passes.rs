@@ -941,8 +941,8 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
         module: &'module mut Module<'shared, 'ctx>,
         method: &'shared Method,
     ) -> Self {
-        let function =
-            module.add_method(&shared.names.methods[&method.id], method.id);
+        let name = &shared.names.methods[&method.id];
+        let function = module.add_method(&shared.state.db, name, method.id);
         let builder = Builder::new(module.context, function);
         let entry_block = builder.add_block();
 
@@ -1820,7 +1820,11 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 self.set_debug_location(ins.location);
 
                 let name = ins.method.name(&self.shared.state.db);
-                let fn_val = self.module.add_method(name, ins.method);
+                let fn_val = self.module.add_method(
+                    &self.shared.state.db,
+                    name,
+                    ins.method,
+                );
                 let kind = CallKind::Direct(fn_val);
                 let layout = &self.layouts.methods[ins.method.0 as usize];
 
@@ -1830,7 +1834,11 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 self.set_debug_location(ins.location);
 
                 let func_name = &self.shared.names.methods[&ins.method];
-                let func = self.module.add_method(func_name, ins.method);
+                let func = self.module.add_method(
+                    &self.shared.state.db,
+                    func_name,
+                    ins.method,
+                );
                 let kind = CallKind::Direct(func);
                 let layout = &self.layouts.methods[ins.method.0 as usize];
 
@@ -1840,7 +1848,11 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 self.set_debug_location(ins.location);
 
                 let name = &self.shared.names.methods[&ins.method];
-                let func = self.module.add_method(name, ins.method);
+                let func = self.module.add_method(
+                    &self.shared.state.db,
+                    name,
+                    ins.method,
+                );
                 let kind = CallKind::Direct(func);
                 let layout = &self.layouts.methods[ins.method.0 as usize];
 
@@ -2093,7 +2105,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 let method_name = &self.shared.names.methods[&ins.method];
                 let method = self
                     .module
-                    .add_method(method_name, ins.method)
+                    .add_method(&self.shared.state.db, method_name, ins.method)
                     .as_global_value()
                     .as_pointer_value()
                     .into();
@@ -2282,7 +2294,11 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
             Instruction::MethodPointer(ins) => {
                 let reg_var = self.variables[&ins.register];
                 let func_name = &self.shared.names.methods[&ins.method];
-                let func = self.module.add_method(func_name, ins.method);
+                let func = self.module.add_method(
+                    &self.shared.state.db,
+                    func_name,
+                    ins.method,
+                );
                 let ptr = func.as_global_value().as_pointer_value();
 
                 self.builder.store(reg_var, ptr);

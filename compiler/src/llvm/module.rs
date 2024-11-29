@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use std::path::Path;
 use types::module_name::ModuleName;
-use types::{CallConvention, MethodId};
+use types::{Block, CallConvention, Database, MethodId};
 
 /// A wrapper around an LLVM Module that provides some additional methods.
 pub(crate) struct Module<'a, 'ctx> {
@@ -95,6 +95,7 @@ impl<'a, 'ctx> Module<'a, 'ctx> {
 
     pub(crate) fn add_method(
         &self,
+        db: &Database,
         name: &str,
         method: MethodId,
     ) -> FunctionValue<'ctx> {
@@ -113,6 +114,8 @@ impl<'a, 'ctx> Module<'a, 'ctx> {
 
             fn_val.set_call_conventions(conv);
 
+            let mut sret = false;
+
             for (idx, &arg) in info.arguments.iter().enumerate() {
                 match arg {
                     ArgumentType::StructValue(t) => {
@@ -122,12 +125,16 @@ impl<'a, 'ctx> Module<'a, 'ctx> {
                         );
                     }
                     ArgumentType::StructReturn(t) => {
+                        // For struct returns we use a hidden first argument, so
+                        // we need to shift the first user-defined argument to
+                        // the right.
+                        sret = true;
+
                         let loc = AttributeLoc::Param(0);
                         let sret =
                             self.context.type_attribute("sret", t.into());
-                        let noalias = self.context.enum_attribute("noalias", 0);
-                        let nocapt =
-                            self.context.enum_attribute("nocapture", 0);
+                        let noalias = self.context.flag("noalias");
+                        let nocapt = self.context.flag("nocapture");
 
                         fn_val.add_attribute(loc, sret);
                         fn_val.add_attribute(loc, noalias);
@@ -135,6 +142,85 @@ impl<'a, 'ctx> Module<'a, 'ctx> {
                     }
                     _ => {}
                 }
+            }
+
+            // Add various attributes to the function arguments, in order to
+            // (hopefully) produce better optimized code.
+            if method.is_async(db) {
+                // async methods use the signature `fn(message)` where the
+                // message is unpacked into the individual arguments.
+                let loc = AttributeLoc::Param(0);
+                let ro = self.context.flag("readonly");
+                let noal = self.context.flag("noalias");
+                let nocap = self.context.flag("nocapture");
+
+                fn_val.add_attribute(loc, ro);
+                fn_val.add_attribute(loc, noal);
+                fn_val.add_attribute(loc, nocap);
+            } else {
+                let llvm_args = fn_typ.get_param_types();
+                let is_instance = method.is_instance(db);
+                let first_arg =
+                    if is_instance { 1 } else { 0 } + (sret as usize);
+
+                if is_instance {
+                    let idx = if sret { 1_usize } else { 0 };
+                    let loc = AttributeLoc::Param(idx as u32);
+
+                    if llvm_args[idx].is_pointer_type() {
+                        fn_val.add_attribute(loc, self.context.flag("nonnull"));
+                    }
+
+                    fn_val.add_attribute(loc, self.context.flag("noundef"));
+                }
+
+                for (idx, &typ) in method.argument_types(db).enumerate() {
+                    let idx = idx + first_arg;
+                    let loc = AttributeLoc::Param(idx as _);
+                    let ltyp = llvm_args[idx];
+
+                    // For borrows we _don't_ set the "readonly" attribute, as
+                    // we modify the reference count through the pointer.
+                    if ltyp.is_pointer_type() {
+                        if typ.is_uni(db) {
+                            let attr = self.context.flag("noalias");
+
+                            fn_val.add_attribute(loc, attr);
+                        } else if typ.is_ref_or_mut(db) {
+                            // We never release memory through borrows.
+                            let attr = self.context.flag("nofree");
+
+                            fn_val.add_attribute(loc, attr);
+                        }
+
+                        // Inko values passed as a pointer (e.g. a borrow) are
+                        // never NULL.
+                        if !typ.is_foreign_type(db) {
+                            let not_null = self.context.flag("nonnull");
+                            let not_undef = self.context.flag("noundef");
+
+                            fn_val.add_attribute(loc, not_null);
+                            fn_val.add_attribute(loc, not_undef);
+                        }
+                    }
+
+                    // Inko's own types are always initialized.
+                    if !typ.is_foreign_type(db) {
+                        let attr = self.context.flag("noundef");
+
+                        fn_val.add_attribute(loc, attr);
+                    }
+                }
+            }
+
+            if method.return_type(db).is_never(db) {
+                let cold = self.context.flag("cold");
+                let noin = self.context.flag("noinline");
+                let noret = self.context.flag("noreturn");
+
+                fn_val.add_attribute(AttributeLoc::Function, cold);
+                fn_val.add_attribute(AttributeLoc::Function, noin);
+                fn_val.add_attribute(AttributeLoc::Function, noret);
             }
 
             fn_val

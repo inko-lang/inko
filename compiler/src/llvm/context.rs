@@ -37,10 +37,10 @@ impl Context {
         self.inner.create_type_attribute(id, typ)
     }
 
-    pub(crate) fn enum_attribute(&self, name: &str, value: u64) -> Attribute {
+    pub(crate) fn flag(&self, name: &str) -> Attribute {
         let id = Attribute::get_named_enum_kind_id(name);
 
-        self.inner.create_enum_attribute(id, value)
+        self.inner.create_enum_attribute(id, 0)
     }
 
     pub(crate) fn pointer_type(&self) -> PointerType<'_> {
