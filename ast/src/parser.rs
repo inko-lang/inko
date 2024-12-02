@@ -9,6 +9,7 @@ use crate::nodes::*;
 use location::Location;
 use std::path::PathBuf;
 
+const MAX_DEPTH: usize = 1000;
 /// Produces a parser error and returns from the surrounding function.
 macro_rules! error {
     ($location: expr, $message: expr, $($field: expr),*) => {
@@ -79,7 +80,6 @@ impl Parser {
     pub fn parse(&mut self) -> Result<Module, ParseError> {
         let start_loc = self.lexer.start_location();
         let mut expressions = Vec::new();
-
         loop {
             let token = self.next();
 
@@ -314,7 +314,7 @@ impl Parser {
         self.expect(TokenKind::Assign)?;
 
         let value_start = self.require()?;
-        let value = self.const_expression(value_start)?;
+        let value = self.const_expression(0, value_start)?;
         let location = Location::start_end(&start.location, value.location());
 
         Ok(TopLevelExpression::DefineConstant(Box::new(DefineConstant {
@@ -327,13 +327,14 @@ impl Parser {
 
     fn const_expression(
         &mut self,
+        depth: usize,
         start: Token,
     ) -> Result<Expression, ParseError> {
-        let mut left = self.const_value(start)?;
+        let mut left = self.const_value(depth, start)?;
 
         while let Some(operator) = self.binary_operator() {
             let rhs_token = self.require()?;
-            let right = self.const_value(rhs_token)?;
+            let right = self.const_value(depth, rhs_token)?;
             let location =
                 Location::start_end(left.location(), right.location());
 
@@ -348,21 +349,21 @@ impl Parser {
         Ok(left)
     }
 
-    fn const_value(&mut self, start: Token) -> Result<Expression, ParseError> {
+    fn const_value(&mut self, depth: usize, start: Token) -> Result<Expression, ParseError> {
         let value = match start.kind {
             TokenKind::Float => self.float_literal(start),
             TokenKind::Integer => self.int_literal(start),
             TokenKind::True => self.true_literal(start),
             TokenKind::False => self.false_literal(start),
             TokenKind::SingleStringOpen => {
-                self.string_value(start, TokenKind::SingleStringClose, false)?
+                self.string_value(depth, start, TokenKind::SingleStringClose, false)?
             }
             TokenKind::DoubleStringOpen => {
-                self.string_value(start, TokenKind::DoubleStringClose, false)?
+                self.string_value(depth, start, TokenKind::DoubleStringClose, false)?
             }
             TokenKind::Constant => self.constant_ref(start),
-            TokenKind::ParenOpen => self.const_group(start)?,
-            TokenKind::BracketOpen => self.const_array(start)?,
+            TokenKind::ParenOpen => self.const_group(depth, start)?,
+            TokenKind::BracketOpen => self.const_array(depth, start)?,
             TokenKind::Comment => Expression::Comment(self.comment(start)),
             TokenKind::Identifier => {
                 self.expect(TokenKind::Dot)?;
@@ -393,16 +394,16 @@ impl Parser {
         Expression::Constant(Box::new(Constant::from(start)))
     }
 
-    fn const_group(&mut self, start: Token) -> Result<Expression, ParseError> {
+    fn const_group(&mut self, depth: usize, start: Token) -> Result<Expression, ParseError> {
         let value_token = self.require()?;
-        let value = self.const_expression(value_token)?;
+        let value = self.const_expression(depth, value_token)?;
         let end = self.expect(TokenKind::ParenClose)?;
         let location = Location::start_end(&start.location, &end.location);
 
         Ok(Expression::Group(Box::new(Group { value, location })))
     }
 
-    fn const_array(&mut self, start: Token) -> Result<Expression, ParseError> {
+    fn const_array(&mut self, depth: usize, start: Token) -> Result<Expression, ParseError> {
         let mut values = Vec::new();
 
         loop {
@@ -418,7 +419,7 @@ impl Parser {
                 })));
             }
 
-            values.push(self.const_expression(token)?);
+            values.push(self.const_expression(depth, token)?);
 
             if self.peek().kind == TokenKind::Comma {
                 self.next();
@@ -851,23 +852,31 @@ impl Parser {
             _ => MethodKind::Instance,
         };
 
+        println!("public ? {}, inline? {} Kind method ? {:?}", public, inline, kind);
         let name_token = self.require()?;
         let (name, operator) = self.method_name(name_token)?;
+        println!("Method name: {:?}, operator: {}", name, operator);
         let type_parameters = if let MethodKind::Extern = kind {
             None
         } else {
             self.optional_type_parameter_definitions()?
         };
+        println!("Type parameters: {:?}", type_parameters);
         let arguments = self.optional_method_arguments(allow_variadic)?;
+        println!("Arguments: {:?}", arguments);
         let variadic = arguments.as_ref().map_or(false, |v| v.variadic);
+        println!("Variadic ? {}", variadic);
         let return_type = self.optional_return_type()?;
+        println!("Return type: {:?}", return_type);
         let body = if (self.peek().kind == TokenKind::CurlyOpen
             || kind != MethodKind::Extern)
             && !variadic
         {
             let token = self.expect(TokenKind::CurlyOpen)?;
 
-            Some(self.expressions(token)?)
+            let expr = self.expressions(0, token)?;
+            println!("Expr: {:?}", expr);
+            Some(expr)
         } else {
             None
         };
@@ -879,6 +888,8 @@ impl Parser {
                 .or_else(|| location!(arguments))
                 .unwrap_or(&name.location),
         );
+
+        println!("Parsing define module method fini");
 
         Ok(TopLevelExpression::DefineMethod(Box::new(DefineMethod {
             inline,
@@ -896,6 +907,7 @@ impl Parser {
 
     fn define_method(
         &mut self,
+        depth: usize,
         start: Token,
     ) -> Result<DefineMethod, ParseError> {
         let public = self.next_is_public();
@@ -931,7 +943,7 @@ impl Parser {
         let arguments = self.optional_method_arguments(false)?;
         let return_type = self.optional_return_type()?;
         let body_token = self.expect(TokenKind::CurlyOpen)?;
-        let body = self.expressions(body_token)?;
+        let body = self.expressions(depth + 1, body_token)?;
         let location = Location::start_end(&start.location, &body.location);
 
         Ok(DefineMethod {
@@ -950,6 +962,7 @@ impl Parser {
 
     fn implement_method(
         &mut self,
+        depth: usize,
         start: Token,
     ) -> Result<DefineMethod, ParseError> {
         let public = self.next_is_public();
@@ -971,7 +984,7 @@ impl Parser {
         let arguments = self.optional_method_arguments(false)?;
         let return_type = self.optional_return_type()?;
         let body_token = self.expect(TokenKind::CurlyOpen)?;
-        let body = self.expressions(body_token)?;
+        let body = self.expressions(depth + 1, body_token)?;
         let location = Location::start_end(&start.location, &body.location);
 
         Ok(DefineMethod {
@@ -1063,7 +1076,7 @@ impl Parser {
         let body = if let ClassKind::Extern = kind {
             self.extern_class_expressions()?
         } else {
-            self.class_expressions()?
+            self.class_expressions(0)?
         };
 
         let location = Location::start_end(&start.location, &body.location);
@@ -1103,7 +1116,7 @@ impl Parser {
         Ok(DefineConstructor { name, members, location })
     }
 
-    fn class_expressions(&mut self) -> Result<ClassExpressions, ParseError> {
+    fn class_expressions(&mut self, depth: usize) -> Result<ClassExpressions, ParseError> {
         let start = self.expect(TokenKind::CurlyOpen)?;
         let mut values = Vec::new();
 
@@ -1117,7 +1130,7 @@ impl Parser {
                 return Ok(ClassExpressions { values, location });
             }
 
-            values.push(self.class_expression(token)?);
+            values.push(self.class_expression(depth, token)?);
         }
     }
 
@@ -1158,6 +1171,7 @@ impl Parser {
 
     fn class_expression(
         &mut self,
+        depth: usize,
         start: Token,
     ) -> Result<ClassExpression, ParseError> {
         let expr = match start.kind {
@@ -1165,7 +1179,7 @@ impl Parser {
                 self.define_field(start)?,
             )),
             TokenKind::Fn => ClassExpression::DefineMethod(Box::new(
-                self.define_method(start)?,
+                self.define_method(depth, start)?,
             )),
             TokenKind::Case => ClassExpression::DefineConstructor(Box::new(
                 self.define_constructor(start)?,
@@ -1212,7 +1226,7 @@ impl Parser {
         {
             self.implement_trait(start, token)
         } else {
-            self.reopen_class(start, token)
+            self.reopen_class(0, start, token)
         }
     }
 
@@ -1227,7 +1241,7 @@ impl Parser {
 
         let class_name = Constant::from(self.expect(TokenKind::Constant)?);
         let bounds = self.optional_type_bounds()?;
-        let body = self.trait_implementation_expressions()?;
+        let body = self.trait_implementation_expressions(0)?;
         let location = Location::start_end(&start.location, body.location());
 
         Ok(TopLevelExpression::ImplementTrait(Box::new(ImplementTrait {
@@ -1321,12 +1335,13 @@ impl Parser {
 
     fn reopen_class(
         &mut self,
+        depth: usize,
         start: Token,
         class_token: Token,
     ) -> Result<TopLevelExpression, ParseError> {
         let class_name = Constant::from(class_token);
         let bounds = self.optional_type_bounds()?;
-        let body = self.reopen_class_expressions()?;
+        let body = self.reopen_class_expressions(depth)?;
         let end_loc = location!(bounds).unwrap_or_else(|| body.location());
         let location = Location::start_end(&start.location, end_loc);
 
@@ -1340,6 +1355,7 @@ impl Parser {
 
     fn reopen_class_expressions(
         &mut self,
+        depth: usize,
     ) -> Result<ImplementationExpressions, ParseError> {
         let start = self.expect(TokenKind::CurlyOpen)?;
         let mut values = Vec::new();
@@ -1356,7 +1372,7 @@ impl Parser {
 
             let value = match token.kind {
                 TokenKind::Fn => ImplementationExpression::DefineMethod(
-                    Box::new(self.define_method(token)?),
+                    Box::new(self.define_method(depth, token)?),
                 ),
                 TokenKind::Comment => {
                     ImplementationExpression::Comment(self.comment(token))
@@ -1373,6 +1389,7 @@ impl Parser {
 
     fn trait_implementation_expressions(
         &mut self,
+        depth: usize,
     ) -> Result<ImplementationExpressions, ParseError> {
         let start = self.expect(TokenKind::CurlyOpen)?;
         let mut values = Vec::new();
@@ -1389,7 +1406,7 @@ impl Parser {
 
             let value = match token.kind {
                 TokenKind::Fn => ImplementationExpression::DefineMethod(
-                    Box::new(self.implement_method(token)?),
+                    Box::new(self.implement_method(depth, token)?),
                 ),
                 TokenKind::Comment => {
                     ImplementationExpression::Comment(self.comment(token))
@@ -1412,7 +1429,7 @@ impl Parser {
         let name = Constant::from(self.expect(TokenKind::Constant)?);
         let type_parameters = self.optional_type_parameter_definitions()?;
         let requirements = self.optional_trait_requirements()?;
-        let body = self.trait_expressions()?;
+        let body = self.trait_expressions(0)?;
         let location = Location::start_end(&start.location, &body.location);
 
         Ok(TopLevelExpression::DefineTrait(Box::new(DefineTrait {
@@ -1425,7 +1442,7 @@ impl Parser {
         })))
     }
 
-    fn trait_expressions(&mut self) -> Result<TraitExpressions, ParseError> {
+    fn trait_expressions(&mut self, depth: usize) -> Result<TraitExpressions, ParseError> {
         let start = self.expect(TokenKind::CurlyOpen)?;
         let mut values = Vec::new();
 
@@ -1442,7 +1459,7 @@ impl Parser {
             let expr = match token.kind {
                 TokenKind::Move | TokenKind::Fn => {
                     TraitExpression::DefineMethod(Box::new(
-                        self.define_trait_method(token)?,
+                        self.define_trait_method(depth, token)?,
                     ))
                 }
                 TokenKind::Comment => {
@@ -1460,6 +1477,7 @@ impl Parser {
 
     fn define_trait_method(
         &mut self,
+        depth: usize,
         start: Token,
     ) -> Result<DefineMethod, ParseError> {
         let public = self.next_is_public();
@@ -1483,7 +1501,7 @@ impl Parser {
         let body = if self.peek().kind == TokenKind::CurlyOpen {
             let body_token = self.expect(TokenKind::CurlyOpen)?;
 
-            Some(self.expressions(body_token)?)
+            Some(self.expressions(depth + 1, body_token)?)
         } else {
             None
         };
@@ -1507,9 +1525,15 @@ impl Parser {
             kind,
         })
     }
+    // call stack = expressions -> expression -> boolean_and_or -> binary -> postfix -> value -> scope -> expressions
+    fn expressions(&mut self, depth: usize, start: Token) -> Result<Expressions, ParseError> {
+        
+        if depth > MAX_DEPTH {
+            return error!(start.location, "Call stack reach limit");
+        }
 
-    fn expressions(&mut self, start: Token) -> Result<Expressions, ParseError> {
         let mut values = Vec::new();
+        println!("Start token expression: {:?}", start);
 
         loop {
             let token = self.require()?;
@@ -1521,34 +1545,39 @@ impl Parser {
                 return Ok(Expressions { values, location });
             }
 
-            values.push(self.expression(token)?);
+            println!("Actual token: {:?}", token);
+            let expression = self.expression(depth, token)?;
+            println!("Expression: {:?}", expression);
+            values.push(expression);
         }
     }
 
     fn expressions_with_optional_curly_braces(
         &mut self,
+        depth: usize,
     ) -> Result<Expressions, ParseError> {
         let start = self.require()?;
 
         if start.kind == TokenKind::CurlyOpen {
-            self.expressions(start)
+            self.expressions(depth + 1, start)
         } else {
-            let expr = self.expression(start)?;
+            let expr = self.expression(depth + 1, start)?;
             let location = *expr.location();
 
             Ok(Expressions { values: vec![expr], location })
         }
     }
 
-    fn expression(&mut self, start: Token) -> Result<Expression, ParseError> {
-        self.boolean_and_or(start)
+    fn expression(&mut self, depth: usize, start: Token) -> Result<Expression, ParseError> {
+        self.boolean_and_or(depth, start)
     }
 
     fn boolean_and_or(
         &mut self,
+        depth: usize,
         start: Token,
     ) -> Result<Expression, ParseError> {
-        let mut node = self.binary(start)?;
+        let mut node = self.binary(depth, start)?;
 
         loop {
             match self.peek().kind {
@@ -1556,7 +1585,7 @@ impl Parser {
                     self.next();
 
                     let right_token = self.require()?;
-                    let right = self.binary(right_token)?;
+                    let right = self.binary(depth, right_token)?;
 
                     node = Expression::boolean_and(node, right);
                 }
@@ -1564,7 +1593,7 @@ impl Parser {
                     self.next();
 
                     let right_token = self.require()?;
-                    let right = self.binary(right_token)?;
+                    let right = self.binary(depth, right_token)?;
 
                     node = Expression::boolean_or(node, right);
                 }
@@ -1575,13 +1604,16 @@ impl Parser {
         Ok(node)
     }
 
-    fn binary(&mut self, start: Token) -> Result<Expression, ParseError> {
-        let mut node = self.postfix(start)?;
+    fn binary(&mut self, depth: usize, start: Token) -> Result<Expression, ParseError> {
+        println!("Binary");
+        let mut node = self.postfix(depth, start)?;
+        println!("Node postfix : {:?}", node);
 
         loop {
             if let Some(op) = self.binary_operator() {
+                println!("In binary operator");
                 let rhs_token = self.require()?;
-                let rhs = self.postfix(rhs_token)?;
+                let rhs = self.postfix(depth, rhs_token)?;
                 let location =
                     Location::start_end(node.location(), rhs.location());
 
@@ -1592,6 +1624,7 @@ impl Parser {
                     location,
                 }));
             } else if self.peek().kind == TokenKind::As {
+                println!("IN AS TOKEN");
                 self.next();
 
                 let cast_token = self.require()?;
@@ -1605,6 +1638,7 @@ impl Parser {
                     location,
                 }));
             } else {
+                println!("In token");
                 break;
             }
         }
@@ -1640,14 +1674,16 @@ impl Parser {
         Some(Operator { kind: op_kind, location: op_token.location })
     }
 
-    fn postfix(&mut self, start: Token) -> Result<Expression, ParseError> {
-        let mut node = self.value(start)?;
+    fn postfix(&mut self, depth: usize,  start: Token) -> Result<Expression, ParseError> {
+        println!("In postfix: {:?}", start);
+        let mut node = self.value(depth, start)?;
+        println!("In postfix node: {:?}", node);
 
         loop {
             let peeked = self.peek();
 
             if let TokenKind::Dot = peeked.kind {
-                node = self.call_with_receiver(node)?;
+                node = self.call_with_receiver(depth, node)?;
             } else {
                 break;
             }
@@ -1656,42 +1692,42 @@ impl Parser {
         Ok(node)
     }
 
-    fn value(&mut self, start: Token) -> Result<Expression, ParseError> {
+    fn value(&mut self, depth: usize, start: Token) -> Result<Expression, ParseError> {
         // When updating this match, also update the one used for parsing return
         // value expressions.
         let value = match start.kind {
-            TokenKind::BracketOpen => self.array_literal(start)?,
+            TokenKind::BracketOpen => self.array_literal(depth, start)?,
             TokenKind::Break => self.break_loop(start),
-            TokenKind::Constant => self.constant(start)?,
-            TokenKind::CurlyOpen => self.scope(start)?,
-            TokenKind::Fn => self.closure(start)?,
+            TokenKind::Constant => self.constant(depth, start)?,
+            TokenKind::CurlyOpen => self.scope(depth, start)?,
+            TokenKind::Fn => self.closure(depth, start)?,
             TokenKind::SingleStringOpen => {
-                self.string_value(start, TokenKind::SingleStringClose, true)?
+                self.string_value(depth, start, TokenKind::SingleStringClose, true)?
             }
             TokenKind::DoubleStringOpen => {
-                self.string_value(start, TokenKind::DoubleStringClose, true)?
+                self.string_value(depth, start, TokenKind::DoubleStringClose, true)?
             }
             TokenKind::False => self.false_literal(start),
-            TokenKind::Field => self.field(start)?,
+            TokenKind::Field => self.field(depth, start)?,
             TokenKind::Float => self.float_literal(start),
-            TokenKind::Identifier => self.identifier(start)?,
-            TokenKind::If => self.if_expression(start)?,
+            TokenKind::Identifier => self.identifier(depth, start)?,
+            TokenKind::If => self.if_expression(depth, start)?,
             TokenKind::Integer => self.int_literal(start),
-            TokenKind::Loop => self.loop_expression(start)?,
-            TokenKind::Match => self.match_expression(start)?,
+            TokenKind::Loop => self.loop_expression(depth, start)?,
+            TokenKind::Match => self.match_expression(depth, start)?,
             TokenKind::Next => self.next_loop(start),
-            TokenKind::ParenOpen => self.group_or_tuple(start)?,
-            TokenKind::Ref => self.reference(start)?,
-            TokenKind::Mut => self.mut_reference(start)?,
-            TokenKind::Recover => self.recover_expression(start)?,
-            TokenKind::Return => self.return_expression(start)?,
+            TokenKind::ParenOpen => self.group_or_tuple(depth, start)?,
+            TokenKind::Ref => self.reference(depth, start)?,
+            TokenKind::Mut => self.mut_reference(depth, start)?,
+            TokenKind::Recover => self.recover_expression(depth, start)?,
+            TokenKind::Return => self.return_expression(depth, start)?,
             TokenKind::SelfObject => self.self_expression(start),
-            TokenKind::Throw => self.throw_expression(start)?,
+            TokenKind::Throw => self.throw_expression(depth, start)?,
             TokenKind::True => self.true_literal(start),
             TokenKind::Nil => self.nil_literal(start),
-            TokenKind::Try => self.try_expression(start)?,
-            TokenKind::While => self.while_expression(start)?,
-            TokenKind::Let => self.define_variable(start)?,
+            TokenKind::Try => self.try_expression(depth,start)?,
+            TokenKind::While => self.while_expression(depth, start)?,
+            TokenKind::Let => self.define_variable(depth, start)?,
             TokenKind::Comment => Expression::Comment(self.comment(start)),
             _ => {
                 error!(start.location, "'{}' can't be used here", start.value)
@@ -1717,11 +1753,13 @@ impl Parser {
 
     fn string_value(
         &mut self,
+        depth: usize,
         start: Token,
         close: TokenKind,
         interpolation: bool,
     ) -> Result<Expression, ParseError> {
         Ok(Expression::String(Box::new(self.string_literal(
+            depth,
             start,
             close,
             interpolation,
@@ -1730,6 +1768,7 @@ impl Parser {
 
     fn string_literal(
         &mut self,
+        depth: usize,
         start: Token,
         close: TokenKind,
         interpolation: bool,
@@ -1750,7 +1789,7 @@ impl Parser {
                 }
                 TokenKind::StringExprOpen if interpolation => {
                     let value_token = self.require()?;
-                    let value = self.expression(value_token)?;
+                    let value = self.expression(depth, value_token)?;
                     let close = self.expect(TokenKind::StringExprClose)?;
                     let location =
                         Location::start_end(&token.location, &close.location);
@@ -1812,6 +1851,7 @@ impl Parser {
 
     fn array_literal(
         &mut self,
+        depth: usize,
         start: Token,
     ) -> Result<Expression, ParseError> {
         let mut values = Vec::new();
@@ -1829,7 +1869,7 @@ impl Parser {
                 })));
             }
 
-            values.push(self.expression(token)?);
+            values.push(self.expression(depth, token)?);
 
             if self.peek().kind == TokenKind::Comma {
                 self.next();
@@ -1837,46 +1877,46 @@ impl Parser {
         }
     }
 
-    fn field(&mut self, start: Token) -> Result<Expression, ParseError> {
+    fn field(&mut self, depth: usize, start: Token) -> Result<Expression, ParseError> {
         match self.peek().kind {
-            TokenKind::Assign => return self.assign_field(start),
-            TokenKind::Replace => return self.replace_field(start),
+            TokenKind::Assign => return self.assign_field(depth, start),
+            TokenKind::Replace => return self.replace_field(depth,start),
             TokenKind::AddAssign => {
-                return self.binary_assign_field(start, OperatorKind::Add)
+                return self.binary_assign_field(depth, start, OperatorKind::Add)
             }
             TokenKind::SubAssign => {
-                return self.binary_assign_field(start, OperatorKind::Sub)
+                return self.binary_assign_field(depth, start, OperatorKind::Sub)
             }
             TokenKind::DivAssign => {
-                return self.binary_assign_field(start, OperatorKind::Div)
+                return self.binary_assign_field(depth, start, OperatorKind::Div)
             }
             TokenKind::MulAssign => {
-                return self.binary_assign_field(start, OperatorKind::Mul)
+                return self.binary_assign_field(depth, start, OperatorKind::Mul)
             }
             TokenKind::PowAssign => {
-                return self.binary_assign_field(start, OperatorKind::Pow)
+                return self.binary_assign_field(depth, start, OperatorKind::Pow)
             }
             TokenKind::ModAssign => {
-                return self.binary_assign_field(start, OperatorKind::Mod)
+                return self.binary_assign_field(depth, start, OperatorKind::Mod)
             }
             TokenKind::ShlAssign => {
-                return self.binary_assign_field(start, OperatorKind::Shl)
+                return self.binary_assign_field(depth, start, OperatorKind::Shl)
             }
             TokenKind::ShrAssign => {
-                return self.binary_assign_field(start, OperatorKind::Shr)
+                return self.binary_assign_field(depth, start, OperatorKind::Shr)
             }
             TokenKind::UnsignedShrAssign => {
                 return self
-                    .binary_assign_field(start, OperatorKind::UnsignedShr)
+                    .binary_assign_field(depth, start, OperatorKind::UnsignedShr)
             }
             TokenKind::BitOrAssign => {
-                return self.binary_assign_field(start, OperatorKind::BitOr)
+                return self.binary_assign_field(depth, start, OperatorKind::BitOr)
             }
             TokenKind::BitAndAssign => {
-                return self.binary_assign_field(start, OperatorKind::BitAnd)
+                return self.binary_assign_field(depth, start, OperatorKind::BitAnd)
             }
             TokenKind::BitXorAssign => {
-                return self.binary_assign_field(start, OperatorKind::BitXor)
+                return self.binary_assign_field(depth, start, OperatorKind::BitXor)
             }
             _ => {}
         }
@@ -1884,8 +1924,8 @@ impl Parser {
         Ok(Expression::Field(Box::new(Field::from(start))))
     }
 
-    fn constant(&mut self, start: Token) -> Result<Expression, ParseError> {
-        if let Some(args) = self.arguments(&start.location)? {
+    fn constant(&mut self, depth: usize, start: Token) -> Result<Expression, ParseError> {
+        if let Some(args) = self.arguments(depth, &start.location)? {
             let name = Identifier::from(start);
             let location =
                 Location::start_end(name.location(), args.location());
@@ -1901,51 +1941,51 @@ impl Parser {
         Ok(Expression::Constant(Box::new(Constant::from(start))))
     }
 
-    fn identifier(&mut self, start: Token) -> Result<Expression, ParseError> {
+    fn identifier(&mut self, depth: usize, start: Token) -> Result<Expression, ParseError> {
         match self.peek().kind {
-            TokenKind::Assign => return self.assign_variable(start),
-            TokenKind::Replace => return self.replace_variable(start),
+            TokenKind::Assign => return self.assign_variable(depth, start),
+            TokenKind::Replace => return self.replace_variable(depth, start),
             TokenKind::AddAssign => {
-                return self.binary_assign_variable(start, OperatorKind::Add)
+                return self.binary_assign_variable(depth, start, OperatorKind::Add)
             }
             TokenKind::SubAssign => {
-                return self.binary_assign_variable(start, OperatorKind::Sub)
+                return self.binary_assign_variable(depth, start, OperatorKind::Sub)
             }
             TokenKind::DivAssign => {
-                return self.binary_assign_variable(start, OperatorKind::Div)
+                return self.binary_assign_variable(depth, start, OperatorKind::Div)
             }
             TokenKind::MulAssign => {
-                return self.binary_assign_variable(start, OperatorKind::Mul)
+                return self.binary_assign_variable(depth, start, OperatorKind::Mul)
             }
             TokenKind::PowAssign => {
-                return self.binary_assign_variable(start, OperatorKind::Pow)
+                return self.binary_assign_variable(depth, start, OperatorKind::Pow)
             }
             TokenKind::ModAssign => {
-                return self.binary_assign_variable(start, OperatorKind::Mod)
+                return self.binary_assign_variable(depth, start, OperatorKind::Mod)
             }
             TokenKind::ShlAssign => {
-                return self.binary_assign_variable(start, OperatorKind::Shl)
+                return self.binary_assign_variable(depth, start, OperatorKind::Shl)
             }
             TokenKind::ShrAssign => {
-                return self.binary_assign_variable(start, OperatorKind::Shr);
+                return self.binary_assign_variable(depth, start, OperatorKind::Shr);
             }
             TokenKind::UnsignedShrAssign => {
                 return self
-                    .binary_assign_variable(start, OperatorKind::UnsignedShr);
+                    .binary_assign_variable(depth, start, OperatorKind::UnsignedShr);
             }
             TokenKind::BitOrAssign => {
-                return self.binary_assign_variable(start, OperatorKind::BitOr)
+                return self.binary_assign_variable(depth, start, OperatorKind::BitOr)
             }
             TokenKind::BitAndAssign => {
-                return self.binary_assign_variable(start, OperatorKind::BitAnd)
+                return self.binary_assign_variable(depth, start, OperatorKind::BitAnd)
             }
             TokenKind::BitXorAssign => {
-                return self.binary_assign_variable(start, OperatorKind::BitXor)
+                return self.binary_assign_variable(depth, start, OperatorKind::BitXor)
             }
             _ => {}
         }
 
-        if let Some(args) = self.arguments(&start.location)? {
+        if let Some(args) = self.arguments(depth, &start.location)? {
             let name = Identifier::from(start);
             let location =
                 Location::start_end(name.location(), args.location());
@@ -1963,6 +2003,7 @@ impl Parser {
 
     fn arguments(
         &mut self,
+        depth: usize,
         start_location: &Location,
     ) -> Result<Option<Arguments>, ParseError> {
         let peeked = self.peek();
@@ -1983,9 +2024,9 @@ impl Parser {
                     && parser.peek().kind == TokenKind::Colon
                 {
                     allow_pos = false;
-                    Argument::Named(Box::new(parser.named_argument(token)?))
+                    Argument::Named(Box::new(parser.named_argument(depth, token)?))
                 } else if allow_pos {
-                    Argument::Positional(parser.expression(token)?)
+                    Argument::Positional(parser.expression(depth, token)?)
                 } else {
                     error!(
                         token.location,
@@ -2003,6 +2044,7 @@ impl Parser {
 
     fn call_with_receiver(
         &mut self,
+        depth: usize,
         receiver: Expression,
     ) -> Result<Expression, ParseError> {
         self.next();
@@ -2025,13 +2067,14 @@ impl Parser {
 
         match self.peek().kind {
             TokenKind::Assign => {
-                return self.assign_setter(receiver, name_token);
+                return self.assign_setter(depth, receiver, name_token);
             }
             TokenKind::Replace => {
-                return self.replace_setter(receiver, name_token);
+                return self.replace_setter(depth, receiver, name_token);
             }
             TokenKind::AddAssign => {
                 return self.binary_assign_setter(
+                    depth,
                     receiver,
                     name_token,
                     OperatorKind::Add,
@@ -2039,6 +2082,7 @@ impl Parser {
             }
             TokenKind::SubAssign => {
                 return self.binary_assign_setter(
+                    depth,
                     receiver,
                     name_token,
                     OperatorKind::Sub,
@@ -2046,6 +2090,7 @@ impl Parser {
             }
             TokenKind::DivAssign => {
                 return self.binary_assign_setter(
+                    depth,
                     receiver,
                     name_token,
                     OperatorKind::Div,
@@ -2053,6 +2098,7 @@ impl Parser {
             }
             TokenKind::MulAssign => {
                 return self.binary_assign_setter(
+                    depth,
                     receiver,
                     name_token,
                     OperatorKind::Mul,
@@ -2060,6 +2106,7 @@ impl Parser {
             }
             TokenKind::PowAssign => {
                 return self.binary_assign_setter(
+                    depth,
                     receiver,
                     name_token,
                     OperatorKind::Pow,
@@ -2067,6 +2114,7 @@ impl Parser {
             }
             TokenKind::ModAssign => {
                 return self.binary_assign_setter(
+                    depth,
                     receiver,
                     name_token,
                     OperatorKind::Mod,
@@ -2074,6 +2122,7 @@ impl Parser {
             }
             TokenKind::ShlAssign => {
                 return self.binary_assign_setter(
+                    depth,
                     receiver,
                     name_token,
                     OperatorKind::Shl,
@@ -2081,6 +2130,7 @@ impl Parser {
             }
             TokenKind::ShrAssign => {
                 return self.binary_assign_setter(
+                    depth,
                     receiver,
                     name_token,
                     OperatorKind::Shr,
@@ -2088,6 +2138,7 @@ impl Parser {
             }
             TokenKind::UnsignedShrAssign => {
                 return self.binary_assign_setter(
+                    depth,
                     receiver,
                     name_token,
                     OperatorKind::UnsignedShr,
@@ -2095,6 +2146,7 @@ impl Parser {
             }
             TokenKind::BitOrAssign => {
                 return self.binary_assign_setter(
+                    depth,
                     receiver,
                     name_token,
                     OperatorKind::BitOr,
@@ -2102,6 +2154,7 @@ impl Parser {
             }
             TokenKind::BitAndAssign => {
                 return self.binary_assign_setter(
+                    depth, 
                     receiver,
                     name_token,
                     OperatorKind::BitAnd,
@@ -2109,6 +2162,7 @@ impl Parser {
             }
             TokenKind::BitXorAssign => {
                 return self.binary_assign_setter(
+                    depth, 
                     receiver,
                     name_token,
                     OperatorKind::BitXor,
@@ -2118,7 +2172,7 @@ impl Parser {
         }
 
         let name = Identifier::from(name_token);
-        let arguments = self.arguments(name.location())?;
+        let arguments = self.arguments(depth, name.location())?;
         let end_loc = location!(arguments).unwrap_or_else(|| name.location());
         let location = Location::start_end(receiver.location(), end_loc);
 
@@ -2132,6 +2186,7 @@ impl Parser {
 
     fn assign_setter(
         &mut self,
+        depth: usize,
         receiver: Expression,
         name_token: Token,
     ) -> Result<Expression, ParseError> {
@@ -2139,7 +2194,7 @@ impl Parser {
 
         let name = Identifier::from(name_token);
         let value_token = self.require()?;
-        let value = self.expression(value_token)?;
+        let value = self.expression(depth, value_token)?;
         let location =
             Location::start_end(receiver.location(), value.location());
 
@@ -2153,6 +2208,7 @@ impl Parser {
 
     fn replace_setter(
         &mut self,
+        depth: usize,
         receiver: Expression,
         name_token: Token,
     ) -> Result<Expression, ParseError> {
@@ -2160,7 +2216,7 @@ impl Parser {
 
         let name = Identifier::from(name_token);
         let value_token = self.require()?;
-        let value = self.expression(value_token)?;
+        let value = self.expression(depth, value_token)?;
         let location =
             Location::start_end(receiver.location(), value.location());
 
@@ -2174,6 +2230,7 @@ impl Parser {
 
     fn binary_assign_setter(
         &mut self,
+        depth: usize,
         receiver: Expression,
         name_token: Token,
         kind: OperatorKind,
@@ -2182,7 +2239,7 @@ impl Parser {
         let op_tok = self.next();
         let operator = Operator { kind, location: op_tok.location };
         let value_token = self.require()?;
-        let value = self.expression(value_token)?;
+        let value = self.expression(depth, value_token)?;
         let location =
             Location::start_end(receiver.location(), value.location());
 
@@ -2197,13 +2254,14 @@ impl Parser {
 
     fn named_argument(
         &mut self,
+        depth: usize,
         start: Token,
     ) -> Result<NamedArgument, ParseError> {
         self.next();
 
         let name = Identifier::from(start);
         let value_token = self.require()?;
-        let value = self.expression(value_token)?;
+        let value = self.expression(depth, value_token)?;
         let location = Location::start_end(name.location(), value.location());
 
         Ok(NamedArgument { name, value, location })
@@ -2211,13 +2269,14 @@ impl Parser {
 
     fn assign_variable(
         &mut self,
+        depth: usize,
         start: Token,
     ) -> Result<Expression, ParseError> {
         self.next();
 
         let variable = Identifier::from(start);
         let value_token = self.require()?;
-        let value = self.expression(value_token)?;
+        let value = self.expression(depth, value_token)?;
         let location =
             Location::start_end(variable.location(), value.location());
 
@@ -2230,13 +2289,14 @@ impl Parser {
 
     fn replace_variable(
         &mut self,
+        depth: usize,
         start: Token,
     ) -> Result<Expression, ParseError> {
         self.next();
 
         let variable = Identifier::from(start);
         let value_token = self.require()?;
-        let value = self.expression(value_token)?;
+        let value = self.expression(depth, value_token)?;
         let location =
             Location::start_end(variable.location(), value.location());
 
@@ -2247,12 +2307,12 @@ impl Parser {
         })))
     }
 
-    fn assign_field(&mut self, start: Token) -> Result<Expression, ParseError> {
+    fn assign_field(&mut self, depth: usize, start: Token) -> Result<Expression, ParseError> {
         self.next();
 
         let field = Field::from(start);
         let value_token = self.require()?;
-        let value = self.expression(value_token)?;
+        let value = self.expression(depth, value_token)?;
         let location = Location::start_end(field.location(), value.location());
 
         Ok(Expression::AssignField(Box::new(AssignField {
@@ -2264,13 +2324,14 @@ impl Parser {
 
     fn replace_field(
         &mut self,
+        depth: usize,
         start: Token,
     ) -> Result<Expression, ParseError> {
         self.next();
 
         let field = Field::from(start);
         let value_token = self.require()?;
-        let value = self.expression(value_token)?;
+        let value = self.expression(depth + 1, value_token)?;
         let location = Location::start_end(field.location(), value.location());
 
         Ok(Expression::ReplaceField(Box::new(ReplaceField {
@@ -2280,14 +2341,14 @@ impl Parser {
         })))
     }
 
-    fn scope(&mut self, start: Token) -> Result<Expression, ParseError> {
-        let body = self.expressions(start)?;
+    fn scope(&mut self, depth: usize, start: Token) -> Result<Expression, ParseError> {
+        let body = self.expressions(depth + 1, start)?;
         let location = body.location;
 
         Ok(Expression::Scope(Box::new(Scope { body, location })))
     }
 
-    fn closure(&mut self, start: Token) -> Result<Expression, ParseError> {
+    fn closure(&mut self, depth: usize, start: Token) -> Result<Expression, ParseError> {
         let moving = if self.peek().kind == TokenKind::Move {
             self.next();
             true
@@ -2297,7 +2358,7 @@ impl Parser {
         let arguments = self.optional_closure_arguments()?;
         let return_type = self.optional_return_type()?;
         let body_token = self.expect(TokenKind::CurlyOpen)?;
-        let body = self.expressions(body_token)?;
+        let body = self.expressions(depth + 1, body_token)?;
         let location = Location::start_end(&start.location, &body.location);
         let closure =
             Closure { moving, body, arguments, return_type, location };
@@ -2307,6 +2368,7 @@ impl Parser {
 
     fn binary_assign_variable(
         &mut self,
+        depth: usize,
         start: Token,
         kind: OperatorKind,
     ) -> Result<Expression, ParseError> {
@@ -2314,7 +2376,7 @@ impl Parser {
         let operator = Operator { kind, location: op_tok.location };
         let variable = Identifier::from(start);
         let value_token = self.require()?;
-        let value = self.expression(value_token)?;
+        let value = self.expression(depth, value_token)?;
         let location =
             Location::start_end(variable.location(), value.location());
 
@@ -2328,6 +2390,7 @@ impl Parser {
 
     fn binary_assign_field(
         &mut self,
+        depth: usize,
         start: Token,
         kind: OperatorKind,
     ) -> Result<Expression, ParseError> {
@@ -2335,7 +2398,7 @@ impl Parser {
         let operator = Operator { kind, location: op_tok.location };
         let field = Field::from(start);
         let value_token = self.require()?;
-        let value = self.expression(value_token)?;
+        let value = self.expression(depth, value_token)?;
         let location = Location::start_end(field.location(), value.location());
 
         Ok(Expression::BinaryAssignField(Box::new(BinaryAssignField {
@@ -2348,6 +2411,7 @@ impl Parser {
 
     fn define_variable(
         &mut self,
+        depth: usize,
         start: Token,
     ) -> Result<Expression, ParseError> {
         let mutable = if self.peek().kind == TokenKind::Mut {
@@ -2363,7 +2427,7 @@ impl Parser {
         self.expect(TokenKind::Assign)?;
 
         let value_start = self.require()?;
-        let value = self.expression(value_start)?;
+        let value = self.expression(depth, value_start)?;
         let location = Location::start_end(&start.location, value.location());
 
         Ok(Expression::DefineVariable(Box::new(DefineVariable {
@@ -2395,10 +2459,11 @@ impl Parser {
 
     fn group_or_tuple(
         &mut self,
+        depth: usize,
         start: Token,
     ) -> Result<Expression, ParseError> {
         let value_token = self.require()?;
-        let value = self.expression(value_token)?;
+        let value = self.expression(depth, value_token)?;
 
         if self.peek().kind == TokenKind::Comma {
             let mut values = vec![value];
@@ -2418,7 +2483,7 @@ impl Parser {
                     })));
                 }
 
-                values.push(self.expression(token)?);
+                values.push(self.expression(depth, token)?);
 
                 if self.peek().kind == TokenKind::Comma {
                     self.next();
@@ -2440,9 +2505,9 @@ impl Parser {
         Expression::Break(Box::new(Break { location: start.location }))
     }
 
-    fn reference(&mut self, start: Token) -> Result<Expression, ParseError> {
+    fn reference(&mut self, depth: usize, start: Token) -> Result<Expression, ParseError> {
         let value_token = self.require()?;
-        let value = self.expression(value_token)?;
+        let value = self.expression(depth, value_token)?;
         let location = Location::start_end(&start.location, value.location());
 
         Ok(Expression::Ref(Box::new(Ref { value, location })))
@@ -2450,9 +2515,10 @@ impl Parser {
 
     fn recover_expression(
         &mut self,
+        depth: usize,
         start: Token,
     ) -> Result<Expression, ParseError> {
-        let body = self.expressions_with_optional_curly_braces()?;
+        let body = self.expressions_with_optional_curly_braces(depth)?;
         let location = Location::start_end(&start.location, &body.location);
 
         Ok(Expression::Recover(Box::new(Recover { body, location })))
@@ -2460,10 +2526,11 @@ impl Parser {
 
     fn mut_reference(
         &mut self,
+        depth: usize,
         start: Token,
     ) -> Result<Expression, ParseError> {
         let value_token = self.require()?;
-        let value = self.expression(value_token)?;
+        let value = self.expression(depth, value_token)?;
         let location = Location::start_end(&start.location, value.location());
 
         Ok(Expression::Mut(Box::new(Mut { value, location })))
@@ -2471,10 +2538,11 @@ impl Parser {
 
     fn throw_expression(
         &mut self,
+        depth: usize,
         start: Token,
     ) -> Result<Expression, ParseError> {
         let value_token = self.require()?;
-        let value = self.expression(value_token)?;
+        let value = self.expression(depth, value_token)?;
         let location = Location::start_end(&start.location, value.location());
 
         Ok(Expression::Throw(Box::new(Throw { value, location })))
@@ -2482,6 +2550,7 @@ impl Parser {
 
     fn return_expression(
         &mut self,
+        depth: usize,
         start: Token,
     ) -> Result<Expression, ParseError> {
         let peeked = self.peek();
@@ -2520,7 +2589,7 @@ impl Parser {
             {
                 let token = self.next();
 
-                Some(self.expression(token)?)
+                Some(self.expression(depth, token)?)
             }
             _ => None,
         };
@@ -2533,10 +2602,11 @@ impl Parser {
 
     fn try_expression(
         &mut self,
+        depth: usize,
         start: Token,
     ) -> Result<Expression, ParseError> {
         let expr_token = self.require()?;
-        let expression = self.expression(expr_token)?;
+        let expression = self.expression(depth, expr_token)?;
         let end_loc = expression.location();
         let location = Location::start_end(&start.location, end_loc);
 
@@ -2545,9 +2615,10 @@ impl Parser {
 
     fn if_expression(
         &mut self,
+        depth: usize,
         start: Token,
     ) -> Result<Expression, ParseError> {
-        let if_true = self.if_condition()?;
+        let if_true = self.if_condition(depth)?;
         let mut else_if = Vec::new();
         let mut else_body = None;
 
@@ -2556,10 +2627,10 @@ impl Parser {
 
             if self.peek().kind == TokenKind::If {
                 self.next();
-                else_if.push(self.if_condition()?);
+                else_if.push(self.if_condition(depth)?);
             } else {
                 let token = self.expect(TokenKind::CurlyOpen)?;
-                else_body = Some(self.expressions(token)?);
+                else_body = Some(self.expressions(depth + 1, token)?);
 
                 break;
             }
@@ -2580,10 +2651,11 @@ impl Parser {
 
     fn match_expression(
         &mut self,
+        depth: usize, 
         start: Token,
     ) -> Result<Expression, ParseError> {
         let expr_start = self.require()?;
-        let expression = self.expression(expr_start)?;
+        let expression = self.expression(depth, expr_start)?;
 
         self.expect(TokenKind::CurlyOpen)?;
 
@@ -2593,7 +2665,7 @@ impl Parser {
             let token = self.require()?;
             let node = match token.kind {
                 TokenKind::Case => {
-                    MatchExpression::Case(Box::new(self.match_case(token)?))
+                    MatchExpression::Case(Box::new(self.match_case(depth, token)?))
                 }
                 TokenKind::Comment => {
                     MatchExpression::Comment(self.comment(token))
@@ -2622,19 +2694,19 @@ impl Parser {
         })))
     }
 
-    fn match_case(&mut self, start: Token) -> Result<MatchCase, ParseError> {
-        let pattern = self.pattern()?;
-        let guard = self.optional_match_guard()?;
+    fn match_case(&mut self, depth: usize, start: Token) -> Result<MatchCase, ParseError> {
+        let pattern = self.pattern(depth)?;
+        let guard = self.optional_match_guard(depth)?;
 
         self.expect(TokenKind::Arrow)?;
 
-        let body = self.match_case_body()?;
+        let body = self.match_case_body(depth)?;
         let location = Location::start_end(&start.location, body.location());
 
         Ok(MatchCase { pattern, guard, body, location })
     }
 
-    fn patterns(&mut self) -> Result<Vec<Pattern>, ParseError> {
+    fn patterns(&mut self, depth: usize) -> Result<Vec<Pattern>, ParseError> {
         let mut patterns = Vec::new();
 
         while let TokenKind::Identifier
@@ -2648,7 +2720,7 @@ impl Parser {
         | TokenKind::Mut
         | TokenKind::CurlyOpen = self.peek().kind
         {
-            patterns.push(self.pattern()?);
+            patterns.push(self.pattern(depth)?);
 
             if self.peek().kind == TokenKind::Comma {
                 self.next();
@@ -2660,15 +2732,15 @@ impl Parser {
         Ok(patterns)
     }
 
-    fn pattern(&mut self) -> Result<Pattern, ParseError> {
-        let pat = self.pattern_without_or()?;
+    fn pattern(&mut self, depth: usize) -> Result<Pattern, ParseError> {
+        let pat = self.pattern_without_or(depth)?;
 
         if self.peek().kind == TokenKind::Or {
             let mut patterns = vec![pat];
 
             while self.peek().kind == TokenKind::Or {
                 self.next();
-                patterns.push(self.pattern_without_or()?);
+                patterns.push(self.pattern_without_or(depth)?);
             }
 
             let location = Location::start_end(
@@ -2682,7 +2754,7 @@ impl Parser {
         }
     }
 
-    fn pattern_without_or(&mut self) -> Result<Pattern, ParseError> {
+    fn pattern_without_or(&mut self, depth: usize) -> Result<Pattern, ParseError> {
         let token = self.require()?;
         let pattern = match token.kind {
             TokenKind::Identifier if token.value == "_" => {
@@ -2712,7 +2784,7 @@ impl Parser {
                 self.next();
 
                 let name = Constant::from(token);
-                let values = self.patterns()?;
+                let values = self.patterns(depth)?;
                 let close = self.expect(TokenKind::ParenClose)?;
                 let location =
                     Location::start_end(&name.location, &close.location);
@@ -2731,10 +2803,10 @@ impl Parser {
                 location: token.location,
             })),
             TokenKind::DoubleStringOpen => {
-                self.string_pattern(token, TokenKind::DoubleStringClose)?
+                self.string_pattern(depth, token, TokenKind::DoubleStringClose)?
             }
             TokenKind::SingleStringOpen => {
-                self.string_pattern(token, TokenKind::SingleStringClose)?
+                self.string_pattern(depth, token, TokenKind::SingleStringClose)?
             }
             TokenKind::True => {
                 Pattern::True(Box::new(True { location: token.location }))
@@ -2743,7 +2815,7 @@ impl Parser {
                 Pattern::False(Box::new(False { location: token.location }))
             }
             TokenKind::ParenOpen => {
-                let values = self.patterns()?;
+                let values = self.patterns(depth)?;
                 let close = self.expect(TokenKind::ParenClose)?;
                 let location =
                     Location::start_end(&token.location, &close.location);
@@ -2751,7 +2823,7 @@ impl Parser {
                 Pattern::Tuple(Box::new(TuplePattern { values, location }))
             }
             TokenKind::CurlyOpen => {
-                Pattern::Class(Box::new(self.class_pattern(token)?))
+                Pattern::Class(Box::new(self.class_pattern(depth, token)?))
             }
             _ => {
                 error!(
@@ -2766,10 +2838,11 @@ impl Parser {
 
     fn string_pattern(
         &mut self,
+        depth: usize,
         start: Token,
         close: TokenKind,
     ) -> Result<Pattern, ParseError> {
-        let node = self.string_literal(start, close, false)?;
+        let node = self.string_literal(depth, start, close, false)?;
 
         Ok(Pattern::String(Box::new(node)))
     }
@@ -2816,6 +2889,7 @@ impl Parser {
 
     fn class_pattern(
         &mut self,
+        depth: usize,
         start: Token,
     ) -> Result<ClassPattern, ParseError> {
         let mut values = Vec::new();
@@ -2825,7 +2899,7 @@ impl Parser {
 
             self.expect(TokenKind::Assign)?;
 
-            let pattern = self.pattern()?;
+            let pattern = self.pattern(depth)?;
             let location =
                 Location::start_end(&field.location, pattern.location());
 
@@ -2846,13 +2920,14 @@ impl Parser {
 
     fn optional_match_guard(
         &mut self,
+        depth: usize,
     ) -> Result<Option<Expression>, ParseError> {
         let result = if self.peek().kind == TokenKind::If {
             self.next();
 
             let token = self.require()?;
 
-            Some(self.expression(token)?)
+            Some(self.expression(depth, token)?)
         } else {
             None
         };
@@ -2860,13 +2935,13 @@ impl Parser {
         Ok(result)
     }
 
-    fn match_case_body(&mut self) -> Result<Expressions, ParseError> {
+    fn match_case_body(&mut self, depth: usize) -> Result<Expressions, ParseError> {
         let start = self.require()?;
 
         let result = if start.kind == TokenKind::CurlyOpen {
-            self.expressions(start)?
+            self.expressions(depth + 1, start)?
         } else {
-            let expr = self.expression(start)?;
+            let expr = self.expression(depth + 1, start)?;
             let loc = *expr.location();
 
             Expressions { values: vec![expr], location: loc }
@@ -2877,10 +2952,11 @@ impl Parser {
 
     fn loop_expression(
         &mut self,
+        depth: usize,
         start: Token,
     ) -> Result<Expression, ParseError> {
         let body_token = self.expect(TokenKind::CurlyOpen)?;
-        let body = self.expressions(body_token)?;
+        let body = self.expressions(depth + 1, body_token)?;
         let location = Location::start_end(&start.location, body.location());
 
         Ok(Expression::Loop(Box::new(Loop { body, location })))
@@ -2888,22 +2964,23 @@ impl Parser {
 
     fn while_expression(
         &mut self,
+        depth: usize,
         start: Token,
     ) -> Result<Expression, ParseError> {
         let cond_start = self.require()?;
-        let condition = self.expression(cond_start)?;
+        let condition = self.expression(depth, cond_start)?;
         let body_token = self.expect(TokenKind::CurlyOpen)?;
-        let body = self.expressions(body_token)?;
+        let body = self.expressions(depth + 1, body_token)?;
         let location = Location::start_end(&start.location, body.location());
 
         Ok(Expression::While(Box::new(While { condition, body, location })))
     }
 
-    fn if_condition(&mut self) -> Result<IfCondition, ParseError> {
+    fn if_condition(&mut self, depth: usize) -> Result<IfCondition, ParseError> {
         let cond_start = self.require()?;
-        let condition = self.expression(cond_start)?;
+        let condition = self.expression(depth, cond_start)?;
         let token = self.expect(TokenKind::CurlyOpen)?;
-        let body = self.expressions(token)?;
+        let body = self.expressions(depth + 1, token)?;
         let location =
             Location::start_end(condition.location(), body.location());
 
@@ -3077,22 +3154,22 @@ mod tests {
     }
 
     #[track_caller]
-    fn expr(input: &str) -> Expression {
+    fn expr(depth: usize, input: &str) -> Expression {
         let mut parser = parser(input);
         let start = parser.require().unwrap();
 
-        parser.expression(start).unwrap()
+        parser.expression(depth, start).unwrap()
     }
 
     #[track_caller]
-    fn expr_with_comments(input: &str) -> Expression {
+    fn expr_with_comments(depth: usize, input: &str) -> Expression {
         let mut parser = parser(input);
 
         parser.comments = true;
 
         let start = parser.require().unwrap();
 
-        parser.expression(start).unwrap()
+        parser.expression(depth, start).unwrap()
     }
 
     macro_rules! assert_error {
@@ -3123,7 +3200,7 @@ mod tests {
             let loc = $location;
             let mut parser = Parser::new($input.into(), "test.inko".into());
             let start = parser.require().unwrap();
-            let result = parser.expression(start);
+            let result = parser.expression(0, start);
 
             if let Err(e) = result {
                 if e.location != loc {
@@ -6264,7 +6341,7 @@ mod tests {
     #[test]
     fn test_int_expression() {
         assert_eq!(
-            expr("10"),
+            expr(0, "10"),
             Expression::Int(Box::new(IntLiteral {
                 value: "10".to_string(),
                 location: cols(1, 2)
@@ -6272,7 +6349,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("1_0"),
+            expr(0, "1_0"),
             Expression::Int(Box::new(IntLiteral {
                 value: "1_0".to_string(),
                 location: cols(1, 3)
@@ -6280,7 +6357,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("-10"),
+            expr(0, "-10"),
             Expression::Int(Box::new(IntLiteral {
                 value: "-10".to_string(),
                 location: cols(1, 3)
@@ -6291,7 +6368,7 @@ mod tests {
     #[test]
     fn test_float_expression() {
         assert_eq!(
-            expr("10.2"),
+            expr(0, "10.2"),
             Expression::Float(Box::new(FloatLiteral {
                 value: "10.2".to_string(),
                 location: cols(1, 4)
@@ -6299,7 +6376,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("1_0.2"),
+            expr(0, "1_0.2"),
             Expression::Float(Box::new(FloatLiteral {
                 value: "1_0.2".to_string(),
                 location: cols(1, 5)
@@ -6307,7 +6384,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("-10.2"),
+            expr(0, "-10.2"),
             Expression::Float(Box::new(FloatLiteral {
                 value: "-10.2".to_string(),
                 location: cols(1, 5)
@@ -6323,7 +6400,7 @@ mod tests {
     #[test]
     fn test_single_string_expression() {
         assert_eq!(
-            expr("'foo'"),
+            expr(0, "'foo'"),
             Expression::String(Box::new(StringLiteral {
                 values: vec![StringValue::Text(Box::new(StringText {
                     value: "foo".to_string(),
@@ -6334,7 +6411,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("'foo\nbar'"),
+            expr(0, "'foo\nbar'"),
             Expression::String(Box::new(StringLiteral {
                 values: vec![StringValue::Text(Box::new(StringText {
                     value: "foo\nbar".to_string(),
@@ -6345,7 +6422,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("''"),
+            expr(0, "''"),
             Expression::String(Box::new(StringLiteral {
                 values: vec![],
                 location: cols(1, 2)
@@ -6353,7 +6430,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("'foo${10 + 2}bar'"),
+            expr(0, "'foo${10 + 2}bar'"),
             Expression::String(Box::new(StringLiteral {
                 values: vec![
                     StringValue::Text(Box::new(StringText {
@@ -6388,7 +6465,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("'${'${10}'}'"),
+            expr(0, "'${'${10}'}'"),
             Expression::String(Box::new(StringLiteral {
                 values: vec![StringValue::Expression(Box::new(
                     StringExpression {
@@ -6414,7 +6491,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("'foo\\u{AC}bar'"),
+            expr(0, "'foo\\u{AC}bar'"),
             Expression::String(Box::new(StringLiteral {
                 values: vec![
                     StringValue::Text(Box::new(StringText {
@@ -6435,7 +6512,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("'foo\\u{AC}'"),
+            expr(0, "'foo\\u{AC}'"),
             Expression::String(Box::new(StringLiteral {
                 values: vec![
                     StringValue::Text(Box::new(StringText {
@@ -6452,7 +6529,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("'\\u{AC}bar'"),
+            expr(0, "'\\u{AC}bar'"),
             Expression::String(Box::new(StringLiteral {
                 values: vec![
                     StringValue::Escape(Box::new(StringEscape {
@@ -6472,7 +6549,7 @@ mod tests {
     #[test]
     fn test_double_string_expression() {
         assert_eq!(
-            expr("\"foo\""),
+            expr(0, "\"foo\""),
             Expression::String(Box::new(StringLiteral {
                 values: vec![StringValue::Text(Box::new(StringText {
                     value: "foo".to_string(),
@@ -6483,7 +6560,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("\"foo\nbar\""),
+            expr(0, "\"foo\nbar\""),
             Expression::String(Box::new(StringLiteral {
                 values: vec![StringValue::Text(Box::new(StringText {
                     value: "foo\nbar".to_string(),
@@ -6494,7 +6571,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("\"\""),
+            expr(0, "\"\""),
             Expression::String(Box::new(StringLiteral {
                 values: vec![],
                 location: cols(1, 2)
@@ -6502,7 +6579,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("\"foo${10 + 2}bar\""),
+            expr(0, "\"foo${10 + 2}bar\""),
             Expression::String(Box::new(StringLiteral {
                 values: vec![
                     StringValue::Text(Box::new(StringText {
@@ -6537,7 +6614,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("\"${\"${10}\"}\""),
+            expr(0, "\"${\"${10}\"}\""),
             Expression::String(Box::new(StringLiteral {
                 values: vec![StringValue::Expression(Box::new(
                     StringExpression {
@@ -6563,7 +6640,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("\"foo\\u{AC}bar\""),
+            expr(0, "\"foo\\u{AC}bar\""),
             Expression::String(Box::new(StringLiteral {
                 values: vec![
                     StringValue::Text(Box::new(StringText {
@@ -6584,7 +6661,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("\"foo\\u{AC}\""),
+            expr(0, "\"foo\\u{AC}\""),
             Expression::String(Box::new(StringLiteral {
                 values: vec![
                     StringValue::Text(Box::new(StringText {
@@ -6601,7 +6678,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("\"\\u{AC}bar\""),
+            expr(0, "\"\\u{AC}bar\""),
             Expression::String(Box::new(StringLiteral {
                 values: vec![
                     StringValue::Escape(Box::new(StringEscape {
@@ -6629,7 +6706,7 @@ mod tests {
     #[test]
     fn test_empty_array_expression() {
         assert_eq!(
-            expr("[]"),
+            expr(0, "[]"),
             Expression::Array(Box::new(Array {
                 values: Vec::new(),
                 location: cols(1, 2)
@@ -6640,7 +6717,7 @@ mod tests {
     #[test]
     fn test_array_expression() {
         assert_eq!(
-            expr("[10, 20,]"),
+            expr(0, "[10, 20,]"),
             Expression::Array(Box::new(Array {
                 values: vec![
                     Expression::Int(Box::new(IntLiteral {
@@ -6666,7 +6743,7 @@ mod tests {
     #[test]
     fn test_tuple_expression() {
         assert_eq!(
-            expr("(10,)"),
+            expr(0, "(10,)"),
             Expression::Tuple(Box::new(Tuple {
                 values: vec![Expression::Int(Box::new(IntLiteral {
                     value: "10".to_string(),
@@ -6677,7 +6754,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("(10, 20,)"),
+            expr(0, "(10, 20,)"),
             Expression::Tuple(Box::new(Tuple {
                 values: vec![
                     Expression::Int(Box::new(IntLiteral {
@@ -6697,7 +6774,7 @@ mod tests {
     #[test]
     fn test_binary_expression() {
         assert_eq!(
-            expr("10 + 2"),
+            expr(0, "10 + 2"),
             Expression::Binary(Box::new(Binary {
                 operator: Operator {
                     kind: OperatorKind::Add,
@@ -6716,7 +6793,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("10 - 2"),
+            expr(0, "10 - 2"),
             Expression::Binary(Box::new(Binary {
                 operator: Operator {
                     kind: OperatorKind::Sub,
@@ -6735,7 +6812,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("10 / 2"),
+            expr(0, "10 / 2"),
             Expression::Binary(Box::new(Binary {
                 operator: Operator {
                     kind: OperatorKind::Div,
@@ -6754,7 +6831,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("10 * 2"),
+            expr(0, "10 * 2"),
             Expression::Binary(Box::new(Binary {
                 operator: Operator {
                     kind: OperatorKind::Mul,
@@ -6773,7 +6850,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("10 ** 2"),
+            expr(0, "10 ** 2"),
             Expression::Binary(Box::new(Binary {
                 operator: Operator {
                     kind: OperatorKind::Pow,
@@ -6792,7 +6869,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("10 % 2"),
+            expr(0, "10 % 2"),
             Expression::Binary(Box::new(Binary {
                 operator: Operator {
                     kind: OperatorKind::Mod,
@@ -6811,7 +6888,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("10 < 2"),
+            expr(0, "10 < 2"),
             Expression::Binary(Box::new(Binary {
                 operator: Operator {
                     kind: OperatorKind::Lt,
@@ -6830,7 +6907,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("10 > 2"),
+            expr(0, "10 > 2"),
             Expression::Binary(Box::new(Binary {
                 operator: Operator {
                     kind: OperatorKind::Gt,
@@ -6849,7 +6926,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("10 <= 2"),
+            expr(0, "10 <= 2"),
             Expression::Binary(Box::new(Binary {
                 operator: Operator {
                     kind: OperatorKind::Le,
@@ -6868,7 +6945,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("10 >= 2"),
+            expr(0, "10 >= 2"),
             Expression::Binary(Box::new(Binary {
                 operator: Operator {
                     kind: OperatorKind::Ge,
@@ -6887,7 +6964,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("10 << 2"),
+            expr(0, "10 << 2"),
             Expression::Binary(Box::new(Binary {
                 operator: Operator {
                     kind: OperatorKind::Shl,
@@ -6906,7 +6983,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("10 >> 2"),
+            expr(0, "10 >> 2"),
             Expression::Binary(Box::new(Binary {
                 operator: Operator {
                     kind: OperatorKind::Shr,
@@ -6925,7 +7002,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("10 >>> 2"),
+            expr(0, "10 >>> 2"),
             Expression::Binary(Box::new(Binary {
                 operator: Operator {
                     kind: OperatorKind::UnsignedShr,
@@ -6944,7 +7021,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("10 & 2"),
+            expr(0, "10 & 2"),
             Expression::Binary(Box::new(Binary {
                 operator: Operator {
                     kind: OperatorKind::BitAnd,
@@ -6963,7 +7040,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("10 | 2"),
+            expr(0, "10 | 2"),
             Expression::Binary(Box::new(Binary {
                 operator: Operator {
                     kind: OperatorKind::BitOr,
@@ -6982,7 +7059,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("10 ^ 2"),
+            expr(0, "10 ^ 2"),
             Expression::Binary(Box::new(Binary {
                 operator: Operator {
                     kind: OperatorKind::BitXor,
@@ -7001,7 +7078,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("10 + 2 - 3"),
+            expr(0, "10 + 2 - 3"),
             Expression::Binary(Box::new(Binary {
                 operator: Operator {
                     kind: OperatorKind::Sub,
@@ -7031,7 +7108,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("10 == 2"),
+            expr(0, "10 == 2"),
             Expression::Binary(Box::new(Binary {
                 operator: Operator {
                     kind: OperatorKind::Eq,
@@ -7050,7 +7127,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("10 != 2"),
+            expr(0, "10 != 2"),
             Expression::Binary(Box::new(Binary {
                 operator: Operator {
                     kind: OperatorKind::Ne,
@@ -7072,7 +7149,7 @@ mod tests {
     #[test]
     fn test_field_expression() {
         assert_eq!(
-            expr("@foo"),
+            expr(0, "@foo"),
             Expression::Field(Box::new(Field {
                 name: "foo".to_string(),
                 location: cols(1, 4)
@@ -7083,7 +7160,7 @@ mod tests {
     #[test]
     fn test_constant_expression() {
         assert_eq!(
-            expr("Foo"),
+            expr(0, "Foo"),
             Expression::Constant(Box::new(Constant {
                 source: None,
                 name: "Foo".to_string(),
@@ -7095,7 +7172,7 @@ mod tests {
     #[test]
     fn test_identifier_expression() {
         assert_eq!(
-            expr("foo"),
+            expr(0, "foo"),
             Expression::Identifier(Box::new(Identifier {
                 name: "foo".to_string(),
                 location: cols(1, 3)
@@ -7106,7 +7183,7 @@ mod tests {
     #[test]
     fn test_assign_expression() {
         assert_eq!(
-            expr("foo = 10"),
+            expr(0, "foo = 10"),
             Expression::AssignVariable(Box::new(AssignVariable {
                 variable: Identifier {
                     name: "foo".to_string(),
@@ -7121,7 +7198,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("foo\n= 10"),
+            expr(0, "foo\n= 10"),
             Expression::AssignVariable(Box::new(AssignVariable {
                 variable: Identifier {
                     name: "foo".to_string(),
@@ -7136,7 +7213,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("foo =\n10"),
+            expr(0, "foo =\n10"),
             Expression::AssignVariable(Box::new(AssignVariable {
                 variable: Identifier {
                     name: "foo".to_string(),
@@ -7154,7 +7231,7 @@ mod tests {
     #[test]
     fn test_replace_expression() {
         assert_eq!(
-            expr("foo =: 10"),
+            expr(0, "foo =: 10"),
             Expression::ReplaceVariable(Box::new(ReplaceVariable {
                 variable: Identifier {
                     name: "foo".to_string(),
@@ -7172,7 +7249,7 @@ mod tests {
     #[test]
     fn test_reassign_field_expression() {
         assert_eq!(
-            expr("@foo = 10"),
+            expr(0, "@foo = 10"),
             Expression::AssignField(Box::new(AssignField {
                 field: Field { name: "foo".to_string(), location: cols(1, 4) },
                 value: Expression::Int(Box::new(IntLiteral {
@@ -7184,7 +7261,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("@foo\n= 10"),
+            expr(0, "@foo\n= 10"),
             Expression::AssignField(Box::new(AssignField {
                 field: Field { name: "foo".to_string(), location: cols(1, 4) },
                 value: Expression::Int(Box::new(IntLiteral {
@@ -7196,7 +7273,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("@foo =\n10"),
+            expr(0, "@foo =\n10"),
             Expression::AssignField(Box::new(AssignField {
                 field: Field { name: "foo".to_string(), location: cols(1, 4) },
                 value: Expression::Int(Box::new(IntLiteral {
@@ -7211,7 +7288,7 @@ mod tests {
     #[test]
     fn test_replace_field_expression() {
         assert_eq!(
-            expr("@foo =: 10"),
+            expr(0, "@foo =: 10"),
             Expression::ReplaceField(Box::new(ReplaceField {
                 field: Field { name: "foo".to_string(), location: cols(1, 4) },
                 value: Expression::Int(Box::new(IntLiteral {
@@ -7226,7 +7303,7 @@ mod tests {
     #[test]
     fn test_binary_assign_expression() {
         assert_eq!(
-            expr("foo += 10"),
+            expr(0, "foo += 10"),
             Expression::BinaryAssignVariable(Box::new(BinaryAssignVariable {
                 variable: Identifier {
                     name: "foo".to_string(),
@@ -7245,7 +7322,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("foo -= 10"),
+            expr(0, "foo -= 10"),
             Expression::BinaryAssignVariable(Box::new(BinaryAssignVariable {
                 variable: Identifier {
                     name: "foo".to_string(),
@@ -7264,7 +7341,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("foo /= 10"),
+            expr(0, "foo /= 10"),
             Expression::BinaryAssignVariable(Box::new(BinaryAssignVariable {
                 variable: Identifier {
                     name: "foo".to_string(),
@@ -7283,7 +7360,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("foo *= 10"),
+            expr(0, "foo *= 10"),
             Expression::BinaryAssignVariable(Box::new(BinaryAssignVariable {
                 variable: Identifier {
                     name: "foo".to_string(),
@@ -7302,7 +7379,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("foo **= 10"),
+            expr(0, "foo **= 10"),
             Expression::BinaryAssignVariable(Box::new(BinaryAssignVariable {
                 variable: Identifier {
                     name: "foo".to_string(),
@@ -7321,7 +7398,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("foo %= 10"),
+            expr(0, "foo %= 10"),
             Expression::BinaryAssignVariable(Box::new(BinaryAssignVariable {
                 variable: Identifier {
                     name: "foo".to_string(),
@@ -7340,7 +7417,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("foo <<= 10"),
+            expr(0, "foo <<= 10"),
             Expression::BinaryAssignVariable(Box::new(BinaryAssignVariable {
                 variable: Identifier {
                     name: "foo".to_string(),
@@ -7359,7 +7436,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("foo >>= 10"),
+            expr(0, "foo >>= 10"),
             Expression::BinaryAssignVariable(Box::new(BinaryAssignVariable {
                 variable: Identifier {
                     name: "foo".to_string(),
@@ -7378,7 +7455,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("foo >>>= 10"),
+            expr(0, "foo >>>= 10"),
             Expression::BinaryAssignVariable(Box::new(BinaryAssignVariable {
                 variable: Identifier {
                     name: "foo".to_string(),
@@ -7397,7 +7474,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("foo &= 10"),
+            expr(0, "foo &= 10"),
             Expression::BinaryAssignVariable(Box::new(BinaryAssignVariable {
                 variable: Identifier {
                     name: "foo".to_string(),
@@ -7416,7 +7493,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("foo |= 10"),
+            expr(0, "foo |= 10"),
             Expression::BinaryAssignVariable(Box::new(BinaryAssignVariable {
                 variable: Identifier {
                     name: "foo".to_string(),
@@ -7435,7 +7512,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("foo ^= 10"),
+            expr(0, "foo ^= 10"),
             Expression::BinaryAssignVariable(Box::new(BinaryAssignVariable {
                 variable: Identifier {
                     name: "foo".to_string(),
@@ -7457,7 +7534,7 @@ mod tests {
     #[test]
     fn test_binary_assign_field_expression() {
         assert_eq!(
-            expr("@foo += 10"),
+            expr(0, "@foo += 10"),
             Expression::BinaryAssignField(Box::new(BinaryAssignField {
                 field: Field { name: "foo".to_string(), location: cols(1, 4) },
                 value: Expression::Int(Box::new(IntLiteral {
@@ -7473,7 +7550,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("@foo -= 10"),
+            expr(0, "@foo -= 10"),
             Expression::BinaryAssignField(Box::new(BinaryAssignField {
                 field: Field { name: "foo".to_string(), location: cols(1, 4) },
                 value: Expression::Int(Box::new(IntLiteral {
@@ -7489,7 +7566,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("@foo /= 10"),
+            expr(0, "@foo /= 10"),
             Expression::BinaryAssignField(Box::new(BinaryAssignField {
                 field: Field { name: "foo".to_string(), location: cols(1, 4) },
                 value: Expression::Int(Box::new(IntLiteral {
@@ -7505,7 +7582,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("@foo *= 10"),
+            expr(0, "@foo *= 10"),
             Expression::BinaryAssignField(Box::new(BinaryAssignField {
                 field: Field { name: "foo".to_string(), location: cols(1, 4) },
                 value: Expression::Int(Box::new(IntLiteral {
@@ -7521,7 +7598,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("@foo **= 10"),
+            expr(0, "@foo **= 10"),
             Expression::BinaryAssignField(Box::new(BinaryAssignField {
                 field: Field { name: "foo".to_string(), location: cols(1, 4) },
                 value: Expression::Int(Box::new(IntLiteral {
@@ -7537,7 +7614,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("@foo %= 10"),
+            expr(0, "@foo %= 10"),
             Expression::BinaryAssignField(Box::new(BinaryAssignField {
                 field: Field { name: "foo".to_string(), location: cols(1, 4) },
                 value: Expression::Int(Box::new(IntLiteral {
@@ -7553,7 +7630,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("@foo <<= 10"),
+            expr(0, "@foo <<= 10"),
             Expression::BinaryAssignField(Box::new(BinaryAssignField {
                 field: Field { name: "foo".to_string(), location: cols(1, 4) },
                 value: Expression::Int(Box::new(IntLiteral {
@@ -7569,7 +7646,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("@foo >>= 10"),
+            expr(0, "@foo >>= 10"),
             Expression::BinaryAssignField(Box::new(BinaryAssignField {
                 field: Field { name: "foo".to_string(), location: cols(1, 4) },
                 value: Expression::Int(Box::new(IntLiteral {
@@ -7585,7 +7662,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("@foo >>>= 10"),
+            expr(0, "@foo >>>= 10"),
             Expression::BinaryAssignField(Box::new(BinaryAssignField {
                 field: Field { name: "foo".to_string(), location: cols(1, 4) },
                 value: Expression::Int(Box::new(IntLiteral {
@@ -7601,7 +7678,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("@foo &= 10"),
+            expr(0, "@foo &= 10"),
             Expression::BinaryAssignField(Box::new(BinaryAssignField {
                 field: Field { name: "foo".to_string(), location: cols(1, 4) },
                 value: Expression::Int(Box::new(IntLiteral {
@@ -7617,7 +7694,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("@foo |= 10"),
+            expr(0, "@foo |= 10"),
             Expression::BinaryAssignField(Box::new(BinaryAssignField {
                 field: Field { name: "foo".to_string(), location: cols(1, 4) },
                 value: Expression::Int(Box::new(IntLiteral {
@@ -7633,7 +7710,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("@foo ^= 10"),
+            expr(0, "@foo ^= 10"),
             Expression::BinaryAssignField(Box::new(BinaryAssignField {
                 field: Field { name: "foo".to_string(), location: cols(1, 4) },
                 value: Expression::Int(Box::new(IntLiteral {
@@ -7658,7 +7735,7 @@ mod tests {
     #[test]
     fn test_calls() {
         assert_eq!(
-            expr("foo()"),
+            expr(0, "foo()"),
             Expression::Call(Box::new(Call {
                 receiver: None,
                 arguments: Some(Arguments {
@@ -7674,7 +7751,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("Foo()"),
+            expr(0, "Foo()"),
             Expression::Call(Box::new(Call {
                 receiver: None,
                 arguments: Some(Arguments {
@@ -7690,7 +7767,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("foo(10, 20)"),
+            expr(0, "foo(10, 20)"),
             Expression::Call(Box::new(Call {
                 receiver: None,
                 name: Identifier {
@@ -7719,7 +7796,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("foo(ab: 10)"),
+            expr(0, "foo(ab: 10)"),
             Expression::Call(Box::new(Call {
                 receiver: None,
                 name: Identifier {
@@ -7745,7 +7822,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("foo(class: 10)"),
+            expr(0, "foo(class: 10)"),
             Expression::Call(Box::new(Call {
                 receiver: None,
                 name: Identifier {
@@ -7775,9 +7852,9 @@ mod tests {
     fn test_call_with_block_on_new_line() {
         let mut parser = parser("foo\nfn {}");
         let token1 = parser.require().unwrap();
-        let node1 = parser.expression(token1).unwrap();
+        let node1 = parser.expression(0, token1).unwrap();
         let token2 = parser.require().unwrap();
-        let node2 = parser.expression(token2).unwrap();
+        let node2 = parser.expression(0, token2).unwrap();
 
         assert_eq!(
             node1,
@@ -7805,7 +7882,7 @@ mod tests {
     #[test]
     fn test_calls_with_receivers() {
         assert_eq!(
-            expr("10.foo()"),
+            expr(0, "10.foo()"),
             Expression::Call(Box::new(Call {
                 receiver: Some(Expression::Int(Box::new(IntLiteral {
                     value: "10".to_string(),
@@ -7824,7 +7901,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("10.Foo()"),
+            expr(0, "10.Foo()"),
             Expression::Call(Box::new(Call {
                 receiver: Some(Expression::Int(Box::new(IntLiteral {
                     value: "10".to_string(),
@@ -7843,7 +7920,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("10.foo"),
+            expr(0, "10.foo"),
             Expression::Call(Box::new(Call {
                 receiver: Some(Expression::Int(Box::new(IntLiteral {
                     value: "10".to_string(),
@@ -7859,7 +7936,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("ab.123"),
+            expr(0, "ab.123"),
             Expression::Call(Box::new(Call {
                 receiver: Some(Expression::Identifier(Box::new(Identifier {
                     name: "ab".to_string(),
@@ -7875,7 +7952,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("10.try"),
+            expr(0, "10.try"),
             Expression::Call(Box::new(Call {
                 receiver: Some(Expression::Int(Box::new(IntLiteral {
                     value: "10".to_string(),
@@ -7891,7 +7968,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("10.foo = 20"),
+            expr(0, "10.foo = 20"),
             Expression::AssignSetter(Box::new(AssignSetter {
                 receiver: Expression::Int(Box::new(IntLiteral {
                     value: "10".to_string(),
@@ -7910,7 +7987,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("10.foo := 20"),
+            expr(0, "10.foo := 20"),
             Expression::ReplaceSetter(Box::new(ReplaceSetter {
                 receiver: Expression::Int(Box::new(IntLiteral {
                     value: "10".to_string(),
@@ -7929,7 +8006,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("10.foo += 20"),
+            expr(0, "10.foo += 20"),
             Expression::BinaryAssignSetter(Box::new(BinaryAssignSetter {
                 receiver: Expression::Int(Box::new(IntLiteral {
                     value: "10".to_string(),
@@ -7952,7 +8029,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("10.foo.bar"),
+            expr(0, "10.foo.bar"),
             Expression::Call(Box::new(Call {
                 receiver: Some(Expression::Call(Box::new(Call {
                     receiver: Some(Expression::Int(Box::new(IntLiteral {
@@ -7986,7 +8063,7 @@ mod tests {
     #[test]
     fn test_scope() {
         assert_eq!(
-            expr("{ 10 }"),
+            expr(0, "{ 10 }"),
             Expression::Scope(Box::new(Scope {
                 body: Expressions {
                     values: vec![Expression::Int(Box::new(IntLiteral {
@@ -8003,7 +8080,7 @@ mod tests {
     #[test]
     fn test_closures() {
         assert_eq!(
-            expr("fn { 10 }"),
+            expr(0, "fn { 10 }"),
             Expression::Closure(Box::new(Closure {
                 moving: false,
                 arguments: None,
@@ -8020,7 +8097,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("fn move { 10 }"),
+            expr(0, "fn move { 10 }"),
             Expression::Closure(Box::new(Closure {
                 moving: true,
                 arguments: None,
@@ -8037,7 +8114,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("fn (a) { 10 }"),
+            expr(0, "fn (a) { 10 }"),
             Expression::Closure(Box::new(Closure {
                 moving: false,
                 arguments: Some(BlockArguments {
@@ -8064,7 +8141,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("fn (a: T) { 10 }"),
+            expr(0, "fn (a: T) { 10 }"),
             Expression::Closure(Box::new(Closure {
                 moving: false,
                 arguments: Some(BlockArguments {
@@ -8099,7 +8176,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("fn -> T { 10 }"),
+            expr(0, "fn -> T { 10 }"),
             Expression::Closure(Box::new(Closure {
                 moving: false,
                 arguments: None,
@@ -8134,7 +8211,7 @@ mod tests {
     #[test]
     fn test_variables() {
         assert_eq!(
-            expr("let x = 10"),
+            expr(0, "let x = 10"),
             Expression::DefineVariable(Box::new(DefineVariable {
                 mutable: false,
                 value_type: None,
@@ -8151,7 +8228,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("let x: A = 10"),
+            expr(0, "let x: A = 10"),
             Expression::DefineVariable(Box::new(DefineVariable {
                 name: Identifier {
                     name: "x".to_string(),
@@ -8176,7 +8253,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("let mut x = 10"),
+            expr(0, "let mut x = 10"),
             Expression::DefineVariable(Box::new(DefineVariable {
                 name: Identifier {
                     name: "x".to_string(),
@@ -8196,7 +8273,7 @@ mod tests {
     #[test]
     fn test_self_expression() {
         assert_eq!(
-            expr("self"),
+            expr(0, "self"),
             Expression::SelfObject(Box::new(SelfObject {
                 location: cols(1, 4)
             }))
@@ -8206,7 +8283,7 @@ mod tests {
     #[test]
     fn test_nil_expression() {
         assert_eq!(
-            expr("nil"),
+            expr(0, "nil"),
             Expression::Nil(Box::new(Nil { location: cols(1, 3) }))
         );
     }
@@ -8214,7 +8291,7 @@ mod tests {
     #[test]
     fn test_true_expression() {
         assert_eq!(
-            expr("true"),
+            expr(0, "true"),
             Expression::True(Box::new(True { location: cols(1, 4) }))
         );
     }
@@ -8222,7 +8299,7 @@ mod tests {
     #[test]
     fn test_false_expression() {
         assert_eq!(
-            expr("false"),
+            expr(0, "false"),
             Expression::False(Box::new(False { location: cols(1, 5) }))
         );
     }
@@ -8230,7 +8307,7 @@ mod tests {
     #[test]
     fn test_grouped_expression() {
         assert_eq!(
-            expr("(self)"),
+            expr(0, "(self)"),
             Expression::Group(Box::new(Group {
                 value: Expression::SelfObject(Box::new(SelfObject {
                     location: cols(2, 5)
@@ -8240,7 +8317,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("1 + (2 + 3)"),
+            expr(0, "1 + (2 + 3)"),
             Expression::Binary(Box::new(Binary {
                 operator: Operator {
                     kind: OperatorKind::Add,
@@ -8276,7 +8353,7 @@ mod tests {
     #[test]
     fn test_next_expression() {
         assert_eq!(
-            expr("next"),
+            expr(0, "next"),
             Expression::Next(Box::new(Next { location: cols(1, 4) }))
         );
     }
@@ -8284,7 +8361,7 @@ mod tests {
     #[test]
     fn test_break_expression() {
         assert_eq!(
-            expr("break"),
+            expr(0, "break"),
             Expression::Break(Box::new(Break { location: cols(1, 5) }))
         );
     }
@@ -8292,7 +8369,7 @@ mod tests {
     #[test]
     fn test_reference_expression() {
         assert_eq!(
-            expr("ref 10"),
+            expr(0, "ref 10"),
             Expression::Ref(Box::new(Ref {
                 value: Expression::Int(Box::new(IntLiteral {
                     value: "10".to_string(),
@@ -8306,7 +8383,7 @@ mod tests {
     #[test]
     fn test_mutable_reference_expression() {
         assert_eq!(
-            expr("mut 10"),
+            expr(0, "mut 10"),
             Expression::Mut(Box::new(Mut {
                 value: Expression::Int(Box::new(IntLiteral {
                     value: "10".to_string(),
@@ -8320,7 +8397,7 @@ mod tests {
     #[test]
     fn test_recover_expression() {
         assert_eq!(
-            expr("recover 10"),
+            expr(0, "recover 10"),
             Expression::Recover(Box::new(Recover {
                 body: Expressions {
                     values: vec![Expression::Int(Box::new(IntLiteral {
@@ -8334,7 +8411,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("recover { 10 }"),
+            expr(0, "recover { 10 }"),
             Expression::Recover(Box::new(Recover {
                 body: Expressions {
                     values: vec![Expression::Int(Box::new(IntLiteral {
@@ -8351,7 +8428,7 @@ mod tests {
     #[test]
     fn test_condition_expression() {
         assert_eq!(
-            expr("10 and 20"),
+            expr(0, "10 and 20"),
             Expression::And(Box::new(And {
                 left: Expression::Int(Box::new(IntLiteral {
                     value: "10".to_string(),
@@ -8366,7 +8443,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("10 + 2 and 20"),
+            expr(0, "10 + 2 and 20"),
             Expression::And(Box::new(And {
                 left: Expression::Binary(Box::new(Binary {
                     operator: Operator {
@@ -8392,7 +8469,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("10 or 20"),
+            expr(0, "10 or 20"),
             Expression::Or(Box::new(Or {
                 left: Expression::Int(Box::new(IntLiteral {
                     value: "10".to_string(),
@@ -8407,7 +8484,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("10 + 2 or 20"),
+            expr(0, "10 + 2 or 20"),
             Expression::Or(Box::new(Or {
                 left: Expression::Binary(Box::new(Binary {
                     operator: Operator {
@@ -8436,7 +8513,7 @@ mod tests {
     #[test]
     fn test_type_cast_expression() {
         assert_eq!(
-            expr("10 as B"),
+            expr(0, "10 as B"),
             Expression::TypeCast(Box::new(TypeCast {
                 value: Expression::Int(Box::new(IntLiteral {
                     value: "10".to_string(),
@@ -8456,7 +8533,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("10 + 2 as B"),
+            expr(0, "10 + 2 as B"),
             Expression::TypeCast(Box::new(TypeCast {
                 value: Expression::Binary(Box::new(Binary {
                     operator: Operator {
@@ -8487,7 +8564,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("10 as B as C"),
+            expr(0, "10 as B as C"),
             Expression::TypeCast(Box::new(TypeCast {
                 value: Expression::TypeCast(Box::new(TypeCast {
                     value: Expression::Int(Box::new(IntLiteral {
@@ -8522,7 +8599,7 @@ mod tests {
     #[test]
     fn test_throw_expression() {
         assert_eq!(
-            expr("throw 10"),
+            expr(0, "throw 10"),
             Expression::Throw(Box::new(Throw {
                 value: Expression::Int(Box::new(IntLiteral {
                     value: "10".to_string(),
@@ -8536,7 +8613,7 @@ mod tests {
     #[test]
     fn test_return_expression() {
         assert_eq!(
-            expr("return A"),
+            expr(0, "return A"),
             Expression::Return(Box::new(Return {
                 value: Some(Expression::Constant(Box::new(Constant {
                     source: None,
@@ -8548,7 +8625,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("return { 10 }"),
+            expr(0, "return { 10 }"),
             Expression::Return(Box::new(Return {
                 value: Some(Expression::Scope(Box::new(Scope {
                     body: Expressions {
@@ -8565,7 +8642,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("return fn {}"),
+            expr(0, "return fn {}"),
             Expression::Return(Box::new(Return {
                 value: Some(Expression::Closure(Box::new(Closure {
                     moving: false,
@@ -8582,7 +8659,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("return \"\""),
+            expr(0, "return \"\""),
             Expression::Return(Box::new(Return {
                 value: Some(Expression::String(Box::new(StringLiteral {
                     values: Vec::new(),
@@ -8593,7 +8670,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("return ''"),
+            expr(0, "return ''"),
             Expression::Return(Box::new(Return {
                 value: Some(Expression::String(Box::new(StringLiteral {
                     values: Vec::new(),
@@ -8604,7 +8681,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("return @a"),
+            expr(0, "return @a"),
             Expression::Return(Box::new(Return {
                 value: Some(Expression::Field(Box::new(Field {
                     name: "a".to_string(),
@@ -8615,7 +8692,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("return a"),
+            expr(0, "return a"),
             Expression::Return(Box::new(Return {
                 value: Some(Expression::Identifier(Box::new(Identifier {
                     name: "a".to_string(),
@@ -8626,7 +8703,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("return 10.0"),
+            expr(0, "return 10.0"),
             Expression::Return(Box::new(Return {
                 value: Some(Expression::Float(Box::new(FloatLiteral {
                     value: "10.0".to_string(),
@@ -8637,7 +8714,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("return 10"),
+            expr(0, "return 10"),
             Expression::Return(Box::new(Return {
                 value: Some(Expression::Int(Box::new(IntLiteral {
                     value: "10".to_string(),
@@ -8648,7 +8725,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("return self"),
+            expr(0, "return self"),
             Expression::Return(Box::new(Return {
                 value: Some(Expression::SelfObject(Box::new(SelfObject {
                     location: cols(8, 11)
@@ -8658,7 +8735,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("return (10)"),
+            expr(0, "return (10)"),
             Expression::Return(Box::new(Return {
                 value: Some(Expression::Group(Box::new(Group {
                     value: Expression::Int(Box::new(IntLiteral {
@@ -8672,7 +8749,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("return ref 10"),
+            expr(0, "return ref 10"),
             Expression::Return(Box::new(Return {
                 value: Some(Expression::Ref(Box::new(Ref {
                     value: Expression::Int(Box::new(IntLiteral {
@@ -8686,7 +8763,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("return nil"),
+            expr(0, "return nil"),
             Expression::Return(Box::new(Return {
                 value: Some(Expression::Nil(Box::new(Nil {
                     location: cols(8, 10)
@@ -8696,7 +8773,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("return true"),
+            expr(0, "return true"),
             Expression::Return(Box::new(Return {
                 value: Some(Expression::True(Box::new(True {
                     location: cols(8, 11)
@@ -8706,7 +8783,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("return false"),
+            expr(0, "return false"),
             Expression::Return(Box::new(Return {
                 value: Some(Expression::False(Box::new(False {
                     location: cols(8, 12)
@@ -8716,7 +8793,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("return recover {}"),
+            expr(0, "return recover {}"),
             Expression::Return(Box::new(Return {
                 value: Some(Expression::Recover(Box::new(Recover {
                     body: Expressions {
@@ -8734,9 +8811,9 @@ mod tests {
     fn test_return_expressions_with_newline() {
         let mut parser = parser("return\n10");
         let token1 = parser.require().unwrap();
-        let node1 = parser.expression(token1).unwrap();
+        let node1 = parser.expression(0, token1).unwrap();
         let token2 = parser.require().unwrap();
-        let node2 = parser.expression(token2).unwrap();
+        let node2 = parser.expression(0, token2).unwrap();
 
         assert_eq!(
             node1,
@@ -8758,7 +8835,7 @@ mod tests {
     #[test]
     fn test_try_expression() {
         assert_eq!(
-            expr("try a"),
+            expr(0, "try a"),
             Expression::Try(Box::new(Try {
                 value: Expression::Identifier(Box::new(Identifier {
                     name: "a".to_string(),
@@ -8772,7 +8849,7 @@ mod tests {
     #[test]
     fn test_if_expression() {
         assert_eq!(
-            expr("if a { b }"),
+            expr(0, "if a { b }"),
             Expression::If(Box::new(If {
                 if_true: IfCondition {
                     condition: Expression::Identifier(Box::new(Identifier {
@@ -8797,7 +8874,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("if A { b }"),
+            expr(0, "if A { b }"),
             Expression::If(Box::new(If {
                 if_true: IfCondition {
                     condition: Expression::Constant(Box::new(Constant {
@@ -8823,7 +8900,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("if a { b } else { c }"),
+            expr(0, "if a { b } else { c }"),
             Expression::If(Box::new(If {
                 if_true: IfCondition {
                     condition: Expression::Identifier(Box::new(Identifier {
@@ -8856,7 +8933,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("if a { b } else if c { d }"),
+            expr(0, "if a { b } else if c { d }"),
             Expression::If(Box::new(If {
                 if_true: IfCondition {
                     condition: Expression::Identifier(Box::new(Identifier {
@@ -8896,7 +8973,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("if a { b } else if c { d } else if e { f }"),
+            expr(0, "if a { b } else if c { d } else if e { f }"),
             Expression::If(Box::new(If {
                 if_true: IfCondition {
                     condition: Expression::Identifier(Box::new(Identifier {
@@ -8958,7 +9035,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("if a { b } else if c { d } else { e }"),
+            expr(0, "if a { b } else if c { d } else { e }"),
             Expression::If(Box::new(If {
                 if_true: IfCondition {
                     condition: Expression::Identifier(Box::new(Identifier {
@@ -9015,7 +9092,7 @@ mod tests {
     #[test]
     fn test_match_int_pattern() {
         assert_eq!(
-            expr("match 1 { case 1 -> { 2 } }"),
+            expr(0, "match 1 { case 1 -> { 2 } }"),
             Expression::Match(Box::new(Match {
                 expression: Expression::Int(Box::new(IntLiteral {
                     value: "1".to_string(),
@@ -9044,7 +9121,7 @@ mod tests {
     #[test]
     fn test_match_or_pattern() {
         assert_eq!(
-            expr("match 1 { case 1 or 2 -> { 2 } }"),
+            expr(0, "match 1 { case 1 or 2 -> { 2 } }"),
             Expression::Match(Box::new(Match {
                 expression: Expression::Int(Box::new(IntLiteral {
                     value: "1".to_string(),
@@ -9082,7 +9159,7 @@ mod tests {
     #[test]
     fn test_match_boolean_pattern() {
         assert_eq!(
-            expr("match 1 { case true -> { 2 } }"),
+            expr(0, "match 1 { case true -> { 2 } }"),
             Expression::Match(Box::new(Match {
                 expression: Expression::Int(Box::new(IntLiteral {
                     value: "1".to_string(),
@@ -9107,7 +9184,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("match 1 { case false -> { 2 } }"),
+            expr(0, "match 1 { case false -> { 2 } }"),
             Expression::Match(Box::new(Match {
                 expression: Expression::Int(Box::new(IntLiteral {
                     value: "1".to_string(),
@@ -9135,7 +9212,7 @@ mod tests {
     #[test]
     fn test_match_single_string_pattern() {
         assert_eq!(
-            expr("match 1 { case 'a' -> { 2 } }"),
+            expr(0, "match 1 { case 'a' -> { 2 } }"),
             Expression::Match(Box::new(Match {
                 expression: Expression::Int(Box::new(IntLiteral {
                     value: "1".to_string(),
@@ -9167,7 +9244,7 @@ mod tests {
     #[test]
     fn test_match_empty_single_string_pattern() {
         assert_eq!(
-            expr("match 1 { case '' -> { 2 } }"),
+            expr(0, "match 1 { case '' -> { 2 } }"),
             Expression::Match(Box::new(Match {
                 expression: Expression::Int(Box::new(IntLiteral {
                     value: "1".to_string(),
@@ -9196,7 +9273,7 @@ mod tests {
     #[test]
     fn test_match_double_string_pattern() {
         assert_eq!(
-            expr("match 1 { case \"a\" -> { 2 } }"),
+            expr(0,"match 1 { case \"a\" -> { 2 } }"),
             Expression::Match(Box::new(Match {
                 expression: Expression::Int(Box::new(IntLiteral {
                     value: "1".to_string(),
@@ -9228,7 +9305,7 @@ mod tests {
     #[test]
     fn test_match_empty_double_string_pattern() {
         assert_eq!(
-            expr("match 1 { case \"\" -> { 2 } }"),
+            expr(0, "match 1 { case \"\" -> { 2 } }"),
             Expression::Match(Box::new(Match {
                 expression: Expression::Int(Box::new(IntLiteral {
                     value: "1".to_string(),
@@ -9257,7 +9334,7 @@ mod tests {
     #[test]
     fn test_match_constant_pattern() {
         assert_eq!(
-            expr("match 1 { case A -> { 2 } }"),
+            expr(0, "match 1 { case A -> { 2 } }"),
             Expression::Match(Box::new(Match {
                 expression: Expression::Int(Box::new(IntLiteral {
                     value: "1".to_string(),
@@ -9284,7 +9361,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("match A {}"),
+            expr(0, "match A {}"),
             Expression::Match(Box::new(Match {
                 expression: Expression::Constant(Box::new(Constant {
                     source: None,
@@ -9300,7 +9377,7 @@ mod tests {
     #[test]
     fn test_match_identifier_pattern() {
         assert_eq!(
-            expr("match 1 { case a -> { 2 } }"),
+            expr(0, "match 1 { case a -> { 2 } }"),
             Expression::Match(Box::new(Match {
                 expression: Expression::Int(Box::new(IntLiteral {
                     value: "1".to_string(),
@@ -9331,7 +9408,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("match 1 { case mut a -> { 2 } }"),
+            expr(0, "match 1 { case mut a -> { 2 } }"),
             Expression::Match(Box::new(Match {
                 expression: Expression::Int(Box::new(IntLiteral {
                     value: "1".to_string(),
@@ -9365,7 +9442,7 @@ mod tests {
     #[test]
     fn test_match_wildcard_pattern() {
         assert_eq!(
-            expr("match 1 { case _ -> { 2 } }"),
+            expr(0, "match 1 { case _ -> { 2 } }"),
             Expression::Match(Box::new(Match {
                 expression: Expression::Int(Box::new(IntLiteral {
                     value: "1".to_string(),
@@ -9393,7 +9470,7 @@ mod tests {
     #[test]
     fn test_match_namespaced_constant_pattern() {
         assert_eq!(
-            expr("match 1 { case a.B -> { 2 } }"),
+            expr(0, "match 1 { case a.B -> { 2 } }"),
             Expression::Match(Box::new(Match {
                 expression: Expression::Int(Box::new(IntLiteral {
                     value: "1".to_string(),
@@ -9426,7 +9503,7 @@ mod tests {
     #[test]
     fn test_match_destructure_pattern() {
         assert_eq!(
-            expr("match 1 { case A(1) -> { 2 } }"),
+            expr(0, "match 1 { case A(1) -> { 2 } }"),
             Expression::Match(Box::new(Match {
                 expression: Expression::Int(Box::new(IntLiteral {
                     value: "1".to_string(),
@@ -9465,7 +9542,7 @@ mod tests {
     #[test]
     fn test_match_tuple_pattern() {
         assert_eq!(
-            expr("match 1 { case (1, 2) -> { 2 } }"),
+            expr(0, "match 1 { case (1, 2) -> { 2 } }"),
             Expression::Match(Box::new(Match {
                 expression: Expression::Int(Box::new(IntLiteral {
                     value: "1".to_string(),
@@ -9500,7 +9577,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr("match 1 { case (1, 2,) -> { 2 } }"),
+            expr(0, "match 1 { case (1, 2,) -> { 2 } }"),
             Expression::Match(Box::new(Match {
                 expression: Expression::Int(Box::new(IntLiteral {
                     value: "1".to_string(),
@@ -9538,7 +9615,7 @@ mod tests {
     #[test]
     fn test_match_empty_class_pattern() {
         assert_eq!(
-            expr("match 1 { case {} -> {} }"),
+            expr(0, "match 1 { case {} -> {} }"),
             Expression::Match(Box::new(Match {
                 expression: Expression::Int(Box::new(IntLiteral {
                     value: "1".to_string(),
@@ -9564,7 +9641,7 @@ mod tests {
     #[test]
     fn test_match_class_pattern() {
         assert_eq!(
-            expr("match 1 { case { @a = _ } -> {} }"),
+            expr(0, "match 1 { case { @a = _ } -> {} }"),
             Expression::Match(Box::new(Match {
                 expression: Expression::Int(Box::new(IntLiteral {
                     value: "1".to_string(),
@@ -9599,7 +9676,7 @@ mod tests {
     #[test]
     fn test_match_without_curly_braces() {
         assert_eq!(
-            expr("match 1 { case 1 -> 2 }"),
+            expr(0, "match 1 { case 1 -> 2 }"),
             Expression::Match(Box::new(Match {
                 expression: Expression::Int(Box::new(IntLiteral {
                     value: "1".to_string(),
@@ -9628,7 +9705,7 @@ mod tests {
     #[test]
     fn test_loop_expression() {
         assert_eq!(
-            expr("loop { 10 }"),
+            expr(0, "loop { 10 }"),
             Expression::Loop(Box::new(Loop {
                 body: Expressions {
                     values: vec![Expression::Int(Box::new(IntLiteral {
@@ -9650,7 +9727,7 @@ mod tests {
     #[test]
     fn test_while_expression() {
         assert_eq!(
-            expr("while 10 { 20 }"),
+            expr(0, "while 10 { 20 }"),
             Expression::While(Box::new(While {
                 condition: Expression::Int(Box::new(IntLiteral {
                     value: "10".to_string(),
@@ -9749,7 +9826,7 @@ mod tests {
     #[test]
     fn test_namespaced_constant() {
         assert_eq!(
-            expr("a.B"),
+            expr(0, "a.B"),
             Expression::Call(Box::new(Call {
                 receiver: Some(Expression::Identifier(Box::new(Identifier {
                     name: "a".to_string(),
@@ -9874,7 +9951,7 @@ mod tests {
         );
 
         assert_eq!(
-            expr_with_comments("# foo"),
+            expr_with_comments(0, "# foo"),
             Expression::Comment(Box::new(Comment {
                 value: "foo".to_string(),
                 location: cols(1, 5)
