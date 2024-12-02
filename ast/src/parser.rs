@@ -9,7 +9,7 @@ use crate::nodes::*;
 use location::Location;
 use std::path::PathBuf;
 
-const MAX_DEPTH: usize = 1000;
+const MAX_RECURSION_DEPTH: usize = 1000;
 /// Produces a parser error and returns from the surrounding function.
 macro_rules! error {
     ($location: expr, $message: expr, $($field: expr),*) => {
@@ -852,22 +852,16 @@ impl Parser {
             _ => MethodKind::Instance,
         };
 
-        println!("public ? {}, inline? {} Kind method ? {:?}", public, inline, kind);
         let name_token = self.require()?;
         let (name, operator) = self.method_name(name_token)?;
-        println!("Method name: {:?}, operator: {}", name, operator);
         let type_parameters = if let MethodKind::Extern = kind {
             None
         } else {
             self.optional_type_parameter_definitions()?
         };
-        println!("Type parameters: {:?}", type_parameters);
         let arguments = self.optional_method_arguments(allow_variadic)?;
-        println!("Arguments: {:?}", arguments);
         let variadic = arguments.as_ref().map_or(false, |v| v.variadic);
-        println!("Variadic ? {}", variadic);
         let return_type = self.optional_return_type()?;
-        println!("Return type: {:?}", return_type);
         let body = if (self.peek().kind == TokenKind::CurlyOpen
             || kind != MethodKind::Extern)
             && !variadic
@@ -875,7 +869,6 @@ impl Parser {
             let token = self.expect(TokenKind::CurlyOpen)?;
 
             let expr = self.expressions(0, token)?;
-            println!("Expr: {:?}", expr);
             Some(expr)
         } else {
             None
@@ -889,7 +882,6 @@ impl Parser {
                 .unwrap_or(&name.location),
         );
 
-        println!("Parsing define module method fini");
 
         Ok(TopLevelExpression::DefineMethod(Box::new(DefineMethod {
             inline,
@@ -1528,12 +1520,11 @@ impl Parser {
     // call stack = expressions -> expression -> boolean_and_or -> binary -> postfix -> value -> scope -> expressions
     fn expressions(&mut self, depth: usize, start: Token) -> Result<Expressions, ParseError> {
         
-        if depth > MAX_DEPTH {
+        if depth > MAX_RECURSION_DEPTH {
             return error!(start.location, "Call stack reach limit");
         }
 
         let mut values = Vec::new();
-        println!("Start token expression: {:?}", start);
 
         loop {
             let token = self.require()?;
@@ -1545,9 +1536,7 @@ impl Parser {
                 return Ok(Expressions { values, location });
             }
 
-            println!("Actual token: {:?}", token);
             let expression = self.expression(depth, token)?;
-            println!("Expression: {:?}", expression);
             values.push(expression);
         }
     }
@@ -1605,13 +1594,10 @@ impl Parser {
     }
 
     fn binary(&mut self, depth: usize, start: Token) -> Result<Expression, ParseError> {
-        println!("Binary");
         let mut node = self.postfix(depth, start)?;
-        println!("Node postfix : {:?}", node);
 
         loop {
             if let Some(op) = self.binary_operator() {
-                println!("In binary operator");
                 let rhs_token = self.require()?;
                 let rhs = self.postfix(depth, rhs_token)?;
                 let location =
@@ -1624,7 +1610,6 @@ impl Parser {
                     location,
                 }));
             } else if self.peek().kind == TokenKind::As {
-                println!("IN AS TOKEN");
                 self.next();
 
                 let cast_token = self.require()?;
@@ -1638,7 +1623,6 @@ impl Parser {
                     location,
                 }));
             } else {
-                println!("In token");
                 break;
             }
         }
@@ -1675,9 +1659,7 @@ impl Parser {
     }
 
     fn postfix(&mut self, depth: usize,  start: Token) -> Result<Expression, ParseError> {
-        println!("In postfix: {:?}", start);
         let mut node = self.value(depth, start)?;
-        println!("In postfix node: {:?}", node);
 
         loop {
             let peeked = self.peek();
