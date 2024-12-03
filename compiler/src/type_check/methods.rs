@@ -97,6 +97,10 @@ trait MethodDefiner {
                 pid.set_mutable(self.db_mut());
             }
 
+            if param_node.immutable {
+                pid.set_borrowable(self.db_mut());
+            }
+
             if param_node.inline {
                 pid.set_stack_allocated(self.db_mut());
             }
@@ -989,6 +993,7 @@ impl<'a> DefineMethods<'a> {
             allow_private_types: trait_id.is_private(self.db()),
             ..Default::default()
         };
+
         let bounds = TypeBounds::new();
         let self_type = TypeId::TraitInstance(TraitInstance::rigid(
             self.db_mut(),

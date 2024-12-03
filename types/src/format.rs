@@ -20,18 +20,18 @@ pub fn format_type_with_arguments<T: FormatType>(
     TypeFormatter::new(db, Some(arguments)).format(typ)
 }
 
-pub fn type_parameter_capabilities(
+pub fn type_parameter_ownership(
     db: &Database,
     id: TypeParameterId,
 ) -> Option<&'static str> {
     let param = id.get(db);
 
-    if param.stack && param.mutable {
-        Some("inline + mut")
-    } else if param.stack {
+    if param.stack {
         Some("inline")
     } else if param.mutable {
         Some("mut")
+    } else if param.borrowable {
+        Some("ref")
     } else {
         None
     }
@@ -51,7 +51,7 @@ fn format_type_parameter_without_argument(
 
     buffer.write(&param.name);
 
-    let capa = if let Some(v) = type_parameter_capabilities(buffer.db, id) {
+    let capa = if let Some(v) = type_parameter_ownership(buffer.db, id) {
         buffer.write(": ");
         buffer.write(v);
         true

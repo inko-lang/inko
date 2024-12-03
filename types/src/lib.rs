@@ -325,7 +325,12 @@ pub struct TypeParameter {
     /// this type parameter.
     requirements: Vec<TraitInstance>,
 
-    /// If mutable references to this type parameter are allowed.
+    /// When set to `true`, types are only compatible with this parameter if
+    /// they can be borrowed in any way.
+    borrowable: bool,
+
+    /// When set to `true`, types are only compatible with this parameter if
+    /// they can be borrowed mutably.
     mutable: bool,
 
     /// If types assigned to this parameter must be allocated on the stack.
@@ -352,6 +357,7 @@ impl TypeParameter {
         Self {
             name,
             requirements: Vec::new(),
+            borrowable: false,
             mutable: false,
             stack: false,
             original: None,
@@ -399,16 +405,30 @@ impl TypeParameterId {
         self.get(db).original
     }
 
+    pub fn set_borrowable(self, db: &mut Database) {
+        self.get_mut(db).borrowable = true;
+    }
+
     pub fn set_mutable(self, db: &mut Database) {
-        self.get_mut(db).mutable = true;
+        let obj = self.get_mut(db);
+
+        obj.borrowable = true;
+        obj.mutable = true;
     }
 
     pub fn is_mutable(self, db: &Database) -> bool {
         self.get(db).mutable
     }
 
+    pub fn is_borrowable(self, db: &Database) -> bool {
+        self.get(db).borrowable
+    }
+
     pub fn set_stack_allocated(self, db: &mut Database) {
-        self.get_mut(db).stack = true;
+        let obj = self.get_mut(db);
+
+        obj.borrowable = true;
+        obj.stack = true;
     }
 
     pub fn is_stack_allocated(self, db: &Database) -> bool {
@@ -2569,6 +2589,17 @@ impl MethodId {
         param
     }
 
+    pub fn defines_type_parameter(
+        self,
+        db: &Database,
+        parameter: TypeParameterId,
+    ) -> bool {
+        self.get(db)
+            .type_parameters
+            .get(parameter.name(db))
+            .map_or(false, |&v| v == parameter)
+    }
+
     pub fn set_module(self, db: &mut Database, module: ModuleId) {
         self.get_mut(db).module = module;
     }
@@ -2836,6 +2867,26 @@ impl MethodId {
 
     pub fn set_bounds(self, db: &mut Database, bounds: TypeBounds) {
         self.get_mut(db).bounds = bounds;
+    }
+
+    pub fn infer_parameter_borrow(
+        self,
+        db: &mut Database,
+        parameter: TypeParameterId,
+        mutable: bool,
+    ) {
+        let bound = self.get(db).bounds.get(parameter).unwrap_or_else(|| {
+            let bound = parameter.clone_for_bound(db);
+
+            self.get_mut(db).bounds.set(parameter, bound);
+            bound
+        });
+
+        if mutable {
+            bound.set_mutable(db)
+        } else {
+            bound.set_borrowable(db)
+        }
     }
 
     pub fn has_return_type(self, db: &Database) -> bool {

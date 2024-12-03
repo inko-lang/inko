@@ -425,14 +425,63 @@ impl<'a> DefineTypeSignature<'a> {
             TypeId::TypeParameter(param_id)
         };
 
-        if let RefKind::Mut = kind {
-            if !param_id.is_mutable(self.db()) {
-                let name = id.name(self.db()).clone();
+        let def_scope = self
+            .scope
+            .method
+            .map_or(true, |m| m.defines_type_parameter(self.db(), param_id));
 
-                self.state.diagnostics.invalid_mut_type(
-                    &name,
-                    self.file(),
-                    node.location,
+        // TODO: this will be overwritten inside an `impl X if Y: ...` block.
+        //
+        // TODO: this is actually pretty much required such that we can use
+        // `ref T` and `mut T` in trait method arguments, as there's no support
+        // for `fn foo ... if T: ref`.
+        //
+        // TODO: the issue with this inference is that we need these bounds
+        // _before_ processing argument types, such that we can remap them
+        // properly.
+        //
+        // For `ref T` and `mut T` we infer `T: ref` / `T: mut`, removing the
+        // need for explicit annotations as much as possible.
+        //
+        // If the parameter is defined on a type but referred to in a method, we
+        // create a bound parameter if necessary.
+        if matches!(kind, RefKind::Mut) && !param_id.is_mutable(self.db()) {
+            if def_scope {
+                param_id.set_mutable(self.db_mut());
+            } else {
+                self.scope.method.unwrap().infer_parameter_borrow(
+                    self.db_mut(),
+                    param_id,
+                    true,
+                );
+
+                //let name = id.name(self.db()).clone();
+                //let file = self.file();
+                //
+                //self.state.diagnostics.invalid_mut_type(
+                //    &name,
+                //    file,
+                //    node.location,
+                //);
+            }
+        }
+
+        if matches!(kind, RefKind::Ref) && !param_id.is_borrowable(self.db()) {
+            if def_scope {
+                param_id.set_borrowable(self.db_mut());
+            } else {
+                //let name = id.name(self.db()).clone();
+                //let file = self.file();
+                //
+                //self.state.diagnostics.invalid_ref_type(
+                //    &name,
+                //    file,
+                //    node.location,
+                //);
+                self.scope.method.unwrap().infer_parameter_borrow(
+                    self.db_mut(),
+                    param_id,
+                    false,
                 );
             }
         }
@@ -929,6 +978,10 @@ pub(crate) fn define_type_bounds(
 
         if bound.mutable {
             new_param.set_mutable(&mut state.db);
+        }
+
+        if bound.immutable {
+            new_param.set_borrowable(&mut state.db);
         }
 
         if bound.inline {

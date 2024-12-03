@@ -859,34 +859,15 @@ impl Diagnostics {
         );
     }
 
-    pub(crate) fn duplicate_type_parameter_requirement(
-        &mut self,
-        param: &str,
-        req: &str,
-        file: PathBuf,
-        location: Location,
-    ) {
-        self.error(
-            DiagnosticId::InvalidType,
-            format!(
-                "type parameter '{}' already defines the '{}' requirement",
-                param, req
-            ),
-            file,
-            location,
-        );
-    }
-
-    pub(crate) fn mutable_inline_type_parameter(
+    pub(crate) fn invalid_type_parameter_borrowing_requirements(
         &mut self,
         file: PathBuf,
         location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidType,
-            "type parameters can't be both 'mut' and 'inline', \
-            as 'inline' types are immutable"
-                .to_string(),
+            "type parameters can only define the 'ref', 'mut' or 'inline' \
+            requirement once, and they can't be combined",
             file,
             location,
         );
@@ -1024,7 +1005,26 @@ impl Diagnostics {
         self.error(
             DiagnosticId::InvalidType,
             format!(
-                "mutable borrows of type '{}' are invalid as '{}' is immutable",
+                "mutable borrows of type '{}' are invalid as '{}' might be \
+                assigned an immutable type",
+                name, name
+            ),
+            file,
+            location,
+        );
+    }
+
+    pub(crate) fn invalid_ref_type(
+        &mut self,
+        name: &str,
+        file: PathBuf,
+        location: Location,
+    ) {
+        self.error(
+            DiagnosticId::InvalidType,
+            format!(
+                "borrows of type '{}' are invalid as '{}' might be assigned a \
+                type that can't be borrowed",
                 name, name
             ),
             file,

@@ -471,6 +471,7 @@ pub(crate) enum ReopenClassExpression {
 pub(crate) struct TypeBound {
     pub(crate) name: Constant,
     pub(crate) requirements: Vec<TypeName>,
+    pub(crate) immutable: bool,
     pub(crate) mutable: bool,
     pub(crate) inline: bool,
     pub(crate) location: Location,
@@ -644,6 +645,7 @@ pub(crate) struct TypeParameter {
     pub(crate) type_parameter_id: Option<types::TypeParameterId>,
     pub(crate) name: Constant,
     pub(crate) requirements: Vec<TypeName>,
+    pub(crate) immutable: bool,
     pub(crate) mutable: bool,
     pub(crate) inline: bool,
     pub(crate) location: Location,
@@ -1574,14 +1576,16 @@ impl<'a> LowerToHir<'a> {
 
     fn type_bound(&mut self, node: ast::TypeBound) -> TypeBound {
         let name = self.constant(node.name);
-        let (reqs, mutable, inline) = self.define_type_parameter_requirements(
-            &name.name,
-            node.requirements.values,
-        );
+        let (reqs, immutable, mutable, inline) = self
+            .define_type_parameter_requirements(
+                node.requirements.values,
+                node.location,
+            );
 
         TypeBound {
             name,
             requirements: reqs,
+            immutable,
             mutable,
             inline,
             location: node.location,
@@ -1590,11 +1594,12 @@ impl<'a> LowerToHir<'a> {
 
     fn define_type_parameter_requirements(
         &mut self,
-        name: &str,
         nodes: Vec<ast::Requirement>,
-    ) -> (Vec<TypeName>, bool, bool) {
-        let mut mutable = false;
-        let mut inline = false;
+        location: Location,
+    ) -> (Vec<TypeName>, bool, bool, bool) {
+        let mut immutable = 0;
+        let mut mutable = 0;
+        let mut inline = 0;
         let mut requirements = Vec::new();
 
         for req in nodes {
@@ -1602,40 +1607,22 @@ impl<'a> LowerToHir<'a> {
                 ast::Requirement::Trait(n) => {
                     requirements.push(self.type_name(n))
                 }
-                ast::Requirement::Mutable(loc) if mutable => {
-                    let file = self.file();
-
-                    self.state
-                        .diagnostics
-                        .duplicate_type_parameter_requirement(
-                            name, "mut", file, loc,
-                        );
-                }
-                ast::Requirement::Mutable(loc) if inline => {
-                    self.state
-                        .diagnostics
-                        .mutable_inline_type_parameter(self.file(), loc);
-                }
-                ast::Requirement::Inline(loc) if inline => {
-                    let file = self.file();
-
-                    self.state
-                        .diagnostics
-                        .duplicate_type_parameter_requirement(
-                            name, "mut", file, loc,
-                        );
-                }
-                ast::Requirement::Inline(loc) if mutable => {
-                    self.state
-                        .diagnostics
-                        .mutable_inline_type_parameter(self.file(), loc);
-                }
-                ast::Requirement::Mutable(_) => mutable = true,
-                ast::Requirement::Inline(_) => inline = true,
+                ast::Requirement::Immutable(_) => immutable += 1,
+                ast::Requirement::Mutable(_) => mutable += 1,
+                ast::Requirement::Inline(_) => inline += 1,
             }
         }
 
-        (requirements, mutable, inline)
+        if (immutable + mutable + inline) > 1 {
+            self.state
+                .diagnostics
+                .invalid_type_parameter_borrowing_requirements(
+                    self.file(),
+                    location,
+                );
+        }
+
+        (requirements, immutable > 0, mutable > 0, inline > 0)
     }
 
     fn define_trait(
@@ -1945,10 +1932,12 @@ impl<'a> LowerToHir<'a> {
     fn type_parameter(&mut self, node: ast::TypeParameter) -> TypeParameter {
         let name = self.constant(node.name);
         let location = node.location;
-        let (reqs, mutable, inline) = if let Some(reqs) = node.requirements {
-            self.define_type_parameter_requirements(&name.name, reqs.values)
+        let (reqs, immutable, mutable, inline) = if let Some(reqs) =
+            node.requirements
+        {
+            self.define_type_parameter_requirements(reqs.values, node.location)
         } else {
-            (Vec::new(), false, false)
+            (Vec::new(), false, false, false)
         };
 
         TypeParameter {
@@ -1956,6 +1945,7 @@ impl<'a> LowerToHir<'a> {
             name,
             requirements: reqs,
             location,
+            immutable,
             mutable,
             inline,
         }
@@ -3785,6 +3775,7 @@ mod tests {
                         arguments: Vec::new(),
                         location: cols(11, 11)
                     }],
+                    immutable: false,
                     mutable: false,
                     inline: false,
                     location: cols(8, 11)
@@ -3987,6 +3978,7 @@ mod tests {
                         arguments: Vec::new(),
                         location: cols(12, 12)
                     }],
+                    immutable: false,
                     mutable: false,
                     inline: false,
                     location: cols(9, 12)
@@ -4191,6 +4183,7 @@ mod tests {
                         arguments: Vec::new(),
                         location: cols(20, 20)
                     }],
+                    immutable: false,
                     mutable: false,
                     inline: false,
                     location: cols(17, 20)
@@ -4274,6 +4267,7 @@ mod tests {
                                 location: cols(23, 23)
                             },
                             requirements: Vec::new(),
+                            immutable: false,
                             mutable: false,
                             inline: false,
                             location: cols(23, 23)
@@ -4350,6 +4344,7 @@ mod tests {
                                 location: cols(22, 22)
                             },
                             requirements: Vec::new(),
+                            immutable: false,
                             mutable: false,
                             inline: false,
                             location: cols(22, 22)
@@ -4426,6 +4421,7 @@ mod tests {
                                 location: cols(16, 16)
                             },
                             requirements: Vec::new(),
+                            immutable: false,
                             mutable: false,
                             inline: false,
                             location: cols(16, 16)
@@ -4540,6 +4536,7 @@ mod tests {
                         location: cols(9, 9)
                     },
                     requirements: Vec::new(),
+                    immutable: false,
                     mutable: false,
                     inline: false,
                     location: cols(9, 9)
@@ -4611,6 +4608,7 @@ mod tests {
                                 location: cols(16, 16)
                             },
                             requirements: Vec::new(),
+                            immutable: false,
                             mutable: false,
                             inline: false,
                             location: cols(16, 16)
@@ -4751,6 +4749,7 @@ mod tests {
                                 location: cols(16, 16)
                             },
                             requirements: Vec::new(),
+                            immutable: false,
                             mutable: false,
                             inline: false,
                             location: cols(16, 16)
@@ -4847,7 +4846,6 @@ mod tests {
                 location: cols(1, 9)
             }))
         );
-
         assert_eq!(
             lower_top_expr("impl A if T: mut {}").0,
             TopLevelExpression::Reopen(Box::new(ReopenClass {
@@ -4863,6 +4861,30 @@ mod tests {
                     },
                     requirements: Vec::new(),
                     mutable: true,
+                    immutable: false,
+                    inline: false,
+                    location: cols(11, 16),
+                }],
+                body: Vec::new(),
+                location: cols(1, 16)
+            }))
+        );
+        assert_eq!(
+            lower_top_expr("impl A if T: ref {}").0,
+            TopLevelExpression::Reopen(Box::new(ReopenClass {
+                class_id: None,
+                class_name: Constant {
+                    name: "A".to_string(),
+                    location: cols(6, 6)
+                },
+                bounds: vec![TypeBound {
+                    name: Constant {
+                        name: "T".to_string(),
+                        location: cols(11, 11)
+                    },
+                    requirements: Vec::new(),
+                    mutable: false,
+                    immutable: true,
                     inline: false,
                     location: cols(11, 16),
                 }],
@@ -5118,6 +5140,7 @@ mod tests {
                         arguments: Vec::new(),
                         location: cols(20, 20)
                     },],
+                    immutable: false,
                     mutable: true,
                     inline: false,
                     location: cols(17, 26)
@@ -6790,6 +6813,7 @@ mod tests {
                         location: cols(19, 19)
                     },
                     requirements: Vec::new(),
+                    immutable: false,
                     mutable: false,
                     inline: false,
                     location: cols(19, 19)

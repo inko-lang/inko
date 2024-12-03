@@ -6,7 +6,7 @@ use location::Location;
 use std::fs::{read_to_string, write};
 use std::mem::take;
 use std::path::Path;
-use types::format::{format_type, type_parameter_capabilities};
+use types::format::{format_type, type_parameter_ownership};
 use types::{
     ClassId, ClassKind, Database, MethodId, ModuleId, TraitId, TypeBounds,
 };
@@ -46,7 +46,7 @@ fn format_bounds(db: &Database, bounds: &TypeBounds) -> String {
 
     for (idx, (param, &req)) in pairs.into_iter().enumerate() {
         let reqs = req.requirements(db);
-        let capa = type_parameter_capabilities(db, req);
+        let capa = type_parameter_ownership(db, req);
 
         buf.push_str(&format!(
             "{}  {}: {}",

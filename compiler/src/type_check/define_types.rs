@@ -781,6 +781,10 @@ impl<'a> DefineTypeParameters<'a> {
                     pid.set_mutable(self.db_mut());
                 }
 
+                if param.immutable {
+                    pid.set_borrowable(self.db_mut());
+                }
+
                 if is_stack || param.inline {
                     pid.set_stack_allocated(self.db_mut());
                 }
@@ -807,6 +811,10 @@ impl<'a> DefineTypeParameters<'a> {
 
                 if param.mutable {
                     pid.set_mutable(self.db_mut());
+                }
+
+                if param.immutable {
+                    pid.set_borrowable(self.db_mut());
                 }
 
                 if param.inline {

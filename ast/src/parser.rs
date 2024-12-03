@@ -1291,6 +1291,7 @@ impl Parser {
             let token = self.require()?;
             let req = match token.kind {
                 TokenKind::Mut => Requirement::Mutable(token.location),
+                TokenKind::Ref => Requirement::Immutable(token.location),
                 TokenKind::Inline => Requirement::Inline(token.location),
                 _ => Requirement::Trait(
                     self.type_name_with_optional_namespace(token)?,
@@ -5544,6 +5545,37 @@ mod tests {
                         },
                         requirements: Requirements {
                             values: vec![Requirement::Mutable(cols(14, 16))],
+                            location: cols(14, 16)
+                        },
+                        location: cols(11, 16)
+                    }],
+                    location: cols(11, 16)
+                }),
+                location: cols(1, 16)
+            }))
+        );
+
+        assert_eq!(
+            top(parse("impl A if T: ref {}")),
+            TopLevelExpression::ReopenClass(Box::new(ReopenClass {
+                class_name: Constant {
+                    source: None,
+                    name: "A".to_string(),
+                    location: cols(6, 6)
+                },
+                body: ImplementationExpressions {
+                    values: Vec::new(),
+                    location: cols(18, 19)
+                },
+                bounds: Some(TypeBounds {
+                    values: vec![TypeBound {
+                        name: Constant {
+                            source: None,
+                            name: "T".to_string(),
+                            location: cols(11, 11)
+                        },
+                        requirements: Requirements {
+                            values: vec![Requirement::Immutable(cols(14, 16))],
                             location: cols(14, 16)
                         },
                         location: cols(11, 16)

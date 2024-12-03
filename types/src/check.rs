@@ -1062,6 +1062,16 @@ impl<'a> TypeChecker<'a> {
             return false;
         }
 
+        // `T` isn't compatible with `T: mut`
+        if right.is_mutable(self.db) && !left.is_mutable(self.db) {
+            return false;
+        }
+
+        // `T` isn't compatible with `T: ref`
+        if right.is_borrowable(self.db) && !left.is_borrowable(self.db) {
+            return false;
+        }
+
         right
             .requirements(self.db)
             .into_iter()

@@ -37,8 +37,9 @@ impl<'a> Order<'a> {
     fn for_requirement(node: &'a nodes::Requirement) -> Order<'a> {
         match node {
             Requirement::Trait(n) => Order::Name(&n.name.name),
-            Requirement::Mutable(_) => Order::Position(1),
             Requirement::Inline(_) => Order::Position(0),
+            Requirement::Immutable(_) => Order::Position(1),
+            Requirement::Mutable(_) => Order::Position(2),
         }
     }
 }
@@ -2389,8 +2390,9 @@ impl Document {
 
             let val = match node {
                 nodes::Requirement::Trait(n) => self.type_name(n, None),
-                nodes::Requirement::Mutable(_) => Node::text("mut"),
                 nodes::Requirement::Inline(_) => Node::text("inline"),
+                nodes::Requirement::Immutable(_) => Node::text("ref"),
+                nodes::Requirement::Mutable(_) => Node::text("mut"),
             };
 
             pair.push(val);
