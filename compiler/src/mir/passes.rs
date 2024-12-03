@@ -17,8 +17,9 @@ use types::format::format_type;
 use types::module_name::ModuleName;
 use types::{
     self, Block as _, ClassId, ConstantId, Inline, MethodId, ModuleId, Symbol,
-    TypeBounds, TypeRef, EQ_METHOD, FIELDS_LIMIT, OPTION_NONE, OPTION_SOME,
-    RESULT_CLASS, RESULT_ERROR, RESULT_MODULE, RESULT_OK,
+    TypeBounds, TypeRef, VerificationError, EQ_METHOD, FIELDS_LIMIT,
+    OPTION_NONE, OPTION_SOME, RESULT_CLASS, RESULT_ERROR, RESULT_MODULE,
+    RESULT_OK,
 };
 
 const SELF_NAME: &str = "self";
@@ -2048,15 +2049,23 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn check_inferred(&mut self, typ: TypeRef, location: Location) {
-        if typ.is_inferred(self.db()) {
-            return;
+        match typ.verify_type(self.db(), 0) {
+            Ok(()) => {}
+            Err(VerificationError::Incomplete) => {
+                self.state.diagnostics.cant_infer_type(
+                    format_type(self.db(), typ),
+                    self.file(),
+                    location,
+                );
+            }
+            Err(VerificationError::UniViolation) => {
+                self.state.diagnostics.type_containing_uni_alias(
+                    format_type(self.db(), typ),
+                    self.file(),
+                    location,
+                );
+            }
         }
-
-        self.state.diagnostics.cant_infer_type(
-            format_type(self.db(), typ),
-            self.file(),
-            location,
-        );
     }
 
     fn input_expression(

@@ -3888,6 +3888,15 @@ impl Shape {
     }
 }
 
+#[derive(Copy, Clone)]
+pub enum VerificationError {
+    /// The type isn't fully inferred.
+    Incomplete,
+
+    /// The type contains one or more aliases to an `uni T` type.
+    UniViolation,
+}
+
 /// A reference to a type.
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum TypeRef {
@@ -4928,8 +4937,19 @@ impl TypeRef {
         }
     }
 
-    pub fn is_inferred(self, db: &Database) -> bool {
+    pub fn verify_type(
+        self,
+        db: &Database,
+        depth: usize,
+    ) -> Result<(), VerificationError> {
         match self {
+            // `uni ref T` and `uni mut T` are valid as an outer-most type, as
+            // we can't assign such types to anything or store them anywhere.
+            // This in turn allows them to be used as e.g. the receiver of
+            // methods in certain cases.
+            TypeRef::UniRef(_) | TypeRef::UniMut(_) if depth > 0 => {
+                Err(VerificationError::UniViolation)
+            }
             TypeRef::Owned(id)
             | TypeRef::Uni(id)
             | TypeRef::Ref(id)
@@ -4944,7 +4964,7 @@ impl TypeRef {
                         .unwrap()
                         .mapping
                         .values()
-                        .all(|v| v.is_inferred(db))
+                        .try_for_each(|v| v.verify_type(db, depth + 1))
                 }
                 TypeId::TraitInstance(ins)
                     if ins.instance_of.is_generic(db) =>
@@ -4953,20 +4973,23 @@ impl TypeRef {
                         .unwrap()
                         .mapping
                         .values()
-                        .all(|v| v.is_inferred(db))
+                        .try_for_each(|v| v.verify_type(db, depth + 1))
                 }
                 TypeId::Closure(id) => {
-                    id.arguments(db)
-                        .into_iter()
-                        .all(|arg| arg.value_type.is_inferred(db))
-                        && id.return_type(db).is_inferred(db)
+                    id.arguments(db).into_iter().try_for_each(|arg| {
+                        arg.value_type.verify_type(db, depth + 1)
+                    })?;
+
+                    id.return_type(db).verify_type(db, depth + 1)
                 }
-                _ => true,
+                _ => Ok(()),
             },
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(false, |v| v.is_inferred(db))
+                id.value(db).map_or(Err(VerificationError::Incomplete), |v| {
+                    v.verify_type(db, depth + 1)
+                })
             }
-            _ => true,
+            _ => Ok(()),
         }
     }
 

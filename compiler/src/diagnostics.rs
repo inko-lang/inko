@@ -845,6 +845,24 @@ impl Diagnostics {
         );
     }
 
+    pub(crate) fn type_containing_uni_alias(
+        &mut self,
+        name: String,
+        file: PathBuf,
+        location: Location,
+    ) {
+        self.error(
+            DiagnosticId::InvalidType,
+            format!(
+                "the type of this expression ('{}') is invalid because it \
+                contains an 'uni ref T' or 'uni mut T' value",
+                name,
+            ),
+            file,
+            location,
+        );
+    }
+
     pub(crate) fn string_literal_too_large(
         &mut self,
         limit: usize,
