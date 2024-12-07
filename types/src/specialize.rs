@@ -80,6 +80,12 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
                 Some(Shape::Stack(ins)) => TypeRef::Owned(
                     TypeId::ClassInstance(self.specialize_class_instance(*ins)),
                 ),
+                Some(Shape::StackRef(ins)) => TypeRef::Ref(
+                    TypeId::ClassInstance(self.specialize_class_instance(*ins)),
+                ),
+                Some(Shape::StackMut(ins)) => TypeRef::Mut(
+                    TypeId::ClassInstance(self.specialize_class_instance(*ins)),
+                ),
                 _ => value,
             },
             TypeRef::Ref(
@@ -101,6 +107,11 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
                 Some(Shape::Stack(ins)) => TypeRef::Owned(
                     TypeId::ClassInstance(self.specialize_class_instance(*ins)),
                 ),
+                Some(Shape::StackRef(ins) | Shape::StackMut(ins)) => {
+                    TypeRef::Ref(TypeId::ClassInstance(
+                        self.specialize_class_instance(*ins),
+                    ))
+                }
                 _ => value.as_ref(self.db),
             },
             TypeRef::Mut(
@@ -123,6 +134,12 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
                 Some(Shape::Stack(ins)) => TypeRef::Owned(
                     TypeId::ClassInstance(self.specialize_class_instance(*ins)),
                 ),
+                Some(Shape::StackRef(ins)) => TypeRef::Ref(
+                    TypeId::ClassInstance(self.specialize_class_instance(*ins)),
+                ),
+                Some(Shape::StackMut(ins)) => TypeRef::Mut(
+                    TypeId::ClassInstance(self.specialize_class_instance(*ins)),
+                ),
                 _ => value.force_as_mut(self.db),
             },
             TypeRef::Owned(id) | TypeRef::Any(id) => {
@@ -130,16 +147,11 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
             }
             TypeRef::Uni(id) => TypeRef::Uni(self.specialize_type_id(id)),
             // Value types should always be specialized as owned types, even
-            // when using e.g. `ref Int`. We don't account for UniMut and UniRef
-            // here because:
-            //
-            // 1. Applying `uni mut` and `uni ref` to types such as Int and
-            //    String results in the ownership always being owned
-            // 2. We may explicitly expose certain types as `uni mut` or `uni
-            //    ref` and want to retain that ownership (e.g. when referring to
-            //    stack allocated field values)
+            // when using e.g. `ref Int`.
             TypeRef::Ref(TypeId::ClassInstance(ins))
             | TypeRef::Mut(TypeId::ClassInstance(ins))
+            | TypeRef::UniRef(TypeId::ClassInstance(ins))
+            | TypeRef::UniMut(TypeId::ClassInstance(ins))
                 if ins.instance_of().is_value_type(self.db) =>
             {
                 TypeRef::Owned(
@@ -343,10 +355,10 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
             if kind.is_closure() { self.shapes } else { &class_mapping };
 
         if kind.is_enum() {
-            for old_var in class.constructors(self.db) {
-                let name = old_var.name(self.db).clone();
-                let loc = old_var.location(self.db);
-                let args = old_var
+            for old_cons in class.constructors(self.db) {
+                let name = old_cons.name(self.db).clone();
+                let loc = old_cons.location(self.db);
+                let args = old_cons
                     .arguments(self.db)
                     .to_vec()
                     .into_iter()

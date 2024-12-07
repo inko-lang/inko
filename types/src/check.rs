@@ -290,9 +290,7 @@ impl<'a> TypeChecker<'a> {
                 return false;
             }
 
-            if bound.is_stack_allocated(self.db)
-                && !val.is_stack_allocated(self.db)
-            {
+            if bound.is_copy(self.db) && !val.is_copy_type(self.db) {
                 return false;
             }
 
@@ -300,6 +298,27 @@ impl<'a> TypeChecker<'a> {
                 self.check_type_ref_with_trait(val, r, &mut env, rules)
             })
         })
+    }
+
+    pub fn class_compatible_with_bound(
+        &mut self,
+        left: ClassInstance,
+        bound: TypeParameterId,
+    ) -> bool {
+        if bound.is_mutable(self.db)
+            && !left.instance_of.allow_mutating(self.db)
+        {
+            return false;
+        }
+
+        if bound.is_copy(self.db) && !left.instance_of.is_copy_type(self.db) {
+            return false;
+        }
+
+        bound
+            .requirements(self.db)
+            .into_iter()
+            .all(|req| self.class_implements_trait(left, req))
     }
 
     fn check_type_ref(
@@ -680,8 +699,8 @@ impl<'a> TypeChecker<'a> {
                 }
                 TypeId::TypeParameter(_) if rules.kind.is_cast() => false,
                 TypeId::TypeParameter(rhs) => {
-                    if rhs.is_stack_allocated(self.db)
-                        && !lhs.instance_of().is_stack_allocated(self.db)
+                    if rhs.is_copy(self.db)
+                        && !lhs.instance_of().is_copy_type(self.db)
                     {
                         return false;
                     }
@@ -709,11 +728,7 @@ impl<'a> TypeChecker<'a> {
                     self.check_traits(lhs, rhs, env, rules)
                 }
                 TypeId::TypeParameter(_) if rules.kind.is_cast() => false,
-                TypeId::TypeParameter(rhs)
-                    if rhs.is_stack_allocated(self.db) =>
-                {
-                    false
-                }
+                TypeId::TypeParameter(rhs) if rhs.is_copy(self.db) => false,
                 TypeId::TypeParameter(rhs) => rhs
                     .requirements(self.db)
                     .into_iter()
@@ -755,7 +770,7 @@ impl<'a> TypeChecker<'a> {
                     // Closures can't implement traits, so they're only
                     // compatible with type parameters that don't have any
                     // requirements.
-                    !rhs.is_stack_allocated(self.db)
+                    !rhs.is_copy(self.db)
                 }
                 _ => false,
             },
@@ -815,9 +830,7 @@ impl<'a> TypeChecker<'a> {
                     return true;
                 }
 
-                if left.is_stack_allocated(self.db)
-                    != rhs.is_stack_allocated(self.db)
-                {
+                if left.is_copy(self.db) != rhs.is_copy(self.db) {
                     return false;
                 }
 
@@ -873,8 +886,7 @@ impl<'a> TypeChecker<'a> {
         };
 
         if (req.is_mutable(self.db) && !left.allow_mutating(self.db))
-            || (req.is_stack_allocated(self.db)
-                && !left.is_stack_allocated(self.db))
+            || (req.is_copy(self.db) && !left.is_copy_type(self.db))
         {
             placeholder.assign_internal(self.db, TypeRef::Unknown);
             return false;
@@ -1057,8 +1069,7 @@ impl<'a> TypeChecker<'a> {
             return true;
         }
 
-        if left.is_stack_allocated(self.db) != right.is_stack_allocated(self.db)
-        {
+        if left.is_copy(self.db) != right.is_copy(self.db) {
             return false;
         }
 
@@ -1346,7 +1357,7 @@ mod tests {
         let var3 = TypePlaceholder::alloc(&mut db, Some(p1));
         let var4 = TypePlaceholder::alloc(&mut db, Some(p2));
 
-        p2.set_stack_allocated(&mut db);
+        p2.set_copy(&mut db);
         p1.add_requirements(&mut db, vec![trait_instance(to_string)]);
         implement(&mut db, trait_instance(to_string), bar);
 
@@ -2355,8 +2366,8 @@ mod tests {
         test.add_required_trait(&mut db, trait_instance(equal));
         p3.add_requirements(&mut db, vec![trait_instance(equal)]);
         p4.add_requirements(&mut db, vec![trait_instance(test)]);
-        p5.set_stack_allocated(&mut db);
-        p6.set_stack_allocated(&mut db);
+        p5.set_copy(&mut db);
+        p6.set_copy(&mut db);
 
         check_ok(&db, owned(parameter(p1)), owned(parameter(p2)));
         check_ok(&db, owned(parameter(p4)), owned(parameter(p3)));
@@ -2392,7 +2403,7 @@ mod tests {
         let p4 = new_parameter(&mut db, "C");
         let var = TypePlaceholder::alloc(&mut db, None);
 
-        p3.set_stack_allocated(&mut db);
+        p3.set_copy(&mut db);
 
         check_ok(&db, owned(rigid(p1)), TypeRef::Error);
         check_ok(&db, immutable(rigid(p1)), immutable(rigid(p1)));
@@ -2501,7 +2512,7 @@ mod tests {
         let p3 = new_parameter(&mut db, "C");
 
         p2.add_requirements(&mut db, vec![trait_instance(equal)]);
-        p3.set_stack_allocated(&mut db);
+        p3.set_copy(&mut db);
 
         check_ok(&db, owned(closure(fun)), owned(parameter(p1)));
         check_err(&db, owned(closure(fun)), owned(parameter(p2)));
@@ -2577,13 +2588,13 @@ mod tests {
     }
 
     #[test]
-    fn test_inline_bounds() {
+    fn test_copy_bounds() {
         let mut db = Database::new();
         let array = ClassId::array();
         let heap = new_class(&mut db, "Heap");
         let stack = new_class(&mut db, "Stack");
 
-        stack.set_stack_allocated(&mut db);
+        stack.set_copy_storage(&mut db);
 
         let update = new_trait(&mut db, "Update");
         let array_param = array.new_type_parameter(&mut db, "T".to_string());
@@ -2591,7 +2602,7 @@ mod tests {
         let exp_param = new_parameter(&mut db, "Expected");
 
         exp_param.add_requirements(&mut db, vec![trait_instance(update)]);
-        array_bounds.set_stack_allocated(&mut db);
+        array_bounds.set_copy(&mut db);
         array.add_trait_implementation(
             &mut db,
             TraitImplementation {
@@ -2926,7 +2937,7 @@ mod tests {
         let param = new_parameter(&mut db, "T");
         let stack = new_class(&mut db, "Stack");
 
-        stack.set_stack_allocated(&mut db);
+        stack.set_copy_storage(&mut db);
 
         for class in [
             ClassId::int(),

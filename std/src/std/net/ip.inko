@@ -43,7 +43,7 @@ fn octets_to_hextet(first: Int, second: Int) -> Int {
 }
 
 # An IPv4 or IPv6 address.
-class pub inline enum IpAddress {
+class pub copy enum IpAddress {
   # An IPv4 address.
   case V4(Ipv4Address)
 
@@ -221,7 +221,7 @@ impl FormatTrait for IpAddress {
 }
 
 # An IPv6 address.
-class pub inline Ipv6Address {
+class pub copy Ipv6Address {
   let @a: Int
   let @b: Int
   let @c: Int
@@ -645,7 +645,7 @@ impl Clone[Ipv6Address] for Ipv6Address {
 }
 
 # An IPv4 address.
-class pub inline Ipv4Address {
+class pub copy Ipv4Address {
   let @a: Int
   let @b: Int
   let @c: Int

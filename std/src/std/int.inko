@@ -55,7 +55,7 @@ fn overflow(left: Int, right: Int) -> Never {
 }
 
 # The format to use for parsing and formatting an `Int`.
-class pub inline enum Format {
+class pub copy enum Format {
   # The `Int` is to be parsed or formatted as a binary number.
   case Binary
 

@@ -2788,14 +2788,9 @@ impl<'a> CheckMethodBody<'a> {
             );
         }
 
-        if !scope.surrounding_type.allow_mutating(self.db()) {
-            self.state.diagnostics.error(
-                DiagnosticId::InvalidAssign,
-                format!(
-                    "can't assign a new value to field '{}', as the \
-                    surrounding method is immutable",
-                    name
-                ),
+        if !scope.surrounding_type.allow_field_assignments(self.db()) {
+            self.state.diagnostics.invalid_field_assignment(
+                &format_type(self.db(), scope.surrounding_type),
                 self.file(),
                 location,
             );
@@ -3298,9 +3293,9 @@ impl<'a> CheckMethodBody<'a> {
             return TypeRef::Error;
         };
 
-        if !rec.allow_mutating(self.db()) {
-            self.state.diagnostics.immutable_receiver_for_assignment(
-                &node.name.name,
+        if !rec.allow_field_assignments(self.db()) {
+            self.state.diagnostics.invalid_field_assignment(
+                &format_type(self.db(), rec),
                 self.module.file(self.db()),
                 node.location,
             );
@@ -3390,9 +3385,9 @@ impl<'a> CheckMethodBody<'a> {
             };
         }
 
-        if !receiver.allow_mutating(self.db()) {
-            self.state.diagnostics.immutable_receiver_for_assignment(
-                name,
+        if !receiver.allow_field_assignments(self.db()) {
+            self.state.diagnostics.invalid_field_assignment(
+                &format_type(self.db(), receiver),
                 self.module.file(self.db()),
                 node.location,
             );
@@ -4028,9 +4023,11 @@ impl<'a> CheckMethodBody<'a> {
         node: &mut hir::BuiltinCall,
         scope: &mut LexicalScope,
     ) -> TypeRef {
-        for n in &mut node.arguments {
-            self.expression(n, scope);
-        }
+        let args: Vec<_> = node
+            .arguments
+            .iter_mut()
+            .map(|n| self.expression(n, scope))
+            .collect();
 
         let id = if let Some(id) = self.db().intrinsic(&node.name.name) {
             id
@@ -4044,10 +4041,9 @@ impl<'a> CheckMethodBody<'a> {
             return TypeRef::Error;
         };
 
-        let returns = id.return_type();
+        let returns = id.return_type(self.db(), &args);
 
         node.info = Some(IntrinsicCall { id, returns });
-
         returns
     }
 

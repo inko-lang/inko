@@ -1,4 +1,4 @@
-class inline A[T] {
+class copy A[T] {
   let @value: T
 }
 
@@ -12,4 +12,4 @@ fn example1 {
   A(value: 'not a stack type')
 }
 
-# inline_type_instances.inko:12:12 error(invalid-type): expected a value of type 'T: inline', found 'String'
+# copy_type_instances.inko:12:12 error(invalid-type): expected a value of type 'T: copy', found 'String'

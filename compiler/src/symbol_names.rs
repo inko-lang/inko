@@ -26,10 +26,21 @@ pub(crate) fn format_shape(db: &Database, shape: Shape, buf: &mut String) {
         Shape::Nil => write!(buf, "n"),
         Shape::Pointer => write!(buf, "p"),
         Shape::Stack(ins) => {
-            let cls = ins.instance_of();
-            let _ = write!(buf, "S{}.", cls.module(db).name(db));
+            let _ = write!(buf, "SO{}.", ins.instance_of().module(db).name(db));
 
-            format_class_name(db, cls, buf);
+            format_class_name(db, ins.instance_of(), buf);
+            Ok(())
+        }
+        Shape::StackRef(ins) => {
+            let _ = write!(buf, "SR{}.", ins.instance_of().module(db).name(db));
+
+            format_class_name(db, ins.instance_of(), buf);
+            Ok(())
+        }
+        Shape::StackMut(ins) => {
+            let _ = write!(buf, "SM{}.", ins.instance_of().module(db).name(db));
+
+            format_class_name(db, ins.instance_of(), buf);
             Ok(())
         }
     };
@@ -44,20 +55,10 @@ pub(crate) fn format_shapes(db: &Database, shapes: &[Shape], buf: &mut String) {
 pub(crate) fn format_class_name(db: &Database, id: ClassId, buf: &mut String) {
     buf.push_str(id.name(db));
 
-    let is_stack = id.is_stack_allocated(db);
     let shapes = id.shapes(db);
 
-    if !shapes.is_empty() || is_stack {
-        buf.push('#');
-    }
-
-    // In case we infer a type to be stack allocated (or we did so in the past
-    // but it's no longer the case), this ensures we flush the object cache.
-    if is_stack {
-        buf.push('S');
-    }
-
     if !shapes.is_empty() {
+        buf.push('#');
         format_shapes(db, shapes, buf);
     }
 }
@@ -204,6 +205,8 @@ mod tests {
         let loc = Location::default();
         let cls1 = Class::alloc(&mut db, "A".to_string(), kind, vis, mid, loc);
         let cls2 = Class::alloc(&mut db, "B".to_string(), kind, vis, mid, loc);
+        let cls3 = Class::alloc(&mut db, "C".to_string(), kind, vis, mid, loc);
+        let cls4 = Class::alloc(&mut db, "D".to_string(), kind, vis, mid, loc);
 
         cls1.set_shapes(
             &mut db,
@@ -213,6 +216,14 @@ mod tests {
             ],
         );
         cls2.set_shapes(&mut db, vec![Shape::String]);
+        cls3.set_shapes(
+            &mut db,
+            vec![Shape::StackRef(ClassInstance::new(cls2))],
+        );
+        cls4.set_shapes(
+            &mut db,
+            vec![Shape::StackMut(ClassInstance::new(cls2))],
+        );
 
         assert_eq!(name(&db, Shape::Owned), "o");
         assert_eq!(name(&db, Shape::Mut), "m");
@@ -227,7 +238,15 @@ mod tests {
         assert_eq!(name(&db, Shape::Pointer), "p");
         assert_eq!(
             name(&db, Shape::Stack(ClassInstance::new(cls1))),
-            "Sa.b.c.A#i64Sa.b.c.B#s"
+            "SOa.b.c.A#i64SOa.b.c.B#s"
+        );
+        assert_eq!(
+            name(&db, Shape::StackMut(ClassInstance::new(cls3))),
+            "SMa.b.c.C#SRa.b.c.B#s"
+        );
+        assert_eq!(
+            name(&db, Shape::StackRef(ClassInstance::new(cls4))),
+            "SRa.b.c.D#SMa.b.c.B#s"
         );
     }
 }
