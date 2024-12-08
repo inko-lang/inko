@@ -77,8 +77,14 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
                 Some(Shape::Atomic) => {
                     TypeRef::Owned(TypeId::AtomicTypeParameter(pid))
                 }
-                Some(Shape::Stack(ins)) => TypeRef::Owned(
-                    TypeId::ClassInstance(self.specialize_class_instance(*ins)),
+                Some(Shape::Inline(i) | Shape::Copy(i)) => TypeRef::Owned(
+                    TypeId::ClassInstance(self.specialize_class_instance(*i)),
+                ),
+                Some(Shape::InlineRef(i)) => TypeRef::Ref(
+                    TypeId::ClassInstance(self.specialize_class_instance(*i)),
+                ),
+                Some(Shape::InlineMut(i)) => TypeRef::Mut(
+                    TypeId::ClassInstance(self.specialize_class_instance(*i)),
                 ),
                 _ => value,
             },
@@ -98,9 +104,16 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
                 Some(Shape::Atomic) => {
                     TypeRef::Ref(TypeId::AtomicTypeParameter(id))
                 }
-                Some(Shape::Stack(ins)) => TypeRef::Owned(
-                    TypeId::ClassInstance(self.specialize_class_instance(*ins)),
-                ),
+                Some(Shape::Copy(i)) => TypeRef::Owned(TypeId::ClassInstance(
+                    self.specialize_class_instance(*i),
+                )),
+                Some(
+                    Shape::Inline(i)
+                    | Shape::InlineRef(i)
+                    | Shape::InlineMut(i),
+                ) => TypeRef::Ref(TypeId::ClassInstance(
+                    self.specialize_class_instance(*i),
+                )),
                 _ => value.as_ref(self.db),
             },
             TypeRef::Mut(
@@ -120,8 +133,14 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
                 Some(Shape::Atomic) => {
                     TypeRef::Mut(TypeId::AtomicTypeParameter(id))
                 }
-                Some(Shape::Stack(ins)) => TypeRef::Owned(
-                    TypeId::ClassInstance(self.specialize_class_instance(*ins)),
+                Some(Shape::Copy(i)) => TypeRef::Owned(TypeId::ClassInstance(
+                    self.specialize_class_instance(*i),
+                )),
+                Some(Shape::InlineRef(i)) => TypeRef::Ref(
+                    TypeId::ClassInstance(self.specialize_class_instance(*i)),
+                ),
+                Some(Shape::Inline(i) | Shape::InlineMut(i)) => TypeRef::Mut(
+                    TypeId::ClassInstance(self.specialize_class_instance(*i)),
                 ),
                 _ => value.force_as_mut(self.db),
             },
@@ -130,16 +149,11 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
             }
             TypeRef::Uni(id) => TypeRef::Uni(self.specialize_type_id(id)),
             // Value types should always be specialized as owned types, even
-            // when using e.g. `ref Int`. We don't account for UniMut and UniRef
-            // here because:
-            //
-            // 1. Applying `uni mut` and `uni ref` to types such as Int and
-            //    String results in the ownership always being owned
-            // 2. We may explicitly expose certain types as `uni mut` or `uni
-            //    ref` and want to retain that ownership (e.g. when referring to
-            //    stack allocated field values)
+            // when using e.g. `ref Int`.
             TypeRef::Ref(TypeId::ClassInstance(ins))
             | TypeRef::Mut(TypeId::ClassInstance(ins))
+            | TypeRef::UniRef(TypeId::ClassInstance(ins))
+            | TypeRef::UniMut(TypeId::ClassInstance(ins))
                 if ins.instance_of().is_value_type(self.db) =>
             {
                 TypeRef::Owned(
@@ -168,7 +182,7 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
         }
     }
 
-    fn specialize_class_instance(
+    pub fn specialize_class_instance(
         &mut self,
         ins: ClassInstance,
     ) -> ClassInstance {
@@ -321,6 +335,12 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
             new.get_mut(self.db).type_parameters.insert(name, param);
         }
 
+        // TODO: remove
+        for shape in &key {
+            let Some(ins) = shape.as_stack_instance() else { continue };
+            assert!(ins.instance_of().specialization_source(self.db).is_some());
+        }
+
         new.set_shapes(self.db, key.clone());
         class.get_mut(self.db).specializations.insert(key.clone(), new);
 
@@ -343,10 +363,10 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
             if kind.is_closure() { self.shapes } else { &class_mapping };
 
         if kind.is_enum() {
-            for old_var in class.constructors(self.db) {
-                let name = old_var.name(self.db).clone();
-                let loc = old_var.location(self.db);
-                let args = old_var
+            for old_cons in class.constructors(self.db) {
+                let name = old_cons.name(self.db).clone();
+                let loc = old_cons.location(self.db);
+                let args = old_cons
                     .arguments(self.db)
                     .to_vec()
                     .into_iter()
@@ -720,5 +740,62 @@ mod tests {
         assert_eq!(uni, TypeRef::UniMut(TypeId::TypeParameter(param)));
         assert_eq!(immutable, TypeRef::Ref(TypeId::TypeParameter(param)));
         assert_eq!(mutable, TypeRef::Mut(TypeId::TypeParameter(param)));
+    }
+
+    #[test]
+    fn test_specialize_borrow_inline_type_parameter() {
+        let mut db = Database::new();
+        let mut shapes = HashMap::new();
+        let mut classes = Vec::new();
+        let mut interned = InternedTypeArguments::new();
+        let cls = new_class(&mut db, "A");
+        let ins = ClassInstance::new(cls);
+        let p1 = new_parameter(&mut db, "X");
+        let p2 = new_parameter(&mut db, "Y");
+
+        shapes.insert(p1, Shape::Inline(ins));
+        shapes.insert(p2, Shape::Copy(ins));
+
+        assert_eq!(
+            TypeSpecializer::new(&mut db, &mut interned, &shapes, &mut classes)
+                .specialize(owned(parameter(p1))),
+            owned(instance(cls))
+        );
+        assert_eq!(
+            TypeSpecializer::new(&mut db, &mut interned, &shapes, &mut classes)
+                .specialize(uni(parameter(p1))),
+            owned(instance(cls))
+        );
+        assert_eq!(
+            TypeSpecializer::new(&mut db, &mut interned, &shapes, &mut classes)
+                .specialize(mutable(parameter(p1))),
+            mutable(instance(cls))
+        );
+        assert_eq!(
+            TypeSpecializer::new(&mut db, &mut interned, &shapes, &mut classes)
+                .specialize(immutable(parameter(p1))),
+            immutable(instance(cls))
+        );
+
+        assert_eq!(
+            TypeSpecializer::new(&mut db, &mut interned, &shapes, &mut classes)
+                .specialize(owned(parameter(p2))),
+            owned(instance(cls))
+        );
+        assert_eq!(
+            TypeSpecializer::new(&mut db, &mut interned, &shapes, &mut classes)
+                .specialize(owned(parameter(p2))),
+            owned(instance(cls))
+        );
+        assert_eq!(
+            TypeSpecializer::new(&mut db, &mut interned, &shapes, &mut classes)
+                .specialize(mutable(parameter(p2))),
+            owned(instance(cls))
+        );
+        assert_eq!(
+            TypeSpecializer::new(&mut db, &mut interned, &shapes, &mut classes)
+                .specialize(immutable(parameter(p2))),
+            owned(instance(cls))
+        );
     }
 }

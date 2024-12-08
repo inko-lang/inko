@@ -218,18 +218,18 @@ While allocating instances of classes on the heap increases flexibility (e.g.
 they can be moved around while they're also borrowed), this can reduce
 performance when many such instances are allocated.
 
-We can avoid this by using the `inline` modifier when defining a class:
+We can avoid this by using the `copy` modifier when defining a class:
 
 ```inko
-class inline Number {
+class copy Number {
   let @value: Int
 }
 ```
 
-The `inline` modifier is also available for enums:
+The `copy` modifier is also available for enums:
 
 ```inko
-class inline enum Example {
+class copy enum Example {
   case A(Int)
   case B(Float)
 }
@@ -247,7 +247,7 @@ to return a new copy of the instance containing the appropriate changes. For
 example:
 
 ```inko
-class inline Number {
+class copy Number {
   let @value: Int
 
   fn increment(amount: Int) -> Number {
@@ -256,16 +256,16 @@ class inline Number {
 }
 ```
 
-Classes defined using the `inline` modifier can only store the following types:
+Classes defined using the `copy` modifier can only store the following types:
 
 - `Int`, `Float`, `Bool`, `Nil`
-- Other `inline` types
+- Other `copy` types
 
 Most notably, `String` values can't be stored in an `inline` type since `String`
 uses atomic reference counting. This means the following definition is invalid:
 
 ```inko
-class inline InvalidType {
+class copy InvalidType {
   let @value: Array[Int] # Array[Int] isn't an `inline` type
 }
 ```
@@ -273,16 +273,16 @@ class inline InvalidType {
 The same restriction applies to generic type parameters:
 
 ```inko
-class inline Box[T] {
+class copy Box[T] {
   let @value: T
 }
 
-Box([10]) # T requires an `inline` type, but `Array[Int]` isn't such a type
+Box([10]) # T requires a `copy` type, but `Array[Int]` isn't such a type
 ```
 
-It's recommended to use the `inline` modifier whenever possible (i.e. a class
-just stores a bunch of `Int` values), provided the above restrictions don't get
-in your way of course.
+It's recommended to use the `copy` modifier whenever possible (i.e. a class just
+stores a bunch of `Int` values), provided the above restrictions don't get in
+your way of course.
 
 ## Processes
 

@@ -1,0 +1,11 @@
+class copy A {
+  let @value: Int
+}
+
+fn example {
+  let a = A(value: 1)
+
+  a.value = 2
+}
+
+# mutating_copy_types.inko:8:3 error(invalid-assign): values of type 'A' don't allow fields to be assigned new values

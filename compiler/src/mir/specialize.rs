@@ -7,11 +7,12 @@ use crate::state::State;
 use indexmap::{IndexMap, IndexSet};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::mem::swap;
+use types::check::TypeChecker;
 use types::specialize::{ordered_shapes_from_map, TypeSpecializer};
 use types::{
     Block as _, ClassId, ClassInstance, Database, InternedTypeArguments,
     MethodId, Shape, TypeArguments, TypeParameterId, TypeRef, CALL_METHOD,
-    DROPPER_METHOD,
+    DECREMENT_METHOD, DROPPER_METHOD, INCREMENT_METHOD,
 };
 
 fn argument_shape(
@@ -76,24 +77,13 @@ fn shapes_compatible_with_bounds(
             // only possible if the type is compatible with the bounds, i.e. all
             // the required traits are implemented.
             //
-            // We don't need to perform a full type-check here: if a trait _is_
-            // implemented then correctness is already enforced at the call/cast
-            // site, so all we need to do here is check if the trait is
-            // implemented in the first place.
-            if let Shape::Stack(ins) = shape {
-                // For specialized types the trait implementations are stored in
-                // the base class.
-                let cls = ins
-                    .instance_of()
-                    .specialization_source(db)
-                    .unwrap_or(ins.instance_of());
-                let valid = bound.requirements(db).into_iter().all(|r| {
-                    cls.trait_implementation(db, r.instance_of()).is_some()
-                });
+            // This ultimately ensures that we don't try to specialize some
+            // method over e.g. `Option[Int32]` where it's exected `Int32`
+            // implements a certain trait when it doesn't.
+            let Some(ins) = shape.as_stack_instance() else { continue };
 
-                if !valid {
-                    return false;
-                }
+            if !TypeChecker::new(db).class_compatible_with_bound(ins, bound) {
+                return false;
             }
         }
     }
@@ -504,6 +494,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
 
                         ins.class = cls;
                         self.schedule_regular_dropper(cls);
+                        self.schedule_regular_inline_type_methods(cls);
                     }
                     Instruction::Free(ins) => {
                         let cls = method
@@ -611,8 +602,8 @@ impl<'a, 'b> Specialize<'a, 'b> {
             module.classes.push(class);
 
             if kind.is_extern() {
-                // We don't generate droppers for extern classes, nor can they
-                // be used for receivers as method calls.
+                // We don't generate methods for extern classes, nor can they be
+                // used for receivers as method calls.
                 continue;
             }
 
@@ -621,6 +612,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
             let orig = class.specialization_source(&self.state.db).unwrap();
 
             self.generate_dropper(orig, class);
+            self.generate_inline_type_methods(orig, class);
 
             if orig == class {
                 // For regular classes the rest of the work doesn't apply.
@@ -842,7 +834,35 @@ impl<'a, 'b> Specialize<'a, 'b> {
         // This ensures that multiple call sites of `next` on `Iter[Int]`
         // produce the same method ID, while call sites of `next` on
         // `Iter[String]` produce a different method ID.
-        let spec_key = ordered_shapes_from_map(&base_shapes);
+        let mut spec_key = ordered_shapes_from_map(&base_shapes);
+
+        // TODO: remove?
+        for shape in &mut spec_key {
+            match shape {
+                Shape::Copy(i)
+                | Shape::Inline(i)
+                | Shape::InlineRef(i)
+                | Shape::InlineMut(i) => {
+                    *i = TypeSpecializer::new(
+                        &mut self.state.db,
+                        self.intern,
+                        &self.shapes,
+                        &mut self.classes,
+                    )
+                    .specialize_class_instance(*i);
+                }
+                _ => {}
+            }
+        }
+
+        // TODO: remove
+        for shape in &spec_key {
+            let Some(ins) = shape.as_stack_instance() else { continue };
+            assert!(ins
+                .instance_of()
+                .specialization_source(&self.state.db)
+                .is_some());
+        }
 
         if let Some(new) = method.specialization(&self.state.db, &spec_key) {
             return (new, method_shapes);
@@ -926,12 +946,40 @@ impl<'a, 'b> Specialize<'a, 'b> {
             return method;
         }
 
-        let key: Vec<Shape> = class
+        let mut key: Vec<Shape> = class
             .type_parameters(&self.state.db)
             .into_iter()
             .chain(method.type_parameters(&self.state.db))
             .map(|p| *shapes.get(&p).unwrap())
             .collect();
+
+        // TODO: remove?
+        for shape in &mut key {
+            match shape {
+                Shape::Copy(i)
+                | Shape::Inline(i)
+                | Shape::InlineRef(i)
+                | Shape::InlineMut(i) => {
+                    *i = TypeSpecializer::new(
+                        &mut self.state.db,
+                        self.intern,
+                        &self.shapes,
+                        &mut self.classes,
+                    )
+                    .specialize_class_instance(*i);
+                }
+                _ => {}
+            }
+        }
+
+        // TODO: remove
+        for shape in &key {
+            let Some(ins) = shape.as_stack_instance() else { continue };
+            assert!(ins
+                .instance_of()
+                .specialization_source(&self.state.db)
+                .is_some());
+        }
 
         if let Some(new) = method.specialization(&self.state.db, &key) {
             return new;
@@ -958,10 +1006,28 @@ impl<'a, 'b> Specialize<'a, 'b> {
         }
     }
 
+    fn schedule_regular_inline_type_methods(&mut self, class: ClassId) {
+        if class.is_generic(&self.state.db)
+            || !class.is_inline_type(&self.state.db)
+        {
+            return;
+        }
+
+        let methods = [INCREMENT_METHOD, DECREMENT_METHOD];
+
+        for name in methods {
+            let method = class.method(&self.state.db, name).unwrap();
+
+            if self.work.push(method, HashMap::new()) {
+                self.regular_methods.push(method);
+            }
+        }
+    }
+
     fn generate_dropper(&mut self, original: ClassId, class: ClassId) {
         let name = DROPPER_METHOD;
 
-        // Stack types won't have droppers, so there's nothing to do here.
+        // `copy` types won't have droppers, so there's nothing to do here.
         let Some(method) = original.method(&self.state.db, name) else {
             return;
         };
@@ -987,6 +1053,41 @@ impl<'a, 'b> Specialize<'a, 'b> {
         let new = self.specialize_method(class, method, &shapes);
 
         class.add_method(&mut self.state.db, name.to_string(), new);
+    }
+
+    fn generate_inline_type_methods(
+        &mut self,
+        original: ClassId,
+        class: ClassId,
+    ) {
+        if !original.is_inline_type(&self.state.db) {
+            return;
+        }
+
+        let methods = [INCREMENT_METHOD, DECREMENT_METHOD];
+
+        for name in methods {
+            let method = original.method(&self.state.db, name).unwrap();
+
+            if original == class {
+                if self.work.push(method, HashMap::new()) {
+                    self.regular_methods.push(method);
+                }
+
+                continue;
+            }
+
+            let shapes = class
+                .type_parameters(&self.state.db)
+                .into_iter()
+                .zip(class.shapes(&self.state.db).clone())
+                .collect();
+
+            let new = self.specialize_method(class, method, &shapes);
+            let name = method.name(&self.state.db).clone();
+
+            class.add_method(&mut self.state.db, name, new);
+        }
     }
 
     fn generate_closure_methods(&mut self, original: ClassId, class: ClassId) {
@@ -1024,10 +1125,38 @@ impl<'a, 'b> Specialize<'a, 'b> {
             method.type_parameters(&self.state.db)
         };
 
-        let method_shapes: Vec<_> = shape_params
+        let mut method_shapes: Vec<_> = shape_params
             .into_iter()
             .map(|p| *shapes.get(&p).unwrap())
             .collect();
+
+        // TODO: remove?
+        for shape in &mut method_shapes {
+            match shape {
+                Shape::Copy(i)
+                | Shape::Inline(i)
+                | Shape::InlineRef(i)
+                | Shape::InlineMut(i) => {
+                    *i = TypeSpecializer::new(
+                        &mut self.state.db,
+                        self.intern,
+                        &self.shapes,
+                        &mut self.classes,
+                    )
+                    .specialize_class_instance(*i);
+                }
+                _ => {}
+            }
+        }
+
+        // TODO: remove
+        for shape in &method_shapes {
+            let Some(ins) = shape.as_stack_instance() else { continue };
+            assert!(ins
+                .instance_of()
+                .specialization_source(&self.state.db)
+                .is_some());
+        }
 
         let new = method.clone_for_specialization(&mut self.state.db);
         let old_ret = method.return_type(&self.state.db);
@@ -1167,6 +1296,17 @@ impl<'a, 'b> Specialize<'a, 'b> {
             );
         }
 
+        // Calls may refer to type parameters from the surrounding scope, such
+        // as when a return type of an inner call is inferred according to the
+        // surrounding method's return type. As such, we need to include the
+        // outer shapes as well.
+        //
+        // We do this _last_ such that these shapes don't affect the above
+        // presence check.
+        for (&par, shape) in &self.shapes {
+            shapes.entry(par).or_insert(*shape);
+        }
+
         shapes
     }
 
@@ -1282,7 +1422,7 @@ impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
             | Shape::Nil
             | Shape::Boolean
             | Shape::Pointer
-            | Shape::Stack(_) => {
+            | Shape::Copy(_) => {
                 self.ignore_value(block_id, after_id);
             }
             Shape::Mut | Shape::Ref => {
@@ -1291,8 +1431,11 @@ impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
             Shape::Atomic | Shape::String => {
                 self.drop_atomic(block_id, after_id, val, loc);
             }
-            Shape::Owned => {
+            Shape::Owned | Shape::Inline(_) => {
                 self.drop_owned(block_id, after_id, val, ins.dropper, loc);
+            }
+            Shape::InlineRef(t) | Shape::InlineMut(t) => {
+                self.drop_stack_borrow(block_id, after_id, val, t, loc);
             }
         }
     }
@@ -1359,11 +1502,8 @@ impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
                 .class_id(self.db)
                 .unwrap();
 
-            if class.has_object_header(self.db) {
-                self.block_mut(before_id).check_refs(value, location);
-            }
-
             if class.is_heap_allocated(self.db) {
+                self.block_mut(before_id).check_refs(value, location);
                 self.block_mut(before_id).free(value, class, location);
             }
         }
@@ -1394,9 +1534,30 @@ impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
                 None,
                 location,
             );
-        } else if !typ.is_stack_allocated(self.db) {
+        } else if !typ.is_copy_type(self.db) {
             self.block_mut(block).call_dropper(reg, value, location);
         }
+    }
+
+    fn drop_stack_borrow(
+        &mut self,
+        before_id: BlockId,
+        after_id: BlockId,
+        value: RegisterId,
+        instance: ClassInstance,
+        location: InstructionLocation,
+    ) {
+        let reg = self.method.registers.alloc(TypeRef::nil());
+        let method = instance
+            .instance_of()
+            .method(self.db, types::DECREMENT_METHOD)
+            .unwrap();
+        let args = Vec::new();
+
+        self.block_mut(before_id)
+            .call_instance(reg, value, method, args, None, location);
+        self.block_mut(before_id).goto(after_id, location);
+        self.method.body.add_edge(before_id, after_id);
     }
 
     fn block_mut(&mut self, id: BlockId) -> &mut Block {
@@ -1458,7 +1619,7 @@ impl<'a, 'b, 'c> ExpandBorrow<'a, 'b, 'c> {
             | Shape::Nil
             | Shape::Boolean
             | Shape::Pointer
-            | Shape::Stack(_) => {
+            | Shape::Copy(_) => {
                 // These values should be left as-is.
             }
             Shape::Mut | Shape::Ref | Shape::Owned => {
@@ -1466,6 +1627,9 @@ impl<'a, 'b, 'c> ExpandBorrow<'a, 'b, 'c> {
             }
             Shape::Atomic | Shape::String => {
                 self.block_mut(block_id).increment_atomic(val, loc);
+            }
+            Shape::Inline(t) | Shape::InlineRef(t) | Shape::InlineMut(t) => {
+                self.borrow_inline_type(block_id, val, t, loc);
             }
         }
 
@@ -1476,5 +1640,23 @@ impl<'a, 'b, 'c> ExpandBorrow<'a, 'b, 'c> {
 
     fn block_mut(&mut self, id: BlockId) -> &mut Block {
         &mut self.method.body.blocks[id.0]
+    }
+
+    fn borrow_inline_type(
+        &mut self,
+        block: BlockId,
+        value: RegisterId,
+        instance: ClassInstance,
+        location: InstructionLocation,
+    ) {
+        let reg = self.method.registers.alloc(TypeRef::nil());
+        let method = instance
+            .instance_of()
+            .method(self.db, types::INCREMENT_METHOD)
+            .unwrap();
+        let args = Vec::new();
+
+        self.block_mut(block)
+            .call_instance(reg, value, method, args, None, location);
     }
 }

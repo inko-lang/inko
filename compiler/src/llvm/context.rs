@@ -11,11 +11,19 @@ use inkwell::types::{
 };
 use inkwell::values::FunctionValue;
 use inkwell::{context, AddressSpace};
+use std::cmp::max;
 use std::mem::size_of;
 use types::{
     Block, Database, ForeignType, MethodId, TypeId, TypeRef, BOOL_ID, FLOAT_ID,
     INT_ID, NIL_ID,
 };
+
+fn size_in_bits(bytes: u32) -> u32 {
+    // LLVM crashes when passing/returning zero sized types (e.g. structs). In
+    // addition, such types aren't useful in Inko, so we enforce a minimum size
+    // of 1 bit.
+    max(1, bytes * 8)
+}
 
 /// A wrapper around an LLVM Context that provides some additional methods.
 pub(crate) struct Context {
@@ -219,7 +227,7 @@ impl Context {
         match state.config.target.arch {
             Architecture::Amd64 => {
                 if bytes <= 8 {
-                    let bits = self.custom_int(bytes * 8);
+                    let bits = self.custom_int(size_in_bits(bytes));
 
                     ArgumentType::Regular(bits.as_basic_type_enum())
                 } else if bytes <= 16 {
@@ -281,7 +289,7 @@ impl Context {
         match state.config.target.arch {
             Architecture::Amd64 => {
                 if bytes <= 8 {
-                    let bits = self.custom_int(bytes * 8);
+                    let bits = self.custom_int(size_in_bits(bytes));
 
                     ReturnType::Regular(bits.as_basic_type_enum())
                 } else if bytes <= 16 {
@@ -294,7 +302,7 @@ impl Context {
             }
             Architecture::Arm64 => {
                 if bytes <= 8 {
-                    let bits = self.custom_int(bytes * 8);
+                    let bits = self.custom_int(size_in_bits(bytes));
 
                     ReturnType::Regular(bits.as_basic_type_enum())
                 } else if bytes <= 16 {
@@ -320,7 +328,8 @@ impl Context {
         let fields: Vec<_> = typ
             .get_field_types_iter()
             .map(|t| {
-                let bits = layouts.target_data.get_abi_size(&t) as u32 * 8;
+                let bits =
+                    size_in_bits(layouts.target_data.get_abi_size(&t) as u32);
 
                 self.custom_int(bits).as_basic_type_enum()
             })

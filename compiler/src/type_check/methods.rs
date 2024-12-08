@@ -97,8 +97,8 @@ trait MethodDefiner {
                 pid.set_mutable(self.db_mut());
             }
 
-            if param_node.inline {
-                pid.set_stack_allocated(self.db_mut());
+            if param_node.copy {
+                pid.set_copy(self.db_mut());
             }
 
             param_node.type_parameter_id = Some(pid);
