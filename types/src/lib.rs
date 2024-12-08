@@ -2046,14 +2046,6 @@ impl ClassInstance {
             _ if self.instance_of.is_inline_type(db) => {
                 let ins = self.interned(db, interned);
 
-                // TODO: only produce shapes for specialized types?
-                if ins.instance_of.is_generic(db) {
-                    assert!(ins
-                        .instance_of
-                        .specialization_source(db)
-                        .is_some());
-                }
-
                 match default {
                     Shape::Mut => Shape::InlineMut(ins),
                     Shape::Ref => Shape::InlineRef(ins),
@@ -2927,6 +2919,12 @@ impl MethodId {
         shapes: Vec<Shape>,
         method: MethodId,
     ) {
+        // TODO: remove
+        for shape in &shapes {
+            let Some(ins) = shape.as_stack_instance() else { continue };
+            assert!(ins.instance_of().specialization_source(db).is_some());
+        }
+
         self.get_mut(db).specializations.insert(shapes, method);
     }
 

@@ -398,35 +398,6 @@ impl<'a, 'b> Specialize<'a, 'b> {
             .specialize(reg.value_type);
         }
 
-        // TODO: remove
-        //for block in &mut method.body.blocks {
-        //    for ins in &mut block.instructions {
-        //        let idx = match ins {
-        //            Instruction::CallStatic(i) => i.type_arguments,
-        //            Instruction::CallInstance(i) => i.type_arguments,
-        //            Instruction::Send(i) => i.type_arguments,
-        //            Instruction::CallDynamic(i) => i.type_arguments,
-        //            _ => None,
-        //        };
-        //
-        //        let Some(targs) =
-        //            idx.and_then(|i| mir.type_arguments.get_mut(i))
-        //        else {
-        //            continue;
-        //        };
-        //
-        //        for typ in targs.values_mut() {
-        //            *typ = TypeSpecializer::new(
-        //                &mut self.state.db,
-        //                self.intern,
-        //                &self.shapes,
-        //                &mut self.classes,
-        //            )
-        //            .specialize(*typ);
-        //        }
-        //    }
-        //}
-
         for block in &mut method.body.blocks {
             for instruction in &mut block.instructions {
                 match instruction {
@@ -863,7 +834,26 @@ impl<'a, 'b> Specialize<'a, 'b> {
         // This ensures that multiple call sites of `next` on `Iter[Int]`
         // produce the same method ID, while call sites of `next` on
         // `Iter[String]` produce a different method ID.
-        let spec_key = ordered_shapes_from_map(&base_shapes);
+        let mut spec_key = ordered_shapes_from_map(&base_shapes);
+
+        // TODO: remove?
+        for shape in &mut spec_key {
+            match shape {
+                Shape::Copy(i)
+                | Shape::Inline(i)
+                | Shape::InlineRef(i)
+                | Shape::InlineMut(i) => {
+                    *i = TypeSpecializer::new(
+                        &mut self.state.db,
+                        self.intern,
+                        &self.shapes,
+                        &mut self.classes,
+                    )
+                    .specialize_class_instance(*i);
+                }
+                _ => {}
+            }
+        }
 
         // TODO: remove
         for shape in &spec_key {
@@ -956,12 +946,31 @@ impl<'a, 'b> Specialize<'a, 'b> {
             return method;
         }
 
-        let key: Vec<Shape> = class
+        let mut key: Vec<Shape> = class
             .type_parameters(&self.state.db)
             .into_iter()
             .chain(method.type_parameters(&self.state.db))
             .map(|p| *shapes.get(&p).unwrap())
             .collect();
+
+        // TODO: remove?
+        for shape in &mut key {
+            match shape {
+                Shape::Copy(i)
+                | Shape::Inline(i)
+                | Shape::InlineRef(i)
+                | Shape::InlineMut(i) => {
+                    *i = TypeSpecializer::new(
+                        &mut self.state.db,
+                        self.intern,
+                        &self.shapes,
+                        &mut self.classes,
+                    )
+                    .specialize_class_instance(*i);
+                }
+                _ => {}
+            }
+        }
 
         // TODO: remove
         for shape in &key {
@@ -1116,10 +1125,38 @@ impl<'a, 'b> Specialize<'a, 'b> {
             method.type_parameters(&self.state.db)
         };
 
-        let method_shapes: Vec<_> = shape_params
+        let mut method_shapes: Vec<_> = shape_params
             .into_iter()
             .map(|p| *shapes.get(&p).unwrap())
             .collect();
+
+        // TODO: remove?
+        for shape in &mut method_shapes {
+            match shape {
+                Shape::Copy(i)
+                | Shape::Inline(i)
+                | Shape::InlineRef(i)
+                | Shape::InlineMut(i) => {
+                    *i = TypeSpecializer::new(
+                        &mut self.state.db,
+                        self.intern,
+                        &self.shapes,
+                        &mut self.classes,
+                    )
+                    .specialize_class_instance(*i);
+                }
+                _ => {}
+            }
+        }
+
+        // TODO: remove
+        for shape in &method_shapes {
+            let Some(ins) = shape.as_stack_instance() else { continue };
+            assert!(ins
+                .instance_of()
+                .specialization_source(&self.state.db)
+                .is_some());
+        }
 
         let new = method.clone_for_specialization(&mut self.state.db);
         let old_ret = method.return_type(&self.state.db);

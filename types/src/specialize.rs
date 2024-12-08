@@ -182,7 +182,7 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
         }
     }
 
-    fn specialize_class_instance(
+    pub fn specialize_class_instance(
         &mut self,
         ins: ClassInstance,
     ) -> ClassInstance {
@@ -333,6 +333,12 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
             let name = param.name(self.db).clone();
 
             new.get_mut(self.db).type_parameters.insert(name, param);
+        }
+
+        // TODO: remove
+        for shape in &key {
+            let Some(ins) = shape.as_stack_instance() else { continue };
+            assert!(ins.instance_of().specialization_source(self.db).is_some());
         }
 
         new.set_shapes(self.db, key.clone());
