@@ -25,20 +25,26 @@ pub(crate) fn format_shape(db: &Database, shape: Shape, buf: &mut String) {
         Shape::Atomic => write!(buf, "a"),
         Shape::Nil => write!(buf, "n"),
         Shape::Pointer => write!(buf, "p"),
-        Shape::Stack(ins) => {
-            let _ = write!(buf, "SO{}.", ins.instance_of().module(db).name(db));
+        Shape::Copy(ins) => {
+            let _ = write!(buf, "C{}.", ins.instance_of().module(db).name(db));
 
             format_class_name(db, ins.instance_of(), buf);
             Ok(())
         }
-        Shape::StackRef(ins) => {
-            let _ = write!(buf, "SR{}.", ins.instance_of().module(db).name(db));
+        Shape::Inline(ins) => {
+            let _ = write!(buf, "IO{}.", ins.instance_of().module(db).name(db));
 
             format_class_name(db, ins.instance_of(), buf);
             Ok(())
         }
-        Shape::StackMut(ins) => {
-            let _ = write!(buf, "SM{}.", ins.instance_of().module(db).name(db));
+        Shape::InlineRef(ins) => {
+            let _ = write!(buf, "IR{}.", ins.instance_of().module(db).name(db));
+
+            format_class_name(db, ins.instance_of(), buf);
+            Ok(())
+        }
+        Shape::InlineMut(ins) => {
+            let _ = write!(buf, "IM{}.", ins.instance_of().module(db).name(db));
 
             format_class_name(db, ins.instance_of(), buf);
             Ok(())
@@ -212,17 +218,17 @@ mod tests {
             &mut db,
             vec![
                 Shape::Int(64, Sign::Signed),
-                Shape::Stack(ClassInstance::new(cls2)),
+                Shape::Inline(ClassInstance::new(cls2)),
             ],
         );
         cls2.set_shapes(&mut db, vec![Shape::String]);
         cls3.set_shapes(
             &mut db,
-            vec![Shape::StackRef(ClassInstance::new(cls2))],
+            vec![Shape::InlineRef(ClassInstance::new(cls2))],
         );
         cls4.set_shapes(
             &mut db,
-            vec![Shape::StackMut(ClassInstance::new(cls2))],
+            vec![Shape::InlineMut(ClassInstance::new(cls2))],
         );
 
         assert_eq!(name(&db, Shape::Owned), "o");
@@ -237,16 +243,16 @@ mod tests {
         assert_eq!(name(&db, Shape::Nil), "n");
         assert_eq!(name(&db, Shape::Pointer), "p");
         assert_eq!(
-            name(&db, Shape::Stack(ClassInstance::new(cls1))),
-            "SOa.b.c.A#i64SOa.b.c.B#s"
+            name(&db, Shape::Inline(ClassInstance::new(cls1))),
+            "IOa.b.c.A#i64IOa.b.c.B#s"
         );
         assert_eq!(
-            name(&db, Shape::StackMut(ClassInstance::new(cls3))),
-            "SMa.b.c.C#SRa.b.c.B#s"
+            name(&db, Shape::InlineMut(ClassInstance::new(cls3))),
+            "IMa.b.c.C#IRa.b.c.B#s"
         );
         assert_eq!(
-            name(&db, Shape::StackRef(ClassInstance::new(cls4))),
-            "SRa.b.c.D#SMa.b.c.B#s"
+            name(&db, Shape::InlineRef(ClassInstance::new(cls4))),
+            "IRa.b.c.D#IMa.b.c.B#s"
         );
     }
 }

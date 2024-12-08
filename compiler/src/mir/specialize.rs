@@ -80,10 +80,7 @@ fn shapes_compatible_with_bounds(
             // This ultimately ensures that we don't try to specialize some
             // method over e.g. `Option[Int32]` where it's exected `Int32`
             // implements a certain trait when it doesn't.
-            let ins = match shape {
-                Shape::Stack(v) | Shape::StackMut(v) | Shape::StackRef(v) => v,
-                _ => continue,
-            };
+            let Some(ins) = shape.as_stack_instance() else { continue };
 
             if !TypeChecker::new(db).class_compatible_with_bound(ins, bound) {
                 return false;
@@ -400,6 +397,35 @@ impl<'a, 'b> Specialize<'a, 'b> {
             )
             .specialize(reg.value_type);
         }
+
+        // TODO: remove
+        //for block in &mut method.body.blocks {
+        //    for ins in &mut block.instructions {
+        //        let idx = match ins {
+        //            Instruction::CallStatic(i) => i.type_arguments,
+        //            Instruction::CallInstance(i) => i.type_arguments,
+        //            Instruction::Send(i) => i.type_arguments,
+        //            Instruction::CallDynamic(i) => i.type_arguments,
+        //            _ => None,
+        //        };
+        //
+        //        let Some(targs) =
+        //            idx.and_then(|i| mir.type_arguments.get_mut(i))
+        //        else {
+        //            continue;
+        //        };
+        //
+        //        for typ in targs.values_mut() {
+        //            *typ = TypeSpecializer::new(
+        //                &mut self.state.db,
+        //                self.intern,
+        //                &self.shapes,
+        //                &mut self.classes,
+        //            )
+        //            .specialize(*typ);
+        //        }
+        //    }
+        //}
 
         for block in &mut method.body.blocks {
             for instruction in &mut block.instructions {
@@ -839,6 +865,15 @@ impl<'a, 'b> Specialize<'a, 'b> {
         // `Iter[String]` produce a different method ID.
         let spec_key = ordered_shapes_from_map(&base_shapes);
 
+        // TODO: remove
+        for shape in &spec_key {
+            let Some(ins) = shape.as_stack_instance() else { continue };
+            assert!(ins
+                .instance_of()
+                .specialization_source(&self.state.db)
+                .is_some());
+        }
+
         if let Some(new) = method.specialization(&self.state.db, &spec_key) {
             return (new, method_shapes);
         }
@@ -927,6 +962,15 @@ impl<'a, 'b> Specialize<'a, 'b> {
             .chain(method.type_parameters(&self.state.db))
             .map(|p| *shapes.get(&p).unwrap())
             .collect();
+
+        // TODO: remove
+        for shape in &key {
+            let Some(ins) = shape.as_stack_instance() else { continue };
+            assert!(ins
+                .instance_of()
+                .specialization_source(&self.state.db)
+                .is_some());
+        }
 
         if let Some(new) = method.specialization(&self.state.db, &key) {
             return new;
@@ -1340,14 +1384,9 @@ impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
             | Shape::Float(_)
             | Shape::Nil
             | Shape::Boolean
-            | Shape::Pointer => {
+            | Shape::Pointer
+            | Shape::Copy(_) => {
                 self.ignore_value(block_id, after_id);
-            }
-            Shape::Stack(t) if t.instance_of().is_copy_type(self.db) => {
-                self.ignore_value(block_id, after_id);
-            }
-            Shape::Stack(_) => {
-                self.drop_owned(block_id, after_id, val, ins.dropper, loc);
             }
             Shape::Mut | Shape::Ref => {
                 self.drop_reference(block_id, after_id, val, loc);
@@ -1355,10 +1394,10 @@ impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
             Shape::Atomic | Shape::String => {
                 self.drop_atomic(block_id, after_id, val, loc);
             }
-            Shape::Owned => {
+            Shape::Owned | Shape::Inline(_) => {
                 self.drop_owned(block_id, after_id, val, ins.dropper, loc);
             }
-            Shape::StackRef(t) | Shape::StackMut(t) => {
+            Shape::InlineRef(t) | Shape::InlineMut(t) => {
                 self.drop_stack_borrow(block_id, after_id, val, t, loc);
             }
         }
@@ -1542,7 +1581,8 @@ impl<'a, 'b, 'c> ExpandBorrow<'a, 'b, 'c> {
             | Shape::Float(_)
             | Shape::Nil
             | Shape::Boolean
-            | Shape::Pointer => {
+            | Shape::Pointer
+            | Shape::Copy(_) => {
                 // These values should be left as-is.
             }
             Shape::Mut | Shape::Ref | Shape::Owned => {
@@ -1551,10 +1591,7 @@ impl<'a, 'b, 'c> ExpandBorrow<'a, 'b, 'c> {
             Shape::Atomic | Shape::String => {
                 self.block_mut(block_id).increment_atomic(val, loc);
             }
-            Shape::Stack(t) if t.instance_of().is_copy_type(self.db) => {
-                // Nothing to do
-            }
-            Shape::Stack(t) | Shape::StackRef(t) | Shape::StackMut(t) => {
+            Shape::Inline(t) | Shape::InlineRef(t) | Shape::InlineMut(t) => {
                 self.borrow_inline_type(block_id, val, t, loc);
             }
         }

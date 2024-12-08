@@ -77,14 +77,14 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
                 Some(Shape::Atomic) => {
                     TypeRef::Owned(TypeId::AtomicTypeParameter(pid))
                 }
-                Some(Shape::Stack(ins)) => TypeRef::Owned(
-                    TypeId::ClassInstance(self.specialize_class_instance(*ins)),
+                Some(Shape::Inline(i) | Shape::Copy(i)) => TypeRef::Owned(
+                    TypeId::ClassInstance(self.specialize_class_instance(*i)),
                 ),
-                Some(Shape::StackRef(ins)) => TypeRef::Ref(
-                    TypeId::ClassInstance(self.specialize_class_instance(*ins)),
+                Some(Shape::InlineRef(i)) => TypeRef::Ref(
+                    TypeId::ClassInstance(self.specialize_class_instance(*i)),
                 ),
-                Some(Shape::StackMut(ins)) => TypeRef::Mut(
-                    TypeId::ClassInstance(self.specialize_class_instance(*ins)),
+                Some(Shape::InlineMut(i)) => TypeRef::Mut(
+                    TypeId::ClassInstance(self.specialize_class_instance(*i)),
                 ),
                 _ => value,
             },
@@ -104,14 +104,16 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
                 Some(Shape::Atomic) => {
                     TypeRef::Ref(TypeId::AtomicTypeParameter(id))
                 }
-                Some(Shape::Stack(ins)) => TypeRef::Owned(
-                    TypeId::ClassInstance(self.specialize_class_instance(*ins)),
-                ),
-                Some(Shape::StackRef(ins) | Shape::StackMut(ins)) => {
-                    TypeRef::Ref(TypeId::ClassInstance(
-                        self.specialize_class_instance(*ins),
-                    ))
-                }
+                Some(Shape::Copy(i)) => TypeRef::Owned(TypeId::ClassInstance(
+                    self.specialize_class_instance(*i),
+                )),
+                Some(
+                    Shape::Inline(i)
+                    | Shape::InlineRef(i)
+                    | Shape::InlineMut(i),
+                ) => TypeRef::Ref(TypeId::ClassInstance(
+                    self.specialize_class_instance(*i),
+                )),
                 _ => value.as_ref(self.db),
             },
             TypeRef::Mut(
@@ -131,14 +133,14 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
                 Some(Shape::Atomic) => {
                     TypeRef::Mut(TypeId::AtomicTypeParameter(id))
                 }
-                Some(Shape::Stack(ins)) => TypeRef::Owned(
-                    TypeId::ClassInstance(self.specialize_class_instance(*ins)),
+                Some(Shape::Copy(i)) => TypeRef::Owned(TypeId::ClassInstance(
+                    self.specialize_class_instance(*i),
+                )),
+                Some(Shape::InlineRef(i)) => TypeRef::Ref(
+                    TypeId::ClassInstance(self.specialize_class_instance(*i)),
                 ),
-                Some(Shape::StackRef(ins)) => TypeRef::Ref(
-                    TypeId::ClassInstance(self.specialize_class_instance(*ins)),
-                ),
-                Some(Shape::StackMut(ins)) => TypeRef::Mut(
-                    TypeId::ClassInstance(self.specialize_class_instance(*ins)),
+                Some(Shape::Inline(i) | Shape::InlineMut(i)) => TypeRef::Mut(
+                    TypeId::ClassInstance(self.specialize_class_instance(*i)),
                 ),
                 _ => value.force_as_mut(self.db),
             },
@@ -732,5 +734,62 @@ mod tests {
         assert_eq!(uni, TypeRef::UniMut(TypeId::TypeParameter(param)));
         assert_eq!(immutable, TypeRef::Ref(TypeId::TypeParameter(param)));
         assert_eq!(mutable, TypeRef::Mut(TypeId::TypeParameter(param)));
+    }
+
+    #[test]
+    fn test_specialize_borrow_inline_type_parameter() {
+        let mut db = Database::new();
+        let mut shapes = HashMap::new();
+        let mut classes = Vec::new();
+        let mut interned = InternedTypeArguments::new();
+        let cls = new_class(&mut db, "A");
+        let ins = ClassInstance::new(cls);
+        let p1 = new_parameter(&mut db, "X");
+        let p2 = new_parameter(&mut db, "Y");
+
+        shapes.insert(p1, Shape::Inline(ins));
+        shapes.insert(p2, Shape::Copy(ins));
+
+        assert_eq!(
+            TypeSpecializer::new(&mut db, &mut interned, &shapes, &mut classes)
+                .specialize(owned(parameter(p1))),
+            owned(instance(cls))
+        );
+        assert_eq!(
+            TypeSpecializer::new(&mut db, &mut interned, &shapes, &mut classes)
+                .specialize(uni(parameter(p1))),
+            owned(instance(cls))
+        );
+        assert_eq!(
+            TypeSpecializer::new(&mut db, &mut interned, &shapes, &mut classes)
+                .specialize(mutable(parameter(p1))),
+            mutable(instance(cls))
+        );
+        assert_eq!(
+            TypeSpecializer::new(&mut db, &mut interned, &shapes, &mut classes)
+                .specialize(immutable(parameter(p1))),
+            immutable(instance(cls))
+        );
+
+        assert_eq!(
+            TypeSpecializer::new(&mut db, &mut interned, &shapes, &mut classes)
+                .specialize(owned(parameter(p2))),
+            owned(instance(cls))
+        );
+        assert_eq!(
+            TypeSpecializer::new(&mut db, &mut interned, &shapes, &mut classes)
+                .specialize(owned(parameter(p2))),
+            owned(instance(cls))
+        );
+        assert_eq!(
+            TypeSpecializer::new(&mut db, &mut interned, &shapes, &mut classes)
+                .specialize(mutable(parameter(p2))),
+            owned(instance(cls))
+        );
+        assert_eq!(
+            TypeSpecializer::new(&mut db, &mut interned, &shapes, &mut classes)
+                .specialize(immutable(parameter(p2))),
+            owned(instance(cls))
+        );
     }
 }

@@ -2041,15 +2041,23 @@ impl ClassInstance {
             STRING_ID => Shape::String,
             _ if self.instance_of.kind(db).is_atomic() => Shape::Atomic,
             _ if self.instance_of.is_copy_type(db) => {
-                Shape::Stack(self.interned(db, interned))
+                Shape::Copy(self.interned(db, interned))
             }
             _ if self.instance_of.is_inline_type(db) => {
                 let ins = self.interned(db, interned);
 
+                // TODO: only produce shapes for specialized types?
+                if ins.instance_of.is_generic(db) {
+                    assert!(ins
+                        .instance_of
+                        .specialization_source(db)
+                        .is_some());
+                }
+
                 match default {
-                    Shape::Mut => Shape::StackMut(ins),
-                    Shape::Ref => Shape::StackRef(ins),
-                    _ => Shape::Stack(ins),
+                    Shape::Mut => Shape::InlineMut(ins),
+                    Shape::Ref => Shape::InlineRef(ins),
+                    _ => Shape::Inline(ins),
                 }
             }
             _ => default,
@@ -3926,14 +3934,17 @@ pub enum Shape {
     ///   integers
     Pointer,
 
+    /// A stack allocated value type.
+    Copy(ClassInstance),
+
     /// A stack allocated, owned type.
-    Stack(ClassInstance),
+    Inline(ClassInstance),
 
     /// An immutable borrow of an inline type.
-    StackRef(ClassInstance),
+    InlineRef(ClassInstance),
 
     /// A mutable borrow of an inline type.
-    StackMut(ClassInstance),
+    InlineMut(ClassInstance),
 }
 
 impl Shape {
@@ -3954,6 +3965,16 @@ impl Shape {
             _ => false,
         }
     }
+
+    pub fn as_stack_instance(self) -> Option<ClassInstance> {
+        match self {
+            Shape::Copy(v)
+            | Shape::Inline(v)
+            | Shape::InlineMut(v)
+            | Shape::InlineRef(v) => Some(v),
+            _ => None,
+        }
+    }
 }
 
 impl PartialEq for Shape {
@@ -3971,9 +3992,10 @@ impl PartialEq for Shape {
             (Nil, Nil) => true,
             (Atomic, Atomic) => true,
             (Pointer, Pointer) => true,
-            (Stack(a), Stack(b)) => a.instance_of == b.instance_of,
-            (StackRef(a), StackRef(b)) => a.instance_of == b.instance_of,
-            (StackMut(a), StackMut(b)) => a.instance_of == b.instance_of,
+            (Copy(a), Copy(b)) => a.instance_of == b.instance_of,
+            (Inline(a), Inline(b)) => a.instance_of == b.instance_of,
+            (InlineRef(a), InlineRef(b)) => a.instance_of == b.instance_of,
+            (InlineMut(a), InlineMut(b)) => a.instance_of == b.instance_of,
             _ => false,
         }
     }
@@ -4001,16 +4023,20 @@ impl Hash for Shape {
             Nil => state.write_u8(7),
             Atomic => state.write_u8(8),
             Pointer => state.write_u8(9),
-            Stack(i) => {
+            Copy(i) => {
                 state.write_u8(10);
                 i.instance_of.hash(state);
             }
-            StackRef(i) => {
+            Inline(i) => {
                 state.write_u8(11);
                 i.instance_of.hash(state);
             }
-            StackMut(i) => {
+            InlineRef(i) => {
                 state.write_u8(12);
+                i.instance_of.hash(state);
+            }
+            InlineMut(i) => {
+                state.write_u8(13);
                 i.instance_of.hash(state);
             }
         }
@@ -5267,6 +5293,7 @@ impl TypeRef {
                 TypeId::TypeParameter(id) | TypeId::RigidTypeParameter(id),
             ) => match shapes.get(&id).cloned() {
                 Some(Shape::Owned) | None => Shape::Mut,
+                Some(Shape::Inline(i)) => Shape::InlineMut(i),
                 Some(shape) => shape,
             },
             TypeRef::Ref(
@@ -5276,6 +5303,7 @@ impl TypeRef {
                 TypeId::TypeParameter(id) | TypeId::RigidTypeParameter(id),
             ) => match shapes.get(&id).cloned() {
                 Some(Shape::Owned) | None => Shape::Ref,
+                Some(Shape::Inline(i)) => Shape::InlineRef(i),
                 Some(shape) => shape,
             },
             TypeRef::Mut(_) | TypeRef::UniMut(_) => Shape::Mut,
@@ -6883,14 +6911,17 @@ mod tests {
         let cls1 = new_class(&mut db, "Thing");
         let cls2 = new_class(&mut db, "Foo");
         let cls3 = new_class(&mut db, "Bar");
+        let ins = ClassInstance::new(cls1);
         let var = TypePlaceholder::alloc(&mut db, None);
-        let param1 = new_parameter(&mut db, "T");
-        let param2 = new_parameter(&mut db, "X");
+        let p1 = new_parameter(&mut db, "T");
+        let p2 = new_parameter(&mut db, "X");
+        let p3 = new_parameter(&mut db, "Z");
         let mut shapes = HashMap::new();
 
         cls2.set_copy_storage(&mut db);
         cls3.set_inline_storage(&mut db);
-        shapes.insert(param1, Shape::int());
+        shapes.insert(p1, Shape::int());
+        shapes.insert(p3, Shape::Inline(ins));
         var.assign(&mut db, TypeRef::int());
 
         assert_eq!(
@@ -6935,29 +6966,29 @@ mod tests {
             Shape::int()
         );
         assert_eq!(
-            owned(parameter(param1)).shape(&db, &mut inter, &shapes),
+            owned(parameter(p1)).shape(&db, &mut inter, &shapes),
             Shape::int()
         );
         assert_eq!(
-            immutable(parameter(param1)).shape(&db, &mut inter, &shapes),
+            immutable(parameter(p1)).shape(&db, &mut inter, &shapes),
             Shape::int()
         );
         assert_eq!(
-            mutable(parameter(param1)).shape(&db, &mut inter, &shapes),
+            mutable(parameter(p1)).shape(&db, &mut inter, &shapes),
             Shape::int()
         );
         assert_eq!(
-            owned(TypeId::AtomicTypeParameter(param2))
+            owned(TypeId::AtomicTypeParameter(p2))
                 .shape(&db, &mut inter, &shapes),
             Shape::Atomic
         );
         assert_eq!(
-            immutable(TypeId::AtomicTypeParameter(param2))
+            immutable(TypeId::AtomicTypeParameter(p2))
                 .shape(&db, &mut inter, &shapes),
             Shape::Atomic
         );
         assert_eq!(
-            mutable(TypeId::AtomicTypeParameter(param2))
+            mutable(TypeId::AtomicTypeParameter(p2))
                 .shape(&db, &mut inter, &shapes),
             Shape::Atomic
         );
@@ -7031,27 +7062,39 @@ mod tests {
         );
         assert_eq!(
             owned(instance(cls2)).shape(&db, &mut inter, &shapes),
-            Shape::Stack(ClassInstance::new(cls2))
+            Shape::Copy(ClassInstance::new(cls2))
         );
         assert_eq!(
             mutable(instance(cls2)).shape(&db, &mut inter, &shapes),
-            Shape::Stack(ClassInstance::new(cls2))
+            Shape::Copy(ClassInstance::new(cls2))
         );
         assert_eq!(
             immutable(instance(cls2)).shape(&db, &mut inter, &shapes),
-            Shape::Stack(ClassInstance::new(cls2))
+            Shape::Copy(ClassInstance::new(cls2))
         );
         assert_eq!(
             owned(instance(cls3)).shape(&db, &mut inter, &shapes),
-            Shape::Stack(ClassInstance::new(cls3))
+            Shape::Inline(ClassInstance::new(cls3))
         );
         assert_eq!(
             mutable(instance(cls3)).shape(&db, &mut inter, &shapes),
-            Shape::StackMut(ClassInstance::new(cls3))
+            Shape::InlineMut(ClassInstance::new(cls3))
         );
         assert_eq!(
             immutable(instance(cls3)).shape(&db, &mut inter, &shapes),
-            Shape::StackRef(ClassInstance::new(cls3))
+            Shape::InlineRef(ClassInstance::new(cls3))
+        );
+        assert_eq!(
+            owned(parameter(p3)).shape(&db, &mut inter, &shapes),
+            Shape::Inline(ins)
+        );
+        assert_eq!(
+            mutable(parameter(p3)).shape(&db, &mut inter, &shapes),
+            Shape::InlineMut(ins)
+        );
+        assert_eq!(
+            immutable(parameter(p3)).shape(&db, &mut inter, &shapes),
+            Shape::InlineRef(ins)
         );
     }
 
@@ -7186,20 +7229,20 @@ mod tests {
             ClassInstance { instance_of: ClassId(1), type_arguments: 10 };
         let ins3 = ClassInstance { instance_of: ClassId(2), type_arguments: 0 };
 
-        assert_eq!(Shape::Stack(ins1), Shape::Stack(ins2));
-        assert_ne!(Shape::Stack(ins1), Shape::Stack(ins3));
-        assert_ne!(Shape::Stack(ins1), Shape::StackRef(ins2));
-        assert_ne!(Shape::Stack(ins1), Shape::StackMut(ins2));
+        assert_eq!(Shape::Inline(ins1), Shape::Inline(ins2));
+        assert_ne!(Shape::Inline(ins1), Shape::Inline(ins3));
+        assert_ne!(Shape::Inline(ins1), Shape::InlineRef(ins2));
+        assert_ne!(Shape::Inline(ins1), Shape::InlineMut(ins2));
 
-        assert_eq!(Shape::StackRef(ins1), Shape::StackRef(ins2));
-        assert_ne!(Shape::StackRef(ins1), Shape::StackRef(ins3));
-        assert_ne!(Shape::StackRef(ins1), Shape::StackMut(ins2));
-        assert_ne!(Shape::StackRef(ins1), Shape::Stack(ins2));
+        assert_eq!(Shape::InlineRef(ins1), Shape::InlineRef(ins2));
+        assert_ne!(Shape::InlineRef(ins1), Shape::InlineRef(ins3));
+        assert_ne!(Shape::InlineRef(ins1), Shape::InlineMut(ins2));
+        assert_ne!(Shape::InlineRef(ins1), Shape::Inline(ins2));
 
-        assert_eq!(Shape::StackMut(ins1), Shape::StackMut(ins2));
-        assert_ne!(Shape::StackMut(ins1), Shape::StackMut(ins3));
-        assert_ne!(Shape::StackMut(ins1), Shape::StackRef(ins2));
-        assert_ne!(Shape::StackMut(ins1), Shape::Stack(ins2));
+        assert_eq!(Shape::InlineMut(ins1), Shape::InlineMut(ins2));
+        assert_ne!(Shape::InlineMut(ins1), Shape::InlineMut(ins3));
+        assert_ne!(Shape::InlineMut(ins1), Shape::InlineRef(ins2));
+        assert_ne!(Shape::InlineMut(ins1), Shape::Inline(ins2));
     }
 
     #[test]
@@ -7211,12 +7254,12 @@ mod tests {
         let ins3 = ClassInstance { instance_of: ClassId(2), type_arguments: 0 };
 
         assert_eq!(
-            state.hash_one(Shape::Stack(ins1)),
-            state.hash_one(Shape::Stack(ins2)),
+            state.hash_one(Shape::Inline(ins1)),
+            state.hash_one(Shape::Inline(ins2)),
         );
         assert_ne!(
-            state.hash_one(Shape::Stack(ins1)),
-            state.hash_one(Shape::Stack(ins3)),
+            state.hash_one(Shape::Inline(ins1)),
+            state.hash_one(Shape::Inline(ins3)),
         );
     }
 }
