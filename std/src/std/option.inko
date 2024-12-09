@@ -15,7 +15,7 @@ import std.fmt (Format, Formatter)
 #
 # An `Option` is is either a `Some` containing a value, or a `None` that doesn't
 # contain a value.
-class pub enum Option[T] {
+class pub inline enum Option[T] {
   # A value of type `T`.
   case Some(T)
 
