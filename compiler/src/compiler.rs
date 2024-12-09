@@ -31,12 +31,14 @@ use crate::type_check::methods::{
     CheckMainMethod, DefineMethods, DefineModuleMethodNames,
     ImplementTraitMethods,
 };
+use blake3::hash;
 use std::env::current_dir;
 use std::ffi::OsStr;
-use std::fs::write;
+use std::fs::{create_dir_all, write};
+use std::path::MAIN_SEPARATOR_STR;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
-use types::module_name::ModuleName;
+use types::module_name::{ModuleName, SEPARATOR};
 
 fn measure<R, F: FnOnce() -> R>(time: &mut Duration, func: F) -> R {
     let start = Instant::now();
@@ -68,6 +70,30 @@ fn module_name_from_path(config: &Config, file: &Path) -> ModuleName {
         })
         .map(ModuleName::from_relative_path)
         .unwrap_or_else(ModuleName::main)
+}
+
+pub(crate) fn module_debug_path(module: &ModuleName) -> PathBuf {
+    let name = module.as_str();
+
+    // When splitting modules we include the type shapes in the name in order to
+    // prevent naming conflicts. This can result in very long file names,
+    // possibly longer than the file system allows. To prevent that from
+    // becoming a problem, we hash the shapes if they're present.
+    if let Some((head, tail)) = name.split_once("<closure>") {
+        PathBuf::from(format!(
+            "{}<closure>{}",
+            head.replace(SEPARATOR, MAIN_SEPARATOR_STR),
+            hash(tail.as_bytes()),
+        ))
+    } else if let Some((head, tail)) = name.split_once('#') {
+        PathBuf::from(format!(
+            "{}#{}",
+            head.replace(SEPARATOR, MAIN_SEPARATOR_STR),
+            hash(tail.as_bytes()),
+        ))
+    } else {
+        PathBuf::from(name.replace(SEPARATOR, MAIN_SEPARATOR_STR))
+    }
 }
 
 pub(crate) fn all_source_modules(
@@ -603,19 +629,31 @@ LLVM module timings:
         directories.create_dot().map_err(CompileError::Internal)?;
 
         for module in mir.modules.values() {
+            if module.methods.is_empty() {
+                continue;
+            }
+
             let methods: Vec<_> = module
                 .methods
                 .iter()
                 .map(|m| mir.methods.get(m).unwrap())
                 .collect();
 
-            let output = to_dot(&self.state.db, &methods);
-            let name = module.id.name(&self.state.db).normalized_name();
-            let path = directories.dot.join(format!("{}.dot", name));
+            let dot = to_dot(&self.state.db, &methods);
+            let name = module.id.name(&self.state.db);
+            let mut path = directories.dot.join(module_debug_path(name));
 
-            write(&path, output).map_err(|err| {
+            path.set_extension("dot");
+
+            let res = if let Some(dir) = path.parent() {
+                create_dir_all(dir)
+            } else {
+                Ok(())
+            };
+
+            res.and_then(|_| write(&path, dot)).map_err(|err| {
                 CompileError::Internal(format!(
-                    "Failed to write {}: {}",
+                    "failed to write to {}: {}",
                     path.display(),
                     err
                 ))
@@ -682,5 +720,39 @@ LLVM module timings:
 
         sync_if_needed(&self.state.config.dependencies)?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_module_debug_path() {
+        assert_eq!(module_debug_path(&ModuleName::new("")), PathBuf::new());
+        assert_eq!(
+            module_debug_path(&ModuleName::new("a")),
+            PathBuf::from("a")
+        );
+        assert_eq!(
+            module_debug_path(&ModuleName::new("a.b")),
+            PathBuf::from("a/b")
+        );
+        assert_eq!(
+            module_debug_path(&ModuleName::new("a.b.c")),
+            PathBuf::from("a/b/c")
+        );
+        assert_eq!(
+            module_debug_path(&ModuleName::new("a.b.c#foo.bar")),
+            PathBuf::from("a/b/c#029fa720ef93772028396d0b41779e1ca4ef3ae659914822d16ff85574b7cf2b")
+        );
+        assert_eq!(
+            module_debug_path(&ModuleName::new("c#foo.bar")),
+            PathBuf::from("c#029fa720ef93772028396d0b41779e1ca4ef3ae659914822d16ff85574b7cf2b")
+        );
+        assert_eq!(
+            module_debug_path(&ModuleName::new("a.b.c<closure>(a,1,2)")),
+            PathBuf::from("a/b/c<closure>bd2fd1bac3b67b10585aa5ae8a79f359ec15d969c2962765799cf957ff40f468")
+        );
     }
 }

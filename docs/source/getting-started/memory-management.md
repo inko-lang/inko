@@ -79,9 +79,9 @@ variable, ownership of the reference is _moved_ to the `more_cats` variable.
 Once ownership is moved, we can no longer use the old reference (`cats` in this
 case).
 
-When the owned reference is no longer in use, its memory is discarded, which we
-refer to as a value that's "dropped". The details of this are discussed
-separately.
+When the owned reference is no longer in use, the type's destructor is run (if
+it defines any) and its memory is released. This process is known as "dropping"
+a value.
 
 ## Borrowing
 
@@ -257,6 +257,45 @@ Process 'Main' (0x55fd6eb37170) panicked: can't drop a value of type 'Array' as 
 The reason this happens is because `more_cats` is dropped before `borrow` is
 dropped, while the borrow still exists (because `borrow` is defined before
 `more_cats`), resulting in this error.
+
+### How is this safe?
+
+Borrowing in Inko works as follows: each heap allocated value stores a borrow
+counter. This counter is incremented when borrowing the value, and decremented
+when the borrow is discarded. When dropping an owned value, the borrow counter
+is checked and a panic is produced if the count is not zero.
+
+Using this approach we can avoid having to implement a complex compile-time
+borrow checking mechanism, and still implement patterns otherwise difficult or
+impossible to implement when using borrow checking (i.e. linked lists or
+graphs).
+
+::: note
+In the future, we intend to implement additional forms of compile-time analysis
+to detect obvious cases where a value is dropped while still borrowed, reducing
+the chances of encountering a runtime borrow error.
+:::
+
+::: note
+While this approach incurs a small runtime cost, most of the borrow count
+mutations can be optimized away. While we don't implement such optimizations at
+the time of writing, we intend to do so in the future.
+:::
+
+This approach is not new and is in fact based on the paper ["Ownership You Can
+Count On: A Hybrid Approach to Safe Explicit Memory
+Management"](https://inko-lang.org/papers/ownership.pdf), originally published
+in 2006 (the original source is no longer available).
+
+While this approach may sound scary, in reality it's not as big of a deal as one
+might think. Since the check is performed when dropping a value and not
+when (for example) dereferencing a borrow, the behaviour is deterministic: if
+the program triggers a borrow error with input A, then running the same program
+with the same input 10 times will produce the same error 10 times. This,
+combined with the stack trace that's displayed when encountering a borrow error,
+makes it reasonably easy to debug and resolve such errors. We also found that
+encountering borrow errors is rare to begin with as it just isn't that common
+for borrows to outlive the owned values they borrow.
 
 ## Unique references
 

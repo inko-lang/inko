@@ -13,19 +13,19 @@ class Output {
 }
 
 impl Write for Output {
-  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Never] {
+  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, IoError] {
     @buffer.copy_from(bytes, at: 0, size: bytes.size)
     Result.Ok(nil)
   }
 
-  fn pub mut write_string(string: String) -> Result[Nil, Never] {
+  fn pub mut write_string(string: String) -> Result[Nil, IoError] {
     let bytes = string.to_byte_array
 
     @buffer.copy_from(bytes, at: 0, size: bytes.size)
     Result.Ok(nil)
   }
 
-  fn pub mut flush -> Result[Nil, Never] {
+  fn pub mut flush -> Result[Nil, IoError] {
     @flushed = true
     Result.Ok(nil)
   }

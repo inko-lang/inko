@@ -39,7 +39,7 @@ fn pub exit(status: Int) -> Never {
 }
 
 # A type that describes what to do with an input/output stream of a command.
-class pub inline enum Stream {
+class pub copy enum Stream {
   # A stream that should be redirected to the null device.
   case Null
 
@@ -241,7 +241,7 @@ class pub Command {
 }
 
 # The status of a process after it terminated.
-class pub inline ExitStatus {
+class pub copy ExitStatus {
   # The raw exit code.
   let @code: Int
 
@@ -296,7 +296,7 @@ impl Write for Stdin {
     write_all_internal(string.to_pointer, string.size)
   }
 
-  fn pub mut flush -> Result[Nil, Never] {
+  fn pub mut flush -> Result[Nil, Error] {
     Result.Ok(nil)
   }
 }

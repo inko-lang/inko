@@ -2098,11 +2098,11 @@ impl Mir {
         }
     }
 
-    /// Splits modules into smaller ones, such that each specialized type has
-    /// its own module.
+    /// Splits modules into smaller ones, such that each type has its own
+    /// module.
     ///
     /// This is done to make caching and parallel compilation more effective,
-    /// such that adding a newly specialized type won't flush many caches
+    /// such that e.g. adding a newly specialized type won't flush many caches
     /// unnecessarily.
     pub(crate) fn split_modules(&mut self, state: &mut State) {
         let mut new_modules = Vec::new();
@@ -2112,16 +2112,6 @@ impl Mir {
             let mut moved_methods = HashSet::new();
 
             for &class_id in &old_module.classes {
-                if class_id.specialization_source(&state.db).unwrap_or(class_id)
-                    == class_id
-                    || class_id.kind(&state.db).is_closure()
-                {
-                    // Non-generic and closure classes always originate from the
-                    // source modules, so there's no need to move them
-                    // elsewhere.
-                    continue;
-                }
-
                 let file = old_module.id.file(&state.db);
                 let orig_name = old_module.id.name(&state.db).clone();
                 let name = ModuleName::new(qualified_class_name(
@@ -2145,6 +2135,22 @@ impl Mir {
                     state.dependency_graph.module_id(&orig_name).unwrap();
 
                 state.dependency_graph.add_depending(old_node_id, new_node_id);
+
+                // Closure modules need to be updated if either their source
+                // module changes _or_ the module of the closure's `self` type,
+                // because changes to the `self` type may affect how the closure
+                // is generated.
+                if let Some(stype) =
+                    class_id.specialization_key(&state.db).self_type
+                {
+                    let self_node = state.dependency_graph.add_module(
+                        stype.instance_of().module(&state.db).name(&state.db),
+                    );
+
+                    state
+                        .dependency_graph
+                        .add_depending(self_node, new_node_id);
+                }
 
                 let mut new_module = Module::new(new_mod_id);
 
@@ -2329,23 +2335,55 @@ impl Mir {
     /// instructions.
     pub(crate) fn remove_unused_instructions(&mut self) {
         for method in self.methods.values_mut() {
-            let uses = method.register_use_counts();
+            let mut uses = method.register_use_counts();
+            let mut repeat = true;
 
-            for block in &mut method.body.blocks {
-                block.instructions.retain(|ins| match ins {
-                    Instruction::Float(i) => uses[i.register.0] > 0,
-                    Instruction::Int(i) => uses[i.register.0] > 0,
-                    Instruction::Nil(i) => uses[i.register.0] > 0,
-                    Instruction::String(i) => uses[i.register.0] > 0,
-                    Instruction::Bool(i) => uses[i.register.0] > 0,
-                    Instruction::Allocate(i) => uses[i.register.0] > 0,
-                    Instruction::Spawn(i) => uses[i.register.0] > 0,
-                    Instruction::GetConstant(i) => uses[i.register.0] > 0,
-                    Instruction::MethodPointer(i) => uses[i.register.0] > 0,
-                    Instruction::SizeOf(i) => uses[i.register.0] > 0,
-                    Instruction::MoveRegister(i) => uses[i.target.0] > 0,
-                    _ => true,
-                });
+            // Removing an instruction may result in other instructions becoming
+            // unused, so we repeat this until we run out of instructions to
+            // remove.
+            while repeat {
+                repeat = false;
+
+                for block in &mut method.body.blocks {
+                    block.instructions.retain(|ins| {
+                        let (reg, src) = match ins {
+                            Instruction::Float(i) => (i.register, None),
+                            Instruction::Int(i) => (i.register, None),
+                            Instruction::Nil(i) => (i.register, None),
+                            Instruction::String(i) => (i.register, None),
+                            Instruction::Bool(i) => (i.register, None),
+                            Instruction::Allocate(i) => (i.register, None),
+                            Instruction::Spawn(i) => (i.register, None),
+                            Instruction::GetConstant(i) => (i.register, None),
+                            Instruction::MethodPointer(i) => (i.register, None),
+                            Instruction::SizeOf(i) => (i.register, None),
+                            Instruction::MoveRegister(i) => {
+                                (i.target, Some(i.source))
+                            }
+                            Instruction::GetField(i) => {
+                                (i.register, Some(i.receiver))
+                            }
+                            Instruction::FieldPointer(i) => {
+                                (i.register, Some(i.receiver))
+                            }
+                            Instruction::Cast(i) => {
+                                (i.register, Some(i.source))
+                            }
+                            _ => return true,
+                        };
+
+                        if uses[reg.0] > 0 {
+                            return true;
+                        }
+
+                        if let Some(src) = src {
+                            uses[src.0] -= 1;
+                            repeat = true;
+                        }
+
+                        false
+                    });
+                }
             }
         }
     }

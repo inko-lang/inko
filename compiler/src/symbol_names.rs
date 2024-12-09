@@ -25,11 +25,28 @@ pub(crate) fn format_shape(db: &Database, shape: Shape, buf: &mut String) {
         Shape::Atomic => write!(buf, "a"),
         Shape::Nil => write!(buf, "n"),
         Shape::Pointer => write!(buf, "p"),
-        Shape::Stack(ins) => {
-            let cls = ins.instance_of();
-            let _ = write!(buf, "S{}.", cls.module(db).name(db));
+        Shape::Copy(ins) => {
+            let _ = write!(buf, "C{}.", ins.instance_of().module(db).name(db));
 
-            format_class_name(db, cls, buf);
+            format_class_name(db, ins.instance_of(), buf);
+            Ok(())
+        }
+        Shape::Inline(ins) => {
+            let _ = write!(buf, "IO{}.", ins.instance_of().module(db).name(db));
+
+            format_class_name(db, ins.instance_of(), buf);
+            Ok(())
+        }
+        Shape::InlineRef(ins) => {
+            let _ = write!(buf, "IR{}.", ins.instance_of().module(db).name(db));
+
+            format_class_name(db, ins.instance_of(), buf);
+            Ok(())
+        }
+        Shape::InlineMut(ins) => {
+            let _ = write!(buf, "IM{}.", ins.instance_of().module(db).name(db));
+
+            format_class_name(db, ins.instance_of(), buf);
             Ok(())
         }
     };
@@ -41,23 +58,46 @@ pub(crate) fn format_shapes(db: &Database, shapes: &[Shape], buf: &mut String) {
     }
 }
 
-pub(crate) fn format_class_name(db: &Database, id: ClassId, buf: &mut String) {
-    buf.push_str(id.name(db));
+fn format_class_base_name(db: &Database, id: ClassId, name: &mut String) {
+    name.push_str(id.name(db));
 
-    let is_stack = id.is_stack_allocated(db);
+    // For closures the process of generating a name is a little more tricky: a
+    // default method may define a closure. If that default method is inherited
+    // as-is by different types, the implementations of that default method
+    // should all use a unique closure type. If these methods instead share a
+    // common closure type, we end up generating incorrect code.
+    //
+    // To prevent this from happening, the closure name includes the source
+    // location and the type of `self` of the method the closure is defined in.
+    // The symbol name still includes the module the closure is originally
+    // defined in, such that if the module that includes the implementation
+    // _also_ defines a closure at the same location, the symbol names don't
+    // collide.
+    if !id.is_closure(db) {
+        return;
+    }
+
+    let loc = id.location(db);
+    let stype = id.specialization_key(db).self_type.unwrap().instance_of();
+
+    // The exact format used here doesn't really matter, but we try to keep it
+    // somewhat readable for use in external tooling (e.g. a profiler that
+    // doesn't support demangling our format).
+    name.push_str(&format!(
+        "({},{},{})",
+        qualified_class_name(db, stype.module(db), stype),
+        loc.line_start,
+        loc.column_start,
+    ));
+}
+
+pub(crate) fn format_class_name(db: &Database, id: ClassId, buf: &mut String) {
+    format_class_base_name(db, id, buf);
+
     let shapes = id.shapes(db);
 
-    if !shapes.is_empty() || is_stack {
-        buf.push('#');
-    }
-
-    // In case we infer a type to be stack allocated (or we did so in the past
-    // but it's no longer the case), this ensures we flush the object cache.
-    if is_stack {
-        buf.push('S');
-    }
-
     if !shapes.is_empty() {
+        buf.push('#');
         format_shapes(db, shapes, buf);
     }
 }
@@ -73,22 +113,22 @@ pub(crate) fn qualified_class_name(
     name
 }
 
-pub(crate) fn method_name(
+pub(crate) fn format_method_name(
     db: &Database,
     class: ClassId,
     id: MethodId,
-) -> String {
-    let mut name = id.name(db).to_string();
+    name: &mut String,
+) {
+    name.push_str(id.name(db));
+
     let cshapes = class.shapes(db);
     let mshapes = id.shapes(db);
 
     if !cshapes.is_empty() || !mshapes.is_empty() {
         name.push('#');
-        format_shapes(db, cshapes, &mut name);
-        format_shapes(db, mshapes, &mut name);
+        format_shapes(db, cshapes, name);
+        format_shapes(db, mshapes, name);
     }
-
-    name
 }
 
 fn mangled_method_name(db: &Database, method: MethodId) -> String {
@@ -100,27 +140,26 @@ fn mangled_method_name(db: &Database, method: MethodId) -> String {
     // when two different modules implement the same trait.
     let mod_name = method.module(db).method_symbol_name(db).as_str();
 
-    // We don't use type IDs in the name as this would couple the symbol names
-    // to the order in which modules are processed.
-    if class.kind(db).is_module() {
-        // This ensures that methods such as `std::process.sleep` aren't
-        // formatted as `std::process::std::process.sleep`. This in turn makes
-        // stack traces easier to read.
-        format!(
-            "{}M_{}.{}",
-            SYMBOL_PREFIX,
-            mod_name,
-            method_name(db, class, method)
-        )
-    } else {
-        format!(
-            "{}M_{}.{}.{}",
-            SYMBOL_PREFIX,
-            mod_name,
-            class.name(db),
-            method_name(db, class, method)
-        )
+    // For closures we use a dedicated prefix such that when a stacktrace is
+    // generated, we don't include the generated names because these aren't
+    // useful for debugging purposes.
+    let mut name = format!(
+        "{}{}_{}.",
+        SYMBOL_PREFIX,
+        if class.is_closure(db) { "MC" } else { "M" },
+        mod_name
+    );
+
+    // This ensures that methods such as `std::process.sleep` aren't formatted
+    // as `std::process::std::process.sleep`. This in turn makes stack traces
+    // easier to read.
+    if !class.kind(db).is_module() {
+        format_class_base_name(db, class, &mut name);
+        name.push('.');
     }
+
+    format_method_name(db, class, method, &mut name);
+    name
 }
 
 /// A cache of mangled symbol names.
@@ -185,7 +224,9 @@ mod tests {
     use super::*;
     use location::Location;
     use types::module_name::ModuleName;
-    use types::{Class, ClassInstance, ClassKind, Module, Visibility};
+    use types::{
+        Class, ClassInstance, ClassKind, Module, SpecializationKey, Visibility,
+    };
 
     fn name(db: &Database, shape: Shape) -> String {
         let mut buf = String::new();
@@ -204,15 +245,32 @@ mod tests {
         let loc = Location::default();
         let cls1 = Class::alloc(&mut db, "A".to_string(), kind, vis, mid, loc);
         let cls2 = Class::alloc(&mut db, "B".to_string(), kind, vis, mid, loc);
+        let cls3 = Class::alloc(&mut db, "C".to_string(), kind, vis, mid, loc);
+        let cls4 = Class::alloc(&mut db, "D".to_string(), kind, vis, mid, loc);
 
-        cls1.set_shapes(
+        cls1.set_specialization_key(
             &mut db,
-            vec![
+            SpecializationKey::new(vec![
                 Shape::Int(64, Sign::Signed),
-                Shape::Stack(ClassInstance::new(cls2)),
-            ],
+                Shape::Inline(ClassInstance::new(cls2)),
+            ]),
         );
-        cls2.set_shapes(&mut db, vec![Shape::String]);
+        cls2.set_specialization_key(
+            &mut db,
+            SpecializationKey::new(vec![Shape::String]),
+        );
+        cls3.set_specialization_key(
+            &mut db,
+            SpecializationKey::new(vec![Shape::InlineRef(ClassInstance::new(
+                cls2,
+            ))]),
+        );
+        cls4.set_specialization_key(
+            &mut db,
+            SpecializationKey::new(vec![Shape::InlineMut(ClassInstance::new(
+                cls2,
+            ))]),
+        );
 
         assert_eq!(name(&db, Shape::Owned), "o");
         assert_eq!(name(&db, Shape::Mut), "m");
@@ -226,8 +284,16 @@ mod tests {
         assert_eq!(name(&db, Shape::Nil), "n");
         assert_eq!(name(&db, Shape::Pointer), "p");
         assert_eq!(
-            name(&db, Shape::Stack(ClassInstance::new(cls1))),
-            "Sa.b.c.A#i64Sa.b.c.B#s"
+            name(&db, Shape::Inline(ClassInstance::new(cls1))),
+            "IOa.b.c.A#i64IOa.b.c.B#s"
+        );
+        assert_eq!(
+            name(&db, Shape::InlineMut(ClassInstance::new(cls3))),
+            "IMa.b.c.C#IRa.b.c.B#s"
+        );
+        assert_eq!(
+            name(&db, Shape::InlineRef(ClassInstance::new(cls4))),
+            "IRa.b.c.D#IMa.b.c.B#s"
         );
     }
 }

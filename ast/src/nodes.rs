@@ -481,6 +481,13 @@ impl Node for ClassExpressions {
 }
 
 #[derive(Debug, PartialEq, Eq)]
+pub enum ClassSemantics {
+    Default,
+    Inline,
+    Copy,
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub enum ClassKind {
     Async,
     Builtin,
@@ -491,8 +498,8 @@ pub enum ClassKind {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct DefineClass {
+    pub semantics: ClassSemantics,
     pub public: bool,
-    pub inline: bool,
     pub kind: ClassKind,
     pub name: Constant,
     pub type_parameters: Option<TypeParameters>,
@@ -638,7 +645,7 @@ impl Node for ReopenClass {
 pub enum Requirement {
     Trait(TypeName),
     Mutable(Location),
-    Inline(Location),
+    Copy(Location),
 }
 
 impl Node for Requirement {
@@ -646,7 +653,7 @@ impl Node for Requirement {
         match self {
             Requirement::Trait(n) => &n.location,
             Requirement::Mutable(loc) => loc,
-            Requirement::Inline(loc) => loc,
+            Requirement::Copy(loc) => loc,
         }
     }
 }

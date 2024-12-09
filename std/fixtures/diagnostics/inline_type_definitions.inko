@@ -10,5 +10,5 @@ class inline async E {}
 
 class inline extern F {}
 
-# inline_type_definitions.inko:9:20 error(invalid-type): only regular and 'enum' types support the 'inline' attribute
-# inline_type_definitions.inko:11:21 error(invalid-type): only regular and 'enum' types support the 'inline' attribute
+# inline_type_definitions.inko:9:20 error(invalid-type): only regular and 'enum' types support the 'inline' and 'copy' keywords
+# inline_type_definitions.inko:11:21 error(invalid-type): only regular and 'enum' types support the 'inline' and 'copy' keywords

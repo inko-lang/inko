@@ -5,7 +5,7 @@ import std.fs.path (Path)
 import std.time (DateTime)
 
 # A type describing the type of file, such as a file or directory.
-class pub inline enum FileType {
+class pub copy enum FileType {
   # The file is a file.
   case File
 
@@ -100,7 +100,7 @@ impl Format for DirectoryEntry {
 #
 # The seconds and nanoseconds are stored separately to ensure no loss of
 # precision, something that might happen when storing the time as a `Float`.
-class inline Time {
+class copy Time {
   let @secs: Int
   let @nanos: Int
 

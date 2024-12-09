@@ -110,7 +110,7 @@ fn reset_os_error {
 # Unix systems. This enum doesn't define a constructor for every possible error.
 # Instead, we define a constructor for the most commonly used errors, and
 # represent other errors using the `Other` constructor.
-class pub inline enum Error {
+class pub copy enum Error {
   # The address is already in use.
   case AddressInUse
 
@@ -1038,13 +1038,13 @@ class pub Buffer[T: Bytes] {
 }
 
 impl Read for Buffer {
-  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Never] {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     Result.Ok(read_buffer(into, size))
   }
 }
 
 impl BufferedRead for Buffer {
-  fn mut fill_buffer -> Result[Int, Never] {
+  fn mut fill_buffer -> Result[Int, Error] {
     Result.Ok(@bytes.size - @offset)
   }
 
@@ -1059,7 +1059,7 @@ impl BufferedRead for Buffer {
     total
   }
 
-  fn pub mut read_byte -> Result[Option[Int], Never] {
+  fn pub mut read_byte -> Result[Option[Int], Error] {
     if @offset < @bytes.size {
       Result.Ok(Option.Some(@bytes.byte(@offset := @offset + 1)))
     } else {
@@ -1077,7 +1077,7 @@ impl BufferedRead for Buffer {
 }
 
 impl Seek for Buffer {
-  fn pub mut seek(position: Int) -> Result[Int, Never] {
+  fn pub mut seek(position: Int) -> Result[Int, Error] {
     if position < 0 {
       @offset = @bytes.size + position
     } else {

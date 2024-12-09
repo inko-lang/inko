@@ -1,7 +1,7 @@
 import std.env
 import std.fmt (fmt)
 import std.fs.path (Path)
-import std.io (Write)
+import std.io (Error, Write)
 import std.sys
 import std.test (Filter, Plain, Test, Tests)
 import std.time (Duration)
@@ -15,17 +15,17 @@ class Buffer {
 }
 
 impl Write for Buffer {
-  fn pub mut write_string(string: String) -> Result[Nil, Never] {
+  fn pub mut write_string(string: String) -> Result[Nil, Error] {
     @bytes.append(string.to_byte_array)
     Result.Ok(nil)
   }
 
-  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Never] {
+  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
     @bytes.append(bytes.clone)
     Result.Ok(nil)
   }
 
-  fn pub mut flush -> Result[Nil, Never] {
+  fn pub mut flush -> Result[Nil, Error] {
     Result.Ok(nil)
   }
 }

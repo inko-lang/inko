@@ -28,6 +28,6 @@ fn example4(person: uni Person) {
   person.numbers := [10]
 }
 
-# swap_fields.inko:6:5 error(invalid-assign): can't assign a new value to field 'name', as the surrounding method is immutable
-# swap_fields.inko:15:3 error(invalid-assign): can't assign a new value to field 'name', as its receiver is immutable
+# swap_fields.inko:6:5 error(invalid-assign): values of type 'ref Person' don't allow fields to be assigned new values
+# swap_fields.inko:15:3 error(invalid-assign): values of type 'ref Person' don't allow fields to be assigned new values
 # swap_fields.inko:28:3 error(invalid-symbol): the field 'numbers' can't be assigned a value of type 'Array[Int]', as it's not sendable

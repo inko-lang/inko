@@ -1,17 +1,18 @@
 use crate::mir::{
     Block, BlockId, Borrow, CallDynamic, CallInstance, CastType,
     Class as MirClass, Drop, Instruction, InstructionLocation, Method, Mir,
-    RegisterId, SELF_ID,
+    RegisterId,
 };
 use crate::state::State;
 use indexmap::{IndexMap, IndexSet};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::mem::swap;
+use types::check::TypeChecker;
 use types::specialize::{ordered_shapes_from_map, TypeSpecializer};
 use types::{
     Block as _, ClassId, ClassInstance, Database, InternedTypeArguments,
     MethodId, Shape, TypeArguments, TypeParameterId, TypeRef, CALL_METHOD,
-    DROPPER_METHOD,
+    DECREMENT_METHOD, DROPPER_METHOD, INCREMENT_METHOD,
 };
 
 fn argument_shape(
@@ -32,10 +33,15 @@ fn specialize_constants(
     let mut classes = Vec::new();
     let shapes = HashMap::new();
 
+    // Constants never need access to the self type, so we just use a dummy
+    // value here.
+    let stype = ClassInstance::new(ClassId::nil());
+
     for &id in mir.constants.keys() {
         let old_typ = id.value_type(db);
-        let new_typ = TypeSpecializer::new(db, interned, &shapes, &mut classes)
-            .specialize(old_typ);
+        let new_typ =
+            TypeSpecializer::new(db, interned, &shapes, &mut classes, stype)
+                .specialize(old_typ);
 
         id.set_value_type(db, new_typ);
     }
@@ -76,24 +82,13 @@ fn shapes_compatible_with_bounds(
             // only possible if the type is compatible with the bounds, i.e. all
             // the required traits are implemented.
             //
-            // We don't need to perform a full type-check here: if a trait _is_
-            // implemented then correctness is already enforced at the call/cast
-            // site, so all we need to do here is check if the trait is
-            // implemented in the first place.
-            if let Shape::Stack(ins) = shape {
-                // For specialized types the trait implementations are stored in
-                // the base class.
-                let cls = ins
-                    .instance_of()
-                    .specialization_source(db)
-                    .unwrap_or(ins.instance_of());
-                let valid = bound.requirements(db).into_iter().all(|r| {
-                    cls.trait_implementation(db, r.instance_of()).is_some()
-                });
+            // This ultimately ensures that we don't try to specialize some
+            // method over e.g. `Option[Int32]` where it's exected `Int32`
+            // implements a certain trait when it doesn't.
+            let Some(ins) = shape.as_stack_instance() else { continue };
 
-                if !valid {
-                    return false;
-                }
+            if !TypeChecker::new(db).class_compatible_with_bound(ins, bound) {
+                return false;
             }
         }
     }
@@ -102,6 +97,9 @@ fn shapes_compatible_with_bounds(
 }
 
 struct Job {
+    /// The type of `self` within the method.
+    self_type: ClassInstance,
+
     /// The ID of the method that's being specialized.
     method: MethodId,
 
@@ -127,11 +125,12 @@ impl Work {
 
     fn push(
         &mut self,
+        self_type: ClassInstance,
         method: MethodId,
         shapes: HashMap<TypeParameterId, Shape>,
     ) -> bool {
         if self.done.insert(method) {
-            self.jobs.push_back(Job { method, shapes });
+            self.jobs.push_back(Job { self_type, method, shapes });
             true
         } else {
             false
@@ -230,10 +229,11 @@ impl DynamicCalls {
 
 /// A compiler pass that specializes generic types.
 pub(crate) struct Specialize<'a, 'b> {
+    self_type: ClassInstance,
     method: MethodId,
     state: &'a mut State,
     work: &'b mut Work,
-    intern: &'b mut InternedTypeArguments,
+    interned: &'b mut InternedTypeArguments,
     shapes: HashMap<TypeParameterId, Shape>,
 
     /// Regular methods that have been processed.
@@ -277,7 +277,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
         let main_method = state.db.main_method().unwrap();
         let main_mod = main_class.module(&state.db);
 
-        work.push(main_method, HashMap::new());
+        work.push(ClassInstance::new(main_class), main_method, HashMap::new());
 
         // The main() method isn't called explicitly, so we have to manually
         // record it in the main class.
@@ -287,7 +287,8 @@ impl<'a, 'b> Specialize<'a, 'b> {
         while let Some(job) = work.pop() {
             Specialize {
                 state,
-                intern: &mut intern,
+                interned: &mut intern,
+                self_type: job.self_type,
                 method: job.method,
                 shapes: job.shapes,
                 work: &mut work,
@@ -338,52 +339,10 @@ impl<'a, 'b> Specialize<'a, 'b> {
     }
 
     fn run(&mut self, mir: &mut Mir, dynamic_calls: &mut DynamicCalls) {
-        self.update_self_type(mir);
         self.process_instructions(mir, dynamic_calls);
         self.process_specialized_types(mir, dynamic_calls);
         self.expand_instructions(mir);
         self.add_methods(mir);
-    }
-
-    fn update_self_type(&mut self, mir: &mut Mir) {
-        let method = mir.methods.get_mut(&self.method).unwrap();
-
-        if method.id.is_static(&self.state.db)
-            || method.id.is_extern(&self.state.db)
-        {
-            return;
-        }
-
-        let self_type = method.id.receiver(&self.state.db);
-        let mut self_regs = vec![false; method.registers.len()];
-
-        // This ensures that if `self` is assigned to other registers, we also
-        // update those registers' types.
-        for block in &method.body.blocks {
-            for instruction in &block.instructions {
-                match instruction {
-                    Instruction::Borrow(ins) if ins.value.0 == SELF_ID => {
-                        self_regs[ins.register.0] = true;
-                    }
-                    Instruction::MoveRegister(ins)
-                        if ins.source.0 == SELF_ID
-                            || self_regs[ins.source.0] =>
-                    {
-                        self_regs[ins.target.0] = true;
-                    }
-                    _ => {}
-                }
-            }
-        }
-
-        method.registers.get_mut(RegisterId(SELF_ID)).value_type = self_type;
-
-        for (idx, val) in self_regs.into_iter().enumerate() {
-            if val {
-                method.registers.get_mut(RegisterId(idx)).value_type =
-                    self_type;
-            }
-        }
     }
 
     fn process_instructions(
@@ -401,9 +360,10 @@ impl<'a, 'b> Specialize<'a, 'b> {
         for reg in method.registers.iter_mut() {
             reg.value_type = TypeSpecializer::new(
                 &mut self.state.db,
-                self.intern,
+                self.interned,
                 &self.shapes,
                 &mut self.classes,
+                self.self_type,
             )
             .specialize(reg.value_type);
         }
@@ -496,14 +456,16 @@ impl<'a, 'b> Specialize<'a, 'b> {
                         }
                     },
                     Instruction::Allocate(ins) => {
-                        let cls = method
+                        let old = ins.class;
+                        let new = method
                             .registers
                             .value_type(ins.register)
                             .class_id(&self.state.db)
                             .unwrap();
 
-                        ins.class = cls;
-                        self.schedule_regular_dropper(cls);
+                        ins.class = new;
+                        self.schedule_regular_dropper(old, new);
+                        self.schedule_regular_inline_type_methods(new);
                     }
                     Instruction::Free(ins) => {
                         let cls = method
@@ -515,34 +477,56 @@ impl<'a, 'b> Specialize<'a, 'b> {
                         ins.class = cls;
                     }
                     Instruction::Spawn(ins) => {
-                        let cls = method
+                        let old = ins.class;
+                        let new = method
                             .registers
                             .value_type(ins.register)
                             .class_id(&self.state.db)
                             .unwrap();
 
-                        ins.class = cls;
-                        self.schedule_regular_dropper(cls);
+                        ins.class = new;
+                        self.schedule_regular_dropper(old, new);
                     }
                     Instruction::SetField(ins) => {
+                        let db = &mut self.state.db;
+
                         ins.class = method
                             .registers
                             .value_type(ins.receiver)
-                            .class_id(&self.state.db)
+                            .class_id(db)
+                            .unwrap();
+
+                        ins.field = ins
+                            .class
+                            .field_by_index(db, ins.field.index(db))
                             .unwrap();
                     }
                     Instruction::GetField(ins) => {
+                        let db = &mut self.state.db;
+
                         ins.class = method
                             .registers
                             .value_type(ins.receiver)
-                            .class_id(&self.state.db)
+                            .class_id(db)
+                            .unwrap();
+
+                        ins.field = ins
+                            .class
+                            .field_by_index(db, ins.field.index(db))
                             .unwrap();
                     }
                     Instruction::FieldPointer(ins) => {
+                        let db = &mut self.state.db;
+
                         ins.class = method
                             .registers
                             .value_type(ins.receiver)
-                            .class_id(&self.state.db)
+                            .class_id(db)
+                            .unwrap();
+
+                        ins.field = ins
+                            .class
+                            .field_by_index(db, ins.field.index(db))
                             .unwrap();
                     }
                     Instruction::MethodPointer(ins) => {
@@ -564,9 +548,10 @@ impl<'a, 'b> Specialize<'a, 'b> {
                     Instruction::SizeOf(ins) => {
                         ins.argument = TypeSpecializer::new(
                             &mut self.state.db,
-                            self.intern,
+                            self.interned,
                             &self.shapes,
                             &mut self.classes,
+                            self.self_type,
                         )
                         .specialize(ins.argument);
                     }
@@ -581,7 +566,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
 
         ExpandDrop {
             db: &self.state.db,
-            intern: self.intern,
+            intern: self.interned,
             method,
             shapes: &self.shapes,
         }
@@ -589,7 +574,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
 
         ExpandBorrow {
             db: &self.state.db,
-            intern: self.intern,
+            intern: self.interned,
             method,
             shapes: &self.shapes,
         }
@@ -611,8 +596,8 @@ impl<'a, 'b> Specialize<'a, 'b> {
             module.classes.push(class);
 
             if kind.is_extern() {
-                // We don't generate droppers for extern classes, nor can they
-                // be used for receivers as method calls.
+                // We don't generate methods for extern classes, nor can they be
+                // used for receivers as method calls.
                 continue;
             }
 
@@ -621,6 +606,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
             let orig = class.specialization_source(&self.state.db).unwrap();
 
             self.generate_dropper(orig, class);
+            self.generate_inline_type_methods(orig, class);
 
             if orig == class {
                 // For regular classes the rest of the work doesn't apply.
@@ -668,7 +654,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
 
                     self.add_implementation_shapes(call.method, &mut shapes);
                     self.add_method_bound_shapes(call.method, &mut shapes);
-                    self.specialize_method(class, call.method, &shapes);
+                    self.specialize_method(class, call.method, &shapes, None);
                 }
             }
         }
@@ -731,7 +717,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
             }
         }
 
-        self.specialize_method(class, method, &shapes)
+        self.specialize_method(class, method, &shapes, None)
     }
 
     fn call_dynamic(
@@ -746,9 +732,20 @@ impl<'a, 'b> Specialize<'a, 'b> {
             .unwrap()
             .instance_of();
 
-        let base_shapes = type_arguments
+        let mut base_shapes = type_arguments
             .map(|args| self.type_argument_shapes(method, args))
             .unwrap_or_default();
+
+        for shape in base_shapes.values_mut() {
+            TypeSpecializer::specialize_shape(
+                &mut self.state.db,
+                self.interned,
+                &self.shapes,
+                &mut self.classes,
+                self.self_type,
+                shape,
+            );
+        }
 
         let mut method_params = HashSet::new();
         let mut method_shapes = Vec::new();
@@ -760,11 +757,11 @@ impl<'a, 'b> Specialize<'a, 'b> {
 
         // These are the shapes of the trait or any parent traits. We filter out
         // method parameter shapes because we derive those from the method key.
-        let extra_shapes = base_shapes
+        let extra_shapes: Vec<_> = base_shapes
             .iter()
             .filter(|(k, _)| !method_params.contains(*k))
             .map(|(&k, &v)| (k, v))
-            .collect::<Vec<_>>();
+            .collect();
 
         for class in trait_id.implemented_by(&self.state.db).clone() {
             let method_impl = class
@@ -797,6 +794,13 @@ impl<'a, 'b> Specialize<'a, 'b> {
             if class.is_generic(&self.state.db) {
                 let params = class.type_parameters(&self.state.db);
 
+                // We need/want to ensure that each specialization has its own
+                // set of shapes. Even if this isn't technically required since
+                // we always overwrite the same parameters with new shapes (or
+                // at least should), this reduces the chances of running into
+                // unexpected bugs.
+                let mut shapes = shapes.clone();
+
                 for (key, class) in
                     class.specializations(&self.state.db).clone()
                 {
@@ -809,7 +813,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
                     // base class, so we don't accidentally end up using the
                     // wrong shape on a future iteration of the surrounding
                     // loop.
-                    for (&param, shape) in params.iter().zip(key) {
+                    for (&param, shape) in params.iter().zip(key.shapes) {
                         shapes.insert(param, shape);
                     }
 
@@ -826,12 +830,12 @@ impl<'a, 'b> Specialize<'a, 'b> {
                     // type arguments may differ per specialization.
                     self.add_implementation_shapes(method_impl, &mut shapes);
                     self.add_method_bound_shapes(method_impl, &mut shapes);
-                    self.specialize_method(class, method_impl, &shapes);
+                    self.specialize_method(class, method_impl, &shapes, None);
                 }
             } else {
                 self.add_implementation_shapes(method_impl, &mut shapes);
                 self.add_method_bound_shapes(method_impl, &mut shapes);
-                self.specialize_method(class, method_impl, &shapes);
+                self.specialize_method(class, method_impl, &shapes, None);
             }
         }
 
@@ -842,7 +846,9 @@ impl<'a, 'b> Specialize<'a, 'b> {
         // This ensures that multiple call sites of `next` on `Iter[Int]`
         // produce the same method ID, while call sites of `next` on
         // `Iter[String]` produce a different method ID.
-        let spec_key = ordered_shapes_from_map(&base_shapes);
+        let mut spec_key = ordered_shapes_from_map(&base_shapes);
+
+        self.prepare_key(&mut spec_key);
 
         if let Some(new) = method.specialization(&self.state.db, &spec_key) {
             return (new, method_shapes);
@@ -895,7 +901,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
         self.add_implementation_shapes(method_impl, &mut shapes);
         self.add_method_bound_shapes(method_impl, &mut shapes);
 
-        let new = self.specialize_method(class, method_impl, &shapes);
+        let new = self.specialize_method(class, method_impl, &shapes, None);
 
         Instruction::CallInstance(Box::new(CallInstance {
             register: call.register,
@@ -912,13 +918,17 @@ impl<'a, 'b> Specialize<'a, 'b> {
         class: ClassId,
         method: MethodId,
         shapes: &HashMap<TypeParameterId, Shape>,
+        custom_self_type: Option<ClassInstance>,
     ) -> MethodId {
+        let ins = ClassInstance::new(class);
+        let stype = custom_self_type.unwrap_or(ins);
+
         // Regular methods on regular types don't need to be specialized.
         if !class.is_generic(&self.state.db)
             && !class.is_closure(&self.state.db)
             && !method.is_generic(&self.state.db)
         {
-            if self.work.push(method, shapes.clone()) {
+            if self.work.push(stype, method, shapes.clone()) {
                 self.update_method_type(method, shapes);
                 self.regular_methods.push(method);
             }
@@ -926,34 +936,51 @@ impl<'a, 'b> Specialize<'a, 'b> {
             return method;
         }
 
-        let key: Vec<Shape> = class
+        let mut key: Vec<Shape> = class
             .type_parameters(&self.state.db)
             .into_iter()
             .chain(method.type_parameters(&self.state.db))
             .map(|p| *shapes.get(&p).unwrap())
             .collect();
 
+        self.prepare_key(&mut key);
+
         if let Some(new) = method.specialization(&self.state.db, &key) {
             return new;
         }
 
-        let ins = ClassInstance::new(class);
         let new_rec = method.receiver_for_class_instance(&self.state.db, ins);
         let new = self.specialize_method_type(new_rec, method, key, shapes);
 
-        self.work.push(new, shapes.clone());
+        self.work.push(stype, new, shapes.clone());
         self.specialized_methods.push((method, new));
         new
     }
 
-    fn schedule_regular_dropper(&mut self, class: ClassId) {
-        if class.is_generic(&self.state.db) {
+    fn schedule_regular_dropper(&mut self, original: ClassId, class: ClassId) {
+        if class.is_generic(&self.state.db) || class.is_closure(&self.state.db)
+        {
             return;
         }
 
-        if let Some(dropper) = class.method(&self.state.db, DROPPER_METHOD) {
-            if self.work.push(dropper, HashMap::new()) {
-                self.regular_methods.push(dropper);
+        self.generate_dropper(original, class);
+    }
+
+    fn schedule_regular_inline_type_methods(&mut self, class: ClassId) {
+        if class.is_generic(&self.state.db)
+            || !class.is_inline_type(&self.state.db)
+        {
+            return;
+        }
+
+        let methods = [INCREMENT_METHOD, DECREMENT_METHOD];
+
+        for name in methods {
+            let method = class.method(&self.state.db, name).unwrap();
+            let stype = ClassInstance::new(class);
+
+            if self.work.push(stype, method, HashMap::new()) {
+                self.regular_methods.push(method);
             }
         }
     }
@@ -961,13 +988,21 @@ impl<'a, 'b> Specialize<'a, 'b> {
     fn generate_dropper(&mut self, original: ClassId, class: ClassId) {
         let name = DROPPER_METHOD;
 
-        // Stack types won't have droppers, so there's nothing to do here.
+        // `copy` types won't have droppers, so there's nothing to do here.
         let Some(method) = original.method(&self.state.db, name) else {
             return;
         };
 
+        // References to `self` in closures should point to the type of the
+        // scope the closure is defined in, not the closure itself.
+        let stype = if class.is_closure(&self.state.db) {
+            self.self_type
+        } else {
+            ClassInstance::new(class)
+        };
+
         if original == class {
-            if self.work.push(method, HashMap::new()) {
+            if self.work.push(stype, method, HashMap::new()) {
                 self.regular_methods.push(method);
             }
 
@@ -984,9 +1019,46 @@ impl<'a, 'b> Specialize<'a, 'b> {
                 .collect()
         };
 
-        let new = self.specialize_method(class, method, &shapes);
+        let new = self.specialize_method(class, method, &shapes, Some(stype));
 
         class.add_method(&mut self.state.db, name.to_string(), new);
+    }
+
+    fn generate_inline_type_methods(
+        &mut self,
+        original: ClassId,
+        class: ClassId,
+    ) {
+        if !original.is_inline_type(&self.state.db) {
+            return;
+        }
+
+        let methods = [INCREMENT_METHOD, DECREMENT_METHOD];
+
+        for name in methods {
+            let method = original.method(&self.state.db, name).unwrap();
+
+            if original == class {
+                let stype = ClassInstance::new(class);
+
+                if self.work.push(stype, method, HashMap::new()) {
+                    self.regular_methods.push(method);
+                }
+
+                continue;
+            }
+
+            let shapes = class
+                .type_parameters(&self.state.db)
+                .into_iter()
+                .zip(class.shapes(&self.state.db).clone())
+                .collect();
+
+            let new = self.specialize_method(class, method, &shapes, None);
+            let name = method.name(&self.state.db).clone();
+
+            class.add_method(&mut self.state.db, name, new);
+        }
     }
 
     fn generate_closure_methods(&mut self, original: ClassId, class: ClassId) {
@@ -995,7 +1067,11 @@ impl<'a, 'b> Specialize<'a, 'b> {
         let shapes = self.shapes.clone();
         let method = original.method(&self.state.db, CALL_METHOD).unwrap();
 
-        self.specialize_method(class, method, &shapes);
+        // Within a closure's `call` method, explicit references to or captures
+        // of `self` should refer to the type of `self` as used by the method in
+        // which the closure is defined, instead of pointing to the closure's
+        // type.
+        self.specialize_method(class, method, &shapes, Some(self.self_type));
     }
 
     /// Creates a new specialized method, using an existing method as its
@@ -1007,7 +1083,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
         &mut self,
         receiver: TypeRef,
         method: MethodId,
-        key: Vec<Shape>,
+        mut key: Vec<Shape>,
         shapes: &HashMap<TypeParameterId, Shape>,
     ) -> MethodId {
         // For static methods we include the class' type parameter shapes such
@@ -1024,7 +1100,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
             method.type_parameters(&self.state.db)
         };
 
-        let method_shapes: Vec<_> = shape_params
+        let mut method_shapes: Vec<_> = shape_params
             .into_iter()
             .map(|p| *shapes.get(&p).unwrap())
             .collect();
@@ -1035,9 +1111,10 @@ impl<'a, 'b> Specialize<'a, 'b> {
         for arg in method.arguments(&self.state.db) {
             let arg_type = TypeSpecializer::new(
                 &mut self.state.db,
-                self.intern,
+                self.interned,
                 shapes,
                 &mut self.classes,
+                self.self_type,
             )
             .specialize(arg.value_type);
 
@@ -1045,9 +1122,10 @@ impl<'a, 'b> Specialize<'a, 'b> {
             let var_loc = arg.variable.location(&self.state.db);
             let var_type = TypeSpecializer::new(
                 &mut self.state.db,
-                self.intern,
+                self.interned,
                 shapes,
                 &mut self.classes,
+                self.self_type,
             )
             .specialize(raw_var_type);
 
@@ -1062,11 +1140,15 @@ impl<'a, 'b> Specialize<'a, 'b> {
 
         let new_ret = TypeSpecializer::new(
             &mut self.state.db,
-            self.intern,
+            self.interned,
             shapes,
             &mut self.classes,
+            self.self_type,
         )
         .specialize(old_ret);
+
+        self.prepare_key(&mut method_shapes);
+        self.prepare_key(&mut key);
 
         let bounds = method.bounds(&self.state.db).clone();
 
@@ -1094,18 +1176,20 @@ impl<'a, 'b> Specialize<'a, 'b> {
         {
             let arg_type = TypeSpecializer::new(
                 &mut self.state.db,
-                self.intern,
+                self.interned,
                 shapes,
                 &mut self.classes,
+                self.self_type,
             )
             .specialize(arg.value_type);
 
             let raw_var_type = arg.variable.value_type(&self.state.db);
             let var_type = TypeSpecializer::new(
                 &mut self.state.db,
-                self.intern,
+                self.interned,
                 shapes,
                 &mut self.classes,
+                self.self_type,
             )
             .specialize(raw_var_type);
 
@@ -1120,9 +1204,10 @@ impl<'a, 'b> Specialize<'a, 'b> {
         let old_ret = method.return_type(&self.state.db);
         let new_ret = TypeSpecializer::new(
             &mut self.state.db,
-            self.intern,
+            self.interned,
             shapes,
             &mut self.classes,
+            self.self_type,
         )
         .specialize(old_ret);
 
@@ -1139,7 +1224,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
         for (&par, &bound) in method.bounds(&self.state.db).iter() {
             let shape = argument_shape(
                 &self.state.db,
-                self.intern,
+                self.interned,
                 &self.shapes,
                 arguments,
                 par,
@@ -1163,8 +1248,19 @@ impl<'a, 'b> Specialize<'a, 'b> {
 
             shapes.insert(
                 par,
-                arg.shape(&self.state.db, self.intern, &self.shapes),
+                arg.shape(&self.state.db, self.interned, &self.shapes),
             );
+        }
+
+        // Calls may refer to type parameters from the surrounding scope, such
+        // as when a return type of an inner call is inferred according to the
+        // surrounding method's return type. As such, we need to include the
+        // outer shapes as well.
+        //
+        // We do this _last_ such that these shapes don't affect the above
+        // presence check.
+        for (&par, shape) in &self.shapes {
+            shapes.entry(par).or_insert(*shape);
         }
 
         shapes
@@ -1199,7 +1295,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
                         par,
                         argument_shape(
                             &self.state.db,
-                            self.intern,
+                            self.interned,
                             shapes,
                             args,
                             par,
@@ -1220,7 +1316,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
                     par,
                     argument_shape(
                         &self.state.db,
-                        self.intern,
+                        self.interned,
                         shapes,
                         args,
                         par,
@@ -1228,6 +1324,29 @@ impl<'a, 'b> Specialize<'a, 'b> {
                 );
             }
         }
+    }
+
+    /// Prepares a specialization key so it can be used for consistent
+    /// lookups/hashing.
+    ///
+    /// This is necessary because in certain cases we may produce e.g. a
+    /// `Shape::Inline(ins)` shape where `ins` refers to an unspecialized class
+    /// ID. Rather than try and handle that case in a variety of places that
+    /// produce shapes, we handle this in this single place just before we
+    /// actually use the key for a lookup.
+    ///
+    /// This preparation in turn is necessary so two different references to the
+    /// same type, one using as specialized class ID and one using the raw one,
+    /// result in the same lookup result.
+    fn prepare_key(&mut self, key: &mut Vec<Shape>) {
+        TypeSpecializer::specialize_shapes(
+            &mut self.state.db,
+            self.interned,
+            &self.shapes,
+            &mut self.classes,
+            self.self_type,
+            key,
+        );
     }
 }
 
@@ -1282,7 +1401,7 @@ impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
             | Shape::Nil
             | Shape::Boolean
             | Shape::Pointer
-            | Shape::Stack(_) => {
+            | Shape::Copy(_) => {
                 self.ignore_value(block_id, after_id);
             }
             Shape::Mut | Shape::Ref => {
@@ -1291,8 +1410,11 @@ impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
             Shape::Atomic | Shape::String => {
                 self.drop_atomic(block_id, after_id, val, loc);
             }
-            Shape::Owned => {
+            Shape::Owned | Shape::Inline(_) => {
                 self.drop_owned(block_id, after_id, val, ins.dropper, loc);
+            }
+            Shape::InlineRef(t) | Shape::InlineMut(t) => {
+                self.drop_stack_borrow(block_id, after_id, val, t, loc);
             }
         }
     }
@@ -1359,11 +1481,8 @@ impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
                 .class_id(self.db)
                 .unwrap();
 
-            if class.has_object_header(self.db) {
-                self.block_mut(before_id).check_refs(value, location);
-            }
-
             if class.is_heap_allocated(self.db) {
+                self.block_mut(before_id).check_refs(value, location);
                 self.block_mut(before_id).free(value, class, location);
             }
         }
@@ -1394,9 +1513,30 @@ impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
                 None,
                 location,
             );
-        } else if !typ.is_stack_allocated(self.db) {
+        } else if !typ.is_copy_type(self.db) {
             self.block_mut(block).call_dropper(reg, value, location);
         }
+    }
+
+    fn drop_stack_borrow(
+        &mut self,
+        before_id: BlockId,
+        after_id: BlockId,
+        value: RegisterId,
+        instance: ClassInstance,
+        location: InstructionLocation,
+    ) {
+        let reg = self.method.registers.alloc(TypeRef::nil());
+        let method = instance
+            .instance_of()
+            .method(self.db, types::DECREMENT_METHOD)
+            .unwrap();
+        let args = Vec::new();
+
+        self.block_mut(before_id)
+            .call_instance(reg, value, method, args, None, location);
+        self.block_mut(before_id).goto(after_id, location);
+        self.method.body.add_edge(before_id, after_id);
     }
 
     fn block_mut(&mut self, id: BlockId) -> &mut Block {
@@ -1458,7 +1598,7 @@ impl<'a, 'b, 'c> ExpandBorrow<'a, 'b, 'c> {
             | Shape::Nil
             | Shape::Boolean
             | Shape::Pointer
-            | Shape::Stack(_) => {
+            | Shape::Copy(_) => {
                 // These values should be left as-is.
             }
             Shape::Mut | Shape::Ref | Shape::Owned => {
@@ -1466,6 +1606,9 @@ impl<'a, 'b, 'c> ExpandBorrow<'a, 'b, 'c> {
             }
             Shape::Atomic | Shape::String => {
                 self.block_mut(block_id).increment_atomic(val, loc);
+            }
+            Shape::Inline(t) | Shape::InlineRef(t) | Shape::InlineMut(t) => {
+                self.borrow_inline_type(block_id, val, t, loc);
             }
         }
 
@@ -1476,5 +1619,23 @@ impl<'a, 'b, 'c> ExpandBorrow<'a, 'b, 'c> {
 
     fn block_mut(&mut self, id: BlockId) -> &mut Block {
         &mut self.method.body.blocks[id.0]
+    }
+
+    fn borrow_inline_type(
+        &mut self,
+        block: BlockId,
+        value: RegisterId,
+        instance: ClassInstance,
+        location: InstructionLocation,
+    ) {
+        let reg = self.method.registers.alloc(TypeRef::nil());
+        let method = instance
+            .instance_of()
+            .method(self.db, types::INCREMENT_METHOD)
+            .unwrap();
+        let args = Vec::new();
+
+        self.block_mut(block)
+            .call_instance(reg, value, method, args, None, location);
     }
 }

@@ -9,6 +9,3 @@ class inline enum Invalid1 {
 class inline enum Invalid2 {
   case A(Int, Array[Int])
 }
-
-# inline_enum_definitions.inko:6:15 error(invalid-type): an 'inline' or 'extern' type is expected, but 'String' is a heap type
-# inline_enum_definitions.inko:10:15 error(invalid-type): an 'inline' or 'extern' type is expected, but 'Array[Int]' is a heap type

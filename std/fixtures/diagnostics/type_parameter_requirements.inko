@@ -1,10 +1,10 @@
 class A[T: mut] {}
 
-class B[T: inline] {}
+class B[T: copy] {}
 
-class C[T: mut + inline] {}
+class C[T: copy + mut] {}
 
-class D[T: inline + mut] {}
+class D[T: copy + mut] {}
 
-# type_parameter_requirements.inko:5:18 error(invalid-type): type parameters can't be both 'mut' and 'inline', as 'inline' types are immutable
-# type_parameter_requirements.inko:7:21 error(invalid-type): type parameters can't be both 'mut' and 'inline', as 'inline' types are immutable
+# type_parameter_requirements.inko:5:19 error(invalid-type): type parameters can't be both 'mut' and 'copy', as 'copy' types are immutable
+# type_parameter_requirements.inko:7:19 error(invalid-type): type parameters can't be both 'mut' and 'copy', as 'copy' types are immutable

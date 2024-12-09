@@ -1,0 +1,5 @@
+class enum Example {
+  case A(Never)
+}
+
+# never_in_constructor.inko:2:10 error(invalid-type): The 'Never' type can't be used in this context

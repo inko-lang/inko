@@ -14,7 +14,8 @@ use std::ptr::{drop_in_place, null_mut, write, NonNull};
 use std::sync::atomic::Ordering;
 use std::sync::{Mutex, MutexGuard};
 
-const INKO_SYMBOL_IDENTIFIER: &str = "_IM_";
+const METHOD_IDENTIFIER: &str = "_IM_";
+const CLOSURE_IDENTIFIER: &str = "_IMC_";
 
 /// The type signature for Inko's async methods defined in the native code.
 ///
@@ -592,26 +593,32 @@ impl Process {
         for frame in trace.frames() {
             backtrace::resolve(frame.ip(), |symbol| {
                 let name = if let Some(sym_name) = symbol.name() {
-                    // We only want to include frames for Inko source code, not
-                    // any additional frames introduced by the runtime library
-                    // and its dependencies.
-                    let base = if let Some(name) = sym_name
-                        .as_str()
-                        .unwrap_or("")
-                        .strip_prefix(INKO_SYMBOL_IDENTIFIER)
-                    {
-                        name
-                    } else {
-                        return;
-                    };
+                    let raw_name = sym_name.as_str().unwrap_or("");
 
-                    // Methods include the shape identifiers to prevent name
-                    // conflicts. We get rid of these to ensure the stacktraces
-                    // are easier to understand.
-                    if let Some(idx) = base.find('#') {
-                        base[0..idx].to_string()
+                    // For closures the generated symbol names aren't useful and
+                    // subject to change, so we ignore them.
+                    if raw_name.starts_with(CLOSURE_IDENTIFIER) {
+                        "<closure>".to_string()
                     } else {
-                        base.to_string()
+                        // We only want to include frames for Inko source code,
+                        // not any additional frames introduced by the runtime
+                        // library and its dependencies.
+                        let base = if let Some(name) =
+                            raw_name.strip_prefix(METHOD_IDENTIFIER)
+                        {
+                            name
+                        } else {
+                            return;
+                        };
+
+                        // Methods include the shape identifiers to prevent name
+                        // conflicts. We get rid of these to ensure the
+                        // stacktraces are easier to understand.
+                        if let Some(idx) = base.find('#') {
+                            base[0..idx].to_string()
+                        } else {
+                            base.to_string()
+                        }
                     }
                 } else {
                     String::new()

@@ -1,4 +1,4 @@
-class inline A {
+class copy A {
   fn mut invalid {}
 }
 

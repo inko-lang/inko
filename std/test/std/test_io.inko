@@ -21,7 +21,7 @@ class Reader {
 }
 
 impl Read for Reader {
-  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Never] {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     let start = @index
     let mut max = @index + size
 
@@ -47,7 +47,7 @@ class SingleByteReader {
 }
 
 impl Read for SingleByteReader {
-  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Never] {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     match @bytes.opt(@index) {
       case Some(v) -> {
         into.push(v)
@@ -76,17 +76,17 @@ class Writer {
 }
 
 impl Write for Writer {
-  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Never] {
+  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
     bytes.iter.each(fn (byte) { @buffer.push(byte) })
     Result.Ok(nil)
   }
 
-  fn pub mut write_string(string: String) -> Result[Nil, Never] {
+  fn pub mut write_string(string: String) -> Result[Nil, Error] {
     string.to_byte_array.iter.each(fn (byte) { @buffer.push(byte) })
     Result.Ok(nil)
   }
 
-  fn pub mut flush -> Result[Nil, Never] {
+  fn pub mut flush -> Result[Nil, Error] {
     Result.Ok(nil)
   }
 }

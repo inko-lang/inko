@@ -1,3 +1,4 @@
+use crate::compiler::module_debug_path;
 use crate::config::{BuildDirectories, Opt};
 use crate::llvm::builder::Builder;
 use crate::llvm::constants::{
@@ -38,7 +39,7 @@ use inkwell::values::{
 };
 use inkwell::OptimizationLevel;
 use std::collections::HashMap;
-use std::fs::{read, write};
+use std::fs::{create_dir_all, read, write};
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -46,7 +47,8 @@ use std::thread::scope;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use types::module_name::ModuleName;
 use types::{
-    ClassId, Database, Intrinsic, Shape, TypeRef, BYTE_ARRAY_ID, STRING_ID,
+    ClassId, Database, Intrinsic, Shape, SpecializationKey, TypeRef,
+    BYTE_ARRAY_ID, STRING_ID,
 };
 
 const NIL_VALUE: bool = false;
@@ -562,12 +564,22 @@ impl<'a> Worker<'a> {
         path: PathBuf,
     ) -> Result<PathBuf, String> {
         if self.shared.state.config.write_llvm {
-            let name = module.name.normalized_name();
-            let path =
-                self.shared.directories.llvm_ir.join(format!("{}.ll", name));
+            let mut path = self
+                .shared
+                .directories
+                .llvm_ir
+                .join(module_debug_path(&module.name));
+
+            path.set_extension("ll");
+
+            if let Some(dir) = path.parent() {
+                create_dir_all(dir).map_err(|e| {
+                    format!("failed to create {}: {}", dir.display(), e)
+                })?;
+            }
 
             module.print_to_file(&path).map_err(|e| {
-                format!("failed to write LLVM IR to {}: {}", path.display(), e)
+                format!("failed to write to {}: {}", path.display(), e)
             })?;
         }
 
@@ -842,8 +854,9 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
                     ),
                 };
 
+                let key = SpecializationKey::new(vec![shape]);
                 let class_id = ClassId::array()
-                    .specializations(&self.shared.state.db)[&vec![shape]];
+                    .specializations(&self.shared.state.db)[&key];
                 let layout = self.layouts.instances[class_id.0 as usize];
                 let array = builder.allocate_instance(
                     self.module,
@@ -1721,7 +1734,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    Intrinsic::Moved => unreachable!(),
+                    _ => unreachable!(),
                 }
             }
             Instruction::Goto(ins) => {

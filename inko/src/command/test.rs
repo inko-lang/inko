@@ -3,7 +3,7 @@ use crate::options::print_usage;
 use compiler::compiler::{CompileError, Compiler};
 use compiler::config::{Config, Output, SOURCE_EXT};
 use getopts::Options;
-use std::fs::{read_dir, write};
+use std::fs::{read_dir, read_to_string, write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use types::module_name::ModuleName;
@@ -49,7 +49,7 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         config.set_opt(&val)?;
     }
 
-    let input = config.main_test_module();
+    let main_file = config.main_test_module();
 
     if !config.tests.is_dir() {
         return Err(Error::from(format!(
@@ -71,11 +71,22 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     // the generated file in it (if it doesn't already exist that is).
     compiler.create_build_directory()?;
 
-    write(&input, generate_main_test_module(tests)).map_err(|err| {
-        Error::from(format!("Failed to write {}: {}", input.display(), err))
-    })?;
+    let old_code = read_to_string(&main_file).unwrap_or_else(|_| String::new());
+    let new_code = generate_main_test_module(tests);
 
-    let result = compiler.build(Some(input));
+    // We only update the file if necessary as to avoid unnecessary
+    // recompilations of object files.
+    if old_code != new_code {
+        write(&main_file, new_code).map_err(|e| {
+            Error::from(format!(
+                "Failed to write {}: {}",
+                main_file.display(),
+                e
+            ))
+        })?;
+    }
+
+    let result = compiler.build(Some(main_file));
 
     compiler.print_diagnostics();
 

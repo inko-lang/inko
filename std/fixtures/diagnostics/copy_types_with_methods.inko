@@ -1,0 +1,12 @@
+class copy A {
+  fn a {
+    self.test
+  }
+
+  fn move b {
+    self.test
+  }
+}
+
+# copy_types_with_methods.inko:3:5 error(invalid-symbol): the method 'test' isn't defined for type 'A'
+# copy_types_with_methods.inko:7:5 error(invalid-symbol): the method 'test' isn't defined for type 'A'

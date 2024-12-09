@@ -97,8 +97,8 @@ trait MethodDefiner {
                 pid.set_mutable(self.db_mut());
             }
 
-            if param_node.inline {
-                pid.set_stack_allocated(self.db_mut());
+            if param_node.copy {
+                pid.set_copy(self.db_mut());
             }
 
             param_node.type_parameter_id = Some(pid);
@@ -208,6 +208,7 @@ trait MethodDefiner {
         rules: Rules,
         scope: &TypeScope,
     ) {
+        let rules = rules.with_never();
         let typ = if let Some(node) = node {
             let typ = self.type_check(node, rules, scope);
 
@@ -623,7 +624,7 @@ impl<'a> DefineMethods<'a> {
         let ret = node
             .return_type
             .as_mut()
-            .map(|node| self.type_check(node, rules, &scope))
+            .map(|node| self.type_check(node, rules.with_never(), &scope))
             .unwrap_or_else(TypeRef::nil);
 
         func.set_return_type(self.db_mut(), ret);
@@ -990,11 +991,16 @@ impl<'a> DefineMethods<'a> {
             ..Default::default()
         };
         let bounds = TypeBounds::new();
-        let self_type = TypeId::TraitInstance(TraitInstance::rigid(
-            self.db_mut(),
-            trait_id,
-            &bounds,
-        ));
+        let mut ins = TraitInstance::rigid(self.db_mut(), trait_id, &bounds);
+
+        // We set this flag so that when we specialize the method, we know that
+        // references to this type should be replaced with the type of the
+        // implementing type. Without this flag, given some value typed as trait
+        // `Foo`, we have no way of knowing if that `Foo` is the type of `self`
+        // or an unrelated value that happens to have the same type.
+        ins.self_type = true;
+
+        let self_type = TypeId::TraitInstance(ins);
         let receiver = receiver_type(self.db(), self_type, node.kind);
 
         method.set_receiver(self.db_mut(), receiver);

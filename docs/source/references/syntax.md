@@ -267,10 +267,25 @@ Enum classes can't define regular fields.
 
 ### Stack allocated classes
 
-Stack allocated classes are defined using the `inline` keyword:
+Stack allocated classes are defined using the `inline` and `copy` keywords:
 
 ```inko
+class pub copy Example {}
 class pub inline Example {}
+```
+
+These keywords can be combined with the `enum` keyword:
+
+```inko
+class copy enum Example {
+  case A
+  case B
+}
+
+class inline enum Example {
+  case A
+  case B
+}
 ```
 
 ### Generic classes

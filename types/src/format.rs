@@ -26,10 +26,8 @@ pub fn type_parameter_capabilities(
 ) -> Option<&'static str> {
     let param = id.get(db);
 
-    if param.stack && param.mutable {
-        Some("inline + mut")
-    } else if param.stack {
-        Some("inline")
+    if param.copy {
+        Some("copy")
     } else if param.mutable {
         Some("mut")
     } else {

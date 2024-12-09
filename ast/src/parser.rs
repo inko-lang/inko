@@ -1027,11 +1027,16 @@ impl Parser {
         start: Token,
     ) -> Result<TopLevelExpression, ParseError> {
         let public = self.next_is_public();
-        let inline = if self.peek().kind == TokenKind::Inline {
-            self.next();
-            true
-        } else {
-            false
+        let semantics = match self.peek().kind {
+            TokenKind::Inline => {
+                self.next();
+                ClassSemantics::Inline
+            }
+            TokenKind::Copy => {
+                self.next();
+                ClassSemantics::Copy
+            }
+            _ => ClassSemantics::Default,
         };
         let kind = match self.peek().kind {
             TokenKind::Async => {
@@ -1070,7 +1075,7 @@ impl Parser {
 
         Ok(TopLevelExpression::DefineClass(Box::new(DefineClass {
             public,
-            inline,
+            semantics,
             kind,
             name,
             type_parameters,
@@ -1291,7 +1296,7 @@ impl Parser {
             let token = self.require()?;
             let req = match token.kind {
                 TokenKind::Mut => Requirement::Mutable(token.location),
-                TokenKind::Inline => Requirement::Inline(token.location),
+                TokenKind::Copy => Requirement::Copy(token.location),
                 _ => Requirement::Trait(
                     self.type_name_with_optional_namespace(token)?,
                 ),
@@ -4612,7 +4617,7 @@ mod tests {
             top(parse("class A {}")),
             TopLevelExpression::DefineClass(Box::new(DefineClass {
                 public: false,
-                inline: false,
+                semantics: ClassSemantics::Default,
                 name: Constant {
                     source: None,
                     name: "A".to_string(),
@@ -4632,7 +4637,7 @@ mod tests {
             top(parse("class pub A {}")),
             TopLevelExpression::DefineClass(Box::new(DefineClass {
                 public: true,
-                inline: false,
+                semantics: ClassSemantics::Default,
                 name: Constant {
                     source: None,
                     name: "A".to_string(),
@@ -4655,7 +4660,7 @@ mod tests {
             top(parse("class extern A {}")),
             TopLevelExpression::DefineClass(Box::new(DefineClass {
                 public: false,
-                inline: false,
+                semantics: ClassSemantics::Default,
                 name: Constant {
                     source: None,
                     name: "A".to_string(),
@@ -4673,24 +4678,24 @@ mod tests {
     }
 
     #[test]
-    fn test_inline_class() {
+    fn test_copy_class() {
         assert_eq!(
-            top(parse("class inline A {}")),
+            top(parse("class copy A {}")),
             TopLevelExpression::DefineClass(Box::new(DefineClass {
                 public: false,
-                inline: true,
+                semantics: ClassSemantics::Copy,
                 name: Constant {
                     source: None,
                     name: "A".to_string(),
-                    location: cols(14, 14)
+                    location: cols(12, 12)
                 },
                 kind: ClassKind::Regular,
                 type_parameters: None,
                 body: ClassExpressions {
                     values: Vec::new(),
-                    location: cols(16, 17)
+                    location: cols(14, 15)
                 },
-                location: cols(1, 17)
+                location: cols(1, 15)
             }))
         );
     }
@@ -4701,7 +4706,7 @@ mod tests {
             top(parse("class async A {}")),
             TopLevelExpression::DefineClass(Box::new(DefineClass {
                 public: false,
-                inline: false,
+                semantics: ClassSemantics::Default,
                 name: Constant {
                     source: None,
                     name: "A".to_string(),
@@ -4724,7 +4729,7 @@ mod tests {
             top(parse("class A { fn async foo {} }")),
             TopLevelExpression::DefineClass(Box::new(DefineClass {
                 public: false,
-                inline: false,
+                semantics: ClassSemantics::Default,
                 name: Constant {
                     source: None,
                     name: "A".to_string(),
@@ -4763,7 +4768,7 @@ mod tests {
             top(parse("class A { fn async mut foo {} }")),
             TopLevelExpression::DefineClass(Box::new(DefineClass {
                 public: false,
-                inline: false,
+                semantics: ClassSemantics::Default,
                 name: Constant {
                     source: None,
                     name: "A".to_string(),
@@ -4805,7 +4810,7 @@ mod tests {
             top(parse("class A[B: X, C] {}")),
             TopLevelExpression::DefineClass(Box::new(DefineClass {
                 public: false,
-                inline: false,
+                semantics: ClassSemantics::Default,
                 name: Constant {
                     source: None,
                     name: "A".to_string(),
@@ -4858,7 +4863,7 @@ mod tests {
             top(parse("class A[B: a.X] {}")),
             TopLevelExpression::DefineClass(Box::new(DefineClass {
                 public: false,
-                inline: false,
+                semantics: ClassSemantics::Default,
                 name: Constant {
                     source: None,
                     name: "A".to_string(),
@@ -4906,7 +4911,7 @@ mod tests {
             top(parse("class A { fn foo {} }")),
             TopLevelExpression::DefineClass(Box::new(DefineClass {
                 public: false,
-                inline: false,
+                semantics: ClassSemantics::Default,
                 name: Constant {
                     source: None,
                     name: "A".to_string(),
@@ -4945,7 +4950,7 @@ mod tests {
             top(parse("class A { fn pub foo {} }")),
             TopLevelExpression::DefineClass(Box::new(DefineClass {
                 public: false,
-                inline: false,
+                semantics: ClassSemantics::Default,
                 name: Constant {
                     source: None,
                     name: "A".to_string(),
@@ -4987,7 +4992,7 @@ mod tests {
             top(parse("class A { fn move foo {} }")),
             TopLevelExpression::DefineClass(Box::new(DefineClass {
                 public: false,
-                inline: false,
+                semantics: ClassSemantics::Default,
                 name: Constant {
                     source: None,
                     name: "A".to_string(),
@@ -5029,7 +5034,7 @@ mod tests {
             top(parse("class A { fn inline foo {} }")),
             TopLevelExpression::DefineClass(Box::new(DefineClass {
                 public: false,
-                inline: false,
+                semantics: ClassSemantics::Default,
                 name: Constant {
                     source: None,
                     name: "A".to_string(),
@@ -5071,7 +5076,7 @@ mod tests {
             top(parse("class A { fn mut foo {} }")),
             TopLevelExpression::DefineClass(Box::new(DefineClass {
                 public: false,
-                inline: false,
+                semantics: ClassSemantics::Default,
                 name: Constant {
                     source: None,
                     name: "A".to_string(),
@@ -5113,7 +5118,7 @@ mod tests {
             top(parse("class A { fn static foo {} }")),
             TopLevelExpression::DefineClass(Box::new(DefineClass {
                 public: false,
-                inline: false,
+                semantics: ClassSemantics::Default,
                 name: Constant {
                     source: None,
                     name: "A".to_string(),
@@ -5155,7 +5160,7 @@ mod tests {
             top(parse("class A { let @foo: A }")),
             TopLevelExpression::DefineClass(Box::new(DefineClass {
                 public: false,
-                inline: false,
+                semantics: ClassSemantics::Default,
                 name: Constant {
                     source: None,
                     name: "A".to_string(),
@@ -5193,7 +5198,7 @@ mod tests {
             top(parse("class A { let pub @foo: A }")),
             TopLevelExpression::DefineClass(Box::new(DefineClass {
                 public: false,
-                inline: false,
+                semantics: ClassSemantics::Default,
                 name: Constant {
                     source: None,
                     name: "A".to_string(),
@@ -5555,7 +5560,7 @@ mod tests {
         );
 
         assert_eq!(
-            top(parse("impl A if T: inline {}")),
+            top(parse("impl A if T: copy {}")),
             TopLevelExpression::ReopenClass(Box::new(ReopenClass {
                 class_name: Constant {
                     source: None,
@@ -5564,7 +5569,7 @@ mod tests {
                 },
                 body: ImplementationExpressions {
                     values: Vec::new(),
-                    location: cols(21, 22)
+                    location: cols(19, 20)
                 },
                 bounds: Some(TypeBounds {
                     values: vec![TypeBound {
@@ -5574,14 +5579,14 @@ mod tests {
                             location: cols(11, 11)
                         },
                         requirements: Requirements {
-                            values: vec![Requirement::Inline(cols(14, 19))],
-                            location: cols(14, 19)
+                            values: vec![Requirement::Copy(cols(14, 17))],
+                            location: cols(14, 17)
                         },
-                        location: cols(11, 19)
+                        location: cols(11, 17)
                     }],
-                    location: cols(11, 19)
+                    location: cols(11, 17)
                 }),
-                location: cols(1, 19)
+                location: cols(1, 17)
             }))
         );
 
@@ -6244,7 +6249,7 @@ mod tests {
             top(parse("class builtin A {}")),
             TopLevelExpression::DefineClass(Box::new(DefineClass {
                 public: false,
-                inline: false,
+                semantics: ClassSemantics::Default,
                 kind: ClassKind::Builtin,
                 name: Constant {
                     source: None,
@@ -9679,7 +9684,7 @@ mod tests {
             top(parse("class enum Option[T] { case Some(T) case None }")),
             TopLevelExpression::DefineClass(Box::new(DefineClass {
                 public: false,
-                inline: false,
+                semantics: ClassSemantics::Default,
                 kind: ClassKind::Enum,
                 name: Constant {
                     source: None,
@@ -9779,7 +9784,7 @@ mod tests {
             top(parse_with_comments("class A {\n# foo\n}")),
             TopLevelExpression::DefineClass(Box::new(DefineClass {
                 public: false,
-                inline: false,
+                semantics: ClassSemantics::Default,
                 kind: ClassKind::Regular,
                 name: Constant {
                     source: None,

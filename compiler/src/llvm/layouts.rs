@@ -8,7 +8,7 @@ use inkwell::types::{
 };
 use std::collections::VecDeque;
 use types::{
-    CallConvention, ClassId, Database, MethodId, TypeId, TypeRef, BOOL_ID,
+    CallConvention, ClassId, Database, MethodId, TypeRef, BOOL_ID,
     BYTE_ARRAY_ID, FLOAT_ID, INT_ID, NIL_ID, STRING_ID,
 };
 
@@ -25,16 +25,20 @@ impl Sized {
     }
 
     fn has_size(&self, db: &Database, typ: TypeRef) -> bool {
-        match typ {
-            TypeRef::Owned(TypeId::ClassInstance(ins))
-            | TypeRef::Uni(TypeId::ClassInstance(ins)) => {
-                let cls = ins.instance_of();
+        // TypeRef::as_class_instance() returns a TypeId for a pointer, but
+        // pointers have a known size, so we need to skip the logic below.
+        if typ.is_pointer(db) {
+            return true;
+        }
 
-                cls.is_heap_allocated(db) || self.map[cls.0 as usize]
-            }
+        if let Some(ins) = typ.as_class_instance(db) {
+            let cls = ins.instance_of();
+
+            cls.is_heap_allocated(db) || self.map[cls.0 as usize]
+        } else {
             // Everything else (e.g. borrows) uses pointers and thus have a
             // known size.
-            _ => true,
+            true
         }
     }
 
@@ -372,7 +376,7 @@ impl<'ctx> Layouts<'ctx> {
                 let fields = id.fields(db);
                 let mut types = Vec::with_capacity(fields.len() + 1);
 
-                if id.has_object_header(db) {
+                if id.is_heap_allocated(db) {
                     types.push(self.header.into());
                 }
 
@@ -418,7 +422,7 @@ impl<'ctx> Layouts<'ctx> {
             // processed here will have.
             let mut types = Vec::with_capacity(fields.len() + 1);
 
-            if id.has_object_header(db) {
+            if id.is_heap_allocated(db) {
                 types.push(self.header.into());
             }
 

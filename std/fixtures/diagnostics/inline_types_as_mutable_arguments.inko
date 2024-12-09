@@ -3,5 +3,3 @@ class inline A {
 }
 
 fn example(value: mut A) {}
-
-# inline_types_as_mutable_arguments.inko:5:23 error(invalid-type): mutable borrows of type 'A' are invalid as 'A' is immutable

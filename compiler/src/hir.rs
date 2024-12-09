@@ -387,10 +387,17 @@ pub(crate) enum ClassKind {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum ClassSemantics {
+    Default,
+    Inline,
+    Copy,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct DefineClass {
     pub(crate) documentation: String,
     pub(crate) public: bool,
-    pub(crate) inline: bool,
+    pub(crate) semantics: ClassSemantics,
     pub(crate) class_id: Option<types::ClassId>,
     pub(crate) kind: ClassKind,
     pub(crate) name: Constant,
@@ -472,7 +479,7 @@ pub(crate) struct TypeBound {
     pub(crate) name: Constant,
     pub(crate) requirements: Vec<TypeName>,
     pub(crate) mutable: bool,
-    pub(crate) inline: bool,
+    pub(crate) copy: bool,
     pub(crate) location: Location,
 }
 
@@ -645,7 +652,7 @@ pub(crate) struct TypeParameter {
     pub(crate) name: Constant,
     pub(crate) requirements: Vec<TypeName>,
     pub(crate) mutable: bool,
-    pub(crate) inline: bool,
+    pub(crate) copy: bool,
     pub(crate) location: Location,
 }
 
@@ -1311,14 +1318,14 @@ impl<'a> LowerToHir<'a> {
         node: ast::DefineClass,
         documentation: String,
     ) -> TopLevelExpression {
-        if node.inline {
+        if !matches!(node.semantics, ast::ClassSemantics::Default) {
             match node.kind {
                 ast::ClassKind::Enum | ast::ClassKind::Regular => {}
                 _ => {
                     self.state.diagnostics.error(
                         DiagnosticId::InvalidType,
                         "only regular and 'enum' types support the 'inline' \
-                        attribute",
+                        and 'copy' keywords",
                         self.file(),
                         node.name.location,
                     );
@@ -1333,7 +1340,11 @@ impl<'a> LowerToHir<'a> {
         TopLevelExpression::Class(Box::new(DefineClass {
             documentation,
             public: node.public,
-            inline: node.inline,
+            semantics: match node.semantics {
+                ast::ClassSemantics::Default => ClassSemantics::Default,
+                ast::ClassSemantics::Inline => ClassSemantics::Inline,
+                ast::ClassSemantics::Copy => ClassSemantics::Copy,
+            },
             class_id: None,
             kind: match node.kind {
                 ast::ClassKind::Async => ClassKind::Async,
@@ -1574,7 +1585,7 @@ impl<'a> LowerToHir<'a> {
 
     fn type_bound(&mut self, node: ast::TypeBound) -> TypeBound {
         let name = self.constant(node.name);
-        let (reqs, mutable, inline) = self.define_type_parameter_requirements(
+        let (reqs, mutable, copy) = self.define_type_parameter_requirements(
             &name.name,
             node.requirements.values,
         );
@@ -1583,7 +1594,7 @@ impl<'a> LowerToHir<'a> {
             name,
             requirements: reqs,
             mutable,
-            inline,
+            copy,
             location: node.location,
         }
     }
@@ -1594,7 +1605,7 @@ impl<'a> LowerToHir<'a> {
         nodes: Vec<ast::Requirement>,
     ) -> (Vec<TypeName>, bool, bool) {
         let mut mutable = false;
-        let mut inline = false;
+        let mut copy = false;
         let mut requirements = Vec::new();
 
         for req in nodes {
@@ -1611,31 +1622,31 @@ impl<'a> LowerToHir<'a> {
                             name, "mut", file, loc,
                         );
                 }
-                ast::Requirement::Mutable(loc) if inline => {
+                ast::Requirement::Mutable(loc) if copy => {
                     self.state
                         .diagnostics
-                        .mutable_inline_type_parameter(self.file(), loc);
+                        .mutable_copy_type_parameter(self.file(), loc);
                 }
-                ast::Requirement::Inline(loc) if inline => {
+                ast::Requirement::Copy(loc) if copy => {
                     let file = self.file();
 
                     self.state
                         .diagnostics
                         .duplicate_type_parameter_requirement(
-                            name, "mut", file, loc,
+                            name, "copy", file, loc,
                         );
                 }
-                ast::Requirement::Inline(loc) if mutable => {
+                ast::Requirement::Copy(loc) if mutable => {
                     self.state
                         .diagnostics
-                        .mutable_inline_type_parameter(self.file(), loc);
+                        .mutable_copy_type_parameter(self.file(), loc);
                 }
                 ast::Requirement::Mutable(_) => mutable = true,
-                ast::Requirement::Inline(_) => inline = true,
+                ast::Requirement::Copy(_) => copy = true,
             }
         }
 
-        (requirements, mutable, inline)
+        (requirements, mutable, copy)
     }
 
     fn define_trait(
@@ -1945,7 +1956,7 @@ impl<'a> LowerToHir<'a> {
     fn type_parameter(&mut self, node: ast::TypeParameter) -> TypeParameter {
         let name = self.constant(node.name);
         let location = node.location;
-        let (reqs, mutable, inline) = if let Some(reqs) = node.requirements {
+        let (reqs, mutable, copy) = if let Some(reqs) = node.requirements {
             self.define_type_parameter_requirements(&name.name, reqs.values)
         } else {
             (Vec::new(), false, false)
@@ -1957,7 +1968,7 @@ impl<'a> LowerToHir<'a> {
             requirements: reqs,
             location,
             mutable,
-            inline,
+            copy,
         }
     }
 
@@ -3786,7 +3797,7 @@ mod tests {
                         location: cols(11, 11)
                     }],
                     mutable: false,
-                    inline: false,
+                    copy: false,
                     location: cols(8, 11)
                 }],
                 arguments: vec![MethodArgument {
@@ -3967,7 +3978,7 @@ mod tests {
             TopLevelExpression::Class(Box::new(DefineClass {
                 documentation: String::new(),
                 public: false,
-                inline: false,
+                semantics: ClassSemantics::Default,
                 kind: ClassKind::Regular,
                 class_id: None,
                 name: Constant { name: "A".to_string(), location: cols(7, 7) },
@@ -3988,7 +3999,7 @@ mod tests {
                         location: cols(12, 12)
                     }],
                     mutable: false,
-                    inline: false,
+                    copy: false,
                     location: cols(9, 12)
                 }],
                 body: vec![ClassExpression::Field(Box::new(DefineField {
@@ -4056,20 +4067,20 @@ mod tests {
     }
 
     #[test]
-    fn test_lower_inline_class() {
-        let hir = lower_top_expr("class inline A { let @a: B }").0;
+    fn test_lower_copy_class() {
+        let hir = lower_top_expr("class copy A { let @a: B }").0;
 
         assert_eq!(
             hir,
             TopLevelExpression::Class(Box::new(DefineClass {
                 documentation: String::new(),
                 public: false,
-                inline: true,
+                semantics: ClassSemantics::Copy,
                 class_id: None,
                 kind: ClassKind::Regular,
                 name: Constant {
                     name: "A".to_string(),
-                    location: cols(14, 14)
+                    location: cols(12, 12)
                 },
                 body: vec![ClassExpression::Field(Box::new(DefineField {
                     documentation: String::new(),
@@ -4077,22 +4088,22 @@ mod tests {
                     field_id: None,
                     name: Identifier {
                         name: "a".to_string(),
-                        location: cols(22, 23)
+                        location: cols(20, 21)
                     },
                     value_type: Type::Named(Box::new(TypeName {
                         source: None,
                         resolved_type: types::TypeRef::Unknown,
                         name: Constant {
                             name: "B".to_string(),
-                            location: cols(26, 26)
+                            location: cols(24, 24)
                         },
                         arguments: Vec::new(),
-                        location: cols(26, 26)
+                        location: cols(24, 24)
                     })),
-                    location: cols(18, 26),
+                    location: cols(16, 24),
                 }))],
                 type_parameters: Vec::new(),
-                location: cols(1, 28)
+                location: cols(1, 26)
             })),
         );
     }
@@ -4106,7 +4117,7 @@ mod tests {
             TopLevelExpression::Class(Box::new(DefineClass {
                 documentation: String::new(),
                 public: true,
-                inline: false,
+                semantics: ClassSemantics::Default,
                 kind: ClassKind::Regular,
                 class_id: None,
                 name: Constant {
@@ -4129,7 +4140,7 @@ mod tests {
             TopLevelExpression::Class(Box::new(DefineClass {
                 documentation: String::new(),
                 public: false,
-                inline: false,
+                semantics: ClassSemantics::Default,
                 kind: ClassKind::Regular,
                 class_id: None,
                 name: Constant { name: "A".to_string(), location: cols(7, 7) },
@@ -4168,7 +4179,7 @@ mod tests {
             TopLevelExpression::Class(Box::new(DefineClass {
                 documentation: String::new(),
                 public: false,
-                inline: false,
+                semantics: ClassSemantics::Default,
                 class_id: None,
                 kind: ClassKind::Builtin,
                 name: Constant {
@@ -4192,7 +4203,7 @@ mod tests {
                         location: cols(20, 20)
                     }],
                     mutable: false,
-                    inline: false,
+                    copy: false,
                     location: cols(17, 20)
                 }],
                 body: vec![ClassExpression::Field(Box::new(DefineField {
@@ -4229,7 +4240,7 @@ mod tests {
             TopLevelExpression::Class(Box::new(DefineClass {
                 documentation: String::new(),
                 public: false,
-                inline: false,
+                semantics: ClassSemantics::Default,
                 class_id: None,
                 kind: ClassKind::Async,
                 name: Constant {
@@ -4253,7 +4264,7 @@ mod tests {
             TopLevelExpression::Class(Box::new(DefineClass {
                 documentation: String::new(),
                 public: false,
-                inline: false,
+                semantics: ClassSemantics::Default,
                 class_id: None,
                 kind: ClassKind::Regular,
                 name: Constant { name: "A".to_string(), location: cols(7, 7) },
@@ -4275,7 +4286,7 @@ mod tests {
                             },
                             requirements: Vec::new(),
                             mutable: false,
-                            inline: false,
+                            copy: false,
                             location: cols(23, 23)
                         }],
                         arguments: vec![MethodArgument {
@@ -4329,7 +4340,7 @@ mod tests {
             TopLevelExpression::Class(Box::new(DefineClass {
                 documentation: String::new(),
                 public: false,
-                inline: false,
+                semantics: ClassSemantics::Default,
                 class_id: None,
                 kind: ClassKind::Regular,
                 name: Constant { name: "A".to_string(), location: cols(7, 7) },
@@ -4351,7 +4362,7 @@ mod tests {
                             },
                             requirements: Vec::new(),
                             mutable: false,
-                            inline: false,
+                            copy: false,
                             location: cols(22, 22)
                         }],
                         arguments: vec![MethodArgument {
@@ -4404,7 +4415,7 @@ mod tests {
             TopLevelExpression::Class(Box::new(DefineClass {
                 documentation: String::new(),
                 public: false,
-                inline: false,
+                semantics: ClassSemantics::Default,
                 class_id: None,
                 kind: ClassKind::Regular,
                 name: Constant { name: "A".to_string(), location: cols(7, 7) },
@@ -4427,7 +4438,7 @@ mod tests {
                             },
                             requirements: Vec::new(),
                             mutable: false,
-                            inline: false,
+                            copy: false,
                             location: cols(16, 16)
                         }],
                         arguments: vec![MethodArgument {
@@ -4480,7 +4491,7 @@ mod tests {
             TopLevelExpression::Class(Box::new(DefineClass {
                 documentation: String::new(),
                 public: false,
-                inline: false,
+                semantics: ClassSemantics::Default,
                 class_id: None,
                 kind: ClassKind::Regular,
                 name: Constant { name: "A".to_string(), location: cols(7, 7) },
@@ -4541,7 +4552,7 @@ mod tests {
                     },
                     requirements: Vec::new(),
                     mutable: false,
-                    inline: false,
+                    copy: false,
                     location: cols(9, 9)
                 }],
                 requirements: vec![TypeName {
@@ -4612,7 +4623,7 @@ mod tests {
                             },
                             requirements: Vec::new(),
                             mutable: false,
-                            inline: false,
+                            copy: false,
                             location: cols(16, 16)
                         }],
                         arguments: vec![MethodArgument {
@@ -4752,7 +4763,7 @@ mod tests {
                             },
                             requirements: Vec::new(),
                             mutable: false,
-                            inline: false,
+                            copy: false,
                             location: cols(16, 16)
                         }],
                         arguments: vec![MethodArgument {
@@ -4863,7 +4874,7 @@ mod tests {
                     },
                     requirements: Vec::new(),
                     mutable: true,
-                    inline: false,
+                    copy: false,
                     location: cols(11, 16),
                 }],
                 body: Vec::new(),
@@ -5119,7 +5130,7 @@ mod tests {
                         location: cols(20, 20)
                     },],
                     mutable: true,
-                    inline: false,
+                    copy: false,
                     location: cols(17, 26)
                 }],
                 body: Vec::new(),
@@ -6776,7 +6787,7 @@ mod tests {
             TopLevelExpression::Class(Box::new(DefineClass {
                 documentation: String::new(),
                 public: false,
-                inline: false,
+                semantics: ClassSemantics::Default,
                 kind: ClassKind::Enum,
                 class_id: None,
                 name: Constant {
@@ -6791,7 +6802,7 @@ mod tests {
                     },
                     requirements: Vec::new(),
                     mutable: false,
-                    inline: false,
+                    copy: false,
                     location: cols(19, 19)
                 }],
                 body: vec![

@@ -117,6 +117,16 @@ pub(crate) struct Rules {
 
     /// If references are allowed.
     pub(crate) allow_refs: bool,
+
+    /// If the "Never" type can be used.
+    pub(crate) allow_never: bool,
+}
+
+impl Rules {
+    pub(crate) fn with_never(mut self) -> Rules {
+        self.allow_never = true;
+        self
+    }
 }
 
 impl Default for Rules {
@@ -125,6 +135,7 @@ impl Default for Rules {
             type_parameters_as_rigid: false,
             allow_private_types: true,
             allow_refs: true,
+            allow_never: false,
         }
     }
 }
@@ -271,7 +282,7 @@ impl<'a> DefineTypeSignature<'a> {
                         id,
                     )))
                 }
-                Symbol::Class(id) if id.is_stack_allocated(&self.state.db) => {
+                Symbol::Class(id) if id.is_copy_type(&self.state.db) => {
                     if matches!(kind, RefKind::Mut) {
                         let name = &id.name(self.db()).clone();
 
@@ -309,13 +320,23 @@ impl<'a> DefineTypeSignature<'a> {
             // compared to physical types, so we handle them here rather than
             // handling them first.
             match name.as_str() {
+                "Never" if !self.rules.allow_never => {
+                    self.state.diagnostics.error(
+                        DiagnosticId::InvalidType,
+                        "The 'Never' type can't be used in this context",
+                        self.file(),
+                        node.location,
+                    );
+
+                    return TypeRef::Error;
+                }
                 "Never" => {
                     if kind == RefKind::Default {
                         TypeRef::Never
                     } else {
                         self.state.diagnostics.error(
                             DiagnosticId::InvalidType,
-                            "'Never' can't be used as a reference",
+                            "'Never' can't be borrowed",
                             self.file(),
                             node.location,
                         );
@@ -778,7 +799,9 @@ impl<'a> CheckTypeSignature<'a> {
                 exp_args.clone(),
             );
 
-            if !TypeChecker::new(self.db()).run(arg, exp, &mut env) {
+            if !TypeChecker::new(self.db())
+                .check_type_argument(arg, exp, &mut env)
+            {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidType,
                     format!(
@@ -852,7 +875,6 @@ impl<'a> DefineAndCheckTypeSignature<'a> {
         .define_type(node);
 
         CheckTypeSignature::new(self.state, self.module).check(node);
-
         typ
     }
 
@@ -931,8 +953,8 @@ pub(crate) fn define_type_bounds(
             new_param.set_mutable(&mut state.db);
         }
 
-        if bound.inline {
-            new_param.set_stack_allocated(&mut state.db);
+        if bound.copy {
+            new_param.set_copy(&mut state.db);
         }
 
         new_param.add_requirements(&mut state.db, reqs);

@@ -499,13 +499,13 @@ fn inline receive_from_unix(
 
 fn inline try_clone(
   socket: Pointer[net.RawSocket],
-  copy: Pointer[net.RawSocket],
+  clone: Pointer[net.RawSocket],
 ) -> Result[Nil, Error] {
   let fd = libc.fcntl(socket.inner, libc.F_DUPFD_CLOEXEC as Int32, 0 as Int32)
 
   if fd as Int == -1 { throw Error.last_os_error }
 
-  copy.inner = fd
+  clone.inner = fd
   Result.Ok(nil)
 }
 

@@ -1,0 +1,9 @@
+fn foo(value: Int) {}
+
+fn never -> Never {
+  panic('never')
+}
+
+fn example1 {
+  foo(never)
+}

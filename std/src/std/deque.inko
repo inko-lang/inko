@@ -356,11 +356,7 @@ class pub Deque[T] {
   }
 
   fn inline get_unchecked(index: Int) -> ref T {
-    let val = read_from(index)
-    let ret = ref val
-
-    _INKO.moved(val)
-    ret
+    _INKO.ref_move(read_from(index))
   }
 
   fn inline to_buffer_index(index: Int) -> Int {
@@ -463,11 +459,7 @@ impl Deque if T: mut {
   }
 
   fn inline mut get_unchecked_mut(index: Int) -> mut T {
-    let val = read_from(index)
-    let ret = mut val
-
-    _INKO.moved(val)
-    ret
+    _INKO.mut_move(read_from(index))
   }
 }
 

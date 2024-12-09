@@ -45,7 +45,7 @@ trait pub Range: Contains[Int] + Hash + Format {
 }
 
 # An inclusive range of integers.
-class pub inline InclusiveRange {
+class pub copy InclusiveRange {
   let @start: Int
   let @end: Int
 
@@ -145,7 +145,7 @@ impl Format for InclusiveRange {
 }
 
 # An exclusive range of integers.
-class pub inline ExclusiveRange {
+class pub copy ExclusiveRange {
   # The start value of the range.
   let @start: Int
 

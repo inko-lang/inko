@@ -1,0 +1,14 @@
+class copy A {}
+
+class pub copy B {}
+
+class copy enum C {}
+
+class pub copy enum D {}
+
+class copy async E {}
+
+class copy extern F {}
+
+# copy_type_definitions.inko:9:18 error(invalid-type): only regular and 'enum' types support the 'inline' and 'copy' keywords
+# copy_type_definitions.inko:11:19 error(invalid-type): only regular and 'enum' types support the 'inline' and 'copy' keywords

@@ -450,7 +450,7 @@ impl Write for Client {
     write_all_internal(string.to_pointer, string.size)
   }
 
-  fn pub mut flush -> Result[Nil, Never] {
+  fn pub mut flush -> Result[Nil, Error] {
     Result.Ok(nil)
   }
 }
@@ -679,7 +679,7 @@ impl Write for Server {
     write_all_internal(string.to_pointer, string.size)
   }
 
-  fn pub mut flush -> Result[Nil, Never] {
+  fn pub mut flush -> Result[Nil, Error] {
     Result.Ok(nil)
   }
 }

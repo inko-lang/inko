@@ -38,7 +38,7 @@ impl<'a> Order<'a> {
         match node {
             Requirement::Trait(n) => Order::Name(&n.name.name),
             Requirement::Mutable(_) => Order::Position(1),
-            Requirement::Inline(_) => Order::Position(0),
+            Requirement::Copy(_) => Order::Position(0),
         }
     }
 }
@@ -732,8 +732,10 @@ impl Document {
             header.push(Node::text("pub "));
         }
 
-        if node.inline {
-            header.push(Node::text("inline "));
+        match node.semantics {
+            nodes::ClassSemantics::Inline => header.push(Node::text("inline ")),
+            nodes::ClassSemantics::Copy => header.push(Node::text("copy ")),
+            _ => {}
         }
 
         match node.kind {
@@ -2390,7 +2392,7 @@ impl Document {
             let val = match node {
                 nodes::Requirement::Trait(n) => self.type_name(n, None),
                 nodes::Requirement::Mutable(_) => Node::text("mut"),
-                nodes::Requirement::Inline(_) => Node::text("inline"),
+                nodes::Requirement::Copy(_) => Node::text("copy"),
             };
 
             pair.push(val);

@@ -1,0 +1,23 @@
+class copy A {
+  let @value: Int
+}
+
+class copy B {
+  let @value1: A
+  let @value2: C
+}
+
+class extern C {
+  let @value: Int
+}
+
+class copy D[T] {
+  let @value: T
+}
+
+class copy E {
+  let @valid: D[Int]
+  let @invalid: D[String]
+}
+
+# copy_types_with_fields.inko:20:19 error(invalid-type): 'String' can't be assigned to type parameter 'T: copy'

@@ -2,11 +2,11 @@ class A[T] {}
 
 impl A if T: mut {}
 
-impl A if T: inline {}
+impl A if T: copy {}
 
-impl A if T: mut + inline {}
+impl A if T: copy + mut {}
 
-impl A if T: inline + mut {}
+impl A if T: copy + mut {}
 
-# type_parameter_bounds.inko:7:20 error(invalid-type): type parameters can't be both 'mut' and 'inline', as 'inline' types are immutable
-# type_parameter_bounds.inko:9:23 error(invalid-type): type parameters can't be both 'mut' and 'inline', as 'inline' types are immutable
+# type_parameter_bounds.inko:7:21 error(invalid-type): type parameters can't be both 'mut' and 'copy', as 'copy' types are immutable
+# type_parameter_bounds.inko:9:21 error(invalid-type): type parameters can't be both 'mut' and 'copy', as 'copy' types are immutable
