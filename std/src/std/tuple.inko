@@ -19,9 +19,8 @@
 # triple.2 # => 5.4
 # ```
 #
-# When accessing values using thes methods, the value is returned as a
-# reference. If you want to destructure a tuple, you can do so using pattern
-# matching:
+# When accessing values using these methods, the value is returned as a borrow.
+# If you want to destructure a tuple, you can do so using pattern matching:
 #
 # ```inko
 # match (10, "foo", 5.4) {
@@ -36,7 +35,7 @@
 # # Limitations
 #
 # Tuples are limited up to 8 values. If you need to store more than 8 values,
-# it's recommended to use a custom class instead. If you _really_ want to use
+# it's recommended to use a custom type instead. If you _really_ want to use
 # tuples you can always nest them:
 #
 # ```inko
