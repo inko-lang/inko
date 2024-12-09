@@ -84,3 +84,8 @@ type, it means the method never returns. An example of this is
 `std.process.panic()`: this method panics and thus returns a `Never`.
 
 You'll likely never need to use this type directly.
+
+::: info
+The `Never` type can only be used as the return type of a method, and can't be
+used as a generic type argument (e.g. `Option[Never]` is invalid).
+:::

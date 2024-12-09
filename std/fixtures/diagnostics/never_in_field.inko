@@ -1,0 +1,5 @@
+class Example {
+  let @value: Never
+}
+
+# never_in_field.inko:2:15 error(invalid-type): The 'Never' type can't be used in this context

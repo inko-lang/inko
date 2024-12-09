@@ -4,8 +4,8 @@ fn b[P: A + B] {}
 
 fn c[P: mut + A + B] {}
 
-fn d[P: inline + A + B] {}
+fn d[P: copy + A + B] {}
 
-fn e[P: inline + mut + A + B] {}
+fn e[P: copy + mut + A + B] {}
 
-fn f[P: inline + mut] {}
+fn f[P: copy + mut] {}
