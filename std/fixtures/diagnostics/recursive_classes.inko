@@ -2,37 +2,37 @@ class A {
   let @a: A
 }
 
-class inline B {
+class copy B {
   let @a: Int
   let @b: Float
   let @c: Pointer[Int64]
 }
 
-class inline C {
+class copy C {
   let @a: D
 }
 
-class inline D {
+class copy D {
   let @a: Int
 }
 
-class inline E {
+class copy E {
   let @a: E
 }
 
-class inline F {
+class copy F {
   let @a: G[F]
 }
 
-class inline G[T] {
+class copy G[T] {
   let @a: T
 }
 
-class inline H {
+class copy H {
   let @a: I[Int]
 }
 
-class inline I[T] {
+class copy I[T] {
   let @a: T
   let @b: H
 }
@@ -57,10 +57,15 @@ class extern N {
   let @a: Pointer[N]
 }
 
-# recursive_classes.inko:19:1 error(invalid-type): 'inline' and 'extern' types can't be recursive
-# recursive_classes.inko:23:1 error(invalid-type): 'inline' and 'extern' types can't be recursive
-# recursive_classes.inko:31:1 error(invalid-type): 'inline' and 'extern' types can't be recursive
-# recursive_classes.inko:35:1 error(invalid-type): 'inline' and 'extern' types can't be recursive
-# recursive_classes.inko:44:1 error(invalid-type): 'inline' and 'extern' types can't be recursive
-# recursive_classes.inko:48:1 error(invalid-type): 'inline' and 'extern' types can't be recursive
-# recursive_classes.inko:52:1 error(invalid-type): 'inline' and 'extern' types can't be recursive
+class inline O {
+  let @a: O
+}
+
+# recursive_classes.inko:19:1 error(invalid-type): types allocated on the stack can't be recursive
+# recursive_classes.inko:23:1 error(invalid-type): types allocated on the stack can't be recursive
+# recursive_classes.inko:31:1 error(invalid-type): types allocated on the stack can't be recursive
+# recursive_classes.inko:35:1 error(invalid-type): types allocated on the stack can't be recursive
+# recursive_classes.inko:44:1 error(invalid-type): types allocated on the stack can't be recursive
+# recursive_classes.inko:48:1 error(invalid-type): types allocated on the stack can't be recursive
+# recursive_classes.inko:52:1 error(invalid-type): types allocated on the stack can't be recursive
+# recursive_classes.inko:60:1 error(invalid-type): types allocated on the stack can't be recursive

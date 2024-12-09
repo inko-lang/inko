@@ -238,6 +238,29 @@ The following shapes are used:
 | Atomic
 | Dynamic
 | Used for other atomic reference counting types, such as processes.
+|-
+| Pointer
+| None
+| Used for C pointers. No form of dispatch is used as pointers don't support
+  methods.
+|-
+| Copy(T)
+| Static
+| Used for `copy` types, where `T` is the type specialized over.
+|-
+| Inline(T)
+| Static
+| Used for `inline` types, where `T` is the type specialized over.
+|-
+| InlineRef(T)
+| Static
+| Used for immutable borrows of `inline` types, where `T` is the type
+  specialized over.
+|-
+| InlineMut(T)
+| Static
+| Used for mutable borrows of `inline` types, where `T` is the type specialized
+  over.
 
 This approach means that the following two methods compile to the same code,
 provided the `foo` method is given an owned value:

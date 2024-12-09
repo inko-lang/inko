@@ -271,7 +271,7 @@ impl<'a> DefineTypeSignature<'a> {
                         id,
                     )))
                 }
-                Symbol::Class(id) if id.is_stack_allocated(&self.state.db) => {
+                Symbol::Class(id) if id.is_copy_type(&self.state.db) => {
                     if matches!(kind, RefKind::Mut) {
                         let name = &id.name(self.db()).clone();
 
@@ -931,8 +931,8 @@ pub(crate) fn define_type_bounds(
             new_param.set_mutable(&mut state.db);
         }
 
-        if bound.inline {
-            new_param.set_stack_allocated(&mut state.db);
+        if bound.copy {
+            new_param.set_copy(&mut state.db);
         }
 
         new_param.add_requirements(&mut state.db, reqs);

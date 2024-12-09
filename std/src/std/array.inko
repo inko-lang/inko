@@ -632,11 +632,7 @@ class builtin Array[T] {
   }
 
   fn inline get_unchecked(index: Int) -> ref T {
-    let val = read_from(index)
-    let ret = ref val
-
-    _INKO.moved(val)
-    ret
+    _INKO.ref_move(read_from(index))
   }
 
   fn inline read_from(index: Int) -> T {
@@ -723,11 +719,7 @@ impl Array if T: mut {
   }
 
   fn inline mut get_unchecked_mut(index: Int) -> mut T {
-    let val = read_from(index)
-    let ret = mut val
-
-    _INKO.moved(val)
-    ret
+    _INKO.mut_move(read_from(index))
   }
 }
 
@@ -756,12 +748,12 @@ impl Contains[T] for Array if T: Equal[ref T] {
 impl Clone[Array[T]] for Array if T: Clone[T] {
   fn pub clone -> Array[T] {
     let len = @size
-    let copy = Array.with_capacity(len)
+    let new = Array.with_capacity(len)
     let mut index = 0
 
-    while index < len { copy.push(get(index := index + 1).clone) }
+    while index < len { new.push(get(index := index + 1).clone) }
 
-    copy
+    new
   }
 }
 

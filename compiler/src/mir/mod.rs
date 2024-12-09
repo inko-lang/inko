@@ -2329,23 +2329,55 @@ impl Mir {
     /// instructions.
     pub(crate) fn remove_unused_instructions(&mut self) {
         for method in self.methods.values_mut() {
-            let uses = method.register_use_counts();
+            let mut uses = method.register_use_counts();
+            let mut repeat = true;
 
-            for block in &mut method.body.blocks {
-                block.instructions.retain(|ins| match ins {
-                    Instruction::Float(i) => uses[i.register.0] > 0,
-                    Instruction::Int(i) => uses[i.register.0] > 0,
-                    Instruction::Nil(i) => uses[i.register.0] > 0,
-                    Instruction::String(i) => uses[i.register.0] > 0,
-                    Instruction::Bool(i) => uses[i.register.0] > 0,
-                    Instruction::Allocate(i) => uses[i.register.0] > 0,
-                    Instruction::Spawn(i) => uses[i.register.0] > 0,
-                    Instruction::GetConstant(i) => uses[i.register.0] > 0,
-                    Instruction::MethodPointer(i) => uses[i.register.0] > 0,
-                    Instruction::SizeOf(i) => uses[i.register.0] > 0,
-                    Instruction::MoveRegister(i) => uses[i.target.0] > 0,
-                    _ => true,
-                });
+            // Removing an instruction may result in other instructions becoming
+            // unused, so we repeat this until we run out of instructions to
+            // remove.
+            while repeat {
+                repeat = false;
+
+                for block in &mut method.body.blocks {
+                    block.instructions.retain(|ins| {
+                        let (reg, src) = match ins {
+                            Instruction::Float(i) => (i.register, None),
+                            Instruction::Int(i) => (i.register, None),
+                            Instruction::Nil(i) => (i.register, None),
+                            Instruction::String(i) => (i.register, None),
+                            Instruction::Bool(i) => (i.register, None),
+                            Instruction::Allocate(i) => (i.register, None),
+                            Instruction::Spawn(i) => (i.register, None),
+                            Instruction::GetConstant(i) => (i.register, None),
+                            Instruction::MethodPointer(i) => (i.register, None),
+                            Instruction::SizeOf(i) => (i.register, None),
+                            Instruction::MoveRegister(i) => {
+                                (i.target, Some(i.source))
+                            }
+                            Instruction::GetField(i) => {
+                                (i.register, Some(i.receiver))
+                            }
+                            Instruction::FieldPointer(i) => {
+                                (i.register, Some(i.receiver))
+                            }
+                            Instruction::Cast(i) => {
+                                (i.register, Some(i.source))
+                            }
+                            _ => return true,
+                        };
+
+                        if uses[reg.0] > 0 {
+                            return true;
+                        }
+
+                        if let Some(src) = src {
+                            uses[src.0] -= 1;
+                            repeat = true;
+                        }
+
+                        false
+                    });
+                }
             }
         }
     }
