@@ -271,7 +271,7 @@ impl ToInt for ExitStatus {
 }
 
 # The standard input stream of a child process.
-class pub Stdin {
+class pub inline Stdin {
   let @fd: Int32
 }
 
@@ -302,7 +302,7 @@ impl Write for Stdin {
 }
 
 # The standard output stream of a child process.
-class pub Stdout {
+class pub inline Stdout {
   let @fd: Int32
 }
 
@@ -319,7 +319,7 @@ impl Read for Stdout {
 }
 
 # The standard error stream of a child process.
-class pub Stderr {
+class pub inline Stderr {
   let @fd: Int32
 }
 
