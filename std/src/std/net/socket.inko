@@ -86,7 +86,7 @@ trait RawSocketOperations {
 }
 
 # An IPv4 or IPv6 socket address.
-class pub inline SocketAddress {
+class pub copy SocketAddress {
   # The IPv4/IPv6 address of this socket address.
   let pub @ip: IpAddress
 

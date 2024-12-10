@@ -109,8 +109,14 @@ impl<'a> DefineTypes<'a> {
                 loc,
             );
 
-            if node.inline {
-                cls.set_stack_allocated(self.db_mut());
+            match node.semantics {
+                hir::ClassSemantics::Default => {}
+                hir::ClassSemantics::Inline => {
+                    cls.set_inline_storage(self.db_mut());
+                }
+                hir::ClassSemantics::Copy => {
+                    cls.set_copy_storage(self.db_mut());
+                }
             }
 
             cls
@@ -333,10 +339,10 @@ impl<'a> ImplementTraits<'a> {
                     );
                 }
 
-                if class_id.is_stack_allocated(self.db()) {
+                if class_id.is_copy_type(self.db()) {
                     self.state.diagnostics.error(
                         DiagnosticId::InvalidImplementation,
-                        "this trait can't be implemented for 'inline' types",
+                        "Drop can't be implemented for 'copy' types",
                         self.file(),
                         node.location,
                     );
@@ -557,7 +563,7 @@ impl<'a> DefineFields<'a> {
         let mut id: usize = 0;
         let scope = TypeScope::new(self.module, TypeId::Class(class_id), None);
         let is_enum = class_id.kind(self.db()).is_enum();
-        let is_stack = class_id.is_stack_allocated(self.db());
+        let is_copy = class_id.is_copy_type(self.db());
         let is_main = self.main_module && node.name.name == MAIN_CLASS;
 
         for expr in &mut node.body {
@@ -617,8 +623,8 @@ impl<'a> DefineFields<'a> {
             )
             .define_type(&mut fnode.value_type);
 
-            if is_stack && !typ.is_stack_allocated(self.db()) {
-                self.state.diagnostics.not_a_stack_type(
+            if is_copy && !typ.is_copy_type(self.db()) {
+                self.state.diagnostics.not_a_copy_type(
                     &format_type(self.db(), typ),
                     self.file(),
                     fnode.location,
@@ -683,8 +689,8 @@ impl<'a> DefineFields<'a> {
 
             // We can't allow heap values in external classes, as that would
             // allow violating their single ownership constraints.
-            if !typ.is_stack_allocated(self.db()) {
-                self.state.diagnostics.not_a_stack_type(
+            if !typ.is_copy_type(self.db()) {
+                self.state.diagnostics.not_a_copy_type(
                     &format_type(self.db(), typ),
                     self.file(),
                     node.value_type.location(),
@@ -763,7 +769,7 @@ impl<'a> DefineTypeParameters<'a> {
 
     fn define_class(&mut self, node: &mut hir::DefineClass) {
         let id = node.class_id.unwrap();
-        let is_stack = id.is_stack_allocated(self.db());
+        let is_copy = id.is_copy_type(self.db());
 
         for param in &mut node.type_parameters {
             let name = &param.name.name;
@@ -781,8 +787,8 @@ impl<'a> DefineTypeParameters<'a> {
                     pid.set_mutable(self.db_mut());
                 }
 
-                if is_stack || param.inline {
-                    pid.set_stack_allocated(self.db_mut());
+                if is_copy || param.copy {
+                    pid.set_copy(self.db_mut());
                 }
 
                 param.type_parameter_id = Some(pid);
@@ -809,8 +815,8 @@ impl<'a> DefineTypeParameters<'a> {
                     pid.set_mutable(self.db_mut());
                 }
 
-                if param.inline {
-                    pid.set_stack_allocated(self.db_mut());
+                if param.copy {
+                    pid.set_copy(self.db_mut());
                 }
 
                 param.type_parameter_id = Some(pid);
@@ -1063,7 +1069,7 @@ impl<'a> DefineConstructors<'a> {
     fn define_class(&mut self, node: &mut hir::DefineClass) {
         let class_id = node.class_id.unwrap();
         let is_enum = class_id.kind(self.db()).is_enum();
-        let is_stack = class_id.is_stack_allocated(self.db());
+        let is_copy = class_id.is_copy_type(self.db());
         let rules = Rules::default();
         let scope = TypeScope::new(self.module, TypeId::Class(class_id), None);
         let mut constructors_count = 0;
@@ -1112,8 +1118,8 @@ impl<'a> DefineConstructors<'a> {
                 )
                 .define_type(n);
 
-                if is_stack && !typ.is_stack_allocated(self.db()) {
-                    self.state.diagnostics.not_a_stack_type(
+                if is_copy && !typ.is_copy_type(self.db()) {
+                    self.state.diagnostics.not_a_copy_type(
                         &format_type(self.db(), typ),
                         self.file(),
                         n.location(),
@@ -1262,7 +1268,7 @@ pub(crate) fn check_recursive_types(
 
             state.diagnostics.error(
                 DiagnosticId::InvalidType,
-                "'inline' and 'extern' types can't be recursive",
+                "types allocated on the stack can't be recursive",
                 module.module_id.file(&state.db),
                 loc,
             );

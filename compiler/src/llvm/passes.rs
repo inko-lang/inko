@@ -1721,7 +1721,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    Intrinsic::Moved => unreachable!(),
+                    _ => unreachable!(),
                 }
             }
             Instruction::Goto(ins) => {

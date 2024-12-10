@@ -8,5 +8,5 @@ class inline A {
   }
 }
 
-# inline_types_with_methods.inko:3:5 error(invalid-symbol): the method 'test' isn't defined for type 'A'
+# inline_types_with_methods.inko:3:5 error(invalid-symbol): the method 'test' isn't defined for type 'ref A'
 # inline_types_with_methods.inko:7:5 error(invalid-symbol): the method 'test' isn't defined for type 'A'

@@ -256,7 +256,7 @@ impl Diagnostics {
         );
     }
 
-    pub(crate) fn not_a_stack_type(
+    pub(crate) fn not_a_copy_type(
         &mut self,
         name: &str,
         file: PathBuf,
@@ -265,8 +265,8 @@ impl Diagnostics {
         self.error(
             DiagnosticId::InvalidType,
             format!(
-                "an 'inline' or 'extern' type is expected, \
-                but '{}' is a heap type",
+                "a 'copy' or 'extern' type is expected, but '{}' is a heap \
+                type",
                 name
             ),
             file,
@@ -288,7 +288,7 @@ impl Diagnostics {
         );
     }
 
-    pub(crate) fn immutable_receiver_for_assignment(
+    pub(crate) fn invalid_field_assignment(
         &mut self,
         name: &str,
         file: PathBuf,
@@ -297,8 +297,8 @@ impl Diagnostics {
         self.error(
             DiagnosticId::InvalidAssign,
             format!(
-                "can't assign a new value to field '{}', as its receiver \
-                is immutable",
+                "values of type '{}' don't allow fields to be assigned \
+                new values",
                 name,
             ),
             file,
@@ -895,15 +895,15 @@ impl Diagnostics {
         );
     }
 
-    pub(crate) fn mutable_inline_type_parameter(
+    pub(crate) fn mutable_copy_type_parameter(
         &mut self,
         file: PathBuf,
         location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidType,
-            "type parameters can't be both 'mut' and 'inline', \
-            as 'inline' types are immutable"
+            "type parameters can't be both 'mut' and 'copy', as 'copy' types \
+            are immutable"
                 .to_string(),
             file,
             location,
