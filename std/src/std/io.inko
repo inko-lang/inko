@@ -220,6 +220,9 @@ class pub copy enum Error {
   # The operation isn't supported.
   case NotSupported
 
+  # A file descriptor is invalid.
+  case InvalidFileDescriptor
+
   # An error not covered by the other constructor.
   #
   # The wrapped `Int` is the raw error code.
@@ -263,6 +266,7 @@ class pub copy enum Error {
       case libc.EFAULT -> Error.BadAddress
       case libc.EXDEV -> Error.CrossDeviceLink
       case libc.ENOTSUP or libc.EOPNOTSUPP -> Error.NotSupported
+      case libc.EBADF -> Error.InvalidFileDescriptor
       case INVALID_DATA -> Error.InvalidData
       case UNEXPECTED_EOF -> Error.EndOfInput
       case val -> Error.Other(val)
@@ -316,6 +320,7 @@ impl ToString for Error {
         'the end of the input stream is reached, but more input is required'
       }
       case NotSupported -> "the operation isn't supported"
+      case InvalidFileDescriptor -> 'the file descriptor is invalid'
       case Other(code) -> 'an other error with code ${code} occurred'
     }
   }
@@ -358,6 +363,7 @@ impl Format for Error {
       case EndOfInput -> 'EndOfInput'
       case CrossDeviceLink -> 'CrossDeviceLink'
       case NotSupported -> 'NotSupported'
+      case InvalidFileDescriptor -> 'InvalidFileDescriptor'
       case Other(code) -> {
         formatter.tuple('Other').field(code).finish
         return
@@ -405,6 +411,7 @@ impl Equal[ref Error] for Error {
       case (EndOfInput, EndOfInput) -> true
       case (CrossDeviceLink, CrossDeviceLink) -> true
       case (NotSupported, NotSupported) -> true
+      case (InvalidFileDescriptor, InvalidFileDescriptor) -> true
       case _ -> false
     }
   }
