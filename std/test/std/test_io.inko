@@ -131,6 +131,7 @@ fn pub tests(t: mut Tests) {
     t.equal(Error.from_os_error(libc.EXDEV), Error.CrossDeviceLink)
     t.equal(Error.from_os_error(libc.ENOTSUP), Error.NotSupported)
     t.equal(Error.from_os_error(libc.EOPNOTSUPP), Error.NotSupported)
+    t.equal(Error.from_os_error(libc.EBADF), Error.InvalidFileDescriptor)
   })
 
   t.test('Error.fmt', fn (t) {
@@ -168,6 +169,7 @@ fn pub tests(t: mut Tests) {
     t.equal(fmt(Error.Other(999)), 'Other(999)')
     t.equal(fmt(Error.CrossDeviceLink), 'CrossDeviceLink')
     t.equal(fmt(Error.NotSupported), 'NotSupported')
+    t.equal(fmt(Error.InvalidFileDescriptor), 'InvalidFileDescriptor')
   })
 
   t.test('Read.read_all', fn (t) {
