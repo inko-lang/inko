@@ -46,7 +46,7 @@ fn negative_time_error(time: Int) -> Never {
 # is useful when performing arithmetic on `Duration` objects, as you won't have
 # to worry about overflows. It also lets you represent a duration that goes back
 # in time, i.e. "something that happened 5 seconds ago".
-class pub inline Duration {
+class pub copy Duration {
   let @nanos: Int
 
   # Creates a new `Duration` from the given number of seconds.
@@ -562,7 +562,7 @@ trait pub ToInstant {
 # tasks such as measuring the execution time of a block of code.
 #
 # An `Instant` can never represent a negative time (e.g. -5).
-class pub inline Instant {
+class pub copy Instant {
   let @nanos: Int
 
   # Returns a new `Instant` representing the current time.

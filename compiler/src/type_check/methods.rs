@@ -97,8 +97,8 @@ trait MethodDefiner {
                 pid.set_mutable(self.db_mut());
             }
 
-            if param_node.inline {
-                pid.set_stack_allocated(self.db_mut());
+            if param_node.copy {
+                pid.set_copy(self.db_mut());
             }
 
             param_node.type_parameter_id = Some(pid);
@@ -208,6 +208,7 @@ trait MethodDefiner {
         rules: Rules,
         scope: &TypeScope,
     ) {
+        let rules = rules.with_never();
         let typ = if let Some(node) = node {
             let typ = self.type_check(node, rules, scope);
 
@@ -623,7 +624,7 @@ impl<'a> DefineMethods<'a> {
         let ret = node
             .return_type
             .as_mut()
-            .map(|node| self.type_check(node, rules, &scope))
+            .map(|node| self.type_check(node, rules.with_never(), &scope))
             .unwrap_or_else(TypeRef::nil);
 
         func.set_return_type(self.db_mut(), ret);

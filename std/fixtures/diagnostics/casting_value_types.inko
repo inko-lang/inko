@@ -1,6 +1,6 @@
 import std.string (ToString)
 
-class inline A {}
+class copy A {}
 
 impl ToString for A {
   fn pub to_string -> String {

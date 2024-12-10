@@ -149,7 +149,7 @@ fn char(byte: Int) -> String {
 # End users don't really care about the difference between
 # RecursionLimitExceeded and InvalidSurrogate(...), nor can they really act
 # differently based on the kind of error.
-class pub enum ErrorKind {
+class pub inline enum ErrorKind {
   # The maximum recursion limit is exceeded.
   case RecursionLimitExceeded(Int)
 
@@ -204,7 +204,7 @@ impl ToString for ErrorKind {
 }
 
 # A type describing an error produced while parsing a JSON document.
-class pub Error {
+class pub inline Error {
   # A value describing the kind of error.
   let pub @kind: ErrorKind
 
@@ -287,7 +287,7 @@ impl ToString for Error {
 # and `Query.index` to get the value of an array index. Methods such as
 # `Query.as_string` and `Query.as_int` are used to extract the final value as a
 # certain type, if such a value is present.
-class pub Query {
+class pub inline Query {
   let @value: Option[ref Json]
 
   # Returns a `Query` that matches the value assigned to the object key `name`,
@@ -305,12 +305,12 @@ class pub Query {
   # Json.Int(42).query.key('name').as_string     # => Option.None
   # ```
   fn pub move key(name: String) -> Query {
-    @value = match ref @value {
+    let val = match ref @value {
       case Some(Object(v)) -> v.opt(name)
       case _ -> Option.None
     }
 
-    self
+    Query(val)
   }
 
   # Returns a `Query` that matches the value assigned to the array index
@@ -325,12 +325,12 @@ class pub Query {
   # Json.Int(42).query.index(0).as_int               # => Option.None
   # ```
   fn pub move index(index: Int) -> Query {
-    @value = match ref @value {
+    let val = match ref @value {
       case Some(Array(v)) -> v.opt(index)
       case _ -> Option.None
     }
 
-    self
+    Query(val)
   }
 
   # Returns the value `self` matches against if it's a `Bool`.
@@ -440,7 +440,7 @@ class pub Query {
 }
 
 # A JSON value, such as `true` or an array.
-class pub enum Json {
+class pub inline enum Json {
   case Int(Int)
   case Float(Float)
   case String(String)
@@ -539,55 +539,21 @@ impl FormatTrait for Json {
 
 impl Equal[ref Json] for Json {
   fn pub ==(other: ref Json) -> Bool {
-    match self {
-      case Int(lhs) -> {
-        match other {
-          case Int(rhs) -> lhs == rhs
-          case _ -> false
-        }
-      }
-      case Float(lhs) -> {
-        match other {
-          case Float(rhs) -> lhs == rhs
-          case _ -> false
-        }
-      }
-      case String(lhs) -> {
-        match other {
-          case String(rhs) -> lhs == rhs
-          case _ -> false
-        }
-      }
-      case Array(lhs) -> {
-        match other {
-          case Array(rhs) -> lhs == rhs
-          case _ -> false
-        }
-      }
-      case Object(lhs) -> {
-        match other {
-          case Object(rhs) -> lhs == rhs
-          case _ -> false
-        }
-      }
-      case Bool(lhs) -> {
-        match other {
-          case Bool(rhs) -> lhs == rhs
-          case _ -> false
-        }
-      }
-      case Null -> {
-        match other {
-          case Null -> true
-          case _ -> false
-        }
-      }
+    match (self, other) {
+      case (Int(a), Int(b)) -> a == b
+      case (Float(a), Float(b)) -> a == b
+      case (String(a), String(b)) -> a == b
+      case (Bool(a), Bool(b)) -> a == b
+      case (Array(a), Array(b)) -> a == b
+      case (Object(a), Object(b)) -> a == b
+      case (Null, Null) -> true
+      case _ -> false
     }
   }
 }
 
 # A numeric value that's either an `Int` or a `Float`.
-class pub enum Number {
+class pub inline enum Number {
   case Int(Int)
   case Float(Float)
 }
@@ -613,7 +579,7 @@ impl FormatTrait for Number {
 
 # A type describing what kind of value is located at the current position in an
 # input stream.
-class pub enum Type {
+class pub inline enum Type {
   case Array
   case Bool
   case Null
@@ -1361,7 +1327,7 @@ class pub Rule[T: mut + Read] {
 # obj.int('b', fn (v) { nums.push(v) }).optional
 # obj.parse(parser).or_panic('failed to parse the JSON')
 # ```
-class pub ObjectParser[T: mut + Read] {
+class pub inline ObjectParser[T: mut + Read] {
   # The keys to parse along with the closures that parse their values.
   let @rules: Map[String, Rule[T]]
 

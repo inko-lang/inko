@@ -34,11 +34,11 @@ class pub extern I {
   let @a: Int
 }
 
-class inline J {
+class copy J {
   let @a: Int
 }
 
-class pub inline K {
+class pub copy K {
   let @a: Int
 }
 
@@ -48,4 +48,12 @@ class L {
 
 class pub M {
   let @a: Int
+}
+
+class inline N {
+  let @a: Int
+}
+
+class inline enum O {
+  case A
 }

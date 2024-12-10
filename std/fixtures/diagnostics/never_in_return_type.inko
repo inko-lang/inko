@@ -1,0 +1,9 @@
+fn valid -> Never {
+  panic('example')
+}
+
+fn invalid -> Option[Never] {
+  Option.None
+}
+
+# never_in_return_type.inko:5:22 error(invalid-type): 'Never' can't be assigned to type parameter 'T'

@@ -86,7 +86,7 @@ trait RawSocketOperations {
 }
 
 # An IPv4 or IPv6 socket address.
-class pub inline SocketAddress {
+class pub copy SocketAddress {
   # The IPv4/IPv6 address of this socket address.
   let pub @ip: IpAddress
 
@@ -606,7 +606,7 @@ impl Write for Socket {
     write_all_internal(string.to_pointer, string.size)
   }
 
-  fn pub mut flush -> Result[Nil, Never] {
+  fn pub mut flush -> Result[Nil, Error] {
     Result.Ok(nil)
   }
 }
@@ -774,7 +774,7 @@ impl Write for UdpSocket {
     @socket.write_string(string)
   }
 
-  fn pub mut flush -> Result[Nil, Never] {
+  fn pub mut flush -> Result[Nil, Error] {
     Result.Ok(nil)
   }
 }
@@ -912,7 +912,7 @@ impl Write for TcpClient {
     @socket.write_string(string)
   }
 
-  fn pub mut flush -> Result[Nil, Never] {
+  fn pub mut flush -> Result[Nil, Error] {
     Result.Ok(nil)
   }
 }
@@ -1481,7 +1481,7 @@ impl Write for UnixSocket {
     write_all_internal(string.to_pointer, string.size)
   }
 
-  fn pub mut flush -> Result[Nil, Never] {
+  fn pub mut flush -> Result[Nil, Error] {
     Result.Ok(nil)
   }
 }
@@ -1628,7 +1628,7 @@ impl Write for UnixDatagram {
     @socket.write_string(string)
   }
 
-  fn pub mut flush -> Result[Nil, Never] {
+  fn pub mut flush -> Result[Nil, Error] {
     Result.Ok(nil)
   }
 }
@@ -1758,7 +1758,7 @@ impl Write for UnixClient {
     @socket.write_string(string)
   }
 
-  fn pub mut flush -> Result[Nil, Never] {
+  fn pub mut flush -> Result[Nil, Error] {
     Result.Ok(nil)
   }
 }

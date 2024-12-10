@@ -391,25 +391,28 @@ impl<'a> GenerateDocumentation<'a> {
 
             let name = id.name(self.db()).clone();
             let docs = id.documentation(self.db()).clone();
-            let is_stack = id.is_stack_allocated(self.db());
+            let is_copy = id.is_copy_type(self.db());
+            let is_inline = id.is_inline_type(self.db());
             let mut obj = Object::new();
             let typ = format!(
                 "class{}{} {}",
                 if public { " pub" } else { "" },
                 match kind {
-                    ClassKind::Enum if is_stack => " inline enum",
+                    ClassKind::Enum if is_copy => " copy enum",
+                    ClassKind::Enum if is_inline => " inline enum",
                     ClassKind::Enum => " enum",
                     ClassKind::Async => " async",
                     ClassKind::Extern => " extern",
                     _ if id.is_builtin() => " builtin",
-                    _ if is_stack => " inline",
+                    _ if is_copy => " copy",
+                    _ if is_inline => " inline",
                     _ => "",
                 },
                 format_type(self.db(), id)
             );
 
             obj.add("name", Json::String(name));
-            obj.add("kind", Json::Int(class_kind(kind, is_stack)));
+            obj.add("kind", Json::Int(class_kind(kind, is_copy)));
             obj.add("location", location_to_json(id.location(self.db())));
             obj.add("public", Json::Bool(public));
             obj.add("type", Json::String(typ));

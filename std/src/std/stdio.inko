@@ -114,7 +114,7 @@ impl Write for Stdout {
   # Flushes any pending writes.
   #
   # Since this type doesn't use any buffering, this method is a no-op.
-  fn pub mut flush -> Result[Nil, Never] {
+  fn pub mut flush -> Result[Nil, Error] {
     Result.Ok(nil)
   }
 }
@@ -166,7 +166,7 @@ impl Write for Stderr {
   # Flushes any pending writes.
   #
   # Since this type doesn't use any buffering, this method is a no-op.
-  fn pub mut flush -> Result[Nil, Never] {
+  fn pub mut flush -> Result[Nil, Error] {
     Result.Ok(nil)
   }
 }
