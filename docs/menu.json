@@ -25,6 +25,7 @@
     "getting-started/generics.md",
     "getting-started/strings.md",
     "getting-started/arrays.md",
+    "getting-started/tuples.md",
     "getting-started/maps.md",
     "getting-started/pattern-matching.md",
     "getting-started/destructors.md",

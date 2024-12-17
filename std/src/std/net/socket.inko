@@ -1005,7 +1005,7 @@ impl RawSocketOperations for TcpServer {
 }
 
 # A Unix domain socket address.
-class pub UnixAddress {
+class pub inline UnixAddress {
   # The path or name of the address.
   #
   # This is a `String` since using a `Path` does not make sense for abstract

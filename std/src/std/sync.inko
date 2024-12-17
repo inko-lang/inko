@@ -485,7 +485,7 @@ class async ChannelState[T] {
 #
 # Example().example(chan2)
 # ```
-class pub Channel[T] {
+class pub inline Channel[T] {
   let @state: ChannelState[T]
 
   # Returns a new `Channel`.

@@ -713,7 +713,7 @@ class pub Encoder {
 }
 
 # An error produced when decoding a base64 encoded sequence of bytes.
-class pub enum DecodeError {
+class pub copy enum DecodeError {
   # The input size isn't a multiple of 4 bytes.
   case InvalidSize
 

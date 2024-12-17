@@ -132,7 +132,7 @@ impl Drop for Random {
 }
 
 # A type for sorting arrays in a random order.
-class pub Shuffle {
+class pub inline Shuffle {
   let @rng: Random
 
   # Returns a new `Shuffle` that sorts values in a random order.

@@ -117,7 +117,7 @@ class pub Block {
 # trait to implement. In addition it's aimed at hasher related to cryptography,
 # such as SHA256 and Poly1305. This type isn't suitable for hashing arbitrary
 # Inko types.
-class pub Hash {
+class pub inline Hash {
   # The bytes that make up this Hash.
   let pub @bytes: ByteArray
 

@@ -76,7 +76,7 @@ let WHITESPACE = [
 ]
 
 # A value/section parsed from a PEM file.
-class pub enum Item {
+class pub inline enum Item {
   # An X.509 certificate.
   case Certificate(Certificate)
 
@@ -104,7 +104,7 @@ impl Equal[ref Item] for Item {
 }
 
 # An error produced while parsing a PEM file.
-class pub enum ParseError {
+class pub inline enum ParseError {
   # An IO error occurred while reading data to parse.
   case Read(Error)
 

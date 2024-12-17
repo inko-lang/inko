@@ -34,6 +34,9 @@ import std.io (Error, Read, Write, WriteInternal)
 import std.sys.unix.stdio (self as sys) if unix
 
 # The standard input stream of the current OS process.
+#
+# `Stdin` is allocated on the heap as this allows one to cast it to a trait,
+# such as the `Read` trait.
 class pub Stdin {
   let @fd: Int32
 
@@ -63,6 +66,9 @@ impl Read for Stdin {
 }
 
 # The standard output stream of the current OS process.
+#
+# `Stdout` is allocated on the heap as this allows one to cast it to a trait,
+# such as the `Write` trait.
 #
 # # Buffering
 #
@@ -120,6 +126,9 @@ impl Write for Stdout {
 }
 
 # The standard error stream of the current OS process.
+#
+# `Stdout` is allocated on the heap as this allows one to cast it to a trait,
+# such as the `Write` trait.
 #
 # # Buffering
 #

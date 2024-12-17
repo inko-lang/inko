@@ -8,7 +8,7 @@ import std.fmt (Format, Formatter)
 import std.iter (Iter)
 
 # A type that represents either success (`Ok(T)`) or failure (`Error(E)`).
-class pub enum Result[T, E] {
+class pub inline enum Result[T, E] {
   # The case and value for a successful result.
   case Ok(T)
 

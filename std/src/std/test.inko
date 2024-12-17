@@ -318,7 +318,7 @@ class async Runner {
 }
 
 # A test failure produced by an assertion.
-class pub Failure {
+class pub inline Failure {
   # A description of what happened.
   let pub @got: String
 
@@ -344,7 +344,7 @@ class pub Failure {
 }
 
 # A type describing how to filter out tests.
-class pub enum Filter {
+class pub inline enum Filter {
   # Only run tests of which the description matches this pattern.
   case Pattern(String)
 
@@ -467,7 +467,7 @@ class pub Process {
 }
 
 # The output of a sub process.
-class pub Output {
+class pub inline Output {
   # The exit status of the process.
   let pub @status: ExitStatus
 

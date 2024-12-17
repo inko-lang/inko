@@ -72,7 +72,7 @@ impl Format for FileType {
 #
 # Instances of this type are typically produced by `std.fs.path.Path.list`,
 # so see that method's documentation for additional details.
-class pub DirectoryEntry {
+class pub inline DirectoryEntry {
   # The path to the entry.
   let pub @path: Path
 
@@ -113,7 +113,7 @@ class copy Time {
 
 # A type containing metadata of a file or directory, such as its type and
 # creation time.
-class pub Metadata {
+class pub inline Metadata {
   # The type of the file.
   let pub @type: FileType
 

@@ -212,11 +212,11 @@ impl Iter[String] for Components {
 #
 # '/tmp/hello.txt'.to_path
 # ```
-class pub Path {
+class pub inline Path {
   # The raw file path.
   let @path: String
 
-  fn pub static new(path: String) -> Path {
+  fn pub inline static new(path: String) -> Path {
     Path(path)
   }
 

@@ -177,7 +177,7 @@ fn extern write_callback(
 }
 
 # An error produced when creating a `ServerConfig`.
-class pub enum ServerConfigError {
+class pub copy enum ServerConfigError {
   # The certificate exists but is invalid, such as when it's revoked or not
   # encoded correctly.
   case InvalidCertificate

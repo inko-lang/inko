@@ -1474,13 +1474,16 @@ impl Class {
     }
 
     fn tuple(name: String) -> Self {
-        Self::new(
+        let mut cls = Self::new(
             name,
             ClassKind::Tuple,
             Visibility::Public,
             ModuleId(DEFAULT_BUILTIN_MODULE_ID),
             Location::default(),
-        )
+        );
+
+        cls.storage = Storage::Inline;
+        cls
     }
 
     fn is_generic(&self) -> bool {

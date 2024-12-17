@@ -973,7 +973,7 @@ impl Drop for Chars {
 #
 # buffer.to_string # => 'foobarbaz'
 # ```
-class pub StringBuffer {
+class pub inline StringBuffer {
   let @strings: Array[String]
 
   # Returns a new empty `StringBuffer`.

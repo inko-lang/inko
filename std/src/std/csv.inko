@@ -62,7 +62,7 @@ fn quote?(value: String, separator: Int) -> Bool {
 }
 
 # An error produced when parsing a CSV stream.
-class pub Error {
+class pub inline Error {
   # The kind of error that's produced.
   let pub @kind: ErrorKind
 
@@ -101,7 +101,7 @@ impl Equal[ref Error] for Error {
 }
 
 # A type indicating what kind of error is produced.
-class pub enum ErrorKind {
+class pub inline enum ErrorKind {
   # An error produced when reading input.
   #
   # This error is produced when the underlying stream of a `Parser` produces an

@@ -24,6 +24,9 @@ import std.io (Error, Read, Seek, Write, WriteInternal)
 import std.sys.unix.fs (self as sys) if unix
 
 # A file that can only be used for reads.
+#
+# `ReadOnlyFile` is allocated on the heap as this allows one to cast it to a
+# trait, such as the `Read` trait.
 class pub ReadOnlyFile {
   let @fd: Int32
 
@@ -102,6 +105,9 @@ impl Seek for ReadOnlyFile {
 }
 
 # A file that can only be used for writes.
+#
+# `WriteOnlyFile` is allocated on the heap as this allows one to cast it to a
+# trait, such as the `Write` trait.
 class pub WriteOnlyFile {
   let @fd: Int32
 
@@ -214,6 +220,9 @@ impl Seek for WriteOnlyFile {
 }
 
 # A file that can be used for both reads and writes.
+#
+# `ReadWriteFile` is allocated on the heap as this allows one to cast it to a
+# trait, such as the `Write` trait.
 class pub ReadWriteFile {
   let @fd: Int32
 
