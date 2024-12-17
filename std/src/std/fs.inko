@@ -107,7 +107,7 @@ class copy Time {
   fn to_date_time -> DateTime {
     let time = @secs.to_float + (@nanos.to_float / 1_000_000_000.0)
 
-    DateTime.from_timestamp(time, utc_offset: 0)
+    DateTime.from_timestamp(time, utc_offset: 0).get
   }
 }
 
@@ -147,6 +147,12 @@ class pub inline Metadata {
   # 1970-01-01 00:00:00), an `Option[DateTime]` is returned. If the creation
   # time is available, the value is a `Option.Some(DateTime)`, otherwise it's a
   # `None`.
+  #
+  # # Panics
+  #
+  # This method may panic if the time can't be expressed in a `DateTime`. This
+  # can only happen if the system clock is returning nonsensical values (e.g. a
+  # year outside of the 32-bits signed integer range).
   fn pub created_at -> Option[DateTime] {
     match @created_at {
       case Some(v) -> Option.Some(v.to_date_time)
@@ -157,6 +163,12 @@ class pub inline Metadata {
   # Returns the time at which the file was last modified.
   #
   # This corresponds to the "mtime" field of `stat()` on Unix systems.
+  #
+  # # Panics
+  #
+  # This method may panic if the time can't be expressed in a `DateTime`. This
+  # can only happen if the system clock is returning nonsensical values (e.g. a
+  # year outside of the 32-bits signed integer range).
   fn pub modified_at -> DateTime {
     @modified_at.to_date_time
   }
@@ -164,6 +176,12 @@ class pub inline Metadata {
   # Returns the time at which the file was last accessed.
   #
   # This corresponds to the `atime` field of `stat()` on Unix systems.
+  #
+  # # Panics
+  #
+  # This method may panic if the time can't be expressed in a `DateTime`. This
+  # can only happen if the system clock is returning nonsensical values (e.g. a
+  # year outside of the 32-bits signed integer range).
   fn pub accessed_at -> DateTime {
     @accessed_at.to_date_time
   }

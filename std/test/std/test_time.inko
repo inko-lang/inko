@@ -2,17 +2,12 @@ import std.cmp (Ordering)
 import std.fmt (fmt)
 import std.process (sleep)
 import std.test (Tests)
-import std.time (DateTime, Duration, Instant)
+import std.time (Date, DateTime, Duration, Instant, Time)
 
 fn ymd(year: Int, month: Int, day: Int) -> DateTime {
   DateTime(
-    year: year,
-    month: month,
-    day: day,
-    hour: 12,
-    minute: 0,
-    second: 0,
-    sub_second: 0.0,
+    date: Date.new(year, month, day).get,
+    time: Time.new(hour: 12, minute: 0, second: 0, sub_second: 0.0).get,
     utc_offset: 0,
   )
 }
@@ -124,126 +119,232 @@ fn pub tests(t: mut Tests) {
     t.true(rem.to_secs <= 5.0)
   })
 
-  t.test('DateTime.new', fn (t) {
-    let time = DateTime.new
+  t.ok('Date.new with a valid date', fn (t) {
+    let valid1 = try Date.new(2024, 12, 31).ok_or(nil)
+    let valid2 = try Date.new(0, 1, 1).ok_or(nil)
 
-    t.true(time.year > 0)
-    t.true(time.month > 0)
-    t.true(time.day > 0)
+    t.equal(valid1.year, 2024)
+    t.equal(valid1.month, 12)
+    t.equal(valid1.day, 31)
+
+    t.equal(valid2.year, 0)
+    t.equal(valid2.month, 1)
+    t.equal(valid2.day, 1)
+
+    Result.Ok(nil)
+  })
+
+  t.test('Date.new with an invalid date', fn (t) {
+    t.true(Date.new(-2147483649, 1, 1).none?)
+    t.true(Date.new(2147483648, 1, 1).none?)
+    t.true(Date.new(2024, 0, 1).none?)
+    t.true(Date.new(2024, 13, 1).none?)
+    t.true(Date.new(2024, 1, 0).none?)
+    t.true(Date.new(2024, 1, 32).none?)
+  })
+
+  t.test('Date.==', fn (t) {
+    t.equal(Date.new_unchecked(2024, 1, 1), Date.new_unchecked(2024, 1, 1))
+    t.not_equal(Date.new_unchecked(2024, 1, 1), Date.new_unchecked(2024, 1, 2))
+  })
+
+  t.test('Date.fmt', fn (t) {
+    t.equal(fmt(Date.new_unchecked(1, 1, 1)), '0001-01-01')
+    t.equal(fmt(Date.new_unchecked(2024, 12, 17)), '2024-12-17')
+  })
+
+  t.test('Date.days_since_unix_epoch', fn (t) {
+    let d1 = Date.new_unchecked(2022, 8, 26)
+    let d2 = Date.new_unchecked(1970, 1, 1)
+    let d3 = Date.new_unchecked(1969, 12, 31)
+    let d4 = Date.new_unchecked(2024, 2, 3)
+
+    t.equal(d1.days_since_unix_epoch, 19_230)
+    t.equal(d2.days_since_unix_epoch, 0)
+    t.equal(d3.days_since_unix_epoch, -1)
+    t.equal(d4.days_since_unix_epoch, 19_756)
+  })
+
+  t.test('Date.day_of_week', fn (t) {
+    let d1 = Date.new_unchecked(2022, 8, 26)
+    let d2 = Date.new_unchecked(1970, 1, 1)
+    let d3 = Date.new_unchecked(1969, 12, 31)
+    let d4 = Date.new_unchecked(1960, 4, 5)
+    let d5 = Date.new_unchecked(1969, 12, 27)
+
+    t.equal(d1.day_of_week, 5)
+    t.equal(d2.day_of_week, 4)
+    t.equal(d3.day_of_week, 3)
+    t.equal(d4.day_of_week, 2)
+    t.equal(d5.day_of_week, 6)
+  })
+
+  t.test('Date.day_of_year', fn (t) {
+    let d1 = Date.new_unchecked(2022, 8, 26)
+    let d2 = Date.new_unchecked(1970, 1, 1)
+    let d3 = Date.new_unchecked(1969, 12, 31)
+    let d4 = Date.new_unchecked(2016, 2, 3)
+
+    t.equal(d1.day_of_year, 238)
+    t.equal(d2.day_of_year, 1)
+    t.equal(d3.day_of_year, 365)
+    t.equal(d4.day_of_year, 34)
+  })
+
+  t.test('Date.leap_year?', fn (t) {
+    let d1 = Date.new_unchecked(2016, 1, 1)
+    let d2 = Date.new_unchecked(2017, 1, 1)
+
+    t.true(d1.leap_year?)
+    t.false(d2.leap_year?)
+  })
+
+  t.ok('Time.new with a valid time', fn (t) {
+    let time = try Time
+      .new(hour: 12, minute: 15, second: 30, sub_second: 1.2)
+      .ok_or(nil)
+
+    t.equal(time.hour, 12)
+    t.equal(time.minute, 15)
+    t.equal(time.second, 30)
+    t.equal(time.sub_second, 1.2)
+    Result.Ok(nil)
+  })
+
+  t.test('Time.new with an invalid time', fn (t) {
+    t.true(Time.new(hour: 25, minute: 1, second: 1, sub_second: 0.0).none?)
+    t.true(Time.new(hour: 1, minute: -1, second: 1, sub_second: 0.0).none?)
+    t.true(Time.new(hour: 1, minute: 1, second: -1, sub_second: 0.0).none?)
+    t.true(Time.new(hour: 1, minute: 1, second: 1, sub_second: -1.0).none?)
+    t.true(Time.new(hour: 1, minute: 60, second: 1, sub_second: 0.0).none?)
+    t.true(Time.new(hour: 1, minute: 0, second: 61, sub_second: 0.0).none?)
+  })
+
+  t.test('Time.==', fn (t) {
+    t.equal(
+      Time.new_unchecked(hour: 12, minute: 15, second: 10, sub_second: 0.0),
+      Time.new_unchecked(hour: 12, minute: 15, second: 10, sub_second: 0.0),
+    )
+    t.not_equal(
+      Time.new_unchecked(hour: 12, minute: 15, second: 10, sub_second: 0.0),
+      Time.new_unchecked(hour: 12, minute: 15, second: 10, sub_second: 1.0),
+    )
+  })
+
+  t.test('Time.fmt', fn (t) {
+    t.equal(
+      fmt(Time.new_unchecked(hour: 12, minute: 15, second: 15, sub_second: 0.0)),
+      '12:15:15',
+    )
+    t.equal(
+      fmt(Time.new_unchecked(hour: 1, minute: 1, second: 1, sub_second: 0.0)),
+      '01:01:01',
+    )
+  })
+
+  t.test('DateTime.local', fn (t) {
+    let time = DateTime.local
+
+    t.true(time.date.year > 0)
+    t.true(time.date.month > 0)
+    t.true(time.date.day > 0)
   })
 
   t.test('DateTime.utc', fn (t) { t.equal(DateTime.utc.utc_offset, 0) })
 
   t.test('DateTime.from_timestamp', fn (t) {
-    let t1 = DateTime.from_timestamp(time: 0.0, utc_offset: 0)
-    let t2 = DateTime.from_timestamp(time: 0.0, utc_offset: 3_600)
-    let t3 = DateTime.from_timestamp(time: 1661538868.123, utc_offset: 7200)
-    let t4 = DateTime.from_timestamp(time: -3600, utc_offset: 0)
+    let t1 = DateTime.from_timestamp(time: 0.0, utc_offset: 0).get
+    let t2 = DateTime.from_timestamp(time: 0.0, utc_offset: 3_600).get
+    let t3 = DateTime.from_timestamp(time: 1661538868.123, utc_offset: 7200).get
+    let t4 = DateTime.from_timestamp(time: -3600, utc_offset: 0).get
 
-    t.equal(t1.year, 1970)
-    t.equal(t1.month, 1)
-    t.equal(t1.day, 1)
-    t.equal(t1.hour, 0)
-    t.equal(t1.minute, 0)
-    t.equal(t1.second, 0)
-    t.equal(t1.sub_second, 0.0)
+    t.equal(t1.date.year, 1970)
+    t.equal(t1.date.month, 1)
+    t.equal(t1.date.day, 1)
+    t.equal(t1.time.hour, 0)
+    t.equal(t1.time.minute, 0)
+    t.equal(t1.time.second, 0)
+    t.equal(t1.time.sub_second, 0.0)
     t.equal(t1.utc_offset, 0)
 
-    t.equal(t2.year, 1970)
-    t.equal(t2.month, 1)
-    t.equal(t2.day, 1)
-    t.equal(t2.hour, 1)
-    t.equal(t2.minute, 0)
-    t.equal(t2.second, 0)
-    t.equal(t2.sub_second, 0.0)
+    t.equal(t2.date.year, 1970)
+    t.equal(t2.date.month, 1)
+    t.equal(t2.date.day, 1)
+    t.equal(t2.time.hour, 1)
+    t.equal(t2.time.minute, 0)
+    t.equal(t2.time.second, 0)
+    t.equal(t2.time.sub_second, 0.0)
     t.equal(t2.utc_offset, 3_600)
 
-    t.equal(t3.year, 2022)
-    t.equal(t3.month, 8)
-    t.equal(t3.day, 26)
-    t.equal(t3.hour, 20)
-    t.equal(t3.minute, 34)
-    t.equal(t3.second, 28)
-    t.true(t3.sub_second >= 0.12 and t3.sub_second <= 0.123)
+    t.equal(t3.date.year, 2022)
+    t.equal(t3.date.month, 8)
+    t.equal(t3.date.day, 26)
+    t.equal(t3.time.hour, 20)
+    t.equal(t3.time.minute, 34)
+    t.equal(t3.time.second, 28)
+    t.true(t3.time.sub_second >= 0.12 and t3.time.sub_second <= 0.123)
     t.equal(t3.utc_offset, 7200)
 
-    t.equal(t4.year, 1969)
-    t.equal(t4.month, 12)
-    t.equal(t4.day, 31)
-    t.equal(t4.hour, 23)
-    t.equal(t4.minute, 0)
-    t.equal(t4.second, 0)
-  })
-
-  t.test('DateTime.day_of_week', fn (t) {
-    let t1 = DateTime.from_timestamp(time: 1661538868, utc_offset: 7200)
-    let t2 = DateTime.from_timestamp(time: 0, utc_offset: 0)
-    let t3 = DateTime.from_timestamp(time: -3600, utc_offset: 0)
-    let t4 = DateTime.from_timestamp(time: -307411200, utc_offset: 0)
-    let t5 = DateTime.from_timestamp(time: -432000, utc_offset: 0)
-
-    t.equal(t1.day_of_week, 5)
-    t.equal(t2.day_of_week, 4)
-    t.equal(t3.day_of_week, 3)
-    t.equal(t4.day_of_week, 2)
-    t.equal(t5.day_of_week, 6)
-  })
-
-  t.test('DateTime.day_of_year', fn (t) {
-    let t1 = DateTime.from_timestamp(time: 1661538868, utc_offset: 7200)
-    let t2 = DateTime.from_timestamp(time: 0, utc_offset: 0)
-    let t3 = DateTime.from_timestamp(time: -3600, utc_offset: 0)
-    let t4 = DateTime.from_timestamp(time: 1454457600, utc_offset: 0)
-
-    t.equal(t1.day_of_year, 238)
-    t.equal(t2.day_of_year, 1)
-    t.equal(t3.day_of_year, 365)
-    t.equal(t4.day_of_year, 34)
+    t.equal(t4.date.year, 1969)
+    t.equal(t4.date.month, 12)
+    t.equal(t4.date.day, 31)
+    t.equal(t4.time.hour, 23)
+    t.equal(t4.time.minute, 0)
+    t.equal(t4.time.second, 0)
   })
 
   t.test('DateTime.days_since_unix_epoch', fn (t) {
-    let t1 = DateTime.from_timestamp(time: 1661538868, utc_offset: 7200)
-    let t2 = DateTime.from_timestamp(time: 0, utc_offset: 0)
-    let t3 = DateTime.from_timestamp(time: -3600, utc_offset: 0)
-    let t4 = ymd(2024, 2, 3)
+    let dt = DateTime.from_timestamp(time: 1661538868, utc_offset: 7200).get
 
-    t.equal(t1.days_since_unix_epoch, 19_230)
-    t.equal(t2.days_since_unix_epoch, 0)
-    t.equal(t3.days_since_unix_epoch, -1)
-    t.equal(t4.days_since_unix_epoch, 19_756)
+    t.equal(dt.days_since_unix_epoch, 19_230)
+  })
+
+  t.test('DateTime.day_of_week', fn (t) {
+    let dt = DateTime.from_timestamp(time: 1661538868, utc_offset: 7200).get
+
+    t.equal(dt.day_of_week, 5)
+  })
+
+  t.test('DateTime.day_of_year', fn (t) {
+    let dt = DateTime.from_timestamp(time: 1661538868, utc_offset: 7200).get
+
+    t.equal(dt.day_of_year, 238)
   })
 
   t.test('DateTime.leap_year?', fn (t) {
-    let t1 = DateTime.from_timestamp(time: 1451606400, utc_offset: 0) # 2016
-    let t2 = DateTime.from_timestamp(time: 1483228800, utc_offset: 0) # 2017
+    let t1 = DateTime.from_timestamp(time: 1451606400, utc_offset: 0).get # 2016
+    let t2 = DateTime.from_timestamp(time: 1483228800, utc_offset: 0).get # 2017
 
     t.true(t1.leap_year?)
     t.false(t2.leap_year?)
   })
 
   t.test('DateTime.utc?', fn (t) {
-    let t1 = DateTime.from_timestamp(time: 1, utc_offset: 3600)
-    let t2 = DateTime.from_timestamp(time: 1, utc_offset: 0)
+    let t1 = DateTime.from_timestamp(time: 1, utc_offset: 3600).get
+    let t2 = DateTime.from_timestamp(time: 1, utc_offset: 0).get
 
     t.false(t1.utc?)
     t.true(t2.utc?)
   })
 
   t.test('DateTime.to_utc', fn (t) {
-    let t1 = DateTime.from_timestamp(time: 0, utc_offset: 0)
-    let t2 = DateTime.from_timestamp(time: 1661538868, utc_offset: 7200)
-    let t3 = DateTime.from_timestamp(time: 0, utc_offset: 7200)
+    let t1 = DateTime.from_timestamp(time: 0, utc_offset: 0).get
+    let t2 = DateTime.from_timestamp(time: 1661538868, utc_offset: 7200).get
+    let t3 = DateTime.from_timestamp(time: 0, utc_offset: 7200).get
 
     t.equal(t1.to_utc, t1)
-    t.equal(t2.to_utc, DateTime.from_timestamp(time: 1661538868, utc_offset: 0))
-    t.equal(t3.to_utc, DateTime.from_timestamp(time: 0, utc_offset: 0))
+    t.equal(
+      t2.to_utc,
+      DateTime.from_timestamp(time: 1661538868, utc_offset: 0).get,
+    )
+    t.equal(t3.to_utc, DateTime.from_timestamp(time: 0, utc_offset: 0).get)
   })
 
   t.test('DateTime.fmt', fn (t) {
-    let t1 = DateTime.from_timestamp(time: 1661538868, utc_offset: 7200)
-    let t2 = DateTime.from_timestamp(time: 0, utc_offset: 0)
-    let t3 = DateTime.from_timestamp(time: -3600, utc_offset: 0)
-    let t4 = DateTime.from_timestamp(time: 1661538868, utc_offset: -7200)
+    let t1 = DateTime.from_timestamp(time: 1661538868, utc_offset: 7200).get
+    let t2 = DateTime.from_timestamp(time: 0, utc_offset: 0).get
+    let t3 = DateTime.from_timestamp(time: -3600, utc_offset: 0).get
+    let t4 = DateTime.from_timestamp(time: 1661538868, utc_offset: -7200).get
 
     t.equal(fmt(t1), '2022-08-26 20:34:28 +0200')
     t.equal(fmt(t2), '1970-01-01 00:00:00 UTC')
@@ -252,9 +353,9 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('DateTime.to_int', fn (t) {
-    let t1 = DateTime.from_timestamp(time: 1661538868, utc_offset: 7200)
-    let t2 = DateTime.from_timestamp(time: 0, utc_offset: 0)
-    let t3 = DateTime.from_timestamp(time: -3600, utc_offset: 0)
+    let t1 = DateTime.from_timestamp(time: 1661538868, utc_offset: 7200).get
+    let t2 = DateTime.from_timestamp(time: 0, utc_offset: 0).get
+    let t3 = DateTime.from_timestamp(time: -3600, utc_offset: 0).get
     let t4 = ymd(2024, 2, 3)
 
     t.equal(t1.to_int, 1661538868)
@@ -264,9 +365,9 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('DateTime.to_float', fn (t) {
-    let t1 = DateTime.from_timestamp(time: 1661538868.123, utc_offset: 7200)
-    let t2 = DateTime.from_timestamp(time: 0.123, utc_offset: 0)
-    let t3 = DateTime.from_timestamp(time: -3600.123, utc_offset: 0)
+    let t1 = DateTime.from_timestamp(time: 1661538868.123, utc_offset: 7200).get
+    let t2 = DateTime.from_timestamp(time: 0.123, utc_offset: 0).get
+    let t3 = DateTime.from_timestamp(time: -3600.123, utc_offset: 0).get
 
     t.true(t1.to_float.fractional >= 0.0)
     t.true(t2.to_float.fractional >= 0.0)
@@ -274,22 +375,22 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('DateTime.+', fn (t) {
-    let t1 = DateTime.from_timestamp(time: 0, utc_offset: 7200)
-    let t2 = DateTime.from_timestamp(time: 3600, utc_offset: 7200)
+    let t1 = DateTime.from_timestamp(time: 0, utc_offset: 7200).get
+    let t2 = DateTime.from_timestamp(time: 3600, utc_offset: 7200).get
 
     t.equal(t1 + Duration.from_secs(3600), t2)
   })
 
   t.test('DateTime.-', fn (t) {
-    let t1 = DateTime.from_timestamp(time: 3600, utc_offset: 7200)
-    let t2 = DateTime.from_timestamp(time: 0, utc_offset: 7200)
+    let t1 = DateTime.from_timestamp(time: 3600, utc_offset: 7200).get
+    let t2 = DateTime.from_timestamp(time: 0, utc_offset: 7200).get
 
     t.equal(t1 - Duration.from_secs(3600), t2)
   })
 
   t.test('DateTime.cmp', fn (t) {
-    let t1 = DateTime.from_timestamp(time: 3600.123, utc_offset: 7200)
-    let t2 = DateTime.from_timestamp(time: 0.123, utc_offset: 7200)
+    let t1 = DateTime.from_timestamp(time: 3600.123, utc_offset: 7200).get
+    let t2 = DateTime.from_timestamp(time: 0.123, utc_offset: 7200).get
 
     t.equal(t1.cmp(t2), Ordering.Greater)
     t.equal(t2.cmp(t1), Ordering.Less)
