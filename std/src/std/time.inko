@@ -225,149 +225,92 @@ impl Format for Duration {
   }
 }
 
-# An object representing the current system time.
-#
-# Internally the time is represented as the number of seconds since the Unix
-# epoch, excluding leap seconds.
-#
-# `DateTime` is based on the Gregorian calendar, and doesn't support additional
-# calendars such as the Julian calendar.
-#
-# If you want to measure the duration between two events, it's best to use the
-# `Instant` type, as it's not affected by external factors such as clock
-# adjustments and leap seconds.
-class pub DateTime {
-  # The year.
-  let pub @year: Int
+# A type representing a date in the Gregorian calendar, without a time and
+# timezone.
+class pub copy Date {
+  # The year, month and day packed into a single set of bits.
+  #
+  # The layout is as follows (starting with the least significant bits):
+  #
+  # 1. 5 bits for the day
+  # 1. 4 bits for the month
+  # 1. Up to 32 bits for the year
+  #
+  # For example, the date 1992-08-21 is encoded as follows:
+  #
+  #     11111001000 1000 10101
+  let @bits: Int
 
-  # The month, from `1` to `12`.
-  let pub @month: Int
-
-  # The day, from `1` to `31`.
-  let pub @day: Int
-
-  # The hour, from `0` to `23`.
-  let pub @hour: Int
-
-  # The minute, from `0` to `59`.
-  let pub @minute: Int
-
-  # The second, from `0` to `59`.
-  let pub @second: Int
-
-  # The sub seconds.
-  let pub @sub_second: Float
-
-  # The UTC offset (in seconds).
-  let pub @utc_offset: Int
-
-  # Returns a new `DateTime` representing the current time using the local
-  # timezone.
+  # Returns a new `Date`, provided the given components are valid.
+  #
+  # The arguments must be values in the following ranges:
+  #
+  # - `year`: -2147483648 up to and including 2147483647
+  # - `month`: 1 up to and including 12
+  # - `day`: 1 up to and including 31
+  #
+  # If any of the arguments are out of bounds, an `Option.None` is returned.
   #
   # # Examples
   #
   # ```inko
-  # import std.time (DateTime)
+  # import std.time (Date)
   #
-  # DateTime.new
+  # let date = Date
+  #   .new(year: 2024, month: 12, day: 17)
+  #   .or_panic('the Date is invalid')
+  #
+  # date.year # => 2024
   # ```
-  fn pub static new -> DateTime {
-    let raw = sys.local_time
-
-    DateTime(
-      year: raw.year,
-      month: raw.month,
-      day: raw.day,
-      hour: raw.hour,
-      minute: raw.minute,
-      second: raw.second,
-      sub_second: raw.sub_second,
-      utc_offset: raw.offset,
-    )
+  fn pub inline static new(year: Int, month: Int, day: Int) -> Option[Date] {
+    if
+      year >= -2147483648
+        and year <= 2147483647
+        and month >= 1
+        and month <= 12
+        and day >= 1
+        and day <= 31
+    {
+      Option.Some(new_unchecked(year, month, day))
+    } else {
+      Option.None
+    }
   }
 
-  # Returns a new `DateTime` representing the current time using UTC as the
-  # timezone.
-  #
-  # # Examples
-  #
-  # ```inko
-  # import std.time (DateTime)
-  #
-  # DateTime.utc
-  # ```
-  fn pub static utc -> DateTime {
-    let raw = sys.utc_time
-
-    DateTime(
-      year: raw.year,
-      month: raw.month,
-      day: raw.day,
-      hour: raw.hour,
-      minute: raw.minute,
-      second: raw.second,
-      sub_second: raw.sub_second,
-      utc_offset: 0,
-    )
+  fn inline static new_unchecked(year: Int, month: Int, day: Int) -> Date {
+    Date((year << 9) | (month << 5) | day)
   }
 
-  # Returns a new `DateTime` from a Unix timestamp and UTC offset.
-  #
-  # The `time` argument is the number of seconds since or before the Unix epoch.
-  #
-  # # Example
-  #
-  # ```inko
-  # import std.time (DateTime)
-  #
-  # DateTime.from_timestamp(time: 1661546853, utc_offset: 0).year # => 2022
-  # ```
-  fn pub static from_timestamp[T: ToFloat](
-    time: ref T,
-    utc_offset: Int,
-  ) -> DateTime {
-    # This implementation is based on the algorithms as described on
-    # http://howardhinnant.github.io/date_algorithms.html, specifically the
-    # `civil_from_days()` algorithm.
-    #
-    # To be truly honest, at the time of writing I didn't fully understand the
-    # algorithm, and reading through the linked article made my head spin. But
-    # it works, so ship it!
-    #
-    # Important note: this algorithm works because Inko implements integer
-    # divisions as floored divisions (like e.g. Python and Ruby), instead of
-    # rounding towards zero (like Rust and C).
-    let time = time.to_float
-    let epoch_secs = time.to_int + utc_offset
-    let epoch_days = (epoch_secs / SECS_PER_DAY) + 719_468
-    let era = if epoch_days >= 0 { epoch_days } else { epoch_days - 146_096 }
-      / 146_097
-    let doe = epoch_days - (era * 146_097)
-    let yoe = (doe - (doe / 1460) + (doe / 36_524) - (doe / 146_096)) / 365
-    let doy = doe - ((365 * yoe) + (yoe / 4) - (yoe / 100))
-    let mp = ((5 * doy) + 2) / 153
-    let day = doy - ((153 * mp) + 2 / 5) + 1
-    let month = if mp < 10 { mp + 3 } else { mp - 9 }
-    let mut year = yoe + (era * 400)
+  # Returns the year.
+  fn pub inline year -> Int {
+    @bits >> 9
+  }
 
-    if month <= 2 { year += 1 }
+  # Returns the month in the range `1` to `12`.
+  fn pub inline month -> Int {
+    @bits >> 5 & 0xF
+  }
 
-    # The number of seconds since the start of the day.
-    let mut day_secs = epoch_secs - ((epoch_secs / SECS_PER_DAY) * SECS_PER_DAY)
-    let second = day_secs % 60
-    let minute = (day_secs % SECS_PER_HOUR) / 60
-    let hour = day_secs / SECS_PER_HOUR
+  # Returns the day in the range `1` to `31`.
+  fn pub inline day -> Int {
+    @bits & 0x1F
+  }
 
-    DateTime(
-      year: year,
-      month: month,
-      day: day,
-      hour: hour,
-      minute: minute,
-      second: second,
-      sub_second: time.fractional,
-      utc_offset: utc_offset,
-    )
+  # Returns the number of days between `self` and the Unix epoch.
+  #
+  # The returned `Int` is negative if `self` is before the Unix epoch, and
+  # positive for a value that is on or after the Unix epoch.
+  fn pub days_since_unix_epoch -> Int {
+    let year = if month <= 2 { year - 1 } else { year }
+    let month = month
+    let era = if year >= 0 { year } else { year - 399 } / 400
+    let yoe = year - (era * 400)
+    let doy = (((153 * if month > 2 { month - 3 } else { month + 9 }) + 2) / 5)
+      + day
+      - 1
+    let doe = (yoe * 365) + (yoe / 4) - (yoe / 100) + doy
+
+    (era * 146_097) + doe - 719_468
   }
 
   # Returns the day of the week from 1 to 7.
@@ -412,66 +355,389 @@ class pub DateTime {
   fn pub day_of_year -> Int {
     let days = if leap_year? { LEAP_DAYS } else { NORMAL_DAYS }
 
-    days.get(@month - 1) + @day
-  }
-
-  # Returns the number of days between `self` and the Unix epoch.
-  #
-  # The returned `Int` is negative if `self` is before the Unix epoch, and
-  # positive for a value that is on or after the Unix epoch.
-  fn pub days_since_unix_epoch -> Int {
-    let year = if @month <= 2 { @year - 1 } else { @year }
-    let month = @month
-    let era = if year >= 0 { year } else { year - 399 } / 400
-    let yoe = year - (era * 400)
-    let doy = (((153 * if month > 2 { month - 3 } else { month + 9 }) + 2) / 5)
-      + @day
-      - 1
-    let doe = (yoe * 365) + (yoe / 4) - (yoe / 100) + doy
-
-    (era * 146_097) + doe - 719_468
+    days.get(month - 1) + day
   }
 
   # Returns `true` if the current year is a leap year.
   fn pub leap_year? -> Bool {
-    let year = @year
+    let year = year
 
     (year % 4) == 0 and ((year % 100) > 0 or (year % 400) == 0)
   }
+}
 
-  # Returns `true` if UTC is used.
-  fn pub utc? -> Bool {
+impl Equal[Date] for Date {
+  fn pub ==(other: Date) -> Bool {
+    @bits == other.bits
+  }
+}
+
+impl Format for Date {
+  fn pub fmt(formatter: mut Formatter) {
+    let year = year.to_string.pad_start(with: '0', chars: 4)
+    let month = month.to_string.pad_start(with: '0', chars: 2)
+    let day = day.to_string.pad_start(with: '0', chars: 2)
+
+    formatter.write('${year}-${month}-${day}')
+  }
+}
+
+# A type that represents a point in time (hours, minutes and seconds) without a
+# specific associated date.
+class pub copy Time {
+  # The hour, minute and second packed into a single set of bits.
+  #
+  # The layout is as follows (starting with the least significant bits):
+  #
+  # 1. 6 bits for the seconds
+  # 1. 6 bits for the minutes
+  # 1. 5 bits for the hour
+  #
+  # For example, the time 12:45:30 is encoded as follows:
+  #
+  #     1100 101101 011110
+  let @bits: Int
+  let @sub_second: Float
+
+  # Returns a new `Time`, provided the given components are valid.
+  #
+  # The arguments must be values in the following ranges:
+  #
+  # - `hour`: 0 up to and including 24
+  # - `minute`: 0 up to and including 59
+  # - `second`: 0 up to and including 60
+  #
+  # If any of the arguments are out of bounds, an `Option.None` is returned.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.time (Time)
+  #
+  # let time = Time
+  #   .new(hour: 12, minute: 30, second: 0, sub_second: 0.0)
+  #   .or_panic('the Time is invalid')
+  #
+  # time.hour # => 12
+  # ```
+  fn pub inline static new(
+    hour: Int,
+    minute: Int,
+    second: Int,
+    sub_second: Float,
+  ) -> Option[Time] {
+    if
+      hour >= 0
+        and hour <= 24
+        and minute >= 0
+        and minute <= 59
+        and second >= 0
+        and second <= 60
+        and sub_second >= 0.0
+    {
+      Option.Some(new_unchecked(hour, minute, second, sub_second))
+    } else {
+      Option.None
+    }
+  }
+
+  fn inline static new_unchecked(
+    hour: Int,
+    minute: Int,
+    second: Int,
+    sub_second: Float,
+  ) -> Time {
+    Time(bits: (hour << 12) | (minute << 6) | second, sub_second: sub_second)
+  }
+
+  # Returns the hour of the day in the range `0` to `23`.
+  fn pub inline hour -> Int {
+    @bits >> 12
+  }
+
+  # Returns the minute of the hour in the range `0` to `59`.
+  fn pub inline minute -> Int {
+    @bits >> 6 & 0x3F
+  }
+
+  # Returns the number of seconds in the range `0` to `59`.
+  fn pub inline second -> Int {
+    @bits & 0x3F
+  }
+
+  # Returns the number of sub seconds.
+  fn pub inline sub_second -> Float {
+    @sub_second
+  }
+}
+
+impl Equal[Time] for Time {
+  fn pub ==(other: Time) -> Bool {
+    @bits == other.bits and @sub_second == other.sub_second
+  }
+}
+
+impl Format for Time {
+  fn pub fmt(formatter: mut Formatter) {
+    let hour = hour.to_string.pad_start(with: '0', chars: 2)
+    let min = minute.to_string.pad_start(with: '0', chars: 2)
+    let secs = second.to_string.pad_start(with: '0', chars: 2)
+
+    formatter.write('${hour}:${min}:${secs}')
+  }
+}
+
+# A date and time based on the Gregorian calendar.
+#
+# Internally the time is represented as the number of seconds since the Unix
+# epoch, excluding leap seconds.
+#
+# `DateTime` is based on the Gregorian calendar, and doesn't support additional
+# calendars such as the Julian calendar.
+#
+# If you want to measure the duration between two events, it's best to use the
+# `Instant` type, as it's not affected by external factors such as clock
+# adjustments and leap seconds.
+class pub inline DateTime {
+  let @date: Date
+  let @time: Time
+  let @utc_offset: Int
+
+  # Returns a new `DateTime` using the given components.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.time (Date, DateTime, Time)
+  #
+  # let date = Date.new(year: 1992, month: 8, day: 21).get
+  # let time = Time.new(hour: 12, minute: 15, second: 30, sub_second: 0.0).get
+  #
+  # DateTime.new(date, time, utc_offset: 3600)
+  # ```
+  fn pub inline static new(
+    date: Date,
+    time: Time,
+    utc_offset: Int,
+  ) -> DateTime {
+    DateTime(date: date, time: time, utc_offset: utc_offset)
+  }
+
+  # Returns a new `DateTime` representing the current time using the system's
+  # local time.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.time (DateTime)
+  #
+  # DateTime.local
+  # ```
+  fn pub static local -> DateTime {
+    let raw = sys.local_time
+
+    DateTime(
+      date: Date.new_unchecked(raw.year, raw.month, raw.day),
+      time: Time.new_unchecked(raw.hour, raw.minute, raw.second, raw.sub_second),
+      utc_offset: raw.offset,
+    )
+  }
+
+  # Returns a new `DateTime` representing the current system time using UTC as
+  # the timezone.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.time (DateTime)
+  #
+  # DateTime.utc
+  # ```
+  fn pub static utc -> DateTime {
+    let raw = sys.utc_time
+
+    DateTime(
+      date: Date.new_unchecked(raw.year, raw.month, raw.day),
+      time: Time.new_unchecked(raw.hour, raw.minute, raw.second, raw.sub_second),
+      utc_offset: 0,
+    )
+  }
+
+  # Returns a new `DateTime` from a Unix timestamp and UTC offset.
+  #
+  # The `time` argument is the number of seconds since or before the Unix epoch.
+  #
+  # If the timestamp is invalid, an `Option.None` is returned.
+  #
+  # # Example
+  #
+  # ```inko
+  # import std.time (DateTime)
+  #
+  # DateTime.from_timestamp(time: 1661546853, utc_offset: 0).year # => 2022
+  # ```
+  fn pub static from_timestamp[T: ToFloat](
+    time: ref T,
+    utc_offset: Int,
+  ) -> Option[DateTime] {
+    # This implementation is based on the algorithms as described on
+    # http://howardhinnant.github.io/date_algorithms.html, specifically the
+    # `civil_from_days()` algorithm.
+    #
+    # To be truly honest, at the time of writing I didn't fully understand the
+    # algorithm, and reading through the linked article made my head spin. But
+    # it works, so ship it!
+    #
+    # Important note: this algorithm works because Inko implements integer
+    # divisions as floored divisions (like e.g. Python and Ruby), instead of
+    # rounding towards zero (like Rust and C).
+    let time = time.to_float
+    let epoch_secs = time.to_int + utc_offset
+    let epoch_days = (epoch_secs / SECS_PER_DAY) + 719_468
+    let era = if epoch_days >= 0 { epoch_days } else { epoch_days - 146_096 }
+      / 146_097
+    let doe = epoch_days - (era * 146_097)
+    let yoe = (doe - (doe / 1460) + (doe / 36_524) - (doe / 146_096)) / 365
+    let doy = doe - ((365 * yoe) + (yoe / 4) - (yoe / 100))
+    let mp = ((5 * doy) + 2) / 153
+    let day = doy - ((153 * mp) + 2 / 5) + 1
+    let month = if mp < 10 { mp + 3 } else { mp - 9 }
+    let mut year = yoe + (era * 400)
+
+    if month <= 2 { year += 1 }
+
+    # The number of seconds since the start of the day.
+    let mut day_secs = epoch_secs - ((epoch_secs / SECS_PER_DAY) * SECS_PER_DAY)
+    let second = day_secs % 60
+    let minute = (day_secs % SECS_PER_HOUR) / 60
+    let hour = day_secs / SECS_PER_HOUR
+
+    Option.Some(
+      DateTime(
+        date: try Date.new(year, month, day),
+        time: try Time.new(hour, minute, second, time.fractional),
+        utc_offset: utc_offset,
+      ),
+    )
+  }
+
+  # Returns the `Date` component of `self`.
+  fn pub inline date -> Date {
+    @date
+  }
+
+  # Returns the `Time` component of `self`.
+  fn pub inline time -> Time {
+    @time
+  }
+
+  # Returns the UTC offset in seconds.
+  fn pub inline utc_offset -> Int {
+    @utc_offset
+  }
+
+  # Returns `true` if UTC is used as the timezone.
+  fn pub inline utc? -> Bool {
     @utc_offset == 0
+  }
+
+  # Returns the year.
+  #
+  # Refer to the documentation of `Date.year` for more details.
+  fn pub inline year -> Int {
+    @date.year
+  }
+
+  # Returns the month.
+  #
+  # Refer to the documentation of `Date.month` for more details.
+  fn pub inline month -> Int {
+    @date.month
+  }
+
+  # Returns the day.
+  #
+  # Refer to the documentation of `Date.day` for more details.
+  fn pub inline day -> Int {
+    @date.day
+  }
+
+  # Returns the hour of the day.
+  #
+  # Refer to the documentation of `Time.hour` for more details.
+  fn pub inline hour -> Int {
+    @time.hour
+  }
+
+  # Returns the minute of the hour.
+  #
+  # Refer to the documentation of `Time.minute` for more details.
+  fn pub inline minute -> Int {
+    @time.minute
+  }
+
+  # Returns the number of seconds.
+  #
+  # Refer to the documentation of `Time.second` for more details.
+  fn pub inline second -> Int {
+    @time.second
+  }
+
+  # Returns the number of sub seconds.
+  #
+  # Refer to the documentation of `Time.sub_second` for more details.
+  fn pub inline sub_second -> Float {
+    @time.sub_second
+  }
+
+  # Returns the number of days between `self` and the Unix epoch.
+  #
+  # Refer to the documentation of `Date.days_since_unix_epoch` for more details.
+  fn pub days_since_unix_epoch -> Int {
+    @date.days_since_unix_epoch
+  }
+
+  # Returns the day of the week from 1 to 7.
+  #
+  # Refer to the documentation of `Date.day_of_week` for more details.
+  fn pub day_of_week -> Int {
+    @date.day_of_week
+  }
+
+  # Returns the day of the year.
+  #
+  # Refer to the documentation of `Date.day_of_year` for more details.
+  fn pub day_of_year -> Int {
+    @date.day_of_year
+  }
+
+  # Returns `true` if the current year is a leap year.
+  #
+  # Refer to the documentation of `Date.leap_year?` for more details.
+  fn pub leap_year? -> Bool {
+    @date.leap_year?
   }
 
   # Converts the `DateTime` to another `DateTime` that uses UTC as the
   # timezone.
   fn pub to_utc -> DateTime {
-    DateTime.from_timestamp(time: to_float, utc_offset: 0)
+    # Since our input is already valid at this point, this can never fail.
+    DateTime.from_timestamp(time: to_float, utc_offset: 0).get
   }
 }
 
 impl Clone[DateTime] for DateTime {
   fn pub inline clone -> DateTime {
-    DateTime(
-      year: @year,
-      month: @month,
-      day: @day,
-      hour: @hour,
-      minute: @minute,
-      second: @second,
-      sub_second: @sub_second,
-      utc_offset: @utc_offset,
-    )
+    DateTime(date: @date, time: @time, utc_offset: @utc_offset)
   }
 }
 
 impl Format for DateTime {
   fn pub fmt(formatter: mut Formatter) {
-    let sign = if @utc_offset > 0 { '+' } else { '-' }
     let offset = if @utc_offset == 0 {
       ' UTC'
     } else {
+      let sign = if @utc_offset > 0 { '+' } else { '-' }
       let off = @utc_offset.absolute
       let hh = (off / SECS_PER_HOUR).to_string.pad_start(with: '0', chars: 2)
       let mm = (off % SECS_PER_HOUR / SECS_PER_MIN).to_string.pad_start(
@@ -482,14 +748,10 @@ impl Format for DateTime {
       ' ${sign}${hh}${mm}'
     }
 
-    let year = @year.to_string.pad_start(with: '0', chars: 4)
-    let month = @month.to_string.pad_start(with: '0', chars: 2)
-    let day = @day.to_string.pad_start(with: '0', chars: 2)
-    let hour = @hour.to_string.pad_start(with: '0', chars: 2)
-    let min = @minute.to_string.pad_start(with: '0', chars: 2)
-    let secs = @second.to_string.pad_start(with: '0', chars: 2)
-
-    formatter.write('${year}-${month}-${day} ${hour}:${min}:${secs}${offset}')
+    @date.fmt(formatter)
+    formatter.write(' ')
+    @time.fmt(formatter)
+    formatter.write(offset)
   }
 }
 
@@ -501,7 +763,9 @@ impl ToInt for DateTime {
   fn pub to_int -> Int {
     let days = days_since_unix_epoch
     let days_sec = days.absolute * SECS_PER_DAY
-    let time_sec = (@hour * SECS_PER_HOUR) + (@minute * SECS_PER_MIN) + @second
+    let time_sec = (@time.hour * SECS_PER_HOUR)
+      + (@time.minute * SECS_PER_MIN)
+      + @time.second
     let timestamp = if days < 0 {
       0 - (days_sec - time_sec)
     } else {
@@ -517,23 +781,37 @@ impl ToFloat for DateTime {
   # Returns the timestamp since the Unix epoch, the including fractional
   # seconds.
   fn pub to_float -> Float {
-    to_int.to_float + @sub_second
+    to_int.to_float + @time.sub_second
   }
 }
 
 impl Add[Duration, DateTime] for DateTime {
+  # Adds the given `Duration` to `self`, returning the result as a new
+  # `DateTime`.
+  #
+  # # Panics
+  #
+  # This method may panic if the result can't be expressed as a `DateTime` (e.g.
+  # the year is too great).
   fn pub +(other: ref Duration) -> DateTime {
     let timestamp = to_float + other.to_secs
 
-    DateTime.from_timestamp(timestamp, utc_offset: @utc_offset)
+    DateTime.from_timestamp(timestamp, utc_offset: @utc_offset).get
   }
 }
 
 impl Subtract[Duration, DateTime] for DateTime {
+  # Subtracts the given `Duration` from `self`, returning the result as a new
+  # `DateTime`.
+  #
+  # # Panics
+  #
+  # This method may panic if the result can't be expressed as a `DateTime` (e.g.
+  # the year is too great).
   fn pub -(other: ref Duration) -> DateTime {
     let timestamp = to_float - other.to_secs
 
-    DateTime.from_timestamp(timestamp, utc_offset: @utc_offset)
+    DateTime.from_timestamp(timestamp, utc_offset: @utc_offset).get
   }
 }
 
@@ -545,13 +823,8 @@ impl Compare[DateTime] for DateTime {
 
 impl Equal[ref DateTime] for DateTime {
   fn pub inline ==(other: ref DateTime) -> Bool {
-    @year == other.year
-      and @month == other.month
-      and @day == other.day
-      and @hour == other.hour
-      and @minute == other.minute
-      and @second == other.second
-      and @sub_second == other.sub_second
+    @date == other.date
+      and @time == other.time
       and @utc_offset == other.utc_offset
   }
 }

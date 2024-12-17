@@ -12,9 +12,9 @@ import std.time (DateTime, Duration)
 fn valid_date?(time: Result[DateTime, Error]) -> Bool {
   match time {
     case Ok(t) -> {
-      1970.to(2100).contains?(t.year)
-        and 1.to(12).contains?(t.month)
-        and 1.to(31).contains?(t.day)
+      1970.to(2100).contains?(t.date.year)
+        and 1.to(12).contains?(t.date.month)
+        and 1.to(31).contains?(t.date.day)
     }
     case _ -> false
   }
