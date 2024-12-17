@@ -6,6 +6,7 @@ let AF_INET = 2
 let AF_INET6 = 30
 let AF_UNIX = 1
 let AT_FDCWD = -2
+let CLOCK_REALTIME = 0
 let COPYFILE_ALL = 15
 let DT_DIR = 4
 let DT_LNK = 10

@@ -107,7 +107,7 @@ pub struct State {
     /// The runtime's configuration.
     pub(crate) config: Config,
 
-    /// The start time of the VM (more or less).
+    /// The start time of the program (more or less).
     pub(crate) start_time: time::Instant,
 
     /// The commandline arguments passed to an Inko program.
