@@ -5,12 +5,7 @@ import std.float (ToFloat)
 import std.fmt (Format, Formatter)
 import std.int (ToInt)
 import std.ops (Add, Multiply, Subtract)
-
-fn extern inko_time_monotonic(state: Pointer[UInt8]) -> Int64
-
-fn extern inko_time_system -> Float
-
-fn extern inko_time_system_offset -> Int64
+import std.sys.unix.time (self as sys) if unix
 
 let SECS_PER_MIN = 60
 let SECS_PER_HOUR = 3600
@@ -271,15 +266,24 @@ class pub DateTime {
   #
   # # Examples
   #
-  # Getting the current time:
-  #
   # ```inko
   # import std.time (DateTime)
   #
   # DateTime.new
   # ```
   fn pub static new -> DateTime {
-    from_timestamp(inko_time_system, inko_time_system_offset as Int)
+    let raw = sys.local_time
+
+    DateTime(
+      year: raw.year,
+      month: raw.month,
+      day: raw.day,
+      hour: raw.hour,
+      minute: raw.minute,
+      second: raw.second,
+      sub_second: raw.sub_second,
+      utc_offset: raw.offset,
+    )
   }
 
   # Returns a new `DateTime` representing the current time using UTC as the
@@ -287,15 +291,24 @@ class pub DateTime {
   #
   # # Examples
   #
-  # Getting the current time in UTC:
-  #
   # ```inko
   # import std.time (DateTime)
   #
   # DateTime.utc
   # ```
   fn pub static utc -> DateTime {
-    from_timestamp(time: inko_time_system, utc_offset: 0)
+    let raw = sys.utc_time
+
+    DateTime(
+      year: raw.year,
+      month: raw.month,
+      day: raw.day,
+      hour: raw.hour,
+      minute: raw.minute,
+      second: raw.second,
+      sub_second: raw.sub_second,
+      utc_offset: 0,
+    )
   }
 
   # Returns a new `DateTime` from a Unix timestamp and UTC offset.
@@ -561,13 +574,16 @@ trait pub ToInstant {
 # Unlike a system clock a monotonic clock never decreases, making it useful for
 # tasks such as measuring the execution time of a block of code.
 #
+# The clock used for `Instant` values _doesn't_ continue ticking when the system
+# is suspended.
+#
 # An `Instant` can never represent a negative time (e.g. -5).
 class pub copy Instant {
   let @nanos: Int
 
   # Returns a new `Instant` representing the current time.
   fn pub inline static new -> Instant {
-    Instant(inko_time_monotonic(_INKO.state) as Int)
+    Instant(sys.monotonic_time)
   }
 
   # Returns a `Duration` measuring the time elapsed since the point in time
@@ -592,7 +608,7 @@ class pub copy Instant {
   # start.elapsed.to_secs >= 1.0 # => true
   # ```
   fn pub inline elapsed -> Duration {
-    Duration(inko_time_monotonic(_INKO.state) as Int - @nanos)
+    Duration(sys.monotonic_time - @nanos)
   }
 
   # Returns a `Duration` measuring the time remaining until reaching `self`.
@@ -609,7 +625,7 @@ class pub copy Instant {
   # time.remaining # => Duration.from_secs(5)
   # ```
   fn pub inline remaining -> Duration {
-    Duration(@nanos - (inko_time_monotonic(_INKO.state) as Int))
+    Duration(@nanos - sys.monotonic_time)
   }
 }
 

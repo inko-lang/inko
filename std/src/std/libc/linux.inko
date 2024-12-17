@@ -7,6 +7,7 @@ let AF_INET6 = 10
 let AF_UNIX = 1
 let AT_EMPTY_PATH = 0x1000
 let AT_FDCWD = -0x64
+let CLOCK_REALTIME = 0
 let DT_DIR = 4
 let DT_LNK = 10
 let DT_REG = 8

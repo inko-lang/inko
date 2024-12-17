@@ -17,6 +17,7 @@ import std.libc.mac (self as sys) if mac
 let AF_INET = sys.AF_INET
 let AF_INET6 = sys.AF_INET6
 let AF_UNIX = sys.AF_UNIX
+let CLOCK_REALTIME = sys.CLOCK_REALTIME
 let DT_DIR = sys.DT_DIR
 let DT_LNK = sys.DT_LNK
 let DT_REG = sys.DT_REG
@@ -107,6 +108,25 @@ class extern PosixSpawnFileActions {
 class extern Linger {
   let @l_onoff: Int32
   let @l_linger: Int32
+}
+
+class extern Tm {
+  let @tm_sec: Int32
+  let @tm_min: Int32
+  let @tm_hour: Int32
+  let @tm_mday: Int32
+  let @tm_mon: Int32
+  let @tm_year: Int32
+  let @tm_wday: Int32
+  let @tm_yday: Int32
+  let @tm_isdst: Int32
+  let @tm_gmtoff: Int64
+  let @tm_zone: Pointer[UInt8]
+}
+
+class extern Timespec {
+  let @tv_sec: Int64
+  let @tv_nsec: Int64
 }
 
 fn opendir(path: Pointer[UInt8]) -> Pointer[UInt8] {
@@ -297,6 +317,12 @@ fn extern recvfrom(
 fn extern shutdown(fd: Int32, how: Int32) -> Int32
 
 fn extern fcntl(fd: Int32, cmd: Int32, ...) -> Int32
+
+fn extern clock_gettime(clock: Int32, time: Pointer[Timespec]) -> Int32
+
+fn extern gmtime_r(time: Pointer[Int64], result: Pointer[Tm]) -> Pointer[Tm]
+
+fn extern localtime_r(time: Pointer[Int64], result: Pointer[Tm]) -> Pointer[Tm]
 
 # Returns the type of a directory entry.
 fn inline dirent_type(pointer: Pointer[sys.Dirent]) -> Int {

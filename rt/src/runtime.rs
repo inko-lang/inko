@@ -26,6 +26,10 @@ use std::ffi::CStr;
 use std::slice;
 use std::thread;
 
+extern "C" {
+    fn tzset();
+}
+
 #[no_mangle]
 pub unsafe extern "system" fn inko_runtime_new(
     counts: *mut MethodCounts,
@@ -46,6 +50,11 @@ pub unsafe extern "system" fn inko_runtime_new(
             args.push(CStr::from_ptr(ptr as _).to_string_lossy().into_owned());
         }
     }
+
+    // Through FFI code we may end up using the system's time functions (e.g.
+    // localtime_r()). These functions in turn may not call tzset(). Instead of
+    // requiring an explicit call to tzset() every time, we call it here once.
+    unsafe { tzset() };
 
     // The scheduler pins threads to specific cores. If those threads spawn a
     // new Inko process, those processes inherit the affinity and thus are

@@ -1,0 +1,66 @@
+import std.libc
+
+fn extern inko_time_monotonic(state: Pointer[UInt8]) -> Int
+
+class copy RawDateTime {
+  let @year: Int
+  let @month: Int
+  let @day: Int
+  let @hour: Int
+  let @minute: Int
+  let @second: Int
+  let @sub_second: Float
+  let @offset: Int
+
+  fn inline static from(
+    ts: Pointer[libc.Timespec],
+    tm: Pointer[libc.Tm],
+  ) -> RawDateTime {
+    RawDateTime(
+      year: (tm.tm_year as Int) + 1900,
+      month: tm.tm_mon as Int + 1,
+      day: tm.tm_mday as Int,
+      hour: tm.tm_hour as Int,
+      minute: tm.tm_min as Int,
+      second: tm.tm_sec as Int,
+      sub_second: ts.tv_nsec as Float / 1_000_000_000.0,
+      offset: tm.tm_gmtoff as Int,
+    )
+  }
+}
+
+fn time_error -> Never {
+  panic('failed to get the system time')
+}
+
+fn real_time -> libc.Timespec {
+  let ts = libc.Timespec()
+
+  if libc.clock_gettime(libc.CLOCK_REALTIME as Int32, mut ts) as Int == -1 {
+    time_error
+  }
+
+  ts
+}
+
+fn inline local_time -> RawDateTime {
+  let tm = libc.Tm()
+  let ts = real_time
+
+  if libc.localtime_r(mut ts.tv_sec, mut tm) as Int == 0 { time_error }
+
+  RawDateTime.from(mut ts, mut tm)
+}
+
+fn inline utc_time -> RawDateTime {
+  let tm = libc.Tm()
+  let ts = real_time
+
+  if libc.gmtime_r(mut ts.tv_sec, mut tm) as Int == 0 { time_error }
+
+  RawDateTime.from(mut ts, mut tm)
+}
+
+fn inline monotonic_time -> Int {
+  inko_time_monotonic(_INKO.state)
+}

@@ -3,6 +3,7 @@ import std.io (Error)
 let AF_INET = 2
 let AF_INET6 = 28
 let AF_UNIX = 1
+let CLOCK_REALTIME = 0
 let DT_DIR = 4
 let DT_LNK = 10
 let DT_REG = 8
