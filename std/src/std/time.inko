@@ -5,6 +5,7 @@ import std.float (ToFloat)
 import std.fmt (Format, Formatter)
 import std.int (ToInt)
 import std.ops (Add, Multiply, Subtract)
+import std.string (Bytes)
 import std.sys.unix.time (self as sys) if unix
 
 let SECS_PER_MIN = 60
@@ -22,6 +23,67 @@ let LEAP_DAYS = [0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 205, 335]
 # The number of days since the start of the year for each month, for a regular
 # year.
 let NORMAL_DAYS = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 204, 334]
+
+let COLON = 58
+let LOWER_B = 98
+let LOWER_D = 100
+let LOWER_M = 109
+let LOWER_Z = 122
+let MINUS = 45
+let NINE = 57
+let PERCENT = 37
+let PLUS = 43
+let UPPER_B = 66
+let UPPER_H = 72
+let UPPER_M = 77
+let UPPER_S = 83
+let UPPER_Y = 89
+let ZERO = 48
+
+fn inline digit?(byte: Int) -> Bool {
+  byte >= ZERO and byte <= NINE
+}
+
+# Parses two digits into an `Int`.
+fn inline two_digits[T: Bytes](input: ref T, start: Int) -> Option[Int] {
+  if start.wrapping_add(2) > input.size { return Option.None }
+
+  let a = input.byte(start)
+  let b = input.byte(start.wrapping_add(1))
+
+  if digit?(a) and digit?(b) {
+    Option.Some(
+      a.wrapping_sub(ZERO).wrapping_mul(10).wrapping_add(b.wrapping_sub(ZERO)),
+    )
+  } else {
+    Option.None
+  }
+}
+
+# Parses four digits into an `Int`.
+fn inline four_digits[T: Bytes](input: ref T, start: Int) -> Option[Int] {
+  if start.wrapping_add(4) > input.size { return Option.None }
+
+  let a = input.byte(start)
+  let b = input.byte(start.wrapping_add(1))
+  let c = input.byte(start.wrapping_add(2))
+  let d = input.byte(start.wrapping_add(3))
+
+  if digit?(a) and digit?(b) and digit?(c) and digit?(d) {
+    Option.Some(
+      a
+        .wrapping_sub(ZERO)
+        .wrapping_mul(10)
+        .wrapping_add(b.wrapping_sub(ZERO))
+        .wrapping_mul(10)
+        .wrapping_add(c.wrapping_sub(ZERO))
+        .wrapping_mul(10)
+        .wrapping_add(d.wrapping_sub(ZERO)),
+    )
+  } else {
+    Option.None
+  }
+}
 
 fn negative_time_error(time: Int) -> Never {
   panic("Instant can't represent a negative time (${time})")
@@ -403,7 +465,7 @@ class pub copy Time {
   #
   # The arguments must be values in the following ranges:
   #
-  # - `hour`: 0 up to and including 24
+  # - `hour`: 0 up to and including 23
   # - `minute`: 0 up to and including 59
   # - `second`: 0 up to and including 60
   #
@@ -428,7 +490,7 @@ class pub copy Time {
   ) -> Option[Time] {
     if
       hour >= 0
-        and hour <= 24
+        and hour <= 23
         and minute >= 0
         and minute <= 59
         and second >= 0
@@ -617,6 +679,203 @@ class pub inline DateTime {
         date: try Date.new(year, month, day),
         time: try Time.new(hour, minute, second, time.fractional),
         utc_offset: utc_offset,
+      ),
+    )
+  }
+
+  # Parses a `DateTime` according to a format string loosely based on the
+  # `strftime(2)` format strings.
+  #
+  # The input is any type that implements `std.string.Bytes`, such as the
+  # `String` and `ByteArray` types.
+  #
+  # # Format strings
+  #
+  # The `format` argument contains a "format string" that specifies how the
+  # input is to be parsed. This `String` can contain both regular characters to
+  # parse as-is, and special conversion sequences. These conversion sequences
+  # start with `%` followed by one or more characters and determine how the
+  # input is to be parsed. The following sequences are supported:
+  #
+  # |=
+  # | Sequence
+  # | Examples
+  # | Description
+  # |-
+  # | `%Y`
+  # | -1234, 0001, 1970, 2024
+  # | The year, zero-padded to four digits, optionally starting with a `-` to
+  #   signal a year before year zero.
+  # |-
+  # | `%m`
+  # | 01, 12
+  # | The month of the year (01-12), zero-padded to two digits.
+  # |-
+  # | `%d`
+  # | 01, 31
+  # | The day of the month (01-31), zero-padded to two digits.
+  # |-
+  # | `%H`
+  # | 01, 12, 23
+  # | The hour of the day (00-23), zero-padded to two digits.
+  # |-
+  # | `%M`
+  # | 01, 12, 59
+  # | The minute of the hour (00-59), zero-padded to two digits.
+  # |-
+  # | `%S`
+  # | 01, 12, 59, 60
+  # | The second of the hour (00-60), zero-padded to two digits. A value of 60
+  #   is supported to account for leap seconds.
+  # |-
+  # | `%z`
+  # | +0200, +02:30, -0200, -02:00
+  # | The UTC offset in the format `SIGNHH:MM` or `SIGNHHMM` where `SIGN` is
+  #   either `+` or `-`, `HH` the amount of hours and `MM` the amount of
+  #   minutes. Both the hours and minutes are zero-padded to two digits.
+  # |-
+  # | `%%`
+  # | %
+  # | A literal `%`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.time (DateTime)
+  #
+  # let dt = DateTime
+  #   .parse('2024-11-04 12:45:12 -02:45', format: '%Y-%m-%d %H:%M:%S %z')
+  #   .or_panic('the input is invalid')
+  #
+  # dt.year   # => 2024
+  # dt.month  # => 11
+  # dt.hour   # => 12
+  # dt.second # => 45
+  # ```
+  fn pub static parse[T: Bytes](
+    input: ref T,
+    format: String,
+  ) -> Option[DateTime] {
+    if input.size == 0 or format.size == 0 { return Option.None }
+
+    let mut inp_idx = 0
+    let mut fmt_idx = 0
+    let mut year = 0
+    let mut mon = 1
+    let mut day = 1
+    let mut hour = 0
+    let mut min = 0
+    let mut sec = 0
+    let mut sub_sec = 0.0
+    let mut off = 0
+
+    loop {
+      match format.opt(fmt_idx) {
+        case Some(PERCENT) -> {
+          fmt_idx += 1
+
+          match format.opt(fmt_idx) {
+            case Some(PERCENT) if input.opt(inp_idx).or(-1) == PERCENT -> {
+              fmt_idx += 1
+              inp_idx += 1
+            }
+            case Some(PERCENT) -> return Option.None
+            case Some(what) -> {
+              fmt_idx += 1
+              inp_idx += match what {
+                case UPPER_Y -> {
+                  let neg = match input.opt(inp_idx) {
+                    case Some(MINUS) -> {
+                      inp_idx += 1
+                      true
+                    }
+                    case _ -> false
+                  }
+
+                  match try four_digits(input, inp_idx) {
+                    case v if neg -> year = v.opposite
+                    case v -> year = v
+                  }
+
+                  4
+                }
+                case LOWER_M -> {
+                  mon = try two_digits(input, inp_idx)
+                  2
+                }
+                case LOWER_D -> {
+                  day = try two_digits(input, inp_idx)
+                  2
+                }
+                case UPPER_H -> {
+                  hour = try two_digits(input, inp_idx)
+                  2
+                }
+                case UPPER_M -> {
+                  min = try two_digits(input, inp_idx)
+                  2
+                }
+                case UPPER_S -> {
+                  sec = try two_digits(input, inp_idx)
+                  2
+                }
+                case LOWER_B -> {
+                  # TODO: implement
+                  panic('%b not yet implemented')
+                }
+                case UPPER_B -> {
+                  # TODO: implement
+                  panic('%B not yet implemented')
+                }
+                case LOWER_Z -> {
+                  let pos = match input.opt(inp_idx := inp_idx + 1) {
+                    case Some(PLUS) -> true
+                    case Some(MINUS) -> false
+                    case _ -> return Option.None
+                  }
+
+                  let hour = try two_digits(input, inp_idx)
+
+                  inp_idx += 2
+
+                  if input.opt(inp_idx).or(-1) == COLON { inp_idx += 1 }
+
+                  let min = match input.opt(inp_idx) {
+                    case Some(byte) if byte >= ZERO and byte <= NINE -> {
+                      try two_digits(input, inp_idx)
+                    }
+                    case _ -> return Option.None
+                  }
+
+                  let secs = (hour * 3600) + (min * 60)
+
+                  off = if pos { secs } else { 0 - secs }
+                  2
+                }
+                case _ -> return Option.None
+              }
+            }
+            case _ -> return Option.None
+          }
+        }
+        case Some(f) -> {
+          match input.opt(inp_idx) {
+            case Some(i) if f == i -> {
+              fmt_idx += 1
+              inp_idx += 1
+            }
+            case _ -> return Option.None
+          }
+        }
+        case _ -> break
+      }
+    }
+
+    Option.Some(
+      DateTime.new(
+        date: try Date.new(year, mon, day),
+        time: try Time.new(hour, min, sec, sub_sec),
+        utc_offset: off,
       ),
     )
   }

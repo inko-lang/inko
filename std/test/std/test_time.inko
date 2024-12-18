@@ -213,6 +213,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('Time.new with an invalid time', fn (t) {
     t.true(Time.new(hour: 25, minute: 1, second: 1, sub_second: 0.0).none?)
+    t.true(Time.new(hour: 24, minute: 1, second: 1, sub_second: 0.0).none?)
     t.true(Time.new(hour: 1, minute: -1, second: 1, sub_second: 0.0).none?)
     t.true(Time.new(hour: 1, minute: 1, second: -1, sub_second: 0.0).none?)
     t.true(Time.new(hour: 1, minute: 1, second: 1, sub_second: -1.0).none?)
@@ -291,6 +292,109 @@ fn pub tests(t: mut Tests) {
     t.equal(t4.time.hour, 23)
     t.equal(t4.time.minute, 0)
     t.equal(t4.time.second, 0)
+  })
+
+  t.test('DateTime.parse', fn (t) {
+    let tests = [
+      # %Y
+      ('2024', '%Y', Option.Some((2024, 1, 1, 0, 0, 0, 0))),
+      ('9999', '%Y', Option.Some((9999, 1, 1, 0, 0, 0, 0))),
+      ('-9999', '%Y', Option.Some((-9999, 1, 1, 0, 0, 0, 0))),
+      ('+9999', '%Y', Option.None),
+      ('20', '%Y', Option.None),
+      ('', '%Y', Option.None),
+
+      # %m
+      ('07', '%m', Option.Some((0, 7, 1, 0, 0, 0, 0))),
+      ('12', '%m', Option.Some((0, 12, 1, 0, 0, 0, 0))),
+      ('13', '%m', Option.None),
+      ('7', '%m', Option.None),
+      ('', '%m', Option.None),
+
+      # %d
+      ('07', '%d', Option.Some((0, 1, 7, 0, 0, 0, 0))),
+      ('12', '%d', Option.Some((0, 1, 12, 0, 0, 0, 0))),
+      ('31', '%d', Option.Some((0, 1, 31, 0, 0, 0, 0))),
+      ('32', '%d', Option.None),
+      ('7', '%d', Option.None),
+      ('', '%d', Option.None),
+
+      # %H
+      ('00', '%H', Option.Some((0, 1, 1, 0, 0, 0, 0))),
+      ('07', '%H', Option.Some((0, 1, 1, 7, 0, 0, 0))),
+      ('23', '%H', Option.Some((0, 1, 1, 23, 0, 0, 0))),
+      ('24', '%H', Option.None),
+      ('1', '%H', Option.None),
+      ('', '%H', Option.None),
+
+      # %M
+      ('00', '%M', Option.Some((0, 1, 1, 0, 0, 0, 0))),
+      ('07', '%M', Option.Some((0, 1, 1, 0, 7, 0, 0))),
+      ('59', '%M', Option.Some((0, 1, 1, 0, 59, 0, 0))),
+      ('60', '%M', Option.None),
+      ('1', '%M', Option.None),
+      ('', '%M', Option.None),
+
+      # %S
+      ('00', '%S', Option.Some((0, 1, 1, 0, 0, 0, 0))),
+      ('07', '%S', Option.Some((0, 1, 1, 0, 0, 7, 0))),
+      ('59', '%S', Option.Some((0, 1, 1, 0, 0, 59, 0))),
+      ('60', '%S', Option.Some((0, 1, 1, 0, 0, 60, 0))),
+      ('61', '%S', Option.None),
+      ('1', '%S', Option.None),
+      ('', '%S', Option.None),
+
+      # %z
+      ('+0000', '%z', Option.Some((0, 1, 1, 0, 0, 0, 0))),
+      ('+0030', '%z', Option.Some((0, 1, 1, 0, 0, 0, 1800))),
+      ('+0100', '%z', Option.Some((0, 1, 1, 0, 0, 0, 3600))),
+      ('+0130', '%z', Option.Some((0, 1, 1, 0, 0, 0, 5400))),
+      ('+00:00', '%z', Option.Some((0, 1, 1, 0, 0, 0, 0))),
+      ('+00:30', '%z', Option.Some((0, 1, 1, 0, 0, 0, 1800))),
+      ('+01:00', '%z', Option.Some((0, 1, 1, 0, 0, 0, 3600))),
+      ('+01:30', '%z', Option.Some((0, 1, 1, 0, 0, 0, 5400))),
+      ('-0000', '%z', Option.Some((0, 1, 1, 0, 0, 0, 0))),
+      ('-0030', '%z', Option.Some((0, 1, 1, 0, 0, 0, -1800))),
+      ('-0100', '%z', Option.Some((0, 1, 1, 0, 0, 0, -3600))),
+      ('-0130', '%z', Option.Some((0, 1, 1, 0, 0, 0, -5400))),
+      ('-00:00', '%z', Option.Some((0, 1, 1, 0, 0, 0, 0))),
+      ('-00:30', '%z', Option.Some((0, 1, 1, 0, 0, 0, -1800))),
+      ('-01:00', '%z', Option.Some((0, 1, 1, 0, 0, 0, -3600))),
+      ('-01:30', '%z', Option.Some((0, 1, 1, 0, 0, 0, -5400))),
+      ('+01', '%z', Option.None),
+      ('-01', '%z', Option.None),
+      ('+01:', '%z', Option.None),
+      ('-01:', '%z', Option.None),
+      ('+01:0', '%z', Option.None),
+      ('-01:0', '%z', Option.None),
+      ('+', '%z', Option.None),
+      ('-', '%z', Option.None),
+      ('', '%z', Option.None),
+
+      # %%
+      ('%2024', '%%%Y', Option.Some((2024, 1, 1, 0, 0, 0, 0))),
+
+      # Combinations
+      ('2024-12-07', '%Y-%m-%d', Option.Some((2024, 12, 7, 0, 0, 0, 0))),
+      ('2024😀12😀07', '%Y😀%m😀%d', Option.Some((2024, 12, 7, 0, 0, 0, 0))),
+      ('2024x12x07', '%Y-%m-%d', Option.None),
+      ('2024😀12😀07', '%Y-%m-%d', Option.None),
+    ]
+
+    tests.into_iter.each(fn (rule) {
+      let res = DateTime.parse(rule.0, rule.1)
+      let exp = match rule {
+        case (_, _, Some((year, mon, day, hh, mm, s, utc))) -> {
+          let date = Date.new_unchecked(year, mon, day)
+          let time = Time.new_unchecked(hh, mm, s, sub_second: 0.0)
+
+          Option.Some(DateTime.new(date, time, utc))
+        }
+        case _ -> Option.None
+      }
+
+      t.equal(res, exp)
+    })
   })
 
   t.test('DateTime.days_since_unix_epoch', fn (t) {
