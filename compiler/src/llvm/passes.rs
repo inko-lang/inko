@@ -547,15 +547,19 @@ impl<'a> Worker<'a> {
     fn run_passes(&self, module: &Module, layouts: &Layouts) {
         let layout = layouts.target_data.get_data_layout();
         let opts = PassBuilderOptions::create();
-        let passes = if let Opt::Aggressive = self.shared.state.config.opt {
-            ["default<O3>"].join(",")
-        } else {
-            ["mem2reg"].join(",")
-        };
+        let passes = ["mem2reg"].join(",");
 
         module.set_data_layout(&layout);
         module.set_triple(&self.machine.get_triple());
         module.run_passes(passes.as_str(), &self.machine, opts).unwrap();
+
+        // The pass "aliases" such as "default<O3>" can't be combined together
+        // with other passes, so we have to handle them separately.
+        if let Opt::Aggressive = self.shared.state.config.opt {
+            let opts = PassBuilderOptions::create();
+
+            module.run_passes("default<O3>", &self.machine, opts).unwrap();
+        }
     }
 
     fn write_object_file(
