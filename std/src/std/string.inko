@@ -172,7 +172,7 @@ class builtin String {
   # ```inko
   # String.from_pointer("hello".to_pointer) == "hello" # => true
   # ```
-  fn pub static from_pointer(pointer: Pointer[UInt8]) -> String {
+  fn pub inline static from_pointer(pointer: Pointer[UInt8]) -> String {
     inko_string_from_pointer(_INKO.state, pointer)
   }
 
@@ -221,7 +221,7 @@ class builtin String {
   # ```inko
   # 'aä'.to_upper # => 'AÄ'
   # ```
-  fn pub to_upper -> String {
+  fn pub inline to_upper -> String {
     inko_string_to_upper(_INKO.state, self)
   }
 
@@ -246,7 +246,7 @@ class builtin String {
   # ```inko
   # 'AÄ'.to_lower # => 'aä'
   # ```
-  fn pub to_lower -> String {
+  fn pub inline to_lower -> String {
     inko_string_to_lower(_INKO.state, self)
   }
 
@@ -290,7 +290,7 @@ class builtin String {
   #
   # bytes # => '😊'.to_byte_array
   # ```
-  fn pub slice_into(bytes: mut ByteArray, start: Int, size: Int) {
+  fn pub inline slice_into(bytes: mut ByteArray, start: Int, size: Int) {
     inko_string_slice_bytes_into(self, bytes, start, size)
   }
 
@@ -415,7 +415,7 @@ class builtin String {
   # ''.empty?    # => true
   # 'foo'.empty? # => false
   # ```
-  fn pub empty? -> Bool {
+  fn pub inline empty? -> Bool {
     size == 0
   }
 
@@ -477,7 +477,7 @@ class builtin String {
   # ```inko
   # '😀😃'.chars.next # => Option.Some('😀')
   # ```
-  fn pub chars -> Chars {
+  fn pub inline chars -> Chars {
     Chars(string: self, iter: inko_string_chars(self))
   }
 
@@ -671,7 +671,7 @@ class builtin String {
   # ```inko
   # '/tmp/test.txt'.to_path # => Path.new('/tmp/test.txt')
   # ```
-  fn pub to_path -> Path {
+  fn pub inline to_path -> Path {
     Path.new(self)
   }
 
@@ -690,7 +690,7 @@ impl Bytes for String {
   # 'abc'.opt(0)  # => Option.Some(97)
   # 'abc'.opt(10) # => Option.None
   # ```
-  fn pub opt(index: Int) -> Option[Int] {
+  fn pub inline opt(index: Int) -> Option[Int] {
     if index < 0 or index >= size { return Option.None }
 
     Option.Some(byte_unchecked(index))
@@ -709,7 +709,7 @@ impl Bytes for String {
   # # Panics
   #
   # If the index is out of bounds, this method panics.
-  fn pub byte(index: Int) -> Int {
+  fn pub inline byte(index: Int) -> Int {
     bounds_check(index, size)
     byte_unchecked(index)
   }
@@ -744,7 +744,7 @@ impl Bytes for String {
   # 'foo'.size # => 3
   # '😀'.size  # => 4
   # ```
-  fn pub size -> Int {
+  fn pub inline size -> Int {
     @size as Int
   }
 
@@ -769,7 +769,7 @@ impl Bytes for String {
   #
   # This method is meant to be used when passing strings to foreign functions
   # (i.e. `*char` arguments). You should avoid using it for anything else.
-  fn pub to_pointer -> Pointer[UInt8] {
+  fn pub inline to_pointer -> Pointer[UInt8] {
     @ptr
   }
 }
@@ -787,31 +787,31 @@ impl Drop for String {
 }
 
 impl ToByteArray for String {
-  fn pub to_byte_array -> ByteArray {
+  fn pub inline to_byte_array -> ByteArray {
     inko_string_to_byte_array(_INKO.state, self)
   }
 }
 
 impl IntoByteArray for String {
-  fn pub move into_byte_array -> ByteArray {
+  fn pub inline move into_byte_array -> ByteArray {
     to_byte_array
   }
 }
 
 impl Clone[String] for String {
-  fn pub clone -> String {
+  fn pub inline clone -> String {
     self
   }
 }
 
 impl ToString for String {
-  fn pub to_string -> String {
+  fn pub inline to_string -> String {
     clone
   }
 }
 
 impl IntoString for String {
-  fn pub move into_string -> String {
+  fn pub inline move into_string -> String {
     self
   }
 }
@@ -858,7 +858,7 @@ impl Add[String, String] for String {
   # ```inko
   # 'hello ' + 'world' # => 'hello world'
   # ```
-  fn pub +(other: ref String) -> String {
+  fn pub inline +(other: ref String) -> String {
     _INKO.string_concat(self, other)
   }
 }
@@ -977,7 +977,7 @@ class pub inline StringBuffer {
   let @strings: Array[String]
 
   # Returns a new empty `StringBuffer`.
-  fn pub static new -> StringBuffer {
+  fn pub inline static new -> StringBuffer {
     StringBuffer([])
   }
 
@@ -994,7 +994,7 @@ class pub inline StringBuffer {
   #
   # StringBuffer.from_array(strings).to_string # => 'foobar'
   # ```
-  fn pub static from_array(strings: Array[String]) -> StringBuffer {
+  fn pub inline static from_array(strings: Array[String]) -> StringBuffer {
     StringBuffer(strings)
   }
 
@@ -1016,7 +1016,7 @@ class pub inline StringBuffer {
   }
 
   # Returns the number of values in `self`.
-  fn pub size -> Int {
+  fn pub inline size -> Int {
     @strings.size
   }
 }
