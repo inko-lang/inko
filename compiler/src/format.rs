@@ -501,6 +501,14 @@ impl Document {
                         {
                             self.gen.single_space();
                         }
+                        Some(TopLevelExpression::DefineConstant(node))
+                            if node.location().line_start
+                                - n.location.line_end
+                                > 1 =>
+                        {
+                            self.gen.new_line();
+                            self.gen.new_line();
+                        }
                         Some(TopLevelExpression::DefineConstant(_)) | None => {
                             self.gen.new_line();
                         }
