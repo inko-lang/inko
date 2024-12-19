@@ -680,6 +680,10 @@ impl Equal[ref Int] for Int {
   fn pub inline ==(other: ref Int) -> Bool {
     _INKO.int_eq(self, other)
   }
+
+  fn pub inline !=(other: ref Int) -> Bool {
+    _INKO.int_ne(self, other)
+  }
 }
 
 impl Clone[Int] for Int {
