@@ -346,6 +346,14 @@ impl<'ctx> Builder<'ctx> {
         self.inner.build_int_compare(IntPredicate::EQ, lhs, rhs, "").unwrap()
     }
 
+    pub(crate) fn int_ne(
+        &self,
+        lhs: IntValue<'ctx>,
+        rhs: IntValue<'ctx>,
+    ) -> IntValue<'ctx> {
+        self.inner.build_int_compare(IntPredicate::NE, lhs, rhs, "").unwrap()
+    }
+
     pub(crate) fn int_gt(
         &self,
         lhs: IntValue<'ctx>,

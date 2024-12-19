@@ -1176,6 +1176,16 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
+                    Intrinsic::IntNe => {
+                        let reg_var = self.variables[&ins.register];
+                        let lhs_var = self.variables[&ins.arguments[0]];
+                        let rhs_var = self.variables[&ins.arguments[1]];
+                        let lhs = self.builder.load_int(lhs_var);
+                        let rhs = self.builder.load_int(rhs_var);
+                        let res = self.builder.int_ne(lhs, rhs);
+
+                        self.builder.store(reg_var, res);
+                    }
                     Intrinsic::IntGt => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
