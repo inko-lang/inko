@@ -2286,6 +2286,8 @@ pub enum Intrinsic {
     BoolEq,
     RefMove,
     MutMove,
+    IntLeadingZeros,
+    IntTrailingZeros,
 }
 
 impl Intrinsic {
@@ -2343,6 +2345,8 @@ impl Intrinsic {
             Intrinsic::BoolEq,
             Intrinsic::RefMove,
             Intrinsic::MutMove,
+            Intrinsic::IntLeadingZeros,
+            Intrinsic::IntTrailingZeros,
         ]
         .into_iter()
         .fold(HashMap::new(), |mut map, func| {
@@ -2405,6 +2409,8 @@ impl Intrinsic {
             Intrinsic::BoolEq => "bool_eq",
             Intrinsic::RefMove => "ref_move",
             Intrinsic::MutMove => "mut_move",
+            Intrinsic::IntLeadingZeros => "int_leading_zeros",
+            Intrinsic::IntTrailingZeros => "int_trailing_zeros",
         }
     }
 
@@ -2470,6 +2476,8 @@ impl Intrinsic {
             Intrinsic::BoolEq => TypeRef::boolean(),
             Intrinsic::RefMove => arguments[0].as_ref(db),
             Intrinsic::MutMove => arguments[0].as_mut(db),
+            Intrinsic::IntLeadingZeros => TypeRef::int(),
+            Intrinsic::IntTrailingZeros => TypeRef::int(),
         }
     }
 }
