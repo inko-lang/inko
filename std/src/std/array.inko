@@ -281,7 +281,7 @@ class builtin Array[T] {
   #
   # numbers.opt(5) # => Option.None
   # ```
-  fn pub opt(index: Int) -> Option[ref T] {
+  fn pub inline opt(index: Int) -> Option[ref T] {
     if index < 0 or index >= @size { return Option.None }
 
     Option.Some(get_unchecked(index))
@@ -300,7 +300,7 @@ class builtin Array[T] {
   #
   # numbers.get(0) # => 10
   # ```
-  fn pub get(index: Int) -> ref T {
+  fn pub inline get(index: Int) -> ref T {
     bounds_check(index, @size)
     get_unchecked(index)
   }
@@ -668,7 +668,7 @@ impl Array if T: mut {
   #
   # numbers.opt_mut(5) # => Option.None
   # ```
-  fn pub mut opt_mut(index: Int) -> Option[mut T] {
+  fn pub inline mut opt_mut(index: Int) -> Option[mut T] {
     if index < 0 or index >= @size { return Option.None }
 
     Option.Some(get_unchecked_mut(index))
@@ -687,7 +687,7 @@ impl Array if T: mut {
   #
   # numbers.get_mut(0) # => 10
   # ```
-  fn pub mut get_mut(index: Int) -> mut T {
+  fn pub inline mut get_mut(index: Int) -> mut T {
     bounds_check(index, @size)
     get_unchecked_mut(index)
   }
