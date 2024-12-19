@@ -1738,7 +1738,41 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    _ => unreachable!(),
+                    Intrinsic::IntLeadingZeros => {
+                        let reg_var = self.variables[&ins.register];
+                        let val_var = self.variables[&ins.arguments[0]];
+                        let val = self.builder.load_int(val_var).into();
+                        let func = self.module.intrinsic(
+                            "llvm.ctlz",
+                            &[self.builder.context.i64_type().into()],
+                        );
+                        let no_poison = self.builder.bool_literal(false).into();
+                        let res = self
+                            .builder
+                            .call_with_return(func, &[val, no_poison])
+                            .into_int_value();
+
+                        self.builder.store(reg_var, res);
+                    }
+                    Intrinsic::IntTrailingZeros => {
+                        let reg_var = self.variables[&ins.register];
+                        let val_var = self.variables[&ins.arguments[0]];
+                        let val = self.builder.load_int(val_var).into();
+                        let func = self.module.intrinsic(
+                            "llvm.cttz",
+                            &[self.builder.context.i64_type().into()],
+                        );
+                        let no_poison = self.builder.bool_literal(false).into();
+                        let res = self
+                            .builder
+                            .call_with_return(func, &[val, no_poison])
+                            .into_int_value();
+
+                        self.builder.store(reg_var, res);
+                    }
+                    Intrinsic::Moved
+                    | Intrinsic::RefMove
+                    | Intrinsic::MutMove => unreachable!(),
                 }
             }
             Instruction::Goto(ins) => {

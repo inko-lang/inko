@@ -571,6 +571,58 @@ class builtin Int {
     _INKO.int_swap_bytes(self)
   }
 
+  # Returns the number of leading (most significant) zeros in the binary
+  # representation of `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # 0.leading_zeros    # => 64
+  # 1000.leading_zeros # => 54
+  # ```
+  fn pub inline leading_zeros -> Int {
+    _INKO.int_leading_zeros(self)
+  }
+
+  # Returns the number of trailing (least significant) zeros in the binary
+  # representation of `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # 0.trailing_zeros    # => 0
+  # 1000.trailing_zeros # => 3
+  # ```
+  fn pub inline trailing_zeros -> Int {
+    _INKO.int_trailing_zeros(self)
+  }
+
+  # Returns the number of leading (most significant) ones in the binary
+  # representation of `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # -1.leading_ones    # => 64
+  # -2.leading_ones    # => 63
+  # ```
+  fn pub inline leading_ones -> Int {
+    _INKO.int_leading_zeros(not)
+  }
+
+  # Returns the number of trailing (least significant) ones in the binary
+  # representation of `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # 1.trailing_ones  # => 1
+  # 11.trailing_ones # => 2
+  # ```
+  fn pub inline trailing_ones -> Int {
+    _INKO.int_trailing_zeros(not)
+  }
+
   fn inline unchecked_div(other: Int) -> Int {
     # This implements floored division, rather than rounding towards zero. This
     # makes division work more natural when using negative numbers.

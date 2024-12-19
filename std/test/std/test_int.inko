@@ -393,4 +393,30 @@ fn pub tests(t: mut Tests) {
     t.equal(12345.swap_bytes, 4120793659044003840)
     t.equal(4120793659044003840.swap_bytes, 12345)
   })
+
+  t.test('Int.leading_zeros', fn (t) {
+    t.equal(0.leading_zeros, 64)
+    t.equal(1000.leading_zeros, 54)
+    t.equal(MIN.leading_zeros, 0)
+    t.equal(MAX.leading_zeros, 1)
+  })
+
+  t.test('Int.trailing_zeros', fn (t) {
+    t.equal(0.trailing_zeros, 64)
+    t.equal(1000.trailing_zeros, 3)
+    t.equal(MIN.trailing_zeros, 63)
+    t.equal(MAX.trailing_zeros, 0)
+  })
+
+  t.test('Int.leading_ones', fn (t) {
+    t.equal(0.leading_ones, 0)
+    t.equal(-1.leading_ones, 64)
+    t.equal(-2.leading_ones, 63)
+  })
+
+  t.test('Int.trailing_ones', fn (t) {
+    t.equal(1.trailing_ones, 1)
+    t.equal(2.trailing_ones, 0)
+    t.equal(11.trailing_ones, 2)
+  })
 }
