@@ -3,33 +3,19 @@
 import std.fmt (Format, Formatter)
 
 # A type describing the ordering between two values.
-class pub inline enum Ordering {
+class pub copy enum Ordering {
   case Less
   case Equal
   case Greater
 }
 
 impl Equal[ref Ordering] for Ordering {
-  fn pub ==(other: ref Ordering) -> Bool {
-    match self {
-      case Less -> {
-        match other {
-          case Less -> true
-          case _ -> false
-        }
-      }
-      case Equal -> {
-        match other {
-          case Equal -> true
-          case _ -> false
-        }
-      }
-      case Greater -> {
-        match other {
-          case Greater -> true
-          case _ -> false
-        }
-      }
+  fn pub inline ==(other: ref Ordering) -> Bool {
+    match (self, other) {
+      case (Less, Less) -> true
+      case (Equal, Equal) -> true
+      case (Greater, Greater) -> true
+      case _ -> false
     }
   }
 }
@@ -122,7 +108,7 @@ trait pub Contains[T] {
 #
 # min(10, 5) # => 5
 # ```
-fn pub min[T: Compare[T]](a: T, b: T) -> T {
+fn pub inline min[T: Compare[T]](a: T, b: T) -> T {
   if a <= b { a } else { b }
 }
 
@@ -135,6 +121,6 @@ fn pub min[T: Compare[T]](a: T, b: T) -> T {
 #
 # max(10, 5) # => 10
 # ```
-fn pub max[T: Compare[T]](a: T, b: T) -> T {
+fn pub inline max[T: Compare[T]](a: T, b: T) -> T {
   if a >= b { a } else { b }
 }
