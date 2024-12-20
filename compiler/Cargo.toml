@@ -14,7 +14,7 @@ doctest = false
 ast = { path = "../ast" }
 types = { path = "../types" }
 location = { path = "../location" }
-unicode-segmentation = "^1.10"
+unicode-width = "^0.2"
 getopts = "^0.2"
 fnv = "^1.0"
 blake3 = "^1.5"

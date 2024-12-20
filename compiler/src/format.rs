@@ -12,7 +12,7 @@ use std::collections::HashSet;
 use std::fs::{read, write};
 use std::io::{stdin, stdout, Error as IoError, Read as _, Write as _};
 use std::path::PathBuf;
-use unicode_segmentation::UnicodeSegmentation as _;
+use unicode_width::UnicodeWidthStr;
 
 /// The characters to use for indentation.
 const INDENT: char = ' ';
@@ -79,7 +79,7 @@ enum Node {
     /// The arguments are:
     ///
     /// 1. The text that may include Unicode characters
-    /// 2. The number of grapheme clusters in the string
+    /// 2. The width (in cells) of the string.
     Unicode(String, usize),
 
     /// A node to include if the code is to be wrapped across lines.
@@ -149,7 +149,7 @@ impl Node {
     }
 
     fn unicode(text: String) -> Node {
-        let width = text.graphemes(true).count();
+        let width = text.width();
 
         Node::Unicode(text, width)
     }
