@@ -139,28 +139,20 @@ pub unsafe extern "system" fn inko_byte_array_slice(
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_byte_array_append(
-    target: *mut ByteArray,
-    source: *mut ByteArray,
-) {
-    (*target).value.append(&mut (*source).value);
-}
-
-#[no_mangle]
 pub unsafe extern "system" fn inko_byte_array_copy_from(
-    target: *mut ByteArray,
-    source: *mut ByteArray,
+    into: *mut ByteArray,
+    from: *mut u8,
+    size: i64,
     start: i64,
-    length: i64,
+    amount: i64,
 ) -> i64 {
-    let target = &mut *target;
-    let source = &mut *source;
-    let end = min((start + length) as usize, source.value.len());
-    let slice = &source.value[start as usize..end];
-    let amount = slice.len() as i64;
+    let into = &mut *into;
+    let end = min((start + amount) as usize, size as usize);
+    let slice =
+        &slice::from_raw_parts(from, size as usize)[start as usize..end];
 
-    target.value.extend_from_slice(slice);
-    amount
+    into.value.extend_from_slice(slice);
+    slice.len() as i64
 }
 
 #[no_mangle]

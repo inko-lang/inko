@@ -27,12 +27,22 @@ fn pub tests(t: mut Tests) {
     t.equal(bytes, ByteArray.new)
   })
 
-  t.test('ByteArray.append', fn (t) {
+  t.test('ByteArray.append with a ByteArray', fn (t) {
     let a = ByteArray.from_array([10])
     let b = ByteArray.from_array([20])
 
     a.append(b)
     t.equal(a, ByteArray.from_array([10, 20]))
+  })
+
+  t.test('ByteArray.append with a String', fn (t) {
+    let a = 'hello '.to_byte_array
+    let b = ByteArray.new
+
+    a.append('world')
+    b.append('hello')
+    t.equal(a.into_string, 'hello world')
+    t.equal(b.into_string, 'hello')
   })
 
   t.test('ByteArray.push', fn (t) {
@@ -326,6 +336,14 @@ fn pub tests(t: mut Tests) {
     vals.reverse
 
     t.equal(vals, ByteArray.from_array([30, 20, 10]))
+  })
+
+  t.test('ByteArray.reverse_at', fn (t) {
+    let vals = ByteArray.from_array([10, 20, 30, 40])
+
+    vals.reverse_at(2)
+
+    t.equal(vals, ByteArray.from_array([10, 20, 40, 30]))
   })
 
   t.test('ByteArray.copy_from', fn (t) {

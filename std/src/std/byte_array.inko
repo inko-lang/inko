@@ -19,18 +19,17 @@ fn extern inko_byte_array_with_capacity(
 
 fn extern inko_byte_array_clear(bytes: mut ByteArray)
 
-fn extern inko_byte_array_append(target: mut ByteArray, source: mut ByteArray)
-
 fn extern inko_byte_array_clone(
   state: Pointer[UInt8],
   bytes: ref ByteArray,
 ) -> ByteArray
 
 fn extern inko_byte_array_copy_from(
-  target: mut ByteArray,
-  source: ref ByteArray,
-  start: Int,
+  into: mut ByteArray,
+  from: Pointer[UInt8],
   size: Int,
+  start: Int,
+  amount: Int,
 ) -> Int
 
 fn extern inko_byte_array_drain_to_string(
@@ -204,9 +203,12 @@ class builtin ByteArray {
     inko_byte_array_clear(self)
   }
 
-  # Appends the bytes of the given `ByteArray` to `self`.
+  # Copies the bytes from the given `ByteArray` or `String` to the end of
+  # `self`.
   #
   # # Examples
+  #
+  # Appending a `ByteArray` to another `ByteArray`:
   #
   # ```inko
   # let a = ByteArray.from_array([10])
@@ -215,8 +217,17 @@ class builtin ByteArray {
   # a.append(b)
   # a # => ByteArray.from_array([10, 20])
   # ```
-  fn pub mut append(other: ByteArray) {
-    inko_byte_array_append(self, other)
+  #
+  # Appending a `String` to a `ByteArray`:
+  #
+  # ```inko
+  # let bytes = 'hello '.to_byte_array
+  #
+  # bytes.append_string('world')
+  # bytes.to_string # => 'hello world'
+  # ```
+  fn pub mut append[T: Bytes](other: T) {
+    inko_byte_array_copy_from(self, other.to_pointer, other.size, 0, other.size)
   }
 
   # Pushes a value to the back of the `ByteArray`, returning the pushed value.
@@ -402,7 +413,27 @@ class builtin ByteArray {
   # a # => ByteArray.from_array([30, 20, 10])
   # ```
   fn pub mut reverse {
-    let mut a = 0
+    reverse_at(0)
+  }
+
+  # Reverses `self` in-place starting at the given index.
+  #
+  # # Panics
+  #
+  # This method panics if the index is out of bounds.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let a = ByteArray.from_array([10, 20, 30, 40])
+  #
+  # a.reverse_at(2)
+  # a # => ByteArray.from_array([10, 20, 40, 30])
+  # ```
+  fn pub mut reverse_at(index: Int) {
+    bounds_check(index, size)
+
+    let mut a = index
     let mut b = size - 1
 
     while a < b {
@@ -431,7 +462,7 @@ class builtin ByteArray {
   # b # => ByteArray.from_array([1, 2])
   # ```
   fn pub mut copy_from(bytes: ref ByteArray, at: Int, size: Int) -> Int {
-    inko_byte_array_copy_from(self, bytes, at, size)
+    inko_byte_array_copy_from(self, bytes.to_pointer, bytes.size, at, size)
   }
 
   # Resizes `self` to the new size.
