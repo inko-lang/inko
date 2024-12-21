@@ -1,0 +1,100 @@
+# Locale information for Dutch.
+import std.bytes (name_index_at)
+import std.locale (Locale as LocaleTrait)
+import std.string (Bytes)
+
+let SHORT_MONTHS = [
+  'jan',
+  'feb',
+  'mrt',
+  'apr',
+  'mei',
+  'jun',
+  'jul',
+  'aug',
+  'sep',
+  'okt',
+  'nov',
+  'dec',
+]
+
+let FULL_MONTHS = [
+  'januari',
+  'februari',
+  'maart',
+  'april',
+  'mei',
+  'juni',
+  'juli',
+  'augustus',
+  'september',
+  'oktober',
+  'november',
+  'december',
+]
+
+let SHORT_WEEKDAYS = ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo']
+
+let FULL_WEEKDAYS = [
+  'maandag',
+  'dinsdag',
+  'woensdag',
+  'donderdag',
+  'vrijdag',
+  'zaterdag',
+  'zondag',
+]
+
+# Locale data for Dutch.
+class pub copy Locale {
+  # Returns a new `Locale`.
+  fn pub inline static new -> Locale {
+    Locale()
+  }
+}
+
+impl LocaleTrait for Locale {
+  fn parse_short_month[T: Bytes](
+    input: ref T,
+    start: Int,
+  ) -> Option[(Int, Int)] {
+    name_index_at(input, start, SHORT_MONTHS)
+  }
+
+  fn parse_full_month[T: Bytes](
+    input: ref T,
+    start: Int,
+  ) -> Option[(Int, Int)] {
+    name_index_at(input, start, FULL_MONTHS)
+  }
+
+  fn parse_short_day_of_week[T: Bytes](
+    input: ref T,
+    start: Int,
+  ) -> Option[(Int, Int)] {
+    name_index_at(input, start, SHORT_WEEKDAYS)
+  }
+
+  fn parse_full_day_of_week[T: Bytes](
+    input: ref T,
+    start: Int,
+  ) -> Option[(Int, Int)] {
+    name_index_at(input, start, FULL_WEEKDAYS)
+  }
+
+  fn short_month(index: Int) -> String {
+    SHORT_MONTHS.get(index)
+  }
+
+  fn full_month(index: Int) -> String {
+    FULL_MONTHS.get(index)
+  }
+
+  fn short_day_of_week(index: Int) -> String {
+    SHORT_WEEKDAYS.get(index)
+  }
+
+  fn full_day_of_week(index: Int) -> String {
+    FULL_WEEKDAYS.get(index)
+  }
+}

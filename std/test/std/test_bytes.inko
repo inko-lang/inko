@@ -1,0 +1,70 @@
+import std.bytes
+import std.test (Tests)
+
+fn pub tests(t: mut Tests) {
+  t.test('bytes.name_index_at', fn (t) {
+    let ascii = ['Foo', 'Bar', 'Baz', 'Quix']
+    let emoji = ['😀', '🐱', '🎉']
+    let ja = ['1月', '7月', '10月']
+
+    t.equal(bytes.name_index_at('Foo', 0, ascii), Option.Some((0, 3)))
+    t.equal(bytes.name_index_at('Foobar', 0, ascii), Option.Some((0, 3)))
+    t.equal(bytes.name_index_at('Bar', 0, ascii), Option.Some((1, 3)))
+    t.equal(bytes.name_index_at('Baz', 0, ascii), Option.Some((2, 3)))
+    t.equal(bytes.name_index_at('Quix', 0, ascii), Option.Some((3, 4)))
+    t.equal(bytes.name_index_at('FooBar', 3, ascii), Option.Some((1, 3)))
+    t.equal(bytes.name_index_at('', 0, ascii), Option.None)
+    t.equal(bytes.name_index_at('F', 0, ascii), Option.None)
+    t.equal(bytes.name_index_at('Fo', 0, ascii), Option.None)
+    t.equal(bytes.name_index_at('This does not match', 0, ascii), Option.None)
+
+    t.equal(bytes.name_index_at('😀', 0, emoji), Option.Some((0, 4)))
+    t.equal(bytes.name_index_at('😀😀', 0, emoji), Option.Some((0, 4)))
+    t.equal(bytes.name_index_at('😀🐱', 4, emoji), Option.Some((1, 4)))
+    t.equal(bytes.name_index_at('🐱', 0, emoji), Option.Some((1, 4)))
+    t.equal(bytes.name_index_at('🎉', 0, emoji), Option.Some((2, 4)))
+    t.equal(bytes.name_index_at('f🎉', 0, emoji), Option.None)
+    t.equal(bytes.name_index_at('😢', 0, emoji), Option.None)
+    t.equal(bytes.name_index_at('😢😢😢😢😢', 0, emoji), Option.None)
+
+    t.equal(bytes.name_index_at('1月', 0, ja), Option.Some((0, 4)))
+    t.equal(bytes.name_index_at('7月', 0, ja), Option.Some((1, 4)))
+    t.equal(bytes.name_index_at('10月', 0, ja), Option.Some((2, 5)))
+  })
+
+  t.test('bytes.digit?', fn (t) {
+    '1234567890'.bytes.each(fn (byte) { t.true(bytes.digit?(byte)) })
+
+    0.until(256).iter.each(fn (byte) {
+      if byte >= 48 and byte <= 57 { return }
+
+      t.false(bytes.digit?(byte))
+    })
+  })
+
+  t.test('bytes.two_digits', fn (t) {
+    t.equal(bytes.two_digits('', start: 0), Option.None)
+    t.equal(bytes.two_digits('1', start: 0), Option.None)
+    t.equal(bytes.two_digits('a', start: 0), Option.None)
+    t.equal(bytes.two_digits('123', start: 0), Option.Some(12))
+    t.equal(bytes.two_digits('123a', start: 0), Option.Some(12))
+  })
+
+  t.test('bytes.four_digits', fn (t) {
+    t.equal(bytes.four_digits('', start: 0), Option.None)
+    t.equal(bytes.four_digits('1', start: 0), Option.None)
+    t.equal(bytes.four_digits('a', start: 0), Option.None)
+    t.equal(bytes.four_digits('123', start: 0), Option.None)
+    t.equal(bytes.four_digits('1234', start: 0), Option.Some(1234))
+    t.equal(bytes.four_digits('1234a', start: 0), Option.Some(1234))
+  })
+
+  t.test('bytes.digits', fn (t) {
+    t.equal(bytes.digits('', start: 0, limit: 4), Option.None)
+    t.equal(bytes.digits('1', start: 0, limit: 4), Option.Some((1, 1)))
+    t.equal(bytes.digits('a', start: 0, limit: 4), Option.None)
+    t.equal(bytes.digits('123', start: 0, limit: 4), Option.Some((123, 3)))
+    t.equal(bytes.digits('1234', start: 0, limit: 4), Option.Some((1234, 4)))
+    t.equal(bytes.digits('1234a', start: 0, limit: 4), Option.Some((1234, 4)))
+  })
+}

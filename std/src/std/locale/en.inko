@@ -1,0 +1,163 @@
+# Locale information for English.
+import std.bytes (name_index_at)
+import std.locale (Locale as LocaleTrait)
+import std.ptr
+import std.string (Bytes)
+
+let SHORT_MONTHS = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+]
+
+let FULL_MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+]
+
+let SHORT_WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
+let FULL_WEEKDAYS = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+]
+
+fn month_prefix_index[T: Bytes](input: ref T, start: Int) -> Option[Int] {
+  # For English we can take advantage of the fact that for all months the first
+  # 3 bytes are unique. This allows us to efficiently reduce the amount of
+  # months to compare in full to just a single month.
+  let a = (ptr.add(input.to_pointer, start) as Pointer[UInt16]).0 as Int
+  let b = ptr.add(input.to_pointer, start + 2).0 as Int << 16
+
+  # These magic values are the result of
+  # `(byte 2 << 16) | (byte 1 << 8) | byte 0`, i.e. the first three bytes in
+  # little endian order.
+  match b | a {
+    case 0x6E614A -> Option.Some(0)
+    case 0x626546 -> Option.Some(1)
+    case 0x72614D -> Option.Some(2)
+    case 0x727041 -> Option.Some(3)
+    case 0x79614D -> Option.Some(4)
+    case 0x6E754A -> Option.Some(5)
+    case 0x6C754A -> Option.Some(6)
+    case 0x677541 -> Option.Some(7)
+    case 0x706553 -> Option.Some(8)
+    case 0x74634F -> Option.Some(9)
+    case 0x766F4E -> Option.Some(10)
+    case 0x636544 -> Option.Some(11)
+    case _ -> Option.None
+  }
+}
+
+# Locale data for English.
+#
+# This type handles both US and UK English as in its current implementation
+# there are no differences between the two.
+class pub copy Locale {
+  # Returns a new `Locale`.
+  fn pub inline static new -> Locale {
+    Locale()
+  }
+}
+
+impl LocaleTrait for Locale {
+  fn parse_short_month[T: Bytes](
+    input: ref T,
+    start: Int,
+  ) -> Option[(Int, Int)] {
+    if input.size - start < 3 { return Option.None }
+
+    match month_prefix_index(input, start) {
+      case Some(v) -> Option.Some((v, 3))
+      case _ -> Option.None
+    }
+  }
+
+  fn parse_full_month[T: Bytes](
+    input: ref T,
+    start: Int,
+  ) -> Option[(Int, Int)] {
+    let len = input.size - start
+
+    # "May" is the shortest month and consists of 3 bytes, so anything shorter
+    # is by definition not a name of the month.
+    if len < 3 { return Option.None }
+
+    let name_idx = try month_prefix_index(input, start)
+    let mon = FULL_MONTHS.get(name_idx)
+    let mut inp_idx = start + 3
+    let mut mon_idx = 3
+    let max = input.size
+
+    if len < mon.size { return Option.None }
+
+    while inp_idx < max {
+      if input.byte(inp_idx) == mon.opt(mon_idx).or(-1) {
+        inp_idx += 1
+        mon_idx += 1
+      } else {
+        break
+      }
+    }
+
+    if mon_idx == mon.size {
+      Option.Some((name_idx, mon.size))
+    } else {
+      Option.None
+    }
+  }
+
+  fn parse_short_day_of_week[T: Bytes](
+    input: ref T,
+    start: Int,
+  ) -> Option[(Int, Int)] {
+    name_index_at(input, start, SHORT_WEEKDAYS)
+  }
+
+  fn parse_full_day_of_week[T: Bytes](
+    input: ref T,
+    start: Int,
+  ) -> Option[(Int, Int)] {
+    name_index_at(input, start, FULL_WEEKDAYS)
+  }
+
+  fn short_month(index: Int) -> String {
+    SHORT_MONTHS.get(index)
+  }
+
+  fn full_month(index: Int) -> String {
+    FULL_MONTHS.get(index)
+  }
+
+  fn short_day_of_week(index: Int) -> String {
+    SHORT_WEEKDAYS.get(index)
+  }
+
+  fn full_day_of_week(index: Int) -> String {
+    FULL_WEEKDAYS.get(index)
+  }
+}

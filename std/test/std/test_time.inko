@@ -1,18 +1,57 @@
 import std.cmp (Ordering)
 import std.fmt (fmt)
+import std.locale.en (Locale)
 import std.process (sleep)
-import std.test (Tests)
-import std.time (Date, DateTime, Duration, Instant, Time)
+import std.test (Failure, Tests)
+import std.time (
+  Date, DateTime, Duration, Instant, Time, format_digits, parse_offset,
+)
 
 fn ymd(year: Int, month: Int, day: Int) -> DateTime {
   DateTime(
     date: Date.new(year, month, day).get,
-    time: Time.new(hour: 12, minute: 0, second: 0, sub_second: 0.0).get,
+    time: Time.new(hour: 12, minute: 0, second: 0, nanosecond: 0).get,
     utc_offset: 0,
   )
 }
 
 fn pub tests(t: mut Tests) {
+  t.test('time.parse_offset', fn (t) {
+    t.equal(parse_offset('+0130', start: 0), Option.Some((5400, 5)))
+    t.equal(parse_offset('+01:30', start: 0), Option.Some((5400, 6)))
+    t.equal(parse_offset('-0130', start: 0), Option.Some((-5400, 5)))
+    t.equal(parse_offset('-01:30', start: 0), Option.Some((-5400, 6)))
+  })
+
+  t.test('time.format_digits', fn (t) {
+    let buf = ByteArray.new
+
+    format_digits(buf, 123_456, amount: 6)
+    t.equal(buf.drain_to_string, '123456')
+
+    format_digits(buf, 1, amount: 4)
+    t.equal(buf.drain_to_string, '0001')
+
+    format_digits(buf, 12, amount: 4)
+    t.equal(buf.drain_to_string, '0012')
+
+    format_digits(buf, 123, amount: 4)
+    t.equal(buf.drain_to_string, '0123')
+
+    format_digits(buf, -123, amount: 4)
+    t.equal(buf.drain_to_string, '-0123')
+
+    let buf = 'hello '.to_byte_array
+
+    format_digits(buf, 123, amount: 4)
+    t.equal(buf.drain_to_string, 'hello 0123')
+
+    let buf = 'hello '.to_byte_array
+
+    format_digits(buf, 123, amount: 0)
+    t.equal(buf.drain_to_string, 'hello 123')
+  })
+
   t.test('Duration.from_secs', fn (t) {
     t.equal(Duration.from_secs(1.2).to_secs, 1.2)
     t.equal(Duration.from_secs(-1.2).to_secs, -1.2)
@@ -200,45 +239,62 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('Time.new with a valid time', fn (t) {
-    let time = try Time
-      .new(hour: 12, minute: 15, second: 30, sub_second: 1.2)
+    let t1 = try Time
+      .new(hour: 12, minute: 15, second: 30, nanosecond: 100)
+      .ok_or(nil)
+    let t2 = try Time
+      .new(hour: 23, minute: 59, second: 60, nanosecond: 999_999_999)
       .ok_or(nil)
 
-    t.equal(time.hour, 12)
-    t.equal(time.minute, 15)
-    t.equal(time.second, 30)
-    t.equal(time.sub_second, 1.2)
+    t.equal(t1.hour, 12)
+    t.equal(t1.minute, 15)
+    t.equal(t1.second, 30)
+    t.equal(t1.nanosecond, 100)
+
+    t.equal(t2.hour, 23)
+    t.equal(t2.minute, 59)
+    t.equal(t2.second, 60)
+    t.equal(t2.nanosecond, 999_999_999)
     Result.Ok(nil)
   })
 
   t.test('Time.new with an invalid time', fn (t) {
-    t.true(Time.new(hour: 25, minute: 1, second: 1, sub_second: 0.0).none?)
-    t.true(Time.new(hour: 1, minute: -1, second: 1, sub_second: 0.0).none?)
-    t.true(Time.new(hour: 1, minute: 1, second: -1, sub_second: 0.0).none?)
-    t.true(Time.new(hour: 1, minute: 1, second: 1, sub_second: -1.0).none?)
-    t.true(Time.new(hour: 1, minute: 60, second: 1, sub_second: 0.0).none?)
-    t.true(Time.new(hour: 1, minute: 0, second: 61, sub_second: 0.0).none?)
+    t.true(Time.new(hour: 25, minute: 1, second: 1, nanosecond: 0).none?)
+    t.true(Time.new(hour: 24, minute: 1, second: 1, nanosecond: 0).none?)
+    t.true(Time.new(hour: 1, minute: -1, second: 1, nanosecond: 0).none?)
+    t.true(Time.new(hour: 1, minute: 1, second: -1, nanosecond: 0).none?)
+    t.true(
+      Time.new(hour: 1, minute: 1, second: 1, nanosecond: 1_000_000_000).none?,
+    )
+    t.true(Time.new(hour: 1, minute: 60, second: 1, nanosecond: 0).none?)
+    t.true(Time.new(hour: 1, minute: 0, second: 61, nanosecond: 0).none?)
   })
 
   t.test('Time.==', fn (t) {
     t.equal(
-      Time.new_unchecked(hour: 12, minute: 15, second: 10, sub_second: 0.0),
-      Time.new_unchecked(hour: 12, minute: 15, second: 10, sub_second: 0.0),
+      Time.new_unchecked(hour: 12, minute: 15, second: 10, nanosecond: 0),
+      Time.new_unchecked(hour: 12, minute: 15, second: 10, nanosecond: 0),
     )
     t.not_equal(
-      Time.new_unchecked(hour: 12, minute: 15, second: 10, sub_second: 0.0),
-      Time.new_unchecked(hour: 12, minute: 15, second: 10, sub_second: 1.0),
+      Time.new_unchecked(hour: 12, minute: 15, second: 10, nanosecond: 0),
+      Time.new_unchecked(hour: 12, minute: 15, second: 10, nanosecond: 10),
     )
   })
 
   t.test('Time.fmt', fn (t) {
     t.equal(
-      fmt(Time.new_unchecked(hour: 12, minute: 15, second: 15, sub_second: 0.0)),
+      fmt(Time.new_unchecked(hour: 12, minute: 15, second: 15, nanosecond: 0)),
       '12:15:15',
     )
     t.equal(
-      fmt(Time.new_unchecked(hour: 1, minute: 1, second: 1, sub_second: 0.0)),
+      fmt(Time.new_unchecked(hour: 1, minute: 1, second: 1, nanosecond: 0)),
       '01:01:01',
+    )
+    t.equal(
+      fmt(
+        Time.new_unchecked(hour: 1, minute: 1, second: 1, nanosecond: 123000000),
+      ),
+      '01:01:01.123',
     )
   })
 
@@ -264,7 +320,7 @@ fn pub tests(t: mut Tests) {
     t.equal(t1.time.hour, 0)
     t.equal(t1.time.minute, 0)
     t.equal(t1.time.second, 0)
-    t.equal(t1.time.sub_second, 0.0)
+    t.equal(t1.time.nanosecond, 0)
     t.equal(t1.utc_offset, 0)
 
     t.equal(t2.date.year, 1970)
@@ -273,7 +329,7 @@ fn pub tests(t: mut Tests) {
     t.equal(t2.time.hour, 1)
     t.equal(t2.time.minute, 0)
     t.equal(t2.time.second, 0)
-    t.equal(t2.time.sub_second, 0.0)
+    t.equal(t2.time.nanosecond, 0)
     t.equal(t2.utc_offset, 3_600)
 
     t.equal(t3.date.year, 2022)
@@ -282,7 +338,7 @@ fn pub tests(t: mut Tests) {
     t.equal(t3.time.hour, 20)
     t.equal(t3.time.minute, 34)
     t.equal(t3.time.second, 28)
-    t.true(t3.time.sub_second >= 0.12 and t3.time.sub_second <= 0.123)
+    t.true(t3.time.nanosecond >= 120000000 and t3.time.nanosecond <= 123000000)
     t.equal(t3.utc_offset, 7200)
 
     t.equal(t4.date.year, 1969)
@@ -291,6 +347,199 @@ fn pub tests(t: mut Tests) {
     t.equal(t4.time.hour, 23)
     t.equal(t4.time.minute, 0)
     t.equal(t4.time.second, 0)
+  })
+
+  t.test('DateTime.parse', fn (t) {
+    let tests = [
+      # %Y
+      ('2024', '%Y', Option.Some((2024, 1, 1, 0, 0, 0, 0, 0))),
+      ('9999', '%Y', Option.Some((9999, 1, 1, 0, 0, 0, 0, 0))),
+      ('-9999', '%Y', Option.Some((-9999, 1, 1, 0, 0, 0, 0, 0))),
+      ('+9999', '%Y', Option.None),
+      ('20', '%Y', Option.None),
+      ('', '%Y', Option.None),
+
+      # %m
+      ('07', '%m', Option.Some((0, 7, 1, 0, 0, 0, 0, 0))),
+      ('12', '%m', Option.Some((0, 12, 1, 0, 0, 0, 0, 0))),
+      ('13', '%m', Option.None),
+      ('7', '%m', Option.None),
+      ('', '%m', Option.None),
+
+      # %b
+      ('Jul', '%b', Option.Some((0, 7, 1, 0, 0, 0, 0, 0))),
+      ('Dec', '%b', Option.Some((0, 12, 1, 0, 0, 0, 0, 0))),
+      ('JUL', '%b', Option.None),
+      ('test', '%b', Option.None),
+      ('Ju', '%b', Option.None),
+      ('', '%b', Option.None),
+
+      # %B
+      ('July', '%b', Option.Some((0, 7, 1, 0, 0, 0, 0, 0))),
+      ('December', '%b', Option.Some((0, 12, 1, 0, 0, 0, 0, 0))),
+      ('JULY', '%b', Option.None),
+      ('Test', '%b', Option.None),
+      ('Ju', '%b', Option.None),
+      ('', '%b', Option.None),
+
+      # %d
+      ('07', '%d', Option.Some((0, 1, 7, 0, 0, 0, 0, 0))),
+      ('12', '%d', Option.Some((0, 1, 12, 0, 0, 0, 0, 0))),
+      ('31', '%d', Option.Some((0, 1, 31, 0, 0, 0, 0, 0))),
+      ('32', '%d', Option.None),
+      ('7', '%d', Option.None),
+      ('', '%d', Option.None),
+
+      # %a
+      ('Mon 12', '%a %m', Option.Some((0, 12, 1, 0, 0, 0, 0, 0))),
+      ('M 12', '%a %m', Option.None),
+      ('Mo 12', '%a %m', Option.None),
+      ('MON 12', '%a %m', Option.None),
+      ('mon 12', '%a %m', Option.None),
+
+      # %A
+      ('Monday 12', '%A %m', Option.Some((0, 12, 1, 0, 0, 0, 0, 0))),
+      ('M 12', '%A %m', Option.None),
+      ('MO 12', '%A %m', Option.None),
+      ('MONDAY 12', '%A %m', Option.None),
+
+      # %H
+      ('00', '%H', Option.Some((0, 1, 1, 0, 0, 0, 0, 0))),
+      ('07', '%H', Option.Some((0, 1, 1, 7, 0, 0, 0, 0))),
+      ('23', '%H', Option.Some((0, 1, 1, 23, 0, 0, 0, 0))),
+      ('24', '%H', Option.None),
+      ('1', '%H', Option.None),
+      ('', '%H', Option.None),
+
+      # %M
+      ('00', '%M', Option.Some((0, 1, 1, 0, 0, 0, 0, 0))),
+      ('07', '%M', Option.Some((0, 1, 1, 0, 7, 0, 0, 0))),
+      ('59', '%M', Option.Some((0, 1, 1, 0, 59, 0, 0, 0))),
+      ('60', '%M', Option.None),
+      ('1', '%M', Option.None),
+      ('', '%M', Option.None),
+
+      # %S
+      ('00', '%S', Option.Some((0, 1, 1, 0, 0, 0, 0, 0))),
+      ('07', '%S', Option.Some((0, 1, 1, 0, 0, 7, 0, 0))),
+      ('59', '%S', Option.Some((0, 1, 1, 0, 0, 59, 0, 0))),
+      ('60', '%S', Option.Some((0, 1, 1, 0, 0, 60, 0, 0))),
+      ('61', '%S', Option.None),
+      ('1', '%S', Option.None),
+      ('', '%S', Option.None),
+
+      # %f
+      ('.1', '%f', Option.Some((0, 1, 1, 0, 0, 0, 0, 1_000_000))),
+      ('.123', '%f', Option.Some((0, 1, 1, 0, 0, 0, 0, 123_000_000))),
+      ('.999', '%f', Option.Some((0, 1, 1, 0, 0, 0, 0, 999_000_000))),
+      ('.9999', '%f', Option.Some((0, 1, 1, 0, 0, 0, 0, 999_000_000))),
+      ('.1a', '%f', Option.Some((0, 1, 1, 0, 0, 0, 0, 1_000_000))),
+      ('.a', '%f', Option.None),
+      ('.', '%f', Option.None),
+      ('', '%f', Option.None),
+
+      # %z
+      ('+0000', '%z', Option.Some((0, 1, 1, 0, 0, 0, 0, 0))),
+      ('Z', '%z', Option.Some((0, 1, 1, 0, 0, 0, 0, 0))),
+      ('+0030', '%z', Option.Some((0, 1, 1, 0, 0, 0, 1800, 0))),
+      ('+0100', '%z', Option.Some((0, 1, 1, 0, 0, 0, 3600, 0))),
+      ('+0130', '%z', Option.Some((0, 1, 1, 0, 0, 0, 5400, 0))),
+      ('+00:00', '%z', Option.Some((0, 1, 1, 0, 0, 0, 0, 0))),
+      ('+00:30', '%z', Option.Some((0, 1, 1, 0, 0, 0, 1800, 0))),
+      ('+01:00', '%z', Option.Some((0, 1, 1, 0, 0, 0, 3600, 0))),
+      ('+01:30', '%z', Option.Some((0, 1, 1, 0, 0, 0, 5400, 0))),
+      ('-0000', '%z', Option.Some((0, 1, 1, 0, 0, 0, 0, 0))),
+      ('-0030', '%z', Option.Some((0, 1, 1, 0, 0, 0, -1800, 0))),
+      ('-0100', '%z', Option.Some((0, 1, 1, 0, 0, 0, -3600, 0))),
+      ('-0130', '%z', Option.Some((0, 1, 1, 0, 0, 0, -5400, 0))),
+      ('-00:00', '%z', Option.Some((0, 1, 1, 0, 0, 0, 0, 0))),
+      ('-00:30', '%z', Option.Some((0, 1, 1, 0, 0, 0, -1800, 0))),
+      ('-01:00', '%z', Option.Some((0, 1, 1, 0, 0, 0, -3600, 0))),
+      ('-01:30', '%z', Option.Some((0, 1, 1, 0, 0, 0, -5400, 0))),
+      ('+01', '%z', Option.None),
+      ('-01', '%z', Option.None),
+      ('+01:', '%z', Option.None),
+      ('-01:', '%z', Option.None),
+      ('+01:0', '%z', Option.None),
+      ('-01:0', '%z', Option.None),
+      ('+', '%z', Option.None),
+      ('-', '%z', Option.None),
+      ('', '%z', Option.None),
+
+      # %Z
+      ('+0000', '%Z', Option.Some((0, 1, 1, 0, 0, 0, 0, 0))),
+      ('UT', '%Z', Option.Some((0, 1, 1, 0, 0, 0, 0, 0))),
+      ('GMT', '%Z', Option.Some((0, 1, 1, 0, 0, 0, 0, 0))),
+      ('+0030', '%Z', Option.Some((0, 1, 1, 0, 0, 0, 1800, 0))),
+      ('+0100', '%Z', Option.Some((0, 1, 1, 0, 0, 0, 3600, 0))),
+      ('+0130', '%Z', Option.Some((0, 1, 1, 0, 0, 0, 5400, 0))),
+      ('+00:00', '%Z', Option.Some((0, 1, 1, 0, 0, 0, 0, 0))),
+      ('+00:30', '%Z', Option.Some((0, 1, 1, 0, 0, 0, 1800, 0))),
+      ('+01:00', '%Z', Option.Some((0, 1, 1, 0, 0, 0, 3600, 0))),
+      ('+01:30', '%Z', Option.Some((0, 1, 1, 0, 0, 0, 5400, 0))),
+      ('-0000', '%Z', Option.Some((0, 1, 1, 0, 0, 0, 0, 0))),
+      ('-0030', '%Z', Option.Some((0, 1, 1, 0, 0, 0, -1800, 0))),
+      ('-0100', '%Z', Option.Some((0, 1, 1, 0, 0, 0, -3600, 0))),
+      ('-0130', '%Z', Option.Some((0, 1, 1, 0, 0, 0, -5400, 0))),
+      ('-00:00', '%Z', Option.Some((0, 1, 1, 0, 0, 0, 0, 0))),
+      ('-00:30', '%Z', Option.Some((0, 1, 1, 0, 0, 0, -1800, 0))),
+      ('-01:00', '%Z', Option.Some((0, 1, 1, 0, 0, 0, -3600, 0))),
+      ('-01:30', '%Z', Option.Some((0, 1, 1, 0, 0, 0, -5400, 0))),
+      ('+01', '%Z', Option.None),
+      ('-01', '%Z', Option.None),
+      ('+01:', '%Z', Option.None),
+      ('-01:', '%Z', Option.None),
+      ('+01:0', '%Z', Option.None),
+      ('-01:0', '%Z', Option.None),
+      ('+', '%Z', Option.None),
+      ('-', '%Z', Option.None),
+      ('', '%Z', Option.None),
+      ('Z', '%Z', Option.None),
+
+      # %%
+      ('%2024', '%%%Y', Option.Some((2024, 1, 1, 0, 0, 0, 0, 0))),
+
+      # Combinations
+      ('2024-12-07', '%Y-%m-%d', Option.Some((2024, 12, 7, 0, 0, 0, 0, 0))),
+      ('2024😀12😀07', '%Y😀%m😀%d', Option.Some((2024, 12, 7, 0, 0, 0, 0, 0))),
+      ('2024x12x07', '%Y-%m-%d', Option.None),
+      ('2024😀12😀07', '%Y-%m-%d', Option.None),
+      (
+        'December 14, 2024',
+        '%B %d, %Y',
+        Option.Some((2024, 12, 14, 0, 0, 0, 0, 0)),
+      ),
+      (
+        'Saturday, December 14, 2024',
+        '%A, %B %d, %Y',
+        Option.Some((2024, 12, 14, 0, 0, 0, 0, 0)),
+      ),
+    ]
+
+    tests.into_iter.each(fn (rule) {
+      let en = Locale.new
+      let input = rule.0
+      let format = rule.1
+      let res = DateTime.parse(input, format, locale: en)
+      let exp = match rule {
+        case (_, _, Some((year, mon, day, hh, mm, s, utc, nanos))) -> {
+          let date = Date.new(year, mon, day).get
+          let time = Time.new(hh, mm, s, nanos).get
+
+          Option.Some(DateTime.new(date, time, utc))
+        }
+        case _ -> Option.None
+      }
+
+      if res == exp { return }
+
+      t.failures.push(
+        Failure.new(
+          fmt(res),
+          "'${format}' to parse '${input}' into ${fmt(exp)}",
+        ),
+      )
+    })
   })
 
   t.test('DateTime.days_since_unix_epoch', fn (t) {
@@ -345,11 +594,19 @@ fn pub tests(t: mut Tests) {
     let t2 = DateTime.from_timestamp(time: 0, utc_offset: 0).get
     let t3 = DateTime.from_timestamp(time: -3600, utc_offset: 0).get
     let t4 = DateTime.from_timestamp(time: 1661538868, utc_offset: -7200).get
+    let t5 = DateTime.new(
+      date: Date.new(year: 2022, month: 8, day: 26).get,
+      time: Time
+        .new(hour: 16, minute: 34, second: 28, nanosecond: 123000000)
+        .get,
+      utc_offset: -7200,
+    )
 
     t.equal(fmt(t1), '2022-08-26 20:34:28 +0200')
     t.equal(fmt(t2), '1970-01-01 00:00:00 UTC')
     t.equal(fmt(t3), '1969-12-31 23:00:00 UTC')
     t.equal(fmt(t4), '2022-08-26 16:34:28 -0200')
+    t.equal(fmt(t5), '2022-08-26 16:34:28.123 -0200')
   })
 
   t.test('DateTime.to_int', fn (t) {
@@ -414,6 +671,85 @@ fn pub tests(t: mut Tests) {
     let t2 = t1.clone
 
     t.equal(t1, t2)
+  })
+
+  t.test('DateTime.format', fn (t) {
+    let en = Locale.new
+    let t1 = DateTime.new(
+      date: Date.new(2024, 12, 21).get,
+      time: Time.new(21, 47, 30, 123_000_000).get,
+      utc_offset: 3600,
+    )
+    let t2 = DateTime.new(
+      date: Date.new(2024, 12, 21).get,
+      time: Time.new(21, 47, 30, 123_000_000).get,
+      utc_offset: 0,
+    )
+    let t3 = DateTime.new(
+      date: Date.new(2024, 12, 21).get,
+      time: Time.new(21, 47, 30, 0).get,
+      utc_offset: -5400,
+    )
+
+    t.equal(
+      t1.format('%b %B %a %A % %% %o %Y-%m-%d %H:%M:%S%f %z', en),
+      'Dec December Sat Saturday % % %o 2024-12-21 21:47:30.123 +01:00',
+    )
+    t.equal(
+      t2.format('%b %B %a %A % %% %o %Y-%m-%d %H:%M:%S%f %z', en),
+      'Dec December Sat Saturday % % %o 2024-12-21 21:47:30.123 Z',
+    )
+    t.equal(
+      t3.format('%b %B %a %A % %% %o %Y-%m-%d %H:%M:%S%f %z', en),
+      'Dec December Sat Saturday % % %o 2024-12-21 21:47:30.0 -01:30',
+    )
+    t.equal(t1.format('%Z', en), '+01:00')
+    t.equal(t2.format('%Z', en), 'GMT')
+    t.equal(t3.format('%Z', en), '-01:30')
+  })
+
+  t.test('DateTime.to_iso8601', fn (t) {
+    let t1 = DateTime.new(
+      date: Date.new(2024, 12, 21).get,
+      time: Time.new(21, 47, 30, 123_000_000).get,
+      utc_offset: 3600,
+    )
+    let t2 = DateTime.new(
+      date: Date.new(2024, 12, 21).get,
+      time: Time.new(21, 47, 30, 123_000_000).get,
+      utc_offset: 0,
+    )
+    let t3 = DateTime.new(
+      date: Date.new(2024, 12, 21).get,
+      time: Time.new(21, 47, 30, 0).get,
+      utc_offset: -5400,
+    )
+
+    t.equal(t1.to_iso8601, '2024-12-21T21:47:30.123+01:00')
+    t.equal(t2.to_iso8601, '2024-12-21T21:47:30.123Z')
+    t.equal(t3.to_iso8601, '2024-12-21T21:47:30.0-01:30')
+  })
+
+  t.test('DateTime.to_rfc2822', fn (t) {
+    let t1 = DateTime.new(
+      date: Date.new(2024, 12, 21).get,
+      time: Time.new(21, 47, 30, 123_000_000).get,
+      utc_offset: 3600,
+    )
+    let t2 = DateTime.new(
+      date: Date.new(2024, 12, 21).get,
+      time: Time.new(21, 47, 30, 123_000_000).get,
+      utc_offset: 0,
+    )
+    let t3 = DateTime.new(
+      date: Date.new(2024, 12, 21).get,
+      time: Time.new(21, 47, 30, 0).get,
+      utc_offset: -5400,
+    )
+
+    t.equal(t1.to_rfc2822, 'Sat, 21 Dec 2024 21:47:30 +01:00')
+    t.equal(t2.to_rfc2822, 'Sat, 21 Dec 2024 21:47:30 GMT')
+    t.equal(t3.to_rfc2822, 'Sat, 21 Dec 2024 21:47:30 -01:30')
   })
 
   t.test('Instant.new', fn (t) {

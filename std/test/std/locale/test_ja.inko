@@ -1,0 +1,106 @@
+import std.locale.ja (self as locale)
+import std.test (Tests)
+
+fn pub tests(t: mut Tests) {
+  t.test('Locale.parse_short_month', fn (t) {
+    let loc = locale.Locale.new
+
+    locale.FULL_MONTHS.iter.each_with_index(fn (idx, name) {
+      t.equal(
+        loc.parse_short_month(name, start: 0),
+        Option.Some((idx, name.size)),
+      )
+    })
+
+    t.equal(loc.parse_short_month('foo 1月', start: 4), Option.Some((0, 4)))
+    t.equal(loc.parse_short_month('', start: 0), Option.None)
+    t.equal(loc.parse_short_month('1', start: 0), Option.None)
+    t.equal(loc.parse_short_month('月', start: 0), Option.None)
+    t.equal(loc.parse_short_month('This does not match', start: 0), Option.None)
+  })
+
+  t.test('Locale.parse_full_month', fn (t) {
+    let loc = locale.Locale.new
+
+    locale.FULL_MONTHS.iter.each_with_index(fn (idx, name) {
+      t.equal(
+        loc.parse_full_month(name, start: 0),
+        Option.Some((idx, name.size)),
+      )
+    })
+
+    t.equal(loc.parse_full_month('3月foo', start: 0), Option.Some((2, 4)))
+    t.equal(loc.parse_full_month('foo 1月', start: 4), Option.Some((0, 4)))
+    t.equal(loc.parse_full_month('', start: 0), Option.None)
+    t.equal(loc.parse_full_month('1', start: 0), Option.None)
+    t.equal(loc.parse_full_month('10', start: 0), Option.None)
+    t.equal(loc.parse_full_month('月', start: 0), Option.None)
+    t.equal(loc.parse_full_month('This does not match', start: 0), Option.None)
+  })
+
+  t.test('Locale.parse_short_day_of_week', fn (t) {
+    let loc = locale.Locale.new
+
+    locale.SHORT_WEEKDAYS.iter.each_with_index(fn (idx, name) {
+      t.equal(
+        loc.parse_short_day_of_week(name, start: 0),
+        Option.Some((idx, name.size)),
+      )
+    })
+
+    t.equal(loc.parse_short_day_of_week('', start: 0), Option.None)
+    t.equal(
+      loc.parse_short_day_of_week('This does not match', start: 0),
+      Option.None,
+    )
+  })
+
+  t.test('Locale.parse_full_day_of_week', fn (t) {
+    let loc = locale.Locale.new
+
+    locale.FULL_WEEKDAYS.iter.each_with_index(fn (idx, name) {
+      t.equal(
+        loc.parse_full_day_of_week(name, start: 0),
+        Option.Some((idx, name.size)),
+      )
+    })
+
+    t.equal(loc.parse_full_day_of_week('', start: 0), Option.None)
+    t.equal(
+      loc.parse_full_day_of_week('This does not match', start: 0),
+      Option.None,
+    )
+  })
+
+  t.test('Locale.short_month', fn (t) {
+    let loc = locale.Locale.new
+
+    locale.FULL_MONTHS.iter.each_with_index(fn (idx, name) {
+      t.equal(loc.short_month(idx), name)
+    })
+  })
+
+  t.test('Locale.full_month', fn (t) {
+    let loc = locale.Locale.new
+
+    locale.FULL_MONTHS.iter.each_with_index(fn (idx, name) {
+      t.equal(loc.full_month(idx), name)
+    })
+  })
+
+  t.test('Locale.short_day_of_week', fn (t) {
+    let loc = locale.Locale.new
+
+    locale.SHORT_WEEKDAYS.iter.each_with_index(fn (idx, name) {
+      t.equal(loc.short_day_of_week(idx), name)
+    })
+  })
+
+  t.test('Locale.full_day_of_week', fn (t) {
+    let loc = locale.Locale.new
+
+    locale.FULL_WEEKDAYS.iter.each_with_index(fn (idx, name) {
+      t.equal(loc.full_day_of_week(idx), name)
+    })
+  })
+}

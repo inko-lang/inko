@@ -1,10 +1,14 @@
 # Types and methods for dealing with time.
+import std.bytes (digits, four_digits, name_index_at, two_digits)
 import std.clone (Clone)
 import std.cmp (Compare, Equal, Ordering)
 import std.float (ToFloat)
 import std.fmt (Format, Formatter)
 import std.int (ToInt)
+import std.locale (Locale)
+import std.locale.en (Locale as English)
 import std.ops (Add, Multiply, Subtract)
+import std.string (Bytes)
 import std.sys.unix.time (self as sys) if unix
 
 let SECS_PER_MIN = 60
@@ -22,6 +26,93 @@ let LEAP_DAYS = [0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 205, 335]
 # The number of days since the start of the year for each month, for a regular
 # year.
 let NORMAL_DAYS = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 204, 334]
+
+let COLON = 58
+let DOT = 46
+let LOWER_A = 97
+let LOWER_B = 98
+let LOWER_D = 100
+let LOWER_F = 102
+let LOWER_M = 109
+let LOWER_Z = 122
+let MINUS = 45
+let NINE = 57
+let PERCENT = 37
+let PLUS = 43
+let UPPER_A = 65
+let UPPER_B = 66
+let UPPER_H = 72
+let UPPER_M = 77
+let UPPER_S = 83
+let UPPER_Y = 89
+let UPPER_Z = 90
+let ZERO = 48
+
+let RFC_2822_ZONES = ['GMT', 'UT']
+
+fn parse_offset[T: Bytes](input: ref T, start: Int) -> Option[(Int, Int)] {
+  let mut inp_idx = start
+
+  let pos = match input.opt(inp_idx := inp_idx + 1) {
+    case Some(PLUS) -> true
+    case Some(MINUS) -> false
+    case _ -> return Option.None
+  }
+
+  let hour = try two_digits(input, inp_idx)
+
+  inp_idx += 2
+
+  if input.opt(inp_idx).or(-1) == COLON { inp_idx += 1 }
+
+  let min = match input.opt(inp_idx) {
+    case Some(byte) if byte >= ZERO and byte <= NINE -> {
+      try two_digits(input, inp_idx)
+    }
+    case _ -> return Option.None
+  }
+
+  inp_idx += 2
+
+  let secs = (hour * 3600) + (min * 60)
+
+  Option.Some((if pos { secs } else { 0 - secs }, inp_idx))
+}
+
+fn format_digits(bytes: mut ByteArray, value: Int, amount: Int) {
+  let alphabet = '0123456789'
+  let mut int = value.absolute
+  let mut pushed = 0
+
+  while int > 0 {
+    bytes.push(alphabet.byte(int % 10))
+    int /= 10
+    pushed += 1
+  }
+
+  while pushed < amount {
+    bytes.push(ZERO)
+    pushed += 1
+  }
+
+  if value < 0 {
+    bytes.push(0x2D)
+    pushed += 1
+  }
+
+  bytes.reverse_at(bytes.size - pushed)
+}
+
+fn format_offset(bytes: mut ByteArray, offset: Int) {
+  let abs = offset.absolute
+  let hh = (abs / SECS_PER_HOUR)
+  let mm = (abs % SECS_PER_HOUR / SECS_PER_MIN)
+
+  bytes.push(if offset >= 0 { PLUS } else { MINUS })
+  format_digits(bytes, hh, amount: 2)
+  bytes.push(COLON)
+  format_digits(bytes, mm, amount: 2)
+}
 
 fn negative_time_error(time: Int) -> Never {
   panic("Instant can't represent a negative time (${time})")
@@ -385,29 +476,33 @@ impl Format for Date {
 # A type that represents a point in time (hours, minutes and seconds) without a
 # specific associated date.
 class pub copy Time {
-  # The hour, minute and second packed into a single set of bits.
+  # The hour, minute, second and sub seconds packed into a single set of bits.
   #
   # The layout is as follows (starting with the least significant bits):
   #
   # 1. 6 bits for the seconds
   # 1. 6 bits for the minutes
   # 1. 5 bits for the hour
+  # 1. 30 bits for the sub seconds (as nanoseconds).
   #
-  # For example, the time 12:45:30 is encoded as follows:
+  # For example, the time 12:45:30.23 is encoded as follows:
   #
-  #     1100 101101 011110
+  #     1101101101011000010110000000 1100 101101 011110
   let @bits: Int
-  let @sub_second: Float
 
   # Returns a new `Time`, provided the given components are valid.
   #
   # The arguments must be values in the following ranges:
   #
-  # - `hour`: 0 up to and including 24
+  # - `hour`: 0 up to and including 23
   # - `minute`: 0 up to and including 59
   # - `second`: 0 up to and including 60
+  # - `nanosecond`: 0 up to but excluding 1 000 000 000
   #
   # If any of the arguments are out of bounds, an `Option.None` is returned.
+  #
+  # The `nanosecond` argument specifies the number of nanoseconds past the
+  # second.
   #
   # # Examples
   #
@@ -415,7 +510,7 @@ class pub copy Time {
   # import std.time (Time)
   #
   # let time = Time
-  #   .new(hour: 12, minute: 30, second: 0, sub_second: 0.0)
+  #   .new(hour: 12, minute: 30, second: 0, nanosecond: 0)
   #   .or_panic('the Time is invalid')
   #
   # time.hour # => 12
@@ -424,18 +519,19 @@ class pub copy Time {
     hour: Int,
     minute: Int,
     second: Int,
-    sub_second: Float,
+    nanosecond: Int,
   ) -> Option[Time] {
     if
       hour >= 0
-        and hour <= 24
+        and hour <= 23
         and minute >= 0
         and minute <= 59
         and second >= 0
         and second <= 60
-        and sub_second >= 0.0
+        and nanosecond >= 0
+        and nanosecond < 1_000_000_000
     {
-      Option.Some(new_unchecked(hour, minute, second, sub_second))
+      Option.Some(new_unchecked(hour, minute, second, nanosecond))
     } else {
       Option.None
     }
@@ -445,14 +541,14 @@ class pub copy Time {
     hour: Int,
     minute: Int,
     second: Int,
-    sub_second: Float,
+    nanosecond: Int,
   ) -> Time {
-    Time(bits: (hour << 12) | (minute << 6) | second, sub_second: sub_second)
+    Time(bits: (nanosecond << 17) | (hour << 12) | (minute << 6) | second)
   }
 
   # Returns the hour of the day in the range `0` to `23`.
   fn pub inline hour -> Int {
-    @bits >> 12
+    @bits >> 12 & 0x1F
   }
 
   # Returns the minute of the hour in the range `0` to `59`.
@@ -465,15 +561,15 @@ class pub copy Time {
     @bits & 0x3F
   }
 
-  # Returns the number of sub seconds.
-  fn pub inline sub_second -> Float {
-    @sub_second
+  # Returns the number of nanoseconds after the second.
+  fn pub inline nanosecond -> Int {
+    @bits >> 17
   }
 }
 
 impl Equal[Time] for Time {
   fn pub ==(other: Time) -> Bool {
-    @bits == other.bits and @sub_second == other.sub_second
+    @bits == other.bits
   }
 }
 
@@ -482,8 +578,14 @@ impl Format for Time {
     let hour = hour.to_string.pad_start(with: '0', chars: 2)
     let min = minute.to_string.pad_start(with: '0', chars: 2)
     let secs = second.to_string.pad_start(with: '0', chars: 2)
+    let sub = nanosecond
 
     formatter.write('${hour}:${min}:${secs}')
+
+    if sub > 0 {
+      formatter.write('.')
+      (sub / MICROS_PER_SEC).fmt(formatter)
+    }
   }
 }
 
@@ -511,7 +613,7 @@ class pub inline DateTime {
   # import std.time (Date, DateTime, Time)
   #
   # let date = Date.new(year: 1992, month: 8, day: 21).get
-  # let time = Time.new(hour: 12, minute: 15, second: 30, sub_second: 0.0).get
+  # let time = Time.new(hour: 12, minute: 15, second: 30, nanosecond: 0).get
   #
   # DateTime.new(date, time, utc_offset: 3600)
   # ```
@@ -538,7 +640,7 @@ class pub inline DateTime {
 
     DateTime(
       date: Date.new_unchecked(raw.year, raw.month, raw.day),
-      time: Time.new_unchecked(raw.hour, raw.minute, raw.second, raw.sub_second),
+      time: Time.new_unchecked(raw.hour, raw.minute, raw.second, raw.nanos),
       utc_offset: raw.offset,
     )
   }
@@ -558,7 +660,7 @@ class pub inline DateTime {
 
     DateTime(
       date: Date.new_unchecked(raw.year, raw.month, raw.day),
-      time: Time.new_unchecked(raw.hour, raw.minute, raw.second, raw.sub_second),
+      time: Time.new_unchecked(raw.hour, raw.minute, raw.second, raw.nanos),
       utc_offset: 0,
     )
   }
@@ -611,12 +713,311 @@ class pub inline DateTime {
     let second = day_secs % 60
     let minute = (day_secs % SECS_PER_HOUR) / 60
     let hour = day_secs / SECS_PER_HOUR
+    let nsec = (time.fractional * NANOS_PER_SEC).to_int
 
     Option.Some(
       DateTime(
         date: try Date.new(year, month, day),
-        time: try Time.new(hour, minute, second, time.fractional),
+        time: try Time.new(hour, minute, second, nsec),
         utc_offset: utc_offset,
+      ),
+    )
+  }
+
+  # Parses a `DateTime` according to a format string loosely based on the
+  # `strftime(2)` format strings.
+  #
+  # The input is any type that implements `std.string.Bytes`, such as the
+  # `String` and `ByteArray` types.
+  #
+  # The `locale` argument is a type that implements `std.locale.Locale` and is
+  # used for locale-aware parsing, such as when parsing the names of the months.
+  #
+  # # Format sequences
+  #
+  # The `format` argument contains a "format string" that specifies how the
+  # input is to be parsed. This `String` can contain both regular characters to
+  # parse as-is, and special format sequences. These sequences start with `%`
+  # followed by one or more characters and determine how the input is to be
+  # parsed. The following sequences are supported:
+  #
+  # |=
+  # | Sequence
+  # | Examples
+  # | Description
+  # |-
+  # | `%Y`
+  # | -1234, 0001, 1970, 2024
+  # | The year, zero-padded to four digits, optionally starting with a `-` to
+  #   signal a year before year zero.
+  # |-
+  # | `%m`
+  # | 01, 12
+  # | The month of the year (01-12), zero-padded to two digits.
+  # |-
+  # | `%d`
+  # | 01, 31
+  # | The day of the month (01-31), zero-padded to two digits.
+  # |-
+  # | `%H`
+  # | 01, 12, 23
+  # | The hour of the day (00-23), zero-padded to two digits.
+  # |-
+  # | `%M`
+  # | 01, 12, 59
+  # | The minute of the hour (00-59), zero-padded to two digits.
+  # |-
+  # | `%S`
+  # | 01, 12, 59, 60
+  # | The second of the hour (00-60), zero-padded to two digits. A value of 60
+  #   is supported to account for leap seconds.
+  # |-
+  # | `%f`
+  # | .123
+  # | A dot followed by up to three digits representing the number of
+  #   milliseconds past the second. This value is not padded.
+  # |-
+  # | `%z`
+  # | +0200, +02:30, -0200, -02:00, Z
+  # | The UTC offset in the format `[SIGN][HH]:[MM]`, `[SIGN][HH][MM]` or a
+  #   literal `Z` where `[SIGN]` is either `+` or `-`, `[HH]` the amount of
+  #   hours and `[MM]` the amount of minutes. Both the hours and minutes are
+  #   zero-padded to two digits.
+  # |-
+  # | +0200, +02:30, -0200, -02:00, UT, GMT
+  # | The same as `%z` but supports `UT` and `GMT` instead of `Z` for UTC
+  #   offsets of zero.
+  # | +02)),
+  # |-
+  # | `%b`
+  # | Jan
+  # | The locale-aware abbreviated name of the month. For locales that don't use
+  #   abbreviated names, this is an alias for `%B`.
+  # |-
+  # | `%B`
+  # | January
+  # | The locale-aware full name of the month.
+  # |-
+  # | `%a`
+  # | Mon
+  # | The abbreviated name of the day of the week. Parsed values don't affect
+  #   the resulting `DateTime`.
+  # |-
+  # | `%A`
+  # | Monday
+  # | The full name of the day of the week. Parsed values don't affect the
+  #   resulting `DateTime`.
+  # |-
+  # | `%%`
+  # | %
+  # | A literal `%`.
+  #
+  # Certain sequences such as `%a` don't influence/affect the resulting date, as
+  # it's not possible to derive a meaningful value from them (e.g. what date is
+  # "Monday, December 2024"?). Instead, these sequences are meant for skipping
+  # over values in the input stream when those values aren't statically known
+  # (e.g. the day of the week).
+  #
+  # Sequences that match locale-aware data such as `%b` and `%A` are all case
+  # sensitive.
+  #
+  # # Examples
+  #
+  # Parsing an ISO 8601 date:
+  #
+  # ```inko
+  # import std.time (DateTime)
+  # import std.locale.en (Locale)
+  #
+  # let dt = DateTime
+  #   .parse(
+  #     input: '2024-11-04 12:45:12 -02:45',
+  #     format: '%Y-%m-%d %H:%M:%S %z',
+  #     locale: Locale.new,
+  #   )
+  #   .or_panic('the input is invalid')
+  #
+  # dt.year   # => 2024
+  # dt.month  # => 11
+  # dt.hour   # => 12
+  # dt.second # => 45
+  # ```
+  #
+  # Parsing a date in Japanese:
+  #
+  # ```inko
+  # import std.time (DateTime)
+  # import std.locale.ja (Locale)
+  #
+  # let dt = DateTime
+  #   .parse(
+  #     input: '2023年12月31日',
+  #     format: '%Y年%B%d日',
+  #     locale: Locale.new,
+  #   )
+  #   .or_panic('the input is invalid')
+  #
+  # dt.year  # => 2023
+  # dt.month # => 12
+  # dt.day   # => 31
+  # ```
+  fn pub static parse[T: Bytes, L: Locale](
+    input: ref T,
+    format: String,
+    locale: ref L,
+  ) -> Option[DateTime] {
+    if input.size == 0 or format.size == 0 { return Option.None }
+
+    let mut inp_idx = 0
+    let mut fmt_idx = 0
+    let mut year = 0
+    let mut mon = 1
+    let mut day = 1
+    let mut hour = 0
+    let mut min = 0
+    let mut sec = 0
+    let mut nsec = 0
+    let mut off = 0
+
+    loop {
+      match format.opt(fmt_idx) {
+        case Some(PERCENT) -> {
+          fmt_idx += 1
+
+          match format.opt(fmt_idx) {
+            case Some(PERCENT) if input.opt(inp_idx).or(-1) == PERCENT -> {
+              fmt_idx += 1
+              inp_idx += 1
+            }
+            case Some(PERCENT) -> return Option.None
+            case Some(what) -> {
+              fmt_idx += 1
+              inp_idx += match what {
+                case UPPER_Y -> {
+                  let neg = match input.opt(inp_idx) {
+                    case Some(MINUS) -> {
+                      inp_idx += 1
+                      true
+                    }
+                    case _ -> false
+                  }
+
+                  match try four_digits(input, inp_idx) {
+                    case v if neg -> year = v.opposite
+                    case v -> year = v
+                  }
+
+                  4
+                }
+                case LOWER_M -> {
+                  mon = try two_digits(input, inp_idx)
+                  2
+                }
+                case LOWER_D -> {
+                  day = try two_digits(input, inp_idx)
+                  2
+                }
+                case UPPER_H -> {
+                  hour = try two_digits(input, inp_idx)
+                  2
+                }
+                case UPPER_M -> {
+                  min = try two_digits(input, inp_idx)
+                  2
+                }
+                case UPPER_S -> {
+                  sec = try two_digits(input, inp_idx)
+                  2
+                }
+                case LOWER_B -> {
+                  let idx_len = try locale.parse_short_month(input, inp_idx)
+
+                  mon = idx_len.0 + 1
+                  idx_len.1
+                }
+                case UPPER_B -> {
+                  let idx_len = try locale.parse_full_month(input, inp_idx)
+
+                  mon = idx_len.0 + 1
+                  idx_len.1
+                }
+                case LOWER_A -> {
+                  match try locale.parse_short_day_of_week(input, inp_idx) {
+                    case (_, len) -> len
+                  }
+                }
+                case UPPER_A -> {
+                  match try locale.parse_full_day_of_week(input, inp_idx) {
+                    case (_, len) -> len
+                  }
+                }
+                case LOWER_F -> {
+                  match input.opt(inp_idx := inp_idx + 1) {
+                    case Some(DOT) -> {}
+                    case _ -> return Option.None
+                  }
+
+                  match try digits(input, start: inp_idx, limit: 3) {
+                    case (num, len) -> {
+                      nsec = num * MICROS_PER_SEC
+                      len
+                    }
+                  }
+                }
+                case LOWER_Z -> {
+                  match input.opt(inp_idx) {
+                    case Some(UPPER_Z) -> {
+                      inp_idx += 1
+                      next
+                    }
+                    case _ -> {}
+                  }
+
+                  let off_idx = try parse_offset(input, inp_idx)
+
+                  off = off_idx.0
+                  inp_idx = off_idx.1
+                  2
+                }
+                case UPPER_Z -> {
+                  match name_index_at(input, inp_idx, RFC_2822_ZONES) {
+                    case Some((_, len)) -> {
+                      inp_idx += len
+                      next
+                    }
+                    case _ -> {}
+                  }
+
+                  let off_idx = try parse_offset(input, inp_idx)
+
+                  off = off_idx.0
+                  inp_idx = off_idx.1
+                  2
+                }
+                case _ -> return Option.None
+              }
+            }
+            case _ -> return Option.None
+          }
+        }
+        case Some(f) -> {
+          match input.opt(inp_idx) {
+            case Some(i) if f == i -> {
+              fmt_idx += 1
+              inp_idx += 1
+            }
+            case _ -> return Option.None
+          }
+        }
+        case _ -> break
+      }
+    }
+
+    Option.Some(
+      DateTime.new(
+        date: try Date.new(year, mon, day),
+        time: try Time.new(hour, min, sec, nsec),
+        utc_offset: off,
       ),
     )
   }
@@ -683,11 +1084,11 @@ class pub inline DateTime {
     @time.second
   }
 
-  # Returns the number of sub seconds.
+  # Returns the number nanoseconds past the second.
   #
   # Refer to the documentation of `Time.sub_second` for more details.
-  fn pub inline sub_second -> Float {
-    @time.sub_second
+  fn pub inline nanosecond -> Int {
+    @time.nanosecond
   }
 
   # Returns the number of days between `self` and the Unix epoch.
@@ -723,6 +1124,137 @@ class pub inline DateTime {
   fn pub to_utc -> DateTime {
     # Since our input is already valid at this point, this can never fail.
     DateTime.from_timestamp(time: to_float, utc_offset: 0).get
+  }
+
+  # Formats `self` as a `String` according to a formatting string.
+  #
+  # The `how` argument specifies the format sequences to use to format `self`.
+  #
+  # The `locale` argument is the locale to use for locale-aware formatting, such
+  # as the names of the months.
+  #
+  # # Format sequences
+  #
+  # The supported sequences are the same as those supported by `DateTime.parse`,
+  # with the following notes:
+  #
+  # - `%z` produces `Z` if the UTC offset is zero, otherwise it produces an
+  #   offset in the format `[SIGN][HH]:[MM]`.
+  # - `%Z` always produces `GMT` if the UTC offset is zero.
+  #
+  # If an unsupported sequence is found, it's treated as a literal string.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.locale.en (Locale)
+  # import std.time (DateTime)
+  #
+  # let en = Locale.new
+  # let dt = DateTime.new(
+  #   date: Date.new(2024, 12, 21).get,
+  #   time: Time.new(21, 47, 30, 123_000_000).get,
+  #   utc_offset: 3600,
+  # )
+  #
+  # dt.format('%Y-%m-%d %H:%M:%S%f %z', en) # => '2024-12-21 21:47:30.123 +0100'
+  # ```
+  fn pub format[L: Locale](how: String, locale: ref L) -> String {
+    let buf = ByteArray.new
+    let mut i = 0
+    let max = how.size
+
+    while i < max {
+      match how.byte(i := i + 1) {
+        case PERCENT -> {
+          match how.opt(i := i + 1) {
+            case Some(PERCENT) -> buf.push(PERCENT)
+            case Some(UPPER_Y) -> format_digits(buf, year, amount: 4)
+            case Some(LOWER_M) -> format_digits(buf, month, amount: 2)
+            case Some(LOWER_D) -> format_digits(buf, day, amount: 2)
+            case Some(UPPER_H) -> format_digits(buf, hour, amount: 2)
+            case Some(UPPER_M) -> format_digits(buf, minute, amount: 2)
+            case Some(UPPER_S) -> format_digits(buf, second, amount: 2)
+            case Some(LOWER_B) -> buf.append(locale.short_month(month - 1))
+            case Some(UPPER_B) -> buf.append(locale.full_month(month - 1))
+            case Some(LOWER_A) -> {
+              buf.append(locale.short_day_of_week(day_of_week - 1))
+            }
+            case Some(UPPER_A) -> {
+              buf.append(locale.full_day_of_week(day_of_week - 1))
+            }
+            case Some(LOWER_F) -> {
+              buf.push(DOT)
+              format_digits(buf, nanosecond / MICROS_PER_SEC, amount: 1)
+            }
+            case Some(LOWER_Z) -> {
+              if utc_offset == 0 {
+                buf.push(UPPER_Z)
+              } else {
+                format_offset(buf, utc_offset)
+              }
+            }
+            case Some(UPPER_Z) -> {
+              if utc_offset == 0 {
+                buf.append('GMT')
+              } else {
+                format_offset(buf, utc_offset)
+              }
+            }
+            case Some(byte) -> {
+              buf.push(PERCENT)
+              buf.push(byte)
+            }
+            case _ -> buf.push(PERCENT)
+          }
+        }
+        case byte -> buf.push(byte)
+      }
+    }
+
+    buf.into_string
+  }
+
+  # Formats `self` as an ISO 8601 date and time `String`.
+  #
+  # This method always uses the English locale.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.time (DateTime)
+  #
+  # let dt = DateTime.new(
+  #   date: Date.new(2024, 12, 21).get,
+  #   time: Time.new(21, 47, 30, 123_000_000).get,
+  #   utc_offset: 3600,
+  # )
+  #
+  # dt.to_iso8601 # => '2024-12-21T21:47:30.123+01:00'
+  # ```
+  fn pub to_iso8601 -> String {
+    format('%Y-%m-%dT%H:%M:%S%f%z', English.new)
+  }
+
+  # Formats `self` as an RFC 2822 date and time `String`.
+  #
+  # This method always uses the English locale.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.time (DateTime)
+  #
+  # let dt = DateTime.new(
+  #   date: Date.new(2024, 12, 21).get,
+  #   time: Time.new(21, 47, 30, 123_000_000).get,
+  #   utc_offset: 3600,
+  # )
+  #
+  # dt.to_rfc2822 # => 'Sat, 21 Dec 2024 21:47:30 +01:00'
+  # ```
+  fn pub to_rfc2822 -> String {
+    format('%a, %d %b %Y %H:%M:%S %Z', English.new)
   }
 }
 
@@ -781,7 +1313,7 @@ impl ToFloat for DateTime {
   # Returns the timestamp since the Unix epoch, the including fractional
   # seconds.
   fn pub to_float -> Float {
-    to_int.to_float + @time.sub_second
+    to_int.to_float + (nanosecond.to_float / NANOS_PER_SEC)
   }
 }
 

@@ -70,6 +70,7 @@
 # The implementation provided by this module isn't optimised for maximum
 # performance or optimal memory usage. Instead this module aims to provide an
 # implementation that's good enough for most cases.
+import std.bytes (digit?)
 import std.cmp (Equal)
 import std.fmt (Format as FormatTrait, Formatter)
 import std.int (Format)
@@ -131,10 +132,6 @@ let ESCAPE_TABLE = [
 # The default amount of spaces to use for indentation when pretty-printing JSON
 # objects.
 let DEFAULT_PRETTY_INDENT = 2
-
-fn digit?(byte: Int) -> Bool {
-  byte >= ZERO and byte <= NINE
-}
 
 fn exponent?(byte: Int) -> Bool {
   byte == LOWER_E or byte == UPPER_E

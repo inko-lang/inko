@@ -1,0 +1,99 @@
+import std.string (Bytes)
+
+# A type describing a locale (e.g. English or Dutch).
+trait pub Locale {
+  # Parses a (case sensitive) abbreviated month name.
+  #
+  # The return value is an optional tuple containing the index (in the range
+  # 0-11) and the size of the name in bytes.
+  #
+  # Not all locales use abbreviated names, in which case this method should
+  # simply parse the input as full names.
+  #
+  # The `input` argument is a `String` or `ByteArray` to parse. The `start`
+  # argument is the offset to start parsing at.
+  #
+  # If the input points to a valid month name, the return value is an
+  # `Option.Some` containing the month number, otherwise an `Option.None` is
+  # returned.
+  fn parse_short_month[T: Bytes](input: ref T, start: Int) -> Option[(Int, Int)]
+
+  # Parses a (case sensitive) full month name.
+  #
+  # The return value is an optional tuple containing the index (in the range
+  # 0-11) and the size of the name in bytes.
+  #
+  # The `input` argument is a `String` or `ByteArray` to parse. The `start`
+  # argument is the offset to start parsing at.
+  #
+  # If the input points to a valid month name, the return value is an
+  # `Option.Some` containing the month number, otherwise an `Option.None` is
+  # returned.
+  fn parse_full_month[T: Bytes](input: ref T, start: Int) -> Option[(Int, Int)]
+
+  # Parses a (case sensitive) abbreviated name of the day of the week.
+  #
+  # The return value is an optional tuple containing the number of the day of
+  # the week (in the range 1-7) and the size of the name in bytes.
+  #
+  # Not all locales use abbreviated names, in which case this method should
+  # simply parse the input as full names.
+  #
+  # The `input` argument is a `String` or `ByteArray` to parse. The `start`
+  # argument is the offset to start parsing at.
+  #
+  # If the input points to a valid day name, the return value is an
+  # `Option.Some` containing the day number, otherwise an `Option.None` is
+  # returned.
+  fn parse_short_day_of_week[T: Bytes](
+    input: ref T,
+    start: Int,
+  ) -> Option[(Int, Int)]
+
+  # Parses a (case sensitive) full name of the day of the week.
+  #
+  # The return value is an optional tuple containing the number of the day of
+  # the week (in the range 1-7) and the size of the name in bytes.
+  #
+  # The `input` argument is a `String` or `ByteArray` to parse. The `start`
+  # argument is the offset to start parsing at.
+  #
+  # If the input points to a valid day name, the return value is an
+  # `Option.Some` containing the day number, otherwise an `Option.None` is
+  # returned.
+  fn parse_full_day_of_week[T: Bytes](
+    input: ref T,
+    start: Int,
+  ) -> Option[(Int, Int)]
+
+  # Returns the abbreviated month name for the given month index in the range
+  # 0-11.
+  #
+  # # Panics
+  #
+  # This method should panic if the month is out of bounds.
+  fn short_month(index: Int) -> String
+
+  # Returns the full month name for the given month index in the range 0-11.
+  #
+  # # Panics
+  #
+  # This method should panic if the month is out of bounds.
+  fn full_month(index: Int) -> String
+
+  # Returns the abbreviated name of the day of the week for the given day index
+  # in the range 0-6.
+  #
+  # # Panics
+  #
+  # This method should panic if the month is out of bounds.
+  fn short_day_of_week(index: Int) -> String
+
+  # Returns the full name of the day of the week for the given day index in the
+  # range 0-6.
+  #
+  # # Panics
+  #
+  # This method should panic if the month is out of bounds.
+  fn full_day_of_week(index: Int) -> String
+}
