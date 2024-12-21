@@ -9,7 +9,7 @@ class copy RawDateTime {
   let @hour: Int
   let @minute: Int
   let @second: Int
-  let @sub_second: Float
+  let @nanos: Int
   let @offset: Int
 
   fn inline static from(
@@ -23,7 +23,7 @@ class copy RawDateTime {
       hour: tm.tm_hour as Int,
       minute: tm.tm_min as Int,
       second: tm.tm_sec as Int,
-      sub_second: ts.tv_nsec as Float / 1_000_000_000.0,
+      nanos: ts.tv_nsec as Int,
       offset: tm.tm_gmtoff as Int,
     )
   }

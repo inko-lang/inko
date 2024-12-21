@@ -1,0 +1,86 @@
+# Locale information for Japanese.
+import std.locale (Locale as LocaleTrait, name_number_at)
+import std.string (Bytes)
+
+let FULL_MONTHS = [
+  '1月',
+  '2月',
+  '3月',
+  '4月',
+  '5月',
+  '6月',
+  '7月',
+  '8月',
+  '9月',
+  '10月',
+  '11月',
+  '12月',
+]
+
+let SHORT_WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土']
+
+let FULL_WEEKDAYS = [
+  '日曜日',
+  '月曜日',
+  '火曜日',
+  '水曜日',
+  '木曜日',
+  '金曜日',
+  '土曜日',
+]
+
+# Locale data for Japanese.
+class pub copy Locale {
+  # Returns a new `Locale`.
+  fn pub inline static new -> Locale {
+    Locale()
+  }
+}
+
+impl LocaleTrait for Locale {
+  fn parse_short_month[T: Bytes](
+    input: ref T,
+    start: Int,
+  ) -> Option[(Int, Int)] {
+    # Japanese doesn't use abbreviations for the names of the months, so we
+    # treat both abbreviations and the full names the same way.
+    name_number_at(input, start, FULL_MONTHS)
+  }
+
+  fn parse_full_month[T: Bytes](
+    input: ref T,
+    start: Int,
+  ) -> Option[(Int, Int)] {
+    name_number_at(input, start, FULL_MONTHS)
+  }
+
+  fn parse_short_weekday[T: Bytes](
+    input: ref T,
+    start: Int,
+  ) -> Option[(Int, Int)] {
+    name_number_at(input, start, SHORT_WEEKDAYS)
+  }
+
+  fn parse_full_weekday[T: Bytes](
+    input: ref T,
+    start: Int,
+  ) -> Option[(Int, Int)] {
+    name_number_at(input, start, FULL_WEEKDAYS)
+  }
+
+  fn short_month(month: Int) -> String {
+    full_month(month)
+  }
+
+  fn full_month(month: Int) -> String {
+    FULL_MONTHS.get(month - 1)
+  }
+
+  fn short_weekday(day: Int) -> String {
+    SHORT_WEEKDAYS.get(day - 1)
+  }
+
+  fn full_weekday(day: Int) -> String {
+    FULL_WEEKDAYS.get(day - 1)
+  }
+}

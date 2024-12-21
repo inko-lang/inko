@@ -1,0 +1,142 @@
+import std.ptr
+import std.string (Bytes)
+
+# A type describing a locale (e.g. English or Dutch).
+trait pub Locale {
+  # Parses a (case sensitive) abbreviated month name.
+  #
+  # The return value is an optional tuple containing the month number (in the
+  # range 1-12) and the size of the name in bytes.
+  #
+  # Not all locales use abbreviated names, in which case this method should
+  # simply parse the input as full names.
+  #
+  # The `input` argument is a `String` or `ByteArray` to parse. The `start`
+  # argument is the offset to start parsing at.
+  #
+  # If the input points to a valid month name, the return value is an
+  # `Option.Some` containing the month number, otherwise an `Option.None` is
+  # returned.
+  fn parse_short_month[T: Bytes](input: ref T, start: Int) -> Option[(Int, Int)]
+
+  # Parses a (case sensitive) full month name, returning its month number in the
+  # range 1-12.
+  #
+  # The return value is an optional tuple containing the month number (in the
+  # range 1-12) and the size of the name in bytes.
+  #
+  # The `input` argument is a `String` or `ByteArray` to parse. The `start`
+  # argument is the offset to start parsing at.
+  #
+  # If the input points to a valid month name, the return value is an
+  # `Option.Some` containing the month number, otherwise an `Option.None` is
+  # returned.
+  fn parse_full_month[T: Bytes](input: ref T, start: Int) -> Option[(Int, Int)]
+
+  # Parses a (case sensitive) abbreviated weekday name.
+  #
+  # The return value is an optional tuple containing the weekday number (in the
+  # range 1-7) and the size of the name in bytes.
+  #
+  # Not all locales use abbreviated names, in which case this method should
+  # simply parse the input as full names.
+  #
+  # The `input` argument is a `String` or `ByteArray` to parse. The `start`
+  # argument is the offset to start parsing at.
+  #
+  # If the input points to a valid weekday name, the return value is an
+  # `Option.Some` containing the weekday number, otherwise an `Option.None` is
+  # returned.
+  fn parse_short_weekday[T: Bytes](
+    input: ref T,
+    start: Int,
+  ) -> Option[(Int, Int)]
+
+  # Parses a (case sensitive) full weekday name.
+  #
+  # The return value is an optional tuple containing the weekday number (in the
+  # range 1-7) and the size of the name in bytes.
+  #
+  # The `input` argument is a `String` or `ByteArray` to parse. The `start`
+  # argument is the offset to start parsing at.
+  #
+  # If the input points to a valid weekday name, the return value is an
+  # `Option.Some` containing the weekday number, otherwise an `Option.None` is
+  # returned.
+  fn parse_full_weekday[T: Bytes](
+    input: ref T,
+    start: Int,
+  ) -> Option[(Int, Int)]
+
+  # Returns the abbreviated month name for the given month number in the range
+  # 1-12.
+  #
+  # # Panics
+  #
+  # This method should panic if the month is out of bounds.
+  fn short_month(month: Int) -> String
+
+  # Returns the full month name for the given month number in the range 1-12.
+  #
+  # # Panics
+  #
+  # This method should panic if the month is out of bounds.
+  fn full_month(month: Int) -> String
+
+  # Returns the abbreviated weekday name for the given weekday number in the
+  # range 1-7.
+  #
+  # # Panics
+  #
+  # This method should panic if the month is out of bounds.
+  fn short_weekday(day: Int) -> String
+
+  # Returns the full weekday name for the given weekday number in the range 1-7.
+  #
+  # # Panics
+  #
+  # This method should panic if the month is out of bounds.
+  fn full_weekday(day: Int) -> String
+}
+
+# Given a array of names, returns the index and byte size of the name found at
+# the offset `start` in the input stream `input`.
+#
+# This method returns indexes starting at 1 and _not_ 0, as it's meant to be
+# used for e.g. day and month numbers.
+#
+# This method performs a simple linear scan, comparing the input against the
+# possible names. While this means names later in the array may take longer to
+# match than those earlier in the array, testing revealed this to not matter
+# much in reality.
+#
+# The `input` argument is a `String` or `ByteArray` containing the input
+# to parse.
+#
+# The `start` argument specifies the offset to start parsing at.
+#
+# The `names` is an `Array` of possible names (e.g. the names of the months).
+fn name_number_at[T: Bytes](
+  input: ref T,
+  start: Int,
+  names: ref Array[String],
+) -> Option[(Int, Int)] {
+  let in_len = input.size - start
+  let in_ptr = ptr.add(input.to_pointer, start)
+  let mut i = 0
+  let max = names.size
+
+  while i < max {
+    let name = names.get(i)
+    let name_ptr = name.to_pointer
+    let name_len = name.size
+
+    if ptr.starts_with?(in_ptr, in_len, name_ptr, name_len) {
+      return Option.Some((i + 1, name_len))
+    }
+
+    i += 1
+  }
+
+  Option.None
+}

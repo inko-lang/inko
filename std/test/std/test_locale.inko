@@ -1,0 +1,34 @@
+import std.locale
+import std.test (Tests)
+
+fn pub tests(t: mut Tests) {
+  t.test('locale.name_number_at', fn (t) {
+    let ascii = ['Foo', 'Bar', 'Baz', 'Quix']
+    let emoji = ['😀', '🐱', '🎉']
+    let ja = ['1月', '7月', '10月']
+
+    t.equal(locale.name_number_at('Foo', 0, ascii), Option.Some((1, 3)))
+    t.equal(locale.name_number_at('Foobar', 0, ascii), Option.Some((1, 3)))
+    t.equal(locale.name_number_at('Bar', 0, ascii), Option.Some((2, 3)))
+    t.equal(locale.name_number_at('Baz', 0, ascii), Option.Some((3, 3)))
+    t.equal(locale.name_number_at('Quix', 0, ascii), Option.Some((4, 4)))
+    t.equal(locale.name_number_at('FooBar', 3, ascii), Option.Some((2, 3)))
+    t.equal(locale.name_number_at('', 0, ascii), Option.None)
+    t.equal(locale.name_number_at('F', 0, ascii), Option.None)
+    t.equal(locale.name_number_at('Fo', 0, ascii), Option.None)
+    t.equal(locale.name_number_at('This does not match', 0, ascii), Option.None)
+
+    t.equal(locale.name_number_at('😀', 0, emoji), Option.Some((1, 4)))
+    t.equal(locale.name_number_at('😀😀', 0, emoji), Option.Some((1, 4)))
+    t.equal(locale.name_number_at('😀🐱', 4, emoji), Option.Some((2, 4)))
+    t.equal(locale.name_number_at('🐱', 0, emoji), Option.Some((2, 4)))
+    t.equal(locale.name_number_at('🎉', 0, emoji), Option.Some((3, 4)))
+    t.equal(locale.name_number_at('f🎉', 0, emoji), Option.None)
+    t.equal(locale.name_number_at('😢', 0, emoji), Option.None)
+    t.equal(locale.name_number_at('😢😢😢😢😢', 0, emoji), Option.None)
+
+    t.equal(locale.name_number_at('1月', 0, ja), Option.Some((1, 4)))
+    t.equal(locale.name_number_at('7月', 0, ja), Option.Some((2, 4)))
+    t.equal(locale.name_number_at('10月', 0, ja), Option.Some((3, 5)))
+  })
+}
