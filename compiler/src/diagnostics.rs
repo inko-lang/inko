@@ -21,7 +21,6 @@ pub(crate) enum DiagnosticId {
     InvalidSyntax,
     InvalidThrow,
     InvalidType,
-    LimitReached,
     MissingField,
     MissingMain,
     MissingTrait,
@@ -51,7 +50,6 @@ impl fmt::Display for DiagnosticId {
             DiagnosticId::Unreachable => "unreachable",
             DiagnosticId::Moved => "moved",
             DiagnosticId::InvalidMatch => "invalid-match",
-            DiagnosticId::LimitReached => "limit-reached",
             DiagnosticId::MissingMain => "missing-main",
             DiagnosticId::InvalidCast => "invalid-cast",
             DiagnosticId::UnusedSymbol => "unused-symbol",
@@ -858,20 +856,6 @@ impl Diagnostics {
                 contains an 'uni ref T' or 'uni mut T' value",
                 name,
             ),
-            file,
-            location,
-        );
-    }
-
-    pub(crate) fn string_literal_too_large(
-        &mut self,
-        limit: usize,
-        file: PathBuf,
-        location: Location,
-    ) {
-        self.error(
-            DiagnosticId::LimitReached,
-            format!("string literals can't be greater than {} bytes", limit),
             file,
             location,
         );

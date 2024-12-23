@@ -102,12 +102,6 @@ pub const ENUM_TAG_INDEX: usize = 0;
 /// class.
 pub const CONSTRUCTORS_LIMIT: usize = u16::MAX as usize;
 
-/// The maximum number of fields a class can define.
-pub const FIELDS_LIMIT: usize = u8::MAX as usize;
-
-/// The maximum number of values that can be stored in an array literal.
-pub const ARRAY_LIMIT: usize = u16::MAX as usize;
-
 /// The maximum number of methods supported.
 ///
 /// This is one less than the u32 maximum such that we can use `u32::MAX` as a

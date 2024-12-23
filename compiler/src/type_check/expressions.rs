@@ -21,8 +21,6 @@ use types::{
 };
 
 const IGNORE_VARIABLE: &str = "_";
-const STRING_LITERAL_LIMIT: usize = u32::MAX as usize;
-const CONST_ARRAY_LIMIT: usize = u16::MAX as usize;
 
 /// The maximum number of methods that a single class can define.
 ///
@@ -1022,14 +1020,6 @@ impl<'a> CheckConstant<'a> {
         &mut self,
         node: &mut hir::ConstStringLiteral,
     ) -> TypeRef {
-        if node.value.len() > STRING_LITERAL_LIMIT {
-            self.state.diagnostics.string_literal_too_large(
-                STRING_LITERAL_LIMIT,
-                self.file(),
-                node.location,
-            );
-        }
-
         node.resolved_type = TypeRef::string();
         node.resolved_type
     }
@@ -1168,18 +1158,6 @@ impl<'a> CheckConstant<'a> {
                     );
                 }
             }
-        }
-
-        if types.len() > CONST_ARRAY_LIMIT {
-            self.state.diagnostics.error(
-                DiagnosticId::InvalidConstExpr,
-                format!(
-                    "constant arrays are limited to at most {} values",
-                    CONST_ARRAY_LIMIT
-                ),
-                self.file(),
-                node.location,
-            );
         }
 
         // Mutating constant arrays isn't safe, so they're typed as `ref
@@ -1502,32 +1480,20 @@ impl<'a> CheckMethodBody<'a> {
         scope: &mut LexicalScope,
     ) -> TypeRef {
         for value in &mut node.values {
-            match value {
-                hir::StringValue::Expression(v) => {
-                    let val = self.call(v, scope, false);
+            let hir::StringValue::Expression(v) = value else { continue };
+            let val = self.call(v, scope, false);
 
-                    if val != TypeRef::Error && !val.is_string(self.db()) {
-                        self.state.diagnostics.error(
-                            DiagnosticId::InvalidType,
-                            format!(
-                                "expected a 'String', 'ref String' or \
+            if val != TypeRef::Error && !val.is_string(self.db()) {
+                self.state.diagnostics.error(
+                    DiagnosticId::InvalidType,
+                    format!(
+                        "expected a 'String', 'ref String' or \
                                 'mut String', found '{}' instead",
-                                format_type(self.db(), val)
-                            ),
-                            self.file(),
-                            v.location,
-                        );
-                    }
-                }
-                hir::StringValue::Text(node) => {
-                    if node.value.len() > STRING_LITERAL_LIMIT {
-                        self.state.diagnostics.string_literal_too_large(
-                            STRING_LITERAL_LIMIT,
-                            self.file(),
-                            node.location,
-                        );
-                    }
-                }
+                        format_type(self.db(), val)
+                    ),
+                    self.file(),
+                    v.location,
+                );
             }
         }
 

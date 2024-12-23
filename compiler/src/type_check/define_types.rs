@@ -15,13 +15,8 @@ use types::{
     Class, ClassId, ClassInstance, ClassKind, Constant, Database, ModuleId,
     Symbol, Trait, TraitId, TraitImplementation, TypeId, TypeRef, Visibility,
     ARRAY_INTERNAL_NAME, CONSTRUCTORS_LIMIT, ENUM_TAG_FIELD, ENUM_TAG_INDEX,
-    FIELDS_LIMIT, MAIN_CLASS, OPTION_CLASS, OPTION_MODULE, RESULT_CLASS,
-    RESULT_MODULE,
+    MAIN_CLASS, OPTION_CLASS, OPTION_MODULE, RESULT_CLASS, RESULT_MODULE,
 };
-
-/// The maximum number of arguments a single constructor can accept. We subtract
-/// one as the tag is its own field.
-const MAX_MEMBERS: usize = FIELDS_LIMIT - 1;
 
 /// A compiler pass that defines classes and traits.
 ///
@@ -585,20 +580,6 @@ impl<'a> DefineFields<'a> {
                 break;
             }
 
-            if id >= FIELDS_LIMIT {
-                self.state.diagnostics.error(
-                    DiagnosticId::InvalidType,
-                    format!(
-                        "classes can't define more than {} fields",
-                        FIELDS_LIMIT
-                    ),
-                    self.file(),
-                    fnode.location,
-                );
-
-                break;
-            }
-
             if class_id.field(self.db(), &name).is_some() {
                 self.state.diagnostics.duplicate_field(
                     &name,
@@ -1135,20 +1116,6 @@ impl<'a> DefineConstructors<'a> {
                 args_count = len;
             }
 
-            if len > MAX_MEMBERS {
-                self.state.diagnostics.error(
-                    DiagnosticId::InvalidSymbol,
-                    format!(
-                        "enum constructors can't contain more than {} members",
-                        MAX_MEMBERS
-                    ),
-                    self.file(),
-                    node.location,
-                );
-
-                continue;
-            }
-
             if constructors_count == CONSTRUCTORS_LIMIT {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidSymbol,
@@ -1286,7 +1253,6 @@ mod tests {
     use crate::modules_parser::ParsedModule;
     use crate::test::{cols, define_drop_trait};
     use ast::parser::Parser;
-    use std::fmt::Write as _;
     use types::module_name::ModuleName;
     use types::{
         ClassId, ConstantId, TraitId, TraitInstance, TypeBounds,
@@ -1885,44 +1851,6 @@ mod tests {
 
         assert_eq!(error.id(), DiagnosticId::DuplicateSymbol);
         assert_eq!(error.location(), &cols(34, 47));
-    }
-
-    #[test]
-    fn test_define_too_many_fields() {
-        let mut state = State::new(Config::new());
-        let string = Class::alloc(
-            &mut state.db,
-            "String".to_string(),
-            ClassKind::Regular,
-            Visibility::Public,
-            ModuleId(0),
-            Location::default(),
-        );
-        let mut input = "class Person {".to_string();
-
-        for i in 0..260 {
-            let _ = write!(input, "\nlet @{}: String", i);
-        }
-
-        input.push_str("\n}");
-
-        let mut modules = parse(&mut state, input);
-        let module = ModuleId(0);
-
-        module.new_symbol(
-            &mut state.db,
-            "String".to_string(),
-            Symbol::Class(string),
-        );
-
-        DefineTypes::run_all(&mut state, &mut modules);
-
-        assert!(!DefineFields::run_all(&mut state, &mut modules));
-        assert_eq!(state.diagnostics.iter().count(), 1);
-
-        let diag = state.diagnostics.iter().next().unwrap();
-
-        assert_eq!(diag.id(), DiagnosticId::InvalidType);
     }
 
     #[test]

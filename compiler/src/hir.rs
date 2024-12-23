@@ -10,9 +10,7 @@ use ::ast::nodes::{self as ast, Node as _};
 use location::Location;
 use std::path::PathBuf;
 use std::str::FromStr;
-use types::{
-    ARRAY_INTERNAL_NAME, ARRAY_LIMIT, ARRAY_PUSH, ARRAY_WITH_CAPACITY,
-};
+use types::{ARRAY_INTERNAL_NAME, ARRAY_PUSH, ARRAY_WITH_CAPACITY};
 
 const BUILTIN_RECEIVER: &str = "_INKO";
 const ARRAY_LIT_VAR: &str = "$array";
@@ -2144,18 +2142,6 @@ impl<'a> LowerToHir<'a> {
     }
 
     fn array_literal(&mut self, node: ast::Array) -> Expression {
-        if node.values.len() > ARRAY_LIMIT {
-            self.state.diagnostics.error(
-                DiagnosticId::LimitReached,
-                format!(
-                    "array literals are limited to a maximum of {} values",
-                    ARRAY_LIMIT
-                ),
-                self.file(),
-                node.location,
-            );
-        }
-
         let var_ref = Expression::IdentifierRef(Box::new(IdentifierRef {
             name: ARRAY_LIT_VAR.to_string(),
             kind: types::IdentifierKind::Unknown,

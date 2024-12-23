@@ -18,8 +18,8 @@ use types::module_name::ModuleName;
 use types::{
     self, Block as _, ClassId, ConstantId, FieldId, Inline, MethodId, ModuleId,
     Symbol, TypeBounds, TypeRef, VerificationError, ENUM_TAG_INDEX, EQ_METHOD,
-    FIELDS_LIMIT, OPTION_NONE, OPTION_SOME, RESULT_CLASS, RESULT_ERROR,
-    RESULT_MODULE, RESULT_OK,
+    OPTION_NONE, OPTION_SOME, RESULT_CLASS, RESULT_ERROR, RESULT_MODULE,
+    RESULT_OK,
 };
 
 const SELF_NAME: &str = "self";
@@ -3662,18 +3662,6 @@ impl<'a> LowerMethod<'a> {
 
             method_id.set_field_type(self.db_mut(), name, field, captured_as);
             variable_fields.insert(var, field);
-        }
-
-        if field_index >= FIELDS_LIMIT {
-            self.state.diagnostics.error(
-                DiagnosticId::InvalidType,
-                format!(
-                    "closures can't capture more than {} variables",
-                    FIELDS_LIMIT
-                ),
-                self.file(),
-                node.location,
-            );
         }
 
         let mut mir_class = Class::new(class_id);
