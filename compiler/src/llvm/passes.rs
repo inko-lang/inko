@@ -1827,18 +1827,21 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 );
             }
             Instruction::Switch(ins) => {
-                let var = self.variables[&ins.register];
-                let val = self.builder.load_int(var);
+                let reg_var = self.variables[&ins.register];
+                let reg_typ = self.variable_types[&ins.register];
+                let bits = reg_typ.into_int_type().get_bit_width();
+                let reg_val =
+                    self.builder.load(reg_typ, reg_var).into_int_value();
                 let mut cases = Vec::with_capacity(ins.blocks.len());
 
                 for (index, block) in ins.blocks.iter().enumerate() {
                     cases.push((
-                        self.builder.u64_literal(index as u64),
+                        self.builder.int_literal(bits, index as u64),
                         all_blocks[block.0],
                     ));
                 }
 
-                self.builder.exhaustive_switch(val, &cases);
+                self.builder.exhaustive_switch(reg_val, &cases);
             }
             Instruction::Nil(ins) => {
                 let var = self.variables[&ins.register];
@@ -1854,7 +1857,8 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
             }
             Instruction::Int(ins) => {
                 let var = self.variables[&ins.register];
-                let val = self.builder.i64_literal(ins.value);
+                let val =
+                    self.builder.int_literal(ins.bits as _, ins.value as u64);
 
                 self.builder.store(var, val);
             }

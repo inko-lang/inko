@@ -319,14 +319,34 @@ impl Block {
     pub(crate) fn int_literal(
         &mut self,
         register: RegisterId,
+        bits: u8,
         value: i64,
         location: InstructionLocation,
     ) {
         self.instructions.push(Instruction::Int(Box::new(IntLiteral {
             register,
+            bits,
             value,
             location,
         })));
+    }
+
+    pub(crate) fn u16_literal(
+        &mut self,
+        register: RegisterId,
+        value: u16,
+        location: InstructionLocation,
+    ) {
+        self.int_literal(register, 16, value as i64, location)
+    }
+
+    pub(crate) fn i64_literal(
+        &mut self,
+        register: RegisterId,
+        value: i64,
+        location: InstructionLocation,
+    ) {
+        self.int_literal(register, 64, value, location)
     }
 
     pub(crate) fn float_literal(
@@ -1035,6 +1055,7 @@ pub(crate) struct Return {
 #[derive(Clone)]
 pub(crate) struct IntLiteral {
     pub(crate) register: RegisterId,
+    pub(crate) bits: u8,
     pub(crate) value: i64,
     pub(crate) location: InstructionLocation,
 }
@@ -1383,7 +1404,7 @@ impl Instruction {
                 format!("r{} = nil", v.register.0)
             }
             Instruction::Int(ref v) => {
-                format!("r{} = int {:?}", v.register.0, v.value)
+                format!("r{} = i{} {:?}", v.register.0, v.bits, v.value)
             }
             Instruction::Float(ref v) => {
                 format!("r{} = float {:?}", v.register.0, v.value)

@@ -110,6 +110,12 @@ impl Context {
         self.inner.struct_type(fields, false)
     }
 
+    pub(crate) fn two_words(&self) -> StructType {
+        let word = self.i64_type().into();
+
+        self.inner.struct_type(&[word, word], false)
+    }
+
     pub(crate) fn class_type<'a>(
         &'a self,
         method_type: StructType<'a>,
@@ -178,17 +184,8 @@ impl Context {
         };
 
         match id {
-            TypeId::Foreign(ForeignType::Int(8, _)) => {
-                self.i8_type().as_basic_type_enum()
-            }
-            TypeId::Foreign(ForeignType::Int(16, _)) => {
-                self.i16_type().as_basic_type_enum()
-            }
-            TypeId::Foreign(ForeignType::Int(32, _)) => {
-                self.i32_type().as_basic_type_enum()
-            }
-            TypeId::Foreign(ForeignType::Int(_, _)) => {
-                self.i64_type().as_basic_type_enum()
+            TypeId::Foreign(ForeignType::Int(size, _)) => {
+                self.custom_int(size).as_basic_type_enum()
             }
             TypeId::Foreign(ForeignType::Float(32)) => {
                 self.f32_type().as_basic_type_enum()
@@ -231,9 +228,15 @@ impl Context {
 
                     ArgumentType::Regular(bits.as_basic_type_enum())
                 } else if bytes <= 16 {
-                    ArgumentType::Regular(
-                        self.abi_struct_type(layouts, typ).as_basic_type_enum(),
-                    )
+                    // The AMD64 ABI doesn't handle types such as
+                    // `{ i16, i64 }`. While it does handle `{ i64, i16 }`, this
+                    // requires re-ordering the fields and their corresponding
+                    // access sites.
+                    //
+                    // To avoid the complexity of that we take the same approach
+                    // as Rust: if the struct is larger than 8 bytes, we turn it
+                    // into two 64 bits values.
+                    ArgumentType::Regular(self.two_words().as_basic_type_enum())
                 } else {
                     ArgumentType::StructValue(typ)
                 }
@@ -242,10 +245,7 @@ impl Context {
                 if bytes <= 8 {
                     ArgumentType::Regular(self.i64_type().as_basic_type_enum())
                 } else if bytes <= 16 {
-                    let word = self.i64_type().into();
-                    let sret = self.struct_type(&[word, word]);
-
-                    ArgumentType::Regular(sret.as_basic_type_enum())
+                    ArgumentType::Regular(self.two_words().as_basic_type_enum())
                 } else {
                     // clang and Rust don't use "byval" for ARM64 when the
                     // struct is too large, so neither do we.
@@ -287,55 +287,20 @@ impl Context {
         let bytes = layouts.target_data.get_abi_size(&typ) as u32;
 
         match state.config.target.arch {
-            Architecture::Amd64 => {
+            // For both AMD64 and ARM64 the way structs are returned is the
+            // same. For more details, refer to argument_type().
+            Architecture::Amd64 | Architecture::Arm64 => {
                 if bytes <= 8 {
                     let bits = self.custom_int(size_in_bits(bytes));
 
                     ReturnType::Regular(bits.as_basic_type_enum())
                 } else if bytes <= 16 {
-                    ReturnType::Regular(
-                        self.abi_struct_type(layouts, typ).as_basic_type_enum(),
-                    )
-                } else {
-                    ReturnType::Struct(typ)
-                }
-            }
-            Architecture::Arm64 => {
-                if bytes <= 8 {
-                    let bits = self.custom_int(size_in_bits(bytes));
-
-                    ReturnType::Regular(bits.as_basic_type_enum())
-                } else if bytes <= 16 {
-                    let word = self.i64_type().into();
-                    let sret = self.struct_type(&[word, word]);
-
-                    ReturnType::Regular(sret.as_basic_type_enum())
+                    ReturnType::Regular(self.two_words().as_basic_type_enum())
                 } else {
                     ReturnType::Struct(typ)
                 }
             }
         }
-    }
-
-    fn abi_struct_type<'ctx>(
-        &'ctx self,
-        layouts: &Layouts<'ctx>,
-        typ: StructType<'ctx>,
-    ) -> StructType<'ctx> {
-        // We need to ensure each field is treated as a single/whole value,
-        // otherwise (e.g. if a field is an array of bytes) we may end up
-        // generating code that's not ABI compliant.
-        let fields: Vec<_> = typ
-            .get_field_types_iter()
-            .map(|t| {
-                let bits =
-                    size_in_bits(layouts.target_data.get_abi_size(&t) as u32);
-
-                self.custom_int(bits).as_basic_type_enum()
-            })
-            .collect();
-
-        self.struct_type(&fields)
     }
 }
 

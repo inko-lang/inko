@@ -238,19 +238,23 @@ impl<'ctx> Builder<'ctx> {
     }
 
     pub(crate) fn i64_literal(&self, value: i64) -> IntValue<'ctx> {
-        self.u64_literal(value as u64)
+        self.int_literal(64, value as u64)
     }
 
     pub(crate) fn u16_literal(&self, value: u16) -> IntValue<'ctx> {
-        self.context.i16_type().const_int(value as u64, false)
+        self.int_literal(16, value as u64)
     }
 
     pub(crate) fn u32_literal(&self, value: u32) -> IntValue<'ctx> {
-        self.context.i32_type().const_int(value as u64, false)
+        self.int_literal(32, value as u64)
     }
 
     pub(crate) fn u64_literal(&self, value: u64) -> IntValue<'ctx> {
-        self.context.i64_type().const_int(value, false)
+        self.int_literal(64, value)
+    }
+
+    pub(crate) fn int_literal(&self, bits: u32, value: u64) -> IntValue<'ctx> {
+        self.context.custom_int(bits).const_int(value, false)
     }
 
     pub(crate) fn f64_literal(&self, value: f64) -> FloatValue<'ctx> {

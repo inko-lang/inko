@@ -2050,9 +2050,7 @@ impl<'a> CheckMethodBody<'a> {
     }
 
     fn int_pattern(&mut self, node: &mut hir::IntLiteral, input_type: TypeRef) {
-        let typ = TypeRef::int();
-
-        self.expression_pattern(typ, input_type, node.location);
+        self.expression_pattern(TypeRef::int(), input_type, node.location);
     }
 
     fn string_pattern(

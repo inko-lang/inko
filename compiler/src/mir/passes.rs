@@ -17,9 +17,9 @@ use types::format::format_type;
 use types::module_name::ModuleName;
 use types::{
     self, Block as _, ClassId, ConstantId, FieldId, Inline, MethodId, ModuleId,
-    Symbol, TypeBounds, TypeRef, VerificationError, EQ_METHOD, FIELDS_LIMIT,
-    OPTION_NONE, OPTION_SOME, RESULT_CLASS, RESULT_ERROR, RESULT_MODULE,
-    RESULT_OK,
+    Symbol, TypeBounds, TypeRef, VerificationError, ENUM_TAG_INDEX, EQ_METHOD,
+    FIELDS_LIMIT, OPTION_NONE, OPTION_SOME, RESULT_CLASS, RESULT_ERROR,
+    RESULT_MODULE, RESULT_OK,
 };
 
 const SELF_NAME: &str = "self";
@@ -1275,13 +1275,13 @@ impl<'a> LowerToMir<'a> {
         lower.prepare(loc);
 
         let ins_reg = lower.new_register(ins);
-        let tag_reg = lower.new_register(TypeRef::int());
-        let tag_val = constructor_id.id(lower.db()) as i64;
+        let tag_val = constructor_id.id(lower.db());
         let tag_field =
-            class.field_by_index(lower.db(), types::ENUM_TAG_INDEX).unwrap();
+            class.field_by_index(lower.db(), ENUM_TAG_INDEX).unwrap();
+        let tag_reg = lower.new_register(tag_field.value_type(lower.db()));
 
         lower.current_block_mut().allocate(ins_reg, class, loc);
-        lower.current_block_mut().int_literal(tag_reg, tag_val, loc);
+        lower.current_block_mut().u16_literal(tag_reg, tag_val, loc);
         lower
             .current_block_mut()
             .set_field(ins_reg, class, tag_field, tag_reg, loc);
@@ -1854,7 +1854,7 @@ impl<'a> LowerMethod<'a> {
         let loc = InstructionLocation::new(node.location);
         let reg = self.new_register(node.resolved_type);
 
-        self.current_block_mut().int_literal(reg, node.value, loc);
+        self.current_block_mut().i64_literal(reg, node.value, loc);
         reg
     }
 
@@ -2459,16 +2459,17 @@ impl<'a> LowerMethod<'a> {
         let loc = InstructionLocation::new(node.location);
         let reg = self.expression(node.expression);
         let class = self.register_type(reg).class_id(self.db()).unwrap();
-        let tag_reg = self.new_untracked_register(TypeRef::int());
         let tag_field =
-            class.field_by_index(self.db(), types::ENUM_TAG_INDEX).unwrap();
+            class.field_by_index(self.db(), ENUM_TAG_INDEX).unwrap();
+        let tag_typ = tag_field.value_type(self.db());
+        let tag_reg = self.new_untracked_register(tag_typ);
         let val_field = class.enum_fields(self.db())[0];
         let ok_block = self.add_block();
         let err_block = self.add_block();
         let after_block = self.add_block();
         let mut blocks = vec![BlockId(0), BlockId(0)];
         let ret_reg = self.new_untracked_register(node.return_type);
-        let err_tag = self.new_untracked_register(TypeRef::int());
+        let err_tag = self.new_untracked_register(tag_typ);
 
         self.add_edge(self.current_block, ok_block);
         self.add_edge(self.current_block, err_block);
@@ -2504,11 +2505,7 @@ impl<'a> LowerMethod<'a> {
                 self.current_block = err_block;
 
                 self.current_block_mut().allocate(ret_reg, class, loc);
-                self.current_block_mut().int_literal(
-                    err_tag,
-                    none_id as _,
-                    loc,
-                );
+                self.current_block_mut().u16_literal(err_tag, none_id, loc);
                 self.current_block_mut()
                     .set_field(ret_reg, class, tag_field, err_tag, loc);
                 self.current_block_mut().drop_without_dropper(reg, loc);
@@ -2544,7 +2541,7 @@ impl<'a> LowerMethod<'a> {
                 self.current_block = err_block;
 
                 self.current_block_mut().allocate(ret_reg, class, loc);
-                self.current_block_mut().int_literal(err_tag, err_id as _, loc);
+                self.current_block_mut().u16_literal(err_tag, err_id, loc);
                 self.current_block_mut()
                     .get_field(err_val, reg, class, val_field, loc);
                 self.current_block_mut()
@@ -2580,13 +2577,13 @@ impl<'a> LowerMethod<'a> {
         let err_id =
             class.constructor(self.db(), RESULT_ERROR).unwrap().id(self.db());
         let tag_field =
-            class.field_by_index(self.db(), types::ENUM_TAG_INDEX).unwrap();
+            class.field_by_index(self.db(), ENUM_TAG_INDEX).unwrap();
+        let tag_reg = self.new_register(tag_field.value_type(self.db()));
         let val_field = class.enum_fields(self.db())[0];
         let result_reg = self.new_register(node.return_type);
-        let tag_reg = self.new_register(TypeRef::int());
 
         self.current_block_mut().allocate(result_reg, class, loc);
-        self.current_block_mut().int_literal(tag_reg, err_id as _, loc);
+        self.current_block_mut().u16_literal(tag_reg, err_id, loc);
         self.current_block_mut()
             .set_field(result_reg, class, tag_field, tag_reg, loc);
         self.current_block_mut()
@@ -3292,10 +3289,9 @@ impl<'a> LowerMethod<'a> {
 
             let test_end_block = match case.constructor {
                 pmatch::Constructor::Int(val) => {
-                    let val_type = TypeRef::int();
-                    let val_reg = self.new_untracked_register(val_type);
+                    let val_reg = self.new_untracked_register(TypeRef::int());
 
-                    self.block_mut(test_block).int_literal(val_reg, val, loc);
+                    self.block_mut(test_block).i64_literal(val_reg, val, loc);
                     self.block_mut(test_block).call_builtin(
                         res_reg,
                         types::Intrinsic::IntEq,
@@ -3377,13 +3373,11 @@ impl<'a> LowerMethod<'a> {
 
         let test_type = self.register_type(test_reg);
         let class = test_type.class_id(self.db()).unwrap();
-        let tag_reg = self.new_untracked_register(TypeRef::int());
         let tag_field =
-            class.field_by_index(self.db(), types::ENUM_TAG_INDEX).unwrap();
+            class.field_by_index(self.db(), ENUM_TAG_INDEX).unwrap();
+        let tag_reg =
+            self.new_untracked_register(tag_field.value_type(self.db()));
         let member_fields = class.enum_fields(self.db());
-
-        self.block_mut(test_block)
-            .get_field(tag_reg, test_reg, class, tag_field, loc);
 
         for case in cases {
             let case_registers = registers.clone();
@@ -3409,6 +3403,8 @@ impl<'a> LowerMethod<'a> {
             self.decision(state, case.node, block, case_registers);
         }
 
+        self.block_mut(test_block)
+            .get_field(tag_reg, test_reg, class, tag_field, loc);
         self.block_mut(test_block).switch(tag_reg, blocks, loc);
         test_block
     }
@@ -4681,18 +4677,18 @@ impl<'a> LowerMethod<'a> {
         let after = self.add_block();
         let enum_fields = class.enum_fields(self.db());
         let tag_field =
-            class.field_by_index(self.db(), types::ENUM_TAG_INDEX).unwrap();
-        let tag = self.new_register(TypeRef::int());
+            class.field_by_index(self.db(), ENUM_TAG_INDEX).unwrap();
+        let tag_reg = self.new_register(tag_field.value_type(self.db()));
 
         for con in cons {
             let block = self.add_current_block();
 
             self.add_edge(before, block);
 
-            let members = con.arguments(self.db()).to_vec();
-            let fields = &enum_fields[0..members.len()];
+            let args = con.arguments(self.db()).to_vec();
+            let fields = &enum_fields[0..args.len()];
 
-            for (&field, typ) in fields.iter().zip(members.into_iter()) {
+            for (&field, typ) in fields.iter().zip(args.into_iter()) {
                 func(self, field, typ);
             }
 
@@ -4701,8 +4697,9 @@ impl<'a> LowerMethod<'a> {
             blocks.push(block);
         }
 
-        self.block_mut(before).get_field(tag, rec, class, tag_field, location);
-        self.block_mut(before).switch(tag, blocks, location);
+        self.block_mut(before)
+            .get_field(tag_reg, rec, class, tag_field, location);
+        self.block_mut(before).switch(tag_reg, blocks, location);
         self.current_block = after;
     }
 }
