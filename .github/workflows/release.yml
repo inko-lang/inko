@@ -19,7 +19,7 @@ jobs:
 
   source:
     name: Source archive
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     container:
       image: ghcr.io/inko-lang/ci:fedora
     needs:
@@ -45,7 +45,7 @@ jobs:
 
   docs:
     name: Documentation
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     container:
       image: ghcr.io/inko-lang/inko:latest
     needs:
@@ -76,7 +76,7 @@ jobs:
 
   std-docs:
     name: Standard library documentation
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     container:
       image: ghcr.io/inko-lang/ci:fedora
     env:
@@ -105,7 +105,7 @@ jobs:
 
   container:
     name: Container
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs:
       - docs
       - runtimes

@@ -10,7 +10,7 @@ env:
 
 jobs:
   amd64-linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     container:
       image: ghcr.io/inko-lang/ci:debian-amd64
     steps:
@@ -26,7 +26,7 @@ jobs:
           compression-level: 0
 
   arm64-linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     container:
       image: ghcr.io/inko-lang/ci:debian-arm64
     steps:
@@ -74,7 +74,7 @@ jobs:
           compression-level: 0
 
   amd64-freebsd:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - name: Build runtimes
@@ -96,7 +96,7 @@ jobs:
 
   upload:
     name: Upload runtimes
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     container:
       image: ghcr.io/inko-lang/ci:fedora
     env:
