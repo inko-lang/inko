@@ -20,7 +20,7 @@ Hello world:
 ```inko
 import std.stdio (Stdout)
 
-class async Main {
+type async Main {
   fn async main {
     Stdout.new.print('Hello, world!')
   }
@@ -32,7 +32,7 @@ A simple concurrent program:
 ```inko
 import std.sync (Future, Promise)
 
-class async Calculator {
+type async Calculator {
   fn async fact(size: Int, output: uni Promise[Int]) {
     let result = 1.to(size).iter.reduce(1, fn (product, val) { product * val })
 
@@ -40,7 +40,7 @@ class async Calculator {
   }
 }
 
-class async Main {
+type async Main {
   fn async main {
     let calc = Calculator()
 
