@@ -16,7 +16,7 @@ fn extern inko_socket_poll(
 ) -> Bool
 
 # The raw socket type used by the runtime library.
-class extern RawSocket {
+type extern RawSocket {
   # The file descriptor of the socket.
   let @inner: Int32
 

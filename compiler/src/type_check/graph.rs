@@ -1,6 +1,6 @@
 //! Helpers for performing graph-like operations on types, such as checking if a
-//! class is recursive.
-use types::{ClassId, ClassInstance, Database, TypeRef};
+//! type is recursive.
+use types::{Database, TypeId, TypeInstance, TypeRef};
 
 #[derive(Copy, Clone)]
 enum Visit {
@@ -20,35 +20,35 @@ enum Visit {
     Visited,
 }
 
-/// A type used for checking if a stack class is a recursive class.
-pub(crate) struct RecursiveClassChecker<'a> {
+/// A type used for checking if a stack type is a recursive type.
+pub(crate) struct RecursiveTypeChecker<'a> {
     db: &'a Database,
     states: Vec<Visit>,
-    work: Vec<ClassId>,
+    work: Vec<TypeId>,
 }
 
-impl<'a> RecursiveClassChecker<'a> {
-    pub(crate) fn new(db: &'a Database) -> RecursiveClassChecker<'a> {
-        RecursiveClassChecker {
+impl<'a> RecursiveTypeChecker<'a> {
+    pub(crate) fn new(db: &'a Database) -> RecursiveTypeChecker<'a> {
+        RecursiveTypeChecker {
             db,
-            states: vec![Visit::Unvisited; db.number_of_classes()],
+            states: vec![Visit::Unvisited; db.number_of_types()],
             work: Vec::new(),
         }
     }
 
-    pub(crate) fn is_recursive(&mut self, class: ClassId) -> bool {
-        self.add(class);
+    pub(crate) fn is_recursive(&mut self, type_id: TypeId) -> bool {
+        self.add(type_id);
 
-        while let Some(&class) = self.work.last() {
-            if let Visit::Visiting = self.state(class) {
-                self.set_state(class, Visit::Visited);
+        while let Some(&typ) = self.work.last() {
+            if let Visit::Visiting = self.state(typ) {
+                self.set_state(typ, Visit::Visited);
                 self.work.pop();
                 continue;
             }
 
-            self.set_state(class, Visit::Visiting);
+            self.set_state(typ, Visit::Visiting);
 
-            for field in class.fields(self.db) {
+            for field in typ.fields(self.db) {
                 let typ = field.value_type(self.db);
                 let Some(ins) = self.edge(typ) else { continue };
 
@@ -77,26 +77,26 @@ impl<'a> RecursiveClassChecker<'a> {
         false
     }
 
-    fn edge(&self, typ: TypeRef) -> Option<ClassInstance> {
+    fn edge(&self, typ: TypeRef) -> Option<TypeInstance> {
         // Pointers _are_ stack allocated, but they introduce indirection that
         // breaks recursion so we don't need to process them.
         if typ.is_pointer(self.db) {
             return None;
         }
 
-        typ.as_class_instance(self.db)
+        typ.as_type_instance(self.db)
             .filter(|v| v.instance_of().is_stack_allocated(self.db))
     }
 
-    fn set_state(&mut self, id: ClassId, state: Visit) {
+    fn set_state(&mut self, id: TypeId, state: Visit) {
         self.states[id.0 as usize] = state;
     }
 
-    fn state(&self, id: ClassId) -> Visit {
+    fn state(&self, id: TypeId) -> Visit {
         self.states[id.0 as usize]
     }
 
-    fn add(&mut self, id: ClassId) {
+    fn add(&mut self, id: TypeId) {
         self.set_state(id, Visit::Scheduled);
         self.work.push(id);
     }

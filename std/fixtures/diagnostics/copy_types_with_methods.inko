@@ -1,4 +1,4 @@
-class copy A {
+type copy A {
   fn a {
     self.test
   }

@@ -8,7 +8,7 @@ trait Mutate {
   fn mut quix {}
 }
 
-class copy A {}
+type copy A {}
 
 impl Mutate for A {
   fn mut foo {}

@@ -62,7 +62,7 @@ fn quote?(value: String, separator: Int) -> Bool {
 }
 
 # An error produced when parsing a CSV stream.
-class pub inline Error {
+type pub inline Error {
   # The kind of error that's produced.
   let pub @kind: ErrorKind
 
@@ -101,7 +101,7 @@ impl Equal[ref Error] for Error {
 }
 
 # A type indicating what kind of error is produced.
-class pub inline enum ErrorKind {
+type pub inline enum ErrorKind {
   # An error produced when reading input.
   #
   # This error is produced when the underlying stream of a `Parser` produces an
@@ -140,7 +140,7 @@ impl Equal[ref ErrorKind] for ErrorKind {
 }
 
 # A type describing the column separator.
-class pub copy enum Separator {
+type pub copy enum Separator {
   # Columns are separated using a comma (",").
   case Comma
 
@@ -288,7 +288,7 @@ impl ToInt for Separator {
 #
 # rows # => [['foo', 'bar', 'baz'], ['1', '2', '3']]
 # ```
-class pub Parser[I: mut + Read] {
+type pub Parser[I: mut + Read] {
   let @input: BufferedReader[I]
   let @buffer: ByteArray
   let @offset: Int
@@ -714,7 +714,7 @@ impl Iter[Result[Array[String], Error]] for Parser {
 # gen.write(['foo', 'bar', 'baz'])
 # gen.write(['1', '2', '3'])
 # ```
-class pub Generator[I: mut + Write] {
+type pub Generator[I: mut + Write] {
   let @output: I
   let @separator_string: String
   let @separator_byte: Int

@@ -13,13 +13,13 @@ import std.process (sleep)
 import std.stdio (Stdout)
 import std.time (Duration)
 
-class async Printer {
+type async Printer {
   fn async print(message: String) {
     let _ = Stdout.new.print(message)
   }
 }
 
-class async Main {
+type async Main {
   fn async main {
     Printer().print('Hello')
     Printer().print('world')
@@ -44,7 +44,7 @@ or "world" and "Hello" on separate lines.
 ## Explanation
 
 Inko uses "lightweight processes" for concurrency. Such processes are defined
-using the syntax `class async`, such as `class async Printer { ... }` in our
+using the syntax `type async`, such as `type async Printer { ... }` in our
 program.
 
 We create instances of these processes using the syntax `Printer()`. For such a
@@ -54,7 +54,7 @@ syntax. The details of how this works, what to keep in mind, etc, are covered
 separately.
 
 The `sleep(...)` line is needed such that the main process (defined using
-`class async Main`) doesn't stop before the `Printer` processes print the
+`type async Main`) doesn't stop before the `Printer` processes print the
 messages to the terminal.
 
 ## Futures and Promises
@@ -67,7 +67,7 @@ program to the following:
 import std.stdio (Stdout)
 import std.sync (Future, Promise)
 
-class async Printer {
+type async Printer {
   fn async print(message: String, output: uni Promise[Nil]) {
     let _ = Stdout.new.print(message)
 
@@ -75,7 +75,7 @@ class async Printer {
   }
 }
 
-class async Main {
+type async Main {
   fn async main {
     let future1 = match Future.new {
       case (future, promise) -> {
@@ -130,7 +130,7 @@ We can rewrite the example from earlier using `Channel` as follows:
 import std.stdio (Stdout)
 import std.sync (Channel)
 
-class async Printer {
+type async Printer {
   fn async print(message: String, output: uni Channel[Nil]) {
     let _ = Stdout.new.print(message)
 
@@ -138,7 +138,7 @@ class async Printer {
   }
 }
 
-class async Main {
+type async Main {
   fn async main {
     let chan = Channel.new
 

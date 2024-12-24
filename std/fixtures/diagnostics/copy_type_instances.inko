@@ -1,8 +1,8 @@
-class copy A[T] {
+type copy A[T] {
   let @value: T
 }
 
-class extern B {
+type extern B {
   let @value: Int
 }
 

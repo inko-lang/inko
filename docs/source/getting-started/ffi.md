@@ -131,7 +131,7 @@ it as `test.inko`:
 ```inko
 import extern "m"
 
-class async Main {
+type async Main {
   fn async main {}
 }
 ```
@@ -181,7 +181,7 @@ instead:
 ```inko
 import extern "z"
 
-class async Main {
+type async Main {
   fn async main {}
 }
 ```
@@ -233,7 +233,7 @@ import extern "m"
 
 fn extern ceil(value: Float64) -> Float64
 
-class async Main {
+type async Main {
   fn async main {
     let out = Stdout.new
 
@@ -267,7 +267,7 @@ Variadic functions are also supported, and are defined as follows:
 ```inko
 fn extern printf(format: Pointer[UInt8], ...) -> Int32
 
-class async Main {
+type async Main {
   fn async main {
     printf("Hello %s\n".to_pointer, "Inko".to_pointer)
   }
@@ -283,26 +283,26 @@ additional arguments, because it doesn't know what the expected types are.
 
 ## Structures
 
-Inko supports defining signatures for C structures, similar to classes. This is
-done using the `class extern` syntax. For example, to define the `timespec`
+Inko supports defining signatures for C structures, similar to types. This is
+done using the `type extern` syntax. For example, to define the `timespec`
 structure from the libc `time.h` header, we'd write the following:
 
 ```inko
-class extern Timespec {
+type extern Timespec {
   let @tv_sec: Int64
   let @tv_nsec: Int64
 }
 ```
 
-Like classes, we can create instances of these structs:
+Like types, we can create instances of these structs:
 
 ```inko
-class extern Timespec {
+type extern Timespec {
   let @tv_sec: Int64
   let @tv_nsec: Int64
 }
 
-class async Main {
+type async Main {
   fn async main {
     Timespec(tv_sec: 123 as Int64, tv_nsec: 456 as Int64)
   }
@@ -314,12 +314,12 @@ reserves the necessary stack space but doesn't initialize it. This is useful
 when dealing with large structs that are initialized by a C function:
 
 ```inko
-class extern Timespec {
+type extern Timespec {
   let @tv_sec: Int64
   let @tv_nsec: Int64
 }
 
-class async Main {
+type async Main {
   fn async main {
     let spec = Timespec()
 
@@ -330,15 +330,15 @@ class async Main {
 
 Structures are allocated on the stack and are value types, meaning a move
 results in a copy (unless this is optimised away). Reading and writing of
-structure fields uses the same syntax as regular Inko classes:
+structure fields uses the same syntax as regular Inko types:
 
 ```inko
-class extern Timespec {
+type extern Timespec {
   let @tv_sec: Int64
   let @tv_nsec: Int64
 }
 
-class async Main {
+type async Main {
   fn async main {
     let spec = Timespec(tv_sec: 123 as Int64, tv_nsec: 456 as Int64)
 
@@ -354,21 +354,21 @@ may lead to memory leaks if you don't manually run these where necessary.
 
 If a structure is stored in a field, referring to the field doesn't incur a
 copy, instead you get a pointer to the structure. This makes it easier to work
-with structures stored in Inko classes:
+with structures stored in Inko types:
 
 ```inko
 import std.stdio (Stdout)
 
-class extern Timespec {
+type extern Timespec {
   let @tv_sec: Int64
   let @tv_nsec: Int64
 }
 
-class Box {
+type Box {
   let @time: Timespec
 }
 
-class async Main {
+type async Main {
   fn async main {
     let out = Stdout.new
     let spec = Timespec(tv_sec: 123 as Int64, tv_nsec: 456 as Int64)
@@ -399,14 +399,14 @@ import std.stdio (Stdout)
 
 let CLOCK_REALTIME = 0
 
-class extern Timespec {
+type extern Timespec {
   let @tv_sec: Int64
   let @tv_nsec: Int64
 }
 
 fn extern clock_gettime(id: Int32, time: Pointer[Timespec]) -> Int32
 
-class async Main {
+type async Main {
   fn async main {
     let out = Stdout.new
     let spec = Timespec(tv_sec: 0 as Int64, tv_nsec: 0 as Int64)
@@ -438,7 +438,7 @@ fn extern example(value: Int) -> Int {
   value
 }
 
-class async Main {
+type async Main {
   fn async main {
     let pointer_to_method = mut example
   }
@@ -459,12 +459,12 @@ Dereferencing a pointer is done by reading from and writing to the pseudo field
 ```inko
 import std.stdio (Stdout)
 
-class extern Timespec {
+type extern Timespec {
   let @tv_sec: Int64
   let @tv_nsec: Int64
 }
 
-class async Main {
+type async Main {
   fn async main {
     let out = Stdout.new
     let spec = Timespec(tv_sec: 0 as Int64, tv_nsec: 0 as Int64)
@@ -487,12 +487,12 @@ mutate data pointed to in-place:
 ```inko
 import std.stdio (Stdout)
 
-class extern Timespec {
+type extern Timespec {
   let @tv_sec: Int64
   let @tv_nsec: Int64
 }
 
-class async Main {
+type async Main {
   fn async main {
     let out = Stdout.new
     let spec = Timespec(tv_sec: 0 as Int64, tv_nsec: 0 as Int64)
@@ -524,12 +524,12 @@ pointer. For example, here we mutate `tv_nsec` using such an approach:
 ```inko
 import std.stdio (Stdout)
 
-class extern Timespec {
+type extern Timespec {
   let @tv_sec: Int64
   let @tv_nsec: Int64
 }
 
-class async Main {
+type async Main {
   fn async main {
     let out = Stdout.new
     let spec = Timespec(tv_sec: 0 as Int64, tv_nsec: 0 as Int64)
@@ -559,14 +559,14 @@ import std.io (Error)
 
 let CLOCK_REALTIME = 0
 
-class extern Timespec {
+type extern Timespec {
   let @tv_sec: Int64
   let @tv_nsec: Int64
 }
 
 fn extern clock_gettime(id: Int32, time: Pointer[Timespec]) -> Int32
 
-class async Main {
+type async Main {
   fn async main {
     let out = Stdout.new
     let spec = Timespec(tv_sec: 0 as Int64, tv_nsec: 0 as Int64)

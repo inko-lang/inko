@@ -29,13 +29,13 @@ values in the range of 0 up to (and including) 255.
 
 ## Float
 
-The `Float` class is used for IEEE 754 double-precision floating point numbers.
+The `Float` type is used for IEEE 754 double-precision floating point numbers.
 
 `Float` is a value type.
 
 ## Int
 
-The `Int` class is used for integers. Integers are 64 bits signed integers.
+The `Int` type is used for integers. Integers are 64 bits signed integers.
 
 `Int` is a value type.
 
@@ -56,19 +56,19 @@ pattern matching bodies).
 
 ## Option
 
-`Option` is an algebraic data type/enum class used to represent an optional
-value. It has two constructor: `Some(T)` and `None`, with `None` signalling the
-lack of a value.
+`Option` is an algebraic data type/enum used to represent an optional value. It
+has two constructor: `Some(T)` and `None`, with `None` signalling the lack of a
+value.
 
 ## Result
 
-`Result` is an algebraic data type/enum class used for error handling. It has
-two constructors: `Ok(T)` and `Error(E)`. The `Ok` constructor signals the
-success of an operation, while `Error` signals an error occurred.
+`Result` is an algebraic data type/enum used for error handling. It has two
+constructors: `Ok(T)` and `Error(E)`. The `Ok` constructor signals the success
+of an operation, while `Error` signals an error occurred.
 
 ## String
 
-The `String` class is used for strings. Strings are UTF-8 encoded immutable
+The `String` type is used for strings. Strings are UTF-8 encoded immutable
 strings. Internally strings are represented such that they can be efficiently
 passed to C code, at the cost of one extra byte of overhead per string.
 

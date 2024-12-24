@@ -100,7 +100,7 @@ let WNOHANG = 0x00000001
 # instead of ticks, and `SO_LINGER` itself isn't useful.
 let SO_LINGER = SO_LINGER_SEC
 
-class extern Dirent {
+type extern Dirent {
   let @d_ino: UInt64
   let @d_seekoff: UInt64
   let @d_reclen: UInt16
@@ -108,7 +108,7 @@ class extern Dirent {
   let @d_type: UInt8
 }
 
-class extern StatBuf {
+type extern StatBuf {
   let @st_dev: Int32
   let @st_mode: UInt16
   let @st_nlink: UInt16
@@ -134,24 +134,24 @@ class extern StatBuf {
   let @st_qspare1: Int64
 }
 
-class extern Pipes {
+type extern Pipes {
   let @reader: Int32
   let @writer: Int32
 }
 
-class extern SigSet {
+type extern SigSet {
   let @inner: UInt32
 }
 
-class extern PosixSpawnAttrs {
+type extern PosixSpawnAttrs {
   let @inner: Pointer[UInt8]
 }
 
-class extern PosixSpawnFileActions {
+type extern PosixSpawnFileActions {
   let @inner: Pointer[UInt8]
 }
 
-class extern SockAddrIn {
+type extern SockAddrIn {
   let @sin_len: UInt8
   let @sin_family: UInt8
   let @sin_port: UInt16
@@ -159,7 +159,7 @@ class extern SockAddrIn {
   let @sin_zero: UInt64
 }
 
-class extern SockAddrIn6 {
+type extern SockAddrIn6 {
   let @sin6_len: UInt8
   let @sin6_family: UInt8
   let @sin6_port: UInt16
@@ -171,7 +171,7 @@ class extern SockAddrIn6 {
   let @sin6_scope_id: UInt32
 }
 
-class extern SockAddrUn {
+type extern SockAddrUn {
   let @sun_len: UInt8
   let @sun_family: UInt8
   let @sun_path0: UInt8
@@ -280,7 +280,7 @@ class extern SockAddrUn {
   let @sun_path103: UInt8
 }
 
-class extern SockAddr {
+type extern SockAddr {
   let @sa_len: UInt8
   let @sa_family: UInt8
   let @sa_data0: UInt8
@@ -299,7 +299,7 @@ class extern SockAddr {
   let @sa_data13: UInt8
 }
 
-class extern SockAddrStorage {
+type extern SockAddrStorage {
   let @ss_len: UInt8
   let @ss_family: UInt8
   let @__pad0: UInt16

@@ -186,7 +186,7 @@ impl Drop for Timeouts {
 mod tests {
     use super::*;
     use crate::stack::Stack;
-    use crate::test::{empty_process_class, new_process, setup};
+    use crate::test::{empty_process_type, new_process, setup};
     use rustix::param::page_size;
     use std::mem::size_of;
     use std::thread::sleep;
@@ -221,14 +221,14 @@ mod tests {
 
     mod timeout_entry {
         use super::*;
-        use crate::test::{empty_process_class, new_process};
+        use crate::test::{empty_process_type, new_process};
         use std::cmp;
 
         #[test]
         fn test_partial_cmp() {
             let state = setup();
-            let class = empty_process_class("A");
-            let process = new_process(*class);
+            let typ = empty_process_type("A");
+            let process = new_process(*typ);
             let entry1 = TimeoutEntry::new(
                 *process,
                 Timeout::duration(&state, Duration::from_secs(1)),
@@ -250,8 +250,8 @@ mod tests {
         #[test]
         fn test_cmp() {
             let state = setup();
-            let class = empty_process_class("A");
-            let process = new_process(*class);
+            let typ = empty_process_type("A");
+            let process = new_process(*typ);
             let entry1 = TimeoutEntry::new(
                 *process,
                 Timeout::duration(&state, Duration::from_secs(1)),
@@ -269,8 +269,8 @@ mod tests {
         #[test]
         fn test_eq() {
             let state = setup();
-            let class = empty_process_class("A");
-            let process = new_process(*class);
+            let typ = empty_process_type("A");
+            let process = new_process(*typ);
             let entry1 = TimeoutEntry::new(
                 *process,
                 Timeout::duration(&state, Duration::from_secs(1)),
@@ -292,8 +292,8 @@ mod tests {
         #[test]
         fn test_insert() {
             let state = setup();
-            let class = empty_process_class("A");
-            let process = new_process(*class);
+            let typ = empty_process_type("A");
+            let process = new_process(*typ);
             let mut timeouts = Timeouts::new();
             let timeout = Timeout::duration(&state, Duration::from_secs(10));
 
@@ -305,8 +305,8 @@ mod tests {
         #[test]
         fn test_len() {
             let state = setup();
-            let class = empty_process_class("A");
-            let process = new_process(*class);
+            let typ = empty_process_type("A");
+            let process = new_process(*typ);
             let mut timeouts = Timeouts::new();
             let timeout = Timeout::duration(&state, Duration::from_secs(10));
 
@@ -318,8 +318,8 @@ mod tests {
         #[test]
         fn test_remove_invalid_entries_with_valid_entries() {
             let state = setup();
-            let class = empty_process_class("A");
-            let process = Process::alloc(*class, Stack::new(1024, page_size()));
+            let typ = empty_process_type("A");
+            let process = Process::alloc(*typ, Stack::new(1024, page_size()));
             let mut timeouts = Timeouts::new();
             let timeout = Timeout::duration(&state, Duration::from_secs(10));
 
@@ -333,8 +333,8 @@ mod tests {
         #[test]
         fn test_remove_invalid_entries_with_invalid_entries() {
             let state = setup();
-            let class = empty_process_class("A");
-            let process = new_process(*class);
+            let typ = empty_process_type("A");
+            let process = new_process(*typ);
             let mut timeouts = Timeouts::new();
             let timeout = Timeout::duration(&state, Duration::from_secs(10));
 
@@ -347,8 +347,8 @@ mod tests {
         #[test]
         fn test_processes_to_reschedule_with_invalid_entries() {
             let state = setup();
-            let class = empty_process_class("A");
-            let process = new_process(*class);
+            let typ = empty_process_type("A");
+            let process = new_process(*typ);
             let mut timeouts = Timeouts::new();
             let timeout = Timeout::duration(&state, Duration::from_secs(10));
 
@@ -364,8 +364,8 @@ mod tests {
         #[test]
         fn test_processes_to_reschedule_with_remaining_time() {
             let state = setup();
-            let class = empty_process_class("A");
-            let process = Process::alloc(*class, Stack::new(1024, page_size()));
+            let typ = empty_process_type("A");
+            let process = Process::alloc(*typ, Stack::new(1024, page_size()));
             let mut timeouts = Timeouts::new();
             let timeout = Timeout::duration(&state, Duration::from_secs(10));
 
@@ -383,8 +383,8 @@ mod tests {
         #[test]
         fn test_processes_to_reschedule_with_entries_to_reschedule() {
             let state = setup();
-            let class = empty_process_class("A");
-            let process = new_process(*class);
+            let typ = empty_process_type("A");
+            let process = new_process(*typ);
             let mut timeouts = Timeouts::new();
             let timeout = Timeout::duration(&state, Duration::from_secs(0));
 

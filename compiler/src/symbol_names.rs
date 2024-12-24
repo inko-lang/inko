@@ -2,7 +2,7 @@
 use crate::mir::Mir;
 use std::collections::HashMap;
 use std::fmt::Write as _;
-use types::{ClassId, ConstantId, Database, MethodId, ModuleId, Shape, Sign};
+use types::{ConstantId, Database, MethodId, ModuleId, Shape, Sign, TypeId};
 
 pub(crate) const SYMBOL_PREFIX: &str = "_I";
 
@@ -28,25 +28,25 @@ pub(crate) fn format_shape(db: &Database, shape: Shape, buf: &mut String) {
         Shape::Copy(ins) => {
             let _ = write!(buf, "C{}.", ins.instance_of().module(db).name(db));
 
-            format_class_name(db, ins.instance_of(), buf);
+            format_type_name(db, ins.instance_of(), buf);
             Ok(())
         }
         Shape::Inline(ins) => {
             let _ = write!(buf, "IO{}.", ins.instance_of().module(db).name(db));
 
-            format_class_name(db, ins.instance_of(), buf);
+            format_type_name(db, ins.instance_of(), buf);
             Ok(())
         }
         Shape::InlineRef(ins) => {
             let _ = write!(buf, "IR{}.", ins.instance_of().module(db).name(db));
 
-            format_class_name(db, ins.instance_of(), buf);
+            format_type_name(db, ins.instance_of(), buf);
             Ok(())
         }
         Shape::InlineMut(ins) => {
             let _ = write!(buf, "IM{}.", ins.instance_of().module(db).name(db));
 
-            format_class_name(db, ins.instance_of(), buf);
+            format_type_name(db, ins.instance_of(), buf);
             Ok(())
         }
     };
@@ -58,7 +58,7 @@ pub(crate) fn format_shapes(db: &Database, shapes: &[Shape], buf: &mut String) {
     }
 }
 
-fn format_class_base_name(db: &Database, id: ClassId, name: &mut String) {
+fn format_type_base_name(db: &Database, id: TypeId, name: &mut String) {
     name.push_str(id.name(db));
 
     // For closures the process of generating a name is a little more tricky: a
@@ -85,14 +85,14 @@ fn format_class_base_name(db: &Database, id: ClassId, name: &mut String) {
     // doesn't support demangling our format).
     name.push_str(&format!(
         "({},{},{})",
-        qualified_class_name(db, stype.module(db), stype),
+        qualified_type_name(db, stype.module(db), stype),
         loc.line_start,
         loc.column_start,
     ));
 }
 
-pub(crate) fn format_class_name(db: &Database, id: ClassId, buf: &mut String) {
-    format_class_base_name(db, id, buf);
+pub(crate) fn format_type_name(db: &Database, id: TypeId, buf: &mut String) {
+    format_type_base_name(db, id, buf);
 
     let shapes = id.shapes(db);
 
@@ -102,26 +102,26 @@ pub(crate) fn format_class_name(db: &Database, id: ClassId, buf: &mut String) {
     }
 }
 
-pub(crate) fn qualified_class_name(
+pub(crate) fn qualified_type_name(
     db: &Database,
     module: ModuleId,
-    class: ClassId,
+    tid: TypeId,
 ) -> String {
     let mut name = format!("{}.", module.name(db));
 
-    format_class_name(db, class, &mut name);
+    format_type_name(db, tid, &mut name);
     name
 }
 
 pub(crate) fn format_method_name(
     db: &Database,
-    class: ClassId,
+    tid: TypeId,
     id: MethodId,
     name: &mut String,
 ) {
     name.push_str(id.name(db));
 
-    let cshapes = class.shapes(db);
+    let cshapes = tid.shapes(db);
     let mshapes = id.shapes(db);
 
     if !cshapes.is_empty() || !mshapes.is_empty() {
@@ -132,7 +132,7 @@ pub(crate) fn format_method_name(
 }
 
 fn mangled_method_name(db: &Database, method: MethodId) -> String {
-    let class = method.receiver(db).class_id(db).unwrap();
+    let tid = method.receiver(db).type_id(db).unwrap();
 
     // We don't use MethodId::source_module() here as for default methods that
     // may point to the module that defined the trait, rather than the module
@@ -146,48 +146,48 @@ fn mangled_method_name(db: &Database, method: MethodId) -> String {
     let mut name = format!(
         "{}{}_{}.",
         SYMBOL_PREFIX,
-        if class.is_closure(db) { "MC" } else { "M" },
+        if tid.is_closure(db) { "MC" } else { "M" },
         mod_name
     );
 
     // This ensures that methods such as `std::process.sleep` aren't formatted
     // as `std::process::std::process.sleep`. This in turn makes stack traces
     // easier to read.
-    if !class.kind(db).is_module() {
-        format_class_base_name(db, class, &mut name);
+    if !tid.kind(db).is_module() {
+        format_type_base_name(db, tid, &mut name);
         name.push('.');
     }
 
-    format_method_name(db, class, method, &mut name);
+    format_method_name(db, tid, method, &mut name);
     name
 }
 
 /// A cache of mangled symbol names.
 pub(crate) struct SymbolNames {
-    pub(crate) classes: HashMap<ClassId, String>,
+    pub(crate) types: HashMap<TypeId, String>,
     pub(crate) methods: HashMap<MethodId, String>,
     pub(crate) constants: HashMap<ConstantId, String>,
-    pub(crate) setup_classes: HashMap<ModuleId, String>,
+    pub(crate) setup_types: HashMap<ModuleId, String>,
     pub(crate) setup_constants: HashMap<ModuleId, String>,
 }
 
 impl SymbolNames {
     pub(crate) fn new(db: &Database, mir: &Mir) -> Self {
-        let mut classes = HashMap::new();
+        let mut types = HashMap::new();
         let mut methods = HashMap::new();
         let mut constants = HashMap::new();
-        let mut setup_classes = HashMap::new();
+        let mut setup_types = HashMap::new();
         let mut setup_constants = HashMap::new();
 
         for module in mir.modules.values() {
-            for &class in &module.classes {
-                let class_name = format!(
+            for &typ in &module.types {
+                let tname = format!(
                     "{}T_{}",
                     SYMBOL_PREFIX,
-                    qualified_class_name(db, module.id, class)
+                    qualified_type_name(db, module.id, typ)
                 );
 
-                classes.insert(class, class_name);
+                types.insert(typ, tname);
             }
         }
 
@@ -207,15 +207,15 @@ impl SymbolNames {
 
         for &id in mir.modules.keys() {
             let mod_name = id.name(db).as_str();
-            let classes = format!("{}M_{}.$classes", SYMBOL_PREFIX, mod_name);
+            let types = format!("{}M_{}.$types", SYMBOL_PREFIX, mod_name);
             let constants =
                 format!("{}M_{}.$constants", SYMBOL_PREFIX, mod_name);
 
-            setup_classes.insert(id, classes);
+            setup_types.insert(id, types);
             setup_constants.insert(id, constants);
         }
 
-        Self { classes, methods, constants, setup_classes, setup_constants }
+        Self { types, methods, constants, setup_types, setup_constants }
     }
 }
 
@@ -225,7 +225,7 @@ mod tests {
     use location::Location;
     use types::module_name::ModuleName;
     use types::{
-        Class, ClassInstance, ClassKind, Module, SpecializationKey, Visibility,
+        Module, SpecializationKey, Type, TypeInstance, TypeKind, Visibility,
     };
 
     fn name(db: &Database, shape: Shape) -> String {
@@ -240,19 +240,19 @@ mod tests {
         let mut db = Database::new();
         let mid =
             Module::alloc(&mut db, ModuleName::new("a.b.c"), "c.inko".into());
-        let kind = ClassKind::Regular;
+        let kind = TypeKind::Regular;
         let vis = Visibility::Public;
         let loc = Location::default();
-        let cls1 = Class::alloc(&mut db, "A".to_string(), kind, vis, mid, loc);
-        let cls2 = Class::alloc(&mut db, "B".to_string(), kind, vis, mid, loc);
-        let cls3 = Class::alloc(&mut db, "C".to_string(), kind, vis, mid, loc);
-        let cls4 = Class::alloc(&mut db, "D".to_string(), kind, vis, mid, loc);
+        let cls1 = Type::alloc(&mut db, "A".to_string(), kind, vis, mid, loc);
+        let cls2 = Type::alloc(&mut db, "B".to_string(), kind, vis, mid, loc);
+        let cls3 = Type::alloc(&mut db, "C".to_string(), kind, vis, mid, loc);
+        let cls4 = Type::alloc(&mut db, "D".to_string(), kind, vis, mid, loc);
 
         cls1.set_specialization_key(
             &mut db,
             SpecializationKey::new(vec![
                 Shape::Int(64, Sign::Signed),
-                Shape::Inline(ClassInstance::new(cls2)),
+                Shape::Inline(TypeInstance::new(cls2)),
             ]),
         );
         cls2.set_specialization_key(
@@ -261,13 +261,13 @@ mod tests {
         );
         cls3.set_specialization_key(
             &mut db,
-            SpecializationKey::new(vec![Shape::InlineRef(ClassInstance::new(
+            SpecializationKey::new(vec![Shape::InlineRef(TypeInstance::new(
                 cls2,
             ))]),
         );
         cls4.set_specialization_key(
             &mut db,
-            SpecializationKey::new(vec![Shape::InlineMut(ClassInstance::new(
+            SpecializationKey::new(vec![Shape::InlineMut(TypeInstance::new(
                 cls2,
             ))]),
         );
@@ -284,15 +284,15 @@ mod tests {
         assert_eq!(name(&db, Shape::Nil), "n");
         assert_eq!(name(&db, Shape::Pointer), "p");
         assert_eq!(
-            name(&db, Shape::Inline(ClassInstance::new(cls1))),
+            name(&db, Shape::Inline(TypeInstance::new(cls1))),
             "IOa.b.c.A#i64IOa.b.c.B#s"
         );
         assert_eq!(
-            name(&db, Shape::InlineMut(ClassInstance::new(cls3))),
+            name(&db, Shape::InlineMut(TypeInstance::new(cls3))),
             "IMa.b.c.C#IRa.b.c.B#s"
         );
         assert_eq!(
-            name(&db, Shape::InlineRef(ClassInstance::new(cls4))),
+            name(&db, Shape::InlineRef(TypeInstance::new(cls4))),
             "IRa.b.c.D#IMa.b.c.B#s"
         );
     }

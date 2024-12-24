@@ -7,7 +7,7 @@ import std.int (MAX, MIN, ToInt)
 import std.ops (Add, Divide, Modulo, Multiply, Power, Subtract)
 import std.string (Bytes, ToString)
 
-class extern FloatResult {
+type extern FloatResult {
   let @tag: Int
   let @value: UInt64
 }
@@ -23,7 +23,7 @@ trait pub ToFloat {
 }
 
 # A 64-bit floating point number.
-class builtin Float {
+type builtin Float {
   # Returns a NaN.
   fn pub inline static not_a_number -> Float {
     0.0 / 0.0

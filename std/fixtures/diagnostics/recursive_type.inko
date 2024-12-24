@@ -1,0 +1,71 @@
+type A {
+  let @a: A
+}
+
+type copy B {
+  let @a: Int
+  let @b: Float
+  let @c: Pointer[Int64]
+}
+
+type copy C {
+  let @a: D
+}
+
+type copy D {
+  let @a: Int
+}
+
+type copy E {
+  let @a: E
+}
+
+type copy F {
+  let @a: G[F]
+}
+
+type copy G[T] {
+  let @a: T
+}
+
+type copy H {
+  let @a: I[Int]
+}
+
+type copy I[T] {
+  let @a: T
+  let @b: H
+}
+
+type extern J {
+  let @a: Int64
+}
+
+type extern K {
+  let @a: K
+}
+
+type extern L {
+  let @a: M
+}
+
+type extern M {
+  let @a: L
+}
+
+type extern N {
+  let @a: Pointer[N]
+}
+
+type inline O {
+  let @a: O
+}
+
+# recursive_type.inko:19:1 error(invalid-type): types allocated on the stack can't be recursive
+# recursive_type.inko:23:1 error(invalid-type): types allocated on the stack can't be recursive
+# recursive_type.inko:31:1 error(invalid-type): types allocated on the stack can't be recursive
+# recursive_type.inko:35:1 error(invalid-type): types allocated on the stack can't be recursive
+# recursive_type.inko:44:1 error(invalid-type): types allocated on the stack can't be recursive
+# recursive_type.inko:48:1 error(invalid-type): types allocated on the stack can't be recursive
+# recursive_type.inko:52:1 error(invalid-type): types allocated on the stack can't be recursive
+# recursive_type.inko:60:1 error(invalid-type): types allocated on the stack can't be recursive

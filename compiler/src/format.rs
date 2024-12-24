@@ -3,8 +3,8 @@ use crate::config::Config;
 use crate::diagnostics::{DiagnosticId, Diagnostics};
 use crate::hir::Operator;
 use ast::nodes::{
-    self, ClassExpression, Expression, ImplementationExpression, Node as _,
-    Requirement, TopLevelExpression, TraitExpression,
+    self, Expression, ImplementationExpression, Node as _, Requirement,
+    TopLevelExpression, TraitExpression, TypeExpression,
 };
 use ast::parser::Parser;
 use std::cmp::Ordering;
@@ -70,7 +70,7 @@ enum Node {
     /// many values on a single line as possible.
     Fill(Vec<Node>),
 
-    /// A chunk of ASCII text to display, such as "class" or "async".
+    /// A chunk of ASCII text to display, such as "type" or "async".
     Text(String),
 
     /// A chunk of text (potentially including Unicode symbols) to display, such
@@ -528,8 +528,8 @@ impl Document {
                         self.gen.new_line();
                     }
                 }
-                TopLevelExpression::DefineClass(n) => {
-                    self.define_class(n);
+                TopLevelExpression::DefineType(n) => {
+                    self.define_type(n);
 
                     if iter.peek().is_some() {
                         self.gen.new_line();
@@ -542,8 +542,8 @@ impl Document {
                         self.gen.new_line();
                     }
                 }
-                TopLevelExpression::ReopenClass(n) => {
-                    self.reopen_class(n);
+                TopLevelExpression::ReopenType(n) => {
+                    self.reopen_type(n);
 
                     if iter.peek().is_some() {
                         self.gen.new_line();
@@ -732,26 +732,26 @@ impl Document {
         self.gen.generate(nodes);
     }
 
-    fn define_class(&mut self, node: &nodes::DefineClass) {
+    fn define_type(&mut self, node: &nodes::DefineType) {
         let header_id = self.new_group_id();
-        let mut header = vec![Node::text("class ")];
+        let mut header = vec![Node::text("type ")];
 
         if node.public {
             header.push(Node::text("pub "));
         }
 
         match node.semantics {
-            nodes::ClassSemantics::Inline => header.push(Node::text("inline ")),
-            nodes::ClassSemantics::Copy => header.push(Node::text("copy ")),
+            nodes::TypeSemantics::Inline => header.push(Node::text("inline ")),
+            nodes::TypeSemantics::Copy => header.push(Node::text("copy ")),
             _ => {}
         }
 
         match node.kind {
-            nodes::ClassKind::Async => header.push(Node::text("async ")),
-            nodes::ClassKind::Builtin => header.push(Node::text("builtin ")),
-            nodes::ClassKind::Enum => header.push(Node::text("enum ")),
-            nodes::ClassKind::Extern => header.push(Node::text("extern ")),
-            nodes::ClassKind::Regular => {}
+            nodes::TypeKind::Async => header.push(Node::text("async ")),
+            nodes::TypeKind::Builtin => header.push(Node::text("builtin ")),
+            nodes::TypeKind::Enum => header.push(Node::text("enum ")),
+            nodes::TypeKind::Extern => header.push(Node::text("extern ")),
+            nodes::TypeKind::Regular => {}
         }
 
         header.push(Node::text(&node.name.name));
@@ -769,7 +769,7 @@ impl Document {
 
         while let Some(expr) = iter.next() {
             let trailing = match iter.peek() {
-                Some(ClassExpression::Comment(next))
+                Some(TypeExpression::Comment(next))
                     if next.location.is_trailing(expr.location()) =>
                 {
                     iter.next();
@@ -780,18 +780,18 @@ impl Document {
 
             let next = iter.peek();
             let (node, tight) = match expr {
-                ClassExpression::DefineMethod(n) => {
+                TypeExpression::DefineMethod(n) => {
                     (self.define_method(n), false)
                 }
-                ClassExpression::DefineField(n) => (
+                TypeExpression::DefineField(n) => (
                     self.define_field(n),
-                    matches!(next, Some(ClassExpression::DefineField(_))),
+                    matches!(next, Some(TypeExpression::DefineField(_))),
                 ),
-                ClassExpression::DefineConstructor(n) => (
+                TypeExpression::DefineConstructor(n) => (
                     self.define_constructor(n),
-                    matches!(next, Some(ClassExpression::DefineConstructor(_))),
+                    matches!(next, Some(TypeExpression::DefineConstructor(_))),
                 ),
-                ClassExpression::Comment(n) => (self.comment(n), true),
+                TypeExpression::Comment(n) => (self.comment(n), true),
             };
 
             exprs.push(node);
@@ -821,12 +821,12 @@ impl Document {
             ]
         };
 
-        let class = vec![
+        let typ = vec![
             Node::Group(header_id, header),
             Node::WrapIf(header_id, Box::new(self.group(body))),
         ];
 
-        self.gen.generate(Node::Nodes(class));
+        self.gen.generate(Node::Nodes(typ));
         self.gen.new_line();
     }
 
@@ -930,10 +930,10 @@ impl Document {
         self.gen.new_line();
     }
 
-    fn reopen_class(&mut self, node: &nodes::ReopenClass) {
+    fn reopen_type(&mut self, node: &nodes::ReopenType) {
         let header_id = self.new_group_id();
         let mut header =
-            vec![Node::text("impl "), Node::text(&node.class_name.name)];
+            vec![Node::text("impl "), Node::text(&node.type_name.name)];
 
         if let Some(node) = &node.bounds {
             header.push(self.type_bounds(node));
@@ -959,7 +959,7 @@ impl Document {
             self.type_name(&node.trait_name, None),
             Node::SpaceOrLine,
             Node::text("for "),
-            Node::text(&node.class_name.name),
+            Node::text(&node.type_name.name),
         ];
         let mut header = vec![self.group(start)];
 
@@ -1862,7 +1862,7 @@ impl Document {
 
             // When parentheses are explicitly used for expressions such as
             // `User()` and `foo.User()`, we retain the parentheses as they
-            // might be used to create an instance of a new class.
+            // might be used to create an instance of a new type.
             if node.is_some()
                 && node.map_or(false, |v| v.values.is_empty())
                 && name.chars().next().map_or(false, |v| v.is_uppercase())
@@ -2072,7 +2072,7 @@ impl Document {
         let arrow_sep = if matches!(
             node.pattern,
             nodes::Pattern::Or(_)
-                | nodes::Pattern::Class(_)
+                | nodes::Pattern::Type(_)
                 | nodes::Pattern::Tuple(_)
                 | nodes::Pattern::Identifier(_)
         ) || node.guard.is_some()
@@ -2144,7 +2144,7 @@ impl Document {
 
                 group
             }
-            nodes::Pattern::Class(n) => {
+            nodes::Pattern::Type(n) => {
                 let gid = self.new_group_id();
                 let vals = self.list(&n.values, gid, |this, pat| {
                     let group = vec![

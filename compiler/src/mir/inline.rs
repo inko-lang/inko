@@ -32,7 +32,7 @@ fn instruction_weight(db: &Database, instruction: &Instruction) -> u16 {
         // give them a weight of zero. Regular allocations and spawning
         // processes translate into a function call, so we give them the same
         // weight as calls.
-        Instruction::Allocate(ins) if ins.class.is_stack_allocated(db) => 0,
+        Instruction::Allocate(ins) if ins.type_id.is_stack_allocated(db) => 0,
         Instruction::Allocate(_) => 1,
         Instruction::Spawn(_) => 1,
 

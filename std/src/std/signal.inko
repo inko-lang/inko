@@ -96,7 +96,7 @@ let SIGWINCH = 28
 # This type doesn't support all possible signals, instead it only supports the
 # signals deemed useful and safe to use. Refer to the module documentation for
 # more details.
-class pub copy enum Signal {
+type pub copy enum Signal {
   # The SIGHUP signal.
   case Hangup
 

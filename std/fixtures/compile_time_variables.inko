@@ -5,7 +5,7 @@ let pub INT = 42
 let pub BOOL = true
 let PRIVATE = 42
 
-class async Main {
+type async Main {
   fn async main {
     let out = Stdout.new
 

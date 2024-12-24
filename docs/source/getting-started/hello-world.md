@@ -10,7 +10,7 @@ terminal. Create a file called `hello.inko` with the following contents:
 ```inko
 import std.stdio (Stdout)
 
-class async Main {
+type async Main {
   fn async main {
     Stdout.new.print('Hello, world!')
   }
@@ -37,7 +37,7 @@ This imports the `Stdout` type, used for writing text to the terminal's standard
 output stream. After the import we encounter the following:
 
 ```inko
-class async Main {
+type async Main {
   fn async main {
 
   }
@@ -45,7 +45,7 @@ class async Main {
 ```
 
 Inko uses lightweight processes (which we'll cover separately), which are
-defined using the syntax `class async NAME { ... }`. The main process is always
+defined using the syntax `type async NAME { ... }`. The main process is always
 called "Main", and is required to define an "async" instance method called
 "main".
 

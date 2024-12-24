@@ -7,7 +7,7 @@ import std.sys (Stream)
 import std.sys.unix.fs
 import std.sys.unix.stdio
 
-class FileActions {
+type FileActions {
   let @raw: libc.PosixSpawnFileActions
   let @close: Array[Int32]
 
@@ -86,7 +86,7 @@ impl Drop for FileActions {
   }
 }
 
-class StringPointers {
+type StringPointers {
   let @raw: Pointer[UInt64]
 
   fn static new(size: Int) -> StringPointers {
@@ -257,7 +257,7 @@ fn exit(status: Int) -> Never {
   libc.exit(status as Int32)
 }
 
-class ChildProcess {
+type ChildProcess {
   let @id: Int32
   let @stdin: Option[Int32]
   let @stdout: Option[Int32]

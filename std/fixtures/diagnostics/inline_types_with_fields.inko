@@ -1,20 +1,20 @@
-class inline A {
+type inline A {
   let @value: Int
 }
 
-class inline B {
+type inline B {
   let @value1: A
   let @value2: C
 }
 
-class extern C {
+type extern C {
   let @value: Int
 }
 
-class inline D[T] {
+type inline D[T] {
   let @value: T
 }
 
-class inline E {
+type inline E {
   let @valid: D[Int]
 }

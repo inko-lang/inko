@@ -9,7 +9,7 @@ import std.string (ToString)
 let HEX_DIGITS = '0123456789abcdef'
 
 # A fixed-size block of bytes.
-class pub Block {
+type pub Block {
   let @bytes: ByteArray
 
   # The index to write the next byte to.
@@ -117,7 +117,7 @@ class pub Block {
 # trait to implement. In addition it's aimed at hasher related to cryptography,
 # such as SHA256 and Poly1305. This type isn't suitable for hashing arbitrary
 # Inko types.
-class pub inline Hash {
+type pub inline Hash {
   # The bytes that make up this Hash.
   let pub @bytes: ByteArray
 

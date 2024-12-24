@@ -51,7 +51,7 @@ fn hash_key(db: &Database, method: MethodId, shapes: &[Shape]) -> String {
 
 #[derive(Copy, Clone)]
 pub(crate) struct Method {
-    /// The index of this method in the owning class' method table.
+    /// The index of this method in the owning type's method table.
     pub(crate) index: u16,
 
     /// The hash code to use for dynamic dispatch.
@@ -69,7 +69,7 @@ pub(crate) struct Methods {
     /// This `Vec` is indexed using `MethodId` values.
     pub(crate) info: Vec<Method>,
 
-    /// The number of method slots for each class.
+    /// The number of method slots for each type.
     ///
     /// This `Vec` is indexed using `ClassId` values.
     pub(crate) counts: Vec<usize>,
@@ -79,7 +79,7 @@ impl Methods {
     pub(crate) fn new(db: &Database, mir: &Mir) -> Methods {
         let dummy_method = Method { index: 0, hash: 0, collision: false };
         let mut info = vec![dummy_method; db.number_of_methods()];
-        let mut counts = vec![0; db.number_of_classes()];
+        let mut counts = vec![0; db.number_of_types()];
         let mut method_hasher = MethodHasher::new();
 
         // This information is defined first so we can update the `collision`
@@ -93,22 +93,22 @@ impl Methods {
             }
         }
 
-        // `mir.classes` is a HashMap, and the order of iterating over a HashMap
+        // `mir.types` is a HashMap, and the order of iterating over a HashMap
         // isn't consistent. Should there be conflicting hashes, the order in
-        // which classes (and thus methods) are processed may affect the hash
+        // which types (and thus methods) are processed may affect the hash
         // code. By sorting the list of IDs first and iterating over that, we
         // ensure we always process the data in a consistent order.
-        let mut ids = mir.classes.keys().cloned().collect::<Vec<_>>();
+        let mut ids = mir.types.keys().cloned().collect::<Vec<_>>();
 
         ids.sort_by_key(|i| i.name(db));
 
         for id in ids {
-            let mir_class = &mir.classes[&id];
+            let mir_typ = &mir.types[&id];
 
-            // We size classes larger than actually needed in an attempt to
+            // We size types larger than actually needed in an attempt to
             // reduce collisions when performing dynamic dispatch.
             let methods_len = max(
-                round_methods(mir_class.instance_methods_count(db))
+                round_methods(mir_typ.instance_methods_count(db))
                     * METHOD_TABLE_FACTOR,
                 METHOD_TABLE_MIN_SIZE,
             );
@@ -125,12 +125,12 @@ impl Methods {
                 buckets[DROPPER_INDEX as usize] = true;
             }
 
-            let is_closure = mir_class.id.is_closure(db);
+            let is_closure = mir_typ.id.is_closure(db);
 
             // Define the method signatures once (so we can cheaply retrieve
             // them whenever needed), and assign the methods to their method
             // table slots.
-            for &method in &mir_class.methods {
+            for &method in &mir_typ.methods {
                 let name = method.name(db);
                 let hash =
                     method_hasher.hash(hash_key(db, method, method.shapes(db)));
@@ -164,7 +164,7 @@ impl Methods {
 
                 // We track collisions so we can generate more optimal dynamic
                 // dispatch code if we statically know one method never collides
-                // with another method in the same class.
+                // with another method in the same type.
                 if collision {
                     if let Some(orig) = method.original_method(db) {
                         if let Some(calls) = mir.dynamic_calls.get(&orig) {

@@ -1,25 +1,25 @@
 import std.drop (drop)
 import std.test (Tests)
 
-class enum Letter {
+type enum Letter {
   case A
   case B
   case C
 }
 
-class enum State {
+type enum State {
   case Closed
   case Button(State)
 }
 
-class Dummy {}
+type Dummy {}
 
-class enum Transition {
+type enum Transition {
   case Empty(Dummy)
   case Split(Transition)
 }
 
-class Person {
+type Person {
   let @name: String
 }
 

@@ -8,7 +8,7 @@ Documentation is written using
 [Markdown](https://en.wikipedia.org/wiki/Markdown), specifically using the
 [inko-markdown](https://github.com/yorickpeterse/inko-markdown) dialect.
 
-Symbols (methods, classes, etc) are documented by placing one or more comments
+Symbols (methods, types, etc) are documented by placing one or more comments
 before them, without empty lines between the comments or between the last
 comment and the start of the symbol:
 
@@ -27,14 +27,14 @@ import std.string (StringBuffer)
 fn example {}
 ```
 
-If the module documentation is followed by a symbol (e.g. a class), ensure
+If the module documentation is followed by a symbol (e.g. a type), ensure
 there's an empty line after the comment, otherwise it's treated as the
 documentation for the symbol:
 
 ```inko
-# This documents the _module_ and not the class.
+# This documents the _module_ and not the type.
 
-class Example {}
+type Example {}
 ```
 
 The following can be documented:
@@ -44,7 +44,7 @@ The following can be documented:
 - Module methods
 - Classes
 - Traits
-- Methods defined on a class
+- Methods defined on a type
 - Methods defined in an `impl` block
 - Methods defined in a trait
 

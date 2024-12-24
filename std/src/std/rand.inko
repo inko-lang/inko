@@ -34,7 +34,7 @@ fn extern inko_random_bytes(
 #
 # The algorithm used is unspecified but guaranteed to be cryptographically
 # secure.
-class pub Random {
+type pub Random {
   # The internal/low-level random number generator.
   let @rng: Pointer[UInt8]
 
@@ -132,7 +132,7 @@ impl Drop for Random {
 }
 
 # A type for sorting arrays in a random order.
-class pub inline Shuffle {
+type pub inline Shuffle {
   let @rng: Random
 
   # Returns a new `Shuffle` that sorts values in a random order.

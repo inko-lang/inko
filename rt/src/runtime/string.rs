@@ -17,7 +17,7 @@ pub unsafe extern "system" fn inko_string_new(
     let bytes = slice::from_raw_parts(bytes, length).to_vec();
     let string = String::from_utf8_unchecked(bytes);
 
-    InkoString::alloc((*state).string_class, string)
+    InkoString::alloc((*state).string_type, string)
 }
 
 #[no_mangle]
@@ -33,7 +33,7 @@ pub unsafe extern "system" fn inko_string_concat(
         buffer.push_str(InkoString::read(val));
     }
 
-    InkoString::alloc((*state).string_class, buffer)
+    InkoString::alloc((*state).string_type, buffer)
 }
 
 #[no_mangle]
@@ -47,7 +47,7 @@ pub unsafe extern "system" fn inko_string_to_lower(
     string: *const InkoString,
 ) -> *const InkoString {
     InkoString::alloc(
-        (*state).string_class,
+        (*state).string_type,
         InkoString::read(string).to_lowercase(),
     )
 }
@@ -58,7 +58,7 @@ pub unsafe extern "system" fn inko_string_to_upper(
     string: *const InkoString,
 ) -> *const InkoString {
     InkoString::alloc(
-        (*state).string_class,
+        (*state).string_type,
         InkoString::read(string).to_uppercase(),
     )
 }
@@ -70,7 +70,7 @@ pub unsafe extern "system" fn inko_string_to_byte_array(
 ) -> *mut ByteArray {
     let bytes = InkoString::read(string).as_bytes().to_vec();
 
-    ByteArray::alloc((*state).byte_array_class, bytes)
+    ByteArray::alloc((*state).byte_array_type, bytes)
 }
 
 #[no_mangle]
@@ -132,8 +132,7 @@ pub unsafe extern "system" fn inko_string_chars_next(
 
     iter.next()
         .map(|v| {
-            let string =
-                InkoString::alloc((*state).string_class, v.to_string());
+            let string = InkoString::alloc((*state).string_type, v.to_string());
 
             InkoResult::ok(string as _)
         })
@@ -169,5 +168,5 @@ pub unsafe extern "system" fn inko_string_from_pointer(
 ) -> *const InkoString {
     let val = CStr::from_ptr(ptr).to_string_lossy().into_owned();
 
-    InkoString::alloc((*state).string_class, val)
+    InkoString::alloc((*state).string_type, val)
 }

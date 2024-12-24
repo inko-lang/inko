@@ -146,7 +146,7 @@ fn char(byte: Int) -> String {
 # End users don't really care about the difference between
 # RecursionLimitExceeded and InvalidSurrogate(...), nor can they really act
 # differently based on the kind of error.
-class pub inline enum ErrorKind {
+type pub inline enum ErrorKind {
   # The maximum recursion limit is exceeded.
   case RecursionLimitExceeded(Int)
 
@@ -201,7 +201,7 @@ impl ToString for ErrorKind {
 }
 
 # A type describing an error produced while parsing a JSON document.
-class pub inline Error {
+type pub inline Error {
   # A value describing the kind of error.
   let pub @kind: ErrorKind
 
@@ -284,7 +284,7 @@ impl ToString for Error {
 # and `Query.index` to get the value of an array index. Methods such as
 # `Query.as_string` and `Query.as_int` are used to extract the final value as a
 # certain type, if such a value is present.
-class pub inline Query {
+type pub inline Query {
   let @value: Option[ref Json]
 
   # Returns a `Query` that matches the value assigned to the object key `name`,
@@ -437,7 +437,7 @@ class pub inline Query {
 }
 
 # A JSON value, such as `true` or an array.
-class pub inline enum Json {
+type pub inline enum Json {
   case Int(Int)
   case Float(Float)
   case String(String)
@@ -550,7 +550,7 @@ impl Equal[ref Json] for Json {
 }
 
 # A numeric value that's either an `Int` or a `Float`.
-class pub inline enum Number {
+type pub inline enum Number {
   case Int(Int)
   case Float(Float)
 }
@@ -576,7 +576,7 @@ impl FormatTrait for Number {
 
 # A type describing what kind of value is located at the current position in an
 # input stream.
-class pub inline enum Type {
+type pub inline enum Type {
   case Array
   case Bool
   case Null
@@ -654,7 +654,7 @@ impl FormatTrait for Type {
 #   .parse
 #   .get
 # ```
-class pub PullParser[T: mut + Read] {
+type pub PullParser[T: mut + Read] {
   let @input: BufferedReader[T]
   let @offset: Int
   let @buffer: ByteArray
@@ -1294,7 +1294,7 @@ class pub PullParser[T: mut + Read] {
 }
 
 # A parsing rule defined for an `ObjectParser`.
-class pub Rule[T: mut + Read] {
+type pub Rule[T: mut + Read] {
   let @id: Int
   let @parser: fn (mut PullParser[T]) -> Result[Nil, Error]
   let @required: Bool
@@ -1324,7 +1324,7 @@ class pub Rule[T: mut + Read] {
 # obj.int('b', fn (v) { nums.push(v) }).optional
 # obj.parse(parser).or_panic('failed to parse the JSON')
 # ```
-class pub inline ObjectParser[T: mut + Read] {
+type pub inline ObjectParser[T: mut + Read] {
   # The keys to parse along with the closures that parse their values.
   let @rules: Map[String, Rule[T]]
 
@@ -1437,7 +1437,7 @@ class pub inline ObjectParser[T: mut + Read] {
 # This parser enforces a limit on the number of nested arrays and objects. The
 # default is sufficiently large that most documents won't result in an error
 # being thrown. This limit is controlled by the field `Parser.max_depth`.
-class pub Parser[T: mut + Read] {
+type pub Parser[T: mut + Read] {
   let @pull: PullParser[T]
   let @depth: Int
 
@@ -1547,7 +1547,7 @@ class pub Parser[T: mut + Read] {
 # This type is used by `Json.to_string` and `Json.to_pretty_string`. Unless you
 # want to use custom indentation, it's recommended to use these methods instead
 # of using `Generator` directly.
-class pub Generator {
+type pub Generator {
   let @pretty: Bool
   let @spaces: String
   let @depth: Int

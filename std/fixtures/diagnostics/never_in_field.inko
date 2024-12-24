@@ -1,4 +1,4 @@
-class Example {
+type Example {
   let @value: Never
 }
 

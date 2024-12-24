@@ -1,5 +1,5 @@
 use crate::context;
-use crate::mem::{ClassPointer, String as InkoString};
+use crate::mem::{String as InkoString, TypePointer};
 use crate::process::{
     Message, NativeAsyncMethod, Process, ProcessPointer, RescheduleRights,
     StackFrame,
@@ -45,7 +45,7 @@ pub(crate) fn panic(process: ProcessPointer, message: &str) -> ! {
     let _ = write!(
         buffer,
         "\nProcess '{}' ({:#x}) panicked: {}",
-        process.header.class.name,
+        process.header.instance_of.name,
         process.identifier(),
         message
     );
@@ -65,11 +65,11 @@ pub unsafe extern "system" fn inko_process_panic(
 #[no_mangle]
 pub unsafe extern "system" fn inko_process_new(
     mut process: ProcessPointer,
-    class: ClassPointer,
+    instance_of: TypePointer,
 ) -> ProcessPointer {
     let stack = process.thread().stacks.alloc();
 
-    Process::alloc(class, stack)
+    Process::alloc(instance_of, stack)
 }
 
 #[no_mangle]
@@ -161,7 +161,7 @@ pub unsafe extern "system" fn inko_process_stack_frame_name(
 ) -> *const InkoString {
     let val = &(*trace).get_unchecked(index as usize).name;
 
-    InkoString::alloc((*state).string_class, val.clone())
+    InkoString::alloc((*state).string_type, val.clone())
 }
 
 #[no_mangle]
@@ -172,7 +172,7 @@ pub unsafe extern "system" fn inko_process_stack_frame_path(
 ) -> *const InkoString {
     let val = &(*trace).get_unchecked(index as usize).path;
 
-    InkoString::alloc((*state).string_class, val.clone())
+    InkoString::alloc((*state).string_type, val.clone())
 }
 
 #[no_mangle]

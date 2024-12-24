@@ -1,4 +1,4 @@
-class extern Foo {
+type extern Foo {
   let @value: Int32
 }
 

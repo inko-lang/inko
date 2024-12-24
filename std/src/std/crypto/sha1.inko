@@ -33,7 +33,7 @@ import std.endian.big
 let BLOCK_SIZE = 64
 
 # A SHA1 hasher.
-class pub Sha1 {
+type pub Sha1 {
   let @block: Block
   let @words: Array[Int]
   let @size: Int

@@ -13,7 +13,7 @@ To start, create the file `files.inko` with the following contents:
 import std.fs.file (ReadWriteFile)
 import std.stdio (Stdout)
 
-class async Main {
+type async Main {
   fn async main {
     let out = Stdout.new
     let file = ReadWriteFile.new('hello.txt'.to_path).get
@@ -59,7 +59,7 @@ If we just want to read a file, we'd do so as follows:
 import std.fs.file (ReadOnlyFile)
 import std.stdio (Stdout)
 
-class async Main {
+type async Main {
   fn async main {
     let out = Stdout.new
     let file = ReadOnlyFile.new('hello.txt'.to_path).get
@@ -90,7 +90,7 @@ If you just want to write to a file, you'd use the `WriteOnlyFile` type:
 ```inko
 import std.fs.file (WriteOnlyFile)
 
-class async Main {
+type async Main {
   fn async main {
     let file = WriteOnlyFile.new('hello.txt'.to_path).get
 

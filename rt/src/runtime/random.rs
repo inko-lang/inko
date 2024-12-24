@@ -54,7 +54,7 @@ pub unsafe extern "system" fn inko_random_bytes(
         panic(process, &err.to_string());
     }
 
-    ByteArray::alloc((*state).byte_array_class, bytes)
+    ByteArray::alloc((*state).byte_array_type, bytes)
 }
 
 #[no_mangle]

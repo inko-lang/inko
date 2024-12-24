@@ -79,12 +79,12 @@ the following is a compile-time error:
 let mut NUMBER = 42
 ```
 
-Constants can only be defined outside of methods and classes, i.e. like so:
+Constants can only be defined outside of methods and types, i.e. like so:
 
 ```inko
 let NUMBER = 42
 
-class Cat {}
+type Cat {}
 ```
 
 Constants are permanent values and as such are never dropped.

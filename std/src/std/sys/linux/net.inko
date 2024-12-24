@@ -6,10 +6,10 @@ import std.libc.linux (self as sys)
 import std.net.ip (Ipv4Address, Ipv6Address)
 import std.sys.net
 
-fn inline socket(domain: Int, type: Int, protocol: Int) -> Int32 {
-  let type = type | sys.SOCK_CLOEXEC | sys.SOCK_NONBLOCK
+fn inline socket(domain: Int, kind: Int, protocol: Int) -> Int32 {
+  let kind = kind | sys.SOCK_CLOEXEC | sys.SOCK_NONBLOCK
 
-  libc.socket(domain as Int32, type as Int32, protocol as Int32)
+  libc.socket(domain as Int32, kind as Int32, protocol as Int32)
 }
 
 fn inline accept(fd: Int32) -> Int32 {

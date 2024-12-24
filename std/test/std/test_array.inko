@@ -4,7 +4,7 @@ import std.drop (Drop, drop)
 import std.fmt (fmt)
 import std.test (Tests)
 
-class Person {
+type Person {
   let @name: String
   let @age: Int
 }
@@ -15,7 +15,7 @@ impl Compare[Person] for Person {
   }
 }
 
-class Counter {
+type Counter {
   let @value: Int
 
   fn static new -> Counter {
@@ -23,7 +23,7 @@ class Counter {
   }
 }
 
-class TrackDrop {
+type TrackDrop {
   let @counter: mut Counter
 
   fn static new(counter: mut Counter) -> TrackDrop {

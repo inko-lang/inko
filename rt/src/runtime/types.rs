@@ -1,31 +1,26 @@
-use crate::mem::{Class, ClassPointer};
+use crate::mem::{Type, TypePointer};
 use std::{ffi::CStr, os::raw::c_char};
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_class_object(
+pub unsafe extern "system" fn inko_type_object(
     name: *const c_char,
     size: u32,
     methods: u16,
-) -> ClassPointer {
+) -> TypePointer {
     let name =
         String::from_utf8_lossy(CStr::from_ptr(name).to_bytes()).into_owned();
 
-    Class::object(name, size, methods)
+    Type::object(name, size, methods)
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_class_process(
+pub unsafe extern "system" fn inko_type_process(
     name: *const c_char,
     size: u32,
     methods: u16,
-) -> ClassPointer {
+) -> TypePointer {
     let name =
         String::from_utf8_lossy(CStr::from_ptr(name).to_bytes()).into_owned();
 
-    Class::process(name, size, methods)
-}
-
-#[no_mangle]
-pub unsafe extern "system" fn inko_class_drop(class: ClassPointer) {
-    Class::drop(class);
+    Type::process(name, size, methods)
 }

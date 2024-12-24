@@ -2,7 +2,7 @@ import std.libc
 
 fn extern inko_time_monotonic(state: Pointer[UInt8]) -> Int
 
-class copy RawDateTime {
+type copy RawDateTime {
   let @year: Int
   let @month: Int
   let @day: Int

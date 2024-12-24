@@ -1,10 +1,10 @@
-class A[T: mut] {}
+type A[T: mut] {}
 
-class B[T: copy] {}
+type B[T: copy] {}
 
-class C[T: copy + mut] {}
+type C[T: copy + mut] {}
 
-class D[T: copy + mut] {}
+type D[T: copy + mut] {}
 
-# type_parameter_requirements.inko:5:19 error(invalid-type): type parameters can't be both 'mut' and 'copy', as 'copy' types are immutable
-# type_parameter_requirements.inko:7:19 error(invalid-type): type parameters can't be both 'mut' and 'copy', as 'copy' types are immutable
+# type_parameter_requirements.inko:5:18 error(invalid-type): type parameters can't be both 'mut' and 'copy', as 'copy' types are immutable
+# type_parameter_requirements.inko:7:18 error(invalid-type): type parameters can't be both 'mut' and 'copy', as 'copy' types are immutable

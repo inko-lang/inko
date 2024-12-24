@@ -1,12 +1,12 @@
 import std.test (Tests)
 
-class extern Foo {
+type extern Foo {
   let @foo: Int32
   let @bar: Int32
   let @baz: Pointer[Foo]
 }
 
-class Bar {
+type Bar {
   let @value: Int64
 
   fn mut ptr1 -> Pointer[Int64] {

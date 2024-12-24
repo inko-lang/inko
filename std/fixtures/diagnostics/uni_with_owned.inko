@@ -2,7 +2,7 @@ trait Eq[T] {
   fn eq(other: T)
 }
 
-class Thing {}
+type Thing {}
 
 impl Eq[uni Thing] for Thing {
   fn eq(other: uni Thing) {}

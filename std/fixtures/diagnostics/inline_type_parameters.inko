@@ -1,4 +1,4 @@
-class Example[T: copy] {
+type Example[T: copy] {
   let @value: T
 }
 

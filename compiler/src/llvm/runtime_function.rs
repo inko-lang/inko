@@ -4,8 +4,8 @@ use inkwell::values::FunctionValue;
 #[derive(Copy, Clone)]
 pub(crate) enum RuntimeFunction {
     ReferenceCountError,
-    ClassObject,
-    ClassProcess,
+    NewType,
+    NewProcess,
     ProcessFinishMessage,
     ProcessNew,
     ProcessPanic,
@@ -28,8 +28,8 @@ impl RuntimeFunction {
             RuntimeFunction::ReferenceCountError => {
                 "inko_reference_count_error"
             }
-            RuntimeFunction::ClassObject => "inko_class_object",
-            RuntimeFunction::ClassProcess => "inko_class_process",
+            RuntimeFunction::NewType => "inko_type_object",
+            RuntimeFunction::NewProcess => "inko_type_process",
             RuntimeFunction::ProcessFinishMessage => {
                 "inko_process_finish_message"
             }
@@ -98,11 +98,11 @@ impl RuntimeFunction {
             }
             RuntimeFunction::RuntimeStart => {
                 let runtime = context.pointer_type().into();
-                let class = context.pointer_type().into();
+                let typ = context.pointer_type().into();
                 let method = context.pointer_type().into();
                 let ret = context.void_type();
 
-                ret.fn_type(&[runtime, class, method], false)
+                ret.fn_type(&[runtime, typ, method], false)
             }
             RuntimeFunction::RuntimeState => {
                 let runtime = context.pointer_type().into();
@@ -110,7 +110,7 @@ impl RuntimeFunction {
 
                 ret.fn_type(&[runtime], false)
             }
-            RuntimeFunction::ClassObject | RuntimeFunction::ClassProcess => {
+            RuntimeFunction::NewType | RuntimeFunction::NewProcess => {
                 let name = context.pointer_type().into();
                 let size = context.i32_type().into();
                 let methods = context.i16_type().into();
@@ -130,10 +130,10 @@ impl RuntimeFunction {
             }
             RuntimeFunction::ProcessNew => {
                 let process = context.pointer_type().into();
-                let class = context.pointer_type().into();
+                let typ = context.pointer_type().into();
                 let ret = context.pointer_type();
 
-                ret.fn_type(&[process, class], false)
+                ret.fn_type(&[process, typ], false)
             }
             RuntimeFunction::StringConcat => {
                 let state = context.pointer_type().into();

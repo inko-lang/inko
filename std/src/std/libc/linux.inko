@@ -93,14 +93,14 @@ let S_IFREG = 0x8000
 let TCP_NODELAY = 1
 let WNOHANG = 0x00000001
 
-class extern Dirent {
+type extern Dirent {
   let @d_ino: UInt64
   let @d_off: UInt64
   let @d_reclen: UInt16
   let @d_type: UInt8
 }
 
-class extern StatxBuf {
+type extern StatxBuf {
   let @stx_mask: UInt32
   let @stx_blksize: UInt32
   let @stx_attributes: UInt64
@@ -138,13 +138,13 @@ class extern StatxBuf {
   let @__pad12: UInt64
 }
 
-class extern StatxTimestamp {
+type extern StatxTimestamp {
   let @tv_sec: Int64
   let @tv_nsec: UInt32
   let @__pad0: Int32
 }
 
-class extern SigSet {
+type extern SigSet {
   let @__val0: UInt64
   let @__val1: UInt64
   let @__val2: UInt64
@@ -163,7 +163,7 @@ class extern SigSet {
   let @__val15: UInt64
 }
 
-class extern PosixSpawnAttrs {
+type extern PosixSpawnAttrs {
   let @__flags: Int16
   let @__pgrp: Int32
   let @__sd: SigSet
@@ -188,7 +188,7 @@ class extern PosixSpawnAttrs {
   let @__pad14: Int32
 }
 
-class extern PosixSpawnFileActions {
+type extern PosixSpawnFileActions {
   let @__allocated: Int32
   let @__used: Int32
   let @__actions: Pointer[UInt8]
@@ -210,19 +210,19 @@ class extern PosixSpawnFileActions {
   let @__pad15: Int32
 }
 
-class extern Pipes {
+type extern Pipes {
   let @reader: Int32
   let @writer: Int32
 }
 
-class extern SockAddrIn {
+type extern SockAddrIn {
   let @sin_family: UInt16
   let @sin_port: UInt16
   let @sin_addr: UInt32
   let @sin_zero: UInt64
 }
 
-class extern SockAddrIn6 {
+type extern SockAddrIn6 {
   let @sin6_family: UInt16
   let @sin6_port: UInt16
   let @sin6_flowinfo: UInt32
@@ -233,7 +233,7 @@ class extern SockAddrIn6 {
   let @sin6_scope_id: UInt32
 }
 
-class extern SockAddrUn {
+type extern SockAddrUn {
   let @sun_family: UInt16
   let @sun_path0: UInt8
   let @sun_path1: UInt8
@@ -345,7 +345,7 @@ class extern SockAddrUn {
   let @sun_path107: UInt8
 }
 
-class extern SockAddr {
+type extern SockAddr {
   let @sa_family: UInt16
   let @sa_data0: UInt8
   let @sa_data1: UInt8
@@ -363,7 +363,7 @@ class extern SockAddr {
   let @sa_data13: UInt8
 }
 
-class extern SockAddrStorage {
+type extern SockAddrStorage {
   let @ss_family: UInt16
   let @__pad0: UInt16
   let @__pad1: UInt32

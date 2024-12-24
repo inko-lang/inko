@@ -8,7 +8,7 @@ use std::mem::take;
 use std::path::Path;
 use types::format::{format_type, type_parameter_capabilities};
 use types::{
-    ClassId, ClassKind, Database, MethodId, ModuleId, TraitId, TypeBounds,
+    Database, MethodId, ModuleId, TraitId, TypeBounds, TypeId, TypeKind,
 };
 
 fn location_to_json(location: Location) -> Json {
@@ -25,12 +25,12 @@ fn location_to_json(location: Location) -> Json {
     Json::Object(obj)
 }
 
-fn class_kind(kind: ClassKind, stack: bool) -> i64 {
+fn type_kind(kind: TypeKind, stack: bool) -> i64 {
     match kind {
-        ClassKind::Enum => 1,
-        ClassKind::Async => 2,
-        ClassKind::Extern => 3,
-        ClassKind::Atomic => 5,
+        TypeKind::Enum => 1,
+        TypeKind::Async => 2,
+        TypeKind::Extern => 3,
+        TypeKind::Atomic => 5,
         _ if stack => 4,
         _ => 0,
     }
@@ -115,21 +115,21 @@ impl<'a> DefineDocumentation<'a> {
 
         for expr in &mut module.expressions {
             match expr {
-                hir::TopLevelExpression::Class(n) => {
-                    n.class_id.unwrap().set_documentation(
+                hir::TopLevelExpression::Type(n) => {
+                    n.type_id.unwrap().set_documentation(
                         self.db_mut(),
                         take(&mut n.documentation),
                     );
 
-                    self.define_class(&mut *n);
+                    self.define_type(&mut *n);
                 }
-                hir::TopLevelExpression::ExternClass(n) => {
-                    n.class_id.unwrap().set_documentation(
+                hir::TopLevelExpression::ExternType(n) => {
+                    n.type_id.unwrap().set_documentation(
                         self.db_mut(),
                         take(&mut n.documentation),
                     );
 
-                    self.define_extern_class(&mut *n);
+                    self.define_extern_type(&mut *n);
                 }
                 hir::TopLevelExpression::Constant(n) => {
                     n.constant_id.unwrap().set_documentation(
@@ -161,41 +161,41 @@ impl<'a> DefineDocumentation<'a> {
                     self.implement_trait(&mut *n);
                 }
                 hir::TopLevelExpression::Reopen(n) => {
-                    self.reopen_class(&mut *n);
+                    self.reopen_type(&mut *n);
                 }
                 _ => {}
             }
         }
     }
 
-    fn define_class(&mut self, node: &mut hir::DefineClass) {
+    fn define_type(&mut self, node: &mut hir::DefineType) {
         for expr in &mut node.body {
             match expr {
-                hir::ClassExpression::InstanceMethod(n) => {
+                hir::TypeExpression::InstanceMethod(n) => {
                     n.method_id.unwrap().set_documentation(
                         self.db_mut(),
                         take(&mut n.documentation),
                     );
                 }
-                hir::ClassExpression::StaticMethod(n) => {
+                hir::TypeExpression::StaticMethod(n) => {
                     n.method_id.unwrap().set_documentation(
                         self.db_mut(),
                         take(&mut n.documentation),
                     );
                 }
-                hir::ClassExpression::AsyncMethod(n) => {
+                hir::TypeExpression::AsyncMethod(n) => {
                     n.method_id.unwrap().set_documentation(
                         self.db_mut(),
                         take(&mut n.documentation),
                     );
                 }
-                hir::ClassExpression::Field(n) => {
+                hir::TypeExpression::Field(n) => {
                     n.field_id.unwrap().set_documentation(
                         self.db_mut(),
                         take(&mut n.documentation),
                     );
                 }
-                hir::ClassExpression::Constructor(n) => {
+                hir::TypeExpression::Constructor(n) => {
                     n.constructor_id.unwrap().set_documentation(
                         self.db_mut(),
                         take(&mut n.documentation),
@@ -205,7 +205,7 @@ impl<'a> DefineDocumentation<'a> {
         }
     }
 
-    fn define_extern_class(&mut self, node: &mut hir::DefineExternClass) {
+    fn define_extern_type(&mut self, node: &mut hir::DefineExternType) {
         for n in &mut node.fields {
             n.field_id
                 .unwrap()
@@ -240,22 +240,22 @@ impl<'a> DefineDocumentation<'a> {
         }
     }
 
-    fn reopen_class(&mut self, node: &mut hir::ReopenClass) {
+    fn reopen_type(&mut self, node: &mut hir::ReopenType) {
         for expr in &mut node.body {
             match expr {
-                hir::ReopenClassExpression::InstanceMethod(n) => {
+                hir::ReopenTypeExpression::InstanceMethod(n) => {
                     n.method_id.unwrap().set_documentation(
                         self.db_mut(),
                         take(&mut n.documentation),
                     );
                 }
-                hir::ReopenClassExpression::StaticMethod(n) => {
+                hir::ReopenTypeExpression::StaticMethod(n) => {
                     n.method_id.unwrap().set_documentation(
                         self.db_mut(),
                         take(&mut n.documentation),
                     );
                 }
-                hir::ReopenClassExpression::AsyncMethod(n) => {
+                hir::ReopenTypeExpression::AsyncMethod(n) => {
                     n.method_id.unwrap().set_documentation(
                         self.db_mut(),
                         take(&mut n.documentation),
@@ -319,7 +319,7 @@ impl<'a> GenerateDocumentation<'a> {
         doc.add("documentation", Json::String(docs));
         doc.add("constants", self.constants());
         doc.add("methods", self.module_methods());
-        doc.add("classes", self.classes());
+        doc.add("types", self.types());
         doc.add("traits", self.traits());
 
         let path =
@@ -373,10 +373,10 @@ impl<'a> GenerateDocumentation<'a> {
         self.methods(methods)
     }
 
-    fn classes(&self) -> Json {
+    fn types(&self) -> Json {
         let mut vals = Vec::new();
 
-        for id in self.module.classes(self.db()) {
+        for id in self.module.types(self.db()) {
             let kind = id.kind(self.db());
 
             if kind.is_closure() || kind.is_module() {
@@ -395,14 +395,14 @@ impl<'a> GenerateDocumentation<'a> {
             let is_inline = id.is_inline_type(self.db());
             let mut obj = Object::new();
             let typ = format!(
-                "class{}{} {}",
+                "type{}{} {}",
                 if public { " pub" } else { "" },
                 match kind {
-                    ClassKind::Enum if is_copy => " copy enum",
-                    ClassKind::Enum if is_inline => " inline enum",
-                    ClassKind::Enum => " enum",
-                    ClassKind::Async => " async",
-                    ClassKind::Extern => " extern",
+                    TypeKind::Enum if is_copy => " copy enum",
+                    TypeKind::Enum if is_inline => " inline enum",
+                    TypeKind::Enum => " enum",
+                    TypeKind::Async => " async",
+                    TypeKind::Extern => " extern",
                     _ if id.is_builtin() => " builtin",
                     _ if is_copy => " copy",
                     _ if is_inline => " inline",
@@ -412,7 +412,7 @@ impl<'a> GenerateDocumentation<'a> {
             );
 
             obj.add("name", Json::String(name));
-            obj.add("kind", Json::Int(class_kind(kind, is_copy)));
+            obj.add("kind", Json::Int(type_kind(kind, is_copy)));
             obj.add("location", location_to_json(id.location(self.db())));
             obj.add("public", Json::Bool(public));
             obj.add("type", Json::String(typ));
@@ -447,12 +447,12 @@ impl<'a> GenerateDocumentation<'a> {
             }
 
             let mut obj = Object::new();
-            let class_name = cid.name(self.db()).clone();
+            let tname = cid.name(self.db()).clone();
             let module = cid.module(self.db()).name(self.db()).to_string();
             let mut typ = format!(
                 "impl {} for {}",
                 format_type(self.db(), imp.instance),
-                class_name,
+                tname,
             );
 
             if !imp.bounds.is_empty() {
@@ -460,7 +460,7 @@ impl<'a> GenerateDocumentation<'a> {
             }
 
             obj.add("module", Json::String(module));
-            obj.add("name", Json::String(class_name));
+            obj.add("name", Json::String(tname));
             obj.add("type", Json::String(typ));
             obj.add("public", Json::Bool(public));
             vals.push(Json::Object(obj));
@@ -469,7 +469,7 @@ impl<'a> GenerateDocumentation<'a> {
         Json::Array(vals)
     }
 
-    fn implemented_traits(&self, id: ClassId) -> Json {
+    fn implemented_traits(&self, id: TypeId) -> Json {
         let mut vals = Vec::new();
 
         for imp in id.implemented_traits(self.db()) {
@@ -573,7 +573,7 @@ impl<'a> GenerateDocumentation<'a> {
         Json::Array(vals)
     }
 
-    fn constructors(&self, id: ClassId) -> Json {
+    fn constructors(&self, id: TypeId) -> Json {
         let mut cons = Vec::new();
 
         for con in id.constructors(self.db()) {
@@ -599,7 +599,7 @@ impl<'a> GenerateDocumentation<'a> {
         Json::Array(cons)
     }
 
-    fn fields(&self, id: ClassId) -> Json {
+    fn fields(&self, id: TypeId) -> Json {
         let mut fields = Vec::new();
 
         for field in id.fields(self.db()) {

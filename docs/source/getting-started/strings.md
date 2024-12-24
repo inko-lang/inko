@@ -46,7 +46,7 @@ produce many intermediate `String` instances. To work around this, the type
 ```inko
 import std.string (StringBuffer)
 
-class async Main {
+type async Main {
   fn async main {
     let buf = StringBuffer.new
 

@@ -3,7 +3,7 @@ import std.fmt (fmt)
 import std.io (Buffer, Error as IoError, Write)
 import std.test (Tests)
 
-class Output {
+type Output {
   let @buffer: ByteArray
   let @flushed: Bool
 

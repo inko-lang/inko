@@ -75,13 +75,13 @@ impl Worker {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test::{empty_process_class, new_process};
+    use crate::test::{empty_process_type, new_process};
     use std::net::UdpSocket;
 
     #[test]
     fn test_add() {
-        let class = empty_process_class("A");
-        let process = new_process(*class);
+        let typ = empty_process_type("A");
+        let process = new_process(*typ);
         let output = UdpSocket::bind("0.0.0.0:0").unwrap();
         let poller = NetworkPoller::new();
 
@@ -92,8 +92,8 @@ mod tests {
     fn test_modify() {
         let output = UdpSocket::bind("0.0.0.0:0").unwrap();
         let poller = NetworkPoller::new();
-        let class = empty_process_class("A");
-        let process = new_process(*class);
+        let typ = empty_process_type("A");
+        let process = new_process(*typ);
 
         poller.add(*process, &output, Interest::Read);
         poller.modify(*process, &output, Interest::Write);
@@ -103,8 +103,8 @@ mod tests {
     fn test_delete() {
         let output = UdpSocket::bind("0.0.0.0:0").unwrap();
         let poller = NetworkPoller::new();
-        let class = empty_process_class("A");
-        let process = new_process(*class);
+        let typ = empty_process_type("A");
+        let process = new_process(*typ);
 
         poller.add(*process, &output, Interest::Write);
         poller.delete(&output);
@@ -114,8 +114,8 @@ mod tests {
     fn test_poll() {
         let output = UdpSocket::bind("0.0.0.0:0").unwrap();
         let poller = NetworkPoller::new();
-        let class = empty_process_class("A");
-        let process = new_process(*class);
+        let typ = empty_process_type("A");
+        let process = new_process(*typ);
         let mut events = sys::Events::with_capacity(1);
 
         poller.add(*process, &output, Interest::Write);
@@ -130,9 +130,9 @@ mod tests {
         let sock1 = UdpSocket::bind("0.0.0.0:0").unwrap();
         let sock2 = UdpSocket::bind("0.0.0.0:0").unwrap();
         let poller = NetworkPoller::new();
-        let class = empty_process_class("A");
-        let proc1 = new_process(*class);
-        let proc2 = new_process(*class);
+        let typ = empty_process_type("A");
+        let proc1 = new_process(*typ);
+        let proc2 = new_process(*typ);
         let mut events = sys::Events::with_capacity(1);
 
         poller.add(*proc1, &sock1, Interest::Write);

@@ -1,6 +1,6 @@
-class pub UnusedClass {}
+type pub UnusedClass {}
 
-class pub UsedClass {}
+type pub UsedClass {}
 
 fn pub unused_method {}
 

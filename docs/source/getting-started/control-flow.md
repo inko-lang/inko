@@ -14,7 +14,7 @@ For conditionals we use `if`:
 ```inko
 import std.stdio (Stdout)
 
-class async Main {
+type async Main {
   fn async main {
     let out = Stdout.new
     let num = 42
@@ -32,7 +32,7 @@ Inko also supports `else if` like so:
 ```inko
 import std.stdio (Stdout)
 
-class async Main {
+type async Main {
   fn async main {
     let out = Stdout.new
     let num = 50
@@ -56,7 +56,7 @@ keywords:
 ```inko
 import std.stdio (Stdout)
 
-class async Main {
+type async Main {
   fn async main {
     let out = Stdout.new
     let num = 50
@@ -85,7 +85,7 @@ Here we use a conditional loop to print a number 10 times:
 ```inko
 import std.stdio (Stdout)
 
-class async Main {
+type async Main {
   fn async main {
     let out = Stdout.new
     let mut num = 0
@@ -121,7 +121,7 @@ import std.process (sleep)
 import std.stdio (Stdout)
 import std.time (Duration)
 
-class async Main {
+type async Main {
   fn async main {
     let out = Stdout.new
     let mut num = 0
@@ -142,7 +142,7 @@ the inner-most loop:
 ```inko
 import std.stdio (Stdout)
 
-class async Main {
+type async Main {
   fn async main {
     let out = Stdout.new
 

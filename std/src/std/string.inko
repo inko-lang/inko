@@ -17,7 +17,7 @@ import std.iter (Iter, Stream)
 import std.ops (Add)
 import std.ptr
 
-class extern StringResult {
+type extern StringResult {
   let @tag: Int
   let @value: Pointer[UInt8]
 }
@@ -151,7 +151,7 @@ trait pub Bytes {
 }
 
 # An UTF-8 encoded and immutable string type.
-class builtin String {
+type builtin String {
   # The size of the string in bytes, _excluding_ the trailing NULL byte.
   let @size: UInt64
 
@@ -902,7 +902,7 @@ impl Compare[String] for String {
 # as the Unicode specification changes. If you want to index into a `String` in
 # a stable way, it's best to calculate the character index, then translate that
 # to a more stable index such as the code point index, or the byte index.
-class pub Chars {
+type pub Chars {
   # The String we're iterating over.
   #
   # We need to maintain a reference to the String, otherwise the underlying
@@ -973,7 +973,7 @@ impl Drop for Chars {
 #
 # buffer.to_string # => 'foobarbaz'
 # ```
-class pub inline StringBuffer {
+type pub inline StringBuffer {
   let @strings: Array[String]
 
   # Returns a new empty `StringBuffer`.

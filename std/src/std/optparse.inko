@@ -168,7 +168,7 @@ fn basic_latin?(byte: Int) -> Bool {
   byte <= 127
 }
 
-class inline enum Token {
+type inline enum Token {
   # A short option, such as `-h`.
   case Short(String)
 
@@ -212,7 +212,7 @@ impl Format for Token {
   }
 }
 
-class inline enum State {
+type inline enum State {
   case Default
   case Rest
   case Value(String)
@@ -220,7 +220,7 @@ class inline enum State {
 
 # A type that breaks up a list of command-line arguments into a series of
 # tokens.
-class Lexer {
+type Lexer {
   let @input: Stream[String]
   let @state: State
 
@@ -346,7 +346,7 @@ fn consume_remaining(lexer: Lexer, remaining: mut Array[String]) {
 }
 
 # A type that describes a parsing error.
-class pub inline enum Error {
+type pub inline enum Error {
   # The given option isn't recognized.
   case InvalidOption(String)
 
@@ -401,7 +401,7 @@ impl Format for Error {
   }
 }
 
-class inline enum Value {
+type inline enum Value {
   case String(String)
   case Flag
 
@@ -423,7 +423,7 @@ impl Clone[Value] for Value {
 }
 
 # A type containing the parsed options and any remaining arguments.
-class pub inline Matches {
+type pub inline Matches {
   # The remaining/unparsed arguments.
   let pub @remaining: Array[String]
 
@@ -519,13 +519,13 @@ class pub inline Matches {
   }
 }
 
-class copy enum Kind {
+type copy enum Kind {
   case Flag
   case Single
   case Multiple
 }
 
-class Opt {
+type Opt {
   let @kind: Kind
   let @short: String
   let @long: String
@@ -534,7 +534,7 @@ class Opt {
 }
 
 # A type that describes the options to parse.
-class pub Options {
+type pub Options {
   # All options that have been defined.
   let @options: Array[Opt]
 
@@ -903,7 +903,7 @@ impl ToString for Options {
 #   -h, --help       Show this help message
 #   -v, --version    Show the version
 # ```
-class pub Help {
+type pub Help {
   # The name of the program/executable.
   let @name: String
 

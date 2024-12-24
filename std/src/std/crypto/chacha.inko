@@ -106,7 +106,7 @@ fn pub hchacha20(key: ref ByteArray, nonce: ref ByteArray) -> ByteArray {
   out
 }
 
-class inline Matrix {
+type inline Matrix {
   let @words: Array[Int]
 
   fn mut quarter_round(a: Int, b: Int, c: Int, d: Int) {
@@ -216,7 +216,7 @@ class inline Matrix {
 #   .decrypt(encrypted)
 #   .to_string # => 'I like turtles'
 # ```
-class pub inline ChaCha20 {
+type pub inline ChaCha20 {
   let @matrix: Matrix
 
   # Returns a new ChaCha20 cipher from the given key and nonce.
@@ -363,7 +363,7 @@ impl Cipher for ChaCha20 {
 # For more information about XChaCha20 and the differences between it and
 # ChaCha20, consider reading the RFC that describes XChaCha20 at
 # <https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-xchacha>.
-class pub inline XChaCha20 {
+type pub inline XChaCha20 {
   let @chacha: ChaCha20
 
   # Returns a new XChaCha20 cipher from the given key and nonce.

@@ -110,7 +110,7 @@ trait pub IntoByteArray {
 # Byte arrays are primarily meant for reading and writing data from/to a stream,
 # such as a file or a socket. If you simply want to store a list of numbers,
 # you're better off using the `Array` type.
-class builtin ByteArray {
+type builtin ByteArray {
   # Returns a new empty `ByteArray`.
   fn pub static new -> ByteArray {
     inko_byte_array_new(_INKO.state)

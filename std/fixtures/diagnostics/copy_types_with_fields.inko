@@ -1,21 +1,21 @@
-class copy A {
+type copy A {
   let @value: Int
 }
 
-class copy B {
+type copy B {
   let @value1: A
   let @value2: C
 }
 
-class extern C {
+type extern C {
   let @value: Int
 }
 
-class copy D[T] {
+type copy D[T] {
   let @value: T
 }
 
-class copy E {
+type copy E {
   let @valid: D[Int]
   let @invalid: D[String]
 }

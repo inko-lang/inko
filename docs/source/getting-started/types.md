@@ -1,30 +1,30 @@
 ---
 {
-  "title": "Classes"
+  "title": "Types"
 }
 ---
 
-Classes are data structures that can store state and define methods. One such
-class we've seen many times so far is the `Main` class, which defines the main
-process to run.
+Types are data structures that can store state and define methods. One such type
+we've seen many times so far is the `Main` type, which defines the main process
+to run.
 
-Classes are defined using the `class` keyword like so:
+Types are defined using the `type` keyword like so:
 
 ```inko
-class Person {
+type Person {
 
 }
 ```
 
-Here `Person` is the name of the class. Inside the curly braces the fields and
-methods of a class are defined.
+Here `Person` is the name of the type. Inside the curly braces the fields and
+methods of a type are defined.
 
 ## Fields
 
 Fields are defined using the `let` keyword:
 
 ```inko
-class Person {
+type Person {
   let @name: String
   let @age: Int
 }
@@ -35,7 +35,7 @@ The `@` symbol isn't part of the name, it's just used to disambiguate the syntax
 when referring to fields. Referring to fields uses the same syntax:
 
 ```inko
-class Person {
+type Person {
   let @name: String
   let @age: Int
 
@@ -54,7 +54,7 @@ mutable, the type of a field is instead `mut T`, unless it's defined as a
 is exposed as-is:
 
 ```inko
-class Person {
+type Person {
   let @name: String
   let @age: Int
   let @grades: ref Array[Int]
@@ -97,7 +97,7 @@ Similar to local variables, `:=` can be used to assign a field a new value and
 return its old value, instead of dropping the old value:
 
 ```inko
-class Person {
+type Person {
   let @name: String
 
   fn mut replace_name(new_name: String) -> String {
@@ -106,12 +106,12 @@ class Person {
 }
 ```
 
-## Initialising classes
+## Initialising types
 
-An instance of a class is created as follows:
+An instance of a type is created as follows:
 
 ```inko
-class Person {
+type Person {
   let @name: String
   let @age: Int
 }
@@ -128,9 +128,9 @@ Person('Alice', 42)
 ```
 
 ::: tip
-It's recommended to avoid the use of positional arguments when a class defines
+It's recommended to avoid the use of positional arguments when a type defines
 more than one field. This ensures that if the order of fields changes, you don't
-need to update every line of code that creates an instance of the class.
+need to update every line of code that creates an instance of the type.
 :::
 
 The fields of an instance can be read from and written to directly, meaning we
@@ -144,12 +144,12 @@ alice.name = 'Bob'
 alice.name # => 'Bob'
 ```
 
-Sometimes creating an instance of a class involves complex logic to assign
+Sometimes creating an instance of a type involves complex logic to assign
 values to certain fields. In this case it's best to create a static method to
 create the instance for you. For example:
 
 ```inko
-class Person {
+type Person {
   let @name: String
   let @age: Int
 
@@ -162,12 +162,12 @@ class Person {
 Of course nothing complex is happening here, instead we're just trying to
 illustrate what using a static method for this might look like.
 
-## Reopening classes
+## Reopening types
 
-A class can be reopened using the `impl` keyword like so:
+A type can be reopened using the `impl` keyword like so:
 
 ```inko
-class Person {
+type Person {
   let @name: String
   let @age: Int
 }
@@ -179,16 +179,15 @@ impl Person {
 }
 ```
 
-When reopening a class, only new methods can be added to the class. It's a
+When reopening a type, only new methods can be added to the type. It's a
 compile-time error to try to add a field or overwrite an existing method.
 
 ## Enums
 
-Inko also has "enum classes", created using `class enum`. Enum classes are used
-to create sum types, also known as enums:
+Inko supports algebraic data types or "enums", defined using `type enum`:
 
 ```inko
-class enum Letter {
+type enum Letter {
   case A
   case B
   case C
@@ -206,10 +205,10 @@ Letter.C
 ```
 
 The constructors in an enum support arguments, allowing you to store data in
-them similar to using regular classes with fields:
+them similar to using regular types with fields:
 
 ```inko
-class enum OptionalString {
+type enum OptionalString {
   case None
   case Some(String)
 }
@@ -221,19 +220,19 @@ We can then create an instance of the `OptionalString.Some` as follows:
 OptionalString.Some('hello')
 ```
 
-Unlike other types of classes, you can't use the syntax `OptionalString(...)`
-to create an instance of an enum class.
+Unlike other types, you can't use the syntax `OptionalString(...)` to create an
+instance of an enum.
 
 ## Inline types
 
-When defining a class using the `class` keyword, instances of such a class are
+When defining a type using the `type` keyword, instances of such a type are
 allocated on the heap and accessed through a pointer. While this gives you the
 greatest amount of flexibility, heap allocations can be expensive if done
 frequently. To work around this, you can define a stack allocated type using the
 `inline` keyword:
 
 ```inko
-class inline Person {
+type inline Person {
   let @name: String
   let @age: Int
 }
@@ -242,27 +241,27 @@ class inline Person {
 The `inline` keyword can also be combined with the `enum` keyword:
 
 ```inko
-class inline enum Letter {
+type inline enum Letter {
   case A
   case B
   case C
 }
 ```
 
-Similar to regular classes, you can borrow instances of `inline` classes and
-still move the instance you are borrowing from around, without the need for
+Similar to regular types, you can borrow instances of `inline` types and still
+move the instance you are borrowing from around, without the need for
 compile-time borrow checking as is necessary in
 [Rust](https://www.rust-lang.org/). This is made possible (and safe) by
 _copying_ the stack allocated data upon borrowing it, and then increasing the
 borrow count for any interior heap values.
 
-This approach does mean that `inline` classes come with some restrictions and
+This approach does mean that `inline` types come with some restrictions and
 caveats:
 
 - Fields can't be assigned new values, as copying the stack data means the
   assignment would only be visible to the copy used by the assignment.
-- Borrowing interior heap data means that if an `inline` class stores 8 heap
-  allocated values, borrowing the `inline` class results in 8 borrow count
+- Borrowing interior heap data means that if an `inline` type stores 8 heap
+  allocated values, borrowing the `inline` type results in 8 borrow count
   increments.
 - Recursive `inline` types aren't supported, and the compiler will emit a
   compile-time error when encountering such types. This restriction exists
@@ -276,10 +275,10 @@ caveats:
 
 Besides supporting regular stack allocated types, Inko also supports stack
 allocated immutable value types. Such types are defined using the `copy` keyword
-when defining a class:
+when defining a type:
 
 ```inko
-class copy Number {
+type copy Number {
   let @value: Int
 }
 ```
@@ -287,13 +286,13 @@ class copy Number {
 The `copy` modifier is also available for enums:
 
 ```inko
-class copy enum Example {
+type copy enum Example {
   case A(Int)
   case B(Float)
 }
 ```
 
-When using this modifier, instances of the class are allocated on the stack and
+When using this modifier, instances of the type are allocated on the stack and
 become _immutable_ value types that are copied upon a move. For the above
 `Number` example that means the memory representation is the same as that of the
 `Int` type.
@@ -304,7 +303,7 @@ to return a new copy of the instance containing the appropriate changes. For
 example:
 
 ```inko
-class copy Number {
+type copy Number {
   let @value: Int
 
   fn increment(amount: Int) -> Number {
@@ -313,7 +312,7 @@ class copy Number {
 }
 ```
 
-Classes defined using the `copy` modifier can only store instances of the
+Types defined using the `copy` modifier can only store instances of the
 following types:
 
 - `Int`, `Float`, `Bool`, `Nil`
@@ -323,7 +322,7 @@ Most notably, `String` values can't be stored in a `copy` type as `String` uses
 atomic reference counting. This means the following definition is invalid:
 
 ```inko
-class copy InvalidType {
+type copy InvalidType {
   let @value: Array[Int] # Array[Int] isn't an `inline` type
 }
 ```
@@ -331,14 +330,14 @@ class copy InvalidType {
 The same restriction applies to generic type parameters:
 
 ```inko
-class copy Box[T] {
+type copy Box[T] {
   let @value: T
 }
 
 Box([10]) # T requires a `copy` type, but `Array[Int]` isn't such a type
 ```
 
-Classes defined using the `copy` keyword can't implement the `std.drop.Drop`
+Types defined using the `copy` keyword can't implement the `std.drop.Drop`
 trait and thus can't define custom destructors. If you need to implement this
 trait, you'll have to use the `inline` keyword instead.
 
@@ -347,7 +346,7 @@ Similar to `inline` types, `copy` types can't be cast to traits.
 ## Inline vs heap types
 
 With Inko supporting both heap and stack allocated types, one might wonder:
-when should I use the `inline` or `copy` modifier when defining a class? To
+when should I use the `inline` or `copy` modifier when defining a type To
 answer this question, ask yourself the following questions:
 
 - Do you need to assign a field a new value?
@@ -357,33 +356,32 @@ answer this question, ask yourself the following questions:
 - Do you want to be able to cast the type to a trait?
 
 If the answer to any of these questions is "Yes", you'll want to use a regular
-heap allocated `class`. If the answer to each question is "No", then you need to
+heap allocated `type`. If the answer to each question is "No", then you need to
 decide between using the `inline` and `copy` modifier. The decision between
 these two modifiers is a bit easier: if you only intend to store `copy` types
 (`Int`, `Float`, etc) and don't intend to mutate the type, it's best to use
-`class copy`, while for all other cases it's best to use `class inline`.
+`type copy`, while for all other cases it's best to use `type inline`.
 
 ## Processes
 
-Processes are defined using `class async`, and creating instances of such
-classes spawns a new process:
+Processes are defined using `type async`, and creating instances of such
+types spawns a new process:
 
 ```inko
-class async Cat {
+type async Cat {
 
 }
 ```
 
-Just like regular classes, async classes can define fields using the `let`
-keyword:
+Just like regular types, async types can define fields using the `let` keyword:
 
 ```inko
-class async Cat {
+type async Cat {
   let @name: String
 }
 ```
 
-Creating instances of such classes is done the same way as with regular classes:
+Creating instances of such types is done the same way as with regular types:
 
 ```inko
 Cat(name: 'Garfield')
@@ -392,7 +390,7 @@ Cat(name: 'Garfield')
 Processes can define `async` methods that can be called by other processes:
 
 ```inko
-class async Cat {
+type async Cat {
   let @name: String
 
   fn async give_food {
@@ -403,23 +401,23 @@ class async Cat {
 
 ## Drop order
 
-When dropping an instance of a class with fields, the fields are dropped in
+When dropping an instance of a type with fields, the fields are dropped in
 reverse-definition order:
 
 ```inko
-class Person {
+type Person {
   let @name: String
   let @age: Int
 }
 ```
 
-When dropping an instance of this class, `@age` is dropped before `@name`.
+When dropping an instance of this type, `@age` is dropped before `@name`.
 
 When dropping an `enum` with one or more cases that store data, the data stored
 in each case is dropped in reverse-definition order:
 
 ```inko
-class enum Example {
+type enum Example {
   case Foo(Int, String)
   case Bar
 }

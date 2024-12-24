@@ -1,4 +1,4 @@
-class async Foo {
+type async Foo {
   let @value: Int
 
   fn async mut update(value: Int) {

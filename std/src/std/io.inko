@@ -110,7 +110,7 @@ fn reset_os_error {
 # Unix systems. This enum doesn't define a constructor for every possible error.
 # Instead, we define a constructor for the most commonly used errors, and
 # represent other errors using the `Other` constructor.
-class pub copy enum Error {
+type pub copy enum Error {
   # The address is already in use.
   case AddressInUse
 
@@ -753,7 +753,7 @@ trait pub BufferedRead: Read {
 # may involve many system calls. `BufferedReader` wraps a `Read` and buffers
 # data into an internal buffer, reducing the total amount of system calls, at
 # the cost of needing to maintain an in-memory buffer.
-class pub BufferedReader[T: mut + Read] {
+type pub BufferedReader[T: mut + Read] {
   let @reader: T
   let @buffer: ByteArray
   let @capacity: Int
@@ -883,7 +883,7 @@ impl Read for BufferedReader {
 # writer.write_string('hello') # => Result.Ok(nil)
 # writer.flush                 # => Result.Ok(nil)
 # ```
-class pub BufferedWriter[T: mut + Write] {
+type pub BufferedWriter[T: mut + Write] {
   let @writer: T
   let @buffer: ByteArray
   let @size: Int
@@ -1034,7 +1034,7 @@ impl Drop for BufferedWriter {
 #
 # read_string(reader) # => "hello"
 # ```
-class pub Buffer[T: Bytes] {
+type pub Buffer[T: Bytes] {
   let @bytes: T
   let @offset: Int
 

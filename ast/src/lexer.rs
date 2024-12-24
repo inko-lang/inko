@@ -163,6 +163,7 @@ pub enum TokenKind {
     Trait,
     True,
     Try,
+    Type,
     Uni,
     UnsignedShr,
     UnsignedShrAssign,
@@ -272,6 +273,7 @@ impl TokenKind {
             TokenKind::Extern => "the 'extern' keyword",
             TokenKind::Inline => "the 'inline' keyword",
             TokenKind::Copy => "the 'copy' keyword",
+            TokenKind::Type => "the 'type' keyword",
         }
     }
 }
@@ -341,6 +343,7 @@ impl Token {
                 | TokenKind::Extern
                 | TokenKind::Inline
                 | TokenKind::Copy
+                | TokenKind::Type
         )
     }
 
@@ -989,6 +992,7 @@ impl Lexer {
                 "case" => TokenKind::Case,
                 "enum" => TokenKind::Enum,
                 "copy" => TokenKind::Copy,
+                "type" => TokenKind::Type,
                 _ => TokenKind::Identifier,
             },
             5 => match value.as_str() {
@@ -1359,6 +1363,7 @@ mod tests {
         assert!(tok(TokenKind::Nil, "", 1..=1, 1..=1).is_keyword());
         assert!(tok(TokenKind::Inline, "", 1..=1, 1..=1).is_keyword());
         assert!(tok(TokenKind::Copy, "", 1..=1, 1..=1).is_keyword());
+        assert!(tok(TokenKind::Type, "", 1..=1, 1..=1).is_keyword());
     }
 
     #[test]
@@ -1987,6 +1992,7 @@ mod tests {
         assert_token!("case", Case, "case", 1..=1, 1..=4);
         assert_token!("enum", Enum, "enum", 1..=1, 1..=4);
         assert_token!("copy", Copy, "copy", 1..=1, 1..=4);
+        assert_token!("type", Type, "type", 1..=1, 1..=4);
 
         assert_token!("class", Class, "class", 1..=1, 1..=5);
         assert_token!("async", Async, "async", 1..=1, 1..=5);

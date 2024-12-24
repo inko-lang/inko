@@ -59,7 +59,7 @@ let UNLOCKED = 0
 let LOCKED = 1
 
 # The state shared between a `Future` and a `Promise`.
-class FutureState[T] {
+type FutureState[T] {
   # A spinlock used to restrict access to the state to a single thread/process
   # at a time.
   #
@@ -122,7 +122,7 @@ class FutureState[T] {
 # - `Future.get`
 # - `Future.try_get`
 # - `Future.get_until`
-class pub Future[T] {
+type pub Future[T] {
   let @state: UInt64
 
   # Returns a new `Future` along with its corresponding `Promise`.
@@ -357,7 +357,7 @@ impl Drop for Future {
 #
 # A `Promise` is used to write a value to a future, such that a corresponding
 # `Future` can be resolved into this value.
-class pub Promise[T] {
+type pub Promise[T] {
   let @state: UInt64
 
   # Sets the value of the `Future` that belongs to this `Promise` to the given
@@ -422,7 +422,7 @@ impl Drop for Promise {
 }
 
 # The shared state of a channel.
-class async ChannelState[T] {
+type async ChannelState[T] {
   let @values: Deque[uni T]
   let @promises: Deque[Promise[uni T]]
 
@@ -485,7 +485,7 @@ class async ChannelState[T] {
 #
 # Example().example(chan2)
 # ```
-class pub inline Channel[T] {
+type pub inline Channel[T] {
   let @state: ChannelState[T]
 
   # Returns a new `Channel`.

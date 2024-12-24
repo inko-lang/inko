@@ -30,7 +30,7 @@ fn key_size_error(size: Int) -> Never {
 }
 
 # The Poly1305 universal hash function.
-class pub Poly1305 {
+type pub Poly1305 {
   let @block: Block
 
   # The constant multipliers derived from the secret key.

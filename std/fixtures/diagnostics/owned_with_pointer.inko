@@ -1,4 +1,4 @@
-class Thing {}
+type Thing {}
 
 fn pointer_owned(value: Pointer[Thing]) {}
 

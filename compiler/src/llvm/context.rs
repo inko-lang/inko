@@ -14,8 +14,8 @@ use inkwell::{context, AddressSpace};
 use std::cmp::max;
 use std::mem::size_of;
 use types::{
-    Block, Database, ForeignType, MethodId, TypeId, TypeRef, BOOL_ID, FLOAT_ID,
-    INT_ID, NIL_ID,
+    Block, Database, ForeignType, MethodId, TypeEnum, TypeRef, BOOL_ID,
+    FLOAT_ID, INT_ID, NIL_ID,
 };
 
 fn size_in_bits(bytes: u32) -> u32 {
@@ -116,14 +116,14 @@ impl Context {
         self.inner.struct_type(&[word, word], false)
     }
 
-    pub(crate) fn class_type<'a>(
+    pub(crate) fn empty_type<'a>(
         &'a self,
         method_type: StructType<'a>,
     ) -> StructType<'a> {
         let name_type = self.rust_string_type();
-        let class_type = self.inner.opaque_struct_type("");
+        let typ = self.inner.opaque_struct_type("");
 
-        class_type.set_body(
+        typ.set_body(
             &[
                 // Name
                 name_type.into(),
@@ -138,7 +138,7 @@ impl Context {
             ],
             false,
         );
-        class_type
+        typ
     }
 
     /// Returns the layout for a built-in type such as Int or String (i.e a type
@@ -179,21 +179,21 @@ impl Context {
             return self.pointer_type().as_basic_type_enum();
         }
 
-        let Ok(id) = type_ref.type_id(db) else {
+        let Ok(id) = type_ref.as_type_enum(db) else {
             return self.pointer_type().as_basic_type_enum();
         };
 
         match id {
-            TypeId::Foreign(ForeignType::Int(size, _)) => {
+            TypeEnum::Foreign(ForeignType::Int(size, _)) => {
                 self.custom_int(size).as_basic_type_enum()
             }
-            TypeId::Foreign(ForeignType::Float(32)) => {
+            TypeEnum::Foreign(ForeignType::Float(32)) => {
                 self.f32_type().as_basic_type_enum()
             }
-            TypeId::Foreign(ForeignType::Float(_)) => {
+            TypeEnum::Foreign(ForeignType::Float(_)) => {
                 self.f64_type().as_basic_type_enum()
             }
-            TypeId::ClassInstance(ins) => {
+            TypeEnum::TypeInstance(ins) => {
                 let cls = ins.instance_of();
 
                 match cls.0 {

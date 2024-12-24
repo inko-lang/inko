@@ -1,11 +1,11 @@
-class inline enum Valid {
+type inline enum Valid {
   case A(Int, Float)
 }
 
-class inline enum Invalid1 {
+type inline enum Invalid1 {
   case A(Int, String)
 }
 
-class inline enum Invalid2 {
+type inline enum Invalid2 {
   case A(Int, Array[Int])
 }

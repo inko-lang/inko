@@ -24,8 +24,8 @@ use crate::state::State;
 use std::collections::{HashMap, HashSet};
 use types::resolve::TypeResolver;
 use types::{
-    ClassInstance, ClassKind, ConstructorId, Database, FieldId, TypeArguments,
-    TypeBounds, TypeId, TypeRef, VariableId, BOOL_ID, INT_ID, STRING_ID,
+    ConstructorId, Database, FieldId, TypeArguments, TypeBounds, TypeEnum,
+    TypeInstance, TypeKind, TypeRef, VariableId, BOOL_ID, INT_ID, STRING_ID,
 };
 
 fn add_missing_patterns(
@@ -260,8 +260,8 @@ impl Pattern {
         node: hir::Pattern,
     ) -> Self {
         match node {
-            hir::Pattern::Class(n) => {
-                let len = n.class_id.unwrap().number_of_fields(db);
+            hir::Pattern::Type(n) => {
+                let len = n.type_id.unwrap().number_of_fields(db);
                 let mut args = vec![Pattern::Wildcard; len];
                 let mut fields = vec![FieldId(0); len];
 
@@ -765,7 +765,7 @@ impl<'a> Compiler<'a> {
 
     fn new_variables(
         &mut self,
-        instance: ClassInstance,
+        instance: TypeInstance,
         source_variable_type: TypeRef,
         types: Vec<TypeRef>,
     ) -> Vec<Variable> {
@@ -780,7 +780,7 @@ impl<'a> Compiler<'a> {
                 .collect();
         }
 
-        let args = TypeArguments::for_class(self.db_mut(), instance);
+        let args = TypeArguments::for_type(self.db_mut(), instance);
 
         types
             .into_iter()
@@ -797,24 +797,24 @@ impl<'a> Compiler<'a> {
 
     fn variable_type(&mut self, variable: &Variable) -> Type {
         let typ = variable.value_type(&self.variables);
-        let type_id = typ.type_id(self.db()).unwrap();
-        let class_ins = if let TypeId::ClassInstance(ins) = type_id {
+        let type_id = typ.as_type_enum(self.db()).unwrap();
+        let type_ins = if let TypeEnum::TypeInstance(ins) = type_id {
             ins
         } else {
             unreachable!()
         };
-        let class_id = class_ins.instance_of();
+        let type_id = type_ins.instance_of();
 
-        match class_id.0 {
+        match type_id.0 {
             INT_ID => Type::Int,
             STRING_ID => Type::String,
             BOOL_ID => Type::Finite(vec![
                 (Constructor::False, Vec::new(), Vec::new()),
                 (Constructor::True, Vec::new(), Vec::new()),
             ]),
-            _ => match class_id.kind(self.db()) {
-                ClassKind::Enum => {
-                    let cons = class_id
+            _ => match type_id.kind(self.db()) {
+                TypeKind::Enum => {
+                    let cons = type_id
                         .constructors(self.db())
                         .into_iter()
                         .map(|constructor| {
@@ -823,7 +823,7 @@ impl<'a> Compiler<'a> {
 
                             (
                                 Constructor::Constructor(constructor),
-                                self.new_variables(class_ins, typ, members),
+                                self.new_variables(type_ins, typ, members),
                                 Vec::new(),
                             )
                         })
@@ -831,8 +831,8 @@ impl<'a> Compiler<'a> {
 
                     Type::Finite(cons)
                 }
-                ClassKind::Regular | ClassKind::Extern => {
-                    let fields = class_id.fields(self.db());
+                TypeKind::Regular | TypeKind::Extern => {
+                    let fields = type_id.fields(self.db());
                     let args = fields
                         .iter()
                         .map(|f| f.value_type(self.db()))
@@ -840,12 +840,12 @@ impl<'a> Compiler<'a> {
 
                     Type::Finite(vec![(
                         Constructor::Class(fields),
-                        self.new_variables(class_ins, typ, args),
+                        self.new_variables(type_ins, typ, args),
                         Vec::new(),
                     )])
                 }
-                ClassKind::Tuple => {
-                    let fields = class_id.fields(self.db());
+                TypeKind::Tuple => {
+                    let fields = type_id.fields(self.db());
                     let args = fields
                         .iter()
                         .map(|f| f.value_type(self.db()))
@@ -853,7 +853,7 @@ impl<'a> Compiler<'a> {
 
                     Type::Finite(vec![(
                         Constructor::Tuple(fields),
-                        self.new_variables(class_ins, typ, args),
+                        self.new_variables(type_ins, typ, args),
                         Vec::new(),
                     )])
                 }
@@ -879,7 +879,7 @@ mod tests {
     use similar_asserts::assert_eq;
     use types::module_name::ModuleName;
     use types::{
-        Class, ClassInstance, ClassKind, Module, TypeId,
+        Module, Type, TypeEnum, TypeInstance, TypeKind,
         Variable as VariableType, Visibility,
     };
 
@@ -1245,10 +1245,10 @@ mod tests {
             ModuleName::new("test"),
             "test.inko".into(),
         );
-        let option_type = Class::alloc(
+        let option_type = Type::alloc(
             &mut state.db,
             "Option".to_string(),
-            ClassKind::Enum,
+            TypeKind::Enum,
             Visibility::Public,
             module,
             Location::default(),
@@ -1267,7 +1267,7 @@ mod tests {
         );
         let mut compiler = compiler(&mut state);
         let input = compiler.new_variable(TypeRef::Owned(
-            TypeId::ClassInstance(ClassInstance::new(option_type)),
+            TypeEnum::TypeInstance(TypeInstance::new(option_type)),
         ));
         let int_var = Variable(1);
         let result = compiler.compile(rules(
@@ -1318,10 +1318,10 @@ mod tests {
             ModuleName::new("test"),
             "test.inko".into(),
         );
-        let option_type = Class::alloc(
+        let option_type = Type::alloc(
             &mut state.db,
             "Option".to_string(),
-            ClassKind::Enum,
+            TypeKind::Enum,
             Visibility::Public,
             module,
             Location::default(),
@@ -1340,7 +1340,7 @@ mod tests {
         );
         let mut compiler = compiler(&mut state);
         let input = compiler.new_variable(TypeRef::Owned(
-            TypeId::ClassInstance(ClassInstance::new(option_type)),
+            TypeEnum::TypeInstance(TypeInstance::new(option_type)),
         ));
         let int_var = Variable(1);
         let result = compiler.compile(rules(
@@ -1388,17 +1388,17 @@ mod tests {
     }
 
     #[test]
-    fn test_nonexhaustive_class() {
+    fn test_nonexhaustive_type() {
         let mut state = state();
         let module = Module::alloc(
             &mut state.db,
             ModuleName::new("test"),
             "test.inko".into(),
         );
-        let person_type = Class::alloc(
+        let person_type = Type::alloc(
             &mut state.db,
             "Person".to_string(),
-            ClassKind::Regular,
+            TypeKind::Regular,
             Visibility::Public,
             module,
             Location::default(),
@@ -1427,7 +1427,7 @@ mod tests {
         let fields = person_type.fields(&state.db);
         let mut compiler = compiler(&mut state);
         let input = compiler.new_variable(TypeRef::Owned(
-            TypeId::ClassInstance(ClassInstance::new(person_type)),
+            TypeEnum::TypeInstance(TypeInstance::new(person_type)),
         ));
         let name_var = Variable(1);
         let age_var = Variable(2);
@@ -1482,10 +1482,10 @@ mod tests {
             ModuleName::new("test"),
             "test.inko".into(),
         );
-        let tuple2 = Class::alloc(
+        let tuple2 = Type::alloc(
             &mut state.db,
             "Tuple2".to_string(),
-            ClassKind::Tuple,
+            TypeKind::Tuple,
             Visibility::Public,
             module,
             Location::default(),
@@ -1514,7 +1514,7 @@ mod tests {
         let tuple_fields = tuple2.fields(&state.db);
         let mut compiler = compiler(&mut state);
         let input = compiler.new_variable(TypeRef::Owned(
-            TypeId::ClassInstance(ClassInstance::new(tuple2)),
+            TypeEnum::TypeInstance(TypeInstance::new(tuple2)),
         ));
         let var1 = Variable(1);
         let var2 = Variable(2);
@@ -1565,17 +1565,17 @@ mod tests {
     }
 
     #[test]
-    fn test_exhaustive_class() {
+    fn test_exhaustive_type() {
         let mut state = state();
         let module = Module::alloc(
             &mut state.db,
             ModuleName::new("test"),
             "test.inko".into(),
         );
-        let person_type = Class::alloc(
+        let person_type = Type::alloc(
             &mut state.db,
             "Person".to_string(),
-            ClassKind::Regular,
+            TypeKind::Regular,
             Visibility::Public,
             module,
             Location::default(),
@@ -1604,7 +1604,7 @@ mod tests {
         let fields = person_type.fields(&state.db);
         let mut compiler = compiler(&mut state);
         let input = compiler.new_variable(TypeRef::Owned(
-            TypeId::ClassInstance(ClassInstance::new(person_type)),
+            TypeEnum::TypeInstance(TypeInstance::new(person_type)),
         ));
         let name_var = Variable(1);
         let age_var = Variable(2);
@@ -1647,10 +1647,10 @@ mod tests {
             ModuleName::new("test"),
             "test.inko".into(),
         );
-        let tuple2 = Class::alloc(
+        let tuple2 = Type::alloc(
             &mut state.db,
             "Tuple2".to_string(),
-            ClassKind::Tuple,
+            TypeKind::Tuple,
             Visibility::Public,
             module,
             Location::default(),
@@ -1679,7 +1679,7 @@ mod tests {
         let tuple_fields = tuple2.fields(&state.db);
         let mut compiler = compiler(&mut state);
         let input = compiler.new_variable(TypeRef::Owned(
-            TypeId::ClassInstance(ClassInstance::new(tuple2)),
+            TypeEnum::TypeInstance(TypeInstance::new(tuple2)),
         ));
         let var1 = Variable(1);
         let var2 = Variable(2);
@@ -1948,10 +1948,10 @@ mod tests {
             ModuleName::new("test"),
             "test.inko".into(),
         );
-        let tuple2 = Class::alloc(
+        let tuple2 = Type::alloc(
             &mut state.db,
             "Tuple2".to_string(),
-            ClassKind::Tuple,
+            TypeKind::Tuple,
             Visibility::Public,
             module,
             Location::default(),
@@ -1980,7 +1980,7 @@ mod tests {
         let tuple_fields = tuple2.fields(&state.db);
         let mut compiler = compiler(&mut state);
         let input = compiler.new_variable(TypeRef::Owned(
-            TypeId::ClassInstance(ClassInstance::new(tuple2)),
+            TypeEnum::TypeInstance(TypeInstance::new(tuple2)),
         ));
         let var1 = Variable(1);
         let var2 = Variable(2);
@@ -2054,10 +2054,10 @@ mod tests {
             ModuleName::new("test"),
             "test.inko".into(),
         );
-        let tuple2 = Class::alloc(
+        let tuple2 = Type::alloc(
             &mut state.db,
             "Tuple2".to_string(),
-            ClassKind::Tuple,
+            TypeKind::Tuple,
             Visibility::Public,
             module,
             Location::default(),
@@ -2086,7 +2086,7 @@ mod tests {
         let tuple_fields = tuple2.fields(&state.db);
         let mut compiler = compiler(&mut state);
         let input = compiler.new_variable(TypeRef::Owned(
-            TypeId::ClassInstance(ClassInstance::new(tuple2)),
+            TypeEnum::TypeInstance(TypeInstance::new(tuple2)),
         ));
         let var1 = Variable(1);
         let var2 = Variable(2);
@@ -2170,10 +2170,10 @@ mod tests {
             ModuleName::new("test"),
             "test.inko".into(),
         );
-        let tuple2 = Class::alloc(
+        let tuple2 = Type::alloc(
             &mut state.db,
             "Tuple2".to_string(),
-            ClassKind::Tuple,
+            TypeKind::Tuple,
             Visibility::Public,
             module,
             Location::default(),
@@ -2202,7 +2202,7 @@ mod tests {
         let tuple_fields = tuple2.fields(&state.db);
         let mut compiler = compiler(&mut state);
         let input = compiler.new_variable(TypeRef::Owned(
-            TypeId::ClassInstance(ClassInstance::new(tuple2)),
+            TypeEnum::TypeInstance(TypeInstance::new(tuple2)),
         ));
         let var1 = Variable(1);
         let var2 = Variable(2);

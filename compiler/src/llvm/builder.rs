@@ -20,7 +20,7 @@ use inkwell::values::{
 use inkwell::{AtomicOrdering, AtomicRMWBinOp, FloatPredicate, IntPredicate};
 use std::collections::HashMap;
 use std::path::Path;
-use types::{ClassId, Database, MethodId};
+use types::{Database, MethodId, TypeId};
 
 /// A wrapper around an LLVM Builder that provides some additional methods.
 pub(crate) struct Builder<'ctx> {
@@ -753,13 +753,13 @@ impl<'ctx> Builder<'ctx> {
         module: &'a mut Module<'b, 'ctx>,
         db: &Database,
         names: &crate::symbol_names::SymbolNames,
-        class: ClassId,
+        type_id: TypeId,
     ) -> PointerValue<'ctx> {
-        let atomic = class.is_atomic(db);
-        let name = &names.classes[&class];
-        let global = module.add_class(name).as_pointer_value();
-        let class_ptr = self.load_pointer(global);
-        let typ = module.layouts.instances[class.0 as usize];
+        let atomic = type_id.is_atomic(db);
+        let name = &names.types[&type_id];
+        let global = module.add_type(name).as_pointer_value();
+        let type_ptr = self.load_pointer(global);
+        let typ = module.layouts.instances[type_id.0 as usize];
         let res = self.malloc(module, typ);
         let header = module.layouts.header;
 
@@ -768,7 +768,7 @@ impl<'ctx> Builder<'ctx> {
         // have been created (instead of underflowing).
         let refs = self.u32_literal(if atomic { 1 } else { 0 });
 
-        self.store_field(header, res, HEADER_CLASS_INDEX, class_ptr);
+        self.store_field(header, res, HEADER_CLASS_INDEX, type_ptr);
         self.store_field(header, res, HEADER_REFS_INDEX, refs);
         res
     }

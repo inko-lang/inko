@@ -7,8 +7,8 @@ use std::path::PathBuf;
 use types::check::{Environment, TypeChecker};
 use types::format::format_type;
 use types::{
-    Block, ClassId, ClassInstance, Closure, Database, MethodId, ModuleId,
-    Symbol, TraitId, TraitInstance, TypeArguments, TypeBounds, TypeId,
+    Block, Closure, Database, MethodId, ModuleId, Symbol, TraitId,
+    TraitInstance, TypeArguments, TypeBounds, TypeEnum, TypeId, TypeInstance,
     TypeParameterId, TypeRef,
 };
 
@@ -28,12 +28,11 @@ enum RefKind {
 }
 
 impl RefKind {
-    fn into_type_ref(self, id: TypeId) -> TypeRef {
+    fn into_type_ref(self, id: TypeEnum) -> TypeRef {
         match self {
             Self::Default => match id {
-                TypeId::TypeParameter(_) | TypeId::RigidTypeParameter(_) => {
-                    TypeRef::Any(id)
-                }
+                TypeEnum::TypeParameter(_)
+                | TypeEnum::RigidTypeParameter(_) => TypeRef::Any(id),
                 _ => TypeRef::Owned(id),
             },
             Self::Owned => TypeRef::Owned(id),
@@ -49,8 +48,8 @@ pub(crate) struct TypeScope<'a> {
     /// The surrounding module.
     module: ModuleId,
 
-    /// The surrounding class or trait.
-    self_type: TypeId,
+    /// The surrounding type or trait.
+    self_type: TypeEnum,
 
     /// The surrounding method, if any.
     method: Option<MethodId>,
@@ -62,7 +61,7 @@ pub(crate) struct TypeScope<'a> {
 impl<'a> TypeScope<'a> {
     pub(crate) fn new(
         module: ModuleId,
-        self_type: TypeId,
+        self_type: TypeEnum,
         method: Option<MethodId>,
     ) -> Self {
         Self { module, self_type, method, bounds: None }
@@ -70,7 +69,7 @@ impl<'a> TypeScope<'a> {
 
     pub(crate) fn with_bounds(
         module: ModuleId,
-        self_type: TypeId,
+        self_type: TypeEnum,
         method: Option<MethodId>,
         bounds: &'a TypeBounds,
     ) -> Self {
@@ -169,7 +168,7 @@ impl<'a> DefineTypeSignature<'a> {
         node: &mut hir::TypeName,
     ) -> Option<TraitInstance> {
         match self.define_type_name(node, RefKind::Owned) {
-            TypeRef::Owned(TypeId::TraitInstance(instance)) => Some(instance),
+            TypeRef::Owned(TypeEnum::TraitInstance(instance)) => Some(instance),
             TypeRef::Error => None,
             _ => {
                 self.state.diagnostics.error(
@@ -277,12 +276,12 @@ impl<'a> DefineTypeSignature<'a> {
             }
 
             match symbol {
-                Symbol::Class(id) if id.kind(&self.state.db).is_extern() => {
-                    TypeRef::Owned(TypeId::ClassInstance(ClassInstance::new(
+                Symbol::Type(id) if id.kind(&self.state.db).is_extern() => {
+                    TypeRef::Owned(TypeEnum::TypeInstance(TypeInstance::new(
                         id,
                     )))
                 }
-                Symbol::Class(id) if id.is_copy_type(&self.state.db) => {
+                Symbol::Type(id) if id.is_copy_type(&self.state.db) => {
                     if matches!(kind, RefKind::Mut) {
                         let name = &id.name(self.db()).clone();
 
@@ -293,10 +292,10 @@ impl<'a> DefineTypeSignature<'a> {
                         );
                     }
 
-                    TypeRef::Owned(self.define_class_instance(id, node))
+                    TypeRef::Owned(self.define_type_instance(id, node))
                 }
-                Symbol::Class(id) => {
-                    kind.into_type_ref(self.define_class_instance(id, node))
+                Symbol::Type(id) => {
+                    kind.into_type_ref(self.define_type_instance(id, node))
                 }
                 Symbol::Trait(id) => {
                     kind.into_type_ref(self.define_trait_instance(id, node))
@@ -367,7 +366,7 @@ impl<'a> DefineTypeSignature<'a> {
         node: &mut hir::TupleType,
         kind: RefKind,
     ) -> TypeRef {
-        let class = if let Some(id) = ClassId::tuple(node.values.len()) {
+        let typ = if let Some(id) = TypeId::tuple(node.values.len()) {
             id
         } else {
             self.state.diagnostics.tuple_size_error(self.file(), node.location);
@@ -377,30 +376,30 @@ impl<'a> DefineTypeSignature<'a> {
 
         let types =
             node.values.iter_mut().map(|n| self.define_type(n)).collect();
-        let ins = TypeId::ClassInstance(ClassInstance::with_types(
+        let ins = TypeEnum::TypeInstance(TypeInstance::with_types(
             self.db_mut(),
-            class,
+            typ,
             types,
         ));
 
         kind.into_type_ref(ins)
     }
 
-    fn define_class_instance(
+    fn define_type_instance(
         &mut self,
-        id: ClassId,
+        id: TypeId,
         node: &mut hir::TypeName,
-    ) -> TypeId {
+    ) -> TypeEnum {
         let params = id.type_parameters(self.db());
 
         if let Some(args) = self.type_arguments(params, &mut node.arguments) {
-            TypeId::ClassInstance(ClassInstance::generic(
+            TypeEnum::TypeInstance(TypeInstance::generic(
                 self.db_mut(),
                 id,
                 args,
             ))
         } else {
-            TypeId::ClassInstance(ClassInstance::new(id))
+            TypeEnum::TypeInstance(TypeInstance::new(id))
         }
     }
 
@@ -408,17 +407,17 @@ impl<'a> DefineTypeSignature<'a> {
         &mut self,
         id: TraitId,
         node: &mut hir::TypeName,
-    ) -> TypeId {
+    ) -> TypeEnum {
         let params = id.type_parameters(self.db());
 
         if let Some(args) = self.type_arguments(params, &mut node.arguments) {
-            TypeId::TraitInstance(TraitInstance::generic(
+            TypeEnum::TraitInstance(TraitInstance::generic(
                 self.db_mut(),
                 id,
                 args,
             ))
         } else {
-            TypeId::TraitInstance(TraitInstance::new(id))
+            TypeEnum::TraitInstance(TraitInstance::new(id))
         }
     }
 
@@ -441,9 +440,9 @@ impl<'a> DefineTypeSignature<'a> {
             self.scope.bounds.as_ref().and_then(|b| b.get(id)).unwrap_or(id);
 
         let type_id = if self.rules.type_parameters_as_rigid {
-            TypeId::RigidTypeParameter(param_id)
+            TypeEnum::RigidTypeParameter(param_id)
         } else {
-            TypeId::TypeParameter(param_id)
+            TypeEnum::TypeParameter(param_id)
         };
 
         if let RefKind::Mut = kind {
@@ -482,7 +481,7 @@ impl<'a> DefineTypeSignature<'a> {
 
         block.set_return_type(self.db_mut(), return_type);
 
-        let typ = kind.into_type_ref(TypeId::Closure(block));
+        let typ = kind.into_type_ref(TypeEnum::Closure(block));
 
         node.resolved_type = typ;
         typ
@@ -586,14 +585,14 @@ impl<'a> DefineTypeSignature<'a> {
                 };
 
                 match sym {
-                    Some(Symbol::Class(id)) => Some(TypeRef::Owned(
-                        TypeId::ClassInstance(ClassInstance::new(id)),
+                    Some(Symbol::Type(id)) => Some(TypeRef::Owned(
+                        TypeEnum::TypeInstance(TypeInstance::new(id)),
                     )),
                     Some(Symbol::TypeParameter(id)) => {
                         let tid = if self.rules.type_parameters_as_rigid {
-                            TypeId::RigidTypeParameter(id)
+                            TypeEnum::RigidTypeParameter(id)
                         } else {
-                            TypeId::TypeParameter(id)
+                            TypeEnum::TypeParameter(id)
                         };
 
                         Some(TypeRef::Owned(tid))
@@ -653,7 +652,7 @@ impl<'a> DefineTypeSignature<'a> {
 /// In addition, if defining and checking took place in the same pass, we
 /// wouldn't be able to support code like this:
 ///
-///     class Int {}
+///     type Int {}
 ///
 ///     trait A[T: ToString]
 ///     trait B[T: A[Int]]
@@ -691,10 +690,10 @@ impl<'a> CheckTypeSignature<'a> {
             | TypeRef::Ref(id)
             | TypeRef::Mut(id)
             | TypeRef::Uni(id) => match id {
-                TypeId::ClassInstance(ins) => {
-                    self.check_class_instance(node, ins);
+                TypeEnum::TypeInstance(ins) => {
+                    self.check_type_instance(node, ins);
                 }
-                TypeId::TraitInstance(ins) => {
+                TypeEnum::TraitInstance(ins) => {
                     self.check_trait_instance(node, ins);
                 }
                 _ => {}
@@ -711,10 +710,10 @@ impl<'a> CheckTypeSignature<'a> {
         }
     }
 
-    fn check_class_instance(
+    fn check_type_instance(
         &mut self,
         node: &hir::TypeName,
-        instance: ClassInstance,
+        instance: TypeInstance,
     ) {
         let required =
             instance.instance_of().number_of_type_parameters(self.db());
@@ -722,7 +721,7 @@ impl<'a> CheckTypeSignature<'a> {
         if self.check_type_argument_count(node, required) {
             // Classes can't allow Any types as type arguments, as this results
             // in a loss of type information at runtime. This means that if a
-            // class stores a type parameter T in a field, and it's assigned to
+            // type stores a type parameter T in a field, and it's assigned to
             // Any, we have no idea how to drop that value, and the value might
             // not even be managed by Inko (e.g. when using the FFI).
             self.check_argument_types(
@@ -744,7 +743,7 @@ impl<'a> CheckTypeSignature<'a> {
         if self.check_type_argument_count(node, required) {
             // Traits do allow Any types as type arguments, as traits don't
             // dictate how a value is stored. If we end up dropping a trait we
-            // do so by calling the dropper of the underlying class, which in
+            // do so by calling the dropper of the underlying type, which in
             // turn already disallows storing Any in generic contexts.
             self.check_argument_types(
                 node,
@@ -793,7 +792,7 @@ impl<'a> CheckTypeSignature<'a> {
 
         for (param, node) in parameters.into_iter().zip(node.arguments.iter()) {
             let arg = arguments.get(param).unwrap();
-            let exp = TypeRef::Any(TypeId::TypeParameter(param));
+            let exp = TypeRef::Any(TypeEnum::TypeParameter(param));
             let mut env = Environment::new(
                 arg.type_arguments(self.db()),
                 exp_args.clone(),
@@ -902,14 +901,14 @@ impl<'a> DefineAndCheckTypeSignature<'a> {
 pub(crate) fn define_type_bounds(
     state: &mut State,
     module: ModuleId,
-    class: ClassId,
+    type_id: TypeId,
     nodes: &mut [hir::TypeBound],
 ) -> TypeBounds {
     let mut bounds = TypeBounds::new();
 
     for bound in nodes {
         let name = &bound.name.name;
-        let param = if let Some(id) = class.type_parameter(&state.db, name) {
+        let param = if let Some(id) = type_id.type_parameter(&state.db, name) {
             id
         } else {
             state.diagnostics.undefined_symbol(
@@ -940,7 +939,7 @@ pub(crate) fn define_type_bounds(
 
         for req in &mut bound.requirements {
             let rules = Rules::default();
-            let scope = TypeScope::new(module, TypeId::Class(class), None);
+            let scope = TypeScope::new(module, TypeEnum::Type(type_id), None);
             let mut definer =
                 DefineTypeSignature::new(state, module, &scope, rules);
 
@@ -974,7 +973,7 @@ mod tests {
     use crate::type_check::{DefineTypeSignature, TypeScope};
     use location::Location;
     use types::{
-        Class, ClassKind, ClosureId, Method, MethodKind, Trait, TypeId,
+        ClosureId, Method, MethodKind, Trait, Type, TypeEnum, TypeKind,
         TypeRef, Visibility,
     };
 
@@ -991,15 +990,15 @@ mod tests {
     #[test]
     fn test_type_scope_new() {
         let mut state = State::new(Config::new());
-        let int = Class::alloc(
+        let int = Type::alloc(
             &mut state.db,
             "Int".to_string(),
-            ClassKind::Regular,
+            TypeKind::Regular,
             Visibility::Private,
             ModuleId(0),
             Location::default(),
         );
-        let self_type = TypeId::ClassInstance(ClassInstance::new(int));
+        let self_type = TypeEnum::TypeInstance(TypeInstance::new(int));
         let module = module_type(&mut state, "foo");
         let scope = TypeScope::new(module, self_type, None);
 
@@ -1020,10 +1019,10 @@ mod tests {
             Visibility::Private,
             MethodKind::Instance,
         );
-        let array = Class::alloc(
+        let array = Type::alloc(
             &mut state.db,
             "String".to_string(),
-            ClassKind::Regular,
+            TypeKind::Regular,
             Visibility::Private,
             ModuleId(0),
             Location::default(),
@@ -1037,10 +1036,10 @@ mod tests {
         module.new_symbol(
             &mut state.db,
             "Array".to_string(),
-            Symbol::Class(array),
+            Symbol::Type(array),
         );
 
-        let array_ins = TypeId::ClassInstance(ClassInstance::new(array));
+        let array_ins = TypeEnum::TypeInstance(TypeInstance::new(array));
         let scope = TypeScope::new(module, array_ins, Some(method));
 
         assert_eq!(
@@ -1053,7 +1052,7 @@ mod tests {
         );
         assert_eq!(
             scope.symbol(&mut state.db, "Array"),
-            Some(Symbol::Class(array))
+            Some(Symbol::Type(array))
         );
         assert!(scope.symbol(&mut state.db, "Foo").is_none());
     }
@@ -1061,15 +1060,15 @@ mod tests {
     #[test]
     fn test_define_type_signature_as_trait_instance_with_trait() {
         let mut state = State::new(Config::new());
-        let int = Class::alloc(
+        let int = Type::alloc(
             &mut state.db,
             "Int".to_string(),
-            ClassKind::Regular,
+            TypeKind::Regular,
             Visibility::Private,
             ModuleId(0),
             Location::default(),
         );
-        let self_type = TypeId::ClassInstance(ClassInstance::new(int));
+        let self_type = TypeEnum::TypeInstance(TypeInstance::new(int));
         let module = module_type(&mut state, "foo");
         let to_string = Trait::alloc(
             &mut state.db,
@@ -1099,20 +1098,20 @@ mod tests {
     #[test]
     fn test_define_type_signature_as_trait_instance_with_invalid_type() {
         let mut state = State::new(Config::new());
-        let int = Class::alloc(
+        let int = Type::alloc(
             &mut state.db,
             "Int".to_string(),
-            ClassKind::Regular,
+            TypeKind::Regular,
             Visibility::Private,
             ModuleId(0),
             Location::default(),
         );
-        let self_type = TypeId::ClassInstance(ClassInstance::new(int));
+        let self_type = TypeEnum::TypeInstance(TypeInstance::new(int));
         let module = module_type(&mut state, "foo");
-        let string = Class::alloc(
+        let string = Type::alloc(
             &mut state.db,
             "String".to_string(),
-            ClassKind::Regular,
+            TypeKind::Regular,
             Visibility::Private,
             ModuleId(0),
             Location::default(),
@@ -1121,7 +1120,7 @@ mod tests {
         module.new_symbol(
             &mut state.db,
             "String".to_string(),
-            Symbol::Class(string),
+            Symbol::Type(string),
         );
 
         let scope = TypeScope::new(module, self_type, None);
@@ -1138,21 +1137,20 @@ mod tests {
     fn test_define_type_signature_with_owned_type() {
         let mut state = State::new(Config::new());
         let module = module_type(&mut state, "foo");
-        let class_id = Class::alloc(
+        let type_id = Type::alloc(
             &mut state.db,
             "A".to_string(),
-            ClassKind::Regular,
+            TypeKind::Regular,
             Visibility::Private,
             ModuleId(0),
             Location::default(),
         );
-        let class_instance =
-            TypeId::ClassInstance(ClassInstance::new(class_id));
+        let type_ins = TypeEnum::TypeInstance(TypeInstance::new(type_id));
 
         module.new_symbol(
             &mut state.db,
             "A".to_string(),
-            Symbol::Class(class_id),
+            Symbol::Type(type_id),
         );
 
         let mut node = hir::Type::Named(Box::new(hir_type_name(
@@ -1160,14 +1158,14 @@ mod tests {
             Vec::new(),
             cols(1, 1),
         )));
-        let scope = TypeScope::new(module, class_instance, None);
+        let scope = TypeScope::new(module, type_ins, None);
         let rules = Rules::default();
         let type_ref =
             DefineTypeSignature::new(&mut state, module, &scope, rules)
                 .define_type(&mut node);
 
         assert!(!state.diagnostics.has_errors());
-        assert_eq!(type_ref, TypeRef::Owned(class_instance));
+        assert_eq!(type_ref, TypeRef::Owned(type_ins));
         assert_eq!(
             constructor!(node, hir::Type::Named).resolved_type,
             type_ref
@@ -1179,21 +1177,20 @@ mod tests {
         let mut state = State::new(Config::new());
         let foo_mod = module_type(&mut state, "foo");
         let bar_mod = module_type(&mut state, "bar");
-        let class_id = Class::alloc(
+        let type_id = Type::alloc(
             &mut state.db,
             "A".to_string(),
-            ClassKind::Regular,
+            TypeKind::Regular,
             Visibility::Private,
             ModuleId(0),
             Location::default(),
         );
-        let class_instance =
-            TypeId::ClassInstance(ClassInstance::new(class_id));
+        let type_ins = TypeEnum::TypeInstance(TypeInstance::new(type_id));
 
         foo_mod.new_symbol(
             &mut state.db,
             "A".to_string(),
-            Symbol::Class(class_id),
+            Symbol::Type(type_id),
         );
 
         bar_mod.new_symbol(
@@ -1213,14 +1210,14 @@ mod tests {
             location: cols(1, 1),
         }));
 
-        let scope = TypeScope::new(bar_mod, class_instance, None);
+        let scope = TypeScope::new(bar_mod, type_ins, None);
         let rules = Rules::default();
         let type_ref =
             DefineTypeSignature::new(&mut state, bar_mod, &scope, rules)
                 .define_type(&mut node);
 
         assert!(!state.diagnostics.has_errors());
-        assert_eq!(type_ref, TypeRef::Owned(class_instance));
+        assert_eq!(type_ref, TypeRef::Owned(type_ins));
         assert_eq!(
             constructor!(node, hir::Type::Named).resolved_type,
             type_ref
@@ -1231,21 +1228,20 @@ mod tests {
     fn test_define_type_signature_with_private_type() {
         let mut state = State::new(Config::new());
         let module = module_type(&mut state, "foo");
-        let class_id = Class::alloc(
+        let type_id = Type::alloc(
             &mut state.db,
             "_A".to_string(),
-            ClassKind::Regular,
+            TypeKind::Regular,
             Visibility::Private,
             ModuleId(0),
             Location::default(),
         );
-        let class_instance =
-            TypeId::ClassInstance(ClassInstance::new(class_id));
+        let type_ins = TypeEnum::TypeInstance(TypeInstance::new(type_id));
 
         module.new_symbol(
             &mut state.db,
             "_A".to_string(),
-            Symbol::Class(class_id),
+            Symbol::Type(type_id),
         );
 
         let mut node = hir::Type::Named(Box::new(hir_type_name(
@@ -1253,7 +1249,7 @@ mod tests {
             Vec::new(),
             cols(1, 1),
         )));
-        let scope = TypeScope::new(module, class_instance, None);
+        let scope = TypeScope::new(module, type_ins, None);
         let rules = Rules { allow_private_types: false, ..Default::default() };
 
         DefineTypeSignature::new(&mut state, module, &scope, rules)
@@ -1270,21 +1266,20 @@ mod tests {
     fn test_define_type_signature_with_ref_type() {
         let mut state = State::new(Config::new());
         let module = module_type(&mut state, "foo");
-        let class_id = Class::alloc(
+        let type_id = Type::alloc(
             &mut state.db,
             "A".to_string(),
-            ClassKind::Regular,
+            TypeKind::Regular,
             Visibility::Private,
             ModuleId(0),
             Location::default(),
         );
-        let class_instance =
-            TypeId::ClassInstance(ClassInstance::new(class_id));
+        let type_ins = TypeEnum::TypeInstance(TypeInstance::new(type_id));
 
         module.new_symbol(
             &mut state.db,
             "A".to_string(),
-            Symbol::Class(class_id),
+            Symbol::Type(type_id),
         );
 
         let mut node = hir::Type::Ref(Box::new(hir::ReferenceType {
@@ -1293,14 +1288,14 @@ mod tests {
             )),
             location: cols(1, 1),
         }));
-        let scope = TypeScope::new(module, class_instance, None);
+        let scope = TypeScope::new(module, type_ins, None);
         let rules = Rules::default();
         let type_ref =
             DefineTypeSignature::new(&mut state, module, &scope, rules)
                 .define_type(&mut node);
 
         assert!(!state.diagnostics.has_errors());
-        assert_eq!(type_ref, TypeRef::Ref(class_instance));
+        assert_eq!(type_ref, TypeRef::Ref(type_ins));
 
         assert_eq!(
             constructor!(
@@ -1315,15 +1310,15 @@ mod tests {
     #[test]
     fn test_define_type_signature_with_closure_type() {
         let mut state = State::new(Config::new());
-        let int = Class::alloc(
+        let int = Type::alloc(
             &mut state.db,
             "Int".to_string(),
-            ClassKind::Regular,
+            TypeKind::Regular,
             Visibility::Private,
             ModuleId(0),
             Location::default(),
         );
-        let self_type = TypeId::ClassInstance(ClassInstance::new(int));
+        let self_type = TypeEnum::TypeInstance(TypeInstance::new(int));
         let module = module_type(&mut state, "foo");
         let mut node = hir::Type::Closure(Box::new(hir::ClosureType {
             arguments: Vec::new(),
@@ -1337,7 +1332,7 @@ mod tests {
             DefineTypeSignature::new(&mut state, module, &scope, rules)
                 .define_type(&mut node);
 
-        assert_eq!(type_ref, TypeRef::Owned(TypeId::Closure(ClosureId(0))));
+        assert_eq!(type_ref, TypeRef::Owned(TypeEnum::Closure(ClosureId(0))));
         assert!(!state.diagnostics.has_errors());
         assert_eq!(
             constructor!(node, hir::Type::Closure).resolved_type,
@@ -1349,35 +1344,27 @@ mod tests {
     fn test_check_type_signature_with_incorrect_number_of_arguments() {
         let mut state = State::new(Config::new());
         let module = module_type(&mut state, "foo");
-        let class_a = Class::alloc(
+        let type_a = Type::alloc(
             &mut state.db,
             "A".to_string(),
-            ClassKind::Regular,
+            TypeKind::Regular,
             Visibility::Private,
             ModuleId(0),
             Location::default(),
         );
-        let class_b = Class::alloc(
+        let type_b = Type::alloc(
             &mut state.db,
             "B".to_string(),
-            ClassKind::Regular,
+            TypeKind::Regular,
             Visibility::Private,
             ModuleId(0),
             Location::default(),
         );
-        let instance_a = TypeId::ClassInstance(ClassInstance::new(class_a));
+        let instance_a = TypeEnum::TypeInstance(TypeInstance::new(type_a));
 
-        module.new_symbol(
-            &mut state.db,
-            "A".to_string(),
-            Symbol::Class(class_a),
-        );
+        module.new_symbol(&mut state.db, "A".to_string(), Symbol::Type(type_a));
 
-        module.new_symbol(
-            &mut state.db,
-            "B".to_string(),
-            Symbol::Class(class_b),
-        );
+        module.new_symbol(&mut state.db, "B".to_string(), Symbol::Type(type_b));
 
         let mut node = hir::Type::Named(Box::new(hir_type_name(
             "A",
@@ -1416,44 +1403,44 @@ mod tests {
             module,
             Location::default(),
         );
-        let list_class = Class::alloc(
+        let list_type = Type::alloc(
             &mut state.db,
             "List".to_string(),
-            ClassKind::Regular,
+            TypeKind::Regular,
             Visibility::Private,
             ModuleId(0),
             Location::default(),
         );
         let list_param =
-            list_class.new_type_parameter(&mut state.db, "T".to_string());
+            list_type.new_type_parameter(&mut state.db, "T".to_string());
         let requirement = TraitInstance::new(to_string);
 
         list_param.add_requirements(&mut state.db, vec![requirement]);
 
-        let string_class = Class::alloc(
+        let string_type = Type::alloc(
             &mut state.db,
             "String".to_string(),
-            ClassKind::Regular,
+            TypeKind::Regular,
             Visibility::Private,
             ModuleId(0),
             Location::default(),
         );
-        let instance_a = TypeId::ClassInstance(ClassInstance::rigid(
+        let instance_a = TypeEnum::TypeInstance(TypeInstance::rigid(
             &mut state.db,
-            list_class,
+            list_type,
             &TypeBounds::new(),
         ));
 
         module.new_symbol(
             &mut state.db,
             "List".to_string(),
-            Symbol::Class(list_class),
+            Symbol::Type(list_type),
         );
 
         module.new_symbol(
             &mut state.db,
             "String".to_string(),
-            Symbol::Class(string_class),
+            Symbol::Type(string_type),
         );
 
         module.new_symbol(

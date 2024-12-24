@@ -116,7 +116,7 @@ fn location(map: ref Map[String, Json], key: String) -> Result[Int, String] {
   throw 'the "${key}" field must be an array of two integers'
 }
 
-class Parser {
+type Parser {
   let @bytes: ref ByteArray
   let @index: Int
 
@@ -192,7 +192,7 @@ class Parser {
   }
 }
 
-class Diagnostic {
+type Diagnostic {
   let @id: String
   let @file: String
   let @level: String

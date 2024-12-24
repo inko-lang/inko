@@ -2,12 +2,12 @@ trait Eq[T] {
   fn eq(other: T)
 }
 
-class enum Opt[T] {
+type enum Opt[T] {
   case Some(T)
   case None
 }
 
-class Thing {}
+type Thing {}
 
 impl Eq[ref Thing] for Thing {
   fn eq(other: ref Thing) {}

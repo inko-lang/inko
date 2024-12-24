@@ -6,7 +6,7 @@ import std.sys
 import std.test (Filter, Plain, Test, Tests)
 import std.time (Duration)
 
-class Buffer {
+type Buffer {
   let @bytes: mut ByteArray
 
   fn static new(bytes: mut ByteArray) -> Buffer {

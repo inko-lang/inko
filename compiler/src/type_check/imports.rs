@@ -9,7 +9,7 @@ use types::{Database, ModuleId, Symbol, IMPORT_MODULE_ITSELF_NAME};
 
 /// A compiler pass that defines any imported types.
 ///
-/// This pass only defines imported classes, traits and modules.
+/// This pass only defines imported types, traits and modules.
 ///
 /// Method imports are handled in a separate pass, as we can't process these
 /// until other passes have run first.

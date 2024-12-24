@@ -29,7 +29,7 @@ The compilation process consists of the following steps:
 
 Parsing is a topic extensively covered in computer science, so we won't go over
 it in much detail. Inko uses a handwritten LL(1) recursive descend parser, and a
-separate lexer/tokeniser. Each type of thing to parse (e.g. a class or an array
+separate lexer/tokeniser. Each type of thing to parse (e.g. a type or an array
 literal) typically has a corresponding function in the parser. AST nodes are
 just plain structures.
 
@@ -325,8 +325,8 @@ refreshed automatically. Incremental compilation can be disabled using
 
 ### Methods
 
-As part of code generation, methods are stored in a class such that we can
-efficiently perform dynamic dispatch. Each class has a table for its method,
+As part of code generation, methods are stored in a type such that we can
+efficiently perform dynamic dispatch. Each type has a table for its method,
 with the size being a power of two. Each method is given a globally unique hash
 code based on its name. This means different methods with the same name share
 the same hash code, but this is OK because a type can only define a method with

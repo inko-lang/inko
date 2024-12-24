@@ -4,13 +4,12 @@
 }
 ---
 
-Unlike many other languages with classes, Inko doesn't support class
-inheritance. Instead, code is shared between classes using "traits". Traits are
-essentially blueprints for classes, specifying what methods must be implemented
-and/or providing default implementations of methods a class may wish to
-override.
+Inko types doesn't support type inheritance. Instead, code is shared between
+types using "traits". Traits are essentially blueprints for types, specifying
+what methods must be implemented and/or providing default implementations of
+methods a type may wish to override.
 
-Let's say we want to convert different class instances into strings. We can do
+Let's say we want to convert different type instances into strings. We can do
 so using traits:
 
 ```inko
@@ -20,7 +19,7 @@ trait ToString {
   fn to_string -> String
 }
 
-class Cat {
+type Cat {
   let @name: String
 }
 
@@ -30,7 +29,7 @@ impl ToString for Cat {
   }
 }
 
-class async Main {
+type async Main {
   fn async main {
     let garfield = Cat(name: 'Garfield')
 
@@ -44,7 +43,7 @@ Running this program produces the output "Garfield".
 ## Default methods
 
 In this example, the `to_string` method in the `ToString` trait is a required
-method. This means that any class that implements `ToString` _must_ provide an
+method. This means that any type that implements `ToString` _must_ provide an
 implementation of the `to_string` method.
 
 Default trait methods are defined as follows:
@@ -58,7 +57,7 @@ trait ToString {
   }
 }
 
-class Cat {
+type Cat {
   let @name: String
 }
 
@@ -68,7 +67,7 @@ impl ToString for Cat {
   }
 }
 
-class async Main {
+type async Main {
   fn async main {
     let garfield = Cat(name: 'Garfield')
 
@@ -91,7 +90,7 @@ trait ToString {
   }
 }
 
-class Cat {
+type Cat {
   let @name: String
 }
 
@@ -99,7 +98,7 @@ impl ToString for Cat {
 
 }
 
-class async Main {
+type async Main {
   fn async main {
     let garfield = Cat(name: 'Garfield')
 

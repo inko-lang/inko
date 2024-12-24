@@ -1,4 +1,4 @@
-class Thing {}
+type Thing {}
 
 fn foo[T](value: uni T) {}
 

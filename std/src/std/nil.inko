@@ -12,7 +12,7 @@ import std.fmt (Format, Formatter)
 #
 # Don't use `Nil` directly, instead use the `Option` type whenever you have
 # optional values.
-class builtin Nil {
+type builtin Nil {
   # Returns a new `Nil`.
   fn pub static new -> Nil {
     nil

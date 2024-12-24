@@ -671,7 +671,7 @@ trait pub IntoIter[T] {
 #   nums.next # => Option.Some(1)
 # }
 # ```
-class pub Stream[T] {
+type pub Stream[T] {
   let @func: fn -> Option[T]
 
   # Returns a new iterator using the closure.
@@ -688,7 +688,7 @@ impl Iter[T] for Stream {
 
 # An iterator that allows looking at the next element in an iterator, without
 # consuming it.
-class pub Peekable[T] {
+type pub Peekable[T] {
   let @iter: Iter[T]
   let @peeked: Option[Option[T]]
 

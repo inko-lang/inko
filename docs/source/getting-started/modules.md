@@ -5,7 +5,7 @@
 ---
 
 Inko programs are divided into many modules. A module is an Inko source file
-defining methods, classes, traits, constants, and more.
+defining methods, types, traits, constants, and more.
 
 Modules and their symbols can be imported into other modules using the `import`
 keyword. For example, in the tutorials covered so far we've seen instances of
@@ -14,20 +14,20 @@ this such as:
 ```inko
 import std.stdio (Stdout)
 
-class async Main {
+type async Main {
   fn async main {
     Stdout.new.print('hello')
   }
 }
 ```
 
-Here we import the `Stdout` class from the module `std.stdio`. We can also
+Here we import the `Stdout` type from the module `std.stdio`. We can also
 import modules as a whole:
 
 ```inko
 import std.stdio
 
-class async Main {
+type async Main {
   fn async main {
     stdio.Stdout.new.print('hello')
   }
@@ -39,7 +39,7 @@ Importing multiple symbols at once is also possible:
 ```inko
 import std.stdio (Stderr, Stdout)
 
-class async Main {
+type async Main {
   fn async main {
     Stdout.new.print('hello')
     Stderr.new.print('world')
@@ -53,7 +53,7 @@ conflicts by using a custom alias:
 ```inko
 import std.stdio (Stderr as ERR, Stdout as OUT)
 
-class async Main {
+type async Main {
   fn async main {
     OUT.new.print('hello')
     ERR.new.print('world')

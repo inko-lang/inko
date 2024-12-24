@@ -1,4 +1,4 @@
-class enum Example {
+type enum Example {
   case A(Never)
 }
 

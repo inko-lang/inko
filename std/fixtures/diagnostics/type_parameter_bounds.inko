@@ -1,4 +1,4 @@
-class A[T] {}
+type A[T] {}
 
 impl A if T: mut {}
 

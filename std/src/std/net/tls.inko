@@ -142,12 +142,12 @@ fn extern inko_tls_server_close(
 let OK = 0
 let ERROR = 2
 
-class extern AnyResult {
+type extern AnyResult {
   let @tag: Int
   let @value: UInt64
 }
 
-class extern IntResult {
+type extern IntResult {
   let @tag: Int
   let @value: Int
 }
@@ -177,7 +177,7 @@ fn extern write_callback(
 }
 
 # An error produced when creating a `ServerConfig`.
-class pub copy enum ServerConfigError {
+type pub copy enum ServerConfigError {
   # The certificate exists but is invalid, such as when it's revoked or not
   # encoded correctly.
   case InvalidCertificate
@@ -223,7 +223,7 @@ impl Format for ServerConfigError {
 # create a `ClientConfig` once and use `ClientConfig.clone` to clone it whenever
 # necessary (e.g. when sharing a `ClientConfig` between processes), as cloning a
 # `ClientConfig` is cheap.
-class pub ClientConfig {
+type pub ClientConfig {
   let @raw: Pointer[UInt8]
 
   # Returns a new `ClientConfig` that uses the system's certificate store.
@@ -314,7 +314,7 @@ impl Clone[ClientConfig] for ClientConfig {
 #
 # client.read_all(response).or_panic('failed to read the response')
 # ```
-class pub Client[T: mut + RawSocketOperations] {
+type pub Client[T: mut + RawSocketOperations] {
   # The socket wrapped by this `Client`.
   let pub @socket: T
 
@@ -463,7 +463,7 @@ impl Write for Client {
 # certificate and private key that are used. As such, it's recommended to only
 # create a `ServerConfig` once and use `ServerConfig.clone` to clone it whenever
 # necessary, as cloning a `ServerConfig` is cheap.
-class pub ServerConfig {
+type pub ServerConfig {
   let @raw: Pointer[UInt8]
 
   # Returns a new `ClientConfig` using the specified PEM encoded X.509
@@ -553,7 +553,7 @@ impl Clone[ServerConfig] for ServerConfig {
 #
 # con.read(into: bytes, size: 32).or_panic('failed to read the data')
 # ```
-class pub Server[T: mut + RawSocketOperations] {
+type pub Server[T: mut + RawSocketOperations] {
   # The socket wrapped by this `Server`.
   let pub @socket: T
 

@@ -1,4 +1,4 @@
-class A {
+type A {
   fn foo {
     recover fn { bar }
     recover fn { self.bar }

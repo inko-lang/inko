@@ -1,6 +1,6 @@
 import std.test (Tests)
 
-class extern Example {
+type extern Example {
   let @a: Int
   let @b: Int
 }

@@ -1,4 +1,4 @@
-class enum Letter {
+type enum Letter {
   case A
   case B
 }

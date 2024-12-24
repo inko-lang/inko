@@ -119,7 +119,7 @@ pub(crate) struct ConstStringLiteral {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct TupleLiteral {
-    pub(crate) class_id: Option<types::ClassId>,
+    pub(crate) type_id: Option<types::TypeId>,
     pub(crate) value_types: Vec<types::TypeRef>,
     pub(crate) resolved_type: types::TypeRef,
     pub(crate) values: Vec<Expression>,
@@ -162,7 +162,7 @@ pub(crate) struct Call {
     pub(crate) arguments: Vec<Argument>,
     /// A flag that signals parentheses are used, even if no arguments are
     /// specified. This is used to disambiguate between `Foo` referring to a
-    /// class, and `Foo()` that creates an instance of a class.
+    /// type, and `Foo()` that creates an instance of a type.
     ///
     /// We use this flag instead of turning `arguments` into
     /// `Option<Vec<Argument>>` since we don't care about the presence (or lack)
@@ -368,7 +368,7 @@ pub(crate) struct DefineField {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum ClassExpression {
+pub(crate) enum TypeExpression {
     InstanceMethod(Box<DefineInstanceMethod>),
     StaticMethod(Box<DefineStaticMethod>),
     AsyncMethod(Box<DefineAsyncMethod>),
@@ -377,7 +377,7 @@ pub(crate) enum ClassExpression {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum ClassKind {
+pub(crate) enum TypeKind {
     Async,
     Builtin,
     Enum,
@@ -385,30 +385,30 @@ pub(crate) enum ClassKind {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum ClassSemantics {
+pub(crate) enum TypeSemantics {
     Default,
     Inline,
     Copy,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct DefineClass {
+pub(crate) struct DefineType {
     pub(crate) documentation: String,
     pub(crate) public: bool,
-    pub(crate) semantics: ClassSemantics,
-    pub(crate) class_id: Option<types::ClassId>,
-    pub(crate) kind: ClassKind,
+    pub(crate) semantics: TypeSemantics,
+    pub(crate) type_id: Option<types::TypeId>,
+    pub(crate) kind: TypeKind,
     pub(crate) name: Constant,
     pub(crate) type_parameters: Vec<TypeParameter>,
-    pub(crate) body: Vec<ClassExpression>,
+    pub(crate) body: Vec<TypeExpression>,
     pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct DefineExternClass {
+pub(crate) struct DefineExternType {
     pub(crate) documentation: String,
     pub(crate) public: bool,
-    pub(crate) class_id: Option<types::ClassId>,
+    pub(crate) type_id: Option<types::TypeId>,
     pub(crate) name: Constant,
     pub(crate) fields: Vec<DefineField>,
     pub(crate) location: Location,
@@ -444,29 +444,29 @@ pub(crate) struct DefineTrait {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum TopLevelExpression {
-    Class(Box<DefineClass>),
-    ExternClass(Box<DefineExternClass>),
+    Type(Box<DefineType>),
+    ExternType(Box<DefineExternType>),
     Constant(Box<DefineConstant>),
     ModuleMethod(Box<DefineModuleMethod>),
     ExternFunction(Box<DefineExternFunction>),
     Trait(Box<DefineTrait>),
     Implement(Box<ImplementTrait>),
     Import(Box<Import>),
-    Reopen(Box<ReopenClass>),
+    Reopen(Box<ReopenType>),
     ExternImport(Box<ExternImport>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct ReopenClass {
-    pub(crate) class_id: Option<types::ClassId>,
-    pub(crate) class_name: Constant,
-    pub(crate) body: Vec<ReopenClassExpression>,
+pub(crate) struct ReopenType {
+    pub(crate) type_id: Option<types::TypeId>,
+    pub(crate) type_name: Constant,
+    pub(crate) body: Vec<ReopenTypeExpression>,
     pub(crate) bounds: Vec<TypeBound>,
     pub(crate) location: Location,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum ReopenClassExpression {
+pub(crate) enum ReopenTypeExpression {
     InstanceMethod(Box<DefineInstanceMethod>),
     StaticMethod(Box<DefineStaticMethod>),
     AsyncMethod(Box<DefineAsyncMethod>),
@@ -484,12 +484,12 @@ pub(crate) struct TypeBound {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ImplementTrait {
     pub(crate) trait_name: TypeName,
-    pub(crate) class_name: Constant,
+    pub(crate) type_name: Constant,
     pub(crate) body: Vec<DefineInstanceMethod>,
     pub(crate) location: Location,
     pub(crate) bounds: Vec<TypeBound>,
     pub(crate) trait_instance: Option<types::TraitInstance>,
-    pub(crate) class_instance: Option<types::ClassInstance>,
+    pub(crate) type_instance: Option<types::TypeInstance>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1003,8 +1003,8 @@ pub(crate) struct FieldPattern {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct ClassPattern {
-    pub(crate) class_id: Option<types::ClassId>,
+pub(crate) struct TypePattern {
+    pub(crate) type_id: Option<types::TypeId>,
     pub(crate) values: Vec<FieldPattern>,
     pub(crate) location: Location,
 }
@@ -1053,7 +1053,7 @@ pub struct StringPattern {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Pattern {
-    Class(Box<ClassPattern>),
+    Type(Box<TypePattern>),
     Constant(Box<ConstantPattern>),
     Identifier(Box<IdentifierPattern>),
     Int(Box<IntLiteral>),
@@ -1075,7 +1075,7 @@ impl Pattern {
             Pattern::String(ref n) => n.location,
             Pattern::Identifier(ref n) => n.location,
             Pattern::Tuple(ref n) => n.location,
-            Pattern::Class(ref n) => n.location,
+            Pattern::Type(ref n) => n.location,
             Pattern::Wildcard(ref n) => n.location,
             Pattern::True(ref n) => n.location,
             Pattern::False(ref n) => n.location,
@@ -1197,18 +1197,18 @@ impl<'a> LowerToHir<'a> {
 
                     exprs.push(self.define_module_method(*node, doc));
                 }
-                ast::TopLevelExpression::DefineClass(node) => {
+                ast::TopLevelExpression::DefineType(node) => {
                     let doc = comments.documentation_for(&node.location);
 
-                    exprs.push(self.define_class(*node, doc));
+                    exprs.push(self.define_type(*node, doc));
                 }
                 ast::TopLevelExpression::DefineTrait(node) => {
                     let doc = comments.documentation_for(&node.location);
 
                     exprs.push(self.define_trait(*node, doc));
                 }
-                ast::TopLevelExpression::ReopenClass(node) => {
-                    exprs.push(self.reopen_class(*node));
+                ast::TopLevelExpression::ReopenType(node) => {
+                    exprs.push(self.reopen_type(*node));
                 }
                 ast::TopLevelExpression::ImplementTrait(node) => {
                     exprs.push(self.implement_trait(*node));
@@ -1311,14 +1311,14 @@ impl<'a> LowerToHir<'a> {
         }
     }
 
-    fn define_class(
+    fn define_type(
         &mut self,
-        node: ast::DefineClass,
+        node: ast::DefineType,
         documentation: String,
     ) -> TopLevelExpression {
-        if !matches!(node.semantics, ast::ClassSemantics::Default) {
+        if !matches!(node.semantics, ast::TypeSemantics::Default) {
             match node.kind {
-                ast::ClassKind::Enum | ast::ClassKind::Regular => {}
+                ast::TypeKind::Enum | ast::TypeKind::Regular => {}
                 _ => {
                     self.state.diagnostics.error(
                         DiagnosticId::InvalidType,
@@ -1331,36 +1331,36 @@ impl<'a> LowerToHir<'a> {
             }
         }
 
-        if let ast::ClassKind::Extern = node.kind {
-            return self.define_extern_class(node, documentation);
+        if let ast::TypeKind::Extern = node.kind {
+            return self.define_extern_type(node, documentation);
         }
 
-        TopLevelExpression::Class(Box::new(DefineClass {
+        TopLevelExpression::Type(Box::new(DefineType {
             documentation,
             public: node.public,
             semantics: match node.semantics {
-                ast::ClassSemantics::Default => ClassSemantics::Default,
-                ast::ClassSemantics::Inline => ClassSemantics::Inline,
-                ast::ClassSemantics::Copy => ClassSemantics::Copy,
+                ast::TypeSemantics::Default => TypeSemantics::Default,
+                ast::TypeSemantics::Inline => TypeSemantics::Inline,
+                ast::TypeSemantics::Copy => TypeSemantics::Copy,
             },
-            class_id: None,
+            type_id: None,
             kind: match node.kind {
-                ast::ClassKind::Async => ClassKind::Async,
-                ast::ClassKind::Enum => ClassKind::Enum,
-                ast::ClassKind::Builtin => ClassKind::Builtin,
-                _ => ClassKind::Regular,
+                ast::TypeKind::Async => TypeKind::Async,
+                ast::TypeKind::Enum => TypeKind::Enum,
+                ast::TypeKind::Builtin => TypeKind::Builtin,
+                _ => TypeKind::Regular,
             },
             name: self.constant(node.name),
             type_parameters: self
                 .optional_type_parameters(node.type_parameters),
-            body: self.class_expressions(node.body),
+            body: self.type_expressions(node.body),
             location: node.location,
         }))
     }
 
-    fn define_extern_class(
+    fn define_extern_type(
         &mut self,
-        node: ast::DefineClass,
+        node: ast::DefineType,
         documentation: String,
     ) -> TopLevelExpression {
         let mut fields = Vec::new();
@@ -1368,55 +1368,55 @@ impl<'a> LowerToHir<'a> {
 
         for expr in node.body.values {
             match expr {
-                ast::ClassExpression::DefineField(n) => {
+                ast::TypeExpression::DefineField(n) => {
                     let doc = comments.documentation_for(&n.location);
 
                     fields.push(self.define_field(*n, doc));
                 }
-                ast::ClassExpression::Comment(c) => {
+                ast::TypeExpression::Comment(c) => {
                     comments.push(*c);
                 }
                 _ => unreachable!(),
             }
         }
 
-        TopLevelExpression::ExternClass(Box::new(DefineExternClass {
+        TopLevelExpression::ExternType(Box::new(DefineExternType {
             documentation,
             public: node.public,
-            class_id: None,
+            type_id: None,
             name: self.constant(node.name),
             fields,
             location: node.location,
         }))
     }
 
-    fn class_expressions(
+    fn type_expressions(
         &mut self,
-        node: ast::ClassExpressions,
-    ) -> Vec<ClassExpression> {
+        node: ast::TypeExpressions,
+    ) -> Vec<TypeExpression> {
         let mut exprs = Vec::new();
         let mut comments = Comments::new();
 
         for n in node.values {
             match n {
-                ast::ClassExpression::DefineMethod(node) => {
+                ast::TypeExpression::DefineMethod(node) => {
                     let doc = comments.documentation_for(&node.location);
 
-                    exprs.push(self.define_method_in_class(*node, doc));
+                    exprs.push(self.define_method_in_type(*node, doc));
                 }
-                ast::ClassExpression::DefineField(node) => {
+                ast::TypeExpression::DefineField(node) => {
                     let doc = comments.documentation_for(&node.location);
 
-                    exprs.push(ClassExpression::Field(Box::new(
+                    exprs.push(TypeExpression::Field(Box::new(
                         self.define_field(*node, doc),
                     )));
                 }
-                ast::ClassExpression::DefineConstructor(node) => {
+                ast::TypeExpression::DefineConstructor(node) => {
                     let doc = comments.documentation_for(&node.location);
 
                     exprs.push(self.define_case(*node, doc));
                 }
-                ast::ClassExpression::Comment(c) => {
+                ast::TypeExpression::Comment(c) => {
                     comments.push(*c);
                 }
             }
@@ -1444,8 +1444,8 @@ impl<'a> LowerToHir<'a> {
         &mut self,
         node: ast::DefineConstructor,
         documentation: String,
-    ) -> ClassExpression {
-        ClassExpression::Constructor(Box::new(DefineConstructor {
+    ) -> TypeExpression {
+        TypeExpression::Constructor(Box::new(DefineConstructor {
             documentation,
             method_id: None,
             constructor_id: None,
@@ -1455,21 +1455,21 @@ impl<'a> LowerToHir<'a> {
         }))
     }
 
-    fn define_method_in_class(
+    fn define_method_in_type(
         &mut self,
         node: ast::DefineMethod,
         documentation: String,
-    ) -> ClassExpression {
+    ) -> TypeExpression {
         match node.kind {
             ast::MethodKind::Async | ast::MethodKind::AsyncMutable => {
-                ClassExpression::AsyncMethod(
+                TypeExpression::AsyncMethod(
                     self.define_async_method(node, documentation),
                 )
             }
-            ast::MethodKind::Static => ClassExpression::StaticMethod(
+            ast::MethodKind::Static => TypeExpression::StaticMethod(
                 self.define_static_method(node, documentation),
             ),
-            _ => ClassExpression::InstanceMethod(Box::new(
+            _ => TypeExpression::InstanceMethod(Box::new(
                 self.define_instance_method(node, documentation),
             )),
         }
@@ -1704,20 +1704,20 @@ impl<'a> LowerToHir<'a> {
         }
     }
 
-    fn reopen_class(&mut self, node: ast::ReopenClass) -> TopLevelExpression {
-        TopLevelExpression::Reopen(Box::new(ReopenClass {
-            class_id: None,
-            class_name: self.constant(node.class_name),
-            body: self.reopen_class_expressions(node.body),
+    fn reopen_type(&mut self, node: ast::ReopenType) -> TopLevelExpression {
+        TopLevelExpression::Reopen(Box::new(ReopenType {
+            type_id: None,
+            type_name: self.constant(node.type_name),
+            body: self.reopen_type_expressions(node.body),
             bounds: self.optional_type_bounds(node.bounds),
             location: node.location,
         }))
     }
 
-    fn reopen_class_expressions(
+    fn reopen_type_expressions(
         &mut self,
         nodes: ast::ImplementationExpressions,
-    ) -> Vec<ReopenClassExpression> {
+    ) -> Vec<ReopenTypeExpression> {
         let mut exprs = Vec::new();
         let mut comments = Comments::new();
 
@@ -1726,7 +1726,7 @@ impl<'a> LowerToHir<'a> {
                 ast::ImplementationExpression::DefineMethod(n) => {
                     let doc = comments.documentation_for(&n.location);
 
-                    exprs.push(self.define_method_in_reopen_class(*n, doc));
+                    exprs.push(self.define_method_in_reopen_type(*n, doc));
                 }
                 ast::ImplementationExpression::Comment(c) => {
                     comments.push(*c);
@@ -1737,21 +1737,21 @@ impl<'a> LowerToHir<'a> {
         exprs
     }
 
-    fn define_method_in_reopen_class(
+    fn define_method_in_reopen_type(
         &mut self,
         node: ast::DefineMethod,
         documentation: String,
-    ) -> ReopenClassExpression {
+    ) -> ReopenTypeExpression {
         match node.kind {
-            ast::MethodKind::Static => ReopenClassExpression::StaticMethod(
+            ast::MethodKind::Static => ReopenTypeExpression::StaticMethod(
                 self.define_static_method(node, documentation),
             ),
             ast::MethodKind::Async | ast::MethodKind::AsyncMutable => {
-                ReopenClassExpression::AsyncMethod(
+                ReopenTypeExpression::AsyncMethod(
                     self.define_async_method(node, documentation),
                 )
             }
-            _ => ReopenClassExpression::InstanceMethod(Box::new(
+            _ => ReopenTypeExpression::InstanceMethod(Box::new(
                 self.define_instance_method(node, documentation),
             )),
         }
@@ -1763,12 +1763,12 @@ impl<'a> LowerToHir<'a> {
     ) -> TopLevelExpression {
         TopLevelExpression::Implement(Box::new(ImplementTrait {
             trait_name: self.type_name(node.trait_name),
-            class_name: self.constant(node.class_name),
+            type_name: self.constant(node.type_name),
             bounds: self.optional_type_bounds(node.bounds),
             body: self.trait_implementation_expressions(node.body),
             location: node.location,
             trait_instance: None,
-            class_instance: None,
+            type_instance: None,
         }))
     }
 
@@ -2233,7 +2233,7 @@ impl<'a> LowerToHir<'a> {
 
     fn tuple_literal(&mut self, node: ast::Tuple) -> Box<TupleLiteral> {
         Box::new(TupleLiteral {
-            class_id: None,
+            type_id: None,
             value_types: Vec::new(),
             resolved_type: types::TypeRef::Unknown,
             values: self.values(node.values),
@@ -3198,8 +3198,8 @@ impl<'a> LowerToHir<'a> {
                 values: self.patterns(n.values),
                 location: n.location,
             })),
-            ast::Pattern::Class(n) => Pattern::Class(Box::new(ClassPattern {
-                class_id: None,
+            ast::Pattern::Type(n) => Pattern::Type(Box::new(TypePattern {
+                type_id: None,
                 values: n
                     .values
                     .into_iter()
@@ -3956,119 +3956,39 @@ mod tests {
     }
 
     #[test]
-    fn test_lower_class() {
-        let hir = lower_top_expr("class A[B: C] { let @a: B }").0;
+    fn test_lower_type() {
+        let hir = lower_top_expr("type A[B: C] { let @a: B }").0;
 
         assert_eq!(
             hir,
-            TopLevelExpression::Class(Box::new(DefineClass {
+            TopLevelExpression::Type(Box::new(DefineType {
                 documentation: String::new(),
                 public: false,
-                semantics: ClassSemantics::Default,
-                kind: ClassKind::Regular,
-                class_id: None,
-                name: Constant { name: "A".to_string(), location: cols(7, 7) },
+                semantics: TypeSemantics::Default,
+                kind: TypeKind::Regular,
+                type_id: None,
+                name: Constant { name: "A".to_string(), location: cols(6, 6) },
                 type_parameters: vec![TypeParameter {
                     type_parameter_id: None,
                     name: Constant {
                         name: "B".to_string(),
-                        location: cols(9, 9)
+                        location: cols(8, 8)
                     },
                     requirements: vec![TypeName {
                         source: None,
                         resolved_type: types::TypeRef::Unknown,
                         name: Constant {
                             name: "C".to_string(),
-                            location: cols(12, 12)
+                            location: cols(11, 11)
                         },
                         arguments: Vec::new(),
-                        location: cols(12, 12)
+                        location: cols(11, 11)
                     }],
                     mutable: false,
                     copy: false,
-                    location: cols(9, 12)
+                    location: cols(8, 11)
                 }],
-                body: vec![ClassExpression::Field(Box::new(DefineField {
-                    documentation: String::new(),
-                    public: false,
-                    field_id: None,
-                    name: Identifier {
-                        name: "a".to_string(),
-                        location: cols(21, 22)
-                    },
-                    value_type: Type::Named(Box::new(TypeName {
-                        source: None,
-                        resolved_type: types::TypeRef::Unknown,
-                        name: Constant {
-                            name: "B".to_string(),
-                            location: cols(25, 25)
-                        },
-                        arguments: Vec::new(),
-                        location: cols(25, 25)
-                    })),
-                    location: cols(17, 25),
-                }))],
-                location: cols(1, 27)
-            })),
-        );
-    }
-
-    #[test]
-    fn test_lower_extern_class() {
-        let hir = lower_top_expr("class extern A { let @a: B }").0;
-
-        assert_eq!(
-            hir,
-            TopLevelExpression::ExternClass(Box::new(DefineExternClass {
-                documentation: String::new(),
-                public: false,
-                class_id: None,
-                name: Constant {
-                    name: "A".to_string(),
-                    location: cols(14, 14)
-                },
-                fields: vec![DefineField {
-                    documentation: String::new(),
-                    public: false,
-                    field_id: None,
-                    name: Identifier {
-                        name: "a".to_string(),
-                        location: cols(22, 23)
-                    },
-                    value_type: Type::Named(Box::new(TypeName {
-                        source: None,
-                        resolved_type: types::TypeRef::Unknown,
-                        name: Constant {
-                            name: "B".to_string(),
-                            location: cols(26, 26)
-                        },
-                        arguments: Vec::new(),
-                        location: cols(26, 26)
-                    })),
-                    location: cols(18, 26),
-                }],
-                location: cols(1, 28)
-            })),
-        );
-    }
-
-    #[test]
-    fn test_lower_copy_class() {
-        let hir = lower_top_expr("class copy A { let @a: B }").0;
-
-        assert_eq!(
-            hir,
-            TopLevelExpression::Class(Box::new(DefineClass {
-                documentation: String::new(),
-                public: false,
-                semantics: ClassSemantics::Copy,
-                class_id: None,
-                kind: ClassKind::Regular,
-                name: Constant {
-                    name: "A".to_string(),
-                    location: cols(12, 12)
-                },
-                body: vec![ClassExpression::Field(Box::new(DefineField {
+                body: vec![TypeExpression::Field(Box::new(DefineField {
                     documentation: String::new(),
                     public: false,
                     field_id: None,
@@ -4088,52 +4008,69 @@ mod tests {
                     })),
                     location: cols(16, 24),
                 }))],
-                type_parameters: Vec::new(),
                 location: cols(1, 26)
             })),
         );
     }
 
     #[test]
-    fn test_lower_public_class() {
-        let hir = lower_top_expr("class pub A {}").0;
+    fn test_lower_extern_type() {
+        let hir = lower_top_expr("type extern A { let @a: B }").0;
 
         assert_eq!(
             hir,
-            TopLevelExpression::Class(Box::new(DefineClass {
+            TopLevelExpression::ExternType(Box::new(DefineExternType {
                 documentation: String::new(),
-                public: true,
-                semantics: ClassSemantics::Default,
-                kind: ClassKind::Regular,
-                class_id: None,
+                public: false,
+                type_id: None,
                 name: Constant {
                     name: "A".to_string(),
-                    location: cols(11, 11)
+                    location: cols(13, 13)
                 },
-                type_parameters: Vec::new(),
-                body: Vec::new(),
-                location: cols(1, 14)
+                fields: vec![DefineField {
+                    documentation: String::new(),
+                    public: false,
+                    field_id: None,
+                    name: Identifier {
+                        name: "a".to_string(),
+                        location: cols(21, 22)
+                    },
+                    value_type: Type::Named(Box::new(TypeName {
+                        source: None,
+                        resolved_type: types::TypeRef::Unknown,
+                        name: Constant {
+                            name: "B".to_string(),
+                            location: cols(25, 25)
+                        },
+                        arguments: Vec::new(),
+                        location: cols(25, 25)
+                    })),
+                    location: cols(17, 25),
+                }],
+                location: cols(1, 27)
             })),
         );
     }
 
     #[test]
-    fn test_lower_class_with_public_field() {
-        let hir = lower_top_expr("class A { let pub @a: A }").0;
+    fn test_lower_copy_type() {
+        let hir = lower_top_expr("type copy A { let @a: B }").0;
 
         assert_eq!(
             hir,
-            TopLevelExpression::Class(Box::new(DefineClass {
+            TopLevelExpression::Type(Box::new(DefineType {
                 documentation: String::new(),
                 public: false,
-                semantics: ClassSemantics::Default,
-                kind: ClassKind::Regular,
-                class_id: None,
-                name: Constant { name: "A".to_string(), location: cols(7, 7) },
-                type_parameters: Vec::new(),
-                body: vec![ClassExpression::Field(Box::new(DefineField {
+                semantics: TypeSemantics::Copy,
+                type_id: None,
+                kind: TypeKind::Regular,
+                name: Constant {
+                    name: "A".to_string(),
+                    location: cols(11, 11)
+                },
+                body: vec![TypeExpression::Field(Box::new(DefineField {
                     documentation: String::new(),
-                    public: true,
+                    public: false,
                     field_id: None,
                     name: Identifier {
                         name: "a".to_string(),
@@ -4143,198 +4080,185 @@ mod tests {
                         source: None,
                         resolved_type: types::TypeRef::Unknown,
                         name: Constant {
-                            name: "A".to_string(),
+                            name: "B".to_string(),
                             location: cols(23, 23)
                         },
                         arguments: Vec::new(),
                         location: cols(23, 23)
                     })),
-                    location: cols(11, 23)
+                    location: cols(15, 23),
                 }))],
+                type_parameters: Vec::new(),
                 location: cols(1, 25)
             })),
         );
     }
 
     #[test]
-    fn test_lower_builtin_class() {
-        let hir = lower_top_expr("class builtin A[B: C] { let @a: B }").0;
+    fn test_lower_public_type() {
+        let hir = lower_top_expr("type pub A {}").0;
 
         assert_eq!(
             hir,
-            TopLevelExpression::Class(Box::new(DefineClass {
+            TopLevelExpression::Type(Box::new(DefineType {
                 documentation: String::new(),
-                public: false,
-                semantics: ClassSemantics::Default,
-                class_id: None,
-                kind: ClassKind::Builtin,
+                public: true,
+                semantics: TypeSemantics::Default,
+                kind: TypeKind::Regular,
+                type_id: None,
                 name: Constant {
                     name: "A".to_string(),
-                    location: cols(15, 15)
+                    location: cols(10, 10)
+                },
+                type_parameters: Vec::new(),
+                body: Vec::new(),
+                location: cols(1, 13)
+            })),
+        );
+    }
+
+    #[test]
+    fn test_lower_type_with_public_field() {
+        let hir = lower_top_expr("type A { let pub @a: A }").0;
+
+        assert_eq!(
+            hir,
+            TopLevelExpression::Type(Box::new(DefineType {
+                documentation: String::new(),
+                public: false,
+                semantics: TypeSemantics::Default,
+                kind: TypeKind::Regular,
+                type_id: None,
+                name: Constant { name: "A".to_string(), location: cols(6, 6) },
+                type_parameters: Vec::new(),
+                body: vec![TypeExpression::Field(Box::new(DefineField {
+                    documentation: String::new(),
+                    public: true,
+                    field_id: None,
+                    name: Identifier {
+                        name: "a".to_string(),
+                        location: cols(18, 19)
+                    },
+                    value_type: Type::Named(Box::new(TypeName {
+                        source: None,
+                        resolved_type: types::TypeRef::Unknown,
+                        name: Constant {
+                            name: "A".to_string(),
+                            location: cols(22, 22)
+                        },
+                        arguments: Vec::new(),
+                        location: cols(22, 22)
+                    })),
+                    location: cols(10, 22)
+                }))],
+                location: cols(1, 24)
+            })),
+        );
+    }
+
+    #[test]
+    fn test_lower_builtin_type() {
+        let hir = lower_top_expr("type builtin A[B: C] { let @a: B }").0;
+
+        assert_eq!(
+            hir,
+            TopLevelExpression::Type(Box::new(DefineType {
+                documentation: String::new(),
+                public: false,
+                semantics: TypeSemantics::Default,
+                type_id: None,
+                kind: TypeKind::Builtin,
+                name: Constant {
+                    name: "A".to_string(),
+                    location: cols(14, 14)
                 },
                 type_parameters: vec![TypeParameter {
                     type_parameter_id: None,
                     name: Constant {
                         name: "B".to_string(),
-                        location: cols(17, 17)
+                        location: cols(16, 16)
                     },
                     requirements: vec![TypeName {
                         source: None,
                         resolved_type: types::TypeRef::Unknown,
                         name: Constant {
                             name: "C".to_string(),
-                            location: cols(20, 20)
+                            location: cols(19, 19)
                         },
                         arguments: Vec::new(),
-                        location: cols(20, 20)
+                        location: cols(19, 19)
                     }],
                     mutable: false,
                     copy: false,
-                    location: cols(17, 20)
+                    location: cols(16, 19)
                 }],
-                body: vec![ClassExpression::Field(Box::new(DefineField {
+                body: vec![TypeExpression::Field(Box::new(DefineField {
                     documentation: String::new(),
                     public: false,
                     field_id: None,
                     name: Identifier {
                         name: "a".to_string(),
-                        location: cols(29, 30)
+                        location: cols(28, 29)
                     },
                     value_type: Type::Named(Box::new(TypeName {
                         source: None,
                         resolved_type: types::TypeRef::Unknown,
                         name: Constant {
                             name: "B".to_string(),
-                            location: cols(33, 33)
+                            location: cols(32, 32)
                         },
                         arguments: Vec::new(),
-                        location: cols(33, 33)
+                        location: cols(32, 32)
                     })),
-                    location: cols(25, 33),
+                    location: cols(24, 32),
                 }))],
-                location: cols(1, 35)
+                location: cols(1, 34)
             })),
         );
     }
 
     #[test]
-    fn test_lower_async_class() {
-        let hir = lower_top_expr("class async A {}").0;
+    fn test_lower_async_type() {
+        let hir = lower_top_expr("type async A {}").0;
 
         assert_eq!(
             hir,
-            TopLevelExpression::Class(Box::new(DefineClass {
+            TopLevelExpression::Type(Box::new(DefineType {
                 documentation: String::new(),
                 public: false,
-                semantics: ClassSemantics::Default,
-                class_id: None,
-                kind: ClassKind::Async,
+                semantics: TypeSemantics::Default,
+                type_id: None,
+                kind: TypeKind::Async,
                 name: Constant {
                     name: "A".to_string(),
-                    location: cols(13, 13)
+                    location: cols(12, 12)
                 },
                 type_parameters: Vec::new(),
                 body: Vec::new(),
-                location: cols(1, 16)
+                location: cols(1, 15)
             })),
         );
     }
 
     #[test]
-    fn test_lower_class_with_static_method() {
+    fn test_lower_type_with_static_method() {
         let hir =
-            lower_top_expr("class A { fn static a[A](b: B) -> D { 10 } }").0;
+            lower_top_expr("type A { fn static a[A](b: B) -> D { 10 } }").0;
 
         assert_eq!(
             hir,
-            TopLevelExpression::Class(Box::new(DefineClass {
+            TopLevelExpression::Type(Box::new(DefineType {
                 documentation: String::new(),
                 public: false,
-                semantics: ClassSemantics::Default,
-                class_id: None,
-                kind: ClassKind::Regular,
-                name: Constant { name: "A".to_string(), location: cols(7, 7) },
+                semantics: TypeSemantics::Default,
+                type_id: None,
+                kind: TypeKind::Regular,
+                name: Constant { name: "A".to_string(), location: cols(6, 6) },
                 type_parameters: Vec::new(),
-                body: vec![ClassExpression::StaticMethod(Box::new(
+                body: vec![TypeExpression::StaticMethod(Box::new(
                     DefineStaticMethod {
                         inline: false,
                         documentation: String::new(),
-                        public: false,
-                        name: Identifier {
-                            name: "a".to_string(),
-                            location: cols(21, 21)
-                        },
-                        type_parameters: vec![TypeParameter {
-                            type_parameter_id: None,
-                            name: Constant {
-                                name: "A".to_string(),
-                                location: cols(23, 23)
-                            },
-                            requirements: Vec::new(),
-                            mutable: false,
-                            copy: false,
-                            location: cols(23, 23)
-                        }],
-                        arguments: vec![MethodArgument {
-                            name: Identifier {
-                                name: "b".to_string(),
-                                location: cols(26, 26)
-                            },
-                            value_type: Type::Named(Box::new(TypeName {
-                                source: None,
-                                resolved_type: types::TypeRef::Unknown,
-                                name: Constant {
-                                    name: "B".to_string(),
-                                    location: cols(29, 29)
-                                },
-                                arguments: Vec::new(),
-                                location: cols(29, 29)
-                            })),
-                            location: cols(26, 29)
-                        }],
-                        return_type: Some(Type::Named(Box::new(TypeName {
-                            source: None,
-                            resolved_type: types::TypeRef::Unknown,
-                            name: Constant {
-                                name: "D".to_string(),
-                                location: cols(35, 35)
-                            },
-                            arguments: Vec::new(),
-                            location: cols(35, 35)
-                        }))),
-                        body: vec![Expression::Int(Box::new(IntLiteral {
-                            value: 10,
-                            resolved_type: types::TypeRef::Unknown,
-                            location: cols(39, 40)
-                        }))],
-                        method_id: None,
-                        location: cols(11, 42),
-                    }
-                ))],
-                location: cols(1, 44)
-            })),
-        );
-    }
-
-    #[test]
-    fn test_lower_class_with_async_method() {
-        let hir =
-            lower_top_expr("class A { fn async a[A](b: B) -> D { 10 } }").0;
-
-        assert_eq!(
-            hir,
-            TopLevelExpression::Class(Box::new(DefineClass {
-                documentation: String::new(),
-                public: false,
-                semantics: ClassSemantics::Default,
-                class_id: None,
-                kind: ClassKind::Regular,
-                name: Constant { name: "A".to_string(), location: cols(7, 7) },
-                type_parameters: Vec::new(),
-                body: vec![ClassExpression::AsyncMethod(Box::new(
-                    DefineAsyncMethod {
-                        documentation: String::new(),
-                        mutable: false,
                         public: false,
                         name: Identifier {
                             name: "a".to_string(),
@@ -4384,7 +4308,7 @@ mod tests {
                             location: cols(38, 39)
                         }))],
                         method_id: None,
-                        location: cols(11, 41),
+                        location: cols(10, 41),
                     }
                 ))],
                 location: cols(1, 43)
@@ -4393,20 +4317,96 @@ mod tests {
     }
 
     #[test]
-    fn test_lower_class_with_instance_method() {
-        let hir = lower_top_expr("class A { fn a[A](b: B) -> D { 10 } }").0;
+    fn test_lower_type_with_async_method() {
+        let hir =
+            lower_top_expr("type A { fn async a[A](b: B) -> D { 10 } }").0;
 
         assert_eq!(
             hir,
-            TopLevelExpression::Class(Box::new(DefineClass {
+            TopLevelExpression::Type(Box::new(DefineType {
                 documentation: String::new(),
                 public: false,
-                semantics: ClassSemantics::Default,
-                class_id: None,
-                kind: ClassKind::Regular,
-                name: Constant { name: "A".to_string(), location: cols(7, 7) },
+                semantics: TypeSemantics::Default,
+                type_id: None,
+                kind: TypeKind::Regular,
+                name: Constant { name: "A".to_string(), location: cols(6, 6) },
                 type_parameters: Vec::new(),
-                body: vec![ClassExpression::InstanceMethod(Box::new(
+                body: vec![TypeExpression::AsyncMethod(Box::new(
+                    DefineAsyncMethod {
+                        documentation: String::new(),
+                        mutable: false,
+                        public: false,
+                        name: Identifier {
+                            name: "a".to_string(),
+                            location: cols(19, 19)
+                        },
+                        type_parameters: vec![TypeParameter {
+                            type_parameter_id: None,
+                            name: Constant {
+                                name: "A".to_string(),
+                                location: cols(21, 21)
+                            },
+                            requirements: Vec::new(),
+                            mutable: false,
+                            copy: false,
+                            location: cols(21, 21)
+                        }],
+                        arguments: vec![MethodArgument {
+                            name: Identifier {
+                                name: "b".to_string(),
+                                location: cols(24, 24)
+                            },
+                            value_type: Type::Named(Box::new(TypeName {
+                                source: None,
+                                resolved_type: types::TypeRef::Unknown,
+                                name: Constant {
+                                    name: "B".to_string(),
+                                    location: cols(27, 27)
+                                },
+                                arguments: Vec::new(),
+                                location: cols(27, 27)
+                            })),
+                            location: cols(24, 27)
+                        }],
+                        return_type: Some(Type::Named(Box::new(TypeName {
+                            source: None,
+                            resolved_type: types::TypeRef::Unknown,
+                            name: Constant {
+                                name: "D".to_string(),
+                                location: cols(33, 33)
+                            },
+                            arguments: Vec::new(),
+                            location: cols(33, 33)
+                        }))),
+                        body: vec![Expression::Int(Box::new(IntLiteral {
+                            value: 10,
+                            resolved_type: types::TypeRef::Unknown,
+                            location: cols(37, 38)
+                        }))],
+                        method_id: None,
+                        location: cols(10, 40),
+                    }
+                ))],
+                location: cols(1, 42)
+            })),
+        );
+    }
+
+    #[test]
+    fn test_lower_type_with_instance_method() {
+        let hir = lower_top_expr("type A { fn a[A](b: B) -> D { 10 } }").0;
+
+        assert_eq!(
+            hir,
+            TopLevelExpression::Type(Box::new(DefineType {
+                documentation: String::new(),
+                public: false,
+                semantics: TypeSemantics::Default,
+                type_id: None,
+                kind: TypeKind::Regular,
+                name: Constant { name: "A".to_string(), location: cols(6, 6) },
+                type_parameters: Vec::new(),
+                body: vec![TypeExpression::InstanceMethod(Box::new(
                     DefineInstanceMethod {
                         inline: false,
                         documentation: String::new(),
@@ -4414,75 +4414,75 @@ mod tests {
                         kind: MethodKind::Regular,
                         name: Identifier {
                             name: "a".to_string(),
-                            location: cols(14, 14)
+                            location: cols(13, 13)
                         },
                         type_parameters: vec![TypeParameter {
                             type_parameter_id: None,
                             name: Constant {
                                 name: "A".to_string(),
-                                location: cols(16, 16)
+                                location: cols(15, 15)
                             },
                             requirements: Vec::new(),
                             mutable: false,
                             copy: false,
-                            location: cols(16, 16)
+                            location: cols(15, 15)
                         }],
                         arguments: vec![MethodArgument {
                             name: Identifier {
                                 name: "b".to_string(),
-                                location: cols(19, 19)
+                                location: cols(18, 18)
                             },
                             value_type: Type::Named(Box::new(TypeName {
                                 source: None,
                                 resolved_type: types::TypeRef::Unknown,
                                 name: Constant {
                                     name: "B".to_string(),
-                                    location: cols(22, 22)
+                                    location: cols(21, 21)
                                 },
                                 arguments: Vec::new(),
-                                location: cols(22, 22)
+                                location: cols(21, 21)
                             })),
-                            location: cols(19, 22)
+                            location: cols(18, 21)
                         }],
                         return_type: Some(Type::Named(Box::new(TypeName {
                             source: None,
                             resolved_type: types::TypeRef::Unknown,
                             name: Constant {
                                 name: "D".to_string(),
-                                location: cols(28, 28)
+                                location: cols(27, 27)
                             },
                             arguments: Vec::new(),
-                            location: cols(28, 28)
+                            location: cols(27, 27)
                         }))),
                         body: vec![Expression::Int(Box::new(IntLiteral {
                             value: 10,
                             resolved_type: types::TypeRef::Unknown,
-                            location: cols(32, 33)
+                            location: cols(31, 32)
                         }))],
                         method_id: None,
-                        location: cols(11, 35)
+                        location: cols(10, 34)
                     }
                 ))],
-                location: cols(1, 37)
+                location: cols(1, 36)
             })),
         );
     }
 
     #[test]
-    fn test_lower_class_with_inline_method() {
-        let hir = lower_top_expr("class A { fn inline foo {} }").0;
+    fn test_lower_type_with_inline_method() {
+        let hir = lower_top_expr("type A { fn inline foo {} }").0;
 
         assert_eq!(
             hir,
-            TopLevelExpression::Class(Box::new(DefineClass {
+            TopLevelExpression::Type(Box::new(DefineType {
                 documentation: String::new(),
                 public: false,
-                semantics: ClassSemantics::Default,
-                class_id: None,
-                kind: ClassKind::Regular,
-                name: Constant { name: "A".to_string(), location: cols(7, 7) },
+                semantics: TypeSemantics::Default,
+                type_id: None,
+                kind: TypeKind::Regular,
+                name: Constant { name: "A".to_string(), location: cols(6, 6) },
                 type_parameters: Vec::new(),
-                body: vec![ClassExpression::InstanceMethod(Box::new(
+                body: vec![TypeExpression::InstanceMethod(Box::new(
                     DefineInstanceMethod {
                         inline: true,
                         documentation: String::new(),
@@ -4490,31 +4490,31 @@ mod tests {
                         kind: MethodKind::Regular,
                         name: Identifier {
                             name: "foo".to_string(),
-                            location: cols(21, 23)
+                            location: cols(20, 22)
                         },
                         type_parameters: Vec::new(),
                         arguments: Vec::new(),
                         return_type: None,
                         body: Vec::new(),
                         method_id: None,
-                        location: cols(11, 26)
+                        location: cols(10, 25)
                     }
                 ))],
-                location: cols(1, 28)
+                location: cols(1, 27)
             })),
         );
     }
 
     #[test]
     fn test_lower_static_operator_method() {
-        let diags = lower_top_expr("class A { fn static + {} }").1;
+        let diags = lower_top_expr("type A { fn static + {} }").1;
 
         assert_eq!(diags, 1);
     }
 
     #[test]
     fn test_lower_module_operator_method() {
-        let diags = lower_top_expr("class A { fn static + {} }").1;
+        let diags = lower_top_expr("type A { fn static + {} }").1;
 
         assert_eq!(diags, 1);
     }
@@ -4830,12 +4830,12 @@ mod tests {
     }
 
     #[test]
-    fn test_lower_reopen_empty_class() {
+    fn test_lower_reopen_empty_type() {
         assert_eq!(
             lower_top_expr("impl A {}").0,
-            TopLevelExpression::Reopen(Box::new(ReopenClass {
-                class_id: None,
-                class_name: Constant {
+            TopLevelExpression::Reopen(Box::new(ReopenType {
+                type_id: None,
+                type_name: Constant {
                     name: "A".to_string(),
                     location: cols(6, 6)
                 },
@@ -4847,9 +4847,9 @@ mod tests {
 
         assert_eq!(
             lower_top_expr("impl A if T: mut {}").0,
-            TopLevelExpression::Reopen(Box::new(ReopenClass {
-                class_id: None,
-                class_name: Constant {
+            TopLevelExpression::Reopen(Box::new(ReopenType {
+                type_id: None,
+                type_name: Constant {
                     name: "A".to_string(),
                     location: cols(6, 6)
                 },
@@ -4870,18 +4870,18 @@ mod tests {
     }
 
     #[test]
-    fn test_lower_reopen_class_with_instance_method() {
+    fn test_lower_reopen_type_with_instance_method() {
         let hir = lower_top_expr("impl A { fn foo {} }").0;
 
         assert_eq!(
             hir,
-            TopLevelExpression::Reopen(Box::new(ReopenClass {
-                class_id: None,
-                class_name: Constant {
+            TopLevelExpression::Reopen(Box::new(ReopenType {
+                type_id: None,
+                type_name: Constant {
                     name: "A".to_string(),
                     location: cols(6, 6)
                 },
-                body: vec![ReopenClassExpression::InstanceMethod(Box::new(
+                body: vec![ReopenTypeExpression::InstanceMethod(Box::new(
                     DefineInstanceMethod {
                         inline: false,
                         documentation: String::new(),
@@ -4906,18 +4906,18 @@ mod tests {
     }
 
     #[test]
-    fn test_lower_reopen_class_with_static_method() {
+    fn test_lower_reopen_type_with_static_method() {
         let hir = lower_top_expr("impl A { fn static foo {} }").0;
 
         assert_eq!(
             hir,
-            TopLevelExpression::Reopen(Box::new(ReopenClass {
-                class_id: None,
-                class_name: Constant {
+            TopLevelExpression::Reopen(Box::new(ReopenType {
+                type_id: None,
+                type_name: Constant {
                     name: "A".to_string(),
                     location: cols(6, 6)
                 },
-                body: vec![ReopenClassExpression::StaticMethod(Box::new(
+                body: vec![ReopenTypeExpression::StaticMethod(Box::new(
                     DefineStaticMethod {
                         inline: false,
                         documentation: String::new(),
@@ -4941,18 +4941,18 @@ mod tests {
     }
 
     #[test]
-    fn test_lower_reopen_class_with_async_method() {
+    fn test_lower_reopen_type_with_async_method() {
         let hir = lower_top_expr("impl A { fn async foo {} }").0;
 
         assert_eq!(
             hir,
-            TopLevelExpression::Reopen(Box::new(ReopenClass {
-                class_id: None,
-                class_name: Constant {
+            TopLevelExpression::Reopen(Box::new(ReopenType {
+                type_id: None,
+                type_name: Constant {
                     name: "A".to_string(),
                     location: cols(6, 6)
                 },
-                body: vec![ReopenClassExpression::AsyncMethod(Box::new(
+                body: vec![ReopenTypeExpression::AsyncMethod(Box::new(
                     DefineAsyncMethod {
                         documentation: String::new(),
                         mutable: false,
@@ -4976,18 +4976,18 @@ mod tests {
     }
 
     #[test]
-    fn test_lower_reopen_class_with_async_mutable_method() {
+    fn test_lower_reopen_type_with_async_mutable_method() {
         let hir = lower_top_expr("impl A { fn async mut foo {} }").0;
 
         assert_eq!(
             hir,
-            TopLevelExpression::Reopen(Box::new(ReopenClass {
-                class_id: None,
-                class_name: Constant {
+            TopLevelExpression::Reopen(Box::new(ReopenType {
+                type_id: None,
+                type_name: Constant {
                     name: "A".to_string(),
                     location: cols(6, 6)
                 },
-                body: vec![ReopenClassExpression::AsyncMethod(Box::new(
+                body: vec![ReopenTypeExpression::AsyncMethod(Box::new(
                     DefineAsyncMethod {
                         documentation: String::new(),
                         mutable: true,
@@ -5027,7 +5027,7 @@ mod tests {
                     arguments: Vec::new(),
                     location: cols(6, 6)
                 },
-                class_name: Constant {
+                type_name: Constant {
                     name: "B".to_string(),
                     location: cols(12, 12)
                 },
@@ -5035,7 +5035,7 @@ mod tests {
                 body: Vec::new(),
                 location: cols(1, 15),
                 trait_instance: None,
-                class_instance: None,
+                type_instance: None,
             }))
         );
     }
@@ -5066,7 +5066,7 @@ mod tests {
                     }))],
                     location: cols(6, 9)
                 },
-                class_name: Constant {
+                type_name: Constant {
                     name: "B".to_string(),
                     location: cols(15, 15)
                 },
@@ -5074,7 +5074,7 @@ mod tests {
                 body: Vec::new(),
                 location: cols(1, 18),
                 trait_instance: None,
-                class_instance: None,
+                type_instance: None,
             }))
         );
     }
@@ -5096,7 +5096,7 @@ mod tests {
                     arguments: Vec::new(),
                     location: cols(6, 6)
                 },
-                class_name: Constant {
+                type_name: Constant {
                     name: "B".to_string(),
                     location: cols(12, 12)
                 },
@@ -5122,7 +5122,7 @@ mod tests {
                 body: Vec::new(),
                 location: cols(1, 29),
                 trait_instance: None,
-                class_instance: None,
+                type_instance: None,
             }))
         );
     }
@@ -5144,7 +5144,7 @@ mod tests {
                     arguments: Vec::new(),
                     location: cols(6, 6)
                 },
-                class_name: Constant {
+                type_name: Constant {
                     name: "B".to_string(),
                     location: cols(12, 12)
                 },
@@ -5167,7 +5167,7 @@ mod tests {
                 }],
                 location: cols(1, 26),
                 trait_instance: None,
-                class_instance: None,
+                type_instance: None,
             }))
         );
     }
@@ -5189,7 +5189,7 @@ mod tests {
                     arguments: Vec::new(),
                     location: cols(6, 6)
                 },
-                class_name: Constant {
+                type_name: Constant {
                     name: "B".to_string(),
                     location: cols(12, 12)
                 },
@@ -5212,7 +5212,7 @@ mod tests {
                 }],
                 location: cols(1, 31),
                 trait_instance: None,
-                class_instance: None,
+                type_instance: None,
             }))
         );
     }
@@ -5649,7 +5649,7 @@ mod tests {
         assert_eq!(
             hir,
             Expression::Tuple(Box::new(TupleLiteral {
-                class_id: None,
+                type_id: None,
                 resolved_type: types::TypeRef::Unknown,
                 value_types: Vec::new(),
                 values: vec![Expression::Int(Box::new(IntLiteral {
@@ -5669,7 +5669,7 @@ mod tests {
         assert_eq!(
             hir,
             Expression::Tuple(Box::new(TupleLiteral {
-                class_id: None,
+                type_id: None,
                 resolved_type: types::TypeRef::Unknown,
                 value_types: Vec::new(),
                 values: vec![Expression::Int(Box::new(IntLiteral {
@@ -6764,67 +6764,67 @@ mod tests {
     }
 
     #[test]
-    fn test_lower_enum_class() {
+    fn test_lower_enum_type() {
         let hir =
-            lower_top_expr("class enum Option[T] { case Some(T) case None }").0;
+            lower_top_expr("type enum Option[T] { case Some(T) case None }").0;
 
         assert_eq!(
             hir,
-            TopLevelExpression::Class(Box::new(DefineClass {
+            TopLevelExpression::Type(Box::new(DefineType {
                 documentation: String::new(),
                 public: false,
-                semantics: ClassSemantics::Default,
-                kind: ClassKind::Enum,
-                class_id: None,
+                semantics: TypeSemantics::Default,
+                kind: TypeKind::Enum,
+                type_id: None,
                 name: Constant {
                     name: "Option".to_string(),
-                    location: cols(12, 17),
+                    location: cols(11, 16),
                 },
                 type_parameters: vec![TypeParameter {
                     type_parameter_id: None,
                     name: Constant {
                         name: "T".to_string(),
-                        location: cols(19, 19)
+                        location: cols(18, 18)
                     },
                     requirements: Vec::new(),
                     mutable: false,
                     copy: false,
-                    location: cols(19, 19)
+                    location: cols(18, 18)
                 }],
                 body: vec![
-                    ClassExpression::Constructor(Box::new(DefineConstructor {
+                    TypeExpression::Constructor(Box::new(DefineConstructor {
                         documentation: String::new(),
                         method_id: None,
                         constructor_id: None,
                         name: Constant {
                             name: "Some".to_string(),
-                            location: cols(29, 32)
+                            location: cols(28, 31)
                         },
                         members: vec![Type::Named(Box::new(TypeName {
                             source: None,
                             resolved_type: types::TypeRef::Unknown,
                             name: Constant {
                                 name: "T".to_string(),
-                                location: cols(34, 34)
+                                location: cols(33, 33)
                             },
                             arguments: Vec::new(),
-                            location: cols(34, 34)
+                            location: cols(33, 33)
                         }))],
-                        location: cols(24, 35)
+                        location: cols(23, 34)
                     },)),
-                    ClassExpression::Constructor(Box::new(DefineConstructor {
+                    TypeExpression::Constructor(Box::new(DefineConstructor {
                         documentation: String::new(),
                         method_id: None,
                         constructor_id: None,
                         name: Constant {
                             name: "None".to_string(),
-                            location: cols(42, 45)
+                            location: cols(41, 44)
                         },
                         members: Vec::new(),
-                        location: cols(37, 40)
+                        location: cols(36, 39)
                     },))
                 ],
-                location: cols(1, 47)
+                location: cols(1, 46)
             }))
         );
     }

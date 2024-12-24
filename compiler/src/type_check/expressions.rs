@@ -12,17 +12,17 @@ use types::check::{Environment, TypeChecker};
 use types::format::{format_type, format_type_with_arguments};
 use types::resolve::TypeResolver;
 use types::{
-    Block, CallInfo, CallKind, ClassId, ClassInstance, Closure,
-    ClosureCallInfo, ClosureId, ConstantKind, ConstantPatternKind, Database,
-    FieldId, FieldInfo, IdentifierKind, IntrinsicCall, MethodId, MethodLookup,
-    ModuleId, Receiver, Sign, Symbol, ThrowKind, TraitId, TraitInstance,
-    TypeArguments, TypeBounds, TypeId, TypeRef, Variable, VariableId,
-    CALL_METHOD, DEREF_POINTER_FIELD,
+    Block, CallInfo, CallKind, Closure, ClosureCallInfo, ClosureId,
+    ConstantKind, ConstantPatternKind, Database, FieldId, FieldInfo,
+    IdentifierKind, IntrinsicCall, MethodId, MethodLookup, ModuleId, Receiver,
+    Sign, Symbol, ThrowKind, TraitId, TraitInstance, TypeArguments, TypeBounds,
+    TypeEnum, TypeId, TypeInstance, TypeRef, Variable, VariableId, CALL_METHOD,
+    DEREF_POINTER_FIELD,
 };
 
 const IGNORE_VARIABLE: &str = "_";
 
-/// The maximum number of methods that a single class can define.
+/// The maximum number of methods that a single type can define.
 ///
 /// We subtract 1 to account for the generated dropper methods, as these methods
 /// are generated later.
@@ -269,9 +269,9 @@ impl MethodCall {
     fn new(
         state: &mut State,
         module: ModuleId,
-        caller: Option<(MethodId, &HashSet<TypeId>)>,
+        caller: Option<(MethodId, &HashSet<TypeEnum>)>,
         receiver: TypeRef,
-        receiver_id: TypeId,
+        receiver_id: TypeEnum,
         method: MethodId,
     ) -> Self {
         // When checking arguments we need access to the type arguments of the
@@ -292,9 +292,9 @@ impl MethodCall {
         // Static methods may use/return type parameters of the surrounding
         // type, so we also need to create placeholders for those.
         if method.is_static(&state.db) {
-            if let TypeId::Class(class) = receiver_id {
-                if class.is_generic(&state.db) {
-                    for param in class.type_parameters(&state.db) {
+            if let TypeEnum::Type(typ) = receiver_id {
+                if typ.is_generic(&state.db) {
+                    for param in typ.type_parameters(&state.db) {
                         type_arguments.assign(
                             param,
                             TypeRef::placeholder(&mut state.db, Some(param)),
@@ -309,12 +309,12 @@ impl MethodCall {
         // make sure those type parameters are mapped to the correct final
         // values, so we have to expose them to the call's type arguments.
         match receiver_id {
-            TypeId::TraitInstance(ins) => copy_inherited_type_arguments(
+            TypeEnum::TraitInstance(ins) => copy_inherited_type_arguments(
                 &state.db,
                 ins,
                 &mut type_arguments,
             ),
-            TypeId::TypeParameter(id) | TypeId::RigidTypeParameter(id) => {
+            TypeEnum::TypeParameter(id) | TypeEnum::RigidTypeParameter(id) => {
                 for ins in id.requirements(&state.db) {
                     copy_inherited_type_arguments(
                         &state.db,
@@ -349,8 +349,10 @@ impl MethodCall {
                 // from some deeply nested type (e.g. a type parameter
                 // requirement), we still remap it correctly.
                 for (&k, &v) in caller.bounds(&state.db).iter() {
-                    type_arguments
-                        .assign(k, TypeRef::Any(TypeId::RigidTypeParameter(v)));
+                    type_arguments.assign(
+                        k,
+                        TypeRef::Any(TypeEnum::RigidTypeParameter(v)),
+                    );
                 }
 
                 caller.bounds(&state.db).union(method.bounds(&state.db))
@@ -373,13 +375,13 @@ impl MethodCall {
         if rec_is_rigid {
             for val in type_arguments.values_mut() {
                 *val = match val {
-                    TypeRef::Any(TypeId::TypeParameter(id)) => {
-                        TypeRef::Any(TypeId::RigidTypeParameter(
+                    TypeRef::Any(TypeEnum::TypeParameter(id)) => {
+                        TypeRef::Any(TypeEnum::RigidTypeParameter(
                             bounds.get(*id).unwrap_or(*id),
                         ))
                     }
-                    TypeRef::Owned(TypeId::TypeParameter(id)) => {
-                        TypeRef::Owned(TypeId::RigidTypeParameter(
+                    TypeRef::Owned(TypeEnum::TypeParameter(id)) => {
+                        TypeRef::Owned(TypeEnum::RigidTypeParameter(
                             bounds.get(*id).unwrap_or(*id),
                         ))
                     }
@@ -675,14 +677,14 @@ impl<'a> Expressions<'a> {
     fn run(mut self, module: &mut hir::Module) {
         for expression in module.expressions.iter_mut() {
             match expression {
-                hir::TopLevelExpression::Class(ref mut n) => {
-                    self.define_class(n);
+                hir::TopLevelExpression::Type(ref mut n) => {
+                    self.define_type(n);
                 }
                 hir::TopLevelExpression::Trait(ref mut n) => {
                     self.define_trait(n);
                 }
                 hir::TopLevelExpression::Reopen(ref mut n) => {
-                    self.reopen_class(n);
+                    self.reopen_type(n);
                 }
                 hir::TopLevelExpression::Implement(ref mut n) => {
                     self.implement_trait(n);
@@ -695,15 +697,15 @@ impl<'a> Expressions<'a> {
         }
     }
 
-    fn define_class(&mut self, node: &mut hir::DefineClass) {
-        let id = node.class_id.unwrap();
+    fn define_type(&mut self, node: &mut hir::DefineType) {
+        let id = node.type_id.unwrap();
         let num_methods = id.number_of_methods(self.db());
 
         if num_methods > METHODS_IN_CLASS_LIMIT {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidType,
                 format!(
-                    "the number of methods defined in this class ({}) \
+                    "the number of methods defined in this type ({}) \
                     exceeds the maximum of {} methods",
                     num_methods, METHODS_IN_CLASS_LIMIT
                 ),
@@ -716,13 +718,13 @@ impl<'a> Expressions<'a> {
 
         for node in &mut node.body {
             match node {
-                hir::ClassExpression::AsyncMethod(ref mut n) => {
+                hir::TypeExpression::AsyncMethod(ref mut n) => {
                     self.define_async_method(n);
                 }
-                hir::ClassExpression::InstanceMethod(ref mut n) => {
+                hir::TypeExpression::InstanceMethod(ref mut n) => {
                     self.define_instance_method(n);
                 }
-                hir::ClassExpression::StaticMethod(ref mut n) => {
+                hir::TypeExpression::StaticMethod(ref mut n) => {
                     self.define_static_method(n);
                 }
                 _ => {}
@@ -730,16 +732,16 @@ impl<'a> Expressions<'a> {
         }
     }
 
-    fn reopen_class(&mut self, node: &mut hir::ReopenClass) {
+    fn reopen_type(&mut self, node: &mut hir::ReopenType) {
         for node in &mut node.body {
             match node {
-                hir::ReopenClassExpression::InstanceMethod(ref mut n) => {
+                hir::ReopenTypeExpression::InstanceMethod(ref mut n) => {
                     self.define_instance_method(n)
                 }
-                hir::ReopenClassExpression::StaticMethod(ref mut n) => {
+                hir::ReopenTypeExpression::StaticMethod(ref mut n) => {
                     self.define_static_method(n)
                 }
-                hir::ReopenClassExpression::AsyncMethod(ref mut n) => {
+                hir::ReopenTypeExpression::AsyncMethod(ref mut n) => {
                     self.define_async_method(n)
                 }
             }
@@ -1162,8 +1164,8 @@ impl<'a> CheckConstant<'a> {
 
         // Mutating constant arrays isn't safe, so they're typed as `ref
         // Array[T]` instead of `Array[T]`.
-        let ary = TypeRef::Ref(TypeId::ClassInstance(
-            ClassInstance::with_types(self.db_mut(), ClassId::array(), types),
+        let ary = TypeRef::Ref(TypeEnum::TypeInstance(
+            TypeInstance::with_types(self.db_mut(), TypeId::array(), types),
         ));
 
         node.resolved_type = ary;
@@ -1175,8 +1177,8 @@ impl<'a> CheckConstant<'a> {
         receiver: TypeRef,
         name: &str,
         location: Location,
-    ) -> Option<(TypeId, MethodId)> {
-        let rec_id = match receiver.type_id(self.db()) {
+    ) -> Option<(TypeEnum, MethodId)> {
+        let rec_id = match receiver.as_type_enum(self.db()) {
             Ok(id) => id,
             Err(TypeRef::Error) => return None,
             Err(typ) => {
@@ -1253,13 +1255,13 @@ struct CheckMethodBody<'a> {
     method: MethodId,
 
     /// The type ID of the receiver of the surrounding method.
-    self_type: TypeId,
+    self_type: TypeEnum,
 
     /// Any bounds to apply to type parameters.
     bounds: &'a TypeBounds,
 
     /// The type IDs that are or originate from `self`.
-    self_types: HashSet<TypeId>,
+    self_types: HashSet<TypeEnum>,
 }
 
 impl<'a> CheckMethodBody<'a> {
@@ -1267,13 +1269,13 @@ impl<'a> CheckMethodBody<'a> {
         state: &'a mut State,
         module: ModuleId,
         method: MethodId,
-        self_type: TypeId,
+        self_type: TypeEnum,
         bounds: &'a TypeBounds,
     ) -> Self {
-        let mut self_types: HashSet<TypeId> = method
+        let mut self_types: HashSet<TypeEnum> = method
             .fields(&state.db)
             .into_iter()
-            .filter_map(|(_, typ)| typ.type_id(&state.db).ok())
+            .filter_map(|(_, typ)| typ.as_type_enum(&state.db).ok())
             .collect();
 
         self_types.insert(self_type);
@@ -1507,7 +1509,7 @@ impl<'a> CheckMethodBody<'a> {
         scope: &mut LexicalScope,
     ) -> TypeRef {
         let types = self.input_expressions(&mut node.values, scope);
-        let class = if let Some(id) = ClassId::tuple(types.len()) {
+        let typ = if let Some(id) = TypeId::tuple(types.len()) {
             id
         } else {
             self.state.diagnostics.tuple_size_error(self.file(), node.location);
@@ -1515,11 +1517,11 @@ impl<'a> CheckMethodBody<'a> {
             return TypeRef::Error;
         };
 
-        let tuple = TypeRef::Owned(TypeId::ClassInstance(
-            ClassInstance::with_types(self.db_mut(), class, types.clone()),
+        let tuple = TypeRef::Owned(TypeEnum::TypeInstance(
+            TypeInstance::with_types(self.db_mut(), typ, types.clone()),
         ));
 
-        node.class_id = Some(class);
+        node.type_id = Some(typ);
         node.resolved_type = tuple;
         node.value_types = types;
         node.resolved_type
@@ -1642,8 +1644,8 @@ impl<'a> CheckMethodBody<'a> {
             hir::Pattern::Tuple(ref mut n) => {
                 self.tuple_pattern(n, value_type, pattern);
             }
-            hir::Pattern::Class(ref mut n) => {
-                self.class_pattern(n, value_type, pattern);
+            hir::Pattern::Type(ref mut n) => {
+                self.type_pattern(n, value_type, pattern);
             }
             hir::Pattern::Int(ref mut n) => {
                 self.int_pattern(n, value_type);
@@ -1867,10 +1869,10 @@ impl<'a> CheckMethodBody<'a> {
         }
 
         let ins = match value_type {
-            TypeRef::Owned(TypeId::ClassInstance(ins))
-            | TypeRef::Ref(TypeId::ClassInstance(ins))
-            | TypeRef::Mut(TypeId::ClassInstance(ins))
-            | TypeRef::Uni(TypeId::ClassInstance(ins))
+            TypeRef::Owned(TypeEnum::TypeInstance(ins))
+            | TypeRef::Ref(TypeEnum::TypeInstance(ins))
+            | TypeRef::Mut(TypeEnum::TypeInstance(ins))
+            | TypeRef::Uni(TypeEnum::TypeInstance(ins))
                 if ins.instance_of().kind(self.db()).is_tuple() =>
             {
                 ins
@@ -1925,9 +1927,9 @@ impl<'a> CheckMethodBody<'a> {
         node.field_ids = fields;
     }
 
-    fn class_pattern(
+    fn type_pattern(
         &mut self,
-        node: &mut hir::ClassPattern,
+        node: &mut hir::TypePattern,
         value_type: TypeRef,
         pattern: &mut Pattern,
     ) {
@@ -1937,7 +1939,7 @@ impl<'a> CheckMethodBody<'a> {
         }
 
         let Some(ins) =
-            value_type.as_class_instance_for_pattern_matching(self.db())
+            value_type.as_type_instance_for_pattern_matching(self.db())
         else {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidType,
@@ -1953,9 +1955,9 @@ impl<'a> CheckMethodBody<'a> {
             return;
         };
 
-        let class = ins.instance_of();
+        let typ = ins.instance_of();
 
-        if class.has_destructor(self.db()) {
+        if typ.has_destructor(self.db()) {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidType,
                 format!(
@@ -1968,21 +1970,21 @@ impl<'a> CheckMethodBody<'a> {
             );
         }
 
-        if class.kind(self.db()).is_enum() {
+        if typ.kind(self.db()).is_enum() {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidType,
-                "enum classes don't support class patterns",
+                "enum types don't support type patterns",
                 self.file(),
                 node.location,
             );
         }
 
         let immutable = value_type.is_ref(self.db());
-        let args = TypeArguments::for_class(self.db(), ins);
+        let args = TypeArguments::for_type(self.db(), ins);
 
         for node in &mut node.values {
             let name = &node.field.name;
-            let field = if let Some(f) = class.field(self.db(), name) {
+            let field = if let Some(f) = typ.field(self.db(), name) {
                 f
             } else {
                 self.state.diagnostics.error(
@@ -2012,7 +2014,7 @@ impl<'a> CheckMethodBody<'a> {
             self.pattern(&mut node.pattern, field_type, pattern);
         }
 
-        node.class_id = Some(class);
+        node.type_id = Some(typ);
     }
 
     fn int_pattern(&mut self, node: &mut hir::IntLiteral, input_type: TypeRef) {
@@ -2087,7 +2089,7 @@ impl<'a> CheckMethodBody<'a> {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidType,
                 format!(
-                    "this pattern expects an enum class, \
+                    "this pattern expects an enum type, \
                     but the input type is '{}'",
                     format_type(self.db(), value_type),
                 ),
@@ -2100,9 +2102,9 @@ impl<'a> CheckMethodBody<'a> {
         };
 
         let name = &node.name.name;
-        let class = ins.instance_of();
+        let typ = ins.instance_of();
 
-        let constructor = if let Some(v) = class.constructor(self.db(), name) {
+        let constructor = if let Some(v) = typ.constructor(self.db(), name) {
             v
         } else {
             self.state.diagnostics.undefined_constructor(
@@ -2131,7 +2133,7 @@ impl<'a> CheckMethodBody<'a> {
         }
 
         let immutable = value_type.is_ref(self.db());
-        let args = TypeArguments::for_class(self.db(), ins);
+        let args = TypeArguments::for_type(self.db(), ins);
         let bounds = self.bounds;
 
         for (patt, member) in node.values.iter_mut().zip(members.into_iter()) {
@@ -2403,9 +2405,9 @@ impl<'a> CheckMethodBody<'a> {
                 if exp.is_uni(self.db())
                     && closure.can_infer_as_uni(self.db()) =>
             {
-                TypeRef::Uni(TypeId::Closure(closure))
+                TypeRef::Uni(TypeEnum::Closure(closure))
             }
-            _ => TypeRef::Owned(TypeId::Closure(closure)),
+            _ => TypeRef::Owned(TypeEnum::Closure(closure)),
         };
 
         node.closure_id = Some(closure);
@@ -2427,7 +2429,7 @@ impl<'a> CheckMethodBody<'a> {
         let module = self.module;
         let (rec, rec_id, rec_kind, method) = {
             let rec = scope.surrounding_type;
-            let rec_id = rec.type_id(self.db()).unwrap();
+            let rec_id = rec.as_type_enum(self.db()).unwrap();
 
             match rec_id.lookup_method(self.db(), &node.name, module, false) {
                 MethodLookup::Ok(method) => {
@@ -2453,10 +2455,10 @@ impl<'a> CheckMethodBody<'a> {
 
                         return node.resolved_type;
                     }
-                    Some(Symbol::Class(id)) if receiver => {
-                        return TypeRef::Owned(TypeId::Class(id));
+                    Some(Symbol::Type(id)) if receiver => {
+                        return TypeRef::Owned(TypeEnum::Type(id));
                     }
-                    Some(Symbol::Class(_) | Symbol::Trait(_)) if !receiver => {
+                    Some(Symbol::Type(_) | Symbol::Trait(_)) if !receiver => {
                         self.state.diagnostics.symbol_not_a_value(
                             &node.name,
                             self.file(),
@@ -2470,7 +2472,7 @@ impl<'a> CheckMethodBody<'a> {
 
                         (
                             TypeRef::module(id),
-                            TypeId::Module(id),
+                            TypeEnum::Module(id),
                             Receiver::with_module(self.db(), method),
                             method,
                         )
@@ -2537,7 +2539,7 @@ impl<'a> CheckMethodBody<'a> {
 
         let (rec, rec_id, rec_kind, method) = {
             let rec = scope.surrounding_type;
-            let rec_id = rec.type_id(self.db()).unwrap();
+            let rec_id = rec.as_type_enum(self.db()).unwrap();
 
             match rec_id.lookup_method(self.db(), name, module, true) {
                 MethodLookup::Ok(method) if method.is_extern(self.db()) => {
@@ -2594,7 +2596,7 @@ impl<'a> CheckMethodBody<'a> {
 
                         (
                             TypeRef::module(id),
-                            TypeId::Module(id),
+                            TypeEnum::Module(id),
                             Receiver::with_module(self.db(), method),
                             method,
                         )
@@ -2669,7 +2671,7 @@ impl<'a> CheckMethodBody<'a> {
         }
 
         node.info = Some(FieldInfo {
-            class: scope.surrounding_type.class_id(self.db()).unwrap(),
+            type_id: scope.surrounding_type.type_id(self.db()).unwrap(),
             id: field,
             variable_type: ret,
             as_pointer,
@@ -3050,7 +3052,7 @@ impl<'a> CheckMethodBody<'a> {
             if let Some(m) = self.module.method(self.db(), &n.name) {
                 if m.uses_c_calling_convention(self.db()) {
                     node.pointer_to_method = Some(m);
-                    node.resolved_type = TypeRef::pointer(TypeId::Foreign(
+                    node.resolved_type = TypeRef::pointer(TypeEnum::Foreign(
                         types::ForeignType::Int(8, Sign::Unsigned),
                     ));
 
@@ -3268,7 +3270,7 @@ impl<'a> CheckMethodBody<'a> {
         }
 
         let value = self.expression(&mut node.value, scope);
-        let targs = TypeArguments::for_class(self.db(), ins);
+        let targs = TypeArguments::for_type(self.db(), ins);
         let raw_type = field.value_type(self.db());
         let bounds = self.bounds;
         let var_type =
@@ -3316,7 +3318,7 @@ impl<'a> CheckMethodBody<'a> {
         &mut self,
         node: &mut hir::AssignSetter,
         receiver: TypeRef,
-        receiver_id: TypeId,
+        receiver_id: TypeEnum,
         value: TypeRef,
         scope: &mut LexicalScope,
     ) -> bool {
@@ -3337,7 +3339,7 @@ impl<'a> CheckMethodBody<'a> {
                 scope,
             ) {
                 node.kind = CallKind::SetField(FieldInfo {
-                    class: receiver.class_id(self.db()).unwrap(),
+                    type_id: receiver.type_id(self.db()).unwrap(),
                     id: field,
                     variable_type: typ,
                     as_pointer: false,
@@ -3357,7 +3359,7 @@ impl<'a> CheckMethodBody<'a> {
             );
         }
 
-        let targs = TypeArguments::for_class(self.db(), ins);
+        let targs = TypeArguments::for_type(self.db(), ins);
         let raw_type = field.value_type(self.db());
         let bounds = self.bounds;
         let var_type =
@@ -3386,7 +3388,7 @@ impl<'a> CheckMethodBody<'a> {
         }
 
         node.kind = CallKind::SetField(FieldInfo {
-            class: ins.instance_of(),
+            type_id: ins.instance_of(),
             id: field,
             variable_type: var_type,
             as_pointer: false,
@@ -3563,17 +3565,17 @@ impl<'a> CheckMethodBody<'a> {
                     return typ;
                 }
 
-                if let TypeId::Module(id) = rec_id {
+                if let TypeEnum::Module(id) = rec_id {
                     match id.use_symbol(self.db_mut(), &node.name.name) {
                         Some(Symbol::Constant(id)) => {
                             node.kind = CallKind::GetConstant(id);
 
                             return id.value_type(self.db());
                         }
-                        Some(Symbol::Class(id)) if as_receiver => {
-                            return TypeRef::Owned(TypeId::Class(id));
+                        Some(Symbol::Type(id)) if as_receiver => {
+                            return TypeRef::Owned(TypeEnum::Type(id));
                         }
-                        Some(Symbol::Class(_) | Symbol::Trait(_))
+                        Some(Symbol::Type(_) | Symbol::Trait(_))
                             if !as_receiver =>
                         {
                             self.state.diagnostics.symbol_not_a_value(
@@ -3610,11 +3612,11 @@ impl<'a> CheckMethodBody<'a> {
                 };
             }
             MethodLookup::None => {
-                if let TypeId::Module(mod_id) = rec_id {
-                    if let Some(Symbol::Class(id)) =
+                if let TypeEnum::Module(mod_id) = rec_id {
+                    if let Some(Symbol::Type(id)) =
                         mod_id.use_symbol(self.db_mut(), &node.name.name)
                     {
-                        return self.new_class_instance(node, scope, id);
+                        return self.new_type_instance(node, scope, id);
                     }
                 }
 
@@ -3668,7 +3670,7 @@ impl<'a> CheckMethodBody<'a> {
         let name = &node.name.name;
         let module = self.module;
         let rec = scope.surrounding_type;
-        let rec_id = rec.type_id(self.db()).unwrap();
+        let rec_id = rec.as_type_enum(self.db()).unwrap();
         let (rec_info, rec, rec_id, method) =
             match rec_id.lookup_method(self.db(), name, module, true) {
                 MethodLookup::Ok(method) => {
@@ -3707,7 +3709,7 @@ impl<'a> CheckMethodBody<'a> {
                             // Private module methods can't be imported, so we
                             // don't need to check the visibility here.
                             let mod_id = method.module(self.db());
-                            let id = TypeId::Module(mod_id);
+                            let id = TypeEnum::Module(mod_id);
                             let mod_typ = TypeRef::Owned(id);
 
                             (
@@ -3717,8 +3719,8 @@ impl<'a> CheckMethodBody<'a> {
                                 method,
                             )
                         }
-                        Some(Symbol::Class(id)) => {
-                            return self.new_class_instance(node, scope, id);
+                        Some(Symbol::Type(id)) => {
+                            return self.new_type_instance(node, scope, id);
                         }
                         _ => {
                             self.state.diagnostics.undefined_symbol(
@@ -3763,70 +3765,72 @@ impl<'a> CheckMethodBody<'a> {
         returns
     }
 
-    fn new_class_instance(
+    fn new_type_instance(
         &mut self,
         node: &mut hir::Call,
         scope: &mut LexicalScope,
-        class: ClassId,
+        type_id: TypeId,
     ) -> TypeRef {
-        if class.is_builtin() && !self.module.is_std(self.db()) {
+        if type_id.is_builtin() && !self.module.is_std(self.db()) {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidType,
-                "instances of builtin classes can't be created using the \
-                class literal syntax",
+                "instances of builtin types can't be created using the \
+                type literal syntax",
                 self.file(),
                 node.location,
             );
         }
 
-        let kind = class.kind(self.db());
+        let kind = type_id.kind(self.db());
         let require_send = kind.is_async();
-        let ins = ClassInstance::empty(self.db_mut(), class);
+        let ins = TypeInstance::empty(self.db_mut(), type_id);
         let mut assigned = HashSet::new();
         let mut fields = Vec::new();
 
         for (idx, arg) in node.arguments.iter_mut().enumerate() {
             let (field, val_expr) = match arg {
                 hir::Argument::Positional(n) => {
-                    let field =
-                        if let Some(v) = class.field_by_index(self.db(), idx) {
-                            v
-                        } else {
-                            let num = class.number_of_fields(self.db());
+                    let field = if let Some(v) =
+                        type_id.field_by_index(self.db(), idx)
+                    {
+                        v
+                    } else {
+                        let num = type_id.number_of_fields(self.db());
 
-                            self.state.diagnostics.error(
-                                DiagnosticId::InvalidSymbol,
-                                format!(
-                                    "the field index {} is out of bounds \
+                        self.state.diagnostics.error(
+                            DiagnosticId::InvalidSymbol,
+                            format!(
+                                "the field index {} is out of bounds \
                                     (total number of fields: {})",
-                                    idx, num,
-                                ),
-                                self.file(),
-                                n.value.location(),
-                            );
+                                idx, num,
+                            ),
+                            self.file(),
+                            n.value.location(),
+                        );
 
-                            continue;
-                        };
+                        continue;
+                    };
 
                     (field, &mut n.value)
                 }
                 hir::Argument::Named(n) => {
-                    let field =
-                        if let Some(v) = class.field(self.db(), &n.name.name) {
-                            v
-                        } else {
-                            self.state.diagnostics.error(
-                                DiagnosticId::InvalidSymbol,
-                                format!(
-                                    "the field '{}' is undefined",
-                                    &n.name.name
-                                ),
-                                self.file(),
-                                n.location,
-                            );
+                    let field = if let Some(v) =
+                        type_id.field(self.db(), &n.name.name)
+                    {
+                        v
+                    } else {
+                        self.state.diagnostics.error(
+                            DiagnosticId::InvalidSymbol,
+                            format!(
+                                "the field '{}' is undefined",
+                                &n.name.name
+                            ),
+                            self.file(),
+                            n.location,
+                        );
 
-                            continue;
-                        };
+                        continue;
+                    };
 
                     (field, &mut n.value)
                 }
@@ -3848,7 +3852,7 @@ impl<'a> CheckMethodBody<'a> {
             // account what we have inferred thus far. Consider the following
             // code:
             //
-            //     class Foo[T] {
+            //     type Foo[T] {
             //       let @a: Option[Option[T]]
             //     }
             //
@@ -3915,16 +3919,16 @@ impl<'a> CheckMethodBody<'a> {
             fields.push((field, expected));
         }
 
-        // For extern classes we allow either all fields to be specified, or all
+        // For extern types we allow either all fields to be specified, or all
         // fields to be left out. The latter is useful when dealing with C
         // structures that start on the stack as uninitialized data and are
         // initialized using a dedicated function.
         //
-        // If an extern class has one or more fields specifid, then we require
+        // If an extern type has one or more fields specifid, then we require
         // _all_ fields to be specified, as leaving out fields in this case is
         // likely the result of a mistake.
         if !kind.is_extern() || !assigned.is_empty() {
-            for field in class.field_names(self.db()) {
+            for field in type_id.field_names(self.db()) {
                 if assigned.contains(&field) {
                     continue;
                 }
@@ -3938,10 +3942,10 @@ impl<'a> CheckMethodBody<'a> {
             }
         }
 
-        let resolved_type = TypeRef::Owned(TypeId::ClassInstance(ins));
+        let resolved_type = TypeRef::Owned(TypeEnum::TypeInstance(ins));
 
-        node.kind = CallKind::ClassInstance(types::ClassInstanceInfo {
-            class_id: class,
+        node.kind = CallKind::TypeInstance(types::TypeInstanceInfo {
+            type_id,
             resolved_type,
             fields,
         });
@@ -3953,7 +3957,7 @@ impl<'a> CheckMethodBody<'a> {
         &mut self,
         node: &mut hir::Call,
         receiver: TypeRef,
-        receiver_id: TypeId,
+        receiver_id: TypeEnum,
     ) -> Option<TypeRef> {
         let (ins, field) =
             self.lookup_field_with_receiver(receiver_id, &node.name)?;
@@ -3974,7 +3978,7 @@ impl<'a> CheckMethodBody<'a> {
 
         node.kind = CallKind::GetField(FieldInfo {
             id: field,
-            class: ins.instance_of(),
+            type_id: ins.instance_of(),
             variable_type: returns,
             as_pointer,
         });
@@ -4151,8 +4155,8 @@ impl<'a> CheckMethodBody<'a> {
         &mut self,
         receiver: TypeRef,
         location: Location,
-    ) -> Option<TypeId> {
-        match receiver.type_id(self.db()) {
+    ) -> Option<TypeEnum> {
+        match receiver.as_type_enum(self.db()) {
             Ok(id) => Some(id),
             Err(TypeRef::Error) => None,
             Err(TypeRef::Placeholder(_)) => {
@@ -4367,7 +4371,7 @@ impl<'a> CheckMethodBody<'a> {
     fn type_signature(
         &mut self,
         node: &mut hir::Type,
-        self_type: TypeId,
+        self_type: TypeEnum,
     ) -> TypeRef {
         let rules =
             Rules { type_parameters_as_rigid: true, ..Default::default() };
@@ -4564,10 +4568,10 @@ impl<'a> CheckMethodBody<'a> {
 
     fn lookup_field_with_receiver(
         &mut self,
-        receiver_id: TypeId,
+        receiver_id: TypeEnum,
         name: &hir::Identifier,
-    ) -> Option<(ClassInstance, FieldId)> {
-        let (ins, field) = if let TypeId::ClassInstance(ins) = receiver_id {
+    ) -> Option<(TypeInstance, FieldId)> {
+        let (ins, field) = if let TypeEnum::TypeInstance(ins) = receiver_id {
             ins.instance_of()
                 .field(self.db(), &name.name)
                 .map(|field| (ins, field))
@@ -4577,7 +4581,7 @@ impl<'a> CheckMethodBody<'a> {
 
         // We disallow `receiver.field` even when `receiver` is `self`, because
         // we can't tell the difference between two different instances of the
-        // same non-generic process (e.g. every instance `class async Foo {}`
+        // same non-generic process (e.g. every instance `type async Foo {}`
         // has the same TypeId).
         if ins.instance_of().kind(self.db()).is_async() {
             self.state.diagnostics.unavailable_process_field(

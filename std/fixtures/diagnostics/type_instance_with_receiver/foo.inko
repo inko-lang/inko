@@ -1,0 +1,5 @@
+type pub Foo {
+  let pub @number: Int
+}
+
+type pub Empty {}

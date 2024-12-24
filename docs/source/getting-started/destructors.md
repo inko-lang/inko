@@ -12,7 +12,7 @@ Types can define a method to run when before they are dropped, known as a
 import std.drop (Drop)
 import std.stdio (Stdout)
 
-class Person {
+type Person {
   let @name: String
 }
 
@@ -22,7 +22,7 @@ impl Drop for Person {
   }
 }
 
-class async Main {
+type async Main {
   fn async main {
     Person(name: 'Alice')
   }
@@ -44,7 +44,7 @@ dropped escaping the `drop` call:
 import std.drop (Drop)
 import std.stdio (Stdout)
 
-class Person {
+type Person {
   let @name: String
   let @people: mut Array[ref Person]
 }
@@ -56,7 +56,7 @@ impl Drop for Person {
   }
 }
 
-class async Main {
+type async Main {
   fn async main {
     let people = []
     let person = Person(name: 'Alice', people: people)

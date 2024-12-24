@@ -2,7 +2,7 @@ import std.cmp (Compare, Equal, Ordering, max, min)
 import std.fmt (fmt)
 import std.test (Tests)
 
-class enum Letter {
+type enum Letter {
   case A
   case B
 }

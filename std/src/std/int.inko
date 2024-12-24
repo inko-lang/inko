@@ -39,7 +39,7 @@ let LOWER_X = 120
 #
 # This is the `{i64, i1}` type returned by the LLVM checked arithmetic
 # intrinsics, and must match its layout.
-class builtin CheckedIntResult {
+type builtin CheckedIntResult {
   let @value: Int64
   let @tag: UInt8
 }
@@ -55,7 +55,7 @@ fn overflow(left: Int, right: Int) -> Never {
 }
 
 # The format to use for parsing and formatting an `Int`.
-class pub copy enum Format {
+type pub copy enum Format {
   # The `Int` is to be parsed or formatted as a binary number.
   case Binary
 
@@ -82,7 +82,7 @@ class pub copy enum Format {
 # # Panics
 #
 # Integer operations that would result in an overflow produce a panic.
-class builtin Int {
+type builtin Int {
   # Parses a `Bytes` into an `Int` in the format specified in `format`,
   # returning a `Some` if the value is valid, and a `None` otherwise.
   #

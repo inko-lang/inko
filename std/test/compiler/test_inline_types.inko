@@ -1,7 +1,7 @@
 import std.string (ToString)
 import std.test (Tests)
 
-class copy Example[A, B] {
+type copy Example[A, B] {
   let @a: A
   let @b: B
 }
@@ -16,7 +16,7 @@ fn to_string[T: ToString](value: T) -> String {
   value.to_string
 }
 
-class copy enum Enum[A, B] {
+type copy enum Enum[A, B] {
   case A(Example[A, B])
   case B(Int)
 }

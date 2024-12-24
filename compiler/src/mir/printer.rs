@@ -2,7 +2,7 @@
 use crate::mir::inline::method_weight;
 use crate::mir::{BlockId, Method};
 use std::fmt::Write;
-use types::{Database, MethodId, TypeId};
+use types::{Database, MethodId, TypeEnum};
 
 fn method_name(db: &Database, id: MethodId) -> String {
     format!("{}#{}", id.name(db), id.0,)
@@ -23,10 +23,10 @@ pub(crate) fn to_dot(db: &Database, methods: &[&Method]) -> String {
         buffer.push_str("edge[fontname=\"monospace\", fontsize=10];\n");
 
         let rec_name = match method.id.receiver_id(db) {
-            TypeId::Class(id) => id.name(db).clone(),
-            TypeId::Trait(id) => id.name(db).clone(),
-            TypeId::ClassInstance(ins) => ins.instance_of().name(db).clone(),
-            TypeId::TraitInstance(ins) => ins.instance_of().name(db).clone(),
+            TypeEnum::Type(id) => id.name(db).clone(),
+            TypeEnum::Trait(id) => id.name(db).clone(),
+            TypeEnum::TypeInstance(ins) => ins.instance_of().name(db).clone(),
+            TypeEnum::TraitInstance(ins) => ins.instance_of().name(db).clone(),
             _ => String::new(),
         };
 

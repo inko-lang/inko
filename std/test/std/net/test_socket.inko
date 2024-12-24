@@ -13,7 +13,7 @@ import std.sys.net (NO_DEADLINE)
 import std.test (Tests)
 import std.time (Duration)
 
-class SocketPath {
+type SocketPath {
   let @path: Path
 
   fn static pair(id: Int) -> (SocketPath, SocketPath) {

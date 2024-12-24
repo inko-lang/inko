@@ -1,4 +1,4 @@
-class List {
+type List {
   let @values: Array[Int]
   let @sendable: uni Array[Int]
 

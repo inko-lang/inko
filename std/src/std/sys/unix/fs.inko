@@ -217,7 +217,7 @@ fn copy_file_fallback(
   Result.Ok(copied)
 }
 
-class ReadDirectory {
+type ReadDirectory {
   let @stream: Pointer[UInt8]
 
   fn static new(path: String) -> Result[ReadDirectory, Error] {
@@ -264,14 +264,14 @@ impl Iter[Result[(String, FileType), Error]] for ReadDirectory {
       }
 
       let name = String.from_pointer(name_ptr)
-      let type = match libc.dirent_type(entry) {
+      let typ = match libc.dirent_type(entry) {
         case libc.DT_DIR -> FileType.Directory
         case libc.DT_REG -> FileType.File
         case libc.DT_LNK -> FileType.SymbolicLink
         case _ -> FileType.Other
       }
 
-      return Option.Some(Result.Ok((name, type)))
+      return Option.Some(Result.Ok((name, typ)))
     }
   }
 }

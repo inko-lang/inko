@@ -14,9 +14,9 @@ we'll take a look at the basics of working with these different references.
 We'll start with a simple list of cats:
 
 ```inko
-class Cat {}
+type Cat {}
 
-class async Main {
+type async Main {
   fn async main {
     let cats = [Cat(), Cat()]
   }
@@ -36,9 +36,9 @@ Let's adjust the program to print the number of cats to the terminal:
 ```inko
 import std.stdio (Stdout)
 
-class Cat {}
+type Cat {}
 
-class async Main {
+type async Main {
   fn async main {
     let cats = [Cat(), Cat()]
 
@@ -54,9 +54,9 @@ Now we'll change the program to the following:
 ```inko
 import std.stdio (Stdout)
 
-class Cat {}
+type Cat {}
 
-class async Main {
+type async Main {
   fn async main {
     let cats = [Cat(), Cat()]
     let more_cats = cats
@@ -94,9 +94,9 @@ Immutable borrows are created using the `ref` keyword:
 ```inko
 import std.stdio (Stdout)
 
-class Cat {}
+type Cat {}
 
-class async Main {
+type async Main {
   fn async main {
     let cats = [Cat(), Cat()]
     let more_cats = ref cats
@@ -111,9 +111,9 @@ Mutable borrows are created using the `mut` keyword:
 ```inko
 import std.stdio (Stdout)
 
-class Cat {}
+type Cat {}
 
-class async Main {
+type async Main {
   fn async main {
     let cats = [Cat(), Cat()]
     let more_cats = mut cats
@@ -134,9 +134,9 @@ allow mutating of the borrowed data, while immutable borrows don't. For example:
 ```inko
 import std.stdio (Stdout)
 
-class Cat {}
+type Cat {}
 
-class async Main {
+type async Main {
   fn async main {
     let cats = [Cat(), Cat()]
     let cats_ref = ref cats
@@ -158,9 +158,9 @@ To fix this, we need to use a mutable borrow:
 ```inko
 import std.stdio (Stdout)
 
-class Cat {}
+type Cat {}
 
-class async Main {
+type async Main {
   fn async main {
     let cats = [Cat(), Cat()]
     let cats_mut = mut cats
@@ -176,13 +176,13 @@ When passing a value to something that expects a borrow, Inko automatically
 borrows the value according to the expected borrow:
 
 ```inko
-class Person {
+type Person {
   let @name: String
 }
 
 fn example(person: ref Person) {}
 
-class async Main {
+type async Main {
   fn async main {
     let person = Person(name: 'Alice')
 
@@ -229,9 +229,9 @@ error known as a "panic" is produced, terminating the program:
 ```inko
 import std.stdio (Stdout)
 
-class Cat {}
+type Cat {}
 
-class async Main {
+type async Main {
   fn async main {
     let cats = [Cat(), Cat()]
     let borrow = ref cats
@@ -307,9 +307,9 @@ exist when the unique reference is moved around. To illustrate this, change the
 ```inko
 import std.stdio (Stdout)
 
-class Cat {}
+type Cat {}
 
-class async Main {
+type async Main {
   fn async main {
     let cats = recover [Cat(), Cat()]
     let borrow = ref cats
@@ -347,7 +347,7 @@ contents:
 ```inko
 import std.stdio (Stdout)
 
-class async Main {
+type async Main {
   fn async main {
     let out = Stdout.new
     let a = 42

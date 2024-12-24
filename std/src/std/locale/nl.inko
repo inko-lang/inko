@@ -46,7 +46,7 @@ let FULL_WEEKDAYS = [
 ]
 
 # Locale data for Dutch.
-class pub copy Locale {
+type pub copy Locale {
   # Returns a new `Locale`.
   fn pub inline static new -> Locale {
     Locale()

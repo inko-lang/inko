@@ -16,5 +16,5 @@ pub unsafe extern "system" fn inko_float_to_string(
         format!("{:?}", value)
     };
 
-    InkoString::alloc((*state).string_class, string)
+    InkoString::alloc((*state).string_type, string)
 }

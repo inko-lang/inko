@@ -26,9 +26,9 @@ For types and constants, making them public is done as follows:
 | `let @name: Type`
 | `let pub @name: Type`
 |-
-| Classes
-| `class Example {}`
-| `class pub Example {}`
+| Types
+| `type Example {}`
+| `type pub Example {}`
 |-
 | Traits
 | `trait Example {}`
@@ -71,13 +71,13 @@ The fields and regular (non-async) instance methods of a process are private to
 the type, meaning only the process itself can access them:
 
 ```inko
-class async Cat {
+type async Cat {
   let @name: String
 
   fn give_food {}
 }
 
-class async Main {
+type async Main {
   fn async main {
     let garfield = Cat(name: 'Garfield')
 

@@ -7,7 +7,7 @@ use std::slice;
 pub unsafe extern "system" fn inko_byte_array_new(
     state: *const State,
 ) -> *mut ByteArray {
-    ByteArray::alloc((*state).byte_array_class, Vec::new())
+    ByteArray::alloc((*state).byte_array_type, Vec::new())
 }
 
 #[no_mangle]
@@ -16,7 +16,7 @@ pub unsafe extern "system" fn inko_byte_array_with_capacity(
     size: i64,
 ) -> *mut ByteArray {
     ByteArray::alloc(
-        (*state).byte_array_class,
+        (*state).byte_array_type,
         Vec::with_capacity(size as usize),
     )
 }
@@ -98,7 +98,7 @@ pub unsafe extern "system" fn inko_byte_array_clone(
     state: *const State,
     bytes: *const ByteArray,
 ) -> *mut ByteArray {
-    ByteArray::alloc((*state).byte_array_class, (*bytes).value.clone())
+    ByteArray::alloc((*state).byte_array_type, (*bytes).value.clone())
 }
 
 #[no_mangle]
@@ -111,7 +111,7 @@ pub unsafe extern "system" fn inko_byte_array_to_string(
     state: *const State,
     bytes: *const ByteArray,
 ) -> *const InkoString {
-    InkoString::from_bytes((*state).string_class, (*bytes).value.clone())
+    InkoString::from_bytes((*state).string_type, (*bytes).value.clone())
 }
 
 #[no_mangle]
@@ -119,7 +119,7 @@ pub unsafe extern "system" fn inko_byte_array_drain_to_string(
     state: *const State,
     bytes: *mut ByteArray,
 ) -> *const InkoString {
-    InkoString::from_bytes((*state).string_class, (*bytes).take_bytes())
+    InkoString::from_bytes((*state).string_type, (*bytes).take_bytes())
 }
 
 #[no_mangle]
@@ -133,7 +133,7 @@ pub unsafe extern "system" fn inko_byte_array_slice(
     let end = min((start + length) as usize, bytes.value.len());
 
     ByteArray::alloc(
-        (*state).byte_array_class,
+        (*state).byte_array_type,
         bytes.value[start as usize..end].to_vec(),
     )
 }
@@ -187,5 +187,5 @@ pub unsafe extern "system" fn inko_byte_array_from_pointer(
 ) -> *mut ByteArray {
     let bytes = slice::from_raw_parts(pointer, length as usize).to_vec();
 
-    ByteArray::alloc((*state).byte_array_class, bytes)
+    ByteArray::alloc((*state).byte_array_type, bytes)
 }

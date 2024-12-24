@@ -1,4 +1,4 @@
-class inline A {
+type inline A {
   let @value: Int
 }
 

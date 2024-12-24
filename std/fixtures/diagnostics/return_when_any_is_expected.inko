@@ -1,4 +1,4 @@
-class Box[V] {
+type Box[V] {
   let @value: V
 
   fn foo -> V {

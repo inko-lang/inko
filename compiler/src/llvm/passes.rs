@@ -47,7 +47,7 @@ use std::thread::scope;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use types::module_name::ModuleName;
 use types::{
-    ClassId, Database, Intrinsic, Shape, SpecializationKey, TypeRef,
+    Database, Intrinsic, Shape, SpecializationKey, TypeId, TypeRef,
     BYTE_ARRAY_ID, STRING_ID,
 };
 
@@ -172,8 +172,8 @@ fn check_object_cache(
             names.push(&symbol_names.constants[id]);
         }
 
-        for id in &module.classes {
-            names.push(&symbol_names.classes[id]);
+        for id in &module.types {
+            names.push(&symbol_names.types[id]);
         }
 
         for id in &module.methods {
@@ -628,14 +628,14 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
             .run();
         }
 
-        self.setup_classes();
+        self.setup_types();
         self.setup_constants();
         self.module.debug_builder.finalize();
     }
 
-    fn setup_classes(&mut self) {
+    fn setup_types(&mut self) {
         let mod_id = self.shared.mir.modules[self.index].id;
-        let fn_name = &self.shared.names.setup_classes[&mod_id];
+        let fn_name = &self.shared.names.setup_types[&mod_id];
         let fn_val = self.module.add_setup_function(fn_name);
         let builder = Builder::new(self.module.context, fn_val);
         let entry_block = self.module.context.append_basic_block(fn_val);
@@ -648,31 +648,31 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
         builder.jump(body);
         builder.switch_to_block(body);
 
-        // Allocate all classes defined in this module, and store them in their
+        // Allocate all types defined in this module, and store them in their
         // corresponding globals.
-        for &class_id in &self.shared.mir.modules[self.index].classes {
-            let raw_name = class_id.name(&self.shared.state.db);
+        for &tid in &self.shared.mir.modules[self.index].types {
+            let raw_name = tid.name(&self.shared.state.db);
             let name_ptr = builder.string_literal(raw_name).0.into();
             let methods_len = self
                 .module
                 .context
                 .i16_type()
                 .const_int(
-                    self.shared.methods.counts[class_id.0 as usize] as _,
+                    self.shared.methods.counts[tid.0 as usize] as _,
                     false,
                 )
                 .into();
 
-            let class_new = if class_id.kind(&self.shared.state.db).is_async() {
-                self.module.runtime_function(RuntimeFunction::ClassProcess)
+            let type_new = if tid.kind(&self.shared.state.db).is_async() {
+                self.module.runtime_function(RuntimeFunction::NewProcess)
             } else {
-                self.module.runtime_function(RuntimeFunction::ClassObject)
+                self.module.runtime_function(RuntimeFunction::NewType)
             };
 
-            let global_name = &self.shared.names.classes[&class_id];
-            let global = self.module.add_class(global_name);
+            let global_name = &self.shared.names.types[&tid];
+            let global = self.module.add_type(global_name);
 
-            // The class globals must have an initializer, otherwise LLVM treats
+            // The type globals must have an initializer, otherwise LLVM treats
             // them as external globals.
             global.set_initializer(
                 &builder
@@ -682,9 +682,9 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
                     .as_basic_value_enum(),
             );
 
-            // Built-in classes are defined in the runtime library, so we should
+            // Built-in types are defined in the runtime library, so we should
             // look them up instead of creating a new one.
-            let class_ptr = match class_id.0 {
+            let type_ptr = match tid.0 {
                 STRING_ID => builder
                     .load_field(self.layouts.state, state, 0)
                     .into_pointer_value(),
@@ -693,7 +693,7 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
                     .into_pointer_value(),
                 _ => {
                     let size = builder.int_to_int(
-                        self.layouts.instances[class_id.0 as usize]
+                        self.layouts.instances[tid.0 as usize]
                             .size_of()
                             .unwrap(),
                         32,
@@ -702,15 +702,15 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
 
                     builder
                         .call_with_return(
-                            class_new,
+                            type_new,
                             &[name_ptr, size.into(), methods_len],
                         )
                         .into_pointer_value()
                 }
             };
 
-            for method in &self.shared.mir.classes[&class_id].methods {
-                // Static methods aren't stored in classes, nor can we call them
+            for method in &self.shared.mir.types[&tid].methods {
+                // Static methods aren't stored in types, nor can we call them
                 // through dynamic dispatch, so we can skip the rest.
                 if method.is_static(&self.shared.state.db) {
                     continue;
@@ -727,8 +727,8 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
 
                 let slot = builder.u32_literal(info.index as u32);
                 let method_addr = builder.array_field_index_address(
-                    self.layouts.empty_class,
-                    class_ptr,
+                    self.layouts.empty_type,
+                    type_ptr,
                     CLASS_METHODS_INDEX,
                     slot,
                 );
@@ -747,7 +747,7 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
                 builder.store(method_addr, method);
             }
 
-            builder.store(global.as_pointer_value(), class_ptr);
+            builder.store(global.as_pointer_value(), type_ptr);
         }
 
         builder.return_value(None);
@@ -859,14 +859,14 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
                 };
 
                 let key = SpecializationKey::new(vec![shape]);
-                let class_id = ClassId::array()
+                let tid = TypeId::array()
                     .specializations(&self.shared.state.db)[&key];
-                let layout = self.layouts.instances[class_id.0 as usize];
+                let layout = self.layouts.instances[tid.0 as usize];
                 let array = builder.allocate_instance(
                     self.module,
                     &self.shared.state.db,
                     self.shared.names,
-                    class_id,
+                    tid,
                 );
 
                 let buf_typ = val_typ.array_type(values.len() as _);
@@ -1949,7 +1949,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 let info = &self.shared.methods.info[ins.method.0 as usize];
                 let layout = &self.layouts.methods[ins.method.0 as usize];
                 let fn_typ = layout.signature(self.builder.context);
-                let rec_class = self
+                let rec_type_ptr = self
                     .builder
                     .load_field(
                         self.layouts.header,
@@ -1958,15 +1958,15 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                     )
                     .into_pointer_value();
 
-                let rec_type = self.layouts.empty_class;
+                let rec_type = self.layouts.empty_type;
 
-                // (class.method_slots - 1) as u64
+                // (type.method_slots - 1) as u64
                 let len = self.builder.int_to_int(
                     self.builder.int_sub(
                         self.builder
                             .load_field(
                                 rec_type,
-                                rec_class,
+                                rec_type_ptr,
                                 CLASS_METHODS_COUNT_INDEX,
                             )
                             .into_int_value(),
@@ -1994,7 +1994,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 let slot = self.builder.bit_and(idx, len);
                 let method_addr = self.builder.array_field_index_address(
                     rec_type,
-                    rec_class,
+                    rec_type_ptr,
                     CLASS_METHODS_INDEX,
                     slot,
                 );
@@ -2084,7 +2084,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                 // Load the method from the method table.
                 let rec = self.builder.load(rec_typ, rec_var);
-                let class = self
+                let typ_ptr = self
                     .builder
                     .load_field(
                         self.layouts.header,
@@ -2095,8 +2095,8 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                 let slot = self.builder.u32_literal(CLOSURE_CALL_INDEX);
                 let method_addr = self.builder.array_field_index_address(
-                    self.layouts.empty_class,
-                    class,
+                    self.layouts.empty_type,
+                    typ_ptr,
                     CLASS_METHODS_INDEX,
                     slot,
                 );
@@ -2136,7 +2136,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 ));
 
                 let rec = self.builder.load(rec_typ, rec_var);
-                let class = self
+                let rec_type_ptr = self
                     .builder
                     .load_field(
                         self.layouts.header,
@@ -2146,8 +2146,8 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                     .into_pointer_value();
                 let slot = self.builder.u32_literal(DROPPER_INDEX);
                 let addr = self.builder.array_field_index_address(
-                    self.layouts.empty_class,
-                    class,
+                    self.layouts.empty_type,
+                    rec_type_ptr,
                     CLASS_METHODS_INDEX,
                     slot,
                 );
@@ -2215,14 +2215,14 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 );
             }
             Instruction::GetField(ins)
-                if ins.class.is_heap_allocated(&self.shared.state.db) =>
+                if ins.type_id.is_heap_allocated(&self.shared.state.db) =>
             {
                 let reg_var = self.variables[&ins.register];
                 let reg_typ = self.variable_types[&ins.register];
                 let rec_var = self.variables[&ins.receiver];
                 let rec_typ = self.variable_types[&ins.receiver];
-                let class_kind = ins.class.kind(&self.shared.state.db);
-                let base = if class_kind.is_async() {
+                let tkind = ins.type_id.kind(&self.shared.state.db);
+                let base = if tkind.is_async() {
                     PROCESS_FIELD_OFFSET
                 } else {
                     FIELD_OFFSET
@@ -2230,7 +2230,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                 let index =
                     (base + ins.field.index(&self.shared.state.db)) as u32;
-                let layout = self.layouts.instances[ins.class.0 as usize];
+                let layout = self.layouts.instances[ins.type_id.0 as usize];
                 let rec = self.builder.load(rec_typ, rec_var);
 
                 // When loading fields from enums we may load from an opaque
@@ -2252,7 +2252,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 let reg_typ = self.variable_types[&ins.register];
                 let rec_var = self.variables[&ins.receiver];
                 let rec_typ = self.variable_types[&ins.receiver];
-                let layout = self.layouts.instances[ins.class.0 as usize];
+                let layout = self.layouts.instances[ins.type_id.0 as usize];
                 let index = ins.field.index(&self.shared.state.db) as u32;
                 let field = if rec_typ.is_pointer_type() {
                     let rec = self
@@ -2273,13 +2273,14 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 self.builder.store(reg_var, field);
             }
             Instruction::SetField(ins)
-                if ins.class.is_heap_allocated(&self.shared.state.db) =>
+                if ins.type_id.is_heap_allocated(&self.shared.state.db) =>
             {
                 let rec_var = self.variables[&ins.receiver];
                 let rec_typ = self.variable_types[&ins.receiver];
                 let val_var = self.variables[&ins.value];
                 let val_typ = self.variable_types[&ins.value];
-                let base = if ins.class.kind(&self.shared.state.db).is_async() {
+                let base = if ins.type_id.kind(&self.shared.state.db).is_async()
+                {
                     PROCESS_FIELD_OFFSET
                 } else {
                     FIELD_OFFSET
@@ -2288,7 +2289,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 let index =
                     (base + ins.field.index(&self.shared.state.db)) as u32;
                 let val = self.builder.load(val_typ, val_var);
-                let layout = self.layouts.instances[ins.class.0 as usize];
+                let layout = self.layouts.instances[ins.type_id.0 as usize];
                 let rec = self.builder.load(rec_typ, rec_var);
 
                 self.builder.store_field(
@@ -2302,7 +2303,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 let rec_var = self.variables[&ins.receiver];
                 let rec_typ = self.variable_types[&ins.receiver];
                 let val_var = self.variables[&ins.value];
-                let layout = self.layouts.instances[ins.class.0 as usize];
+                let layout = self.layouts.instances[ins.type_id.0 as usize];
                 let index = ins.field.index(&self.shared.state.db) as u32;
                 let val_typ = self.variable_types[&ins.value];
                 let val = self.builder.load(val_typ, val_var);
@@ -2319,12 +2320,13 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 }
             }
             Instruction::FieldPointer(ins)
-                if ins.class.is_heap_allocated(&self.shared.state.db) =>
+                if ins.type_id.is_heap_allocated(&self.shared.state.db) =>
             {
                 let reg_var = self.variables[&ins.register];
                 let rec_var = self.variables[&ins.receiver];
                 let rec_typ = self.variable_types[&ins.receiver];
-                let base = if ins.class.kind(&self.shared.state.db).is_async() {
+                let base = if ins.type_id.kind(&self.shared.state.db).is_async()
+                {
                     PROCESS_FIELD_OFFSET
                 } else {
                     FIELD_OFFSET
@@ -2332,7 +2334,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                 let index =
                     (base + ins.field.index(&self.shared.state.db)) as u32;
-                let layout = self.layouts.instances[ins.class.0 as usize];
+                let layout = self.layouts.instances[ins.type_id.0 as usize];
                 let rec = self.builder.load(rec_typ, rec_var);
                 let addr = self.builder.field_address(
                     layout,
@@ -2346,7 +2348,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 let reg_var = self.variables[&ins.register];
                 let rec_var = self.variables[&ins.receiver];
                 let rec_typ = self.variable_types[&ins.receiver];
-                let layout = self.layouts.instances[ins.class.0 as usize];
+                let layout = self.layouts.instances[ins.type_id.0 as usize];
                 let rec = self.builder.load(rec_typ, rec_var);
                 let index = ins.field.index(&self.shared.state.db) as u32;
                 let src = if rec_typ.is_pointer_type() {
@@ -2465,7 +2467,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 self.builder.branch(is_zero, drop_block, after_block);
             }
             Instruction::Allocate(ins)
-                if ins.class.is_stack_allocated(&self.shared.state.db) =>
+                if ins.type_id.is_stack_allocated(&self.shared.state.db) =>
             {
                 // Defining the alloca already reserves (uninitialised) memory,
                 // so there's nothing we actually need to do here. Setting the
@@ -2475,7 +2477,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 self.set_debug_location(ins.location);
 
                 let reg_var = self.variables[&ins.register];
-                let ptr = self.allocate(ins.class).as_basic_value_enum();
+                let ptr = self.allocate(ins.type_id).as_basic_value_enum();
 
                 self.builder.store(reg_var, ptr);
             }
@@ -2483,13 +2485,14 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 self.set_debug_location(ins.location);
 
                 let reg_var = self.variables[&ins.register];
-                let name = &self.shared.names.classes[&ins.class];
-                let global = self.module.add_class(name).as_pointer_value();
-                let class = self.builder.load_pointer(global).into();
+                let name = &self.shared.names.types[&ins.type_id];
+                let global = self.module.add_type(name).as_pointer_value();
+                let proc_type = self.builder.load_pointer(global).into();
                 let proc = self.load_process().into();
                 let func =
                     self.module.runtime_function(RuntimeFunction::ProcessNew);
-                let ptr = self.builder.call_with_return(func, &[proc, class]);
+                let ptr =
+                    self.builder.call_with_return(func, &[proc, proc_type]);
 
                 self.builder.store(reg_var, ptr);
             }
@@ -2896,12 +2899,12 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
             .into_int_value()
     }
 
-    fn allocate(&mut self, class: ClassId) -> PointerValue<'ctx> {
+    fn allocate(&mut self, type_id: TypeId) -> PointerValue<'ctx> {
         self.builder.allocate_instance(
             self.module,
             &self.shared.state.db,
             self.shared.names,
-            class,
+            type_id,
         )
     }
 }
@@ -2957,8 +2960,8 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
         let layout = self.layouts.method_counts;
         let counts = self.builder.new_temporary(layout);
 
-        self.set_method_count(counts, ClassId::string());
-        self.set_method_count(counts, ClassId::byte_array());
+        self.set_method_count(counts, TypeId::string());
+        self.set_method_count(counts, TypeId::byte_array());
 
         let rt_new = self.module.runtime_function(RuntimeFunction::RuntimeNew);
         let rt_start =
@@ -3017,20 +3020,20 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
 
         self.builder.store(stack_size_global.as_pointer_value(), stack_size);
 
-        // Allocate and store all the classes in their corresponding globals.
+        // Allocate and store all the types in their corresponding globals.
         // We iterate over the values here and below such that the order is
         // stable between compilations. This doesn't matter for the code that we
         // generate here, but it makes it easier to inspect the resulting
         // executable (e.g. using `objdump --disassemble`).
         for module in self.mir.modules.values() {
-            let name = &self.names.setup_classes[&module.id];
+            let name = &self.names.setup_types[&module.id];
             let func = self.module.add_setup_function(name);
 
             self.builder.direct_call(func, &[]);
         }
 
         // Constants need to be defined in a separate pass, as they may depends
-        // on the classes (e.g. array constants need the Array class to be set
+        // on the types (e.g. array constants need the Array type to be set
         // up).
         for module in self.mir.modules.values() {
             let name = &self.names.setup_constants[&module.id];
@@ -3039,11 +3042,11 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
             self.builder.direct_call(func, &[]);
         }
 
-        let main_class_id = self.db.main_class().unwrap();
+        let main_tid = self.db.main_type().unwrap();
         let main_method_id = self.db.main_method().unwrap();
-        let main_class_ptr = self
+        let main_type_ptr = self
             .module
-            .add_global_pointer(&self.names.classes[&main_class_id])
+            .add_global_pointer(&self.names.types[&main_tid])
             .as_pointer_value();
 
         let main_method = self
@@ -3059,16 +3062,16 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
             .as_global_value()
             .as_pointer_value();
 
-        let main_class = self.builder.load_pointer(main_class_ptr);
+        let main_type = self.builder.load_pointer(main_type_ptr);
 
         self.builder.direct_call(
             rt_start,
-            &[runtime.into(), main_class.into(), main_method.into()],
+            &[runtime.into(), main_type.into(), main_method.into()],
         );
 
         // We'll only reach this code upon successfully finishing the program.
         //
-        // We don't drop the classes and other data as there's no point since
+        // We don't drop the types and other data as there's no point since
         // we're exiting here. We _do_ drop the runtime in case we want to hook
         // any additional logic into that step at some point, though technically
         // this isn't necessary.
@@ -3076,14 +3079,14 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
         self.builder.return_value(Some(&self.builder.u32_literal(0)));
     }
 
-    fn set_method_count(&self, counts: PointerValue<'ctx>, class: ClassId) {
+    fn set_method_count(&self, counts: PointerValue<'ctx>, type_id: TypeId) {
         let layout = self.layouts.method_counts;
         let count = self
             .module
             .context
             .i16_type()
-            .const_int(self.methods.counts[class.0 as usize] as _, false);
+            .const_int(self.methods.counts[type_id.0 as usize] as _, false);
 
-        self.builder.store_field(layout, counts, class.0, count);
+        self.builder.store_field(layout, counts, type_id.0, count);
     }
 }

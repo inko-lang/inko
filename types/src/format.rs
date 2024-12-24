@@ -1,9 +1,9 @@
 //! Formatting of types.
 use crate::{
-    Arguments, ClassId, ClassInstance, ClassKind, ClosureId, Database,
-    ForeignType, Inline, MethodId, MethodKind, ModuleId, Ownership, Sign,
-    TraitId, TraitInstance, TypeArguments, TypeId, TypeParameterId,
-    TypePlaceholderId, TypeRef, Visibility,
+    Arguments, ClosureId, Database, ForeignType, Inline, MethodId, MethodKind,
+    ModuleId, Ownership, Sign, TraitId, TraitInstance, TypeArguments, TypeEnum,
+    TypeId, TypeInstance, TypeKind, TypeParameterId, TypePlaceholderId,
+    TypeRef, Visibility,
 };
 
 const MAX_FORMATTING_DEPTH: usize = 8;
@@ -328,24 +328,24 @@ impl FormatType for TraitInstance {
     }
 }
 
-impl FormatType for ClassId {
+impl FormatType for TypeId {
     fn format_type(&self, buffer: &mut TypeFormatter) {
         buffer.write(&self.get(buffer.db).name);
         buffer.type_parameters(&self.type_parameters(buffer.db));
     }
 }
 
-impl FormatType for ClassInstance {
+impl FormatType for TypeInstance {
     fn format_type(&self, buffer: &mut TypeFormatter) {
         buffer.descend(|buffer| {
             let ins_of = self.instance_of.get(buffer.db);
 
-            if !matches!(ins_of.kind, ClassKind::Tuple) {
+            if !matches!(ins_of.kind, TypeKind::Tuple) {
                 buffer.write(&ins_of.name);
             }
 
             if !ins_of.type_parameters.is_empty() {
-                let (open, close) = if let ClassKind::Tuple = ins_of.kind {
+                let (open, close) = if let TypeKind::Tuple = ins_of.kind {
                     ("(", ")")
                 } else {
                     ("[", "]")
@@ -429,10 +429,10 @@ impl FormatType for ClosureId {
 impl FormatType for TypeRef {
     fn format_type(&self, buffer: &mut TypeFormatter) {
         match self {
-            TypeRef::Owned(TypeId::TypeParameter(id)) => {
+            TypeRef::Owned(TypeEnum::TypeParameter(id)) => {
                 format_type_parameter(*id, buffer, true);
             }
-            TypeRef::Owned(TypeId::RigidTypeParameter(id)) => {
+            TypeRef::Owned(TypeEnum::RigidTypeParameter(id)) => {
                 format_type_parameter_without_argument(
                     *id, buffer, true, false,
                 );
@@ -487,29 +487,29 @@ impl FormatType for TypeRef {
     }
 }
 
-impl FormatType for TypeId {
+impl FormatType for TypeEnum {
     fn format_type(&self, buffer: &mut TypeFormatter) {
         match self {
-            TypeId::Class(id) => id.format_type(buffer),
-            TypeId::Trait(id) => id.format_type(buffer),
-            TypeId::Module(id) => id.format_type(buffer),
-            TypeId::ClassInstance(ins) => ins.format_type(buffer),
-            TypeId::TraitInstance(id) => id.format_type(buffer),
-            TypeId::TypeParameter(id) => id.format_type(buffer),
-            TypeId::RigidTypeParameter(id)
-            | TypeId::AtomicTypeParameter(id) => {
+            TypeEnum::Type(id) => id.format_type(buffer),
+            TypeEnum::Trait(id) => id.format_type(buffer),
+            TypeEnum::Module(id) => id.format_type(buffer),
+            TypeEnum::TypeInstance(ins) => ins.format_type(buffer),
+            TypeEnum::TraitInstance(id) => id.format_type(buffer),
+            TypeEnum::TypeParameter(id) => id.format_type(buffer),
+            TypeEnum::RigidTypeParameter(id)
+            | TypeEnum::AtomicTypeParameter(id) => {
                 format_type_parameter_without_argument(
                     *id, buffer, false, false,
                 );
             }
-            TypeId::Closure(id) => id.format_type(buffer),
-            TypeId::Foreign(ForeignType::Int(size, Sign::Signed)) => {
+            TypeEnum::Closure(id) => id.format_type(buffer),
+            TypeEnum::Foreign(ForeignType::Int(size, Sign::Signed)) => {
                 buffer.write(&format!("Int{}", size))
             }
-            TypeId::Foreign(ForeignType::Int(size, Sign::Unsigned)) => {
+            TypeEnum::Foreign(ForeignType::Int(size, Sign::Unsigned)) => {
                 buffer.write(&format!("UInt{}", size))
             }
-            TypeId::Foreign(ForeignType::Float(size)) => {
+            TypeEnum::Foreign(ForeignType::Float(size)) => {
                 buffer.write(&format!("Float{}", size))
             }
         }
@@ -521,12 +521,12 @@ mod tests {
     use super::*;
     use crate::test::{
         any, immutable, immutable_uni, instance, mutable, mutable_uni,
-        new_class, new_parameter, owned, placeholder, uni,
+        new_parameter, new_type, owned, placeholder, uni,
     };
     use crate::{
-        Block, Class, ClassInstance, ClassKind, Closure, Database, Inline,
-        Location, Method, MethodKind, Module, ModuleId, ModuleName, Trait,
-        TraitInstance, TypeArguments, TypeId, TypeParameter, TypePlaceholder,
+        Block, Closure, Database, Inline, Location, Method, MethodKind, Module,
+        ModuleId, ModuleName, Trait, TraitInstance, Type, TypeArguments,
+        TypeEnum, TypeInstance, TypeKind, TypeParameter, TypePlaceholder,
         TypeRef, Visibility,
     };
 
@@ -571,26 +571,26 @@ mod tests {
     #[test]
     fn test_method_id_format_type_with_instance_method() {
         let mut db = Database::new();
-        let class_a = Class::alloc(
+        let type_a = Type::alloc(
             &mut db,
             "A".to_string(),
-            ClassKind::Regular,
+            TypeKind::Regular,
             Visibility::Private,
             ModuleId(0),
             Location::default(),
         );
-        let class_b = Class::alloc(
+        let type_b = Type::alloc(
             &mut db,
             "B".to_string(),
-            ClassKind::Regular,
+            TypeKind::Regular,
             Visibility::Private,
             ModuleId(0),
             Location::default(),
         );
-        let class_d = Class::alloc(
+        let type_d = Type::alloc(
             &mut db,
             "D".to_string(),
-            ClassKind::Regular,
+            TypeKind::Regular,
             Visibility::Private,
             ModuleId(0),
             Location::default(),
@@ -605,13 +605,13 @@ mod tests {
         );
 
         let ins_a =
-            TypeRef::Owned(TypeId::ClassInstance(ClassInstance::new(class_a)));
+            TypeRef::Owned(TypeEnum::TypeInstance(TypeInstance::new(type_a)));
 
         let ins_b =
-            TypeRef::Owned(TypeId::ClassInstance(ClassInstance::new(class_b)));
+            TypeRef::Owned(TypeEnum::TypeInstance(TypeInstance::new(type_b)));
 
         let ins_d =
-            TypeRef::Owned(TypeId::ClassInstance(ClassInstance::new(class_d)));
+            TypeRef::Owned(TypeEnum::TypeInstance(TypeInstance::new(type_d)));
 
         let loc = Location::default();
 
@@ -750,12 +750,12 @@ mod tests {
     }
 
     #[test]
-    fn test_type_id_format_type_with_class() {
+    fn test_type_id_format_type_with_type() {
         let mut db = Database::new();
-        let id = TypeId::Class(Class::alloc(
+        let id = TypeEnum::Type(Type::alloc(
             &mut db,
             "String".to_string(),
-            ClassKind::Regular,
+            TypeKind::Regular,
             Visibility::Private,
             ModuleId(0),
             Location::default(),
@@ -765,7 +765,7 @@ mod tests {
     }
 
     #[test]
-    fn test_type_id_format_type_with_generic_class() {
+    fn test_type_id_format_type_with_generic_type() {
         let mut db = Database::new();
         let to_a = Trait::alloc(
             &mut db,
@@ -781,10 +781,10 @@ mod tests {
             ModuleId(0),
             Location::default(),
         );
-        let id = Class::alloc(
+        let id = Type::alloc(
             &mut db,
             "Foo".to_string(),
-            ClassKind::Regular,
+            TypeKind::Regular,
             Visibility::Private,
             ModuleId(0),
             Location::default(),
@@ -798,7 +798,7 @@ mod tests {
         param1.set_mutable(&mut db);
 
         assert_eq!(
-            format_type(&db, TypeId::Class(id)),
+            format_type(&db, TypeEnum::Type(id)),
             "Foo[A: mut + ToA + ToB, B]"
         );
     }
@@ -806,7 +806,7 @@ mod tests {
     #[test]
     fn test_type_id_format_type_with_trait() {
         let mut db = Database::new();
-        let id = TypeId::Trait(Trait::alloc(
+        let id = TypeEnum::Trait(Trait::alloc(
             &mut db,
             "ToString".to_string(),
             Visibility::Private,
@@ -850,7 +850,7 @@ mod tests {
         param1.set_mutable(&mut db);
 
         assert_eq!(
-            format_type(&db, TypeId::Trait(id)),
+            format_type(&db, TypeEnum::Trait(id)),
             "Foo[A: mut + ToA + ToB, B]"
         );
     }
@@ -858,7 +858,7 @@ mod tests {
     #[test]
     fn test_type_id_format_type_with_module() {
         let mut db = Database::new();
-        let id = TypeId::Module(Module::alloc(
+        let id = TypeEnum::Module(Module::alloc(
             &mut db,
             ModuleName::new("foo::bar"),
             "foo/bar.inko".into(),
@@ -868,29 +868,28 @@ mod tests {
     }
 
     #[test]
-    fn test_type_id_format_type_with_class_instance() {
+    fn test_type_id_format_type_with_type_instance() {
         let mut db = Database::new();
-        let id = Class::alloc(
+        let id = Type::alloc(
             &mut db,
             "String".to_string(),
-            ClassKind::Regular,
+            TypeKind::Regular,
             Visibility::Private,
             ModuleId(0),
             Location::default(),
         );
-        let ins = TypeId::ClassInstance(ClassInstance::new(id));
+        let ins = TypeEnum::TypeInstance(TypeInstance::new(id));
 
         assert_eq!(format_type(&db, ins), "String");
     }
 
     #[test]
-    fn test_type_id_format_type_with_generic_class_instance_without_arguments()
-    {
+    fn test_type_id_format_type_with_generic_type_instance_without_arguments() {
         let mut db = Database::new();
-        let id = Class::alloc(
+        let id = Type::alloc(
             &mut db,
             "Array".to_string(),
-            ClassKind::Regular,
+            TypeKind::Regular,
             Visibility::Private,
             ModuleId(0),
             Location::default(),
@@ -898,7 +897,7 @@ mod tests {
 
         id.new_type_parameter(&mut db, "T".to_string());
 
-        let ins = TypeId::ClassInstance(ClassInstance::new(id));
+        let ins = TypeEnum::TypeInstance(TypeInstance::new(id));
 
         assert_eq!(format_type(&db, ins), "Array[T]");
     }
@@ -906,10 +905,10 @@ mod tests {
     #[test]
     fn test_type_id_format_type_with_tuple_instance() {
         let mut db = Database::new();
-        let id = Class::alloc(
+        let id = Type::alloc(
             &mut db,
             "MyTuple".to_string(),
-            ClassKind::Tuple,
+            TypeKind::Tuple,
             Visibility::Private,
             ModuleId(0),
             Location::default(),
@@ -922,7 +921,7 @@ mod tests {
         args.assign(param2, TypeRef::Never);
 
         let ins =
-            TypeId::ClassInstance(ClassInstance::generic(&mut db, id, args));
+            TypeEnum::TypeInstance(TypeInstance::generic(&mut db, id, args));
 
         assert_eq!(format_type(&db, ins), "(Int, Never)");
     }
@@ -937,18 +936,18 @@ mod tests {
             ModuleId(0),
             Location::default(),
         );
-        let ins = TypeId::TraitInstance(TraitInstance::new(id));
+        let ins = TypeEnum::TraitInstance(TraitInstance::new(id));
 
         assert_eq!(format_type(&db, ins), "ToString");
     }
 
     #[test]
-    fn test_type_id_format_type_with_generic_class_instance() {
+    fn test_type_id_format_type_with_generic_type_instance() {
         let mut db = Database::new();
-        let id = Class::alloc(
+        let id = Type::alloc(
             &mut db,
             "Thing".to_string(),
-            ClassKind::Regular,
+            TypeKind::Regular,
             Visibility::Private,
             ModuleId(0),
             Location::default(),
@@ -962,7 +961,7 @@ mod tests {
         targs.assign(param1, TypeRef::int());
 
         let ins =
-            TypeId::ClassInstance(ClassInstance::generic(&mut db, id, targs));
+            TypeEnum::TypeInstance(TypeInstance::generic(&mut db, id, targs));
 
         assert_eq!(format_type(&db, ins), "Thing[Int, E]");
     }
@@ -986,7 +985,7 @@ mod tests {
         targs.assign(param1, TypeRef::int());
 
         let ins =
-            TypeId::TraitInstance(TraitInstance::generic(&mut db, id, targs));
+            TypeEnum::TraitInstance(TraitInstance::generic(&mut db, id, targs));
 
         assert_eq!(format_type(&db, ins), "ToFoo[Int, E]");
     }
@@ -1002,7 +1001,7 @@ mod tests {
             ModuleId(0),
             Location::default(),
         );
-        let param_ins = TypeId::TypeParameter(param);
+        let param_ins = TypeEnum::TypeParameter(param);
         let to_string_ins = TraitInstance::new(to_string);
 
         param.add_requirements(&mut db, vec![to_string_ins]);
@@ -1022,7 +1021,7 @@ mod tests {
             ModuleId(0),
             Location::default(),
         );
-        let param_ins = TypeId::RigidTypeParameter(param);
+        let param_ins = TypeEnum::RigidTypeParameter(param);
         let to_string_ins = TraitInstance::new(to_string);
 
         param.add_requirements(&mut db, vec![to_string_ins]);
@@ -1034,26 +1033,26 @@ mod tests {
     fn test_type_id_format_type_with_closure() {
         let mut db = Database::new();
         let loc = Location::default();
-        let class_a = Class::alloc(
+        let type_a = Type::alloc(
             &mut db,
             "A".to_string(),
-            ClassKind::Regular,
+            TypeKind::Regular,
             Visibility::Private,
             ModuleId(0),
             Location::default(),
         );
-        let class_b = Class::alloc(
+        let type_b = Type::alloc(
             &mut db,
             "B".to_string(),
-            ClassKind::Regular,
+            TypeKind::Regular,
             Visibility::Private,
             ModuleId(0),
             Location::default(),
         );
-        let class_d = Class::alloc(
+        let type_d = Type::alloc(
             &mut db,
             "D".to_string(),
-            ClassKind::Regular,
+            TypeKind::Regular,
             Visibility::Private,
             ModuleId(0),
             Location::default(),
@@ -1061,19 +1060,19 @@ mod tests {
         let block = Closure::alloc(&mut db, true);
 
         let ins_a =
-            TypeRef::Owned(TypeId::ClassInstance(ClassInstance::new(class_a)));
+            TypeRef::Owned(TypeEnum::TypeInstance(TypeInstance::new(type_a)));
 
         let ins_b =
-            TypeRef::Owned(TypeId::ClassInstance(ClassInstance::new(class_b)));
+            TypeRef::Owned(TypeEnum::TypeInstance(TypeInstance::new(type_b)));
 
         let ins_d =
-            TypeRef::Owned(TypeId::ClassInstance(ClassInstance::new(class_d)));
+            TypeRef::Owned(TypeEnum::TypeInstance(TypeInstance::new(type_d)));
 
         block.new_argument(&mut db, "a".to_string(), ins_a, ins_a, loc);
         block.new_argument(&mut db, "b".to_string(), ins_b, ins_b, loc);
         block.set_return_type(&mut db, ins_d);
 
-        let block_ins = TypeId::Closure(block);
+        let block_ins = TypeEnum::Closure(block);
 
         assert_eq!(format_type(&db, block_ins), "fn move (A, B) -> D");
     }
@@ -1081,10 +1080,10 @@ mod tests {
     #[test]
     fn test_type_ref_type_name() {
         let mut db = Database::new();
-        let cls = new_class(&mut db, "A");
+        let cls = new_type(&mut db, "A");
         let ins = instance(cls);
-        let int = instance(ClassId::int());
-        let param = TypeId::TypeParameter(TypeParameter::alloc(
+        let int = instance(TypeId::int());
+        let param = TypeEnum::TypeParameter(TypeParameter::alloc(
             &mut db,
             "T".to_string(),
         ));
@@ -1143,7 +1142,7 @@ mod tests {
         assert_eq!(
             format_type(
                 &db,
-                TypeRef::pointer(TypeId::Foreign(ForeignType::Int(
+                TypeRef::pointer(TypeEnum::Foreign(ForeignType::Int(
                     8,
                     Sign::Signed
                 )))
@@ -1153,7 +1152,7 @@ mod tests {
         assert_eq!(
             format_type(
                 &db,
-                TypeRef::pointer(TypeId::Foreign(ForeignType::Int(
+                TypeRef::pointer(TypeEnum::Foreign(ForeignType::Int(
                     8,
                     Sign::Unsigned
                 )))
@@ -1187,8 +1186,8 @@ mod tests {
     #[test]
     fn test_format_placeholder_with_assigned_value() {
         let mut db = Database::new();
-        let heap = owned(instance(new_class(&mut db, "Heap")));
-        let stack = owned(instance(ClassId::int()));
+        let heap = owned(instance(new_type(&mut db, "Heap")));
+        let stack = owned(instance(TypeId::int()));
         let mut var = TypePlaceholder::alloc(&mut db, None);
         let tests = vec![
             (heap, Ownership::Any, "Heap"),

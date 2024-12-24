@@ -16,7 +16,7 @@ implement this operator for a custom type:
 ```inko
 import std.ops (Add)
 
-class Rational {
+type Rational {
   let @numerator: Int
   let @denominator: Int
 }

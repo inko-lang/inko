@@ -14,7 +14,7 @@ fn load_assets_from(path: String) {
   # ...
 }
 
-class async Main {
+type async Main {
   fn async main {
     load_assets_from(PATH)
   }
@@ -44,7 +44,7 @@ fn load_assets_from(path: String) {
   # ...
 }
 
-class async Main {
+type async Main {
   fn async main {
     load_assets_from(PATH)
   }

@@ -14,21 +14,21 @@ Methods are defined using the `fn` keyword. An example of this which we've seen
 so far is the `main` method defined like so:
 
 ```inko
-class async Main {
+type async Main {
   fn async main {
 
   }
 }
 ```
 
-We can also define methods outside of classes like so:
+We can also define methods outside of types like so:
 
 ```inko
 fn example {
 
 }
 
-class async Main {
+type async Main {
   fn async main {
     example
   }
@@ -39,13 +39,13 @@ Here we define the method `example`, then call it in the `main` method. The
 `example` method known as a "module method" because it's defined at the
 top-level scope, which is a module (more on this later).
 
-## Methods and classes
+## Methods and types
 
-Within a class, we can define two types of methods: static methods, and instance
+Within a type, we can define two types of methods: static methods, and instance
 methods. Instance methods are defined as follows:
 
 ```inko
-class Person {
+type Person {
   fn name {
 
   }
@@ -55,22 +55,22 @@ class Person {
 Meanwhile, static methods are defined using `fn static` as follows:
 
 ```inko
-class Person {
+type Person {
   fn static new {
 
   }
 }
 ```
 
-The difference is that static methods don't require an instance of the class
+The difference is that static methods don't require an instance of the type
 they are defined in, while instance methods do. This means that to call `new` in
 the above example, you'd write `Person.new`, while calling `name` would require
-you to create an instance of the class, then use `person.name` where `person` is
-a variable storing the instance of the class.
+you to create an instance of the type, then use `person.name` where `person` is
+a variable storing the instance of the type.
 
-When a class is defined using `class async`, you can also define methods using
+When a type is defined using `type async`, you can also define methods using
 `fn async`. These methods are the messages you can send to a process. It's a
-compile-time error to define an `fn async` method on a regular class.
+compile-time error to define an `fn async` method on a regular type.
 
 ## Arguments
 
@@ -171,7 +171,7 @@ fn person(name: String, age: Int) -> String {
   age
 }
 
-class async Main {
+type async Main {
   fn async main {
 
   }
@@ -187,11 +187,11 @@ test.inko:2:3 error(invalid-type): expected a value of type 'String', found 'Int
 
 ## Mutability
 
-Trait and class instance methods are immutable by default, preventing them from
+Trait and type instance methods are immutable by default, preventing them from
 mutating the data stored in their receivers. For example:
 
 ```inko
-class Person {
+type Person {
   let @name: String
 
   fn change_name(name: String) {
@@ -205,7 +205,7 @@ and `change_name` is immutable. To allow mutations, use the `mut` keyword like
 so:
 
 ```inko
-class Person {
+type Person {
   let @name: String
 
   fn mut change_name(name: String) {
@@ -224,7 +224,7 @@ Regular instance methods can take ownership of their receivers by defining them
 using `fn move`:
 
 ```inko
-class Person {
+type Person {
   let @name: String
 
   fn move into_name -> String {
@@ -247,7 +247,7 @@ values. Closures are defined using the `fn` keyword while leaving out a name:
 ```inko
 import std.stdio (Stdout)
 
-class async Main {
+type async Main {
   fn async main {
     let out = Stdout.new
 
@@ -263,7 +263,7 @@ argument types and the return type are inferred:
 ```inko
 import std.stdio (Stdout)
 
-class async Main {
+type async Main {
   fn async main {
     let out = Stdout.new
 
@@ -278,7 +278,7 @@ explicit type signatures are necessary:
 ```inko
 import std.stdio (Stdout)
 
-class async Main {
+type async Main {
   fn async main {
     let out = Stdout.new
 
@@ -299,7 +299,7 @@ from causing bugs, the compiler produces a compile-time error when you try to
 assign captured variables a new value:
 
 ```inko
-class async Main {
+type async Main {
   fn async main {
     let mut a = 10
 
@@ -319,7 +319,7 @@ is done by using the `fn move` keyword. When using `fn move`, you _can_ assign
 the captured variable a new value:
 
 ```inko
-class async Main {
+type async Main {
   fn async main {
     let mut nums = [10]
 

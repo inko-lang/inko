@@ -47,7 +47,7 @@ import std.fmt (Format, Formatter)
 import std.hash (Hash, Hasher)
 
 # A 1-ary tuple.
-class builtin Tuple1[A] {
+type builtin Tuple1[A] {
   let pub @0: A
 }
 
@@ -76,7 +76,7 @@ impl Format for Tuple1 if A: Format {
 }
 
 # A 2-ary tuple.
-class builtin Tuple2[A, B] {
+type builtin Tuple2[A, B] {
   let pub @0: A
   let pub @1: B
 }
@@ -107,7 +107,7 @@ impl Format for Tuple2 if A: Format, B: Format {
 }
 
 # A 3-ary tuple.
-class builtin Tuple3[A, B, C] {
+type builtin Tuple3[A, B, C] {
   let pub @0: A
   let pub @1: B
   let pub @2: C
@@ -146,7 +146,7 @@ impl Format for Tuple3 if A: Format, B: Format, C: Format {
 }
 
 # A 4-ary tuple.
-class builtin Tuple4[A, B, C, D] {
+type builtin Tuple4[A, B, C, D] {
   let pub @0: A
   let pub @1: B
   let pub @2: C
@@ -193,7 +193,7 @@ impl Format for Tuple4 if A: Format, B: Format, C: Format, D: Format {
 }
 
 # A 5-ary tuple.
-class builtin Tuple5[A, B, C, D, E] {
+type builtin Tuple5[A, B, C, D, E] {
   let pub @0: A
   let pub @1: B
   let pub @2: C
@@ -249,7 +249,7 @@ impl Format for Tuple5 if A: Format, B: Format, C: Format, D: Format, E: Format
 }
 
 # A 6-ary tuple.
-class builtin Tuple6[A, B, C, D, E, F] {
+type builtin Tuple6[A, B, C, D, E, F] {
   let pub @0: A
   let pub @1: B
   let pub @2: C
@@ -325,7 +325,7 @@ if
 }
 
 # A 7-ary tuple.
-class builtin Tuple7[A, B, C, D, E, F, G] {
+type builtin Tuple7[A, B, C, D, E, F, G] {
   let pub @0: A
   let pub @1: B
   let pub @2: C
@@ -417,7 +417,7 @@ if
 }
 
 # A 8-ary tuple.
-class builtin Tuple8[A, B, C, D, E, F, G, H] {
+type builtin Tuple8[A, B, C, D, E, F, G, H] {
   let pub @0: A
   let pub @1: B
   let pub @2: C

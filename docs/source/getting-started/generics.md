@@ -6,10 +6,10 @@
 
 Types and methods can be generic, meaning that instead of supporting a single
 fixed type (e.g. `String`), they can operate on many different types. Take the
-following class for example:
+following type for example:
 
 ```inko
-class Box {
+type Box {
   let @value: String
 }
 ```
@@ -20,10 +20,10 @@ solve this problem, without having to copy-paste large amounts of code.
 
 ## Generic types
 
-Generic classes are defined as follows:
+Generic types are defined as follows:
 
 ```inko
-class Box[T] {
+type Box[T] {
   let @value: T
 }
 ```
@@ -44,7 +44,7 @@ Box(value: 1.123)
 We can of course define more than just one type parameter:
 
 ```inko
-class Pair[A, B] {
+type Pair[A, B] {
   let @a: A
   let @b: B
 }
@@ -114,7 +114,7 @@ trait ToString {
   fn to_string -> String
 }
 
-class Box[T: ToString] {
+type Box[T: ToString] {
   let @value: T
 }
 ```
@@ -129,7 +129,7 @@ Type parameters can define multiple required traits as follows:
 trait A {}
 trait B {}
 
-class Box[T: A + B] {
+type Box[T: A + B] {
   let @value: T
 }
 ```
@@ -142,7 +142,7 @@ The required traits can also be made generic:
 ```inko
 trait Equal[A] {}
 
-class Example[B: Equal[B]] {
+type Example[B: Equal[B]] {
   ...
 }
 ```
@@ -169,7 +169,7 @@ trait Update {
   fn mut update
 }
 
-class Example[T: Update] {
+type Example[T: Update] {
   let @value: T
 
   fn mut update {
@@ -197,7 +197,7 @@ trait Update {
   fn mut update
 }
 
-class Example[T: mut + Update] {
+type Example[T: mut + Update] {
   let @value: T
 
   fn mut update {
@@ -207,14 +207,14 @@ class Example[T: mut + Update] {
 ```
 
 Type parameter requirements can also be specified when reopening a generic
-class:
+type:
 
 ```inko
 trait Update {
   fn mut update
 }
 
-class Example[T] {
+type Example[T] {
   let @value: T
 }
 

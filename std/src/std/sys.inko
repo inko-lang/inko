@@ -39,7 +39,7 @@ fn pub exit(status: Int) -> Never {
 }
 
 # A type that describes what to do with an input/output stream of a command.
-class pub copy enum Stream {
+type pub copy enum Stream {
   # A stream that should be redirected to the null device.
   case Null
 
@@ -131,7 +131,7 @@ impl ToInt for Stream {
 #   case _ -> {}
 # }
 # ```
-class pub Command {
+type pub Command {
   # The path to the program to spawn.
   let pub @program: String
 
@@ -241,7 +241,7 @@ class pub Command {
 }
 
 # The status of a process after it terminated.
-class pub copy ExitStatus {
+type pub copy ExitStatus {
   # The raw exit code.
   let @code: Int
 
@@ -271,7 +271,7 @@ impl ToInt for ExitStatus {
 }
 
 # The standard input stream of a child process.
-class pub inline Stdin {
+type pub inline Stdin {
   let @fd: Int32
 }
 
@@ -302,7 +302,7 @@ impl Write for Stdin {
 }
 
 # The standard output stream of a child process.
-class pub inline Stdout {
+type pub inline Stdout {
   let @fd: Int32
 }
 
@@ -319,7 +319,7 @@ impl Read for Stdout {
 }
 
 # The standard error stream of a child process.
-class pub inline Stderr {
+type pub inline Stderr {
   let @fd: Int32
 }
 
@@ -336,7 +336,7 @@ impl Read for Stderr {
 }
 
 # A running or exited child OS process.
-class pub ChildProcess {
+type pub ChildProcess {
   # The ID of the child process.
   let @id: Int32
 

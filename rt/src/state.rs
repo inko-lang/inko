@@ -1,6 +1,6 @@
 use crate::arc_without_weak::ArcWithoutWeak;
 use crate::config::Config;
-use crate::mem::{ByteArray, Class, ClassPointer, String as InkoString};
+use crate::mem::{ByteArray, String as InkoString, Type, TypePointer};
 use crate::network_poller::NetworkPoller;
 use crate::scheduler::process::Scheduler;
 use crate::scheduler::signal::Signals;
@@ -14,11 +14,11 @@ use std::sync::atomic::AtomicU32;
 use std::thread::available_parallelism;
 use std::time;
 
-/// Allocates a new class, returning a tuple containing the owned pointer and a
+/// Allocates a new type, returning a tuple containing the owned pointer and a
 /// permanent reference pointer.
-macro_rules! class {
+macro_rules! new_type {
     ($name: expr, $methods: expr, $size_source: ident) => {{
-        Class::alloc(
+        Type::alloc(
             $name.to_string(),
             $methods,
             size_of::<$size_source>() as u32,
@@ -29,15 +29,15 @@ macro_rules! class {
 /// A reference counted State.
 pub(crate) type RcState = ArcWithoutWeak<State>;
 
-/// The number of methods used for the various built-in classes.
+/// The number of methods used for the various built-in types.
 ///
 /// These counts are used to determine how much memory is needed for allocating
-/// the various built-in classes.
+/// the various built-in types.
 #[derive(Default, Debug)]
 #[repr(C)]
 pub struct MethodCounts {
-    pub(crate) string_class: u16,
-    pub(crate) byte_array_class: u16,
+    pub(crate) string_type: u16,
+    pub(crate) byte_array_type: u16,
 }
 
 pub(crate) struct Env {
@@ -77,8 +77,8 @@ impl Env {
 /// The state of the Inko runtime.
 #[repr(C)]
 pub struct State {
-    pub string_class: ClassPointer,
-    pub byte_array_class: ClassPointer,
+    pub string_type: TypePointer,
+    pub byte_array_type: TypePointer,
 
     /// The first randomly generated key to use for hashers.
     pub hash_key0: i64,
@@ -142,9 +142,9 @@ impl State {
         counts: &MethodCounts,
         arguments: Vec<String>,
     ) -> RcState {
-        let string_class = class!("String", counts.string_class, InkoString);
-        let byte_array_class =
-            class!("ByteArray", counts.byte_array_class, ByteArray);
+        let string_type = new_type!("String", counts.string_type, InkoString);
+        let byte_array_type =
+            new_type!("ByteArray", counts.byte_array_type, ByteArray);
 
         let mut rng = thread_rng();
         let hash_key0 = rng.gen();
@@ -171,8 +171,8 @@ impl State {
             timeout_worker: TimeoutWorker::new(),
             arguments,
             network_pollers,
-            string_class,
-            byte_array_class,
+            string_type,
+            byte_array_type,
             signals: Signals::new(),
         };
 
@@ -187,8 +187,8 @@ impl State {
 impl Drop for State {
     fn drop(&mut self) {
         unsafe {
-            Class::drop(self.string_class);
-            Class::drop(self.byte_array_class);
+            Type::drop(self.string_type);
+            Type::drop(self.byte_array_type);
         }
     }
 }

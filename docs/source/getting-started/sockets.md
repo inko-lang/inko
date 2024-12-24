@@ -15,7 +15,7 @@ import std.net.ip (IpAddress)
 import std.net.socket (UdpSocket)
 import std.stdio (Stdout)
 
-class async Main {
+type async Main {
   fn async main {
     let stdout = Stdout.new
     let server = UdpSocket.new(IpAddress.v4(0, 0, 0, 0), port: 0).get
@@ -99,7 +99,7 @@ import std.net.ip (IpAddress)
 import std.net.socket (TcpServer)
 import std.stdio (Stdout)
 
-class async Main {
+type async Main {
   fn async main {
     let stdout = Stdout.new
     let server = TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 9999).get
@@ -122,7 +122,7 @@ contents:
 import std.net.ip (IpAddress)
 import std.net.socket (TcpClient)
 
-class async Main {
+type async Main {
   fn async main {
     let client = TcpClient.new(IpAddress.v4(0, 0, 0, 0), port: 9999).get
 

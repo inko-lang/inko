@@ -1,6 +1,6 @@
 use crate::{
-    ClassId, ClassInstance, Database, InternedTypeArguments, Shape,
-    SpecializationKey, TypeId, TypeParameterId, TypeRef,
+    Database, InternedTypeArguments, Shape, SpecializationKey, TypeEnum,
+    TypeId, TypeInstance, TypeParameterId, TypeRef,
 };
 use std::collections::HashMap;
 
@@ -27,20 +27,20 @@ pub struct TypeSpecializer<'a, 'b, 'c> {
     db: &'a mut Database,
     interned: &'b mut InternedTypeArguments,
 
-    /// The list of classes created during type specialization.
-    classes: &'c mut Vec<ClassId>,
+    /// The list of types created during type specialization.
+    types: &'c mut Vec<TypeId>,
 
     /// A cache of existing shapes to use when encountering a type parameter.
     ///
-    /// When specializing a class, it may have fields or constructors that are
+    /// When specializing a type, it may have fields or constructors that are
     /// or contain its type parameter (e.g. `Array[T]` for a `Foo[T]`). When
     /// encountering such types, we need to reuse the shape of the type
     /// parameter as it was determined when creating the newly specialized
-    /// class.
+    /// type.
     shapes: &'b HashMap<TypeParameterId, Shape>,
 
     /// The type `self` is an instance of.
-    self_type: ClassInstance,
+    self_type: TypeInstance,
 }
 
 impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
@@ -48,13 +48,13 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
         db: &'a mut Database,
         interned: &'b mut InternedTypeArguments,
         shapes: &'b HashMap<TypeParameterId, Shape>,
-        classes: &'c mut Vec<ClassId>,
-        self_type: ClassInstance,
+        types: &'c mut Vec<TypeId>,
+        self_type: TypeInstance,
         key: &mut Vec<Shape>,
     ) {
         for shape in key {
             TypeSpecializer::specialize_shape(
-                db, interned, shapes, classes, self_type, shape,
+                db, interned, shapes, types, self_type, shape,
             );
         }
     }
@@ -63,8 +63,8 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
         db: &'a mut Database,
         interned: &'b mut InternedTypeArguments,
         shapes: &'b HashMap<TypeParameterId, Shape>,
-        classes: &'c mut Vec<ClassId>,
-        self_type: ClassInstance,
+        types: &'c mut Vec<TypeId>,
+        self_type: TypeInstance,
         shape: &mut Shape,
     ) {
         match shape {
@@ -73,9 +73,9 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
             | Shape::InlineRef(i)
             | Shape::InlineMut(i) => {
                 *i = TypeSpecializer::new(
-                    db, interned, shapes, classes, self_type,
+                    db, interned, shapes, types, self_type,
                 )
-                .specialize_class_instance(*i);
+                .specialize_type_instance(*i);
             }
             _ => {}
         }
@@ -85,10 +85,10 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
         db: &'a mut Database,
         interned: &'b mut InternedTypeArguments,
         shapes: &'b HashMap<TypeParameterId, Shape>,
-        classes: &'c mut Vec<ClassId>,
-        self_type: ClassInstance,
+        types: &'c mut Vec<TypeId>,
+        self_type: TypeInstance,
     ) -> TypeSpecializer<'a, 'b, 'c> {
-        TypeSpecializer { db, interned, shapes, classes, self_type }
+        TypeSpecializer { db, interned, shapes, types, self_type }
     }
 
     pub fn specialize(&mut self, value: TypeRef) -> TypeRef {
@@ -98,30 +98,33 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
             // whatever implements the trait. This is needed such that if e.g. a
             // closure captures `self` and `self` is a stack allocated type, the
             // closure is specialized correctly.
-            TypeRef::Owned(TypeId::TraitInstance(i)) if i.self_type => {
-                TypeRef::Owned(TypeId::ClassInstance(self.self_type))
+            TypeRef::Owned(TypeEnum::TraitInstance(i)) if i.self_type => {
+                TypeRef::Owned(TypeEnum::TypeInstance(self.self_type))
             }
-            TypeRef::Uni(TypeId::TraitInstance(i)) if i.self_type => {
-                TypeRef::Uni(TypeId::ClassInstance(self.self_type))
+            TypeRef::Uni(TypeEnum::TraitInstance(i)) if i.self_type => {
+                TypeRef::Uni(TypeEnum::TypeInstance(self.self_type))
             }
-            TypeRef::Ref(TypeId::TraitInstance(i)) if i.self_type => {
-                TypeRef::Ref(TypeId::ClassInstance(self.self_type))
+            TypeRef::Ref(TypeEnum::TraitInstance(i)) if i.self_type => {
+                TypeRef::Ref(TypeEnum::TypeInstance(self.self_type))
             }
-            TypeRef::Mut(TypeId::TraitInstance(i)) if i.self_type => {
-                TypeRef::Mut(TypeId::ClassInstance(self.self_type))
+            TypeRef::Mut(TypeEnum::TraitInstance(i)) if i.self_type => {
+                TypeRef::Mut(TypeEnum::TypeInstance(self.self_type))
             }
             // When specializing type parameters, we have to reuse existing
             // shapes if there are any. This leads to a bit of duplication, but
             // there's not really a way around that without making things more
             // complicated than they already are.
             TypeRef::Owned(
-                TypeId::TypeParameter(pid) | TypeId::RigidTypeParameter(pid),
+                TypeEnum::TypeParameter(pid)
+                | TypeEnum::RigidTypeParameter(pid),
             )
             | TypeRef::Any(
-                TypeId::TypeParameter(pid) | TypeId::RigidTypeParameter(pid),
+                TypeEnum::TypeParameter(pid)
+                | TypeEnum::RigidTypeParameter(pid),
             )
             | TypeRef::Uni(
-                TypeId::TypeParameter(pid) | TypeId::RigidTypeParameter(pid),
+                TypeEnum::TypeParameter(pid)
+                | TypeEnum::RigidTypeParameter(pid),
             ) => match self.shapes.get(&pid) {
                 Some(&Shape::Int(size, sign)) => {
                     TypeRef::int_with_sign(size, sign)
@@ -133,24 +136,24 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
                 Some(Shape::Ref) => value.as_ref(self.db),
                 Some(Shape::Mut) => value.force_as_mut(self.db),
                 Some(Shape::Atomic) => {
-                    TypeRef::Owned(TypeId::AtomicTypeParameter(pid))
+                    TypeRef::Owned(TypeEnum::AtomicTypeParameter(pid))
                 }
                 Some(Shape::Inline(i) | Shape::Copy(i)) => TypeRef::Owned(
-                    TypeId::ClassInstance(self.specialize_class_instance(*i)),
+                    TypeEnum::TypeInstance(self.specialize_type_instance(*i)),
                 ),
                 Some(Shape::InlineRef(i)) => TypeRef::Ref(
-                    TypeId::ClassInstance(self.specialize_class_instance(*i)),
+                    TypeEnum::TypeInstance(self.specialize_type_instance(*i)),
                 ),
                 Some(Shape::InlineMut(i)) => TypeRef::Mut(
-                    TypeId::ClassInstance(self.specialize_class_instance(*i)),
+                    TypeEnum::TypeInstance(self.specialize_type_instance(*i)),
                 ),
                 _ => value,
             },
             TypeRef::Ref(
-                TypeId::TypeParameter(id) | TypeId::RigidTypeParameter(id),
+                TypeEnum::TypeParameter(id) | TypeEnum::RigidTypeParameter(id),
             )
             | TypeRef::UniRef(
-                TypeId::TypeParameter(id) | TypeId::RigidTypeParameter(id),
+                TypeEnum::TypeParameter(id) | TypeEnum::RigidTypeParameter(id),
             ) => match self.shapes.get(&id) {
                 Some(&Shape::Int(size, sign)) => {
                     TypeRef::int_with_sign(size, sign)
@@ -160,25 +163,25 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
                 Some(Shape::String) => TypeRef::string(),
                 Some(Shape::Nil) => TypeRef::nil(),
                 Some(Shape::Atomic) => {
-                    TypeRef::Ref(TypeId::AtomicTypeParameter(id))
+                    TypeRef::Ref(TypeEnum::AtomicTypeParameter(id))
                 }
-                Some(Shape::Copy(i)) => TypeRef::Owned(TypeId::ClassInstance(
-                    self.specialize_class_instance(*i),
+                Some(Shape::Copy(i)) => TypeRef::Owned(TypeEnum::TypeInstance(
+                    self.specialize_type_instance(*i),
                 )),
                 Some(
                     Shape::Inline(i)
                     | Shape::InlineRef(i)
                     | Shape::InlineMut(i),
-                ) => TypeRef::Ref(TypeId::ClassInstance(
-                    self.specialize_class_instance(*i),
+                ) => TypeRef::Ref(TypeEnum::TypeInstance(
+                    self.specialize_type_instance(*i),
                 )),
                 _ => value.as_ref(self.db),
             },
             TypeRef::Mut(
-                TypeId::TypeParameter(id) | TypeId::RigidTypeParameter(id),
+                TypeEnum::TypeParameter(id) | TypeEnum::RigidTypeParameter(id),
             )
             | TypeRef::UniMut(
-                TypeId::TypeParameter(id) | TypeId::RigidTypeParameter(id),
+                TypeEnum::TypeParameter(id) | TypeEnum::RigidTypeParameter(id),
             ) => match self.shapes.get(&id) {
                 Some(&Shape::Int(size, sign)) => {
                     TypeRef::int_with_sign(size, sign)
@@ -189,16 +192,16 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
                 Some(Shape::Nil) => TypeRef::nil(),
                 Some(Shape::Ref) => value.as_ref(self.db),
                 Some(Shape::Atomic) => {
-                    TypeRef::Mut(TypeId::AtomicTypeParameter(id))
+                    TypeRef::Mut(TypeEnum::AtomicTypeParameter(id))
                 }
-                Some(Shape::Copy(i)) => TypeRef::Owned(TypeId::ClassInstance(
-                    self.specialize_class_instance(*i),
+                Some(Shape::Copy(i)) => TypeRef::Owned(TypeEnum::TypeInstance(
+                    self.specialize_type_instance(*i),
                 )),
                 Some(Shape::InlineRef(i)) => TypeRef::Ref(
-                    TypeId::ClassInstance(self.specialize_class_instance(*i)),
+                    TypeEnum::TypeInstance(self.specialize_type_instance(*i)),
                 ),
                 Some(Shape::Inline(i) | Shape::InlineMut(i)) => TypeRef::Mut(
-                    TypeId::ClassInstance(self.specialize_class_instance(*i)),
+                    TypeEnum::TypeInstance(self.specialize_type_instance(*i)),
                 ),
                 _ => value.force_as_mut(self.db),
             },
@@ -208,14 +211,14 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
             TypeRef::Uni(id) => TypeRef::Uni(self.specialize_type_id(id)),
             // Value types should always be specialized as owned types, even
             // when using e.g. `ref Int`.
-            TypeRef::Ref(TypeId::ClassInstance(ins))
-            | TypeRef::Mut(TypeId::ClassInstance(ins))
-            | TypeRef::UniRef(TypeId::ClassInstance(ins))
-            | TypeRef::UniMut(TypeId::ClassInstance(ins))
+            TypeRef::Ref(TypeEnum::TypeInstance(ins))
+            | TypeRef::Mut(TypeEnum::TypeInstance(ins))
+            | TypeRef::UniRef(TypeEnum::TypeInstance(ins))
+            | TypeRef::UniMut(TypeEnum::TypeInstance(ins))
                 if ins.instance_of().is_value_type(self.db) =>
             {
                 TypeRef::Owned(
-                    self.specialize_type_id(TypeId::ClassInstance(ins)),
+                    self.specialize_type_id(TypeEnum::TypeInstance(ins)),
                 )
             }
             TypeRef::Ref(id) => TypeRef::Ref(self.specialize_type_id(id)),
@@ -232,21 +235,21 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
         }
     }
 
-    fn specialize_type_id(&mut self, id: TypeId) -> TypeId {
-        if let TypeId::ClassInstance(ins) = id {
-            TypeId::ClassInstance(self.specialize_class_instance(ins))
+    fn specialize_type_id(&mut self, id: TypeEnum) -> TypeEnum {
+        if let TypeEnum::TypeInstance(ins) = id {
+            TypeEnum::TypeInstance(self.specialize_type_instance(ins))
         } else {
             id
         }
     }
 
-    pub fn specialize_class_instance(
+    pub fn specialize_type_instance(
         &mut self,
-        ins: ClassInstance,
-    ) -> ClassInstance {
+        ins: TypeInstance,
+    ) -> TypeInstance {
         let cls = ins.instance_of();
 
-        // For closures we always specialize the classes, based on the
+        // For closures we always specialize the types, based on the
         // assumption that most (if not almost all closures) are likely to
         // capture generic types, and thus any "does this closure capture
         // generics?" check is likely to be true most of the time. Even if it's
@@ -265,20 +268,20 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
     #[allow(clippy::unnecessary_to_owned)]
     fn specialize_regular_instance(
         &mut self,
-        ins: ClassInstance,
-    ) -> ClassInstance {
-        let class = ins.instance_of();
+        ins: TypeInstance,
+    ) -> TypeInstance {
+        let typ = ins.instance_of();
 
         // For regular instances we only need to specialize the first reference.
-        if class.specialization_source(self.db).is_some() {
+        if typ.specialization_source(self.db).is_some() {
             return ins;
         }
 
-        class.set_specialization_source(self.db, class);
-        self.classes.push(class);
+        typ.set_specialization_source(self.db, typ);
+        self.types.push(typ);
 
-        if class.kind(self.db).is_enum() {
-            for var in class.constructors(self.db) {
+        if typ.kind(self.db).is_enum() {
+            for var in typ.constructors(self.db) {
                 let args = var
                     .arguments(self.db)
                     .to_vec()
@@ -288,7 +291,7 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
                             self.db,
                             self.interned,
                             self.shapes,
-                            self.classes,
+                            self.types,
                             self.self_type,
                         )
                         .specialize(v)
@@ -299,13 +302,13 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
             }
         }
 
-        for field in class.fields(self.db) {
+        for field in typ.fields(self.db) {
             let old = field.value_type(self.db);
             let new = TypeSpecializer::new(
                 self.db,
                 self.interned,
                 self.shapes,
-                self.classes,
+                self.types,
                 self.self_type,
             )
             .specialize(old);
@@ -318,16 +321,16 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
 
     fn specialize_generic_instance(
         &mut self,
-        ins: ClassInstance,
-    ) -> ClassInstance {
-        let class = ins.instance_of;
+        ins: TypeInstance,
+    ) -> TypeInstance {
+        let typ = ins.instance_of;
 
-        if class.specialization_source(self.db).is_some() {
+        if typ.specialization_source(self.db).is_some() {
             return ins;
         }
 
         let mut args = ins.type_arguments(self.db).unwrap().clone();
-        let mut shapes: Vec<Shape> = class
+        let mut shapes: Vec<Shape> = typ
             .type_parameters(self.db)
             .into_iter()
             .map(|p| {
@@ -343,28 +346,28 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
             self.db,
             self.interned,
             self.shapes,
-            self.classes,
+            self.types,
             self.self_type,
             &mut shapes,
         );
 
         let key = SpecializationKey::new(shapes);
-        let new = class
+        let new = typ
             .specializations(self.db)
             .get(&key)
             .cloned()
-            .unwrap_or_else(|| self.specialize_class(class, key));
+            .unwrap_or_else(|| self.specialize_type(typ, key));
 
         // We keep the type arguments so we can perform type checking where
         // necessary during specialization (e.g. when checking if a stack type
         // implements a trait).
-        ClassInstance::generic(self.db, new, args)
+        TypeInstance::generic(self.db, new, args)
     }
 
     fn specialize_closure_instance(
         &mut self,
-        ins: ClassInstance,
-    ) -> ClassInstance {
+        ins: TypeInstance,
+    ) -> TypeInstance {
         // We don't check the specialization source for closures, as each
         // closure _always_ needs to be specialized, as its behaviour/layout may
         // change based on how the surrounding method is specialized.
@@ -380,68 +383,68 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
             self.db,
             self.interned,
             self.shapes,
-            self.classes,
+            self.types,
             self.self_type,
             &mut shapes,
         );
 
         let key = SpecializationKey::for_closure(self.self_type, shapes);
-        let class = ins.instance_of;
-        let new = class
+        let typ = ins.instance_of;
+        let new = typ
             .specializations(self.db)
             .get(&key)
             .cloned()
-            .unwrap_or_else(|| self.specialize_class(class, key));
+            .unwrap_or_else(|| self.specialize_type(typ, key));
 
-        ClassInstance::new(new)
+        TypeInstance::new(new)
     }
 
     #[allow(clippy::unnecessary_to_owned)]
-    fn specialize_class(
+    fn specialize_type(
         &mut self,
-        class: ClassId,
+        type_id: TypeId,
         key: SpecializationKey,
-    ) -> ClassId {
-        let new = class.clone_for_specialization(self.db);
+    ) -> TypeId {
+        let new = type_id.clone_for_specialization(self.db);
 
-        self.classes.push(new);
-        new.set_specialization_source(self.db, class);
+        self.types.push(new);
+        new.set_specialization_source(self.db, type_id);
 
         // We just copy over the type parameters as-is, as there's nothing
-        // stored in them that we can't share between the different class
+        // stored in them that we can't share between the different type
         // specializations.
-        for param in class.type_parameters(self.db) {
+        for param in type_id.type_parameters(self.db) {
             let name = param.name(self.db).clone();
 
             new.get_mut(self.db).type_parameters.insert(name, param);
         }
 
-        class.add_specialization(self.db, key, new);
+        type_id.add_specialization(self.db, key, new);
 
         // When specializing fields and constructors, we want them to reuse the
         // shapes we just created.
-        let mut class_mapping = HashMap::new();
+        let mut type_mapping = HashMap::new();
 
         // Closures may capture generic parameters from the outside, and the
-        // classes themselves aren't generic, so we reuse the outer shapes
+        // types themselves aren't generic, so we reuse the outer shapes
         // instead.
-        let kind = class.kind(self.db);
+        let kind = type_id.kind(self.db);
         let mapping = if kind.is_closure() {
             self.shapes
         } else {
-            for (param, &shape) in class
+            for (param, &shape) in type_id
                 .type_parameters(self.db)
                 .into_iter()
                 .zip(new.shapes(self.db))
             {
-                class_mapping.insert(param, shape);
+                type_mapping.insert(param, shape);
             }
 
-            &class_mapping
+            &type_mapping
         };
 
         if kind.is_enum() {
-            for old_cons in class.constructors(self.db) {
+            for old_cons in type_id.constructors(self.db) {
                 let name = old_cons.name(self.db).clone();
                 let loc = old_cons.location(self.db);
                 let args = old_cons
@@ -453,7 +456,7 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
                             self.db,
                             self.interned,
                             mapping,
-                            self.classes,
+                            self.types,
                             self.self_type,
                         )
                         .specialize(v)
@@ -464,7 +467,8 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
             }
         }
 
-        for (idx, old_field) in class.fields(self.db).into_iter().enumerate() {
+        for (idx, old_field) in type_id.fields(self.db).into_iter().enumerate()
+        {
             let (name, orig_typ, vis, module, loc) = {
                 let field = old_field.get(self.db);
 
@@ -481,7 +485,7 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
                 self.db,
                 self.interned,
                 mapping,
-                self.classes,
+                self.types,
                 self.self_type,
             )
             .specialize(orig_typ);
@@ -498,30 +502,30 @@ mod tests {
     use super::*;
     use crate::format::format_type;
     use crate::test::{
-        any, generic_instance_id, immutable, instance, mutable, new_class,
-        new_enum_class, new_parameter, new_trait, owned, parameter, rigid, uni,
+        any, generic_instance_id, immutable, instance, mutable, new_enum_type,
+        new_parameter, new_trait, new_type, owned, parameter, rigid, uni,
     };
-    use crate::{ClassId, Location, ModuleId, TraitInstance, Visibility};
+    use crate::{Location, ModuleId, TraitInstance, TypeId, Visibility};
 
     #[test]
     fn test_specialize_type() {
         let mut db = Database::new();
         let mut interned = InternedTypeArguments::new();
-        let class = ClassId::array();
+        let ary = TypeId::array();
         let shapes = HashMap::new();
 
-        class.new_type_parameter(&mut db, "T".to_string());
+        ary.new_type_parameter(&mut db, "T".to_string());
 
         let int = TypeRef::int();
-        let raw1 = owned(generic_instance_id(&mut db, class, vec![int]));
-        let raw2 = owned(generic_instance_id(&mut db, class, vec![int]));
-        let mut classes = Vec::new();
-        let stype = ClassInstance::new(ClassId::int());
+        let raw1 = owned(generic_instance_id(&mut db, ary, vec![int]));
+        let raw2 = owned(generic_instance_id(&mut db, ary, vec![int]));
+        let mut types = Vec::new();
+        let stype = TypeInstance::new(TypeId::int());
         let spec1 = TypeSpecializer::new(
             &mut db,
             &mut interned,
             &shapes,
-            &mut classes,
+            &mut types,
             stype,
         )
         .specialize(raw1);
@@ -529,33 +533,33 @@ mod tests {
             &mut db,
             &mut interned,
             &shapes,
-            &mut classes,
+            &mut types,
             stype,
         )
         .specialize(raw2);
 
         assert_eq!(format_type(&db, spec1), "Array[Int]");
         assert_eq!(format_type(&db, spec2), "Array[Int]");
-        assert_eq!(class.specializations(&db).len(), 1);
+        assert_eq!(ary.specializations(&db).len(), 1);
 
         let key = SpecializationKey::new(vec![Shape::int()]);
-        let new_class = *class.specializations(&db).get(&key).unwrap();
+        let new_type = *ary.specializations(&db).get(&key).unwrap();
 
-        assert_eq!(classes, &[ClassId::int(), new_class]);
-        assert_eq!(new_class.specialization_source(&db), Some(class));
-        assert_eq!(new_class.kind(&db), class.kind(&db));
-        assert_eq!(new_class.get(&db).visibility, class.get(&db).visibility);
-        assert_eq!(new_class.module(&db), class.module(&db));
+        assert_eq!(types, &[TypeId::int(), new_type]);
+        assert_eq!(new_type.specialization_source(&db), Some(ary));
+        assert_eq!(new_type.kind(&db), ary.kind(&db));
+        assert_eq!(new_type.get(&db).visibility, ary.get(&db).visibility);
+        assert_eq!(new_type.module(&db), ary.module(&db));
 
         // This is to test if we reuse the cached results, instead of just
-        // creating a new specialized class every time.
+        // creating a new specialized type every time.
         assert!(matches!(
             spec1,
-            TypeRef::Owned(TypeId::ClassInstance(ins)) if ins.instance_of == new_class
+            TypeRef::Owned(TypeEnum::TypeInstance(ins)) if ins.instance_of == new_type
         ));
         assert!(matches!(
             spec2,
-            TypeRef::Owned(TypeId::ClassInstance(ins)) if ins.instance_of == new_class
+            TypeRef::Owned(TypeEnum::TypeInstance(ins)) if ins.instance_of == new_type
         ));
     }
 
@@ -563,21 +567,21 @@ mod tests {
     fn test_specialize_pointer_type() {
         let mut db = Database::new();
         let mut interned = InternedTypeArguments::new();
-        let class = ClassId::array();
+        let ary = TypeId::array();
         let shapes = HashMap::new();
 
-        class.new_type_parameter(&mut db, "T".to_string());
+        ary.new_type_parameter(&mut db, "T".to_string());
 
         let int = TypeRef::int();
         let raw =
-            TypeRef::Pointer(generic_instance_id(&mut db, class, vec![int]));
-        let mut classes = Vec::new();
-        let stype = ClassInstance::new(ClassId::int());
+            TypeRef::Pointer(generic_instance_id(&mut db, ary, vec![int]));
+        let mut types = Vec::new();
+        let stype = TypeInstance::new(TypeId::int());
         let spec = TypeSpecializer::new(
             &mut db,
             &mut interned,
             &shapes,
-            &mut classes,
+            &mut types,
             stype,
         )
         .specialize(raw);
@@ -589,8 +593,8 @@ mod tests {
     fn test_specialize_type_with_ref_value_types() {
         let mut db = Database::new();
         let mut interned = InternedTypeArguments::new();
-        let foo = new_class(&mut db, "Foo");
-        let ary = ClassId::array();
+        let foo = new_type(&mut db, "Foo");
+        let ary = TypeId::array();
         let shapes = HashMap::new();
 
         ary.new_type_parameter(&mut db, "T".to_string());
@@ -600,13 +604,13 @@ mod tests {
             ary,
             vec![immutable(instance(foo))],
         ));
-        let mut classes = Vec::new();
-        let stype = ClassInstance::new(ClassId::int());
+        let mut types = Vec::new();
+        let stype = TypeInstance::new(TypeId::int());
         let spec = TypeSpecializer::new(
             &mut db,
             &mut interned,
             &shapes,
-            &mut classes,
+            &mut types,
             stype,
         )
         .specialize(raw);
@@ -614,18 +618,18 @@ mod tests {
         assert_eq!(format_type(&db, spec), "Array[ref Foo]");
         assert_eq!(
             spec,
-            TypeRef::Owned(TypeId::ClassInstance(ClassInstance {
-                instance_of: ClassId(db.number_of_classes() as u32 - 1),
+            TypeRef::Owned(TypeEnum::TypeInstance(TypeInstance {
+                instance_of: TypeId(db.number_of_types() as u32 - 1),
                 type_arguments: 1,
             }))
         );
-        assert_eq!(classes.len(), 2);
+        assert_eq!(types.len(), 2);
     }
 
     #[test]
-    fn test_specialize_class_with_fields() {
+    fn test_specialize_type_with_fields() {
         let mut db = Database::new();
-        let tup = ClassId::tuple3();
+        let tup = TypeId::tuple3();
         let param1 = tup.new_type_parameter(&mut db, "A".to_string());
         let param2 = tup.new_type_parameter(&mut db, "B".to_string());
         let param3 = tup.new_type_parameter(&mut db, "C".to_string());
@@ -683,24 +687,24 @@ mod tests {
         ));
 
         let mut interned = InternedTypeArguments::new();
-        let mut classes = Vec::new();
-        let stype = ClassInstance::new(ClassId::int());
+        let mut types = Vec::new();
+        let stype = TypeInstance::new(TypeId::int());
         let spec = TypeSpecializer::new(
             &mut db,
             &mut interned,
             &shapes,
-            &mut classes,
+            &mut types,
             stype,
         )
         .specialize(raw);
 
         assert_eq!(format_type(&db, spec), "(Int, ref X, mut Y: mut)");
-        assert_eq!(classes.len(), 2);
+        assert_eq!(types.len(), 2);
 
-        let ins = if let TypeRef::Owned(TypeId::ClassInstance(ins)) = spec {
+        let ins = if let TypeRef::Owned(TypeEnum::TypeInstance(ins)) = spec {
             ins
         } else {
-            panic!("Expected an owned class instance");
+            panic!("Expected an owned type instance");
         };
 
         assert_ne!(ins.instance_of(), tup);
@@ -722,9 +726,9 @@ mod tests {
     }
 
     #[test]
-    fn test_specialize_enum_class() {
+    fn test_specialize_enum_type() {
         let mut db = Database::new();
-        let opt = new_enum_class(&mut db, "Option");
+        let opt = new_enum_type(&mut db, "Option");
         let opt_param = opt.new_type_parameter(&mut db, "T".to_string());
 
         opt.new_constructor(
@@ -742,28 +746,28 @@ mod tests {
         );
 
         let mut interned = InternedTypeArguments::new();
-        let mut classes = Vec::new();
+        let mut types = Vec::new();
         let shapes = HashMap::new();
         let raw =
             owned(generic_instance_id(&mut db, opt, vec![TypeRef::int()]));
 
-        let stype = ClassInstance::new(ClassId::int());
+        let stype = TypeInstance::new(TypeId::int());
         let res = TypeSpecializer::new(
             &mut db,
             &mut interned,
             &shapes,
-            &mut classes,
+            &mut types,
             stype,
         )
         .specialize(raw);
 
-        assert_eq!(classes.len(), 2);
-        assert!(classes[1].kind(&db).is_enum());
+        assert_eq!(types.len(), 2);
+        assert!(types[1].kind(&db).is_enum());
 
-        let ins = if let TypeRef::Owned(TypeId::ClassInstance(ins)) = res {
+        let ins = if let TypeRef::Owned(TypeEnum::TypeInstance(ins)) = res {
             ins
         } else {
-            panic!("Expected an owned class instance");
+            panic!("Expected an owned type instance");
         };
 
         assert!(ins.instance_of().kind(&db).is_enum());
@@ -777,21 +781,21 @@ mod tests {
     #[test]
     fn test_specialize_already_specialized_type() {
         let mut db = Database::new();
-        let class = ClassId::array();
+        let ary = TypeId::array();
         let shapes = HashMap::new();
 
-        class.new_type_parameter(&mut db, "T".to_string());
+        ary.new_type_parameter(&mut db, "T".to_string());
 
         let int = TypeRef::int();
-        let raw = owned(generic_instance_id(&mut db, class, vec![int]));
-        let mut classes = Vec::new();
+        let raw = owned(generic_instance_id(&mut db, ary, vec![int]));
+        let mut types = Vec::new();
         let mut interned = InternedTypeArguments::new();
-        let stype = ClassInstance::new(ClassId::int());
+        let stype = TypeInstance::new(TypeId::int());
         let res1 = TypeSpecializer::new(
             &mut db,
             &mut interned,
             &shapes,
-            &mut classes,
+            &mut types,
             stype,
         )
         .specialize(raw);
@@ -800,31 +804,31 @@ mod tests {
             &mut db,
             &mut interned,
             &shapes,
-            &mut classes,
+            &mut types,
             stype,
         )
         .specialize(res1);
 
         assert_eq!(res1, res2);
-        assert_eq!(classes, &[ClassId::int(), res1.class_id(&db).unwrap()]);
+        assert_eq!(types, &[TypeId::int(), res1.type_id(&db).unwrap()]);
     }
 
     #[test]
     fn test_specialize_atomic_type_parameter() {
         let mut db = Database::new();
         let mut shapes = HashMap::new();
-        let mut classes = Vec::new();
+        let mut types = Vec::new();
         let mut interned = InternedTypeArguments::new();
         let param = new_parameter(&mut db, "A");
 
         shapes.insert(param, Shape::Atomic);
 
-        let stype = ClassInstance::new(ClassId::int());
+        let stype = TypeInstance::new(TypeId::int());
         let owned = TypeSpecializer::new(
             &mut db,
             &mut interned,
             &shapes,
-            &mut classes,
+            &mut types,
             stype,
         )
         .specialize(owned(parameter(param)));
@@ -833,7 +837,7 @@ mod tests {
             &mut db,
             &mut interned,
             &shapes,
-            &mut classes,
+            &mut types,
             stype,
         )
         .specialize(immutable(parameter(param)));
@@ -842,32 +846,35 @@ mod tests {
             &mut db,
             &mut interned,
             &shapes,
-            &mut classes,
+            &mut types,
             stype,
         )
         .specialize(mutable(parameter(param)));
 
-        assert_eq!(owned, TypeRef::Owned(TypeId::AtomicTypeParameter(param)));
-        assert_eq!(immutable, TypeRef::Ref(TypeId::AtomicTypeParameter(param)));
-        assert_eq!(mutable, TypeRef::Mut(TypeId::AtomicTypeParameter(param)));
+        assert_eq!(owned, TypeRef::Owned(TypeEnum::AtomicTypeParameter(param)));
+        assert_eq!(
+            immutable,
+            TypeRef::Ref(TypeEnum::AtomicTypeParameter(param))
+        );
+        assert_eq!(mutable, TypeRef::Mut(TypeEnum::AtomicTypeParameter(param)));
     }
 
     #[test]
     fn test_specialize_mutable_type_parameter() {
         let mut db = Database::new();
         let mut shapes = HashMap::new();
-        let mut classes = Vec::new();
+        let mut types = Vec::new();
         let mut interned = InternedTypeArguments::new();
         let param = new_parameter(&mut db, "A");
 
         shapes.insert(param, Shape::Mut);
 
-        let stype = ClassInstance::new(ClassId::int());
+        let stype = TypeInstance::new(TypeId::int());
         let owned = TypeSpecializer::new(
             &mut db,
             &mut interned,
             &shapes,
-            &mut classes,
+            &mut types,
             stype,
         )
         .specialize(owned(parameter(param)));
@@ -876,7 +883,7 @@ mod tests {
             &mut db,
             &mut interned,
             &shapes,
-            &mut classes,
+            &mut types,
             stype,
         )
         .specialize(uni(parameter(param)));
@@ -885,7 +892,7 @@ mod tests {
             &mut db,
             &mut interned,
             &shapes,
-            &mut classes,
+            &mut types,
             stype,
         )
         .specialize(immutable(parameter(param)));
@@ -894,28 +901,28 @@ mod tests {
             &mut db,
             &mut interned,
             &shapes,
-            &mut classes,
+            &mut types,
             stype,
         )
         .specialize(mutable(parameter(param)));
 
-        assert_eq!(owned, TypeRef::Mut(TypeId::TypeParameter(param)));
-        assert_eq!(uni, TypeRef::UniMut(TypeId::TypeParameter(param)));
-        assert_eq!(immutable, TypeRef::Ref(TypeId::TypeParameter(param)));
-        assert_eq!(mutable, TypeRef::Mut(TypeId::TypeParameter(param)));
+        assert_eq!(owned, TypeRef::Mut(TypeEnum::TypeParameter(param)));
+        assert_eq!(uni, TypeRef::UniMut(TypeEnum::TypeParameter(param)));
+        assert_eq!(immutable, TypeRef::Ref(TypeEnum::TypeParameter(param)));
+        assert_eq!(mutable, TypeRef::Mut(TypeEnum::TypeParameter(param)));
     }
 
     #[test]
     fn test_specialize_borrow_inline_type_parameter() {
         let mut db = Database::new();
         let mut shapes = HashMap::new();
-        let mut classes = Vec::new();
+        let mut types = Vec::new();
         let mut interned = InternedTypeArguments::new();
-        let cls = new_class(&mut db, "A");
-        let ins = ClassInstance::new(cls);
+        let cls = new_type(&mut db, "A");
+        let ins = TypeInstance::new(cls);
         let p1 = new_parameter(&mut db, "X");
         let p2 = new_parameter(&mut db, "Y");
-        let stype = ClassInstance::new(ClassId::int());
+        let stype = TypeInstance::new(TypeId::int());
 
         shapes.insert(p1, Shape::Inline(ins));
         shapes.insert(p2, Shape::Copy(ins));
@@ -925,7 +932,7 @@ mod tests {
                 &mut db,
                 &mut interned,
                 &shapes,
-                &mut classes,
+                &mut types,
                 stype
             )
             .specialize(owned(parameter(p1))),
@@ -936,7 +943,7 @@ mod tests {
                 &mut db,
                 &mut interned,
                 &shapes,
-                &mut classes,
+                &mut types,
                 stype
             )
             .specialize(uni(parameter(p1))),
@@ -947,7 +954,7 @@ mod tests {
                 &mut db,
                 &mut interned,
                 &shapes,
-                &mut classes,
+                &mut types,
                 stype
             )
             .specialize(mutable(parameter(p1))),
@@ -958,7 +965,7 @@ mod tests {
                 &mut db,
                 &mut interned,
                 &shapes,
-                &mut classes,
+                &mut types,
                 stype
             )
             .specialize(immutable(parameter(p1))),
@@ -970,7 +977,7 @@ mod tests {
                 &mut db,
                 &mut interned,
                 &shapes,
-                &mut classes,
+                &mut types,
                 stype
             )
             .specialize(owned(parameter(p2))),
@@ -981,7 +988,7 @@ mod tests {
                 &mut db,
                 &mut interned,
                 &shapes,
-                &mut classes,
+                &mut types,
                 stype
             )
             .specialize(owned(parameter(p2))),
@@ -992,7 +999,7 @@ mod tests {
                 &mut db,
                 &mut interned,
                 &shapes,
-                &mut classes,
+                &mut types,
                 stype
             )
             .specialize(mutable(parameter(p2))),
@@ -1003,7 +1010,7 @@ mod tests {
                 &mut db,
                 &mut interned,
                 &shapes,
-                &mut classes,
+                &mut types,
                 stype
             )
             .specialize(immutable(parameter(p2))),
@@ -1015,38 +1022,38 @@ mod tests {
     fn test_specialize_trait_self_type() {
         let mut db = Database::new();
         let shapes = HashMap::new();
-        let mut classes = Vec::new();
+        let mut types = Vec::new();
         let mut interned = InternedTypeArguments::new();
         let trt = new_trait(&mut db, "ToThing");
-        let cls = new_class(&mut db, "Thing");
+        let cls = new_type(&mut db, "Thing");
         let mut old_self = TraitInstance::new(trt);
 
         old_self.self_type = true;
 
-        let new_self = ClassInstance::new(cls);
+        let new_self = TypeInstance::new(cls);
         let mut spec = TypeSpecializer::new(
             &mut db,
             &mut interned,
             &shapes,
-            &mut classes,
+            &mut types,
             new_self,
         );
 
         assert_eq!(
-            spec.specialize(owned(TypeId::TraitInstance(old_self))),
-            owned(TypeId::ClassInstance(new_self))
+            spec.specialize(owned(TypeEnum::TraitInstance(old_self))),
+            owned(TypeEnum::TypeInstance(new_self))
         );
         assert_eq!(
-            spec.specialize(immutable(TypeId::TraitInstance(old_self))),
-            immutable(TypeId::ClassInstance(new_self))
+            spec.specialize(immutable(TypeEnum::TraitInstance(old_self))),
+            immutable(TypeEnum::TypeInstance(new_self))
         );
         assert_eq!(
-            spec.specialize(mutable(TypeId::TraitInstance(old_self))),
-            mutable(TypeId::ClassInstance(new_self))
+            spec.specialize(mutable(TypeEnum::TraitInstance(old_self))),
+            mutable(TypeEnum::TypeInstance(new_self))
         );
         assert_eq!(
-            spec.specialize(uni(TypeId::TraitInstance(old_self))),
-            uni(TypeId::ClassInstance(new_self))
+            spec.specialize(uni(TypeEnum::TraitInstance(old_self))),
+            uni(TypeEnum::TypeInstance(new_self))
         );
     }
 }

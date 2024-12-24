@@ -4,7 +4,7 @@ import std.sync (Channel, Future, Promise)
 import std.test (Tests)
 import std.time (Duration)
 
-class async AsyncWriter {
+type async AsyncWriter {
   fn async write(writer: uni Promise[Int]) {
     # This doesn't strictly guarantee the reader is in fact waiting, but it's
     # the closest we can get to that.

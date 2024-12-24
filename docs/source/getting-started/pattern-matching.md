@@ -13,7 +13,7 @@ contents:
 ```inko
 import std.stdio (Stdout)
 
-class async Main {
+type async Main {
   fn async main {
     let out = Stdout.new
     let val = Option.Some((42, 'hello'))
@@ -91,8 +91,7 @@ only have two possible values (`true` and `false`).
 
 ### Enum patterns
 
-If the value matched against is an enum class, we can match against its
-constructors:
+If the value matched against is an enum, we can match against its constructors:
 
 ```inko
 match Option.Some(42) {
@@ -108,13 +107,13 @@ When specifying the constructor pattern only its name is needed, the
 name of the type it belongs to isn't needed. This means `case Option.Some(42)`
 is invalid.
 
-### Class patterns
+### Type patterns
 
-Pattern matching can also be performed against regular classes using class
-literal patterns:
+Pattern matching can also be performed against regular types using type literal
+patterns:
 
 ```inko
-class Person {
+type Person {
   let @name: String
   let @age: Int
 }
@@ -140,7 +139,7 @@ match person {
 }
 ```
 
-Class literal patterns are only available for regular classes.
+Type literal patterns are only available for regular types.
 
 ### Tuple patterns
 
@@ -218,7 +217,7 @@ match:
 ```inko
 import std.stdio (Stdout)
 
-class async Main {
+type async Main {
   fn async main {
     let out = Stdout.new
     let val = Option.Some((42, 'hello'))
@@ -357,7 +356,7 @@ possible cases must be covered:
 ```inko
 import std.stdio (Stdout)
 
-class async Main {
+type async Main {
   fn async main {
     let out = Stdout.new
     let val = Option.Some((42, 'hello'))
@@ -383,7 +382,7 @@ the match exhaustive in a variety of ways, such as the following:
 ```inko
 import std.stdio (Stdout)
 
-class async Main {
+type async Main {
   fn async main {
     let out = Stdout.new
     let val = Option.Some((42, 'hello'))
@@ -405,7 +404,7 @@ of redundant patterns:
 ```inko
 import std.stdio (Stdout)
 
-class async Main {
+type async Main {
   fn async main {
     let out = Stdout.new
     let val = Option.Some((42, 'hello'))
@@ -431,7 +430,7 @@ course the compiler is also able to detect more complicated redundant patterns:
 ```inko
 import std.stdio (Stdout)
 
-class async Main {
+type async Main {
   fn async main {
     let out = Stdout.new
     let val = Option.Some((42, 'hello'))
@@ -452,7 +451,7 @@ detect that the second `case` is redundant.
 
 - Range patterns aren't supported, instead you can use pattern guards.
 - Types defining custom destructors can't be matched against.
-- `async` classes can't be matched against.
+- `async` types can't be matched against.
 - Matching against `Float` isn't supported, as you'll likely run into
   precision/rounding errors.
 - The value matched against can't be a trait.

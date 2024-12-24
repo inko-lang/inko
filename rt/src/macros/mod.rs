@@ -12,7 +12,7 @@
 ///
 /// # Examples
 ///
-///     init!(some_object.header.class => some_class);
+///     init!(some_object.header.instance_of => type);
 macro_rules! init {
     ($field: expr => $value: expr) => {
         #[allow(unused_unsafe)]

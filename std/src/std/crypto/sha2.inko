@@ -75,7 +75,7 @@ let SHA512_TABLE = [
 ]
 
 # A SHA256 hasher.
-class pub Sha256 {
+type pub Sha256 {
   let @block: Block
   let @words: Array[Int]
   let @size: Int
@@ -235,7 +235,7 @@ impl Hasher for Sha256 {
 }
 
 # A SHA512 hasher.
-class pub Sha512 {
+type pub Sha512 {
   let @block: Block
   let @words: Array[Int]
   let @size: Int

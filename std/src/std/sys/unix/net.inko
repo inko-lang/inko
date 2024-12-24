@@ -22,10 +22,10 @@ fn address_family_error(value: Int) -> Never {
 fn inline init_socket(
   socket: Pointer[net.RawSocket],
   domain: Int,
-  type: Int,
+  kind: Int,
   protocol: Int,
 ) -> Result[Nil, Error] {
-  let fd = sys.socket(domain, type, protocol)
+  let fd = sys.socket(domain, kind, protocol)
 
   if fd as Int == -1 { throw Error.last_os_error }
 

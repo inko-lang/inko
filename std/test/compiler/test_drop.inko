@@ -1,7 +1,7 @@
 import std.drop (Drop)
 import std.test (Tests)
 
-class Value {
+type Value {
   let @dropped: Int
 
   fn static new -> Value {
@@ -9,7 +9,7 @@ class Value {
   }
 }
 
-class ValueRef {
+type ValueRef {
   let @value: mut Value
 
   fn static new(value: mut Value) -> ValueRef {
@@ -23,7 +23,7 @@ impl Drop for ValueRef {
   }
 }
 
-class Box {
+type Box {
   let @value: ValueRef
 
   fn mut update(value: ValueRef) {
@@ -31,15 +31,15 @@ class Box {
   }
 }
 
-class CyclicClass {
+type CyclicClass {
   let @backref: Backref[CyclicClass]
 }
 
-class Backref[T] {
+type Backref[T] {
   let @target: Option[ref T]
 }
 
-class enum CyclicEnum {
+type enum CyclicEnum {
   case Backref(Backref[CyclicEnum])
 }
 
@@ -76,7 +76,7 @@ fn pub tests(t: mut Tests) {
     t.equal(val.dropped, 1)
   })
 
-  t.no_panic('Dropping a class with a cyclic reference', fn {
+  t.no_panic('Dropping a type with a cyclic reference', fn {
     let val_ref = Backref(Option.None)
     let val = CyclicClass(val_ref)
 

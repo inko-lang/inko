@@ -9,7 +9,7 @@ pub(crate) mod printer;
 pub(crate) mod specialize;
 
 use crate::state::State;
-use crate::symbol_names::{qualified_class_name, SymbolNames};
+use crate::symbol_names::{qualified_type_name, SymbolNames};
 use indexmap::IndexMap;
 use location::Location;
 use std::collections::{HashMap, HashSet};
@@ -20,7 +20,7 @@ use std::ops::{Add, AddAssign, Sub, SubAssign};
 use types::module_name::ModuleName;
 use types::{
     Database, ForeignType, Intrinsic, MethodId, Module as ModuleType, Shape,
-    Sign, TypeArguments, TypeId, TypeRef, BOOL_ID, DROPPER_METHOD, FLOAT_ID,
+    Sign, TypeArguments, TypeEnum, TypeRef, BOOL_ID, DROPPER_METHOD, FLOAT_ID,
     INT_ID, NIL_ID,
 };
 
@@ -481,12 +481,12 @@ impl Block {
     pub(crate) fn free(
         &mut self,
         register: RegisterId,
-        class: types::ClassId,
+        type_id: types::TypeId,
         location: InstructionLocation,
     ) {
         self.instructions.push(Instruction::Free(Box::new(Free {
             register,
-            class,
+            type_id,
             location,
         })));
     }
@@ -632,12 +632,12 @@ impl Block {
         &mut self,
         register: RegisterId,
         receiver: RegisterId,
-        class: types::ClassId,
+        type_id: types::TypeId,
         field: types::FieldId,
         location: InstructionLocation,
     ) {
         self.instructions.push(Instruction::GetField(Box::new(GetField {
-            class,
+            type_id,
             register,
             receiver,
             field,
@@ -648,7 +648,7 @@ impl Block {
     pub(crate) fn set_field(
         &mut self,
         receiver: RegisterId,
-        class: types::ClassId,
+        type_id: types::TypeId,
         field: types::FieldId,
         value: RegisterId,
         location: InstructionLocation,
@@ -656,7 +656,7 @@ impl Block {
         self.instructions.push(Instruction::SetField(Box::new(SetField {
             receiver,
             value,
-            class,
+            type_id,
             field,
             location,
         })));
@@ -679,12 +679,12 @@ impl Block {
         &mut self,
         register: RegisterId,
         receiver: RegisterId,
-        class: types::ClassId,
+        type_id: types::TypeId,
         field: types::FieldId,
         location: InstructionLocation,
     ) {
         self.instructions.push(Instruction::FieldPointer(Box::new(
-            FieldPointer { class, register, receiver, field, location },
+            FieldPointer { type_id, register, receiver, field, location },
         )));
     }
 
@@ -724,12 +724,12 @@ impl Block {
     pub(crate) fn allocate(
         &mut self,
         register: RegisterId,
-        class: types::ClassId,
+        type_id: types::TypeId,
         location: InstructionLocation,
     ) {
         self.instructions.push(Instruction::Allocate(Box::new(Allocate {
             register,
-            class,
+            type_id,
             location,
         })));
     }
@@ -737,12 +737,12 @@ impl Block {
     pub(crate) fn spawn(
         &mut self,
         register: RegisterId,
-        class: types::ClassId,
+        type_id: types::TypeId,
         location: InstructionLocation,
     ) {
         self.instructions.push(Instruction::Spawn(Box::new(Spawn {
             register,
-            class,
+            type_id,
             location,
         })));
     }
@@ -995,7 +995,7 @@ pub(crate) struct CallDropper {
 
 #[derive(Clone)]
 pub(crate) struct Free {
-    pub(crate) class: types::ClassId,
+    pub(crate) type_id: types::TypeId,
     pub(crate) register: RegisterId,
     pub(crate) location: InstructionLocation,
 }
@@ -1138,7 +1138,7 @@ pub(crate) struct Send {
 
 #[derive(Clone)]
 pub(crate) struct GetField {
-    pub(crate) class: types::ClassId,
+    pub(crate) type_id: types::TypeId,
     pub(crate) register: RegisterId,
     pub(crate) receiver: RegisterId,
     pub(crate) field: types::FieldId,
@@ -1147,7 +1147,7 @@ pub(crate) struct GetField {
 
 #[derive(Clone)]
 pub(crate) struct SetField {
-    pub(crate) class: types::ClassId,
+    pub(crate) type_id: types::TypeId,
     pub(crate) receiver: RegisterId,
     pub(crate) value: RegisterId,
     pub(crate) field: types::FieldId,
@@ -1164,14 +1164,14 @@ pub(crate) struct GetConstant {
 #[derive(Clone)]
 pub(crate) struct Allocate {
     pub(crate) register: RegisterId,
-    pub(crate) class: types::ClassId,
+    pub(crate) type_id: types::TypeId,
     pub(crate) location: InstructionLocation,
 }
 
 #[derive(Clone)]
 pub(crate) struct Spawn {
     pub(crate) register: RegisterId,
-    pub(crate) class: types::ClassId,
+    pub(crate) type_id: types::TypeId,
     pub(crate) location: InstructionLocation,
 }
 
@@ -1208,26 +1208,26 @@ impl CastType {
         if let TypeRef::Pointer(_) = typ {
             CastType::Pointer
         } else {
-            match typ.type_id(db) {
-                Ok(TypeId::Foreign(ForeignType::Int(8, sign))) => {
+            match typ.as_type_enum(db) {
+                Ok(TypeEnum::Foreign(ForeignType::Int(8, sign))) => {
                     CastType::Int(8, sign)
                 }
-                Ok(TypeId::Foreign(ForeignType::Int(16, sign))) => {
+                Ok(TypeEnum::Foreign(ForeignType::Int(16, sign))) => {
                     CastType::Int(16, sign)
                 }
-                Ok(TypeId::Foreign(ForeignType::Int(32, sign))) => {
+                Ok(TypeEnum::Foreign(ForeignType::Int(32, sign))) => {
                     CastType::Int(32, sign)
                 }
-                Ok(TypeId::Foreign(ForeignType::Int(64, sign))) => {
+                Ok(TypeEnum::Foreign(ForeignType::Int(64, sign))) => {
                     CastType::Int(64, sign)
                 }
-                Ok(TypeId::Foreign(ForeignType::Float(32))) => {
+                Ok(TypeEnum::Foreign(ForeignType::Float(32))) => {
                     CastType::Float(32)
                 }
-                Ok(TypeId::Foreign(ForeignType::Float(64))) => {
+                Ok(TypeEnum::Foreign(ForeignType::Float(64))) => {
                     CastType::Float(64)
                 }
-                Ok(TypeId::ClassInstance(ins)) => match ins.instance_of().0 {
+                Ok(TypeEnum::TypeInstance(ins)) => match ins.instance_of().0 {
                     BOOL_ID | NIL_ID => CastType::Int(1, Sign::Unsigned),
                     INT_ID => CastType::Int(64, Sign::Signed),
                     FLOAT_ID => CastType::Float(64),
@@ -1255,7 +1255,7 @@ pub(crate) struct MethodPointer {
 
 #[derive(Clone)]
 pub(crate) struct FieldPointer {
-    pub(crate) class: types::ClassId,
+    pub(crate) type_id: types::TypeId,
     pub(crate) register: RegisterId,
     pub(crate) receiver: RegisterId,
     pub(crate) field: types::FieldId,
@@ -1430,8 +1430,8 @@ impl Instruction {
                 format!(
                     "free r{} {}#{}",
                     v.register.0,
-                    v.class.name(db),
-                    v.class.0
+                    v.type_id.name(db),
+                    v.type_id.0
                 )
             }
             Instruction::CheckRefs(ref v) => {
@@ -1444,12 +1444,12 @@ impl Instruction {
                 format!(
                     "r{} = allocate {}#{}",
                     v.register.0,
-                    v.class.name(db),
-                    v.class.0,
+                    v.type_id.name(db),
+                    v.type_id.0,
                 )
             }
             Instruction::Spawn(ref v) => {
-                format!("r{} = spawn {}", v.register.0, v.class.name(db))
+                format!("r{} = spawn {}", v.register.0, v.type_id.name(db))
             }
             Instruction::CallStatic(ref v) => {
                 format!(
@@ -1596,13 +1596,13 @@ impl Instruction {
     }
 }
 
-pub(crate) struct Class {
-    pub(crate) id: types::ClassId,
+pub(crate) struct Type {
+    pub(crate) id: types::TypeId,
     pub(crate) methods: Vec<types::MethodId>,
 }
 
-impl Class {
-    pub(crate) fn new(id: types::ClassId) -> Self {
+impl Type {
+    pub(crate) fn new(id: types::TypeId) -> Self {
         Self { id, methods: Vec::new() }
     }
 
@@ -1620,7 +1620,7 @@ impl Class {
 #[derive(Clone)]
 pub(crate) struct Module {
     pub(crate) id: types::ModuleId,
-    pub(crate) classes: Vec<types::ClassId>,
+    pub(crate) types: Vec<types::TypeId>,
     pub(crate) constants: Vec<types::ConstantId>,
     pub(crate) methods: Vec<types::MethodId>,
 
@@ -1634,7 +1634,7 @@ impl Module {
     pub(crate) fn new(id: types::ModuleId) -> Self {
         Self {
             id,
-            classes: Vec::new(),
+            types: Vec::new(),
             constants: Vec::new(),
             methods: Vec::new(),
             inlined_methods: HashSet::new(),
@@ -2010,7 +2010,7 @@ impl Method {
 pub(crate) struct Mir {
     pub(crate) constants: HashMap<types::ConstantId, Constant>,
     pub(crate) modules: IndexMap<types::ModuleId, Module>,
-    pub(crate) classes: HashMap<types::ClassId, Class>,
+    pub(crate) types: HashMap<types::TypeId, Type>,
     pub(crate) methods: IndexMap<types::MethodId, Method>,
 
     /// Externally defined methods/functions that are called at some point.
@@ -2042,7 +2042,7 @@ impl Mir {
         Self {
             constants: HashMap::new(),
             modules: IndexMap::new(),
-            classes: HashMap::new(),
+            types: HashMap::new(),
             methods: IndexMap::new(),
             extern_methods: HashSet::new(),
             type_arguments: Vec::new(),
@@ -2076,12 +2076,12 @@ impl Mir {
         // inconsistent order when many values share the same name.
         for module in self.modules.values_mut() {
             module.constants.sort_by_key(|i| &names.constants[i]);
-            module.classes.sort_by_key(|i| &names.classes[i]);
+            module.types.sort_by_key(|i| &names.types[i]);
             module.methods.sort_by_key(|i| &names.methods[i]);
         }
 
-        for class in self.classes.values_mut() {
-            class.methods.sort_by_key(|i| &names.methods[i]);
+        for typ in self.types.values_mut() {
+            typ.methods.sort_by_key(|i| &names.methods[i]);
         }
 
         // When populating object caches we need to be able to iterate over the
@@ -2129,16 +2129,16 @@ impl Mir {
         let mut new_modules = Vec::new();
 
         for old_module in self.modules.values_mut() {
-            let mut moved_classes = HashSet::new();
+            let mut moved_types = HashSet::new();
             let mut moved_methods = HashSet::new();
 
-            for &class_id in &old_module.classes {
+            for &tid in &old_module.types {
                 let file = old_module.id.file(&state.db);
                 let orig_name = old_module.id.name(&state.db).clone();
-                let name = ModuleName::new(qualified_class_name(
+                let name = ModuleName::new(qualified_type_name(
                     &state.db,
                     old_module.id,
-                    class_id,
+                    tid,
                 ));
                 let new_mod_id =
                     ModuleType::alloc(&mut state.db, name.clone(), file);
@@ -2161,8 +2161,7 @@ impl Mir {
                 // module changes _or_ the module of the closure's `self` type,
                 // because changes to the `self` type may affect how the closure
                 // is generated.
-                if let Some(stype) =
-                    class_id.specialization_key(&state.db).self_type
+                if let Some(stype) = tid.specialization_key(&state.db).self_type
                 {
                     let self_node = state.dependency_graph.add_module(
                         stype.instance_of().module(&state.db).name(&state.db),
@@ -2176,12 +2175,12 @@ impl Mir {
                 let mut new_module = Module::new(new_mod_id);
 
                 // We don't deal with static methods as those have their
-                // receiver typed as the original class ID, because they don't
-                // really belong to a class (i.e. they're basically scoped
+                // receiver typed as the original type ID, because they don't
+                // really belong to a type (i.e. they're basically scoped
                 // module methods).
-                new_module.methods = self.classes[&class_id].methods.clone();
-                new_module.classes.push(class_id);
-                moved_classes.insert(class_id);
+                new_module.methods = self.types[&tid].methods.clone();
+                new_module.types.push(tid);
+                moved_types.insert(tid);
 
                 // When generating symbol names we use the module as stored in
                 // the method, so we need to make sure that's set to our newly
@@ -2191,12 +2190,12 @@ impl Mir {
                     moved_methods.insert(id);
                 }
 
-                class_id.set_module(&mut state.db, new_mod_id);
+                tid.set_module(&mut state.db, new_mod_id);
                 new_modules.push(new_module);
             }
 
             old_module.methods.retain(|id| !moved_methods.contains(id));
-            old_module.classes.retain(|i| !moved_classes.contains(i));
+            old_module.types.retain(|i| !moved_types.contains(i));
         }
 
         for module in new_modules {
@@ -2269,9 +2268,9 @@ impl Mir {
                             // possible target methods as used, since we can't
                             // statically determine which implementation is
                             // called.
-                            for &class in tid.implemented_by(db) {
+                            for &typ in tid.implemented_by(db) {
                                 let method_impl =
-                                    class.method(db, id.name(db)).unwrap();
+                                    typ.method(db, id.name(db)).unwrap();
                                 let mut methods =
                                     method_impl.specializations(db);
 
@@ -2311,7 +2310,7 @@ impl Mir {
             let keep = method
                 .id
                 .receiver(db)
-                .class_id(db)
+                .type_id(db)
                 .map_or(false, |v| v.is_closure(db))
                 || used[method.id.0 as usize]
                 || method.id.name(db) == DROPPER_METHOD;
@@ -2327,8 +2326,8 @@ impl Mir {
             module.methods.retain(|i| !removed[i.0 as usize]);
         }
 
-        for class in self.classes.values_mut() {
-            class.methods.retain(|i| !removed[i.0 as usize]);
+        for typ in self.types.values_mut() {
+            typ.methods.retain(|i| !removed[i.0 as usize]);
         }
     }
 

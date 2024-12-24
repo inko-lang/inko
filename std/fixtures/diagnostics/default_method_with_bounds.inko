@@ -6,7 +6,7 @@ trait A {
 
 trait B {}
 
-class Box[T] {
+type Box[T] {
   let @value: T
 }
 
@@ -14,7 +14,7 @@ impl A for Box if T: B {
   fn foo {}
 }
 
-class Thing {}
+type Thing {}
 
 impl B for Thing {}
 

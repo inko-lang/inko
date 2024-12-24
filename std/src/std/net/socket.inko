@@ -86,7 +86,7 @@ trait RawSocketOperations {
 }
 
 # An IPv4 or IPv6 socket address.
-class pub copy SocketAddress {
+type pub copy SocketAddress {
   # The IPv4/IPv6 address of this socket address.
   let pub @ip: IpAddress
 
@@ -108,7 +108,7 @@ impl Format for SocketAddress {
 }
 
 # A low-level, non-blocking IPv4 or IPv6 socket.
-class pub Socket {
+type pub Socket {
   let @socket: net.RawSocket
 
   # A point in time after which socket operations time out.
@@ -116,11 +116,11 @@ class pub Socket {
   # We use an `Int` to remove the need for using `Option[Instant]`.
   let @deadline: Int
 
-  fn static new(ipv6: Bool, type: Int, protocol: Int) -> Result[Socket, Error] {
+  fn static new(ipv6: Bool, kind: Int, protocol: Int) -> Result[Socket, Error] {
     let sock = net.raw_socket
     let domain = if ipv6 { libc.AF_INET6 } else { libc.AF_INET }
 
-    try sys.init_socket(mut sock, domain, type, protocol)
+    try sys.init_socket(mut sock, domain, kind, protocol)
     Result.Ok(Socket(socket: sock, deadline: net.NO_DEADLINE))
   }
 
@@ -615,7 +615,7 @@ impl Write for Socket {
 #
 # A `UdpSocket` can be used to easily create a bound UDP socket from an IP
 # address and a port.
-class pub UdpSocket {
+type pub UdpSocket {
   # The raw `Socket` wrapped by this `UdpSocket`.
   let pub @socket: Socket
 
@@ -780,7 +780,7 @@ impl Write for UdpSocket {
 }
 
 # A TCP socket connected to another TCP socket.
-class pub TcpClient {
+type pub TcpClient {
   # The raw `Socket` wrapped by this `TcpClient`.
   let pub @socket: Socket
 
@@ -918,7 +918,7 @@ impl Write for TcpClient {
 }
 
 # A TCP socket server that can accept incoming connections.
-class pub TcpServer {
+type pub TcpServer {
   # The raw `Socket` wrapped by this `TcpServer`.
   let pub @socket: Socket
 
@@ -1005,7 +1005,7 @@ impl RawSocketOperations for TcpServer {
 }
 
 # A Unix domain socket address.
-class pub inline UnixAddress {
+type pub inline UnixAddress {
   # The path or name of the address.
   #
   # This is a `String` since using a `Path` does not make sense for abstract
@@ -1107,7 +1107,7 @@ impl ToString for UnixAddress {
 }
 
 # A low-level, non-blocking Unix domain socket.
-class pub UnixSocket {
+type pub UnixSocket {
   let @socket: net.RawSocket
 
   # A point in time after which socket operations time out.
@@ -1115,10 +1115,10 @@ class pub UnixSocket {
   # We use an `Int` to remove the need for using `Option[Instant]`.
   let @deadline: Int
 
-  fn static new(type: Int) -> Result[UnixSocket, Error] {
+  fn static new(kind: Int) -> Result[UnixSocket, Error] {
     let sock = net.raw_socket
 
-    try sys.init_socket(mut sock, libc.AF_UNIX, type, protocol: 0)
+    try sys.init_socket(mut sock, libc.AF_UNIX, kind, protocol: 0)
     Result.Ok(UnixSocket(socket: sock, deadline: net.NO_DEADLINE))
   }
 
@@ -1487,7 +1487,7 @@ impl Write for UnixSocket {
 }
 
 # A Unix datagram socket.
-class pub UnixDatagram {
+type pub UnixDatagram {
   # The raw `UnixSocket` wrapped by this `UnixDatagram`.
   let pub @socket: UnixSocket
 
@@ -1634,7 +1634,7 @@ impl Write for UnixDatagram {
 }
 
 # A Unix stream socket connected to another Unix socket.
-class pub UnixClient {
+type pub UnixClient {
   # The raw `UnixSocket` wrapped by this `UnixClient`.
   let pub @socket: UnixSocket
 
@@ -1764,7 +1764,7 @@ impl Write for UnixClient {
 }
 
 # A Unix socket server that can accept incoming connections.
-class pub UnixServer {
+type pub UnixServer {
   # The raw `UnixSocket` wrapped by this `UnixServer`.
   let pub @socket: UnixSocket
 

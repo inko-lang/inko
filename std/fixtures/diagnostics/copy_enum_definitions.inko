@@ -1,12 +1,12 @@
-class copy enum Valid {
+type copy enum Valid {
   case A(Int, Float)
 }
 
-class copy enum Invalid1 {
+type copy enum Invalid1 {
   case A(Int, String)
 }
 
-class copy enum Invalid2 {
+type copy enum Invalid2 {
   case A(Int, Array[Int])
 }
 

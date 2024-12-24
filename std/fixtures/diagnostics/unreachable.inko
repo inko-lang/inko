@@ -1,4 +1,4 @@
-class Example {
+type Example {
   fn example1 {
     return
     42

@@ -1,6 +1,6 @@
 //! Helper functions for writing unit tests.
 use crate::config::Config;
-use crate::mem::{Class, ClassPointer};
+use crate::mem::{Type, TypePointer};
 use crate::process::{Message, NativeAsyncMethod, Process, ProcessPointer};
 use crate::stack::Stack;
 use crate::state::{MethodCounts, RcState, State};
@@ -50,28 +50,28 @@ impl Drop for OwnedProcess {
     }
 }
 
-/// A class that is dropped when this pointer is dropped.
+/// A type that is dropped when this pointer is dropped.
 #[repr(transparent)]
-pub(crate) struct OwnedClass(pub(crate) ClassPointer);
+pub(crate) struct OwnedType(pub(crate) TypePointer);
 
-impl OwnedClass {
-    pub(crate) fn new(ptr: ClassPointer) -> Self {
+impl OwnedType {
+    pub(crate) fn new(ptr: TypePointer) -> Self {
         Self(ptr)
     }
 }
 
-impl Deref for OwnedClass {
-    type Target = ClassPointer;
+impl Deref for OwnedType {
+    type Target = TypePointer;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl Drop for OwnedClass {
+impl Drop for OwnedType {
     fn drop(&mut self) {
         unsafe {
-            Class::drop(self.0);
+            Type::drop(self.0);
         }
     }
 }
@@ -87,16 +87,19 @@ pub(crate) fn setup() -> RcState {
     State::new(config, &MethodCounts::default(), Vec::new())
 }
 
-pub(crate) fn new_process(class: ClassPointer) -> OwnedProcess {
-    OwnedProcess::new(Process::alloc(class, Stack::new(1024, page_size())))
+pub(crate) fn new_process(instance_of: TypePointer) -> OwnedProcess {
+    OwnedProcess::new(Process::alloc(
+        instance_of,
+        Stack::new(1024, page_size()),
+    ))
 }
 
 pub(crate) fn new_process_with_message(
-    class: ClassPointer,
+    instance_of: TypePointer,
     method: NativeAsyncMethod,
 ) -> OwnedProcess {
     let stack = Stack::new(1024, page_size());
-    let mut proc = Process::alloc(class, stack);
+    let mut proc = Process::alloc(instance_of, stack);
 
     // We use a custom message that takes the process as an argument. This way
     // the tests have access to the current process, without needing to fiddle
@@ -107,8 +110,8 @@ pub(crate) fn new_process_with_message(
     OwnedProcess::new(proc)
 }
 
-pub(crate) fn empty_process_class(name: &str) -> OwnedClass {
-    OwnedClass::new(Class::process(
+pub(crate) fn empty_process_type(name: &str) -> OwnedType {
+    OwnedType::new(Type::process(
         name.to_string(),
         size_of::<Process>() as _,
         0,

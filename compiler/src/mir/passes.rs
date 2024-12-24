@@ -3,8 +3,8 @@ use crate::diagnostics::DiagnosticId;
 use crate::hir;
 use crate::mir::pattern_matching as pmatch;
 use crate::mir::{
-    Block, BlockId, CastType, Class, Constant, InstructionLocation, Method,
-    Mir, Module, RegisterId, SELF_ID,
+    Block, BlockId, CastType, Constant, InstructionLocation, Method, Mir,
+    Module, RegisterId, Type, SELF_ID,
 };
 use crate::state::State;
 use location::Location;
@@ -16,10 +16,10 @@ use std::str::FromStr;
 use types::format::format_type;
 use types::module_name::ModuleName;
 use types::{
-    self, Block as _, ClassId, ConstantId, FieldId, Inline, MethodId, ModuleId,
-    Symbol, TypeBounds, TypeRef, VerificationError, ENUM_TAG_INDEX, EQ_METHOD,
-    OPTION_NONE, OPTION_SOME, RESULT_CLASS, RESULT_ERROR, RESULT_MODULE,
-    RESULT_OK,
+    self, Block as _, ConstantId, FieldId, Inline, MethodId, ModuleId, Symbol,
+    TypeBounds, TypeId, TypeRef, VerificationError, ENUM_TAG_INDEX, EQ_METHOD,
+    OPTION_NONE, OPTION_SOME, RESULT_ERROR, RESULT_MODULE, RESULT_OK,
+    RESULT_TYPE,
 };
 
 const SELF_NAME: &str = "self";
@@ -396,7 +396,7 @@ pub(crate) struct GenerateDropper<'a> {
     pub(crate) state: &'a mut State,
     pub(crate) mir: &'a mut Mir,
     pub(crate) module: ModuleId,
-    pub(crate) class: ClassId,
+    pub(crate) type_id: TypeId,
     pub(crate) location: Location,
 }
 
@@ -404,22 +404,22 @@ impl<'a> GenerateDropper<'a> {
     pub(crate) fn run(mut self) {
         // `copy` types only contain data that's trivial to copy, so droppers
         // aren't necessary nor used.
-        if self.class.is_copy_type(&self.state.db) {
+        if self.type_id.is_copy_type(&self.state.db) {
             return;
         }
 
-        match self.class.kind(&self.state.db) {
-            types::ClassKind::Async => self.async_class(),
-            types::ClassKind::Enum => self.enum_class(),
-            _ => self.regular_class(),
+        match self.type_id.kind(&self.state.db) {
+            types::TypeKind::Async => self.async_type(),
+            types::TypeKind::Enum => self.enum_type(),
+            _ => self.regular_type(),
         };
     }
 
-    /// Generates the dropper method for a regular class.
+    /// Generates the dropper method for a regular type.
     ///
     /// This version runs the destructor (if any), followed by running the
     /// dropper of every field. Finally, it frees the receiver.
-    fn regular_class(&mut self) {
+    fn regular_type(&mut self) {
         self.generate_dropper(
             types::DROPPER_METHOD,
             types::MethodKind::Mutable,
@@ -428,14 +428,14 @@ impl<'a> GenerateDropper<'a> {
         );
     }
 
-    /// Generates the dropper methods for an async class.
+    /// Generates the dropper methods for an async type.
     ///
-    /// Async classes are dropped asynchronously. This is achieved as follows:
+    /// Async types are dropped asynchronously. This is achieved as follows:
     /// the regular dropper simply schedules an async version of the drop glue.
     /// Because this only runs when removing the last reference to the process,
     /// the async dropper is the last message. When run, it cleans up the object
-    /// like a regular class, and the process shuts down.
-    fn async_class(&mut self) {
+    /// like a regular type, and the process shuts down.
+    fn async_type(&mut self) {
         let async_dropper = self.generate_dropper(
             types::ASYNC_DROPPER_METHOD,
             types::MethodKind::AsyncMutable,
@@ -473,15 +473,15 @@ impl<'a> GenerateDropper<'a> {
         self.add_method(types::DROPPER_METHOD, dropper_type, dropper_method);
     }
 
-    /// Generates the dropper method for an enum class.
+    /// Generates the dropper method for an enum type.
     ///
     /// For enums the drop logic is a bit different: based on the value of the
     /// tag, certain fields may be set to NULL. As such we branch based on the
     /// tag value, and only drop the fields relevant for that tag.
-    fn enum_class(&mut self) {
+    fn enum_type(&mut self) {
         let name = types::DROPPER_METHOD;
-        let class = self.class;
-        let drop_method_opt = class.method(&self.state.db, types::DROP_METHOD);
+        let tid = self.type_id;
+        let drop_method_opt = tid.method(&self.state.db, types::DROP_METHOD);
         let method_type = self.method_type(name, types::MethodKind::Mutable);
         let mut method = Method::new(method_type);
         let mut lower =
@@ -506,16 +506,16 @@ impl<'a> GenerateDropper<'a> {
             );
         }
 
-        lower.each_enum_constructer_field(class, loc, |this, field, typ| {
+        lower.each_enum_constructer_field(tid, loc, |this, field, typ| {
             let reg = this.new_register(typ);
 
-            this.current_block_mut().get_field(reg, rec, class, field, loc);
+            this.current_block_mut().get_field(reg, rec, tid, field, loc);
             this.drop_register(reg, loc);
         });
 
-        if class.is_heap_allocated(lower.db()) {
+        if tid.is_heap_allocated(lower.db()) {
             lower.current_block_mut().check_refs(rec, loc);
-            lower.current_block_mut().free(rec, class, loc);
+            lower.current_block_mut().free(rec, tid, loc);
         }
 
         let nil_reg = lower.get_nil(loc);
@@ -531,7 +531,7 @@ impl<'a> GenerateDropper<'a> {
         free_self: bool,
         terminate: bool,
     ) -> MethodId {
-        let class = self.class;
+        let tid = self.type_id;
         let method_type = self.method_type(name, kind);
         let mut method = Method::new(method_type);
         let mut lower =
@@ -542,7 +542,7 @@ impl<'a> GenerateDropper<'a> {
 
         let rec = lower.self_register;
 
-        if let Some(id) = class.method(lower.db(), types::DROP_METHOD) {
+        if let Some(id) = tid.method(lower.db(), types::DROP_METHOD) {
             let typ = TypeRef::nil();
             let res = lower.new_register(typ);
 
@@ -556,17 +556,17 @@ impl<'a> GenerateDropper<'a> {
             );
         }
 
-        for field in class.fields(lower.db()).into_iter().rev() {
+        for field in tid.fields(lower.db()).into_iter().rev() {
             let typ = field.value_type(lower.db());
             let reg = lower.new_register(typ);
 
-            lower.current_block_mut().get_field(reg, rec, class, field, loc);
+            lower.current_block_mut().get_field(reg, rec, tid, field, loc);
             lower.drop_register(reg, loc);
         }
 
-        if class.is_heap_allocated(lower.db()) && free_self {
+        if tid.is_heap_allocated(lower.db()) && free_self {
             lower.current_block_mut().check_refs(rec, loc);
-            lower.current_block_mut().free(rec, class, loc);
+            lower.current_block_mut().free(rec, tid, loc);
         }
 
         if terminate {
@@ -594,9 +594,9 @@ impl<'a> GenerateDropper<'a> {
         );
 
         let self_type =
-            types::TypeId::ClassInstance(types::ClassInstance::rigid(
+            types::TypeEnum::TypeInstance(types::TypeInstance::rigid(
                 &mut self.state.db,
-                self.class,
+                self.type_id,
                 &types::TypeBounds::new(),
             ));
         let receiver = TypeRef::Mut(self_type);
@@ -614,10 +614,10 @@ impl<'a> GenerateDropper<'a> {
     }
 
     fn add_method(&mut self, name: &str, id: MethodId, method: Method) {
-        let cid = self.class;
+        let cid = self.type_id;
 
         cid.add_method(&mut self.state.db, name.to_string(), id);
-        self.mir.classes.get_mut(&cid).unwrap().methods.push(id);
+        self.mir.types.get_mut(&cid).unwrap().methods.push(id);
         self.mir.methods.insert(id, method);
     }
 }
@@ -628,30 +628,30 @@ pub(crate) struct GenerateInlineMethods<'a> {
     pub(crate) state: &'a mut State,
     pub(crate) mir: &'a mut Mir,
     pub(crate) module: ModuleId,
-    pub(crate) class: ClassId,
+    pub(crate) type_id: TypeId,
     pub(crate) location: Location,
 }
 
 impl<'a> GenerateInlineMethods<'a> {
     pub(crate) fn run(mut self) {
-        match self.class.kind(&self.state.db) {
-            types::ClassKind::Enum => self.enum_class(),
-            _ => self.regular_class(),
+        match self.type_id.kind(&self.state.db) {
+            types::TypeKind::Enum => self.enum_type(),
+            _ => self.regular_type(),
         };
     }
 
-    fn regular_class(&mut self) {
+    fn regular_type(&mut self) {
         self.regular_increment();
         self.regular_decrement();
     }
 
-    fn enum_class(&mut self) {
+    fn enum_type(&mut self) {
         self.enum_increment();
         self.enum_decrement();
     }
 
     fn regular_increment(&mut self) {
-        let cls = self.class;
+        let cls = self.type_id;
         let name = types::INCREMENT_METHOD;
         let mtype = self.method_type(name);
         let mut method = Method::new(mtype);
@@ -679,7 +679,7 @@ impl<'a> GenerateInlineMethods<'a> {
     }
 
     fn enum_increment(&mut self) {
-        let cls = self.class;
+        let cls = self.type_id;
         let name = types::INCREMENT_METHOD;
         let mtype = self.method_type(name);
         let mut method = Method::new(mtype);
@@ -704,7 +704,7 @@ impl<'a> GenerateInlineMethods<'a> {
     }
 
     fn regular_decrement(&mut self) {
-        let cls = self.class;
+        let cls = self.type_id;
         let name = types::DECREMENT_METHOD;
         let mtype = self.method_type(name);
         let mut method = Method::new(mtype);
@@ -731,7 +731,7 @@ impl<'a> GenerateInlineMethods<'a> {
     }
 
     fn enum_decrement(&mut self) {
-        let cls = self.class;
+        let cls = self.type_id;
         let name = types::DECREMENT_METHOD;
         let mtype = self.method_type(name);
         let mut method = Method::new(mtype);
@@ -765,9 +765,9 @@ impl<'a> GenerateInlineMethods<'a> {
         );
 
         let self_type =
-            types::TypeId::ClassInstance(types::ClassInstance::rigid(
+            types::TypeEnum::TypeInstance(types::TypeInstance::rigid(
                 &mut self.state.db,
-                self.class,
+                self.type_id,
                 &types::TypeBounds::new(),
             ));
         let receiver = TypeRef::Ref(self_type);
@@ -779,10 +779,10 @@ impl<'a> GenerateInlineMethods<'a> {
     }
 
     fn add_method(&mut self, name: &str, id: MethodId, method: Method) {
-        let cls = self.class;
+        let cls = self.type_id;
 
         cls.add_method(&mut self.state.db, name.to_string(), id);
-        self.mir.classes.get_mut(&cls).unwrap().methods.push(id);
+        self.mir.types.get_mut(&cls).unwrap().methods.push(id);
         self.mir.methods.insert(id, method);
     }
 }
@@ -1001,15 +1001,15 @@ impl<'a> LowerToMir<'a> {
         let mut mod_types = Vec::new();
         let mut mod_nodes = Vec::new();
 
-        // Traits and classes must be lowered first, so we can process
+        // Traits and types must be lowered first, so we can process
         // implementations later.
         for module in nodes {
             let (types, rest) = module.expressions.into_iter().partition(|v| {
                 matches!(
                     v,
                     hir::TopLevelExpression::Trait(_)
-                        | hir::TopLevelExpression::Class(_)
-                        | hir::TopLevelExpression::ExternClass(_)
+                        | hir::TopLevelExpression::Type(_)
+                        | hir::TopLevelExpression::ExternType(_)
                 )
             });
 
@@ -1038,11 +1038,11 @@ impl<'a> LowerToMir<'a> {
                 hir::TopLevelExpression::Trait(n) => {
                     self.define_trait(*n);
                 }
-                hir::TopLevelExpression::Class(n) => {
-                    self.define_class(*n);
+                hir::TopLevelExpression::Type(n) => {
+                    self.define_type(*n);
                 }
-                hir::TopLevelExpression::ExternClass(n) => {
-                    self.define_extern_class(*n);
+                hir::TopLevelExpression::ExternType(n) => {
+                    self.define_extern_type(*n);
                 }
                 _ => {}
             }
@@ -1072,18 +1072,18 @@ impl<'a> LowerToMir<'a> {
                     self.implement_trait(*n);
                 }
                 hir::TopLevelExpression::Reopen(n) => {
-                    self.reopen_class(*n);
+                    self.reopen_type(*n);
                 }
                 _ => {}
             }
         }
 
-        let mod_class_id = id.class(self.db());
-        let mut mod_class = Class::new(mod_class_id);
+        let mod_type_id = id.type_id(self.db());
+        let mut mod_type = Type::new(mod_type_id);
 
-        mod_class.add_methods(&mod_methods);
+        mod_type.add_methods(&mod_methods);
         self.mir.add_methods(mod_methods);
-        self.add_class(mod_class_id, mod_class);
+        self.add_type(mod_type_id, mod_type);
     }
 
     fn define_trait(&mut self, node: hir::DefineTrait) {
@@ -1099,7 +1099,7 @@ impl<'a> LowerToMir<'a> {
     }
 
     fn implement_trait(&mut self, node: hir::ImplementTrait) {
-        let class_id = node.class_instance.unwrap().instance_of();
+        let type_id = node.type_instance.unwrap().instance_of();
         let trait_id = node.trait_instance.unwrap().instance_of();
         let mut methods = Vec::new();
         let mut names = HashSet::new();
@@ -1115,47 +1115,47 @@ impl<'a> LowerToMir<'a> {
             if !names.contains(id.name(self.db())) {
                 let mut method = self.mir.methods.get(&id).unwrap().clone();
 
-                // We need to make sure to use the ID of the class'
+                // We need to make sure to use the ID of the type's
                 // implementation of the method, rather than the ID of the
                 // method as defined in its source trait.
                 method.id =
-                    class_id.method(self.db(), id.name(self.db())).unwrap();
+                    type_id.method(self.db(), id.name(self.db())).unwrap();
 
                 methods.push(method);
             }
         }
 
-        self.mir.classes.get_mut(&class_id).unwrap().add_methods(&methods);
+        self.mir.types.get_mut(&type_id).unwrap().add_methods(&methods);
         self.mir.add_methods(methods);
     }
 
-    fn define_class(&mut self, node: hir::DefineClass) {
-        let id = node.class_id.unwrap();
+    fn define_type(&mut self, node: hir::DefineType) {
+        let id = node.type_id.unwrap();
         let mut methods = Vec::new();
 
         for expr in node.body {
             match expr {
-                hir::ClassExpression::InstanceMethod(n) => {
+                hir::TypeExpression::InstanceMethod(n) => {
                     methods.push(self.define_instance_method(*n));
                 }
-                hir::ClassExpression::StaticMethod(n) => {
+                hir::TypeExpression::StaticMethod(n) => {
                     self.define_static_method(*n);
                 }
-                hir::ClassExpression::AsyncMethod(n) => {
+                hir::TypeExpression::AsyncMethod(n) => {
                     methods.push(self.define_async_method(*n));
                 }
-                hir::ClassExpression::Constructor(n) => {
+                hir::TypeExpression::Constructor(n) => {
                     methods.push(self.define_constructor_method(*n, id));
                 }
                 _ => {}
             }
         }
 
-        let mut class = Class::new(id);
+        let mut typ = Type::new(id);
 
-        class.add_methods(&methods);
+        typ.add_methods(&methods);
         self.mir.add_methods(methods);
-        self.add_class(id, class);
+        self.add_type(id, typ);
 
         let loc = node.location;
 
@@ -1163,45 +1163,46 @@ impl<'a> LowerToMir<'a> {
         let mir = &mut self.mir;
         let module = self.module;
 
-        GenerateDropper { state, mir, module, class: id, location: loc }.run();
+        GenerateDropper { state, mir, module, type_id: id, location: loc }
+            .run();
 
         if id.is_inline_type(&state.db) {
             GenerateInlineMethods {
                 state,
                 mir,
                 module,
-                class: id,
+                type_id: id,
                 location: loc,
             }
             .run();
         }
     }
 
-    fn define_extern_class(&mut self, node: hir::DefineExternClass) {
-        let id = node.class_id.unwrap();
+    fn define_extern_type(&mut self, node: hir::DefineExternType) {
+        let id = node.type_id.unwrap();
 
-        self.add_class(id, Class::new(id));
+        self.add_type(id, Type::new(id));
     }
 
-    fn reopen_class(&mut self, node: hir::ReopenClass) {
-        let id = node.class_id.unwrap();
+    fn reopen_type(&mut self, node: hir::ReopenType) {
+        let id = node.type_id.unwrap();
         let mut methods = Vec::new();
 
         for expr in node.body {
             match expr {
-                hir::ReopenClassExpression::InstanceMethod(n) => {
+                hir::ReopenTypeExpression::InstanceMethod(n) => {
                     methods.push(self.define_instance_method(*n));
                 }
-                hir::ReopenClassExpression::StaticMethod(n) => {
+                hir::ReopenTypeExpression::StaticMethod(n) => {
                     self.define_static_method(*n);
                 }
-                hir::ReopenClassExpression::AsyncMethod(n) => {
+                hir::ReopenTypeExpression::AsyncMethod(n) => {
                     methods.push(self.define_async_method(*n));
                 }
             }
         }
 
-        self.mir.classes.get_mut(&id).unwrap().add_methods(&methods);
+        self.mir.types.get_mut(&id).unwrap().add_methods(&methods);
         self.mir.add_methods(methods);
     }
 
@@ -1258,15 +1259,15 @@ impl<'a> LowerToMir<'a> {
     fn define_constructor_method(
         &mut self,
         node: hir::DefineConstructor,
-        class: types::ClassId,
+        type_id: types::TypeId,
     ) -> Method {
         let id = node.method_id.unwrap();
         let constructor_id = node.constructor_id.unwrap();
         let mut method = Method::new(id);
-        let fields = class.enum_fields(self.db());
+        let fields = type_id.enum_fields(self.db());
         let bounds = TypeBounds::new();
-        let ins = TypeRef::Owned(types::TypeId::ClassInstance(
-            types::ClassInstance::rigid(self.db_mut(), class, &bounds),
+        let ins = TypeRef::Owned(types::TypeEnum::TypeInstance(
+            types::TypeInstance::rigid(self.db_mut(), type_id, &bounds),
         ));
         let mut lower =
             LowerMethod::new(self.state, self.mir, self.module, &mut method);
@@ -1277,14 +1278,14 @@ impl<'a> LowerToMir<'a> {
         let ins_reg = lower.new_register(ins);
         let tag_val = constructor_id.id(lower.db());
         let tag_field =
-            class.field_by_index(lower.db(), ENUM_TAG_INDEX).unwrap();
+            type_id.field_by_index(lower.db(), ENUM_TAG_INDEX).unwrap();
         let tag_reg = lower.new_register(tag_field.value_type(lower.db()));
 
-        lower.current_block_mut().allocate(ins_reg, class, loc);
+        lower.current_block_mut().allocate(ins_reg, type_id, loc);
         lower.current_block_mut().u16_literal(tag_reg, tag_val, loc);
         lower
             .current_block_mut()
-            .set_field(ins_reg, class, tag_field, tag_reg, loc);
+            .set_field(ins_reg, type_id, tag_field, tag_reg, loc);
 
         for (arg, field) in
             id.arguments(lower.db()).into_iter().zip(fields.into_iter())
@@ -1293,7 +1294,7 @@ impl<'a> LowerToMir<'a> {
 
             lower
                 .current_block_mut()
-                .set_field(ins_reg, class, field, reg, loc);
+                .set_field(ins_reg, type_id, field, reg, loc);
             lower.mark_register_as_moved(reg);
         }
 
@@ -1310,11 +1311,11 @@ impl<'a> LowerToMir<'a> {
         &mut self.state.db
     }
 
-    fn add_class(&mut self, id: types::ClassId, class: Class) {
+    fn add_type(&mut self, id: types::TypeId, typ: Type) {
         let mod_id = self.module;
 
-        self.mir.classes.insert(id, class);
-        self.mir.modules.get_mut(&mod_id).unwrap().classes.push(id);
+        self.mir.types.insert(id, typ);
+        self.mir.modules.get_mut(&mod_id).unwrap().types.push(id);
     }
 }
 
@@ -1548,10 +1549,10 @@ impl<'a> LowerMethod<'a> {
         // the closure itself.
         let captured = self.field_register(field, field_type, location);
         let closure = self.surrounding_type_register;
-        let class = self.register_type(closure).class_id(self.db()).unwrap();
+        let tid = self.register_type(closure).type_id(self.db()).unwrap();
 
         self.current_block_mut()
-            .get_field(captured, closure, class, field, location);
+            .get_field(captured, closure, tid, field, location);
         self.self_register = captured;
     }
 
@@ -1810,7 +1811,7 @@ impl<'a> LowerMethod<'a> {
         self.check_inferred(node.resolved_type, node.location);
 
         let tup = self.new_register(node.resolved_type);
-        let id = node.class_id.unwrap();
+        let id = node.type_id.unwrap();
         let loc = InstructionLocation::new(node.location);
         let fields = id.fields(self.db());
 
@@ -1942,11 +1943,21 @@ impl<'a> LowerMethod<'a> {
                 let reg = self.new_register(typ);
 
                 if info.as_pointer {
-                    self.current_block_mut()
-                        .field_pointer(reg, rec, info.class, info.id, loc);
+                    self.current_block_mut().field_pointer(
+                        reg,
+                        rec,
+                        info.type_id,
+                        info.id,
+                        loc,
+                    );
                 } else {
-                    self.current_block_mut()
-                        .get_field(reg, rec, info.class, info.id, loc);
+                    self.current_block_mut().get_field(
+                        reg,
+                        rec,
+                        info.type_id,
+                        info.id,
+                        loc,
+                    );
                 }
 
                 // When returning a field using the syntax `x.y`, we _must_ copy
@@ -2002,16 +2013,16 @@ impl<'a> LowerMethod<'a> {
                 self.get_constant(reg, id, loc);
                 reg
             }
-            types::CallKind::ClassInstance(info) => {
+            types::CallKind::TypeInstance(info) => {
                 self.check_inferred(info.resolved_type, node.location);
 
                 let ins = self.new_register(info.resolved_type);
-                let class = info.class_id;
+                let tid = info.type_id;
 
-                if class.kind(self.db()).is_async() {
-                    self.current_block_mut().spawn(ins, class, loc);
+                if tid.kind(self.db()).is_async() {
+                    self.current_block_mut().spawn(ins, tid, loc);
                 } else {
-                    self.current_block_mut().allocate(ins, class, loc);
+                    self.current_block_mut().allocate(ins, tid, loc);
                 }
 
                 for (arg, (id, exp)) in
@@ -2021,8 +2032,7 @@ impl<'a> LowerMethod<'a> {
                     let val =
                         self.input_expression(arg.into_value(), Some(exp));
 
-                    self.current_block_mut()
-                        .set_field(ins, class, id, val, loc);
+                    self.current_block_mut().set_field(ins, tid, id, val, loc);
                 }
 
                 ins
@@ -2074,7 +2084,7 @@ impl<'a> LowerMethod<'a> {
 
                 return result;
             }
-            types::Receiver::Class => {
+            types::Receiver::Type => {
                 let arg_regs = self.call_arguments(info.id, arguments);
                 let targs = self.mir.add_type_arguments(info.type_arguments);
                 let result = self.new_register(info.returns);
@@ -2234,13 +2244,23 @@ impl<'a> LowerMethod<'a> {
                 let old = self.new_register(info.variable_type);
 
                 if !info.variable_type.is_copy_type(self.db()) {
-                    self.current_block_mut()
-                        .get_field(old, rec, info.class, info.id, loc);
+                    self.current_block_mut().get_field(
+                        old,
+                        rec,
+                        info.type_id,
+                        info.id,
+                        loc,
+                    );
                     self.drop_register(old, loc);
                 }
 
-                self.current_block_mut()
-                    .set_field(rec, info.class, info.id, arg, loc);
+                self.current_block_mut().set_field(
+                    rec,
+                    info.type_id,
+                    info.id,
+                    arg,
+                    loc,
+                );
                 self.get_nil(loc)
             }
             types::CallKind::WritePointer => {
@@ -2264,10 +2284,10 @@ impl<'a> LowerMethod<'a> {
         let new_val = self.input_expression(node.value, Some(exp));
         let old_val = self.new_register(exp);
         let rec = self.expression(node.receiver);
-        let class = self.register_type(rec).class_id(self.db()).unwrap();
+        let tid = self.register_type(rec).type_id(self.db()).unwrap();
 
-        self.current_block_mut().get_field(old_val, rec, class, id, loc);
-        self.current_block_mut().set_field(rec, class, id, new_val, loc);
+        self.current_block_mut().get_field(old_val, rec, tid, id, loc);
+        self.current_block_mut().set_field(rec, tid, id, new_val, loc);
         old_val
     }
 
@@ -2287,7 +2307,7 @@ impl<'a> LowerMethod<'a> {
         } else {
             let &field = self.variable_fields.get(&id).unwrap();
             let rec = self.surrounding_type_register;
-            let class = self.register_type(rec).class_id(self.db()).unwrap();
+            let tid = self.register_type(rec).type_id(self.db()).unwrap();
 
             if !exp.is_copy_type(self.db()) {
                 // The captured variable may be exposed as a reference in `reg`,
@@ -2295,11 +2315,11 @@ impl<'a> LowerMethod<'a> {
                 // it.
                 let old = self.new_register(exp);
 
-                self.current_block_mut().get_field(old, rec, class, field, loc);
+                self.current_block_mut().get_field(old, rec, tid, field, loc);
                 self.drop_register(old, loc);
             }
 
-            self.current_block_mut().set_field(rec, class, field, val, loc);
+            self.current_block_mut().set_field(rec, tid, field, val, loc);
         }
 
         self.get_nil(loc)
@@ -2324,10 +2344,10 @@ impl<'a> LowerMethod<'a> {
         } else {
             let &field = self.variable_fields.get(&id).unwrap();
             let rec = self.surrounding_type_register;
-            let class = self.register_type(rec).class_id(self.db()).unwrap();
+            let tid = self.register_type(rec).type_id(self.db()).unwrap();
 
-            self.current_block_mut().get_field(old_val, rec, class, field, loc);
-            self.current_block_mut().set_field(rec, class, field, new_val, loc);
+            self.current_block_mut().get_field(old_val, rec, tid, field, loc);
+            self.current_block_mut().set_field(rec, tid, field, new_val, loc);
         }
 
         old_val
@@ -2341,7 +2361,7 @@ impl<'a> LowerMethod<'a> {
 
         if let Some(&reg) = self.field_mapping.get(&id) {
             let rec = self.surrounding_type_register;
-            let class = self.register_type(rec).class_id(self.db()).unwrap();
+            let tid = self.register_type(rec).type_id(self.db()).unwrap();
             let is_moved = self.register_is_moved(reg);
 
             if !is_moved && !exp.is_copy_type(self.db()) {
@@ -2350,7 +2370,7 @@ impl<'a> LowerMethod<'a> {
                 // instead.
                 let old = self.new_register(exp);
 
-                self.current_block_mut().get_field(old, rec, class, id, loc);
+                self.current_block_mut().get_field(old, rec, tid, id, loc);
                 self.drop_register(old, loc);
             }
 
@@ -2365,21 +2385,21 @@ impl<'a> LowerMethod<'a> {
             }
 
             self.update_register_state(reg, RegisterState::Available);
-            self.current_block_mut().set_field(rec, class, id, new_val, loc);
+            self.current_block_mut().set_field(rec, tid, id, new_val, loc);
         } else {
             let rec = self.self_register;
-            let class = self.register_type(rec).class_id(self.db()).unwrap();
+            let tid = self.register_type(rec).type_id(self.db()).unwrap();
 
             if !exp.is_copy_type(self.db()) {
                 let old = self.new_register(exp);
 
                 // Closures capture `self` as a whole, so we can't end up with a
                 // case where we try to drop an already dropped value here.
-                self.current_block_mut().get_field(old, rec, class, id, loc);
+                self.current_block_mut().get_field(old, rec, tid, id, loc);
                 self.drop_register(old, loc);
             }
 
-            self.current_block_mut().set_field(rec, class, id, new_val, loc);
+            self.current_block_mut().set_field(rec, tid, id, new_val, loc);
         };
 
         self.get_nil(loc)
@@ -2396,11 +2416,11 @@ impl<'a> LowerMethod<'a> {
         } else {
             (self.self_register, self.self_register)
         };
-        let class = self.register_type(rec).class_id(self.db()).unwrap();
+        let tid = self.register_type(rec).type_id(self.db()).unwrap();
 
         self.check_if_moved(check_reg, &node.field.name, node.field.location);
-        self.current_block_mut().get_field(old_val, rec, class, id, loc);
-        self.current_block_mut().set_field(rec, class, id, new_val, loc);
+        self.current_block_mut().get_field(old_val, rec, tid, id, loc);
+        self.current_block_mut().set_field(rec, tid, id, new_val, loc);
         old_val
     }
 
@@ -2458,12 +2478,11 @@ impl<'a> LowerMethod<'a> {
     fn try_expression(&mut self, node: hir::Try) -> RegisterId {
         let loc = InstructionLocation::new(node.location);
         let reg = self.expression(node.expression);
-        let class = self.register_type(reg).class_id(self.db()).unwrap();
-        let tag_field =
-            class.field_by_index(self.db(), ENUM_TAG_INDEX).unwrap();
+        let tid = self.register_type(reg).type_id(self.db()).unwrap();
+        let tag_field = tid.field_by_index(self.db(), ENUM_TAG_INDEX).unwrap();
         let tag_typ = tag_field.value_type(self.db());
         let tag_reg = self.new_untracked_register(tag_typ);
-        let val_field = class.enum_fields(self.db())[0];
+        let val_field = tid.enum_fields(self.db())[0];
         let ok_block = self.add_block();
         let err_block = self.add_block();
         let after_block = self.add_block();
@@ -2476,15 +2495,15 @@ impl<'a> LowerMethod<'a> {
         self.add_edge(ok_block, after_block);
 
         self.mark_register_as_moved(reg);
-        self.current_block_mut().get_field(tag_reg, reg, class, tag_field, loc);
+        self.current_block_mut().get_field(tag_reg, reg, tid, tag_field, loc);
 
         let out_reg = match node.kind {
             types::ThrowKind::Option(typ) => {
-                let some_id = class
+                let some_id = tid
                     .constructor(self.db(), OPTION_SOME)
                     .unwrap()
                     .id(self.db());
-                let none_id = class
+                let none_id = tid
                     .constructor(self.db(), OPTION_NONE)
                     .unwrap()
                     .id(self.db());
@@ -2497,17 +2516,17 @@ impl<'a> LowerMethod<'a> {
 
                 // The block to jump to for a Some.
                 self.block_mut(ok_block)
-                    .get_field(ok_reg, reg, class, val_field, loc);
+                    .get_field(ok_reg, reg, tid, val_field, loc);
                 self.block_mut(ok_block).drop_without_dropper(reg, loc);
                 self.block_mut(ok_block).goto(after_block, loc);
 
                 // The block to jump to for a None
                 self.current_block = err_block;
 
-                self.current_block_mut().allocate(ret_reg, class, loc);
+                self.current_block_mut().allocate(ret_reg, tid, loc);
                 self.current_block_mut().u16_literal(err_tag, none_id, loc);
                 self.current_block_mut()
-                    .set_field(ret_reg, class, tag_field, err_tag, loc);
+                    .set_field(ret_reg, tid, tag_field, err_tag, loc);
                 self.current_block_mut().drop_without_dropper(reg, loc);
 
                 self.drop_all_registers(loc);
@@ -2515,11 +2534,11 @@ impl<'a> LowerMethod<'a> {
                 ok_reg
             }
             types::ThrowKind::Result(ok_typ, err_typ) => {
-                let ok_id = class
+                let ok_id = tid
                     .constructor(self.db(), RESULT_OK)
                     .unwrap()
                     .id(self.db());
-                let err_id = class
+                let err_id = tid
                     .constructor(self.db(), RESULT_ERROR)
                     .unwrap()
                     .id(self.db());
@@ -2533,21 +2552,21 @@ impl<'a> LowerMethod<'a> {
 
                 // The block to jump to for an Ok.
                 self.block_mut(ok_block)
-                    .get_field(ok_reg, reg, class, val_field, loc);
+                    .get_field(ok_reg, reg, tid, val_field, loc);
                 self.block_mut(ok_block).drop_without_dropper(reg, loc);
                 self.block_mut(ok_block).goto(after_block, loc);
 
                 // The block to jump to for an Error.
                 self.current_block = err_block;
 
-                self.current_block_mut().allocate(ret_reg, class, loc);
+                self.current_block_mut().allocate(ret_reg, tid, loc);
                 self.current_block_mut().u16_literal(err_tag, err_id, loc);
                 self.current_block_mut()
-                    .get_field(err_val, reg, class, val_field, loc);
+                    .get_field(err_val, reg, tid, val_field, loc);
                 self.current_block_mut()
-                    .set_field(ret_reg, class, tag_field, err_tag, loc);
+                    .set_field(ret_reg, tid, tag_field, err_tag, loc);
                 self.current_block_mut()
-                    .set_field(ret_reg, class, val_field, err_val, loc);
+                    .set_field(ret_reg, tid, val_field, err_val, loc);
                 self.current_block_mut().drop_without_dropper(reg, loc);
 
                 self.drop_all_registers(loc);
@@ -2573,21 +2592,20 @@ impl<'a> LowerMethod<'a> {
     fn throw_expression(&mut self, node: hir::Throw) -> RegisterId {
         let loc = InstructionLocation::new(node.location);
         let reg = self.expression(node.value);
-        let class = self.db().class_in_module(RESULT_MODULE, RESULT_CLASS);
+        let tid = self.db().type_in_module(RESULT_MODULE, RESULT_TYPE);
         let err_id =
-            class.constructor(self.db(), RESULT_ERROR).unwrap().id(self.db());
-        let tag_field =
-            class.field_by_index(self.db(), ENUM_TAG_INDEX).unwrap();
+            tid.constructor(self.db(), RESULT_ERROR).unwrap().id(self.db());
+        let tag_field = tid.field_by_index(self.db(), ENUM_TAG_INDEX).unwrap();
         let tag_reg = self.new_register(tag_field.value_type(self.db()));
-        let val_field = class.enum_fields(self.db())[0];
+        let val_field = tid.enum_fields(self.db())[0];
         let result_reg = self.new_register(node.return_type);
 
-        self.current_block_mut().allocate(result_reg, class, loc);
+        self.current_block_mut().allocate(result_reg, tid, loc);
         self.current_block_mut().u16_literal(tag_reg, err_id, loc);
         self.current_block_mut()
-            .set_field(result_reg, class, tag_field, tag_reg, loc);
+            .set_field(result_reg, tid, tag_field, tag_reg, loc);
         self.current_block_mut()
-            .set_field(result_reg, class, val_field, reg, loc);
+            .set_field(result_reg, tid, val_field, reg, loc);
 
         self.mark_register_as_moved(reg);
         self.mark_register_as_moved(result_reg);
@@ -2950,7 +2968,7 @@ impl<'a> LowerMethod<'a> {
                         registers,
                     ),
                     pmatch::Constructor::Tuple(_)
-                    | pmatch::Constructor::Class(_) => self.class_patterns(
+                    | pmatch::Constructor::Class(_) => self.type_patterns(
                         state,
                         test,
                         cases,
@@ -3235,7 +3253,7 @@ impl<'a> LowerMethod<'a> {
             let fail_block = blocks.get(index + 1).cloned().unwrap_or(fallback);
             let res_reg = self.new_untracked_register(TypeRef::boolean());
             let val_reg = self.new_untracked_register(TypeRef::string());
-            let eq_method = ClassId::string()
+            let eq_method = TypeId::string()
                 .method(self.db(), EQ_METHOD)
                 .expect("String.== is undefined");
 
@@ -3318,7 +3336,7 @@ impl<'a> LowerMethod<'a> {
         blocks[0]
     }
 
-    fn class_patterns(
+    fn type_patterns(
         &mut self,
         state: &mut DecisionState,
         test_reg: RegisterId,
@@ -3336,7 +3354,7 @@ impl<'a> LowerMethod<'a> {
 
         let test_type = self.register_type(test_reg);
         let owned = test_type.is_owned_or_uni(self.db());
-        let class = self.register_type(test_reg).class_id(self.db()).unwrap();
+        let tid = self.register_type(test_reg).type_id(self.db()).unwrap();
 
         registers.push(test_reg);
 
@@ -3350,7 +3368,7 @@ impl<'a> LowerMethod<'a> {
 
             state.load_child(reg, test_reg, action);
             self.block_mut(parent_block)
-                .get_field(reg, test_reg, class, field, loc);
+                .get_field(reg, test_reg, tid, field, loc);
         }
 
         self.decision(state, case.node, parent_block, registers)
@@ -3372,12 +3390,11 @@ impl<'a> LowerMethod<'a> {
         registers.push(test_reg);
 
         let test_type = self.register_type(test_reg);
-        let class = test_type.class_id(self.db()).unwrap();
-        let tag_field =
-            class.field_by_index(self.db(), ENUM_TAG_INDEX).unwrap();
+        let tid = test_type.type_id(self.db()).unwrap();
+        let tag_field = tid.field_by_index(self.db(), ENUM_TAG_INDEX).unwrap();
         let tag_reg =
             self.new_untracked_register(tag_field.value_type(self.db()));
-        let member_fields = class.enum_fields(self.db());
+        let member_fields = tid.enum_fields(self.db());
 
         for case in cases {
             let case_registers = registers.clone();
@@ -3396,15 +3413,14 @@ impl<'a> LowerMethod<'a> {
                 };
 
                 state.load_child(reg, test_reg, action);
-                self.block_mut(block)
-                    .get_field(reg, test_reg, class, field, loc);
+                self.block_mut(block).get_field(reg, test_reg, tid, field, loc);
             }
 
             self.decision(state, case.node, block, case_registers);
         }
 
         self.block_mut(test_block)
-            .get_field(tag_reg, test_reg, class, tag_field, loc);
+            .get_field(tag_reg, test_reg, tid, tag_field, loc);
         self.block_mut(test_block).switch(tag_reg, blocks, loc);
         test_block
     }
@@ -3445,7 +3461,7 @@ impl<'a> LowerMethod<'a> {
         };
 
         let rec = self.self_register;
-        let class = info.class;
+        let tid = info.type_id;
         let name = &node.name;
         let check_loc = node.location;
 
@@ -3463,9 +3479,9 @@ impl<'a> LowerMethod<'a> {
         }
 
         if info.as_pointer {
-            self.current_block_mut().field_pointer(reg, rec, class, id, loc);
+            self.current_block_mut().field_pointer(reg, rec, tid, id, loc);
         } else {
-            self.current_block_mut().get_field(reg, rec, class, id, loc);
+            self.current_block_mut().get_field(reg, rec, tid, id, loc);
         }
 
         reg
@@ -3507,10 +3523,10 @@ impl<'a> LowerMethod<'a> {
         let closure_id = node.closure_id.unwrap();
         let moving = closure_id.is_moving(self.db());
         let loc = node.location;
-        let class_id = types::Class::alloc(
+        let tid = types::Type::alloc(
             self.db_mut(),
             "<closure>".to_string(),
-            types::ClassKind::Closure,
+            types::TypeKind::Closure,
             types::Visibility::Private,
             module,
             loc,
@@ -3525,10 +3541,10 @@ impl<'a> LowerMethod<'a> {
             types::MethodKind::Mutable,
         );
 
-        let gen_class_ins =
-            types::TypeId::ClassInstance(types::ClassInstance::new(class_id));
+        let gen_type_ins =
+            types::TypeEnum::TypeInstance(types::TypeInstance::new(tid));
 
-        let call_rec_type = TypeRef::Mut(gen_class_ins);
+        let call_rec_type = TypeRef::Mut(gen_type_ins);
         let returns = closure_id.return_type(self.db());
 
         method_id.set_receiver(self.db_mut(), call_rec_type);
@@ -3542,21 +3558,21 @@ impl<'a> LowerMethod<'a> {
             method_id.add_argument(self.db_mut(), arg);
         }
 
-        class_id.add_method(
+        tid.add_method(
             self.db_mut(),
             types::CALL_METHOD.to_string(),
             method_id,
         );
 
-        let gen_class_type = TypeRef::Owned(gen_class_ins);
-        let gen_class_reg = self.new_register(gen_class_type);
+        let gen_type_ref = TypeRef::Owned(gen_type_ins);
+        let gen_type_reg = self.new_register(gen_type_ref);
         let loc = node.location;
         let ins_loc = InstructionLocation::new(loc);
 
         // We generate the allocation first, that way when we generate any
         // fields we can populate then right away, without having to store field
         // IDs.
-        self.current_block_mut().allocate(gen_class_reg, class_id, ins_loc);
+        self.current_block_mut().allocate(gen_type_reg, tid, ins_loc);
 
         let mut field_index = 0;
         let field_vis = types::Visibility::TypePrivate;
@@ -3576,8 +3592,8 @@ impl<'a> LowerMethod<'a> {
             };
 
             let name = SELF_NAME.to_string();
-            let field_loc = class_id.location(self.db());
-            let field = class_id.new_field(
+            let field_loc = tid.location(self.db());
+            let field = tid.new_field(
                 self.db_mut(),
                 name.clone(),
                 field_index,
@@ -3600,8 +3616,8 @@ impl<'a> LowerMethod<'a> {
             let val = self.input_register(self_reg, captured_as, None, loc);
 
             self.current_block_mut().set_field(
-                gen_class_reg,
-                class_id,
+                gen_type_reg,
+                tid,
                 field,
                 val,
                 ins_loc,
@@ -3614,8 +3630,8 @@ impl<'a> LowerMethod<'a> {
 
         for (var, captured_as) in closure_id.captured(self.db()) {
             let name = var.name(self.db()).clone();
-            let field_loc = class_id.location(self.db());
-            let field = class_id.new_field(
+            let field_loc = tid.location(self.db());
+            let field = tid.new_field(
                 self.db_mut(),
                 name.clone(),
                 field_index,
@@ -3635,7 +3651,7 @@ impl<'a> LowerMethod<'a> {
                 );
             }
 
-            // If the value is an external class, it's always captured as a
+            // If the value is an external type, it's always captured as a
             // pointer to the data. This is useful when dealing with FFI code
             // where a closure is used to mutate a C structure (e.g. as part of
             // a loop) in-place.
@@ -3651,8 +3667,8 @@ impl<'a> LowerMethod<'a> {
             };
 
             self.current_block_mut().set_field(
-                gen_class_reg,
-                class_id,
+                gen_type_reg,
+                tid,
                 field,
                 val,
                 ins_loc,
@@ -3664,7 +3680,7 @@ impl<'a> LowerMethod<'a> {
             variable_fields.insert(var, field);
         }
 
-        let mut mir_class = Class::new(class_id);
+        let mut mir_type = Type::new(tid);
         let mut mir_method = Method::new(method_id);
         let mut lower = LowerMethod::new(
             self.state,
@@ -3683,10 +3699,10 @@ impl<'a> LowerMethod<'a> {
 
         let mod_id = self.module;
 
-        mir_class.methods.push(method_id);
+        mir_type.methods.push(method_id);
         self.mir.methods.insert(method_id, mir_method);
-        self.mir.classes.insert(class_id, mir_class);
-        self.mir.modules.get_mut(&mod_id).unwrap().classes.push(class_id);
+        self.mir.types.insert(tid, mir_type);
+        self.mir.modules.get_mut(&mod_id).unwrap().types.push(tid);
 
         let loc = node.location;
 
@@ -3694,12 +3710,12 @@ impl<'a> LowerMethod<'a> {
             state: self.state,
             mir: self.mir,
             module: self.module,
-            class: class_id,
+            type_id: tid,
             location: loc,
         }
         .run();
 
-        gen_class_reg
+        gen_type_reg
     }
 
     fn get_local(
@@ -3715,10 +3731,9 @@ impl<'a> LowerMethod<'a> {
             let &field = self.variable_fields.get(&id).unwrap();
             let &reg = self.field_mapping.get(&field).unwrap();
             let rec = self.surrounding_type_register;
-            let class = self.register_type(rec).class_id(self.db()).unwrap();
+            let tid = self.register_type(rec).type_id(self.db()).unwrap();
 
-            self.current_block_mut()
-                .get_field(reg, rec, class, field, location);
+            self.current_block_mut().get_field(reg, rec, tid, field, location);
             reg
         }
     }
@@ -4019,9 +4034,9 @@ impl<'a> LowerMethod<'a> {
         }
 
         let reg = self.new_register(typ);
-        let class = typ.class_id(self.db()).unwrap();
+        let tid = typ.type_id(self.db()).unwrap();
 
-        if class.is_atomic(self.db()) {
+        if tid.is_atomic(self.db()) {
             self.current_block_mut().increment_atomic(source, location);
         }
 
@@ -4288,10 +4303,10 @@ impl<'a> LowerMethod<'a> {
         register: RegisterId,
         location: InstructionLocation,
     ) {
-        let class = self.register_type(receiver).class_id(self.db()).unwrap();
+        let tid = self.register_type(receiver).type_id(self.db()).unwrap();
 
         self.current_block_mut()
-            .get_field(register, receiver, class, field, location);
+            .get_field(register, receiver, tid, field, location);
         self.unconditional_drop_register(register, location);
     }
 
@@ -4573,7 +4588,7 @@ impl<'a> LowerMethod<'a> {
         self.module.file(&self.state.db)
     }
 
-    fn self_type(&self) -> types::TypeId {
+    fn self_type(&self) -> types::TypeEnum {
         self.method.id.receiver_id(self.db())
     }
 
@@ -4654,18 +4669,18 @@ impl<'a> LowerMethod<'a> {
         F: FnMut(&mut LowerMethod, FieldId, TypeRef),
     >(
         &mut self,
-        class: ClassId,
+        type_id: TypeId,
         location: InstructionLocation,
         mut func: F,
     ) {
         let rec = self.self_register;
-        let cons = class.constructors(self.db());
+        let cons = type_id.constructors(self.db());
         let mut blocks = Vec::new();
         let before = self.current_block;
         let after = self.add_block();
-        let enum_fields = class.enum_fields(self.db());
+        let enum_fields = type_id.enum_fields(self.db());
         let tag_field =
-            class.field_by_index(self.db(), ENUM_TAG_INDEX).unwrap();
+            type_id.field_by_index(self.db(), ENUM_TAG_INDEX).unwrap();
         let tag_reg = self.new_register(tag_field.value_type(self.db()));
 
         for con in cons {
@@ -4686,7 +4701,7 @@ impl<'a> LowerMethod<'a> {
         }
 
         self.block_mut(before)
-            .get_field(tag_reg, rec, class, tag_field, location);
+            .get_field(tag_reg, rec, type_id, tag_field, location);
         self.block_mut(before).switch(tag_reg, blocks, location);
         self.current_block = after;
     }

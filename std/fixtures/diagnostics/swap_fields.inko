@@ -1,4 +1,4 @@
-class Person {
+type Person {
   let @name: String
   let @numbers: Array[Int]
 

@@ -1,16 +1,16 @@
-class A[T] {
+type A[T] {
   let @value: ref T
 }
 
-class B[T] {
+type B[T] {
   let @value: T
 }
 
-class C[T] {
+type C[T] {
   let @value: Pointer[T]
 }
 
-class List[T] {
+type List[T] {
   let @buffer: Pointer[T]
 }
 

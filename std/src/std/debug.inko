@@ -29,7 +29,7 @@ fn extern inko_process_stack_frame_path(
 ) -> String
 
 # Details of a single stack frame in a stack trace.
-class pub inline StackFrame {
+type pub inline StackFrame {
   # The path of the file the frame belongs to.
   let pub @path: Path
 

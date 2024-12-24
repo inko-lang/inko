@@ -1,7 +1,7 @@
 fn inline module_method1 {}
 fn pub inline module_method2 {}
 
-class A {
+type A {
   fn inline instance_method1 {}
   fn inline mut instance_method2 {}
   fn inline move instance_method3 {}
@@ -35,7 +35,7 @@ trait B {
   fn pub inline move valid6 {}
 }
 
-class async C {
+type async C {
   fn inline async invalid1 {}
   fn inline async mut invalid2 {}
 

@@ -77,7 +77,7 @@ fn month_prefix_index[T: Bytes](input: ref T, start: Int) -> Option[Int] {
 #
 # This type handles both US and UK English as in its current implementation
 # there are no differences between the two.
-class pub copy Locale {
+type pub copy Locale {
   # Returns a new `Locale`.
   fn pub inline static new -> Locale {
     Locale()

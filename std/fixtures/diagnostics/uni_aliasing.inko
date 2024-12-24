@@ -1,8 +1,8 @@
-class User {
+type User {
   let @name: String
 }
 
-class Box[T] {
+type Box[T] {
   let @value: Option[T]
   let @borrow: Option[ref T]
 

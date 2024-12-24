@@ -132,7 +132,7 @@ fn negative_time_error(time: Int) -> Never {
 # is useful when performing arithmetic on `Duration` objects, as you won't have
 # to worry about overflows. It also lets you represent a duration that goes back
 # in time, i.e. "something that happened 5 seconds ago".
-class pub copy Duration {
+type pub copy Duration {
   let @nanos: Int
 
   # Creates a new `Duration` from the given number of seconds.
@@ -318,7 +318,7 @@ impl Format for Duration {
 
 # A type representing a date in the Gregorian calendar, without a time and
 # timezone.
-class pub copy Date {
+type pub copy Date {
   # The year, month and day packed into a single set of bits.
   #
   # The layout is as follows (starting with the least significant bits):
@@ -475,7 +475,7 @@ impl Format for Date {
 
 # A type that represents a point in time (hours, minutes and seconds) without a
 # specific associated date.
-class pub copy Time {
+type pub copy Time {
   # The hour, minute, second and sub seconds packed into a single set of bits.
   #
   # The layout is as follows (starting with the least significant bits):
@@ -600,7 +600,7 @@ impl Format for Time {
 # If you want to measure the duration between two events, it's best to use the
 # `Instant` type, as it's not affected by external factors such as clock
 # adjustments and leap seconds.
-class pub inline DateTime {
+type pub inline DateTime {
   let @date: Date
   let @time: Time
   let @utc_offset: Int
@@ -1383,7 +1383,7 @@ trait pub ToInstant {
 # is suspended.
 #
 # An `Instant` can never represent a negative time (e.g. -5).
-class pub copy Instant {
+type pub copy Instant {
   let @nanos: Int
 
   # Returns a new `Instant` representing the current time.

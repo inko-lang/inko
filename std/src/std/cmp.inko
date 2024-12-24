@@ -3,7 +3,7 @@
 import std.fmt (Format, Formatter)
 
 # A type describing the ordering between two values.
-class pub copy enum Ordering {
+type pub copy enum Ordering {
   case Less
   case Equal
   case Greater

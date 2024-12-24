@@ -16,7 +16,7 @@ pub unsafe extern "system" fn inko_env_get(
         .environment
         .get(name)
         .cloned()
-        .map(|v| InkoResult::ok(InkoString::alloc(state.string_class, v) as _))
+        .map(|v| InkoResult::ok(InkoString::alloc(state.string_type, v) as _))
         .unwrap_or_else(InkoResult::none)
 }
 
@@ -32,7 +32,7 @@ pub unsafe extern "system" fn inko_env_get_key(
     // of returning a result value.
     let val = state.environment.key(index as _).unwrap().clone();
 
-    InkoString::alloc(state.string_class, val)
+    InkoString::alloc(state.string_type, val)
 }
 
 #[no_mangle]
@@ -46,7 +46,7 @@ pub unsafe extern "system" fn inko_env_temp_directory(
 ) -> *const InkoString {
     let path = canonalize(env::temp_dir().to_string_lossy().into_owned());
 
-    InkoString::alloc((*state).string_class, path)
+    InkoString::alloc((*state).string_type, path)
 }
 
 #[no_mangle]
@@ -56,7 +56,7 @@ pub unsafe extern "system" fn inko_env_get_working_directory(
     env::current_dir()
         .map(|path| canonalize(path.to_string_lossy().into_owned()))
         .map(|path| {
-            InkoResult::ok(InkoString::alloc((*state).string_class, path) as _)
+            InkoResult::ok(InkoString::alloc((*state).string_type, path) as _)
         })
         .unwrap_or_else(InkoResult::io_error)
 }
@@ -87,7 +87,7 @@ pub unsafe extern "system" fn inko_env_argument(
     let state = &(*state);
 
     InkoString::alloc(
-        state.string_class,
+        state.string_type,
         state.arguments.get_unchecked(index as usize).clone(),
     )
 }
@@ -99,7 +99,7 @@ pub unsafe extern "system" fn inko_env_executable(
     env::current_exe()
         .map(|path| path.to_string_lossy().into_owned())
         .map(|path| {
-            InkoResult::ok(InkoString::alloc((*state).string_class, path) as _)
+            InkoResult::ok(InkoString::alloc((*state).string_type, path) as _)
         })
         .unwrap_or_else(InkoResult::io_error)
 }

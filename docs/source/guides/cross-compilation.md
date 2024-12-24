@@ -207,7 +207,7 @@ file `test.inko`:
 ```inko
 import std.stdio (Stdout)
 
-class async Main {
+type async Main {
   fn async main {
     Stdout.new.print('hello')
   }

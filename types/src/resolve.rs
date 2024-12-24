@@ -1,8 +1,8 @@
 //! Resolving abstract types into concrete types.
 use crate::either::Either;
 use crate::{
-    ClassInstance, Closure, Database, TraitId, TraitInstance, TypeArguments,
-    TypeBounds, TypeId, TypeParameterId, TypeRef,
+    Closure, Database, TraitId, TraitInstance, TypeArguments, TypeBounds,
+    TypeEnum, TypeInstance, TypeParameterId, TypeRef,
 };
 use std::collections::HashMap;
 
@@ -200,9 +200,9 @@ impl<'a> TypeResolver<'a> {
         resolved
     }
 
-    fn resolve_type_id(&mut self, id: TypeId) -> Either<TypeId, TypeRef> {
+    fn resolve_type_id(&mut self, id: TypeEnum) -> Either<TypeEnum, TypeRef> {
         match id {
-            TypeId::ClassInstance(ins) => {
+            TypeEnum::TypeInstance(ins) => {
                 let base = ins.instance_of;
 
                 if !base.is_generic(self.db) {
@@ -213,11 +213,11 @@ impl<'a> TypeResolver<'a> {
 
                 self.resolve_arguments(&mut args);
 
-                Either::Left(TypeId::ClassInstance(ClassInstance::generic(
+                Either::Left(TypeEnum::TypeInstance(TypeInstance::generic(
                     self.db, base, args,
                 )))
             }
-            TypeId::TraitInstance(ins) => {
+            TypeEnum::TraitInstance(ins) => {
                 let base = ins.instance_of;
 
                 if !base.is_generic(self.db) {
@@ -228,27 +228,27 @@ impl<'a> TypeResolver<'a> {
 
                 self.resolve_arguments(&mut args);
 
-                Either::Left(TypeId::TraitInstance(TraitInstance::generic(
+                Either::Left(TypeEnum::TraitInstance(TraitInstance::generic(
                     self.db, base, args,
                 )))
             }
-            TypeId::TypeParameter(pid) => {
+            TypeEnum::TypeParameter(pid) => {
                 let pid = self.remap_type_parameter(pid);
 
                 match self.resolve_type_parameter(pid) {
                     Some(val) => Either::Right(val),
                     _ if self.rigid => {
-                        Either::Left(TypeId::RigidTypeParameter(pid))
+                        Either::Left(TypeEnum::RigidTypeParameter(pid))
                     }
                     _ => {
                         Either::Right(TypeRef::placeholder(self.db, Some(pid)))
                     }
                 }
             }
-            TypeId::RigidTypeParameter(pid) => Either::Left(
-                TypeId::RigidTypeParameter(self.remap_type_parameter(pid)),
+            TypeEnum::RigidTypeParameter(pid) => Either::Left(
+                TypeEnum::RigidTypeParameter(self.remap_type_parameter(pid)),
             ),
-            TypeId::Closure(id) => {
+            TypeEnum::Closure(id) => {
                 let mut new = id.get(self.db).clone();
                 let immutable = self.immutable;
 
@@ -264,7 +264,7 @@ impl<'a> TypeResolver<'a> {
 
                 new.return_type = self.resolve_type_ref(new.return_type);
                 self.immutable = immutable;
-                Either::Left(TypeId::Closure(Closure::add(self.db, new)))
+                Either::Left(TypeEnum::Closure(Closure::add(self.db, new)))
             }
             _ => Either::Left(id),
         }
@@ -317,7 +317,7 @@ mod tests {
         pointer, rigid, type_arguments, type_bounds, uni,
     };
     use crate::{
-        Block, ClassId, Closure, Ownership, TypePlaceholder, TypePlaceholderId,
+        Block, Closure, Ownership, TypeId, TypePlaceholder, TypePlaceholderId,
     };
     use location::Location;
 
@@ -344,7 +344,7 @@ mod tests {
     #[test]
     fn test_owned() {
         let mut db = Database::new();
-        let string = ClassId::string();
+        let string = TypeId::string();
         let args = TypeArguments::new();
         let bounds = TypeBounds::new();
 
@@ -362,7 +362,7 @@ mod tests {
     #[test]
     fn test_pointer() {
         let mut db = Database::new();
-        let string = ClassId::string();
+        let string = TypeId::string();
         let args = TypeArguments::new();
         let bounds = TypeBounds::new();
 
@@ -393,8 +393,8 @@ mod tests {
     #[test]
     fn test_immutable_nested_type() {
         let mut db = Database::new();
-        let array = ClassId::array();
-        let int = ClassId::int();
+        let array = TypeId::array();
+        let int = TypeId::int();
 
         array.new_type_parameter(&mut db, "T".to_string());
 
@@ -419,7 +419,7 @@ mod tests {
     #[test]
     fn test_infer() {
         let mut db = Database::new();
-        let string = ClassId::string();
+        let string = TypeId::string();
         let args = TypeArguments::new();
         let bounds = TypeBounds::new();
 
@@ -437,7 +437,7 @@ mod tests {
     #[test]
     fn test_uni() {
         let mut db = Database::new();
-        let string = ClassId::string();
+        let string = TypeId::string();
         let args = TypeArguments::new();
         let bounds = TypeBounds::new();
 
@@ -455,7 +455,7 @@ mod tests {
     #[test]
     fn test_ref() {
         let mut db = Database::new();
-        let string = ClassId::string();
+        let string = TypeId::string();
         let args = TypeArguments::new();
         let bounds = TypeBounds::new();
 
@@ -478,7 +478,7 @@ mod tests {
     #[test]
     fn test_ref_uni() {
         let mut db = Database::new();
-        let string = ClassId::string();
+        let string = TypeId::string();
         let args = TypeArguments::new();
         let bounds = TypeBounds::new();
 
@@ -501,7 +501,7 @@ mod tests {
     #[test]
     fn test_mut() {
         let mut db = Database::new();
-        let string = ClassId::string();
+        let string = TypeId::string();
         let args = TypeArguments::new();
         let bounds = TypeBounds::new();
 
@@ -524,7 +524,7 @@ mod tests {
     #[test]
     fn test_mut_uni() {
         let mut db = Database::new();
-        let string = ClassId::string();
+        let string = TypeId::string();
         let args = TypeArguments::new();
         let bounds = TypeBounds::new();
 
@@ -547,7 +547,7 @@ mod tests {
     #[test]
     fn test_placeholder() {
         let mut db = Database::new();
-        let string = ClassId::string();
+        let string = TypeId::string();
         let args = TypeArguments::new();
         let bounds = TypeBounds::new();
         let var1 = TypePlaceholder::alloc(&mut db, None);
@@ -574,7 +574,7 @@ mod tests {
     #[test]
     fn test_type_parameter() {
         let mut db = Database::new();
-        let string = ClassId::string();
+        let string = TypeId::string();
         let param1 = new_parameter(&mut db, "A");
         let param2 = new_parameter(&mut db, "B");
         let args = type_arguments(vec![(param1, owned(instance(string)))]);
@@ -614,7 +614,7 @@ mod tests {
     #[test]
     fn test_type_parameter_as_reference() {
         let mut db = Database::new();
-        let string = ClassId::string();
+        let string = TypeId::string();
         let param1 = new_parameter(&mut db, "A");
         let param2 = new_parameter(&mut db, "B");
         let args = type_arguments(vec![
@@ -657,7 +657,7 @@ mod tests {
     #[test]
     fn test_type_parameter_as_uni() {
         let mut db = Database::new();
-        let string = ClassId::string();
+        let string = TypeId::string();
         let param1 = new_parameter(&mut db, "A");
         let param2 = new_parameter(&mut db, "B");
         let args = type_arguments(vec![
@@ -700,7 +700,7 @@ mod tests {
     #[test]
     fn test_type_parameter_surrounding_trait() {
         let mut db = Database::new();
-        let string = ClassId::string();
+        let string = TypeId::string();
         let to_foo = new_trait(&mut db, "ToFoo");
         let to_bar = new_trait(&mut db, "ToBar");
         let foo_param = to_foo.new_type_parameter(&mut db, "A".to_string());
@@ -730,10 +730,10 @@ mod tests {
     }
 
     #[test]
-    fn test_generic_class() {
+    fn test_generic_type() {
         let mut db = Database::new();
-        let array = ClassId::array();
-        let string = ClassId::string();
+        let array = TypeId::array();
+        let string = TypeId::string();
         let param = new_parameter(&mut db, "A");
         let array_param = array.new_type_parameter(&mut db, "T".to_string());
         let args = type_arguments(vec![(param, owned(instance(string)))]);
@@ -745,7 +745,7 @@ mod tests {
         ));
 
         let arg = match resolve(&mut db, &args, &bounds, input) {
-            TypeRef::Owned(TypeId::ClassInstance(ins)) => {
+            TypeRef::Owned(TypeEnum::TypeInstance(ins)) => {
                 ins.type_arguments(&db).unwrap().get(array_param).unwrap()
             }
             _ => TypeRef::Unknown,
@@ -755,10 +755,10 @@ mod tests {
     }
 
     #[test]
-    fn test_generic_class_with_parameter_chain() {
+    fn test_generic_type_with_parameter_chain() {
         let mut db = Database::new();
-        let array = ClassId::array();
-        let string = ClassId::string();
+        let array = TypeId::array();
+        let string = TypeId::string();
         let param1 = new_parameter(&mut db, "A");
         let param2 = new_parameter(&mut db, "B");
         let param3 = new_parameter(&mut db, "C");
@@ -776,7 +776,7 @@ mod tests {
         ));
 
         let arg = match resolve(&mut db, &args, &bounds, input) {
-            TypeRef::Owned(TypeId::ClassInstance(ins)) => {
+            TypeRef::Owned(TypeEnum::TypeInstance(ins)) => {
                 ins.type_arguments(&db).unwrap().get(array_param).unwrap()
             }
             _ => TypeRef::Unknown,
@@ -789,7 +789,7 @@ mod tests {
     fn test_generic_trait() {
         let mut db = Database::new();
         let to_foo = new_trait(&mut db, "ToFoo");
-        let string = ClassId::string();
+        let string = TypeId::string();
         let param = new_parameter(&mut db, "A");
         let trait_param = to_foo.new_type_parameter(&mut db, "T".to_string());
         let args = type_arguments(vec![(param, owned(instance(string)))]);
@@ -801,7 +801,7 @@ mod tests {
         ));
 
         let arg = match resolve(&mut db, &args, &bounds, input) {
-            TypeRef::Owned(TypeId::TraitInstance(ins)) => {
+            TypeRef::Owned(TypeEnum::TraitInstance(ins)) => {
                 ins.type_arguments(&db).unwrap().get(trait_param).unwrap()
             }
             _ => TypeRef::Unknown,
@@ -830,7 +830,7 @@ mod tests {
         let bounds = TypeBounds::new();
         let output = match resolve(&mut db, &args, &bounds, owned(closure(fun)))
         {
-            TypeRef::Owned(TypeId::Closure(id)) => id,
+            TypeRef::Owned(TypeEnum::Closure(id)) => id,
             _ => panic!("Expected the resolved value to be a closure"),
         };
 

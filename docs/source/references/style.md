@@ -65,7 +65,7 @@ always looks consistent.
 Types use PascalCase, such as `ByteArray` and `String`:
 
 ```inko
-class AddressFormatter {}
+type AddressFormatter {}
 ```
 
 Methods, local variables, instance attributes, and arguments all use snake\_case
@@ -179,7 +179,7 @@ describe the purpose of the item. For example:
 ```inko
 # A Person can be used for storing details of a single person, such as their
 # name and address.
-class Person {
+type Person {
 
 }
 ```

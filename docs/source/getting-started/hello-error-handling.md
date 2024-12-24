@@ -14,7 +14,7 @@ from the previous tutorial and change it to the following:
 ```inko
 import std.stdio (Stdout)
 
-class async Main {
+type async Main {
   fn async main {
     Stdout.new.print('Hello, world!').get
   }
@@ -62,7 +62,7 @@ We'll start with the first option: ignoring the error. To do so, change
 ```inko
 import std.stdio (Stdout)
 
-class async Main {
+type async Main {
   fn async main {
     let _ = Stdout.new.print('Hello, world!')
   }
@@ -108,7 +108,7 @@ fn log(message: String) {
   # This is just an example, so the method doesn't actually do anything.
 }
 
-class async Main {
+type async Main {
   fn async main {
     match Stdout.new.print('Hello, world!') {
       case Ok(_) -> {}

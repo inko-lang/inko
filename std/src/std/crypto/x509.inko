@@ -5,7 +5,7 @@ import std.fmt (Format, Formatter)
 # An X.509 certificate.
 #
 # This is currently just an opaque wrapper around a `ByteArray`.
-class pub inline Certificate {
+type pub inline Certificate {
   let @bytes: ByteArray
 
   # Returns a new `Certificate` that wraps the given `ByteArray`.
@@ -29,7 +29,7 @@ impl Equal[ref Certificate] for Certificate {
 # An X.509 private key.
 #
 # This is currently just an opaque wrapper around a `ByteArray`.
-class pub inline PrivateKey {
+type pub inline PrivateKey {
   let @bytes: ByteArray
 
   # Returns a new `PrivateKey` that wraps the given `ByteArray`.

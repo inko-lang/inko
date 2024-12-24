@@ -189,7 +189,7 @@ mod tests {
     use super::*;
     use crate::process::Process;
     use crate::stack::Stack;
-    use crate::test::{empty_process_class, new_process, setup};
+    use crate::test::{empty_process_type, new_process, setup};
     use rustix::param::page_size;
 
     #[test]
@@ -204,8 +204,8 @@ mod tests {
     fn test_suspend() {
         let state = setup();
         let worker = TimeoutWorker::new();
-        let class = empty_process_class("A");
-        let process = new_process(*class);
+        let typ = empty_process_type("A");
+        let process = new_process(*typ);
 
         worker.suspend(
             *process,
@@ -227,8 +227,8 @@ mod tests {
     #[test]
     fn test_run_with_fragmented_heap() {
         let state = setup();
-        let class = empty_process_class("A");
-        let process = Process::alloc(*class, Stack::new(1024, page_size()));
+        let typ = empty_process_type("A");
+        let process = Process::alloc(*typ, Stack::new(1024, page_size()));
         let worker = TimeoutWorker::new();
 
         for time in &[10_u64, 5_u64] {
@@ -253,8 +253,8 @@ mod tests {
     #[test]
     fn test_run_with_message() {
         let state = setup();
-        let class = empty_process_class("A");
-        let process = Process::alloc(*class, Stack::new(1024, page_size()));
+        let typ = empty_process_type("A");
+        let process = Process::alloc(*typ, Stack::new(1024, page_size()));
         let worker = TimeoutWorker::new();
         let timeout = Timeout::duration(&state, Duration::from_secs(10));
 
@@ -268,8 +268,8 @@ mod tests {
     #[test]
     fn test_run_with_reschedule() {
         let state = setup();
-        let class = empty_process_class("A");
-        let process = Process::alloc(*class, Stack::new(1024, page_size()));
+        let typ = empty_process_type("A");
+        let process = Process::alloc(*typ, Stack::new(1024, page_size()));
         let worker = TimeoutWorker::new();
         let timeout = Timeout::duration(&state, Duration::from_secs(0));
 
@@ -283,8 +283,8 @@ mod tests {
     #[test]
     fn test_defragment_heap_without_fragmentation() {
         let state = setup();
-        let class = empty_process_class("A");
-        let process = Process::alloc(*class, Stack::new(1024, page_size()));
+        let typ = empty_process_type("A");
+        let process = Process::alloc(*typ, Stack::new(1024, page_size()));
         let worker = TimeoutWorker::new();
         let timeout = Timeout::duration(&state, Duration::from_secs(1));
 
@@ -301,8 +301,8 @@ mod tests {
     #[test]
     fn test_defragment_heap_with_fragmentation() {
         let state = setup();
-        let class = empty_process_class("A");
-        let process = Process::alloc(*class, Stack::new(1024, page_size()));
+        let typ = empty_process_type("A");
+        let process = Process::alloc(*typ, Stack::new(1024, page_size()));
         let worker = TimeoutWorker::new();
 
         for time in &[1_u64, 1_u64] {

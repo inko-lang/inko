@@ -1,4 +1,4 @@
-class A {}
+type A {}
 
 fn example1 {
   let a = recover [A()]

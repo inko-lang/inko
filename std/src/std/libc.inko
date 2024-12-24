@@ -93,24 +93,24 @@ let SO_SNDBUF = sys.SO_SNDBUF
 let TCP_NODELAY = sys.TCP_NODELAY
 let WNOHANG = sys.WNOHANG
 
-class extern SigSet {
+type extern SigSet {
   let @inner: sys.SigSet
 }
 
-class extern PosixSpawnAttrs {
+type extern PosixSpawnAttrs {
   let @inner: sys.PosixSpawnAttrs
 }
 
-class extern PosixSpawnFileActions {
+type extern PosixSpawnFileActions {
   let @inner: sys.PosixSpawnFileActions
 }
 
-class extern Linger {
+type extern Linger {
   let @l_onoff: Int32
   let @l_linger: Int32
 }
 
-class extern Tm {
+type extern Tm {
   let @tm_sec: Int32
   let @tm_min: Int32
   let @tm_hour: Int32
@@ -124,7 +124,7 @@ class extern Tm {
   let @tm_zone: Pointer[UInt8]
 }
 
-class extern Timespec {
+type extern Timespec {
   let @tv_sec: Int64
   let @tv_nsec: Int64
 }
@@ -246,7 +246,7 @@ fn extern free(pointer: Pointer[UInt8])
 
 fn extern exit(status: Int32) -> Never
 
-fn extern socket(domain: Int32, type: Int32, protocol: Int32) -> Int32
+fn extern socket(domain: Int32, typ: Int32, protocol: Int32) -> Int32
 
 fn extern bind(socket: Int32, addr: Pointer[UInt8], size: UInt32) -> Int32
 

@@ -1,6 +1,6 @@
 import std.string (ToString)
 
-class copy A {}
+type copy A {}
 
 impl ToString for A {
   fn pub to_string -> String {
@@ -8,7 +8,7 @@ impl ToString for A {
   }
 }
 
-class B {}
+type B {}
 
 impl ToString for B {
   fn pub to_string -> String {

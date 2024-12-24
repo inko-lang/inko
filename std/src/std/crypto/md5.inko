@@ -70,7 +70,7 @@ let SHIFTS = [
 let BLOCK_SIZE = 64
 
 # An MD5 hasher.
-class pub Md5 {
+type pub Md5 {
   let @block: Block
   let @words: Array[Int]
   let @size: Int

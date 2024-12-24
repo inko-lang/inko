@@ -2,7 +2,7 @@
 use crate::diagnostics::DiagnosticId;
 use crate::hir;
 use crate::state::State;
-use crate::type_check::graph::RecursiveClassChecker;
+use crate::type_check::graph::RecursiveTypeChecker;
 use crate::type_check::{
     define_type_bounds, CheckTypeSignature, DefineAndCheckTypeSignature,
     DefineTypeSignature, Rules, TypeScope,
@@ -12,13 +12,13 @@ use std::path::PathBuf;
 use types::check::TypeChecker;
 use types::format::format_type;
 use types::{
-    Class, ClassId, ClassInstance, ClassKind, Constant, Database, ModuleId,
-    Symbol, Trait, TraitId, TraitImplementation, TypeId, TypeRef, Visibility,
+    Constant, Database, ModuleId, Symbol, Trait, TraitId, TraitImplementation,
+    Type, TypeEnum, TypeId, TypeInstance, TypeKind, TypeRef, Visibility,
     ARRAY_INTERNAL_NAME, CONSTRUCTORS_LIMIT, ENUM_TAG_FIELD, ENUM_TAG_INDEX,
-    MAIN_CLASS, OPTION_CLASS, OPTION_MODULE, RESULT_CLASS, RESULT_MODULE,
+    MAIN_TYPE, OPTION_MODULE, OPTION_TYPE, RESULT_MODULE, RESULT_TYPE,
 };
 
-/// A compiler pass that defines classes and traits.
+/// A compiler pass that defines types and traits.
 ///
 /// This pass _only_ defines the types, it doesn't define their type parameters,
 /// trait requirements, etc.
@@ -42,11 +42,11 @@ impl<'a> DefineTypes<'a> {
     fn run(mut self, module: &mut hir::Module) {
         for expression in module.expressions.iter_mut() {
             match expression {
-                hir::TopLevelExpression::Class(ref mut node) => {
-                    self.define_class(node);
+                hir::TopLevelExpression::Type(ref mut node) => {
+                    self.define_type(node);
                 }
-                hir::TopLevelExpression::ExternClass(ref mut node) => {
-                    self.define_extern_class(node);
+                hir::TopLevelExpression::ExternType(ref mut node) => {
+                    self.define_extern_type(node);
                 }
                 hir::TopLevelExpression::Trait(ref mut node) => {
                     self.define_trait(node);
@@ -59,28 +59,28 @@ impl<'a> DefineTypes<'a> {
         }
     }
 
-    fn define_class(&mut self, node: &mut hir::DefineClass) {
+    fn define_type(&mut self, node: &mut hir::DefineType) {
         let name = node.name.name.clone();
         let module = self.module;
         let vis = Visibility::public(node.public);
         let loc = node.location;
-        let id = if let hir::ClassKind::Builtin = node.kind {
+        let id = if let hir::TypeKind::Builtin = node.kind {
             if !self.module.is_std(self.db()) {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidType,
-                    "builtin classes can only be defined in 'std' modules",
+                    "builtin types can only be defined in 'std' modules",
                     self.file(),
                     node.location,
                 );
             }
 
-            if let Some(id) = self.db().builtin_class(&name) {
+            if let Some(id) = self.db().builtin_type(&name) {
                 id.set_module(self.db_mut(), module);
                 id
             } else {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidType,
-                    format!("'{}' isn't a valid builtin class", name),
+                    format!("'{}' isn't a valid builtin type", name),
                     self.file(),
                     node.location,
                 );
@@ -89,13 +89,13 @@ impl<'a> DefineTypes<'a> {
             }
         } else {
             let kind = match node.kind {
-                hir::ClassKind::Regular => ClassKind::Regular,
-                hir::ClassKind::Async => ClassKind::Async,
-                hir::ClassKind::Enum => ClassKind::Enum,
+                hir::TypeKind::Regular => TypeKind::Regular,
+                hir::TypeKind::Async => TypeKind::Async,
+                hir::TypeKind::Enum => TypeKind::Enum,
                 _ => unreachable!(),
             };
 
-            let cls = Class::alloc(
+            let cls = Type::alloc(
                 self.db_mut(),
                 name.clone(),
                 kind,
@@ -105,11 +105,11 @@ impl<'a> DefineTypes<'a> {
             );
 
             match node.semantics {
-                hir::ClassSemantics::Default => {}
-                hir::ClassSemantics::Inline => {
+                hir::TypeSemantics::Default => {}
+                hir::TypeSemantics::Inline => {
                     cls.set_inline_storage(self.db_mut());
                 }
-                hir::ClassSemantics::Copy => {
+                hir::TypeSemantics::Copy => {
                     cls.set_copy_storage(self.db_mut());
                 }
             }
@@ -124,21 +124,21 @@ impl<'a> DefineTypes<'a> {
                 node.name.location,
             );
         } else {
-            self.module.new_symbol(self.db_mut(), name, Symbol::Class(id));
+            self.module.new_symbol(self.db_mut(), name, Symbol::Type(id));
         }
 
-        node.class_id = Some(id);
+        node.type_id = Some(id);
     }
 
-    fn define_extern_class(&mut self, node: &mut hir::DefineExternClass) {
+    fn define_extern_type(&mut self, node: &mut hir::DefineExternType) {
         let name = node.name.name.clone();
         let module = self.module;
         let vis = Visibility::public(node.public);
         let loc = node.location;
-        let id = Class::alloc(
+        let id = Type::alloc(
             self.db_mut(),
             name.clone(),
-            ClassKind::Extern,
+            TypeKind::Extern,
             vis,
             module,
             loc,
@@ -151,10 +151,10 @@ impl<'a> DefineTypes<'a> {
                 node.name.location,
             );
         } else {
-            self.module.new_symbol(self.db_mut(), name, Symbol::Class(id));
+            self.module.new_symbol(self.db_mut(), name, Symbol::Type(id));
         }
 
-        node.class_id = Some(id);
+        node.type_id = Some(id);
     }
 
     fn define_trait(&mut self, node: &mut hir::DefineTrait) {
@@ -216,7 +216,7 @@ impl<'a> DefineTypes<'a> {
     }
 }
 
-/// A compiler pass that adds all trait implementations to their classes.
+/// A compiler pass that adds all trait implementations to their types.
 pub(crate) struct ImplementTraits<'a> {
     state: &'a mut State,
     module: ModuleId,
@@ -247,30 +247,30 @@ impl<'a> ImplementTraits<'a> {
     }
 
     fn implement_trait(&mut self, node: &mut hir::ImplementTrait) {
-        let class_name = &node.class_name.name;
-        let class_id = match self.module.use_symbol(self.db_mut(), class_name) {
-            Some(Symbol::Class(id)) => id,
+        let type_name = &node.type_name.name;
+        let type_id = match self.module.use_symbol(self.db_mut(), type_name) {
+            Some(Symbol::Type(id)) => id,
             Some(_) => {
-                self.state.diagnostics.not_a_class(
-                    class_name,
+                self.state.diagnostics.not_a_type(
+                    type_name,
                     self.file(),
-                    node.class_name.location,
+                    node.type_name.location,
                 );
 
                 return;
             }
             None => {
                 self.state.diagnostics.undefined_symbol(
-                    class_name,
+                    type_name,
                     self.file(),
-                    node.class_name.location,
+                    node.type_name.location,
                 );
 
                 return;
             }
         };
 
-        if !class_id.allow_trait_implementations(self.db()) {
+        if !type_id.allow_trait_implementations(self.db()) {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidImplementation,
                 "traits can't be implemented for this type",
@@ -284,13 +284,13 @@ impl<'a> ImplementTraits<'a> {
         let bounds = define_type_bounds(
             self.state,
             self.module,
-            class_id,
+            type_id,
             &mut node.bounds,
         );
-        let class_ins = ClassInstance::rigid(self.db_mut(), class_id, &bounds);
+        let type_ins = TypeInstance::rigid(self.db_mut(), type_id, &bounds);
         let scope = TypeScope::with_bounds(
             self.module,
-            TypeId::ClassInstance(class_ins),
+            TypeEnum::TypeInstance(type_ins),
             None,
             &bounds,
         );
@@ -303,21 +303,21 @@ impl<'a> ImplementTraits<'a> {
         {
             let name = &node.trait_name.name.name;
 
-            if class_id
+            if type_id
                 .trait_implementation(self.db(), instance.instance_of())
                 .is_some()
             {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidImplementation,
                     format!(
-                        "the trait '{}' is already implemented for class '{}'",
-                        name, class_name
+                        "the trait '{}' is already implemented for type '{}'",
+                        name, type_name
                     ),
                     self.file(),
                     node.location,
                 );
             } else {
-                class_id.add_trait_implementation(
+                type_id.add_trait_implementation(
                     self.db_mut(),
                     TraitImplementation { instance, bounds },
                 );
@@ -334,7 +334,7 @@ impl<'a> ImplementTraits<'a> {
                     );
                 }
 
-                if class_id.is_copy_type(self.db()) {
+                if type_id.is_copy_type(self.db()) {
                     self.state.diagnostics.error(
                         DiagnosticId::InvalidImplementation,
                         "Drop can't be implemented for 'copy' types",
@@ -343,13 +343,13 @@ impl<'a> ImplementTraits<'a> {
                     );
                 }
 
-                class_id.mark_as_having_destructor(self.db_mut());
+                type_id.mark_as_having_destructor(self.db_mut());
             }
 
             node.trait_instance = Some(instance);
         }
 
-        node.class_instance = Some(class_ins);
+        node.type_instance = Some(type_ins);
     }
 
     fn file(&self) -> PathBuf {
@@ -394,7 +394,8 @@ impl<'a> DefineTraitRequirements<'a> {
 
     fn define_trait(&mut self, node: &mut hir::DefineTrait) {
         let trait_id = node.trait_id.unwrap();
-        let scope = TypeScope::new(self.module, TypeId::Trait(trait_id), None);
+        let scope =
+            TypeScope::new(self.module, TypeEnum::Trait(trait_id), None);
         let rules = Rules::default();
 
         for req in &mut node.requirements {
@@ -475,7 +476,7 @@ impl<'a> CheckTraitImplementations<'a> {
     }
 
     fn implement_trait(&mut self, node: &hir::ImplementTrait) {
-        let class_ins = node.class_instance.unwrap();
+        let type_ins = node.type_instance.unwrap();
         let trait_ins = node.trait_instance.unwrap();
         let mut checker = CheckTypeSignature::new(self.state, self.module);
 
@@ -490,13 +491,13 @@ impl<'a> CheckTraitImplementations<'a> {
         for req in trait_ins.instance_of().required_traits(self.db()) {
             let mut checker = TypeChecker::new(self.db());
 
-            if !checker.class_implements_trait(class_ins, req) {
+            if !checker.type_implements_trait(type_ins, req) {
                 self.state.diagnostics.error(
                     DiagnosticId::MissingTrait,
                     format!(
-                        "the trait '{}' isn't implemented for class '{}'",
+                        "the trait '{}' isn't implemented for type '{}'",
                         format_type(self.db(), req),
-                        class_ins.instance_of().name(self.db())
+                        type_ins.instance_of().name(self.db())
                     ),
                     self.file(),
                     node.location,
@@ -514,7 +515,7 @@ impl<'a> CheckTraitImplementations<'a> {
     }
 }
 
-/// A compiler pass that defines the fields in a class.
+/// A compiler pass that defines the fields in a type.
 pub(crate) struct DefineFields<'a> {
     state: &'a mut State,
     main_module: bool,
@@ -542,27 +543,27 @@ impl<'a> DefineFields<'a> {
     fn run(mut self, module: &mut hir::Module) {
         for expr in &mut module.expressions {
             match expr {
-                hir::TopLevelExpression::Class(ref mut node) => {
-                    self.define_class(node);
+                hir::TopLevelExpression::Type(ref mut node) => {
+                    self.define_type(node);
                 }
-                hir::TopLevelExpression::ExternClass(ref mut node) => {
-                    self.define_extern_class(node);
+                hir::TopLevelExpression::ExternType(ref mut node) => {
+                    self.define_extern_type(node);
                 }
                 _ => (),
             }
         }
     }
 
-    fn define_class(&mut self, node: &mut hir::DefineClass) {
-        let class_id = node.class_id.unwrap();
+    fn define_type(&mut self, node: &mut hir::DefineType) {
+        let type_id = node.type_id.unwrap();
         let mut id: usize = 0;
-        let scope = TypeScope::new(self.module, TypeId::Class(class_id), None);
-        let is_enum = class_id.kind(self.db()).is_enum();
-        let is_copy = class_id.is_copy_type(self.db());
-        let is_main = self.main_module && node.name.name == MAIN_CLASS;
+        let scope = TypeScope::new(self.module, TypeEnum::Type(type_id), None);
+        let is_enum = type_id.kind(self.db()).is_enum();
+        let is_copy = type_id.is_copy_type(self.db());
+        let is_main = self.main_module && node.name.name == MAIN_TYPE;
 
         for expr in &mut node.body {
-            let fnode = if let hir::ClassExpression::Field(ref mut n) = expr {
+            let fnode = if let hir::TypeExpression::Field(ref mut n) = expr {
                 n
             } else {
                 continue;
@@ -580,7 +581,7 @@ impl<'a> DefineFields<'a> {
                 break;
             }
 
-            if class_id.field(self.db(), &name).is_some() {
+            if type_id.field(self.db(), &name).is_some() {
                 self.state.diagnostics.duplicate_field(
                     &name,
                     self.file(),
@@ -612,15 +613,15 @@ impl<'a> DefineFields<'a> {
                 );
             }
 
-            if !class_id.is_public(self.db()) && vis == Visibility::Public {
+            if !type_id.is_public(self.db()) && vis == Visibility::Public {
                 self.state
                     .diagnostics
-                    .public_field_private_class(self.file(), fnode.location);
+                    .public_field_private_type(self.file(), fnode.location);
             }
 
             let module = self.module;
             let loc = fnode.location;
-            let field = class_id.new_field(
+            let field = type_id.new_field(
                 self.db_mut(),
                 name,
                 id,
@@ -635,15 +636,15 @@ impl<'a> DefineFields<'a> {
         }
     }
 
-    fn define_extern_class(&mut self, node: &mut hir::DefineExternClass) {
-        let class_id = node.class_id.unwrap();
+    fn define_extern_type(&mut self, node: &mut hir::DefineExternType) {
+        let type_id = node.type_id.unwrap();
         let mut id: usize = 0;
-        let scope = TypeScope::new(self.module, TypeId::Class(class_id), None);
+        let scope = TypeScope::new(self.module, TypeEnum::Type(type_id), None);
 
         for node in &mut node.fields {
             let name = node.name.name.clone();
 
-            if class_id.field(self.db(), &name).is_some() {
+            if type_id.field(self.db(), &name).is_some() {
                 self.state.diagnostics.duplicate_field(
                     &name,
                     self.file(),
@@ -668,8 +669,8 @@ impl<'a> DefineFields<'a> {
             )
             .define_type(&mut node.value_type);
 
-            // We can't allow heap values in external classes, as that would
-            // allow violating their single ownership constraints.
+            // We can't allow heap values in external types, as that would allow
+            // violating their single ownership constraints.
             if !typ.is_copy_type(self.db()) {
                 self.state.diagnostics.not_a_copy_type(
                     &format_type(self.db(), typ),
@@ -678,15 +679,15 @@ impl<'a> DefineFields<'a> {
                 );
             }
 
-            if !class_id.is_public(self.db()) && vis == Visibility::Public {
+            if !type_id.is_public(self.db()) && vis == Visibility::Public {
                 self.state
                     .diagnostics
-                    .public_field_private_class(self.file(), node.location);
+                    .public_field_private_type(self.file(), node.location);
             }
 
             let module = self.module;
             let loc = node.location;
-            let field = class_id.new_field(
+            let field = type_id.new_field(
                 self.db_mut(),
                 name,
                 id,
@@ -714,7 +715,7 @@ impl<'a> DefineFields<'a> {
     }
 }
 
-/// A compiler pass that defines class and trait types parameters, except for
+/// A compiler pass that defines type and trait types parameters, except for
 /// their requirements.
 pub(crate) struct DefineTypeParameters<'a> {
     state: &'a mut State,
@@ -737,8 +738,8 @@ impl<'a> DefineTypeParameters<'a> {
     fn run(mut self, module: &mut hir::Module) {
         for expr in module.expressions.iter_mut() {
             match expr {
-                hir::TopLevelExpression::Class(ref mut node) => {
-                    self.define_class(node);
+                hir::TopLevelExpression::Type(ref mut node) => {
+                    self.define_type(node);
                 }
                 hir::TopLevelExpression::Trait(ref mut node) => {
                     self.define_trait(node);
@@ -748,8 +749,8 @@ impl<'a> DefineTypeParameters<'a> {
         }
     }
 
-    fn define_class(&mut self, node: &mut hir::DefineClass) {
-        let id = node.class_id.unwrap();
+    fn define_type(&mut self, node: &mut hir::DefineType) {
+        let id = node.type_id.unwrap();
         let is_copy = id.is_copy_type(self.db());
 
         for param in &mut node.type_parameters {
@@ -814,7 +815,7 @@ impl<'a> DefineTypeParameters<'a> {
     }
 }
 
-/// A compiler pass that defines the required traits for class and trait type
+/// A compiler pass that defines the required traits for type and trait type
 /// parameters.
 pub(crate) struct DefineTypeParameterRequirements<'a> {
     state: &'a mut State,
@@ -837,8 +838,8 @@ impl<'a> DefineTypeParameterRequirements<'a> {
     fn run(mut self, module: &mut hir::Module) {
         for expr in module.expressions.iter_mut() {
             match expr {
-                hir::TopLevelExpression::Class(ref mut node) => {
-                    self.define_class(node);
+                hir::TopLevelExpression::Type(ref mut node) => {
+                    self.define_type(node);
                 }
                 hir::TopLevelExpression::Trait(ref mut node) => {
                     self.define_trait(node);
@@ -848,14 +849,14 @@ impl<'a> DefineTypeParameterRequirements<'a> {
         }
     }
 
-    fn define_class(&mut self, node: &mut hir::DefineClass) {
-        let self_type = TypeId::Class(node.class_id.unwrap());
+    fn define_type(&mut self, node: &mut hir::DefineType) {
+        let self_type = TypeEnum::Type(node.type_id.unwrap());
 
         self.define_requirements(&mut node.type_parameters, self_type);
     }
 
     fn define_trait(&mut self, node: &mut hir::DefineTrait) {
-        let self_type = TypeId::Trait(node.trait_id.unwrap());
+        let self_type = TypeEnum::Trait(node.trait_id.unwrap());
 
         self.define_requirements(&mut node.type_parameters, self_type);
     }
@@ -863,7 +864,7 @@ impl<'a> DefineTypeParameterRequirements<'a> {
     fn define_requirements(
         &mut self,
         parameters: &mut Vec<hir::TypeParameter>,
-        self_type: TypeId,
+        self_type: TypeEnum,
     ) {
         let scope = TypeScope::new(self.module, self_type, None);
         let rules = Rules::default();
@@ -894,7 +895,7 @@ impl<'a> DefineTypeParameterRequirements<'a> {
     }
 }
 
-/// A compiler pass that verifies if type parameters on classes and traits are
+/// A compiler pass that verifies if type parameters on types and traits are
 /// correct.
 pub(crate) struct CheckTypeParameters<'a> {
     state: &'a mut State,
@@ -916,7 +917,7 @@ impl<'a> CheckTypeParameters<'a> {
     fn run(mut self, module: &mut hir::Module) {
         for expr in module.expressions.iter_mut() {
             match expr {
-                hir::TopLevelExpression::Class(ref node) => {
+                hir::TopLevelExpression::Type(ref node) => {
                     self.check_type_parameters(&node.type_parameters);
                 }
                 hir::TopLevelExpression::Trait(ref node) => {
@@ -956,41 +957,41 @@ impl<'a> InsertPrelude<'a> {
     }
 
     pub(crate) fn run(&mut self) {
-        self.add_class(ClassId::int());
-        self.add_class(ClassId::float());
-        self.add_class(ClassId::string());
-        self.add_class(ClassId::array());
-        self.add_class(ClassId::boolean());
-        self.add_class(ClassId::nil());
-        self.add_class(ClassId::byte_array());
+        self.add_type(TypeId::int());
+        self.add_type(TypeId::float());
+        self.add_type(TypeId::string());
+        self.add_type(TypeId::array());
+        self.add_type(TypeId::boolean());
+        self.add_type(TypeId::nil());
+        self.add_type(TypeId::byte_array());
 
-        self.import_class(OPTION_MODULE, OPTION_CLASS);
-        self.import_class(RESULT_MODULE, RESULT_CLASS);
-        self.import_class("std.map", "Map");
+        self.import_type(OPTION_MODULE, OPTION_TYPE);
+        self.import_type(RESULT_MODULE, RESULT_TYPE);
+        self.import_type("std.map", "Map");
         self.import_method("std.process", "panic");
 
         // This name is used when desugaring array literals.
         self.module.new_symbol(
             self.db_mut(),
             ARRAY_INTERNAL_NAME.to_string(),
-            Symbol::Class(ClassId::array()),
+            Symbol::Type(TypeId::array()),
         );
     }
 
-    fn add_class(&mut self, id: ClassId) {
+    fn add_type(&mut self, id: TypeId) {
         let name = id.name(self.db()).clone();
 
         if self.module.symbol_exists(self.db(), &name) {
             return;
         }
 
-        self.module.new_symbol(self.db_mut(), name, Symbol::Class(id));
+        self.module.new_symbol(self.db_mut(), name, Symbol::Type(id));
     }
 
-    fn import_class(&mut self, module: &str, class: &str) {
-        let id = self.state.db.class_in_module(module, class);
+    fn import_type(&mut self, module: &str, name: &str) {
+        let id = self.state.db.type_in_module(module, name);
 
-        self.add_class(id);
+        self.add_type(id);
     }
 
     fn import_method(&mut self, module: &str, method: &str) {
@@ -1021,7 +1022,7 @@ impl<'a> InsertPrelude<'a> {
     }
 }
 
-/// A compiler pass that defines the constructors for an enum class.
+/// A compiler pass that defines the constructors for an enum type.
 pub(crate) struct DefineConstructors<'a> {
     state: &'a mut State,
     module: ModuleId,
@@ -1041,24 +1042,24 @@ impl<'a> DefineConstructors<'a> {
 
     fn run(mut self, module: &mut hir::Module) {
         for expr in module.expressions.iter_mut() {
-            if let hir::TopLevelExpression::Class(ref mut node) = expr {
-                self.define_class(node);
+            if let hir::TopLevelExpression::Type(ref mut node) = expr {
+                self.define_type(node);
             }
         }
     }
 
-    fn define_class(&mut self, node: &mut hir::DefineClass) {
-        let class_id = node.class_id.unwrap();
-        let is_enum = class_id.kind(self.db()).is_enum();
-        let is_copy = class_id.is_copy_type(self.db());
+    fn define_type(&mut self, node: &mut hir::DefineType) {
+        let type_id = node.type_id.unwrap();
+        let is_enum = type_id.kind(self.db()).is_enum();
+        let is_copy = type_id.is_copy_type(self.db());
         let rules = Rules::default();
-        let scope = TypeScope::new(self.module, TypeId::Class(class_id), None);
+        let scope = TypeScope::new(self.module, TypeEnum::Type(type_id), None);
         let mut constructors_count = 0;
         let mut args_count = 0;
 
         for expr in &mut node.body {
             let node =
-                if let hir::ClassExpression::Constructor(ref mut node) = expr {
+                if let hir::TypeExpression::Constructor(ref mut node) = expr {
                     node
                 } else {
                     continue;
@@ -1077,7 +1078,7 @@ impl<'a> DefineConstructors<'a> {
 
             let name = &node.name.name;
 
-            if class_id.constructor(self.db(), name).is_some() {
+            if type_id.constructor(self.db(), name).is_some() {
                 self.state.diagnostics.error(
                     DiagnosticId::DuplicateSymbol,
                     format!("the constructor '{}' is already defined", name),
@@ -1131,7 +1132,7 @@ impl<'a> DefineConstructors<'a> {
             }
 
             constructors_count += 1;
-            class_id.new_constructor(
+            type_id.new_constructor(
                 self.db_mut(),
                 name.to_string(),
                 args,
@@ -1154,9 +1155,9 @@ impl<'a> DefineConstructors<'a> {
             let vis = Visibility::TypePrivate;
             let tag_typ = TypeRef::foreign_unsigned_int(16);
             let tag_name = ENUM_TAG_FIELD.to_string();
-            let loc = class_id.location(db);
+            let loc = type_id.location(db);
 
-            class_id.new_field(
+            type_id.new_field(
                 db,
                 tag_name,
                 ENUM_TAG_INDEX,
@@ -1176,7 +1177,7 @@ impl<'a> DefineConstructors<'a> {
                 // generating the LLVM layouts.
                 let typ = TypeRef::Unknown;
 
-                class_id.new_field(
+                type_id.new_field(
                     db,
                     id.to_string(),
                     id,
@@ -1202,16 +1203,16 @@ impl<'a> DefineConstructors<'a> {
     }
 }
 
-/// A compiler pass that adds errors for recursive stack allocated classes.
+/// A compiler pass that adds errors for recursive stack allocated types.
 pub(crate) fn check_recursive_types(
     state: &mut State,
     modules: &[hir::Module],
 ) -> bool {
     for module in modules {
         for expr in &module.expressions {
-            let (class, loc) = match expr {
-                hir::TopLevelExpression::Class(ref n) => {
-                    let id = n.class_id.unwrap();
+            let (typ, loc) = match expr {
+                hir::TopLevelExpression::Type(ref n) => {
+                    let id = n.type_id.unwrap();
 
                     // Heap types _are_ allowed to be recursive as they can't
                     // recursive into themselves without indirection.
@@ -1221,15 +1222,15 @@ pub(crate) fn check_recursive_types(
 
                     (id, n.location)
                 }
-                hir::TopLevelExpression::ExternClass(ref n) => {
-                    (n.class_id.unwrap(), n.location)
+                hir::TopLevelExpression::ExternType(ref n) => {
+                    (n.type_id.unwrap(), n.location)
                 }
                 _ => continue,
             };
 
             // The recursion check is extracted into a separate type so we can
             // separate visiting the IR and performing the actual check.
-            if !RecursiveClassChecker::new(&state.db).is_recursive(class) {
+            if !RecursiveTypeChecker::new(&state.db).is_recursive(typ) {
                 continue;
             }
 
@@ -1255,8 +1256,8 @@ mod tests {
     use ast::parser::Parser;
     use types::module_name::ModuleName;
     use types::{
-        ClassId, ConstantId, TraitId, TraitInstance, TypeBounds,
-        FIRST_USER_CLASS_ID,
+        ConstantId, TraitId, TraitInstance, TypeBounds, TypeId,
+        FIRST_USER_TYPE_ID,
     };
 
     fn get_trait(db: &mut Database, module: ModuleId, name: &str) -> TraitId {
@@ -1267,17 +1268,17 @@ mod tests {
         }
     }
 
-    fn get_class(db: &mut Database, module: ModuleId, name: &str) -> ClassId {
-        if let Some(Symbol::Class(id)) = module.use_symbol(db, name) {
+    fn get_type(db: &mut Database, module: ModuleId, name: &str) -> TypeId {
+        if let Some(Symbol::Type(id)) = module.use_symbol(db, name) {
             id
         } else {
             panic!("expected a Class");
         }
     }
 
-    fn class_expr(module: &hir::Module) -> &hir::DefineClass {
+    fn type_expr(module: &hir::Module) -> &hir::DefineType {
         match &module.expressions[0] {
-            hir::TopLevelExpression::Class(ref node) => node,
+            hir::TopLevelExpression::Type(ref node) => node,
             _ => panic!("expected a DefineClass node"),
         }
     }
@@ -1315,49 +1316,49 @@ mod tests {
     }
 
     #[test]
-    fn test_define_class() {
+    fn test_define_type() {
         let mut state = State::new(Config::new());
-        let mut modules = parse(&mut state, "class A {}");
+        let mut modules = parse(&mut state, "type A {}");
 
         assert!(DefineTypes::run_all(&mut state, &mut modules));
 
-        let id = ClassId(FIRST_USER_CLASS_ID + 1);
+        let id = TypeId(FIRST_USER_TYPE_ID + 1);
 
         assert_eq!(state.diagnostics.iter().count(), 0);
-        assert_eq!(class_expr(&modules[0]).class_id, Some(id));
+        assert_eq!(type_expr(&modules[0]).type_id, Some(id));
 
         assert_eq!(id.name(&state.db), &"A".to_string());
         assert!(!id.kind(&state.db).is_async());
         assert_eq!(
             modules[0].module_id.use_symbol(&mut state.db, "A"),
-            Some(Symbol::Class(id))
+            Some(Symbol::Type(id))
         );
     }
 
     #[test]
-    fn test_define_async_class() {
+    fn test_define_async_type() {
         let mut state = State::new(Config::new());
-        let mut modules = parse(&mut state, "class async A {}");
+        let mut modules = parse(&mut state, "type async A {}");
 
         assert!(DefineTypes::run_all(&mut state, &mut modules));
 
-        let id = ClassId(FIRST_USER_CLASS_ID + 1);
+        let id = TypeId(FIRST_USER_TYPE_ID + 1);
 
         assert_eq!(state.diagnostics.iter().count(), 0);
-        assert_eq!(class_expr(&modules[0]).class_id, Some(id));
+        assert_eq!(type_expr(&modules[0]).type_id, Some(id));
 
         assert_eq!(id.name(&state.db), &"A".to_string());
         assert!(id.kind(&state.db).is_async());
         assert_eq!(
             modules[0].module_id.use_symbol(&mut state.db, "A"),
-            Some(Symbol::Class(id))
+            Some(Symbol::Type(id))
         );
     }
 
     #[test]
-    fn test_define_empty_enum_class() {
+    fn test_define_empty_enum_type() {
         let mut state = State::new(Config::new());
-        let mut modules = parse(&mut state, "class enum A {}");
+        let mut modules = parse(&mut state, "type enum A {}");
 
         assert!(DefineTypes::run_all(&mut state, &mut modules));
         assert!(!DefineConstructors::run_all(&mut state, &mut modules));
@@ -1394,10 +1395,10 @@ mod tests {
             module,
             Location::default(),
         );
-        let string = Class::alloc(
+        let string = Type::alloc(
             &mut state.db,
             "String".to_string(),
-            ClassKind::Regular,
+            TypeKind::Regular,
             Visibility::Private,
             ModuleId(0),
             Location::default(),
@@ -1411,7 +1412,7 @@ mod tests {
         module.new_symbol(
             &mut state.db,
             "String".to_string(),
-            Symbol::Class(string),
+            Symbol::Type(string),
         );
 
         define_drop_trait(&mut state);
@@ -1436,10 +1437,10 @@ mod tests {
             module,
             Location::default(),
         );
-        let string = Class::alloc(
+        let string = Type::alloc(
             &mut state.db,
             "String".to_string(),
-            ClassKind::Regular,
+            TypeKind::Regular,
             Visibility::Private,
             ModuleId(0),
             Location::default(),
@@ -1455,7 +1456,7 @@ mod tests {
         module.new_symbol(
             &mut state.db,
             "String".to_string(),
-            Symbol::Class(string),
+            Symbol::Type(string),
         );
 
         define_drop_trait(&mut state);
@@ -1467,10 +1468,10 @@ mod tests {
 
         assert_eq!(imp.instance.instance_of(), to_string);
 
-        if let TypeRef::Owned(TypeId::ClassInstance(ins)) = arg {
+        if let TypeRef::Owned(TypeEnum::TypeInstance(ins)) = arg {
             assert_eq!(ins.instance_of(), string);
         } else {
-            panic!("Expected the type argument to be a class instance");
+            panic!("Expected the type argument to be a type instance");
         }
     }
 
@@ -1487,10 +1488,10 @@ mod tests {
             module,
             Location::default(),
         );
-        let array = Class::alloc(
+        let array = Type::alloc(
             &mut state.db,
             "Array".to_string(),
-            ClassKind::Regular,
+            TypeKind::Regular,
             Visibility::Private,
             ModuleId(0),
             Location::default(),
@@ -1505,7 +1506,7 @@ mod tests {
         module.new_symbol(
             &mut state.db,
             "Array".to_string(),
-            Symbol::Class(array),
+            Symbol::Type(array),
         );
 
         define_drop_trait(&mut state);
@@ -1531,10 +1532,10 @@ mod tests {
             module,
             Location::default(),
         );
-        let array = Class::alloc(
+        let array = Type::alloc(
             &mut state.db,
             "Array".to_string(),
-            ClassKind::Regular,
+            TypeKind::Regular,
             Visibility::Private,
             ModuleId(0),
             Location::default(),
@@ -1548,7 +1549,7 @@ mod tests {
         module.new_symbol(
             &mut state.db,
             "Array".to_string(),
-            Symbol::Class(array),
+            Symbol::Type(array),
         );
 
         define_drop_trait(&mut state);
@@ -1561,7 +1562,7 @@ mod tests {
     }
 
     #[test]
-    fn test_implement_trait_with_undefined_class() {
+    fn test_implement_trait_with_undefined_type() {
         let mut state = State::new(Config::new());
         let mut modules = parse(&mut state, "impl ToString for String {}");
         let module = ModuleId(0);
@@ -1589,7 +1590,7 @@ mod tests {
     }
 
     #[test]
-    fn test_implement_trait_with_invalid_class() {
+    fn test_implement_trait_with_invalid_type() {
         let mut state = State::new(Config::new());
         let mut modules = parse(&mut state, "impl ToString for String {}");
         let module = ModuleId(0);
@@ -1671,10 +1672,10 @@ mod tests {
             module,
             Location::default(),
         );
-        let string = Class::alloc(
+        let string = Type::alloc(
             &mut state.db,
             "String".to_string(),
-            ClassKind::Regular,
+            TypeKind::Regular,
             Visibility::Private,
             ModuleId(0),
             Location::default(),
@@ -1700,7 +1701,7 @@ mod tests {
         module.new_symbol(
             &mut state.db,
             "String".to_string(),
-            Symbol::Class(string),
+            Symbol::Type(string),
         );
 
         define_drop_trait(&mut state);
@@ -1729,10 +1730,10 @@ mod tests {
             module,
             Location::default(),
         );
-        let string = Class::alloc(
+        let string = Type::alloc(
             &mut state.db,
             "String".to_string(),
-            ClassKind::Regular,
+            TypeKind::Regular,
             Visibility::Private,
             ModuleId(0),
             Location::default(),
@@ -1750,7 +1751,7 @@ mod tests {
         module.new_symbol(
             &mut state.db,
             "String".to_string(),
-            Symbol::Class(string),
+            Symbol::Type(string),
         );
 
         define_drop_trait(&mut state);
@@ -1769,94 +1770,94 @@ mod tests {
     #[test]
     fn test_define_field() {
         let mut state = State::new(Config::new());
-        let string = Class::alloc(
+        let string = Type::alloc(
             &mut state.db,
             "String".to_string(),
-            ClassKind::Regular,
+            TypeKind::Regular,
             Visibility::Public,
             ModuleId(0),
             Location::default(),
         );
-        let string_ins = ClassInstance::new(string);
+        let string_ins = TypeInstance::new(string);
         let mut modules =
-            parse(&mut state, "class Person { let @name: String }");
+            parse(&mut state, "type Person { let @name: String }");
         let module = ModuleId(0);
 
         module.new_symbol(
             &mut state.db,
             "String".to_string(),
-            Symbol::Class(string),
+            Symbol::Type(string),
         );
 
         DefineTypes::run_all(&mut state, &mut modules);
 
         assert!(DefineFields::run_all(&mut state, &mut modules));
 
-        let person = get_class(&mut state.db, module, "Person");
+        let person = get_type(&mut state.db, module, "Person");
         let field = person.field(&state.db, "name").unwrap();
 
         assert_eq!(
             field.value_type(&state.db),
-            TypeRef::Owned(TypeId::ClassInstance(string_ins))
+            TypeRef::Owned(TypeEnum::TypeInstance(string_ins))
         );
     }
 
     #[test]
     fn test_define_duplicate_field() {
         let mut state = State::new(Config::new());
-        let string = Class::alloc(
+        let string = Type::alloc(
             &mut state.db,
             "String".to_string(),
-            ClassKind::Regular,
+            TypeKind::Regular,
             Visibility::Public,
             ModuleId(0),
             Location::default(),
         );
-        let int = Class::alloc(
+        let int = Type::alloc(
             &mut state.db,
             "Int".to_string(),
-            ClassKind::Regular,
+            TypeKind::Regular,
             Visibility::Public,
             ModuleId(0),
             Location::default(),
         );
         let mut modules = parse(
             &mut state,
-            "class Person { let @name: String let @name: Int }",
+            "type Person { let @name: String let @name: Int }",
         );
         let module = ModuleId(0);
 
         module.new_symbol(
             &mut state.db,
             "String".to_string(),
-            Symbol::Class(string),
+            Symbol::Type(string),
         );
 
-        module.new_symbol(&mut state.db, "Int".to_string(), Symbol::Class(int));
+        module.new_symbol(&mut state.db, "Int".to_string(), Symbol::Type(int));
 
         DefineTypes::run_all(&mut state, &mut modules);
 
         assert!(!DefineFields::run_all(&mut state, &mut modules));
 
-        let person = get_class(&mut state.db, module, "Person");
+        let person = get_type(&mut state.db, module, "Person");
         let field = person.field(&state.db, "name").unwrap();
-        let string_ins = ClassInstance::new(string);
+        let string_ins = TypeInstance::new(string);
 
         assert_eq!(
             field.value_type(&state.db),
-            TypeRef::Owned(TypeId::ClassInstance(string_ins))
+            TypeRef::Owned(TypeEnum::TypeInstance(string_ins))
         );
 
         let error = state.diagnostics.iter().next().unwrap();
 
         assert_eq!(error.id(), DiagnosticId::DuplicateSymbol);
-        assert_eq!(error.location(), &cols(34, 47));
+        assert_eq!(error.location(), &cols(33, 46));
     }
 
     #[test]
     fn test_define_field_with_self_type() {
         let mut state = State::new(Config::new());
-        let mut modules = parse(&mut state, "class Person { let @name: Self }");
+        let mut modules = parse(&mut state, "type Person { let @name: Self }");
 
         DefineTypes::run_all(&mut state, &mut modules);
 
@@ -1865,7 +1866,7 @@ mod tests {
         let error = state.diagnostics.iter().next().unwrap();
 
         assert_eq!(error.id(), DiagnosticId::InvalidSymbol);
-        assert_eq!(error.location(), &cols(27, 30));
+        assert_eq!(error.location(), &cols(26, 29));
     }
 
     #[test]
@@ -1910,17 +1911,17 @@ mod tests {
     }
 
     #[test]
-    fn test_define_class_type_parameter() {
+    fn test_define_type_type_parameter() {
         let mut state = State::new(Config::new());
-        let mut modules = parse(&mut state, "class A[T] {}");
+        let mut modules = parse(&mut state, "type A[T] {}");
         let module = ModuleId(0);
 
         DefineTypes::run_all(&mut state, &mut modules);
 
         assert!(DefineTypeParameters::run_all(&mut state, &mut modules));
 
-        let class_a = get_class(&mut state.db, module, "A");
-        let params = class_a.type_parameters(&state.db);
+        let type_a = get_type(&mut state.db, module, "A");
+        let params = type_a.type_parameters(&state.db);
 
         assert_eq!(params.len(), 1);
 
@@ -1928,15 +1929,15 @@ mod tests {
 
         assert_eq!(param.name(&state.db), &"T");
         assert_eq!(
-            class_expr(&modules[0]).type_parameters[0].type_parameter_id,
+            type_expr(&modules[0]).type_parameters[0].type_parameter_id,
             Some(param)
         );
     }
 
     #[test]
-    fn test_define_duplicate_class_type_parameter() {
+    fn test_define_duplicate_type_type_parameter() {
         let mut state = State::new(Config::new());
-        let mut modules = parse(&mut state, "class A[T, T] {}");
+        let mut modules = parse(&mut state, "type A[T, T] {}");
 
         DefineTypes::run_all(&mut state, &mut modules);
 
@@ -1946,11 +1947,11 @@ mod tests {
 
         assert_eq!(error.id(), DiagnosticId::DuplicateSymbol);
         assert_eq!(error.file(), &PathBuf::from("test.inko"));
-        assert_eq!(error.location(), &cols(12, 12));
+        assert_eq!(error.location(), &cols(11, 11));
     }
 
     #[test]
-    fn test_define_class_type_parameter_requirements() {
+    fn test_define_type_type_parameter_requirements() {
         let mut state = State::new(Config::new());
         let module = ModuleId(0);
         let debug = Trait::alloc(
@@ -1960,7 +1961,7 @@ mod tests {
             module,
             Location::default(),
         );
-        let mut modules = parse(&mut state, "class Array[T: Debug] {}");
+        let mut modules = parse(&mut state, "type Array[T: Debug] {}");
 
         module.new_symbol(
             &mut state.db,
@@ -1976,7 +1977,7 @@ mod tests {
             &mut modules
         ));
 
-        let array = get_class(&mut state.db, module, "Array");
+        let array = get_type(&mut state.db, module, "Array");
         let param = array.type_parameters(&state.db)[0];
 
         assert_eq!(param.requirements(&state.db)[0].instance_of(), debug);
@@ -2050,7 +2051,7 @@ mod tests {
     }
 
     #[test]
-    fn test_check_type_parameters_with_class() {
+    fn test_check_type_parameters_with_type() {
         let mut state = State::new(Config::new());
         let module = ModuleId(0);
         let debug = Trait::alloc(
@@ -2063,7 +2064,7 @@ mod tests {
 
         debug.new_type_parameter(&mut state.db, "T".to_string());
 
-        let mut modules = parse(&mut state, "class Array[T: Debug] {}");
+        let mut modules = parse(&mut state, "type Array[T: Debug] {}");
 
         module.new_symbol(
             &mut state.db,
@@ -2080,6 +2081,6 @@ mod tests {
         let error = state.diagnostics.iter().next().unwrap();
 
         assert_eq!(error.id(), DiagnosticId::InvalidType);
-        assert_eq!(error.location(), &cols(16, 20));
+        assert_eq!(error.location(), &cols(15, 19));
     }
 }

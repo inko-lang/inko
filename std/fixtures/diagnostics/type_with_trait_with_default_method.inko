@@ -1,6 +1,6 @@
 import foo (Foo)
 
-class Bar {
+type Bar {
   fn baz {}
 }
 

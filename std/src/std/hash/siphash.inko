@@ -19,7 +19,7 @@ import std.hash (Hasher)
 # hasher.write(42)
 # hasher.finish
 # ```
-class pub SipHasher13 {
+type pub SipHasher13 {
   let @size: Int
   let @m_index: Int
   let @m: Int

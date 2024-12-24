@@ -1,59 +1,59 @@
-class A {
+type A {
   let @b: Int
 }
 
-class pub B {
+type pub B {
   let @b: Int
 }
 
-class async C {
+type async C {
   let @b: Int
 }
 
-class pub async D {
+type pub async D {
   let @b: Int
 }
 
-class builtin E {
+type builtin E {
   let @b: Int
 }
 
-class enum F {
+type enum F {
   case A(Int)
 }
 
-class pub enum G {
+type pub enum G {
   case A(Int)
 }
 
-class extern H {
+type extern H {
   let @a: Int
 }
 
-class pub extern I {
+type pub extern I {
   let @a: Int
 }
 
-class copy J {
+type copy J {
   let @a: Int
 }
 
-class pub copy K {
+type pub copy K {
   let @a: Int
 }
 
-class L {
+type L {
   let @a: Int
 }
 
-class pub M {
+type pub M {
   let @a: Int
 }
 
-class inline N {
+type inline N {
   let @a: Int
 }
 
-class inline enum O {
+type inline enum O {
   case A
 }

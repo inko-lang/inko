@@ -1,0 +1,5 @@
+type A {}
+
+type A {}
+
+# duplicate_type.inko:3:6 error(duplicate-symbol): the symbol 'A' is already defined

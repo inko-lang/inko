@@ -1,4 +1,4 @@
-class async Thing[A, B] {
+type async Thing[A, B] {
   let @a: A
   let @b: B
 

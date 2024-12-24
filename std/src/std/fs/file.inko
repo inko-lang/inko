@@ -27,7 +27,7 @@ import std.sys.unix.fs (self as sys) if unix
 #
 # `ReadOnlyFile` is allocated on the heap as this allows one to cast it to a
 # trait, such as the `Read` trait.
-class pub ReadOnlyFile {
+type pub ReadOnlyFile {
   let @fd: Int32
 
   # The path of the file.
@@ -108,7 +108,7 @@ impl Seek for ReadOnlyFile {
 #
 # `WriteOnlyFile` is allocated on the heap as this allows one to cast it to a
 # trait, such as the `Write` trait.
-class pub WriteOnlyFile {
+type pub WriteOnlyFile {
   let @fd: Int32
 
   # The path of the file.
@@ -223,7 +223,7 @@ impl Seek for WriteOnlyFile {
 #
 # `ReadWriteFile` is allocated on the heap as this allows one to cast it to a
 # trait, such as the `Write` trait.
-class pub ReadWriteFile {
+type pub ReadWriteFile {
   let @fd: Int32
 
   # The path of the file.

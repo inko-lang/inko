@@ -8,8 +8,8 @@ import std.sys.net
 
 # macOS doesn't have `SOCK_CLOEXEC` and `SOCK_NONBLOCK`, so we need to use
 # `fcntl()` to make a socket non-blocking.
-fn inline socket(domain: Int, type: Int, protocol: Int) -> Int32 {
-  let fd = libc.socket(domain as Int32, type as Int32, protocol as Int32)
+fn inline socket(domain: Int, kind: Int, protocol: Int) -> Int32 {
+  let fd = libc.socket(domain as Int32, kind as Int32, protocol as Int32)
 
   if fd as Int == -1 { return -1 as Int32 }
 

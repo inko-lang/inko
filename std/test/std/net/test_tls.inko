@@ -110,7 +110,7 @@ OzLLhs1TsfEwTGLiapfCFXO610FVPsVynY4Ylr6LRodiFCzIlx2k9O3p6GRAkKy7
 -----END CERTIFICATE-----
 '
 
-class async DummyServer {
+type async DummyServer {
   let @socket: TcpServer
   let @config: ServerConfig
 
@@ -156,7 +156,7 @@ class async DummyServer {
   }
 }
 
-class async DummyClient {
+type async DummyClient {
   fn async connect(
     port: Int,
     output: uni Promise[uni Result[Client[TcpClient], String]],

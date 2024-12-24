@@ -1,4 +1,4 @@
-class async Main {
+type async Main {
   fn async main {
     foo
   }

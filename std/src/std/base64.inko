@@ -618,7 +618,7 @@ fn pub decode(input: ref ByteArray) -> Result[ByteArray, DecodeError] {
 # Encoder.url_safe.encode(in, out)
 # out.into_string #=> 'YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXowMTIzNDU2Nzg5fEB7fS8mI1tdXCE_KCk8Pj0rKjsnImA6XiUkfg=='
 # ```
-class pub Encoder {
+type pub Encoder {
   let @table0: ref Array[Int]
   let @table1: ref Array[Int]
   let @table2: ref Array[Int]
@@ -713,7 +713,7 @@ class pub Encoder {
 }
 
 # An error produced when decoding a base64 encoded sequence of bytes.
-class pub copy enum DecodeError {
+type pub copy enum DecodeError {
   # The input size isn't a multiple of 4 bytes.
   case InvalidSize
 
@@ -789,7 +789,7 @@ impl Equal[ref DecodeError] for DecodeError {
 # Decoder.url_safe.decode('8J-Ygw=='.to_byte_array, into: plain)
 # plain.into_string # => '😃'
 # ```
-class pub Decoder {
+type pub Decoder {
   let @table0: ref Array[Int]
   let @table1: ref Array[Int]
   let @table2: ref Array[Int]

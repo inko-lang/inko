@@ -10,10 +10,10 @@ use std::path::PathBuf;
 use types::check::{Environment, TypeChecker};
 use types::format::{format_type, format_type_with_arguments};
 use types::{
-    Block, ClassId, ClassInstance, Database, Method, MethodId, MethodKind,
-    MethodSource, ModuleId, Symbol, TraitId, TraitInstance, TypeArguments,
-    TypeBounds, TypeId, TypeRef, Visibility, DROP_METHOD, MAIN_CLASS,
-    MAIN_METHOD,
+    Block, Database, Method, MethodId, MethodKind, MethodSource, ModuleId,
+    Symbol, TraitId, TraitInstance, TypeArguments, TypeBounds, TypeEnum,
+    TypeId, TypeInstance, TypeRef, Visibility, DROP_METHOD, MAIN_METHOD,
+    MAIN_TYPE,
 };
 
 fn method_kind(kind: hir::MethodKind) -> MethodKind {
@@ -24,9 +24,13 @@ fn method_kind(kind: hir::MethodKind) -> MethodKind {
     }
 }
 
-fn receiver_type(db: &Database, id: TypeId, kind: hir::MethodKind) -> TypeRef {
+fn receiver_type(
+    db: &Database,
+    id: TypeEnum,
+    kind: hir::MethodKind,
+) -> TypeRef {
     match id {
-        TypeId::ClassInstance(ins)
+        TypeEnum::TypeInstance(ins)
             if ins.instance_of().is_value_type(db)
                 && !ins.instance_of().kind(db).is_async() =>
         {
@@ -62,7 +66,7 @@ trait MethodDefiner {
         &mut self,
         nodes: &mut Vec<hir::TypeParameter>,
         method: MethodId,
-        receiver_id: TypeId,
+        receiver_id: TypeEnum,
     ) {
         for param_node in nodes {
             let name = &param_node.name.name;
@@ -231,38 +235,38 @@ trait MethodDefiner {
         method.set_return_type(self.db_mut(), typ);
     }
 
-    fn add_method_to_class(
+    fn add_method_to_type(
         &mut self,
         method: MethodId,
-        class_id: ClassId,
+        type_id: TypeId,
         name: &str,
         location: Location,
     ) {
-        if class_id.method_exists(self.db(), name) {
-            let class_name = format_type(self.db(), class_id);
+        if type_id.method_exists(self.db(), name) {
+            let tname = format_type(self.db(), type_id);
             let file = self.file();
 
             self.state_mut()
                 .diagnostics
-                .duplicate_method(name, class_name, file, location);
+                .duplicate_method(name, tname, file, location);
         } else {
-            class_id.add_method(self.db_mut(), name.to_string(), method);
+            type_id.add_method(self.db_mut(), name.to_string(), method);
         }
     }
 
     fn check_if_mutating_method_is_allowed(
         &mut self,
         kind: hir::MethodKind,
-        class: ClassId,
+        type_id: TypeId,
         location: Location,
     ) {
         if !matches!(kind, hir::MethodKind::Mutable)
-            || class.allow_mutating(self.db())
+            || type_id.allow_mutating(self.db())
         {
             return;
         }
 
-        let name = class.name(self.db()).clone();
+        let name = type_id.name(self.db()).clone();
         let file = self.file();
 
         self.state_mut().diagnostics.error(
@@ -424,8 +428,8 @@ impl<'a> DefineMethods<'a> {
     fn run(mut self, module: &mut hir::Module) {
         for expression in module.expressions.iter_mut() {
             match expression {
-                hir::TopLevelExpression::Class(ref mut node) => {
-                    self.define_class(node);
+                hir::TopLevelExpression::Type(ref mut node) => {
+                    self.define_type(node);
                 }
                 hir::TopLevelExpression::Trait(ref mut node) => {
                     self.define_trait(node);
@@ -437,33 +441,33 @@ impl<'a> DefineMethods<'a> {
                     self.define_extern_function(node);
                 }
                 hir::TopLevelExpression::Reopen(ref mut node) => {
-                    self.reopen_class(node);
+                    self.reopen_type(node);
                 }
                 _ => {}
             }
         }
     }
 
-    fn define_class(&mut self, node: &mut hir::DefineClass) {
-        let class_id = node.class_id.unwrap();
+    fn define_type(&mut self, node: &mut hir::DefineType) {
+        let type_id = node.type_id.unwrap();
 
         for expr in &mut node.body {
             match expr {
-                hir::ClassExpression::AsyncMethod(ref mut node) => {
-                    self.define_async_method(class_id, node, TypeBounds::new());
+                hir::TypeExpression::AsyncMethod(ref mut node) => {
+                    self.define_async_method(type_id, node, TypeBounds::new());
                 }
-                hir::ClassExpression::StaticMethod(ref mut node) => {
-                    self.define_static_method(class_id, node)
+                hir::TypeExpression::StaticMethod(ref mut node) => {
+                    self.define_static_method(type_id, node)
                 }
-                hir::ClassExpression::InstanceMethod(ref mut node) => {
+                hir::TypeExpression::InstanceMethod(ref mut node) => {
                     self.define_instance_method(
-                        class_id,
+                        type_id,
                         node,
                         TypeBounds::new(),
                     );
                 }
-                hir::ClassExpression::Constructor(ref mut node) => {
-                    self.define_constructor_method(class_id, node);
+                hir::TypeExpression::Constructor(ref mut node) => {
+                    self.define_constructor_method(type_id, node);
                 }
                 _ => {}
             }
@@ -516,34 +520,34 @@ impl<'a> DefineMethods<'a> {
         }
     }
 
-    fn reopen_class(&mut self, node: &mut hir::ReopenClass) {
-        let class_name = &node.class_name.name;
-        let class_id = match self.module.use_symbol(self.db_mut(), class_name) {
-            Some(Symbol::Class(id)) => id,
+    fn reopen_type(&mut self, node: &mut hir::ReopenType) {
+        let tname = &node.type_name.name;
+        let type_id = match self.module.use_symbol(self.db_mut(), tname) {
+            Some(Symbol::Type(id)) => id,
             Some(_) => {
-                self.state.diagnostics.not_a_class(
-                    class_name,
+                self.state.diagnostics.not_a_type(
+                    tname,
                     self.file(),
-                    node.class_name.location,
+                    node.type_name.location,
                 );
 
                 return;
             }
             None => {
                 self.state.diagnostics.undefined_symbol(
-                    class_name,
+                    tname,
                     self.file(),
-                    node.class_name.location,
+                    node.type_name.location,
                 );
 
                 return;
             }
         };
 
-        if class_id.kind(self.db()).is_extern() {
+        if type_id.kind(self.db()).is_extern() {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidImplementation,
-                "methods can't be defined for extern classes",
+                "methods can't be defined for extern types",
                 self.file(),
                 node.location,
             );
@@ -552,29 +556,29 @@ impl<'a> DefineMethods<'a> {
         let bounds = define_type_bounds(
             self.state,
             self.module,
-            class_id,
+            type_id,
             &mut node.bounds,
         );
 
         for expr in &mut node.body {
             match expr {
-                hir::ReopenClassExpression::InstanceMethod(ref mut n) => {
-                    self.define_instance_method(class_id, n, bounds.clone());
+                hir::ReopenTypeExpression::InstanceMethod(ref mut n) => {
+                    self.define_instance_method(type_id, n, bounds.clone());
                 }
-                hir::ReopenClassExpression::StaticMethod(ref mut n) => {
-                    self.define_static_method(class_id, n);
+                hir::ReopenTypeExpression::StaticMethod(ref mut n) => {
+                    self.define_static_method(type_id, n);
                 }
-                hir::ReopenClassExpression::AsyncMethod(ref mut n) => {
-                    self.define_async_method(class_id, n, bounds.clone());
+                hir::ReopenTypeExpression::AsyncMethod(ref mut n) => {
+                    self.define_async_method(type_id, n, bounds.clone());
                 }
             }
         }
 
-        node.class_id = Some(class_id);
+        node.type_id = Some(type_id);
     }
 
     fn define_module_method(&mut self, node: &mut hir::DefineModuleMethod) {
-        let self_type = TypeId::Module(self.module);
+        let self_type = TypeEnum::Module(self.module);
         let receiver = TypeRef::Owned(self_type);
         let method = node.method_id.unwrap();
 
@@ -606,7 +610,7 @@ impl<'a> DefineMethods<'a> {
     }
 
     fn define_extern_function(&mut self, node: &mut hir::DefineExternFunction) {
-        let self_type = TypeId::Module(self.module);
+        let self_type = TypeEnum::Module(self.module);
         let func = node.method_id.unwrap();
         let scope = TypeScope::new(self.module, self_type, None);
         let rules = Rules {
@@ -632,14 +636,14 @@ impl<'a> DefineMethods<'a> {
 
     fn define_static_method(
         &mut self,
-        class_id: ClassId,
+        type_id: TypeId,
         node: &mut hir::DefineStaticMethod,
     ) {
-        let receiver = TypeRef::Owned(TypeId::Class(class_id));
+        let receiver = TypeRef::Owned(TypeEnum::Type(type_id));
         let bounds = TypeBounds::new();
-        let self_type = TypeId::ClassInstance(ClassInstance::rigid(
+        let self_type = TypeEnum::TypeInstance(TypeInstance::rigid(
             self.db_mut(),
-            class_id,
+            type_id,
             &bounds,
         ));
         let module = self.module;
@@ -660,7 +664,7 @@ impl<'a> DefineMethods<'a> {
 
         let scope = TypeScope::new(self.module, self_type, Some(method));
         let rules = Rules {
-            allow_private_types: class_id.is_private(self.db())
+            allow_private_types: type_id.is_private(self.db())
                 || method.is_private(self.db()),
             ..Default::default()
         };
@@ -668,7 +672,7 @@ impl<'a> DefineMethods<'a> {
         self.define_type_parameters(
             &mut node.type_parameters,
             method,
-            TypeId::Class(class_id),
+            TypeEnum::Type(type_id),
         );
         self.define_type_parameter_requirements(
             &mut node.type_parameters,
@@ -682,9 +686,9 @@ impl<'a> DefineMethods<'a> {
             rules,
             &scope,
         );
-        self.add_method_to_class(
+        self.add_method_to_type(
             method,
-            class_id,
+            type_id,
             &node.name.name,
             node.location,
         );
@@ -694,13 +698,13 @@ impl<'a> DefineMethods<'a> {
 
     fn define_instance_method(
         &mut self,
-        class_id: ClassId,
+        type_id: TypeId,
         node: &mut hir::DefineInstanceMethod,
         mut bounds: TypeBounds,
     ) {
-        let async_class = class_id.kind(self.db()).is_async();
+        let async_type = type_id.kind(self.db()).is_async();
 
-        if matches!(node.kind, hir::MethodKind::Moving) && async_class {
+        if matches!(node.kind, hir::MethodKind::Moving) && async_type {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidMethod,
                 "moving methods can't be defined for 'async' types",
@@ -711,13 +715,13 @@ impl<'a> DefineMethods<'a> {
 
         self.check_if_mutating_method_is_allowed(
             node.kind,
-            class_id,
+            type_id,
             node.location,
         );
 
-        let self_id = TypeId::Class(class_id);
+        let self_id = TypeEnum::Type(type_id);
         let module = self.module;
-        let vis = if async_class {
+        let vis = if async_type {
             if node.public {
                 Visibility::Public
             } else {
@@ -744,9 +748,9 @@ impl<'a> DefineMethods<'a> {
             bounds.make_immutable(self.db_mut());
         }
 
-        // Regular instance methods on an `async class` must be private to the
-        // class itself.
-        if async_class && method.is_public(self.db()) {
+        // Regular instance methods on an `async` type must be private to the
+        // type itself.
+        if async_type && method.is_public(self.db()) {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidMethod,
                 "instance methods defined on 'async' types must be private",
@@ -758,13 +762,13 @@ impl<'a> DefineMethods<'a> {
         self.define_type_parameters(&mut node.type_parameters, method, self_id);
 
         let rules = Rules {
-            allow_private_types: class_id.is_private(self.db())
+            allow_private_types: type_id.is_private(self.db())
                 || method.is_private(self.db()),
             ..Default::default()
         };
-        let self_type = TypeId::ClassInstance(ClassInstance::rigid(
+        let self_type = TypeEnum::TypeInstance(TypeInstance::rigid(
             self.db_mut(),
-            class_id,
+            type_id,
             &bounds,
         ));
         let receiver = receiver_type(self.db(), self_type, node.kind);
@@ -790,9 +794,9 @@ impl<'a> DefineMethods<'a> {
             rules,
             &scope,
         );
-        self.add_method_to_class(
+        self.add_method_to_type(
             method,
-            class_id,
+            type_id,
             &node.name.name,
             node.location,
         );
@@ -803,11 +807,11 @@ impl<'a> DefineMethods<'a> {
 
     fn define_async_method(
         &mut self,
-        class_id: ClassId,
+        type_id: TypeId,
         node: &mut hir::DefineAsyncMethod,
         mut bounds: TypeBounds,
     ) {
-        let self_id = TypeId::Class(class_id);
+        let self_id = TypeEnum::Type(type_id);
         let module = self.module;
         let kind = if node.mutable {
             MethodKind::AsyncMutable
@@ -827,12 +831,13 @@ impl<'a> DefineMethods<'a> {
             bounds.make_immutable(self.db_mut());
         }
 
-        if !class_id.kind(self.db()).is_async() {
+        if !type_id.kind(self.db()).is_async() {
             let file = self.file();
 
             self.state_mut().diagnostics.error(
                 DiagnosticId::InvalidMethod,
-                "async methods can only be used in async classes".to_string(),
+                "'async' methods can only be defined for 'async' types"
+                    .to_string(),
                 file,
                 node.location,
             );
@@ -841,14 +846,14 @@ impl<'a> DefineMethods<'a> {
         self.define_type_parameters(&mut node.type_parameters, method, self_id);
 
         let rules = Rules {
-            allow_private_types: class_id.is_private(self.db())
+            allow_private_types: type_id.is_private(self.db())
                 || method.is_private(self.db()),
             ..Default::default()
         };
         let bounds = TypeBounds::new();
-        let self_type = TypeId::ClassInstance(ClassInstance::rigid(
+        let self_type = TypeEnum::TypeInstance(TypeInstance::rigid(
             self.db_mut(),
-            class_id,
+            type_id,
             &bounds,
         ));
         let receiver = if node.mutable {
@@ -883,9 +888,9 @@ impl<'a> DefineMethods<'a> {
             );
         }
 
-        self.add_method_to_class(
+        self.add_method_to_type(
             method,
-            class_id,
+            type_id,
             &node.name.name,
             node.location,
         );
@@ -900,7 +905,7 @@ impl<'a> DefineMethods<'a> {
         node: &mut hir::DefineRequiredMethod,
     ) {
         let name = &node.name.name;
-        let self_id = TypeId::Trait(trait_id);
+        let self_id = TypeEnum::Trait(trait_id);
         let module = self.module;
         let kind = method_kind(node.kind);
         let method = Method::alloc(
@@ -919,7 +924,7 @@ impl<'a> DefineMethods<'a> {
             ..Default::default()
         };
         let bounds = TypeBounds::new();
-        let self_type = TypeId::TraitInstance(TraitInstance::rigid(
+        let self_type = TypeEnum::TraitInstance(TraitInstance::rigid(
             self.db_mut(),
             trait_id,
             &bounds,
@@ -968,7 +973,7 @@ impl<'a> DefineMethods<'a> {
         node: &mut hir::DefineInstanceMethod,
     ) {
         let name = &node.name.name;
-        let self_id = TypeId::Trait(trait_id);
+        let self_id = TypeEnum::Trait(trait_id);
         let module = self.module;
         let kind = method_kind(node.kind);
         let method = Method::alloc(
@@ -1000,7 +1005,7 @@ impl<'a> DefineMethods<'a> {
         // or an unrelated value that happens to have the same type.
         ins.self_type = true;
 
-        let self_type = TypeId::TraitInstance(ins);
+        let self_type = TypeEnum::TraitInstance(ins);
         let receiver = receiver_type(self.db(), self_type, node.kind);
 
         method.set_receiver(self.db_mut(), receiver);
@@ -1042,7 +1047,7 @@ impl<'a> DefineMethods<'a> {
     #[allow(clippy::unnecessary_to_owned)]
     fn define_constructor_method(
         &mut self,
-        class_id: ClassId,
+        type_id: TypeId,
         node: &mut hir::DefineConstructor,
     ) {
         // Enums are desugared when lowering to MIR. We define the static method
@@ -1065,7 +1070,7 @@ impl<'a> DefineMethods<'a> {
         method.always_inline(self.db_mut());
 
         let constructor =
-            class_id.constructor(self.db(), &node.name.name).unwrap();
+            type_id.constructor(self.db(), &node.name.name).unwrap();
 
         for (index, typ) in
             constructor.arguments(self.db()).to_vec().into_iter().enumerate()
@@ -1081,26 +1086,26 @@ impl<'a> DefineMethods<'a> {
             );
         }
 
-        let stype = TypeId::Class(class_id);
+        let stype = TypeEnum::Type(type_id);
         let rec = TypeRef::Owned(stype);
-        let ret = if class_id.is_generic(self.db()) {
-            let args = class_id
+        let ret = if type_id.is_generic(self.db()) {
+            let args = type_id
                 .type_parameters(self.db())
                 .into_iter()
-                .map(|param| TypeRef::Any(TypeId::TypeParameter(param)))
+                .map(|param| TypeRef::Any(TypeEnum::TypeParameter(param)))
                 .collect();
 
-            ClassInstance::with_types(self.db_mut(), class_id, args)
+            TypeInstance::with_types(self.db_mut(), type_id, args)
         } else {
-            ClassInstance::new(class_id)
+            TypeInstance::new(type_id)
         };
 
         method.set_receiver(self.db_mut(), rec);
         method.set_return_type(
             self.db_mut(),
-            TypeRef::Owned(TypeId::ClassInstance(ret)),
+            TypeRef::Owned(TypeEnum::TypeInstance(ret)),
         );
-        class_id.add_method(self.db_mut(), name, method);
+        type_id.add_method(self.db_mut(), name, method);
 
         node.method_id = Some(method);
         node.constructor_id = Some(constructor);
@@ -1144,18 +1149,18 @@ impl<'a> CheckMainMethod<'a> {
 
         let mod_id = self.db().module(main_mod);
 
-        if let Some((class, method)) = self.main_method(mod_id) {
+        if let Some((typ, method)) = self.main_method(mod_id) {
             method.set_main(self.db_mut());
             self.db_mut().set_main_method(method);
-            self.db_mut().set_main_class(class);
+            self.db_mut().set_main_type(typ);
             true
         } else {
             self.state.diagnostics.error(
                 DiagnosticId::MissingMain,
                 format!(
-                    "this module must define the async class '{}', \
-                    which must define the async method '{}'",
-                    MAIN_CLASS, MAIN_METHOD
+                    "this module must define the 'async' type '{}', \
+                    which must define the 'async' method '{}'",
+                    MAIN_TYPE, MAIN_METHOD
                 ),
                 mod_id.file(self.db()),
                 Location::default(),
@@ -1165,26 +1170,26 @@ impl<'a> CheckMainMethod<'a> {
         }
     }
 
-    fn main_method(&mut self, mod_id: ModuleId) -> Option<(ClassId, MethodId)> {
-        let class = if let Some(Symbol::Class(class_id)) =
-            mod_id.use_symbol(self.db_mut(), MAIN_CLASS)
+    fn main_method(&mut self, mod_id: ModuleId) -> Option<(TypeId, MethodId)> {
+        let typ = if let Some(Symbol::Type(type_id)) =
+            mod_id.use_symbol(self.db_mut(), MAIN_TYPE)
         {
-            class_id
+            type_id
         } else {
             return None;
         };
 
-        if !class.kind(self.db()).is_async() {
+        if !typ.kind(self.db()).is_async() {
             return None;
         }
 
-        let method = class.method(self.db(), MAIN_METHOD)?;
+        let method = typ.method(self.db(), MAIN_METHOD)?;
 
         if method.kind(self.db()) == MethodKind::Async
             && method.number_of_arguments(self.db()) == 0
             && method.return_type(self.db()).is_nil(self.db())
         {
-            Some((class, method))
+            Some((typ, method))
         } else {
             None
         }
@@ -1236,10 +1241,10 @@ impl<'a> ImplementTraitMethods<'a> {
     fn implement_trait(&mut self, node: &mut hir::ImplementTrait) {
         let trait_ins = node.trait_instance.unwrap();
         let trait_id = trait_ins.instance_of();
-        let class_ins = node.class_instance.unwrap();
-        let class_id = class_ins.instance_of();
+        let type_ins = node.type_instance.unwrap();
+        let type_id = type_ins.instance_of();
         let mut mut_error = false;
-        let allow_mut = class_id.allow_mutating(self.db());
+        let allow_mut = type_id.allow_mutating(self.db());
 
         for method in trait_id.default_methods(self.db()) {
             if method.is_mutable(self.db()) && !allow_mut && !mut_error {
@@ -1255,11 +1260,11 @@ impl<'a> ImplementTraitMethods<'a> {
                 mut_error = true;
             }
 
-            if !class_id.method_exists(self.db(), method.name(self.db())) {
+            if !type_id.method_exists(self.db(), method.name(self.db())) {
                 continue;
             }
 
-            let class_name = format_type(self.db(), class_id);
+            let type_name = format_type(self.db(), type_id);
             let trait_name = format_type(self.db(), trait_ins);
             let method_name = format_type(self.db(), method);
             let file = self.file();
@@ -1269,24 +1274,24 @@ impl<'a> ImplementTraitMethods<'a> {
                 format!(
                     "the trait '{}' can't be implemented for '{}', as its \
                     default method '{}' is already defined for '{}'",
-                    trait_name, class_name, method_name, class_name
+                    trait_name, type_name, method_name, type_name
                 ),
                 file,
                 node.location,
             );
         }
 
-        let bounds = class_id
+        let bounds = type_id
             .trait_implementation(self.db(), trait_id)
             .map(|i| i.bounds.clone())
             .unwrap();
 
         for expr in &mut node.body {
-            self.implement_method(expr, class_ins, trait_ins, bounds.clone());
+            self.implement_method(expr, type_ins, trait_ins, bounds.clone());
         }
 
         for req in trait_id.required_methods(self.db()) {
-            if class_ins
+            if type_ins
                 .instance_of()
                 .method_exists(self.db(), req.name(self.db()))
             {
@@ -1295,13 +1300,13 @@ impl<'a> ImplementTraitMethods<'a> {
 
             let file = self.file();
             let method_name = format_type(self.db(), req);
-            let class_name = format_type(self.db(), class_ins.instance_of());
+            let type_name = format_type(self.db(), type_ins.instance_of());
 
             self.state_mut().diagnostics.error(
                 DiagnosticId::InvalidImplementation,
                 format!(
                     "the method '{}' must be implemented for '{}'",
-                    method_name, class_name
+                    method_name, type_name
                 ),
                 file,
                 node.location,
@@ -1309,24 +1314,24 @@ impl<'a> ImplementTraitMethods<'a> {
         }
 
         for method in trait_id.default_methods(self.db()) {
-            if class_id.method_exists(self.db(), method.name(self.db())) {
+            if type_id.method_exists(self.db(), method.name(self.db())) {
                 continue;
             }
 
             let source = MethodSource::Inherited(trait_ins, method);
             let name = method.name(self.db()).clone();
-            let module_id = class_id.module(self.db());
+            let module_id = type_id.module(self.db());
             let copy = method.copy_method(self.db_mut(), module_id);
 
             // This is needed to ensure that the receiver of the default method
-            // is typed as the class that implements the trait, not as the trait
+            // is typed as the type that implements the trait, not as the trait
             // itself.
             let new_rec =
-                method.receiver_for_class_instance(self.db(), class_ins);
+                method.receiver_for_type_instance(self.db(), type_ins);
 
             copy.set_source(self.db_mut(), source);
             copy.set_receiver(self.db_mut(), new_rec);
-            class_id.add_method(self.db_mut(), name, copy);
+            type_id.add_method(self.db_mut(), name, copy);
             copy.set_bounds(self.db_mut(), bounds.clone());
         }
     }
@@ -1334,7 +1339,7 @@ impl<'a> ImplementTraitMethods<'a> {
     fn implement_method(
         &mut self,
         node: &mut hir::DefineInstanceMethod,
-        class_instance: ClassInstance,
+        type_instance: TypeInstance,
         trait_instance: TraitInstance,
         mut bounds: TypeBounds,
     ) {
@@ -1370,12 +1375,12 @@ impl<'a> ImplementTraitMethods<'a> {
         if !is_drop {
             self.check_if_mutating_method_is_allowed(
                 node.kind,
-                class_instance.instance_of(),
+                type_instance.instance_of(),
                 node.location,
             );
         }
 
-        let self_type = TypeId::ClassInstance(class_instance);
+        let self_type = TypeEnum::TypeInstance(type_instance);
         let module = self.module;
         let method = Method::alloc(
             self.db_mut(),
@@ -1401,7 +1406,7 @@ impl<'a> ImplementTraitMethods<'a> {
         );
 
         let rules = Rules {
-            allow_private_types: class_instance
+            allow_private_types: type_instance
                 .instance_of()
                 .is_private(self.db())
                 || method.is_private(self.db()),
@@ -1462,9 +1467,9 @@ impl<'a> ImplementTraitMethods<'a> {
 
         method.set_bounds(self.db_mut(), bounds);
 
-        self.add_method_to_class(
+        self.add_method_to_type(
             method,
-            class_instance.instance_of(),
+            type_instance.instance_of(),
             &node.name.name,
             node.location,
         );

@@ -1,5 +1,4 @@
 mod byte_array;
-mod class;
 mod env;
 mod float;
 mod general;
@@ -11,9 +10,10 @@ mod socket;
 mod string;
 mod time;
 mod tls;
+mod types;
 
 use crate::config::Config;
-use crate::mem::ClassPointer;
+use crate::mem::TypePointer;
 use crate::network_poller::Worker as NetworkPollerWorker;
 use crate::process::{NativeAsyncMethod, Process};
 use crate::scheduler::reset_affinity;
@@ -88,10 +88,10 @@ pub unsafe extern "system" fn inko_runtime_drop(runtime: *mut Runtime) {
 #[no_mangle]
 pub unsafe extern "system" fn inko_runtime_start(
     runtime: *mut Runtime,
-    class: ClassPointer,
+    main_type: TypePointer,
     method: NativeAsyncMethod,
 ) {
-    (*runtime).start(class, method);
+    (*runtime).start(main_type, method);
 }
 
 #[no_mangle]
@@ -120,7 +120,7 @@ pub struct Runtime {
 impl Runtime {
     /// Returns a new `Runtime` instance.
     ///
-    /// This method sets up the runtime and allocates the core classes, but
+    /// This method sets up the runtime and allocates the core types, but
     /// doesn't start any threads.
     fn new(counts: &MethodCounts, args: Vec<String>) -> Self {
         Self { state: State::new(Config::from_env(), counts, args) }
@@ -132,7 +132,7 @@ impl Runtime {
     /// This method blocks the current thread until the program terminates,
     /// though this thread itself doesn't run any processes (= it just
     /// waits/blocks until completion).
-    fn start(&self, main_class: ClassPointer, main_method: NativeAsyncMethod) {
+    fn start(&self, main_type: TypePointer, main_method: NativeAsyncMethod) {
         let state = self.state.clone();
 
         thread::Builder::new()
@@ -165,7 +165,7 @@ impl Runtime {
 
         let stack_size = self.state.config.stack_size as usize;
         let stack = Stack::new(stack_size, page_size());
-        let main_proc = Process::main(main_class, main_method, stack);
+        let main_proc = Process::main(main_type, main_method, stack);
 
         self.state.scheduler.run(&self.state, main_proc);
     }

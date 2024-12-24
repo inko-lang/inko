@@ -23,7 +23,7 @@ fn pub fmt[T: Format](value: ref T) -> String {
 
 # A type for making it easy to format tuple-like values, such as tuples and
 # enums.
-class pub TupleFormatter {
+type pub TupleFormatter {
   let @formatter: mut Formatter
   let @named: Bool
   let @fields: Int
@@ -55,7 +55,7 @@ class pub TupleFormatter {
 }
 
 # A type for making it easy to format array-like values.
-class pub ArrayFormatter {
+type pub ArrayFormatter {
   let @formatter: mut Formatter
   let @fields: Int
 
@@ -79,7 +79,7 @@ class pub ArrayFormatter {
 }
 
 # A type for making it easy to format regular objects.
-class pub ObjectFormatter {
+type pub ObjectFormatter {
   let @formatter: mut Formatter
   let @named: Bool
   let @fields: Int
@@ -118,7 +118,7 @@ class pub ObjectFormatter {
 }
 
 # The default formatter to use when formatting an object.
-class pub Formatter {
+type pub Formatter {
   let @buffer: StringBuffer
   let @nesting: Int
 

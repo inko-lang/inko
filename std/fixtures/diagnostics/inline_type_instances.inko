@@ -1,8 +1,8 @@
-class inline A[T] {
+type inline A[T] {
   let @value: T
 }
 
-class extern B {
+type extern B {
   let @value: Int
 }
 

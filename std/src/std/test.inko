@@ -94,7 +94,7 @@ fn unit_test_stack_frame -> debug.StackFrame {
 }
 
 # A single unit test.
-class pub Test {
+type pub Test {
   # The unique ID of this test.
   #
   # This ID can be used when you want to create some sort of resource unique to
@@ -201,7 +201,7 @@ trait pub Reporter {
 }
 
 # A test reporter that prints results in a simple text based format.
-class pub Plain[T: mut + Write] {
+type pub Plain[T: mut + Write] {
   let @out: T
   let @tests: Int
   let @failed: Array[Test]
@@ -283,7 +283,7 @@ ${indent}        ${red('got:')} ${fail.got}',
   }
 }
 
-class async Jobs {
+type async Jobs {
   let @pending: Array[uni Test]
 
   fn async mut schedule(runner: Runner) {
@@ -296,7 +296,7 @@ class async Jobs {
   }
 }
 
-class async Runner {
+type async Runner {
   let @jobs: Jobs
   let @output: Channel[uni Test]
 
@@ -318,7 +318,7 @@ class async Runner {
 }
 
 # A test failure produced by an assertion.
-class pub inline Failure {
+type pub inline Failure {
   # A description of what happened.
   let pub @got: String
 
@@ -344,7 +344,7 @@ class pub inline Failure {
 }
 
 # A type describing how to filter out tests.
-class pub inline enum Filter {
+type pub inline enum Filter {
   # Only run tests of which the description matches this pattern.
   case Pattern(String)
 
@@ -404,7 +404,7 @@ impl Format for Filter {
 }
 
 # A child process to run as part of a unit test.
-class pub Process {
+type pub Process {
   let @cmd: Command
   let @stdin: String
 
@@ -467,7 +467,7 @@ class pub Process {
 }
 
 # The output of a sub process.
-class pub inline Output {
+type pub inline Output {
   # The exit status of the process.
   let pub @status: ExitStatus
 
@@ -479,7 +479,7 @@ class pub inline Output {
 }
 
 # A collection of tests to run.
-class pub Tests {
+type pub Tests {
   # The number of tests to run concurrently.
   #
   # This defaults to the number of CPU cores.

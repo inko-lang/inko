@@ -39,7 +39,7 @@ The `get` method returns an immutable borrow to the value of a key, while
 `get_mut` returns a mutable borrow:
 
 ```inko
-class Person {
+type Person {
   let @name: String
 }
 
@@ -54,7 +54,7 @@ people.get_mut('alice') # => mut Person(name: 'Alice')
 If the key doesn't exist, `get` and `get_mut` panic:
 
 ```inko
-class Person {
+type Person {
   let @name: String
 }
 
@@ -69,7 +69,7 @@ The `opt` and `opt_mut` methods are similar to `get` and `get_mut`, except they
 wrap the return values in an `Option` value:
 
 ```inko
-class Person {
+type Person {
   let @name: String
 }
 

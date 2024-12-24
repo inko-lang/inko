@@ -13,10 +13,10 @@ Each Inko source file is a module and may contain the following:
 
 - Imports
 - Constants
-- Classes
+- Types
 - Methods
 - Trait implementations
-- Classes that are reopened
+- Types that are reopened
 - Comments
 
 Unlike languages such as Ruby and Python, it's not valid to include expressions
@@ -27,7 +27,7 @@ import std.stdio (Stdout)
 
 Stdout.new.print('hello')
 
-class async Main {
+type async Main {
   fn async main {}
 }
 ```
@@ -122,7 +122,7 @@ fn move method_name {}
 # A public mutable instance method:
 fn pub mut method_name {}
 
-# A public mutable async instance method (only available in async classes):
+# A public mutable async instance method (only available in async types):
 fn pub async mut method_name {}
 
 # Method names may end with a ?, this is used for predicate methods:
@@ -156,7 +156,7 @@ Type parameters are specified before regular arguments:
 fn method_name[A, B](arg1, A, arg2: B) {}
 ```
 
-Like classes, you can specify a list of required traits:
+Like with types, you can specify a list of required traits:
 
 ```inko
 fn method_name[A: ToFoo + ToBar, B](arg1, A, arg2: B) {}
@@ -174,7 +174,7 @@ fn method_name {
 
 Signatures for C functions are defined using the `fn extern` syntax. These
 functions can't define any generic type parameters, can only be defined at the
-top-level of a module (i.e. not in a class), and can't specify the `mut`
+top-level of a module (i.e. not in a type), and can't specify the `mut`
 keyword. For example:
 
 ```inko
@@ -200,33 +200,33 @@ fn extern example -> Int {
 
 In this case, variadic arguments are _not_ supported.
 
-## Classes
+## Types
 
-Classes are defined using the `class` keyword:
+Types are defined using the `type` keyword:
 
 ```inko
-class Person {}
+type Person {}
 ```
 
-A class can define one or more fields using `let`:
+A type can define one or more fields using `let`:
 
 ```inko
-class Person {
+type Person {
   let @name: String # `@name` is the field name, and `String` its type
   let @age: Int
 }
 ```
 
-To make a class public, use `class pub` like so:
+To make a type public, use `type pub` like so:
 
 ```inko
-class pub Person {
+type pub Person {
   let @name: String # `@name` is the field name, and `String` its type
   let @age: Int
 }
 ```
 
-Instances of classes are created using the same syntax as method calls:
+Instances of types are created using the same syntax as method calls:
 
 ```inko
 Person(name: 'Alice', age: 42)
@@ -241,7 +241,7 @@ Person('Alice', 42)
 If no fields are given, the parentheses are required:
 
 ```inko
-class Example {}
+type Example {}
 
 Example()
 ```
@@ -251,49 +251,49 @@ Example()
 Enums are defined as follows:
 
 ```inko
-class pub enum Result {}
+type pub enum Result {}
 ```
 
-Enum classes allow defining of constructors using the `case` keyword:
+Enum types allow defining of constructors using the `case` keyword:
 
 ```inko
-class enum Result {
+type enum Result {
   case Ok
   case Error
 }
 ```
 
-Enum classes can't define regular fields.
+Enum types can't define regular fields.
 
-### Stack allocated classes
+### Stack allocated types
 
-Stack allocated classes are defined using the `inline` and `copy` keywords:
+Stack allocated types are defined using the `inline` and `copy` keywords:
 
 ```inko
-class pub copy Example {}
-class pub inline Example {}
+type pub copy Example {}
+type pub inline Example {}
 ```
 
 These keywords can be combined with the `enum` keyword:
 
 ```inko
-class copy enum Example {
+type copy enum Example {
   case A
   case B
 }
 
-class inline enum Example {
+type inline enum Example {
   case A
   case B
 }
 ```
 
-### Generic classes
+### Generic types
 
-Generic classes are defined like so:
+Generic types are defined like so:
 
 ```inko
-class enum Result[T, E] {
+type enum Result[T, E] {
   case Ok(T)
   case Error(E)
 }
@@ -303,7 +303,7 @@ Here `T` and `E` are type parameters. Type parameters can also list one or more
 traits that must be implemented before a type can be assigned to the parameter:
 
 ```inko
-class enum Result[T, E: ToString + ToFoo + ToBar] {
+type enum Result[T, E: ToString + ToFoo + ToBar] {
   case Ok(T)
   case Error(E)
 }
@@ -313,30 +313,30 @@ Type parameters can also specify the `mut` requirement, restricting the types to
 those that allow mutations:
 
 ```inko
-class MyBox[T: mut] {}
+type MyBox[T: mut] {}
 ```
 
 ### Processes
 
-Processes are defined as async classes like so:
+Processes are defined as async types like so:
 
 ```inko
-class async Counter {
+type async Counter {
 
 }
 
-class pub async Counter {
+type pub async Counter {
 
 }
 ```
 
 ### C structures
 
-C structures are defined using `class extern`. When used, the class can't define
+C structures are defined using `type extern`. When used, the type can't define
 any methods or use generic type parameters:
 
 ```inko
-class extern Timespec {
+type extern Timespec {
   let @tv_sec: Int64
   let @tv_nsec: Int64
 }
@@ -344,11 +344,11 @@ class extern Timespec {
 
 ### Methods
 
-Classes can define static methods, instance methods, and async methods (in case
-the class is an async class):
+Types can define static methods, instance methods, and async methods (in case
+the type is an async type):
 
 ```inko
-class Person {
+type Person {
   let @name: String
 
   # This is a static method, available as `Person.new`.
@@ -363,27 +363,27 @@ class Person {
   }
 }
 
-class async Counter {
+type async Counter {
   fn async increment {
     # ...
   }
 }
 ```
 
-### Reopening classes
+### Reopening types
 
-A class can be reopened using the `impl` keyword like so:
+A type can be reopened using the `impl` keyword like so:
 
 ```inko
 impl String {}
 ```
 
 Within the body, only methods are allowed; fields can only be defined when the
-class is defined for the first time.
+type is defined for the first time.
 
 ## Traits
 
-Traits are defined using the `trait` keyword, and like classes default to being
+Traits are defined using the `trait` keyword, and like types default to being
 private.
 
 Traits are defined like so:
@@ -427,7 +427,7 @@ Traits can also define type parameters:
 trait ToArray[T] {}
 ```
 
-And like classes and methods, these can define required traits:
+And like types and methods, these can define required traits:
 
 ```inko
 trait ToArray[T: ToFoo + ToBar] {}
@@ -448,7 +448,7 @@ Traits are implemented using the `impl` keyword:
 impl ToString for String {}
 ```
 
-The syntax is `impl TraitName for ClassName { body }`. Within the body only
+The syntax is `impl TraitName for TypeName { body }`. Within the body only
 instance methods are allowed.
 
 ## Comments
@@ -702,7 +702,7 @@ The following patterns are supported:
 - Bindings: `case v -> BODY`, `case mut v -> BODY` (allows reassigning of `v`)
 - Wildcards: `case _ -> BODY`
 - Enum constructors: `case Some(v) -> BODY`
-- Classes: `case { @name = name } -> BODY`
+- Types: `case { @name = name } -> BODY`
 - Tuples: `case (a, b, c) -> BODY`
 - OR patterns: `case 10 or 20 -> BODY`
 

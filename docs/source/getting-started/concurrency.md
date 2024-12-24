@@ -15,10 +15,10 @@ as these guides explain the basics of what we'll build upon in this guide.
 
 To recap, Inko uses lightweight processes for concurrency. These processes don't
 share memory, instead values are _moved_ between processes. Processes are
-defined using `class async`:
+defined using `type async`:
 
 ```inko
-class async Counter {
+type async Counter {
   let @number: Int
 }
 ```
@@ -27,7 +27,7 @@ Interacting with processes is done using `async` methods. Such methods are
 defined like so:
 
 ```inko
-class async Counter {
+type async Counter {
   let @number: Int
 
   fn async mut increment(amount: Int) {
@@ -157,7 +157,7 @@ Here's a more complicated example:
 import std.net.ip (IpAddress)
 import std.net.socket (TcpServer)
 
-class async Main {
+type async Main {
   fn async main {
     let server = recover TcpServer
       .new(IpAddress.v4(127, 0, 0, 1), port: 40_000)
@@ -190,11 +190,11 @@ isn't available.
 When spawning a process, the values assigned to its fields must be sendable:
 
 ```inko
-class async Example {
+type async Example {
   let @numbers: Array[Int]
 }
 
-class async Main {
+type async Main {
   fn async main {
     Example(numbers: recover [10, 20])
   }
@@ -217,7 +217,7 @@ methods:
 ```inko
 import std.sync (Future, Promise)
 
-class async Counter {
+type async Counter {
   let @value: Int
 
   fn async mut increment {
@@ -229,7 +229,7 @@ class async Counter {
   }
 }
 
-class async Main {
+type async Main {
   fn async main {
     let counter = Counter(value: 0)
 

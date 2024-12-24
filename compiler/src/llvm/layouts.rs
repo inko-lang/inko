@@ -8,7 +8,7 @@ use inkwell::types::{
 };
 use std::collections::VecDeque;
 use types::{
-    CallConvention, ClassId, Database, MethodId, TypeRef, BOOL_ID,
+    CallConvention, Database, MethodId, TypeId, TypeRef, BOOL_ID,
     BYTE_ARRAY_ID, FLOAT_ID, INT_ID, NIL_ID, STRING_ID,
 };
 
@@ -25,13 +25,13 @@ impl Sized {
     }
 
     fn has_size(&self, db: &Database, typ: TypeRef) -> bool {
-        // TypeRef::as_class_instance() returns a TypeId for a pointer, but
+        // TypeRef::as_type_instance() returns a TypeId for a pointer, but
         // pointers have a known size, so we need to skip the logic below.
         if typ.is_pointer(db) {
             return true;
         }
 
-        if let Some(ins) = typ.as_class_instance(db) {
+        if let Some(ins) = typ.as_type_instance(db) {
             let cls = ins.instance_of();
 
             cls.is_heap_allocated(db) || self.map[cls.0 as usize]
@@ -42,7 +42,7 @@ impl Sized {
         }
     }
 
-    fn set_has_size(&mut self, id: ClassId) {
+    fn set_has_size(&mut self, id: TypeId) {
         self.map[id.0 as usize] = true;
     }
 }
@@ -176,16 +176,16 @@ impl<'ctx> Method<'ctx> {
 pub(crate) struct Layouts<'ctx> {
     pub(crate) target_data: &'ctx TargetData,
 
-    /// The layout of an empty class.
+    /// The layout of an empty type.
     ///
     /// This is used for generating dynamic dispatch code, as we don't know the
-    /// exact class in such cases.
-    pub(crate) empty_class: StructType<'ctx>,
+    /// exact type in such cases.
+    pub(crate) empty_type: StructType<'ctx>,
 
     /// The type to use for Inko methods (used for dynamic dispatch).
     pub(crate) method: StructType<'ctx>,
 
-    /// The structure layouts for all class instances.
+    /// The structure layouts for all type instances.
     ///
     /// This `Vec` is indexed using `ClassId` values.
     pub(crate) instances: Vec<StructType<'ctx>>,
@@ -218,15 +218,15 @@ impl<'ctx> Layouts<'ctx> {
     ) -> Self {
         let db = &state.db;
         let empty_struct = context.struct_type(&[]);
-        let num_classes = db.number_of_classes();
+        let num_types = db.number_of_types();
 
         // Instead of using a HashMap, we use a Vec that's indexed using a
-        // ClassId. This works since class IDs are sequential numbers starting
+        // ClassId. This works since type IDs are sequential numbers starting
         // at zero.
         //
-        // This may over-allocate the number of classes, depending on how many
+        // This may over-allocate the number of types, depending on how many
         // are removed through optimizations, but at worst we'd waste a few KiB.
-        let mut instances = vec![empty_struct; num_classes];
+        let mut instances = vec![empty_struct; num_types];
         let header = context.struct_type(&[
             context.pointer_type().into(), // Class
             context.i32_type().into(),     // References
@@ -241,8 +241,8 @@ impl<'ctx> Layouts<'ctx> {
         // fine/safe is we only use the state type through pointers, so the
         // exact size doesn't matter.
         let state_layout = context.struct_type(&[
-            context.pointer_type().into(), // String class
-            context.pointer_type().into(), // ByteArray class
+            context.pointer_type().into(), // String type
+            context.pointer_type().into(), // ByteArray type
             context.pointer_type().into(), // hash_key0
             context.pointer_type().into(), // hash_key1
             context.i32_type().into(),     // scheduler_epoch
@@ -260,9 +260,9 @@ impl<'ctx> Layouts<'ctx> {
         ]);
 
         // We generate the bare structs first, that way method signatures can
-        // refer to them, regardless of the order in which methods/classes are
+        // refer to them, regardless of the order in which methods/types are
         // defined.
-        for &id in mir.classes.keys() {
+        for &id in mir.types.keys() {
             let instance = match id.0 {
                 INT_ID | FLOAT_ID | BOOL_ID | NIL_ID => {
                     let typ = context.opaque_struct("");
@@ -275,7 +275,7 @@ impl<'ctx> Layouts<'ctx> {
                 }
                 _ => {
                     // First we forward-declare the structures, as fields may
-                    // need to refer to other classes regardless of ordering.
+                    // need to refer to other types regardless of ordering.
                     context.opaque_struct("")
                 }
             };
@@ -289,7 +289,7 @@ impl<'ctx> Layouts<'ctx> {
         let num_methods = db.number_of_methods();
         let mut layouts = Self {
             target_data,
-            empty_class: context.class_type(method),
+            empty_type: context.empty_type(method),
             method,
             instances,
             state: state_layout,
@@ -314,7 +314,7 @@ impl<'ctx> Layouts<'ctx> {
         context: &'ctx Context,
     ) {
         let db = &state.db;
-        let num_classes = db.number_of_classes();
+        let num_types = db.number_of_types();
         let process_size = match state.config.target.os {
             OperatingSystem::Linux | OperatingSystem::Freebsd => {
                 // Mutexes are smaller on Linux, resulting in a smaller process
@@ -335,25 +335,25 @@ impl<'ctx> Layouts<'ctx> {
         // calculate it of B and C. We do this using a work list approach: if
         // the size of a type can be calculated immediately we do just that,
         // otherwise we reschedule it for later (re)processing.
-        let mut queue = mir.classes.keys().cloned().collect::<VecDeque<_>>();
-        let mut sized = Sized::new(num_classes);
+        let mut queue = mir.types.keys().cloned().collect::<VecDeque<_>>();
+        let mut sized = Sized::new(num_types);
 
         // These types have a fixed size and don't define any fields. To ensure
         // the work loop terminates, we manually flag them as known.
         for id in [BYTE_ARRAY_ID, INT_ID, FLOAT_ID, BOOL_ID, NIL_ID] {
-            sized.set_has_size(ClassId(id as _));
+            sized.set_has_size(TypeId(id as _));
         }
 
         while let Some(id) = queue.pop_front() {
             let kind = id.kind(db);
 
-            // String is a built-in class, but it's defined like a regular one,
+            // String is a built-in type, but it's defined like a regular one,
             // so we _don't_ want to skip it here.
             if id.is_builtin() && id.0 != STRING_ID {
                 continue;
             }
 
-            // If the type we're checking is _not_ a class instance then we
+            // If the type we're checking is _not_ a type instance then we
             // default to _true_ instead of false, since this means we can
             // trivially calculate the size of that field (e.g. it's a pointer).
             let size_known = if kind.is_enum() {
@@ -418,7 +418,7 @@ impl<'ctx> Layouts<'ctx> {
             let layout = self.instances[id.0 as usize];
             let fields = id.fields(db);
 
-            // We add 1 to account for the header that almost all classes
+            // We add 1 to account for the header that almost all types
             // processed here will have.
             let mut types = Vec::with_capacity(fields.len() + 1);
 
@@ -472,8 +472,8 @@ impl<'ctx> Layouts<'ctx> {
     ) {
         let db = &state.db;
 
-        for mir_class in mir.classes.values() {
-            for &id in &mir_class.methods {
+        for mir_typ in mir.types.values() {
+            for &id in &mir_typ.methods {
                 self.methods[id.0 as usize] = if id.is_async(db) {
                     let args = vec![ArgumentType::Regular(
                         context.pointer_type().as_basic_type_enum(),

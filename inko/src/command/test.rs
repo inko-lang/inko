@@ -169,7 +169,7 @@ fn generate_main_test_module(tests: Vec<ModuleName>) -> String {
         source.push_str(&line);
     }
 
-    source.push_str("\nclass async Main {\n");
+    source.push_str("\ntype async Main {\n");
     source.push_str("  fn async main {\n");
     source.push_str("    let tests = Tests.new\n\n");
 

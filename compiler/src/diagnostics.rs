@@ -304,14 +304,14 @@ impl Diagnostics {
         );
     }
 
-    pub(crate) fn public_field_private_class(
+    pub(crate) fn public_field_private_type(
         &mut self,
         file: PathBuf,
         location: Location,
     ) {
         self.error(
             DiagnosticId::DuplicateSymbol,
-            "public fields can't be defined for private classes",
+            "public fields can't be defined for private types",
             file,
             location,
         );
@@ -331,7 +331,7 @@ impl Diagnostics {
         );
     }
 
-    pub(crate) fn not_a_class(
+    pub(crate) fn not_a_type(
         &mut self,
         name: &str,
         file: PathBuf,
@@ -339,7 +339,7 @@ impl Diagnostics {
     ) {
         self.error(
             DiagnosticId::InvalidType,
-            format!("'{}' isn't a class", name),
+            format!("'{}' isn't a type", name),
             file,
             location,
         );

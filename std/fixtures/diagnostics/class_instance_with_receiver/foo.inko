@@ -1,5 +1,0 @@
-class pub Foo {
-  let pub @number: Int
-}
-
-class pub Empty {}

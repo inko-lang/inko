@@ -109,7 +109,7 @@ fn pub inline bounds_check(index: Int, size: Int) {
 #
 # All values in an array must be of the same type, and the array's value type is
 # based on the type of the first value.
-class builtin Array[T] {
+type builtin Array[T] {
   # The compiler depends on the order of these fields, so don't change it
   # without also updating the compiler.
   let @size: Int
@@ -862,7 +862,7 @@ impl Array if T: Compare[T] {
 #
 # When this iterator is dropped, any values not yet moved out of the `Array` are
 # dropped.
-class pub IntoIter[T] {
+type pub IntoIter[T] {
   let @array: Array[T]
   let @index: Int
 

@@ -1,4 +1,4 @@
-class Thing {
+type Thing {
   let @a: Array[Int]
   let @b: Array[Int]
 

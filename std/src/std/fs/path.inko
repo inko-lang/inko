@@ -10,7 +10,7 @@ import std.iter (Iter, Stream)
 import std.string (IntoString, StringBuffer, ToString)
 import std.sys.unix.fs (self as sys) if unix
 
-class extern AnyResult {
+type extern AnyResult {
   let @tag: Int
   let @value: UInt64
 }
@@ -82,7 +82,7 @@ fn join_strings(base: ref String, with: ref String) -> String {
 # An iterator over the entries in a directory.
 #
 # See the documentation of `std.fs.path.Path.list` for more details.
-class pub ReadDirectory {
+type pub ReadDirectory {
   let @path: String
   let @inner: sys.ReadDirectory
 }
@@ -90,11 +90,11 @@ class pub ReadDirectory {
 impl Iter[Result[DirectoryEntry, Error]] for ReadDirectory {
   fn pub mut next -> Option[Result[DirectoryEntry, Error]] {
     let ret = match try { @inner.next } {
-      case Ok((path, type)) -> {
+      case Ok((path, typ)) -> {
         Result.Ok(
           DirectoryEntry(
             path: Path.new(join_strings(@path, with: path)),
-            type: type,
+            type: typ,
           ),
         )
       }
@@ -106,7 +106,7 @@ impl Iter[Result[DirectoryEntry, Error]] for ReadDirectory {
 }
 
 # An iterator over the components in a `Path`.
-class pub Components {
+type pub Components {
   let @path: ref Path
   let @index: Int
   let @size: Int
@@ -212,7 +212,7 @@ impl Iter[String] for Components {
 #
 # '/tmp/hello.txt'.to_path
 # ```
-class pub inline Path {
+type pub inline Path {
   # The raw file path.
   let @path: String
 

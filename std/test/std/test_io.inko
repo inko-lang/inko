@@ -7,7 +7,7 @@ import std.io (
 import std.libc
 import std.test (Tests)
 
-class Reader {
+type Reader {
   let @index: Int
   let @bytes: ByteArray
 
@@ -37,7 +37,7 @@ impl Read for Reader {
   }
 }
 
-class SingleByteReader {
+type SingleByteReader {
   let @index: Int
   let @bytes: ByteArray
 
@@ -59,7 +59,7 @@ impl Read for SingleByteReader {
   }
 }
 
-class ErrorReader {}
+type ErrorReader {}
 
 impl Read for ErrorReader {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
@@ -67,7 +67,7 @@ impl Read for ErrorReader {
   }
 }
 
-class Writer {
+type Writer {
   let @buffer: ByteArray
 
   fn static new -> Writer {

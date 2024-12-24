@@ -450,45 +450,45 @@ impl Node for DefineField {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum ClassExpression {
+pub enum TypeExpression {
     DefineMethod(Box<DefineMethod>),
     DefineField(Box<DefineField>),
     DefineConstructor(Box<DefineConstructor>),
     Comment(Box<Comment>),
 }
 
-impl Node for ClassExpression {
+impl Node for TypeExpression {
     fn location(&self) -> &Location {
         match self {
-            ClassExpression::DefineMethod(n) => &n.location,
-            ClassExpression::DefineField(n) => &n.location,
-            ClassExpression::DefineConstructor(n) => &n.location,
-            ClassExpression::Comment(n) => &n.location,
+            TypeExpression::DefineMethod(n) => &n.location,
+            TypeExpression::DefineField(n) => &n.location,
+            TypeExpression::DefineConstructor(n) => &n.location,
+            TypeExpression::Comment(n) => &n.location,
         }
     }
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct ClassExpressions {
-    pub values: Vec<ClassExpression>,
+pub struct TypeExpressions {
+    pub values: Vec<TypeExpression>,
     pub location: Location,
 }
 
-impl Node for ClassExpressions {
+impl Node for TypeExpressions {
     fn location(&self) -> &Location {
         &self.location
     }
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum ClassSemantics {
+pub enum TypeSemantics {
     Default,
     Inline,
     Copy,
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum ClassKind {
+pub enum TypeKind {
     Async,
     Builtin,
     Enum,
@@ -497,17 +497,17 @@ pub enum ClassKind {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct DefineClass {
-    pub semantics: ClassSemantics,
+pub struct DefineType {
+    pub semantics: TypeSemantics,
     pub public: bool,
-    pub kind: ClassKind,
+    pub kind: TypeKind,
     pub name: Constant,
     pub type_parameters: Option<TypeParameters>,
-    pub body: ClassExpressions,
+    pub body: TypeExpressions,
     pub location: Location,
 }
 
-impl Node for DefineClass {
+impl Node for DefineType {
     fn location(&self) -> &Location {
         &self.location
     }
@@ -574,9 +574,9 @@ impl Node for DefineTrait {
 pub enum TopLevelExpression {
     DefineConstant(Box<DefineConstant>),
     DefineMethod(Box<DefineMethod>),
-    DefineClass(Box<DefineClass>),
+    DefineType(Box<DefineType>),
     DefineTrait(Box<DefineTrait>),
-    ReopenClass(Box<ReopenClass>),
+    ReopenType(Box<ReopenType>),
     ImplementTrait(Box<ImplementTrait>),
     Import(Box<Import>),
     ExternImport(Box<ExternImport>),
@@ -588,9 +588,9 @@ impl Node for TopLevelExpression {
         match self {
             TopLevelExpression::DefineConstant(ref n) => n.location(),
             TopLevelExpression::DefineMethod(ref n) => n.location(),
-            TopLevelExpression::DefineClass(ref n) => n.location(),
+            TopLevelExpression::DefineType(ref n) => n.location(),
             TopLevelExpression::DefineTrait(ref n) => n.location(),
-            TopLevelExpression::ReopenClass(ref n) => n.location(),
+            TopLevelExpression::ReopenType(ref n) => n.location(),
             TopLevelExpression::ImplementTrait(ref n) => n.location(),
             TopLevelExpression::Import(ref n) => n.location(),
             TopLevelExpression::ExternImport(ref n) => n.location(),
@@ -627,14 +627,14 @@ impl Node for ImplementationExpressions {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct ReopenClass {
-    pub class_name: Constant,
+pub struct ReopenType {
+    pub type_name: Constant,
     pub body: ImplementationExpressions,
     pub location: Location,
     pub bounds: Option<TypeBounds>,
 }
 
-impl Node for ReopenClass {
+impl Node for ReopenType {
     fn location(&self) -> &Location {
         &self.location
     }
@@ -698,7 +698,7 @@ impl Node for TypeBounds {
 #[derive(Debug, PartialEq, Eq)]
 pub struct ImplementTrait {
     pub trait_name: TypeName,
-    pub class_name: Constant,
+    pub type_name: Constant,
     pub body: ImplementationExpressions,
     pub location: Location,
     pub bounds: Option<TypeBounds>,
@@ -1474,7 +1474,7 @@ pub struct FieldPattern {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct ClassPattern {
+pub struct TypePattern {
     pub values: Vec<FieldPattern>,
     pub location: Location,
 }
@@ -1495,7 +1495,7 @@ pub struct StringPattern {
 pub enum Pattern {
     Constant(Box<Constant>),
     Constructor(Box<ConstructorPattern>),
-    Class(Box<ClassPattern>),
+    Type(Box<TypePattern>),
     Int(Box<IntLiteral>),
     True(Box<True>),
     False(Box<False>),
@@ -1511,7 +1511,7 @@ impl Pattern {
         match self {
             Pattern::Constant(ref n) => &n.location,
             Pattern::Constructor(ref n) => &n.location,
-            Pattern::Class(ref n) => &n.location,
+            Pattern::Type(ref n) => &n.location,
             Pattern::Int(ref n) => n.location(),
             Pattern::True(ref n) => n.location(),
             Pattern::False(ref n) => n.location(),
