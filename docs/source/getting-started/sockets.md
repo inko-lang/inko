@@ -22,7 +22,7 @@ type async Main {
     let client = UdpSocket.new(IpAddress.v4(0, 0, 0, 0), port: 0).get
     let addr = server.local_address.get
 
-    client.connect(addr.ip.get, addr.port).get
+    client.connect(addr.ip, addr.port).get
     client.write_string('Hello, world!').get
 
     let bytes = ByteArray.new
