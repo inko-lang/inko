@@ -25,13 +25,16 @@ fn location_to_json(location: Location) -> Json {
     Json::Object(obj)
 }
 
-fn type_kind(kind: TypeKind, stack: bool) -> i64 {
+fn type_kind(kind: TypeKind, copy: bool) -> i64 {
+    if copy {
+        return 4;
+    }
+
     match kind {
         TypeKind::Enum => 1,
         TypeKind::Async => 2,
         TypeKind::Extern => 3,
         TypeKind::Atomic => 5,
-        _ if stack => 4,
         _ => 0,
     }
 }
