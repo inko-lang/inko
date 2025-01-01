@@ -5,6 +5,9 @@ import std.libc.mac.arm64 (self as sys) if arm64
 let AF_INET = 2
 let AF_INET6 = 30
 let AF_UNIX = 1
+let AF_UNSPEC = 0
+let AI_ADDRCONFIG = 0x400
+let AI_V4MAPPED = 0x800
 let AT_FDCWD = -2
 let CLOCK_REALTIME = 0
 let COPYFILE_ALL = 15
@@ -15,6 +18,12 @@ let EACCES = 13
 let EADDRINUSE = 48
 let EADDRNOTAVAIL = 49
 let EAGAIN = 35
+let EAI_ADDRFAMILY = 1
+let EAI_AGAIN = 2
+let EAI_FAIL = 4
+let EAI_NONAME = 8
+let EAI_SERVICE = 9
+let EAI_SYSTEM = 11
 let EBADF = 9
 let EBUSY = 16
 let ECONNABORTED = 53
@@ -319,6 +328,17 @@ type extern SockAddrStorage {
   let @__val12: UInt64
   let @__val13: UInt64
   let @__val14: UInt64
+}
+
+type extern AddrInfo {
+  let @ai_flags: Int32
+  let @ai_family: Int32
+  let @ai_socktype: Int32
+  let @ai_protocol: Int32
+  let @ai_addrlen: UInt64
+  let @ai_canonname: Pointer[UInt8]
+  let @ai_addr: Pointer[SockAddr]
+  let @ai_next: Pointer[AddrInfo]
 }
 
 fn extern chmod(path: Pointer[UInt8], mode: UInt16) -> Int32

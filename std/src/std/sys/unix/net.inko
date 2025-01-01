@@ -200,6 +200,28 @@ fn inline connect(
   Result.Ok(nil)
 }
 
+fn inline parse_v4_address(pointer: Pointer[UInt8]) -> IpAddress {
+  let a = pointer.0 as Int
+  let b = ptr.add(pointer, 1).0 as Int
+  let c = ptr.add(pointer, 2).0 as Int
+  let d = ptr.add(pointer, 3).0 as Int
+
+  IpAddress.v4(a, b, c, d)
+}
+
+fn inline parse_v6_address(pointer: Pointer[UInt16]) -> IpAddress {
+  let a = net.htons(pointer.0 as Int)
+  let b = net.htons(ptr.add(pointer, 1).0 as Int)
+  let c = net.htons(ptr.add(pointer, 2).0 as Int)
+  let d = net.htons(ptr.add(pointer, 3).0 as Int)
+  let e = net.htons(ptr.add(pointer, 4).0 as Int)
+  let f = net.htons(ptr.add(pointer, 5).0 as Int)
+  let g = net.htons(ptr.add(pointer, 6).0 as Int)
+  let h = net.htons(ptr.add(pointer, 7).0 as Int)
+
+  IpAddress.v6(a, b, c, d, e, f, g, h)
+}
+
 fn inline parse_ip_socket_address(
   address: Pointer[sys_libc.SockAddrStorage],
 ) -> (IpAddress, Int) {
@@ -207,28 +229,16 @@ fn inline parse_ip_socket_address(
     case libc.AF_INET -> {
       let addr_ptr = address as Pointer[sys_libc.SockAddrIn]
       let port = net.htons(addr_ptr.sin_port as Int)
-      let ip_ptr = (mut addr_ptr.sin_addr) as Pointer[UInt8]
-      let a = ip_ptr.0 as Int
-      let b = ptr.add(ip_ptr, 1).0 as Int
-      let c = ptr.add(ip_ptr, 2).0 as Int
-      let d = ptr.add(ip_ptr, 3).0 as Int
+      let ip = parse_v4_address((mut addr_ptr.sin_addr) as Pointer[UInt8])
 
-      (IpAddress.v4(a, b, c, d), port)
+      (ip, port)
     }
     case libc.AF_INET6 -> {
       let addr_ptr = address as Pointer[sys_libc.SockAddrIn6]
       let port = net.htons(addr_ptr.sin6_port as Int)
-      let ip_ptr = (mut addr_ptr.sin6_addr0) as Pointer[UInt16]
-      let a = net.htons(ip_ptr.0 as Int)
-      let b = net.htons(ptr.add(ip_ptr, 1).0 as Int)
-      let c = net.htons(ptr.add(ip_ptr, 2).0 as Int)
-      let d = net.htons(ptr.add(ip_ptr, 3).0 as Int)
-      let e = net.htons(ptr.add(ip_ptr, 4).0 as Int)
-      let f = net.htons(ptr.add(ip_ptr, 5).0 as Int)
-      let g = net.htons(ptr.add(ip_ptr, 6).0 as Int)
-      let h = net.htons(ptr.add(ip_ptr, 7).0 as Int)
+      let ip = parse_v6_address((mut addr_ptr.sin6_addr0) as Pointer[UInt16])
 
-      (IpAddress.v6(a, b, c, d, e, f, g, h), port)
+      (ip, port)
     }
     case other -> address_family_error(other)
   }

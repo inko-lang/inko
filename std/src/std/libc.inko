@@ -17,6 +17,9 @@ import std.libc.mac (self as sys) if mac
 let AF_INET = sys.AF_INET
 let AF_INET6 = sys.AF_INET6
 let AF_UNIX = sys.AF_UNIX
+let AF_UNSPEC = sys.AF_UNSPEC
+let AI_ADDRCONFIG = sys.AI_ADDRCONFIG
+let AI_V4MAPPED = sys.AI_V4MAPPED
 let CLOCK_REALTIME = sys.CLOCK_REALTIME
 let DT_DIR = sys.DT_DIR
 let DT_LNK = sys.DT_LNK
@@ -25,6 +28,12 @@ let EACCES = sys.EACCES
 let EADDRINUSE = sys.EADDRINUSE
 let EADDRNOTAVAIL = sys.EADDRNOTAVAIL
 let EAGAIN = sys.EAGAIN
+let EAI_ADDRFAMILY = sys.EAI_ADDRFAMILY
+let EAI_AGAIN = sys.EAI_AGAIN
+let EAI_FAIL = sys.EAI_FAIL
+let EAI_NONAME = sys.EAI_NONAME
+let EAI_SERVICE = sys.EAI_SERVICE
+let EAI_SYSTEM = sys.EAI_SYSTEM
 let EBADF = sys.EBADF
 let EBUSY = sys.EBUSY
 let ECONNABORTED = sys.ECONNABORTED
@@ -323,6 +332,15 @@ fn extern clock_gettime(clock: Int32, time: Pointer[Timespec]) -> Int32
 fn extern gmtime_r(time: Pointer[Int64], result: Pointer[Tm]) -> Pointer[Tm]
 
 fn extern localtime_r(time: Pointer[Int64], result: Pointer[Tm]) -> Pointer[Tm]
+
+fn extern getaddrinfo(
+  node: Pointer[UInt8],
+  service: Pointer[UInt8],
+  hints: Pointer[sys.AddrInfo],
+  res: Pointer[sys.AddrInfo],
+) -> Int32
+
+fn extern freeaddrinfo(addr: Pointer[sys.AddrInfo])
 
 # Returns the type of a directory entry.
 fn inline dirent_type(pointer: Pointer[sys.Dirent]) -> Int {

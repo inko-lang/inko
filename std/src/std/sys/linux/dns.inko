@@ -1,0 +1,145 @@
+import std.io
+import std.json (Json)
+import std.libc
+import std.net.dns (Error, Resolve)
+import std.net.ip (IpAddresses)
+import std.net.socket (UnixClient)
+import std.sys.unix.dns (resolver as system_resolver)
+import std.sys.unix.net (self as net)
+import std.time (ToInstant)
+
+let RESOLVE_HOST = 'io.systemd.Resolve.ResolveHostname'
+let VARLINK_SOCKET = '/run/systemd/resolve/io.systemd.Resolve'
+let READ_SIZE = 8 * 1024
+let SERV_FAIL = 2
+let NX_DOMAIN = 3
+
+# Returns a new `ResolveHostname` message.
+fn resolve_host(host: String) -> String {
+  let msg = Map.new
+  let params = Map.new
+
+  params.set('name', Json.String(host))
+  params.set('family', Json.Int(libc.AF_UNSPEC))
+  msg.set('method', Json.String(RESOLVE_HOST))
+  msg.set('parameters', Json.Object(params))
+  Json.Object(msg).to_string
+}
+
+# Parses the response of the `ResolveHostname` call.
+fn parse_resolve_host_response(json: Json) -> Result[IpAddresses, Error] {
+  let params = json.query.key('parameters')
+
+  if json.query.key('error').as_string.some? {
+    match params.key('rcode').as_int {
+      case Some(SERV_FAIL) -> throw Error.ServerError
+      case Some(NX_DOMAIN) or None -> throw Error.InvalidHost
+      case Some(e) -> throw Error.Other(io.Error.Other(e))
+    }
+  }
+
+  let ips = try params.key('addresses').as_array.get.iter.try_reduce(
+    [],
+    fn (vals, val) {
+      let fam = try val.query.key('family').as_int.ok_or(Error.ServerError)
+      let capa = if fam == libc.AF_INET6 { 16 } else { 4 }
+      let addr = try val
+        .query
+        .key('address')
+        .as_array
+        .ok_or(Error.ServerError)
+        .then(fn (nums) {
+          nums.iter.try_reduce(ByteArray.with_capacity(capa), fn (bytes, num) {
+            try num.query.as_int.ok_or(Error.ServerError).map(fn (v) {
+              bytes.push(v)
+            })
+            Result.Ok(bytes)
+          })
+        })
+
+      let ptr = addr.to_pointer
+      let ip = match fam {
+        case libc.AF_INET if addr.size == 4 -> {
+          net.parse_v4_address(ptr as Pointer[UInt8])
+        }
+        case libc.AF_INET6 if addr.size == 16 -> {
+          net.parse_v6_address(ptr as Pointer[UInt16])
+        }
+        case _ -> throw Error.ServerError
+      }
+
+      vals.push(ip)
+      Result.Ok(vals)
+    },
+  )
+
+  Result.Ok(IpAddresses(ips))
+}
+
+# A resolver that uses systemd-resolve's through its
+# [varlink](https://varlink.org/) API.
+type SystemdResolver {
+  let @socket: UnixClient
+  let @buffer: ByteArray
+
+  fn static new -> Option[SystemdResolver] {
+    let sock = try UnixClient.new(VARLINK_SOCKET.to_path).ok
+    let buf = ByteArray.new
+
+    Option.Some(SystemdResolver(socket: sock, buffer: buf))
+  }
+}
+
+impl Resolve for SystemdResolver {
+  fn pub mut timeout_after=[T: ToInstant](deadline: ref T) {
+    @socket.socket.timeout_after = deadline
+  }
+
+  fn pub mut reset_deadline {
+    @socket.socket.reset_deadline
+  }
+
+  fn pub mut resolve(host: String) -> Result[IpAddresses, Error] {
+    @buffer.append(resolve_host(host))
+    @buffer.push(0)
+    try @socket.write_bytes(@buffer).map_error(fn (e) { Error.Other(e) })
+    @buffer.clear
+
+    # Read until the trailing NULL byte.
+    loop {
+      match @socket.read(into: @buffer, size: READ_SIZE) {
+        case Ok(0) -> break
+        case Ok(_) if @buffer.last.or(-1) == 0 -> {
+          @buffer.pop
+          break
+        }
+        case Ok(_) -> {}
+        case Error(e) -> throw Error.Other(e)
+      }
+    }
+
+    # The JSON itself should always be valid, so we don't need to handle parsing
+    # errors in a better way.
+    let res = Json
+      .parse(io.Buffer.new(@buffer))
+      .map_error(fn (_) { Error.ServerError })
+      .then(fn (v) { parse_resolve_host_response(v) })
+
+    @buffer.clear
+    res
+  }
+}
+
+fn inline resolver -> Resolve {
+  # If systemd-resolve is present then we try to use its varlink interface. In
+  # the rare case that the socket is available but for some reason we can't
+  # connect to it, we fall back to using the system resolver.
+  if VARLINK_SOCKET.to_path.exists? {
+    match SystemdResolver.new {
+      case Some(r) -> return r as Resolve
+      case _ -> {}
+    }
+  }
+
+  system_resolver
+}

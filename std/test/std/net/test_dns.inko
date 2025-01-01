@@ -1,0 +1,38 @@
+import std.net.dns (Error, Resolver)
+import std.net.ip (IpAddress, IpAddresses)
+import std.test (Tests)
+
+fn pub tests(t: mut Tests) {
+  t.test('Resolver.resolve with an IP address', fn (t) {
+    let dns = Resolver.new
+
+    t.equal(
+      dns.resolve('127.0.0.1'),
+      Result.Ok(IpAddresses.new([IpAddress.v4(127, 0, 0, 1)])),
+    )
+
+    # Not every environment (e.g. CI) might have IPv6 set up, so we only perform
+    # this test if the lookup succeeds.
+    match dns.resolve('::1') {
+      case Ok(ips) -> {
+        t.equal(ips, IpAddresses.new([IpAddress.v6(0, 0, 0, 0, 0, 0, 0, 1)]))
+      }
+      case _ -> {}
+    }
+  })
+
+  t.ok('Resolver.resolve with a valid hostname', fn (t) {
+    let dns = Resolver.new
+    let res = try dns.resolve('localhost')
+
+    t.true(res.size > 0)
+    Result.Ok(nil)
+  })
+
+  t.test('Resolver.resolve with an invalid hostname', fn (t) {
+    let dns = Resolver.new
+
+    t.equal(dns.resolve('invalid.'), Result.Error(Error.InvalidHost))
+    t.equal(dns.resolve(''), Result.Error(Error.InvalidHost))
+  })
+}

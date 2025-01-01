@@ -1,0 +1,73 @@
+import std.io
+import std.libc
+import std.libc.freebsd (self as sys_libc) if freebsd
+import std.libc.linux (self as sys_libc) if linux
+import std.libc.mac (self as sys_libc) if mac
+import std.net.dns (Error, Resolve)
+import std.net.ip (IpAddresses)
+import std.sys.unix.net (self as sys_net) if unix
+import std.time (ToInstant)
+
+# A resolver that uses `getaddrinfo()`.
+type Resolver {
+  fn inline static new -> Resolver {
+    Resolver()
+  }
+}
+
+impl Resolve for Resolver {
+  fn pub mut timeout_after=[T: ToInstant](deadline: ref T) {
+    # getaddrinfo() doesn't support timeouts.
+  }
+
+  fn pub mut reset_deadline {
+    # getaddrinfo() doesn't support timeouts.
+  }
+
+  fn pub mut resolve(host: String) -> Result[IpAddresses, Error] {
+    let hints = sys_libc.AddrInfo(
+      ai_flags: (libc.AI_ADDRCONFIG | libc.AI_V4MAPPED) as Int32,
+      ai_family: libc.AF_UNSPEC as Int32,
+      ai_socktype: libc.SOCK_STREAM as Int32,
+      ai_protocol: 0 as Int32,
+      ai_addrlen: 0 as UInt64,
+      ai_addr: 0x0 as Pointer[sys_libc.SockAddr],
+      ai_canonname: 0x0 as Pointer[UInt8],
+      ai_next: 0x0 as Pointer[sys_libc.AddrInfo],
+    )
+    let list = 0x0 as Pointer[sys_libc.AddrInfo]
+    let ptr = host.to_pointer
+
+    io.start_blocking
+
+    let res = libc.getaddrinfo(ptr, 0 as Pointer[UInt8], mut hints, mut list)
+    let errno = io.stop_blocking
+
+    match res as Int {
+      case 0 -> {}
+      case libc.EAI_NONAME or libc.EAI_SERVICE or libc.EAI_ADDRFAMILY -> {
+        throw Error.InvalidHost
+      }
+      case libc.EAI_AGAIN or libc.EAI_FAIL -> throw Error.ServerError
+      case libc.EAI_SYSTEM -> throw Error.Other(io.Error.from_os_error(errno))
+      case e -> throw Error.Other(io.Error.Other(e))
+    }
+
+    let mut cur = list
+    let ips = []
+
+    while cur as Int != 0 {
+      let addr_ptr = cur.ai_addr as Pointer[sys_libc.SockAddrStorage]
+
+      ips.push(sys_net.parse_ip_socket_address(addr_ptr).0)
+      cur = cur.ai_next
+    }
+
+    libc.freeaddrinfo(list)
+    Result.Ok(IpAddresses(ips))
+  }
+}
+
+fn inline resolver -> Resolve {
+  Resolver.new as Resolve
+}

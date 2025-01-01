@@ -1,0 +1,194 @@
+# Types for performing DNS queries.
+#
+# This module provides a `Resolver` type that is used for performing DNS
+# queries, such as resolving a hostname to a list of IP addresses. For more
+# information, refer to the documentation of the `Resolver` type.
+import std.cmp (Equal)
+import std.fmt (Format, Formatter)
+import std.io
+import std.net.ip (IpAddresses)
+import std.string (ToString)
+import std.sys.linux.dns (self as sys) if linux
+import std.sys.unix.dns (self as sys) if mac
+import std.sys.unix.dns (self as sys) if freebsd
+import std.time (ToInstant)
+
+# An error produced as part of a DNS query.
+type pub inline enum Error {
+  # A hostname can't be resolved (NXDomain).
+  case InvalidHost
+
+  # The DNS server returned an error (e.g. ServFail) or produced an invalid
+  # response (e.g. systemd-resolve returning bogus data).
+  case ServerError
+
+  # Any other kind of error, such as a network timeout.
+  case Other(io.Error)
+}
+
+impl ToString for Error {
+  fn pub to_string -> String {
+    match self {
+      case InvalidHost -> "the hostname can't be resolved"
+      case ServerError -> 'the DNS server returned an error'
+      case Other(e) -> e.to_string
+    }
+  }
+}
+
+impl Format for Error {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case InvalidHost -> formatter.tuple('InvalidHost').finish
+      case ServerError -> formatter.tuple('ServerError').finish
+      case Other(e) -> formatter.tuple('Other').field(e).finish
+    }
+  }
+}
+
+impl Equal[ref Error] for Error {
+  fn pub ==(other: ref Error) -> Bool {
+    match (self, other) {
+      case (InvalidHost, InvalidHost) -> true
+      case (ServerError, ServerError) -> true
+      case (Other(a), Other(b)) -> a == b
+      case _ -> false
+    }
+  }
+}
+
+# A type that can resolve DNS queries, such as resolving a hostname into a list
+# of IP addresses.
+trait Resolve {
+  # Sets the point in time after which IO operations must time out.
+  #
+  # Depending on the implementation of the resolver, the deadline might be
+  # ignored.
+  fn pub mut timeout_after=[T: ToInstant](deadline: ref T)
+
+  # Resets the deadline stored in `self`.
+  fn pub mut reset_deadline
+
+  # Resolves the given hostname into a list of IP addresses.
+  #
+  # Upon success an `std.net.ip.IpAddresses` is returned, storing the IP
+  # addresses in the order in which they should be used based on the underlying
+  # platform's preferences.
+  #
+  # # Errors
+  #
+  # If the host doesn't resolve to anything, an `Error.InvalidHost` error is
+  # returned.
+  #
+  # If the DNS server produced some sort of internal error (e.g. it's
+  # overloaded), an `Error.ServerError` is returned.
+  #
+  # For any other kind of error (e.g. a timeout), a `Error.Other` is returned
+  # that wraps an `std.io.Error` value.
+  #
+  # # Examples
+  #
+  # Resolving a hostname and using it to connect a socket:
+  #
+  # ```inko
+  # import std.net.dns (Resolver)
+  # import std.net.socket (TcpClient)
+  #
+  # let dns = Resolver.new
+  # let ips = dns.resolve('example.com').or_panic('DNS lookup failed')
+  #
+  # ips
+  #   .try(fn (ip) { TcpClient.new(ip, port: 80) })
+  #   .or_panic('failed to connect')
+  # ```
+  fn pub mut resolve(host: String) -> Result[IpAddresses, Error]
+}
+
+# A type for performing DNS queries.
+#
+# # Backends
+#
+# The `Resolver` type uses a different backend/implementation depending on the
+# underlying platform. These are as follows:
+#
+# |=
+# | Platform
+# | Backend
+# | Fallback
+# |-
+# | FreeBSD
+# | `getaddrinfo()`
+# | None
+# |-
+# | macOS
+# | `getaddrinfo()`
+# | None
+# |-
+# | Linux
+# | systemd-resolve (using its [varlink](https://varlink.org/) API)
+# | `getaddrinfo()`
+#
+# Due to the blocking nature of `getaddrinfo()`, it's possible for a call to
+# this function to block the OS thread for a long period of time. While such
+# threads are marked as blocking and are replaced with a backup thread whenever
+# necessary, the number of available threads is fixed and thus it's possible to
+# exhaust all these threads by performing many slow DNS queries.
+#
+# In contrast, the systemd-resolve backend is able to take advantage of Inko's
+# non-blocking network IO and thus doesn't suffer from the same problem. For
+# this reason it's _highly_ recommended to ensure systemd-resolve is available
+# when deploying to a Linux environment. If systemd-resolve isn't available, the
+# Linux implementation falls back to using `getaddrinfo()`.
+#
+# When using the `getaddrinfo()` backend, the following `ai_flags` flags are
+# set:
+#
+# - `AI_ADDRCONFIG`
+# - `AI_V4MAPPED`
+#
+# These flags are set to ensure consistent behaviour across platforms and libc
+# implementations.
+#
+# # Deadlines
+#
+# A `Resolver` supports setting a deadline using `Resolver.timeout_after=`.
+# However, this timeout might be ignored based on the backend in use. Most
+# notably, `getaddrinfo()` backends don't support timeouts/deadlines and instead
+# use a system-wide timeout, ignoring any deadlines set using
+# `Resolver.timeout_after=`.
+#
+# # Examples
+#
+# Resolving a hostname and using it to connect a socket:
+#
+# ```inko
+# import std.net.dns (Resolver)
+# import std.net.socket (TcpClient)
+#
+# let dns = Resolver.new
+# let ips = dns.resolve('example.com').or_panic('DNS lookup failed')
+#
+# ips.try(fn (ip) { TcpClient.new(ip, port: 80) }).or_panic('failed to connect')
+# ```
+type pub inline Resolver {
+  let @inner: Resolve
+
+  # Returns a new `Resolver`.
+  fn pub static new -> Resolver {
+    Resolver(sys.resolver)
+  }
+}
+
+impl Resolve for Resolver {
+  fn pub mut timeout_after=[T: ToInstant](deadline: ref T) {
+    @inner.timeout_after = deadline
+  }
+
+  fn pub mut reset_deadline {
+    @inner.reset_deadline
+  }
+
+  fn pub mut resolve(host: String) -> Result[IpAddresses, Error] {
+    @inner.resolve(host)
+  }
+}
