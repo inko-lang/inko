@@ -193,7 +193,7 @@ type async DummyClient {
 
   fn client(port: Int) -> Result[Client[TcpClient], String] {
     let conf = try client_config
-    let sock = try TcpClient.new(IpAddress.v4(127, 0, 0, 1), port).map_error(
+    let sock = try TcpClient.new([IpAddress.v4(127, 0, 0, 1)], port).map_error(
       fn (e) { 'failed to connect: ${e}' },
     )
 
@@ -202,7 +202,7 @@ type async DummyClient {
 }
 
 fn connect(port: Int) -> Result[TcpClient, String] {
-  TcpClient.new(IpAddress.v4(127, 0, 0, 1), port).map_error(fn (e) {
+  TcpClient.new([IpAddress.v4(127, 0, 0, 1)], port).map_error(fn (e) {
     'failed to connect to the server: ${e}'
   })
 }

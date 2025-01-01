@@ -1,5 +1,5 @@
 import std.fmt (fmt)
-import std.net.ip (IpAddress, IpAddresses, Ipv4Address, Ipv6Address)
+import std.net.ip (IpAddress, Ipv4Address, Ipv6Address)
 import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
@@ -464,65 +464,5 @@ fn pub tests(t: mut Tests) {
 
   t.test('Ipv4Address.clone', fn (t) {
     t.equal(Ipv4Address.new(127, 0, 0, 1).clone, Ipv4Address.new(127, 0, 0, 1))
-  })
-
-  t.test('IpAddresses.try', fn (t) {
-    let ips = IpAddresses.new(
-      [IpAddress.v4(0, 0, 0, 0), IpAddress.v6(0, 0, 0, 0, 0, 0, 0, 0)],
-    )
-
-    t.equal(
-      ips.try(fn (ip) -> Result[IpAddress, Nil] { Result.Ok(ip) }),
-      Result.Ok(IpAddress.v4(0, 0, 0, 0)),
-    )
-    t.equal(
-      ips.try(fn (ip) {
-        if ip.v6? { Result.Ok(ip) } else { Result.Error(nil) }
-      }),
-      Result.Ok(IpAddress.v6(0, 0, 0, 0, 0, 0, 0, 0)),
-    )
-    t.equal(
-      ips.try(fn (ip) -> Result[Nil, String] { Result.Error('oops') }),
-      Result.Error('oops'),
-    )
-  })
-
-  t.panic('IpAddress.try without IP addresses', fn {
-    IpAddresses.new([]).try(fn (ip) -> Result[Int, Nil] { Result.Ok(10) })
-  })
-
-  t.test('IpAddresses.into_array', fn (t) {
-    t.equal(IpAddresses.new([]).into_array, [])
-    t.equal(
-      IpAddresses.new([IpAddress.v4(127, 0, 0, 1)]).into_array,
-      [IpAddress.v4(127, 0, 0, 1)],
-    )
-  })
-
-  t.test('IpAddresses.size', fn (t) {
-    t.equal(IpAddresses.new([]).size, 0)
-    t.equal(IpAddresses.new([IpAddress.v4(127, 0, 0, 1)]).size, 1)
-  })
-
-  t.test('IpAddresses.empty?', fn (t) {
-    t.true(IpAddresses.new([]).empty?)
-    t.false(IpAddresses.new([IpAddress.v4(127, 0, 0, 1)]).empty?)
-  })
-
-  t.test('IpAddresses.fmt', fn (t) {
-    t.equal(fmt(IpAddresses.new([])), '[]')
-    t.equal(fmt(IpAddresses.new([IpAddress.v4(127, 0, 0, 1)])), '[127.0.0.1]')
-  })
-
-  t.test('IpAddresses.==', fn (t) {
-    t.equal(IpAddresses.new([]), IpAddresses.new([]))
-    t.equal(
-      IpAddresses.new([IpAddress.v4(127, 0, 0, 1)]),
-      IpAddresses.new([IpAddress.v4(127, 0, 0, 1)]),
-    )
-    t.not_equal(
-      IpAddresses.new([IpAddress.v4(127, 0, 0, 1)]),
-      IpAddresses.new([IpAddress.v4(127, 0, 0, 2)]),
-    )
   })
 }

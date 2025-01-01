@@ -79,6 +79,28 @@ import std.time (Duration, ToInstant)
 # Linux (for example) would have no effect.
 let MAXIMUM_LISTEN_BACKLOG = 65_535
 
+fn pub try_ips[R, E](
+  ips: ref Array[IpAddress],
+  fun: fn (IpAddress) -> Result[R, E],
+) -> Result[R, E] {
+  let iter = ips.iter
+  let mut last = Option.None
+
+  loop {
+    match iter.next {
+      case Some(ip) -> {
+        match fun.call(ip) {
+          case Ok(v) -> return Result.Ok(v)
+          case Error(e) -> last = Option.Some(e)
+        }
+      }
+      case _ -> break
+    }
+  }
+
+  Result.Error(last.or_panic('at least one IP address must be specified'))
+}
+
 trait RawSocketOperations {
   fn mut raw_socket -> Pointer[net.RawSocket]
 
@@ -789,12 +811,19 @@ type pub TcpClient {
     Result.Ok(TcpClient(socket))
   }
 
-  # Creates a new `TcpClient` that is connected to the TCP socket at the given
-  # IP address and port.
+  # Creates a new `TcpClient` that's connected to an IP address and port number.
+  #
+  # If multiple IP addresses are given, this method attempts to connect to them
+  # in order, returning upon the first successful connection. If no connection
+  # can be established, the error of the last attempt is returned.
   #
   # This method doesn't enforce a deadline on establishing the connection. If
   # you need to limit the amount of time spent waiting to establish the
   # connection, use `TcpClient.with_timeout` instead.
+  #
+  # # Panics
+  #
+  # This method panics if `ips` is empty.
   #
   # # Examples
   #
@@ -804,22 +833,35 @@ type pub TcpClient {
   # import std.net.socket (TcpClient)
   # import std.net.ip (IpAddress)
   #
-  # TcpClient.new(IpAddress.v4(127, 0, 0, 1), port: 40_000).get
+  # TcpClient.new([IpAddress.v4(127, 0, 0, 1)], port: 40_000).get
   # ```
-  fn pub static new(ip: ref IpAddress, port: Int) -> Result[TcpClient, Error] {
-    let socket = try Socket.stream(ip.v6?)
+  fn pub static new(
+    ips: ref Array[IpAddress],
+    port: Int,
+  ) -> Result[TcpClient, Error] {
+    try_ips(ips, fn (ip) {
+      let socket = try Socket.stream(ip.v6?)
 
-    try socket.connect(ip, port)
-    from(socket)
+      try socket.connect(ip, port)
+      from(socket)
+    })
   }
 
   # Creates a new `TcpClient` but limits the amount of time spent waiting for
   # the connection to be established.
   #
+  # If multiple IP addresses are given, this method attempts to connect to them
+  # in order, returning upon the first successful connection. If no connection
+  # can be established, the error of the last attempt is returned.
+  #
   # The `timeout_after` argument specifies the deadline after which the
   # `connect()` times out. The deadline is cleared once connected.
   #
   # See `TcpClient.new` for more information.
+  #
+  # # Panics
+  #
+  # This method panics if `ips` is empty.
   #
   # # Examples
   #
@@ -830,23 +872,25 @@ type pub TcpClient {
   #
   # TcpClient
   #   .with_timeout(
-  #     ip: IpAddress.v4(0, 0, 0, 0),
+  #     ips: [IpAddress.v4(0, 0, 0, 0)],
   #     port: 40_000,
   #     timeout_after: Duration.from_secs(5)
   #   )
   #   .get
   # ```
   fn pub static with_timeout[T: ToInstant](
-    ip: ref IpAddress,
+    ips: ref Array[IpAddress],
     port: Int,
     timeout_after: ref T,
   ) -> Result[TcpClient, Error] {
-    let socket = try Socket.stream(ip.v6?)
+    try_ips(ips, fn (ip) {
+      let socket = try Socket.stream(ip.v6?)
 
-    socket.timeout_after = timeout_after
-    try socket.connect(ip, port)
-    socket.reset_deadline
-    from(socket)
+      socket.timeout_after = timeout_after
+      try socket.connect(ip, port)
+      socket.reset_deadline
+      from(socket)
+    })
   }
 
   # Returns the local address of this socket.

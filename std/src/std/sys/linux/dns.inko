@@ -2,7 +2,7 @@ import std.io
 import std.json (Json)
 import std.libc
 import std.net.dns (Error, Resolve)
-import std.net.ip (IpAddresses)
+import std.net.ip (IpAddress)
 import std.net.socket (UnixClient)
 import std.sys.unix.dns (resolver as system_resolver)
 import std.sys.unix.net (self as net)
@@ -27,7 +27,7 @@ fn resolve_host(host: String) -> String {
 }
 
 # Parses the response of the `ResolveHostname` call.
-fn parse_resolve_host_response(json: Json) -> Result[IpAddresses, Error] {
+fn parse_resolve_host_response(json: Json) -> Result[Array[IpAddress], Error] {
   let params = json.query.key('parameters')
 
   if json.query.key('error').as_string.some? {
@@ -73,7 +73,7 @@ fn parse_resolve_host_response(json: Json) -> Result[IpAddresses, Error] {
     },
   )
 
-  Result.Ok(IpAddresses(ips))
+  Result.Ok(ips)
 }
 
 # A resolver that uses systemd-resolve's through its
@@ -99,7 +99,7 @@ impl Resolve for SystemdResolver {
     @socket.socket.reset_deadline
   }
 
-  fn pub mut resolve(host: String) -> Result[IpAddresses, Error] {
+  fn pub mut resolve(host: String) -> Result[Array[IpAddress], Error] {
     @buffer.append(resolve_host(host))
     @buffer.push(0)
     try @socket.write_bytes(@buffer).map_error(fn (e) { Error.Other(e) })

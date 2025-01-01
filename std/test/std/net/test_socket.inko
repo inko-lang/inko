@@ -572,7 +572,7 @@ fn pub tests(t: mut Tests) {
     listener.listen.get
 
     let addr = listener.local_address.get
-    let client = try TcpClient.new(addr.ip, addr.port)
+    let client = try TcpClient.new([addr.ip], addr.port)
 
     t.true(client.socket.no_delay?)
     Result.Ok(nil)
@@ -588,7 +588,7 @@ fn pub tests(t: mut Tests) {
 
     {
       let client = try TcpClient.with_timeout(
-        addr.ip,
+        [addr.ip],
         addr.port,
         timeout_after: Duration.from_secs(2),
       )
@@ -598,7 +598,7 @@ fn pub tests(t: mut Tests) {
 
     # This address is unroutable and so the connect times out.
     let timed_out = TcpClient.with_timeout(
-      IpAddress.v4(192, 168, 0, 0),
+      [IpAddress.v4(192, 168, 0, 0)],
       addr.port,
       timeout_after: Duration.from_micros(500),
     )
@@ -622,7 +622,7 @@ fn pub tests(t: mut Tests) {
     try listener.listen
 
     let addr = try listener.local_address
-    let stream = try TcpClient.new(addr.ip, addr.port)
+    let stream = try TcpClient.new([addr.ip], addr.port)
     let local_addr = try stream.local_address
 
     t.equal(local_addr.ip, IpAddress.v4(127, 0, 0, 1))
@@ -637,7 +637,7 @@ fn pub tests(t: mut Tests) {
     try listener.listen
 
     let addr = try listener.local_address
-    let stream = try TcpClient.new(addr.ip, addr.port)
+    let stream = try TcpClient.new([addr.ip], addr.port)
     let peer_addr = try stream.peer_address
 
     t.equal(peer_addr.ip, addr.ip)
@@ -652,7 +652,7 @@ fn pub tests(t: mut Tests) {
     try listener.listen
 
     let addr = try listener.local_address
-    let stream = try TcpClient.new(addr.ip, addr.port)
+    let stream = try TcpClient.new([addr.ip], addr.port)
     let bytes = ByteArray.new
     let client = try listener.accept
 
@@ -670,7 +670,7 @@ fn pub tests(t: mut Tests) {
     try listener.listen
 
     let addr = try listener.local_address
-    let stream = try TcpClient.new(addr.ip, addr.port)
+    let stream = try TcpClient.new([addr.ip], addr.port)
     let connection = try listener.accept
     let bytes = ByteArray.new
 
@@ -687,7 +687,7 @@ fn pub tests(t: mut Tests) {
     try listener.listen
 
     let addr = try listener.local_address
-    let stream = try TcpClient.new(addr.ip, addr.port)
+    let stream = try TcpClient.new([addr.ip], addr.port)
     let connection = try listener.accept
     let bytes = ByteArray.new
 
@@ -704,7 +704,7 @@ fn pub tests(t: mut Tests) {
     try listener.listen
 
     let addr = try listener.local_address
-    let stream = try TcpClient.new(addr.ip, addr.port)
+    let stream = try TcpClient.new([addr.ip], addr.port)
 
     stream.flush
   })
@@ -716,7 +716,7 @@ fn pub tests(t: mut Tests) {
     try listener.listen
 
     let addr = try listener.local_address
-    let stream = try TcpClient.new(addr.ip, addr.port)
+    let stream = try TcpClient.new([addr.ip], addr.port)
 
     t.equal(stream.shutdown_read, Result.Ok(nil))
 
@@ -734,7 +734,7 @@ fn pub tests(t: mut Tests) {
     try listener.listen
 
     let addr = try listener.local_address
-    let stream = try TcpClient.new(addr.ip, addr.port)
+    let stream = try TcpClient.new([addr.ip], addr.port)
 
     t.equal(stream.shutdown_write, Result.Ok(nil))
     t.true(stream.write_string('ping').error?)
@@ -748,7 +748,7 @@ fn pub tests(t: mut Tests) {
     try listener.listen
 
     let addr = try listener.local_address
-    let stream = try TcpClient.new(addr.ip, addr.port)
+    let stream = try TcpClient.new([addr.ip], addr.port)
 
     t.equal(stream.shutdown, Result.Ok(nil))
     t.true(stream.write_string('ping').error?)
@@ -762,7 +762,7 @@ fn pub tests(t: mut Tests) {
     try listener.listen
 
     let addr = try listener.local_address
-    let stream = try TcpClient.new(addr.ip, addr.port)
+    let stream = try TcpClient.new([addr.ip], addr.port)
 
     t.equal(stream.shutdown, Result.Ok(nil))
 
@@ -780,7 +780,7 @@ fn pub tests(t: mut Tests) {
     try listener.listen
 
     let addr = try listener.local_address
-    let client = try TcpClient.new(addr.ip, addr.port)
+    let client = try TcpClient.new([addr.ip], addr.port)
     let clone = try client.try_clone
 
     t.true(clone.socket.no_delay?)
@@ -802,7 +802,7 @@ fn pub tests(t: mut Tests) {
     let ip = IpAddress.V4(Ipv4Address.new(127, 0, 0, 1))
     let listener = try TcpServer.new(ip: ip, port: 0)
     let addr = try listener.local_address
-    let stream = try TcpClient.new(addr.ip, addr.port)
+    let stream = try TcpClient.new([addr.ip], addr.port)
     let connection = try listener.accept
 
     t.equal(connection.local_address, stream.peer_address)

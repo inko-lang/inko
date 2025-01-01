@@ -4,7 +4,7 @@ import std.libc.freebsd (self as sys_libc) if freebsd
 import std.libc.linux (self as sys_libc) if linux
 import std.libc.mac (self as sys_libc) if mac
 import std.net.dns (Error, Resolve)
-import std.net.ip (IpAddresses)
+import std.net.ip (IpAddress)
 import std.sys.unix.net (self as sys_net) if unix
 import std.time (ToInstant)
 
@@ -24,7 +24,7 @@ impl Resolve for Resolver {
     # getaddrinfo() doesn't support timeouts.
   }
 
-  fn pub mut resolve(host: String) -> Result[IpAddresses, Error] {
+  fn pub mut resolve(host: String) -> Result[Array[IpAddress], Error] {
     let hints = sys_libc.AddrInfo(
       ai_flags: (libc.AI_ADDRCONFIG | libc.AI_V4MAPPED) as Int32,
       ai_family: libc.AF_UNSPEC as Int32,
@@ -64,7 +64,7 @@ impl Resolve for Resolver {
     }
 
     libc.freeaddrinfo(list)
-    Result.Ok(IpAddresses(ips))
+    Result.Ok(ips)
   }
 }
 

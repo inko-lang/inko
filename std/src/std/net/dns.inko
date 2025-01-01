@@ -6,7 +6,7 @@
 import std.cmp (Equal)
 import std.fmt (Format, Formatter)
 import std.io
-import std.net.ip (IpAddresses)
+import std.net.ip (IpAddress)
 import std.string (ToString)
 import std.sys.linux.dns (self as sys) if linux
 import std.sys.unix.dns (self as sys) if mac
@@ -71,9 +71,9 @@ trait Resolve {
 
   # Resolves the given hostname into a list of IP addresses.
   #
-  # Upon success an `std.net.ip.IpAddresses` is returned, storing the IP
-  # addresses in the order in which they should be used based on the underlying
-  # platform's preferences.
+  # Upon success an array of `IpAddress` values is returned, storing them in the
+  # order in which they should be used based on the underlying platform's
+  # preferences.
   #
   # # Errors
   #
@@ -101,7 +101,7 @@ trait Resolve {
   #   .try(fn (ip) { TcpClient.new(ip, port: 80) })
   #   .or_panic('failed to connect')
   # ```
-  fn pub mut resolve(host: String) -> Result[IpAddresses, Error]
+  fn pub mut resolve(host: String) -> Result[Array[IpAddress], Error]
 }
 
 # A type for performing DNS queries.
@@ -188,7 +188,7 @@ impl Resolve for Resolver {
     @inner.reset_deadline
   }
 
-  fn pub mut resolve(host: String) -> Result[IpAddresses, Error] {
+  fn pub mut resolve(host: String) -> Result[Array[IpAddress], Error] {
     @inner.resolve(host)
   }
 }
