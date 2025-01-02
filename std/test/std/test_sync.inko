@@ -77,11 +77,20 @@ fn pub tests(t: mut Tests) {
     }
   })
 
+  t.test('Promise.set', fn (t) {
+    match int_future {
+      case (r, w) -> {
+        t.equal(w.set(42), Option.None)
+        t.equal(r.get, 42)
+      }
+    }
+  })
+
   t.test('Promise.set with a dropped Future', fn (t) {
     match int_future {
       case (r, w) -> {
         drop(r)
-        w.set(42)
+        t.equal(w.set(42), Option.Some(42))
       }
     }
   })
@@ -115,6 +124,26 @@ fn pub tests(t: mut Tests) {
     t.equal(chan.receive_until(deadline), Option.Some(10))
     t.equal(chan.receive_until(deadline), Option.Some(20))
     t.equal(chan.receive_until(deadline), Option.None)
+  })
+
+  t.test('Channel.receive_until after a previous receive timed out', fn (t) {
+    let chan: Channel[Int] = Channel.new
+
+    t.equal(chan.receive_until(Duration.from_millis(5)), Option.None)
+    chan.send(10)
+    chan.send(20)
+    t.equal(chan.receive_until(Duration.from_millis(5)), Option.Some(10))
+    t.equal(chan.receive_until(Duration.from_millis(5)), Option.Some(20))
+  })
+
+  t.test('Channel.receive after a previous receive timed out', fn (t) {
+    let chan: Channel[Int] = Channel.new
+
+    t.equal(chan.receive_until(Duration.from_millis(5)), Option.None)
+    chan.send(10)
+    chan.send(20)
+    t.equal(chan.receive, 10)
+    t.equal(chan.receive, 20)
   })
 
   t.test('Channel.clone', fn (t) {
