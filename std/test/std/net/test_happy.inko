@@ -1,0 +1,121 @@
+import std.net.happy
+import std.net.ip (IpAddress)
+import std.net.socket (TcpServer)
+import std.test (Tests)
+import std.time (Duration)
+
+fn pub tests(t: mut Tests) {
+  t.test('happy.interleave', fn (t) {
+    t.equal(happy.interleave([]).to_array, [])
+    t.equal(
+      happy
+        .interleave([IpAddress.v4(127, 0, 0, 1), IpAddress.v4(127, 0, 0, 2)])
+        .to_array,
+      [IpAddress.v4(127, 0, 0, 1), IpAddress.v4(127, 0, 0, 2)],
+    )
+    t.equal(
+      happy
+        .interleave(
+          [
+            IpAddress.v6(0, 0, 0, 0, 0, 0, 0, 1),
+            IpAddress.v6(0, 0, 0, 0, 0, 0, 1, 1),
+          ],
+        )
+        .to_array,
+      [
+        IpAddress.v6(0, 0, 0, 0, 0, 0, 0, 1),
+        IpAddress.v6(0, 0, 0, 0, 0, 0, 1, 1),
+      ],
+    )
+    t.equal(
+      happy
+        .interleave(
+          [
+            IpAddress.v6(0, 0, 0, 0, 0, 0, 0, 1),
+            IpAddress.v6(0, 0, 0, 0, 0, 0, 1, 1),
+            IpAddress.v6(0, 0, 0, 0, 0, 0, 2, 1),
+          ],
+        )
+        .to_array,
+      [
+        IpAddress.v6(0, 0, 0, 0, 0, 0, 0, 1),
+        IpAddress.v6(0, 0, 0, 0, 0, 0, 1, 1),
+        IpAddress.v6(0, 0, 0, 0, 0, 0, 2, 1),
+      ],
+    )
+    t.equal(
+      happy
+        .interleave(
+          [
+            IpAddress.v4(127, 0, 0, 1),
+            IpAddress.v4(127, 0, 0, 2),
+            IpAddress.v4(127, 0, 0, 3),
+            IpAddress.v6(0, 0, 0, 0, 0, 0, 0, 1),
+          ],
+        )
+        .to_array,
+      [
+        IpAddress.v6(0, 0, 0, 0, 0, 0, 0, 1),
+        IpAddress.v4(127, 0, 0, 1),
+        IpAddress.v4(127, 0, 0, 2),
+        IpAddress.v4(127, 0, 0, 3),
+      ],
+    )
+    t.equal(
+      happy
+        .interleave(
+          [
+            IpAddress.v4(127, 0, 0, 1),
+            IpAddress.v4(127, 0, 0, 2),
+            IpAddress.v6(0, 0, 0, 0, 0, 0, 0, 1),
+            IpAddress.v6(0, 0, 0, 0, 0, 0, 1, 1),
+            IpAddress.v4(127, 0, 0, 3),
+          ],
+        )
+        .to_array,
+      [
+        IpAddress.v6(0, 0, 0, 0, 0, 0, 0, 1),
+        IpAddress.v4(127, 0, 0, 1),
+        IpAddress.v6(0, 0, 0, 0, 0, 0, 1, 1),
+        IpAddress.v4(127, 0, 0, 2),
+        IpAddress.v4(127, 0, 0, 3),
+      ],
+    )
+  })
+
+  t.ok('happy.connect with a single responsive IP address', fn (t) {
+    let server = try TcpServer.new(ip: IpAddress.v4(127, 0, 0, 1), port: 0)
+    let addr = try server.local_address
+    let result = happy.connect(
+      [addr.ip],
+      port: addr.port,
+      timeout_after: Duration.from_secs(1).to_instant,
+    )
+
+    t.true(result.ok?)
+    Result.Ok(nil)
+  })
+
+  t.test('happy.connect with an unresponsive IP address', fn (t) {
+    let result = happy.connect(
+      [IpAddress.v4(192, 0, 2, 0)],
+      port: 9999,
+      timeout_after: Duration.from_millis(500).to_instant,
+    )
+
+    t.true(result.error?)
+  })
+
+  t.ok('happy.connect with multiple IP addresses', fn (t) {
+    let server = try TcpServer.new(ip: IpAddress.v4(127, 0, 0, 1), port: 0)
+    let addr = try server.local_address
+    let result = happy.connect(
+      [IpAddress.v4(192, 0, 2, 0), addr.ip],
+      port: addr.port,
+      timeout_after: Duration.from_millis(500).to_instant,
+    )
+
+    t.true(result.ok?)
+    Result.Ok(nil)
+  })
+}

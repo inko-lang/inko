@@ -578,6 +578,18 @@ fn pub tests(t: mut Tests) {
     Result.Ok(nil)
   })
 
+  t.test('TcpClient.new with multiple IP addresses', fn (t) {
+    let listener = Socket.stream(ipv6: false).get
+
+    listener.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0).get
+    listener.listen.get
+
+    let addr = listener.local_address.get
+    let client = TcpClient.new([IpAddress.v4(192, 0, 2, 0), addr.ip], addr.port)
+
+    t.true(client.ok?)
+  })
+
   t.ok('TcpClient.with_timeout', fn (t) {
     let listener = Socket.stream(ipv6: false).get
 

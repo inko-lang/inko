@@ -65,11 +65,12 @@ import std.fmt (Format, Formatter)
 import std.fs.path (Path)
 import std.io (Error, Read, Write, WriteInternal)
 import std.libc
+import std.net.happy
 import std.net.ip (IpAddress)
 import std.string (ToString)
 import std.sys.net
 import std.sys.unix.net (self as sys) if unix
-import std.time (Duration, ToInstant)
+import std.time (Duration, Instant, ToInstant)
 
 # The maximum value valid for a listen() call.
 #
@@ -811,23 +812,28 @@ type pub TcpClient {
     Result.Ok(TcpClient(socket))
   }
 
-  # Creates a new `TcpClient` that's connected to an IP address and port number.
+  fn static connect(
+    ip: IpAddress,
+    port: Int,
+    timeout_after: Instant,
+  ) -> Result[TcpClient, Error] {
+    let socket = try Socket.stream(ip.v6?)
+
+    socket.timeout_after = timeout_after
+    try socket.connect(ip, port)
+    socket.reset_deadline
+    from(socket)
+  }
+
+  # Creates a new `TcpClient` that's connected to an IP address and port number,
+  # using a default timeout.
   #
-  # If multiple IP addresses are given, this method attempts to connect to them
-  # in order, returning upon the first successful connection. If no connection
-  # can be established, the error of the last attempt is returned.
+  # This method uses a default timeout of 5 seconds. If you wish to use a
+  # custom timeout/deadline, use `TcpClient.with_timeout` instead.
   #
-  # This method doesn't enforce a deadline on establishing the connection. If
-  # you need to limit the amount of time spent waiting to establish the
-  # connection, use `TcpClient.with_timeout` instead.
-  #
-  # # Panics
-  #
-  # This method panics if `ips` is empty.
+  # For more details, refer to the documentation of `TcpClient.with_timeout`.
   #
   # # Examples
-  #
-  # Connecting a `TcpClient`:
   #
   # ```inko
   # import std.net.socket (TcpClient)
@@ -839,29 +845,45 @@ type pub TcpClient {
     ips: ref Array[IpAddress],
     port: Int,
   ) -> Result[TcpClient, Error] {
-    try_ips(ips, fn (ip) {
-      let socket = try Socket.stream(ip.v6?)
-
-      try socket.connect(ip, port)
-      from(socket)
-    })
+    with_timeout(ips, port, Duration.from_secs(5))
   }
 
   # Creates a new `TcpClient` but limits the amount of time spent waiting for
   # the connection to be established.
   #
-  # If multiple IP addresses are given, this method attempts to connect to them
-  # in order, returning upon the first successful connection. If no connection
-  # can be established, the error of the last attempt is returned.
-  #
   # The `timeout_after` argument specifies the deadline after which the
-  # `connect()` times out. The deadline is cleared once connected.
+  # `connect()` system call times out. This deadline is _not_ inherited by the
+  # returned `TcpClient`.
   #
-  # See `TcpClient.new` for more information.
+  # # Connecting to multiple IP addresses
   #
-  # # Panics
+  # If multiple IP addresses are given, this method attempts to connect to them
+  # in accordance with [RFC 8305](https://datatracker.ietf.org/doc/html/rfc8305)
+  # (also known as "Happy Eyeballs version 2"), with the following differences:
   #
-  # This method panics if `ips` is empty.
+  # - DNS requests are performed separately and thus not subject to the Happy
+  #   Eyeballs algorithm.
+  # - We always interleave IPv6 and IPv4 addresses, starting with an IPv6
+  #   address (so `IPv6, IPv4, IPv6, IPv4, ...`).
+  # - There's no way to configure this behavior, nor is it planned to add the
+  #   ability to do so.
+  #
+  # # Errors
+  #
+  # If the connection can't be established, a `std.io.Error` error is returned.
+  #
+  # If `ips` contains multiple IP addresses and a connection can't be
+  # established to any of the addresses, one of the following errors is
+  # returned:
+  #
+  # - `Error.ConnectionRefused` if no connection could be established before the
+  #   deadline expired
+  # - `Error.TimedOut` if the deadline expired
+  #
+  # If `ips` is empty, an `Error.InvalidArgument` error is returned instead of
+  # producing a panic. This is to allow handling of cases where one passes the
+  # output of e.g. `std.net.dns.Resolver.resolve` directly to this method
+  # without checking if the DNS record actually contains any IP addresses.
   #
   # # Examples
   #
@@ -883,14 +905,7 @@ type pub TcpClient {
     port: Int,
     timeout_after: ref T,
   ) -> Result[TcpClient, Error] {
-    try_ips(ips, fn (ip) {
-      let socket = try Socket.stream(ip.v6?)
-
-      socket.timeout_after = timeout_after
-      try socket.connect(ip, port)
-      socket.reset_deadline
-      from(socket)
-    })
+    happy.connect(ips, port, timeout_after.to_instant)
   }
 
   # Returns the local address of this socket.

@@ -7,7 +7,7 @@ import std.fmt (Format, Formatter)
 import std.int (ToInt)
 import std.locale (Locale)
 import std.locale.en (Locale as English)
-import std.ops (Add, Multiply, Subtract)
+import std.ops (Add, Divide, Multiply, Subtract)
 import std.string (Bytes)
 import std.sys.unix.time (self as sys) if unix
 
@@ -238,6 +238,34 @@ type pub copy Duration {
   fn pub inline to_nanos -> Int {
     @nanos
   }
+
+  # Returns `true` if `self` is greater than zero.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.time (Duration)
+  #
+  # Duration.from_secs(1).positive? # => true
+  # Duration.from_secs(0).positive? # => false
+  # ```
+  fn pub inline positive? -> Bool {
+    @nanos > 0
+  }
+
+  # Returns `true` if `self` is zero.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.time (Duration)
+  #
+  # Duration.from_secs(1).zero? # => false
+  # Duration.from_secs(0).zero? # => true
+  # ```
+  fn pub inline zero? -> Bool {
+    @nanos == 0
+  }
 }
 
 impl ToInstant for Duration {
@@ -270,31 +298,37 @@ impl Clone[Duration] for Duration {
 }
 
 impl Add[Duration, Duration] for Duration {
-  fn pub inline +(other: ref Duration) -> Duration {
+  fn pub inline +(other: Duration) -> Duration {
     Duration(@nanos + other.nanos)
   }
 }
 
 impl Subtract[Duration, Duration] for Duration {
-  fn pub inline -(other: ref Duration) -> Duration {
+  fn pub inline -(other: Duration) -> Duration {
     Duration(@nanos - other.nanos)
   }
 }
 
 impl Multiply[Int, Duration] for Duration {
-  fn pub inline *(other: ref Int) -> Duration {
+  fn pub inline *(other: Int) -> Duration {
     Duration(@nanos * other)
   }
 }
 
+impl Divide[Int, Duration] for Duration {
+  fn pub inline /(other: Int) -> Duration {
+    Duration(@nanos / other)
+  }
+}
+
 impl Compare[Duration] for Duration {
-  fn pub inline cmp(other: ref Duration) -> Ordering {
+  fn pub inline cmp(other: Duration) -> Ordering {
     @nanos.cmp(other.nanos)
   }
 }
 
-impl Equal[ref Duration] for Duration {
-  fn pub inline ==(other: ref Duration) -> Bool {
+impl Equal[Duration] for Duration {
+  fn pub inline ==(other: Duration) -> Bool {
     @nanos == other.nanos
   }
 }
@@ -1325,7 +1359,7 @@ impl Add[Duration, DateTime] for DateTime {
   #
   # This method may panic if the result can't be expressed as a `DateTime` (e.g.
   # the year is too great).
-  fn pub +(other: ref Duration) -> DateTime {
+  fn pub +(other: Duration) -> DateTime {
     let timestamp = to_float + other.to_secs
 
     DateTime.from_timestamp(timestamp, utc_offset: @utc_offset).get
@@ -1340,7 +1374,7 @@ impl Subtract[Duration, DateTime] for DateTime {
   #
   # This method may panic if the result can't be expressed as a `DateTime` (e.g.
   # the year is too great).
-  fn pub -(other: ref Duration) -> DateTime {
+  fn pub -(other: Duration) -> DateTime {
     let timestamp = to_float - other.to_secs
 
     DateTime.from_timestamp(timestamp, utc_offset: @utc_offset).get
@@ -1459,7 +1493,7 @@ impl ToFloat for Instant {
 }
 
 impl Add[Duration, Instant] for Instant {
-  fn pub inline +(other: ref Duration) -> Instant {
+  fn pub inline +(other: Duration) -> Instant {
     let nanos = @nanos + other.nanos
 
     if nanos < 0 { negative_time_error(nanos) }
@@ -1469,7 +1503,7 @@ impl Add[Duration, Instant] for Instant {
 }
 
 impl Subtract[Duration, Instant] for Instant {
-  fn pub inline -(other: ref Duration) -> Instant {
+  fn pub inline -(other: Duration) -> Instant {
     let nanos = @nanos - other.nanos
 
     if nanos < 0 { negative_time_error(nanos) }
