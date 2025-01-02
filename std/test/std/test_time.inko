@@ -76,6 +76,16 @@ fn pub tests(t: mut Tests) {
     t.equal(Duration.from_secs(1).clone, Duration.from_secs(1))
   })
 
+  t.test('Duration.positive?', fn (t) {
+    t.true(Duration.from_secs(1).positive?)
+    t.false(Duration.from_secs(0).positive?)
+  })
+
+  t.test('Duration.zero?', fn (t) {
+    t.false(Duration.from_secs(1).zero?)
+    t.true(Duration.from_secs(0).zero?)
+  })
+
   t.test('Duration.+', fn (t) {
     t.equal(
       Duration.from_secs(1) + Duration.from_secs(1),
@@ -114,6 +124,14 @@ fn pub tests(t: mut Tests) {
 
   t.panic('Duration.* with an argument that overflows', fn {
     Duration.from_secs(1) * -9_223_372_036_854_775_808
+  })
+
+  t.test('Duration./', fn (t) {
+    t.equal(Duration.from_secs(2) / 2, Duration.from_secs(1))
+  })
+
+  t.panic('Duration./ with an argument that overflows', fn {
+    Duration.from_secs(2) / 0
   })
 
   t.test('Duration.cmp', fn (t) {
