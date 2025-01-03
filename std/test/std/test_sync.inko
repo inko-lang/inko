@@ -27,20 +27,17 @@ fn pub tests(t: mut Tests) {
     }
   })
 
-  t.ok('Future.get_until', fn (t) {
+  t.test('Future.get_until', fn (t) {
     match int_future {
-      case (r, w) -> {
-        let r = match r.get_until(Duration.from_millis(1)) {
-          case Ok(_) -> throw 'expected an Error'
-          case Error(r) -> r
-        }
-
-        w.set(42)
-        t.equal(r.get_until(Duration.from_millis(1)).ok, Option.Some(42))
-      }
+      case (r, _w) -> t.equal(r.get_until(Duration.from_millis(1)), Option.None)
     }
 
-    Result.Ok(nil)
+    match int_future {
+      case (r, w) -> {
+        w.set(42)
+        t.equal(r.get_until(Duration.from_millis(1)), Option.Some(42))
+      }
+    }
   })
 
   t.ok('Future.try_get', fn (t) {
@@ -63,7 +60,7 @@ fn pub tests(t: mut Tests) {
     match int_future {
       case (r, w) -> {
         drop(w)
-        t.true(r.get_until(Duration.from_millis(1)).error?)
+        t.true(r.get_until(Duration.from_millis(1)).none?)
       }
     }
   })
