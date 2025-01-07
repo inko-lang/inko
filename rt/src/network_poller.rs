@@ -50,18 +50,19 @@ impl Worker {
             let mut processes = poller.poll(&mut events);
 
             processes.retain(|proc| {
-                let mut state = proc.state();
-                let rights = state.try_reschedule_for_io();
+                // Acquiring the rights first _then_ matching on then ensures we
+                // don't deadlock with the timeout worker.
+                let rights = proc.state().try_reschedule_for_io();
 
                 // A process may have also been registered with the timeout
                 // thread (e.g. when using a timeout). As such we should only
-                // reschedule the process if the timout thread didn't already do
-                // this for us.
+                // reschedule the process if the timeout thread didn't already
+                // do this for us.
                 match rights {
                     RescheduleRights::Failed => false,
                     RescheduleRights::Acquired => true,
-                    RescheduleRights::AcquiredWithTimeout => {
-                        self.state.timeout_worker.increase_expired_timeouts();
+                    RescheduleRights::AcquiredWithTimeout(id) => {
+                        self.state.timeout_worker.expire(id);
                         true
                     }
                 }

@@ -4,7 +4,7 @@ use crate::mem::{ByteArray, String as InkoString, Type, TypePointer};
 use crate::network_poller::NetworkPoller;
 use crate::scheduler::process::Scheduler;
 use crate::scheduler::signal::Signals;
-use crate::scheduler::timeout_worker::TimeoutWorker;
+use crate::scheduler::timeouts::Worker as TimeoutWorker;
 use rand::{thread_rng, Rng};
 use std::collections::HashMap;
 use std::env;
@@ -181,6 +181,7 @@ impl State {
 
     pub(crate) fn terminate(&self) {
         self.scheduler.terminate();
+        self.timeout_worker.terminate();
     }
 }
 

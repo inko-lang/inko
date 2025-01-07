@@ -1,7 +1,7 @@
 use crate::context;
 use crate::network_poller::Interest;
 use crate::process::ProcessPointer;
-use crate::scheduler::timeouts::Timeout;
+use crate::scheduler::timeouts::Deadline;
 use crate::socket::Socket;
 use crate::state::State;
 
@@ -26,10 +26,10 @@ pub(crate) unsafe extern "system" fn inko_socket_poll(
 
         // A deadline of -1 signals that we should wait indefinitely.
         if deadline >= 0 {
-            let time = Timeout::until(deadline as u64);
+            let time = Deadline::until(deadline as u64);
+            let timeout_id = state.timeout_worker.suspend(process, time);
 
-            proc_state.waiting_for_io(Some(time.clone()));
-            state.timeout_worker.suspend(process, time);
+            proc_state.waiting_for_io(Some(timeout_id));
         } else {
             proc_state.waiting_for_io(None);
         }

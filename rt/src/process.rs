@@ -1,7 +1,6 @@
-use crate::arc_without_weak::ArcWithoutWeak;
 use crate::mem::{allocate, header_of, Header, TypePointer};
 use crate::scheduler::process::Thread;
-use crate::scheduler::timeouts::Timeout;
+use crate::scheduler::timeouts::Id as TimeoutId;
 use crate::stack::Stack;
 use crate::state::State;
 use std::alloc::dealloc;
@@ -200,7 +199,7 @@ pub(crate) enum RescheduleRights {
 
     /// The rescheduling rights were obtained, and the process was using a
     /// timeout.
-    AcquiredWithTimeout,
+    AcquiredWithTimeout(TimeoutId),
 }
 
 impl RescheduleRights {
@@ -219,11 +218,11 @@ pub(crate) struct ProcessState {
     /// The status of the process.
     status: ProcessStatus,
 
-    /// The timeout this process is suspended with, if any.
+    /// The ID of the timeout this process is suspended with, if any.
     ///
     /// If missing and the process is suspended, it means the process is
     /// suspended indefinitely.
-    timeout: Option<ArcWithoutWeak<Timeout>>,
+    timeout: Option<TimeoutId>,
 }
 
 impl ProcessState {
@@ -235,17 +234,7 @@ impl ProcessState {
         }
     }
 
-    pub(crate) fn has_same_timeout(
-        &self,
-        timeout: &ArcWithoutWeak<Timeout>,
-    ) -> bool {
-        self.timeout
-            .as_ref()
-            .map(|t| t.as_ptr() == timeout.as_ptr())
-            .unwrap_or(false)
-    }
-
-    pub(crate) fn suspend(&mut self, timeout: ArcWithoutWeak<Timeout>) {
+    pub(crate) fn suspend(&mut self, timeout: TimeoutId) {
         self.timeout = Some(timeout);
         self.status.set_sleeping(true);
     }
@@ -265,25 +254,19 @@ impl ProcessState {
 
         self.status.no_longer_waiting();
 
-        if self.timeout.take().is_some() {
-            RescheduleRights::AcquiredWithTimeout
+        if let Some(id) = self.timeout.take() {
+            RescheduleRights::AcquiredWithTimeout(id)
         } else {
             RescheduleRights::Acquired
         }
     }
 
-    pub(crate) fn waiting_for_value(
-        &mut self,
-        timeout: Option<ArcWithoutWeak<Timeout>>,
-    ) {
+    pub(crate) fn waiting_for_value(&mut self, timeout: Option<TimeoutId>) {
         self.timeout = timeout;
         self.status.set_waiting_for_value(true);
     }
 
-    pub(crate) fn waiting_for_io(
-        &mut self,
-        timeout: Option<ArcWithoutWeak<Timeout>>,
-    ) {
+    pub(crate) fn waiting_for_io(&mut self, timeout: Option<TimeoutId>) {
         self.timeout = timeout;
         self.status.set_waiting_for_io(true);
     }
@@ -304,8 +287,8 @@ impl ProcessState {
 
         self.status.set_waiting_for_value(false);
 
-        if self.timeout.take().is_some() {
-            RescheduleRights::AcquiredWithTimeout
+        if let Some(id) = self.timeout.take() {
+            RescheduleRights::AcquiredWithTimeout(id)
         } else {
             RescheduleRights::Acquired
         }
@@ -318,8 +301,8 @@ impl ProcessState {
 
         self.status.set_waiting_for_io(false);
 
-        if self.timeout.take().is_some() {
-            RescheduleRights::AcquiredWithTimeout
+        if let Some(id) = self.timeout.take() {
+            RescheduleRights::AcquiredWithTimeout(id)
         } else {
             RescheduleRights::Acquired
         }
@@ -719,10 +702,10 @@ impl DerefMut for ProcessPointer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test::{empty_process_type, setup, OwnedProcess};
+    use crate::test::{empty_process_type, OwnedProcess};
     use rustix::param::page_size;
     use std::mem::size_of;
-    use std::time::Duration;
+    use std::num::NonZeroU64;
 
     macro_rules! offset_of {
         ($value: expr, $field: ident) => {{
@@ -857,25 +840,14 @@ mod tests {
     fn test_reschedule_rights_are_acquired() {
         assert!(!RescheduleRights::Failed.are_acquired());
         assert!(RescheduleRights::Acquired.are_acquired());
-        assert!(RescheduleRights::AcquiredWithTimeout.are_acquired());
-    }
-
-    #[test]
-    fn test_process_state_has_same_timeout() {
-        let state = setup();
-        let mut proc_state = ProcessState::new();
-        let timeout = Timeout::duration(&state, Duration::from_secs(0));
-
-        assert!(!proc_state.has_same_timeout(&timeout));
-
-        proc_state.timeout = Some(timeout.clone());
-
-        assert!(proc_state.has_same_timeout(&timeout));
+        assert!(RescheduleRights::AcquiredWithTimeout(TimeoutId(
+            NonZeroU64::new(1).unwrap()
+        ))
+        .are_acquired());
     }
 
     #[test]
     fn test_process_state_try_reschedule_after_timeout() {
-        let state = setup();
         let mut proc_state = ProcessState::new();
 
         assert_eq!(
@@ -893,13 +865,13 @@ mod tests {
         assert!(!proc_state.status.is_waiting_for_value());
         assert!(!proc_state.status.is_waiting());
 
-        let timeout = Timeout::duration(&state, Duration::from_secs(0));
+        let id = TimeoutId(NonZeroU64::new(1).unwrap());
 
-        proc_state.waiting_for_value(Some(timeout));
+        proc_state.waiting_for_value(Some(id));
 
         assert_eq!(
             proc_state.try_reschedule_after_timeout(),
-            RescheduleRights::AcquiredWithTimeout
+            RescheduleRights::AcquiredWithTimeout(id)
         );
 
         assert!(!proc_state.status.is_waiting_for_value());
@@ -908,16 +880,15 @@ mod tests {
 
     #[test]
     fn test_process_state_waiting_for_value() {
-        let state = setup();
         let mut proc_state = ProcessState::new();
-        let timeout = Timeout::duration(&state, Duration::from_secs(0));
 
         proc_state.waiting_for_value(None);
 
         assert!(proc_state.status.is_waiting_for_value());
         assert!(proc_state.timeout.is_none());
 
-        proc_state.waiting_for_value(Some(timeout));
+        proc_state
+            .waiting_for_value(Some(TimeoutId(NonZeroU64::new(1).unwrap())));
 
         assert!(proc_state.status.is_waiting_for_value());
         assert!(proc_state.timeout.is_some());
@@ -943,7 +914,6 @@ mod tests {
 
     #[test]
     fn test_process_state_try_reschedule_for_value() {
-        let state = setup();
         let mut proc_state = ProcessState::new();
 
         assert_eq!(
@@ -958,13 +928,14 @@ mod tests {
         );
         assert!(!proc_state.status.is_waiting_for_value());
 
+        let id = TimeoutId(NonZeroU64::new(1).unwrap());
+
         proc_state.status.set_waiting_for_value(true);
-        proc_state.timeout =
-            Some(Timeout::duration(&state, Duration::from_secs(0)));
+        proc_state.timeout = Some(id);
 
         assert_eq!(
             proc_state.try_reschedule_for_value(),
-            RescheduleRights::AcquiredWithTimeout
+            RescheduleRights::AcquiredWithTimeout(id)
         );
         assert!(!proc_state.status.is_waiting_for_value());
     }
@@ -1004,13 +975,11 @@ mod tests {
 
     #[test]
     fn test_process_state_suspend() {
-        let state = setup();
         let typ = empty_process_type("A");
         let stack = Stack::new(32, page_size());
         let process = OwnedProcess::new(Process::alloc(*typ, stack));
-        let timeout = Timeout::duration(&state, Duration::from_secs(0));
 
-        process.state().suspend(timeout);
+        process.state().suspend(TimeoutId(NonZeroU64::new(1).unwrap()));
 
         assert!(process.state().timeout.is_some());
         assert!(process.state().status.is_waiting());
@@ -1018,15 +987,13 @@ mod tests {
 
     #[test]
     fn test_process_timeout_expired() {
-        let state = setup();
         let typ = empty_process_type("A");
         let stack = Stack::new(32, page_size());
         let process = OwnedProcess::new(Process::alloc(*typ, stack));
-        let timeout = Timeout::duration(&state, Duration::from_secs(0));
 
         assert!(!process.timeout_expired());
 
-        process.state().suspend(timeout);
+        process.state().suspend(TimeoutId(NonZeroU64::new(1).unwrap()));
 
         assert!(!process.timeout_expired());
         assert!(!process.state().status.timeout_expired());

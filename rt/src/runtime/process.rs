@@ -5,7 +5,7 @@ use crate::process::{
     StackFrame,
 };
 use crate::scheduler::process::Action;
-use crate::scheduler::timeouts::Timeout;
+use crate::scheduler::timeouts::Deadline;
 use crate::state::State;
 use std::fmt::Write as _;
 use std::process::exit;
@@ -83,8 +83,8 @@ pub unsafe extern "system" fn inko_process_send_message(
     let message = Message { method, data };
     let state = &*state;
     let reschedule = match receiver.send_message(message) {
-        RescheduleRights::AcquiredWithTimeout => {
-            state.timeout_worker.increase_expired_timeouts();
+        RescheduleRights::AcquiredWithTimeout(id) => {
+            state.timeout_worker.expire(id);
             true
         }
         RescheduleRights::Acquired => true,
@@ -129,13 +129,16 @@ pub unsafe extern "system" fn inko_process_suspend(
     nanos: i64,
 ) {
     let state = &*state;
-    let timeout = Timeout::duration(state, Duration::from_nanos(nanos as _));
+    let timeout = Deadline::duration(state, Duration::from_nanos(nanos as _));
 
     {
+        // We need to hold on to the lock until the end as to ensure the process
+        // is rescheduled if the timeout happens to expire before we finish the
+        // work here.
         let mut proc_state = process.state();
+        let timeout_id = state.timeout_worker.suspend(process, timeout);
 
-        proc_state.suspend(timeout.clone());
-        state.timeout_worker.suspend(process, timeout);
+        proc_state.suspend(timeout_id);
     }
 
     // Safety: the current thread is holding on to the run lock
@@ -243,11 +246,8 @@ pub unsafe extern "system" fn inko_process_wait_for_value_until(
     nanos: u64,
 ) -> bool {
     let state = &*state;
-    let deadline = Timeout::until(nanos);
+    let deadline = Deadline::until(nanos);
     let mut proc_state = process.state();
-
-    proc_state.waiting_for_value(Some(deadline.clone()));
-
     let _ = (*lock).compare_exchange(
         current,
         new,
@@ -255,10 +255,12 @@ pub unsafe extern "system" fn inko_process_wait_for_value_until(
         Ordering::Acquire,
     );
 
+    let timeout_id = state.timeout_worker.suspend(process, deadline);
+
+    proc_state.waiting_for_value(Some(timeout_id));
     drop(proc_state);
 
     // Safety: the current thread is holding on to the run lock
-    state.timeout_worker.suspend(process, deadline);
     context::switch(process);
     process.timeout_expired()
 }
@@ -270,12 +272,15 @@ pub unsafe extern "system" fn inko_process_reschedule_for_value(
     waiter: ProcessPointer,
 ) {
     let state = &*state;
-    let mut waiter_state = waiter.state();
-    let reschedule = match waiter_state.try_reschedule_for_value() {
+
+    // Acquiring the rights first _then_ matching on then ensures we don't
+    // deadlock with the timeout worker.
+    let rights = waiter.state().try_reschedule_for_value();
+    let reschedule = match rights {
         RescheduleRights::Failed => false,
         RescheduleRights::Acquired => true,
-        RescheduleRights::AcquiredWithTimeout => {
-            state.timeout_worker.increase_expired_timeouts();
+        RescheduleRights::AcquiredWithTimeout(id) => {
+            state.timeout_worker.expire(id);
             true
         }
     };
