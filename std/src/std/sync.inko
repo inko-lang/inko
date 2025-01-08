@@ -525,38 +525,21 @@ type async ChannelState[T] {
   }
 
   fn async mut send(value: uni T) {
-    @values.push_back(value)
+    let mut val = value
 
-    # Now that we have at least one (but possibly multiple) values, we can start
-    # flushing them to the queued up Promises (if any). This ensures that both
-    # Promises and values are processed in FIFO order, and as soon as possible.
-    #
-    # An important detail here is the handling of disconnected Promises.
-    # Consider the following case: we have 3 Promises, and the first two are
-    # disconnected. When sending a value, we want to skip the first two and
-    # resolve the third Promise.
     loop {
-      match (@promises.pop_front, @values.pop_front) {
-        case (Some(p), Some(v)) -> {
-          match p.set(v) {
-            case Some(v) -> {
-              # If the Promise is disconnected we'll try the value again with
-              # the next Promise.
-              @values.push_front(v)
-              next
-            }
-            case _ -> {}
+      match @promises.pop_front {
+        case Some(p) -> {
+          match p.set(val) {
+            case Some(v) -> val = v
+            case _ -> return
           }
         }
-        case (Some(p), _) -> @promises.push_front(p)
-        case (_, Some(v)) -> @values.push_front(v)
-        case _ -> {}
+        case _ -> break
       }
-
-      # At this point we either only have Promises or values, meaning there's
-      # nothing left to do.
-      break
     }
+
+    @values.push_back(val)
   }
 
   fn async mut receive(promise: uni Promise[uni T]) {
