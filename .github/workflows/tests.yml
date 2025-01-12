@@ -76,13 +76,12 @@ jobs:
           key: amd64-linux-gnu-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
       - name: Run compiler tests
         run: cargo test
-      # We run tests with and without optimizations, such that we can catch any
-      # potential miscompilations introduced by optimizations. We only do this
-      # for this particular target as our optimizations aren't target specific.
-      - name: Run stdlib tests with optimizations
+      - name: Run stdlib tests with default optimizations
         run: 'cd std && cargo run -- test'
       - name: Run stdlib tests without optimizations
         run: 'cd std && cargo run -- test --opt=none'
+      - name: Run stdlib tests with aggressive optimizations
+        run: 'cd std && cargo run -- test --opt=aggressive'
 
   amd64-linux-musl:
     timeout-minutes: 15
@@ -97,8 +96,12 @@ jobs:
           key: amd64-linux-musl-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
       - name: Run compiler tests
         run: cargo test
-      - name: Run stdlib tests
+      - name: Run stdlib tests with default optimizations
         run: 'cd std && cargo run -- test'
+      - name: Run stdlib tests without optimizations
+        run: 'cd std && cargo run -- test --opt=none'
+      - name: Run stdlib tests with aggressive optimizations
+        run: 'cd std && cargo run -- test --opt=aggressive'
 
   amd64-mac-native:
     timeout-minutes: 15
@@ -117,8 +120,12 @@ jobs:
         run: ./ci/mac.sh
       - name: Run compiler tests
         run: cargo test
-      - name: Run stdlib tests
+      - name: Run stdlib tests with default optimizations
         run: 'cd std && cargo run -- test'
+      - name: Run stdlib tests without optimizations
+        run: 'cd std && cargo run -- test --opt=none'
+      - name: Run stdlib tests with aggressive optimizations
+        run: 'cd std && cargo run -- test --opt=aggressive'
 
   arm64-mac-native:
     timeout-minutes: 15
@@ -137,8 +144,12 @@ jobs:
         run: ./ci/mac.sh
       - name: Run compiler tests
         run: cargo test
-      - name: Run stdlib tests
+      - name: Run stdlib tests with default optimizations
         run: 'cd std && cargo run -- test'
+      - name: Run stdlib tests without optimizations
+        run: 'cd std && cargo run -- test --opt=none'
+      - name: Run stdlib tests with aggressive optimizations
+        run: 'cd std && cargo run -- test --opt=aggressive'
 
   amd64-freebsd-native:
     timeout-minutes: 15

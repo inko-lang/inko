@@ -47,7 +47,7 @@ impl Sized {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub(crate) enum ArgumentType<'ctx> {
     /// The argument should be passed as a normal value.
     Regular(BasicTypeEnum<'ctx>),
@@ -63,7 +63,7 @@ pub(crate) enum ArgumentType<'ctx> {
     StructReturn(StructType<'ctx>),
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub(crate) enum ReturnType<'ctx> {
     /// The function doesn't return anything.
     None,
@@ -132,7 +132,7 @@ impl<'ctx> Method<'ctx> {
             .chain(method.argument_types(db))
         {
             let raw = context.llvm_type(db, layouts, typ);
-            let typ = context.argument_type(state, layouts, raw);
+            let typ = context.argument_type(state, layouts.target_data, raw);
 
             args.push(typ);
         }

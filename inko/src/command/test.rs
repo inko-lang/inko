@@ -91,14 +91,30 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     compiler.print_diagnostics();
 
     match result {
-        Ok(exe) => Command::new(exe)
-            .args(matches.free)
-            .spawn()
-            .and_then(|mut child| child.wait())
-            .map_err(|err| {
-                Error::from(format!("Failed to run the tests: {}", err))
-            })
-            .map(|status| status.code().unwrap_or(0)),
+        Ok(exe) => {
+            let status = Command::new(exe)
+                .args(matches.free)
+                .spawn()
+                .and_then(|mut child| child.wait())
+                .map_err(|err| {
+                    Error::from(format!("failed to run the tests: {}", err))
+                })?;
+
+            // If the program is terminated due to e.g. a SIGSEGV, the status
+            // code is missing and we default to 1. If we don't explicitly
+            // handle this, the program might terminate silently in the event of
+            // such a signal.
+            let code = status.code().unwrap_or(1);
+
+            if code == 0 {
+                Ok(0)
+            } else {
+                Err(Error::from(format!(
+                    "the tests runner exited with status code {}",
+                    code
+                )))
+            }
+        }
         Err(CompileError::Invalid) => Ok(1),
         Err(CompileError::Internal(msg)) => Err(Error::from(msg)),
     }

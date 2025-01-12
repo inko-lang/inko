@@ -32,7 +32,7 @@ use inkwell::targets::{
     CodeModel, FileType, InitializationConfig, RelocMode, Target,
     TargetMachine, TargetTriple,
 };
-use inkwell::types::{BasicType, BasicTypeEnum, FunctionType};
+use inkwell::types::{BasicType, BasicTypeEnum, FunctionType, StructType};
 use inkwell::values::{
     BasicMetadataValueEnum, BasicValue, BasicValueEnum, FloatValue,
     FunctionValue, GlobalValue, IntValue, PointerValue,
@@ -950,7 +950,7 @@ pub struct LowerMethod<'shared, 'module, 'ctx> {
 
     /// The pointer to write structs to when performing an ABI compliant
     /// structure return.
-    struct_return_value: Option<PointerValue<'ctx>>,
+    struct_return_value: Option<(PointerValue<'ctx>, StructType<'ctx>)>,
 }
 
 impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
@@ -967,10 +967,13 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
         builder.switch_to_block(entry_block);
 
-        let sret = layouts.methods[method.id.0 as usize]
-            .returns
-            .is_struct()
-            .then(|| builder.argument(0).into_pointer_value());
+        let sret = if let ReturnType::Struct(t) =
+            layouts.methods[method.id.0 as usize].returns
+        {
+            Some((builder.argument(0).into_pointer_value(), t))
+        } else {
+            None
+        };
 
         LowerMethod {
             shared,
@@ -1013,6 +1016,17 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 let val = self.builder.load(typ, arg.into_pointer_value());
 
                 self.builder.store(var, val);
+            } else if typ.is_struct_type() {
+                // When passing structs the argument type might be an i64 in
+                // case the struct fits in a single i64. We need to use a memcpy
+                // here to ensure the generated code is correct (i.e. just a
+                // load with the target struct type isn't sufficient).
+                self.builder.copy_value(
+                    self.layouts.target_data,
+                    arg,
+                    var,
+                    typ,
+                );
             } else {
                 self.builder.store(var, arg);
             }
@@ -1791,11 +1805,18 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
             Instruction::Return(ins) => {
                 let var = self.variables[&ins.register];
 
-                if let Some(ptr) = self.struct_return_value {
+                if let Some((ptr, to_typ)) = self.struct_return_value {
                     let typ = self.variable_types[&ins.register];
                     let val = self.builder.load(typ, var);
 
-                    self.builder.store(ptr, val);
+                    self.builder.copy_value(
+                        self.layouts.target_data,
+                        val,
+                        ptr,
+                        to_typ.as_basic_type_enum(),
+                    );
+
+                    //self.builder.store(ptr, val);
                     self.builder.return_value(None);
                 } else {
                     // When returning a struct on the stack, the return type
@@ -1805,6 +1826,8 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                     // For example, if the struct is `{ i64 }` we may
                     // in fact return a value of type `i64`. While both have the
                     // same layout, they're not compatible at the LLVM level.
+                    //
+                    // TODO: use memcpy when returning structs
                     let typ = self
                         .builder
                         .function
@@ -2063,7 +2086,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                 layout.returns = self.builder.context.return_type(
                     self.shared.state,
-                    self.layouts,
+                    self.layouts.target_data,
                     reg_typ,
                 );
 
@@ -2075,7 +2098,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                     let raw = self.variable_types[reg];
                     let typ = self.builder.context.argument_type(
                         self.shared.state,
-                        self.layouts,
+                        self.layouts.target_data,
                         raw,
                     );
 
@@ -2131,7 +2154,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 layout.returns = ReturnType::Regular(reg_typ);
                 layout.arguments.push(self.builder.context.argument_type(
                     self.shared.state,
-                    self.layouts,
+                    self.layouts.target_data,
                     rec_typ,
                 ));
 
@@ -2720,10 +2743,26 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
         for (idx, reg) in receiver.iter().chain(arguments.iter()).enumerate() {
             let idx = if sret.is_some() { idx + 1 } else { idx };
             let var = self.variables[reg];
+            let typ = self.variable_types[reg];
 
             match layout.arguments.get(idx).cloned() {
                 Some(ArgumentType::Regular(t)) => {
-                    args.push(self.builder.load(t, var).into());
+                    let raw_val = self.builder.load(typ, var);
+                    let val = if t != typ {
+                        let tmp = self.builder.new_stack_slot(t);
+
+                        self.builder.copy_value(
+                            self.layouts.target_data,
+                            raw_val,
+                            tmp,
+                            t,
+                        );
+                        self.builder.load(t, tmp)
+                    } else {
+                        raw_val
+                    };
+
+                    args.push(val.into());
                 }
                 Some(ArgumentType::StructValue(t)) => {
                     attrs.push((
@@ -2745,14 +2784,13 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 None => {
                     // We may run into this case when calling a variadic
                     // function and passing more arguments than are defined.
-                    let typ = self.variable_types[reg];
-
                     args.push(self.builder.load(typ, var).into());
                 }
             }
         }
 
         let reg_var = self.variables[&register];
+        let reg_typ = self.variable_types[&register];
         let call_site = match kind {
             CallKind::Direct(f) => self.builder.direct_call(f, &args),
             CallKind::Indirect(t, f) => self.builder.indirect_call(t, f, &args),
@@ -2765,11 +2803,21 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
         if layout.returns.is_regular() {
             let val = call_site.try_as_basic_value().left().unwrap();
 
-            self.builder.store(reg_var, val);
+            self.builder.copy_value(
+                self.layouts.target_data,
+                val,
+                reg_var,
+                reg_typ,
+            );
         } else if let Some((typ, tmp)) = sret {
             let val = self.builder.load(typ, tmp);
 
-            self.builder.store(reg_var, val);
+            self.builder.copy_value(
+                self.layouts.target_data,
+                val,
+                reg_var,
+                reg_typ,
+            );
         }
 
         if self.register_type(register).is_never(&self.shared.state.db) {

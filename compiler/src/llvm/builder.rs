@@ -11,7 +11,10 @@ use inkwell::debug_info::{
     DWARFSourceLanguage, DebugInfoBuilder,
 };
 use inkwell::module::{FlagBehavior, Module as InkwellModule};
-use inkwell::types::{ArrayType, BasicType, FunctionType, StructType};
+use inkwell::targets::TargetData;
+use inkwell::types::{
+    ArrayType, BasicType, BasicTypeEnum, FunctionType, StructType,
+};
 use inkwell::values::{
     AggregateValue, ArrayValue, BasicMetadataValueEnum, BasicValue,
     BasicValueEnum, CallSiteValue, FloatValue, FunctionValue,
@@ -150,6 +153,44 @@ impl<'ctx> Builder<'ctx> {
         let field_ptr = self.field_address(receiver_type, receiver, index);
 
         self.store(field_ptr, value);
+    }
+
+    pub(crate) fn memcpy(
+        &self,
+        target_data: &TargetData,
+        from: PointerValue<'ctx>,
+        from_type: BasicTypeEnum<'ctx>,
+        to: PointerValue<'ctx>,
+        to_type: BasicTypeEnum<'ctx>,
+    ) {
+        let len = self.u64_literal(target_data.get_abi_size(&to_type));
+        let from_align = target_data.get_abi_alignment(&from_type);
+        let to_align = target_data.get_abi_alignment(&to_type);
+
+        self.inner.build_memcpy(to, to_align, from, from_align, len).unwrap();
+    }
+
+    /// Copies a value to a pointer using memcpy.
+    ///
+    /// When passing structs as arguments or returning them, their types may
+    /// differ from the destination type. In addition, the ABI may require that
+    /// the data be copied explicitly instead of being passed as-is.
+    ///
+    /// Using this method we can easily handle these cases and leave it up to
+    /// LLVM to optimize and generate the correct code. The approach taken here
+    /// is similar to what clang and Rust do.
+    pub(crate) fn copy_value(
+        &self,
+        target_data: &TargetData,
+        from: BasicValueEnum<'ctx>,
+        to: PointerValue<'ctx>,
+        to_type: BasicTypeEnum<'ctx>,
+    ) {
+        let from_type = from.get_type();
+        let tmp = self.new_stack_slot(from_type);
+
+        self.store(tmp, from);
+        self.memcpy(target_data, tmp, from_type, to, to_type);
     }
 
     pub(crate) fn store<V: BasicValue<'ctx>>(
