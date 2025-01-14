@@ -6,5 +6,6 @@ pub(crate) mod layouts;
 pub(crate) mod method_hasher;
 pub(crate) mod methods;
 pub(crate) mod module;
+pub(crate) mod opt;
 pub(crate) mod passes;
 pub(crate) mod runtime_function;

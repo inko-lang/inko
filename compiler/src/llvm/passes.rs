@@ -14,6 +14,7 @@ use crate::llvm::layouts::{
 };
 use crate::llvm::methods::Methods;
 use crate::llvm::module::Module;
+use crate::llvm::opt;
 use crate::llvm::runtime_function::RuntimeFunction;
 use crate::mir::{
     CastType, Constant, Instruction, InstructionLocation, Method, Mir,
@@ -300,22 +301,17 @@ pub(crate) fn lower_all(
         }
     }
 
-    // LLVM's optimisation level controls which passes to run, but some/many of
-    // those may not be relevant to Inko, while slowing down compile times. Thus
-    // instead of using this knob, we provide our own list of passes. Swift and
-    // Rust (and possibly others) take a similar approach.
+    // The code generation optimization level to use. This is separate from the
+    // optimization passes to run.
     //
-    // For the aggressive mode we simply enable the full suite of LLVM
-    // optimizations, likely greatly increasing the compilation times.
+    // It's unclear what the difference is between Default and Aggressive, and
+    // we've not been able to measure a difference in runtime performance. Swift
+    // also appears to just use Default when optimizations are enabled
+    // (https://github.com/swiftlang/swift/blob/09d122af7c08e1a6e7fe76f122ddab05b0bbda59/lib/IRGen/IRGen.cpp#L929-L931),
+    // so we'll assume this is good enough.
     let level = match state.config.opt {
         Opt::None => OptimizationLevel::None,
-
-        // We have yet to figure out what optimizations we want to enable
-        // here, hence we don't apply any at all.
-        Opt::Balanced => OptimizationLevel::None,
-
-        // This is the equivalent of -O3 for clang.
-        Opt::Aggressive => OptimizationLevel::Aggressive,
+        _ => OptimizationLevel::Default,
     };
 
     // Our "queue" is just an atomic integer in the range 0..N where N is the
@@ -547,19 +543,27 @@ impl<'a> Worker<'a> {
     fn run_passes(&self, module: &Module, layouts: &Layouts) {
         let layout = layouts.target_data.get_data_layout();
         let opts = PassBuilderOptions::create();
-        let passes = ["mem2reg"].join(",");
+
+        // The LLVM pipeline to run, including passes that we must run
+        // regardless of the optimization level.
+        //
+        // We need to scope pass names properly, otherwise we may run into
+        // issues similar to https://github.com/llvm/llvm-project/issues/81128)
+        let mut passes = ["function(mem2reg)"].join(",");
+        let extra = match self.shared.state.config.opt {
+            Opt::Balanced => Some(opt::BALANCED),
+            Opt::Aggressive => Some(opt::AGGRESSIVE),
+            _ => None,
+        };
+
+        if let Some(v) = extra {
+            passes.push(',');
+            passes.push_str(v);
+        }
 
         module.set_data_layout(&layout);
         module.set_triple(&self.machine.get_triple());
         module.run_passes(passes.as_str(), &self.machine, opts).unwrap();
-
-        // The pass "aliases" such as "default<O3>" can't be combined together
-        // with other passes, so we have to handle them separately.
-        if let Opt::Aggressive = self.shared.state.config.opt {
-            let opts = PassBuilderOptions::create();
-
-            module.run_passes("default<O3>", &self.machine, opts).unwrap();
-        }
     }
 
     fn write_object_file(

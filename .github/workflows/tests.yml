@@ -63,49 +63,65 @@ jobs:
       - name: Check the formatting
         run: 'cd std && cargo run -- fmt --check'
 
-  amd64-linux-gnu:
+  compiler-linux:
+    strategy:
+      matrix:
+        target:
+          - image: 'ci:fedora'
+            name: amd64-linux-gnu
+          - image: 'ci:alpine'
+            name: amd64-linux-musl
+    name: ${{ matrix.target.name }} compiler
     timeout-minutes: 15
     runs-on: ubuntu-24.04
     container:
-      image: ghcr.io/inko-lang/ci:fedora
+      image: ghcr.io/inko-lang/${{ matrix.target.image }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
         with:
           path: '${{ env.CARGO_HOME }}'
-          key: amd64-linux-gnu-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+          key: ${{ matrix.target.name }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
       - name: Run compiler tests
         run: cargo test
-      - name: Run stdlib tests with default optimizations
-        run: 'cd std && cargo run -- test'
-      - name: Run stdlib tests without optimizations
-        run: 'cd std && cargo run -- test --opt=none'
-      - name: Run stdlib tests with aggressive optimizations
-        run: 'cd std && cargo run -- test --opt=aggressive'
 
-  amd64-linux-musl:
+  std-linux:
+    strategy:
+      matrix:
+        level:
+          - none
+          - balanced
+          - aggressive
+        target:
+          - image: 'ci:fedora'
+            name: amd64-linux-gnu
+          - image: 'ci:alpine'
+            name: amd64-linux-musl
+    name: ${{ matrix.target.name }} std --opt=${{ matrix.level }}
     timeout-minutes: 15
     runs-on: ubuntu-24.04
     container:
-      image: ghcr.io/inko-lang/ci:alpine
+      image: ghcr.io/inko-lang/${{ matrix.target.image }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
         with:
           path: '${{ env.CARGO_HOME }}'
-          key: amd64-linux-musl-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
-      - name: Run compiler tests
-        run: cargo test
-      - name: Run stdlib tests with default optimizations
-        run: 'cd std && cargo run -- test'
-      - name: Run stdlib tests without optimizations
-        run: 'cd std && cargo run -- test --opt=none'
-      - name: Run stdlib tests with aggressive optimizations
-        run: 'cd std && cargo run -- test --opt=aggressive'
+          key: ${{ matrix.target.name }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+      - name: Run tests
+        run: 'cd std && cargo run -- test --opt=${{ matrix.level }}'
 
-  amd64-mac-native:
+  compiler-mac:
+    strategy:
+      matrix:
+        target:
+          - runner: macos-13
+            name: amd64-mac-native
+          - runner: macos-14
+            name: arm64-mac-native
+    name: ${{ matrix.target.name }} compiler
     timeout-minutes: 15
-    runs-on: macos-13
+    runs-on: ${{ matrix.target.runner }}
     env:
       RUSTUP_HOME: ${{ github.workspace }}/.rustup-home
     steps:
@@ -115,21 +131,27 @@ jobs:
           path: |
             ${{ env.CARGO_HOME }}
             ${{ env.RUSTUP_HOME }}
-          key: amd64-mac-native-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+          key: ${{ matrix.target.name }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
       - name: Install dependencies
         run: ./ci/mac.sh
       - name: Run compiler tests
         run: cargo test
-      - name: Run stdlib tests with default optimizations
-        run: 'cd std && cargo run -- test'
-      - name: Run stdlib tests without optimizations
-        run: 'cd std && cargo run -- test --opt=none'
-      - name: Run stdlib tests with aggressive optimizations
-        run: 'cd std && cargo run -- test --opt=aggressive'
 
-  arm64-mac-native:
+  std-mac:
+    strategy:
+      matrix:
+        level:
+          - none
+          - balanced
+          - aggressive
+        target:
+          - runner: macos-13
+            name: amd64-mac-native
+          - runner: macos-14
+            name: arm64-mac-native
+    name: ${{ matrix.target.name }} std --opt=${{ matrix.level }}
     timeout-minutes: 15
-    runs-on: macos-14
+    runs-on: ${{ matrix.target.runner }}
     env:
       RUSTUP_HOME: ${{ github.workspace }}/.rustup-home
     steps:
@@ -139,19 +161,14 @@ jobs:
           path: |
             ${{ env.CARGO_HOME }}
             ${{ env.RUSTUP_HOME }}
-          key: arm64-mac-native-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+          key: ${{ matrix.target.name }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
       - name: Install dependencies
         run: ./ci/mac.sh
-      - name: Run compiler tests
-        run: cargo test
-      - name: Run stdlib tests with default optimizations
-        run: 'cd std && cargo run -- test'
-      - name: Run stdlib tests without optimizations
-        run: 'cd std && cargo run -- test --opt=none'
-      - name: Run stdlib tests with aggressive optimizations
-        run: 'cd std && cargo run -- test --opt=aggressive'
+      - name: Run tests
+        run: 'cd std && cargo run -- test --opt=${{ matrix.level }}'
 
-  amd64-freebsd-native:
+  compiler-freebsd:
+    name: amd64-freebsd-native compiler
     timeout-minutes: 15
     runs-on: ubuntu-24.04
     env:
@@ -172,4 +189,30 @@ jobs:
           memory: 8G
           environment_variables: 'CARGO_HOME RUSTUP_HOME'
           image_url: 'https://github.com/inko-lang/freebsd-builder/releases/download/v0.8.0/freebsd-14.0-x86-64.qcow2'
-          run: ./ci/freebsd.sh
+          run: ./ci/freebsd.sh compiler
+
+  # FreeBSD builds are a bit slow due to the use of a VM, so we only run the
+  # stdlib tests using the default optimization level.
+  std-freebsd:
+    name: amd64-freebsd-native std
+    timeout-minutes: 15
+    runs-on: ubuntu-24.04
+    env:
+      RUSTUP_HOME: ${{ github.workspace }}/.rustup-home
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.CARGO_HOME }}
+            ${{ env.RUSTUP_HOME }}
+          key: amd64-freebsd-native-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+      - name: Run tests
+        uses: cross-platform-actions/action@v0.24.0
+        with:
+          operating_system: freebsd
+          version: '14.0'
+          memory: 8G
+          environment_variables: 'CARGO_HOME RUSTUP_HOME'
+          image_url: 'https://github.com/inko-lang/freebsd-builder/releases/download/v0.8.0/freebsd-14.0-x86-64.qcow2'
+          run: ./ci/freebsd.sh std

@@ -34,9 +34,8 @@ an explicit non-goal for Inko.
 ### A balance between compile-time and runtime performance
 
 Instead of favouring runtime performance over compile-time performance, Inko
-tries to provide a good balance between the two. For improved runtime
-performance the compiler supports the option to enable more aggressive
-optimisations at the cost of compile times, should you truly need this.
+tries to provide a good balance between the two, as much as this is possible
+when using LLVM as a backend.
 
 ### Memory safety, without the mental overhead
 

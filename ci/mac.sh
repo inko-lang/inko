@@ -6,7 +6,7 @@ LLVM_VERSION='17'
 RUST_VERSION='1.78'
 
 echo "::group::Installing Homebrew packages"
-brew install llvm@${LLVM_VERSION} rustup
+brew install llvm@${LLVM_VERSION}
 echo "::endgroup::"
 
 echo "::group::Installing Rust"

@@ -18,11 +18,14 @@ echo "::endgroup::"
 
 export PATH="${CARGO_HOME}/bin:${PATH}"
 
-echo "::group::Run compiler tests"
-cargo test
-echo "::endgroup::"
-
-echo "::group::Run stdlib tests"
-cd std
-cargo run -- test
-echo "::endgroup::"
+if [ "$1" = "compiler" ]
+then
+    echo "::group::Run compiler tests"
+    cargo test
+    echo "::endgroup::"
+else
+    echo "::group::Run stdlib tests"
+    cd std
+    cargo run -- test
+    echo "::endgroup::"
+fi

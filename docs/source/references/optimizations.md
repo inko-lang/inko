@@ -8,13 +8,6 @@ The code compiled by Inko is optimized in two ways: the mid-level IR ("MIR"),
 generated after type checking, is optimized in various ways, and various LLVM
 optimizations passes are applied when generating machine code.
 
-::: note
-When using the default optimization level `balanced`, the only LLVM optimization
-pass that's run is the `mem2reg` pass. We plan to run more passes once we have a
-better understanding of which ones are relevant for Inko. For more details,
-refer to [this issue](https://github.com/inko-lang/inko/issues/595).
-:::
-
 ## Type specialization
 
 The first optimization is type specialization, and this optimization is always

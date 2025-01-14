@@ -36,8 +36,8 @@ inko build hello.inko
 ```
 
 The resulting executable is located at `./build/hello`. By default the compiler
-enables a reasonable number of optimisations, without sacrificing compile times.
-You can either disable optimisations entirely, or enable more aggressive
+uses a set of optimizations similar to the optimizations enabled by using `clang
+-O2`. You can either disable optimisations entirely, or enable more aggressive
 optimisations at the cost of compile times increasing:
 
 ```bash
@@ -49,8 +49,9 @@ For `--opt none` the executable is placed in `./build/none/hello`, and
 `./build/aggressive/hello` for `--opt aggressive`.
 
 ::: tip
-Only use `--opt aggressive` if you have determined a significant increase in
-compile times is worth the increase in runtime performance.
+In most cases `--opt=aggressive` won't make a difference in runtime performance,
+as the differences in optimizations between `balanced` and `aggressive` are
+minor. This may change in the future.
 :::
 
 You can specify an alternative output path using the `-o` option:
