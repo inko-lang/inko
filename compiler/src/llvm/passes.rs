@@ -1807,20 +1807,17 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 self.builder.jump(all_blocks[ins.block.0]);
             }
             Instruction::Return(ins) => {
+                let typ = self.variable_types[&ins.register];
                 let var = self.variables[&ins.register];
+                let val = self.builder.load(typ, var);
 
                 if let Some((ptr, to_typ)) = self.struct_return_value {
-                    let typ = self.variable_types[&ins.register];
-                    let val = self.builder.load(typ, var);
-
                     self.builder.copy_value(
                         self.layouts.target_data,
                         val,
                         ptr,
                         to_typ.as_basic_type_enum(),
                     );
-
-                    //self.builder.store(ptr, val);
                     self.builder.return_value(None);
                 } else {
                     // When returning a struct on the stack, the return type
@@ -1830,17 +1827,24 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                     // For example, if the struct is `{ i64 }` we may
                     // in fact return a value of type `i64`. While both have the
                     // same layout, they're not compatible at the LLVM level.
-                    //
-                    // TODO: use memcpy when returning structs
-                    let typ = self
+                    let to_typ = self
                         .builder
                         .function
                         .get_type()
                         .get_return_type()
                         .unwrap();
-                    let val = self.builder.load(typ, var);
+                    let tmp = self.builder.new_stack_slot(to_typ);
 
-                    self.builder.return_value(Some(&val));
+                    self.builder.copy_value(
+                        self.layouts.target_data,
+                        val,
+                        tmp,
+                        to_typ,
+                    );
+
+                    let ret = self.builder.load(to_typ, tmp);
+
+                    self.builder.return_value(Some(&ret));
                 }
             }
             Instruction::Branch(ins) => {
