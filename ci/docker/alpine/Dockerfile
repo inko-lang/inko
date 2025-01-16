@@ -7,7 +7,7 @@ ENV PATH /opt/cargo/bin:$PATH
 ENV RUSTUP_HOME /opt/rustup
 ENV CARGO_HOME /opt/cargo
 
-RUN apk add --update build-base tar git rustup \
+RUN apk add --update build-base tar git rustup rclone \
     llvm$LLVM_VERSION llvm$LLVM_VERSION-dev llvm$LLVM_VERSION-static \
     libstdc++-dev zlib-static zstd-static libxml2-static
 

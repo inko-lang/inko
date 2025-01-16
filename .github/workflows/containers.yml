@@ -21,16 +21,24 @@ jobs:
   fedora:
     uses: ./.github/workflows/container.yml
     with:
-      name: 'fedora'
-  alpine:
+      name: fedora
+  alpine-amd64:
     uses: ./.github/workflows/container.yml
     with:
-      name: 'alpine'
+      name: alpine
+  alpine-arm64:
+    uses: ./.github/workflows/container.yml
+    with:
+      name: alpine
+      runner: ubuntu-24.04-arm
+      platform: linux/arm64
   debian-amd64:
     uses: ./.github/workflows/container.yml
     with:
-      name: 'debian-amd64'
+      name: debian
   debian-arm64:
     uses: ./.github/workflows/container.yml
     with:
-      name: 'debian-arm64'
+      name: debian
+      runner: ubuntu-24.04-arm
+      platform: linux/arm64

@@ -7,6 +7,16 @@ on:
         description: 'The name of the image to build'
         required: true
         type: string
+      platform:
+        description: 'The Docker platform to build for'
+        required: false
+        type: string
+        default: linux/amd64
+      runner:
+        description: 'The GitHub runner to use'
+        required: false
+        type: string
+        default: ubuntu-24.04
 
 env:
   REGISTRY: ghcr.io
@@ -14,7 +24,7 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    runs-on: ${{ inputs.runner }}
     permissions:
       contents: read
       packages: write
@@ -28,5 +38,6 @@ jobs:
       - uses: docker/build-push-action@v5
         with:
           context: ci/docker/${{ inputs.name }}
+          platforms: ${{ inputs.platform }}
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.NAMESPACE }}:${{ inputs.name }}
