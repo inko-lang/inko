@@ -67,23 +67,27 @@ jobs:
     strategy:
       matrix:
         target:
-          - image: ci:debian
+          - image: debian
             name: amd64-linux-gnu
+            platform: linux/amd64
             runner: ubuntu-24.04
-          - image: ci:debian
+          - image: debian
             name: arm64-linux-gnu
+            platform: linux/arm64
             runner: ubuntu-24.04-arm
-          - image: ci:alpine
+          - image: alpine
             name: amd64-linux-musl
+            platform: linux/amd64
             runner: ubuntu-24.04
-          - image: ci:alpine
+          - image: alpine
             name: arm64-linux-musl
+            platform: linux/arm64
             runner: ubuntu-24.04-arm
     name: ${{ matrix.target.name }} compiler
     timeout-minutes: 15
     runs-on: ${{ matrix.target.runner }}
     container:
-      image: ghcr.io/inko-lang/${{ matrix.target.image }}
+      image: ghcr.io/inko-lang/ci:${{ matrix.target.image }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
@@ -101,23 +105,27 @@ jobs:
           - balanced
           - aggressive
         target:
-          - image: ci:debian
+          - image: debian
             name: amd64-linux-gnu
+            platform: linux/amd64
             runner: ubuntu-24.04
-          - image: ci:alpine
+          - image: alpine
             name: amd64-linux-musl
+            platform: linux/amd64
             runner: ubuntu-24.04
-          - image: ci:debian
+          - image: debian
             name: arm64-linux-gnu
+            platform: linux/arm64
             runner: ubuntu-24.04-arm
-          - image: ci:alpine
+          - image: alpine
             name: arm64-linux-musl
+            platform: linux/arm64
             runner: ubuntu-24.04-arm
     name: ${{ matrix.target.name }} std --opt=${{ matrix.level }}
     timeout-minutes: 15
     runs-on: ${{ matrix.target.runner }}
     container:
-      image: ghcr.io/inko-lang/${{ matrix.target.image }}
+      image: ghcr.io/inko-lang/ci:${{ matrix.target.image }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4

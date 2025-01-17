@@ -14,22 +14,22 @@ jobs:
       matrix:
         target:
           - image: ci:debian
-            name: amd64-linux
+            arch: amd64
             runner: ubuntu-24.04
           - image: ci:debian
-            name: arm64-linux
+            arch: arm64
             runner: ubuntu-24.04-arm
-    name: ${{ matrix.target.name }}
+    name: ${{ matrix.target.arch }}-linux
     runs-on: ${{ matrix.target.runner }}
     container:
       image: ghcr.io/inko-lang/${{ matrix.target.image }}
     steps:
       - uses: actions/checkout@v4
       - name: Build runtimes
-        run: bash ci/runtimes.sh ${{ matrix.target.name }}
+        run: bash ci/runtimes.sh ${{ matrix.target.arch }}-linux
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.target.name }}
+          name: ${{ matrix.target.arch }}-linux
           path: tmp/runtimes/*.tar.gz
           overwrite: true
           retention-days: 2
