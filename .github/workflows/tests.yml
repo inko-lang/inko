@@ -110,18 +110,20 @@ jobs:
     runs-on: ${{ matrix.target.runner }}
     container:
       image: ghcr.io/inko-lang/ci:fedora
+    env:
+      # This is needed because when setting an explicit target, "ring" looks for
+      # `aarch64-linux-musl-gcc` instead of using `musl-gcc`.
+      CC_aarch64_unknown_linux_musl: musl-gcc
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
         with:
           path: '${{ env.CARGO_HOME }}'
           key: ${{ matrix.target.name }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
-      - name: Build the runtime
-        run: cargo build -p rt --target=${{ matrix.target.triple }}
-      - name: Build the compiler
-        run: INKO_RT="${PWD}/target/${{ matrix.target.triple }}/debug" cargo build -p inko
-      - name: Run the tests
-        run: 'cd std && ../target/${{ matrix.target.triple }}/debug/inko test --opt=${{ matrix.level }} --target=${{ matrix.name }}'
+      - name: Build the runtime and compiler
+        run: ./ci/linux.sh ${{ matrix.target.name }} ${{ matrix.target.triple }}
+      - name: Run tests
+        run: 'cd std && ../target/debug/inko test --opt=${{ matrix.level }} --target=${{ matrix.target.name }}'
 
   compiler-mac:
     strategy:
