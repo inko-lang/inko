@@ -29,7 +29,7 @@ jobs:
   cargo-clippy:
     runs-on: ubuntu-24.04
     container:
-      image: ghcr.io/inko-lang/ci:fedora
+      image: ghcr.io/inko-lang/ci:alpine
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
@@ -42,7 +42,7 @@ jobs:
   cargo-fmt:
     runs-on: ubuntu-24.04
     container:
-      image: ghcr.io/inko-lang/ci:fedora
+      image: ghcr.io/inko-lang/ci:alpine
     steps:
       - uses: actions/checkout@v4
       - name: Run rustfmt
@@ -51,7 +51,7 @@ jobs:
   inko-fmt:
     runs-on: ubuntu-24.04
     container:
-      image: ghcr.io/inko-lang/ci:fedora
+      image: ghcr.io/inko-lang/ci:alpine
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
@@ -67,13 +67,21 @@ jobs:
     strategy:
       matrix:
         target:
-          - image: 'ci:fedora'
+          - image: ci:debian
             name: amd64-linux-gnu
-          - image: 'ci:alpine'
+            runner: ubuntu-24.04
+          - image: ci:debian
+            name: arm64-linux-gnu
+            runner: ubuntu-24.04-arm
+          - image: ci:alpine
             name: amd64-linux-musl
+            runner: ubuntu-24.04
+          - image: ci:alpine
+            name: arm64-linux-musl
+            runner: ubuntu-24.04-arm
     name: ${{ matrix.target.name }} compiler
     timeout-minutes: 15
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.target.runner }}
     container:
       image: ghcr.io/inko-lang/${{ matrix.target.image }}
     steps:
@@ -93,13 +101,21 @@ jobs:
           - balanced
           - aggressive
         target:
-          - image: 'ci:fedora'
+          - image: ci:debian
             name: amd64-linux-gnu
-          - image: 'ci:alpine'
+            runner: ubuntu-24.04
+          - image: ci:alpine
             name: amd64-linux-musl
+            runner: ubuntu-24.04
+          - image: ci:debian
+            name: arm64-linux-gnu
+            runner: ubuntu-24.04-arm
+          - image: ci:alpine
+            name: arm64-linux-musl
+            runner: ubuntu-24.04-arm
     name: ${{ matrix.target.name }} std --opt=${{ matrix.level }}
     timeout-minutes: 15
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.target.runner }}
     container:
       image: ghcr.io/inko-lang/${{ matrix.target.image }}
     steps:
