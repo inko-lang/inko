@@ -18,19 +18,18 @@ permissions:
   packages: write
 
 jobs:
-  fedora:
+  fedora-amd64:
     uses: ./.github/workflows/container.yml
     with:
-      name: 'fedora'
+      name: fedora-amd64
+      dockerfile: fedora
+  fedora-arm64:
+    uses: ./.github/workflows/container.yml
+    with:
+      name: fedora-arm64
+      dockerfile: fedora
+      runner: ubuntu-24.04-arm
   alpine:
     uses: ./.github/workflows/container.yml
     with:
-      name: 'alpine'
-  debian-amd64:
-    uses: ./.github/workflows/container.yml
-    with:
-      name: 'debian-amd64'
-  debian-arm64:
-    uses: ./.github/workflows/container.yml
-    with:
-      name: 'debian-arm64'
+      name: alpine

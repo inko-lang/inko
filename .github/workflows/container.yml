@@ -7,6 +7,15 @@ on:
         description: 'The name of the image to build'
         required: true
         type: string
+      runner:
+        description: 'The host runner to use'
+        required: false
+        default: ubuntu-24.04
+        type: string
+      dockerfile:
+        description: 'The directory of the Dockerfile to use'
+        required: true
+        type: string
 
 env:
   REGISTRY: ghcr.io
@@ -14,7 +23,7 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    runs-on: ${{ inputs.runner }}
     permissions:
       contents: read
       packages: write
@@ -27,6 +36,6 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@v5
         with:
-          context: ci/docker/${{ inputs.name }}
+          context: ci/docker/${{ inputs.dockerfile }}
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.NAMESPACE }}:${{ inputs.name }}
