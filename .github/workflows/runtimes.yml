@@ -13,10 +13,10 @@ jobs:
     strategy:
       matrix:
         target:
-          - image: ci:debian
+          - image: ci:fedora
             arch: amd64
             runner: ubuntu-24.04
-          - image: ci:debian
+          - image: ci:fedora
             arch: arm64
             runner: ubuntu-24.04-arm
     name: ${{ matrix.target.arch }}-linux
@@ -84,7 +84,7 @@ jobs:
     name: Upload runtimes
     runs-on: ubuntu-24.04
     container:
-      image: ghcr.io/inko-lang/ci:alpine
+      image: ghcr.io/inko-lang/ci:fedora
     env:
       RCLONE_S3_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_ACCESS_KEY_ID }}
       RCLONE_S3_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}

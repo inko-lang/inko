@@ -21,7 +21,7 @@ jobs:
     name: Source archive
     runs-on: ubuntu-24.04
     container:
-      image: ghcr.io/inko-lang/ci:alpine
+      image: ghcr.io/inko-lang/ci:fedora
     needs:
       - tests
     env:

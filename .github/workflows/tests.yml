@@ -29,7 +29,7 @@ jobs:
   cargo-clippy:
     runs-on: ubuntu-24.04
     container:
-      image: ghcr.io/inko-lang/ci:alpine
+      image: ghcr.io/inko-lang/ci:fedora
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
@@ -42,7 +42,7 @@ jobs:
   cargo-fmt:
     runs-on: ubuntu-24.04
     container:
-      image: ghcr.io/inko-lang/ci:alpine
+      image: ghcr.io/inko-lang/ci:fedora
     steps:
       - uses: actions/checkout@v4
       - name: Run rustfmt
@@ -51,7 +51,7 @@ jobs:
   inko-fmt:
     runs-on: ubuntu-24.04
     container:
-      image: ghcr.io/inko-lang/ci:alpine
+      image: ghcr.io/inko-lang/ci:fedora
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
@@ -67,27 +67,15 @@ jobs:
     strategy:
       matrix:
         target:
-          - image: debian
-            name: amd64-linux-gnu
-            platform: linux/amd64
+          - name: amd64-linux-gnu
             runner: ubuntu-24.04
-          - image: debian
-            name: arm64-linux-gnu
-            platform: linux/arm64
-            runner: ubuntu-24.04-arm
-          - image: alpine
-            name: amd64-linux-musl
-            platform: linux/amd64
-            runner: ubuntu-24.04
-          - image: alpine
-            name: arm64-linux-musl
-            platform: linux/arm64
+          - name: arm64-linux-gnu
             runner: ubuntu-24.04-arm
     name: ${{ matrix.target.name }} compiler
     timeout-minutes: 15
     runs-on: ${{ matrix.target.runner }}
     container:
-      image: ghcr.io/inko-lang/ci:${{ matrix.target.image }}
+      image: ghcr.io/inko-lang/ci:fedora
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
@@ -105,35 +93,35 @@ jobs:
           - balanced
           - aggressive
         target:
-          - image: debian
-            name: amd64-linux-gnu
-            platform: linux/amd64
+          - name: amd64-linux-gnu
             runner: ubuntu-24.04
-          - image: alpine
-            name: amd64-linux-musl
-            platform: linux/amd64
+            triple: x86_64-unknown-linux-gnu
+          - name: amd64-linux-musl
             runner: ubuntu-24.04
-          - image: debian
-            name: arm64-linux-gnu
-            platform: linux/arm64
+            triple: x86_64-unknown-linux-musl
+          - name: arm64-linux-gnu
             runner: ubuntu-24.04-arm
-          - image: alpine
-            name: arm64-linux-musl
-            platform: linux/arm64
+            triple: aarch64-unknown-linux-gnu
+          - name: arm64-linux-musl
             runner: ubuntu-24.04-arm
+            triple: aarch64-unknown-linux-musl
     name: ${{ matrix.target.name }} std --opt=${{ matrix.level }}
     timeout-minutes: 15
     runs-on: ${{ matrix.target.runner }}
     container:
-      image: ghcr.io/inko-lang/ci:${{ matrix.target.image }}
+      image: ghcr.io/inko-lang/ci:fedora
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
         with:
           path: '${{ env.CARGO_HOME }}'
           key: ${{ matrix.target.name }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
-      - name: Run tests
-        run: 'cd std && cargo run -- test --opt=${{ matrix.level }}'
+      - name: Build the runtime
+        run: cargo build -p rt --target=${{ matrix.target.triple }}
+      - name: Build the compiler
+        run: INKO_RT="${PWD}/target/${{ matrix.target.triple }}/debug" cargo build -p inko
+      - name: Run the tests
+        run: 'cd std && ../target/${{ matrix.target.triple }}/debug/inko test --opt=${{ matrix.level }} --target=${{ matrix.name }}'
 
   compiler-mac:
     strategy:

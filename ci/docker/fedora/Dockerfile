@@ -9,10 +9,14 @@ ENV CARGO_HOME /opt/cargo
 
 RUN dnf install --assumeyes --quiet gcc make tar git rustup rclone \
     llvm$LLVM_VERSION llvm$LLVM_VERSION-devel libstdc++-devel libffi-devel \
-    zlib-devel
+    zlib-devel musl-gcc
 
 RUN rustup-init --quiet -y --no-modify-path --profile minimal \
     --component clippy,rustfmt --default-toolchain $RUST_VERSION
+
+# Add the musl target for the current architecture.
+RUN rustup target add \
+    $(rustc --print cfg | grep target_arch | cut -d '"' -f 2)-unknown-linux-musl
 
 # idoc targets the latest stable release of Inko, but our tests run against a
 # newer version. This allows us to use an existing idoc executable without
