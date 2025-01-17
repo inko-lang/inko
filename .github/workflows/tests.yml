@@ -91,7 +91,6 @@ jobs:
         level:
           - none
           - balanced
-          - aggressive
         target:
           - name: amd64-linux-gnu
             runner: ubuntu-24.04
@@ -157,7 +156,6 @@ jobs:
         level:
           - none
           - balanced
-          - aggressive
         target:
           - runner: macos-13
             name: amd64-mac-native
