@@ -33,3 +33,4 @@ jobs:
     uses: ./.github/workflows/container.yml
     with:
       name: alpine
+      dockerfile: alpine
