@@ -25,15 +25,8 @@ jobs:
     uses: ./.github/workflows/tests.yml
 
   nightly-container:
-    strategy:
-      matrix:
-        target:
-          - name: linux/amd64
-            runner: ubuntu-24.04
-          - name: linux/arm64
-            runner: ubuntu-24.04-arm
-    name: ${{ matrix.target.name }} container
-    runs-on: ${{ matrix.target.runner }}
+    name: Nightly container
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: write
@@ -54,7 +47,6 @@ jobs:
       - uses: docker/build-push-action@v5
         with:
           context: .
-          platforms: ${{ matrix.target.name }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

@@ -67,15 +67,15 @@ jobs:
     strategy:
       matrix:
         target:
-          - name: amd64-linux-gnu
-            runner: ubuntu-24.04
-          - name: arm64-linux-gnu
-            runner: ubuntu-24.04-arm
+          - image: 'ci:fedora'
+            name: amd64-linux-gnu
+          - image: 'ci:alpine'
+            name: amd64-linux-musl
     name: ${{ matrix.target.name }} compiler
     timeout-minutes: 15
-    runs-on: ${{ matrix.target.runner }}
+    runs-on: ubuntu-24.04
     container:
-      image: ghcr.io/inko-lang/ci:fedora
+      image: ghcr.io/inko-lang/${{ matrix.target.image }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
@@ -91,38 +91,25 @@ jobs:
         level:
           - none
           - balanced
+          - aggressive
         target:
-          - name: amd64-linux-gnu
-            runner: ubuntu-24.04
-            triple: x86_64-unknown-linux-gnu
-          - name: amd64-linux-musl
-            runner: ubuntu-24.04
-            triple: x86_64-unknown-linux-musl
-          - name: arm64-linux-gnu
-            runner: ubuntu-24.04-arm
-            triple: aarch64-unknown-linux-gnu
-          - name: arm64-linux-musl
-            runner: ubuntu-24.04-arm
-            triple: aarch64-unknown-linux-musl
+          - image: 'ci:fedora'
+            name: amd64-linux-gnu
+          - image: 'ci:alpine'
+            name: amd64-linux-musl
     name: ${{ matrix.target.name }} std --opt=${{ matrix.level }}
     timeout-minutes: 15
-    runs-on: ${{ matrix.target.runner }}
+    runs-on: ubuntu-24.04
     container:
-      image: ghcr.io/inko-lang/ci:fedora
-    env:
-      # This is needed because when setting an explicit target, "ring" looks for
-      # `aarch64-linux-musl-gcc` instead of using `musl-gcc`.
-      CC_aarch64_unknown_linux_musl: musl-gcc
+      image: ghcr.io/inko-lang/${{ matrix.target.image }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
         with:
           path: '${{ env.CARGO_HOME }}'
           key: ${{ matrix.target.name }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
-      - name: Build the runtime and compiler
-        run: ./ci/linux.sh ${{ matrix.target.name }} ${{ matrix.target.triple }}
       - name: Run tests
-        run: 'cd std && ../target/debug/inko test --opt=${{ matrix.level }} --target=${{ matrix.target.name }}'
+        run: 'cd std && cargo run -- test --opt=${{ matrix.level }}'
 
   compiler-mac:
     strategy:
@@ -156,6 +143,7 @@ jobs:
         level:
           - none
           - balanced
+          - aggressive
         target:
           - runner: macos-13
             name: amd64-mac-native

@@ -9,51 +9,65 @@ env:
   RUSTUP_TOOLCHAIN: '1.78'
 
 jobs:
-  linux:
-    strategy:
-      matrix:
-        target:
-          - image: ci:fedora
-            arch: amd64
-            runner: ubuntu-24.04
-          - image: ci:fedora
-            arch: arm64
-            runner: ubuntu-24.04-arm
-    name: ${{ matrix.target.arch }}-linux
-    runs-on: ${{ matrix.target.runner }}
+  amd64-linux:
+    runs-on: ubuntu-24.04
     container:
-      image: ghcr.io/inko-lang/${{ matrix.target.image }}
+      image: ghcr.io/inko-lang/ci:debian-amd64
     steps:
       - uses: actions/checkout@v4
       - name: Build runtimes
-        run: bash ci/runtimes.sh ${{ matrix.target.arch }}-linux
+        run: bash ci/runtimes.sh amd64-linux
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.target.arch }}-linux
+          name: amd64-linux
           path: tmp/runtimes/*.tar.gz
           overwrite: true
           retention-days: 2
           compression-level: 0
 
-  mac:
-    strategy:
-      matrix:
-        target:
-          - name: amd64-mac
-            runner: macos-13
-          - name: arm64-mac
-            runner: macos-14
-    name: ${{ matrix.target.name }}
-    runs-on: ${{ matrix.target.runner }}
+  arm64-linux:
+    runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/inko-lang/ci:debian-arm64
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build runtimes
+        run: bash ci/runtimes.sh arm64-linux
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arm64-linux
+          path: tmp/runtimes/*.tar.gz
+          overwrite: true
+          retention-days: 2
+          compression-level: 0
+
+  amd64-mac:
+    runs-on: macos-13
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
         run: ./ci/mac.sh
       - name: Build runtimes
-        run: bash ci/runtimes.sh ${{ matrix.target.name }}
+        run: bash ci/runtimes.sh amd64-mac
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.target.name }}
+          name: amd64-mac
+          path: tmp/runtimes/*.tar.gz
+          overwrite: true
+          retention-days: 2
+          compression-level: 0
+
+  arm64-mac:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: ./ci/mac.sh
+      - name: Build runtimes
+        run: bash ci/runtimes.sh arm64-mac
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arm64-mac
           path: tmp/runtimes/*.tar.gz
           overwrite: true
           retention-days: 2
@@ -90,8 +104,10 @@ jobs:
       RCLONE_S3_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
       RCLONE_S3_ENDPOINT: https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
     needs:
-      - linux
-      - mac
+      - amd64-linux
+      - arm64-linux
+      - amd64-mac
+      - arm64-mac
       - amd64-freebsd
     steps:
       - uses: actions/checkout@v4

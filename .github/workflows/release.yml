@@ -104,15 +104,8 @@ jobs:
           fi
 
   container:
-    strategy:
-      matrix:
-        target:
-          - name: linux/amd64
-            runner: ubuntu-24.04
-          - name: linux/arm64
-            runner: ubuntu-24.04-arm
-    name: ${{ matrix.target.name }} container
-    runs-on: ${{ matrix.target.runner }}
+    name: Container
+    runs-on: ubuntu-24.04
     needs:
       - docs
       - runtimes
@@ -139,7 +132,6 @@ jobs:
       - uses: docker/build-push-action@v5
         with:
           context: .
-          platforms: ${{ matrix.target.name }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
