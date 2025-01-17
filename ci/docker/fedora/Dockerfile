@@ -8,7 +8,8 @@ ENV RUSTUP_HOME /opt/rustup
 ENV CARGO_HOME /opt/cargo
 
 RUN dnf install --assumeyes --quiet gcc make tar git rustup rclone \
-    llvm$LLVM_VERSION llvm$LLVM_VERSION-devel libstdc++-devel libffi-devel \
+    llvm$LLVM_VERSION llvm$LLVM_VERSION-devel llvm$LLVM_VERSION-static \
+    libstdc++-devel libstdc++-static libffi-devel \
     zlib-devel musl-gcc
 
 RUN rustup-init --quiet -y --no-modify-path --profile minimal \
