@@ -91,7 +91,6 @@ jobs:
         level:
           - none
           - balanced
-          - aggressive
         target:
           - image: 'ci:fedora'
             name: amd64-linux-gnu
@@ -143,7 +142,6 @@ jobs:
         level:
           - none
           - balanced
-          - aggressive
         target:
           - runner: macos-13
             name: amd64-mac-native
