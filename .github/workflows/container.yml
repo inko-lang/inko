@@ -34,7 +34,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/setup-buildx-action@v3
-      - name: Build imaage
+      - name: Build image
         id: build
         uses: docker/build-push-action@v5
         with:
@@ -42,7 +42,7 @@ jobs:
           platforms: linux/${{ matrix.target.arch }}
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.NAMESPACE }}:${{ inputs.name }}
-          outputs: type=image,name=${{ env.REGISTRY }}/${{ env.NAMESPACE }},push-by-digest=true,name-canonical=true,push=true
+          outputs: type=image,name=${{ env.REGISTRY }}/${{ env.NAMESPACE }},name-canonical=true,push=true
       - name: Export digest
         run: |
           mkdir -p ${{ runner.temp }}/digests
