@@ -1960,13 +1960,17 @@ impl Method {
 
     /// Applies optimizations local to this method (e.g. they don't depend on
     /// other methods).
-    fn apply_local_optimizations(&mut self) {
+    fn apply_local_optimizations(
+        &mut self,
+        constants: &HashMap<types::ConstantId, Constant>,
+    ) {
         self.simplify_graph();
 
         // The above code is likely to produce many unreachable basic
         // blocks, so we need to remove those.
         self.remove_unreachable_blocks();
         self.remove_unused_instructions();
+        self.inline_constants(constants);
     }
 
     /// Simplify the CFG of the method, such as by merging redundant basic
@@ -2077,6 +2081,53 @@ impl Method {
 
                     false
                 });
+            }
+        }
+    }
+
+    /// Inlines trivial constant references.
+    ///
+    /// Constants such as integers and floats are redundant as we can use their
+    /// values directly instead. In fact, doing so avoids unnecessary loads and
+    /// can improve performance.
+    pub(crate) fn inline_constants(
+        &mut self,
+        constants: &HashMap<types::ConstantId, Constant>,
+    ) {
+        for block in &mut self.body.blocks {
+            for ins in &mut block.instructions {
+                let op = match ins {
+                    Instruction::GetConstant(v) => v,
+                    _ => continue,
+                };
+
+                let new_ins = match &constants[&op.id] {
+                    Constant::Int(v) => {
+                        Instruction::Int(Box::new(IntLiteral {
+                            register: op.register,
+                            bits: 64,
+                            value: *v,
+                            location: op.location,
+                        }))
+                    }
+                    Constant::Float(v) => {
+                        Instruction::Float(Box::new(FloatLiteral {
+                            register: op.register,
+                            value: *v,
+                            location: op.location,
+                        }))
+                    }
+                    Constant::Bool(v) => {
+                        Instruction::Bool(Box::new(BoolLiteral {
+                            register: op.register,
+                            value: *v,
+                            location: op.location,
+                        }))
+                    }
+                    _ => continue,
+                };
+
+                *ins = new_ins;
             }
         }
     }
@@ -2418,15 +2469,46 @@ impl Mir {
             let _ = queue.push(method);
         }
 
+        let consts = &self.constants;
+
         thread::scope(|s| {
             for _ in 0..threads {
                 s.spawn(|| {
                     while let Some(m) = queue.pop() {
-                        m.apply_local_optimizations();
+                        m.apply_local_optimizations(consts);
                     }
                 });
             }
         });
+    }
+
+    /// Removes constant definitions that are never referenced.
+    ///
+    /// Trivial constants (e.g. integers) are inlined, and those simply never
+    /// referred to aren't useful to keep around. We remove such constants in
+    /// order to reduce the executable size.
+    pub(crate) fn remove_unused_constants(&mut self, db: &Database) {
+        let mut used = vec![false; db.number_of_constants()];
+
+        for method in self.methods.values() {
+            for block in &method.body.blocks {
+                for ins in &block.instructions {
+                    let id = if let Instruction::GetConstant(op) = ins {
+                        op.id
+                    } else {
+                        continue;
+                    };
+
+                    used[id.0] = true;
+                }
+            }
+        }
+
+        for module in self.modules.values_mut() {
+            module.constants.retain(|v| used[v.0]);
+        }
+
+        self.constants.retain(|k, _| used[k.0]);
     }
 }
 

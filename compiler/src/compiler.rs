@@ -598,6 +598,8 @@ LLVM module timings:
             measure(&mut self.timings.optimize.method_local, || {
                 mir.apply_method_local_optimizations(self.state.config.threads);
             });
+
+            mir.remove_unused_constants(&self.state.db);
         }
 
         self.timings.optimize.total = start.elapsed();

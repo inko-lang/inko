@@ -5700,6 +5700,10 @@ impl Database {
         self.methods.len()
     }
 
+    pub fn number_of_constants(&self) -> usize {
+        self.constants.len()
+    }
+
     pub fn set_main_module(&mut self, name: ModuleName) {
         self.main_module = Some(name);
     }
