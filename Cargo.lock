@@ -129,6 +129,7 @@ version = "0.17.1"
 dependencies = [
  "ast",
  "blake3",
+ "crossbeam-queue",
  "fnv",
  "getopts",
  "indexmap",

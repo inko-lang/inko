@@ -10,6 +10,7 @@ pub(crate) mod specialize;
 
 use crate::state::State;
 use crate::symbol_names::{qualified_type_name, SymbolNames};
+use crossbeam_queue::ArrayQueue;
 use indexmap::IndexMap;
 use location::Location;
 use std::collections::{HashMap, HashSet};
@@ -17,6 +18,7 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::mem::swap;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
+use std::thread;
 use types::module_name::ModuleName;
 use types::{
     Database, ForeignType, Intrinsic, MethodId, Module as ModuleType, Shape,
@@ -1956,6 +1958,19 @@ impl Method {
         self.body.start_id -= shift_map[self.body.start_id.0];
     }
 
+    /// Applies optimizations local to this method (e.g. they don't depend on
+    /// other methods).
+    fn apply_local_optimizations(&mut self) {
+        self.simplify_graph();
+
+        // The above code is likely to produce many unreachable basic
+        // blocks, so we need to remove those.
+        self.remove_unreachable_blocks();
+        self.remove_unused_instructions();
+    }
+
+    /// Simplify the CFG of the method, such as by merging redundant basic
+    /// blocks.
     fn simplify_graph(&mut self) {
         let mut idx = 0;
 
@@ -2001,6 +2016,67 @@ impl Method {
                 // goto() at the end that requires merging, so we only
                 // advance if there's nothing to merge.
                 idx += 1;
+            }
+        }
+    }
+
+    /// Removes instructions that write to an unused register without side
+    /// effects.
+    ///
+    /// Instructions such as `Int` and `String` don't produce side effects,
+    /// meaning that if the register they write to isn't used, the entire
+    /// instruction can be removed.
+    ///
+    /// This method isn't terribly useful on its own, but when combined with
+    /// e.g. copy propagation it can result in the removal of many redundant
+    /// instructions.
+    pub(crate) fn remove_unused_instructions(&mut self) {
+        let mut uses = self.register_use_counts();
+        let mut repeat = true;
+
+        // Removing an instruction may result in other instructions becoming
+        // unused, so we repeat this until we run out of instructions to
+        // remove.
+        while repeat {
+            repeat = false;
+
+            for block in &mut self.body.blocks {
+                block.instructions.retain(|ins| {
+                    let (reg, src) = match ins {
+                        Instruction::Float(i) => (i.register, None),
+                        Instruction::Int(i) => (i.register, None),
+                        Instruction::Nil(i) => (i.register, None),
+                        Instruction::String(i) => (i.register, None),
+                        Instruction::Bool(i) => (i.register, None),
+                        Instruction::Allocate(i) => (i.register, None),
+                        Instruction::Spawn(i) => (i.register, None),
+                        Instruction::GetConstant(i) => (i.register, None),
+                        Instruction::MethodPointer(i) => (i.register, None),
+                        Instruction::SizeOf(i) => (i.register, None),
+                        Instruction::MoveRegister(i) => {
+                            (i.target, Some(i.source))
+                        }
+                        Instruction::GetField(i) => {
+                            (i.register, Some(i.receiver))
+                        }
+                        Instruction::FieldPointer(i) => {
+                            (i.register, Some(i.receiver))
+                        }
+                        Instruction::Cast(i) => (i.register, Some(i.source)),
+                        _ => return true,
+                    };
+
+                    if uses[reg.0] > 0 {
+                        return true;
+                    }
+
+                    if let Some(src) = src {
+                        uses[src.0] -= 1;
+                        repeat = true;
+                    }
+
+                    false
+                });
             }
         }
     }
@@ -2331,81 +2407,26 @@ impl Mir {
         }
     }
 
-    /// Simplify the CFG of each method, such as by merging redundant basic
-    /// blocks.
-    pub(crate) fn simplify_graph(&mut self) {
-        for method in self.methods.values_mut() {
-            method.simplify_graph();
+    /// Applies method-local optimizations to all methods.
+    ///
+    /// The optimizations are applied in parallel as they don't rely on any
+    /// shared (mutable) state.
+    pub(crate) fn apply_method_local_optimizations(&mut self, threads: usize) {
+        let queue = ArrayQueue::new(self.methods.len());
 
-            // The above code is likely to produce many unreachable basic
-            // blocks, so we need to remove those.
-            method.remove_unreachable_blocks();
+        for method in self.methods.values_mut() {
+            let _ = queue.push(method);
         }
-    }
 
-    /// Removes instructions that write to an unused register without side
-    /// effects.
-    ///
-    /// Instructions such as `Int` and `String` don't produce side effects,
-    /// meaning that if the register they write to isn't used, the entire
-    /// instruction can be removed.
-    ///
-    /// This method isn't terribly useful on its own, but when combined with
-    /// e.g. copy propagation it can result in the removal of many redundant
-    /// instructions.
-    pub(crate) fn remove_unused_instructions(&mut self) {
-        for method in self.methods.values_mut() {
-            let mut uses = method.register_use_counts();
-            let mut repeat = true;
-
-            // Removing an instruction may result in other instructions becoming
-            // unused, so we repeat this until we run out of instructions to
-            // remove.
-            while repeat {
-                repeat = false;
-
-                for block in &mut method.body.blocks {
-                    block.instructions.retain(|ins| {
-                        let (reg, src) = match ins {
-                            Instruction::Float(i) => (i.register, None),
-                            Instruction::Int(i) => (i.register, None),
-                            Instruction::Nil(i) => (i.register, None),
-                            Instruction::String(i) => (i.register, None),
-                            Instruction::Bool(i) => (i.register, None),
-                            Instruction::Allocate(i) => (i.register, None),
-                            Instruction::Spawn(i) => (i.register, None),
-                            Instruction::GetConstant(i) => (i.register, None),
-                            Instruction::MethodPointer(i) => (i.register, None),
-                            Instruction::SizeOf(i) => (i.register, None),
-                            Instruction::MoveRegister(i) => {
-                                (i.target, Some(i.source))
-                            }
-                            Instruction::GetField(i) => {
-                                (i.register, Some(i.receiver))
-                            }
-                            Instruction::FieldPointer(i) => {
-                                (i.register, Some(i.receiver))
-                            }
-                            Instruction::Cast(i) => {
-                                (i.register, Some(i.source))
-                            }
-                            _ => return true,
-                        };
-
-                        if uses[reg.0] > 0 {
-                            return true;
-                        }
-
-                        if let Some(src) = src {
-                            uses[src.0] -= 1;
-                            repeat = true;
-                        }
-
-                        false
-                    });
-                }
+        thread::scope(|s| {
+            for _ in 0..threads {
+                s.spawn(|| {
+                    while let Some(m) = queue.pop() {
+                        m.apply_local_optimizations();
+                    }
+                });
             }
-        }
+        });
     }
 }
 

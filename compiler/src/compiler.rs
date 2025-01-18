@@ -172,8 +172,7 @@ struct OptimizationTimings {
     prepare: Duration,
     inline: Duration,
     remove_methods: Duration,
-    remove_instructions: Duration,
-    simplify_graph: Duration,
+    method_local: Duration,
     total: Duration,
 }
 
@@ -202,8 +201,7 @@ impl Timings {
                 prepare: Duration::from_secs(0),
                 inline: Duration::from_secs(0),
                 remove_methods: Duration::from_secs(0),
-                remove_instructions: Duration::from_secs(0),
-                simplify_graph: Duration::from_secs(0),
+                method_local: Duration::from_secs(0),
                 total: Duration::from_secs(0),
             },
             llvm: Duration::from_secs(0),
@@ -367,12 +365,11 @@ Frontend:
   Specialize  {specialize}
 
 Optimizations:
-  Prepare                     {opt_prep}
-  Inline                      {opt_inline}
-  Remove unused methods       {opt_unused_methods}
-  Remove unused instructions  {opt_unused_instr}
-  Simplify graph              {opt_simplify}
-  Total                       {opt_total}
+  Prepare                {opt_prep}
+  Inline                 {opt_inline}
+  Remove unused methods  {opt_unused_methods}
+  Method local           {opt_method_local}
+  Total                  {opt_total}
 
 Backend:
   LLVM    {llvm}
@@ -394,14 +391,8 @@ Total: {total}\
                 self.timings.optimize.remove_methods,
                 Some(total)
             ),
-            opt_unused_instr = format_timing(
-                self.timings.optimize.remove_instructions,
-                Some(total)
-            ),
-            opt_simplify = format_timing(
-                self.timings.optimize.simplify_graph,
-                Some(total)
-            ),
+            opt_method_local =
+                format_timing(self.timings.optimize.method_local, Some(total)),
             opt_total = format_timing(self.timings.optimize.total, Some(total)),
             llvm = format_timing(self.timings.llvm, Some(total)),
             link = format_timing(self.timings.link, Some(total)),
@@ -604,17 +595,8 @@ LLVM module timings:
                 mir.remove_unused_methods(&self.state.db);
             });
 
-            // Optimization passes may remove instructions or mutate blocks in
-            // such a way that they are a bit messy. By simplifying the graph we
-            // reduce the amount of LLVM IR we need to generate.
-            measure(&mut self.timings.optimize.simplify_graph, || {
-                mir.simplify_graph();
-            });
-
-            // Inlining and other optimizations may result in unused
-            // instructions, so let's get rid of those.
-            measure(&mut self.timings.optimize.remove_instructions, || {
-                mir.remove_unused_instructions();
+            measure(&mut self.timings.optimize.method_local, || {
+                mir.apply_method_local_optimizations(self.state.config.threads);
             });
         }
 
