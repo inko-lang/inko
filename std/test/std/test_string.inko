@@ -294,6 +294,14 @@ fn pub tests(t: mut Tests) {
     t.equal('foo\u{8}bar'.escaped, 'foo\\bbar')
   })
 
+  t.test('String.escape?', fn (t) {
+    t.false(''.escape?)
+    t.false('foo'.escape?)
+    t.false('foo bar'.escape?)
+    t.true('foo\nbar'.escape?)
+    t.true('foo\rbar'.escape?)
+  })
+
   t.test('String.fmt', fn (t) {
     t.equal(fmt('foo'), '"foo"')
     t.equal(fmt('"foo"'), '"\\"foo\\""')

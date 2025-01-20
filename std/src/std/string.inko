@@ -597,23 +597,24 @@ type builtin String {
   # "hello\\world" # => 'hello\\world'
   # ```
   fn pub escaped -> String {
+    # If the String doesn't contain any special characters then we can/should
+    # avoid the allocations that take place below.
+    if escape?.false? { return self }
+
     let buff = ByteArray.new
-    let max = ESCAPE_TABLE.size
+    let mut i = 0
 
-    bytes.each(fn (byte) {
-      if byte >= max {
-        buff.push(byte)
-        return
-      }
+    while i < size {
+      let byte = byte_unchecked(i := i + 1)
 
-      match ESCAPE_TABLE.get(byte) {
-        case -1 -> buff.push(byte)
-        case byte -> {
+      match ESCAPE_TABLE.opt(byte) {
+        case Some(-1) or None -> buff.push(byte)
+        case Some(byte) -> {
           buff.push(BSLASH)
           buff.push(byte)
         }
       }
-    })
+    }
 
     buff.into_string
   }
@@ -677,6 +678,19 @@ type builtin String {
 
   fn inline byte_unchecked(index: Int) -> Int {
     (@ptr as Int + index as Pointer[UInt8]).0 as Int
+  }
+
+  fn inline escape? -> Bool {
+    let mut i = 0
+
+    while i < size {
+      match ESCAPE_TABLE.opt(byte_unchecked(i := i + 1)) {
+        case Some(-1) or None -> {}
+        case Some(_) -> return true
+      }
+    }
+
+    false
   }
 }
 
