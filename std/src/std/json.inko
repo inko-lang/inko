@@ -576,7 +576,7 @@ impl FormatTrait for Number {
 
 # A type describing what kind of value is located at the current position in an
 # input stream.
-type pub inline enum Type {
+type pub copy enum Type {
   case Array
   case Bool
   case Null
