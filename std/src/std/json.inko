@@ -550,7 +550,7 @@ impl Equal[ref Json] for Json {
 }
 
 # A numeric value that's either an `Int` or a `Float`.
-type pub inline enum Number {
+type pub copy enum Number {
   case Int(Int)
   case Float(Float)
 }
