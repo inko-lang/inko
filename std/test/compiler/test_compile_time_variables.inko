@@ -8,7 +8,7 @@ fn compile(
   input: ref Path,
   output: ref Path,
   directory: ref Path,
-  define: ref Option[String],
+  define: Option[String],
 ) -> Result[Nil, String] {
   let cmd = Command.new(compiler_path)
 
@@ -60,7 +60,7 @@ fn run(id: Int, define: Option[String]) -> Result[String, String] {
 
     let output = dir.join('test')
 
-    try compile(input, output, dir, define)
+    try compile(input, output, dir, define.clone)
 
     let cmd = Command.new(output)
 
