@@ -13,10 +13,11 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - uses: errata-ai/vale-action@reviewdog
+      - uses: errata-ai/vale-action@2.1.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          version: 3.9.3
           reporter: github-check
           vale_flags: '--no-wrap --sort'
 
