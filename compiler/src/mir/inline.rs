@@ -899,8 +899,8 @@ impl<'a, 'b, 'c> InlineMethod<'a, 'b, 'c> {
             Inline::Always => true,
             Inline::Infer => {
                 node.weight == 0
-                    || node.calls <= INLINE_ANYWAY_CALL_COUNT
-                    || caller_weight + node.weight <= MAX_WEIGHT
+                    || (node.calls <= INLINE_ANYWAY_CALL_COUNT)
+                    || (caller_weight.saturating_add(node.weight) <= MAX_WEIGHT)
             }
             Inline::Never => false,
         };
