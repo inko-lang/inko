@@ -131,7 +131,7 @@ impl Format for SocketAddress {
 }
 
 # A low-level, non-blocking IPv4 or IPv6 socket.
-type pub Socket {
+type pub uni Socket {
   let @socket: net.RawSocket
 
   # A point in time after which socket operations time out.
@@ -638,7 +638,7 @@ impl Write for Socket {
 #
 # A `UdpSocket` can be used to easily create a bound UDP socket from an IP
 # address and a port.
-type pub UdpSocket {
+type pub uni UdpSocket {
   # The raw `Socket` wrapped by this `UdpSocket`.
   let pub @socket: Socket
 
@@ -803,7 +803,7 @@ impl Write for UdpSocket {
 }
 
 # A TCP socket connected to another TCP socket.
-type pub TcpClient {
+type pub uni TcpClient {
   # The raw `Socket` wrapped by this `TcpClient`.
   let pub @socket: Socket
 
@@ -977,7 +977,7 @@ impl Write for TcpClient {
 }
 
 # A TCP socket server that can accept incoming connections.
-type pub TcpServer {
+type pub uni TcpServer {
   # The raw `Socket` wrapped by this `TcpServer`.
   let pub @socket: Socket
 
@@ -1166,7 +1166,7 @@ impl ToString for UnixAddress {
 }
 
 # A low-level, non-blocking Unix domain socket.
-type pub UnixSocket {
+type pub uni UnixSocket {
   let @socket: net.RawSocket
 
   # A point in time after which socket operations time out.
@@ -1546,7 +1546,7 @@ impl Write for UnixSocket {
 }
 
 # A Unix datagram socket.
-type pub UnixDatagram {
+type pub uni UnixDatagram {
   # The raw `UnixSocket` wrapped by this `UnixDatagram`.
   let pub @socket: UnixSocket
 
@@ -1693,7 +1693,7 @@ impl Write for UnixDatagram {
 }
 
 # A Unix stream socket connected to another Unix socket.
-type pub UnixClient {
+type pub uni UnixClient {
   # The raw `UnixSocket` wrapped by this `UnixClient`.
   let pub @socket: UnixSocket
 
@@ -1823,7 +1823,7 @@ impl Write for UnixClient {
 }
 
 # A Unix socket server that can accept incoming connections.
-type pub UnixServer {
+type pub uni UnixServer {
   # The raw `UnixSocket` wrapped by this `UnixServer`.
   let pub @socket: UnixSocket
 

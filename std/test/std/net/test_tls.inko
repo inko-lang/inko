@@ -241,7 +241,7 @@ fn dummy_socket -> Result[Socket, String] {
   Socket.stream(ipv6: false).map_error(fn (e) { e.to_string })
 }
 
-fn accept(socket: mut TcpServer) -> Result[Server[TcpClient], String] {
+fn accept(socket: TcpServer) -> Result[Server[TcpClient], String] {
   let conf = try server_config
   let server = Server.new(
     try socket.accept.map_error(fn (e) { 'accept failed: ${e}' }),
