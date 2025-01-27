@@ -30,9 +30,6 @@ import std.sys.unix.fs (self as sys) if unix
 type pub ReadOnlyFile {
   let @fd: Int32
 
-  # The path of the file.
-  let pub @path: Path
-
   # Returns a new `ReadOnlyFile`.
   #
   # # Errors
@@ -46,7 +43,7 @@ type pub ReadOnlyFile {
   #
   # ReadOnlyFile.new('/dev/null'.to_path)
   # ```
-  fn pub static new(path: Path) -> Result[ReadOnlyFile, Error] {
+  fn pub static new(path: ref Path) -> Result[ReadOnlyFile, Error] {
     match
       sys.open_file(
         path.to_string,
@@ -56,7 +53,7 @@ type pub ReadOnlyFile {
         truncate: false,
       )
     {
-      case Ok(fd) -> Result.Ok(ReadOnlyFile(fd: fd, path: path))
+      case Ok(fd) -> Result.Ok(ReadOnlyFile(fd))
       case Error(e) -> Result.Error(e)
     }
   }
@@ -111,9 +108,6 @@ impl Seek for ReadOnlyFile {
 type pub WriteOnlyFile {
   let @fd: Int32
 
-  # The path of the file.
-  let pub @path: Path
-
   # Opens a file in write-only mode.
   #
   # # Examples
@@ -123,7 +117,7 @@ type pub WriteOnlyFile {
   #
   # WriteOnlyFile.new('/dev/null'.to_path)
   # ```
-  fn pub static new(path: Path) -> Result[WriteOnlyFile, Error] {
+  fn pub static new(path: ref Path) -> Result[WriteOnlyFile, Error] {
     match
       sys.open_file(
         path.to_string,
@@ -133,7 +127,7 @@ type pub WriteOnlyFile {
         truncate: true,
       )
     {
-      case Ok(fd) -> Result.Ok(WriteOnlyFile(fd: fd, path: path))
+      case Ok(fd) -> Result.Ok(WriteOnlyFile(fd))
       case Error(e) -> Result.Error(e)
     }
   }
@@ -157,7 +151,7 @@ type pub WriteOnlyFile {
         truncate: false,
       )
     {
-      case Ok(fd) -> Result.Ok(WriteOnlyFile(fd: fd, path: path))
+      case Ok(fd) -> Result.Ok(WriteOnlyFile(fd))
       case Error(e) -> Result.Error(e)
     }
   }
@@ -226,9 +220,6 @@ impl Seek for WriteOnlyFile {
 type pub ReadWriteFile {
   let @fd: Int32
 
-  # The path of the file.
-  let pub @path: Path
-
   # Opens a file for both reading and writing:
   #
   # # Examples
@@ -238,7 +229,7 @@ type pub ReadWriteFile {
   #
   # ReadWriteFile.new('/dev/null'.to_path)
   # ```
-  fn pub static new(path: Path) -> Result[ReadWriteFile, Error] {
+  fn pub static new(path: ref Path) -> Result[ReadWriteFile, Error] {
     match
       sys.open_file(
         path.to_string,
@@ -248,7 +239,7 @@ type pub ReadWriteFile {
         truncate: false,
       )
     {
-      case Ok(fd) -> Result.Ok(ReadWriteFile(fd: fd, path: path))
+      case Ok(fd) -> Result.Ok(ReadWriteFile(fd))
       case Error(e) -> Result.Error(e)
     }
   }
@@ -262,7 +253,7 @@ type pub ReadWriteFile {
   #
   # ReadWriteFile.append('/dev/null'.to_path)
   # ```
-  fn pub static append(path: Path) -> Result[ReadWriteFile, Error] {
+  fn pub static append(path: ref Path) -> Result[ReadWriteFile, Error] {
     match
       sys.open_file(
         path.to_string,
@@ -272,7 +263,7 @@ type pub ReadWriteFile {
         truncate: false,
       )
     {
-      case Ok(fd) -> Result.Ok(ReadWriteFile(fd: fd, path: path))
+      case Ok(fd) -> Result.Ok(ReadWriteFile(fd))
       case Error(e) -> Result.Error(e)
     }
   }
