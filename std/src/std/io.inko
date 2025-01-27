@@ -754,7 +754,8 @@ trait pub BufferedRead: Read {
 # data into an internal buffer, reducing the total amount of system calls, at
 # the cost of needing to maintain an in-memory buffer.
 type pub BufferedReader[T: mut + Read] {
-  let @reader: T
+  # The `Read` type to read data from.
+  let pub @inner: T
   let @buffer: ByteArray
   let @capacity: Int
   let @offset: Int
@@ -774,7 +775,7 @@ type pub BufferedReader[T: mut + Read] {
     if size <= 0 { invalid_buffer_size(size) }
 
     BufferedReader(
-      reader: reader,
+      inner: reader,
       buffer: ByteArray.new,
       capacity: size,
       offset: 0,
@@ -794,7 +795,7 @@ impl BufferedRead for BufferedReader {
     let mut pending = @capacity
 
     while pending > 0 {
-      match @reader.read(into: @buffer, size: pending) {
+      match @inner.read(into: @buffer, size: pending) {
         case Ok(0) -> break
         case Ok(n) -> pending -= n
         case Error(e) -> throw e
@@ -840,7 +841,7 @@ impl Read for BufferedReader {
 
       return match size - total {
         case 0 -> Result.Ok(total)
-        case n -> Result.Ok(total + try @reader.read(into, size: n))
+        case n -> Result.Ok(total + try @inner.read(into, size: n))
       }
     }
 
@@ -884,7 +885,8 @@ impl Read for BufferedReader {
 # writer.flush                 # => Result.Ok(nil)
 # ```
 type pub BufferedWriter[T: mut + Write] {
-  let @writer: T
+  # The `Write` type to write data to.
+  let pub @inner: T
   let @buffer: ByteArray
   let @size: Int
 
@@ -929,7 +931,7 @@ type pub BufferedWriter[T: mut + Write] {
   fn pub static with_capacity(writer: T, size: Int) -> BufferedWriter[T] {
     if size <= 0 { invalid_buffer_size(size) }
 
-    BufferedWriter(writer: writer, buffer: ByteArray.new, size: size)
+    BufferedWriter(inner: writer, buffer: ByteArray.new, size: size)
   }
 }
 
@@ -947,7 +949,7 @@ impl Write for BufferedWriter {
     # write to the stream directly.
     if len >= @size {
       try flush
-      try @writer.write_bytes(bytes)
+      try @inner.write_bytes(bytes)
       return Result.Ok(nil)
     }
 
@@ -998,7 +1000,7 @@ impl Write for BufferedWriter {
   # underlying stream.
   fn pub mut flush -> Result[Nil, Error] {
     if @buffer.size > 0 {
-      try @writer.write_bytes(@buffer)
+      try @inner.write_bytes(@buffer)
       @buffer.clear
     }
 
