@@ -1,0 +1,13 @@
+type uni Example {
+  let @number: Int
+}
+
+fn example {
+  let a = Example(0)
+
+  ref a
+  mut a
+}
+
+# uni_type_aliasing.inko:8:3 error(invalid-type): values of type 'Example' can't be borrowed
+# uni_type_aliasing.inko:9:3 error(invalid-type): values of type 'Example' can't be borrowed

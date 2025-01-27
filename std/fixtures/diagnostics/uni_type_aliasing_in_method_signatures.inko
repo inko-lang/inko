@@ -1,0 +1,26 @@
+type uni Example {
+  let @number: Int
+}
+
+fn example1(value: Example) {}
+
+fn example2(value: ref Example) {}
+
+fn example3(value: mut Example) {}
+
+fn example4 -> ref Example {
+  ref Example(0)
+}
+
+fn example5 -> mut Example {
+  mut Example(0)
+}
+
+fn example6(value: Option[ref Example]) {}
+
+# uni_type_aliasing_in_method_signatures.inko:7:24 error(invalid-type): 'Example' is a unique type and can't be borrowed
+# uni_type_aliasing_in_method_signatures.inko:9:24 error(invalid-type): 'Example' is a unique type and can't be borrowed
+# uni_type_aliasing_in_method_signatures.inko:11:20 error(invalid-type): 'Example' is a unique type and can't be borrowed
+# uni_type_aliasing_in_method_signatures.inko:15:20 error(invalid-type): 'Example' is a unique type and can't be borrowed
+# uni_type_aliasing_in_method_signatures.inko:19:31 error(invalid-type): 'Example' is a unique type and can't be borrowed
+# uni_type_aliasing_in_method_signatures.inko:19:27 error(invalid-type): 'ref Example' can't be assigned to type parameter 'T'

@@ -191,7 +191,7 @@ impl<'a> DefineTypeSignature<'a> {
             hir::Type::Ref(_) | hir::Type::Mut(_) if !self.rules.allow_refs => {
                 self.state.diagnostics.error(
                     DiagnosticId::DuplicateSymbol,
-                    "references to types aren't allowed here",
+                    "borrows are not allowed in this context",
                     self.file(),
                     node.location(),
                 );
@@ -265,7 +265,7 @@ impl<'a> DefineTypeSignature<'a> {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidSymbol,
                     format!(
-                        "'{}' is private, but private types can't be used here",
+                        "'{}' is private type, but a public type is required",
                         name
                     ),
                     self.file(),
@@ -295,6 +295,22 @@ impl<'a> DefineTypeSignature<'a> {
                     TypeRef::Owned(self.define_type_instance(id, node))
                 }
                 Symbol::Type(id) => {
+                    if id.is_unique_type(&self.state.db)
+                        && matches!(kind, RefKind::Ref | RefKind::Mut)
+                    {
+                        let name = &id.name(self.db()).clone();
+
+                        self.state.diagnostics.error(
+                            DiagnosticId::InvalidType,
+                            format!(
+                                "'{}' is a unique type and can't be borrowed",
+                                name
+                            ),
+                            self.file(),
+                            node.location,
+                        );
+                    }
+
                     kind.into_type_ref(self.define_type_instance(id, node))
                 }
                 Symbol::Trait(id) => {

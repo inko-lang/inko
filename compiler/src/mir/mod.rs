@@ -58,10 +58,6 @@ impl Registers {
         &self.values[register.0]
     }
 
-    pub(crate) fn get_mut(&mut self, register: RegisterId) -> &mut Register {
-        &mut self.values[register.0]
-    }
-
     pub(crate) fn value_type(&self, register: RegisterId) -> types::TypeRef {
         self.get(register).value_type
     }

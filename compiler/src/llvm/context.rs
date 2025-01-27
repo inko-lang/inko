@@ -179,7 +179,7 @@ impl Context {
         layouts: &Layouts<'a>,
         type_ref: TypeRef,
     ) -> BasicTypeEnum<'a> {
-        if let TypeRef::Pointer(_) = type_ref {
+        if type_ref.is_pointer(db) || type_ref.is_uni_type_borrow(db) {
             return self.pointer_type().as_basic_type_enum();
         }
 
@@ -214,15 +214,25 @@ impl Context {
         }
     }
 
-    pub(crate) fn argument_type<'ctx>(
-        &'ctx self,
+    pub(crate) fn argument_type<'a>(
+        &'a self,
         state: &State,
-        tdata: &TargetData,
-        typ: BasicTypeEnum<'ctx>,
-    ) -> ArgumentType<'ctx> {
-        let BasicTypeEnum::StructType(typ) = typ else {
-            return ArgumentType::Regular(typ);
+        layouts: &Layouts<'a>,
+        type_ref: TypeRef,
+    ) -> ArgumentType<'a> {
+        // When passing a stack allocated type to an argument that uses these
+        // borrows (e.g. `self`), we need to pass the alloca as-is (i.e. pass
+        // the stack data by reference) instead of _loading_ its value as a
+        // pointer.
+        if type_ref.is_uni_type_borrow(&state.db) {
+            return ArgumentType::Pointer;
+        }
+
+        let raw = self.llvm_type(&state.db, layouts, type_ref);
+        let BasicTypeEnum::StructType(typ) = raw else {
+            return ArgumentType::Regular(raw);
         };
+        let tdata = layouts.target_data;
 
         match state.config.target.arch {
             Architecture::Amd64 => amd64::struct_argument(self, tdata, typ),

@@ -1036,6 +1036,10 @@ impl Parser {
                 self.next();
                 TypeSemantics::Copy
             }
+            TokenKind::Uni => {
+                self.next();
+                TypeSemantics::Unique
+            }
             _ => TypeSemantics::Default,
         };
         let kind = match self.peek().kind {
@@ -4696,6 +4700,29 @@ mod tests {
                     location: cols(13, 14)
                 },
                 location: cols(1, 14)
+            }))
+        );
+    }
+
+    #[test]
+    fn test_uni_type() {
+        assert_eq!(
+            top(parse("type uni A {}")),
+            TopLevelExpression::DefineType(Box::new(DefineType {
+                public: false,
+                semantics: TypeSemantics::Unique,
+                name: Constant {
+                    source: None,
+                    name: "A".to_string(),
+                    location: cols(10, 10)
+                },
+                kind: TypeKind::Regular,
+                type_parameters: None,
+                body: TypeExpressions {
+                    values: Vec::new(),
+                    location: cols(12, 13)
+                },
+                location: cols(1, 13)
             }))
         );
     }

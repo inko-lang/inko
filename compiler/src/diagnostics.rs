@@ -843,7 +843,7 @@ impl Diagnostics {
         );
     }
 
-    pub(crate) fn type_containing_uni_alias(
+    pub(crate) fn type_containing_uni_value_borrow(
         &mut self,
         name: String,
         file: PathBuf,
@@ -852,8 +852,40 @@ impl Diagnostics {
         self.error(
             DiagnosticId::InvalidType,
             format!(
-                "the type of this expression ('{}') is invalid because it \
-                contains an 'uni ref T' or 'uni mut T' value",
+                "the type of this expression ('{}') is invalid because it is \
+                or contains a borrow of a 'uni T' value",
+                name,
+            ),
+            file,
+            location,
+        );
+    }
+
+    pub(crate) fn invalid_borrow(
+        &mut self,
+        name: String,
+        file: PathBuf,
+        location: Location,
+    ) {
+        self.error(
+            DiagnosticId::InvalidType,
+            format!("values of type '{}' can't be borrowed", name,),
+            file,
+            location,
+        );
+    }
+
+    pub(crate) fn type_containing_uni_type_borrow(
+        &mut self,
+        name: String,
+        file: PathBuf,
+        location: Location,
+    ) {
+        self.error(
+            DiagnosticId::InvalidType,
+            format!(
+                "the type of this expression ('{}') is invalid because it is \
+                or contains a borrow of a unique type",
                 name,
             ),
             file,

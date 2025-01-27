@@ -49,6 +49,12 @@ pub(crate) fn format_shape(db: &Database, shape: Shape, buf: &mut String) {
             format_type_name(db, ins.instance_of(), buf);
             Ok(())
         }
+        Shape::Unique(ins) => {
+            let _ = write!(buf, "U{}.", ins.instance_of().module(db).name(db));
+
+            format_type_name(db, ins.instance_of(), buf);
+            Ok(())
+        }
     };
 }
 
@@ -247,6 +253,7 @@ mod tests {
         let cls2 = Type::alloc(&mut db, "B".to_string(), kind, vis, mid, loc);
         let cls3 = Type::alloc(&mut db, "C".to_string(), kind, vis, mid, loc);
         let cls4 = Type::alloc(&mut db, "D".to_string(), kind, vis, mid, loc);
+        let cls5 = Type::alloc(&mut db, "E".to_string(), kind, vis, mid, loc);
 
         cls1.set_specialization_key(
             &mut db,
@@ -268,6 +275,12 @@ mod tests {
         cls4.set_specialization_key(
             &mut db,
             SpecializationKey::new(vec![Shape::InlineMut(TypeInstance::new(
+                cls2,
+            ))]),
+        );
+        cls5.set_specialization_key(
+            &mut db,
+            SpecializationKey::new(vec![Shape::Unique(TypeInstance::new(
                 cls2,
             ))]),
         );
@@ -294,6 +307,10 @@ mod tests {
         assert_eq!(
             name(&db, Shape::InlineRef(TypeInstance::new(cls4))),
             "IRa.b.c.D#IMa.b.c.B#s"
+        );
+        assert_eq!(
+            name(&db, Shape::InlineRef(TypeInstance::new(cls5))),
+            "IRa.b.c.E#Ua.b.c.B#s"
         );
     }
 }

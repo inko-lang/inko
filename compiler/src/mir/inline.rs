@@ -75,6 +75,12 @@ pub(crate) fn method_weight(db: &Database, method: &Method) -> u16 {
     weight
 }
 
+#[derive(Copy, Clone)]
+enum Argument {
+    ByVal(RegisterId),
+    ByRef(RegisterId),
+}
+
 struct Callee {
     registers: Registers,
     body: Graph,
@@ -99,7 +105,7 @@ struct CallSite {
     ///
     /// For calls to instance methods, the receiver is passed as the first
     /// argument, such that the number of caller and callee arguments matches.
-    arguments: Vec<RegisterId>,
+    arguments: Vec<Argument>,
 
     /// The source location of the call.
     location: InstructionLocation,
@@ -107,25 +113,45 @@ struct CallSite {
 
 impl CallSite {
     fn new(
-        target: RegisterId,
+        db: &Database,
         block: BlockId,
         instruction: usize,
-        receiver: Option<RegisterId>,
-        arguments: &[RegisterId],
+        call: Call,
+        caller: &Method,
         callee: &Method,
-        location: InstructionLocation,
     ) -> CallSite {
-        let mut caller_args =
-            if let Some(rec) = receiver { vec![rec] } else { Vec::new() };
+        let mut args = Vec::with_capacity(
+            call.arguments.len() + (call.receiver.is_some() as usize),
+        );
 
-        caller_args.extend(arguments);
+        if let Some(r) = call.receiver {
+            // When calling a non-moving method on a unique type, the receiver
+            // should be passed as a pointer such that it can be mutated
+            // in-place. If the receiver is already such a pointer/borrow (e.g.
+            // when calling a method on a field containing a unique type), we
+            // just use it as-is.
+            let arg = if callee.id.receiver(db).is_uni_type_borrow(db)
+                && !caller.registers.value_type(r).is_uni_type_borrow(db)
+            {
+                Argument::ByRef(r)
+            } else {
+                Argument::ByVal(r)
+            };
+
+            args.push(arg);
+        }
+
+        for &r in call.arguments {
+            args.push(Argument::ByVal(r));
+        }
+
         CallSite {
-            target,
+            target: call.register,
             block,
             instruction,
             id: callee.id,
-            arguments: caller_args,
-            location,
+            arguments: args,
+            location: call.location,
         }
     }
 }
@@ -411,7 +437,12 @@ impl CallSite {
         caller.body.block_mut(self.block).instructions.pop();
 
         for (&from, to) in self.arguments.iter().zip(callee.arguments) {
-            caller.body.block_mut(self.block).move_register(to, from, loc);
+            let block = caller.body.block_mut(self.block);
+
+            match from {
+                Argument::ByVal(from) => block.move_register(to, from, loc),
+                Argument::ByRef(from) => block.pointer(to, from, loc),
+            }
         }
 
         let inline_start = start_id + blk_start;
@@ -800,20 +831,20 @@ impl<'a, 'b, 'c> InlineMethod<'a, 'b, 'c> {
             for (ins_idx, ins) in block.instructions.iter().enumerate() {
                 let callee = match self.inline_result(caller_weight, ins) {
                     Some(call) => {
-                        let weight = self.graph.node(call.id).weight;
+                        let id = call.id;
+                        let weight = self.graph.node(id).weight;
 
                         sites.push(CallSite::new(
-                            call.register,
+                            &self.state.db,
                             BlockId(blk_idx),
                             ins_idx,
-                            call.receiver,
-                            call.arguments,
-                            self.mir.methods.get(&call.id).unwrap(),
-                            call.location,
+                            call,
+                            caller,
+                            self.mir.methods.get(&id).unwrap(),
                         ));
 
                         caller_weight = caller_weight.saturating_add(weight);
-                        call.id
+                        id
                     }
                     _ => continue,
                 };

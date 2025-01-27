@@ -1,0 +1,11 @@
+trait Foo {}
+
+type uni Example {}
+
+impl Foo for Example {}
+
+fn example {
+  Example() as Foo
+}
+
+# casting_uni_types.inko:8:3 error(invalid-cast): the type 'Example' can't be cast to 'Foo'

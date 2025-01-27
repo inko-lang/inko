@@ -1,0 +1,57 @@
+type User {
+  let @name: String
+}
+
+type Box[T] {
+  let @value: Option[T]
+  let @borrow: Option[ref T]
+
+  fn mut store(value: T) {
+    @value = Option.Some(value)
+  }
+}
+
+fn example1 {
+  let a = [recover User('Alice')]
+
+  a.opt(0)
+}
+
+fn example2 {
+  let a = recover User('Alice')
+  let b = Option.Some(a)
+
+  b.as_ref
+}
+
+fn example3 {
+  let a = recover User('Alice')
+
+  Box(value: Option.Some(a), borrow: Option.None)
+}
+
+fn example4 {
+  let a = recover User('Alice')
+  let b = Box(value: Option.None, borrow: Option.None)
+
+  b.value = Option.Some(a)
+}
+
+fn example5 {
+  let a = recover User('Alice')
+  let b = Box(value: Option.None, borrow: Option.None)
+
+  b.store(a)
+}
+
+fn example6 {
+  let a = recover User('Alice')
+
+  ref a
+}
+
+# uni_value_aliasing.inko:17:3 error(invalid-type): the type of this expression ('Option[uni ref User]') is invalid because it is or contains a borrow of a 'uni T' value
+# uni_value_aliasing.inko:24:3 error(invalid-type): the type of this expression ('Option[uni ref User]') is invalid because it is or contains a borrow of a 'uni T' value
+# uni_value_aliasing.inko:30:38 error(invalid-type): the type of this expression ('Option[uni ref User]') is invalid because it is or contains a borrow of a 'uni T' value
+# uni_value_aliasing.inko:35:43 error(invalid-type): the type of this expression ('Option[uni ref User]') is invalid because it is or contains a borrow of a 'uni T' value
+# uni_value_aliasing.inko:42:43 error(invalid-type): the type of this expression ('Option[uni ref User]') is invalid because it is or contains a borrow of a 'uni T' value

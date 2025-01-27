@@ -463,7 +463,6 @@ mod tests {
             resolve(&mut db, &args, &bounds, immutable(instance(string))),
             immutable(instance(string))
         );
-
         assert_eq!(
             resolve_immutable(
                 &mut db,
@@ -509,7 +508,6 @@ mod tests {
             resolve(&mut db, &args, &bounds, mutable(instance(string))),
             mutable(instance(string))
         );
-
         assert_eq!(
             resolve_immutable(
                 &mut db,

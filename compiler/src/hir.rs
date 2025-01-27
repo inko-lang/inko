@@ -389,6 +389,7 @@ pub(crate) enum TypeSemantics {
     Default,
     Inline,
     Copy,
+    Unique,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1342,6 +1343,7 @@ impl<'a> LowerToHir<'a> {
                 ast::TypeSemantics::Default => TypeSemantics::Default,
                 ast::TypeSemantics::Inline => TypeSemantics::Inline,
                 ast::TypeSemantics::Copy => TypeSemantics::Copy,
+                ast::TypeSemantics::Unique => TypeSemantics::Unique,
             },
             type_id: None,
             kind: match node.kind {

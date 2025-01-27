@@ -1,6 +1,7 @@
 use crate::mir::{
     Block, BlockId, Borrow, CallDynamic, CallInstance, CastType, Drop,
-    Instruction, InstructionLocation, Method, Mir, RegisterId, Type as MirType,
+    FieldPointer, Instruction, InstructionLocation, Method, Mir, RegisterId,
+    Type as MirType,
 };
 use crate::state::State;
 use indexmap::{IndexMap, IndexSet};
@@ -369,20 +370,6 @@ impl<'a, 'b> Specialize<'a, 'b> {
         for block in &mut method.body.blocks {
             for instruction in &mut block.instructions {
                 match instruction {
-                    Instruction::Borrow(ins) => {
-                        let src = method.registers.value_type(ins.value);
-                        let reg = method.registers.value_type(ins.register);
-                        let db = &self.state.db;
-
-                        method.registers.get_mut(ins.register).value_type =
-                            if reg.is_ref(db) {
-                                src.as_ref(db)
-                            } else if reg.is_mut(db) {
-                                src.force_as_mut(db)
-                            } else {
-                                src
-                            };
-                    }
                     Instruction::CallExtern(ins) => {
                         mir.extern_methods.insert(ins.method);
                     }
@@ -512,6 +499,31 @@ impl<'a, 'b> Specialize<'a, 'b> {
                             .type_id
                             .field_by_index(db, ins.field.index(db))
                             .unwrap();
+
+                        // When accessing a field containing a unique type, we
+                        // should produce a _pointer_ to the field instead of
+                        // copying the data. The Borrow that follows it is
+                        // removed when specializing Borrow instructions.
+                        //
+                        // This approach means that when generating MIR we can
+                        // just generate the usual GetField + Borrow
+                        // combination, regardless of whether the exact type is
+                        // known at that point.
+                        if method
+                            .registers
+                            .value_type(ins.register)
+                            .is_uni_type_borrow(db)
+                        {
+                            *instruction = Instruction::FieldPointer(Box::new(
+                                FieldPointer {
+                                    type_id: ins.type_id,
+                                    register: ins.register,
+                                    receiver: ins.receiver,
+                                    field: ins.field,
+                                    location: ins.location,
+                                },
+                            ));
+                        }
                     }
                     Instruction::FieldPointer(ins) => {
                         let db = &mut self.state.db;
@@ -1412,6 +1424,16 @@ impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
             Shape::InlineRef(t) | Shape::InlineMut(t) => {
                 self.drop_stack_borrow(block_id, after_id, val, t, loc);
             }
+            Shape::Unique(_) if typ.is_uni_type_borrow(self.db) => {
+                // Since unique values can't be passed around we don't give them
+                // their own shape and instead use the same shape as for owned
+                // values. This however may result in us dropping a borrow as if
+                // it were an owned value, so we need to account for that.
+                self.ignore_value(block_id, after_id);
+            }
+            Shape::Unique(_) => {
+                self.drop_owned(block_id, after_id, val, ins.dropper, loc);
+            }
         }
     }
 
@@ -1596,19 +1618,32 @@ impl<'a, 'b, 'c> ExpandBorrow<'a, 'b, 'c> {
             | Shape::Pointer
             | Shape::Copy(_) => {
                 // These values should be left as-is.
+                self.block_mut(block_id).move_register(reg, val, loc);
             }
             Shape::Mut | Shape::Ref | Shape::Owned => {
                 self.block_mut(block_id).increment(val, loc);
+                self.block_mut(block_id).move_register(reg, val, loc);
             }
             Shape::Atomic | Shape::String => {
                 self.block_mut(block_id).increment_atomic(val, loc);
+                self.block_mut(block_id).move_register(reg, val, loc);
             }
             Shape::Inline(t) | Shape::InlineRef(t) | Shape::InlineMut(t) => {
                 self.borrow_inline_type(block_id, val, t, loc);
+                self.block_mut(block_id).move_register(reg, val, loc);
+            }
+            Shape::Unique(_) if typ.is_uni_type_borrow(self.db) => {
+                // We may reach this point when reading a field that contains a
+                // unique type. In this case a GetField is produced followed by
+                // a Borrow. The GetField is then turned into a FieldPointer,
+                // making the current Borrow redundant.
+                self.block_mut(block_id).move_register(reg, val, loc);
+            }
+            Shape::Unique(_) => {
+                self.block_mut(block_id).pointer(reg, val, loc);
             }
         }
 
-        self.block_mut(block_id).move_register(reg, val, loc);
         self.block_mut(block_id).goto(after_id, loc);
         self.method.body.add_edge(block_id, after_id);
     }

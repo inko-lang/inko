@@ -268,8 +268,8 @@ impl FormatType for TypePlaceholderId {
             Ownership::Uni => "uni ",
             Ownership::Ref => "ref ",
             Ownership::Mut => "mut ",
-            Ownership::UniMut => "uni mut ",
             Ownership::UniRef => "uni ref ",
+            Ownership::UniMut => "uni mut ",
             Ownership::Pointer => {
                 buffer.write("Pointer[");
 

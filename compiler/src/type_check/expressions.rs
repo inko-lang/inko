@@ -495,7 +495,7 @@ impl MethodCall {
     ) -> TypeRef {
         let given = argument.cast_according_to(&state.db, expected);
 
-        if self.require_sendable || given.is_uni_ref(&state.db) {
+        if self.require_sendable || given.is_uni_value_borrow(&state.db) {
             self.check_sendable.push((given, location));
         }
 
@@ -1419,7 +1419,7 @@ impl<'a> CheckMethodBody<'a> {
     ) -> TypeRef {
         let typ = self.expression(node, scope);
 
-        if typ.is_uni(self.db()) {
+        if typ.is_uni_value(self.db()) {
             // This ensures that value types such as `uni T` aren't implicitly
             // converted to `T`.
             return typ;
@@ -1579,7 +1579,7 @@ impl<'a> CheckMethodBody<'a> {
     ) -> TypeRef {
         let value_type = self.input_expression(&mut node.value, scope);
 
-        if value_type.is_uni_ref(self.db()) {
+        if !value_type.is_assignable(self.db()) {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidType,
                 format!(
@@ -2402,7 +2402,7 @@ impl<'a> CheckMethodBody<'a> {
             // `fn move` closures are not inferred as `uni fn`, as the values
             // moved into the closure may still be referred to from elsewhere.
             Some((_, exp, _))
-                if exp.is_uni(self.db())
+                if exp.is_uni_value(self.db())
                     && closure.can_infer_as_uni(self.db()) =>
             {
                 TypeRef::Uni(TypeEnum::Closure(closure))
@@ -3021,12 +3021,8 @@ impl<'a> CheckMethodBody<'a> {
         let expr = self.expression(&mut node.value, scope);
 
         if !expr.allow_as_ref(self.db()) {
-            self.state.diagnostics.error(
-                DiagnosticId::InvalidType,
-                format!(
-                    "a 'ref T' can't be created from a value of type '{}'",
-                    self.fmt(expr)
-                ),
+            self.state.diagnostics.invalid_borrow(
+                self.fmt(expr),
                 self.file(),
                 node.location,
             );
@@ -3063,13 +3059,9 @@ impl<'a> CheckMethodBody<'a> {
 
         let expr = self.expression(&mut node.value, scope);
 
-        if !expr.allow_mutating(self.db()) {
-            self.state.diagnostics.error(
-                DiagnosticId::InvalidType,
-                format!(
-                    "a 'mut T' can't be created from a value of type '{}'",
-                    self.fmt(expr)
-                ),
+        if !expr.allow_as_mut(self.db()) {
+            self.state.diagnostics.invalid_borrow(
+                self.fmt(expr),
                 self.file(),
                 node.location,
             );
@@ -3107,7 +3099,7 @@ impl<'a> CheckMethodBody<'a> {
 
         let result = if last_type.is_owned(db) {
             last_type.as_uni(db)
-        } else if last_type.is_uni(db) {
+        } else if last_type.is_uni_value(db) {
             last_type.as_owned(db)
         } else {
             self.state.diagnostics.error(
@@ -4503,10 +4495,18 @@ impl<'a> CheckMethodBody<'a> {
                     expose_as = expose_as.as_uni_borrow(self.db());
                 }
                 ScopeKind::Closure(closure) => {
-                    let moving = closure.is_moving(self.db());
+                    // Closures are always captured by value because of the
+                    // following:
+                    //
+                    // 1. Capturing them by borrowing will almost always result
+                    //    in the captured closure being dropped prematurely,
+                    //    unless one explicitly uses `fn move`.
+                    // 2. Closure borrows can't be persisted.
+                    let moving = closure.is_moving(self.db())
+                        || capture_as.is_closure(self.db());
 
-                    if (expose_as.is_uni(self.db()) && !moving)
-                        || expose_as.is_uni_ref(self.db())
+                    if (expose_as.is_uni_value(self.db()) && !moving)
+                        || expose_as.is_uni_value_borrow(self.db())
                     {
                         self.state.diagnostics.error(
                             DiagnosticId::InvalidSymbol,
@@ -4526,7 +4526,7 @@ impl<'a> CheckMethodBody<'a> {
                     // closures the capture type is always a reference.
                     if captured {
                         capture_as = expose_as;
-                    } else if moving && capture_as.is_uni(self.db()) {
+                    } else if moving && capture_as.is_uni_value(self.db()) {
                         // When an `fn move` captures a `uni T`, we capture it
                         // as-is but expose it as `mut T`, making it easier to
                         // work with the value. This is safe because:

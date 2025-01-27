@@ -485,6 +485,7 @@ pub enum TypeSemantics {
     Default,
     Inline,
     Copy,
+    Unique,
 }
 
 #[derive(Debug, PartialEq, Eq)]

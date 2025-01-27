@@ -69,6 +69,7 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
     ) {
         match shape {
             Shape::Copy(i)
+            | Shape::Unique(i)
             | Shape::Inline(i)
             | Shape::InlineRef(i)
             | Shape::InlineMut(i) => {
@@ -138,9 +139,11 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
                 Some(Shape::Atomic) => {
                     TypeRef::Owned(TypeEnum::AtomicTypeParameter(pid))
                 }
-                Some(Shape::Inline(i) | Shape::Copy(i)) => TypeRef::Owned(
-                    TypeEnum::TypeInstance(self.specialize_type_instance(*i)),
-                ),
+                Some(Shape::Inline(i) | Shape::Copy(i) | Shape::Unique(i)) => {
+                    TypeRef::Owned(TypeEnum::TypeInstance(
+                        self.specialize_type_instance(*i),
+                    ))
+                }
                 Some(Shape::InlineRef(i)) => TypeRef::Ref(
                     TypeEnum::TypeInstance(self.specialize_type_instance(*i)),
                 ),
@@ -175,6 +178,9 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
                 ) => TypeRef::Ref(TypeEnum::TypeInstance(
                     self.specialize_type_instance(*i),
                 )),
+                Some(Shape::Unique(i)) => TypeRef::Ref(TypeEnum::TypeInstance(
+                    self.specialize_type_instance(*i),
+                )),
                 _ => value.as_ref(self.db),
             },
             TypeRef::Mut(
@@ -203,6 +209,9 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
                 Some(Shape::Inline(i) | Shape::InlineMut(i)) => TypeRef::Mut(
                     TypeEnum::TypeInstance(self.specialize_type_instance(*i)),
                 ),
+                Some(Shape::Unique(i)) => TypeRef::Mut(TypeEnum::TypeInstance(
+                    self.specialize_type_instance(*i),
+                )),
                 _ => value.force_as_mut(self.db),
             },
             TypeRef::Owned(id) | TypeRef::Any(id) => {

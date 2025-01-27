@@ -15,7 +15,7 @@ let START_CAPACITY = 4
 
 fn inline stable_sort[T](
   array: mut Array[T],
-  compare: mut fn (ref T, ref T) -> Bool,
+  compare: fn (ref T, ref T) -> Bool,
 ) {
   let len = array.size
 
@@ -39,16 +39,14 @@ fn merge_sort[T](
   b: mut Array[T],
   start: Int,
   end: Int,
-  compare: mut fn (ref T, ref T) -> Bool,
-) {
-  if end - start <= 1 { return }
+  compare: fn (ref T, ref T) -> Bool,
+) -> fn (ref T, ref T) -> Bool {
+  if end - start <= 1 { return compare }
 
   # https://ai.googleblog.com/2006/06/extra-extra-read-all-about-it-nearly.html
   let mid = start.wrapping_add(end) >>> 1
-
-  merge_sort(b, a, start, mid, compare)
-  merge_sort(b, a, mid, end, compare)
-
+  let compare = merge_sort(b, a, start, mid, compare)
+  let compare = merge_sort(b, a, mid, end, compare)
   let mut i = start
   let mut j = mid
   let mut k = start
@@ -67,6 +65,8 @@ fn merge_sort[T](
 
     k += 1
   }
+
+  compare
 }
 
 fn invalid_capacity(size: Int) -> Never {
@@ -616,7 +616,7 @@ type builtin Array[T] {
   # nums # => [9, 5, 3, 3, 1, 0]
   # ```
   fn pub mut sort_by(block: fn (ref T, ref T) -> Ordering) {
-    stable_sort(self, fn (a, b) {
+    stable_sort(self, fn move (a, b) {
       match block.call(a, b) {
         case Less or Equal -> true
         case _ -> false

@@ -104,14 +104,13 @@ impl<'a> DefineTypes<'a> {
                 loc,
             );
 
+            let db = self.db_mut();
+
             match node.semantics {
                 hir::TypeSemantics::Default => {}
-                hir::TypeSemantics::Inline => {
-                    cls.set_inline_storage(self.db_mut());
-                }
-                hir::TypeSemantics::Copy => {
-                    cls.set_copy_storage(self.db_mut());
-                }
+                hir::TypeSemantics::Inline => cls.set_inline_storage(db),
+                hir::TypeSemantics::Copy => cls.set_copy_storage(db),
+                hir::TypeSemantics::Unique => cls.set_unique_storage(db),
             }
 
             cls
