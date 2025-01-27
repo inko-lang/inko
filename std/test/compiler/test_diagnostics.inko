@@ -18,8 +18,11 @@ let LPAREN = 40
 let RPAREN = 41
 let COLON = 58
 
-fn parse_test(file: ReadOnlyFile) -> Result[Array[Diagnostic], String] {
-  let reader = BufferedReader.new(mut file)
+fn parse_test(path: ref Path) -> Result[Array[Diagnostic], String] {
+  let reader = try ReadOnlyFile
+    .new(path.clone)
+    .map(fn (f) { BufferedReader.new(f) })
+    .map_error(fn (e) { e.to_string })
   let buffer = ByteArray.new
   let diags = []
 
@@ -27,7 +30,7 @@ fn parse_test(file: ReadOnlyFile) -> Result[Array[Diagnostic], String] {
     match reader.read_line(buffer, inclusive: true) {
       case Ok(0) -> break
       case Ok(_) -> {}
-      case Error(e) -> throw 'failed to read a line from ${file.path}: ${e}'
+      case Error(e) -> throw 'failed reading a new line: ${e}'
     }
 
     match buffer.opt(0) {
@@ -283,11 +286,7 @@ fn pub tests(t: mut Tests) {
     let name = test_file.tail.strip_suffix('.inko').get
 
     t.test('inko check ${name}', fn move (t) {
-      let file = ReadOnlyFile.new(test_file.clone).or_panic(
-        'the test file ${test_file} must exist',
-      )
-
-      match parse_test(file) {
+      match parse_test(test_file) {
         case Ok(exp) -> t.equal(check(compiler, name, test_file.clone), exp)
         case Error(e) -> panic('failed to parse ${test_file}: ${e}')
       }
