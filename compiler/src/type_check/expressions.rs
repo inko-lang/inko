@@ -2410,8 +2410,25 @@ impl<'a> CheckMethodBody<'a> {
             _ => TypeRef::Owned(TypeEnum::Closure(closure)),
         };
 
-        node.closure_id = Some(closure);
+        // We can't allow capturing of 'self' in default methods as this could
+        // result in an alias to a unique type. In addition, for inline types it
+        // could result in mutations taking place on a copy when the user
+        // expects the original value to be mutated instead.
+        if let Some(stype) = closure.captured_self_type(self.db()) {
+            if stype.is_trait_instance(self.db())
+                && stype.is_ref_or_mut(self.db())
+            {
+                self.state.diagnostics.error(
+                    DiagnosticId::InvalidType,
+                    "closures defined in default methods can't capture \
+                    'self' borrows",
+                    self.file(),
+                    node.location.clone(),
+                );
+            }
+        }
 
+        node.closure_id = Some(closure);
         node.resolved_type
     }
 
