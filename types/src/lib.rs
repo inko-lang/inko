@@ -4616,6 +4616,28 @@ impl TypeRef {
         self.is_instance_of(db, TypeId::nil())
     }
 
+    pub fn allow_capturing(self, db: &Database, moving: bool) -> bool {
+        match self {
+            TypeRef::Uni(_) => moving,
+            TypeRef::Owned(TypeEnum::TypeInstance(i))
+                if i.instance_of.is_unique_type(db) =>
+            {
+                moving
+            }
+            TypeRef::Ref(TypeEnum::TypeInstance(i))
+            | TypeRef::Mut(TypeEnum::TypeInstance(i))
+                if i.instance_of.is_unique_type(db) =>
+            {
+                false
+            }
+            TypeRef::UniRef(_) | TypeRef::UniMut(_) => false,
+            TypeRef::Placeholder(id) => {
+                id.value(db).map_or(true, |v| v.allow_capturing(db, moving))
+            }
+            _ => true,
+        }
+    }
+
     pub fn allow_moving(self, db: &Database) -> bool {
         match self {
             TypeRef::Owned(_) | TypeRef::Uni(_) => true,

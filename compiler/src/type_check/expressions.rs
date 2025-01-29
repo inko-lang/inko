@@ -4505,9 +4505,7 @@ impl<'a> CheckMethodBody<'a> {
                     let moving = closure.is_moving(self.db())
                         || capture_as.is_closure(self.db());
 
-                    if (expose_as.is_uni_value(self.db()) && !moving)
-                        || expose_as.is_uni_value_borrow(self.db())
-                    {
+                    if !expose_as.allow_capturing(self.db(), moving) {
                         self.state.diagnostics.error(
                             DiagnosticId::InvalidSymbol,
                             format!(
