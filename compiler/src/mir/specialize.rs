@@ -513,6 +513,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
                             .registers
                             .value_type(ins.register)
                             .is_uni_type_borrow(db)
+                            && !ins.field.value_type(db).is_uni_type_borrow(db)
                         {
                             *instruction = Instruction::FieldPointer(Box::new(
                                 FieldPointer {
