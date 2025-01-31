@@ -34,10 +34,7 @@ import std.io (Error, Read, Write, WriteInternal)
 import std.sys.unix.stdio (self as sys) if unix
 
 # The standard input stream of the current OS process.
-#
-# `Stdin` is allocated on the heap as this allows one to cast it to a trait,
-# such as the `Read` trait.
-type pub Stdin {
+type pub inline Stdin {
   let @fd: Int32
 
   # Returns a new `Stdin`.
@@ -67,9 +64,6 @@ impl Read for Stdin {
 
 # The standard output stream of the current OS process.
 #
-# `Stdout` is allocated on the heap as this allows one to cast it to a trait,
-# such as the `Write` trait.
-#
 # # Buffering
 #
 # This output stream _does not_ use any form of buffering and instead writes its
@@ -80,7 +74,7 @@ impl Read for Stdin {
 # reason for this is simple: it's easy to apply buffering by combining `Stdout`
 # with existing types, but opting out of buffering would require additional
 # flags or types, resulting in a messy API.
-type pub Stdout {
+type pub inline Stdout {
   let @fd: Int32
 
   # Returns a new `Stdout`.
@@ -127,15 +121,12 @@ impl Write for Stdout {
 
 # The standard error stream of the current OS process.
 #
-# `Stdout` is allocated on the heap as this allows one to cast it to a trait,
-# such as the `Write` trait.
-#
 # # Buffering
 #
 # This output stream _does not_ use any form of buffering and instead writes its
 # output directly. If buffering is desired, you can do so by wrapping a `Stdout`
 # in a `std.io.BufferedWriter`.
-type pub Stderr {
+type pub inline Stderr {
   let @fd: Int32
 
   # Returns a new `Stderr`.
