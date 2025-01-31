@@ -28,7 +28,7 @@ defined like so:
 
 ```inko
 type async Counter {
-  let @number: Int
+  let mut @number: Int
 
   fn async mut increment(amount: Int) {
     @number += amount
@@ -218,7 +218,7 @@ methods:
 import std.sync (Future, Promise)
 
 type async Counter {
-  let @value: Int
+  let mut @value: Int
 
   fn async mut increment {
     @value += 1

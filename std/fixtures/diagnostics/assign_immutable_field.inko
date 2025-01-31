@@ -1,0 +1,38 @@
+type Example {
+  let @immutable: Int
+  let mut @mutable: Int
+
+  fn mut example1 {
+    @immutable = 42
+    @mutable = 42
+  }
+
+  fn mut example2 {
+    @immutable := 42
+    @mutable := 42
+  }
+}
+
+type extern Extern {
+  let @field: Int
+}
+
+fn example1(ex: mut Example) {
+  ex.immutable = 42
+  ex.mutable = 42
+}
+
+fn example2(ex: mut Example) {
+  ex.immutable := 42
+  ex.mutable := 42
+}
+
+fn example3(ex: Extern) {
+  ex.field = 42
+  ex.field := 42
+}
+
+# assign_immutable_field.inko:6:5 error(invalid-assign): the field 'immutable' is immutable and can't be assigned a new value
+# assign_immutable_field.inko:11:5 error(invalid-assign): the field 'immutable' is immutable and can't be assigned a new value
+# assign_immutable_field.inko:21:3 error(invalid-assign): the field 'immutable' is immutable and can't be assigned a new value
+# assign_immutable_field.inko:26:3 error(invalid-assign): the field 'immutable' is immutable and can't be assigned a new value

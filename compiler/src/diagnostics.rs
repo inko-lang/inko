@@ -304,6 +304,23 @@ impl Diagnostics {
         );
     }
 
+    pub(crate) fn immutable_field_assignment(
+        &mut self,
+        name: &str,
+        file: PathBuf,
+        location: Location,
+    ) {
+        self.error(
+            DiagnosticId::InvalidAssign,
+            format!(
+                "the field '{}' is immutable and can't be assigned a new value",
+                name
+            ),
+            file,
+            location,
+        );
+    }
+
     pub(crate) fn public_field_private_type(
         &mut self,
         file: PathBuf,

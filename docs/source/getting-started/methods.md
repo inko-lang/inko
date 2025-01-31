@@ -192,7 +192,7 @@ mutating the data stored in their receivers. For example:
 
 ```inko
 type Person {
-  let @name: String
+  let mut @name: String
 
   fn change_name(name: String) {
     @name = name
@@ -206,7 +206,7 @@ so:
 
 ```inko
 type Person {
-  let @name: String
+  let mut @name: String
 
   fn mut change_name(name: String) {
     @name = name

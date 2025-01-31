@@ -1,0 +1,5 @@
+type extern Example {
+  let mut @mutable: Int
+}
+
+# extern_type_with_mutable_field.inko:2:3 error(invalid-symbol): fields of 'extern' types are always mutable

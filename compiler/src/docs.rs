@@ -614,6 +614,7 @@ impl<'a> GenerateDocumentation<'a> {
 
             let mut obj = Object::new();
             let name = field.name(self.db()).clone();
+            let mutable = field.is_mutable(self.db());
             let docs = field.documentation(self.db()).clone();
             let loc = location_to_json(field.location(self.db()));
             let typ = format!(
@@ -626,6 +627,7 @@ impl<'a> GenerateDocumentation<'a> {
             obj.add("name", Json::String(name));
             obj.add("location", loc);
             obj.add("public", Json::Bool(public));
+            obj.add("mutable", Json::Bool(mutable));
             obj.add("type", Json::String(typ));
             obj.add("documentation", Json::String(docs));
             fields.push(Json::Object(obj));

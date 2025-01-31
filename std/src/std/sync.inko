@@ -80,18 +80,18 @@ type FutureState[T] {
   # The reason for using a spinlock is to avoid the complexity and platform
   # differences of pthread mutexes, and because it's unlikely we actually need
   # them to begin with for this particular workload.
-  let @locked: UInt8
+  let mut @locked: UInt8
 
   # The status of the `Future` and `Promise`.
-  let @status: Status
+  let mut @status: Status
 
   # The process waiting for a value to be written to the future.
   #
   # A value of NULL means no process is waiting.
-  let @waiter: Pointer[UInt8]
+  let mut @waiter: Pointer[UInt8]
 
   # The value the future resolves to, if any.
-  let @value: Option[T]
+  let mut @value: Option[T]
 
   fn mut lock {
     while

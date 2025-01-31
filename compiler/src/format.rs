@@ -1061,6 +1061,10 @@ impl Document {
             group.push(Node::text("pub "));
         }
 
+        if node.mutable {
+            group.push(Node::text("mut "));
+        }
+
         group.push(Node::text(&format!("@{}", node.name.name)));
         group.push(Node::text(": "));
         group.push(self.type_reference(&node.value_type));

@@ -91,14 +91,43 @@ When moving a field, the remaining fields are dropped individually and the owner
 of the moved field is partially dropped. If a type defines a custom destructor,
 a `move` method can't move the fields out of its receiver.
 
-## Swapping field values
+## Assigning fields
+
+Methods defined on a type can only assign their fields new values if the method
+is an `fn mut` or `fn move` method, and if the field is defined using the `mut`
+keyword:
+
+```inko
+type Example {
+  let @immutable_field: Int
+  let mut @mutable_field: Int
+
+  fn immutable_method {
+    # Both are invalid because `fn` methods don't allow mutating of the
+    # surrounding data.
+    @immutable_field = 10
+    @mutable_field = 10
+  }
+
+  fn mut mutable_method {
+    # This is invalid because the field definition doesn't use the `mut`
+    # keyword.
+    @immutable_field = 10
+
+    # This _is_ valid because the field definition _does_ use the `mut` keyword.
+    @mutable_field = 10
+  }
+}
+```
+
+## Swapping fields
 
 Similar to local variables, `:=` can be used to assign a field a new value and
 return its old value, instead of dropping the old value:
 
 ```inko
 type Person {
-  let @name: String
+  let mut @name: String
 
   fn mut replace_name(new_name: String) -> String {
     @name := new_name

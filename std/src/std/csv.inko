@@ -291,8 +291,8 @@ impl ToInt for Separator {
 type pub Parser[I: mut + Read] {
   let @input: BufferedReader[I]
   let @buffer: ByteArray
-  let @offset: Int
-  let @separator: Int
+  let mut @offset: Int
+  let mut @separator: Int
 
   # Returns a new `Parser` that uses a comma as the column separator.
   #
@@ -716,8 +716,8 @@ impl Iter[Result[Array[String], Error]] for Parser {
 # ```
 type pub Generator[I: mut + Write] {
   let @output: I
-  let @separator_string: String
-  let @separator_byte: Int
+  let mut @separator_string: String
+  let mut @separator_byte: Int
 
   # Returns a new `Generator` that uses a comma as the column separator.
   #

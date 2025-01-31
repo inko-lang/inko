@@ -629,6 +629,17 @@ impl<'a> DefineFields<'a> {
                 loc,
             );
 
+            if fnode.mutable && is_copy {
+                self.state.diagnostics.error(
+                    DiagnosticId::InvalidSymbol,
+                    "fields of 'copy' types can't be made mutable",
+                    self.file(),
+                    node.location,
+                );
+            } else if fnode.mutable {
+                field.set_mutable(self.db_mut());
+            }
+
             id += 1;
             fnode.field_id = Some(field);
         }
@@ -650,6 +661,15 @@ impl<'a> DefineFields<'a> {
                 );
 
                 continue;
+            }
+
+            if node.mutable {
+                self.state.diagnostics.error(
+                    DiagnosticId::InvalidSymbol,
+                    "fields of 'extern' types are always mutable",
+                    self.file(),
+                    node.location,
+                );
             }
 
             let vis = Visibility::public(node.public);
@@ -694,6 +714,8 @@ impl<'a> DefineFields<'a> {
                 module,
                 loc,
             );
+
+            field.set_mutable(self.db_mut());
 
             id += 1;
             node.field_id = Some(field);

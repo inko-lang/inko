@@ -361,6 +361,7 @@ pub(crate) struct DefineAsyncMethod {
 pub(crate) struct DefineField {
     pub(crate) documentation: String,
     pub(crate) public: bool,
+    pub(crate) mutable: bool,
     pub(crate) field_id: Option<types::FieldId>,
     pub(crate) name: Identifier,
     pub(crate) value_type: Type,
@@ -1433,6 +1434,7 @@ impl<'a> LowerToHir<'a> {
         DefineField {
             documentation,
             public: node.public,
+            mutable: node.mutable,
             field_id: None,
             name: self.identifier(node.name),
             value_type: self.type_reference(node.value_type),
@@ -3991,6 +3993,7 @@ mod tests {
                 body: vec![TypeExpression::Field(Box::new(DefineField {
                     documentation: String::new(),
                     public: false,
+                    mutable: false,
                     field_id: None,
                     name: Identifier {
                         name: "a".to_string(),
@@ -4030,6 +4033,7 @@ mod tests {
                 fields: vec![DefineField {
                     documentation: String::new(),
                     public: false,
+                    mutable: false,
                     field_id: None,
                     name: Identifier {
                         name: "a".to_string(),
@@ -4071,6 +4075,7 @@ mod tests {
                 body: vec![TypeExpression::Field(Box::new(DefineField {
                     documentation: String::new(),
                     public: false,
+                    mutable: false,
                     field_id: None,
                     name: Identifier {
                         name: "a".to_string(),
@@ -4134,6 +4139,47 @@ mod tests {
                 body: vec![TypeExpression::Field(Box::new(DefineField {
                     documentation: String::new(),
                     public: true,
+                    mutable: false,
+                    field_id: None,
+                    name: Identifier {
+                        name: "a".to_string(),
+                        location: cols(18, 19)
+                    },
+                    value_type: Type::Named(Box::new(TypeName {
+                        source: None,
+                        resolved_type: types::TypeRef::Unknown,
+                        name: Constant {
+                            name: "A".to_string(),
+                            location: cols(22, 22)
+                        },
+                        arguments: Vec::new(),
+                        location: cols(22, 22)
+                    })),
+                    location: cols(10, 22)
+                }))],
+                location: cols(1, 24)
+            })),
+        );
+    }
+
+    #[test]
+    fn test_lower_type_with_mutable_field() {
+        let hir = lower_top_expr("type A { let mut @a: A }").0;
+
+        assert_eq!(
+            hir,
+            TopLevelExpression::Type(Box::new(DefineType {
+                documentation: String::new(),
+                public: false,
+                semantics: TypeSemantics::Default,
+                kind: TypeKind::Regular,
+                type_id: None,
+                name: Constant { name: "A".to_string(), location: cols(6, 6) },
+                type_parameters: Vec::new(),
+                body: vec![TypeExpression::Field(Box::new(DefineField {
+                    documentation: String::new(),
+                    public: false,
+                    mutable: true,
                     field_id: None,
                     name: Identifier {
                         name: "a".to_string(),
@@ -4195,6 +4241,7 @@ mod tests {
                 body: vec![TypeExpression::Field(Box::new(DefineField {
                     documentation: String::new(),
                     public: false,
+                    mutable: false,
                     field_id: None,
                     name: Identifier {
                         name: "a".to_string(),

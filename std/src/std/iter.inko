@@ -690,7 +690,7 @@ impl Iter[T] for Stream {
 # consuming it.
 type pub Peekable[T] {
   let @iter: Iter[T]
-  let @peeked: Option[Option[T]]
+  let mut @peeked: Option[Option[T]]
 
   # Returns an optional immutable reference to the next item in the iterator,
   # without consuming it.

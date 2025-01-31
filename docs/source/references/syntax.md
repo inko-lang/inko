@@ -213,7 +213,7 @@ A type can define one or more fields using `let`:
 ```inko
 type Person {
   let @name: String # `@name` is the field name, and `String` its type
-  let @age: Int
+  let mut @age: Int
 }
 ```
 

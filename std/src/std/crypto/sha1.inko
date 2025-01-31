@@ -36,12 +36,12 @@ let BLOCK_SIZE = 64
 type pub Sha1 {
   let @block: Block
   let @words: Array[Int]
-  let @size: Int
-  let @a: Int
-  let @b: Int
-  let @c: Int
-  let @d: Int
-  let @e: Int
+  let mut @size: Int
+  let mut @a: Int
+  let mut @b: Int
+  let mut @c: Int
+  let mut @d: Int
+  let mut @e: Int
 
   # Generates a hash for the given bytes.
   #

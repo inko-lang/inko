@@ -624,7 +624,7 @@ type pub Encoder {
   let @table2: ref Array[Int]
 
   # If padding should be applied.
-  let pub @padding: Bool
+  let pub mut @padding: Bool
 
   # Returns an `Encoder` that uses the standard base64 alphabet.
   fn pub static new -> Encoder {
@@ -796,7 +796,7 @@ type pub Decoder {
   let @table3: ref Array[Int]
 
   # If padding is required or not.
-  let pub @padding: Bool
+  let pub mut @padding: Bool
 
   fn pub static new -> Decoder {
     Decoder(

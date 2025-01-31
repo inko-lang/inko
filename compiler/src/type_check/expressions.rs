@@ -2757,6 +2757,16 @@ impl<'a> CheckMethodBody<'a> {
             return None;
         };
 
+        if !field.is_mutable(self.db()) {
+            self.state.diagnostics.immutable_field_assignment(
+                name,
+                self.file(),
+                location,
+            );
+
+            return None;
+        }
+
         if !TypeChecker::check(self.db(), val_type, var_type) {
             self.state.diagnostics.type_error(
                 format_type(self.db(), val_type),
@@ -3263,6 +3273,16 @@ impl<'a> CheckMethodBody<'a> {
             return TypeRef::Error;
         };
 
+        if !field.is_mutable(self.db()) {
+            self.state.diagnostics.immutable_field_assignment(
+                &node.name.name,
+                self.file(),
+                node.location,
+            );
+
+            return TypeRef::Error;
+        }
+
         if !rec.allow_field_assignments(self.db()) {
             self.state.diagnostics.invalid_field_assignment(
                 &format_type(self.db(), rec),
@@ -3353,6 +3373,16 @@ impl<'a> CheckMethodBody<'a> {
             } else {
                 false
             };
+        }
+
+        if !field.is_mutable(self.db()) {
+            self.state.diagnostics.immutable_field_assignment(
+                name,
+                self.file(),
+                node.location,
+            );
+
+            return true;
         }
 
         if !receiver.allow_field_assignments(self.db()) {

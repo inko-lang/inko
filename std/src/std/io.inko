@@ -758,8 +758,8 @@ type pub BufferedReader[T: mut + Read] {
   # The `Read` type to read data from.
   let pub @inner: T
   let @buffer: ByteArray
-  let @capacity: Int
-  let @offset: Int
+  let mut @capacity: Int
+  let mut @offset: Int
 
   # Returns a new buffered reader that wraps the given `Read` type, using the
   # default buffer size.
@@ -1039,7 +1039,7 @@ impl Drop for BufferedWriter {
 # ```
 type pub Buffer[T: Bytes] {
   let @bytes: T
-  let @offset: Int
+  let mut @offset: Int
 
   # Returns a new `Buffer` wrapping the given `Bytes`.
   fn pub static new(bytes: T) -> Buffer[T] {

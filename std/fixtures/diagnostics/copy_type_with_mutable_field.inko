@@ -1,0 +1,5 @@
+type copy Example {
+  let mut @invalid: Int
+}
+
+# copy_type_with_mutable_field.inko:1:1 error(invalid-symbol): fields of 'copy' types can't be made mutable

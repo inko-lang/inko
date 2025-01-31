@@ -2,7 +2,7 @@ import std.drop (Drop)
 import std.test (Tests)
 
 type Value {
-  let @dropped: Int
+  let mut @dropped: Int
 
   fn static new -> Value {
     Value(0)
@@ -24,7 +24,7 @@ impl Drop for ValueRef {
 }
 
 type Box {
-  let @value: ValueRef
+  let mut @value: ValueRef
 
   fn mut update(value: ValueRef) {
     @value = value
@@ -36,7 +36,7 @@ type CyclicClass {
 }
 
 type Backref[T] {
-  let @target: Option[ref T]
+  let mut @target: Option[ref T]
 }
 
 type enum CyclicEnum {

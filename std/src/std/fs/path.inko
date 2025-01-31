@@ -108,7 +108,7 @@ impl Iter[Result[DirectoryEntry, Error]] for ReadDirectory {
 # An iterator over the components in a `Path`.
 type pub Components {
   let @path: ref Path
-  let @index: Int
+  let mut @index: Int
   let @size: Int
   let @root: Bool
 

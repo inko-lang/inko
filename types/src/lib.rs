@@ -1007,6 +1007,7 @@ pub struct Field {
     name: String,
     value_type: TypeRef,
     visibility: Visibility,
+    mutable: bool,
     module: ModuleId,
     location: Location,
     documentation: String,
@@ -1029,6 +1030,7 @@ impl Field {
             index,
             value_type,
             visibility,
+            mutable: false,
             module,
             location,
             documentation: String::new(),
@@ -1087,6 +1089,14 @@ impl FieldId {
 
     pub fn documentation(self, db: &Database) -> &String {
         &self.get(db).documentation
+    }
+
+    pub fn set_mutable(self, db: &mut Database) {
+        self.get_mut(db).mutable = true;
+    }
+
+    pub fn is_mutable(self, db: &Database) -> bool {
+        self.get(db).mutable
     }
 
     fn get(self, db: &Database) -> &Field {

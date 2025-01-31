@@ -195,7 +195,7 @@ impl Equal[ref ParseError] for ParseError {
 # ```
 type pub PemFile[I: mut + Read] {
   let @input: BufferedReader[I]
-  let @line: Int
+  let mut @line: Int
   let @buffer: ByteArray
   let @decoder: Decoder
 

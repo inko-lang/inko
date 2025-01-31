@@ -133,28 +133,28 @@ impl ToInt for Stream {
 # ```
 type pub Command {
   # The path to the program to spawn.
-  let pub @program: String
+  let pub mut @program: String
 
   # What to do with the STDIN stream.
-  let pub @stdin: Stream
+  let pub mut @stdin: Stream
 
   # What to do with the STDOUT stream.
-  let pub @stdout: Stream
+  let pub mut @stdout: Stream
 
   # What to do with the STDERR stream.
-  let pub @stderr: Stream
+  let pub mut @stderr: Stream
 
   # The arguments to pass to the command.
-  let pub @arguments: Array[String]
+  let pub mut @arguments: Array[String]
 
   # The environment variables to pass to the command.
   #
   # This `Map` defaults to all the environment variables available at the time
   # the program started.
-  let pub @variables: Map[String, String]
+  let pub mut @variables: Map[String, String]
 
   # The working directory to use for the command.
-  let pub @directory: Option[Path]
+  let pub mut @directory: Option[Path]
 
   # Creates a new `Command` that will run the given program.
   #
@@ -341,13 +341,13 @@ type pub ChildProcess {
   let @id: Int32
 
   # A handle to the captured input stream of the child process.
-  let pub @stdin: Option[Stdin]
+  let pub mut @stdin: Option[Stdin]
 
   # A handle to the captured output stream of the child process.
-  let pub @stdout: Option[Stdout]
+  let pub mut @stdout: Option[Stdout]
 
   # A handle to the captured error stream of the child process.
-  let pub @stderr: Option[Stderr]
+  let pub mut @stderr: Option[Stderr]
 
   fn static new(inner: sys.ChildProcess) -> ChildProcess {
     let stdin = match inner.stdin {

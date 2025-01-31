@@ -22,13 +22,13 @@ type pub Entry[K: Equal[ref K] + Hash, V] {
   let @key: K
 
   # The value of the key.
-  let pub @value: V
+  let pub mut @value: V
 
   # The hash value of the key.
-  let @hash: Int
+  let mut @hash: Int
 
   # The distance of this entry relative to its desired index.
-  let @distance: Int
+  let mut @distance: Int
 
   # Returns an immutable reference to the key.
   #
@@ -96,13 +96,13 @@ type pub Map[K: Equal[ref K] + Hash, V] {
   # indicates the entry is at that given index in the `@entries` `Array`.
   #
   # The size of this Array is always a power of two.
-  let @slots: Array[Int]
+  let mut @slots: Array[Int]
 
   # The entries stored in this map.
   let @entries: Array[Entry[K, V]]
 
   # The number of values to store before a resize is necessary.
-  let @resize_at: Int
+  let mut @resize_at: Int
 
   # Returns a new empty `Map`.
   fn pub static new -> Map[K, V] {

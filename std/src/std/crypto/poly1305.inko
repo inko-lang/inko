@@ -46,11 +46,11 @@ type pub Poly1305 {
   let @pad3: Int
 
   # The individual hash components.
-  let @h0: Int
-  let @h1: Int
-  let @h2: Int
-  let @h3: Int
-  let @h4: Int
+  let mut @h0: Int
+  let mut @h1: Int
+  let mut @h2: Int
+  let mut @h3: Int
+  let mut @h4: Int
 
   # Hashes a message with the given one-time secret key.
   #

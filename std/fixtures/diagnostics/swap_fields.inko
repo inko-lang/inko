@@ -1,6 +1,6 @@
 type Person {
-  let @name: String
-  let @numbers: Array[Int]
+  let mut @name: String
+  let mut @numbers: Array[Int]
 
   fn example1 {
     @name := 'Alice'

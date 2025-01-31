@@ -145,7 +145,7 @@ type async Connection {
 
   # A flag indicating if we should continue trying to connect or if we should
   # stop.
-  let @run: Bool
+  let mut @run: Bool
 
   fn static new(
     id: Int,

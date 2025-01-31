@@ -352,6 +352,10 @@ Inko doesn't run destructors for any types stored in a C structure, which
 may lead to memory leaks if you don't manually run these where necessary.
 :::
 
+Unlike non-extern types, fields in `extern` types are `mut` by default, as
+Inko's compiler isn't able to prevent C code from assigning immutable fields new
+values.
+
 If a structure is stored in a field, referring to the field doesn't incur a
 copy, instead you get a pointer to the structure. This makes it easier to work
 with structures stored in Inko types:
@@ -380,8 +384,14 @@ type async Main {
 }
 ```
 
-If you want a copy anyway, you can dereference the pointer (more on that in just a
-moment) to get a copy.
+If you want a copy anyway, you can dereference the pointer (more on that in just
+a moment) to get a copy.
+
+::: warn
+Exposing nested `extern` types as pointers means that it's possible to overwrite
+them while a pointer to the structure is still in use. As such, you need to be
+careful when working with nested `extern` types.
+:::
 
 ## Pointers
 

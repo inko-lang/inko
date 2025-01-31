@@ -5,7 +5,7 @@ import std.test (Tests)
 
 type Output {
   let @buffer: ByteArray
-  let @flushed: Bool
+  let mut @flushed: Bool
 
   fn static new -> Output {
     Output(buffer: ByteArray.new, flushed: false)

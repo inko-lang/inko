@@ -1,5 +1,5 @@
 type async Foo {
-  let @value: Int
+  let mut @value: Int
 
   fn async mut update(value: Int) {
     # This is OK because it's safe to assign fields from within the process that

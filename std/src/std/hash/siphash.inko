@@ -20,13 +20,13 @@ import std.hash (Hasher)
 # hasher.finish
 # ```
 type pub SipHasher13 {
-  let @size: Int
-  let @m_index: Int
-  let @m: Int
-  let @v0: Int
-  let @v1: Int
-  let @v2: Int
-  let @v3: Int
+  let mut @size: Int
+  let mut @m_index: Int
+  let mut @m: Int
+  let mut @v0: Int
+  let mut @v1: Int
+  let mut @v2: Int
+  let mut @v3: Int
 
   # Returns a new hasher using two default keys.
   fn pub static default -> SipHasher13 {

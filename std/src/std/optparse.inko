@@ -222,7 +222,7 @@ type inline enum State {
 # tokens.
 type Lexer {
   let @input: Stream[String]
-  let @state: State
+  let mut @state: State
 
   fn static new(input: ref Array[String]) -> Lexer {
     Lexer(input: input.iter, state: State.Default)
@@ -543,7 +543,7 @@ type pub Options {
   #
   # When set and a non-option is encountered, any remaining options and
   # arguments are stored as-is in `Matches.remaining`.
-  let pub @stop_at_first_non_option: Bool
+  let pub mut @stop_at_first_non_option: Bool
 
   # A mapping of short and long option names to their corresponding option
   # definitions.
@@ -908,12 +908,12 @@ type pub Help {
   let @name: String
 
   # The description of the command.
-  let @description: String
+  let mut @description: String
 
   # The usage section of the help message.
   #
   # This field defaults to the value `'[OPTIONS]'`.
-  let @usage: String
+  let mut @usage: String
 
   # The lines to display in the help message.
   let @lines: StringBuffer

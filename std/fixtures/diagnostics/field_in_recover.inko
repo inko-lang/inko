@@ -1,6 +1,6 @@
 type List {
-  let @values: Array[Int]
-  let @sendable: uni Array[Int]
+  let mut @values: Array[Int]
+  let mut @sendable: uni Array[Int]
 
   fn example1 {
     recover {

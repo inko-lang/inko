@@ -656,7 +656,7 @@ impl FormatTrait for Type {
 # ```
 type pub PullParser[T: mut + Read] {
   let @input: BufferedReader[T]
-  let @offset: Int
+  let mut @offset: Int
   let @buffer: ByteArray
 
   # Returns a new parser that parses the given `Read` type.
@@ -1297,7 +1297,7 @@ type pub PullParser[T: mut + Read] {
 type pub Rule[T: mut + Read] {
   let @id: Int
   let @parser: fn (mut PullParser[T]) -> Result[Nil, Error]
-  let @required: Bool
+  let mut @required: Bool
 
   # Marks this rule as an optional rule.
   fn pub mut optional {
@@ -1439,12 +1439,12 @@ type pub inline ObjectParser[T: mut + Read] {
 # being thrown. This limit is controlled by the field `Parser.max_depth`.
 type pub Parser[T: mut + Read] {
   let @pull: PullParser[T]
-  let @depth: Int
+  let mut @depth: Int
 
   # The maximum number of nested values.
   #
   # When parsing an array or object that exceeds this depth, an error is thrown.
-  let pub @max_depth: Int
+  let pub mut @max_depth: Int
 
   # Returns a new parser that will parse the given `Read` type.
   fn pub static new(input: T) -> Parser[T] {
@@ -1550,7 +1550,7 @@ type pub Parser[T: mut + Read] {
 type pub Generator {
   let @pretty: Bool
   let @spaces: String
-  let @depth: Int
+  let mut @depth: Int
   let @buffer: StringBuffer
 
   # Returns a new `Generator` using the given indentation level.

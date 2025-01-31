@@ -438,6 +438,7 @@ impl Node for DefineMethod {
 #[derive(Debug, PartialEq, Eq)]
 pub struct DefineField {
     pub public: bool,
+    pub mutable: bool,
     pub name: Identifier,
     pub value_type: Type,
     pub location: Location,

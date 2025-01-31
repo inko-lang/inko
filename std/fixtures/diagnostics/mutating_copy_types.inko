@@ -8,4 +8,4 @@ fn example {
   a.value = 2
 }
 
-# mutating_copy_types.inko:8:3 error(invalid-assign): values of type 'A' don't allow fields to be assigned new values
+# mutating_copy_types.inko:8:3 error(invalid-assign): the field 'value' is immutable and can't be assigned a new value

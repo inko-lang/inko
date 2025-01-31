@@ -1193,6 +1193,12 @@ impl Parser {
         start: Token,
     ) -> Result<DefineField, ParseError> {
         let public = self.next_is_public();
+        let mutable = if self.peek().kind == TokenKind::Mut {
+            self.next();
+            true
+        } else {
+            false
+        };
         let name = Identifier::from(self.expect(TokenKind::Field)?);
 
         self.expect(TokenKind::Colon)?;
@@ -1202,7 +1208,7 @@ impl Parser {
         let location =
             Location::start_end(&start.location, value_type.location());
 
-        Ok(DefineField { name, public, value_type, location })
+        Ok(DefineField { name, public, mutable, value_type, location })
     }
 
     fn implementation(
@@ -5172,6 +5178,7 @@ mod tests {
                     values: vec![TypeExpression::DefineField(Box::new(
                         DefineField {
                             public: false,
+                            mutable: false,
                             name: Identifier {
                                 name: "foo".to_string(),
                                 location: cols(14, 17)
@@ -5210,6 +5217,46 @@ mod tests {
                     values: vec![TypeExpression::DefineField(Box::new(
                         DefineField {
                             public: true,
+                            mutable: false,
+                            name: Identifier {
+                                name: "foo".to_string(),
+                                location: cols(18, 21)
+                            },
+                            value_type: Type::Named(Box::new(TypeName {
+                                name: Constant {
+                                    source: None,
+                                    name: "A".to_string(),
+                                    location: cols(24, 24)
+                                },
+                                arguments: None,
+                                location: cols(24, 24)
+                            })),
+                            location: cols(10, 24)
+                        }
+                    ))],
+                    location: cols(8, 26)
+                },
+                location: cols(1, 26)
+            }))
+        );
+
+        assert_eq!(
+            top(parse("type A { let mut @foo: A }")),
+            TopLevelExpression::DefineType(Box::new(DefineType {
+                public: false,
+                semantics: TypeSemantics::Default,
+                name: Constant {
+                    source: None,
+                    name: "A".to_string(),
+                    location: cols(6, 6)
+                },
+                kind: TypeKind::Regular,
+                type_parameters: None,
+                body: TypeExpressions {
+                    values: vec![TypeExpression::DefineField(Box::new(
+                        DefineField {
+                            public: false,
+                            mutable: true,
                             name: Identifier {
                                 name: "foo".to_string(),
                                 location: cols(18, 21)

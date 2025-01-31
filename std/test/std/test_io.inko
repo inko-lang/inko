@@ -8,7 +8,7 @@ import std.libc
 import std.test (Tests)
 
 type Reader {
-  let @index: Int
+  let mut @index: Int
   let @bytes: ByteArray
 
   fn static new -> Reader {
@@ -38,7 +38,7 @@ impl Read for Reader {
 }
 
 type SingleByteReader {
-  let @index: Int
+  let mut @index: Int
   let @bytes: ByteArray
 
   fn static new -> SingleByteReader {

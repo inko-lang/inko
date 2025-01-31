@@ -20,18 +20,18 @@ fn invalid_capacity(size: Int) -> Never {
 # article](https://www.snellman.net/blog/archive/2016-12-13-ring-buffers/).
 type pub Deque[T] {
   # The number of values stored in the deque.
-  let @size: Int
+  let mut @size: Int
 
   # The number of values that can be stored in the deque before a resize is
   # needed.
-  let @capacity: Int
+  let mut @capacity: Int
 
   # The index at which to perform operations that act on the head/start of the
   # deque.
-  let @head: Int
+  let mut @head: Int
 
   # The buffer storing the values.
-  let @buffer: Pointer[T]
+  let mut @buffer: Pointer[T]
 
   # Returns a `Deque` with enough space for at least `size` values.
   #

@@ -121,7 +121,7 @@ fn location(map: ref Map[String, Json], key: String) -> Result[Int, String] {
 
 type Parser {
   let @bytes: ref ByteArray
-  let @index: Int
+  let mut @index: Int
 
   fn static new(bytes: ref ByteArray) -> Parser {
     Parser(index: 0, bytes: bytes)

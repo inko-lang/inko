@@ -78,15 +78,15 @@ let SHA512_TABLE = [
 type pub Sha256 {
   let @block: Block
   let @words: Array[Int]
-  let @size: Int
-  let @a: Int
-  let @b: Int
-  let @c: Int
-  let @d: Int
-  let @e: Int
-  let @f: Int
-  let @g: Int
-  let @h: Int
+  let mut @size: Int
+  let mut @a: Int
+  let mut @b: Int
+  let mut @c: Int
+  let mut @d: Int
+  let mut @e: Int
+  let mut @f: Int
+  let mut @g: Int
+  let mut @h: Int
 
   # Generates a hash for the given bytes.
   #
@@ -238,15 +238,15 @@ impl Hasher for Sha256 {
 type pub Sha512 {
   let @block: Block
   let @words: Array[Int]
-  let @size: Int
-  let @a: Int
-  let @b: Int
-  let @c: Int
-  let @d: Int
-  let @e: Int
-  let @f: Int
-  let @g: Int
-  let @h: Int
+  let mut @size: Int
+  let mut @a: Int
+  let mut @b: Int
+  let mut @c: Int
+  let mut @d: Int
+  let mut @e: Int
+  let mut @f: Int
+  let mut @g: Int
+  let mut @h: Int
 
   # Generates a hash for the given bytes.
   #

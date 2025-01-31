@@ -16,7 +16,7 @@ impl Compare[Person] for Person {
 }
 
 type Counter {
-  let @value: Int
+  let mut @value: Int
 
   fn static new -> Counter {
     Counter(0)

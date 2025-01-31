@@ -203,7 +203,7 @@ trait pub Reporter {
 # A test reporter that prints results in a simple text based format.
 type pub Plain[T: mut + Write] {
   let @out: T
-  let @tests: Int
+  let mut @tests: Int
   let @failed: Array[Test]
   let @colors: Bool
 
@@ -406,7 +406,7 @@ impl Format for Filter {
 # A child process to run as part of a unit test.
 type pub Process {
   let @cmd: Command
-  let @stdin: String
+  let mut @stdin: String
 
   fn static new(id: Int) -> Process {
     let cmd = Command.new(env.executable.get)
@@ -483,17 +483,17 @@ type pub Tests {
   # The number of tests to run concurrently.
   #
   # This defaults to the number of CPU cores.
-  let pub @concurrency: Int
+  let pub mut @concurrency: Int
 
   # The reporter to use for producing test output.
   #
   # This defaults to the `Plain` reporter that writes to STDOUT. The use of
   # colors is enabled if STDOUT is connected to a terminal, unless the
   # `NO_COLOR` environment variable is set to a non-empty value.
-  let pub @reporter: Reporter
+  let pub mut @reporter: Reporter
 
   # The filter to apply to decide which tests to run.
-  let pub @filter: Filter
+  let pub mut @filter: Filter
 
   # The seed to use for ordering the tests.
   #
@@ -508,7 +508,7 @@ type pub Tests {
   # order `[B, C, A]`, due to tests being run concurrently. For a truly
   # deterministic execution order you'll also need to set the `concurrency`
   # field to `1`.
-  let pub @seed: Option[Int]
+  let pub mut @seed: Option[Int]
 
   # All the tests that have been registered.
   let @tests: Array[uni Test]

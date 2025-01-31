@@ -1,5 +1,5 @@
 type Thing {
-  let @a: Array[Int]
+  let mut @a: Array[Int]
   let @b: Array[Int]
 
   fn move invalid {

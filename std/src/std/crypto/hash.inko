@@ -13,7 +13,7 @@ type pub Block {
   let @bytes: ByteArray
 
   # The index to write the next byte to.
-  let @index: Int
+  let mut @index: Int
 
   # Returns a new `Block` with the given size in bytes.
   fn pub static new(size: Int) -> Block {

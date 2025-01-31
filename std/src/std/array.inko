@@ -112,9 +112,9 @@ fn pub inline bounds_check(index: Int, size: Int) {
 type builtin Array[T] {
   # The compiler depends on the order of these fields, so don't change it
   # without also updating the compiler.
-  let @size: Int
-  let @capacity: Int
-  let @buffer: Pointer[T]
+  let mut @size: Int
+  let mut @capacity: Int
+  let mut @buffer: Pointer[T]
 
   # Returns a new `Array` with enough space for at least `size` values.
   #
@@ -864,7 +864,7 @@ impl Array if T: Compare[T] {
 # dropped.
 type pub IntoIter[T] {
   let @array: Array[T]
-  let @index: Int
+  let mut @index: Int
 
   fn mut take_next -> T {
     @array.read_from(@index := @index + 1)

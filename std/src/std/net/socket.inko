@@ -137,7 +137,7 @@ type pub Socket {
   # A point in time after which socket operations time out.
   #
   # We use an `Int` to remove the need for using `Option[Instant]`.
-  let @deadline: Int
+  let mut @deadline: Int
 
   fn static new(ipv6: Bool, kind: Int, protocol: Int) -> Result[Socket, Error] {
     let sock = net.raw_socket
@@ -1172,7 +1172,7 @@ type pub UnixSocket {
   # A point in time after which socket operations time out.
   #
   # We use an `Int` to remove the need for using `Option[Instant]`.
-  let @deadline: Int
+  let mut @deadline: Int
 
   fn static new(kind: Int) -> Result[UnixSocket, Error] {
     let sock = net.raw_socket

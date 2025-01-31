@@ -26,7 +26,7 @@ fn pub fmt[T: Format](value: ref T) -> String {
 type pub TupleFormatter {
   let @formatter: mut Formatter
   let @named: Bool
-  let @fields: Int
+  let mut @fields: Int
 
   # Adds a new formatted field to the output.
   fn pub mut field[T: Format](value: ref T) -> mut TupleFormatter {
@@ -57,7 +57,7 @@ type pub TupleFormatter {
 # A type for making it easy to format array-like values.
 type pub ArrayFormatter {
   let @formatter: mut Formatter
-  let @fields: Int
+  let mut @fields: Int
 
   # Adds a new formatted value to the output.
   fn pub mut value[T: Format](value: ref T) -> mut ArrayFormatter {
@@ -82,7 +82,7 @@ type pub ArrayFormatter {
 type pub ObjectFormatter {
   let @formatter: mut Formatter
   let @named: Bool
-  let @fields: Int
+  let mut @fields: Int
 
   # Adds a new formatted field to the output.
   fn pub mut field[T: Format](
@@ -120,10 +120,10 @@ type pub ObjectFormatter {
 # The default formatter to use when formatting an object.
 type pub Formatter {
   let @buffer: StringBuffer
-  let @nesting: Int
+  let mut @nesting: Int
 
   # The maximum object depth before object formatting stops.
-  let pub @maximum_depth: Int
+  let pub mut @maximum_depth: Int
 
   # Returns a new `Formatter` with its default settings.
   fn pub static new -> Formatter {
