@@ -1,7 +1,7 @@
 use crate::error::Error;
 use crate::options::print_usage;
 use compiler::compiler::{CompileError, Compiler};
-use compiler::config::{Config, Output, SOURCE_EXT};
+use compiler::config::{Config, Opt, Output, SOURCE_EXT};
 use getopts::Options;
 use std::fs::{read_dir, read_to_string, write};
 use std::path::{Path, PathBuf};
@@ -47,6 +47,8 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
 
     if let Some(val) = matches.opt_str("opt") {
         config.set_opt(&val)?;
+    } else {
+        config.opt = Opt::None;
     }
 
     let main_file = config.main_test_module();
