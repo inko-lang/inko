@@ -174,7 +174,7 @@ fn expand_path(path: String) -> Result[String, Error] {
 }
 
 fn copy_file_fallback(
-  from: mut ReadOnlyFile,
+  from: ReadOnlyFile,
   to_path: String,
 ) -> Result[Int, Error] {
   # To provide a balance between performance and memory usage, we've chosen the

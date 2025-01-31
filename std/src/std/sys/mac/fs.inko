@@ -54,11 +54,11 @@ fn path_metadata(path: String) -> Result[Metadata, Error] {
   Result.Ok(stat_to_metadata(mut buf))
 }
 
-fn kernel_copy(from_file: mut ReadOnlyFile, to: String) -> Result[Bool, Error] {
+fn kernel_copy(from_file: Int32, to: String) -> Result[Bool, Error] {
   start_blocking
 
   let res = libc.fclonefileat(
-    from_file.fd,
+    from_file,
     libc.AT_FDCWD as Int32,
     to.to_pointer,
     0 as Int32,
@@ -84,7 +84,7 @@ fn kernel_copy(from_file: mut ReadOnlyFile, to: String) -> Result[Bool, Error] {
     start_blocking
 
     let res = libc.fcopyfile(
-      from_file.fd,
+      from_file,
       to_file.fd,
       0x0 as Pointer[UInt8],
       libc.COPYFILE_ALL as UInt32,
@@ -108,7 +108,7 @@ fn copy_file(from: String, to: String) -> Result[Int, Error] {
 
   # Both fclonefileat() and fcopyfile() copy the metadata (e.g. permissions), so
   # we don't need to manually apply those unlike on other platforms.
-  if try kernel_copy(from_file, to) { return Result.Ok(from_meta.size) }
+  if try kernel_copy(from_file.fd, to) { return Result.Ok(from_meta.size) }
 
   # If the input file is a special file such as /dev/stdin, the only way to copy
   # it is by doing so manually.
