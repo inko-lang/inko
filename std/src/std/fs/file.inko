@@ -17,6 +17,12 @@
 # _highly_ recommended to call `WriteOnlyFile.flush` / `ReadWriteFile.flush`
 # before dropping a file if you need to guarantee any pending writes are flushed
 # to the underlying storage medium.
+#
+# # Borrowing
+#
+# The various file types are `inline` types. This means that if a borrow of a
+# file type is used after the owned reference is dropped, file operations will
+# produce a `Error.InvalidFileDescriptor` error.
 import std.drop (Drop)
 import std.fs (Metadata)
 import std.fs.path (Path)
@@ -24,10 +30,7 @@ import std.io (Error, Read, Seek, Write, WriteInternal)
 import std.sys.unix.fs (self as sys) if unix
 
 # A file that can only be used for reads.
-#
-# `ReadOnlyFile` is allocated on the heap as this allows one to cast it to a
-# trait, such as the `Read` trait.
-type pub ReadOnlyFile {
+type pub inline ReadOnlyFile {
   let @fd: Int32
 
   # Returns a new `ReadOnlyFile`.
@@ -102,10 +105,7 @@ impl Seek for ReadOnlyFile {
 }
 
 # A file that can only be used for writes.
-#
-# `WriteOnlyFile` is allocated on the heap as this allows one to cast it to a
-# trait, such as the `Write` trait.
-type pub WriteOnlyFile {
+type pub inline WriteOnlyFile {
   let @fd: Int32
 
   # Opens a file in write-only mode.
@@ -214,10 +214,7 @@ impl Seek for WriteOnlyFile {
 }
 
 # A file that can be used for both reads and writes.
-#
-# `ReadWriteFile` is allocated on the heap as this allows one to cast it to a
-# trait, such as the `Write` trait.
-type pub ReadWriteFile {
+type pub inline ReadWriteFile {
   let @fd: Int32
 
   # Opens a file for both reading and writing:
