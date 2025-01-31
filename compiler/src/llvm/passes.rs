@@ -2,11 +2,11 @@ use crate::compiler::module_debug_path;
 use crate::config::{BuildDirectories, Opt};
 use crate::llvm::builder::Builder;
 use crate::llvm::constants::{
-    ARRAY_BUF_INDEX, ARRAY_CAPA_INDEX, ARRAY_LENGTH_INDEX,
-    CLASS_METHODS_COUNT_INDEX, CLASS_METHODS_INDEX, CLOSURE_CALL_INDEX,
-    DROPPER_INDEX, FIELD_OFFSET, HEADER_CLASS_INDEX, HEADER_REFS_INDEX,
+    ARRAY_BUF_INDEX, ARRAY_CAPA_INDEX, ARRAY_LENGTH_INDEX, CLOSURE_CALL_INDEX,
+    DROPPER_INDEX, FIELD_OFFSET, HEADER_REFS_INDEX, HEADER_TYPE_INDEX,
     METHOD_FUNCTION_INDEX, METHOD_HASH_INDEX, PROCESS_FIELD_OFFSET,
     STACK_DATA_EPOCH_INDEX, STACK_DATA_PROCESS_INDEX, STATE_EPOCH_INDEX,
+    TYPE_METHODS_COUNT_INDEX, TYPE_METHODS_INDEX,
 };
 use crate::llvm::context::Context;
 use crate::llvm::layouts::{
@@ -733,7 +733,7 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
                 let method_addr = builder.array_field_index_address(
                     self.layouts.empty_type,
                     type_ptr,
-                    CLASS_METHODS_INDEX,
+                    TYPE_METHODS_INDEX,
                     slot,
                 );
 
@@ -1985,7 +1985,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                     .load_field(
                         self.layouts.header,
                         rec.into_pointer_value(),
-                        HEADER_CLASS_INDEX,
+                        HEADER_TYPE_INDEX,
                     )
                     .into_pointer_value();
 
@@ -1998,7 +1998,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                             .load_field(
                                 rec_type,
                                 rec_type_ptr,
-                                CLASS_METHODS_COUNT_INDEX,
+                                TYPE_METHODS_COUNT_INDEX,
                             )
                             .into_int_value(),
                         self.builder.u16_literal(1),
@@ -2026,7 +2026,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 let method_addr = self.builder.array_field_index_address(
                     rec_type,
                     rec_type_ptr,
-                    CLASS_METHODS_INDEX,
+                    TYPE_METHODS_INDEX,
                     slot,
                 );
 
@@ -2102,33 +2102,28 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                     layout.arguments.push(ArgumentType::StructReturn(t))
                 }
 
-                for reg in [ins.receiver].iter().chain(ins.arguments.iter()) {
-                    let raw = self.variable_types[reg];
+                for &reg in [ins.receiver].iter().chain(ins.arguments.iter()) {
                     let typ = self.builder.context.argument_type(
                         self.shared.state,
-                        self.layouts.target_data,
-                        raw,
+                        self.layouts,
+                        self.register_type(reg),
                     );
 
                     layout.arguments.push(typ);
                 }
 
                 // Load the method from the method table.
-                let rec = self.builder.load(rec_typ, rec_var);
+                let rec =
+                    self.builder.load(rec_typ, rec_var).into_pointer_value();
                 let typ_ptr = self
                     .builder
-                    .load_field(
-                        self.layouts.header,
-                        rec.into_pointer_value(),
-                        HEADER_CLASS_INDEX,
-                    )
+                    .load_field(self.layouts.header, rec, HEADER_TYPE_INDEX)
                     .into_pointer_value();
-
                 let slot = self.builder.u32_literal(CLOSURE_CALL_INDEX);
                 let method_addr = self.builder.array_field_index_address(
                     self.layouts.empty_type,
                     typ_ptr,
-                    CLASS_METHODS_INDEX,
+                    TYPE_METHODS_INDEX,
                     slot,
                 );
 
@@ -2162,24 +2157,21 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 layout.returns = ReturnType::Regular(reg_typ);
                 layout.arguments.push(self.builder.context.argument_type(
                     self.shared.state,
-                    self.layouts.target_data,
-                    rec_typ,
+                    self.layouts,
+                    self.register_type(ins.receiver),
                 ));
 
-                let rec = self.builder.load(rec_typ, rec_var);
+                let rec =
+                    self.builder.load(rec_typ, rec_var).into_pointer_value();
                 let rec_type_ptr = self
                     .builder
-                    .load_field(
-                        self.layouts.header,
-                        rec.into_pointer_value(),
-                        HEADER_CLASS_INDEX,
-                    )
+                    .load_field(self.layouts.header, rec, HEADER_TYPE_INDEX)
                     .into_pointer_value();
                 let slot = self.builder.u32_literal(DROPPER_INDEX);
                 let addr = self.builder.array_field_index_address(
                     self.layouts.empty_type,
                     rec_type_ptr,
-                    CLASS_METHODS_INDEX,
+                    TYPE_METHODS_INDEX,
                     slot,
                 );
                 let method = self
@@ -2701,16 +2693,15 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
     fn define_register_variables(&mut self) {
         for index in 0..self.method.registers.len() {
-            let id = RegisterId(index as _);
-            let raw = self.method.registers.value_type(id);
+            let reg = RegisterId(index as _);
             let typ = self.builder.context.llvm_type(
                 &self.shared.state.db,
                 self.layouts,
-                raw,
+                self.register_type(reg),
             );
 
-            self.variables.insert(id, self.builder.new_temporary(typ));
-            self.variable_types.insert(id, typ);
+            self.variables.insert(reg, self.builder.new_temporary(typ));
+            self.variable_types.insert(reg, typ);
         }
     }
 

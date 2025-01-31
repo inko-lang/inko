@@ -107,25 +107,27 @@ struct CallSite {
 
 impl CallSite {
     fn new(
-        target: RegisterId,
         block: BlockId,
         instruction: usize,
-        receiver: Option<RegisterId>,
-        arguments: &[RegisterId],
+        call: Call,
         callee: &Method,
-        location: InstructionLocation,
     ) -> CallSite {
-        let mut caller_args =
-            if let Some(rec) = receiver { vec![rec] } else { Vec::new() };
+        let mut args = Vec::with_capacity(
+            call.arguments.len() + (call.receiver.is_some() as usize),
+        );
 
-        caller_args.extend(arguments);
+        if let Some(r) = call.receiver {
+            args.push(r);
+        }
+
+        args.extend(call.arguments);
         CallSite {
-            target,
+            target: call.register,
             block,
             instruction,
             id: callee.id,
-            arguments: caller_args,
-            location,
+            arguments: args,
+            location: call.location,
         }
     }
 }
@@ -800,20 +802,18 @@ impl<'a, 'b, 'c> InlineMethod<'a, 'b, 'c> {
             for (ins_idx, ins) in block.instructions.iter().enumerate() {
                 let callee = match self.inline_result(caller_weight, ins) {
                     Some(call) => {
-                        let weight = self.graph.node(call.id).weight;
+                        let id = call.id;
+                        let weight = self.graph.node(id).weight;
 
                         sites.push(CallSite::new(
-                            call.register,
                             BlockId(blk_idx),
                             ins_idx,
-                            call.receiver,
-                            call.arguments,
-                            self.mir.methods.get(&call.id).unwrap(),
-                            call.location,
+                            call,
+                            self.mir.methods.get(&id).unwrap(),
                         ));
 
                         caller_weight = caller_weight.saturating_add(weight);
-                        call.id
+                        id
                     }
                     _ => continue,
                 };

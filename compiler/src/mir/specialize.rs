@@ -369,20 +369,6 @@ impl<'a, 'b> Specialize<'a, 'b> {
         for block in &mut method.body.blocks {
             for instruction in &mut block.instructions {
                 match instruction {
-                    Instruction::Borrow(ins) => {
-                        let src = method.registers.value_type(ins.value);
-                        let reg = method.registers.value_type(ins.register);
-                        let db = &self.state.db;
-
-                        method.registers.get_mut(ins.register).value_type =
-                            if reg.is_ref(db) {
-                                src.as_ref(db)
-                            } else if reg.is_mut(db) {
-                                src.force_as_mut(db)
-                            } else {
-                                src
-                            };
-                    }
                     Instruction::CallExtern(ins) => {
                         mir.extern_methods.insert(ins.method);
                     }

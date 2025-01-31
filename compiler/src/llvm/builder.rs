@@ -1,4 +1,4 @@
-use crate::llvm::constants::{HEADER_CLASS_INDEX, HEADER_REFS_INDEX};
+use crate::llvm::constants::{HEADER_REFS_INDEX, HEADER_TYPE_INDEX};
 use crate::llvm::context::Context;
 use crate::llvm::module::Module;
 use crate::llvm::runtime_function::RuntimeFunction;
@@ -809,7 +809,7 @@ impl<'ctx> Builder<'ctx> {
         // have been created (instead of underflowing).
         let refs = self.u32_literal(if atomic { 1 } else { 0 });
 
-        self.store_field(header, res, HEADER_CLASS_INDEX, type_ptr);
+        self.store_field(header, res, HEADER_TYPE_INDEX, type_ptr);
         self.store_field(header, res, HEADER_REFS_INDEX, refs);
         res
     }

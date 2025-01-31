@@ -534,7 +534,8 @@ trait pub Write {
   # Writes the entirety of `string` to the underlying stream, followed by
   # writing a Unix newline to the stream.
   fn pub mut print(string: String) -> Result[Nil, Error] {
-    write_string(string).then(fn (_) { write_string('\n') })
+    try write_string(string)
+    write_string('\n')
   }
 
   # Flushes any pending writes to the file system.
@@ -736,7 +737,7 @@ trait pub BufferedRead: Read {
   #
   # reader.bytes.next # => Option.Some(Result.Ok(35))
   # ```
-  fn pub mut bytes -> Stream[Result[Int, Error]] {
+  fn pub move bytes -> Stream[Result[Int, Error]] {
     Stream.new(fn move {
       match read_byte {
         case Ok(Some(num)) -> Option.Some(Result.Ok(num))

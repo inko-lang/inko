@@ -191,7 +191,7 @@ impl<'a> DefineTypeSignature<'a> {
             hir::Type::Ref(_) | hir::Type::Mut(_) if !self.rules.allow_refs => {
                 self.state.diagnostics.error(
                     DiagnosticId::DuplicateSymbol,
-                    "references to types aren't allowed here",
+                    "borrows are not allowed in this context",
                     self.file(),
                     node.location(),
                 );
@@ -265,7 +265,7 @@ impl<'a> DefineTypeSignature<'a> {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidSymbol,
                     format!(
-                        "'{}' is private, but private types can't be used here",
+                        "'{}' is private type, but a public type is required",
                         name
                     ),
                     self.file(),

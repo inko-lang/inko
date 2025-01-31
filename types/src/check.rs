@@ -561,20 +561,8 @@ impl<'a> TypeChecker<'a> {
                 TypeRef::Error => true,
                 _ => false,
             },
-            TypeRef::UniRef(left_id) => match right {
-                TypeRef::UniRef(right_id) | TypeRef::Ref(right_id) => {
-                    self.check_type_id(left_id, right_id, env, rules)
-                }
-                TypeRef::Error => true,
-                _ => false,
-            },
-            TypeRef::UniMut(left_id) => match right {
-                TypeRef::UniMut(right_id) => {
-                    self.check_type_id(left_id, right_id, env, rules)
-                }
-                TypeRef::Error => true,
-                _ => false,
-            },
+            TypeRef::UniRef(_) => right.is_error(self.db),
+            TypeRef::UniMut(_) => right.is_error(self.db),
             TypeRef::Placeholder(left_id) => {
                 use Ownership::*;
 
@@ -1814,8 +1802,8 @@ mod tests {
 
         check_ok(&db, immutable(instance(thing)), TypeRef::Error);
         check_ok(&db, immutable(instance(int)), any(parameter(param)));
-        check_ok(&db, immutable(instance(int)), placeholder(mutable_var));
 
+        check_err(&db, immutable(instance(int)), placeholder(mutable_var));
         check_err(&db, immutable(instance(int)), mutable(instance(int)));
         check_err(&db, immutable(instance(thing)), mutable(instance(thing)));
         check_err(&db, immutable(instance(thing)), owned(instance(thing)));
@@ -2004,55 +1992,49 @@ mod tests {
     }
 
     #[test]
-    fn test_ref_uni() {
+    fn test_uni_ref() {
         let mut db = Database::new();
         let thing = new_type(&mut db, "Thing");
         let var = TypePlaceholder::alloc(&mut db, None);
 
-        check_ok(
-            &db,
-            TypeRef::UniRef(instance(thing)),
-            TypeRef::UniRef(instance(thing)),
-        );
-        check_ok(
-            &db,
-            TypeRef::UniRef(instance(thing)),
-            TypeRef::Ref(instance(thing)),
-        );
-        check_ok(&db, TypeRef::UniRef(instance(thing)), TypeRef::Error);
-
+        check_ok(&db, immutable_uni(instance(thing)), TypeRef::Error);
         check_err(
             &db,
-            TypeRef::UniRef(instance(thing)),
-            TypeRef::UniMut(instance(thing)),
+            immutable_uni(instance(thing)),
+            immutable(instance(thing)),
         );
-        check_err(&db, TypeRef::UniRef(instance(thing)), placeholder(var));
+        check_err(
+            &db,
+            immutable_uni(instance(thing)),
+            immutable_uni(instance(thing)),
+        );
+        check_err(
+            &db,
+            immutable_uni(instance(thing)),
+            mutable_uni(instance(thing)),
+        );
+        check_err(&db, immutable_uni(instance(thing)), placeholder(var));
     }
 
     #[test]
-    fn test_mut_uni() {
+    fn test_uni_mut() {
         let mut db = Database::new();
         let thing = new_type(&mut db, "Thing");
         let var = TypePlaceholder::alloc(&mut db, None);
 
-        check_ok(
-            &db,
-            TypeRef::UniMut(instance(thing)),
-            TypeRef::UniMut(instance(thing)),
-        );
-        check_ok(&db, TypeRef::UniMut(instance(thing)), TypeRef::Error);
-
+        check_ok(&db, mutable_uni(instance(thing)), TypeRef::Error);
         check_err(
             &db,
-            TypeRef::UniMut(instance(thing)),
-            TypeRef::UniRef(instance(thing)),
+            mutable_uni(instance(thing)),
+            mutable_uni(instance(thing)),
         );
         check_err(
             &db,
-            TypeRef::UniMut(instance(thing)),
-            TypeRef::Mut(instance(thing)),
+            mutable_uni(instance(thing)),
+            immutable_uni(instance(thing)),
         );
-        check_err(&db, TypeRef::UniMut(instance(thing)), placeholder(var));
+        check_err(&db, mutable_uni(instance(thing)), mutable(instance(thing)));
+        check_err(&db, mutable_uni(instance(thing)), placeholder(var));
     }
 
     #[test]

@@ -50,8 +50,8 @@ fn example6 {
   ref a
 }
 
-# uni_aliasing.inko:17:3 error(invalid-type): the type of this expression ('Option[uni ref User]') is invalid because it contains an 'uni ref T' or 'uni mut T' value
-# uni_aliasing.inko:24:3 error(invalid-type): the type of this expression ('Option[uni ref User]') is invalid because it contains an 'uni ref T' or 'uni mut T' value
-# uni_aliasing.inko:30:38 error(invalid-type): the type of this expression ('Option[uni ref User]') is invalid because it contains an 'uni ref T' or 'uni mut T' value
-# uni_aliasing.inko:35:43 error(invalid-type): the type of this expression ('Option[uni ref User]') is invalid because it contains an 'uni ref T' or 'uni mut T' value
-# uni_aliasing.inko:42:43 error(invalid-type): the type of this expression ('Option[uni ref User]') is invalid because it contains an 'uni ref T' or 'uni mut T' value
+# uni_aliasing.inko:17:3 error(invalid-type): the type of this expression ('Option[uni ref User]') is invalid because it is or contains a borrow of a 'uni T' value
+# uni_aliasing.inko:24:3 error(invalid-type): the type of this expression ('Option[uni ref User]') is invalid because it is or contains a borrow of a 'uni T' value
+# uni_aliasing.inko:30:38 error(invalid-type): the type of this expression ('Option[uni ref User]') is invalid because it is or contains a borrow of a 'uni T' value
+# uni_aliasing.inko:35:43 error(invalid-type): the type of this expression ('Option[uni ref User]') is invalid because it is or contains a borrow of a 'uni T' value
+# uni_aliasing.inko:42:43 error(invalid-type): the type of this expression ('Option[uni ref User]') is invalid because it is or contains a borrow of a 'uni T' value

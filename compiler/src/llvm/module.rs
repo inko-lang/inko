@@ -182,7 +182,7 @@ impl<'a, 'ctx> Module<'a, 'ctx> {
                     // For borrows we _don't_ set the "readonly" attribute, as
                     // we modify the reference count through the pointer.
                     if ltyp.is_pointer_type() {
-                        if typ.is_uni(db) {
+                        if typ.is_uni_value(db) {
                             let attr = self.context.flag("noalias");
 
                             fn_val.add_attribute(loc, attr);

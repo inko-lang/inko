@@ -131,10 +131,7 @@ impl<'ctx> Method<'ctx> {
             .iter()
             .chain(method.argument_types(db))
         {
-            let raw = context.llvm_type(db, layouts, typ);
-            let typ = context.argument_type(state, layouts.target_data, raw);
-
-            args.push(typ);
+            args.push(context.argument_type(state, layouts, typ));
         }
 
         Method {
@@ -228,7 +225,7 @@ impl<'ctx> Layouts<'ctx> {
         // are removed through optimizations, but at worst we'd waste a few KiB.
         let mut instances = vec![empty_struct; num_types];
         let header = context.struct_type(&[
-            context.pointer_type().into(), // Class
+            context.pointer_type().into(), // Type
             context.i32_type().into(),     // References
         ]);
 

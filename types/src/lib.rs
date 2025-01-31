@@ -4118,8 +4118,8 @@ pub enum VerificationError {
     /// The type isn't fully inferred.
     Incomplete,
 
-    /// The type contains one or more aliases to an `uni T` type.
-    UniViolation,
+    /// The type contains one or more borrows of a unique value.
+    UniValueBorrow,
 }
 
 /// A reference to a type.
@@ -4134,11 +4134,11 @@ pub enum TypeRef {
     /// An immutable reference to a type.
     Ref(TypeEnum),
 
-    /// An immutable, temporary and unique reference.
-    UniRef(TypeEnum),
-
     /// A mutable reference to a type.
     Mut(TypeEnum),
+
+    /// An immutable, temporary and unique reference.
+    UniRef(TypeEnum),
 
     /// A mutable, temporary and unique reference.
     UniMut(TypeEnum),
@@ -4419,6 +4419,11 @@ impl TypeRef {
         }
     }
 
+    pub fn is_closure(self, db: &Database) -> bool {
+        self.as_type_enum(db)
+            .map_or(false, |v| matches!(v, TypeEnum::Closure(_)))
+    }
+
     pub fn is_rigid_type_parameter(self, db: &Database) -> bool {
         matches!(self.as_type_enum(db), Ok(TypeEnum::RigidTypeParameter(_)))
     }
@@ -4469,11 +4474,11 @@ impl TypeRef {
         }
     }
 
-    pub fn is_uni(self, db: &Database) -> bool {
+    pub fn is_uni_value(self, db: &Database) -> bool {
         match self {
             TypeRef::Uni(_) => true,
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(false, |v| v.is_uni(db))
+                id.value(db).map_or(false, |v| v.is_uni_value(db))
             }
             _ => false,
         }
@@ -4576,6 +4581,17 @@ impl TypeRef {
         self.is_instance_of(db, TypeId::nil())
     }
 
+    pub fn allow_capturing(self, db: &Database, moving: bool) -> bool {
+        match self {
+            TypeRef::Uni(_) => moving,
+            TypeRef::UniRef(_) | TypeRef::UniMut(_) => false,
+            TypeRef::Placeholder(id) => {
+                id.value(db).map_or(true, |v| v.allow_capturing(db, moving))
+            }
+            _ => true,
+        }
+    }
+
     pub fn allow_moving(self, db: &Database) -> bool {
         match self {
             TypeRef::Owned(_) | TypeRef::Uni(_) => true,
@@ -4595,6 +4611,7 @@ impl TypeRef {
             TypeRef::Owned(TypeEnum::TypeInstance(ins))
             | TypeRef::Mut(TypeEnum::TypeInstance(ins))
             | TypeRef::Uni(TypeEnum::TypeInstance(ins))
+            | TypeRef::UniMut(TypeEnum::TypeInstance(ins))
             | TypeRef::Pointer(TypeEnum::TypeInstance(ins)) => {
                 ins.instance_of.allow_field_assignments(db)
             }
@@ -4619,10 +4636,6 @@ impl TypeRef {
             TypeRef::Any(
                 TypeEnum::TypeParameter(id) | TypeEnum::RigidTypeParameter(id),
             ) => id.is_mutable(db),
-            TypeRef::Ref(TypeEnum::TypeInstance(ins)) => {
-                ins.instance_of.is_value_type(db)
-                    && !ins.instance_of().kind(db).is_async()
-            }
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(false, |v| v.allow_mutating(db))
             }
@@ -4650,14 +4663,18 @@ impl TypeRef {
         }
     }
 
-    pub fn is_uni_ref(self, db: &Database) -> bool {
+    pub fn is_uni_value_borrow(self, db: &Database) -> bool {
         match self {
             TypeRef::UniRef(_) | TypeRef::UniMut(_) => true,
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(false, |v| v.is_uni_ref(db))
+                id.value(db).map_or(false, |v| v.is_uni_value_borrow(db))
             }
             _ => false,
         }
+    }
+
+    pub fn is_assignable(self, db: &Database) -> bool {
+        !self.is_uni_value_borrow(db)
     }
 
     pub fn is_sendable(self, db: &Database) -> bool {
@@ -4700,7 +4717,7 @@ impl TypeRef {
 
     pub fn cast_according_to(self, db: &Database, other: TypeRef) -> Self {
         if self.is_value_type(db) {
-            return if other.is_uni(db) {
+            return if other.is_uni_value(db) {
                 self.as_uni(db)
             } else if other.is_ref_or_mut(db) && self.is_extern_instance(db) {
                 self.as_pointer(db)
@@ -4776,6 +4793,10 @@ impl TypeRef {
             }
             _ => false,
         }
+    }
+
+    pub fn allow_as_mut(self, db: &Database) -> bool {
+        self.allow_mutating(db)
     }
 
     pub fn as_mut(self, db: &Database) -> Self {
@@ -4962,8 +4983,10 @@ impl TypeRef {
             TypeRef::Owned(id)
             | TypeRef::Any(id)
             | TypeRef::Uni(id)
+            | TypeRef::Ref(id)
             | TypeRef::Mut(id)
-            | TypeRef::Ref(id) => TypeRef::UniMut(id),
+            | TypeRef::UniRef(id)
+            | TypeRef::UniMut(id) => TypeRef::UniMut(id),
             TypeRef::Placeholder(id) => {
                 if let Some(v) = id.value(db) {
                     v.force_as_uni_mut(db)
@@ -5061,6 +5084,8 @@ impl TypeRef {
             | TypeRef::Ref(TypeEnum::TypeParameter(id))
             | TypeRef::Mut(TypeEnum::TypeParameter(id))
             | TypeRef::Any(TypeEnum::TypeParameter(id))
+            | TypeRef::UniRef(TypeEnum::TypeParameter(id))
+            | TypeRef::UniMut(TypeEnum::TypeParameter(id))
             | TypeRef::Owned(TypeEnum::RigidTypeParameter(id))
             | TypeRef::Uni(TypeEnum::RigidTypeParameter(id))
             | TypeRef::Ref(TypeEnum::RigidTypeParameter(id))
@@ -5160,8 +5185,8 @@ impl TypeRef {
             TypeRef::Owned(id)
             | TypeRef::Uni(id)
             | TypeRef::Ref(id)
-            | TypeRef::UniRef(id)
             | TypeRef::Mut(id)
+            | TypeRef::UniRef(id)
             | TypeRef::UniMut(id)
             | TypeRef::Any(id) => match id {
                 TypeEnum::TypeInstance(ins) => {
@@ -5191,7 +5216,7 @@ impl TypeRef {
             // This in turn allows them to be used as e.g. the receiver of
             // methods in certain cases.
             TypeRef::UniRef(_) | TypeRef::UniMut(_) if depth > 0 => {
-                Err(VerificationError::UniViolation)
+                Err(VerificationError::UniValueBorrow)
             }
             TypeRef::Owned(id)
             | TypeRef::Uni(id)
@@ -5242,8 +5267,8 @@ impl TypeRef {
             | TypeRef::Uni(TypeEnum::TypeInstance(ins))
             | TypeRef::Ref(TypeEnum::TypeInstance(ins))
             | TypeRef::Mut(TypeEnum::TypeInstance(ins))
-            | TypeRef::UniMut(TypeEnum::TypeInstance(ins))
             | TypeRef::UniRef(TypeEnum::TypeInstance(ins))
+            | TypeRef::UniMut(TypeEnum::TypeInstance(ins))
             | TypeRef::Pointer(TypeEnum::TypeInstance(ins)) => {
                 Some(ins.instance_of)
             }
@@ -5260,8 +5285,8 @@ impl TypeRef {
             | TypeRef::Uni(TypeEnum::TypeInstance(ins))
             | TypeRef::Ref(TypeEnum::TypeInstance(ins))
             | TypeRef::Mut(TypeEnum::TypeInstance(ins))
-            | TypeRef::UniMut(TypeEnum::TypeInstance(ins))
-            | TypeRef::UniRef(TypeEnum::TypeInstance(ins)) => {
+            | TypeRef::UniRef(TypeEnum::TypeInstance(ins))
+            | TypeRef::UniMut(TypeEnum::TypeInstance(ins)) => {
                 let opt_typ = db.type_in_module(OPTION_MODULE, OPTION_TYPE);
                 let res_typ = db.type_in_module(RESULT_MODULE, RESULT_TYPE);
                 let params = ins.instance_of.type_parameters(db);
@@ -6614,9 +6639,35 @@ mod tests {
     }
 
     #[test]
+    fn test_type_ref_allow_as_mut() {
+        let mut db = Database::new();
+        let int = TypeId::int();
+        let var1 = TypePlaceholder::alloc(&mut db, None);
+        let var2 = TypePlaceholder::alloc(&mut db, None);
+        let param = new_parameter(&mut db, "A");
+        let foo = new_type(&mut db, "Foo");
+
+        param.set_mutable(&mut db);
+        var1.assign(&mut db, owned(instance(int)));
+        var2.assign(&mut db, owned(instance(foo)));
+
+        assert!(mutable(instance(foo)).allow_as_mut(&db));
+        assert!(placeholder(var2).allow_as_mut(&db));
+        assert!(owned(rigid(param)).allow_as_mut(&db));
+        assert!(uni(instance(int)).allow_as_mut(&db));
+
+        assert!(!owned(instance(int)).allow_as_mut(&db));
+        assert!(!immutable(instance(int)).allow_as_mut(&db));
+        assert!(!placeholder(var1).allow_as_mut(&db));
+        assert!(!owned(instance(int)).allow_as_mut(&db));
+        assert!(!owned(instance(int)).allow_as_mut(&db));
+    }
+
+    #[test]
     fn test_type_ref_as_ref() {
         let mut db = Database::new();
         let int = TypeId::int();
+        let thing = new_type(&mut db, "Thing");
         let ext = new_extern_type(&mut db, "Extern");
         let p1 = new_parameter(&mut db, "A");
         let p2 = new_parameter(&mut db, "A");
@@ -6627,7 +6678,11 @@ mod tests {
         assert_eq!(owned(instance(int)).as_ref(&db), owned(instance(int)));
         assert_eq!(
             uni(instance(int)).as_ref(&db),
-            TypeRef::UniRef(instance(int))
+            immutable_uni(instance(int))
+        );
+        assert_eq!(
+            owned(instance(thing)).as_ref(&db),
+            immutable(instance(thing))
         );
         assert_eq!(owned(rigid(p1)).as_ref(&db), immutable(rigid(p1)));
         assert_eq!(owned(instance(ext)).as_ref(&db), pointer(instance(ext)));
@@ -6653,10 +6708,7 @@ mod tests {
         p3.set_copy(&mut db);
 
         assert_eq!(owned(instance(int)).as_mut(&db), owned(instance(int)));
-        assert_eq!(
-            uni(instance(int)).as_mut(&db),
-            TypeRef::UniMut(instance(int))
-        );
+        assert_eq!(uni(instance(int)).as_mut(&db), mutable_uni(instance(int)));
 
         assert_eq!(any(rigid(p1)).as_mut(&db), immutable(rigid(p1)));
         assert_eq!(owned(parameter(p1)).as_mut(&db), mutable(parameter(p1)));
@@ -6804,19 +6856,19 @@ mod tests {
 
         assert_eq!(
             owned(instance(foo)).as_uni_borrow(&db),
-            TypeRef::UniMut(instance(foo))
+            mutable_uni(instance(foo))
         );
         assert_eq!(
             owned(instance(int)).as_uni_borrow(&db),
-            TypeRef::Owned(instance(int))
+            owned(instance(int))
         );
         assert_eq!(
             immutable(instance(foo)).as_uni_borrow(&db),
-            TypeRef::UniRef(instance(foo))
+            immutable_uni(instance(foo))
         );
         assert_eq!(
             mutable(instance(foo)).as_uni_borrow(&db),
-            TypeRef::UniMut(instance(foo))
+            mutable_uni(instance(foo))
         );
         assert_eq!(uni(instance(foo)).as_uni_borrow(&db), uni(instance(foo)));
     }
@@ -6889,7 +6941,6 @@ mod tests {
         param2.set_mutable(&mut db);
 
         assert!(uni(instance(TypeId::string())).allow_mutating(&db));
-        assert!(immutable(instance(TypeId::string())).allow_mutating(&db));
         assert!(mutable(parameter(param1)).allow_mutating(&db));
         assert!(mutable(rigid(param1)).allow_mutating(&db));
         assert!(owned(parameter(param1)).allow_mutating(&db));
@@ -6901,6 +6952,7 @@ mod tests {
         assert!(owned(instance(proc)).allow_mutating(&db));
         assert!(mutable(instance(proc)).allow_mutating(&db));
 
+        assert!(!immutable(instance(TypeId::string())).allow_mutating(&db));
         assert!(!immutable(instance(proc)).allow_mutating(&db));
         assert!(!immutable(parameter(param1)).allow_mutating(&db));
         assert!(!owned(instance(TypeId::string())).allow_mutating(&db));
@@ -6997,9 +7049,9 @@ mod tests {
         let cls3 = new_type(&mut db, "Bar");
         let ins = TypeInstance::new(cls1);
         let var = TypePlaceholder::alloc(&mut db, None);
-        let p1 = new_parameter(&mut db, "T");
-        let p2 = new_parameter(&mut db, "X");
-        let p3 = new_parameter(&mut db, "Z");
+        let p1 = new_parameter(&mut db, "A");
+        let p2 = new_parameter(&mut db, "B");
+        let p3 = new_parameter(&mut db, "C");
         let mut shapes = HashMap::new();
 
         cls2.set_copy_storage(&mut db);
@@ -7196,7 +7248,7 @@ mod tests {
     #[test]
     fn test_method_id_receiver_for_type_instance_with_process() {
         let mut db = Database::new();
-        let method = Method::alloc(
+        let m1 = Method::alloc(
             &mut db,
             ModuleId(0),
             Location::default(),
@@ -7204,12 +7256,24 @@ mod tests {
             Visibility::Private,
             MethodKind::Mutable,
         );
+        let m2 = Method::alloc(
+            &mut db,
+            ModuleId(0),
+            Location::default(),
+            "a".to_string(),
+            Visibility::Private,
+            MethodKind::Destructor,
+        );
 
         let proc = new_async_type(&mut db, "A");
-        let rec =
-            method.receiver_for_type_instance(&db, TypeInstance::new(proc));
-
-        assert_eq!(rec, mutable(instance(proc)));
+        assert_eq!(
+            m1.receiver_for_type_instance(&db, TypeInstance::new(proc)),
+            mutable(instance(proc))
+        );
+        assert_eq!(
+            m2.receiver_for_type_instance(&db, TypeInstance::new(proc)),
+            mutable(instance(proc))
+        );
     }
 
     #[test]
@@ -7232,6 +7296,18 @@ mod tests {
         assert!(!immutable(instance(ext)).is_extern_instance(&db));
         assert!(!mutable(instance(ext)).is_extern_instance(&db));
         assert!(!pointer(instance(ext)).is_extern_instance(&db));
+    }
+
+    #[test]
+    fn test_type_ref_is_assignable() {
+        let db = Database::new();
+        let int = TypeId::int();
+
+        assert!(owned(instance(int)).is_assignable(&db));
+        assert!(mutable(instance(int)).is_assignable(&db));
+        assert!(immutable(instance(int)).is_assignable(&db));
+        assert!(!mutable_uni(instance(int)).is_assignable(&db));
+        assert!(!immutable_uni(instance(int)).is_assignable(&db));
     }
 
     #[test]
