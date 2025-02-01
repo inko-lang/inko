@@ -352,3 +352,43 @@ methods such as `Iter.reduce` like so:
 ```inko
 let number = [10, 20, 30].iter.reduce(0, fn (total, num) { total + num })
 ```
+
+### Exposing captures
+
+When a variable is captured, they are exposed by value for `copy` types such as
+`Int` and `String`, but by borrow for other types. If the captured variable is
+an owned value or a mutable borrow, it's exposed as a mutable borrow:
+
+```inko
+let a = 10
+let b = [20]
+let c = ref b
+
+fn {
+  a # => Int
+  b # => mut Array[Int]
+  c # => ref Array[Int]
+}
+```
+
+When defining a closure using `fn move`, variables are moved into the closure
+but they're still exposed as a borrow when necessary:
+
+```inko
+let a = 10
+let b = [20]
+let c = ref b
+
+fn move {
+  a # => Int
+  b # => mut Array[Int]
+  c # => ref Array[Int]
+}
+```
+
+The reason for this is that while the captured variables are moved into the
+closure, closures can still be called multiple times and thus the variables have
+to be exposed as borrows. The ability to define closures that can only be called
+once (and thus allow moving captured variables out of closures) is something
+that [we looked into in past](https://github.com/inko-lang/inko/issues/347), but
+support for this isn't planned for the foreseeable future.
