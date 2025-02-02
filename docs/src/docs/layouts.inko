@@ -158,7 +158,7 @@ fn header(root: mut html.Element, config: ref Config, page: ref Page) {
     })
 
     h.div.attr('class', 'expand-menus').with(fn (div) {
-      div.add(toggle_menu('.top-bar nav', 'Show menu', 'Hide menu'))
+      div.add(toggle_menu('#top-bar nav', 'Show menu', 'Hide menu'))
       div.add(toggle_menu('.page aside.left', 'Show chapters', 'Hide chapters'))
     })
 
