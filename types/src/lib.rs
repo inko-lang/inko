@@ -4494,6 +4494,16 @@ impl TypeRef {
         }
     }
 
+    pub fn is_uni_value_borrow(self, db: &Database) -> bool {
+        match self {
+            TypeRef::UniRef(_) | TypeRef::UniMut(_) => true,
+            TypeRef::Placeholder(id) => {
+                id.value(db).map_or(false, |v| v.is_uni_value_borrow(db))
+            }
+            _ => false,
+        }
+    }
+
     pub fn require_sendable_arguments(self, db: &Database) -> bool {
         match self {
             TypeRef::Uni(_) | TypeRef::UniRef(_) | TypeRef::UniMut(_) => true,
@@ -4673,16 +4683,6 @@ impl TypeRef {
         }
     }
 
-    pub fn is_uni_value_borrow(self, db: &Database) -> bool {
-        match self {
-            TypeRef::UniRef(_) | TypeRef::UniMut(_) => true,
-            TypeRef::Placeholder(id) => {
-                id.value(db).map_or(false, |v| v.is_uni_value_borrow(db))
-            }
-            _ => false,
-        }
-    }
-
     pub fn is_assignable(self, db: &Database) -> bool {
         !self.is_uni_value_borrow(db)
     }
@@ -4701,6 +4701,21 @@ impl TypeRef {
     pub fn is_sendable_output(self, db: &Database) -> bool {
         match self {
             TypeRef::Uni(_) | TypeRef::Never | TypeRef::Error => true,
+            // Enums use the `Unknown` type for each generated field, generating
+            // the final types when lowering to LLVM. This means we need to
+            // treat such types as sendable.
+            TypeRef::Unknown => true,
+            // Processes are always sendable, regardless of what they store
+            // internally.
+            TypeRef::Owned(TypeEnum::TypeInstance(i))
+            | TypeRef::Ref(TypeEnum::TypeInstance(i))
+            | TypeRef::Mut(TypeEnum::TypeInstance(i))
+            | TypeRef::UniMut(TypeEnum::TypeInstance(i))
+            | TypeRef::UniRef(TypeEnum::TypeInstance(i))
+                if i.instance_of.kind(db).is_async() =>
+            {
+                true
+            }
             TypeRef::Owned(TypeEnum::TypeInstance(id)) => {
                 let typ = id.instance_of;
 

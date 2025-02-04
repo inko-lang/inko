@@ -520,7 +520,7 @@ impl MethodCall {
     }
 
     fn check_sendable(&mut self, state: &mut State, location: Location) {
-        if self.check_sendable.is_empty() {
+        if !self.require_sendable {
             return;
         }
 

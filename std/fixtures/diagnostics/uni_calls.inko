@@ -1,0 +1,50 @@
+type async Process {
+  let @a: Array[Example]
+  let @b: Array[ref Example]
+}
+
+type Example {
+  fn no_arguments -> ref Example {
+    self
+  }
+
+  fn return_immutable_argument(value: ref Example) -> ref Example {
+    value
+  }
+
+  fn return_sendable -> Option[Int] {
+    Option.Some(42)
+  }
+
+  fn return_process -> Process {
+    Process(a: recover [], b: recover [])
+  }
+}
+
+fn example1 {
+  let a = recover Example()
+
+  a.no_arguments
+}
+
+fn example2 {
+  let a = recover Example()
+  let b = Example()
+
+  a.return_immutable_argument(b)
+}
+
+fn example3 {
+  let a = recover Example()
+
+  a.return_sendable
+}
+
+fn example4 {
+  let a = recover Example()
+
+  a.return_process
+}
+
+# uni_calls.inko:27:5 error(invalid-call): the receiver of this call requires a sendable return type, but 'ref Example' isn't sendable
+# uni_calls.inko:34:5 error(invalid-call): the receiver of this call requires a sendable return type, but 'ref Example' isn't sendable
