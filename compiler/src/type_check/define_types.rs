@@ -635,7 +635,7 @@ impl<'a> DefineFields<'a> {
                     DiagnosticId::InvalidSymbol,
                     "'inline' and 'copy' types don't support mutable fields",
                     self.file(),
-                    node.location,
+                    loc,
                 );
             } else if fnode.mutable {
                 field.set_mutable(self.db_mut());
