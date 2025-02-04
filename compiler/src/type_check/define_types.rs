@@ -558,6 +558,7 @@ impl<'a> DefineFields<'a> {
         let scope = TypeScope::new(self.module, TypeEnum::Type(type_id), None);
         let is_enum = type_id.kind(self.db()).is_enum();
         let is_copy = type_id.is_copy_type(self.db());
+        let is_inline = type_id.is_inline_type(self.db());
         let is_main = self.main_module && node.name.name == MAIN_TYPE;
 
         for expr in &mut node.body {
@@ -629,10 +630,10 @@ impl<'a> DefineFields<'a> {
                 loc,
             );
 
-            if fnode.mutable && is_copy {
+            if fnode.mutable && (is_copy || is_inline) {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidSymbol,
-                    "fields of 'copy' types can't be made mutable",
+                    "'inline' and 'copy' types don't support mutable fields",
                     self.file(),
                     node.location,
                 );
