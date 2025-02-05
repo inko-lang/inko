@@ -159,7 +159,7 @@ type inline Matrix {
 # ChaCha is a stream cipher similar to Salsa20. Our implementation is based on
 # RFC 8439.
 #
-# This type provides only a stream cipher, and integrity/authenticity validation
+# This type provides only a stream cipher, no integrity/authenticity validation
 # is performed.
 #
 # For more information about ChaCha, consider reading/watching the following
