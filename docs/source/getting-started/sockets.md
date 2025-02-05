@@ -66,7 +66,7 @@ Next, we encounter the following:
 ```inko
 let addr = server.local_address.get
 
-client.connect(addr.ip.get, addr.port).get
+client.connect(addr.ip, addr.port).get
 client.write_string('Hello, world!').get
 ```
 
