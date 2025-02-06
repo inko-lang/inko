@@ -3,23 +3,24 @@ use inkwell::values::FunctionValue;
 
 #[derive(Copy, Clone)]
 pub(crate) enum RuntimeFunction {
-    ReferenceCountError,
-    NewType,
+    AllocationError,
+    Free,
+    Malloc,
     NewProcess,
+    NewType,
     ProcessFinishMessage,
     ProcessNew,
     ProcessPanic,
     ProcessSendMessage,
     ProcessYield,
+    ReferenceCountError,
     RuntimeDrop,
     RuntimeNew,
+    RuntimeStackMask,
     RuntimeStart,
     RuntimeState,
     StringConcat,
     StringNew,
-    RuntimeStackMask,
-    Free,
-    AllocationError,
 }
 
 impl RuntimeFunction {
@@ -44,6 +45,7 @@ impl RuntimeFunction {
             RuntimeFunction::StringConcat => "inko_string_concat",
             RuntimeFunction::StringNew => "inko_string_new",
             RuntimeFunction::RuntimeStackMask => "inko_runtime_stack_mask",
+            RuntimeFunction::Malloc => "malloc",
             RuntimeFunction::Free => "free",
             RuntimeFunction::AllocationError => "inko_alloc_error",
         }
@@ -162,6 +164,12 @@ impl RuntimeFunction {
                 let ret = context.void_type();
 
                 ret.fn_type(&[ptr], false)
+            }
+            RuntimeFunction::Malloc => {
+                let ptr = context.pointer_type();
+                let len = context.i64_type().into();
+
+                ptr.fn_type(&[len], false)
             }
             RuntimeFunction::AllocationError => {
                 let size = context.i64_type().into();

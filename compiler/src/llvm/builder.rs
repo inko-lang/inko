@@ -819,10 +819,16 @@ impl<'ctx> Builder<'ctx> {
         module: &'a mut Module<'b, 'ctx>,
         typ: T,
     ) -> PointerValue<'ctx> {
+        let size = typ.size_of().unwrap();
         let err_func =
             module.runtime_function(RuntimeFunction::AllocationError);
-        let size = typ.size_of().unwrap();
-        let res = self.inner.build_malloc(typ, "").unwrap();
+
+        // We don't use build_malloc() because for some reason this results in
+        // LLVM not annotating the function declaration properly, which could
+        // result in certain optimizations not being applied.
+        let malloc = module.runtime_function(RuntimeFunction::Malloc);
+        let res =
+            self.call_with_return(malloc, &[size.into()]).into_pointer_value();
         let err_block = self.add_block();
         let ok_block = self.add_block();
         let is_null = self.pointer_is_null(res);
