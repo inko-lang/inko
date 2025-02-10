@@ -1876,21 +1876,6 @@ mod tests {
     }
 
     #[test]
-    fn test_define_field_with_self_type() {
-        let mut state = State::new(Config::new());
-        let mut modules = parse(&mut state, "type Person { let @name: Self }");
-
-        DefineTypes::run_all(&mut state, &mut modules);
-
-        assert!(!DefineFields::run_all(&mut state, &mut modules));
-
-        let error = state.diagnostics.iter().next().unwrap();
-
-        assert_eq!(error.id(), DiagnosticId::InvalidSymbol);
-        assert_eq!(error.location(), &cols(26, 29));
-    }
-
-    #[test]
     fn test_define_trait_type_parameter() {
         let mut state = State::new(Config::new());
         let mut modules = parse(&mut state, "trait A[T] {}");

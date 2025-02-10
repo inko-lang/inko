@@ -1,0 +1,16 @@
+type List[T] {
+  fn static new -> Self {
+    List()
+  }
+
+  fn mut push(value: T) {}
+}
+
+fn example1 {
+  let a = List.new
+
+  a.push(42)
+  a.invalid
+}
+
+# return_self_type_from_static_method.inko:13:3 error(invalid-symbol): the method 'invalid' isn't defined for type 'List[Int]'

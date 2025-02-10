@@ -40,7 +40,7 @@ pub struct TypeSpecializer<'a, 'b, 'c> {
     shapes: &'b HashMap<TypeParameterId, Shape>,
 
     /// The type `self` is an instance of.
-    self_type: TypeInstance,
+    self_type: TypeEnum,
 }
 
 impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
@@ -49,7 +49,7 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
         interned: &'b mut InternedTypeArguments,
         shapes: &'b HashMap<TypeParameterId, Shape>,
         types: &'c mut Vec<TypeId>,
-        self_type: TypeInstance,
+        self_type: TypeEnum,
         key: &mut Vec<Shape>,
     ) {
         for shape in key {
@@ -64,7 +64,7 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
         interned: &'b mut InternedTypeArguments,
         shapes: &'b HashMap<TypeParameterId, Shape>,
         types: &'c mut Vec<TypeId>,
-        self_type: TypeInstance,
+        self_type: TypeEnum,
         shape: &mut Shape,
     ) {
         match shape {
@@ -86,7 +86,7 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
         interned: &'b mut InternedTypeArguments,
         shapes: &'b HashMap<TypeParameterId, Shape>,
         types: &'c mut Vec<TypeId>,
-        self_type: TypeInstance,
+        self_type: TypeEnum,
     ) -> TypeSpecializer<'a, 'b, 'c> {
         TypeSpecializer { db, interned, shapes, types, self_type }
     }
@@ -99,16 +99,22 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
             // closure captures `self` and `self` is a stack allocated type, the
             // closure is specialized correctly.
             TypeRef::Owned(TypeEnum::TraitInstance(i)) if i.self_type => {
-                TypeRef::Owned(TypeEnum::TypeInstance(self.self_type))
+                TypeRef::Owned(self.self_type)
             }
             TypeRef::Uni(TypeEnum::TraitInstance(i)) if i.self_type => {
-                TypeRef::Uni(TypeEnum::TypeInstance(self.self_type))
+                TypeRef::Uni(self.self_type)
             }
             TypeRef::Ref(TypeEnum::TraitInstance(i)) if i.self_type => {
-                TypeRef::Ref(TypeEnum::TypeInstance(self.self_type))
+                TypeRef::Ref(self.self_type)
             }
             TypeRef::Mut(TypeEnum::TraitInstance(i)) if i.self_type => {
-                TypeRef::Mut(TypeEnum::TypeInstance(self.self_type))
+                TypeRef::Mut(self.self_type)
+            }
+            TypeRef::UniRef(TypeEnum::TraitInstance(i)) if i.self_type => {
+                TypeRef::UniRef(self.self_type)
+            }
+            TypeRef::UniMut(TypeEnum::TraitInstance(i)) if i.self_type => {
+                TypeRef::UniMut(self.self_type)
             }
             // When specializing type parameters, we have to reuse existing
             // shapes if there are any. This leads to a bit of duplication, but
@@ -520,7 +526,7 @@ mod tests {
         let raw1 = owned(generic_instance_id(&mut db, ary, vec![int]));
         let raw2 = owned(generic_instance_id(&mut db, ary, vec![int]));
         let mut types = Vec::new();
-        let stype = TypeInstance::new(TypeId::int());
+        let stype = TypeEnum::TypeInstance(TypeInstance::new(TypeId::int()));
         let spec1 = TypeSpecializer::new(
             &mut db,
             &mut interned,
@@ -576,7 +582,7 @@ mod tests {
         let raw =
             TypeRef::Pointer(generic_instance_id(&mut db, ary, vec![int]));
         let mut types = Vec::new();
-        let stype = TypeInstance::new(TypeId::int());
+        let stype = TypeEnum::TypeInstance(TypeInstance::new(TypeId::int()));
         let spec = TypeSpecializer::new(
             &mut db,
             &mut interned,
@@ -605,7 +611,7 @@ mod tests {
             vec![immutable(instance(foo))],
         ));
         let mut types = Vec::new();
-        let stype = TypeInstance::new(TypeId::int());
+        let stype = TypeEnum::TypeInstance(TypeInstance::new(TypeId::int()));
         let spec = TypeSpecializer::new(
             &mut db,
             &mut interned,
@@ -688,7 +694,7 @@ mod tests {
 
         let mut interned = InternedTypeArguments::new();
         let mut types = Vec::new();
-        let stype = TypeInstance::new(TypeId::int());
+        let stype = TypeEnum::TypeInstance(TypeInstance::new(TypeId::int()));
         let spec = TypeSpecializer::new(
             &mut db,
             &mut interned,
@@ -751,7 +757,7 @@ mod tests {
         let raw =
             owned(generic_instance_id(&mut db, opt, vec![TypeRef::int()]));
 
-        let stype = TypeInstance::new(TypeId::int());
+        let stype = TypeEnum::TypeInstance(TypeInstance::new(TypeId::int()));
         let res = TypeSpecializer::new(
             &mut db,
             &mut interned,
@@ -790,7 +796,7 @@ mod tests {
         let raw = owned(generic_instance_id(&mut db, ary, vec![int]));
         let mut types = Vec::new();
         let mut interned = InternedTypeArguments::new();
-        let stype = TypeInstance::new(TypeId::int());
+        let stype = TypeEnum::TypeInstance(TypeInstance::new(TypeId::int()));
         let res1 = TypeSpecializer::new(
             &mut db,
             &mut interned,
@@ -823,7 +829,7 @@ mod tests {
 
         shapes.insert(param, Shape::Atomic);
 
-        let stype = TypeInstance::new(TypeId::int());
+        let stype = TypeEnum::TypeInstance(TypeInstance::new(TypeId::int()));
         let owned = TypeSpecializer::new(
             &mut db,
             &mut interned,
@@ -869,7 +875,7 @@ mod tests {
 
         shapes.insert(param, Shape::Mut);
 
-        let stype = TypeInstance::new(TypeId::int());
+        let stype = TypeEnum::TypeInstance(TypeInstance::new(TypeId::int()));
         let owned = TypeSpecializer::new(
             &mut db,
             &mut interned,
@@ -922,7 +928,7 @@ mod tests {
         let ins = TypeInstance::new(cls);
         let p1 = new_parameter(&mut db, "X");
         let p2 = new_parameter(&mut db, "Y");
-        let stype = TypeInstance::new(TypeId::int());
+        let stype = TypeEnum::TypeInstance(TypeInstance::new(TypeId::int()));
 
         shapes.insert(p1, Shape::Inline(ins));
         shapes.insert(p2, Shape::Copy(ins));
@@ -1030,7 +1036,7 @@ mod tests {
 
         old_self.self_type = true;
 
-        let new_self = TypeInstance::new(cls);
+        let new_self = TypeEnum::TypeInstance(TypeInstance::new(cls));
         let mut spec = TypeSpecializer::new(
             &mut db,
             &mut interned,
@@ -1041,19 +1047,19 @@ mod tests {
 
         assert_eq!(
             spec.specialize(owned(TypeEnum::TraitInstance(old_self))),
-            owned(TypeEnum::TypeInstance(new_self))
+            owned(new_self)
         );
         assert_eq!(
             spec.specialize(immutable(TypeEnum::TraitInstance(old_self))),
-            immutable(TypeEnum::TypeInstance(new_self))
+            immutable(new_self)
         );
         assert_eq!(
             spec.specialize(mutable(TypeEnum::TraitInstance(old_self))),
-            mutable(TypeEnum::TypeInstance(new_self))
+            mutable(new_self)
         );
         assert_eq!(
             spec.specialize(uni(TypeEnum::TraitInstance(old_self))),
-            uni(TypeEnum::TypeInstance(new_self))
+            uni(new_self)
         );
     }
 }

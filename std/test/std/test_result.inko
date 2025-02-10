@@ -1,15 +1,13 @@
 import std.fmt (fmt)
-import std.iter (Iter)
 import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
   t.test('Result.collect', fn (t) {
-    let foo = [Result.Ok(1), Result.Error('oops!'), Result.Ok(3)].into_iter
-    let bar = [Result.Ok(1), Result.Ok(2)].into_iter
-      as Iter[Result[Int, String]]
+    let foo = [Result.Ok(1), Result.Error('oops!'), Result.Ok(3)]
+    let bar: Array[Result[Int, String]] = [Result.Ok(1), Result.Ok(2)]
 
-    t.equal(Result.collect(foo), Result.Error('oops!'))
-    t.equal(Result.collect(bar), Result.Ok([1, 2]))
+    t.equal(Result.collect(foo.into_iter), Result.Error('oops!'))
+    t.equal(Result.collect(bar.into_iter), Result.Ok([1, 2]))
   })
 
   t.test('Result.ok?', fn (t) {

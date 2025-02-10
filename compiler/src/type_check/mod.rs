@@ -117,13 +117,25 @@ pub(crate) struct Rules {
     /// If references are allowed.
     pub(crate) allow_refs: bool,
 
-    /// If the "Never" type can be used.
+    /// If the `Never` type can be used.
     pub(crate) allow_never: bool,
+
+    /// If upon encountering a `Self` type we should flag the surrounding trait
+    /// as not allowing casts.
+    pub(crate) mark_trait_for_self: bool,
+
+    /// If the `Self` type can be used.
+    pub(crate) allow_self: bool,
 }
 
 impl Rules {
     pub(crate) fn with_never(mut self) -> Rules {
         self.allow_never = true;
+        self
+    }
+
+    pub(crate) fn without_self_type(mut self) -> Rules {
+        self.allow_self = false;
         self
     }
 }
@@ -135,6 +147,8 @@ impl Default for Rules {
             allow_private_types: true,
             allow_refs: true,
             allow_never: false,
+            mark_trait_for_self: false,
+            allow_self: true,
         }
     }
 }
@@ -322,7 +336,7 @@ impl<'a> DefineTypeSignature<'a> {
                 "Never" if !self.rules.allow_never => {
                     self.state.diagnostics.error(
                         DiagnosticId::InvalidType,
-                        "The 'Never' type can't be used in this context",
+                        "the 'Never' type can't be used in this context",
                         self.file(),
                         node.location,
                     );
@@ -342,6 +356,28 @@ impl<'a> DefineTypeSignature<'a> {
 
                         return TypeRef::Error;
                     }
+                }
+                "Self" => {
+                    if !self.rules.allow_self {
+                        self.state.diagnostics.error(
+                            DiagnosticId::InvalidType,
+                            "the 'Self' type can't be used in this context",
+                            self.file(),
+                            node.location,
+                        );
+
+                        return TypeRef::Error;
+                    }
+
+                    if self.rules.mark_trait_for_self {
+                        if let TypeEnum::TraitInstance(i) = self.scope.self_type
+                        {
+                            i.instance_of().set_not_cast_safe(self.db_mut());
+                        }
+                    }
+
+                    node.self_type = true;
+                    kind.into_type_ref(self.scope.self_type)
                 }
                 name => {
                     if let Some(ctype) = self.resolve_foreign_type(
@@ -761,6 +797,19 @@ impl<'a> CheckTypeSignature<'a> {
         let given = node.arguments.len();
 
         if given == 0 && required == 0 {
+            return false;
+        }
+
+        if node.self_type {
+            if given > 0 {
+                self.state.diagnostics.incorrect_number_of_type_arguments(
+                    0,
+                    given,
+                    self.file(),
+                    node.location,
+                );
+            }
+
             return false;
         }
 
@@ -1200,6 +1249,7 @@ mod tests {
         );
 
         let mut node = hir::Type::Named(Box::new(hir::TypeName {
+            self_type: false,
             source: Some(hir::Identifier {
                 name: "foo".to_string(),
                 location: cols(1, 1),

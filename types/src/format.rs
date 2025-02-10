@@ -9,7 +9,7 @@ use crate::{
 const MAX_FORMATTING_DEPTH: usize = 8;
 
 pub fn format_type<T: FormatType>(db: &Database, typ: T) -> String {
-    TypeFormatter::new(db, None).format(typ)
+    TypeFormatter::new(db, None, None).format(typ)
 }
 
 pub fn format_type_with_arguments<T: FormatType>(
@@ -17,7 +17,7 @@ pub fn format_type_with_arguments<T: FormatType>(
     arguments: &TypeArguments,
     typ: T,
 ) -> String {
-    TypeFormatter::new(db, Some(arguments)).format(typ)
+    TypeFormatter::new(db, None, Some(arguments)).format(typ)
 }
 
 pub fn type_parameter_capabilities(
@@ -120,6 +120,7 @@ fn format_type_parameter(
 pub struct TypeFormatter<'a> {
     db: &'a Database,
     type_arguments: Option<&'a TypeArguments>,
+    self_type: Option<TypeEnum>,
     buffer: String,
     depth: usize,
 }
@@ -127,16 +128,18 @@ pub struct TypeFormatter<'a> {
 impl<'a> TypeFormatter<'a> {
     pub fn new(
         db: &'a Database,
+        self_type: Option<TypeEnum>,
         type_arguments: Option<&'a TypeArguments>,
     ) -> Self {
-        Self { db, type_arguments, buffer: String::new(), depth: 0 }
+        Self { db, self_type, type_arguments, buffer: String::new(), depth: 0 }
     }
 
-    pub fn verbose(
+    pub fn with_self_type(
         db: &'a Database,
+        self_type: TypeEnum,
         type_arguments: Option<&'a TypeArguments>,
     ) -> Self {
-        Self { db, type_arguments, buffer: String::new(), depth: 0 }
+        TypeFormatter::new(db, Some(self_type), type_arguments)
     }
 
     pub fn format<T: FormatType>(mut self, typ: T) -> String {
@@ -311,6 +314,16 @@ impl FormatType for TraitId {
 
 impl FormatType for TraitInstance {
     fn format_type(&self, buffer: &mut TypeFormatter) {
+        if self.self_type {
+            match buffer.self_type {
+                Some(TypeEnum::TraitInstance(_)) | None => {
+                    buffer.write("Self");
+                    return;
+                }
+                Some(e) => return e.format_type(buffer),
+            }
+        }
+
         buffer.descend(|buffer| {
             let ins_of = self.instance_of.get(buffer.db);
 
@@ -543,6 +556,25 @@ mod tests {
         let trait_ins = TraitInstance::new(trait_id);
 
         assert_eq!(format_type(&db, trait_ins), "A".to_string());
+    }
+
+    #[test]
+    fn test_trait_instance_format_type_with_self_type() {
+        let mut db = Database::new();
+        let trait_id = Trait::alloc(
+            &mut db,
+            "Equal".to_string(),
+            Visibility::Private,
+            ModuleId(0),
+            Location::default(),
+        );
+        let trait_ins = TraitInstance::new(trait_id).as_self_type();
+        let stype = instance(TypeId::int());
+        let fmt1 = TypeFormatter::with_self_type(&db, stype, None);
+        let fmt2 = TypeFormatter::new(&db, None, None);
+
+        assert_eq!(fmt1.format(trait_ins), "Int".to_string());
+        assert_eq!(fmt2.format(trait_ins), "Self".to_string());
     }
 
     #[test]

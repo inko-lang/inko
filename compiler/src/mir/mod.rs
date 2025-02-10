@@ -2287,7 +2287,12 @@ impl Mir {
                 if let Some(stype) = tid.specialization_key(&state.db).self_type
                 {
                     let self_node = state.dependency_graph.add_module(
-                        stype.instance_of().module(&state.db).name(&state.db),
+                        stype
+                            .as_type_instance()
+                            .unwrap()
+                            .instance_of()
+                            .module(&state.db)
+                            .name(&state.db),
                     );
 
                     state

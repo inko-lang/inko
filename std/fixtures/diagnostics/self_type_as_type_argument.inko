@@ -1,0 +1,9 @@
+trait Iterator[T] {
+  fn move valid -> Peekable[T, Self]
+
+  fn move invalid -> Peekable[T, Self[Int]]
+}
+
+type Peekable[A, B] {}
+
+# self_type_as_type_argument.inko:4:34 error(invalid-type): incorrect number of type arguments: expected 0, found 1

@@ -1,0 +1,11 @@
+trait Trait {
+  fn method(value: Self)
+}
+
+type Type {}
+
+impl Trait for Type {
+  fn method(value: Int) {}
+}
+
+# incompatible_method_with_self_type.inko:8:3 error(invalid-method): the method 'fn method(value: Int)' isn't compatible with 'fn method(value: Type)'

@@ -45,6 +45,7 @@ pub(crate) fn hir_type_name(
     location: Location,
 ) -> hir::TypeName {
     hir::TypeName {
+        self_type: false,
         source: None,
         resolved_type: TypeRef::Unknown,
         name: hir::Constant { name: name.to_string(), location },

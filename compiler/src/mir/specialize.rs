@@ -7,11 +7,12 @@ use indexmap::{IndexMap, IndexSet};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::mem::swap;
 use types::check::TypeChecker;
+use types::format::format_type;
 use types::specialize::{ordered_shapes_from_map, TypeSpecializer};
 use types::{
     Block as _, Database, InternedTypeArguments, MethodId, Shape,
-    TypeArguments, TypeId, TypeInstance, TypeParameterId, TypeRef, CALL_METHOD,
-    DECREMENT_METHOD, DROPPER_METHOD, INCREMENT_METHOD,
+    TypeArguments, TypeEnum, TypeId, TypeInstance, TypeParameterId, TypeRef,
+    CALL_METHOD, DECREMENT_METHOD, DROPPER_METHOD, INCREMENT_METHOD,
 };
 
 fn argument_shape(
@@ -34,7 +35,7 @@ fn specialize_constants(
 
     // Constants never need access to the self type, so we just use a dummy
     // value here.
-    let stype = TypeInstance::new(TypeId::nil());
+    let stype = TypeEnum::TypeInstance(TypeInstance::new(TypeId::nil()));
 
     for &id in mir.constants.keys() {
         let old_typ = id.value_type(db);
@@ -97,7 +98,7 @@ fn shapes_compatible_with_bounds(
 
 struct Job {
     /// The type of `self` within the method.
-    self_type: TypeInstance,
+    self_type: TypeEnum,
 
     /// The ID of the method that's being specialized.
     method: MethodId,
@@ -124,7 +125,7 @@ impl Work {
 
     fn push(
         &mut self,
-        self_type: TypeInstance,
+        self_type: TypeEnum,
         method: MethodId,
         shapes: HashMap<TypeParameterId, Shape>,
     ) -> bool {
@@ -228,7 +229,7 @@ impl DynamicCalls {
 
 /// A compiler pass that specializes generic types.
 pub(crate) struct Specialize<'a, 'b> {
-    self_type: TypeInstance,
+    self_type: TypeEnum,
     method: MethodId,
     state: &'a mut State,
     work: &'b mut Work,
@@ -276,7 +277,11 @@ impl<'a, 'b> Specialize<'a, 'b> {
         let main_method = state.db.main_method().unwrap();
         let main_mod = main_type.module(&state.db);
 
-        work.push(TypeInstance::new(main_type), main_method, HashMap::new());
+        work.push(
+            TypeEnum::TypeInstance(TypeInstance::new(main_type)),
+            main_method,
+            HashMap::new(),
+        );
 
         // The main() method isn't called explicitly, so we have to manually
         // record it in the main type.
@@ -852,11 +857,20 @@ impl<'a, 'b> Specialize<'a, 'b> {
         type_arguments: Option<&TypeArguments>,
     ) -> Instruction {
         let typ = receiver.instance_of();
-        let method_impl = typ
+
+        let Some(method_impl) = typ
             .specialization_source(&self.state.db)
             .unwrap_or(typ)
             .method(&self.state.db, call.method.name(&self.state.db))
-            .unwrap();
+        else {
+            panic!(
+                "can't devirtualize call to {}.{} in {}.{}",
+                receiver.instance_of().name(&self.state.db),
+                call.method.name(&self.state.db),
+                format_type(&self.state.db, self.self_type),
+                self.method.name(&self.state.db),
+            );
+        };
 
         let mut shapes = type_arguments
             .map(|args| self.type_argument_shapes(call.method, args))
@@ -899,10 +913,10 @@ impl<'a, 'b> Specialize<'a, 'b> {
         type_id: TypeId,
         method: MethodId,
         shapes: &HashMap<TypeParameterId, Shape>,
-        custom_self_type: Option<TypeInstance>,
+        custom_self_type: Option<TypeEnum>,
     ) -> MethodId {
         let ins = TypeInstance::new(type_id);
-        let stype = custom_self_type.unwrap_or(ins);
+        let stype = custom_self_type.unwrap_or(TypeEnum::TypeInstance(ins));
 
         // Regular methods on regular types don't need to be specialized.
         if !type_id.is_generic(&self.state.db)
@@ -910,7 +924,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
             && !method.is_generic(&self.state.db)
         {
             if self.work.push(stype, method, shapes.clone()) {
-                self.update_method_type(method, shapes);
+                self.update_method_type(stype, method, shapes);
                 self.regular_methods.push(method);
             }
 
@@ -959,7 +973,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
 
         for name in methods {
             let method = type_id.method(&self.state.db, name).unwrap();
-            let stype = TypeInstance::new(type_id);
+            let stype = TypeEnum::TypeInstance(TypeInstance::new(type_id));
 
             if self.work.push(stype, method, HashMap::new()) {
                 self.regular_methods.push(method);
@@ -980,7 +994,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
         let stype = if type_id.is_closure(&self.state.db) {
             self.self_type
         } else {
-            TypeInstance::new(type_id)
+            TypeEnum::TypeInstance(TypeInstance::new(type_id))
         };
 
         if original == type_id {
@@ -1021,7 +1035,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
             let method = original.method(&self.state.db, name).unwrap();
 
             if original == type_id {
-                let stype = TypeInstance::new(type_id);
+                let stype = TypeEnum::TypeInstance(TypeInstance::new(type_id));
 
                 if self.work.push(stype, method, HashMap::new()) {
                     self.regular_methods.push(method);
@@ -1089,6 +1103,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
 
         let new = method.clone_for_specialization(&mut self.state.db);
         let old_ret = method.return_type(&self.state.db);
+        let stype = receiver.as_type_enum(&self.state.db).unwrap();
 
         for arg in method.arguments(&self.state.db) {
             let arg_type = TypeSpecializer::new(
@@ -1096,7 +1111,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
                 self.interned,
                 shapes,
                 &mut self.types,
-                self.self_type,
+                stype,
             )
             .specialize(arg.value_type);
 
@@ -1107,7 +1122,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
                 self.interned,
                 shapes,
                 &mut self.types,
-                self.self_type,
+                stype,
             )
             .specialize(raw_var_type);
 
@@ -1125,7 +1140,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
             self.interned,
             shapes,
             &mut self.types,
-            self.self_type,
+            stype,
         )
         .specialize(old_ret);
 
@@ -1150,6 +1165,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
     /// return types are specialized (if needed).
     fn update_method_type(
         &mut self,
+        self_type: TypeEnum,
         method: MethodId,
         shapes: &HashMap<TypeParameterId, Shape>,
     ) {
@@ -1161,7 +1177,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
                 self.interned,
                 shapes,
                 &mut self.types,
-                self.self_type,
+                self_type,
             )
             .specialize(arg.value_type);
 
@@ -1171,7 +1187,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
                 self.interned,
                 shapes,
                 &mut self.types,
-                self.self_type,
+                self_type,
             )
             .specialize(raw_var_type);
 
@@ -1189,7 +1205,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
             self.interned,
             shapes,
             &mut self.types,
-            self.self_type,
+            self_type,
         )
         .specialize(old_ret);
 

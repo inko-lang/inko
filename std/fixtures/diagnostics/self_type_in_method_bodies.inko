@@ -1,0 +1,16 @@
+fn example1 {
+  let invalid: Self = 42
+}
+
+type List[T] {
+  fn static example1 {
+    let _invalid: Self = List()
+  }
+
+  fn example2 {
+    let _valid: ref Self = self
+  }
+}
+
+# self_type_in_method_bodies.inko:2:16 error(invalid-type): the 'Self' type can't be used in this context
+# self_type_in_method_bodies.inko:7:19 error(invalid-type): the 'Self' type can't be used in this context

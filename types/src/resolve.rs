@@ -46,6 +46,9 @@ pub struct TypeResolver<'a> {
     /// If present it's used to remap inherited type parameters to their correct
     /// types.
     surrounding_trait: Option<TraitId>,
+
+    /// The type to replace `Self` with, if any.
+    self_type: Option<TypeEnum>,
 }
 
 impl<'a> TypeResolver<'a> {
@@ -63,6 +66,7 @@ impl<'a> TypeResolver<'a> {
             owned: false,
             surrounding_trait: None,
             cached: HashMap::new(),
+            self_type: None,
         }
     }
 
@@ -78,6 +82,11 @@ impl<'a> TypeResolver<'a> {
 
     pub fn with_owned(mut self) -> TypeResolver<'a> {
         self.owned = true;
+        self
+    }
+
+    pub fn with_self_type(mut self, self_type: TypeEnum) -> TypeResolver<'a> {
+        self.self_type = Some(self_type);
         self
     }
 
@@ -104,7 +113,7 @@ impl<'a> TypeResolver<'a> {
         self.cached.insert(value, value);
 
         let resolved = match value {
-            TypeRef::Owned(id) => match self.resolve_type_id(id) {
+            TypeRef::Owned(id) => match self.resolve_type_enum(id) {
                 Either::Left(res) => TypeRef::Owned(res),
                 // For types such as `move T`, values can only be assigned to
                 // the placeholder if they are owned.
@@ -117,11 +126,11 @@ impl<'a> TypeResolver<'a> {
                 Either::Right(typ) if self.owned => typ.as_owned(self.db),
                 Either::Right(typ) => typ,
             },
-            TypeRef::Any(id) => match self.resolve_type_id(id) {
+            TypeRef::Any(id) => match self.resolve_type_enum(id) {
                 Either::Left(res) => TypeRef::Any(res),
                 Either::Right(typ) => typ,
             },
-            TypeRef::Pointer(id) => match self.resolve_type_id(id) {
+            TypeRef::Pointer(id) => match self.resolve_type_enum(id) {
                 Either::Left(res) => TypeRef::Pointer(res),
                 Either::Right(TypeRef::Placeholder(id)) => {
                     TypeRef::Placeholder(id.as_pointer())
@@ -134,7 +143,7 @@ impl<'a> TypeResolver<'a> {
                 ) => TypeRef::Pointer(id),
                 Either::Right(typ) => typ,
             },
-            TypeRef::Ref(id) => match self.resolve_type_id(id) {
+            TypeRef::Ref(id) => match self.resolve_type_enum(id) {
                 Either::Left(res) => TypeRef::Ref(res),
                 Either::Right(TypeRef::Placeholder(id)) => {
                     TypeRef::Placeholder(id.as_ref())
@@ -147,7 +156,7 @@ impl<'a> TypeResolver<'a> {
                 }
                 Either::Right(typ) => typ,
             },
-            TypeRef::Mut(id) => match self.resolve_type_id(id) {
+            TypeRef::Mut(id) => match self.resolve_type_enum(id) {
                 Either::Left(res) => TypeRef::Mut(res),
                 Either::Right(TypeRef::Placeholder(id)) => {
                     TypeRef::Placeholder(id.as_mut())
@@ -158,7 +167,7 @@ impl<'a> TypeResolver<'a> {
                 Either::Right(TypeRef::Uni(typ)) => TypeRef::UniMut(typ),
                 Either::Right(typ) => typ,
             },
-            TypeRef::Uni(id) => match self.resolve_type_id(id) {
+            TypeRef::Uni(id) => match self.resolve_type_enum(id) {
                 Either::Left(res) => TypeRef::Uni(res),
                 Either::Right(TypeRef::Placeholder(id)) => {
                     TypeRef::Placeholder(id.as_uni())
@@ -168,14 +177,14 @@ impl<'a> TypeResolver<'a> {
                 }
                 Either::Right(typ) => typ,
             },
-            TypeRef::UniRef(id) => match self.resolve_type_id(id) {
+            TypeRef::UniRef(id) => match self.resolve_type_enum(id) {
                 Either::Left(res) => TypeRef::UniRef(res),
                 Either::Right(TypeRef::Placeholder(id)) => {
                     TypeRef::Placeholder(id.as_uni_ref())
                 }
                 Either::Right(typ) => typ,
             },
-            TypeRef::UniMut(id) => match self.resolve_type_id(id) {
+            TypeRef::UniMut(id) => match self.resolve_type_enum(id) {
                 Either::Left(res) => TypeRef::UniMut(res),
                 Either::Right(TypeRef::Placeholder(id)) => {
                     TypeRef::Placeholder(id.as_uni_mut())
@@ -200,7 +209,7 @@ impl<'a> TypeResolver<'a> {
         resolved
     }
 
-    fn resolve_type_id(&mut self, id: TypeEnum) -> Either<TypeEnum, TypeRef> {
+    fn resolve_type_enum(&mut self, id: TypeEnum) -> Either<TypeEnum, TypeRef> {
         match id {
             TypeEnum::TypeInstance(ins) => {
                 let base = ins.instance_of;
@@ -218,6 +227,15 @@ impl<'a> TypeResolver<'a> {
                 )))
             }
             TypeEnum::TraitInstance(ins) => {
+                match self.self_type {
+                    // The inequality check here ensures that we don't get stuck
+                    // resolving `Self` into `Self`.
+                    Some(e) if ins.self_type && e != id => {
+                        return self.resolve_type_enum(e);
+                    }
+                    _ => {}
+                }
+
                 let base = ins.instance_of;
 
                 if !base.is_generic(self.db) {
@@ -228,9 +246,13 @@ impl<'a> TypeResolver<'a> {
 
                 self.resolve_arguments(&mut args);
 
-                Either::Left(TypeEnum::TraitInstance(TraitInstance::generic(
-                    self.db, base, args,
-                )))
+                let new = TraitInstance::generic(self.db, base, args);
+
+                if ins.self_type {
+                    Either::Left(TypeEnum::TraitInstance(new.as_self_type()))
+                } else {
+                    Either::Left(TypeEnum::TraitInstance(new))
+                }
             }
             TypeEnum::TypeParameter(pid) => {
                 let pid = self.remap_type_parameter(pid);

@@ -78,7 +78,12 @@ fn format_type_base_name(db: &Database, id: TypeId, name: &mut String) {
     }
 
     let loc = id.location(db);
-    let stype = id.specialization_key(db).self_type.unwrap().instance_of();
+    let stype = id
+        .specialization_key(db)
+        .self_type
+        .and_then(|e| e.as_type_instance())
+        .unwrap()
+        .instance_of();
 
     // The exact format used here doesn't really matter, but we try to keep it
     // somewhat readable for use in external tooling (e.g. a profiler that

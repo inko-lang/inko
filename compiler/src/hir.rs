@@ -706,6 +706,7 @@ pub(crate) struct TypeName {
     pub(crate) name: Constant,
     pub(crate) arguments: Vec<Type>,
     pub(crate) location: Location,
+    pub(crate) self_type: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1874,6 +1875,7 @@ impl<'a> LowerToHir<'a> {
             name,
             arguments,
             location,
+            self_type: false,
         }
     }
 
@@ -2548,6 +2550,7 @@ impl<'a> LowerToHir<'a> {
                 name: Constant { name: n.name, location: n.location },
                 arguments: Vec::new(),
                 location: n.location,
+                self_type: false,
             }));
 
             Expression::SizeOf(Box::new(SizeOf {
@@ -3602,9 +3605,11 @@ mod tests {
                         location: cols(11, 11)
                     },
                     arguments: Vec::new(),
-                    location: cols(11, 11)
+                    location: cols(11, 11),
+                    self_type: false,
                 }))],
-                location: cols(9, 12)
+                location: cols(9, 12),
+                self_type: false,
             }))
         );
     }
@@ -3616,6 +3621,7 @@ mod tests {
         assert_eq!(
             hir,
             Type::Named(Box::new(TypeName {
+                self_type: false,
                 source: Some(Identifier {
                     name: "a".to_string(),
                     location: cols(9, 9)
@@ -3639,6 +3645,7 @@ mod tests {
             hir,
             Type::Ref(Box::new(ReferenceType {
                 type_reference: ReferrableType::Named(Box::new(TypeName {
+                    self_type: false,
                     source: None,
                     resolved_type: types::TypeRef::Unknown,
                     name: Constant {
@@ -3661,6 +3668,7 @@ mod tests {
             hir,
             Type::Mut(Box::new(ReferenceType {
                 type_reference: ReferrableType::Named(Box::new(TypeName {
+                    self_type: false,
                     source: None,
                     resolved_type: types::TypeRef::Unknown,
                     name: Constant {
@@ -3683,6 +3691,7 @@ mod tests {
             hir,
             Type::Uni(Box::new(ReferenceType {
                 type_reference: ReferrableType::Named(Box::new(TypeName {
+                    self_type: false,
                     source: None,
                     resolved_type: types::TypeRef::Unknown,
                     name: Constant {
@@ -3705,6 +3714,7 @@ mod tests {
             hir,
             Type::Owned(Box::new(ReferenceType {
                 type_reference: ReferrableType::Named(Box::new(TypeName {
+                    self_type: false,
                     source: None,
                     resolved_type: types::TypeRef::Unknown,
                     name: Constant {
@@ -3727,6 +3737,7 @@ mod tests {
             hir,
             Type::Closure(Box::new(ClosureType {
                 arguments: vec![Type::Named(Box::new(TypeName {
+                    self_type: false,
                     source: None,
                     resolved_type: types::TypeRef::Unknown,
                     name: Constant {
@@ -3737,6 +3748,7 @@ mod tests {
                     location: cols(13, 13)
                 }))],
                 return_type: Some(Type::Named(Box::new(TypeName {
+                    self_type: false,
                     source: None,
                     resolved_type: types::TypeRef::Unknown,
                     name: Constant {
@@ -3775,6 +3787,7 @@ mod tests {
                         location: cols(8, 8)
                     },
                     requirements: vec![TypeName {
+                        self_type: false,
                         source: None,
                         resolved_type: types::TypeRef::Unknown,
                         name: Constant {
@@ -3794,6 +3807,7 @@ mod tests {
                         location: cols(14, 14)
                     },
                     value_type: Type::Named(Box::new(TypeName {
+                        self_type: false,
                         source: None,
                         resolved_type: types::TypeRef::Unknown,
                         name: Constant {
@@ -3806,6 +3820,7 @@ mod tests {
                     location: cols(14, 17)
                 }],
                 return_type: Some(Type::Named(Box::new(TypeName {
+                    self_type: false,
                     source: None,
                     resolved_type: types::TypeRef::Unknown,
                     name: Constant {
@@ -3900,6 +3915,7 @@ mod tests {
                         location: cols(15, 15)
                     },
                     value_type: Type::Named(Box::new(TypeName {
+                        self_type: false,
                         source: None,
                         resolved_type: types::TypeRef::Unknown,
                         name: Constant {
@@ -3912,6 +3928,7 @@ mod tests {
                     location: cols(15, 18)
                 }],
                 return_type: Some(Type::Named(Box::new(TypeName {
+                    self_type: false,
                     source: None,
                     resolved_type: types::TypeRef::Unknown,
                     name: Constant {
@@ -3977,6 +3994,7 @@ mod tests {
                         location: cols(8, 8)
                     },
                     requirements: vec![TypeName {
+                        self_type: false,
                         source: None,
                         resolved_type: types::TypeRef::Unknown,
                         name: Constant {
@@ -4000,6 +4018,7 @@ mod tests {
                         location: cols(20, 21)
                     },
                     value_type: Type::Named(Box::new(TypeName {
+                        self_type: false,
                         source: None,
                         resolved_type: types::TypeRef::Unknown,
                         name: Constant {
@@ -4040,6 +4059,7 @@ mod tests {
                         location: cols(21, 22)
                     },
                     value_type: Type::Named(Box::new(TypeName {
+                        self_type: false,
                         source: None,
                         resolved_type: types::TypeRef::Unknown,
                         name: Constant {
@@ -4082,6 +4102,7 @@ mod tests {
                         location: cols(19, 20)
                     },
                     value_type: Type::Named(Box::new(TypeName {
+                        self_type: false,
                         source: None,
                         resolved_type: types::TypeRef::Unknown,
                         name: Constant {
@@ -4146,6 +4167,7 @@ mod tests {
                         location: cols(18, 19)
                     },
                     value_type: Type::Named(Box::new(TypeName {
+                        self_type: false,
                         source: None,
                         resolved_type: types::TypeRef::Unknown,
                         name: Constant {
@@ -4186,6 +4208,7 @@ mod tests {
                         location: cols(18, 19)
                     },
                     value_type: Type::Named(Box::new(TypeName {
+                        self_type: false,
                         source: None,
                         resolved_type: types::TypeRef::Unknown,
                         name: Constant {
@@ -4225,6 +4248,7 @@ mod tests {
                         location: cols(16, 16)
                     },
                     requirements: vec![TypeName {
+                        self_type: false,
                         source: None,
                         resolved_type: types::TypeRef::Unknown,
                         name: Constant {
@@ -4248,6 +4272,7 @@ mod tests {
                         location: cols(28, 29)
                     },
                     value_type: Type::Named(Box::new(TypeName {
+                        self_type: false,
                         source: None,
                         resolved_type: types::TypeRef::Unknown,
                         name: Constant {
@@ -4328,6 +4353,7 @@ mod tests {
                                 location: cols(25, 25)
                             },
                             value_type: Type::Named(Box::new(TypeName {
+                                self_type: false,
                                 source: None,
                                 resolved_type: types::TypeRef::Unknown,
                                 name: Constant {
@@ -4340,6 +4366,7 @@ mod tests {
                             location: cols(25, 28)
                         }],
                         return_type: Some(Type::Named(Box::new(TypeName {
+                            self_type: false,
                             source: None,
                             resolved_type: types::TypeRef::Unknown,
                             name: Constant {
@@ -4404,6 +4431,7 @@ mod tests {
                                 location: cols(24, 24)
                             },
                             value_type: Type::Named(Box::new(TypeName {
+                                self_type: false,
                                 source: None,
                                 resolved_type: types::TypeRef::Unknown,
                                 name: Constant {
@@ -4416,6 +4444,7 @@ mod tests {
                             location: cols(24, 27)
                         }],
                         return_type: Some(Type::Named(Box::new(TypeName {
+                            self_type: false,
                             source: None,
                             resolved_type: types::TypeRef::Unknown,
                             name: Constant {
@@ -4480,6 +4509,7 @@ mod tests {
                                 location: cols(18, 18)
                             },
                             value_type: Type::Named(Box::new(TypeName {
+                                self_type: false,
                                 source: None,
                                 resolved_type: types::TypeRef::Unknown,
                                 name: Constant {
@@ -4492,6 +4522,7 @@ mod tests {
                             location: cols(18, 21)
                         }],
                         return_type: Some(Type::Named(Box::new(TypeName {
+                            self_type: false,
                             source: None,
                             resolved_type: types::TypeRef::Unknown,
                             name: Constant {
@@ -4589,6 +4620,7 @@ mod tests {
                     location: cols(9, 9)
                 }],
                 requirements: vec![TypeName {
+                    self_type: false,
                     source: None,
                     resolved_type: types::TypeRef::Unknown,
                     name: Constant {
@@ -4665,6 +4697,7 @@ mod tests {
                                 location: cols(19, 19)
                             },
                             value_type: Type::Named(Box::new(TypeName {
+                                self_type: false,
                                 source: None,
                                 resolved_type: types::TypeRef::Unknown,
                                 name: Constant {
@@ -4677,6 +4710,7 @@ mod tests {
                             location: cols(19, 22)
                         }],
                         return_type: Some(Type::Named(Box::new(TypeName {
+                            self_type: false,
                             source: None,
                             resolved_type: types::TypeRef::Unknown,
                             name: Constant {
@@ -4805,6 +4839,7 @@ mod tests {
                                 location: cols(19, 19)
                             },
                             value_type: Type::Named(Box::new(TypeName {
+                                self_type: false,
                                 source: None,
                                 resolved_type: types::TypeRef::Unknown,
                                 name: Constant {
@@ -4817,6 +4852,7 @@ mod tests {
                             location: cols(19, 22)
                         }],
                         return_type: Some(Type::Named(Box::new(TypeName {
+                            self_type: false,
                             source: None,
                             resolved_type: types::TypeRef::Unknown,
                             name: Constant {
@@ -5065,6 +5101,7 @@ mod tests {
             hir,
             TopLevelExpression::Implement(Box::new(ImplementTrait {
                 trait_name: TypeName {
+                    self_type: false,
                     source: None,
                     resolved_type: types::TypeRef::Unknown,
                     name: Constant {
@@ -5095,6 +5132,7 @@ mod tests {
             hir,
             TopLevelExpression::Implement(Box::new(ImplementTrait {
                 trait_name: TypeName {
+                    self_type: false,
                     source: None,
                     resolved_type: types::TypeRef::Unknown,
                     name: Constant {
@@ -5102,6 +5140,7 @@ mod tests {
                         location: cols(6, 6)
                     },
                     arguments: vec![Type::Named(Box::new(TypeName {
+                        self_type: false,
                         source: None,
                         resolved_type: types::TypeRef::Unknown,
                         name: Constant {
@@ -5134,6 +5173,7 @@ mod tests {
             hir,
             TopLevelExpression::Implement(Box::new(ImplementTrait {
                 trait_name: TypeName {
+                    self_type: false,
                     source: None,
                     resolved_type: types::TypeRef::Unknown,
                     name: Constant {
@@ -5153,6 +5193,7 @@ mod tests {
                         location: cols(17, 17)
                     },
                     requirements: vec![TypeName {
+                        self_type: false,
                         source: None,
                         resolved_type: types::TypeRef::Unknown,
                         name: Constant {
@@ -5182,6 +5223,7 @@ mod tests {
             hir,
             TopLevelExpression::Implement(Box::new(ImplementTrait {
                 trait_name: TypeName {
+                    self_type: false,
                     source: None,
                     resolved_type: types::TypeRef::Unknown,
                     name: Constant {
@@ -5227,6 +5269,7 @@ mod tests {
             hir,
             TopLevelExpression::Implement(Box::new(ImplementTrait {
                 trait_name: TypeName {
+                    self_type: false,
                     source: None,
                     resolved_type: types::TypeRef::Unknown,
                     name: Constant {
@@ -6265,6 +6308,7 @@ mod tests {
                         location: cols(12, 12)
                     },
                     value_type: Some(Type::Named(Box::new(TypeName {
+                        self_type: false,
                         source: None,
                         resolved_type: types::TypeRef::Unknown,
                         name: Constant {
@@ -6277,6 +6321,7 @@ mod tests {
                     location: cols(12, 15),
                 }],
                 return_type: Some(Type::Named(Box::new(TypeName {
+                    self_type: false,
                     source: None,
                     resolved_type: types::TypeRef::Unknown,
                     name: Constant {
@@ -6311,6 +6356,7 @@ mod tests {
                 },
                 mutable: true,
                 value_type: Some(Type::Named(Box::new(TypeName {
+                    self_type: false,
                     source: None,
                     resolved_type: types::TypeRef::Unknown,
                     name: Constant {
@@ -6531,6 +6577,7 @@ mod tests {
                     location: cols(8, 9)
                 })),
                 cast_to: Type::Named(Box::new(TypeName {
+                    self_type: false,
                     source: None,
                     resolved_type: types::TypeRef::Unknown,
                     name: Constant {
@@ -6848,6 +6895,7 @@ mod tests {
                             location: cols(28, 31)
                         },
                         members: vec![Type::Named(Box::new(TypeName {
+                            self_type: false,
                             source: None,
                             resolved_type: types::TypeRef::Unknown,
                             name: Constant {

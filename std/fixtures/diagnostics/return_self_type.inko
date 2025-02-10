@@ -1,0 +1,24 @@
+trait Trait {
+  fn method -> ref Self
+
+  fn example1 {
+    method.test
+  }
+}
+
+fn example2[T: Trait](value: ref T) {
+  value.method.test
+}
+
+type List[T] {
+  fn valid1 -> ref Self {
+    self
+  }
+
+  fn valid2 -> Self {
+    List()
+  }
+}
+
+# return_self_type.inko:5:5 error(invalid-symbol): the method 'test' isn't defined for type 'ref Self'
+# return_self_type.inko:10:3 error(invalid-symbol): the method 'test' isn't defined for type 'ref T'

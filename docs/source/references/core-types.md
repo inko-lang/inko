@@ -89,3 +89,87 @@ You'll likely never need to use this type directly.
 The `Never` type can only be used as the return type of a method, and can't be
 used as a generic type argument (e.g. `Option[Never]` is invalid).
 :::
+
+## Self
+
+`Self` is not a type on its own but rather a sort of "placeholder" type. When
+used inside a `trait` definition, it refers to the type that implements the
+trait:
+
+```inko
+trait Example {
+  fn example -> ref Self {
+    self
+  }
+}
+
+type User {
+  let @name: String
+}
+
+impl Example for User {}
+
+User(name: 'Alice').example # => ref User
+```
+
+Here calling `User.example` produces a value of `ref User` because `Self` is
+replaced with the `User` type.
+
+When `Self` is used inside a `type` definition it refers to the surrounding
+type:
+
+```inko
+type User {
+  let @name: String
+
+  fn foo -> ref Self {
+    self
+  }
+
+  fn bar -> ref User {
+    self
+  }
+}
+```
+
+Here the definitions for `User.foo` and `User.bar` are semantically equivalent,
+as `Self` is replaced with `User` upon reference.
+
+When using `Self` inside a generic type, you can't specify additional type
+arguments, meaning this is invalid:
+
+```inko
+type List[T] {
+  fn example -> Self[Int] {
+    ...
+  }
+}
+```
+
+`static` methods can only use `Self` in the return type, not in their body or
+arguments:
+
+```inko
+type List[T] {
+  fn static invalid(value: Self) {
+    ...
+  }
+}
+```
+
+Module methods can't use `Self` at all, meaning the following definitions are
+invalid:
+
+```inko
+fn invalid1(value: Self) {
+  ...
+}
+
+fn invalid2 -> Self {
+  ...
+}
+
+fn invalid3 {
+  let variable: Self = ...
+}
+```

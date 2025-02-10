@@ -1,0 +1,24 @@
+trait A {}
+
+trait B: A {
+  fn example1 {
+    invalid1(self)
+    invalid2([self])
+    valid1(self)
+    valid2(self)
+    valid3([self])
+  }
+
+  fn invalid1(value: ref B) {}
+
+  fn invalid2(values: Array[ref B]) {}
+
+  fn valid1[T: B](value: ref T) {}
+
+  fn valid2[T: A](value: ref T) {}
+
+  fn valid3[T: A](values: Array[ref T]) {}
+}
+
+# pass_self_in_default_method.inko:5:14 error(invalid-type): expected a value of type 'ref B', found 'ref Self'
+# pass_self_in_default_method.inko:6:14 error(invalid-type): expected a value of type 'Array[ref B]', found 'Array[ref Self]'

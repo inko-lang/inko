@@ -471,6 +471,24 @@ impl TypeArguments {
         }
     }
 
+    pub fn for_self_type(
+        parameters: Vec<TypeParameterId>,
+        bounds: &TypeBounds,
+    ) -> TypeArguments {
+        let mut arguments = TypeArguments::new();
+
+        for param in parameters {
+            arguments.assign(
+                param,
+                TypeRef::Any(TypeEnum::TypeParameter(
+                    bounds.get(param).unwrap_or(param),
+                )),
+            );
+        }
+
+        arguments
+    }
+
     pub fn new() -> Self {
         Self { mapping: IndexMap::default() }
     }
@@ -688,6 +706,10 @@ pub struct Trait {
     /// should be minimal, and less compared to walking requirement chains when
     /// performing lookups.
     inherited_type_arguments: TypeArguments,
+
+    /// A flag indicating if instances of types can be safely cast to this
+    /// trait.
+    cast_safe: bool,
 }
 
 impl Trait {
@@ -725,6 +747,7 @@ impl Trait {
             default_methods: IndexMap::new(),
             required_methods: IndexMap::new(),
             inherited_type_arguments: TypeArguments::new(),
+            cast_safe: true,
         }
     }
 
@@ -737,6 +760,20 @@ impl Trait {
 pub struct TraitId(pub u32);
 
 impl TraitId {
+    pub fn set_not_cast_safe(self, db: &mut Database) {
+        self.get_mut(db).cast_safe = false;
+    }
+
+    pub fn is_cast_safe(self, db: &Database) -> bool {
+        let this = self.get(db);
+
+        this.cast_safe
+            && this
+                .required_traits
+                .iter()
+                .all(|i| i.instance_of.is_cast_safe(db))
+    }
+
     pub fn name(self, db: &Database) -> &String {
         &self.get(db).name
     }
@@ -919,6 +956,23 @@ impl TraitInstance {
         Self { instance_of, type_arguments: 0, self_type: false }
     }
 
+    pub fn for_self_type(
+        db: &mut Database,
+        instance_of: TraitId,
+        bounds: &TypeBounds,
+    ) -> Self {
+        let ins = if instance_of.is_generic(db) {
+            let params = instance_of.type_parameters(db);
+            let args = TypeArguments::for_self_type(params, bounds);
+
+            Self::generic(db, instance_of, args)
+        } else {
+            Self::new(instance_of)
+        };
+
+        ins.as_self_type()
+    }
+
     pub fn rigid(
         db: &mut Database,
         instance_of: TraitId,
@@ -994,6 +1048,11 @@ impl TraitInstance {
 
     pub fn method(self, db: &Database, name: &str) -> Option<MethodId> {
         self.instance_of.method(db, name)
+    }
+
+    pub fn as_self_type(mut self) -> TraitInstance {
+        self.self_type = true;
+        self
     }
 
     fn named_type(self, db: &Database, name: &str) -> Option<Symbol> {
@@ -1339,7 +1398,7 @@ pub struct SpecializationKey {
 
     /// Closures may be defined in a default method, in which case we should
     /// specialize them for every type that implements the corresponding trait.
-    pub self_type: Option<TypeInstance>,
+    pub self_type: Option<TypeEnum>,
 }
 
 impl SpecializationKey {
@@ -1352,7 +1411,7 @@ impl SpecializationKey {
     }
 
     pub fn for_closure(
-        self_type: TypeInstance,
+        self_type: TypeEnum,
         shapes: Vec<Shape>,
     ) -> SpecializationKey {
         SpecializationKey { self_type: Some(self_type), shapes }
@@ -1907,7 +1966,7 @@ impl TypeId {
         match typ.kind {
             // Only heap allocated versions of these types have a header and
             // thus can be casted to a trait.
-            TypeKind::Enum | TypeKind::Regular | TypeKind::Tuple => {
+            TypeKind::Enum | TypeKind::Regular => {
                 matches!(typ.storage, Storage::Heap)
             }
             // Other types such as closures, processes and extern types can't
@@ -2008,6 +2067,21 @@ pub struct TypeInstance {
 impl TypeInstance {
     pub fn new(instance_of: TypeId) -> Self {
         Self { instance_of, type_arguments: 0 }
+    }
+
+    pub fn for_self_type(
+        db: &mut Database,
+        instance_of: TypeId,
+        bounds: &TypeBounds,
+    ) -> Self {
+        if instance_of.is_generic(db) {
+            let params = instance_of.type_parameters(db);
+            let args = TypeArguments::for_self_type(params, bounds);
+
+            Self::generic(db, instance_of, args)
+        } else {
+            Self::new(instance_of)
+        }
     }
 
     pub fn rigid(
@@ -5087,11 +5161,7 @@ impl TypeRef {
     }
 
     pub fn as_type_instance(self, db: &Database) -> Option<TypeInstance> {
-        if let Ok(TypeEnum::TypeInstance(ins)) = self.as_type_enum(db) {
-            Some(ins)
-        } else {
-            None
-        }
+        self.as_type_enum(db).ok().and_then(|e| e.as_type_instance())
     }
 
     pub fn as_type(self, db: &Database) -> Option<TypeId> {
@@ -5571,6 +5641,14 @@ impl TypeEnum {
             TypeRef::Any(self)
         } else {
             TypeRef::Owned(self)
+        }
+    }
+
+    pub fn as_type_instance(self) -> Option<TypeInstance> {
+        if let TypeEnum::TypeInstance(i) = self {
+            Some(i)
+        } else {
+            None
         }
     }
 
@@ -7354,8 +7432,8 @@ mod tests {
         assert!(!TypeId::boolean().allow_cast_to_trait(&db));
         assert!(!TypeId::nil().allow_cast_to_trait(&db));
         assert!(!TypeId::string().allow_cast_to_trait(&db));
+        assert!(!tuple_type.allow_cast_to_trait(&db));
         assert!(enum_type.allow_cast_to_trait(&db));
-        assert!(tuple_type.allow_cast_to_trait(&db));
         assert!(regular_type.allow_cast_to_trait(&db));
     }
 
@@ -7444,5 +7522,24 @@ mod tests {
             state.hash_one(Shape::Inline(ins1)),
             state.hash_one(Shape::Inline(ins3)),
         );
+    }
+
+    #[test]
+    fn test_trait_instance_for_self_type() {
+        let mut db = Database::new();
+        let tid = new_trait(&mut db, "Trait");
+        let param = tid.new_type_parameter(&mut db, "T".to_string());
+        let bounds = TypeBounds::new();
+        let ins = TraitInstance::for_self_type(&mut db, tid, &bounds);
+
+        assert!(ins.self_type);
+
+        let targs = ins.type_arguments(&db).unwrap();
+        let val = targs.get(param).unwrap();
+
+        assert!(matches!(
+            val,
+            TypeRef::Any(TypeEnum::TypeParameter(v)) if v == param
+        ));
     }
 }

@@ -9,7 +9,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::mem::swap;
 use std::path::PathBuf;
 use types::check::{Environment, TypeChecker};
-use types::format::{format_type, format_type_with_arguments};
+use types::format::{format_type, format_type_with_arguments, TypeFormatter};
 use types::resolve::TypeResolver;
 use types::{
     Block, CallInfo, CallKind, Closure, ClosureCallInfo, ClosureId,
@@ -499,23 +499,30 @@ impl MethodCall {
             self.check_sendable.push((given, location));
         }
 
-        let mut env = Environment::new(
+        let rec = self.receiver.as_type_enum(&state.db).unwrap();
+        let mut env = Environment::with_right_self_type(
             given.type_arguments(&state.db),
             self.type_arguments.clone(),
+            rec,
         );
 
         if !TypeChecker::new(&state.db)
             .check_argument(given, expected, &mut env)
         {
+            let rhs =
+                TypeFormatter::with_self_type(&state.db, rec, Some(&env.right))
+                    .format(expected);
+
             state.diagnostics.type_error(
                 format_type_with_arguments(&state.db, &env.left, given),
-                format_type_with_arguments(&state.db, &env.right, expected),
+                rhs,
                 self.module.file(&state.db),
                 location,
             );
         }
 
         TypeResolver::new(&mut state.db, &env.right, &self.bounds)
+            .with_self_type(rec)
             .resolve(expected)
     }
 
@@ -576,6 +583,7 @@ impl MethodCall {
     fn resolve_return_type(&mut self, state: &mut State) -> TypeRef {
         let raw = self.method.return_type(&state.db);
         let rigid = self.receiver.is_rigid_type_parameter(&state.db);
+        let rec = self.receiver.as_type_enum(&state.db).unwrap();
 
         self.return_type = TypeResolver::new(
             &mut state.db,
@@ -584,6 +592,7 @@ impl MethodCall {
         )
         .with_rigid(rigid)
         .with_owned()
+        .with_self_type(rec)
         .resolve(raw);
 
         self.return_type
@@ -1244,6 +1253,20 @@ impl<'a> CheckConstant<'a> {
     }
 }
 
+struct ExpectedClosure<'a> {
+    /// The type ID of the closure that is expected.
+    id: ClosureId,
+
+    /// The full type of the expected closure
+    value_type: TypeRef,
+
+    /// The type arguments to expose when resolving types.
+    arguments: &'a TypeArguments,
+
+    /// The type to replace `Self` with.
+    self_type: TypeEnum,
+}
+
 /// A visitor for type-checking the bodies of methods.
 struct CheckMethodBody<'a> {
     state: &'a mut State,
@@ -1324,7 +1347,7 @@ impl<'a> CheckMethodBody<'a> {
             return;
         }
 
-        if !TypeChecker::check_return(self.db(), typ, returns) {
+        if !TypeChecker::check_return(self.db(), typ, returns, self.self_type) {
             let loc =
                 nodes.last().map(|n| n.location()).unwrap_or(fallback_location);
 
@@ -1434,16 +1457,22 @@ impl<'a> CheckMethodBody<'a> {
 
     fn argument_expression(
         &mut self,
-        expected_type: TypeRef,
         node: &mut hir::Expression,
-        scope: &mut LexicalScope,
+        receiver_type: TypeEnum,
+        expected_type: TypeRef,
         type_arguments: &TypeArguments,
+        scope: &mut LexicalScope,
     ) -> TypeRef {
         match node {
             hir::Expression::Closure(ref mut n) => {
-                let expected = expected_type
-                    .closure_id(self.db())
-                    .map(|f| (f, expected_type, type_arguments));
+                let expected = expected_type.closure_id(self.db()).map(|id| {
+                    ExpectedClosure {
+                        id,
+                        value_type: expected_type,
+                        arguments: type_arguments,
+                        self_type: receiver_type,
+                    }
+                });
 
                 self.closure(n, expected, scope)
             }
@@ -2313,14 +2342,12 @@ impl<'a> CheckMethodBody<'a> {
     fn closure(
         &mut self,
         node: &mut hir::Closure,
-        mut expected: Option<(ClosureId, TypeRef, &TypeArguments)>,
+        mut expected: Option<ExpectedClosure>,
         scope: &mut LexicalScope,
     ) -> TypeRef {
         let self_type = self.self_type;
         let moving = node.moving
-            || expected
-                .as_ref()
-                .map_or(false, |(id, _, _)| id.is_moving(self.db()));
+            || expected.as_ref().map_or(false, |e| e.id.is_moving(self.db()));
 
         let closure = Closure::alloc(self.db_mut(), moving);
         let bounds = self.bounds;
@@ -2331,10 +2358,12 @@ impl<'a> CheckMethodBody<'a> {
 
             expected
                 .as_mut()
-                .map(|(id, _, targs)| {
-                    let raw = id.return_type(db);
+                .map(|e| {
+                    let raw = e.id.return_type(db);
 
-                    TypeResolver::new(db, targs, bounds).resolve(raw)
+                    TypeResolver::new(db, e.arguments, bounds)
+                        .with_self_type(e.self_type)
+                        .resolve(raw)
                 })
                 .unwrap_or_else(|| TypeRef::placeholder(db, None))
         };
@@ -2358,7 +2387,7 @@ impl<'a> CheckMethodBody<'a> {
             break_in_loop: Cell::new(false),
         };
 
-        for (index, arg) in node.arguments.iter_mut().enumerate() {
+        for (idx, arg) in node.arguments.iter_mut().enumerate() {
             let name = arg.name.name.clone();
             let typ = if let Some(n) = arg.value_type.as_mut() {
                 self.type_signature(n, self.self_type)
@@ -2367,9 +2396,11 @@ impl<'a> CheckMethodBody<'a> {
 
                 expected
                     .as_mut()
-                    .and_then(|(id, _, targs)| {
-                        id.positional_argument_input_type(db, index).map(|t| {
-                            TypeResolver::new(db, targs, bounds).resolve(t)
+                    .and_then(|e| {
+                        e.id.positional_argument_input_type(db, idx).map(|t| {
+                            TypeResolver::new(db, e.arguments, bounds)
+                                .with_self_type(e.self_type)
+                                .resolve(t)
                         })
                     })
                     .unwrap_or_else(|| TypeRef::placeholder(db, None))
@@ -2401,8 +2432,8 @@ impl<'a> CheckMethodBody<'a> {
             //
             // `fn move` closures are not inferred as `uni fn`, as the values
             // moved into the closure may still be referred to from elsewhere.
-            Some((_, exp, _))
-                if exp.is_uni_value(self.db())
+            Some(exp)
+                if exp.value_type.is_uni_value(self.db())
                     && closure.can_infer_as_uni(self.db()) =>
             {
                 TypeRef::Uni(TypeEnum::Closure(closure))
@@ -2913,7 +2944,12 @@ impl<'a> CheckMethodBody<'a> {
 
         let expected = scope.return_type;
 
-        if !TypeChecker::check_return(self.db(), returned, expected) {
+        if !TypeChecker::check_return(
+            self.db(),
+            returned,
+            expected,
+            self.self_type,
+        ) {
             self.state.diagnostics.type_error(
                 format_type(self.db(), returned),
                 format_type(self.db(), expected),
@@ -2959,7 +2995,12 @@ impl<'a> CheckMethodBody<'a> {
                 pid.assign(self.db_mut(), typ);
             }
             ThrowKind::Result(ret_ok, ret_err) => {
-                if !TypeChecker::check_return(self.db(), throw_type, ret_err) {
+                if !TypeChecker::check_return(
+                    self.db(),
+                    throw_type,
+                    ret_err,
+                    self.self_type,
+                ) {
                     self.state.diagnostics.invalid_throw(
                         ThrowKind::Result(ret_ok, expr)
                             .throw_type_name(self.db(), ret_ok),
@@ -3021,7 +3062,12 @@ impl<'a> CheckMethodBody<'a> {
             node.resolved_type = first;
 
             for (typ, loc) in types.drain(1..) {
-                if !TypeChecker::check_return(self.db(), typ, first) {
+                if !TypeChecker::check_return(
+                    self.db(),
+                    typ,
+                    first,
+                    self.self_type,
+                ) {
                     self.state.diagnostics.type_error(
                         format_type(self.db(), typ),
                         format_type(self.db(), first),
@@ -3518,8 +3564,15 @@ impl<'a> CheckMethodBody<'a> {
                 }
             };
 
+            let rec = receiver.as_type_enum(self.db()).unwrap();
             let given = self
-                .argument_expression(exp, &mut pos_node.value, scope, &targs)
+                .argument_expression(
+                    &mut pos_node.value,
+                    rec,
+                    exp,
+                    &targs,
+                    scope,
+                )
                 .cast_according_to(self.db(), exp);
 
             if !TypeChecker::check(self.db(), given, exp) {
@@ -3890,7 +3943,7 @@ impl<'a> CheckMethodBody<'a> {
             //       let @a: Option[Option[T]]
             //     }
             //
-            //     Foo { @a = Option.None } as Foo[Int]
+            //     Foo(a: Option.None) as Foo[Int]
             //
             // When comparing the `Option.None` against `Option[Option[T]]`, we
             // want to make sure that the `T` is later (as part of the cast)
@@ -4141,7 +4194,12 @@ impl<'a> CheckMethodBody<'a> {
                 ThrowKind::Result(ok, expr_err),
                 ThrowKind::Result(ret_ok, ret_err),
             ) => {
-                if TypeChecker::check_return(self.db(), expr_err, ret_err) {
+                if TypeChecker::check_return(
+                    self.db(),
+                    expr_err,
+                    ret_err,
+                    self.self_type,
+                ) {
                     return ok;
                 }
 
@@ -4297,10 +4355,11 @@ impl<'a> CheckMethodBody<'a> {
             call.method.positional_argument_input_type(self.db(), index)
         {
             let given = self.argument_expression(
-                expected,
                 node,
-                scope,
+                call.receiver.as_type_enum(self.db()).unwrap(),
+                expected,
                 &call.type_arguments,
+                scope,
             );
 
             call.check_argument(self.state, given, expected, node.location())
@@ -4325,10 +4384,11 @@ impl<'a> CheckMethodBody<'a> {
             node.index = index;
 
             let given = self.argument_expression(
-                expected,
                 &mut node.value,
-                scope,
+                call.receiver.as_type_enum(self.db()).unwrap(),
+                expected,
                 &call.type_arguments,
+                scope,
             );
 
             if call.named_arguments.contains(name) {
@@ -4407,8 +4467,17 @@ impl<'a> CheckMethodBody<'a> {
         node: &mut hir::Type,
         self_type: TypeEnum,
     ) -> TypeRef {
-        let rules =
-            Rules { type_parameters_as_rigid: true, ..Default::default() };
+        // Within the bodies of static and module methods, the meaning of `Self`
+        // is either unclear or there simply is no type to replace it with.
+        let allow_self = matches!(
+            self_type,
+            TypeEnum::TypeInstance(_) | TypeEnum::TraitInstance(_)
+        );
+        let rules = Rules {
+            type_parameters_as_rigid: true,
+            allow_self,
+            ..Default::default()
+        };
         let type_scope = TypeScope::with_bounds(
             self.module,
             self_type,

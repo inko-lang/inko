@@ -1,0 +1,19 @@
+trait A {}
+
+trait B: A {
+  fn example1 {
+    self as ref A
+  }
+
+  fn mut example2 {
+    self as mut A
+  }
+
+  fn move example3 {
+    self as A
+  }
+}
+
+# cast_self_in_default_method.inko:5:5 error(invalid-cast): the type 'ref Self' can't be cast to 'ref A'
+# cast_self_in_default_method.inko:9:5 error(invalid-cast): the type 'mut Self' can't be cast to 'mut A'
+# cast_self_in_default_method.inko:13:5 error(invalid-cast): the type 'Self' can't be cast to 'A'

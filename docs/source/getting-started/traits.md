@@ -166,3 +166,49 @@ What happens here is that we implement `Equal` over `ref Array[T]`, for any
 `Array[T]` _provided_ that whatever is assigned to `T` also implements
 `Equal[ref T]`. For example, given an `Array[User]`, the `Array.==` method is
 only available if `User` implements `Equal[ref User]`.
+
+
+## Traits, self, and Self
+
+Within a default method, the type of `self` is
+[`Self`](../references/core-types/#self). This type comes with the following
+limitations:
+
+- It can't be cast to other types, including parent traits
+- It's not compatible with trait values (i.e. you can't pass it to an argument
+  typed as a trait)
+- Closures can't capture `self` if it's a borrow (`ref Self` or `mut Self`),
+  only if it's an owned value (`Self`), and only by moving the value into the
+  closure using an `fn move` closure
+
+`Self` can also be used in the signature of trait methods, in which case it acts
+as a placeholder for the type that implements the trait. For example,
+`std.clone.Clone` uses it as follows:
+
+```inko
+trait pub Clone {
+  fn pub clone -> Self
+}
+```
+
+Thus if a type `User` implements `Clone`, calling `User.clone` returns a value
+of type `User` and _not_ of type `Clone`.
+
+If a trait uses `Self` in a method signature, types implementing the trait
+_can't_ be cast to that trait:
+
+```inko
+trait Trait {
+  fn example -> Self
+}
+
+type Type {}
+
+impl Trait for Type {
+  fn example -> Type {
+    Type()
+  }
+}
+
+Type() as Trait # => this is invalid
+```

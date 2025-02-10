@@ -1,0 +1,26 @@
+trait Trait[T] {}
+
+fn example1(value: Self) {
+  42
+}
+
+fn example2 -> Self {
+  42
+}
+
+fn example3[T: Trait[Self]](value: T) {}
+
+type List[T] {
+  fn static example1(value: Self) {}
+
+  fn static example2(value: Option[Self]) {}
+
+  fn static example3[V: Trait[Self]](value: V) {}
+}
+
+# invalid_self_types.inko:3:20 error(invalid-type): the 'Self' type can't be used in this context
+# invalid_self_types.inko:7:16 error(invalid-type): the 'Self' type can't be used in this context
+# invalid_self_types.inko:11:22 error(invalid-type): the 'Self' type can't be used in this context
+# invalid_self_types.inko:14:29 error(invalid-type): the 'Self' type can't be used in this context
+# invalid_self_types.inko:16:36 error(invalid-type): the 'Self' type can't be used in this context
+# invalid_self_types.inko:18:31 error(invalid-type): the 'Self' type can't be used in this context

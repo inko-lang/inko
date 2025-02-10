@@ -1,0 +1,40 @@
+trait Foo {}
+
+trait Bar {
+  fn bar(value: Self)
+}
+
+trait Baz {
+  fn baz(value: Self) {
+    42
+  }
+}
+
+type A {}
+
+impl Foo for A {}
+
+impl Bar for A {
+  fn bar(value: Self) {}
+}
+
+impl Baz for A {
+  fn baz(value: Self) {
+    42
+  }
+}
+
+fn example1 {
+  A() as Foo
+}
+
+fn example2 {
+  A() as Bar
+}
+
+fn example3 {
+  A() as Baz
+}
+
+# cast_to_trait.inko:32:3 error(invalid-cast): the type 'A' can't be cast to 'Bar'
+# cast_to_trait.inko:36:3 error(invalid-cast): the type 'A' can't be cast to 'Baz'

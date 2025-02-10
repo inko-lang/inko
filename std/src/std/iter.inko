@@ -527,7 +527,7 @@ trait pub Iter[T] {
   # iter.next # => Option.Some(1)
   # iter.next # => Option.Some(2)
   # ```
-  fn pub move peekable -> Peekable[T] {
+  fn pub move peekable -> Peekable[T, Self] {
     Peekable(iter: self, peeked: Option.None)
   }
 
@@ -688,8 +688,8 @@ impl Iter[T] for Stream {
 
 # An iterator that allows looking at the next element in an iterator, without
 # consuming it.
-type pub Peekable[T] {
-  let @iter: Iter[T]
+type pub Peekable[T, I: mut + Iter[T]] {
+  let @iter: I
   let mut @peeked: Option[Option[T]]
 
   # Returns an optional immutable reference to the next item in the iterator,

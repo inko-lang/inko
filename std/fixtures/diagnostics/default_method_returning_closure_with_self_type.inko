@@ -1,0 +1,33 @@
+trait Trait {
+  fn foo(value: ref Self) -> fn -> ref Self {
+    fn { value }
+  }
+
+  fn bar(value: fn (ref Self)) {}
+}
+
+type Type {
+  fn return_closure -> fn -> ref Self {
+    fn { self }
+  }
+}
+
+impl Trait for Type {}
+
+fn example1 {
+  let a = Type()
+
+  a.foo(a).call.invalid
+}
+
+fn example2 {
+  Type().bar(fn (a) { a.invalid })
+}
+
+fn example3 {
+  Type().return_closure.call.invalid
+}
+
+# default_method_returning_closure_with_self_type.inko:20:3 error(invalid-symbol): the method 'invalid' isn't defined for type 'ref Type'
+# default_method_returning_closure_with_self_type.inko:24:23 error(invalid-symbol): the method 'invalid' isn't defined for type 'ref Type'
+# default_method_returning_closure_with_self_type.inko:28:3 error(invalid-symbol): the method 'invalid' isn't defined for type 'ref Type'

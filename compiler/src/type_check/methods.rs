@@ -8,7 +8,7 @@ use crate::type_check::{
 use location::Location;
 use std::path::PathBuf;
 use types::check::{Environment, TypeChecker};
-use types::format::{format_type, format_type_with_arguments};
+use types::format::{format_type, TypeFormatter};
 use types::{
     Block, Database, Method, MethodId, MethodKind, MethodSource, ModuleId,
     Symbol, TraitId, TraitInstance, TypeArguments, TypeBounds, TypeEnum,
@@ -587,6 +587,9 @@ impl<'a> DefineMethods<'a> {
         let scope = TypeScope::new(self.module, self_type, Some(method));
         let rules = Rules {
             allow_private_types: method.is_private(self.db()),
+            // `Self` isn't allowed in module methods because there's no
+            // meaningful type to replace it with.
+            allow_self: false,
             ..Default::default()
         };
 
@@ -641,7 +644,7 @@ impl<'a> DefineMethods<'a> {
     ) {
         let receiver = TypeRef::Owned(TypeEnum::Type(type_id));
         let bounds = TypeBounds::new();
-        let self_type = TypeEnum::TypeInstance(TypeInstance::rigid(
+        let self_type = TypeEnum::TypeInstance(TypeInstance::for_self_type(
             self.db_mut(),
             type_id,
             &bounds,
@@ -676,10 +679,16 @@ impl<'a> DefineMethods<'a> {
         );
         self.define_type_parameter_requirements(
             &mut node.type_parameters,
-            rules,
+            rules.without_self_type(),
             &scope,
         );
-        self.define_arguments(&mut node.arguments, method, rules, &scope);
+        self.define_arguments(
+            &mut node.arguments,
+            method,
+            rules.without_self_type(),
+            &scope,
+        );
+        // Return types _are_ allowed to use `Self`.
         self.define_return_type(
             node.return_type.as_mut(),
             method,
@@ -766,15 +775,20 @@ impl<'a> DefineMethods<'a> {
                 || method.is_private(self.db()),
             ..Default::default()
         };
-        let self_type = TypeEnum::TypeInstance(TypeInstance::rigid(
+        let rec_type = TypeEnum::TypeInstance(TypeInstance::rigid(
             self.db_mut(),
             type_id,
             &bounds,
         ));
-        let receiver = receiver_type(self.db(), self_type, node.kind);
+        let receiver = receiver_type(self.db(), rec_type, node.kind);
 
         method.set_receiver(self.db_mut(), receiver);
 
+        let self_type = TypeEnum::TypeInstance(TypeInstance::for_self_type(
+            self.db_mut(),
+            type_id,
+            &bounds,
+        ));
         let scope = TypeScope::with_bounds(
             self.module,
             self_type,
@@ -851,20 +865,25 @@ impl<'a> DefineMethods<'a> {
             ..Default::default()
         };
         let bounds = TypeBounds::new();
-        let self_type = TypeEnum::TypeInstance(TypeInstance::rigid(
+        let rec_type = TypeEnum::TypeInstance(TypeInstance::rigid(
             self.db_mut(),
             type_id,
             &bounds,
         ));
         let receiver = if node.mutable {
-            TypeRef::Mut(self_type)
+            TypeRef::Mut(rec_type)
         } else {
-            TypeRef::Ref(self_type)
+            TypeRef::Ref(rec_type)
         };
 
         method.set_receiver(self.db_mut(), receiver);
         method.set_return_type(self.db_mut(), TypeRef::nil());
 
+        let self_type = TypeEnum::TypeInstance(TypeInstance::for_self_type(
+            self.db_mut(),
+            type_id,
+            &bounds,
+        ));
         let scope = TypeScope::with_bounds(
             self.module,
             self_type,
@@ -921,18 +940,22 @@ impl<'a> DefineMethods<'a> {
 
         let rules = Rules {
             allow_private_types: trait_id.is_private(self.db()),
+            mark_trait_for_self: true,
             ..Default::default()
         };
         let bounds = TypeBounds::new();
-        let self_type = TypeEnum::TraitInstance(TraitInstance::rigid(
+        let rec_ins = TraitInstance::rigid(self.db_mut(), trait_id, &bounds)
+            .as_self_type();
+        let rec_type = TypeEnum::TraitInstance(rec_ins);
+        let receiver = receiver_type(self.db(), rec_type, node.kind);
+
+        method.set_receiver(self.db_mut(), receiver);
+
+        let self_type = TypeEnum::TraitInstance(TraitInstance::for_self_type(
             self.db_mut(),
             trait_id,
             &bounds,
         ));
-        let receiver = receiver_type(self.db(), self_type, node.kind);
-
-        method.set_receiver(self.db_mut(), receiver);
-
         let scope = TypeScope::with_bounds(
             self.module,
             self_type,
@@ -993,23 +1016,25 @@ impl<'a> DefineMethods<'a> {
 
         let rules = Rules {
             allow_private_types: trait_id.is_private(self.db()),
+            mark_trait_for_self: true,
             ..Default::default()
         };
         let bounds = TypeBounds::new();
-        let mut ins = TraitInstance::rigid(self.db_mut(), trait_id, &bounds);
-
-        // We set this flag so that when we specialize the method, we know that
-        // references to this type should be replaced with the type of the
-        // implementing type. Without this flag, given some value typed as trait
-        // `Foo`, we have no way of knowing if that `Foo` is the type of `self`
-        // or an unrelated value that happens to have the same type.
-        ins.self_type = true;
-
-        let self_type = TypeEnum::TraitInstance(ins);
-        let receiver = receiver_type(self.db(), self_type, node.kind);
+        let rec_ins = TraitInstance::rigid(self.db_mut(), trait_id, &bounds)
+            .as_self_type();
+        let receiver = receiver_type(
+            self.db(),
+            TypeEnum::TraitInstance(rec_ins),
+            node.kind,
+        );
 
         method.set_receiver(self.db_mut(), receiver);
 
+        let self_type = TypeEnum::TraitInstance(TraitInstance::for_self_type(
+            self.db_mut(),
+            trait_id,
+            &bounds,
+        ));
         let scope = TypeScope::with_bounds(
             self.module,
             self_type,
@@ -1442,14 +1467,24 @@ impl<'a> ImplementTraitMethods<'a> {
         );
 
         let targs = TypeArguments::for_trait(self.db(), trait_instance);
-        let mut env = Environment::new(targs.clone(), targs);
+        let mut env =
+            Environment::with_self_type(targs.clone(), targs, self_type);
 
         if !TypeChecker::new(self.db()).check_method(method, original, &mut env)
         {
             let file = self.file();
-            let lhs = format_type_with_arguments(self.db(), &env.left, method);
-            let rhs =
-                format_type_with_arguments(self.db(), &env.right, original);
+            let lhs = TypeFormatter::with_self_type(
+                self.db(),
+                self_type,
+                Some(&env.left),
+            )
+            .format(method);
+            let rhs = TypeFormatter::with_self_type(
+                self.db(),
+                self_type,
+                Some(&env.right),
+            )
+            .format(original);
 
             self.state_mut().diagnostics.error(
                 DiagnosticId::InvalidMethod,

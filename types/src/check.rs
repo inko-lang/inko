@@ -131,6 +131,12 @@ pub struct Environment {
     /// The type arguments to expose to types on the right-hand side of the
     /// check.
     pub right: TypeArguments,
+
+    /// The type to use for `Self` on the left-hand side.
+    pub left_self: Option<TypeEnum>,
+
+    /// The type to use for `Self` on the right-hand side.
+    pub right_self: Option<TypeEnum>,
 }
 
 impl Environment {
@@ -146,11 +152,47 @@ impl Environment {
         left_arguments: TypeArguments,
         right_arguments: TypeArguments,
     ) -> Environment {
-        Environment { left: left_arguments, right: right_arguments }
+        Environment {
+            left: left_arguments,
+            right: right_arguments,
+            left_self: None,
+            right_self: None,
+        }
+    }
+
+    pub fn with_self_type(
+        left_arguments: TypeArguments,
+        right_arguments: TypeArguments,
+        self_type: TypeEnum,
+    ) -> Environment {
+        Environment {
+            left: left_arguments,
+            right: right_arguments,
+            left_self: Some(self_type),
+            right_self: Some(self_type),
+        }
+    }
+
+    pub fn with_right_self_type(
+        left_arguments: TypeArguments,
+        right_arguments: TypeArguments,
+        self_type: TypeEnum,
+    ) -> Environment {
+        Environment {
+            left: left_arguments,
+            right: right_arguments,
+            left_self: None,
+            right_self: Some(self_type),
+        }
     }
 
     fn with_left_as_right(&self) -> Environment {
-        Environment { left: self.left.clone(), right: self.left.clone() }
+        Environment {
+            left: self.left.clone(),
+            right: self.left.clone(),
+            left_self: None,
+            right_self: None,
+        }
     }
 }
 
@@ -182,10 +224,14 @@ impl<'a> TypeChecker<'a> {
         db: &'a Database,
         left: TypeRef,
         right: TypeRef,
+        self_type: TypeEnum,
     ) -> bool {
         let rules = Rules::new().with_kind(Kind::Return);
-        let mut env =
-            Environment::new(left.type_arguments(db), right.type_arguments(db));
+        let mut env = Environment::with_self_type(
+            left.type_arguments(db),
+            right.type_arguments(db),
+            self_type,
+        );
 
         TypeChecker::new(db).check_type_ref(left, right, &mut env, rules)
     }
@@ -352,7 +398,7 @@ impl<'a> TypeChecker<'a> {
 
         // Resolve any assigned type parameters/placeholders to the types
         // they're assigned to.
-        let left = self.resolve(left, &env.left, rules);
+        let left = self.resolve(left, &env.left, env.left_self, rules);
         let allow_ref = rules.implicit_root_ref;
         let allow_never = rules.allow_never;
 
@@ -367,7 +413,7 @@ impl<'a> TypeChecker<'a> {
             .without_implicit_root_ref()
             .without_never();
         let orig_right = right;
-        let right = self.resolve(right, &env.right, rules);
+        let right = self.resolve(right, &env.right, env.right_self, rules);
 
         // This indicates if the value on the left of the check is a value type
         // (e.g. Int or String).
@@ -398,25 +444,25 @@ impl<'a> TypeChecker<'a> {
             },
             TypeRef::Owned(left_id) => match right {
                 TypeRef::Any(right_id) if !rules.kind.is_return() => {
-                    self.check_type_id(left_id, right_id, env, rules)
+                    self.check_type_enum(left_id, right_id, env, rules)
                 }
                 TypeRef::Owned(right_id) => {
-                    self.check_type_id(left_id, right_id, env, rules)
+                    self.check_type_enum(left_id, right_id, env, rules)
                 }
                 TypeRef::Mut(right_id) if allow_mut && allow_ref => {
                     let rules = rules.without_implicit_root_ref();
 
-                    self.check_type_id(left_id, right_id, env, rules)
+                    self.check_type_enum(left_id, right_id, env, rules)
                 }
                 TypeRef::Ref(right_id) if is_val || allow_ref => {
                     let rules = rules.without_implicit_root_ref();
 
-                    self.check_type_id(left_id, right_id, env, rules)
+                    self.check_type_enum(left_id, right_id, env, rules)
                 }
                 TypeRef::Uni(right_id) | TypeRef::UniRef(right_id)
                     if is_val =>
                 {
-                    self.check_type_id(left_id, right_id, env, rules)
+                    self.check_type_enum(left_id, right_id, env, rules)
                 }
                 TypeRef::Placeholder(id) => {
                     let allow = match id.ownership {
@@ -428,7 +474,7 @@ impl<'a> TypeChecker<'a> {
                     };
 
                     allow
-                        && self.check_type_id_with_placeholder(
+                        && self.check_type_enum_with_placeholder(
                             left, left_id, orig_right, id, env, rules,
                         )
                 }
@@ -446,16 +492,16 @@ impl<'a> TypeChecker<'a> {
                 TypeRef::Owned(right_id)
                     if rules.uni_compatible_with_owned || is_val =>
                 {
-                    self.check_type_id(left_id, right_id, env, rules)
+                    self.check_type_enum(left_id, right_id, env, rules)
                 }
                 TypeRef::Any(right_id) if !rules.kind.is_return() => {
-                    self.check_type_id(left_id, right_id, env, rules)
+                    self.check_type_enum(left_id, right_id, env, rules)
                 }
                 TypeRef::Uni(right_id) => {
-                    self.check_type_id(left_id, right_id, env, rules)
+                    self.check_type_enum(left_id, right_id, env, rules)
                 }
                 TypeRef::Ref(right_id) | TypeRef::Mut(right_id) if is_val => {
-                    self.check_type_id(left_id, right_id, env, rules)
+                    self.check_type_enum(left_id, right_id, env, rules)
                 }
                 TypeRef::Placeholder(id) => {
                     let allow = match id.ownership {
@@ -467,7 +513,7 @@ impl<'a> TypeChecker<'a> {
                     };
 
                     allow
-                        && self.check_type_id_with_placeholder(
+                        && self.check_type_enum_with_placeholder(
                             left, left_id, orig_right, id, env, rules,
                         )
                 }
@@ -479,11 +525,11 @@ impl<'a> TypeChecker<'a> {
                 // runtime ownership of our value. Ref is fine, because we can
                 // always turn an Owned/Ref/Mut/etc into a Ref.
                 TypeRef::Any(right_id) | TypeRef::Ref(right_id) => {
-                    self.check_type_id(left_id, right_id, env, rules)
+                    self.check_type_enum(left_id, right_id, env, rules)
                 }
                 TypeRef::Placeholder(id) => {
                     matches!(id.ownership, Ownership::Any | Ownership::Ref)
-                        && self.check_type_id_with_placeholder(
+                        && self.check_type_enum_with_placeholder(
                             left, left_id, orig_right, id, env, rules,
                         )
                 }
@@ -497,17 +543,17 @@ impl<'a> TypeChecker<'a> {
                     false
                 }
                 TypeRef::Any(right_id) if !rules.kind.is_return() => {
-                    self.check_type_id(left_id, right_id, env, rules)
+                    self.check_type_enum(left_id, right_id, env, rules)
                 }
                 TypeRef::Ref(right_id) => {
-                    self.check_type_id(left_id, right_id, env, rules)
+                    self.check_type_enum(left_id, right_id, env, rules)
                 }
                 TypeRef::Owned(right_id)
                 | TypeRef::Uni(right_id)
                 | TypeRef::UniRef(right_id)
                     if is_val =>
                 {
-                    self.check_type_id(left_id, right_id, env, rules)
+                    self.check_type_enum(left_id, right_id, env, rules)
                 }
                 TypeRef::Placeholder(id) => {
                     match id.ownership {
@@ -517,7 +563,7 @@ impl<'a> TypeChecker<'a> {
                         _ => return false,
                     }
 
-                    self.check_type_id_with_placeholder(
+                    self.check_type_enum_with_placeholder(
                         left, left_id, orig_right, id, env, rules,
                     )
                 }
@@ -526,12 +572,12 @@ impl<'a> TypeChecker<'a> {
             },
             TypeRef::Mut(left_id) => match right {
                 TypeRef::Any(right_id) if !rules.kind.is_return() => {
-                    self.check_type_id(left_id, right_id, env, rules)
+                    self.check_type_enum(left_id, right_id, env, rules)
                 }
                 TypeRef::Ref(right_id) => {
-                    self.check_type_id(left_id, right_id, env, rules)
+                    self.check_type_enum(left_id, right_id, env, rules)
                 }
-                TypeRef::Mut(right_id) => self.check_type_id(
+                TypeRef::Mut(right_id) => self.check_type_enum(
                     left_id,
                     right_id,
                     env,
@@ -543,7 +589,7 @@ impl<'a> TypeChecker<'a> {
                 | TypeRef::UniMut(right_id)
                     if is_val =>
                 {
-                    self.check_type_id(left_id, right_id, env, rules)
+                    self.check_type_enum(left_id, right_id, env, rules)
                 }
                 TypeRef::Placeholder(id) => {
                     let allow = match id.ownership {
@@ -554,7 +600,7 @@ impl<'a> TypeChecker<'a> {
                     };
 
                     allow
-                        && self.check_type_id_with_placeholder(
+                        && self.check_type_enum_with_placeholder(
                             left, left_id, orig_right, id, env, rules,
                         )
                 }
@@ -624,7 +670,7 @@ impl<'a> TypeChecker<'a> {
             TypeRef::Pointer(left_id) => match right {
                 TypeRef::Pointer(right_id) => {
                     rules.kind.is_cast()
-                        || self.check_type_id(left_id, right_id, env, rules)
+                        || self.check_type_enum(left_id, right_id, env, rules)
                 }
                 TypeRef::Owned(TypeEnum::Foreign(ForeignType::Int(_, _))) => {
                     rules.kind.is_cast()
@@ -638,7 +684,7 @@ impl<'a> TypeChecker<'a> {
                         _ => return false,
                     }
 
-                    self.check_type_id_with_placeholder(
+                    self.check_type_enum_with_placeholder(
                         left, left_id, orig_right, right_id, env, rules,
                     )
                 }
@@ -648,7 +694,7 @@ impl<'a> TypeChecker<'a> {
         }
     }
 
-    fn check_type_id(
+    fn check_type_enum(
         &mut self,
         left_id: TypeEnum,
         right_id: TypeEnum,
@@ -702,7 +748,8 @@ impl<'a> TypeChecker<'a> {
                 }
                 TypeEnum::TraitInstance(rhs) => {
                     if rules.kind.is_cast()
-                        && !lhs.instance_of().allow_cast_to_trait(self.db)
+                        && (!lhs.instance_of().allow_cast_to_trait(self.db)
+                            || !rhs.instance_of().is_cast_safe(self.db))
                     {
                         return false;
                     }
@@ -736,6 +783,10 @@ impl<'a> TypeChecker<'a> {
                 _ => false,
             },
             TypeEnum::TraitInstance(lhs) => match right_id {
+                // Self in a trait isn't compatible with trait _values_ because
+                // Self might not support dynamic dispatch.
+                TypeEnum::TraitInstance(rhs) if lhs == rhs => true,
+                TypeEnum::TraitInstance(_) if lhs.self_type => false,
                 TypeEnum::TraitInstance(rhs) => {
                     self.check_traits(lhs, rhs, env, rules)
                 }
@@ -756,7 +807,7 @@ impl<'a> TypeChecker<'a> {
             },
             TypeEnum::RigidTypeParameter(lhs)
             | TypeEnum::AtomicTypeParameter(lhs) => {
-                self.check_rigid_with_type_id(lhs, right_id, env, rules)
+                self.check_rigid_with_type_enum(lhs, right_id, env, rules)
             }
             TypeEnum::Closure(lhs) => match right_id {
                 TypeEnum::Closure(rhs) => {
@@ -828,7 +879,7 @@ impl<'a> TypeChecker<'a> {
         }
     }
 
-    fn check_rigid_with_type_id(
+    fn check_rigid_with_type_enum(
         &mut self,
         left: TypeParameterId,
         right: TypeEnum,
@@ -855,7 +906,7 @@ impl<'a> TypeChecker<'a> {
         }
     }
 
-    fn check_type_id_with_placeholder(
+    fn check_type_enum_with_placeholder(
         &mut self,
         left: TypeRef,
         left_id: TypeEnum,
@@ -1164,9 +1215,10 @@ impl<'a> TypeChecker<'a> {
         &self,
         typ: TypeRef,
         arguments: &TypeArguments,
+        self_type: Option<TypeEnum>,
         rules: Rules,
     ) -> TypeRef {
-        let result = match typ {
+        let mut result = match typ {
             TypeRef::Owned(TypeEnum::TypeParameter(id)) => {
                 // Owned type parameters should only be assigned owned types.
                 // This check ensures that if we have e.g. `move T` and
@@ -1194,7 +1246,9 @@ impl<'a> TypeChecker<'a> {
                 //
                 // We return `Unknown` here so we can guarantee the check fails,
                 // as this type isn't compatible with anything.
-                match self.resolve_type_parameter(typ, id, arguments, rules) {
+                match self.resolve_type_parameter(
+                    typ, id, arguments, self_type, rules,
+                ) {
                     res @ TypeRef::Owned(_) => res,
                     TypeRef::Placeholder(id) => {
                         // We reach this point if the type parameter is assigned
@@ -1205,25 +1259,54 @@ impl<'a> TypeChecker<'a> {
                 }
             }
             TypeRef::Uni(TypeEnum::TypeParameter(id)) => self
-                .resolve_type_parameter(typ, id, arguments, rules)
+                .resolve_type_parameter(typ, id, arguments, self_type, rules)
                 .as_uni(self.db),
-            TypeRef::Any(TypeEnum::TypeParameter(id)) => {
-                self.resolve_type_parameter(typ, id, arguments, rules)
-            }
+            TypeRef::Any(TypeEnum::TypeParameter(id)) => self
+                .resolve_type_parameter(typ, id, arguments, self_type, rules),
             TypeRef::Ref(TypeEnum::TypeParameter(id)) => self
-                .resolve_type_parameter(typ, id, arguments, rules)
+                .resolve_type_parameter(typ, id, arguments, self_type, rules)
                 .as_ref(self.db),
             TypeRef::Mut(TypeEnum::TypeParameter(id)) => self
-                .resolve_type_parameter(typ, id, arguments, rules)
+                .resolve_type_parameter(typ, id, arguments, self_type, rules)
                 .as_mut(self.db),
             TypeRef::Pointer(TypeEnum::TypeParameter(id)) => self
-                .resolve_type_parameter(typ, id, arguments, rules)
+                .resolve_type_parameter(typ, id, arguments, self_type, rules)
                 .as_pointer(self.db),
             TypeRef::Placeholder(id) => id
                 .value(self.db)
-                .map_or(typ, |v| self.resolve(v, arguments, rules)),
+                .map_or(typ, |v| self.resolve(v, arguments, self_type, rules)),
             _ => typ,
         };
+
+        if let Some(stype) = self_type {
+            result = match result {
+                TypeRef::Owned(TypeEnum::TraitInstance(i)) if i.self_type => {
+                    TypeRef::Owned(stype)
+                }
+                TypeRef::Ref(TypeEnum::TraitInstance(i)) if i.self_type => {
+                    TypeRef::Ref(stype)
+                }
+                TypeRef::Mut(TypeEnum::TraitInstance(i)) if i.self_type => {
+                    TypeRef::Mut(stype)
+                }
+                TypeRef::Uni(TypeEnum::TraitInstance(i)) if i.self_type => {
+                    TypeRef::Uni(stype)
+                }
+                TypeRef::UniRef(TypeEnum::TraitInstance(i)) if i.self_type => {
+                    TypeRef::UniRef(stype)
+                }
+                TypeRef::UniMut(TypeEnum::TraitInstance(i)) if i.self_type => {
+                    TypeRef::UniMut(stype)
+                }
+                TypeRef::Any(TypeEnum::TraitInstance(i)) if i.self_type => {
+                    TypeRef::Any(stype)
+                }
+                TypeRef::Pointer(TypeEnum::TraitInstance(i)) if i.self_type => {
+                    TypeRef::Pointer(stype)
+                }
+                _ => result,
+            };
+        }
 
         if rules.rigid_parameters {
             result.as_rigid_type_parameter()
@@ -1237,12 +1320,13 @@ impl<'a> TypeChecker<'a> {
         typ: TypeRef,
         id: TypeParameterId,
         arguments: &TypeArguments,
+        self_type: Option<TypeEnum>,
         rules: Rules,
     ) -> TypeRef {
         match arguments.get(id.original(self.db).unwrap_or(id)) {
             Some(arg @ TypeRef::Placeholder(id)) => id
                 .value(self.db)
-                .map(|v| self.resolve(v, arguments, rules))
+                .map(|v| self.resolve(v, arguments, self_type, rules))
                 .unwrap_or(arg),
             Some(arg) => arg,
             _ => typ,
@@ -1331,8 +1415,10 @@ mod tests {
 
     #[track_caller]
     fn check_err_return(db: &Database, left: TypeRef, right: TypeRef) {
+        let stype = instance(TypeId::int());
+
         assert!(
-            !TypeChecker::check_return(db, left, right),
+            !TypeChecker::check_return(db, left, right, stype),
             "Expected {} to not be compatible with {}",
             format_type(db, left),
             format_type(db, right)
