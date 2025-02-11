@@ -18,7 +18,7 @@ fn parse_front_matter(path: ref Path) -> Result[FrontMatter, String] {
   })
 }
 
-class Item {
+type Item {
   let @title: String
   let @url: String
 
@@ -30,25 +30,19 @@ class Item {
   }
 }
 
-impl Clone[Item] for Item {
+impl Clone for Item {
   fn pub clone -> Item {
     Item(title: @title, url: @url)
   }
 }
 
-class Menu {
+type Menu {
   let @items: Map[String, Array[Item]]
   let @titles: Map[String, String]
 
   fn static parse(source: ref Path, path: ref Path) -> Result[Menu, String] {
-    let bytes = ByteArray.new
-
-    try ReadOnlyFile
-      .new(path.clone)
-      .then(fn (f) { f.read_all(bytes) })
-      .map_error(fn (e) { e.to_string })
-
-    let root = match Json.parse(bytes) {
+    let file = try ReadOnlyFile.new(path).map_error(fn (e) { e.to_string })
+    let root = match Json.parse(file) {
       case Ok(Object(map)) -> map
       case Ok(_) -> throw 'the top-level value must be an object'
       case Error(e) -> throw e.to_string
@@ -89,7 +83,7 @@ class Menu {
   }
 }
 
-impl Clone[Menu] for Menu {
+impl Clone for Menu {
   fn pub clone -> Menu {
     Menu(
       items: @items.iter.reduce(Map.new, fn (map, pair) {

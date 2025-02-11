@@ -6,7 +6,7 @@ import wobsite (Page)
 import wobsite.url (relative_to_absolute)
 
 # A filter that automatically inserts a table of contents.
-class AutoTableOfContents {
+type AutoTableOfContents {
   fn static new -> AutoTableOfContents {
     AutoTableOfContents()
   }
@@ -23,7 +23,7 @@ impl Filter for AutoTableOfContents {
   }
 }
 
-class AddCopyButton {
+type AddCopyButton {
   fn static new -> AddCopyButton {
     AddCopyButton()
   }
@@ -54,7 +54,7 @@ impl Filter for AddCopyButton {
 # A filter that turns relative document links (e.g. `[](ivm)`) into the correct
 # URLs, optionally setting the link text if left out. This makes it easier to
 # link to different documents.
-class RelativeLinks {
+type RelativeLinks {
   let @menu: ref Menu
   let @page: ref Page
 

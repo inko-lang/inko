@@ -6,7 +6,7 @@ import wobsite (Page)
 
 let MENU_FILE = 'menu.json'
 
-class pub Config {
+type pub Config {
   # The name of the website.
   let pub @title: String
 
@@ -39,7 +39,7 @@ class pub Config {
   }
 }
 
-impl Clone[Config] for Config {
+impl Clone for Config {
   fn pub clone -> Config {
     Config(title: @title, base_url: @base_url, menu: @menu.clone, main: @main)
   }

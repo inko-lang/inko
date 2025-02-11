@@ -2,7 +2,7 @@ import docs.config (Config)
 import docs.layouts
 import wobsite (Site)
 
-class async Main {
+type async Main {
   fn async main {
     Site.build(fn (site) {
       # Each page needs this data, so we panic if we can't parse it as we can't
