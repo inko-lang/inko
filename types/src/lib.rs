@@ -4775,6 +4775,14 @@ impl TypeRef {
     pub fn is_sendable_output(self, db: &Database) -> bool {
         match self {
             TypeRef::Uni(_) | TypeRef::Never | TypeRef::Error => true,
+            // We may encounter Any() values when processing fields of generic
+            // types. In those cases we've already checked the type assigned to
+            // those parameters and so we can allow them.
+            //
+            // The alternative is to expose a type's type arguments when
+            // processing fields, but then we end up performing duplicate work
+            // and have to complicate the implementation of this method a lot.
+            TypeRef::Any(_) => true,
             // Enums use the `Unknown` type for each generated field, generating
             // the final types when lowering to LLVM. This means we need to
             // treat such types as sendable.

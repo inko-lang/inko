@@ -1808,7 +1808,7 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn tuple_literal(&mut self, node: hir::TupleLiteral) -> RegisterId {
-        self.check_inferred(node.resolved_type, false, node.location);
+        self.check_inferred(node.resolved_type, node.location);
 
         let tup = self.new_register(node.resolved_type);
         let id = node.type_id.unwrap();
@@ -1922,7 +1922,7 @@ impl<'a> LowerMethod<'a> {
         let loc = InstructionLocation::new(node.name.location);
         let reg = match node.kind {
             types::CallKind::Call(info) => {
-                self.check_inferred(info.returns, true, node.location);
+                self.check_inferred(info.returns, node.location);
 
                 let rec = if info.receiver.is_explicit() {
                     node.receiver.map(|expr| self.expression(expr))
@@ -1936,7 +1936,7 @@ impl<'a> LowerMethod<'a> {
                 self.call_method(info, rec, args, node.name.location)
             }
             types::CallKind::GetField(info) => {
-                self.check_inferred(info.variable_type, false, node.location);
+                self.check_inferred(info.variable_type, node.location);
 
                 let typ = info.variable_type;
                 let rec = self.expression(node.receiver.unwrap());
@@ -1980,7 +1980,7 @@ impl<'a> LowerMethod<'a> {
                 }
             }
             types::CallKind::CallClosure(info) => {
-                self.check_inferred(info.returns, true, node.location);
+                self.check_inferred(info.returns, node.location);
 
                 let returns = info.returns;
                 let rec = self.expression(node.receiver.unwrap());
@@ -2014,7 +2014,7 @@ impl<'a> LowerMethod<'a> {
                 reg
             }
             types::CallKind::TypeInstance(info) => {
-                self.check_inferred(info.resolved_type, false, node.location);
+                self.check_inferred(info.resolved_type, node.location);
 
                 let ins = self.new_register(info.resolved_type);
                 let tid = info.type_id;
@@ -2168,11 +2168,8 @@ impl<'a> LowerMethod<'a> {
         }
     }
 
-    fn check_inferred(&mut self, typ: TypeRef, call: bool, location: Location) {
-        // For calls we start with a depth of 1 such that we can disallow
-        // methods returning borrows of data that can't be borrowed (e.g. a
-        // borrow of a unique value).
-        match typ.verify_type(self.db(), call as usize) {
+    fn check_inferred(&mut self, typ: TypeRef, location: Location) {
+        match typ.verify_type(self.db(), 0) {
             Ok(()) => {}
             Err(VerificationError::Incomplete) => {
                 self.state.diagnostics.cant_infer_type(
@@ -2227,7 +2224,7 @@ impl<'a> LowerMethod<'a> {
         let loc = InstructionLocation::new(node.location);
         let reg = match node.kind {
             types::CallKind::Call(info) => {
-                self.check_inferred(info.returns, true, node.location);
+                self.check_inferred(info.returns, node.location);
 
                 let rec = if info.receiver.is_explicit() {
                     Some(self.expression(node.receiver))
@@ -3520,7 +3517,7 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn closure(&mut self, node: hir::Closure) -> RegisterId {
-        self.check_inferred(node.resolved_type, false, node.location);
+        self.check_inferred(node.resolved_type, node.location);
 
         let module = self.module;
         let closure_id = node.closure_id.unwrap();
