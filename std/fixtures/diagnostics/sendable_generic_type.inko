@@ -1,0 +1,23 @@
+type MyMap[K, V] {
+  let @keys: Array[K]
+  let @values: Array[V]
+
+  fn clone -> Self {
+    MyMap(keys: [], values: [])
+  }
+}
+
+fn example1 {
+  let a = recover MyMap(keys: ['foo'], values: ['bar'])
+
+  a.clone
+}
+
+fn example2 {
+  let a = recover MyMap(keys: ['foo'], values: ['bar'])
+  let b = recover a.clone
+
+  b.invalid
+}
+
+# sendable_generic_type.inko:20:3 error(invalid-symbol): the method 'invalid' isn't defined for type 'uni MyMap[String, String]'

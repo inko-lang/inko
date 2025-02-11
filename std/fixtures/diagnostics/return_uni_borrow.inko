@@ -1,0 +1,27 @@
+type A {}
+
+type B {
+  let @a: A
+  let @b: ref A
+
+  fn take(values: Array[uni B]) {}
+}
+
+fn borrow(value: ref B) {}
+
+fn example1(value: uni B) {
+  [value].get(0)
+}
+
+fn example2(value: uni B) {
+  borrow([value].get(0))
+}
+
+fn example3(value: uni B) {
+  let values = [value]
+
+  values.get(0).take(values)
+}
+
+# return_uni_borrow.inko:17:10 error(invalid-type): expected a value of type 'ref B', found 'uni ref B'
+# return_uni_borrow.inko:23:22 error(invalid-type): the receiver of this call requires sendable arguments, but 'Array[uni B]' isn't sendable
