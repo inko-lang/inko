@@ -4,6 +4,12 @@
 Entries from before version 0.10.0 are no longer included, but can be viewed
 [here](https://github.com/inko-lang/inko/blob/f9c01b86af70596021e649be5d43ec2a22b6d298/CHANGELOG.md).
 
+## 0.18.1 (2025-02-11)
+
+### Changed
+
+- [Fix overly strict sendability checks](https://github.com/inko-lang/inko/commit/d71ae84e622e22547054555e89ea45a90a2878ff)
+
 ## 0.18.0 (2025-02-11)
 
 ### Added
