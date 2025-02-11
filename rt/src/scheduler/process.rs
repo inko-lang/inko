@@ -4,10 +4,9 @@ use crate::context;
 use crate::process::{Process, ProcessPointer, Task};
 use crate::scheduler::pin_thread_to_core;
 use crate::stack::StackPool;
-use crate::state::State;
+use crate::state::{RcState, State};
 use crossbeam_queue::ArrayQueue;
 use crossbeam_utils::atomic::AtomicCell;
-use crossbeam_utils::thread::scope;
 use rand::rngs::ThreadRng;
 use rand::thread_rng;
 use std::cell::Cell;
@@ -18,7 +17,7 @@ use std::ops::Drop;
 use std::ptr::null_mut;
 use std::sync::atomic::{AtomicBool, AtomicU16, AtomicU64, Ordering};
 use std::sync::{Condvar, Mutex};
-use std::thread::sleep;
+use std::thread::{sleep, Builder as ThreadBuilder};
 use std::time::{Duration, Instant};
 
 /// The ID of the main thread/queue.
@@ -1007,54 +1006,68 @@ impl Scheduler {
         self.pool.terminate();
     }
 
-    pub(crate) fn run(&self, state: &State, process: ProcessPointer) {
+    pub(crate) fn run(&self, state: &RcState, process: ProcessPointer) {
         let pollers = state.network_pollers.len();
         let cores = state.cores as usize;
-        let _ = scope(move |s| {
-            s.builder()
+
+        // We deliberately don't join threads as this may result in the program
+        // hanging during shutdown if one or more threads are performing a
+        // blocking system call (e.g. reading from STDIN).
+        {
+            let pool = self.pool.clone();
+
+            ThreadBuilder::new()
                 .name("proc monitor".to_string())
-                .spawn(move |_| Monitor::new(&self.pool).run())
-                .unwrap();
+                .spawn(move || Monitor::new(&pool).run())
+                .expect("failed to start the process monitor thread");
+        }
 
-            s.builder()
+        {
+            let state = state.clone();
+
+            ThreadBuilder::new()
                 .name("epoch".to_string())
-                .spawn(move |_| {
-                    epoch_loop(state);
+                .spawn(move || {
+                    epoch_loop(&state);
                 })
-                .unwrap();
+                .expect("failed to start the epoch thread");
+        }
 
-            for id in 1..self.primary {
-                let poll_id = id % pollers;
+        for id in 1..self.primary {
+            let poll_id = id % pollers;
+            let state = state.clone();
+            let pool = self.pool.clone();
 
-                s.builder()
-                    .name(format!("proc {}", id))
-                    .spawn(move |_| {
-                        pin_thread_to_core(id % cores);
-                        Thread::new(id, poll_id, self.pool.clone()).run(state)
-                    })
-                    .expect("failed to start a process thread");
-            }
+            ThreadBuilder::new()
+                .name(format!("proc {}", id))
+                .spawn(move || {
+                    pin_thread_to_core(id % cores);
+                    Thread::new(id, poll_id, pool).run(&state)
+                })
+                .expect("failed to start a process thread");
+        }
 
-            for id in 0..self.backup {
-                let poll_id = id % pollers;
+        for id in 0..self.backup {
+            let poll_id = id % pollers;
+            let state = state.clone();
+            let pool = self.pool.clone();
 
-                s.builder()
-                    .name(format!("backup {}", id))
-                    .spawn(move |_| {
-                        pin_thread_to_core(id % cores);
-                        Thread::backup(poll_id, self.pool.clone()).run(state)
-                    })
-                    .expect("failed to start a backup thread");
-            }
+            ThreadBuilder::new()
+                .name(format!("backup {}", id))
+                .spawn(move || {
+                    pin_thread_to_core(id % cores);
+                    Thread::backup(poll_id, pool).run(&state)
+                })
+                .expect("failed to start a backup thread");
+        }
 
-            self.pool.schedule(process);
+        self.pool.schedule(process);
 
-            // The current thread is used for running the main process. This
-            // makes it possible for this process to interface with libraries
-            // that require the same thread to be used for all operations (e.g.
-            // most GUI libraries).
-            Thread::new(0, 0, self.pool.clone()).run_main(state);
-        });
+        // The current thread is used for running the main process. This
+        // makes it possible for this process to interface with libraries
+        // that require the same thread to be used for all operations (e.g.
+        // most GUI libraries).
+        Thread::new(0, 0, self.pool.clone()).run_main(state);
     }
 }
 
@@ -1064,7 +1077,7 @@ mod tests {
     use crate::test::{
         empty_process_type, new_process, new_process_with_message, setup,
     };
-    use std::thread::sleep;
+    use std::thread::{scope, sleep};
 
     unsafe extern "system" fn method(data: *mut u8) {
         let mut proc = ProcessPointer::new(data as _);
@@ -1408,7 +1421,7 @@ mod tests {
         let scheduler = Scheduler::new(1, 1, 32);
         let monitor = Monitor::new(&scheduler.pool);
         let _ = scope(|s| {
-            s.spawn(|_| monitor.deep_sleep());
+            s.spawn(|| monitor.deep_sleep());
 
             while scheduler.pool.monitor.status.load()
                 != MonitorStatus::Sleeping
