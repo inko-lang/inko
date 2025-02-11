@@ -7,6 +7,11 @@ ENV PATH /opt/cargo/bin:$PATH
 ENV RUSTUP_HOME /opt/rustup
 ENV CARGO_HOME /opt/cargo
 
+# This is set such that when we compile the runtimes for ARM64 we just use the
+# host musl-gcc, which is for ARM64 anyway (since the build process runs on an
+# ARM64 host).
+ENV CC_aarch64_unknown_linux_musl=musl-gcc
+
 RUN sudo dnf install --assumeyes --quiet gcc make tar git rustup rclone \
     musl-gcc llvm$LLVM_VERSION llvm$LLVM_VERSION-devel \
     llvm$LLVM_VERSION-static libstdc++-devel libstdc++-static \
