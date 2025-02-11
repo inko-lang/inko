@@ -648,7 +648,7 @@ impl ToFloat for Int {
   }
 }
 
-impl Compare[Int] for Int {
+impl Compare for Int {
   fn pub inline cmp(other: ref Int) -> Ordering {
     if self > other {
       Ordering.Greater
@@ -676,7 +676,7 @@ impl Compare[Int] for Int {
   }
 }
 
-impl Equal[ref Int] for Int {
+impl Equal for Int {
   fn pub inline ==(other: ref Int) -> Bool {
     _INKO.int_eq(self, other)
   }

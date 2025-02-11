@@ -145,7 +145,7 @@ impl ToString for Hash {
   }
 }
 
-impl Equal[ref Hash] for Hash {
+impl Equal for Hash {
   fn pub ==(other: ref Hash) -> Bool {
     @bytes == other.bytes
   }

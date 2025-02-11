@@ -43,7 +43,7 @@ type pub copy enum FileType {
   }
 }
 
-impl Equal[ref FileType] for FileType {
+impl Equal for FileType {
   fn pub ==(other: ref FileType) -> Bool {
     match (self, other) {
       case (File, File) -> true
@@ -80,7 +80,7 @@ type pub inline DirectoryEntry {
   let pub @type: FileType
 }
 
-impl Equal[ref DirectoryEntry] for DirectoryEntry {
+impl Equal for DirectoryEntry {
   fn pub ==(other: ref DirectoryEntry) -> Bool {
     @path == other.path and @type == other.type
   }

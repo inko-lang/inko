@@ -213,7 +213,7 @@ impl Clone for Signal {
   }
 }
 
-impl Equal[ref Signal] for Signal {
+impl Equal for Signal {
   fn pub ==(other: ref Signal) -> Bool {
     id == other.id
   }

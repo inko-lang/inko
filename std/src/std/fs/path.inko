@@ -885,7 +885,7 @@ type pub inline Path {
   }
 }
 
-impl Equal[ref Path] for Path {
+impl Equal for Path {
   # Returns `true` if `self` is equal to the given `Path`.
   #
   # # Examples

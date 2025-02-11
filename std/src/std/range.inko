@@ -108,7 +108,7 @@ impl Contains[Int] for InclusiveRange {
   }
 }
 
-impl Equal[ref InclusiveRange] for InclusiveRange {
+impl Equal for InclusiveRange {
   # Returns `true` if `self` and `other` are identical.
   #
   # # Examples
@@ -211,7 +211,7 @@ impl Contains[Int] for ExclusiveRange {
   }
 }
 
-impl Equal[ref ExclusiveRange] for ExclusiveRange {
+impl Equal for ExclusiveRange {
   # Returns `true` if `self` and `other` are identical.
   #
   # # Examples

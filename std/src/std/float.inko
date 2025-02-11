@@ -318,7 +318,7 @@ impl Power[Int, Float] for Float {
   }
 }
 
-impl Compare[Float] for Float {
+impl Compare for Float {
   # Return the ordering between `self` and `other`.
   #
   # This method implements total ordering of floats as per the IEEE 754
@@ -363,7 +363,7 @@ impl Compare[Float] for Float {
   }
 }
 
-impl Equal[ref Float] for Float {
+impl Equal for Float {
   # Returns `true` if `self` and `other` are equal to each other.
   #
   # This method uses "Units in the Last Place" or ULPs to perform an approximate

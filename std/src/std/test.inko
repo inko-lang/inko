@@ -129,31 +129,28 @@ type pub Test {
   }
 
   # Asserts that the given arguments are equal to each other.
-  fn pub mut equal[T: Equal[ref T] + Format](got: ref T, expected: ref T) {
+  fn pub mut equal[T: Equal + Format](got: ref T, expected: ref T) {
     if got == expected { return }
 
     @failures.push(Failure.new(fmt(got), fmt(expected)))
   }
 
   # Asserts that the given arguments are not equal to each other.
-  fn pub mut not_equal[T: Equal[ref T] + Format](got: ref T, expected: ref T) {
+  fn pub mut not_equal[T: Equal + Format](got: ref T, expected: ref T) {
     if got != expected { return }
 
     @failures.push(Failure.new(fmt(got), fmt(expected)))
   }
 
   # Asserts that `got` is greater than `minimum`.
-  fn pub mut greater[T: Compare[T] + Format](got: ref T, minimum: ref T) {
+  fn pub mut greater[T: Compare + Format](got: ref T, minimum: ref T) {
     if got > minimum { return }
 
     @failures.push(Failure.new(fmt(got), '> ${fmt(minimum)}'))
   }
 
   # Asserts that `got` is greater than or equal to `minimum`.
-  fn pub mut greater_or_equal[T: Compare[T] + Format](
-    got: ref T,
-    minimum: ref T,
-  ) {
+  fn pub mut greater_or_equal[T: Compare + Format](got: ref T, minimum: ref T) {
     if got >= minimum { return }
 
     @failures.push(Failure.new(fmt(got), '>= ${fmt(minimum)}'))
@@ -368,7 +365,7 @@ type pub inline enum Filter {
   }
 }
 
-impl Equal[ref Filter] for Filter {
+impl Equal for Filter {
   fn pub ==(other: ref Filter) -> Bool {
     match self {
       case Pattern(lhs) -> {

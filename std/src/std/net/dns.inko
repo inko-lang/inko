@@ -46,7 +46,7 @@ impl Format for Error {
   }
 }
 
-impl Equal[ref Error] for Error {
+impl Equal for Error {
   fn pub ==(other: ref Error) -> Bool {
     match (self, other) {
       case (InvalidHost, InvalidHost) -> true

@@ -93,7 +93,7 @@ impl Format for Item {
   }
 }
 
-impl Equal[ref Item] for Item {
+impl Equal for Item {
   fn pub ==(other: ref Item) -> Bool {
     match (self, other) {
       case (Certificate(a), Certificate(b)) -> a == b
@@ -135,7 +135,7 @@ impl Format for ParseError {
   }
 }
 
-impl Equal[ref ParseError] for ParseError {
+impl Equal for ParseError {
   fn pub ==(other: ref ParseError) -> Bool {
     match (self, other) {
       case (Read(a), Read(b)) -> a == b

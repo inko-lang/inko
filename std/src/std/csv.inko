@@ -94,7 +94,7 @@ impl Format for Error {
   }
 }
 
-impl Equal[ref Error] for Error {
+impl Equal for Error {
   fn pub ==(other: ref Error) -> Bool {
     @kind == other.kind and @offset == other.offset
   }
@@ -128,7 +128,7 @@ impl Format for ErrorKind {
   }
 }
 
-impl Equal[ref ErrorKind] for ErrorKind {
+impl Equal for ErrorKind {
   fn pub ==(other: ref ErrorKind) -> Bool {
     match (self, other) {
       case (Read(a), Read(b)) -> a == b

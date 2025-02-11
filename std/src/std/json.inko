@@ -160,7 +160,7 @@ type pub inline enum ErrorKind {
   case Read(IoError)
 }
 
-impl Equal[ref ErrorKind] for ErrorKind {
+impl Equal for ErrorKind {
   fn pub ==(other: ref ErrorKind) -> Bool {
     match (self, other) {
       case (RecursionLimitExceeded(a), RecursionLimitExceeded(b)) -> a == b
@@ -222,7 +222,7 @@ type pub inline Error {
   }
 }
 
-impl Equal[ref Error] for Error {
+impl Equal for Error {
   fn pub ==(other: ref Error) -> Bool {
     @kind == other.kind and @offset == other.offset
   }
@@ -534,7 +534,7 @@ impl FormatTrait for Json {
   }
 }
 
-impl Equal[ref Json] for Json {
+impl Equal for Json {
   fn pub ==(other: ref Json) -> Bool {
     match (self, other) {
       case (Int(a), Int(b)) -> a == b
@@ -555,7 +555,7 @@ type pub copy enum Number {
   case Float(Float)
 }
 
-impl Equal[ref Number] for Number {
+impl Equal for Number {
   fn pub ==(other: ref Number) -> Bool {
     match (self, other) {
       case (Int(a), Int(b)) -> a == b
@@ -585,7 +585,7 @@ type pub copy enum Type {
   case String
 }
 
-impl Equal[ref Type] for Type {
+impl Equal for Type {
   fn pub ==(other: ref Type) -> Bool {
     match (self, other) {
       case (Array, Array) -> true

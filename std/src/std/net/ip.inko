@@ -168,7 +168,7 @@ type pub copy enum IpAddress {
   }
 }
 
-impl Equal[ref IpAddress] for IpAddress {
+impl Equal for IpAddress {
   fn pub inline ==(other: ref IpAddress) -> Bool {
     match self {
       case V4(a) -> {
@@ -500,7 +500,7 @@ impl FormatTrait for Ipv6Address {
   }
 }
 
-impl Equal[ref Ipv6Address] for Ipv6Address {
+impl Equal for Ipv6Address {
   # Returns `true` if `self` and the given IP address are the same.
   #
   # # Examples
@@ -891,7 +891,7 @@ impl FormatTrait for Ipv4Address {
   }
 }
 
-impl Equal[ref Ipv4Address] for Ipv4Address {
+impl Equal for Ipv4Address {
   # Returns `true` if `self` and the given IP address are the same.
   #
   # # Examples

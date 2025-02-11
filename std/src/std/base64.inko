@@ -741,7 +741,7 @@ impl Format for DecodeError {
   }
 }
 
-impl Equal[ref DecodeError] for DecodeError {
+impl Equal for DecodeError {
   fn pub ==(other: ref DecodeError) -> Bool {
     match (self, other) {
       case (InvalidSize, InvalidSize) -> true

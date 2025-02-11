@@ -64,13 +64,13 @@ impl Clone for Bool {
   }
 }
 
-impl Equal[ref Bool] for Bool {
+impl Equal for Bool {
   fn pub inline ==(other: ref Bool) -> Bool {
     _INKO.bool_eq(self, other)
   }
 }
 
-impl Compare[Bool] for Bool {
+impl Compare for Bool {
   fn pub inline cmp(other: ref Bool) -> Ordering {
     to_int.cmp(other.to_int)
   }

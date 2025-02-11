@@ -8,7 +8,7 @@ import std.iter (Stream)
 #
 # The order of values in this Set are not guaranteed. For values to be stored in
 # a `Set` they must implement the `Hash` and `Equal` traits.
-type pub inline Set[V: Equal[ref V] + Hash] {
+type pub inline Set[V: Equal + Hash] {
   # The Map used for storing values.
   #
   # The keys are the values inserted in this `Set`, the values are always set to
@@ -134,7 +134,7 @@ type pub inline Set[V: Equal[ref V] + Hash] {
   }
 }
 
-impl Equal[ref Set[V]] for Set {
+impl Equal for Set {
   # Returns `true` if `self` and the given `Set` are identical to each
   # other.
   #

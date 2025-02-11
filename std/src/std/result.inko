@@ -277,7 +277,7 @@ impl Clone for Result if T: Clone, E: Clone {
   }
 }
 
-impl Equal[ref Result[T, E]] for Result if T: Equal[ref T], E: Equal[ref E] {
+impl Equal for Result if T: Equal, E: Equal {
   fn pub ==(other: ref Result[T, E]) -> Bool {
     match self {
       case Ok(ours) -> {

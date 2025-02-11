@@ -730,7 +730,7 @@ impl Drop for Array {
   }
 }
 
-impl Contains[T] for Array if T: Equal[ref T] {
+impl Contains[T] for Array if T: Equal {
   # Returns `true` if `self` contains the given value.
   #
   # # Examples
@@ -757,7 +757,7 @@ impl Clone for Array if T: Clone {
   }
 }
 
-impl Equal[ref Array[T]] for Array if T: Equal[ref T] {
+impl Equal for Array if T: Equal {
   # Returns `true` if `self` and the given `Array` are identical.
   #
   # # Examples

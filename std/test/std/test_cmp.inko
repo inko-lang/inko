@@ -7,7 +7,7 @@ type enum Letter {
   case B
 }
 
-impl Compare[Letter] for Letter {
+impl Compare for Letter {
   fn pub cmp(other: ref Letter) -> Ordering {
     match self {
       case A -> {
@@ -26,7 +26,7 @@ impl Compare[Letter] for Letter {
   }
 }
 
-impl Equal[ref Letter] for Letter {
+impl Equal for Letter {
   fn pub ==(other: ref Letter) -> Bool {
     match self {
       case A -> {

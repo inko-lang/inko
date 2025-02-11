@@ -9,7 +9,7 @@ type Person {
   let @age: Int
 }
 
-impl Compare[Person] for Person {
+impl Compare for Person {
   fn pub cmp(other: ref Person) -> Ordering {
     @age.cmp(other.age)
   }

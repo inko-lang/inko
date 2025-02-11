@@ -185,7 +185,7 @@ type inline enum Token {
   case Separator
 }
 
-impl Equal[ref Token] for Token {
+impl Equal for Token {
   fn pub ==(other: ref Token) -> Bool {
     match (self, other) {
       case (Short(a), Short(b)) -> a == b
@@ -374,7 +374,7 @@ impl ToString for Error {
   }
 }
 
-impl Equal[ref Error] for Error {
+impl Equal for Error {
   fn pub ==(other: ref Error) -> Bool {
     match (self, other) {
       case (InvalidOption(a), InvalidOption(b)) -> a == b

@@ -20,7 +20,7 @@ impl Format for Certificate {
   }
 }
 
-impl Equal[ref Certificate] for Certificate {
+impl Equal for Certificate {
   fn pub ==(other: ref Certificate) -> Bool {
     @bytes == other.bytes
   }
@@ -44,7 +44,7 @@ impl Format for PrivateKey {
   }
 }
 
-impl Equal[ref PrivateKey] for PrivateKey {
+impl Equal for PrivateKey {
   fn pub ==(other: ref PrivateKey) -> Bool {
     @bytes == other.bytes
   }

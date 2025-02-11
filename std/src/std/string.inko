@@ -830,7 +830,7 @@ impl IntoString for String {
   }
 }
 
-impl Equal[ref String] for String {
+impl Equal for String {
   # Returns `true` if the current `String` and `other` are equal to each other.
   #
   # # Examples
@@ -885,7 +885,7 @@ impl Format for String {
   }
 }
 
-impl Compare[String] for String {
+impl Compare for String {
   # Performs a byte-wise comparison of `self` with `other`.
   #
   # This method _does not_ perform lexicographic sorting, and thus produces

@@ -239,7 +239,7 @@ type Diagnostic {
   }
 }
 
-impl Equal[ref Diagnostic] for Diagnostic {
+impl Equal for Diagnostic {
   fn pub ==(other: ref Diagnostic) -> Bool {
     @id == other.id
       and @file == other.file

@@ -321,13 +321,13 @@ impl Divide[Int, Duration] for Duration {
   }
 }
 
-impl Compare[Duration] for Duration {
+impl Compare for Duration {
   fn pub inline cmp(other: Duration) -> Ordering {
     @nanos.cmp(other.nanos)
   }
 }
 
-impl Equal[Duration] for Duration {
+impl Equal for Duration {
   fn pub inline ==(other: Duration) -> Bool {
     @nanos == other.nanos
   }
@@ -491,7 +491,7 @@ type pub copy Date {
   }
 }
 
-impl Equal[Date] for Date {
+impl Equal for Date {
   fn pub ==(other: Date) -> Bool {
     @bits == other.bits
   }
@@ -601,7 +601,7 @@ type pub copy Time {
   }
 }
 
-impl Equal[Time] for Time {
+impl Equal for Time {
   fn pub ==(other: Time) -> Bool {
     @bits == other.bits
   }
@@ -1381,13 +1381,13 @@ impl Subtract[Duration, DateTime] for DateTime {
   }
 }
 
-impl Compare[DateTime] for DateTime {
+impl Compare for DateTime {
   fn pub cmp(other: ref DateTime) -> Ordering {
     to_float.cmp(other.to_float)
   }
 }
 
-impl Equal[ref DateTime] for DateTime {
+impl Equal for DateTime {
   fn pub inline ==(other: ref DateTime) -> Bool {
     @date == other.date
       and @time == other.time
@@ -1512,13 +1512,13 @@ impl Subtract[Duration, Instant] for Instant {
   }
 }
 
-impl Compare[Instant] for Instant {
+impl Compare for Instant {
   fn pub inline cmp(other: ref Instant) -> Ordering {
     @nanos.cmp(other.nanos)
   }
 }
 
-impl Equal[ref Instant] for Instant {
+impl Equal for Instant {
   fn pub inline ==(other: ref Instant) -> Bool {
     @nanos == other.nanos
   }
