@@ -4,6 +4,94 @@
 Entries from before version 0.10.0 are no longer included, but can be viewed
 [here](https://github.com/inko-lang/inko/blob/f9c01b86af70596021e649be5d43ec2a22b6d298/CHANGELOG.md).
 
+## 0.18.0 (2025-02-11)
+
+### Added
+
+- [Reintroduce Self types](https://github.com/inko-lang/inko/commit/589d7fbb770f24a00cb336ccf4868b09fc3ad7eb)
+- [Enable LLVM optimizations](https://github.com/inko-lang/inko/commit/84830aba215d1ec6993be8d89573b36d279da16e)
+- [Implement RFC 8305 for TcpClient](https://github.com/inko-lang/inko/commit/71a9d23498d7320077927afaf771d0a3e8f1a9f0)
+- [Add std.net.dns for performing DNS queries](https://github.com/inko-lang/inko/commit/3d2d34beec0cad4e29e188a68d96c5a8b7e6079f)
+- [Add support for DateTime parsing and formatting](https://github.com/inko-lang/inko/commit/40b3293b9db352fa3cc768cdfe4a8bd356f1b2e1)
+- [Add methods for counting leading/trailing bits](https://github.com/inko-lang/inko/commit/249abdc9bdbc66cf7534295555d256d8dbeebc05)
+- [Add Error constructor for EBADF](https://github.com/inko-lang/inko/commit/bca19f11af8f284a6dc6f881bc933c3a394c0e42)
+- [Allow storing of heap types in stack types](https://github.com/inko-lang/inko/commit/61061ebbc81e3c56be01ee8ca501c24310d48171)
+- [Add support for inline types](https://github.com/inko-lang/inko/commit/8ca46bfe5854642728cde2711c3a7db5cad92628)
+- [Add Bytes.opt to get an optional byte](https://github.com/inko-lang/inko/commit/8c29216b47fbfa9a87c7319b7850b3661521186c)
+- [Support JSON parsing of Read types](https://github.com/inko-lang/inko/commit/4b68835e127b6c5d83abe8e78563ad7003e6fcd6)
+- [Add Map.entry](https://github.com/inko-lang/inko/commit/17675e2c539cee325b0e491ed22f23b164536a01)
+- [Add Set.from_array](https://github.com/inko-lang/inko/commit/32d5f165e9bd3d427c5cef210c614ee63eb09242)
+- [Add more fine grained timings for optimizations](https://github.com/inko-lang/inko/commit/178cf945f4367d695cbe2db07845dbcd3a99a194)
+
+### Fixed
+
+- [Don't wait for threads upon shutting down](https://github.com/inko-lang/inko/commit/2ffe5d8f76a846180cee5e7dbc5ff05a2304280f)
+- [Don't use Inkwell's build_malloc()](https://github.com/inko-lang/inko/commit/a3a15ed841b571d247474d312090420c70a7f4fd)
+- [Fix checking for sendable return types](https://github.com/inko-lang/inko/commit/f9e5aa9ce2d9c2778246448850b261130290176b)
+- [Handle overflow when calculating inline weights](https://github.com/inko-lang/inko/commit/9d360dfaea416bdcf7f440ecb6b4c846cab7da8e)
+- [Fix use after free when dealing with timeouts](https://github.com/inko-lang/inko/commit/342c777b60fd7d737b51c2b2ff8b9b2cf7b4d785)
+- [Fix Channel dropping values in certain conditions](https://github.com/inko-lang/inko/commit/d13fd2f182fc72ca71d2f0005c750929a49af32f)
+- [Fix code snippet in `socket.inko` tutorial](https://github.com/inko-lang/inko/commit/1152a5734bc2fe7fc8957042d587bd59b7b2bf1e)
+- [Wrap lines using the character width not count](https://github.com/inko-lang/inko/commit/9cae074ff475186f494239499533c17b695766d7)
+- [Check for types aliasing uni T values](https://github.com/inko-lang/inko/commit/26070daa4ade6b7c83ff0fa9ff9b4e9cc5022e5c)
+- [Fix failure locations for no_panic tests](https://github.com/inko-lang/inko/commit/db72d59f25e29a3637262022b01d557443e941e5)
+- [Fix DateTime.fmt with negative UTC offsets](https://github.com/inko-lang/inko/commit/3b20a1670e14015691cff7833aa1e419284b0f9e)
+- [Fix compiling unreachable Int and String cases](https://github.com/inko-lang/inko/commit/59614f099733141b060c7e9cf0f3b7963c6fdb76)
+- [Fix type checking against pointers](https://github.com/inko-lang/inko/commit/35e92a92139819f543c9ce8d8651925a420f6244)
+- [Don't produce redundant unreachable warnings](https://github.com/inko-lang/inko/commit/8a3e558cbd1bbe28610b9d9399962c22e5a5029d)
+
+### Changed
+
+- [Use Self for std.cmp.Equal and std.cmp.Compare](https://github.com/inko-lang/inko/commit/4298b31a5316520c782c0bce977b04ea89238326)
+- [Use Self for std.clone.Clone](https://github.com/inko-lang/inko/commit/d1aa12903280e1b8f72e99f0ad1084ca9929d09d)
+- [Add support for mutable and immutable fields](https://github.com/inko-lang/inko/commit/a0af0acd3aff19fb8e56140ee2abb7bb1f9f7de6)
+- [Default to no optimizations when running tests](https://github.com/inko-lang/inko/commit/6dc8274ded691bc120ee32a96420e31bfac0a243)
+- [Don't store file paths in file types](https://github.com/inko-lang/inko/commit/73e5f0fde0f7515936128df2eb69ba444128c3a9)
+- [Expose the inner type for BufferedReader/Writer](https://github.com/inko-lang/inko/commit/70447a90f263dd8a8abfba4704ed9ccc4fea359f)
+- [Always consume self in Future.get_until](https://github.com/inko-lang/inko/commit/e418addb734dcb0fd32467a0c2f857c1faaada88)
+- [Replace the `class` keyword with `type`](https://github.com/inko-lang/inko/commit/88cbd8bb69db9e6e646cc757203bb0ebcb4907f3)
+- [Remove various redundant compiler limitations](https://github.com/inko-lang/inko/commit/6f8a503db4ba1c8a243698a8f888aa19ad77feeb)
+- [Extend ByteArray.append & add ByteArray.reverse_at](https://github.com/inko-lang/inko/commit/6f78b95552e36d96087453622ffd4f683b81d45b)
+- [Split DateTime into Date and Time types](https://github.com/inko-lang/inko/commit/e590693b5fa4aa5cb92d0ba302987eedf7d946a1)
+- [Implement DateTime using Inko](https://github.com/inko-lang/inko/commit/86b6ab7d2444d55bc1467f3d9dff4af484fdb698)
+- [Refactor std.cmp a little bit](https://github.com/inko-lang/inko/commit/4ffcf15c725d465eed95e52a627c6e58d5729eab)
+- [Implement Int.!= using an intrinsic](https://github.com/inko-lang/inko/commit/29a04da0f4012679b4c887f58ae06bba46b0e68c)
+- [Condense multiple empty lines between constants](https://github.com/inko-lang/inko/commit/01143572ce6c2aa5e23d944c0d107fef58750bb5)
+- [Fix specifying what LLVM passes to run](https://github.com/inko-lang/inko/commit/31014f3f4ce75896682ca86e23a0b72bcb575c03)
+- [Increase AMD64 requirement to x86-64-v2](https://github.com/inko-lang/inko/commit/00269d71360fed97a5bc56df61f4b7d91fcb0d96)
+- [Set locations for instructions that call functions](https://github.com/inko-lang/inko/commit/6bc962375b6a20f533745eabb9025996ccd28d01)
+- [Refactor std.json.ObjectParser](https://github.com/inko-lang/inko/commit/eba71722d825ab7764572fbc4fe13ccc7c522b2e)
+
+### Performance improvements
+
+- [Turn std.stdio types into inline types](https://github.com/inko-lang/inko/commit/ad49ce78b4d04f07851725aa2dee5698ae031fea)
+- [Turn file types into inline types](https://github.com/inko-lang/inko/commit/a0c0bd8c34ec3be2398ea3d19a1f3effd2fc890a)
+- [Optimize String.escaped](https://github.com/inko-lang/inko/commit/a8dd525866fcbebb6123f6f29576eb1d40284cdc)
+- [Inline trivial and remove unused constants](https://github.com/inko-lang/inko/commit/6307d38d73c3a9ac343974ddea0952948d5707a1)
+- [Apply method-local optimizations in parallel](https://github.com/inko-lang/inko/commit/ed24519b9e12db17f1e7617c5606ce616ddda445)
+- [Use a u16 instead of an i64 for enum tags](https://github.com/inko-lang/inko/commit/87e6689f380e85d778c7e3faf27ee1ab23b564b9)
+- [Mark Array read methods as inline](https://github.com/inko-lang/inko/commit/d5cd243aee92b319ef0cb4e29ddb007f038bbfe1)
+- [Mark various important String methods as inline](https://github.com/inko-lang/inko/commit/91a67e0ba22d50a5faffa9efe977238d0e334b16)
+- [Make various types inline types](https://github.com/inko-lang/inko/commit/52e431804c5133ecb20ea26a6e1774579854adad)
+- [Mark std.int.Format as an inline type](https://github.com/inko-lang/inko/commit/45e116b8bde42cc8a2f00e3b609012293194fb21)
+- [Add various attributes to LLVM functions](https://github.com/inko-lang/inko/commit/35b37cd5c600263f319519a6a6227ad28998d8a9)
+- [Make a few more types "inline" types](https://github.com/inko-lang/inko/commit/7a9cad9df8d33608668615836a6e8c29fed33bfa)
+- [Make std.net.socket.SocketAddress an inline type](https://github.com/inko-lang/inko/commit/46e3ae7668ae18eedb2de2acb74562c3cf8a292f)
+- [Make IP address types inline types](https://github.com/inko-lang/inko/commit/9878d5832484c9cd8e04663122dc14605bb6c64f)
+- [Make std.csv.Separator an inline type](https://github.com/inko-lang/inko/commit/19997a77b088d3afaf920b979f52febfec7a72ee)
+- [Make the IO Error type an inline type](https://github.com/inko-lang/inko/commit/a10c7b8b18bbfdd7c059d08c5d806120fd2ddd7b)
+- [Improve performance for Instant and Duration](https://github.com/inko-lang/inko/commit/2ec8ed868d4fa942285d1aabea3fceba67fe721e)
+- [Ensure String.byte_unchecked is always inlined](https://github.com/inko-lang/inko/commit/c2e276b6a5de74d9367fc168369acbe4d5351280)
+- [Use String.byte_unchecked in String.bytes](https://github.com/inko-lang/inko/commit/1989377af0a26ac0dc935f2f1ee772d2ae6d12b0)
+- [Optimize removing unreachable blocks a bit](https://github.com/inko-lang/inko/commit/dddb2573d09cf6c34ddfa095ff9f5ae49ab0be41)
+
+### Other
+
+- [Fix typo in the ChaCha20 documentation](https://github.com/inko-lang/inko/commit/e6433b8157677fbbcdf6f3518a108252503922d3)
+- [Fix incorrect SocketAddress example in the manual](https://github.com/inko-lang/inko/commit/3307ab34a7f2ca99845da0c7d708de6f9e4a64d4)
+- [Clarify how closures expose captured variables](https://github.com/inko-lang/inko/commit/831ea3e8faad72a8fa61de61870f3ffae8eb7617)
+- [Update Rust dependencies](https://github.com/inko-lang/inko/commit/37cdc78d188ea32f88c48fcfd92b3053479b9351)
+
 ## 0.17.1 (2024-10-29)
 
 ### Fixed
