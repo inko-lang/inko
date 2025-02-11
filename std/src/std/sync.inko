@@ -673,7 +673,7 @@ type pub inline Channel[T] {
   }
 }
 
-impl Clone[Channel[T]] for Channel {
+impl Clone for Channel {
   fn pub clone -> Channel[T] {
     Channel(@state)
   }

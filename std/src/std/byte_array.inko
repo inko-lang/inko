@@ -715,7 +715,7 @@ impl Equal[ref ByteArray] for ByteArray {
   }
 }
 
-impl Clone[ByteArray] for ByteArray {
+impl Clone for ByteArray {
   fn pub clone -> ByteArray {
     inko_byte_array_clone(_INKO.state, self)
   }

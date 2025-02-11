@@ -63,8 +63,8 @@ impl Hash for Tuple1 if A: Hash {
   }
 }
 
-impl Clone[Tuple1[A]] for Tuple1 if A: Clone[A] {
-  fn pub clone -> Tuple1[A] {
+impl Clone for Tuple1 if A: Clone {
+  fn pub clone -> Tuple1[move A] {
     (@0.clone,)
   }
 }
@@ -94,8 +94,8 @@ impl Hash for Tuple2 if A: Hash, B: Hash {
   }
 }
 
-impl Clone[Tuple2[A, B]] for Tuple2 if A: Clone[A], B: Clone[B] {
-  fn pub clone -> Tuple2[A, B] {
+impl Clone for Tuple2 if A: Clone, B: Clone {
+  fn pub clone -> Tuple2[move A, move B] {
     (@0.clone, @1.clone)
   }
 }
@@ -132,9 +132,8 @@ impl Hash for Tuple3 if A: Hash, B: Hash, C: Hash {
   }
 }
 
-impl Clone[Tuple3[A, B, C]] for Tuple3 if A: Clone[A], B: Clone[B], C: Clone[C]
-{
-  fn pub clone -> Tuple3[A, B, C] {
+impl Clone for Tuple3 if A: Clone, B: Clone, C: Clone {
+  fn pub clone -> Tuple3[move A, move B, move C] {
     (@0.clone, @1.clone, @2.clone)
   }
 }
@@ -174,14 +173,8 @@ impl Hash for Tuple4 if A: Hash, B: Hash, C: Hash, D: Hash {
   }
 }
 
-impl Clone[Tuple4[A, B, C, D]] for Tuple4
-if
-  A: Clone[A],
-  B: Clone[B],
-  C: Clone[C],
-  D: Clone[D],
-{
-  fn pub clone -> Tuple4[A, B, C, D] {
+impl Clone for Tuple4 if A: Clone, B: Clone, C: Clone, D: Clone {
+  fn pub clone -> Tuple4[move A, move B, move C, move D] {
     (@0.clone, @1.clone, @2.clone, @3.clone)
   }
 }
@@ -228,15 +221,8 @@ impl Hash for Tuple5 if A: Hash, B: Hash, C: Hash, D: Hash, E: Hash {
   }
 }
 
-impl Clone[Tuple5[A, B, C, D, E]] for Tuple5
-if
-  A: Clone[A],
-  B: Clone[B],
-  C: Clone[C],
-  D: Clone[D],
-  E: Clone[E],
-{
-  fn pub clone -> Tuple5[A, B, C, D, E] {
+impl Clone for Tuple5 if A: Clone, B: Clone, C: Clone, D: Clone, E: Clone {
+  fn pub clone -> Tuple5[move A, move B, move C, move D, move E] {
     (@0.clone, @1.clone, @2.clone, @3.clone, @4.clone)
   }
 }
@@ -288,16 +274,16 @@ impl Hash for Tuple6 if A: Hash, B: Hash, C: Hash, D: Hash, E: Hash, F: Hash {
   }
 }
 
-impl Clone[Tuple6[A, B, C, D, E, F]] for Tuple6
+impl Clone for Tuple6
 if
-  A: Clone[A],
-  B: Clone[B],
-  C: Clone[C],
-  D: Clone[D],
-  E: Clone[E],
-  F: Clone[F],
+  A: Clone,
+  B: Clone,
+  C: Clone,
+  D: Clone,
+  E: Clone,
+  F: Clone,
 {
-  fn pub clone -> Tuple6[A, B, C, D, E, F] {
+  fn pub clone -> Tuple6[move A, move B, move C, move D, move E, move F] {
     (@0.clone, @1.clone, @2.clone, @3.clone, @4.clone, @5.clone)
   }
 }
@@ -377,17 +363,17 @@ if
   }
 }
 
-impl Clone[Tuple7[A, B, C, D, E, F, G]] for Tuple7
+impl Clone for Tuple7
 if
-  A: Clone[A],
-  B: Clone[B],
-  C: Clone[C],
-  D: Clone[D],
-  E: Clone[E],
-  F: Clone[F],
-  G: Clone[G],
+  A: Clone,
+  B: Clone,
+  C: Clone,
+  D: Clone,
+  E: Clone,
+  F: Clone,
+  G: Clone,
 {
-  fn pub clone -> Tuple7[A, B, C, D, E, F, G] {
+  fn pub clone -> Tuple7[move A, move B, move C, move D, move E, move F, move G] {
     (@0.clone, @1.clone, @2.clone, @3.clone, @4.clone, @5.clone, @6.clone)
   }
 }
@@ -474,18 +460,27 @@ if
   }
 }
 
-impl Clone[Tuple8[A, B, C, D, E, F, G, H]] for Tuple8
+impl Clone for Tuple8
 if
-  A: Clone[A],
-  B: Clone[B],
-  C: Clone[C],
-  D: Clone[D],
-  E: Clone[E],
-  F: Clone[F],
-  G: Clone[G],
-  H: Clone[H],
+  A: Clone,
+  B: Clone,
+  C: Clone,
+  D: Clone,
+  E: Clone,
+  F: Clone,
+  G: Clone,
+  H: Clone,
 {
-  fn pub clone -> Tuple8[A, B, C, D, E, F, G, H] {
+  fn pub clone -> Tuple8[
+    move A,
+    move B,
+    move C,
+    move D,
+    move E,
+    move F,
+    move G,
+    move H,
+  ] {
     (
       @0.clone,
       @1.clone,

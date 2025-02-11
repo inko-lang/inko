@@ -686,7 +686,7 @@ impl Equal[ref Int] for Int {
   }
 }
 
-impl Clone[Int] for Int {
+impl Clone for Int {
   fn pub inline clone -> Int {
     self
   }

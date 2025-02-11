@@ -205,7 +205,7 @@ impl ToString for IpAddress {
   }
 }
 
-impl Clone[IpAddress] for IpAddress {
+impl Clone for IpAddress {
   fn pub inline clone -> IpAddress {
     match self {
       case V4(ip) -> IpAddress.V4(ip.clone)
@@ -638,7 +638,7 @@ impl IntoString for Ipv6Address {
   }
 }
 
-impl Clone[Ipv6Address] for Ipv6Address {
+impl Clone for Ipv6Address {
   fn pub inline clone -> Ipv6Address {
     Ipv6Address(a: @a, b: @b, c: @c, d: @d, e: @e, f: @f, g: @g, h: @h)
   }
@@ -937,7 +937,7 @@ impl IntoString for Ipv4Address {
   }
 }
 
-impl Clone[Ipv4Address] for Ipv4Address {
+impl Clone for Ipv4Address {
   fn pub inline clone -> Ipv4Address {
     Ipv4Address(a: @a, b: @b, c: @c, d: @d)
   }

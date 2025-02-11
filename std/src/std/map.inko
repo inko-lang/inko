@@ -51,8 +51,8 @@ type pub Entry[K: Equal[ref K] + Hash, V] {
   }
 }
 
-impl Clone[Entry[K, V]] for Entry if K: Clone[K], V: Clone[V] {
-  fn pub clone -> Entry[K, V] {
+impl Clone for Entry if K: Clone, V: Clone {
+  fn pub clone -> Entry[move K, move V] {
     Entry(
       key: @key.clone,
       value: @value.clone,
@@ -720,7 +720,7 @@ impl Format for Map if K: Format, V: Format {
   }
 }
 
-impl Clone[Map[K, V]] for Map if K: Clone[K], V: Clone[V] {
+impl Clone for Map if K: Clone, V: Clone {
   fn pub clone -> Map[K, V] {
     Map(slots: @slots.clone, entries: @entries.clone, resize_at: @resize_at)
   }

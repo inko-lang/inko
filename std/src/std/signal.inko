@@ -192,7 +192,7 @@ type pub copy enum Signal {
   }
 }
 
-impl Clone[Signal] for Signal {
+impl Clone for Signal {
   fn pub clone -> Signal {
     match self {
       case Hangup -> Signal.Hangup

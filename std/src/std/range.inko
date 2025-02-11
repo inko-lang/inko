@@ -55,7 +55,7 @@ type pub copy InclusiveRange {
   }
 }
 
-impl Clone[InclusiveRange] for InclusiveRange {
+impl Clone for InclusiveRange {
   fn pub inline clone -> InclusiveRange {
     InclusiveRange(start: @start, end: @end)
   }
@@ -158,7 +158,7 @@ type pub copy ExclusiveRange {
   }
 }
 
-impl Clone[ExclusiveRange] for ExclusiveRange {
+impl Clone for ExclusiveRange {
   fn pub inline clone -> ExclusiveRange {
     ExclusiveRange(start: @start, end: @end)
   }

@@ -930,7 +930,7 @@ impl IntoString for Path {
   }
 }
 
-impl Clone[Path] for Path {
+impl Clone for Path {
   fn pub clone -> Path {
     Path.new(@path)
   }

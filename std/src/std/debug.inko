@@ -44,7 +44,7 @@ type pub inline StackFrame {
   }
 }
 
-impl Clone[StackFrame] for StackFrame {
+impl Clone for StackFrame {
   fn pub clone -> StackFrame {
     StackFrame(path: @path.clone, name: @name, line: @line)
   }

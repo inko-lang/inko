@@ -291,8 +291,8 @@ impl Equal[ref Option[T]] for Option if T: Equal[ref T] {
   }
 }
 
-impl Clone[Option[T]] for Option if T: Clone[T] {
-  fn pub clone -> Option[T] {
+impl Clone for Option if T: Clone {
+  fn pub clone -> Option[move T] {
     match self {
       case Some(v) -> Option.Some(v.clone)
       case None -> Option.None

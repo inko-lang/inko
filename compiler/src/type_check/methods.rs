@@ -66,15 +66,15 @@ trait MethodDefiner {
         &mut self,
         nodes: &mut Vec<hir::TypeParameter>,
         method: MethodId,
-        receiver_id: TypeEnum,
+        receiver: TypeEnum,
     ) {
         for param_node in nodes {
             let name = &param_node.name.name;
 
             if let Some(Symbol::TypeParameter(_)) =
-                receiver_id.named_type(self.db_mut(), name)
+                receiver.named_type(self.db_mut(), name)
             {
-                let rec_name = format_type(self.db(), receiver_id);
+                let rec_name = format_type(self.db(), receiver);
                 let file = self.file();
 
                 self.state_mut().diagnostics.error(
@@ -1405,7 +1405,7 @@ impl<'a> ImplementTraitMethods<'a> {
             );
         }
 
-        let self_type = TypeEnum::TypeInstance(type_instance);
+        let rec_type = TypeEnum::TypeInstance(type_instance);
         let module = self.module;
         let method = Method::alloc(
             self.db_mut(),
@@ -1427,7 +1427,7 @@ impl<'a> ImplementTraitMethods<'a> {
         self.define_type_parameters(
             &mut node.type_parameters,
             method,
-            self_type,
+            rec_type,
         );
 
         let rules = Rules {
@@ -1437,7 +1437,7 @@ impl<'a> ImplementTraitMethods<'a> {
                 || method.is_private(self.db()),
             ..Default::default()
         };
-        let receiver = receiver_type(self.db(), self_type, node.kind);
+        let receiver = receiver_type(self.db(), rec_type, node.kind);
 
         method.set_receiver(self.db_mut(), receiver);
         method.set_source(
@@ -1445,6 +1445,11 @@ impl<'a> ImplementTraitMethods<'a> {
             MethodSource::Implemented(trait_instance, original),
         );
 
+        let self_type = TypeEnum::TypeInstance(TypeInstance::for_self_type(
+            self.db_mut(),
+            type_instance.instance_of(),
+            &bounds,
+        ));
         let scope = TypeScope::with_bounds(
             self.module,
             self_type,

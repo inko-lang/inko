@@ -137,7 +137,7 @@ type builtin Array[T] {
   # ```inko
   # Array.filled(with: 0, times: 4) # => [0, 0, 0, 0]
   # ```
-  fn pub static filled[V: Clone[V]](with: V, times: Int) -> Array[V] {
+  fn pub static filled[V: Clone](with: move V, times: Int) -> Array[move V] {
     if times == 0 { return [] }
 
     let array = with_capacity(times)
@@ -745,8 +745,8 @@ impl Contains[T] for Array if T: Equal[ref T] {
   }
 }
 
-impl Clone[Array[T]] for Array if T: Clone[T] {
-  fn pub clone -> Array[T] {
+impl Clone for Array if T: Clone {
+  fn pub clone -> Array[move T] {
     let len = @size
     let new = Array.with_capacity(len)
     let mut index = 0

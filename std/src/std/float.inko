@@ -276,7 +276,7 @@ impl ToFloat for Float {
   }
 }
 
-impl Clone[Float] for Float {
+impl Clone for Float {
   fn pub inline clone -> Float {
     self
   }

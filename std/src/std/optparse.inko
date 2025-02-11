@@ -413,7 +413,7 @@ type inline enum Value {
   }
 }
 
-impl Clone[Value] for Value {
+impl Clone for Value {
   fn pub clone -> Value {
     match self {
       case String(v) -> Value.String(v)

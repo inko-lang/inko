@@ -291,7 +291,7 @@ impl ToInstant for Duration {
   }
 }
 
-impl Clone[Duration] for Duration {
+impl Clone for Duration {
   fn pub inline clone -> Duration {
     Duration(@nanos)
   }
@@ -1292,7 +1292,7 @@ type pub inline DateTime {
   }
 }
 
-impl Clone[DateTime] for DateTime {
+impl Clone for DateTime {
   fn pub inline clone -> DateTime {
     DateTime(date: @date, time: @time, utc_offset: @utc_offset)
   }
@@ -1474,7 +1474,7 @@ impl ToInstant for Instant {
   }
 }
 
-impl Clone[Instant] for Instant {
+impl Clone for Instant {
   fn pub inline clone -> Instant {
     Instant(@nanos)
   }

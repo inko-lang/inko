@@ -1,7 +1,11 @@
 # Cloning of objects.
 
-# A type that can be cloned into a new type.
-trait pub Clone[T] {
+# A type that can be cloned into a copy of itself.
+trait pub Clone {
   # Creates a clone of `self`.
-  fn pub clone -> T
+  #
+  # The returned value is an _owned_ value that is the same type as the receiver
+  # of this method. For example, cloning a `ref Array[Int]` results in a
+  # `Array[Int]`, not another `ref Array[Int]`.
+  fn pub clone -> Self
 }

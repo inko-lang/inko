@@ -812,7 +812,7 @@ impl IntoByteArray for String {
   }
 }
 
-impl Clone[String] for String {
+impl Clone for String {
   fn pub inline clone -> String {
     self
   }

@@ -277,7 +277,7 @@ impl Drop for ClientConfig {
   }
 }
 
-impl Clone[ClientConfig] for ClientConfig {
+impl Clone for ClientConfig {
   fn pub clone -> ClientConfig {
     ClientConfig(inko_tls_client_config_clone(@raw))
   }
@@ -509,7 +509,7 @@ impl Drop for ServerConfig {
   }
 }
 
-impl Clone[ServerConfig] for ServerConfig {
+impl Clone for ServerConfig {
   fn pub clone -> ServerConfig {
     ServerConfig(inko_tls_server_config_clone(@raw))
   }

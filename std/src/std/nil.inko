@@ -25,7 +25,7 @@ impl Equal[ref Nil] for Nil {
   }
 }
 
-impl Clone[Nil] for Nil {
+impl Clone for Nil {
   fn pub clone -> Nil {
     nil
   }

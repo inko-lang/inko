@@ -268,8 +268,8 @@ type pub inline enum Result[T, E] {
   }
 }
 
-impl Clone[Result[T, E]] for Result if T: Clone[T], E: Clone[E] {
-  fn pub clone -> Result[T, E] {
+impl Clone for Result if T: Clone, E: Clone {
+  fn pub clone -> Result[move T, move E] {
     match self {
       case Ok(v) -> Result.Ok(v.clone)
       case Error(v) -> Result.Error(v.clone)

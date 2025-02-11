@@ -58,7 +58,7 @@ impl ToString for Bool {
   }
 }
 
-impl Clone[Bool] for Bool {
+impl Clone for Bool {
   fn pub inline clone -> Bool {
     self
   }
