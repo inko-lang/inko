@@ -519,11 +519,16 @@ impl<'a> GenerateDocumentation<'a> {
             let name = id.name(self.db()).clone();
             let docs = id.documentation(self.db()).clone();
             let mut obj = Object::new();
+            let typ = format!(
+                "trait{} {}",
+                if public { " pub" } else { "" },
+                format_type(self.db(), id)
+            );
 
             obj.add("name", Json::String(name));
             obj.add("location", location_to_json(id.location(self.db())));
             obj.add("public", Json::Bool(public));
-            obj.add("type", Json::String(format_type(self.db(), id)));
+            obj.add("type", Json::String(typ));
             obj.add("documentation", Json::String(docs));
             obj.add(
                 "required_methods",
