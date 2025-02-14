@@ -102,17 +102,19 @@ structs (which we'll discuss later).
 
 ### Type casting
 
-These types can be passed to/from Inko types:
-
-```inko
-let a = 42 as Int32 # => Int32
-let b = a as Int    # => Int
-```
-
 Inko doesn't perform implicit type casts, so passing an `Int32` when a `Int64`
 is expected will result in a compile-time error. Similarly, pointers of type
 `Pointer[A]` aren't implicitly compatible with pointers of type `Pointer[B]`,
-and instead require an explicit type cast.
+and instead require an explicit type cast, e.g:
+
+```inko
+fn example(pointer: Pointer[Cat]) {}
+
+let a = 0x123 as Pointer[Dog]
+
+example(a)                 # => invalid
+example(a as Pointer[Cat]) # => valid
+```
 
 ## Importing libraries
 
