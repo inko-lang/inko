@@ -94,9 +94,8 @@ Pointer-pointers don't have a dedicated type (i.e. there's no
 There's no equivalent of C's `size_t` type, as Inko only supports 64-bits
 platforms, and thus you can just use `UInt64` instead.
 
-C types don't support methods and operators, and C structures aren't compatible
-with generic type parameters. This means you'll either need to cast the types
-(e.g. casting an `Int32` to `Int`), or wrap the data in a custom type.
+C types don't support methods and operators. This means you'll need to
+explicitly cast them to Inko types (e.g. `Int`) first.
 
 C types are treated as value types and are allocated on the stack, including
 structs (which we'll discuss later).
