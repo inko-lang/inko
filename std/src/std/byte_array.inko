@@ -451,6 +451,10 @@ type builtin ByteArray {
   # The return value is the number of bytes copied. This value may be less than
   # `size` if there are fewer bytes in `bytes`.
   #
+  # # Panics
+  #
+  # This method panics if `at` is out of bounds.
+  #
   # # Examples
   #
   # ```inko
@@ -462,6 +466,7 @@ type builtin ByteArray {
   # b # => ByteArray.from_array([1, 2])
   # ```
   fn pub mut copy_from(bytes: ref ByteArray, at: Int, size: Int) -> Int {
+    bounds_check(at, bytes.size)
     inko_byte_array_copy_from(self, bytes.to_pointer, bytes.size, at, size)
   }
 

@@ -349,6 +349,7 @@ fn pub tests(t: mut Tests) {
   t.test('ByteArray.copy_from', fn (t) {
     let a = ByteArray.from_array([1, 2, 3, 4])
     let b = ByteArray.new
+    let c = ByteArray.new
 
     t.equal(b.copy_from(a, at: 0, size: 2), 2)
     t.equal(a, ByteArray.from_array([1, 2, 3, 4]))
@@ -356,6 +357,23 @@ fn pub tests(t: mut Tests) {
 
     t.equal(b.copy_from(b, at: 0, size: 2), 2)
     t.equal(b, ByteArray.from_array([1, 2, 1, 2]))
+
+    t.equal(c.copy_from(a, at: 3, size: 1), 1)
+    t.equal(c, ByteArray.from_array([4]))
+  })
+
+  t.panic('ByteArray.copy_from with an index that is too great', fn {
+    let a = ByteArray.from_array([1, 2, 3, 4])
+    let b = ByteArray.new
+
+    b.copy_from(a, at: 10, size: 2)
+  })
+
+  t.panic('ByteArray.copy_from with an index that is too small', fn {
+    let a = ByteArray.from_array([1, 2, 3, 4])
+    let b = ByteArray.new
+
+    b.copy_from(a, at: -3, size: 2)
   })
 
   t.test('ByteArray.resize', fn (t) {
