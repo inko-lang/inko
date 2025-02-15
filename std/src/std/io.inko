@@ -1059,14 +1059,14 @@ impl BufferedRead for Buffer {
   }
 
   fn mut read_buffer(into: mut ByteArray, size: Int) -> Int {
-    let mut total = 0
+    if @offset < @bytes.size {
+      let len = into.copy_from(@bytes, at: @offset, size: size)
 
-    while total < size and @offset < @bytes.size {
-      into.push(@bytes.byte(@offset := @offset + 1))
-      total += 1
+      @offset += len
+      len
+    } else {
+      0
     }
-
-    total
   }
 
   fn pub mut read_byte -> Result[Option[Int], Error] {

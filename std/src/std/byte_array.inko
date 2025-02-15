@@ -465,7 +465,7 @@ type builtin ByteArray {
   #
   # b # => ByteArray.from_array([1, 2])
   # ```
-  fn pub mut copy_from(bytes: ref ByteArray, at: Int, size: Int) -> Int {
+  fn pub mut copy_from[T: Bytes](bytes: ref T, at: Int, size: Int) -> Int {
     bounds_check(at, bytes.size)
     inko_byte_array_copy_from(self, bytes.to_pointer, bytes.size, at, size)
   }

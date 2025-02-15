@@ -429,6 +429,12 @@ fn pub tests(t: mut Tests) {
 
     t.equal(buffer.read(into: bytes, size: 2), Result.Ok(2))
     t.equal(bytes.to_string, 'hell')
+
+    t.equal(buffer.read(into: bytes, size: 2), Result.Ok(1))
+    t.equal(bytes.to_string, 'hello')
+
+    t.equal(buffer.read(into: bytes, size: 2), Result.Ok(0))
+    t.equal(bytes.to_string, 'hello')
   })
 
   t.test('Buffer.fill_buffer', fn (t) {
