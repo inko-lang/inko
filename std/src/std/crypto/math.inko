@@ -5,7 +5,7 @@
 # # Panics
 #
 # This method panics if `amount` is greater than 32 or less than zero.
-fn pub rotate_left_u32(value: Int, amount: Int) -> Int {
+fn pub inline rotate_left_u32(value: Int, amount: Int) -> Int {
   to_u32((value << amount) | (value >>> (32 - amount)))
 }
 
@@ -14,7 +14,7 @@ fn pub rotate_left_u32(value: Int, amount: Int) -> Int {
 # # Panics
 #
 # This method panics if `amount` is greater than 64 or less than zero.
-fn pub rotate_left_u64(value: Int, amount: Int) -> Int {
+fn pub inline rotate_left_u64(value: Int, amount: Int) -> Int {
   (value << amount) | (value >>> (64 - amount))
 }
 
@@ -23,7 +23,7 @@ fn pub rotate_left_u64(value: Int, amount: Int) -> Int {
 # # Panics
 #
 # This method panics if `amount` is greater than 32 or less than zero.
-fn pub rotate_right_u32(value: Int, amount: Int) -> Int {
+fn pub inline rotate_right_u32(value: Int, amount: Int) -> Int {
   to_u32((value >> amount) | (value << (32 - amount)))
 }
 
@@ -32,11 +32,11 @@ fn pub rotate_right_u32(value: Int, amount: Int) -> Int {
 # # Panics
 #
 # This method panics if `amount` is greater than 32 or less than zero.
-fn pub shift_right_u32(value: Int, amount: Int) -> Int {
+fn pub inline shift_right_u32(value: Int, amount: Int) -> Int {
   to_u32(value >>> amount)
 }
 
 # Converts an `Int` to an unsigned 32-bits `Int`.
-fn pub to_u32(value: Int) -> Int {
+fn pub inline to_u32(value: Int) -> Int {
   value & 0xFFFFFFFF
 }

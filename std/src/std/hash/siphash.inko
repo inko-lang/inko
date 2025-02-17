@@ -55,7 +55,7 @@ type pub SipHasher13 {
     )
   }
 
-  fn mut round {
+  fn inline mut round {
     @v0 = @v0.wrapping_add(@v1)
     @v2 = @v2.wrapping_add(@v3)
     @v1 = rotate_left_u64(@v1, 13)
