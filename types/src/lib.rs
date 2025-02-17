@@ -91,6 +91,8 @@ pub const RESULT_ERROR: &str = "Error";
 pub const ARRAY_WITH_CAPACITY: &str = "with_capacity";
 pub const ARRAY_PUSH: &str = "push";
 pub const ARRAY_INTERNAL_NAME: &str = "$Array";
+pub const SELF_TYPE: &str = "Self";
+pub const NEVER_TYPE: &str = "Never";
 
 /// The name of the pseudo field used to deference a pointer.
 pub const DEREF_POINTER_FIELD: &str = "0";

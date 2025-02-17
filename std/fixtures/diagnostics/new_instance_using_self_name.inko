@@ -1,0 +1,33 @@
+trait Trait {
+  fn required -> Self
+
+  fn default -> Self
+}
+
+type User {
+  let @name: String
+
+  fn static example1 -> Self {
+    Self(name: 'Alice')
+  }
+
+  fn example2 -> Self {
+    Self(name: 'Alice')
+  }
+}
+
+impl Trait for User {
+  fn required -> Self {
+    Self(name: 'Alice')
+  }
+
+  fn default -> Self {
+    Self(name: 'Alice')
+  }
+}
+
+fn example1 {
+  Self(name: 'Alice')
+}
+
+# new_instance_using_self_name.inko:30:3 error(invalid-symbol): the symbol 'Self' is undefined

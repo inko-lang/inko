@@ -3,7 +3,7 @@ use crate::{
     Arguments, ClosureId, Database, ForeignType, Inline, MethodId, MethodKind,
     ModuleId, Ownership, Sign, TraitId, TraitInstance, TypeArguments, TypeEnum,
     TypeId, TypeInstance, TypeKind, TypeParameterId, TypePlaceholderId,
-    TypeRef, Visibility,
+    TypeRef, Visibility, NEVER_TYPE, SELF_TYPE,
 };
 
 const MAX_FORMATTING_DEPTH: usize = 8;
@@ -317,7 +317,7 @@ impl FormatType for TraitInstance {
         if self.self_type {
             match buffer.self_type {
                 Some(TypeEnum::TraitInstance(_)) | None => {
-                    buffer.write("Self");
+                    buffer.write(SELF_TYPE);
                     return;
                 }
                 Some(e) => return e.format_type(buffer),
@@ -487,7 +487,7 @@ impl FormatType for TypeRef {
 
                 id.format_type(buffer);
             }
-            TypeRef::Never => buffer.write("Never"),
+            TypeRef::Never => buffer.write(NEVER_TYPE),
             TypeRef::Error => buffer.write("<error>"),
             TypeRef::Unknown => buffer.write("<unknown>"),
             TypeRef::Placeholder(id) => id.format_type(buffer),

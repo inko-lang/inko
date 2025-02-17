@@ -17,7 +17,7 @@ use types::{
     IdentifierKind, IntrinsicCall, MethodId, MethodLookup, ModuleId, Receiver,
     Sign, Symbol, ThrowKind, TraitId, TraitInstance, TypeArguments, TypeBounds,
     TypeEnum, TypeId, TypeInstance, TypeRef, Variable, VariableId, CALL_METHOD,
-    DEREF_POINTER_FIELD,
+    DEREF_POINTER_FIELD, SELF_TYPE,
 };
 
 const IGNORE_VARIABLE: &str = "_";
@@ -3788,6 +3788,20 @@ impl<'a> CheckMethodBody<'a> {
                     return TypeRef::Error;
                 }
                 MethodLookup::None => {
+                    if name == SELF_TYPE {
+                        match self.self_type {
+                            TypeEnum::TypeInstance(ins) => {
+                                let id = ins.instance_of();
+
+                                return self.new_type_instance(node, scope, id);
+                            }
+                            TypeEnum::Type(id) => {
+                                return self.new_type_instance(node, scope, id);
+                            }
+                            _ => {}
+                        }
+                    }
+
                     match self.module.use_symbol(self.db_mut(), name) {
                         Some(Symbol::Method(method)) => {
                             // The receiver of imported module methods is the

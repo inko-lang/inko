@@ -9,7 +9,7 @@ use types::format::format_type;
 use types::{
     Block, Closure, Database, MethodId, ModuleId, Symbol, TraitId,
     TraitInstance, TypeArguments, TypeBounds, TypeEnum, TypeId, TypeInstance,
-    TypeParameterId, TypeRef,
+    TypeParameterId, TypeRef, NEVER_TYPE, SELF_TYPE,
 };
 
 pub(crate) mod define_types;
@@ -333,23 +333,26 @@ impl<'a> DefineTypeSignature<'a> {
             // compared to physical types, so we handle them here rather than
             // handling them first.
             match name.as_str() {
-                "Never" if !self.rules.allow_never => {
+                NEVER_TYPE if !self.rules.allow_never => {
                     self.state.diagnostics.error(
                         DiagnosticId::InvalidType,
-                        "the 'Never' type can't be used in this context",
+                        format!(
+                            "the '{}' type can't be used in this context",
+                            NEVER_TYPE
+                        ),
                         self.file(),
                         node.location,
                     );
 
                     return TypeRef::Error;
                 }
-                "Never" => {
+                NEVER_TYPE => {
                     if kind == RefKind::Default {
                         TypeRef::Never
                     } else {
                         self.state.diagnostics.error(
                             DiagnosticId::InvalidType,
-                            "'Never' can't be borrowed",
+                            format!("'{}' can't be borrowed", NEVER_TYPE),
                             self.file(),
                             node.location,
                         );
@@ -357,11 +360,14 @@ impl<'a> DefineTypeSignature<'a> {
                         return TypeRef::Error;
                     }
                 }
-                "Self" => {
+                SELF_TYPE => {
                     if !self.rules.allow_self {
                         self.state.diagnostics.error(
                             DiagnosticId::InvalidType,
-                            "the 'Self' type can't be used in this context",
+                            format!(
+                                "the '{}' type can't be used in this context",
+                                SELF_TYPE
+                            ),
                             self.file(),
                             node.location,
                         );
