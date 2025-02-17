@@ -71,16 +71,18 @@ fn download(target: &Target) -> Result<PathBuf, Error> {
         archive_name,
     );
 
-    let response = http::get(&url)?;
+    let mut response = http::get(&url)?;
     let total = response
-        .header("Content-Length")
+        .headers()
+        .get("Content-Length")
+        .and_then(|v| v.to_str().ok())
         .and_then(|v| v.parse::<usize>().ok())
         .unwrap_or(0);
 
     // We don't decompress here right away as that prevents us from reporting
     // progress correctly (due to the total read size being different from the
     // Content-Length value).
-    let mut reader = response.into_reader();
+    let mut reader = response.body_mut().as_reader();
     let path = temp_dir().join(archive_name);
     let mut file = File::create(&path).map_err(|e| {
         Error::from(format!("failed to open {}: {}", path.display(), e))

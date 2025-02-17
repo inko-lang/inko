@@ -10,7 +10,7 @@ rust-version.workspace = true
 getopts = "^0.2"
 compiler = { path = "../compiler" }
 types = { path = "../types" }
-ureq = { version = "^2.9", default-features = false, features = ["tls"] }
+ureq = { version = "^3.0" }
 flate2 = "^1.0"
 tar = { version = "^0.4", default-features = false }
 blake3 = "^1.5"
