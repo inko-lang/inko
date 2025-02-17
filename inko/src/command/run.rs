@@ -6,8 +6,11 @@ use getopts::{Options, ParsingStyle};
 use std::env::temp_dir;
 use std::fs::{create_dir, remove_dir_all};
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, ExitStatus};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+#[cfg(unix)]
+use std::os::unix::process::ExitStatusExt;
 
 const USAGE: &str = "Usage: inko run [OPTIONS] [FILE] [ARGS]
 
@@ -24,6 +27,29 @@ Examples:
 
     inko run hello.inko        # Compile and run the file hello.inko
     inko run hello.inko --foo  # Passes --foo to the resulting executable";
+
+#[cfg(unix)]
+fn exit_code(status: ExitStatus) -> Result<i32, Error> {
+    if let Some(v) = status.code() {
+        return Ok(v);
+    }
+
+    // 11 is SIGSEGV on pretty much every Unix platform (at least the ones we
+    // care about), so we use it directly instead of depending on e.g. the libc
+    // crate.
+    if let Some(11) = status.signal() {
+        Err(Error::from(
+            "the executable was terminated by signal SIGSEGV".to_string(),
+        ))
+    } else {
+        Ok(0)
+    }
+}
+
+#[cfg(not(unix))]
+fn exit_code(status: ExitStatus) -> Result<i32, Error> {
+    Ok(status.code().unwrap_or(1))
+}
 
 pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     let mut options = Options::new();
@@ -97,7 +123,7 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     if !build_dir.is_dir() {
         create_dir(&build_dir).map_err(|err| {
             Error::from(format!(
-                "Failed to create {}: {}",
+                "failed to create {}: {}",
                 build_dir.display(),
                 err
             ))
@@ -120,11 +146,11 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
                 .and_then(|mut child| child.wait())
                 .map_err(|err| {
                     Error::from(format!(
-                        "Failed to run the executable: {}",
+                        "failed to run the executable: {}",
                         err
                     ))
                 })
-                .map(|status| status.code().unwrap_or(0));
+                .and_then(exit_code);
 
             if build_dir.is_dir() {
                 // If this fails that dosen't matter because temporary files are
