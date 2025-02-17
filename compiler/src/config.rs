@@ -91,12 +91,7 @@ impl BuildDirectories {
             config.build.join(config.target.to_string())
         };
 
-        let build = config
-            .opt
-            .directory_name()
-            .map(|p| root.join(p))
-            .unwrap_or_else(|| root.clone());
-
+        let build = root.join(config.opt.directory_name());
         let objects = build.join("objects");
         let llvm_ir = build.join("llvm");
         let dot = build.join("dot");
@@ -141,24 +136,15 @@ impl BuildDirectories {
 /// A type describing to what degree a program should be optimised.
 #[derive(Copy, Clone)]
 pub enum Opt {
-    /// No optimisations are applied.
-    None,
-
-    /// A decent number of optimisations is applied, providing a good balance
-    /// between runtime performance and compile times.
-    Balanced,
-
-    /// An aggressive number of optimisations is applied, favouring runtime
-    /// performance over compile times.
-    Aggressive,
+    Debug,
+    Release,
 }
 
 impl Opt {
-    pub(crate) fn directory_name(self) -> Option<&'static str> {
+    pub(crate) fn directory_name(self) -> &'static str {
         match self {
-            Opt::None => Some("none"),
-            Opt::Balanced => None,
-            Opt::Aggressive => Some("aggressive"),
+            Opt::Debug => "debug",
+            Opt::Release => "release",
         }
     }
 }
@@ -313,7 +299,7 @@ impl Config {
             init_module: ModuleName::std_init(),
             output: Output::Derive,
             target: Target::native(),
-            opt: Opt::Balanced,
+            opt: Opt::Debug,
             dot: false,
             verify_llvm: false,
             write_llvm: false,
@@ -355,22 +341,6 @@ impl Config {
         } else {
             Err(format!("The target '{}' isn't supported", name))
         }
-    }
-
-    pub fn set_opt(&mut self, name: &str) -> Result<(), String> {
-        self.opt = match name {
-            "none" => Opt::None,
-            "balanced" => Opt::Balanced,
-            "aggressive" => Opt::Aggressive,
-            _ => {
-                return Err(format!(
-                    "The optimisation level '{}' isn't supported",
-                    name
-                ))
-            }
-        };
-
-        Ok(())
     }
 
     pub(crate) fn main_source_module(&self) -> PathBuf {

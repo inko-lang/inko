@@ -5,7 +5,7 @@ import std.io (BufferedReader)
 import std.sys (Command, Stream)
 import std.test (Failure, Tests)
 
-fn run(compiler: String, file: ref Path, opt: String, id: Int) -> String {
+fn run(compiler: String, file: ref Path, id: Int, release: Bool) -> String {
   let cmd = Command.new(compiler)
   let dir = 'inko-test-debug-info-${id}'
   let pwd = env.working_directory.map(fn (p) { p.to_string }).or('') + '/'
@@ -13,7 +13,14 @@ fn run(compiler: String, file: ref Path, opt: String, id: Int) -> String {
   cmd.stdout = Stream.Null
   cmd.stdin = Stream.Null
   cmd.stderr = Stream.Piped
-  cmd.arguments = ['run', '--opt', opt, '--directory', dir, file.to_string]
+
+  cmd.arguments.push('run')
+
+  if release { cmd.arguments.push('--release') }
+
+  cmd.arguments.push('--directory')
+  cmd.arguments.push(dir)
+  cmd.arguments.push(file.to_string)
 
   let child = cmd.spawn.or_panic('failed to start the compiler')
 
@@ -63,12 +70,12 @@ fn pub tests(t: mut Tests) {
     let name = test_file.tail.strip_suffix('.inko').get
 
     t.test('debug info ${name}', fn move (t) {
-      let none = run(compiler, test_file, 'none', t.id)
-      let balanced = run(compiler, test_file, 'balanced', t.id)
+      let debug = run(compiler, test_file, t.id, release: false)
+      let release = run(compiler, test_file, t.id, release: true)
 
-      if none == balanced { return }
+      if debug == release { return }
 
-      t.failures.push(Failure.new(got: '\n${balanced}', expected: '\n${none}'))
+      t.failures.push(Failure.new(got: '\n${release}', expected: '\n${debug}'))
     })
   })
 }

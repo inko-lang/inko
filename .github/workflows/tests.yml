@@ -89,15 +89,15 @@ jobs:
   std-linux:
     strategy:
       matrix:
-        level:
-          - none
-          - balanced
+        flags:
+          - ''
+          - '--release'
         target:
           - image: fedora-amd64
             name: amd64-linux-gnu
           - image: alpine
             name: amd64-linux-musl
-    name: ${{ matrix.target.name }} std --opt=${{ matrix.level }}
+    name: ${{ matrix.target.name }} std ${{ matrix.flags }}
     timeout-minutes: 15
     runs-on: ubuntu-24.04
     container:
@@ -109,7 +109,7 @@ jobs:
           path: '${{ env.CARGO_HOME }}'
           key: ${{ matrix.target.name }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
       - name: Run tests
-        run: 'cd std && cargo run -- test --opt=${{ matrix.level }}'
+        run: 'cd std && cargo run -- test ${{ matrix.flags }}'
 
   compiler-mac:
     strategy:
@@ -140,15 +140,15 @@ jobs:
   std-mac:
     strategy:
       matrix:
-        level:
-          - none
-          - balanced
+        flags:
+          - ''
+          - '--release'
         target:
           - runner: macos-13
             name: amd64-mac-native
           - runner: macos-14
             name: arm64-mac-native
-    name: ${{ matrix.target.name }} std --opt=${{ matrix.level }}
+    name: ${{ matrix.target.name }} std ${{ matrix.flags }}
     timeout-minutes: 15
     runs-on: ${{ matrix.target.runner }}
     env:
@@ -164,7 +164,7 @@ jobs:
       - name: Install dependencies
         run: ./ci/mac.sh
       - name: Run tests
-        run: 'cd std && cargo run -- test --opt=${{ matrix.level }}'
+        run: 'cd std && cargo run -- test ${{ matrix.flags }}'
 
   compiler-freebsd:
     name: amd64-freebsd-native compiler

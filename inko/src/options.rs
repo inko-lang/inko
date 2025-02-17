@@ -1,4 +1,3 @@
-//! Generic helper functions that don't belong to any particular module.
 use getopts::Options;
 
 /// Prints a usage message for a set of CLI options.

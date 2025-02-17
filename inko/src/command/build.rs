@@ -1,7 +1,7 @@
 use crate::error::Error;
 use crate::options::print_usage;
 use compiler::compiler::{CompileError, Compiler};
-use compiler::config::{Config, Linker, Output};
+use compiler::config::{Config, Linker, Opt, Output};
 use getopts::Options;
 use std::path::PathBuf;
 use types::module_name::ModuleName;
@@ -86,7 +86,7 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         "A directory to add to the list of source directories",
         "PATH",
     );
-    options.optopt("", "opt", "The optimization level to use", "LEVEL");
+    options.optflag("", "release", "Perform a release build");
     options.optflag("", "static", "Statically link imported C libraries");
     options.optflag("", "dot", "Output the MIR of every module as DOT files");
     options.optflag("", "verify-llvm", "Verify LLVM IR when generating code");
@@ -144,8 +144,8 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         config.set_target(&val)?;
     }
 
-    if let Some(val) = matches.opt_str("opt") {
-        config.set_opt(&val)?;
+    if matches.opt_present("release") {
+        config.opt = Opt::Release;
     }
 
     if matches.opt_present("dot") {

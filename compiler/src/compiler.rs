@@ -583,7 +583,7 @@ LLVM module timings:
 
         // These passes are optional and thus only enabled if optimizations are
         // enabled.
-        if !matches!(self.state.config.opt, Opt::None) {
+        if !matches!(self.state.config.opt, Opt::Debug) {
             measure(&mut self.timings.optimize.inline, || {
                 InlineMethod::run_all(&mut self.state, mir);
             });

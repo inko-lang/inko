@@ -310,7 +310,7 @@ pub(crate) fn lower_all(
     // (https://github.com/swiftlang/swift/blob/09d122af7c08e1a6e7fe76f122ddab05b0bbda59/lib/IRGen/IRGen.cpp#L929-L931),
     // so we'll assume this is good enough.
     let level = match state.config.opt {
-        Opt::None => OptimizationLevel::None,
+        Opt::Debug => OptimizationLevel::None,
         _ => OptimizationLevel::Default,
     };
 
@@ -551,8 +551,7 @@ impl<'a> Worker<'a> {
         // issues similar to https://github.com/llvm/llvm-project/issues/81128)
         let mut passes = ["function(mem2reg)"].join(",");
         let extra = match self.shared.state.config.opt {
-            Opt::Balanced => Some(opt::BALANCED),
-            Opt::Aggressive => Some(opt::AGGRESSIVE),
+            Opt::Release => Some(opt::RELEASE),
             _ => None,
         };
 

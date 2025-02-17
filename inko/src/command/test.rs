@@ -30,7 +30,7 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         "The target platform to compile for",
         "TARGET",
     );
-    options.optopt("", "opt", "The optimization level to use", "LEVEL");
+    options.optflag("", "release", "Perform a release build");
 
     let matches = options.parse(arguments)?;
 
@@ -45,10 +45,8 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         config.set_target(&val)?;
     }
 
-    if let Some(val) = matches.opt_str("opt") {
-        config.set_opt(&val)?;
-    } else {
-        config.opt = Opt::None;
+    if matches.opt_present("release") {
+        config.opt = Opt::Release;
     }
 
     let main_file = config.main_test_module();

@@ -35,24 +35,15 @@ using the `inko build` command:
 inko build hello.inko
 ```
 
-The resulting executable is located at `./build/hello`. By default the compiler
-uses a set of optimizations similar to the optimizations enabled by using `clang
--O2`. You can either disable optimisations entirely, or enable more aggressive
-optimisations at the cost of compile times increasing:
+The resulting executable is located at `./build/debug/hello`. By default no
+optimizations are applied. To enable optimizations, use the `--release` flag:
 
 ```bash
-inko build --opt none hello.inko       # No optimisations
-inko build --opt aggressive hello.inko # Aggressive optimisations
+inko build --release hello.inko
 ```
 
-For `--opt none` the executable is placed in `./build/none/hello`, and
-`./build/aggressive/hello` for `--opt aggressive`.
-
-::: tip
-In most cases `--opt=aggressive` won't make a difference in runtime performance,
-as the differences in optimizations between `balanced` and `aggressive` are
-minor. This may change in the future.
-:::
+When using the `--release` flag, the executable is located at
+`./build/release/hello`.
 
 You can specify an alternative output path using the `-o` option:
 

@@ -1,7 +1,7 @@
 use crate::error::Error;
 use crate::options::print_usage;
 use compiler::compiler::{CompileError, Compiler};
-use compiler::config::Config;
+use compiler::config::{Config, Opt};
 use getopts::{Options, ParsingStyle};
 use std::env::temp_dir;
 use std::fs::{create_dir, remove_dir_all};
@@ -55,6 +55,7 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     let mut options = Options::new();
 
     options.parsing_style(ParsingStyle::StopAtFirstFree);
+    options.optflag("", "release", "Perform a release build");
     options.optflag("h", "help", "Show this help message");
     options.optopt(
         "f",
@@ -71,7 +72,6 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     );
 
     options.optflag("", "static", "Statically link imported C libraries");
-    options.optopt("", "opt", "The optimization level to use", "LEVEL");
     options.optopt(
         "",
         "directory",
@@ -102,8 +102,8 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         config.static_linking = true;
     }
 
-    if let Some(val) = matches.opt_str("opt") {
-        config.set_opt(&val)?;
+    if matches.opt_present("release") {
+        config.opt = Opt::Release;
     }
 
     let dir_name = matches
