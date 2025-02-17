@@ -105,6 +105,43 @@ fn padding(string: String, chars: Int, pad_to: Int) -> String {
   }
 }
 
+fn hash_bytes[T: Bytes, H: mut + Hasher](bytes: ref T, hasher: mut H) {
+  let mut len = bytes.size
+  let mut cur = bytes.to_pointer
+
+  len.hash(hasher)
+
+  while len > 8 {
+    let val = (cur as Pointer[UInt64]).0 as Int
+
+    val.hash(hasher)
+    cur = ptr.add(cur, 8)
+    len -= 8
+  }
+
+  while len > 4 {
+    let val = (cur as Pointer[UInt32]).0 as Int
+
+    val.hash(hasher)
+    cur = ptr.add(cur, 4)
+    len -= 4
+  }
+
+  while len > 2 {
+    let val = (cur as Pointer[UInt16]).0 as Int
+
+    val.hash(hasher)
+    cur = ptr.add(cur, 2)
+    len -= 2
+  }
+
+  while len > 0 {
+    (cur.0 as Int).hash(hasher)
+    cur = ptr.add(cur, 1)
+    len -= 1
+  }
+}
+
 # A type that can be moved into a `String`.
 trait pub IntoString {
   # Moves `self` into a `String`.
@@ -855,12 +892,7 @@ impl Equal for String {
 
 impl Hash for String {
   fn pub hash[H: mut + Hasher](hasher: mut H) {
-    let mut index = 0
-
-    while index < size {
-      hasher.write(byte_unchecked(index))
-      index += 1
-    }
+    hash_bytes(self, hasher)
   }
 }
 

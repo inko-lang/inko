@@ -8,7 +8,7 @@ import std.hash (Hash, Hasher)
 import std.iter (Stream)
 import std.option (Option)
 import std.ptr
-import std.string (Bytes, IntoString, ToString)
+import std.string (Bytes, IntoString, ToString, hash_bytes)
 
 fn extern inko_byte_array_new(state: Pointer[UInt8]) -> ByteArray
 
@@ -728,7 +728,7 @@ impl Clone for ByteArray {
 
 impl Hash for ByteArray {
   fn pub hash[H: mut + Hasher](hasher: mut H) {
-    iter.each(fn (v) { hasher.write(v) })
+    hash_bytes(self, hasher)
   }
 }
 

@@ -312,8 +312,24 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('ByteArray.hash', fn (t) {
-    t.equal(hash(ByteArray.from_array([10])), hash(ByteArray.from_array([10])))
-    t.not_equal(hash(ByteArray.from_array([10, 20])), hash(ByteArray.new))
+    [
+      'a'.to_byte_array,
+      'aa'.to_byte_array,
+      'aaa'.to_byte_array,
+      'aaaa'.to_byte_array,
+      'aaaa'.to_byte_array,
+      'aaaaa'.to_byte_array,
+      'aaaaaa'.to_byte_array,
+      'aaaaaaa'.to_byte_array,
+      'aaaaaaaa'.to_byte_array,
+      'aaaaaaaaa'.to_byte_array,
+      'aaaaaaaaaa'.to_byte_array,
+      'aaaaaaaaaaa'.to_byte_array,
+    ]
+      .into_iter
+      .each(fn (v) { t.equal(hash(v), hash(v)) })
+
+    t.not_equal(hash('hello'.to_byte_array), hash('world'.to_byte_array))
   })
 
   t.test('ByteArray.contains?', fn (t) {
