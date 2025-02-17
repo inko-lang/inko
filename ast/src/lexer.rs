@@ -87,7 +87,6 @@ pub enum TokenKind {
     Break,
     Builtin,
     Case,
-    Class,
     Colon,
     Comma,
     Comment,
@@ -190,7 +189,6 @@ impl TokenKind {
             TokenKind::BracketClose => "a ']'",
             TokenKind::BracketOpen => "an '['",
             TokenKind::Break => "the 'break' keyword",
-            TokenKind::Class => "the 'class' keyword",
             TokenKind::Colon => "a ':'",
             TokenKind::Comma => "a ','",
             TokenKind::Comment => "a comment",
@@ -309,7 +307,6 @@ impl Token {
                 | TokenKind::As
                 | TokenKind::Async
                 | TokenKind::Break
-                | TokenKind::Class
                 | TokenKind::Else
                 | TokenKind::Builtin
                 | TokenKind::Fn
@@ -996,7 +993,6 @@ impl Lexer {
                 _ => TokenKind::Identifier,
             },
             5 => match value.as_str() {
-                "class" => TokenKind::Class,
                 "async" => TokenKind::Async,
                 "break" => TokenKind::Break,
                 "match" => TokenKind::Match,
@@ -1332,7 +1328,6 @@ mod tests {
         assert!(tok(TokenKind::Break, "", 1..=1, 1..=1).is_keyword());
         assert!(tok(TokenKind::Builtin, "", 1..=1, 1..=1).is_keyword());
         assert!(tok(TokenKind::Case, "", 1..=1, 1..=1).is_keyword());
-        assert!(tok(TokenKind::Class, "", 1..=1, 1..=1).is_keyword());
         assert!(tok(TokenKind::Else, "", 1..=1, 1..=1).is_keyword());
         assert!(tok(TokenKind::Enum, "", 1..=1, 1..=1).is_keyword());
         assert!(tok(TokenKind::False, "", 1..=1, 1..=1).is_keyword());
@@ -1994,7 +1989,6 @@ mod tests {
         assert_token!("copy", Copy, "copy", 1..=1, 1..=4);
         assert_token!("type", Type, "type", 1..=1, 1..=4);
 
-        assert_token!("class", Class, "class", 1..=1, 1..=5);
         assert_token!("async", Async, "async", 1..=1, 1..=5);
         assert_token!("break", Break, "break", 1..=1, 1..=5);
         assert_token!("match", Match, "match", 1..=1, 1..=5);

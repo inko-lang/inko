@@ -100,7 +100,7 @@ impl Parser {
     ) -> Result<TopLevelExpression, ParseError> {
         let expr = match start.kind {
             TokenKind::Import => self.import(start)?,
-            TokenKind::Class | TokenKind::Type => self.define_type(start)?,
+            TokenKind::Type => self.define_type(start)?,
             TokenKind::Implement => self.implementation(start)?,
             TokenKind::Trait => self.define_trait(start)?,
             TokenKind::Fn => self.define_module_method(start)?,
