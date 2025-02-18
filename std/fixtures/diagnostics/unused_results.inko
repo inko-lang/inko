@@ -1,5 +1,13 @@
 let ARRAY = [10]
 
+type User {
+  let mut @name: String
+
+  fn mut name=(name: String) -> String {
+    @name := name
+  }
+}
+
 fn return_bool -> Bool {
   true
 }
@@ -36,6 +44,10 @@ fn return_never -> Never {
   panic('oops')
 }
 
+fn Constant_method -> Int {
+  42
+}
+
 fn example1 {
   return_bool
   return_nil
@@ -46,6 +58,7 @@ fn example1 {
   return_borrow
   return_option
   Option.Some(10).as_ref
+  Constant_method
   nil
 }
 
@@ -59,6 +72,7 @@ fn example2 {
   return_borrow()
   return_option()
   Option.Some(10).as_ref()
+  Constant_method()
   nil
 }
 
@@ -71,14 +85,28 @@ fn example4 {
   nil
 }
 
-# unused_results.inko:42:3 warning(unused-result): the result of this expression is unused
-# unused_results.inko:43:3 warning(unused-result): the result of this expression is unused
-# unused_results.inko:44:3 warning(unused-result): the result of this expression is unused
-# unused_results.inko:45:3 warning(unused-result): the result of this expression is unused
-# unused_results.inko:48:3 warning(unused-result): the result of this expression is unused
+fn example5 {
+  10 + 5
+  nil
+}
+
+fn example6(value: User) {
+  value.name = 'Alice'
+  nil
+}
+
+# unused_results.inko:54:3 warning(unused-result): the result of this expression is unused
 # unused_results.inko:55:3 warning(unused-result): the result of this expression is unused
 # unused_results.inko:56:3 warning(unused-result): the result of this expression is unused
 # unused_results.inko:57:3 warning(unused-result): the result of this expression is unused
-# unused_results.inko:58:3 warning(unused-result): the result of this expression is unused
+# unused_results.inko:60:3 warning(unused-result): the result of this expression is unused
 # unused_results.inko:61:3 warning(unused-result): the result of this expression is unused
+# unused_results.inko:68:3 warning(unused-result): the result of this expression is unused
+# unused_results.inko:69:3 warning(unused-result): the result of this expression is unused
 # unused_results.inko:70:3 warning(unused-result): the result of this expression is unused
+# unused_results.inko:71:3 warning(unused-result): the result of this expression is unused
+# unused_results.inko:74:3 warning(unused-result): the result of this expression is unused
+# unused_results.inko:75:3 warning(unused-result): the result of this expression is unused
+# unused_results.inko:84:3 warning(unused-result): the result of this expression is unused
+# unused_results.inko:89:3 warning(unused-result): the result of this expression is unused
+# unused_results.inko:94:3 warning(unused-result): the result of this expression is unused

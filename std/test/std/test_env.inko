@@ -67,8 +67,8 @@ fn pub tests(t: mut Tests) {
     'env.working_directory=',
     child: fn {
       let out = Stdout.new
+      let _ = env.working_directory = env.temporary_directory
 
-      env.working_directory = env.temporary_directory
       out.write_string(env.working_directory.get.to_string)
     },
     test: fn (test, process) {

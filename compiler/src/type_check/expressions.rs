@@ -2559,6 +2559,10 @@ impl<'a> CheckMethodBody<'a> {
             type_arguments: call.type_arguments,
         });
 
+        if node.unused && returns.must_use(self.db(), rec) {
+            self.state.diagnostics.unused_result(self.file(), node.location);
+        }
+
         node.resolved_type = returns;
         node.resolved_type
     }
@@ -3298,6 +3302,10 @@ impl<'a> CheckMethodBody<'a> {
             dynamic: rec_id.use_dynamic_dispatch(),
             type_arguments: call.type_arguments,
         });
+
+        if node.unused && returns.must_use(self.db(), receiver) {
+            self.state.diagnostics.unused_result(self.file(), node.location);
+        }
 
         returns
     }

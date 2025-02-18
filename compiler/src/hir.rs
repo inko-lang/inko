@@ -144,6 +144,7 @@ pub(crate) struct ConstantRef {
     pub(crate) source: Option<Identifier>,
     pub(crate) name: String,
     pub(crate) resolved_type: types::TypeRef,
+    pub(crate) unused: bool,
     pub(crate) location: Location,
 }
 
@@ -228,6 +229,7 @@ pub(crate) struct AssignSetter {
     pub(crate) name: Identifier,
     pub(crate) value: Expression,
     pub(crate) location: Location,
+    pub(crate) unused: bool,
     pub(crate) expected_type: types::TypeRef,
 }
 
@@ -2206,6 +2208,7 @@ impl<'a> LowerToHir<'a> {
                         source: None,
                         name: ARRAY_INTERNAL_NAME.to_string(),
                         resolved_type: types::TypeRef::Unknown,
+                        unused: false,
                         location: node.location,
                     },
                 ))),
@@ -2327,6 +2330,8 @@ impl<'a> LowerToHir<'a> {
             match node {
                 Expression::Call(c) => c.unused = rem,
                 Expression::IdentifierRef(c) => c.unused = rem,
+                Expression::ConstantRef(c) => c.unused = rem,
+                Expression::AssignSetter(c) => c.unused = rem,
                 _ => {}
             }
         }
@@ -2516,6 +2521,7 @@ impl<'a> LowerToHir<'a> {
             source: self.optional_identifier(node.source),
             name: node.name,
             resolved_type: types::TypeRef::Unknown,
+            unused: false,
             location: node.location,
         })
     }
@@ -2795,6 +2801,7 @@ impl<'a> LowerToHir<'a> {
             name: self.identifier(node.name),
             value: self.expression(node.value),
             location: node.location,
+            unused: false,
             expected_type: types::TypeRef::Unknown,
         })
     }
@@ -2856,6 +2863,7 @@ impl<'a> LowerToHir<'a> {
                 location: node.location,
             })),
             location: node.location,
+            unused: false,
             expected_type: types::TypeRef::Unknown,
         })
     }
@@ -5620,6 +5628,7 @@ mod tests {
                                     source: None,
                                     name: "$Array".to_string(),
                                     resolved_type: types::TypeRef::Unknown,
+                                    unused: false,
                                     location: cols(8, 11),
                                 }
                             ))),
@@ -5721,6 +5730,7 @@ mod tests {
                                     source: None,
                                     name: "$Array".to_string(),
                                     resolved_type: types::TypeRef::Unknown,
+                                    unused: false,
                                     location: loc(2, 4, 15, 15),
                                 }
                             ))),
@@ -5869,6 +5879,7 @@ mod tests {
                 source: None,
                 name: "A".to_string(),
                 resolved_type: types::TypeRef::Unknown,
+                unused: false,
                 location: cols(8, 8)
             }))
         );
@@ -6231,6 +6242,7 @@ mod tests {
                     location: cols(14, 14)
                 })),
                 location: cols(8, 14),
+                unused: false,
                 expected_type: types::TypeRef::Unknown,
             }))
         );
@@ -6296,6 +6308,7 @@ mod tests {
                     location: cols(8, 15)
                 })),
                 location: cols(8, 15),
+                unused: false,
                 expected_type: types::TypeRef::Unknown,
             }))
         );
