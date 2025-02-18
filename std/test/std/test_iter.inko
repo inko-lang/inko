@@ -41,8 +41,8 @@ fn pub tests(t: mut Tests) {
     t.equal(vals.iter.find(fn (val) { val == 50 }), Option.None)
 
     let iter = vals.iter
+    let _ = iter.find(fn (val) { val == 10 })
 
-    iter.find(fn (val) { val == 10 })
     t.equal(iter.next, Option.Some(ref 20))
   })
 
@@ -62,8 +62,7 @@ fn pub tests(t: mut Tests) {
     )
 
     let iter = vals.iter
-
-    iter.find_map(fn (val) {
+    let _ = iter.find_map(fn (val) {
       if val == 10 { Option.Some(val) } else { Option.None }
     })
 
@@ -77,8 +76,8 @@ fn pub tests(t: mut Tests) {
     t.false(vals.iter.any?(fn (val) { val == 50 }))
 
     let iter = vals.iter
+    let _ = iter.any?(fn (val) { val == 10 })
 
-    iter.any?(fn (val) { val == 10 })
     t.equal(iter.next, Option.Some(ref 20))
   })
 
@@ -110,8 +109,8 @@ fn pub tests(t: mut Tests) {
     t.false(vals.iter.all?(fn (val) { val > 10 }))
 
     let iter = vals.iter
+    let _ = iter.all?(fn (val) { val > 10 })
 
-    iter.all?(fn (val) { val > 10 })
     t.equal(iter.next, Option.Some(ref 20))
     t.equal(iter.next, Option.Some(ref 30))
   })

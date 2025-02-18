@@ -5538,6 +5538,43 @@ impl TypeRef {
         }
     }
 
+    pub fn must_use(self, db: &Database, receiver: TypeRef) -> bool {
+        match self {
+            // We only consider owned values because returning borrows is a
+            // common pattern for builder types/query-like APIs.
+            TypeRef::Owned(TypeEnum::TypeInstance(ins))
+            | TypeRef::Uni(TypeEnum::TypeInstance(ins)) => {
+                let tid = ins.instance_of;
+
+                // We allow unused booleans because they're often used to signal
+                // something that can be ignored, such as `Set.insert` returning
+                // a boolean to indicate if the value is inserted or not.
+                if tid == TypeId::nil() || tid == TypeId::boolean() {
+                    return false;
+                }
+
+                let opt_id = db.type_in_module(OPTION_MODULE, OPTION_TYPE);
+                let rec_id = receiver.type_id(db);
+
+                // We allow unused Option values because these are often
+                // produced in ways such that it's fine to ignore them (e.g.
+                // `Map.set`), _unless_ they are produced by an `Option` method
+                // itself, in which case they probably _should_ be used.
+                if tid == opt_id {
+                    Some(opt_id) == rec_id
+                } else {
+                    true
+                }
+            }
+            TypeRef::Owned(TypeEnum::TraitInstance(_))
+            | TypeRef::Uni(TypeEnum::TraitInstance(_)) => true,
+            TypeRef::Placeholder(p) => {
+                p.value(db).map_or(false, |v| v.must_use(db, receiver))
+            }
+            _ => false,
+        }
+    }
+
     fn is_instance_of(self, db: &Database, id: TypeId) -> bool {
         self.type_id(db) == Some(id)
     }

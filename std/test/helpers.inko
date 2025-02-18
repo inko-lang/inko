@@ -13,8 +13,8 @@ fn pub hash[T: Hash](value: ref T) -> Int {
 fn pub with_directory[R](id: Int, func: fn (ref Path) -> R) -> R {
   let path = env.temporary_directory.join('inko-test-directory-${id}')
   let ret = func.call(path)
+  let _ = path.remove_directory_all
 
-  path.remove_directory_all
   ret
 }
 

@@ -13,8 +13,7 @@ fn write(string: String, to: ref Path) {
 fn read(from: ref Path) -> String {
   let file = ReadOnlyFile.new(from.clone).get
   let bytes = ByteArray.new
-
-  file.read_all(bytes).get
+  let _ = file.read_all(bytes).get
 
   bytes.into_string
 }
@@ -39,8 +38,7 @@ fn pub tests(t: mut Tests) {
 
     let handle = ReadOnlyFile.new(path.clone).get
     let bytes = ByteArray.new
-
-    handle.read(into: bytes, size: 4).get
+    let _ = handle.read(into: bytes, size: 4).get
 
     t.equal(bytes.into_string, 'test')
 
@@ -54,9 +52,8 @@ fn pub tests(t: mut Tests) {
 
     let handle = ReadOnlyFile.new(path.clone).get
     let bytes = ByteArray.new
-
-    handle.seek(1).get
-    handle.read(into: bytes, size: 4).get
+    let _ = handle.seek(1).get
+    let _ = handle.read(into: bytes, size: 4).get
 
     t.equal(bytes.into_string, 'est')
 
@@ -181,10 +178,9 @@ fn pub tests(t: mut Tests) {
   t.test('WriteOnlyFile.seek', fn (t) {
     let path = env.temporary_directory.join('inko-test-${t.id}')
     let handle = WriteOnlyFile.new(path.clone).get
-
-    handle.write_string('test').get
-    handle.seek(1).get
-    handle.write_string('ing').get
+    let _ = handle.write_string('test').get
+    let _ = handle.seek(1).get
+    let _ = handle.write_string('ing').get
 
     t.equal(read(path), 'ting')
 
@@ -255,8 +251,7 @@ fn pub tests(t: mut Tests) {
 
     let handle = ReadWriteFile.new(path.clone).get
     let bytes = ByteArray.new
-
-    handle.read(bytes, size: 4).get
+    let _ = handle.read(bytes, size: 4).get
 
     t.equal(bytes.to_string, 'test')
 
@@ -318,10 +313,9 @@ fn pub tests(t: mut Tests) {
   t.test('ReadWriteFile.seek', fn (t) {
     let path = env.temporary_directory.join('inko-test-${t.id}')
     let handle = ReadWriteFile.new(path.clone).get
-
-    handle.write_string('test').get
-    handle.seek(1).get
-    handle.write_string('ing').get
+    let _ = handle.write_string('test').get
+    let _ = handle.seek(1).get
+    let _ = handle.write_string('ing').get
 
     t.equal(read(path), 'ting')
 

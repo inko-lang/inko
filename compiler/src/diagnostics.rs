@@ -27,6 +27,7 @@ pub(crate) enum DiagnosticId {
     Moved,
     Unreachable,
     UnusedSymbol,
+    UnusedResult,
 }
 
 impl fmt::Display for DiagnosticId {
@@ -53,6 +54,7 @@ impl fmt::Display for DiagnosticId {
             DiagnosticId::MissingMain => "missing-main",
             DiagnosticId::InvalidCast => "invalid-cast",
             DiagnosticId::UnusedSymbol => "unused-symbol",
+            DiagnosticId::UnusedResult => "unused-result",
         };
 
         write!(f, "{}", id)
@@ -1074,6 +1076,15 @@ impl Diagnostics {
                 "mutable borrows of type '{}' are invalid as '{}' is immutable",
                 name, name
             ),
+            file,
+            location,
+        );
+    }
+
+    pub(crate) fn unused_result(&mut self, file: PathBuf, location: Location) {
+        self.warn(
+            DiagnosticId::UnusedResult,
+            "the result of this expression is unused",
             file,
             location,
         );

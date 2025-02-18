@@ -778,7 +778,7 @@ type pub Generator[I: mut + Write] {
   fn pub mut write(columns: ref Array[String]) -> Result[Nil, IoError] {
     let mut i = 0
 
-    columns.iter.try_each(fn move (col) {
+    try columns.iter.try_each(fn move (col) {
       if i > 0 { try @output.write_string(@separator_string) }
 
       if quote?(col, @separator_byte) {

@@ -2681,6 +2681,10 @@ impl<'a> CheckMethodBody<'a> {
             type_arguments: call.type_arguments,
         });
 
+        if node.unused && returns.must_use(self.db(), rec) {
+            self.state.diagnostics.unused_result(self.file(), node.location);
+        }
+
         returns
     }
 
@@ -3483,23 +3487,31 @@ impl<'a> CheckMethodBody<'a> {
         scope: &mut LexicalScope,
         as_receiver: bool,
     ) -> TypeRef {
-        if let Some((rec, allow_type_private)) =
+        let (rec, typ) = if let Some((rec, allow_type_private)) =
             node.receiver.as_mut().map(|r| self.call_receiver(r, scope))
         {
             if let Some(closure) = rec.closure_id(self.db()) {
-                self.call_closure(rec, closure, node, scope)
+                (rec, self.call_closure(rec, closure, node, scope))
             } else {
-                self.call_with_receiver(
+                let res = self.call_with_receiver(
                     rec,
                     node,
                     scope,
                     allow_type_private,
                     as_receiver,
-                )
+                );
+
+                (rec, res)
             }
         } else {
-            self.call_without_receiver(node, scope)
+            (scope.surrounding_type, self.call_without_receiver(node, scope))
+        };
+
+        if node.unused && typ.must_use(self.db(), rec) {
+            self.state.diagnostics.unused_result(self.file(), node.location);
         }
+
+        typ
     }
 
     fn call_closure(

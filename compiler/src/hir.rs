@@ -151,6 +151,8 @@ pub(crate) struct ConstantRef {
 pub(crate) struct IdentifierRef {
     pub(crate) name: String,
     pub(crate) kind: types::IdentifierKind,
+    /// A flag indicating the result of this node is unused.
+    pub(crate) unused: bool,
     pub(crate) location: Location,
 }
 
@@ -170,6 +172,8 @@ pub(crate) struct Call {
     pub(crate) parens: bool,
     /// A flag indicating if the call resides directly in a `mut` expression.
     pub(crate) in_mut: bool,
+    /// A flag indicating the result of this node is unused.
+    pub(crate) unused: bool,
     pub(crate) location: Location,
 }
 
@@ -2117,6 +2121,7 @@ impl<'a> LowerToHir<'a> {
                         },
                         parens: false,
                         in_mut: false,
+                        unused: false,
                         arguments: Vec::new(),
                         location: loc,
                     }));
@@ -2149,6 +2154,7 @@ impl<'a> LowerToHir<'a> {
         let var_ref = Expression::IdentifierRef(Box::new(IdentifierRef {
             name: ARRAY_LIT_VAR.to_string(),
             kind: types::IdentifierKind::Unknown,
+            unused: false,
             location: node.location,
         }));
 
@@ -2170,6 +2176,7 @@ impl<'a> LowerToHir<'a> {
                 },
                 parens: true,
                 in_mut: false,
+                unused: false,
                 arguments: vec![Argument::Positional(Box::new(
                     PositionalArgument {
                         value: arg,
@@ -2208,6 +2215,7 @@ impl<'a> LowerToHir<'a> {
                 },
                 parens: true,
                 in_mut: false,
+                unused: false,
                 arguments: vec![Argument::Positional(Box::new(
                     PositionalArgument {
                         value: Expression::Int(Box::new(IntLiteral {
@@ -2310,7 +2318,20 @@ impl<'a> LowerToHir<'a> {
     }
 
     fn expressions(&mut self, node: ast::Expressions) -> Vec<Expression> {
-        self.values(node.values)
+        let mut nodes = self.values(node.values);
+        let max = nodes.len().saturating_sub(1);
+
+        for (idx, node) in nodes.iter_mut().enumerate() {
+            let rem = idx < max;
+
+            match node {
+                Expression::Call(c) => c.unused = rem,
+                Expression::IdentifierRef(c) => c.unused = rem,
+                _ => {}
+            }
+        }
+
+        nodes
     }
 
     fn values(&mut self, nodes: Vec<ast::Expression>) -> Vec<Expression> {
@@ -2469,6 +2490,7 @@ impl<'a> LowerToHir<'a> {
             },
             parens: true,
             in_mut: false,
+            unused: false,
             arguments: vec![Argument::Positional(Box::new(
                 PositionalArgument {
                     value: self.expression(node.right),
@@ -2502,6 +2524,7 @@ impl<'a> LowerToHir<'a> {
         Box::new(IdentifierRef {
             kind: types::IdentifierKind::Unknown,
             name: node.name,
+            unused: false,
             location: node.location,
         })
     }
@@ -2535,6 +2558,7 @@ impl<'a> LowerToHir<'a> {
             name: self.identifier(node.name),
             parens: node.arguments.is_some(),
             in_mut: false,
+            unused: false,
             arguments: self.optional_call_arguments(node.arguments),
             location: node.location,
         }))
@@ -2695,6 +2719,7 @@ impl<'a> LowerToHir<'a> {
         let receiver = Expression::IdentifierRef(Box::new(IdentifierRef {
             kind: types::IdentifierKind::Unknown,
             name: variable.name.clone(),
+            unused: false,
             location: variable.location,
         }));
 
@@ -2710,6 +2735,7 @@ impl<'a> LowerToHir<'a> {
                 receiver: Some(receiver),
                 parens: true,
                 in_mut: false,
+                unused: false,
                 arguments: vec![Argument::Positional(Box::new(
                     PositionalArgument {
                         value: self.expression(node.value),
@@ -2748,6 +2774,7 @@ impl<'a> LowerToHir<'a> {
                 receiver: Some(receiver),
                 parens: true,
                 in_mut: false,
+                unused: false,
                 arguments: vec![Argument::Positional(Box::new(
                     PositionalArgument {
                         value: self.expression(node.value),
@@ -2801,6 +2828,7 @@ impl<'a> LowerToHir<'a> {
             name: name.clone(),
             parens: false,
             in_mut: false,
+            unused: false,
             arguments: Vec::new(),
             location: getter_loc,
         }));
@@ -2814,6 +2842,7 @@ impl<'a> LowerToHir<'a> {
                 receiver: Some(getter_rec),
                 parens: true,
                 in_mut: false,
+                unused: false,
                 arguments: vec![Argument::Positional(Box::new(
                     PositionalArgument {
                         value: self.expression(node.value),
@@ -5550,6 +5579,7 @@ mod tests {
                         },
                         parens: false,
                         in_mut: false,
+                        unused: false,
                         arguments: Vec::new(),
                         location: cols(12, 13)
                     })),
@@ -5599,6 +5629,7 @@ mod tests {
                             },
                             parens: true,
                             in_mut: false,
+                            unused: false,
                             arguments: vec![Argument::Positional(Box::new(
                                 PositionalArgument {
                                     value: Expression::Int(Box::new(
@@ -5622,6 +5653,7 @@ mod tests {
                             IdentifierRef {
                                 name: "$array".to_string(),
                                 kind: types::IdentifierKind::Unknown,
+                                unused: false,
                                 location: cols(8, 11),
                             }
                         ))),
@@ -5631,6 +5663,7 @@ mod tests {
                         },
                         parens: true,
                         in_mut: false,
+                        unused: false,
                         arguments: vec![Argument::Positional(Box::new(
                             PositionalArgument {
                                 value: Expression::Int(Box::new(IntLiteral {
@@ -5646,6 +5679,7 @@ mod tests {
                     Expression::IdentifierRef(Box::new(IdentifierRef {
                         name: "$array".to_string(),
                         kind: types::IdentifierKind::Unknown,
+                        unused: false,
                         location: cols(8, 11),
                     })),
                 ],
@@ -5696,6 +5730,7 @@ mod tests {
                             },
                             parens: true,
                             in_mut: false,
+                            unused: false,
                             arguments: vec![Argument::Positional(Box::new(
                                 PositionalArgument {
                                     value: Expression::Int(Box::new(
@@ -5716,6 +5751,7 @@ mod tests {
                     Expression::IdentifierRef(Box::new(IdentifierRef {
                         name: "$array".to_string(),
                         kind: types::IdentifierKind::Unknown,
+                        unused: false,
                         location: loc(2, 4, 15, 15),
                     })),
                 ],
@@ -5787,6 +5823,7 @@ mod tests {
                 }))),
                 parens: true,
                 in_mut: false,
+                unused: false,
                 arguments: vec![Argument::Positional(Box::new(
                     PositionalArgument {
                         value: Expression::Int(Box::new(IntLiteral {
@@ -5849,6 +5886,7 @@ mod tests {
                     IdentifierRef {
                         kind: types::IdentifierKind::Unknown,
                         name: "a".to_string(),
+                        unused: false,
                         location: cols(8, 8)
                     }
                 ))),
@@ -5858,6 +5896,7 @@ mod tests {
                 },
                 parens: false,
                 in_mut: false,
+                unused: false,
                 arguments: Vec::new(),
                 location: cols(8, 10)
             }))
@@ -5873,6 +5912,7 @@ mod tests {
             Expression::IdentifierRef(Box::new(IdentifierRef {
                 kind: types::IdentifierKind::Unknown,
                 name: "a".to_string(),
+                unused: false,
                 location: cols(8, 8)
             }))
         );
@@ -5893,6 +5933,7 @@ mod tests {
                 },
                 parens: true,
                 in_mut: false,
+                unused: false,
                 arguments: vec![Argument::Positional(Box::new(
                     PositionalArgument {
                         value: Expression::Int(Box::new(IntLiteral {
@@ -5923,6 +5964,7 @@ mod tests {
                 },
                 parens: true,
                 in_mut: false,
+                unused: false,
                 arguments: vec![Argument::Named(Box::new(NamedArgument {
                     index: 0,
                     name: Identifier {
@@ -5954,6 +5996,7 @@ mod tests {
                     IdentifierRef {
                         kind: types::IdentifierKind::Unknown,
                         name: "a".to_string(),
+                        unused: false,
                         location: cols(8, 8)
                     }
                 ))),
@@ -5963,6 +6006,7 @@ mod tests {
                 },
                 parens: false,
                 in_mut: false,
+                unused: false,
                 arguments: Vec::new(),
                 location: cols(8, 10)
             }))
@@ -6134,11 +6178,13 @@ mod tests {
                         IdentifierRef {
                             kind: types::IdentifierKind::Unknown,
                             name: "a".to_string(),
+                            unused: false,
                             location: cols(8, 8)
                         }
                     ))),
                     parens: true,
                     in_mut: false,
+                    unused: false,
                     arguments: vec![Argument::Positional(Box::new(
                         PositionalArgument {
                             value: Expression::Int(Box::new(IntLiteral {
@@ -6172,6 +6218,7 @@ mod tests {
                 receiver: Expression::IdentifierRef(Box::new(IdentifierRef {
                     kind: types::IdentifierKind::Unknown,
                     name: "a".to_string(),
+                    unused: false,
                     location: cols(8, 8)
                 })),
                 name: Identifier {
@@ -6200,6 +6247,7 @@ mod tests {
                 receiver: Expression::IdentifierRef(Box::new(IdentifierRef {
                     kind: types::IdentifierKind::Unknown,
                     name: "a".to_string(),
+                    unused: false,
                     location: cols(8, 8)
                 })),
                 name: Identifier {
@@ -6214,6 +6262,7 @@ mod tests {
                             IdentifierRef {
                                 kind: types::IdentifierKind::Unknown,
                                 name: "a".to_string(),
+                                unused: false,
                                 location: cols(8, 8)
                             }
                         ))),
@@ -6223,11 +6272,13 @@ mod tests {
                         },
                         parens: false,
                         in_mut: false,
+                        unused: false,
                         arguments: Vec::new(),
                         location: cols(8, 10)
                     }))),
                     parens: true,
                     in_mut: false,
+                    unused: false,
                     arguments: vec![Argument::Positional(Box::new(
                         PositionalArgument {
                             value: Expression::Int(Box::new(IntLiteral {
@@ -6269,6 +6320,7 @@ mod tests {
                     }))),
                     parens: true,
                     in_mut: false,
+                    unused: false,
                     arguments: vec![Argument::Positional(Box::new(
                         PositionalArgument {
                             value: Expression::Int(Box::new(IntLiteral {
@@ -6659,6 +6711,7 @@ mod tests {
                     },
                     parens: true,
                     in_mut: false,
+                    unused: false,
                     arguments: Vec::new(),
                     location: cols(12, 14)
                 })),

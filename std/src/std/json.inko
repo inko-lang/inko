@@ -828,7 +828,8 @@ type pub PullParser[T: mut + Read] {
     loop {
       match try peek {
         case Some(CURLY_CLOSE) -> {
-          advance
+          let _ = advance
+
           break
         }
         case Some(DQUOTE) -> {
@@ -890,11 +891,13 @@ type pub PullParser[T: mut + Read] {
   fn pub mut bool -> Result[Bool, Error] {
     match try peek {
       case Some(LOWER_T) -> {
-        advance
+        let _ = advance
+
         identifier('rue').map(fn (_) { true })
       }
       case Some(LOWER_F) -> {
-        advance
+        let _ = advance
+
         identifier('alse').map(fn (_) { false })
       }
       case Some(v) -> throw unexpected(v)

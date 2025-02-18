@@ -357,7 +357,9 @@ type builtin ByteArray {
   # ```
   fn pub mut set(index: Int, value: Int) {
     bounds_check(index, size)
-    inko_byte_array_set(self, index, value)
+
+    let _ = inko_byte_array_set(self, index, value)
+
     _INKO.moved(value)
   }
 
@@ -438,8 +440,8 @@ type builtin ByteArray {
 
     while a < b {
       let a_val = inko_byte_array_get(self, a)
+      let _ = inko_byte_array_set(self, a, inko_byte_array_set(self, b, a_val))
 
-      inko_byte_array_set(self, a, inko_byte_array_set(self, b, a_val))
       a += 1
       b -= 1
     }

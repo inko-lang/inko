@@ -361,8 +361,8 @@ type pub Map[K: Equal + Hash, V] {
     }
   }
 
-  # Inserts the key and value in this `Map`, returning the previous value (if
-  # any).
+  # Inserts the key and value in this `Map`, returning the previous value if
+  # there is any.
   #
   # # Examples
   #
@@ -371,7 +371,7 @@ type pub Map[K: Equal + Hash, V] {
   # ```inko
   # let mut map = Map.new
   #
-  # map.set('name', 'Alice') # => 'Alice'
+  # map.set('name', 'Alice') # => Option.Some('Alice')
   # ```
   fn pub mut set(key: K, value: V) -> Option[V] {
     if size >= @resize_at { resize }

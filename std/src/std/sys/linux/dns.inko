@@ -110,7 +110,8 @@ impl Resolve for SystemdResolver {
       match @socket.read(into: @buffer, size: READ_SIZE) {
         case Ok(0) -> break
         case Ok(_) if @buffer.last.or(-1) == 0 -> {
-          @buffer.pop
+          let _ = @buffer.pop
+
           break
         }
         case Ok(_) -> {}

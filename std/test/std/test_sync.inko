@@ -21,7 +21,7 @@ fn pub tests(t: mut Tests) {
   t.test('Future.get', fn (t) {
     match Future.new {
       case (r, w) -> {
-        w.set(42)
+        t.true(w.set(42).none?)
         t.equal(r.get, 42)
       }
     }
@@ -34,7 +34,7 @@ fn pub tests(t: mut Tests) {
 
     match int_future {
       case (r, w) -> {
-        w.set(42)
+        t.true(w.set(42).none?)
         t.equal(r.get_until(Duration.from_millis(1)), Option.Some(42))
       }
     }
@@ -48,7 +48,7 @@ fn pub tests(t: mut Tests) {
           case Error(r) -> r
         }
 
-        w.set(42)
+        t.true(w.set(42).none?)
         t.equal(r.try_get.ok, Option.Some(42))
       }
     }

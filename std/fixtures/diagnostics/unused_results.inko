@@ -1,0 +1,84 @@
+let ARRAY = [10]
+
+fn return_bool -> Bool {
+  true
+}
+
+fn return_nil -> Nil {
+  nil
+}
+
+fn return_string -> String {
+  'hello'
+}
+
+fn return_int -> Int {
+  42
+}
+
+fn return_float -> Float {
+  42.0
+}
+
+fn return_array -> Array[Int] {
+  [10]
+}
+
+fn return_borrow -> ref Array[Int] {
+  ARRAY
+}
+
+fn return_option -> Option[Int] {
+  Option.Some(10)
+}
+
+fn return_never -> Never {
+  panic('oops')
+}
+
+fn example1 {
+  return_bool
+  return_nil
+  return_string
+  return_int
+  return_float
+  return_array
+  return_borrow
+  return_option
+  Option.Some(10).as_ref
+  nil
+}
+
+fn example2 {
+  return_bool()
+  return_nil()
+  return_string()
+  return_int()
+  return_float()
+  return_array()
+  return_borrow()
+  return_option()
+  Option.Some(10).as_ref()
+  nil
+}
+
+fn example3 {
+  return_never()
+}
+
+fn example4 {
+  Option.Some(42)
+  nil
+}
+
+# unused_results.inko:42:3 warning(unused-result): the result of this expression is unused
+# unused_results.inko:43:3 warning(unused-result): the result of this expression is unused
+# unused_results.inko:44:3 warning(unused-result): the result of this expression is unused
+# unused_results.inko:45:3 warning(unused-result): the result of this expression is unused
+# unused_results.inko:48:3 warning(unused-result): the result of this expression is unused
+# unused_results.inko:55:3 warning(unused-result): the result of this expression is unused
+# unused_results.inko:56:3 warning(unused-result): the result of this expression is unused
+# unused_results.inko:57:3 warning(unused-result): the result of this expression is unused
+# unused_results.inko:58:3 warning(unused-result): the result of this expression is unused
+# unused_results.inko:61:3 warning(unused-result): the result of this expression is unused
+# unused_results.inko:70:3 warning(unused-result): the result of this expression is unused

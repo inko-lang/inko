@@ -2,7 +2,7 @@
 import std.alloc
 import std.clone (Clone)
 import std.cmp (Compare, Contains, Equal, Ordering, max)
-import std.drop (Drop)
+import std.drop (Drop, drop as drop_value)
 import std.fmt (Format, Formatter)
 import std.hash (Hash, Hasher)
 import std.iter (Iter, Stream)
@@ -328,7 +328,7 @@ type builtin Array[T] {
     bounds_check(index, @size)
 
     # This drops the old value, then writes the new value.
-    read_from(index)
+    drop_value(read_from(index))
     write_to(index, value)
   }
 

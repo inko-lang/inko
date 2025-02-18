@@ -14,19 +14,44 @@ type Output {
 
 impl Write for Output {
   fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, IoError] {
-    @buffer.copy_from(bytes, at: 0, size: bytes.size)
+    let _ = @buffer.copy_from(bytes, at: 0, size: bytes.size)
+
     Result.Ok(nil)
   }
 
   fn pub mut write_string(string: String) -> Result[Nil, IoError] {
     let bytes = string.to_byte_array
+    let _ = @buffer.copy_from(bytes, at: 0, size: bytes.size)
 
-    @buffer.copy_from(bytes, at: 0, size: bytes.size)
     Result.Ok(nil)
   }
 
   fn pub mut flush -> Result[Nil, IoError] {
     @flushed = true
+    Result.Ok(nil)
+  }
+}
+
+type BrokenOutput {
+  let mut @writes: Int
+
+  fn static new -> BrokenOutput {
+    BrokenOutput(0)
+  }
+}
+
+impl Write for BrokenOutput {
+  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, IoError] {
+    @writes += 1
+    Result.Error(IoError.InvalidArgument)
+  }
+
+  fn pub mut write_string(string: String) -> Result[Nil, IoError] {
+    @writes += 1
+    Result.Error(IoError.InvalidArgument)
+  }
+
+  fn pub mut flush -> Result[Nil, IoError] {
     Result.Ok(nil)
   }
 }
@@ -314,6 +339,13 @@ fn pub tests(t: mut Tests) {
         }
       }
     })
+  })
+
+  t.test('Generator.write returns errors returned by the stream', fn (t) {
+    let gen = Generator.new(BrokenOutput.new)
+
+    t.equal(gen.write(['foo']), Result.Error(IoError.InvalidArgument))
+    t.equal(gen.output.writes, 1)
   })
 
   t.test('Generator.flush', fn (t) {

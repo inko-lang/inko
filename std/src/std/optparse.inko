@@ -282,9 +282,7 @@ impl Iter[Token] for Lexer {
               # Example: -á=b, parsed as `-á "=b"` to mtach getopts behaviour.
               case Some(_) -> {
                 let chars = val.chars
-
-                chars.next # Skip the '-'
-
+                let _ = chars.next # Skip the '-'
                 let name = chars.next.get
                 let offset = name.size + 1
 
@@ -303,9 +301,7 @@ impl Iter[Token] for Lexer {
               # Example: -á
               case _ -> {
                 let chars = val.chars
-
-                chars.next # Skip the '-'
-
+                let _ = chars.next # Skip the '-'
                 let name = chars.next.get
                 let offset = name.size + 1
 

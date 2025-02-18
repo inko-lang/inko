@@ -201,7 +201,7 @@ fn spawn(
   )
     as Int
 
-  stop_blocking
+  let _ = stop_blocking
 
   if res != 0 { throw Error.from_os_error(res) }
 
@@ -222,7 +222,8 @@ fn wait(pid: Int32) -> Result[Int, Error] {
 
   if res == -1 { throw Error.from_os_error(err) }
 
-  stop_blocking
+  let _ = stop_blocking
+
   Result.Ok(exit_status(status))
 }
 

@@ -489,9 +489,7 @@ fn pub tests(t: mut Tests) {
     let ip = IpAddress.V4(Ipv4Address.new(127, 0, 0, 1))
     let socket = UdpSocket.new(ip: ip, port: 0).get
     let addr = socket.local_address.get
-
-    socket.send_bytes_to('ping'.to_byte_array, addr.ip, addr.port).get
-
+    let _ = socket.send_bytes_to('ping'.to_byte_array, addr.ip, addr.port).get
     let bytes = ByteArray.new
 
     t.equal(socket.read(into: bytes, size: 4), Result.Ok(4))
@@ -1179,7 +1177,7 @@ fn pub tests(t: mut Tests) {
     let server = UnixSocket.stream.get
 
     server.bind(path.path).get
-    server.listen
+    server.listen.get
     server.timeout_after = Duration.from_secs(0)
 
     t.true(server.accept.error?)

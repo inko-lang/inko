@@ -28,7 +28,7 @@ fn pub tests(t: mut Tests) {
     q.push_back(10)
     t.equal(q.size, 1)
 
-    q.pop_back
+    t.true(q.pop_back.some?)
     t.equal(q.size, 0)
   })
 
@@ -46,9 +46,10 @@ fn pub tests(t: mut Tests) {
     q.push_back(10)
     t.equal(q.capacity, 4)
 
-    q.pop_back
-    q.pop_back
-    q.pop_back
+    let _ = q.pop_back
+    let _ = q.pop_back
+    let _ = q.pop_back
+
     t.equal(q.capacity, 4)
   })
 

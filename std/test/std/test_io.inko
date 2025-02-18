@@ -326,8 +326,8 @@ fn pub tests(t: mut Tests) {
 
     # This is to make sure that if the buffer is consumed, a call to
     # fill_buffer() resets it.
-    reader.read_buffer(into: ByteArray.new, size: 3)
-    reader.fill_buffer
+    let _ = reader.read_buffer(into: ByteArray.new, size: 3)
+    let _ = reader.fill_buffer
 
     t.true(reader.buffer.empty?)
     t.equal(reader.offset, 0)
@@ -344,8 +344,8 @@ fn pub tests(t: mut Tests) {
   t.test('BufferedReader.read_buffer', fn (t) {
     let reader = BufferedReader.new(Reader.new)
     let bytes = ByteArray.new
+    let _ = reader.fill_buffer
 
-    reader.fill_buffer
     t.equal(reader.read_buffer(into: bytes, size: 2), 2)
     t.equal(reader.offset, 2)
     t.equal(bytes, ByteArray.from_array([1, 2]))
@@ -448,8 +448,8 @@ fn pub tests(t: mut Tests) {
   t.test('Buffer.read_buffer', fn (t) {
     let buffer = Buffer.new('hello')
     let bytes = ByteArray.new
+    let _ = buffer.fill_buffer
 
-    buffer.fill_buffer
     t.equal(buffer.read_buffer(into: bytes, size: 5), 5)
     t.equal(bytes.to_string, 'hello')
   })

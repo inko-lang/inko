@@ -5,11 +5,11 @@ type Example[T: copy] {
 fn example[T: copy](value: T) {}
 
 fn examples {
-  Example(42)
-  Example([10])
-  example(42)
-  example([10])
+  let _ = Example(42)
+  let _ = Example([10])
+  let _ = example(42)
+  let _ = example([10])
 }
 
-# inline_type_parameters.inko:9:11 error(invalid-type): expected a value of type 'T: copy', found 'Array[Int]'
-# inline_type_parameters.inko:11:11 error(invalid-type): expected a value of type 'T: copy', found 'Array[Int]'
+# inline_type_parameters.inko:9:19 error(invalid-type): expected a value of type 'T: copy', found 'Array[Int]'
+# inline_type_parameters.inko:11:19 error(invalid-type): expected a value of type 'T: copy', found 'Array[Int]'

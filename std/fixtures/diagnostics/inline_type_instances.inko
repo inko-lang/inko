@@ -7,7 +7,7 @@ type extern B {
 }
 
 fn example1 {
-  A(value: 42)
-  A(value: B(value: 42))
-  A(value: 'not a stack type')
+  let _ = A(value: 42)
+  let _ = A(value: B(value: 42))
+  let _ = A(value: 'not a stack type')
 }

@@ -23,8 +23,7 @@ fn valid_date?(time: Result[DateTime, Error]) -> Bool {
 fn read(from: ref Path) -> String {
   let file = ReadOnlyFile.new(from.clone).get
   let bytes = ByteArray.new
-
-  file.read_all(bytes).get
+  let _ = file.read_all(bytes).get
 
   bytes.into_string
 }
@@ -332,14 +331,11 @@ fn pub tests(t: mut Tests) {
     'Path.copy with a special file as the source',
     child: fn {
       let buf = ByteArray.new
-
-      Stdin.new.read_all(buf).get
-
+      let _ = Stdin.new.read_all(buf).get
       let path = buf.into_string.to_path
-
-      Path.new('/dev/stdin').copy(path).get
-      path.remove_file.get
-      Stdout.new.write_string('ok')
+      let _ = Path.new('/dev/stdin').copy(path).get
+      let _ = path.remove_file.get
+      let _ = Stdout.new.write_string('ok')
     },
     test: fn (t, proc) {
       let path = env.temporary_directory.join('inko-test-${t.id}')

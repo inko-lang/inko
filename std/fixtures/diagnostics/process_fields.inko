@@ -10,10 +10,10 @@ type async Foo {
 
 fn example {
   let foo = Foo(42)
+  let _ = foo.value
 
-  foo.value
   foo.value = 50
 }
 
-# process_fields.inko:14:7 error(invalid-symbol): the field 'value' can only be used by the owning process
+# process_fields.inko:13:15 error(invalid-symbol): the field 'value' can only be used by the owning process
 # process_fields.inko:15:7 error(invalid-symbol): the field 'value' can only be used by the owning process

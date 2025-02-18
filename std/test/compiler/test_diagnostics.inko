@@ -88,9 +88,10 @@ fn check(compiler: String, name: String, file: Path) -> Array[Diagnostic] {
 
   let child = cmd.spawn.or_panic('failed to start the compiler')
   let output = ByteArray.new
-
-  child.wait.or_panic('failed to wait for the compiler')
-  child.stderr.as_mut.get.read_all(output)
+  let _ = child.wait.or_panic('failed to wait for the compiler')
+  let _ = child.stderr.as_mut.get.read_all(output).or_panic(
+    'failed to read STDERR',
+  )
 
   match parse_output(dir.to_string, output) {
     case Ok(v) -> v

@@ -23,9 +23,8 @@ fn pub tests(t: mut Tests) {
     child: fn {
       let out = Stdout.new
       let vars = env.variables
-
-      out.print(vars.get('INKO_FOO'))
-      out.print(vars.get('INKO_BAR'))
+      let _ = out.print(vars.get('INKO_FOO'))
+      let _ = out.print(vars.get('INKO_BAR'))
     },
     test: fn (test, process) {
       process.variable('INKO_FOO', 'foo')
@@ -82,9 +81,8 @@ fn pub tests(t: mut Tests) {
     child: fn {
       let out = Stdout.new
       let args = env.arguments
-
-      out.print(args.get(0))
-      out.print(args.get(1))
+      let _ = out.print(args.get(0))
+      let _ = out.print(args.get(1))
     },
     test: fn (test, process) {
       process.argument('foo')

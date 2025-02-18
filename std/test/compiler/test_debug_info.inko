@@ -23,9 +23,7 @@ fn run(compiler: String, file: ref Path, id: Int, release: Bool) -> String {
   cmd.arguments.push(file.to_string)
 
   let child = cmd.spawn.or_panic('failed to start the compiler')
-
-  child.wait.or_panic('failed to wait for the compiler')
-
+  let _ = child.wait.or_panic('failed to wait for the compiler')
   let reader = BufferedReader.new(child.stderr.as_mut.get)
   let lines = []
   let buf = ByteArray.new
@@ -45,8 +43,9 @@ fn run(compiler: String, file: ref Path, id: Int, release: Bool) -> String {
 
   # Strip the first and last lines as those contain some extra non-stacktrace
   # info we don't care about.
-  lines.pop
-  lines.remove_at(0)
+  let _ = lines.pop
+  let _ = lines.remove_at(0)
+
   String.join(lines.into_iter, '\n')
 }
 

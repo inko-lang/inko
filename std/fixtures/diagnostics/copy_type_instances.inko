@@ -7,9 +7,9 @@ type extern B {
 }
 
 fn example1 {
-  A(value: 42)
-  A(value: B(value: 42))
-  A(value: 'not a stack type')
+  let _ = A(value: 42)
+  let _ = A(value: B(value: 42))
+  let _ = A(value: 'not a stack type')
 }
 
-# copy_type_instances.inko:12:12 error(invalid-type): expected a value of type 'T: copy', found 'String'
+# copy_type_instances.inko:12:20 error(invalid-type): expected a value of type 'T: copy', found 'String'

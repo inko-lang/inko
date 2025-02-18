@@ -2,7 +2,7 @@
 import std.alloc
 import std.array (bounds_check)
 import std.cmp (max)
-import std.drop (Drop)
+import std.drop (Drop, drop as drop_value)
 import std.iter (Iter, Stream)
 import std.ptr
 
@@ -226,7 +226,7 @@ type pub Deque[T] {
   # ```
   fn pub mut clear {
     while @size > 0 {
-      read_from(@head := to_buffer_index(1))
+      drop_value(read_from(@head := to_buffer_index(1)))
       @size -= 1
     }
 

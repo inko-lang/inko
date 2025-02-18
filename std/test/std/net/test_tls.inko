@@ -170,7 +170,7 @@ type async DummyClient {
   ) {
     let res = recover {
       client(port).then(fn (s) {
-        s.write_string('hello').map_error(fn (e) { 'write failed: ${e}' })
+        try s.write_string('hello').map_error(fn (e) { 'write failed: ${e}' })
         Result.Ok(s)
       })
     }

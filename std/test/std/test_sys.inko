@@ -35,7 +35,7 @@ fn pub tests(t: mut Tests) {
     let child = try cmd.spawn
     let bytes = ByteArray.new
 
-    child.stdout.as_mut.get.read_all(bytes)
+    try child.stdout.as_mut.get.read_all(bytes)
 
     t.true(bytes.into_string.contains?('hello.txt'))
     try child.wait

@@ -959,7 +959,8 @@ impl Write for BufferedWriter {
     let rem = @size - @buffer.size
 
     if len <= rem {
-      @buffer.copy_from(bytes, at: 0, size: len)
+      let _ = @buffer.copy_from(bytes, at: 0, size: len)
+
       return Result.Ok(nil)
     }
 
@@ -968,9 +969,9 @@ impl Write for BufferedWriter {
     # this method have more buffer space to work with, compared to just a flush
     # plus appending the _entire_ data to the now empty buffer.
     let copied = @buffer.copy_from(bytes, at: 0, size: rem)
+    let _ = try flush
+    let _ = @buffer.copy_from(bytes, at: copied, size: len)
 
-    try flush
-    @buffer.copy_from(bytes, at: copied, size: len)
     Result.Ok(nil)
   }
 

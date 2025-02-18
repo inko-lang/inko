@@ -1,13 +1,13 @@
 import foo
 
 fn example1 {
-  foo.Foo(number: 42)
-  foo.Bar(number: 42)
-  foo.Foo
-  foo.Empty()
-  foo.Empty
+  let _ = foo.Foo(number: 42)
+  let _ = foo.Bar(number: 42)
+  let _ = foo.Foo
+  let _ = foo.Empty()
+  let _ = foo.Empty
 }
 
-# type_instance_with_receiver.inko:5:3 error(invalid-symbol): the method 'Bar' isn't defined for type 'foo'
-# type_instance_with_receiver.inko:6:3 error(invalid-symbol): the symbol 'Foo' is defined but isn't a value
-# type_instance_with_receiver.inko:8:3 error(invalid-symbol): the symbol 'Empty' is defined but isn't a value
+# type_instance_with_receiver.inko:5:11 error(invalid-symbol): the method 'Bar' isn't defined for type 'foo'
+# type_instance_with_receiver.inko:6:11 error(invalid-symbol): the symbol 'Foo' is defined but isn't a value
+# type_instance_with_receiver.inko:8:11 error(invalid-symbol): the symbol 'Empty' is defined but isn't a value

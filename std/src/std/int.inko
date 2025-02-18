@@ -158,7 +158,8 @@ type builtin Int {
     if base == 16 and byte == ZERO {
       match input.peek {
         case Some(LOWER_X) -> {
-          input.next
+          let _ = input.next
+
           byte = try input.next
         }
         case _ -> {}
