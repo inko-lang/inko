@@ -84,11 +84,6 @@ the variable `_`. By assigning the result of `print()` to `_`, the compiler
 won't emit any warnings because the result isn't used, nor will it emit any
 warnings because the variable assigned to isn't used.
 
-::: note
-These warnings aren't implemented yet. Following this pattern from the start
-makes your code more future-proof.
-:::
-
 If we run the program using just `inko run hello.inko`, we get the expected
 "Hello, world!" output, confirming our program still works.
 
