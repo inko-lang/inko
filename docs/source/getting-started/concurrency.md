@@ -43,7 +43,9 @@ upon moving. What if we want to move more complex values around?
 Inko's approach to making this safe is to restrict moving data between processes
 to values that are "sendable". A value is sendable if it's either a value type
 (`String` or `Int` for example), or a unique value, of which the type signature
-syntax is `uni T` (e.g. `uni Array[User]`).
+syntax is `uni T` (e.g. `uni Array[User]`). Mutable borrows are never sendable,
+though in certain cases immutable borrows _are_ sendable (see below for more
+details).
 
 ## Unique values
 
@@ -116,74 +118,219 @@ the method is available as discussed below.
 
 ## Unique values and method calls
 
-Methods can be called on unique values provided the methods meet the following
-criteria:
+Calling methods on unique values is possible as long as the compiler is able to
+guarantee this is safe. The basic requirement is that all arguments passed and
+any values returned must be sendable for the method to be available. Since this
+is overly strict in many instances, the compiler relaxes this rule whenever it
+determines it's safe to do so. These exceptions are listed below.
 
-1. If a method takes any arguments and/or specifies a return type, these types
-   must be sendable. If any of these types isn't sendable, the method isn't
-   available.
-1. If a method doesn't take any arguments and is immutable, and returns an owned
-   value, the method is available if and only if these types are sendable
-   (including any sub values they may store).
+### Immutable methods and arguments
 
-::: note
-These restrictions can make working with unique values a bit tricky at times. We
-aim to implement more sophisticated compiler analysis over time to make working
-with unique values as easy as possible.
-:::
-
-To illustrate this, consider the following expression:
+If a method isn't able to mutate its receiver because it's defined as `fn`
+instead of `fn mut`, it's safe to pass immutable borrows as arguments (which
+aren't sendable by default):
 
 ```inko
-let a = recover 'testing'
+type User {
+  let @name: String
+  let @friends: Array[String]
 
-a.to_upper
-```
-
-The variable `a` contains a value of type `uni String`. The expression
-`a.to_upper` is valid because `to_upper` doesn't take any arguments, and its
-return type (`String`) is a value type, which is a sendable type.
-
-Because `a` is a unique value, we can also write the following:
-
-```inko
-let a = recover 'testing'  # => uni String
-let b = recover a.to_upper # => uni String
-```
-
-Here's a more complicated example:
-
-```inko
-import std.net.ip (IpAddress)
-import std.net.socket (TcpServer)
+  fn friends_with?(user: ref User) -> Bool {
+    @friends.contains?(user.name)
+  }
+}
 
 type async Main {
   fn async main {
-    let server = recover TcpServer
-      .new(IpAddress.v4(127, 0, 0, 1), port: 40_000)
-      .get
+    let alice = recover User(name: 'Alice', friends: ['Bob'])
+    let bob = User(name: 'Bob', friends: [])
 
-    let client = recover server.accept.get
+    alice.friends_with?(bob)
   }
 }
 ```
 
-Here `server` is of type `uni TcpServer`. The expression `server.accept` is
-valid because `server` is unique and thus we can capture it, and because
-`accept` meets rule two: it doesn't mutate its receiver, doesn't take any
-arguments, and its return type is sendable.
+The reason this is safe is because `User.friends_with?` being immutable means
+its `user` argument can't be stored in the `uni User` value stored in `alice`.
+This _isn't_ possible if the method allows mutations (= it's an `fn mut` method)
+because that would allow it to store the `ref User` in `self`.
 
-Here's an example of something that isn't valid:
+### Non-unique return values
+
+If the return type of a method is owned and not unique (e.g. `Array[String]`
+instead of `uni Array[String]`), the method _is_ available if it either doesn't
+specify any arguments, all arguments are immutable borrows or all arguments
+are sendable, _and_ the returned value doesn't contain any borrows:
 
 ```inko
-let a = recover [ByteArray.new]
+type User {
+  let @name: String
+  let @friends: Array[String]
 
-a.push(ByteArray.new)
+  fn friends -> Array[String] {
+    @friends.clone
+  }
+}
+
+type async Main {
+  fn async main {
+    let alice = recover User(name: 'Alice', friends: ['Bob'])
+
+    alice.friends
+  }
+}
 ```
 
-This isn't valid because `a` is of type `uni Array[ByteArray]`, and `push` takes
-an argument of type `ByteArray` which isn't sendable, thus the `push` method
-isn't available.
+Here the call `alice.friends` is valid because:
+
+1. `User.friends` is immutable
+1. `User.friends` doesn't accept any arguments
+1. Because of this the `Array[String]` value can only be created from within
+   `User.friends` and no aliases to it can exist upon returning it
+
+This isn't the case if `User.friends` is an `fn mut` method, because now the
+value might originate from `self`:
+
+```inko
+type User {
+  let @name: String
+  let mut @friends: Array[String]
+
+  fn mut friends -> Array[String] {
+    @friends := []
+  }
+}
+
+type async Main {
+  fn async main {
+    let alice = recover User(name: 'Alice', friends: ['Bob'])
+    let bob = User(name: 'Bob', friends: ['Alice'])
+    let friends = alice.friends
+  }
+}
+```
+
+If you try to build this, the compiler produces the following error:
+
+```
+test.inko:14:25 error(invalid-call): the receiver of this call requires a sendable return type, but 'Array[String]' isn't sendable
+```
+
+Similarly, the call isn't valid if the returned value contains borrows. For
+example:
+
+```inko
+type User {
+  let @name: String
+  let @friends: Array[String]
+
+  fn borrow_self -> ref User {
+    self
+  }
+}
+
+type async Main {
+  fn async main {
+    let alice = recover User(name: 'Alice', friends: ['Bob'])
+    let borrow = alice.borrow_self # => invalid
+  }
+}
+```
+
+In this case the call `alice.borrow_self` is rejected by the compiler because
+it would result in an alias of the `uni User` value stored in `alice`. This is
+also true if the borrow is a sub value:
+
+```inko
+type User {
+  let @name: String
+  let @friends: Array[String]
+
+  fn borrow_self -> Option[ref User] {
+    Option.Some(self)
+  }
+}
+
+type async Main {
+  fn async main {
+    let alice = recover User(name: 'Alice', friends: ['Bob'])
+    let borrow = alice.borrow_self # => invalid
+  }
+}
+```
+
+When the compiler verifies the return type to determine if it's sendable it also
+verifies _all_ values stored within:
+
+```inko
+type Wrapper {
+  let @user: ref User
+}
+
+type User {
+  let @name: String
+  let @friends: Array[String]
+
+  fn wrap -> Wrapper {
+    Wrapper(self)
+  }
+}
+
+type async Main {
+  fn async main {
+    let alice = recover User(name: 'Alice', friends: ['Bob'])
+    let wrapper = alice.wrap
+  }
+}
+```
+
+Here the call to `alice.wrap` is invalid because `Wrapper` defines a field of
+type `ref User`, which isn't sendable.
+
+### Unsendable and unused return values
+
+There's an exception to the above rule: if the returned value isn't sendable but
+also isn't used by the caller, the method _can_ be used:
+
+```inko
+type User {
+  let @name: String
+  let mut @friends: Array[String]
+
+  fn borrow_self -> ref User {
+    self
+  }
+}
+
+type async Main {
+  fn async main {
+    let alice = recover User(name: 'Alice', friends: ['Bob'])
+
+    alice.borrow_self
+  }
+}
+```
+
+Here `alice.borrow_self` _is_ allowed because its return value isn't used. This
+also works when assigning the result to `_` using `let`:
+
+```inko
+type User {
+  let @name: String
+  let mut @friends: Array[String]
+
+  fn borrow_self -> ref User {
+    self
+  }
+}
+
+type async Main {
+  fn async main {
+    let alice = recover User(name: 'Alice', friends: ['Bob'])
+    let _ = alice.borrow_self
+  }
+}
+```
 
 ## Spawning processes with fields
 

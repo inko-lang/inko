@@ -1,6 +1,10 @@
 import std.drop (Drop)
 import std.test (Tests)
 
+fn ignore_unused(value: ValueRef) -> Option[ValueRef] {
+  Option.Some(value)
+}
+
 type Value {
   let mut @dropped: Int
 
@@ -100,4 +104,19 @@ fn pub tests(t: mut Tests) {
       [[10]].last
     },
   )
+
+  t.test('Assigning to an underscore drops the value immediately', fn (t) {
+    let val = Value.new
+    let _ = ValueRef.new(val)
+    let _drop_at_the_end = ValueRef.new(val)
+
+    t.equal(val.dropped, 1)
+  })
+
+  t.test('Unused return values are dropped upon return', fn (t) {
+    let val = Value.new
+
+    ignore_unused(ValueRef.new(val))
+    t.equal(val.dropped, 1)
+  })
 }

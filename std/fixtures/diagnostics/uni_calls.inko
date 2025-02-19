@@ -23,15 +23,13 @@ type Example {
 
 fn example1 {
   let a = recover Example()
-
-  a.no_arguments
+  let _b = a.no_arguments
 }
 
 fn example2 {
   let a = recover Example()
   let b = Example()
-
-  a.return_immutable_argument(b)
+  let _c = a.return_immutable_argument(b)
 }
 
 fn example3 {
@@ -46,5 +44,5 @@ fn example4 {
   a.return_process
 }
 
-# uni_calls.inko:27:5 error(invalid-call): the receiver of this call requires a sendable return type, but 'ref Example' isn't sendable
-# uni_calls.inko:34:5 error(invalid-call): the receiver of this call requires a sendable return type, but 'ref Example' isn't sendable
+# uni_calls.inko:26:14 error(invalid-call): the receiver of this call requires a sendable return type, but 'ref Example' isn't sendable
+# uni_calls.inko:32:14 error(invalid-call): the receiver of this call requires a sendable return type, but 'ref Example' isn't sendable

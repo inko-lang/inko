@@ -2040,7 +2040,7 @@ impl<'a> LowerMethod<'a> {
             _ => unreachable!(),
         };
 
-        self.exit_call_scope(entered, reg, loc);
+        self.exit_call_scope(entered, node.usage.is_unused(), reg, loc);
         reg
     }
 
@@ -2273,7 +2273,7 @@ impl<'a> LowerMethod<'a> {
             _ => unreachable!(),
         };
 
-        self.exit_call_scope(entered, reg, loc);
+        self.exit_call_scope(entered, node.usage.is_unused(), reg, loc);
         reg
     }
 
@@ -2767,12 +2767,13 @@ impl<'a> LowerMethod<'a> {
             self.add_drop_flag(reg, loc);
             self.current_block_mut().move_volatile_register(reg, src, loc);
         } else {
-            let src = self.input_expression(node.value, Some(exp));
-            let reg = self.new_register(node.resolved_type);
+            let reg = self.expression(node.value);
 
-            // We don't drop immediately as this would break e.g. guards bounds
-            // to `_` (e.g. `let _ = something_that_returns_a_guard`).
-            self.current_block_mut().move_volatile_register(reg, src, loc);
+            // When assigning to `_` we drop the value immediately. This is
+            // especially important when assigning the result of a call on a
+            // `uni T` value as in this case we need to drop the value as soon
+            // as possible.
+            self.drop_register(reg, loc);
         }
 
         self.get_nil(loc)
@@ -3439,8 +3440,9 @@ impl<'a> LowerMethod<'a> {
             types::IdentifierKind::Method(info) => {
                 let entered = self.enter_call_scope();
                 let reg = self.call_method(info, None, Vec::new(), loc);
+                let unused = node.usage.is_unused();
 
-                self.exit_call_scope(entered, reg, ins_loc);
+                self.exit_call_scope(entered, unused, reg, ins_loc);
                 reg
             }
             types::IdentifierKind::Unknown => unreachable!(),
@@ -3501,8 +3503,9 @@ impl<'a> LowerMethod<'a> {
             types::ConstantKind::Method(info) => {
                 let entered = self.enter_call_scope();
                 let reg = self.call_method(info, None, Vec::new(), loc);
+                let unused = node.usage.is_unused();
 
-                self.exit_call_scope(entered, reg, ins_loc);
+                self.exit_call_scope(entered, unused, reg, ins_loc);
                 reg
             }
             _ => unreachable!(),
@@ -4091,12 +4094,20 @@ impl<'a> LowerMethod<'a> {
     fn exit_call_scope(
         &mut self,
         entered: bool,
+        unused: bool,
         register: RegisterId,
         location: InstructionLocation,
     ) {
         if !entered {
             // We perform this check here so one can't unconditionally call this
             // method by accident.
+            return;
+        }
+
+        // If the result is unused we must drop it immediately, instead of at
+        // the end of the surrounding scope.
+        if unused {
+            self.exit_scope(location);
             return;
         }
 

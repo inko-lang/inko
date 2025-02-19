@@ -1,0 +1,47 @@
+type User {
+  let @name: String
+  let mut @numbers: Array[Int]
+
+  fn mut foo -> Array[Int] {
+    [10]
+  }
+
+  fn mut bar(numbers: mut Array[Int]) -> Array[Int] {
+    [10]
+  }
+
+  fn mut baz(numbers: Array[Int]) -> Array[Int] {
+    [10]
+  }
+
+  fn mut quix -> Array[ref User] {
+    [self]
+  }
+}
+
+fn example1(user: uni User) {
+  user.foo
+
+  let _ = user.foo
+
+  user.foo
+}
+
+fn example2(user: uni User) {
+  user.bar([10])
+}
+
+fn example3(user: uni User) {
+  user.baz(recover [10])
+}
+
+fn example4(user: uni User) {
+  user.quix
+
+  let _used = user.quix
+}
+
+# recover_with_unused_results.inko:23:3 warning(unused-result): the result of this expression is unused
+# recover_with_unused_results.inko:31:12 error(invalid-type): the receiver of this call requires sendable arguments, but 'mut Array[Int]' isn't sendable
+# recover_with_unused_results.inko:39:3 warning(unused-result): the result of this expression is unused
+# recover_with_unused_results.inko:41:20 error(invalid-call): the receiver of this call requires a sendable return type, but 'Array[ref User]' isn't sendable

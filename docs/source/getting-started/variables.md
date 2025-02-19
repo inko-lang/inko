@@ -38,6 +38,24 @@ custom type can be specified as follows:
 let number: Int = 42
 ```
 
+The compiler emits a warning for any unused local variables. To silence such
+warnings, prefix the variable name with an underscore:
+
+```inko
+let _no_warning_for_me = 42
+```
+
+It's also possible to use _just_ an underscore as the name:
+
+```inko
+let _ = 42
+```
+
+The difference between the two is that if the name is _just_ an underscore, the
+assigned value is dropped right away. If the variable name merely starts with an
+underscore (e.g. `_no_warning_for_me`) the value is dropped at the end of the
+surrounding scope.
+
 ### Swapping values
 
 Assigning a variable a new value using `=` drops the existing value first, then

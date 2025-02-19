@@ -526,7 +526,12 @@ impl MethodCall {
             .resolve(expected)
     }
 
-    fn check_sendable(&mut self, state: &mut State, location: Location) {
+    fn check_sendable(
+        &mut self,
+        state: &mut State,
+        usage: hir::Usage,
+        location: Location,
+    ) {
         if !self.require_sendable {
             return;
         }
@@ -553,6 +558,12 @@ impl MethodCall {
                 self.module.file(&state.db),
                 loc,
             );
+        }
+
+        // If the return value is unused then it doesn't matter whether it's
+        // sendable or not.
+        if !usage.is_used() {
+            return;
         }
 
         // If `self` and all arguments are immutable, we allow owned return
@@ -800,12 +811,7 @@ impl<'a> Expressions<'a> {
             &bounds,
         );
 
-        checker.expressions_with_return(
-            returns,
-            &mut node.body,
-            &mut scope,
-            node.location,
-        );
+        checker.method_body(returns, &mut node.body, &mut scope, node.location);
     }
 
     fn define_instance_method(&mut self, node: &mut hir::DefineInstanceMethod) {
@@ -833,12 +839,7 @@ impl<'a> Expressions<'a> {
             &bounds,
         );
 
-        checker.expressions_with_return(
-            returns,
-            &mut node.body,
-            &mut scope,
-            node.location,
-        );
+        checker.method_body(returns, &mut node.body, &mut scope, node.location);
     }
 
     fn define_async_method(&mut self, node: &mut hir::DefineAsyncMethod) {
@@ -865,12 +866,7 @@ impl<'a> Expressions<'a> {
             &bounds,
         );
 
-        checker.expressions_with_return(
-            returns,
-            &mut node.body,
-            &mut scope,
-            node.location,
-        );
+        checker.method_body(returns, &mut node.body, &mut scope, node.location);
     }
 
     fn define_static_method(&mut self, node: &mut hir::DefineStaticMethod) {
@@ -896,12 +892,7 @@ impl<'a> Expressions<'a> {
             &bounds,
         );
 
-        checker.expressions_with_return(
-            returns,
-            &mut node.body,
-            &mut scope,
-            node.location,
-        );
+        checker.method_body(returns, &mut node.body, &mut scope, node.location);
     }
 
     fn define_field_types(
@@ -1093,7 +1084,7 @@ impl<'a> CheckConstant<'a> {
 
         call.check_arguments(self.state, loc);
         call.resolve_return_type(self.state);
-        call.check_sendable(self.state, loc);
+        call.check_sendable(self.state, hir::Usage::Used, loc);
 
         node.resolved_type = call.return_type;
         node.resolved_type
@@ -1310,7 +1301,26 @@ impl<'a> CheckMethodBody<'a> {
         nodes: &mut [hir::Expression],
         scope: &mut LexicalScope,
     ) -> Vec<TypeRef> {
-        nodes.iter_mut().map(|n| self.expression(n, scope)).collect()
+        let mut types = Vec::with_capacity(nodes.len());
+        let max = nodes.len().saturating_sub(1);
+
+        for (idx, node) in nodes.iter_mut().enumerate() {
+            let usage = if idx == max
+                && matches!(scope.kind, ScopeKind::Method)
+                && scope.return_type.is_nil(self.db())
+            {
+                hir::Usage::Discarded
+            } else if idx < max {
+                hir::Usage::Unused
+            } else {
+                hir::Usage::Used
+            };
+
+            node.set_usage(usage);
+            types.push(self.expression(node, scope));
+        }
+
+        types
     }
 
     fn input_expressions(
@@ -1332,7 +1342,7 @@ impl<'a> CheckMethodBody<'a> {
             .value_type_as_owned(self.db())
     }
 
-    fn expressions_with_return(
+    fn method_body(
         &mut self,
         returns: TypeRef,
         nodes: &mut [hir::Expression],
@@ -1606,6 +1616,12 @@ impl<'a> CheckMethodBody<'a> {
         node: &mut hir::DefineVariable,
         scope: &mut LexicalScope,
     ) -> TypeRef {
+        let discard = node.name.name == IGNORE_VARIABLE;
+
+        if discard {
+            node.value.set_usage(hir::Usage::Discarded);
+        }
+
         let value_type = self.input_expression(&mut node.value, scope);
 
         if !value_type.is_assignable(self.db()) {
@@ -1644,7 +1660,7 @@ impl<'a> CheckMethodBody<'a> {
 
         node.resolved_type = var_type;
 
-        if name == IGNORE_VARIABLE {
+        if discard {
             return rtype;
         }
 
@@ -2417,7 +2433,7 @@ impl<'a> CheckMethodBody<'a> {
             new_scope.variables.add_variable(name, var);
         }
 
-        self.expressions_with_return(
+        self.method_body(
             return_type,
             &mut node.body,
             &mut new_scope,
@@ -2547,7 +2563,7 @@ impl<'a> CheckMethodBody<'a> {
         call.check_type_bounds(self.state, loc);
         call.check_arguments(self.state, loc);
         call.resolve_return_type(self.state);
-        call.check_sendable(self.state, loc);
+        call.check_sendable(self.state, node.usage, loc);
 
         let returns = call.return_type;
 
@@ -2559,7 +2575,7 @@ impl<'a> CheckMethodBody<'a> {
             type_arguments: call.type_arguments,
         });
 
-        if node.unused && returns.must_use(self.db(), rec) {
+        if node.usage.is_unused() && returns.must_use(self.db(), rec) {
             self.state.diagnostics.unused_result(self.file(), node.location);
         }
 
@@ -2674,7 +2690,8 @@ impl<'a> CheckMethodBody<'a> {
         call.check_type_bounds(self.state, loc);
         call.check_arguments(self.state, loc);
         call.resolve_return_type(self.state);
-        call.check_sendable(self.state, loc);
+        call.check_sendable(self.state, node.usage, loc);
+
         let returns = call.return_type;
 
         node.kind = IdentifierKind::Method(CallInfo {
@@ -2685,7 +2702,7 @@ impl<'a> CheckMethodBody<'a> {
             type_arguments: call.type_arguments,
         });
 
-        if node.unused && returns.must_use(self.db(), rec) {
+        if node.usage.is_unused() && returns.must_use(self.db(), rec) {
             self.state.diagnostics.unused_result(self.file(), node.location);
         }
 
@@ -3290,7 +3307,7 @@ impl<'a> CheckMethodBody<'a> {
 
         call.check_arguments(self.state, loc);
         call.resolve_return_type(self.state);
-        call.check_sendable(self.state, loc);
+        call.check_sendable(self.state, node.usage, loc);
 
         let returns = call.return_type;
         let rec_info = Receiver::with_receiver(self.db(), receiver, method);
@@ -3303,7 +3320,7 @@ impl<'a> CheckMethodBody<'a> {
             type_arguments: call.type_arguments,
         });
 
-        if node.unused && returns.must_use(self.db(), receiver) {
+        if node.usage.is_unused() && returns.must_use(self.db(), receiver) {
             self.state.diagnostics.unused_result(self.file(), node.location);
         }
 
@@ -3515,7 +3532,7 @@ impl<'a> CheckMethodBody<'a> {
             (scope.surrounding_type, self.call_without_receiver(node, scope))
         };
 
-        if node.unused && typ.must_use(self.db(), rec) {
+        if node.usage.is_unused() && typ.must_use(self.db(), rec) {
             self.state.diagnostics.unused_result(self.file(), node.location);
         }
 
@@ -3753,7 +3770,7 @@ impl<'a> CheckMethodBody<'a> {
         self.call_arguments(&mut node.arguments, &mut call, scope);
         call.check_arguments(self.state, loc);
         call.resolve_return_type(self.state);
-        call.check_sendable(self.state, loc);
+        call.check_sendable(self.state, node.usage, loc);
 
         let returns = call.return_type;
         let rec_info = Receiver::with_receiver(self.db(), receiver, method);
@@ -3871,7 +3888,7 @@ impl<'a> CheckMethodBody<'a> {
         self.call_arguments(&mut node.arguments, &mut call, scope);
         call.check_arguments(self.state, loc);
         call.resolve_return_type(self.state);
-        call.check_sendable(self.state, loc);
+        call.check_sendable(self.state, node.usage, loc);
 
         let returns = call.return_type;
 
