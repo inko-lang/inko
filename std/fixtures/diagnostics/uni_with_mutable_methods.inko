@@ -1,0 +1,53 @@
+type HasBorrow {
+  let @a: Array[Int]
+  let @b: ref Array[Int]
+
+  fn static new -> Self {
+    let a = [10, 20]
+    let b = ref a
+
+    Self(a: a, b: b)
+  }
+
+  fn immutable -> Result[Int, String] {
+    Result.Ok(42)
+  }
+
+  fn mut mutable -> Result[Int, String] {
+    Result.Ok(42)
+  }
+}
+
+type NoBorrow {
+  let @a: Array[Int]
+
+  fn static new -> Self {
+    Self([10, 20])
+  }
+
+  fn immutable -> Result[Int, String] {
+    Result.Ok(42)
+  }
+
+  fn mut mutable -> Result[Int, String] {
+    Result.Ok(42)
+  }
+}
+
+fn example1(value: uni HasBorrow) {
+  let _used = value.immutable
+}
+
+fn example2(value: uni HasBorrow) {
+  let _used = value.mutable
+}
+
+fn example3(value: uni NoBorrow) {
+  let _used = value.immutable
+}
+
+fn example4(value: uni NoBorrow) {
+  let _used = value.mutable
+}
+
+# uni_with_mutable_methods.inko:42:21 error(invalid-call): the receiver of this call requires a sendable return type, but 'Result[Int, String]' isn't sendable

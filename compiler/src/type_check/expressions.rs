@@ -536,10 +536,12 @@ impl MethodCall {
             return;
         }
 
+        let immutable = self.method.is_immutable(&state.db);
+
         // It's safe to pass `ref T` as an argument if all arguments and `self`
         // are immutable, as this prevents storing of the `ref T` in `self`,
         // thus violating the uniqueness constraints.
-        let ref_safe = self.method.is_immutable(&state.db)
+        let ref_safe = immutable
             && self.check_sendable.iter().all(|(typ, _)| {
                 typ.is_sendable(&state.db) || typ.is_sendable_ref(&state.db)
             });
@@ -566,13 +568,24 @@ impl MethodCall {
             return;
         }
 
-        // If `self` and all arguments are immutable, we allow owned return
-        // values provided they don't contain any references. This is safe
-        // because `self` can't have references to it (because it's immutable),
-        // we can't "leak" a reference through the arguments (because they too
-        // are immutable), and the returned value can't refer to `self` because
-        // we don't allow references anywhere in the type or its sub types.
-        let ret_sendable = if ref_safe {
+        // In certain cases it's fine to allow non-unique owned values to be
+        // returned, provided we can guarantee (based on what we know at the
+        // call site) no uniqueness constaints are violated.
+        //
+        // For immutable methods, if all the arguments are sendable then
+        // returned owned values can't be aliased by the callee.
+        //
+        // For mutable methods, we additionally require that the receiver can't
+        // ever store aliases to the returned data. Since the receiver is likely
+        // typed as `uni T` (which itself is sendable) we perform that check
+        // against its owned counterpart.
+        let ret_sendable = if ref_safe
+            || (!immutable
+                && self
+                    .receiver
+                    .as_owned(&state.db)
+                    .is_sendable_output(&state.db))
+        {
             self.return_type.is_sendable_output(&state.db)
         } else {
             self.return_type.is_sendable(&state.db)

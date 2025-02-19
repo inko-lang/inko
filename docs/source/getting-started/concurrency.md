@@ -124,7 +124,7 @@ any values returned must be sendable for the method to be available. Since this
 is overly strict in many instances, the compiler relaxes this rule whenever it
 determines it's safe to do so. These exceptions are listed below.
 
-### Immutable methods and arguments
+### Immutable methods
 
 If a method isn't able to mutate its receiver because it's defined as `fn`
 instead of `fn mut`, it's safe to pass immutable borrows as arguments (which
@@ -154,6 +154,35 @@ The reason this is safe is because `User.friends_with?` being immutable means
 its `user` argument can't be stored in the `uni User` value stored in `alice`.
 This _isn't_ possible if the method allows mutations (= it's an `fn mut` method)
 because that would allow it to store the `ref User` in `self`.
+
+### Mutable methods
+
+There's an exception to the previous rule when it comes to the use of mutating
+methods on unique receivers: if the compiler can guarantee the receiver can't
+store any aliases to the returned data, it's in fact safe to use a mutating
+method:
+
+```inko
+type User {
+  let @name: String
+  let @friends: Array[String]
+
+  fn mut remove_last_friend -> Option[String] {
+    @friends.pop
+  }
+}
+
+type async Main {
+  fn async main {
+    let alice = recover User(name: 'Alice', friends: ['Bob'])
+    let friend = alice.remove_last_friend
+  }
+}
+```
+
+Here the call to `User.remove_last_friend` _is_ allowed because the `User` type
+doesn't store any borrows, nor do any sub values (e.g. the `Array` stored in the
+`friends` field).
 
 ### Non-unique return values
 
@@ -188,36 +217,7 @@ Here the call `alice.friends` is valid because:
 1. Because of this the `Array[String]` value can only be created from within
    `User.friends` and no aliases to it can exist upon returning it
 
-This isn't the case if `User.friends` is an `fn mut` method, because now the
-value might originate from `self`:
-
-```inko
-type User {
-  let @name: String
-  let mut @friends: Array[String]
-
-  fn mut friends -> Array[String] {
-    @friends := []
-  }
-}
-
-type async Main {
-  fn async main {
-    let alice = recover User(name: 'Alice', friends: ['Bob'])
-    let bob = User(name: 'Bob', friends: ['Alice'])
-    let friends = alice.friends
-  }
-}
-```
-
-If you try to build this, the compiler produces the following error:
-
-```
-test.inko:14:25 error(invalid-call): the receiver of this call requires a sendable return type, but 'Array[String]' isn't sendable
-```
-
-Similarly, the call isn't valid if the returned value contains borrows. For
-example:
+The call isn't valid if the returned value contains borrows. For example:
 
 ```inko
 type User {
@@ -287,7 +287,7 @@ type async Main {
 Here the call to `alice.wrap` is invalid because `Wrapper` defines a field of
 type `ref User`, which isn't sendable.
 
-### Unsendable and unused return values
+### Unused return values
 
 There's an exception to the above rule: if the returned value isn't sendable but
 also isn't used by the caller, the method _can_ be used:
