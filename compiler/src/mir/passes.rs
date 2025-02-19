@@ -2097,10 +2097,13 @@ impl<'a> LowerMethod<'a> {
             }
         };
 
+        let rec_avail = self.register_is_available(rec);
+        let moving = info.id.is_moving(self.db());
+
         // We must handle moving methods _before_ processing arguments, that way
         // we can prevent using the moved receiver as one of the arguments,
         // which would be unsound.
-        if info.id.is_moving(self.db()) {
+        if moving {
             rec = self.receiver_for_moving_method(rec, location);
         }
 
@@ -2124,6 +2127,24 @@ impl<'a> LowerMethod<'a> {
         } else {
             self.current_block_mut()
                 .call_instance(res, rec, info.id, args, targs, ins_loc);
+        }
+
+        // If the receiver is a `uni T` value that is moved as an argument and
+        // the callee moves the data to another process, then it's possible for
+        // the calling process and that new process to have access to the same
+        // data, such as when the callee returns a value from within the `uni T`
+        // value.
+        //
+        // To prevent such cases from happening, we reject such calls. We also
+        // do this for owned values because the pattern in general is confusing
+        // at best and potentially buggy at worst.
+        if !moving && rec_avail && self.register_is_moved(rec) {
+            let name = info.id.name(self.db()).clone();
+            let file = self.file();
+
+            self.state
+                .diagnostics
+                .call_moves_receiver_as_argument(&name, file, location);
         }
 
         self.after_call(info.returns);

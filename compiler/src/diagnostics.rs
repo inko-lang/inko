@@ -796,6 +796,24 @@ impl Diagnostics {
         );
     }
 
+    pub(crate) fn call_moves_receiver_as_argument(
+        &mut self,
+        name: &str,
+        file: PathBuf,
+        location: Location,
+    ) {
+        self.error(
+            DiagnosticId::InvalidCall,
+            format!(
+                "the method '{}' can't be called because it borrows its \
+                receiver while also moving it as part of an argument",
+                name
+            ),
+            file,
+            location,
+        );
+    }
+
     pub(crate) fn implicit_receiver_moved(
         &mut self,
         name: &str,

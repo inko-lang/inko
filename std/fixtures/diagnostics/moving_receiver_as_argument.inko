@@ -1,0 +1,24 @@
+type User {
+  fn move_owned(user: User) {}
+
+  fn move_borrow(user: ref User) {}
+}
+
+fn example1(user: User) {
+  user.move_owned(user)
+}
+
+fn example2(user: uni User) {
+  user.move_owned(user)
+}
+
+fn example3(user: ref User) {
+  user.move_borrow(user)
+}
+
+fn example4(user: mut User) {
+  user.move_borrow(user)
+}
+
+# moving_receiver_as_argument.inko:8:8 error(invalid-call): the method 'move_owned' can't be called because it borrows its receiver while also moving it as part of an argument
+# moving_receiver_as_argument.inko:12:8 error(invalid-call): the method 'move_owned' can't be called because it borrows its receiver while also moving it as part of an argument
