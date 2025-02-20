@@ -172,7 +172,7 @@ trait pub Bytes {
   fn pub byte(index: Int) -> Int
 
   # Returns an iterator over the bytes in `self`.
-  fn pub bytes -> Iter[Int]
+  fn pub bytes -> Stream[Int]
 
   # Returns the number of bytes in `self`.
   fn pub size -> Int

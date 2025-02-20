@@ -1,0 +1,31 @@
+trait Iter[T] {}
+
+trait Range {
+  fn iter -> Iter[Int]
+}
+
+type HeapStream[T] {}
+
+impl Iter[T] for HeapStream {}
+
+type inline InlineStream[T] {}
+
+impl Iter[T] for InlineStream {}
+
+type Range1 {}
+
+impl Range for Range1 {
+  fn iter -> InlineStream[Int] {
+    InlineStream()
+  }
+}
+
+type Range2 {}
+
+impl Range for Range2 {
+  fn iter -> Iter[Int] {
+    HeapStream() as Iter[Int]
+  }
+}
+
+# implement_method_that_returns_inline_type_instead_of_trait.inko:18:3 error(invalid-method): the method 'fn iter -> InlineStream[Int]' isn't compatible with 'fn iter -> Iter[Int]'

@@ -8,8 +8,8 @@ use std::collections::HashSet;
 #[derive(Copy, Clone)]
 enum Subtyping {
     No,
-    Yes,
-    Once,
+    Relaxed,
+    Strict,
 }
 
 #[derive(Copy, Clone)]
@@ -75,7 +75,7 @@ impl Rules {
     }
 
     fn without_subtyping(mut self) -> Rules {
-        if let Subtyping::Yes = self.subtyping {
+        if let Subtyping::Relaxed = self.subtyping {
             self.subtyping = Subtyping::No
         }
 
@@ -97,13 +97,13 @@ impl Rules {
         self
     }
 
-    fn with_one_time_subtyping(mut self) -> Rules {
-        self.subtyping = Subtyping::Once;
+    fn with_strict_subtyping(mut self) -> Rules {
+        self.subtyping = Subtyping::Strict;
         self
     }
 
-    fn with_subtyping(mut self) -> Rules {
-        self.subtyping = Subtyping::Yes;
+    fn with_relaxed_subtyping(mut self) -> Rules {
+        self.subtyping = Subtyping::Relaxed;
         self
     }
 
@@ -214,8 +214,7 @@ impl<'a> TypeChecker<'a> {
         let mut env =
             Environment::new(left.type_arguments(db), right.type_arguments(db));
 
-        let rules =
-            Rules::new().with_kind(Kind::Cast).with_one_time_subtyping();
+        let rules = Rules::new().with_kind(Kind::Cast).with_strict_subtyping();
 
         TypeChecker::new(db).check_type_ref(left, right, &mut env, rules)
     }
@@ -321,7 +320,7 @@ impl<'a> TypeChecker<'a> {
             lhs.return_type,
             rhs.return_type,
             env,
-            rules.with_subtyping(),
+            rules.with_strict_subtyping(),
         )
     }
 
@@ -348,7 +347,7 @@ impl<'a> TypeChecker<'a> {
             env.left.assign(bound, val);
 
             let mut env = env.with_left_as_right();
-            let rules = Rules::new().with_subtyping();
+            let rules = Rules::new().with_relaxed_subtyping();
 
             if bound.is_mutable(self.db) && !val.allow_mutating(self.db) {
                 return false;
@@ -703,7 +702,7 @@ impl<'a> TypeChecker<'a> {
     ) -> bool {
         let trait_rules = rules;
 
-        if let Subtyping::Once = rules.subtyping {
+        if let Subtyping::Strict = rules.subtyping {
             rules.subtyping = Subtyping::No;
         }
 
@@ -772,7 +771,7 @@ impl<'a> TypeChecker<'a> {
                             lhs,
                             req,
                             env,
-                            rules.with_one_time_subtyping(),
+                            rules.with_relaxed_subtyping(),
                         )
                     })
                 }
@@ -963,7 +962,7 @@ impl<'a> TypeChecker<'a> {
 
         // At this point no value is assigned yet, so it's safe to allow
         // sub-typing through traits.
-        let rules = rules.with_one_time_subtyping();
+        let rules = rules.with_relaxed_subtyping();
         let res = match left_id {
             TypeEnum::TypeInstance(lhs) => reqs
                 .into_iter()
@@ -1000,7 +999,7 @@ impl<'a> TypeChecker<'a> {
             TypeArguments::for_trait(self.db, right),
         );
 
-        let rules = Rules::new().with_one_time_subtyping();
+        let rules = Rules::new().with_relaxed_subtyping();
 
         self.check_type_with_trait(left, right, &mut env, rules)
     }
@@ -1037,8 +1036,12 @@ impl<'a> TypeChecker<'a> {
         // result in a `Dog` being added to the Array.
         match rules.subtyping {
             Subtyping::No => return false,
-            Subtyping::Yes => {}
-            Subtyping::Once => {
+            Subtyping::Relaxed => rules.subtyping = Subtyping::No,
+            Subtyping::Strict => {
+                if !left.instance_of.allow_cast_to_trait(self.db) {
+                    return false;
+                }
+
                 rules.subtyping = Subtyping::No;
             }
         }
