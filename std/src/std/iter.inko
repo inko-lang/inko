@@ -671,17 +671,17 @@ trait pub IntoIter[T] {
 #   nums.next # => Option.Some(1)
 # }
 # ```
-type pub Stream[T] {
+type pub inline Stream[T] {
   let @func: fn -> Option[T]
 
   # Returns a new iterator using the closure.
-  fn pub static new(func: fn -> Option[T]) -> Stream[T] {
+  fn pub inline static new(func: fn -> Option[T]) -> Stream[T] {
     Stream(func)
   }
 }
 
 impl Iter[T] for Stream {
-  fn pub mut next -> Option[T] {
+  fn pub inline mut next -> Option[T] {
     @func.call
   }
 }
