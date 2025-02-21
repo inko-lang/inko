@@ -223,10 +223,10 @@ type pub Map[K: Equal + Hash, V] {
   #
   # map.set('name', 'Alice')
   #
-  # map.iter.each fn (entry) {
+  # map.iter.each(fn (entry) {
   #   entry.key   # => 'name'
   #   entry.value # => 'Alice'
-  # }
+  # })
   # ```
   fn pub iter -> Stream[ref Entry[K, V]] {
     @entries.iter
@@ -243,10 +243,10 @@ type pub Map[K: Equal + Hash, V] {
   #
   # map.set('name', 'Alice')
   #
-  # map.iter_mut.each fn (entry) {
+  # map.iter_mut.each(fn (entry) {
   #   entry.key   # => 'name'
   #   entry.value # => 'Alice'
-  # }
+  # })
   # ```
   fn pub mut iter_mut -> Stream[mut Entry[K, V]] {
     @entries.iter_mut
@@ -262,10 +262,10 @@ type pub Map[K: Equal + Hash, V] {
   #
   # map.set('name', 'Alice')
   #
-  # map.into_iter.each fn (e) {
+  # map.into_iter.each(fn (e) {
   #   e.key   # => 'name'
   #   e.value # => 'Alice'
-  # }
+  # })
   # ```
   fn pub move into_iter -> IntoIter[Entry[K, V]] {
     @entries.into_iter
@@ -282,9 +282,9 @@ type pub Map[K: Equal + Hash, V] {
   #
   # map.set('name', 'Alice')
   #
-  # map.keys.each fn (key) {
+  # map.keys.each(fn (key) {
   #   key # => 'name'
-  # }
+  # })
   # ```
   fn pub keys -> Stream[ref K] {
     iter.map(fn (e) { e.key })
@@ -302,9 +302,9 @@ type pub Map[K: Equal + Hash, V] {
   #
   # map.set('name', 'Alice')
   #
-  # map.values.each fn (value) {
+  # map.values.each(fn (value) {
   #   value # => 'Alice'
-  # }
+  # })
   # ```
   fn pub values -> Stream[ref V] {
     iter.map(fn (e) { e.value })
@@ -638,9 +638,9 @@ impl Map if V: mut {
   #
   # map.set('name', 'Alice')
   #
-  # map.values_mut.each fn (value) {
+  # map.values_mut.each(fn (value) {
   #   value # => 'Alice'
-  # }
+  # })
   # ```
   fn pub mut values_mut -> Stream[mut V] {
     iter_mut.map(fn (e) { e.value })

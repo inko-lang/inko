@@ -38,9 +38,9 @@ trait pub Iter[T] {
   # let vals = [10, 20, 30]
   # let iter = vals.iter
   #
-  # iter.each fn (num) {
+  # iter.each(fn (num) {
   #   num # => 10, 20, 30
-  # }
+  # })
   # ```
   fn pub move each(func: fn (T)) {
     loop {
@@ -57,9 +57,9 @@ trait pub Iter[T] {
   # # Examples
   #
   # ```inko
-  # let res = [10, 0, 30].into_iter.try_each fn (val) {
+  # let res = [10, 0, 30].into_iter.try_each(fn (val) {
   #   if val > 0 { Result.Ok(nil) } else { Result.Error('test') }
-  # }
+  # })
   #
   # res # => Result.Error('test')
   # ```
@@ -81,10 +81,10 @@ trait pub Iter[T] {
   # let vals = [10, 20, 30]
   # let iter = vals.iter
   #
-  # iter.each_with_index fn (index, num) {
+  # iter.each_with_index(fn (index, num) {
   #   index # => 0, 1, 2
   #   num   # => 10, 20, 30
-  # }
+  # })
   # ```
   fn pub move each_with_index(func: fn (Int, T)) {
     let mut idx = 0

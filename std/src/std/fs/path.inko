@@ -547,7 +547,7 @@ type pub inline Path {
   # let path = Path.new('.')
   # let iter = path.list.or_panic('failed to create the iterator')
   #
-  # iter.each fn (result) {
+  # iter.each(fn (result) {
   #   match result {
   #     case Ok({ @path = path, @type = File }) -> {
   #       out.print(path.to_string)
@@ -556,7 +556,7 @@ type pub inline Path {
   #     case Ok(_) -> {}
   #     case Error(err) -> panic(err.to_string)
   #   }
-  # }
+  # })
   # ```
   fn pub list -> Result[ReadDirectory, Error] {
     sys.ReadDirectory.new(@path).map(fn (inner) {
