@@ -51,11 +51,11 @@ fn pub tests(t: mut Tests) {
       ),
     ]
 
-    cases.into_iter.each(fn (pair) {
+    for (inp, out) in cases {
       let hasher = Md5.new
 
-      hasher.write(pair.0.to_byte_array)
-      t.equal(hasher.finish.to_string, pair.1)
-    })
+      hasher.write(inp.to_byte_array)
+      t.equal(hasher.finish.to_string, out)
+    }
   })
 }

@@ -303,9 +303,9 @@ type builtin String {
   fn pub substring(start: Int, chars: Int) -> String {
     let buff = StringBuffer.new
 
-    self.chars.each_with_index(fn (index, char) {
+    for (index, char) in self.chars.with_index {
       if index >= start and buff.size < chars { buff.push(char) }
-    })
+    }
 
     buff.into_string
   }

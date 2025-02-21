@@ -358,7 +358,7 @@ fn extern readdir(stream: Pointer[UInt8]) -> Pointer[Dirent]
 fn extern fsync(fd: Int32) -> Int32
 
 fn extern copy_file_range(
-  in: Int32,
+  input: Int32,
   off_in: Pointer[Int64],
   out: Int32,
   off_out: Pointer[Int64],

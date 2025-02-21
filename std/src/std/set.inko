@@ -185,11 +185,11 @@ impl Format for Set if V: Format {
   fn pub fmt(formatter: mut Formatter) {
     formatter.write('{')
 
-    iter.each_with_index(fn (index, value) {
+    for (index, value) in iter.with_index {
       if index > 0 { formatter.write(', ') }
 
       value.fmt(formatter)
-    })
+    }
 
     formatter.write('}')
   }

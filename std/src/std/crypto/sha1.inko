@@ -76,9 +76,9 @@ type pub Sha1 {
   fn mut compress {
     let words = @words
 
-    0.until(16).iter.each(fn (i) { words.set(i, @block.read_i32_be(i * 4)) })
+    for i in 0.until(16) { words.set(i, @block.read_i32_be(i * 4)) }
 
-    16.until(80).iter.each(fn (i) {
+    for i in 16.until(80) {
       words.set(
         i,
         rotate_left_u32(
@@ -89,7 +89,7 @@ type pub Sha1 {
           1,
         ),
       )
-    })
+    }
 
     let mut a = @a
     let mut b = @b

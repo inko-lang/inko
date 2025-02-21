@@ -768,6 +768,7 @@ pub enum Expression {
     Array(Box<Array>),
     Tuple(Box<Tuple>),
     Comment(Box<Comment>),
+    For(Box<For>),
 }
 
 impl Expression {
@@ -790,13 +791,14 @@ impl Expression {
         }
     }
 
-    pub fn is_conditional(&self) -> bool {
+    pub fn is_conditional_or_loop(&self) -> bool {
         matches!(
             self,
             Expression::While(_)
                 | Expression::Loop(_)
                 | Expression::If(_)
                 | Expression::Match(_)
+                | Expression::For(_)
         )
     }
 
@@ -851,6 +853,7 @@ impl Node for Expression {
             Expression::Mut(ref typ) => typ.location(),
             Expression::Recover(ref typ) => typ.location(),
             Expression::Comment(ref n) => n.location(),
+            Expression::For(ref n) => n.location(),
         }
     }
 }
@@ -1594,6 +1597,20 @@ pub struct Module {
 }
 
 impl Node for Module {
+    fn location(&self) -> &Location {
+        &self.location
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct For {
+    pub pattern: Pattern,
+    pub iterator: Expression,
+    pub body: Expressions,
+    pub location: Location,
+}
+
+impl Node for For {
     fn location(&self) -> &Location {
         &self.location
     }

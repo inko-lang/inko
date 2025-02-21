@@ -275,12 +275,12 @@ fn pub tests(t: mut Tests) {
     .join('diagnostics')
   let compiler = compiler_path.to_string
 
-  base.list.or_panic("fixtures/diagnostics doesn't exist").each(fn (e) {
+  for e in base.list.or_panic("fixtures/diagnostics doesn't exist") {
     let test_file = match e {
       case Ok({ @path = p, @type = File }) if p.tail.ends_with?('.inko') -> {
         recover p.clone
       }
-      case Ok(_) -> return
+      case Ok(_) -> next
       case Error(e) -> panic('failed to read the diagnostics directory: ${e}')
     }
 
@@ -292,5 +292,5 @@ fn pub tests(t: mut Tests) {
         case Error(e) -> panic('failed to parse ${test_file}: ${e}')
       }
     })
-  })
+  }
 }

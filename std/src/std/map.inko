@@ -181,9 +181,9 @@ type pub Map[K: Equal + Hash, V] {
 
     # Because we shifted the entries to the left, any slots pointing to entries
     # _after_ the removed value have to be updated accordingly.
-    @slots.iter.each_with_index(fn (slot, entry) {
+    for (slot, entry) in @slots.iter.with_index {
       if entry > index { @slots.set(slot, entry - 1) }
-    })
+    }
 
     let mut prev_slot = slot
 
@@ -223,10 +223,10 @@ type pub Map[K: Equal + Hash, V] {
   #
   # map.set('name', 'Alice')
   #
-  # map.iter.each(fn (entry) {
+  # for entry in map.iter {
   #   entry.key   # => 'name'
   #   entry.value # => 'Alice'
-  # })
+  # }
   # ```
   fn pub iter -> Stream[ref Entry[K, V]] {
     @entries.iter
@@ -243,10 +243,10 @@ type pub Map[K: Equal + Hash, V] {
   #
   # map.set('name', 'Alice')
   #
-  # map.iter_mut.each(fn (entry) {
+  # for entry in map.iter_mut {
   #   entry.key   # => 'name'
   #   entry.value # => 'Alice'
-  # })
+  # }
   # ```
   fn pub mut iter_mut -> Stream[mut Entry[K, V]] {
     @entries.iter_mut
@@ -262,10 +262,10 @@ type pub Map[K: Equal + Hash, V] {
   #
   # map.set('name', 'Alice')
   #
-  # map.into_iter.each(fn (e) {
-  #   e.key   # => 'name'
-  #   e.value # => 'Alice'
-  # })
+  # for entry in map.into_iter {
+  #   entry.key   # => 'name'
+  #   entry.value # => 'Alice'
+  # }
   # ```
   fn pub move into_iter -> IntoIter[Entry[K, V]] {
     @entries.into_iter
@@ -282,9 +282,9 @@ type pub Map[K: Equal + Hash, V] {
   #
   # map.set('name', 'Alice')
   #
-  # map.keys.each(fn (key) {
+  # for key in map.keys {
   #   key # => 'name'
-  # })
+  # }
   # ```
   fn pub keys -> Stream[ref K] {
     iter.map(fn (e) { e.key })
@@ -302,9 +302,9 @@ type pub Map[K: Equal + Hash, V] {
   #
   # map.set('name', 'Alice')
   #
-  # map.values.each(fn (value) {
+  # for value in map.values {
   #   value # => 'Alice'
-  # })
+  # }
   # ```
   fn pub values -> Stream[ref V] {
     iter.map(fn (e) { e.value })
@@ -399,12 +399,11 @@ type pub Map[K: Equal + Hash, V] {
   # map2['city'] # => 'Amsterdam'
   # ```
   fn pub mut merge(other: Map[K, V]) {
-    other.into_iter.each(fn (entry) {
+    for entry in other {
       entry.distance = 0
       entry.hash = hash_key(entry.key)
-
       insert_entry(entry)
-    })
+    }
   }
 
   # Returns the number of key-value pairs in this map.
@@ -469,9 +468,9 @@ type pub Map[K: Equal + Hash, V] {
     @resize_at = resize_threshold(new_size)
     @slots = Array.filled(with: EMPTY, times: new_size)
 
-    @entries.iter_mut.each(fn (entry) { entry.distance = 0 })
+    for entry in @entries.iter_mut { entry.distance = 0 }
 
-    @entries.iter_mut.each_with_index(fn (rehash_index, rehash) {
+    for (rehash_index, rehash) in @entries.iter_mut.with_index {
       let mut slot = slot_index(rehash.hash)
 
       loop {
@@ -479,23 +478,21 @@ type pub Map[K: Equal + Hash, V] {
 
         if index == EMPTY {
           @slots.set(slot, rehash_index)
-
-          return
+          break
         }
 
         let entry = @entries.get(index)
 
         if entry.distance < rehash.distance {
           @slots.set(slot, rehash_index)
-
           shift_stolen_slots(slot, index)
-          return
+          break
         }
 
         slot = slot_index(slot + 1)
         rehash.distance += 1
       }
-    })
+    }
   }
 
   fn mut insert_entry(insert: Entry[K, V]) -> Option[V] {
@@ -638,9 +635,9 @@ impl Map if V: mut {
   #
   # map.set('name', 'Alice')
   #
-  # map.values_mut.each(fn (value) {
+  # for value in map.values_mut {
   #   value # => 'Alice'
-  # })
+  # }
   # ```
   fn pub mut values_mut -> Stream[mut V] {
     iter_mut.map(fn (e) { e.value })
@@ -678,10 +675,10 @@ impl Equal for Map if V: Equal {
 
 impl Hash for Map if K: Hash, V: Hash {
   fn pub hash[H: mut + Hasher](hasher: mut H) {
-    iter.each(fn (entry) {
+    for entry in iter {
       entry.key.hash(hasher)
       entry.value.hash(hasher)
-    })
+    }
   }
 }
 
@@ -708,13 +705,13 @@ impl Format for Map if K: Format, V: Format {
   fn pub fmt(formatter: mut Formatter) {
     formatter.write('{')
 
-    iter.each_with_index(fn (index, entry) {
+    for (index, entry) in iter.with_index {
       if index > 0 { formatter.write(', ') }
 
       entry.key.fmt(formatter)
       formatter.write(': ')
       entry.value.fmt(formatter)
-    })
+    }
 
     formatter.write('}')
   }

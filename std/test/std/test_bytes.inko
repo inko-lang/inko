@@ -33,13 +33,13 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('bytes.digit?', fn (t) {
-    '1234567890'.bytes.each(fn (byte) { t.true(bytes.digit?(byte)) })
+    for byte in '1234567890'.bytes { t.true(bytes.digit?(byte)) }
 
-    0.until(256).iter.each(fn (byte) {
+    for byte in 0.until(256) {
       if byte >= 48 and byte <= 57 { return }
 
       t.false(bytes.digit?(byte))
-    })
+    }
   })
 
   t.test('bytes.two_digits', fn (t) {

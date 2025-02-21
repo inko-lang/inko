@@ -58,15 +58,15 @@ fn pub tests(t: mut Tests) {
   let base = cwd.join('fixtures').join('fmt')
   let compiler = compiler_path.to_string
 
-  base.list.or_panic("the fixtures/fmt directory doesn't exist").each(fn (e) {
+  for e in base.list.or_panic("the fixtures/fmt directory doesn't exist") {
     let cwd = recover cwd.clone
     let dir = match e {
       case Ok({ @path = p, @type = Directory }) -> recover p.clone
-      case Ok(_) -> return
+      case Ok(_) -> next
       case Error(e) -> panic('failed to read the directory: ${e}')
     }
 
-    if dir.join('input.inko').file?.false? { return }
+    if dir.join('input.inko').file?.false? { next }
 
     t.ok('inko fmt ${dir.tail}', fn move (t) {
       let in_file = dir.join('input.inko')
@@ -101,5 +101,5 @@ fn pub tests(t: mut Tests) {
 
       Result.Ok(nil)
     })
-  })
+  }
 }

@@ -224,7 +224,7 @@ fn pub tests(t: mut Tests) {
       ('"a" "b"', Result.Error(unexpected(3))),
     ]
 
-    tests.into_iter.each(fn (in_out) { t.equal(parse(in_out.0), in_out.1) })
+    for (inp, out) in tests.into_iter { t.equal(parse(inp), out) }
   })
 
   t.test('Parser.skip_column', fn (t) {
@@ -298,7 +298,7 @@ fn pub tests(t: mut Tests) {
       ('"a" "b"', Result.Error(unexpected(3))),
     ]
 
-    tests.into_iter.each(fn (in_out) { t.equal(iter(in_out.0), in_out.1) })
+    for (inp, out) in tests { t.equal(iter(inp), out) }
   })
 
   t.test('Generator.separator', fn (t) {
@@ -328,17 +328,15 @@ fn pub tests(t: mut Tests) {
       (Separator.Semicolon, [['foo;bar', 'baz']], '"foo;bar";baz\r\n'),
     ]
 
-    tests.into_iter.each(fn (sep_in_out) {
-      match sep_in_out {
-        case (sep, in, out) -> {
-          let gen = Generator.new(Output.new)
+    for (sep, inp, out) in tests {
+      let gen = Generator.new(Output.new)
 
-          gen.separator = sep
-          in.iter.each(fn (row) { gen.write(row) })
-          t.equal(gen.output.buffer.to_string, out)
-        }
-      }
-    })
+      gen.separator = sep
+
+      for row in inp.iter { gen.write(row) }
+
+      t.equal(gen.output.buffer.to_string, out)
+    }
   })
 
   t.test('Generator.write returns errors returned by the stream', fn (t) {

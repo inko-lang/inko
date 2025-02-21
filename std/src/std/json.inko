@@ -1408,13 +1408,13 @@ type pub inline ObjectParser[T: mut + Read] {
       }
     })
 
-    @rules.iter.try_each(fn (entry) {
-      if entry.value.required.false? or found.get(entry.value.id) {
-        Result.Ok(nil)
-      } else {
-        Result.Error(Error.generic('the key "${entry.key}" is required', start))
+    for entry in @rules.iter {
+      if entry.value.required.true? and found.get(entry.value.id).false? {
+        throw Error.generic('the key "${entry.key}" is required', start)
       }
-    })
+    }
+
+    Result.Ok(nil)
   }
 
   fn mut add(
@@ -1598,12 +1598,12 @@ type pub Generator {
 
         if vals.size > 0 {
           enter(fn {
-            vals.iter.each_with_index(fn (index, val) {
+            for (index, val) in vals.iter.with_index {
               if index > 0 { separator }
 
               indent
               generate_value(val)
-            })
+            }
           })
         }
 
@@ -1615,7 +1615,7 @@ type pub Generator {
 
         if vals.size > 0 {
           enter(fn {
-            vals.iter.each_with_index(fn (index, pair) {
+            for (index, pair) in vals.iter.with_index {
               if index > 0 { separator }
 
               indent
@@ -1623,7 +1623,7 @@ type pub Generator {
               @buffer.push(pair.key.escaped)
               @buffer.push('": ')
               generate_value(pair.value)
-            })
+            }
           })
         }
 

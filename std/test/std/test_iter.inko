@@ -2,26 +2,6 @@ import std.iter (Stream)
 import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
-  t.test('Iter.each', fn (t) {
-    let a = [10, 20]
-    let b = []
-
-    a.iter.each(fn (val) { b.push(val) })
-    t.equal(b, [ref 10, ref 20])
-  })
-
-  t.test('Iter.each_with_index', fn (t) {
-    let a = [10, 20]
-    let b = []
-
-    a.iter.each_with_index(fn (idx, val) {
-      b.push(idx)
-      b.push(val.clone)
-    })
-
-    t.equal(b, [0, 10, 1, 20])
-  })
-
   t.test('Iter.with_index', fn (t) {
     let vals = [10, 20]
 
@@ -154,21 +134,6 @@ fn pub tests(t: mut Tests) {
 
   t.test('Iter.last', fn (t) {
     t.equal([10, 20, 30].iter.last, Option.Some(30))
-  })
-
-  t.test('Iter.try_each', fn (t) {
-    let vals = []
-    let res = [10, 0, 30].into_iter.try_each(fn (val) {
-      if val > 0 {
-        vals.push(val)
-        Result.Ok(nil)
-      } else {
-        Result.Error('test')
-      }
-    })
-
-    t.equal(res, Result.Error('test'))
-    t.equal(vals, [10])
   })
 
   t.test('Iter.try_reduce', fn (t) {

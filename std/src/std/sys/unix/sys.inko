@@ -143,7 +143,8 @@ fn spawn(
   # The list of arguments starts with the program that's being executed, and is
   # terminated by a NULL pointer.
   argv.set(0, program)
-  args.iter.each_with_index(fn (idx, arg) { argv.set(idx + 1, arg) })
+
+  for (idx, arg) in args.iter.with_index { argv.set(idx + 1, arg) }
 
   # Environment variables are exposed as a list of `KEY=VALUE` values,
   # terminated by a NULL pointer.
@@ -151,12 +152,12 @@ fn spawn(
   # We MUST keep these pairs around until AFTER the program is started.
   let pairs = []
 
-  env.iter.each_with_index(fn (idx, kv) {
+  for (idx, kv) in env.iter.with_index {
     let pair = '${kv.key}=${kv.value}'
 
     pairs.push(pair)
     envp.set(idx, pair)
-  })
+  }
 
   let actions = try FileActions.new
   let attrs = libc.PosixSpawnAttrs()
@@ -184,7 +185,7 @@ fn spawn(
     case _ -> {}
   }
 
-  let in = try actions.redirect(stdin, stdio.stdin, write: false)
+  let inp = try actions.redirect(stdin, stdio.stdin, write: false)
   let out = try actions.redirect(stdout, stdio.stdout, write: true)
   let err = try actions.redirect(stderr, stdio.stderr, write: true)
 
@@ -209,7 +210,7 @@ fn spawn(
     throw Error.last_os_error
   }
 
-  Result.Ok(ChildProcess(id: pid, stdin: in, stdout: out, stderr: err))
+  Result.Ok(ChildProcess(id: pid, stdin: inp, stdout: out, stderr: err))
 }
 
 fn wait(pid: Int32) -> Result[Int, Error] {

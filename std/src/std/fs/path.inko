@@ -547,7 +547,7 @@ type pub inline Path {
   # let path = Path.new('.')
   # let iter = path.list.or_panic('failed to create the iterator')
   #
-  # iter.each(fn (result) {
+  # for result in iter {
   #   match result {
   #     case Ok({ @path = path, @type = File }) -> {
   #       out.print(path.to_string)
@@ -556,7 +556,7 @@ type pub inline Path {
   #     case Ok(_) -> {}
   #     case Error(err) -> panic(err.to_string)
   #   }
-  # })
+  # }
   # ```
   fn pub list -> Result[ReadDirectory, Error] {
     sys.ReadDirectory.new(@path).map(fn (inner) {
@@ -688,9 +688,7 @@ type pub inline Path {
         case _ -> break
       }
 
-      let iter = try sys.ReadDirectory.new(dir)
-
-      try iter.try_each(fn (entry) {
+      for entry in try sys.ReadDirectory.new(dir) {
         match entry {
           case Ok((name, Directory)) -> {
             let path = join_strings(dir, name)
@@ -701,9 +699,7 @@ type pub inline Path {
           case Ok((name, _)) -> try sys.remove_file(join_strings(dir, name))
           case Error(e) -> throw e
         }
-
-        Result.Ok(nil)
-      })
+      }
     }
 
     # Now we can remove the directories in a depth-first order.

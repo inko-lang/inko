@@ -416,13 +416,13 @@ fn extern fsync(fd: Int32) -> Int32
 
 fn extern sendfile(
   out: Int32,
-  in: Int32,
+  input: Int32,
   offset: Pointer[Int64],
   count: UInt64,
 ) -> Int64
 
 fn extern copy_file_range(
-  in: Int32,
+  input: Int32,
   off_in: Pointer[Int64],
   out: Int32,
   off_out: Pointer[Int64],

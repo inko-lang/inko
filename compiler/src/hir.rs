@@ -14,6 +14,10 @@ use types::{ARRAY_INTERNAL_NAME, ARRAY_PUSH, ARRAY_WITH_CAPACITY};
 
 const BUILTIN_RECEIVER: &str = "_INKO";
 const ARRAY_LIT_VAR: &str = "$array";
+const ITER_VAR: &str = "$iter";
+const NEXT_CALL: &str = "next";
+const SOME_CONS: &str = "Some";
+const INTO_ITER_CALL: &str = "into_iter";
 
 struct Comments {
     nodes: Vec<ast::Comment>,
@@ -2476,6 +2480,9 @@ impl<'a> LowerToHir<'a> {
             ast::Expression::While(node) => {
                 Expression::Loop(self.while_expression(*node))
             }
+            ast::Expression::For(node) => {
+                Expression::Scope(self.for_expression(*node))
+            }
             ast::Expression::Scope(node) => {
                 Expression::Scope(self.scope(*node))
             }
@@ -3174,6 +3181,100 @@ impl<'a> LowerToHir<'a> {
         }))];
 
         Box::new(Loop { body, location: node.location })
+    }
+
+    fn for_expression(&mut self, node: ast::For) -> Box<Scope> {
+        let pat_loc = *node.pattern.location();
+        let iter_loc = *node.iterator.location();
+        let def_var = Expression::DefineVariable(Box::new(DefineVariable {
+            resolved_type: types::TypeRef::Unknown,
+            variable_id: None,
+            mutable: false,
+            name: Identifier { name: ITER_VAR.to_string(), location: pat_loc },
+            value_type: None,
+            value: Expression::Call(Box::new(Call {
+                kind: types::CallKind::Unknown,
+                receiver: Some(self.expression(node.iterator)),
+                name: Identifier {
+                    name: INTO_ITER_CALL.to_string(),
+                    location: iter_loc,
+                },
+                arguments: Vec::new(),
+                parens: false,
+                in_mut: false,
+                usage: Usage::Used,
+                location: iter_loc,
+            })),
+            location: pat_loc,
+        }));
+
+        let loop_expr = Expression::Loop(Box::new(Loop {
+            body: vec![Expression::Match(Box::new(Match {
+                resolved_type: types::TypeRef::Unknown,
+                // iter.next
+                expression: Expression::Call(Box::new(Call {
+                    kind: types::CallKind::Unknown,
+                    receiver: Some(Expression::IdentifierRef(Box::new(
+                        IdentifierRef {
+                            name: ITER_VAR.to_string(),
+                            kind: types::IdentifierKind::Unknown,
+                            usage: Usage::Used,
+                            location: iter_loc,
+                        },
+                    ))),
+                    name: Identifier {
+                        name: NEXT_CALL.to_string(),
+                        location: iter_loc,
+                    },
+                    arguments: Vec::new(),
+                    parens: false,
+                    in_mut: false,
+                    usage: Usage::Used,
+                    location: iter_loc,
+                })),
+                cases: vec![
+                    // case Some(...) -> body
+                    MatchCase {
+                        variable_ids: Vec::new(),
+                        pattern: Pattern::Constructor(Box::new(
+                            ConstructorPattern {
+                                constructor_id: None,
+                                name: Constant {
+                                    name: SOME_CONS.to_string(),
+                                    location: node.location,
+                                },
+                                values: vec![self.pattern(node.pattern)],
+                                location: node.location,
+                            },
+                        )),
+                        guard: None,
+                        body: self.expressions(node.body),
+                        location: pat_loc,
+                    },
+                    // case _ -> break
+                    MatchCase {
+                        variable_ids: Vec::new(),
+                        pattern: Pattern::Wildcard(Box::new(WildcardPattern {
+                            location: node.location,
+                        })),
+                        guard: None,
+                        body: vec![Expression::Break(Box::new(Break {
+                            location: node.location,
+                        }))],
+                        location: node.location,
+                    },
+                ],
+                location: node.location,
+                write_result: true,
+            }))],
+            location: node.location,
+        }));
+
+        Box::new(Scope {
+            resolved_type: types::TypeRef::Unknown,
+            body: vec![def_var, loop_expr],
+            location: node.location,
+        })
     }
 
     fn scope(&mut self, node: ast::Scope) -> Box<Scope> {

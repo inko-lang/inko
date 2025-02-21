@@ -1703,6 +1703,7 @@ impl Parser {
             TokenKind::Try => self.try_expression(start)?,
             TokenKind::While => self.while_expression(start)?,
             TokenKind::Let => self.define_variable(start)?,
+            TokenKind::For => self.for_expression(start)?,
             TokenKind::Comment => Expression::Comment(self.comment(start)),
             _ => {
                 error!(start.location, "'{}' can't be used here", start.value)
@@ -2527,6 +2528,7 @@ impl Parser {
             | TokenKind::True
             | TokenKind::Try
             | TokenKind::While
+            | TokenKind::For
                 if same_line =>
             {
                 let token = self.next();
@@ -2908,6 +2910,28 @@ impl Parser {
         let location = Location::start_end(&start.location, body.location());
 
         Ok(Expression::While(Box::new(While { condition, body, location })))
+    }
+
+    fn for_expression(
+        &mut self,
+        start: Token,
+    ) -> Result<Expression, ParseError> {
+        let pattern = self.pattern()?;
+
+        self.expect(TokenKind::In)?;
+
+        let iter_tok = self.require()?;
+        let iter = self.expression(iter_tok)?;
+        let body_tok = self.expect(TokenKind::CurlyOpen)?;
+        let body = self.expressions(body_tok)?;
+        let location = Location::start_end(&start.location, body.location());
+
+        Ok(Expression::For(Box::new(For {
+            pattern,
+            iterator: iter,
+            body,
+            location,
+        })))
     }
 
     fn if_condition(&mut self) -> Result<IfCondition, ParseError> {
@@ -9716,6 +9740,36 @@ mod tests {
                     location: cols(10, 15)
                 },
                 location: cols(1, 15)
+            }))
+        );
+    }
+
+    #[test]
+    fn test_for_expression() {
+        assert_eq!(
+            expr("for x in y { 20 }"),
+            Expression::For(Box::new(For {
+                pattern: Pattern::Identifier(Box::new(IdentifierPattern {
+                    name: Identifier {
+                        name: "x".to_string(),
+                        location: cols(5, 5)
+                    },
+                    mutable: false,
+                    value_type: None,
+                    location: cols(5, 5)
+                })),
+                iterator: Expression::Identifier(Box::new(Identifier {
+                    name: "y".to_string(),
+                    location: cols(10, 10)
+                })),
+                body: Expressions {
+                    values: vec![Expression::Int(Box::new(IntLiteral {
+                        value: "20".to_string(),
+                        location: cols(14, 15)
+                    }))],
+                    location: cols(12, 17)
+                },
+                location: cols(1, 17)
             }))
         );
     }

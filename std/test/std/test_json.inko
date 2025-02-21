@@ -112,11 +112,11 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('PullParser.values with invalid input', fn (t) {
-    ['', '10', '[,]', '[10,]'].into_iter.each(fn (input) {
+    for input in ['', '10', '[,]', '[10,]'] {
       let parser = pull(input)
 
       t.true(parser.values(fn { parser.int.map(fn (_) { nil }) }).error?)
-    })
+    }
   })
 
   t.test('PullParser.keys with valid input', fn (t) {
@@ -136,11 +136,11 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('PullParser.keys with invalid input', fn (t) {
-    ['', '10', '{,}', '{"a":10,}'].into_iter.each(fn (input) {
+    for input in ['', '10', '{,}', '{"a":10,}'] {
       let parser = pull(input)
 
       t.true(parser.keys(fn (_p, k) { parser.int.map(fn (_) { nil }) }).error?)
-    })
+    }
   })
 
   t.test('PullParser.bool', fn (t) {

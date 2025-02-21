@@ -1254,7 +1254,9 @@ impl Document {
                         (Expression::Comment(_), _) => Node::HardLine,
                         // Conditionals are surrounded by an empty line as to
                         // make them stand out more.
-                        _ if expr.is_conditional() || next.is_conditional() => {
+                        _ if expr.is_conditional_or_loop()
+                            || next.is_conditional_or_loop() =>
+                        {
                             Node::EmptyLine
                         }
                         // `let` and comments are grouped together.
@@ -1272,7 +1274,7 @@ impl Document {
                 };
 
                 vals.push(sep);
-            } else if nodes.len() == 1 && expr.is_conditional() {
+            } else if nodes.len() == 1 && expr.is_conditional_or_loop() {
                 // Conditionals inside bodies are a bit difficult to read due to
                 // all the curly braces, so for expressions such as
                 // `if foo { loop { ... } }` we force wrapping across lines.
@@ -1330,6 +1332,7 @@ impl Document {
             Expression::Try(n) => self.try_value(n),
             Expression::Match(n) => self.match_value(n),
             Expression::Scope(n) => self.scope(n),
+            Expression::For(n) => self.for_loop(n),
         }
     }
 
@@ -1559,6 +1562,30 @@ impl Document {
         let gid = self.new_group_id();
         let header =
             vec![Node::text("loop"), Node::SpaceOrLine, Node::text("{")];
+        let body = self.body(&node.body.values);
+        let group = vec![
+            self.group(header),
+            Node::WrapIf(gid, Box::new(self.group(body))),
+        ];
+
+        Node::Group(gid, group)
+    }
+
+    fn for_loop(&mut self, node: &nodes::For) -> Node {
+        let gid = self.new_group_id();
+        let pat = self.pattern(&node.pattern);
+        let col = self.expression(&node.iterator);
+        let header = vec![
+            Node::text("for"),
+            Node::SpaceOrLine,
+            Node::Indent(vec![pat]),
+            Node::SpaceOrLine,
+            Node::text("in"),
+            Node::SpaceOrLine,
+            Node::Indent(vec![col]),
+            Node::SpaceOrLine,
+            Node::text("{"),
+        ];
         let body = self.body(&node.body.values);
         let group = vec![
             self.group(header),

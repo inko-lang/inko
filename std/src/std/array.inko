@@ -451,7 +451,7 @@ type builtin Array[T] {
   # numbers.size # => 5
   # ```
   fn pub mut append(other: Array[T]) {
-    other.into_iter.each(fn (v) { push(v) })
+    for v in other { push(v) }
   }
 
   # Returns the number of values in `self`.
@@ -811,7 +811,8 @@ impl Format for Array if T: Format {
   fn pub fmt(formatter: mut Formatter) {
     let fmt = formatter.array
 
-    iter.each(fn (value) { fmt.value(value) })
+    for value in iter { fmt.value(value) }
+
     fmt.finish
   }
 }

@@ -236,8 +236,8 @@ impl Reporter for Plain {
     if @failed.size > 0 {
       @out.print('\n\nFailures:').get
 
-      @failed.iter.each_with_index(fn (test_index, test) {
-        test.failures.iter.each_with_index(fn (failure_index, fail) {
+      for (test_index, test) in @failed.iter.with_index {
+        for (failure_index, fail) in test.failures.iter.with_index {
           let num = '${test_index + failure_index + 1}.'
           let indent = ' '.repeat(num.chars.count)
 
@@ -251,8 +251,8 @@ ${indent}   ${green('expected:')} ${fail.expected}
 ${indent}        ${red('got:')} ${fail.got}',
             )
             .get
-        })
-      })
+        }
+      }
     }
 
     let decimals = 4

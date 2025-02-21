@@ -57,12 +57,12 @@ fn pub tests(t: mut Tests) {
     .join('debug_info')
   let compiler = compiler_path.to_string
 
-  base.list.or_panic("fixtures/debug_info doesn't exist").each(fn (e) {
+  for e in base.list.or_panic("fixtures/debug_info doesn't exist") {
     let test_file = match e {
       case Ok({ @path = p, @type = File }) if p.tail.ends_with?('.inko') -> {
         recover p.clone
       }
-      case Ok(_) -> return
+      case Ok(_) -> next
       case Error(e) -> panic('failed to read the directory: ${e}')
     }
 
@@ -76,5 +76,5 @@ fn pub tests(t: mut Tests) {
 
       t.failures.push(Failure.new(got: '\n${release}', expected: '\n${debug}'))
     })
-  })
+  }
 }

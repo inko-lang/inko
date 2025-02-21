@@ -77,10 +77,88 @@ This prints "A" if you run the program as-is, and "B" if you change `num` to
 
 ## Loops
 
-Inko has two types of built-in loops: unconditional loops which use the `loop`
-keyword, and conditional loops that use the `while` keyword.
+Inko has three types of loops: `for`, `while` and `loop`. Loop iteration is
+controlled using the `break` and `next` keywords.
 
-Here we use a conditional loop to print a number 10 times:
+### for
+
+The `for` expression is used to iterate over values provided by an iterator. For
+example, to iterate over the values in an array (taking over ownership of the
+array in the process):
+
+```inko
+import std.stdio (Stdout)
+
+type async Main {
+  fn async main {
+    let out = Stdout.new
+
+    for num in [10, 20, 30] {
+      out.print(num.to_string)
+    }
+  }
+}
+```
+
+`for` loops are just syntax sugar, and the above `for` loop is compiled to the
+following:
+
+```inko
+let __iter = [10, 20, 30].into_iter
+
+loop {
+  match __iter.next {
+    case Some(num) -> print(num)
+    case _ -> break
+  }
+}
+```
+
+A `for` loop supports any collection/iterator that implements the `into_iter`
+method, which in turn is expected to return a type that implements the
+`std.iter.Iter` trait.
+
+`for` loops can use pattern matching to match against specific values returned
+by `next`:
+
+```inko
+import std.stdio (Stdout)
+
+type async Main {
+  fn async main {
+    let out = Stdout.new
+
+    for (str, _) in [('foo', 10), ('bar', 20)] {
+      out.print(str)
+    }
+  }
+}
+```
+
+If the pattern doesn't match the value returned by `next`, iteration stops:
+
+```inko
+
+import std.stdio (Stdout)
+
+type async Main {
+  fn async main {
+    let out = Stdout.new
+
+    for (str, 10) in [('foo', 10), ('bar', 20)] {
+      out.print(str)
+    }
+  }
+}
+```
+
+This prints `foo` to STDOUT then iteration stops, as the pattern only matches
+the first value in the array.
+
+### while
+
+A `while` loop is a loop that repeats itself for as long as its condition
+evaluates to `true`:
 
 ```inko
 import std.stdio (Stdout)
@@ -113,8 +191,11 @@ The output of this program is as follows:
 9
 ```
 
-The following program loops indefinitely, printing an ever increasing number
-every 500 milliseconds:
+### loop
+
+The `loop` keyword is used to create a loop that runs indefinitely. The
+following program loops indefinitely, printing an ever increasing number every
+500 milliseconds:
 
 ```inko
 import std.process (sleep)
@@ -134,6 +215,8 @@ type async Main {
   }
 }
 ```
+
+### break and next
 
 You can control the iteration of a loop using the `next` and `break` keywords:
 `next` jumps to the start of the next loop iteration, while `break` jumps out of
@@ -155,24 +238,6 @@ type async Main {
 ```
 
 This program prints "hello", then stops the loop.
-
-Various types in the standard library also provide ways of looping. For example,
-`Int.times` takes a closure that it calls N times:
-
-```inko
-10.times(fn (i) {
-  i # => 0, 1, 2, ...
-})
-```
-
-Similarly, we can use `Int.until` to create an exclusive range (or `Int.to` for
-an inclusive range) that we can then iterate over:
-
-```inko
-3.until(5).iter.each(fn (i) {
-  i # => 3, 4
-})
-```
 
 ## throw
 

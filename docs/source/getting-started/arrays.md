@@ -133,30 +133,27 @@ You can iterate over values in an array using `Array.iter`, `Array.iter_mut`,
 ```inko
 let nums = [10, 20, 30]
 
-nums.iter.each(fn (num) {
+for num in nums.iter {
   num # => 10, 20, 30
-})
+}
 
-nums.iter_mut.each(fn (num) {
+for num in nums.iter_mut {
   num # => 10, 20, 30
-})
+}
 
-nums.reverse_iter.each(fn (num) {
+for num in nums.reverse_iter {
   num # => 30, 20 ,10
-})
+}
 
-nums.into_iter.each(fn (num) {
+for num in nums.into_iter {
   num # => 10, 20, 30
-})
+}
 ```
 
 The `iter` method returns an iterator that yields immutable borrows to each
 value, while `iter_mut` yields mutable borrows. `reverse_iter` yields immutable
 borrows but in reverse order. The `into_iter` method in turn yields the values
 as-is and takes over ownership of the underlying array.
-
-For more information, refer to the [source
-code](https://github.com/inko-lang/inko/blob/main/std/src/std/array.inko).
 
 ## Drop order
 

@@ -68,12 +68,12 @@ fn pub tests(t: mut Tests) {
       ),
     ]
 
-    cases.into_iter.each(fn (pair) {
+    for (inp, out) in cases {
       let hasher = Sha256.new
 
-      hasher.write(pair.0.to_byte_array)
-      t.equal(hasher.finish.to_string, pair.1)
-    })
+      hasher.write(inp.to_byte_array)
+      t.equal(hasher.finish.to_string, out)
+    }
   })
 
   t.test('Sha512.hash', fn (t) {
@@ -148,11 +148,11 @@ fn pub tests(t: mut Tests) {
       ),
     ]
 
-    cases.into_iter.each(fn (pair) {
+    for (inp, out) in cases {
       let hasher = Sha512.new
 
-      hasher.write(pair.0.to_byte_array)
-      t.equal(hasher.finish.to_string, pair.1)
-    })
+      hasher.write(inp.to_byte_array)
+      t.equal(hasher.finish.to_string, out)
+    }
   })
 }

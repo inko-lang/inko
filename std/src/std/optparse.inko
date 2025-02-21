@@ -330,7 +330,7 @@ fn character_count(string: String) -> Int {
 }
 
 fn consume_remaining(lexer: Lexer, remaining: mut Array[String]) {
-  lexer.each(fn (token) {
+  for token in lexer {
     match token {
       case Short(n) -> remaining.push('-${n}')
       case Long(n) -> remaining.push('--${n}')
@@ -338,7 +338,7 @@ fn consume_remaining(lexer: Lexer, remaining: mut Array[String]) {
       case Value(v) -> remaining.push(v)
       case Separator -> remaining.push('--')
     }
-  })
+  }
 }
 
 # A type that describes a parsing error.
@@ -801,7 +801,7 @@ impl ToString for Options {
     let opts = []
     let descs = []
 
-    @options.iter.each(fn (opt) {
+    for opt in @options.iter {
       let short = if opt.short.size > 0 { '-${opt.short}' } else { '' }
       let long = if opt.long.size > 0 and opt.hint.size > 0 {
         '--${opt.long}=${opt.hint}'
@@ -820,7 +820,7 @@ impl ToString for Options {
       }
 
       descs.push(opt.description)
-    })
+    }
 
     let max_size = opts.iter.reduce(0, fn (max, line) {
       let chars = character_count(line)
@@ -830,7 +830,7 @@ impl ToString for Options {
 
     let buf = StringBuffer.new
 
-    opts.into_iter.each_with_index(fn (idx, opt) {
+    for (idx, opt) in opts.into_iter.with_index {
       let desc = descs.get(idx)
       let has_desc = desc.size > 0
 
@@ -840,18 +840,19 @@ impl ToString for Options {
 
       if has_desc {
         buf.push(opt.pad_end(with: ' ', chars: max_size + 4))
-        desc.split('\n').each_with_index(fn (index, line) {
+
+        for (index, line) in desc.split('\n').with_index {
           if index > 0 {
             buf.push('\n')
             buf.push(' '.repeat(max_size + 6))
           }
 
           buf.push(line)
-        })
+        }
       } else {
         buf.push(opt)
       }
-    })
+    }
 
     buf.into_string
   }

@@ -264,27 +264,25 @@ impl ToInt for Separator {
 #
 # let parser = Parser.new(Buffer.new('foo,bar,baz\r\n1,2,3'))
 #
-# parser.each(fn (result) {
+# for result in parser {
 #   # ...
-# })
+# }
 # ```
 #
 # Because parsing a line may produce an error, `Parser` yields values of type
 # `Option[Result[Array[String], Error]]` rather than `Option[Array[String]]`.
-# This means you need to handle errors when processing the result values. A
-# simple way of doing so is to use `std.iter.Iter.try_reduce`:
+# This means you need to handle errors when processing the result values:
 #
 # ```inko
 # import std.csv (Parser)
 # import std.io (Buffer)
 #
 # let parser = Parser.new(Buffer.new('foo,bar,baz\r\n1,2,3'))
-# let rows = parser
-#   .try_reduce([], fn (rows, result) {
-#     rows.push(try result)
-#     Result.Ok(rows)
-#   })
-#   .get
+# let rows = []
+#
+# for result in parser {
+#   rows.push(result.or_panic('failed to parse the row'))
+# }
 #
 # rows # => [['foo', 'bar', 'baz'], ['1', '2', '3']]
 # ```
@@ -778,7 +776,7 @@ type pub Generator[I: mut + Write] {
   fn pub mut write(columns: ref Array[String]) -> Result[Nil, IoError] {
     let mut i = 0
 
-    try columns.iter.try_each(fn move (col) {
+    for col in columns.iter {
       if i > 0 { try @output.write_string(@separator_string) }
 
       if quote?(col, @separator_byte) {
@@ -791,8 +789,7 @@ type pub Generator[I: mut + Write] {
       }
 
       i += 1
-      Result.Ok(nil)
-    })
+    }
 
     if columns.size > 0 { try @output.write_string('\r\n') }
 

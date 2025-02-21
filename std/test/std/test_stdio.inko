@@ -6,9 +6,9 @@ fn pub tests(t: mut Tests) {
     'Stdin.read',
     child: fn {
       let out = Stdout.new
-      let in = Stdin.new
+      let inp = Stdin.new
       let bytes = ByteArray.new
-      let _ = in.read_all(bytes)
+      let _ = inp.read_all(bytes)
       let _ = out.write_bytes(bytes)
     },
     test: fn (test, process) {

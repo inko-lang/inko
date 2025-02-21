@@ -121,14 +121,13 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Poly1305.finish', fn (t) {
-    test_data.into_iter.each(fn (tuple) {
-      let key = tuple.0
-      let input = ByteArray.from_array(tuple.1)
-      let output = ByteArray.from_array(tuple.2)
+    for (key, inp, out) in test_data {
+      let input = ByteArray.from_array(inp)
+      let output = ByteArray.from_array(out)
       let hasher = Poly1305.new(ByteArray.from_array(key))
 
       hasher.write(input)
       t.equal(hasher.finish.bytes, output)
-    })
+    }
   })
 }

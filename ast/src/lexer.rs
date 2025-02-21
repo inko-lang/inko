@@ -115,6 +115,7 @@ pub enum TokenKind {
     If,
     Implement,
     Import,
+    In,
     Inline,
     Integer,
     Invalid,
@@ -272,6 +273,7 @@ impl TokenKind {
             TokenKind::Inline => "the 'inline' keyword",
             TokenKind::Copy => "the 'copy' keyword",
             TokenKind::Type => "the 'type' keyword",
+            TokenKind::In => "the 'in' keyword",
         }
     }
 }
@@ -341,6 +343,7 @@ impl Token {
                 | TokenKind::Inline
                 | TokenKind::Copy
                 | TokenKind::Type
+                | TokenKind::In
         )
     }
 
@@ -964,6 +967,7 @@ impl Lexer {
                 "fn" => TokenKind::Fn,
                 "if" => TokenKind::If,
                 "or" => TokenKind::Or,
+                "in" => TokenKind::In,
                 _ => TokenKind::Identifier,
             },
             3 => match value.as_str() {
@@ -1359,6 +1363,7 @@ mod tests {
         assert!(tok(TokenKind::Inline, "", 1..=1, 1..=1).is_keyword());
         assert!(tok(TokenKind::Copy, "", 1..=1, 1..=1).is_keyword());
         assert!(tok(TokenKind::Type, "", 1..=1, 1..=1).is_keyword());
+        assert!(tok(TokenKind::In, "", 1..=1, 1..=1).is_keyword());
     }
 
     #[test]
@@ -1966,6 +1971,7 @@ mod tests {
         assert_token!("fn", Fn, "fn", 1..=1, 1..=2);
         assert_token!("if", If, "if", 1..=1, 1..=2);
         assert_token!("or", Or, "or", 1..=1, 1..=2);
+        assert_token!("in", In, "in", 1..=1, 1..=2);
 
         assert_token!("and", And, "and", 1..=1, 1..=3);
         assert_token!("for", For, "for", 1..=1, 1..=3);

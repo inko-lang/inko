@@ -163,12 +163,12 @@ a2V5
       '-----     BEGIN CERTIFICATE-----\nY2VydA==\n-----END CERTIFICATE-----',
     ]
 
-    inputs.into_iter.each(fn (input) {
+    for input in inputs {
       t.equal(
         PemFile.new(Buffer.new(input)).parse,
         Result.Error(ParseError.InvalidSectionStart(1)),
       )
-    })
+    }
   })
 
   t.test('PemFile.parse with invalid base64', fn (t) {
@@ -177,12 +177,12 @@ a2V5
       ('-----BEGIN CERTIFICATE-----\nY2Vy\ndA\n-----END CERTIFICATE-----', 3),
     ]
 
-    inputs.into_iter.each(fn (input_line) {
+    for (inp, line) in inputs {
       t.equal(
-        PemFile.new(Buffer.new(input_line.0)).parse,
-        Result.Error(ParseError.InvalidBase64(input_line.1)),
+        PemFile.new(Buffer.new(inp)).parse,
+        Result.Error(ParseError.InvalidBase64(line)),
       )
-    })
+    }
   })
 
   t.test('PemFile.parse with an invalid section end', fn (t) {
@@ -194,12 +194,12 @@ a2V5
       '-----BEGIN CERTIFICATE-----\nY2VydA==\n-----CERTIFICATE-----',
     ]
 
-    inputs.into_iter.each(fn (input) {
+    for inp in inputs {
       t.equal(
-        PemFile.new(Buffer.new(input)).parse,
+        PemFile.new(Buffer.new(inp)).parse,
         Result.Error(ParseError.InvalidSectionEnd(3)),
       )
-    })
+    }
   })
 
   t.test('PemFile.parse when running out of input', fn (t) {
@@ -211,12 +211,12 @@ a2V5
       '-----BEGIN CERTIFICATE-----\nY2VydA==\n-',
     ]
 
-    inputs.into_iter.each(fn (input) {
+    for inp in inputs {
       t.equal(
-        PemFile.new(Buffer.new(input)).parse,
+        PemFile.new(Buffer.new(inp)).parse,
         Result.Error(ParseError.Read(Error.EndOfInput)),
       )
-    })
+    }
   })
 
   t.test('PemFile.parse with wrapped base64', fn (t) {

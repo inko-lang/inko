@@ -123,7 +123,7 @@ When calling a method without arguments, leave out the parentheses:
 If the last argument of a method call is a closure, format it like so:
 
 ```inko
-[10, 20, 30].each(fn (number) {
+[10, 20, 30].example_method(10, 20, fn (arg) {
   # ...
 })
 ```

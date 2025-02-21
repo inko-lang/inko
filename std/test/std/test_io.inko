@@ -77,12 +77,12 @@ type Writer {
 
 impl Write for Writer {
   fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
-    bytes.iter.each(fn (byte) { @buffer.push(byte) })
+    @buffer.append(bytes)
     Result.Ok(nil)
   }
 
   fn pub mut write_string(string: String) -> Result[Nil, Error] {
-    string.to_byte_array.iter.each(fn (byte) { @buffer.push(byte) })
+    @buffer.append(string)
     Result.Ok(nil)
   }
 

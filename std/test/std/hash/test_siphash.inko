@@ -32,12 +32,13 @@ fn pub tests(t: mut Tests) {
   t.test('SipHasher13.finish', fn (t) {
     let buf = []
 
-    EXPECTED.iter.each_with_index(fn (index, exp) {
+    for (index, exp) in EXPECTED.iter.with_index {
       let hasher = SipHasher13.new(KEY0, KEY1)
 
-      buf.iter.each(fn (v) { hasher.write(v) })
+      for v in buf.iter { hasher.write(v) }
+
       t.equal(hasher.finish, exp)
       buf.push(index)
-    })
+    }
   })
 }

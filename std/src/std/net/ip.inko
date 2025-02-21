@@ -602,7 +602,7 @@ impl ToString for Ipv6Address {
       let buffer = StringBuffer.new
       let compression_end = compression_start + compression_len
 
-      segments.iter.each_with_index(fn (index, hextet) {
+      for (index, hextet) in segments.iter.with_index {
         if index < compression_start {
           if index > 0 { buffer.push(':') }
 
@@ -614,7 +614,7 @@ impl ToString for Ipv6Address {
 
           buffer.push(hextet.format(format))
         }
-      })
+      }
 
       return buffer.to_string
     }
@@ -671,14 +671,14 @@ type pub copy Ipv4Address {
     let segments = []
     let format = Format.Decimal
 
-    input.split('.').each(fn (segment) {
+    for segment in input.split('.') {
       # This handles inputs such as "." and "..."
-      if segment.empty? { return }
+      if segment.empty? { next }
 
       # We don't support octal formats, as it was never part of the spec.
       # Ignoring them can lead to security issues, as described in
       # https://www.bleepingcomputer.com/news/security/go-rust-net-library-affected-by-critical-ip-address-validation-vulnerability/.
-      if segment.byte(0) == ZERO_BYTE and segment.size > 1 { return }
+      if segment.byte(0) == ZERO_BYTE and segment.size > 1 { next }
 
       match Int.parse(segment, format) {
         case Some(int) if int >= IP_MINIMUM_VALUE and int <= IPV4_OCTET_MAXIMUM
@@ -687,7 +687,7 @@ type pub copy Ipv4Address {
         }
         case _ -> {}
       }
-    })
+    }
 
     if segments.size != IPV4_OCTETS { return Option.None }
 

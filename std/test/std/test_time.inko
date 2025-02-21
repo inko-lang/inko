@@ -534,7 +534,7 @@ fn pub tests(t: mut Tests) {
       ),
     ]
 
-    tests.into_iter.each(fn (rule) {
+    for rule in tests {
       let en = Locale.new
       let input = rule.0
       let format = rule.1
@@ -549,7 +549,7 @@ fn pub tests(t: mut Tests) {
         case _ -> Option.None
       }
 
-      if res == exp { return }
+      if res == exp { next }
 
       t.failures.push(
         Failure.new(
@@ -557,7 +557,7 @@ fn pub tests(t: mut Tests) {
           "'${format}' to parse '${input}' into ${fmt(exp)}",
         ),
       )
-    })
+    }
   })
 
   t.test('DateTime.days_since_unix_epoch', fn (t) {

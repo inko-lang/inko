@@ -42,6 +42,11 @@ trait pub Range: Contains[Int] + Hash + Format {
 
   # Returns an iterator over the values in `self`.
   fn pub iter -> Stream[Int]
+
+  # Moves `self` into an iterator.
+  fn pub move into_iter -> Stream[Int] {
+    iter
+  }
 }
 
 # An inclusive range of integers.

@@ -322,31 +322,31 @@ fn xchacha_test_data -> Array[
 
 fn pub tests(t: mut Tests) {
   t.test('ChaCha20.encrypt', fn (t) {
-    chacha_test_data.into_iter.each(fn (test) {
-      let key = ByteArray.from_array(test.0)
-      let nonce = ByteArray.from_array(test.1)
+    for (key, nonce, counter, inp, out) in chacha_test_data {
+      let key = ByteArray.from_array(key)
+      let nonce = ByteArray.from_array(nonce)
       let cipher = ChaCha20.new(key, nonce)
-      let input = ByteArray.from_array(test.3)
-      let output = ByteArray.from_array(test.4)
+      let input = ByteArray.from_array(inp)
+      let output = ByteArray.from_array(out)
 
-      cipher.counter = test.2
+      cipher.counter = counter
 
       t.equal(cipher.encrypt(input), output)
-    })
+    }
   })
 
   t.test('ChaCha20.decrypt', fn (t) {
-    chacha_test_data.into_iter.each(fn (test) {
-      let key = ByteArray.from_array(test.0)
-      let nonce = ByteArray.from_array(test.1)
+    for (key, nonce, counter, inp, out) in chacha_test_data {
+      let key = ByteArray.from_array(key)
+      let nonce = ByteArray.from_array(nonce)
       let cipher = ChaCha20.new(key, nonce)
-      let input = ByteArray.from_array(test.3)
-      let output = ByteArray.from_array(test.4)
+      let input = ByteArray.from_array(inp)
+      let output = ByteArray.from_array(out)
 
-      cipher.counter = test.2
+      cipher.counter = counter
 
       t.equal(cipher.decrypt(output), input)
-    })
+    }
   })
 
   t.test('chacha.hchacha20', fn (t) {
@@ -377,30 +377,30 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('XChaCha20.encrypt', fn (t) {
-    xchacha_test_data.into_iter.each(fn (test) {
-      let key = ByteArray.from_array(test.0)
-      let nonce = ByteArray.from_array(test.1)
+    for (key, nonce, counter, inp, out) in xchacha_test_data {
+      let key = ByteArray.from_array(key)
+      let nonce = ByteArray.from_array(nonce)
       let cipher = XChaCha20.new(key, nonce)
-      let input = ByteArray.from_array(test.3)
-      let output = ByteArray.from_array(test.4)
+      let input = ByteArray.from_array(inp)
+      let output = ByteArray.from_array(out)
 
-      cipher.counter = test.2
+      cipher.counter = counter
 
       t.equal(cipher.encrypt(input), output)
-    })
+    }
   })
 
   t.test('XChaCha20.decrypt', fn (t) {
-    xchacha_test_data.into_iter.each(fn (test) {
-      let key = ByteArray.from_array(test.0)
-      let nonce = ByteArray.from_array(test.1)
+    for (key, nonce, counter, inp, out) in xchacha_test_data {
+      let key = ByteArray.from_array(key)
+      let nonce = ByteArray.from_array(nonce)
       let cipher = XChaCha20.new(key, nonce)
-      let input = ByteArray.from_array(test.3)
-      let output = ByteArray.from_array(test.4)
+      let input = ByteArray.from_array(inp)
+      let output = ByteArray.from_array(out)
 
-      cipher.counter = test.2
+      cipher.counter = counter
 
       t.equal(cipher.decrypt(output), input)
-    })
+    }
   })
 }

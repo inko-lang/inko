@@ -152,7 +152,8 @@ type builtin ByteArray {
   fn pub static from_array(array: ref Array[Int]) -> ByteArray {
     let bytes = ByteArray.new
 
-    array.iter.each(fn (v) { bytes.push(v) })
+    for v in array.iter { bytes.push(v) }
+
     bytes
   }
 
@@ -753,7 +754,8 @@ impl Format for ByteArray {
   fn pub fmt(formatter: mut Formatter) {
     let fmt = formatter.array
 
-    iter.each(fn (byte) { fmt.value(byte) })
+    for byte in iter { fmt.value(byte) }
+
     fmt.finish
   }
 }

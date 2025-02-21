@@ -270,22 +270,26 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('String.hash', fn (t) {
-    [
-      'a',
-      'aa',
-      'aaa',
-      'aaaa',
-      'aaaa',
-      'aaaaa',
-      'aaaaaa',
-      'aaaaaaa',
-      'aaaaaaaa',
-      'aaaaaaaaa',
-      'aaaaaaaaaa',
-      'aaaaaaaaaaa',
-    ]
-      .into_iter
-      .each(fn (v) { t.equal(hash(v), hash(v)) })
+    for
+      v
+    in
+      [
+        'a',
+        'aa',
+        'aaa',
+        'aaaa',
+        'aaaa',
+        'aaaaa',
+        'aaaaaa',
+        'aaaaaaa',
+        'aaaaaaaa',
+        'aaaaaaaaa',
+        'aaaaaaaaaa',
+        'aaaaaaaaaaa',
+      ]
+    {
+      t.equal(hash(v), hash(v))
+    }
 
     t.not_equal(hash('hello'), hash('world'))
   })

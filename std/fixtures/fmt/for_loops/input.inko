@@ -1,0 +1,23 @@
+fn example {
+  for aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa in bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb {
+    foo
+  }
+
+  for (aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa) in bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb {
+    foo
+  }
+
+  for aaaa in bbbb {
+    # comment
+    foo
+  }
+  for aaaa in bbbb {
+    # comment
+    foo
+  }
+
+  for aaaa in bbbbbbbbbbbbbbbbbbbbbbb.ccccccccccccccccccccccccccc.ddddddddddddddddddddd(10, 20) {
+    # comment
+    foo
+  }
+}

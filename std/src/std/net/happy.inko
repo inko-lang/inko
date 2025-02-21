@@ -237,6 +237,6 @@ type inline Connections {
 
 impl Drop for Connections {
   fn mut drop {
-    @connections.iter_mut.each(fn (c) { c.cancel })
+    for c in @connections.iter_mut { c.cancel }
   }
 }

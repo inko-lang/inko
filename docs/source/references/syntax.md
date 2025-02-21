@@ -661,6 +661,22 @@ if foo {
 
 ## Loops
 
+`for` loops use the following syntax:
+
+```inko
+for PATTERN in ITERATOR {
+  ...
+}
+```
+
+For example:
+
+```inko
+for (key, value) in [('name', 'Alice'), ('city', 'Example Town')] {
+  ...
+}
+```
+
 Infinite loops are created using the `loop` keyword:
 
 ```inko

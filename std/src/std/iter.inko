@@ -30,66 +30,12 @@ trait pub Iter[T] {
   # be returned.
   fn pub mut next -> Option[T]
 
-  # Calls the closure for every value in `self`.
+  # Takes ownership of `self` and returns it.
   #
-  # # Examples
-  #
-  # ```inko
-  # let vals = [10, 20, 30]
-  # let iter = vals.iter
-  #
-  # iter.each(fn (num) {
-  #   num # => 10, 20, 30
-  # })
-  # ```
-  fn pub move each(func: fn (T)) {
-    loop {
-      match self.next {
-        case Some(v) -> func.call(v)
-        case _ -> return
-      }
-    }
-  }
-
-  # Calls the closure for every value in `self`, stopping at the first `Error`
-  # returned by the closure.
-  #
-  # # Examples
-  #
-  # ```inko
-  # let res = [10, 0, 30].into_iter.try_each(fn (val) {
-  #   if val > 0 { Result.Ok(nil) } else { Result.Error('test') }
-  # })
-  #
-  # res # => Result.Error('test')
-  # ```
-  fn pub mut try_each[E](func: fn (T) -> Result[Nil, E]) -> Result[Nil, E] {
-    loop {
-      match self.next {
-        case Some(v) -> try func.call(v)
-        case _ -> return Result.Ok(nil)
-      }
-    }
-  }
-
-  # Calls the closure for every value in `self`, passing an index and the value
-  # to the closure.
-  #
-  # # Examples
-  #
-  # ```inko
-  # let vals = [10, 20, 30]
-  # let iter = vals.iter
-  #
-  # iter.each_with_index(fn (index, num) {
-  #   index # => 0, 1, 2
-  #   num   # => 10, 20, 30
-  # })
-  # ```
-  fn pub move each_with_index(func: fn (Int, T)) {
-    let mut idx = 0
-
-    each(fn move (value) { func.call(idx := idx + 1, value) })
+  # This method exists such that one can use a for loop with an existing
+  # iterator, as `for` loops call `into_iter` on the collection to iterate over.
+  fn pub move into_iter -> Self {
+    self
   }
 
   # Returns an `Iter` that yields a tuple of the index and the iterator value.

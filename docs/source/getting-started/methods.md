@@ -329,28 +329,18 @@ type async Main {
 ```
 
 Because `nums` is _moved_ into the closure, you can no longer use it outside of
-it.
-
-A common pattern is to loop over some data using an iterator and assign a
-variable a new value for each iteration:
+it:
 
 ```inko
-let mut number = 0
+type async Main {
+  fn async main {
+    let mut nums = [10]
 
-[10, 20, 30].iter.each(fn move (num) {
-  number += num
-})
+    fn move { nums = [20] }.call
 
-# `number` is still zero because the assignment is local to the closure. We
-# can also still use it because `Int` is a value type.
-number
-```
-
-Because of how capturing works, such patterns won't work in Inko. Instead, use
-methods such as `Iter.reduce` like so:
-
-```inko
-let number = [10, 20, 30].iter.reduce(0, fn (total, num) { total + num })
+    nums # => error: 'nums' can't be used as it has been moved
+  }
+}
 ```
 
 ### Exposing captures

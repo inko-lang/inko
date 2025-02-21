@@ -84,7 +84,7 @@ fn kernel_copy(from: Int32, to: Int32) -> Result[Int, Error] {
     start_blocking
 
     let res = libc.copy_file_range(
-      in: from,
+      input: from,
       off_in: 0x0 as Pointer[Int64],
       out: to,
       off_out: 0x0 as Pointer[Int64],

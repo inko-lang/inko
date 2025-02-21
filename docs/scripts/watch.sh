@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 function build {
-    inko build --release && ./build/release/main
+    inko build --opt=balanced && ./build/main
 }
 
 build
