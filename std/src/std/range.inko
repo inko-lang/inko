@@ -50,7 +50,7 @@ type pub copy InclusiveRange {
   let @end: Int
 
   # Returns a new `InclusiveRange` over the given values.
-  fn pub static new(start: Int, end: Int) -> InclusiveRange {
+  fn pub inline static new(start: Int, end: Int) -> InclusiveRange {
     InclusiveRange(start: start, end: end)
   }
 }

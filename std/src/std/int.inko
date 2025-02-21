@@ -319,12 +319,12 @@ type builtin Int {
   }
 
   # Returns a `Range` from `self` up to but excluding `other`.
-  fn pub until(other: Int) -> ExclusiveRange {
+  fn pub inline until(other: Int) -> ExclusiveRange {
     ExclusiveRange.new(clone, other)
   }
 
   # Returns a `Range` from `self` up to and including `other`.
-  fn pub to(other: Int) -> InclusiveRange {
+  fn pub inline to(other: Int) -> InclusiveRange {
     InclusiveRange.new(clone, other)
   }
 
