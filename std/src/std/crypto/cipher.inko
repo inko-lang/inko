@@ -2,11 +2,9 @@
 
 # A cryptographic cipher.
 trait pub Cipher {
-  # Encrypts a `ByteArray` and returns the encrypted result as a new
-  # `ByteArray`.
-  fn pub mut encrypt(bytes: ref ByteArray) -> ByteArray
+  # Encrypts the data in the given `ByteArray`, modifying it in-place.
+  fn pub mut encrypt(bytes: mut ByteArray)
 
-  # Decrypts a `ByteArray` and returns the decrypted result as a new
-  # `ByteArray`.
-  fn pub mut decrypt(bytes: ref ByteArray) -> ByteArray
+  # Encrypts the data in the given `ByteArray`, modifying it in-place.
+  fn pub mut decrypt(bytes: mut ByteArray)
 }

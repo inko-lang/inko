@@ -1,6 +1,6 @@
 # The ChaCha family of stream ciphers.
 #
-# This module provides the ChaCha20 and XChaCha20 stream ciphers, and the
+# This module provides the ChaCha and XChaCha20 stream ciphers, and the
 # HChaCha20 hash function. The implementations are based on the following RFCs:
 #
 # - <https://datatracker.ietf.org/doc/html/rfc8439>
@@ -18,7 +18,7 @@ let CHACHA_NONCE_SIZE = 96 / 8
 # The nonce size for HChaCha20
 let HCHACHA_NONCE_SIZE = 128 / 8
 
-# The nonce size for XChaCha20
+# The nonce size for XChaCha
 let XCHACHA_NONCE_SIZE = 192 / 8
 
 # The size in bytes of a ChaCha block.
@@ -32,6 +32,9 @@ let MATRIX_SIZE = 16
 
 # The default counter value of a ChaCha cipher.
 let DEFAULT_COUNTER = 0
+
+let CHACHA20_ITERS = 10
+let CHACHA12_ITERS = 6
 
 fn key_size_error(size: Int) -> Never {
   panic('the key must be exactly ${KEY_SIZE} bytes long, not ${size} bytes')
@@ -51,7 +54,7 @@ fn counter_overflow_error(value: Int) -> Never {
 
 # Derives a sub-key from a secret key and nonce, using the HChaCha20 algorithm.
 #
-# HChaCha20 is a hasher used as part of XChaCha20, and may be used for other
+# HChaCha20 is a hasher used as part of XChaCha, and may be used for other
 # similar purposes such as X25519 key derivation. It's not a general-purpose
 # cryptographic hasher, and direct use is best avoided unless you're certain you
 # must use the HChaCha20 hasher.
@@ -74,7 +77,7 @@ fn pub hchacha20(key: ref ByteArray, nonce: ref ByteArray) -> ByteArray {
 
   let out = ByteArray.filled(with: 0, times: 32)
   let matrix = Matrix(
-    [
+    words: [
       0x61707865,
       0x3320646E,
       0x79622D32,
@@ -92,6 +95,7 @@ fn pub hchacha20(key: ref ByteArray, nonce: ref ByteArray) -> ByteArray {
       little.read_i32(from: nonce, at: 8),
       little.read_i32(from: nonce, at: 12),
     ],
+    iters: CHACHA20_ITERS,
   )
 
   matrix.perform_rounds
@@ -108,8 +112,9 @@ fn pub hchacha20(key: ref ByteArray, nonce: ref ByteArray) -> ByteArray {
 
 type inline Matrix {
   let @words: Array[Int]
+  let @iters: Int
 
-  fn mut quarter_round(a: Int, b: Int, c: Int, d: Int) {
+  fn inline mut quarter_round(a: Int, b: Int, c: Int, d: Int) {
     let words = @words
 
     words.set(a, to_u32(words.get(a).wrapping_add(words.get(b))))
@@ -125,10 +130,10 @@ type inline Matrix {
     words.set(b, rotate_left_u32(words.get(b) ^ words.get(c), 7))
   }
 
-  fn mut perform_rounds {
-    # ChaCha20 consists of 10 iterations of one column round and one diagonal
+  fn inline mut perform_rounds {
+    # ChaCha consists of 10 iterations of one column round and one diagonal
     # round, producing a total of 20 rounds (hence the name).
-    10.times(fn (_) {
+    @iters.times(fn (_) {
       quarter_round(0, 4, 8, 12)
       quarter_round(1, 5, 9, 13)
       quarter_round(2, 6, 10, 14)
@@ -141,20 +146,20 @@ type inline Matrix {
     })
   }
 
-  fn size -> Int {
+  fn inline size -> Int {
     @words.size
   }
 
-  fn get(index: Int) -> Int {
+  fn inline get(index: Int) -> Int {
     @words.get(index)
   }
 
-  fn mut set(index: Int, value: Int) {
+  fn inline mut set(index: Int, value: Int) {
     @words.set(index, value)
   }
 }
 
-# The ChaCha20 stream cipher.
+# The ChaCha stream cipher.
 #
 # ChaCha is a stream cipher similar to Salsa20. Our implementation is based on
 # RFC 8439.
@@ -180,87 +185,60 @@ type inline Matrix {
 # Encrypting and decrypting using the same cipher:
 #
 # ```inko
-# import std.crypto.chacha (ChaCha20)
+# import std.crypto.chacha (ChaCha)
 # import std.rand (Random)
 #
 # let rand = Random.new
 # let key = rand.bytes(size: 32)
 # let nonce = rand.bytes(size: 12)
-# let cipher = ChaCha20.new(key, nonce)
+# let cipher = ChaCha.new(key, nonce)
+# let secret = 'I like turtles'.to_byte_array
 #
-# let plaintext = 'I like turtles'
-# let encrypted = cipher.encrypt(plaintext.to_byte_array)
+# cipher.encrypt(secret)
 #
 # # If we want to decrypt reusing the same cipher, we must first reset the
 # # block counter to its initial value:
 # cipher.counter = 0
-# cipher.decrypt(encrypted).to_string # => 'I like turtles'
+# cipher.decrypt(secret)
+#
+# secret.to_string # => 'I like turtles'
 # ```
 #
 # You can also decrypt using a new cipher, as long as the key, nonce and
 # starting block counter are the same:
 #
 # ```inko
-# import std.crypto.chacha (ChaCha20)
+# import std.crypto.chacha (ChaCha)
 # import std.rand (Random)
 #
 # let rand = Random.new
 # let key = rand.bytes(size: 32)
 # let nonce = rand.bytes(size: 12)
+# let secret = 'I like turtles'
 #
-# let plaintext = 'I like turtles'
-# let encrypted = ChaCha20.new(key, nonce).encrypt(plaintext.to_byte_array)
+# ChaCha.new(key, nonce).encrypt(secret)
+# ChaCha.new(key, nonce).decrypt(secret)
 #
-# ChaCha20
-#   .new(key, nonce)
-#   .decrypt(encrypted)
-#   .to_string # => 'I like turtles'
+# secret.to_string # => 'I like turtles'
 # ```
-type pub inline ChaCha20 {
+type pub inline ChaCha {
   let @matrix: Matrix
+  let @buffer: ByteArray
 
-  # Returns a new ChaCha20 cipher from the given key and nonce.
-  #
-  # The key _must_ be something generated randomly and securely, not something
-  # predictable.
-  #
-  # The nonce _must_ be unique for every message encrypted using this cipher.
-  # Using the same nonce for different messages weakens the encryption.
-  #
-  # The block counter defaults to zero.
-  #
-  # # Panics
-  #
-  # This method panics if `key` isn't exactly 32 bytes, or if `nonce` isn't
-  # exactly 8 bytes.
-  #
-  # # Examples
-  #
-  # ```inko
-  # import std.crypto.chacha (ChaCha20)
-  # import std.rand (Random)
-  #
-  # let rand = Random.new
-  # let key = rand.bytes(size: 32)
-  # let nonce = rand.bytes(size: 12)
-  #
-  # ChaCha20.new(key, nonce)
-  # ```
-  #
-  # In this example we use a randomly generated key and nonce. In production
-  # environments you must ensure that the nonce is never reused for the same
-  # key. Simply generating a random nonce isn't enough, as given enough time and
-  # bad luck the same nonce may be produced.
-  fn pub static new(key: ref ByteArray, nonce: ref ByteArray) -> ChaCha20 {
+  fn pub static with_iterations(
+    iterations: Int,
+    key: ref ByteArray,
+    nonce: ref ByteArray,
+  ) -> ChaCha {
     if key.size != KEY_SIZE { key_size_error(key.size) }
 
     if nonce.size != CHACHA_NONCE_SIZE {
       nonce_size_error(CHACHA_NONCE_SIZE, nonce.size)
     }
 
-    ChaCha20(
-      Matrix(
-        [
+    ChaCha(
+      matrix: Matrix(
+        words: [
           0x61707865,
           0x3320646E,
           0x79622D32,
@@ -278,8 +256,75 @@ type pub inline ChaCha20 {
           little.read_i32(from: nonce, at: 4),
           little.read_i32(from: nonce, at: 8),
         ],
+        iters: iterations,
       ),
+      buffer: ByteArray.filled(with: 0, times: BLOCK_SIZE),
     )
+  }
+
+  # Returns a new ChaCha cipher from the given key and nonce, performing 20
+  # rounds.
+  #
+  # The key _must_ be something generated randomly and securely, not something
+  # predictable.
+  #
+  # The nonce _must_ be unique for every message encrypted using this cipher.
+  # Using the same nonce for different messages weakens the encryption.
+  #
+  # The block counter defaults to zero.
+  #
+  # # Panics
+  #
+  # This method panics if `key` isn't exactly 32 bytes, or if `nonce` isn't
+  # exactly 8 bytes.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.crypto.chacha (ChaCha)
+  # import std.rand (Random)
+  #
+  # let rand = Random.new
+  # let key = rand.bytes(size: 32)
+  # let nonce = rand.bytes(size: 12)
+  #
+  # ChaCha.new(key, nonce)
+  # ```
+  #
+  # In this example we use a randomly generated key and nonce. In production
+  # environments you must ensure that the nonce is never reused for the same
+  # key. Simply generating a random nonce isn't enough, as given enough time and
+  # bad luck the same nonce may be produced.
+  fn pub static new(key: ref ByteArray, nonce: ref ByteArray) -> ChaCha {
+    with_iterations(CHACHA20_ITERS, key, nonce)
+  }
+
+  # Returns a new ChaCha cipher that performs 12 rounds instead of 20 rounds.
+  #
+  # If you're not sure whether you should use 12 rounds or 20 rounds, default to
+  # using 20 rounds through `ChaCha.new` until you've determined you do in fact
+  # only need 12 rounds. For some additional details, refer to [this
+  # issue](https://github.com/rust-random/rand/issues/932).
+  #
+  # Refer to the documentation of `ChaCha.new` for more details.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.crypto.chacha (ChaCha)
+  # import std.rand (Random)
+  #
+  # let rand = Random.new
+  # let key = rand.bytes(size: 32)
+  # let nonce = rand.bytes(size: 12)
+  #
+  # ChaCha.twelve_rounds(key, nonce)
+  # ```
+  fn pub static twelve_rounds(
+    key: ref ByteArray,
+    nonce: ref ByteArray,
+  ) -> ChaCha {
+    with_iterations(CHACHA12_ITERS, key, nonce)
   }
 
   # Sets the block counter to the given value.
@@ -296,19 +341,20 @@ type pub inline ChaCha20 {
     }
   }
 
-  fn mut apply(input: ref ByteArray) -> ByteArray {
-    let mut len = input.size
+  fn mut apply(bytes: mut ByteArray) {
+    let mut len = bytes.size
     let mut offset = 0
-    let buf = ByteArray.filled(with: 0, times: BLOCK_SIZE)
-    let out = ByteArray.filled(with: 0, times: input.size)
-    let tmp = Matrix(Array.filled(with: 0, times: MATRIX_SIZE))
+    let tmp = Matrix(
+      words: Array.filled(with: 0, times: MATRIX_SIZE),
+      iters: CHACHA20_ITERS,
+    )
 
     loop {
       MATRIX_SIZE.times(fn (i) { tmp.set(i, @matrix.get(i)) })
       tmp.perform_rounds
       MATRIX_SIZE.times(fn (i) {
         tmp.set(i, to_u32(tmp.get(i).wrapping_add(@matrix.get(i))))
-        little.write_i32(tmp.get(i), into: buf, at: i * 4)
+        little.write_i32(tmp.get(i), into: @buffer, at: i * 4)
       })
 
       # This in itself can't overflow, as the Int type is a 64-bits signed
@@ -329,13 +375,13 @@ type pub inline ChaCha20 {
 
       if len <= BLOCK_SIZE {
         len.times(fn (i) {
-          out.set(offset + i, input.get(offset + i) ^ buf.get(i))
+          bytes.set(offset + i, bytes.get(offset + i) ^ @buffer.get(i))
         })
-        return out
+        return
       }
 
       BLOCK_SIZE.times(fn (i) {
-        out.set(offset + i, input.get(offset + i) ^ buf.get(i))
+        bytes.set(offset + i, bytes.get(offset + i) ^ @buffer.get(i))
       })
 
       len -= BLOCK_SIZE
@@ -344,12 +390,12 @@ type pub inline ChaCha20 {
   }
 }
 
-impl Cipher for ChaCha20 {
-  fn pub mut encrypt(bytes: ref ByteArray) -> ByteArray {
+impl Cipher for ChaCha {
+  fn pub mut encrypt(bytes: mut ByteArray) {
     apply(bytes)
   }
 
-  fn pub mut decrypt(bytes: ref ByteArray) -> ByteArray {
+  fn pub mut decrypt(bytes: mut ByteArray) {
     apply(bytes)
   }
 }
@@ -363,8 +409,8 @@ impl Cipher for ChaCha20 {
 # For more information about XChaCha20 and the differences between it and
 # ChaCha20, consider reading the RFC that describes XChaCha20 at
 # <https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-xchacha>.
-type pub inline XChaCha20 {
-  let @chacha: ChaCha20
+type pub inline XChaCha {
+  let @chacha: ChaCha
 
   # Returns a new XChaCha20 cipher from the given key and nonce.
   #
@@ -385,16 +431,16 @@ type pub inline XChaCha20 {
   # # Examples
   #
   # ```inko
-  # import std.crypto.chacha (XChaCha20)
+  # import std.crypto.chacha (XChaCha)
   # import std.rand (Random)
   #
   # let rand = Random.new
   # let key = rand.bytes(size: 32)
   # let nonce = rand.bytes(size: 24)
   #
-  # XChaCha20.new(key, nonce)
+  # XChaCha.new(key, nonce)
   # ```
-  fn pub static new(key: ref ByteArray, nonce: ref ByteArray) -> XChaCha20 {
+  fn pub static new(key: ref ByteArray, nonce: ref ByteArray) -> XChaCha {
     if key.size != KEY_SIZE { key_size_error(key.size) }
 
     if nonce.size != XCHACHA_NONCE_SIZE {
@@ -403,10 +449,10 @@ type pub inline XChaCha20 {
 
     let sub_key = hchacha20(key, nonce.slice(start: 0, size: 16))
 
-    XChaCha20(
-      ChaCha20(
-        Matrix(
-          [
+    XChaCha(
+      ChaCha(
+        matrix: Matrix(
+          words: [
             0x61707865,
             0x3320646E,
             0x79622D32,
@@ -424,7 +470,9 @@ type pub inline XChaCha20 {
             little.read_i32(from: nonce, at: 16),
             little.read_i32(from: nonce, at: 20),
           ],
+          iters: CHACHA20_ITERS,
         ),
+        buffer: ByteArray.filled(with: 0, times: BLOCK_SIZE),
       ),
     )
   }
@@ -440,12 +488,12 @@ type pub inline XChaCha20 {
   }
 }
 
-impl Cipher for XChaCha20 {
-  fn pub mut encrypt(bytes: ref ByteArray) -> ByteArray {
-    @chacha.apply(bytes)
+impl Cipher for XChaCha {
+  fn pub mut encrypt(bytes: mut ByteArray) {
+    @chacha.encrypt(bytes)
   }
 
-  fn pub mut decrypt(bytes: ref ByteArray) -> ByteArray {
-    @chacha.apply(bytes)
+  fn pub mut decrypt(bytes: mut ByteArray) {
+    @chacha.encrypt(bytes)
   }
 }
