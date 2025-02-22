@@ -25,7 +25,7 @@ license-files = [{ path = "LICENSE", hash = 0xbd0eed23 }]
 multiple-versions = "warn"
 wildcards = "allow"
 highlight = "all"
-skip = [{ name = "bitflags" }]
+skip = [{ name = "unicode-width" }]
 skip-tree = [
     { name = "windows-sys", depth = 5 },
 ]
