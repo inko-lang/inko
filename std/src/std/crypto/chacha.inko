@@ -345,11 +345,11 @@ type pub inline ChaCha20 {
 }
 
 impl Cipher for ChaCha20 {
-  fn pub mut encrypt(bytes: mut ByteArray) -> ByteArray {
+  fn pub mut encrypt(bytes: ref ByteArray) -> ByteArray {
     apply(bytes)
   }
 
-  fn pub mut decrypt(bytes: mut ByteArray) -> ByteArray {
+  fn pub mut decrypt(bytes: ref ByteArray) -> ByteArray {
     apply(bytes)
   }
 }
@@ -441,11 +441,11 @@ type pub inline XChaCha20 {
 }
 
 impl Cipher for XChaCha20 {
-  fn pub mut encrypt(bytes: mut ByteArray) -> ByteArray {
+  fn pub mut encrypt(bytes: ref ByteArray) -> ByteArray {
     @chacha.apply(bytes)
   }
 
-  fn pub mut decrypt(bytes: mut ByteArray) -> ByteArray {
+  fn pub mut decrypt(bytes: ref ByteArray) -> ByteArray {
     @chacha.apply(bytes)
   }
 }
