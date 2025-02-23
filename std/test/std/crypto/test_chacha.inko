@@ -388,6 +388,15 @@ fn pub tests(t: mut Tests) {
     t.equal(secret.to_string, 'hello')
   })
 
+  t.panic('ChaCha.encrypt with a counter that overflows', fn {
+    let key = ByteArray.filled(with: 1, times: 32)
+    let nonce = ByteArray.filled(with: 1, times: 12)
+    let cipher = ChaCha.new(key, nonce)
+
+    cipher.counter = INT_MAX
+    cipher.encrypt('hello'.to_byte_array)
+  })
+
   t.test('chacha.hchacha20', fn (t) {
     let key = ByteArray.from_array(
       [

@@ -357,8 +357,7 @@ type pub inline ChaCha {
   #
   # # Panics
   #
-  # This method panics if the value doesn't fit in the range valid for an
-  # unsigned 32-bits integer.
+  # This method panics if `value` is less than zero.
   fn pub mut counter=(value: Int) {
     if value < 0 { counter_size_error(value) } else { @matrix.set(12, value) }
   }
@@ -385,10 +384,10 @@ type pub inline ChaCha {
         i += 1
       }
 
-      # This in itself can't overflow, as the Int type is a 64-bits signed
-      # integer, and below we limit it to the range that fits in a 32-bits
-      # unsigned integer.
-      let new_size = @matrix.get(12).wrapping_add(1)
+      # The chance of this overflowing is practically zero, but we use checked
+      # arithmetic just in case so the counter doesn't silently overflow and
+      # potentially mess things up.
+      let new_size = @matrix.get(12) + 1
 
       @matrix.set(12, new_size)
 
@@ -512,8 +511,7 @@ type pub inline XChaCha {
   #
   # # Panics
   #
-  # This method panics if the value doesn't fit in the range valid for an
-  # unsigned 32-bits integer.
+  # This method panics if `value` is less than zero.
   fn pub mut counter=(value: Int) {
     @chacha.counter = value
   }
