@@ -1,4 +1,5 @@
 import std.crypto.chacha (ChaCha, XChaCha, hchacha20)
+import std.int (MAX as INT_MAX)
 import std.test (Tests)
 
 fn chacha_test_data -> Array[
@@ -359,6 +360,20 @@ fn pub tests(t: mut Tests) {
     cipher.counter = 0
     cipher.decrypt(secret)
     t.equal(secret.into_string, 'hello')
+  })
+
+  t.test('ChaCha.encrypt with a very large block counter', fn (t) {
+    let key = ByteArray.filled(with: 1, times: 32)
+    let nonce = ByteArray.filled(with: 1, times: 12)
+    let cipher = ChaCha.new(key, nonce)
+    let secret = 'hello'.to_byte_array
+
+    cipher.counter = INT_MAX - 10
+    cipher.encrypt(secret)
+    cipher.counter = INT_MAX - 10
+    cipher.decrypt(secret)
+
+    t.equal(secret.to_string, 'hello')
   })
 
   t.test('chacha.hchacha20', fn (t) {

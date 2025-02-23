@@ -8,6 +8,7 @@
 import std.crypto.cipher (Cipher)
 import std.crypto.math (rotate_left_u32, to_u32)
 import std.endian.little
+import std.int (MAX as INT_MAX)
 
 # The ChaCha key size in bytes.
 let KEY_SIZE = 256 / 8
@@ -23,9 +24,6 @@ let XCHACHA_NONCE_SIZE = 192 / 8
 
 # The size in bytes of a ChaCha block.
 let BLOCK_SIZE = 64
-
-# The maximum value of the block counter.
-let MAX_COUNTER = 2 ** 32 - 1
 
 # The number of values in a matrix.
 let MATRIX_SIZE = 16
@@ -45,11 +43,7 @@ fn nonce_size_error(expected: Int, size: Int) -> Never {
 }
 
 fn counter_size_error(value: Int) -> Never {
-  panic('the block counter (${value}) must be between 0 and ${MAX_COUNTER}')
-}
-
-fn counter_overflow_error(value: Int) -> Never {
-  panic('the block counter (${value}) overflowed after ${MAX_COUNTER} blocks')
+  panic('the block counter (${value}) must be between 0 and ${INT_MAX}')
 }
 
 # Derives a sub-key from a secret key and nonce, using the HChaCha20 algorithm.
@@ -334,11 +328,7 @@ type pub inline ChaCha {
   # This method panics if the value doesn't fit in the range valid for an
   # unsigned 32-bits integer.
   fn pub mut counter=(value: Int) {
-    if value < 0 or value > MAX_COUNTER {
-      counter_size_error(value)
-    } else {
-      @matrix.set(12, value)
-    }
+    if value < 0 { counter_size_error(value) } else { @matrix.set(12, value) }
   }
 
   fn mut apply(bytes: mut ByteArray) {
@@ -361,15 +351,6 @@ type pub inline ChaCha {
       # integer, and below we limit it to the range that fits in a 32-bits
       # unsigned integer.
       let new_size = @matrix.get(12) + 1
-
-      # The original implementation makes no attempt at protecting the user from
-      # overflowing the counter, as it's unlikely to happen in the first place.
-      # Since we use a 32-bits counter it's still highly unlikely, but more
-      # likely compared to using a 64-bits counter. Because it's so unlikely for
-      # this to happen in practise we simply panic, instead of complicating the
-      # API by forcing the user to handle errors that won't occur in 99.99999%
-      # of all use cases.
-      if new_size > MAX_COUNTER { counter_overflow_error(new_size) }
 
       @matrix.set(12, new_size)
 
