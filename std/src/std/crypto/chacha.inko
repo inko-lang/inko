@@ -174,9 +174,9 @@ type inline Matrix {
 #
 # # Limitations
 #
-# As our implementation is based on RFC 8439, the total message size is limited
-# to 256 GiB. When reaching this limit the cipher panics, as the alternative is
-# a silent overflow that could lead to weaker/broken encryption.
+# The implementation deviates from the RFC by using a 64-bits counter instead of
+# a 32-bits counter. If the counter overflows, the `ChaCha.encrypt` and
+# `ChaCha.decrypt` methods will panic.
 #
 # # Examples
 #
