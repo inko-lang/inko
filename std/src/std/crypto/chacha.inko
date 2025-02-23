@@ -108,26 +108,28 @@ type inline Matrix {
   let @words: Array[Int]
   let @iters: Int
 
+  fn inline static empty(iters: Int) -> Matrix {
+    Matrix(words: Array.filled(with: 0, times: MATRIX_SIZE), iters: iters)
+  }
+
   fn inline mut quarter_round(a: Int, b: Int, c: Int, d: Int) {
-    let words = @words
+    set(a, to_u32(get(a).wrapping_add(get(b))))
+    set(d, rotate_left_u32(get(d) ^ get(a), 16))
 
-    words.set(a, to_u32(words.get(a).wrapping_add(words.get(b))))
-    words.set(d, rotate_left_u32(words.get(d) ^ words.get(a), 16))
+    set(c, to_u32(get(c).wrapping_add(get(d))))
+    set(b, rotate_left_u32(get(b) ^ get(c), 12))
 
-    words.set(c, to_u32(words.get(c).wrapping_add(words.get(d))))
-    words.set(b, rotate_left_u32(words.get(b) ^ words.get(c), 12))
+    set(a, to_u32(get(a).wrapping_add(get(b))))
+    set(d, rotate_left_u32(get(d) ^ get(a), 8))
 
-    words.set(a, to_u32(words.get(a).wrapping_add(words.get(b))))
-    words.set(d, rotate_left_u32(words.get(d) ^ words.get(a), 8))
-
-    words.set(c, to_u32(words.get(c).wrapping_add(words.get(d))))
-    words.set(b, rotate_left_u32(words.get(b) ^ words.get(c), 7))
+    set(c, to_u32(get(c).wrapping_add(get(d))))
+    set(b, rotate_left_u32(get(b) ^ get(c), 7))
   }
 
   fn inline mut perform_rounds {
-    # ChaCha consists of 10 iterations of one column round and one diagonal
-    # round, producing a total of 20 rounds (hence the name).
-    @iters.times(fn (_) {
+    let mut i = 0
+
+    while i < @iters {
       quarter_round(0, 4, 8, 12)
       quarter_round(1, 5, 9, 13)
       quarter_round(2, 6, 10, 14)
@@ -137,7 +139,8 @@ type inline Matrix {
       quarter_round(1, 6, 11, 12)
       quarter_round(2, 7, 8, 13)
       quarter_round(3, 4, 9, 14)
-    })
+      i += 1
+    }
   }
 
   fn inline size -> Int {
@@ -145,11 +148,11 @@ type inline Matrix {
   }
 
   fn inline get(index: Int) -> Int {
-    @words.get(index)
+    @words.get_unchecked(index)
   }
 
   fn inline mut set(index: Int, value: Int) {
-    @words.set(index, value)
+    @words.write_to(index, value)
   }
 }
 
@@ -218,6 +221,7 @@ type inline Matrix {
 type pub inline ChaCha {
   let @matrix: Matrix
   let @buffer: ByteArray
+  let @tmp: Matrix
 
   fn pub static with_iterations(
     iterations: Int,
@@ -253,6 +257,7 @@ type pub inline ChaCha {
         iters: iterations,
       ),
       buffer: ByteArray.filled(with: 0, times: BLOCK_SIZE),
+      tmp: Matrix.empty(iterations),
     )
   }
 
@@ -334,39 +339,56 @@ type pub inline ChaCha {
   fn mut apply(bytes: mut ByteArray) {
     let mut len = bytes.size
     let mut offset = 0
-    let tmp = Matrix(
-      words: Array.filled(with: 0, times: MATRIX_SIZE),
-      iters: CHACHA20_ITERS,
-    )
 
     loop {
-      MATRIX_SIZE.times(fn (i) { tmp.set(i, @matrix.get(i)) })
-      tmp.perform_rounds
-      MATRIX_SIZE.times(fn (i) {
-        tmp.set(i, to_u32(tmp.get(i).wrapping_add(@matrix.get(i))))
-        little.write_i32(tmp.get(i), into: @buffer, at: i * 4)
-      })
+      let mut i = 0
+
+      while i < MATRIX_SIZE {
+        @tmp.set(i, @matrix.get(i))
+        i += 1
+      }
+
+      @tmp.perform_rounds
+
+      let mut i = 0
+
+      while i < MATRIX_SIZE {
+        @tmp.set(i, to_u32(@tmp.get(i).wrapping_add(@matrix.get(i))))
+        little.write_i32(@tmp.get(i), into: @buffer, at: i * 4)
+        i += 1
+      }
 
       # This in itself can't overflow, as the Int type is a 64-bits signed
       # integer, and below we limit it to the range that fits in a 32-bits
       # unsigned integer.
-      let new_size = @matrix.get(12) + 1
+      let new_size = @matrix.get(12).wrapping_add(1)
 
       @matrix.set(12, new_size)
 
       if len <= BLOCK_SIZE {
-        len.times(fn (i) {
-          bytes.set(offset + i, bytes.get(offset + i) ^ @buffer.get(i))
-        })
+        let mut i = 0
+
+        while i < len {
+          let idx = offset.wrapping_add(i)
+
+          bytes.set(idx, bytes.get(idx) ^ @buffer.get(i))
+          i += 1
+        }
+
         return
       }
 
-      BLOCK_SIZE.times(fn (i) {
-        bytes.set(offset + i, bytes.get(offset + i) ^ @buffer.get(i))
-      })
+      let mut i = 0
 
-      len -= BLOCK_SIZE
-      offset += BLOCK_SIZE
+      while i < BLOCK_SIZE {
+        let idx = offset.wrapping_add(i)
+
+        bytes.set(idx, bytes.get(idx) ^ @buffer.get(i))
+        i += 1
+      }
+
+      len = len.wrapping_sub(BLOCK_SIZE)
+      offset = offset.wrapping_add(BLOCK_SIZE)
     }
   }
 }
@@ -454,6 +476,7 @@ type pub inline XChaCha {
           iters: CHACHA20_ITERS,
         ),
         buffer: ByteArray.filled(with: 0, times: BLOCK_SIZE),
+        tmp: Matrix.empty(CHACHA20_ITERS),
       ),
     )
   }
