@@ -380,8 +380,8 @@ type pub inline ChaCha {
 
       while i < MATRIX_SIZE {
         @tmp.set(i, to_u32(@tmp.get(i).wrapping_add(@matrix.get(i))))
-        little.write_i32(@tmp.get(i), into: @buffer, at: i * 4)
-        i += 1
+        little.write_i32(@tmp.get(i), into: @buffer, at: i.wrapping_mul(4))
+        i = i.wrapping_add(1)
       }
 
       # The chance of this overflowing is practically zero, but we use checked
@@ -398,7 +398,7 @@ type pub inline ChaCha {
           let idx = offset.wrapping_add(i)
 
           bytes.set(idx, bytes.get(idx) ^ @buffer.get(i))
-          i += 1
+          i = i.wrapping_add(1)
         }
 
         return
@@ -410,7 +410,7 @@ type pub inline ChaCha {
         let idx = offset.wrapping_add(i)
 
         bytes.set(idx, bytes.get(idx) ^ @buffer.get(i))
-        i += 1
+        i = i.wrapping_add(1)
       }
 
       len = len.wrapping_sub(BLOCK_SIZE)
