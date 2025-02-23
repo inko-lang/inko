@@ -2,6 +2,7 @@ import helpers (hash)
 import std.cmp (Compare, Ordering)
 import std.drop (Drop, drop)
 import std.fmt (fmt)
+import std.rand (Random)
 import std.test (Tests)
 
 type Person {
@@ -174,23 +175,18 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Array.shuffle', fn (t) {
+    let rng = Random.from_int(123)
     let one = [10]
     let two = [10, 20]
     let three = [10, 20, 30]
 
-    one.shuffle
-    two.shuffle
-    three.shuffle
+    one.shuffle(rng)
+    two.shuffle(rng)
+    three.shuffle(rng)
 
     t.equal(one, [10])
     t.equal(two, [20, 10])
-    t.true(
-      three == [10, 30, 20]
-        or three == [20, 10, 30]
-        or three == [20, 30, 10]
-        or three == [30, 10, 20]
-        or three == [30, 20, 10],
-    )
+    t.equal(three, [20, 30, 10])
   })
 
   t.test('Array.reverse', fn (t) {

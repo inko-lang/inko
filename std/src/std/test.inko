@@ -69,7 +69,7 @@ import std.fs.path (Path)
 import std.int (Format as IntFormat)
 import std.io (Write)
 import std.process
-import std.rand (Random, Shuffle)
+import std.rand (Random)
 import std.stdio (Stdout)
 import std.sync (Channel)
 import std.sys (Command, ExitStatus, Stream, cpu_cores, exit)
@@ -663,15 +663,16 @@ type pub Tests {
       case _ -> {}
     }
 
+    let rng = Random.new
     let seed = match @seed {
       case Some(seed) -> seed
-      case _ -> Random.new.int
+      case _ -> rng.int
     }
 
     # We shuffle tests in a random order to ensure they don't end up
     # (implicitly) depending on a specific execution order. We do this first so
     # we can build a unique list of filtered tests (which retain the order).
-    Shuffle.from_int(seed).sort(@tests)
+    @tests.shuffle(rng)
 
     let filter = @filter
     let tests = @tests

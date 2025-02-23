@@ -8,7 +8,7 @@ import std.hash (Hash, Hasher)
 import std.iter (Iter, Stream)
 import std.option (Option)
 import std.ptr
-import std.rand (Shuffle)
+import std.rand (Random)
 
 # The capacity to use when resizing an array for the first time.
 let START_CAPACITY = 4
@@ -499,16 +499,31 @@ type builtin Array[T] {
 
   # Sorts the values in `self` such that they are in a random order.
   #
+  # The algorithm used by this method is Sattolo's algorithm. Some more details
+  # on this are found here:
+  #
+  # - <https://en.wikipedia.org/wiki/Fisher–Yates_shuffle#Sattolo's_algorithm>
+  # - <https://danluu.com/sattolo/>
+  # - <https://rosettacode.org/wiki/Sattolo_cycle>
+  #
   # # Examples
   #
   # ```inko
-  # let a = [10, 20]
+  # import std.rand (Random)
   #
-  # a.shuffle
-  # a # => [20, 10]
+  # let rng = Random.new
+  # let nums = [10, 20]
+  #
+  # nums.shuffle(rng)
+  # nums # => [20, 10]
   # ```
-  fn pub mut shuffle {
-    Shuffle.new.sort(self)
+  fn pub mut shuffle(rng: mut Random) {
+    let mut swap = size - 1
+
+    while swap > 0 {
+      swap_indexes(swap, with: rng.int_between(min: 0, max: swap))
+      swap -= 1
+    }
   }
 
   # Reverses `self` in-place
