@@ -387,9 +387,7 @@ type pub inline ChaCha {
       # The chance of this overflowing is practically zero, but we use checked
       # arithmetic just in case so the counter doesn't silently overflow and
       # potentially mess things up.
-      let new_size = @matrix.get(12) + 1
-
-      @matrix.set(12, new_size)
+      @matrix.set(12, @matrix.get(12) + 1)
 
       if len <= BLOCK_SIZE {
         let mut i = 0
