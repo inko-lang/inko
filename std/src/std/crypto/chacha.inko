@@ -33,6 +33,7 @@ let DEFAULT_COUNTER = 0
 
 let CHACHA20_ITERS = 10
 let CHACHA12_ITERS = 6
+let CHACHA8_ITERS = 4
 
 fn key_size_error(size: Int) -> Never {
   panic('the key must be exactly ${KEY_SIZE} bytes long, not ${size} bytes')
@@ -298,12 +299,11 @@ type pub inline ChaCha {
     with_iterations(CHACHA20_ITERS, key, nonce)
   }
 
-  # Returns a new ChaCha cipher that performs 12 rounds instead of 20 rounds.
+  # Returns a new ChaCha cipher that performs 12 rounds.
   #
-  # If you're not sure whether you should use 12 rounds or 20 rounds, default to
-  # using 20 rounds through `ChaCha.new` until you've determined you do in fact
-  # only need 12 rounds. For some additional details, refer to [this
-  # issue](https://github.com/rust-random/rand/issues/932).
+  # If you're unsure as to what number of rounds to use, favour the use of
+  # `ChaCha.new` which uses 20 rounds, until you have a way of determining that
+  # fewer rounds are acceptable.
   #
   # Refer to the documentation of `ChaCha.new` for more details.
   #
@@ -324,6 +324,33 @@ type pub inline ChaCha {
     nonce: ref ByteArray,
   ) -> ChaCha {
     with_iterations(CHACHA12_ITERS, key, nonce)
+  }
+
+  # Returns a new ChaCha cipher that performs 8 rounds.
+  #
+  # If you're unsure as to what number of rounds to use, favour the use of
+  # `ChaCha.new` which uses 20 rounds, until you have a way of determining that
+  # fewer rounds are acceptable.
+  #
+  # Refer to the documentation of `ChaCha.new` for more details.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.crypto.chacha (ChaCha)
+  # import std.rand (Random)
+  #
+  # let rand = Random.new
+  # let key = rand.bytes(size: 32)
+  # let nonce = rand.bytes(size: 12)
+  #
+  # ChaCha.eight_rounds(key, nonce)
+  # ```
+  fn pub static eight_rounds(
+    key: ref ByteArray,
+    nonce: ref ByteArray,
+  ) -> ChaCha {
+    with_iterations(CHACHA8_ITERS, key, nonce)
   }
 
   # Sets the block counter to the given value.

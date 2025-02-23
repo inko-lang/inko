@@ -362,6 +362,18 @@ fn pub tests(t: mut Tests) {
     t.equal(secret.into_string, 'hello')
   })
 
+  t.test('ChaCha.eight_rounds', fn (t) {
+    let key = ByteArray.filled(with: 1, times: 32)
+    let nonce = ByteArray.filled(with: 1, times: 12)
+    let cipher = ChaCha.eight_rounds(key, nonce)
+    let secret = 'hello'.to_byte_array
+
+    cipher.encrypt(secret)
+    cipher.counter = 0
+    cipher.decrypt(secret)
+    t.equal(secret.into_string, 'hello')
+  })
+
   t.test('ChaCha.encrypt with a very large block counter', fn (t) {
     let key = ByteArray.filled(with: 1, times: 32)
     let nonce = ByteArray.filled(with: 1, times: 12)
