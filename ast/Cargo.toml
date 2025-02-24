@@ -10,8 +10,8 @@ rust-version.workspace = true
 doctest = false
 
 [dependencies]
-unicode-segmentation = "^1.8"
-location = { path = "../location" }
+unicode-segmentation = { workspace = true }
+location = { workspace = true }
 
 [dev-dependencies]
-similar-asserts = "^1.1"
+similar-asserts = { workspace = true }

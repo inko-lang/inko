@@ -7,10 +7,10 @@ license = "MPL-2.0"
 rust-version.workspace = true
 
 [dependencies]
-getopts = "^0.2"
-compiler = { path = "../compiler" }
-types = { path = "../types" }
-ureq = { version = "^3.0" }
-flate2 = "^1.0"
-tar = { version = "^0.4", default-features = false }
-blake3 = "^1.5"
+getopts = { workspace = true }
+compiler = { workspace = true }
+types = { workspace = true }
+ureq = { workspace = true }
+flate2 = { workspace = true }
+tar = { workspace = true }
+blake3 = { workspace = true }

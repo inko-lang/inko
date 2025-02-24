@@ -6,6 +6,33 @@ resolver = "2"
 version = "0.18.1" # VERSION
 rust-version = "1.78"
 
+[workspace.dependencies]
+ast = { path = "ast" }
+backtrace = "0.3"
+blake3 = "1.5"
+compiler = { path = "compiler" }
+crossbeam-queue = "0.3"
+crossbeam-utils = "0.8"
+flate2 = "1.0"
+fnv = "1.0"
+getopts = "0.2"
+indexmap = "2.6"
+inkwell = "0.5"
+libc = "0.2"
+llvm-sys-170 = "170.2"
+location = { path = "location" }
+once_cell = "1.9"
+rand = "0.8"
+rustix = { version = "0.38", default-features = false }
+rustls = { version = "0.23", default-features = false }
+rustls-pemfile = "2.1"
+similar-asserts = "1.1"
+tar = { version = "0.4", default-features = false }
+types = { path = "types" }
+unicode-segmentation = "1.10"
+unicode-width = "0.2"
+ureq = "3.0"
+
 [profile.release]
 panic = "abort"
 

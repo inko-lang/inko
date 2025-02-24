@@ -11,16 +11,16 @@ rust-version.workspace = true
 doctest = false
 
 [dependencies]
-ast = { path = "../ast" }
-types = { path = "../types" }
-location = { path = "../location" }
-unicode-width = "^0.2"
-fnv = "^1.0"
-blake3 = "^1.5"
-inkwell = { version = "^0.5", features = ["llvm17-0"] }
+ast = { workspace = true }
+types = { workspace = true }
+location = { workspace = true }
+unicode-width = { workspace = true }
+fnv = { workspace = true }
+blake3 = { workspace = true }
+inkwell = { workspace = true, features = ["llvm17-0"] }
 llvm-sys-170 = { package = "llvm-sys", version = "^170.2", features = ["prefer-static"] }
-indexmap = "^2.6"
-crossbeam-queue = "^0.3"
+indexmap = { workspace = true }
+crossbeam-queue = { workspace = true }
 
 [dev-dependencies]
-similar-asserts = "^1.1"
+similar-asserts = { workspace = true }
