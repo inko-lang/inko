@@ -106,6 +106,5 @@ pub(crate) const RELEASE: &str = "\
     globaldce,\
     constmerge,\
     rel-lookup-table-converter,\
-    function(annotation-remarks),\
-    verify\
+    function(annotation-remarks)\
 ";

@@ -26,6 +26,6 @@ then
 else
     echo "::group::Run stdlib tests"
     cd std
-    cargo run -- test
+    cargo run -- test --verify-llvm
     echo "::endgroup::"
 fi

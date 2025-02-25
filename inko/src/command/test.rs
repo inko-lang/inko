@@ -31,6 +31,7 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         "TARGET",
     );
     options.optflag("", "release", "Perform a release build");
+    options.optflag("", "verify-llvm", "Verify LLVM IR when generating code");
 
     let matches = options.parse(arguments)?;
 
@@ -47,6 +48,10 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
 
     if matches.opt_present("release") {
         config.opt = Opt::Release;
+    }
+
+    if matches.opt_present("verify-llvm") {
+        config.verify_llvm = true;
     }
 
     let main_file = config.main_test_module();
