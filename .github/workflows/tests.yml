@@ -191,7 +191,7 @@ jobs:
           version: '14.0'
           memory: 8G
           environment_variables: 'CARGO_HOME RUSTUP_HOME'
-          image_url: 'https://github.com/inko-lang/freebsd-builder/releases/download/v0.8.0/freebsd-14.0-x86-64.qcow2'
+          image_url: 'https://github.com/inko-lang/freebsd-builder/releases/download/v0.9.0/freebsd-14.0-x86-64.qcow2'
           run: ./ci/freebsd.sh compiler
 
   # FreeBSD builds are a bit slow due to the use of a VM, so we only run the
@@ -217,5 +217,5 @@ jobs:
           version: '14.0'
           memory: 8G
           environment_variables: 'CARGO_HOME RUSTUP_HOME'
-          image_url: 'https://github.com/inko-lang/freebsd-builder/releases/download/v0.8.0/freebsd-14.0-x86-64.qcow2'
+          image_url: 'https://github.com/inko-lang/freebsd-builder/releases/download/v0.9.0/freebsd-14.0-x86-64.qcow2'
           run: ./ci/freebsd.sh std
