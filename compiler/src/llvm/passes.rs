@@ -1161,8 +1161,6 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
     fn instruction(&mut self, all_blocks: &[BasicBlock], ins: &Instruction) {
         match ins {
             Instruction::CallBuiltin(ins) => {
-                self.set_debug_location(ins.location);
-
                 match ins.name {
                     Intrinsic::IntDiv => {
                         let reg_var = self.variables[&ins.register];
@@ -1717,6 +1715,8 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                         self.builder.store(reg_var, res);
                     }
                     Intrinsic::Panic => {
+                        self.set_debug_location(ins.location);
+
                         let val_var = self.variables[&ins.arguments[0]];
                         let val = self.builder.load_pointer(val_var);
                         let func_name = RuntimeFunction::ProcessPanic;
@@ -1727,6 +1727,8 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                         self.builder.unreachable();
                     }
                     Intrinsic::StringConcat => {
+                        self.set_debug_location(ins.location);
+
                         let reg_var = self.variables[&ins.register];
                         let len =
                             self.builder.i64_literal(ins.arguments.len() as _);
@@ -2465,8 +2467,6 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 self.builder.switch_to_block(ok_block);
             }
             Instruction::Free(ins) => {
-                self.set_debug_location(ins.location);
-
                 let var = self.variables[&ins.register];
                 let ptr = self.builder.load_pointer(var);
                 let func = self.module.runtime_function(RuntimeFunction::Free);
@@ -2566,9 +2566,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                 self.builder.store(var, value);
             }
-            Instruction::Preempt(ins) => {
-                self.set_debug_location(ins.location);
-
+            Instruction::Preempt(_) => {
                 let state = self.load_state();
                 let data = self.process_stack_data_pointer();
                 let layout = self.layouts.process_stack_data;
@@ -2607,8 +2605,6 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 self.builder.switch_to_block(cont_block);
             }
             Instruction::Finish(ins) => {
-                self.set_debug_location(ins.location);
-
                 let proc = self.load_process().into();
                 let terminate = self.builder.bool_literal(ins.terminate).into();
                 let func = self
