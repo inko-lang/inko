@@ -441,6 +441,8 @@ fn extern accept4(
   flags: Int32,
 ) -> Int32
 
+fn extern getrandom(buf: Pointer[UInt8], size: UInt64, flags: Int32) -> Int
+
 fn inline flush(fd: Int32) -> Int32 {
   fsync(fd)
 }

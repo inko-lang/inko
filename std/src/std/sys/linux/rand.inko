@@ -1,0 +1,5 @@
+import std.libc.linux (self as sys)
+
+fn inline random_bytes(buffer: Pointer[UInt8], size: Int) -> Int {
+  sys.getrandom(buffer, size: size as UInt64, flags: 0 as Int32) as Int
+}

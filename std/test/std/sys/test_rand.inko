@@ -1,0 +1,13 @@
+import std.sys.unix.rand (self as sys) if unix
+import std.test (Tests)
+
+fn pub tests(t: mut Tests) {
+  t.test('random_bytes', fn (t) {
+    let buf = ByteArray.from_array([1, 2, 3])
+
+    sys.random_bytes(into: buf, size: 512)
+    t.equal(buf.size, 515)
+    t.equal(buf.capacity, 515)
+    t.true(buf.starts_with?(ByteArray.from_array([1, 2, 3])))
+  })
+}

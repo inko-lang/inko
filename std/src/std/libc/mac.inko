@@ -371,6 +371,8 @@ fn extern accept(
   size: Pointer[UInt32],
 ) -> Int32
 
+fn extern getentropy(buffer: Pointer[UInt8], size: UInt64) -> Int
+
 fn inline fstat(fd: Int32, buf: Pointer[StatBuf]) -> Int32 {
   sys.fstat(fd, buf)
 }

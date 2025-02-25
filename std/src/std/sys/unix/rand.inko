@@ -1,0 +1,26 @@
+import std.io (Error, start_blocking, stop_blocking)
+import std.sys.freebsd.rand (self as sys) if freebsd
+import std.sys.linux.rand (self as sys) if linux
+import std.sys.mac.rand (self as sys) if mac
+
+fn inline random_bytes(into: mut ByteArray, size: Int) {
+  let old_size = into.size
+
+  into.resize(size: old_size + size, value: 0)
+
+  let mut pending = size
+  let ptr = (into.to_pointer as Int).wrapping_add(old_size) as Pointer[UInt8]
+
+  while pending > 0 {
+    start_blocking
+
+    let res = sys.random_bytes(ptr, pending)
+    let errno = stop_blocking
+
+    if res == -1 {
+      panic(Error.from_os_error(errno).to_string)
+    } else {
+      pending -= res
+    }
+  }
+}

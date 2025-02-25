@@ -5,9 +5,10 @@ use crate::network_poller::NetworkPoller;
 use crate::scheduler::process::Scheduler;
 use crate::scheduler::signal::Signals;
 use crate::scheduler::timeouts::Worker as TimeoutWorker;
-use rand::{thread_rng, Rng};
+use std::collections::hash_map::RandomState;
 use std::collections::HashMap;
 use std::env;
+use std::hash::{BuildHasher, Hasher};
 use std::mem::size_of;
 use std::panic::RefUnwindSafe;
 use std::sync::atomic::AtomicU32;
@@ -146,9 +147,8 @@ impl State {
         let byte_array_type =
             new_type!("ByteArray", counts.byte_array_type, ByteArray);
 
-        let mut rng = thread_rng();
-        let hash_key0 = rng.gen();
-        let hash_key1 = rng.gen();
+        let hash_key0 = RandomState::new().build_hasher().finish() as i64;
+        let hash_key1 = RandomState::new().build_hasher().finish() as i64;
         let environment = Env::new();
         let scheduler = Scheduler::new(
             config.process_threads as usize,

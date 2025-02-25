@@ -149,7 +149,11 @@ a2V5
   })
 
   t.test('PemFile.parse with random invalid garbage as its input', fn (t) {
-    t.true(PemFile.new(Buffer.new(Random.new.bytes(size: 32))).parse.error?)
+    let rng = Random.new
+    let buf = ByteArray.new
+
+    rng.bytes(into: buf, size: 32)
+    t.true(PemFile.new(Buffer.new(buf)).parse.error?)
     t.true(PemFile.new(Buffer.new(ByteArray.from_array([255]))).parse.error?)
   })
 

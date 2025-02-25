@@ -1,53 +1,130 @@
-import std.rand (Random)
+import std.rand (MAX_COUNTER, Random)
 import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
-  t.test('Random.from_int', fn (t) {
-    let rng = Random.from_int(42)
+  t.test('Random.new', fn (t) {
+    let rng = Random.new
 
-    # Since we have a fixed seed, we also have a fixed output.
-    t.equal(rng.int, -8733474309719776094)
-    t.equal(rng.float, 0.5427252099031439)
-    t.equal(rng.bytes(3), ByteArray.from_array([209, 52, 81]))
+    t.equal(rng.counter, 0)
+    t.equal(rng.index, 0)
   })
 
   t.test('Random.int', fn (t) {
-    # This is just a smoke test to ensure the underlying code isn't outright
-    # wrong.
-    Random.new.int
+    t.equal(Random.from_int(42).int, -453163337535955938)
   })
 
   t.test('Random.float', fn (t) {
-    # This is just a smoke test to ensure the underlying code isn't outright
-    # wrong.
-    Random.new.float
+    t.equal(Random.from_int(42).float, 0.9754339662476367)
+    t.true(
+      match Random.new.float {
+        case n -> n >= 0.0 and n < 1.0
+      },
+    )
   })
 
   t.test('Random.int_between', fn (t) {
-    let rng = Random.new
-    let range1 = rng.int_between(min: 1, max: 5)
-    let range2 = rng.int_between(min: 1, max: 1)
-    let range3 = rng.int_between(min: 10, max: 1)
+    t.equal(Random.from_int(42).int_between(1, 10), 7)
+    t.true(
+      match Random.new.int_between(1, 10) {
+        case n -> n >= 1 and n < 10
+      },
+    )
+  })
 
-    t.true(range1 >= 1 and range1 < 5)
-    t.equal(range2, 0)
-    t.equal(range3, 0)
+  # This is a very rough test of the uniformity of int_between. This of course
+  # doesn't _guarantee_ the results are truly uniform, but it's better than
+  # nothing.
+  t.test('Random.int_between uniformly distributes values', fn (t) {
+    let counts = Array.filled(with: 0, times: 10)
+    let rng = Random.from_int(42)
+
+    10_000.times(fn (_) {
+      let val = rng.int_between(0, 10)
+
+      counts.set(val, counts.get(val) + 1)
+    })
+
+    let total = Int.sum(counts.iter).to_float
+
+    for (idx, val) in counts.iter.with_index {
+      counts.set(idx, ((val.to_float / total) * 100.0).ceil.to_int)
+    }
+
+    t.equal(counts, [10, 10, 10, 11, 11, 11, 10, 10, 10, 11])
   })
 
   t.test('Random.float_between', fn (t) {
-    let rng = Random.new
-    let range1 = rng.float_between(min: 1.0, max: 5.0)
-    let range2 = rng.float_between(min: 1.0, max: 1.0)
-    let range3 = rng.float_between(min: 10.0, max: 1.0)
-
-    t.true(range1 >= 1.0 and range1 < 5.0)
-    t.equal(range2, 0.0)
-    t.equal(range3, 0.0)
+    t.equal(Random.from_int(42).float_between(1.0, 10.0), 9.77890569622873)
+    t.true(
+      match Random.new.float_between(1.0, 10.0) {
+        case n -> n >= 1.0 and n < 10.0
+      },
+    )
   })
 
   t.test('Random.bytes', fn (t) {
-    let rng = Random.new
+    let rng = Random.from_int(42)
+    let buf = ByteArray.new
 
-    t.equal(rng.bytes(3).size, 3)
+    rng.bytes(into: buf, size: 8)
+    t.equal(buf, ByteArray.from_array([30, 92, 240, 112, 88, 10, 182, 249]))
+
+    rng.bytes(into: buf, size: 8)
+    t.equal(
+      buf,
+      ByteArray.from_array(
+        [30, 92, 240, 112, 88, 10, 182, 249, 175, 7, 207, 73, 179, 165, 33, 94],
+      ),
+    )
+
+    buf.clear
+    rng.bytes(into: buf, size: 512)
+    t.equal(buf.size, 512)
+  })
+
+  t.test('Random.refill', fn (t) {
+    let rng = Random.from_int(42)
+
+    t.equal(rng.counter, 0)
+    t.equal(rng.index, 0)
+
+    let _ = rng.int
+
+    rng.refill
+    t.equal(rng.index, 0)
+    t.equal(rng.counter, 1)
+
+    rng.counter = MAX_COUNTER
+    rng.refill
+
+    t.equal(rng.counter, 0)
+    t.equal(rng.index, 0)
+
+    # The goal of this assertion is to catch any unexpected state changes as a
+    # result of code changes (e.g. changing how the seeds are produced).
+    t.equal(
+      rng.buffer,
+      ByteArray.from_array(
+        [
+          202, 213, 75, 81, 121, 92, 159, 217, 146, 151, 142, 37, 8, 8, 180,
+          131, 18, 219, 128, 54, 209, 110, 91, 63, 124, 217, 2, 139, 121, 24,
+          159, 176, 197, 16, 3, 123, 183, 120, 90, 188, 71, 0, 117, 39, 19, 143,
+          32, 171, 218, 91, 70, 112, 122, 22, 49, 151, 9, 176, 125, 175, 29, 54,
+          121, 99, 226, 224, 125, 61, 57, 227, 254, 223, 39, 228, 114, 195, 173,
+          173, 120, 129, 83, 19, 131, 205, 131, 146, 193, 96, 151, 164, 88, 92,
+          71, 107, 242, 100, 49, 166, 207, 188, 175, 208, 132, 176, 96, 0, 186,
+          119, 162, 194, 231, 119, 218, 7, 47, 17, 58, 6, 250, 115, 24, 122,
+          223, 40, 253, 226, 127, 146, 38, 229, 67, 136, 74, 12, 128, 144, 41,
+          145, 39, 117, 78, 43, 17, 103, 222, 21, 165, 185, 103, 239, 68, 105,
+          246, 234, 112, 152, 106, 206, 197, 128, 45, 147, 17, 111, 77, 30, 165,
+          220, 151, 191, 50, 102, 123, 177, 39, 22, 58, 241, 124, 134, 12, 120,
+          64, 8, 136, 135, 177, 163, 27, 120, 33, 115, 204, 80, 22, 87, 0, 248,
+          14, 200, 23, 131, 46, 143, 25, 117, 198, 61, 119, 115, 90, 201, 121,
+          88, 66, 170, 69, 181, 22, 125, 139, 97, 22, 183, 43, 189, 156, 151,
+          123, 103, 73, 75, 58, 165, 22, 116, 82, 5, 2, 2, 111, 228, 169, 223,
+          222, 27, 130, 248, 136, 79, 238, 106, 175, 104, 40, 75,
+        ],
+      ),
+    )
   })
 }

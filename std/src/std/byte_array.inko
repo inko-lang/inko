@@ -1,4 +1,5 @@
 # Arrays of bytes
+import std.alloc
 import std.array (bounds_check)
 import std.clone (Clone)
 import std.cmp (Contains, Equal)
@@ -561,6 +562,24 @@ type builtin ByteArray {
     } else {
       false
     }
+  }
+
+  # Overwrites all bytes in `self` with zero bytes.
+  #
+  # Note that until [this issue](https://github.com/inko-lang/inko/issues/833)
+  # is resolved, the compiler _might_ optimize code such that the writing of the
+  # zero bytes is optimized away.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let bytes = ByteArray.from_array([1, 2, 3])
+  #
+  # bytes.zero
+  # bytes # => ByteArray.from_array([0, 0, 0])
+  # ```
+  fn pub mut zero {
+    alloc.zero(to_pointer, size)
   }
 
   fn mut size=(value: Int) {

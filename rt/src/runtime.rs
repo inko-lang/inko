@@ -4,7 +4,6 @@ mod float;
 mod general;
 mod int;
 mod process;
-mod random;
 mod signal;
 mod socket;
 mod string;

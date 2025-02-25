@@ -1,48 +1,46 @@
 # Cryptographically secure random number generation.
-import std.drop (Drop)
+import std.alloc
+import std.crypto.chacha (ChaCha)
+import std.endian.little
+import std.ptr
+import std.string (ToString)
+import std.sys.unix.rand (self as sys) if unix
 
-fn extern inko_random_new(process: Pointer[UInt8]) -> Pointer[UInt8]
+fn invalid_range_error[T: ToString](min: T, max: T) -> Never {
+  panic('the range ${min}..${max} is invalid')
+}
 
-fn extern inko_random_from_int(seed: Int) -> Pointer[UInt8]
-
-fn extern inko_random_drop(rng: Pointer[UInt8])
-
-fn extern inko_random_int(rng: Pointer[UInt8]) -> Int64
-
-fn extern inko_random_float(rng: Pointer[UInt8]) -> Float64
-
-fn extern inko_random_int_range(
-  rng: Pointer[UInt8],
-  min: Int,
-  max: Int,
-) -> Int64
-
-fn extern inko_random_float_range(
-  rng: Pointer[UInt8],
-  min: Float64,
-  max: Float64,
-) -> Float64
-
-fn extern inko_random_bytes(
-  state: Pointer[UInt8],
-  process: Pointer[UInt8],
-  rng: Pointer[UInt8],
-  size: Int,
-) -> ByteArray
+let BUFFER_SIZE = 256
+let MAX_COUNTER = 15
+let SEED_SIZE = 32
 
 # A cryptographically secure pseudo random number generator (CSPRNG).
 #
-# The algorithm used is unspecified but guaranteed to be cryptographically
-# secure.
+# The underlying algorithm is ChaCha8, loosely based on Go's ChaCha8 CSPRNG as
+# described [here](https://github.com/C2SP/C2SP/blob/main/chacha8rand.md),
+# and Pony's random number generation code as found
+# [here](https://stdlib.ponylang.io/src/random/random) and
+# [here](https://stdlib.ponylang.io/src/pony_check/randomness/).
+#
+# [Fast-key-erasure](https://blog.cr.yp.to/20170723-random.html) is applied in
+# an attempt to make attacks against the RNG more difficult.
+#
+# While the current implementation should be sufficient/not obviously broken, it
+# hasn't been formally verified or audited and thus may still contain some
+# flaws.
 type pub Random {
-  # The internal/low-level random number generator.
-  let @rng: Pointer[UInt8]
+  let @cipher: ChaCha
+  let @buffer: ByteArray
+  let mut @index: Int
+  let mut @counter: Int
 
   # Returns a new `Random` using the given `Int` as its seed.
   #
   # `Random` instances created using this method **are not** suitable for
   # cryptography, as a single `Int` doesn't produce enough entropy. For
   # cryptography you _must_ use `Random.new` instead.
+  #
+  # Refer to the documentation of `Random.new` for more details.
   #
   # # Examples
   #
@@ -51,14 +49,21 @@ type pub Random {
   #
   # Random.from_int(42)
   # ```
-  fn pub static from_int(seed: Int) -> Random {
-    Random(inko_random_from_int(seed))
+  fn pub static from_int(value: Int) -> Self {
+    let seed = ByteArray.filled(with: 0, times: SEED_SIZE)
+
+    little.write_i64(value, into: seed, at: 0)
+    with_seed(seed)
   }
 
   # Returns a new `Random` seeded using a cryptographically secure seed.
   #
-  # Seeding is performed by the runtime using a thread-local random number
-  # generator suitable for cryptography.
+  # The seed is generated using the operating system's CSPRNG.
+  #
+  # While creating a `Random` instance isn't necessarily expensive, it's not
+  # cheap either. As such it's best to create an instance (or multiple
+  # instances) ahead of time and reuse them, instead of creating them on the
+  # fly.
   #
   # # Examples
   #
@@ -67,66 +72,191 @@ type pub Random {
   #
   # Random.new
   # ```
-  fn pub static new -> Random {
-    Random(inko_random_new(_INKO.process))
+  fn pub static new -> Self {
+    let seed = ByteArray.new
+
+    sys.random_bytes(into: seed, size: SEED_SIZE)
+    with_seed(seed)
   }
 
-  # Returns a randomly generated `Int`.
+  fn static with_seed(seed: ByteArray) -> Self {
+    # The nonce is always zero to ensure deterministic behavior given the same
+    # seed.
+    let nonce = ByteArray.filled(with: 0, times: 12)
+    let cipher = ChaCha.eight_rounds(seed, nonce)
+    let rng = Self(
+      buffer: ByteArray.filled(with: 0, times: BUFFER_SIZE),
+      cipher: cipher,
+      index: 0,
+      counter: MAX_COUNTER,
+    )
+
+    # Zero out the seed such that a potential attacker can't use it (assuming
+    # they didn't gain access already before we reach this point).
+    seed.zero
+
+    # Fill the buffer with initial data, then immediately reseed and refill it.
+    # Refer to https://blog.cr.yp.to/20170723-random.html for more details.
+    rng.fill
+    rng.refill
+    rng
+  }
+
+  # Returns a randomly generated `Int` in the end exclusive range `MIN..MAX`
+  # where `MIN` is the minimum value of a 64-bits signed integer and `MAX` the
+  # maximum value.
   #
   # # Examples
   #
   # ```inko
   # import std.rand (Random)
   #
-  # Random.new.int
+  # let rng = Random.from_int(10)
+  #
+  # rng.int # => -5596774198144179698
   # ```
   fn pub mut int -> Int {
-    inko_random_int(@rng) as Int
+    if @index == BUFFER_SIZE { refill }
+
+    let idx = @index := @index.wrapping_add(8)
+    let val = little.read_i64(@buffer, at: idx)
+
+    zero(idx, size: 8)
+    val
   }
 
-  # Returns a randomly generated `Float`.
+  # Returns a randomly generated `Float` in the end exclusive range
+  # `0.0..1.0`.
   #
   # # Examples
   #
   # ```inko
   # import std.rand (Random)
   #
-  # Random.new.float
+  # let rng = Random.from_int(10)
+  #
+  # rng.float # => 0.6965982627730631
   # ```
   fn pub mut float -> Float {
-    inko_random_float(@rng) as Float
+    (int >>> 11).to_float * (1.0 / 9007199254740992.0)
   }
 
-  # Returns a randomly generated `Int` in the given range.
-  #
-  # The returned value is in the range `start <= value < stop`. If
-  # `start >= stop` is true, this method returns `0`.
-  fn pub int_between(min: Int, max: Int) -> Int {
-    inko_random_int_range(@rng, min, max) as Int
-  }
-
-  # Returns a randomly generated `Float` in the given range.
-  #
-  # The returned value is in the range `start <= value < stop`. If
-  # `start >= stop` is true, this method returns `0.0`.
-  fn pub float_between(min: Float, max: Float) -> Float {
-    inko_random_float_range(@rng, min as Float64, max as Float64) as Float
-  }
-
-  # Returns a `ByteArray` containing randomly generated bytes.
-  #
-  # The returned `ByteArray` will contain exactly `size` bytes.
+  # Returns a randomly generated `Int` uniformly distributed in the given end
+  # exclusive range.
   #
   # # Panics
   #
-  # This method might panic if no random bytes could be generated.
-  fn pub bytes(size: Int) -> ByteArray {
-    inko_random_bytes(_INKO.state, _INKO.process, @rng, size)
-  }
-}
+  # This method panics if `min` is greater than `max`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.rand (Random)
+  #
+  # let rng = Random.from_int(10)
+  #
+  # rng.int_between(1, 10) # => 8
+  # ```
+  fn pub mut int_between(min: Int, max: Int) -> Int {
+    if min > max { invalid_range_error(min, max) }
 
-impl Drop for Random {
-  fn mut drop {
-    inko_random_drop(@rng)
+    # Apple's approach as taken from
+    # https://www.pcg-random.org/posts/bounded-rands.html, as we can't use
+    # Lemire's approach as that requires 128 bits integer support.
+    let mut mask = -1
+    let range = max.wrapping_sub(min).wrapping_sub(1)
+
+    mask >>>= (range | 1).leading_zeros
+
+    loop {
+      match int & mask {
+        case v if v <= range -> return min.wrapping_add(v)
+        case _ -> {}
+      }
+    }
+  }
+
+  # Returns a randomly generated `Float` uniformly distributed in the given end
+  # exclusive range.
+  #
+  # # Panics
+  #
+  # This method panics if `min` is greater than `max`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.rand (Random)
+  #
+  # let rng = Random.from_int(10)
+  #
+  # rng.float_between(1.0, 10.0) # => 7.269384364957569
+  # ```
+  fn pub mut float_between(min: Float, max: Float) -> Float {
+    if min > max { invalid_range_error(min, max) }
+
+    float * (max - min) + min
+  }
+
+  # Generates `size` random bytes and appends them to `into`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.rand (Random)
+  #
+  # let rng = Random.from_int(10)
+  # let buf = ByteArray.new
+  #
+  # rng.bytes(into: buf, size: 8)
+  # buf # => ByteArray.from_array([14, 98, 139, 15, 133, 67, 84, 178])
+  # ```
+  fn pub mut bytes(into: mut ByteArray, size: Int) {
+    let mut rem = size
+
+    while rem > 0 {
+      if @index == BUFFER_SIZE { refill }
+
+      let idx = @index
+      let len = into.copy_from(@buffer, at: idx, size: rem)
+
+      zero(idx, len)
+      rem = rem.wrapping_sub(len)
+      @index = idx.wrapping_add(len)
+    }
+  }
+
+  fn mut refill {
+    if @counter == MAX_COUNTER {
+      # Refresh the seed using the start of the current block, which at this
+      # point still contains non-zero bytes (because we reserved the chunk on
+      # the previous call to this method).
+      for i in 4.until(12) {
+        let idx = i.wrapping_sub(4).wrapping_mul(4)
+
+        @cipher.matrix.words.set(i, little.read_i32(from: @buffer, at: idx))
+      }
+
+      zero(index: 0, size: SEED_SIZE)
+
+      # Resetting the cipher block counter isn't strictly necessary, but it
+      # ensures that we never run into a counter overflow.
+      @cipher.counter = 0
+      @counter = 0
+      @index = 0
+    } else {
+      @counter = @counter.wrapping_add(1)
+      @index = if @counter == MAX_COUNTER { SEED_SIZE } else { 0 }
+    }
+
+    fill
+  }
+
+  fn mut fill {
+    @cipher.encrypt(@buffer)
+  }
+
+  fn zero(index: Int, size: Int) {
+    alloc.zero(ptr.add(@buffer.to_pointer, index), size)
   }
 }

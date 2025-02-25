@@ -473,4 +473,11 @@ fn pub tests(t: mut Tests) {
     t.false(''.to_byte_array.ends_with?('x'))
     t.false(''.to_byte_array.ends_with?(''))
   })
+
+  t.test('ByteArray.zero', fn (t) {
+    let buf = ByteArray.from_array([1, 2, 3])
+
+    buf.zero
+    t.equal(buf, ByteArray.from_array([0, 0, 0]))
+  })
 }

@@ -186,7 +186,7 @@ fn pub tests(t: mut Tests) {
 
     t.equal(one, [10])
     t.equal(two, [20, 10])
-    t.equal(three, [20, 30, 10])
+    t.equal(three, [30, 10, 20])
   })
 
   t.test('Array.reverse', fn (t) {
