@@ -1,7 +1,19 @@
 //! Types and methods for producing compiler diagnostics.
 use location::Location;
+use std::env;
 use std::fmt;
+use std::io::{stderr, IsTerminal as _, Write as _};
 use std::path::PathBuf;
+
+pub(crate) fn global_warning(message: &str) {
+    let mut err = stderr().lock();
+    let colors = env::var_os("NO_COLOR").is_some();
+    let _ = if err.is_terminal() && !colors {
+        writeln!(err, "\x1b[33;1mwarning:\x1b[0m {}", message)
+    } else {
+        writeln!(err, "warning: {}", message)
+    };
+}
 
 /// The unique ID of a diagnostic.
 #[derive(PartialEq, Eq, Copy, Clone)]

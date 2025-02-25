@@ -1,5 +1,6 @@
 use crate::compiler::module_debug_path;
 use crate::config::{BuildDirectories, Opt};
+use crate::diagnostics::global_warning;
 use crate::llvm::builder::Builder;
 use crate::llvm::constants::{
     ARRAY_BUF_INDEX, ARRAY_CAPA_INDEX, ARRAY_LENGTH_INDEX, CLOSURE_CALL_INDEX,
@@ -43,7 +44,7 @@ use std::collections::HashMap;
 use std::fs::{create_dir_all, read, write};
 use std::path::Path;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::thread::scope;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use types::module_name::ModuleName;
@@ -327,6 +328,7 @@ pub(crate) fn lower_all(
         directories,
         object_paths: &obj_paths,
         level,
+        passes_valid: AtomicBool::new(true),
     };
 
     let mut paths = Vec::with_capacity(mir.modules.len());
@@ -388,6 +390,7 @@ struct SharedState<'a> {
     directories: &'a BuildDirectories,
     object_paths: &'a Vec<PathBuf>,
     level: OptimizationLevel,
+    passes_valid: AtomicBool,
 }
 
 struct WorkerResult {
@@ -549,20 +552,56 @@ impl<'a> Worker<'a> {
         //
         // We need to scope pass names properly, otherwise we may run into
         // issues similar to https://github.com/llvm/llvm-project/issues/81128)
-        let mut passes = ["function(mem2reg)"].join(",");
-        let extra = match self.shared.state.config.opt {
-            Opt::Release => Some(opt::RELEASE),
-            _ => None,
+        let base = ["function(mem2reg)"].join(",");
+        let (extra, fallback) = match self.shared.state.config.opt {
+            Opt::Release => (Some(opt::RELEASE), Some("default<O2>")),
+            _ => (None, None),
         };
 
-        if let Some(v) = extra {
-            passes.push(',');
-            passes.push_str(v);
-        }
+        let passes = if let Some(v) = extra {
+            format!("{},{}", base, v)
+        } else {
+            base.to_string()
+        };
 
         module.set_data_layout(&layout);
         module.set_triple(&self.machine.get_triple());
-        module.run_passes(passes.as_str(), &self.machine, opts).unwrap();
+
+        // Newer versions of LLVM may require additional arguments, rename
+        // passes, etc. To handle this we fall back to a list of built-in
+        // passes if our own pass list is invalid.
+        if let Err(err) =
+            module.run_passes(passes.as_str(), &self.machine, opts)
+        {
+            // Multiple threads may run into this case, but we only want one of
+            // them to produce the warning as to not clutter the output.
+            if self
+                .shared
+                .passes_valid
+                .compare_exchange(
+                    true,
+                    false,
+                    Ordering::AcqRel,
+                    Ordering::Acquire,
+                )
+                .is_ok()
+            {
+                global_warning(&format!(
+                    "the LLVM passes are invalid, using fallback \
+                    passes instead: {}",
+                    err
+                ));
+            }
+
+            let opts = PassBuilderOptions::create();
+            let passes = if let Some(v) = fallback {
+                format!("{},{}", base, v)
+            } else {
+                base
+            };
+
+            module.run_passes(&passes, &self.machine, opts).unwrap();
+        }
     }
 
     fn write_object_file(

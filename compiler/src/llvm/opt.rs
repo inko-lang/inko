@@ -18,28 +18,28 @@ pub(crate) const RELEASE: &str = "\
     globalopt,\
     function<eager-inv>(\
       mem2reg,\
-      instcombine<max-iterations=1;no-use-loop-info>,\
+      instcombine<max-iterations=1;no-use-loop-info;no-verify-fixpoint>,\
       simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-sink-common-insts;speculate-blocks;simplify-cond-branch>\
     ),\
+    always-inline,\
     require<globals-aa>,\
     function(invalidate<aa>),\
     cgscc(\
-      inline<only-mandatory>,\
       inline,\
-      function-attrs<skip-non-recursive>,\
+      function-attrs<skip-non-recursive-function-attrs>,\
       function<eager-inv;no-rerun>(\
         sroa<modify-cfg>,\
         early-cse<memssa>,\
-        speculative-execution,\
+        speculative-execution<only-if-divergent-target>,\
         jump-threading,\
         correlated-propagation,\
         simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-sink-common-insts;speculate-blocks;simplify-cond-branch>,\
-        instcombine<max-iterations=1;no-use-loop-info>,\
+        instcombine<max-iterations=1;no-use-loop-info;no-verify-fixpoint>,\
         aggressive-instcombine,\
-        constraint-elimination,\
         tailcallelim,\
         simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-sink-common-insts;speculate-blocks;simplify-cond-branch>,\
         reassociate,\
+        constraint-elimination,\
         loop-mssa(\
           loop-instsimplify,\
           loop-simplifycfg,\
@@ -49,7 +49,7 @@ pub(crate) const RELEASE: &str = "\
           simple-loop-unswitch<no-nontrivial;trivial>\
         ),\
         simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-sink-common-insts;speculate-blocks;simplify-cond-branch>,\
-        instcombine<max-iterations=1;no-use-loop-info>,\
+        instcombine<max-iterations=1;no-use-loop-info;no-verify-fixpoint>,\
         loop(loop-idiom,indvars,loop-deletion,loop-unroll-full),\
         sroa<modify-cfg>,\
         vector-combine,\
@@ -57,7 +57,7 @@ pub(crate) const RELEASE: &str = "\
         gvn,\
         sccp,\
         bdce,\
-        instcombine<max-iterations=1;no-use-loop-info>,\
+        instcombine<max-iterations=1;no-use-loop-info;no-verify-fixpoint>,\
         jump-threading,\
         correlated-propagation,\
         adce,\
@@ -66,7 +66,7 @@ pub(crate) const RELEASE: &str = "\
         move-auto-init,\
         loop-mssa(licm<allowspeculation>),\
         simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-lookup;keep-loops;hoist-common-insts;sink-common-insts;speculate-blocks;simplify-cond-branch>,\
-        instcombine<max-iterations=1;no-use-loop-info>\
+        instcombine<max-iterations=1;no-use-loop-info;no-verify-fixpoint>\
       ),\
       function-attrs,\
       function(require<should-not-run-function-passes>)\
@@ -84,15 +84,17 @@ pub(crate) const RELEASE: &str = "\
       loop-distribute,\
       inject-tli-mappings,\
       loop-vectorize<no-interleave-forced-only;no-vectorize-forced-only;>,\
+      infer-alignment,\
       loop-load-elim,\
-      instcombine<max-iterations=1;no-use-loop-info>,\
+      instcombine<max-iterations=1;no-use-loop-info;no-verify-fixpoint>,\
       simplifycfg<bonus-inst-threshold=1;forward-switch-cond;switch-range-to-icmp;switch-to-lookup;no-keep-loops;hoist-common-insts;sink-common-insts;speculate-blocks;simplify-cond-branch>,\
       slp-vectorizer,\
       vector-combine,\
-      instcombine<max-iterations=1;no-use-loop-info>,\
+      instcombine<max-iterations=1;no-use-loop-info;no-verify-fixpoint>,\
       loop-unroll<O2>,\
       sroa<preserve-cfg>,\
-      instcombine<max-iterations=1;no-use-loop-info>,\
+      infer-alignment,\
+      instcombine<max-iterations=1;no-use-loop-info;no-verify-fixpoint>,\
       loop-mssa(licm<allowspeculation>),\
       alignment-from-assumptions,\
       loop-sink,\

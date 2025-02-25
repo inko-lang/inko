@@ -1,6 +1,6 @@
 FROM registry.fedoraproject.org/fedora:41
 
-ENV LLVM_VERSION 17
+ENV LLVM_VERSION 18
 ENV RUST_VERSION 1.78
 
 ENV PATH /opt/cargo/bin:$PATH

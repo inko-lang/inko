@@ -17,8 +17,7 @@ location = { path = "../location" }
 unicode-width = "^0.2"
 fnv = "^1.0"
 blake3 = "^1.5"
-inkwell = { version = "^0.5", features = ["llvm17-0"] }
-llvm-sys-170 = { package = "llvm-sys", version = "^170.2", features = ["prefer-static"] }
+inkwell = { git = "https://github.com/TheDan64/inkwell.git", rev = "caabaa5a8e05c52c531f9a0df784ac5651434803", features = ["llvm18-0", "llvm18-0-prefer-static"] }
 indexmap = "^2.6"
 crossbeam-queue = "^0.3"
 

@@ -52,7 +52,7 @@ pub(crate) fn classify(
         BasicTypeEnum::PointerType(t) => {
             classes.push(Class::Int(target_data.get_abi_size(&t)))
         }
-        BasicTypeEnum::VectorType(_) => {
+        BasicTypeEnum::VectorType(_) | BasicTypeEnum::ScalableVectorType(_) => {
             panic!("vector types are not yet supported")
         }
     }

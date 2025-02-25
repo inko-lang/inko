@@ -5,7 +5,7 @@ FROM registry.fedoraproject.org/fedora-minimal:40 AS builder
 # here. See https://gitlab.com/taricorp/llvm-sys.rs/-/issues/41 for some extra
 # details.
 RUN microdnf install --assumeyes gcc make rust cargo \
-    llvm17 llvm17-devel llvm17-static libstdc++-devel libstdc++-static \
+    llvm18 llvm18-devel llvm18-static libstdc++-devel libstdc++-static \
     libffi-devel zlib-devel
 ADD . /inko/
 WORKDIR /inko

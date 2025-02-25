@@ -20,7 +20,7 @@ the listed platforms. Windows isn't supported.
 ## Requirements
 
 - Rust 1.78 or newer
-- LLVM 17 or newer
+- LLVM 18 or newer
 - A C compiler such as [GCC](https://gcc.gnu.org/) or
   [clang](https://clang.llvm.org/)
 - Git, for managing packages using the `inko pkg` command
@@ -233,7 +233,7 @@ sudo pacman -Sy llvm rust git base-devel
 ### Alpine
 
 ```bash
-sudo apk add build-base rust cargo llvm17 llvm17-dev llvm17-static libstdc++-dev zlib-static zstd-static libxml2-static git
+sudo apk add build-base rust cargo llvm18 llvm18-dev llvm18-static libstdc++-dev zlib-static zstd-static libxml2-static git
 ```
 
 ### Debian
@@ -241,16 +241,16 @@ sudo apk add build-base rust cargo llvm17 llvm17-dev llvm17-static libstdc++-dev
 Debian 13:
 
 ```bash
-sudo apt-get install --yes rust cargo git build-essential llvm-17 llvm-17-dev libstdc++-11-dev libclang-common-17-dev zlib1g-dev libzstd-dev
+sudo apt-get install --yes rustc cargo git build-essential llvm-18 llvm-18-dev libstdc++-12-dev libclang-common-18-dev zlib1g-dev libzstd-dev
 ```
 
 Debian 12:
 
 ```bash
 curl https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
-echo -e "deb http://apt.llvm.org/bookworm/ llvm-toolchain-bookworm-17 main" | sudo tee /etc/apt/sources.list.d/llvm17.list
+echo -e "deb http://apt.llvm.org/bookworm/ llvm-toolchain-bookworm-18 main" | sudo tee /etc/apt/sources.list.d/llvm18.list
 sudo apt-get update
-sudo apt-get install --yes git build-essential llvm-17 llvm-17-dev libstdc++-11-dev libclang-common-17-dev zlib1g-dev libpolly-17-dev libzstd-dev
+sudo apt-get install --yes git build-essential llvm-18 llvm-18-dev libstdc++-11-dev libclang-common-18-dev zlib1g-dev libpolly-18-dev libzstd-dev
 ```
 
 For older versions, refer to [LLVM's Debian/Ubuntu packages page][llvm-apt] and
@@ -263,13 +263,13 @@ For Debian 12 and older, the version of Rust is too old, so you'll need to use
 
 ### Fedora
 
-For Fedora 40 and newer:
+For Fedora 41 and newer:
 
 ```bash
-sudo dnf install gcc make rust cargo llvm17 llvm17-devel llvm17-static libstdc++-devel libstdc++-static libffi-devel zlib-devel git
+sudo dnf install gcc make rust cargo llvm18 llvm18-devel llvm18-static libstdc++-devel libstdc++-static libffi-devel zlib-devel git
 ```
 
-For Fedora 39:
+For Fedora 40:
 
 ```bash
 sudo dnf install gcc make rust cargo llvm llvm-devel llvm-static libstdc++-devel libstdc++-static libffi-devel zlib-devel git
@@ -280,13 +280,13 @@ Older versions of Fedora aren't supported.
 ### FreeBSD
 
 ```bash
-sudo pkg install llvm17 rust git
+sudo pkg install llvm18 rust git
 ```
 
 ### macOS
 
 ```bash
-brew install llvm@17 rust git
+brew install llvm@18 rust git
 ```
 
 ### Ubuntu
@@ -294,16 +294,16 @@ brew install llvm@17 rust git
 For Ubuntu 24.04 and newer:
 
 ```bash
-sudo apt-get install --yes rustc cargo git build-essential llvm-17 llvm-17-dev libstdc++-11-dev libclang-common-17-dev zlib1g-dev libzstd-dev
+sudo apt-get install --yes rustc cargo git build-essential llvm-18 llvm-18-dev libstdc++-12-dev libclang-common-18-dev zlib1g-dev libzstd-dev
 ```
 
 For 23.10:
 
 ```bash
 curl https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
-echo -e "deb http://apt.llvm.org/mantic/ llvm-toolchain-mantic-17 main" | sudo tee /etc/apt/sources.list.d/llvm17.list
+echo -e "deb http://apt.llvm.org/mantic/ llvm-toolchain-mantic-18 main" | sudo tee /etc/apt/sources.list.d/llvm18.list
 sudo apt-get update
-sudo apt-get install --yes rustc cargo git build-essential llvm-17 llvm-17-dev libstdc++-11-dev libclang-common-17-dev zlib1g-dev libpolly-17-dev libzstd-dev
+sudo apt-get install --yes rustc cargo git build-essential llvm-18 llvm-18-dev libstdc++-11-dev libclang-common-18-dev zlib1g-dev libpolly-18-dev libzstd-dev
 ```
 
 For older versions, refer to [LLVM's Debian/Ubuntu packages page][llvm-apt] and

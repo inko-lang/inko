@@ -2,7 +2,7 @@
 
 set -e
 
-LLVM_VERSION='17'
+LLVM_VERSION='18'
 RUST_VERSION='1.78'
 
 echo "::group::Installing Homebrew packages"
