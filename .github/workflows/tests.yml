@@ -66,6 +66,7 @@ jobs:
 
   compiler-linux:
     strategy:
+      fail-fast: false
       matrix:
         target:
           - image: fedora-amd64
@@ -88,6 +89,7 @@ jobs:
 
   std-linux:
     strategy:
+      fail-fast: false
       matrix:
         flags:
           - ''
@@ -113,6 +115,7 @@ jobs:
 
   compiler-mac:
     strategy:
+      fail-fast: false
       matrix:
         target:
           - runner: macos-13
@@ -139,6 +142,7 @@ jobs:
 
   std-mac:
     strategy:
+      fail-fast: false
       matrix:
         flags:
           - ''
