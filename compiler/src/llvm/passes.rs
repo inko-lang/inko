@@ -1017,6 +1017,14 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
             None
         };
 
+        let debug_func = module.debug_builder.new_function(
+            &shared.state.db,
+            shared.names,
+            method.id,
+        );
+
+        builder.set_debug_function(debug_func);
+
         LowerMethod {
             shared,
             layouts,
@@ -1074,13 +1082,6 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
             }
         }
 
-        let debug_func = self.module.debug_builder.new_function(
-            &self.shared.state.db,
-            self.shared.names,
-            self.method.id,
-        );
-
-        self.builder.set_debug_function(debug_func);
         self.method_body();
     }
 
@@ -1128,13 +1129,6 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
             self.builder.free(self.builder.load_pointer(args_var));
         }
 
-        let debug_func = self.module.debug_builder.new_function(
-            &self.shared.state.db,
-            self.shared.names,
-            self.method.id,
-        );
-
-        self.builder.set_debug_function(debug_func);
         self.method_body();
     }
 
