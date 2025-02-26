@@ -89,7 +89,7 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     options.optflag("", "release", "Perform a release build");
     options.optflag("", "static", "Statically link imported C libraries");
     options.optflag("", "dot", "Output the MIR of every module as DOT files");
-    options.optflag("", "verify-llvm", "Verify LLVM IR when generating code");
+    options.optflag("", "verify", "Verify build output at various stages");
     options.optflag("", "write-llvm", "Write LLVM IR files to disk");
     options.optflagopt(
         "",
@@ -152,8 +152,8 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         config.dot = true;
     }
 
-    if matches.opt_present("verify-llvm") {
-        config.verify_llvm = true;
+    if matches.opt_present("verify") {
+        config.verify = true;
     }
 
     if matches.opt_present("write-llvm") {

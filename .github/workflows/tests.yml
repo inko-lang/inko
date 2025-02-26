@@ -111,7 +111,7 @@ jobs:
           path: '${{ env.CARGO_HOME }}'
           key: ${{ matrix.target.name }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
       - name: Run tests
-        run: 'cd std && cargo run -- test --verify-llvm ${{ matrix.flags }}'
+        run: 'cd std && cargo run -- test --verify ${{ matrix.flags }}'
 
   compiler-mac:
     strategy:
@@ -168,7 +168,7 @@ jobs:
       - name: Install dependencies
         run: ./ci/mac.sh
       - name: Run tests
-        run: 'cd std && cargo run -- test --verify-llvm ${{ matrix.flags }}'
+        run: 'cd std && cargo run -- test --verify ${{ matrix.flags }}'
 
   compiler-freebsd:
     name: amd64-freebsd-native compiler

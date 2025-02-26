@@ -245,8 +245,8 @@ pub struct Config {
     /// If MIR should be printed to DOT files.
     pub dot: bool,
 
-    /// If LLVM IR should be verified as part of code generation.
-    pub verify_llvm: bool,
+    /// If IRs should be verified at various stages.
+    pub verify: bool,
 
     /// If LLVM IR should be written to disk.
     pub write_llvm: bool,
@@ -301,7 +301,7 @@ impl Config {
             target: Target::native(),
             opt: Opt::Debug,
             dot: false,
-            verify_llvm: false,
+            verify: false,
             write_llvm: false,
             static_linking: false,
             threads: available_parallelism().map(|v| v.get()).unwrap_or(1),

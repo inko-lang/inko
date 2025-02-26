@@ -88,7 +88,7 @@ fn check_object_cache(
     let now = SystemTime::now();
     let mut force = !state.config.incremental
         || state.config.write_llvm
-        || state.config.verify_llvm;
+        || state.config.verify;
 
     // We don't have a stable ABI of any sort, so we force a flush every time
     // the compiler's executable is compiled again. This may be overly
@@ -631,7 +631,7 @@ impl<'a> Worker<'a> {
 
         // We verify _after_ writing the IR such that one can inspect the IR in
         // the event it's invalid.
-        if self.shared.state.config.verify_llvm {
+        if self.shared.state.config.verify {
             module.verify().map_err(|e| {
                 format!(
                     "the LLVM module '{}' is invalid:\n\n{}\n",

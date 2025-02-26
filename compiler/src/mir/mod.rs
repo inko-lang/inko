@@ -2511,6 +2511,79 @@ impl Mir {
 
         self.constants.retain(|k, _| used[k.0]);
     }
+
+    pub(crate) fn verify(
+        &self,
+        db: &Database,
+        names: &SymbolNames,
+    ) -> Result<(), String> {
+        self.check_for_duplicate_modules(db)?;
+        self.check_for_duplicate_methods(names)?;
+        Ok(())
+    }
+
+    fn check_for_duplicate_modules(&self, db: &Database) -> Result<(), String> {
+        let mut set = HashSet::new();
+        let mut dupes = Vec::new();
+
+        for m in self.modules.keys() {
+            let name = m.name(db);
+
+            if !set.insert(name) {
+                dupes.push(name.to_string());
+            }
+        }
+
+        if dupes.is_empty() {
+            Ok(())
+        } else {
+            dupes.sort();
+            Err(format!(
+                "found one or more modules with the same name: {}",
+                dupes.join(", ")
+            ))
+        }
+    }
+
+    pub(crate) fn check_for_duplicate_methods(
+        &self,
+        names: &SymbolNames,
+    ) -> Result<(), String> {
+        let mut map: HashMap<&String, Vec<MethodId>> = HashMap::new();
+        let mut dupes = false;
+
+        for &m in self.methods.keys() {
+            let name = &names.methods[&m];
+            let entry = map.entry(name).or_default();
+
+            if !entry.is_empty() {
+                dupes = true;
+            }
+
+            entry.push(m);
+        }
+
+        if dupes {
+            let mut names: Vec<_> = map
+                .into_iter()
+                .filter_map(|(k, v)| {
+                    if v.len() > 1 {
+                        Some(format!("{} with IDs {:?}", k, v))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            names.sort();
+            Err(format!(
+                "found one or more methods with the same name: {}",
+                names.join(", ")
+            ))
+        } else {
+            Ok(())
+        }
+    }
 }
 
 #[cfg(test)]

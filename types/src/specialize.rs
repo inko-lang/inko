@@ -174,13 +174,12 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
                 Some(Shape::Copy(i)) => TypeRef::Owned(TypeEnum::TypeInstance(
                     self.specialize_type_instance(*i),
                 )),
-                Some(
-                    Shape::Inline(i)
-                    | Shape::InlineRef(i)
-                    | Shape::InlineMut(i),
-                ) => TypeRef::Ref(TypeEnum::TypeInstance(
-                    self.specialize_type_instance(*i),
-                )),
+                Some(Shape::Inline(i) | Shape::InlineRef(i)) => TypeRef::Ref(
+                    TypeEnum::TypeInstance(self.specialize_type_instance(*i)),
+                ),
+                Some(Shape::InlineMut(i)) => TypeRef::Mut(
+                    TypeEnum::TypeInstance(self.specialize_type_instance(*i)),
+                ),
                 _ => value.as_ref(self.db),
             },
             TypeRef::Mut(

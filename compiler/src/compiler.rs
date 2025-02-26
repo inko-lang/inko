@@ -306,6 +306,10 @@ impl Compiler {
         mir.sort(&self.state.db, &symbols);
         self.optimise_mir(&mut mir);
 
+        if self.state.config.verify {
+            mir.verify(&self.state.db, &symbols)?;
+        }
+
         let dirs = BuildDirectories::new(&self.state.config);
 
         dirs.create().map_err(CompileError::Internal)?;
