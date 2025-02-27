@@ -615,7 +615,7 @@ impl<'a> TypeChecker<'a> {
                 let allow = match (left_id.ownership, right) {
                     (_, TypeRef::Error | TypeRef::Never) => true,
                     (exp, TypeRef::Placeholder(id)) => {
-                        match (exp, id.ownership) {
+                        let res = match (exp, id.ownership) {
                             // If the placeholder on the left doesn't have an
                             // ownership requirement, it can safely be assigned
                             // the placeholder on the right, because in doing so
@@ -631,7 +631,13 @@ impl<'a> TypeChecker<'a> {
                             (Ref, Ref) => true,
                             (Mut, Any | Ref | Mut) => true,
                             _ => false,
+                        };
+
+                        if res {
+                            id.assign_internal(self.db, left);
                         }
+
+                        res
                     }
                     (Any, _) => true,
                     (Owned, TypeRef::Any(_)) => !rules.kind.is_return(),
@@ -2220,6 +2226,18 @@ mod tests {
         check_err_placeholder(&db, p1.as_uni(), mutable(instance(thing)));
         check_err_placeholder(&db, p1.as_ref(), any(parameter(param2)));
         check_err_placeholder(&db, p1.as_ref(), owned(instance(thing)));
+    }
+
+    #[test]
+    fn test_placeholder_with_placeholder_assigns_both() {
+        let mut db = Database::new();
+        let p1 = TypePlaceholder::alloc(&mut db, None);
+        let p2 = TypePlaceholder::alloc(&mut db, None);
+
+        check_ok(&db, placeholder(p1), placeholder(p2));
+
+        assert_eq!(p1.raw_value(&db), placeholder(p2));
+        assert_eq!(p2.raw_value(&db), placeholder(p1));
     }
 
     #[test]

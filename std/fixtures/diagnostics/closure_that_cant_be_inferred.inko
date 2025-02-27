@@ -1,0 +1,6 @@
+fn example1 {
+  fn (v) { v }
+}
+
+# closure_that_cant_be_inferred.inko:2:3 error(invalid-type): the type of this expression ('fn (?)') can't be fully inferred
+# closure_that_cant_be_inferred.inko:2:12 error(invalid-type): the type of this expression ('?') can't be fully inferred

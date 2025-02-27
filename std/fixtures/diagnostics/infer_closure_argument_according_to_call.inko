@@ -1,0 +1,17 @@
+fn print(value: Int) {}
+
+fn example1 {
+  let a = fn (v) { v }
+  let b = a.call(42)
+
+  b.test
+}
+
+fn example2 {
+  let a = fn (v) { print(v) }
+
+  a.call('test')
+}
+
+# infer_closure_argument_according_to_call.inko:7:3 error(invalid-symbol): the method 'test' isn't defined for type 'Int'
+# infer_closure_argument_according_to_call.inko:13:10 error(invalid-type): expected a value of type 'Int', found 'String'

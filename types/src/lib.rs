@@ -246,10 +246,18 @@ impl TypePlaceholderId {
         // occur and thus must be handled. Because they are so rare and unlikely
         // to be more than 2-3 levels deep, we just use recursion here instead
         // of a loop.
-        let typ = self.get(db).value.get();
+        let typ = self.raw_value(db);
 
         match typ {
-            TypeRef::Placeholder(id) => id.value(db),
+            TypeRef::Placeholder(id) => {
+                // If we compare P1 with P2, P1 is assigned to P2 and the other
+                // way around. This means we have to handle such cycles here or
+                // we'll get stuck in a loop and blow the stack.
+                match id.raw_value(db) {
+                    TypeRef::Placeholder(v) if self == v => None,
+                    _ => id.value(db),
+                }
+            }
             TypeRef::Unknown => None,
             _ => {
                 let res = match self.ownership {
@@ -300,6 +308,10 @@ impl TypePlaceholderId {
 
     pub(crate) fn has_ownership(self) -> bool {
         !matches!(self.ownership, Ownership::Any)
+    }
+
+    fn raw_value(self, db: &Database) -> TypeRef {
+        self.get(db).value.get()
     }
 
     fn get(self, db: &Database) -> &TypePlaceholder {
@@ -6844,19 +6856,29 @@ mod tests {
     }
 
     #[test]
-    fn test_type_placeholder_id_resolve() {
+    fn test_type_placeholder_id_value() {
         let mut db = Database::new();
-        let var1 = TypePlaceholder::alloc(&mut db, None);
-        let var2 = TypePlaceholder::alloc(&mut db, None);
-        let var3 = TypePlaceholder::alloc(&mut db, None);
+        let p1 = TypePlaceholder::alloc(&mut db, None);
+        let p2 = TypePlaceholder::alloc(&mut db, None);
+        let p3 = TypePlaceholder::alloc(&mut db, None);
+        let p4 = TypePlaceholder::alloc(&mut db, None);
+        let p5 = TypePlaceholder::alloc(&mut db, None);
 
-        var1.assign(&mut db, TypeRef::int());
-        var2.assign(&mut db, TypeRef::Placeholder(var1));
-        var3.assign(&mut db, TypeRef::Placeholder(var2));
+        p1.assign(&mut db, TypeRef::int());
+        p2.assign(&mut db, TypeRef::Placeholder(p1));
+        p3.assign(&mut db, TypeRef::Placeholder(p2));
+        p4.assign(&mut db, TypeRef::Placeholder(p5));
+        p5.assign(&mut db, TypeRef::Placeholder(p4));
 
-        assert_eq!(var1.value(&db), Some(TypeRef::int()));
-        assert_eq!(var2.value(&db), Some(TypeRef::int()));
-        assert_eq!(var3.value(&db), Some(TypeRef::int()));
+        assert_eq!(p1.value(&db), Some(TypeRef::int()));
+        assert_eq!(p2.value(&db), Some(TypeRef::int()));
+        assert_eq!(p3.value(&db), Some(TypeRef::int()));
+        assert_eq!(p4.value(&db), None);
+        assert_eq!(p5.value(&db), None);
+
+        p4.assign(&mut db, TypeRef::int());
+        assert_eq!(p4.value(&db), Some(TypeRef::int()));
+        assert_eq!(p5.value(&db), Some(TypeRef::int()));
     }
 
     #[test]
