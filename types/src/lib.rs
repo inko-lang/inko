@@ -114,6 +114,9 @@ const METHODS_LIMIT: usize = (u32::MAX - 1) as usize;
 /// instead of the symbol.
 pub const IMPORT_MODULE_ITSELF_NAME: &str = "self";
 
+/// The maximum nesting to allow when verifying types.
+const MAX_VERIFY_DEPTH: usize = 64;
+
 /// The requirement of a type inference placeholder.
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum PlaceholderRequirement {
@@ -4199,13 +4202,17 @@ impl Hash for Shape {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum VerificationError {
     /// The type isn't fully inferred.
     Incomplete,
 
     /// The type contains one or more borrows of a unique value.
     UniValueBorrow,
+
+    /// The type contains too many nested types and can't be inferred without
+    /// blowing the stack.
+    DepthExceeded,
 }
 
 /// A reference to a type.
@@ -5310,12 +5317,44 @@ impl TypeRef {
         }
     }
 
-    pub fn verify_type(
+    pub fn verify_type(self, db: &Database) -> Result<(), VerificationError> {
+        self.verify_type_internal(db, 0, true, &TypeArguments::new())
+    }
+
+    fn verify_type_internal(
         self,
         db: &Database,
         depth: usize,
+        allow_uni: bool,
+        arguments: &TypeArguments,
     ) -> Result<(), VerificationError> {
+        // Exceeding the depth shouldn't happen in real code, but we guard
+        // against it explicitly just in case such that we can produce a more
+        // meaningful error message.
+        if depth == MAX_VERIFY_DEPTH {
+            return Err(VerificationError::DepthExceeded);
+        }
+
         match self {
+            TypeRef::Owned(TypeEnum::TypeParameter(id))
+            | TypeRef::Any(TypeEnum::TypeParameter(id))
+            | TypeRef::Uni(TypeEnum::TypeParameter(id))
+            | TypeRef::Ref(TypeEnum::TypeParameter(id))
+            | TypeRef::Mut(TypeEnum::TypeParameter(id)) => {
+                match arguments.get(id) {
+                    Some(v) if v != self => {
+                        let depth = depth + 1;
+
+                        v.verify_type_internal(db, depth, allow_uni, arguments)
+                    }
+                    _ => Ok(()),
+                }
+            }
+            TypeRef::Uni(_) | TypeRef::UniRef(_) | TypeRef::UniMut(_)
+                if !allow_uni =>
+            {
+                Err(VerificationError::UniValueBorrow)
+            }
             // `uni ref T` and `uni mut T` are valid as an outer-most type, as
             // we can't assign such types to anything or store them anywhere.
             // This in turn allows them to be used as e.g. the receiver of
@@ -5330,36 +5369,85 @@ impl TypeRef {
             | TypeRef::UniRef(id)
             | TypeRef::UniMut(id)
             | TypeRef::Any(id) => match id {
-                TypeEnum::TypeInstance(ins)
-                    if ins.instance_of.is_generic(db) =>
-                {
-                    ins.type_arguments(db)
-                        .unwrap()
-                        .mapping
-                        .values()
-                        .try_for_each(|v| v.verify_type(db, depth + 1))
+                TypeEnum::TypeInstance(ins) => {
+                    let depth = depth + 1;
+                    let is_generic = ins.instance_of.is_generic(db);
+
+                    // For inline borrows we need to verify the fields to make
+                    // sure they don't contain any unique values, otherwise such
+                    // borrows would introduce aliases to those values.
+                    if ins.instance_of.is_inline_type(db)
+                        && !self.is_owned_or_uni(db)
+                    {
+                        let targs = if is_generic {
+                            ins.type_arguments(db).unwrap()
+                        } else {
+                            arguments
+                        };
+
+                        for f in ins.instance_of.fields(db) {
+                            f.value_type(db).verify_type_internal(
+                                db, depth, false, targs,
+                            )?;
+                        }
+                    }
+
+                    // We allow generic type parameters to be defined and
+                    // assigned (e.g. using an explicit type signature) but
+                    // without them actually being used in a field, so we still
+                    // have to verify these separately.
+                    if is_generic {
+                        for v in
+                            ins.type_arguments(db).unwrap().mapping.values()
+                        {
+                            v.verify_type_internal(db, depth, true, arguments)?;
+                        }
+                    }
+
+                    Ok(())
                 }
                 TypeEnum::TraitInstance(ins)
                     if ins.instance_of.is_generic(db) =>
                 {
-                    ins.type_arguments(db)
-                        .unwrap()
-                        .mapping
-                        .values()
-                        .try_for_each(|v| v.verify_type(db, depth + 1))
+                    let depth = depth + 1;
+
+                    for v in ins.type_arguments(db).unwrap().mapping.values() {
+                        v.verify_type_internal(db, depth, true, arguments)?;
+                    }
+
+                    Ok(())
                 }
                 TypeEnum::Closure(id) => {
-                    id.arguments(db).into_iter().try_for_each(|arg| {
-                        arg.value_type.verify_type(db, depth + 1)
-                    })?;
+                    let depth = depth + 1;
 
-                    id.return_type(db).verify_type(db, depth + 1)
+                    if let Some(t) = id.captured_self_type(db) {
+                        t.verify_type_internal(
+                            db, depth, allow_uni, arguments,
+                        )?;
+                    }
+
+                    for (_, typ) in id.captured(db) {
+                        typ.verify_type_internal(
+                            db, depth, allow_uni, arguments,
+                        )?;
+                    }
+
+                    for arg in id.arguments(db) {
+                        arg.value_type.verify_type_internal(
+                            db, depth, allow_uni, arguments,
+                        )?;
+                    }
+
+                    id.return_type(db)
+                        .verify_type_internal(db, depth, allow_uni, arguments)
                 }
                 _ => Ok(()),
             },
             TypeRef::Placeholder(id) => {
+                let depth = depth + 1;
+
                 id.value(db).map_or(Err(VerificationError::Incomplete), |v| {
-                    v.verify_type(db, depth + 1)
+                    v.verify_type_internal(db, depth, allow_uni, arguments)
                 })
             }
             _ => Ok(()),
@@ -7588,5 +7676,32 @@ mod tests {
             val,
             TypeRef::Any(TypeEnum::TypeParameter(v)) if v == param
         ));
+    }
+
+    #[test]
+    fn test_type_ref_verify_type_with_recursive_type() {
+        let mut db = Database::new();
+        let thing = new_type(&mut db, "Thing");
+        let p1 = thing.new_type_parameter(&mut db, "A".to_string());
+        let p2 = thing.new_type_parameter(&mut db, "B".to_string());
+
+        thing.set_inline_storage(&mut db);
+        thing.new_field(
+            &mut db,
+            "a".to_string(),
+            0,
+            any(parameter(p1)),
+            Visibility::Public,
+            ModuleId(0),
+            Location::default(),
+        );
+
+        let ins = mutable(generic_instance_id(
+            &mut db,
+            thing,
+            vec![any(parameter(p2)), any(parameter(p1))],
+        ));
+
+        assert_eq!(ins.verify_type(&db), Err(VerificationError::DepthExceeded));
     }
 }

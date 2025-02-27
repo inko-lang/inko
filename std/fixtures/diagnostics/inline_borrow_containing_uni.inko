@@ -1,0 +1,100 @@
+type A {}
+
+type inline B {
+  let @value: uni A
+
+  fn example1 {
+    self
+    self.foo
+  }
+
+  fn example2 {
+    fn { self }
+    fn { self.foo }
+    fn { foo }
+  }
+
+  fn foo {}
+}
+
+type inline C[T] {
+  let @value: T
+
+  fn borrow_field -> ref T {
+    @value
+  }
+
+  fn borrow_self -> ref Self {
+    self
+  }
+}
+
+type async Proc[T] {
+  let @value: T
+}
+
+fn borrow[T](value: T) -> ref T {
+  ref value
+}
+
+fn example1(value: B) {
+  ref value
+  mut value
+}
+
+fn example2(value: C[uni A]) {
+  ref value
+  mut value
+}
+
+fn example3(value: C[uni A]) {
+  value.borrow_field
+}
+
+fn example4(value: C[uni A]) {
+  value.borrow_self
+}
+
+fn example5(value: C[uni A]) {
+  borrow(value)
+}
+
+fn example6(value: ref C[uni A]) {}
+
+fn example7(value: C[uni A]) {
+  fn {
+    value
+    nil
+  }
+}
+
+fn example8(value: ref C[Proc[uni A]]) {}
+
+fn example9(value: Proc[uni A]) {
+  fn { value }
+}
+
+fn example10(value: C[uni A]) {
+  fn move {
+    value
+    nil
+  }
+}
+
+# inline_borrow_containing_uni.inko:7:5 error(invalid-type): the type of this expression ('ref B') is invalid because it is or contains a borrow of a 'uni T' value
+# inline_borrow_containing_uni.inko:8:5 error(invalid-type): the type of this expression ('ref B') is invalid because it is or contains a borrow of a 'uni T' value
+# inline_borrow_containing_uni.inko:12:5 error(invalid-type): the type of this expression ('fn -> ref B') is invalid because it is or contains a borrow of a 'uni T' value
+# inline_borrow_containing_uni.inko:12:10 error(invalid-type): the type of this expression ('ref B') is invalid because it is or contains a borrow of a 'uni T' value
+# inline_borrow_containing_uni.inko:13:5 error(invalid-type): the type of this expression ('fn -> Nil') is invalid because it is or contains a borrow of a 'uni T' value
+# inline_borrow_containing_uni.inko:13:10 error(invalid-type): the type of this expression ('ref B') is invalid because it is or contains a borrow of a 'uni T' value
+# inline_borrow_containing_uni.inko:14:5 error(invalid-type): the type of this expression ('fn -> Nil') is invalid because it is or contains a borrow of a 'uni T' value
+# inline_borrow_containing_uni.inko:41:3 error(invalid-type): the type of this expression ('ref B') is invalid because it is or contains a borrow of a 'uni T' value
+# inline_borrow_containing_uni.inko:42:3 error(invalid-type): the type of this expression ('mut B') is invalid because it is or contains a borrow of a 'uni T' value
+# inline_borrow_containing_uni.inko:46:3 error(invalid-type): the type of this expression ('ref C[uni A]') is invalid because it is or contains a borrow of a 'uni T' value
+# inline_borrow_containing_uni.inko:47:3 error(invalid-type): the type of this expression ('mut C[uni A]') is invalid because it is or contains a borrow of a 'uni T' value
+# inline_borrow_containing_uni.inko:55:3 error(invalid-type): the type of this expression ('ref C[uni A]') is invalid because it is or contains a borrow of a 'uni T' value
+# inline_borrow_containing_uni.inko:59:3 error(invalid-type): the type of this expression ('ref C[uni A]') is invalid because it is or contains a borrow of a 'uni T' value
+# inline_borrow_containing_uni.inko:62:13 error(invalid-type): the type of this expression ('ref C[uni A]') is invalid because it is or contains a borrow of a 'uni T' value
+# inline_borrow_containing_uni.inko:65:3 error(invalid-type): the type of this expression ('fn -> Nil') is invalid because it is or contains a borrow of a 'uni T' value
+# inline_borrow_containing_uni.inko:66:5 error(invalid-type): the type of this expression ('mut C[uni A]') is invalid because it is or contains a borrow of a 'uni T' value
+# inline_borrow_containing_uni.inko:79:5 error(invalid-type): the type of this expression ('mut C[uni A]') is invalid because it is or contains a borrow of a 'uni T' value

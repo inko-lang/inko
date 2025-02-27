@@ -892,6 +892,24 @@ impl Diagnostics {
         );
     }
 
+    pub(crate) fn type_depth_exceeded(
+        &mut self,
+        name: String,
+        file: PathBuf,
+        location: Location,
+    ) {
+        self.error(
+            DiagnosticId::InvalidType,
+            format!(
+                "the type of this expression ('{}') can't be fully inferred \
+                as it contains too many nested types",
+                name,
+            ),
+            file,
+            location,
+        );
+    }
+
     pub(crate) fn type_containing_uni_value_borrow(
         &mut self,
         name: String,

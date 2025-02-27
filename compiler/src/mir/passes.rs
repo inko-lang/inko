@@ -1212,10 +1212,11 @@ impl<'a> LowerToMir<'a> {
     ) -> Method {
         let id = node.method_id.unwrap();
         let mut method = Method::new(id);
-        let lower =
+        let mut lower =
             LowerMethod::new(self.state, self.mir, self.module, &mut method);
         let loc = InstructionLocation::new(node.location);
 
+        lower.verify_arguments(&node.arguments);
         lower.run(node.body, loc);
         method
     }
@@ -1226,10 +1227,11 @@ impl<'a> LowerToMir<'a> {
     ) -> Method {
         let id = node.method_id.unwrap();
         let mut method = Method::new(id);
-        let lower =
+        let mut lower =
             LowerMethod::new(self.state, self.mir, self.module, &mut method);
         let loc = InstructionLocation::new(node.location);
 
+        lower.verify_arguments(&node.arguments);
         lower.run(node.body, loc);
         method
     }
@@ -1237,10 +1239,11 @@ impl<'a> LowerToMir<'a> {
     fn define_async_method(&mut self, node: hir::DefineAsyncMethod) -> Method {
         let id = node.method_id.unwrap();
         let mut method = Method::new(id);
-        let lower =
+        let mut lower =
             LowerMethod::new(self.state, self.mir, self.module, &mut method);
         let loc = InstructionLocation::new(node.location);
 
+        lower.verify_arguments(&node.arguments);
         lower.run(node.body, loc);
         method
     }
@@ -1248,10 +1251,11 @@ impl<'a> LowerToMir<'a> {
     fn define_static_method(&mut self, node: hir::DefineStaticMethod) {
         let id = node.method_id.unwrap();
         let mut method = Method::new(id);
-        let lower =
+        let mut lower =
             LowerMethod::new(self.state, self.mir, self.module, &mut method);
         let loc = InstructionLocation::new(node.location);
 
+        lower.verify_arguments(&node.arguments);
         lower.run(node.body, loc);
         self.mir.methods.insert(id, method);
     }
@@ -1401,6 +1405,18 @@ impl<'a> LowerMethod<'a> {
 
     fn prepare(&mut self, location: InstructionLocation) {
         self.define_base_registers(location);
+    }
+
+    fn verify_arguments(&mut self, arguments: &[hir::MethodArgument]) {
+        for (idx, node) in arguments.iter().enumerate() {
+            let typ = self
+                .method
+                .id
+                .positional_argument_input_type(self.db(), idx)
+                .unwrap();
+
+            self.verify_type(typ, node.location);
+        }
     }
 
     fn run(
@@ -1808,7 +1824,7 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn tuple_literal(&mut self, node: hir::TupleLiteral) -> RegisterId {
-        self.check_inferred(node.resolved_type, node.location);
+        self.verify_type(node.resolved_type, node.location);
 
         let tup = self.new_register(node.resolved_type);
         let id = node.type_id.unwrap();
@@ -1922,7 +1938,7 @@ impl<'a> LowerMethod<'a> {
         let loc = InstructionLocation::new(node.name.location);
         let reg = match node.kind {
             types::CallKind::Call(info) => {
-                self.check_inferred(info.returns, node.location);
+                self.verify_type(info.returns, node.location);
 
                 let rec = if info.receiver.is_explicit() {
                     node.receiver.map(|expr| self.expression(expr))
@@ -1936,7 +1952,7 @@ impl<'a> LowerMethod<'a> {
                 self.call_method(info, rec, args, node.name.location)
             }
             types::CallKind::GetField(info) => {
-                self.check_inferred(info.variable_type, node.location);
+                self.verify_type(info.variable_type, node.location);
 
                 let typ = info.variable_type;
                 let rec = self.expression(node.receiver.unwrap());
@@ -1980,7 +1996,7 @@ impl<'a> LowerMethod<'a> {
                 }
             }
             types::CallKind::CallClosure(info) => {
-                self.check_inferred(info.returns, node.location);
+                self.verify_type(info.returns, node.location);
 
                 let returns = info.returns;
                 let rec = self.expression(node.receiver.unwrap());
@@ -2014,7 +2030,7 @@ impl<'a> LowerMethod<'a> {
                 reg
             }
             types::CallKind::TypeInstance(info) => {
-                self.check_inferred(info.resolved_type, node.location);
+                self.verify_type(info.resolved_type, node.location);
 
                 let ins = self.new_register(info.resolved_type);
                 let tid = info.type_id;
@@ -2189,11 +2205,18 @@ impl<'a> LowerMethod<'a> {
         }
     }
 
-    fn check_inferred(&mut self, typ: TypeRef, location: Location) {
-        match typ.verify_type(self.db(), 0) {
+    fn verify_type(&mut self, typ: TypeRef, location: Location) {
+        match typ.verify_type(self.db()) {
             Ok(()) => {}
             Err(VerificationError::Incomplete) => {
                 self.state.diagnostics.cant_infer_type(
+                    format_type(self.db(), typ),
+                    self.file(),
+                    location,
+                );
+            }
+            Err(VerificationError::DepthExceeded) => {
+                self.state.diagnostics.type_depth_exceeded(
                     format_type(self.db(), typ),
                     self.file(),
                     location,
@@ -2245,7 +2268,7 @@ impl<'a> LowerMethod<'a> {
         let loc = InstructionLocation::new(node.location);
         let reg = match node.kind {
             types::CallKind::Call(info) => {
-                self.check_inferred(info.returns, node.location);
+                self.verify_type(info.returns, node.location);
 
                 let rec = if info.receiver.is_explicit() {
                     Some(self.expression(node.receiver))
@@ -2684,12 +2707,16 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn ref_expression(&mut self, node: hir::Ref) -> RegisterId {
+        self.verify_type(node.resolved_type, node.location);
+
         let loc = InstructionLocation::new(node.location);
 
         self.borrow(node.value, node.resolved_type, loc)
     }
 
     fn mut_expression(&mut self, node: hir::Mut) -> RegisterId {
+        self.verify_type(node.resolved_type, node.location);
+
         let loc = InstructionLocation::new(node.location);
 
         if let Some(id) = node.pointer_to_method {
@@ -3454,11 +3481,15 @@ impl<'a> LowerMethod<'a> {
         match node.kind {
             types::IdentifierKind::Variable(id) => {
                 let reg = self.get_local(id, ins_loc);
+                let typ = self.register_type(reg);
 
+                self.verify_type(typ, node.location);
                 self.check_if_moved(reg, &node.name, node.location);
                 reg
             }
             types::IdentifierKind::Method(info) => {
+                self.verify_type(info.returns, node.location);
+
                 let entered = self.enter_call_scope();
                 let reg = self.call_method(info, None, Vec::new(), loc);
                 let unused = node.usage.is_unused();
@@ -3534,6 +3565,8 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn self_expression(&mut self, node: hir::SelfObject) -> RegisterId {
+        self.verify_type(node.resolved_type, node.location);
+
         let reg = self.self_register;
 
         self.check_if_moved(reg, SELF_NAME, node.location);
@@ -3541,7 +3574,7 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn closure(&mut self, node: hir::Closure) -> RegisterId {
-        self.check_inferred(node.resolved_type, node.location);
+        self.verify_type(node.resolved_type, node.location);
 
         let module = self.module;
         let closure_id = node.closure_id.unwrap();
