@@ -6,7 +6,7 @@
 # this is the case, we are referring to extended grapheme clusters, _not_
 # Unicode scalar values or bytes.
 import std.array (bounds_check)
-import std.byte_array (IntoByteArray, ToByteArray)
+import std.bytes (IntoByteArray, ToByteArray)
 import std.clone (Clone)
 import std.cmp (Compare, Contains, Equal, Ordering, min)
 import std.drop (Drop)

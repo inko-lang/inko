@@ -1,7 +1,7 @@
 # Modules that must be imported for every Inko program.
 import std.array (self as _array)
 import std.bool (self as _bool)
-import std.byte_array (self as _byte_array)
+import std.bytes (self as _bytes)
 import std.clone (self as _clone)
 import std.drop (self as _drop)
 import std.float (self as _float)

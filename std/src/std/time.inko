@@ -1,5 +1,5 @@
 # Types and methods for dealing with time.
-import std.bytes (digits, four_digits, name_index_at, two_digits)
+import std.bytes.parsers (digits, four_digits, name_index_at, two_digits)
 import std.clone (Clone)
 import std.cmp (Compare, Equal, Ordering)
 import std.float (ToFloat)
