@@ -1,5 +1,5 @@
 # Locale information for English.
-import std.bytes (name_index_at)
+import std.bytes.parsers (name_index_at)
 import std.locale (Locale as LocaleTrait)
 import std.ptr
 import std.string (Bytes)

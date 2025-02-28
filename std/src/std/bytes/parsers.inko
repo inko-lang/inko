@@ -1,0 +1,101 @@
+# Internal helper methods for parsing bytes.
+import std.cmp (min)
+import std.ptr
+import std.string (Bytes)
+
+let NINE = 57
+let ZERO = 48
+
+fn inline digit?(byte: Int) -> Bool {
+  byte >= ZERO and byte <= NINE
+}
+
+# Parses two base 10 digits into an `Int`.
+fn inline two_digits[T: Bytes](input: ref T, start: Int) -> Option[Int] {
+  if start.wrapping_add(2) > input.size { return Option.None }
+
+  let a = input.byte(start)
+  let b = input.byte(start.wrapping_add(1))
+
+  if digit?(a) and digit?(b) {
+    Option.Some(
+      a.wrapping_sub(ZERO).wrapping_mul(10).wrapping_add(b.wrapping_sub(ZERO)),
+    )
+  } else {
+    Option.None
+  }
+}
+
+# Parses four base 10 digits into an `Int`.
+fn inline four_digits[T: Bytes](input: ref T, start: Int) -> Option[Int] {
+  if start.wrapping_add(4) > input.size { return Option.None }
+
+  let a = input.byte(start)
+  let b = input.byte(start.wrapping_add(1))
+  let c = input.byte(start.wrapping_add(2))
+  let d = input.byte(start.wrapping_add(3))
+
+  if digit?(a) and digit?(b) and digit?(c) and digit?(d) {
+    Option.Some(
+      a
+        .wrapping_sub(ZERO)
+        .wrapping_mul(10)
+        .wrapping_add(b.wrapping_sub(ZERO))
+        .wrapping_mul(10)
+        .wrapping_add(c.wrapping_sub(ZERO))
+        .wrapping_mul(10)
+        .wrapping_add(d.wrapping_sub(ZERO)),
+    )
+  } else {
+    Option.None
+  }
+}
+
+# Parses up to N base 10 digits into an `Int`.
+fn digits[T: Bytes](
+  input: ref T,
+  start: Int,
+  limit: Int,
+) -> Option[(Int, Int)] {
+  let mut idx = start
+  let mut num = 0
+  let max = min(limit + 1, input.size)
+
+  while idx < max {
+    let byte = input.byte(idx)
+
+    if digit?(byte).false? { break }
+
+    num = num.wrapping_mul(10).wrapping_add(byte.wrapping_sub(ZERO))
+    idx = idx.wrapping_add(1)
+  }
+
+  let len = idx - start
+
+  if len > 0 { Option.Some((num, len)) } else { Option.None }
+}
+
+fn name_index_at[T: Bytes](
+  input: ref T,
+  start: Int,
+  names: ref Array[String],
+) -> Option[(Int, Int)] {
+  let in_len = input.size - start
+  let in_ptr = ptr.add(input.to_pointer, start)
+  let mut i = 0
+  let max = names.size
+
+  while i < max {
+    let name = names.get(i)
+    let name_ptr = name.to_pointer
+    let name_len = name.size
+
+    if ptr.starts_with?(in_ptr, in_len, name_ptr, name_len) {
+      return Option.Some((i, name_len))
+    }
+
+    i += 1
+  }
+
+  Option.None
+}
