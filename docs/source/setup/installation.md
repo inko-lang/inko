@@ -241,7 +241,7 @@ sudo apk add build-base rust cargo llvm18 llvm18-dev llvm18-static libstdc++-dev
 Debian 13:
 
 ```bash
-sudo apt-get install --yes rustc cargo git build-essential llvm-18 llvm-18-dev libstdc++-12-dev libclang-common-18-dev zlib1g-dev libzstd-dev
+sudo apt-get install --yes rustc cargo git build-essential llvm-18 llvm-18-dev libstdc++-12-dev libclang-common-18-dev zlib1g-dev libpolly-18-dev libzstd-dev
 ```
 
 Debian 12:
@@ -294,7 +294,7 @@ brew install llvm@18 rust git
 For Ubuntu 24.04 and newer:
 
 ```bash
-sudo apt-get install --yes rustc cargo git build-essential llvm-18 llvm-18-dev libstdc++-12-dev libclang-common-18-dev zlib1g-dev libzstd-dev
+sudo apt-get install --yes rustc cargo git build-essential llvm-18 llvm-18-dev libstdc++-12-dev libclang-common-18-dev zlib1g-dev libpolly-18-dev libzstd-dev
 ```
 
 For 23.10:
