@@ -1,4 +1,4 @@
-use crate::mem::{ByteArray, String as InkoString};
+use crate::mem::String as InkoString;
 use crate::result::{self, Result};
 use crate::rustls_platform_verifier::tls_config;
 use crate::socket::Socket;
@@ -103,10 +103,12 @@ pub unsafe extern "system" fn inko_tls_client_config_new() -> *mut ClientConfig
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_tls_client_config_with_certificate(
-    cert: *const ByteArray,
+    bytes: *mut u8,
+    size: i64,
 ) -> Result {
     let mut store = RootCertStore::empty();
-    let cert = CertificateDer::from((*cert).value.clone());
+    let bytes = slice::from_raw_parts(bytes, size as usize);
+    let cert = CertificateDer::from(bytes.to_vec());
 
     if store.add(cert).is_err() {
         return Result::error(INVALID_CERT as _);
@@ -166,14 +168,19 @@ pub unsafe extern "system" fn inko_tls_client_connection_drop(
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_tls_server_config_new(
-    cert: *const ByteArray,
-    key: *const ByteArray,
+    cert: *mut u8,
+    cert_size: i64,
+    key: *mut u8,
+    key_size: i64,
 ) -> Result {
+    let cert = slice::from_raw_parts(cert, cert_size as usize).to_vec();
+    let key = slice::from_raw_parts(key, key_size as usize).to_vec();
+
     // CertificateDer/PrivateKeyDer either borrow a value or take an owned
     // value. We can't use borrows because we don't know if the Inko values
     // outlive the configuration, so we have to clone the bytes here.
-    let chain = vec![CertificateDer::from((*cert).value.clone())];
-    let Ok(key) = PrivateKeyDer::try_from((*key).value.clone()) else {
+    let chain = vec![CertificateDer::from(cert)];
+    let Ok(key) = PrivateKeyDer::try_from(key) else {
         return Result::error(INVALID_KEY as _);
     };
     let conf = match ServerConfig::builder()

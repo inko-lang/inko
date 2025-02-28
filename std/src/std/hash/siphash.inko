@@ -33,8 +33,8 @@ type pub SipHasher13 {
     # These casts allow us to read the hash keys from the runtime state, but
     # without having to declare the entire layout (including fields we have no
     # interest in).
-    let key0 = (_INKO.state as Int + 16 as Pointer[UInt64]).0 as Int
-    let key1 = (_INKO.state as Int + 24 as Pointer[UInt64]).0 as Int
+    let key0 = (_INKO.state as Int + 8 as Pointer[UInt64]).0 as Int
+    let key1 = (_INKO.state as Int + 16 as Pointer[UInt64]).0 as Int
 
     new(key0, key1)
   }

@@ -25,22 +25,21 @@ use std::path::PathBuf;
 // The IDs of these built-in types must match the order of the fields in the
 // State type.
 pub const STRING_ID: u32 = 0;
-pub const BYTE_ARRAY_ID: u32 = 1;
-pub const INT_ID: u32 = 2;
-pub const FLOAT_ID: u32 = 3;
-pub const BOOL_ID: u32 = 4;
-pub const NIL_ID: u32 = 5;
+pub const INT_ID: u32 = 1;
+pub const FLOAT_ID: u32 = 2;
+pub const BOOL_ID: u32 = 3;
+pub const NIL_ID: u32 = 4;
 
-const TUPLE1_ID: u32 = 6;
-const TUPLE2_ID: u32 = 7;
-const TUPLE3_ID: u32 = 8;
-const TUPLE4_ID: u32 = 9;
-const TUPLE5_ID: u32 = 10;
-const TUPLE6_ID: u32 = 11;
-const TUPLE7_ID: u32 = 12;
-const TUPLE8_ID: u32 = 13;
-const ARRAY_ID: u32 = 14;
-const CHECKED_INT_RESULT_ID: u32 = 15;
+const TUPLE1_ID: u32 = 5;
+const TUPLE2_ID: u32 = 6;
+const TUPLE3_ID: u32 = 7;
+const TUPLE4_ID: u32 = 8;
+const TUPLE5_ID: u32 = 9;
+const TUPLE6_ID: u32 = 10;
+const TUPLE7_ID: u32 = 11;
+const TUPLE8_ID: u32 = 12;
+const ARRAY_ID: u32 = 13;
+const CHECKED_INT_RESULT_ID: u32 = 14;
 
 pub const FIRST_USER_TYPE_ID: u32 = CHECKED_INT_RESULT_ID + 1;
 
@@ -55,7 +54,6 @@ const STRING_NAME: &str = "String";
 const ARRAY_NAME: &str = "Array";
 const BOOL_NAME: &str = "Bool";
 const NIL_NAME: &str = "Nil";
-const BYTE_ARRAY_NAME: &str = "ByteArray";
 const TUPLE1_NAME: &str = "Tuple1";
 const TUPLE2_NAME: &str = "Tuple2";
 const TUPLE3_NAME: &str = "Tuple3";
@@ -93,6 +91,8 @@ pub const ARRAY_PUSH: &str = "push";
 pub const ARRAY_INTERNAL_NAME: &str = "$Array";
 pub const SELF_TYPE: &str = "Self";
 pub const NEVER_TYPE: &str = "Never";
+pub const BYTES_MODULE: &str = "std.bytes";
+pub const BYTE_ARRAY_TYPE: &str = "ByteArray";
 
 /// The name of the pseudo field used to deference a pointer.
 pub const DEREF_POINTER_FIELD: &str = "0";
@@ -1605,10 +1605,6 @@ impl TypeId {
 
     pub fn array() -> TypeId {
         TypeId(ARRAY_ID)
-    }
-
-    pub fn byte_array() -> TypeId {
-        TypeId(BYTE_ARRAY_ID)
     }
 
     pub fn tuple1() -> TypeId {
@@ -4307,12 +4303,6 @@ impl TypeRef {
         )))
     }
 
-    pub fn byte_array() -> TypeRef {
-        TypeRef::Owned(TypeEnum::TypeInstance(TypeInstance::new(
-            TypeId::byte_array(),
-        )))
-    }
-
     pub fn int_with_sign(size: u32, sign: Sign) -> TypeRef {
         match sign {
             Sign::Signed if size == 64 => TypeRef::int(),
@@ -5854,7 +5844,6 @@ impl Database {
             traits: Vec::new(),
             types: vec![
                 Type::atomic(STRING_NAME.to_string()),
-                Type::regular(BYTE_ARRAY_NAME.to_string()),
                 Type::value_type(INT_NAME.to_string()),
                 Type::value_type(FLOAT_NAME.to_string()),
                 Type::value_type(BOOL_NAME.to_string()),
@@ -5908,7 +5897,6 @@ impl Database {
             ARRAY_NAME => Some(TypeId::array()),
             BOOL_NAME => Some(TypeId::boolean()),
             NIL_NAME => Some(TypeId::nil()),
-            BYTE_ARRAY_NAME => Some(TypeId::byte_array()),
             TUPLE1_NAME => Some(TypeId::tuple1()),
             TUPLE2_NAME => Some(TypeId::tuple2()),
             TUPLE3_NAME => Some(TypeId::tuple3()),
@@ -6783,7 +6771,6 @@ mod tests {
         assert_eq!(&db.types[ARRAY_ID as usize].name, ARRAY_NAME);
         assert_eq!(&db.types[BOOL_ID as usize].name, BOOL_NAME);
         assert_eq!(&db.types[NIL_ID as usize].name, NIL_NAME);
-        assert_eq!(&db.types[BYTE_ARRAY_ID as usize].name, BYTE_ARRAY_NAME);
     }
 
     #[test]

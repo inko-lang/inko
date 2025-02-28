@@ -11,7 +11,7 @@ import std.sys.unix.sys if unix
 #
 # This returns the number of _logical_ cores, with a minimum value of 1.
 fn pub cpu_cores -> Int {
-  (_INKO.state as Int + 40 as Pointer[Int64]).0 as Int
+  (_INKO.state as Int + 32 as Pointer[Int64]).0 as Int
 }
 
 # Terminates the program with the given exit status.

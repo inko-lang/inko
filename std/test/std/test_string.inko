@@ -55,8 +55,11 @@ fn pub tests(t: mut Tests) {
     t.equal('→foo'.slice(start: 0, size: 2), ByteArray.from_array([226, 134]))
     t.equal('→foo'.slice(start: 0, size: 6), '→foo'.to_byte_array)
     t.equal('→foo'.slice(start: 0, size: 3), '→'.to_byte_array)
-    t.equal('foo'.slice(start: 42, size: 50), ''.to_byte_array)
-    t.equal('foo'.slice(start: -5, size: 50), ''.to_byte_array)
+    t.equal('foo'.slice(start: 3, size: 3), ByteArray.new)
+  })
+
+  t.panic('String.slice with an out of bounds index', fn {
+    'foo'.slice(start: 42, size: 50)
   })
 
   t.test('String.slice_into', fn (t) {

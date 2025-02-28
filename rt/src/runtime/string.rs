@@ -1,7 +1,6 @@
-use crate::mem::{ByteArray, String as InkoString};
+use crate::mem::String as InkoString;
 use crate::result::Result as InkoResult;
 use crate::state::State;
-use std::cmp::min;
 use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::slice;
@@ -12,21 +11,32 @@ use unicode_segmentation::{Graphemes, UnicodeSegmentation};
 pub unsafe extern "system" fn inko_string_new(
     state: *const State,
     bytes: *const u8,
-    length: usize,
+    size: i64,
 ) -> *const InkoString {
-    let bytes = slice::from_raw_parts(bytes, length).to_vec();
+    let bytes = slice::from_raw_parts(bytes, size as usize).to_vec();
     let string = String::from_utf8_unchecked(bytes);
 
     InkoString::alloc((*state).string_type, string)
 }
 
 #[no_mangle]
+pub unsafe extern "system" fn inko_string_from_bytes(
+    state: *const State,
+    bytes: *const u8,
+    size: i64,
+) -> *const InkoString {
+    let bytes = slice::from_raw_parts(bytes, size as usize);
+
+    InkoString::from_bytes((*state).string_type, bytes)
+}
+
+#[no_mangle]
 pub unsafe extern "system" fn inko_string_concat(
     state: *const State,
     strings: *const *const InkoString,
-    length: i64,
+    size: i64,
 ) -> *const InkoString {
-    let slice = slice::from_raw_parts(strings, length as usize);
+    let slice = slice::from_raw_parts(strings, size as usize);
     let mut buffer = String::new();
 
     for &val in slice {
@@ -61,16 +71,6 @@ pub unsafe extern "system" fn inko_string_to_upper(
         (*state).string_type,
         InkoString::read(string).to_uppercase(),
     )
-}
-
-#[no_mangle]
-pub unsafe extern "system" fn inko_string_to_byte_array(
-    state: *const State,
-    string: *const InkoString,
-) -> *mut ByteArray {
-    let bytes = InkoString::read(string).as_bytes().to_vec();
-
-    ByteArray::alloc((*state).byte_array_type, bytes)
 }
 
 #[no_mangle]
@@ -142,23 +142,6 @@ pub unsafe extern "system" fn inko_string_chars_next(
 #[no_mangle]
 pub unsafe extern "system" fn inko_string_chars_drop(iter: *mut u8) {
     drop(Box::from_raw(iter as *mut Graphemes));
-}
-
-#[no_mangle]
-pub unsafe extern "system" fn inko_string_slice_bytes_into(
-    string: *const InkoString,
-    into: *mut ByteArray,
-    start: i64,
-    length: i64,
-) {
-    let string = InkoString::read(string);
-    let end = min((start + length) as usize, string.len());
-
-    if start < 0 || length <= 0 || start as usize >= end {
-        return;
-    }
-
-    (*into).value.extend_from_slice(&string.as_bytes()[start as usize..end]);
 }
 
 #[no_mangle]

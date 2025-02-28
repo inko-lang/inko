@@ -44,7 +44,8 @@ fn extern inko_tls_client_config_clone(config: Pointer[UInt8]) -> Pointer[UInt8]
 fn extern inko_tls_client_config_drop(config: Pointer[UInt8])
 
 fn extern inko_tls_client_config_with_certificate(
-  certificate: ref ByteArray,
+  certificate: Pointer[UInt8],
+  size: Int,
 ) -> AnyResult
 
 fn extern inko_tls_client_connection_new(
@@ -55,8 +56,10 @@ fn extern inko_tls_client_connection_new(
 fn extern inko_tls_client_connection_drop(connection: Pointer[UInt8])
 
 fn extern inko_tls_server_config_new(
-  certificate: ref ByteArray,
-  key: ref ByteArray,
+  certificate: Pointer[UInt8],
+  certificate_size: Int,
+  key: Pointer[UInt8],
+  key_size: Int,
 ) -> AnyResult
 
 fn extern inko_tls_server_config_clone(config: Pointer[UInt8]) -> Pointer[UInt8]
@@ -262,7 +265,12 @@ type pub ClientConfig {
   fn pub static with_certificate(
     certificate: ref Certificate,
   ) -> Option[ClientConfig] {
-    match inko_tls_client_config_with_certificate(certificate.bytes) {
+    match
+      inko_tls_client_config_with_certificate(
+        certificate.bytes.to_pointer,
+        certificate.bytes.size,
+      )
+    {
       case { @tag = 0, @value = v } -> {
         Option.Some(ClientConfig(v as Pointer[UInt8]))
       }
@@ -491,7 +499,14 @@ type pub ServerConfig {
     certificate: ref Certificate,
     key: ref PrivateKey,
   ) -> Result[ServerConfig, ServerConfigError] {
-    match inko_tls_server_config_new(certificate.bytes, key.bytes) {
+    match
+      inko_tls_server_config_new(
+        certificate: certificate.bytes.to_pointer,
+        certificate_size: certificate.bytes.size,
+        key: key.bytes.to_pointer,
+        key_size: key.bytes.size,
+      )
+    {
       case { @tag = 0, @value = v } -> {
         Result.Ok(ServerConfig(v as Pointer[UInt8]))
       }

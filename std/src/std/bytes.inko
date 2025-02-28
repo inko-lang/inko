@@ -2,7 +2,7 @@
 import std.alloc
 import std.array (bounds_check)
 import std.clone (Clone)
-import std.cmp (Contains, Equal)
+import std.cmp (Contains, Equal, min)
 import std.drop (Drop)
 import std.fmt (Format, Formatter)
 import std.hash (Hash, Hasher)
@@ -11,85 +11,18 @@ import std.option (Option)
 import std.ptr
 import std.string (Bytes, IntoString, ToString, hash_bytes)
 
-fn extern inko_byte_array_new(state: Pointer[UInt8]) -> ByteArray
-
-fn extern inko_byte_array_with_capacity(
+fn extern inko_string_from_bytes(
   state: Pointer[UInt8],
+  bytes: Pointer[UInt8],
   size: Int,
-) -> ByteArray
-
-fn extern inko_byte_array_clear(bytes: mut ByteArray)
-
-fn extern inko_byte_array_clone(
-  state: Pointer[UInt8],
-  bytes: ref ByteArray,
-) -> ByteArray
-
-fn extern inko_byte_array_copy_from(
-  into: mut ByteArray,
-  from: Pointer[UInt8],
-  size: Int,
-  start: Int,
-  amount: Int,
-) -> Int
-
-fn extern inko_byte_array_drain_to_string(
-  state: Pointer[UInt8],
-  bytes: mut ByteArray,
 ) -> String
-
-fn extern inko_byte_array_drop(bytes: mut ByteArray)
-
-fn extern inko_byte_array_get(bytes: ref ByteArray, index: Int) -> Int
-
-fn extern inko_byte_array_size(bytes: ref ByteArray) -> Int
-
-fn extern inko_byte_array_set_size(bytes: ref ByteArray, size: Int) -> Int
-
-fn extern inko_byte_array_capacity(bytes: ref ByteArray) -> Int
-
-fn extern inko_byte_array_push(bytes: mut ByteArray, byte: Int)
-
-fn extern inko_byte_array_pop(bytes: mut ByteArray) -> Int
-
-fn extern inko_byte_array_remove(bytes: mut ByteArray, index: Int) -> Int
-
-fn extern inko_byte_array_resize(bytes: mut ByteArray, size: Int, filler: Int)
-
-fn extern inko_byte_array_reserve(bytes: mut ByteArray, size: Int)
-
-fn extern inko_byte_array_set(
-  bytes: mut ByteArray,
-  index: Int,
-  value: Int,
-) -> Int
-
-fn extern inko_byte_array_slice(
-  state: Pointer[UInt8],
-  bytes: ref ByteArray,
-  start: Int,
-  size: Int,
-) -> ByteArray
-
-fn extern inko_byte_array_to_string(
-  state: Pointer[UInt8],
-  bytes: ref ByteArray,
-) -> String
-
-fn extern inko_byte_array_to_pointer(bytes: ref ByteArray) -> Pointer[UInt8]
-
-fn extern inko_byte_array_from_pointer(
-  state: Pointer[UInt8],
-  pointer: Pointer[UInt8],
-  size: Int,
-) -> ByteArray
 
 fn invalid_capacity(size: Int) -> Never {
   panic('the capacity (${size}) must be greater than or equal to zero')
 }
 
 fn invalid_size(size: Int) -> Never {
-  panic('the new size (${size}) must be greater than zero')
+  panic('the size (${size}) must be greater than zero')
 }
 
 # A type from which a new `ByteArray` can be created.
@@ -111,15 +44,31 @@ trait pub IntoByteArray {
 # Byte arrays are primarily meant for reading and writing data from/to a stream,
 # such as a file or a socket. If you simply want to store a list of numbers,
 # you're better off using the `Array` type.
-type builtin ByteArray {
+type pub ByteArray {
+  # The number of bytes stored in this `ByteArray`
+  let mut @size: Int
+
+  # The number of bytes that can be stored before a resize is necessary.
+  let mut @capacity: Int
+
+  # The buffer containing the raw bytes.
+  let mut @buffer: Pointer[UInt8]
+
   # Returns a new empty `ByteArray`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let bytes = ByteArray.new
+  #
+  # bytes.size     # => 0
+  # bytes.capacity # => 0
+  # ```
   fn pub static new -> ByteArray {
-    inko_byte_array_new(_INKO.state)
+    Self(size: 0, capacity: 0, buffer: 0 as Pointer[UInt8])
   }
 
-  # Returns a `ByteArray` with enough space for `size` bytes.
-  #
-  # The actual capacity may be greater than the given value.
+  # Returns a `ByteArray` with enough space for at least `size` bytes.
   #
   # # Panics
   #
@@ -133,25 +82,16 @@ type builtin ByteArray {
   fn pub static with_capacity(size: Int) -> ByteArray {
     if size < 0 { invalid_capacity(size) }
 
-    inko_byte_array_with_capacity(_INKO.state, size)
-  }
-
-  # Returns the number of bytes that can be stored in `self` before `self` needs
-  # to be resized.
-  #
-  # # Examples
-  #
-  # ```inko
-  # ByteArray.new.capacity               # => 0
-  # ByteArray.with_capacity(32).capacity # => 32
-  # ```
-  fn pub capacity -> Int {
-    inko_byte_array_capacity(self)
+    Self(
+      size: 0,
+      capacity: size,
+      buffer: alloc.resize(0 as Pointer[UInt8], size),
+    )
   }
 
   # Returns a new `ByteArray` created from the given `Array`.
   fn pub static from_array(array: ref Array[Int]) -> ByteArray {
-    let bytes = ByteArray.new
+    let bytes = ByteArray.with_capacity(array.size)
 
     for v in array.iter { bytes.push(v) }
 
@@ -165,14 +105,28 @@ type builtin ByteArray {
   #
   # The purpose of this method is to allow creating a `ByteArray` from a pointer
   # returned by C code. Avoid using this method for anything else.
+  #
+  # # Panics
+  #
+  # This method panics of `size` if less than zero.
   fn pub static from_pointer(pointer: Pointer[UInt8], size: Int) -> ByteArray {
-    inko_byte_array_from_pointer(_INKO.state, pointer, size)
+    if size < 0 { invalid_size(size) }
+
+    let bytes = with_capacity(size)
+
+    alloc.copy(pointer, bytes.buffer, size)
+    bytes.size = size
+    bytes
   }
 
   # Returns a `ByteArray` filled with the given byte.
   #
   # The `times` argument specifies how many times the `with` argument must
   # exist in the byte array.
+  #
+  # # Panics
+  #
+  # This method panics of `times` if less than zero.
   #
   # # Examples
   #
@@ -183,13 +137,30 @@ type builtin ByteArray {
   # bytes.get(1) # => 0
   # ```
   fn pub static filled(with: Int, times: Int) -> ByteArray {
-    let bytes = new
+    let bytes = with_capacity(times)
 
-    bytes.resize(times, with)
+    alloc.write(byte: with, to: bytes.buffer, times: times)
+    bytes.size = times
     bytes
   }
 
+  # Returns the number of bytes that can be stored in `self` before `self` needs
+  # to be resized.
+  #
+  # # Examples
+  #
+  # ```inko
+  # ByteArray.new.capacity               # => 0
+  # ByteArray.with_capacity(32).capacity # => 32
+  # ```
+  fn pub inline capacity -> Int {
+    @capacity
+  }
+
   # Removes all values from this `ByteArray`.
+  #
+  # This method has no effect on the amount of memory reserved by `self`,
+  # instead it merely sets the size of `self` to zero.
   #
   # # Examples
   #
@@ -202,7 +173,7 @@ type builtin ByteArray {
   # bytes.size # => 0
   # ```
   fn pub mut clear {
-    inko_byte_array_clear(self)
+    @size = 0
   }
 
   # Copies the bytes from the given `ByteArray` or `String` to the end of
@@ -229,7 +200,7 @@ type builtin ByteArray {
   # bytes.to_string # => 'hello world'
   # ```
   fn pub mut append[T: Bytes](other: T) {
-    inko_byte_array_copy_from(self, other.to_pointer, other.size, 0, other.size)
+    copy_from(other, at: 0, size: other.size)
   }
 
   # Pushes a value to the back of the `ByteArray`, returning the pushed value.
@@ -245,8 +216,9 @@ type builtin ByteArray {
   # bytes.size     # => 1
   # ```
   fn pub mut push(value: Int) {
-    inko_byte_array_push(self, value)
-    _INKO.moved(value)
+    reserve(1)
+    write_to(@size, value)
+    @size += 1
   }
 
   # Removes a value from the back of the `ByteArray`, returning the removed
@@ -273,13 +245,17 @@ type builtin ByteArray {
   # bytes.pop # => Option.None
   # ```
   fn pub mut pop -> Option[Int] {
-    match inko_byte_array_pop(self) {
-      case -1 -> Option.None
-      case val -> Option.Some(val)
-    }
+    if @size == 0 { return Option.None }
+
+    @size -= 1
+    Option.Some(get_unchecked(@size))
   }
 
   # Removes the value at the given index, returning the removed value.
+  #
+  # # Panics
+  #
+  # This method panics if the index is out of bounds.
   #
   # # Examples
   #
@@ -291,25 +267,23 @@ type builtin ByteArray {
   # bytes.remove_at(0) # => 10
   # bytes.size         # => 0
   # ```
-  #
-  # # Panics
-  #
-  # This method panics if the index is out of bounds.
   fn pub mut remove_at(index: Int) -> Int {
-    bounds_check(index, size)
-    inko_byte_array_remove(self, index)
+    bounds_check(index, @size)
+
+    let addr = address_of(index)
+    let val = addr.0 as Int
+
+    alloc.copy(from: ptr.add(addr, 1), to: addr, size: @size - index - 1)
+    @size -= 1
+    val
   }
 
   # Returns a new `String` using the bytes in this `ByteArray`, draining it in
   # the process.
   #
-  # After this method is finished, `self` is left empty. This allows one to
-  # convert a temporary `ByteArray` into a `String`, without requiring the list
-  # of bytes to be allocated twice.
+  # After this method is finished, `self` is empty.
   #
   # # Examples
-  #
-  # Draining a `ByteArray` into a `String`:
   #
   # ```inko
   # let bytes = ByteArray.from_array([105, 110, 107, 111])
@@ -318,7 +292,12 @@ type builtin ByteArray {
   # bytes.empty?          # => true
   # ```
   fn pub mut drain_to_string -> String {
-    inko_byte_array_drain_to_string(_INKO.state, self)
+    if empty? { return '' }
+
+    let str = inko_string_from_bytes(_INKO.state, @buffer, @size)
+
+    clear
+    str
   }
 
   # Returns the byte at the given index.
@@ -337,19 +316,17 @@ type builtin ByteArray {
   # bytes.get(0) # => 10
   # ```
   fn pub get(index: Int) -> Int {
-    bounds_check(index, size)
-    inko_byte_array_get(self, index)
+    bounds_check(index, @size)
+    get_unchecked(index)
   }
 
-  # Stores a byte at the given index, then returns it.
+  # Writes the byte `value` to the position `index`.
   #
   # # Panics
   #
   # This method panics if the index is out of bounds.
   #
   # # Examples
-  #
-  # Setting the value of an existing index:
   #
   # ```inko
   # let bytes = ByteArray.from_array([10, 20])
@@ -358,11 +335,8 @@ type builtin ByteArray {
   # bytes.get(0) # => 30
   # ```
   fn pub mut set(index: Int, value: Int) {
-    bounds_check(index, size)
-
-    let _ = inko_byte_array_set(self, index, value)
-
-    _INKO.moved(value)
+    bounds_check(index, @size)
+    write_to(index, value)
   }
 
   # Returns `true` if `self` is empty.
@@ -372,8 +346,8 @@ type builtin ByteArray {
   # ```inko
   # ByteArray.new.empty? => true
   # ```
-  fn pub empty? -> Bool {
-    size == 0
+  fn pub inline empty? -> Bool {
+    @size == 0
   }
 
   # Converts the `ByteArray` to an `Array!(Int)`.
@@ -394,11 +368,11 @@ type builtin ByteArray {
   # Returns an iterator over the bytes in `self`.
   fn pub iter -> Stream[Int] {
     let mut idx = 0
-    let max = size
+    let max = @size
 
     Stream.new(fn move {
       if idx < max {
-        Option.Some(inko_byte_array_get(self, idx := idx + 1))
+        Option.Some(get_unchecked(idx := idx + 1))
       } else {
         Option.None
       }
@@ -441,9 +415,11 @@ type builtin ByteArray {
     let mut b = size - 1
 
     while a < b {
-      let a_val = inko_byte_array_get(self, a)
-      let _ = inko_byte_array_set(self, a, inko_byte_array_set(self, b, a_val))
+      let a_val = get_unchecked(a)
+      let b_val = get_unchecked(b)
 
+      write_to(b, a_val)
+      write_to(a, b_val)
       a += 1
       b -= 1
     }
@@ -455,6 +431,9 @@ type builtin ByteArray {
   # The return value is the number of bytes copied. This value may be less than
   # `size` if there are fewer bytes in `bytes`.
   #
+  # If both `at` and `size` are zero, or `at` equals the size of `bytes`, this
+  # method doesn't copy anything and the returned number of bytes is zero.
+  #
   # # Panics
   #
   # This method panics if `at` is out of bounds.
@@ -465,13 +444,20 @@ type builtin ByteArray {
   # let a = ByteArray.from_array([1, 2, 3, 4])
   # let b = ByteArray.new
   #
-  # b.copy_from(a, at: 0, size: 2)
-  #
+  # b.copy_from(a, at: 0, size: 2) # => 2
   # b # => ByteArray.from_array([1, 2])
   # ```
   fn pub mut copy_from[T: Bytes](bytes: ref T, at: Int, size: Int) -> Int {
+    if (bytes.size == 0 and at == 0) or at == bytes.size { return 0 }
+
     bounds_check(at, bytes.size)
-    inko_byte_array_copy_from(self, bytes.to_pointer, bytes.size, at, size)
+
+    let len = min(bytes.size - at, size)
+
+    reserve(len)
+    alloc.copy(from: ptr.add(bytes.to_pointer, at), to: tail, size: len)
+    @size += len
+    len
   }
 
   # Resizes `self` to the new size.
@@ -496,9 +482,21 @@ type builtin ByteArray {
   # bytes # => ByteArray.new
   # ```
   fn pub mut resize(size: Int, value: Int) {
-    if size < 0 { invalid_size(size) }
+    if size < 0 {
+      invalid_size(size)
+    } else if size == @size {
+      return
+    } else if size < @size {
+      @size = size
+      return
+    }
 
-    inko_byte_array_resize(self, size, value)
+    let add = size - @capacity
+
+    if add > 0 { reserve(add) }
+
+    alloc.write(byte: value, to: tail, times: size - @size)
+    @size = size
   }
 
   # Reserves space for exactly `size` additional values.
@@ -506,9 +504,10 @@ type builtin ByteArray {
   # If the capacity is great enough or the given size is less than zero, this
   # method does nothing.
   fn pub mut reserve(size: Int) {
-    if capacity - self.size >= size { return }
+    if @capacity - @size >= size { return }
 
-    inko_byte_array_reserve(self, size)
+    @capacity = @capacity + size
+    @buffer = alloc.resize(@buffer, @capacity)
   }
 
   # Returns the last byte in `self`
@@ -532,7 +531,7 @@ type builtin ByteArray {
   # 'hello'.to_byte_array.starts_with?('h')               # => true
   # ```
   fn pub starts_with?[T: Bytes](prefix: ref T) -> Bool {
-    ptr.starts_with?(to_pointer, size, prefix.to_pointer, prefix.size)
+    ptr.starts_with?(@buffer, size, prefix.to_pointer, prefix.size)
   }
 
   # Returns `true` if `self` ends with the given sequence of bytes.
@@ -544,7 +543,7 @@ type builtin ByteArray {
   # 'hello'.to_byte_array.ends_with?('o')               # => true
   # ```
   fn pub ends_with?[T: Bytes](suffix: ref T) -> Bool {
-    ptr.ends_with?(to_pointer, size, suffix.to_pointer, suffix.size)
+    ptr.ends_with?(@buffer, size, suffix.to_pointer, suffix.size)
   }
 
   # Returns `true` if `self` is the same as the given `String`.
@@ -555,10 +554,10 @@ type builtin ByteArray {
   # 'hello'.to_byte_array.equals_string?('hello') # => true
   # ```
   fn pub equals_string?(string: String) -> Bool {
-    let size = self.size
+    let size = @size
 
     if size == string.size {
-      ptr.equal(to_pointer, string.to_pointer, size)
+      ptr.equal(@buffer, string.to_pointer, size)
     } else {
       false
     }
@@ -582,8 +581,20 @@ type builtin ByteArray {
     alloc.zero(to_pointer, size)
   }
 
-  fn mut size=(value: Int) {
-    inko_byte_array_set_size(self, value)
+  fn inline tail -> Pointer[UInt8] {
+    ptr.add(@buffer, @size)
+  }
+
+  fn inline get_unchecked(index: Int) -> Int {
+    address_of(index).0 as Int
+  }
+
+  fn inline mut write_to(index: Int, value: Int) {
+    address_of(index).0 = value as UInt8
+  }
+
+  fn inline address_of(index: Int) -> Pointer[UInt8] {
+    (@buffer as Int).wrapping_add(index) as Pointer[UInt8]
   }
 }
 
@@ -611,7 +622,7 @@ impl Bytes for ByteArray {
   fn pub opt(index: Int) -> Option[Int] {
     if index < 0 or index >= size { return Option.None }
 
-    Option.Some(inko_byte_array_get(self, index))
+    Option.Some(get_unchecked(index))
   }
 
   # An alias for `ByteArray.get`.
@@ -634,8 +645,8 @@ impl Bytes for ByteArray {
   # ByteArray.new.size              # => 0
   # ByteArray.from_array([10]).size # => 1
   # ```
-  fn pub size -> Int {
-    inko_byte_array_size(self)
+  fn pub inline size -> Int {
+    @size
   }
 
   # Slices `self` into a new `ByteArray`.
@@ -656,8 +667,12 @@ impl Bytes for ByteArray {
   # sliced.get(1) # => 3
   # ```
   fn pub slice(start: Int, size: Int) -> ByteArray {
-    bounds_check(start, self.size)
-    inko_byte_array_slice(_INKO.state, self, start, size)
+    bounds_check(start, @size)
+
+    let new = ByteArray.new
+    let _ = new.copy_from(self, at: start, size: size)
+
+    new
   }
 
   # Returns a raw pointer to the bytes of `self`.
@@ -665,17 +680,13 @@ impl Bytes for ByteArray {
   # This method is meant to be used when passing byte arrays to foreign
   # functions. You should avoid using it for anything else.
   fn pub to_pointer -> Pointer[UInt8] {
-    inko_byte_array_to_pointer(self)
+    @buffer
   }
 }
 
 impl Drop for ByteArray {
   fn mut drop {
-    let mut index = 0
-
-    while index < size { inko_byte_array_get(self, index := index + 1) }
-
-    inko_byte_array_drop(self)
+    if @buffer as Int != 0 { alloc.free(@buffer) }
   }
 }
 
@@ -707,7 +718,9 @@ impl ToString for ByteArray {
   # bytes.to_string # => 'inko'
   # ```
   fn pub to_string -> String {
-    inko_byte_array_to_string(_INKO.state, self)
+    if empty? { return '' }
+
+    inko_string_from_bytes(_INKO.state, @buffer, @size)
   }
 }
 
@@ -744,7 +757,10 @@ impl Equal for ByteArray {
 
 impl Clone for ByteArray {
   fn pub clone -> ByteArray {
-    inko_byte_array_clone(_INKO.state, self)
+    let new = ByteArray.new
+    let _ = new.copy_from(self, at: 0, size: @size)
+
+    new
   }
 }
 

@@ -26,13 +26,6 @@ fn extern inko_string_to_lower(state: Pointer[UInt8], string: String) -> String
 
 fn extern inko_string_to_upper(state: Pointer[UInt8], string: String) -> String
 
-fn extern inko_string_slice_bytes_into(
-  string: String,
-  into: mut ByteArray,
-  start: Int,
-  size: Int,
-)
-
 fn extern inko_string_chars(string: String) -> Pointer[UInt8]
 
 fn extern inko_string_chars_next(
@@ -43,11 +36,6 @@ fn extern inko_string_chars_next(
 fn extern inko_string_chars_drop(iter: Pointer[UInt8])
 
 fn extern inko_string_drop(string: String)
-
-fn extern inko_string_to_byte_array(
-  state: Pointer[UInt8],
-  string: String,
-) -> ByteArray
 
 fn extern inko_string_concat(
   state: Pointer[UInt8],
@@ -318,6 +306,10 @@ type builtin String {
   # each slice. Unless you've determined you indeed need to reuse the same
   # `ByteArray`, you're probably better off using `String.slice` instead.
   #
+  # # Panics
+  #
+  # This method panics if `start` is out of bounds.
+  #
   # # Examples
   #
   # ```inko
@@ -328,7 +320,7 @@ type builtin String {
   # bytes # => '😊'.to_byte_array
   # ```
   fn pub inline slice_into(bytes: mut ByteArray, start: Int, size: Int) {
-    inko_string_slice_bytes_into(self, bytes, start, size)
+    bytes.copy_from(self, at: start, size: size)
   }
 
   # Returns the _byte_ index of the first occurrence of the given `String`,
@@ -801,6 +793,12 @@ impl Bytes for String {
 
   # Slices `self` into a sequence of bytes using a _byte_ range.
   #
+  # If `start` equals the size of `self`, the returned `ByteArray` is empty.
+  #
+  # # Panics
+  #
+  # This method panics if `start` is out of bounds.
+  #
   # # Examples
   #
   # Slicing a string using a valid range:
@@ -839,7 +837,10 @@ impl Drop for String {
 
 impl ToByteArray for String {
   fn pub inline to_byte_array -> ByteArray {
-    inko_string_to_byte_array(_INKO.state, self)
+    let bytes = ByteArray.new
+    let _ = bytes.copy_from(self, at: 0, size: size)
+
+    bytes
   }
 }
 

@@ -7,7 +7,7 @@ use crate::llvm::constants::{
     DROPPER_INDEX, FIELD_OFFSET, HEADER_REFS_INDEX, HEADER_TYPE_INDEX,
     METHOD_FUNCTION_INDEX, METHOD_HASH_INDEX, PROCESS_FIELD_OFFSET,
     STACK_DATA_EPOCH_INDEX, STACK_DATA_PROCESS_INDEX, STATE_EPOCH_INDEX,
-    TYPE_METHODS_COUNT_INDEX, TYPE_METHODS_INDEX,
+    STATE_STRING_INDEX, TYPE_METHODS_COUNT_INDEX, TYPE_METHODS_INDEX,
 };
 use crate::llvm::context::Context;
 use crate::llvm::layouts::{
@@ -49,8 +49,7 @@ use std::thread::scope;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use types::module_name::ModuleName;
 use types::{
-    Database, Intrinsic, Shape, SpecializationKey, TypeId, TypeRef,
-    BYTE_ARRAY_ID, STRING_ID,
+    Database, Intrinsic, Shape, SpecializationKey, TypeId, TypeRef, STRING_ID,
 };
 
 const NIL_VALUE: bool = false;
@@ -728,10 +727,7 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
             // look them up instead of creating a new one.
             let type_ptr = match tid.0 {
                 STRING_ID => builder
-                    .load_field(self.layouts.state, state, 0)
-                    .into_pointer_value(),
-                BYTE_ARRAY_ID => builder
-                    .load_field(self.layouts.state, state, 1)
+                    .load_field(self.layouts.state, state, STATE_STRING_INDEX)
                     .into_pointer_value(),
                 _ => {
                     let size = builder.int_to_int(
@@ -3036,7 +3032,6 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
         let counts = self.builder.new_temporary(layout);
 
         self.set_method_count(counts, TypeId::string());
-        self.set_method_count(counts, TypeId::byte_array());
 
         let rt_new = self.module.runtime_function(RuntimeFunction::RuntimeNew);
         let rt_start =

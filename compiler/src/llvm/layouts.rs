@@ -8,8 +8,8 @@ use inkwell::types::{
 };
 use std::collections::VecDeque;
 use types::{
-    CallConvention, Database, MethodId, TypeId, TypeRef, BOOL_ID,
-    BYTE_ARRAY_ID, FLOAT_ID, INT_ID, NIL_ID, STRING_ID,
+    CallConvention, Database, MethodId, TypeId, TypeRef, BOOL_ID, FLOAT_ID,
+    INT_ID, NIL_ID, STRING_ID,
 };
 
 /// The size of an object header.
@@ -239,7 +239,6 @@ impl<'ctx> Layouts<'ctx> {
         // exact size doesn't matter.
         let state_layout = context.struct_type(&[
             context.pointer_type().into(), // String type
-            context.pointer_type().into(), // ByteArray type
             context.pointer_type().into(), // hash_key0
             context.pointer_type().into(), // hash_key1
             context.i32_type().into(),     // scheduler_epoch
@@ -247,7 +246,6 @@ impl<'ctx> Layouts<'ctx> {
 
         let method_counts_layout = context.struct_type(&[
             context.i16_type().into(), // String
-            context.i16_type().into(), // ByteArray
         ]);
 
         let stack_data_layout = context.struct_type(&[
@@ -266,9 +264,6 @@ impl<'ctx> Layouts<'ctx> {
 
                     typ.set_body(&[header.into()], false);
                     typ
-                }
-                BYTE_ARRAY_ID => {
-                    context.builtin_type(header, context.rust_vec_type().into())
                 }
                 _ => {
                     // First we forward-declare the structures, as fields may
@@ -337,15 +332,13 @@ impl<'ctx> Layouts<'ctx> {
 
         // These types have a fixed size and don't define any fields. To ensure
         // the work loop terminates, we manually flag them as known.
-        for id in [BYTE_ARRAY_ID, INT_ID, FLOAT_ID, BOOL_ID, NIL_ID] {
+        for id in [INT_ID, FLOAT_ID, BOOL_ID, NIL_ID] {
             sized.set_has_size(TypeId(id as _));
         }
 
         while let Some(id) = queue.pop_front() {
             let kind = id.kind(db);
 
-            // String is a built-in type, but it's defined like a regular one,
-            // so we _don't_ want to skip it here.
             if id.is_builtin() && id.0 != STRING_ID {
                 continue;
             }

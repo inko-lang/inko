@@ -14,8 +14,9 @@ use types::format::format_type;
 use types::{
     Constant, Database, ModuleId, Symbol, Trait, TraitId, TraitImplementation,
     Type, TypeEnum, TypeId, TypeInstance, TypeKind, TypeRef, Visibility,
-    ARRAY_INTERNAL_NAME, CONSTRUCTORS_LIMIT, ENUM_TAG_FIELD, ENUM_TAG_INDEX,
-    MAIN_TYPE, OPTION_MODULE, OPTION_TYPE, RESULT_MODULE, RESULT_TYPE,
+    ARRAY_INTERNAL_NAME, BYTES_MODULE, BYTE_ARRAY_TYPE, CONSTRUCTORS_LIMIT,
+    ENUM_TAG_FIELD, ENUM_TAG_INDEX, MAIN_TYPE, OPTION_MODULE, OPTION_TYPE,
+    RESULT_MODULE, RESULT_TYPE,
 };
 
 /// A compiler pass that defines types and traits.
@@ -984,8 +985,8 @@ impl<'a> InsertPrelude<'a> {
         self.add_type(TypeId::array());
         self.add_type(TypeId::boolean());
         self.add_type(TypeId::nil());
-        self.add_type(TypeId::byte_array());
 
+        self.import_type(BYTES_MODULE, BYTE_ARRAY_TYPE);
         self.import_type(OPTION_MODULE, OPTION_TYPE);
         self.import_type(RESULT_MODULE, RESULT_TYPE);
         self.import_type("std.map", "Map");

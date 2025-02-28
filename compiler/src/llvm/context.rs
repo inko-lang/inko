@@ -99,10 +99,6 @@ impl Context {
         self.inner.i8_type().array_type(size_of::<String>() as u32)
     }
 
-    pub(crate) fn rust_vec_type(&self) -> ArrayType<'_> {
-        self.inner.i8_type().array_type(size_of::<Vec<()>>() as u32)
-    }
-
     pub(crate) fn opaque_struct<'a>(&'a self, name: &str) -> StructType<'a> {
         self.inner.opaque_struct_type(name)
     }
@@ -142,19 +138,6 @@ impl Context {
             ],
             false,
         );
-        typ
-    }
-
-    /// Returns the layout for a built-in type such as Int or String (i.e a type
-    /// with only a single value field).
-    pub(crate) fn builtin_type<'a>(
-        &'a self,
-        header: StructType<'a>,
-        value: BasicTypeEnum,
-    ) -> StructType<'a> {
-        let typ = self.opaque_struct("");
-
-        typ.set_body(&[header.into(), value], false);
         typ
     }
 
