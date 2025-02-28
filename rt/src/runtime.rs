@@ -1,4 +1,3 @@
-mod byte_array;
 mod env;
 mod float;
 mod general;

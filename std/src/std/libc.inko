@@ -241,7 +241,7 @@ fn extern realloc(pointer: Pointer[UInt8], size: Int) -> Pointer[UInt8]
 
 fn extern memset(
   pointer: Pointer[UInt8],
-  byte: Int,
+  byte: Int32,
   size: UInt64,
 ) -> Pointer[UInt8]
 

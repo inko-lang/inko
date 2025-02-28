@@ -1,6 +1,6 @@
 use crate::arc_without_weak::ArcWithoutWeak;
 use crate::config::Config;
-use crate::mem::{ByteArray, String as InkoString, Type, TypePointer};
+use crate::mem::{String as InkoString, Type, TypePointer};
 use crate::network_poller::NetworkPoller;
 use crate::scheduler::process::Scheduler;
 use crate::scheduler::signal::Signals;
@@ -38,7 +38,6 @@ pub(crate) type RcState = ArcWithoutWeak<State>;
 #[repr(C)]
 pub struct MethodCounts {
     pub(crate) string_type: u16,
-    pub(crate) byte_array_type: u16,
 }
 
 pub(crate) struct Env {
@@ -79,7 +78,6 @@ impl Env {
 #[repr(C)]
 pub struct State {
     pub string_type: TypePointer,
-    pub byte_array_type: TypePointer,
 
     /// The first randomly generated key to use for hashers.
     pub hash_key0: i64,
@@ -144,9 +142,6 @@ impl State {
         arguments: Vec<String>,
     ) -> RcState {
         let string_type = new_type!("String", counts.string_type, InkoString);
-        let byte_array_type =
-            new_type!("ByteArray", counts.byte_array_type, ByteArray);
-
         let hash_key0 = RandomState::new().build_hasher().finish() as i64;
         let hash_key1 = RandomState::new().build_hasher().finish() as i64;
         let environment = Env::new();
@@ -172,7 +167,6 @@ impl State {
             arguments,
             network_pollers,
             string_type,
-            byte_array_type,
             signals: Signals::new(),
         };
 
@@ -189,7 +183,6 @@ impl Drop for State {
     fn drop(&mut self) {
         unsafe {
             Type::drop(self.string_type);
-            Type::drop(self.byte_array_type);
         }
     }
 }

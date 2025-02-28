@@ -1,5 +1,5 @@
 use std::alloc::{alloc, alloc_zeroed, dealloc, handle_alloc_error, Layout};
-use std::mem::{align_of, forget, size_of, swap};
+use std::mem::{align_of, forget, size_of};
 use std::ops::Deref;
 use std::ptr::drop_in_place;
 use std::slice;
@@ -53,11 +53,6 @@ pub struct Header {
 }
 
 impl Header {
-    pub(crate) fn init(&mut self, instance_of: TypePointer) {
-        self.instance_of = instance_of;
-        self.references = 0;
-    }
-
     pub(crate) fn init_atomic(&mut self, instance_of: TypePointer) {
         self.instance_of = instance_of;
         self.references = 1;
@@ -188,35 +183,6 @@ impl Deref for TypePointer {
     }
 }
 
-/// A resizable array of bytes.
-#[repr(C)]
-pub struct ByteArray {
-    pub(crate) header: Header,
-    pub(crate) value: Vec<u8>,
-}
-
-impl ByteArray {
-    pub(crate) unsafe fn drop(ptr: *mut Self) {
-        drop_in_place(ptr);
-    }
-
-    pub(crate) fn alloc(instance_of: TypePointer, value: Vec<u8>) -> *mut Self {
-        let ptr = allocate(Layout::new::<Self>()) as *mut Self;
-        let obj = unsafe { &mut *ptr };
-
-        obj.header.init(instance_of);
-        init!(obj.value => value);
-        ptr
-    }
-
-    pub(crate) fn take_bytes(&mut self) -> Vec<u8> {
-        let mut bytes = Vec::new();
-
-        swap(&mut bytes, &mut self.value);
-        bytes
-    }
-}
-
 /// A heap allocated string.
 ///
 /// Strings use atomic reference counting as they are treated as value types,
@@ -247,16 +213,12 @@ impl String {
 
     pub(crate) fn from_bytes(
         instance_of: TypePointer,
-        bytes: Vec<u8>,
+        bytes: &[u8],
     ) -> *const String {
-        let string = match RustString::from_utf8(bytes) {
-            Ok(string) => string,
-            Err(err) => {
-                RustString::from_utf8_lossy(&err.into_bytes()).into_owned()
-            }
-        };
+        let bytes =
+            RustString::from_utf8_lossy(bytes).into_owned().into_bytes();
 
-        String::new(instance_of, string.into_bytes())
+        String::new(instance_of, bytes)
     }
 
     fn new(instance_of: TypePointer, mut bytes: Vec<u8>) -> *const String {
@@ -353,7 +315,6 @@ mod tests {
         assert_eq!(size_of::<Header>(), 16);
         assert_eq!(size_of::<Method>(), 16);
         assert_eq!(size_of::<String>(), 32);
-        assert_eq!(size_of::<ByteArray>(), 40);
         assert_eq!(size_of::<Method>(), 16);
         assert_eq!(size_of::<Type>(), 32);
     }
@@ -362,7 +323,6 @@ mod tests {
     fn test_type_alignments() {
         assert_eq!(align_of::<Header>(), ALIGNMENT);
         assert_eq!(align_of::<String>(), ALIGNMENT);
-        assert_eq!(align_of::<ByteArray>(), ALIGNMENT);
         assert_eq!(align_of::<Method>(), ALIGNMENT);
         assert_eq!(align_of::<Type>(), ALIGNMENT);
     }
@@ -414,7 +374,7 @@ mod tests {
         let typ = Type::object("A".to_string(), 24, 0);
         let string = String::from_bytes(
             typ,
-            vec![
+            &[
                 72, 101, 108, 108, 111, 32, 240, 144, 128, 87, 111, 114, 108,
                 100,
             ],

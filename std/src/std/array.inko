@@ -383,6 +383,8 @@ type builtin Array[T] {
     let mut idx = 0
     let max = @size
 
+    # TODO: check the current size each iteration to account for `self`
+    # shrinking during iteration.
     Stream.new(fn move {
       if idx < max {
         Option.Some(get_unchecked(idx := idx + 1))

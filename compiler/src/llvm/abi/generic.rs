@@ -127,7 +127,6 @@ mod tests {
         // runtime expects. This would only ever fail if Rust suddenly changes
         // the layout of String/Vec.
         assert_eq!(ctx.rust_string_type().len(), 24);
-        assert_eq!(ctx.rust_vec_type().len(), 24);
     }
 
     #[test]

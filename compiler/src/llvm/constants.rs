@@ -1,4 +1,5 @@
-pub(crate) const STATE_EPOCH_INDEX: u32 = 4;
+pub(crate) const STATE_EPOCH_INDEX: u32 = 3;
+pub(crate) const STATE_STRING_INDEX: u32 = 0;
 pub(crate) const FIELD_OFFSET: usize = 1;
 pub(crate) const PROCESS_FIELD_OFFSET: usize = 2;
 

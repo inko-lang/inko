@@ -1,3 +1,4 @@
+# Raw memory operations such as allocations and writes.
 import std.libc
 
 fn resize_error -> Never {
@@ -38,5 +39,9 @@ fn copy[T](from: Pointer[T], to: Pointer[T], size: Int) {
 
 # Writes `size` zeroes to `pointer`.
 fn zero(pointer: Pointer[UInt8], size: Int) {
-  libc.memset(pointer, byte: 0, size: size as UInt64)
+  libc.memset(pointer, byte: 0 as Int32, size: size as UInt64)
+}
+
+fn write(byte: Int, to: Pointer[UInt8], times: Int) {
+  libc.memset(to, byte: byte as Int32, size: times as UInt64)
 }
