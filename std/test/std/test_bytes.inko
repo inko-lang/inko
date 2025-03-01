@@ -114,6 +114,19 @@ fn pub tests(t: mut Tests) {
     t.equal(bytes.iter.to_array, [10, 20])
   })
 
+  t.test('ByteArray.iter when the ByteArray changes during iteration', fn (t) {
+    let bytes = ByteArray.from_array([10, 20, 30])
+    let vals = []
+
+    for val in bytes.iter {
+      if val == 10 { bytes.pop }
+
+      vals.push(val)
+    }
+
+    t.equal(vals, [10, 20])
+  })
+
   t.test('ByteArray.bytes', fn (t) {
     let bytes = ByteArray.from_array([10, 20])
 

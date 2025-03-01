@@ -135,11 +135,27 @@ fn pub tests(t: mut Tests) {
   t.test('Deque.iter', fn (t) {
     let q = Deque.new
 
+    q.push_front(300)
     q.push_back(20)
     q.push_back(30)
     q.push_front(10)
 
-    t.equal(q.iter.to_array, [10, 20, 30])
+    t.equal(q.iter.to_array, [10, 300, 20, 30])
+  })
+
+  t.test('Deque.iter when the Deque changes during iteration', fn (t) {
+    let q = Deque.new
+
+    q.push_back(10)
+    q.push_back(20)
+    q.push_back(30)
+
+    let iter = q.iter
+
+    t.equal(iter.next, Option.Some(10))
+    q.pop_back
+    t.equal(iter.next, Option.Some(20))
+    t.equal(iter.next, Option.None)
   })
 
   t.test('Deque.iter_mut', fn (t) {
@@ -155,6 +171,21 @@ fn pub tests(t: mut Tests) {
     t.equal(q.iter_mut.to_array, [mut a, mut b, mut c])
   })
 
+  t.test('Deque.iter when the Deque changes during iteration', fn (t) {
+    let q = Deque.new
+
+    q.push_back((10, 0))
+    q.push_back((20, 0))
+    q.push_back((30, 0))
+
+    let iter = q.iter_mut
+
+    t.equal(iter.next, Option.Some(mut (10, 0)))
+    q.pop_back
+    t.equal(iter.next, Option.Some(mut (20, 0)))
+    t.equal(iter.next, Option.None)
+  })
+
   t.test('Deque.into_iter', fn (t) {
     let q = Deque.new
 
@@ -163,6 +194,21 @@ fn pub tests(t: mut Tests) {
     q.push_front(10)
 
     t.equal(q.into_iter.to_array, [10, 20, 30])
+  })
+
+  t.test('Deque.into_iter when the Deque changes during iteration', fn (t) {
+    let q = Deque.new
+
+    q.push_back((10, 0))
+    q.push_back((20, 0))
+    q.push_back((30, 0))
+
+    let iter = q.into_iter
+
+    t.equal(iter.next, Option.Some((10, 0)))
+    iter.deque.pop_back
+    t.equal(iter.next, Option.Some((20, 0)))
+    t.equal(iter.next, Option.None)
   })
 
   t.test('Deque.get with a valid index', fn (t) {

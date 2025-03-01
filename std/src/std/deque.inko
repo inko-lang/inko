@@ -249,7 +249,15 @@ type pub Deque[T] {
   # q.iter.to_array # => [20, 10, 30]
   # ```
   fn pub iter -> Stream[ref T] {
-    indexes.map(fn (i) { get_unchecked(i) })
+    let mut idx = 0
+
+    Stream.new(fn move {
+      if idx < @size {
+        Option.Some(get_unchecked(to_buffer_index(idx := idx + 1)))
+      } else {
+        Option.None
+      }
+    })
   }
 
   # Returns an iterator that moves the values out of `self`, yielding from the
@@ -267,7 +275,7 @@ type pub Deque[T] {
   # q.into_iter.to_array # => [10, 20]
   # ```
   fn pub move into_iter -> IntoIter[T] {
-    IntoIter(indexes: indexes, deque: self)
+    IntoIter(deque: self, index: 0)
   }
 
   # Returns an immutable borrow of the value at the given index.
@@ -314,33 +322,6 @@ type pub Deque[T] {
     if index < 0 or index >= @size { return Option.None }
 
     Option.Some(get_unchecked(to_buffer_index(index)))
-  }
-
-  fn indexes -> Stream[Int] {
-    let start = to_buffer_index(0)
-    let head_size = @capacity - start
-    let mut idx = start
-    let mut iter_tail = true
-    let mut max = @capacity
-
-    if head_size >= @size {
-      iter_tail = false
-      max = start + @size
-    }
-
-    Stream.new(fn move {
-      loop {
-        if idx < max {
-          return Option.Some(idx := idx + 1)
-        } else if iter_tail {
-          iter_tail = false
-          idx = 0
-          max = @size - head_size
-        } else {
-          return Option.None
-        }
-      }
-    })
   }
 
   fn inline read_from(index: Int) -> T {
@@ -455,7 +436,15 @@ impl Deque if T: mut {
   # q.iter_mut.to_array # => [20, 10, 30]
   # ```
   fn pub mut iter_mut -> Stream[mut T] {
-    indexes.map(fn (i) { get_unchecked_mut(i) })
+    let mut idx = 0
+
+    Stream.new(fn move {
+      if idx < @size {
+        Option.Some(get_unchecked_mut(to_buffer_index(idx := idx + 1)))
+      } else {
+        Option.None
+      }
+    })
   }
 
   fn inline mut get_unchecked_mut(index: Int) -> mut T {
@@ -476,25 +465,24 @@ impl Drop for Deque {
 # dropped.
 type pub IntoIter[T] {
   let @deque: Deque[T]
-  let @indexes: Stream[Int]
-}
+  let mut @index: Int
 
-impl Iter[T] for IntoIter {
-  fn pub mut next -> Option[T] {
-    @indexes.next.map(fn (i) { @deque.read_from(i) })
+  fn mut take_next -> T {
+    @deque.read_from(@deque.to_buffer_index(@index := @index + 1))
   }
 }
 
 impl Drop for IntoIter {
   fn mut drop {
-    loop {
-      match @indexes.next {
-        case Some(i) -> @deque.read_from(i)
-        case _ -> break
-      }
-    }
+    while @index < @deque.size { take_next }
 
     # This is needed to prevent `Deque.clear` from dropping the data again.
     @deque.size = 0
+  }
+}
+
+impl Iter[T] for IntoIter {
+  fn pub mut next -> Option[T] {
+    if @index < @deque.size { Option.Some(take_next) } else { Option.None }
   }
 }

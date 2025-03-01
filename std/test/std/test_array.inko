@@ -91,6 +91,8 @@ fn pub tests(t: mut Tests) {
 
     t.equal(vals.remove_at(1), 20)
     t.equal(vals, [10, 30])
+    t.equal(vals.remove_at(0), 10)
+    t.equal(vals, [30])
   })
 
   t.panic('Array.remove_at with an invalid index', fn { [10].remove_at(5) })
@@ -136,6 +138,19 @@ fn pub tests(t: mut Tests) {
     t.equal(vals.iter.to_array, [10, 20, 30])
   })
 
+  t.test('Array.iter when the Array changes during iteration', fn (t) {
+    let inp = [10, 20, 30]
+    let out = []
+
+    for val in inp.iter {
+      if val == 10 { inp.pop }
+
+      out.push(val)
+    }
+
+    t.equal(out, [10, 20])
+  })
+
   t.test('Array.iter_mut', fn (t) {
     let vals = [(1, 2), (2, 3)]
     let a = (1, 2)
@@ -144,16 +159,53 @@ fn pub tests(t: mut Tests) {
     t.equal(vals.iter_mut.to_array, [mut a, mut b])
   })
 
+  t.test('Array.iter_mut when the Array changes during iteration', fn (t) {
+    let inp = [Person(name: 'Alice', age: 20), Person(name: 'Bob', age: 21)]
+    let out = []
+
+    for val in inp.iter_mut {
+      if val.name == 'Alice' { inp.pop }
+
+      out.push(val)
+    }
+
+    t.equal(out.size, 1)
+    t.equal(out.get(0).name, 'Alice')
+  })
+
   t.test('Array.into_iter', fn (t) {
     let vals = [10, 20, 30]
 
     t.equal(vals.into_iter.to_array, [10, 20, 30])
   })
 
+  t.test('Array.into_iter when the Array changes during iteration', fn (t) {
+    let inp = [10, 20, 30]
+    let iter = inp.into_iter
+
+    t.equal(iter.next, Option.Some(10))
+    iter.array.pop
+    t.equal(iter.next, Option.Some(20))
+    t.equal(iter.next, Option.None)
+  })
+
   t.test('Array.reverse_iter', fn (t) {
     let vals = [10, 20, 30]
 
     t.equal(vals.reverse_iter.to_array, [30, 20, 10])
+  })
+
+  t.test('Array.reverse_iter when the Array changes during iteration', fn (t) {
+    let inp = [10, 20, 30]
+    let iter = inp.reverse_iter
+
+    t.equal(iter.next, Option.Some(30))
+
+    let _ = inp.remove_at(0)
+
+    t.equal(iter.next, Option.Some(30))
+    t.equal(iter.next, Option.Some(20))
+    t.equal(iter.next, Option.None)
   })
 
   t.test('Array.append', fn (t) {
