@@ -947,16 +947,20 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
         state: PointerValue<'ctx>,
         value: &str,
     ) -> BasicValueEnum<'ctx> {
-        let bytes_typ = builder.context.i8_type().array_type(value.len() as _);
-        let bytes_var = builder.new_temporary(bytes_typ);
+        let bytes_len = (value.len() + 1) as u32;
+        let bytes_typ = builder.context.i8_type().array_type(bytes_len);
         let bytes = builder.string_bytes(value);
+        let global = self.module.add_global(bytes_typ, "");
 
-        builder.store(bytes_var, bytes);
+        global.set_linkage(Linkage::Private);
+        global.set_initializer(&bytes.as_basic_value_enum());
 
+        // This is the size of the string _minus_ the trailing NULL byte.
         let len = builder.u64_literal(value.len() as u64).into();
+        let ptr = global.as_pointer_value();
         let func = self.module.runtime_function(RuntimeFunction::StringNew);
 
-        builder.call_with_return(func, &[state.into(), bytes_var.into(), len])
+        builder.call_with_return(func, &[state.into(), ptr.into(), len])
     }
 
     fn load_state(&mut self, builder: &Builder<'ctx>) -> PointerValue<'ctx> {

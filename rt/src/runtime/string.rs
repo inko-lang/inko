@@ -10,13 +10,10 @@ use unicode_segmentation::{Graphemes, UnicodeSegmentation};
 #[no_mangle]
 pub unsafe extern "system" fn inko_string_new(
     state: *const State,
-    bytes: *const u8,
+    bytes: *mut u8,
     size: i64,
 ) -> *const InkoString {
-    let bytes = slice::from_raw_parts(bytes, size as usize).to_vec();
-    let string = String::from_utf8_unchecked(bytes);
-
-    InkoString::alloc((*state).string_type, string)
+    InkoString::from_pointer((*state).string_type, bytes, size as u64)
 }
 
 #[no_mangle]

@@ -221,6 +221,20 @@ impl String {
         String::new(instance_of, bytes)
     }
 
+    pub(crate) fn from_pointer(
+        instance_of: TypePointer,
+        bytes: *mut u8,
+        size: u64,
+    ) -> *const String {
+        let ptr = allocate(Layout::new::<Self>()) as *mut Self;
+        let obj = unsafe { &mut *ptr };
+
+        obj.header.init_atomic(instance_of);
+        init!(obj.size => size);
+        init!(obj.bytes => bytes);
+        ptr as _
+    }
+
     fn new(instance_of: TypePointer, mut bytes: Vec<u8>) -> *const String {
         let len = bytes.len();
 
@@ -234,14 +248,7 @@ impl String {
         let buffer = boxed.as_mut_ptr();
 
         forget(boxed);
-
-        let ptr = allocate(Layout::new::<Self>()) as *mut Self;
-        let obj = unsafe { &mut *ptr };
-
-        obj.header.init_atomic(instance_of);
-        init!(obj.size => len as u64);
-        init!(obj.bytes => buffer);
-        ptr as _
+        Self::from_pointer(instance_of, buffer, len as u64)
     }
 
     /// Returns a string slice pointing to the underlying bytes.

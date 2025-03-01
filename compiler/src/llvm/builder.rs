@@ -753,11 +753,13 @@ impl<'ctx> Builder<'ctx> {
     }
 
     pub(crate) fn string_bytes(&self, value: &str) -> ArrayValue<'ctx> {
-        let bytes = value
+        let mut bytes = value
             .bytes()
             .map(|v| self.context.i8_type().const_int(v as _, false))
             .collect::<Vec<_>>();
 
+        // Strings are NULL terminated in addition to storing a size.
+        bytes.push(self.context.i8_type().const_int(0 as _, false));
         self.context.i8_type().const_array(&bytes)
     }
 
