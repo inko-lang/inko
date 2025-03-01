@@ -641,7 +641,7 @@ type builtin Array[T] {
   # Returns a raw pointer to the buffer of `self`.
   #
   # If `self` is empty, this returns `NULL`.
-  fn inline to_pointer -> Pointer[T] {
+  fn inline pointer -> Pointer[T] {
     @buffer
   }
 

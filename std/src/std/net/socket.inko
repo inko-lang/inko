@@ -357,7 +357,7 @@ type pub Socket {
     ip: ref IpAddress,
     port: Int,
   ) -> Result[Int, Error] {
-    sys.send_to_ip(@socket, string.to_pointer, string.size, ip, port, @deadline)
+    sys.send_to_ip(@socket, string.pointer, string.size, ip, port, @deadline)
   }
 
   # Sends a `ByteArray` to the given address.
@@ -387,7 +387,7 @@ type pub Socket {
     ip: ref IpAddress,
     port: Int,
   ) -> Result[Int, Error] {
-    sys.send_to_ip(@socket, bytes.to_pointer, bytes.size, ip, port, @deadline)
+    sys.send_to_ip(@socket, bytes.pointer, bytes.size, ip, port, @deadline)
   }
 
   # Receives a single datagram message on the socket, returning the size of the
@@ -622,11 +622,11 @@ impl WriteInternal for Socket {
 
 impl Write for Socket {
   fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
-    write_all_internal(bytes.to_pointer, bytes.size)
+    write_all_internal(bytes.pointer, bytes.size)
   }
 
   fn pub mut write_string(string: String) -> Result[Nil, Error] {
-    write_all_internal(string.to_pointer, string.size)
+    write_all_internal(string.pointer, string.size)
   }
 
   fn pub mut flush -> Result[Nil, Error] {
@@ -1379,13 +1379,7 @@ type pub UnixSocket {
     string: String,
     address: ref Path,
   ) -> Result[Int, Error] {
-    sys.send_to_unix(
-      @socket,
-      string.to_pointer,
-      string.size,
-      address,
-      @deadline,
-    )
+    sys.send_to_unix(@socket, string.pointer, string.size, address, @deadline)
   }
 
   # Sends a `ByteArray` to the given address.
@@ -1409,7 +1403,7 @@ type pub UnixSocket {
     bytes: ref ByteArray,
     address: ref Path,
   ) -> Result[Int, Error] {
-    sys.send_to_unix(@socket, bytes.to_pointer, bytes.size, address, @deadline)
+    sys.send_to_unix(@socket, bytes.pointer, bytes.size, address, @deadline)
   }
 
   # Receives a single datagram message on the socket, returning the size of the
@@ -1533,11 +1527,11 @@ impl WriteInternal for UnixSocket {
 
 impl Write for UnixSocket {
   fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
-    write_all_internal(bytes.to_pointer, bytes.size)
+    write_all_internal(bytes.pointer, bytes.size)
   }
 
   fn pub mut write_string(string: String) -> Result[Nil, Error] {
-    write_all_internal(string.to_pointer, string.size)
+    write_all_internal(string.pointer, string.size)
   }
 
   fn pub mut flush -> Result[Nil, Error] {

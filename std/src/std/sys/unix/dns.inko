@@ -36,7 +36,7 @@ impl Resolve for Resolver {
       ai_next: 0x0 as Pointer[sys_libc.AddrInfo],
     )
     let list = 0x0 as Pointer[sys_libc.AddrInfo]
-    let ptr = host.to_pointer
+    let ptr = host.pointer
 
     io.start_blocking
 

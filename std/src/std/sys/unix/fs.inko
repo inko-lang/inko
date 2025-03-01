@@ -19,7 +19,7 @@ fn open_file(
   append: Bool,
   truncate: Bool,
 ) -> Result[Int32, Error] {
-  let path_ptr = path.to_pointer
+  let path_ptr = path.pointer
   let mut flags = libc.O_CLOEXEC
     | if read and (write or append) {
       libc.O_RDWR | libc.O_CREAT
@@ -59,7 +59,7 @@ fn read_file(
   into.reserve(size)
 
   let len = into.size
-  let ptr = (into.to_pointer as Int + len) as Pointer[UInt8]
+  let ptr = (into.pointer as Int + len) as Pointer[UInt8]
 
   start_blocking
 
@@ -118,7 +118,7 @@ fn path_metadata(path: String) -> Result[Metadata, Error] {
 fn create_directory(path: String) -> Result[Nil, Error] {
   start_blocking
 
-  let res = libc.mkdir(path.to_pointer, DIR_MODE as UInt32) as Int
+  let res = libc.mkdir(path.pointer, DIR_MODE as UInt32) as Int
   let err = stop_blocking
 
   if res == 0 {
@@ -140,7 +140,7 @@ fn create_directory(path: String) -> Result[Nil, Error] {
 fn remove_directory(path: String) -> Result[Nil, Error] {
   start_blocking
 
-  let res = libc.rmdir(path.to_pointer) as Int
+  let res = libc.rmdir(path.pointer) as Int
   let err = stop_blocking
 
   if res == 0 { Result.Ok(nil) } else { Result.Error(Error.from_os_error(err)) }
@@ -149,7 +149,7 @@ fn remove_directory(path: String) -> Result[Nil, Error] {
 fn remove_file(path: String) -> Result[Nil, Error] {
   start_blocking
 
-  let res = libc.unlink(path.to_pointer) as Int
+  let res = libc.unlink(path.pointer) as Int
   let err = stop_blocking
 
   if res == 0 { Result.Ok(nil) } else { Result.Error(Error.from_os_error(err)) }
@@ -162,7 +162,7 @@ fn copy_file(from: String, to: String) -> Result[Int, Error] {
 fn expand_path(path: String) -> Result[String, Error] {
   start_blocking
 
-  let res = libc.realpath(path.to_pointer, 0x0 as Pointer[UInt8])
+  let res = libc.realpath(path.pointer, 0x0 as Pointer[UInt8])
   let err = stop_blocking
 
   if res as Int == 0x0 { throw Error.from_os_error(err) }
@@ -221,7 +221,7 @@ type ReadDirectory {
   let @stream: Pointer[UInt8]
 
   fn static new(path: String) -> Result[ReadDirectory, Error] {
-    let stream = libc.opendir(path.to_pointer)
+    let stream = libc.opendir(path.pointer)
 
     if stream as Int != 0 {
       Result.Ok(ReadDirectory(stream))

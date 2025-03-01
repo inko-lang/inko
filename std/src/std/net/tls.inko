@@ -267,7 +267,7 @@ type pub ClientConfig {
   ) -> Option[ClientConfig] {
     match
       inko_tls_client_config_with_certificate(
-        certificate.bytes.to_pointer,
+        certificate.bytes.pointer,
         certificate.bytes.size,
       )
     {
@@ -408,7 +408,7 @@ impl Read for Client {
     into.reserve(size)
 
     let len = into.size
-    let ptr = ptr.add(into.to_pointer, len)
+    let ptr = ptr.add(into.pointer, len)
 
     match
       inko_tls_client_read(
@@ -451,11 +451,11 @@ impl WriteInternal for Client {
 
 impl Write for Client {
   fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
-    write_all_internal(bytes.to_pointer, bytes.size)
+    write_all_internal(bytes.pointer, bytes.size)
   }
 
   fn pub mut write_string(string: String) -> Result[Nil, Error] {
-    write_all_internal(string.to_pointer, string.size)
+    write_all_internal(string.pointer, string.size)
   }
 
   fn pub mut flush -> Result[Nil, Error] {
@@ -501,9 +501,9 @@ type pub ServerConfig {
   ) -> Result[ServerConfig, ServerConfigError] {
     match
       inko_tls_server_config_new(
-        certificate: certificate.bytes.to_pointer,
+        certificate: certificate.bytes.pointer,
         certificate_size: certificate.bytes.size,
-        key: key.bytes.to_pointer,
+        key: key.bytes.pointer,
         key_size: key.bytes.size,
       )
     {
@@ -644,7 +644,7 @@ impl Read for Server {
     into.reserve(size)
 
     let len = into.size
-    let ptr = ptr.add(into.to_pointer, len)
+    let ptr = ptr.add(into.pointer, len)
 
     match
       inko_tls_server_read(
@@ -687,11 +687,11 @@ impl WriteInternal for Server {
 
 impl Write for Server {
   fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
-    write_all_internal(bytes.to_pointer, bytes.size)
+    write_all_internal(bytes.pointer, bytes.size)
   }
 
   fn pub mut write_string(string: String) -> Result[Nil, Error] {
-    write_all_internal(string.to_pointer, string.size)
+    write_all_internal(string.pointer, string.size)
   }
 
   fn pub mut flush -> Result[Nil, Error] {

@@ -80,7 +80,7 @@ fn inline init_unix_address(
     name_offset + path_size
   }
 
-  alloc.copy(path.to_pointer, addr_path_ptr, path_size)
+  alloc.copy(path.pointer, addr_path_ptr, path_size)
   Result.Ok(addr_size)
 }
 

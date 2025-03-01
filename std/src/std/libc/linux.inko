@@ -470,7 +470,7 @@ fn inline statx(
   syscall(
     arch.SYS_statx as Int32,
     fd,
-    name.to_pointer,
+    name.pointer,
     flags as Int32,
     mask as UInt32,
     buf,

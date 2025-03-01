@@ -95,7 +95,7 @@ fn padding(string: String, chars: Int, pad_to: Int) -> String {
 
 fn hash_bytes[T: Bytes, H: mut + Hasher](bytes: ref T, hasher: mut H) {
   let mut len = bytes.size
-  let mut cur = bytes.to_pointer
+  let mut cur = bytes.pointer
 
   len.hash(hasher)
 
@@ -172,7 +172,7 @@ trait pub Bytes {
   #
   # This method is meant for FFI purposes, and use of it should be avoided at
   # all costs.
-  fn pub to_pointer -> Pointer[UInt8]
+  fn pub pointer -> Pointer[UInt8]
 }
 
 # An UTF-8 encoded and immutable string type.
@@ -195,7 +195,7 @@ type builtin String {
   # # Examples
   #
   # ```inko
-  # String.from_pointer("hello".to_pointer) == "hello" # => true
+  # String.from_pointer("hello".pointer) == "hello" # => true
   # ```
   fn pub inline static from_pointer(pointer: Pointer[UInt8]) -> String {
     inko_string_from_pointer(_INKO.state, pointer)
@@ -818,7 +818,7 @@ impl Bytes for String {
   #
   # This method is meant to be used when passing strings to foreign functions
   # (i.e. `*char` arguments). You should avoid using it for anything else.
-  fn pub inline to_pointer -> Pointer[UInt8] {
+  fn pub inline pointer -> Pointer[UInt8] {
     @ptr
   }
 }
@@ -1089,7 +1089,7 @@ impl ToString for StringBuffer {
     if @strings.empty? {
       ''
     } else {
-      inko_string_concat(_INKO.state, @strings.to_pointer, @strings.size)
+      inko_string_concat(_INKO.state, @strings.pointer, @strings.size)
     }
   }
 }

@@ -309,7 +309,7 @@ fn inline read(
   into.reserve(size)
 
   let len = into.size
-  let ptr = ptr.add(into.to_pointer, len)
+  let ptr = ptr.add(into.pointer, len)
 
   match read_raw(socket, ptr, size, deadline) {
     case Ok(v) -> {
@@ -448,7 +448,7 @@ fn inline receive_from_ip(
   into.reserve(size)
 
   let len = into.size
-  let ptr = ptr.add(into.to_pointer, len)
+  let ptr = ptr.add(into.pointer, len)
   let addr = sys_libc.SockAddrStorage()
   let addr_size = sys_libc.sockaddr_storage_size as UInt32
   let addr_ptr = mut addr
@@ -483,7 +483,7 @@ fn inline receive_from_unix(
   into.reserve(size)
 
   let len = into.size
-  let ptr = ptr.add(into.to_pointer, len)
+  let ptr = ptr.add(into.pointer, len)
   let addr = sys_libc.SockAddrUn()
   let addr_size = sys_libc.sockaddr_un_size as UInt32
   let addr_ptr = mut addr

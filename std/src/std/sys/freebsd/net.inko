@@ -67,7 +67,7 @@ fn inline init_unix_address(
 
   address.sun_family = libc.AF_UNIX as UInt8
   address.sun_len = addr_size as UInt8
-  alloc.copy(path.to_pointer, addr_path_ptr, path_size)
+  alloc.copy(path.pointer, addr_path_ptr, path_size)
   Result.Ok(addr_size)
 }
 

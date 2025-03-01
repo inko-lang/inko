@@ -74,7 +74,7 @@ type builtin Float {
   # Float.parse('1.2e1') # => Option.Some(12.0)
   # ```
   fn pub static parse[T: Bytes](bytes: ref T) -> Option[Float] {
-    match inko_string_to_float(bytes.to_pointer, bytes.size) {
+    match inko_string_to_float(bytes.pointer, bytes.size) {
       case { @tag = 0, @value = v } -> Option.Some(from_bits(v as Int))
       case _ -> Option.None
     }

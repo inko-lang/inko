@@ -257,6 +257,6 @@ type pub Random {
   }
 
   fn zero(index: Int, size: Int) {
-    alloc.zero(ptr.add(@buffer.to_pointer, index), size)
+    alloc.zero(ptr.add(@buffer.pointer, index), size)
   }
 }

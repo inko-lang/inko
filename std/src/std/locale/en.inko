@@ -50,8 +50,8 @@ fn month_prefix_index[T: Bytes](input: ref T, start: Int) -> Option[Int] {
   # For English we can take advantage of the fact that for all months the first
   # 3 bytes are unique. This allows us to efficiently reduce the amount of
   # months to compare in full to just a single month.
-  let a = (ptr.add(input.to_pointer, start) as Pointer[UInt16]).0 as Int
-  let b = ptr.add(input.to_pointer, start + 2).0 as Int << 16
+  let a = (ptr.add(input.pointer, start) as Pointer[UInt16]).0 as Int
+  let b = ptr.add(input.pointer, start + 2).0 as Int << 16
 
   # These magic values are the result of
   # `(byte 2 << 16) | (byte 1 << 8) | byte 0`, i.e. the first three bytes in

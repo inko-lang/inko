@@ -81,13 +81,13 @@ fn name_index_at[T: Bytes](
   names: ref Array[String],
 ) -> Option[(Int, Int)] {
   let in_len = input.size - start
-  let in_ptr = ptr.add(input.to_pointer, start)
+  let in_ptr = ptr.add(input.pointer, start)
   let mut i = 0
   let max = names.size
 
   while i < max {
     let name = names.get(i)
-    let name_ptr = name.to_pointer
+    let name_ptr = name.pointer
     let name_len = name.size
 
     if ptr.starts_with?(in_ptr, in_len, name_ptr, name_len) {

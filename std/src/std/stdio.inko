@@ -104,11 +104,11 @@ impl WriteInternal for Stdout {
 
 impl Write for Stdout {
   fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
-    write_all_internal(bytes.to_pointer, bytes.size)
+    write_all_internal(bytes.pointer, bytes.size)
   }
 
   fn pub mut write_string(string: String) -> Result[Nil, Error] {
-    write_all_internal(string.to_pointer, string.size)
+    write_all_internal(string.pointer, string.size)
   }
 
   # Flushes any pending writes.
@@ -156,11 +156,11 @@ impl WriteInternal for Stderr {
 
 impl Write for Stderr {
   fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
-    write_all_internal(bytes.to_pointer, bytes.size)
+    write_all_internal(bytes.pointer, bytes.size)
   }
 
   fn pub mut write_string(string: String) -> Result[Nil, Error] {
-    write_all_internal(string.to_pointer, string.size)
+    write_all_internal(string.pointer, string.size)
   }
 
   # Flushes any pending writes.

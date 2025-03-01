@@ -46,7 +46,7 @@ fn path_metadata(path: String) -> Result[Metadata, Error] {
 
   start_blocking
 
-  let res = libc.stat(path.to_pointer, mut buf) as Int
+  let res = libc.stat(path.pointer, mut buf) as Int
   let err = stop_blocking
 
   if res == -1 { throw Error.from_os_error(err) }
@@ -60,7 +60,7 @@ fn kernel_copy(from_file: Int32, to: String) -> Result[Bool, Error] {
   let res = libc.fclonefileat(
     from_file,
     libc.AT_FDCWD as Int32,
-    to.to_pointer,
+    to.pointer,
     0 as Int32,
   )
     as Int
@@ -116,7 +116,7 @@ fn copy_file(from: String, to: String) -> Result[Int, Error] {
 
   start_blocking
 
-  let res = libc.chmod(to.to_pointer, from_meta.mode as UInt16) as Int
+  let res = libc.chmod(to.pointer, from_meta.mode as UInt16) as Int
   let err = stop_blocking
 
   if res == 0 {

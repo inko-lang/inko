@@ -399,7 +399,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('String.from_pointer', fn (t) {
     let a = 'hello'
-    let b = String.from_pointer(a.to_pointer)
+    let b = String.from_pointer(a.pointer)
 
     t.equal(a, b)
   })

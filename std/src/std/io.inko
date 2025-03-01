@@ -67,7 +67,7 @@ fn invalid_buffer_size(size: Int) -> Never {
 #
 # start_blocking
 #
-# let fd = open('test.txt'.to_pointer, 0 as Int32, 0 as Int32)
+# let fd = open('test.txt'.pointer, 0 as Int32, 0 as Int32)
 # let err = stop_blocking
 #
 # if fd as Int == -1 {

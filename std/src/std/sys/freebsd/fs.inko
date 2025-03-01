@@ -45,7 +45,7 @@ fn path_metadata(path: String) -> Result[Metadata, Error] {
 
   start_blocking
 
-  let res = libc.stat(path.to_pointer, mut buf) as Int
+  let res = libc.stat(path.pointer, mut buf) as Int
   let err = stop_blocking
 
   if res == -1 { throw Error.from_os_error(err) }

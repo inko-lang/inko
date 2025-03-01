@@ -22,7 +22,7 @@ type FileActions {
   }
 
   fn mut directory=(path: String) {
-    libc.posix_spawn_file_actions_addchdir_np(@raw, path.to_pointer)
+    libc.posix_spawn_file_actions_addchdir_np(@raw, path.pointer)
   }
 
   fn mut redirect(
@@ -98,7 +98,7 @@ type StringPointers {
   }
 
   fn mut set(index: Int, value: String) {
-    ptr.add(@raw, index).0 = value.to_pointer as UInt64
+    ptr.add(@raw, index).0 = value.pointer as UInt64
   }
 }
 
@@ -194,7 +194,7 @@ fn spawn(
   let pid = 0 as Int32
   let res = libc.posix_spawnp(
     pid: mut pid,
-    file: program.to_pointer,
+    file: program.pointer,
     file_actions: actions.raw,
     attrp: mut attrs,
     argv: argv.raw,

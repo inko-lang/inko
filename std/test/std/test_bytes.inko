@@ -433,7 +433,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('ByteArray.from_pointer', fn (t) {
     let a = ByteArray.from_array([1, 2, 3, 4])
-    let b = ByteArray.from_pointer(a.to_pointer, size: 4)
+    let b = ByteArray.from_pointer(a.pointer, size: 4)
 
     t.equal(a, b)
   })
