@@ -1,10 +1,55 @@
 import helpers (hash)
+import std.alloc
 import std.cmp (Ordering)
 import std.fmt (fmt)
 import std.fs.path (Path)
+import std.ptr
+import std.string (PrimitiveString, StringBuffer)
 import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
+  t.test('String.from_primitive', fn (t) {
+    let raw = alloc.allocate(3)
+
+    alloc.write(byte: 102, to: raw, size: 1)
+    alloc.write(byte: 111, to: ptr.add(raw, 1), size: 1)
+    alloc.write(byte: 111, to: ptr.add(raw, 2), size: 1)
+
+    let str1 = String.from_primitive(PrimitiveString(bytes: raw, size: 3))
+    let str2 = String.from_primitive(
+      PrimitiveString(bytes: 0x1 as Pointer[UInt8], size: 0),
+    )
+
+    t.equal(str1, 'foo')
+    t.equal(str1.size, 3)
+    t.equal(ptr.add(str1.ptr, 3).0 as Int, 0)
+    t.not_equal(str1.ptr as Int, raw as Int)
+
+    t.equal(str2, '')
+    t.equal(str2.size, 0)
+  })
+
+  t.test('String.from_borrowed_primitive', fn (t) {
+    let a = 'foo'
+    let b = String.from_borrowed_primitive(a.to_primitive)
+    let c = String.from_borrowed_primitive(''.to_primitive)
+
+    t.equal(a, 'foo')
+    t.equal(a.size, 3)
+    t.equal(b, 'foo')
+    t.equal(b.size, 3)
+    t.not_equal(b.ptr as Int, a.ptr as Int)
+    t.equal(c, '')
+    t.equal(c.size, 0)
+  })
+
+  t.test('String.from_pointer', fn (t) {
+    let a = 'hello'
+    let b = String.from_pointer(a.pointer)
+
+    t.equal(a, b)
+  })
+
   t.test('String.join', fn (t) {
     let vals = [10, 20, 30]
 
@@ -397,13 +442,6 @@ fn pub tests(t: mut Tests) {
     t.equal('hello\t\r\n\t'.trim, 'hello')
   })
 
-  t.test('String.from_pointer', fn (t) {
-    let a = 'hello'
-    let b = String.from_pointer(a.pointer)
-
-    t.equal(a, b)
-  })
-
   t.test('String.replace', fn (t) {
     t.equal(''.replace('', ''), '')
     t.equal(''.replace('', 'foo'), '')
@@ -435,5 +473,60 @@ fn pub tests(t: mut Tests) {
     t.equal('aa'.cmp('aab'), Ordering.Less)
     t.equal('aab'.cmp('aa'), Ordering.Greater)
     t.equal('zzz'.cmp('a'), Ordering.Greater)
+  })
+
+  t.test('StringBuffer.new', fn (t) {
+    let buf = StringBuffer.new
+
+    t.equal(buf.strings.capacity, 0)
+    t.true(buf.strings.empty?)
+  })
+
+  t.test('StringBuffer.with_capacity', fn (t) {
+    let buf = StringBuffer.with_capacity(4)
+
+    t.equal(buf.strings.capacity, 4)
+    t.true(buf.strings.empty?)
+  })
+
+  t.test('StringBuffer.from_array', fn (t) {
+    let buf = StringBuffer.from_array(['a', 'b'])
+
+    t.equal(buf.strings, ['a', 'b'])
+  })
+
+  t.test('StringBuffer.push', fn (t) {
+    let buf = StringBuffer.new
+
+    buf.push('a')
+    buf.push('b')
+    t.equal(buf.strings, ['a', 'b'])
+  })
+
+  t.test('StringBuffer.size', fn (t) {
+    let buf = StringBuffer.new
+
+    t.equal(buf.size, 0)
+    buf.push('a')
+    t.equal(buf.size, 1)
+  })
+
+  t.test('StringBuffer.to_string', fn (t) {
+    let buf = StringBuffer.new
+
+    t.equal(buf.to_string, '')
+    buf.push('a')
+    buf.push('😃')
+    buf.push('b')
+    t.equal(buf.to_string, 'a😃b')
+  })
+
+  t.test('StringBuffer.into_string', fn (t) {
+    let buf = StringBuffer.new
+
+    buf.push('a')
+    buf.push('😃')
+    buf.push('b')
+    t.equal(buf.into_string, 'a😃b')
   })
 }

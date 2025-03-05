@@ -193,10 +193,6 @@ pub(crate) struct Layouts<'ctx> {
     /// The layout of object headers.
     pub(crate) header: StructType<'ctx>,
 
-    /// The layout to use for the type that stores the built-in type method
-    /// counts.
-    pub(crate) method_counts: StructType<'ctx>,
-
     /// Type information of all the defined methods.
     ///
     /// This `Vec` is indexed using `MethodId` values.
@@ -238,14 +234,9 @@ impl<'ctx> Layouts<'ctx> {
         // fine/safe is we only use the state type through pointers, so the
         // exact size doesn't matter.
         let state_layout = context.struct_type(&[
-            context.pointer_type().into(), // String type
             context.pointer_type().into(), // hash_key0
             context.pointer_type().into(), // hash_key1
             context.i32_type().into(),     // scheduler_epoch
-        ]);
-
-        let method_counts_layout = context.struct_type(&[
-            context.i16_type().into(), // String
         ]);
 
         let stack_data_layout = context.struct_type(&[
@@ -286,7 +277,6 @@ impl<'ctx> Layouts<'ctx> {
             instances,
             state: state_layout,
             header,
-            method_counts: method_counts_layout,
             methods: vec![Method::new(); num_methods],
             process_stack_data: stack_data_layout,
         };

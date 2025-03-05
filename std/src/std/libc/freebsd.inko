@@ -50,6 +50,7 @@ let ENOTSUP = 45
 let EOPNOTSUPP = 45
 let EPERM = 1
 let EPIPE = 32
+let ERANGE = 34
 let EROFS = 30
 let ESPIPE = 29
 let ETIMEDOUT = 60

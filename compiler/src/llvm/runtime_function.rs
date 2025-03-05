@@ -10,7 +10,6 @@ pub(crate) enum RuntimeFunction {
     NewType,
     ProcessFinishMessage,
     ProcessNew,
-    ProcessPanic,
     ProcessSendMessage,
     ProcessYield,
     ReferenceCountError,
@@ -19,8 +18,6 @@ pub(crate) enum RuntimeFunction {
     RuntimeStackMask,
     RuntimeStart,
     RuntimeState,
-    StringConcat,
-    StringNew,
 }
 
 impl RuntimeFunction {
@@ -35,15 +32,12 @@ impl RuntimeFunction {
                 "inko_process_finish_message"
             }
             RuntimeFunction::ProcessNew => "inko_process_new",
-            RuntimeFunction::ProcessPanic => "inko_process_panic",
             RuntimeFunction::ProcessSendMessage => "inko_process_send_message",
             RuntimeFunction::ProcessYield => "inko_process_yield",
             RuntimeFunction::RuntimeDrop => "inko_runtime_drop",
             RuntimeFunction::RuntimeNew => "inko_runtime_new",
             RuntimeFunction::RuntimeStart => "inko_runtime_start",
             RuntimeFunction::RuntimeState => "inko_runtime_state",
-            RuntimeFunction::StringConcat => "inko_string_concat",
-            RuntimeFunction::StringNew => "inko_string_new",
             RuntimeFunction::RuntimeStackMask => "inko_runtime_stack_mask",
             RuntimeFunction::Malloc => "malloc",
             RuntimeFunction::Free => "free",
@@ -70,13 +64,6 @@ impl RuntimeFunction {
 
                 ret.fn_type(&[proc], false)
             }
-            RuntimeFunction::ProcessPanic => {
-                let proc = context.pointer_type().into();
-                let val = context.pointer_type().into();
-                let ret = context.void_type();
-
-                ret.fn_type(&[proc, val], false)
-            }
             RuntimeFunction::ProcessFinishMessage => {
                 let proc = context.pointer_type().into();
                 let terminate = context.bool_type().into();
@@ -85,12 +72,11 @@ impl RuntimeFunction {
                 ret.fn_type(&[proc, terminate], false)
             }
             RuntimeFunction::RuntimeNew => {
-                let counts = context.pointer_type().into();
                 let argc = context.i32_type().into();
                 let argv = context.pointer_type().into();
                 let ret = context.pointer_type();
 
-                ret.fn_type(&[counts, argc, argv], false)
+                ret.fn_type(&[argc, argv], false)
             }
             RuntimeFunction::RuntimeDrop => {
                 let runtime = context.pointer_type().into();
@@ -136,22 +122,6 @@ impl RuntimeFunction {
                 let ret = context.pointer_type();
 
                 ret.fn_type(&[process, typ], false)
-            }
-            RuntimeFunction::StringConcat => {
-                let state = context.pointer_type().into();
-                let strings = context.pointer_type().into();
-                let length = context.i64_type().into();
-                let ret = context.pointer_type();
-
-                ret.fn_type(&[state, strings, length], false)
-            }
-            RuntimeFunction::StringNew => {
-                let state = context.pointer_type().into();
-                let bytes = context.pointer_type().into();
-                let length = context.i64_type().into();
-                let ret = context.pointer_type();
-
-                ret.fn_type(&[state, bytes, length], false)
             }
             RuntimeFunction::RuntimeStackMask => {
                 let state = context.pointer_type().into();

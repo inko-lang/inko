@@ -9,13 +9,12 @@ import std.hash (Hash, Hasher)
 import std.iter (Stream)
 import std.option (Option)
 import std.ptr
-import std.string (Bytes, IntoString, ToString, hash_bytes)
+import std.string (Bytes, IntoString, PrimitiveString, ToString, hash_bytes)
 
 fn extern inko_string_from_bytes(
-  state: Pointer[UInt8],
   bytes: Pointer[UInt8],
   size: Int,
-) -> String
+) -> PrimitiveString
 
 fn invalid_capacity(size: Int) -> Never {
   panic('the capacity (${size}) must be greater than or equal to zero')
@@ -139,7 +138,7 @@ type pub ByteArray {
   fn pub static filled(with: Int, times: Int) -> ByteArray {
     let bytes = with_capacity(times)
 
-    alloc.write(byte: with, to: bytes.buffer, times: times)
+    alloc.write(byte: with, to: bytes.buffer, size: times)
     bytes.size = times
     bytes
   }
@@ -294,7 +293,7 @@ type pub ByteArray {
   fn pub mut drain_to_string -> String {
     if empty? { return '' }
 
-    let str = inko_string_from_bytes(_INKO.state, @buffer, @size)
+    let str = String.from_primitive(inko_string_from_bytes(@buffer, @size))
 
     clear
     str
@@ -494,7 +493,7 @@ type pub ByteArray {
 
     if add > 0 { reserve(add) }
 
-    alloc.write(byte: value, to: tail, times: size - @size)
+    alloc.write(byte: value, to: tail, size: size - @size)
     @size = size
   }
 
@@ -719,7 +718,7 @@ impl ToString for ByteArray {
   fn pub to_string -> String {
     if empty? { return '' }
 
-    inko_string_from_bytes(_INKO.state, @buffer, @size)
+    String.from_primitive(inko_string_from_bytes(@buffer, @size))
   }
 }
 

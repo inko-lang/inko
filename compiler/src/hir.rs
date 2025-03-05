@@ -10,7 +10,11 @@ use ::ast::nodes::{self as ast, Node as _};
 use location::Location;
 use std::path::PathBuf;
 use std::str::FromStr;
-use types::{ARRAY_INTERNAL_NAME, ARRAY_PUSH, ARRAY_WITH_CAPACITY};
+use types::{
+    ARRAY_INTERNAL_NAME, ARRAY_PUSH, ARRAY_WITH_CAPACITY,
+    STRING_BUFFER_INTERNAL_NAME, STRING_BUFFER_PUSH, STRING_BUFFER_TO_STRING,
+    STRING_BUFFER_WITH_CAPACITY, TO_STRING_METHOD,
+};
 
 const BUILTIN_RECEIVER: &str = "_INKO";
 const ARRAY_LIT_VAR: &str = "$array";
@@ -18,6 +22,7 @@ const ITER_VAR: &str = "$iter";
 const NEXT_CALL: &str = "next";
 const SOME_CONS: &str = "Some";
 const INTO_ITER_CALL: &str = "into_iter";
+const STR_BUF_VAR: &str = "$buf";
 
 struct Comments {
     nodes: Vec<ast::Comment>,
@@ -113,20 +118,8 @@ impl PartialEq for FloatLiteral {
 impl Eq for FloatLiteral {}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct StringText {
-    pub(crate) value: String,
-    pub(crate) location: Location,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum StringValue {
-    Text(Box<StringText>),
-    Expression(Box<Call>),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct StringLiteral {
-    pub(crate) values: Vec<StringValue>,
+    pub(crate) value: String,
     pub(crate) resolved_type: types::TypeRef,
     pub(crate) location: Location,
 }
@@ -581,6 +574,86 @@ pub(crate) enum Expression {
 }
 
 impl Expression {
+    fn call_static(
+        type_name: &str,
+        method_name: &str,
+        arguments: Vec<Expression>,
+        location: Location,
+    ) -> Expression {
+        Self::call(
+            Expression::ConstantRef(Box::new(ConstantRef {
+                kind: types::ConstantKind::Unknown,
+                source: None,
+                name: type_name.to_string(),
+                resolved_type: types::TypeRef::Unknown,
+                usage: Usage::Used,
+                location,
+            })),
+            method_name,
+            arguments,
+            location,
+        )
+    }
+
+    fn call(
+        receiver: Expression,
+        method_name: &str,
+        arguments: Vec<Expression>,
+        location: Location,
+    ) -> Expression {
+        Expression::Call(Box::new(Call {
+            kind: types::CallKind::Unknown,
+            receiver: Some(receiver),
+            name: Identifier { name: method_name.to_string(), location },
+            parens: true,
+            in_mut: false,
+            usage: Usage::Used,
+            arguments: arguments
+                .into_iter()
+                .map(|e| {
+                    Argument::Positional(Box::new(PositionalArgument {
+                        value: e,
+                        expected_type: types::TypeRef::Unknown,
+                    }))
+                })
+                .collect(),
+            location,
+        }))
+    }
+
+    fn define_variable(
+        name: &str,
+        value: Expression,
+        location: Location,
+    ) -> Expression {
+        Expression::DefineVariable(Box::new(DefineVariable {
+            resolved_type: types::TypeRef::Unknown,
+            variable_id: None,
+            mutable: false,
+            name: Identifier { name: name.to_string(), location },
+            value_type: None,
+            value,
+            location,
+        }))
+    }
+
+    fn identifier_ref(name: &str, location: Location) -> Expression {
+        Expression::IdentifierRef(Box::new(IdentifierRef {
+            name: name.to_string(),
+            kind: types::IdentifierKind::Unknown,
+            usage: Usage::Used,
+            location,
+        }))
+    }
+
+    fn string(value: String, location: Location) -> Expression {
+        Expression::String(Box::new(StringLiteral {
+            value,
+            resolved_type: types::TypeRef::Unknown,
+            location,
+        }))
+    }
+
     pub(crate) fn location(&self) -> Location {
         match self {
             Expression::And(ref n) => n.location,
@@ -2122,12 +2195,9 @@ impl<'a> LowerToHir<'a> {
         })
     }
 
-    fn string_literal(
-        &mut self,
-        node: ast::StringLiteral,
-    ) -> Box<StringLiteral> {
-        let mut text_node: Option<StringText> = None;
-        let mut values = Vec::new();
+    fn string_literal(&mut self, node: ast::StringLiteral) -> Expression {
+        let mut text_node: Option<StringLiteral> = None;
+        let mut args = Vec::new();
 
         // We concatenate consecutive Text and Escape nodes into a single
         // StringText node, such that when we lower to MIR we can avoid
@@ -2137,27 +2207,20 @@ impl<'a> LowerToHir<'a> {
                 ast::StringValue::Text(n) => (n.value, n.location),
                 ast::StringValue::Escape(n) => (n.value, n.location),
                 ast::StringValue::Expression(node) => {
-                    if let Some(text_node) = text_node.take() {
-                        values.push(StringValue::Text(Box::new(text_node)));
+                    if let Some(v) = text_node.take() {
+                        args.push(Expression::String(Box::new(v)));
                     }
 
                     let rec = self.expression(node.value);
                     let loc = rec.location();
-                    let val = StringValue::Expression(Box::new(Call {
-                        kind: types::CallKind::Unknown,
-                        receiver: Some(rec),
-                        name: Identifier {
-                            name: types::TO_STRING_METHOD.to_string(),
-                            location: loc,
-                        },
-                        parens: false,
-                        in_mut: false,
-                        usage: Usage::Used,
-                        arguments: Vec::new(),
-                        location: loc,
-                    }));
+                    let val = Expression::call(
+                        rec,
+                        TO_STRING_METHOD,
+                        Vec::new(),
+                        loc,
+                    );
 
-                    values.push(val);
+                    args.push(val);
                     continue;
                 }
             };
@@ -2166,29 +2229,79 @@ impl<'a> LowerToHir<'a> {
                 text.value.push_str(&val);
                 text.location = Location::start_end(&text.location, &loc);
             } else {
-                text_node = Some(StringText { value: val, location: loc });
+                text_node = Some(StringLiteral {
+                    value: val,
+                    location: loc,
+                    resolved_type: types::TypeRef::Unknown,
+                });
             }
         }
 
-        if let Some(node) = text_node {
-            values.push(StringValue::Text(Box::new(node)));
+        if let Some(v) = text_node {
+            args.push(Expression::String(Box::new(v)));
         }
 
-        Box::new(StringLiteral {
-            values,
-            resolved_type: types::TypeRef::Unknown,
-            location: node.location,
-        })
+        match args.len() {
+            0 => Expression::string(String::new(), node.location),
+            1 => {
+                let mut expr = args.pop().unwrap();
+
+                if let Expression::String(v) = &mut expr {
+                    v.location = node.location;
+                }
+
+                expr
+            }
+            n => {
+                // let buf = StringBuffer.with_capacity(...)
+                let mut body = vec![Expression::define_variable(
+                    STR_BUF_VAR,
+                    Expression::call_static(
+                        STRING_BUFFER_INTERNAL_NAME,
+                        STRING_BUFFER_WITH_CAPACITY,
+                        vec![Expression::Int(Box::new(IntLiteral {
+                            value: n as i64,
+                            resolved_type: types::TypeRef::Unknown,
+                            location: node.location,
+                        }))],
+                        node.location,
+                    ),
+                    node.location,
+                )];
+                let var_ref =
+                    Expression::identifier_ref(STR_BUF_VAR, node.location);
+
+                for arg in args {
+                    let loc = arg.location();
+
+                    // buf.push(...)
+                    body.push(Expression::call(
+                        var_ref.clone(),
+                        STRING_BUFFER_PUSH,
+                        vec![arg],
+                        loc,
+                    ));
+                }
+
+                // buf.into_string
+                body.push(Expression::call(
+                    var_ref,
+                    STRING_BUFFER_TO_STRING,
+                    Vec::new(),
+                    node.location,
+                ));
+
+                Expression::Scope(Box::new(Scope {
+                    resolved_type: types::TypeRef::Unknown,
+                    body,
+                    location: node.location,
+                }))
+            }
+        }
     }
 
     fn array_literal(&mut self, node: ast::Array) -> Expression {
-        let var_ref = Expression::IdentifierRef(Box::new(IdentifierRef {
-            name: ARRAY_LIT_VAR.to_string(),
-            kind: types::IdentifierKind::Unknown,
-            usage: Usage::Used,
-            location: node.location,
-        }));
-
+        let var_ref = Expression::identifier_ref(ARRAY_LIT_VAR, node.location);
         let mut pushes = Vec::new();
 
         for n in node.values {
@@ -2198,72 +2311,26 @@ impl<'a> LowerToHir<'a> {
 
             let arg = self.expression(n);
             let loc = arg.location();
-            let push = Expression::Call(Box::new(Call {
-                kind: types::CallKind::Unknown,
-                receiver: Some(var_ref.clone()),
-                name: Identifier {
-                    name: ARRAY_PUSH.to_string(),
-                    location: node.location,
-                },
-                parens: true,
-                in_mut: false,
-                usage: Usage::Used,
-                arguments: vec![Argument::Positional(Box::new(
-                    PositionalArgument {
-                        value: arg,
-                        expected_type: types::TypeRef::Unknown,
-                    },
-                ))],
-                location: loc,
-            }));
+            let push =
+                Expression::call(var_ref.clone(), ARRAY_PUSH, vec![arg], loc);
 
             pushes.push(push);
         }
 
-        let def_var = Expression::DefineVariable(Box::new(DefineVariable {
-            resolved_type: types::TypeRef::Unknown,
-            variable_id: None,
-            mutable: false,
-            name: Identifier {
-                name: ARRAY_LIT_VAR.to_string(),
-                location: node.location,
-            },
-            value_type: None,
-            value: Expression::Call(Box::new(Call {
-                kind: types::CallKind::Unknown,
-                receiver: Some(Expression::ConstantRef(Box::new(
-                    ConstantRef {
-                        kind: types::ConstantKind::Unknown,
-                        source: None,
-                        name: ARRAY_INTERNAL_NAME.to_string(),
-                        resolved_type: types::TypeRef::Unknown,
-                        usage: Usage::Used,
-                        location: node.location,
-                    },
-                ))),
-                name: Identifier {
-                    name: ARRAY_WITH_CAPACITY.to_string(),
+        let mut body = vec![Expression::define_variable(
+            ARRAY_LIT_VAR,
+            Expression::call_static(
+                ARRAY_INTERNAL_NAME,
+                ARRAY_WITH_CAPACITY,
+                vec![Expression::Int(Box::new(IntLiteral {
+                    value: pushes.len() as _,
+                    resolved_type: types::TypeRef::Unknown,
                     location: node.location,
-                },
-                parens: true,
-                in_mut: false,
-                usage: Usage::Used,
-                arguments: vec![Argument::Positional(Box::new(
-                    PositionalArgument {
-                        value: Expression::Int(Box::new(IntLiteral {
-                            value: pushes.len() as _,
-                            resolved_type: types::TypeRef::Unknown,
-                            location: node.location,
-                        })),
-                        expected_type: types::TypeRef::Unknown,
-                    },
-                ))],
-                location: node.location,
-            })),
-            location: node.location,
-        }));
-
-        let mut body = vec![def_var];
+                }))],
+                node.location,
+            ),
+            node.location,
+        )];
 
         body.append(&mut pushes);
         body.push(var_ref);
@@ -2375,9 +2442,7 @@ impl<'a> LowerToHir<'a> {
             ast::Expression::Int(node) => {
                 Expression::Int(Box::new(self.int_literal(*node)))
             }
-            ast::Expression::String(node) => {
-                Expression::String(self.string_literal(*node))
-            }
+            ast::Expression::String(node) => self.string_literal(*node),
             ast::Expression::Float(node) => {
                 Expression::Float(self.float_literal(*node))
             }
@@ -5629,10 +5694,7 @@ mod tests {
         assert_eq!(
             hir,
             Expression::String(Box::new(StringLiteral {
-                values: vec![StringValue::Text(Box::new(StringText {
-                    value: "a".to_string(),
-                    location: cols(9, 9)
-                }))],
+                value: "a".to_string(),
                 resolved_type: types::TypeRef::Unknown,
                 location: cols(8, 10)
             }))
@@ -5646,10 +5708,7 @@ mod tests {
         assert_eq!(
             hir,
             Expression::String(Box::new(StringLiteral {
-                values: vec![StringValue::Text(Box::new(StringText {
-                    value: "a".to_string(),
-                    location: cols(9, 9)
-                }))],
+                value: "a".to_string(),
                 resolved_type: types::TypeRef::Unknown,
                 location: cols(8, 10)
             }))
@@ -5663,10 +5722,7 @@ mod tests {
         assert_eq!(
             hir,
             Expression::String(Box::new(StringLiteral {
-                values: vec![StringValue::Text(Box::new(StringText {
-                    value: "a\u{AC}".to_string(),
-                    location: cols(9, 15)
-                })),],
+                value: "a\u{AC}".to_string(),
                 resolved_type: types::TypeRef::Unknown,
                 location: cols(8, 16)
             }))
@@ -5679,35 +5735,57 @@ mod tests {
 
         assert_eq!(
             hir,
-            Expression::String(Box::new(StringLiteral {
-                values: vec![
-                    StringValue::Text(Box::new(StringText {
-                        value: "a".to_string(),
-                        location: cols(9, 9)
-                    })),
-                    StringValue::Expression(Box::new(Call {
-                        kind: types::CallKind::Unknown,
-                        receiver: Some(Expression::Int(Box::new(IntLiteral {
-                            value: 10,
-                            resolved_type: types::TypeRef::Unknown,
-                            location: cols(12, 13)
-                        }))),
-                        name: Identifier {
-                            name: types::TO_STRING_METHOD.to_string(),
-                            location: cols(12, 13)
-                        },
-                        parens: false,
-                        in_mut: false,
-                        usage: Usage::Used,
-                        arguments: Vec::new(),
-                        location: cols(12, 13)
-                    })),
-                    StringValue::Text(Box::new(StringText {
-                        value: "b".to_string(),
-                        location: cols(15, 15)
-                    }))
-                ],
+            Expression::Scope(Box::new(Scope {
                 resolved_type: types::TypeRef::Unknown,
+                body: vec![
+                    Expression::define_variable(
+                        STR_BUF_VAR,
+                        Expression::call_static(
+                            STRING_BUFFER_INTERNAL_NAME,
+                            STRING_BUFFER_WITH_CAPACITY,
+                            vec![Expression::Int(Box::new(IntLiteral {
+                                value: 3,
+                                resolved_type: types::TypeRef::Unknown,
+                                location: cols(8, 16),
+                            }))],
+                            cols(8, 16),
+                        ),
+                        cols(8, 16),
+                    ),
+                    Expression::call(
+                        Expression::identifier_ref(STR_BUF_VAR, cols(8, 16)),
+                        STRING_BUFFER_PUSH,
+                        vec![Expression::string("a".to_string(), cols(9, 9))],
+                        cols(9, 9)
+                    ),
+                    Expression::call(
+                        Expression::identifier_ref(STR_BUF_VAR, cols(8, 16)),
+                        STRING_BUFFER_PUSH,
+                        vec![Expression::call(
+                            Expression::Int(Box::new(IntLiteral {
+                                value: 10,
+                                resolved_type: types::TypeRef::Unknown,
+                                location: cols(12, 13)
+                            })),
+                            TO_STRING_METHOD,
+                            Vec::new(),
+                            cols(12, 13)
+                        )],
+                        cols(12, 13)
+                    ),
+                    Expression::call(
+                        Expression::identifier_ref(STR_BUF_VAR, cols(8, 16)),
+                        STRING_BUFFER_PUSH,
+                        vec![Expression::string("b".to_string(), cols(15, 15))],
+                        cols(15, 15)
+                    ),
+                    Expression::call(
+                        Expression::identifier_ref(STR_BUF_VAR, cols(8, 16)),
+                        STRING_BUFFER_TO_STRING,
+                        Vec::new(),
+                        cols(8, 16)
+                    )
+                ],
                 location: cols(8, 16)
             }))
         );
@@ -5722,86 +5800,31 @@ mod tests {
             Expression::Scope(Box::new(Scope {
                 resolved_type: types::TypeRef::Unknown,
                 body: vec![
-                    Expression::DefineVariable(Box::new(DefineVariable {
-                        resolved_type: types::TypeRef::Unknown,
-                        variable_id: None,
-                        mutable: false,
-                        name: Identifier {
-                            name: "$array".to_string(),
-                            location: cols(8, 11),
-                        },
-                        value_type: None,
-                        value: Expression::Call(Box::new(Call {
-                            kind: types::CallKind::Unknown,
-                            receiver: Some(Expression::ConstantRef(Box::new(
-                                ConstantRef {
-                                    kind: types::ConstantKind::Unknown,
-                                    source: None,
-                                    name: "$Array".to_string(),
-                                    resolved_type: types::TypeRef::Unknown,
-                                    usage: Usage::Used,
-                                    location: cols(8, 11),
-                                }
-                            ))),
-                            name: Identifier {
-                                name: "with_capacity".to_string(),
+                    Expression::define_variable(
+                        ARRAY_LIT_VAR,
+                        Expression::call_static(
+                            ARRAY_INTERNAL_NAME,
+                            ARRAY_WITH_CAPACITY,
+                            vec![Expression::Int(Box::new(IntLiteral {
+                                value: 1,
+                                resolved_type: types::TypeRef::Unknown,
                                 location: cols(8, 11),
-                            },
-                            parens: true,
-                            in_mut: false,
-                            usage: Usage::Used,
-                            arguments: vec![Argument::Positional(Box::new(
-                                PositionalArgument {
-                                    value: Expression::Int(Box::new(
-                                        IntLiteral {
-                                            value: 1,
-                                            resolved_type:
-                                                types::TypeRef::Unknown,
-                                            location: cols(8, 11),
-                                        }
-                                    )),
-                                    expected_type: types::TypeRef::Unknown,
-                                }
-                            ))],
-                            location: cols(8, 11),
-                        },)),
-                        location: cols(8, 11),
-                    })),
-                    Expression::Call(Box::new(Call {
-                        kind: types::CallKind::Unknown,
-                        receiver: Some(Expression::IdentifierRef(Box::new(
-                            IdentifierRef {
-                                name: "$array".to_string(),
-                                kind: types::IdentifierKind::Unknown,
-                                usage: Usage::Used,
-                                location: cols(8, 11),
-                            }
-                        ))),
-                        name: Identifier {
-                            name: "push".to_string(),
-                            location: cols(8, 11),
-                        },
-                        parens: true,
-                        in_mut: false,
-                        usage: Usage::Used,
-                        arguments: vec![Argument::Positional(Box::new(
-                            PositionalArgument {
-                                value: Expression::Int(Box::new(IntLiteral {
-                                    value: 10,
-                                    resolved_type: types::TypeRef::Unknown,
-                                    location: cols(9, 10),
-                                })),
-                                expected_type: types::TypeRef::Unknown,
-                            },
-                        ))],
-                        location: cols(9, 10),
-                    })),
-                    Expression::IdentifierRef(Box::new(IdentifierRef {
-                        name: "$array".to_string(),
-                        kind: types::IdentifierKind::Unknown,
-                        usage: Usage::Used,
-                        location: cols(8, 11),
-                    })),
+                            }))],
+                            cols(8, 11)
+                        ),
+                        cols(8, 11)
+                    ),
+                    Expression::call(
+                        Expression::identifier_ref(ARRAY_LIT_VAR, cols(8, 11)),
+                        ARRAY_PUSH,
+                        vec![Expression::Int(Box::new(IntLiteral {
+                            value: 10,
+                            resolved_type: types::TypeRef::Unknown,
+                            location: cols(9, 10),
+                        }))],
+                        cols(9, 10)
+                    ),
+                    Expression::identifier_ref(ARRAY_LIT_VAR, cols(8, 11))
                 ],
                 location: cols(8, 11),
             }))

@@ -93,6 +93,11 @@ pub const SELF_TYPE: &str = "Self";
 pub const NEVER_TYPE: &str = "Never";
 pub const BYTES_MODULE: &str = "std.bytes";
 pub const BYTE_ARRAY_TYPE: &str = "ByteArray";
+pub const STRING_BUFFER_TYPE: &str = "StringBuffer";
+pub const STRING_BUFFER_WITH_CAPACITY: &str = "with_capacity";
+pub const STRING_BUFFER_PUSH: &str = "push";
+pub const STRING_BUFFER_INTERNAL_NAME: &str = "$StringBuffer";
+pub const STRING_BUFFER_TO_STRING: &str = "to_string";
 
 /// The name of the pseudo field used to deference a pointer.
 pub const DEREF_POINTER_FIELD: &str = "0";
@@ -2368,8 +2373,6 @@ pub enum Intrinsic {
     IntWrappingMul,
     IntWrappingSub,
     Moved,
-    Panic,
-    StringConcat,
     State,
     Process,
     FloatRound,
@@ -2431,8 +2434,6 @@ impl Intrinsic {
             Intrinsic::IntCheckedMul,
             Intrinsic::IntCheckedSub,
             Intrinsic::Moved,
-            Intrinsic::Panic,
-            Intrinsic::StringConcat,
             Intrinsic::State,
             Intrinsic::Process,
             Intrinsic::FloatRound,
@@ -2496,8 +2497,6 @@ impl Intrinsic {
             Intrinsic::IntCheckedMul => "int_checked_mul",
             Intrinsic::IntCheckedSub => "int_checked_sub",
             Intrinsic::Moved => "moved",
-            Intrinsic::Panic => "panic",
-            Intrinsic::StringConcat => "string_concat",
             Intrinsic::State => "state",
             Intrinsic::Process => "process",
             Intrinsic::FloatRound => "float_round",
@@ -2560,8 +2559,6 @@ impl Intrinsic {
             Intrinsic::IntCheckedMul => int_res,
             Intrinsic::IntCheckedSub => int_res,
             Intrinsic::Moved => TypeRef::nil(),
-            Intrinsic::Panic => TypeRef::Never,
-            Intrinsic::StringConcat => TypeRef::string(),
             Intrinsic::State => TypeRef::pointer(TypeEnum::Foreign(
                 ForeignType::Int(8, Sign::Unsigned),
             )),

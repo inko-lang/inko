@@ -3,7 +3,7 @@ use crate::config::Config;
 use crate::mem::{Type, TypePointer};
 use crate::process::{Message, NativeAsyncMethod, Process, ProcessPointer};
 use crate::stack::Stack;
-use crate::state::{MethodCounts, RcState, State};
+use crate::state::{RcState, State};
 use rustix::param::page_size;
 use std::mem::{forget, size_of};
 use std::ops::{Deref, DerefMut, Drop};
@@ -71,7 +71,11 @@ impl Deref for OwnedType {
 impl Drop for OwnedType {
     fn drop(&mut self) {
         unsafe {
-            Type::drop(self.0);
+            let layout = Type::layout(self.0.method_slots);
+            let raw_ptr = (self.0).0;
+
+            std::ptr::drop_in_place(raw_ptr);
+            std::alloc::dealloc(raw_ptr as *mut u8, layout);
         }
     }
 }
@@ -84,7 +88,7 @@ pub(crate) fn setup() -> RcState {
     // different platforms.
     config.process_threads = 2;
 
-    State::new(config, &MethodCounts::default(), Vec::new())
+    State::new(config, Vec::new())
 }
 
 pub(crate) fn new_process(instance_of: TypePointer) -> OwnedProcess {

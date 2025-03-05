@@ -442,7 +442,7 @@ type pub Process {
   fn pub move spawn -> Output {
     let child = match @cmd.spawn {
       case Ok(child) -> child
-      case Error(err) -> panic('Failed to spawn the child process: ${err}')
+      case Error(err) -> panic("failed to spawn '${@cmd.program}': ${err}")
     }
 
     let _ = (child.stdin := Option.None).get.write_string(@stdin)
@@ -452,7 +452,7 @@ type pub Process {
     let _ = child.stderr.as_mut.get.read_all(stderr)
     let status = match child.wait {
       case Ok(val) -> val
-      case Error(err) -> panic('Failed to wait for the child process: ${err}')
+      case Error(err) -> panic('failed to wait for the child process: ${err}')
     }
 
     Output(

@@ -5,14 +5,14 @@ import std.fmt (Format, Formatter)
 import std.hash (Hash, Hasher)
 import std.int (MAX, MIN, ToInt)
 import std.ops (Add, Divide, Modulo, Multiply, Power, Subtract)
-import std.string (Bytes, ToString)
+import std.string (Bytes, PrimitiveString, ToString)
 
 type extern FloatResult {
   let @tag: Int
   let @value: UInt64
 }
 
-fn extern inko_float_to_string(state: Pointer[UInt8], float: Float64) -> String
+fn extern inko_float_to_string(float: Float64) -> PrimitiveString
 
 fn extern inko_string_to_float(bytes: Pointer[UInt8], size: Int) -> FloatResult
 
@@ -418,7 +418,7 @@ impl ToString for Float {
   # Float.infinity.to_string # => 'Infinity'
   # ```
   fn pub to_string -> String {
-    inko_float_to_string(_INKO.state, self as Float64)
+    String.from_primitive(inko_float_to_string(self as Float64))
   }
 }
 

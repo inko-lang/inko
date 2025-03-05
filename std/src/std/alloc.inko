@@ -26,6 +26,10 @@ fn resize[T](buffer: Pointer[T], size: Int) -> Pointer[T] {
   ptr as Pointer[T]
 }
 
+fn allocate[T](size: Int) -> Pointer[T] {
+  resize(buffer: 0 as Pointer[T], size: size)
+}
+
 fn free[T](pointer: Pointer[T]) {
   libc.free(pointer as Pointer[UInt8])
 }
@@ -42,6 +46,6 @@ fn zero(pointer: Pointer[UInt8], size: Int) {
   libc.memset(pointer, byte: 0 as Int32, size: size as UInt64)
 }
 
-fn write(byte: Int, to: Pointer[UInt8], times: Int) {
-  libc.memset(to, byte: byte as Int32, size: times as UInt64)
+fn write(byte: Int, to: Pointer[UInt8], size: Int) {
+  libc.memset(to, byte: byte as Int32, size: size as UInt64)
 }

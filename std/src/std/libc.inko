@@ -62,6 +62,7 @@ let ENOTSUP = sys.ENOTSUP
 let EOPNOTSUPP = sys.EOPNOTSUPP
 let EPERM = sys.EPERM
 let EPIPE = sys.EPIPE
+let ERANGE = sys.ERANGE
 let EROFS = sys.EROFS
 let ESPIPE = sys.ESPIPE
 let ETIME = sys.ETIME
@@ -341,6 +342,10 @@ fn extern getaddrinfo(
 ) -> Int32
 
 fn extern freeaddrinfo(addr: Pointer[sys.AddrInfo])
+
+fn extern getcwd(buf: Pointer[UInt8], size: UInt64) -> Pointer[UInt8]
+
+fn extern chdir(path: Pointer[UInt8]) -> Int32
 
 # Returns the type of a directory entry.
 fn inline dirent_type(pointer: Pointer[sys.Dirent]) -> Int {

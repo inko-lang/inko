@@ -84,7 +84,7 @@ impl<'a, 'ctx> Module<'a, 'ctx> {
             .unwrap_or_else(|| self.add_global_pointer(name))
     }
 
-    pub(crate) fn add_type(&mut self, name: &str) -> GlobalValue<'ctx> {
+    pub(crate) fn add_type(&self, name: &str) -> GlobalValue<'ctx> {
         self.inner.get_global(name).unwrap_or_else(|| {
             let typ = self.context.pointer_type();
             let space = typ.get_address_space();

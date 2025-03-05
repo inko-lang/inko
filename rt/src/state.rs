@@ -1,6 +1,5 @@
 use crate::arc_without_weak::ArcWithoutWeak;
 use crate::config::Config;
-use crate::mem::{String as InkoString, Type, TypePointer};
 use crate::network_poller::NetworkPoller;
 use crate::scheduler::process::Scheduler;
 use crate::scheduler::signal::Signals;
@@ -9,36 +8,13 @@ use std::collections::hash_map::RandomState;
 use std::collections::HashMap;
 use std::env;
 use std::hash::{BuildHasher, Hasher};
-use std::mem::size_of;
 use std::panic::RefUnwindSafe;
 use std::sync::atomic::AtomicU32;
 use std::thread::available_parallelism;
 use std::time;
 
-/// Allocates a new type, returning a tuple containing the owned pointer and a
-/// permanent reference pointer.
-macro_rules! new_type {
-    ($name: expr, $methods: expr, $size_source: ident) => {{
-        Type::alloc(
-            $name.to_string(),
-            $methods,
-            size_of::<$size_source>() as u32,
-        )
-    }};
-}
-
 /// A reference counted State.
 pub(crate) type RcState = ArcWithoutWeak<State>;
-
-/// The number of methods used for the various built-in types.
-///
-/// These counts are used to determine how much memory is needed for allocating
-/// the various built-in types.
-#[derive(Default)]
-#[repr(C)]
-pub struct MethodCounts {
-    pub(crate) string_type: u16,
-}
 
 pub(crate) struct Env {
     pub(crate) keys: Vec<String>,
@@ -77,8 +53,6 @@ impl Env {
 /// The state of the Inko runtime.
 #[repr(C)]
 pub struct State {
-    pub string_type: TypePointer,
-
     /// The first randomly generated key to use for hashers.
     pub hash_key0: i64,
 
@@ -136,12 +110,7 @@ unsafe impl Sync for State {}
 impl RefUnwindSafe for State {}
 
 impl State {
-    pub(crate) fn new(
-        config: Config,
-        counts: &MethodCounts,
-        arguments: Vec<String>,
-    ) -> RcState {
-        let string_type = new_type!("String", counts.string_type, InkoString);
+    pub(crate) fn new(config: Config, arguments: Vec<String>) -> RcState {
         let hash_key0 = RandomState::new().build_hasher().finish() as i64;
         let hash_key1 = RandomState::new().build_hasher().finish() as i64;
         let environment = Env::new();
@@ -166,7 +135,6 @@ impl State {
             timeout_worker: TimeoutWorker::new(),
             arguments,
             network_pollers,
-            string_type,
             signals: Signals::new(),
         };
 
@@ -176,14 +144,6 @@ impl State {
     pub(crate) fn terminate(&self) {
         self.scheduler.terminate();
         self.timeout_worker.terminate();
-    }
-}
-
-impl Drop for State {
-    fn drop(&mut self) {
-        unsafe {
-            Type::drop(self.string_type);
-        }
     }
 }
 
@@ -201,12 +161,12 @@ mod tests {
     #[test]
     fn test_field_offsets() {
         let config = Config::new();
-        let state = State::new(config, &MethodCounts::default(), Vec::new());
+        let state = State::new(config, Vec::new());
 
         // These offsets are tested against because the runtime makes use of
         // them.
-        assert_eq!(offset_of!(state, hash_key0), 8);
-        assert_eq!(offset_of!(state, hash_key1), 16);
-        assert_eq!(offset_of!(state, cores), 32);
+        assert_eq!(offset_of!(state, hash_key0), 0);
+        assert_eq!(offset_of!(state, hash_key1), 8);
+        assert_eq!(offset_of!(state, cores), 24);
     }
 }

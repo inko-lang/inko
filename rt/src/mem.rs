@@ -1,7 +1,9 @@
-use std::alloc::{alloc, alloc_zeroed, dealloc, handle_alloc_error, Layout};
+use crate::result::error_to_int;
+use std::alloc::{alloc, alloc_zeroed, handle_alloc_error, Layout};
+use std::io;
 use std::mem::{align_of, forget, size_of};
 use std::ops::Deref;
-use std::ptr::drop_in_place;
+use std::ptr::null;
 use std::slice;
 use std::str;
 use std::string::String as RustString;
@@ -102,14 +104,6 @@ pub struct Type {
 }
 
 impl Type {
-    pub(crate) unsafe fn drop(ptr: TypePointer) {
-        let layout = Self::layout(ptr.method_slots);
-        let raw_ptr = ptr.0;
-
-        drop_in_place(raw_ptr);
-        dealloc(raw_ptr as *mut u8, layout);
-    }
-
     pub(crate) fn alloc(
         name: RustString,
         methods: u16,
@@ -156,7 +150,7 @@ impl Type {
     }
 
     /// Returns the `Layout` for a type itself.
-    unsafe fn layout(methods: u16) -> Layout {
+    pub(crate) unsafe fn layout(methods: u16) -> Layout {
         let size = size_of::<Type>() + (methods as usize * size_of::<Method>());
 
         Layout::from_size_align_unchecked(size, align_of::<Type>())
@@ -173,7 +167,7 @@ impl Type {
 /// A pointer to a type.
 #[repr(transparent)]
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
-pub struct TypePointer(*mut Type);
+pub struct TypePointer(pub(crate) *mut Type);
 
 impl Deref for TypePointer {
     type Target = Type;
@@ -183,94 +177,47 @@ impl Deref for TypePointer {
     }
 }
 
-/// A heap allocated string.
+/// An FFI-safe primitive string.
 ///
-/// Strings use atomic reference counting as they are treated as value types,
-/// and this removes the need for cloning the string's contents (at the cost of
-/// atomic operations).
+/// These values are created either by the runtime or the standard library, and
+/// ownership depends on the context.
+///
+/// If this struct's layout changes, the type `std.string.PrimitiveString` must
+/// be updated accordingly.
 #[repr(C)]
-pub struct String {
-    pub header: Header,
-    pub size: u64,
-    pub bytes: *mut u8,
+pub struct PrimitiveString {
+    pub bytes: *const u8,
+    pub size: i64,
 }
 
-impl String {
-    pub(crate) unsafe fn drop(ptr: *const Self) {
-        drop_in_place(ptr as *mut Self);
+impl PrimitiveString {
+    pub(crate) fn empty() -> PrimitiveString {
+        Self { bytes: null(), size: 0 }
     }
 
-    pub(crate) unsafe fn read<'a>(ptr: *const String) -> &'a str {
-        (*ptr).as_slice()
+    pub(crate) fn error(error: io::Error) -> PrimitiveString {
+        Self { bytes: error_to_int(error) as *const u8, size: -1 }
     }
 
-    pub(crate) fn alloc(
-        instance_of: TypePointer,
-        value: RustString,
-    ) -> *const String {
-        Self::new(instance_of, value.into_bytes())
+    pub(crate) fn owned(value: RustString) -> PrimitiveString {
+        let vec = value.into_bytes();
+        let ptr = vec.as_ptr();
+        let len = vec.len() as i64;
+
+        forget(vec);
+        PrimitiveString { bytes: ptr, size: len }
     }
 
-    pub(crate) fn from_bytes(
-        instance_of: TypePointer,
-        bytes: &[u8],
-    ) -> *const String {
-        let bytes =
-            RustString::from_utf8_lossy(bytes).into_owned().into_bytes();
-
-        String::new(instance_of, bytes)
+    pub(crate) fn borrowed(value: &str) -> PrimitiveString {
+        Self { bytes: value.as_ptr(), size: value.len() as i64 }
     }
 
-    pub(crate) fn from_pointer(
-        instance_of: TypePointer,
-        bytes: *mut u8,
-        size: u64,
-    ) -> *const String {
-        let ptr = allocate(Layout::new::<Self>()) as *mut Self;
-        let obj = unsafe { &mut *ptr };
-
-        obj.header.init_atomic(instance_of);
-        init!(obj.size => size);
-        init!(obj.bytes => bytes);
-        ptr as _
-    }
-
-    fn new(instance_of: TypePointer, mut bytes: Vec<u8>) -> *const String {
-        let len = bytes.len();
-
-        bytes.reserve_exact(1);
-        bytes.push(0);
-
-        // Vec and Box<[u8]> don't have a public/stable memory layout. To work
-        // around that we have to break the Vec apart into a buffer and length,
-        // and store the two separately.
-        let mut boxed = bytes.into_boxed_slice();
-        let buffer = boxed.as_mut_ptr();
-
-        forget(boxed);
-        Self::from_pointer(instance_of, buffer, len as u64)
-    }
-
-    /// Returns a string slice pointing to the underlying bytes.
-    ///
-    /// The returned slice _does not_ include the NULL byte.
-    pub(crate) fn as_slice(&self) -> &str {
-        unsafe { str::from_utf8_unchecked(self.as_bytes()) }
-    }
-
-    /// Returns a slice to the underlying bytes, without the NULL byte.
-    fn as_bytes(&self) -> &[u8] {
-        unsafe { slice::from_raw_parts(self.bytes, self.size as usize) }
-    }
-}
-
-impl Drop for String {
-    fn drop(&mut self) {
+    pub(crate) fn as_str<'a>(&self) -> &'a str {
+        // Safety: the data being valid UTF8 is enforced when self is created.
         unsafe {
-            drop(Box::from_raw(slice::from_raw_parts_mut(
-                self.bytes,
-                (self.size + 1) as usize,
-            )));
+            let slice = slice::from_raw_parts(self.bytes, self.size as usize);
+
+            str::from_utf8_unchecked(slice)
         }
     }
 }
@@ -278,6 +225,7 @@ impl Drop for String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test::OwnedType;
     use std::mem::{align_of, size_of};
     use std::ptr::addr_of;
 
@@ -295,17 +243,13 @@ mod tests {
 
     #[test]
     fn test_type_field_offsets() {
-        let typ = Type::alloc("A".to_string(), 4, 8);
-        let base = typ.0 as usize;
+        let typ = OwnedType(Type::alloc("A".to_string(), 4, 8));
+        let base = (typ.0).0 as usize;
 
         assert_eq!(addr_of!(typ.name) as usize - base, 0);
         assert_eq!(addr_of!(typ.instance_size) as usize - base, 24);
         assert_eq!(addr_of!(typ.method_slots) as usize - base, 28);
         assert_eq!(addr_of!(typ.methods) as usize - base, 32);
-
-        unsafe {
-            Type::drop(typ);
-        }
     }
 
     #[test]
@@ -321,7 +265,6 @@ mod tests {
     fn test_type_sizes() {
         assert_eq!(size_of::<Header>(), 16);
         assert_eq!(size_of::<Method>(), 16);
-        assert_eq!(size_of::<String>(), 32);
         assert_eq!(size_of::<Method>(), 16);
         assert_eq!(size_of::<Type>(), 32);
     }
@@ -329,67 +272,31 @@ mod tests {
     #[test]
     fn test_type_alignments() {
         assert_eq!(align_of::<Header>(), ALIGNMENT);
-        assert_eq!(align_of::<String>(), ALIGNMENT);
         assert_eq!(align_of::<Method>(), ALIGNMENT);
         assert_eq!(align_of::<Type>(), ALIGNMENT);
     }
 
     #[test]
     fn test_type_alloc() {
-        let typ = Type::alloc("A".to_string(), 0, 24);
+        let typ = OwnedType(Type::alloc("A".to_string(), 0, 24));
 
         assert_eq!(typ.method_slots, 0);
         assert_eq!(typ.instance_size, 24);
-
-        unsafe { Type::drop(typ) };
     }
 
     #[test]
     fn test_type_object() {
-        let typ = Type::object("A".to_string(), 24, 0);
+        let typ = OwnedType(Type::object("A".to_string(), 24, 0));
 
         assert_eq!(typ.method_slots, 0);
         assert_eq!(typ.instance_size, 24);
-
-        unsafe { Type::drop(typ) };
     }
 
     #[test]
     fn test_type_process() {
-        let typ = Type::process("A".to_string(), 24, 0);
+        let typ = OwnedType(Type::process("A".to_string(), 24, 0));
 
         assert_eq!(typ.method_slots, 0);
         assert_eq!(typ.instance_size, 24);
-
-        unsafe { Type::drop(typ) };
-    }
-
-    #[test]
-    fn test_string_new() {
-        let typ = Type::object("A".to_string(), 24, 0);
-        let string = String::new(typ, vec![105, 110, 107, 111]);
-
-        unsafe {
-            assert_eq!((*string).as_bytes(), &[105, 110, 107, 111]);
-            assert_eq!(String::read(string), "inko");
-            Type::drop(typ);
-        }
-    }
-
-    #[test]
-    fn test_string_from_bytes() {
-        let typ = Type::object("A".to_string(), 24, 0);
-        let string = String::from_bytes(
-            typ,
-            &[
-                72, 101, 108, 108, 111, 32, 240, 144, 128, 87, 111, 114, 108,
-                100,
-            ],
-        );
-
-        unsafe {
-            assert_eq!(String::read(string), "Hello �World");
-            Type::drop(typ);
-        }
     }
 }

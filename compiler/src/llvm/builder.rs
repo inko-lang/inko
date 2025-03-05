@@ -793,7 +793,7 @@ impl<'ctx> Builder<'ctx> {
 
     pub(crate) fn allocate_instance<'a, 'b>(
         &self,
-        module: &'a mut Module<'b, 'ctx>,
+        module: &'a Module<'b, 'ctx>,
         db: &Database,
         names: &crate::symbol_names::SymbolNames,
         type_id: TypeId,
@@ -818,7 +818,7 @@ impl<'ctx> Builder<'ctx> {
 
     pub(crate) fn malloc<'a, 'b, T: BasicType<'ctx>>(
         &self,
-        module: &'a mut Module<'b, 'ctx>,
+        module: &'a Module<'b, 'ctx>,
         typ: T,
     ) -> PointerValue<'ctx> {
         let size = typ.size_of().unwrap();

@@ -5,6 +5,7 @@
 # Various methods for `String` may operate on or mention "characters". Whenever
 # this is the case, we are referring to extended grapheme clusters, _not_
 # Unicode scalar values or bytes.
+import std.alloc
 import std.array (bounds_check)
 import std.bytes (IntoByteArray, ToByteArray)
 import std.clone (Clone)
@@ -17,36 +18,22 @@ import std.iter (Iter, Stream)
 import std.ops (Add)
 import std.ptr
 
-type extern StringResult {
-  let @tag: Int
-  let @value: Pointer[UInt8]
+type extern PrimitiveString {
+  let @bytes: Pointer[UInt8]
+  let @size: Int
 }
 
-fn extern inko_string_to_lower(state: Pointer[UInt8], string: String) -> String
+fn extern inko_string_to_lower(string: PrimitiveString) -> PrimitiveString
 
-fn extern inko_string_to_upper(state: Pointer[UInt8], string: String) -> String
+fn extern inko_string_to_upper(string: PrimitiveString) -> PrimitiveString
 
-fn extern inko_string_chars(string: String) -> Pointer[UInt8]
+fn extern inko_string_chars(string: PrimitiveString) -> Pointer[UInt8]
 
-fn extern inko_string_chars_next(
-  state: Pointer[UInt8],
-  iter: Pointer[UInt8],
-) -> StringResult
+fn extern inko_string_chars_next(iter: Pointer[UInt8]) -> PrimitiveString
 
 fn extern inko_string_chars_drop(iter: Pointer[UInt8])
 
-fn extern inko_string_drop(string: String)
-
-fn extern inko_string_concat(
-  state: Pointer[UInt8],
-  strings: Pointer[String],
-  size: Int,
-) -> String
-
-fn extern inko_string_from_pointer(
-  state: Pointer[UInt8],
-  pointer: Pointer[UInt8],
-) -> String
+fn extern inko_string_from_pointer(pointer: Pointer[UInt8]) -> PrimitiveString
 
 let TAB = 0x9
 let LF = 0xA
@@ -178,10 +165,32 @@ trait pub Bytes {
 # An UTF-8 encoded and immutable string type.
 type builtin String {
   # The size of the string in bytes, _excluding_ the trailing NULL byte.
-  let @size: UInt64
+  let @size: Int
 
   # A pointer to the bytes of this string, including the trailing NULL byte.
   let @ptr: Pointer[UInt8]
+
+  fn static from_primitive(value: PrimitiveString) -> String {
+    if value.size == 0 { return '' }
+
+    let str = from_borrowed_primitive(value)
+
+    alloc.free(value.bytes)
+    str
+  }
+
+  fn static from_borrowed_primitive(value: PrimitiveString) -> String {
+    if value.size == 0 { return '' }
+
+    let new = alloc.allocate(value.size + 1)
+
+    # String values are NULL terminated _in addition_ to storing a length, such
+    # that we can pass pointers to C functions as-is, so we have to make sure
+    # the NULL byte is indeed present.
+    alloc.copy(from: value.bytes, to: new, size: value.size)
+    alloc.write(byte: 0, to: ptr.add(new, value.size), size: 1)
+    String(ptr: new, size: value.size)
+  }
 
   # Returns a `String` created from the given NULL terminated pointer.
   #
@@ -197,8 +206,8 @@ type builtin String {
   # ```inko
   # String.from_pointer("hello".pointer) == "hello" # => true
   # ```
-  fn pub inline static from_pointer(pointer: Pointer[UInt8]) -> String {
-    inko_string_from_pointer(_INKO.state, pointer)
+  fn pub static from_pointer(pointer: Pointer[UInt8]) -> String {
+    from_primitive(inko_string_from_pointer(pointer))
   }
 
   # Return a `String` that contains the values of the iterator, separated by the
@@ -247,7 +256,7 @@ type builtin String {
   # 'aä'.to_upper # => 'AÄ'
   # ```
   fn pub inline to_upper -> String {
-    inko_string_to_upper(_INKO.state, self)
+    String.from_primitive(inko_string_to_upper(to_primitive))
   }
 
   # Returns the lowercase equivalent of the current `String`.
@@ -272,7 +281,7 @@ type builtin String {
   # 'AÄ'.to_lower # => 'aä'
   # ```
   fn pub inline to_lower -> String {
-    inko_string_to_lower(_INKO.state, self)
+    String.from_primitive(inko_string_to_lower(to_primitive))
   }
 
   # Slices `self` into a substring, using a range of _characters_ and _not_
@@ -507,7 +516,7 @@ type builtin String {
   # '😀😃'.chars.next # => Option.Some('😀')
   # ```
   fn pub inline chars -> Chars {
-    Chars(string: self, iter: inko_string_chars(self))
+    Chars(string: self, iter: inko_string_chars(to_primitive))
   }
 
   # Returns a new `String` without the given prefix.
@@ -721,6 +730,10 @@ type builtin String {
 
     false
   }
+
+  fn inline to_primitive -> PrimitiveString {
+    PrimitiveString(bytes: @ptr, size: size)
+  }
 }
 
 impl Bytes for String {
@@ -788,7 +801,7 @@ impl Bytes for String {
   # '😀'.size  # => 4
   # ```
   fn pub inline size -> Int {
-    @size as Int
+    @size
   }
 
   # Slices `self` into a sequence of bytes using a _byte_ range.
@@ -831,7 +844,7 @@ impl Contains[String] for String {
 
 impl Drop for String {
   fn mut drop {
-    inko_string_drop(self)
+    alloc.free(@ptr)
   }
 }
 
@@ -906,7 +919,13 @@ impl Add[String, String] for String {
   # 'hello ' + 'world' # => 'hello world'
   # ```
   fn pub inline +(other: ref String) -> String {
-    _INKO.string_concat(self, other)
+    let tot = size + other.size
+    let new = alloc.allocate(tot + 1)
+
+    alloc.copy(from: pointer, to: new, size: size)
+    alloc.copy(from: other.pointer, to: ptr.add(new, size), size: other.size)
+    alloc.write(byte: 0, to: ptr.add(new, tot), size: 1)
+    String(size: tot, ptr: new)
   }
 }
 
@@ -962,9 +981,9 @@ type pub Chars {
 
 impl Iter[String] for Chars {
   fn pub mut next -> Option[String] {
-    match inko_string_chars_next(_INKO.state, @iter) {
-      case { @tag = 0, @value = v } -> Option.Some(v as UInt64 as String)
-      case _ -> Option.None
+    match inko_string_chars_next(@iter) {
+      case { @size = 0 } -> Option.None
+      case v -> Option.Some(String.from_borrowed_primitive(v))
     }
   }
 }
@@ -1025,7 +1044,12 @@ type pub inline StringBuffer {
 
   # Returns a new empty `StringBuffer`.
   fn pub inline static new -> StringBuffer {
-    StringBuffer([])
+    with_capacity(0)
+  }
+
+  # Returns an empty `StringBuffer` with enough space for `size` values.
+  fn pub inline static with_capacity(size: Int) -> StringBuffer {
+    StringBuffer(Array.with_capacity(size))
   }
 
   # Returns a new `StringBuffer` from an existing `Array`.
@@ -1086,11 +1110,31 @@ impl ToString for StringBuffer {
   # buffer.to_string # => 'hello world'
   # ```
   fn pub to_string -> String {
-    if @strings.empty? {
-      ''
-    } else {
-      inko_string_concat(_INKO.state, @strings.pointer, @strings.size)
+    if @strings.empty? { return '' }
+
+    let mut total = 0
+    let mut i = 0
+
+    while i < @strings.size {
+      total += @strings.get_unchecked(i).size
+      i += 1
     }
+
+    let buf: Pointer[UInt8] = alloc.allocate(total + 1)
+    let mut i = 0
+    let mut offset = 0
+
+    while i < @strings.size {
+      let str = @strings.get_unchecked(i)
+      let len = str.size
+
+      alloc.copy(from: str.pointer, to: ptr.add(buf, offset), size: len)
+      i += 1
+      offset += len
+    }
+
+    alloc.write(byte: 0, to: ptr.add(buf, total), size: 1)
+    String(ptr: buf, size: total)
   }
 }
 

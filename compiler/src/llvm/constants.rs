@@ -1,5 +1,4 @@
-pub(crate) const STATE_EPOCH_INDEX: u32 = 3;
-pub(crate) const STATE_STRING_INDEX: u32 = 0;
+pub(crate) const STATE_EPOCH_INDEX: u32 = 2;
 pub(crate) const FIELD_OFFSET: usize = 1;
 pub(crate) const PROCESS_FIELD_OFFSET: usize = 2;
 
@@ -18,6 +17,9 @@ pub(crate) const METHOD_FUNCTION_INDEX: u32 = 1;
 pub(crate) const DROPPER_INDEX: u32 = 0;
 pub(crate) const CLOSURE_CALL_INDEX: u32 = 1;
 
-pub(crate) const ARRAY_LENGTH_INDEX: u32 = 1;
+pub(crate) const ARRAY_SIZE_INDEX: u32 = 1;
 pub(crate) const ARRAY_CAPA_INDEX: u32 = 2;
 pub(crate) const ARRAY_BUF_INDEX: u32 = 3;
+
+pub(crate) const STRING_SIZE_INDEX: u32 = 1;
+pub(crate) const STRING_BUF_INDEX: u32 = 2;

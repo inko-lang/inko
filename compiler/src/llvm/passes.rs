@@ -3,11 +3,12 @@ use crate::config::{BuildDirectories, Opt};
 use crate::diagnostics::global_warning;
 use crate::llvm::builder::Builder;
 use crate::llvm::constants::{
-    ARRAY_BUF_INDEX, ARRAY_CAPA_INDEX, ARRAY_LENGTH_INDEX, CLOSURE_CALL_INDEX,
+    ARRAY_BUF_INDEX, ARRAY_CAPA_INDEX, ARRAY_SIZE_INDEX, CLOSURE_CALL_INDEX,
     DROPPER_INDEX, FIELD_OFFSET, HEADER_REFS_INDEX, HEADER_TYPE_INDEX,
     METHOD_FUNCTION_INDEX, METHOD_HASH_INDEX, PROCESS_FIELD_OFFSET,
     STACK_DATA_EPOCH_INDEX, STACK_DATA_PROCESS_INDEX, STATE_EPOCH_INDEX,
-    STATE_STRING_INDEX, TYPE_METHODS_COUNT_INDEX, TYPE_METHODS_INDEX,
+    STRING_BUF_INDEX, STRING_SIZE_INDEX, TYPE_METHODS_COUNT_INDEX,
+    TYPE_METHODS_INDEX,
 };
 use crate::llvm::context::Context;
 use crate::llvm::layouts::{
@@ -48,9 +49,7 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::thread::scope;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use types::module_name::ModuleName;
-use types::{
-    Database, Intrinsic, Shape, SpecializationKey, TypeId, TypeRef, STRING_ID,
-};
+use types::{Database, Intrinsic, Shape, SpecializationKey, TypeId, TypeRef};
 
 const NIL_VALUE: bool = false;
 
@@ -518,8 +517,6 @@ impl<'a> Worker<'a> {
         GenerateMain::new(
             &self.shared.state.db,
             self.shared.mir,
-            layouts,
-            self.shared.methods,
             self.shared.names,
             &main,
         )
@@ -683,7 +680,6 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
 
         builder.switch_to_block(entry_block);
 
-        let state = self.load_state(&builder);
         let body = self.module.context.append_basic_block(fn_val);
 
         builder.jump(body);
@@ -723,29 +719,18 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
                     .as_basic_value_enum(),
             );
 
-            // Built-in types are defined in the runtime library, so we should
-            // look them up instead of creating a new one.
-            let type_ptr = match tid.0 {
-                STRING_ID => builder
-                    .load_field(self.layouts.state, state, STATE_STRING_INDEX)
-                    .into_pointer_value(),
-                _ => {
-                    let size = builder.int_to_int(
-                        self.layouts.instances[tid.0 as usize]
-                            .size_of()
-                            .unwrap(),
-                        32,
-                        false,
-                    );
+            let size = builder.int_to_int(
+                self.layouts.instances[tid.0 as usize].size_of().unwrap(),
+                32,
+                false,
+            );
 
-                    builder
-                        .call_with_return(
-                            type_new,
-                            &[name_ptr, size.into(), methods_len],
-                        )
-                        .into_pointer_value()
-                }
-            };
+            let type_ptr = builder
+                .call_with_return(
+                    type_new,
+                    &[name_ptr, size.into(), methods_len],
+                )
+                .into_pointer_value();
 
             for method in &self.shared.mir.types[&tid].methods {
                 // Static methods aren't stored in types, nor can we call them
@@ -800,7 +785,6 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
 
         builder.switch_to_block(entry_block);
 
-        let state = self.load_state(&builder);
         let body = self.module.context.append_basic_block(fn_val);
 
         builder.jump(body);
@@ -819,7 +803,7 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
                     .const_null()
                     .as_basic_value_enum(),
             );
-            self.set_constant_global(&builder, state, value, global);
+            self.set_constant_global(&builder, value, global);
         }
 
         // We sort this list so different compilations always produce this list
@@ -831,7 +815,7 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
 
         for (value, global) in strings {
             let ptr = global.as_pointer_value();
-            let val = self.new_string(&builder, state, value);
+            let val = self.new_string(&builder, value);
 
             builder.store(ptr, val);
         }
@@ -842,12 +826,11 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
     fn set_constant_global(
         &mut self,
         builder: &Builder<'ctx>,
-        state: PointerValue<'ctx>,
         constant: &Constant,
         global: GlobalValue<'ctx>,
     ) -> PointerValue<'ctx> {
         let global = global.as_pointer_value();
-        let value = self.permanent_value(builder, state, constant);
+        let value = self.permanent_value(builder, constant);
 
         builder.store(global, value);
         global
@@ -856,7 +839,6 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
     fn permanent_value(
         &mut self,
         builder: &Builder<'ctx>,
-        state: PointerValue<'ctx>,
         constant: &Constant,
     ) -> BasicValueEnum<'ctx> {
         match constant {
@@ -866,7 +848,7 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
             Constant::Float(val) => {
                 builder.f64_literal(*val).as_basic_value_enum()
             }
-            Constant::String(val) => self.new_string(builder, state, val),
+            Constant::String(val) => self.new_string(builder, val),
             Constant::Bool(v) => builder.bool_literal(*v).as_basic_value_enum(),
             Constant::Array(values) => {
                 let (shape, val_typ) = match values.first() {
@@ -925,7 +907,7 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
                 );
 
                 for (index, arg) in values.iter().enumerate() {
-                    let val = self.permanent_value(builder, state, arg);
+                    let val = self.permanent_value(builder, arg);
 
                     builder
                         .store_array_field(buf_typ, buf_ptr, index as _, val);
@@ -933,7 +915,7 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
 
                 let len = builder.i64_literal(values.len() as _);
 
-                builder.store_field(layout, array, ARRAY_LENGTH_INDEX, len);
+                builder.store_field(layout, array, ARRAY_SIZE_INDEX, len);
                 builder.store_field(layout, array, ARRAY_CAPA_INDEX, len);
                 builder.store_field(layout, array, ARRAY_BUF_INDEX, buf_ptr);
                 array.as_basic_value_enum()
@@ -944,7 +926,6 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
     fn new_string(
         &self,
         builder: &Builder<'ctx>,
-        state: PointerValue<'ctx>,
         value: &str,
     ) -> BasicValueEnum<'ctx> {
         let bytes_len = (value.len() + 1) as u32;
@@ -956,17 +937,20 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
         global.set_initializer(&bytes.as_basic_value_enum());
 
         // This is the size of the string _minus_ the trailing NULL byte.
-        let len = builder.u64_literal(value.len() as u64).into();
+        let len = builder.u64_literal(value.len() as u64);
         let ptr = global.as_pointer_value();
-        let func = self.module.runtime_function(RuntimeFunction::StringNew);
+        let tid = TypeId::string();
+        let val = builder.allocate_instance(
+            self.module,
+            &self.shared.state.db,
+            self.shared.names,
+            tid,
+        );
+        let layout = self.layouts.instances[tid.0 as usize];
 
-        builder.call_with_return(func, &[state.into(), ptr.into(), len])
-    }
-
-    fn load_state(&mut self, builder: &Builder<'ctx>) -> PointerValue<'ctx> {
-        let state_global = self.module.add_constant(STATE_GLOBAL);
-
-        builder.load_pointer(state_global.as_pointer_value())
+        builder.store_field(layout, val, STRING_SIZE_INDEX, len);
+        builder.store_field(layout, val, STRING_BUF_INDEX, ptr);
+        val.as_basic_value_enum()
     }
 }
 
@@ -1705,51 +1689,6 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                         let old = self.builder.load(old_typ, old_var);
                         let new = self.builder.load(new_typ, new_var);
                         let res = self.builder.atomic_swap(ptr, old, new);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    Intrinsic::Panic => {
-                        self.set_debug_location(ins.location);
-
-                        let val_var = self.variables[&ins.arguments[0]];
-                        let val = self.builder.load_pointer(val_var);
-                        let func_name = RuntimeFunction::ProcessPanic;
-                        let func = self.module.runtime_function(func_name);
-                        let proc = self.load_process().into();
-
-                        self.builder.direct_call(func, &[proc, val.into()]);
-                        self.builder.unreachable();
-                    }
-                    Intrinsic::StringConcat => {
-                        self.set_debug_location(ins.location);
-
-                        let reg_var = self.variables[&ins.register];
-                        let len =
-                            self.builder.i64_literal(ins.arguments.len() as _);
-                        let temp_type = self
-                            .builder
-                            .context
-                            .pointer_type()
-                            .array_type(ins.arguments.len() as _);
-                        let temp_var = self.builder.new_stack_slot(temp_type);
-
-                        for (idx, reg) in ins.arguments.iter().enumerate() {
-                            let var = self.variables[reg];
-                            let typ = self.variable_types[reg];
-                            let val = self.builder.load(typ, var);
-
-                            self.builder.store_array_field(
-                                temp_type, temp_var, idx as _, val,
-                            );
-                        }
-
-                        let state = self.load_state();
-                        let func_name = RuntimeFunction::StringConcat;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call_with_return(
-                            func,
-                            &[state.into(), temp_var.into(), len.into()],
-                        );
 
                         self.builder.store(reg_var, res);
                     }
@@ -2988,8 +2927,6 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 pub(crate) struct GenerateMain<'a, 'ctx> {
     db: &'a Database,
     mir: &'a Mir,
-    layouts: &'a Layouts<'ctx>,
-    methods: &'a Methods,
     names: &'a SymbolNames,
     module: &'a Module<'a, 'ctx>,
     builder: Builder<'ctx>,
@@ -2999,8 +2936,6 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
     fn new(
         db: &'a Database,
         mir: &'a Mir,
-        layouts: &'a Layouts<'ctx>,
-        methods: &'a Methods,
         names: &'a SymbolNames,
         module: &'a Module<'a, 'ctx>,
     ) -> GenerateMain<'a, 'ctx> {
@@ -3014,7 +2949,7 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
         let function = module.add_function("main", typ, None);
         let builder = Builder::new(module.context, function);
 
-        GenerateMain { db, mir, layouts, methods, names, module, builder }
+        GenerateMain { db, mir, names, module, builder }
     }
 
     fn run(self) {
@@ -3032,10 +2967,6 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
 
         let argc = self.builder.load(argc_typ, argc_var);
         let argv = self.builder.load(argv_typ, argv_var);
-        let layout = self.layouts.method_counts;
-        let counts = self.builder.new_temporary(layout);
-
-        self.set_method_count(counts, TypeId::string());
 
         let rt_new = self.module.runtime_function(RuntimeFunction::RuntimeNew);
         let rt_start =
@@ -3048,10 +2979,7 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
             self.module.runtime_function(RuntimeFunction::RuntimeStackMask);
         let runtime = self
             .builder
-            .call_with_return(
-                rt_new,
-                &[counts.into(), argc.into(), argv.into()],
-            )
+            .call_with_return(rt_new, &[argc.into(), argv.into()])
             .into_pointer_value();
 
         // The state is needed by various runtime functions. Because this data
@@ -3151,16 +3079,5 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
         // this isn't necessary.
         self.builder.direct_call(rt_drop, &[runtime.into()]);
         self.builder.return_value(Some(&self.builder.u32_literal(0)));
-    }
-
-    fn set_method_count(&self, counts: PointerValue<'ctx>, type_id: TypeId) {
-        let layout = self.layouts.method_counts;
-        let count = self
-            .module
-            .context
-            .i16_type()
-            .const_int(self.methods.counts[type_id.0 as usize] as _, false);
-
-        self.builder.store_field(layout, counts, type_id.0, count);
     }
 }

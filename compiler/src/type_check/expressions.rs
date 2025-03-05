@@ -1445,7 +1445,7 @@ impl<'a> CheckMethodBody<'a> {
             hir::Expression::SelfObject(ref mut n) => {
                 self.self_expression(n, scope)
             }
-            hir::Expression::String(ref mut n) => self.string_literal(n, scope),
+            hir::Expression::String(ref mut n) => self.string_literal(n),
             hir::Expression::Throw(ref mut n) => {
                 self.throw_expression(n, scope)
             }
@@ -1528,29 +1528,7 @@ impl<'a> CheckMethodBody<'a> {
         node.resolved_type
     }
 
-    fn string_literal(
-        &mut self,
-        node: &mut hir::StringLiteral,
-        scope: &mut LexicalScope,
-    ) -> TypeRef {
-        for value in &mut node.values {
-            let hir::StringValue::Expression(v) = value else { continue };
-            let val = self.call(v, scope, false);
-
-            if val != TypeRef::Error && !val.is_string(self.db()) {
-                self.state.diagnostics.error(
-                    DiagnosticId::InvalidType,
-                    format!(
-                        "expected a 'String', 'ref String' or \
-                                'mut String', found '{}' instead",
-                        format_type(self.db(), val)
-                    ),
-                    self.file(),
-                    v.location,
-                );
-            }
-        }
-
+    fn string_literal(&mut self, node: &mut hir::StringLiteral) -> TypeRef {
         node.resolved_type = TypeRef::string();
         node.resolved_type
     }

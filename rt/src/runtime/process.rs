@@ -1,5 +1,5 @@
 use crate::context;
-use crate::mem::{String as InkoString, TypePointer};
+use crate::mem::{PrimitiveString, TypePointer};
 use crate::process::{
     Message, NativeAsyncMethod, Process, ProcessPointer, RescheduleRights,
     StackFrame,
@@ -57,9 +57,9 @@ pub(crate) fn panic(process: ProcessPointer, message: &str) -> ! {
 #[no_mangle]
 pub unsafe extern "system" fn inko_process_panic(
     process: ProcessPointer,
-    message: *const InkoString,
+    message: PrimitiveString,
 ) {
-    panic(process, (*message).as_slice());
+    panic(process, message.as_str());
 }
 
 #[no_mangle]
@@ -158,24 +158,22 @@ pub unsafe extern "system" fn inko_process_stacktrace(
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_process_stack_frame_name(
-    state: *const State,
     trace: *const Vec<StackFrame>,
     index: i64,
-) -> *const InkoString {
+) -> PrimitiveString {
     let val = &(*trace).get_unchecked(index as usize).name;
 
-    InkoString::alloc((*state).string_type, val.clone())
+    PrimitiveString::borrowed(val)
 }
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_process_stack_frame_path(
-    state: *const State,
     trace: *const Vec<StackFrame>,
     index: i64,
-) -> *const InkoString {
+) -> PrimitiveString {
     let val = &(*trace).get_unchecked(index as usize).path;
 
-    InkoString::alloc((*state).string_type, val.clone())
+    PrimitiveString::borrowed(val)
 }
 
 #[no_mangle]

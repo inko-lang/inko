@@ -30,7 +30,7 @@ import std.fmt (Format, Formatter)
 import std.io (Error, Read, Write, WriteInternal)
 import std.net.socket (RawSocketOperations)
 import std.ptr
-import std.string (ToString)
+import std.string (PrimitiveString, ToString)
 import std.sys.net
 import std.sys.unix.net (self as sys)
 
@@ -50,7 +50,7 @@ fn extern inko_tls_client_config_with_certificate(
 
 fn extern inko_tls_client_connection_new(
   config: Pointer[UInt8],
-  name: String,
+  name: PrimitiveString,
 ) -> AnyResult
 
 fn extern inko_tls_client_connection_drop(connection: Pointer[UInt8])
@@ -367,7 +367,9 @@ type pub Client[T: mut + RawSocketOperations] {
     config: ref ClientConfig,
     name: String,
   ) -> Option[Client[T]] {
-    let state = match inko_tls_client_connection_new(config.raw, name) {
+    let state = match
+      inko_tls_client_connection_new(config.raw, name.to_primitive)
+    {
       case { @tag = 0, @value = v } -> v as Pointer[UInt8]
       case _ -> return Option.None
     }

@@ -54,6 +54,7 @@ let ENOTSUP = 95
 let EOPNOTSUPP = 95
 let EPERM = 1
 let EPIPE = 32
+let ERANGE = 34
 let EROFS = 30
 let ESPIPE = 29
 let ETIME = 62

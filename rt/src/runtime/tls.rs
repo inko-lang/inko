@@ -1,4 +1,4 @@
-use crate::mem::String as InkoString;
+use crate::mem::PrimitiveString;
 use crate::result::{self, Result};
 use crate::rustls_platform_verifier::tls_config;
 use crate::socket::Socket;
@@ -141,9 +141,9 @@ pub unsafe extern "system" fn inko_tls_client_config_drop(
 #[no_mangle]
 pub unsafe extern "system" fn inko_tls_client_connection_new(
     config: *const ClientConfig,
-    server: *const InkoString,
+    server: PrimitiveString,
 ) -> Result {
-    let name = match ServerName::try_from(InkoString::read(server)) {
+    let name = match ServerName::try_from(server.as_str()) {
         Ok(v) => v,
         Err(_) => return Result::none(),
     };

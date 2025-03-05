@@ -16,7 +16,8 @@ use types::{
     Type, TypeEnum, TypeId, TypeInstance, TypeKind, TypeRef, Visibility,
     ARRAY_INTERNAL_NAME, BYTES_MODULE, BYTE_ARRAY_TYPE, CONSTRUCTORS_LIMIT,
     ENUM_TAG_FIELD, ENUM_TAG_INDEX, MAIN_TYPE, OPTION_MODULE, OPTION_TYPE,
-    RESULT_MODULE, RESULT_TYPE,
+    RESULT_MODULE, RESULT_TYPE, STRING_BUFFER_INTERNAL_NAME,
+    STRING_BUFFER_TYPE, STRING_MODULE,
 };
 
 /// A compiler pass that defines types and traits.
@@ -997,6 +998,16 @@ impl<'a> InsertPrelude<'a> {
             self.db_mut(),
             ARRAY_INTERNAL_NAME.to_string(),
             Symbol::Type(TypeId::array()),
+        );
+
+        // StringBuffer is used for interpolated strings.
+        let str_buf_id =
+            self.state.db.type_in_module(STRING_MODULE, STRING_BUFFER_TYPE);
+
+        self.module.new_symbol(
+            self.db_mut(),
+            STRING_BUFFER_INTERNAL_NAME.to_string(),
+            Symbol::Type(str_buf_id),
         );
     }
 

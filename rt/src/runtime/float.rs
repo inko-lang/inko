@@ -1,11 +1,9 @@
-use crate::mem::String as InkoString;
-use crate::state::State;
+use crate::mem::PrimitiveString;
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_float_to_string(
-    state: *const State,
     value: f64,
-) -> *const InkoString {
+) -> PrimitiveString {
     let string = if value.is_infinite() && value.is_sign_positive() {
         "Infinity".to_string()
     } else if value.is_infinite() {
@@ -16,5 +14,5 @@ pub unsafe extern "system" fn inko_float_to_string(
         format!("{:?}", value)
     };
 
-    InkoString::alloc((*state).string_type, string)
+    PrimitiveString::owned(string)
 }

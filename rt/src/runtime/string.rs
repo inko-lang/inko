@@ -1,6 +1,5 @@
-use crate::mem::String as InkoString;
+use crate::mem::PrimitiveString;
 use crate::result::Result as InkoResult;
-use crate::state::State;
 use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::slice;
@@ -8,66 +7,27 @@ use std::str;
 use unicode_segmentation::{Graphemes, UnicodeSegmentation};
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_string_new(
-    state: *const State,
-    bytes: *mut u8,
-    size: i64,
-) -> *const InkoString {
-    InkoString::from_pointer((*state).string_type, bytes, size as u64)
-}
-
-#[no_mangle]
 pub unsafe extern "system" fn inko_string_from_bytes(
-    state: *const State,
     bytes: *const u8,
     size: i64,
-) -> *const InkoString {
+) -> PrimitiveString {
     let bytes = slice::from_raw_parts(bytes, size as usize);
 
-    InkoString::from_bytes((*state).string_type, bytes)
-}
-
-#[no_mangle]
-pub unsafe extern "system" fn inko_string_concat(
-    state: *const State,
-    strings: *const *const InkoString,
-    size: i64,
-) -> *const InkoString {
-    let slice = slice::from_raw_parts(strings, size as usize);
-    let mut buffer = String::new();
-
-    for &val in slice {
-        buffer.push_str(InkoString::read(val));
-    }
-
-    InkoString::alloc((*state).string_type, buffer)
-}
-
-#[no_mangle]
-pub unsafe extern "system" fn inko_string_drop(pointer: *const InkoString) {
-    InkoString::drop(pointer);
+    PrimitiveString::owned(String::from_utf8_lossy(bytes).into_owned())
 }
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_string_to_lower(
-    state: *const State,
-    string: *const InkoString,
-) -> *const InkoString {
-    InkoString::alloc(
-        (*state).string_type,
-        InkoString::read(string).to_lowercase(),
-    )
+    string: PrimitiveString,
+) -> PrimitiveString {
+    PrimitiveString::owned(string.as_str().to_lowercase())
 }
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_string_to_upper(
-    state: *const State,
-    string: *const InkoString,
-) -> *const InkoString {
-    InkoString::alloc(
-        (*state).string_type,
-        InkoString::read(string).to_uppercase(),
-    )
+    string: PrimitiveString,
+) -> PrimitiveString {
+    PrimitiveString::owned(string.as_str().to_uppercase())
 }
 
 #[no_mangle]
@@ -106,10 +66,8 @@ pub unsafe extern "system" fn inko_string_to_float(
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_string_chars(
-    string: *const InkoString,
+    string: PrimitiveString,
 ) -> *mut u8 {
-    let string = InkoString::read(string);
-
     // Safety: a Graphemes takes a reference to a slice of bytes. The standard
     // library implements a wrapper around this native type that holds on to the
     // string we're iterating over, preventing the slice from being invalidated
@@ -117,23 +75,18 @@ pub unsafe extern "system" fn inko_string_chars(
     //
     // Graphemes isn't FFI safe, so we have to work around this by casting it to
     // a regular raw pointer.
-    Box::into_raw(Box::new(string.graphemes(true))) as _
+    Box::into_raw(Box::new(string.as_str().graphemes(true))) as _
 }
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_string_chars_next(
-    state: *const State,
     iter: *mut u8,
-) -> InkoResult {
+) -> PrimitiveString {
     let iter = &mut *(iter as *mut Graphemes);
 
     iter.next()
-        .map(|v| {
-            let string = InkoString::alloc((*state).string_type, v.to_string());
-
-            InkoResult::ok(string as _)
-        })
-        .unwrap_or_else(InkoResult::none)
+        .map(PrimitiveString::borrowed)
+        .unwrap_or_else(PrimitiveString::empty)
 }
 
 #[no_mangle]
@@ -143,10 +96,7 @@ pub unsafe extern "system" fn inko_string_chars_drop(iter: *mut u8) {
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_string_from_pointer(
-    state: *const State,
     ptr: *const c_char,
-) -> *const InkoString {
-    let val = CStr::from_ptr(ptr).to_string_lossy().into_owned();
-
-    InkoString::alloc((*state).string_type, val)
+) -> PrimitiveString {
+    PrimitiveString::owned(CStr::from_ptr(ptr).to_string_lossy().into_owned())
 }

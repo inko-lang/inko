@@ -18,7 +18,7 @@ use crate::scheduler::reset_affinity;
 use crate::scheduler::signal as signal_sched;
 use crate::stack::total_stack_size;
 use crate::stack::Stack;
-use crate::state::{MethodCounts, RcState, State};
+use crate::state::{RcState, State};
 use rustix::param::page_size;
 use std::ffi::CStr;
 use std::slice;
@@ -30,7 +30,6 @@ extern "C" {
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_runtime_new(
-    counts: *mut MethodCounts,
     argc: u32,
     argv: *const *const i8,
 ) -> *mut Runtime {
@@ -75,7 +74,7 @@ pub unsafe extern "system" fn inko_runtime_new(
         .install_default()
         .expect("failed to set up the default TLS cryptography provider");
 
-    Box::into_raw(Box::new(Runtime::new(&*counts, args)))
+    Box::into_raw(Box::new(Runtime::new(args)))
 }
 
 #[no_mangle]
@@ -120,8 +119,8 @@ impl Runtime {
     ///
     /// This method sets up the runtime and allocates the core types, but
     /// doesn't start any threads.
-    fn new(counts: &MethodCounts, args: Vec<String>) -> Self {
-        Self { state: State::new(Config::from_env(), counts, args) }
+    fn new(args: Vec<String>) -> Self {
+        Self { state: State::new(Config::from_env(), args) }
     }
 
     /// Starts the runtime using the given process and method as the entry

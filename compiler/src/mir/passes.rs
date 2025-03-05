@@ -1883,53 +1883,12 @@ impl<'a> LowerMethod<'a> {
         reg
     }
 
-    fn string_literal(&mut self, mut node: hir::StringLiteral) -> RegisterId {
-        match node.values.len() {
-            0 => self.string_text(
-                String::new(),
-                InstructionLocation::new(node.location),
-            ),
-            1 => match node.values.pop().unwrap() {
-                hir::StringValue::Text(n) => self
-                    .string_text(n.value, InstructionLocation::new(n.location)),
-                hir::StringValue::Expression(n) => self.call(*n),
-            },
-            _ => {
-                let mut vals = Vec::new();
-
-                for val in node.values {
-                    vals.push(match val {
-                        hir::StringValue::Text(n) => self.string_text(
-                            n.value,
-                            InstructionLocation::new(n.location),
-                        ),
-                        hir::StringValue::Expression(n) => self.call(*n),
-                    });
-                }
-
-                let loc = InstructionLocation::new(node.location);
-                let reg = self.new_register(node.resolved_type);
-
-                self.current_block_mut().call_builtin(
-                    reg,
-                    types::Intrinsic::StringConcat,
-                    vals,
-                    loc,
-                );
-                reg
-            }
-        }
-    }
-
-    fn string_text(
-        &mut self,
-        value: String,
-        location: InstructionLocation,
-    ) -> RegisterId {
+    fn string_literal(&mut self, node: hir::StringLiteral) -> RegisterId {
+        let loc = InstructionLocation::new(node.location);
         let reg = self.new_register(TypeRef::string());
         let block = self.current_block;
 
-        self.permanent_string(reg, value, block, location);
+        self.permanent_string(reg, node.value, block, loc);
         reg
     }
 
