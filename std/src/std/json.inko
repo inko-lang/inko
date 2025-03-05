@@ -639,7 +639,7 @@ impl FormatTrait for Type {
 # import std.io (Buffer)
 # import std.json (PullParser)
 #
-# class Person {
+# type Person {
 #   let @name: String
 #   let @age: Int
 # }
@@ -797,7 +797,7 @@ type pub PullParser[T: mut + Read] {
   # import std.io (Buffer)
   # import std.json (PullParser)
   #
-  # class Person {
+  # type Person {
   #   let @name: String
   #   let @age: Int
   # }
@@ -860,7 +860,7 @@ type pub PullParser[T: mut + Read] {
   # import std.io (Buffer)
   # import std.json (PullParser)
   #
-  # class Person {
+  # type Person {
   #   let @name: String
   # }
   #

@@ -27,7 +27,7 @@
 # ```inko
 # import std.test (Tests)
 #
-# class async Main {
+# type async Main {
 #   fn async main {
 #     let tests = Tests.new
 #
@@ -48,7 +48,7 @@
 # ```inko
 # import std.test (Tests)
 #
-# class async Main {
+# type async Main {
 #   fn async main {
 #     let tests = Tests.new
 #     let block = recover fn (t: mut Tets) { t.equal('foo'.size, 3) }

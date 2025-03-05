@@ -33,7 +33,7 @@
 # import std.env
 # import std.optparse (Options)
 #
-# class async Main {
+# type async Main {
 #   fn async main {
 #     let opts = Options.new
 #
@@ -62,7 +62,7 @@
 # import std.optparse (Options)
 # import std.stdio (Stdout)
 #
-# class async Main {
+# type async Main {
 #   fn async main {
 #     let opts = Options.new
 #
@@ -93,7 +93,7 @@
 # import std.stdio (Stderr, Stdout)
 # import std.sys
 #
-# class async Main {
+# type async Main {
 #   fn async main {
 #     let opts = Options.new
 #

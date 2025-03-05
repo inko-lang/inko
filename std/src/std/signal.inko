@@ -43,7 +43,7 @@
 # import std.signal (Signal)
 # import std.sync (Channel)
 #
-# class async Waiter {
+# type async Waiter {
 #   let @channel: Channel[Signal]
 #
 #   fn async wait(signal: uni Signal) {
@@ -52,7 +52,7 @@
 #   }
 # }
 #
-# class async Main {
+# type async Main {
 #   fn async main {
 #     let chan = Channel.new
 #

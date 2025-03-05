@@ -10,13 +10,13 @@
 # ```inko
 # import std.sync (Future, Promise)
 #
-# class async Example {
+# type async Example {
 #   fn async write(promise: uni Promise[Int]) {
 #     promise.set(42)
 #   }
 # }
 #
-# class async Main {
+# type async Main {
 #   fn async main {
 #     match Future.new {
 #       case (future, promise) -> {
@@ -589,7 +589,7 @@ type async ChannelState[T] {
 # ```inko
 # import std.sync (Channel)
 #
-# class async Example {
+# type async Example {
 #   fn async example(channel: uni Channel[Int]) {}
 # }
 #
