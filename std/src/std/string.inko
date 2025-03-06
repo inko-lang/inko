@@ -7,7 +7,7 @@
 # Unicode scalar values or bytes.
 import std.alloc
 import std.array (bounds_check)
-import std.bytes (IntoByteArray, ToByteArray)
+import std.bytes (Bytes, IntoByteArray, Slice, ToByteArray, hash_bytes)
 import std.clone (Clone)
 import std.cmp (Compare, Contains, Equal, Ordering, min)
 import std.drop (Drop)
@@ -72,48 +72,11 @@ fn padding(string: String, chars: Int, pad_to: Int) -> String {
   let mut pad = pad_buf.into_string
 
   if pad.chars.count > pad_size {
-    # In case the `with` value contains multiple characters, we may need to
+    # In case the `string` value contains multiple characters, we may need to
     # truncate the padding to produce the correct final size.
-    pad.substring(start: 0, chars: pad_size)
+    pad.substring(start: 0, end: pad_size)
   } else {
     pad
-  }
-}
-
-fn hash_bytes[T: Bytes, H: mut + Hasher](bytes: ref T, hasher: mut H) {
-  let mut len = bytes.size
-  let mut cur = bytes.pointer
-
-  len.hash(hasher)
-
-  while len > 8 {
-    let val = (cur as Pointer[UInt64]).0 as Int
-
-    val.hash(hasher)
-    cur = ptr.add(cur, 8)
-    len -= 8
-  }
-
-  while len > 4 {
-    let val = (cur as Pointer[UInt32]).0 as Int
-
-    val.hash(hasher)
-    cur = ptr.add(cur, 4)
-    len -= 4
-  }
-
-  while len > 2 {
-    let val = (cur as Pointer[UInt16]).0 as Int
-
-    val.hash(hasher)
-    cur = ptr.add(cur, 2)
-    len -= 2
-  }
-
-  while len > 0 {
-    (cur.0 as Int).hash(hasher)
-    cur = ptr.add(cur, 1)
-    len -= 1
   }
 }
 
@@ -127,39 +90,6 @@ trait pub IntoString {
 trait pub ToString {
   # Converts `self` to a `String`.
   fn pub to_string -> String
-}
-
-# A type that is a contiguous sequence of bytes.
-#
-# This type is useful for methods that need to operate on a sequence of bytes
-# (e.g. by iterating over them), but don't care if the input is a `String` or
-# `ByteArray`.
-trait pub Bytes {
-  # Returns the byte at the given index, returning an `Option.None` if the index
-  # is out of bounds.
-  fn pub opt(index: Int) -> Option[Int]
-
-  # Returns the byte at the given byte index.
-  #
-  # # Panics
-  #
-  # If the index is out of bounds, this method panics.
-  fn pub byte(index: Int) -> Int
-
-  # Returns an iterator over the bytes in `self`.
-  fn pub bytes -> Stream[Int]
-
-  # Returns the number of bytes in `self`.
-  fn pub size -> Int
-
-  # Slices `self` into a sub sequence of bytes, using a byte range.
-  fn pub slice(start: Int, size: Int) -> ByteArray
-
-  # Returns a raw pointer to the bytes of `self`
-  #
-  # This method is meant for FFI purposes, and use of it should be avoided at
-  # all costs.
-  fn pub pointer -> Pointer[UInt8]
 }
 
 # An UTF-8 encoded and immutable string type.
@@ -194,12 +124,16 @@ type builtin String {
 
   # Returns a `String` created from the given NULL terminated pointer.
   #
-  # The purpose of this method is to allow creating a `String` from a pointer
-  # returned by C code. While this method ensures the input is valid UTF-8, it
-  # may crash your program if given an invalid pointer (e.g. a NULL pointer).
+  # If `pointer` is NULL, an empty `String` is returned.
   #
-  # Do not use this method unless you have somehow verified that the pointer is
-  # a valid NULL terminated C string.
+  # # Safety
+  #
+  # The purpose of this method is to allow creating a `String` from a pointer
+  # returned by C code. Do not use this method unless you have somehow verified
+  # that the pointer is a valid NULL terminated C string.
+  #
+  # If the pointer points to invalid memory or isn't NULL terminated, the
+  # behavior is undefined and likely results in a crash.
   #
   # # Examples
   #
@@ -207,6 +141,8 @@ type builtin String {
   # String.from_pointer("hello".pointer) == "hello" # => true
   # ```
   fn pub static from_pointer(pointer: Pointer[UInt8]) -> String {
+    if pointer as Int == 0 { return '' }
+
     from_primitive(inko_string_from_pointer(pointer))
   }
 
@@ -232,6 +168,29 @@ type builtin String {
     })
 
     result.to_string
+  }
+
+  # Slices `self` into a slice of bytes using a _byte_ range from `start` until
+  # (but excluding) `end`.
+  #
+  # Both the `start` and `end` arguments are _byte_ indexes.
+  #
+  # The `start` index is allowed to be equal to the size of `self`, but only if
+  # `end` is the same as `start`. Thus given a `String` with a size of `4`, the
+  # range `4 until 4` is valid.
+  #
+  # # Panics
+  #
+  # This method panics if `start` or `end` is out of bounds.
+  #
+  # # Examples
+  #
+  # ```inko
+  # '😊'.slice(start: 0, end: 4).to_string # => '😊'
+  # '😊'.slice(start: 0, end: 3).to_string # => "\u{FFFD}"
+  # ```
+  fn pub slice(start: Int, end: Int) -> Slice[Self] {
+    Slice.new(self, start, end)
   }
 
   # Returns the uppercase equivalent of the current `String`.
@@ -284,52 +243,32 @@ type builtin String {
     String.from_primitive(inko_string_to_lower(to_primitive))
   }
 
-  # Slices `self` into a substring, using a range of _characters_ and _not_
-  # bytes.
+  # Slices `self` into a substring using a _character_ range from `start` until
+  # (but excluding) `end`.
   #
-  # Slicing a string allows one to extract a substring by providing a start
-  # position and the number of characters. If the index is out of bounds, an
-  # empty `String` is returned.
+  # Both the `start` and `end` arguments are _character_ indexes, _not_ byte
+  # indexes. If `start` is less than zero, it's treated as if it were set to
+  # zero. If `end` is zero or `start` is greater than or equal to `end`, the
+  # returned value is always an empty `String`.
+  #
+  # Slicing a `String` into a substring is _not_ a constant-time operation,
+  # instead it's `O(n)` where `n` is the number of characters in the `String`.
   #
   # # Examples
   #
   # ```inko
-  # 'hello_world'.substring(start: 0, chars: 5)   # => 'hello'
-  # 'hello_world'.substring(start: 0, chars: 100) # => 'hello_world'
+  # 'hello_world'.substring(start: 0, end: 5)  # => 'hello'
+  # 'hello_world'.substring(start: 0, end: 50) # => 'hello'
+  # '😊'.substring(start: 0, end: 1)           # => '😊'
   # ```
-  fn pub substring(start: Int, chars: Int) -> String {
+  fn pub substring(start: Int, end: Int) -> String {
     let buff = StringBuffer.new
 
     for (index, char) in self.chars.with_index {
-      if index >= start and buff.size < chars { buff.push(char) }
+      if index >= end { break } else if index >= start { buff.push(char) }
     }
 
     buff.into_string
-  }
-
-  # Slices `self` into a sequence of bytes using a _byte_ range, appending the
-  # bytes to `bytes` argument.
-  #
-  # This method is useful if you want to slice a `String` into a `ByteArray`,
-  # but wish to reuse the same `ByteArray` rather than allocating a new one for
-  # each slice. Unless you've determined you indeed need to reuse the same
-  # `ByteArray`, you're probably better off using `String.slice` instead.
-  #
-  # # Panics
-  #
-  # This method panics if `start` is out of bounds.
-  #
-  # # Examples
-  #
-  # ```inko
-  # let bytes = ByteArray.new
-  #
-  # '😊'.slice_into(bytes, start: 0, size: 4)
-  #
-  # bytes # => '😊'.to_byte_array
-  # ```
-  fn pub inline slice_into(bytes: mut ByteArray, start: Int, size: Int) {
-    bytes.copy_from(self, at: start, size: size)
   }
 
   # Returns the _byte_ index of the first occurrence of the given `String`,
@@ -431,14 +370,14 @@ type builtin String {
         case Some(at) -> {
           let start = offset := at + separator.size
 
-          Option.Some(slice(start: start, size: at - start).into_string)
+          Option.Some(slice(start: start, end: at).to_string)
         }
         case _ if offset < size -> {
           # No separator found, but we haven't reached the end of the String
           # yet. In this case we return the remaining String.
           let at = offset := size
 
-          Option.Some(slice(start: at, size: size - at).into_string)
+          Option.Some(slice(start: at, end: size).to_string)
         }
         case _ -> Option.None
       }
@@ -534,7 +473,11 @@ type builtin String {
   fn pub strip_prefix(prefix: String) -> Option[String] {
     if starts_with?(prefix).false? { return Option.None }
 
-    Option.Some(slice(start: prefix.size, size: size - prefix.size).into_string)
+    if size == prefix.size {
+      Option.Some('')
+    } else {
+      Option.Some(slice(start: prefix.size, end: size).to_string)
+    }
   }
 
   # Returns a new `String` without the given suffix.
@@ -552,7 +495,7 @@ type builtin String {
   fn pub strip_suffix(suffix: String) -> Option[String] {
     if ends_with?(suffix).false? { return Option.None }
 
-    Option.Some(slice(start: 0, size: size - suffix.size).into_string)
+    Option.Some(slice(start: 0, end: size - suffix.size).to_string)
   }
 
   # Returns a new `String` without any leading whitespace.
@@ -571,7 +514,7 @@ type builtin String {
       if whitespace?(byte(index)) { index += 1 } else { break }
     }
 
-    slice(start: index, size: size - index).into_string
+    if index == size { '' } else { slice(start: index, end: size).to_string }
   }
 
   # Returns a new `String` without any trailing whitespace.
@@ -589,7 +532,7 @@ type builtin String {
       if whitespace?(byte(index)) { index -= 1 } else { break }
     }
 
-    slice(start: 0, size: index + 1).into_string
+    if index == -1 { '' } else { slice(start: 0, end: index + 1).to_string }
   }
 
   # Returns a new `String` with both leading and trailing whitespace removed.
@@ -613,7 +556,7 @@ type builtin String {
       if whitespace?(byte(end)) { end -= 1 } else { break }
     }
 
-    slice(start: start, size: end + 1 - start).into_string
+    if start == max { '' } else { slice(start: start, end: end + 1).to_string }
   }
 
   # Returns a copy of `self` with all special characters escaped.
@@ -686,14 +629,14 @@ type builtin String {
     loop {
       match byte_index(string, start) {
         case Some(i) -> {
-          if i > last { slice_into(buf, start: last, size: i - last) }
+          if i > last { buf.append(slice(start: last, end: i)) }
 
-          with.slice_into(buf, start: 0, size: with.size)
+          buf.append(with.slice(start: 0, end: with.size))
           start = i + string.size
           last = start
         }
         case _ -> {
-          if start < size { slice_into(buf, start, size) }
+          if start < size { buf.append(slice(start: start, end: size)) }
 
           break
         }
@@ -737,6 +680,20 @@ type builtin String {
 }
 
 impl Bytes for String {
+  # Returns the size of the `String` in bytes.
+  #
+  # # Examples
+  #
+  # Getting the byte size of a `String`:
+  #
+  # ```inko
+  # 'foo'.size # => 3
+  # '😀'.size  # => 4
+  # ```
+  fn pub inline size -> Int {
+    @size
+  }
+
   # Returns the byte at the given index, returning None if the index is out of
   # bounds.
   #
@@ -770,63 +727,6 @@ impl Bytes for String {
     byte_unchecked(index)
   }
 
-  # Returns an iterator over the bytes in `self`.
-  #
-  # # Examples
-  #
-  # ```inko
-  # 'abc'.bytes.to_array # => [97, 98, 99]
-  # ```
-  fn pub bytes -> Stream[Int] {
-    let mut idx = 0
-    let max = size
-
-    Stream.new(fn move {
-      if idx < max {
-        Option.Some(byte_unchecked(idx := idx + 1))
-      } else {
-        Option.None
-      }
-    })
-  }
-
-  # Returns the size of the `String` in bytes.
-  #
-  # # Examples
-  #
-  # Getting the byte size of a `String`:
-  #
-  # ```inko
-  # 'foo'.size # => 3
-  # '😀'.size  # => 4
-  # ```
-  fn pub inline size -> Int {
-    @size
-  }
-
-  # Slices `self` into a sequence of bytes using a _byte_ range.
-  #
-  # If `start` equals the size of `self`, the returned `ByteArray` is empty.
-  #
-  # # Panics
-  #
-  # This method panics if `start` is out of bounds.
-  #
-  # # Examples
-  #
-  # Slicing a string using a valid range:
-  #
-  # ```inko
-  # '😊'.slice(start: 0, size: 4) # => '😊'.to_byte_array
-  # '😊'.slice(start: 0, size: 3) # => "\u{FFFD}".to_byte_array
-  # ```
-  fn pub slice(start: Int, size: Int) -> ByteArray {
-    let bytes = ByteArray.new
-
-    slice_into(bytes, start, size)
-    bytes
-  }
-
   # Returns a raw pointer to the bytes of `self`.
   #
   # This method is meant to be used when passing strings to foreign functions
@@ -851,7 +751,7 @@ impl Drop for String {
 impl ToByteArray for String {
   fn pub inline to_byte_array -> ByteArray {
     let bytes = ByteArray.new
-    let _ = bytes.copy_from(self, at: 0, size: size)
+    let _ = bytes.append(self)
 
     bytes
   }

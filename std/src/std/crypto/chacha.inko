@@ -474,7 +474,7 @@ type pub inline XChaCha {
       nonce_size_error(XCHACHA_NONCE_SIZE, nonce.size)
     }
 
-    let sub_key = hchacha20(key, nonce.slice(start: 0, size: 16))
+    let sub_key = hchacha20(key, nonce.slice(start: 0, end: 16).to_byte_array)
 
     XChaCha(
       ChaCha(

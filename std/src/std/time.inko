@@ -1,4 +1,5 @@
 # Types and methods for dealing with time.
+import std.bytes (Bytes)
 import std.bytes.parsers (digits, four_digits, name_index_at, two_digits)
 import std.clone (Clone)
 import std.cmp (Compare, Equal, Ordering)
@@ -8,7 +9,6 @@ import std.int (ToInt)
 import std.locale (Locale)
 import std.locale.en (Locale as English)
 import std.ops (Add, Divide, Multiply, Subtract)
-import std.string (Bytes)
 import std.sys.unix.time (self as sys) if unix
 
 let SECS_PER_MIN = 60

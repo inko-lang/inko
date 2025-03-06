@@ -1,4 +1,5 @@
 # The Int type.
+import std.bytes (Bytes)
 import std.clone (Clone)
 import std.cmp (Compare, Equal, Ordering)
 import std.float (ToFloat)
@@ -10,7 +11,7 @@ import std.ops (
   ShiftRight, Subtract, UnsignedShiftRight,
 )
 import std.range (ExclusiveRange, InclusiveRange)
-import std.string (Bytes, ToString)
+import std.string (ToString)
 
 # A type that can be converted to a Int.
 trait pub ToInt {

@@ -173,16 +173,14 @@ impl Iter[String] for Components {
     }
 
     let start = @index
-    let mut size = 0
 
-    while @index < @size and separator?(@index).false? {
-      @index += 1
-      size += 1
-    }
+    while @index < @size and separator?(@index).false? { @index += 1 }
 
-    if size > 0 {
+    let end = @index
+
+    if end > start {
       advance_separator
-      Option.Some(@path.path.slice(start, size).into_string)
+      Option.Some(@path.path.slice(start, end).to_string)
     } else {
       Option.None
     }
@@ -356,7 +354,7 @@ type pub inline Path {
   fn pub tail -> String {
     let comp = Components.new(self)
     let mut start = -1
-    let mut size = 0
+    let mut end = -1
 
     # This finds the range of the last component, taking into account path
     # normalization.
@@ -365,16 +363,16 @@ type pub inline Path {
 
       if comp.index < comp.size {
         start = comp.index
-        size = 0
+        end = start
       }
 
       while comp.index < comp.size and comp.separator?(comp.index).false? {
         comp.index += 1
-        size += 1
+        end += 1
       }
     }
 
-    if start == -1 { '' } else { @path.slice(start, size).into_string }
+    if start == -1 { '' } else { @path.slice(start, end: end).to_string }
   }
 
   # Returns the file extension of this path (without the leading `.`), if there
@@ -426,7 +424,7 @@ type pub inline Path {
     }
 
     if idx < max and idx > min {
-      Option.Some(@path.slice(idx + 1, size).into_string)
+      Option.Some(@path.slice(start: idx + 1, end: size).to_string)
     } else {
       Option.None
     }
@@ -459,10 +457,10 @@ type pub inline Path {
 
     let raw = match extension {
       case Some(v) if name.empty? -> {
-        @path.slice(start: 0, size: @path.size - v.size - 1).into_string
+        @path.slice(start: 0, end: @path.size - v.size - 1).to_string
       }
       case Some(v) -> {
-        '${@path.slice(start: 0, size: @path.size - v.size - 1)}.${name}'
+        '${@path.slice(start: 0, end: @path.size - v.size - 1)}.${name}'
       }
       case _ if name.empty? or @path.ends_with?(SEPARATOR) -> @path
       case _ -> '${@path}.${name}'

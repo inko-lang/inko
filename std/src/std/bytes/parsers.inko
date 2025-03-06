@@ -1,7 +1,7 @@
 # Internal helper methods for parsing bytes.
+import std.bytes (Bytes)
 import std.cmp (min)
 import std.ptr
-import std.string (Bytes)
 
 let NINE = 57
 let ZERO = 48

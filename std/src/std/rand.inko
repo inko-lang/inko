@@ -1,5 +1,6 @@
 # Cryptographically secure random number generation.
 import std.alloc
+import std.cmp (min)
 import std.crypto.chacha (ChaCha)
 import std.endian.little
 import std.ptr
@@ -218,8 +219,10 @@ type pub Random {
       if @index == BUFFER_SIZE { refill }
 
       let idx = @index
-      let len = into.copy_from(@buffer, at: idx, size: rem)
+      let end = min(idx + rem, @buffer.size)
+      let len = end - idx
 
+      into.append(@buffer.slice(start: idx, end: end))
       zero(idx, len)
       rem = rem.wrapping_sub(len)
       @index = idx.wrapping_add(len)

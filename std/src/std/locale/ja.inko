@@ -1,7 +1,7 @@
 # Locale information for Japanese.
+import std.bytes (Bytes)
 import std.bytes.parsers (name_index_at)
 import std.locale (Locale as LocaleTrait)
-import std.string (Bytes)
 
 let FULL_MONTHS = [
   '1月',

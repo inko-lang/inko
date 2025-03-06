@@ -1,8 +1,171 @@
 import helpers (hash)
+import std.bytes (Iter, Slice)
 import std.fmt (fmt)
 import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
+  t.test('Slice.new', fn (t) {
+    let bytes1 = ByteArray.from_array([10, 20])
+    let bytes2 = ByteArray.new
+    let slice1 = Slice.new(bytes1, start: 0, end: 2)
+    let slice2 = Slice.new(bytes1, start: 0, end: 0)
+    let slice3 = Slice.new(bytes2, start: 0, end: 0)
+    let slice4 = Slice.new(bytes1, start: 2, end: 2)
+
+    t.equal(slice1.start, 0)
+    t.equal(slice1.size, 2)
+    t.equal(slice1.source, bytes1)
+
+    t.equal(slice2.start, 0)
+    t.equal(slice2.size, 0)
+    t.equal(slice2.source, bytes1)
+
+    t.equal(slice3.start, 0)
+    t.equal(slice3.size, 0)
+    t.equal(slice3.source, bytes2)
+
+    t.equal(slice4.start, 2)
+    t.equal(slice4.end, 2)
+    t.equal(slice4.size, 0)
+  })
+
+  t.panic('Slice.new with an out of bounds start index', fn {
+    let bytes = ByteArray.from_array([10, 20])
+
+    Slice.new(bytes, start: 3, end: 4)
+  })
+
+  t.panic('Slice.new with an out of bounds end index', fn {
+    let bytes = ByteArray.from_array([10, 20])
+
+    Slice.new(bytes, start: 0, end: 3)
+  })
+
+  t.test('Slice.slice', fn (t) {
+    let bytes = ByteArray.from_array([10, 20])
+    let slice = Slice.new(bytes, start: 0, end: 2).slice(start: 1, end: 2)
+
+    t.equal(slice.start, 1)
+    t.equal(slice.size, 1)
+    t.equal(slice.pointer as Int, bytes.pointer as Int + 1)
+  })
+
+  t.test('Slice.into_iter', fn (t) {
+    let bytes = ByteArray.from_array([10, 20, 30])
+    let slice = Slice.new(bytes, start: 1, end: 3)
+
+    t.equal(slice.into_iter.to_array, [20, 30])
+  })
+
+  t.test('Slice.bytes', fn (t) {
+    let bytes = ByteArray.from_array([10, 20, 30])
+    let slice = Slice.new(bytes, start: 1, end: 3)
+
+    t.equal(slice.bytes.to_array, [20, 30])
+  })
+
+  t.test('Slice.empty?', fn (t) {
+    let bytes = ByteArray.from_array([10, 20, 30])
+    let slice1 = Slice.new(bytes, start: 1, end: 3)
+    let slice2 = Slice.new(bytes, start: 0, end: 0)
+
+    t.false(slice1.empty?)
+    t.true(slice2.empty?)
+
+    bytes.clear
+    t.true(slice1.empty?)
+    t.true(slice2.empty?)
+  })
+
+  t.test('Slice.size', fn (t) {
+    let bytes = ByteArray.from_array([10, 20, 30])
+    let slice = Slice.new(bytes, start: 1, end: 3)
+
+    t.equal(slice.size, 2)
+
+    bytes.pop
+    t.equal(slice.size, 1)
+
+    bytes.clear
+    t.equal(slice.size, 0)
+  })
+
+  t.test('Slice.byte', fn (t) {
+    let bytes = ByteArray.from_array([10, 20, 30])
+    let slice = Slice.new(bytes, start: 1, end: 3)
+
+    t.equal(slice.byte(0), 20)
+    t.equal(slice.byte(1), 30)
+  })
+
+  t.panic('Slice.byte with an out of bounds index', fn {
+    let bytes = ByteArray.from_array([10, 20, 30])
+    let slice = Slice.new(bytes, start: 1, end: 3)
+
+    slice.byte(10)
+  })
+
+  t.test('Slice.opt', fn (t) {
+    let bytes = ByteArray.from_array([10, 20, 30])
+    let slice = Slice.new(bytes, start: 1, end: 3)
+
+    t.equal(slice.opt(0), Option.Some(20))
+    t.equal(slice.opt(1), Option.Some(30))
+    t.equal(slice.opt(2), Option.None)
+
+    bytes.clear
+    t.equal(slice.opt(0), Option.None)
+    t.equal(slice.opt(1), Option.None)
+  })
+
+  t.test('Slice.fmt', fn (t) {
+    let bytes = ByteArray.from_array([10, 20, 30])
+    let slice = Slice.new(bytes, start: 1, end: 3)
+
+    t.equal(fmt(slice), '[20, 30]')
+  })
+
+  t.test('Slice.==', fn (t) {
+    let bytes1 = ByteArray.from_array([10, 20, 30])
+    let bytes2 = ByteArray.from_array([20, 30])
+    let slice1 = Slice.new(bytes1, start: 1, end: 3)
+    let slice2 = Slice.new(bytes1, start: 1, end: 3)
+    let slice3 = Slice.new(bytes1, start: 2, end: 3)
+    let slice4 = Slice.new(bytes2, start: 0, end: 2)
+
+    t.equal(slice1, slice2)
+    t.equal(slice1, slice4)
+    t.not_equal(slice2, slice3)
+  })
+
+  t.test('Slice.to_byte_array', fn (t) {
+    let bytes = ByteArray.from_array([10, 20, 30])
+    let slice1 = Slice.new(bytes, start: 1, end: 3)
+    let slice2 = Slice.new(bytes, start: 0, end: 0)
+
+    t.equal(slice1.to_byte_array, ByteArray.from_array([20, 30]))
+    t.equal(slice2.to_byte_array, ByteArray.new)
+  })
+
+  t.test('Slice.to_string', fn (t) {
+    let bytes = 'hello'.to_byte_array
+    let slice1 = Slice.new(bytes, start: 1, end: 3)
+    let slice2 = Slice.new(bytes, start: 0, end: 0)
+
+    t.equal(slice1.to_string, 'el')
+    t.equal(slice2.to_string, '')
+  })
+
+  t.test('Iter.next', fn (t) {
+    let bytes = ByteArray.from_array([10, 20, 30])
+    let iter = Iter(source: bytes, index: 0)
+
+    t.equal(iter.next, Option.Some(10))
+    t.equal(iter.next, Option.Some(20))
+    t.equal(iter.next, Option.Some(30))
+    t.equal(iter.next, Option.None)
+  })
+
   t.test('ByteArray.new', fn (t) {
     t.equal(ByteArray.new, ByteArray.from_array([]))
   })
@@ -45,6 +208,27 @@ fn pub tests(t: mut Tests) {
     t.equal(b.into_string, 'hello')
   })
 
+  t.test('ByteArray.append with a slice', fn (t) {
+    let a = 'hello'
+    let b = ByteArray.new
+
+    b.append(a.slice(start: 0, end: a.size))
+    t.equal(b, a.to_byte_array)
+  })
+
+  t.test('ByteArray.append with an empty argument', fn (t) {
+    let buf = ByteArray.new
+
+    buf.append('')
+    t.equal(buf.size, 0)
+
+    buf.append(ByteArray.new)
+    t.equal(buf.size, 0)
+
+    buf.append(''.slice(start: 0, end: 0))
+    t.equal(buf.size, 0)
+  })
+
   t.test('ByteArray.push', fn (t) {
     let bytes = ByteArray.new
 
@@ -78,11 +262,24 @@ fn pub tests(t: mut Tests) {
 
   t.test('ByteArray.slice', fn (t) {
     let bytes = ByteArray.from_array([105, 110, 107, 111])
+    let slice1 = bytes.slice(start: 0, end: 0)
+    let slice2 = bytes.slice(start: 1, end: 4)
 
-    t.equal(bytes.slice(start: 0, size: 0), ByteArray.new)
-    t.equal(bytes.slice(start: 0, size: 1), ByteArray.from_array([105]))
-    t.equal(bytes.slice(start: 0, size: 4), bytes)
-    t.equal(bytes.slice(start: 0, size: 10), bytes)
+    t.equal(slice1.start, 0)
+    t.equal(slice1.size, 0)
+    t.equal(slice1.pointer as Int, bytes.pointer as Int)
+
+    t.equal(slice2.start, 1)
+    t.equal(slice2.size, 3)
+    t.equal(slice2.pointer as Int, bytes.pointer as Int + 1)
+  })
+
+  t.panic('ByteArray.slice with an out of bounds start index', fn {
+    ByteArray.from_array([10, 20]).slice(start: 2, end: 2)
+  })
+
+  t.panic('ByteArray.slice with an out of bounds end index', fn {
+    ByteArray.from_array([10, 20]).slice(start: 0, end: 10)
   })
 
   t.test('ByteArray.opt', fn (t) {
@@ -116,15 +313,21 @@ fn pub tests(t: mut Tests) {
 
   t.test('ByteArray.iter when the ByteArray changes during iteration', fn (t) {
     let bytes = ByteArray.from_array([10, 20, 30])
-    let vals = []
+    let iter = bytes.iter
 
-    for val in bytes.iter {
-      if val == 10 { bytes.pop }
+    t.equal(iter.next, Option.Some(10))
+    bytes.pop
+    t.equal(iter.next, Option.Some(20))
+    t.equal(iter.next, Option.None)
 
-      vals.push(val)
-    }
+    bytes.push(30)
 
-    t.equal(vals, [10, 20])
+    let iter = bytes.iter
+    let _ = bytes.remove_at(0)
+
+    t.equal(iter.next, Option.Some(20))
+    t.equal(iter.next, Option.Some(30))
+    t.equal(iter.next, Option.None)
   })
 
   t.test('ByteArray.bytes', fn (t) {
@@ -379,44 +582,6 @@ fn pub tests(t: mut Tests) {
     t.equal(vals, ByteArray.from_array([10, 20, 40, 30]))
   })
 
-  t.test('ByteArray.copy_from', fn (t) {
-    let a = ByteArray.from_array([1, 2, 3, 4])
-    let b = ByteArray.new
-    let c = ByteArray.new
-    let d = ByteArray.new
-    let e = ByteArray.new
-
-    t.equal(b.copy_from(a, at: 0, size: 2), 2)
-    t.equal(a, ByteArray.from_array([1, 2, 3, 4]))
-    t.equal(b, ByteArray.from_array([1, 2]))
-
-    t.equal(b.copy_from(b, at: 0, size: 2), 2)
-    t.equal(b, ByteArray.from_array([1, 2, 1, 2]))
-
-    t.equal(c.copy_from(a, at: 3, size: 1), 1)
-    t.equal(c, ByteArray.from_array([4]))
-
-    t.equal(d.copy_from('abc', at: 0, size: 3), 3)
-    t.equal(d.into_string, 'abc')
-
-    t.equal(e.copy_from('abc', at: 3, size: 3), 0)
-    t.equal(e, ByteArray.new)
-  })
-
-  t.panic('ByteArray.copy_from with an index that is too great', fn {
-    let a = ByteArray.from_array([1, 2, 3, 4])
-    let b = ByteArray.new
-
-    b.copy_from(a, at: 10, size: 2)
-  })
-
-  t.panic('ByteArray.copy_from with an index that is too small', fn {
-    let a = ByteArray.from_array([1, 2, 3, 4])
-    let b = ByteArray.new
-
-    b.copy_from(a, at: -3, size: 2)
-  })
-
   t.test('ByteArray.resize', fn (t) {
     let bytes = ByteArray.new
 
@@ -437,6 +602,25 @@ fn pub tests(t: mut Tests) {
 
     t.equal(a, b)
   })
+
+  t.test('ByteArray.from_pointer with an empty source', fn (t) {
+    let a = ByteArray.new
+    let b = ByteArray.from_pointer(a.pointer, size: 0)
+
+    t.equal(a, b)
+    t.equal(b.size, 0)
+  })
+
+  t.test(
+    'ByteArray.from_pointer with a NULL pointer and a non-zero size',
+    fn (t) {
+      let a = ByteArray.new
+      let b = ByteArray.from_pointer(a.pointer, size: 10)
+
+      t.equal(a, b)
+      t.equal(b.size, 0)
+    },
+  )
 
   t.test('ByteArray.last', fn (t) {
     t.equal(ByteArray.new.last, Option.None)

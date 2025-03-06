@@ -158,7 +158,7 @@ type Parser {
         id: id,
         file: file,
         level: level,
-        message: @bytes.slice(@index, last - @index).into_string,
+        message: @bytes.slice(start: @index, end: last).to_string,
         line: line,
         column: col,
       ),
@@ -166,7 +166,7 @@ type Parser {
   }
 
   fn current -> Int {
-    if @index < @bytes.size { @bytes.byte(@index) } else { EOF }
+    if @index < @bytes.size { @bytes.get(@index) } else { EOF }
   }
 
   fn mut skip_spaces {
@@ -181,9 +181,7 @@ type Parser {
         case EOF -> return Option.None
         case v if v == byte -> {
           return Option.Some(
-            @bytes
-              .slice(start, size: (@index := @index + 1) - start)
-              .into_string,
+            @bytes.slice(start, end: (@index := @index + 1)).to_string,
           )
         }
         case _ -> @index += 1

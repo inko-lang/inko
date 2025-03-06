@@ -1118,7 +1118,7 @@ type pub inline UnixAddress {
 impl Format for UnixAddress {
   fn pub fmt(formatter: mut Formatter) {
     let write = if abstract? {
-      '@${@address.slice(start: 1, size: @address.size - 1)}'
+      '@${@address.slice(start: 1, end: @address.size)}'
     } else if unnamed? {
       'unnamed'
     } else {

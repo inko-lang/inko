@@ -14,15 +14,12 @@ type Output {
 
 impl Write for Output {
   fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, IoError] {
-    let _ = @buffer.copy_from(bytes, at: 0, size: bytes.size)
-
+    @buffer.append(bytes)
     Result.Ok(nil)
   }
 
   fn pub mut write_string(string: String) -> Result[Nil, IoError] {
-    let bytes = string.to_byte_array
-    let _ = @buffer.copy_from(bytes, at: 0, size: bytes.size)
-
+    @buffer.append(string)
     Result.Ok(nil)
   }
 

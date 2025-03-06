@@ -2,12 +2,13 @@
 #
 # The IO module provides the basic building blocks for IO operations such as
 # reading from and writing to a file.
-import std.cmp (Equal)
+import std.bytes (Bytes, Slice)
+import std.cmp (Equal, min)
 import std.drop (Drop)
 import std.fmt (Format, Formatter)
 import std.iter (Stream)
 import std.libc
-import std.string (Bytes, ToString)
+import std.string (ToString)
 
 # The initial number of bytes to read in `Read.read_all`
 let INITIAL_READ_ALL_SIZE = 1024
@@ -807,10 +808,12 @@ impl BufferedRead for BufferedReader {
   }
 
   fn mut read_buffer(into: mut ByteArray, size: Int) -> Int {
-    let copied = into.copy_from(@buffer, at: @offset, size: size)
+    let end = min(@offset + size, @buffer.size)
+    let len = end - @offset
 
-    @offset += copied
-    copied
+    into.append(@buffer.slice(start: @offset, end: end))
+    @offset += len
+    len
   }
 
   fn pub mut read_byte -> Result[Option[Int], Error] {
@@ -959,8 +962,7 @@ impl Write for BufferedWriter {
     let rem = @size - @buffer.size
 
     if len <= rem {
-      let _ = @buffer.copy_from(bytes, at: 0, size: len)
-
+      @buffer.append(bytes)
       return Result.Ok(nil)
     }
 
@@ -968,10 +970,11 @@ impl Write for BufferedWriter {
     # flush it, then write the data to the buffer. This ensures future calls to
     # this method have more buffer space to work with, compared to just a flush
     # plus appending the _entire_ data to the now empty buffer.
-    let copied = @buffer.copy_from(bytes, at: 0, size: rem)
-    let _ = try flush
-    let _ = @buffer.copy_from(bytes, at: copied, size: len)
+    @buffer.append(bytes.slice(start: 0, end: rem))
 
+    let _ = try flush
+
+    @buffer.append(bytes.slice(start: rem, end: len))
     Result.Ok(nil)
   }
 
@@ -1018,7 +1021,7 @@ impl Drop for BufferedWriter {
 
 # An in-memory buffer that supports reads and seeks.
 #
-# `Buffer` supports any `Bytes` type, such as `String` and `ByteArray`.
+# `Buffer` supports any `Bytes` type, such as `String` or `ByteArray`.
 #
 # The `Buffer` type is useful when a method operates on a `Read` type (e.g. a
 # `ReadOnlyFile`), and you want to test that method without performing actual IO
@@ -1061,8 +1064,10 @@ impl BufferedRead for Buffer {
 
   fn mut read_buffer(into: mut ByteArray, size: Int) -> Int {
     if @offset < @bytes.size {
-      let len = into.copy_from(@bytes, at: @offset, size: size)
+      let end = min(@offset + size, @bytes.size)
+      let len = end - @offset
 
+      into.append(Slice.new(@bytes, start: @offset, end: end))
       @offset += len
       len
     } else {

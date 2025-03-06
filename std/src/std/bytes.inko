@@ -1,15 +1,15 @@
 # Types for working with bytes.
 import std.alloc
-import std.array (bounds_check)
+import std.array (bounds_check, out_of_bounds)
 import std.clone (Clone)
-import std.cmp (Contains, Equal, min)
+import std.cmp (Contains, Equal, max, min)
 import std.drop (Drop)
 import std.fmt (Format, Formatter)
 import std.hash (Hash, Hasher)
-import std.iter (Stream)
+import std.iter (Iter as IterTrait)
 import std.option (Option)
 import std.ptr
-import std.string (Bytes, IntoString, PrimitiveString, ToString, hash_bytes)
+import std.string (IntoString, PrimitiveString, ToString)
 
 fn extern inko_string_from_bytes(
   bytes: Pointer[UInt8],
@@ -24,6 +24,55 @@ fn invalid_size(size: Int) -> Never {
   panic('the size (${size}) must be greater than zero')
 }
 
+fn invalid_slice_range(start: Int, end: Int, size: Int) -> Never {
+  panic(
+    'slice range [${start} until ${end}] is not within the allowed range [0 until ${size}]',
+  )
+}
+
+fn pub inline check_slice_range(start: Int, end: Int, size: Int) {
+  if start < 0 or start > size or end < 0 or end > size {
+    invalid_slice_range(start, end, size)
+  }
+}
+
+fn hash_bytes[T: Bytes, H: mut + Hasher](bytes: ref T, hasher: mut H) {
+  let mut len = bytes.size
+  let mut cur = bytes.pointer
+
+  len.hash(hasher)
+
+  while len > 8 {
+    let val = (cur as Pointer[UInt64]).0 as Int
+
+    val.hash(hasher)
+    cur = ptr.add(cur, 8)
+    len -= 8
+  }
+
+  while len > 4 {
+    let val = (cur as Pointer[UInt32]).0 as Int
+
+    val.hash(hasher)
+    cur = ptr.add(cur, 4)
+    len -= 4
+  }
+
+  while len > 2 {
+    let val = (cur as Pointer[UInt16]).0 as Int
+
+    val.hash(hasher)
+    cur = ptr.add(cur, 2)
+    len -= 2
+  }
+
+  while len > 0 {
+    (cur.0 as Int).hash(hasher)
+    cur = ptr.add(cur, 1)
+    len -= 1
+  }
+}
+
 # A type from which a new `ByteArray` can be created.
 trait pub ToByteArray {
   fn pub to_byte_array -> ByteArray
@@ -32,6 +81,278 @@ trait pub ToByteArray {
 # A type which can be moved into a `ByteArray`.
 trait pub IntoByteArray {
   fn pub move into_byte_array -> ByteArray
+}
+
+# A type that is a contiguous sequence of bytes.
+#
+# This trait is used for providing various foundational methods for Inko's
+# different byte sequence types, such as `String`, `ByteArray` and `Slice`. This
+# trait only provides a few essential methods, such as `Bytes.size` and
+# `Bytes.pointer`.
+trait pub Bytes {
+  # Returns the number of bytes in `self`.
+  fn pub size -> Int
+
+  # Returns the byte at the given index.
+  #
+  # # Panics
+  #
+  # This method panics if `index` is out of bounds.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let bytes = ByteArray.from_array([10, 20, 30])
+  #
+  # bytes.byte(0) # => 10
+  # ```
+  fn pub byte(index: Int) -> Int
+
+  # Returns the byte at the given index, returning None if the index is out of
+  # bounds.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let bytes = ByteArray.from_array([10, 20, 30])
+  #
+  # bytes.opt(0) # => Option.Some(10)
+  # ```
+  fn pub opt(index: Int) -> Option[Int]
+
+  # Returns an iterator over the bytes in `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let bytes = ByteArray.from_array([10, 20, 30])
+  # let iter = bytes.bytes
+  #
+  # iter.next # => Option.Some(10)
+  # ```
+  fn pub bytes -> Iter[ref Self] {
+    Iter(source: self, index: 0)
+  }
+
+  # Returns a raw pointer to the bytes of `self`
+  #
+  # This method is meant for FFI purposes, and use of it should be avoided at
+  # all costs.
+  fn pub pointer -> Pointer[UInt8]
+}
+
+# A immutable slice of bytes.
+#
+# A `Slice` is a "view" into a range of a `Bytes` type (e.g. a `String` or
+# `ByteArray`). A `Slice` doesn't own or copy the underlying data, instead it
+# merely borrows it. This means creating a `Slice` doesn't require any memory
+# allocations.
+#
+# `Slice` supports slicing over mutable collections such as `ByteArray` and
+# correctly handles the underlying collection being made smaller or larger than
+# a `Slice` after creating the `Slice`.
+type pub inline Slice[T: Bytes] {
+  # The collection of bytes the slice applies to.
+  let @source: ref T
+
+  # The start index (relative to the source) of the slice.
+  let @start: Int
+
+  # The end index (relative to the source) of the slice.
+  let @end: Int
+
+  # Returns a `Slice` over the given source.
+  #
+  # The `start` index is allowed to be equal to the size of `self`, but only if
+  # `end` is the same as `start`. Thus given a source with a size of `4`, the
+  # range `4 until 4` is valid.
+  #
+  # Instead of using this method directly, use `ByteArray.slice` and
+  # `String.slice` instead. This method is public such that one can still create
+  # a `Slice` when all they have is a `Bytes`, as `Bytes` doesn't define a
+  # `slice` method as doing so introduces a circular dependency between `Bytes`
+  # and `Slice` (as `Slice` also implements `Bytes`).
+  #
+  # # Panics
+  #
+  # This method panics if `start` or `end` is out of bounds.
+  fn pub static new(source: ref T, start: Int, end: Int) -> Self {
+    check_slice_range(start, end, size: source.size)
+    Self(source: source, start: start, end: end)
+  }
+
+  # Returns a sub slice of `self` starting at `start` until (but excluding)
+  # `end`.
+  #
+  # The `start` index is allowed to be equal to the size of `self`, but only if
+  # `end` is the same as `start`. Thus given a `Slice` with a size of `4`, the
+  # range `4 until 4` is valid.
+  #
+  # # Panics
+  #
+  # This method panics if `start` or `end` is out of bounds.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let bytes = ByteArray.from_array([10, 20, 30])
+  # let slice = bytes.slice(start: 0, end: 3) # => Slice[ref ByteArray]
+  #
+  # slice.slice(start: 1, end: 2).opt(1) # => Option.Some(30)
+  # ```
+  fn pub slice(start: Int, end: Int) -> Self {
+    let new_start = @start.wrapping_add(start)
+    let new_end = @end.wrapping_add(end)
+
+    check_slice_range(start, end, size: @end.wrapping_sub(@start))
+    Self(source: @source, start: new_start, end: new_end)
+  }
+
+  # Returns an iterator over the values in `self`, consuming it in the process.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let bytes = ByteArray.from_array([10, 20, 30])
+  # let iter = bytes.into_iter
+  #
+  # iter.next # => Option.Some(10)
+  # ```
+  fn pub move into_iter -> Iter[Self] {
+    Iter(source: self, index: 0)
+  }
+
+  # Returns `true` if `self` is an empty slice.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let bytes = ByteArray.from_array([10, 20, 30])
+  # let slice = bytes.slic(start: 0, end: 3)
+  #
+  # slice.empty? # => false
+  # bytes.clear
+  # slice.empty? # => true
+  # ```
+  fn pub empty? -> Bool {
+    size == 0
+  }
+}
+
+impl Bytes for Slice {
+  # Returns the number of bytes covered by `self`.
+  #
+  # The returned size is correctly adjusted according to the size of the
+  # underlying collection. For example, if a slice starts at index 0 and covers
+  # four values but the underlying collection only contains two values, this
+  # method returns two instead of four.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let bytes = ByteArray.from_array([10, 20, 30, 40])
+  # let slice = bytes.slice(start: 0, end: 4)
+  #
+  # slice.size # => 4
+  # bytes.pop
+  # slice.size # => 3
+  # ```
+  fn pub inline size -> Int {
+    max(0, min(@end.wrapping_sub(@start), @source.size.wrapping_sub(@start)))
+  }
+
+  # Returns the byte at the given index.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let bytes = ByteArray.from_array([10, 20, 30])
+  # let slice = bytes.slice(start: 1, end: 3)
+  #
+  # slice.get(0) # => 20
+  # slice.get(1) # => 30
+  # ```
+  fn pub inline byte(index: Int) -> Int {
+    match opt(index) {
+      case Some(v) -> v
+      case _ -> out_of_bounds(index, @end.wrapping_sub(@start))
+    }
+  }
+
+  # Returns the byte at the given index, returning None if the index is out of
+  # bounds.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let bytes = ByteArray.from_array([10, 20, 30])
+  # let slice = bytes.slice(start: 1, end: 3)
+  #
+  # slice.opt(0) # => Option.Some(20)
+  # slice.opt(1) # => Option.Some(30)
+  # slice.opt(2) # => Option.None
+  # ```
+  fn pub inline opt(index: Int) -> Option[Int] {
+    let off = @start.wrapping_add(index)
+
+    if index >= 0 and index < @end and off >= 0 and off < @source.size {
+      Option.Some(ptr.add(@source.pointer, off).0 as Int)
+    } else {
+      Option.None
+    }
+  }
+
+  # Returns a pointer to the start of the slice.
+  #
+  # This method doesn't perform any bounds checking, meaning callers should do
+  # so manually (e.g. using `Slice.size`).
+  fn pub pointer -> Pointer[UInt8] {
+    ptr.add(@source.pointer, @start)
+  }
+}
+
+impl Format for Slice {
+  fn pub fmt(formatter: mut Formatter) {
+    let fmt = formatter.array
+
+    for v in bytes { fmt.value(v) }
+
+    fmt.finish
+  }
+}
+
+impl Equal for Slice {
+  fn pub ==(other: ref Self) -> Bool {
+    let len = size
+
+    if len != other.size { return false }
+
+    if len > 0 { ptr.equal(pointer, other.pointer, size: len) } else { true }
+  }
+}
+
+impl ToByteArray for Slice {
+  fn pub to_byte_array -> ByteArray {
+    ByteArray.from_pointer(pointer, size)
+  }
+}
+
+impl ToString for Slice {
+  fn pub to_string -> String {
+    String.from_borrowed_primitive(PrimitiveString(bytes: pointer, size: size))
+  }
+}
+
+# An iterator over the bytes in a `Bytes` type.
+type pub Iter[T: Bytes] {
+  let @source: T
+  let mut @index: Int
+}
+
+impl IterTrait[Int] for Iter {
+  fn pub inline mut next -> Option[Int] {
+    @source.opt(@index := @index.wrapping_add(1))
+  }
 }
 
 # An array of bytes.
@@ -102,6 +423,14 @@ type pub ByteArray {
   # The `size` argument specifies the number of bytes to read starting at the
   # given pointer.
   #
+  # If `size` is greater than zero but `pointer` is NULL, the returned value is
+  # an empty `ByteArray`.
+  #
+  # # Safety
+  #
+  # If `size` is greater than zero and `pointer` points to invalid memory (but
+  # isn't NULL), the behavior is undefined and will likely result in a crash.
+  #
   # The purpose of this method is to allow creating a `ByteArray` from a pointer
   # returned by C code. Avoid using this method for anything else.
   #
@@ -110,6 +439,10 @@ type pub ByteArray {
   # This method panics of `size` if less than zero.
   fn pub static from_pointer(pointer: Pointer[UInt8], size: Int) -> ByteArray {
     if size < 0 { invalid_size(size) }
+
+    # While it's unlikely for `pointer` to be NULL while `size` is e.g. 4, it
+    # doesn't hurt to check as the alternative is a hard crash.
+    if pointer as Int == 0 { return new }
 
     let bytes = with_capacity(size)
 
@@ -175,31 +508,32 @@ type pub ByteArray {
     @size = 0
   }
 
-  # Copies the bytes from the given `ByteArray` or `String` to the end of
-  # `self`.
+  # Copies the bytes from `bytes` to the end of `self`.
+  #
+  # The `bytes` argument can be any type that implements the `Bytes` trait, such
+  # as `String`, `ByteArray`, or `Slice`.
   #
   # # Examples
   #
-  # Appending a `ByteArray` to another `ByteArray`:
-  #
   # ```inko
-  # let a = ByteArray.from_array([10])
-  # let b = ByteArray.from_array([20])
+  # let a = ByteArray.from_array([1, 2, 3, 4])
+  # let b = ByteArray.new
+  # let c = ByteArray.new
   #
-  # a.append(b)
-  # a # => ByteArray.from_array([10, 20])
+  # b.append(a)
+  # c.append(a.slice(start: 0, end: 2))
+  #
+  # b # => ByteArray.from_array([1, 2, 3, 4])
+  # c # => ByteArray.from_array([1, 2])
   # ```
-  #
-  # Appending a `String` to a `ByteArray`:
-  #
-  # ```inko
-  # let bytes = 'hello '.to_byte_array
-  #
-  # bytes.append_string('world')
-  # bytes.to_string # => 'hello world'
-  # ```
-  fn pub mut append[T: Bytes](other: T) {
-    copy_from(other, at: 0, size: other.size)
+  fn pub mut append[T: Bytes](bytes: ref T) {
+    let len = bytes.size
+
+    if len == 0 { return }
+
+    reserve(len)
+    alloc.copy(from: bytes.pointer, to: tail, size: len)
+    @size += len
   }
 
   # Pushes a value to the back of the `ByteArray`, returning the pushed value.
@@ -314,7 +648,7 @@ type pub ByteArray {
   #
   # bytes.get(0) # => 10
   # ```
-  fn pub get(index: Int) -> Int {
+  fn pub inline get(index: Int) -> Int {
     bounds_check(index, @size)
     get_unchecked(index)
   }
@@ -365,16 +699,8 @@ type pub ByteArray {
   }
 
   # Returns an iterator over the bytes in `self`.
-  fn pub iter -> Stream[Int] {
-    let mut idx = 0
-
-    Stream.new(fn move {
-      if idx < @size {
-        Option.Some(get_unchecked(idx := idx + 1))
-      } else {
-        Option.None
-      }
-    })
+  fn pub iter -> Iter[ref Self] {
+    bytes
   }
 
   # Reverses `self` in-place
@@ -421,41 +747,6 @@ type pub ByteArray {
       a += 1
       b -= 1
     }
-  }
-
-  # Copies up to `size` bytes from `bytes` into `self`, starting at the index
-  # `at`.
-  #
-  # The return value is the number of bytes copied. This value may be less than
-  # `size` if there are fewer bytes in `bytes`.
-  #
-  # If both `at` and `size` are zero, or `at` equals the size of `bytes`, this
-  # method doesn't copy anything and the returned number of bytes is zero.
-  #
-  # # Panics
-  #
-  # This method panics if `at` is out of bounds.
-  #
-  # # Examples
-  #
-  # ```inko
-  # let a = ByteArray.from_array([1, 2, 3, 4])
-  # let b = ByteArray.new
-  #
-  # b.copy_from(a, at: 0, size: 2) # => 2
-  # b # => ByteArray.from_array([1, 2])
-  # ```
-  fn pub mut copy_from[T: Bytes](bytes: ref T, at: Int, size: Int) -> Int {
-    if (bytes.size == 0 and at == 0) or at == bytes.size { return 0 }
-
-    bounds_check(at, bytes.size)
-
-    let len = min(bytes.size - at, size)
-
-    reserve(len)
-    alloc.copy(from: ptr.add(bytes.pointer, at), to: tail, size: len)
-    @size += len
-    len
   }
 
   # Resizes `self` to the new size.
@@ -579,6 +870,48 @@ type pub ByteArray {
     alloc.zero(pointer, size)
   }
 
+  # Returns a `Slice` over `self` from `start` until (but excluding) `end`.
+  #
+  # Because a `ByteArray` is a mutable type it's possible for the values covered
+  # by a `Slice` to change. While the `Slice` type handles such cases (e.g. if
+  # the `ByteArray` is cleared, a `Slice` doesn't produce any values), it's best
+  # not to modify `self` when slices to it exist as this may result in
+  # confusing/unexpected behavior.
+  #
+  # The `start` index is allowed to be equal to the size of `self`, but only if
+  # `end` is the same as `start`. Thus given a `ByteArray` with a size of `4`,
+  # the range `4 until 4` is valid.
+  #
+  # # Panics
+  #
+  # This method panics if `start` or `end` is out of bounds.
+  #
+  # # Examples
+  #
+  # Slicing a `ByteArray`:
+  #
+  # ```inko
+  # let bytes = ByteArray.from_array([1, 2, 3, 4])
+  # let slice = bytes.slice(start: 1, end: 3)
+  #
+  # slice.get(0) # => 2
+  # slice.get(1) # => 3
+  # ```
+  #
+  # Slicing a `ByteArray` and updating the underlying values:
+  #
+  # ```inko
+  # let bytes = ByteArray.from_array([1, 2, 3, 4])
+  # let slice = bytes.slice(start: 1, end: 3)
+  #
+  # slice.get(0) # => 1
+  # bytes.set(0, 10)
+  # slice.get(0) # => 10
+  # ```
+  fn pub slice(start: Int, end: Int) -> Slice[Self] {
+    Slice.new(self, start, end)
+  }
+
   fn inline tail -> Pointer[UInt8] {
     ptr.add(@buffer, @size)
   }
@@ -597,6 +930,20 @@ type pub ByteArray {
 }
 
 impl Bytes for ByteArray {
+  # Returns the number of bytes in this `ByteArray`.
+  #
+  # # Examples
+  #
+  # Obtaining the size of a `ByteArray`
+  #
+  # ```inko
+  # ByteArray.new.size              # => 0
+  # ByteArray.from_array([10]).size # => 1
+  # ```
+  fn pub inline size -> Int {
+    @size
+  }
+
   # Returns the byte at the given index, returning None if the index is out of
   # bounds.
   #
@@ -617,60 +964,15 @@ impl Bytes for ByteArray {
   #
   # bytes.opt(5) # => Option.None
   # ```
-  fn pub opt(index: Int) -> Option[Int] {
+  fn pub inline opt(index: Int) -> Option[Int] {
     if index < 0 or index >= size { return Option.None }
 
     Option.Some(get_unchecked(index))
   }
 
   # An alias for `ByteArray.get`.
-  fn pub byte(index: Int) -> Int {
+  fn pub inline byte(index: Int) -> Int {
     get(index)
-  }
-
-  # An alias for `ByteArray.iter`.
-  fn pub bytes -> Stream[Int] {
-    iter
-  }
-
-  # Returns the number of bytes in this `ByteArray`.
-  #
-  # # Examples
-  #
-  # Obtaining the size of a `ByteArray`
-  #
-  # ```inko
-  # ByteArray.new.size              # => 0
-  # ByteArray.from_array([10]).size # => 1
-  # ```
-  fn pub inline size -> Int {
-    @size
-  }
-
-  # Slices `self` into a new `ByteArray`.
-  #
-  # Similar to slicing a `String`, slicing a `ByteArray` allows one to extract
-  # a sub-array by providing a start position and the number of _bytes_ to
-  # include starting at the start position.
-  #
-  # # Examples
-  #
-  # Slicing a `ByteArray`:
-  #
-  # ```inko
-  # let bytes = ByteArray.from_array([1, 2, 3, 4])
-  # let sliced = bytes.slice(start: 1, size: 2)
-  #
-  # sliced.get(0) # => 2
-  # sliced.get(1) # => 3
-  # ```
-  fn pub slice(start: Int, size: Int) -> ByteArray {
-    bounds_check(start, @size)
-
-    let new = ByteArray.new
-    let _ = new.copy_from(self, at: start, size: size)
-
-    new
   }
 
   # Returns a raw pointer to the bytes of `self`.
@@ -756,7 +1058,7 @@ impl Equal for ByteArray {
 impl Clone for ByteArray {
   fn pub clone -> ByteArray {
     let new = ByteArray.new
-    let _ = new.copy_from(self, at: 0, size: @size)
+    let _ = new.append(self)
 
     new
   }

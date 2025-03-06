@@ -50,6 +50,12 @@ fn pub tests(t: mut Tests) {
     t.equal(a, b)
   })
 
+  t.test('String.from_pointer with a NULL pointer', fn (t) {
+    let a = String.from_pointer(0 as Pointer[UInt8])
+
+    t.equal(a, '')
+  })
+
   t.test('String.join', fn (t) {
     let vals = [10, 20, 30]
 
@@ -85,38 +91,35 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('String.substring', fn (t) {
-    t.equal('hello_world'.substring(start: 0, chars: 5), 'hello')
-    t.equal('hello_world'.substring(start: 3, chars: 5), 'lo_wo')
-    t.equal('hello_world'.substring(start: 0, chars: 20), 'hello_world')
-    t.equal('🇳🇱'.substring(start: 0, chars: 1), '🇳🇱')
+    t.equal('hello_world'.substring(start: 0, end: 5), 'hello')
+    t.equal('hello_world'.substring(start: -1, end: 5), 'hello')
+    t.equal('hello_world'.substring(start: 3, end: 8), 'lo_wo')
+    t.equal('hello_world'.substring(start: 0, end: 20), 'hello_world')
+    t.equal('🇳🇱'.substring(start: 0, end: 1), '🇳🇱')
+
+    t.equal('hello_world'.substring(start: 11, end: 13), '')
+    t.equal('hello_world'.substring(start: 12, end: 13), '')
+    t.equal('hello_world'.substring(start: 0, end: 0), '')
+    t.equal('hello_world'.substring(start: 0, end: -1), '')
+    t.equal('hello_world'.substring(start: 5, end: 0), '')
   })
 
   t.test('String.slice', fn (t) {
-    t.equal('hello_world'.slice(start: 0, size: 5), 'hello'.to_byte_array)
+    t.equal('hello_world'.slice(start: 0, end: 5).to_string, 'hello')
     t.equal(
-      'hello_world'.slice(start: 0, size: 20),
-      'hello_world'.to_byte_array,
+      '→foo'.slice(start: 0, end: 2).to_byte_array,
+      ByteArray.from_array([226, 134]),
     )
-    t.equal('→foo'.slice(start: 0, size: 2), ByteArray.from_array([226, 134]))
-    t.equal('→foo'.slice(start: 0, size: 6), '→foo'.to_byte_array)
-    t.equal('→foo'.slice(start: 0, size: 3), '→'.to_byte_array)
-    t.equal('foo'.slice(start: 3, size: 3), ByteArray.new)
+    t.equal('→foo'.slice(start: 0, end: 6).to_string, '→foo')
+    t.equal('→foo'.slice(start: 0, end: 3).to_string, '→')
   })
 
-  t.panic('String.slice with an out of bounds index', fn {
-    'foo'.slice(start: 42, size: 50)
+  t.panic('String.slice with an out of bounds start index', fn {
+    'foo'.slice(start: 42, end: 50)
   })
 
-  t.test('String.slice_into', fn (t) {
-    let bytes = ByteArray.new
-    let string = 'hello_world'
-
-    # String.slice_into and String.slice use the same underlying function, so
-    # there's no need in duplicating many test cases here.
-    string.slice_into(bytes, start: 0, size: 3)
-    string.slice_into(bytes, start: 3, size: 2)
-
-    t.equal(bytes, 'hello'.to_byte_array)
+  t.panic('String.slice with an out of bounds end index', fn {
+    'hello_world'.slice(start: 0, end: 20)
   })
 
   t.test('String.byte_index', fn (t) {

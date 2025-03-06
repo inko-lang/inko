@@ -155,6 +155,7 @@
 #       --example
 #   -x                   Foo
 # ```
+import std.bytes (Slice)
 import std.clone (Clone)
 import std.cmp (Equal)
 import std.fmt (Format, Formatter)
@@ -228,8 +229,8 @@ type Lexer {
     Lexer(input: input.iter, state: State.Default)
   }
 
-  fn mut buffer(value: ByteArray) {
-    @state = State.Value(value.into_string)
+  fn mut buffer(value: Slice[String]) {
+    @state = State.Value(value.to_string)
   }
 }
 
@@ -259,24 +260,23 @@ impl Iter[Token] for Lexer {
             match val.byte_index(of: '=', starting_at: 2) {
               # Example: --foo=bar
               case Some(idx) -> {
-                let name = val.slice(start: 2, size: idx - 2).into_string
-                let value = val.slice(idx + 1, val.size).into_string
+                let name = val.slice(start: 2, end: idx).to_string
+                let val_start = idx + 1
+                let value = val.slice(start: val_start, end: val.size).to_string
 
                 Token.LongPair(name, value)
               }
               # Example: --foo
-              case _ -> {
-                Token.Long(val.slice(start: 2, size: val.size).into_string)
-              }
+              case _ -> Token.Long(val.slice(start: 2, end: val.size).to_string)
             }
           }
           case Some(val) if val.size >= 2 and val.byte(0) == HYPHEN -> {
             match val.byte_index(of: '=', starting_at: 1) {
               # Example: -a=b, parsed as `-a "=b"` to match getopts behaviour
               case Some(_) if basic_latin?(val.byte(1)) -> {
-                let name = val.slice(start: 1, size: 1).into_string
+                let name = val.slice(start: 1, end: 2).to_string
 
-                buffer(val.slice(2, val.size))
+                buffer(val.slice(start: 2, end: val.size))
                 Token.Short(name)
               }
               # Example: -á=b, parsed as `-á "=b"` to mtach getopts behaviour.
@@ -286,15 +286,17 @@ impl Iter[Token] for Lexer {
                 let name = chars.next.get
                 let offset = name.size + 1
 
-                buffer(val.slice(offset, val.size))
+                buffer(val.slice(start: offset, end: val.size))
                 Token.Short(name)
               }
               # Example: -a
               case _ if basic_latin?(val.byte(1)) -> {
-                let name = val.slice(start: 1, size: 1).into_string
+                let name = val.slice(start: 1, end: 2).to_string
                 let offset = name.size + 1
 
-                if offset < val.size { buffer(val.slice(offset, val.size)) }
+                if offset < val.size {
+                  buffer(val.slice(start: offset, end: val.size))
+                }
 
                 Token.Short(name)
               }
@@ -305,7 +307,9 @@ impl Iter[Token] for Lexer {
                 let name = chars.next.get
                 let offset = name.size + 1
 
-                if offset < val.size { buffer(val.slice(offset, val.size)) }
+                if offset < val.size {
+                  buffer(val.slice(start: offset, end: val.size))
+                }
 
                 Token.Short(name)
               }

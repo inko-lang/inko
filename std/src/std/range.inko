@@ -143,9 +143,11 @@ impl Hash for InclusiveRange {
 
 impl Format for InclusiveRange {
   fn pub fmt(formatter: mut Formatter) {
+    formatter.write('[')
     @start.fmt(formatter)
     formatter.write(' to ')
     @end.fmt(formatter)
+    formatter.write(']')
   }
 }
 
@@ -246,8 +248,10 @@ impl Hash for ExclusiveRange {
 
 impl Format for ExclusiveRange {
   fn pub fmt(formatter: mut Formatter) {
+    formatter.write('[')
     @start.fmt(formatter)
     formatter.write(' until ')
     @end.fmt(formatter)
+    formatter.write(']')
   }
 }

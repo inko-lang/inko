@@ -1,7 +1,7 @@
 # Locale information for Dutch.
+import std.bytes (Bytes)
 import std.bytes.parsers (name_index_at)
 import std.locale (Locale as LocaleTrait)
-import std.string (Bytes)
 
 let SHORT_MONTHS = [
   'jan',

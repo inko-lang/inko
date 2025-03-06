@@ -1,4 +1,4 @@
-import std.string (Bytes)
+import std.bytes (Bytes)
 
 # A type describing a locale (e.g. English or Dutch).
 trait pub Locale {
