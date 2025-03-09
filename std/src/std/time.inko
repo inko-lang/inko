@@ -383,7 +383,7 @@ type pub copy Date {
   #
   # let date = Date
   #   .new(year: 2024, month: 12, day: 17)
-  #   .or_panic('the Date is invalid')
+  #   .or_panic_with('the Date is invalid')
   #
   # date.year # => 2024
   # ```
@@ -545,7 +545,7 @@ type pub copy Time {
   #
   # let time = Time
   #   .new(hour: 12, minute: 30, second: 0, nanosecond: 0)
-  #   .or_panic('the Time is invalid')
+  #   .or_panic_with('the Time is invalid')
   #
   # time.hour # => 12
   # ```
@@ -869,7 +869,7 @@ type pub inline DateTime {
   #     format: '%Y-%m-%d %H:%M:%S %z',
   #     locale: Locale.new,
   #   )
-  #   .or_panic('the input is invalid')
+  #   .or_panic_with('the input is invalid')
   #
   # dt.year   # => 2024
   # dt.month  # => 11
@@ -889,7 +889,7 @@ type pub inline DateTime {
   #     format: '%Y年%B%d日',
   #     locale: Locale.new,
   #   )
-  #   .or_panic('the input is invalid')
+  #   .or_panic_with('the input is invalid')
   #
   # dt.year  # => 2023
   # dt.month # => 12

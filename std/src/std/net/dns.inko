@@ -95,11 +95,11 @@ trait Resolve {
   # import std.net.socket (TcpClient)
   #
   # let dns = Resolver.new
-  # let ips = dns.resolve('example.com').or_panic('DNS lookup failed')
+  # let ips = dns.resolve('example.com').or_panic_with('DNS lookup failed')
   #
   # ips
   #   .try(fn (ip) { TcpClient.new(ip, port: 80) })
-  #   .or_panic('failed to connect')
+  #   .or_panic_with('failed to connect')
   # ```
   fn pub mut resolve(host: String) -> Result[Array[IpAddress], Error]
 }
@@ -166,9 +166,11 @@ trait Resolve {
 # import std.net.socket (TcpClient)
 #
 # let dns = Resolver.new
-# let ips = dns.resolve('example.com').or_panic('DNS lookup failed')
+# let ips = dns.resolve('example.com').or_panic_with('DNS lookup failed')
 #
-# ips.try(fn (ip) { TcpClient.new(ip, port: 80) }).or_panic('failed to connect')
+# ips
+#   .try(fn (ip) { TcpClient.new(ip, port: 80) })
+#   .or_panic_with('failed to connect')
 # ```
 type pub inline Resolver {
   let @inner: Resolve

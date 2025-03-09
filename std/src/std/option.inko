@@ -45,7 +45,7 @@ type pub inline enum Option[T] {
   # Option.Some(10).get # => 10
   # ```
   fn pub move get -> T {
-    or_panic('Option.get expects a Some(_), but a None is found')
+    or_panic_with('Option.get expects a Some(_), but a None is found')
   }
 
   # Returns the value wrapped by `Some`, or panics with the given message if
@@ -54,9 +54,9 @@ type pub inline enum Option[T] {
   # # Examples
   #
   # ```inko
-  # Option.Some(10).or_panic('a number must be present') # => 10
+  # Option.Some(10).or_panic_with('a number must be present') # => 10
   # ```
-  fn pub move or_panic(message: String) -> T {
+  fn pub move or_panic_with(message: String) -> T {
     match self {
       case Some(v) -> v
       case _ -> panic(message)

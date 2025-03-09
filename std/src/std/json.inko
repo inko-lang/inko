@@ -869,7 +869,7 @@ type pub PullParser[T: mut + Read] {
   #
   # parser
   #   .object(fn (o) { o.string('name', fn (v) { person.name = v }) })
-  #   .or_panic('failed to parse the JSON')
+  #   .or_panic_with('failed to parse the JSON')
   # ```
   fn pub mut object(rules: fn (mut ObjectParser[T])) -> Result[Nil, Error] {
     let obj = ObjectParser.new
@@ -1325,7 +1325,7 @@ type pub Rule[T: mut + Read] {
 #
 # obj.int('a', fn (v) { nums.push(v) })
 # obj.int('b', fn (v) { nums.push(v) }).optional
-# obj.parse(parser).or_panic('failed to parse the JSON')
+# obj.parse(parser).or_panic_with('failed to parse the JSON')
 # ```
 type pub inline ObjectParser[T: mut + Read] {
   # The keys to parse along with the closures that parse their values.

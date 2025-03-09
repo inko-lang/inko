@@ -127,7 +127,7 @@ type pub inline enum Result[T, E] {
   # res.get # => 42
   # ```
   fn pub move get -> T {
-    or_panic('Result.get expects an Ok(_), but an Error(_) is found')
+    or_panic_with('Result.get expects an Ok(_), but an Error(_) is found')
   }
 
   # Returns the value wrapped by `Ok`, or panics with the given message if
@@ -138,9 +138,9 @@ type pub inline enum Result[T, E] {
   # ```inko
   # let res: Result[Int, String] = Result.Ok(10)
   #
-  # res.or_panic('a number must be present') # => 10
+  # res.or_panic_with('a number must be present') # => 10
   # ```
-  fn pub move or_panic(message: String) -> T {
+  fn pub move or_panic_with(message: String) -> T {
     match self {
       case Ok(v) -> v
       case _ -> panic(message)

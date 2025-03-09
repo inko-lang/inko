@@ -878,7 +878,9 @@ impl Read for BufferedReader {
 # import std.fs.file (WriteOnlyFile)
 # import std.io (BufferedWriter)
 #
-# let file = WriteOnlyFile.new('out.txt').or_panic('failed to open the file')
+# let file = WriteOnlyFile
+#   .new('out.txt')
+#   .or_panic_with('failed to open the file')
 # let writer = BufferedWriter.new(file)
 #
 # writer.write('hello') # => Result.Ok(nil)
@@ -901,7 +903,7 @@ type pub BufferedWriter[T: mut + Write] {
   #
   # let file = WriteOnlyFile
   #   .new('out.txt'.to_path)
-  #   .or_panic('failed to open the file')
+  #   .or_panic_with('failed to open the file')
   #
   # BufferedWriter.new(file)
   # ```
@@ -924,7 +926,7 @@ type pub BufferedWriter[T: mut + Write] {
   #
   # let file = WriteOnlyFile
   #   .new('out.txt'.to_path)
-  #   .or_panic('failed to open the file')
+  #   .or_panic_with('failed to open the file')
   #
   # BufferedWriter.with_capacity(file, capacity: 16 * 1024)
   # ```

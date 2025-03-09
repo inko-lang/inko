@@ -54,16 +54,16 @@ fn pub tests(t: mut Tests) {
     res.get
   })
 
-  t.test('Result.expect with an Ok', fn (t) {
+  t.test('Result.or_panic_with with an Ok', fn (t) {
     let res: Result[Int, String] = Result.Ok(42)
 
-    t.equal(res.or_panic('foo'), 42)
+    t.equal(res.or_panic_with('foo'), 42)
   })
 
-  t.panic('Result.expect with an Error', fn {
+  t.panic('Result.or_panic_with with an Error', fn {
     let res: Result[Int, Int] = Result.Error(0)
 
-    res.or_panic('foo')
+    res.or_panic_with('foo')
   })
 
   t.test('Result.or', fn (t) {

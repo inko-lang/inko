@@ -58,7 +58,7 @@ fn pub tests(t: mut Tests) {
   let base = cwd.join('fixtures').join('fmt')
   let compiler = compiler_path.to_string
 
-  for e in base.list.or_panic("the fixtures/fmt directory doesn't exist") {
+  for e in base.list.or_panic_with("the fixtures/fmt directory doesn't exist") {
     let cwd = recover cwd.clone
     let dir = match e {
       case Ok({ @path = p, @type = Directory }) -> recover p.clone

@@ -31,7 +31,7 @@
 # import std.base64 (decode, encode)
 #
 # decode(encode('hello world'.to_byte_array))
-#   .or_panic('failed to decode the input')
+#   .or_panic_with('failed to decode the input')
 #   .to_string # => 'hello world'
 # ```
 import std.cmp (Equal)
@@ -567,7 +567,7 @@ fn pub encode(input: ref ByteArray) -> String {
 # import std.base64 (decode)
 #
 # decode('aGVsbG8gd29ybGQ='.to_byte_array)
-#   .or_panic('failed to decode the input')
+#   .or_panic_with('failed to decode the input')
 #   .to_string # => 'hello world'
 # ```
 fn pub decode(input: ref ByteArray) -> Result[ByteArray, DecodeError] {

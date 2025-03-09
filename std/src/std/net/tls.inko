@@ -261,7 +261,7 @@ type pub ClientConfig {
   #
   # ClientConfig
   #   .with_certificate(cert)
-  #   .or_panic('the client configuration is invalid')
+  #   .or_panic_with('the client configuration is invalid')
   # ```
   fn pub static with_certificate(
     certificate: ref Certificate,
@@ -312,16 +312,16 @@ impl Clone for ClientConfig {
 # let conf = ClientConfig.new
 # let sock = TcpClient
 #   .new(ip: IpAddress.v4(127, 0, 0, 1), port: 9000)
-#   .or_panic('failed to connect to the server')
+#   .or_panic_with('failed to connect to the server')
 # let client = Client
 #   .new(socket, conf, name: 'localhost')
-#   .or_panic('the server name is invalid')
+#   .or_panic_with('the server name is invalid')
 #
-# client.write('ping').or_panic('failed to write the message')
+# client.write('ping').or_panic_with('failed to write the message')
 #
 # let response = ByteArray.new
 #
-# client.read_all(response).or_panic('failed to read the response')
+# client.read_all(response).or_panic_with('failed to read the response')
 # ```
 type pub Client[T: mut + RawSocketOperations] {
   # The socket wrapped by this `Client`.
@@ -357,11 +357,11 @@ type pub Client[T: mut + RawSocketOperations] {
   # let conf = ClientConfig.new
   # let sock = TcpClient
   #   .new(ip: IpAddress.v4(127, 0, 0, 1), port: 9000)
-  #   .or_panic('failed to connect to the server')
+  #   .or_panic_with('failed to connect to the server')
   #
   # Client
   #   .new(sock, conf, name: 'localhost')
-  #   .or_panic('the server name is invalid')
+  #   .or_panic_with('the server name is invalid')
   # ```
   fn pub static new(
     socket: T,
@@ -492,7 +492,9 @@ type pub ServerConfig {
   # let cert = Certificate.new(ByteArray.from_array([1, 2, 3]))
   # let key = PrivateKey.new(ByteArray.from_array([4, 5, 6]))
   #
-  # ServerConfig.new(cert, key).or_panic('failed to create the configuration')
+  # ServerConfig
+  #   .new(cert, key)
+  #   .or_panic_with('failed to create the configuration')
   # ```
   fn pub static new(
     certificate: ref Certificate,
@@ -552,20 +554,20 @@ impl Clone for ServerConfig {
 #
 # let conf = ServerConfig
 #   .new(cert, key)
-#   .or_panic('failed to create the server configuration')
+#   .or_panic_with('failed to create the server configuration')
 #
 # let server = TcpServer
 #   .new(ip: IpAddress.v4(0, 0, 0, 0), port: 9000)
-#   .or_panic('failed to start the server')
+#   .or_panic_with('failed to start the server')
 #
 # let con = server
 #   .accept
 #   .map(fn (sock) { Server.new(sock, conf) })
-#   .or_panic('failed to accept the new connection')
+#   .or_panic_with('failed to accept the new connection')
 #
 # let bytes = ByteArray.new
 #
-# con.read(into: bytes, size: 32).or_panic('failed to read the data')
+# con.read(into: bytes, size: 32).or_panic_with('failed to read the data')
 # ```
 type pub Server[T: mut + RawSocketOperations] {
   # The socket wrapped by this `Server`.
@@ -595,16 +597,16 @@ type pub Server[T: mut + RawSocketOperations] {
   #
   # let conf = ServerConfig
   #   .new(cert, key)
-  #   .or_panic('failed to create the server configuration')
+  #   .or_panic_with('failed to create the server configuration')
   #
   # let server = TcpServer
   #   .new(ip: IpAddress.v4(0, 0, 0, 0), port: 9000)
-  #   .or_panic('failed to start the server')
+  #   .or_panic_with('failed to start the server')
   #
   # server
   #   .accept
   #   .map(fn (sock) { Server.new(sock, conf) })
-  #   .or_panic('failed to accept the new connection')
+  #   .or_panic_with('failed to accept the new connection')
   # ```
   fn pub static new(socket: T, config: ref ServerConfig) -> Server[T] {
     Server(socket, inko_tls_server_connection_new(config.raw))

@@ -22,8 +22,8 @@ fn run(compiler: String, file: ref Path, id: Int, release: Bool) -> String {
   cmd.arguments.push(dir)
   cmd.arguments.push(file.to_string)
 
-  let child = cmd.spawn.or_panic('failed to start the compiler')
-  let _ = child.wait.or_panic('failed to wait for the compiler')
+  let child = cmd.spawn.or_panic_with('failed to start the compiler')
+  let _ = child.wait.or_panic_with('failed to wait for the compiler')
   let reader = BufferedReader.new(child.stderr.as_mut.get)
   let lines = []
   let buf = ByteArray.new
@@ -57,7 +57,7 @@ fn pub tests(t: mut Tests) {
     .join('debug_info')
   let compiler = compiler_path.to_string
 
-  for e in base.list.or_panic("fixtures/debug_info doesn't exist") {
+  for e in base.list.or_panic_with("fixtures/debug_info doesn't exist") {
     let test_file = match e {
       case Ok({ @path = p, @type = File }) if p.tail.ends_with?('.inko') -> {
         recover p.clone

@@ -100,7 +100,7 @@ fn pub try_ips[R, E](
     }
   }
 
-  Result.Error(last.or_panic('at least one IP address must be specified'))
+  Result.Error(last.or_panic_with('at least one IP address must be specified'))
 }
 
 trait RawSocketOperations {

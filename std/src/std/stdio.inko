@@ -28,7 +28,7 @@
 # let bytes = ByteArray.new
 # let stdin = Stdin.new
 #
-# stdin.read_all(bytes).or_panic('failed to read from STDIN')
+# stdin.read_all(bytes).or_panic_with('failed to read from STDIN')
 # ```
 import std.bytes (Bytes)
 import std.io (Error, Read, Write, WriteInternal)

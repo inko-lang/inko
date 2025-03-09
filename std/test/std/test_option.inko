@@ -19,22 +19,22 @@ fn pub tests(t: mut Tests) {
     t.equal(b.as_mut, Option.None)
   })
 
-  t.test('Option.get with a Some', fn (t) { t.equal(Option.Some(42).get, 42) })
-
-  t.test('Option.expect with a Some', fn (t) {
-    t.equal(Option.Some(42).or_panic('foo'), 42)
+  t.test('Option.or_panic_with with a Some', fn (t) {
+    t.equal(Option.Some(42).or_panic_with('foo'), 42)
   })
+
+  t.panic('Option.or_panic_with with a None', fn {
+    let opt: Option[Int] = Option.None
+
+    opt.or_panic_with('foo')
+  })
+
+  t.test('Option.get with a Some', fn (t) { t.equal(Option.Some(42).get, 42) })
 
   t.panic('Option.get with a None', fn {
     let opt: Option[Int] = Option.None
 
     opt.get
-  })
-
-  t.panic('Option.expect with a None', fn {
-    let opt: Option[Int] = Option.None
-
-    opt.or_panic('foo')
   })
 
   t.test('Option.or', fn (t) {

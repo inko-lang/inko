@@ -86,10 +86,10 @@ fn check(compiler: String, name: String, file: Path) -> Array[Diagnostic] {
     cmd.arguments.push(extra_src.to_string)
   }
 
-  let child = cmd.spawn.or_panic('failed to start the compiler')
+  let child = cmd.spawn.or_panic_with('failed to start the compiler')
   let output = ByteArray.new
-  let _ = child.wait.or_panic('failed to wait for the compiler')
-  let _ = child.stderr.as_mut.get.read_all(output).or_panic(
+  let _ = child.wait.or_panic_with('failed to wait for the compiler')
+  let _ = child.stderr.as_mut.get.read_all(output).or_panic_with(
     'failed to read STDERR',
   )
 
@@ -273,7 +273,7 @@ fn pub tests(t: mut Tests) {
     .join('diagnostics')
   let compiler = compiler_path.to_string
 
-  for e in base.list.or_panic("fixtures/diagnostics doesn't exist") {
+  for e in base.list.or_panic_with("fixtures/diagnostics doesn't exist") {
     let test_file = match e {
       case Ok({ @path = p, @type = File }) if p.tail.ends_with?('.inko') -> {
         recover p.clone

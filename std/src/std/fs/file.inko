@@ -77,9 +77,9 @@ type pub inline ReadOnlyFile {
   #
   # ReadOnlyFile
   #   .new('/test.txt')
-  #   .or_panic('failed to open the file')
+  #   .or_panic_with('failed to open the file')
   #   .metadata
-  #   .or_panic('failed to get the metadata')
+  #   .or_panic_with('failed to get the metadata')
   #   .size # => 1234
   # ```
   fn pub metadata -> Result[Metadata, Error] {
@@ -172,9 +172,9 @@ type pub inline WriteOnlyFile {
   #
   # WriteOnlyFile
   #   .new('/test.txt')
-  #   .or_panic('failed to open the file')
+  #   .or_panic_with('failed to open the file')
   #   .metadata
-  #   .or_panic('failed to get the metadata')
+  #   .or_panic_with('failed to get the metadata')
   #   .size # => 1234
   # ```
   fn pub metadata -> Result[Metadata, Error] {
@@ -277,9 +277,9 @@ type pub inline ReadWriteFile {
   #
   # ReadWriteFile
   #   .new('/test.txt')
-  #   .or_panic('failed to open the file')
+  #   .or_panic_with('failed to open the file')
   #   .metadata
-  #   .or_panic('failed to get the metadata')
+  #   .or_panic_with('failed to get the metadata')
   #   .size # => 1234
   # ```
   fn pub metadata -> Result[Metadata, Error] {

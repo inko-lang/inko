@@ -281,7 +281,7 @@ impl ToInt for Separator {
 # let rows = []
 #
 # for result in parser {
-#   rows.push(result.or_panic('failed to parse the row'))
+#   rows.push(result.or_panic_with('failed to parse the row'))
 # }
 #
 # rows # => [['foo', 'bar', 'baz'], ['1', '2', '3']]
@@ -421,7 +421,7 @@ type pub Parser[I: mut + Read] {
   # import std.io (Buffer)
   #
   # let parser = Parser.new(Buffer.new('foo,bar'))
-  # let headers = parser.headers.or_panic('failed to parse the headers')
+  # let headers = parser.headers.or_panic_with('failed to parse the headers')
   #
   # headers.get('foo') # => 0
   # headers.get('bar') # => 1

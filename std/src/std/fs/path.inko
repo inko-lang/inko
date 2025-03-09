@@ -543,7 +543,7 @@ type pub inline Path {
   #
   # let out = Stdout.new
   # let path = Path.new('.')
-  # let iter = path.list.or_panic('failed to create the iterator')
+  # let iter = path.list.or_panic_with('failed to create the iterator')
   #
   # for result in iter {
   #   match result {
@@ -871,7 +871,7 @@ type pub inline Path {
   # Path
   #   .new('/tmp/test.txt')
   #   .metadata
-  #   .or_panic('failed to get the metadata')
+  #   .or_panic_with('failed to get the metadata')
   #   .size # => 1234
   # ```
   fn pub metadata -> Result[Metadata, Error] {
