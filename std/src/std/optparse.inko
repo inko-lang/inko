@@ -125,7 +125,7 @@
 #         .options(opts)
 #         .to_string
 #
-#       Stdout.new.write_string(help)
+#       Stdout.new.write(help)
 #     } else {
 #       Stdout.new.print(fmt(matches.remaining))
 #     }

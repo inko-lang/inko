@@ -59,6 +59,7 @@
 #
 # For more information about timeouts versus deadlines, consider reading [this
 # article](https://vorpus.org/blog/timeouts-and-cancellation-for-humans/).
+import std.bytes (Bytes)
 import std.cmp (Equal)
 import std.drop (Drop)
 import std.fmt (Format, Formatter)
@@ -315,7 +316,7 @@ type pub Socket {
   # listener.listen.get
   #
   # stream.connect(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).get
-  # stream.write_string('ping').get
+  # stream.write('ping').get
   #
   # let client = listener.accept.get
   # let buffer = ByteArray.new
@@ -621,12 +622,8 @@ impl WriteInternal for Socket {
 }
 
 impl Write for Socket {
-  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
     write_all_internal(bytes.pointer, bytes.size)
-  }
-
-  fn pub mut write_string(string: String) -> Result[Nil, Error] {
-    write_all_internal(string.pointer, string.size)
   }
 
   fn pub mut flush -> Result[Nil, Error] {
@@ -789,12 +786,8 @@ impl Read for UdpSocket {
 }
 
 impl Write for UdpSocket {
-  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
-    @socket.write_bytes(bytes)
-  }
-
-  fn pub mut write_string(string: String) -> Result[Nil, Error] {
-    @socket.write_string(string)
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
+    @socket.write(bytes)
   }
 
   fn pub mut flush -> Result[Nil, Error] {
@@ -963,12 +956,8 @@ impl Read for TcpClient {
 }
 
 impl Write for TcpClient {
-  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
-    @socket.write_bytes(bytes)
-  }
-
-  fn pub mut write_string(string: String) -> Result[Nil, Error] {
-    @socket.write_string(string)
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
+    @socket.write(bytes)
   }
 
   fn pub mut flush -> Result[Nil, Error] {
@@ -1024,7 +1013,7 @@ type pub TcpServer {
   # let client =
   #   TcpClient.new(ip: IpAddress.v4(127, 0, 0, 1), port: 40_000).get
   #
-  # client.write_string('ping')
+  # client.write('ping')
   #
   # let connection = listener.accept.get
   # let buffer = ByteArray.new
@@ -1343,7 +1332,7 @@ type pub UnixSocket {
   # listener.listen.get
   #
   # stream.connect('/tmp/test.sock').get
-  # stream.write_string('ping').get
+  # stream.write('ping').get
   #
   # let client = listener.accept.get
   # let buffer = ByteArray.new
@@ -1526,12 +1515,8 @@ impl WriteInternal for UnixSocket {
 }
 
 impl Write for UnixSocket {
-  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
     write_all_internal(bytes.pointer, bytes.size)
-  }
-
-  fn pub mut write_string(string: String) -> Result[Nil, Error] {
-    write_all_internal(string.pointer, string.size)
   }
 
   fn pub mut flush -> Result[Nil, Error] {
@@ -1673,12 +1658,8 @@ impl Read for UnixDatagram {
 }
 
 impl Write for UnixDatagram {
-  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
-    @socket.write_bytes(bytes)
-  }
-
-  fn pub mut write_string(string: String) -> Result[Nil, Error] {
-    @socket.write_string(string)
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
+    @socket.write(bytes)
   }
 
   fn pub mut flush -> Result[Nil, Error] {
@@ -1803,12 +1784,8 @@ impl Read for UnixClient {
 }
 
 impl Write for UnixClient {
-  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
-    @socket.write_bytes(bytes)
-  }
-
-  fn pub mut write_string(string: String) -> Result[Nil, Error] {
-    @socket.write_string(string)
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
+    @socket.write(bytes)
   }
 
   fn pub mut flush -> Result[Nil, Error] {
@@ -1856,7 +1833,7 @@ type pub UnixServer {
   # let listener = UnixServer.new('/tmp/test.sock'.to_path).get
   # let client = UnixClient.new('/tmp/test.sock'.to_path).get
   #
-  # client.write_string('ping')
+  # client.write('ping')
   #
   # let connection = listener.accept.get
   # let buffer = ByteArray.new

@@ -23,12 +23,12 @@ type async Main {
     let addr = server.local_address.get
 
     client.connect(addr.ip, addr.port).get
-    client.write_string('Hello, world!').get
+    client.write('Hello, world!').get
 
     let bytes = ByteArray.new
 
     server.read(into: bytes, size: 32).get
-    stdout.write_bytes(bytes).get
+    stdout.write(bytes).get
   }
 }
 ```
@@ -67,7 +67,7 @@ Next, we encounter the following:
 let addr = server.local_address.get
 
 client.connect(addr.ip, addr.port).get
-client.write_string('Hello, world!').get
+client.write('Hello, world!').get
 ```
 
 Here we get the address of the server we need to connect the client to, which we
@@ -80,7 +80,7 @@ We then read the data back from the server:
 let bytes = ByteArray.new
 
 server.read(into: bytes, size: 32).get
-stdout.write_bytes(bytes).get
+stdout.write(bytes).get
 ```
 
 When using sockets you shouldn't use `read_all` as we did in the files tutorial,
@@ -107,7 +107,7 @@ type async Main {
     let bytes = ByteArray.new
 
     client.read(into: bytes, size: 32).get
-    stdout.write_bytes(bytes).get
+    stdout.write(bytes).get
   }
 }
 ```
@@ -126,7 +126,7 @@ type async Main {
   fn async main {
     let client = TcpClient.new(IpAddress.v4(0, 0, 0, 0), port: 9999).get
 
-    client.write_string('Hello, world!').get
+    client.write('Hello, world!').get
   }
 }
 ```

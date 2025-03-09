@@ -31,7 +31,7 @@ fn read(from: ref Path) -> String {
 fn write(string: String, to: ref Path) {
   let file = WriteOnlyFile.new(to.clone).get
 
-  file.write_string(string).get
+  file.write(string).get
 }
 
 fn strip_prefix(path: String, prefix: String) -> Option[Path] {
@@ -145,7 +145,7 @@ fn pub tests(t: mut Tests) {
       let out = Stdout.new
       let res = Path.new('~').expand.map(fn (v) { v.to_string }).or('ERROR')
 
-      out.write_string(res)
+      out.write(res)
     },
     test: fn (test, proc) {
       proc.variable('HOME', '')
@@ -335,7 +335,7 @@ fn pub tests(t: mut Tests) {
       let path = buf.into_string.to_path
       let _ = Path.new('/dev/stdin').copy(path).get
       let _ = path.remove_file.get
-      let _ = Stdout.new.write_string('ok')
+      let _ = Stdout.new.write('ok')
     },
     test: fn (t, proc) {
       let path = env.temporary_directory.join('inko-test-${t.id}')

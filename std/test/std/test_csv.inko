@@ -1,3 +1,4 @@
+import std.bytes (Bytes)
 import std.csv (Error, ErrorKind, Generator, Parser, Separator)
 import std.fmt (fmt)
 import std.io (Buffer, Error as IoError, Write)
@@ -13,13 +14,8 @@ type Output {
 }
 
 impl Write for Output {
-  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, IoError] {
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, IoError] {
     @buffer.append(bytes)
-    Result.Ok(nil)
-  }
-
-  fn pub mut write_string(string: String) -> Result[Nil, IoError] {
-    @buffer.append(string)
     Result.Ok(nil)
   }
 
@@ -38,12 +34,7 @@ type BrokenOutput {
 }
 
 impl Write for BrokenOutput {
-  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, IoError] {
-    @writes += 1
-    Result.Error(IoError.InvalidArgument)
-  }
-
-  fn pub mut write_string(string: String) -> Result[Nil, IoError] {
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, IoError] {
     @writes += 1
     Result.Error(IoError.InvalidArgument)
   }

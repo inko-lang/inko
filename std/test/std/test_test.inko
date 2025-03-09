@@ -1,3 +1,4 @@
+import std.bytes (Bytes)
 import std.env
 import std.fmt (fmt)
 import std.fs.path (Path)
@@ -15,13 +16,8 @@ type Buffer {
 }
 
 impl Write for Buffer {
-  fn pub mut write_string(string: String) -> Result[Nil, Error] {
-    @bytes.append(string.to_byte_array)
-    Result.Ok(nil)
-  }
-
-  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
-    @bytes.append(bytes.clone)
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
+    @bytes.append(bytes)
     Result.Ok(nil)
   }
 

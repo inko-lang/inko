@@ -139,7 +139,7 @@ type async DummyServer {
     # We may encounter an error such as when the client closes the connection.
     # We want to ignore those so we don't terminate the test suite.
     let _ = @socket.accept.then(fn (sock) {
-      Server.new(sock, @config).write_string('hello')
+      Server.new(sock, @config).write('hello')
     })
   }
 
@@ -151,7 +151,7 @@ type async DummyServer {
       let bytes = ByteArray.new
 
       try con.read(into: bytes, size: 32)
-      con.write_bytes(bytes)
+      con.write(bytes)
     })
   }
 }
@@ -170,7 +170,7 @@ type async DummyClient {
   ) {
     let res = recover {
       client(port).then(fn (s) {
-        try s.write_string('hello').map_error(fn (e) { 'write failed: ${e}' })
+        try s.write('hello').map_error(fn (e) { 'write failed: ${e}' })
         Result.Ok(s)
       })
     }
@@ -384,7 +384,7 @@ fn pub tests(t: mut Tests) {
     Result.Ok(nil)
   })
 
-  t.ok('Client.write_bytes', fn (t) {
+  t.ok('Client.write', fn (t) {
     let port = match DummyServer.new {
       case Ok((server, port)) -> {
         server.reply
@@ -398,27 +398,7 @@ fn pub tests(t: mut Tests) {
     let client = Client.new(sock, conf, name: 'localhost').get
     let bytes = ByteArray.new
 
-    t.equal(client.write_bytes('ping'.to_byte_array), Result.Ok(nil))
-    t.equal(client.read(into: bytes, size: 4), Result.Ok(4))
-    t.equal(bytes.into_string, 'ping')
-    Result.Ok(nil)
-  })
-
-  t.ok('Client.write_string', fn (t) {
-    let port = match DummyServer.new {
-      case Ok((server, port)) -> {
-        server.reply
-        port
-      }
-      case Error(e) -> throw e
-    }
-
-    let conf = try client_config
-    let sock = try connect(port)
-    let client = Client.new(sock, conf, name: 'localhost').get
-    let bytes = ByteArray.new
-
-    t.equal(client.write_string('ping'), Result.Ok(nil))
+    t.equal(client.write('ping'), Result.Ok(nil))
     t.equal(client.read(into: bytes, size: 4), Result.Ok(4))
     t.equal(bytes.into_string, 'ping')
     Result.Ok(nil)
@@ -505,7 +485,7 @@ fn pub tests(t: mut Tests) {
     Result.Ok(nil)
   })
 
-  t.ok('Server.write_string', fn (t) {
+  t.ok('Server.write', fn (t) {
     let sock_fut = match Future.new {
       case (future, promise) -> {
         match try listener {
@@ -521,31 +501,7 @@ fn pub tests(t: mut Tests) {
       case (sock, out) -> {
         let server = try accept(sock)
 
-        t.equal(server.write_string('hello'), Result.Ok(nil))
-        t.equal(recover out.get, Result.Ok('hello'))
-      }
-    }
-
-    Result.Ok(nil)
-  })
-
-  t.ok('Server.write_bytes', fn (t) {
-    let sock_fut = match Future.new {
-      case (future, promise) -> {
-        match try listener {
-          case (sock, port) -> {
-            DummyClient().reply(port, promise)
-            (sock, future)
-          }
-        }
-      }
-    }
-
-    match sock_fut {
-      case (sock, out) -> {
-        let server = try accept(sock)
-
-        t.equal(server.write_bytes('hello'.to_byte_array), Result.Ok(nil))
+        t.equal(server.write('hello'), Result.Ok(nil))
         t.equal(recover out.get, Result.Ok('hello'))
       }
     }

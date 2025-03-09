@@ -777,21 +777,21 @@ type pub Generator[I: mut + Write] {
     let mut i = 0
 
     for col in columns.iter {
-      if i > 0 { try @output.write_string(@separator_string) }
+      if i > 0 { try @output.write(@separator_string) }
 
       if quote?(col, @separator_byte) {
         try @output
-          .write_string('"')
-          .then(fn (_) { @output.write_string(col.replace('"', '""')) })
-          .then(fn (_) { @output.write_string('"') })
+          .write('"')
+          .then(fn (_) { @output.write(col.replace('"', '""')) })
+          .then(fn (_) { @output.write('"') })
       } else {
-        try @output.write_string(col)
+        try @output.write(col)
       }
 
       i += 1
     }
 
-    if columns.size > 0 { try @output.write_string('\r\n') }
+    if columns.size > 0 { try @output.write('\r\n') }
 
     Result.Ok(nil)
   }

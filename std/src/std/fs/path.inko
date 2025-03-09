@@ -625,8 +625,8 @@ type pub inline Path {
   # let path = Path.new('/tmp/test.txt')
   # let handle = WriteOnlyFile.new(path).get
   #
-  # handle.write_string('hello') # => Result.Ok(nil)
-  # path.remove_file             # => Result.Ok(nil)
+  # handle.write('hello') # => Result.Ok(nil)
+  # path.remove_file      # => Result.Ok(nil)
   # ```
   fn pub remove_file -> Result[Nil, Error] {
     sys.remove_file(@path)
@@ -790,7 +790,7 @@ type pub inline Path {
   # let path = Path.new('/tmp/test.txt')
   # let file = WriteOnlyFile.new(path).get
   #
-  # file.write_string('hello')      # => Result.Ok(nil)
+  # file.write('hello')             # => Result.Ok(nil)
   # path.copy(to: '/tmp/test2.txt') # => Result.Ok(5)
   # ```
   fn pub copy[T: ToString](to: ref T) -> Result[Int, Error] {

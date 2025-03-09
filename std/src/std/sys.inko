@@ -1,4 +1,5 @@
 # Types and methods for interacting with the underlying system.
+import std.bytes (Bytes)
 import std.drop (Drop, drop)
 import std.env
 import std.fs.path (Path)
@@ -288,12 +289,8 @@ impl WriteInternal for Stdin {
 }
 
 impl Write for Stdin {
-  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
     write_all_internal(bytes.pointer, bytes.size)
-  }
-
-  fn pub mut write_string(string: String) -> Result[Nil, Error] {
-    write_all_internal(string.pointer, string.size)
   }
 
   fn pub mut flush -> Result[Nil, Error] {

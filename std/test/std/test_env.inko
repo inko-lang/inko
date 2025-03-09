@@ -11,7 +11,7 @@ fn pub tests(t: mut Tests) {
 
   t.fork(
     'env.opt',
-    child: fn { Stdout.new.write_string(env.opt('INKO_TEST').or('?')) },
+    child: fn { Stdout.new.write(env.opt('INKO_TEST').or('?')) },
     test: fn (test, process) {
       process.variable('INKO_TEST', 'foo')
       test.equal(process.spawn.stdout, 'foo')
@@ -49,7 +49,7 @@ fn pub tests(t: mut Tests) {
       let out = Stdout.new
       let res = env.home_directory.map(fn (v) { v.to_string }).or('ERROR')
 
-      out.write_string(res)
+      out.write(res)
     },
     test: fn (test, proc) {
       proc.variable('HOME', '')
@@ -69,7 +69,7 @@ fn pub tests(t: mut Tests) {
       let out = Stdout.new
       let _ = env.working_directory = env.temporary_directory
 
-      out.write_string(env.working_directory.get.to_string)
+      out.write(env.working_directory.get.to_string)
     },
     test: fn (test, process) {
       test.equal(process.spawn.stdout, env.temporary_directory.to_string)

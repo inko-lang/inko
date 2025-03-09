@@ -7,7 +7,7 @@ import std.time (DateTime, Duration)
 fn write(string: String, to: ref Path) {
   let file = WriteOnlyFile.new(to.clone).get
 
-  file.write_string(string).get
+  file.write(string).get
 }
 
 fn read(from: ref Path) -> String {
@@ -89,7 +89,7 @@ fn pub tests(t: mut Tests) {
     {
       let file = try WriteOnlyFile.new(path.clone)
 
-      try file.write_string('hello')
+      try file.write('hello')
       try file.flush
 
       t.equal(read(path), 'hello')
@@ -108,14 +108,14 @@ fn pub tests(t: mut Tests) {
     {
       let file = try WriteOnlyFile.append(path.clone)
 
-      try file.write_string('hello')
+      try file.write('hello')
       try file.flush
     }
 
     {
       let file = try WriteOnlyFile.append(path.clone)
 
-      try file.write_string('world')
+      try file.write('world')
       try file.flush
     }
 
@@ -123,39 +123,19 @@ fn pub tests(t: mut Tests) {
     path.remove_file
   })
 
-  t.test('WriteOnlyFile.write_bytes', fn (t) {
+  t.test('WriteOnlyFile.write', fn (t) {
     let path = env.temporary_directory.join('inko-test-${t.id}')
 
     {
       let handle = WriteOnlyFile.new(path.clone).get
 
-      handle.write_bytes('test'.to_byte_array).get
+      handle.write('test'.to_byte_array).get
     }
 
     {
       let handle = WriteOnlyFile.append(path.clone).get
 
-      handle.write_bytes('ing'.to_byte_array).get
-    }
-
-    t.equal(read(path), 'testing')
-
-    path.remove_file.get
-  })
-
-  t.test('WriteOnlyFile.write_string', fn (t) {
-    let path = env.temporary_directory.join('inko-test-${t.id}')
-
-    {
-      let handle = WriteOnlyFile.new(path.clone).get
-
-      handle.write_string('test').get
-    }
-
-    {
-      let handle = WriteOnlyFile.append(path.clone).get
-
-      handle.write_string('ing').get
+      handle.write('ing'.to_byte_array).get
     }
 
     t.equal(read(path), 'testing')
@@ -167,7 +147,7 @@ fn pub tests(t: mut Tests) {
     let path = env.temporary_directory.join('inko-test-${t.id}')
     let handle = WriteOnlyFile.new(path.clone).get
 
-    handle.write_string('test').get
+    handle.write('test').get
 
     t.equal(handle.flush, Result.Ok(nil))
     t.equal(read(path), 'test')
@@ -178,9 +158,9 @@ fn pub tests(t: mut Tests) {
   t.test('WriteOnlyFile.seek', fn (t) {
     let path = env.temporary_directory.join('inko-test-${t.id}')
     let handle = WriteOnlyFile.new(path.clone).get
-    let _ = handle.write_string('test').get
+    let _ = handle.write('test').get
     let _ = handle.seek(1).get
-    let _ = handle.write_string('ing').get
+    let _ = handle.write('ing').get
 
     t.equal(read(path), 'ting')
 
@@ -192,7 +172,7 @@ fn pub tests(t: mut Tests) {
     let today = DateTime.utc - Duration.from_secs(60)
     let handle = try WriteOnlyFile.new(path.clone)
 
-    try handle.write_string('test')
+    try handle.write('test')
 
     let meta = try handle.metadata
 
@@ -217,7 +197,7 @@ fn pub tests(t: mut Tests) {
       let file = try ReadWriteFile.new(path.clone)
       let buf = ByteArray.new
 
-      try file.write_string('hello')
+      try file.write('hello')
       try file.flush
       try file.seek(0)
       try file.read_all(buf)
@@ -258,39 +238,19 @@ fn pub tests(t: mut Tests) {
     path.remove_file.get
   })
 
-  t.test('ReadWriteFile.write_bytes', fn (t) {
+  t.test('ReadWriteFile.write', fn (t) {
     let path = env.temporary_directory.join('inko-test-${t.id}')
 
     {
       let handle = ReadWriteFile.new(path.clone).get
 
-      handle.write_bytes('test'.to_byte_array).get
+      handle.write('test'.to_byte_array).get
     }
 
     {
       let handle = ReadWriteFile.append(path.clone).get
 
-      handle.write_bytes('ing'.to_byte_array).get
-    }
-
-    t.equal(read(path), 'testing')
-
-    path.remove_file.get
-  })
-
-  t.test('ReadWriteFile.write_string', fn (t) {
-    let path = env.temporary_directory.join('inko-test-${t.id}')
-
-    {
-      let handle = ReadWriteFile.new(path.clone).get
-
-      handle.write_string('test').get
-    }
-
-    {
-      let handle = ReadWriteFile.append(path.clone).get
-
-      handle.write_string('ing').get
+      handle.write('ing'.to_byte_array).get
     }
 
     t.equal(read(path), 'testing')
@@ -302,7 +262,7 @@ fn pub tests(t: mut Tests) {
     let path = env.temporary_directory.join('inko-test-${t.id}')
     let handle = ReadWriteFile.new(path.clone).get
 
-    handle.write_string('test').get
+    handle.write('test').get
 
     t.equal(handle.flush, Result.Ok(nil))
     t.equal(read(path), 'test')
@@ -313,9 +273,9 @@ fn pub tests(t: mut Tests) {
   t.test('ReadWriteFile.seek', fn (t) {
     let path = env.temporary_directory.join('inko-test-${t.id}')
     let handle = ReadWriteFile.new(path.clone).get
-    let _ = handle.write_string('test').get
+    let _ = handle.write('test').get
     let _ = handle.seek(1).get
-    let _ = handle.write_string('ing').get
+    let _ = handle.write('ing').get
 
     t.equal(read(path), 'ting')
 
@@ -327,7 +287,7 @@ fn pub tests(t: mut Tests) {
     let today = DateTime.utc - Duration.from_secs(60)
     let handle = try ReadWriteFile.new(path.clone)
 
-    try handle.write_string('test')
+    try handle.write('test')
 
     let meta = try handle.metadata
 

@@ -221,14 +221,14 @@ type pub Plain[T: mut + Write] {
 impl Reporter for Plain {
   fn pub mut passed(test: Test) {
     @tests += 1
-    @out.write_string(green('.')).get
+    @out.write(green('.')).get
     @out.flush.get
   }
 
   fn pub mut failed(test: Test) {
     @tests += 1
     @failed.push(test)
-    @out.write_string(red('F')).get
+    @out.write(red('F')).get
     @out.flush.get
   }
 
@@ -445,7 +445,7 @@ type pub Process {
       case Error(err) -> panic("failed to spawn '${@cmd.program}': ${err}")
     }
 
-    let _ = (child.stdin := Option.None).get.write_string(@stdin)
+    let _ = (child.stdin := Option.None).get.write(@stdin)
     let stdout = ByteArray.new
     let stderr = ByteArray.new
     let _ = child.stdout.as_mut.get.read_all(stdout)

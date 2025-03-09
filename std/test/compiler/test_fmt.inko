@@ -19,7 +19,7 @@ fn run(
 
   let child = try cmd.spawn.map_error(fn (e) { 'failed to spawn ${name}: ${e}' })
 
-  try child.stdin.as_mut.get.write_string(input).map_error(fn (e) {
+  try child.stdin.as_mut.get.write(input).map_error(fn (e) {
     'failed to write to STDIN: ${e}'
   })
 

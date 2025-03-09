@@ -102,7 +102,7 @@ impl Resolve for SystemdResolver {
   fn pub mut resolve(host: String) -> Result[Array[IpAddress], Error] {
     @buffer.append(resolve_host(host))
     @buffer.push(0)
-    try @socket.write_bytes(@buffer).map_error(fn (e) { Error.Other(e) })
+    try @socket.write(@buffer).map_error(fn (e) { Error.Other(e) })
     @buffer.clear
 
     # Read until the trailing NULL byte.

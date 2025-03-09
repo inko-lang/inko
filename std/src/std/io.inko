@@ -8,6 +8,7 @@ import std.drop (Drop)
 import std.fmt (Format, Formatter)
 import std.iter (Stream)
 import std.libc
+import std.ptr
 import std.string (ToString)
 
 # The initial number of bytes to read in `Read.read_all`
@@ -502,13 +503,13 @@ trait WriteInternal {
     size: Int,
   ) -> Result[Nil, Error] {
     let mut rem = size
-    let mut ptr = data
+    let mut src = data
 
     while rem > 0 {
-      match write_internal(ptr, rem) {
+      match write_internal(src, rem) {
         case Ok(n) -> {
           rem -= n
-          ptr = ptr as Int + n as Pointer[UInt8]
+          src = ptr.add(src, n)
         }
         case Error(e) -> return Result.Error(e)
       }
@@ -524,19 +525,14 @@ trait pub Write {
   #
   # Types implementing this method must guarantee that upon returning from this
   # method, either all of the data is written and a `Ok(Nil)` is returned, _or_
-  # an `Error(Error)` is returned.
-  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error]
+  # an `Error` is returned.
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error]
 
-  # Writes the entirety of `string` to the underlying stream.
-  #
-  # See `Write.write_bytes` for more details.
-  fn pub mut write_string(string: String) -> Result[Nil, Error]
-
-  # Writes the entirety of `string` to the underlying stream, followed by
-  # writing a Unix newline to the stream.
-  fn pub mut print(string: String) -> Result[Nil, Error] {
-    try write_string(string)
-    write_string('\n')
+  # Writes the entirety of `bytes` to the underlying stream, followed by
+  # a Unix newline.
+  fn pub mut print[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
+    try write(bytes)
+    write('\n')
   }
 
   # Flushes any pending writes to the file system.
@@ -885,8 +881,8 @@ impl Read for BufferedReader {
 # let file = WriteOnlyFile.new('out.txt').or_panic('failed to open the file')
 # let writer = BufferedWriter.new(file)
 #
-# writer.write_string('hello') # => Result.Ok(nil)
-# writer.flush                 # => Result.Ok(nil)
+# writer.write('hello') # => Result.Ok(nil)
+# writer.flush          # => Result.Ok(nil)
 # ```
 type pub BufferedWriter[T: mut + Write] {
   # The `Write` type to write data to.
@@ -946,14 +942,14 @@ impl Write for BufferedWriter {
   #
   # This method returns a `std.io.Error` if the data can't be written to the
   # underlying stream.
-  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
     let len = bytes.size
 
     # If the data size is the same as the buffer size we might as well just
     # write to the stream directly.
     if len >= @size {
       try flush
-      try @inner.write_bytes(bytes)
+      try @inner.write(bytes)
       return Result.Ok(nil)
     }
 
@@ -970,28 +966,12 @@ impl Write for BufferedWriter {
     # flush it, then write the data to the buffer. This ensures future calls to
     # this method have more buffer space to work with, compared to just a flush
     # plus appending the _entire_ data to the now empty buffer.
-    @buffer.append(bytes.slice(start: 0, end: rem))
+    @buffer.append(Slice.new(bytes, start: 0, end: rem))
 
     let _ = try flush
 
-    @buffer.append(bytes.slice(start: rem, end: len))
+    @buffer.append(Slice.new(bytes, start: rem, end: len))
     Result.Ok(nil)
-  }
-
-  # Writes the entirety of `string` to the buffer, flushing it if necessary.
-  #
-  # Due to the internal buffer being a `ByteArray`, this method copies the bytes
-  # in `string`, rather than writing the `String` directly.
-  #
-  # Refer to the documentation of `BufferedWriter.write_bytes` and
-  # `Writer.write_bytes` for more details.
-  #
-  # # Errors
-  #
-  # This method returns a `std.io.Error` if the data can't be written to the
-  # underlying stream.
-  fn pub mut write_string(string: String) -> Result[Nil, Error] {
-    write_bytes(string.to_byte_array)
   }
 
   # Writes any data stored in the buffer to the underlying stream, clearing the
@@ -1005,7 +985,7 @@ impl Write for BufferedWriter {
   # underlying stream.
   fn pub mut flush -> Result[Nil, Error] {
     if @buffer.size > 0 {
-      try @inner.write_bytes(@buffer)
+      try @inner.write(@buffer)
       @buffer.clear
     }
 

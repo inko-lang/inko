@@ -19,10 +19,10 @@ type async Main {
     let file = ReadWriteFile.new('hello.txt'.to_path).get
     let bytes = ByteArray.new
 
-    file.write_string('Hello, world!').get
+    file.write('Hello, world!').get
     file.seek(0).get
     file.read_all(bytes).get
-    out.write_bytes(bytes).get
+    out.write(bytes).get
   }
 }
 ```
@@ -66,7 +66,7 @@ type async Main {
     let bytes = ByteArray.new
 
     file.read_all(bytes).get
-    out.write_bytes(bytes).get
+    out.write(bytes).get
   }
 }
 ```
@@ -94,7 +94,7 @@ type async Main {
   fn async main {
     let file = WriteOnlyFile.new('hello.txt'.to_path).get
 
-    file.write_string('Hello, world!')
+    file.write('Hello, world!')
   }
 }
 ```

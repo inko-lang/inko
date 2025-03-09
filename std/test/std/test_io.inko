@@ -1,3 +1,4 @@
+import std.bytes (Bytes)
 import std.drop (drop)
 import std.fmt (fmt)
 import std.io (
@@ -76,13 +77,8 @@ type Writer {
 }
 
 impl Write for Writer {
-  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
     @buffer.append(bytes)
-    Result.Ok(nil)
-  }
-
-  fn pub mut write_string(string: String) -> Result[Nil, Error] {
-    @buffer.append(string)
     Result.Ok(nil)
   }
 
@@ -519,47 +515,31 @@ fn pub tests(t: mut Tests) {
     BufferedWriter.with_capacity(Writer.new, size: -4)
   })
 
-  t.test('BufferedWriter.write_bytes', fn (t) {
+  t.test('BufferedWriter.write', fn (t) {
     let writer = BufferedWriter.with_capacity(Writer.new, size: 8)
 
-    t.equal(writer.write_bytes('abcd'.to_byte_array), Result.Ok(nil))
+    t.equal(writer.write('abcd'.to_byte_array), Result.Ok(nil))
     t.equal(writer.buffer, 'abcd'.to_byte_array)
     t.equal(writer.inner.buffer, ByteArray.new)
 
-    t.equal(writer.write_bytes('efgh'.to_byte_array), Result.Ok(nil))
+    t.equal(writer.write('efgh'.to_byte_array), Result.Ok(nil))
     t.equal(writer.buffer, 'abcdefgh'.to_byte_array)
     t.equal(writer.inner.buffer, ByteArray.new)
 
-    t.equal(writer.write_bytes('i'.to_byte_array), Result.Ok(nil))
+    t.equal(writer.write('i'.to_byte_array), Result.Ok(nil))
     t.equal(writer.buffer, 'i'.to_byte_array)
     t.equal(writer.inner.buffer, 'abcdefgh'.to_byte_array)
 
-    t.equal(writer.write_bytes('123456789'.to_byte_array), Result.Ok(nil))
+    t.equal(writer.write('123456789'.to_byte_array), Result.Ok(nil))
     t.equal(writer.buffer, ByteArray.new)
     t.equal(writer.inner.buffer, 'abcdefghi123456789'.to_byte_array)
 
     writer.inner.buffer.clear
-    t.equal(writer.write_bytes('abcdefg'.to_byte_array), Result.Ok(nil))
+    t.equal(writer.write('abcdefg'.to_byte_array), Result.Ok(nil))
     t.equal(writer.buffer, 'abcdefg'.to_byte_array)
     t.equal(writer.inner.buffer, ByteArray.new)
 
-    t.equal(writer.write_bytes('hi'.to_byte_array), Result.Ok(nil))
-    t.equal(writer.buffer, 'i'.to_byte_array)
-    t.equal(writer.inner.buffer, 'abcdefgh'.to_byte_array)
-  })
-
-  t.test('BufferedWriter.write_string', fn (t) {
-    let writer = BufferedWriter.with_capacity(Writer.new, size: 8)
-
-    t.equal(writer.write_string('abcd'), Result.Ok(nil))
-    t.equal(writer.buffer, 'abcd'.to_byte_array)
-    t.equal(writer.inner.buffer, ByteArray.new)
-
-    t.equal(writer.write_string('efgh'), Result.Ok(nil))
-    t.equal(writer.buffer, 'abcdefgh'.to_byte_array)
-    t.equal(writer.inner.buffer, ByteArray.new)
-
-    t.equal(writer.write_string('i'), Result.Ok(nil))
+    t.equal(writer.write('hi'.to_byte_array), Result.Ok(nil))
     t.equal(writer.buffer, 'i'.to_byte_array)
     t.equal(writer.inner.buffer, 'abcdefgh'.to_byte_array)
   })
@@ -567,7 +547,7 @@ fn pub tests(t: mut Tests) {
   t.test('BufferedWriter.flush', fn (t) {
     let writer = BufferedWriter.with_capacity(Writer.new, size: 8)
 
-    t.equal(writer.write_string('abcd'), Result.Ok(nil))
+    t.equal(writer.write('abcd'), Result.Ok(nil))
     t.equal(writer.buffer, 'abcd'.to_byte_array)
     t.equal(writer.flush, Result.Ok(nil))
     t.equal(writer.buffer, ByteArray.new)
@@ -577,7 +557,7 @@ fn pub tests(t: mut Tests) {
   t.test('BufferedWriter.inner', fn (t) {
     let writer = BufferedWriter.with_capacity(Writer.new, size: 8)
 
-    t.equal(writer.inner.write_string('abcd'), Result.Ok(nil))
+    t.equal(writer.inner.write('abcd'), Result.Ok(nil))
     t.equal(writer.buffer, ByteArray.new)
     t.equal(writer.inner.buffer, 'abcd'.to_byte_array)
   })
@@ -586,7 +566,7 @@ fn pub tests(t: mut Tests) {
     let raw = Writer.new
     let writer = BufferedWriter.with_capacity(mut raw, size: 8)
 
-    t.equal(writer.write_string('abcd'), Result.Ok(nil))
+    t.equal(writer.write('abcd'), Result.Ok(nil))
     drop(writer)
     t.equal(raw.buffer, 'abcd'.to_byte_array)
   })

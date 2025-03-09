@@ -190,7 +190,7 @@ fn copy_file_fallback(
       case Ok(0) if buffer.size > 0 -> {
         # The file is smaller than the buffer capacity, so we need to flush
         # the remaining data.
-        try to.write_bytes(buffer)
+        try to.write(buffer)
         break
       }
       case Ok(0) -> break
@@ -202,7 +202,7 @@ fn copy_file_fallback(
         # the data. This ensures that if we have many instances of smaller
         # reads, we still keep the number of writes to a minimum.
         if pending == 0 {
-          try to.write_bytes(buffer)
+          try to.write(buffer)
           buffer.clear
           pending = buffer.capacity
         }

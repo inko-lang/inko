@@ -30,6 +30,7 @@
 #
 # stdin.read_all(bytes).or_panic('failed to read from STDIN')
 # ```
+import std.bytes (Bytes)
 import std.io (Error, Read, Write, WriteInternal)
 import std.sys.unix.stdio (self as sys) if unix
 
@@ -103,12 +104,8 @@ impl WriteInternal for Stdout {
 }
 
 impl Write for Stdout {
-  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
     write_all_internal(bytes.pointer, bytes.size)
-  }
-
-  fn pub mut write_string(string: String) -> Result[Nil, Error] {
-    write_all_internal(string.pointer, string.size)
   }
 
   # Flushes any pending writes.
@@ -155,12 +152,8 @@ impl WriteInternal for Stderr {
 }
 
 impl Write for Stderr {
-  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
     write_all_internal(bytes.pointer, bytes.size)
-  }
-
-  fn pub mut write_string(string: String) -> Result[Nil, Error] {
-    write_all_internal(string.pointer, string.size)
   }
 
   # Flushes any pending writes.

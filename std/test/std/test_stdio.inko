@@ -9,7 +9,7 @@ fn pub tests(t: mut Tests) {
       let inp = Stdin.new
       let bytes = ByteArray.new
       let _ = inp.read_all(bytes)
-      let _ = out.write_bytes(bytes)
+      let _ = out.write(bytes)
     },
     test: fn (test, process) {
       process.stdin('hello')
@@ -22,20 +22,14 @@ fn pub tests(t: mut Tests) {
     child: fn {
       let stdout = Stdout.new
       let stdin = Stdin.new
-      let _ = stdout.write_string(stdin.terminal?.to_string)
+      let _ = stdout.write(stdin.terminal?.to_string)
     },
     test: fn (test, process) { test.equal(process.spawn.stdout, 'false') },
   )
 
   t.fork(
-    'Stdout.write_bytes',
-    child: fn { let _ = Stdout.new.write_bytes('hello'.to_byte_array) },
-    test: fn (test, process) { test.equal(process.spawn.stdout, 'hello') },
-  )
-
-  t.fork(
-    'Stdout.write_string',
-    child: fn { let _ = Stdout.new.write_string('hello') },
+    'Stdout.write',
+    child: fn { let _ = Stdout.new.write('hello'.to_byte_array) },
     test: fn (test, process) { test.equal(process.spawn.stdout, 'hello') },
   )
 
@@ -49,7 +43,7 @@ fn pub tests(t: mut Tests) {
     'Stdout.flush',
     child: fn {
       let out = Stdout.new
-      let _ = out.write_string('hello')
+      let _ = out.write('hello')
       let _ = out.flush
     },
     test: fn (test, process) { test.equal(process.spawn.stdout, 'hello') },
@@ -59,20 +53,14 @@ fn pub tests(t: mut Tests) {
     'Stdout.terminal? in a pipe',
     child: fn {
       let stdout = Stdout.new
-      let _ = stdout.write_string(stdout.terminal?.to_string)
+      let _ = stdout.write(stdout.terminal?.to_string)
     },
     test: fn (test, process) { test.equal(process.spawn.stdout, 'false') },
   )
 
   t.fork(
-    'Stderr.write_bytes',
-    child: fn { let _ = Stderr.new.write_bytes('hello'.to_byte_array) },
-    test: fn (test, process) { test.equal(process.spawn.stderr, 'hello') },
-  )
-
-  t.fork(
-    'Stderr.write_string',
-    child: fn { let _ = Stderr.new.write_string('hello') },
+    'Stderr.write',
+    child: fn { let _ = Stderr.new.write('hello'.to_byte_array) },
     test: fn (test, process) { test.equal(process.spawn.stderr, 'hello') },
   )
 
@@ -86,7 +74,7 @@ fn pub tests(t: mut Tests) {
     'Stderr.flush',
     child: fn {
       let out = Stderr.new
-      let _ = out.write_string('hello')
+      let _ = out.write('hello')
       let _ = out.flush
     },
     test: fn (test, process) { test.equal(process.spawn.stderr, 'hello') },
@@ -97,7 +85,7 @@ fn pub tests(t: mut Tests) {
     child: fn {
       let stdout = Stdout.new
       let stderr = Stderr.new
-      let _ = stdout.write_string(stderr.terminal?.to_string)
+      let _ = stdout.write(stderr.terminal?.to_string)
     },
     test: fn (test, process) { test.equal(process.spawn.stdout, 'false') },
   )

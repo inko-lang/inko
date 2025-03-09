@@ -23,6 +23,7 @@
 # The various file types are `inline` types. This means that if a borrow of a
 # file type is used after the owned reference is dropped, file operations will
 # produce a `Error.InvalidFileDescriptor` error.
+import std.bytes (Bytes)
 import std.drop (Drop)
 import std.fs (Metadata)
 import std.fs.path (Path)
@@ -194,12 +195,8 @@ impl WriteInternal for WriteOnlyFile {
 }
 
 impl Write for WriteOnlyFile {
-  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
     write_all_internal(bytes.pointer, bytes.size)
-  }
-
-  fn pub mut write_string(string: String) -> Result[Nil, Error] {
-    write_all_internal(string.pointer, string.size)
   }
 
   fn pub mut flush -> Result[Nil, Error] {
@@ -309,12 +306,8 @@ impl WriteInternal for ReadWriteFile {
 }
 
 impl Write for ReadWriteFile {
-  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
     write_all_internal(bytes.pointer, bytes.size)
-  }
-
-  fn pub mut write_string(string: String) -> Result[Nil, Error] {
-    write_all_internal(string.pointer, string.size)
   }
 
   fn pub mut flush -> Result[Nil, Error] {

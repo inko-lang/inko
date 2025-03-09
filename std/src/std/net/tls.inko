@@ -22,6 +22,7 @@
 #
 # When receiving a `close_notify` message during or after an IO operation (e.g.
 # a write), a `Error.InvalidData` or `Error.BrokenPipe` error may be produced.
+import std.bytes (Bytes)
 import std.clone (Clone)
 import std.cmp (Equal)
 import std.crypto.x509 (Certificate, PrivateKey)
@@ -316,7 +317,7 @@ impl Clone for ClientConfig {
 #   .new(socket, conf, name: 'localhost')
 #   .or_panic('the server name is invalid')
 #
-# client.write_string('ping').or_panic('failed to write the message')
+# client.write('ping').or_panic('failed to write the message')
 #
 # let response = ByteArray.new
 #
@@ -452,12 +453,8 @@ impl WriteInternal for Client {
 }
 
 impl Write for Client {
-  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
     write_all_internal(bytes.pointer, bytes.size)
-  }
-
-  fn pub mut write_string(string: String) -> Result[Nil, Error] {
-    write_all_internal(string.pointer, string.size)
   }
 
   fn pub mut flush -> Result[Nil, Error] {
@@ -688,12 +685,8 @@ impl WriteInternal for Server {
 }
 
 impl Write for Server {
-  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
     write_all_internal(bytes.pointer, bytes.size)
-  }
-
-  fn pub mut write_string(string: String) -> Result[Nil, Error] {
-    write_all_internal(string.pointer, string.size)
   }
 
   fn pub mut flush -> Result[Nil, Error] {
