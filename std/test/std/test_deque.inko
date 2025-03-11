@@ -1,3 +1,4 @@
+import std.array (OutOfBounds)
 import std.deque (Deque)
 import std.test (Tests)
 
@@ -61,9 +62,9 @@ fn pub tests(t: mut Tests) {
     q.push_front(30)
 
     t.equal(q.size, 3)
-    t.equal(q.get(0), 30)
-    t.equal(q.get(1), 20)
-    t.equal(q.get(2), 10)
+    t.equal(q.get(0), Result.Ok(30))
+    t.equal(q.get(1), Result.Ok(20))
+    t.equal(q.get(2), Result.Ok(10))
   })
 
   t.test('Deque.pop_front', fn (t) {
@@ -88,9 +89,9 @@ fn pub tests(t: mut Tests) {
     q.push_back(30)
 
     t.equal(q.size, 3)
-    t.equal(q.get(0), 10)
-    t.equal(q.get(1), 20)
-    t.equal(q.get(2), 30)
+    t.equal(q.get(0), Result.Ok(10))
+    t.equal(q.get(1), Result.Ok(20))
+    t.equal(q.get(2), Result.Ok(30))
   })
 
   t.test('Deque.pop_back', fn (t) {
@@ -211,44 +212,27 @@ fn pub tests(t: mut Tests) {
     t.equal(iter.next, Option.None)
   })
 
-  t.test('Deque.get with a valid index', fn (t) {
+  t.test('Deque.get', fn (t) {
     let q = Deque.new
 
     q.push_back(10)
     q.push_back(20)
 
-    t.equal(q.get(0), 10)
-    t.equal(q.get(1), 20)
+    t.equal(q.get(0), Result.Ok(10))
+    t.equal(q.get(1), Result.Ok(20))
+    t.equal(q.get(2), Result.Error(OutOfBounds.new(index: 2, size: 2)))
+    t.equal(q.get(-4), Result.Error(OutOfBounds.new(index: -4, size: 2)))
   })
 
-  t.panic('Deque.get with an index that is out of bounds', fn {
-    let q: Deque[Int] = Deque.new
-
-    q.get(0)
-  })
-
-  t.panic('Deque.get with an index that is less than zero', fn {
-    let q: Deque[Int] = Deque.new
-
-    q.get(-4)
-  })
-
-  t.test('Deque.opt', fn (t) {
+  t.test('Deque.get', fn (t) {
     let q = Deque.new
 
-    q.push_back(10)
+    q.push_back((10, 20))
+    q.push_back((20, 30))
 
-    t.equal(q.opt(0), Option.Some(10))
-    t.equal(q.opt(1), Option.None)
-  })
-
-  t.test('Deque.opt_mut', fn (t) {
-    let q = Deque.new
-    let exp = (1, 0)
-
-    q.push_back((1, 0))
-
-    t.equal(q.opt_mut(0), Option.Some(mut exp))
-    t.equal(q.opt_mut(1), Option.None)
+    t.equal(q.get_mut(0), Result.Ok(mut (10, 20)))
+    t.equal(q.get_mut(1), Result.Ok(mut (20, 30)))
+    t.equal(q.get_mut(2), Result.Error(OutOfBounds.new(index: 2, size: 2)))
+    t.equal(q.get_mut(-4), Result.Error(OutOfBounds.new(index: -4, size: 2)))
   })
 }

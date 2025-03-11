@@ -82,10 +82,10 @@ type pub Sha1 {
       words.set(
         i,
         rotate_left_u32(
-          words.get(i - 3)
-            ^ words.get(i - 8)
-            ^ words.get(i - 14)
-            ^ words.get(i - 16),
+          words.get(i - 3).or_panic
+            ^ words.get(i - 8).or_panic
+            ^ words.get(i - 14).or_panic
+            ^ words.get(i - 16).or_panic,
           1,
         ),
       )
@@ -103,7 +103,7 @@ type pub Sha1 {
         rotate_left_u32(a, 5)
           .wrapping_add((b & c) | (b.not & d))
           .wrapping_add(e)
-          .wrapping_add(words.get(i))
+          .wrapping_add(words.get(i).or_panic)
           .wrapping_add(0x5A827999),
       )
 
@@ -120,7 +120,7 @@ type pub Sha1 {
         rotate_left_u32(a, 5)
           .wrapping_add(b ^ c ^ d)
           .wrapping_add(e)
-          .wrapping_add(words.get(i))
+          .wrapping_add(words.get(i).or_panic)
           .wrapping_add(0x6ED9EBA1),
       )
 
@@ -137,7 +137,7 @@ type pub Sha1 {
         rotate_left_u32(a, 5)
           .wrapping_add((b & c) | (b & d) | (c & d))
           .wrapping_add(e)
-          .wrapping_add(words.get(i))
+          .wrapping_add(words.get(i).or_panic)
           .wrapping_add(0x8F1BBCDC),
       )
 
@@ -154,7 +154,7 @@ type pub Sha1 {
         rotate_left_u32(a, 5)
           .wrapping_add(b ^ c ^ d)
           .wrapping_add(e)
-          .wrapping_add(words.get(i))
+          .wrapping_add(words.get(i).or_panic)
           .wrapping_add(0xCA62C1D6),
       )
 

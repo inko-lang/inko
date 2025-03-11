@@ -14,14 +14,14 @@ fn example1(value: uni B) {
 }
 
 fn example2(value: uni B) {
-  borrow([value].get(0))
+  borrow([value].get(0).or_panic)
 }
 
 fn example3(value: uni B) {
   let values = [value]
 
-  values.get(0).take(values)
+  values.get(0).or_panic.take(values)
 }
 
 # return_uni_borrow.inko:17:10 error(invalid-type): expected a value of type 'ref B', found 'uni ref B'
-# return_uni_borrow.inko:23:22 error(invalid-type): the receiver of this call requires sendable arguments, but 'Array[uni B]' isn't sendable
+# return_uni_borrow.inko:23:31 error(invalid-type): the receiver of this call requires sendable arguments, but 'Array[uni B]' isn't sendable

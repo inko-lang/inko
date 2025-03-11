@@ -255,7 +255,9 @@ impl Iter[Token] for Lexer {
           }
           case
             Some(val)
-          if val.size >= 3 and val.byte(0) == HYPHEN and val.byte(1) == HYPHEN
+          if val.size >= 3
+            and val.get(0).or_panic == HYPHEN
+            and val.get(1).or_panic == HYPHEN
           -> {
             match val.byte_index(of: '=', starting_at: 2) {
               # Example: --foo=bar
@@ -270,10 +272,10 @@ impl Iter[Token] for Lexer {
               case _ -> Token.Long(val.slice(start: 2, end: val.size).to_string)
             }
           }
-          case Some(val) if val.size >= 2 and val.byte(0) == HYPHEN -> {
+          case Some(val) if val.size >= 2 and val.get(0).or_panic == HYPHEN -> {
             match val.byte_index(of: '=', starting_at: 1) {
               # Example: -a=b, parsed as `-a "=b"` to match getopts behaviour
-              case Some(_) if basic_latin?(val.byte(1)) -> {
+              case Some(_) if basic_latin?(val.get(1).or_panic) -> {
                 let name = val.slice(start: 1, end: 2).to_string
 
                 buffer(val.slice(start: 2, end: val.size))
@@ -290,7 +292,7 @@ impl Iter[Token] for Lexer {
                 Token.Short(name)
               }
               # Example: -a
-              case _ if basic_latin?(val.byte(1)) -> {
+              case _ if basic_latin?(val.get(1).or_panic) -> {
                 let name = val.slice(start: 1, end: 2).to_string
                 let offset = name.size + 1
 
@@ -476,7 +478,9 @@ type pub inline Matches {
   # matches.value('config') # => Option.Some('foo.json')
   # ```
   fn pub value(name: String) -> Option[String] {
-    @options.opt(name).then(fn (v) { v.opt(0) }).then(fn (v) { v.as_string })
+    @options.get(name).ok.then(fn (v) { v.get(0).ok }).then(fn (v) {
+      v.as_string
+    })
   }
 
   # Returns the values for the option.
@@ -499,8 +503,8 @@ type pub inline Matches {
   # matches.values('include') # => ['test', 'src']
   # ```
   fn pub values(name: String) -> Array[String] {
-    match @options.opt(name) {
-      case Some(vals) -> vals.iter.select_map(fn (v) { v.as_string }).to_array
+    match @options.get(name) {
+      case Ok(vals) -> vals.iter.select_map(fn (v) { v.as_string }).to_array
       case _ -> []
     }
   }
@@ -512,8 +516,8 @@ type pub inline Matches {
   }
 
   fn mut add_or_append(key: String, value: Value) {
-    match @options.opt_mut(key) {
-      case Some(vals) -> vals.push(value)
+    match @options.get_mut(key) {
+      case Ok(vals) -> vals.push(value)
       case _ -> @options.set(key, [value])
     }
   }
@@ -712,8 +716,8 @@ type pub Options {
     loop {
       match lexer.next {
         case Some(Short(name) or Long(name)) -> {
-          match @mapping.opt(name) {
-            case Some(opt) -> {
+          match @mapping.get(name) {
+            case Ok(opt) -> {
               match opt.kind {
                 case Flag if matches.contains?(name) -> {
                   throw Error.DuplicateOption(name)
@@ -734,8 +738,8 @@ type pub Options {
           }
         }
         case Some(LongPair(name, val)) -> {
-          match @mapping.opt(name) {
-            case Some(opt) -> {
+          match @mapping.get(name) {
+            case Ok(opt) -> {
               match opt.kind {
                 case Flag -> throw Error.UnexpectedValue(name)
                 case Single if matches.contains?(name) -> {
@@ -835,7 +839,7 @@ impl ToString for Options {
     let buf = StringBuffer.new
 
     for (idx, opt) in opts.into_iter.with_index {
-      let desc = descs.get(idx)
+      let desc = descs.get(idx).or_panic
       let has_desc = desc.size > 0
 
       if idx > 0 { buf.push('\n') }

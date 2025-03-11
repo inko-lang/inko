@@ -94,14 +94,14 @@ fn pub hchacha20(key: ref ByteArray, nonce: ref ByteArray) -> ByteArray {
   )
 
   matrix.perform_rounds
-  little.write_i32(matrix.words.get(0), into: out, at: 0)
-  little.write_i32(matrix.words.get(1), into: out, at: 4)
-  little.write_i32(matrix.words.get(2), into: out, at: 8)
-  little.write_i32(matrix.words.get(3), into: out, at: 12)
-  little.write_i32(matrix.words.get(12), into: out, at: 16)
-  little.write_i32(matrix.words.get(13), into: out, at: 20)
-  little.write_i32(matrix.words.get(14), into: out, at: 24)
-  little.write_i32(matrix.words.get(15), into: out, at: 28)
+  little.write_i32(matrix.words.get(0).or_panic, into: out, at: 0)
+  little.write_i32(matrix.words.get(1).or_panic, into: out, at: 4)
+  little.write_i32(matrix.words.get(2).or_panic, into: out, at: 8)
+  little.write_i32(matrix.words.get(3).or_panic, into: out, at: 12)
+  little.write_i32(matrix.words.get(12).or_panic, into: out, at: 16)
+  little.write_i32(matrix.words.get(13).or_panic, into: out, at: 20)
+  little.write_i32(matrix.words.get(14).or_panic, into: out, at: 24)
+  little.write_i32(matrix.words.get(15).or_panic, into: out, at: 28)
   out
 }
 
@@ -395,7 +395,7 @@ type pub inline ChaCha {
         while i < len {
           let idx = offset.wrapping_add(i)
 
-          bytes.set(idx, bytes.get(idx) ^ @buffer.get(i))
+          bytes.set(idx, bytes.get(idx).or_panic ^ @buffer.get(i).or_panic)
           i = i.wrapping_add(1)
         }
 
@@ -407,7 +407,7 @@ type pub inline ChaCha {
       while i < BLOCK_SIZE {
         let idx = offset.wrapping_add(i)
 
-        bytes.set(idx, bytes.get(idx) ^ @buffer.get(i))
+        bytes.set(idx, bytes.get(idx).or_panic ^ @buffer.get(i).or_panic)
         i = i.wrapping_add(1)
       }
 

@@ -815,14 +815,14 @@ impl BufferedRead for BufferedReader {
   fn pub mut read_byte -> Result[Option[Int], Error] {
     match try fill_buffer {
       case 0 -> Result.Ok(Option.None)
-      case _ -> Result.Ok(Option.Some(@buffer.get(@offset := @offset + 1)))
+      case _ -> Result.Ok(@buffer.get(@offset := @offset + 1).ok)
     }
   }
 
   fn pub mut peek -> Result[Option[Int], Error] {
     match try fill_buffer {
       case 0 -> Result.Ok(Option.None)
-      case _ -> Result.Ok(Option.Some(@buffer.get(@offset)))
+      case _ -> Result.Ok(@buffer.get(@offset).ok)
     }
   }
 }
@@ -1059,7 +1059,7 @@ impl BufferedRead for Buffer {
 
   fn pub mut read_byte -> Result[Option[Int], Error] {
     if @offset < @bytes.size {
-      Result.Ok(Option.Some(@bytes.byte(@offset := @offset + 1)))
+      Result.Ok(@bytes.get(@offset := @offset + 1).ok)
     } else {
       Result.Ok(Option.None)
     }
@@ -1067,7 +1067,7 @@ impl BufferedRead for Buffer {
 
   fn pub mut peek -> Result[Option[Int], Error] {
     if @offset < @bytes.size {
-      Result.Ok(Option.Some(@bytes.byte(@offset)))
+      Result.Ok(@bytes.get(@offset).ok)
     } else {
       Result.Ok(Option.None)
     }

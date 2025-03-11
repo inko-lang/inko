@@ -329,11 +329,11 @@ match Option.Some(42) {
 For borrows, we just drop the borrow before entering the pattern body:
 
 ```inko
-match values.opt(4) {
-  case Some(42) -> {
-    # This is valid because the `ref Option[Int]` returned by `values.opt(4)` is
+match values.get(4) {
+  case Ok(42) -> {
+    # This is valid because the value returned by `values.get(4)` is
     # dropped before we enter this body. If we didn't, the line below would
-    # panic, because we'd try to drop the old value of `values.opt(4)` while a
+    # panic, because we'd try to drop the old value of `values.get(4)` while a
     # borrow to it still exists.
     values.set(4, Option.Some(0))
   }

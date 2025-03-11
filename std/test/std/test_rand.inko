@@ -41,7 +41,7 @@ fn pub tests(t: mut Tests) {
     10_000.times(fn (_) {
       let val = rng.int_between(0, 10)
 
-      counts.set(val, counts.get(val) + 1)
+      counts.set(val, counts.get(val).or_panic + 1)
     })
 
     let total = Int.sum(counts.iter).to_float

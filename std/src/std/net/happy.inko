@@ -22,23 +22,23 @@ fn interleave(ips: ref Array[IpAddress]) -> Stream[IpAddress] {
   Stream.new(fn move {
     if v6 {
       loop {
-        match ips.opt(v6_idx := v6_idx + 1) {
-          case Some(V6(ip)) -> return Option.Some(IpAddress.V6(ip))
-          case Some(_) -> v6 = false
+        match ips.get(v6_idx := v6_idx + 1) {
+          case Ok(V6(ip)) -> return Option.Some(IpAddress.V6(ip))
+          case Ok(_) -> v6 = false
           case _ -> break
         }
       }
     }
 
     loop {
-      match ips.opt(v4_idx := v4_idx + 1) {
-        case Some(V4(ip)) -> {
+      match ips.get(v4_idx := v4_idx + 1) {
+        case Ok(V4(ip)) -> {
           # If we find an IPv4 address and there may be IPv6 addresses left, we
           # need to process those on the next call.
           v6 = v6_idx < ips.size
           return Option.Some(IpAddress.V4(ip))
         }
-        case Some(_) -> {}
+        case Ok(_) -> {}
         case _ -> return Option.None
       }
     }
@@ -61,7 +61,7 @@ fn connect(
   # and just connect to it directly.
   match size {
     case 0 -> throw Error.InvalidArgument
-    case 1 -> return TcpClient.connect(ips.get(0), port, timeout_after)
+    case 1 -> return TcpClient.connect(ips.get(0).or_panic, port, timeout_after)
     case _ -> {}
   }
 

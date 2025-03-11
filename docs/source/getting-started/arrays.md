@@ -23,8 +23,9 @@ values are of the same type:
 
 ## Indexing arrays
 
-Arrays are indexed using `Array.get`, `Array.get_mut`, `Array.opt` and
-`Array.opt_mut`. There's no dedicated syntax for indexing.
+Arrays are indexed using `Array.get` and `Array.get_mut`. Both methods return a
+`Result` that wraps the value or an error. There's no dedicated syntax for
+indexing.
 
 The `get` method returns an immutable borrow to a value, while `get_mut` returns
 a mutable borrow:
@@ -36,34 +37,22 @@ type Person {
 
 let people = [Person(name: 'Alice')]
 
-people.get(0)     # => ref Person(name: 'Alice')
-people.get_mut(0) # => mut Person(name: 'Alice')
+people.get(0)     # => Result.Ok(ref Person(name: 'Alice'))
+people.get_mut(0) # => Result.Ok(mut Person(name: 'Alice'))
 ```
 
-If the index is out of bounds, `get` and `get_mut` panic:
+If you want the program to panic if the index is out of bounds, use
+`Result.or_panic`:
 
 ```inko
+
 type Person {
   let @name: String
 }
 
 let people = [Person(name: 'Alice')]
 
-people.get(42) # => panic
-```
-
-The `opt` and `opt_mut` methods are similar to `get` and `get_mut`, except they
-wrap the return values in an `Option` value:
-
-```inko
-type Person {
-  let @name: String
-}
-
-let people = [Person(name: 'Alice')]
-
-people.get(0)  # => Option.Some(ref Person(name: 'Alice'))
-people.get(42) # => Option.None
+people.get(0).or_panic # => ref Person(name: 'Alice')
 ```
 
 ## Adding values
@@ -87,7 +76,7 @@ nums.set(0, 42)
 nums # => [42]
 ```
 
-If the index (the first argument) is out of bounds, `set` panics:
+If the index (the first argument) is out of bounds, `Array.set` panics:
 
 ```inko
 let nums = []
@@ -113,16 +102,8 @@ that come after it to the left:
 ```inko
 let nums = [10, 20, 30]
 
-nums.remove_at(1) # => 20
+nums.remove_at(1) # => Result.Ok(20)
 nums              # => [10, 30]
-```
-
-If the index given to `remove_at` is out of bounds, the method panics:
-
-```inko
-let nums = [10, 20, 30]
-
-nums.remove_at(42) # => panic
 ```
 
 ## Iterating over values

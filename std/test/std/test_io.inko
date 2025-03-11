@@ -29,8 +29,7 @@ impl Read for Reader {
     if max > @bytes.size { max = @bytes.size }
 
     while @index < max {
-      into.push(@bytes.get(@index))
-
+      into.push(@bytes.get(@index).or_panic)
       @index += 1
     }
 
@@ -49,8 +48,8 @@ type SingleByteReader {
 
 impl Read for SingleByteReader {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
-    match @bytes.opt(@index) {
-      case Some(v) -> {
+    match @bytes.get(@index) {
+      case Ok(v) -> {
         into.push(v)
         @index += 1
         Result.Ok(1)

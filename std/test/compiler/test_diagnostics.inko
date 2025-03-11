@@ -33,8 +33,8 @@ fn parse_test(path: ref Path) -> Result[Array[Diagnostic], String] {
       case Error(e) -> throw 'failed reading a new line: ${e}'
     }
 
-    match buffer.opt(0) {
-      case Some(HASH) -> {
+    match buffer.get(0) {
+      case Ok(HASH) -> {
         match Parser.new(buffer).parse {
           case Some(v) -> diags.push(v)
           case _ -> {
@@ -100,17 +100,17 @@ fn check(compiler: String, name: String, file: Path) -> Array[Diagnostic] {
 }
 
 fn string(map: ref Map[String, Json], key: String) -> Result[String, String] {
-  match map.opt(key) {
-    case Some(String(v)) -> Result.Ok(v)
+  match map.get(key) {
+    case Ok(String(v)) -> Result.Ok(v)
     case _ -> throw 'the "${key}" field must be a string'
   }
 }
 
 fn location(map: ref Map[String, Json], key: String) -> Result[Int, String] {
-  match map.opt(key) {
-    case Some(Array(vals)) -> {
-      match vals.opt(0) {
-        case Some(Int(v)) -> return Result.Ok(v)
+  match map.get(key) {
+    case Ok(Array(vals)) -> {
+      match vals.get(0) {
+        case Ok(Int(v)) -> return Result.Ok(v)
         case _ -> {}
       }
     }
@@ -166,7 +166,7 @@ type Parser {
   }
 
   fn current -> Int {
-    if @index < @bytes.size { @bytes.get(@index) } else { EOF }
+    @bytes.get(@index).or(EOF)
   }
 
   fn mut skip_spaces {

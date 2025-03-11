@@ -66,12 +66,14 @@ fn inline init_unix_address(
 
   # For abstract sockets the remaining bytes are significant, so we must zero
   # them out first.
-  if path.empty? or path.byte(0) == 0 { alloc.zero(addr_path_ptr, max_size) }
+  if path.empty? or path.get(0).or_panic == 0 {
+    alloc.zero(addr_path_ptr, max_size)
+  }
 
   # For unnamed sockets, the size must be equal to the family field's size.
   if path.empty? { return Result.Ok(name_offset) }
 
-  let addr_size = if path.byte(0) == 0 {
+  let addr_size = if path.get(0).or_panic == 0 {
     # For abstract sockets the entire sun_path field is treated as part of the
     # name, so we need to specify the right size as to _not_ include trailing
     # NULL bytes.

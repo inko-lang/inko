@@ -1,6 +1,6 @@
 # Types for working with bytes.
 import std.alloc
-import std.array (bounds_check, out_of_bounds)
+import std.array (OutOfBounds, check_bounds)
 import std.clone (Clone)
 import std.cmp (Contains, Equal, max, min)
 import std.drop (Drop)
@@ -95,30 +95,14 @@ trait pub Bytes {
 
   # Returns the byte at the given index.
   #
-  # # Panics
-  #
-  # This method panics if `index` is out of bounds.
-  #
-  # # Examples
-  #
-  # ```inko
-  # let bytes = ByteArray.from_array([10, 20, 30])
-  #
-  # bytes.byte(0) # => 10
-  # ```
-  fn pub byte(index: Int) -> Int
+  # If the index is out of bounds, a `std.bounds.OutOfBounds` error is returned.
+  fn pub get(index: Int) -> Result[Int, OutOfBounds]
 
-  # Returns the byte at the given index, returning None if the index is out of
-  # bounds.
+  # Returns a raw pointer to the bytes of `self`
   #
-  # # Examples
-  #
-  # ```inko
-  # let bytes = ByteArray.from_array([10, 20, 30])
-  #
-  # bytes.opt(0) # => Option.Some(10)
-  # ```
-  fn pub opt(index: Int) -> Option[Int]
+  # This method is meant for FFI purposes, and use of it should be avoided at
+  # all costs.
+  fn pub pointer -> Pointer[UInt8]
 
   # Returns an iterator over the bytes in `self`.
   #
@@ -133,12 +117,6 @@ trait pub Bytes {
   fn pub bytes -> Iter[ref Self] {
     Iter(source: self, index: 0)
   }
-
-  # Returns a raw pointer to the bytes of `self`
-  #
-  # This method is meant for FFI purposes, and use of it should be avoided at
-  # all costs.
-  fn pub pointer -> Pointer[UInt8]
 }
 
 # A immutable slice of bytes.
@@ -198,7 +176,7 @@ type pub inline Slice[T: Bytes] {
   # let bytes = ByteArray.from_array([10, 20, 30])
   # let slice = bytes.slice(start: 0, end: 3) # => Slice[ref ByteArray]
   #
-  # slice.slice(start: 1, end: 2).opt(1) # => Option.Some(30)
+  # slice.slice(start: 1, end: 2).get(1) # => Result.Ok(30)
   # ```
   fn pub slice(start: Int, end: Int) -> Self {
     let new_start = @start.wrapping_add(start)
@@ -263,24 +241,7 @@ impl Bytes for Slice {
 
   # Returns the byte at the given index.
   #
-  # # Examples
-  #
-  # ```inko
-  # let bytes = ByteArray.from_array([10, 20, 30])
-  # let slice = bytes.slice(start: 1, end: 3)
-  #
-  # slice.get(0) # => 20
-  # slice.get(1) # => 30
-  # ```
-  fn pub inline byte(index: Int) -> Int {
-    match opt(index) {
-      case Some(v) -> v
-      case _ -> out_of_bounds(index, @end.wrapping_sub(@start))
-    }
-  }
-
-  # Returns the byte at the given index, returning None if the index is out of
-  # bounds.
+  # If the index is out of bounds, a `std.bounds.OutOfBounds` error is returned.
   #
   # # Examples
   #
@@ -288,17 +249,16 @@ impl Bytes for Slice {
   # let bytes = ByteArray.from_array([10, 20, 30])
   # let slice = bytes.slice(start: 1, end: 3)
   #
-  # slice.opt(0) # => Option.Some(20)
-  # slice.opt(1) # => Option.Some(30)
-  # slice.opt(2) # => Option.None
+  # slice.get(0)  # => Result.Ok(20)
+  # slice.get(10) # => Result.Error(OutOfBounds(...))
   # ```
-  fn pub inline opt(index: Int) -> Option[Int] {
+  fn pub inline get(index: Int) -> Result[Int, OutOfBounds] {
     let off = @start.wrapping_add(index)
 
     if index >= 0 and index < @end and off >= 0 and off < @source.size {
-      Option.Some(ptr.add(@source.pointer, off).0 as Int)
+      Result.Ok(ptr.add(@source.pointer, off).0 as Int)
     } else {
-      Option.None
+      Result.Error(OutOfBounds.new(index, size))
     }
   }
 
@@ -351,7 +311,7 @@ type pub Iter[T: Bytes] {
 
 impl IterTrait[Int] for Iter {
   fn pub inline mut next -> Option[Int] {
-    @source.opt(@index := @index.wrapping_add(1))
+    @source.get(@index := @index.wrapping_add(1)).ok
   }
 }
 
@@ -600,15 +560,15 @@ type pub ByteArray {
   # bytes.remove_at(0) # => 10
   # bytes.size         # => 0
   # ```
-  fn pub mut remove_at(index: Int) -> Int {
-    bounds_check(index, @size)
+  fn pub mut remove_at(index: Int) -> Result[Int, OutOfBounds] {
+    try check_bounds(index, @size)
 
     let addr = address_of(index)
     let val = addr.0 as Int
 
     alloc.copy(from: ptr.add(addr, 1), to: addr, size: @size - index - 1)
     @size -= 1
-    val
+    Result.Ok(val)
   }
 
   # Returns a new `String` using the bytes in this `ByteArray`, draining it in
@@ -633,26 +593,6 @@ type pub ByteArray {
     str
   }
 
-  # Returns the byte at the given index.
-  #
-  # # Panics
-  #
-  # This method panics if the index is out of bounds.
-  #
-  # # Examples
-  #
-  # Retrieving an existing byte:
-  #
-  # ```inko
-  # let bytes = ByteArray.from_array([10, 20])
-  #
-  # bytes.get(0) # => 10
-  # ```
-  fn pub inline get(index: Int) -> Int {
-    bounds_check(index, @size)
-    get_unchecked(index)
-  }
-
   # Writes the byte `value` to the position `index`.
   #
   # # Panics
@@ -668,7 +608,7 @@ type pub ByteArray {
   # bytes.get(0) # => 30
   # ```
   fn pub mut set(index: Int, value: Int) {
-    bounds_check(index, @size)
+    check_bounds(index, @size).or_panic
     write_to(index, value)
   }
 
@@ -733,7 +673,7 @@ type pub ByteArray {
   # a # => ByteArray.from_array([10, 20, 40, 30])
   # ```
   fn pub mut reverse_at(index: Int) {
-    bounds_check(index, size)
+    check_bounds(index, size).or_panic
 
     let mut a = index
     let mut b = size - 1
@@ -808,7 +748,7 @@ type pub ByteArray {
   # ByteArray.from_array([10, 20]).last # => Option.Some(20)
   # ```
   fn pub last -> Option[Int] {
-    opt(size - 1)
+    get(size - 1).ok
   }
 
   # Returns `true` if `self` starts with the given sequence of bytes.
@@ -930,11 +870,9 @@ type pub ByteArray {
 }
 
 impl Bytes for ByteArray {
-  # Returns the number of bytes in this `ByteArray`.
+  # Returns the number of bytes in `self`.
   #
   # # Examples
-  #
-  # Obtaining the size of a `ByteArray`
   #
   # ```inko
   # ByteArray.new.size              # => 0
@@ -944,41 +882,23 @@ impl Bytes for ByteArray {
     @size
   }
 
-  # Returns the byte at the given index, returning None if the index is out of
-  # bounds.
+  # Returns the byte at the given index.
+  #
+  # If the index is out of bounds, a `std.bounds.OutOfBounds` error is returned.
   #
   # # Examples
   #
-  # Retrieving an existing byte:
-  #
   # ```inko
   # let bytes = ByteArray.from_array([10, 20])
   #
-  # bytes.opt(0) # => Option.Some(10)
+  # bytes.get(0) # => Result.Ok(10)
+  # bytes.get(5) # => Result.Error(OutOfBounds(...))
   # ```
-  #
-  # Retrieving a non-existing byte:
-  #
-  # ```inko
-  # let bytes = ByteArray.from_array([10, 20])
-  #
-  # bytes.opt(5) # => Option.None
-  # ```
-  fn pub inline opt(index: Int) -> Option[Int] {
-    if index < 0 or index >= size { return Option.None }
-
-    Option.Some(get_unchecked(index))
+  fn pub inline get(index: Int) -> Result[Int, OutOfBounds] {
+    try check_bounds(index, size)
+    Result.Ok(get_unchecked(index))
   }
 
-  # An alias for `ByteArray.get`.
-  fn pub inline byte(index: Int) -> Int {
-    get(index)
-  }
-
-  # Returns a raw pointer to the bytes of `self`.
-  #
-  # This method is meant to be used when passing byte arrays to foreign
-  # functions. You should avoid using it for anything else.
   fn pub pointer -> Pointer[UInt8] {
     @buffer
   }

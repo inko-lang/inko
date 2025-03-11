@@ -16,5 +16,5 @@ fn bar(fun: fn) {
 }
 
 fn baz {
-  ''.byte(0)
+  ''.get(0)
 }

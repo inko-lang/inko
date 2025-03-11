@@ -6,6 +6,7 @@ import std.clone (Clone)
 import std.cmp (Equal)
 import std.fmt (Format, Formatter)
 import std.iter (Iter)
+import std.string (ToString)
 
 # A type that represents either success (`Ok(T)`) or failure (`Error(E)`).
 type pub inline enum Result[T, E] {
@@ -264,6 +265,33 @@ type pub inline enum Result[T, E] {
     match self {
       case Ok(v) -> Result.Ok(v)
       case Error(e) -> block.call(e)
+    }
+  }
+}
+
+impl Result if E: ToString {
+  # Returns the value wrapped by `Ok` if `self` is an `Ok`, or panics by using
+  # the `Error` value as the panic message.
+  #
+  # For this method to be available, the type wrapped by the `Error` case must
+  # implement the `std.string.ToString` trait.
+  #
+  # If you want to use a custom error message, use `Result.or_panic_with`
+  # instead.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let ok: Result[Int, String] = Result.Ok(10)
+  # let error: Result[Int, String] = Result.Error('oops!')
+  #
+  # ok.or_panic    # => 10
+  # error.or_panic # => panic("oops!")
+  # ```
+  fn pub move or_panic -> T {
+    match self {
+      case Ok(v) -> v
+      case Error(e) -> panic(e.to_string)
     }
   }
 }

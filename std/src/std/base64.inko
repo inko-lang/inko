@@ -629,9 +629,9 @@ type pub Encoder {
   # Returns an `Encoder` that uses the standard base64 alphabet.
   fn pub static new -> Encoder {
     Encoder(
-      table0: ENCODE_STD.get(0),
-      table1: ENCODE_STD.get(1),
-      table2: ENCODE_STD.get(2),
+      table0: ENCODE_STD.get(0).or_panic,
+      table1: ENCODE_STD.get(1).or_panic,
+      table2: ENCODE_STD.get(2).or_panic,
       padding: true,
     )
   }
@@ -639,9 +639,9 @@ type pub Encoder {
   # Returns an `Encoder` that uses the URL safe base64 alphabet.
   fn pub static url_safe -> Encoder {
     Encoder(
-      table0: ENCODE_URL.get(0),
-      table1: ENCODE_URL.get(1),
-      table2: ENCODE_URL.get(2),
+      table0: ENCODE_URL.get(0).or_panic,
+      table1: ENCODE_URL.get(1).or_panic,
+      table2: ENCODE_URL.get(2).or_panic,
       padding: true,
     )
   }
@@ -672,14 +672,14 @@ type pub Encoder {
       let max = size - 2
 
       while i < max {
-        let b0 = input.get(i)
-        let b1 = input.get(i + 1)
-        let b2 = input.get(i + 2)
+        let b0 = input.get(i).or_panic
+        let b1 = input.get(i + 1).or_panic
+        let b2 = input.get(i + 2).or_panic
 
-        into.push(t0.get(b0))
-        into.push(t1.get((b0 & 0x03 << 4) | (b1 >> 4 & 0x0F)))
-        into.push(t1.get((b1 & 0x0F << 2) | (b2 >> 6 & 0x03)))
-        into.push(t2.get(b2))
+        into.push(t0.get(b0).or_panic)
+        into.push(t1.get((b0 & 0x03 << 4) | (b1 >> 4 & 0x0F)).or_panic)
+        into.push(t1.get((b1 & 0x0F << 2) | (b2 >> 6 & 0x03)).or_panic)
+        into.push(t2.get(b2).or_panic)
 
         i += 3
       }
@@ -688,10 +688,10 @@ type pub Encoder {
     match size - i {
       case 0 -> {}
       case 1 -> {
-        let b0 = input.get(i)
+        let b0 = input.get(i).or_panic
 
-        into.push(t0.get(b0))
-        into.push(t1.get(b0 & 0x03 << 4))
+        into.push(t0.get(b0).or_panic)
+        into.push(t1.get(b0 & 0x03 << 4).or_panic)
 
         if @padding {
           into.push(PAD)
@@ -699,12 +699,12 @@ type pub Encoder {
         }
       }
       case _ -> {
-        let b0 = input.get(i)
-        let b1 = input.get(i + 1)
+        let b0 = input.get(i).or_panic
+        let b1 = input.get(i + 1).or_panic
 
-        into.push(t0.get(b0))
-        into.push(t1.get((b0 & 0x03 << 4) | (b1 >> 4 & 0x0F)))
-        into.push(t2.get(b1 & 0x0F << 2))
+        into.push(t0.get(b0).or_panic)
+        into.push(t1.get((b0 & 0x03 << 4) | (b1 >> 4 & 0x0F)).or_panic)
+        into.push(t2.get(b1 & 0x0F << 2).or_panic)
 
         if @padding { into.push(PAD) }
       }
@@ -800,20 +800,20 @@ type pub Decoder {
 
   fn pub static new -> Decoder {
     Decoder(
-      table0: DECODE_STD.get(0),
-      table1: DECODE_STD.get(1),
-      table2: DECODE_STD.get(2),
-      table3: DECODE_STD.get(3),
+      table0: DECODE_STD.get(0).or_panic,
+      table1: DECODE_STD.get(1).or_panic,
+      table2: DECODE_STD.get(2).or_panic,
+      table3: DECODE_STD.get(3).or_panic,
       padding: true,
     )
   }
 
   fn pub static url_safe -> Decoder {
     Decoder(
-      table0: DECODE_URL.get(0),
-      table1: DECODE_URL.get(1),
-      table2: DECODE_URL.get(2),
-      table3: DECODE_URL.get(3),
+      table0: DECODE_URL.get(0).or_panic,
+      table1: DECODE_URL.get(1).or_panic,
+      table2: DECODE_URL.get(2).or_panic,
+      table3: DECODE_URL.get(3).or_panic,
       padding: true,
     )
   }
@@ -852,10 +852,10 @@ type pub Decoder {
     if @padding {
       if size < 4 or (size % 4 != 0) { throw DecodeError.InvalidSize }
 
-      if input.get(size - 1) == PAD {
+      if input.get(size - 1).or_panic == PAD {
         size -= 1
 
-        if input.get(size - 1) == PAD { size -= 1 }
+        if input.get(size - 1).or_panic == PAD { size -= 1 }
       }
     }
 
@@ -869,10 +869,10 @@ type pub Decoder {
     let mut y = 0
 
     while i < chunks {
-      let a = t0.get(input.get(y))
-      let b = t1.get(input.get(y + 1))
-      let c = t2.get(input.get(y + 2))
-      let d = t3.get(input.get(y + 3))
+      let a = t0.get(input.get(y).or_panic).or_panic
+      let b = t1.get(input.get(y + 1).or_panic).or_panic
+      let c = t2.get(input.get(y + 2).or_panic).or_panic
+      let d = t3.get(input.get(y + 3).or_panic).or_panic
       let x = a | b | c | d
 
       if x >= ERR_CHAR {
@@ -888,10 +888,10 @@ type pub Decoder {
 
     match leftover {
       case 0 -> {
-        let a = t0.get(input.get(y))
-        let b = t1.get(input.get(y + 1))
-        let c = t2.get(input.get(y + 2))
-        let d = t3.get(input.get(y + 3))
+        let a = t0.get(input.get(y).or_panic).or_panic
+        let b = t1.get(input.get(y + 1).or_panic).or_panic
+        let c = t2.get(input.get(y + 2).or_panic).or_panic
+        let d = t3.get(input.get(y + 3).or_panic).or_panic
         let x = a | b | c | d
 
         if x >= ERR_CHAR {
@@ -903,15 +903,15 @@ type pub Decoder {
         into.push(x & HI_MASK >> 16)
       }
       case 1 -> {
-        let x = t0.get(input.get(y))
+        let x = t0.get(input.get(y).or_panic).or_panic
 
         if x >= ERR_CHAR { throw DecodeError.InvalidCharacter(y) }
 
         into.push(x & LO_MASK)
       }
       case 2 -> {
-        let a = t0.get(input.get(y))
-        let b = t1.get(input.get(y + 1))
+        let a = t0.get(input.get(y).or_panic).or_panic
+        let b = t1.get(input.get(y + 1).or_panic).or_panic
         let x = a | b
 
         if x >= ERR_CHAR {
@@ -921,9 +921,9 @@ type pub Decoder {
         into.push(x & LO_MASK)
       }
       case _ -> {
-        let a = t0.get(input.get(y))
-        let b = t1.get(input.get(y + 1))
-        let c = t2.get(input.get(y + 2))
+        let a = t0.get(input.get(y).or_panic).or_panic
+        let b = t1.get(input.get(y + 1).or_panic).or_panic
+        let c = t2.get(input.get(y + 2).or_panic).or_panic
         let x = a | b | c
 
         if x >= ERR_CHAR {

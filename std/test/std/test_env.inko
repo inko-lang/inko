@@ -1,4 +1,5 @@
-import std.env
+import std.env (self, MissingVariable)
+import std.fmt (fmt)
 import std.stdio (Stdout)
 import std.test (Tests)
 
@@ -9,9 +10,25 @@ fn pub tests(t: mut Tests) {
 
   t.test('env.ABI', fn (t) { t.true(env.ABI.size > 0) })
 
+  t.test('MissingVariable.to_string', fn (t) {
+    t.equal(
+      MissingVariable.new('NAME').to_string,
+      "the environment variable 'NAME' is missing",
+    )
+  })
+
+  t.test('MissingVariable.fmt', fn (t) {
+    t.equal(fmt(MissingVariable.new('NAME')), 'MissingVariable(name: "NAME")')
+  })
+
+  t.test('MissingVariable.==', fn (t) {
+    t.equal(MissingVariable.new('NAME'), MissingVariable.new('NAME'))
+    t.not_equal(MissingVariable.new('NAME'), MissingVariable.new('AGE'))
+  })
+
   t.fork(
-    'env.opt',
-    child: fn { Stdout.new.write(env.opt('INKO_TEST').or('?')) },
+    'env.get',
+    child: fn { Stdout.new.write(env.get('INKO_TEST').or('?')) },
     test: fn (test, process) {
       process.variable('INKO_TEST', 'foo')
       test.equal(process.spawn.stdout, 'foo')
@@ -23,8 +40,8 @@ fn pub tests(t: mut Tests) {
     child: fn {
       let out = Stdout.new
       let vars = env.variables
-      let _ = out.print(vars.get('INKO_FOO'))
-      let _ = out.print(vars.get('INKO_BAR'))
+      let _ = out.print(vars.get('INKO_FOO').or_panic)
+      let _ = out.print(vars.get('INKO_BAR').or_panic)
     },
     test: fn (test, process) {
       process.variable('INKO_FOO', 'foo')
@@ -81,8 +98,8 @@ fn pub tests(t: mut Tests) {
     child: fn {
       let out = Stdout.new
       let args = env.arguments
-      let _ = out.print(args.get(0))
-      let _ = out.print(args.get(1))
+      let _ = out.print(args.get(0).or_panic)
+      let _ = out.print(args.get(1).or_panic)
     },
     test: fn (test, process) {
       process.argument('foo')

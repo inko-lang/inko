@@ -6,6 +6,7 @@ import std.fmt (Format, Formatter)
 import std.hash (Hash, Hasher)
 import std.hash.siphash (SipHasher13)
 import std.iter (Stream)
+import std.string (ToString)
 
 fn resize_threshold(size: Int) -> Int {
   # This produces a threshold of 90%, without the need to allocate floats.
@@ -59,6 +60,42 @@ impl Clone for Entry if K: Clone, V: Clone {
       hash: @hash,
       distance: @distance,
     )
+  }
+}
+
+# An error that signals the lack of a key in a `Map`.
+type pub inline MissingKey[K: Equal] {
+  # The key that is missing.
+  let pub @key: ref K
+
+  # Returns a new `MissingKey` to signal that the key in `key` is missing.
+  fn pub static new(key: ref K) -> Self {
+    Self(key)
+  }
+}
+
+impl ToString for MissingKey {
+  fn pub to_string -> String {
+    # The keys in a Map can be arbitrary types, and often are complex objects
+    # that may not implement ToString (or do so in a way that isn't human
+    # readable). As such we only provide a basic message such that e.g.
+    # `Result.or_panic` is still available.
+    'the key is missing'
+  }
+}
+
+impl Format for MissingKey if K: Format {
+  fn pub fmt(formatter: mut Formatter) {
+    let obj = formatter.object('MissingKey')
+
+    obj.field('key', @key)
+    obj.finish
+  }
+}
+
+impl Equal for MissingKey {
+  fn pub ==(other: ref Self) -> Bool {
+    @key == other.key
   }
 }
 
@@ -132,7 +169,9 @@ type pub Map[K: Equal + Hash, V] {
     Map(slots: slots, entries: [], resize_at: resize_at)
   }
 
-  # Removes the given key, returning its value if the key was present.
+  # Removes the given key, returning its value.
+  #
+  # If the key is missing, a `MissingKey` error is returned.
   #
   # # Examples
   #
@@ -141,7 +180,7 @@ type pub Map[K: Equal + Hash, V] {
   # ```inko
   # let mut map = Map.new
   #
-  # map.remove('name') # => Option.None
+  # map.remove('name') # => Result.Error(MissingKey(...))
   # ```
   #
   # Removing an existing key:
@@ -150,32 +189,31 @@ type pub Map[K: Equal + Hash, V] {
   # let mut map = Map.new
   #
   # map.set('name', 'Alice')
-  #
-  # map.remove('name') # => Option.Some('Alice')
+  # map.remove('name') # => Result.Ok('Alice')
   # ```
-  fn pub mut remove(key: ref K) -> Option[V] {
+  fn pub mut remove(key: ref K) -> Result[V, MissingKey[K]] {
     let mut slot = slot_index(hash_key(key))
     let mut dist = 0
-    let mut index = @slots.get(slot)
+    let mut index = @slots.get(slot).or_panic
 
     # For the removal we need both the slot and the entry index, so we have to
     # duplicate the logic of `entries_index()` here, as this is the only place
     # we need both.
     loop {
-      if index == EMPTY { return Option.None }
+      if index == EMPTY { throw MissingKey.new(key) }
 
-      let entry = @entries.get(index)
+      let entry = @entries.get(index).or_panic
 
-      if dist > entry.distance { return Option.None }
+      if dist > entry.distance { throw MissingKey.new(key) }
 
       if entry.key == key { break }
 
       slot = slot_index(slot + 1)
-      index = @slots.get(slot)
+      index = @slots.get(slot).or_panic
       dist += 1
     }
 
-    let value = @entries.remove_at(index).into_value
+    let value = @entries.remove_at(index).or_panic.into_value
 
     @slots.set(slot, EMPTY)
 
@@ -190,16 +228,15 @@ type pub Map[K: Equal + Hash, V] {
     slot = slot_index(slot + 1)
 
     loop {
-      let mut index = @slots.get(slot)
+      let mut index = @slots.get(slot).or_panic
 
       if index == EMPTY { break }
 
-      let entry = @entries.get_mut(index)
+      let entry = @entries.get_mut(index).or_panic
 
       if entry.distance > 0 {
         @slots.set(slot, EMPTY)
         @slots.set(prev_slot, index)
-
         entry.distance -= 1
       } else {
         break
@@ -209,7 +246,7 @@ type pub Map[K: Equal + Hash, V] {
       slot = slot_index(slot + 1)
     }
 
-    Option.Some(value)
+    Result.Ok(value)
   }
 
   # Returns an iterator of immutable key-value pairs.
@@ -310,16 +347,18 @@ type pub Map[K: Equal + Hash, V] {
     iter.map(fn (e) { e.value })
   }
 
-  # Returns an optional immutable reference to the key's value.
+  # Returns an immutable borrow of the key's value.
+  #
+  # If the key is missing, a `MissingKey` error is returned.
   #
   # # Examples
   #
-  # Getting the value of a non-existing key:
+  # Getting the value of a missing key:
   #
   # ```inko
   # let map = Map.new
   #
-  # map.opt('name') # => Option.None
+  # map.get('name') # => Result.Error(MissingKey(...))
   # ```
   #
   # Getting the value of an existing key:
@@ -328,36 +367,12 @@ type pub Map[K: Equal + Hash, V] {
   # let mut map = Map.new
   #
   # map.set('name', 'Alice')
-  #
-  # map.opt('name') # => Option.Some('Alice')
+  # map.get('name') # => Result.Ok('Alice')
   # ```
-  fn pub opt(key: ref K) -> Option[ref V] {
+  fn pub get(key: ref K) -> Result[ref V, MissingKey[K]] {
     match entries_index(key) {
-      case EMPTY -> Option.None
-      case index -> Option.Some(@entries.get(index).value)
-    }
-  }
-
-  # Returns an immutable reference to the value of the given key.
-  #
-  # # Panics
-  #
-  # This method panics if the key doesn't exist.
-  #
-  # # Examples
-  #
-  # Getting the value of an existing key:
-  #
-  # ```inko
-  # let mut map = Map.new
-  #
-  # map.set('name', 'Alice')
-  # map.get('name') # => 'Alice'
-  # ```
-  fn pub get(index: ref K) -> ref V {
-    match entries_index(index) {
-      case EMPTY -> panic("the key doesn't exist")
-      case index -> @entries.get(index).value
+      case EMPTY -> Result.Error(MissingKey.new(key))
+      case index -> Result.Ok(@entries.get(index).or_panic.value)
     }
   }
 
@@ -443,7 +458,9 @@ type pub Map[K: Equal + Hash, V] {
     @slots.size
   }
 
-  # Returns the `Entry` for the given key, if any.
+  # Returns the `Entry` for the given key.
+  #
+  # If the key is missing, a `MissingKey` error is returned.
   #
   # # Examples
   #
@@ -451,14 +468,13 @@ type pub Map[K: Equal + Hash, V] {
   # let map = Map.new
   #
   # map.set('name', 'Alice')
-  # map.entry('name').get.value = 'Bob'
-  #
-  # map.get('name') # => 'Bob'
+  # map.entry('name').or_panic.value = 'Bob'
+  # map.get('name') # => Result.Ok('Bob')
   # ```
-  fn pub mut entry(key: ref K) -> Option[mut Entry[K, V]] {
+  fn pub mut entry(key: ref K) -> Result[mut Entry[K, V], MissingKey[K]] {
     match entries_index(key) {
-      case EMPTY -> Option.None
-      case index -> Option.Some(@entries.get_mut(index))
+      case EMPTY -> Result.Error(MissingKey.new(key))
+      case index -> Result.Ok(@entries.get_mut(index).or_panic)
     }
   }
 
@@ -474,14 +490,14 @@ type pub Map[K: Equal + Hash, V] {
       let mut slot = slot_index(rehash.hash)
 
       loop {
-        let index = @slots.get(slot)
+        let index = @slots.get(slot).or_panic
 
         if index == EMPTY {
           @slots.set(slot, rehash_index)
           break
         }
 
-        let entry = @entries.get(index)
+        let entry = @entries.get(index).or_panic
 
         if entry.distance < rehash.distance {
           @slots.set(slot, rehash_index)
@@ -499,7 +515,7 @@ type pub Map[K: Equal + Hash, V] {
     let mut slot = slot_index(insert.hash)
 
     loop {
-      let index = @slots.get(slot)
+      let index = @slots.get(slot).or_panic
 
       if index == EMPTY {
         @slots.set(slot, @entries.size)
@@ -508,7 +524,7 @@ type pub Map[K: Equal + Hash, V] {
         return Option.None
       }
 
-      let entry = @entries.get_mut(index)
+      let entry = @entries.get_mut(index).or_panic
 
       if entry.key == insert.key {
         return Option.Some(entry.replace_value(insert.into_value))
@@ -544,12 +560,12 @@ type pub Map[K: Equal + Hash, V] {
     # at the next one.
     let mut slot = slot_index(start_slot + 1)
     let mut stolen_index = start_index
-    let mut stolen = @entries.get_mut(stolen_index)
+    let mut stolen = @entries.get_mut(stolen_index).or_panic
 
     loop {
       stolen.distance += 1
 
-      let index = @slots.get(slot)
+      let index = @slots.get(slot).or_panic
 
       if index == EMPTY {
         @slots.set(slot, stolen_index)
@@ -557,7 +573,7 @@ type pub Map[K: Equal + Hash, V] {
         return
       }
 
-      let entry = @entries.get_mut(index)
+      let entry = @entries.get_mut(index).or_panic
 
       if entry.distance < stolen.distance {
         @slots.set(slot, stolen_index)
@@ -574,11 +590,11 @@ type pub Map[K: Equal + Hash, V] {
     let mut dist = 0
 
     loop {
-      let index = @slots.get(slot)
+      let index = @slots.get(slot).or_panic
 
       if index == EMPTY { return EMPTY }
 
-      let entry = @entries.get(index)
+      let entry = @entries.get(index).or_panic
 
       if dist > entry.distance { return EMPTY }
 
@@ -604,23 +620,32 @@ type pub Map[K: Equal + Hash, V] {
 }
 
 impl Map if V: mut {
-  # Returns an optional mutable reference to the key's value.
-  fn pub mut opt_mut(key: ref K) -> Option[mut V] {
+  # Returns a mutable borrow of the key's value.
+  #
+  # If the key is missing, a `MissingKey` error is returned.
+  #
+  # # Examples
+  #
+  # Getting the value of a missing key:
+  #
+  # ```inko
+  # let map = Map.new
+  #
+  # map.get_mut('example') # => Result.Error(MissingKey(...))
+  # ```
+  #
+  # Getting the value of an existing key:
+  #
+  # ```inko
+  # let mut map = Map.new
+  #
+  # map.set('example', (10, 20))
+  # map.get_mut('example') # => Result.Ok(mut (10, 20))
+  # ```
+  fn pub mut get_mut(key: ref K) -> Result[mut V, MissingKey[K]] {
     match entries_index(key) {
-      case EMPTY -> Option.None
-      case index -> Option.Some(@entries.get_mut(index).value)
-    }
-  }
-
-  # Returns a mutable reference to the value of the given key.
-  #
-  # # Panics
-  #
-  # This method panics if the key doesn't exist.
-  fn pub mut get_mut(index: ref K) -> mut V {
-    match entries_index(index) {
-      case EMPTY -> panic("the key doesn't exist")
-      case index -> @entries.get_mut(index).value
+      case EMPTY -> Result.Error(MissingKey.new(key))
+      case index -> Result.Ok(@entries.get_mut(index).or_panic.value)
     }
   }
 
@@ -667,7 +692,7 @@ impl Equal for Map if V: Equal {
     iter.all?(fn (ours) {
       match other.entries_index(ours.key) {
         case EMPTY -> false
-        case index -> other.entries.get(index).value == ours.value
+        case index -> other.entries.get(index).or_panic.value == ours.value
       }
     })
   }

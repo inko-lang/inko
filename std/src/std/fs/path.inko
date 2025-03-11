@@ -41,12 +41,12 @@ fn bytes_before_last_separator(path: String) -> Int {
 
   # Trailing separators should be ignored, so we'll skip over them until the
   # first non-separator byte.
-  while index > 0 and path.byte(index) == SEPARATOR_BYTE { index -= 1 }
+  while index > 0 and path.get(index).or_panic == SEPARATOR_BYTE { index -= 1 }
 
   let mut in_separator = false
 
   while index > -1 {
-    let byte = path.byte(index)
+    let byte = path.get(index).or_panic
 
     if byte == SEPARATOR_BYTE {
       in_separator = true
@@ -62,7 +62,7 @@ fn bytes_before_last_separator(path: String) -> Int {
 
 # Returns `true` if the given file path is an absolute path.
 fn absolute_path?(path: String) -> Bool {
-  path.byte(0) == SEPARATOR_BYTE
+  path.get(0).or_panic == SEPARATOR_BYTE
 }
 
 fn join_strings(base: ref String, with: ref String) -> String {
@@ -72,7 +72,7 @@ fn join_strings(base: ref String, with: ref String) -> String {
 
   if absolute_path?(with) {
     with
-  } else if base.byte(base.size - 1) == SEPARATOR_BYTE {
+  } else if base.get(base.size - 1).or_panic == SEPARATOR_BYTE {
     '${base}${with}'
   } else {
     '${base}${SEPARATOR}${with}'
@@ -114,7 +114,7 @@ type pub Components {
 
   fn static new(path: ref Path) -> Components {
     let size = path.path.size
-    let root = size > 0 and path.path.byte(0) == SEPARATOR_BYTE
+    let root = size > 0 and path.path.get(0).or_panic == SEPARATOR_BYTE
     let comp = Components(path: path, index: 0, size: size, root: root)
 
     # If we start with a sequence such as `.//././.`, we skip over those. We
@@ -125,7 +125,7 @@ type pub Components {
   }
 
   fn byte(index: Int) -> Int {
-    @path.path.byte(index)
+    @path.path.get(index).or_panic
   }
 
   fn separator?(index: Int) -> Bool {
@@ -397,7 +397,7 @@ type pub inline Path {
 
     # If the name starts with a dot, we work our way backwards until the _next_
     # byte. This way we don't treat `.foo` as having the extension `foo`.
-    if @path.byte(min) == DOT_BYTE { min += 1 }
+    if @path.get(min).or_panic == DOT_BYTE { min += 1 }
 
     let max = size - 1
     let mut idx = max
@@ -420,7 +420,7 @@ type pub inline Path {
     # it as a file called `..` with the extension `.`, while others consider it
     # a path without an extension.
     while idx > min {
-      if @path.byte(idx) == DOT_BYTE { break } else { idx -= 1 }
+      if @path.get(idx).or_panic == DOT_BYTE { break } else { idx -= 1 }
     }
 
     if idx < max and idx > min {

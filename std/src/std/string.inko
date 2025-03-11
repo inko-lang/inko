@@ -6,7 +6,7 @@
 # this is the case, we are referring to extended grapheme clusters, _not_
 # Unicode scalar values or bytes.
 import std.alloc
-import std.array (bounds_check)
+import std.array (OutOfBounds, check_bounds)
 import std.bytes (Bytes, IntoByteArray, Slice, ToByteArray, hash_bytes)
 import std.clone (Clone)
 import std.cmp (Compare, Contains, Equal, Ordering, min)
@@ -302,7 +302,7 @@ type builtin String {
     while a <= max {
       let mut b = 0
 
-      while b < find_size and byte(a + b) == of.byte(b) { b += 1 }
+      while b < find_size and get(a + b) == of.get(b) { b += 1 }
 
       if b == find_size { return Option.Some(a) }
 
@@ -511,7 +511,7 @@ type builtin String {
     let max = size
 
     while index < max {
-      if whitespace?(byte(index)) { index += 1 } else { break }
+      if whitespace?(get(index).or_panic) { index += 1 } else { break }
     }
 
     if index == size { '' } else { slice(start: index, end: size).to_string }
@@ -529,7 +529,7 @@ type builtin String {
     let mut index = size - 1
 
     while index >= 0 {
-      if whitespace?(byte(index)) { index -= 1 } else { break }
+      if whitespace?(get(index).or_panic) { index -= 1 } else { break }
     }
 
     if index == -1 { '' } else { slice(start: 0, end: index + 1).to_string }
@@ -549,11 +549,11 @@ type builtin String {
     let mut end = max - 1
 
     while start < max {
-      if whitespace?(byte(start)) { start += 1 } else { break }
+      if whitespace?(get(start).or_panic) { start += 1 } else { break }
     }
 
     while end >= 0 {
-      if whitespace?(byte(end)) { end -= 1 } else { break }
+      if whitespace?(get(end).or_panic) { end -= 1 } else { break }
     }
 
     if start == max { '' } else { slice(start: start, end: end + 1).to_string }
@@ -588,9 +588,9 @@ type builtin String {
     while i < size {
       let byte = byte_unchecked(i := i + 1)
 
-      match ESCAPE_TABLE.opt(byte) {
-        case Some(-1) or None -> buff.push(byte)
-        case Some(byte) -> {
+      match ESCAPE_TABLE.get(byte) {
+        case Ok(-1) or Error(_) -> buff.push(byte)
+        case Ok(byte) -> {
           buff.push(BSLASH)
           buff.push(byte)
         }
@@ -665,9 +665,9 @@ type builtin String {
     let mut i = 0
 
     while i < size {
-      match ESCAPE_TABLE.opt(byte_unchecked(i := i + 1)) {
-        case Some(-1) or None -> {}
-        case Some(_) -> return true
+      match ESCAPE_TABLE.get(byte_unchecked(i := i + 1)) {
+        case Ok(-1) or Error(_) -> {}
+        case Ok(_) -> return true
       }
     }
 
@@ -694,37 +694,19 @@ impl Bytes for String {
     @size
   }
 
-  # Returns the byte at the given index, returning None if the index is out of
-  # bounds.
+  # Returns the byte at the given index.
+  #
+  # If the index is out of bounds, a `std.bounds.OutOfBounds` error is returned.
   #
   # # Examples
   #
   # ```inko
-  # 'abc'.opt(0)  # => Option.Some(97)
-  # 'abc'.opt(10) # => Option.None
+  # 'abc'.get(0)  # => Result.Ok(97)
+  # 'abc'.get(10) # => Result.Error(OutOfBounds(...))
   # ```
-  fn pub inline opt(index: Int) -> Option[Int] {
-    if index < 0 or index >= size { return Option.None }
-
-    Option.Some(byte_unchecked(index))
-  }
-
-  # Returns the byte at the given byte index.
-  #
-  # # Examples
-  #
-  # Obtaining a single byte from a `String`:
-  #
-  # ```inko
-  # 'inko'.byte(0) # => 105
-  # ```
-  #
-  # # Panics
-  #
-  # If the index is out of bounds, this method panics.
-  fn pub inline byte(index: Int) -> Int {
-    bounds_check(index, size)
-    byte_unchecked(index)
+  fn pub inline get(index: Int) -> Result[Int, OutOfBounds] {
+    try check_bounds(index, size)
+    Result.Ok(byte_unchecked(index))
   }
 
   # Returns a raw pointer to the bytes of `self`.

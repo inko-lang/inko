@@ -248,8 +248,8 @@ fn pub tests(t: mut Tests) {
     let parser = Parser.new(Buffer.new('foo,bar\n10,20'))
     let map = try parser.headers
 
-    t.equal(map.opt('foo'), Option.Some(0))
-    t.equal(map.opt('bar'), Option.Some(1))
+    t.equal(map.get('foo'), Result.Ok(0))
+    t.equal(map.get('bar'), Result.Ok(1))
     t.equal(parser.column, Result.Ok('10'))
     t.equal(parser.column, Result.Ok('20'))
 

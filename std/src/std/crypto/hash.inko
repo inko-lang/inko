@@ -41,7 +41,7 @@ type pub Block {
     let mut index = 0
 
     while size > 0 {
-      @bytes.set(@index := @index + 1, bytes.get(index))
+      @bytes.set(@index := @index + 1, bytes.get(index).or_panic)
 
       if @index == @bytes.size {
         transform.call
@@ -97,7 +97,7 @@ type pub Block {
   #
   # This method panics if the index is out of bounds.
   fn pub get(index: Int) -> Int {
-    @bytes.get(index)
+    @bytes.get(index).or_panic
   }
 
   # Sets the byte at the given index.
@@ -137,8 +137,8 @@ impl ToString for Hash {
     for (index, byte) in @bytes.iter.with_index {
       let hex_index = index * 2
 
-      hex.set(hex_index, HEX_DIGITS.byte(byte >> 4))
-      hex.set(hex_index + 1, HEX_DIGITS.byte(byte & 0x0F))
+      hex.set(hex_index, HEX_DIGITS.get(byte >> 4).or_panic)
+      hex.set(hex_index + 1, HEX_DIGITS.get(byte & 0x0F).or_panic)
     }
 
     hex.into_string

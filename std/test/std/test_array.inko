@@ -1,4 +1,5 @@
 import helpers (hash)
+import std.array (OutOfBounds)
 import std.cmp (Compare, Ordering)
 import std.drop (Drop, drop)
 import std.fmt (fmt)
@@ -39,6 +40,35 @@ impl Drop for TrackDrop {
 }
 
 fn pub tests(t: mut Tests) {
+  t.test('OutOfBounds.to_string', fn (t) {
+    t.equal(
+      OutOfBounds.new(index: 2, size: 1).to_string,
+      'the index 2 is out of bounds (size: 1)',
+    )
+  })
+
+  t.test('OutOfBounds.fmt', fn (t) {
+    t.equal(
+      fmt(OutOfBounds.new(index: 2, size: 1)),
+      'OutOfBounds(index: 2, size: 1)',
+    )
+  })
+
+  t.test('OutOfBounds.==', fn (t) {
+    t.equal(
+      OutOfBounds.new(index: 2, size: 1),
+      OutOfBounds.new(index: 2, size: 1),
+    )
+    t.not_equal(
+      OutOfBounds.new(index: 2, size: 1),
+      OutOfBounds.new(index: 1, size: 1),
+    )
+    t.not_equal(
+      OutOfBounds.new(index: 2, size: 1),
+      OutOfBounds.new(index: 2, size: 0),
+    )
+  })
+
   t.test('Array.with_capacity', fn (t) {
     let ary1: Array[Int] = Array.with_capacity(0)
     let ary2: Array[Int] = Array.with_capacity(2)
@@ -89,29 +119,11 @@ fn pub tests(t: mut Tests) {
   t.test('Array.remove_at', fn (t) {
     let vals = [10, 20, 30]
 
-    t.equal(vals.remove_at(1), 20)
+    t.equal(vals.remove_at(1), Result.Ok(20))
     t.equal(vals, [10, 30])
-    t.equal(vals.remove_at(0), 10)
+    t.equal(vals.remove_at(0), Result.Ok(10))
     t.equal(vals, [30])
-  })
-
-  t.panic('Array.remove_at with an invalid index', fn { [10].remove_at(5) })
-
-  t.test('Array.opt', fn (t) {
-    let vals = [10, 20, 30]
-
-    t.equal(vals.opt(1), Option.Some(20))
-    t.equal(vals.opt(5), Option.None)
-    t.equal(vals.opt(-5), Option.None)
-  })
-
-  t.test('Array.opt_mut', fn (t) {
-    let vals = [(1, 2), (2, 3), (3, 4)]
-    let exp = (2, 3)
-
-    t.equal(vals.opt_mut(1), Option.Some(mut exp))
-    t.equal(vals.opt_mut(5), Option.None)
-    t.equal(vals.opt_mut(-5), Option.None)
+    t.equal(vals.remove_at(4), Result.Error(OutOfBounds.new(index: 4, size: 1)))
   })
 
   t.test('Array.swap', fn (t) {
@@ -170,7 +182,7 @@ fn pub tests(t: mut Tests) {
     }
 
     t.equal(out.size, 1)
-    t.equal(out.get(0).name, 'Alice')
+    t.equal(out.get(0).or_panic.name, 'Alice')
   })
 
   t.test('Array.into_iter', fn (t) {
@@ -265,20 +277,19 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Array.get', fn (t) {
-    t.equal([10].get(0), 10)
-    t.equal([10.5].get(0), 10.5)
-    t.equal(['foo'].get(0), 'foo')
+    t.equal([10].get(0), Result.Ok(10))
+    t.equal([10.5].get(0), Result.Ok(10.5))
+    t.equal(['foo'].get(0), Result.Ok('foo'))
+    t.equal([10].get(10), Result.Error(OutOfBounds.new(index: 10, size: 1)))
   })
-
-  t.panic('Array.get with an invalid index', fn { [10].get(1) })
 
   t.test('Array.get_mut', fn (t) {
-    let exp = (1, 2)
-
-    t.equal([(1, 2)].get_mut(0), mut exp)
+    t.equal([(1, 2)].get_mut(0), Result.Ok(mut (1, 2)))
+    t.equal(
+      [(1, 2)].get_mut(10),
+      Result.Error(OutOfBounds.new(index: 10, size: 1)),
+    )
   })
-
-  t.panic('Array.get_mut with an invalid index', fn { [(1, 2)].get_mut(1) })
 
   t.test('Array.set', fn (t) {
     let count = Counter.new

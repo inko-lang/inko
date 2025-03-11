@@ -265,17 +265,21 @@ type pub copy Ipv6Address {
       # encounter a ":" we will also stop reading when running into a ".".
       while
         cursor < max
-          and bytes.get(cursor) != COLON_BYTE
-          and bytes.get(cursor) != DOT_BYTE
+          and bytes.get(cursor).or_panic != COLON_BYTE
+          and bytes.get(cursor).or_panic != DOT_BYTE
       {
-        segment_bytes.push(bytes.get(cursor))
+        segment_bytes.push(bytes.get(cursor).or_panic)
         cursor += 1
       }
 
       # The moment we encounter a dot we'll enter IPv4 mode, and remain in this
       # mode until we reach the end of the input, as embedded IPv4 addresses
       # must be at the end of an IPv6 address.
-      if ipv4_mode.false? and cursor < max and bytes.get(cursor) == DOT_BYTE {
+      if
+        ipv4_mode.false?
+          and cursor < max
+          and bytes.get(cursor).or_panic == DOT_BYTE
+      {
         ipv4_mode = true
         format = Format.Decimal
         max_hextet_value = IPV4_OCTET_MAXIMUM
@@ -299,7 +303,7 @@ type pub copy Ipv6Address {
 
       # We have reached another ":", which is used to compress one or more empty
       # groups together.
-      if cursor < max and bytes.get(cursor) == COLON_BYTE {
+      if cursor < max and bytes.get(cursor).or_panic == COLON_BYTE {
         # Zero compression can only be applied once.
         if compressed { return Option.None }
 
@@ -316,7 +320,7 @@ type pub copy Ipv6Address {
         # When the compression is at the end of the input (e.g. "1::") there is
         # no point in looking ahead, so we don't.
         while pad_cursor < max and look_ahead {
-          let byte = bytes.get(pad_cursor)
+          let byte = bytes.get(pad_cursor).or_panic
 
           if byte == COLON_BYTE { pad -= 1 }
 
@@ -343,10 +347,16 @@ type pub copy Ipv6Address {
 
     if ipv4_segments.size == IPV4_OCTETS {
       segments.push(
-        octets_to_hextet(ipv4_segments.get(0), ipv4_segments.get(1)),
+        octets_to_hextet(
+          ipv4_segments.get(0).or_panic,
+          ipv4_segments.get(1).or_panic,
+        ),
       )
       segments.push(
-        octets_to_hextet(ipv4_segments.get(2), ipv4_segments.get(3)),
+        octets_to_hextet(
+          ipv4_segments.get(2).or_panic,
+          ipv4_segments.get(3).or_panic,
+        ),
       )
     }
 
@@ -354,14 +364,14 @@ type pub copy Ipv6Address {
 
     Option.Some(
       Ipv6Address.new(
-        segments.get(0),
-        segments.get(1),
-        segments.get(2),
-        segments.get(3),
-        segments.get(4),
-        segments.get(5),
-        segments.get(6),
-        segments.get(7),
+        segments.get(0).or_panic,
+        segments.get(1).or_panic,
+        segments.get(2).or_panic,
+        segments.get(3).or_panic,
+        segments.get(4).or_panic,
+        segments.get(5).or_panic,
+        segments.get(6).or_panic,
+        segments.get(7).or_panic,
       ),
     )
   }
@@ -577,7 +587,7 @@ impl ToString for Ipv6Address {
     # Find the longest sequence of empty hextets, which we will compress
     # together.
     while index < segments.size {
-      let hextet = segments.get(index)
+      let hextet = segments.get(index).or_panic
 
       if hextet == 0 {
         if current_len == 0 { current_at = index }
@@ -678,7 +688,7 @@ type pub copy Ipv4Address {
       # We don't support octal formats, as it was never part of the spec.
       # Ignoring them can lead to security issues, as described in
       # https://www.bleepingcomputer.com/news/security/go-rust-net-library-affected-by-critical-ip-address-validation-vulnerability/.
-      if segment.byte(0) == ZERO_BYTE and segment.size > 1 { next }
+      if segment.get(0).or_panic == ZERO_BYTE and segment.size > 1 { next }
 
       match Int.parse(segment, format) {
         case Some(int) if int >= IP_MINIMUM_VALUE and int <= IPV4_OCTET_MAXIMUM
@@ -693,10 +703,10 @@ type pub copy Ipv4Address {
 
     Option.Some(
       Ipv4Address(
-        a: segments.get(0),
-        b: segments.get(1),
-        c: segments.get(2),
-        d: segments.get(3),
+        a: segments.get(0).or_panic,
+        b: segments.get(1).or_panic,
+        c: segments.get(2).or_panic,
+        d: segments.get(3).or_panic,
       ),
     )
   }

@@ -263,9 +263,9 @@ impl ToString for Error {
 #
 # ```inko
 # match json {
-#   case Object(root) -> match root.opt('address') {
-#     case Some(Object(addr)) -> match addr.opt('street') {
-#       case Some(String(v)) -> Option.Some(v)
+#   case Object(root) -> match root.get('address') {
+#     case Ok(Object(addr)) -> match addr.get('street') {
+#       case Ok(String(v)) -> Option.Some(v)
 #       case _ -> Option.None
 #     }
 #     case _ -> Option.None
@@ -303,7 +303,7 @@ type pub inline Query {
   # ```
   fn pub move key(name: String) -> Query {
     let val = match ref @value {
-      case Some(Object(v)) -> v.opt(name)
+      case Some(Object(v)) -> v.get(name).ok
       case _ -> Option.None
     }
 
@@ -323,7 +323,7 @@ type pub inline Query {
   # ```
   fn pub move index(index: Int) -> Query {
     let val = match ref @value {
-      case Some(Array(v)) -> v.opt(index)
+      case Some(Array(v)) -> v.get(index).ok
       case _ -> Option.None
     }
 
@@ -942,7 +942,7 @@ type pub PullParser[T: mut + Read] {
           match try advance {
             case Some(LOWER_U) -> try escaped_unicode
             case Some(byte) -> {
-              match ESCAPE_TABLE.get(byte) {
+              match ESCAPE_TABLE.get(byte).or_panic {
                 case -1 -> throw unexpected(byte)
                 case val -> @buffer.push(val)
               }
@@ -1250,7 +1250,7 @@ type pub PullParser[T: mut + Read] {
     let max = name.size
 
     while index < max {
-      try expect(name.byte(index := index + 1), skip_whitespace: false)
+      try expect(name.get(index := index + 1).or_panic, skip_whitespace: false)
     }
 
     Result.Ok(nil)
@@ -1399,8 +1399,8 @@ type pub inline ObjectParser[T: mut + Read] {
     let start = try parser.start_of_next_value
 
     try parser.keys(fn (_pos, key) {
-      match @rules.opt_mut(key) {
-        case Some(rule) -> {
+      match @rules.get_mut(key) {
+        case Ok(rule) -> {
           found.set(rule.id, true)
           rule.parser.call(parser)
         }
@@ -1409,7 +1409,9 @@ type pub inline ObjectParser[T: mut + Read] {
     })
 
     for entry in @rules.iter {
-      if entry.value.required.true? and found.get(entry.value.id).false? {
+      if
+        entry.value.required.true? and found.get(entry.value.id).or_panic.false?
+      {
         throw Error.generic('the key "${entry.key}" is required', start)
       }
     }

@@ -140,12 +140,14 @@ type pub Md5 {
       }
 
       f = to_u32(
-        f.wrapping_add(a).wrapping_add(words.get(word)).wrapping_add(
-          TABLE.get(i),
+        f.wrapping_add(a).wrapping_add(words.get(word).or_panic).wrapping_add(
+          TABLE.get(i).or_panic,
         ),
       )
 
-      let temp = to_u32(b.wrapping_add(rotate_left_u32(f, SHIFTS.get(i))))
+      let temp = to_u32(
+        b.wrapping_add(rotate_left_u32(f, SHIFTS.get(i).or_panic)),
+      )
 
       a = d
       d = c

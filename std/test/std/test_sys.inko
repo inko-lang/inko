@@ -56,7 +56,7 @@ fn pub tests(t: mut Tests) {
     t.equal(cmd.variables, env.variables)
 
     cmd.variables.set('TEST', 'foo')
-    t.equal(cmd.variables.opt('TEST'), Option.Some('foo'))
+    t.equal(cmd.variables.get('TEST'), Result.Ok('foo'))
   })
 
   t.ok('Command.spawn with a valid command', fn (t) {

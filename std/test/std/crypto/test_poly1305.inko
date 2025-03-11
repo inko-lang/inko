@@ -112,7 +112,7 @@ fn test_data -> Array[(Array[Int], Array[Int], Array[Int])] {
 fn pub tests(t: mut Tests) {
   t.test('Poly1305.hash', fn (t) {
     let tests = test_data
-    let test = tests.get(0)
+    let test = tests.get(0).or_panic
     let key = ByteArray.from_array(test.0)
     let input = ByteArray.from_array(test.1)
     let output = ByteArray.from_array(test.2)

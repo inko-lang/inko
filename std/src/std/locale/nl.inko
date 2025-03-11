@@ -83,18 +83,18 @@ impl LocaleTrait for Locale {
   }
 
   fn short_month(index: Int) -> String {
-    SHORT_MONTHS.get(index)
+    SHORT_MONTHS.get(index).or_panic
   }
 
   fn full_month(index: Int) -> String {
-    FULL_MONTHS.get(index)
+    FULL_MONTHS.get(index).or_panic
   }
 
   fn short_day_of_week(index: Int) -> String {
-    SHORT_WEEKDAYS.get(index)
+    SHORT_WEEKDAYS.get(index).or_panic
   }
 
   fn full_day_of_week(index: Int) -> String {
-    FULL_WEEKDAYS.get(index)
+    FULL_WEEKDAYS.get(index).or_panic
   }
 }

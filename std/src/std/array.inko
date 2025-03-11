@@ -9,6 +9,7 @@ import std.iter (Iter, Stream)
 import std.option (Option)
 import std.ptr
 import std.rand (Random)
+import std.string (ToString)
 
 # The capacity to use when resizing an array for the first time.
 let START_CAPACITY = 4
@@ -73,21 +74,52 @@ fn invalid_capacity(size: Int) -> Never {
   panic('the capacity (${size}) must be greater than or equal to zero')
 }
 
-# Panics with an out of bounds message.
-#
-# This method is separate from `bounds_check` so we don't try to inline the
-# formatting code all over the place.
-fn out_of_bounds(index: Int, size: Int) -> Never {
-  panic('the index ${index} is out of bounds (size: ${size})')
-}
-
 # Checks if `index` is in the range of zero up to (but excluding) `size`.
 #
-# # Panics
-#
-# This method panics if the index is out of bounds.
-fn pub inline bounds_check(index: Int, size: Int) {
-  if index < 0 or index >= size { out_of_bounds(index, size) }
+# If the index is within the allowed bounds, a `Nil` is returned, otherwise an
+# `OutOfBounds` error is returned.
+fn pub inline check_bounds(index: Int, size: Int) -> Result[Nil, OutOfBounds] {
+  if index >= 0 and index < size {
+    Result.Ok(nil)
+  } else {
+    Result.Error(OutOfBounds.new(index, size))
+  }
+}
+
+# An error that signals an index is out of bounds.
+type pub copy OutOfBounds {
+  # The index that is out of bounds.
+  let pub @index: Int
+
+  # The size of the collection.
+  let pub @size: Int
+
+  # Returns a new `OutOfBounds` using the given index and collection size.
+  fn pub static new(index: Int, size: Int) -> Self {
+    Self(index: index, size: size)
+  }
+}
+
+impl ToString for OutOfBounds {
+  fn pub to_string -> String {
+    'the index ${@index} is out of bounds (size: ${@size})'
+  }
+}
+
+impl Format for OutOfBounds {
+  fn pub fmt(formatter: mut Formatter) {
+    let obj = formatter.object('OutOfBounds')
+
+    obj.field('index', @index)
+    obj.field('size', @size)
+    obj.finish
+  }
+}
+
+impl Equal for OutOfBounds {
+  fn pub ==(other: Self) -> Bool {
+    @index == other.index and @size == other.size
+  }
 }
 
 # An ordered, integer-indexed generic collection of values.
@@ -233,6 +265,8 @@ type builtin Array[T] {
   #
   # Values to the right of the index are shifted to the left.
   #
+  # If the index is out of bounds, a `std.bounds.OutOfBounds` error is returned.
+  #
   # # Examples
   #
   # Removing an existing value will result in the value being removed from the
@@ -241,68 +275,37 @@ type builtin Array[T] {
   # ```inko
   # let array = [10]
   #
-  # array.remove_at(0) # => 10
+  # array.remove_at(0) # => Result.Ok(10)
   # array.empty?       # => true
   # ```
-  #
-  # # Panics
-  #
-  # This method panics if the index is out of bounds.
-  fn pub mut remove_at(index: Int) -> T {
+  fn pub mut remove_at(index: Int) -> Result[T, OutOfBounds] {
     let len = size
 
-    bounds_check(index, len)
+    try check_bounds(index, len)
 
     let addr = address_of(index)
     let val = addr.0
 
     alloc.copy(from: ptr.add(addr, 1), to: addr, size: len - index - 1)
-
     @size = len - 1
-    val
+    Result.Ok(val)
   }
 
-  # Returns an optional immutable reference to the value at the given index.
+  # Returns an immutable borrow of the value at the given index.
   #
-  # # Examples
-  #
-  # Retrieving an existing value:
-  #
-  # ```inko
-  # let numbers = [10, 20]
-  #
-  # numbers.opt(0) # => Option.Some(ref 10)
-  # ```
-  #
-  # Retrieving a value from a non-existing index:
-  #
-  # ```inko
-  # let numbers = [10, 20]
-  #
-  # numbers.opt(5) # => Option.None
-  # ```
-  fn pub inline opt(index: Int) -> Option[ref T] {
-    if index < 0 or index >= @size { return Option.None }
-
-    Option.Some(get_unchecked(index))
-  }
-
-  # Returns an immutable reference to the value at the given index.
-  #
-  # # Panics
-  #
-  # This method panics if the index is out of bounds.
+  # If the index is out of bounds, a `std.bounds.OutOfBounds` error is returned.
   #
   # # Examples
   #
   # ```inko
   # let numbers = [10, 20]
   #
-  # numbers.get(0) # => 10
+  # numbers.get(0)  # => Result.Ok(10)
+  # numbers.get(10) # => Result.Error(OutOfBounds(...))
   # ```
-  fn pub inline get(index: Int) -> ref T {
-    bounds_check(index, @size)
-    get_unchecked(index)
+  fn pub inline get(index: Int) -> Result[ref T, OutOfBounds] {
+    try check_bounds(index, @size)
+    Result.Ok(get_unchecked(index))
   }
 
   # Stores a value at the given index.
@@ -316,8 +319,6 @@ type builtin Array[T] {
   #
   # # Examples
   #
-  # Setting an index to a value:
-  #
   # ```inko
   # let array = []
   #
@@ -325,9 +326,7 @@ type builtin Array[T] {
   # array # => [10]
   # ```
   fn pub mut set(index: Int, value: T) {
-    bounds_check(index, @size)
-
-    # This drops the old value, then writes the new value.
+    check_bounds(index, @size).or_panic
     drop_value(read_from(index))
     write_to(index, value)
   }
@@ -347,7 +346,7 @@ type builtin Array[T] {
   # numbers                          # => [10, 40, 30]
   # ```
   fn pub mut swap(index: Int, with: T) -> T {
-    bounds_check(index, @size)
+    check_bounds(index, @size).or_panic
 
     let old = read_from(index)
 
@@ -356,6 +355,10 @@ type builtin Array[T] {
   }
 
   # Swaps the values at the given indexes.
+  #
+  # # Panics
+  #
+  # This method panics if `index` or `with` is out of bounds.
   #
   # # Examples
   #
@@ -367,8 +370,8 @@ type builtin Array[T] {
   # numbers # => [30, 20, 10]
   # ```
   fn pub mut swap_indexes(index: Int, with: Int) {
-    bounds_check(index, @size)
-    bounds_check(with, @size)
+    check_bounds(index, @size).or_panic
+    check_bounds(with, @size).or_panic
 
     let a = read_from(index)
     let b = read_from(with)
@@ -428,11 +431,7 @@ type builtin Array[T] {
     let mut index = size - 1
 
     Stream.new(fn move {
-      if index > -1 {
-        Option.Some(get(index := index - 1))
-      } else {
-        Option.None
-      }
+      if index > -1 { get(index := index - 1).ok } else { Option.None }
     })
   }
 
@@ -560,7 +559,7 @@ type builtin Array[T] {
   # [10, 20].last # => Option.Some(20)
   # ```
   fn pub last -> Option[ref T] {
-    opt(size - 1)
+    get(size - 1).ok
   }
 
   # Inserts the value at the given index, shifting all values after it to the
@@ -568,8 +567,7 @@ type builtin Array[T] {
   #
   # # Panics
   #
-  # This method panics if the index is less than zero, or greater than the
-  # number of values in `self`.
+  # This method panics if `index` is out of bounds.
   #
   # # Examples
   #
@@ -591,7 +589,9 @@ type builtin Array[T] {
   # nums # => [10, 20, 30]
   # ```
   fn pub mut insert(index: Int, value: T) {
-    if index < 0 or index > @size { out_of_bounds(index, @size) }
+    if index < 0 or index > @size {
+      panic(OutOfBounds.new(index, @size).to_string)
+    }
 
     reserve(1)
 
@@ -665,47 +665,21 @@ type builtin Array[T] {
 }
 
 impl Array if T: mut {
-  # Returns an optional mutable reference to the value at the given index.
+  # Returns a mutable borrow of the value at the given index.
   #
-  # # Examples
-  #
-  # Retrieving an existing value:
-  #
-  # ```inko
-  # let numbers = [10, 20]
-  #
-  # numbers.opt_mut(0) # => Option.Some(mut 10)
-  # ```
-  #
-  # Retrieving a value from a non-existing index:
-  #
-  # ```inko
-  # let numbers = [10, 20]
-  #
-  # numbers.opt_mut(5) # => Option.None
-  # ```
-  fn pub inline mut opt_mut(index: Int) -> Option[mut T] {
-    if index < 0 or index >= @size { return Option.None }
-
-    Option.Some(get_unchecked_mut(index))
-  }
-
-  # Returns a mutable reference to the value at the given index.
-  #
-  # # Panics
-  #
-  # This method panics if the index is out of bounds.
+  # If the index is out of bounds, a `std.bounds.OutOfBounds` error is returned.
   #
   # # Examples
   #
   # ```inko
   # let numbers = [10, 20]
   #
-  # numbers.get_mut(0) # => 10
+  # numbers.get_mut(0)  # => Result.Ok(10)
+  # numbers.get_mut(10) # => Result.Error(OutOfBounds(...))
   # ```
-  fn pub inline mut get_mut(index: Int) -> mut T {
-    bounds_check(index, @size)
-    get_unchecked_mut(index)
+  fn pub inline mut get_mut(index: Int) -> Result[mut T, OutOfBounds] {
+    try check_bounds(index, @size)
+    Result.Ok(get_unchecked_mut(index))
   }
 
   # Returns an iterator that yields mutable references to the values in `self`.
@@ -730,7 +704,7 @@ impl Array if T: mut {
   # [10, 20].last_mut # => Option.Some(20)
   # ```
   fn pub mut last_mut -> Option[mut T] {
-    opt_mut(size - 1)
+    get_mut(size - 1).ok
   }
 
   fn inline mut get_unchecked_mut(index: Int) -> mut T {
@@ -766,7 +740,7 @@ impl Clone for Array if T: Clone {
     let new = Array.with_capacity(len)
     let mut index = 0
 
-    while index < len { new.push(get(index := index + 1).clone) }
+    while index < len { new.push(get_unchecked(index := index + 1).clone) }
 
     new
   }
@@ -816,9 +790,9 @@ impl Equal for Array if T: Equal {
 impl Hash for Array if T: Hash {
   fn pub hash[H: mut + Hasher](hasher: mut H) {
     let mut index = 0
-    let max = @size
+    let len = @size
 
-    while index < max { get(index := index + 1).hash(hasher) }
+    while index < len { get_unchecked(index := index + 1).hash(hasher) }
   }
 }
 

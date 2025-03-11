@@ -199,7 +199,7 @@ fn generate_main_test_module(tests: Vec<ModuleName>) -> String {
     }
 
     source.push_str(
-        "    tests.filter = Filter.from_string(env.arguments.opt(0).or(''))\n",
+        "    tests.filter = Filter.from_string(env.arguments.get(0).or(''))\n",
     );
     source.push_str("    tests.run\n");
     source.push_str("  }\n");

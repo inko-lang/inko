@@ -49,9 +49,9 @@ fn quote?(value: String, separator: Int) -> Bool {
   let max = value.size
 
   while i < max {
-    match value.byte(i) {
-      case DQUOTE or COMMA or CR or LF -> return true
-      case val if val == separator -> return true
+    match value.get(i) {
+      case Ok(DQUOTE or COMMA or CR or LF) -> return true
+      case Ok(val) if val == separator -> return true
       case _ -> {}
     }
 

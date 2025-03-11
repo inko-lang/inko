@@ -16,14 +16,14 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Array constants', fn (t) {
-    t.equal(BOOL_ARRAY.get(0), true)
-    t.equal(BOOL_ARRAY.get(1), false)
-    t.equal(INT_ARRAY.get(0), 1)
-    t.equal(INT_ARRAY.get(1), 2)
-    t.equal(FLOAT_ARRAY.get(0), 1.0)
-    t.equal(FLOAT_ARRAY.get(1), 2.0)
-    t.equal(STRING_ARRAY.get(0), 'foo')
-    t.equal(STRING_ARRAY.get(1), 'bar')
+    t.equal(BOOL_ARRAY.get(0).or_panic, true)
+    t.equal(BOOL_ARRAY.get(1).or_panic, false)
+    t.equal(INT_ARRAY.get(0).or_panic, 1)
+    t.equal(INT_ARRAY.get(1).or_panic, 2)
+    t.equal(FLOAT_ARRAY.get(0).or_panic, 1.0)
+    t.equal(FLOAT_ARRAY.get(1).or_panic, 2.0)
+    t.equal(STRING_ARRAY.get(0).or_panic, 'foo')
+    t.equal(STRING_ARRAY.get(1).or_panic, 'bar')
   })
 
   t.test('Int constants', fn (t) { t.equal(INT, 15) })

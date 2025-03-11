@@ -14,7 +14,7 @@ type Box[T] {
 fn example1 {
   let a = [recover User('Alice')]
 
-  a.opt(0)
+  a.get(0)
 }
 
 fn example2 {
@@ -50,7 +50,7 @@ fn example6 {
   ref a
 }
 
-# uni_aliasing.inko:17:3 error(invalid-type): the type of this expression ('Option[uni ref User]') is invalid because it is or contains a borrow of a 'uni T' value
+# uni_aliasing.inko:17:3 error(invalid-type): the type of this expression ('Result[uni ref User, OutOfBounds]') is invalid because it is or contains a borrow of a 'uni T' value
 # uni_aliasing.inko:24:3 error(invalid-type): the type of this expression ('Option[uni ref User]') is invalid because it is or contains a borrow of a 'uni T' value
 # uni_aliasing.inko:30:38 error(invalid-type): the type of this expression ('Option[uni ref User]') is invalid because it is or contains a borrow of a 'uni T' value
 # uni_aliasing.inko:35:43 error(invalid-type): the type of this expression ('Option[uni ref User]') is invalid because it is or contains a borrow of a 'uni T' value

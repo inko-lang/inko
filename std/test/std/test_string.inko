@@ -1,5 +1,6 @@
 import helpers (hash)
 import std.alloc
+import std.array (OutOfBounds)
 import std.cmp (Ordering)
 import std.fmt (fmt)
 import std.fs.path (Path)
@@ -80,14 +81,9 @@ fn pub tests(t: mut Tests) {
     t.equal('AÄ'.size, 3)
   })
 
-  t.test('String.opt', fn (t) {
-    t.equal('foo'.opt(0), Option.Some(102))
-    t.equal('foo'.opt(10), Option.None)
-  })
-
-  t.test('String.byte', fn (t) {
-    t.equal('foo'.byte(0), 102)
-    t.equal('foo'.byte(1), 111)
+  t.test('String.get', fn (t) {
+    t.equal('foo'.get(0), Result.Ok(102))
+    t.equal('foo'.get(10), Result.Error(OutOfBounds.new(index: 10, size: 3)))
   })
 
   t.test('String.substring', fn (t) {

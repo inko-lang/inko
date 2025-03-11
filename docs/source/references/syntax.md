@@ -915,9 +915,9 @@ Inko doesn't have dedicated indexing syntax such as `array[index]` or
 ```inko
 let numbers = [10, 20]
 
-numbers.get(1) # => 20
+numbers.get(1) # => Result.Ok(20)
 numbers.set(1, 30)
-numbers.get(1) # => 30
+numbers.get(1) # => Result.Ok(30)
 ```
 
 ## Type casts

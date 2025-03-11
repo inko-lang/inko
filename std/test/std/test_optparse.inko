@@ -103,8 +103,8 @@ fn pub tests(t: mut Tests) {
 
     opts.flag('h', 'help', 'Show this help message')
 
-    let short = opts.mapping.get('h')
-    let long = opts.mapping.get('help')
+    let short = opts.mapping.get('h').or_panic
+    let long = opts.mapping.get('help').or_panic
 
     t.true(
       match short.kind {
@@ -134,8 +134,8 @@ fn pub tests(t: mut Tests) {
 
     opts.single('c', 'config', 'PATH', 'A config file')
 
-    let short = opts.mapping.get('c')
-    let long = opts.mapping.get('config')
+    let short = opts.mapping.get('c').or_panic
+    let long = opts.mapping.get('config').or_panic
 
     t.true(
       match short.kind {
@@ -165,8 +165,8 @@ fn pub tests(t: mut Tests) {
 
     opts.multiple('c', 'config', 'PATH', 'A config file')
 
-    let short = opts.mapping.get('c')
-    let long = opts.mapping.get('config')
+    let short = opts.mapping.get('c').or_panic
+    let long = opts.mapping.get('config').or_panic
 
     t.true(
       match short.kind {

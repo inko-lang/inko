@@ -276,7 +276,7 @@ type pub PemFile[I: mut + Read] {
           @line += 1
           start = true
         }
-        case Ok(Some(v)) if WHITESPACE.get(v) -> start = false
+        case Ok(Some(v)) if WHITESPACE.get(v).or_panic -> start = false
         case Ok(Some(DASH)) if start -> break
         case Ok(Some(_)) -> throw ParseError.InvalidSectionStart(@line)
         case Ok(_) -> return Result.Ok(Option.None)
@@ -338,7 +338,7 @@ type pub PemFile[I: mut + Read] {
         # each base64 line.
         match @input.read_byte {
           case Ok(Some(LF)) -> @line += 1
-          case Ok(Some(v)) if WHITESPACE.get(v) -> {}
+          case Ok(Some(v)) if WHITESPACE.get(v).or_panic -> {}
           case Ok(Some(v)) -> {
             @buffer.push(v)
             break
@@ -354,7 +354,7 @@ type pub PemFile[I: mut + Read] {
         case Error(e) -> throw ParseError.Read(e)
       }
 
-      if @buffer.get(0) == DASH {
+      if @buffer.get(0).or_panic == DASH {
         if
           (@buffer.starts_with?('-----END ') and @buffer.ends_with?('-----'))
             .false?

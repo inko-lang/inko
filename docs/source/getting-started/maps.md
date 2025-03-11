@@ -32,8 +32,8 @@ map2.set('age', 42) # Invalid, as the value must be a String
 
 ## Indexing maps
 
-Maps are indexed using `Map.get`, `Map.get_mut`, `Map.opt` and `Map.opt_mut`,
-similar to how [arrays are indexed](../arrays#indexing-arrays).
+Maps are indexed using `Map.get` and `Map.get_mut` similar to how [arrays are
+indexed](../arrays#indexing-arrays).
 
 The `get` method returns an immutable borrow to the value of a key, while
 `get_mut` returns a mutable borrow:
@@ -47,11 +47,11 @@ let people = Map.new
 
 people.set('alice', Person(name: 'Alice'))
 
-people.get('alice')     # => ref Person(name: 'Alice')
-people.get_mut('alice') # => mut Person(name: 'Alice')
+people.get('alice')     # => Result.Ok(ref Person(name: 'Alice'))
+people.get_mut('alice') # => Result.Ok(mut Person(name: 'Alice'))
 ```
 
-If the key doesn't exist, `get` and `get_mut` panic:
+Similar to `Array`, you can panic for missing keys using `Result.or_panic`:
 
 ```inko
 type Person {
@@ -61,25 +61,7 @@ type Person {
 let people = Map.new
 
 people.set('alice', Person(name: 'Alice'))
-
-people.get('bob') # => panic
-```
-
-The `opt` and `opt_mut` methods are similar to `get` and `get_mut`, except they
-wrap the return values in an `Option` value:
-
-```inko
-type Person {
-  let @name: String
-}
-
-let people = Map.new
-
-people.set('alice', Person(name: 'Alice'))
-
-people.opt('alice')     # => Option.Some(ref Person(name: 'Alice'))
-people.opt_mut('alice') # => Option.Some(mut Person(name: 'Alice'))
-people.opt('bob')       # => Option.None
+people.get('alice').or_panic # => ref Person(name: 'Alice')
 ```
 
 ## Adding values
@@ -103,16 +85,16 @@ map.set('name', 'Bob')   # => Option.Some('Alice')
 
 ## Removing values
 
-Values are removed using `Map.remove`, which returns the removed value wrapped
-in an `Option`:
+Values are removed using `Map.remove`, which returns a `Result` wrapping the
+value of an error:
 
 ```inko
 let map = Map.new
 
 map.set('name', 'Alice')
 
-map.remove('name') # => Option.Some('Alice')
-map.remove('name') # => Option.None
+map.remove('name') # => Result.Ok('Alice')
+map.remove('name') # => Result.Error(MissingKey(...))
 ```
 
 ## Iterating over values

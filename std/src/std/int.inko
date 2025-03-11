@@ -262,7 +262,7 @@ type builtin Int {
     let mut int = absolute
 
     while int > 0 {
-      bytes.push(alphabet.byte(int % base))
+      bytes.push(alphabet.get(int % base).or_panic)
       int /= base
     }
 

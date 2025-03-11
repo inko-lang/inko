@@ -1,6 +1,6 @@
 # A double-ended queue (= "deque").
 import std.alloc
-import std.array (bounds_check)
+import std.array (OutOfBounds, check_bounds)
 import std.cmp (max)
 import std.drop (Drop, drop as drop_value)
 import std.iter (Iter, Stream)
@@ -280,9 +280,7 @@ type pub Deque[T] {
 
   # Returns an immutable borrow of the value at the given index.
   #
-  # # Panics
-  #
-  # This method panics if the index is out of bounds.
+  # If the index is out of bounds, a `std.bounds.OutOfBounds` error is returned.
   #
   # # Examples
   #
@@ -293,35 +291,12 @@ type pub Deque[T] {
   #
   # q.push_front(10)
   # q.push_front(20)
-  # q.get(0) # => 20
-  # q.get(1) # => 10
+  # q.get(0) # => Result.Ok(20)
+  # q.get(1) # => Result.Ok(10)
   # ```
-  fn pub get(index: Int) -> ref T {
-    bounds_check(index, @size)
-    get_unchecked(to_buffer_index(index))
-  }
-
-  # Returns an optional immutable borrow of the value at the given index.
-  #
-  # If the index is out of bounds, an `Option.None` is returned.
-  #
-  # # Examples
-  #
-  # ```inko
-  # import std.deque (Deque)
-  #
-  # let q = Deque.new
-  #
-  # q.push_front(10)
-  # q.push_front(20)
-  # q.opt(0)  # => Option.Some(20)
-  # q.opt(1)  # => Option.Some(10)
-  # q.opt(42) # => Option.None
-  # ```
-  fn pub opt(index: Int) -> Option[ref T] {
-    if index < 0 or index >= @size { return Option.None }
-
-    Option.Some(get_unchecked(to_buffer_index(index)))
+  fn pub get(index: Int) -> Result[ref T, OutOfBounds] {
+    try check_bounds(index, @size)
+    Result.Ok(get_unchecked(to_buffer_index(index)))
   }
 
   fn inline read_from(index: Int) -> T {
@@ -376,9 +351,7 @@ type pub Deque[T] {
 impl Deque if T: mut {
   # Returns a mutable borrow of the value at the given index.
   #
-  # # Panics
-  #
-  # This method panics if the index is out of bounds.
+  # If the index is out of bounds, a `std.bounds.OutOfBounds` error is returned.
   #
   # # Examples
   #
@@ -389,35 +362,12 @@ impl Deque if T: mut {
   #
   # q.push_front(10)
   # q.push_front(20)
-  # q.get_mut(0) # => 20
-  # q.get_mut(1) # => 10
+  # q.get_mut(0) # => Result.Ok(20)
+  # q.get_mut(1) # => Result.Ok(10)
   # ```
-  fn pub mut get_mut(index: Int) -> mut T {
-    bounds_check(index, @size)
-    get_unchecked_mut(to_buffer_index(index))
-  }
-
-  # Returns an optional mutable borrow of the value at the given index.
-  #
-  # If the index is out of bounds, an `Option.None` is returned.
-  #
-  # # Examples
-  #
-  # ```inko
-  # import std.deque (Deque)
-  #
-  # let q = Deque.new
-  #
-  # q.push_front(10)
-  # q.push_front(20)
-  # q.opt(0)  # => Option.Some(20)
-  # q.opt(1)  # => Option.Some(10)
-  # q.opt(42) # => Option.None
-  # ```
-  fn pub mut opt_mut(index: Int) -> Option[mut T] {
-    if index < 0 or index >= @size { return Option.None }
-
-    Option.Some(get_unchecked_mut(to_buffer_index(index)))
+  fn pub mut get_mut(index: Int) -> Result[mut T, OutOfBounds] {
+    try check_bounds(index, @size)
+    Result.Ok(get_unchecked_mut(to_buffer_index(index)))
   }
 
   # Returns an iterator that yields mutable borrows of the values in `self`.

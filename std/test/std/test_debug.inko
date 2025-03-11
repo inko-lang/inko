@@ -13,7 +13,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('debug.stacktrace', fn (t) {
     let trace = stacktrace(skip: 0)
-    let last = trace.get(trace.size - 1)
+    let last = trace.get(trace.size - 1).or_panic
 
     t.equal(last.name, 'std.debug.stacktrace')
     t.true(last.path.to_string.ends_with?('debug.inko'))

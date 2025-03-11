@@ -1084,7 +1084,7 @@ type pub inline UnixAddress {
   # UnixAddress.new("\0example-address".to_path).abstract? # => true
   # ```
   fn pub abstract? -> Bool {
-    @address.size > 0 and @address.byte(0) == 0
+    @address.get(0).or(-1) == 0
   }
 
   # Returns `true` if `self` is an unnamed address.

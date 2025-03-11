@@ -516,8 +516,8 @@ type pub Tests {
   # Returns a new test tests with its default settings.
   fn pub static new -> Tests {
     let out = Stdout.new
-    let colors = match env.opt('NO_COLOR') {
-      case Some(v) if v.size > 0 -> false
+    let colors = match env.get('NO_COLOR') {
+      case Ok(v) if v.size > 0 -> false
       case _ -> out.terminal?
     }
 
@@ -658,8 +658,8 @@ type pub Tests {
 
   # Runs all the tests.
   fn pub move run {
-    match env.opt(CHILD_VAR) {
-      case Some(id) -> return run_child(id)
+    match env.get(CHILD_VAR) {
+      case Ok(id) -> return run_child(id)
       case _ -> {}
     }
 
@@ -708,7 +708,7 @@ type pub Tests {
 
   fn pub move run_child(id: String) {
     match
-      Int.parse(id, IntFormat.Decimal).then(fn (v) { @children.opt_mut(v) })
+      Int.parse(id, IntFormat.Decimal).then(fn (v) { @children.get_mut(v).ok })
     {
       case Some(block) -> block.call
       case _ -> process.panic("The child ID '${id}' is invalid")

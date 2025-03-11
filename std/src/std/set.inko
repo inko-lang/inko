@@ -85,7 +85,7 @@ type pub inline Set[V: Equal + Hash] {
   # set.remove(10) # => false
   # ```
   fn pub mut remove(value: ref V) -> Bool {
-    @map.remove(value).some?
+    @map.remove(value).ok?
   }
 
   # Returns an `Iter` over the values in this `Set`.

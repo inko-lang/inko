@@ -127,8 +127,8 @@ type pub Sha256 {
     for i in 0.until(16) { words.set(i, @block.read_i32_be(i * 4)) }
 
     for i in 16.until(64) {
-      let w15 = words.get(i - 15)
-      let w2 = words.get(i - 2)
+      let w15 = words.get(i - 15).or_panic
+      let w2 = words.get(i - 2).or_panic
       let s0 = to_u32(
         rotate_right_u32(w15, 7)
           ^ rotate_right_u32(w15, 18)
@@ -146,8 +146,9 @@ type pub Sha256 {
         to_u32(
           words
             .get(i - 16)
+            .or_panic
             .wrapping_add(s0)
-            .wrapping_add(words.get(i - 7))
+            .wrapping_add(words.get(i - 7).or_panic)
             .wrapping_add(s1),
         ),
       )
@@ -182,8 +183,8 @@ type pub Sha256 {
         h
           .wrapping_add(s1)
           .wrapping_add(ch)
-          .wrapping_add(SHA256_TABLE.get(i))
-          .wrapping_add(words.get(i)),
+          .wrapping_add(SHA256_TABLE.get(i).or_panic)
+          .wrapping_add(words.get(i).or_panic),
       )
       let temp2 = to_u32(s0.wrapping_add(maj))
 
@@ -287,8 +288,8 @@ type pub Sha512 {
     for i in 0.until(16) { words.set(i, @block.read_i64_be(i * 8)) }
 
     for i in 16.until(80) {
-      let w15 = words.get(i - 15)
-      let w2 = words.get(i - 2)
+      let w15 = words.get(i - 15).or_panic
+      let w2 = words.get(i - 2).or_panic
       let s0 = w15.rotate_right(1) ^ w15.rotate_right(8) ^ (w15 >>> 7)
       let s1 = w2.rotate_right(19) ^ w2.rotate_right(61) ^ (w2 >>> 6)
 
@@ -296,8 +297,9 @@ type pub Sha512 {
         i,
         words
           .get(i - 16)
+          .or_panic
           .wrapping_add(s0)
-          .wrapping_add(words.get(i - 7))
+          .wrapping_add(words.get(i - 7).or_panic)
           .wrapping_add(s1),
       )
     }
@@ -320,8 +322,8 @@ type pub Sha512 {
       let temp1 = h
         .wrapping_add(s1)
         .wrapping_add(ch)
-        .wrapping_add(SHA512_TABLE.get(i))
-        .wrapping_add(words.get(i))
+        .wrapping_add(SHA512_TABLE.get(i).or_panic)
+        .wrapping_add(words.get(i).or_panic)
 
       let temp2 = s0.wrapping_add(maj)
 

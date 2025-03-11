@@ -14,8 +14,8 @@ fn inline digit?(byte: Int) -> Bool {
 fn inline two_digits[T: Bytes](input: ref T, start: Int) -> Option[Int] {
   if start.wrapping_add(2) > input.size { return Option.None }
 
-  let a = input.byte(start)
-  let b = input.byte(start.wrapping_add(1))
+  let a = input.get(start).or_panic
+  let b = input.get(start.wrapping_add(1)).or_panic
 
   if digit?(a) and digit?(b) {
     Option.Some(
@@ -30,10 +30,10 @@ fn inline two_digits[T: Bytes](input: ref T, start: Int) -> Option[Int] {
 fn inline four_digits[T: Bytes](input: ref T, start: Int) -> Option[Int] {
   if start.wrapping_add(4) > input.size { return Option.None }
 
-  let a = input.byte(start)
-  let b = input.byte(start.wrapping_add(1))
-  let c = input.byte(start.wrapping_add(2))
-  let d = input.byte(start.wrapping_add(3))
+  let a = input.get(start).or_panic
+  let b = input.get(start.wrapping_add(1)).or_panic
+  let c = input.get(start.wrapping_add(2)).or_panic
+  let d = input.get(start.wrapping_add(3)).or_panic
 
   if digit?(a) and digit?(b) and digit?(c) and digit?(d) {
     Option.Some(
@@ -62,7 +62,7 @@ fn digits[T: Bytes](
   let max = min(limit + 1, input.size)
 
   while idx < max {
-    let byte = input.byte(idx)
+    let byte = input.get(idx).or_panic
 
     if digit?(byte).false? { break }
 
@@ -86,7 +86,7 @@ fn name_index_at[T: Bytes](
   let max = names.size
 
   while i < max {
-    let name = names.get(i)
+    let name = names.get(i).or_panic
     let name_ptr = name.pointer
     let name_len = name.size
 
