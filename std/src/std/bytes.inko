@@ -131,7 +131,7 @@ trait pub Bytes {
 # a `Slice` after creating the `Slice`.
 type pub inline Slice[T: Bytes] {
   # The collection of bytes the slice applies to.
-  let @source: ref T
+  let pub @source: ref T
 
   # The start index (relative to the source) of the slice.
   let @start: Int
