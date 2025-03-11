@@ -217,6 +217,12 @@ type pub inline Slice[T: Bytes] {
   }
 }
 
+impl Clone for Slice {
+  fn pub inline clone -> Self {
+    Slice(source: @source, start: @start, end: @end)
+  }
+}
+
 impl Bytes for Slice {
   # Returns the number of bytes covered by `self`.
   #

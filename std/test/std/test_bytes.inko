@@ -142,6 +142,16 @@ fn pub tests(t: mut Tests) {
     t.equal(slice2.to_string, '')
   })
 
+  t.test('Slice.clone', fn (t) {
+    let bytes = ByteArray.from_array([1, 2, 3])
+    let slice1 = bytes.slice(start: 0, end: 3)
+    let slice2 = slice1.clone
+
+    t.equal(slice1.source, slice2.source)
+    t.equal(slice1.start, slice2.start)
+    t.equal(slice1.end, slice2.end)
+  })
+
   t.test('Iter.next', fn (t) {
     let bytes = ByteArray.from_array([10, 20, 30])
     let iter = Iter(source: bytes, index: 0)
