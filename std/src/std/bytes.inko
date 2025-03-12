@@ -134,10 +134,10 @@ type pub inline Slice[T: Bytes] {
   let pub @source: ref T
 
   # The start index (relative to the source) of the slice.
-  let @start: Int
+  let pub @start: Int
 
   # The end index (relative to the source) of the slice.
-  let @end: Int
+  let pub @end: Int
 
   # Returns a `Slice` over the given source.
   #
