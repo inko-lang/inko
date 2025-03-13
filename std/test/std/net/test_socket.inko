@@ -132,7 +132,7 @@ fn pub tests(t: mut Tests) {
     t.equal(connection.local_address, Result.Ok(server.local_address.get))
   })
 
-  t.test('Socket.send_string_to', fn (t) {
+  t.test('Socket.send_to', fn (t) {
     let socket = Socket.datagram(ipv6: false).get
 
     socket.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0).get
@@ -141,23 +141,7 @@ fn pub tests(t: mut Tests) {
     let buffer = ByteArray.new
 
     t.equal(
-      socket.send_string_to('ping', send_to.ip, send_to.port),
-      Result.Ok(4),
-    )
-    t.equal(socket.read(into: buffer, size: 4), Result.Ok(4))
-    t.equal(buffer.into_string, 'ping')
-  })
-
-  t.test('Socket.send_bytes_to', fn (t) {
-    let socket = Socket.datagram(ipv6: false).get
-
-    socket.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0).get
-
-    let send_to = socket.local_address.get
-    let buffer = ByteArray.new
-
-    t.equal(
-      socket.send_bytes_to('ping'.to_byte_array, send_to.ip, send_to.port.clone),
+      socket.send_to('ping', send_to.ip, send_to.port.clone),
       Result.Ok(4),
     )
     t.equal(socket.read(into: buffer, size: 4), Result.Ok(4))
@@ -174,7 +158,7 @@ fn pub tests(t: mut Tests) {
     let send_to = try listener.local_address
 
     t.equal(
-      client.send_string_to('ping', send_to.ip, send_to.port.clone),
+      client.send_to('ping', send_to.ip, send_to.port.clone),
       Result.Ok(4),
     )
 
@@ -370,7 +354,7 @@ fn pub tests(t: mut Tests) {
     let addr = socket.local_address.get
     let bytes = ByteArray.new
 
-    t.equal(socket.send_string_to('ping', addr.ip, addr.port), Result.Ok(4))
+    t.equal(socket.send_to('ping', addr.ip, addr.port), Result.Ok(4))
     t.equal(socket.read(into: bytes, size: 4), Result.Ok(4))
     t.equal(bytes.into_string, 'ping')
   })
@@ -451,26 +435,15 @@ fn pub tests(t: mut Tests) {
     t.true(socket1.connect(addr.ip, addr.port).ok?)
   })
 
-  t.test('UdpSocket.send_string_to', fn (t) {
+  t.test('UdpSocket.send_to', fn (t) {
     let socket = UdpSocket
       .new(ip: IpAddress.V4(Ipv4Address.new(127, 0, 0, 1)), port: 0)
       .get
 
     let addr = socket.local_address.get
 
-    t.equal(socket.send_string_to('ping', addr.ip, addr.port), Result.Ok(4))
+    t.equal(socket.send_to('ping', addr.ip, addr.port), Result.Ok(4))
 
-    let bytes = ByteArray.new
-
-    t.equal(socket.read(into: bytes, size: 4), Result.Ok(4))
-    t.equal(bytes.into_string, 'ping')
-  })
-
-  t.test('UdpSocket.send_bytes_to', fn (t) {
-    let ip = IpAddress.V4(Ipv4Address.new(127, 0, 0, 1))
-    let socket = UdpSocket.new(ip: ip, port: 0).get
-    let addr = socket.local_address.get
-    let _ = socket.send_bytes_to('ping'.to_byte_array, addr.ip, addr.port).get
     let bytes = ByteArray.new
 
     t.equal(socket.read(into: bytes, size: 4), Result.Ok(4))
@@ -483,7 +456,7 @@ fn pub tests(t: mut Tests) {
     let client = try UdpSocket.new(ip: ip, port: 0)
     let addr = try listener.local_address
 
-    try client.send_string_to('ping', addr.ip, addr.port)
+    try client.send_to('ping', addr.ip, addr.port)
 
     let bytes = ByteArray.new
     let addr = try client.local_address
@@ -514,7 +487,7 @@ fn pub tests(t: mut Tests) {
     let socket = UdpSocket.new(ip: ip, port: 0).get
     let addr = socket.local_address.get
 
-    t.equal(socket.send_string_to('ping', addr.ip, addr.port), Result.Ok(4))
+    t.equal(socket.send_to('ping', addr.ip, addr.port), Result.Ok(4))
 
     let bytes = ByteArray.new
 
@@ -930,25 +903,12 @@ fn pub tests(t: mut Tests) {
     t.equal(client.peer_address, stream.local_address)
   })
 
-  t.test('UnixSocket.send_string_to', fn (t) {
+  t.test('UnixSocket.send_to', fn (t) {
     let path = SocketPath.new(t.id)
     let socket = UnixSocket.datagram.get
 
     t.equal(socket.bind(path.path), Result.Ok(nil))
-    t.equal(socket.send_string_to('ping', path.path), Result.Ok(4))
-
-    let bytes = ByteArray.new
-
-    t.equal(socket.read(into: bytes, size: 4), Result.Ok(4))
-    t.equal(bytes.into_string, 'ping')
-  })
-
-  t.test('UnixSocket.send_bytes_to', fn (t) {
-    let path = SocketPath.new(t.id)
-    let socket = UnixSocket.datagram.get
-
-    t.equal(socket.bind(path.path), Result.Ok(nil))
-    t.equal(socket.send_bytes_to('ping'.to_byte_array, path.path), Result.Ok(4))
+    t.equal(socket.send_to('ping', path.path), Result.Ok(4))
 
     let bytes = ByteArray.new
 
@@ -963,7 +923,7 @@ fn pub tests(t: mut Tests) {
 
     t.equal(listener.bind(pair.0.path), Result.Ok(nil))
     t.equal(client.bind(pair.1.path), Result.Ok(nil))
-    t.equal(client.send_string_to('ping', pair.0.path), Result.Ok(4))
+    t.equal(client.send_to('ping', pair.0.path), Result.Ok(4))
 
     let bytes = ByteArray.new
     let addr = try client.local_address
@@ -1012,7 +972,7 @@ fn pub tests(t: mut Tests) {
     let socket = UnixSocket.datagram.get
 
     t.equal(socket.bind(path.path), Result.Ok(nil))
-    t.equal(socket.send_string_to('ping', path.path), Result.Ok(4))
+    t.equal(socket.send_to('ping', path.path), Result.Ok(4))
 
     let bytes = ByteArray.new
 
@@ -1159,7 +1119,7 @@ fn pub tests(t: mut Tests) {
     let path = SocketPath.new(t.id)
     let socket = UnixDatagram.new(path.path).get
 
-    t.equal(socket.send_string_to('ping', path.path), Result.Ok(4))
+    t.equal(socket.send_to('ping', path.path), Result.Ok(4))
 
     let bytes = ByteArray.new
 
@@ -1172,7 +1132,7 @@ fn pub tests(t: mut Tests) {
     let listener = try UnixDatagram.new(pair.0.path)
     let client = try UnixDatagram.new(pair.1.path)
 
-    t.equal(client.send_string_to('ping', pair.0.path), Result.Ok(4))
+    t.equal(client.send_to('ping', pair.0.path), Result.Ok(4))
 
     let bytes = ByteArray.new
     let addr = try client.local_address
@@ -1200,7 +1160,7 @@ fn pub tests(t: mut Tests) {
     let path = SocketPath.new(t.id)
     let socket = UnixDatagram.new(path.path).get
 
-    t.equal(socket.send_string_to('ping', address: path.path), Result.Ok(4))
+    t.equal(socket.send_to('ping', address: path.path), Result.Ok(4))
 
     let bytes = ByteArray.new
 

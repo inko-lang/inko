@@ -332,7 +332,7 @@ type pub Socket {
     Result.Ok(Socket(socket: peer, deadline: net.NO_DEADLINE))
   }
 
-  # Sends a `String` to the given address.
+  # Sends a `Bytes` value to the given address.
   #
   # The return value is the number of bytes sent.
   #
@@ -345,46 +345,10 @@ type pub Socket {
   # let socket = Socket.datagram(ipv6: false).get
   #
   # socket.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).get
-  # socket
-  #   .send_string_to(
-  #     string: 'hello',
-  #     ip: IpAddress.v4(0, 0, 0, 0),
-  #     port: 9999
-  #   )
-  #   .get
+  # socket.send_to('hello', ip: IpAddress.v4(0, 0, 0, 0), port: 9999).get
   # ```
-  fn pub mut send_string_to(
-    string: String,
-    ip: ref IpAddress,
-    port: Int,
-  ) -> Result[Int, Error] {
-    sys.send_to_ip(@socket, string.pointer, string.size, ip, port, @deadline)
-  }
-
-  # Sends a `ByteArray` to the given address.
-  #
-  # The return value is the number of bytes sent.
-  #
-  # # Examples
-  #
-  # ```inko
-  # import std.net.socket (Socket)
-  # import std.net.ip (IpAddress)
-  #
-  # let socket = Socket.datagram(ipv6: false).get
-  # let bytes = 'hello'.to_byte_array
-  #
-  # socket.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).get
-  # socket
-  #   .send_bytes_to(
-  #     bytes: bytes,
-  #     ip: IpAddress.v4(0, 0, 0, 0),
-  #     port: 9999
-  #   )
-  #   .get
-  # ```
-  fn pub mut send_bytes_to(
-    bytes: ref ByteArray,
+  fn pub mut send_to[B: Bytes](
+    bytes: ref B,
     ip: ref IpAddress,
     port: Int,
   ) -> Result[Int, Error] {
@@ -408,13 +372,7 @@ type pub Socket {
   # let socket = Socket.datagram(ipv6: false).get
   # let bytes = ByteArray.new
   #
-  # socket
-  #   .send_string_to(
-  #     'hello',
-  #     ip: IpAddress.v4(0, 0, 0, 0),
-  #     port: 9999
-  #   )
-  #   .get
+  # socket.send_to('hello', ip: IpAddress.v4(0, 0, 0, 0), port: 9999).get
   #
   # let received_from = socket.receive_from(bytes: bytes, size: 5).get
   #
@@ -683,38 +641,9 @@ type pub UdpSocket {
     @socket.connect(ip, port)
   }
 
-  # Sends a `String` to the given address.
-  #
-  # See the documentation of `Socket.send_string_to` for more information.
-  #
-  # # Examples
-  #
-  # ```inko
-  # import std.net.socket (UdpSocket)
-  # import std.net.ip (IpAddress)
-  #
-  # let socket =
-  #   UdpSocket.new(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).get
-  #
-  # socket
-  #   .send_string_to(
-  #     string: 'hello',
-  #     ip: IpAddress.v4(0, 0, 0, 0),
-  #     port: 9999
-  #   )
-  #   .get
-  # ```
-  fn pub mut send_string_to(
-    string: String,
-    ip: ref IpAddress,
-    port: Int,
-  ) -> Result[Int, Error] {
-    @socket.send_string_to(string, ip, port)
-  }
-
   # Sends a `ByteArray` to the given address.
   #
-  # See the documentation of `Socket.send_bytes_to` for more information.
+  # See the documentation of `Socket.send_to` for more information.
   #
   # # Examples
   #
@@ -724,22 +653,15 @@ type pub UdpSocket {
   #
   # let socket =
   #   UdpSocket.new(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).get
-  # let bytes = 'hello'.to_byte_array
   #
-  # socket
-  #   .send_bytes_to(
-  #     bytes: bytes,
-  #     ip: IpAddress.v4(0, 0, 0, 0),
-  #     port: 9999
-  #   )
-  #   .get
+  # socket.send_to('hello', ip: IpAddress.v4(0, 0, 0, 0), port: 9999).get
   # ```
-  fn pub mut send_bytes_to(
-    bytes: ref ByteArray,
+  fn pub mut send_to[B: Bytes](
+    bytes: ref B,
     ip: ref IpAddress,
     port: Int,
   ) -> Result[Int, Error] {
-    @socket.send_bytes_to(bytes, ip, port)
+    @socket.send_to(bytes, ip, port)
   }
 
   # Receives a single datagram message on the socket, returning the size of the
@@ -1348,29 +1270,6 @@ type pub UnixSocket {
     Result.Ok(UnixSocket(socket: peer, deadline: net.NO_DEADLINE))
   }
 
-  # Sends a `String` to the given address.
-  #
-  # The return value is the number of bytes sent.
-  #
-  # # Examples
-  #
-  # ```inko
-  # import std.net.socket (UnixSocket)
-  #
-  # let socket = UnixSocket.datagram.get
-  #
-  # socket.bind('/tmp/test.sock'.to_path).get
-  # socket
-  #   .send_string_to(string: 'hello', address: '/tmp/test.sock'.to_path)
-  #   .get
-  # ```
-  fn pub mut send_string_to(
-    string: String,
-    address: ref Path,
-  ) -> Result[Int, Error] {
-    sys.send_to_unix(@socket, string.pointer, string.size, address, @deadline)
-  }
-
   # Sends a `ByteArray` to the given address.
   #
   # The return value is the number of bytes sent.
@@ -1381,15 +1280,12 @@ type pub UnixSocket {
   # import std.net.socket (UnixSocket)
   #
   # let socket = UnixSocket.datagram.get
-  # let bytes = 'hello'.to_byte_array
   #
   # socket.bind('/tmp/test.sock'.to_path).get
-  # socket
-  #   .send_bytes_to(bytes: bytes, address: '/tmp/test.sock'.to_path)
-  #   .get
+  # socket.send_to('hello', address: '/tmp/test.sock'.to_path).get
   # ```
-  fn pub mut send_bytes_to(
-    bytes: ref ByteArray,
+  fn pub mut send_to[B: Bytes](
+    bytes: ref B,
     address: ref Path,
   ) -> Result[Int, Error] {
     sys.send_to_unix(@socket, bytes.pointer, bytes.size, address, @deadline)
@@ -1411,7 +1307,7 @@ type pub UnixSocket {
   # let socket = UnixSocket.datagram.get
   # let bytes = ByteArray.new
   #
-  # socket.send_string_to('hello', address: '/tmp/test.sock'.to_path).get
+  # socket.send_to('hello', address: '/tmp/test.sock'.to_path).get
   #
   # let received_from = socket.receive_from(bytes: bytes, size: 5).get
   #
@@ -1569,31 +1465,9 @@ type pub UnixDatagram {
     @socket.connect(address)
   }
 
-  # Sends a `String` to the given address.
-  #
-  # See the documentation of `UnixSocket.send_string_to` for more information.
-  #
-  # # Examples
-  #
-  # ```inko
-  # import std.net.socket (UnixDatagram)
-  #
-  # let socket = UnixDatagram.new('/tmp/test.sock'.to_path).get
-  #
-  # socket
-  #   .send_string_to(string: 'hello', address: '/tmp/test.sock'.to_path)
-  #   .get
-  # ```
-  fn pub mut send_string_to(
-    string: String,
-    address: ref Path,
-  ) -> Result[Int, Error] {
-    @socket.send_string_to(string, address)
-  }
-
   # Sends a `ByteArray` to the given address.
   #
-  # See the documentation of `UnixSocket.send_bytes_to` for more information.
+  # See the documentation of `UnixSocket.send_to` for more information.
   #
   # # Examples
   #
@@ -1601,17 +1475,14 @@ type pub UnixDatagram {
   # import std.net.socket (UnixDatagram)
   #
   # let socket = UnixDatagram.new('/tmp/test.sock'.to_path).get
-  # let bytes = 'hello'.to_byte_array
   #
-  # socket
-  #   .send_bytes_to(bytes: bytes, address: '/tmp/test.sock'.to_path)
-  #   .get
+  # socket.send_to('hello', address: '/tmp/test.sock'.to_path).get
   # ```
-  fn pub mut send_bytes_to(
-    bytes: ref ByteArray,
+  fn pub mut send_to[B: Bytes](
+    bytes: ref B,
     address: ref Path,
   ) -> Result[Int, Error] {
-    @socket.send_bytes_to(bytes, address)
+    @socket.send_to(bytes, address)
   }
 
   # Receives a single datagram message on the socket, returning the size of the
