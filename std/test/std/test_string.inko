@@ -339,6 +339,7 @@ fn pub tests(t: mut Tests) {
     }
 
     t.not_equal(hash('hello'), hash('world'))
+    t.not_equal(hash(('ab', 'c')), hash(('a', 'bc')))
   })
 
   t.test('String.+', fn (t) {

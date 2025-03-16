@@ -38,38 +38,13 @@ fn pub inline check_slice_range(start: Int, end: Int, size: Int) {
 
 fn hash_bytes[T: Bytes, H: mut + Hasher](bytes: ref T, hasher: mut H) {
   let mut len = bytes.size
-  let mut cur = bytes.pointer
+  let mut start = bytes.pointer
+  let mut i = 0
 
-  len.hash(hasher)
+  hasher.write(len)
 
-  while len > 8 {
-    let val = (cur as Pointer[UInt64]).0 as Int
-
-    val.hash(hasher)
-    cur = ptr.add(cur, 8)
-    len -= 8
-  }
-
-  while len > 4 {
-    let val = (cur as Pointer[UInt32]).0 as Int
-
-    val.hash(hasher)
-    cur = ptr.add(cur, 4)
-    len -= 4
-  }
-
-  while len > 2 {
-    let val = (cur as Pointer[UInt16]).0 as Int
-
-    val.hash(hasher)
-    cur = ptr.add(cur, 2)
-    len -= 2
-  }
-
-  while len > 0 {
-    (cur.0 as Int).hash(hasher)
-    cur = ptr.add(cur, 1)
-    len -= 1
+  while i < len {
+    hasher.write(ptr.add(start, i := i.wrapping_add(1)).0 as Int)
   }
 }
 
