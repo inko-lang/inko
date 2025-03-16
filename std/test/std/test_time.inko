@@ -532,6 +532,11 @@ fn pub tests(t: mut Tests) {
         '%A, %B %d, %Y',
         Option.Some((2024, 12, 14, 0, 0, 0, 0, 0)),
       ),
+      (
+        '12:30:05.123',
+        '%H:%M:%S%f',
+        Option.Some((0, 1, 1, 12, 30, 05, 0, 123_000_000)),
+      ),
     ]
 
     for rule in tests {

@@ -59,7 +59,7 @@ fn digits[T: Bytes](
 ) -> Option[(Int, Int)] {
   let mut idx = start
   let mut num = 0
-  let max = min(limit + 1, input.size)
+  let max = min(start + limit, input.size)
 
   while idx < max {
     let byte = input.get(idx).or_panic
