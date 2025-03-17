@@ -16,6 +16,8 @@ type HasBorrow {
   fn mut mutable -> Result[Int, String] {
     Result.Ok(42)
   }
+
+  fn mut mutable_with_ref(value: ref Array[Int]) {}
 }
 
 type NoBorrow {
@@ -32,6 +34,8 @@ type NoBorrow {
   fn mut mutable -> Result[Int, String] {
     Result.Ok(42)
   }
+
+  fn mut mutable_with_ref(value: ref Array[Int]) {}
 }
 
 fn example1(value: uni HasBorrow) {
@@ -50,4 +54,13 @@ fn example4(value: uni NoBorrow) {
   let _used = value.mutable
 }
 
-# uni_with_mutable_methods.inko:42:21 error(invalid-call): the receiver of this call requires a sendable return type, but 'Result[Int, String]' isn't sendable
+fn example5(value: uni HasBorrow) {
+  let _used = value.mutable_with_ref([10])
+}
+
+fn example6(value: uni NoBorrow) {
+  let _used = value.mutable_with_ref([10])
+}
+
+# uni_with_mutable_methods.inko:46:21 error(invalid-call): the receiver of this call requires a sendable return type, but 'Result[Int, String]' isn't sendable
+# uni_with_mutable_methods.inko:58:38 error(invalid-type): the receiver of this call requires sendable arguments, but 'ref Array[Int]' isn't sendable

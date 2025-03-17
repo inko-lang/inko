@@ -184,6 +184,33 @@ Here the call to `User.remove_last_friend` _is_ allowed because the `User` type
 doesn't store any borrows, nor do any sub values (e.g. the `Array` stored in the
 `friends` field).
 
+This is also true if the method is given any arguments, provided those arguments
+are either sendable or immutable:
+
+```inko
+type User {
+  let @name: String
+  let @friends: Array[String]
+
+  fn mut friends_with?(user: ref User) -> Bool {
+    @friends.contains?(user.name)
+  }
+}
+
+type async Main {
+  fn async main {
+    let alice = recover User(name: 'Alice', friends: ['Bob'])
+    let bob = User(name: 'Bob', friends: ['Alice'])
+
+    alice.friends_with?(bob) # => true
+  }
+}
+```
+
+The call `alice.friends_with?(bob)` is allowed because even though `ref User`
+isn't sendable, the compiler knows that `alice` can't ever store a borrow and
+thus it's safe to allow the call.
+
 ### Non-unique return values
 
 If the return type of a method is owned and not unique (e.g. `Array[String]`

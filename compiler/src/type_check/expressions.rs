@@ -537,11 +537,13 @@ impl MethodCall {
         }
 
         let immutable = self.method.is_immutable(&state.db);
+        let rec_is_sendable =
+            self.receiver.as_owned(&state.db).is_sendable_output(&state.db);
 
         // It's safe to pass `ref T` as an argument if all arguments and `self`
-        // are immutable, as this prevents storing of the `ref T` in `self`,
-        // thus violating the uniqueness constraints.
-        let ref_safe = immutable
+        // are immutable, or if `self` _is_ mutable but can't ever store a
+        // borrow.
+        let ref_safe = (immutable || rec_is_sendable)
             && self.check_sendable.iter().all(|(typ, _)| {
                 typ.is_sendable(&state.db) || typ.is_sendable_ref(&state.db)
             });
@@ -579,13 +581,7 @@ impl MethodCall {
         // ever store aliases to the returned data. Since the receiver is likely
         // typed as `uni T` (which itself is sendable) we perform that check
         // against its owned counterpart.
-        let ret_sendable = if ref_safe
-            || (!immutable
-                && self
-                    .receiver
-                    .as_owned(&state.db)
-                    .is_sendable_output(&state.db))
-        {
+        let ret_sendable = if ref_safe {
             self.return_type.is_sendable_output(&state.db)
         } else {
             self.return_type.is_sendable(&state.db)
