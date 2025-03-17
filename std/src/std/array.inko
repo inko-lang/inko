@@ -463,15 +463,16 @@ type builtin Array[T] {
   # numbers.size # => 5
   # ```
   fn pub mut append(other: Array[T]) {
-    if other.size == 0 { return }
+    let len = other.size
 
-    let missing_capacity = (size + other.size) - capacity
-    if missing_capacity > 0 { reserve(missing_capacity) }
+    if len == 0 { return }
 
-    let from_addr = other.address_of(0)
-    let to_addr = address_of(size)
-    alloc.copy(from_addr, to_addr, other.size)
-    @size += other.size
+    reserve_exact(len)
+
+    let tail = ptr.add(@buffer, @size)
+
+    alloc.copy(other.pointer, tail, len)
+    @size += len
 
     # we just moved all this stuff, make sure `other` doesn't drop it
     other.size = 0
