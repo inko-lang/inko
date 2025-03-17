@@ -408,6 +408,20 @@ fn pub tests(t: mut Tests) {
     t.equal(vals.capacity, 8)
   })
 
+  t.test('Array.reserve_exact', fn (t) {
+    let vals = [10]
+
+    vals.reserve_exact(2)
+    t.equal(vals.capacity, 3)
+    t.equal(vals.size, 1)
+
+    vals.reserve_exact(2)
+    t.equal(vals.capacity, 3)
+
+    vals.reserve_exact(-1)
+    t.equal(vals.capacity, 3)
+  })
+
   t.test('Array.insert', fn (t) {
     let vals = []
 

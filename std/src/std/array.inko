@@ -195,6 +195,20 @@ type builtin Array[T] {
     @buffer = alloc.resize(@buffer, @capacity)
   }
 
+  # Reserves space for exactly `size` additional values.
+  #
+  # Unlike `Array.reserve`, this method won't allocate more than the given
+  # amount.
+  #
+  # If there's already enough space for `size` extra values, this method does
+  # nothing.
+  fn pub mut reserve_exact(size: Int) {
+    if @capacity - @size >= size { return }
+
+    @capacity = @capacity + size
+    @buffer = alloc.resize(@buffer, @capacity)
+  }
+
   # Removes all values in the Array.
   #
   # # Examples
