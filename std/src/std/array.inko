@@ -463,7 +463,18 @@ type builtin Array[T] {
   # numbers.size # => 5
   # ```
   fn pub mut append(other: Array[T]) {
-    for v in other { push(v) }
+    if other.size == 0 { return }
+
+    let missing_capacity = (size + other.size) - capacity
+    if missing_capacity > 0 { reserve(missing_capacity) }
+
+    let from_addr = other.address_of(0)
+    let to_addr = address_of(size)
+    alloc.copy(from_addr, to_addr, other.size)
+    @size += other.size
+
+    # we just moved all this stuff, make sure `other` doesn't drop it
+    other.size = 0
   }
 
   # Returns the number of values in `self`.
