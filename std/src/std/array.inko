@@ -463,7 +463,20 @@ type builtin Array[T] {
   # numbers.size # => 5
   # ```
   fn pub mut append(other: Array[T]) {
-    for v in other { push(v) }
+    let len = other.size
+
+    if len == 0 { return }
+
+    reserve_exact(len)
+
+    let tail = ptr.add(@buffer, @size)
+
+    alloc.copy(other.pointer, tail, len)
+    @size += len
+
+    # This is necessary such that when `other` is dropped, we don't drop the
+    # values that have been moved into `self`.
+    other.size = 0
   }
 
   # Returns the number of values in `self`.
