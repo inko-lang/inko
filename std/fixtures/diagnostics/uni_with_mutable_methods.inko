@@ -1,3 +1,13 @@
+type HasCopy {
+  let @a: Int
+  let @b: Float
+}
+
+type HasHeap {
+  let @a: Int
+  let @b: Array[Int]
+}
+
 type HasBorrow {
   let @a: Array[Int]
   let @b: ref Array[Int]
@@ -18,6 +28,8 @@ type HasBorrow {
   }
 
   fn mut mutable_with_ref(value: ref Array[Int]) {}
+
+  fn mut mutable_with_mut[X: mut](value: mut X) {}
 }
 
 type NoBorrow {
@@ -36,6 +48,8 @@ type NoBorrow {
   }
 
   fn mut mutable_with_ref(value: ref Array[Int]) {}
+
+  fn mut mutable_with_mut[X: mut](value: mut X) {}
 }
 
 fn example1(value: uni HasBorrow) {
@@ -62,5 +76,18 @@ fn example6(value: uni NoBorrow) {
   let _used = value.mutable_with_ref([10])
 }
 
-# uni_with_mutable_methods.inko:46:21 error(invalid-call): the receiver of this call requires a sendable return type, but 'Result[Int, String]' isn't sendable
-# uni_with_mutable_methods.inko:58:38 error(invalid-type): the receiver of this call requires sendable arguments, but 'ref Array[Int]' isn't sendable
+fn example7(a: uni HasBorrow, b: mut HasHeap, c: mut HasCopy) {
+  let _used = a.mutable_with_mut(b)
+  let _used = a.mutable_with_mut(c)
+}
+
+fn example8(a: uni NoBorrow, b: mut HasHeap, c: mut HasCopy) {
+  let _used = a.mutable_with_mut(b)
+  let _used = a.mutable_with_mut(c)
+}
+
+# uni_with_mutable_methods.inko:60:21 error(invalid-call): the receiver of this call requires a sendable return type, but 'Result[Int, String]' isn't sendable
+# uni_with_mutable_methods.inko:72:38 error(invalid-type): the receiver of this call requires sendable arguments, but 'ref Array[Int]' isn't sendable
+# uni_with_mutable_methods.inko:80:34 error(invalid-type): the receiver of this call requires sendable arguments, but 'mut HasHeap' isn't sendable
+# uni_with_mutable_methods.inko:81:34 error(invalid-type): the receiver of this call requires sendable arguments, but 'mut HasCopy' isn't sendable
+# uni_with_mutable_methods.inko:85:34 error(invalid-type): the receiver of this call requires sendable arguments, but 'mut HasHeap' isn't sendable

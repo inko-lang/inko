@@ -1,6 +1,6 @@
 type User {
   let @name: String
-  let mut @numbers: Array[Int]
+  let @numbers: mut Array[Int]
 
   fn mut foo -> Array[Int] {
     [10]

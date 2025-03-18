@@ -15,9 +15,9 @@ use types::{
     Block, CallInfo, CallKind, Closure, ClosureCallInfo, ClosureId,
     ConstantKind, ConstantPatternKind, Database, FieldId, FieldInfo,
     IdentifierKind, IntrinsicCall, MethodId, MethodLookup, ModuleId, Receiver,
-    Sign, Symbol, ThrowKind, TraitId, TraitInstance, TypeArguments, TypeBounds,
-    TypeEnum, TypeId, TypeInstance, TypeRef, Variable, VariableId, CALL_METHOD,
-    DEREF_POINTER_FIELD, SELF_TYPE,
+    Sendability, Sign, Symbol, ThrowKind, TraitId, TraitInstance,
+    TypeArguments, TypeBounds, TypeEnum, TypeId, TypeInstance, TypeRef,
+    Variable, VariableId, CALL_METHOD, DEREF_POINTER_FIELD, SELF_TYPE,
 };
 
 const IGNORE_VARIABLE: &str = "_";
@@ -537,22 +537,31 @@ impl MethodCall {
         }
 
         let immutable = self.method.is_immutable(&state.db);
-        let rec_is_sendable =
+        let sendable_rec =
             self.receiver.as_owned(&state.db).is_sendable_output(&state.db);
+        let maybe_allow_borrows = immutable || sendable_rec;
+        let mut allow_borrows = maybe_allow_borrows;
+        let mut args = Vec::with_capacity(self.check_sendable.len());
 
-        // It's safe to pass `ref T` as an argument if all arguments and `self`
-        // are immutable, or if `self` _is_ mutable but can't ever store a
-        // borrow.
-        let ref_safe = (immutable || rec_is_sendable)
-            && self.check_sendable.iter().all(|(typ, _)| {
-                typ.is_sendable(&state.db) || typ.is_sendable_ref(&state.db)
-            });
+        for (typ, _) in &self.check_sendable {
+            let send = typ.sendability(&state.db, maybe_allow_borrows);
 
-        for &(given, loc) in &self.check_sendable {
-            if given.is_sendable(&state.db)
-                || (given.is_sendable_ref(&state.db) && ref_safe)
-            {
-                continue;
+            if matches!(send, Sendability::NotSendable) {
+                allow_borrows = false;
+            }
+
+            args.push(send);
+        }
+
+        for (&(given, loc), send) in self.check_sendable.iter().zip(args) {
+            match send {
+                Sendability::Sendable => continue,
+                Sendability::SendableRef | Sendability::SendableMut
+                    if allow_borrows =>
+                {
+                    continue;
+                }
+                _ => {}
             }
 
             let targs = &self.type_arguments;
@@ -581,7 +590,7 @@ impl MethodCall {
         // ever store aliases to the returned data. Since the receiver is likely
         // typed as `uni T` (which itself is sendable) we perform that check
         // against its owned counterpart.
-        let ret_sendable = if ref_safe {
+        let ret_sendable = if allow_borrows {
             self.return_type.is_sendable_output(&state.db)
         } else {
             self.return_type.is_sendable(&state.db)

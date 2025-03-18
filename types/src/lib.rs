@@ -1755,6 +1755,10 @@ impl TypeId {
         self.get(db).fields.values().cloned().collect()
     }
 
+    pub fn fields_iter(self, db: &Database) -> impl Iterator<Item = &FieldId> {
+        self.get(db).fields.values()
+    }
+
     pub fn new_field(
         self,
         db: &mut Database,
@@ -4220,6 +4224,15 @@ pub enum VerificationError {
     DepthExceeded,
 }
 
+/// A type describing whether a value is sendable or not.
+#[derive(Copy, Clone)]
+pub enum Sendability {
+    Sendable,
+    SendableRef,
+    SendableMut,
+    NotSendable,
+}
+
 /// A reference to a type.
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum TypeRef {
@@ -4606,6 +4619,47 @@ impl TypeRef {
         }
     }
 
+    pub fn is_sendable_mut(self, db: &Database) -> bool {
+        match self {
+            TypeRef::Mut(TypeEnum::TypeInstance(ins))
+            | TypeRef::UniMut(TypeEnum::TypeInstance(ins)) => {
+                if !ins
+                    .instance_of
+                    .fields_iter(db)
+                    .all(|f| f.value_type(db).is_value_type(db))
+                {
+                    return false;
+                }
+
+                if ins.instance_of.is_generic(db) {
+                    ins.type_arguments(db).map_or(true, |args| {
+                        args.iter().all(|(_, t)| t.is_value_type(db))
+                    })
+                } else {
+                    true
+                }
+            }
+            TypeRef::Placeholder(id) => {
+                id.value(db).map_or(false, |v| v.is_sendable_mut(db))
+            }
+            _ => false,
+        }
+    }
+
+    pub fn sendability(self, db: &Database, borrows: bool) -> Sendability {
+        if self.is_sendable(db) {
+            Sendability::Sendable
+        } else if !borrows {
+            Sendability::NotSendable
+        } else if self.is_sendable_ref(db) {
+            Sendability::SendableRef
+        } else if self.is_sendable_mut(db) {
+            Sendability::SendableMut
+        } else {
+            Sendability::NotSendable
+        }
+    }
+
     pub fn is_ref(self, db: &Database) -> bool {
         match self {
             TypeRef::Ref(_) => true,
@@ -4819,8 +4873,7 @@ impl TypeRef {
                     return false;
                 }
 
-                typ.fields(db)
-                    .into_iter()
+                typ.fields_iter(db)
                     .all(|f| f.value_type(db).is_sendable_output(db))
             }
             TypeRef::Placeholder(id) => {
@@ -5384,7 +5437,7 @@ impl TypeRef {
                             arguments
                         };
 
-                        for f in ins.instance_of.fields(db) {
+                        for f in ins.instance_of.fields_iter(db) {
                             f.value_type(db).verify_type_internal(
                                 db, depth, false, targs,
                             )?;
