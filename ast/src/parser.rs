@@ -50,6 +50,9 @@ pub struct ParseError {
     pub location: Location,
 }
 
+/// The maximum number of nested expressions allowed
+const MAX_DEPTH: u32 = 64;
+
 /// A recursive-descent parser that turns Inko source code into an AST.
 ///
 /// The AST is not a lossless AST. For example, whitespace and comments are not
@@ -60,13 +63,14 @@ pub struct Parser {
     lexer: Lexer,
     peeked: Option<Token>,
     comments: bool,
+    depth: u32,
 }
 
 impl Parser {
     pub fn new(input: Vec<u8>, file: PathBuf) -> Self {
         let lexer = Lexer::new(input);
 
-        Self { file, lexer, comments: false, peeked: None }
+        Self { file, lexer, comments: false, peeked: None, depth: 0 }
     }
 
     pub fn with_comments(input: Vec<u8>, file: PathBuf) -> Self {
@@ -1552,7 +1556,19 @@ impl Parser {
     }
 
     fn expression(&mut self, start: Token) -> Result<Expression, ParseError> {
-        self.boolean_and_or(start)
+        if self.depth == MAX_DEPTH {
+            error!(
+                start.location,
+                "maximum expression depth of {} exceeded", MAX_DEPTH
+            );
+        }
+
+        self.depth += 1;
+
+        let res = self.boolean_and_or(start);
+
+        self.depth -= 1;
+        res
     }
 
     fn boolean_and_or(
@@ -9986,5 +10002,20 @@ mod tests {
                 location: cols(1, 5)
             }))
         );
+    }
+
+    #[test]
+    fn test_maximum_depth() {
+        let mut input = String::new();
+
+        for _ in 0..MAX_DEPTH {
+            input.push('{');
+        }
+
+        for _ in 0..MAX_DEPTH {
+            input.push('}');
+        }
+
+        assert!(parser(&input).parse().is_err());
     }
 }
