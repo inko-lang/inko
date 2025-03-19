@@ -503,6 +503,15 @@ fn pub tests(t: mut Tests) {
     t.equal(buf.strings, ['a', 'b'])
   })
 
+  t.test('StringBuffer.clear', fn (t) {
+    let buf = StringBuffer.new
+
+    buf.push('hello')
+    buf.clear
+
+    t.equal(buf.size, 0)
+  })
+
   t.test('StringBuffer.size', fn (t) {
     let buf = StringBuffer.new
 

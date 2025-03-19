@@ -968,6 +968,23 @@ type pub inline StringBuffer {
     @strings.push(string)
   }
 
+  # Removes all values stored in `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.string (StringBuffer)
+  #
+  # let buf = StringBuffer.new
+  #
+  # buf.push('hello')
+  # buf.clear
+  # buf.size # => 0
+  # ```
+  fn pub mut clear {
+    @strings.clear
+  }
+
   # Returns the number of values in `self`.
   fn pub inline size -> Int {
     @strings.size
