@@ -36,39 +36,36 @@
 #
 # # Waiting for multiple signals
 #
-# If you need to wait for multiple signals at once, you can do so using a
-# `std.sync.Channel` and a process for each signal. For example:
+# If you need to wait for multiple signals at once, you can do so using the
+# `Signals` type:
 #
 # ```inko
-# import std.signal (Signal)
-# import std.sync (Channel)
+# import std.signal (Signal, Signals)
 #
-# type async Waiter {
-#   let @channel: Channel[Signal]
+# let signals = Signals.new
 #
-#   fn async wait(signal: uni Signal) {
-#     signal.wait
-#     @channel.send(signal)
-#   }
-# }
+# signals.add(Signal.Quit)
+# signals.add(Signal.Terminate)
 #
-# type async Main {
-#   fn async main {
-#     let chan = Channel.new
-#
-#     Waiter(recover chan.clone).wait(recover Signal.User1)
-#     Waiter(recover chan.clone).wait(recover Signal.User2)
-#     chan.receive
+# loop {
+#   match signals.wait {
+#     case Quit -> {
+#       # handle SIGQUIT
+#     }
+#     case Terminate -> {
+#       # handle SIGTERM
+#     }
+#     case _ -> {
+#       # Other signals are never delivered here, so these can be ignored.
+#     }
 #   }
 # }
 # ```
-#
-# In this example the `chan.receive` line returns either `uni Signal.User1` or
-# `uni Signal.User2`, depending on which signal is received first.
 import std.clone (Clone)
 import std.cmp (Equal)
 import std.fmt (Format, Formatter)
 import std.hash (Hash, Hasher)
+import std.sync (Channel)
 
 fn extern inko_signal_wait(
   state: Pointer[UInt8],
@@ -245,5 +242,94 @@ impl Format for Signal {
     }
 
     formatter.tuple(name).finish
+  }
+}
+
+# A type that waits for a signal to be delivered, notifying a channel upon
+# receiving the signal.
+type async Waiter {
+  fn async wait(signal: uni Signal, channel: uni Channel[Signal]) {
+    signal.wait
+    channel.send(signal)
+  }
+}
+
+# A collection of signals to respond to.
+#
+# The `Signals` type is used to register one or more signals and then wait for
+# these signals to be delivered.
+type pub inline Signals {
+  let @channel: Channel[Signal]
+
+  # Returns an empty collection of signals.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.signal (Signals)
+  #
+  # Signals.new
+  # ```
+  fn pub static new -> Signals {
+    Signals(Channel.new)
+  }
+
+  # Adds a signal that we want to receive.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.signal (Signal, Signals)
+  #
+  # let signals = Signals.new
+  #
+  # signals.add(Signal.Quit)
+  # ```
+  fn pub add(signal: Signal) {
+    Waiter().wait(signal, recover @channel.clone)
+  }
+
+  # Waits for a signal, blocking the calling process until the signal is
+  # received.
+  #
+  # The order in which signals are returned is unspecified and may vary based on
+  # the underlying platform.
+  #
+  # # Examples
+  #
+  # Waiting for a single signal:
+  #
+  # ```inko
+  # import std.signal (Signal, Signals)
+  #
+  # let signals = Signals.new
+  #
+  # signals.add(Signal.Quit)
+  # signals.add(Signal.Terminate)
+  # signals.wait
+  # ```
+  #
+  # Waiting for multiple signals:
+  #
+  # ```inko
+  # import std.signal (Signal, Signals)
+  # import std.stdio (Stdout)
+  #
+  # let signals = Signals.new
+  # let stdout = Stdout.new
+  #
+  # signals.add(Signal.Quit)
+  # signals.add(Signal.Terminate)
+  #
+  # loop {
+  #   match signals.wait {
+  #     case Quit -> stdout.print('received SIGQUIT')
+  #     case Terminate -> stdout.print('received SIGTERM')
+  #     case _ -> {}
+  #   }
+  # }
+  # ```
+  fn pub wait -> Signal {
+    @channel.receive
   }
 }

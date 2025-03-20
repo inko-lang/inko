@@ -1,0 +1,59 @@
+import helpers (hash)
+import std.fmt (fmt)
+import std.signal (Signal, Signals)
+import std.test (Tests)
+
+fn pub tests(t: mut Tests) {
+  t.test('Signal.clone', fn (t) {
+    t.equal(Signal.Hangup.clone, Signal.Hangup)
+    t.equal(Signal.Interrupt.clone, Signal.Interrupt)
+    t.equal(Signal.Quit.clone, Signal.Quit)
+    t.equal(Signal.Abort.clone, Signal.Abort)
+    t.equal(Signal.User1.clone, Signal.User1)
+    t.equal(Signal.User2.clone, Signal.User2)
+    t.equal(Signal.Terminate.clone, Signal.Terminate)
+    t.equal(Signal.Child.clone, Signal.Child)
+    t.equal(Signal.Continue.clone, Signal.Continue)
+    t.equal(Signal.Stop.clone, Signal.Stop)
+    t.equal(Signal.Input.clone, Signal.Input)
+    t.equal(Signal.Output.clone, Signal.Output)
+    t.equal(Signal.FileSizeExceeded.clone, Signal.FileSizeExceeded)
+    t.equal(Signal.Resize.clone, Signal.Resize)
+  })
+
+  t.test('Signal.==', fn (t) {
+    t.equal(Signal.Quit, Signal.Quit)
+    t.not_equal(Signal.Quit, Signal.Resize)
+  })
+
+  t.test('Signal.hash', fn (t) {
+    t.equal(hash(Signal.Quit), hash(Signal.Quit))
+    t.not_equal(hash(Signal.Quit), hash(Signal.Terminate))
+  })
+
+  t.test('Signal.fmt', fn (t) {
+    t.equal(fmt(Signal.Hangup), 'Hangup')
+    t.equal(fmt(Signal.Interrupt), 'Interrupt')
+    t.equal(fmt(Signal.Quit), 'Quit')
+    t.equal(fmt(Signal.Abort), 'Abort')
+    t.equal(fmt(Signal.User1), 'User1')
+    t.equal(fmt(Signal.User2), 'User2')
+    t.equal(fmt(Signal.Terminate), 'Terminate')
+    t.equal(fmt(Signal.Child), 'Child')
+    t.equal(fmt(Signal.Continue), 'Continue')
+    t.equal(fmt(Signal.Stop), 'Stop')
+    t.equal(fmt(Signal.Input), 'Input')
+    t.equal(fmt(Signal.Output), 'Output')
+    t.equal(fmt(Signal.FileSizeExceeded), 'FileSizeExceeded')
+    t.equal(fmt(Signal.Resize), 'Resize')
+  })
+
+  t.test('Signals.wait', fn (t) {
+    # This is just a simple smoke test to see if the implementation works, as we
+    # don't have a reliable way of sending signals at the time of writing.
+    let sigs = Signals.new
+
+    sigs.channel.send(Signal.Quit)
+    t.equal(sigs.wait, Signal.Quit)
+  })
+}
