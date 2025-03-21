@@ -31,7 +31,7 @@ fn invalid_slice_range(start: Int, end: Int, size: Int) -> Never {
 }
 
 fn pub inline check_slice_range(start: Int, end: Int, size: Int) {
-  if start < 0 or start > size or end < 0 or end > size {
+  if end < start or start < 0 or start > size or end < 0 or end > size {
     invalid_slice_range(start, end, size)
   }
 }
@@ -155,7 +155,7 @@ type pub inline Slice[T: Bytes] {
   # ```
   fn pub slice(start: Int, end: Int) -> Self {
     let new_start = @start.wrapping_add(start)
-    let new_end = @end.wrapping_add(end)
+    let new_end = @start.wrapping_add(end)
 
     check_slice_range(start, end, size: @end.wrapping_sub(@start))
     Self(source: @source, start: new_start, end: new_end)

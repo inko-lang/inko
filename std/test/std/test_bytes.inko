@@ -43,12 +43,34 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Slice.slice', fn (t) {
-    let bytes = ByteArray.from_array([10, 20])
-    let slice = Slice.new(bytes, start: 0, end: 2).slice(start: 1, end: 2)
+    let input = 'Hello, this is an example String'
+    let slice1 = input.slice(start: 0, end: 12)
+    let slice2 = slice1.slice(start: 0, end: 5)
+    let slice3 = slice1.slice(start: 1, end: 4)
 
-    t.equal(slice.start, 1)
-    t.equal(slice.size, 1)
-    t.equal(slice.pointer as Int, bytes.pointer as Int + 1)
+    t.equal(slice1.start, 0)
+    t.equal(slice1.end, 12)
+    t.equal(slice1.to_string, 'Hello, this ')
+
+    t.equal(slice2.start, 0)
+    t.equal(slice2.end, 5)
+    t.equal(slice2.to_string, 'Hello')
+
+    t.equal(slice3.start, 1)
+    t.equal(slice3.end, 4)
+    t.equal(slice3.to_string, 'ell')
+  })
+
+  t.panic('Slice.slice with an out of bounds start index', fn {
+    'hello'.slice(start: 0, end: 5).slice(start: 15, end: 5)
+  })
+
+  t.panic('Slice.slice with an out of bounds end index', fn {
+    'hello'.slice(start: 0, end: 5).slice(start: 0, end: 15)
+  })
+
+  t.panic('Slice.slice with an end index lower than the start index', fn {
+    'hello'.slice(start: 0, end: 5).slice(start: 3, end: 0)
   })
 
   t.test('Slice.into_iter', fn (t) {
