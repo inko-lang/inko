@@ -97,7 +97,7 @@ pub const STRING_BUFFER_TYPE: &str = "StringBuffer";
 pub const STRING_BUFFER_WITH_CAPACITY: &str = "with_capacity";
 pub const STRING_BUFFER_PUSH: &str = "push";
 pub const STRING_BUFFER_INTERNAL_NAME: &str = "$StringBuffer";
-pub const STRING_BUFFER_TO_STRING: &str = "to_string";
+pub const STRING_BUFFER_INTO_STRING: &str = "into_string";
 
 /// The name of the pseudo field used to deference a pointer.
 pub const DEREF_POINTER_FIELD: &str = "0";
