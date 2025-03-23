@@ -12,7 +12,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use types::{
     ARRAY_INTERNAL_NAME, ARRAY_PUSH, ARRAY_WITH_CAPACITY,
-    STRING_BUFFER_INTERNAL_NAME, STRING_BUFFER_PUSH, STRING_BUFFER_TO_STRING,
+    STRING_BUFFER_INTERNAL_NAME, STRING_BUFFER_INTO_STRING, STRING_BUFFER_PUSH,
     STRING_BUFFER_WITH_CAPACITY, TO_STRING_METHOD,
 };
 
@@ -2286,7 +2286,7 @@ impl<'a> LowerToHir<'a> {
                 // buf.into_string
                 body.push(Expression::call(
                     var_ref,
-                    STRING_BUFFER_TO_STRING,
+                    STRING_BUFFER_INTO_STRING,
                     Vec::new(),
                     node.location,
                 ));
@@ -5781,7 +5781,7 @@ mod tests {
                     ),
                     Expression::call(
                         Expression::identifier_ref(STR_BUF_VAR, cols(8, 16)),
-                        STRING_BUFFER_TO_STRING,
+                        STRING_BUFFER_INTO_STRING,
                         Vec::new(),
                         cols(8, 16)
                     )

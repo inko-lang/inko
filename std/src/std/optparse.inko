@@ -160,7 +160,7 @@ import std.clone (Clone)
 import std.cmp (Equal)
 import std.fmt (Format, Formatter)
 import std.iter (Iter, Stream)
-import std.string (StringBuffer, ToString)
+import std.string (IntoString, StringBuffer, ToString)
 
 let INDENT = '  '
 let HYPHEN = 45
@@ -950,7 +950,7 @@ type pub Help {
   #
   # Help.new('ls').usage('[OPTIONS]')
   # ```
-  fn pub mut usage(value: String) -> mut Help {
+  fn pub move usage(value: String) -> Help {
     @usage = value
     self
   }
@@ -964,7 +964,7 @@ type pub Help {
   #
   # Help.new('ls').section('Examples')
   # ```
-  fn pub mut section(name: String) -> mut Help {
+  fn pub move section(name: String) -> Help {
     @lines.push('\n')
     @lines.push(name)
     @lines.push(':\n\n')
@@ -982,7 +982,7 @@ type pub Help {
   #
   # Help.new('ls').section('Examples').line('ls # Show files and folders')
   # ```
-  fn pub mut line(value: String) -> mut Help {
+  fn pub move line(value: String) -> Help {
     @lines.push(INDENT)
     @lines.push(value)
     @lines.push('\n')
@@ -1001,7 +1001,7 @@ type pub Help {
   #
   # Help.new('ls').description('List files and folders')
   # ```
-  fn pub mut description(value: String) -> mut Help {
+  fn pub move description(value: String) -> Help {
     @description = value
     self
   }
@@ -1019,15 +1019,15 @@ type pub Help {
   #
   # Help.new('ls').options(opts)
   # ```
-  fn pub mut options(value: ref Options) -> mut Help {
+  fn pub move options(value: ref Options) -> Help {
     @lines.push(value.to_string)
     @lines.push('\n')
     self
   }
 }
 
-impl ToString for Help {
-  fn pub to_string -> String {
+impl IntoString for Help {
+  fn pub move into_string -> String {
     let out = StringBuffer.from_array(['Usage: ', @name, ' ', @usage, '\n'])
 
     if @description.size > 0 {
@@ -1036,7 +1036,7 @@ impl ToString for Help {
       out.push('\n')
     }
 
-    out.push(@lines.to_string)
+    out.push(@lines.into_string)
     out.into_string
   }
 }

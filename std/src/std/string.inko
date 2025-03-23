@@ -167,7 +167,7 @@ type builtin String {
       buff
     })
 
-    result.to_string
+    result.into_string
   }
 
   # Slices `self` into a slice of bytes using a _byte_ range from `start` until
@@ -991,8 +991,8 @@ type pub inline StringBuffer {
   }
 }
 
-impl ToString for StringBuffer {
-  # Generates a `String` using the current contents of the buffer.
+impl IntoString for StringBuffer {
+  # Generates a `String` by consuming the buffer
   #
   # # Examples
   #
@@ -1006,9 +1006,9 @@ impl ToString for StringBuffer {
   # buffer.push('hello ')
   # buffer.push('world')
   #
-  # buffer.to_string # => 'hello world'
+  # buffer.into_string # => 'hello world'
   # ```
-  fn pub to_string -> String {
+  fn pub move into_string -> String {
     if @strings.empty? { return '' }
 
     let mut total = 0
@@ -1034,11 +1034,5 @@ impl ToString for StringBuffer {
 
     alloc.write(byte: 0, to: ptr.add(buf, total), size: 1)
     String(ptr: buf, size: total)
-  }
-}
-
-impl IntoString for StringBuffer {
-  fn pub move into_string -> String {
-    to_string
   }
 }

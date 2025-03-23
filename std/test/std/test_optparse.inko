@@ -559,27 +559,30 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Help.new', fn (t) {
-    t.equal(Help.new('a').to_string, 'Usage: a [OPTIONS]\n')
+    t.equal(Help.new('a').into_string, 'Usage: a [OPTIONS]\n')
   })
 
   t.test('Help.usage', fn (t) {
-    t.equal(Help.new('a').usage('[CMD]').to_string, 'Usage: a [CMD]\n')
+    t.equal(Help.new('a').usage('[CMD]').into_string, 'Usage: a [CMD]\n')
   })
 
   t.test('Help.section', fn (t) {
     t.equal(
-      Help.new('a').section('Examples').to_string,
+      Help.new('a').section('Examples').into_string,
       'Usage: a [OPTIONS]\n\nExamples:\n\n',
     )
   })
 
   t.test('Help.line', fn (t) {
-    t.equal(Help.new('a').line('foo').to_string, 'Usage: a [OPTIONS]\n  foo\n')
+    t.equal(
+      Help.new('a').line('foo').into_string,
+      'Usage: a [OPTIONS]\n  foo\n',
+    )
   })
 
   t.test('Help.description', fn (t) {
     t.equal(
-      Help.new('a').description('foo').to_string,
+      Help.new('a').description('foo').into_string,
       'Usage: a [OPTIONS]\n\nfoo\n',
     )
   })
@@ -590,7 +593,7 @@ fn pub tests(t: mut Tests) {
     opts.flag('h', 'help', 'Show this help message')
 
     t.equal(
-      Help.new('a').options(opts).to_string,
+      Help.new('a').options(opts).into_string,
       'Usage: a [OPTIONS]\n  -h, --help    Show this help message\n',
     )
   })
@@ -609,7 +612,7 @@ fn pub tests(t: mut Tests) {
       .line('bar')
       .section('Options')
       .options(opts)
-      .to_string
+      .into_string
 
     t.equal(
       help,

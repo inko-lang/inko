@@ -520,16 +520,6 @@ fn pub tests(t: mut Tests) {
     t.equal(buf.size, 1)
   })
 
-  t.test('StringBuffer.to_string', fn (t) {
-    let buf = StringBuffer.new
-
-    t.equal(buf.to_string, '')
-    buf.push('a')
-    buf.push('😃')
-    buf.push('b')
-    t.equal(buf.to_string, 'a😃b')
-  })
-
   t.test('StringBuffer.into_string', fn (t) {
     let buf = StringBuffer.new
 
