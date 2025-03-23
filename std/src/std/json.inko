@@ -1581,9 +1581,9 @@ type pub Generator {
   #
   # Generator.new(indent: 2).generate(Json.Array([Json.Int(1)])) # => '[1]'
   # ```
-  fn pub mut generate(value: ref Json) -> String {
+  fn pub move generate(value: ref Json) -> String {
     generate_value(value)
-    @buffer.to_string
+    @buffer.into_string
   }
 
   fn mut generate_value(value: ref Json) {

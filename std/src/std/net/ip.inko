@@ -626,7 +626,7 @@ impl ToString for Ipv6Address {
         }
       }
 
-      return buffer.to_string
+      return buffer.into_string
     }
 
     let a = @a.format(format)
