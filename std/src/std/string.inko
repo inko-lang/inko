@@ -161,7 +161,7 @@ type builtin String {
     with: String,
   ) -> String {
     let result = iter.reduce(StringBuffer.new, fn (buff, val) {
-      if buff.size > 0 { buff.push(with) }
+      if buff.empty?.false? { buff.push(with) }
 
       buff.push(val.to_string)
       buff
@@ -922,16 +922,11 @@ impl Drop for Chars {
 # buffer.to_string # => 'foobarbaz'
 # ```
 type pub inline StringBuffer {
-  let @strings: Array[String]
+  let @bytes: ByteArray
 
   # Returns a new empty `StringBuffer`.
   fn pub inline static new -> StringBuffer {
-    with_capacity(0)
-  }
-
-  # Returns an empty `StringBuffer` with enough space for `size` values.
-  fn pub inline static with_capacity(size: Int) -> StringBuffer {
-    StringBuffer(Array.with_capacity(size))
+    StringBuffer(bytes: ByteArray.new)
   }
 
   # Returns a new `StringBuffer` from an existing `Array`.
@@ -948,7 +943,14 @@ type pub inline StringBuffer {
   # StringBuffer.from_array(strings).to_string # => 'foobar'
   # ```
   fn pub inline static from_array(strings: Array[String]) -> StringBuffer {
-    StringBuffer(strings)
+    let total_size = strings.iter.reduce(0, fn (current_size, i) {
+      current_size + i.size
+    })
+    let buf = StringBuffer(bytes: ByteArray.with_capacity(total_size))
+
+    for i in strings { buf.push(i) }
+
+    buf
   }
 
   # Adds the given `String` to the buffer.
@@ -965,7 +967,7 @@ type pub inline StringBuffer {
   # buffer.push('hello') # => 'hello'
   # ```
   fn pub mut push(string: String) {
-    @strings.push(string)
+    @bytes.append(string)
   }
 
   # Removes all values stored in `self`.
@@ -982,12 +984,21 @@ type pub inline StringBuffer {
   # buf.size # => 0
   # ```
   fn pub mut clear {
-    @strings.clear
+    @bytes.clear
   }
 
-  # Returns the number of values in `self`.
-  fn pub inline size -> Int {
-    @strings.size
+  # Returns `true` if `self` is empty.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let buf = StringBuffer.new
+  # buf.empty?   # => true
+  # buf.push("foo")
+  # buf.empty?   # => false
+  # ```
+  fn pub empty? -> Bool {
+    @bytes.size == 0
   }
 }
 
@@ -1009,30 +1020,18 @@ impl IntoString for StringBuffer {
   # buffer.into_string # => 'hello world'
   # ```
   fn pub move into_string -> String {
-    if @strings.empty? { return '' }
+    if empty? { return '' }
 
-    let mut total = 0
-    let mut i = 0
+    let string_size = @bytes.size
 
-    while i < @strings.size {
-      total += @strings.get_unchecked(i).size
-      i += 1
-    }
+    # All strings are currently expected to have a null byte at the end
+    @bytes.push(0)
 
-    let buf: Pointer[UInt8] = alloc.allocate(total + 1)
-    let mut i = 0
-    let mut offset = 0
+    let buf = @bytes.pointer
 
-    while i < @strings.size {
-      let str = @strings.get_unchecked(i)
-      let len = str.size
-
-      alloc.copy(from: str.pointer, to: ptr.add(buf, offset), size: len)
-      i += 1
-      offset += len
-    }
-
-    alloc.write(byte: 0, to: ptr.add(buf, total), size: 1)
-    String(ptr: buf, size: total)
+    # We're going to give `@bytes` memory to the string we're making, the below prevents it from being dropped when this function returns
+    @bytes.buffer = 0 as Pointer[UInt8]
+    @bytes.size = 0
+    String(ptr: buf, size: string_size)
   }
 }
