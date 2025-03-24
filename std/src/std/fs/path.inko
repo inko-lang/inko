@@ -326,7 +326,7 @@ type pub inline Path {
           buf.push(SEPARATOR)
         }
         case Some(v) if comp.peek.some? -> {
-          let any = buf.size > 0
+          let any = buf.empty?.false?
 
           if any and root { root = false } else if any { buf.push(SEPARATOR) }
 
@@ -336,7 +336,7 @@ type pub inline Path {
       }
     }
 
-    if buf.size == 0 { Path.new('.') } else { Path.new(buf.into_string) }
+    if buf.empty? { Path.new('.') } else { Path.new(buf.into_string) }
   }
 
   # Returns the last component in `self`.

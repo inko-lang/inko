@@ -12,8 +12,8 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use types::{
     ARRAY_INTERNAL_NAME, ARRAY_PUSH, ARRAY_WITH_CAPACITY,
-    STRING_BUFFER_INTERNAL_NAME, STRING_BUFFER_INTO_STRING, STRING_BUFFER_PUSH,
-    STRING_BUFFER_WITH_CAPACITY, TO_STRING_METHOD,
+    STRING_BUFFER_INTERNAL_NAME, STRING_BUFFER_INTO_STRING, STRING_BUFFER_NEW,
+    STRING_BUFFER_PUSH, TO_STRING_METHOD,
 };
 
 const BUILTIN_RECEIVER: &str = "_INKO";
@@ -2252,18 +2252,14 @@ impl<'a> LowerToHir<'a> {
 
                 expr
             }
-            n => {
+            _ => {
                 // let buf = StringBuffer.with_capacity(...)
                 let mut body = vec![Expression::define_variable(
                     STR_BUF_VAR,
                     Expression::call_static(
                         STRING_BUFFER_INTERNAL_NAME,
-                        STRING_BUFFER_WITH_CAPACITY,
-                        vec![Expression::Int(Box::new(IntLiteral {
-                            value: n as i64,
-                            resolved_type: types::TypeRef::Unknown,
-                            location: node.location,
-                        }))],
+                        STRING_BUFFER_NEW,
+                        Vec::new(),
                         node.location,
                     ),
                     node.location,
@@ -5742,12 +5738,8 @@ mod tests {
                         STR_BUF_VAR,
                         Expression::call_static(
                             STRING_BUFFER_INTERNAL_NAME,
-                            STRING_BUFFER_WITH_CAPACITY,
-                            vec![Expression::Int(Box::new(IntLiteral {
-                                value: 3,
-                                resolved_type: types::TypeRef::Unknown,
-                                location: cols(8, 16),
-                            }))],
+                            STRING_BUFFER_NEW,
+                            Vec::new(),
                             cols(8, 16),
                         ),
                         cols(8, 16),

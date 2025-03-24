@@ -478,21 +478,13 @@ fn pub tests(t: mut Tests) {
   t.test('StringBuffer.new', fn (t) {
     let buf = StringBuffer.new
 
-    t.equal(buf.strings.capacity, 0)
-    t.true(buf.strings.empty?)
-  })
-
-  t.test('StringBuffer.with_capacity', fn (t) {
-    let buf = StringBuffer.with_capacity(4)
-
-    t.equal(buf.strings.capacity, 4)
-    t.true(buf.strings.empty?)
+    t.true(buf.empty?)
   })
 
   t.test('StringBuffer.from_array', fn (t) {
     let buf = StringBuffer.from_array(['a', 'b'])
 
-    t.equal(buf.strings, ['a', 'b'])
+    t.equal(buf.into_string, 'ab')
   })
 
   t.test('StringBuffer.push', fn (t) {
@@ -500,7 +492,7 @@ fn pub tests(t: mut Tests) {
 
     buf.push('a')
     buf.push('b')
-    t.equal(buf.strings, ['a', 'b'])
+    t.equal(buf.into_string, 'ab')
   })
 
   t.test('StringBuffer.clear', fn (t) {
@@ -509,15 +501,7 @@ fn pub tests(t: mut Tests) {
     buf.push('hello')
     buf.clear
 
-    t.equal(buf.size, 0)
-  })
-
-  t.test('StringBuffer.size', fn (t) {
-    let buf = StringBuffer.new
-
-    t.equal(buf.size, 0)
-    buf.push('a')
-    t.equal(buf.size, 1)
+    t.true(buf.empty?)
   })
 
   t.test('StringBuffer.into_string', fn (t) {
