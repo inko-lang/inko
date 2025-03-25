@@ -1,7 +1,7 @@
 use crate::error::Error;
 use crate::options::print_usage;
 use compiler::compiler::{CompileError, Compiler};
-use compiler::config::{Config, Opt, Output, SOURCE_EXT};
+use compiler::config::{Config, Opt, SOURCE_EXT};
 use getopts::Options;
 use std::fs::{read_dir, read_to_string, write};
 use std::path::{Path, PathBuf};
@@ -64,7 +64,6 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     }
 
     config.add_source_directory(config.tests.clone());
-    config.output = Output::File("inko-tests".to_string());
 
     let tests = test_module_names(&config.tests).map_err(|err| {
         Error::from(format!("Failed to find test modules: {}", err))
@@ -91,7 +90,7 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         })?;
     }
 
-    let result = compiler.build(Some(main_file));
+    let result = compiler.build(main_file);
 
     compiler.print_diagnostics();
 

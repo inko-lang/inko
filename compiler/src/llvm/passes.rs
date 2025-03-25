@@ -1,6 +1,6 @@
 use crate::compiler::module_debug_path;
 use crate::config::{BuildDirectories, Opt};
-use crate::diagnostics::global_warning;
+use crate::diagnostics::warn;
 use crate::llvm::builder::Builder;
 use crate::llvm::constants::{
     ARRAY_BUF_INDEX, ARRAY_CAPA_INDEX, ARRAY_SIZE_INDEX, CLOSURE_CALL_INDEX,
@@ -582,7 +582,7 @@ impl<'a> Worker<'a> {
                 )
                 .is_ok()
             {
-                global_warning(&format!(
+                warn(&format!(
                     "the LLVM passes are invalid, using fallback \
                     passes instead: {}",
                     err

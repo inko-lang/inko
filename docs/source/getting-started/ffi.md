@@ -140,8 +140,8 @@ type async Main {
 Then run the following:
 
 ```bash
-inko build -o /tmp/test test.inko
-ldd /tmp/test
+inko build test.inko
+ldd build/debug/test
 ```
 
 On a GNU Linux system this outputs:
@@ -190,8 +190,8 @@ type async Main {
 Then we build it and show what libraries the executable is linked against:
 
 ```bash
-inko build -o /tmp/test test.inko
-ldd /tmp/test
+inko build test.inko
+ldd build/debug/test
         linux-vdso.so.1 (0x00007ffd8eb8f000)
         libm.so.6 => /lib64/libm.so.6 (0x00007fb87d9c4000)
         libz.so.1 => /lib64/libz.so.1 (0x00007fb87d9aa000)
@@ -204,8 +204,8 @@ On Fedora Linux, we can get a static version of zlib by running
 link statically against zlib:
 
 ```bash
-inko build --static -o /tmp/test test.inko
-ldd /tmp/test
+inko build --static test.inko
+ldd build/debug/test
         linux-vdso.so.1 (0x00007ffc06993000)
         libm.so.6 => /lib64/libm.so.6 (0x00007fbb76e50000)
         libc.so.6 => /lib64/libc.so.6 (0x00007fbb76c72000)

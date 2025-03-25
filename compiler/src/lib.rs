@@ -3,7 +3,7 @@
 #![allow(clippy::assigning_clones)]
 #![allow(clippy::needless_range_loop)]
 
-mod diagnostics;
+pub mod diagnostics;
 pub mod docs;
 pub mod format;
 mod hir;

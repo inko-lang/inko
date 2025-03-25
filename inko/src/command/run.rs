@@ -132,8 +132,13 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
 
     config.build = build_dir.clone();
 
+    let file = if let Some(v) = matches.free.first() {
+        PathBuf::from(v)
+    } else {
+        return Err(Error::from("you must specify a file to run".to_string()));
+    };
+
     let mut compiler = Compiler::new(config);
-    let file = matches.free.first().map(PathBuf::from);
     let result = compiler.build(file);
 
     compiler.print_diagnostics();

@@ -1,5 +1,5 @@
 //! Formatters for diagnostics.
-use crate::diagnostics::{Diagnostic, Diagnostics};
+use crate::diagnostics::{enable_colors, Diagnostic, Diagnostics};
 use std::env::current_dir;
 use std::path::PathBuf;
 
@@ -32,7 +32,7 @@ impl TextPresenter {
     }
 
     pub(crate) fn with_colors() -> Self {
-        Self::new(true)
+        Self::new(enable_colors())
     }
 
     fn present_diagnostic(&self, diagnostic: &Diagnostic) {

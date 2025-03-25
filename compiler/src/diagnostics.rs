@@ -2,16 +2,32 @@
 use location::Location;
 use std::env;
 use std::fmt;
-use std::io::{stderr, IsTerminal as _, Write as _};
+use std::io::{stdout, IsTerminal as _, Write as _};
 use std::path::PathBuf;
 
-pub(crate) fn global_warning(message: &str) {
-    let mut err = stderr().lock();
-    let colors = env::var_os("NO_COLOR").is_some();
-    let _ = if err.is_terminal() && !colors {
-        writeln!(err, "\x1b[33;1mwarning:\x1b[0m {}", message)
+pub(crate) fn enable_colors() -> bool {
+    env::var_os("NO_COLOR").is_none()
+}
+
+pub fn info(label: &str, message: &str) {
+    // We write to STDOUT because diagnostics go to STDERR, such that one can
+    // filter the output.
+    let mut out = stdout().lock();
+    let _ = if out.is_terminal() && enable_colors() {
+        writeln!(out, "\x1b[1m{}\x1b[0m {}", label, message)
     } else {
-        writeln!(err, "warning: {}", message)
+        writeln!(out, "{} {}", label, message)
+    };
+}
+
+pub(crate) fn warn(message: &str) {
+    // We write to STDOUT because diagnostics go to STDERR, such that one can
+    // filter the output.
+    let mut out = stdout().lock();
+    let _ = if out.is_terminal() && enable_colors() {
+        writeln!(out, "\x1b[33;1mwarning:\x1b[0m {}", message)
+    } else {
+        writeln!(out, "warning: {}", message)
     };
 }
 

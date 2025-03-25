@@ -3696,6 +3696,18 @@ impl ModuleId {
             return false;
         }
 
+        // The main module might be in a different namespace based on its name,
+        // but it should still have access to the source files of the project
+        // that it's a part of.
+        if Some(theirs) == db.main_module() {
+            match (self.file(db).parent(), other.file(db).parent()) {
+                (Some(ours), Some(theirs)) if ours.starts_with(theirs) => {
+                    return true
+                }
+                _ => {}
+            }
+        }
+
         // This allow the top-level test module `test_foo` to import private
         // symbols from the top-level module `foo`, but not the other way
         // around.
@@ -7284,26 +7296,36 @@ mod tests {
             ModuleName::new("std.foo"),
             "foo.inko".into(),
         );
-
         let bar_mod = Module::alloc(
             &mut db,
             ModuleName::new("std.bar"),
             "bar.inko".into(),
         );
-
         let bla_mod =
             Module::alloc(&mut db, ModuleName::new("bla"), "bla.inko".into());
-
         let test_mod = Module::alloc(
             &mut db,
             ModuleName::new("test_bla"),
             "test_bla.inko".into(),
         );
+        let main_mod = Module::alloc(
+            &mut db,
+            ModuleName::new("example"),
+            "src/example.inko".into(),
+        );
+        let lib_mod = Module::alloc(
+            &mut db,
+            ModuleName::new("example.foo.bar"),
+            "src/example/foo/bar.inko".into(),
+        );
+
+        db.set_main_module(main_mod.name(&db).clone());
 
         assert!(foo_mod.has_same_root_namespace(&db, bar_mod));
         assert!(!foo_mod.has_same_root_namespace(&db, bla_mod));
         assert!(bla_mod.has_same_root_namespace(&db, test_mod));
         assert!(!test_mod.has_same_root_namespace(&db, bla_mod));
+        assert!(lib_mod.has_same_root_namespace(&db, main_mod));
     }
 
     #[test]

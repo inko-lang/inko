@@ -3,7 +3,8 @@ use crate::presenters::{JsonPresenter, Presenter, TextPresenter};
 use crate::target::Target;
 use std::collections::HashMap;
 use std::env;
-use std::fs::{create_dir_all, remove_dir_all};
+use std::fs::{create_dir_all, read_dir, remove_dir_all};
+use std::io::Error;
 use std::path::{Path, PathBuf};
 use std::thread::available_parallelism;
 use std::time::SystemTime;
@@ -12,11 +13,8 @@ use types::module_name::ModuleName;
 /// The extension to use for source files.
 pub const SOURCE_EXT: &str = "inko";
 
-/// The name of the module to compile if no explicit file/module is provided.
-pub(crate) const MAIN_MODULE: &str = "main";
-
 /// The name of the directory containing a project's source code.
-pub(crate) const SOURCE: &str = "src";
+pub const SOURCE: &str = "src";
 
 /// The name of the directory containing third-party dependencies.
 pub const DEP: &str = "dep";
@@ -149,20 +147,6 @@ impl Opt {
     }
 }
 
-/// A type describing where to write the executable to.
-pub enum Output {
-    /// Derive the output path from the main module, and place it in the default
-    /// output directory.
-    Derive,
-
-    /// Write the executable to the default output directory, but using the
-    /// given name.
-    File(String),
-
-    /// Write the executable to the given path.
-    Path(PathBuf),
-}
-
 /// A type describing which linker to use.
 #[derive(Clone)]
 pub enum Linker {
@@ -212,7 +196,7 @@ pub struct Config {
     pub runtime: PathBuf,
 
     /// The directory containing the project's source code.
-    pub(crate) source: PathBuf,
+    pub source: PathBuf,
 
     /// The directory containing the project's dependencies.
     pub dependencies: PathBuf,
@@ -225,9 +209,6 @@ pub struct Config {
 
     /// A list of base source directories to search through.
     pub(crate) sources: Vec<PathBuf>,
-
-    /// The path to save the executable at.
-    pub output: Output,
 
     /// The optimisation mode to apply when compiling code.
     pub opt: Opt,
@@ -297,7 +278,6 @@ impl Config {
             sources: Vec::new(),
             presenter: Box::new(TextPresenter::with_colors()),
             init_module: ModuleName::std_init(),
-            output: Output::Derive,
             target: Target::native(),
             opt: Opt::Debug,
             dot: false,
@@ -343,18 +323,29 @@ impl Config {
         }
     }
 
-    pub(crate) fn main_source_module(&self) -> PathBuf {
-        let mut main_file = self.source.join(MAIN_MODULE);
-
-        main_file.set_extension(SOURCE_EXT);
-        main_file
-    }
-
     pub fn main_test_module(&self) -> PathBuf {
         let mut main_file = self.build.join(MAIN_TEST_MODULE);
 
         main_file.set_extension(SOURCE_EXT);
         main_file
+    }
+
+    pub fn executable_sources(&self) -> Result<Vec<PathBuf>, Error> {
+        let mut paths = Vec::new();
+
+        for entry in read_dir(&self.source)? {
+            let entry = entry?;
+            let typ = entry.file_type()?;
+            let path = entry.path();
+
+            if typ.is_file()
+                && path.extension().and_then(|s| s.to_str()) == Some(SOURCE_EXT)
+            {
+                paths.push(path);
+            }
+        }
+
+        Ok(paths)
     }
 }
 

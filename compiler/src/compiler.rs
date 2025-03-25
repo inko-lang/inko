@@ -1,4 +1,4 @@
-use crate::config::{BuildDirectories, Output};
+use crate::config::BuildDirectories;
 use crate::config::{Config, Opt, SOURCE, SOURCE_EXT, TESTS};
 use crate::docs::{
     Config as DocsConfig, DefineDocumentation, GenerateDocumentation,
@@ -32,7 +32,6 @@ use crate::type_check::methods::{
     ImplementTraitMethods,
 };
 use blake3::hash;
-use std::env::current_dir;
 use std::ffi::OsStr;
 use std::fs::{create_dir_all, write};
 use std::path::MAIN_SEPARATOR_STR;
@@ -266,15 +265,15 @@ impl Compiler {
         res
     }
 
-    pub fn build(
-        &mut self,
-        file: Option<PathBuf>,
-    ) -> Result<PathBuf, CompileError> {
+    pub fn build(&mut self, file: PathBuf) -> Result<PathBuf, CompileError> {
         self.prepare()?;
 
         let start = Instant::now();
-        let file = self.main_module_path(file)?;
-        let main_mod = self.state.db.main_module().unwrap().clone();
+        let file = file.canonicalize().unwrap_or(file);
+        let main_mod = module_name_from_path(&self.state.config, &file);
+
+        self.state.db.set_main_module(main_mod.clone());
+
         let ast = self.parse(vec![(main_mod, file.clone())]);
         let mut hir = self.compile_hir(ast)?;
 
@@ -439,37 +438,8 @@ LLVM module timings:
         BuildDirectories::new(&self.state.config).create_build()
     }
 
-    fn main_module_path(
-        &mut self,
-        file: Option<PathBuf>,
-    ) -> Result<PathBuf, CompileError> {
-        let path = if let Some(file) = file {
-            file.canonicalize().unwrap_or(file)
-        } else {
-            let main = self.state.config.main_source_module();
-
-            if main.is_file() {
-                main
-            } else {
-                let cwd = current_dir().unwrap_or_else(|_| PathBuf::new());
-                let main_relative = main
-                    .strip_prefix(cwd)
-                    .unwrap_or(main.as_path())
-                    .to_string_lossy()
-                    .into_owned();
-
-                return Err(CompileError::Internal(format!(
-                    "You didn't specify a file to compile, nor can we fall \
-                    back to '{}' as it doesn't exist",
-                    main_relative,
-                )));
-            }
-        };
-
-        self.state
-            .db
-            .set_main_module(module_name_from_path(&self.state.config, &path));
-        Ok(path)
+    pub fn into_config(self) -> Config {
+        self.state.config
     }
 
     fn compile_mir(
@@ -659,19 +629,18 @@ LLVM module timings:
         main_file: PathBuf,
     ) -> Result<PathBuf, CompileError> {
         let start = Instant::now();
-        let exe = match &self.state.config.output {
-            Output::Derive => {
-                let name = main_file
-                    .file_stem()
-                    .map(|s| s.to_string_lossy().into_owned())
-                    .unwrap_or_else(|| "main".to_string());
-
-                directories.bin.join(name)
-            }
-            Output::File(name) => directories.bin.join(name),
-            Output::Path(path) => path.clone(),
+        let name = if let Some(v) =
+            main_file.file_stem().map(|s| s.to_string_lossy().into_owned())
+        {
+            v
+        } else {
+            return Err(CompileError::Internal(format!(
+                "failed to derive the executable name from {}",
+                main_file.display()
+            )));
         };
 
+        let exe = directories.bin.join(name);
         let mut res =
             llvm::passes::lower_all(&mut self.state, directories, mir, symbols)
                 .map_err(CompileError::Internal)?;
@@ -699,7 +668,7 @@ LLVM module timings:
 
             if ver > cur_ver {
                 return Err(CompileError::Internal(format!(
-                    "This project requires Inko {} or newer, \
+                    "this project requires Inko {} or newer, \
                     but the current version is {}",
                     ver, cur_ver
                 )));

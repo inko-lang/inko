@@ -1,7 +1,8 @@
 use crate::error::Error;
 use crate::options::print_usage;
 use compiler::compiler::{CompileError, Compiler};
-use compiler::config::{Config, Linker, Opt, Output};
+use compiler::config::{Config, Linker, Opt, SOURCE};
+use compiler::diagnostics::info;
 use getopts::Options;
 use std::path::PathBuf;
 use types::module_name::ModuleName;
@@ -12,7 +13,7 @@ Compile a source file and its dependencies into an executable.
 
 Examples:
 
-    inko build             # Compile src/main.inko
+    inko build             # Compile all executables for the project
     inko build hello.inko  # Compile the file hello.inko";
 
 enum Timings {
@@ -73,12 +74,6 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         "target",
         "The target platform to compile for",
         "TARGET",
-    );
-    options.optopt(
-        "o",
-        "output",
-        "The path to write the executable to",
-        "FILE",
     );
     options.optmulti(
         "i",
@@ -168,10 +163,6 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         config.add_source_directory(path.into());
     }
 
-    if let Some(path) = matches.opt_str("o") {
-        config.output = Output::Path(PathBuf::from(path));
-    }
-
     if matches.opt_present("disable-incremental") {
         config.incremental = false;
     }
@@ -218,23 +209,66 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         }
     }
 
-    let mut compiler = Compiler::new(config);
-    let file = matches.free.first().map(PathBuf::from);
-    let result = compiler.build(file);
+    let inputs = if let Some(v) = matches.free.first() {
+        vec![PathBuf::from(v)]
+    } else {
+        match config.executable_sources() {
+            Ok(paths) if paths.is_empty() => {
+                return Err(Error::from(format!(
+                    "to build an executable the {}/ directory must contain at \
+                    least one source file (e.g. {}/example.inko)",
+                    SOURCE, SOURCE
+                )));
+            }
+            Ok(paths) => paths,
+            Err(e) => {
+                return Err(Error::from(format!(
+                    "failed to get the files to compile: {}",
+                    e
+                )))
+            }
+        }
+    };
+    let multiple = inputs.len() > 1;
+    let mut status = 0;
 
-    compiler.print_diagnostics();
+    for path in inputs {
+        // If there's only a single executable to build then there's no point in
+        // showing which one we're building.
+        if multiple {
+            let rel = path.strip_prefix(&config.source).unwrap();
 
-    match timings {
-        Timings::Basic => compiler.print_timings(),
-        Timings::Full => compiler.print_full_timings(),
-        _ => {}
+            // If the previous executable failed to build we add an extra empty
+            // line so it's a little easier to read the output from the
+            // different builds.
+            if status == 1 {
+                println!();
+            }
+
+            info("Compiling", &rel.display().to_string());
+        }
+
+        let mut compiler = Compiler::new(config);
+        let result = compiler.build(path);
+
+        compiler.print_diagnostics();
+
+        match timings {
+            Timings::Basic => compiler.print_timings(),
+            Timings::Full => compiler.print_full_timings(),
+            _ => {}
+        }
+
+        match result {
+            Ok(_) => {}
+            Err(CompileError::Invalid) => status = 1,
+            Err(CompileError::Internal(msg)) => return Err(Error::from(msg)),
+        }
+
+        config = compiler.into_config();
     }
 
-    match result {
-        Ok(_) => Ok(0),
-        Err(CompileError::Invalid) => Ok(1),
-        Err(CompileError::Internal(msg)) => Err(Error::from(msg)),
-    }
+    Ok(status)
 }
 
 #[cfg(test)]

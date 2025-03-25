@@ -30,58 +30,57 @@ named after the library (e.g. `src/sqlite/statement.inko`).
 
 ## Executables
 
-For executables, the main module must be placed at `src/main.inko`. When running
-`inko build` without any arguments, the compiler tries to build this file if it
-exists.
+Executables are created by compiling files directly located in the `src/`
+directory, with the executable file using the base name of the source file. For
+example, `src/hello.inko` is compiled to an executable located at
+`build/debug/hello` (or `build/release/hello` when using `inko build
+--release`).
 
-If you want to compile multiple executables, create a module for each executable
-with an appropriate name (e.g. `src/foo.inko` and `src/bar.inko`), then specify
-their paths when running `inko build` like so:
+These source files must define the `async` type `Main` which in turn must define
+the `async` method `main`:
 
-```bash
-inko build src/foo.inko
-inko build src/bar.inko
+```inko
+type async Main {
+  fn async main {
+    # ...
+  }
+}
 ```
+
+To build multiple executables, create multiple files in the `src/` directory.
+For example, if your project contains the files `src/hello.inko` and
+`src/world.inko` then running `inko build` produces two executables: `hello` and
+`world`.
+
+When building a library, don't define the `Main` type, and use `inko check`
+instead of `inko build` to type-check your project.
 
 ## Example layout
 
-As a reference, this is what the standard library's structure looks like:
+Here's an example of a [typical Inko
+project](https://github.com/yorickpeterse/kvi):
 
 ```
 .
+├── inko.pkg
+├── LICENSE
+├── Makefile
+├── README.md
 ├── src
-│   └── std
-│       ├── array.inko
-│       ├── bool.inko
-│       ├── byte_array.inko
-│       ├── clone.inko
-│       ├── cmp.inko
-│       ├── debug.inko
-│       ├── drop.inko
-│       ├── env.inko
-│       ├── ffi.inko
-│       ├── float.inko
-│       ├── fmt.inko
-│       ├── fs
-│       │   ├── dir.inko
-│       │   ├── file.inko
-│       │   └── path.inko
-│       ├── hash.inko
-│       ├── ...
-│       ├── time.inko
-│       └── tuple.inko
+│   ├── kvi
+│   │   ├── config.inko
+│   │   ├── logger.inko
+│   │   ├── map.inko
+│   │   ├── num.inko
+│   │   ├── resp.inko
+│   │   └── server.inko
+│   └── kvi.inko
 └── test
-    ├── helpers.inko
-    └── std
-        ├── fs
-        │   ├── test_dir.inko
-        │   ├── test_file.inko
-        │   └── test_path.inko
-        ├── ...
-        ├── test_array.inko
-        ├── test_bool.inko
-        ├── test_byte_array.inko
-        ├── test_test.inko
-        ├── test_time.inko
-        └── test_tuple.inko
+    └── kvi
+        ├── test_config.inko
+        ├── test_logger.inko
+        ├── test_map.inko
+        ├── test_num.inko
+        ├── test_resp.inko
+        └── test_server.inko
 ```
