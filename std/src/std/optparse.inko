@@ -539,20 +539,26 @@ type pub Options {
   #
   # This value is displayed after the program name in the following form:
   #
-  #     Usage: NAME: USAGE
+  # ```
+  # Usage: NAME: USAGE
+  # ```
   #
   # The default value is `'[OPTIONS]'`, resulting in the following:
   #
-  #     Usage: NAME [OPTIONS]
+  # ```
+  # Usage: NAME [OPTIONS]
+  # ```
   let pub mut @usage: String
 
   # The detailed description of the command.
   #
   # This value is displayed on a separate line _after_ the usage line, like so:
   #
-  #     Usage: NAME USAGE
+  # ```
+  # Usage: NAME USAGE
   #
-  #     DESCRIPTION
+  # DESCRIPTION
+  # ```
   let pub mut @description: String
 
   # The text to use for the options title.
