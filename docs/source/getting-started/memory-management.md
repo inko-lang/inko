@@ -11,7 +11,8 @@ we'll take a look at the basics of working with these different references.
 
 ## Owned references
 
-We'll start with a simple list of cats:
+We'll start with a simple list of cats by changing `hello.inko` from the
+[](hello-world) tutorial to the following:
 
 ```inko
 type Cat {}
@@ -23,10 +24,11 @@ type async Main {
 }
 ```
 
-Save this in a file called `cats.inko` and run it as follows:
+Then build and run the program as follows:
 
 ```bash
-inko run cats.inko
+inko build
+./build/debug/hello
 ```
 
 If all went well, no output is produced.
@@ -47,7 +49,7 @@ type async Main {
 }
 ```
 
-If we run this again, the output is "2 cats".
+If we build and run the program again, the output is "2 cats".
 
 Now we'll change the program to the following:
 
@@ -66,11 +68,11 @@ type async Main {
 }
 ```
 
-If we try to run this program, we're greeted with the following compile-time
-error:
+If we try to build and run this program, we're greeted with the following
+compile-time error:
 
 ```
-cats.inko:10:24 error(moved): 'cats' can't be used as it has been moved
+src/hello.inko:10:25 error(moved): 'cats' can't be used as it has been moved
 ```
 
 What happened is as follows: `cats` is a variable containing an owned reference
@@ -150,7 +152,7 @@ If you try to run this program, you'll be greeted with the following
 compile-time error:
 
 ```
-cats.inko:10:5 error(invalid-call): the method 'pop' requires a mutable receiver, but 'ref Array[Cat]' isn't mutable
+src/hello.inko:10:14 error(invalid-call): the method 'pop' requires a mutable receiver, but 'ref Array[Cat]' isn't mutable
 ```
 
 To fix this, we need to use a mutable borrow:
@@ -249,9 +251,9 @@ If we run this program, the output is as follows:
 2 cats
 2 cats
 Stack trace (the most recent call comes last):
-  [...]/cats.inko:12 in main.Main.main
-  [...]/std/src/std/array.inko:104 in std.array.Array.$dropper
-Process 'Main' (0x55fd6eb37170) panicked: can't drop a value of type 'Array' as it still has 1 reference(s)
+  [...]/src/hello.inko:12 in hello.Main.main
+  [...]/std/src/std/array.inko:144 in std.array.Array.$dropper
+Process 'Main' (0x11ce5100) panicked: can't drop a value of type 'Array' as it still has 1 reference(s)
 ```
 
 The reason this happens is because `more_cats` is dropped before `borrow` is
@@ -302,7 +304,7 @@ for borrows to outlive the owned values they borrow.
 Inko also has a type of reference known as a "unique reference". Such references
 impose heavy restriction on borrowing, which ensures that these borrows don't
 exist when the unique reference is moved around. To illustrate this, change the
-`cats.inko` program to the following:
+`hello.inko` program to the following:
 
 ```inko
 import std.stdio (Stdout)
@@ -319,11 +321,11 @@ type async Main {
 }
 ```
 
-Now run this using `inko run cats.inko`, and you should be presented with the
-following compile-time error:
+If you try to compile this program you will be presented with the following
+compile-time error:
 
 ```
-cats.inko:8:18 error(invalid-type): values of type 'uni ref Array[Cat]' can't be assigned to variables or fields
+src/hello.inko:8:18 error(invalid-type): values of type 'uni ref Array[Cat]' can't be assigned to variables
 ```
 
 What happened is the following: using the `recover` keyword we turned the array
@@ -341,8 +343,8 @@ occur when using the reference.
 OK I lied when I said Inko has four types of primary references, as I left out
 one important one: value types. Value types are owned references that are copied
 when they are moved, instead of transferring ownership. This allows you to use
-both the old and new version. To illustrate, create `values.inko` with these
-contents:
+both the old and new version. To illustrate, change `hello.inko` to the
+following:
 
 ```inko
 import std.stdio (Stdout)
@@ -359,7 +361,14 @@ type async Main {
 }
 ```
 
-Now run it using `inko run values.inko`, and the output is as follows:
+Then build and run it:
+
+```bash
+inko build
+./build/debug/hello
+```
+
+The output will be as follows:
 
 ```
 42

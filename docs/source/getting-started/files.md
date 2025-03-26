@@ -7,7 +7,8 @@
 Instead of writing a simple message to the terminal, let's write it to a file,
 read it back, _then_ write that to the terminal. Isn't that exciting!
 
-To start, create the file `files.inko` with the following contents:
+To start, change `hello.inko` from the [](hello-world) tutorial to the
+following:
 
 ```inko
 import std.fs.file (ReadWriteFile)
@@ -27,7 +28,12 @@ type async Main {
 }
 ```
 
-Now run it using `inko run files.inko`, and the output should be:
+Then build and run it:
+
+```bash
+inko build
+./build/debug/hello
+```
 
 ```
 Hello, world!
@@ -77,10 +83,11 @@ an error such as this:
 
 ```
 Stack trace (the most recent call comes last):
-  [...]/files.inko:7 in main.Main.main
-  [...]/std/src/std/result.inko:119 in std.result.Result.get
-  [...]/std/src/std/process.inko:15 in std.process.panic
-Process 'Main' (0x5645bdf31740) panicked: Result.get expects an Ok(_), but an Error(_) is found
+  [...]/src/hello.inko:7 in hello.Main.main
+  [...]/std/src/std/result.inko:131 in std.result.Result.get
+  [...]/std/src/std/result.inko:147 in std.result.Result.or_panic_with
+  [...]/std/src/std/process.inko:21 in std.process.panic
+Process 'Main' (0x1dbb5100) panicked: Result.get expects an Ok(_), but an Error(_) is found
 ```
 
 ## Write-only files

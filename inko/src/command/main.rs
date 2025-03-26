@@ -2,6 +2,7 @@ use crate::command::build;
 use crate::command::check;
 use crate::command::doc;
 use crate::command::fmt;
+use crate::command::init;
 use crate::command::pkg;
 use crate::command::print;
 use crate::command::run;
@@ -21,6 +22,7 @@ Commands:
     check    Check a project or single file for correctness
     doc      Generate source code documentation
     fmt      Format Inko source code
+    init     Create a new project
     pkg      Manage Inko packages
     print    Print compiler details to STDOUT
     run      Compile and run source code directly
@@ -30,7 +32,7 @@ Commands:
 
 Examples:
 
-    inko run hello.inko    # Same
+    inko run hello.inko    # Compile and run the file
     inko build hello.inko  # Compile the file into an executable
     inko check hello.inko  # Check hello.inko for errors
     inko run --help        # Print the help message for the run command";
@@ -66,6 +68,7 @@ pub(crate) fn run() -> Result<i32, Error> {
         Some("runtime") => runtime::run(&matches.free[1..]),
         Some("targets") => targets::run(&matches.free[1..]),
         Some("fmt") => fmt::run(&matches.free[1..]),
+        Some("init") => init::run(&matches.free[1..]),
         Some(cmd) => {
             Err(Error::from(format!("The command '{}' is invalid", cmd)))
         }

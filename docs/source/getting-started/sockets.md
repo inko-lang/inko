@@ -7,8 +7,8 @@
 In the previous tutorial we looked at reading from and writing to files. In this
 tutorial we'll instead look at reading from and writing to network sockets.
 
-To start things off, create a file called `socket.inko` with the following
-contents:
+To start, change `hello.inko` from the [](hello-world) tutorial to the
+following:
 
 ```inko
 import std.net.ip (IpAddress)
@@ -33,7 +33,14 @@ type async Main {
 }
 ```
 
-Now run it using `inko run socket.inko`, and the output should be:
+Then build an run it:
+
+```bash
+inko build
+./build/debug/hello
+```
+
+The output will be the following:
 
 ```
 Hello, world!
@@ -92,7 +99,7 @@ brevity.
 ## Using TCP sockets
 
 Let's change the program to use TCP sockets instead. We'll start by changing
-`sockets.inko` to the following:
+`hello.inko` to the following:
 
 ```inko
 import std.net.ip (IpAddress)
@@ -115,7 +122,7 @@ type async Main {
 This time we're using a fixed port number (9999) as that makes this particular
 example a little easier.
 
-Next, we'll create another file called `client.inko` with the following
+Next, we'll create another file called `src/client.inko` with the following
 contents:
 
 ```inko
@@ -124,17 +131,25 @@ import std.net.socket (TcpClient)
 
 type async Main {
   fn async main {
-    let client = TcpClient.new(IpAddress.v4(0, 0, 0, 0), port: 9999).get
+    let client = TcpClient.new([IpAddress.v4(0, 0, 0, 0)], port: 9999).get
 
     client.write('Hello, world!').get
   }
 }
 ```
 
-To run these programs, run `inko run server.inko` _first_ in one terminal
-window, then open a separate terminal window and run `inko run client.inko` in
-this new window. If all went well, the `server.inko` program writes "Hello,
-world!" to the terminal, then terminates.
+Now we can build both the client and server:
+
+```bash
+inko build
+```
+
+To run the client and server, we'll need two instances of our terminal. In one
+instance, run `./build/debug/hello` to start the server, and in another instance
+run `./build/debug/client` to start the client.
+
+If all went well, the server writes "Hello, world!" to the terminal, then
+terminates.
 
 What we did here is create a simple TCP server using the aptly named `TcpServer`
 type, connected to address 0.0.0.0 and port 9999, then connected a client to it

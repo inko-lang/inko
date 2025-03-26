@@ -26,17 +26,19 @@ at the end of the `print()` line. We'll look into what this does later. Now run
 the program as follows:
 
 ```bash
-inko run hello.inko | true
+inko build
+./build/debug/hello | true
 ```
 
 The output of this program should be something similar to the following:
 
 ```
 Stack trace (the most recent call comes last):
-  [...]/hello.inko:5 in main.Main.main
-  [...]/std/src/std/result.inko:119 in std.result.Result.get
-  [...]/std/src/std/process.inko:15 in std.process.panic
-Process 'Main' (0x5637caa83150) panicked: Result.get expects an Ok(_), but an Error(_) is found
+  [...]/src/hello.inko:5 in hello.Main.main
+  [...]/std/src/std/result.inko:131 in std.result.Result.get
+  [...]/std/src/std/result.inko:147 in std.result.Result.or_panic_with
+  [...]/std/src/std/process.inko:21 in std.process.panic
+Process 'Main' (0xd3f6100) panicked: Result.get expects an Ok(_), but an Error(_) is found
 ```
 
 What happened here is that the `print()` failed to write to the standard output
@@ -72,7 +74,8 @@ type async Main {
 Now re-run the program like so:
 
 ```bash
-inko run hello.inko | true
+inko build
+./build/debug/hello | true
 ```
 
 If all went well, the program should run _without_ printing anything to the
@@ -84,7 +87,7 @@ the variable `_`. By assigning the result of `print()` to `_`, the compiler
 won't emit any warnings because the result isn't used, nor will it emit any
 warnings because the variable assigned to isn't used.
 
-If we run the program using just `inko run hello.inko`, we get the expected
+If we run the program using just `./build/debug/hello`, we get the expected
 "Hello, world!" output, confirming our program still works.
 
 ## Handling the error

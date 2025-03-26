@@ -5,7 +5,19 @@
 ---
 
 For our first program, we'll start off simple by printing "Hello, world!" to the
-terminal. Create a file called `hello.inko` with the following contents:
+terminal. To do so we'll need to set up a new Inko project, which we can do
+using the `inko init` command:
+
+```bash
+inko init hello
+cd hello
+```
+
+This creates the directory `hello/` containing the source files of our project,
+then we change the current working directory to that directory.
+
+Once the project is created, open the file `src/hello.inko` and change its
+contents to the following:
 
 ```inko
 import std.stdio (Stdout)
@@ -17,10 +29,11 @@ type async Main {
 }
 ```
 
-To run the program, run the following command in your terminal:
+Then build and run the program like so:
 
 ```bash
-inko run hello.inko
+inko build
+./build/debug/hello
 ```
 
 If all went well, the output is "Hello, world!".

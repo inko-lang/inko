@@ -7,8 +7,8 @@
 Pattern matching is a way to apply a pattern to a value, and destructure it in a
 certain way if the pattern matches.
 
-To start things off, create a file called `match.inko` with the following
-contents:
+To start, change `hello.inko` from the [](hello-world) tutorial to the
+following:
 
 ```inko
 import std.stdio (Stdout)
@@ -26,7 +26,14 @@ type async Main {
 }
 ```
 
-Now run it using `inko run match.inko`, and the output should be as follows:
+Then build and run the program:
+
+```bash
+inko build
+./build/debug/hello
+```
+
+The output will be as follows:
 
 ```
 hello

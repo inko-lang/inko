@@ -18,6 +18,16 @@ pub struct Version {
 }
 
 impl Version {
+    pub fn inko() -> Self {
+        // These values should always be valid for parse(), so the panic
+        // shouldn't ever happen.
+        let major = env!("CARGO_PKG_VERSION_MAJOR").parse::<u16>().unwrap();
+        let minor = env!("CARGO_PKG_VERSION_MINOR").parse::<u16>().unwrap();
+        let patch = env!("CARGO_PKG_VERSION_PATCH").parse::<u16>().unwrap();
+
+        Version { major, minor, patch }
+    }
+
     pub fn parse(input: &str) -> Option<Self> {
         let chunks: Vec<u16> = input
             .split('.')
@@ -249,5 +259,12 @@ mod tests {
             Url::new("https://gitlab.com/foo/bar"),
             Version::new(2, 0, 0),
         )));
+    }
+
+    #[test]
+    fn test_version_inko() {
+        let ver = Version::inko();
+
+        assert!(env!("CARGO_PKG_VERSION").contains(&ver.to_string()));
     }
 }

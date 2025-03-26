@@ -5,8 +5,10 @@
 ---
 
 Let's make printing "Hello, world!" a little more exciting by performing work
-concurrently. We'll start with creating the file `hello.inko` with the following
-contents:
+concurrently.
+
+To start, change `hello.inko` from the [](hello-world) tutorial to the
+following:
 
 ```inko
 import std.process (sleep)
@@ -28,13 +30,21 @@ type async Main {
 }
 ```
 
+::: note
+If you previously followed the [](sockets) tutorial, you should remove the
+`src/client.inko` source file as we won't need it anymore.
+:::
+
 This program prints "Hello" and "world" concurrently to the terminal, then waits
 500 milliseconds for this to complete.
 
-To showcase this, run the program _several times_ as follows:
+To showcase this, run the program several times as follows:
 
 ```bash
-inko run hello.inko
+inko build
+./build/debug/hello
+./build/debug/hello
+./build/debug/hello
 ```
 
 The output may change slightly between runs: sometimes it will print "Hello" and
