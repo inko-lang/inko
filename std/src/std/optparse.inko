@@ -35,7 +35,7 @@
 #
 # type async Main {
 #   fn async main {
-#     let opts = Options.new
+#     let opts = Options.new('example')
 #
 #     opts.flag('h', 'help', 'Show this help message')
 #
@@ -64,7 +64,7 @@
 #
 # type async Main {
 #   fn async main {
-#     let opts = Options.new
+#     let opts = Options.new('example')
 #
 #     opts.flag('h', 'help', 'Show this help message')
 #     opts.stop_at_first_non_option = true
@@ -84,18 +84,20 @@
 #
 # # Help messages
 #
-# Help messages are generated using the `Help` type:
+# Help messages are generated using `Options.to_string`:
 #
 # ```inko
 # import std.env
 # import std.fmt (fmt)
-# import std.optparse (Help, Options)
+# import std.optparse (Options)
 # import std.stdio (Stderr, Stdout)
 # import std.sys
 #
 # type async Main {
 #   fn async main {
-#     let opts = Options.new
+#     let opts = Options.new('example')
+#
+#     opts.description = 'This is an example program to showcase the optparse library.'
 #
 #     opts.flag('h', 'help', 'Show this help message')
 #     opts.single('c', 'config', 'PATH', 'Use a custom configuration file')
@@ -108,24 +110,14 @@
 #     let matches = match opts.parse(env.arguments) {
 #       case Ok(v) -> v
 #       case Error(e) -> {
-#         Stderr.new.print('test: ${e}')
+#         let _ = Stderr.new.print('test: ${e}')
+#
 #         sys.exit(1)
 #       }
 #     }
 #
 #     if matches.contains?('help') {
-#       let help = Help
-#         .new('test')
-#         .description(
-#           'This is an example program to showcase the optparse library.',
-#         )
-#         .section('Examples')
-#         .line('test --help')
-#         .section('Options')
-#         .options(opts)
-#         .to_string
-#
-#       Stdout.new.write(help)
+#       Stdout.new.write(opts.to_string)
 #     } else {
 #       Stdout.new.print(fmt(matches.remaining))
 #     }
@@ -136,13 +128,9 @@
 # When running this program with the `--help` option, the output is as follows:
 #
 # ```
-# Usage: test [OPTIONS]
+# Usage: example [OPTIONS]
 #
 # This is an example program to showcase the optparse library.
-#
-# Examples:
-#
-#   test --help
 #
 # Options:
 #
@@ -160,7 +148,7 @@ import std.clone (Clone)
 import std.cmp (Equal)
 import std.fmt (Format, Formatter)
 import std.iter (Iter, Stream)
-import std.string (IntoString, StringBuffer, ToString)
+import std.string (StringBuffer, ToString)
 
 let INDENT = '  '
 let HYPHEN = 45
@@ -537,9 +525,42 @@ type Opt {
   let @hint: String
 }
 
-# A type that describes the options to parse.
+# A type for defining and parsing command-line options and arguments.
 type pub Options {
-  # All options that have been defined.
+  # The name of the program.
+  let pub @name: String
+
+  # The label to use at the start of the usage line.
+  #
+  # This value defaults to `Usage: `
+  let pub mut @usage_label: String
+
+  # The usage section of the help message.
+  #
+  # This value is displayed after the program name in the following form:
+  #
+  #     Usage: NAME: USAGE
+  #
+  # The default value is `'[OPTIONS]'`, resulting in the following:
+  #
+  #     Usage: NAME [OPTIONS]
+  let pub mut @usage: String
+
+  # The detailed description of the command.
+  #
+  # This value is displayed on a separate line _after_ the usage line, like so:
+  #
+  #     Usage: NAME USAGE
+  #
+  #     DESCRIPTION
+  let pub mut @description: String
+
+  # The text to use for the options title.
+  #
+  # This value defaults to `Options:`.
+  let pub mut @options_title: String
+
+  # The options to parse.
   let @options: Array[Opt]
 
   # If parsing of arguments and options should stop when encountering the first
@@ -553,9 +574,20 @@ type pub Options {
   # definitions.
   let @mapping: Map[String, ref Opt]
 
-  # Returns a new empty `Options`.
-  fn pub static new -> Options {
-    Options(mapping: Map.new, options: [], stop_at_first_non_option: false)
+  # Returns a new `Options` value.
+  #
+  # The `name` argument is the name of the program.
+  fn pub static new(name: String) -> Options {
+    Options(
+      name: name,
+      usage_label: 'Usage: ',
+      usage: '[OPTIONS]',
+      options_title: 'Options:',
+      description: '',
+      mapping: Map.new,
+      options: [],
+      stop_at_first_non_option: false,
+    )
   }
 
   # Adds a boolean option that can be specified once.
@@ -836,13 +868,21 @@ impl ToString for Options {
       if chars > max { chars } else { max }
     })
 
-    let buf = StringBuffer.new
+    let buf = StringBuffer.from_array([@usage_label, @name, ' ', @usage, '\n'])
+
+    if @description.size > 0 {
+      buf.push('\n')
+      buf.push(@description)
+      buf.push('\n')
+    }
+
+    buf.push('\n')
+    buf.push(@options_title)
+    buf.push('\n\n')
 
     for (idx, opt) in opts.into_iter.with_index {
       let desc = descs.get(idx).or_panic
       let has_desc = desc.size > 0
-
-      if idx > 0 { buf.push('\n') }
 
       buf.push(INDENT)
 
@@ -860,183 +900,10 @@ impl ToString for Options {
       } else {
         buf.push(opt)
       }
+
+      buf.push('\n')
     }
 
     buf.into_string
-  }
-}
-
-# A type for generating help messages easily.
-#
-# # Examples
-#
-# A simple but complete overview of how to use this type:
-#
-# ```inko
-# import optparse.(Help, Options)
-#
-# let opts = Options.new
-#
-# opts.flag('h', 'help', 'Show this help message')
-# opts.flag('v', 'version', 'Show the version')
-#
-# Help
-#   .new('a')
-#   .description('This is an example')
-#   .section('Examples')
-#   .line('foo')
-#   .line('bar')
-#   .section('Options')
-#   .options(opts)
-#   .to_string
-# ```
-#
-# This returns the following:
-#
-# ```inko
-# a: [OPTIONS]
-#
-# This is an example
-#
-# Examples:
-#
-#   foo
-#   bar
-#
-# Options:
-#
-#   -h, --help       Show this help message
-#   -v, --version    Show the version
-# ```
-type pub Help {
-  # The name of the program/executable.
-  let @name: String
-
-  # The description of the command.
-  let mut @description: String
-
-  # The usage section of the help message.
-  #
-  # This field defaults to the value `'[OPTIONS]'`.
-  let mut @usage: String
-
-  # The lines to display in the help message.
-  let @lines: StringBuffer
-
-  # Returns a new `Help` instance with the given program name.
-  #
-  # # Examples
-  #
-  # ```inko
-  # import optparse.Help
-  #
-  # Help.new('ls')
-  # ```
-  fn pub static new(name: String) -> Help {
-    Help(
-      name: name,
-      description: '',
-      usage: '[OPTIONS]',
-      lines: StringBuffer.new,
-    )
-  }
-
-  # Sets the usage `String` to the given argument.
-  #
-  # # Examples
-  #
-  # ```inko
-  # import optparse.Help
-  #
-  # Help.new('ls').usage('[OPTIONS]')
-  # ```
-  fn pub move usage(value: String) -> Help {
-    @usage = value
-    self
-  }
-
-  # Adds a section to the output.
-  #
-  # # Examples
-  #
-  # ```inko
-  # import optparse.Help
-  #
-  # Help.new('ls').section('Examples')
-  # ```
-  fn pub move section(name: String) -> Help {
-    @lines.push('\n')
-    @lines.push(name)
-    @lines.push(':\n\n')
-    self
-  }
-
-  # Adds a regular line to the output.
-  #
-  # Indentation is added automatically to the start of the line.
-  #
-  # # Examples
-  #
-  # ```inko
-  # import optparse.Help
-  #
-  # Help.new('ls').section('Examples').line('ls # Show files and folders')
-  # ```
-  fn pub move line(value: String) -> Help {
-    @lines.push(INDENT)
-    @lines.push(value)
-    @lines.push('\n')
-    self
-  }
-
-  # Sets the description of the command.
-  #
-  # Unlike `Help.line()`, the text isn't indented, and always comes after the
-  # usage line.
-  #
-  # # Examples
-  #
-  # ```inko
-  # import optparse.Help
-  #
-  # Help.new('ls').description('List files and folders')
-  # ```
-  fn pub move description(value: String) -> Help {
-    @description = value
-    self
-  }
-
-  # Formats and adds a list of options to the output.
-  #
-  # # Examples
-  #
-  # ```inko
-  # import optparse.(Help, Options)
-  #
-  # let opts = Options.new
-  #
-  # opts.flag('h', 'help', 'Show this help message')
-  #
-  # Help.new('ls').options(opts)
-  # ```
-  fn pub move options(value: ref Options) -> Help {
-    @lines.push(value.to_string)
-    @lines.push('\n')
-    self
-  }
-}
-
-impl IntoString for Help {
-  fn pub move into_string -> String {
-    let out = StringBuffer.from_array(['Usage: ', @name, ' ', @usage, '\n'])
-
-    if @description.size > 0 {
-      out.push('\n')
-      out.push(@description)
-      out.push('\n')
-    }
-
-    out.push(@lines.into_string)
-    out.into_string
   }
 }

@@ -1,5 +1,5 @@
 import std.fmt (fmt)
-import std.optparse (Error, Help, Lexer, Options, Token)
+import std.optparse (Error, Lexer, Options, Token)
 import std.test (Tests)
 
 fn lex(input: Array[String]) -> Array[Token] {
@@ -99,7 +99,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Options.flag', fn (t) {
-    let opts = Options.new
+    let opts = Options.new('test')
 
     opts.flag('h', 'help', 'Show this help message')
 
@@ -130,7 +130,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Options.single', fn (t) {
-    let opts = Options.new
+    let opts = Options.new('test')
 
     opts.single('c', 'config', 'PATH', 'A config file')
 
@@ -161,7 +161,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Options.multiple', fn (t) {
-    let opts = Options.new
+    let opts = Options.new('test')
 
     opts.multiple('c', 'config', 'PATH', 'A config file')
 
@@ -192,63 +192,63 @@ fn pub tests(t: mut Tests) {
   })
 
   t.panic('Options.add with missing option names', fn {
-    let opts = Options.new
+    let opts = Options.new('test')
 
     opts.flag(short: '', long: '', description: '')
   })
 
   t.panic('Options.add with an invalid ASCII short name', fn {
-    let opts = Options.new
+    let opts = Options.new('test')
 
     opts.flag('short', 'long', description: '')
   })
 
   t.panic('Options.add with an invalid Unicode short name', fn {
-    let opts = Options.new
+    let opts = Options.new('test')
 
     opts.flag('ábc', 'long', description: '')
   })
 
   t.panic('Options.add with an invalid ASCII long name', fn {
-    let opts = Options.new
+    let opts = Options.new('test')
 
     opts.flag('a', 'b', description: '')
   })
 
   t.panic('Options.add with an invalid Unicode long name', fn {
-    let opts = Options.new
+    let opts = Options.new('test')
 
     opts.flag('a', 'á', description: '')
   })
 
   t.panic('Options.add with a duplicate short name', fn {
-    let opts = Options.new
+    let opts = Options.new('test')
 
     opts.flag('h', 'foo', description: '')
     opts.flag('h', 'bar', description: '')
   })
 
   t.panic('Options.add with a duplicate long name', fn {
-    let opts = Options.new
+    let opts = Options.new('test')
 
     opts.flag('a', 'help', description: '')
     opts.flag('b', 'help', description: '')
   })
 
   t.test('Options.parse without any options and arguments', fn (t) {
-    let opts = Options.new
+    let opts = Options.new('test')
 
     t.equal(opts.parse([]).get.remaining, [])
   })
 
   t.test('Options.parse without any options defined and arguments', fn (t) {
-    let opts = Options.new
+    let opts = Options.new('test')
 
     t.equal(opts.parse(['foo']).get.remaining, ['foo'])
   })
 
   t.test('Options.parse with a short flag', fn (t) {
-    let opts = Options.new
+    let opts = Options.new('test')
 
     opts.flag('h', 'help', 'Show this help message')
 
@@ -259,7 +259,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Options.parse with a long flag', fn (t) {
-    let opts = Options.new
+    let opts = Options.new('test')
 
     opts.flag('h', 'help', 'Show this help message')
 
@@ -270,7 +270,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Options.parse with a short option with a single value', fn (t) {
-    let opts = Options.new
+    let opts = Options.new('test')
 
     opts.single('c', 'config', 'PATH', description: '')
 
@@ -283,7 +283,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Options.parse with a long option with a single value', fn (t) {
-    let opts = Options.new
+    let opts = Options.new('test')
 
     opts.single('c', 'config', 'PATH', description: '')
 
@@ -296,7 +296,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Options.parse with a short option with multiple values', fn (t) {
-    let opts = Options.new
+    let opts = Options.new('test')
 
     opts.multiple('c', 'config', 'PATH', description: '')
 
@@ -311,7 +311,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Options.parse with a long option with multiple values', fn (t) {
-    let opts = Options.new
+    let opts = Options.new('test')
 
     opts.multiple('c', 'config', 'PATH', description: '')
 
@@ -326,7 +326,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Options.parse with mixed options with multiple values', fn (t) {
-    let opts = Options.new
+    let opts = Options.new('test')
 
     opts.multiple('c', 'config', 'PATH', description: '')
 
@@ -339,7 +339,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Options.parse with a flag followed by an argument', fn (t) {
-    let opts = Options.new
+    let opts = Options.new('test')
 
     opts.flag('h', 'help', 'Show this help message')
 
@@ -351,7 +351,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Options.parse with a short flag using the -K=V syntax', fn (t) {
-    let opts = Options.new
+    let opts = Options.new('test')
 
     opts.flag('h', 'help', 'Show this help message')
 
@@ -362,7 +362,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Options.parse with a separator', fn (t) {
-    let opts = Options.new
+    let opts = Options.new('test')
 
     opts.flag('h', 'help', 'Show this help message')
 
@@ -373,7 +373,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Options.parse with a separator and a long option pair', fn (t) {
-    let opts = Options.new
+    let opts = Options.new('test')
 
     opts.flag('h', 'help', 'Show this help message')
 
@@ -384,7 +384,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Options.parse with a long option pair', fn (t) {
-    let opts = Options.new
+    let opts = Options.new('test')
 
     opts.single('c', 'config', 'PATH', description: '')
 
@@ -395,7 +395,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Options.parse with multiple long option pairs', fn (t) {
-    let opts = Options.new
+    let opts = Options.new('test')
 
     opts.multiple('c', 'config', 'PATH', description: '')
 
@@ -408,7 +408,7 @@ fn pub tests(t: mut Tests) {
   t.test(
     'Options.parse when stopping at the first non-option argument',
     fn (t) {
-      let opts = Options.new
+      let opts = Options.new('test')
 
       opts.stop_at_first_non_option = true
       opts.flag('e', 'example', 'Description')
@@ -423,7 +423,7 @@ fn pub tests(t: mut Tests) {
   )
 
   t.test('Options.parse with a long flag that is given a value', fn (t) {
-    let opts = Options.new
+    let opts = Options.new('test')
 
     opts.flag('h', 'help', 'Show this help message')
 
@@ -433,7 +433,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Options.parse with a duplicate short option', fn (t) {
-    let opts = Options.new
+    let opts = Options.new('test')
 
     opts.single('c', 'config', 'PATH', description: '')
 
@@ -443,7 +443,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Options.parse with a duplicate long option', fn (t) {
-    let opts = Options.new
+    let opts = Options.new('test')
 
     opts.single('c', 'config', 'PATH', description: '')
 
@@ -453,7 +453,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Options.parse with a duplicate mixed option', fn (t) {
-    let opts = Options.new
+    let opts = Options.new('test')
 
     opts.single('c', 'config', 'PATH', description: '')
 
@@ -463,7 +463,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Options.parse with a short option with a missing value', fn (t) {
-    let opts = Options.new
+    let opts = Options.new('test')
 
     opts.single('c', 'config', 'PATH', description: '')
 
@@ -473,7 +473,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Options.parse with a long option with a missing value', fn (t) {
-    let opts = Options.new
+    let opts = Options.new('test')
 
     opts.single('c', 'config', 'PATH', description: '')
 
@@ -483,28 +483,28 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Options.parse with an unrecognized short option', fn (t) {
-    let opts = Options.new
+    let opts = Options.new('test')
     let result = opts.parse(['-h'])
 
     t.equal(result.error, Option.Some(Error.InvalidOption('h')))
   })
 
   t.test('Options.parse with an unrecognized long option', fn (t) {
-    let opts = Options.new
+    let opts = Options.new('test')
     let result = opts.parse(['--help'])
 
     t.equal(result.error, Option.Some(Error.InvalidOption('help')))
   })
 
   t.test('Options.parse with an unrecognized long option pair', fn (t) {
-    let opts = Options.new
+    let opts = Options.new('test')
     let result = opts.parse(['--foo=bar'])
 
     t.equal(result.error, Option.Some(Error.InvalidOption('foo')))
   })
 
   t.test('Options.parse with a duplicate long option pair', fn (t) {
-    let opts = Options.new
+    let opts = Options.new('test')
 
     opts.single('c', 'config', 'PATH', description: '')
 
@@ -514,8 +514,10 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Options.to_string', fn (t) {
-    let opts = Options.new
+    let opts = Options.new('test')
 
+    opts.usage = '[OPTIONS] [FILE]'
+    opts.description = 'The description'
     opts.flag('h', 'help', 'Show this help message')
     opts.single('c', 'config', 'PATH', 'Use a custom configuration file')
     opts.multiple('i', 'include', 'DIR', 'Add the directory')
@@ -526,7 +528,12 @@ fn pub tests(t: mut Tests) {
 
     t.equal(
       opts.to_string,
-      '
+      'Usage: test [OPTIONS] [FILE]
+
+The description
+
+Options:
+
   -h, --help           Show this help message
   -c, --config=PATH    Use a custom configuration file
   -i, --include=DIR    Add the directory
@@ -534,16 +541,20 @@ fn pub tests(t: mut Tests) {
       --verbose        Use verbose output,
                        lorem ipsum
       --example
-  -x                   Foo'
-        .strip_prefix('\n')
-        .get,
+  -x                   Foo
+',
     )
 
     opts.single('o', 'option-with-a-much-longer-name', '', 'Example')
 
     t.equal(
       opts.to_string,
-      '
+      'Usage: test [OPTIONS] [FILE]
+
+The description
+
+Options:
+
   -h, --help                              Show this help message
   -c, --config=PATH                       Use a custom configuration file
   -i, --include=DIR                       Add the directory
@@ -552,83 +563,7 @@ fn pub tests(t: mut Tests) {
                                           lorem ipsum
       --example
   -x                                      Foo
-  -o, --option-with-a-much-longer-name    Example'
-        .strip_prefix('\n')
-        .get,
-    )
-  })
-
-  t.test('Help.new', fn (t) {
-    t.equal(Help.new('a').into_string, 'Usage: a [OPTIONS]\n')
-  })
-
-  t.test('Help.usage', fn (t) {
-    t.equal(Help.new('a').usage('[CMD]').into_string, 'Usage: a [CMD]\n')
-  })
-
-  t.test('Help.section', fn (t) {
-    t.equal(
-      Help.new('a').section('Examples').into_string,
-      'Usage: a [OPTIONS]\n\nExamples:\n\n',
-    )
-  })
-
-  t.test('Help.line', fn (t) {
-    t.equal(
-      Help.new('a').line('foo').into_string,
-      'Usage: a [OPTIONS]\n  foo\n',
-    )
-  })
-
-  t.test('Help.description', fn (t) {
-    t.equal(
-      Help.new('a').description('foo').into_string,
-      'Usage: a [OPTIONS]\n\nfoo\n',
-    )
-  })
-
-  t.test('Help.options', fn (t) {
-    let opts = Options.new
-
-    opts.flag('h', 'help', 'Show this help message')
-
-    t.equal(
-      Help.new('a').options(opts).into_string,
-      'Usage: a [OPTIONS]\n  -h, --help    Show this help message\n',
-    )
-  })
-
-  t.test('Help.to_string', fn (t) {
-    let opts = Options.new
-
-    opts.flag('h', 'help', 'Show this help message')
-    opts.flag('v', 'version', 'Show the version')
-
-    let help = Help
-      .new('a')
-      .description('This is an example')
-      .section('Examples')
-      .line('foo')
-      .line('bar')
-      .section('Options')
-      .options(opts)
-      .into_string
-
-    t.equal(
-      help,
-      'Usage: a [OPTIONS]
-
-This is an example
-
-Examples:
-
-  foo
-  bar
-
-Options:
-
-  -h, --help       Show this help message
-  -v, --version    Show the version
+  -o, --option-with-a-much-longer-name    Example
 ',
     )
   })
