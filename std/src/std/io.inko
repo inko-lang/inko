@@ -751,11 +751,53 @@ trait pub BufferedRead: Read {
 # may involve many system calls. `BufferedReader` wraps a `Read` and buffers
 # data into an internal buffer, reducing the total amount of system calls, at
 # the cost of needing to maintain an in-memory buffer.
+#
+# # `BufferedReader` and sockets
+#
+# By default a `BufferedReader` reads exactly N bytes from the underlying `Read`
+# type, where `N` is the capacity provided to `BufferedReader.with_capacity`.
+# For sockets (e.g. a `TcpClient`) this may result in a call to
+# `BufferedReader.read` blocking the calling process indefinitely if not enough
+# input is available (e.g. the buffer size is 32 KiB but only 1 KiB of data is
+# available through the socket).
+#
+# To prevent this from happening, you can set `BufferedReader.exact` to `false`
+# (the default is `true`):
+#
+# ```inko
+# import std.io (BufferedReader)
+# import std.net.socket (TcpClient)
+#
+# fn example(socket: TcpClient) {
+#   let buf = ByteArray.new
+#   let reader = BufferedReader.new(socket)
+#
+#   reader.exact = false
+#   reader.read(into: buf, size: 32).or_panic
+# }
+# ```
+#
+# When set to `false`, only a single `read` is performed when filling up the
+# buffer, such that the calling process is never blocked for a potentially long
+# amount of time. This makes it possible to use `BufferedReader` with a socket
+# and get the expected results (i.e. no indefinite blocking `read` calls), at
+# the cost of (potentially) more `read` calls compared to when `exact` is set to
+# `true`.
 type pub BufferedReader[T: mut + Read] {
   # The `Read` type to read data from.
   let pub @inner: T
+
+  # If the amount of bytes to read into the buffer should be exactly the buffer
+  # size, or if it can be less.
+  let pub mut @exact: Bool
+
+  # The buffer of data read from the internal `Read` type.
   let @buffer: ByteArray
+
+  # The maximum amount of bytes to read from the internal `Read` type.
   let mut @capacity: Int
+
+  # The current offset into the buffer of read bytes.
   let mut @offset: Int
 
   # Returns a new buffered reader that wraps the given `Read` type, using the
@@ -774,6 +816,7 @@ type pub BufferedReader[T: mut + Read] {
 
     BufferedReader(
       inner: reader,
+      exact: true,
       buffer: ByteArray.new,
       capacity: size,
       offset: 0,
@@ -783,21 +826,18 @@ type pub BufferedReader[T: mut + Read] {
 
 impl BufferedRead for BufferedReader {
   fn mut fill_buffer -> Result[Int, Error] {
-    if @buffer.size > 0 and @offset < @capacity {
-      return Result.Ok(@buffer.size - @offset)
-    }
+    if @offset < @buffer.size { return Result.Ok(@buffer.size - @offset) }
 
     @buffer.clear
     @offset = 0
 
-    let mut pending = @capacity
-
-    while pending > 0 {
-      match @inner.read(into: @buffer, size: pending) {
-        case Ok(0) -> break
-        case Ok(n) -> pending -= n
+    if @exact {
+      match @inner.read_exact(into: @buffer, size: @capacity) {
+        case Ok(_) or Error(EndOfInput) -> {}
         case Error(e) -> throw e
       }
+    } else {
+      try @inner.read(into: @buffer, size: @capacity)
     }
 
     Result.Ok(@buffer.size)
@@ -835,9 +875,7 @@ impl Read for BufferedReader {
     # as we can just read all data at once (of course taking account the bytes
     # still in the buffer).
     if size > @capacity {
-      if @offset < @capacity and @buffer.size > 0 {
-        total += read_buffer(into, size)
-      }
+      if @offset < @buffer.size { total += read_buffer(into, size) }
 
       return match size - total {
         case 0 -> Result.Ok(total)
