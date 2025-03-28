@@ -447,20 +447,6 @@ impl Thread {
             let steal_from = &self.pool.threads[index];
 
             if let Some(initial) = steal_from.queue.pop() {
-                let len = steal_from.queue.len();
-                let steal = min(len / 2, STEAL_LIMIT);
-
-                for _ in 0..steal {
-                    if let Some(process) = steal_from.queue.pop() {
-                        if let Err(process) = self.work.push(process) {
-                            self.pool.schedule(process);
-                            break;
-                        }
-                    } else {
-                        break;
-                    }
-                }
-
                 return Some(initial);
             }
         }
