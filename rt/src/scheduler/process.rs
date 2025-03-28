@@ -8,7 +8,6 @@ use crate::state::{RcState, State};
 use crossbeam_queue::ArrayQueue;
 use crossbeam_utils::atomic::AtomicCell;
 use std::cell::Cell;
-use std::cmp::min;
 use std::collections::VecDeque;
 use std::mem::{size_of, swap};
 use std::ops::Drop;
@@ -41,16 +40,15 @@ const GLOBAL_QUEUE_START_CAPACITY: usize = 8192 / size_of::<ProcessPointer>();
 /// overflowing in most common cases.
 const LOCAL_QUEUE_CAPACITY: usize = 2048 / size_of::<ProcessPointer>();
 
-/// The maximum number of jobs to steal at a time.
-///
-/// This puts an upper bound on the time spent stealing from a single queue.
-const STEAL_LIMIT: usize = 32;
-
 /// The blocking epoch to start at.
 const START_EPOCH: u64 = 1;
 
 /// The epoch value that indicates a thread isn't blocking.
 const NOT_BLOCKING: u64 = 0;
+
+/// The amount of time a thread may yield while stealing before we have to give
+/// up stealing entirely.
+const YIELD_BOUND: usize = 100;
 
 /// The interval (in microseconds) at which the monitor thread runs.
 ///
@@ -132,6 +130,11 @@ impl Action {
         swap(self, &mut old_val);
         old_val
     }
+}
+
+enum Iteration {
+    Continue,
+    Restart,
 }
 
 /// The shared half of a thread.
@@ -241,13 +244,10 @@ impl Thread {
             return;
         }
 
-        if let Err(process) = self.work.push(process) {
-            self.pool.schedule(process);
-            return;
-        }
-
-        if self.work.len() > 1 && self.pool.sleeping() > 0 {
-            self.pool.notify_one();
+        match self.work.push(process) {
+            Ok(_) if self.pool.sleeping() > 0 => self.pool.notify_one(),
+            Ok(_) => {}
+            Err(process) => self.pool.schedule(process),
         }
     }
 
@@ -379,29 +379,33 @@ impl Thread {
                 }
             }
 
-            if let Some(process) = self.next_local_process() {
-                self.run_process(state, process);
+            if let Iteration::Restart = self.perform_work(state) {
                 continue;
             }
 
-            if let Some(process) = self.steal_from_thread() {
-                self.run_process(state, process);
+            if let Some(proc) = self.wait_for_work() {
+                self.run_process(state, proc);
                 continue;
             }
 
-            // Now that we ran out of local work, we can try to shrink the stack
-            // if really necessary. We do this _before_ stealing global work to
-            // prevent the stack pool from ballooning in size. If we did this
-            // before going to sleep then in an active system we may never end
-            // up shrinking the stack pool.
-            self.stacks.shrink();
-
-            if let Some(process) = self.steal_from_global() {
-                self.run_process(state, process);
-                continue;
-            }
-
-            self.sleep();
+            //if let Some(process) = self.steal_from_thread() {
+            //    self.run_process(state, process);
+            //    continue;
+            //}
+            //
+            //// Now that we ran out of local work, we can try to shrink the stack
+            //// if really necessary. We do this _before_ stealing global work to
+            //// prevent the stack pool from ballooning in size. If we did this
+            //// before going to sleep then in an active system we may never end
+            //// up shrinking the stack pool.
+            //self.stacks.shrink();
+            //
+            //if let Some(process) = self.steal_from_global() {
+            //    self.run_process(state, process);
+            //    continue;
+            //}
+            //
+            //self.sleep();
         }
     }
 
@@ -424,6 +428,66 @@ impl Thread {
         self.work.pop()
     }
 
+    fn perform_work(&mut self, state: &State) -> Iteration {
+        let mut res = Iteration::Continue;
+
+        // If we are the first thread to perform work, wake up one other
+        // thread such that it may steal work from us.
+        if self.pool.active.fetch_add(1, Ordering::AcqRel) == 0
+            && self.pool.stealing.load(Ordering::Acquire) == 0
+        {
+            self.pool.notify_one();
+        }
+
+        while let Some(process) = self.next_local_process() {
+            self.run_process(state, process);
+
+            if self.backup {
+                res = Iteration::Restart;
+                break;
+            }
+        }
+
+        self.pool.active.fetch_sub(1, Ordering::AcqRel);
+        res
+    }
+
+    fn wait_for_work(&mut self) -> Option<ProcessPointer> {
+        self.pool.stealing.fetch_add(1, Ordering::AcqRel);
+
+        loop {
+            if let Some(proc) = self.steal_from_thread() {
+                // TODO: make reusable
+                if self.pool.stealing.fetch_sub(1, Ordering::AcqRel) == 1 {
+                    self.pool.notify_one();
+                }
+
+                return Some(proc);
+            }
+
+            // TODO: implement the rest
+            let global = self.pool.global.lock().unwrap();
+
+            if !self.pool.is_alive() {
+                return None;
+            }
+
+            if let Some(proc) = global.pop() {
+                // TODO: make reusable
+                if self.pool.stealing.fetch_sub(1, Ordering::AcqRel) == 1 {
+                    self.pool.notify_one();
+                }
+
+                return Some(proc);
+            }
+
+            todo!("implement the rest");
+        }
+
+        None
+    }
+
+    // TODO: update according to paper
     fn steal_from_thread(&mut self) -> Option<ProcessPointer> {
         // We start stealing at the thread that comes after ours, wrapping
         // around as needed.
@@ -446,8 +510,8 @@ impl Thread {
 
             let steal_from = &self.pool.threads[index];
 
-            if let Some(initial) = steal_from.queue.pop() {
-                return Some(initial);
+            if let Some(proc) = steal_from.queue.pop() {
+                return Some(proc);
             }
         }
 
@@ -455,32 +519,7 @@ impl Thread {
     }
 
     fn steal_from_global(&mut self) -> Option<ProcessPointer> {
-        let mut global = self.pool.global.lock().unwrap();
-
-        if let Some(initial) = global.pop() {
-            let len = global.len();
-            let steal = min(len / 2, STEAL_LIMIT);
-
-            if steal > 0 {
-                // We're splitting at an index, so we must subtract one from the
-                // amount.
-                let mut to_steal = global.split_off(steal - 1);
-
-                drop(global);
-
-                while let Some(process) = to_steal.pop() {
-                    if let Err(process) = self.work.push(process) {
-                        to_steal.push(process);
-                        self.pool.schedule_multiple(to_steal);
-                        break;
-                    }
-                }
-            }
-
-            Some(initial)
-        } else {
-            None
-        }
+        self.pool.global.lock().unwrap().pop()
     }
 
     fn sleep(&self) {
@@ -818,6 +857,12 @@ struct Pool {
     /// if we should shut down.
     alive: AtomicBool,
 
+    /// The number of active threads.
+    active: AtomicU16,
+
+    /// The number of threads that are trying to steal work.
+    stealing: AtomicU16,
+
     /// The number of sleeping threads.
     ///
     /// This counter isn't necessarily 100% in sync with the actual amount of
@@ -958,6 +1003,8 @@ impl Scheduler {
             main_thread_cvar: Condvar::new(),
             sleeping_cvar: Condvar::new(),
             alive: AtomicBool::new(true),
+            active: AtomicU16::new(0),
+            stealing: AtomicU16::new(0),
             sleeping: AtomicU16::new(0),
             epoch: AtomicU64::new(START_EPOCH),
             blocked_threads: Mutex::new(VecDeque::with_capacity(size + backup)),
