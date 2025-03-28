@@ -14,7 +14,6 @@ use crate::config::Config;
 use crate::mem::TypePointer;
 use crate::network_poller::Worker as NetworkPollerWorker;
 use crate::process::{NativeAsyncMethod, Process};
-use crate::scheduler::reset_affinity;
 use crate::scheduler::signal as signal_sched;
 use crate::stack::total_stack_size;
 use crate::stack::Stack;
@@ -52,16 +51,6 @@ pub unsafe extern "system" fn inko_runtime_new(
     // localtime_r()). These functions in turn may not call tzset(). Instead of
     // requiring an explicit call to tzset() every time, we call it here once.
     unsafe { tzset() };
-
-    // The scheduler pins threads to specific cores. If those threads spawn a
-    // new Inko process, those processes inherit the affinity and thus are
-    // pinned to the same thread. This also result in Rust's
-    // `available_parallelism()` function reporting 1, instead of e.g. 8 on a
-    // system with 8 cores/threads.
-    //
-    // To fix this, we first reset the affinity so the default/current mask
-    // allows use of all available cores/threads.
-    reset_affinity();
 
     // We ignore all signals by default so they're routed to the signal handler
     // thread. This also takes care of ignoring SIGPIPE, which Rust normally

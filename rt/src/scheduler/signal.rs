@@ -114,7 +114,7 @@ impl Worker {
         Worker { state }
     }
 
-    pub(crate) fn run(&self) {
+    pub(crate) fn run(&mut self) {
         {
             let mut blocked = SignalSet::new();
 

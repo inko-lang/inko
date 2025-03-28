@@ -14,7 +14,7 @@ crate-type = ["staticlib", "lib"]
 
 [dependencies]
 crossbeam-utils = "^0.8"
-crossbeam-queue = "^0.3"
+atomic-wait = "^1.1"
 
 # We use rustix where possible, but as it doesn't offer support for everything
 # (e.g. signal management) we still need to use libc in those cases.

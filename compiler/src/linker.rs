@@ -263,6 +263,9 @@ pub(crate) fn link(
                 cmd.arg(name);
             }
 
+            // This is needed by the atomic-wait crate.
+            cmd.arg("-lstdc++");
+
             // We need to ensure that we target the same minimum version as Rust
             // uses when building the runtime library.
             cmd.arg(format!("-mmacosx-version-min={}", MAC_SDK_VERSION));

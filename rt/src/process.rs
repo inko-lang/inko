@@ -320,8 +320,8 @@ pub struct StackData {
 
     /// A pointer to the thread that is running this process.
     ///
-    /// The value of this field is only relevant/correct when the process is in
-    /// fact running.
+    /// When a process is suspended, this will be a pointer to the thread that
+    /// last ran the process.
     pub thread: *mut Thread,
 
     /// The scheduler epoch at which this process started running.
