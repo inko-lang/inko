@@ -10,7 +10,6 @@ pub(crate) mod specialize;
 
 use crate::state::State;
 use crate::symbol_names::{qualified_type_name, SymbolNames};
-use crossbeam_queue::ArrayQueue;
 use indexmap::IndexMap;
 use location::Location;
 use std::collections::{HashMap, HashSet};
@@ -18,6 +17,7 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::mem::swap;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
+use std::sync::Mutex;
 use std::thread;
 use types::module_name::ModuleName;
 use types::{
@@ -2464,20 +2464,15 @@ impl Mir {
     /// The optimizations are applied in parallel as they don't rely on any
     /// shared (mutable) state.
     pub(crate) fn apply_method_local_optimizations(&mut self, threads: usize) {
-        let queue = ArrayQueue::new(self.methods.len());
-
-        for method in self.methods.values_mut() {
-            let _ = queue.push(method);
-        }
-
+        let queue = Mutex::new(self.methods.values_mut().collect::<Vec<_>>());
         let consts = &self.constants;
 
         thread::scope(|s| {
             for _ in 0..threads {
-                s.spawn(|| {
-                    while let Some(m) = queue.pop() {
-                        m.apply_local_optimizations(consts);
-                    }
+                s.spawn(|| loop {
+                    let Some(m) = queue.lock().unwrap().pop() else { break };
+
+                    m.apply_local_optimizations(consts);
                 });
             }
         });
