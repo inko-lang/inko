@@ -1,5 +1,5 @@
 //! Compiler state accessible to compiler passes.
-use crate::config::{Config, SOURCE, TESTS};
+use crate::config::{Config, Opt, SOURCE, TESTS};
 use crate::diagnostics::Diagnostics;
 use crate::incremental::DependencyGraph;
 use crate::pkg::manifest::{Manifest, MANIFEST_FILE};
@@ -14,12 +14,13 @@ pub(crate) struct BuildTags {
 }
 
 impl BuildTags {
-    fn new(target: &Target) -> BuildTags {
+    fn new(target: &Target, opt: Opt) -> BuildTags {
         let mut values = HashSet::new();
 
         values.insert(target.arch_name().to_string());
         values.insert(target.os_name().to_string());
         values.insert(target.abi_name().to_string());
+        values.insert(opt.name().to_string());
 
         match target.os {
             OperatingSystem::Freebsd => {
@@ -178,7 +179,7 @@ impl State {
     pub(crate) fn new(config: Config) -> Self {
         let diagnostics = Diagnostics::new();
         let db = Database::new();
-        let build_tags = BuildTags::new(&config.target);
+        let build_tags = BuildTags::new(&config.target, config.opt);
 
         Self {
             config,
@@ -244,23 +245,32 @@ mod tests {
 
     #[test]
     fn test_build_tags() {
-        let linux = BuildTags::new(&Target {
-            arch: Architecture::Amd64,
-            os: OperatingSystem::Linux,
-            abi: Abi::Native,
-        });
+        let linux = BuildTags::new(
+            &Target {
+                arch: Architecture::Amd64,
+                os: OperatingSystem::Linux,
+                abi: Abi::Native,
+            },
+            Opt::Debug,
+        );
 
-        let bsd = BuildTags::new(&Target {
-            arch: Architecture::Amd64,
-            os: OperatingSystem::Freebsd,
-            abi: Abi::Native,
-        });
+        let bsd = BuildTags::new(
+            &Target {
+                arch: Architecture::Amd64,
+                os: OperatingSystem::Freebsd,
+                abi: Abi::Native,
+            },
+            Opt::Debug,
+        );
 
-        let mac = BuildTags::new(&Target {
-            arch: Architecture::Amd64,
-            os: OperatingSystem::Mac,
-            abi: Abi::Native,
-        });
+        let mac = BuildTags::new(
+            &Target {
+                arch: Architecture::Amd64,
+                os: OperatingSystem::Mac,
+                abi: Abi::Native,
+            },
+            Opt::Release,
+        );
 
         assert!(linux.is_defined("amd64"));
         assert!(linux.is_defined("linux"));
@@ -284,5 +294,12 @@ mod tests {
         assert!(mac.is_defined("unix"));
         assert!(!mac.is_defined("bsd"));
         assert!(!mac.is_defined("linux"));
+
+        assert!(linux.is_defined("debug"));
+        assert!(!linux.is_defined("release"));
+        assert!(bsd.is_defined("debug"));
+        assert!(!bsd.is_defined("release"));
+        assert!(!mac.is_defined("debug"));
+        assert!(mac.is_defined("release"));
     }
 }

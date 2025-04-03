@@ -89,7 +89,7 @@ impl BuildDirectories {
             config.build.join(config.target.to_string())
         };
 
-        let build = root.join(config.opt.directory_name());
+        let build = root.join(config.opt.name());
         let objects = build.join("objects");
         let llvm_ir = build.join("llvm");
         let dot = build.join("dot");
@@ -139,7 +139,7 @@ pub enum Opt {
 }
 
 impl Opt {
-    pub(crate) fn directory_name(self) -> &'static str {
+    pub(crate) fn name(self) -> &'static str {
         match self {
             Opt::Debug => "debug",
             Opt::Release => "release",

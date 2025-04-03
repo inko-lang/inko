@@ -15,3 +15,11 @@ pub unsafe extern "system" fn inko_int_checked_pow(
         CheckedIntResult { value: 0, tag: 1 }
     }
 }
+
+#[no_mangle]
+pub unsafe extern "system" fn inko_int_wrapping_pow(
+    left: i64,
+    right: i64,
+) -> i64 {
+    left.wrapping_pow(right as u32)
+}

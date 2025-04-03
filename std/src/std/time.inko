@@ -299,19 +299,29 @@ impl Clone for Duration {
 
 impl Add[Duration, Duration] for Duration {
   fn pub inline +(other: Duration) -> Duration {
-    Duration(@nanos + other.nanos)
+    Duration(
+      @nanos.checked_add(other.nanos).or_panic_with(
+        'Duration + Duration overflowed',
+      ),
+    )
   }
 }
 
 impl Subtract[Duration, Duration] for Duration {
   fn pub inline -(other: Duration) -> Duration {
-    Duration(@nanos - other.nanos)
+    Duration(
+      @nanos.checked_sub(other.nanos).or_panic_with(
+        'Duration - Duration overflowed',
+      ),
+    )
   }
 }
 
 impl Multiply[Int, Duration] for Duration {
   fn pub inline *(other: Int) -> Duration {
-    Duration(@nanos * other)
+    Duration(
+      @nanos.checked_mul(other).or_panic_with('Duration * Int overflowed'),
+    )
   }
 }
 

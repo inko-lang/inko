@@ -1,4 +1,4 @@
-import helpers (hash)
+import helpers (debug?, hash)
 import std.cmp (Ordering)
 import std.fmt (fmt)
 import std.int (Format, MAX, MIN)
@@ -224,14 +224,10 @@ fn pub tests(t: mut Tests) {
     t.equal(-1 + 1, 0)
   })
 
-  t.panic('Int.+ with an overflow', fn { MAX + 1 })
-
   t.test('Int.-', fn (t) {
     t.equal(1 - 1, 0)
     t.equal(0 - 1, -1)
   })
-
-  t.panic('Int.- with an overflow', fn { MIN - 1 })
 
   t.test('Int./', fn (t) {
     t.equal(10 / 2, 5)
@@ -249,8 +245,6 @@ fn pub tests(t: mut Tests) {
     t.equal(-5 * 2, -10)
   })
 
-  t.panic('Int.* with an overflow', fn { MAX * 2 })
-
   t.test('Int.%', fn (t) {
     t.equal(1 % 2, 1)
     t.equal(2 % 2, 0)
@@ -258,13 +252,33 @@ fn pub tests(t: mut Tests) {
     t.equal(-2 % 2, 0)
   })
 
-  t.panic('Int.% with an overflow', fn {
-    9_223_372_036_854_775_806 % 9_223_372_036_854_775_807
-  })
-
   t.panic('Int.% when dividing by zero', fn { 10 % 0 })
 
   t.panic('Int.% when dividing MIN by -1', fn { MIN % -1 })
+
+  if debug? {
+    t.panic('Int.- with an overflow', fn { MIN - 1 })
+    t.panic('Int.+ with an overflow', fn { MAX + 1 })
+    t.panic('Int.* with an overflow', fn { MAX * 2 })
+    t.panic('Int.% with an overflow', fn {
+      9_223_372_036_854_775_806 % 9_223_372_036_854_775_807
+    })
+    t.panic('Int.<< with an overflow', fn { 1 << 64 })
+    t.panic('Int.>> with an overflow', fn { 1 >> 64 })
+    t.panic('Int.>>> with an overflow', fn { 1 >>> 64 })
+    t.panic('Int.** with an overflow', fn { MAX ** 2 })
+  } else {
+    t.test('Int.- with an overflow', fn (t) { t.equal(MIN - 1, MAX) })
+    t.test('Int.+ with an overflow', fn (t) { t.equal(MAX + 1, MIN) })
+    t.test('Int.* with an overflow', fn (t) { t.equal(MAX * 2, -2) })
+    t.test('Int.% with an overflow', fn (t) {
+      t.equal(9_223_372_036_854_775_806 % 9_223_372_036_854_775_807, -3)
+    })
+    t.test('Int.<< with an overflow', fn (t) { t.equal(1 << 64, 1) })
+    t.test('Int.>> with an overflow', fn (t) { t.equal(1 >> 64, 1) })
+    t.test('Int.>>> with an overflow', fn (t) { t.equal(1 >>> 64, 1) })
+    t.test('Int.** with an overflow', fn (t) { t.equal(MAX ** 2, 1) })
+  }
 
   t.test('Int.&', fn (t) {
     t.equal(1 & 2, 0)
@@ -288,15 +302,11 @@ fn pub tests(t: mut Tests) {
     t.equal(-1 << 8, -256)
   })
 
-  t.panic('Int.<< with an overflow', fn { 1 << 64 })
-
   t.test('Int.>>', fn (t) {
     t.equal(1 >> 16, 0)
     t.equal(65_536 >> 16, 1)
     t.equal(-123 >> 3, -16)
   })
-
-  t.panic('Int.>> with an overflow', fn { 1 >> 64 })
 
   t.test('Int.>>>', fn (t) {
     t.equal(1 >>> 16, 0)
@@ -304,14 +314,10 @@ fn pub tests(t: mut Tests) {
     t.equal(-123 >>> 3, 2305843009213693936)
   })
 
-  t.panic('Int.>>> with an overflow', fn { 1 >>> 64 })
-
   t.test('Int.**', fn (t) {
     t.equal(2 ** 2, 4)
     t.equal(2 ** 8, 256)
   })
-
-  t.panic('Int.** with an overflow', fn { MAX ** 2 })
 
   t.test('Int.hash', fn (t) { t.equal(hash(42), hash(42)) })
 

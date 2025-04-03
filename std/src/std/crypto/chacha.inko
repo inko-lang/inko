@@ -387,7 +387,12 @@ type pub inline ChaCha {
       # The chance of this overflowing is practically zero, but we use checked
       # arithmetic just in case so the counter doesn't silently overflow and
       # potentially mess things up.
-      @matrix.set(12, @matrix.get(12) + 1)
+      @matrix.set(
+        12,
+        @matrix.get(12).checked_add(1).or_panic_with(
+          'the block counter overflowed',
+        ),
+      )
 
       if len <= BLOCK_SIZE {
         let mut i = 0

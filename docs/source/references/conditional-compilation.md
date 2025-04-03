@@ -80,6 +80,12 @@ The following tags are available:
 |-
 | `native`
 | The target uses the native ABI
+|-
+| `debug`
+| The code is compiled in debug mode.
+|-
+| `release`
+| The code is compiled in release mode.
 
 The bag `bsd` is essentially `(freebsd OR ...)`, while `unix` is essentially
 `(freebsd or linux or mac or ...)`.

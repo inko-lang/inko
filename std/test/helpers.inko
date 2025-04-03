@@ -3,6 +3,10 @@ import std.fs.path (Path)
 import std.hash (Hash)
 import std.hash.siphash (SipHasher13)
 
+fn pub inline debug? -> Bool {
+  env.MODE == 'debug'
+}
+
 fn pub hash[T: Hash](value: ref T) -> Int {
   let hasher = SipHasher13.default
 

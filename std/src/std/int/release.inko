@@ -1,0 +1,61 @@
+import std.int (MIN, overflow_error)
+import std.ops (
+  Add, Modulo, Multiply, Power, ShiftLeft, ShiftRight, Subtract,
+  UnsignedShiftRight,
+)
+
+let BITS = 63
+
+fn extern inko_int_wrapping_pow(left: Int, right: Int) -> Int
+
+impl Add[Int, Int] for Int {
+  fn pub inline +(other: Int) -> Int {
+    _INKO.int_wrapping_add(self, other)
+  }
+}
+
+impl Subtract[Int, Int] for Int {
+  fn pub inline -(other: Int) -> Int {
+    _INKO.int_wrapping_sub(self, other)
+  }
+}
+
+impl Multiply[Int, Int] for Int {
+  fn pub inline *(other: Int) -> Int {
+    _INKO.int_wrapping_mul(self, other)
+  }
+}
+
+impl Modulo[Int, Int] for Int {
+  fn pub inline %(other: Int) -> Int {
+    if other == 0 or (self == MIN and other == -1) { overflow_error }
+
+    let sum = _INKO.int_wrapping_add(_INKO.int_rem(self, other), other)
+
+    _INKO.int_rem(sum, other)
+  }
+}
+
+impl ShiftLeft[Int, Int] for Int {
+  fn pub inline <<(other: Int) -> Int {
+    _INKO.int_shl(self, _INKO.int_bit_and(other, BITS))
+  }
+}
+
+impl ShiftRight[Int, Int] for Int {
+  fn pub inline >>(other: Int) -> Int {
+    _INKO.int_shr(self, _INKO.int_bit_and(other, BITS))
+  }
+}
+
+impl UnsignedShiftRight[Int, Int] for Int {
+  fn pub inline >>>(other: Int) -> Int {
+    _INKO.int_unsigned_shr(self, _INKO.int_bit_and(other, BITS))
+  }
+}
+
+impl Power[Int, Int] for Int {
+  fn pub inline **(other: Int) -> Int {
+    inko_int_wrapping_pow(self, other)
+  }
+}

@@ -41,6 +41,7 @@ pub(crate) fn define_default_compile_time_variables(state: &mut State) {
         ("std.env", "ARCH", state.config.target.arch_name()),
         ("std.env", "OS", state.config.target.os_name()),
         ("std.env", "ABI", state.config.target.abi_name()),
+        ("std.env", "MODE", state.config.opt.name()),
     ];
 
     for (module, name, val) in vars {
