@@ -52,7 +52,7 @@ type pub inline enum Result[T, E] {
   #
   # res.ok? # => true
   # ```
-  fn pub ok? -> Bool {
+  fn pub inline ok? -> Bool {
     match self {
       case Ok(_) -> true
       case _ -> false
@@ -68,7 +68,7 @@ type pub inline enum Result[T, E] {
   #
   # res.error? # => true
   # ```
-  fn pub error? -> Bool {
+  fn pub inline error? -> Bool {
     match self {
       case Error(_) -> true
       case _ -> false
@@ -87,7 +87,7 @@ type pub inline enum Result[T, E] {
   #
   # res.ok # => Option.Some(42)
   # ```
-  fn pub move ok -> Option[T] {
+  fn pub inline move ok -> Option[T] {
     match self {
       case Ok(v) -> Option.Some(v)
       case _ -> Option.None
@@ -106,7 +106,7 @@ type pub inline enum Result[T, E] {
   #
   # res.error # => Option.Some(42)
   # ```
-  fn pub move error -> Option[E] {
+  fn pub inline move error -> Option[E] {
     match self {
       case Error(v) -> Option.Some(v)
       case _ -> Option.None
@@ -127,7 +127,7 @@ type pub inline enum Result[T, E] {
   #
   # res.get # => 42
   # ```
-  fn pub move get -> T {
+  fn pub inline move get -> T {
     or_panic_with('Result.get expects an Ok(_), but an Error(_) is found')
   }
 
@@ -141,7 +141,7 @@ type pub inline enum Result[T, E] {
   #
   # res.or_panic_with('a number must be present') # => 10
   # ```
-  fn pub move or_panic_with(message: String) -> T {
+  fn pub inline move or_panic_with(message: String) -> T {
     match self {
       case Ok(v) -> v
       case _ -> panic(message)
@@ -160,7 +160,7 @@ type pub inline enum Result[T, E] {
   # foo.or(0) # => 42
   # bar.or(0) # => 0
   # ```
-  fn pub move or(default: T) -> T {
+  fn pub inline move or(default: T) -> T {
     match self {
       case Ok(val) -> val
       case _ -> default
@@ -181,7 +181,7 @@ type pub inline enum Result[T, E] {
   # foo.or_else fn (_) { 0 } # => 42
   # bar.or_else fn (_) { 0 } # => 0
   # ```
-  fn pub move or_else(block: fn (E) -> T) -> T {
+  fn pub inline move or_else(block: fn (E) -> T) -> T {
     match self {
       case Ok(v) -> v
       case Error(v) -> block.call(v)
@@ -200,7 +200,7 @@ type pub inline enum Result[T, E] {
   #
   # res.map fn (val) { val.to_string } # => Result.Ok('42')
   # ```
-  fn pub move map[R](block: fn (T) -> R) -> Result[R, E] {
+  fn pub inline move map[R](block: fn (T) -> R) -> Result[R, E] {
     match self {
       case Ok(v) -> Result.Ok(block.call(v))
       case Error(e) -> Result.Error(e)
@@ -219,7 +219,7 @@ type pub inline enum Result[T, E] {
   #
   # res.map_error fn (val) { val.to_upper } # => Result.Ok('OOPS!')
   # ```
-  fn pub move map_error[R](block: fn (E) -> R) -> Result[T, R] {
+  fn pub inline move map_error[R](block: fn (E) -> R) -> Result[T, R] {
     match self {
       case Ok(v) -> Result.Ok(v)
       case Error(e) -> Result.Error(block.call(e))
@@ -239,7 +239,7 @@ type pub inline enum Result[T, E] {
   #
   # res.then fn (val) { Result.Ok(val.to_string) } # => Result.Ok('42')
   # ```
-  fn pub move then[R](block: fn (T) -> Result[R, E]) -> Result[R, E] {
+  fn pub inline move then[R](block: fn (T) -> Result[R, E]) -> Result[R, E] {
     match self {
       case Ok(v) -> block.call(v)
       case Error(e) -> Result.Error(e)
@@ -261,7 +261,7 @@ type pub inline enum Result[T, E] {
   # }
   # # => Result.Error('OOPS!')
   # ```
-  fn pub move else[R](block: fn (E) -> Result[T, R]) -> Result[T, R] {
+  fn pub inline move else[R](block: fn (E) -> Result[T, R]) -> Result[T, R] {
     match self {
       case Ok(v) -> Result.Ok(v)
       case Error(e) -> block.call(e)
@@ -288,7 +288,7 @@ impl Result if E: ToString {
   # ok.or_panic    # => 10
   # error.or_panic # => panic("oops!")
   # ```
-  fn pub move or_panic -> T {
+  fn pub inline move or_panic -> T {
     match self {
       case Ok(v) -> v
       case Error(e) -> panic(e.to_string)
@@ -297,7 +297,7 @@ impl Result if E: ToString {
 }
 
 impl Clone for Result if T: Clone, E: Clone {
-  fn pub clone -> Result[move T, move E] {
+  fn pub inline clone -> Result[move T, move E] {
     match self {
       case Ok(v) -> Result.Ok(v.clone)
       case Error(v) -> Result.Error(v.clone)
@@ -307,19 +307,10 @@ impl Clone for Result if T: Clone, E: Clone {
 
 impl Equal for Result if T: Equal, E: Equal {
   fn pub ==(other: ref Result[T, E]) -> Bool {
-    match self {
-      case Ok(ours) -> {
-        match other {
-          case Ok(theirs) -> ours == theirs
-          case _ -> false
-        }
-      }
-      case Error(ours) -> {
-        match other {
-          case Error(theirs) -> ours == theirs
-          case _ -> false
-        }
-      }
+    match (self, other) {
+      case (Ok(a), Ok(b)) -> a == b
+      case (Error(a), Error(b)) -> a == b
+      case _ -> false
     }
   }
 }

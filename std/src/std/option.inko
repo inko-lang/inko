@@ -30,7 +30,7 @@ type pub inline enum Option[T] {
   # Option.Some(10).as_ref # => Option.Some(ref 10)
   # Option.None.as_ref     # => Option.None
   # ```
-  fn pub as_ref -> Option[ref T] {
+  fn pub inline as_ref -> Option[ref T] {
     match self {
       case Some(v) -> Option.Some(v)
       case None -> Option.None
@@ -56,7 +56,7 @@ type pub inline enum Option[T] {
   # ```inko
   # Option.Some(10).or_panic_with('a number must be present') # => 10
   # ```
-  fn pub move or_panic_with(message: String) -> T {
+  fn pub inline move or_panic_with(message: String) -> T {
     match self {
       case Some(v) -> v
       case _ -> panic(message)
@@ -72,7 +72,7 @@ type pub inline enum Option[T] {
   # Option.Some(10).or(0) # => 10
   # Option.None.or(0)     # => 0
   # ```
-  fn pub move or(default: T) -> T {
+  fn pub inline move or(default: T) -> T {
     match self {
       case Some(v) -> v
       case None -> default
@@ -88,7 +88,7 @@ type pub inline enum Option[T] {
   # Option.Some(10).or_else fn { 0 } # => 10
   # Option.None.or_else fn { 0 }     # => 0
   # ```
-  fn pub move or_else(block: fn -> T) -> T {
+  fn pub inline move or_else(block: fn -> T) -> T {
     match self {
       case Some(v) -> v
       case None -> block.call
@@ -114,7 +114,7 @@ type pub inline enum Option[T] {
   # ```inko
   # Option.None.map fn (x) { x * 2 } # => Option.None
   # ```
-  fn pub move map[R](block: fn (T) -> R) -> Option[R] {
+  fn pub inline move map[R](block: fn (T) -> R) -> Option[R] {
     match self {
       case Some(v) -> Option.Some(block.call(v))
       case None -> Option.None
@@ -130,7 +130,7 @@ type pub inline enum Option[T] {
   # This process is sometimes referred to as a "flat map". Inko uses the name
   # "then" because this reads more nicely when chaining multiple instances of
   # this method together.
-  fn pub move then[R](block: fn (T) -> Option[R]) -> Option[R] {
+  fn pub inline move then[R](block: fn (T) -> Option[R]) -> Option[R] {
     match self {
       case Some(v) -> block.call(v)
       case None -> Option.None
@@ -141,7 +141,7 @@ type pub inline enum Option[T] {
   # by the `block` argument.
   #
   # If `self` is a Some, the Some itself is returned.
-  fn pub move else(block: fn -> Option[T]) -> Option[T] {
+  fn pub inline move else(block: fn -> Option[T]) -> Option[T] {
     if some? { self } else { block.call }
   }
 
@@ -170,7 +170,7 @@ type pub inline enum Option[T] {
   # Option.Some(10).some? # => true
   # Option.None.some?     # => false
   # ```
-  fn pub some? -> Bool {
+  fn pub inline some? -> Bool {
     match self {
       case Some(_) -> true
       case None -> false
@@ -185,7 +185,7 @@ type pub inline enum Option[T] {
   # Option.Some(10).none? # => false
   # Option.None.none?     # => true
   # ```
-  fn pub none? -> Bool {
+  fn pub inline none? -> Bool {
     match self {
       case Some(_) -> false
       case None -> true
@@ -204,7 +204,7 @@ type pub inline enum Option[T] {
   # Option.Some(10).ok_or('oops!') # => Result.Ok(10)
   # Option.None.ok_or('oops!')     # => Result.Error('oops!')
   # ```
-  fn pub move ok_or[E](error: E) -> Result[T, E] {
+  fn pub inline move ok_or[E](error: E) -> Result[T, E] {
     match self {
       case Some(v) -> Result.Ok(v)
       case _ -> Result.Error(error)
@@ -221,7 +221,7 @@ type pub inline enum Option[T] {
   # Option.Some(10).ok_or_else(fn { 'oops!' }) # => Result.Ok(10)
   # Option.None.ok_or_else(fn { 'oops!' })     # => Result.Error('oops!')
   # ```
-  fn pub move ok_or_else[E](error: fn -> E) -> Result[T, E] {
+  fn pub inline move ok_or_else[E](error: fn -> E) -> Result[T, E] {
     match self {
       case Some(v) -> Result.Ok(v)
       case _ -> Result.Error(error.call)
@@ -237,7 +237,7 @@ impl Option if T: mut {
   # ```inko
   # Option.Some([10]).as_mut # => Option.Some(mut [10])
   # ```
-  fn pub mut as_mut -> Option[mut T] {
+  fn pub inline mut as_mut -> Option[mut T] {
     match self {
       case Some(v) -> Option.Some(v)
       case None -> Option.None
@@ -274,25 +274,16 @@ impl Equal for Option if T: Equal {
   # Option.None == Option.None # => true
   # ```
   fn pub ==(other: ref Option[T]) -> Bool {
-    match self {
-      case Some(ours) -> {
-        match other {
-          case Some(theirs) -> ours == theirs
-          case _ -> false
-        }
-      }
-      case None -> {
-        match other {
-          case None -> true
-          case _ -> false
-        }
-      }
+    match (self, other) {
+      case (Some(a), Some(b)) -> a == b
+      case (None, None) -> true
+      case _ -> false
     }
   }
 }
 
 impl Clone for Option if T: Clone {
-  fn pub clone -> Option[move T] {
+  fn pub inline clone -> Option[move T] {
     match self {
       case Some(v) -> Option.Some(v.clone)
       case None -> Option.None
