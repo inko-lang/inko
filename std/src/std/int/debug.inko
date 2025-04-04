@@ -1,79 +1,59 @@
 import std.int (CheckedIntResult, MIN, overflow_error)
-import std.ops (
-  Add, Modulo, Multiply, Power, ShiftLeft, ShiftRight, Subtract,
-  UnsignedShiftRight,
-)
 
 let BITS = 63
 
 fn extern inko_int_checked_pow(left: Int, right: Int) -> CheckedIntResult
 
-impl Add[Int, Int] for Int {
-  fn pub inline +(other: Int) -> Int {
-    let res = _INKO.int_checked_add(self, other)
+fn add(a: Int, b: Int) -> Int {
+  let res = _INKO.int_checked_add(a, b)
 
-    if res.tag as Int == 0 { res.value as Int } else { overflow_error }
+  if res.tag as Int == 0 { res.value as Int } else { overflow_error }
+}
+
+fn sub(a: Int, b: Int) -> Int {
+  let res = _INKO.int_checked_sub(a, b)
+
+  if res.tag as Int == 0 { res.value as Int } else { overflow_error }
+}
+
+fn mul(a: Int, b: Int) -> Int {
+  let res = _INKO.int_checked_mul(a, b)
+
+  if res.tag as Int == 0 { res.value as Int } else { overflow_error }
+}
+
+fn mod(a: Int, b: Int) -> Int {
+  if b == 0 or (a == MIN and b == -1) { overflow_error }
+
+  let sum = _INKO.int_checked_add(_INKO.int_rem(a, b), b)
+
+  if sum.tag as Int == 0 {
+    _INKO.int_rem(sum.value as Int, b)
+  } else {
+    overflow_error
   }
 }
 
-impl Subtract[Int, Int] for Int {
-  fn pub inline -(other: Int) -> Int {
-    let res = _INKO.int_checked_sub(self, other)
+fn shl(a: Int, b: Int) -> Int {
+  if b > BITS { overflow_error }
 
-    if res.tag as Int == 0 { res.value as Int } else { overflow_error }
-  }
+  _INKO.int_shl(a, b)
 }
 
-impl Multiply[Int, Int] for Int {
-  fn pub inline *(other: Int) -> Int {
-    let res = _INKO.int_checked_mul(self, other)
+fn shr(a: Int, b: Int) -> Int {
+  if b > BITS { overflow_error }
 
-    if res.tag as Int == 0 { res.value as Int } else { overflow_error }
-  }
+  _INKO.int_shr(a, b)
 }
 
-impl Modulo[Int, Int] for Int {
-  fn pub inline %(other: Int) -> Int {
-    if other == 0 or (self == MIN and other == -1) { overflow_error }
+fn ushr(a: Int, b: Int) -> Int {
+  if b > BITS { overflow_error }
 
-    let sum = _INKO.int_checked_add(_INKO.int_rem(self, other), other)
-
-    if sum.tag as Int == 0 {
-      _INKO.int_rem(sum.value as Int, other)
-    } else {
-      overflow_error
-    }
-  }
+  _INKO.int_unsigned_shr(a, b)
 }
 
-impl ShiftLeft[Int, Int] for Int {
-  fn pub inline <<(other: Int) -> Int {
-    if other > BITS { overflow_error }
+fn pow(a: Int, b: Int) -> Int {
+  let res = inko_int_checked_pow(a, b)
 
-    _INKO.int_shl(self, other)
-  }
-}
-
-impl ShiftRight[Int, Int] for Int {
-  fn pub inline >>(other: Int) -> Int {
-    if other > BITS { overflow_error }
-
-    _INKO.int_shr(self, other)
-  }
-}
-
-impl UnsignedShiftRight[Int, Int] for Int {
-  fn pub inline >>>(other: Int) -> Int {
-    if other > BITS { overflow_error }
-
-    _INKO.int_unsigned_shr(self, other)
-  }
-}
-
-impl Power[Int, Int] for Int {
-  fn pub inline **(other: ref Int) -> Int {
-    let res = inko_int_checked_pow(self, other)
-
-    if res.tag as Int == 0 { res.value as Int } else { overflow_error }
-  }
+  if res.tag as Int == 0 { res.value as Int } else { overflow_error }
 }

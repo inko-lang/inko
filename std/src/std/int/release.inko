@@ -1,61 +1,41 @@
 import std.int (MIN, overflow_error)
-import std.ops (
-  Add, Modulo, Multiply, Power, ShiftLeft, ShiftRight, Subtract,
-  UnsignedShiftRight,
-)
 
 let BITS = 63
 
 fn extern inko_int_wrapping_pow(left: Int, right: Int) -> Int
 
-impl Add[Int, Int] for Int {
-  fn pub inline +(other: Int) -> Int {
-    _INKO.int_wrapping_add(self, other)
-  }
+fn inline add(a: Int, b: Int) -> Int {
+  _INKO.int_wrapping_add(a, b)
 }
 
-impl Subtract[Int, Int] for Int {
-  fn pub inline -(other: Int) -> Int {
-    _INKO.int_wrapping_sub(self, other)
-  }
+fn inline sub(a: Int, b: Int) -> Int {
+  _INKO.int_wrapping_sub(a, b)
 }
 
-impl Multiply[Int, Int] for Int {
-  fn pub inline *(other: Int) -> Int {
-    _INKO.int_wrapping_mul(self, other)
-  }
+fn inline mul(a: Int, b: Int) -> Int {
+  _INKO.int_wrapping_mul(a, b)
 }
 
-impl Modulo[Int, Int] for Int {
-  fn pub inline %(other: Int) -> Int {
-    if other == 0 or (self == MIN and other == -1) { overflow_error }
+fn inline mod(a: Int, b: Int) -> Int {
+  if b == 0 or (a == MIN and b == -1) { overflow_error }
 
-    let sum = _INKO.int_wrapping_add(_INKO.int_rem(self, other), other)
+  let sum = _INKO.int_wrapping_add(_INKO.int_rem(a, b), b)
 
-    _INKO.int_rem(sum, other)
-  }
+  _INKO.int_rem(sum, b)
 }
 
-impl ShiftLeft[Int, Int] for Int {
-  fn pub inline <<(other: Int) -> Int {
-    _INKO.int_shl(self, _INKO.int_bit_and(other, BITS))
-  }
+fn inline shl(a: Int, b: Int) -> Int {
+  _INKO.int_shl(a, _INKO.int_bit_and(b, BITS))
 }
 
-impl ShiftRight[Int, Int] for Int {
-  fn pub inline >>(other: Int) -> Int {
-    _INKO.int_shr(self, _INKO.int_bit_and(other, BITS))
-  }
+fn inline shr(a: Int, b: Int) -> Int {
+  _INKO.int_shr(a, _INKO.int_bit_and(b, BITS))
 }
 
-impl UnsignedShiftRight[Int, Int] for Int {
-  fn pub inline >>>(other: Int) -> Int {
-    _INKO.int_unsigned_shr(self, _INKO.int_bit_and(other, BITS))
-  }
+fn inline ushr(a: Int, b: Int) -> Int {
+  _INKO.int_unsigned_shr(a, _INKO.int_bit_and(b, BITS))
 }
 
-impl Power[Int, Int] for Int {
-  fn pub inline **(other: Int) -> Int {
-    inko_int_wrapping_pow(self, other)
-  }
+fn inline pow(a: Int, b: Int) -> Int {
+  inko_int_wrapping_pow(a, b)
 }

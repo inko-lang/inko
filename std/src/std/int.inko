@@ -5,10 +5,13 @@ import std.cmp (Compare, Equal, Ordering)
 import std.float (ToFloat)
 import std.fmt (Format as FormatTrait, Formatter)
 import std.hash (Hash, Hasher)
-import std.int.debug (self as _mode) if debug
-import std.int.release (self as _mode) if release
+import std.int.debug (self as mode) if debug
+import std.int.release (self as mode) if release
 import std.iter (Iter)
-import std.ops (BitAnd, BitOr, BitXor, Divide)
+import std.ops (
+  Add, BitAnd, BitOr, BitXor, Divide, Modulo, Multiply, Power, ShiftLeft,
+  ShiftRight, Subtract, UnsignedShiftRight,
+)
 import std.range (ExclusiveRange, InclusiveRange)
 import std.string (ToString)
 
@@ -635,6 +638,166 @@ type builtin Int {
     let r = _INKO.int_rem(self, other)
 
     if (r > 0 and other < 0) or (r < 0 and other > 0) { d - 1 } else { d }
+  }
+}
+
+impl Add[Int, Int] for Int {
+  # Adds `other` to `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # 10 + 2 # => 12
+  # ```
+  #
+  # # Overflows
+  #
+  # In debug mode, this method triggers a panic upon overflowing. In release
+  # mode, two's complement wrapping is used instead.
+  fn pub inline +(other: Int) -> Int {
+    mode.add(self, other)
+  }
+}
+
+impl Subtract[Int, Int] for Int {
+  # Subtracts `other` from `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # 10 - 2 # => 8
+  # ```
+  #
+  # # Overflows
+  #
+  # In debug mode, this method triggers a panic upon overflowing. In release
+  # mode, two's complement wrapping is used instead.
+  fn pub inline -(other: Int) -> Int {
+    mode.sub(self, other)
+  }
+}
+
+impl Multiply[Int, Int] for Int {
+  # Multiplies `other` with `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # 10 * 2 # => 20
+  # ```
+  #
+  # # Overflows
+  #
+  # In debug mode, this method triggers a panic upon overflowing. In release
+  # mode, two's complement wrapping is used instead.
+  fn pub inline *(other: Int) -> Int {
+    mode.mul(self, other)
+  }
+}
+
+impl Modulo[Int, Int] for Int {
+  # Returns the remainder of dividing `self` by `other`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # 10 % 3 # => 1
+  # ```
+  #
+  # # Overflows
+  #
+  # In debug mode, this method triggers a panic upon overflowing. In release
+  # mode, two's complement wrapping is used instead.
+  #
+  # # Panics
+  #
+  # This method _always_ panics (regardless of the mode used) if any of the
+  # following is true:
+  #
+  # - `other` is equal to zero
+  # - `self` is equal to `std.int.MIN` and `other` is equal to -1
+  fn pub inline %(other: Int) -> Int {
+    mode.mod(self, other)
+  }
+}
+
+impl ShiftLeft[Int, Int] for Int {
+  # Shifts `self` by `other` bits to the left.
+  #
+  # # Examples
+  #
+  # ```inko
+  # 10 << 1 # => 20
+  # 1 << 65 # => 2
+  # ```
+  #
+  # # Overflows
+  #
+  # In debug mode, this method triggers a panic if `other` is greater than 63.
+  # In release mode, a bitmask is applied to `other` such that it wraps around
+  # when the value is greater than `63` (i.e. `64` is treated as `1`).
+  fn pub inline <<(other: Int) -> Int {
+    mode.shl(self, other)
+  }
+}
+
+impl ShiftRight[Int, Int] for Int {
+  # Shifts `self` by `other` bits to the right.
+  #
+  # # Examples
+  #
+  # ```inko
+  # 10 >> 1  # => 5
+  # 10 >> 65 # => 5
+  # -10 >> 2 # => -3
+  # ```
+  #
+  # # Overflows
+  #
+  # In debug mode, this method triggers a panic if `other` is greater than 63.
+  # In release mode, a bitmask is applied to `other` such that it wraps around
+  # when the value is greater than `63` (i.e. `64` is treated as `1`).
+  fn pub inline >>(other: Int) -> Int {
+    mode.shr(self, other)
+  }
+}
+
+impl UnsignedShiftRight[Int, Int] for Int {
+  # Shifts `self` by `other` bits to the right, treating `self` as an unsigned
+  # integer as part of the shift.
+  #
+  # # Examples
+  #
+  # ```inko
+  # 10 >>> 2  # => 2
+  # -10 >>> 2 # => 4611686018427387901
+  # ```
+  #
+  # # Overflows
+  #
+  # In debug mode, this method triggers a panic if `other` is greater than 63.
+  # In release mode, a bitmask is applied to `other` such that it wraps around
+  # when the value is greater than `63` (i.e. `64` is treated as `1`).
+  fn pub inline >>>(other: Int) -> Int {
+    mode.ushr(self, other)
+  }
+}
+
+impl Power[Int, Int] for Int {
+  # Raises `self` to the power of `other`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # 10 ** 2 # => 100
+  # ```
+  #
+  # # Overflows
+  #
+  # In debug mode, this method triggers a panic upon overflowing. In release
+  # mode, two's complement wrapping is used instead.
+  fn pub inline **(other: ref Int) -> Int {
+    mode.pow(self, other)
   }
 }
 
