@@ -62,7 +62,6 @@ jobs:
       RCLONE_S3_ENDPOINT: https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
     needs:
       - tests
-    if: github.ref_name == 'main'
     steps:
       - name: Install dependencies
         run: microdnf install --quiet --assumeyes rclone git tar make
@@ -72,8 +71,14 @@ jobs:
           path: '~/.local/share/inko/packages'
           key: docs-main-${{ hashFiles('docs/inko.pkg') }}
       - run: git config --global --add safe.directory $PWD
-      - name: Deploy the documentation
-        run: make docs/publish
+      - name: Build the documentation
+        run: >
+          if [[ ${{ github.ref_name }} = 'main' ]]
+          then
+            make docs/publish
+          else
+            make docs/build
+          fi
 
   std-docs:
     name: Standard library documentation
@@ -86,8 +91,6 @@ jobs:
       RCLONE_S3_ENDPOINT: https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
     needs:
       - tests
-    if: |
-      github.ref_name == 'main'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
@@ -96,4 +99,10 @@ jobs:
           key: std-docs-main-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
       - run: git config --global --add safe.directory $PWD
       - name: Deploy the documentation
-        run: make std-docs/publish
+        run: >
+          if [[ ${{ github.ref_name }} = 'main' ]]
+          then
+            make std-docs/publish
+          else
+            make std-docs/build
+          fi
