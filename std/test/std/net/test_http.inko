@@ -1,0 +1,144 @@
+import std.fmt (fmt)
+import std.net.http (Bitmap, Header, HeaderMap, Method, MissingHeader, Status)
+import std.net.http.header
+import std.test (Tests)
+
+fn pub tests(t: mut Tests) {
+  t.test('Header.parse', fn (t) {
+    t.equal(Header.parse('accept'), Header.Accept)
+    t.equal(Header.parse('www-authenticate'), Header.WwwAuthenticate)
+    t.equal(Header.parse('Accept'), Header.Other('Accept'))
+    t.equal(Header.parse('example-header'), Header.Other('example-header'))
+  })
+
+  t.test('Header.index', fn (t) {
+    for (idx, name) in header.NAMES.iter.with_index {
+      t.equal(Header.parse(name.to_lower).index, idx)
+    }
+  })
+
+  t.test('Header.==', fn (t) {
+    t.equal(Header.Accept, Header.Accept)
+    t.equal(Header.Other('foo'), Header.Other('foo'))
+    t.not_equal(Header.Accept, Header.Host)
+  })
+
+  t.test('Header.to_string', fn (t) {
+    t.equal(Header.Accept.to_string, 'accept')
+    t.equal(Header.ContentLength.to_string, 'content-length')
+    t.equal(Header.Other('example-header').to_string, 'example-header')
+  })
+
+  t.test('Header.fmt', fn (t) {
+    t.equal(fmt(Header.Accept), 'accept')
+    t.equal(fmt(Header.ContentLength), 'content-length')
+    t.equal(fmt(Header.Other('example-header')), 'example-header')
+  })
+
+  t.test('Bitmap.with', fn (t) {
+    t.equal(Bitmap.new.value, 0)
+    t.equal(Bitmap.new.with(4).value, 16)
+  })
+
+  t.test('Bitmap.contains?', fn (t) {
+    t.false(Bitmap.new.contains?(4))
+    t.true(Bitmap.new.with(4).contains?(4))
+    t.true(Bitmap.new.with(63).contains?(63))
+  })
+
+  t.test('MissingHeader.to_string', fn (t) {
+    t.equal(
+      MissingHeader(Header.Accept).to_string,
+      "the header 'accept' is missing",
+    )
+    t.equal(
+      MissingHeader(Header.Other('foo')).to_string,
+      "the header 'foo' is missing",
+    )
+  })
+
+  t.test('MissingHeader.fmt', fn (t) {
+    t.equal(fmt(MissingHeader(Header.Accept)), 'MissingHeader(header: accept)')
+  })
+
+  t.test('HeaderMap.new', fn (t) {
+    let map = HeaderMap.new
+
+    t.equal(map.bitmap.value, 0)
+    t.equal(map.standard.size, header.NAMES.size)
+    t.equal(map.non_standard.size, 0)
+  })
+
+  t.test('HeaderMap.set', fn (t) {
+    let map = HeaderMap.new
+
+    map.set(Header.Host, 'example.com')
+
+    t.true(map.bitmap.contains?(Header.Host.index))
+    t.equal(map.standard.get(Header.Host.index), Result.Ok('example.com'))
+    t.equal(map.non_standard.size, 0)
+  })
+
+  t.test('HeaderMap.get', fn (t) {
+    let map = HeaderMap.new
+
+    map.set(Header.Host, 'example.com')
+    map.set(Header.Other('bar'), 'value')
+
+    t.equal(map.get(Header.Host), Result.Ok('example.com'))
+    t.equal(map.get(Header.Accept), Result.Error(MissingHeader(Header.Accept)))
+    t.equal(map.get(Header.Other('bar')), Result.Ok('value'))
+    t.equal(
+      map.get(Header.Other('foo')),
+      Result.Error(MissingHeader(Header.Other('foo'))),
+    )
+  })
+
+  t.test('Method.parse', fn (t) {
+    t.equal(Method.parse('GET'), Option.Some(Method.Get))
+    t.equal(Method.parse('OPTIONS'), Option.Some(Method.Options))
+    t.equal(Method.parse('get'), Option.None)
+  })
+
+  t.test('Method.==', fn (t) {
+    t.equal(Method.Get, Method.Get)
+    t.not_equal(Method.Get, Method.Post)
+  })
+
+  t.test('Method.to_string', fn (t) {
+    t.equal(Method.Get.to_string, 'GET')
+    t.equal(Method.Post.to_string, 'POST')
+    t.equal(Method.Put.to_string, 'PUT')
+    t.equal(Method.Delete.to_string, 'DELETE')
+    t.equal(Method.Head.to_string, 'HEAD')
+    t.equal(Method.Options.to_string, 'OPTIONS')
+    t.equal(Method.Connect.to_string, 'CONNECT')
+    t.equal(Method.Trace.to_string, 'TRACE')
+  })
+
+  t.test('Method.fmt', fn (t) {
+    t.equal(fmt(Method.Get), 'GET')
+    t.equal(fmt(Method.Post), 'POST')
+    t.equal(fmt(Method.Put), 'PUT')
+    t.equal(fmt(Method.Delete), 'DELETE')
+    t.equal(fmt(Method.Head), 'HEAD')
+    t.equal(fmt(Method.Options), 'OPTIONS')
+    t.equal(fmt(Method.Connect), 'CONNECT')
+    t.equal(fmt(Method.Trace), 'TRACE')
+  })
+
+  t.test('Status.new', fn (t) { t.equal(Status.new(404).code, 404) })
+
+  t.test('Status.ok', fn (t) { t.equal(Status.ok.code, 200) })
+
+  t.test('Status.==', fn (t) {
+    t.equal(Status.new(1), Status.new(1))
+    t.not_equal(Status.new(1), Status.new(2))
+  })
+
+  t.test('Status.to_string', fn (t) { t.equal(Status.ok.to_string, '200') })
+
+  t.test('Status.fmt', fn (t) { t.equal(fmt(Status.ok), '200') })
+
+  t.test('Status.to_int', fn (t) { t.equal(Status.ok.to_int, 200) })
+}
