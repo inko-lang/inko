@@ -1,0 +1,636 @@
+# HTTP 1.1 client and server support, based on [RFC
+# 7230](https://datatracker.ietf.org/doc/html/rfc7230).
+import std.bytes (Bytes)
+import std.cmp (Equal)
+import std.fmt (Format, Formatter)
+import std.int (ToInt)
+import std.io (Error as IoError, Read)
+import std.net.http.header
+import std.net.http.method
+import std.string (ToString)
+
+# An HTTP header.
+#
+# Standard headers such as `Accept` and `ContentLength` use a dedicated
+# constructor, while non-standard headers use the `Other` constructor.
+type pub inline enum Header {
+  case Accept
+  case AcceptCharset
+  case AcceptEncoding
+  case AcceptLanguage
+  case AcceptRanges
+  case AccessControlAllowCredentials
+  case AccessControlAllowHeaders
+  case AccessControlAllowMethods
+  case AccessControlAllowOrigin
+  case AccessControlMaxAge
+  case AccessControlMethod
+  case AccessControlRequestMethod
+  case AccessControlRequestMethods
+  case AccessControlRequestHeaders
+  case Age
+  case Allow
+  case AltSvc
+  case Authorization
+  case CacheControl
+  case Connection
+  case ContentDisposition
+  case ContentEncoding
+  case ContentLanguage
+  case ContentLength
+  case ContentLocation
+  case ContentRange
+  case ContentType
+  case Cookie
+  case Date
+  case Etag
+  case Expect
+  case Expires
+  case From
+  case Host
+  case IfMatch
+  case IfModifiedSince
+  case IfNoneMatch
+  case IfRange
+  case IfUnmodifiedSince
+  case KeepAlive
+  case LastModified
+  case Link
+  case Location
+  case MaxForwards
+  case Origin
+  case Pragma
+  case ProxyAuthenticate
+  case ProxyAuthorization
+  case ProxyConnection
+  case Range
+  case Referer
+  case RetryAfter
+  case Server
+  case SetCookie
+  case StrictTransportSecurity
+  case Trailer
+  case TransferEncoding
+  case Upgrade
+  case UpgradeInsecureRequests
+  case UserAgent
+  case Vary
+  case Via
+  case WwwAuthenticate
+  case Other(String)
+
+  # Creates a `Header` from a sequence of bytes.
+  #
+  # This method expects that the input is already in lowercase. If this isn't
+  # the case, the input is treated as a non-standard header.
+  #
+  # For non-standard headers the input is converted to a `String` and returned
+  # as `Header.Other`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.parse('content-length') # => Header.ContentLength
+  # Header.parse('example-header') # => Header.Other('example-header')
+  # ```
+  fn pub static parse[B: Bytes + ToString](input: ref B) -> Header {
+    match header.index_of(input) {
+      case 0 -> Accept
+      case 1 -> AcceptCharset
+      case 2 -> AcceptEncoding
+      case 3 -> AcceptLanguage
+      case 4 -> AcceptRanges
+      case 5 -> AccessControlAllowCredentials
+      case 6 -> AccessControlAllowHeaders
+      case 7 -> AccessControlAllowMethods
+      case 8 -> AccessControlAllowOrigin
+      case 9 -> AccessControlMaxAge
+      case 10 -> AccessControlMethod
+      case 11 -> AccessControlRequestMethod
+      case 12 -> AccessControlRequestMethods
+      case 13 -> AccessControlRequestHeaders
+      case 14 -> Age
+      case 15 -> Allow
+      case 16 -> AltSvc
+      case 17 -> Authorization
+      case 18 -> CacheControl
+      case 19 -> Connection
+      case 20 -> ContentDisposition
+      case 21 -> ContentEncoding
+      case 22 -> ContentLanguage
+      case 23 -> ContentLength
+      case 24 -> ContentLocation
+      case 25 -> ContentRange
+      case 26 -> ContentType
+      case 27 -> Cookie
+      case 28 -> Date
+      case 29 -> Etag
+      case 30 -> Expect
+      case 31 -> Expires
+      case 32 -> From
+      case 33 -> Host
+      case 34 -> IfMatch
+      case 35 -> IfModifiedSince
+      case 36 -> IfNoneMatch
+      case 37 -> IfRange
+      case 38 -> IfUnmodifiedSince
+      case 39 -> KeepAlive
+      case 40 -> LastModified
+      case 41 -> Link
+      case 42 -> Location
+      case 43 -> MaxForwards
+      case 44 -> Origin
+      case 45 -> Pragma
+      case 46 -> ProxyAuthenticate
+      case 47 -> ProxyAuthorization
+      case 48 -> ProxyConnection
+      case 49 -> Range
+      case 50 -> Referer
+      case 51 -> RetryAfter
+      case 52 -> Server
+      case 53 -> SetCookie
+      case 54 -> StrictTransportSecurity
+      case 55 -> Trailer
+      case 56 -> TransferEncoding
+      case 57 -> Upgrade
+      case 58 -> UpgradeInsecureRequests
+      case 59 -> UserAgent
+      case 60 -> Vary
+      case 61 -> Via
+      case 62 -> WwwAuthenticate
+      case _ -> Header.Other(input.to_string)
+    }
+  }
+
+  fn index -> Int {
+    match self {
+      case Accept -> 0
+      case AcceptCharset -> 1
+      case AcceptEncoding -> 2
+      case AcceptLanguage -> 3
+      case AcceptRanges -> 4
+      case AccessControlAllowCredentials -> 5
+      case AccessControlAllowHeaders -> 6
+      case AccessControlAllowMethods -> 7
+      case AccessControlAllowOrigin -> 8
+      case AccessControlMaxAge -> 9
+      case AccessControlMethod -> 10
+      case AccessControlRequestMethod -> 11
+      case AccessControlRequestMethods -> 12
+      case AccessControlRequestHeaders -> 13
+      case Age -> 14
+      case Allow -> 15
+      case AltSvc -> 16
+      case Authorization -> 17
+      case CacheControl -> 18
+      case Connection -> 19
+      case ContentDisposition -> 20
+      case ContentEncoding -> 21
+      case ContentLanguage -> 22
+      case ContentLength -> 23
+      case ContentLocation -> 24
+      case ContentRange -> 25
+      case ContentType -> 26
+      case Cookie -> 27
+      case Date -> 28
+      case Etag -> 29
+      case Expect -> 30
+      case Expires -> 31
+      case From -> 32
+      case Host -> 33
+      case IfMatch -> 34
+      case IfModifiedSince -> 35
+      case IfNoneMatch -> 36
+      case IfRange -> 37
+      case IfUnmodifiedSince -> 38
+      case KeepAlive -> 39
+      case LastModified -> 40
+      case Link -> 41
+      case Location -> 42
+      case MaxForwards -> 43
+      case Origin -> 44
+      case Pragma -> 45
+      case ProxyAuthenticate -> 46
+      case ProxyAuthorization -> 47
+      case ProxyConnection -> 48
+      case Range -> 49
+      case Referer -> 50
+      case RetryAfter -> 51
+      case Server -> 52
+      case SetCookie -> 53
+      case StrictTransportSecurity -> 54
+      case Trailer -> 55
+      case TransferEncoding -> 56
+      case Upgrade -> 57
+      case UpgradeInsecureRequests -> 58
+      case UserAgent -> 59
+      case Vary -> 60
+      case Via -> 61
+      case WwwAuthenticate -> 62
+      case Other(_) -> 63
+    }
+  }
+}
+
+impl Equal for Header {
+  fn pub ==(other: ref Header) -> Bool {
+    match (self, other) {
+      case (Other(a), Other(b)) -> a == b
+      case (a, b) -> a.index == b.index
+    }
+  }
+}
+
+impl ToString for Header {
+  fn pub to_string -> String {
+    match self {
+      case Other(v) -> v
+      case _ -> header.NAMES.get(index).or_panic
+    }
+  }
+}
+
+impl Format for Header {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case Other(v) -> formatter.write(v)
+      case _ -> formatter.write(header.NAMES.get(index).or_panic)
+    }
+  }
+}
+
+type copy Bitmap {
+  let @value: Int
+
+  fn inline static new -> Self {
+    Self(0)
+  }
+
+  fn inline with(bit: Int) -> Self {
+    Self(@value | (1 << bit))
+  }
+
+  fn inline contains?(bit: Int) -> Bool {
+    @value & (1 << bit) != 0
+  }
+}
+
+# An error that signals the lack of a header in a `HeaderMap`.
+type pub inline MissingHeader {
+  # The header that is missing.
+  let pub @header: ref Header
+}
+
+impl ToString for MissingHeader {
+  fn pub to_string -> String {
+    let name = match @header {
+      case Other(name) -> name
+      case _ -> header.NAMES.get(@header.index).or_panic
+    }
+
+    "the header '${name}' is missing"
+  }
+}
+
+impl Format for MissingHeader {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter.object('MissingHeader').field('header', @header).finish
+  }
+}
+
+impl Equal for MissingHeader {
+  fn pub ==(other: ref MissingHeader) -> Bool {
+    @header == other.header
+  }
+}
+
+# A mapping of HTTP headers and their values.
+#
+# A `HeaderMap` is a specialized `Map`-like type that takes advantage of how
+# `Header` values are represented, allowing for more efficient lookups compared
+# to the use of a regular `Map`.
+#
+# Insertions and lookups don't perform any case conversion when using
+# non-standard headers. This means that non-standard headers must be converted
+# to their lowercase form first.
+type pub HeaderMap {
+  # A bitmap used to record if a header is present in the first place.
+  #
+  # For standard headers this allows bypassing lookups entirely if we know for a
+  # fact a header isn't present, essentially turning the lookup into a no-op.
+  #
+  # For non-standard headers this is only effective if there are no non-standard
+  # headers at all, i.e. the "Other" bit simply signals _a_ non-standard header
+  # is present, not which ones.
+  let mut @bitmap: Bitmap
+
+  # An `Array` of values for standard headers.
+  #
+  # The size of this `Array` is equal to the number of standard headers.
+  let @standard: Array[String]
+
+  # A `Map` of non-standard header names to their values.
+  let @non_standard: Map[String, String]
+
+  # Returns a new and empty `HeaderMap`.
+  fn pub static new -> Self {
+    Self(
+      bitmap: Bitmap.new,
+      standard: Array.filled(with: '', times: header.NAMES.size),
+      non_standard: Map.new,
+    )
+  }
+
+  # Adds a `Header` to `self`.
+  #
+  # If the header is already present in `self`, its value is overwritten with
+  # the new value.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header, HeaderMap)
+  #
+  # let map = HeaderMap.new
+  #
+  # map.set(Header.ContentLength, '128')
+  # map.set(Header.Host, 'example.com')
+  # ```
+  fn pub mut set(header: Header, value: String) {
+    let idx = header.index
+
+    @bitmap = @bitmap.with(idx)
+
+    match header {
+      case Other(name) -> @non_standard.set(name, value)
+      case _ -> @standard.set(idx, value)
+    }
+  }
+
+  # Returns the value of the given `Header`, if there is any.
+  #
+  # If the header isn't present, a `MissingHeader` error is returned.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header, HeaderMap)
+  #
+  # let map = HeaderMap.new
+  #
+  # map.set(Header.ContentLength, '128')
+  # map.get(Header.ContentLength) # => Result.Ok('128')
+  # ```
+  fn pub get(header: ref Header) -> Result[String, MissingHeader] {
+    let idx = header.index
+
+    # If the header definitely isn't present we can skip the lookup entirely.
+    if @bitmap.contains?(idx).false? { throw MissingHeader(header) }
+
+    match header {
+      case Other(name) -> {
+        match @non_standard.get(name) {
+          case Ok(v) -> Result.Ok(v)
+          case _ -> Result.Error(MissingHeader(header))
+        }
+      }
+      case _ -> {
+        match @standard.get(idx) {
+          case Ok(v) -> Result.Ok(v)
+          case _ -> Result.Error(MissingHeader(header))
+        }
+      }
+    }
+  }
+}
+
+# An HTTP request method.
+#
+# Only the standard request methods defined in RFC 7230 are supported. Custom
+# request methods aren't supported as they're virtually unused, and frankly not
+# that useful.
+type pub copy enum Method {
+  case Get
+  case Post
+  case Put
+  case Delete
+  case Head
+  case Options
+  case Connect
+  case Trace
+
+  # Creates a `Method` from a sequence of bytes.
+  #
+  # If the request method isn't recognized, an `Option.None` is returned.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Method)
+  #
+  # Method.parse('GET') # => Option.Some(Method.Get)
+  # Method.parse('FOO') # => Option.None
+  # ```
+  fn pub static parse[B: Bytes](input: ref B) -> Option[Method] {
+    match method.index_of(input) {
+      case Some(0) -> Option.Some(Get)
+      case Some(1) -> Option.Some(Post)
+      case Some(2) -> Option.Some(Put)
+      case Some(3) -> Option.Some(Delete)
+      case Some(4) -> Option.Some(Head)
+      case Some(5) -> Option.Some(Options)
+      case Some(6) -> Option.Some(Connect)
+      case Some(7) -> Option.Some(Trace)
+      case _ -> Option.None
+    }
+  }
+}
+
+impl Equal for Method {
+  fn pub ==(other: Method) -> Bool {
+    match (self, other) {
+      case (Get, Get) -> true
+      case (Post, Post) -> true
+      case (Put, Put) -> true
+      case (Delete, Delete) -> true
+      case (Head, Head) -> true
+      case (Options, Options) -> true
+      case (Connect, Connect) -> true
+      case (Trace, Trace) -> true
+      case _ -> false
+    }
+  }
+}
+
+impl ToString for Method {
+  fn pub to_string -> String {
+    match self {
+      case Get -> 'GET'
+      case Post -> 'POST'
+      case Put -> 'PUT'
+      case Delete -> 'DELETE'
+      case Head -> 'HEAD'
+      case Options -> 'OPTIONS'
+      case Connect -> 'CONNECT'
+      case Trace -> 'TRACE'
+    }
+  }
+}
+
+impl Format for Method {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter.write(to_string)
+  }
+}
+
+# The status code of a response.
+type pub copy Status {
+  let @code: Int
+
+  # Returns a new `Status` using the given status code.
+  fn inline static new(code: Int) -> Status {
+    Status(code)
+  }
+
+  # Returns the `OK` status code.
+  fn inline static ok -> Status {
+    Status(200)
+  }
+}
+
+impl Equal for Status {
+  fn pub ==(other: Status) -> Bool {
+    @code == other.code
+  }
+}
+
+impl ToString for Status {
+  fn pub to_string -> String {
+    @code.to_string
+  }
+}
+
+impl Format for Status {
+  fn pub fmt(formatter: mut Formatter) {
+    @code.fmt(formatter)
+  }
+}
+
+impl ToInt for Status {
+  fn pub to_int -> Int {
+    @code
+  }
+}
+
+# The version of the HTTP protocol used by a request or response.
+type pub copy Version {
+  # The major version number.
+  let pub @major: Int
+
+  # The minor version number.
+  let pub @minor: Int
+
+  # Returns a new `Version` using the given major and minor components.
+  fn pub static new(major: Int, minor: Int) -> Version {
+    Version(major: major, minor: minor)
+  }
+}
+
+# An HTTP request.
+type pub inline Request[T: mut + Read] {
+  # The request method (e.g. GET).
+  let pub @method: Method
+
+  # The requested URI (e.g. `/foo.html`).
+  let pub @uri: String # TODO: use dedicated type
+
+  # The HTTP protocol version.
+  let pub @version: Version
+
+  # The headers of the request.
+  let pub @headers: HeaderMap
+
+  # The body of the request.
+  let pub @body: T
+}
+
+# An HTTP response.
+type pub inline Response[T: mut + Read] {
+  # The request method (e.g. GET).
+  let pub @method: Method
+
+  # The HTTP status code.
+  let pub @status: Status
+
+  # The HTTP protocol version.
+  let pub @version: Version
+
+  # The headers of the request.
+  let pub @headers: HeaderMap
+
+  # The body of the request.
+  let pub @body: T
+}
+
+# An error produced while parsing a request or response.
+type pub inline enum ParseError {
+  # The request method is invalid.
+  case InvalidMethod
+
+  # An error produced while reading data from the input stream.
+  case Read(IoError)
+}
+
+# A type for parsing an HTTP requests and responses.
+type pub Parser[T: mut + Read] {
+  # The stream to read data from.
+  let @reader: mut T
+
+  # The buffer data is read into before parsing it.
+  #
+  # This field is public such that the `ByteArray` may be reused by different
+  # `Parser` instances (though not simultaneously).
+  let pub @buffer: ByteArray
+
+  # The index into the buffer.
+  let mut @index: Int
+
+  # Returns a `Parser` using a new buffer.
+  fn pub static new(reader: mut T) -> Self {
+    with_buffer(reader, ByteArray.new)
+  }
+
+  # Returns a `Parser` using the existing buffer.
+  #
+  # This method clear `buffer` before using it.
+  fn pub static with_buffer(reader: mut T, buffer: ByteArray) -> Self {
+    # We clear the buffer such that if it contains any existing data by
+    # accident, we don't use it.
+    buffer.clear
+    Self(reader: reader, buffer: buffer, index: 0)
+  }
+
+  # Parses the input stream into a `Request`.
+  fn pub mut request -> Result[Request[T], ParseError] {
+    panic('TODO')
+  }
+
+  fn mut request_method -> Result[Method, ParseError] {
+    # Based on the supported request methods, the largest supported value is 7
+    # bytes.
+    #
+    # TODO: we need to read in large chunks (e.g. 4 KiB) to improve performance
+    # try read(7)
+
+    panic('TODO')
+  }
+
+  fn mut read(size: Int) -> Result[Nil, ParseError] {
+    match @reader.read(into: @buffer, size: size) {
+      case Ok(_) -> Result.Ok(nil)
+      case Error(e) -> Result.Error(ParseError.Read(e))
+    }
+  }
+}
