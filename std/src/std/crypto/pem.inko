@@ -288,7 +288,7 @@ type pub PemFile[I: mut + Read] {
       ParseError.Read(e)
     })
 
-    if @buffer.equals_string?('----BEGIN ').false? {
+    if @buffer.equals?('----BEGIN ').false? {
       throw ParseError.InvalidSectionStart(@line)
     }
 
@@ -310,7 +310,7 @@ type pub PemFile[I: mut + Read] {
       case Error(e) -> throw ParseError.Read(e)
     }
 
-    if @buffer.equals_string?('----').false? {
+    if @buffer.equals?('----').false? {
       throw ParseError.InvalidSectionStart(@line)
     }
 

@@ -316,6 +316,14 @@ fn pub tests(t: mut Tests) {
     t.not_equal('aaaaaaaaa', 'aaaaaaaab')
   })
 
+  t.test('String.equals?', fn (t) {
+    t.true('a'.equals?('a'))
+    t.true('a'.equals?('a'.to_byte_array))
+    t.true('a'.equals?('a'.slice(0, 1)))
+    t.true(''.equals?(''))
+    t.false(''.equals?('a'))
+  })
+
   t.test('String.hash', fn (t) {
     for
       v

@@ -92,6 +92,24 @@ trait pub Bytes: ToString + ToByteArray {
   fn pub bytes -> Iter[ref Self] {
     Iter(source: self, index: 0)
   }
+
+  # Returns `true` if `self` and `other` contain identical bytes.
+  #
+  # This allows comparing of any `Bytes` type with any other `Bytes` type (e.g.
+  # comparing a `String` to a `ByteArray`). In contrast, methods such as
+  # `String.==` only support comparing against values of the same type.
+  #
+  # # Examples
+  #
+  # ```inko
+  # 'hello'.equals?('hello')               # => true
+  # 'hello'.equals?('hello'.to_byte_array) # => true
+  # ```
+  fn pub equals?[O: Bytes](other: ref O) -> Bool {
+    let len = size
+
+    len == other.size and (len == 0 or ptr.equal(pointer, other.pointer, len))
+  }
 }
 
 # A immutable slice of bytes.
@@ -264,11 +282,7 @@ impl Format for Slice {
 
 impl Equal for Slice {
   fn pub ==(other: ref Self) -> Bool {
-    let len = size
-
-    if len != other.size { return false }
-
-    if len > 0 { ptr.equal(pointer, other.pointer, size: len) } else { true }
+    equals?(other)
   }
 }
 
@@ -754,23 +768,6 @@ type pub ByteArray {
   # ```
   fn pub ends_with?[T: Bytes](suffix: ref T) -> Bool {
     ptr.ends_with?(@buffer, size, suffix.pointer, suffix.size)
-  }
-
-  # Returns `true` if `self` is the same as the given `String`.
-  #
-  # # Examples
-  #
-  # ```inko
-  # 'hello'.to_byte_array.equals_string?('hello') # => true
-  # ```
-  fn pub equals_string?(string: String) -> Bool {
-    let size = @size
-
-    if size == string.size {
-      ptr.equal(@buffer, string.pointer, size)
-    } else {
-      false
-    }
   }
 
   # Overwrites all bytes in `self` with zero bytes.
