@@ -64,7 +64,7 @@ trait pub IntoByteArray {
 # different byte sequence types, such as `String`, `ByteArray` and `Slice`. This
 # trait only provides a few essential methods, such as `Bytes.size` and
 # `Bytes.pointer`.
-trait pub Bytes {
+trait pub Bytes: ToString + ToByteArray {
   # Returns the number of bytes in `self`.
   fn pub size -> Int
 
