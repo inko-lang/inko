@@ -486,7 +486,7 @@ type pub ByteArray {
 
     if len == 0 { return }
 
-    reserve(len)
+    reserve_exact(len)
     alloc.copy(from: bytes.pointer, to: tail, size: len)
     @size += len
   }
@@ -717,17 +717,53 @@ type pub ByteArray {
 
     let add = size - @capacity
 
-    if add > 0 { reserve(add) }
+    if add > 0 { reserve_exact(add) }
 
     alloc.write(byte: value, to: tail, size: size - @size)
     @size = size
   }
 
-  # Reserves space for exactly `size` additional values.
+  # Reserves space for `size` additional values.
+  #
+  # The actual space reserved may be greater to prevent frequent reallocations.
+  # After calling this method, the capacity will be greater than or equal to
+  # `self.size + size`.
   #
   # If the capacity is great enough or the given size is less than zero, this
   # method does nothing.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let bytes = ByteArray.from_array([1, 2, 3, 4])
+  #
+  # bytes.reserve(2)
+  # bytes.capacity # => 8
+  # ```
   fn pub mut reserve(size: Int) {
+    if @capacity - @size >= size { return }
+
+    @capacity = max(@capacity * 2, @capacity + size)
+    @buffer = alloc.resize(@buffer, @capacity)
+  }
+
+  # Reserves space for exactly `size` additional values.
+  #
+  # Unlike `ByteArray.reserve`, this method won't allocate more than the given
+  # amount.
+  #
+  # If there's already enough space for `size` extra values, this method does
+  # nothing.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let bytes = ByteArray.new
+  #
+  # bytes.reserve_exact(4)
+  # bytes.capacity # => 6
+  # ```
+  fn pub mut reserve_exact(size: Int) {
     if @capacity - @size >= size { return }
 
     @capacity = @capacity + size

@@ -690,4 +690,18 @@ fn pub tests(t: mut Tests) {
     t.equal(buf1, ByteArray.from_array([0, 0, 0]))
     t.equal(buf2, ByteArray.new)
   })
+
+  t.test('ByteArray.reserve', fn (t) {
+    let bytes = ByteArray.from_array([1, 2, 3, 4])
+
+    bytes.reserve(2)
+    t.equal(bytes.capacity, 8)
+  })
+
+  t.test('ByteArray.reserve_exact', fn (t) {
+    let bytes = ByteArray.from_array([1, 2, 3, 4])
+
+    bytes.reserve_exact(2)
+    t.equal(bytes.capacity, 6)
+  })
 }

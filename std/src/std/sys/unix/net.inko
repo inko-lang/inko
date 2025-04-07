@@ -306,7 +306,7 @@ fn inline read(
   size: Int,
   deadline: Int,
 ) -> Result[Int, Error] {
-  into.reserve(size)
+  into.reserve_exact(size)
 
   let len = into.size
   let ptr = ptr.add(into.pointer, len)
@@ -445,7 +445,7 @@ fn inline receive_from_ip(
   size: Int,
   deadline: Int,
 ) -> Result[(Int, IpAddress, Int), Error] {
-  into.reserve(size)
+  into.reserve_exact(size)
 
   let len = into.size
   let ptr = ptr.add(into.pointer, len)
@@ -480,7 +480,7 @@ fn inline receive_from_unix(
   size: Int,
   deadline: Int,
 ) -> Result[(Int, String), Error] {
-  into.reserve(size)
+  into.reserve_exact(size)
 
   let len = into.size
   let ptr = ptr.add(into.pointer, len)

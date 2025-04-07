@@ -408,7 +408,7 @@ impl Drop for Client {
 
 impl Read for Client {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
-    into.reserve(size)
+    into.reserve_exact(size)
 
     let len = into.size
     let ptr = ptr.add(into.pointer, len)
@@ -642,7 +642,7 @@ impl Drop for Server {
 
 impl Read for Server {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
-    into.reserve(size)
+    into.reserve_exact(size)
 
     let len = into.size
     let ptr = ptr.add(into.pointer, len)

@@ -56,7 +56,7 @@ fn read_file(
   into: mut ByteArray,
   size: Int,
 ) -> Result[Int, Error] {
-  into.reserve(size)
+  into.reserve_exact(size)
 
   let len = into.size
   let ptr = (into.pointer as Int + len) as Pointer[UInt8]
