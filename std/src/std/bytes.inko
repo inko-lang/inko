@@ -147,7 +147,7 @@ type pub inline Slice[T: Bytes] {
   # # Panics
   #
   # This method panics if `start` or `end` is out of bounds.
-  fn pub static new(source: ref T, start: Int, end: Int) -> Self {
+  fn pub inline static new(source: ref T, start: Int, end: Int) -> Self {
     check_slice_range(start, end, size: source.size)
     Self(source: source, start: start, end: end)
   }
@@ -171,7 +171,7 @@ type pub inline Slice[T: Bytes] {
   #
   # slice.slice(start: 1, end: 2).get(1) # => Result.Ok(30)
   # ```
-  fn pub slice(start: Int, end: Int) -> Self {
+  fn pub inline slice(start: Int, end: Int) -> Self {
     let new_start = @start.wrapping_add(start)
     let new_end = @start.wrapping_add(end)
 
