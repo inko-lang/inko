@@ -2,7 +2,7 @@
 import std.alloc
 import std.array (OutOfBounds, check_bounds)
 import std.clone (Clone)
-import std.cmp (Contains, Equal, max, min)
+import std.cmp (Contains, Equal, max)
 import std.drop (Drop)
 import std.fmt (Format, Formatter)
 import std.hash (Hash, Hasher)
@@ -235,7 +235,11 @@ impl Bytes for Slice {
   # slice.size # => 3
   # ```
   fn pub inline size -> Int {
-    max(0, min(@end.wrapping_sub(@start), @source.size.wrapping_sub(@start)))
+    let len = @source.size
+    let start = @start
+    let end = @end
+
+    if end <= len { end - start } else if start < len { len - start } else { 0 }
   }
 
   # Returns the byte at the given index.
