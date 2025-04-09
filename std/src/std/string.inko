@@ -9,7 +9,7 @@ import std.alloc
 import std.array (OutOfBounds, check_bounds)
 import std.bytes (Bytes, IntoByteArray, Slice, ToByteArray, hash_bytes)
 import std.clone (Clone)
-import std.cmp (Compare, Contains, Equal, Ordering, min)
+import std.cmp (Compare, Equal, Ordering, min)
 import std.drop (Drop)
 import std.fmt (Format, Formatter)
 import std.fs.path (Path)
@@ -616,6 +616,17 @@ type builtin String {
     Path.new(self)
   }
 
+  # Returns `true` if `self` contains the given `String`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # 'hello world'.contains?('hello') # => true
+  # ```
+  fn pub contains?(value: String) -> Bool {
+    index_of(value, starting_at: 0).some?
+  }
+
   fn inline byte_unchecked(index: Int) -> Int {
     (@ptr as Int + index as Pointer[UInt8]).0 as Int
   }
@@ -674,12 +685,6 @@ impl Bytes for String {
   # (i.e. `*char` arguments). You should avoid using it for anything else.
   fn pub inline pointer -> Pointer[UInt8] {
     @ptr
-  }
-}
-
-impl Contains[String] for String {
-  fn pub contains?(value: ref String) -> Bool {
-    index_of(value, starting_at: 0).some?
   }
 }
 

@@ -2,7 +2,7 @@
 import std.alloc
 import std.array (OutOfBounds, check_bounds)
 import std.clone (Clone)
-import std.cmp (Contains, Equal, max)
+import std.cmp (Equal, max)
 import std.drop (Drop)
 import std.fmt (Format, Formatter)
 import std.hash (Hash, Hasher)
@@ -911,6 +911,19 @@ type pub ByteArray {
     Slice.new(self, start, end)
   }
 
+  # Returns `true` if the given byte is contained in `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let bytes = ByteArray.from_array([10, 20])
+  #
+  # bytes.contains?(10) # => true
+  # ```
+  fn pub contains?(value: Int) -> Bool {
+    iter.any?(fn (ours) { ours == value })
+  }
+
   fn inline tail -> Pointer[UInt8] {
     ptr.add(@buffer, @size)
   }
@@ -1046,21 +1059,6 @@ impl Clone for ByteArray {
 impl Hash for ByteArray {
   fn pub hash[H: mut + Hasher](hasher: mut H) {
     hash_bytes(self, hasher)
-  }
-}
-
-impl Contains[Int] for ByteArray {
-  # Returns `true` if the given byte is contained in `self`.
-  #
-  # # Examples
-  #
-  # ```inko
-  # let bytes = ByteArray.from_array([10, 20])
-  #
-  # bytes.contains?(10) # => true
-  # ```
-  fn pub contains?(value: ref Int) -> Bool {
-    iter.any?(fn (ours) { ours == value })
   }
 }
 

@@ -1,7 +1,7 @@
 # A hash map using linear probing and Robin Hood entry stealing.
 import std.array (IntoIter)
 import std.clone (Clone)
-import std.cmp (Contains, Equal)
+import std.cmp (Equal)
 import std.fmt (Format, Formatter)
 import std.hash (Hash, Hasher)
 import std.hash.siphash (SipHasher13)
@@ -478,6 +478,21 @@ type pub Map[K: Equal + Hash, V] {
     }
   }
 
+  # Returns `true` if `self` contains the key `key`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let map = Map.new
+  #
+  # map.set('name', 'Alice')
+  # map.contains?('name') # => true
+  # map.contains?('city') # => false
+  # ```
+  fn pub contains?(value: ref K) -> Bool {
+    entries_index(value) > EMPTY
+  }
+
   fn mut resize {
     let new_size = @slots.size * 2
 
@@ -704,25 +719,6 @@ impl Hash for Map if K: Hash, V: Hash {
       entry.key.hash(hasher)
       entry.value.hash(hasher)
     }
-  }
-}
-
-impl Contains[K] for Map {
-  # Returns `true` if `self` contains the key `key`.
-  #
-  # # Examples
-  #
-  # Checking if a `Map` defines a key:
-  #
-  # ```inko
-  # let map = Map.new
-  #
-  # map.set('name', 'Alice')
-  # map.contains?('name') # => true
-  # map.contains?('city') # => false
-  # ```
-  fn pub contains?(value: ref K) -> Bool {
-    entries_index(value) > EMPTY
   }
 }
 
