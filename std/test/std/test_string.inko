@@ -240,6 +240,11 @@ fn pub tests(t: mut Tests) {
     t.false('foo'.contains?('😃'))
   })
 
+  t.test('String.contains_bytes?', fn (t) {
+    t.true('hello'.contains_bytes?('hello'))
+    t.false('hello'.contains_bytes?('hellox'))
+  })
+
   t.test('String.to_byte_array', fn (t) {
     t.equal('inko'.to_byte_array, ByteArray.from_array([105, 110, 107, 111]))
   })

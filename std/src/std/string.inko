@@ -618,13 +618,16 @@ type builtin String {
 
   # Returns `true` if `self` contains the given `String`.
   #
+  # If you instead want to use a `ByteArray` or `Slice` as the argument, use
+  # `String.contains_bytes?` instead.
+  #
   # # Examples
   #
   # ```inko
   # 'hello world'.contains?('hello') # => true
   # ```
   fn pub contains?(value: String) -> Bool {
-    index_of(value, starting_at: 0).some?
+    contains_bytes?(value)
   }
 
   fn inline byte_unchecked(index: Int) -> Int {

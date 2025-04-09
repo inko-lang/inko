@@ -170,6 +170,13 @@ fn pub tests(t: mut Tests) {
     t.equal(value.slice(2, 5).index_of('e', starting_at: 0), Option.None)
   })
 
+  t.test('Slice.contains_bytes?', fn (t) {
+    let value = 'hello'
+
+    t.true(value.slice(0, 5).contains_bytes?('hello'))
+    t.false(value.slice(0, 4).contains_bytes?('hello'))
+  })
+
   t.test('Slice.to_byte_array', fn (t) {
     let bytes = ByteArray.from_array([10, 20, 30])
     let slice1 = Slice.new(bytes, start: 1, end: 3)
@@ -722,5 +729,12 @@ fn pub tests(t: mut Tests) {
     t.equal(value.index_of('l', starting_at: 0), Option.Some(2))
     t.equal(value.index_of('l', starting_at: 3), Option.Some(3))
     t.equal(value.index_of('e', starting_at: 10), Option.None)
+  })
+
+  t.test('ByteArray.contains_bytes?', fn (t) {
+    let value = 'hello'.to_byte_array
+
+    t.true(value.contains_bytes?('hello'))
+    t.false(value.contains_bytes?('hellox'))
   })
 }

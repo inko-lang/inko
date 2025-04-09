@@ -151,6 +151,17 @@ trait pub Bytes: ToString + ToByteArray {
 
     Option.None
   }
+
+  # Returns `true` if `self` contains the given byte sequence.
+  #
+  # # Examples
+  #
+  # ```inko
+  # 'hello'.contains_bytes?('hello') # => true
+  # ```
+  fn pub contains_bytes?[B: Bytes](bytes: ref B) -> Bool {
+    index_of(bytes, starting_at: 0).some?
+  }
 }
 
 # A immutable slice of bytes.
