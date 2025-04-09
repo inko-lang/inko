@@ -1,5 +1,6 @@
 # The Int type.
 import std.bytes (Bytes)
+import std.bytes.parsers (digit?)
 import std.clone (Clone)
 import std.cmp (Compare, Equal, Ordering)
 import std.float (ToFloat)
@@ -64,7 +65,7 @@ type pub copy enum Format {
   # The `Int` is to be parsed or formatted as a hexadecimal number.
   case Hex
 
-  fn pub to_base -> Int {
+  fn pub inline to_base -> Int {
     match self {
       case Binary -> 2
       case Decimal -> 10
@@ -136,35 +137,34 @@ type builtin Int {
     bytes: ref T,
     format: ref Format,
   ) -> Option[Int] {
-    let input = bytes.bytes.peekable
     let base = format.to_base
-    let mut byte = -1
-    let pos = match input.next {
-      case Some(PLUS) -> {
-        byte = try input.next
-        true
+    let len = bytes.size
+    let mut idx = 0
+    let pos = match bytes.get(idx) {
+      case Ok(PLUS) -> {
+        idx += 1
+
+        if idx == len { return Option.None } else { true }
       }
-      case Some(MINUS) -> {
-        byte = try input.next
-        false
+      case Ok(MINUS) -> {
+        idx += 1
+
+        if idx == len { return Option.None } else { false }
       }
-      case Some(val) -> {
-        byte = val
-        true
-      }
-      case None -> return Option.None
+      case Ok(_) -> true
+      case _ -> return Option.None
     }
 
     let mut num = 0
 
     # For base 16 numbers, we allow them to start with -0x and 0x, as most base
     # 16 numbers will likely use the format 0xABC and not just ABC.
-    if base == 16 and byte == ZERO {
-      match input.peek {
-        case Some(LOWER_X) -> {
-          let _ = input.next
+    if base == 16 and bytes.get(idx).or(-1) == ZERO {
+      match bytes.get(idx + 1) {
+        case Ok(LOWER_X) -> {
+          idx += 2
 
-          byte = try input.next
+          if idx == len { return Option.None }
         }
         case _ -> {}
       }
@@ -180,17 +180,12 @@ type builtin Int {
     # performance improvements seem very small, and simply not worth the extra
     # code at the time of writing. If this ever changes, we can consider taking
     # a similar approach.
-    loop {
-      let digit = if base <= 10 {
-        byte.wrapping_sub(ZERO)
-      } else if byte >= ZERO and byte <= NINE {
-        byte - ZERO
-      } else if byte >= LOWER_A and byte <= LOWER_F {
-        byte - LOWER_A + 10
-      } else if byte >= UPPER_A and byte <= UPPER_F {
-        byte - UPPER_A + 10
-      } else {
-        return Option.None
+    while idx < len {
+      let digit = match bytes.get(idx).or_panic {
+        case v if digit?(v) -> v - ZERO
+        case v if v >= LOWER_A and v <= LOWER_F -> v - LOWER_A + 10
+        case v if v >= UPPER_A and v <= UPPER_F -> v - UPPER_A + 10
+        case _ -> return Option.None
       }
 
       if digit > base or digit < 0 { return Option.None }
@@ -202,11 +197,10 @@ type builtin Int {
         num.checked_sub(digit)
       }
 
-      match input.next {
-        case Some(val) -> byte = val
-        case _ -> return Option.Some(num)
-      }
+      idx += 1
     }
+
+    Option.Some(num)
   }
 
   # Sums the values of `iterator` into a single `Int`.
