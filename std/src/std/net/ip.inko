@@ -1,18 +1,17 @@
 # IPv4 and IPv6 address types.
+import std.bytes (Bytes, Slice)
+import std.bytes.parsers (digit?)
 import std.clone (Clone)
 import std.cmp (Equal)
 import std.fmt (Format as FormatTrait, Formatter)
 import std.int (Format)
 import std.string (IntoString, StringBuffer, ToString)
 
-# The byte for a single dot (".").
-let DOT_BYTE = 46
-
-# The byte for zero as a string ("0").
-let ZERO_BYTE = 48
-
-# The byte for a single colon (":").
-let COLON_BYTE = 58
+let PLUS = 43
+let MINUS = 45
+let DOT = 46
+let ZERO = 48
+let COLON = 58
 
 # The number of octets in an IPv4 address.
 let IPV4_OCTETS = 4
@@ -111,8 +110,8 @@ type pub copy enum IpAddress {
   #
   # IpAddress.parse('::1') # => Option.Some(IpAddress.V6(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1)))
   # ```
-  fn pub static parse(address: String) -> Option[IpAddress] {
-    if address.contains?(':') {
+  fn pub static parse[B: Bytes](address: ref B) -> Option[IpAddress] {
+    if address.contains_bytes?(':') {
       Ipv6Address.parse(address).map(fn (v) { V6(v) })
     } else {
       Ipv4Address.parse(address).map(fn (v) { V4(v) })
@@ -245,13 +244,11 @@ type pub copy Ipv6Address {
   #
   # Ipv6Address.parse('::1').get.v6? # => true
   # ```
-  fn pub static parse(input: String) -> Option[Ipv6Address] {
-    let bytes = input.to_byte_array
-    let mut cursor = 0
+  fn pub static parse[B: Bytes](bytes: ref B) -> Option[Ipv6Address] {
+    let mut idx = 0
     let max = bytes.size
     let segments = []
     let ipv4_segments = []
-    let segment_bytes = ByteArray.new
     let mut compressed = false
     let mut ipv4_mode = false
     let mut max_hextet_value = IPV6_HEXTET_MAXIMUM
@@ -260,26 +257,25 @@ type pub copy Ipv6Address {
     # No point in parsing the input if we're certain it's not a valid address.
     if max > IPV6_STRING_MAXIMUM_LENGTH { return Option.None }
 
-    while cursor < max {
+    while idx < max {
+      let start = idx
+
       # IPv6 addresses can embed IPv4 addresses, so instead of reading until we
       # encounter a ":" we will also stop reading when running into a ".".
-      while
-        cursor < max
-          and bytes.get(cursor).or_panic != COLON_BYTE
-          and bytes.get(cursor).or_panic != DOT_BYTE
-      {
-        segment_bytes.push(bytes.get(cursor).or_panic)
-        cursor += 1
+      while idx < max {
+        match bytes.get(idx).or_panic {
+          case COLON or DOT -> break
+          # These symbols are allowed by Int.parse but aren't valid inside an
+          # IPv6 address.
+          case PLUS or MINUS -> return Option.None
+          case _ -> idx += 1
+        }
       }
 
       # The moment we encounter a dot we'll enter IPv4 mode, and remain in this
       # mode until we reach the end of the input, as embedded IPv4 addresses
       # must be at the end of an IPv6 address.
-      if
-        ipv4_mode.false?
-          and cursor < max
-          and bytes.get(cursor).or_panic == DOT_BYTE
-      {
+      if ipv4_mode.false? and idx < max and bytes.get(idx).or_panic == DOT {
         ipv4_mode = true
         format = Format.Decimal
         max_hextet_value = IPV4_OCTET_MAXIMUM
@@ -287,10 +283,8 @@ type pub copy Ipv6Address {
 
       # When the IP starts with a "::" we won't be able to read input, so the
       # byte buffer is empty.
-      if segment_bytes.size > 0 {
-        let int = try Int.parse(segment_bytes, format)
-
-        segment_bytes.clear
+      if idx - start > 0 {
+        let int = try Int.parse(Slice.new(bytes, start, idx), format)
 
         if int < IP_MINIMUM_VALUE or int > max_hextet_value {
           return Option.None
@@ -299,41 +293,41 @@ type pub copy Ipv6Address {
         if ipv4_mode { ipv4_segments.push(int) } else { segments.push(int) }
       }
 
-      cursor += 1
+      idx += 1
 
       # We have reached another ":", which is used to compress one or more empty
       # groups together.
-      if cursor < max and bytes.get(cursor).or_panic == COLON_BYTE {
+      if idx < max and bytes.get(idx).or_panic == COLON {
         # Zero compression can only be applied once.
         if compressed { return Option.None }
 
         compressed = true
 
         let mut pad = IPV6_HEXTETS - segments.size
-        let mut pad_cursor = cursor
+        let mut pad_idx = idx
         let mut ipv4_padded = false
-        let look_ahead = cursor + 1 < max
+        let look_ahead = idx + 1 < max
 
         # Scan ahead in the input to determine how many empty hextets we need to
         # add, based on the remaining number of hextets.
         #
         # When the compression is at the end of the input (e.g. "1::") there is
         # no point in looking ahead, so we don't.
-        while pad_cursor < max and look_ahead {
-          let byte = bytes.get(pad_cursor).or_panic
+        while pad_idx < max and look_ahead {
+          let byte = bytes.get(pad_idx).or_panic
 
-          if byte == COLON_BYTE { pad -= 1 }
+          if byte == COLON { pad -= 1 }
 
           # Two IPv4 octets can be stored in a single IPv6 hextet, meaning we'd
           # have to reduce padding by two. Since we already skip padding for the
           # ":" that preceeds the IPv4 address, we only reduce the padding by
           # one.
-          if ipv4_padded.false? and byte == DOT_BYTE {
+          if ipv4_padded.false? and byte == DOT {
             ipv4_padded = true
             pad -= 1
           }
 
-          pad_cursor += 1
+          pad_idx += 1
         }
 
         while pad > 0 {
@@ -341,7 +335,7 @@ type pub copy Ipv6Address {
           pad -= 1
         }
 
-        cursor += 1
+        idx += 1
       }
     }
 
@@ -674,41 +668,66 @@ type pub copy Ipv4Address {
   #
   # addr.v4? # => true
   # ```
-  fn pub static parse(input: String) -> Option[Ipv4Address] {
+  fn pub static parse[B: Bytes](bytes: ref B) -> Option[Ipv4Address] {
+    let len = bytes.size
+
     # No IPv4 address can be longer than 15 characters (255.255.255.255).
-    if input.size > 15 { return Option.None }
+    if len > 15 { return Option.None }
 
-    let segments = []
-    let format = Format.Decimal
+    let mut a = 0
+    let mut b = 0
+    let mut c = 0
+    let mut octet = 0
+    let mut num = 0
+    let mut idx = 0
+    let mut digits = 0
+    let mut zero = false
 
-    for segment in input.split('.') {
-      # This handles inputs such as "." and "..."
-      if segment.empty? { next }
-
-      # We don't support octal formats, as it was never part of the spec.
-      # Ignoring them can lead to security issues, as described in
-      # https://www.bleepingcomputer.com/news/security/go-rust-net-library-affected-by-critical-ip-address-validation-vulnerability/.
-      if segment.get(0).or_panic == ZERO_BYTE and segment.size > 1 { next }
-
-      match Int.parse(segment, format) {
-        case Some(int) if int >= IP_MINIMUM_VALUE and int <= IPV4_OCTET_MAXIMUM
-        -> {
-          segments.push(int)
+    while idx < len {
+      match bytes.get(idx).or_panic {
+        case ZERO if digits == 0 -> {
+          digits += 1
+          zero = true
         }
-        case _ -> {}
+        case v if digit?(v) -> {
+          # IPv4 octets consist of at most 3 digits (255).
+          if digits == 3 { return Option.None }
+
+          # We don't support octal formats, as it was never part of the spec.
+          # Ignoring them can lead to security issues, as described in
+          # https://www.bleepingcomputer.com/news/security/go-rust-net-library-affected-by-critical-ip-address-validation-vulnerability/.
+          if zero { return Option.None }
+
+          num = num * 10 + (v - ZERO)
+          digits += 1
+        }
+        case DOT -> {
+          if num > IPV4_OCTET_MAXIMUM or digits == 0 or octet == 3 {
+            return Option.None
+          }
+
+          match octet {
+            case 0 -> a = num
+            case 1 -> b = num
+            case _ -> c = num
+          }
+
+          zero = false
+          digits = 0
+          num = 0
+          octet += 1
+        }
+        case _ -> return Option.None
       }
+
+      idx += 1
     }
 
-    if segments.size != IPV4_OCTETS { return Option.None }
+    if num > IPV4_OCTET_MAXIMUM or digits == 0 or octet < 3 {
+      return Option.None
+    }
 
-    Option.Some(
-      Ipv4Address(
-        a: segments.get(0).or_panic,
-        b: segments.get(1).or_panic,
-        c: segments.get(2).or_panic,
-        d: segments.get(3).or_panic,
-      ),
-    )
+    Option.Some(Ipv4Address(a: a, b: b, c: c, d: num))
   }
 
   # Returns a new IPv4 address using the given octets.

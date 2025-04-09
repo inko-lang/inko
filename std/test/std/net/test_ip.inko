@@ -208,6 +208,10 @@ fn pub tests(t: mut Tests) {
     t.true(Ipv6Address.parse('::1:300.168.1.1').none?)
     t.true(Ipv6Address.parse('::1:300.168:1.1').none?)
     t.true(Ipv6Address.parse('::1/24').none?)
+    t.true(Ipv6Address.parse('-2001:db8:0:0:1:0:0:1').none?)
+    t.true(Ipv6Address.parse('+2001:db8:0:0:1:0:0:1').none?)
+    t.true(Ipv6Address.parse('2001:-db8:0:0:1:0:0:1').none?)
+    t.true(Ipv6Address.parse('2001:+db8:0:0:1:0:0:1').none?)
   })
 
   t.test('Ipv6Address.ipv4_compatible?', fn (t) {
@@ -336,7 +340,9 @@ fn pub tests(t: mut Tests) {
       Option.Some(Ipv4Address.new(255, 255, 255, 255)),
     )
 
+    t.true(Ipv4Address.parse('1').none?)
     t.true(Ipv4Address.parse('1.2').none?)
+    t.true(Ipv4Address.parse('1.2.3').none?)
     t.true(Ipv4Address.parse('255.255.255.255.255.255').none?)
     t.true(Ipv4Address.parse('1.f.4.a').none?)
     t.true(Ipv4Address.parse('1234').none?)
@@ -344,14 +350,18 @@ fn pub tests(t: mut Tests) {
     t.true(Ipv4Address.parse('1.2.3.4:80').none?)
     t.true(Ipv4Address.parse('1.2.3.4/24').none?)
     t.true(Ipv4Address.parse('.2.3.4').none?)
+    t.true(Ipv4Address.parse('').none?)
     t.true(Ipv4Address.parse('.').none?)
     t.true(Ipv4Address.parse('....').none?)
     t.true(Ipv4Address.parse('').none?)
 
+    t.true(Ipv4Address.parse('1.1.').none?)
+    t.true(Ipv4Address.parse('1.1.1.1.').none?)
+    t.true(Ipv4Address.parse('1.1.1.1.1').none?)
     t.true(Ipv4Address.parse('0127.0.0.1').none?)
     t.true(Ipv4Address.parse('00127.0.0.1').none?)
-    t.true(Ipv4Address.parse('127.00.0.1').none?)
-    t.true(Ipv4Address.parse('127.0.00.1').none?)
+    t.true(Ipv4Address.parse('127.01.0.1').none?)
+    t.true(Ipv4Address.parse('127.0.01.1').none?)
     t.true(Ipv4Address.parse('127.0.0.01').none?)
     t.true(Ipv4Address.parse('127.0.0.001').none?)
 
