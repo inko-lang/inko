@@ -271,47 +271,6 @@ type builtin String {
     buff.into_string
   }
 
-  # Returns the _byte_ index of the first occurrence of the given `String`,
-  # starting at the given byte index.
-  #
-  # # Examples
-  #
-  # ```inko
-  # 'hello'.byte_index(of: 'h', starting_at: 0) # => Option.Some(0)
-  # 'hello'.byte_index(of: 'l', starting_at: 0) # => Option.Some(2)
-  # 'hello'.byte_index(of: 'l', starting_at: 3) # => Option.Some(3)
-  # 'hello'.byte_index(of: 'x', starting_at: 0) # => Option.None
-  # ```
-  fn pub byte_index(of: String, starting_at: Int) -> Option[Int] {
-    # This is a naive string searching algorithm (see
-    # https://en.wikipedia.org/wiki/String-searching_algorithm) for more details
-    # on the various algorithms.
-    #
-    # We're using the naive algorithm because:
-    #
-    # 1. It's easy to implement
-    # 2. It doesn't require any pre-processing
-    # 3. At the time of writing there was no need for something more performant
-    let find_size = of.size
-
-    if find_size == 0 or size == 0 or find_size > size { return Option.None }
-
-    let mut a = starting_at
-    let max = size - find_size
-
-    while a <= max {
-      let mut b = 0
-
-      while b < find_size and get(a + b) == of.get(b) { b += 1 }
-
-      if b == find_size { return Option.Some(a) }
-
-      a += 1
-    }
-
-    Option.None
-  }
-
   # Returns `true` if `self` starts with the given `String`.
   #
   # # Examples
@@ -366,7 +325,7 @@ type builtin String {
     let mut offset = 0
 
     Stream.new(fn move {
-      match byte_index(of: separator, starting_at: offset) {
+      match index_of(separator, starting_at: offset) {
         case Some(at) -> {
           let start = offset := at + separator.size
 
@@ -627,7 +586,7 @@ type builtin String {
     let mut last = 0
 
     loop {
-      match byte_index(string, start) {
+      match index_of(string, start) {
         case Some(i) -> {
           if i > last { buf.append(slice(start: last, end: i)) }
 
@@ -720,7 +679,7 @@ impl Bytes for String {
 
 impl Contains[String] for String {
   fn pub contains?(value: ref String) -> Bool {
-    byte_index(of: value, starting_at: 0).some?
+    index_of(value, starting_at: 0).some?
   }
 }
 

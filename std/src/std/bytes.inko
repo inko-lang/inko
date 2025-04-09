@@ -110,6 +110,47 @@ trait pub Bytes: ToString + ToByteArray {
 
     len == other.size and (len == 0 or ptr.equal(pointer, other.pointer, len))
   }
+
+  # Returns the _byte_ index of the first occurrence of the given sequence of
+  # bytes, starting at the given byte index.
+  #
+  # # Examples
+  #
+  # ```inko
+  # 'hello'.index_of('h', starting_at: 0) # => Option.Some(0)
+  # 'hello'.index_of('l', starting_at: 0) # => Option.Some(2)
+  # 'hello'.index_of('l', starting_at: 3) # => Option.Some(3)
+  # 'hello'.index_of('x', starting_at: 0) # => Option.None
+  # ```
+  fn pub index_of[B: Bytes](value: ref B, starting_at: Int) -> Option[Int] {
+    # This is a naive string searching algorithm (see
+    # https://en.wikipedia.org/wiki/String-searching_algorithm) for more details
+    # on the various algorithms.
+    #
+    # We're using the naive algorithm because:
+    #
+    # 1. It's easy to implement
+    # 2. It doesn't require any pre-processing
+    # 3. At the time of writing there was no need for something more performant
+    let find_size = value.size
+
+    if find_size == 0 or size == 0 or find_size > size { return Option.None }
+
+    let mut a = starting_at
+    let max = size - find_size
+
+    while a <= max {
+      let mut b = 0
+
+      while b < find_size and get(a + b) == value.get(b) { b += 1 }
+
+      if b == find_size { return Option.Some(a) }
+
+      a += 1
+    }
+
+    Option.None
+  }
 }
 
 # A immutable slice of bytes.

@@ -160,6 +160,16 @@ fn pub tests(t: mut Tests) {
     t.false(slice1.equals?(slice3))
   })
 
+  t.test('Slice.index_of', fn (t) {
+    let value = 'hello'
+
+    t.equal(value.slice(0, 5).index_of('e', starting_at: 0), Option.Some(1))
+    t.equal(value.slice(1, 5).index_of('e', starting_at: 0), Option.Some(0))
+    t.equal(value.slice(1, 5).index_of('l', starting_at: 0), Option.Some(1))
+    t.equal(value.slice(1, 5).index_of('l', starting_at: 2), Option.Some(2))
+    t.equal(value.slice(2, 5).index_of('e', starting_at: 0), Option.None)
+  })
+
   t.test('Slice.to_byte_array', fn (t) {
     let bytes = ByteArray.from_array([10, 20, 30])
     let slice1 = Slice.new(bytes, start: 1, end: 3)
@@ -703,5 +713,14 @@ fn pub tests(t: mut Tests) {
 
     bytes.reserve_exact(2)
     t.equal(bytes.capacity, 6)
+  })
+
+  t.test('ByteArray.index_of', fn (t) {
+    let value = 'hello'.to_byte_array
+
+    t.equal(value.index_of('e', starting_at: 0), Option.Some(1))
+    t.equal(value.index_of('l', starting_at: 0), Option.Some(2))
+    t.equal(value.index_of('l', starting_at: 3), Option.Some(3))
+    t.equal(value.index_of('e', starting_at: 10), Option.None)
   })
 }

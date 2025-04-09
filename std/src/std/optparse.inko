@@ -247,7 +247,7 @@ impl Iter[Token] for Lexer {
             and val.get(0).or_panic == HYPHEN
             and val.get(1).or_panic == HYPHEN
           -> {
-            match val.byte_index(of: '=', starting_at: 2) {
+            match val.index_of('=', starting_at: 2) {
               # Example: --foo=bar
               case Some(idx) -> {
                 let name = val.slice(start: 2, end: idx).to_string
@@ -261,7 +261,7 @@ impl Iter[Token] for Lexer {
             }
           }
           case Some(val) if val.size >= 2 and val.get(0).or_panic == HYPHEN -> {
-            match val.byte_index(of: '=', starting_at: 1) {
+            match val.index_of('=', starting_at: 1) {
               # Example: -a=b, parsed as `-a "=b"` to match getopts behaviour
               case Some(_) if basic_latin?(val.get(1).or_panic) -> {
                 let name = val.slice(start: 1, end: 2).to_string

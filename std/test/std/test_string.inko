@@ -118,19 +118,19 @@ fn pub tests(t: mut Tests) {
     'hello_world'.slice(start: 0, end: 20)
   })
 
-  t.test('String.byte_index', fn (t) {
-    t.equal('hello'.byte_index(of: 'h', starting_at: 0), Option.Some(0))
-    t.equal('hello'.byte_index(of: 'e', starting_at: 0), Option.Some(1))
-    t.equal('hello'.byte_index(of: 'l', starting_at: 0), Option.Some(2))
-    t.equal('hello'.byte_index(of: 'l', starting_at: 0), Option.Some(2))
-    t.equal('😀x'.byte_index(of: 'x', starting_at: 0), Option.Some(4))
-    t.equal('hello'.byte_index(of: '', starting_at: 0), Option.None)
-    t.equal('hello'.byte_index(of: 'x', starting_at: 0), Option.None)
-    t.equal(''.byte_index(of: 'x', starting_at: 0), Option.None)
-    t.equal(''.byte_index(of: '', starting_at: 0), Option.None)
-    t.equal('hello'.byte_index(of: 'l', starting_at: 2), Option.Some(2))
-    t.equal('hello'.byte_index(of: 'l', starting_at: 3), Option.Some(3))
-    t.equal('hello'.byte_index(of: 'h', starting_at: 1), Option.None)
+  t.test('String.index_of', fn (t) {
+    t.equal('hello'.index_of('h', starting_at: 0), Option.Some(0))
+    t.equal('hello'.index_of('e', starting_at: 0), Option.Some(1))
+    t.equal('hello'.index_of('l', starting_at: 0), Option.Some(2))
+    t.equal('hello'.index_of('l', starting_at: 0), Option.Some(2))
+    t.equal('😀x'.index_of('x', starting_at: 0), Option.Some(4))
+    t.equal('hello'.index_of('', starting_at: 0), Option.None)
+    t.equal('hello'.index_of('x', starting_at: 0), Option.None)
+    t.equal(''.index_of('x', starting_at: 0), Option.None)
+    t.equal(''.index_of('', starting_at: 0), Option.None)
+    t.equal('hello'.index_of('l', starting_at: 2), Option.Some(2))
+    t.equal('hello'.index_of('l', starting_at: 3), Option.Some(3))
+    t.equal('hello'.index_of('h', starting_at: 1), Option.None)
   })
 
   t.test('String.starts_with?', fn (t) {
