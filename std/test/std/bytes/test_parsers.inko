@@ -66,5 +66,13 @@ fn pub tests(t: mut Tests) {
     t.equal(parsers.digits('123', start: 0, limit: 4), Option.Some((123, 3)))
     t.equal(parsers.digits('1234', start: 0, limit: 4), Option.Some((1234, 4)))
     t.equal(parsers.digits('1234a', start: 0, limit: 4), Option.Some((1234, 4)))
+    t.equal(
+      parsers.digits(
+        '9999999999999999999999999999999999999999',
+        start: 0,
+        limit: 40,
+      ),
+      Option.None,
+    )
   })
 }

@@ -66,8 +66,9 @@ fn digits[T: Bytes](
 
     if digit?(byte).false? { break }
 
-    num = num.wrapping_mul(10).wrapping_add(byte.wrapping_sub(ZERO))
-    idx = idx.wrapping_add(1)
+    num = try num.checked_mul(10)
+    num = try num.checked_add(byte - ZERO)
+    idx += 1
   }
 
   let len = idx - start
