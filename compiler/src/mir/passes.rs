@@ -605,12 +605,17 @@ impl<'a> GenerateDropper<'a> {
         id.set_receiver(&mut self.state.db, receiver);
         id.set_return_type(&mut self.state.db, TypeRef::nil());
 
-        // Droppers already inline the destructor and depending on the number of
-        // fields may produce many instructions to drop the data. As such,
-        // inlining these methods may inhibit inlining other methods, resulting
-        // in worse performance and compile times. To avoid this, droppers are
-        // never inlined.
-        id.set_inline(&mut self.state.db, Inline::Never);
+        // For stack types we want to always inline the dropper such that we're
+        // less likely to generate redundant $dropper calls (e.g. when the
+        // inline type stores only copy values). For other types we leave it up
+        // to the inliner to decide.
+        let inline = if self.type_id.is_stack_allocated(&self.state.db) {
+            Inline::Always
+        } else {
+            Inline::Infer
+        };
+
+        id.set_inline(&mut self.state.db, inline);
         id
     }
 
