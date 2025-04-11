@@ -184,7 +184,33 @@ type pub inline Slice[T: Bytes] {
   # The end index (relative to the source) of the slice.
   let pub @end: Int
 
-  # Returns a `Slice` over the given source.
+  # Returns a `Slice` over the given source, without performing an initial
+  # bounds check.
+  #
+  # This method is useful if you've somehow already asserted the slice range is
+  # within bounds, but the compiler isn't able to optimize away the bounds
+  # check.
+  #
+  # Use of the resulting `Slice` is still safe as bounds checking upon
+  # access is still performed. In addition, methods such as `Slice.size` take
+  # into account the size of the underlying collection, such that it never
+  # returns an incorrect value.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.bytes (Slice)
+  #
+  # let buf = ByteArray.new([10, 20, 30])
+  #
+  # Slice.new(buf, 0, 3)
+  # ```
+  fn pub inline static new(source: ref T, start: Int, end: Int) -> Self {
+    Self(source: source, start: start, end: end)
+  }
+
+  # Returns a `Slice` over the given source, while checking if `start` and `end`
+  # are within bounds.
   #
   # The `start` index is allowed to be equal to the size of `self`, but only if
   # `end` is the same as `start`. Thus given a source with a size of `4`, the
@@ -199,7 +225,17 @@ type pub inline Slice[T: Bytes] {
   # # Panics
   #
   # This method panics if `start` or `end` is out of bounds.
-  fn pub inline static new(source: ref T, start: Int, end: Int) -> Self {
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.bytes (Slice)
+  #
+  # let buf = ByteArray.new([10, 20, 30])
+  #
+  # Slice.checked(buf, 0, 3)
+  # ```
+  fn pub inline static checked(source: ref T, start: Int, end: Int) -> Self {
     check_slice_range(start, end, size: source.size)
     Self(source: source, start: start, end: end)
   }
@@ -919,7 +955,7 @@ type pub ByteArray {
   # slice.get(0) # => 10
   # ```
   fn pub slice(start: Int, end: Int) -> Slice[Self] {
-    Slice.new(self, start, end)
+    Slice.checked(self, start, end)
   }
 
   # Returns `true` if the given byte is contained in `self`.

@@ -190,7 +190,7 @@ type builtin String {
   # '😊'.slice(start: 0, end: 3).to_string # => "\u{FFFD}"
   # ```
   fn pub slice(start: Int, end: Int) -> Slice[Self] {
-    Slice.new(self, start, end)
+    Slice.checked(self, start, end)
   }
 
   # Returns the uppercase equivalent of the current `String`.

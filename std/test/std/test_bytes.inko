@@ -30,16 +30,23 @@ fn pub tests(t: mut Tests) {
     t.equal(slice4.size, 0)
   })
 
-  t.panic('Slice.new with an out of bounds start index', fn {
+  t.test('Slice.new with an out of bounds range', fn (t) {
     let bytes = ByteArray.from_array([10, 20])
 
-    Slice.new(bytes, start: 3, end: 4)
+    t.equal(Slice.new(bytes, 0, 10).size, 2)
+    t.equal(Slice.new(bytes, 10, 15).size, 0)
   })
 
-  t.panic('Slice.new with an out of bounds end index', fn {
+  t.panic('Slice.checked with an out of bounds start index', fn {
     let bytes = ByteArray.from_array([10, 20])
 
-    Slice.new(bytes, start: 0, end: 3)
+    Slice.checked(bytes, start: 3, end: 4)
+  })
+
+  t.panic('Slice.checked with an out of bounds end index', fn {
+    let bytes = ByteArray.from_array([10, 20])
+
+    Slice.checked(bytes, start: 0, end: 3)
   })
 
   t.test('Slice.slice', fn (t) {
