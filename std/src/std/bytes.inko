@@ -184,8 +184,8 @@ type pub inline Slice[T: Bytes] {
   # The end index (relative to the source) of the slice.
   let pub @end: Int
 
-  # Returns a `Slice` over the given source, without performing an initial
-  # bounds check.
+  # Returns a `Slice` over the given source, without checking if the slice is
+  # within bounds of the underlying collection.
   #
   # This method is useful if you've somehow already asserted the slice range is
   # within bounds, but the compiler isn't able to optimize away the bounds
@@ -203,14 +203,20 @@ type pub inline Slice[T: Bytes] {
   #
   # let buf = ByteArray.new([10, 20, 30])
   #
-  # Slice.new(buf, 0, 3)
+  # Slice.new(buf, 0, 10)
   # ```
+  #
+  # # Panics
+  #
+  # This method panics if `start` is greater than `end`.
   fn pub inline static new(source: ref T, start: Int, end: Int) -> Self {
+    if start > end { invalid_slice_range(start, end, source.size) }
+
     Self(source: source, start: start, end: end)
   }
 
   # Returns a `Slice` over the given source, while checking if `start` and `end`
-  # are within bounds.
+  # are within bounds of the underlying collection.
   #
   # The `start` index is allowed to be equal to the size of `self`, but only if
   # `end` is the same as `start`. Thus given a source with a size of `4`, the
