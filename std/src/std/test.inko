@@ -643,7 +643,10 @@ type pub Tests {
 
       if code != 101 { return }
 
-      let got = output.stderr.split('\n').last.or('the process panicked')
+      let got = match output.stderr.split('\n').last {
+        case Some(v) -> v.to_string
+        case _ -> 'the process panicked'
+      }
 
       test.failures.push(
         Failure(

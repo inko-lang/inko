@@ -299,8 +299,8 @@ type builtin String {
     ptr.ends_with?(@ptr, size, suffix.ptr, suffix.size)
   }
 
-  # Splits `self` into an iterator of `Strings`, each separated by the given
-  # separator.
+  # Splits `self` into an iterator of slices of the data in `self`, each
+  # separated by the given separator.
   #
   # # Examples
   #
@@ -309,8 +309,8 @@ type builtin String {
   # ```inko
   # let iter = 'foo/bar/baz'.split('/')
   #
-  # iter.next # => Option.Some('foo')
-  # iter.next # => Option.Some('bar')
+  # iter.next.get.to_string # => 'foo'
+  # iter.next.get.to_string # => 'bar'
   # ```
   #
   # Splitting a `String` using multiple characters as the separator:
@@ -318,25 +318,21 @@ type builtin String {
   # ```inko
   # let iter = 'foo::bar::baz'.split('::')
   #
-  # iter.next # => Option.Some('foo')
-  # iter.next # => Option.Some('bar')
+  # iter.next.get.to_string # => 'foo'
+  # iter.next.get.to_string # => 'bar'
   # ```
-  fn pub split(separator: String) -> Stream[String] {
+  fn pub split(separator: String) -> Stream[Slice[String]] {
     let mut offset = 0
 
     Stream.new(fn move {
       match index_of(separator, starting_at: offset) {
         case Some(at) -> {
-          let start = offset := at + separator.size
-
-          Option.Some(slice(start: start, end: at).to_string)
+          Option.Some(Slice.new(self, offset := at + separator.size, at))
         }
         case _ if offset < size -> {
           # No separator found, but we haven't reached the end of the String
           # yet. In this case we return the remaining String.
-          let at = offset := size
-
-          Option.Some(slice(start: at, end: size).to_string)
+          Option.Some(Slice.new(self, offset := size, size))
         }
         case _ -> Option.None
       }

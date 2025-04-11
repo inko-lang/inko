@@ -8,6 +8,10 @@ import std.ptr
 import std.string (PrimitiveString, StringBuffer)
 import std.test (Tests)
 
+fn split(string: String, on: String) -> Array[String] {
+  string.split(on).map(fn (s) { s.to_string }).to_array
+}
+
 fn pub tests(t: mut Tests) {
   t.test('String.from_primitive', fn (t) {
     let raw = alloc.allocate(3)
@@ -163,20 +167,20 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('String.split', fn (t) {
-    t.equal('foo/bar/baz'.split('/').to_array, ['foo', 'bar', 'baz'])
-    t.equal('foo::bar::baz'.split('::').to_array, ['foo', 'bar', 'baz'])
-    t.equal('foo'.split('/').to_array, ['foo'])
-    t.equal('foo→bar→baz'.split('→').to_array, ['foo', 'bar', 'baz'])
-    t.equal('foo→bar→baz'.split('bar').to_array, ['foo→', '→baz'])
-    t.equal('foo//bar/baz'.split('/').to_array, ['foo', '', 'bar', 'baz'])
-    t.equal('foo/bar/baz'.split('').to_array, ['foo/bar/baz'])
-    t.equal('foo/bar'.split('///////////////').to_array, ['foo/bar'])
-    t.equal('foo/'.split('/').to_array, ['foo'])
-    t.equal('foo//'.split('/').to_array, ['foo', ''])
-    t.equal('foo///'.split('/').to_array, ['foo', '', ''])
-    t.equal('foo//'.split('//').to_array, ['foo'])
-    t.equal('foo///'.split('//').to_array, ['foo', '/'])
-    t.equal(''.split('/').to_array, [])
+    t.equal(split('foo/bar/baz', on: '/'), ['foo', 'bar', 'baz'])
+    t.equal(split('foo::bar::baz', on: '::'), ['foo', 'bar', 'baz'])
+    t.equal(split('foo', on: '/'), ['foo'])
+    t.equal(split('foo→bar→baz', on: '→'), ['foo', 'bar', 'baz'])
+    t.equal(split('foo→bar→baz', on: 'bar'), ['foo→', '→baz'])
+    t.equal(split('foo//bar/baz', on: '/'), ['foo', '', 'bar', 'baz'])
+    t.equal(split('foo/bar/baz', on: ''), ['foo/bar/baz'])
+    t.equal(split('foo/bar', on: '///////////////'), ['foo/bar'])
+    t.equal(split('foo/', on: '/'), ['foo'])
+    t.equal(split('foo//', on: '/'), ['foo', ''])
+    t.equal(split('foo///', on: '/'), ['foo', '', ''])
+    t.equal(split('foo//', on: '//'), ['foo'])
+    t.equal(split('foo///', on: '//'), ['foo', '/'])
+    t.equal(split('', on: '/'), [])
   })
 
   t.test('String.empty?', fn (t) {

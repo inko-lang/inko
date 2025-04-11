@@ -901,7 +901,7 @@ impl ToString for Options {
             buf.push(' '.repeat(max_size + 6))
           }
 
-          buf.push(line)
+          buf.push(line.to_string)
         }
       } else {
         buf.push(opt)
