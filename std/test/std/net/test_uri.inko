@@ -1,0 +1,189 @@
+import std.net.ip (Ipv4Address, Ipv6Address)
+import std.net.uri (Host, Scheme, Uri, UserInfo)
+import std.test (Tests)
+
+fn http -> Option[Scheme] {
+  Option.Some(Scheme.Http)
+}
+
+fn https -> Option[Scheme] {
+  Option.Some(Scheme.Https)
+}
+
+fn other(scheme: String) -> Option[Scheme] {
+  Option.Some(Scheme.Other(scheme))
+}
+
+fn user(name: String) -> Option[UserInfo] {
+  Option.Some(UserInfo(name: name, password: Option.None))
+}
+
+fn auth(name: String, password: String) -> Option[UserInfo] {
+  Option.Some(UserInfo(name: name, password: Option.Some(password)))
+}
+
+fn named(name: String) -> Option[Host] {
+  Option.Some(Host.Named(name))
+}
+
+fn v4(ip: String) -> Option[Host] {
+  Option.Some(Host.Ipv4(Ipv4Address.parse(ip).get))
+}
+
+fn v6(ip: String) -> Option[Host] {
+  Option.Some(Host.Ipv6(Ipv6Address.parse(ip).get))
+}
+
+fn future(ip: String) -> Option[Host] {
+  Option.Some(Host.Future(ip))
+}
+
+fn path(value: String) -> Option[String] {
+  Option.Some(value)
+}
+
+fn __[T] -> Option[T] {
+  Option.None
+}
+
+fn uri(
+  scheme: Option[Scheme],
+  user_info: Option[UserInfo],
+  host: Option[Host],
+  port: Option[Int],
+  path: Option[String],
+  query: Array[String],
+  fragment: Option[String],
+) -> Uri {
+  Uri(
+    scheme: scheme,
+    user_info: user_info,
+    host: host,
+    port: port,
+    path: path,
+    query: query,
+    fragment: fragment,
+  )
+}
+
+fn pub tests(t: mut Tests) {
+  t.test('Scheme.from', fn (t) {
+    t.equal(Scheme.from('ws'), Scheme.Ws)
+    t.equal(Scheme.from('wss'), Scheme.Wss)
+    t.equal(Scheme.from('http'), Scheme.Http)
+    t.equal(Scheme.from('https'), Scheme.Https)
+    t.equal(Scheme.from('httpx'), Scheme.Other('httpx'))
+    t.equal(Scheme.from('file'), Scheme.Other('file'))
+  })
+
+  t.test('Uri.parse with valid URIs', fn (t) {
+    let tests = [
+      ('', Uri.new),
+
+      # Scheme
+      ('http:', uri(http, __, __, __, __, [], __)),
+      ('HTTP:', uri(http, __, __, __, __, [], __)),
+      ('https:', uri(https, __, __, __, __, [], __)),
+      ('HTTPS:', uri(https, __, __, __, __, [], __)),
+
+      # User info
+      (
+        'http://user:password@host',
+        uri(http, auth('user', 'password'), named('host'), __, __, [], __),
+      ),
+      (
+        'http://user-name:pass-word@host',
+        uri(http, auth('user-name', 'pass-word'), named('host'), __, __, [], __),
+      ),
+      (
+        'http://user!name:pass!word@host',
+        uri(http, auth('user!name', 'pass!word'), named('host'), __, __, [], __),
+      ),
+      (
+        'http://user:@host',
+        uri(http, user('user'), named('host'), __, __, [], __),
+      ),
+      ('http://:@host', uri(http, user(''), named('host'), __, __, [], __)),
+      (
+        'http://:password@host',
+        uri(http, auth('', 'password'), named('host'), __, __, [], __),
+      ),
+      (
+        'http://user%20name:pass%20word@host',
+        uri(http, auth('user name', 'pass word'), named('host'), __, __, [], __),
+      ),
+
+      # Hosts
+      ('http://host', uri(http, __, named('host'), __, __, [], __)),
+      ('http://HOST', uri(http, __, named('host'), __, __, [], __)),
+      ('http://1.2.host.4', uri(http, __, named('1.2.host.4'), __, __, [], __)),
+      ('http://1.2.3.4', uri(http, __, v4('1.2.3.4'), __, __, [], __)),
+      ('http://[::1]', uri(http, __, v6('::1'), __, __, [], __)),
+      ('http://[v123.foo]', uri(http, __, future('v123.foo'), __, __, [], __)),
+      ('http://[v123.FOO]', uri(http, __, future('v123.FOO'), __, __, [], __)),
+      ('http://host%20name', uri(http, __, named('host name'), __, __, [], __)),
+      ('//host', uri(__, __, named('host'), __, __, [], __)),
+
+      # Ports
+      (
+        'http://host:123',
+        uri(http, __, named('host'), Option.Some(123), __, [], __),
+      ),
+
+      # Paths
+      (
+        'http://host/foo/bar.html',
+        uri(http, __, named('host'), __, path('/foo/bar.html'), [], __),
+      ),
+      (
+        'http://host/foo/BAR',
+        uri(http, __, named('host'), __, path('/foo/BAR'), [], __),
+      ),
+      (
+        'http://host/foo%20bar/baz',
+        uri(http, __, named('host'), __, path('/foo bar/baz'), [], __),
+      ),
+      (
+        'http://host/foo/../bar',
+        uri(http, __, named('host'), __, path('/foo/../bar'), [], __),
+      ),
+      ('foo', uri(__, __, __, __, path('foo'), [], __)),
+      ('foo/bar', uri(__, __, __, __, path('foo/bar'), [], __)),
+      ('../foo', uri(__, __, __, __, path('../foo'), [], __)),
+      ('....../foo', uri(__, __, __, __, path('....../foo'), [], __)),
+      ('///foo', uri(__, __, __, __, path('/foo'), [], __)),
+      ('////foo', uri(__, __, __, __, path('//foo'), [], __)),
+      ('foo/..', uri(__, __, __, __, path('foo/..'), [], __)),
+      ('/a:b@c', uri(__, __, __, __, path('/a:b@c'), [], __)),
+      ('/', uri(__, __, __, __, path('/'), [], __)),
+
+      # Query strings
+      ('?key=value', uri(__, __, __, __, __, ['key=value'], __)),
+      ('?a=1&b=2', uri(__, __, __, __, __, ['a=1', 'b=2'], __)),
+      ('?key[0]=value', uri(__, __, __, __, __, ['key[0]=value'], __)),
+      ('?FOO=BAR&b=2', uri(__, __, __, __, __, ['FOO=BAR', 'b=2'], __)),
+      (
+        '?foo=hello%20world&bar=test',
+        uri(__, __, __, __, __, ['foo=hello world', 'bar=test'], __),
+      ),
+
+      # Fragments
+      # ...
+      # Combinations
+      (
+        'https://user:password@localhost:8000/search?a=foo&b=bar#hello',
+        uri(
+          https,
+          auth('user', 'password'),
+          named('localhost'),
+          Option.Some(8000),
+          Option.Some('/search'),
+          ['a=foo', 'b=bar'],
+          Option.Some('hello'),
+        ),
+      ),
+    ]
+
+    for (inp, out) in tests { t.equal(Uri.parse(inp), Result.Ok(out)) }
+  })
+}
