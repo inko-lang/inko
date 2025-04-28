@@ -1,6 +1,6 @@
 import helpers (hash)
 import std.fmt (fmt)
-import std.map (MissingKey)
+import std.map (DEFAULT_CAPACITY, MissingKey)
 import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
@@ -272,5 +272,21 @@ fn pub tests(t: mut Tests) {
     let map2 = map1.clone
 
     t.equal(map1, map2)
+  })
+
+  t.test('Map.clear', fn (t) {
+    let map = Map.new
+
+    map.set('name', 'Alice')
+    map.set('age', '42')
+    map.clear
+    t.equal(map.size, 0)
+    t.equal(map.slots.size, DEFAULT_CAPACITY)
+    t.equal(map.entries.size, 0)
+
+    map.set('name', 'Bob')
+    map.set('age', '50')
+    t.equal(map.get('name'), Result.Ok('Bob'))
+    t.equal(map.get('age'), Result.Ok('50'))
   })
 }

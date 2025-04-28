@@ -493,6 +493,23 @@ type pub Map[K: Equal + Hash, V] {
     entries_index(value) > EMPTY
   }
 
+  # Removes all values in `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let map = Map.new
+  #
+  # map.set('name', 'Alice')
+  # map.set('age', '42')
+  # map.clear
+  # map.size # => 0
+  # ```
+  fn pub mut clear {
+    @slots = Array.filled(with: EMPTY, times: @slots.size)
+    @entries.clear
+  }
+
   fn mut resize {
     let new_size = @slots.size * 2
 
