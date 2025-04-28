@@ -305,6 +305,40 @@ type builtin Array[T] {
     Result.Ok(val)
   }
 
+  # Removes all values for which the `condition` closure returns `true`.
+  #
+  # This method shifts values to the left every time a value is removed. When
+  # removing many values from an `Array`, it's likely more efficient to create a
+  # new `Array` and copy/move the values to keep to this new `Array`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let vals = [10, 20, 30, 40, 50]
+  #
+  # vals.remove_if(fn (v) { v <= 30 })
+  # vals # => [40, 50]
+  # ```
+  fn pub mut remove_if(condition: fn (ref T) -> Bool) {
+    let mut idx = 0
+
+    while idx < @size {
+      if condition.call(get_unchecked(idx)) {
+        let addr = address_of(idx)
+
+        drop_value(addr.0)
+        alloc.copy(from: ptr.add(addr, 1), to: addr, size: @size - idx - 1)
+        @size -= 1
+
+        # Because we shift to the left, we need to visit the current index
+        # again, otherwise we'd miss the value that came after it _before_ the
+        # shift.
+      } else {
+        idx += 1
+      }
+    }
+  }
+
   # Returns an immutable borrow of the value at the given index.
   #
   # If the index is out of bounds, a `std.bounds.OutOfBounds` error is returned.

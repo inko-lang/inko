@@ -126,6 +126,22 @@ fn pub tests(t: mut Tests) {
     t.equal(vals.remove_at(4), Result.Error(OutOfBounds.new(index: 4, size: 1)))
   })
 
+  t.test('Array.remove_if', fn (t) {
+    let vals = [10, 20, 30, 40, 50]
+
+    vals.remove_if(fn (v) { false })
+    t.equal(vals, [10, 20, 30, 40, 50])
+
+    vals.remove_if(fn (v) { v <= 30 })
+    t.equal(vals, [40, 50])
+
+    vals.remove_if(fn (v) { v <= 50 })
+    t.equal(vals, [])
+
+    vals.remove_if(fn (v) { true })
+    t.equal(vals, [])
+  })
+
   t.test('Array.swap', fn (t) {
     let vals = [10, 20, 30]
 
