@@ -651,7 +651,7 @@ LLVM module timings:
 
         let start = Instant::now();
 
-        link(&self.state, &exe, &res.objects)
+        link(&self.state, &exe, &res.objects, directories)
             .map_err(CompileError::Internal)?;
         self.timings.link = start.elapsed();
 
