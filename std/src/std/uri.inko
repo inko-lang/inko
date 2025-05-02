@@ -1,0 +1,2023 @@
+# [RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986) URIs.
+#
+# This module provides types for working with RFC 3986 compliant URIs. For
+# example, parsing of URIs is done using `Uri.parse`:
+#
+# ```inko
+# import std.uri (Uri)
+#
+# let uri = Uri
+#   .parse('https://example.com/hello.html?key=value')
+#   .or_panic
+#
+# uri.scheme # => Option.Some(Scheme.Https)
+# ```
+#
+# For more information, refer to the documentation of the `Uri` type.
+import std.bytes (Bytes, Slice)
+import std.bytes.parsers (
+  LOWER_A, UPPER_A, alpha?, digit?, hex?, lower?, lower_hex_char?, to_lower,
+  upper?, upper_hex_char?,
+)
+import std.clone (Clone)
+import std.cmp (Equal)
+import std.fmt (Format, Formatter)
+import std.iter (Iter)
+import std.map (MissingKey)
+import std.net.ip (Ipv4Address, Ipv6Address)
+import std.string (ToString)
+import std.uri.tables
+
+let EXCL = 33
+let HASH = 35
+let DLR = 36
+let PERC = 37
+let AMP = 38
+let QUOTE = 39
+let LPAR = 40
+let RPAR = 41
+let AST = 42
+let PLUS = 43
+let COMMA = 44
+let MINUS = 45
+let DOT = 46
+let SLS = 47
+let ZERO = 48
+let COL = 58
+let SCOL = 59
+let EQ = 61
+let QUES = 63
+let AT = 64
+let UPPER_V = 86
+let UND = 95
+let LBRK = 91
+let RBRK = 93
+let LOWER_V = 118
+let TILD = 126
+
+fn inline unprintable?(byte: Int) -> Bool {
+  byte <= 32 or byte > 126
+}
+
+fn inline unreserved?(byte: Int) -> Bool {
+  match byte {
+    case MINUS or DOT or UND or TILD -> true
+    case _ -> alpha?(byte) or digit?(byte)
+  }
+}
+
+fn inline reserved?(byte: Int) -> Bool {
+  gen_delim?(byte) or sub_delim?(byte)
+}
+
+fn inline gen_delim?(byte: Int) -> Bool {
+  match byte {
+    case COL or SLS or QUES or HASH or LBRK or RBRK or AT -> true
+    case _ -> false
+  }
+}
+
+fn inline sub_delim?(byte: Int) -> Bool {
+  match byte {
+    case EXCL or DLR or SCOL or EQ -> true
+    case _ -> byte >= AMP and byte <= COMMA
+  }
+}
+
+fn inline decode_triplet[B: Bytes](input: ref B, start: Int) -> Option[Int] {
+  let max = start + 2
+  let mut idx = start
+  let mut num = 0
+
+  while idx < max {
+    let digit = match input.get(idx) {
+      case Ok(v) if digit?(v) -> v - ZERO
+      case Ok(v) if lower_hex_char?(v) -> v - LOWER_A + 10
+      case Ok(v) if upper_hex_char?(v) -> v - UPPER_A + 10
+      case _ -> return Option.None
+    }
+
+    num = num * 16 + digit
+    idx += 1
+  }
+
+  Option.Some(num)
+}
+
+fn inline decode?[B: Bytes](input: ref B) -> Bool {
+  let mut idx = 0
+  let len = input.size
+
+  while idx < len {
+    if input.get(idx).or_panic == PERC { return true }
+
+    idx += 1
+  }
+
+  false
+}
+
+fn inline encode_into[B: Bytes](
+  input: ref B,
+  output: mut ByteArray,
+  table: ref Array[Bool],
+) {
+  let mut idx = 0
+  let len = input.size
+  let mut start = 0
+
+  while idx < len {
+    let byte = input.get(idx).or_panic
+
+    if unprintable?(byte) or table.get(byte).or(false) {
+      if idx > start { output.append(Slice.new(input, start, idx)) }
+
+      output.push(PERC)
+      output.append(tables.BYTE_TO_HEX.get(byte).or_panic)
+      idx += 1
+      start = idx
+    } else {
+      idx += 1
+    }
+  }
+
+  if idx > start { output.append(Slice.new(input, start, idx)) }
+}
+
+fn inline decode[B: Bytes](input: ref B) -> Option[String] {
+  let buf = ByteArray.new
+  let mut idx = 0
+  let mut start = 0
+  let len = input.size
+
+  while idx < len {
+    match input.get(idx).or_panic {
+      case PERC -> {
+        if idx > start { buf.append(Slice.new(input, start, idx)) }
+
+        buf.push(try decode_triplet(input, idx + 1))
+        idx += 3
+        start = idx
+        next
+      }
+      case _ -> {}
+    }
+
+    idx += 1
+  }
+
+  if idx > start { buf.append(Slice.new(input, start, idx)) }
+
+  Option.Some(buf.into_string)
+}
+
+fn inline decode_slice[B: Bytes](
+  input: ref B,
+  start: Int,
+  end: Int,
+  encoded: Bool,
+) -> Option[String] {
+  let slice = Slice.new(input, start, end)
+
+  if encoded { decode(slice) } else { Option.Some(slice.to_string) }
+}
+
+fn parse_port_into[B: Bytes](
+  uri: mut Uri,
+  input: ref B,
+  start: Int,
+) -> Result[Int, Error] {
+  let mut idx = start
+
+  if input.get(idx).or(-1) == COL { idx += 1 } else { return Result.Ok(idx) }
+
+  let start = idx
+  let len = input.size
+  let mut port = 0
+
+  while idx < len {
+    let val = match input.get(idx).or_panic {
+      case v if digit?(v) -> v - ZERO
+      case SLS or HASH or QUES -> break
+      case _ -> throw Error.InvalidPort
+    }
+
+    # For very large port numbers we may trigger an overflow. Silently wrapping
+    # around may cause problems, so we throw an error in such cases.
+    port = try port.checked_mul(10).ok_or(Error.InvalidPort)
+    port = try port.checked_add(val).ok_or(Error.InvalidPort)
+    idx += 1
+  }
+
+  # While RFC 793 specifies that port numbers are 16 bits, RFC 3986 imposes no
+  # limit on the actual value, and in theory protocols or platforms may allow
+  # larger values, so we don't impose a limit on the value.
+  if idx > start { uri.port = Option.Some(port) }
+
+  Result.Ok(idx)
+}
+
+# An error produced while parsing a URI.
+type pub inline enum Error {
+  # The scheme of the URI is invalid.
+  case InvalidScheme
+
+  # The user info is invalid.
+  case InvalidUserInfo
+
+  # The host of the URI is invalid.
+  case InvalidHost
+
+  # The port number is invalid.
+  case InvalidPort
+
+  # The path is invalid (e.g. it contains invalid characters).
+  case InvalidPath
+
+  # The query string is invalid.
+  case InvalidQuery
+
+  # The fragment string is invalid.
+  case InvalidFragment
+}
+
+impl ToString for Error {
+  fn pub to_string -> String {
+    match self {
+      case InvalidScheme -> 'the scheme is invalid'
+      case InvalidUserInfo -> 'the user info is invalid'
+      case InvalidHost -> 'the host is invalid'
+      case InvalidPort -> 'the port number is invalid'
+      case InvalidPath -> 'the path is invalid'
+      case InvalidQuery -> 'the query string is invalid'
+      case InvalidFragment -> 'the fragment string is invalid'
+    }
+  }
+}
+
+impl Format for Error {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case InvalidScheme -> formatter.tuple('InvalidScheme').finish
+      case InvalidUserInfo -> formatter.tuple('InvalidUserInfo').finish
+      case InvalidHost -> formatter.tuple('InvalidHost').finish
+      case InvalidPort -> formatter.tuple('InvalidPort').finish
+      case InvalidPath -> formatter.tuple('InvalidPath').finish
+      case InvalidQuery -> formatter.tuple('InvalidQuery').finish
+      case InvalidFragment -> formatter.tuple('InvalidFragment').finish
+    }
+  }
+}
+
+impl Equal for Error {
+  fn pub ==(other: ref Error) -> Bool {
+    match (self, other) {
+      case (InvalidScheme, InvalidScheme) -> true
+      case (InvalidUserInfo, InvalidUserInfo) -> true
+      case (InvalidHost, InvalidHost) -> true
+      case (InvalidPort, InvalidPort) -> true
+      case (InvalidPath, InvalidPath) -> true
+      case (InvalidQuery, InvalidQuery) -> true
+      case (InvalidFragment, InvalidFragment) -> true
+      case _ -> false
+    }
+  }
+}
+
+# The scheme of a URI.
+#
+# Common schemes have a dedicated case such that the allocation of a `String`
+# can be avoided.
+type pub inline enum Scheme {
+  # The "http" scheme.
+  case Http
+
+  # The "https" scheme.
+  case Https
+
+  # The "ws" (WebSocket) scheme.
+  case Ws
+
+  # The "wss" (WebSocket Secure) scheme.
+  case Wss
+
+  # The "file" scheme.
+  case File
+
+  # Other schemes, such as "file".
+  case Other(String)
+
+  # Returns a `Scheme` from a sequence of bytes.
+  #
+  # This method assumes that the sequence of bytes is in lowercase. If this
+  # isn't the case, the returned value is always a `Scheme.Other`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (Scheme)
+  #
+  # Scheme.from('http')  # => Scheme.Http
+  # Scheme.from('https') # => Scheme.Https
+  # Scheme.from('file')  # => Scheme.Other('file')
+  # ```
+  fn pub static from[B: Bytes](bytes: ref B) -> Scheme {
+    match bytes.size {
+      case 2 if bytes.equals?('ws') -> Scheme.Ws
+      case 3 if bytes.equals?('wss') -> Scheme.Wss
+      case 4 if bytes.equals?('http') -> Scheme.Http
+      case 4 if bytes.equals?('file') -> Scheme.File
+      case 5 if bytes.equals?('https') -> Scheme.Https
+      case _ -> Scheme.Other(bytes.to_string)
+    }
+  }
+
+  fn static parse_into[B: Bytes](
+    uri: mut Uri,
+    input: ref B,
+    buffer: mut ByteArray,
+  ) -> Result[Int, Error] {
+    if alpha?(input.get(0).or(-1)).false? { return Result.Ok(0) }
+
+    let mut idx = 0
+    let mut start = idx
+    let mut len = input.size
+    let mut parse = false
+
+    while idx < len {
+      match input.get(idx).or_panic {
+        case COL -> {
+          parse = true
+          len = idx
+          break
+        }
+        case _ -> idx += 1
+      }
+    }
+
+    # If we are certain the URI doesn't contain a scheme, don't bother with the
+    # parsing logic below.
+    if parse.false? { return Result.Ok(0) }
+
+    idx = start
+
+    while idx < len {
+      match input.get(idx).or_panic {
+        case PLUS or MINUS or DOT -> {}
+        case v if lower?(v) or digit?(v) -> {}
+        case v if upper?(v) -> {
+          if idx > start { buffer.append(Slice.new(input, start, idx)) }
+
+          buffer.push(to_lower(v))
+          start = idx + 1
+        }
+        case _ -> throw Error.InvalidScheme
+      }
+
+      idx += 1
+    }
+
+    let slice = Slice.new(input, start, idx)
+
+    # If the scheme doesn't contain any uppercase characters, we can avoid
+    # using the buffer entirely.
+    if buffer.size > 0 {
+      buffer.append(slice)
+      uri.scheme = Option.Some(Scheme.from(buffer))
+      buffer.clear
+    } else {
+      uri.scheme = Option.Some(Scheme.from(slice))
+    }
+
+    Result.Ok(idx + 1)
+  }
+
+  fn encode(buffer: mut ByteArray) {
+    buffer.append(to_string)
+    buffer.push(COL)
+  }
+}
+
+impl Clone for Scheme {
+  fn pub clone -> Scheme {
+    match self {
+      case Http -> Scheme.Http
+      case Https -> Scheme.Https
+      case Ws -> Scheme.Ws
+      case Wss -> Scheme.Wss
+      case File -> Scheme.File
+      case Other(v) -> Scheme.Other(v)
+    }
+  }
+}
+
+impl Format for Scheme {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case Http -> formatter.tuple('Http').finish
+      case Https -> formatter.tuple('Https').finish
+      case Ws -> formatter.tuple('Ws').finish
+      case Wss -> formatter.tuple('Wss').finish
+      case File -> formatter.tuple('File').finish
+      case Other(v) -> formatter.tuple('Other').field(v).finish
+    }
+  }
+}
+
+impl Equal for Scheme {
+  fn pub ==(other: ref Scheme) -> Bool {
+    match (self, other) {
+      case (Http, Http) -> true
+      case (Https, Https) -> true
+      case (Ws, Ws) -> true
+      case (Wss, Wss) -> true
+      case (File, File) -> true
+      case (Other(a), Other(b)) -> a == b
+      case _ -> false
+    }
+  }
+}
+
+impl ToString for Scheme {
+  fn pub to_string -> String {
+    match self {
+      case Http -> 'http'
+      case Https -> 'https'
+      case Ws -> 'ws'
+      case Wss -> 'wss'
+      case File -> 'file'
+      case Other(v) -> v
+    }
+  }
+}
+
+# A username and an optional password.
+type pub inline UserInfo {
+  # The name of the user.
+  let pub @name: String
+
+  # The optional password.
+  #
+  # An empty value signals the lack of a password.
+  let pub @password: String
+
+  fn static parse_into[B: Bytes](
+    uri: mut Uri,
+    input: ref B,
+    start: Int,
+  ) -> Result[Int, Error] {
+    let mut idx = start
+    let mut start = idx
+    let mut len = input.size
+    let mut parse = false
+    let mut past_col = false
+    let mut perc_user = false
+    let mut perc_pass = false
+
+    # User info is only allowed if terminated by a @. The parsing logic in
+    # turn is a bit costly, especially considering most URIs won't contain a
+    # username and password.
+    #
+    # To handle this, we scan ahead to see if we can find a @ and only
+    # consider the data until the @ symbol.
+    while idx < len {
+      match input.get(idx).or_panic {
+        case AT -> {
+          parse = true
+          len = idx
+          break
+        }
+        case COL -> past_col = true
+        case v if unreserved?(v) or sub_delim?(v) -> {}
+        case PERC if past_col -> perc_pass = true
+        case PERC -> perc_user = true
+        # If we encounter any other data that isn't allowed to be part of the
+        # user info _before_ finding the @ symbol, then we bail out entirely.
+        case _ -> return Result.Ok(start)
+      }
+
+      idx += 1
+    }
+
+    # If we run out of input before finding the @, we shouldn't parse the input.
+    if parse.false? { return Result.Ok(start) }
+
+    idx = start
+
+    let mut name = Option.None
+
+    while idx < len {
+      match input.get(idx).or_panic {
+        case COL -> {
+          let slice = Slice.new(input, start, idx)
+
+          name = Option.Some(
+            if perc_user {
+              try decode(slice).ok_or(Error.InvalidUserInfo)
+            } else {
+              slice.to_string
+            },
+          )
+
+          idx += 1
+          break
+        }
+        case _ -> {}
+      }
+
+      idx += 1
+    }
+
+    match name {
+      # "scheme://user:pass@example.com"
+      case Some(v) -> {
+        let pass = if idx < len {
+          let slice = Slice.new(input, idx, len)
+
+          if perc_pass {
+            try decode(slice).ok_or(Error.InvalidUserInfo)
+          } else {
+            slice.to_string
+          }
+        } else {
+          ''
+        }
+
+        uri.user_info = Option.Some(UserInfo(name: v, password: pass))
+      }
+      # "scheme://user@example.com"
+      case _ if idx - start > 0 -> {
+        let slice = Slice.new(input, start, idx)
+        let name = if perc_pass {
+          try decode(slice).ok_or(Error.InvalidUserInfo)
+        } else {
+          slice.to_string
+        }
+
+        uri.user_info = Option.Some(UserInfo(name: name, password: ''))
+      }
+      case _ -> {}
+    }
+
+    # Add one to skip over the @ at the end.
+    Result.Ok(len + 1)
+  }
+
+  fn encode(buffer: mut ByteArray) {
+    match self {
+      case { @name = name, @password = pass } if pass.size > 0 -> {
+        buffer.append(name)
+        buffer.push(COL)
+        buffer.append(pass)
+        buffer.push(AT)
+      }
+      case { @name = name } -> {
+        buffer.append(name)
+        buffer.push(AT)
+      }
+    }
+  }
+}
+
+impl Format for UserInfo {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter
+      .object('UserInfo')
+      .field('name', @name)
+      .field('password', @password)
+      .finish
+  }
+}
+
+impl Equal for UserInfo {
+  fn pub ==(other: ref UserInfo) -> Bool {
+    @name == other.name and @password == other.password
+  }
+}
+
+# A named host or IP address.
+type pub inline enum Host {
+  # A named host (e.g. `example.com`).
+  #
+  # The name of the host is expected to be in lowercase and not contain any
+  # percent-encoded sequences (i.e. they must be decoded beforehand).
+  #
+  # When creating a named `Host`, one should use `Host.named` instead of the
+  # `Host.Named` constructor, as `Host.named` performs validation and
+  # normalization of its input, ensuring the host is always RFC 3986 compliant.
+  case Named(String)
+
+  # An IPv4 address.
+  case Ipv4(Ipv4Address)
+
+  # An IPv6 address.
+  case Ipv6(Ipv6Address)
+
+  # An IPvFuture address.
+  #
+  # The `String` is the raw version string, including the version identifier.
+  case Future(String)
+
+  fn static parse_into[B: Bytes](
+    uri: mut Uri,
+    input: ref B,
+    buffer: mut ByteArray,
+    start: Int,
+  ) -> Result[Int, Error] {
+    match parse(input, buffer, start, standalone: false) {
+      case Ok((host, idx)) -> {
+        uri.host = host
+        Result.Ok(idx)
+      }
+      case Error(e) -> Result.Error(e)
+    }
+  }
+
+  fn static parse[B: Bytes](
+    input: ref B,
+    buffer: mut ByteArray,
+    start: Int,
+    standalone: Bool,
+  ) -> Result[(Option[Host], Int), Error] {
+    let mut idx = start
+    let mut start = idx
+    let init = start
+    let len = input.size
+
+    if input.get(idx).or(-1) == LBRK {
+      match parse_ip_literal(input, buffer, idx + 1) {
+        case Ok((host, idx)) -> return Result.Ok((Option.Some(host), idx))
+        case Error(e) -> throw e
+      }
+    }
+
+    # We use this variable to determine if the input _might_ be an IPv4 address
+    # or not. If we are certain it can't be an IP address, then we can skip
+    # trying to parse the input as an IP entirely.
+    let mut maybe_ip = true
+
+    while idx < len {
+      match input.get(idx).or_panic {
+        case v if upper?(v) -> {
+          if idx > start { buffer.append(Slice.new(input, start, idx)) }
+
+          buffer.push(to_lower(v))
+          start = idx + 1
+
+          # IPv4 addresses don't allow letters, so encountering an uppercase
+          # letter means we're definitely not dealing with an IP address.
+          maybe_ip = false
+        }
+        case v if v == DOT or digit?(v) -> {}
+        case v if unreserved?(v) or sub_delim?(v) -> maybe_ip = false
+        case PERC -> {
+          if idx > start { buffer.append(Slice.new(input, start, idx)) }
+
+          buffer.push(
+            try decode_triplet(input, idx + 1).ok_or(Error.InvalidHost),
+          )
+          idx += 3
+          start = idx
+
+          # Percent encoding is only allowed for host names, not IP addresses.
+          maybe_ip = false
+          next
+        }
+        case _ if standalone -> throw Error.InvalidHost
+        case _ -> break
+      }
+
+      idx += 1
+    }
+
+    # If the host value is empty we want a None, not an empty String.
+    if idx == init { return Result.Ok((Option.None, idx)) }
+
+    let slice = Slice.new(input, start, idx)
+    let host = if buffer.size > 0 {
+      buffer.append(slice)
+      Host.Named(buffer.drain_to_string)
+    } else if maybe_ip {
+      match Ipv4Address.parse(slice) {
+        case Some(v) -> Host.Ipv4(v)
+        case _ -> Host.Named(slice.to_string)
+      }
+    } else {
+      Host.Named(slice.to_string)
+    }
+
+    Result.Ok((Option.Some(host), idx))
+  }
+
+  fn static parse_ip_literal[B: Bytes](
+    input: ref B,
+    buffer: mut ByteArray,
+    start: Int,
+  ) -> Result[(Host, Int), Error] {
+    let mut idx = start
+    let len = input.size
+
+    # An IPvFuture literal
+    match input.get(idx) {
+      case Ok(LOWER_V or UPPER_V) -> {
+        let mut start = idx
+
+        idx += 1
+
+        # The RFC uses 1*HEXDIG for the version, meaning we need one or more
+        # _hexadecimal_ digits. This means "v123" results in version 291 and
+        # _not_ version 123.
+        while idx < len {
+          match input.get(idx).or_panic {
+            case v if hex?(v) -> idx += 1
+            case DOT -> {
+              idx += 1
+              break
+            }
+            case _ -> throw Error.InvalidHost
+          }
+        }
+
+        while idx < len {
+          match input.get(idx).or_panic {
+            case RBRK -> {
+              let host = Host.Future(Slice.new(input, start, idx).to_string)
+
+              return Result.Ok((host, idx + 1))
+            }
+            case v if unreserved?(v) or sub_delim?(v) -> {}
+            case COL -> {}
+            case _ -> throw Error.InvalidHost
+          }
+
+          idx += 1
+        }
+
+        throw Error.InvalidHost
+      }
+      case Ok(_) -> {}
+      case _ -> throw Error.InvalidHost
+    }
+
+    let mut start = idx
+
+    # An IPv6 literal
+    while idx < len {
+      match input.get(idx).or_panic {
+        case RBRK -> {
+          match Ipv6Address.parse(Slice.new(input, start, idx)) {
+            case Some(v) -> return Result.Ok((Host.Ipv6(v), idx + 1))
+            case _ -> throw Error.InvalidHost
+          }
+        }
+        case _ -> idx += 1
+      }
+    }
+
+    throw Error.InvalidHost
+  }
+
+  # Returns a new `Host` that uses the `name` argument as the host name.
+  #
+  # If the supplied host name is invalid, an `Option.None` is returned. A named
+  # host is invalid if it contains invalid percent-encoded sequences or other
+  # characters not allowed in host names.
+  #
+  # If the `name` argument is an empty `String`, the return value is always an
+  # `Option.None`.
+  #
+  # # Normalization
+  #
+  # The provided host name is converted to lowercase, and all percent-encoded
+  # sequences are decoded.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (Host)
+  #
+  # Host.named('example.com') # => Option.Some(Host.Named('example.com'))
+  # Host.named('EXAMPLE.com') # => Option.Some(Host.Named('example.com'))
+  # ```
+  fn pub static named(name: String) -> Option[Host] {
+    match parse(name, ByteArray.new, start: 0, standalone: true) {
+      case Ok((host, _)) -> host
+      case _ -> Option.None
+    }
+  }
+
+  fn encode(buffer: mut ByteArray) {
+    match self {
+      case Ipv4(v) -> buffer.append(v.to_string)
+      case Ipv6(v) -> buffer.append(v.to_string)
+      case Future(v) -> buffer.append(v)
+      case Named(v) -> encode_into(v, buffer, tables.ENCODE_HOST)
+    }
+  }
+}
+
+impl Format for Host {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case Named(v) -> formatter.tuple('Named').field(v).finish
+      case Ipv4(v) -> formatter.tuple('Ipv4').field(v).finish
+      case Ipv6(v) -> formatter.tuple('Ipv6').field(v).finish
+      case Future(v) -> formatter.tuple('Future').field(v).finish
+    }
+  }
+}
+
+impl Equal for Host {
+  fn pub ==(other: ref Host) -> Bool {
+    match (self, other) {
+      case (Named(a), Named(b)) -> a == b
+      case (Ipv4(a), Ipv4(b)) -> a == b
+      case (Ipv6(a), Ipv6(b)) -> a == b
+      case (Future(a), Future(b)) -> a == b
+      case _ -> false
+    }
+  }
+}
+
+# The path of a URI.
+type pub inline Path {
+  let @value: String
+
+  fn static normalized[B: Bytes](input: ref B) -> Self {
+    let out = ByteArray.new
+    let mut idx = 0
+    let len = input.size
+
+    while idx < len {
+      let start = idx
+      let mut dots = true
+
+      while idx < len {
+        match input.get(idx).or_panic {
+          case SLS -> break
+          case DOT -> {}
+          case _ -> dots = false
+        }
+
+        idx += 1
+      }
+
+      let end = idx := idx + 1
+
+      match end - start {
+        case 2 if dots -> {
+          let mut len = 0
+          let mut idx = out.size - 1
+
+          # Remove from the tail until the start of the last component.
+          while idx >= 0 {
+            len += 1
+
+            if out.get(idx).or_panic == SLS { break } else { idx -= 1 }
+          }
+
+          out.resize(out.size - len, value: 0)
+        }
+        case 1 if dots -> {}
+        case n if n > 0 -> {
+          out.push(SLS)
+          out.append(Slice.new(input, start, end))
+        }
+        case _ -> {}
+      }
+    }
+
+    if out.empty? { out.push(SLS) }
+
+    Self(out.into_string)
+  }
+
+  fn static parse_into[B: Bytes](
+    uri: mut Uri,
+    input: ref B,
+    start: Int,
+  ) -> Result[Int, Error] {
+    match parse(input, start, standalone: false) {
+      case Ok((Some(path), idx)) -> {
+        uri.path = path
+        Result.Ok(idx)
+      }
+      case Ok((_, idx)) -> Result.Ok(idx)
+      case Error(e) -> Result.Error(e)
+    }
+  }
+
+  fn static parse[B: Bytes](
+    input: ref B,
+    start: Int,
+    standalone: Bool,
+  ) -> Result[(Option[Self], Int), Error] {
+    let mut idx = start
+    let mut start = idx
+    let mut norm = true
+    let init = start
+    let len = input.size
+    let abs = input.get(idx).or(-1) == SLS
+
+    while idx < len {
+      match input.get(idx).or_panic {
+        case SLS -> {
+          match input.get(idx + 1) {
+            case Ok(DOT or SLS) -> norm = false
+            case _ -> {}
+          }
+        }
+        case COL or AT -> {}
+        case QUES or HASH -> {
+          if standalone { throw Error.InvalidPath } else { break }
+        }
+        case v if unreserved?(v) or sub_delim?(v) -> {}
+        case PERC -> {
+          idx += 1
+
+          match (input.get(idx), input.get(idx + 1)) {
+            case (Ok(a), Ok(b)) if hex?(a) and hex?(b) -> idx += 1
+            case _ -> throw Error.InvalidPath
+          }
+        }
+        case _ -> throw Error.InvalidPath
+      }
+
+      idx += 1
+    }
+
+    let res = if idx > init {
+      let slice = Slice.new(input, start, idx)
+
+      if norm.false? and abs {
+        Option.Some(normalized(slice))
+      } else {
+        Option.Some(Self(slice.to_string))
+      }
+    } else {
+      Option.None
+    }
+
+    Result.Ok((res, idx))
+  }
+
+  # Returns a `Path` created from the given `String`.
+  #
+  # If the supplied path string is invalid, an `Option.None` is returned.
+  #
+  # # Normalization
+  #
+  # If the `path` argument is an absolute path containing `.` or `..` segments,
+  # the path is normalized such that e.g. `/foo/../bar` is turned into `/bar`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (Path)
+  #
+  # Path.new('/hello/world') # => Option.Some(Path('/hello/world'))
+  # Path.new('foo?bar')      # => Option.None
+  # ```
+  fn pub static new(path: String) -> Option[Self] {
+    match parse(path, start: 0, standalone: true) {
+      case Ok((Some(val), _)) -> Option.Some(val)
+      case Ok(_) -> Option.Some(Path(''))
+      case _ -> Option.None
+    }
+  }
+
+  # Returns `true` if `self` is an absolute path.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (Path)
+  #
+  # Path.new('/hello').get.absolute? # => true
+  # Path.new('hello').get.absolute? # => false
+  # ```
+  fn pub inline absolute? -> Bool {
+    @value.starts_with?('/')
+  }
+
+  # Returns `true` if `self` is a relative path.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (Path)
+  #
+  # Path.new('/hello').get.relative? # => false
+  # Path.new('hello').get.relative? # => true
+  # ```
+  fn pub inline relative? -> Bool {
+    absolute?.false?
+  }
+
+  # Returns an iterator over the components in `self`.
+  #
+  # # Percent decoding
+  #
+  # Components containing percent-encoded sequences are decoded into a
+  # `PathComponent.Owned` _after_ splitting the components.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (Uri)
+  #
+  # let uri = Uri.parse('https://example.com/foo/bar').or_panic
+  # let iter = uri.path.as_ref.get.components
+  #
+  # iter.next.or_panic.to_string # => '/'
+  # iter.next.or_panic.to_string # => 'foo'
+  # ```
+  fn pub components -> PathComponents {
+    PathComponents(path: @value, index: 0)
+  }
+
+  fn decoded -> String {
+    if decode?(@value) { decode(@value).get } else { @value }
+  }
+
+  fn encode(scheme: Option[Scheme], buffer: mut ByteArray) {
+    let iter = components
+    let mut len = 0
+
+    for comp in iter {
+      match comp {
+        case Root -> buffer.push(SLS)
+        case Owned(v) -> {
+          if len > 0 { buffer.push(SLS) }
+
+          encode_into(v, buffer, tables.ENCODE_PATH)
+          len += 1
+        }
+        case Borrowed(v) -> {
+          if len > 0 { buffer.push(SLS) }
+
+          encode_into(v, buffer, tables.ENCODE_PATH)
+          len += 1
+        }
+      }
+    }
+  }
+
+  # Returns the size of `self`, before applying percent decoding.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (Path)
+  #
+  # Path.empty.size # => 0
+  # Path.new('a%20b').get.size # => 5
+  # ```
+  fn pub inline size -> Int {
+    @value.size
+  }
+
+  # Returns `true` if `self` is empty.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (Path)
+  #
+  # Path.new('').get.empty? # => true
+  # Path.new('foo').get.empty? # => false
+  # ```
+  fn pub inline empty? -> Bool {
+    size == 0
+  }
+}
+
+impl Format for Path {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter.object('Path').field('value', @value).finish
+  }
+}
+
+impl Equal for Path {
+  # Returns `true` if `self` and `other` are equal.
+  #
+  # The comparison is performed _after_ performing percent decoding, such that
+  # `hello%20world` and `hello world` are considered to be equal to each other.
+  fn pub ==(other: ref Path) -> Bool {
+    decoded == other.decoded
+  }
+}
+
+# A single component in a URI path.
+#
+# A `PathComponent` represents a single component (e.g. `foo` in `/foo/bar`) in
+# a URI path, optimized to avoid redundant memory allocations.
+type pub inline enum PathComponent {
+  # The root of an absolute path.
+  case Root
+
+  # A path component that contained percent-encoded sequences and is decoded.
+  case Owned(String)
+
+  # A path component that doesn't contain any percent-encoded sequences.
+  #
+  # Using a dedicated constructor for these kind of components means allocations
+  # aren't necessary _until_ the component is converted to a `String`.
+  case Borrowed(Slice[String])
+}
+
+impl ToString for PathComponent {
+  fn pub to_string -> String {
+    match self {
+      case Root -> '/'
+      case Owned(v) -> v
+      case Borrowed(v) -> v.to_string
+    }
+  }
+}
+
+impl Equal for PathComponent {
+  fn pub ==(other: ref PathComponent) -> Bool {
+    match (self, other) {
+      case (Root, Root) -> true
+      case (Owned(a), Owned(b)) -> a == b
+      case (Borrowed(a), Borrowed(b)) -> a == b
+      case (Owned(a), Borrowed(b)) -> a.equals?(b)
+      case (Borrowed(a), Owned(b)) -> a.equals?(b)
+      case _ -> false
+    }
+  }
+}
+
+impl Format for PathComponent {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case Root -> formatter.tuple('Root').finish
+      case Owned(v) -> formatter.tuple('Owned').field(v).finish
+      case Borrowed(v) -> formatter.tuple('Borrowed').field(v.to_string).finish
+    }
+  }
+}
+
+# An iterator over the components in a `Path`.
+type pub PathComponents {
+  let @path: String
+  let mut @index: Int
+
+  fn inline slice(start: Int, end: Int, decode: Bool) -> PathComponent {
+    let slice = Slice.new(@path, start, end)
+
+    if decode {
+      PathComponent.Owned(decode(slice).get)
+    } else {
+      PathComponent.Borrowed(slice)
+    }
+  }
+}
+
+impl Iter[PathComponent] for PathComponents {
+  fn pub mut next -> Option[PathComponent] {
+    let mut idx = @index
+    let mut start = idx
+    let mut perc = false
+    let input = @path
+    let len = input.size
+
+    while idx < len {
+      match input.get(idx).or_panic {
+        case PERC -> {
+          perc = true
+          idx += 1
+        }
+        case SLS if idx == 0 -> {
+          @index = idx + 1
+          return Option.Some(PathComponent.Root)
+        }
+        case SLS if idx == start -> {
+          idx += 1
+          start = idx
+        }
+        case SLS -> {
+          let res = Option.Some(slice(start, idx, perc))
+
+          @index = idx + 1
+          return res
+        }
+        case _ -> idx += 1
+      }
+    }
+
+    @index = idx
+
+    if idx > start { Option.Some(slice(start, idx, perc)) } else { Option.None }
+  }
+}
+
+# The query string of a URI.
+type pub inline Query {
+  let @value: String
+
+  fn static parse_into[B: Bytes](
+    uri: mut Uri,
+    input: ref B,
+    start: Int,
+  ) -> Result[Int, Error] {
+    if input.get(start).or(-1) != QUES { return Result.Ok(start) }
+
+    let mut idx = start + 1
+    let mut start = idx
+    let init = start
+    let len = input.size
+
+    while idx < len {
+      match input.get(idx).or_panic {
+        case HASH -> break
+        case PERC -> {
+          idx += 1
+
+          match (input.get(idx), input.get(idx + 1)) {
+            case (Ok(a), Ok(b)) if hex?(a) and hex?(b) -> idx += 1
+            case _ -> throw Error.InvalidQuery
+          }
+        }
+        case SLS or QUES -> {}
+        case v if unreserved?(v) or reserved?(v) -> {}
+        case _ -> throw Error.InvalidQuery
+      }
+
+      idx += 1
+    }
+
+    if idx > init { uri.query = Self(Slice.new(input, start, idx).to_string) }
+
+    Result.Ok(idx)
+  }
+
+  # Returns a `Query` created from the given `String`.
+  #
+  # The provided `String` should _not_ start with a `?`, and is used as-is (i.e.
+  # no percent encoding or decoding is applied). If the `String` contains
+  # characters not valid for a query string, these characters are percent
+  # encoded when converting a `Query` back to a `String` (e.g. through
+  # `Uri.to_string`).
+  #
+  # Consider using the `QueryMap` type for constructing query strings instead,
+  # as it offers an easier to use API for building key/value pairs typically
+  # found in query strings.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (Query)
+  #
+  # Query.new('foo') # => Query('foo')
+  # ```
+  fn pub inline static new(value: String) -> Self {
+    Self(value)
+  }
+
+  # Parses `self` into a `QueryMap`.
+  #
+  # Refer to the documentation of `QueryMap.parse` for more details.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (Uri)
+  #
+  # let uri = Uri.parse('http://example.com?key=value').or_panic
+  # let map = uri.query.get.map.get
+  #
+  # map.get('key') # => Result.Ok('value')
+  # ```
+  fn pub map -> Option[QueryMap] {
+    QueryMap.parse(@value)
+  }
+
+  fn decoded -> String {
+    if decode?(@value) { decode(@value).get } else { @value }
+  }
+
+  fn encode(buffer: mut ByteArray) {
+    buffer.push(QUES)
+    encode_into(decoded, buffer, tables.ENCODE_QUERY)
+  }
+
+  # Returns the size of `self`, before applying percent decoding.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (Query)
+  #
+  # Query.empty.size # => 0
+  # Query.new('a%20b').size # => 5
+  # ```
+  fn pub inline size -> Int {
+    @value.size
+  }
+
+  # Returns `true` if `self` is empty.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (Query)
+  #
+  # Query.new('').empty? # => true
+  # Query.new('foo').empty? # => false
+  # ```
+  fn pub inline empty? -> Bool {
+    size == 0
+  }
+}
+
+impl Format for Query {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter.object('Query').field('value', @value).finish
+  }
+}
+
+impl Equal for Query {
+  # Returns `true` if `self` and `other` are equal.
+  #
+  # The comparison is performed _after_ performing percent decoding, such that
+  # `hello%20world` and `hello world` are considered to be equal to each other.
+  fn pub ==(other: ref Query) -> Bool {
+    decoded == other.decoded
+  }
+}
+
+# A mapping of query string key/value pairs.
+#
+# RFC 3986 doesn't specify how exactly a query string should be interpreted.
+# This type separates pairs using a `&` and separates the key and value using a
+# `=`. The characters `&`, `=`, `?` and `#` (along with multi-byte characters)
+# are percent-encoded when found in a key or value.
+#
+# Duplicate pairs are allowed, meaning the query string `?key=10&key=20` results
+# in a mapping containing two values for `key`.
+#
+# # Examples
+#
+# ```inko
+# import std.uri (QueryMap)
+#
+# let map = QueryMap.new
+#
+# map.add('name', 'Alice')
+# map.add('age', '42')
+# map.add('name', 'Bob')
+# map.add('age', '50')
+#
+# map.to_string # => 'name=Alice&age=42&name=Bob&age=50'
+# ```
+type pub inline QueryMap {
+  let @map: Map[String, Array[String]]
+
+  # Parses a query string (minus the starting `?`) into a `QueryMap`.
+  #
+  # If the provided query string is invalid (e.g. it contains invalid
+  # percent-encoded sequences), an `Option.None` is returned.
+  #
+  # RFC 3986 doesn't specify how exactly a query string should be interpreted.
+  # This method follows the widely adopted approach of splitting pairs on a `&`
+  # and splitting keys and values on the first `=`.
+  #
+  # Duplicate pairs are allowed, meaning `?key=10&key=20` yields the pairs
+  # `('key', 10)` and `('key', 20)`.
+  #
+  # # Percent decoding
+  #
+  # Pairs containing percent-encoded sequences are decoded into a _after_
+  # splitting the components.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (QueryMap)
+  #
+  # let map = QueryMap.parse('name=Alice&age=42').get
+  #
+  # map.get('name') # => Result.Ok('Alice')
+  # ```
+  fn pub static parse[B: Bytes](input: ref B) -> Option[QueryMap] {
+    let map = QueryMap.new
+    let input = input
+    let len = input.size
+    let mut idx = 0
+    let mut start = idx
+    let mut perc = false
+
+    while idx < len {
+      match input.get(idx).or_panic {
+        case PERC -> {
+          perc = true
+          idx += 1
+        }
+        case AMP if idx == start -> {
+          idx += 1
+          start = idx
+        }
+        case AMP -> {
+          map.add(try decode_slice(input, start, idx, perc), '')
+          idx += 1
+          start = idx
+          perc = false
+        }
+        case EQ -> {
+          let key = try decode_slice(input, start, idx, perc)
+          let mut val = Option.None
+
+          idx += 1
+          perc = false
+          start = idx
+
+          while idx < len {
+            match input.get(idx).or_panic {
+              case PERC -> {
+                perc = true
+                idx += 1
+              }
+              case AMP -> {
+                val = Option.Some(try decode_slice(input, start, idx, perc))
+                idx += 1
+                start = idx
+                break
+              }
+              case _ -> idx += 1
+            }
+          }
+
+          match val {
+            case Some(val) -> map.add(key, val)
+            case _ -> map.add(key, try decode_slice(input, start, idx, perc))
+          }
+
+          start = idx
+          perc = false
+        }
+        case _ -> idx += 1
+      }
+    }
+
+    # If we reached the end, treat everything as a key without a value.
+    if idx == len and idx > start {
+      map.add(try decode_slice(input, start, idx, perc), '')
+    }
+
+    Option.Some(map)
+  }
+
+  # Returns an empty `QueryMap`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (QueryMap)
+  #
+  # QueryMap.new.size # => 0
+  # ```
+  fn pub static new -> QueryMap {
+    QueryMap(Map.new)
+  }
+
+  # Adds a key/value pair to `self`.
+  #
+  # If the key is already present, the value is added to the list instead of
+  # overwriting the previous value.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (QueryMap)
+  #
+  # let map = QueryMap.new
+  #
+  # map.add('name', 'Alice')
+  # map.add('name', 'Bob')
+  # ```
+  fn pub mut add(name: String, value: String) {
+    let vals = match @map.get_mut(name) {
+      case Ok(v) -> v
+      case _ -> {
+        let vals = []
+        let ret = mut vals
+
+        @map.set(name, vals)
+        ret
+      }
+    }
+
+    vals.push(value)
+  }
+
+  # Returns the first value of the given key.
+  #
+  # If the key is missing, a `MissingKey` error is returned.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (QueryMap)
+  #
+  # let map = QueryMap.new
+  #
+  # map.add('name', 'Alice')
+  #
+  # map.get('name') # => Result.Ok('Alice')
+  # map.get('age') # => Result.Error(MissingKey(...))
+  # ```
+  fn pub get(name: String) -> Result[String, MissingKey[String]] {
+    match @map.get(name) {
+      case Ok(vals) -> {
+        match vals.get(0) {
+          case Ok(v) -> Result.Ok(v)
+          case _ -> Result.Error(MissingKey.new(name))
+        }
+      }
+      case Error(e) -> Result.Error(e)
+    }
+  }
+
+  # Returns all values of the given key.
+  #
+  # If the key is missing, a `MissingKey` error is returned.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (QueryMap)
+  #
+  # let map = QueryMap.new
+  #
+  # map.add('name', 'Alice')
+  # map.add('name', 'Bob')
+  #
+  # map.get_all('name') # => Result.Ok(ref ['Alice', 'Bob'])
+  # map.get_all('age')  # => Result.Error(MissingKey(...))
+  # ```
+  fn pub get_all(
+    name: String,
+  ) -> Result[ref Array[String], MissingKey[String]] {
+    @map.get(name)
+  }
+
+  # Removes all key/value pairs that match the given key and value.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (QueryMap)
+  #
+  # let map = QueryMap.new
+  #
+  # map.add('name', 'Alice')
+  # map.add('name', 'Bob')
+  # map.remove('name', 'Alice')
+  #
+  # map.get('name') # => Result.Ok('Bob')
+  # ```
+  fn pub mut remove(name: String, value: String) {
+    match @map.get_mut(name) {
+      case Ok(v) -> v.remove_if(fn (v) { v == value })
+      case _ -> {}
+    }
+  }
+
+  # Removes all values of the key `name`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (QueryMap)
+  #
+  # let map = QueryMap.new
+  #
+  # map.add('name', 'Alice')
+  # map.add('name', 'Bob')
+  # map.remove_all('name')
+  #
+  # map.get('name') # => Result.Error(MissingKey(...))
+  # map.size # => 0
+  # ```
+  fn pub mut remove_all(name: String) {
+    @map.remove(name)
+  }
+
+  # Removes all key/value pairs in `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (QueryMap)
+  #
+  # let map = QueryMap.new
+  #
+  # map.add('name', 'Alice')
+  # map.add('name', 'Bob')
+  # map.clear
+  #
+  # map.size # => 0
+  # ```
+  fn pub mut clear {
+    @map.clear
+  }
+
+  # Returns the number of key/value pairs in `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (QueryMap)
+  #
+  # let map = QueryMap.new
+  #
+  # map.size # => 0
+  #
+  # map.add('name', 'Alice')
+  # map.size # => 1
+  # ```
+  fn pub inline size -> Int {
+    @map.size
+  }
+
+  # Returns a `Query` created from the query string of `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (Query, QueryMap)
+  #
+  # let map = QueryMap.new
+  #
+  # map.add('name', 'Alice')
+  # map.add('age', '42')
+  #
+  # map.to_query # => Query('name=Alice&age=42')
+  # ```
+  fn pub to_query -> Query {
+    Query(to_string)
+  }
+}
+
+impl ToString for QueryMap {
+  fn pub to_string -> String {
+    let buf = ByteArray.new
+    let mut pairs = 0
+
+    for { @key = key, @value = vals } in @map.iter {
+      for val in vals.iter {
+        if pairs > 0 { buf.push(AMP) }
+
+        encode_into(key, buf, tables.ENCODE_QUERY_MAP)
+
+        if val.size > 0 {
+          buf.push(EQ)
+          encode_into(val, buf, tables.ENCODE_QUERY_MAP)
+        }
+
+        pairs += 1
+      }
+    }
+
+    buf.into_string
+  }
+}
+
+# The fragment string of a URI.
+type pub inline Fragment {
+  let @value: String
+
+  fn static parse_into[B: Bytes](
+    uri: mut Uri,
+    input: ref B,
+    start: Int,
+  ) -> Result[Int, Error] {
+    if input.get(start).or(-1) != HASH { return Result.Ok(start) }
+
+    let mut idx = start + 1
+    let mut start = idx
+    let init = start
+    let len = input.size
+
+    while idx < len {
+      match input.get(idx).or_panic {
+        case PERC -> {
+          idx += 1
+
+          match (input.get(idx), input.get(idx + 1)) {
+            case (Ok(a), Ok(b)) if hex?(a) and hex?(b) -> idx += 1
+            case _ -> throw Error.InvalidFragment
+          }
+        }
+        case SLS or QUES -> {}
+        case v if unreserved?(v) or reserved?(v) -> {}
+        case _ -> throw Error.InvalidFragment
+      }
+
+      idx += 1
+    }
+
+    if idx > init {
+      uri.fragment = Self(Slice.new(input, start, idx).to_string)
+    }
+
+    Result.Ok(idx)
+  }
+
+  # Returns a `Fragment` created from the given `String`.
+  #
+  # The provided `String` should _not_ start with a `#`, and is used as-is (i.e.
+  # no percent encoding or decoding is applied). If the `String` contains
+  # characters not valid for a fragment string, these characters are percent
+  # encoded when converting a `Fragment` back to a `String` (e.g. through
+  # `Uri.to_string`).
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (Fragment)
+  #
+  # Fragment.new('foo') # => Fragment('foo')
+  # ```
+  fn pub inline static new(value: String) -> Self {
+    Self(value)
+  }
+
+  # Returns the size of `self`, before applying percent decoding.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (Fragment)
+  #
+  # Fragment.empty.size # => 0
+  # Fragment.new('a%20b').size # => 5
+  # ```
+  fn pub inline size -> Int {
+    @value.size
+  }
+
+  # Returns `true` if `self` is empty.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (Fragment)
+  #
+  # Fragment.new('').empty? # => true
+  # Fragment.new('foo').empty? # => false
+  # ```
+  fn pub inline empty? -> Bool {
+    size == 0
+  }
+
+  fn decoded -> String {
+    if decode?(@value) { decode(@value).get } else { @value }
+  }
+
+  fn encode(buffer: mut ByteArray) {
+    buffer.push(HASH)
+    encode_into(decoded, buffer, tables.ENCODE_FRAGMENT)
+  }
+}
+
+impl Format for Fragment {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter.object('Fragment').field('value', @value).finish
+  }
+}
+
+impl Equal for Fragment {
+  # Returns `true` if `self` and `other` are equal.
+  #
+  # The comparison is performed _after_ performing percent decoding, such that
+  # `hello%20world` and `hello world` are considered to be equal to each other.
+  fn pub ==(other: ref Fragment) -> Bool {
+    decoded == other.decoded
+  }
+}
+
+# A type that represents a URI.
+#
+# Parsing a URI is done using `Uri.parse`. For example:
+#
+# ```inko
+# import std.uri (Uri)
+#
+# let uri = Uri
+#   .parse('https://example.com/hello.html?key=value')
+#   .or_panic
+#
+# uri.scheme # => Option.Some(Scheme.Https)
+# ```
+#
+# Dynamically constructing a URI is also possible:
+#
+# ```inko
+# import std.uri (Host, Path, Query, Scheme, Uri)
+#
+# let uri = Uri.new
+#
+# uri.scheme = Option.Some(Scheme.Https)
+# uri.host = Host.named('example.com')
+# uri.path = Path.new('/hello/world').get
+# uri.query = Query.new('example')
+#
+# uri.to_string # => 'https://example.com/hello/world?example'
+# ```
+type pub Uri {
+  # The scheme of the URI, such as "http" or "file".
+  let pub mut @scheme: Option[Scheme]
+
+  # The username and password.
+  let pub mut @user_info: Option[UserInfo]
+
+  # The host of the URI.
+  let pub mut @host: Option[Host]
+
+  # The post number of the URI.
+  let pub mut @port: Option[Int]
+
+  # The relative or absolute path of the URI.
+  let pub mut @path: Path
+
+  # The query string components of the URI.
+  let pub mut @query: Query
+
+  # The (hash) fragment of the URI.
+  let pub mut @fragment: Fragment
+
+  # Returns an empty `Uri`.
+  fn pub inline static new -> Uri {
+    Uri(
+      scheme: Option.None,
+      user_info: Option.None,
+      host: Option.None,
+      port: Option.None,
+      path: Path(''),
+      query: Query(''),
+      fragment: Fragment(''),
+    )
+  }
+
+  # Parses a `Uri` from a sequence of bytes.
+  #
+  # # Path normalization
+  #
+  # If the URI contains an absolute path with dot segments (`..` or `.`), the
+  # path is normalized such that `/foo/../bar` becomes `/bar`. Normalization is
+  # _only_ applied to absolute paths.
+  #
+  # # Percent decoding
+  #
+  # Percent decoding is applied eagerly to the host name. For the path, query
+  # string and fragment lazy decoding is used instead. The reason for this is
+  # that splitting must be done _before_ decoding, but this comes at a cost that
+  # isn't necessary in many cases (e.g. when the query string isn't used).
+  #
+  # # Case conversion
+  #
+  # Schemes and host names are converted to lowercase when parsed, such that
+  # e.g. `HtTpS` is turned into `https`.
+  #
+  # # Security
+  #
+  # Mixing different URI parsers together can result in security
+  # vulnerabilities. For example, this parser treats the URI `https:///evil.com`
+  # as having the following components:
+  #
+  # - scheme: `https`
+  # - host: none
+  # - path: `/evil.com`
+  #
+  # However, cURL treats the URI as having the following components:
+  #
+  # - scheme: `https`
+  # - host: `evil.com`
+  # - path: `/`
+  #
+  # This can be problematic if `Uri.parse` is used to parse a `Uri`, of which
+  # the hostname is then compared against a whitelist. If the check passes in
+  # case of a missing hostname, and the URI is then passed to cURL, it would end
+  # up sending a request to `evil.com` when this likely isn't meant to happen.
+  #
+  # For more details, refer to the following articles:
+  #
+  # - [Don’t mix URL parsers](https://daniel.haxx.se/blog/2022/01/10/dont-mix-url-parsers/)
+  # - [yoU aRe a Liar://A Unified Framework for Cross-Testing URL Parsers](https://kapravelos.com/publications/youarealiar-secweb22.pdf)
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (Uri)
+  #
+  # let uri = Uri
+  #   .parse('https://example.com/hello.html?key=value')
+  #   .or_panic
+  #
+  # uri.scheme # => Option.Some(Scheme.Https)
+  # ```
+  fn pub static parse[B: Bytes](input: ref B) -> Result[Uri, Error] {
+    let uri = new
+
+    # If the input is empty then there's no point in parsing anything.
+    if input.size == 0 { return Result.Ok(uri) }
+
+    let buf = ByteArray.new
+    let mut idx = try Scheme.parse_into(uri, input, buf)
+
+    if input.get(idx).or(-1) == SLS and input.get(idx + 1).or(-1) == SLS {
+      idx += 2
+      idx = try UserInfo.parse_into(uri, input, idx)
+      idx = try Host.parse_into(uri, input, buf, idx)
+      idx = try parse_port_into(uri, input, idx)
+    }
+
+    idx = try Path.parse_into(uri, input, idx)
+    idx = try Query.parse_into(uri, input, idx)
+    idx = try Fragment.parse_into(uri, input, idx)
+
+    Result.Ok(uri)
+  }
+}
+
+impl Format for Uri {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter
+      .object('Uri')
+      .field('scheme', @scheme)
+      .field('user_info', @user_info)
+      .field('host', @host)
+      .field('port', @port)
+      .field('path', @path)
+      .field('query', @query)
+      .field('fragment', @fragment)
+      .finish
+  }
+}
+
+impl Equal for Uri {
+  # Returns `true` if `self` and `other` are equal to each other.
+  #
+  # This method converts both URIs to a `String` and compares these values,
+  # ensuring that normalization is applied as part of the comparison. This means
+  # that e.g. `https://example.com?` and `https://example.com` are considered to
+  # be equal.
+  fn pub ==(other: ref Uri) -> Bool {
+    to_string == other.to_string
+  }
+}
+
+impl ToString for Uri {
+  # Converts `self` to a `String`.
+  #
+  # This method assumes that `self` is a valid URI per RFC 3986 and makes no
+  # attempt at correcting this. For example, if the URI is constructed manually
+  # and only a port number is set (which isn't valid), this method returns a
+  # `String` containing just the port number.
+  #
+  # The returned `String` is a normalized version of `self`, in accordance to
+  # the normalization rules as specified by RFC 3986. This normalization process
+  # comes at a cost (e.g. in terms of memory allocations), and as such it's best
+  # to avoid doing this in a tight loop if possible.
+  fn pub to_string -> String {
+    let buf = ByteArray.new
+
+    match @scheme {
+      case Some(s) -> s.encode(buf)
+      case _ -> {}
+    }
+
+    if @user_info.some? or @host.some? { buf.append('//') }
+
+    match @user_info {
+      case Some(v) -> v.encode(buf)
+      case _ -> {}
+    }
+
+    match @host {
+      case Some(h) -> h.encode(buf)
+      case _ -> {}
+    }
+
+    match (@scheme, @port) {
+      case (Some(Http or Ws), Some(80)) -> {}
+      case (Some(Https or Wss), Some(443)) -> {}
+      case (_, Some(v)) -> {
+        buf.push(COL)
+        buf.append(v.to_string)
+      }
+      case _ -> {}
+    }
+
+    if @path.size > 0 { @path.encode(@scheme.clone, buf) }
+
+    if @query.size > 0 { @query.encode(buf) }
+
+    if @fragment.size > 0 { @fragment.encode(buf) }
+
+    buf.into_string
+  }
+}

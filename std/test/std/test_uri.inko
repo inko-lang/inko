@@ -1,0 +1,879 @@
+import std.fmt (fmt)
+import std.map (MissingKey)
+import std.net.ip (Ipv4Address, Ipv6Address)
+import std.test (Tests)
+import std.uri (
+  Error, Fragment, Host, Path, PathComponent, Query, QueryMap, Scheme, Uri,
+  UserInfo,
+)
+
+fn http -> Option[Scheme] {
+  Option.Some(Scheme.Http)
+}
+
+fn https -> Option[Scheme] {
+  Option.Some(Scheme.Https)
+}
+
+fn ws -> Option[Scheme] {
+  Option.Some(Scheme.Ws)
+}
+
+fn wss -> Option[Scheme] {
+  Option.Some(Scheme.Wss)
+}
+
+fn file -> Option[Scheme] {
+  Option.Some(Scheme.File)
+}
+
+fn other(scheme: String) -> Option[Scheme] {
+  Option.Some(Scheme.Other(scheme))
+}
+
+fn user(name: String) -> Option[UserInfo] {
+  Option.Some(UserInfo(name: name, password: ''))
+}
+
+fn auth(name: String, password: String) -> Option[UserInfo] {
+  Option.Some(UserInfo(name: name, password: password))
+}
+
+fn named(name: String) -> Option[Host] {
+  Option.Some(Host.Named(name))
+}
+
+fn v4(ip: String) -> Option[Host] {
+  Option.Some(Host.Ipv4(Ipv4Address.parse(ip).get))
+}
+
+fn v6(ip: String) -> Option[Host] {
+  Option.Some(Host.Ipv6(Ipv6Address.parse(ip).get))
+}
+
+fn future(ip: String) -> Option[Host] {
+  Option.Some(Host.Future(ip))
+}
+
+fn path(value: String) -> Option[Path] {
+  Option.Some(Path(value))
+}
+
+fn query(value: String) -> Option[Query] {
+  Option.Some(Query(value))
+}
+
+fn frag(value: String) -> Option[Fragment] {
+  Option.Some(Fragment(value))
+}
+
+fn __[T] -> Option[T] {
+  Option.None
+}
+
+fn path_components(input: String) -> Array[String] {
+  Uri.parse(input).or_panic.path.components.map(fn (v) { v.to_string }).to_array
+}
+
+fn uri(
+  scheme: Option[Scheme],
+  user_info: Option[UserInfo],
+  host: Option[Host],
+  port: Option[Int],
+  path: Option[Path],
+  query: Option[Query],
+  fragment: Option[Fragment],
+) -> Uri {
+  Uri(
+    scheme: scheme,
+    user_info: user_info,
+    host: host,
+    port: port,
+    path: path.or(Path('')),
+    query: query.or(Query.new('')),
+    fragment: fragment.or(Fragment.new('')),
+  )
+}
+
+fn parse(input: String) -> Uri {
+  Uri.parse(input).get
+}
+
+fn pub tests(t: mut Tests) {
+  t.test('Error.fmt', fn (t) {
+    t.equal(fmt(Error.InvalidScheme), 'InvalidScheme')
+    t.equal(fmt(Error.InvalidUserInfo), 'InvalidUserInfo')
+    t.equal(fmt(Error.InvalidHost), 'InvalidHost')
+    t.equal(fmt(Error.InvalidPort), 'InvalidPort')
+    t.equal(fmt(Error.InvalidPath), 'InvalidPath')
+    t.equal(fmt(Error.InvalidQuery), 'InvalidQuery')
+    t.equal(fmt(Error.InvalidFragment), 'InvalidFragment')
+  })
+
+  t.test('Error.==', fn (t) {
+    let errors = [
+      Error.InvalidScheme,
+      Error.InvalidUserInfo,
+      Error.InvalidHost,
+      Error.InvalidPort,
+      Error.InvalidPath,
+      Error.InvalidQuery,
+      Error.InvalidFragment,
+    ]
+
+    for (our_idx, ours) in errors.iter.with_index {
+      for (their_idx, theirs) in errors.iter.with_index {
+        if our_idx == their_idx {
+          t.equal(ours, theirs)
+        } else {
+          t.not_equal(ours, theirs)
+        }
+      }
+    }
+  })
+
+  t.test('Scheme.from', fn (t) {
+    t.equal(Scheme.from('ws'), Scheme.Ws)
+    t.equal(Scheme.from('wss'), Scheme.Wss)
+    t.equal(Scheme.from('http'), Scheme.Http)
+    t.equal(Scheme.from('https'), Scheme.Https)
+    t.equal(Scheme.from('file'), Scheme.File)
+    t.equal(Scheme.from('httpx'), Scheme.Other('httpx'))
+    t.equal(Scheme.from(''), Scheme.Other(''))
+  })
+
+  t.test('Scheme.fmt', fn (t) {
+    t.equal(fmt(Scheme.Http), 'Http')
+    t.equal(fmt(Scheme.Https), 'Https')
+    t.equal(fmt(Scheme.Ws), 'Ws')
+    t.equal(fmt(Scheme.Wss), 'Wss')
+    t.equal(fmt(Scheme.File), 'File')
+    t.equal(fmt(Scheme.Other('foo')), 'Other("foo")')
+  })
+
+  t.test('Scheme.==', fn (t) {
+    let schemes = [
+      Scheme.Http,
+      Scheme.Https,
+      Scheme.Ws,
+      Scheme.Wss,
+      Scheme.File,
+      Scheme.Other('foo'),
+    ]
+
+    for (our_idx, ours) in schemes.iter.with_index {
+      for (their_idx, theirs) in schemes.iter.with_index {
+        if our_idx == their_idx {
+          t.equal(ours, theirs)
+        } else {
+          t.not_equal(ours, theirs)
+        }
+      }
+    }
+  })
+
+  t.test('Scheme.to_string', fn (t) {
+    t.equal(Scheme.Http.to_string, 'http')
+    t.equal(Scheme.Https.to_string, 'https')
+    t.equal(Scheme.Ws.to_string, 'ws')
+    t.equal(Scheme.Wss.to_string, 'wss')
+    t.equal(Scheme.File.to_string, 'file')
+    t.equal(Scheme.Other('foo').to_string, 'foo')
+  })
+
+  t.test('UserInfo.fmt', fn (t) {
+    t.equal(
+      fmt(UserInfo(name: 'alice', password: 'hunter2')),
+      'UserInfo(name: "alice", password: "hunter2")',
+    )
+  })
+
+  t.test('UserInfo.fmt', fn (t) {
+    let a = UserInfo(name: 'alice', password: '')
+    let b = UserInfo(name: 'alice', password: 'hunter2')
+    let c = UserInfo(name: 'bob', password: 'hunter2')
+
+    t.equal(a, a)
+    t.not_equal(a, b)
+    t.not_equal(b, c)
+  })
+
+  t.test('Host.named', fn (t) {
+    t.equal(Host.named('example.com'), Option.Some(Host.Named('example.com')))
+    t.equal(Host.named('EXAMPLE.com'), Option.Some(Host.Named('example.com')))
+    t.equal(Host.named('a%20b.com'), Option.Some(Host.Named('a b.com')))
+    t.equal(Host.named(''), Option.None)
+    t.equal(Host.named('a%ZZb'), Option.None)
+    t.equal(Host.named('host/path'), Option.None)
+    t.equal(Host.named('host?query'), Option.None)
+    t.equal(Host.named('host#fragment'), Option.None)
+    t.equal(Host.named('host:port'), Option.None)
+  })
+
+  t.test('Host.fmt', fn (t) {
+    t.equal(fmt(Host.Named('foo')), 'Named("foo")')
+    t.equal(fmt(Host.Ipv4(Ipv4Address.new(1, 2, 3, 4))), 'Ipv4(1.2.3.4)')
+    t.equal(
+      fmt(Host.Ipv6(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1))),
+      'Ipv6(::1)',
+    )
+    t.equal(fmt(Host.Future('v1.foo')), 'Future("v1.foo")')
+  })
+
+  t.test('Host.==', fn (t) {
+    let hosts = [
+      Host.Named('foo'),
+      Host.Ipv4(Ipv4Address.new(1, 2, 3, 4)),
+      Host.Ipv6(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1)),
+      Host.Future('v1.foo'),
+    ]
+
+    for (our_idx, ours) in hosts.iter.with_index {
+      for (their_idx, theirs) in hosts.iter.with_index {
+        if our_idx == their_idx {
+          t.equal(ours, theirs)
+        } else {
+          t.not_equal(ours, theirs)
+        }
+      }
+    }
+  })
+
+  t.test('Path.new', fn (t) {
+    t.equal(Path.new('a'), Option.Some(Path('a')))
+    t.equal(Path.new('a/b'), Option.Some(Path('a/b')))
+    t.equal(Path.new('a/../b'), Option.Some(Path('a/../b')))
+    t.equal(Path.new('/a'), Option.Some(Path('/a')))
+    t.equal(Path.new('/a/b'), Option.Some(Path('/a/b')))
+    t.equal(Path.new('/a/../b'), Option.Some(Path('/b')))
+    t.equal(Path.new('/a/./b'), Option.Some(Path('/a/b')))
+    t.equal(Path.new(''), Option.Some(Path('')))
+    t.equal(Path.new('/a?foo'), Option.None)
+    t.equal(Path.new('/a#foo'), Option.None)
+    t.equal(Path.new('/a%ZZ/b'), Option.None)
+  })
+
+  t.test('Path.absolute?', fn (t) {
+    t.false(Path('foo').absolute?)
+    t.true(Path('/foo').absolute?)
+  })
+
+  t.test('Path.relative?', fn (t) {
+    t.true(Path('foo').relative?)
+    t.false(Path('/foo').relative?)
+  })
+
+  t.test('Path.normalized', fn (t) {
+    t.equal(Path.normalized('/foo/../bar/./baz'), Path('/bar/baz'))
+    t.equal(Path.normalized('/foo/../bar/./baz'), Path('/bar/baz'))
+    t.equal(Path.normalized('/foo/../../../../bar'), Path('/bar'))
+  })
+
+  t.test('Path.decoded', fn (t) {
+    t.equal(Path('foo').decoded, 'foo')
+    t.equal(Path('foo%20bar').decoded, 'foo bar')
+  })
+
+  t.test('Path.components', fn (t) {
+    t.equal(path_components(''), [])
+    t.equal(path_components('http://host/'), ['/'])
+    t.equal(path_components('http://host//'), ['/'])
+    t.equal(path_components('http://host/foo'), ['/', 'foo'])
+    t.equal(path_components('foo'), ['foo'])
+    t.equal(path_components('foo/'), ['foo'])
+    t.equal(path_components('foo//'), ['foo'])
+    t.equal(path_components('foo/bar'), ['foo', 'bar'])
+    t.equal(path_components('foo/bar/..'), ['foo', 'bar', '..'])
+    t.equal(path_components('..'), ['..'])
+    t.equal(path_components('./foo'), ['.', 'foo'])
+    t.equal(path_components('./foo/../bar'), ['.', 'foo', '..', 'bar'])
+    t.equal(path_components('http://host/..'), ['/'])
+    t.equal(path_components('http://host/.'), ['/'])
+    t.equal(path_components('http://host/../a'), ['/', 'a'])
+    t.equal(path_components('http://host/a/../b'), ['/', 'b'])
+    t.equal(path_components('http://host/a/../../b'), ['/', 'b'])
+    t.equal(path_components('http://host/a/../b/../c'), ['/', 'c'])
+    t.equal(path_components('http://host/a/../b/../c/..'), ['/'])
+    t.equal(path_components('http://host/a/./b'), ['/', 'a', 'b'])
+    t.equal(path_components('http://host/a/./b/.'), ['/', 'a', 'b'])
+    t.equal(path_components('http://host/./a'), ['/', 'a'])
+    t.equal(path_components('foo%20bar/baz'), ['foo bar', 'baz'])
+    t.equal(path_components('foo%2Fbar/baz'), ['foo/bar', 'baz'])
+    t.equal(path_components('file://host/../a'), ['/', 'a'])
+    t.equal(path_components('foo://host/../a'), ['/', 'a'])
+    t.equal(path_components('//host/../a'), ['/', 'a'])
+  })
+
+  t.test('Path.size', fn (t) {
+    t.equal(Path('').size, 0)
+    t.equal(Path.new('abc').get.size, 3)
+    t.equal(Path.new('%20').get.size, 3)
+  })
+
+  t.test('Path.empty?', fn (t) {
+    t.true(Path('').empty?)
+    t.false(Path.new('abc').get.empty?)
+  })
+
+  t.test('Path.fmt', fn (t) { t.equal(fmt(Path('foo')), 'Path(value: "foo")') })
+
+  t.test('Path.==', fn (t) {
+    t.equal(Path('a'), Path('a'))
+    t.equal(Path('a'), Path('a'))
+    t.equal(Path('a b'), Path('a%20b'))
+    t.equal(Path('a%0Ab'), Path('a%0ab'))
+    t.not_equal(Path('a'), Path('b'))
+  })
+
+  t.test('PathComponent.to_string', fn (t) {
+    t.equal(PathComponent.Root.to_string, '/')
+    t.equal(PathComponent.Owned('foo').to_string, 'foo')
+    t.equal(PathComponent.Borrowed('foo'.slice(0, 3)).to_string, 'foo')
+  })
+
+  t.test('PathComponent.==', fn (t) {
+    t.equal(PathComponent.Root, PathComponent.Root)
+    t.equal(PathComponent.Owned('a'), PathComponent.Owned('a'))
+    t.equal(
+      PathComponent.Borrowed('a'.slice(0, 1)),
+      PathComponent.Borrowed('a'.slice(0, 1)),
+    )
+    t.equal(PathComponent.Owned('a'), PathComponent.Borrowed('a'.slice(0, 1)))
+    t.equal(PathComponent.Borrowed('a'.slice(0, 1)), PathComponent.Owned('a'))
+    t.not_equal(PathComponent.Root, PathComponent.Owned('/'))
+    t.not_equal(PathComponent.Owned('a'), PathComponent.Owned('b'))
+    t.not_equal(
+      PathComponent.Owned('a'),
+      PathComponent.Borrowed('b'.slice(0, 1)),
+    )
+  })
+
+  t.test('PathComponent.fmt', fn (t) {
+    t.equal(fmt(PathComponent.Root), 'Root')
+    t.equal(fmt(PathComponent.Owned('a')), 'Owned("a")')
+    t.equal(fmt(PathComponent.Borrowed('a'.slice(0, 1))), 'Borrowed("a")')
+  })
+
+  t.test('Query.new', fn (t) { t.equal(Query.new('foo'), Query('foo')) })
+
+  t.test('Query.map', fn (t) {
+    let q = Query('name=Alice&name=Bob&key%20name=val%20ue')
+    let m = q.map.get
+
+    t.equal(m.get_all('name'), Result.Ok(ref ['Alice', 'Bob']))
+    t.equal(m.get('key name'), Result.Ok('val ue'))
+  })
+
+  t.test('Query.decoded', fn (t) {
+    t.equal(Query('a').decoded, 'a')
+    t.equal(Query('a%20b').decoded, 'a b')
+  })
+
+  t.test('Query.size', fn (t) {
+    t.equal(Query.new('').size, 0)
+    t.equal(Query.new('abc').size, 3)
+    t.equal(Query.new('%20').size, 3)
+  })
+
+  t.test('Query.empty?', fn (t) {
+    t.true(Query.new('').empty?)
+    t.false(Query.new('abc').empty?)
+  })
+
+  t.test('Query.fmt', fn (t) { t.equal(fmt(Query('a')), 'Query(value: "a")') })
+
+  t.test('Query.==', fn (t) {
+    t.equal(Query('a'), Query('a'))
+    t.equal(Query('a%20b'), Query('a b'))
+    t.not_equal(Query('a'), Query('b'))
+  })
+
+  t.test('QueryMap.new', fn (t) { t.equal(QueryMap.new.map.size, 0) })
+
+  t.test('QueryMap.add', fn (t) {
+    let map = QueryMap.new
+
+    map.add('name', 'Alice')
+    t.equal(map.map.get('name'), Result.Ok(ref ['Alice']))
+
+    map.add('name', 'Bob')
+    t.equal(map.map.get('name'), Result.Ok(ref ['Alice', 'Bob']))
+  })
+
+  t.test('QueryMap.get', fn (t) {
+    let map = QueryMap.new
+
+    map.add('name', 'Alice')
+    map.add('age', '42')
+    t.equal(map.get('name'), Result.Ok('Alice'))
+    t.equal(map.get('age'), Result.Ok('42'))
+
+    map.add('name', 'Bob')
+    t.equal(map.get('name'), Result.Ok('Alice'))
+  })
+
+  t.test('QueryMap.get_all', fn (t) {
+    let map = QueryMap.new
+
+    map.add('name', 'Alice')
+    map.add('name', 'Bob')
+    map.add('age', '42')
+
+    t.equal(map.get_all('name'), Result.Ok(ref ['Alice', 'Bob']))
+    t.equal(map.get_all('age'), Result.Ok(ref ['42']))
+  })
+
+  t.test('QueryMap.remove', fn (t) {
+    let map = QueryMap.new
+
+    map.add('name', 'Alice')
+    map.add('name', 'Bob')
+    map.add('age', '42')
+    map.remove('name', 'Bob')
+
+    t.equal(map.get_all('name'), Result.Ok(ref ['Alice']))
+    t.equal(map.get_all('age'), Result.Ok(ref ['42']))
+  })
+
+  t.test('QueryMap.remove_all', fn (t) {
+    let map = QueryMap.new
+
+    map.add('name', 'Alice')
+    map.add('name', 'Bob')
+    map.add('age', '42')
+    map.remove_all('name')
+
+    t.equal(map.get_all('name'), Result.Error(MissingKey.new('name')))
+    t.equal(map.get_all('age'), Result.Ok(ref ['42']))
+  })
+
+  t.test('QueryMap.size', fn (t) {
+    let map = QueryMap.new
+
+    t.equal(map.size, 0)
+    map.add('name', 'Alice')
+    t.equal(map.size, 1)
+  })
+
+  t.test('QueryMap.to_query', fn (t) {
+    let map = QueryMap.new
+
+    map.add('name', 'Alice')
+    map.add('age', '42')
+
+    t.equal(map.to_query, Query('name=Alice&age=42'))
+  })
+
+  t.test('QueryMap.to_string', fn (t) {
+    let map = QueryMap.new
+
+    t.equal(map.to_string, '')
+
+    map.add('name', 'Alice')
+    t.equal(map.to_string, 'name=Alice')
+
+    map.add('name', 'Bob')
+    t.equal(map.to_string, 'name=Alice&name=Bob')
+
+    map.add('age', '42')
+    t.equal(map.to_string, 'name=Alice&name=Bob&age=42')
+
+    map.remove_all('name')
+    map.remove_all('age')
+    map.add('foo bar', 'value')
+    map.add('key#?&=', 'value#?&=')
+    t.equal(map.to_string, 'foo%20bar=value&key%23?%26%3D=value%23?%26%3D')
+  })
+
+  t.test('QueryMap.parse', fn (t) {
+    let tests = [
+      ('', []),
+      ('&', []),
+      ('&&', []),
+      ('=', [('', [''])]),
+      ('=&=', [('', ['', ''])]),
+      ('key1=foo', [('key1', ['foo'])]),
+      ('key1=foo&', [('key1', ['foo'])]),
+      ('key1=foo&key2=bar', [('key1', ['foo']), ('key2', ['bar'])]),
+      ('key1=foo%20bar&key2=a%26b', [('key1', ['foo bar']), ('key2', ['a&b'])]),
+      ('key1', [('key1', [''])]),
+      ('key1=', [('key1', [''])]),
+      ('key1=&', [('key1', [''])]),
+      ('key1=&&', [('key1', [''])]),
+      ('=value', [('', ['value'])]),
+      ('=value&=value', [('', ['value', 'value'])]),
+      ('=value&k=v', [('', ['value']), ('k', ['v'])]),
+      ('key=foo&key=bar', [('key', ['foo', 'bar'])]),
+    ]
+
+    for (string, pairs) in tests {
+      let map = QueryMap.parse(string).or_panic_with(
+        "failed to parse '${string}'",
+      )
+
+      t.equal(map.size, pairs.size)
+
+      for (key, vals) in pairs {
+        t.equal(map.get_all(key), Result.Ok(ref vals))
+      }
+    }
+  })
+
+  t.test('Fragment.new', fn (t) {
+    t.equal(Fragment.new('foo'), Fragment('foo'))
+  })
+
+  t.test('Fragment.decoded', fn (t) {
+    t.equal(Fragment('a').decoded, 'a')
+    t.equal(Fragment('a%20b').decoded, 'a b')
+  })
+
+  t.test('Fragment.size', fn (t) {
+    t.equal(Fragment.new('').size, 0)
+    t.equal(Fragment.new('abc').size, 3)
+    t.equal(Fragment.new('%20').size, 3)
+  })
+
+  t.test('Fragment.empty?', fn (t) {
+    t.true(Fragment.new('').empty?)
+    t.false(Fragment.new('abc').empty?)
+  })
+
+  t.test('Fragment.fmt', fn (t) {
+    t.equal(fmt(Fragment('a')), 'Fragment(value: "a")')
+  })
+
+  t.test('Fragment.==', fn (t) {
+    t.equal(Fragment('a'), Fragment('a'))
+    t.equal(Fragment('a%20b'), Fragment('a b'))
+    t.not_equal(Fragment('a'), Fragment('b'))
+  })
+
+  t.test('Uri.parse with valid URIs', fn (t) {
+    let tests = [
+      ('', Uri.new),
+
+      # Scheme
+      ('http:', uri(http, __, __, __, __, __, __)),
+      ('HTTP:', uri(http, __, __, __, __, __, __)),
+      ('https:', uri(https, __, __, __, __, __, __)),
+      ('HTTPS:', uri(https, __, __, __, __, __, __)),
+
+      # User info
+      (
+        'http://user:password@host',
+        uri(http, auth('user', 'password'), named('host'), __, __, __, __),
+      ),
+      (
+        'http://user-name:pass-word@host',
+        uri(http, auth('user-name', 'pass-word'), named('host'), __, __, __, __),
+      ),
+      (
+        'http://user!name:pass!word@host',
+        uri(http, auth('user!name', 'pass!word'), named('host'), __, __, __, __),
+      ),
+      (
+        'http://user:@host',
+        uri(http, user('user'), named('host'), __, __, __, __),
+      ),
+      ('http://:@host', uri(http, user(''), named('host'), __, __, __, __)),
+      (
+        'http://:password@host',
+        uri(http, auth('', 'password'), named('host'), __, __, __, __),
+      ),
+      (
+        'http://user%20name:pass%20word@host',
+        uri(http, auth('user name', 'pass word'), named('host'), __, __, __, __),
+      ),
+
+      # Hosts
+      ('http://host', uri(http, __, named('host'), __, __, __, __)),
+      ('http://HOST', uri(http, __, named('host'), __, __, __, __)),
+      ('http://1.2.host.4', uri(http, __, named('1.2.host.4'), __, __, __, __)),
+      ('http://1.2.3.4', uri(http, __, v4('1.2.3.4'), __, __, __, __)),
+      ('http://[::1]', uri(http, __, v6('::1'), __, __, __, __)),
+      ('http://[v123.foo]', uri(http, __, future('v123.foo'), __, __, __, __)),
+      ('http://[v123.FOO]', uri(http, __, future('v123.FOO'), __, __, __, __)),
+      ('http://host%20name', uri(http, __, named('host name'), __, __, __, __)),
+      ('//host', uri(__, __, named('host'), __, __, __, __)),
+
+      # Ports
+      (
+        'http://host:123',
+        uri(http, __, named('host'), Option.Some(123), __, __, __),
+      ),
+
+      # Paths
+      (
+        'http://host/foo/bar.html',
+        uri(http, __, named('host'), __, path('/foo/bar.html'), __, __),
+      ),
+      (
+        'http://host/foo/BAR',
+        uri(http, __, named('host'), __, path('/foo/BAR'), __, __),
+      ),
+      (
+        'http://host/foo%20bar/baz',
+        uri(http, __, named('host'), __, path('/foo bar/baz'), __, __),
+      ),
+      (
+        'http://host/foo/../bar',
+        uri(http, __, named('host'), __, path('/bar'), __, __),
+      ),
+      ('foo', uri(__, __, __, __, path('foo'), __, __)),
+      ('foo/bar', uri(__, __, __, __, path('foo/bar'), __, __)),
+      ('../foo', uri(__, __, __, __, path('../foo'), __, __)),
+      ('....../foo', uri(__, __, __, __, path('....../foo'), __, __)),
+      ('///foo', uri(__, __, __, __, path('/foo'), __, __)),
+      ('////foo', uri(__, __, __, __, path('/foo'), __, __)),
+      ('foo/..', uri(__, __, __, __, path('foo/..'), __, __)),
+      ('/a:b@c', uri(__, __, __, __, path('/a:b@c'), __, __)),
+      ('/', uri(__, __, __, __, path('/'), __, __)),
+
+      # Query strings
+      ('?', uri(__, __, __, __, __, __, __)),
+      ('?key=value', uri(__, __, __, __, __, query('key=value'), __)),
+      ('?a=1&b=2', uri(__, __, __, __, __, query('a=1&b=2'), __)),
+      ('?key[0]=value', uri(__, __, __, __, __, query('key[0]=value'), __)),
+      ('?FOO=BAR&b=2', uri(__, __, __, __, __, query('FOO=BAR&b=2'), __)),
+      (
+        '?foo=hello%20world&key%20name=test',
+        uri(__, __, __, __, __, query('foo=hello world&key name=test'), __),
+      ),
+
+      # Fragments
+      ('#', uri(__, __, __, __, __, __, __)),
+      ('#foo', uri(__, __, __, __, __, __, frag('foo'))),
+      ('#FOO', uri(__, __, __, __, __, __, frag('FOO'))),
+      ('#foo%20bar', uri(__, __, __, __, __, __, frag('foo bar'))),
+
+      # Combinations, some of which are taken from the paper
+      # "yoU aRe a Liar://A Unified Framework for Cross-Testing URL Parsers"
+      (
+        'https://user:password@localhost:8000/search?a=foo&b=bar#hello',
+        uri(
+          https,
+          auth('user', 'password'),
+          named('localhost'),
+          Option.Some(8000),
+          path('/search'),
+          query('a=foo&b=bar'),
+          frag('hello'),
+        ),
+      ),
+      (
+        'www.php.net:80/index.php?test=1',
+        uri(
+          other('www.php.net'),
+          __,
+          __,
+          __,
+          path('80/index.php'),
+          query('test=1'),
+          __,
+        ),
+      ),
+      (
+        'foo://///////bar.com/',
+        uri(other('foo'), __, __, __, path('/bar.com'), __, __),
+      ),
+      ('http:/google.com', uri(http, __, __, __, path('/google.com'), __, __)),
+      (
+        'http:///google.com',
+        uri(http, __, __, __, path('/google.com'), __, __),
+      ),
+      (
+        'http:////google.com',
+        uri(http, __, __, __, path('/google.com'), __, __),
+      ),
+      ('../g', uri(__, __, __, __, path('../g'), __, __)),
+      (
+        'http://example.com:80@localhost:8080/secret.txt',
+        uri(
+          http,
+          auth('example.com', '80'),
+          named('localhost'),
+          Option.Some(8080),
+          path('/secret.txt'),
+          __,
+          __,
+        ),
+      ),
+      ('https:///evil.com', uri(https, __, __, __, path('/evil.com'), __, __)),
+      (
+        'http://example.com#',
+        uri(http, __, named('example.com'), __, __, __, __),
+      ),
+      (
+        'file://server01/sage/jobcosting',
+        uri(file, __, named('server01'), __, path('/sage/jobcosting'), __, __),
+      ),
+      ('file://C:/foo', uri(file, __, named('c'), __, path('/foo'), __, __)),
+    ]
+
+    for (inp, out) in tests { t.equal(Uri.parse(inp), Result.Ok(out)) }
+  })
+
+  t.test('Uri.parse with invalid URIs', fn (t) {
+    let tests = [
+      ('foo$bar://host', Error.InvalidScheme),
+      ('http://user%Z:password@host', Error.InvalidUserInfo),
+      ('http://user:password%Z@host', Error.InvalidUserInfo),
+      ('http://[vZ]', Error.InvalidHost),
+      ('http://[v1]', Error.InvalidHost),
+      ('http://[v1$]', Error.InvalidHost),
+      ('http://[', Error.InvalidHost),
+      ('http://[::Z]', Error.InvalidHost),
+      ('http://user:password/path', Error.InvalidPort),
+      ('http://host:abc', Error.InvalidPort),
+      ('http://host:9999999999999999999999999999', Error.InvalidPort),
+      ('http:\\\\host', Error.InvalidPath),
+      ('http://host/path/\\', Error.InvalidPath),
+      ('../path/\\', Error.InvalidPath),
+      ('?key%Z=value', Error.InvalidQuery),
+      ('?key\u{7F}', Error.InvalidQuery),
+      ('?<>', Error.InvalidQuery),
+      ('?^', Error.InvalidQuery),
+      ('?a b', Error.InvalidQuery),
+      ('#%Z', Error.InvalidFragment),
+      ('#a b', Error.InvalidFragment),
+      ('#^', Error.InvalidFragment),
+      ('#\u{7F}', Error.InvalidFragment),
+      ('#<>', Error.InvalidFragment),
+      ('https://example.com/%xyz', Error.InvalidPath),
+    ]
+
+    for (inp, err) in tests { t.equal(Uri.parse(inp), Result.Error(err)) }
+  })
+
+  t.test('Uri.fmt', fn (t) {
+    t.equal(
+      fmt(
+        uri(
+          http,
+          auth('user', 'password'),
+          named('localhost'),
+          Option.Some(1234),
+          path('/foo'),
+          query('k=v'),
+          frag('frag'),
+        ),
+      ),
+      'Uri(scheme: Some(Http), user_info: Some(UserInfo(name: "user", password: "password")), host: Some(Named("localhost")), port: Some(1234), path: Path(value: "/foo"), query: Query(value: "k=v"), fragment: Fragment(value: "frag"))',
+    )
+  })
+
+  t.test('Uri.==', fn (t) {
+    let a = uri(
+      http,
+      auth('user', 'password'),
+      named('localhost'),
+      Option.Some(1234),
+      path('/foo'),
+      query('k=v'),
+      frag('frag'),
+    )
+    let b = uri(
+      http,
+      auth('user', 'password'),
+      named('localhost'),
+      Option.Some(1234),
+      path('/foo'),
+      query('k=v'),
+      frag('frag'),
+    )
+    let c = uri(
+      http,
+      auth('user', 'password'),
+      named('localhost'),
+      Option.Some(1234),
+      path('/foo bar'),
+      query('k=v'),
+      frag('frag'),
+    )
+
+    t.equal(a, b)
+    t.not_equal(a, c)
+    t.equal(
+      uri(https, __, named('a'), Option.Some(443), __, __, __),
+      uri(https, __, named('a'), __, __, __, __),
+    )
+  })
+
+  t.test('Uri.to_string', fn (t) {
+    t.equal(
+      parse('http://user:password@localhost:1234/foo?k=v#frag').to_string,
+      'http://user:password@localhost:1234/foo?k=v#frag',
+    )
+    t.equal(
+      parse('//user:password@localhost:1234/foo?k=v#frag').to_string,
+      '//user:password@localhost:1234/foo?k=v#frag',
+    )
+    t.equal(
+      parse('//localhost:1234/foo?k=v#frag').to_string,
+      '//localhost:1234/foo?k=v#frag',
+    )
+    t.equal(parse('http://%4A%3f.com').to_string, 'http://J%3F.com')
+    t.equal(
+      parse('http://%f0%9f%98%83.com').to_string,
+      'http://%F0%9F%98%83.com',
+    )
+    t.equal(Uri.new.to_string, '')
+
+    # Ports
+    t.equal(
+      uri(
+        __,
+        __,
+        __,
+        Option.Some(1234),
+        path('/foo'),
+        query('k=v'),
+        frag('frag'),
+      )
+        .to_string,
+      ':1234/foo?k=v#frag',
+    )
+    t.equal(parse('http://foo:80/example').to_string, 'http://foo/example')
+    t.equal(parse('https://foo:80/example').to_string, 'https://foo:80/example')
+    t.equal(parse('https://foo:443/example').to_string, 'https://foo/example')
+    t.equal(parse('ws://foo:80/example').to_string, 'ws://foo/example')
+    t.equal(parse('wss://foo:80/example').to_string, 'wss://foo:80/example')
+    t.equal(parse('wss://foo:443/example').to_string, 'wss://foo/example')
+    t.equal(
+      uri(__, __, named('😃'), __, __, __, __).to_string,
+      '//%F0%9F%98%83',
+    )
+
+    # Paths
+    t.equal(parse('http://foo/%4A%3f/%4A%3f').to_string, 'http://foo/J%3F/J%3F')
+    t.equal(parse('http://foo/a/b/../c').to_string, 'http://foo/a/c')
+    t.equal(parse('./%4A%3f/%4A%3f').to_string, './J%3F/J%3F')
+    t.equal(parse('../%4A%3f/%4A%3f').to_string, '../J%3F/J%3F')
+    t.equal(parse('//../%4A%3f/%4A%3f').to_string, '//../J%3F/J%3F')
+    t.equal(parse('../a/b/../c').to_string, '../a/b/../c')
+    t.equal(uri(__, __, __, __, path('😃'), __, __).to_string, '%F0%9F%98%83')
+
+    # Query strings
+    t.equal(parse('http://foo?%4A%3f%23').to_string, 'http://foo?J?%23')
+    t.equal(uri(__, __, __, __, __, query('😃'), __).to_string, '?%F0%9F%98%83')
+    t.equal(uri(__, __, __, __, __, query('a b'), __).to_string, '?a%20b')
+    t.equal(uri(__, __, __, __, __, query('<>'), __).to_string, '?%3C%3E')
+    t.equal(uri(__, __, __, __, __, query('/'), __).to_string, '?/')
+    t.equal(uri(__, __, __, __, __, query('?'), __).to_string, '??')
+    t.equal(uri(__, __, __, __, __, query('!'), __).to_string, '?!')
+    t.equal(uri(__, __, __, __, __, query('^'), __).to_string, '?%5E')
+    t.equal(uri(__, __, __, __, __, query('#'), __).to_string, '?%23')
+
+    # Fragments
+    t.equal(parse('http://foo#%4A%3f%23%0a').to_string, 'http://foo#J?%23%0A')
+    t.equal(uri(__, __, __, __, __, __, frag('😃')).to_string, '#%F0%9F%98%83')
+    t.equal(uri(__, __, __, __, __, __, frag('a b')).to_string, '#a%20b')
+    t.equal(uri(__, __, __, __, __, __, frag('<>')).to_string, '#%3C%3E')
+    t.equal(uri(__, __, __, __, __, __, frag('/')).to_string, '#/')
+    t.equal(uri(__, __, __, __, __, __, frag('?')).to_string, '#?')
+    t.equal(uri(__, __, __, __, __, __, frag('!')).to_string, '#!')
+    t.equal(uri(__, __, __, __, __, __, frag('^')).to_string, '#%5E')
+    t.equal(uri(__, __, __, __, __, __, frag('#')).to_string, '#%23')
+  })
+}

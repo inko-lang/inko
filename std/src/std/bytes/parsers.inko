@@ -5,9 +5,43 @@ import std.ptr
 
 let NINE = 57
 let ZERO = 48
+let LOWER_A = 97
+let LOWER_Z = 122
+let UPPER_A = 65
+let UPPER_F = 70
+let UPPER_Z = 90
+let LOWER_F = 102
 
 fn inline digit?(byte: Int) -> Bool {
   byte >= ZERO and byte <= NINE
+}
+
+fn inline lower?(byte: Int) -> Bool {
+  byte >= LOWER_A and byte <= LOWER_Z
+}
+
+fn inline upper?(byte: Int) -> Bool {
+  byte >= UPPER_A and byte <= UPPER_Z
+}
+
+fn inline alpha?(byte: Int) -> Bool {
+  lower?(byte) or upper?(byte)
+}
+
+fn inline lower_hex_char?(byte: Int) -> Bool {
+  byte >= LOWER_A and byte <= LOWER_F
+}
+
+fn inline upper_hex_char?(byte: Int) -> Bool {
+  byte >= UPPER_A and byte <= UPPER_F
+}
+
+fn inline hex?(byte: Int) -> Bool {
+  lower_hex_char?(byte) or upper_hex_char?(byte) or digit?(byte)
+}
+
+fn inline to_lower(byte: Int) -> Int {
+  byte + 32
 }
 
 # Parses two base 10 digits into an `Int`.
