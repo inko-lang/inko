@@ -1,7 +1,8 @@
-use crate::config::{local_runtimes_directory, Linker};
+use crate::config::{local_runtimes_directory, BuildDirectories, Linker};
 use crate::state::State;
 use crate::target::{OperatingSystem, Target, MAC_SDK_VERSION};
-use std::io::Read as _;
+use std::fs::File;
+use std::io::{Read as _, Write as _};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
@@ -187,6 +188,7 @@ pub(crate) fn link(
     state: &State,
     output: &Path,
     paths: &[PathBuf],
+    directories: &BuildDirectories,
 ) -> Result<(), String> {
     let mut cmd = driver(state)?;
 
@@ -194,12 +196,20 @@ pub(crate) fn link(
         cmd.arg(arg);
     }
 
-    // Object files must come before any of the libraries to link against, as
-    // certain linkers are very particular about the order of flags such as
-    // `-l`.
+    // Create a response file for the linker to allow linking large numbers of
+    // object files. For more details, refer to
+    // https://github.com/inko-lang/inko/issues/595.
+    let rsp = directories.objects.join("link.rsp");
+    let mut rsp_file = File::create(&rsp)
+        .map_err(|e| format!("failed to create {}: {}", rsp.display(), e))?;
+
     for path in paths {
-        cmd.arg(path);
+        writeln!(rsp_file, "{}", path.display()).map_err(|e| {
+            format!("failed to write objects to {}: {}", rsp.display(), e)
+        })?;
     }
+
+    cmd.arg(format!("@{}", rsp.display()));
 
     if state.config.target.is_native() {
         cmd.arg(state.config.runtime.join("libinko.a"));
