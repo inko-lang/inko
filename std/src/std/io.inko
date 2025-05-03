@@ -1123,3 +1123,13 @@ impl Seek for Buffer {
     Result.Ok(@offset)
   }
 }
+
+impl Format for Buffer if T: Format {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter
+      .object('Buffer')
+      .field('bytes', @bytes)
+      .field('offset', @offset)
+      .finish
+  }
+}

@@ -501,6 +501,12 @@ fn pub tests(t: mut Tests) {
     t.equal(buffer.read_byte, Result.Ok(Option.None))
   })
 
+  t.test('Buffer.fmt', fn (t) {
+    let buf = Buffer.new('foo')
+
+    t.equal(fmt(buf), 'Buffer(bytes: "foo", offset: 0)')
+  })
+
   t.test('BufferedWriter.new', fn (t) {
     let writer = BufferedWriter.new(Writer.new)
 
