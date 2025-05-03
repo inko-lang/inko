@@ -664,7 +664,7 @@ impl Parser {
                 if values.is_empty() {
                     error!(
                         token.location,
-                        "Tuple types must contain at least one member"
+                        "tuple types must contain at least one member"
                     );
                 }
 
@@ -1262,6 +1262,15 @@ impl Parser {
         }
 
         self.next();
+
+        let start = self.peek();
+
+        if start.kind != TokenKind::Constant {
+            error!(
+                start.location,
+                "expected a constant, found '{}' instead", start.value
+            );
+        }
 
         let mut values = Vec::new();
 
@@ -2989,12 +2998,12 @@ impl Parser {
     fn require_valid_token(&self, token: &Token) -> Result<(), ParseError> {
         match token.kind {
             TokenKind::Invalid => {
-                error!(token.location, "A '{}' is not allowed", token.value)
+                error!(token.location, "a '{}' is not allowed", token.value)
             }
             TokenKind::Null => {
                 error!(
                     token.location,
-                    "The end of the file is reached, but more input is expected"
+                    "the end of the file is reached, but more input is expected"
                 )
             }
             _ => Ok(()),
@@ -5792,6 +5801,7 @@ mod tests {
         assert_error!("impl {}", cols(6, 6));
         assert_error!("impl A {", cols(8, 8));
         assert_error!("impl A { @foo: A }", cols(10, 13));
+        assert_error!("impl A for B if {}", cols(17, 17));
     }
 
     #[test]
