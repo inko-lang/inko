@@ -853,16 +853,34 @@ impl BufferedRead for BufferedReader {
   }
 
   fn pub mut read_byte -> Result[Option[Int], Error] {
-    match try fill_buffer {
-      case 0 -> Result.Ok(Option.None)
-      case _ -> Result.Ok(@buffer.get(@offset := @offset + 1).ok)
+    # This somewhat verbose approach ensures that if there are N calls to this
+    # method we don't call fill_buffer N times, instead only calling it when we
+    # consume all bytes from the buffer.
+    match @buffer.get(@offset) {
+      case Ok(v) -> {
+        @offset += 1
+        return Result.Ok(Option.Some(v))
+      }
+      case _ -> {
+        match fill_buffer {
+          case Ok(0) -> return Result.Ok(Option.None)
+          case Ok(_) -> Result.Ok(@buffer.get(@offset := @offset + 1).ok)
+          case Error(e) -> throw e
+        }
+      }
     }
   }
 
   fn pub mut peek -> Result[Option[Int], Error] {
-    match try fill_buffer {
-      case 0 -> Result.Ok(Option.None)
-      case _ -> Result.Ok(@buffer.get(@offset).ok)
+    match @buffer.get(@offset) {
+      case Ok(v) -> Result.Ok(Option.Some(v))
+      case _ -> {
+        match fill_buffer {
+          case Ok(0) -> Result.Ok(Option.None)
+          case Ok(_) -> Result.Ok(@buffer.get(@offset).ok)
+          case Error(e) -> throw e
+        }
+      }
     }
   }
 }
