@@ -1,0 +1,1464 @@
+# HTTP 1.1 and 2.0 client and server support.
+#
+# # HTTP 1.1
+#
+# Support for HTTP 1.1 is implemented conforming to the following RFCs:
+#
+# - [RFC 9110](https://datatracker.ietf.org/doc/html/rfc9110)
+# - [RFC 9112](https://datatracker.ietf.org/doc/html/rfc9112).
+# - [RFC 6265](https://datatracker.ietf.org/doc/html/rfc6265).
+#
+# # HTTP 2.0
+#
+# TODO
+import std.bytes (Bytes)
+import std.bytes.parsers (ZERO, digit?, digits, lower?, to_lower, upper?)
+import std.clone (Clone)
+import std.cmp (Equal, min)
+import std.fmt (Format, Formatter)
+import std.int (Format as IntFormat, MAX, ToInt)
+import std.io (BufferedReader, Error as IoError, Read)
+import std.iter (Stream)
+import std.net.http.header
+import std.net.http.method
+import std.string (ToString)
+import std.uri (Uri)
+
+let TAB = 9
+let LF = 10
+let CR = 13
+let SPC = 32
+let EXL = 33
+let HSH = 35
+let DLR = 36
+let PRC = 37
+let AMP = 38
+let SQU = 39
+let AST = 42
+let ADD = 43
+let COM = 44
+let SUB = 45
+let DOT = 46
+let COL = 58
+let CAR = 94
+let UND = 95
+let GRV = 96
+let PIP = 124
+let TLD = 126
+
+fn inline token?(byte: Int) -> Bool {
+  match byte {
+    case v if lower?(v) or upper?(v) or digit?(v) -> true
+    case
+      EXL
+        or HSH
+        or DLR
+        or PRC
+        or AMP
+        or SQU
+        or AST
+        or ADD
+        or SUB
+        or DOT
+        or CAR
+        or UND
+        or GRV
+        or PIP
+        or TLD
+    -> {
+      true
+    }
+    case _ -> false
+  }
+}
+
+fn inline visible?(byte: Int) -> Bool {
+  byte >= 33 and byte <= 126
+}
+
+# An HTTP header.
+#
+# Standard headers such as `Accept` and `ContentLength` use a dedicated
+# constructor, while non-standard headers use the `Other` constructor.
+type pub inline enum Header {
+  case Accept
+  case AcceptCharset
+  case AcceptEncoding
+  case AcceptLanguage
+  case AcceptRanges
+  case AccessControlAllowCredentials
+  case AccessControlAllowHeaders
+  case AccessControlAllowMethods
+  case AccessControlAllowOrigin
+  case AccessControlMaxAge
+  case AccessControlMethod
+  case AccessControlRequestMethod
+  case AccessControlRequestMethods
+  case AccessControlRequestHeaders
+  case Age
+  case Allow
+  case AltSvc
+  case Authorization
+  case CacheControl
+  case Connection
+  case ContentDisposition
+  case ContentEncoding
+  case ContentLanguage
+  case ContentLength
+  case ContentLocation
+  case ContentRange
+  case ContentType
+  case Cookie
+  case Date
+  case Etag
+  case Expect
+  case Expires
+  case From
+  case Host
+  case IfMatch
+  case IfModifiedSince
+  case IfNoneMatch
+  case IfRange
+  case IfUnmodifiedSince
+  case KeepAlive
+  case LastModified
+  case Link
+  case Location
+  case MaxForwards
+  case Origin
+  case Pragma
+  case ProxyAuthenticate
+  case ProxyAuthorization
+  case ProxyConnection
+  case Range
+  case Referer
+  case RetryAfter
+  case Server
+  case SetCookie
+  case StrictTransportSecurity
+  case Trailer
+  case TransferEncoding
+  case Upgrade
+  case UpgradeInsecureRequests
+  case UserAgent
+  case Vary
+  case Via
+  case WwwAuthenticate
+  case Other(String)
+
+  # Creates a `Header` from a sequence of bytes.
+  #
+  # This method expects that the input is already in lowercase. If this isn't
+  # the case, the input is treated as a non-standard header.
+  #
+  # For non-standard headers the input is converted to a `String` and returned
+  # as `Header.Other`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.parse('content-length') # => Header.ContentLength
+  # Header.parse('example-header') # => Header.Other('example-header')
+  # ```
+  fn pub static parse[B: Bytes + ToString](input: ref B) -> Header {
+    match header.index_of(input) {
+      case 0 -> Accept
+      case 1 -> AcceptCharset
+      case 2 -> AcceptEncoding
+      case 3 -> AcceptLanguage
+      case 4 -> AcceptRanges
+      case 5 -> AccessControlAllowCredentials
+      case 6 -> AccessControlAllowHeaders
+      case 7 -> AccessControlAllowMethods
+      case 8 -> AccessControlAllowOrigin
+      case 9 -> AccessControlMaxAge
+      case 10 -> AccessControlMethod
+      case 11 -> AccessControlRequestMethod
+      case 12 -> AccessControlRequestMethods
+      case 13 -> AccessControlRequestHeaders
+      case 14 -> Age
+      case 15 -> Allow
+      case 16 -> AltSvc
+      case 17 -> Authorization
+      case 18 -> CacheControl
+      case 19 -> Connection
+      case 20 -> ContentDisposition
+      case 21 -> ContentEncoding
+      case 22 -> ContentLanguage
+      case 23 -> ContentLength
+      case 24 -> ContentLocation
+      case 25 -> ContentRange
+      case 26 -> ContentType
+      case 27 -> Cookie
+      case 28 -> Date
+      case 29 -> Etag
+      case 30 -> Expect
+      case 31 -> Expires
+      case 32 -> From
+      case 33 -> Host
+      case 34 -> IfMatch
+      case 35 -> IfModifiedSince
+      case 36 -> IfNoneMatch
+      case 37 -> IfRange
+      case 38 -> IfUnmodifiedSince
+      case 39 -> KeepAlive
+      case 40 -> LastModified
+      case 41 -> Link
+      case 42 -> Location
+      case 43 -> MaxForwards
+      case 44 -> Origin
+      case 45 -> Pragma
+      case 46 -> ProxyAuthenticate
+      case 47 -> ProxyAuthorization
+      case 48 -> ProxyConnection
+      case 49 -> Range
+      case 50 -> Referer
+      case 51 -> RetryAfter
+      case 52 -> Server
+      case 53 -> SetCookie
+      case 54 -> StrictTransportSecurity
+      case 55 -> Trailer
+      case 56 -> TransferEncoding
+      case 57 -> Upgrade
+      case 58 -> UpgradeInsecureRequests
+      case 59 -> UserAgent
+      case 60 -> Vary
+      case 61 -> Via
+      case 62 -> WwwAuthenticate
+      case _ -> Header.Other(input.to_string)
+    }
+  }
+
+  fn index -> Int {
+    match self {
+      case Accept -> 0
+      case AcceptCharset -> 1
+      case AcceptEncoding -> 2
+      case AcceptLanguage -> 3
+      case AcceptRanges -> 4
+      case AccessControlAllowCredentials -> 5
+      case AccessControlAllowHeaders -> 6
+      case AccessControlAllowMethods -> 7
+      case AccessControlAllowOrigin -> 8
+      case AccessControlMaxAge -> 9
+      case AccessControlMethod -> 10
+      case AccessControlRequestMethod -> 11
+      case AccessControlRequestMethods -> 12
+      case AccessControlRequestHeaders -> 13
+      case Age -> 14
+      case Allow -> 15
+      case AltSvc -> 16
+      case Authorization -> 17
+      case CacheControl -> 18
+      case Connection -> 19
+      case ContentDisposition -> 20
+      case ContentEncoding -> 21
+      case ContentLanguage -> 22
+      case ContentLength -> 23
+      case ContentLocation -> 24
+      case ContentRange -> 25
+      case ContentType -> 26
+      case Cookie -> 27
+      case Date -> 28
+      case Etag -> 29
+      case Expect -> 30
+      case Expires -> 31
+      case From -> 32
+      case Host -> 33
+      case IfMatch -> 34
+      case IfModifiedSince -> 35
+      case IfNoneMatch -> 36
+      case IfRange -> 37
+      case IfUnmodifiedSince -> 38
+      case KeepAlive -> 39
+      case LastModified -> 40
+      case Link -> 41
+      case Location -> 42
+      case MaxForwards -> 43
+      case Origin -> 44
+      case Pragma -> 45
+      case ProxyAuthenticate -> 46
+      case ProxyAuthorization -> 47
+      case ProxyConnection -> 48
+      case Range -> 49
+      case Referer -> 50
+      case RetryAfter -> 51
+      case Server -> 52
+      case SetCookie -> 53
+      case StrictTransportSecurity -> 54
+      case Trailer -> 55
+      case TransferEncoding -> 56
+      case Upgrade -> 57
+      case UpgradeInsecureRequests -> 58
+      case UserAgent -> 59
+      case Vary -> 60
+      case Via -> 61
+      case WwwAuthenticate -> 62
+      case Other(_) -> 63
+    }
+  }
+}
+
+impl Equal for Header {
+  fn pub ==(other: ref Header) -> Bool {
+    match (self, other) {
+      case (Other(a), Other(b)) -> a == b
+      case (a, b) -> a.index == b.index
+    }
+  }
+}
+
+impl ToString for Header {
+  fn pub to_string -> String {
+    match self {
+      case Other(v) -> v
+      case _ -> header.NAMES.get(index).or_panic
+    }
+  }
+}
+
+impl Format for Header {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case Other(v) -> formatter.write(v)
+      case _ -> formatter.write(header.NAMES.get(index).or_panic)
+    }
+  }
+}
+
+type copy Bitmap {
+  let @value: Int
+
+  fn inline static new -> Self {
+    Self(0)
+  }
+
+  fn inline with(bit: Int) -> Self {
+    Self(@value | (1 << bit))
+  }
+
+  fn inline contains?(bit: Int) -> Bool {
+    @value & (1 << bit) != 0
+  }
+}
+
+impl Format for Bitmap {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter
+      .object('Bitmap')
+      .field('value', @value.format(IntFormat.Binary))
+      .finish
+  }
+}
+
+# An error that signals the lack of a header in a `HeaderMap`.
+type pub inline MissingHeader {
+  # The header that is missing.
+  let pub @header: ref Header
+}
+
+impl ToString for MissingHeader {
+  fn pub to_string -> String {
+    let name = match @header {
+      case Other(name) -> name
+      case _ -> header.NAMES.get(@header.index).or_panic
+    }
+
+    "the header '${name}' is missing"
+  }
+}
+
+impl Format for MissingHeader {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter.object('MissingHeader').field('header', @header).finish
+  }
+}
+
+impl Equal for MissingHeader {
+  fn pub ==(other: ref MissingHeader) -> Bool {
+    @header == other.header
+  }
+}
+
+# A mapping of HTTP headers and their values.
+#
+# A `HeaderMap` is a specialized `Map`-like type that takes advantage of how
+# `Header` values are represented, allowing for more efficient lookups compared
+# to the use of a regular `Map`.
+#
+# Insertions and lookups don't perform any case conversion when using
+# non-standard headers. This means that non-standard headers must be converted
+# to their lowercase form first.
+type pub HeaderMap {
+  # A bitmap used to record if a header is present in the first place.
+  #
+  # For standard headers this allows bypassing lookups entirely if we know for a
+  # fact a header isn't present, essentially turning the lookup into a no-op.
+  #
+  # For non-standard headers this is only effective if there are no non-standard
+  # headers at all, i.e. the "Other" bit simply signals _a_ non-standard header
+  # is present, not which ones.
+  let mut @bitmap: Bitmap
+
+  # An `Array` of values for standard headers.
+  #
+  # The size of this `Array` is equal to the number of standard headers.
+  let @standard: Array[HeaderValue]
+
+  # A `Map` of non-standard header names to their values.
+  let @non_standard: Map[String, HeaderValue]
+
+  # Returns a new and empty `HeaderMap`.
+  fn pub static new -> Self {
+    Self(
+      bitmap: Bitmap.new,
+      standard: Array.filled(with: HeaderValue.None, times: header.NAMES.size),
+      non_standard: Map.new,
+    )
+  }
+
+  # Adds a `Header` to `self`.
+  #
+  # If the header is already assigned a value, the existing value is turned into
+  # an `Array` and the new value is appended to this `Array`.
+  #
+  # The returned value is `true` if the header is already assigned a value,
+  # otherwise it's `false`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header, HeaderMap)
+  #
+  # let map = HeaderMap.new
+  #
+  # map.add(Header.ContentLength, '128') # => false
+  # map.add(Header.ContentLength, '256') # => true
+  # map.add(Header.Host, 'example.com') # => false
+  # ```
+  fn pub mut add(header: Header, value: String) -> Bool {
+    let idx = header.index
+
+    @bitmap = @bitmap.with(idx)
+
+    match header {
+      case Other(name) -> {
+        match @non_standard.get_mut(name) {
+          case Ok(Single(ex)) -> {
+            @non_standard.set(name, HeaderValue.Multiple([ex, value]))
+            true
+          }
+          case Ok(Multiple(ex)) -> {
+            ex.push(value)
+            true
+          }
+          case _ -> {
+            @non_standard.set(name, HeaderValue.Single(value))
+            false
+          }
+        }
+      }
+      case _ -> {
+        match @standard.get_mut(idx).or_panic {
+          case None -> {
+            @standard.set(idx, HeaderValue.Single(value))
+            false
+          }
+          case Single(ex) -> {
+            @standard.set(idx, HeaderValue.Multiple([ex, value]))
+            true
+          }
+          case Multiple(ex) -> {
+            ex.push(value)
+            true
+          }
+        }
+      }
+    }
+  }
+
+  # Returns the first value of the given `Header`, if there is any.
+  #
+  # If the header isn't present, a `MissingHeader` error is returned.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header, HeaderMap)
+  #
+  # let map = HeaderMap.new
+  #
+  # map.add(Header.ContentLength, '128')
+  # map.get(Header.ContentLength) # => Result.Ok('128')
+  # ```
+  fn pub get(header: ref Header) -> Result[String, MissingHeader] {
+    match get_value(header) {
+      case Ok(Single(v)) -> Result.Ok(v)
+      case Ok(Multiple(v)) -> Result.Ok(v.get(0).or_panic)
+      case _ -> Result.Error(MissingHeader(header))
+    }
+  }
+
+  fn get_value(header: ref Header) -> Result[ref HeaderValue, MissingHeader] {
+    let idx = header.index
+
+    # If the header definitely isn't present we can skip the lookup entirely.
+    if @bitmap.contains?(idx).false? { throw MissingHeader(header) }
+
+    match header {
+      case Other(name) -> {
+        match @non_standard.get(name) {
+          case Ok(v) -> Result.Ok(v)
+          case _ -> Result.Error(MissingHeader(header))
+        }
+      }
+      case _ -> {
+        match @standard.get(idx) {
+          case Ok(v) -> Result.Ok(v)
+          case _ -> Result.Error(MissingHeader(header))
+        }
+      }
+    }
+  }
+
+  # Returns an iterator over all the values of the header.
+  #
+  # If the header isn't assigned any values, the returned iterator yields no
+  # values.
+  #
+  # If the header value is a comma-separated list, this method treats it as a
+  # single value.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header, HeaderMap)
+  #
+  # let map = HeaderMap.new
+  #
+  # map.add(Header.ContentLength, '10')
+  # map.add(Header.ContentLength, '20')
+  #
+  # let iter = map.get_all(Header.ContentLength)
+  #
+  # iter.next # => Option.Some('10')
+  # iter.next # => Option.Some('20')
+  # iter.next # => Option.None
+  # ```
+  fn pub get_all(header: ref Header) -> Stream[String] {
+    let idx = header.index
+    let val = if @bitmap.contains?(idx) {
+      match header {
+        case Other(name) -> {
+          match @non_standard.get(name) {
+            case Ok(v) -> Option.Some(v)
+            case _ -> Option.None
+          }
+        }
+        case _ -> {
+          match @standard.get(idx) {
+            case Ok(v) -> Option.Some(v)
+            case _ -> Option.None
+          }
+        }
+      }
+    } else {
+      Option.None
+    }
+
+    match val {
+      case Some(Single(v)) -> {
+        let mut done = false
+
+        Stream.new(fn move {
+          if done := true { Option.None } else { Option.Some(v) }
+        })
+      }
+      case Some(Multiple(v)) -> v.iter
+      case _ -> Stream.new(fn move { Option.None })
+    }
+  }
+
+  # Parses and returns the value of the `Content-Length` header.
+  #
+  # # Handling duplicate headers
+  #
+  # RFC 9110 specifies the value format as `1*DIGIT` and not a list, but also
+  # says that _if_ the value is a comma-separated list where each value is the
+  # same (e.g. `Content-Length: 10, 20`) it's up to the receiver to determine
+  # how to handle such headers.
+  #
+  # Because multiple `Content-Length` headers are most likely the result of a
+  # bug and may result in security vulnerabilities (e.g. due to request
+  # smuggling), we always reject such headers. In other words, the only form we
+  # support is a single occurrence of the header in the form
+  # `Content-Length: digits`.
+  fn content_length -> Result[Option[Int], ParseError] {
+    match get_value(Header.ContentLength) {
+      case Ok(Single(inp)) -> {
+        match digits(inp, start: 0, limit: 19) {
+          case Some((v, len)) if len == inp.size -> Result.Ok(Option.Some(v))
+          case _ -> {
+            Result.Error(ParseError.InvalidHeaderValue(Header.ContentLength))
+          }
+        }
+      }
+      case Ok(Multiple(_)) -> {
+        Result.Error(ParseError.InvalidHeaderValue(Header.ContentLength))
+      }
+      case _ -> Result.Ok(Option.None)
+    }
+  }
+}
+
+impl Format for HeaderMap {
+  fn pub fmt(formatter: mut Formatter) {
+    let mut len = 0
+
+    formatter.write('{')
+
+    for (idx, val) in @standard.iter.with_index {
+      match val {
+        case None -> next
+        case _ -> {}
+      }
+
+      if len > 0 { formatter.write(', ') }
+
+      let name = header.NAMES.get(idx).or_panic
+
+      formatter.write(name)
+      formatter.write(': ')
+
+      match val {
+        case Single(v) -> v.fmt(formatter)
+        case Multiple(v) -> v.fmt(formatter)
+        case _ -> {}
+      }
+
+      len += 1
+    }
+
+    for { @key = name, @value = val } in @non_standard.iter {
+      if len > 0 { formatter.write(', ') }
+
+      formatter.write(name)
+      formatter.write(': ')
+
+      match val {
+        case Single(v) -> v.fmt(formatter)
+        case Multiple(v) -> v.fmt(formatter)
+        case _ -> {}
+      }
+
+      len += 1
+    }
+
+    formatter.write('}')
+  }
+}
+
+# The value of a header.
+type inline enum HeaderValue {
+  # The header is not assigned any value.
+  case None
+
+  # The header is assigned only a single value.
+  #
+  # This is a dedicated constructor as most headers only ever have a single
+  # value, allowing us to avoid the need for allocating an Array.
+  case Single(String)
+
+  # The header is assigned multiple values.
+  case Multiple(Array[String])
+}
+
+impl Format for HeaderValue {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case None -> formatter.tuple('None').finish
+      case Single(v) -> formatter.tuple('Single').field(v).finish
+      case Multiple(v) -> formatter.tuple('Multiple').field(v).finish
+    }
+  }
+}
+
+impl Clone for HeaderValue {
+  fn pub clone -> Self {
+    match self {
+      case None -> HeaderValue.None
+      case Single(v) -> HeaderValue.Single(v)
+      case Multiple(v) -> HeaderValue.Multiple(v.clone)
+    }
+  }
+}
+
+# An HTTP request method.
+#
+# Only the standard request methods defined in RFC 9112 are supported. Custom
+# request methods aren't supported as they're virtually unused, and frankly not
+# that useful.
+type pub copy enum Method {
+  case Get
+  case Post
+  case Put
+  case Delete
+  case Head
+  case Options
+  case Connect
+  case Trace
+
+  # Creates a `Method` from a sequence of bytes.
+  #
+  # If the request method isn't recognized, an `Option.None` is returned.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Method)
+  #
+  # Method.parse('GET') # => Option.Some(Method.Get)
+  # Method.parse('FOO') # => Option.None
+  # ```
+  fn pub static parse[B: Bytes](input: ref B) -> Option[Method] {
+    match method.index_of(input) {
+      case Some(0) -> Option.Some(Get)
+      case Some(1) -> Option.Some(Post)
+      case Some(2) -> Option.Some(Put)
+      case Some(3) -> Option.Some(Delete)
+      case Some(4) -> Option.Some(Head)
+      case Some(5) -> Option.Some(Options)
+      case Some(6) -> Option.Some(Connect)
+      case Some(7) -> Option.Some(Trace)
+      case _ -> Option.None
+    }
+  }
+}
+
+impl Equal for Method {
+  fn pub ==(other: Method) -> Bool {
+    match (self, other) {
+      case (Get, Get) -> true
+      case (Post, Post) -> true
+      case (Put, Put) -> true
+      case (Delete, Delete) -> true
+      case (Head, Head) -> true
+      case (Options, Options) -> true
+      case (Connect, Connect) -> true
+      case (Trace, Trace) -> true
+      case _ -> false
+    }
+  }
+}
+
+impl ToString for Method {
+  fn pub to_string -> String {
+    match self {
+      case Get -> 'GET'
+      case Post -> 'POST'
+      case Put -> 'PUT'
+      case Delete -> 'DELETE'
+      case Head -> 'HEAD'
+      case Options -> 'OPTIONS'
+      case Connect -> 'CONNECT'
+      case Trace -> 'TRACE'
+    }
+  }
+}
+
+impl Format for Method {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter.write(to_string)
+  }
+}
+
+# The target of a request.
+type pub inline enum Target {
+  # A specific URI is requested.
+  case Uri(Uri)
+
+  # The "*" path is requested as part of an OPTIONS request.
+  case Server
+}
+
+impl Equal for Target {
+  fn pub ==(other: ref Target) -> Bool {
+    match (self, other) {
+      case (Server, Server) -> true
+      case (Uri(a), Uri(b)) -> a == b
+      case _ -> false
+    }
+  }
+}
+
+impl Format for Target {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case Uri(v) -> formatter.tuple('Uri').field(v).finish
+      case Server -> formatter.tuple('Server').finish
+    }
+  }
+}
+
+# The status code of a response.
+type pub copy Status {
+  let @code: Int
+
+  # Returns a new `Status` using the given status code.
+  fn inline static new(code: Int) -> Status {
+    Status(code)
+  }
+
+  # Returns the `OK` status code.
+  fn inline static ok -> Status {
+    Status(200)
+  }
+}
+
+impl Equal for Status {
+  fn pub ==(other: Status) -> Bool {
+    @code == other.code
+  }
+}
+
+impl ToString for Status {
+  fn pub to_string -> String {
+    @code.to_string
+  }
+}
+
+impl Format for Status {
+  fn pub fmt(formatter: mut Formatter) {
+    @code.fmt(formatter)
+  }
+}
+
+impl ToInt for Status {
+  fn pub to_int -> Int {
+    @code
+  }
+}
+
+# The version of the HTTP protocol used by a request or response.
+type pub copy Version {
+  # The major version number.
+  let pub @major: Int
+
+  # The minor version number.
+  let pub @minor: Int
+}
+
+impl Format for Version {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter
+      .object('Version')
+      .field('major', @major)
+      .field('minor', @minor)
+      .finish
+  }
+}
+
+# An HTTP request.
+type pub inline Request {
+  # The request method (e.g. GET).
+  let pub @method: Method
+
+  # The target of the request.
+  let pub @target: Target
+
+  # The HTTP protocol version.
+  let pub @version: Version
+
+  # The headers of the request.
+  let pub @headers: HeaderMap
+
+  # The body of the request.
+  let pub @body: Body
+
+  # The body of the request.
+  #
+  # TODO: we can't just use the reader as-is because we may "over read" parts,
+  # such that when parsing a chunk of the body is in the buffer and the rest
+  # still in the socket, i.e:
+  #
+  # ```
+  #   in buffer   in the socket
+  # +-----------+----------------------+
+  # | 32 bytes  | the rest of the body |
+  # +-----------+----------------------+
+  #   start ------------------> end
+  # ```
+  #
+  # This also means that the buffer used by a parser must be moved into a
+  # request, unless we copy everything from it into a separate buffer.
+  # let pub @body:
+}
+
+impl Format for Request {
+  fn pub fmt(formatter: mut Formatter) {
+    # TODO: formatting the body requires `T: Format`, but this triggers the
+    # compiler error from https://github.com/inko-lang/inko/issues/851#issuecomment-2848531815.
+    formatter
+      .object('Request')
+      .field('method', @method)
+      .field('target', @target)
+      .field('version', @version)
+      .field('headers', @headers)
+      .field('body', '[...]')
+      .finish
+  }
+}
+
+# The body of a response or request.
+type pub Body {
+  let mut @remaining: Int
+  let @reader: BodyReader
+
+  fn static none -> Self {
+    Self(remaining: 0, reader: BodyReader.None)
+  }
+
+  fn static fixed(reader: Read, size: Int) -> Self {
+    Self(remaining: size, reader: BodyReader.Fixed(reader))
+  }
+
+  fn static chunked(reader: Read, size: Int) -> Self {
+    Self(remaining: size, reader: BodyReader.Chunked(reader))
+  }
+}
+
+impl Read for Body {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, IoError] {
+    # TODO: error when reading more than allowed, but how?
+    match @reader {
+      case None -> Result.Ok(0)
+      case Fixed(reader) -> {
+        let got = match min(size, @remaining) {
+          case 0 -> 0
+          case n -> try reader.read(into, n)
+        }
+
+        @remaining -= got
+        Result.Ok(got)
+      }
+      case Chunked(reader) -> Result.Ok(0)
+    }
+  }
+}
+
+type inline enum BodyReader {
+  # There is no body and thus there's nothing to read (e.g. in case of a HEAD
+  # request).
+  case None
+
+  # The body is of a fixed size.
+  case Fixed(Read)
+
+  # The body uses the "chunked" transfer encoding.
+  case Chunked(Read)
+}
+
+# The body of a response or request.
+# type pub inline enum Body {
+#   # The response doesn't have a body.
+#   case None
+#
+#   # A regular body.
+#   #
+#   # The arguments of this constructor are:
+#   #
+#   # 1. The `Read` value to read the data from
+#   # 2. The maximum number of bytes to read
+#   case Regular(Read, Int)
+#
+#   # A body that uses chunked transfers.
+#   #
+#   # The arguments of this constructor are:
+#   #
+#   # 1. The `Read` value to read the data from
+#   # 2. The maximum number of bytes to read
+#   case Chunked(Read, Int)
+#
+#   # Returns a `BodyReader` that allows reading of the body using the
+#   # `std.io.Read` API.
+#   #
+#   # If a `Content-Length` header is present, the returned `BodyReader` reads at
+#   # most the number of bytes specified in the header. If you create multiple
+#   # `BodyReader` instances, each impose this limit individually. Thus if the
+#   # `Content-Length` header is set to 5 but there are 10 bytes available, the
+#   # first `BodyReader` reads the first 5 bytes while the second `BodyReader`
+#   # reads the _next_ 5 bytes, instead of reading the same first 5 bytes. Because
+#   # of this, it's best to only create one `BodyReader` per `Body` and reuse it.
+#   #
+#   # # Examples
+#   #
+#   # ```inko
+#   # import std.io (Buffer)
+#   # import std.net.http (Config, Parser, Request)
+#   #
+#   # let input = Buffer.new('GET / HTTP/1.1\r\nContent-Length: 5\r\n\r\nhello')
+#   # let parser = Parser.new(input, Config.new)
+#   # let request = parser.request.or_panic
+#   # let buf = ByteArray.new
+#   #
+#   # request.body.reader.read_all(buf).or_panic
+#   # buf.to_string # => 'hello'
+#   # ```
+#   fn pub mut reader -> BodyReader {
+#     let rem = match self {
+#       case Regular(_, rem) -> rem
+#       case Chunked(_, rem) -> rem
+#       case _ -> 0
+#     }
+#
+#     BodyReader(body: self, remaining: rem)
+#   }
+# }
+
+# A collection of cookies to include in a request or response.
+type pub inline Cookies {
+  let @map: Map[String, String]
+
+  # Returns a new `Cookies` value.
+  fn pub static new -> Self {
+    Self(Map.new)
+  }
+
+  # Assigns a cookie a new value.
+  fn pub mut set(name: String, value: String) {
+    @map.set(name, value)
+  }
+}
+
+impl Format for Cookies {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter.object('Cookies').field('map', @map).finish
+  }
+}
+
+# An HTTP response.
+type pub inline Response[T: mut + Read] {
+  # The request method (e.g. GET).
+  let pub @method: Method
+
+  # The HTTP status code.
+  let pub @status: Status
+
+  # The HTTP protocol version.
+  let pub @version: Version
+
+  # The headers of the request.
+  let pub @headers: HeaderMap
+
+  # The body of the request.
+  let pub @body: T
+}
+
+# An error produced while parsing a request or response.
+type pub inline enum ParseError {
+  # The request method is invalid.
+  case InvalidMethod
+
+  # The requested target is invalid.
+  case InvalidTarget(String)
+
+  # The HTTP version is invalid.
+  case InvalidVersion
+
+  # A header name or value contains invalid characters.
+  case InvalidHeaderBytes
+
+  # A header name or value is too large.
+  case HeaderTooLarge
+
+  # A request or response contains too many headers.
+  case TooManyHeaders
+
+  # A header value is invalid (e.g. it's a list of values when only a single
+  # value is supported).
+  case InvalidHeaderValue(Header)
+
+  # Two conflicting headers are given.
+  case ConflictingHeaders(Header, Header)
+
+  # The request or response body is larger than the allowed limit.
+  case BodyTooLarge
+
+  # An error produced while reading data from the input stream.
+  case Read(IoError)
+}
+
+impl ToString for ParseError {
+  fn pub to_string -> String {
+    match self {
+      case InvalidMethod -> 'the request method is invalid'
+      case InvalidTarget(v) -> 'the request target is invalid: ${v}'
+      case InvalidVersion -> 'the HTTP version is invalid'
+      case InvalidHeaderBytes -> 'a header name or value contains invalid bytes'
+      case HeaderTooLarge -> 'a header name or value is too large'
+      case TooManyHeaders -> 'too many headers are specified'
+      case InvalidHeaderValue(v) -> 'the value of the ${v} header is invalid'
+      case BodyTooLarge -> 'the request or response body is too large'
+      case ConflictingHeaders(a, b) -> {
+        "the ${a} and ${b} headers can't be specified at the same time"
+      }
+      case Read(v) -> v.to_string
+    }
+  }
+}
+
+impl Format for ParseError {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case InvalidMethod -> formatter.tuple('InvalidMethod').finish
+      case InvalidTarget(v) -> formatter.tuple('InvalidTarget').field(v).finish
+      case InvalidVersion -> formatter.tuple('InvalidVersion').finish
+      case InvalidHeaderBytes -> formatter.tuple('InvalidHeaderBytes').finish
+      case HeaderTooLarge -> formatter.tuple('HeaderTooLarge').finish
+      case TooManyHeaders -> formatter.tuple('TooManyHeaders').finish
+      case InvalidHeaderValue(v) -> {
+        formatter.tuple('InvalidHeaderValue').field(v).finish
+      }
+      case ConflictingHeaders(a, b) -> {
+        formatter.tuple('ConflictingHeaders').field(a).field(b).finish
+      }
+      case BodyTooLarge -> formatter.tuple('BodyTooLarge').finish
+      case Read(v) -> formatter.tuple('Read').field(v).finish
+    }
+  }
+}
+
+impl Equal for ParseError {
+  fn pub ==(other: ref ParseError) -> Bool {
+    match (self, other) {
+      case (InvalidMethod, InvalidMethod) -> true
+      case (InvalidTarget(a), InvalidTarget(b)) -> a == b
+      case (InvalidVersion, InvalidVersion) -> true
+      case (InvalidHeaderBytes, InvalidHeaderBytes) -> true
+      case (HeaderTooLarge, HeaderTooLarge) -> true
+      case (TooManyHeaders, TooManyHeaders) -> true
+      case (InvalidHeaderValue(a), InvalidHeaderValue(b)) -> a == b
+      case (ConflictingHeaders(a1, b1), ConflictingHeaders(a2, b2)) -> {
+        a1 == a2 and b1 == b2
+      }
+      case (BodyTooLarge, BodyTooLarge) -> true
+      case (Read(a), Read(b)) -> a == b
+      case _ -> false
+    }
+  }
+}
+
+# Settings to alter the behavior of parsing requests and responses.
+type pub Config {
+  # The maximum size of request targets (e.g. URIs).
+  #
+  # This defaults to 1 KiB.
+  let pub mut @target_size: Int
+
+  # The maximum size (in bytes) of header names and values.
+  #
+  # This defaults to 4 KiB as most (all?) browsers also enforce this upper limit
+  # on the size of cookies, which is typically the largest header value.
+  let pub mut @header_size: Int
+
+  # The maximum number of headers that are allowed.
+  #
+  # This defaults to 32.
+  let pub mut @headers: Int
+
+  # The maximum size (in bytes) of a request body.
+  #
+  # This defaults to 1 MiB.
+  #
+  # This limits ensures servers don't run out of memory due to requests
+  # including unreasonably large bodies. You may need to increase this limit if
+  # you want to allow handling of large file uploads.
+  let pub mut @request_body_size: Int
+
+  # The maximum size (in bytes) of a response body.
+  #
+  # This defaults to the maximum `Int` value (= i.e. 7 ZiB), meaning it's
+  # effectively unlimited by default. The reason for this is that most servers
+  # won't respond with large responses unless that's intentional/desired (e.g.
+  # when downloading a file).
+  let pub mut @response_body_size: Int
+
+  # Returns a `Config` using the default settings.
+  fn pub static new -> Self {
+    Self(
+      target_size: 1024,
+      header_size: 4 * 1024,
+      headers: 32,
+      request_body_size: 1024 * 1024,
+      response_body_size: MAX,
+    )
+  }
+}
+
+impl Clone for Config {
+  fn pub clone -> Config {
+    Config(
+      target_size: @target_size,
+      header_size: @header_size,
+      headers: @headers,
+      request_body_size: @request_body_size,
+      response_body_size: @response_body_size,
+    )
+  }
+}
+
+# A type for parsing an HTTP requests and responses.
+type pub inline Parser[T: mut + Read] {
+  let @reader: BufferedReader[T]
+  let @buffer: ByteArray
+  let @config: Config
+
+  # Returns a new `Parser`.
+  fn pub static new(reader: T, config: Config) -> Self {
+    Self(
+      reader: BufferedReader.new(reader),
+      buffer: ByteArray.new,
+      config: config,
+    )
+  }
+
+  # Parses the input stream into a `Request`.
+  fn pub move request -> Result[Request, ParseError] {
+    let method = try request_method
+    let target = try request_target
+    let version = try version
+
+    if (try terminated?) == false { throw ParseError.Read(IoError.EndOfInput) }
+
+    let headers = try headers
+
+    # Due to https://github.com/inko-lang/inko/issues/864 we have to move this
+    # field ahead of time.
+    #
+    # We cast this value to a trait such that we don't leak parser internals
+    # (e.g. the use of a `BufferedReader` while parsing).
+    let reader = @reader as Read
+    let body = match method {
+      # CONNECT and HEAD requests don't use a body (RFC 9112 section 6.3).
+      case Connect or Head -> Body.none
+      case _ -> {
+        let cl = Header.ContentLength
+        let te = Header.TransferEncoding
+
+        match (headers.content_length, headers.get_value(te)) {
+          # Specifying both Content-Length and Transfer-Encoding is either a bug
+          # or an attempt at request smuggling (or a similar attack). Per RFC
+          # 9112 ("[...] and ought to be handled as an error" in section 6.3) we
+          # reject such messages.
+          case (Ok(Some(_)), Ok(_)) -> {
+            throw ParseError.ConflictingHeaders(cl, te)
+          }
+          case (Ok(Some(len)), _) if len > @config.request_body_size -> {
+            throw ParseError.BodyTooLarge
+          }
+          case (Ok(Some(len)), _) -> Body.fixed(reader, len)
+          # We only support the "chunked" encoding, as the others aren't all
+          # that useful, and because at the time of writing we don't support
+          # gzip/deflate/etc in the standard library.
+          case (_, Ok(Single('chunked'))) -> {
+            Body.chunked(reader, @config.request_body_size)
+          }
+          case (_, Ok(_)) -> throw ParseError.InvalidHeaderValue(te)
+          case (Error(e), _) -> throw e
+          case _ -> Body.none
+        }
+      }
+    }
+
+    Result.Ok(
+      Request(
+        method: method,
+        target: target,
+        version: version,
+        headers: headers,
+        body: body,
+      ),
+    )
+  }
+
+  fn mut request_method -> Result[Method, ParseError] {
+    loop {
+      match @reader.read_byte {
+        case Ok(Some(SPC)) -> break
+        case Ok(Some(_)) if @buffer.size == method.MAX_SIZE -> {
+          throw ParseError.InvalidMethod
+        }
+        case Ok(Some(v)) -> @buffer.push(v)
+        case Ok(_) -> throw ParseError.Read(IoError.EndOfInput)
+        case Error(e) -> throw ParseError.Read(e)
+      }
+    }
+
+    let res = match Method.parse(@buffer) {
+      case Some(v) -> Result.Ok(v)
+      case _ -> Result.Error(ParseError.InvalidMethod)
+    }
+
+    @buffer.clear
+    res
+  }
+
+  fn mut request_target -> Result[Target, ParseError] {
+    loop {
+      match @reader.read_byte {
+        case Ok(Some(SPC)) -> break
+        case Ok(Some(_)) if @buffer.size > @config.target_size -> {
+          throw ParseError.InvalidTarget('the size is too large')
+        }
+        case Ok(Some(v)) -> @buffer.push(v)
+        case Ok(_) -> throw ParseError.Read(IoError.EndOfInput)
+        case Error(e) -> throw ParseError.Read(e)
+      }
+    }
+
+    let res = if @buffer.size == 1 and @buffer.get(0).or_panic == AST {
+      Result.Ok(Target.Server)
+    } else {
+      match Uri.parse(@buffer) {
+        case Ok(v) -> Result.Ok(Target.Uri(v))
+        case Error(e) -> Result.Error(ParseError.InvalidTarget(e.to_string))
+      }
+    }
+
+    @buffer.clear
+    res
+  }
+
+  fn mut version -> Result[Version, ParseError] {
+    # The only HTTP versions supported/in use all take up exactly 8 bytes:
+    # HTTP/0.9, HTTP/1.0, HTTP/1.1, and HTTP/2.0.
+    match @reader.read_exact(into: @buffer, size: 8) {
+      case Ok(_) if @buffer.starts_with?('HTTP/') -> {}
+      case Ok(_) -> throw ParseError.InvalidVersion
+      case Error(e) -> throw ParseError.Read(e)
+    }
+
+    let a = @buffer.get(5).or_panic
+    let b = @buffer.get(7).or_panic
+    let res = if digit?(a) and @buffer.get(6).or_panic == DOT and digit?(b) {
+      Result.Ok(Version(major: a - ZERO, minor: b - ZERO))
+    } else {
+      Result.Error(ParseError.InvalidVersion)
+    }
+
+    @buffer.clear
+    res
+  }
+
+  fn mut terminated? -> Result[Bool, ParseError] {
+    let res = match @reader.read_exact(into: @buffer, size: 2) {
+      case Ok(_) if @buffer.equals?('\r\n') -> Result.Ok(true)
+      case Ok(_) -> Result.Ok(false)
+      case Error(e) -> Result.Error(ParseError.Read(e))
+    }
+
+    @buffer.clear
+    res
+  }
+
+  fn mut headers -> Result[HeaderMap, ParseError] {
+    let mut num = 0
+    let headers = HeaderMap.new
+
+    # TODO: a bunch of headers allow duplicate (Set-Cookie, Cache-Control, etc).
+    # How do we handle that?
+    # TODO: only allow duplicates for headers of which the values are lists,
+    # produce error for everything else
+    loop {
+      match header {
+        case Ok(Some(_)) if num == @config.headers -> {
+          throw ParseError.TooManyHeaders
+        }
+        case Ok(Some((name, val))) -> {
+          headers.add(name, val)
+          num += 1
+        }
+        case Ok(_) -> break
+        case Error(e) -> throw e
+      }
+    }
+
+    Result.Ok(headers)
+  }
+
+  fn mut header -> Result[Option[(Header, String)], ParseError] {
+    loop {
+      match @reader.read_byte {
+        case Ok(Some(COL)) -> break
+        case Ok(Some(CR)) -> {
+          match @reader.read_byte {
+            case Ok(Some(LF)) -> return Result.Ok(Option.None)
+            case Ok(Some(_)) -> throw ParseError.InvalidHeaderBytes
+            case Ok(_) -> throw ParseError.Read(IoError.EndOfInput)
+            case Error(e) -> throw ParseError.Read(e)
+          }
+        }
+        case Ok(Some(_)) if @buffer.size == @config.header_size -> {
+          throw ParseError.HeaderTooLarge
+        }
+        case Ok(Some(v)) if upper?(v) -> @buffer.push(to_lower(v))
+        case Ok(Some(v)) if token?(v) -> @buffer.push(v)
+        case Ok(Some(_)) -> throw ParseError.InvalidHeaderBytes
+        case Ok(_) -> return Result.Ok(Option.None)
+        case Error(e) -> throw ParseError.Read(e)
+      }
+    }
+
+    let name = Header.parse(@buffer)
+
+    @buffer.clear
+    try skip_spaces
+
+    loop {
+      match @reader.read_byte {
+        case Ok(Some(v)) if visible?(v) or v == SPC or v == TAB -> {
+          @buffer.push(v)
+        }
+        case Ok(Some(CR)) -> {
+          match @reader.read_byte {
+            case Ok(Some(LF)) -> break
+            case Ok(Some(_)) -> throw ParseError.InvalidHeaderBytes
+            case Ok(_) -> throw ParseError.Read(IoError.EndOfInput)
+            case Error(e) -> throw ParseError.Read(e)
+          }
+        }
+        case Ok(Some(_)) if @buffer.size == @config.header_size -> {
+          throw ParseError.HeaderTooLarge
+        }
+        case Ok(Some(_)) -> throw ParseError.InvalidHeaderBytes
+        case Ok(_) -> throw ParseError.Read(IoError.EndOfInput)
+        case Error(e) -> throw ParseError.Read(e)
+      }
+    }
+
+    # If there's any trailing whitespace, it needs to be removed.
+    loop {
+      match @buffer.last {
+        case Some(SPC or TAB) -> @buffer.pop
+        case _ -> break
+      }
+    }
+
+    Result.Ok(Option.Some((name, @buffer.drain_to_string)))
+  }
+
+  fn mut skip_spaces -> Result[Nil, ParseError] {
+    loop {
+      match @reader.peek {
+        case Ok(Some(SPC or TAB)) -> @reader.read_byte
+        case Ok(Some(_)) -> break
+        case Ok(_) -> throw ParseError.Read(IoError.EndOfInput)
+        case Error(e) -> throw ParseError.Read(e)
+      }
+    }
+
+    Result.Ok(nil)
+  }
+}
