@@ -595,6 +595,7 @@ impl<'a> DefineFields<'a> {
             let vis = Visibility::public(fnode.public);
             let rules = Rules {
                 allow_private_types: vis.is_private(),
+                type_parameters_as_rigid: true,
                 ..Default::default()
             };
 

@@ -669,6 +669,7 @@ impl<'a> DefineMethods<'a> {
         let rules = Rules {
             allow_private_types: type_id.is_private(self.db())
                 || method.is_private(self.db()),
+            type_parameters_as_rigid: true,
             ..Default::default()
         };
 
@@ -773,6 +774,7 @@ impl<'a> DefineMethods<'a> {
         let rules = Rules {
             allow_private_types: type_id.is_private(self.db())
                 || method.is_private(self.db()),
+            type_parameters_as_rigid: true,
             ..Default::default()
         };
         let rec_type = TypeEnum::TypeInstance(TypeInstance::rigid(
@@ -862,6 +864,7 @@ impl<'a> DefineMethods<'a> {
         let rules = Rules {
             allow_private_types: type_id.is_private(self.db())
                 || method.is_private(self.db()),
+            type_parameters_as_rigid: true,
             ..Default::default()
         };
         let bounds = TypeBounds::new();
@@ -940,6 +943,7 @@ impl<'a> DefineMethods<'a> {
 
         let rules = Rules {
             allow_private_types: trait_id.is_private(self.db()),
+            type_parameters_as_rigid: true,
             mark_trait_for_self: true,
             ..Default::default()
         };
@@ -1017,6 +1021,7 @@ impl<'a> DefineMethods<'a> {
         let rules = Rules {
             allow_private_types: trait_id.is_private(self.db()),
             mark_trait_for_self: true,
+            type_parameters_as_rigid: true,
             ..Default::default()
         };
         let bounds = TypeBounds::new();
@@ -1435,6 +1440,7 @@ impl<'a> ImplementTraitMethods<'a> {
                 .instance_of()
                 .is_private(self.db())
                 || method.is_private(self.db()),
+            type_parameters_as_rigid: true,
             ..Default::default()
         };
         let receiver = receiver_type(self.db(), rec_type, node.kind);
