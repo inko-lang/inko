@@ -23,15 +23,6 @@ let READ_BUFFER_SIZE = 8 * 1024
 # The default size of the buffer maintained by `BufferedWriter`.
 let WRITE_BUFFER_SIZE = 8 * 1024
 
-# The error code used to signal invalid data.
-#
-# This error code isn't produced by libc, instead it's specific to the runtime
-# library.
-let INVALID_DATA = -2
-
-# The error code used when encountering an unexpected end of the input.
-let UNEXPECTED_EOF = -3
-
 fn extern inko_process_start_blocking(process: Pointer[UInt8])
 
 fn extern inko_process_stop_blocking(process: Pointer[UInt8])
@@ -203,18 +194,6 @@ type pub copy enum Error {
   # A memory address used (e.g. as an argument) is in an invalid range.
   case BadAddress
 
-  # The data provided for the operation is invalid, such as when using an
-  # invalid TLS certificate or when a TLS socket encountered invalid TLS data
-  # (e.g. an invalid handshake message).
-  case InvalidData
-
-  # The operation encountered the end of the input stream, but more input is
-  # required.
-  #
-  # An example of where this error is encountered is when reading from a TLS
-  # socket that was closed without sending the `close_notify` message.
-  case EndOfInput
-
   # A file couldn't be renamed, linked or copied because the operation takes
   # places across different devices.
   case CrossDeviceLink
@@ -269,8 +248,6 @@ type pub copy enum Error {
       case libc.EXDEV -> Error.CrossDeviceLink
       case libc.ENOTSUP or libc.EOPNOTSUPP -> Error.NotSupported
       case libc.EBADF -> Error.InvalidFileDescriptor
-      case INVALID_DATA -> Error.InvalidData
-      case UNEXPECTED_EOF -> Error.EndOfInput
       case val -> Error.Other(val)
     }
   }
@@ -314,12 +291,8 @@ impl ToString for Error {
       case TimedOut -> 'the operation timed out'
       case WouldBlock -> 'the operation would block'
       case BadAddress -> 'a memory address is in an invalid range'
-      case InvalidData -> "the data provided isn't valid for the operation"
       case CrossDeviceLink -> {
         "the operation failed because it can't be performed across devices"
-      }
-      case EndOfInput -> {
-        'the end of the input stream is reached, but more input is required'
       }
       case NotSupported -> "the operation isn't supported"
       case InvalidFileDescriptor -> 'the file descriptor is invalid'
@@ -361,8 +334,6 @@ impl Format for Error {
       case TimedOut -> 'TimedOut'
       case WouldBlock -> 'WouldBlock'
       case BadAddress -> 'BadAddress'
-      case InvalidData -> 'InvalidData'
-      case EndOfInput -> 'EndOfInput'
       case CrossDeviceLink -> 'CrossDeviceLink'
       case NotSupported -> 'NotSupported'
       case InvalidFileDescriptor -> 'InvalidFileDescriptor'
@@ -409,8 +380,6 @@ impl Equal for Error {
       case (TimedOut, TimedOut) -> true
       case (WouldBlock, WouldBlock) -> true
       case (Other(a), Other(b)) -> a == b
-      case (InvalidData, InvalidData) -> true
-      case (EndOfInput, EndOfInput) -> true
       case (CrossDeviceLink, CrossDeviceLink) -> true
       case (NotSupported, NotSupported) -> true
       case (InvalidFileDescriptor, InvalidFileDescriptor) -> true
@@ -419,8 +388,47 @@ impl Equal for Error {
   }
 }
 
+# An error produced by `Read.read_exact`
+type pub copy enum ReadExactError {
+  # More input is required from the input stream.
+  case EndOfInput
+
+  # An error that occurred while reading data from the input stream.
+  case Read(Error)
+}
+
+impl Format for ReadExactError {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case EndOfInput -> formatter.tuple('EndOfInput').finish
+      case Read(e) -> formatter.tuple('Read').field(e).finish
+    }
+  }
+}
+
+impl Equal for ReadExactError {
+  fn pub ==(other: ref Self) -> Bool {
+    match (self, other) {
+      case (EndOfInput, EndOfInput) -> true
+      case (Read(a), Read(b)) -> a == b
+      case _ -> false
+    }
+  }
+}
+
+impl ToString for ReadExactError {
+  fn pub to_string -> String {
+    match self {
+      case EndOfInput -> {
+        'the end of the input stream is reached, but more input is required'
+      }
+      case Read(e) -> e.to_string
+    }
+  }
+}
+
 # A type data can be read from (e.g. a File).
-trait pub Read {
+trait pub Read[E] {
   # Reads up to `size` bytes from `self` into the given `ByteArray`, returning
   # the number of bytes read.
   #
@@ -450,14 +458,17 @@ trait pub Read {
   # If an error is returned, no assumption can be made about the state of the
   # `into` buffer, i.e. there's no guarantee data read so far is in the buffer
   # in the event of an error.
-  fn pub mut read_exact(into: mut ByteArray, size: Int) -> Result[Nil, Error] {
+  fn pub mut read_exact(
+    into: mut ByteArray,
+    size: Int,
+  ) -> Result[Nil, ReadExactError] {
     let mut pending = size
 
     while pending > 0 {
       match read(into, pending) {
-        case Ok(0) if pending > 0 -> throw Error.EndOfInput
+        case Ok(0) if pending > 0 -> throw ReadExactError.EndOfInput
         case Ok(n) -> pending -= n
-        case Error(e) -> throw e
+        case Error(e) -> throw ReadExactError.Read(e)
       }
     }
 
@@ -559,7 +570,7 @@ trait pub Seek {
 
 # A `Read` type using an internal buffer, allowing more efficient reading and
 # additional operations.
-trait pub BufferedRead: Read {
+trait pub BufferedRead[E]: Read[E] {
   # Fills the internal buffer by reading from the underlying stream.
   #
   # Upon success, this method returns `Ok(n)` where `n` is the number of bytes
@@ -783,7 +794,7 @@ trait pub BufferedRead: Read {
 # and get the expected results (i.e. no indefinite blocking `read` calls), at
 # the cost of (potentially) more `read` calls compared to when `exact` is set to
 # `true`.
-type pub BufferedReader[T: mut + Read] {
+type pub BufferedReader[T: mut + Read[E], E] {
   # The `Read` type to read data from.
   let pub @inner: T
 
@@ -802,7 +813,7 @@ type pub BufferedReader[T: mut + Read] {
 
   # Returns a new buffered reader that wraps the given `Read` type, using the
   # default buffer size.
-  fn pub static new(reader: T) -> BufferedReader[T] {
+  fn pub static new(reader: T) -> BufferedReader[T, E] {
     with_capacity(reader, READ_BUFFER_SIZE)
   }
 
@@ -811,7 +822,7 @@ type pub BufferedReader[T: mut + Read] {
   #
   # The `reader` argument can be any `Read` type, provided it allows mutation
   # (e.g. a `ref Reader` isn't valid).
-  fn pub static with_capacity(reader: T, size: Int) -> BufferedReader[T] {
+  fn pub static with_capacity(reader: T, size: Int) -> BufferedReader[T, E] {
     if size <= 0 { invalid_buffer_size(size) }
 
     BufferedReader(
@@ -824,7 +835,7 @@ type pub BufferedReader[T: mut + Read] {
   }
 }
 
-impl BufferedRead for BufferedReader {
+impl BufferedRead[Error] for BufferedReader {
   fn mut fill_buffer -> Result[Int, Error] {
     if @offset < @buffer.size { return Result.Ok(@buffer.size - @offset) }
 
@@ -834,7 +845,9 @@ impl BufferedRead for BufferedReader {
     if @exact {
       match @inner.read_exact(into: @buffer, size: @capacity) {
         case Ok(_) or Error(EndOfInput) -> {}
-        case Error(e) -> throw e
+        # TODO: remove
+        case Error(Read(e)) -> throw e
+        # case Error(e) -> throw e
       }
     } else {
       try @inner.read(into: @buffer, size: @capacity)
@@ -885,7 +898,7 @@ impl BufferedRead for BufferedReader {
   }
 }
 
-impl Read for BufferedReader {
+impl Read[Error] for BufferedReader {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     let mut total = 0
 
@@ -1089,13 +1102,13 @@ type pub Buffer[T: Bytes] {
   }
 }
 
-impl Read for Buffer {
+impl Read[Error] for Buffer {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     Result.Ok(read_buffer(into, size))
   }
 }
 
-impl BufferedRead for Buffer {
+impl BufferedRead[Error] for Buffer {
   fn mut fill_buffer -> Result[Int, Error] {
     Result.Ok(@bytes.size - @offset)
   }

@@ -93,7 +93,7 @@ impl Drop for ReadOnlyFile {
   }
 }
 
-impl Read for ReadOnlyFile {
+impl Read[Error] for ReadOnlyFile {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     sys.read_file(@fd, into, size)
   }
@@ -293,7 +293,7 @@ impl Drop for ReadWriteFile {
   }
 }
 
-impl Read for ReadWriteFile {
+impl Read[Error] for ReadWriteFile {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     sys.read_file(@fd, into, size)
   }

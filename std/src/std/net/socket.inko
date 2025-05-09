@@ -567,7 +567,7 @@ impl Drop for Socket {
   }
 }
 
-impl Read for Socket {
+impl Read[Error] for Socket {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     sys.read(@socket, into, size, @deadline)
   }
@@ -701,7 +701,7 @@ impl RawSocketOperations for UdpSocket {
   }
 }
 
-impl Read for UdpSocket {
+impl Read[Error] for UdpSocket {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     @socket.read(into, size)
   }
@@ -871,7 +871,7 @@ impl RawSocketOperations for TcpClient {
   }
 }
 
-impl Read for TcpClient {
+impl Read[Error] for TcpClient {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     @socket.read(into, size)
   }
@@ -1398,7 +1398,7 @@ impl Drop for UnixSocket {
   }
 }
 
-impl Read for UnixSocket {
+impl Read[Error] for UnixSocket {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     sys.read(@socket, into, size, @deadline)
   }
@@ -1522,7 +1522,7 @@ impl RawSocketOperations for UnixDatagram {
   }
 }
 
-impl Read for UnixDatagram {
+impl Read[Error] for UnixDatagram {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     @socket.read(into, size)
   }
@@ -1648,7 +1648,7 @@ impl RawSocketOperations for UnixClient {
   }
 }
 
-impl Read for UnixClient {
+impl Read[Error] for UnixClient {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     @socket.read(into, size)
   }

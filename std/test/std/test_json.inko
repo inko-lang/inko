@@ -15,7 +15,7 @@ fn parse(input: String) -> Result[Json, Error] {
   Json.parse(Buffer.new(input))
 }
 
-fn pull(input: String) -> PullParser[Buffer[String]] {
+fn pull(input: String) -> PullParser[Buffer[String], IoError] {
   PullParser.new(Buffer.new(input))
 }
 

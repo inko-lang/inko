@@ -18,7 +18,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('ParseError.fmt', fn (t) {
-    t.equal(fmt(ParseError.Read(Error.EndOfInput)), 'Read(EndOfInput)')
+    t.equal(fmt(ParseError.Read(Error.NotFound)), 'Read(NotFound)')
     t.equal(fmt(ParseError.InvalidSectionStart(1)), 'InvalidSectionStart(1)')
     t.equal(fmt(ParseError.InvalidSectionEnd(1)), 'InvalidSectionEnd(1)')
     t.equal(fmt(ParseError.InvalidBase64(1)), 'InvalidBase64(1)')
@@ -218,7 +218,7 @@ a2V5
     for inp in inputs {
       t.equal(
         PemFile.new(Buffer.new(inp)).parse,
-        Result.Error(ParseError.Read(Error.EndOfInput)),
+        Result.Error(ParseError.EndOfInput),
       )
     }
   })

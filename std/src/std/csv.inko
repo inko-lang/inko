@@ -77,6 +77,9 @@ impl ToString for Error {
         'failed to read more bytes at byte offset ${@offset}: ${e}'
       }
       case MissingColumn -> 'a column is expected at byte offset ${@offset}'
+      case EndOfInput -> {
+        'the end of the input stream is reached, but more input is required'
+      }
       case UnexpectedCharacter -> {
         'the character at byte offset ${@offset} is unexpected'
       }
@@ -102,12 +105,11 @@ impl Equal for Error {
 
 # A type indicating what kind of error is produced.
 type pub inline enum ErrorKind {
-  # An error produced when reading input.
-  #
-  # This error is produced when the underlying stream of a `Parser` produces an
-  # error, or when more input is expected when parsing data such as a column, in
-  # which case the error is `std.io.Error.EndOfInput`.
+  # An error produced when reading from the underlying input stream.
   case Read(IoError)
+
+  # More input is required from the input stream.
+  case EndOfInput
 
   # A column is expected, but we've either reached the end of the line or the
   # end of the input stream.
@@ -122,6 +124,7 @@ impl Format for ErrorKind {
   fn pub fmt(formatter: mut Formatter) {
     match self {
       case Read(v) -> formatter.tuple('Read').field(v).finish
+      case EndOfInput -> formatter.tuple('EndOfInput').finish
       case MissingColumn -> formatter.tuple('MissingColumn').finish
       case UnexpectedCharacter -> formatter.tuple('UnexpectedCharacter').finish
     }
@@ -132,6 +135,7 @@ impl Equal for ErrorKind {
   fn pub ==(other: ref ErrorKind) -> Bool {
     match (self, other) {
       case (Read(a), Read(b)) -> a == b
+      case (EndOfInput, EndOfInput) -> true
       case (MissingColumn, MissingColumn) -> true
       case (UnexpectedCharacter, UnexpectedCharacter) -> true
       case _ -> false
@@ -286,8 +290,8 @@ impl ToInt for Separator {
 #
 # rows # => [['foo', 'bar', 'baz'], ['1', '2', '3']]
 # ```
-type pub Parser[I: mut + Read] {
-  let @input: BufferedReader[I]
+type pub Parser[I: mut + Read[E], E] {
+  let @input: BufferedReader[I, E]
   let @buffer: ByteArray
   let mut @offset: Int
   let mut @separator: Int
@@ -302,7 +306,7 @@ type pub Parser[I: mut + Read] {
   #
   # Parser.new(Buffer.new('foo,bar,baz'))
   # ```
-  fn pub static new(input: I) -> Parser[I] {
+  fn pub static new(input: I) -> Parser[I, E] {
     Parser(
       input: BufferedReader.new(input),
       buffer: ByteArray.new,
@@ -596,7 +600,7 @@ type pub Parser[I: mut + Read] {
     match try read_byte {
       case Some(LF) -> {}
       case Some(_) -> throw error(ErrorKind.UnexpectedCharacter)
-      case None -> throw error(ErrorKind.Read(IoError.EndOfInput))
+      case None -> throw error(ErrorKind.EndOfInput)
     }
 
     Result.Ok(nil)
@@ -628,7 +632,7 @@ type pub Parser[I: mut + Read] {
 
         match @buffer.pop {
           case Some(DQUOTE) -> Result.Ok(v)
-          case _ -> Result.Error(error(ErrorKind.Read(IoError.EndOfInput)))
+          case _ -> Result.Error(error(ErrorKind.EndOfInput))
         }
       }
       case Error(e) -> Result.Error(error(ErrorKind.Read(e)))

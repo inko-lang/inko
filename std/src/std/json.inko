@@ -467,7 +467,7 @@ type pub inline enum Json {
   #
   # Json.parse(Buffer.new('[10]'.to_byte_array)) # => Result.Ok(Json.Array([Json.Int(10)]))
   # ```
-  fn pub static parse[T: mut + Read](bytes: T) -> Result[Json, Error] {
+  fn pub static parse[T: mut + Read[E], E](bytes: T) -> Result[Json, Error] {
     Parser.new(bytes).parse
   }
 
@@ -654,13 +654,13 @@ impl FormatTrait for Type {
 #   .parse
 #   .get
 # ```
-type pub PullParser[T: mut + Read] {
-  let @input: BufferedReader[T]
+type pub PullParser[T: mut + Read[E], E] {
+  let @input: BufferedReader[T, E]
   let mut @offset: Int
   let @buffer: ByteArray
 
   # Returns a new parser that parses the given `Read` type.
-  fn pub static new(input: T) -> PullParser[T] {
+  fn pub static new(input: T) -> PullParser[T, E] {
     PullParser(
       input: BufferedReader.new(input),
       offset: -1,
@@ -871,7 +871,7 @@ type pub PullParser[T: mut + Read] {
   #   .object(fn (o) { o.string('name', fn (v) { person.name = v }) })
   #   .or_panic_with('failed to parse the JSON')
   # ```
-  fn pub mut object(rules: fn (mut ObjectParser[T])) -> Result[Nil, Error] {
+  fn pub mut object(rules: fn (mut ObjectParser[T, E])) -> Result[Nil, Error] {
     let obj = ObjectParser.new
 
     rules.call(obj)
@@ -1297,9 +1297,9 @@ type pub PullParser[T: mut + Read] {
 }
 
 # A parsing rule defined for an `ObjectParser`.
-type pub Rule[T: mut + Read] {
+type pub Rule[T: mut + Read[E], E] {
   let @id: Int
-  let @parser: fn (mut PullParser[T]) -> Result[Nil, Error]
+  let @parser: fn (mut PullParser[T, E]) -> Result[Nil, Error]
   let mut @required: Bool
 
   # Marks this rule as an optional rule.
@@ -1327,12 +1327,12 @@ type pub Rule[T: mut + Read] {
 # obj.int('b', fn (v) { nums.push(v) }).optional
 # obj.parse(parser).or_panic_with('failed to parse the JSON')
 # ```
-type pub inline ObjectParser[T: mut + Read] {
+type pub inline ObjectParser[T: mut + Read[E], E] {
   # The keys to parse along with the closures that parse their values.
-  let @rules: Map[String, Rule[T]]
+  let @rules: Map[String, Rule[T, E]]
 
   # Returns a new, empty `ObjectParser`.
-  fn static new -> ObjectParser[T] {
+  fn static new -> ObjectParser[T, E] {
     ObjectParser(Map.new)
   }
 
@@ -1342,32 +1342,32 @@ type pub inline ObjectParser[T: mut + Read] {
   # parser in the process.
   fn pub mut key(
     name: String,
-    value: fn (mut PullParser[T]) -> Result[Nil, Error],
-  ) -> mut Rule[T] {
+    value: fn (mut PullParser[T, E]) -> Result[Nil, Error],
+  ) -> mut Rule[T, E] {
     add(name, value)
   }
 
   # Parses the key `name` as a `String`, passing the parsed value to the `value`
   # closure.
-  fn pub mut string(name: String, value: fn (String)) -> mut Rule[T] {
+  fn pub mut string(name: String, value: fn (String)) -> mut Rule[T, E] {
     add(name, fn move (p) { p.string.map(fn (v) { value.call(v) }) })
   }
 
   # Parses the key `name` as an `Int`, passing the parsed value to the `value`
   # closure.
-  fn pub mut int(name: String, value: fn (Int)) -> mut Rule[T] {
+  fn pub mut int(name: String, value: fn (Int)) -> mut Rule[T, E] {
     add(name, fn move (p) { p.int.map(fn (v) { value.call(v) }) })
   }
 
   # Parses the key `name` as a `Float`, passing the parsed value to the `value`
   # closure.
-  fn pub mut float(name: String, value: fn (Float)) -> mut Rule[T] {
+  fn pub mut float(name: String, value: fn (Float)) -> mut Rule[T, E] {
     add(name, fn move (p) { p.float.map(fn (v) { value.call(v) }) })
   }
 
   # Parses the key `name` as a `Bool`, passing the parsed value to the `value`
   # closure.
-  fn pub mut bool(name: String, value: fn (Bool)) -> mut Rule[T] {
+  fn pub mut bool(name: String, value: fn (Bool)) -> mut Rule[T, E] {
     add(name, fn move (p) { p.bool.map(fn (v) { value.call(v) }) })
   }
 
@@ -1377,8 +1377,8 @@ type pub inline ObjectParser[T: mut + Read] {
   # For more information, refer to the documentation of `PullParser.keys`.
   fn pub mut keys(
     name: String,
-    value: fn (mut PullParser[T], Int, String) -> Result[Nil, Error],
-  ) -> mut Rule[T] {
+    value: fn (mut PullParser[T, E], Int, String) -> Result[Nil, Error],
+  ) -> mut Rule[T, E] {
     add(name, fn move (p) { p.keys(fn (pos, key) { value.call(p, pos, key) }) })
   }
 
@@ -1388,13 +1388,13 @@ type pub inline ObjectParser[T: mut + Read] {
   # For more information, refer to the documentation of `PullParser.values`.
   fn pub mut values(
     name: String,
-    value: fn (mut PullParser[T]) -> Result[Nil, Error],
-  ) -> mut Rule[T] {
+    value: fn (mut PullParser[T, E]) -> Result[Nil, Error],
+  ) -> mut Rule[T, E] {
     add(name, fn move (p) { p.values(fn { value.call(p) }) })
   }
 
   # Parses the current object according to the rules in `self`.
-  fn pub mut parse(parser: mut PullParser[T]) -> Result[Nil, Error] {
+  fn pub mut parse(parser: mut PullParser[T, E]) -> Result[Nil, Error] {
     let found = Array.filled(with: false, times: @rules.size)
     let start = try parser.start_of_next_value
 
@@ -1421,8 +1421,8 @@ type pub inline ObjectParser[T: mut + Read] {
 
   fn mut add(
     name: String,
-    parser: fn (mut PullParser[T]) -> Result[Nil, Error],
-  ) -> mut Rule[T] {
+    parser: fn (mut PullParser[T, E]) -> Result[Nil, Error],
+  ) -> mut Rule[T, E] {
     let rule = Rule(id: @rules.size, parser: parser, required: true)
     let ret = mut rule
 
@@ -1442,8 +1442,8 @@ type pub inline ObjectParser[T: mut + Read] {
 # This parser enforces a limit on the number of nested arrays and objects. The
 # default is sufficiently large that most documents won't result in an error
 # being thrown. This limit is controlled by the field `Parser.max_depth`.
-type pub Parser[T: mut + Read] {
-  let @pull: PullParser[T]
+type pub Parser[T: mut + Read[E], E] {
+  let @pull: PullParser[T, E]
   let mut @depth: Int
 
   # The maximum number of nested values.
@@ -1452,7 +1452,7 @@ type pub Parser[T: mut + Read] {
   let pub mut @max_depth: Int
 
   # Returns a new parser that will parse the given `Read` type.
-  fn pub static new(input: T) -> Parser[T] {
+  fn pub static new(input: T) -> Parser[T, E] {
     Parser(PullParser.new(input), depth: 0, max_depth: 100)
   }
 

@@ -69,7 +69,7 @@ fn iter(input: String) -> Result[Array[Array[String]], Error] {
 }
 
 fn eof_error(offset: Int) -> Error {
-  Error(kind: ErrorKind.Read(IoError.EndOfInput), offset: offset)
+  Error(kind: ErrorKind.EndOfInput, offset: offset)
 }
 
 fn unexpected(offset: Int) -> Error {
@@ -78,21 +78,21 @@ fn unexpected(offset: Int) -> Error {
 
 fn pub tests(t: mut Tests) {
   t.test('Error.to_string', fn (t) {
-    let e1 = Error(kind: ErrorKind.Read(IoError.EndOfInput), offset: 0)
+    let e1 = Error(kind: ErrorKind.Read(IoError.NotFound), offset: 0)
     let e2 = Error(kind: ErrorKind.UnexpectedCharacter, offset: 0)
 
     t.equal(
       e1.to_string,
       'failed to read more bytes at byte offset 0: '
-        + 'the end of the input stream is reached, but more input is required',
+        + "the resource isn't found",
     )
     t.equal(e2.to_string, 'the character at byte offset 0 is unexpected')
   })
 
   t.test('Error.fmt', fn (t) {
     t.equal(
-      fmt(Error(kind: ErrorKind.Read(IoError.EndOfInput), offset: 0)),
-      'Error(kind: Read(EndOfInput), offset: 0)',
+      fmt(Error(kind: ErrorKind.Read(IoError.NotFound), offset: 0)),
+      'Error(kind: Read(NotFound), offset: 0)',
     )
     t.equal(
       fmt(Error(kind: ErrorKind.MissingColumn, offset: 0)),
@@ -106,8 +106,8 @@ fn pub tests(t: mut Tests) {
 
   t.test('Error.==', fn (t) {
     t.equal(
-      Error(kind: ErrorKind.Read(IoError.EndOfInput), offset: 0),
-      Error(kind: ErrorKind.Read(IoError.EndOfInput), offset: 0),
+      Error(kind: ErrorKind.Read(IoError.NotFound), offset: 0),
+      Error(kind: ErrorKind.Read(IoError.NotFound), offset: 0),
     )
     t.equal(
       Error(kind: ErrorKind.MissingColumn, offset: 0),
@@ -119,11 +119,11 @@ fn pub tests(t: mut Tests) {
     )
 
     t.not_equal(
-      Error(kind: ErrorKind.Read(IoError.EndOfInput), offset: 0),
-      Error(kind: ErrorKind.Read(IoError.EndOfInput), offset: 1),
+      Error(kind: ErrorKind.Read(IoError.NotFound), offset: 0),
+      Error(kind: ErrorKind.Read(IoError.NotFound), offset: 1),
     )
     t.not_equal(
-      Error(kind: ErrorKind.Read(IoError.EndOfInput), offset: 0),
+      Error(kind: ErrorKind.Read(IoError.NotFound), offset: 0),
       Error(kind: ErrorKind.Read(IoError.InvalidArgument), offset: 0),
     )
     t.not_equal(
