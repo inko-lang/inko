@@ -15,7 +15,7 @@ type Buffer {
   }
 }
 
-impl Write for Buffer {
+impl Write[Error] for Buffer {
   fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
     @bytes.append(bytes)
     Result.Ok(nil)

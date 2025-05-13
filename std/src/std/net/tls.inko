@@ -406,7 +406,7 @@ impl Drop for Client {
   }
 }
 
-impl Read for Client {
+impl Read[Error] for Client {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     into.reserve_exact(size)
 
@@ -452,7 +452,7 @@ impl WriteInternal for Client {
   }
 }
 
-impl Write for Client {
+impl Write[Error] for Client {
   fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
     write_all_internal(bytes.pointer, bytes.size)
   }
@@ -640,7 +640,7 @@ impl Drop for Server {
   }
 }
 
-impl Read for Server {
+impl Read[Error] for Server {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     into.reserve_exact(size)
 
@@ -686,7 +686,7 @@ impl WriteInternal for Server {
   }
 }
 
-impl Write for Server {
+impl Write[Error] for Server {
   fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
     write_all_internal(bytes.pointer, bytes.size)
   }

@@ -13,7 +13,7 @@ type Output {
   }
 }
 
-impl Write for Output {
+impl Write[IoError] for Output {
   fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, IoError] {
     @buffer.append(bytes)
     Result.Ok(nil)
@@ -33,7 +33,7 @@ type BrokenOutput {
   }
 }
 
-impl Write for BrokenOutput {
+impl Write[IoError] for BrokenOutput {
   fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, IoError] {
     @writes += 1
     Result.Error(IoError.InvalidArgument)
@@ -44,7 +44,7 @@ impl Write for BrokenOutput {
   }
 }
 
-fn parse(input: String) -> Result[Array[Array[String]], Error] {
+fn parse(input: String) -> Result[Array[Array[String]], Error[Nil]] {
   let rows = []
   let parser = Parser.new(Buffer.new(input))
 
@@ -61,74 +61,77 @@ fn parse(input: String) -> Result[Array[Array[String]], Error] {
   Result.Ok(rows)
 }
 
-fn iter(input: String) -> Result[Array[Array[String]], Error] {
+fn iter(input: String) -> Result[Array[Array[String]], Error[Nil]] {
   Parser.new(Buffer.new(input)).try_reduce([], fn (rows, res) {
     rows.push(try res)
     Result.Ok(rows)
   })
 }
 
-fn eof_error(offset: Int) -> Error {
-  Error(kind: ErrorKind.Read(IoError.EndOfInput), offset: offset)
+fn eof_error(offset: Int) -> Error[Nil] {
+  Error(kind: ErrorKind.EndOfInput, offset: offset)
 }
 
-fn unexpected(offset: Int) -> Error {
+fn unexpected(offset: Int) -> Error[Nil] {
   Error(kind: ErrorKind.UnexpectedCharacter, offset: offset)
 }
 
 fn pub tests(t: mut Tests) {
   t.test('Error.to_string', fn (t) {
-    let e1 = Error(kind: ErrorKind.Read(IoError.EndOfInput), offset: 0)
+    let e1 = Error(kind: ErrorKind.Read(IoError.NotFound), offset: 0)
     let e2 = Error(kind: ErrorKind.UnexpectedCharacter, offset: 0)
+      as Error[IoError]
 
     t.equal(
       e1.to_string,
       'failed to read more bytes at byte offset 0: '
-        + 'the end of the input stream is reached, but more input is required',
+        + "the resource isn't found",
     )
     t.equal(e2.to_string, 'the character at byte offset 0 is unexpected')
   })
 
   t.test('Error.fmt', fn (t) {
     t.equal(
-      fmt(Error(kind: ErrorKind.Read(IoError.EndOfInput), offset: 0)),
-      'Error(kind: Read(EndOfInput), offset: 0)',
+      fmt(Error(kind: ErrorKind.Read(IoError.NotFound), offset: 0)),
+      'Error(kind: Read(NotFound), offset: 0)',
     )
     t.equal(
-      fmt(Error(kind: ErrorKind.MissingColumn, offset: 0)),
+      fmt(Error(kind: ErrorKind.MissingColumn, offset: 0) as Error[IoError]),
       'Error(kind: MissingColumn, offset: 0)',
     )
     t.equal(
-      fmt(Error(kind: ErrorKind.UnexpectedCharacter, offset: 0)),
+      fmt(
+        Error(kind: ErrorKind.UnexpectedCharacter, offset: 0) as Error[IoError],
+      ),
       'Error(kind: UnexpectedCharacter, offset: 0)',
     )
   })
 
   t.test('Error.==', fn (t) {
     t.equal(
-      Error(kind: ErrorKind.Read(IoError.EndOfInput), offset: 0),
-      Error(kind: ErrorKind.Read(IoError.EndOfInput), offset: 0),
+      Error(kind: ErrorKind.Read(IoError.NotFound), offset: 0),
+      Error(kind: ErrorKind.Read(IoError.NotFound), offset: 0),
     )
     t.equal(
-      Error(kind: ErrorKind.MissingColumn, offset: 0),
-      Error(kind: ErrorKind.MissingColumn, offset: 0),
+      Error(kind: ErrorKind.MissingColumn, offset: 0) as Error[IoError],
+      Error(kind: ErrorKind.MissingColumn, offset: 0) as Error[IoError],
     )
     t.equal(
-      Error(kind: ErrorKind.UnexpectedCharacter, offset: 0),
-      Error(kind: ErrorKind.UnexpectedCharacter, offset: 0),
+      Error(kind: ErrorKind.UnexpectedCharacter, offset: 0) as Error[IoError],
+      Error(kind: ErrorKind.UnexpectedCharacter, offset: 0) as Error[IoError],
     )
 
     t.not_equal(
-      Error(kind: ErrorKind.Read(IoError.EndOfInput), offset: 0),
-      Error(kind: ErrorKind.Read(IoError.EndOfInput), offset: 1),
+      Error(kind: ErrorKind.Read(IoError.NotFound), offset: 0),
+      Error(kind: ErrorKind.Read(IoError.NotFound), offset: 1),
     )
     t.not_equal(
-      Error(kind: ErrorKind.Read(IoError.EndOfInput), offset: 0),
+      Error(kind: ErrorKind.Read(IoError.NotFound), offset: 0),
       Error(kind: ErrorKind.Read(IoError.InvalidArgument), offset: 0),
     )
     t.not_equal(
-      Error(kind: ErrorKind.MissingColumn, offset: 0),
-      Error(kind: ErrorKind.UnexpectedCharacter, offset: 0),
+      Error(kind: ErrorKind.MissingColumn, offset: 0) as Error[IoError],
+      Error(kind: ErrorKind.UnexpectedCharacter, offset: 0) as Error[IoError],
     )
   })
 

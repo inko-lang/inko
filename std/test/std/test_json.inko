@@ -11,51 +11,60 @@ fn parse_invalid(input: String) -> Option[String] {
   Parser.new(bytes).parse.error.map(fn (v) { v.to_string })
 }
 
-fn parse(input: String) -> Result[Json, Error] {
+fn parse(input: String) -> Result[Json, Error[Nil]] {
   Json.parse(Buffer.new(input))
 }
 
-fn pull(input: String) -> PullParser[Buffer[String]] {
+fn pull(input: String) -> PullParser[Buffer[String], Nil] {
   PullParser.new(Buffer.new(input))
 }
 
 fn pub tests(t: mut Tests) {
   t.test('ErrorKind.==', fn (t) {
     t.equal(
-      ErrorKind.RecursionLimitExceeded(1),
+      ErrorKind.RecursionLimitExceeded(1) as ErrorKind[IoError],
       ErrorKind.RecursionLimitExceeded(1),
     )
-    t.equal(ErrorKind.InvalidSurrogate('a'), ErrorKind.InvalidSurrogate('a'))
+    t.equal(
+      ErrorKind.InvalidSurrogate('a') as ErrorKind[IoError],
+      ErrorKind.InvalidSurrogate('a'),
+    )
     t.equal(ErrorKind.Read(IoError.Other(1)), ErrorKind.Read(IoError.Other(1)))
 
-    t.not_equal(ErrorKind.RecursionLimitExceeded(1), ErrorKind.Generic('foo'))
+    t.not_equal(
+      ErrorKind.RecursionLimitExceeded(1) as ErrorKind[IoError],
+      ErrorKind.Generic('foo'),
+    )
   })
 
   t.test('ErrorKind.fmt', fn (t) {
     t.equal(
-      fmt(ErrorKind.RecursionLimitExceeded(1)),
+      fmt(ErrorKind.RecursionLimitExceeded(1) as ErrorKind[IoError]),
       'RecursionLimitExceeded(1)',
     )
-    t.equal(fmt(ErrorKind.InvalidSurrogate('a')), 'InvalidSurrogate("a")')
+    t.equal(
+      fmt(ErrorKind.InvalidSurrogate('a') as ErrorKind[IoError]),
+      'InvalidSurrogate("a")',
+    )
     t.equal(fmt(ErrorKind.Read(IoError.Other(1))), 'Read(Other(1))')
   })
 
   t.test('ErrorKind.to_string', fn (t) {
     t.equal(
-      ErrorKind.RecursionLimitExceeded(1).to_string,
+      (ErrorKind.RecursionLimitExceeded(1) as ErrorKind[IoError]).to_string,
       'the maximum recursion depth of 1 is exceeded',
     )
-    t.equal(ErrorKind.Generic('foo').to_string, 'foo')
+    t.equal((ErrorKind.Generic('foo') as ErrorKind[IoError]).to_string, 'foo')
   })
 
   t.test('Error.fmt', fn (t) {
-    let err = Error(ErrorKind.Generic('foo'), offset: 5)
+    let err = Error(ErrorKind.Generic('foo'), offset: 5) as Error[IoError]
 
     t.equal(fmt(err), 'Error(kind: Generic("foo"), offset: 5)')
   })
 
   t.test('Error.==', fn (t) {
-    let err1 = Error(ErrorKind.Generic('a'), offset: 5)
+    let err1 = Error(ErrorKind.Generic('a'), offset: 5) as Error[IoError]
     let err2 = Error(ErrorKind.Generic('a'), offset: 5)
     let err3 = Error(ErrorKind.RecursionLimitExceeded(1), offset: 6)
 
@@ -64,13 +73,13 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Error.to_string', fn (t) {
-    let err = Error(ErrorKind.Generic('test'), offset: 5)
+    let err = Error(ErrorKind.Generic('test'), offset: 5) as Error[IoError]
 
     t.equal(err.to_string, 'test, at byte offset 5')
   })
 
   t.test('Error.generic', fn (t) {
-    let err = Error.generic('foo', offset: 42)
+    let err = Error.generic('foo', offset: 42) as Error[IoError]
 
     t.equal(err, Error(kind: ErrorKind.Generic('foo'), offset: 42))
   })

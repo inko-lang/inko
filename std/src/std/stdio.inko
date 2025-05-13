@@ -57,7 +57,7 @@ type pub inline Stdin {
   }
 }
 
-impl Read for Stdin {
+impl Read[Error] for Stdin {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     sys.read(@fd, into, size)
   }
@@ -103,7 +103,7 @@ impl WriteInternal for Stdout {
   }
 }
 
-impl Write for Stdout {
+impl Write[Error] for Stdout {
   fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
     write_all_internal(bytes.pointer, bytes.size)
   }
@@ -151,7 +151,7 @@ impl WriteInternal for Stderr {
   }
 }
 
-impl Write for Stderr {
+impl Write[Error] for Stderr {
   fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
     write_all_internal(bytes.pointer, bytes.size)
   }

@@ -7,4 +7,6 @@ fn pub tests(t: mut Tests) {
   t.test('Nil.clone', fn (t) { t.equal(nil.clone, nil) })
 
   t.test('Nil.fmt', fn (t) { t.equal(fmt(nil), 'nil') })
+
+  t.test('Nil.to_string', fn (t) { t.equal(nil.to_string, '') })
 }

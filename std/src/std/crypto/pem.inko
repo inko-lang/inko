@@ -40,7 +40,7 @@ import std.base64 (Decoder)
 import std.cmp (Equal)
 import std.crypto.x509 (Certificate, PrivateKey)
 import std.fmt (Format, Formatter)
-import std.io (BufferedReader, Error, Read)
+import std.io (BufferedReader, Read)
 import std.iter (Iter)
 
 let LF = 0xA
@@ -104,9 +104,12 @@ impl Equal for Item {
 }
 
 # An error produced while parsing a PEM file.
-type pub inline enum ParseError {
+type pub inline enum ParseError[E] {
   # An IO error occurred while reading data to parse.
-  case Read(Error)
+  case Read(E)
+
+  # The input stream ran out of input, but more input is required.
+  case EndOfInput
 
   # The start of a PEM section is invalid, e.g. it's missing the closing
   # `-----`.
@@ -120,10 +123,11 @@ type pub inline enum ParseError {
   case InvalidBase64(Int)
 }
 
-impl Format for ParseError {
+impl Format for ParseError if E: Format {
   fn pub fmt(formatter: mut Formatter) {
     match self {
       case Read(e) -> formatter.tuple('Read').field(e).finish
+      case EndOfInput -> formatter.tuple('EndOfInput').finish
       case InvalidSectionStart(v) -> {
         formatter.tuple('InvalidSectionStart').field(v).finish
       }
@@ -135,10 +139,11 @@ impl Format for ParseError {
   }
 }
 
-impl Equal for ParseError {
-  fn pub ==(other: ref ParseError) -> Bool {
+impl Equal for ParseError if E: Equal {
+  fn pub ==(other: ref ParseError[E]) -> Bool {
     match (self, other) {
       case (Read(a), Read(b)) -> a == b
+      case (EndOfInput, EndOfInput) -> true
       case (InvalidSectionStart(a), InvalidSectionStart(b)) -> a == b
       case (InvalidSectionEnd(a), InvalidSectionEnd(b)) -> a == b
       case (InvalidBase64(a), InvalidBase64(b)) -> a == b
@@ -193,14 +198,14 @@ impl Equal for ParseError {
 #
 # parser.next_certificate # => Result.Ok(Option.Some(Certificate(...)))
 # ```
-type pub PemFile[I: mut + Read] {
-  let @input: BufferedReader[I]
+type pub PemFile[I: mut + Read[E], E] {
+  let @input: BufferedReader[I, E]
   let mut @line: Int
   let @buffer: ByteArray
   let @decoder: Decoder
 
   # Returns a new parser that parses data from `input`.
-  fn pub static new(input: I) -> PemFile[I] {
+  fn pub static new(input: I) -> PemFile[I, E] {
     PemFile(
       input: BufferedReader.new(input),
       line: 1,
@@ -227,7 +232,7 @@ type pub PemFile[I: mut + Read] {
   #
   # pem.next_certificate # => Result.Ok(Option.Some(Certificate(...)))
   # ```
-  fn pub mut next_certificate -> Result[Option[Certificate], ParseError] {
+  fn pub mut next_certificate -> Result[Option[Certificate], ParseError[E]] {
     loop {
       match parse {
         case Ok(Some(Certificate(v))) -> return Result.Ok(Option.Some(v))
@@ -256,7 +261,7 @@ type pub PemFile[I: mut + Read] {
   #
   # pem.next_private_key # => Result.Ok(Option.Some(PrivateKey(...)))
   # ```
-  fn pub mut next_private_key -> Result[Option[PrivateKey], ParseError] {
+  fn pub mut next_private_key -> Result[Option[PrivateKey], ParseError[E]] {
     loop {
       match parse {
         case Ok(Some(PrivateKey(v))) -> return Result.Ok(Option.Some(v))
@@ -267,7 +272,7 @@ type pub PemFile[I: mut + Read] {
     }
   }
 
-  fn mut parse -> Result[Option[Item], ParseError] {
+  fn mut parse -> Result[Option[Item], ParseError[E]] {
     let mut start = true
 
     loop {
@@ -284,9 +289,11 @@ type pub PemFile[I: mut + Read] {
       }
     }
 
-    try @input.read_exact(into: @buffer, size: 10).map_error(fn (e) {
-      ParseError.Read(e)
-    })
+    match @input.read_exact(into: @buffer, size: 10) {
+      case Ok(_) -> {}
+      case Error(EndOfInput) -> throw ParseError.EndOfInput
+      case Error(Read(e)) -> throw ParseError.Read(e)
+    }
 
     if @buffer.equals?('----BEGIN ').false? {
       throw ParseError.InvalidSectionStart(@line)
@@ -295,7 +302,7 @@ type pub PemFile[I: mut + Read] {
     @buffer.clear
 
     match @input.read_until(byte: DASH, into: @buffer, inclusive: false) {
-      case Ok(0) -> throw ParseError.Read(Error.EndOfInput)
+      case Ok(0) -> throw ParseError.EndOfInput
       case Ok(_) -> {}
       case Error(e) -> throw ParseError.Read(e)
     }
@@ -305,7 +312,7 @@ type pub PemFile[I: mut + Read] {
     let name = @buffer.drain_to_string
 
     match @input.read_line(into: @buffer, inclusive: false) {
-      case Ok(0) -> throw ParseError.Read(Error.EndOfInput)
+      case Ok(0) -> throw ParseError.EndOfInput
       case Ok(_) -> {}
       case Error(e) -> throw ParseError.Read(e)
     }
@@ -329,7 +336,7 @@ type pub PemFile[I: mut + Read] {
     Result.Ok(Option.Some(res))
   }
 
-  fn mut read_base64(name: String) -> Result[ByteArray, ParseError] {
+  fn mut read_base64(name: String) -> Result[ByteArray, ParseError[E]] {
     let decoded = ByteArray.new
 
     loop {
@@ -343,13 +350,13 @@ type pub PemFile[I: mut + Read] {
             @buffer.push(v)
             break
           }
-          case Ok(_) -> throw ParseError.Read(Error.EndOfInput)
+          case Ok(_) -> throw ParseError.EndOfInput
           case Error(e) -> throw ParseError.Read(e)
         }
       }
 
       match @input.read_line(into: @buffer, inclusive: false) {
-        case Ok(0) -> throw ParseError.Read(Error.EndOfInput)
+        case Ok(0) -> throw ParseError.EndOfInput
         case Ok(_) -> @line += 1
         case Error(e) -> throw ParseError.Read(e)
       }
@@ -389,7 +396,7 @@ type pub PemFile[I: mut + Read] {
   }
 }
 
-impl Iter[Result[Item, ParseError]] for PemFile {
+impl Iter[Result[Item, ParseError[E]]] for PemFile {
   # Returns the next item (a certificate, private key, etc) found in the input
   # stream.
   #
@@ -399,7 +406,7 @@ impl Iter[Result[Item, ParseError]] for PemFile {
   # error. In this case one should stop the parsing process, as the parser's
   # internal state isn't reset upon encountering an error and continuing to use
   # it may yield unexpected results.
-  fn pub mut next -> Option[Result[Item, ParseError]] {
+  fn pub mut next -> Option[Result[Item, ParseError[E]]] {
     match parse {
       case Ok(Some(v)) -> Option.Some(Result.Ok(v))
       case Ok(_) -> Option.None

@@ -23,15 +23,6 @@ let READ_BUFFER_SIZE = 8 * 1024
 # The default size of the buffer maintained by `BufferedWriter`.
 let WRITE_BUFFER_SIZE = 8 * 1024
 
-# The error code used to signal invalid data.
-#
-# This error code isn't produced by libc, instead it's specific to the runtime
-# library.
-let INVALID_DATA = -2
-
-# The error code used when encountering an unexpected end of the input.
-let UNEXPECTED_EOF = -3
-
 fn extern inko_process_start_blocking(process: Pointer[UInt8])
 
 fn extern inko_process_stop_blocking(process: Pointer[UInt8])
@@ -203,18 +194,6 @@ type pub copy enum Error {
   # A memory address used (e.g. as an argument) is in an invalid range.
   case BadAddress
 
-  # The data provided for the operation is invalid, such as when using an
-  # invalid TLS certificate or when a TLS socket encountered invalid TLS data
-  # (e.g. an invalid handshake message).
-  case InvalidData
-
-  # The operation encountered the end of the input stream, but more input is
-  # required.
-  #
-  # An example of where this error is encountered is when reading from a TLS
-  # socket that was closed without sending the `close_notify` message.
-  case EndOfInput
-
   # A file couldn't be renamed, linked or copied because the operation takes
   # places across different devices.
   case CrossDeviceLink
@@ -269,8 +248,6 @@ type pub copy enum Error {
       case libc.EXDEV -> Error.CrossDeviceLink
       case libc.ENOTSUP or libc.EOPNOTSUPP -> Error.NotSupported
       case libc.EBADF -> Error.InvalidFileDescriptor
-      case INVALID_DATA -> Error.InvalidData
-      case UNEXPECTED_EOF -> Error.EndOfInput
       case val -> Error.Other(val)
     }
   }
@@ -314,12 +291,8 @@ impl ToString for Error {
       case TimedOut -> 'the operation timed out'
       case WouldBlock -> 'the operation would block'
       case BadAddress -> 'a memory address is in an invalid range'
-      case InvalidData -> "the data provided isn't valid for the operation"
       case CrossDeviceLink -> {
         "the operation failed because it can't be performed across devices"
-      }
-      case EndOfInput -> {
-        'the end of the input stream is reached, but more input is required'
       }
       case NotSupported -> "the operation isn't supported"
       case InvalidFileDescriptor -> 'the file descriptor is invalid'
@@ -361,8 +334,6 @@ impl Format for Error {
       case TimedOut -> 'TimedOut'
       case WouldBlock -> 'WouldBlock'
       case BadAddress -> 'BadAddress'
-      case InvalidData -> 'InvalidData'
-      case EndOfInput -> 'EndOfInput'
       case CrossDeviceLink -> 'CrossDeviceLink'
       case NotSupported -> 'NotSupported'
       case InvalidFileDescriptor -> 'InvalidFileDescriptor'
@@ -409,8 +380,6 @@ impl Equal for Error {
       case (TimedOut, TimedOut) -> true
       case (WouldBlock, WouldBlock) -> true
       case (Other(a), Other(b)) -> a == b
-      case (InvalidData, InvalidData) -> true
-      case (EndOfInput, EndOfInput) -> true
       case (CrossDeviceLink, CrossDeviceLink) -> true
       case (NotSupported, NotSupported) -> true
       case (InvalidFileDescriptor, InvalidFileDescriptor) -> true
@@ -419,8 +388,47 @@ impl Equal for Error {
   }
 }
 
+# An error produced when reading an exact number of bytes.
+type pub inline enum ReadExactError[E] {
+  # More input is required from the input stream.
+  case EndOfInput
+
+  # An error that occurred while reading data from the input stream.
+  case Read(E)
+}
+
+impl Format for ReadExactError if E: Format {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case EndOfInput -> formatter.tuple('EndOfInput').finish
+      case Read(e) -> formatter.tuple('Read').field(e).finish
+    }
+  }
+}
+
+impl Equal for ReadExactError if E: Equal {
+  fn pub ==(other: ref Self) -> Bool {
+    match (self, other) {
+      case (EndOfInput, EndOfInput) -> true
+      case (Read(a), Read(b)) -> a == b
+      case _ -> false
+    }
+  }
+}
+
+impl ToString for ReadExactError if E: ToString {
+  fn pub to_string -> String {
+    match self {
+      case EndOfInput -> {
+        'the end of the input stream is reached, but more input is required'
+      }
+      case Read(e) -> e.to_string
+    }
+  }
+}
+
 # A type data can be read from (e.g. a File).
-trait pub Read {
+trait pub Read[E] {
   # Reads up to `size` bytes from `self` into the given `ByteArray`, returning
   # the number of bytes read.
   #
@@ -434,7 +442,7 @@ trait pub Read {
   # The number of bytes read may be less than `size`. This can happen for
   # different reasons, such as when all input is consumed or not enough data is
   # available (yet).
-  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error]
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, E]
 
   # Reads exactly `size` bytes into `into`.
   #
@@ -450,14 +458,17 @@ trait pub Read {
   # If an error is returned, no assumption can be made about the state of the
   # `into` buffer, i.e. there's no guarantee data read so far is in the buffer
   # in the event of an error.
-  fn pub mut read_exact(into: mut ByteArray, size: Int) -> Result[Nil, Error] {
+  fn pub mut read_exact(
+    into: mut ByteArray,
+    size: Int,
+  ) -> Result[Nil, ReadExactError[E]] {
     let mut pending = size
 
     while pending > 0 {
       match read(into, pending) {
-        case Ok(0) if pending > 0 -> throw Error.EndOfInput
+        case Ok(0) if pending > 0 -> throw ReadExactError.EndOfInput
         case Ok(n) -> pending -= n
-        case Error(e) -> throw e
+        case Error(e) -> throw ReadExactError.Read(e)
       }
     }
 
@@ -473,7 +484,7 @@ trait pub Read {
   #
   # This method returns an `Error` if the underlying call to `Read.read` returns
   # an `Error`.
-  fn pub mut read_all(bytes: mut ByteArray) -> Result[Int, Error] {
+  fn pub mut read_all(bytes: mut ByteArray) -> Result[Int, E] {
     let mut total = 0
     let mut read_size = INITIAL_READ_ALL_SIZE
 
@@ -520,17 +531,17 @@ trait WriteInternal {
 }
 
 # A type data can be written to (e.g. a File).
-trait pub Write {
+trait pub Write[E] {
   # Writes the entirety of `bytes` to the underlying stream.
   #
   # Types implementing this method must guarantee that upon returning from this
   # method, either all of the data is written and a `Ok(Nil)` is returned, _or_
   # an `Error` is returned.
-  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error]
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, E]
 
   # Writes the entirety of `bytes` to the underlying stream, followed by
   # a Unix newline.
-  fn pub mut print[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
+  fn pub mut print[B: Bytes](bytes: ref B) -> Result[Nil, E] {
     try write(bytes)
     write('\n')
   }
@@ -545,21 +556,21 @@ trait pub Write {
   # storage hardware that's used. In particular, it's possible for one of these
   # components to say "Yup, I totally flushed the data, you're all good!" when
   # in fact they have not fully flushed the data.
-  fn pub mut flush -> Result[Nil, Error]
+  fn pub mut flush -> Result[Nil, E]
 }
 
 # Trait for seeking to a given offset in a stream of bytes.
-trait pub Seek {
+trait pub Seek[E] {
   # Seeks to the given byte offset, returning the new offset.
   #
   # If `position` is negative, seeking is performed in reverse order relative to
   # the end.
-  fn pub mut seek(position: Int) -> Result[Int, Error]
+  fn pub mut seek(position: Int) -> Result[Int, E]
 }
 
 # A `Read` type using an internal buffer, allowing more efficient reading and
 # additional operations.
-trait pub BufferedRead: Read {
+trait pub BufferedRead[E]: Read[E] {
   # Fills the internal buffer by reading from the underlying stream.
   #
   # Upon success, this method returns `Ok(n)` where `n` is the number of bytes
@@ -568,7 +579,7 @@ trait pub BufferedRead: Read {
   #
   # If there are bytes remaining in the buffer, calls to this method shouldn't
   # modify it.
-  fn mut fill_buffer -> Result[Int, Error]
+  fn mut fill_buffer -> Result[Int, E]
 
   # Reads up to `size` bytes from the internal buffer into `into`, returning the
   # number of bytes read.
@@ -593,7 +604,7 @@ trait pub BufferedRead: Read {
   # reader.read_byte # => Result.Ok(Option.Some(104))
   # reader.read_byte # => Result.Ok(Option.Some(101))
   # ```
-  fn pub mut read_byte -> Result[Option[Int], Error]
+  fn pub mut read_byte -> Result[Option[Int], E]
 
   # Reads the current byte from the buffer, without consuming it from the
   # underlying buffer.
@@ -612,7 +623,7 @@ trait pub BufferedRead: Read {
   # reader.peek # => Result.Ok(Option.Some(104))
   # reader.peek # => Result.Ok(Option.Some(104))
   # ```
-  fn pub mut peek -> Result[Option[Int], Error]
+  fn pub mut peek -> Result[Option[Int], E]
 
   # Read bytes into `into` up to and including the byte specified in the `byte`
   # argument.
@@ -654,7 +665,7 @@ trait pub BufferedRead: Read {
     byte: Int,
     into: mut ByteArray,
     inclusive: Bool,
-  ) -> Result[Int, Error] {
+  ) -> Result[Int, E] {
     let mut total = 0
 
     loop {
@@ -712,10 +723,7 @@ trait pub BufferedRead: Read {
   # reader.read_line(into: bytes, inclusive: false) # => Result.Ok(6)
   # bytes.to_string # => 'hello'
   # ```
-  fn pub mut read_line(
-    into: mut ByteArray,
-    inclusive: Bool,
-  ) -> Result[Int, Error] {
+  fn pub mut read_line(into: mut ByteArray, inclusive: Bool) -> Result[Int, E] {
     read_until(byte: 0xA, into: into, inclusive: inclusive)
   }
 
@@ -734,7 +742,7 @@ trait pub BufferedRead: Read {
   #
   # reader.bytes.next # => Option.Some(Result.Ok(35))
   # ```
-  fn pub move bytes -> Stream[Result[Int, Error]] {
+  fn pub move bytes -> Stream[Result[Int, E]] {
     Stream.new(fn move {
       match read_byte {
         case Ok(Some(num)) -> Option.Some(Result.Ok(num))
@@ -783,7 +791,7 @@ trait pub BufferedRead: Read {
 # and get the expected results (i.e. no indefinite blocking `read` calls), at
 # the cost of (potentially) more `read` calls compared to when `exact` is set to
 # `true`.
-type pub BufferedReader[T: mut + Read] {
+type pub BufferedReader[T: mut + Read[E], E] {
   # The `Read` type to read data from.
   let pub @inner: T
 
@@ -802,7 +810,7 @@ type pub BufferedReader[T: mut + Read] {
 
   # Returns a new buffered reader that wraps the given `Read` type, using the
   # default buffer size.
-  fn pub static new(reader: T) -> BufferedReader[T] {
+  fn pub static new(reader: T) -> BufferedReader[T, E] {
     with_capacity(reader, READ_BUFFER_SIZE)
   }
 
@@ -811,7 +819,7 @@ type pub BufferedReader[T: mut + Read] {
   #
   # The `reader` argument can be any `Read` type, provided it allows mutation
   # (e.g. a `ref Reader` isn't valid).
-  fn pub static with_capacity(reader: T, size: Int) -> BufferedReader[T] {
+  fn pub static with_capacity(reader: T, size: Int) -> BufferedReader[T, E] {
     if size <= 0 { invalid_buffer_size(size) }
 
     BufferedReader(
@@ -824,8 +832,8 @@ type pub BufferedReader[T: mut + Read] {
   }
 }
 
-impl BufferedRead for BufferedReader {
-  fn mut fill_buffer -> Result[Int, Error] {
+impl BufferedRead[E] for BufferedReader {
+  fn mut fill_buffer -> Result[Int, E] {
     if @offset < @buffer.size { return Result.Ok(@buffer.size - @offset) }
 
     @buffer.clear
@@ -834,7 +842,7 @@ impl BufferedRead for BufferedReader {
     if @exact {
       match @inner.read_exact(into: @buffer, size: @capacity) {
         case Ok(_) or Error(EndOfInput) -> {}
-        case Error(e) -> throw e
+        case Error(Read(e)) -> throw e
       }
     } else {
       try @inner.read(into: @buffer, size: @capacity)
@@ -852,7 +860,7 @@ impl BufferedRead for BufferedReader {
     len
   }
 
-  fn pub mut read_byte -> Result[Option[Int], Error] {
+  fn pub mut read_byte -> Result[Option[Int], E] {
     # This somewhat verbose approach ensures that if there are N calls to this
     # method we don't call fill_buffer N times, instead only calling it when we
     # consume all bytes from the buffer.
@@ -871,7 +879,7 @@ impl BufferedRead for BufferedReader {
     }
   }
 
-  fn pub mut peek -> Result[Option[Int], Error] {
+  fn pub mut peek -> Result[Option[Int], E] {
     match @buffer.get(@offset) {
       case Ok(v) -> Result.Ok(Option.Some(v))
       case _ -> {
@@ -885,8 +893,8 @@ impl BufferedRead for BufferedReader {
   }
 }
 
-impl Read for BufferedReader {
-  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
+impl Read[E] for BufferedReader {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, E] {
     let mut total = 0
 
     # If the read size is larger than our buffer, there's no point in buffering
@@ -942,7 +950,7 @@ impl Read for BufferedReader {
 # writer.write('hello') # => Result.Ok(nil)
 # writer.flush          # => Result.Ok(nil)
 # ```
-type pub BufferedWriter[T: mut + Write] {
+type pub BufferedWriter[T: mut + Write[E], E] {
   # The `Write` type to write data to.
   let pub @inner: T
   let @buffer: ByteArray
@@ -963,7 +971,7 @@ type pub BufferedWriter[T: mut + Write] {
   #
   # BufferedWriter.new(file)
   # ```
-  fn pub static new(writer: T) -> BufferedWriter[T] {
+  fn pub static new(writer: T) -> Self {
     with_capacity(writer, WRITE_BUFFER_SIZE)
   }
 
@@ -986,21 +994,21 @@ type pub BufferedWriter[T: mut + Write] {
   #
   # BufferedWriter.with_capacity(file, capacity: 16 * 1024)
   # ```
-  fn pub static with_capacity(writer: T, size: Int) -> BufferedWriter[T] {
+  fn pub static with_capacity(writer: T, size: Int) -> Self {
     if size <= 0 { invalid_buffer_size(size) }
 
-    BufferedWriter(inner: writer, buffer: ByteArray.new, size: size)
+    Self(inner: writer, buffer: ByteArray.new, size: size)
   }
 }
 
-impl Write for BufferedWriter {
+impl Write[E] for BufferedWriter {
   # Writes the entirety of `bytes` to the buffer, flushing it if necessary.
   #
   # # Errors
   #
   # This method returns a `std.io.Error` if the data can't be written to the
   # underlying stream.
-  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, E] {
     let len = bytes.size
 
     # If the data size is the same as the buffer size we might as well just
@@ -1041,7 +1049,7 @@ impl Write for BufferedWriter {
   #
   # This method returns a `std.io.Error` if the data can't be written to the
   # underlying stream.
-  fn pub mut flush -> Result[Nil, Error] {
+  fn pub mut flush -> Result[Nil, E] {
     if @buffer.size > 0 {
       try @inner.write(@buffer)
       @buffer.clear
@@ -1089,14 +1097,14 @@ type pub Buffer[T: Bytes] {
   }
 }
 
-impl Read for Buffer {
-  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
+impl Read[Nil] for Buffer {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Nil] {
     Result.Ok(read_buffer(into, size))
   }
 }
 
-impl BufferedRead for Buffer {
-  fn mut fill_buffer -> Result[Int, Error] {
+impl BufferedRead[Nil] for Buffer {
+  fn mut fill_buffer -> Result[Int, Nil] {
     Result.Ok(@bytes.size - @offset)
   }
 
@@ -1113,7 +1121,7 @@ impl BufferedRead for Buffer {
     }
   }
 
-  fn pub mut read_byte -> Result[Option[Int], Error] {
+  fn pub mut read_byte -> Result[Option[Int], Nil] {
     if @offset < @bytes.size {
       Result.Ok(@bytes.get(@offset := @offset + 1).ok)
     } else {
@@ -1121,7 +1129,7 @@ impl BufferedRead for Buffer {
     }
   }
 
-  fn pub mut peek -> Result[Option[Int], Error] {
+  fn pub mut peek -> Result[Option[Int], Nil] {
     if @offset < @bytes.size {
       Result.Ok(@bytes.get(@offset).ok)
     } else {
@@ -1130,8 +1138,8 @@ impl BufferedRead for Buffer {
   }
 }
 
-impl Seek for Buffer {
-  fn pub mut seek(position: Int) -> Result[Int, Error] {
+impl Seek[Nil] for Buffer {
+  fn pub mut seek(position: Int) -> Result[Int, Nil] {
     if position < 0 {
       @offset = @bytes.size + position
     } else {

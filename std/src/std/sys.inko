@@ -288,7 +288,7 @@ impl WriteInternal for Stdin {
   }
 }
 
-impl Write for Stdin {
+impl Write[Error] for Stdin {
   fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
     write_all_internal(bytes.pointer, bytes.size)
   }
@@ -309,7 +309,7 @@ impl Drop for Stdout {
   }
 }
 
-impl Read for Stdout {
+impl Read[Error] for Stdout {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     sys.read(@fd, into, size)
   }
@@ -326,7 +326,7 @@ impl Drop for Stderr {
   }
 }
 
-impl Read for Stderr {
+impl Read[Error] for Stderr {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     sys.read(@fd, into, size)
   }

@@ -35,7 +35,7 @@
 import std.cmp (Equal)
 import std.fmt (Format, Formatter)
 import std.int (ToInt)
-import std.io (BufferedReader, Error as IoError, Read, Write)
+import std.io (BufferedReader, Read, Write)
 import std.iter (Iter)
 import std.string (ToString)
 
@@ -62,21 +62,24 @@ fn quote?(value: String, separator: Int) -> Bool {
 }
 
 # An error produced when parsing a CSV stream.
-type pub inline Error {
+type pub inline Error[E] {
   # The kind of error that's produced.
-  let pub @kind: ErrorKind
+  let pub @kind: ErrorKind[E]
 
   # The byte offset at which the error is produced.
   let pub @offset: Int
 }
 
-impl ToString for Error {
+impl ToString for Error if E: ToString {
   fn pub to_string -> String {
     match @kind {
       case Read(e) -> {
         'failed to read more bytes at byte offset ${@offset}: ${e}'
       }
       case MissingColumn -> 'a column is expected at byte offset ${@offset}'
+      case EndOfInput -> {
+        'the end of the input stream is reached, but more input is required'
+      }
       case UnexpectedCharacter -> {
         'the character at byte offset ${@offset} is unexpected'
       }
@@ -84,7 +87,7 @@ impl ToString for Error {
   }
 }
 
-impl Format for Error {
+impl Format for Error if E: Format {
   fn pub fmt(formatter: mut Formatter) {
     formatter
       .object('Error')
@@ -94,20 +97,19 @@ impl Format for Error {
   }
 }
 
-impl Equal for Error {
-  fn pub ==(other: ref Error) -> Bool {
+impl Equal for Error if E: Equal {
+  fn pub ==(other: ref Error[E]) -> Bool {
     @kind == other.kind and @offset == other.offset
   }
 }
 
 # A type indicating what kind of error is produced.
-type pub inline enum ErrorKind {
-  # An error produced when reading input.
-  #
-  # This error is produced when the underlying stream of a `Parser` produces an
-  # error, or when more input is expected when parsing data such as a column, in
-  # which case the error is `std.io.Error.EndOfInput`.
-  case Read(IoError)
+type pub inline enum ErrorKind[E] {
+  # An error produced when reading from the underlying input stream.
+  case Read(E)
+
+  # More input is required from the input stream.
+  case EndOfInput
 
   # A column is expected, but we've either reached the end of the line or the
   # end of the input stream.
@@ -118,20 +120,22 @@ type pub inline enum ErrorKind {
   case UnexpectedCharacter
 }
 
-impl Format for ErrorKind {
+impl Format for ErrorKind if E: Format {
   fn pub fmt(formatter: mut Formatter) {
     match self {
       case Read(v) -> formatter.tuple('Read').field(v).finish
+      case EndOfInput -> formatter.tuple('EndOfInput').finish
       case MissingColumn -> formatter.tuple('MissingColumn').finish
       case UnexpectedCharacter -> formatter.tuple('UnexpectedCharacter').finish
     }
   }
 }
 
-impl Equal for ErrorKind {
-  fn pub ==(other: ref ErrorKind) -> Bool {
+impl Equal for ErrorKind if E: Equal {
+  fn pub ==(other: ref ErrorKind[E]) -> Bool {
     match (self, other) {
       case (Read(a), Read(b)) -> a == b
+      case (EndOfInput, EndOfInput) -> true
       case (MissingColumn, MissingColumn) -> true
       case (UnexpectedCharacter, UnexpectedCharacter) -> true
       case _ -> false
@@ -270,7 +274,7 @@ impl ToInt for Separator {
 # ```
 #
 # Because parsing a line may produce an error, `Parser` yields values of type
-# `Option[Result[Array[String], Error]]` rather than `Option[Array[String]]`.
+# `Option[Result[Array[String], Error[E]]]` rather than `Option[Array[String]]`.
 # This means you need to handle errors when processing the result values:
 #
 # ```inko
@@ -286,8 +290,8 @@ impl ToInt for Separator {
 #
 # rows # => [['foo', 'bar', 'baz'], ['1', '2', '3']]
 # ```
-type pub Parser[I: mut + Read] {
-  let @input: BufferedReader[I]
+type pub Parser[I: mut + Read[E], E] {
+  let @input: BufferedReader[I, E]
   let @buffer: ByteArray
   let mut @offset: Int
   let mut @separator: Int
@@ -302,7 +306,7 @@ type pub Parser[I: mut + Read] {
   #
   # Parser.new(Buffer.new('foo,bar,baz'))
   # ```
-  fn pub static new(input: I) -> Parser[I] {
+  fn pub static new(input: I) -> Parser[I, E] {
     Parser(
       input: BufferedReader.new(input),
       buffer: ByteArray.new,
@@ -351,7 +355,7 @@ type pub Parser[I: mut + Read] {
   #
   # parser.skip_line # => Result.Ok(nil)
   # ```
-  fn pub mut skip_line -> Result[Nil, Error] {
+  fn pub mut skip_line -> Result[Nil, Error[E]] {
     loop {
       match try read_byte {
         case Some(LF) -> break
@@ -386,7 +390,7 @@ type pub Parser[I: mut + Read] {
   #
   # parser.next_line # => Result.Ok(true)
   # ```
-  fn pub mut next_line -> Result[Bool, Error] {
+  fn pub mut next_line -> Result[Bool, Error[E]] {
     match try peek {
       case Some(CR) -> {
         try read_byte
@@ -426,7 +430,7 @@ type pub Parser[I: mut + Read] {
   # headers.get('foo') # => 0
   # headers.get('bar') # => 1
   # ```
-  fn pub mut headers -> Result[Map[String, Int], Error] {
+  fn pub mut headers -> Result[Map[String, Int], Error[E]] {
     let map = Map.new
     let mut i = 0
 
@@ -453,7 +457,7 @@ type pub Parser[I: mut + Read] {
   #
   # parser.column? # => true
   # ```
-  fn pub mut column? -> Result[Bool, Error] {
+  fn pub mut column? -> Result[Bool, Error[E]] {
     match try peek {
       case Some(CR or LF) or None -> Result.Ok(false)
       case Some(_) -> Result.Ok(true)
@@ -480,7 +484,7 @@ type pub Parser[I: mut + Read] {
   #
   # parser.column # => Result.Ok('foo')
   # ```
-  fn pub mut column -> Result[String, Error] {
+  fn pub mut column -> Result[String, Error[E]] {
     try read_column
     Result.Ok(@buffer.drain_to_string)
   }
@@ -509,7 +513,7 @@ type pub Parser[I: mut + Read] {
   # parser.skip_column # => Result.Ok(nil)
   # parser.column      # => Result.Ok('bar')
   # ```
-  fn pub mut skip_column -> Result[Nil, Error] {
+  fn pub mut skip_column -> Result[Nil, Error[E]] {
     try read_column
     @buffer.clear
     Result.Ok(nil)
@@ -536,7 +540,7 @@ type pub Parser[I: mut + Read] {
   # parser.skip_columns(2) # => Result.Ok(nil)
   # parser.column          # => Result.Ok('baz')
   # ```
-  fn pub mut skip_columns(amount: Int) -> Result[Nil, Error] {
+  fn pub mut skip_columns(amount: Int) -> Result[Nil, Error[E]] {
     let mut i = 0
 
     while (i := i + 1) < amount { try skip_column }
@@ -544,7 +548,7 @@ type pub Parser[I: mut + Read] {
     Result.Ok(nil)
   }
 
-  fn mut read_column -> Result[Nil, Error] {
+  fn mut read_column -> Result[Nil, Error[E]] {
     match try peek {
       case Some(DQUOTE) -> {
         try read_byte
@@ -592,17 +596,17 @@ type pub Parser[I: mut + Read] {
     Result.Ok(nil)
   }
 
-  fn mut require_newline -> Result[Nil, Error] {
+  fn mut require_newline -> Result[Nil, Error[E]] {
     match try read_byte {
       case Some(LF) -> {}
       case Some(_) -> throw error(ErrorKind.UnexpectedCharacter)
-      case None -> throw error(ErrorKind.Read(IoError.EndOfInput))
+      case None -> throw error(ErrorKind.EndOfInput)
     }
 
     Result.Ok(nil)
   }
 
-  fn mut read_byte -> Result[Option[Int], Error] {
+  fn mut read_byte -> Result[Option[Int], Error[E]] {
     match @input.read_byte {
       case Ok(Some(v)) -> {
         @offset += 1
@@ -613,7 +617,7 @@ type pub Parser[I: mut + Read] {
     }
   }
 
-  fn mut peek -> Result[Option[Int], Error] {
+  fn mut peek -> Result[Option[Int], Error[E]] {
     match @input.peek {
       case Ok(Some(v)) -> Result.Ok(Option.Some(v))
       case Ok(None) -> Result.Ok(Option.None)
@@ -621,26 +625,26 @@ type pub Parser[I: mut + Read] {
     }
   }
 
-  fn mut read_until_quote -> Result[Int, Error] {
+  fn mut read_until_quote -> Result[Int, Error[E]] {
     match @input.read_until(DQUOTE, into: @buffer, inclusive: true) {
       case Ok(v) -> {
         @offset += v
 
         match @buffer.pop {
           case Some(DQUOTE) -> Result.Ok(v)
-          case _ -> Result.Error(error(ErrorKind.Read(IoError.EndOfInput)))
+          case _ -> Result.Error(error(ErrorKind.EndOfInput))
         }
       }
       case Error(e) -> Result.Error(error(ErrorKind.Read(e)))
     }
   }
 
-  fn error(kind: ErrorKind) -> Error {
+  fn error(kind: ErrorKind[E]) -> Error[E] {
     Error(kind: kind, offset: @offset)
   }
 }
 
-impl Iter[Result[Array[String], Error]] for Parser {
+impl Iter[Result[Array[String], Error[E]]] for Parser {
   # Parses the current line as an `Array` of `String` values.
   #
   # This method skips empty lines rather than returning a
@@ -662,7 +666,7 @@ impl Iter[Result[Array[String], Error]] for Parser {
   #
   # parser.to_array # => [Result.Ok(['a', 'b']), Result.Ok(['c', 'd'])]
   # ```
-  fn pub mut next -> Option[Result[Array[String], Error]] {
+  fn pub mut next -> Option[Result[Array[String], Error[E]]] {
     let mut cols = []
 
     loop {
@@ -712,7 +716,7 @@ impl Iter[Result[Array[String], Error]] for Parser {
 # gen.write(['foo', 'bar', 'baz'])
 # gen.write(['1', '2', '3'])
 # ```
-type pub Generator[I: mut + Write] {
+type pub Generator[I: mut + Write[E], E] {
   let @output: I
   let mut @separator_string: String
   let mut @separator_byte: Int
@@ -727,8 +731,8 @@ type pub Generator[I: mut + Write] {
   #
   # Generator.new(Stdout.new)
   # ```
-  fn pub static new(output: I) -> Generator[I] {
-    Generator(output: output, separator_string: ',', separator_byte: COMMA)
+  fn pub static new(output: I) -> Self {
+    Self(output: output, separator_string: ',', separator_byte: COMMA)
   }
 
   # Changes the separator to use for separating columns to the given
@@ -773,7 +777,7 @@ type pub Generator[I: mut + Write] {
   #
   # gen.write(['foo', 'bar', 'baz']) # => Result.Ok(nil)
   # ```
-  fn pub mut write(columns: ref Array[String]) -> Result[Nil, IoError] {
+  fn pub mut write(columns: ref Array[String]) -> Result[Nil, E] {
     let mut i = 0
 
     for col in columns.iter {
@@ -814,7 +818,7 @@ type pub Generator[I: mut + Write] {
   # gen.write(['foo', 'bar', 'baz']) # => Result.Ok(nil)
   # gen.flush                        # => Result.Ok(nil)
   # ```
-  fn pub mut flush -> Result[Nil, IoError] {
+  fn pub mut flush -> Result[Nil, E] {
     @output.flush
   }
 }

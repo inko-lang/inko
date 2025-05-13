@@ -93,13 +93,13 @@ impl Drop for ReadOnlyFile {
   }
 }
 
-impl Read for ReadOnlyFile {
+impl Read[Error] for ReadOnlyFile {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     sys.read_file(@fd, into, size)
   }
 }
 
-impl Seek for ReadOnlyFile {
+impl Seek[Error] for ReadOnlyFile {
   fn pub mut seek(position: Int) -> Result[Int, Error] {
     sys.seek_to(@fd, position)
   }
@@ -194,7 +194,7 @@ impl WriteInternal for WriteOnlyFile {
   }
 }
 
-impl Write for WriteOnlyFile {
+impl Write[Error] for WriteOnlyFile {
   fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
     write_all_internal(bytes.pointer, bytes.size)
   }
@@ -204,7 +204,7 @@ impl Write for WriteOnlyFile {
   }
 }
 
-impl Seek for WriteOnlyFile {
+impl Seek[Error] for WriteOnlyFile {
   fn pub mut seek(position: Int) -> Result[Int, Error] {
     sys.seek_to(@fd, position)
   }
@@ -293,7 +293,7 @@ impl Drop for ReadWriteFile {
   }
 }
 
-impl Read for ReadWriteFile {
+impl Read[Error] for ReadWriteFile {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     sys.read_file(@fd, into, size)
   }
@@ -305,7 +305,7 @@ impl WriteInternal for ReadWriteFile {
   }
 }
 
-impl Write for ReadWriteFile {
+impl Write[Error] for ReadWriteFile {
   fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
     write_all_internal(bytes.pointer, bytes.size)
   }
@@ -315,7 +315,7 @@ impl Write for ReadWriteFile {
   }
 }
 
-impl Seek for ReadWriteFile {
+impl Seek[Error] for ReadWriteFile {
   fn pub mut seek(position: Int) -> Result[Int, Error] {
     sys.seek_to(@fd, position)
   }

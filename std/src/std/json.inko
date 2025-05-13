@@ -74,7 +74,7 @@ import std.bytes.parsers (digit?)
 import std.cmp (Equal)
 import std.fmt (Format as FormatTrait, Formatter)
 import std.int (Format)
-import std.io (BufferedReader, Error as IoError, Read)
+import std.io (BufferedReader, Read)
 import std.string (StringBuffer, ToString)
 import std.utf8
 
@@ -146,7 +146,7 @@ fn char(byte: Int) -> String {
 # End users don't really care about the difference between
 # RecursionLimitExceeded and InvalidSurrogate(...), nor can they really act
 # differently based on the kind of error.
-type pub inline enum ErrorKind {
+type pub inline enum ErrorKind[E] {
   # The maximum recursion limit is exceeded.
   case RecursionLimitExceeded(Int)
 
@@ -157,11 +157,11 @@ type pub inline enum ErrorKind {
   case Generic(String)
 
   # An error occurred while reading from the input stream.
-  case Read(IoError)
+  case Read(E)
 }
 
-impl Equal for ErrorKind {
-  fn pub ==(other: ref ErrorKind) -> Bool {
+impl Equal for ErrorKind if E: Equal {
+  fn pub ==(other: ref ErrorKind[E]) -> Bool {
     match (self, other) {
       case (RecursionLimitExceeded(a), RecursionLimitExceeded(b)) -> a == b
       case (InvalidSurrogate(a), InvalidSurrogate(b)) -> a == b
@@ -172,7 +172,7 @@ impl Equal for ErrorKind {
   }
 }
 
-impl FormatTrait for ErrorKind {
+impl FormatTrait for ErrorKind if E: FormatTrait {
   fn pub fmt(formatter: mut Formatter) {
     match self {
       case RecursionLimitExceeded(v) -> {
@@ -187,7 +187,7 @@ impl FormatTrait for ErrorKind {
   }
 }
 
-impl ToString for ErrorKind {
+impl ToString for ErrorKind if E: ToString {
   fn pub to_string -> String {
     match self {
       case RecursionLimitExceeded(v) -> {
@@ -201,9 +201,9 @@ impl ToString for ErrorKind {
 }
 
 # A type describing an error produced while parsing a JSON document.
-type pub inline Error {
+type pub inline Error[E] {
   # A value describing the kind of error.
-  let pub @kind: ErrorKind
+  let pub @kind: ErrorKind[E]
 
   # The byte offset in the input string at which the error starts.
   #
@@ -217,18 +217,18 @@ type pub inline Error {
   let pub @offset: Int
 
   # Returns a generic error with the given message and offset.
-  fn pub static generic(message: String, offset: Int) -> Error {
+  fn pub static generic(message: String, offset: Int) -> Error[E] {
     Error(kind: ErrorKind.Generic(message), offset: offset)
   }
 }
 
-impl Equal for Error {
-  fn pub ==(other: ref Error) -> Bool {
+impl Equal for Error if E: Equal {
+  fn pub ==(other: ref Error[E]) -> Bool {
     @kind == other.kind and @offset == other.offset
   }
 }
 
-impl FormatTrait for Error {
+impl FormatTrait for Error if E: FormatTrait {
   fn pub fmt(formatter: mut Formatter) {
     formatter
       .object('Error')
@@ -238,7 +238,7 @@ impl FormatTrait for Error {
   }
 }
 
-impl ToString for Error {
+impl ToString for Error if E: ToString {
   fn pub to_string -> String {
     '${@kind}, at byte offset ${@offset}'
   }
@@ -467,7 +467,7 @@ type pub inline enum Json {
   #
   # Json.parse(Buffer.new('[10]'.to_byte_array)) # => Result.Ok(Json.Array([Json.Int(10)]))
   # ```
-  fn pub static parse[T: mut + Read](bytes: T) -> Result[Json, Error] {
+  fn pub static parse[T: mut + Read[E], E](bytes: T) -> Result[Json, Error[E]] {
     Parser.new(bytes).parse
   }
 
@@ -654,13 +654,13 @@ impl FormatTrait for Type {
 #   .parse
 #   .get
 # ```
-type pub PullParser[T: mut + Read] {
-  let @input: BufferedReader[T]
+type pub PullParser[T: mut + Read[E], E] {
+  let @input: BufferedReader[T, E]
   let mut @offset: Int
   let @buffer: ByteArray
 
   # Returns a new parser that parses the given `Read` type.
-  fn pub static new(input: T) -> PullParser[T] {
+  fn pub static new(input: T) -> PullParser[T, E] {
     PullParser(
       input: BufferedReader.new(input),
       offset: -1,
@@ -689,14 +689,14 @@ type pub PullParser[T: mut + Read] {
   #
   # parser.start_of_next_value # => Result.Ok(2)
   # ```
-  fn pub mut start_of_next_value -> Result[Int, Error] {
+  fn pub mut start_of_next_value -> Result[Int, Error[E]] {
     try skip_whitespace
     Result.Ok(@offset + 1)
   }
 
   # Returns a `Type` describing what type of value is located at the current
   # offset.
-  fn pub mut value_type -> Result[Type, Error] {
+  fn pub mut value_type -> Result[Type, Error[E]] {
     let typ = match try peek {
       case Some(MINUS) -> Type.Number
       case Some(BRACKET_OPEN) -> Type.Array
@@ -725,7 +725,7 @@ type pub PullParser[T: mut + Read] {
   #
   # PullParser.new(Buffer.new('[10, 20]')).skip # => Result.Ok(nil)
   # ```
-  fn pub mut skip -> Result[Nil, Error] {
+  fn pub mut skip -> Result[Nil, Error[E]] {
     match value_type {
       case Ok(Number) -> {
         try number
@@ -765,7 +765,9 @@ type pub PullParser[T: mut + Read] {
   #
   # values # => [10, 20]
   # ```
-  fn pub mut values(value: fn -> Result[Nil, Error]) -> Result[Nil, Error] {
+  fn pub mut values(
+    value: fn -> Result[Nil, Error[E]],
+  ) -> Result[Nil, Error[E]] {
     try expect(BRACKET_OPEN, skip_whitespace: true)
 
     loop {
@@ -821,8 +823,8 @@ type pub PullParser[T: mut + Read] {
   # person.age  # => 42
   # ```
   fn pub mut keys(
-    value: fn (Int, String) -> Result[Nil, Error],
-  ) -> Result[Nil, Error] {
+    value: fn (Int, String) -> Result[Nil, Error[E]],
+  ) -> Result[Nil, Error[E]] {
     try expect(CURLY_OPEN, skip_whitespace: true)
 
     loop {
@@ -871,7 +873,9 @@ type pub PullParser[T: mut + Read] {
   #   .object(fn (o) { o.string('name', fn (v) { person.name = v }) })
   #   .or_panic_with('failed to parse the JSON')
   # ```
-  fn pub mut object(rules: fn (mut ObjectParser[T])) -> Result[Nil, Error] {
+  fn pub mut object(
+    rules: fn (mut ObjectParser[T, E]),
+  ) -> Result[Nil, Error[E]] {
     let obj = ObjectParser.new
 
     rules.call(obj)
@@ -888,7 +892,7 @@ type pub PullParser[T: mut + Read] {
   #
   # PullParser.new(Buffer.new('true')).bool # => Result.Ok(true)
   # ```
-  fn pub mut bool -> Result[Bool, Error] {
+  fn pub mut bool -> Result[Bool, Error[E]] {
     match try peek {
       case Some(LOWER_T) -> {
         let _ = advance
@@ -915,7 +919,7 @@ type pub PullParser[T: mut + Read] {
   #
   # PullParser.new(Buffer.new('null')).null # => Result.Ok(nil)
   # ```
-  fn pub mut null -> Result[Nil, Error] {
+  fn pub mut null -> Result[Nil, Error[E]] {
     identifier('null')
   }
 
@@ -929,7 +933,7 @@ type pub PullParser[T: mut + Read] {
   #
   # PullParser.new(Buffer.new('"hello"')).string # => Result.Ok('hello')
   # ```
-  fn pub mut string -> Result[String, Error] {
+  fn pub mut string -> Result[String, Error[E]] {
     match try peek {
       case Some(DQUOTE) -> try advance
       case Some(byte) -> throw unexpected(byte)
@@ -964,7 +968,7 @@ type pub PullParser[T: mut + Read] {
     Result.Ok(@buffer.drain_to_string)
   }
 
-  fn mut escaped_unicode -> Result[Nil, Error] {
+  fn mut escaped_unicode -> Result[Nil, Error[E]] {
     let high = try codepoint
 
     if utf8.encode_scalar(high, @buffer) > 0 { return Result.Ok(nil) }
@@ -992,7 +996,7 @@ type pub PullParser[T: mut + Read] {
     throw error(ErrorKind.InvalidSurrogate(pair))
   }
 
-  fn mut codepoint -> Result[Int, Error] {
+  fn mut codepoint -> Result[Int, Error[E]] {
     let mut num = 0
     let mut idx = 0
 
@@ -1033,7 +1037,7 @@ type pub PullParser[T: mut + Read] {
   # Parser.new(Buffer.new('10')).int  # => Result.Ok(10)
   # Parser.new(Buffer.new('1.2')).int # => Result.Ok(1)
   # ```
-  fn pub mut int -> Result[Int, Error] {
+  fn pub mut int -> Result[Int, Error[E]] {
     match number {
       case Ok(Int(v)) -> Result.Ok(v)
       case Ok(Float(v)) -> Result.Ok(v.to_int)
@@ -1056,7 +1060,7 @@ type pub PullParser[T: mut + Read] {
   # Parser.new(Buffer.new('1.2')).float # => Result.Ok(1.2)
   # Parser.new(Buffer.new('1')).float   # => Result.Ok(1.0)
   # ```
-  fn pub mut float -> Result[Float, Error] {
+  fn pub mut float -> Result[Float, Error[E]] {
     match number {
       case Ok(Int(v)) -> Result.Ok(v.to_float)
       case Ok(Float(v)) -> Result.Ok(v)
@@ -1079,7 +1083,7 @@ type pub PullParser[T: mut + Read] {
   # Parser.new(Buffer.new('1.2')).number # => Result.Ok(Number.Float(1.2))
   # Parser.new(Buffer.new('1')).number   # => Result.Ok(Number.Int(1))
   # ```
-  fn pub mut number -> Result[Number, Error] {
+  fn pub mut number -> Result[Number, Error[E]] {
     match try peek {
       case Some(MINUS) -> {
         try advance_and_buffer
@@ -1153,7 +1157,7 @@ type pub PullParser[T: mut + Read] {
     res
   }
 
-  fn mut exponent -> Result[Nil, Error] {
+  fn mut exponent -> Result[Nil, Error[E]] {
     try advance_and_buffer
 
     match try peek_next {
@@ -1174,7 +1178,7 @@ type pub PullParser[T: mut + Read] {
     Result.Ok(nil)
   }
 
-  fn mut buffer_digits -> Result[Nil, Error] {
+  fn mut buffer_digits -> Result[Nil, Error[E]] {
     loop {
       match try peek_next {
         case Some(byte) if digit?(byte) -> {
@@ -1186,7 +1190,7 @@ type pub PullParser[T: mut + Read] {
     }
   }
 
-  fn mut advance_and_buffer -> Result[Option[Int], Error] {
+  fn mut advance_and_buffer -> Result[Option[Int], Error[E]] {
     match try advance {
       case Some(val) -> {
         @buffer.push(val)
@@ -1196,7 +1200,7 @@ type pub PullParser[T: mut + Read] {
     }
   }
 
-  fn mut advance -> Result[Option[Int], Error] {
+  fn mut advance -> Result[Option[Int], Error[E]] {
     match @input.read_byte {
       case Ok(Some(v)) -> {
         @offset += 1
@@ -1207,7 +1211,7 @@ type pub PullParser[T: mut + Read] {
     }
   }
 
-  fn mut expect(byte: Int, skip_whitespace: Bool) -> Result[Nil, Error] {
+  fn mut expect(byte: Int, skip_whitespace: Bool) -> Result[Nil, Error[E]] {
     if skip_whitespace { try self.skip_whitespace }
 
     match try advance {
@@ -1224,7 +1228,7 @@ type pub PullParser[T: mut + Read] {
     }
   }
 
-  fn mut peek_next -> Result[Option[Int], Error] {
+  fn mut peek_next -> Result[Option[Int], Error[E]] {
     match @input.peek {
       case Ok(Some(v)) -> Result.Ok(Option.Some(v))
       case Ok(None) -> Result.Ok(Option.None)
@@ -1232,7 +1236,7 @@ type pub PullParser[T: mut + Read] {
     }
   }
 
-  fn mut peek -> Result[Option[Int], Error] {
+  fn mut peek -> Result[Option[Int], Error[E]] {
     loop {
       match peek_next {
         case Ok(Some(SPACE or CR or TAB or LF)) -> advance
@@ -1243,7 +1247,7 @@ type pub PullParser[T: mut + Read] {
     }
   }
 
-  fn mut identifier(name: String) -> Result[Nil, Error] {
+  fn mut identifier(name: String) -> Result[Nil, Error[E]] {
     try skip_whitespace
 
     let mut index = 0
@@ -1256,7 +1260,7 @@ type pub PullParser[T: mut + Read] {
     Result.Ok(nil)
   }
 
-  fn mut skip_whitespace -> Result[Nil, Error] {
+  fn mut skip_whitespace -> Result[Nil, Error[E]] {
     loop {
       match try peek_next {
         case Some(SPACE or CR or TAB or LF) -> try advance
@@ -1265,7 +1269,7 @@ type pub PullParser[T: mut + Read] {
     }
   }
 
-  fn mut separator(closing: Int) -> Result[Nil, Error] {
+  fn mut separator(closing: Int) -> Result[Nil, Error[E]] {
     match try peek {
       case Some(byte) if byte == closing -> return Result.Ok(nil)
       case Some(COMMA) -> try advance
@@ -1279,27 +1283,27 @@ type pub PullParser[T: mut + Read] {
     }
   }
 
-  fn unexpected(byte: Int) -> Error {
+  fn unexpected(byte: Int) -> Error[E] {
     generic_error("the character '${char(byte)}' is unexpected")
   }
 
-  fn missing_input -> Error {
+  fn missing_input -> Error[E] {
     generic_error('all input is consumed but more input is expected')
   }
 
-  fn generic_error(message: String) -> Error {
+  fn generic_error(message: String) -> Error[E] {
     Error.generic(message, @offset)
   }
 
-  fn error(kind: ErrorKind) -> Error {
+  fn error(kind: ErrorKind[E]) -> Error[E] {
     Error(kind, offset: @offset)
   }
 }
 
 # A parsing rule defined for an `ObjectParser`.
-type pub Rule[T: mut + Read] {
+type pub Rule[T: mut + Read[E], E] {
   let @id: Int
-  let @parser: fn (mut PullParser[T]) -> Result[Nil, Error]
+  let @parser: fn (mut PullParser[T, E]) -> Result[Nil, Error[E]]
   let mut @required: Bool
 
   # Marks this rule as an optional rule.
@@ -1327,12 +1331,12 @@ type pub Rule[T: mut + Read] {
 # obj.int('b', fn (v) { nums.push(v) }).optional
 # obj.parse(parser).or_panic_with('failed to parse the JSON')
 # ```
-type pub inline ObjectParser[T: mut + Read] {
+type pub inline ObjectParser[T: mut + Read[E], E] {
   # The keys to parse along with the closures that parse their values.
-  let @rules: Map[String, Rule[T]]
+  let @rules: Map[String, Rule[T, E]]
 
   # Returns a new, empty `ObjectParser`.
-  fn static new -> ObjectParser[T] {
+  fn static new -> ObjectParser[T, E] {
     ObjectParser(Map.new)
   }
 
@@ -1342,32 +1346,32 @@ type pub inline ObjectParser[T: mut + Read] {
   # parser in the process.
   fn pub mut key(
     name: String,
-    value: fn (mut PullParser[T]) -> Result[Nil, Error],
-  ) -> mut Rule[T] {
+    value: fn (mut PullParser[T, E]) -> Result[Nil, Error[E]],
+  ) -> mut Rule[T, E] {
     add(name, value)
   }
 
   # Parses the key `name` as a `String`, passing the parsed value to the `value`
   # closure.
-  fn pub mut string(name: String, value: fn (String)) -> mut Rule[T] {
+  fn pub mut string(name: String, value: fn (String)) -> mut Rule[T, E] {
     add(name, fn move (p) { p.string.map(fn (v) { value.call(v) }) })
   }
 
   # Parses the key `name` as an `Int`, passing the parsed value to the `value`
   # closure.
-  fn pub mut int(name: String, value: fn (Int)) -> mut Rule[T] {
+  fn pub mut int(name: String, value: fn (Int)) -> mut Rule[T, E] {
     add(name, fn move (p) { p.int.map(fn (v) { value.call(v) }) })
   }
 
   # Parses the key `name` as a `Float`, passing the parsed value to the `value`
   # closure.
-  fn pub mut float(name: String, value: fn (Float)) -> mut Rule[T] {
+  fn pub mut float(name: String, value: fn (Float)) -> mut Rule[T, E] {
     add(name, fn move (p) { p.float.map(fn (v) { value.call(v) }) })
   }
 
   # Parses the key `name` as a `Bool`, passing the parsed value to the `value`
   # closure.
-  fn pub mut bool(name: String, value: fn (Bool)) -> mut Rule[T] {
+  fn pub mut bool(name: String, value: fn (Bool)) -> mut Rule[T, E] {
     add(name, fn move (p) { p.bool.map(fn (v) { value.call(v) }) })
   }
 
@@ -1377,8 +1381,8 @@ type pub inline ObjectParser[T: mut + Read] {
   # For more information, refer to the documentation of `PullParser.keys`.
   fn pub mut keys(
     name: String,
-    value: fn (mut PullParser[T], Int, String) -> Result[Nil, Error],
-  ) -> mut Rule[T] {
+    value: fn (mut PullParser[T, E], Int, String) -> Result[Nil, Error[E]],
+  ) -> mut Rule[T, E] {
     add(name, fn move (p) { p.keys(fn (pos, key) { value.call(p, pos, key) }) })
   }
 
@@ -1388,13 +1392,13 @@ type pub inline ObjectParser[T: mut + Read] {
   # For more information, refer to the documentation of `PullParser.values`.
   fn pub mut values(
     name: String,
-    value: fn (mut PullParser[T]) -> Result[Nil, Error],
-  ) -> mut Rule[T] {
+    value: fn (mut PullParser[T, E]) -> Result[Nil, Error[E]],
+  ) -> mut Rule[T, E] {
     add(name, fn move (p) { p.values(fn { value.call(p) }) })
   }
 
   # Parses the current object according to the rules in `self`.
-  fn pub mut parse(parser: mut PullParser[T]) -> Result[Nil, Error] {
+  fn pub mut parse(parser: mut PullParser[T, E]) -> Result[Nil, Error[E]] {
     let found = Array.filled(with: false, times: @rules.size)
     let start = try parser.start_of_next_value
 
@@ -1421,8 +1425,8 @@ type pub inline ObjectParser[T: mut + Read] {
 
   fn mut add(
     name: String,
-    parser: fn (mut PullParser[T]) -> Result[Nil, Error],
-  ) -> mut Rule[T] {
+    parser: fn (mut PullParser[T, E]) -> Result[Nil, Error[E]],
+  ) -> mut Rule[T, E] {
     let rule = Rule(id: @rules.size, parser: parser, required: true)
     let ret = mut rule
 
@@ -1442,8 +1446,8 @@ type pub inline ObjectParser[T: mut + Read] {
 # This parser enforces a limit on the number of nested arrays and objects. The
 # default is sufficiently large that most documents won't result in an error
 # being thrown. This limit is controlled by the field `Parser.max_depth`.
-type pub Parser[T: mut + Read] {
-  let @pull: PullParser[T]
+type pub Parser[T: mut + Read[E], E] {
+  let @pull: PullParser[T, E]
   let mut @depth: Int
 
   # The maximum number of nested values.
@@ -1452,7 +1456,7 @@ type pub Parser[T: mut + Read] {
   let pub mut @max_depth: Int
 
   # Returns a new parser that will parse the given `Read` type.
-  fn pub static new(input: T) -> Parser[T] {
+  fn pub static new(input: T) -> Parser[T, E] {
     Parser(PullParser.new(input), depth: 0, max_depth: 100)
   }
 
@@ -1470,7 +1474,7 @@ type pub Parser[T: mut + Read] {
   #
   # parser.parse.get # => Json.Array([Json.Int(10), Json.Int(20)])
   # ```
-  fn pub move parse -> Result[Json, Error] {
+  fn pub move parse -> Result[Json, Error[E]] {
     let result = try value
 
     # Only trailing whitespace is allowed.
@@ -1482,7 +1486,7 @@ type pub Parser[T: mut + Read] {
     Result.Ok(result)
   }
 
-  fn mut value -> Result[Json, Error] {
+  fn mut value -> Result[Json, Error[E]] {
     match try @pull.value_type {
       case Number -> number
       case Array -> array
@@ -1493,19 +1497,19 @@ type pub Parser[T: mut + Read] {
     }
   }
 
-  fn mut string -> Result[Json, Error] {
+  fn mut string -> Result[Json, Error[E]] {
     @pull.string.map(fn (val) { Json.String(val) })
   }
 
-  fn mut bool -> Result[Json, Error] {
+  fn mut bool -> Result[Json, Error[E]] {
     @pull.bool.map(fn (v) { Json.Bool(v) })
   }
 
-  fn mut null -> Result[Json, Error] {
+  fn mut null -> Result[Json, Error[E]] {
     @pull.null.map(fn (_) { Json.Null })
   }
 
-  fn mut array -> Result[Json, Error] {
+  fn mut array -> Result[Json, Error[E]] {
     try check_depth
 
     let values = []
@@ -1516,7 +1520,7 @@ type pub Parser[T: mut + Read] {
     Result.Ok(Json.Array(values))
   }
 
-  fn mut object -> Result[Json, Error] {
+  fn mut object -> Result[Json, Error[E]] {
     try check_depth
 
     let map = Map.new
@@ -1530,7 +1534,7 @@ type pub Parser[T: mut + Read] {
     Result.Ok(Json.Object(map))
   }
 
-  fn mut number -> Result[Json, Error] {
+  fn mut number -> Result[Json, Error[E]] {
     match @pull.number {
       case Ok(Int(v)) -> Result.Ok(Json.Int(v))
       case Ok(Float(v)) -> Result.Ok(Json.Float(v))
@@ -1538,7 +1542,7 @@ type pub Parser[T: mut + Read] {
     }
   }
 
-  fn check_depth -> Result[Nil, Error] {
+  fn check_depth -> Result[Nil, Error[E]] {
     if @depth < @max_depth {
       Result.Ok(nil)
     } else {

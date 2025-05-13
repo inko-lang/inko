@@ -2,8 +2,8 @@ import std.bytes (Bytes)
 import std.drop (drop)
 import std.fmt (fmt)
 import std.io (
-  Buffer, BufferedReader, BufferedWriter, Error, INVALID_DATA, READ_BUFFER_SIZE,
-  Read, UNEXPECTED_EOF, WRITE_BUFFER_SIZE, Write,
+  Buffer, BufferedReader, BufferedWriter, Error, READ_BUFFER_SIZE, Read,
+  ReadExactError, WRITE_BUFFER_SIZE, Write,
 )
 import std.libc
 import std.test (Tests)
@@ -21,7 +21,7 @@ type Reader {
   }
 }
 
-impl Read for Reader {
+impl Read[Error] for Reader {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     let start = @index
     let mut max = @index + size
@@ -46,7 +46,7 @@ type SingleByteReader {
   }
 }
 
-impl Read for SingleByteReader {
+impl Read[Error] for SingleByteReader {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     match @bytes.get(@index) {
       case Ok(v) -> {
@@ -61,7 +61,7 @@ impl Read for SingleByteReader {
 
 type ErrorReader {}
 
-impl Read for ErrorReader {
+impl Read[Error] for ErrorReader {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     Result.Error(Error.TimedOut)
   }
@@ -75,7 +75,7 @@ type Writer {
   }
 }
 
-impl Write for Writer {
+impl Write[Error] for Writer {
   fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
     @buffer.append(bytes)
     Result.Ok(nil)
@@ -120,8 +120,6 @@ fn pub tests(t: mut Tests) {
     t.equal(Error.from_os_error(libc.ECONNREFUSED), Error.ConnectionRefused)
     t.equal(Error.from_os_error(libc.EHOSTUNREACH), Error.HostUnreachable)
     t.equal(Error.from_os_error(libc.EINPROGRESS), Error.InProgress)
-    t.equal(Error.from_os_error(INVALID_DATA), Error.InvalidData)
-    t.equal(Error.from_os_error(UNEXPECTED_EOF), Error.EndOfInput)
     t.equal(Error.from_os_error(999), Error.Other(999))
     t.equal(Error.from_os_error(libc.EXDEV), Error.CrossDeviceLink)
     t.equal(Error.from_os_error(libc.ENOTSUP), Error.NotSupported)
@@ -159,12 +157,44 @@ fn pub tests(t: mut Tests) {
     t.equal(fmt(Error.StorageFull), 'StorageFull')
     t.equal(fmt(Error.TimedOut), 'TimedOut')
     t.equal(fmt(Error.WouldBlock), 'WouldBlock')
-    t.equal(fmt(Error.InvalidData), 'InvalidData')
-    t.equal(fmt(Error.EndOfInput), 'EndOfInput')
     t.equal(fmt(Error.Other(999)), 'Other(999)')
     t.equal(fmt(Error.CrossDeviceLink), 'CrossDeviceLink')
     t.equal(fmt(Error.NotSupported), 'NotSupported')
     t.equal(fmt(Error.InvalidFileDescriptor), 'InvalidFileDescriptor')
+  })
+
+  t.test('ReadExactError.fmt', fn (t) {
+    t.equal(
+      fmt(ReadExactError.EndOfInput as ReadExactError[Error]),
+      'EndOfInput',
+    )
+    t.equal(fmt(ReadExactError.Read(Error.NotFound)), 'Read(NotFound)')
+  })
+
+  t.test('ReadExactError.==', fn (t) {
+    t.equal(
+      ReadExactError.EndOfInput as ReadExactError[Error],
+      ReadExactError.EndOfInput,
+    )
+    t.equal(
+      ReadExactError.Read(Error.NotFound),
+      ReadExactError.Read(Error.NotFound),
+    )
+    t.not_equal(ReadExactError.EndOfInput, ReadExactError.Read(Error.NotFound))
+    t.not_equal(
+      ReadExactError.Read(Error.NotFound),
+      ReadExactError.Read(Error.PermissionDenied),
+    )
+  })
+
+  t.test('ReadExactError.to_string', fn (t) {
+    t.true(
+      (ReadExactError.EndOfInput as ReadExactError[Error]).to_string.size > 0,
+    )
+    t.equal(
+      ReadExactError.Read(Error.NotFound).to_string,
+      Error.NotFound.to_string,
+    )
   })
 
   t.test('Read.read_all', fn (t) {
@@ -185,14 +215,14 @@ fn pub tests(t: mut Tests) {
 
     t.equal(
       reader.read_exact(into: bytes, size: 3),
-      Result.Error(Error.EndOfInput),
+      Result.Error(ReadExactError.EndOfInput),
     )
     t.equal(bytes, ByteArray.from_array([1, 2, 3]))
 
     reader.index = 0
     t.equal(
       reader.read_exact(into: bytes, size: 6),
-      Result.Error(Error.EndOfInput),
+      Result.Error(ReadExactError.EndOfInput),
     )
   })
 

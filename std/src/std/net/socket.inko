@@ -567,7 +567,7 @@ impl Drop for Socket {
   }
 }
 
-impl Read for Socket {
+impl Read[Error] for Socket {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     sys.read(@socket, into, size, @deadline)
   }
@@ -579,7 +579,7 @@ impl WriteInternal for Socket {
   }
 }
 
-impl Write for Socket {
+impl Write[Error] for Socket {
   fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
     write_all_internal(bytes.pointer, bytes.size)
   }
@@ -701,13 +701,13 @@ impl RawSocketOperations for UdpSocket {
   }
 }
 
-impl Read for UdpSocket {
+impl Read[Error] for UdpSocket {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     @socket.read(into, size)
   }
 }
 
-impl Write for UdpSocket {
+impl Write[Error] for UdpSocket {
   fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
     @socket.write(bytes)
   }
@@ -871,13 +871,13 @@ impl RawSocketOperations for TcpClient {
   }
 }
 
-impl Read for TcpClient {
+impl Read[Error] for TcpClient {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     @socket.read(into, size)
   }
 }
 
-impl Write for TcpClient {
+impl Write[Error] for TcpClient {
   fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
     @socket.write(bytes)
   }
@@ -1398,7 +1398,7 @@ impl Drop for UnixSocket {
   }
 }
 
-impl Read for UnixSocket {
+impl Read[Error] for UnixSocket {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     sys.read(@socket, into, size, @deadline)
   }
@@ -1410,7 +1410,7 @@ impl WriteInternal for UnixSocket {
   }
 }
 
-impl Write for UnixSocket {
+impl Write[Error] for UnixSocket {
   fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
     write_all_internal(bytes.pointer, bytes.size)
   }
@@ -1522,13 +1522,13 @@ impl RawSocketOperations for UnixDatagram {
   }
 }
 
-impl Read for UnixDatagram {
+impl Read[Error] for UnixDatagram {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     @socket.read(into, size)
   }
 }
 
-impl Write for UnixDatagram {
+impl Write[Error] for UnixDatagram {
   fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
     @socket.write(bytes)
   }
@@ -1648,13 +1648,13 @@ impl RawSocketOperations for UnixClient {
   }
 }
 
-impl Read for UnixClient {
+impl Read[Error] for UnixClient {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     @socket.read(into, size)
   }
 }
 
-impl Write for UnixClient {
+impl Write[Error] for UnixClient {
   fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
     @socket.write(bytes)
   }
