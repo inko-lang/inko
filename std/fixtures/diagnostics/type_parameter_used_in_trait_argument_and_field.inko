@@ -1,0 +1,7 @@
+trait Read[E] {}
+
+type Foo[I: mut + Read[E], E] {}
+
+type Bar[I: mut + Read[E], E] {
+  let @input: Foo[I, E]
+}

@@ -137,6 +137,9 @@ pub struct Environment {
 
     /// The type to use for `Self` on the right-hand side.
     pub right_self: Option<TypeEnum>,
+
+    /// If the type on the left should be treated as a rigid type.
+    pub left_rigid: bool,
 }
 
 impl Environment {
@@ -157,6 +160,7 @@ impl Environment {
             right: right_arguments,
             left_self: None,
             right_self: None,
+            left_rigid: false,
         }
     }
 
@@ -170,6 +174,7 @@ impl Environment {
             right: right_arguments,
             left_self: Some(self_type),
             right_self: Some(self_type),
+            left_rigid: false,
         }
     }
 
@@ -183,7 +188,13 @@ impl Environment {
             right: right_arguments,
             left_self: None,
             right_self: Some(self_type),
+            left_rigid: false,
         }
+    }
+
+    pub fn with_left_as_rigid(mut self) -> Self {
+        self.left_rigid = true;
+        self
     }
 
     fn with_left_as_right(&self) -> Environment {
@@ -192,6 +203,7 @@ impl Environment {
             right: self.left.clone(),
             left_self: None,
             right_self: None,
+            left_rigid: false,
         }
     }
 }
@@ -808,6 +820,13 @@ impl<'a> TypeChecker<'a> {
                     self.check_parameters(lhs, rhs, env, rules)
                 }
                 TypeEnum::Foreign(_) => rules.kind.is_cast(),
+                // When comparing type arguments in e.g. field signatures, the
+                // type on the right might be rigid while the type on the left
+                // isn't. This is because the LHS type is also stored (e.g. in
+                // method argument signatures), so they can't _always_ be rigid.
+                TypeEnum::RigidTypeParameter(rhs) if env.left_rigid => {
+                    self.check_parameters(lhs, rhs, env, rules)
+                }
                 _ => false,
             },
             TypeEnum::RigidTypeParameter(lhs)

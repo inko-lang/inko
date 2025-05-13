@@ -851,7 +851,8 @@ impl<'a> CheckTypeSignature<'a> {
             let mut env = Environment::new(
                 arg.type_arguments(self.db()),
                 exp_args.clone(),
-            );
+            )
+            .with_left_as_rigid();
 
             if !TypeChecker::new(self.db())
                 .check_type_argument(arg, exp, &mut env)
