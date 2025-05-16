@@ -1097,14 +1097,14 @@ type pub Buffer[T: Bytes] {
   }
 }
 
-impl Read[Nil] for Buffer {
-  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Nil] {
+impl Read[Error] for Buffer {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     Result.Ok(read_buffer(into, size))
   }
 }
 
-impl BufferedRead[Nil] for Buffer {
-  fn mut fill_buffer -> Result[Int, Nil] {
+impl BufferedRead[Error] for Buffer {
+  fn mut fill_buffer -> Result[Int, Error] {
     Result.Ok(@bytes.size - @offset)
   }
 
@@ -1121,7 +1121,7 @@ impl BufferedRead[Nil] for Buffer {
     }
   }
 
-  fn pub mut read_byte -> Result[Option[Int], Nil] {
+  fn pub mut read_byte -> Result[Option[Int], Error] {
     if @offset < @bytes.size {
       Result.Ok(@bytes.get(@offset := @offset + 1).ok)
     } else {
@@ -1129,7 +1129,7 @@ impl BufferedRead[Nil] for Buffer {
     }
   }
 
-  fn pub mut peek -> Result[Option[Int], Nil] {
+  fn pub mut peek -> Result[Option[Int], Error] {
     if @offset < @bytes.size {
       Result.Ok(@bytes.get(@offset).ok)
     } else {
@@ -1138,8 +1138,8 @@ impl BufferedRead[Nil] for Buffer {
   }
 }
 
-impl Seek[Nil] for Buffer {
-  fn pub mut seek(position: Int) -> Result[Int, Nil] {
+impl Seek[Error] for Buffer {
+  fn pub mut seek(position: Int) -> Result[Int, Error] {
     if position < 0 {
       @offset = @bytes.size + position
     } else {

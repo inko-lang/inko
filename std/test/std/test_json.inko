@@ -11,11 +11,11 @@ fn parse_invalid(input: String) -> Option[String] {
   Parser.new(bytes).parse.error.map(fn (v) { v.to_string })
 }
 
-fn parse(input: String) -> Result[Json, Error[Nil]] {
+fn parse(input: String) -> Result[Json, Error[IoError]] {
   Json.parse(Buffer.new(input))
 }
 
-fn pull(input: String) -> PullParser[Buffer[String], Nil] {
+fn pull(input: String) -> PullParser[Buffer[String], IoError] {
   PullParser.new(Buffer.new(input))
 }
 

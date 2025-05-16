@@ -44,7 +44,7 @@ impl Write[IoError] for BrokenOutput {
   }
 }
 
-fn parse(input: String) -> Result[Array[Array[String]], Error[Nil]] {
+fn parse(input: String) -> Result[Array[Array[String]], Error[IoError]] {
   let rows = []
   let parser = Parser.new(Buffer.new(input))
 
@@ -61,18 +61,18 @@ fn parse(input: String) -> Result[Array[Array[String]], Error[Nil]] {
   Result.Ok(rows)
 }
 
-fn iter(input: String) -> Result[Array[Array[String]], Error[Nil]] {
+fn iter(input: String) -> Result[Array[Array[String]], Error[IoError]] {
   Parser.new(Buffer.new(input)).try_reduce([], fn (rows, res) {
     rows.push(try res)
     Result.Ok(rows)
   })
 }
 
-fn eof_error(offset: Int) -> Error[Nil] {
+fn eof_error(offset: Int) -> Error[IoError] {
   Error(kind: ErrorKind.EndOfInput, offset: offset)
 }
 
-fn unexpected(offset: Int) -> Error[Nil] {
+fn unexpected(offset: Int) -> Error[IoError] {
   Error(kind: ErrorKind.UnexpectedCharacter, offset: offset)
 }
 
