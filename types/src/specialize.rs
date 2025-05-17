@@ -2,12 +2,12 @@ use crate::{
     Database, InternedTypeArguments, Shape, SpecializationKey, TypeEnum,
     TypeId, TypeInstance, TypeParameterId, TypeRef,
 };
-use std::collections::HashMap;
+use indexmap::IndexMap;
 
 /// Returns a list of shapes from a shape mapping, sorted by the type parameter
 /// IDs.
 pub fn ordered_shapes_from_map(
-    map: &HashMap<TypeParameterId, Shape>,
+    map: &IndexMap<TypeParameterId, Shape>,
 ) -> Vec<Shape> {
     let mut pairs: Vec<_> = map.iter().collect();
 
@@ -37,7 +37,7 @@ pub struct TypeSpecializer<'a, 'b, 'c> {
     /// encountering such types, we need to reuse the shape of the type
     /// parameter as it was determined when creating the newly specialized
     /// type.
-    shapes: &'b HashMap<TypeParameterId, Shape>,
+    shapes: &'b IndexMap<TypeParameterId, Shape>,
 
     /// The type `self` is an instance of.
     self_type: TypeEnum,
@@ -47,7 +47,7 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
     pub fn specialize_shapes(
         db: &'a mut Database,
         interned: &'b mut InternedTypeArguments,
-        shapes: &'b HashMap<TypeParameterId, Shape>,
+        shapes: &'b IndexMap<TypeParameterId, Shape>,
         types: &'c mut Vec<TypeId>,
         self_type: TypeEnum,
         key: &mut Vec<Shape>,
@@ -62,7 +62,7 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
     pub fn specialize_shape(
         db: &'a mut Database,
         interned: &'b mut InternedTypeArguments,
-        shapes: &'b HashMap<TypeParameterId, Shape>,
+        shapes: &'b IndexMap<TypeParameterId, Shape>,
         types: &'c mut Vec<TypeId>,
         self_type: TypeEnum,
         shape: &mut Shape,
@@ -84,7 +84,7 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
     pub fn new(
         db: &'a mut Database,
         interned: &'b mut InternedTypeArguments,
-        shapes: &'b HashMap<TypeParameterId, Shape>,
+        shapes: &'b IndexMap<TypeParameterId, Shape>,
         types: &'c mut Vec<TypeId>,
         self_type: TypeEnum,
     ) -> TypeSpecializer<'a, 'b, 'c> {
@@ -428,7 +428,7 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
 
         // When specializing fields and constructors, we want them to reuse the
         // shapes we just created.
-        let mut type_mapping = HashMap::new();
+        let mut type_mapping = IndexMap::new();
 
         // Closures may capture generic parameters from the outside, and the
         // types themselves aren't generic, so we reuse the outer shapes
@@ -517,7 +517,7 @@ mod tests {
         let mut db = Database::new();
         let mut interned = InternedTypeArguments::new();
         let ary = TypeId::array();
-        let shapes = HashMap::new();
+        let shapes = IndexMap::new();
 
         ary.new_type_parameter(&mut db, "T".to_string());
 
@@ -573,7 +573,7 @@ mod tests {
         let mut db = Database::new();
         let mut interned = InternedTypeArguments::new();
         let ary = TypeId::array();
-        let shapes = HashMap::new();
+        let shapes = IndexMap::new();
 
         ary.new_type_parameter(&mut db, "T".to_string());
 
@@ -600,7 +600,7 @@ mod tests {
         let mut interned = InternedTypeArguments::new();
         let foo = new_type(&mut db, "Foo");
         let ary = TypeId::array();
-        let shapes = HashMap::new();
+        let shapes = IndexMap::new();
 
         ary.new_type_parameter(&mut db, "T".to_string());
 
@@ -676,7 +676,7 @@ mod tests {
             Location::default(),
         );
 
-        let mut shapes = HashMap::new();
+        let mut shapes = IndexMap::new();
 
         shapes.insert(rigid1, Shape::Owned);
         shapes.insert(rigid2, Shape::Owned);
@@ -752,7 +752,7 @@ mod tests {
 
         let mut interned = InternedTypeArguments::new();
         let mut types = Vec::new();
-        let shapes = HashMap::new();
+        let shapes = IndexMap::new();
         let raw =
             owned(generic_instance_id(&mut db, opt, vec![TypeRef::int()]));
 
@@ -787,7 +787,7 @@ mod tests {
     fn test_specialize_already_specialized_type() {
         let mut db = Database::new();
         let ary = TypeId::array();
-        let shapes = HashMap::new();
+        let shapes = IndexMap::new();
 
         ary.new_type_parameter(&mut db, "T".to_string());
 
@@ -821,7 +821,7 @@ mod tests {
     #[test]
     fn test_specialize_atomic_type_parameter() {
         let mut db = Database::new();
-        let mut shapes = HashMap::new();
+        let mut shapes = IndexMap::new();
         let mut types = Vec::new();
         let mut interned = InternedTypeArguments::new();
         let param = new_parameter(&mut db, "A");
@@ -867,7 +867,7 @@ mod tests {
     #[test]
     fn test_specialize_mutable_type_parameter() {
         let mut db = Database::new();
-        let mut shapes = HashMap::new();
+        let mut shapes = IndexMap::new();
         let mut types = Vec::new();
         let mut interned = InternedTypeArguments::new();
         let param = new_parameter(&mut db, "A");
@@ -920,7 +920,7 @@ mod tests {
     #[test]
     fn test_specialize_borrow_inline_type_parameter() {
         let mut db = Database::new();
-        let mut shapes = HashMap::new();
+        let mut shapes = IndexMap::new();
         let mut types = Vec::new();
         let mut interned = InternedTypeArguments::new();
         let cls = new_type(&mut db, "A");
@@ -1026,7 +1026,7 @@ mod tests {
     #[test]
     fn test_specialize_trait_self_type() {
         let mut db = Database::new();
-        let shapes = HashMap::new();
+        let shapes = IndexMap::new();
         let mut types = Vec::new();
         let mut interned = InternedTypeArguments::new();
         let trt = new_trait(&mut db, "ToThing");

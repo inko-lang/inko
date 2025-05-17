@@ -3,6 +3,7 @@ use crate::diagnostics::DiagnosticId;
 use crate::hir;
 use crate::state::State;
 use crate::type_check::{DefineAndCheckTypeSignature, Rules, TypeScope};
+use indexmap::IndexMap;
 use location::Location;
 use std::cell::Cell;
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -67,12 +68,12 @@ impl<'a> Pattern<'a> {
 /// A collection of variables defined in a lexical scope.
 struct VariableScope {
     /// The variables defined in this scope.
-    variables: HashMap<String, VariableId>,
+    variables: IndexMap<String, VariableId>,
 }
 
 impl VariableScope {
     fn new() -> Self {
-        Self { variables: HashMap::new() }
+        Self { variables: IndexMap::new() }
     }
 
     fn new_variable(

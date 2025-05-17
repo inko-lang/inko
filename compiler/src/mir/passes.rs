@@ -7,6 +7,7 @@ use crate::mir::{
     Module, RegisterId, Type, SELF_ID,
 };
 use crate::state::State;
+use indexmap::IndexMap;
 use location::Location;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::iter::repeat_with;
@@ -245,10 +246,10 @@ struct Scope {
 
     /// Registers that must be available at the end of a loop.
     ///
-    /// This uses a HashMap as a register may be assigned a new value after it
+    /// This uses a IndexMap as a register may be assigned a new value after it
     /// has been moved, only to be moved _again_. Using a Vec would result in
     /// outdated entries.
-    moved_in_loop: HashMap<RegisterId, Location>,
+    moved_in_loop: IndexMap<RegisterId, Location>,
 }
 
 impl Scope {
@@ -259,7 +260,7 @@ impl Scope {
             parent: None,
             depth: 1,
             loop_depth: 0,
-            moved_in_loop: HashMap::new(),
+            moved_in_loop: IndexMap::new(),
         })
     }
 
@@ -270,7 +271,7 @@ impl Scope {
             parent: None,
             depth: parent.depth + 1,
             loop_depth: parent.loop_depth,
-            moved_in_loop: HashMap::new(),
+            moved_in_loop: IndexMap::new(),
         })
     }
 
@@ -281,7 +282,7 @@ impl Scope {
             parent: None,
             depth: parent.depth + 1,
             loop_depth: parent.loop_depth,
-            moved_in_loop: HashMap::new(),
+            moved_in_loop: IndexMap::new(),
         })
     }
 
@@ -298,7 +299,7 @@ impl Scope {
             parent: None,
             depth,
             loop_depth: depth,
-            moved_in_loop: HashMap::new(),
+            moved_in_loop: IndexMap::new(),
         })
     }
 
@@ -1762,7 +1763,7 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn check_loop_moves(&mut self) {
-        let mut moved = HashMap::new();
+        let mut moved = IndexMap::new();
 
         // We remove the existing list of registers such that we don't produce
         // duplicate errors when moving in a loop that containes a `next` _and_

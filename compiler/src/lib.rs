@@ -2,6 +2,7 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(clippy::assigning_clones)]
 #![allow(clippy::needless_range_loop)]
+#![deny(clippy::iter_over_hash_type)]
 
 pub mod diagnostics;
 pub mod docs;

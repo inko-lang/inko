@@ -4,6 +4,7 @@ use crate::diagnostics::Diagnostics;
 use crate::incremental::DependencyGraph;
 use crate::pkg::manifest::{Manifest, MANIFEST_FILE};
 use crate::target::{OperatingSystem, Target};
+use indexmap::IndexSet;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use types::module_name::ModuleName;
@@ -169,7 +170,7 @@ pub(crate) struct State {
     pub(crate) diagnostics: Diagnostics,
     pub(crate) db: Database,
     pub(crate) build_tags: BuildTags,
-    pub(crate) libraries: HashSet<String>,
+    pub(crate) libraries: IndexSet<String>,
     pub(crate) dependency_graph: DependencyGraph,
     packages: Packages,
     exists: Exists,
@@ -186,7 +187,7 @@ impl State {
             diagnostics,
             db,
             build_tags,
-            libraries: HashSet::new(),
+            libraries: IndexSet::new(),
             packages: Packages::new(),
             exists: Exists::new(),
             dependency_graph: DependencyGraph::new(),

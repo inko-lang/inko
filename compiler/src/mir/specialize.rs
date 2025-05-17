@@ -4,7 +4,7 @@ use crate::mir::{
 };
 use crate::state::State;
 use indexmap::{IndexMap, IndexSet};
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashSet, VecDeque};
 use std::mem::swap;
 use types::check::TypeChecker;
 use types::format::format_type;
@@ -18,7 +18,7 @@ use types::{
 fn argument_shape(
     db: &Database,
     interned: &mut InternedTypeArguments,
-    shapes: &HashMap<TypeParameterId, Shape>,
+    shapes: &IndexMap<TypeParameterId, Shape>,
     arguments: &TypeArguments,
     parameter: TypeParameterId,
 ) -> Shape {
@@ -31,7 +31,7 @@ fn specialize_constants(
     interned: &mut InternedTypeArguments,
 ) {
     let mut types = Vec::new();
-    let shapes = HashMap::new();
+    let shapes = IndexMap::new();
 
     // Constants never need access to the self type, so we just use a dummy
     // value here.
@@ -65,7 +65,7 @@ fn specialize_constants(
 fn shapes_compatible_with_bounds(
     db: &Database,
     method: MethodId,
-    shapes: &HashMap<TypeParameterId, Shape>,
+    shapes: &IndexMap<TypeParameterId, Shape>,
 ) -> bool {
     let bounds = method.bounds(db);
 
@@ -105,7 +105,7 @@ struct Job {
 
     /// The shapes of the method (including its receiver), in the same order as
     /// the type parameters.
-    shapes: HashMap<TypeParameterId, Shape>,
+    shapes: IndexMap<TypeParameterId, Shape>,
 }
 
 struct Work {
@@ -127,7 +127,7 @@ impl Work {
         &mut self,
         self_type: TypeEnum,
         method: MethodId,
-        shapes: HashMap<TypeParameterId, Shape>,
+        shapes: IndexMap<TypeParameterId, Shape>,
     ) -> bool {
         if self.done.insert(method) {
             self.jobs.push_back(Job { self_type, method, shapes });
@@ -200,12 +200,12 @@ struct DynamicCalls {
     /// The values are an _ordered_ hash set to ensure the data is always
     /// processed in a deterministic order. This is important in order to
     /// maintain the incremental compilation caches.
-    mapping: HashMap<TypeId, IndexSet<DynamicCall>>,
+    mapping: IndexMap<TypeId, IndexSet<DynamicCall>>,
 }
 
 impl DynamicCalls {
     fn new() -> DynamicCalls {
-        DynamicCalls { mapping: HashMap::new() }
+        DynamicCalls { mapping: IndexMap::new() }
     }
 
     fn add(
@@ -234,7 +234,7 @@ pub(crate) struct Specialize<'a, 'b> {
     state: &'a mut State,
     work: &'b mut Work,
     interned: &'b mut InternedTypeArguments,
-    shapes: HashMap<TypeParameterId, Shape>,
+    shapes: IndexMap<TypeParameterId, Shape>,
 
     /// Regular methods that have been processed.
     regular_methods: Vec<MethodId>,
@@ -280,7 +280,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
         work.push(
             TypeEnum::TypeInstance(TypeInstance::new(main_type)),
             main_method,
-            HashMap::new(),
+            IndexMap::new(),
         );
 
         // The main() method isn't called explicitly, so we have to manually
@@ -607,7 +607,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
             }
 
             if let Some(calls) = dynamic_calls.get(orig) {
-                let mut type_shapes = HashMap::new();
+                let mut type_shapes = IndexMap::new();
 
                 for (param, &shape) in typ
                     .type_parameters(&self.state.db)
@@ -912,7 +912,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
         &mut self,
         type_id: TypeId,
         method: MethodId,
-        shapes: &HashMap<TypeParameterId, Shape>,
+        shapes: &IndexMap<TypeParameterId, Shape>,
         custom_self_type: Option<TypeEnum>,
     ) -> MethodId {
         let ins = TypeInstance::new(type_id);
@@ -975,7 +975,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
             let method = type_id.method(&self.state.db, name).unwrap();
             let stype = TypeEnum::TypeInstance(TypeInstance::new(type_id));
 
-            if self.work.push(stype, method, HashMap::new()) {
+            if self.work.push(stype, method, IndexMap::new()) {
                 self.regular_methods.push(method);
             }
         }
@@ -998,7 +998,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
         };
 
         if original == type_id {
-            if self.work.push(stype, method, HashMap::new()) {
+            if self.work.push(stype, method, IndexMap::new()) {
                 self.regular_methods.push(method);
             }
 
@@ -1037,7 +1037,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
             if original == type_id {
                 let stype = TypeEnum::TypeInstance(TypeInstance::new(type_id));
 
-                if self.work.push(stype, method, HashMap::new()) {
+                if self.work.push(stype, method, IndexMap::new()) {
                     self.regular_methods.push(method);
                 }
 
@@ -1080,7 +1080,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
         receiver: TypeRef,
         method: MethodId,
         mut key: Vec<Shape>,
-        shapes: &HashMap<TypeParameterId, Shape>,
+        shapes: &IndexMap<TypeParameterId, Shape>,
     ) -> MethodId {
         // For static methods we include the type's type parameter shapes such
         // that we can generate unique names using just the shapes for
@@ -1167,7 +1167,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
         &mut self,
         self_type: TypeEnum,
         method: MethodId,
-        shapes: &HashMap<TypeParameterId, Shape>,
+        shapes: &IndexMap<TypeParameterId, Shape>,
     ) {
         for (idx, arg) in
             method.arguments(&self.state.db).into_iter().enumerate()
@@ -1216,8 +1216,8 @@ impl<'a, 'b> Specialize<'a, 'b> {
         &mut self,
         method: MethodId,
         arguments: &TypeArguments,
-    ) -> HashMap<TypeParameterId, Shape> {
-        let mut shapes = HashMap::new();
+    ) -> IndexMap<TypeParameterId, Shape> {
+        let mut shapes = IndexMap::new();
 
         for (&par, &bound) in method.bounds(&self.state.db).iter() {
             let shape = argument_shape(
@@ -1267,7 +1267,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
     fn add_method_bound_shapes(
         &self,
         method: MethodId,
-        shapes: &mut HashMap<TypeParameterId, Shape>,
+        shapes: &mut IndexMap<TypeParameterId, Shape>,
     ) {
         for (par, &bound) in method.bounds(&self.state.db).iter() {
             shapes.insert(bound, *shapes.get(par).unwrap());
@@ -1277,7 +1277,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
     fn add_implementation_shapes(
         &mut self,
         method: MethodId,
-        shapes: &mut HashMap<TypeParameterId, Shape>,
+        shapes: &mut IndexMap<TypeParameterId, Shape>,
     ) {
         if let Some(tins) = method.implemented_trait_instance(&self.state.db) {
             // Regular types may implement generic traits, such as Int
@@ -1353,7 +1353,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
 struct ExpandDrop<'a, 'b, 'c> {
     db: &'a Database,
     method: &'b mut Method,
-    shapes: &'c HashMap<TypeParameterId, Shape>,
+    shapes: &'c IndexMap<TypeParameterId, Shape>,
     intern: &'c mut InternedTypeArguments,
 }
 
@@ -1549,7 +1549,7 @@ impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
 struct ExpandBorrow<'a, 'b, 'c> {
     db: &'a types::Database,
     method: &'b mut Method,
-    shapes: &'c HashMap<TypeParameterId, Shape>,
+    shapes: &'c IndexMap<TypeParameterId, Shape>,
     intern: &'c mut InternedTypeArguments,
 }
 

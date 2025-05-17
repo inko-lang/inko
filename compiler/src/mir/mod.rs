@@ -10,7 +10,7 @@ pub(crate) mod specialize;
 
 use crate::state::State;
 use crate::symbol_names::{qualified_type_name, SymbolNames};
-use indexmap::IndexMap;
+use indexmap::{IndexMap, IndexSet};
 use location::Location;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -1958,7 +1958,7 @@ impl Method {
     /// other methods).
     fn apply_local_optimizations(
         &mut self,
-        constants: &HashMap<types::ConstantId, Constant>,
+        constants: &IndexMap<types::ConstantId, Constant>,
     ) {
         self.simplify_graph();
 
@@ -2088,7 +2088,7 @@ impl Method {
     /// can improve performance.
     pub(crate) fn inline_constants(
         &mut self,
-        constants: &HashMap<types::ConstantId, Constant>,
+        constants: &IndexMap<types::ConstantId, Constant>,
     ) {
         for block in &mut self.body.blocks {
             for ins in &mut block.instructions {
@@ -2131,9 +2131,9 @@ impl Method {
 
 /// An Inko program in its MIR form.
 pub(crate) struct Mir {
-    pub(crate) constants: HashMap<types::ConstantId, Constant>,
+    pub(crate) constants: IndexMap<types::ConstantId, Constant>,
     pub(crate) modules: IndexMap<types::ModuleId, Module>,
-    pub(crate) types: HashMap<types::TypeId, Type>,
+    pub(crate) types: IndexMap<types::TypeId, Type>,
     pub(crate) methods: IndexMap<types::MethodId, Method>,
 
     /// Externally defined methods/functions that are called at some point.
@@ -2142,7 +2142,7 @@ pub(crate) struct Mir {
     /// specialization, only used and specialized types/methods remain. This set
     /// is used to track which external methods are called, such that we only
     /// process those when generating machine code.
-    pub(crate) extern_methods: HashSet<types::MethodId>,
+    pub(crate) extern_methods: IndexSet<types::MethodId>,
 
     /// The type arguments to expose to call instructions, used to specialize
     /// types and method calls.
@@ -2157,19 +2157,19 @@ pub(crate) struct Mir {
     /// This is used to determine what methods we need to generate dynamic
     /// dispatch hashes for.
     pub(crate) dynamic_calls:
-        HashMap<MethodId, HashSet<(MethodId, Vec<Shape>)>>,
+        IndexMap<MethodId, IndexSet<(MethodId, Vec<Shape>)>>,
 }
 
 impl Mir {
     pub(crate) fn new() -> Self {
         Self {
-            constants: HashMap::new(),
+            constants: IndexMap::new(),
             modules: IndexMap::new(),
-            types: HashMap::new(),
+            types: IndexMap::new(),
             methods: IndexMap::new(),
-            extern_methods: HashSet::new(),
+            extern_methods: IndexSet::new(),
             type_arguments: Vec::new(),
-            dynamic_calls: HashMap::new(),
+            dynamic_calls: IndexMap::new(),
         }
     }
 

@@ -2,6 +2,7 @@
 #![allow(clippy::new_without_default)]
 #![allow(clippy::len_without_is_empty)]
 #![allow(clippy::too_many_arguments)]
+#![deny(clippy::iter_over_hash_type)]
 
 #[cfg(test)]
 pub mod test;
@@ -1200,12 +1201,12 @@ impl FieldId {
 /// structure maps `T: A` to `T: A + B`.
 #[derive(Clone, Debug)]
 pub struct TypeBounds {
-    mapping: HashMap<TypeParameterId, TypeParameterId>,
+    mapping: IndexMap<TypeParameterId, TypeParameterId>,
 }
 
 impl TypeBounds {
     pub fn new() -> Self {
-        Self { mapping: HashMap::default() }
+        Self { mapping: IndexMap::default() }
     }
 
     pub fn set(&mut self, parameter: TypeParameterId, bounds: TypeParameterId) {
@@ -5603,7 +5604,7 @@ impl TypeRef {
         self,
         db: &Database,
         interned: &mut InternedTypeArguments,
-        shapes: &HashMap<TypeParameterId, Shape>,
+        shapes: &IndexMap<TypeParameterId, Shape>,
     ) -> Shape {
         match self {
             TypeRef::Owned(TypeEnum::TypeInstance(ins))
@@ -7371,7 +7372,7 @@ mod tests {
         let p1 = new_parameter(&mut db, "A");
         let p2 = new_parameter(&mut db, "B");
         let p3 = new_parameter(&mut db, "C");
-        let mut shapes = HashMap::new();
+        let mut shapes = IndexMap::new();
 
         cls2.set_copy_storage(&mut db);
         cls3.set_inline_storage(&mut db);
