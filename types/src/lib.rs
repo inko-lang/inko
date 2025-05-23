@@ -13,6 +13,7 @@ pub mod format;
 pub mod module_name;
 pub mod resolve;
 pub mod specialize;
+pub mod specialize_new;
 
 use crate::module_name::ModuleName;
 use crate::resolve::TypeResolver;
@@ -593,28 +594,41 @@ impl TypeArguments {
     }
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+enum InternKind {
+    Type(TypeInstance),
+    Trait(TraitInstance),
+}
+
+impl InternKind {
+    fn type_arguments(self) -> u32 {
+        match self {
+            Self::Type(i) => i.type_arguments,
+            Self::Trait(i) => i.type_arguments,
+        }
+    }
+
+    fn as_type_enum(self) -> TypeEnum {
+        match self {
+            Self::Type(i) => TypeEnum::TypeInstance(i),
+            Self::Trait(i) => TypeEnum::TraitInstance(i),
+        }
+    }
+}
+
 /// A type that maps/interns type arguments, such that structurually different
 /// but semantically equivalent type arguments all map to the same type arguments
 /// ID.
-///
-/// As part of type specialization we want to specialize over specific types,
-/// such as when using `Shape::Stack`. Since type argument IDs differ for
-/// different occurrences of the same generic type instance, we need a way to
-/// map those to a common type arguments ID. If we don't do this, we may end up
-/// specializing the same type many times.
 pub struct InternedTypeArguments {
-    /// A cache that maps the raw type instances to their interned type
+    /// A cache that maps the raw type enums to their interned type
     /// arguments ID.
     ///
     /// This cache is used to avoid the more expensive key generation process
     /// when comparing the exact same type many times.
-    cache: HashMap<TypeInstance, u32>,
+    cache: HashMap<InternKind, u32>,
 
-    /// A mapping of the flattened type IDs from a type instance to the common
+    /// A mapping of the flattened type enums from a type instance to the common
     /// type arguments ID.
-    ///
-    /// For ClassInstance and TraitInstance types, the TypeId is stripped of its
-    /// TypeArguments ID such that it's consistent when hashed.
     mapping: HashMap<Vec<TypeEnum>, u32>,
 }
 
@@ -623,15 +637,15 @@ impl InternedTypeArguments {
         InternedTypeArguments { cache: HashMap::new(), mapping: HashMap::new() }
     }
 
-    pub fn intern(&mut self, db: &Database, instance: TypeInstance) -> u32 {
+    fn intern(&mut self, db: &Database, kind: InternKind) -> u32 {
         // The cache is used such that if we use the exact same type N times, we
         // only perform the more expensive type walking once.
-        if let Some(&id) = self.cache.get(&instance) {
+        if let Some(&id) = self.cache.get(&kind) {
             return id;
         }
 
         let mut key = Vec::new();
-        let mut stack = vec![TypeEnum::TypeInstance(instance)];
+        let mut stack = vec![kind.as_type_enum()];
 
         while let Some(tid) = stack.pop() {
             let (val, args) = match tid {
@@ -662,10 +676,13 @@ impl InternedTypeArguments {
             };
 
             if let Some(args) = args {
-                // The order of type arguments isn't reliable, so we have to
-                // explicitly sort things first.
                 let mut pairs = args.pairs();
 
+                // While TypeArguments uses an IndexMap and thus presents a
+                // stable order, that order is still based on what order pairs
+                // are inserted in. Sorting the pairs by ID here ensures that
+                // the order is consistent across different TypeArguments,
+                // regardless of what order pairs are inserted.
                 pairs.sort_by_key(|(p, _)| *p);
                 stack.extend(
                     pairs
@@ -677,9 +694,10 @@ impl InternedTypeArguments {
             key.push(val);
         }
 
-        let id = *self.mapping.entry(key).or_insert(instance.type_arguments);
+        let id =
+            *self.mapping.entry(key).or_insert_with(|| kind.type_arguments());
 
-        self.cache.insert(instance, id);
+        self.cache.insert(kind, id);
         id
     }
 }
@@ -733,6 +751,15 @@ pub struct Trait {
     /// A flag indicating if instances of types can be safely cast to this
     /// trait.
     cast_safe: bool,
+
+    /// The specializations of this type.
+    specializations: IndexMap<SpecializationKey, TraitId>,
+
+    /// The ID of the trait this trait is a specialization of.
+    specialization_source: Option<TraitId>,
+
+    /// The ID of the type arguments if this trait is a specialized trait.
+    type_arguments: Option<u32>,
 }
 
 impl Trait {
@@ -771,6 +798,9 @@ impl Trait {
             required_methods: IndexMap::new(),
             inherited_type_arguments: TypeArguments::new(),
             cast_safe: true,
+            specializations: IndexMap::new(),
+            specialization_source: None,
+            type_arguments: None,
         }
     }
 
@@ -940,6 +970,63 @@ impl TraitId {
         self.get(db).module
     }
 
+    pub(crate) fn specialization_source(
+        self,
+        db: &Database,
+    ) -> Option<TraitId> {
+        self.get(db).specialization_source
+    }
+
+    pub(crate) fn set_specialization_source(
+        self,
+        db: &mut Database,
+        typ: TraitId,
+    ) {
+        self.get_mut(db).specialization_source = Some(typ);
+    }
+
+    pub(crate) fn specializations(
+        self,
+        db: &Database,
+    ) -> &IndexMap<SpecializationKey, TraitId> {
+        &self.get(db).specializations
+    }
+
+    pub(crate) fn add_specialization(
+        self,
+        db: &mut Database,
+        key: SpecializationKey,
+        typ: TraitId,
+    ) {
+        self.get_mut(db).specializations.insert(key, typ);
+    }
+
+    pub(crate) fn set_type_arguments(self, db: &mut Database, arguments: u32) {
+        self.get_mut(db).type_arguments = Some(arguments);
+    }
+
+    pub(crate) fn clone_for_specialization(self, db: &mut Database) -> TraitId {
+        let src = self.get(db);
+
+        Trait::alloc(
+            db,
+            src.name.clone(),
+            src.visibility,
+            src.module,
+            src.location,
+        )
+    }
+
+    pub(crate) fn add_type_parameter(
+        self,
+        db: &mut Database,
+        parameter: TypeParameterId,
+    ) {
+        let name = parameter.name(db).clone();
+
+        self.get_mut(db).type_parameters.insert(name, parameter);
+    }
+
     fn get(self, db: &Database) -> &Trait {
         &db.traits[self.0 as usize]
     }
@@ -1078,12 +1165,39 @@ impl TraitInstance {
         self
     }
 
+    pub(crate) fn replace_type_arguments(
+        self,
+        db: &mut Database,
+        new: TypeArguments,
+    ) {
+        db.type_arguments[self.type_arguments as usize] = new;
+    }
+
+    pub(crate) fn interned(
+        self,
+        db: &Database,
+        interned: &mut InternedTypeArguments,
+    ) -> TraitInstance {
+        let targs = if self.instance_of.is_generic(db) {
+            interned.intern(db, InternKind::Trait(self))
+        } else {
+            0
+        };
+
+        TraitInstance {
+            instance_of: self.instance_of,
+            self_type: self.self_type,
+            type_arguments: targs,
+        }
+    }
+
     fn named_type(self, db: &Database, name: &str) -> Option<Symbol> {
         self.instance_of.named_type(db, name)
     }
 }
 
 /// A field for a type.
+#[derive(Clone)]
 pub struct Field {
     index: usize,
     name: String,
@@ -1105,18 +1219,25 @@ impl Field {
         module: ModuleId,
         location: Location,
     ) -> FieldId {
+        Self::add(
+            db,
+            Field {
+                name,
+                index,
+                value_type,
+                visibility,
+                mutable: false,
+                module,
+                location,
+                documentation: String::new(),
+            },
+        )
+    }
+
+    fn add(db: &mut Database, field: Field) -> FieldId {
         let id = db.fields.len();
 
-        db.fields.push(Field {
-            name,
-            index,
-            value_type,
-            visibility,
-            mutable: false,
-            module,
-            location,
-            documentation: String::new(),
-        });
+        db.fields.push(field);
         FieldId(id)
     }
 }
@@ -1179,6 +1300,12 @@ impl FieldId {
 
     pub fn is_mutable(self, db: &Database) -> bool {
         self.get(db).mutable
+    }
+
+    pub fn clone_for_specialization(self, db: &mut Database) -> FieldId {
+        let new = self.get(db).clone();
+
+        Field::add(db, new)
     }
 
     fn get(self, db: &Database) -> &Field {
@@ -1413,8 +1540,9 @@ impl TypeKind {
 }
 
 /// A type used as the key for a type specialization lookup.
+/// TODO: remove
 #[derive(Eq, PartialEq, Hash, Clone, Debug)]
-pub struct SpecializationKey {
+pub struct SpecializationKeyOld {
     /// The shapes of the type, in the same order as the type parameters they
     /// belong to.
     pub shapes: Vec<Shape>,
@@ -1424,20 +1552,52 @@ pub struct SpecializationKey {
     pub self_type: Option<TypeEnum>,
 }
 
-impl SpecializationKey {
-    pub fn empty() -> SpecializationKey {
-        SpecializationKey { shapes: Vec::new(), self_type: None }
+impl SpecializationKeyOld {
+    pub fn empty() -> SpecializationKeyOld {
+        SpecializationKeyOld { shapes: Vec::new(), self_type: None }
     }
 
-    pub fn new(shapes: Vec<Shape>) -> SpecializationKey {
-        SpecializationKey { self_type: None, shapes }
+    pub fn new(shapes: Vec<Shape>) -> SpecializationKeyOld {
+        SpecializationKeyOld { self_type: None, shapes }
     }
 
     pub fn for_closure(
         self_type: TypeEnum,
         shapes: Vec<Shape>,
-    ) -> SpecializationKey {
-        SpecializationKey { self_type: Some(self_type), shapes }
+    ) -> SpecializationKeyOld {
+        SpecializationKeyOld { self_type: Some(self_type), shapes }
+    }
+}
+
+/// A type used as the key for a type specialization lookup.
+#[derive(Eq, PartialEq, Hash, Clone, Debug)]
+pub struct SpecializationKey {
+    /// The types of each type parameter, in a consistent order.
+    pub types: Vec<TypeRef>,
+
+    /// Closures may be defined in a default method, in which case we should
+    /// specialize them for every type that implements the corresponding trait.
+    pub self_type: Option<TypeEnum>,
+}
+
+impl SpecializationKey {
+    pub fn empty() -> Self {
+        Self { types: Vec::new(), self_type: None }
+    }
+
+    pub fn new(type_arguments: &TypeArguments) -> Self {
+        let types = type_arguments.iter().map(|(_, v)| *v).collect();
+
+        Self { self_type: None, types }
+    }
+
+    pub fn for_closure(
+        self_type: TypeEnum,
+        type_arguments: &TypeArguments,
+    ) -> Self {
+        let types = type_arguments.iter().map(|(_, v)| *v).collect();
+
+        Self { self_type: Some(self_type), types }
     }
 }
 
@@ -1469,13 +1629,19 @@ pub struct Type {
     ///
     /// We use an IndexMap here such that iterations over this data are
     /// performed in a stable order.
+    /// TODO: remove
+    specializations_old: IndexMap<SpecializationKeyOld, TypeId>,
     specializations: IndexMap<SpecializationKey, TypeId>,
 
     /// The ID of the type this type is a specialization of.
     specialization_source: Option<TypeId>,
 
     /// The type specialization key used for this type.
-    specialization_key: SpecializationKey,
+    /// TODO: remove
+    specialization_key: SpecializationKeyOld,
+
+    /// The ID of the type arguments if this type is a specialized type.
+    type_arguments: Option<u32>,
 }
 
 impl Type {
@@ -1528,9 +1694,11 @@ impl Type {
             constructors: IndexMap::new(),
             module,
             location,
+            specializations_old: IndexMap::new(),
             specializations: IndexMap::new(),
             specialization_source: None,
-            specialization_key: SpecializationKey::empty(),
+            specialization_key: SpecializationKeyOld::empty(),
+            type_arguments: None,
         }
     }
 
@@ -1771,17 +1939,17 @@ impl TypeId {
         location: Location,
     ) -> FieldId {
         let id = Field::alloc(
-            db,
-            name.clone(),
-            index,
-            value_type,
-            visibility,
-            module,
-            location,
+            db, name, index, value_type, visibility, module, location,
         );
 
-        self.get_mut(db).fields.insert(name, id);
+        self.add_field(db, id);
         id
+    }
+
+    pub fn add_field(self, db: &mut Database, field: FieldId) {
+        let name = field.name(db).clone();
+
+        self.get_mut(db).fields.insert(name, field);
     }
 
     pub fn is_generic(self, db: &Database) -> bool {
@@ -1877,10 +2045,11 @@ impl TypeId {
         self.get(db).module
     }
 
+    // TODO: remove
     pub fn set_specialization_key(
         self,
         db: &mut Database,
-        key: SpecializationKey,
+        key: SpecializationKeyOld,
     ) {
         self.get_mut(db).specialization_key = key;
     }
@@ -1889,28 +2058,59 @@ impl TypeId {
         self.get(db).specialization_source
     }
 
-    pub fn set_specialization_source(self, db: &mut Database, typ: TypeId) {
+    pub(crate) fn set_specialization_source(
+        self,
+        db: &mut Database,
+        typ: TypeId,
+    ) {
         self.get_mut(db).specialization_source = Some(typ);
     }
 
-    pub fn add_specialization(
+    // TODO: remove
+    pub fn add_specialization_old(
+        self,
+        db: &mut Database,
+        key: SpecializationKeyOld,
+        typ: TypeId,
+    ) {
+        typ.set_specialization_key(db, key.clone());
+        self.get_mut(db).specializations_old.insert(key, typ);
+    }
+
+    // TODO: remove
+    pub fn specializations_old(
+        self,
+        db: &Database,
+    ) -> &IndexMap<SpecializationKeyOld, TypeId> {
+        &self.get(db).specializations_old
+    }
+
+    pub(crate) fn set_type_arguments(self, db: &mut Database, arguments: u32) {
+        self.get_mut(db).type_arguments = Some(arguments);
+    }
+
+    pub fn type_arguments(self, db: &Database) -> Option<&TypeArguments> {
+        self.get(db).type_arguments.map(|i| &db.type_arguments[i as usize])
+    }
+
+    pub(crate) fn add_specialization(
         self,
         db: &mut Database,
         key: SpecializationKey,
         typ: TypeId,
     ) {
-        typ.set_specialization_key(db, key.clone());
         self.get_mut(db).specializations.insert(key, typ);
     }
 
-    pub fn specializations(
+    pub(crate) fn specializations(
         self,
         db: &Database,
     ) -> &IndexMap<SpecializationKey, TypeId> {
         &self.get(db).specializations
     }
 
-    pub fn specialization_key(self, db: &Database) -> &SpecializationKey {
+    // TODO: remove
+    pub fn specialization_key(self, db: &Database) -> &SpecializationKeyOld {
         &self.get(db).specialization_key
     }
 
@@ -1935,6 +2135,16 @@ impl TypeId {
 
         self.get_mut(db).type_parameters.insert(name, param);
         param
+    }
+
+    pub(crate) fn add_type_parameter(
+        self,
+        db: &mut Database,
+        parameter: TypeParameterId,
+    ) {
+        let name = parameter.name(db).clone();
+
+        self.get_mut(db).type_parameters.insert(name, parameter);
     }
 
     pub fn mark_as_having_destructor(self, db: &mut Database) {
@@ -2027,7 +2237,7 @@ impl TypeId {
         self.get_mut(db).storage = Storage::Copy;
     }
 
-    pub fn clone_for_specialization(self, db: &mut Database) -> TypeId {
+    pub(crate) fn clone_for_specialization(self, db: &mut Database) -> TypeId {
         let src = self.get(db);
         let mut new = Type::new(
             src.name.clone(),
@@ -2182,6 +2392,14 @@ impl TypeInstance {
         db.type_arguments.get(self.type_arguments as usize)
     }
 
+    pub(crate) fn replace_type_arguments(
+        self,
+        db: &mut Database,
+        new: TypeArguments,
+    ) {
+        db.type_arguments[self.type_arguments as usize] = new;
+    }
+
     pub fn method(self, db: &Database, name: &str) -> Option<MethodId> {
         self.instance_of.method(db, name)
     }
@@ -2229,21 +2447,23 @@ impl TypeInstance {
         }
     }
 
-    fn interned(
+    pub(crate) fn interned(
         self,
         db: &Database,
         interned: &mut InternedTypeArguments,
     ) -> TypeInstance {
         let targs = if self.instance_of.is_generic(db) {
-            // We need to make sure that for different references to the same
-            // type (e.g. `SomeType[Int]`), the type arguments ID is the same so
-            // we can reliable compare and hash the returned Shape.
-            interned.intern(db, self)
+            interned.intern(db, InternKind::Type(self))
         } else {
             0
         };
 
         TypeInstance { instance_of: self.instance_of, type_arguments: targs }
+    }
+
+    pub(crate) fn with_type_id(mut self, type_id: TypeId) -> Self {
+        self.instance_of = type_id;
+        self
     }
 
     fn named_type(self, db: &Database, name: &str) -> Option<Symbol> {
@@ -2715,14 +2935,18 @@ pub struct Method {
     ///
     /// Each key is the combination of the receiver and method shapes, in the
     /// same order as their type parameters.
-    specializations: HashMap<Vec<Shape>, MethodId>,
+    /// TODO: remove
+    specializations_old: HashMap<Vec<Shape>, MethodId>,
+    specializations: HashMap<Vec<TypeRef>, MethodId>,
 
     /// The shapes of this method's type parameters, if any.
     ///
     /// For static methods this list starts with the shapes of the surrounding
     /// type's type parameters, if any. For instance methods, we only include
     /// the shapes of the method's type parameters.
-    shapes: Vec<Shape>,
+    /// TODO: remove
+    shapes_old: Vec<Shape>,
+    type_arguments: Vec<TypeRef>,
 }
 
 impl Method {
@@ -2767,8 +2991,10 @@ impl Method {
             field_types: HashMap::new(),
             main: false,
             variadic: false,
+            specializations_old: HashMap::new(),
+            shapes_old: Vec::new(),
             specializations: HashMap::new(),
-            shapes: Vec::new(),
+            type_arguments: Vec::new(),
             inline,
         };
 
@@ -3090,33 +3316,61 @@ impl MethodId {
         self.has_return_type(db) && !self.return_type(db).is_never(db)
     }
 
-    pub fn add_specialization(
+    // TODO: remove
+    pub fn add_specialization_old(
         self,
         db: &mut Database,
         shapes: Vec<Shape>,
         method: MethodId,
     ) {
-        self.get_mut(db).specializations.insert(shapes, method);
+        self.get_mut(db).specializations_old.insert(shapes, method);
     }
 
+    pub fn add_specialization(
+        self,
+        db: &mut Database,
+        key: Vec<TypeRef>,
+        method: MethodId,
+    ) {
+        self.get_mut(db).specializations.insert(key, method);
+    }
+
+    pub fn set_type_arguments(
+        self,
+        db: &mut Database,
+        arguments: Vec<TypeRef>,
+    ) {
+        self.get_mut(db).type_arguments = arguments;
+    }
+
+    // TODO: remove
     pub fn set_shapes(self, db: &mut Database, shapes: Vec<Shape>) {
-        self.get_mut(db).shapes = shapes;
+        self.get_mut(db).shapes_old = shapes;
     }
 
+    // TODO: remove
     pub fn shapes(self, db: &Database) -> &Vec<Shape> {
-        &self.get(db).shapes
+        &self.get(db).shapes_old
+    }
+
+    pub fn specialization_old(
+        self,
+        db: &Database,
+        shapes: &[Shape],
+    ) -> Option<MethodId> {
+        self.get(db).specializations_old.get(shapes).cloned()
+    }
+
+    pub fn specializations_old(self, db: &Database) -> Vec<MethodId> {
+        self.get(db).specializations_old.values().cloned().collect()
     }
 
     pub fn specialization(
         self,
         db: &Database,
-        shapes: &[Shape],
+        key: &[TypeRef],
     ) -> Option<MethodId> {
-        self.get(db).specializations.get(shapes).cloned()
-    }
-
-    pub fn specializations(self, db: &Database) -> Vec<MethodId> {
-        self.get(db).specializations.values().cloned().collect()
+        self.get(db).specializations.get(key).cloned()
     }
 
     pub fn clone_for_specialization(self, db: &mut Database) -> MethodId {
@@ -3904,6 +4158,9 @@ pub struct Closure {
     captured_self_type: Option<TypeRef>,
     arguments: Arguments,
     return_type: TypeRef,
+
+    /// The ID of the closure this closure is a specialization of.
+    specialization_source: Option<ClosureId>,
 }
 
 impl Closure {
@@ -3927,6 +4184,7 @@ impl Closure {
             captured: HashSet::new(),
             arguments: Arguments::new(),
             return_type: TypeRef::Unknown,
+            specialization_source: None,
         }
     }
 }
@@ -4016,6 +4274,31 @@ impl ClosureId {
 
     pub(crate) fn get(self, db: &Database) -> &Closure {
         &db.closures[self.0]
+    }
+
+    pub(crate) fn clone_for_specialization(
+        self,
+        db: &mut Database,
+    ) -> ClosureId {
+        let src = self.get(db);
+        let new = Closure::new(src.moving);
+
+        Closure::add(db, new)
+    }
+
+    pub(crate) fn specialization_source(
+        self,
+        db: &Database,
+    ) -> Option<ClosureId> {
+        self.get(db).specialization_source
+    }
+
+    pub(crate) fn set_specialization_source(
+        self,
+        db: &mut Database,
+        typ: ClosureId,
+    ) {
+        self.get_mut(db).specialization_source = Some(typ);
     }
 
     fn get_mut(self, db: &mut Database) -> &mut Closure {
@@ -5120,6 +5403,10 @@ impl TypeRef {
     }
 
     pub fn as_uni_ref(self, db: &Database) -> Self {
+        if self.is_value_type(db) {
+            return self;
+        }
+
         match self {
             TypeRef::Owned(id)
             | TypeRef::Any(id)
@@ -5140,6 +5427,10 @@ impl TypeRef {
     }
 
     pub fn as_uni_mut(self, db: &Database) -> Self {
+        if self.is_value_type(db) {
+            return self;
+        }
+
         match self {
             TypeRef::Owned(id)
             | TypeRef::Uni(id)
@@ -6059,7 +6350,7 @@ impl Database {
 mod tests {
     use super::*;
     use crate::test::{
-        any, closure, generic_instance_id, generic_trait_instance, immutable,
+        any, closure, generic_instance, generic_trait_instance, immutable,
         immutable_uni, instance, mutable, mutable_uni, new_async_type,
         new_enum_type, new_extern_type, new_module, new_parameter, new_trait,
         new_type, owned, parameter, placeholder, pointer, rigid,
@@ -7669,14 +7960,14 @@ mod tests {
         ary_spec.new_type_parameter(&mut db, "B".to_string());
 
         let val1 = {
-            let sub = owned(generic_instance_id(&mut db, ary, vec![int]));
+            let sub = owned(generic_instance(&mut db, ary, vec![int]));
 
-            owned(generic_instance_id(&mut db, ary, vec![sub]))
+            owned(generic_instance(&mut db, ary, vec![sub]))
         };
         let val2 = {
-            let sub = owned(generic_instance_id(&mut db, ary, vec![int]));
+            let sub = owned(generic_instance(&mut db, ary, vec![int]));
 
-            owned(generic_instance_id(&mut db, ary, vec![sub]))
+            owned(generic_instance(&mut db, ary, vec![sub]))
         };
         let mut targs1 = TypeArguments::new();
         let mut targs2 = TypeArguments::new();
@@ -7689,11 +7980,11 @@ mod tests {
         let ins1 = TypeInstance::generic(&mut db, ary, targs1.clone());
         let ins2 = TypeInstance::generic(&mut db, ary, targs2);
         let ins3 = TypeInstance::generic(&mut db, ary_spec, targs1);
-        let id1 = intern.intern(&db, ins1);
-        let id2 = intern.intern(&db, ins2);
-        let id3 = intern.intern(&db, ins1);
-        let id4 = intern.intern(&db, ins2);
-        let id5 = intern.intern(&db, ins3);
+        let id1 = intern.intern(&db, InternKind::Type(ins1));
+        let id2 = intern.intern(&db, InternKind::Type(ins2));
+        let id3 = intern.intern(&db, InternKind::Type(ins1));
+        let id4 = intern.intern(&db, InternKind::Type(ins2));
+        let id5 = intern.intern(&db, InternKind::Type(ins3));
 
         assert_eq!(id1, ins1.type_arguments);
         assert_eq!(id2, id1);
@@ -7778,7 +8069,7 @@ mod tests {
             Location::default(),
         );
 
-        let ins = mutable(generic_instance_id(
+        let ins = mutable(generic_instance(
             &mut db,
             thing,
             vec![any(parameter(p2)), any(parameter(p1))],

@@ -131,7 +131,7 @@ pub(crate) fn closure(id: ClosureId) -> TypeEnum {
     TypeEnum::Closure(id)
 }
 
-pub(crate) fn generic_instance_id(
+pub(crate) fn generic_instance(
     db: &mut Database,
     type_id: TypeId,
     arguments: Vec<TypeRef>,

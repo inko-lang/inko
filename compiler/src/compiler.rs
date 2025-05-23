@@ -9,7 +9,7 @@ use crate::llvm;
 use crate::mir::inline::InlineMethod;
 use crate::mir::passes as mir;
 use crate::mir::printer::to_dot;
-use crate::mir::specialize::Specialize;
+use crate::mir::specialize_new::Specialize;
 use crate::mir::Mir;
 use crate::modules_parser::{ModulesParser, ParsedModule};
 use crate::pkg::manifest::Manifest;
@@ -539,6 +539,9 @@ LLVM module timings:
 
         Specialize::run_all(&mut self.state, mir);
         self.timings.specialize_mir = start.elapsed();
+
+        // TODO: remove
+        todo!("remove me when specialization is implemented");
     }
 
     fn optimise_mir(&mut self, mir: &mut Mir) {

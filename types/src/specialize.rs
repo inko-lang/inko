@@ -1,5 +1,5 @@
 use crate::{
-    Database, InternedTypeArguments, Shape, SpecializationKey, TypeEnum,
+    Database, InternedTypeArguments, Shape, SpecializationKeyOld, TypeEnum,
     TypeId, TypeInstance, TypeParameterId, TypeRef,
 };
 use indexmap::IndexMap;
@@ -356,9 +356,9 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
             &mut shapes,
         );
 
-        let key = SpecializationKey::new(shapes);
+        let key = SpecializationKeyOld::new(shapes);
         let new = typ
-            .specializations(self.db)
+            .specializations_old(self.db)
             .get(&key)
             .cloned()
             .unwrap_or_else(|| self.specialize_type(typ, key));
@@ -393,10 +393,10 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
             &mut shapes,
         );
 
-        let key = SpecializationKey::for_closure(self.self_type, shapes);
+        let key = SpecializationKeyOld::for_closure(self.self_type, shapes);
         let typ = ins.instance_of;
         let new = typ
-            .specializations(self.db)
+            .specializations_old(self.db)
             .get(&key)
             .cloned()
             .unwrap_or_else(|| self.specialize_type(typ, key));
@@ -408,7 +408,7 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
     fn specialize_type(
         &mut self,
         type_id: TypeId,
-        key: SpecializationKey,
+        key: SpecializationKeyOld,
     ) -> TypeId {
         let new = type_id.clone_for_specialization(self.db);
 
@@ -424,7 +424,7 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
             new.get_mut(self.db).type_parameters.insert(name, param);
         }
 
-        type_id.add_specialization(self.db, key, new);
+        type_id.add_specialization_old(self.db, key, new);
 
         // When specializing fields and constructors, we want them to reuse the
         // shapes we just created.
@@ -507,7 +507,7 @@ mod tests {
     use super::*;
     use crate::format::format_type;
     use crate::test::{
-        any, generic_instance_id, immutable, instance, mutable, new_enum_type,
+        any, generic_instance, immutable, instance, mutable, new_enum_type,
         new_parameter, new_trait, new_type, owned, parameter, rigid, uni,
     };
     use crate::{Location, ModuleId, TraitInstance, TypeId, Visibility};
@@ -522,8 +522,8 @@ mod tests {
         ary.new_type_parameter(&mut db, "T".to_string());
 
         let int = TypeRef::int();
-        let raw1 = owned(generic_instance_id(&mut db, ary, vec![int]));
-        let raw2 = owned(generic_instance_id(&mut db, ary, vec![int]));
+        let raw1 = owned(generic_instance(&mut db, ary, vec![int]));
+        let raw2 = owned(generic_instance(&mut db, ary, vec![int]));
         let mut types = Vec::new();
         let stype = TypeEnum::TypeInstance(TypeInstance::new(TypeId::int()));
         let spec1 = TypeSpecializer::new(
@@ -545,10 +545,10 @@ mod tests {
 
         assert_eq!(format_type(&db, spec1), "Array[Int]");
         assert_eq!(format_type(&db, spec2), "Array[Int]");
-        assert_eq!(ary.specializations(&db).len(), 1);
+        assert_eq!(ary.specializations_old(&db).len(), 1);
 
-        let key = SpecializationKey::new(vec![Shape::int()]);
-        let new_type = *ary.specializations(&db).get(&key).unwrap();
+        let key = SpecializationKeyOld::new(vec![Shape::int()]);
+        let new_type = *ary.specializations_old(&db).get(&key).unwrap();
 
         assert_eq!(types, &[TypeId::int(), new_type]);
         assert_eq!(new_type.specialization_source(&db), Some(ary));
@@ -578,8 +578,7 @@ mod tests {
         ary.new_type_parameter(&mut db, "T".to_string());
 
         let int = TypeRef::int();
-        let raw =
-            TypeRef::Pointer(generic_instance_id(&mut db, ary, vec![int]));
+        let raw = TypeRef::Pointer(generic_instance(&mut db, ary, vec![int]));
         let mut types = Vec::new();
         let stype = TypeEnum::TypeInstance(TypeInstance::new(TypeId::int()));
         let spec = TypeSpecializer::new(
@@ -604,7 +603,7 @@ mod tests {
 
         ary.new_type_parameter(&mut db, "T".to_string());
 
-        let raw = owned(generic_instance_id(
+        let raw = owned(generic_instance(
             &mut db,
             ary,
             vec![immutable(instance(foo))],
@@ -681,7 +680,7 @@ mod tests {
         shapes.insert(rigid1, Shape::Owned);
         shapes.insert(rigid2, Shape::Owned);
 
-        let raw = owned(generic_instance_id(
+        let raw = owned(generic_instance(
             &mut db,
             tup,
             vec![
@@ -753,8 +752,7 @@ mod tests {
         let mut interned = InternedTypeArguments::new();
         let mut types = Vec::new();
         let shapes = IndexMap::new();
-        let raw =
-            owned(generic_instance_id(&mut db, opt, vec![TypeRef::int()]));
+        let raw = owned(generic_instance(&mut db, opt, vec![TypeRef::int()]));
 
         let stype = TypeEnum::TypeInstance(TypeInstance::new(TypeId::int()));
         let res = TypeSpecializer::new(
@@ -792,7 +790,7 @@ mod tests {
         ary.new_type_parameter(&mut db, "T".to_string());
 
         let int = TypeRef::int();
-        let raw = owned(generic_instance_id(&mut db, ary, vec![int]));
+        let raw = owned(generic_instance(&mut db, ary, vec![int]));
         let mut types = Vec::new();
         let mut interned = InternedTypeArguments::new();
         let stype = TypeEnum::TypeInstance(TypeInstance::new(TypeId::int()));
