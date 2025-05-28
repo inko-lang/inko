@@ -49,7 +49,9 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::thread::scope;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use types::module_name::ModuleName;
-use types::{Database, Intrinsic, Shape, SpecializationKey, TypeId, TypeRef};
+use types::{
+    Database, Intrinsic, Shape, SpecializationKeyOld, TypeId, TypeRef,
+};
 
 const NIL_VALUE: bool = false;
 
@@ -878,9 +880,9 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
                     ),
                 };
 
-                let key = SpecializationKey::new(vec![shape]);
+                let key = SpecializationKeyOld::new(vec![shape]);
                 let tid = TypeId::array()
-                    .specializations(&self.shared.state.db)[&key];
+                    .specializations_old(&self.shared.state.db)[&key];
                 let layout = self.layouts.instances[tid.0 as usize];
                 let array = builder.allocate_instance(
                     self.module,
@@ -2610,6 +2612,9 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                         // special we need to do in this case.
                         self.builder.load(src_typ, src_var)
                     }
+                    // Only heap allocated values can be cast to a trait, and
+                    // there's nothing special to do for such cases.
+                    (_, CastType::Trait) => self.builder.load(src_typ, src_var),
                     _ => unreachable!(),
                 };
 

@@ -7,6 +7,7 @@ pub(crate) mod passes;
 pub(crate) mod pattern_matching;
 pub(crate) mod printer;
 pub(crate) mod specialize;
+pub(crate) mod specialize_new;
 
 use crate::state::State;
 use crate::symbol_names::{qualified_type_name, SymbolNames};
@@ -1199,6 +1200,7 @@ pub(crate) enum CastType {
     Float(u32),
     Pointer,
     Object,
+    Trait,
 }
 
 impl CastType {
@@ -1231,6 +1233,7 @@ impl CastType {
                     FLOAT_ID => CastType::Float(64),
                     _ => CastType::Object,
                 },
+                Ok(TypeEnum::TraitInstance(_)) => CastType::Trait,
                 _ => CastType::Object,
             }
         }
@@ -2400,7 +2403,7 @@ impl Mir {
                                 let method_impl =
                                     typ.method(db, id.name(db)).unwrap();
                                 let mut methods =
-                                    method_impl.specializations(db);
+                                    method_impl.specializations_old(db);
 
                                 if methods.is_empty() {
                                     methods.push(method_impl);

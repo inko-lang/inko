@@ -789,7 +789,9 @@ impl<'a, 'b> Specialize<'a, 'b> {
                 // unexpected bugs.
                 let mut shapes = shapes.clone();
 
-                for (key, typ) in typ.specializations(&self.state.db).clone() {
+                for (key, typ) in
+                    typ.specializations_old(&self.state.db).clone()
+                {
                     // A dynamic call won't include shapes/type arguments for
                     // type parameters of the specialized type, so we have to
                     // inject those here.
@@ -836,7 +838,8 @@ impl<'a, 'b> Specialize<'a, 'b> {
 
         self.prepare_key(&mut spec_key);
 
-        if let Some(new) = method.specialization(&self.state.db, &spec_key) {
+        if let Some(new) = method.specialization_old(&self.state.db, &spec_key)
+        {
             return (new, method_shapes);
         }
 
@@ -940,7 +943,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
 
         self.prepare_key(&mut key);
 
-        if let Some(new) = method.specialization(&self.state.db, &key) {
+        if let Some(new) = method.specialization_old(&self.state.db, &key) {
             return new;
         }
 
@@ -1155,7 +1158,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
         new.set_bounds(&mut self.state.db, bounds);
 
         if !key.is_empty() {
-            method.add_specialization(&mut self.state.db, key, new);
+            method.add_specialization_old(&mut self.state.db, key, new);
         }
 
         new

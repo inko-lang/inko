@@ -230,7 +230,7 @@ mod tests {
     use location::Location;
     use types::module_name::ModuleName;
     use types::{
-        Module, SpecializationKey, Type, TypeInstance, TypeKind, Visibility,
+        Module, SpecializationKeyOld, Type, TypeInstance, TypeKind, Visibility,
     };
 
     fn name(db: &Database, shape: Shape) -> String {
@@ -255,26 +255,26 @@ mod tests {
 
         cls1.set_specialization_key(
             &mut db,
-            SpecializationKey::new(vec![
+            SpecializationKeyOld::new(vec![
                 Shape::Int(64, Sign::Signed),
                 Shape::Inline(TypeInstance::new(cls2)),
             ]),
         );
         cls2.set_specialization_key(
             &mut db,
-            SpecializationKey::new(vec![Shape::String]),
+            SpecializationKeyOld::new(vec![Shape::String]),
         );
         cls3.set_specialization_key(
             &mut db,
-            SpecializationKey::new(vec![Shape::InlineRef(TypeInstance::new(
-                cls2,
-            ))]),
+            SpecializationKeyOld::new(vec![Shape::InlineRef(
+                TypeInstance::new(cls2),
+            )]),
         );
         cls4.set_specialization_key(
             &mut db,
-            SpecializationKey::new(vec![Shape::InlineMut(TypeInstance::new(
-                cls2,
-            ))]),
+            SpecializationKeyOld::new(vec![Shape::InlineMut(
+                TypeInstance::new(cls2),
+            )]),
         );
 
         assert_eq!(name(&db, Shape::Owned), "o");
