@@ -873,7 +873,7 @@ impl<'a> DefineConstants<'a> {
                     vals.push(self.expression(node)?);
                     Some(vals)
                 })
-                .map(Constant::Array),
+                .map(|v| Constant::Array(v, n.resolved_type)),
         }
     }
 
@@ -952,7 +952,7 @@ impl<'a> DefineConstants<'a> {
                     Some(Constant::String(String::new()))
                 }
             }
-            Constant::Array(_) | Constant::Bool(_) => {
+            Constant::Array(_, _) | Constant::Bool(_) => {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidConstExpr,
                     "constant Array and Bool values don't support \

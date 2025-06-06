@@ -1,9 +1,9 @@
 use crate::llvm::constants::{CLOSURE_CALL_INDEX, DROPPER_INDEX};
 use crate::llvm::method_hasher::MethodHasher;
 use crate::mir::Mir;
-use crate::symbol_names::format_shapes;
+use crate::symbol_names::format_types;
 use std::cmp::max;
-use types::{Database, MethodId, Shape, CALL_METHOD, DROPPER_METHOD};
+use types::{Database, MethodId, TypeRef, CALL_METHOD, DROPPER_METHOD};
 
 /// Method table sizes are multiplied by this value in an attempt to reduce the
 /// amount of collisions when performing dynamic dispatch.
@@ -42,10 +42,10 @@ fn round_methods(mut value: usize) -> usize {
     value
 }
 
-fn hash_key(db: &Database, method: MethodId, shapes: &[Shape]) -> String {
+fn hash_key(db: &Database, method: MethodId, arguments: &[TypeRef]) -> String {
     let mut key = method.name(db).clone();
 
-    format_shapes(db, shapes, &mut key);
+    format_types(db, arguments, &mut key);
     key
 }
 
@@ -85,8 +85,8 @@ impl Methods {
         // This information is defined first so we can update the `collision`
         // flag when generating this information for method implementations.
         for calls in mir.dynamic_calls.values() {
-            for (method, shapes) in calls {
-                let hash = method_hasher.hash(hash_key(db, *method, shapes));
+            for (method, targs) in calls {
+                let hash = method_hasher.hash(hash_key(db, *method, targs));
 
                 info[method.0 as usize] =
                     Method { index: 0, hash, collision: false };
@@ -132,8 +132,8 @@ impl Methods {
             // table slots.
             for &method in &mir_typ.methods {
                 let name = method.name(db);
-                let hash =
-                    method_hasher.hash(hash_key(db, method, method.shapes(db)));
+                let targs = method.type_arguments(db);
+                let hash = method_hasher.hash(hash_key(db, method, targs));
 
                 let mut collision = false;
                 let index = if is_closure {

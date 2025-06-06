@@ -21,9 +21,9 @@ use std::sync::Mutex;
 use std::thread;
 use types::module_name::ModuleName;
 use types::{
-    Database, ForeignType, Intrinsic, MethodId, Module as ModuleType, Shape,
-    Sign, TypeArguments, TypeEnum, TypeRef, BOOL_ID, DROPPER_METHOD, FLOAT_ID,
-    INT_ID, NIL_ID,
+    ClosureSelfType, Database, ForeignType, Intrinsic, MethodId,
+    Module as ModuleType, Sign, TypeArguments, TypeEnum, TypeRef, BOOL_ID,
+    DROPPER_METHOD, FLOAT_ID, INT_ID, NIL_ID,
 };
 
 /// The register ID of the register that stores `self`.
@@ -815,7 +815,10 @@ pub(crate) enum Constant {
     Int(i64),
     Float(f64),
     String(String),
-    Array(Vec<Constant>),
+    /// For Array constants we also store the type here such that we have access
+    /// to the type of every nested Array, instead of only having access to the
+    /// type of the outer constant as a whole.
+    Array(Vec<Constant>, TypeRef),
     Bool(bool),
 }
 
@@ -834,7 +837,7 @@ impl PartialEq for Constant {
                 a == b
             }
             (Constant::String(a), Constant::String(b)) => a == b,
-            (Constant::Array(a), Constant::Array(b)) => a == b,
+            (Constant::Array(a, _), Constant::Array(b, _)) => a == b,
             _ => false,
         }
     }
@@ -848,7 +851,7 @@ impl Hash for Constant {
             Constant::Int(v) => v.hash(state),
             Constant::Float(v) => v.to_bits().hash(state),
             Constant::String(v) => v.hash(state),
-            Constant::Array(v) => v.hash(state),
+            Constant::Array(v, _) => v.hash(state),
             Constant::Bool(v) => v.hash(state),
         }
     }
@@ -860,7 +863,7 @@ impl fmt::Display for Constant {
             Self::Int(v) => write!(f, "{}", v),
             Self::Float(v) => write!(f, "{}", v),
             Self::String(v) => write!(f, "{:?}", v),
-            Self::Array(v) => write!(f, "{:?}", v),
+            Self::Array(v, _) => write!(f, "{:?}", v),
             Self::Bool(v) => write!(f, "{}", v),
         }
     }
@@ -1199,6 +1202,7 @@ pub(crate) enum CastType {
     Float(u32),
     Pointer,
     Object,
+    Trait,
 }
 
 impl CastType {
@@ -1231,6 +1235,7 @@ impl CastType {
                     FLOAT_ID => CastType::Float(64),
                     _ => CastType::Object,
                 },
+                Ok(TypeEnum::TraitInstance(_)) => CastType::Trait,
                 _ => CastType::Object,
             }
         }
@@ -2157,7 +2162,7 @@ pub(crate) struct Mir {
     /// This is used to determine what methods we need to generate dynamic
     /// dispatch hashes for.
     pub(crate) dynamic_calls:
-        IndexMap<MethodId, IndexSet<(MethodId, Vec<Shape>)>>,
+        IndexMap<MethodId, IndexSet<(MethodId, Vec<TypeRef>)>>,
 }
 
 impl Mir {
@@ -2284,16 +2289,18 @@ impl Mir {
                 // module changes _or_ the module of the closure's `self` type,
                 // because changes to the `self` type may affect how the closure
                 // is generated.
-                if let Some(stype) = tid.specialization_key(&state.db).self_type
-                {
-                    let self_node = state.dependency_graph.add_module(
-                        stype
-                            .as_type_instance()
-                            .unwrap()
-                            .instance_of()
-                            .module(&state.db)
-                            .name(&state.db),
-                    );
+                if let Some(stype) = tid.self_type_for_closure(&state.db) {
+                    let self_mod = match stype {
+                        ClosureSelfType::TypeInstance(t) => {
+                            t.instance_of().module(&state.db)
+                        }
+                        ClosureSelfType::Type(t) => t.module(&state.db),
+                        ClosureSelfType::Module(t) => t,
+                    };
+
+                    let self_node = state
+                        .dependency_graph
+                        .add_module(self_mod.name(&state.db));
 
                     state
                         .dependency_graph
