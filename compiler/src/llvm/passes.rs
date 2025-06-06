@@ -49,7 +49,7 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::thread::scope;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use types::module_name::ModuleName;
-use types::{Database, Intrinsic, Shape, SpecializationKey, TypeId, TypeRef};
+use types::{Database, Intrinsic, TypeId, TypeRef};
 
 const NIL_VALUE: bool = false;
 
@@ -349,6 +349,8 @@ pub(crate) fn lower_all(
 
                 paths.append(&mut res.paths);
                 timings.extend(res.timings.into_iter());
+            } else {
+                return Err("one or more LLVM threads panicked".to_string());
             }
         }
 
@@ -850,37 +852,20 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
             }
             Constant::String(val) => self.new_string(builder, val),
             Constant::Bool(v) => builder.bool_literal(*v).as_basic_value_enum(),
-            Constant::Array(values) => {
-                let (shape, val_typ) = match values.first() {
-                    Some(Constant::Int(_)) => (
-                        Shape::int(),
-                        builder.context.i64_type().as_basic_type_enum(),
-                    ),
-                    Some(Constant::Bool(_)) => (
-                        Shape::Boolean,
-                        builder.context.bool_type().as_basic_type_enum(),
-                    ),
-                    Some(Constant::Float(_)) => (
-                        Shape::float(),
-                        builder.context.f64_type().as_basic_type_enum(),
-                    ),
-                    Some(Constant::String(_)) => (
-                        Shape::String,
-                        builder.context.pointer_type().as_basic_type_enum(),
-                    ),
-                    Some(Constant::Array(_)) => (
-                        Shape::Ref,
-                        builder.context.pointer_type().as_basic_type_enum(),
-                    ),
-                    _ => (
-                        Shape::Owned,
-                        builder.context.pointer_type().as_basic_type_enum(),
-                    ),
-                };
+            Constant::Array(vals, typ) => {
+                let tid = typ.type_id(&self.shared.state.db).unwrap();
+                let arg = tid
+                    .type_arguments(&self.shared.state.db)
+                    .unwrap()
+                    .values()
+                    .next()
+                    .unwrap();
+                let val_typ = builder.context.llvm_type(
+                    &self.shared.state.db,
+                    self.layouts,
+                    arg,
+                );
 
-                let key = SpecializationKey::new(vec![shape]);
-                let tid = TypeId::array()
-                    .specializations(&self.shared.state.db)[&key];
                 let layout = self.layouts.instances[tid.0 as usize];
                 let array = builder.allocate_instance(
                     self.module,
@@ -889,7 +874,7 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
                     tid,
                 );
 
-                let buf_typ = val_typ.array_type(values.len() as _);
+                let buf_typ = val_typ.array_type(vals.len() as _);
 
                 // The memory of array constants is statically allocated, as we
                 // never need to resize it. Using malloc() would also mean that
@@ -906,14 +891,14 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
                     &buf_typ.const_zero().as_basic_value_enum(),
                 );
 
-                for (index, arg) in values.iter().enumerate() {
+                for (index, arg) in vals.iter().enumerate() {
                     let val = self.permanent_value(builder, arg);
 
                     builder
                         .store_array_field(buf_typ, buf_ptr, index as _, val);
                 }
 
-                let len = builder.i64_literal(values.len() as _);
+                let len = builder.i64_literal(vals.len() as _);
 
                 builder.store_field(layout, array, ARRAY_SIZE_INDEX, len);
                 builder.store_field(layout, array, ARRAY_CAPA_INDEX, len);
@@ -2610,6 +2595,9 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                         // special we need to do in this case.
                         self.builder.load(src_typ, src_var)
                     }
+                    // Only heap allocated values can be cast to a trait, and
+                    // there's nothing special to do for such cases.
+                    (_, CastType::Trait) => self.builder.load(src_typ, src_var),
                     _ => unreachable!(),
                 };
 
