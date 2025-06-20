@@ -74,10 +74,10 @@ fn module_name_from_path(config: &Config, file: &Path) -> ModuleName {
 pub(crate) fn module_debug_path(module: &ModuleName) -> PathBuf {
     let name = module.as_str();
 
-    // When splitting modules we include the type shapes in the name in order to
+    // When splitting modules we include the types in the name in order to
     // prevent naming conflicts. This can result in very long file names,
     // possibly longer than the file system allows. To prevent that from
-    // becoming a problem, we hash the shapes if they're present.
+    // becoming a problem, we hash the type names if they're present.
     if let Some((head, tail)) = name.split_once("<closure>") {
         PathBuf::from(format!(
             "{}<closure>{}",
@@ -288,10 +288,6 @@ impl Compiler {
         // At this point we can get rid of various data structures stored in the
         // type database. This must be done _after_ specialization.
         self.state.db.compact();
-
-        // Splitting is done _after_ specialization, since specialization
-        // introduces new types and methods.
-        mir.split_modules(&mut self.state);
 
         // Symbol names are needed to ensure certain passes can operate on data
         // in a stable order, which in turn is needed to ensure incremental
