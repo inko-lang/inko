@@ -333,6 +333,10 @@ impl MethodCall {
         // arguments.
         if let Some(ins) = method.implemented_trait_instance(&state.db) {
             ins.copy_type_arguments_into(&state.db, &mut type_arguments);
+
+            // This is needed so that when we specialize types, the inherited
+            // parameters are also specialized correctly.
+            copy_inherited_type_arguments(&state.db, ins, &mut type_arguments);
         }
 
         let require_sendable = receiver.require_sendable_arguments(&state.db)

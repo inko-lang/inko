@@ -333,7 +333,7 @@ impl<'a> TypeResolver<'a> {
 mod tests {
     use super::*;
     use crate::test::{
-        any, closure, generic_instance_id, generic_trait_instance,
+        any, closure, generic_instance, generic_trait_instance,
         generic_trait_instance_id, immutable, immutable_uni, instance, mutable,
         mutable_uni, new_parameter, new_trait, owned, parameter, placeholder,
         pointer, rigid, type_arguments, type_bounds, uni,
@@ -420,13 +420,10 @@ mod tests {
 
         array.new_type_parameter(&mut db, "T".to_string());
 
-        let int_array = owned(generic_instance_id(
-            &mut db,
-            array,
-            vec![owned(instance(int))],
-        ));
+        let int_array =
+            owned(generic_instance(&mut db, array, vec![owned(instance(int))]));
 
-        let input = owned(generic_instance_id(&mut db, array, vec![int_array]));
+        let input = owned(generic_instance(&mut db, array, vec![int_array]));
         let resolved = resolve_immutable(
             &mut db,
             &TypeArguments::new(),
@@ -758,7 +755,7 @@ mod tests {
         let array_param = array.new_type_parameter(&mut db, "T".to_string());
         let args = type_arguments(vec![(param, owned(instance(string)))]);
         let bounds = TypeBounds::new();
-        let input = owned(generic_instance_id(
+        let input = owned(generic_instance(
             &mut db,
             array,
             vec![owned(parameter(param))],
@@ -789,7 +786,7 @@ mod tests {
             (param3, owned(instance(string))),
         ]);
         let bounds = TypeBounds::new();
-        let input = owned(generic_instance_id(
+        let input = owned(generic_instance(
             &mut db,
             array,
             vec![owned(parameter(param1))],
