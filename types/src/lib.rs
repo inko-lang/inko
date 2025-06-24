@@ -20,7 +20,7 @@ use indexmap::IndexMap;
 use location::Location;
 use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
 use std::path::PathBuf;
 
 // The IDs of these built-in types must match the order of the fields in the
@@ -478,6 +478,17 @@ pub struct TypeArguments {
 }
 
 impl TypeArguments {
+    pub(crate) fn alloc(db: &mut Database, arguments: TypeArguments) -> u32 {
+        let len = db.type_arguments.len();
+
+        assert!(len < u32::MAX as usize);
+
+        let id = len as u32;
+
+        db.type_arguments.push(arguments);
+        id
+    }
+
     pub fn for_type(db: &Database, instance: TypeInstance) -> TypeArguments {
         if instance.instance_of().is_generic(db) {
             instance.type_arguments(db).unwrap().clone()
@@ -584,6 +595,10 @@ impl TypeArguments {
         self.mapping.values_mut()
     }
 
+    pub fn values(&self) -> impl Iterator<Item = TypeRef> + '_ {
+        self.mapping.values().cloned()
+    }
+
     pub fn is_empty(&self) -> bool {
         self.mapping.is_empty()
     }
@@ -591,31 +606,33 @@ impl TypeArguments {
     pub fn iter(&self) -> indexmap::map::Iter<TypeParameterId, TypeRef> {
         self.mapping.iter()
     }
+
+    pub fn len(&self) -> usize {
+        self.mapping.len()
+    }
+
+    pub fn get_parameter_at(
+        &mut self,
+        index: usize,
+    ) -> Option<TypeParameterId> {
+        self.mapping.get_index(index).map(|(&k, _)| k)
+    }
 }
 
 /// A type that maps/interns type arguments, such that structurually different
 /// but semantically equivalent type arguments all map to the same type arguments
 /// ID.
-///
-/// As part of type specialization we want to specialize over specific types,
-/// such as when using `Shape::Stack`. Since type argument IDs differ for
-/// different occurrences of the same generic type instance, we need a way to
-/// map those to a common type arguments ID. If we don't do this, we may end up
-/// specializing the same type many times.
 pub struct InternedTypeArguments {
-    /// A cache that maps the raw type instances to their interned type
+    /// A cache that maps the raw type enums to their interned type
     /// arguments ID.
     ///
     /// This cache is used to avoid the more expensive key generation process
     /// when comparing the exact same type many times.
-    cache: HashMap<TypeInstance, u32>,
+    cache: HashMap<TypeRef, u32>,
 
-    /// A mapping of the flattened type IDs from a type instance to the common
+    /// A mapping of the flattened type enums from a type instance to the common
     /// type arguments ID.
-    ///
-    /// For ClassInstance and TraitInstance types, the TypeId is stripped of its
-    /// TypeArguments ID such that it's consistent when hashed.
-    mapping: HashMap<Vec<TypeEnum>, u32>,
+    mapping: HashMap<Vec<TypeRef>, u32>,
 }
 
 impl InternedTypeArguments {
@@ -623,63 +640,80 @@ impl InternedTypeArguments {
         InternedTypeArguments { cache: HashMap::new(), mapping: HashMap::new() }
     }
 
-    pub fn intern(&mut self, db: &Database, instance: TypeInstance) -> u32 {
+    fn intern(&mut self, db: &Database, typ: TypeEnum) -> u32 {
+        let root = TypeRef::Owned(typ);
+
         // The cache is used such that if we use the exact same type N times, we
         // only perform the more expensive type walking once.
-        if let Some(&id) = self.cache.get(&instance) {
+        if let Some(&id) = self.cache.get(&root) {
             return id;
         }
 
         let mut key = Vec::new();
-        let mut stack = vec![TypeEnum::TypeInstance(instance)];
+        let mut stack = vec![root];
 
-        while let Some(tid) = stack.pop() {
-            let (val, args) = match tid {
-                // When encountering a specialized type, we use the source type
-                // ID instead such that we always operate on the same stable ID
-                // for all specializations.
-                TypeEnum::TypeInstance(i) => (
-                    TypeEnum::TypeInstance(TypeInstance::new(
-                        i.source_type(db),
-                    )),
-                    if i.instance_of.is_generic(db) {
-                        i.type_arguments(db)
-                    } else {
-                        None
-                    },
-                ),
-                TypeEnum::TraitInstance(i)
-                    if i.instance_of().is_generic(db) =>
-                {
-                    (
-                        TypeEnum::TraitInstance(TraitInstance::new(
-                            i.instance_of,
-                        )),
-                        i.type_arguments(db),
-                    )
+        while let Some(typ) = stack.pop() {
+            // When interning we need to take ownership into account, such that
+            // type arguments `{ T => owned A }` and `{ T => ref A }` are _not_
+            // treated as the same thing.
+            let (val, args) = match typ {
+                TypeRef::Owned(t) | TypeRef::Any(t) => {
+                    let (t, a) = t.prepare_interning(db);
+
+                    (TypeRef::Owned(t), a)
                 }
-                _ => (tid, None),
+                TypeRef::Uni(t) => {
+                    let (t, a) = t.prepare_interning(db);
+
+                    (TypeRef::Uni(t), a)
+                }
+                TypeRef::Ref(t) => {
+                    let (t, a) = t.prepare_interning(db);
+
+                    (TypeRef::Ref(t), a)
+                }
+                TypeRef::Mut(t) => {
+                    let (t, a) = t.prepare_interning(db);
+
+                    (TypeRef::Mut(t), a)
+                }
+                TypeRef::UniRef(t) => {
+                    let (t, a) = t.prepare_interning(db);
+
+                    (TypeRef::UniRef(t), a)
+                }
+                TypeRef::UniMut(t) => {
+                    let (t, a) = t.prepare_interning(db);
+
+                    (TypeRef::UniMut(t), a)
+                }
+                TypeRef::Pointer(t) => {
+                    let (t, a) = t.prepare_interning(db);
+
+                    (TypeRef::Pointer(t), a)
+                }
+                _ => (typ, None),
             };
 
             if let Some(args) = args {
-                // The order of type arguments isn't reliable, so we have to
-                // explicitly sort things first.
                 let mut pairs = args.pairs();
 
+                // While TypeArguments uses an IndexMap and thus presents a
+                // stable order, that order is still based on what order pairs
+                // are inserted in. Sorting the pairs by ID here ensures that
+                // the order is consistent across different TypeArguments,
+                // regardless of what order pairs are inserted in.
                 pairs.sort_by_key(|(p, _)| *p);
-                stack.extend(
-                    pairs
-                        .into_iter()
-                        .flat_map(|(_, t)| t.as_type_enum(db).ok()),
-                );
+                stack.extend(pairs.into_iter().map(|(_, t)| t));
             }
 
             key.push(val);
         }
 
-        let id = *self.mapping.entry(key).or_insert(instance.type_arguments);
+        let id =
+            *self.mapping.entry(key).or_insert_with(|| typ.type_arguments_id());
 
-        self.cache.insert(instance, id);
+        self.cache.insert(root, id);
         id
     }
 }
@@ -733,6 +767,15 @@ pub struct Trait {
     /// A flag indicating if instances of types can be safely cast to this
     /// trait.
     cast_safe: bool,
+
+    /// The specializations of this type.
+    specializations: IndexMap<SpecializationKey, TraitId>,
+
+    /// The ID of the trait this trait is a specialization of.
+    specialization_source: Option<TraitId>,
+
+    /// The type arguments if this trait is a specialized trait.
+    type_arguments: Option<TypeArguments>,
 }
 
 impl Trait {
@@ -771,6 +814,9 @@ impl Trait {
             required_methods: IndexMap::new(),
             inherited_type_arguments: TypeArguments::new(),
             cast_safe: true,
+            specializations: IndexMap::new(),
+            specialization_source: None,
+            type_arguments: None,
         }
     }
 
@@ -940,6 +986,68 @@ impl TraitId {
         self.get(db).module
     }
 
+    pub fn specialization_source(self, db: &Database) -> Option<TraitId> {
+        self.get(db).specialization_source
+    }
+
+    pub(crate) fn set_specialization_source(
+        self,
+        db: &mut Database,
+        typ: TraitId,
+    ) {
+        self.get_mut(db).specialization_source = Some(typ);
+    }
+
+    pub(crate) fn specializations(
+        self,
+        db: &Database,
+    ) -> &IndexMap<SpecializationKey, TraitId> {
+        &self.get(db).specializations
+    }
+
+    pub(crate) fn add_specialization(
+        self,
+        db: &mut Database,
+        key: SpecializationKey,
+        typ: TraitId,
+    ) {
+        self.get_mut(db).specializations.insert(key, typ);
+    }
+
+    pub fn set_type_arguments(
+        self,
+        db: &mut Database,
+        arguments: TypeArguments,
+    ) {
+        self.get_mut(db).type_arguments = Some(arguments);
+    }
+
+    pub fn type_arguments(self, db: &Database) -> Option<&TypeArguments> {
+        self.get(db).type_arguments.as_ref()
+    }
+
+    pub(crate) fn clone_for_specialization(self, db: &mut Database) -> TraitId {
+        let src = self.get(db);
+
+        Trait::alloc(
+            db,
+            src.name.clone(),
+            src.visibility,
+            src.module,
+            src.location,
+        )
+    }
+
+    pub(crate) fn add_type_parameter(
+        self,
+        db: &mut Database,
+        parameter: TypeParameterId,
+    ) {
+        let name = parameter.name(db).clone();
+
+        self.get_mut(db).type_parameters.insert(name, parameter);
+    }
+
     fn get(self, db: &Database) -> &Trait {
         &db.traits[self.0 as usize]
     }
@@ -1022,14 +1130,9 @@ impl TraitInstance {
         instance_of: TraitId,
         arguments: TypeArguments,
     ) -> Self {
-        assert!(db.type_arguments.len() < u32::MAX as usize);
-
-        let type_args_id = db.type_arguments.len() as u32;
-
-        db.type_arguments.push(arguments);
         TraitInstance {
             instance_of,
-            type_arguments: type_args_id,
+            type_arguments: TypeArguments::alloc(db, arguments),
             self_type: false,
         }
     }
@@ -1078,12 +1181,40 @@ impl TraitInstance {
         self
     }
 
+    pub(crate) fn with_new_type_arguments(
+        mut self,
+        db: &mut Database,
+        new: TypeArguments,
+    ) -> Self {
+        self.type_arguments = TypeArguments::alloc(db, new);
+        self
+    }
+
+    pub(crate) fn interned(
+        self,
+        db: &Database,
+        interned: &mut InternedTypeArguments,
+    ) -> TraitInstance {
+        let targs = if self.instance_of.is_generic(db) {
+            interned.intern(db, TypeEnum::TraitInstance(self))
+        } else {
+            0
+        };
+
+        TraitInstance {
+            instance_of: self.instance_of,
+            self_type: self.self_type,
+            type_arguments: targs,
+        }
+    }
+
     fn named_type(self, db: &Database, name: &str) -> Option<Symbol> {
         self.instance_of.named_type(db, name)
     }
 }
 
 /// A field for a type.
+#[derive(Clone)]
 pub struct Field {
     index: usize,
     name: String,
@@ -1105,18 +1236,25 @@ impl Field {
         module: ModuleId,
         location: Location,
     ) -> FieldId {
+        Self::add(
+            db,
+            Field {
+                name,
+                index,
+                value_type,
+                visibility,
+                mutable: false,
+                module,
+                location,
+                documentation: String::new(),
+            },
+        )
+    }
+
+    fn add(db: &mut Database, field: Field) -> FieldId {
         let id = db.fields.len();
 
-        db.fields.push(Field {
-            name,
-            index,
-            value_type,
-            visibility,
-            mutable: false,
-            module,
-            location,
-            documentation: String::new(),
-        });
+        db.fields.push(field);
         FieldId(id)
     }
 }
@@ -1179,6 +1317,12 @@ impl FieldId {
 
     pub fn is_mutable(self, db: &Database) -> bool {
         self.get(db).mutable
+    }
+
+    pub fn clone_for_specialization(self, db: &mut Database) -> FieldId {
+        let new = self.get(db).clone();
+
+        Field::add(db, new)
     }
 
     fn get(self, db: &Database) -> &Field {
@@ -1415,9 +1559,8 @@ impl TypeKind {
 /// A type used as the key for a type specialization lookup.
 #[derive(Eq, PartialEq, Hash, Clone, Debug)]
 pub struct SpecializationKey {
-    /// The shapes of the type, in the same order as the type parameters they
-    /// belong to.
-    pub shapes: Vec<Shape>,
+    /// The types of each type parameter, in a consistent order.
+    pub types: Vec<TypeRef>,
 
     /// Closures may be defined in a default method, in which case we should
     /// specialize them for every type that implements the corresponding trait.
@@ -1425,19 +1568,42 @@ pub struct SpecializationKey {
 }
 
 impl SpecializationKey {
-    pub fn empty() -> SpecializationKey {
-        SpecializationKey { shapes: Vec::new(), self_type: None }
+    pub fn empty() -> Self {
+        Self { types: Vec::new(), self_type: None }
     }
 
-    pub fn new(shapes: Vec<Shape>) -> SpecializationKey {
-        SpecializationKey { self_type: None, shapes }
+    pub fn new(type_arguments: &TypeArguments) -> Self {
+        let types = type_arguments.iter().map(|(_, v)| *v).collect();
+
+        Self { self_type: None, types }
     }
 
     pub fn for_closure(
         self_type: TypeEnum,
-        shapes: Vec<Shape>,
-    ) -> SpecializationKey {
-        SpecializationKey { self_type: Some(self_type), shapes }
+        type_arguments: &TypeArguments,
+    ) -> Self {
+        let types = type_arguments.iter().map(|(_, v)| *v).collect();
+
+        Self { self_type: Some(self_type), types }
+    }
+}
+
+/// The type of `self` inside a closure.
+#[derive(Copy, Clone)]
+pub enum ClosureSelfType {
+    Type(TypeId),
+    TypeInstance(TypeInstance),
+    Module(ModuleId),
+}
+
+impl From<TypeEnum> for ClosureSelfType {
+    fn from(value: TypeEnum) -> Self {
+        match value {
+            TypeEnum::Module(id) => Self::Module(id),
+            TypeEnum::Type(id) => Self::Type(id),
+            TypeEnum::TypeInstance(ins) => Self::TypeInstance(ins),
+            _ => unreachable!("unsupported TypeEnum value"),
+        }
     }
 }
 
@@ -1474,8 +1640,11 @@ pub struct Type {
     /// The ID of the type this type is a specialization of.
     specialization_source: Option<TypeId>,
 
-    /// The type specialization key used for this type.
-    specialization_key: SpecializationKey,
+    /// The type of `self` if this type is a type specialized from a closure.
+    self_type_for_closure: Option<ClosureSelfType>,
+
+    /// The type arguments if this type is a specialized type.
+    type_arguments: Option<TypeArguments>,
 }
 
 impl Type {
@@ -1530,7 +1699,8 @@ impl Type {
             location,
             specializations: IndexMap::new(),
             specialization_source: None,
-            specialization_key: SpecializationKey::empty(),
+            type_arguments: None,
+            self_type_for_closure: None,
         }
     }
 
@@ -1771,17 +1941,17 @@ impl TypeId {
         location: Location,
     ) -> FieldId {
         let id = Field::alloc(
-            db,
-            name.clone(),
-            index,
-            value_type,
-            visibility,
-            module,
-            location,
+            db, name, index, value_type, visibility, module, location,
         );
 
-        self.get_mut(db).fields.insert(name, id);
+        self.add_field(db, id);
         id
+    }
+
+    pub fn add_field(self, db: &mut Database, field: FieldId) {
+        let name = field.name(db).clone();
+
+        self.get_mut(db).fields.insert(name, field);
     }
 
     pub fn is_generic(self, db: &Database) -> bool {
@@ -1877,14 +2047,6 @@ impl TypeId {
         self.get(db).module
     }
 
-    pub fn set_specialization_key(
-        self,
-        db: &mut Database,
-        key: SpecializationKey,
-    ) {
-        self.get_mut(db).specialization_key = key;
-    }
-
     pub fn specialization_source(self, db: &Database) -> Option<TypeId> {
         self.get(db).specialization_source
     }
@@ -1893,13 +2055,39 @@ impl TypeId {
         self.get_mut(db).specialization_source = Some(typ);
     }
 
-    pub fn add_specialization(
+    pub fn set_type_arguments(
+        self,
+        db: &mut Database,
+        arguments: TypeArguments,
+    ) {
+        self.get_mut(db).type_arguments = Some(arguments);
+    }
+
+    pub fn set_self_type_for_closure(
+        self,
+        db: &mut Database,
+        typ: ClosureSelfType,
+    ) {
+        self.get_mut(db).self_type_for_closure = Some(typ);
+    }
+
+    pub fn self_type_for_closure(
+        self,
+        db: &Database,
+    ) -> Option<ClosureSelfType> {
+        self.get(db).self_type_for_closure
+    }
+
+    pub fn type_arguments(self, db: &Database) -> Option<&TypeArguments> {
+        self.get(db).type_arguments.as_ref()
+    }
+
+    pub(crate) fn add_specialization(
         self,
         db: &mut Database,
         key: SpecializationKey,
         typ: TypeId,
     ) {
-        typ.set_specialization_key(db, key.clone());
         self.get_mut(db).specializations.insert(key, typ);
     }
 
@@ -1908,14 +2096,6 @@ impl TypeId {
         db: &Database,
     ) -> &IndexMap<SpecializationKey, TypeId> {
         &self.get(db).specializations
-    }
-
-    pub fn specialization_key(self, db: &Database) -> &SpecializationKey {
-        &self.get(db).specialization_key
-    }
-
-    pub fn shapes(self, db: &Database) -> &Vec<Shape> {
-        &self.get(db).specialization_key.shapes
     }
 
     pub fn number_of_type_parameters(self, db: &Database) -> usize {
@@ -1935,6 +2115,16 @@ impl TypeId {
 
         self.get_mut(db).type_parameters.insert(name, param);
         param
+    }
+
+    pub(crate) fn add_type_parameter(
+        self,
+        db: &mut Database,
+        parameter: TypeParameterId,
+    ) {
+        let name = parameter.name(db).clone();
+
+        self.get_mut(db).type_parameters.insert(name, parameter);
     }
 
     pub fn mark_as_having_destructor(self, db: &mut Database) {
@@ -2027,7 +2217,7 @@ impl TypeId {
         self.get_mut(db).storage = Storage::Copy;
     }
 
-    pub fn clone_for_specialization(self, db: &mut Database) -> TypeId {
+    pub(crate) fn clone_for_specialization(self, db: &mut Database) -> TypeId {
         let src = self.get(db);
         let mut new = Type::new(
             src.name.clone(),
@@ -2133,12 +2323,10 @@ impl TypeInstance {
         instance_of: TypeId,
         arguments: TypeArguments,
     ) -> Self {
-        assert!(db.type_arguments.len() < u32::MAX as usize);
-
-        let args_id = db.type_arguments.len() as u32;
-
-        db.type_arguments.push(arguments);
-        TypeInstance { instance_of, type_arguments: args_id }
+        TypeInstance {
+            instance_of,
+            type_arguments: TypeArguments::alloc(db, arguments),
+        }
     }
 
     pub fn with_types(
@@ -2182,6 +2370,15 @@ impl TypeInstance {
         db.type_arguments.get(self.type_arguments as usize)
     }
 
+    pub(crate) fn with_new_type_arguments(
+        mut self,
+        db: &mut Database,
+        new: TypeArguments,
+    ) -> Self {
+        self.type_arguments = TypeArguments::alloc(db, new);
+        self
+    }
+
     pub fn method(self, db: &Database, name: &str) -> Option<MethodId> {
         self.instance_of.method(db, name)
     }
@@ -2200,45 +2397,13 @@ impl TypeInstance {
         self.instance_of.specialization_source(db).unwrap_or(self.instance_of)
     }
 
-    fn shape(
-        self,
-        db: &Database,
-        interned: &mut InternedTypeArguments,
-        default: Shape,
-    ) -> Shape {
-        match self.instance_of.0 {
-            INT_ID => Shape::int(),
-            FLOAT_ID => Shape::float(),
-            BOOL_ID => Shape::Boolean,
-            NIL_ID => Shape::Nil,
-            STRING_ID => Shape::String,
-            _ if self.instance_of.kind(db).is_atomic() => Shape::Atomic,
-            _ if self.instance_of.is_copy_type(db) => {
-                Shape::Copy(self.interned(db, interned))
-            }
-            _ if self.instance_of.is_inline_type(db) => {
-                let ins = self.interned(db, interned);
-
-                match default {
-                    Shape::Mut => Shape::InlineMut(ins),
-                    Shape::Ref => Shape::InlineRef(ins),
-                    _ => Shape::Inline(ins),
-                }
-            }
-            _ => default,
-        }
-    }
-
-    fn interned(
+    pub(crate) fn interned(
         self,
         db: &Database,
         interned: &mut InternedTypeArguments,
     ) -> TypeInstance {
         let targs = if self.instance_of.is_generic(db) {
-            // We need to make sure that for different references to the same
-            // type (e.g. `SomeType[Int]`), the type arguments ID is the same so
-            // we can reliable compare and hash the returned Shape.
-            interned.intern(db, self)
+            interned.intern(db, TypeEnum::TypeInstance(self))
         } else {
             0
         };
@@ -2715,14 +2880,14 @@ pub struct Method {
     ///
     /// Each key is the combination of the receiver and method shapes, in the
     /// same order as their type parameters.
-    specializations: HashMap<Vec<Shape>, MethodId>,
+    specializations: HashMap<Vec<TypeRef>, MethodId>,
 
-    /// The shapes of this method's type parameters, if any.
+    /// The arguments of this method's type parameters, if any.
     ///
-    /// For static methods this list starts with the shapes of the surrounding
-    /// type's type parameters, if any. For instance methods, we only include
-    /// the shapes of the method's type parameters.
-    shapes: Vec<Shape>,
+    /// For static methods this list starts with the arguments of the
+    /// surrounding type's type parameters, if any. For instance methods, we
+    /// only include the arguments of the method's type parameters.
+    type_arguments: Vec<TypeRef>,
 }
 
 impl Method {
@@ -2768,7 +2933,7 @@ impl Method {
             main: false,
             variadic: false,
             specializations: HashMap::new(),
-            shapes: Vec::new(),
+            type_arguments: Vec::new(),
             inline,
         };
 
@@ -2794,6 +2959,10 @@ impl MethodId {
 
     pub fn type_parameters(self, db: &Database) -> Vec<TypeParameterId> {
         self.get(db).type_parameters.values().cloned().collect()
+    }
+
+    pub fn number_of_type_parameters(self, db: &Database) -> usize {
+        self.get(db).type_parameters.len()
     }
 
     pub fn new_type_parameter(
@@ -2823,6 +2992,10 @@ impl MethodId {
         let rec_id = TypeEnum::TypeInstance(instance);
 
         match self.kind(db) {
+            MethodKind::Static | MethodKind::Constructor => {
+                TypeRef::Owned(TypeEnum::Type(instance.instance_of()))
+            }
+
             // Async methods always access `self` through a reference even
             // though processes are value types. This way we prevent immutable
             // async methods from being able to mutate the process' internal
@@ -2840,9 +3013,6 @@ impl MethodId {
             MethodKind::Instance => TypeRef::Ref(rec_id),
             MethodKind::Mutable | MethodKind::Destructor => {
                 TypeRef::Mut(rec_id)
-            }
-            MethodKind::Static | MethodKind::Constructor => {
-                TypeRef::Owned(TypeEnum::Type(instance.instance_of()))
             }
             MethodKind::Moving => TypeRef::Owned(rec_id),
             MethodKind::Extern => TypeRef::Unknown,
@@ -3093,26 +3263,30 @@ impl MethodId {
     pub fn add_specialization(
         self,
         db: &mut Database,
-        shapes: Vec<Shape>,
+        key: Vec<TypeRef>,
         method: MethodId,
     ) {
-        self.get_mut(db).specializations.insert(shapes, method);
+        self.get_mut(db).specializations.insert(key, method);
     }
 
-    pub fn set_shapes(self, db: &mut Database, shapes: Vec<Shape>) {
-        self.get_mut(db).shapes = shapes;
+    pub fn set_type_arguments(
+        self,
+        db: &mut Database,
+        arguments: Vec<TypeRef>,
+    ) {
+        self.get_mut(db).type_arguments = arguments;
     }
 
-    pub fn shapes(self, db: &Database) -> &Vec<Shape> {
-        &self.get(db).shapes
+    pub fn type_arguments(self, db: &Database) -> &Vec<TypeRef> {
+        &self.get(db).type_arguments
     }
 
     pub fn specialization(
         self,
         db: &Database,
-        shapes: &[Shape],
+        key: &[TypeRef],
     ) -> Option<MethodId> {
-        self.get(db).specializations.get(shapes).cloned()
+        self.get(db).specializations.get(key).cloned()
     }
 
     pub fn specializations(self, db: &Database) -> Vec<MethodId> {
@@ -3904,6 +4078,9 @@ pub struct Closure {
     captured_self_type: Option<TypeRef>,
     arguments: Arguments,
     return_type: TypeRef,
+
+    /// The ID of the closure this closure is a specialization of.
+    specialization_source: Option<ClosureId>,
 }
 
 impl Closure {
@@ -3927,6 +4104,7 @@ impl Closure {
             captured: HashSet::new(),
             arguments: Arguments::new(),
             return_type: TypeRef::Unknown,
+            specialization_source: None,
         }
     }
 }
@@ -4018,6 +4196,31 @@ impl ClosureId {
         &db.closures[self.0]
     }
 
+    pub(crate) fn clone_for_specialization(
+        self,
+        db: &mut Database,
+    ) -> ClosureId {
+        let src = self.get(db);
+        let new = Closure::new(src.moving);
+
+        Closure::add(db, new)
+    }
+
+    pub(crate) fn specialization_source(
+        self,
+        db: &Database,
+    ) -> Option<ClosureId> {
+        self.get(db).specialization_source
+    }
+
+    pub(crate) fn set_specialization_source(
+        self,
+        db: &mut Database,
+        typ: ClosureId,
+    ) {
+        self.get_mut(db).specialization_source = Some(typ);
+    }
+
     fn get_mut(self, db: &mut Database) -> &mut Closure {
         &mut db.closures[self.0]
     }
@@ -4060,168 +4263,16 @@ impl Sign {
     }
 }
 
-/// A type describing the "shape" of a type, which describes its size on the
-/// stack, how to create aliases, etc.
-///
-/// The implementations of Hash and PartialEq are such that any type argument
-/// IDs stored (e.g. as part of the `Stack` shape) are ignored. This allows for
-/// consistent/reliable hashing/lookups using shapes.
-///
-/// For shapes that store a `ClassInstance`, the type arguments are first
-/// interned such that different references of the same type produce the same
-/// type arguments IDs.
-#[derive(Debug, Eq, Clone, Copy)]
+/// A type that describes the ownership "shape" of a value, used during type
+/// specialization.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Shape {
-    /// An owned value addressed through a pointer.
-    Owned,
-
-    /// A mutable reference to a value.
-    Mut,
-
-    /// An immutable reference to a value.
-    Ref,
-
-    /// A 64-bits unboxed integer.
-    ///
-    /// The arguments are:
-    ///
-    /// 1. The size in bits
-    /// 2. The sign of the integer
-    Int(u32, Sign),
-
-    /// A 64-bits unboxed float.
-    ///
-    /// The argument is the size in bits.
-    Float(u32),
-
-    /// A boolean.
-    Boolean,
-
-    /// A string using atomic reference counting.
-    String,
-
-    /// The nil singleton.
-    Nil,
-
-    /// An owned value that uses atomic reference counting.
+    Copy,
     Atomic,
-
-    /// A raw C pointer.
-    ///
-    /// This is a dedicated shape because:
-    ///
-    /// - Pointers aren't necessarily integers (e.g. with CHERI)
-    /// - It better signals the purpose is for raw pointers and not random
-    ///   integers
-    Pointer,
-
-    /// A stack allocated value type.
-    Copy(TypeInstance),
-
-    /// A stack allocated, owned type.
-    Inline(TypeInstance),
-
-    /// An immutable borrow of an inline type.
-    InlineRef(TypeInstance),
-
-    /// A mutable borrow of an inline type.
-    InlineMut(TypeInstance),
-}
-
-impl Shape {
-    pub fn int() -> Shape {
-        Shape::Int(64, Sign::Signed)
-    }
-
-    pub fn float() -> Shape {
-        Shape::Float(64)
-    }
-
-    pub fn is_foreign(self) -> bool {
-        match self {
-            Shape::Int(64, Sign::Signed) => false,
-            Shape::Int(_, Sign::Unsigned) => true,
-            Shape::Int(_, Sign::Signed) => true,
-            Shape::Float(32) => true,
-            _ => false,
-        }
-    }
-
-    pub fn as_stack_instance(self) -> Option<TypeInstance> {
-        match self {
-            Shape::Copy(v)
-            | Shape::Inline(v)
-            | Shape::InlineMut(v)
-            | Shape::InlineRef(v) => Some(v),
-            _ => None,
-        }
-    }
-}
-
-impl PartialEq for Shape {
-    fn eq(&self, other: &Self) -> bool {
-        use Shape::*;
-
-        match (self, other) {
-            (Owned, Owned) => true,
-            (Mut, Mut) => true,
-            (Ref, Ref) => true,
-            (Int(a1, a2), Int(b1, b2)) => a1 == b1 && a2 == b2,
-            (Float(a), Float(b)) => a == b,
-            (Boolean, Boolean) => true,
-            (String, String) => true,
-            (Nil, Nil) => true,
-            (Atomic, Atomic) => true,
-            (Pointer, Pointer) => true,
-            (Copy(a), Copy(b)) => a.instance_of == b.instance_of,
-            (Inline(a), Inline(b)) => a.instance_of == b.instance_of,
-            (InlineRef(a), InlineRef(b)) => a.instance_of == b.instance_of,
-            (InlineMut(a), InlineMut(b)) => a.instance_of == b.instance_of,
-            _ => false,
-        }
-    }
-}
-
-impl Hash for Shape {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        use Shape::*;
-
-        match self {
-            Owned => state.write_u8(0),
-            Mut => state.write_u8(1),
-            Ref => state.write_u8(2),
-            Int(bits, sign) => {
-                state.write_u8(3);
-                state.write_u32(*bits);
-                sign.hash(state);
-            }
-            Float(bits) => {
-                state.write_u8(4);
-                state.write_u32(*bits)
-            }
-            Boolean => state.write_u8(5),
-            String => state.write_u8(6),
-            Nil => state.write_u8(7),
-            Atomic => state.write_u8(8),
-            Pointer => state.write_u8(9),
-            Copy(i) => {
-                state.write_u8(10);
-                i.instance_of.hash(state);
-            }
-            Inline(i) => {
-                state.write_u8(11);
-                i.instance_of.hash(state);
-            }
-            InlineRef(i) => {
-                state.write_u8(12);
-                i.instance_of.hash(state);
-            }
-            InlineMut(i) => {
-                state.write_u8(13);
-                i.instance_of.hash(state);
-            }
-        }
-    }
+    Inline,
+    InlineBorrow,
+    Borrow,
+    Owned,
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
@@ -5120,6 +5171,10 @@ impl TypeRef {
     }
 
     pub fn as_uni_ref(self, db: &Database) -> Self {
+        if self.is_value_type(db) {
+            return self;
+        }
+
         match self {
             TypeRef::Owned(id)
             | TypeRef::Any(id)
@@ -5140,6 +5195,10 @@ impl TypeRef {
     }
 
     pub fn as_uni_mut(self, db: &Database) -> Self {
+        if self.is_value_type(db) {
+            return self;
+        }
+
         match self {
             TypeRef::Owned(id)
             | TypeRef::Uni(id)
@@ -5600,84 +5659,60 @@ impl TypeRef {
         )))
     }
 
-    pub fn shape(
-        self,
-        db: &Database,
-        interned: &mut InternedTypeArguments,
-        shapes: &IndexMap<TypeParameterId, Shape>,
-    ) -> Shape {
+    pub fn shape(self, db: &Database) -> Shape {
         match self {
-            TypeRef::Owned(TypeEnum::TypeInstance(ins))
-            | TypeRef::Uni(TypeEnum::TypeInstance(ins)) => {
-                ins.shape(db, interned, Shape::Owned)
+            TypeRef::Any(TypeEnum::TypeInstance(i))
+            | TypeRef::Owned(TypeEnum::TypeInstance(i))
+            | TypeRef::Uni(TypeEnum::TypeInstance(i))
+            | TypeRef::Ref(TypeEnum::TypeInstance(i))
+            | TypeRef::Mut(TypeEnum::TypeInstance(i))
+            | TypeRef::UniRef(TypeEnum::TypeInstance(i))
+            | TypeRef::UniMut(TypeEnum::TypeInstance(i))
+                if i.instance_of.is_copy_type(db) =>
+            {
+                Shape::Copy
             }
-            TypeRef::Mut(TypeEnum::TypeInstance(ins))
-            | TypeRef::UniMut(TypeEnum::TypeInstance(ins)) => {
-                ins.shape(db, interned, Shape::Mut)
+            TypeRef::Any(TypeEnum::TypeInstance(i))
+            | TypeRef::Owned(TypeEnum::TypeInstance(i))
+            | TypeRef::Uni(TypeEnum::TypeInstance(i))
+            | TypeRef::Ref(TypeEnum::TypeInstance(i))
+            | TypeRef::Mut(TypeEnum::TypeInstance(i))
+            | TypeRef::UniRef(TypeEnum::TypeInstance(i))
+            | TypeRef::UniMut(TypeEnum::TypeInstance(i))
+                if i.instance_of.is_atomic(db) =>
+            {
+                Shape::Atomic
             }
-            TypeRef::Ref(TypeEnum::TypeInstance(ins))
-            | TypeRef::UniRef(TypeEnum::TypeInstance(ins)) => {
-                ins.shape(db, interned, Shape::Ref)
-            }
-            TypeRef::Any(
-                TypeEnum::TypeParameter(id) | TypeEnum::RigidTypeParameter(id),
-            )
-            | TypeRef::Owned(
-                TypeEnum::TypeParameter(id) | TypeEnum::RigidTypeParameter(id),
-            )
-            | TypeRef::Uni(
-                TypeEnum::TypeParameter(id) | TypeEnum::RigidTypeParameter(id),
-            ) => {
-                // We panic if a shape is missing, as encountering a missing
-                // shape is the result of a compiler bug.
-                shapes.get(&id).cloned().unwrap_or_else(|| {
-                    panic!(
-                        "type parameter '{}' (ID: {}) must be assigned a shape",
-                        id.name(db),
-                        id.0
-                    )
-                })
-            }
-            // These types are the result of specialization, so we can return
-            // the shape directly instead of looking at `shapes`.
-            TypeRef::Owned(TypeEnum::AtomicTypeParameter(_))
-            | TypeRef::Ref(TypeEnum::AtomicTypeParameter(_))
-            | TypeRef::Mut(TypeEnum::AtomicTypeParameter(_)) => Shape::Atomic,
-            TypeRef::Mut(
-                TypeEnum::TypeParameter(id) | TypeEnum::RigidTypeParameter(id),
-            )
-            | TypeRef::UniMut(
-                TypeEnum::TypeParameter(id) | TypeEnum::RigidTypeParameter(id),
-            ) => match shapes.get(&id).cloned() {
-                Some(Shape::Owned) | None => Shape::Mut,
-                Some(Shape::Inline(i)) => Shape::InlineMut(i),
-                Some(shape) => shape,
+            TypeRef::Any(TypeEnum::Foreign(_))
+            | TypeRef::Owned(TypeEnum::Foreign(_))
+            | TypeRef::Uni(TypeEnum::Foreign(_))
+            | TypeRef::Ref(TypeEnum::Foreign(_))
+            | TypeRef::Mut(TypeEnum::Foreign(_))
+            | TypeRef::UniRef(TypeEnum::Foreign(_))
+            | TypeRef::UniMut(TypeEnum::Foreign(_)) => Shape::Copy,
+            TypeRef::Ref(t)
+            | TypeRef::Mut(t)
+            | TypeRef::UniRef(t)
+            | TypeRef::UniMut(t) => match t {
+                TypeEnum::TypeInstance(i)
+                    if i.instance_of.is_inline_type(db) =>
+                {
+                    Shape::InlineBorrow
+                }
+                _ => Shape::Borrow,
             },
-            TypeRef::Ref(
-                TypeEnum::TypeParameter(id) | TypeEnum::RigidTypeParameter(id),
-            )
-            | TypeRef::UniRef(
-                TypeEnum::TypeParameter(id) | TypeEnum::RigidTypeParameter(id),
-            ) => match shapes.get(&id).cloned() {
-                Some(Shape::Owned) | None => Shape::Ref,
-                Some(Shape::Inline(i)) => Shape::InlineRef(i),
-                Some(shape) => shape,
+            TypeRef::Any(t) | TypeRef::Owned(t) | TypeRef::Uni(t) => match t {
+                TypeEnum::TypeInstance(i)
+                    if i.instance_of.is_inline_type(db) =>
+                {
+                    Shape::Inline
+                }
+                _ => Shape::Owned,
             },
-            TypeRef::Mut(_) | TypeRef::UniMut(_) => Shape::Mut,
-            TypeRef::Ref(_) | TypeRef::UniRef(_) => Shape::Ref,
-            TypeRef::Placeholder(id) => id
-                .value(db)
-                .map_or(Shape::Owned, |v| v.shape(db, interned, shapes)),
-            TypeRef::Owned(TypeEnum::Foreign(ForeignType::Int(size, sign)))
-            | TypeRef::Uni(TypeEnum::Foreign(ForeignType::Int(size, sign))) => {
-                Shape::Int(size, sign)
+            TypeRef::Placeholder(p) => {
+                p.value(db).map_or(Shape::Copy, |v| v.shape(db))
             }
-            TypeRef::Owned(TypeEnum::Foreign(ForeignType::Float(size)))
-            | TypeRef::Uni(TypeEnum::Foreign(ForeignType::Float(size))) => {
-                Shape::Float(size)
-            }
-            TypeRef::Pointer(_) => Shape::Pointer,
-            _ => Shape::Owned,
+            _ => Shape::Copy,
         }
     }
 
@@ -5871,6 +5906,44 @@ impl TypeEnum {
             Visibility::TypePrivate => allow_type_private,
         }
     }
+
+    fn prepare_interning(
+        self,
+        db: &Database,
+    ) -> (TypeEnum, Option<&TypeArguments>) {
+        // We may encounter both specialized and unspecialized types at this
+        // point, and they store their type arguments differently, so we need to
+        // account for both cases.
+        match self {
+            Self::TypeInstance(t) if t.instance_of.is_generic(db) => {
+                let args = t
+                    .instance_of
+                    .type_arguments(db)
+                    .or_else(|| t.type_arguments(db));
+                let ins =
+                    Self::TypeInstance(TypeInstance::new(t.source_type(db)));
+
+                (ins, args)
+            }
+            Self::TraitInstance(t) if t.instance_of.is_generic(db) => {
+                let args = t
+                    .instance_of
+                    .type_arguments(db)
+                    .or_else(|| t.type_arguments(db));
+
+                (self, args)
+            }
+            _ => (self, None),
+        }
+    }
+
+    fn type_arguments_id(self) -> u32 {
+        match self {
+            TypeEnum::TypeInstance(i) => i.type_arguments,
+            TypeEnum::TraitInstance(i) => i.type_arguments,
+            _ => 0,
+        }
+    }
 }
 
 /// A database of all Inko types.
@@ -5948,8 +6021,7 @@ impl Database {
         // After specialization, the type arguments are no longer in use.
         // Removing them here frees the memory, and ensures we don't continue to
         // use them by mistake.
-        self.type_arguments.clear();
-        self.type_arguments.shrink_to_fit();
+        self.type_arguments = Vec::new();
     }
 
     pub fn builtin_type(&self, name: &str) -> Option<TypeId> {
@@ -6059,14 +6131,12 @@ impl Database {
 mod tests {
     use super::*;
     use crate::test::{
-        any, closure, generic_instance_id, generic_trait_instance, immutable,
+        any, closure, generic_instance, generic_trait_instance, immutable,
         immutable_uni, instance, mutable, mutable_uni, new_async_type,
         new_enum_type, new_extern_type, new_module, new_parameter, new_trait,
         new_type, owned, parameter, placeholder, pointer, rigid,
         trait_instance, uni,
     };
-    use std::collections::hash_map::RandomState;
-    use std::hash::BuildHasher;
     use std::mem::size_of;
 
     fn assert_sync<T: Sync>() {}
@@ -7357,204 +7427,6 @@ mod tests {
     }
 
     #[test]
-    fn test_type_ref_shape() {
-        let mut db = Database::new();
-        let mut inter = InternedTypeArguments::new();
-        let string = TypeId::string();
-        let int = TypeId::int();
-        let float = TypeId::float();
-        let boolean = TypeId::boolean();
-        let cls1 = new_type(&mut db, "Thing");
-        let cls2 = new_type(&mut db, "Foo");
-        let cls3 = new_type(&mut db, "Bar");
-        let ins = TypeInstance::new(cls1);
-        let var = TypePlaceholder::alloc(&mut db, None);
-        let p1 = new_parameter(&mut db, "A");
-        let p2 = new_parameter(&mut db, "B");
-        let p3 = new_parameter(&mut db, "C");
-        let mut shapes = IndexMap::new();
-
-        cls2.set_copy_storage(&mut db);
-        cls3.set_inline_storage(&mut db);
-        shapes.insert(p1, Shape::int());
-        shapes.insert(p3, Shape::Inline(ins));
-        var.assign(&mut db, TypeRef::int());
-
-        assert_eq!(
-            TypeRef::int().shape(&db, &mut inter, &shapes),
-            Shape::int()
-        );
-        assert_eq!(
-            TypeRef::float().shape(&db, &mut inter, &shapes),
-            Shape::float()
-        );
-        assert_eq!(
-            TypeRef::boolean().shape(&db, &mut inter, &shapes),
-            Shape::Boolean
-        );
-        assert_eq!(TypeRef::nil().shape(&db, &mut inter, &shapes), Shape::Nil);
-        assert_eq!(
-            TypeRef::string().shape(&db, &mut inter, &shapes),
-            Shape::String
-        );
-        assert_eq!(
-            uni(instance(cls1)).shape(&db, &mut inter, &shapes),
-            Shape::Owned
-        );
-        assert_eq!(
-            owned(instance(cls1)).shape(&db, &mut inter, &shapes),
-            Shape::Owned
-        );
-        assert_eq!(
-            immutable(instance(cls1)).shape(&db, &mut inter, &shapes),
-            Shape::Ref
-        );
-        assert_eq!(
-            mutable(instance(cls1)).shape(&db, &mut inter, &shapes),
-            Shape::Mut
-        );
-        assert_eq!(
-            uni(instance(cls1)).shape(&db, &mut inter, &shapes),
-            Shape::Owned
-        );
-        assert_eq!(
-            placeholder(var).shape(&db, &mut inter, &shapes),
-            Shape::int()
-        );
-        assert_eq!(
-            owned(parameter(p1)).shape(&db, &mut inter, &shapes),
-            Shape::int()
-        );
-        assert_eq!(
-            immutable(parameter(p1)).shape(&db, &mut inter, &shapes),
-            Shape::int()
-        );
-        assert_eq!(
-            mutable(parameter(p1)).shape(&db, &mut inter, &shapes),
-            Shape::int()
-        );
-        assert_eq!(
-            owned(TypeEnum::AtomicTypeParameter(p2))
-                .shape(&db, &mut inter, &shapes),
-            Shape::Atomic
-        );
-        assert_eq!(
-            immutable(TypeEnum::AtomicTypeParameter(p2))
-                .shape(&db, &mut inter, &shapes),
-            Shape::Atomic
-        );
-        assert_eq!(
-            mutable(TypeEnum::AtomicTypeParameter(p2))
-                .shape(&db, &mut inter, &shapes),
-            Shape::Atomic
-        );
-
-        assert_eq!(
-            immutable(instance(string)).shape(&db, &mut inter, &shapes),
-            Shape::String
-        );
-        assert_eq!(
-            immutable(instance(int)).shape(&db, &mut inter, &shapes),
-            Shape::int()
-        );
-        assert_eq!(
-            immutable(instance(float)).shape(&db, &mut inter, &shapes),
-            Shape::float()
-        );
-        assert_eq!(
-            immutable(instance(boolean)).shape(&db, &mut inter, &shapes),
-            Shape::Boolean
-        );
-        assert_eq!(
-            mutable(instance(string)).shape(&db, &mut inter, &shapes),
-            Shape::String
-        );
-        assert_eq!(
-            mutable(instance(int)).shape(&db, &mut inter, &shapes),
-            Shape::int()
-        );
-        assert_eq!(
-            mutable(instance(float)).shape(&db, &mut inter, &shapes),
-            Shape::float()
-        );
-        assert_eq!(
-            mutable(instance(boolean)).shape(&db, &mut inter, &shapes),
-            Shape::Boolean
-        );
-        assert_eq!(
-            owned(TypeEnum::Foreign(ForeignType::Int(32, Sign::Signed)))
-                .shape(&db, &mut inter, &shapes),
-            Shape::Int(32, Sign::Signed)
-        );
-        assert_eq!(
-            owned(TypeEnum::Foreign(ForeignType::Int(32, Sign::Unsigned)))
-                .shape(&db, &mut inter, &shapes),
-            Shape::Int(32, Sign::Unsigned)
-        );
-        assert_eq!(
-            uni(TypeEnum::Foreign(ForeignType::Int(32, Sign::Unsigned)))
-                .shape(&db, &mut inter, &shapes),
-            Shape::Int(32, Sign::Unsigned)
-        );
-        assert_eq!(
-            owned(TypeEnum::Foreign(ForeignType::Float(32)))
-                .shape(&db, &mut inter, &shapes),
-            Shape::Float(32)
-        );
-        assert_eq!(
-            owned(TypeEnum::Foreign(ForeignType::Float(64)))
-                .shape(&db, &mut inter, &shapes),
-            Shape::Float(64)
-        );
-        assert_eq!(
-            uni(TypeEnum::Foreign(ForeignType::Float(64)))
-                .shape(&db, &mut inter, &shapes),
-            Shape::Float(64)
-        );
-        assert_eq!(
-            pointer(TypeEnum::Foreign(ForeignType::Int(64, Sign::Signed)))
-                .shape(&db, &mut inter, &shapes),
-            Shape::Pointer
-        );
-        assert_eq!(
-            owned(instance(cls2)).shape(&db, &mut inter, &shapes),
-            Shape::Copy(TypeInstance::new(cls2))
-        );
-        assert_eq!(
-            mutable(instance(cls2)).shape(&db, &mut inter, &shapes),
-            Shape::Copy(TypeInstance::new(cls2))
-        );
-        assert_eq!(
-            immutable(instance(cls2)).shape(&db, &mut inter, &shapes),
-            Shape::Copy(TypeInstance::new(cls2))
-        );
-        assert_eq!(
-            owned(instance(cls3)).shape(&db, &mut inter, &shapes),
-            Shape::Inline(TypeInstance::new(cls3))
-        );
-        assert_eq!(
-            mutable(instance(cls3)).shape(&db, &mut inter, &shapes),
-            Shape::InlineMut(TypeInstance::new(cls3))
-        );
-        assert_eq!(
-            immutable(instance(cls3)).shape(&db, &mut inter, &shapes),
-            Shape::InlineRef(TypeInstance::new(cls3))
-        );
-        assert_eq!(
-            owned(parameter(p3)).shape(&db, &mut inter, &shapes),
-            Shape::Inline(ins)
-        );
-        assert_eq!(
-            mutable(parameter(p3)).shape(&db, &mut inter, &shapes),
-            Shape::InlineMut(ins)
-        );
-        assert_eq!(
-            immutable(parameter(p3)).shape(&db, &mut inter, &shapes),
-            Shape::InlineRef(ins)
-        );
-    }
-
-    #[test]
     fn test_type_ref_type_id() {
         let db = Database::new();
 
@@ -7563,6 +7435,24 @@ mod tests {
             owned(TypeEnum::Type(TypeId::string())).type_id(&db),
             Some(TypeId::string())
         );
+    }
+
+    #[test]
+    fn test_method_id_receiver_for_type_instance_with_static_method() {
+        let mut db = Database::new();
+        let meth = Method::alloc(
+            &mut db,
+            ModuleId(0),
+            Location::default(),
+            "a".to_string(),
+            Visibility::Private,
+            MethodKind::Static,
+        );
+
+        let rec = meth
+            .receiver_for_type_instance(&db, TypeInstance::new(TypeId::int()));
+
+        assert_eq!(rec, owned(TypeEnum::Type(TypeId::int())));
     }
 
     #[test]
@@ -7669,76 +7559,78 @@ mod tests {
         ary_spec.new_type_parameter(&mut db, "B".to_string());
 
         let val1 = {
-            let sub = owned(generic_instance_id(&mut db, ary, vec![int]));
+            let sub = owned(generic_instance(&mut db, ary, vec![int]));
 
-            owned(generic_instance_id(&mut db, ary, vec![sub]))
+            owned(generic_instance(&mut db, ary, vec![sub]))
         };
         let val2 = {
-            let sub = owned(generic_instance_id(&mut db, ary, vec![int]));
+            let sub = owned(generic_instance(&mut db, ary, vec![int]));
 
-            owned(generic_instance_id(&mut db, ary, vec![sub]))
+            owned(generic_instance(&mut db, ary, vec![sub]))
+        };
+        let val3 = {
+            let sub = immutable(generic_instance(&mut db, ary, vec![int]));
+
+            owned(generic_instance(&mut db, ary, vec![sub]))
         };
         let mut targs1 = TypeArguments::new();
         let mut targs2 = TypeArguments::new();
+        let mut targs3 = TypeArguments::new();
 
         targs1.assign(p1, val1);
         targs1.assign(p2, TypeRef::int());
         targs2.assign(p2, TypeRef::int());
         targs2.assign(p1, val2);
+        targs3.assign(p1, val3);
+        targs3.assign(p2, TypeRef::int());
 
         let ins1 = TypeInstance::generic(&mut db, ary, targs1.clone());
         let ins2 = TypeInstance::generic(&mut db, ary, targs2);
         let ins3 = TypeInstance::generic(&mut db, ary_spec, targs1);
-        let id1 = intern.intern(&db, ins1);
-        let id2 = intern.intern(&db, ins2);
-        let id3 = intern.intern(&db, ins1);
-        let id4 = intern.intern(&db, ins2);
-        let id5 = intern.intern(&db, ins3);
+        let ins4 = TypeInstance::generic(&mut db, ary, targs3);
+        let id1 = intern.intern(&db, TypeEnum::TypeInstance(ins1));
+        let id2 = intern.intern(&db, TypeEnum::TypeInstance(ins2));
+        let id3 = intern.intern(&db, TypeEnum::TypeInstance(ins1));
+        let id4 = intern.intern(&db, TypeEnum::TypeInstance(ins2));
+        let id5 = intern.intern(&db, TypeEnum::TypeInstance(ins3));
+        let id6 = intern.intern(&db, TypeEnum::TypeInstance(ins4));
 
         assert_eq!(id1, ins1.type_arguments);
         assert_eq!(id2, id1);
         assert_eq!(id3, id1);
         assert_eq!(id4, id1);
         assert_eq!(id5, id1);
+        assert_ne!(id6, id1);
     }
 
     #[test]
-    fn test_shape_eq() {
-        let ins1 = TypeInstance { instance_of: TypeId(1), type_arguments: 0 };
-        let ins2 = TypeInstance { instance_of: TypeId(1), type_arguments: 10 };
-        let ins3 = TypeInstance { instance_of: TypeId(2), type_arguments: 0 };
+    fn test_interned_already_specialized() {
+        let mut db = Database::new();
+        let mut intern = InternedTypeArguments::new();
+        let foo_orig = new_type(&mut db, "Foo");
+        let foo_spec1 = new_type(&mut db, "Foo");
+        let foo_spec2 = new_type(&mut db, "Foo");
+        let par1 = foo_spec1.new_type_parameter(&mut db, "T".to_string());
+        let par2 = foo_spec2.new_type_parameter(&mut db, "T".to_string());
+        let mut args1 = TypeArguments::new();
+        let mut args2 = TypeArguments::new();
 
-        assert_eq!(Shape::Inline(ins1), Shape::Inline(ins2));
-        assert_ne!(Shape::Inline(ins1), Shape::Inline(ins3));
-        assert_ne!(Shape::Inline(ins1), Shape::InlineRef(ins2));
-        assert_ne!(Shape::Inline(ins1), Shape::InlineMut(ins2));
+        args1.assign(par1, TypeRef::int());
+        args2.assign(par2, TypeRef::float());
 
-        assert_eq!(Shape::InlineRef(ins1), Shape::InlineRef(ins2));
-        assert_ne!(Shape::InlineRef(ins1), Shape::InlineRef(ins3));
-        assert_ne!(Shape::InlineRef(ins1), Shape::InlineMut(ins2));
-        assert_ne!(Shape::InlineRef(ins1), Shape::Inline(ins2));
+        foo_spec1.set_specialization_source(&mut db, foo_orig);
+        foo_spec1.set_type_arguments(&mut db, args1);
+        foo_spec2.set_specialization_source(&mut db, foo_orig);
+        foo_spec2.set_type_arguments(&mut db, args2);
 
-        assert_eq!(Shape::InlineMut(ins1), Shape::InlineMut(ins2));
-        assert_ne!(Shape::InlineMut(ins1), Shape::InlineMut(ins3));
-        assert_ne!(Shape::InlineMut(ins1), Shape::InlineRef(ins2));
-        assert_ne!(Shape::InlineMut(ins1), Shape::Inline(ins2));
-    }
+        let ins1 =
+            TypeInstance::generic(&mut db, foo_spec1, TypeArguments::new())
+                .interned(&db, &mut intern);
+        let ins2 =
+            TypeInstance::generic(&mut db, foo_spec2, TypeArguments::new())
+                .interned(&db, &mut intern);
 
-    #[test]
-    fn test_shape_hash() {
-        let state = RandomState::new();
-        let ins1 = TypeInstance { instance_of: TypeId(1), type_arguments: 0 };
-        let ins2 = TypeInstance { instance_of: TypeId(1), type_arguments: 10 };
-        let ins3 = TypeInstance { instance_of: TypeId(2), type_arguments: 0 };
-
-        assert_eq!(
-            state.hash_one(Shape::Inline(ins1)),
-            state.hash_one(Shape::Inline(ins2)),
-        );
-        assert_ne!(
-            state.hash_one(Shape::Inline(ins1)),
-            state.hash_one(Shape::Inline(ins3)),
-        );
+        assert_ne!(ins1, ins2);
     }
 
     #[test]
@@ -7778,12 +7670,82 @@ mod tests {
             Location::default(),
         );
 
-        let ins = mutable(generic_instance_id(
+        let ins = mutable(generic_instance(
             &mut db,
             thing,
             vec![any(parameter(p2)), any(parameter(p1))],
         ));
 
         assert_eq!(ins.verify_type(&db), Err(VerificationError::DepthExceeded));
+    }
+
+    #[test]
+    fn test_type_ref_shape() {
+        let mut db = Database::new();
+        let heap = new_type(&mut db, "A");
+        let inl = new_type(&mut db, "B");
+        let cop = new_type(&mut db, "C");
+        let proc = new_async_type(&mut db, "D");
+
+        cop.set_copy_storage(&mut db);
+        inl.set_inline_storage(&mut db);
+
+        // Regular atomic types
+        assert_eq!(owned(instance(TypeId::string())).shape(&db), Shape::Atomic);
+        assert_eq!(uni(instance(TypeId::string())).shape(&db), Shape::Atomic);
+        assert_eq!(
+            immutable(instance(TypeId::string())).shape(&db),
+            Shape::Atomic
+        );
+        assert_eq!(
+            mutable(instance(TypeId::string())).shape(&db),
+            Shape::Atomic
+        );
+        assert_eq!(
+            immutable_uni(instance(TypeId::string())).shape(&db),
+            Shape::Atomic
+        );
+        assert_eq!(
+            mutable_uni(instance(TypeId::string())).shape(&db),
+            Shape::Atomic
+        );
+
+        // Async types
+        assert_eq!(owned(instance(proc)).shape(&db), Shape::Atomic);
+        assert_eq!(uni(instance(proc)).shape(&db), Shape::Atomic);
+        assert_eq!(immutable(instance(proc)).shape(&db), Shape::Atomic);
+        assert_eq!(mutable(instance(proc)).shape(&db), Shape::Atomic);
+        assert_eq!(immutable_uni(instance(proc)).shape(&db), Shape::Atomic);
+        assert_eq!(mutable_uni(instance(proc)).shape(&db), Shape::Atomic);
+
+        assert_eq!(owned(instance(heap)).shape(&db), Shape::Owned);
+        assert_eq!(uni(instance(heap)).shape(&db), Shape::Owned);
+        assert_eq!(immutable(instance(heap)).shape(&db), Shape::Borrow);
+        assert_eq!(mutable(instance(heap)).shape(&db), Shape::Borrow);
+        assert_eq!(immutable_uni(instance(heap)).shape(&db), Shape::Borrow);
+        assert_eq!(mutable_uni(instance(heap)).shape(&db), Shape::Borrow);
+
+        assert_eq!(owned(instance(inl)).shape(&db), Shape::Inline);
+        assert_eq!(uni(instance(inl)).shape(&db), Shape::Inline);
+        assert_eq!(immutable(instance(inl)).shape(&db), Shape::InlineBorrow);
+        assert_eq!(mutable(instance(inl)).shape(&db), Shape::InlineBorrow);
+        assert_eq!(
+            immutable_uni(instance(inl)).shape(&db),
+            Shape::InlineBorrow
+        );
+        assert_eq!(mutable_uni(instance(inl)).shape(&db), Shape::InlineBorrow);
+
+        // Copy types
+        assert_eq!(TypeRef::int().shape(&db), Shape::Copy);
+        assert_eq!(TypeRef::foreign_signed_int(32).shape(&db), Shape::Copy);
+        assert_eq!(TypeRef::foreign_unsigned_int(32).shape(&db), Shape::Copy);
+        assert_eq!(TypeRef::foreign_float(32).shape(&db), Shape::Copy);
+
+        assert_eq!(owned(instance(cop)).shape(&db), Shape::Copy);
+        assert_eq!(uni(instance(cop)).shape(&db), Shape::Copy);
+        assert_eq!(immutable(instance(cop)).shape(&db), Shape::Copy);
+        assert_eq!(mutable(instance(cop)).shape(&db), Shape::Copy);
+        assert_eq!(immutable_uni(instance(cop)).shape(&db), Shape::Copy);
+        assert_eq!(mutable_uni(instance(cop)).shape(&db), Shape::Copy);
     }
 }

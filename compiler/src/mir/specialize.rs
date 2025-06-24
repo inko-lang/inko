@@ -1,49 +1,49 @@
 use crate::mir::{
-    Block, BlockId, Borrow, CallDynamic, CallInstance, CastType, Drop,
-    Instruction, InstructionLocation, Method, Mir, RegisterId, Type as MirType,
+    Block, BlockId, Borrow, CallDynamic, CallInstance, CastType, Constant,
+    Drop, Instruction, InstructionLocation, Method, Mir, RegisterId,
+    Type as MirType,
 };
 use crate::state::State;
 use indexmap::{IndexMap, IndexSet};
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::mem::swap;
-use types::check::TypeChecker;
 use types::format::format_type;
-use types::specialize::{ordered_shapes_from_map, TypeSpecializer};
+use types::specialize::{Closures, TypeSpecializer};
 use types::{
-    Block as _, Database, InternedTypeArguments, MethodId, Shape,
-    TypeArguments, TypeEnum, TypeId, TypeInstance, TypeParameterId, TypeRef,
-    CALL_METHOD, DECREMENT_METHOD, DROPPER_METHOD, INCREMENT_METHOD,
+    Block as _, Database, InternedTypeArguments, MethodId, Shape, TraitId,
+    TypeArguments, TypeEnum, TypeId, TypeInstance, TypeRef, CALL_METHOD,
+    DECREMENT_METHOD, DROPPER_METHOD, INCREMENT_METHOD,
 };
-
-fn argument_shape(
-    db: &Database,
-    interned: &mut InternedTypeArguments,
-    shapes: &IndexMap<TypeParameterId, Shape>,
-    arguments: &TypeArguments,
-    parameter: TypeParameterId,
-) -> Shape {
-    arguments.get_recursive(db, parameter).unwrap().shape(db, interned, shapes)
-}
 
 fn specialize_constants(
     db: &mut Database,
     mir: &mut Mir,
+    closures: &mut Closures,
     interned: &mut InternedTypeArguments,
 ) {
     let mut types = Vec::new();
-    let shapes = IndexMap::new();
+    let targs = TypeArguments::new();
 
     // Constants never need access to the self type, so we just use a dummy
     // value here.
     let stype = TypeEnum::TypeInstance(TypeInstance::new(TypeId::nil()));
+    let mut stack: Vec<_> =
+        mir.constants.iter_mut().map(|(&i, c)| (Some(i), c)).collect();
 
-    for &id in mir.constants.keys() {
-        let old_typ = id.value_type(db);
-        let new_typ =
-            TypeSpecializer::new(db, interned, &shapes, &mut types, stype)
-                .specialize(old_typ);
+    while let Some((id, cons)) = stack.pop() {
+        // Only Array constants need to be (recursively) specialized.
+        let Constant::Array(vals, old) = cons else { continue };
+        let new = TypeSpecializer::new(
+            db, closures, interned, &targs, &targs, &mut types, stype,
+        )
+        .specialize(*old);
 
-        id.set_value_type(db, new_typ);
+        *old = new;
+        stack.extend(vals.iter_mut().map(|v| (None, v)));
+
+        if let Some(id) = id {
+            id.set_value_type(db, new);
+        }
     }
 
     for typ in types {
@@ -55,57 +55,10 @@ fn specialize_constants(
     }
 }
 
-/// Returns `true` if the given shapes are compatible with the method bounds, if
-/// there are any.
-///
-/// It's possible to trigger method specialization for types such as
-/// `Result[Int32, String]`. Since foreign types don't implement traits, don't
-/// have headers and thus don't support dynamic dispatch, we have to skip
-/// generating methods for such cases, otherwise we may generate incorrect code.
-fn shapes_compatible_with_bounds(
-    db: &Database,
-    method: MethodId,
-    shapes: &IndexMap<TypeParameterId, Shape>,
-) -> bool {
-    let bounds = method.bounds(db);
-
-    for (&param, &shape) in shapes {
-        if let Some(bound) = bounds.get(param) {
-            // Foreign types don't support traits, so these are never
-            // compatible.
-            if shape.is_foreign() {
-                return false;
-            }
-
-            // When encountering a shape for a specific type, we'll end up
-            // trying to devirtualize calls in the method to specialize. This is
-            // only possible if the type is compatible with the bounds, i.e. all
-            // the required traits are implemented.
-            //
-            // This ultimately ensures that we don't try to specialize some
-            // method over e.g. `Option[Int32]` where it's exected `Int32`
-            // implements a certain trait when it doesn't.
-            let Some(ins) = shape.as_stack_instance() else { continue };
-
-            if !TypeChecker::new(db).type_compatible_with_bound(ins, bound) {
-                return false;
-            }
-        }
-    }
-
-    true
-}
-
 struct Job {
-    /// The type of `self` within the method.
     self_type: TypeEnum,
-
-    /// The ID of the method that's being specialized.
     method: MethodId,
-
-    /// The shapes of the method (including its receiver), in the same order as
-    /// the type parameters.
-    shapes: IndexMap<TypeParameterId, Shape>,
+    type_arguments: TypeArguments,
 }
 
 struct Work {
@@ -123,14 +76,22 @@ impl Work {
         Work { jobs: VecDeque::new(), done: HashSet::new() }
     }
 
+    fn is_new(&self, method: MethodId) -> bool {
+        !self.done.contains(&method)
+    }
+
+    fn add(&mut self, method: MethodId) -> bool {
+        self.done.insert(method)
+    }
+
     fn push(
         &mut self,
-        self_type: TypeEnum,
         method: MethodId,
-        shapes: IndexMap<TypeParameterId, Shape>,
+        self_type: TypeEnum,
+        type_arguments: TypeArguments,
     ) -> bool {
         if self.done.insert(method) {
-            self.jobs.push_back(Job { self_type, method, shapes });
+            self.jobs.push_back(Job { self_type, method, type_arguments });
             true
         } else {
             false
@@ -142,102 +103,73 @@ impl Work {
     }
 }
 
-#[derive(Eq, PartialEq, Hash)]
+#[derive(Hash, PartialEq, Eq, Clone, Copy)]
 struct DynamicCall {
     method: MethodId,
-
-    /// The shapes for the method's type parameters.
-    ///
-    /// This also acts as the specialization key.
-    key: Vec<Shape>,
-
-    /// Extra shapes to expose to the method.
-    ///
-    /// These are shapes from the type arguments of a trait implementation, type
-    /// parameters inherited from parent traits.
-    ///
-    /// We use a Vec here as `HashMap` doesn't implement `Hash`.
-    shapes: Vec<(TypeParameterId, Shape)>,
+    type_arguments: Option<usize>,
 }
 
-/// A type that tracks types along with their methods that are called using
-/// dynamic dispatch, and the shapes of those calls.
-///
-/// When specializing types and methods, we may encounter a dynamic dispatch
-/// call site before specialized types are created. An example would be this:
-///
-///     import std.string.ToString
-///
-///     impl ToString for Array {
-///       fn pub to_string -> String {
-///         ''
-///       }
-///     }
-///
-///     fn to_string(value: ref ToString) -> String {
-///       value.to_string
-///     }
-///
-///     type async Main {
-///       fn async main {
-///         to_string([10, 20])
-///         [10.2]
-///       }
-///     }
-///
-/// Here `to_string` isn't generic, but `value` may be passed generic values
-/// (e.g. `Array[Int]`). Because this method isn't generic, and the ownership of
-/// `value` is `ref T`, there's only one version of `to_string` for all
-/// references passed to it (`ref Array[Int]`, `ref Array[String]`, etc). This
-/// means that when we encounter `[10.2]` and specialize its type, we also have
-/// to specialize `Array.to_string` for `Array[Float]`, because it _might_ be
-/// passed to `to_string` at some later point.
-///
-/// When such new types are created, we use this data to figure out which
-/// methods may be called on it through dynamic dispatch, and schedule them for
-/// specialization if necessary.
-struct DynamicCalls {
-    /// The values are an _ordered_ hash set to ensure the data is always
-    /// processed in a deterministic order. This is important in order to
-    /// maintain the incremental compilation caches.
-    mapping: IndexMap<TypeId, IndexSet<DynamicCall>>,
+impl DynamicCall {
+    fn new(method: MethodId, type_arguments: Option<usize>) -> Self {
+        Self { method, type_arguments }
+    }
 }
 
-impl DynamicCalls {
-    fn new() -> DynamicCalls {
-        DynamicCalls { mapping: IndexMap::new() }
+/// Info needed to specialize the potential targets of dynamic dispatch calls.
+struct Dynamic {
+    casts: HashMap<TraitId, IndexSet<TypeInstance>>,
+    calls: HashMap<TraitId, IndexSet<DynamicCall>>,
+}
+
+impl Dynamic {
+    fn new() -> Self {
+        Self { casts: HashMap::new(), calls: HashMap::new() }
     }
 
-    fn add(
+    fn add_cast(&mut self, trait_id: TraitId, instance: TypeInstance) -> bool {
+        self.casts.entry(trait_id).or_default().insert(instance)
+    }
+
+    fn types_cast_to(
+        &self,
+        trait_id: TraitId,
+    ) -> impl Iterator<Item = TypeInstance> + '_ {
+        self.casts.get(&trait_id).into_iter().flat_map(|x| x.iter()).cloned()
+    }
+
+    fn add_call(
         &mut self,
-        type_id: TypeId,
+        trait_id: TraitId,
         method: MethodId,
-        key: Vec<Shape>,
-        shapes: Vec<(TypeParameterId, Shape)>,
-    ) {
-        self.mapping.entry(type_id).or_default().insert(DynamicCall {
-            method,
-            key,
-            shapes,
-        });
+        arguments: Option<usize>,
+    ) -> bool {
+        self.calls
+            .entry(trait_id)
+            .or_default()
+            .insert(DynamicCall::new(method, arguments))
     }
 
-    fn get(&self, type_id: TypeId) -> Option<&IndexSet<DynamicCall>> {
-        self.mapping.get(&type_id)
+    fn calls_for(
+        &self,
+        trait_id: TraitId,
+    ) -> impl Iterator<Item = DynamicCall> + '_ {
+        self.calls.get(&trait_id).into_iter().flat_map(|x| x.iter()).cloned()
     }
 }
 
 /// A compiler pass that specializes generic types.
 pub(crate) struct Specialize<'a, 'b> {
-    self_type: TypeEnum,
     method: MethodId,
     state: &'a mut State,
     work: &'b mut Work,
     interned: &'b mut InternedTypeArguments,
-    shapes: IndexMap<TypeParameterId, Shape>,
+    closures: &'b mut Closures,
 
-    /// Regular methods that have been processed.
-    regular_methods: Vec<MethodId>,
+    /// The type of the `self` and `Self`.
+    self_type: TypeEnum,
+
+    /// The type arguments the method has access to.
+    type_arguments: TypeArguments,
 
     /// Method specializations created while processing the body of the method.
     ///
@@ -245,6 +177,8 @@ pub(crate) struct Specialize<'a, 'b> {
     ///
     /// 1. The ID of the original/old method the specialization is based on.
     /// 1. The ID of the newly specialized method.
+    ///
+    /// For regular methods both values are the same.
     specialized_methods: Vec<(MethodId, MethodId)>,
 
     /// Classes created when specializing types.
@@ -271,36 +205,36 @@ impl<'a, 'b> Specialize<'a, 'b> {
         }
 
         let mut work = Work::new();
-        let mut dcalls = DynamicCalls::new();
         let mut intern = InternedTypeArguments::new();
+        let mut dynamic = Dynamic::new();
+        let mut closures = Closures::new();
         let main_type = state.db.main_type().unwrap();
         let main_method = state.db.main_method().unwrap();
         let main_mod = main_type.module(&state.db);
 
         work.push(
-            TypeEnum::TypeInstance(TypeInstance::new(main_type)),
             main_method,
-            IndexMap::new(),
+            TypeEnum::TypeInstance(TypeInstance::new(main_type)),
+            TypeArguments::new(),
         );
 
-        // The main() method isn't called explicitly, so we have to manually
-        // record it in the main type.
+        // Main.main is the entry point and thus has to be added manually.
         mir.types.get_mut(&main_type).unwrap().methods.push(main_method);
         mir.modules.get_mut(&main_mod).unwrap().methods.push(main_method);
 
         while let Some(job) = work.pop() {
             Specialize {
                 state,
+                closures: &mut closures,
                 interned: &mut intern,
                 self_type: job.self_type,
                 method: job.method,
-                shapes: job.shapes,
+                type_arguments: job.type_arguments,
                 work: &mut work,
-                regular_methods: Vec::new(),
                 specialized_methods: Vec::new(),
                 types: Vec::new(),
             }
-            .run(mir, &mut dcalls);
+            .run(mir, &mut dynamic);
         }
 
         // Constants may contain arrays, so we need to make sure those use the
@@ -315,7 +249,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
         // 2. The type isn't used anywhere else (highly unlikely). In this case
         //    we don't need to generate a dropper, because constants are never
         //    dropped.
-        specialize_constants(&mut state.db, mir, &mut intern);
+        specialize_constants(&mut state.db, mir, &mut closures, &mut intern);
 
         // Specialization may create many new methods, and in the process makes
         // the original generic methods redundant and unused. In fact, compiling
@@ -341,18 +275,14 @@ impl<'a, 'b> Specialize<'a, 'b> {
         mir.type_arguments = Vec::new();
     }
 
-    fn run(&mut self, mir: &mut Mir, dynamic_calls: &mut DynamicCalls) {
-        self.process_instructions(mir, dynamic_calls);
-        self.process_specialized_types(mir, dynamic_calls);
+    fn run(&mut self, mir: &mut Mir, dynamic: &mut Dynamic) {
+        self.process_instructions(mir, dynamic);
+        self.process_specialized_types(mir);
         self.expand_instructions(mir);
         self.add_methods(mir);
     }
 
-    fn process_instructions(
-        &mut self,
-        mir: &mut Mir,
-        dynamic_calls: &mut DynamicCalls,
-    ) {
+    fn process_instructions(&mut self, mir: &mut Mir, dynamic: &mut Dynamic) {
         let method = mir.methods.get_mut(&self.method).unwrap();
 
         // Rather than specializing the registers of instructions that may
@@ -363,8 +293,10 @@ impl<'a, 'b> Specialize<'a, 'b> {
         for reg in method.registers.iter_mut() {
             reg.value_type = TypeSpecializer::new(
                 &mut self.state.db,
+                self.closures,
                 self.interned,
-                &self.shapes,
+                &self.type_arguments,
+                &self.type_arguments,
                 &mut self.types,
                 self.self_type,
             )
@@ -379,44 +311,36 @@ impl<'a, 'b> Specialize<'a, 'b> {
                     }
                     Instruction::CallStatic(ins) => {
                         let rec = ins.method.receiver(&self.state.db);
-                        let cls = rec.type_id(&self.state.db).unwrap();
+                        let typ = rec.type_id(&self.state.db).unwrap();
                         let targs = ins
                             .type_arguments
                             .and_then(|i| mir.type_arguments.get(i));
 
-                        ins.method = self.call_static(cls, ins.method, targs);
+                        ins.method = self.call_static(typ, ins.method, targs);
                     }
                     Instruction::CallInstance(ins) => {
                         let rec = method.registers.value_type(ins.receiver);
-                        let cls = rec.type_id(&self.state.db).unwrap();
+                        let typ = rec.type_id(&self.state.db).unwrap();
                         let targs = ins
                             .type_arguments
                             .and_then(|i| mir.type_arguments.get(i));
 
-                        ins.method = self.call_static(cls, ins.method, targs);
+                        ins.method = self.call_static(typ, ins.method, targs);
                     }
                     Instruction::Send(ins) => {
                         let rec = method.registers.value_type(ins.receiver);
-                        let cls = rec.type_id(&self.state.db).unwrap();
+                        let typ = rec.type_id(&self.state.db).unwrap();
                         let targs = ins
                             .type_arguments
                             .and_then(|i| mir.type_arguments.get(i));
 
-                        ins.method = self.call_static(cls, ins.method, targs);
+                        ins.method = self.call_static(typ, ins.method, targs);
                     }
                     Instruction::CallDynamic(call) => match method
                         .registers
                         .value_type(call.receiver)
                         .as_type_instance(&self.state.db)
                     {
-                        // As part of specialization, we may encounter a dynamic
-                        // call that's now acting on a type instance. We need
-                        // to change the instruction in this case, otherwise we
-                        // may compile code that performs dynamic dispatch on
-                        // unboxed values (e.g. Int), which isn't supported.
-                        // This is similar to devirtualization, except it's
-                        // _required_ for correct code; not an optional
-                        // optimization.
                         Some(ins) => {
                             let targs = call
                                 .type_arguments
@@ -426,26 +350,22 @@ impl<'a, 'b> Specialize<'a, 'b> {
                                 .devirtualize_call_dynamic(call, ins, targs);
                         }
                         _ => {
-                            let targs = call
-                                .type_arguments
-                                .and_then(|i| mir.type_arguments.get(i));
-
-                            let (method, shapes) = self.call_dynamic(
-                                call.method,
-                                targs,
-                                dynamic_calls,
+                            let old = call.method;
+                            let (new, args) = self.call_dynamic(
+                                old,
+                                call.type_arguments,
+                                &mir.type_arguments,
+                                dynamic,
                             );
 
+                            call.method = new;
                             mir.dynamic_calls
-                                .entry(call.method)
+                                .entry(old)
                                 .or_default()
-                                .insert((method, shapes));
-
-                            call.method = method;
+                                .insert((new, args));
                         }
                     },
                     Instruction::Allocate(ins) => {
-                        let old = ins.type_id;
                         let new = method
                             .registers
                             .value_type(ins.register)
@@ -453,8 +373,6 @@ impl<'a, 'b> Specialize<'a, 'b> {
                             .unwrap();
 
                         ins.type_id = new;
-                        self.schedule_regular_dropper(old, new);
-                        self.schedule_regular_inline_type_methods(new);
                     }
                     Instruction::Free(ins) => {
                         let cls = method
@@ -466,7 +384,6 @@ impl<'a, 'b> Specialize<'a, 'b> {
                         ins.type_id = cls;
                     }
                     Instruction::Spawn(ins) => {
-                        let old = ins.type_id;
                         let new = method
                             .registers
                             .value_type(ins.register)
@@ -474,7 +391,6 @@ impl<'a, 'b> Specialize<'a, 'b> {
                             .unwrap();
 
                         ins.type_id = new;
-                        self.schedule_regular_dropper(old, new);
                     }
                     Instruction::SetField(ins) => {
                         let db = &mut self.state.db;
@@ -520,25 +436,26 @@ impl<'a, 'b> Specialize<'a, 'b> {
                     }
                     Instruction::MethodPointer(ins) => {
                         let rec = ins.method.receiver(&self.state.db);
-                        let cls = rec.type_id(&self.state.db).unwrap();
+                        let typ = rec.type_id(&self.state.db).unwrap();
 
-                        ins.method = self.call_static(cls, ins.method, None);
+                        ins.method = self.call_static(typ, ins.method, None);
                     }
                     Instruction::Cast(ins) => {
                         let from = method.registers.value_type(ins.source);
                         let to = method.registers.value_type(ins.register);
 
-                        // As a result of specialization we may need to change
-                        // the cast types, such as when a type parameter is
-                        // specialized as an Int.
                         ins.from = CastType::from(&self.state.db, from);
                         ins.to = CastType::from(&self.state.db, to);
+
+                        self.cast_type(from, to, &mir.type_arguments, dynamic);
                     }
                     Instruction::SizeOf(ins) => {
                         ins.argument = TypeSpecializer::new(
                             &mut self.state.db,
+                            self.closures,
                             self.interned,
-                            &self.shapes,
+                            &self.type_arguments,
+                            &self.type_arguments,
                             &mut self.types,
                             self.self_type,
                         )
@@ -553,28 +470,11 @@ impl<'a, 'b> Specialize<'a, 'b> {
     fn expand_instructions(&mut self, mir: &mut Mir) {
         let method = mir.methods.get_mut(&self.method).unwrap();
 
-        ExpandDrop {
-            db: &self.state.db,
-            intern: self.interned,
-            method,
-            shapes: &self.shapes,
-        }
-        .run();
-
-        ExpandBorrow {
-            db: &self.state.db,
-            intern: self.interned,
-            method,
-            shapes: &self.shapes,
-        }
-        .run();
+        ExpandDrop { db: &self.state.db, method }.run();
+        ExpandBorrow { db: &self.state.db, method }.run();
     }
 
-    fn process_specialized_types(
-        &mut self,
-        mir: &mut Mir,
-        dynamic_calls: &mut DynamicCalls,
-    ) {
+    fn process_specialized_types(&mut self, mir: &mut Mir) {
         while let Some(typ) = self.types.pop() {
             mir.types.entry(typ).or_insert_with(|| MirType::new(typ));
 
@@ -597,387 +497,35 @@ impl<'a, 'b> Specialize<'a, 'b> {
             self.generate_dropper(orig, typ);
             self.generate_inline_type_methods(orig, typ);
 
-            if orig == typ {
-                // For regular types the rest of the work doesn't apply.
-                continue;
-            }
-
             if kind.is_closure() {
                 self.generate_closure_methods(orig, typ);
-            }
-
-            if let Some(calls) = dynamic_calls.get(orig) {
-                let mut type_shapes = IndexMap::new();
-
-                for (param, &shape) in typ
-                    .type_parameters(&self.state.db)
-                    .into_iter()
-                    .zip(typ.shapes(&self.state.db))
-                {
-                    type_shapes.insert(param, shape);
-                }
-
-                for call in calls {
-                    let mut shapes = type_shapes.clone();
-
-                    for &(par, shape) in &call.shapes {
-                        shapes.insert(par, shape);
-                    }
-
-                    for (par, &shape) in call
-                        .method
-                        .type_parameters(&self.state.db)
-                        .into_iter()
-                        .zip(&call.key)
-                    {
-                        shapes.insert(par, shape);
-                    }
-
-                    if !shapes_compatible_with_bounds(
-                        &self.state.db,
-                        call.method,
-                        &shapes,
-                    ) {
-                        continue;
-                    }
-
-                    self.add_implementation_shapes(call.method, &mut shapes);
-                    self.add_method_bound_shapes(call.method, &mut shapes);
-                    self.specialize_method(typ, call.method, &shapes, None);
-                }
             }
         }
     }
 
     fn add_methods(&mut self, mir: &mut Mir) {
-        for &method in &self.regular_methods {
-            self.track_method(method, mir);
-        }
-
         for &(old, new) in &self.specialized_methods {
-            let mut method = mir.methods.get(&old).unwrap().clone();
+            if old != new {
+                let mut method = mir.methods.get(&old).unwrap().clone();
 
-            method.id = new;
-            mir.methods.insert(new, method);
+                method.id = new;
+                mir.methods.insert(new, method);
+            }
+
             self.track_method(new, mir);
         }
     }
 
     fn track_method(&self, method: MethodId, mir: &mut Mir) {
-        let typ =
+        let tid =
             method.receiver(&self.state.db).type_id(&self.state.db).unwrap();
+        let mid = &tid.module(&self.state.db);
 
-        mir.modules
-            .get_mut(&typ.module(&self.state.db))
-            .unwrap()
-            .methods
-            .push(method);
+        mir.modules.get_mut(mid).unwrap().methods.push(method);
 
         // Static methods aren't tracked in any types, so we can skip the rest.
         if method.is_instance(&self.state.db) {
-            mir.types.get_mut(&typ).unwrap().methods.push(method);
-        }
-    }
-
-    fn call_static(
-        &mut self,
-        type_id: TypeId,
-        method: MethodId,
-        type_arguments: Option<&TypeArguments>,
-    ) -> MethodId {
-        let mut shapes = type_arguments
-            .map(|args| self.type_argument_shapes(method, args))
-            .unwrap_or_default();
-
-        self.add_implementation_shapes(method, &mut shapes);
-
-        // When specializing types, we generate dropper methods. These methods
-        // call the type's drop method if it exists. Because those calls are
-        // generated, they won't have any `TypeArguments` to expose to the
-        // instruction. As such, we have to handle such calls explicitly.
-        if shapes.is_empty() && type_id.is_generic(&self.state.db) {
-            for (par, &shape) in type_id
-                .type_parameters(&self.state.db)
-                .into_iter()
-                .zip(type_id.shapes(&self.state.db))
-            {
-                shapes.insert(par, shape);
-            }
-        }
-
-        self.specialize_method(type_id, method, &shapes, None)
-    }
-
-    fn call_dynamic(
-        &mut self,
-        method: MethodId,
-        type_arguments: Option<&TypeArguments>,
-        dynamic_calls: &mut DynamicCalls,
-    ) -> (MethodId, Vec<Shape>) {
-        let trait_id = method
-            .receiver(&self.state.db)
-            .as_trait_instance(&self.state.db)
-            .unwrap()
-            .instance_of();
-
-        let mut base_shapes = type_arguments
-            .map(|args| self.type_argument_shapes(method, args))
-            .unwrap_or_default();
-
-        for shape in base_shapes.values_mut() {
-            TypeSpecializer::specialize_shape(
-                &mut self.state.db,
-                self.interned,
-                &self.shapes,
-                &mut self.types,
-                self.self_type,
-                shape,
-            );
-        }
-
-        let mut method_params = HashSet::new();
-        let mut method_shapes = Vec::new();
-
-        for par in method.type_parameters(&self.state.db) {
-            method_params.insert(par);
-            method_shapes.push(*base_shapes.get(&par).unwrap());
-        }
-
-        // These are the shapes of the trait or any parent traits. We filter out
-        // method parameter shapes because we derive those from the method key.
-        let extra_shapes: Vec<_> = base_shapes
-            .iter()
-            .filter(|(k, _)| !method_params.contains(*k))
-            .map(|(&k, &v)| (k, v))
-            .collect();
-
-        for typ in trait_id.implemented_by(&self.state.db).clone() {
-            let method_impl = typ
-                .method(&self.state.db, method.name(&self.state.db))
-                .unwrap();
-
-            dynamic_calls.add(
-                typ,
-                method_impl,
-                method_shapes.clone(),
-                extra_shapes.clone(),
-            );
-
-            // We need to include the base shapes mapping, as that includes the
-            // shapes for the trait's type parameters, which may be used in e.g.
-            // the method's return type.
-            let mut shapes = base_shapes.clone();
-
-            // The parameters of the implementation aren't the exact same (as
-            // in, the same memory location), so we need to map shapes based on
-            // the order of type parameters.
-            for (src_par, target_par) in method
-                .type_parameters(&self.state.db)
-                .into_iter()
-                .zip(method_impl.type_parameters(&self.state.db))
-            {
-                shapes.insert(target_par, *base_shapes.get(&src_par).unwrap());
-            }
-
-            if typ.is_generic(&self.state.db) {
-                let params = typ.type_parameters(&self.state.db);
-
-                // We need/want to ensure that each specialization has its own
-                // set of shapes. Even if this isn't technically required since
-                // we always overwrite the same parameters with new shapes (or
-                // at least should), this reduces the chances of running into
-                // unexpected bugs.
-                let mut shapes = shapes.clone();
-
-                for (key, typ) in typ.specializations(&self.state.db).clone() {
-                    // A dynamic call won't include shapes/type arguments for
-                    // type parameters of the specialized type, so we have to
-                    // inject those here.
-                    //
-                    // We don't need to clone `shapes` here because the type
-                    // parameters are the same for every specialization of the
-                    // base type, so we don't accidentally end up using the
-                    // wrong shape on a future iteration of the surrounding
-                    // loop.
-                    for (&param, shape) in params.iter().zip(key.shapes) {
-                        shapes.insert(param, shape);
-                    }
-
-                    if !shapes_compatible_with_bounds(
-                        &self.state.db,
-                        method_impl,
-                        &shapes,
-                    ) {
-                        continue;
-                    }
-
-                    // We have to repeat these two calls for every specialized
-                    // type, because the shapes referred to through bounds or
-                    // type arguments may differ per specialization.
-                    self.add_implementation_shapes(method_impl, &mut shapes);
-                    self.add_method_bound_shapes(method_impl, &mut shapes);
-                    self.specialize_method(typ, method_impl, &shapes, None);
-                }
-            } else {
-                self.add_implementation_shapes(method_impl, &mut shapes);
-                self.add_method_bound_shapes(method_impl, &mut shapes);
-                self.specialize_method(typ, method_impl, &shapes, None);
-            }
-        }
-
-        // Most dynamically dispatched methods are likely not generic, meaning
-        // that the list of shapes for the method parameters is empty. We want
-        // to reuse previously specialized method types for the same receivers,
-        // so we need to generate a key based on all type arguments present.
-        // This ensures that multiple call sites of `next` on `Iter[Int]`
-        // produce the same method ID, while call sites of `next` on
-        // `Iter[String]` produce a different method ID.
-        let mut spec_key = ordered_shapes_from_map(&base_shapes);
-
-        self.prepare_key(&mut spec_key);
-
-        if let Some(new) = method.specialization(&self.state.db, &spec_key) {
-            return (new, method_shapes);
-        }
-
-        let new_method = self.specialize_method_type(
-            method.receiver(&self.state.db),
-            method,
-            spec_key,
-            &base_shapes,
-        );
-
-        (new_method, method_shapes)
-    }
-
-    fn devirtualize_call_dynamic(
-        &mut self,
-        call: &CallDynamic,
-        receiver: TypeInstance,
-        type_arguments: Option<&TypeArguments>,
-    ) -> Instruction {
-        let typ = receiver.instance_of();
-
-        let Some(method_impl) = typ
-            .specialization_source(&self.state.db)
-            .unwrap_or(typ)
-            .method(&self.state.db, call.method.name(&self.state.db))
-        else {
-            panic!(
-                "can't devirtualize call to {}.{} in {}.{}",
-                receiver.instance_of().name(&self.state.db),
-                call.method.name(&self.state.db),
-                format_type(&self.state.db, self.self_type),
-                self.method.name(&self.state.db),
-            );
-        };
-
-        let mut shapes = type_arguments
-            .map(|args| self.type_argument_shapes(call.method, args))
-            .unwrap_or_default();
-
-        for (param, &shape) in typ
-            .type_parameters(&self.state.db)
-            .into_iter()
-            .zip(typ.shapes(&self.state.db))
-        {
-            shapes.insert(param, shape);
-        }
-
-        for (src_par, target_par) in call
-            .method
-            .type_parameters(&self.state.db)
-            .into_iter()
-            .zip(method_impl.type_parameters(&self.state.db))
-        {
-            shapes.insert(target_par, *shapes.get(&src_par).unwrap());
-        }
-
-        self.add_implementation_shapes(method_impl, &mut shapes);
-        self.add_method_bound_shapes(method_impl, &mut shapes);
-
-        let new = self.specialize_method(typ, method_impl, &shapes, None);
-
-        Instruction::CallInstance(Box::new(CallInstance {
-            register: call.register,
-            receiver: call.receiver,
-            method: new,
-            arguments: call.arguments.clone(),
-            type_arguments: None,
-            location: call.location,
-        }))
-    }
-
-    fn specialize_method(
-        &mut self,
-        type_id: TypeId,
-        method: MethodId,
-        shapes: &IndexMap<TypeParameterId, Shape>,
-        custom_self_type: Option<TypeEnum>,
-    ) -> MethodId {
-        let ins = TypeInstance::new(type_id);
-        let stype = custom_self_type.unwrap_or(TypeEnum::TypeInstance(ins));
-
-        // Regular methods on regular types don't need to be specialized.
-        if !type_id.is_generic(&self.state.db)
-            && !type_id.is_closure(&self.state.db)
-            && !method.is_generic(&self.state.db)
-        {
-            if self.work.push(stype, method, shapes.clone()) {
-                self.update_method_type(stype, method, shapes);
-                self.regular_methods.push(method);
-            }
-
-            return method;
-        }
-
-        let mut key: Vec<Shape> = type_id
-            .type_parameters(&self.state.db)
-            .into_iter()
-            .chain(method.type_parameters(&self.state.db))
-            .map(|p| *shapes.get(&p).unwrap())
-            .collect();
-
-        self.prepare_key(&mut key);
-
-        if let Some(new) = method.specialization(&self.state.db, &key) {
-            return new;
-        }
-
-        let new_rec = method.receiver_for_type_instance(&self.state.db, ins);
-        let new = self.specialize_method_type(new_rec, method, key, shapes);
-
-        self.work.push(stype, new, shapes.clone());
-        self.specialized_methods.push((method, new));
-        new
-    }
-
-    fn schedule_regular_dropper(&mut self, original: TypeId, type_id: TypeId) {
-        if type_id.is_generic(&self.state.db)
-            || type_id.is_closure(&self.state.db)
-        {
-            return;
-        }
-
-        self.generate_dropper(original, type_id);
-    }
-
-    fn schedule_regular_inline_type_methods(&mut self, type_id: TypeId) {
-        if type_id.is_generic(&self.state.db)
-            || !type_id.is_inline_type(&self.state.db)
-        {
-            return;
-        }
-
-        let methods = [INCREMENT_METHOD, DECREMENT_METHOD];
-
-        for name in methods {
-            let method = type_id.method(&self.state.db, name).unwrap();
-            let stype = TypeEnum::TypeInstance(TypeInstance::new(type_id));
-
-            if self.work.push(stype, method, IndexMap::new()) {
-                self.regular_methods.push(method);
-            }
+            mir.types.get_mut(&tid).unwrap().methods.push(method);
         }
     }
 
@@ -998,26 +546,39 @@ impl<'a, 'b> Specialize<'a, 'b> {
         };
 
         if original == type_id {
-            if self.work.push(stype, method, IndexMap::new()) {
-                self.regular_methods.push(method);
+            if self.work.push(method, stype, TypeArguments::new()) {
+                self.specialized_methods.push((method, method));
             }
 
             return;
         }
 
-        let shapes = if type_id.is_closure(&self.state.db) {
-            self.shapes.clone()
+        let arguments = if type_id.is_closure(&self.state.db) {
+            self.type_arguments.clone()
+        } else if type_id.is_generic(&self.state.db) {
+            type_id.type_arguments(&self.state.db).cloned().unwrap()
         } else {
-            type_id
-                .type_parameters(&self.state.db)
-                .into_iter()
-                .zip(type_id.shapes(&self.state.db).clone())
-                .collect()
+            TypeArguments::new()
         };
 
-        let new = self.specialize_method(type_id, method, &shapes, Some(stype));
+        let new =
+            self.specialize_method(type_id, method, arguments, Some(stype));
 
         type_id.add_method(&mut self.state.db, name.to_string(), new);
+    }
+
+    fn generate_closure_methods(&mut self, original: TypeId, type_id: TypeId) {
+        // Closures may capture generic types from the surrounding method, so we
+        // have to expose the surrounding method's type arguments to the
+        // closure.
+        let targs = self.type_arguments.clone();
+        let method = original.method(&self.state.db, CALL_METHOD).unwrap();
+
+        // Within a closure's `call` method, explicit references to or captures
+        // of `self` should refer to the type of `self` as used by the method in
+        // which the closure is defined, instead of pointing to the closure's
+        // type.
+        self.specialize_method(type_id, method, targs, Some(self.self_type));
     }
 
     fn generate_inline_type_methods(
@@ -1037,123 +598,369 @@ impl<'a, 'b> Specialize<'a, 'b> {
             if original == type_id {
                 let stype = TypeEnum::TypeInstance(TypeInstance::new(type_id));
 
-                if self.work.push(stype, method, IndexMap::new()) {
-                    self.regular_methods.push(method);
+                if self.work.push(method, stype, TypeArguments::new()) {
+                    self.specialized_methods.push((method, method));
                 }
 
                 continue;
             }
 
-            let shapes = type_id
-                .type_parameters(&self.state.db)
-                .into_iter()
-                .zip(type_id.shapes(&self.state.db).clone())
-                .collect();
-
-            let new = self.specialize_method(type_id, method, &shapes, None);
+            let targs = if type_id.is_generic(&self.state.db) {
+                type_id.type_arguments(&self.state.db).cloned().unwrap()
+            } else {
+                TypeArguments::new()
+            };
+            let new = self.specialize_method(type_id, method, targs, None);
             let name = method.name(&self.state.db).clone();
 
             type_id.add_method(&mut self.state.db, name, new);
         }
     }
 
-    fn generate_closure_methods(&mut self, original: TypeId, type_id: TypeId) {
-        // Closures may capture generic types from the surrounding method, so we
-        // have to expose the surrounding method's shapes to the closure.
-        let shapes = self.shapes.clone();
-        let method = original.method(&self.state.db, CALL_METHOD).unwrap();
+    fn call_static(
+        &mut self,
+        type_id: TypeId,
+        method: MethodId,
+        type_arguments: Option<&TypeArguments>,
+    ) -> MethodId {
+        let mut targs =
+            type_arguments.cloned().unwrap_or_else(TypeArguments::new);
 
-        // Within a closure's `call` method, explicit references to or captures
-        // of `self` should refer to the type of `self` as used by the method in
-        // which the closure is defined, instead of pointing to the closure's
-        // type.
-        self.specialize_method(type_id, method, &shapes, Some(self.self_type));
+        if let Some(t) = type_id.type_arguments(&self.state.db) {
+            t.copy_into(&mut targs);
+        }
+
+        self.specialize_method(type_id, method, targs, None)
     }
 
-    /// Creates a new specialized method, using an existing method as its
-    /// template/blueprint.
-    ///
-    /// This method is meant to be used for generic methods defined on regular
-    /// types, or regular methods defined on generic types.
+    fn devirtualize_call_dynamic(
+        &mut self,
+        call: &CallDynamic,
+        receiver: TypeInstance,
+        type_arguments: Option<&TypeArguments>,
+    ) -> Instruction {
+        let typ = receiver.instance_of();
+        let Some(method) = receiver
+            .source_type(&self.state.db)
+            .method(&self.state.db, call.method.name(&self.state.db))
+        else {
+            panic!(
+                "can't devirtualize call to {}.{} in {}.{}",
+                receiver.instance_of().name(&self.state.db),
+                call.method.name(&self.state.db),
+                format_type(&self.state.db, self.self_type),
+                self.method.name(&self.state.db),
+            );
+        };
+
+        let mut targs = typ
+            .type_arguments(&self.state.db)
+            .cloned()
+            .unwrap_or_else(TypeArguments::new);
+
+        // If the method has type parameters, the type parameters of the trait's
+        // method aren't the exact same ones as the method implementation (i.e.
+        // their IDs differ), so we need to ensure the implementation's
+        // parameters are also assigned.
+        if let Some(call_targs) = type_arguments {
+            for (impl_par, call_par) in method
+                .type_parameters(&self.state.db)
+                .into_iter()
+                .zip(call.method.type_parameters(&self.state.db))
+            {
+                targs.assign(impl_par, call_targs.get(call_par).unwrap());
+            }
+        }
+
+        // We have to add these extra type arguments here as the type checker
+        // only does this when the receiver's type is statically known.
+        self.add_implementation_arguments(method, &mut targs);
+
+        let new = self.specialize_method(typ, method, targs, None);
+
+        Instruction::CallInstance(Box::new(CallInstance {
+            register: call.register,
+            receiver: call.receiver,
+            method: new,
+            arguments: call.arguments.clone(),
+            type_arguments: None,
+            location: call.location,
+        }))
+    }
+
+    fn call_dynamic(
+        &mut self,
+        method: MethodId,
+        type_arguments: Option<usize>,
+        all_type_arguments: &[TypeArguments],
+        dynamic: &mut Dynamic,
+    ) -> (MethodId, Vec<TypeRef>) {
+        let mut targs = type_arguments
+            .and_then(|i| all_type_arguments.get(i))
+            .cloned()
+            .unwrap_or_else(TypeArguments::new);
+
+        self.specialize_type_arguments(&mut targs);
+
+        let method_targs = method
+            .type_parameters(&self.state.db)
+            .into_iter()
+            .map(|p| targs.get(p).unwrap())
+            .collect();
+
+        let rec = method.receiver(&self.state.db);
+        let trait_ins = rec.as_trait_instance(&self.state.db).unwrap();
+        let trait_id = trait_ins.instance_of();
+
+        // Non-generic methods only need to be updated in-place.
+        if !trait_id.is_generic(&self.state.db)
+            && !method.is_generic(&self.state.db)
+            && self.work.add(method)
+        {
+            let stype = TypeEnum::TraitInstance(trait_ins.as_self_type());
+
+            self.specialize_regular_method_type(method, &targs, stype);
+            self.specialize_dynamic_call(trait_id, method, &targs, dynamic);
+            dynamic.add_call(trait_id, method, type_arguments);
+            return (method, method_targs);
+        }
+
+        let key: Vec<_> = trait_id
+            .type_parameters(&self.state.db)
+            .into_iter()
+            .chain(method.type_parameters(&self.state.db))
+            .map(|p| targs.get(p).unwrap())
+            .collect();
+
+        if let Some(new) = method.specialization(&self.state.db, &key) {
+            return (new, method_targs);
+        }
+
+        let new = self.specialize_method_type(rec, method, key, &targs);
+
+        self.specialize_dynamic_call(trait_id, method, &targs, dynamic);
+        dynamic.add_call(trait_id, method, type_arguments);
+        (new, method_targs)
+    }
+
+    fn cast_type(
+        &mut self,
+        from: TypeRef,
+        to: TypeRef,
+        all_type_arguments: &[TypeArguments],
+        dynamic: &mut Dynamic,
+    ) {
+        let Ok(TypeEnum::TypeInstance(from)) =
+            from.as_type_enum(&self.state.db)
+        else {
+            return;
+        };
+        let Ok(TypeEnum::TraitInstance(to)) = to.as_type_enum(&self.state.db)
+        else {
+            return;
+        };
+
+        // We record the type cast such that we know for what types we need to
+        // specialize methods that _may_ be called through dynamic dispatch.
+        let orig_trait =
+            to.instance_of().specialization_source(&self.state.db).unwrap();
+
+        // We also need to record any parent traits, such that we can take into
+        // account types that are cast to a trait and then cast to a parent
+        // trait.
+        let mut stack = vec![orig_trait];
+        let from_typ = from.instance_of();
+        let from_orig = from_typ.specialization_source(&self.state.db).unwrap();
+
+        while let Some(tid) = stack.pop() {
+            if !dynamic.add_cast(tid, from) {
+                continue;
+            }
+
+            for ins in tid.required_traits(&self.state.db) {
+                stack.push(ins.instance_of());
+            }
+
+            for call in dynamic.calls_for(tid) {
+                let method = from_orig
+                    .method(&self.state.db, call.method.name(&self.state.db))
+                    .unwrap();
+                let targs =
+                    call.type_arguments.and_then(|i| all_type_arguments.get(i));
+                let mut args = from_typ
+                    .type_arguments(&self.state.db)
+                    .cloned()
+                    .unwrap_or_else(TypeArguments::new);
+
+                if let Some(targs) = targs {
+                    for (impl_par, dyn_par) in method
+                        .type_parameters(&self.state.db)
+                        .into_iter()
+                        .zip(call.method.type_parameters(&self.state.db))
+                    {
+                        args.assign(impl_par, targs.get(dyn_par).unwrap());
+                    }
+                }
+
+                self.add_implementation_arguments(method, &mut args);
+                self.call_static(from_typ, method, Some(&args));
+            }
+        }
+    }
+
+    fn specialize_method(
+        &mut self,
+        type_id: TypeId,
+        method: MethodId,
+        mut type_arguments: TypeArguments,
+        custom_self: Option<TypeEnum>,
+    ) -> MethodId {
+        // If there are any bounds we need to make sure they're assigned the
+        // same arguments as the original parameters. We do this here such that
+        // we can handle both static calls, devirtualized dynamic calls, and
+        // regular dynamic calls.
+        for (&par, &bound) in method.bounds(&self.state.db).iter() {
+            type_arguments.assign(bound, type_arguments.get(par).unwrap());
+        }
+
+        self.specialize_type_arguments(&mut type_arguments);
+
+        let ins = TypeInstance::new(type_id);
+        let rec = method.receiver_for_type_instance(&self.state.db, ins);
+        let stype = custom_self
+            .unwrap_or_else(|| rec.as_type_enum(&self.state.db).unwrap());
+
+        // Non-generic methods only need to be updated in-place.
+        if !type_id.is_generic(&self.state.db)
+            && !type_id.is_closure(&self.state.db)
+            && !method.is_generic(&self.state.db)
+        {
+            if self.work.is_new(method) {
+                self.specialize_regular_method_type(
+                    method,
+                    &type_arguments,
+                    stype,
+                );
+                self.specialized_methods.push((method, method));
+                self.work.push(method, stype, type_arguments);
+            }
+
+            return method;
+        }
+
+        let key: Vec<_> = type_id
+            .type_parameters(&self.state.db)
+            .into_iter()
+            .chain(method.type_parameters(&self.state.db))
+            .map(|p| type_arguments.get(p).unwrap())
+            .collect();
+
+        if !key.is_empty() {
+            if let Some(new) = method.specialization(&self.state.db, &key) {
+                return new;
+            }
+        }
+
+        let new =
+            self.specialize_method_type(rec, method, key, &type_arguments);
+
+        self.work.push(new, stype, type_arguments);
+        self.specialized_methods.push((method, new));
+        new
+    }
+
+    fn specialize_dynamic_call(
+        &mut self,
+        trait_id: TraitId,
+        method: MethodId,
+        type_arguments: &TypeArguments,
+        dynamic: &mut Dynamic,
+    ) {
+        for ins in dynamic.types_cast_to(trait_id) {
+            let typ = ins.instance_of();
+
+            // Methods are only stored in the original type, not the specialized
+            // type. Only fully processed types are tracked, so the unwrap()
+            // won't panic here.
+            let typ_method = ins
+                .source_type(&self.state.db)
+                .method(&self.state.db, method.name(&self.state.db))
+                .unwrap();
+            let mut args = typ
+                .type_arguments(&self.state.db)
+                .cloned()
+                .unwrap_or_else(TypeArguments::new);
+
+            // We don't need the type arguments of the receiving trait here,
+            // because the type arguments of the specialized type's
+            // implementation will overrule them.
+            for (typ_par, dyn_par) in typ_method
+                .type_parameters(&self.state.db)
+                .into_iter()
+                .zip(method.type_parameters(&self.state.db))
+            {
+                args.assign(typ_par, type_arguments.get(dyn_par).unwrap());
+            }
+
+            self.add_implementation_arguments(method, &mut args);
+            self.call_static(typ, typ_method, Some(&args));
+        }
+    }
+
     fn specialize_method_type(
         &mut self,
         receiver: TypeRef,
         method: MethodId,
-        mut key: Vec<Shape>,
-        shapes: &IndexMap<TypeParameterId, Shape>,
+        key: Vec<TypeRef>,
+        type_arguments: &TypeArguments,
     ) -> MethodId {
-        // For static methods we include the type's type parameter shapes such
-        // that we can generate unique names using just the shapes for
-        // non-generic static methods. If we didn't do this, then two different
-        // instances of e.g. `Result.Ok` would produce the same symbol name
-        let shape_params = if method.is_static(&self.state.db) {
-            let typ = receiver.type_id(&self.state.db).unwrap();
-            let mut params = typ.type_parameters(&self.state.db);
-
-            params.append(&mut method.type_parameters(&self.state.db));
-            params
-        } else {
-            method.type_parameters(&self.state.db)
-        };
-
-        let mut method_shapes: Vec<_> = shape_params
-            .into_iter()
-            .map(|p| *shapes.get(&p).unwrap())
-            .collect();
-
         let new = method.clone_for_specialization(&mut self.state.db);
-        let old_ret = method.return_type(&self.state.db);
         let stype = receiver.as_type_enum(&self.state.db).unwrap();
 
         for arg in method.arguments(&self.state.db) {
-            let arg_type = TypeSpecializer::new(
-                &mut self.state.db,
-                self.interned,
-                shapes,
-                &mut self.types,
-                stype,
-            )
-            .specialize(arg.value_type);
+            let arg_typ =
+                self.specialize_with(arg.value_type, stype, type_arguments);
+            let old_var_typ = arg.variable.value_type(&self.state.db);
+            let var_typ =
+                self.specialize_with(old_var_typ, stype, type_arguments);
+            let loc = arg.variable.location(&self.state.db);
+            let db = &mut self.state.db;
 
-            let raw_var_type = arg.variable.value_type(&self.state.db);
-            let var_loc = arg.variable.location(&self.state.db);
-            let var_type = TypeSpecializer::new(
-                &mut self.state.db,
-                self.interned,
-                shapes,
-                &mut self.types,
-                stype,
-            )
-            .specialize(raw_var_type);
-
-            new.new_argument(
-                &mut self.state.db,
-                arg.name,
-                var_type,
-                arg_type,
-                var_loc,
-            );
+            new.new_argument(db, arg.name, var_typ, arg_typ, loc);
         }
 
-        let new_ret = TypeSpecializer::new(
-            &mut self.state.db,
-            self.interned,
-            shapes,
-            &mut self.types,
-            stype,
-        )
-        .specialize(old_ret);
+        let old_ret = method.return_type(&self.state.db);
+        let new_ret = self.specialize_with(old_ret, stype, type_arguments);
 
-        self.prepare_key(&mut method_shapes);
-        self.prepare_key(&mut key);
+        // For static methods we need to include the type arguments of both the
+        // receiver and the method, otherwise this may result in duplicate
+        // symbol names (e.g. for the `Ok` static method of the `Result` type).
+        //
+        // For other methods we only need to include the arguments of the method
+        // itself, as the receiver's arguments are already stored in the
+        // receiver type.
+        let method_args = if method.is_static(&self.state.db) {
+            key.clone()
+        } else {
+            // The receiver might be a type or trait instance. Because the key
+            // types are always in the order of `(receiver types, method
+            // types)`, we can simply skip the first N that belong to the
+            // receiver, without having to make any assertions about its type.
+            let take = method.number_of_type_parameters(&self.state.db);
+            let skip = key.len() - take;
 
-        let bounds = method.bounds(&self.state.db).clone();
+            key[skip..].to_vec()
+        };
 
+        new.set_type_arguments(&mut self.state.db, method_args);
         new.set_return_type(&mut self.state.db, new_ret);
         new.set_receiver(&mut self.state.db, receiver);
-        new.set_shapes(&mut self.state.db, method_shapes);
-        new.set_bounds(&mut self.state.db, bounds);
 
+        // The key might be empty for e.g. the "call" method of a closure,
+        // because neither the type nor the method are generic. If we instead
+        // stored the empty key, all such methods would converge onto the same
+        // specialized method even if the closures are different (e.g. they
+        // capture different types).
         if !key.is_empty() {
             method.add_specialization(&mut self.state.db, key, new);
         }
@@ -1161,203 +968,94 @@ impl<'a, 'b> Specialize<'a, 'b> {
         new
     }
 
-    /// Updates a regular method on a regular type such that its argument and
-    /// return types are specialized (if needed).
-    fn update_method_type(
+    fn specialize_regular_method_type(
         &mut self,
-        self_type: TypeEnum,
         method: MethodId,
-        shapes: &IndexMap<TypeParameterId, Shape>,
+        type_arguments: &TypeArguments,
+        self_type: TypeEnum,
     ) {
         for (idx, arg) in
             method.arguments(&self.state.db).into_iter().enumerate()
         {
-            let arg_type = TypeSpecializer::new(
-                &mut self.state.db,
-                self.interned,
-                shapes,
-                &mut self.types,
-                self_type,
-            )
-            .specialize(arg.value_type);
-
-            let raw_var_type = arg.variable.value_type(&self.state.db);
-            let var_type = TypeSpecializer::new(
-                &mut self.state.db,
-                self.interned,
-                shapes,
-                &mut self.types,
-                self_type,
-            )
-            .specialize(raw_var_type);
+            let arg_typ =
+                self.specialize_with(arg.value_type, self_type, type_arguments);
+            let old_var_typ = arg.variable.value_type(&self.state.db);
+            let new_var_typ =
+                self.specialize_with(old_var_typ, self_type, type_arguments);
 
             method.update_argument_types(
                 &mut self.state.db,
                 idx,
-                var_type,
-                arg_type,
+                new_var_typ,
+                arg_typ,
             );
         }
 
         let old_ret = method.return_type(&self.state.db);
-        let new_ret = TypeSpecializer::new(
-            &mut self.state.db,
-            self.interned,
-            shapes,
-            &mut self.types,
-            self_type,
-        )
-        .specialize(old_ret);
+        let new_ret = self.specialize_with(old_ret, self_type, type_arguments);
 
         method.set_return_type(&mut self.state.db, new_ret);
     }
 
-    fn type_argument_shapes(
+    fn add_implementation_arguments(
         &mut self,
         method: MethodId,
-        arguments: &TypeArguments,
-    ) -> IndexMap<TypeParameterId, Shape> {
-        let mut shapes = IndexMap::new();
-
-        for (&par, &bound) in method.bounds(&self.state.db).iter() {
-            let shape = argument_shape(
-                &self.state.db,
-                self.interned,
-                &self.shapes,
-                arguments,
-                par,
-            );
-
-            shapes.insert(bound, shape);
-            shapes.insert(par, shape);
-        }
-
-        for &par in arguments.keys() {
-            let arg = arguments.get_recursive(&self.state.db, par).unwrap();
-
-            if let Some(id) = arg.as_type_parameter(&self.state.db) {
-                if shapes.contains_key(&id) {
-                    // We can reach this point if our parameter is assigned to a
-                    // type parameter bound, and the shape for that is already
-                    // generated by the above loop.
-                    continue;
-                }
-            }
-
-            shapes.insert(
-                par,
-                arg.shape(&self.state.db, self.interned, &self.shapes),
-            );
-        }
-
-        // Calls may refer to type parameters from the surrounding scope, such
-        // as when a return type of an inner call is inferred according to the
-        // surrounding method's return type. As such, we need to include the
-        // outer shapes as well.
-        //
-        // We do this _last_ such that these shapes don't affect the above
-        // presence check.
-        for (&par, shape) in &self.shapes {
-            shapes.entry(par).or_insert(*shape);
-        }
-
-        shapes
-    }
-
-    fn add_method_bound_shapes(
-        &self,
-        method: MethodId,
-        shapes: &mut IndexMap<TypeParameterId, Shape>,
+        arguments: &mut TypeArguments,
     ) {
-        for (par, &bound) in method.bounds(&self.state.db).iter() {
-            shapes.insert(bound, *shapes.get(par).unwrap());
+        let Some(ins) = method.implemented_trait_instance(&self.state.db)
+        else {
+            return;
+        };
+
+        ins.copy_type_arguments_into(&self.state.db, arguments);
+
+        ins.instance_of()
+            .inherited_type_arguments(&self.state.db)
+            .copy_into(arguments);
+    }
+
+    // Specializes all the given type arguments.
+    //
+    /// Type arguments may contain types originating from the receiver _or_ the
+    /// surrounding type. Thus when specializing the type arguments, we need to
+    /// take _both_ sources into account.
+    fn specialize_type_arguments(&mut self, arguments: &mut TypeArguments) {
+        for idx in 0..(arguments.len()) {
+            let par = arguments.get_parameter_at(idx).unwrap();
+            let old = arguments.get(par).unwrap();
+            let new = self.specialize_with(old, self.self_type, arguments);
+
+            arguments.assign(par, new);
         }
     }
 
-    fn add_implementation_shapes(
+    fn specialize_with(
         &mut self,
-        method: MethodId,
-        shapes: &mut IndexMap<TypeParameterId, Shape>,
-    ) {
-        if let Some(tins) = method.implemented_trait_instance(&self.state.db) {
-            // Regular types may implement generic traits, such as Int
-            // implementing Equal[Int]. The traits may provide default methods
-            // that use the trait's type parameters in their signature or body
-            // (e.g. `Equal.!=`). We need to make sure we map those parameters
-            // to their shapes.
-            if tins.instance_of().is_generic(&self.state.db) {
-                let args = tins.type_arguments(&self.state.db).unwrap();
-
-                for &par in args.keys() {
-                    shapes.insert(
-                        par,
-                        argument_shape(
-                            &self.state.db,
-                            self.interned,
-                            shapes,
-                            args,
-                            par,
-                        ),
-                    );
-                }
-            }
-
-            // Similarly, trait methods may end up depending on type parameters
-            // from parent traits, such as when a default trait method calls
-            // a method from a parent trait, and said method returns a type
-            // parameter.
-            let args =
-                tins.instance_of().inherited_type_arguments(&self.state.db);
-
-            for &par in args.keys() {
-                shapes.insert(
-                    par,
-                    argument_shape(
-                        &self.state.db,
-                        self.interned,
-                        shapes,
-                        args,
-                        par,
-                    ),
-                );
-            }
-        }
-    }
-
-    /// Prepares a specialization key so it can be used for consistent
-    /// lookups/hashing.
-    ///
-    /// This is necessary because in certain cases we may produce e.g. a
-    /// `Shape::Inline(ins)` shape where `ins` refers to an unspecialized type
-    /// ID. Rather than try and handle that case in a variety of places that
-    /// produce shapes, we handle this in this single place just before we
-    /// actually use the key for a lookup.
-    ///
-    /// This preparation in turn is necessary so two different references to the
-    /// same type, one using as specialized type ID and one using the raw one,
-    /// result in the same lookup result.
-    fn prepare_key(&mut self, key: &mut Vec<Shape>) {
-        TypeSpecializer::specialize_shapes(
+        typ: TypeRef,
+        self_type: TypeEnum,
+        type_arguments: &TypeArguments,
+    ) -> TypeRef {
+        TypeSpecializer::new(
             &mut self.state.db,
+            self.closures,
             self.interned,
-            &self.shapes,
+            type_arguments,
+            &self.type_arguments,
             &mut self.types,
-            self.self_type,
-            key,
-        );
+            self_type,
+        )
+        .specialize(typ)
     }
 }
 
 /// A type that expands the raw Drop instruction into dedicated instructions,
-/// based on the types/shapes the Drop instruction operates on.
-struct ExpandDrop<'a, 'b, 'c> {
+/// based on the types the Drop instruction operates on.
+struct ExpandDrop<'a> {
     db: &'a Database,
-    method: &'b mut Method,
-    shapes: &'c IndexMap<TypeParameterId, Shape>,
-    intern: &'c mut InternedTypeArguments,
+    method: &'a mut Method,
 }
 
-impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
+impl<'a> ExpandDrop<'a> {
     fn run(mut self) {
         let mut block_idx = 0;
 
@@ -1393,26 +1091,21 @@ impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
         let val = ins.register;
         let typ = self.method.registers.value_type(val);
 
-        match typ.shape(self.db, self.intern, self.shapes) {
-            Shape::Int(_, _)
-            | Shape::Float(_)
-            | Shape::Nil
-            | Shape::Boolean
-            | Shape::Pointer
-            | Shape::Copy(_) => {
+        match typ.shape(self.db) {
+            Shape::Copy => {
                 self.ignore_value(block_id, after_id);
             }
-            Shape::Mut | Shape::Ref => {
+            Shape::Borrow => {
                 self.drop_reference(block_id, after_id, val, loc);
             }
-            Shape::Atomic | Shape::String => {
+            Shape::Atomic => {
                 self.drop_atomic(block_id, after_id, val, loc);
             }
-            Shape::Owned | Shape::Inline(_) => {
+            Shape::Owned | Shape::Inline => {
                 self.drop_owned(block_id, after_id, val, ins.dropper, loc);
             }
-            Shape::InlineRef(t) | Shape::InlineMut(t) => {
-                self.drop_stack_borrow(block_id, after_id, val, t, loc);
+            Shape::InlineBorrow => {
+                self.drop_stack_borrow(block_id, after_id, val, loc);
             }
         }
     }
@@ -1521,9 +1214,14 @@ impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
         before_id: BlockId,
         after_id: BlockId,
         value: RegisterId,
-        instance: TypeInstance,
         location: InstructionLocation,
     ) {
+        let instance = self
+            .method
+            .registers
+            .value_type(value)
+            .as_type_instance(self.db)
+            .unwrap();
         let reg = self.method.registers.alloc(TypeRef::nil());
         let method = instance
             .instance_of()
@@ -1546,14 +1244,12 @@ impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
     }
 }
 
-struct ExpandBorrow<'a, 'b, 'c> {
+struct ExpandBorrow<'a> {
     db: &'a types::Database,
-    method: &'b mut Method,
-    shapes: &'c IndexMap<TypeParameterId, Shape>,
-    intern: &'c mut InternedTypeArguments,
+    method: &'a mut Method,
 }
 
-impl<'a, 'b, 'c> ExpandBorrow<'a, 'b, 'c> {
+impl<'a> ExpandBorrow<'a> {
     fn run(mut self) {
         let mut block_idx = 0;
 
@@ -1590,23 +1286,18 @@ impl<'a, 'b, 'c> ExpandBorrow<'a, 'b, 'c> {
         let val = ins.value;
         let typ = self.method.registers.value_type(val);
 
-        match typ.shape(self.db, self.intern, self.shapes) {
-            Shape::Int(_, _)
-            | Shape::Float(_)
-            | Shape::Nil
-            | Shape::Boolean
-            | Shape::Pointer
-            | Shape::Copy(_) => {
+        match typ.shape(self.db) {
+            Shape::Copy => {
                 // These values should be left as-is.
             }
-            Shape::Mut | Shape::Ref | Shape::Owned => {
+            Shape::Borrow | Shape::Owned => {
                 self.block_mut(block_id).increment(val, loc);
             }
-            Shape::Atomic | Shape::String => {
+            Shape::Atomic => {
                 self.block_mut(block_id).increment_atomic(val, loc);
             }
-            Shape::Inline(t) | Shape::InlineRef(t) | Shape::InlineMut(t) => {
-                self.borrow_inline_type(block_id, val, t, loc);
+            Shape::Inline | Shape::InlineBorrow => {
+                self.borrow_inline_type(block_id, val, loc);
             }
         }
 
@@ -1623,9 +1314,14 @@ impl<'a, 'b, 'c> ExpandBorrow<'a, 'b, 'c> {
         &mut self,
         block: BlockId,
         value: RegisterId,
-        instance: TypeInstance,
         location: InstructionLocation,
     ) {
+        let instance = self
+            .method
+            .registers
+            .value_type(value)
+            .as_type_instance(self.db)
+            .unwrap();
         let reg = self.method.registers.alloc(TypeRef::nil());
         let method = instance
             .instance_of()

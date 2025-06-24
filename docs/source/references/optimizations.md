@@ -13,13 +13,7 @@ optimizations passes are applied when generating machine code.
 The first optimization is type specialization, and this optimization is always
 enabled as it's required for generating correct code. This pass takes generic
 types and methods and generates versions specialized to the types they are used
-with. Specialization is performed over _shapes_ instead of _types_.
-
-A shape is essentially a "bucket" of different types that have the same memory
-layout and/or aliasing semantics. For example, `Int` and `Float` have their own
-shapes, while all owned values allocated on the heap (by default) share the same
-`Owned` shape. This grouping allows for a better balance between fast compile
-times and efficient runtime performance.
+with.
 
 You can find more details about how this works in the [design guide about
 generics](../design/compiler#generics).

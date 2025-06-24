@@ -873,7 +873,7 @@ impl<'a> DefineConstants<'a> {
                     vals.push(self.expression(node)?);
                     Some(vals)
                 })
-                .map(Constant::Array),
+                .map(|v| Constant::Array(v, n.resolved_type)),
         }
     }
 
@@ -952,7 +952,7 @@ impl<'a> DefineConstants<'a> {
                     Some(Constant::String(String::new()))
                 }
             }
-            Constant::Array(_) | Constant::Bool(_) => {
+            Constant::Array(_, _) | Constant::Bool(_) => {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidConstExpr,
                     "constant Array and Bool values don't support \
@@ -1108,6 +1108,9 @@ impl<'a> LowerToMir<'a> {
     fn implement_trait(&mut self, node: hir::ImplementTrait) {
         let type_id = node.type_instance.unwrap().instance_of();
         let trait_id = node.trait_instance.unwrap().instance_of();
+
+        self.type_depends_on_current_module(type_id);
+
         let mut methods = Vec::new();
         let mut names = HashSet::new();
 
@@ -1194,6 +1197,8 @@ impl<'a> LowerToMir<'a> {
     fn reopen_type(&mut self, node: hir::ReopenType) {
         let id = node.type_id.unwrap();
         let mut methods = Vec::new();
+
+        self.type_depends_on_current_module(id);
 
         for expr in node.body {
             match expr {
@@ -1327,6 +1332,15 @@ impl<'a> LowerToMir<'a> {
 
         self.mir.types.insert(id, typ);
         self.mir.modules.get_mut(&mod_id).unwrap().types.push(id);
+    }
+
+    fn type_depends_on_current_module(&mut self, type_id: TypeId) {
+        let tmod_name = type_id.module(&self.state.db).name(&self.state.db);
+        let smod_name = self.module.name(&self.state.db);
+        let tmod_id = self.state.dependency_graph.add_module(tmod_name);
+        let smod_id = self.state.dependency_graph.add_module(smod_name);
+
+        self.state.dependency_graph.add_depending(smod_id, tmod_id);
     }
 }
 
@@ -3738,7 +3752,14 @@ impl<'a> LowerMethod<'a> {
         }
         .run();
 
-        gen_type_reg
+        // The final output register is typed as a closure and not a regular
+        // instance of the generated type. This ensures that the value is
+        // treated the same way as closure _types_ during specialization.
+        let res_reg = self.new_register(node.resolved_type);
+
+        self.current_block_mut().move_register(res_reg, gen_type_reg, ins_loc);
+        self.mark_register_as_moved(gen_type_reg);
+        res_reg
     }
 
     fn get_local(

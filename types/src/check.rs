@@ -1367,7 +1367,7 @@ mod tests {
     use super::*;
     use crate::format::format_type;
     use crate::test::{
-        any, closure, generic_instance_id, generic_trait_instance,
+        any, closure, generic_instance, generic_trait_instance,
         generic_trait_instance_id, immutable, immutable_uni, implement,
         instance, mutable, mutable_uni, new_extern_type, new_parameter,
         new_trait, new_type, owned, parameter, placeholder, pointer, rigid,
@@ -1647,7 +1647,7 @@ mod tests {
 
             bound.add_requirements(&mut db, vec![bound_eq]);
 
-            let array_t = owned(generic_instance_id(
+            let array_t = owned(generic_instance(
                 &mut db,
                 array,
                 vec![any(parameter(bound))],
@@ -1664,20 +1664,16 @@ mod tests {
         }
 
         let things1 =
-            generic_instance_id(&mut db, array, vec![owned(instance(thing))]);
+            generic_instance(&mut db, array, vec![owned(instance(thing))]);
         let things2 =
-            generic_instance_id(&mut db, array, vec![owned(instance(thing))]);
-        let thing_refs = generic_instance_id(
-            &mut db,
-            array,
-            vec![immutable(instance(thing))],
-        );
-        let floats =
-            generic_instance_id(&mut db, array, vec![TypeRef::float()]);
-        let vars = generic_instance_id(&mut db, array, vec![placeholder(var)]);
+            generic_instance(&mut db, array, vec![owned(instance(thing))]);
+        let thing_refs =
+            generic_instance(&mut db, array, vec![immutable(instance(thing))]);
+        let floats = generic_instance(&mut db, array, vec![TypeRef::float()]);
+        let vars = generic_instance(&mut db, array, vec![placeholder(var)]);
         let eq_things =
             generic_trait_instance_id(&mut db, equal, vec![owned(things1)]);
-        let things_empty = generic_instance_id(&mut db, array, Vec::new());
+        let things_empty = generic_instance(&mut db, array, Vec::new());
 
         check_ok(&db, owned(things1), owned(things1));
         check_ok(&db, owned(things1), owned(things2));
@@ -1827,7 +1823,7 @@ mod tests {
 
             bound.add_requirements(&mut db, vec![bound_eq]);
 
-            let array_t = uni(generic_instance_id(
+            let array_t = uni(generic_instance(
                 &mut db,
                 array,
                 vec![any(parameter(bound))],
@@ -1844,17 +1840,13 @@ mod tests {
         }
 
         let things1 =
-            generic_instance_id(&mut db, array, vec![uni(instance(thing))]);
+            generic_instance(&mut db, array, vec![uni(instance(thing))]);
         let things2 =
-            generic_instance_id(&mut db, array, vec![uni(instance(thing))]);
-        let thing_refs = generic_instance_id(
-            &mut db,
-            array,
-            vec![immutable(instance(thing))],
-        );
-        let floats =
-            generic_instance_id(&mut db, array, vec![TypeRef::float()]);
-        let vars = generic_instance_id(&mut db, array, vec![placeholder(var)]);
+            generic_instance(&mut db, array, vec![uni(instance(thing))]);
+        let thing_refs =
+            generic_instance(&mut db, array, vec![immutable(instance(thing))]);
+        let floats = generic_instance(&mut db, array, vec![TypeRef::float()]);
+        let vars = generic_instance(&mut db, array, vec![placeholder(var)]);
         let eq_things =
             generic_trait_instance_id(&mut db, equal, vec![uni(things1)]);
 
@@ -2094,13 +2086,10 @@ mod tests {
         );
 
         let given =
-            mutable(generic_instance_id(&mut db, array, vec![TypeRef::int()]));
+            mutable(generic_instance(&mut db, array, vec![TypeRef::int()]));
 
-        let exp = mutable(generic_instance_id(
-            &mut db,
-            array,
-            vec![placeholder(var)],
-        ));
+        let exp =
+            mutable(generic_instance(&mut db, array, vec![placeholder(var)]));
 
         check_ok(&db, given, exp);
     }
@@ -2303,42 +2292,39 @@ mod tests {
         implement(&mut db, trait_instance(animal), cat);
 
         // Array[Cat]
-        let cats = owned(generic_instance_id(
-            &mut db,
-            array,
-            vec![owned(instance(cat))],
-        ));
+        let cats =
+            owned(generic_instance(&mut db, array, vec![owned(instance(cat))]));
 
         // ref Array[Cat]
-        let ref_cats = immutable(generic_instance_id(
+        let ref_cats = immutable(generic_instance(
             &mut db,
             array,
             vec![owned(instance(cat))],
         ));
 
         // mut Array[Cat]
-        let mut_cats = mutable(generic_instance_id(
+        let mut_cats = mutable(generic_instance(
             &mut db,
             array,
             vec![owned(instance(cat))],
         ));
 
         // Array[Animal]
-        let animals = owned(generic_instance_id(
+        let animals = owned(generic_instance(
             &mut db,
             array,
             vec![owned(trait_instance_id(animal))],
         ));
 
         // ref Array[Animal]
-        let ref_animals = immutable(generic_instance_id(
+        let ref_animals = immutable(generic_instance(
             &mut db,
             array,
             vec![owned(trait_instance_id(animal))],
         ));
 
         // mut Array[Animal]
-        let mut_animals = mutable(generic_instance_id(
+        let mut_animals = mutable(generic_instance(
             &mut db,
             array,
             vec![owned(trait_instance_id(animal))],
@@ -2670,10 +2656,10 @@ mod tests {
         array.new_type_parameter(&mut db, "T".to_string());
 
         let given =
-            owned(generic_instance_id(&mut db, array, vec![placeholder(var)]));
+            owned(generic_instance(&mut db, array, vec![placeholder(var)]));
         let ints =
-            owned(generic_instance_id(&mut db, array, vec![TypeRef::int()]));
-        let exp = owned(generic_instance_id(&mut db, array, vec![ints]));
+            owned(generic_instance(&mut db, array, vec![TypeRef::int()]));
+        let exp = owned(generic_instance(&mut db, array, vec![ints]));
 
         var.assign(&mut db, given);
         check_err(&db, given, exp);
@@ -2700,14 +2686,14 @@ mod tests {
         );
 
         // Array[Thing]
-        let owned_things = owned(generic_instance_id(
+        let owned_things = owned(generic_instance(
             &mut db,
             array,
             vec![owned(instance(thing))],
         ));
 
         // Array[ref Thing]
-        let ref_things = owned(generic_instance_id(
+        let ref_things = owned(generic_instance(
             &mut db,
             array,
             vec![immutable(instance(thing))],
@@ -2743,13 +2729,13 @@ mod tests {
             },
         );
 
-        let stack_ary = owned(generic_instance_id(
+        let stack_ary = owned(generic_instance(
             &mut db,
             array,
             vec![owned(instance(stack))],
         ));
 
-        let heap_ary = owned(generic_instance_id(
+        let heap_ary = owned(generic_instance(
             &mut db,
             array,
             vec![owned(instance(heap))],
@@ -2785,7 +2771,7 @@ mod tests {
         iterator.add_trait_implementation(&mut db, iter_impl);
 
         let int_iterator =
-            owned(generic_instance_id(&mut db, iterator, vec![TypeRef::int()]));
+            owned(generic_instance(&mut db, iterator, vec![TypeRef::int()]));
 
         let int_iter = owned(generic_trait_instance_id(
             &mut db,
@@ -2794,11 +2780,10 @@ mod tests {
         ));
 
         // Array[Iterator[Int]]
-        let lhs =
-            owned(generic_instance_id(&mut db, array, vec![int_iterator]));
+        let lhs = owned(generic_instance(&mut db, array, vec![int_iterator]));
 
         // Array[Iter[Int]]
-        let rhs = owned(generic_instance_id(&mut db, array, vec![int_iter]));
+        let rhs = owned(generic_instance(&mut db, array, vec![int_iter]));
 
         check_err(&db, lhs, rhs);
     }
@@ -2900,14 +2885,14 @@ mod tests {
         let mut env =
             Environment::new(TypeArguments::new(), TypeArguments::new());
 
-        let to_string_array = generic_instance_id(
+        let to_string_array = generic_instance(
             &mut db,
             array,
             vec![owned(trait_instance_id(to_string))],
         );
 
         let int_array =
-            generic_instance_id(&mut db, array, vec![owned(instance(int))]);
+            generic_instance(&mut db, array, vec![owned(instance(int))]);
 
         assert!(!TypeChecker::new(&db).check_argument(
             immutable(int_array),

@@ -8,8 +8,7 @@ pub(crate) mod pattern_matching;
 pub(crate) mod printer;
 pub(crate) mod specialize;
 
-use crate::state::State;
-use crate::symbol_names::{qualified_type_name, SymbolNames};
+use crate::symbol_names::SymbolNames;
 use indexmap::{IndexMap, IndexSet};
 use location::Location;
 use std::collections::{HashMap, HashSet};
@@ -19,11 +18,9 @@ use std::mem::swap;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 use std::sync::Mutex;
 use std::thread;
-use types::module_name::ModuleName;
 use types::{
-    Database, ForeignType, Intrinsic, MethodId, Module as ModuleType, Shape,
-    Sign, TypeArguments, TypeEnum, TypeRef, BOOL_ID, DROPPER_METHOD, FLOAT_ID,
-    INT_ID, NIL_ID,
+    Database, ForeignType, Intrinsic, MethodId, Sign, TypeArguments, TypeEnum,
+    TypeRef, BOOL_ID, DROPPER_METHOD, FLOAT_ID, INT_ID, NIL_ID,
 };
 
 /// The register ID of the register that stores `self`.
@@ -815,7 +812,10 @@ pub(crate) enum Constant {
     Int(i64),
     Float(f64),
     String(String),
-    Array(Vec<Constant>),
+    /// For Array constants we also store the type here such that we have access
+    /// to the type of every nested Array, instead of only having access to the
+    /// type of the outer constant as a whole.
+    Array(Vec<Constant>, TypeRef),
     Bool(bool),
 }
 
@@ -834,7 +834,7 @@ impl PartialEq for Constant {
                 a == b
             }
             (Constant::String(a), Constant::String(b)) => a == b,
-            (Constant::Array(a), Constant::Array(b)) => a == b,
+            (Constant::Array(a, _), Constant::Array(b, _)) => a == b,
             _ => false,
         }
     }
@@ -848,7 +848,7 @@ impl Hash for Constant {
             Constant::Int(v) => v.hash(state),
             Constant::Float(v) => v.to_bits().hash(state),
             Constant::String(v) => v.hash(state),
-            Constant::Array(v) => v.hash(state),
+            Constant::Array(v, _) => v.hash(state),
             Constant::Bool(v) => v.hash(state),
         }
     }
@@ -860,7 +860,7 @@ impl fmt::Display for Constant {
             Self::Int(v) => write!(f, "{}", v),
             Self::Float(v) => write!(f, "{}", v),
             Self::String(v) => write!(f, "{:?}", v),
-            Self::Array(v) => write!(f, "{:?}", v),
+            Self::Array(v, _) => write!(f, "{:?}", v),
             Self::Bool(v) => write!(f, "{}", v),
         }
     }
@@ -1199,6 +1199,7 @@ pub(crate) enum CastType {
     Float(u32),
     Pointer,
     Object,
+    Trait,
 }
 
 impl CastType {
@@ -1231,6 +1232,7 @@ impl CastType {
                     FLOAT_ID => CastType::Float(64),
                     _ => CastType::Object,
                 },
+                Ok(TypeEnum::TraitInstance(_)) => CastType::Trait,
                 _ => CastType::Object,
             }
         }
@@ -2157,7 +2159,7 @@ pub(crate) struct Mir {
     /// This is used to determine what methods we need to generate dynamic
     /// dispatch hashes for.
     pub(crate) dynamic_calls:
-        IndexMap<MethodId, IndexSet<(MethodId, Vec<Shape>)>>,
+        IndexMap<MethodId, IndexSet<(MethodId, Vec<TypeRef>)>>,
 }
 
 impl Mir {
@@ -2194,9 +2196,9 @@ impl Mir {
     pub(crate) fn sort(&mut self, db: &Database, names: &SymbolNames) {
         // We sort the data by their generated symbol names, as these are
         // already unique for each ID and take into account data such as the
-        // shapes. If we sorted just by IDs we'd get an inconsistent order
-        // between compilations, and if we just sorted by names we may get an
-        // inconsistent order when many values share the same name.
+        // type arguments. If we sorted just by IDs we'd get an inconsistent
+        // order between compilations, and if we just sorted by names we may get
+        // an inconsistent order when many values share the same name.
         for module in self.modules.values_mut() {
             module.constants.sort_by_key(|i| &names.constants[i]);
             module.types.sort_by_key(|i| &names.types[i]);
@@ -2239,95 +2241,6 @@ impl Mir {
 
         for method in methods {
             self.methods.insert(method.id, method);
-        }
-    }
-
-    /// Splits modules into smaller ones, such that each type has its own
-    /// module.
-    ///
-    /// This is done to make caching and parallel compilation more effective,
-    /// such that e.g. adding a newly specialized type won't flush many caches
-    /// unnecessarily.
-    pub(crate) fn split_modules(&mut self, state: &mut State) {
-        let mut new_modules = Vec::new();
-
-        for old_module in self.modules.values_mut() {
-            let mut moved_types = HashSet::new();
-            let mut moved_methods = HashSet::new();
-
-            for &tid in &old_module.types {
-                let file = old_module.id.file(&state.db);
-                let orig_name = old_module.id.name(&state.db).clone();
-                let name = ModuleName::new(qualified_type_name(
-                    &state.db,
-                    old_module.id,
-                    tid,
-                ));
-                let new_mod_id =
-                    ModuleType::alloc(&mut state.db, name.clone(), file);
-
-                // For symbols/stack traces we want to use the original name,
-                // not the generated one.
-                new_mod_id
-                    .set_method_symbol_name(&mut state.db, orig_name.clone());
-
-                // We have to record the new module in the dependency graph,
-                // that way a change to the original module also affects these
-                // generated modules.
-                let new_node_id = state.dependency_graph.add_module(&name);
-                let old_node_id =
-                    state.dependency_graph.module_id(&orig_name).unwrap();
-
-                state.dependency_graph.add_depending(old_node_id, new_node_id);
-
-                // Closure modules need to be updated if either their source
-                // module changes _or_ the module of the closure's `self` type,
-                // because changes to the `self` type may affect how the closure
-                // is generated.
-                if let Some(stype) = tid.specialization_key(&state.db).self_type
-                {
-                    let self_node = state.dependency_graph.add_module(
-                        stype
-                            .as_type_instance()
-                            .unwrap()
-                            .instance_of()
-                            .module(&state.db)
-                            .name(&state.db),
-                    );
-
-                    state
-                        .dependency_graph
-                        .add_depending(self_node, new_node_id);
-                }
-
-                let mut new_module = Module::new(new_mod_id);
-
-                // We don't deal with static methods as those have their
-                // receiver typed as the original type ID, because they don't
-                // really belong to a type (i.e. they're basically scoped
-                // module methods).
-                new_module.methods = self.types[&tid].methods.clone();
-                new_module.types.push(tid);
-                moved_types.insert(tid);
-
-                // When generating symbol names we use the module as stored in
-                // the method, so we need to make sure that's set to our newly
-                // generated module.
-                for &id in &new_module.methods {
-                    id.set_module(&mut state.db, new_mod_id);
-                    moved_methods.insert(id);
-                }
-
-                tid.set_module(&mut state.db, new_mod_id);
-                new_modules.push(new_module);
-            }
-
-            old_module.methods.retain(|id| !moved_methods.contains(id));
-            old_module.types.retain(|i| !moved_types.contains(i));
-        }
-
-        for module in new_modules {
-            self.modules.insert(module.id, module);
         }
     }
 

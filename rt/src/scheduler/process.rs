@@ -1263,7 +1263,8 @@ mod tests {
     fn test_monitor_deep_sleep_with_notification() {
         let scheduler = Scheduler::new(1, 1, 32);
         let monitor = Monitor::new(&scheduler.pool);
-        let _ = scope(|s| {
+
+        scope(|s| {
             s.spawn(|| monitor.deep_sleep());
 
             while scheduler.pool.monitor.status.load()

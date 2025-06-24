@@ -2,7 +2,11 @@
 use crate::mir::Mir;
 use std::collections::HashMap;
 use std::fmt::Write as _;
-use types::{ConstantId, Database, MethodId, ModuleId, Shape, Sign, TypeId};
+use types::{
+    Block, ClosureSelfType, ConstantId, Database, ForeignType, MethodId,
+    ModuleId, Sign, TraitId, TypeArguments, TypeEnum, TypeId, TypeRef,
+    FLOAT_ID, INT_ID,
+};
 
 pub(crate) const SYMBOL_PREFIX: &str = "_I";
 
@@ -12,54 +16,127 @@ pub(crate) const STATE_GLOBAL: &str = "_IG_INKO_STATE";
 /// The name of the global variable that stores the stack mask.
 pub(crate) const STACK_MASK_GLOBAL: &str = "_IG_INKO_STACK_MASK";
 
-pub(crate) fn format_shape(db: &Database, shape: Shape, buf: &mut String) {
-    let _ = match shape {
-        Shape::Owned => write!(buf, "o"),
-        Shape::Mut => write!(buf, "m"),
-        Shape::Ref => write!(buf, "r"),
-        Shape::Int(s, Sign::Signed) => write!(buf, "i{}", s),
-        Shape::Int(s, Sign::Unsigned) => write!(buf, "u{}", s),
-        Shape::Float(s) => write!(buf, "f{}", s),
-        Shape::Boolean => write!(buf, "b"),
-        Shape::String => write!(buf, "s"),
-        Shape::Atomic => write!(buf, "a"),
-        Shape::Nil => write!(buf, "n"),
-        Shape::Pointer => write!(buf, "p"),
-        Shape::Copy(ins) => {
-            let _ = write!(buf, "C{}.", ins.instance_of().module(db).name(db));
+pub(crate) fn format_type_enum(db: &Database, typ: TypeEnum, buf: &mut String) {
+    match typ {
+        TypeEnum::TypeInstance(t) => {
+            let tid = t.instance_of();
 
-            format_type_name(db, ins.instance_of(), buf);
-            Ok(())
+            // This ensures that Int64 and Int, and Float64 and Float produce
+            // the same symbol names.
+            match tid.0 {
+                INT_ID => buf.push_str("i64"),
+                FLOAT_ID => buf.push_str("f64"),
+                _ => {
+                    let _ = write!(buf, "{}.", tid.module(db).name(db));
+
+                    format_type_name(db, tid, buf);
+                }
+            }
         }
-        Shape::Inline(ins) => {
-            let _ = write!(buf, "IO{}.", ins.instance_of().module(db).name(db));
+        TypeEnum::TraitInstance(t) => {
+            let tid = t.instance_of();
+            let _ = write!(buf, "{}.", tid.module(db).name(db));
 
-            format_type_name(db, ins.instance_of(), buf);
-            Ok(())
+            format_trait_name(db, tid, buf);
         }
-        Shape::InlineRef(ins) => {
-            let _ = write!(buf, "IR{}.", ins.instance_of().module(db).name(db));
+        // While closure _values_ are turned into regular type instances,
+        // closure _types_ (e.g. used in a method argument's signature) remain a
+        // dedicated type.
+        TypeEnum::Closure(t) => {
+            buf.push_str(if t.is_moving(db) { "fn move" } else { "fn" });
 
-            format_type_name(db, ins.instance_of(), buf);
-            Ok(())
+            if t.number_of_arguments(db) > 0 {
+                buf.push_str(" (");
+
+                for (idx, arg) in t.arguments(db).into_iter().enumerate() {
+                    if idx > 0 {
+                        buf.push_str(", ");
+                    }
+
+                    format_type(db, arg.value_type, buf);
+                }
+
+                buf.push(')');
+            }
+
+            match t.return_type(db) {
+                ret if ret == TypeRef::nil() => {}
+                ret => {
+                    buf.push_str(" -> ");
+                    format_type(db, ret, buf)
+                }
+            }
         }
-        Shape::InlineMut(ins) => {
-            let _ = write!(buf, "IM{}.", ins.instance_of().module(db).name(db));
-
-            format_type_name(db, ins.instance_of(), buf);
-            Ok(())
+        TypeEnum::Foreign(ForeignType::Float(bits)) => {
+            let _ = write!(buf, "f{}", bits);
         }
-    };
-}
-
-pub(crate) fn format_shapes(db: &Database, shapes: &[Shape], buf: &mut String) {
-    for &shape in shapes {
-        format_shape(db, shape, buf);
+        TypeEnum::Foreign(ForeignType::Int(bits, Sign::Signed)) => {
+            let _ = write!(buf, "i{}", bits);
+        }
+        TypeEnum::Foreign(ForeignType::Int(bits, Sign::Unsigned)) => {
+            let _ = write!(buf, "u{}", bits);
+        }
+        // Other types (e.g. type parameters or modules) can't occur at this
+        // point.
+        _ => unreachable!(),
     }
 }
 
-fn format_type_base_name(db: &Database, id: TypeId, name: &mut String) {
-    name.push_str(id.name(db));
+pub(crate) fn format_type(db: &Database, typ: TypeRef, buf: &mut String) {
+    let (label, subj) = match typ {
+        TypeRef::Owned(t) => ("", t),
+        TypeRef::Uni(t) => ("uni ", t),
+        TypeRef::Ref(t) => ("ref ", t),
+        TypeRef::Mut(t) => ("mut ", t),
+        TypeRef::UniRef(t) => ("uni ref ", t),
+        TypeRef::UniMut(t) => ("uni mut ", t),
+        TypeRef::Pointer(t) => {
+            buf.push_str("Pointer[");
+            format_type_enum(db, t, buf);
+            buf.push(']');
+            return;
+        }
+        TypeRef::Unknown => {
+            // Placeholders that aren't assigned types are replaced with Unknown
+            // as part of specialization. We can encounter such cases when a
+            // generic type has a static method that doesn't use the type's type
+            // parameters.
+            buf.push('?');
+            return;
+        }
+        TypeRef::Never => {
+            buf.push_str("Never");
+            return;
+        }
+        // Other types can't be present at this point, outside of any compiler
+        // bugs. Most notably, placeholders are replaced with the types they're
+        // assigned to.
+        _ => unreachable!("{:?} must be specialized into some other type", typ),
+    };
+
+    let write_label = match subj {
+        TypeEnum::TypeInstance(i) => {
+            !matches!(i.instance_of().0, INT_ID | FLOAT_ID)
+        }
+        TypeEnum::Foreign(_) => false,
+        _ => true,
+    };
+
+    if write_label && !label.is_empty() {
+        buf.push_str(label);
+    }
+
+    format_type_enum(db, subj, buf);
+}
+
+pub(crate) fn format_types(db: &Database, types: &[TypeRef], buf: &mut String) {
+    for &typ in types {
+        format_type(db, typ, buf);
+    }
+}
+
+fn format_type_base_name(db: &Database, id: TypeId, buf: &mut String) {
+    buf.push_str(id.name(db));
 
     // For closures the process of generating a name is a little more tricky: a
     // default method may define a closure. If that default method is inherited
@@ -78,32 +155,55 @@ fn format_type_base_name(db: &Database, id: TypeId, name: &mut String) {
     }
 
     let loc = id.location(db);
-    let stype = id
-        .specialization_key(db)
-        .self_type
-        .and_then(|e| e.as_type_instance())
-        .unwrap()
-        .instance_of();
+    let stype = id.self_type_for_closure(db).unwrap();
+    let sname = match stype {
+        ClosureSelfType::TypeInstance(t) => {
+            qualified_type_name(db, t.instance_of().module(db), t.instance_of())
+        }
+        ClosureSelfType::Type(t) => qualified_type_name(db, t.module(db), t),
+        ClosureSelfType::Module(t) => t.name(db).to_string(),
+    };
 
     // The exact format used here doesn't really matter, but we try to keep it
     // somewhat readable for use in external tooling (e.g. a profiler that
     // doesn't support demangling our format).
-    name.push_str(&format!(
+    buf.push_str(&format!(
         "({},{},{})",
-        qualified_type_name(db, stype.module(db), stype),
-        loc.line_start,
-        loc.column_start,
+        sname, loc.line_start, loc.column_start,
     ));
+}
+
+fn format_type_arguments(
+    db: &Database,
+    arguments: &TypeArguments,
+    buf: &mut String,
+) {
+    buf.push('[');
+
+    for (idx, typ) in arguments.values().enumerate() {
+        if idx > 0 {
+            buf.push_str(", ");
+        }
+
+        format_type(db, typ, buf);
+    }
+
+    buf.push(']');
 }
 
 pub(crate) fn format_type_name(db: &Database, id: TypeId, buf: &mut String) {
     format_type_base_name(db, id, buf);
 
-    let shapes = id.shapes(db);
+    if let Some(args) = id.type_arguments(db) {
+        format_type_arguments(db, args, buf);
+    }
+}
 
-    if !shapes.is_empty() {
-        buf.push('#');
-        format_shapes(db, shapes, buf);
+pub(crate) fn format_trait_name(db: &Database, id: TraitId, buf: &mut String) {
+    buf.push_str(id.name(db));
+
+    if let Some(args) = id.type_arguments(db) {
+        format_type_arguments(db, args, buf);
     }
 }
 
@@ -122,17 +222,30 @@ pub(crate) fn format_method_name(
     db: &Database,
     tid: TypeId,
     id: MethodId,
-    name: &mut String,
+    buf: &mut String,
 ) {
-    name.push_str(id.name(db));
+    buf.push_str(id.name(db));
 
-    let cshapes = tid.shapes(db);
-    let mshapes = id.shapes(db);
+    let cargs = tid.type_arguments(db);
+    let margs = id.type_arguments(db);
 
-    if !cshapes.is_empty() || !mshapes.is_empty() {
-        name.push('#');
-        format_shapes(db, cshapes, name);
-        format_shapes(db, mshapes, name);
+    if cargs.is_some() || !margs.is_empty() {
+        buf.push_str("#[");
+
+        for (idx, typ) in cargs
+            .iter()
+            .flat_map(|t| t.values())
+            .chain(margs.iter().cloned())
+            .enumerate()
+        {
+            if idx > 0 {
+                buf.push_str(", ");
+            }
+
+            format_type(db, typ, buf);
+        }
+
+        buf.push(']');
     }
 }
 
@@ -155,8 +268,8 @@ fn mangled_method_name(db: &Database, method: MethodId) -> String {
         mod_name
     );
 
-    // This ensures that methods such as `std::process.sleep` aren't formatted
-    // as `std::process::std::process.sleep`. This in turn makes stack traces
+    // This ensures that methods such as `std.process.sleep` aren't formatted
+    // as `std.process.std.process.sleep`. This in turn makes stack traces
     // easier to read.
     if !tid.kind(db).is_module() {
         format_type_base_name(db, tid, &mut name);
@@ -230,75 +343,347 @@ mod tests {
     use location::Location;
     use types::module_name::ModuleName;
     use types::{
-        Module, SpecializationKey, Type, TypeInstance, TypeKind, Visibility,
+        Closure, ClosureId, Method, MethodKind, Module, Trait, TraitInstance,
+        Type, TypeInstance, TypeKind, TypeParameter, TypeParameterId,
+        Visibility,
     };
 
-    fn name(db: &Database, shape: Shape) -> String {
+    fn name(db: &Database, typ: TypeRef) -> String {
         let mut buf = String::new();
 
-        format_shape(db, shape, &mut buf);
+        format_type(db, typ, &mut buf);
         buf
     }
 
+    fn arguments(pairs: &[(TypeParameterId, TypeRef)]) -> TypeArguments {
+        let mut args = TypeArguments::new();
+
+        for &(par, typ) in pairs {
+            args.assign(par, typ);
+        }
+
+        args
+    }
+
+    fn instance(of: TypeId) -> TypeEnum {
+        TypeEnum::TypeInstance(TypeInstance::new(of))
+    }
+
+    fn trait_instance(of: TraitId) -> TypeEnum {
+        TypeEnum::TraitInstance(TraitInstance::new(of))
+    }
+
+    fn closure(id: ClosureId) -> TypeEnum {
+        TypeEnum::Closure(id)
+    }
+
     #[test]
-    fn test_format_shape() {
+    fn test_format_type() {
         let mut db = Database::new();
         let mid =
             Module::alloc(&mut db, ModuleName::new("a.b.c"), "c.inko".into());
+        let str_mod = Module::alloc(
+            &mut db,
+            ModuleName::new("std.string"),
+            "string.inko".into(),
+        );
         let kind = TypeKind::Regular;
         let vis = Visibility::Public;
         let loc = Location::default();
         let cls1 = Type::alloc(&mut db, "A".to_string(), kind, vis, mid, loc);
         let cls2 = Type::alloc(&mut db, "B".to_string(), kind, vis, mid, loc);
-        let cls3 = Type::alloc(&mut db, "C".to_string(), kind, vis, mid, loc);
-        let cls4 = Type::alloc(&mut db, "D".to_string(), kind, vis, mid, loc);
-
-        cls1.set_specialization_key(
+        let tid1 = Trait::alloc(&mut db, "A".to_string(), vis, mid, loc);
+        let tid2 = Trait::alloc(&mut db, "B".to_string(), vis, mid, loc);
+        let par1 = TypeParameter::alloc(&mut db, "T1".to_string());
+        let par2 = TypeParameter::alloc(&mut db, "T2".to_string());
+        let fn_norm = Closure::alloc(&mut db, false);
+        let fn_move = Closure::alloc(&mut db, true);
+        let fn_typ = Type::alloc(
             &mut db,
-            SpecializationKey::new(vec![
-                Shape::Int(64, Sign::Signed),
-                Shape::Inline(TypeInstance::new(cls2)),
+            "Closure123".to_string(),
+            TypeKind::Closure,
+            vis,
+            mid,
+            loc,
+        );
+
+        fn_norm.new_argument(
+            &mut db,
+            "a".to_string(),
+            TypeRef::int(),
+            TypeRef::int(),
+            loc,
+        );
+        fn_norm.new_argument(
+            &mut db,
+            "b".to_string(),
+            TypeRef::float(),
+            TypeRef::float(),
+            loc,
+        );
+        fn_norm.set_return_type(&mut db, TypeRef::string());
+        fn_move.new_argument(
+            &mut db,
+            "a".to_string(),
+            TypeRef::int(),
+            TypeRef::int(),
+            loc,
+        );
+        fn_move.set_return_type(&mut db, TypeRef::nil());
+        TypeId::string().set_module(&mut db, str_mod);
+        cls1.set_type_arguments(
+            &mut db,
+            arguments(&[
+                (par1, TypeRef::foreign_signed_int(64)),
+                (par2, TypeRef::Owned(instance(cls2))),
             ]),
         );
-        cls2.set_specialization_key(
+        cls2.set_type_arguments(
             &mut db,
-            SpecializationKey::new(vec![Shape::String]),
+            arguments(&[(par1, TypeRef::string())]),
         );
-        cls3.set_specialization_key(
+        tid2.set_type_arguments(
             &mut db,
-            SpecializationKey::new(vec![Shape::InlineRef(TypeInstance::new(
-                cls2,
-            ))]),
+            arguments(&[(par1, TypeRef::string()), (par2, TypeRef::int())]),
         );
-        cls4.set_specialization_key(
+        fn_typ.set_type_arguments(
             &mut db,
-            SpecializationKey::new(vec![Shape::InlineMut(TypeInstance::new(
-                cls2,
-            ))]),
+            arguments(&[(par1, TypeRef::string()), (par2, TypeRef::int())]),
+        );
+        fn_typ.set_self_type_for_closure(
+            &mut db,
+            instance(TypeId::string()).into(),
         );
 
-        assert_eq!(name(&db, Shape::Owned), "o");
-        assert_eq!(name(&db, Shape::Mut), "m");
-        assert_eq!(name(&db, Shape::Ref), "r");
-        assert_eq!(name(&db, Shape::Int(32, Sign::Signed)), "i32");
-        assert_eq!(name(&db, Shape::Int(32, Sign::Unsigned)), "u32");
-        assert_eq!(name(&db, Shape::Float(32)), "f32");
-        assert_eq!(name(&db, Shape::Boolean), "b");
-        assert_eq!(name(&db, Shape::String), "s");
-        assert_eq!(name(&db, Shape::Atomic), "a");
-        assert_eq!(name(&db, Shape::Nil), "n");
-        assert_eq!(name(&db, Shape::Pointer), "p");
+        assert_eq!(name(&db, TypeRef::int()), "i64");
+        assert_eq!(name(&db, TypeRef::foreign_signed_int(64)), "i64");
+        assert_eq!(name(&db, TypeRef::foreign_signed_int(16)), "i16");
+        assert_eq!(name(&db, TypeRef::foreign_unsigned_int(64)), "u64");
+        assert_eq!(name(&db, TypeRef::foreign_unsigned_int(16)), "u16");
+        assert_eq!(name(&db, TypeRef::float()), "f64");
+        assert_eq!(name(&db, TypeRef::foreign_float(64)), "f64");
+        assert_eq!(name(&db, TypeRef::foreign_float(32)), "f32");
         assert_eq!(
-            name(&db, Shape::Inline(TypeInstance::new(cls1))),
-            "IOa.b.c.A#i64IOa.b.c.B#s"
+            name(&db, TypeRef::Owned(instance(cls1))),
+            "a.b.c.A[i64, a.b.c.B[std.string.String]]"
         );
         assert_eq!(
-            name(&db, Shape::InlineMut(TypeInstance::new(cls3))),
-            "IMa.b.c.C#IRa.b.c.B#s"
+            name(&db, TypeRef::Ref(instance(cls1))),
+            "ref a.b.c.A[i64, a.b.c.B[std.string.String]]"
         );
         assert_eq!(
-            name(&db, Shape::InlineRef(TypeInstance::new(cls4))),
-            "IRa.b.c.D#IMa.b.c.B#s"
+            name(&db, TypeRef::Mut(instance(cls1))),
+            "mut a.b.c.A[i64, a.b.c.B[std.string.String]]"
+        );
+        assert_eq!(
+            name(&db, TypeRef::Uni(instance(cls1))),
+            "uni a.b.c.A[i64, a.b.c.B[std.string.String]]"
+        );
+        assert_eq!(
+            name(&db, TypeRef::UniRef(instance(cls1))),
+            "uni ref a.b.c.A[i64, a.b.c.B[std.string.String]]"
+        );
+        assert_eq!(
+            name(&db, TypeRef::UniMut(instance(cls1))),
+            "uni mut a.b.c.A[i64, a.b.c.B[std.string.String]]"
+        );
+        assert_eq!(
+            name(&db, TypeRef::Pointer(instance(cls1))),
+            "Pointer[a.b.c.A[i64, a.b.c.B[std.string.String]]]"
+        );
+        assert_eq!(name(&db, TypeRef::Owned(trait_instance(tid1))), "a.b.c.A");
+        assert_eq!(
+            name(&db, TypeRef::Owned(trait_instance(tid2))),
+            "a.b.c.B[std.string.String, i64]"
+        );
+        assert_eq!(
+            name(&db, TypeRef::Owned(closure(fn_norm))),
+            "fn (i64, f64) -> std.string.String"
+        );
+        assert_eq!(
+            name(&db, TypeRef::Owned(closure(fn_move))),
+            "fn move (i64)"
+        );
+        assert_eq!(
+            name(&db, TypeRef::Owned(instance(fn_typ))),
+            "a.b.c.Closure123(std.string.String,1,1)[std.string.String, i64]"
+        );
+    }
+
+    #[test]
+    fn test_mangled_method_name() {
+        let mut db = Database::new();
+        let mid = Module::alloc(
+            &mut db,
+            ModuleName::new("std.array"),
+            "array.inko".into(),
+        );
+        let typ = TypeId::array();
+        let vis = Visibility::Public;
+        let loc = Location::default();
+        let meth = Method::alloc(
+            &mut db,
+            mid,
+            loc,
+            "example".to_string(),
+            vis,
+            MethodKind::Instance,
+        );
+        let par = typ.new_type_parameter(&mut db, "T".to_string());
+
+        typ.set_module(&mut db, mid);
+        typ.set_type_arguments(&mut db, arguments(&[(par, TypeRef::int())]));
+        meth.set_type_arguments(&mut db, vec![TypeRef::float()]);
+        meth.set_receiver(&mut db, TypeRef::Owned(instance(typ)));
+
+        assert_eq!(
+            mangled_method_name(&db, meth),
+            "_IM_std.array.Array.example#[i64, f64]"
+        );
+    }
+
+    #[test]
+    fn test_mangled_method_name_with_module_method() {
+        let mut db = Database::new();
+        let mid = Module::alloc(
+            &mut db,
+            ModuleName::new("std.array"),
+            "array.inko".into(),
+        );
+        let vis = Visibility::Public;
+        let loc = Location::default();
+        let meth = Method::alloc(
+            &mut db,
+            mid,
+            loc,
+            "example".to_string(),
+            vis,
+            MethodKind::Instance,
+        );
+
+        meth.set_type_arguments(&mut db, vec![TypeRef::float()]);
+        meth.set_receiver(&mut db, TypeRef::Owned(TypeEnum::Module(mid)));
+
+        assert_eq!(
+            mangled_method_name(&db, meth),
+            "_IM_std.array.example#[f64]"
+        );
+    }
+
+    #[test]
+    fn test_mangled_method_name_with_closure() {
+        let mut db = Database::new();
+        let mid = Module::alloc(
+            &mut db,
+            ModuleName::new("std.int"),
+            "int.inko".into(),
+        );
+        let vis = Visibility::Public;
+        let loc = Location::new(&(1..=1), &(10..=10));
+        let typ = Type::alloc(
+            &mut db,
+            "Closure123".to_string(),
+            TypeKind::Closure,
+            vis,
+            mid,
+            loc,
+        );
+        let meth = Method::alloc(
+            &mut db,
+            mid,
+            loc,
+            "call".to_string(),
+            vis,
+            MethodKind::Instance,
+        );
+
+        typ.set_module(&mut db, mid);
+        typ.set_self_type_for_closure(
+            &mut db,
+            TypeEnum::TypeInstance(TypeInstance::new(TypeId::int())).into(),
+        );
+        meth.set_receiver(&mut db, TypeRef::Owned(instance(typ)));
+
+        assert_eq!(
+            mangled_method_name(&db, meth),
+            "_IMC_std.int.Closure123(std.int.Int,1,10).call"
+        );
+    }
+
+    #[test]
+    fn test_mangled_method_name_with_closure_in_static_method() {
+        let mut db = Database::new();
+        let mid = Module::alloc(
+            &mut db,
+            ModuleName::new("std.int"),
+            "int.inko".into(),
+        );
+        let vis = Visibility::Public;
+        let loc = Location::new(&(1..=1), &(10..=10));
+        let typ = Type::alloc(
+            &mut db,
+            "Closure123".to_string(),
+            TypeKind::Closure,
+            vis,
+            mid,
+            loc,
+        );
+        let meth = Method::alloc(
+            &mut db,
+            mid,
+            loc,
+            "call".to_string(),
+            vis,
+            MethodKind::Instance,
+        );
+
+        typ.set_module(&mut db, mid);
+        typ.set_self_type_for_closure(
+            &mut db,
+            TypeEnum::Type(TypeId::int()).into(),
+        );
+        meth.set_receiver(&mut db, TypeRef::Owned(instance(typ)));
+
+        assert_eq!(
+            mangled_method_name(&db, meth),
+            "_IMC_std.int.Closure123(std.int.Int,1,10).call"
+        );
+    }
+
+    #[test]
+    fn test_mangled_method_name_with_closure_in_module_method() {
+        let mut db = Database::new();
+        let mid = Module::alloc(
+            &mut db,
+            ModuleName::new("std.int"),
+            "int.inko".into(),
+        );
+        let vis = Visibility::Public;
+        let loc = Location::new(&(1..=1), &(10..=10));
+        let typ = Type::alloc(
+            &mut db,
+            "Closure123".to_string(),
+            TypeKind::Closure,
+            vis,
+            mid,
+            loc,
+        );
+        let meth = Method::alloc(
+            &mut db,
+            mid,
+            loc,
+            "call".to_string(),
+            vis,
+            MethodKind::Instance,
+        );
+
+        typ.set_module(&mut db, mid);
+        typ.set_self_type_for_closure(&mut db, TypeEnum::Module(mid).into());
+        meth.set_receiver(&mut db, TypeRef::Owned(instance(typ)));
+
+        assert_eq!(
+            mangled_method_name(&db, meth),
+            "_IMC_std.int.Closure123(std.int,1,10).call"
         );
     }
 }

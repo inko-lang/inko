@@ -21,6 +21,17 @@ pub(crate) fn new_type(db: &mut Database, name: &str) -> TypeId {
     )
 }
 
+pub(crate) fn new_closure_type(db: &mut Database, name: &str) -> TypeId {
+    Type::alloc(
+        db,
+        name.to_string(),
+        TypeKind::Closure,
+        Visibility::Public,
+        ModuleId(0),
+        Location::default(),
+    )
+}
+
 pub(crate) fn new_async_type(db: &mut Database, name: &str) -> TypeId {
     Type::alloc(
         db,
@@ -131,7 +142,7 @@ pub(crate) fn closure(id: ClosureId) -> TypeEnum {
     TypeEnum::Closure(id)
 }
 
-pub(crate) fn generic_instance_id(
+pub(crate) fn generic_instance(
     db: &mut Database,
     type_id: TypeId,
     arguments: Vec<TypeRef>,

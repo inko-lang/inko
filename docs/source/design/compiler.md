@@ -188,91 +188,17 @@ as inlining, devirtualisation, and dead code removal.
 
 ### Generics
 
-Generic types and methods are specialized at the MIR level. Rather than
-specialize generics for every type (meaning `Array[Foo]` and `Array[Bar]` result
-in different specializations of `Array`), the compiler groups types into
-"shapes" and specializes over these shapes. This approach results in a better
-balance between compile times and runtime performance, instead of favoring
-runtime performance over compile times (often resulting in long compile times).
+Generic types and methods are specialized at the MIR level. Generics are
+specialized over types as found in other languages (e.g. Rust). Closures are
+grouped together, so passing three closures to the same generic type parameter
+only results in a single specialization.
 
-The following shapes are used:
+::: note
+In the past we used to group types together into "shapes", but this changed
+with pull request ["Specialize over individual types instead of specializing over
+groups of types"](https://github.com/inko-lang/inko/pull/870).
+:::
 
-|=
-| Shape
-| Dispatch
-| Purpose
-|-
-| Owned
-| Dynamic
-| The default shape and used for owned values that aren't given a more specific
-  shape.
-|-
-| Mut
-| Dynamic
-| Used for mutable references.
-|-
-| Ref
-| Dynamic
-| Used for immutable references.
-|-
-| Int
-| Static
-| Used for `Int`, removing the need for boxed integers.
-|-
-| Float
-| Static
-| Used for `Float`, removing the need for boxed floats.
-|-
-| Boolean
-| Static
-| Used for the `Bool` type
-|-
-| Nil
-| Static
-| Used for the `Nil` type
-|-
-| String
-| Static
-| Used for the `String` type.
-|-
-| Atomic
-| Dynamic
-| Used for other atomic reference counting types, such as processes.
-|-
-| Pointer
-| None
-| Used for C pointers. No form of dispatch is used as pointers don't support
-  methods.
-|-
-| Copy(T)
-| Static
-| Used for `copy` types, where `T` is the type specialized over.
-|-
-| Inline(T)
-| Static
-| Used for `inline` types, where `T` is the type specialized over.
-|-
-| InlineRef(T)
-| Static
-| Used for immutable borrows of `inline` types, where `T` is the type
-  specialized over.
-|-
-| InlineMut(T)
-| Static
-| Used for mutable borrows of `inline` types, where `T` is the type specialized
-  over.
-
-This approach means that the following two methods compile to the same code,
-provided the `foo` method is given an owned value:
-
-```inko
-fn foo[T: ToString](value: T) {}
-
-fn bar(value: ToString) {}
-```
-
-If `foo` is instead given e.g. an `Int`, a version of `foo` is compiled that
-specifically handles `Int`, resulting in different code.
 
 Specialization is done in two stages: the initially generated MIR is generic.
 For example, drops are handled using a generic "drop" instruction that
