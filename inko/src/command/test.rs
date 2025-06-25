@@ -19,6 +19,9 @@ Examples:
 
     inko test    # Runs all unit tests in ./test";
 
+/// The exit status used when one or more tests failed.
+const TESTS_FAILED_STATUS: i32 = 2;
+
 /// Compiles and runs Inko unit tests.
 pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     let mut options = Options::new();
@@ -110,13 +113,12 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
             // such a signal.
             let code = status.code().unwrap_or(1);
 
-            if code == 0 {
-                Ok(0)
-            } else {
-                Err(Error::from(format!(
+            match code {
+                0 | TESTS_FAILED_STATUS => Ok(code),
+                _ => Err(Error::from(format!(
                     "the tests runner exited with status code {}",
                     code
-                )))
+                ))),
             }
         }
         Err(CompileError::Invalid) => Ok(1),

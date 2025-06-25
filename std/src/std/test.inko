@@ -77,6 +77,12 @@ import std.time (Duration, Instant)
 
 let CHILD_VAR = 'INKO_TEST_CHILD'
 
+# The exit status to use when one or more tests failed.
+#
+# We don't use 1 here such that the `inko test` command can tell the difference
+# between a test failure and an unrelated crash (e.g. a SEGV).
+let ERROR_EXIT_STATUS = 2
+
 # Returns the last stack frame that originates from a unit test file.
 fn unit_test_stack_frame -> debug.StackFrame {
   let frames = debug.stacktrace(skip: 2)
@@ -705,7 +711,7 @@ type pub Tests {
     if rep.finished(start.elapsed, seed) {
       exit(status: 0)
     } else {
-      exit(status: 1)
+      exit(status: ERROR_EXIT_STATUS)
     }
   }
 
