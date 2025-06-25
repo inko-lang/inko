@@ -35,6 +35,40 @@ import std.io (Error, Read, Write, WriteInternal)
 import std.sys.unix.stdio (self as sys) if unix
 
 # The standard input stream of the current OS process.
+#
+# # Buffering
+#
+# This input stream doesn't use any explicit buffering and instead reads its
+# data from the operating system directly. If buffering is desired, you can do
+# so by wrapping a `Stdin` in a `std.io.BufferedReader`. In this case you should
+# reuse that same wrapped `Stdin` instance whenever reading from STDIN is
+# required, otherwise different instances may produce different outputs.
+#
+# # Reading lines
+#
+# Due to the unbuffered nature of this type, there's no method for reading
+# entire lines. To do so, wrap a `Stdin` in a `std.io.BufferedReader` and use
+# `BufferedReader.read_line` to read a single line. For example:
+#
+# ```inko
+# import std.io (BufferedReader)
+# import std.stdio (Stdin, Stdout)
+#
+# type async Main {
+#   fn async main {
+#     let inp = BufferedReader.new(Stdin.new)
+#     let out = Stdout.new
+#     let buf = ByteArray.new
+#
+#     out.write('Enter your name: ').or_panic
+#
+#     let _ = inp.read_line(into: buf, inclusive: false).or_panic
+#
+#     out.write('Your name is: ').or_panic
+#     out.write(buf).or_panic
+#   }
+# }
+# ```
 type pub inline Stdin {
   let @fd: Int32
 
