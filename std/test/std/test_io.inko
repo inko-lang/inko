@@ -358,19 +358,14 @@ fn pub tests(t: mut Tests) {
     t.equal(reader.offset, 0)
   })
 
-  t.test('BufferedReader.fill_buffer with exact reads', fn (t) {
-    let reader = BufferedReader.new(SingleByteReader.new)
+  t.test('BufferedReader.fill_buffer', fn (t) {
+    let r1 = BufferedReader.new(Reader.new)
+    let r2 = BufferedReader.new(SingleByteReader.new)
 
-    t.equal(reader.fill_buffer, Result.Ok(3))
-    t.equal(reader.buffer, ByteArray.from_array([1, 2, 3]))
-  })
-
-  t.test('BufferedReader.fill_buffer without exact reads', fn (t) {
-    let reader = BufferedReader.new(SingleByteReader.new)
-
-    reader.exact = false
-    t.equal(reader.fill_buffer, Result.Ok(1))
-    t.equal(reader.buffer, ByteArray.from_array([1]))
+    t.equal(r1.fill_buffer, Result.Ok(3))
+    t.equal(r1.buffer, ByteArray.from_array([1, 2, 3]))
+    t.equal(r2.fill_buffer, Result.Ok(1))
+    t.equal(r2.buffer, ByteArray.from_array([1]))
   })
 
   t.test('BufferedReader.read_buffer', fn (t) {

@@ -760,44 +760,11 @@ trait pub BufferedRead[E]: Read[E] {
 # data into an internal buffer, reducing the total amount of system calls, at
 # the cost of needing to maintain an in-memory buffer.
 #
-# # `BufferedReader` and sockets
-#
-# By default a `BufferedReader` reads exactly N bytes from the underlying `Read`
-# type, where `N` is the capacity provided to `BufferedReader.with_capacity`.
-# For sockets (e.g. a `TcpClient`) this may result in a call to
-# `BufferedReader.read` blocking the calling process indefinitely if not enough
-# input is available (e.g. the buffer size is 32 KiB but only 1 KiB of data is
-# available through the socket).
-#
-# To prevent this from happening, you can set `BufferedReader.exact` to `false`
-# (the default is `true`):
-#
-# ```inko
-# import std.io (BufferedReader)
-# import std.net.socket (TcpClient)
-#
-# fn example(socket: TcpClient) {
-#   let buf = ByteArray.new
-#   let reader = BufferedReader.new(socket)
-#
-#   reader.exact = false
-#   reader.read(into: buf, size: 32).or_panic
-# }
-# ```
-#
-# When set to `false`, only a single `read` is performed when filling up the
-# buffer, such that the calling process is never blocked for a potentially long
-# amount of time. This makes it possible to use `BufferedReader` with a socket
-# and get the expected results (i.e. no indefinite blocking `read` calls), at
-# the cost of (potentially) more `read` calls compared to when `exact` is set to
-# `true`.
+# The default buffer size is 8 KiB. To use a custom buffer size, use
+# `BufferedReader.with_capacity` with the desired size in bytes.
 type pub BufferedReader[T: mut + Read[E], E] {
   # The `Read` type to read data from.
   let pub @inner: T
-
-  # If the amount of bytes to read into the buffer should be exactly the buffer
-  # size, or if it can be less.
-  let pub mut @exact: Bool
 
   # The buffer of data read from the internal `Read` type.
   let @buffer: ByteArray
@@ -824,7 +791,6 @@ type pub BufferedReader[T: mut + Read[E], E] {
 
     BufferedReader(
       inner: reader,
-      exact: true,
       buffer: ByteArray.new,
       capacity: size,
       offset: 0,
@@ -839,15 +805,16 @@ impl BufferedRead[E] for BufferedReader {
     @buffer.clear
     @offset = 0
 
-    if @exact {
-      match @inner.read_exact(into: @buffer, size: @capacity) {
-        case Ok(_) or Error(EndOfInput) -> {}
-        case Error(Read(e)) -> throw e
-      }
-    } else {
-      try @inner.read(into: @buffer, size: @capacity)
-    }
-
+    # We don't use read_exact() because that may result in the calling process
+    # being blocked for too long, such as when using a socket that doesn't have
+    # enough bytes in its receive buffer.
+    #
+    # On conventional platforms a read() won't return fewer bytes unless it's
+    # either interrupted by a signal (which doesn't apply to Inko due to how it
+    # handles signals), the read size is too large (e.g. roughly 2 GiB for
+    # Linux), or there simply aren't enough bytes available (e.g. for a file
+    # that's smaller than the read size).
+    try @inner.read(into: @buffer, size: @capacity)
     Result.Ok(@buffer.size)
   }
 
