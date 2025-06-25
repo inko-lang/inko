@@ -609,8 +609,8 @@ impl InlineGraph {
                 }
 
                 if low[node] == ids[node] {
-                    let mut tail = None;
-                    let mut recursive = true;
+                    let mut rec = true;
+                    let mut rec_nodes = Vec::new();
 
                     while let Some(connected) = stack.pop() {
                         on_stack[connected] = false;
@@ -630,25 +630,22 @@ impl InlineGraph {
                         // such operators as "recursive" just because the
                         // overflow handling.
                         if !self.nodes[connected].returns {
-                            recursive = false;
+                            rec = false;
                         }
 
-                        if tail.is_none() {
+                        if rec_nodes.is_empty() {
                             result.push(connected);
                         }
 
                         if connected == node {
                             break;
-                        } else if tail.is_none() {
-                            // If the SCC contains more than one node, it means
-                            // it's part of a recursive call, so we flag it
-                            // accordingly.
-                            tail = Some(connected);
                         }
+
+                        rec_nodes.push(connected);
                     }
 
-                    if let Some(node) = tail {
-                        self.nodes[node].recursive = recursive;
+                    for node in rec_nodes {
+                        self.nodes[node].recursive = rec;
                     }
                 }
 
