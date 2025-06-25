@@ -20,17 +20,6 @@ pub fn info(label: &str, message: &str) {
     };
 }
 
-pub(crate) fn warn(message: &str) {
-    // We write to STDOUT because diagnostics go to STDERR, such that one can
-    // filter the output.
-    let mut out = stdout().lock();
-    let _ = if out.is_terminal() && enable_colors() {
-        writeln!(out, "\x1b[33;1mwarning:\x1b[0m {}", message)
-    } else {
-        writeln!(out, "warning: {}", message)
-    };
-}
-
 /// The unique ID of a diagnostic.
 #[derive(PartialEq, Eq, Copy, Clone)]
 pub(crate) enum DiagnosticId {
