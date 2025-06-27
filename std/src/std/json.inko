@@ -1412,11 +1412,9 @@ type pub inline ObjectParser[T: mut + Read[E], E] {
       }
     })
 
-    for entry in @rules.iter {
-      if
-        entry.value.required.true? and found.get(entry.value.id).or_panic.false?
-      {
-        throw Error.generic('the key "${entry.key}" is required', start)
+    for (k, v) in @rules.iter {
+      if v.required.true? and found.get(v.id).or_panic.false? {
+        throw Error.generic('the key "${k}" is required', start)
       }
     }
 
@@ -1621,14 +1619,14 @@ type pub Generator {
 
         if vals.size > 0 {
           enter(fn {
-            for (index, pair) in vals.iter.with_index {
+            for (index, (k, v)) in vals.iter.with_index {
               if index > 0 { separator }
 
               indent
               @buffer.push('"')
-              @buffer.push(pair.key.escaped)
+              @buffer.push(k.escaped)
               @buffer.push('": ')
-              generate_value(pair.value)
+              generate_value(v)
             }
           })
         }

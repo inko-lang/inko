@@ -152,8 +152,8 @@ fn spawn(
   # We MUST keep these pairs around until AFTER the program is started.
   let pairs = []
 
-  for (idx, kv) in env.iter.with_index {
-    let pair = '${kv.key}=${kv.value}'
+  for (idx, (k, v)) in env.iter.with_index {
+    let pair = '${k}=${v}'
 
     pairs.push(pair)
     envp.set(idx, pair)

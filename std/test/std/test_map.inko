@@ -17,26 +17,6 @@ fn pub tests(t: mut Tests) {
     t.not_equal(MissingKey.new('name'), MissingKey.new('age'))
   })
 
-  t.test('Entry.key', fn (t) {
-    let map = Map.new
-
-    map.set('name', 'Alice')
-
-    let entry = map.iter.next.get
-
-    t.equal(entry.key, 'name')
-  })
-
-  t.test('Entry.value', fn (t) {
-    let map = Map.new
-
-    map.set('name', 'Alice')
-
-    let entry = map.iter.next.get
-
-    t.equal(entry.value, 'Alice')
-  })
-
   t.test('Map.with_capacity', fn (t) {
     let map1: Map[Int, Int] = Map.new
     let map2: Map[Int, Int] = Map.with_capacity(0)
@@ -71,28 +51,24 @@ fn pub tests(t: mut Tests) {
     map.set('name', 'Alice')
     map.set('city', 'Bla')
 
-    let entries = map.iter.to_array
+    let entries = map.iter
 
-    t.equal(entries.size, 2)
-    t.equal(entries.get(0).or_panic.key, 'name')
-    t.equal(entries.get(0).or_panic.value, 'Alice')
-    t.equal(entries.get(1).or_panic.key, 'city')
-    t.equal(entries.get(1).or_panic.value, 'Bla')
+    t.equal(entries.next, Option.Some(('name', 'Alice')))
+    t.equal(entries.next, Option.Some(('city', 'Bla')))
+    t.equal(entries.next, Option.None)
   })
 
   t.test('Map.iter_mut', fn (t) {
     let map = Map.new
 
-    map.set('name', 'Alice')
-    map.set('city', 'Bla')
+    map.set('name', ['Alice'])
+    map.set('city', ['Bla'])
 
-    let entries = map.iter_mut.to_array
+    let entries = map.iter_mut
 
-    t.equal(entries.size, 2)
-    t.equal(entries.get(0).or_panic.key, 'name')
-    t.equal(entries.get(0).or_panic.value, 'Alice')
-    t.equal(entries.get(1).or_panic.key, 'city')
-    t.equal(entries.get(1).or_panic.value, 'Bla')
+    t.equal(entries.next, Option.Some(('name', mut ['Alice'])))
+    t.equal(entries.next, Option.Some(('city', mut ['Bla'])))
+    t.equal(entries.next, Option.None)
   })
 
   t.test('Map.into_iter', fn (t) {
@@ -101,13 +77,11 @@ fn pub tests(t: mut Tests) {
     map.set('name', 'Alice')
     map.set('city', 'Bla')
 
-    let entries = map.into_iter.to_array
+    let entries = map.into_iter
 
-    t.equal(entries.size, 2)
-    t.equal(entries.get(0).or_panic.key, 'name')
-    t.equal(entries.get(0).or_panic.value, 'Alice')
-    t.equal(entries.get(1).or_panic.key, 'city')
-    t.equal(entries.get(1).or_panic.value, 'Bla')
+    t.equal(entries.next, Option.Some(('name', 'Alice')))
+    t.equal(entries.next, Option.Some(('city', 'Bla')))
+    t.equal(entries.next, Option.None)
   })
 
   t.test('Map.keys', fn (t) {
@@ -116,10 +90,11 @@ fn pub tests(t: mut Tests) {
     map.set('name', 'Alice')
     map.set('city', 'Bla')
 
-    let keys = map.keys.to_array
+    let keys = map.keys
 
-    t.equal(keys.size, 2)
-    t.true(keys.get(0).or_panic == 'name' or keys.get(0).or_panic == 'city')
+    t.equal(keys.next, Option.Some('name'))
+    t.equal(keys.next, Option.Some('city'))
+    t.equal(keys.next, Option.None)
   })
 
   t.test('Map.values', fn (t) {
@@ -128,10 +103,11 @@ fn pub tests(t: mut Tests) {
     map.set('name', 'Alice')
     map.set('city', 'Bla')
 
-    let values = map.values.to_array
+    let values = map.values
 
-    t.equal(values.size, 2)
-    t.true(values.get(0).or_panic == 'Alice' or values.get(0).or_panic == 'Bla')
+    t.equal(values.next, Option.Some('Alice'))
+    t.equal(values.next, Option.Some('Bla'))
+    t.equal(values.next, Option.None)
   })
 
   t.test('Map.values_mut', fn (t) {
@@ -139,9 +115,10 @@ fn pub tests(t: mut Tests) {
 
     map.set('numbers', [10])
 
-    for nums in map.values_mut { nums.push(20) }
+    let values = map.values_mut
 
-    t.equal(map.get('numbers'), Result.Ok(ref [10, 20]))
+    t.equal(values.next, Option.Some(mut [10]))
+    t.equal(values.next, Option.None)
   })
 
   t.test('Map.get', fn (t) {
@@ -158,20 +135,6 @@ fn pub tests(t: mut Tests) {
     map.set('foo', (1, 0))
     t.equal(map.get_mut('foo'), Result.Ok(mut (1, 0)))
     t.equal(map.get_mut('bar'), Result.Error(MissingKey.new('bar')))
-  })
-
-  t.test('Map.entry', fn (t) {
-    let map = Map.new
-
-    map.set('name', 'Alice')
-
-    match map.entry('name') {
-      case Ok(e) -> e.value = 'Bob'
-      case _ -> {}
-    }
-
-    t.equal(map.get('name'), Result.Ok('Bob'))
-    t.true(map.entry('city').error?)
   })
 
   t.test('Map.merge', fn (t) {

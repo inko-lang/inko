@@ -1666,7 +1666,7 @@ impl ToString for QueryMap {
     let buf = ByteArray.new
     let mut pairs = 0
 
-    for { @key = key, @value = vals } in @map.iter {
+    for (key, vals) in @map.iter {
       for val in vals.iter {
         if pairs > 0 { buf.push(AMP) }
 

@@ -1,5 +1,4 @@
 # A hash map using linear probing and Robin Hood entry stealing.
-import std.array (IntoIter)
 import std.clone (Clone)
 import std.cmp (Equal)
 import std.fmt (Format, Formatter)
@@ -18,48 +17,27 @@ let EMPTY = -1
 let DEFAULT_CAPACITY = 4
 
 # An entry stored in a Map.
-type pub Entry[K: Equal + Hash, V] {
+type Entry[K: Equal + Hash, V] {
   # The key that was hashed.
   let @key: K
 
   # The value of the key.
-  let pub mut @value: V
+  let mut @value: V
 
   # The hash value of the key.
-  let mut @hash: Int
+  let @hash: Int
 
   # The distance of this entry relative to its desired index.
   let mut @distance: Int
 
-  # Returns an immutable reference to the key.
-  #
-  # Keys can never be mutated in place, as this can result in map lookups
-  # returning unexpected results.
-  fn pub key -> ref K {
-    @key
-  }
-
-  fn hash -> Int {
-    @hash
-  }
-
-  fn mut replace_value(new: V) -> V {
-    @value := new
-  }
-
-  fn move into_value -> V {
+  fn inline move into_value -> V {
     @value
   }
 }
 
 impl Clone for Entry if K: Clone, V: Clone {
   fn pub clone -> Entry[move K, move V] {
-    Entry(
-      key: @key.clone,
-      value: @value.clone,
-      hash: @hash,
-      distance: @distance,
-    )
+    Self(key: @key.clone, value: @value.clone, hash: @hash, distance: @distance)
   }
 }
 
@@ -228,20 +206,17 @@ type pub Map[K: Equal + Hash, V] {
     slot = slot_index(slot + 1)
 
     loop {
-      let mut index = @slots.get(slot).or_panic
-
-      if index == EMPTY { break }
-
+      let index = match @slots.get(slot).or_panic {
+        case EMPTY -> break
+        case index -> index
+      }
       let entry = @entries.get_mut(index).or_panic
 
-      if entry.distance > 0 {
-        @slots.set(slot, EMPTY)
-        @slots.set(prev_slot, index)
-        entry.distance -= 1
-      } else {
-        break
-      }
+      if entry.distance == 0 { break }
 
+      @slots.set(slot, EMPTY)
+      @slots.set(prev_slot, index)
+      entry.distance -= 1
       prev_slot = slot
       slot = slot_index(slot + 1)
     }
@@ -265,28 +240,18 @@ type pub Map[K: Equal + Hash, V] {
   #   entry.value # => 'Alice'
   # }
   # ```
-  fn pub iter -> Stream[ref Entry[K, V]] {
-    @entries.iter
-  }
+  fn pub iter -> Stream[(ref K, ref V)] {
+    let mut idx = 0
 
-  # Returns an iterator of mutable key-value pairs.
-  #
-  # # Examples
-  #
-  # Iterating over all the key-value pairs:
-  #
-  # ```inko
-  # let mut map = Map.new
-  #
-  # map.set('name', 'Alice')
-  #
-  # for entry in map.iter_mut {
-  #   entry.key   # => 'name'
-  #   entry.value # => 'Alice'
-  # }
-  # ```
-  fn pub mut iter_mut -> Stream[mut Entry[K, V]] {
-    @entries.iter_mut
+    Stream(fn move {
+      match @entries.get(idx) {
+        case Ok(e) -> {
+          idx += 1
+          Option.Some((e.key, e.value))
+        }
+        case _ -> Option.None
+      }
+    })
   }
 
   # Returns an `Iter` that iterates over all key-value pairs in this
@@ -304,8 +269,15 @@ type pub Map[K: Equal + Hash, V] {
   #   entry.value # => 'Alice'
   # }
   # ```
-  fn pub move into_iter -> IntoIter[Entry[K, V]] {
-    @entries.into_iter
+  fn pub move into_iter -> Stream[(K, V)] {
+    let iter = @entries.into_iter
+
+    Stream(fn move {
+      match iter.next {
+        case Some({ @key = k, @value = v }) -> Option.Some((k, v))
+        case _ -> Option.None
+      }
+    })
   }
 
   # Returns an `Iter` visiting all the keys in this `Map`.
@@ -324,7 +296,17 @@ type pub Map[K: Equal + Hash, V] {
   # }
   # ```
   fn pub keys -> Stream[ref K] {
-    iter.map(fn (e) { e.key })
+    let mut idx = 0
+
+    Stream(fn move {
+      match @entries.get(idx) {
+        case Ok(e) -> {
+          idx += 1
+          Option.Some(e.key)
+        }
+        case _ -> Option.None
+      }
+    })
   }
 
   # Returns an iterator that yields immutable references to the values in
@@ -344,7 +326,17 @@ type pub Map[K: Equal + Hash, V] {
   # }
   # ```
   fn pub values -> Stream[ref V] {
-    iter.map(fn (e) { e.value })
+    let mut idx = 0
+
+    Stream(fn move {
+      match @entries.get(idx) {
+        case Ok(e) -> {
+          idx += 1
+          Option.Some(e.value)
+        }
+        case _ -> Option.None
+      }
+    })
   }
 
   # Returns an immutable borrow of the key's value.
@@ -414,11 +406,7 @@ type pub Map[K: Equal + Hash, V] {
   # map2['city'] # => 'Amsterdam'
   # ```
   fn pub mut merge(other: Map[K, V]) {
-    for entry in other {
-      entry.distance = 0
-      entry.hash = hash_key(entry.key)
-      insert_entry(entry)
-    }
+    for (k, v) in other { set(k, v) }
   }
 
   # Returns the number of key-value pairs in this map.
@@ -456,26 +444,6 @@ type pub Map[K: Equal + Hash, V] {
   # ```
   fn pub capacity -> Int {
     @slots.size
-  }
-
-  # Returns the `Entry` for the given key.
-  #
-  # If the key is missing, a `MissingKey` error is returned.
-  #
-  # # Examples
-  #
-  # ```inko
-  # let map = Map.new
-  #
-  # map.set('name', 'Alice')
-  # map.entry('name').or_panic.value = 'Bob'
-  # map.get('name') # => Result.Ok('Bob')
-  # ```
-  fn pub mut entry(key: ref K) -> Result[mut Entry[K, V], MissingKey[K]] {
-    match entries_index(key) {
-      case EMPTY -> Result.Error(MissingKey.new(key))
-      case index -> Result.Ok(@entries.get_mut(index).or_panic)
-    }
   }
 
   # Returns `true` if `self` contains the key `key`.
@@ -559,7 +527,7 @@ type pub Map[K: Equal + Hash, V] {
       let entry = @entries.get_mut(index).or_panic
 
       if entry.key == insert.key {
-        return Option.Some(entry.replace_value(insert.into_value))
+        return Option.Some(entry.value := insert.into_value)
       }
 
       if entry.distance < insert.distance {
@@ -697,7 +665,47 @@ impl Map if V: mut {
   # }
   # ```
   fn pub mut values_mut -> Stream[mut V] {
-    iter_mut.map(fn (e) { e.value })
+    let mut idx = 0
+
+    Stream(fn move {
+      match @entries.get_mut(idx) {
+        case Ok(e) -> {
+          idx += 1
+          Option.Some(e.value)
+        }
+        case _ -> Option.None
+      }
+    })
+  }
+
+  # Returns an iterator of mutable key-value pairs.
+  #
+  # # Examples
+  #
+  # Iterating over all the key-value pairs:
+  #
+  # ```inko
+  # let mut map = Map.new
+  #
+  # map.set('name', 'Alice')
+  #
+  # for entry in map.iter_mut {
+  #   entry.key   # => 'name'
+  #   entry.value # => 'Alice'
+  # }
+  # ```
+  fn pub mut iter_mut -> Stream[(ref K, mut V)] {
+    let mut idx = 0
+
+    Stream(fn move {
+      match @entries.get_mut(idx) {
+        case Ok(e) -> {
+          idx += 1
+          Option.Some((e.key, e.value))
+        }
+        case _ -> Option.None
+      }
+    })
   }
 }
 
@@ -721,20 +729,23 @@ impl Equal for Map if V: Equal {
   fn pub ==(other: ref Map[K, V]) -> Bool {
     if size != other.size { return false }
 
-    iter.all?(fn (ours) {
-      match other.entries_index(ours.key) {
-        case EMPTY -> false
-        case index -> other.entries.get(index).or_panic.value == ours.value
+    for (k, v) in iter {
+      match other.entries_index(k) {
+        case EMPTY -> return false
+        case idx if other.entries.get(idx).or_panic.value != v -> return false
+        case _ -> {}
       }
-    })
+    }
+
+    true
   }
 }
 
 impl Hash for Map if K: Hash, V: Hash {
   fn pub hash[H: mut + Hasher](hasher: mut H) {
-    for entry in iter {
-      entry.key.hash(hasher)
-      entry.value.hash(hasher)
+    for (k, v) in iter {
+      k.hash(hasher)
+      v.hash(hasher)
     }
   }
 }
@@ -743,12 +754,12 @@ impl Format for Map if K: Format, V: Format {
   fn pub fmt(formatter: mut Formatter) {
     formatter.write('{')
 
-    for (index, entry) in iter.with_index {
+    for (index, (k, v)) in iter.with_index {
       if index > 0 { formatter.write(', ') }
 
-      entry.key.fmt(formatter)
+      k.fmt(formatter)
       formatter.write(': ')
-      entry.value.fmt(formatter)
+      v.fmt(formatter)
     }
 
     formatter.write('}')
