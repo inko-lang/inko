@@ -1,6 +1,6 @@
 import helpers (hash)
 import std.fmt (fmt)
-import std.map (DEFAULT_CAPACITY, MissingKey)
+import std.map (MissingKey)
 import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
@@ -17,18 +17,30 @@ fn pub tests(t: mut Tests) {
     t.not_equal(MissingKey.new('name'), MissingKey.new('age'))
   })
 
-  t.test('Map.with_capacity', fn (t) {
-    let map1: Map[Int, Int] = Map.new
-    let map2: Map[Int, Int] = Map.with_capacity(0)
-    let map3: Map[Int, Int] = Map.with_capacity(1)
-    let map4: Map[Int, Int] = Map.with_capacity(3)
-    let map5: Map[Int, Int] = Map.with_capacity(8)
+  t.test('Map.new', fn (t) {
+    let map: Map[Int, Int] = Map.new
 
-    t.equal(map1.capacity, 4)
-    t.equal(map2.capacity, 4)
-    t.equal(map3.capacity, 1)
-    t.equal(map4.capacity, 4)
-    t.equal(map5.capacity, 8)
+    t.equal(map.capacity, 7)
+  })
+
+  t.panic('Map.with_capacity with a capacity of zero', fn {
+    Map.with_capacity(0) as Map[Int, Int]
+  })
+
+  t.panic('Map.with_capacity with a negative capacity', fn {
+    Map.with_capacity(-2) as Map[Int, Int]
+  })
+
+  t.test('Map.with_capacity', fn (t) {
+    let map1: Map[Int, Int] = Map.with_capacity(1)
+    let map2: Map[Int, Int] = Map.with_capacity(3)
+    let map3: Map[Int, Int] = Map.with_capacity(8)
+    let map4: Map[Int, Int] = Map.with_capacity(32)
+
+    t.equal(map1.capacity, 1)
+    t.equal(map2.capacity, 3)
+    t.equal(map3.capacity, 14)
+    t.equal(map4.capacity, 57)
   })
 
   t.test('Map.remove', fn (t) {
@@ -242,9 +254,12 @@ fn pub tests(t: mut Tests) {
 
     map.set('name', 'Alice')
     map.set('age', '42')
+
+    let slots = map.slots.size
+
     map.clear
     t.equal(map.size, 0)
-    t.equal(map.slots.size, DEFAULT_CAPACITY)
+    t.equal(map.slots.size, slots)
     t.equal(map.entries.size, 0)
 
     map.set('name', 'Bob')

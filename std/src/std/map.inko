@@ -7,6 +7,10 @@ import std.hash.siphash (SipHasher13)
 import std.iter (Stream)
 import std.string (ToString)
 
+fn invalid_capacity(size: Int) -> Never {
+  panic('the capacity (${size}) must be greater than zero')
+}
+
 fn resize_threshold(size: Int) -> Int {
   # This produces a threshold of 90%, without the need to allocate floats.
   9 * size / 10
@@ -16,19 +20,69 @@ fn resize_threshold(size: Int) -> Int {
 let EMPTY = -1
 let DEFAULT_CAPACITY = 4
 
-# An entry stored in a Map.
-type Entry[K: Equal + Hash, V] {
+# The index of a key-value pair and its distance from its ideal index.
+type copy Slot {
+  # The index of the Entry of this slot.
+  #
+  # An index of `-1` indicates the slot isn't used.
+  let @entry: Int
+
+  # The distance of the entry relative to its most ideal location.
+  #
+  # This value is stored separately from an `Entry` because:
+  #
+  # 1. It allows us to update it without having to touch any `Entry` values
+  # 2. It makes it possible for `Entry` to be an `inline` type as we don't need
+  #    to mutate it during e.g. rehashing. A `Slot` in turn is a `copy` type
+  #    that we can trivially "update" by replacing it with a new `Slot`
+  let @distance: Int
+
+  fn inline static empty -> Self {
+    new(EMPTY, distance: 0)
+  }
+
+  fn inline static new(entry: Int, distance: Int) -> Self {
+    Self(entry: entry, distance: distance)
+  }
+
+  fn inline empty? -> Bool {
+    @entry == EMPTY
+  }
+
+  fn inline reduce_entry -> Self {
+    let entry = match @entry {
+      case EMPTY -> EMPTY
+      case n -> n - 1
+    }
+
+    Self(entry: entry, distance: @distance)
+  }
+
+  fn inline increase_distance -> Self {
+    Self(entry: @entry, distance: @distance + 1)
+  }
+
+  fn inline reduce_distance -> Self {
+    Self(entry: @entry, distance: @distance - 1)
+  }
+}
+
+impl Clone for Slot {
+  fn pub inline clone -> Slot {
+    self
+  }
+}
+
+# A key-value pair and its hash code.
+type inline Entry[K: Equal + Hash, V] {
+  # The hash of the key.
+  let @hash: Int
+
   # The key that was hashed.
   let @key: K
 
   # The value of the key.
-  let mut @value: V
-
-  # The hash value of the key.
-  let @hash: Int
-
-  # The distance of this entry relative to its desired index.
-  let mut @distance: Int
+  let @value: V
 
   fn inline move into_value -> V {
     @value
@@ -37,7 +91,7 @@ type Entry[K: Equal + Hash, V] {
 
 impl Clone for Entry if K: Clone, V: Clone {
   fn pub clone -> Entry[move K, move V] {
-    Self(key: @key.clone, value: @value.clone, hash: @hash, distance: @distance)
+    Self(key: @key.clone, value: @value.clone, hash: @hash)
   }
 }
 
@@ -105,15 +159,13 @@ impl Equal for MissingKey {
 # - <http://codecapsule.com/2013/11/17/robin-hood-hashing-backward-shift-deletion/>
 # - <https://www.sebastiansylvan.com/post/robin-hood-hashing-should-be-your-default-hash-table-implementation/>
 type pub Map[K: Equal + Hash, V] {
-  # The slots we can hash into.
-  #
-  # An index of `-1` indicates the slot isn't used. A value of `0` or more
-  # indicates the entry is at that given index in the `@entries` `Array`.
+  # An Array tracking the indexes into the entries list and the distance of each
+  # entry relative to its desired index.
   #
   # The size of this Array is always a power of two.
-  let mut @slots: Array[Int]
+  let mut @slots: Array[Slot]
 
-  # The entries stored in this map.
+  # The entries stored in this map, in insertion order.
   let @entries: Array[Entry[K, V]]
 
   # The number of values to store before a resize is necessary.
@@ -124,27 +176,42 @@ type pub Map[K: Equal + Hash, V] {
     with_capacity(DEFAULT_CAPACITY)
   }
 
-  # Returns a new `Map` with space for at least the given number of values.
+  # Returns a new `Map` with space for at least `amount` values before resizing
+  # the `Map` is necessary.
   #
-  # The actual size may be larger.
+  # The actual capacity may be greater due to the load factor of a `Map`, but it
+  # will never be less than `amount`.
+  #
+  # # Panics
+  #
+  # This method panics if `amount` is less than or equal to zero.
   #
   # # Examples
   #
   # ```inko
   # let map = Map.with_capacity(32)
   #
+  # map.capacity # => 57
   # map.set('name', 'Alice')
   # ```
   fn pub static with_capacity(amount: Int) -> Map[K, V] {
-    let size = if amount <= 0 {
-      DEFAULT_CAPACITY
-    } else {
-      amount.nearest_power_of_two
-    }
-    let slots = Array.filled(with: EMPTY, times: size)
-    let resize_at = resize_threshold(size)
+    if amount <= 0 { invalid_capacity(amount) }
 
-    Map(slots: slots, entries: [], resize_at: resize_at)
+    let mut size = amount.nearest_power_of_two
+    let mut resize_at = resize_threshold(size)
+
+    # If the amount is greater than the resize threshold we'd still need a
+    # resize, so in this case we double the capacity (due to it always being a
+    # power of two).
+    if resize_at < amount {
+      size = (size * 2).nearest_power_of_two
+      resize_at = resize_threshold(size)
+    }
+
+    let slots = Array.filled(with: Slot.empty, times: size)
+    let entries = Array.with_capacity(amount)
+
+    Map(slots: slots, entries: entries, resize_at: resize_at)
   }
 
   # Removes the given key, returning its value.
@@ -170,55 +237,54 @@ type pub Map[K: Equal + Hash, V] {
   # map.remove('name') # => Result.Ok('Alice')
   # ```
   fn pub mut remove(key: ref K) -> Result[V, MissingKey[K]] {
-    let mut slot = slot_index(hash_key(key))
+    let mut slot_idx = index_for(hash_key(key))
     let mut dist = 0
-    let mut index = @slots.get(slot).or_panic
+    let mut slot = @slots.get(slot_idx).or_panic
 
-    # For the removal we need both the slot and the entry index, so we have to
-    # duplicate the logic of `entries_index()` here, as this is the only place
-    # we need both.
     loop {
-      if index == EMPTY { throw MissingKey.new(key) }
+      if slot.empty? or dist > slot.distance { throw MissingKey.new(key) }
 
-      let entry = @entries.get(index).or_panic
+      if @entries.get(slot.entry).or_panic.key == key { break }
 
-      if dist > entry.distance { throw MissingKey.new(key) }
-
-      if entry.key == key { break }
-
-      slot = slot_index(slot + 1)
-      index = @slots.get(slot).or_panic
+      slot_idx = index_for(slot_idx + 1)
+      slot = @slots.get(slot_idx).or_panic
       dist += 1
     }
 
-    let value = @entries.remove_at(index).or_panic.into_value
+    let value = @entries.remove_at(slot.entry).or_panic.into_value
 
-    @slots.set(slot, EMPTY)
+    @slots.set(slot_idx, Slot.empty)
 
     # Because we shifted the entries to the left, any slots pointing to entries
     # _after_ the removed value have to be updated accordingly.
-    for (slot, entry) in @slots.iter.with_index {
-      if entry > index { @slots.set(slot, entry - 1) }
+    #
+    # We have to iterate over _all_ the slots because any slot can point to an
+    # entry after the one that was removed.
+    let mut shift_idx = 0
+
+    while shift_idx < @slots.size {
+      let shift = @slots.get(shift_idx).or_panic
+
+      if shift.entry > slot.entry { @slots.set(shift_idx, shift.reduce_entry) }
+
+      shift_idx += 1
     }
 
-    let mut prev_slot = slot
+    let mut prev_slot = slot_idx
 
-    slot = slot_index(slot + 1)
+    slot_idx = index_for(slot_idx + 1)
 
+    # Removing an entry means we migh be able to shift slots that were pushed to
+    # the right (= its distance is increased) due to a collision.
     loop {
-      let index = match @slots.get(slot).or_panic {
-        case EMPTY -> break
-        case index -> index
-      }
-      let entry = @entries.get_mut(index).or_panic
+      let slot = @slots.get(slot_idx).or_panic
 
-      if entry.distance == 0 { break }
+      if slot.empty? or slot.distance == 0 { break }
 
-      @slots.set(slot, EMPTY)
-      @slots.set(prev_slot, index)
-      entry.distance -= 1
-      prev_slot = slot
-      slot = slot_index(slot + 1)
+      @slots.set(slot_idx, Slot.empty)
+      @slots.set(prev_slot, slot.reduce_distance)
+      prev_slot = slot_idx
+      slot_idx = index_for(slot_idx + 1)
     }
 
     Result.Ok(value)
@@ -384,7 +450,7 @@ type pub Map[K: Equal + Hash, V] {
     if size >= @resize_at { resize }
 
     let hash = hash_key(key)
-    let entry = Entry(key: key, value: value, hash: hash, distance: 0)
+    let entry = Entry(key: key, value: value, hash: hash)
 
     insert_entry(entry)
   }
@@ -434,16 +500,17 @@ type pub Map[K: Equal + Hash, V] {
     @entries.size
   }
 
-  # Returns the number of entries this map can store before needing a resize.
+  # Returns the number of key-value pairs `self` can store before a resize is
+  # required.
   #
   # # Examples
   #
   # ```inko
-  # Map.new.capacity              # => 4
-  # Map.with_capacity(8).capacity # => 8
+  # Map.new.capacity              # => 7
+  # Map.with_capacity(8).capacity # => 14
   # ```
   fn pub capacity -> Int {
-    @slots.size
+    @resize_at
   }
 
   # Returns `true` if `self` contains the key `key`.
@@ -474,7 +541,7 @@ type pub Map[K: Equal + Hash, V] {
   # map.size # => 0
   # ```
   fn pub mut clear {
-    @slots = Array.filled(with: EMPTY, times: @slots.size)
+    @slots = Array.filled(with: Slot.empty, times: @slots.size)
     @entries.clear
   }
 
@@ -482,70 +549,61 @@ type pub Map[K: Equal + Hash, V] {
     let new_size = @slots.size * 2
 
     @resize_at = resize_threshold(new_size)
-    @slots = Array.filled(with: EMPTY, times: new_size)
+    @slots = Array.filled(with: Slot.empty, times: new_size)
 
-    for entry in @entries.iter_mut { entry.distance = 0 }
-
-    for (rehash_index, rehash) in @entries.iter_mut.with_index {
-      let mut slot = slot_index(rehash.hash)
+    for (entry_idx, entry) in @entries.iter_mut.with_index {
+      let mut idx = index_for(entry.hash)
+      let mut dist = 0
 
       loop {
-        let index = @slots.get(slot).or_panic
+        let slot = @slots.get(idx).or_panic
 
-        if index == EMPTY {
-          @slots.set(slot, rehash_index)
+        if slot.empty? {
+          @slots.set(idx, Slot.new(entry_idx, dist))
           break
         }
 
-        let entry = @entries.get(index).or_panic
-
-        if entry.distance < rehash.distance {
-          @slots.set(slot, rehash_index)
-          shift_stolen_slots(slot, index)
+        if slot.distance < dist {
+          @slots.set(idx, Slot.new(entry_idx, dist))
+          shift_stolen_slots(idx, slot)
           break
         }
 
-        slot = slot_index(slot + 1)
-        rehash.distance += 1
+        idx = index_for(idx + 1)
+        dist += 1
       }
     }
   }
 
   fn mut insert_entry(insert: Entry[K, V]) -> Option[V] {
-    let mut slot = slot_index(insert.hash)
+    let mut idx = index_for(insert.hash)
+    let mut dist = 0
 
     loop {
-      let index = @slots.get(slot).or_panic
+      let slot = @slots.get(idx).or_panic
 
-      if index == EMPTY {
-        @slots.set(slot, @entries.size)
-
+      if slot.empty? {
+        @slots.set(idx, Slot.new(@entries.size, dist))
         @entries.push(insert)
         return Option.None
       }
 
-      let entry = @entries.get_mut(index).or_panic
-
-      if entry.key == insert.key {
-        return Option.Some(entry.value := insert.into_value)
+      if @entries.get(slot.entry).or_panic.key == insert.key {
+        return Option.Some(@entries.swap(slot.entry, insert).into_value)
       }
 
-      if entry.distance < insert.distance {
-        @slots.set(slot, @entries.size)
-
+      if slot.distance < dist {
+        @slots.set(idx, Slot.new(@entries.size, dist))
         @entries.push(insert)
-        shift_stolen_slots(slot, index)
+        shift_stolen_slots(idx, slot)
         return Option.None
       }
 
-      slot = slot_index(slot + 1)
-      insert.distance += 1
+      idx = index_for(idx + 1)
+      dist += 1
     }
   }
 
-  # Shifts an entry who's slot has been stolen to the right of the `@slots`
-  # array.
-  #
   # This method implements the stealing part of Robin Hood hashing.
   #
   # In a vanilla Robin Hood implementation this can mostly reuse the regular
@@ -555,52 +613,43 @@ type pub Map[K: Equal + Hash, V] {
   # redundant, as we'd never update any entries (due to all keys being unique).
   # For these reasons we implement this in a separate method, specialised to
   # only handle what's actually needed when moving slot values around.
-  fn mut shift_stolen_slots(start_slot: Int, start_index: Int) {
-    # We are given the `@slots` index of the slot we stole, so we should start
-    # at the next one.
-    let mut slot = slot_index(start_slot + 1)
-    let mut stolen_index = start_index
-    let mut stolen = @entries.get_mut(stolen_index).or_panic
+  fn mut shift_stolen_slots(stolen_index: Int, stolen: Slot) {
+    let mut idx = index_for(stolen_index + 1)
+    let mut stolen = stolen
 
     loop {
-      stolen.distance += 1
+      stolen = stolen.increase_distance
 
-      let index = @slots.get(slot).or_panic
+      let slot = @slots.get(idx).or_panic
 
-      if index == EMPTY {
-        @slots.set(slot, stolen_index)
-
+      if slot.empty? {
+        @slots.set(idx, stolen)
         return
       }
 
-      let entry = @entries.get_mut(index).or_panic
-
-      if entry.distance < stolen.distance {
-        @slots.set(slot, stolen_index)
-        stolen_index = index
-        stolen = entry
+      if slot.distance < stolen.distance {
+        @slots.set(idx, stolen)
+        stolen = slot
       }
 
-      slot = slot_index(slot + 1)
+      idx = index_for(idx + 1)
     }
   }
 
   fn entries_index(key: ref K) -> Int {
-    let mut slot = slot_index(hash_key(key))
+    let mut idx = index_for(hash_key(key))
     let mut dist = 0
 
     loop {
-      let index = @slots.get(slot).or_panic
+      let slot = @slots.get(idx).or_panic
 
-      if index == EMPTY { return EMPTY }
+      if slot.empty? or dist > slot.distance { return EMPTY }
 
-      let entry = @entries.get(index).or_panic
+      let entry = @entries.get(slot.entry).or_panic
 
-      if dist > entry.distance { return EMPTY }
+      if entry.key == key { return slot.entry }
 
-      if entry.key == key { return index }
-
-      slot = slot_index(slot + 1)
+      idx = index_for(idx + 1)
       dist += 1
     }
   }
@@ -612,7 +661,7 @@ type pub Map[K: Equal + Hash, V] {
     hasher.finish
   }
 
-  fn slot_index(hash: Int) -> Int {
+  fn index_for(hash: Int) -> Int {
     # Since the @slots Array is always a power of two, we can use & instead of
     # %, which is a bit faster.
     hash & (@slots.size - 1)
