@@ -11,6 +11,10 @@ fn invalid_capacity(size: Int) -> Never {
   panic('the capacity (${size}) must be greater than zero')
 }
 
+fn map_too_large -> Never {
+  panic('the maximum number of slots in a Map is ${MAX_SIZE}')
+}
+
 fn resize_threshold(size: Int) -> Int {
   # This produces a threshold of 90%, without the need to allocate floats.
   9 * size / 10
@@ -20,12 +24,20 @@ fn resize_threshold(size: Int) -> Int {
 let EMPTY = -1
 let DEFAULT_CAPACITY = 4
 
+# The maximum number of values allowed in a Map.
+let MAX_SIZE = 2_147_483_648
+
 # The index of a key-value pair and its distance from its ideal index.
+#
+# This type uses `Int32` for the entry index and distance in order to reduce the
+# amount of space required (8 bytes per `Slot` instead of 16), given that it's
+# basically impossible to create a `Map` with 2^64 key-value pairs to begin
+# with.
 type copy Slot {
   # The index of the Entry of this slot.
   #
   # An index of `-1` indicates the slot isn't used.
-  let @entry: Int
+  let @entry: Int32
 
   # The distance of the entry relative to its most ideal location.
   #
@@ -35,35 +47,43 @@ type copy Slot {
   # 2. It makes it possible for `Entry` to be an `inline` type as we don't need
   #    to mutate it during e.g. rehashing. A `Slot` in turn is a `copy` type
   #    that we can trivially "update" by replacing it with a new `Slot`
-  let @distance: Int
+  let @distance: Int32
 
   fn inline static empty -> Self {
     new(EMPTY, distance: 0)
   }
 
   fn inline static new(entry: Int, distance: Int) -> Self {
-    Self(entry: entry, distance: distance)
+    Self(entry: entry as Int32, distance: distance as Int32)
+  }
+
+  fn inline entry -> Int {
+    @entry as Int
+  }
+
+  fn inline distance -> Int {
+    @distance as Int
   }
 
   fn inline empty? -> Bool {
-    @entry == EMPTY
+    entry == EMPTY
   }
 
   fn inline reduce_entry -> Self {
-    let entry = match @entry {
+    let entry = match entry {
       case EMPTY -> EMPTY
       case n -> n - 1
     }
 
-    Self(entry: entry, distance: @distance)
+    Slot.new(entry, distance)
   }
 
   fn inline increase_distance -> Self {
-    Self(entry: @entry, distance: @distance + 1)
+    Slot.new(entry, distance + 1)
   }
 
   fn inline reduce_distance -> Self {
-    Self(entry: @entry, distance: @distance - 1)
+    Slot.new(entry, distance - 1)
   }
 }
 
@@ -149,6 +169,21 @@ impl Equal for MissingKey {
 # a `Map`, it may be faster to construct a new `Map` that only contains the
 # key/value pairs you are interested in.
 #
+# # Size limitations
+#
+# The maximum number of slots a `Map` can store is 2 147 483 648, which
+# corresponds to a maximum of 1 932 735 283 key-value pairs (due to the load
+# factor being 90%). When resizing a `Map` beyond this limit, a panic is
+# produced.
+#
+# This limit shouldn't pose a problem for real-world scenarios, as most systems
+# won't have enough memory available to create such a `Map` in the first place.
+# In addition, a `Map` with so many values is likely the result of a bug or
+# better served by a more memory efficient data structure in the first place.
+#
+# The reason for this limit is that `Map` uses signed 32-bits indexes internally
+# to conserve memory, with the limit being enforced during a resize.
+#
 # # Algorithm
 #
 # `Map` uses Robin Hood hashing, with the necessary changes to make this work
@@ -207,6 +242,8 @@ type pub Map[K: Equal + Hash, V] {
       size = (size * 2).nearest_power_of_two
       resize_at = resize_threshold(size)
     }
+
+    if size > MAX_SIZE { map_too_large }
 
     let slots = Array.filled(with: Slot.empty, times: size)
     let entries = Array.with_capacity(amount)
@@ -547,6 +584,11 @@ type pub Map[K: Equal + Hash, V] {
 
   fn mut resize {
     let new_size = @slots.size * 2
+
+    # It's _highly_ unlikely we'll ever trigger this panic, but it's in place
+    # such that we don't produce undefined behavior when resizing a Map beyond
+    # this limit.
+    if new_size > MAX_SIZE { map_too_large }
 
     @resize_at = resize_threshold(new_size)
     @slots = Array.filled(with: Slot.empty, times: new_size)
