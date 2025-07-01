@@ -203,6 +203,15 @@ fn pub tests(t: mut Tests) {
     t.equal(map.set('name', 'Bob'), Option.Some('Alice'))
   })
 
+  t.test('Map.try_set', fn (t) {
+    let map = Map.new
+
+    map.set('a', [10, 20])
+
+    t.equal(map.try_set('a', [30]), Result.Error(('a', mut [10, 20], [30])))
+    t.equal(map.try_set('b', [50]), Result.Ok(nil))
+  })
+
   t.test('Map.hash', fn (t) {
     let map1 = Map.new
     let map2 = Map.new

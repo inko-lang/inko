@@ -471,8 +471,8 @@ type pub Map[K: Equal + Hash, V] {
     }
   }
 
-  # Inserts the key and value in this `Map`, returning the previous value if
-  # there is any.
+  # Inserts the key and value into `self`, returning the previous value if there
+  # is any.
   #
   # # Examples
   #
@@ -486,10 +486,7 @@ type pub Map[K: Equal + Hash, V] {
   fn pub mut set(key: K, value: V) -> Option[V] {
     if size >= @resize_at { resize }
 
-    let hash = hash_key(key)
-    let entry = Entry(key: key, value: value, hash: hash)
-
-    insert_entry(entry)
+    insert_entry(Entry(hash: hash_key(key), key: key, value: value))
   }
 
   # Merges two `Map` objects together.
@@ -625,8 +622,7 @@ type pub Map[K: Equal + Hash, V] {
       let slot = @slots.get(idx).or_panic
 
       if slot.empty? {
-        @slots.set(idx, Slot.new(@entries.size, dist))
-        @entries.push(insert)
+        insert_new(insert, idx, dist)
         return Option.None
       }
 
@@ -635,15 +631,29 @@ type pub Map[K: Equal + Hash, V] {
       }
 
       if slot.distance < dist {
-        @slots.set(idx, Slot.new(@entries.size, dist))
-        @entries.push(insert)
-        shift_stolen_slots(idx, slot)
+        insert_and_steal(insert, idx, dist, slot)
         return Option.None
       }
 
       idx = index_for(idx + 1)
       dist += 1
     }
+  }
+
+  fn inline mut insert_new(entry: Entry[K, V], index: Int, distance: Int) {
+    @slots.set(index, Slot.new(@entries.size, distance))
+    @entries.push(entry)
+  }
+
+  fn inline mut insert_and_steal(
+    entry: Entry[K, V],
+    index: Int,
+    distance: Int,
+    stolen: Slot,
+  ) {
+    @slots.set(index, Slot.new(@entries.size, distance))
+    @entries.push(entry)
+    shift_stolen_slots(index, stolen)
   }
 
   # This method implements the stealing part of Robin Hood hashing.
@@ -797,6 +807,66 @@ impl Map if V: mut {
         case _ -> Option.None
       }
     })
+  }
+
+  # Tries to insert the new key and value into `self`.
+  #
+  # If the key isn't already set, a `Result.Ok(nil)` is returned. If the key is
+  # already set, a `Result.Error` is returned containing the provided key, a
+  # mutable borrow of the _existing_ value, and the new value.
+  #
+  # Using this method it's possible to insert a new entry or update the value of
+  # an existing entry (provided it's a mutable value), without the need for
+  # hashing twice (= once to get the existing value, and once to insert a new
+  # value).
+  #
+  # # Examples
+  #
+  # ```inko
+  # let map: Map[String, Array[Int]] = Map.new
+  #
+  # map.try_set('numbers', [10]) # => Result.Ok(nil)
+  # map.try_set('numbers', [50]) # => Result.Error(('numbers', mut [20], [50]))
+  #
+  # match map.try_set('numbers', [50]) {
+  #   case Ok(_) -> {}
+  #   case Error((_, old, new)) -> old.append(new)
+  # }
+  # ```
+  fn pub mut try_set(key: K, value: V) -> Result[Nil, (K, mut V, V)] {
+    if size >= @resize_at { resize }
+
+    try_insert_entry(Entry(hash: hash_key(key), key: key, value: value))
+  }
+
+  fn mut try_insert_entry(insert: Entry[K, V]) -> Result[Nil, (K, mut V, V)] {
+    let mut idx = index_for(insert.hash)
+    let mut dist = 0
+
+    loop {
+      let slot = @slots.get(idx).or_panic
+
+      if slot.empty? {
+        insert_new(insert, idx, dist)
+        return Result.Ok(nil)
+      }
+
+      let ex = @entries.get_mut(slot.entry).or_panic
+
+      if ex.key == insert.key {
+        match insert {
+          case { @key = k, @value = v } -> return Result.Error((k, ex.value, v))
+        }
+      }
+
+      if slot.distance < dist {
+        insert_and_steal(insert, idx, dist, slot)
+        return Result.Ok(nil)
+      }
+
+      idx = index_for(idx + 1)
+      dist += 1
+    }
   }
 }
 
