@@ -139,6 +139,16 @@ fn pub tests(t: mut Tests) {
     t.equal(slice.get(1), Result.Error(OutOfBounds.new(index: 1, size: 0)))
   })
 
+  t.test(
+    'Slice.get with an index valid for the source but not the slice',
+    fn (t) {
+      let val = 'name=Alice;age=42'
+      let slice = val.slice(5, 10)
+
+      t.equal(slice.get(7), Result.Error(OutOfBounds.new(index: 7, size: 5)))
+    },
+  )
+
   t.test('Slice.fmt', fn (t) {
     let bytes = ByteArray.from_array([10, 20, 30])
     let slice = Slice.new(bytes, start: 1, end: 3)

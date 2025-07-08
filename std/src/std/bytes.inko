@@ -352,7 +352,7 @@ impl Bytes for Slice {
   fn pub inline get(index: Int) -> Result[Int, OutOfBounds] {
     let off = @start.wrapping_add(index)
 
-    if index >= 0 and index < @end and off >= 0 and off < @source.size {
+    if index >= 0 and index < size and off >= 0 and off < @source.size {
       Result.Ok(ptr.add(@source.pointer, off).0 as Int)
     } else {
       Result.Error(OutOfBounds.new(index, size))
