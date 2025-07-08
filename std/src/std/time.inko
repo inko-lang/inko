@@ -644,7 +644,7 @@ impl Format for Time {
 # If you want to measure the duration between two events, it's best to use the
 # `Instant` type, as it's not affected by external factors such as clock
 # adjustments and leap seconds.
-type pub inline DateTime {
+type pub copy DateTime {
   let @date: Date
   let @time: Time
   let @utc_offset: Int
@@ -1304,7 +1304,7 @@ type pub inline DateTime {
 
 impl Clone for DateTime {
   fn pub inline clone -> DateTime {
-    DateTime(date: @date, time: @time, utc_offset: @utc_offset)
+    self
   }
 }
 
