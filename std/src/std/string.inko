@@ -322,21 +322,7 @@ type builtin String {
   # iter.next.get.to_string # => 'bar'
   # ```
   fn pub split(separator: String) -> Stream[Slice[String]] {
-    let mut offset = 0
-
-    Stream.new(fn move {
-      match index_of(separator, starting_at: offset) {
-        case Some(at) -> {
-          Option.Some(Slice.new(self, offset := at + separator.size, at))
-        }
-        case _ if offset < size -> {
-          # No separator found, but we haven't reached the end of the String
-          # yet. In this case we return the remaining String.
-          Option.Some(Slice.new(self, offset := size, size))
-        }
-        case _ -> Option.None
-      }
-    })
+    Slice.new(self, 0, size).split(separator)
   }
 
   # Returns `true` if `self` is an empty `String`.

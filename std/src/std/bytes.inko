@@ -7,7 +7,7 @@ import std.cmp (Equal, max)
 import std.drop (Drop)
 import std.fmt (Format, Formatter)
 import std.hash (Hash, Hasher)
-import std.iter (Iter as IterTrait)
+import std.iter (Iter as IterTrait, Stream)
 import std.option (Option)
 import std.ptr
 import std.string (IntoString, PrimitiveString, ToString)
@@ -345,6 +345,36 @@ type pub inline Slice[T: Bytes] {
   # ```
   fn pub empty? -> Bool {
     size == 0
+  }
+
+  # Splits `self` into an iterator that yields slices, each separated by the
+  # given separator.
+  #
+  # If the separator isn't present in `self`, the returned iterator yields
+  # `self` exactly once.
+  #
+  # # Examples
+  #
+  # ```inko
+  # 'foo/bar/baz'
+  #   .slice(0, 7)                  # Slice the String to 'foo/bar'
+  #   .split('/')                   # Split it on '/'
+  #   .map(fn (v) { v.to_string })  # Convert each Slice[String] to a String
+  #   .to_array                     # Collect the results in an Array
+  # # => ['foo', 'bar']
+  # ```
+  fn pub split[B: Bytes](separator: ref B) -> Stream[Slice[T]] {
+    let mut off = 0
+    let sep_len = separator.size
+    let len = size
+
+    Stream.new(fn move {
+      match index_of(separator, starting_at: off) {
+        case Some(i) -> Option.Some(slice(off := i + sep_len, i))
+        case _ if off < len -> Option.Some(slice(off := len, len))
+        case _ -> Option.None
+      }
+    })
   }
 }
 

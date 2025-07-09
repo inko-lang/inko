@@ -4,6 +4,10 @@ import std.bytes (Iter, Slice)
 import std.fmt (fmt)
 import std.test (Tests)
 
+fn split(string: String, on: String, start: Int, end: Int) -> Array[String] {
+  string.slice(start, end).split(on).map(fn (s) { s.to_string }).to_array
+}
+
 fn pub tests(t: mut Tests) {
   t.test('Slice.new', fn (t) {
     let bytes1 = ByteArray.from_array([10, 20])
@@ -226,6 +230,16 @@ fn pub tests(t: mut Tests) {
     t.equal(slice1.source, slice2.source)
     t.equal(slice1.start, slice2.start)
     t.equal(slice1.end, slice2.end)
+  })
+
+  t.test('Slice.split', fn (t) {
+    t.equal(split('foo/bar/baz', on: '/', start: 0, end: 7), ['foo', 'bar'])
+    t.equal(
+      split('foo/bar/baz', on: '/', start: 0, end: 11),
+      ['foo', 'bar', 'baz'],
+    )
+    t.equal(split('foo/bar/baz', on: '/', start: 0, end: 3), ['foo'])
+    t.equal(split('foo/bar/baz', on: '/', start: 0, end: 2), ['fo'])
   })
 
   t.test('Iter.next', fn (t) {
