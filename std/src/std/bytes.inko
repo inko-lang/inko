@@ -1,6 +1,7 @@
 # Types for working with bytes.
 import std.alloc
 import std.array (OutOfBounds, check_bounds)
+import std.bytes.parsers (to_lower, upper?)
 import std.clone (Clone)
 import std.cmp (Equal, max)
 import std.drop (Drop)
@@ -61,9 +62,7 @@ trait pub IntoByteArray {
 # A type that is a contiguous sequence of bytes.
 #
 # This trait is used for providing various foundational methods for Inko's
-# different byte sequence types, such as `String`, `ByteArray` and `Slice`. This
-# trait only provides a few essential methods, such as `Bytes.size` and
-# `Bytes.pointer`.
+# different byte sequence types, such as `String`, `ByteArray` and `Slice`.
 trait pub Bytes: ToString + ToByteArray {
   # Returns the number of bytes in `self`.
   fn pub size -> Int
@@ -109,6 +108,51 @@ trait pub Bytes: ToString + ToByteArray {
     let len = size
 
     len == other.size and (len == 0 or ptr.equal(pointer, other.pointer, len))
+  }
+
+  # Returns `true` if `self` and `other` contain identical bytes, using an ASCII
+  # case-insensitive comparison.
+  #
+  # This method only performs case-insensitive matching for characters in the
+  # ASCII range, meaning that "foo" and "FOO" are considered identical but "á"
+  # and "Á" are considered different.
+  #
+  # # Examples
+  #
+  # ```inko
+  # 'foo'.equals_while_ignoring_case?('foo') # => true
+  # 'foo'.equals_while_ignoring_case?('FOO') # => true
+  # 'abc'.equals_while_ignoring_case?('def') # => false
+  # 'á'.equals_while_ignoring_case?('Á') # => false
+  # ```
+  fn pub equals_while_ignoring_case?[O: Bytes](other: ref O) -> Bool {
+    let len = size
+
+    if len == 0 { return true }
+
+    if len != other.size { return false }
+
+    let lhs = pointer
+    let rhs = other.pointer
+    let mut idx = 0
+
+    # Since we have to convert ASCII bytes to lowercase (when necessary) we
+    # can't use a more efficient comparison and instead have to compare the data
+    # byte by byte.
+    while idx < len {
+      let mut a = ptr.add(lhs, idx).0 as Int
+      let mut b = ptr.add(rhs, idx).0 as Int
+
+      if upper?(a) { a = to_lower(a) }
+
+      if upper?(b) { b = to_lower(b) }
+
+      if a != b { return false }
+
+      idx += 1
+    }
+
+    true
   }
 
   # Returns the _byte_ index of the first occurrence of the given sequence of

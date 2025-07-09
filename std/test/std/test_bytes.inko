@@ -567,6 +567,17 @@ fn pub tests(t: mut Tests) {
     t.false('aaaaaaaaa'.to_byte_array.equals?('aaaaaaaab'))
   })
 
+  t.test('ByteArray.equals_while_ignoring_case?', fn (t) {
+    t.true(''.to_byte_array.equals_while_ignoring_case?(''))
+    t.true('abc'.to_byte_array.equals_while_ignoring_case?('abc'))
+    t.true('abc'.to_byte_array.equals_while_ignoring_case?('ABC'))
+    t.true('abc'.to_byte_array.equals_while_ignoring_case?('aBc'))
+
+    t.false('foo'.to_byte_array.equals_while_ignoring_case?('hello'))
+    t.false('abc'.to_byte_array.equals_while_ignoring_case?('def'))
+    t.false('á'.to_byte_array.equals_while_ignoring_case?('Á'))
+  })
+
   t.test('ByteArray.clone', fn (t) {
     let bytes = ByteArray.from_array([10, 20])
 

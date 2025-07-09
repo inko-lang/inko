@@ -333,6 +333,17 @@ fn pub tests(t: mut Tests) {
     t.false(''.equals?('a'))
   })
 
+  t.test('String.equals_while_ignoring_case?', fn (t) {
+    t.true(''.equals_while_ignoring_case?(''))
+    t.true('abc'.equals_while_ignoring_case?('abc'))
+    t.true('abc'.equals_while_ignoring_case?('ABC'))
+    t.true('abc'.equals_while_ignoring_case?('aBc'))
+
+    t.false('foo'.equals_while_ignoring_case?('hello'))
+    t.false('abc'.equals_while_ignoring_case?('def'))
+    t.false('á'.equals_while_ignoring_case?('Á'))
+  })
+
   t.test('String.hash', fn (t) {
     for
       v
