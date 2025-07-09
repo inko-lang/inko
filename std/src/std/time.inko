@@ -828,10 +828,10 @@ type pub copy DateTime {
   #   hours and `[MM]` the amount of minutes. Both the hours and minutes are
   #   zero-padded to two digits.
   # |-
+  # | `%Z`
   # | +0200, +02:30, -0200, -02:00, UT, GMT
   # | The same as `%z` but supports `UT` and `GMT` instead of `Z` for UTC
   #   offsets of zero.
-  # | +02)),
   # |-
   # | `%b`
   # | Jan
