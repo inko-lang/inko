@@ -34,6 +34,7 @@ let LOWER_B = 98
 let LOWER_D = 100
 let LOWER_F = 102
 let LOWER_M = 109
+let LOWER_Y = 121
 let LOWER_Z = 122
 let MINUS = 45
 let NINE = 57
@@ -795,6 +796,13 @@ type pub copy DateTime {
   # | The year, zero-padded to four digits, optionally starting with a `-` to
   #   signal a year before year zero.
   # |-
+  # | `%y`
+  # | 05, 10, 25
+  # | The year, zero-padded to two digits. For values between 69 and 99, the
+  #   year is interpreted as a year in the 19th century (e.g. 85 is 1985). For
+  #   values between 0 and 69 the year is interpreted as a year in the 20th
+  #   century.
+  # |-
   # | `%m`
   # | 01, 12
   # | The month of the year (01-12), zero-padded to two digits.
@@ -952,6 +960,14 @@ type pub copy DateTime {
                   }
 
                   4
+                }
+                case LOWER_Y -> {
+                  match try two_digits(input, inp_idx) {
+                    case v if v <= 69 -> year = 2000 + v
+                    case v -> year = 1900 + v
+                  }
+
+                  2
                 }
                 case LOWER_M -> {
                   mon = try two_digits(input, inp_idx)
