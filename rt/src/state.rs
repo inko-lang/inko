@@ -117,7 +117,6 @@ impl State {
         let scheduler = Scheduler::new(
             config.process_threads as usize,
             config.backup_threads as usize,
-            config.stack_size as usize,
         );
 
         let network_pollers =

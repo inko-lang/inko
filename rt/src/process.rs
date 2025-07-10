@@ -1,3 +1,4 @@
+use crate::config::Config;
 use crate::mem::{allocate, header_of, Header, TypePointer};
 use crate::scheduler::process::Thread;
 use crate::scheduler::timeouts::Id as TimeoutId;
@@ -403,10 +404,7 @@ impl Process {
         }
     }
 
-    pub(crate) fn alloc(
-        instance_of: TypePointer,
-        stack: Stack,
-    ) -> ProcessPointer {
+    pub(crate) fn alloc(instance_of: TypePointer) -> ProcessPointer {
         let ptr =
             allocate(unsafe { instance_of.instance_layout() }) as *mut Self;
         let obj = unsafe { &mut *ptr };
@@ -416,28 +414,14 @@ impl Process {
         // is set accordingly.
         state.status.set_waiting_for_message(true);
 
-        // Generated code needs access to the current process. Rust's way of
-        // handling thread-locals is such that we can't reliably expose them to
-        // generated code. As such, we instead write the necessary data to the
-        // start of the stack, which the generated code can then access whenever
-        // necessary.
-        unsafe {
-            write(
-                stack.private_data_pointer() as *mut StackData,
-                StackData {
-                    process: ProcessPointer::new(ptr),
-                    started_at: 0,
-                    thread: null_mut(),
-                },
-            );
-        }
-
         obj.header.init_atomic(instance_of);
         init!(obj.run_lock => UnsafeCell::new(Mutex::new(())));
-        init!(obj.stack_pointer => stack.stack_pointer());
-        init!(obj.stack => ManuallyDrop::new(stack));
-        init!(obj.state => Mutex::new(state));
 
+        // We _must_ set this field explicitly to NULL because
+        // Process::next_task depends on being NULL when handling the first
+        // message.
+        init!(obj.stack_pointer => null_mut());
+        init!(obj.state => Mutex::new(state));
         unsafe { ProcessPointer::new(ptr) }
     }
 
@@ -447,9 +431,8 @@ impl Process {
     pub(crate) fn main(
         instance_of: TypePointer,
         method: NativeAsyncMethod,
-        stack: Stack,
     ) -> ProcessPointer {
-        let mut process = Self::alloc(instance_of, stack);
+        let mut process = Self::alloc(instance_of);
         let message = Message { method, data: null_mut() };
 
         process.set_main();
@@ -475,7 +458,14 @@ impl Process {
         state.try_reschedule_for_message()
     }
 
-    pub(crate) fn next_task(&mut self) -> Task {
+    pub(crate) fn next_task(&mut self, config: &Config) -> Task {
+        // We set up the stack here such that the time spent doing so doesn't
+        // affect the process/thread that sent us the message or initially
+        // spawned the process.
+        if self.stack_pointer.is_null() {
+            self.initialize_stack(config);
+        }
+
         let mut state = self.state.lock().unwrap();
 
         if state.status.is_running() {
@@ -494,16 +484,6 @@ impl Process {
         self.stack_pointer = self.stack.stack_pointer();
         state.status.set_running(true);
         Task::Start(message)
-    }
-
-    pub(crate) fn take_stack(&mut self) -> Option<Stack> {
-        if self.stack_pointer.is_null() {
-            None
-        } else {
-            self.stack_pointer = null_mut();
-
-            Some(unsafe { ManuallyDrop::take(&mut self.stack) })
-        }
     }
 
     /// Finishes the exection of a message, and decides what to do next with
@@ -641,6 +621,33 @@ impl Process {
     pub(crate) fn stack_data(&mut self) -> &mut StackData {
         unsafe { &mut *(self.stack.private_data_pointer() as *mut StackData) }
     }
+
+    fn initialize_stack(&mut self, config: &Config) {
+        let stack = Stack::new(config.stack_size as usize, config.page_size);
+
+        // Generated code needs access to the current process. Rust's way of
+        // handling thread-locals is such that we can't reliably expose them to
+        // generated code. As such, we instead write the necessary data to the
+        // start of the stack, which the generated code can then access whenever
+        // necessary.
+        //
+        // Safety: a Process is allocated using `Process::alloc` which always
+        // returns a pointer to a stable place in memory. As such it should be
+        // safe to treat `self` as a stable pointer here.
+        unsafe {
+            write(
+                stack.private_data_pointer() as *mut StackData,
+                StackData {
+                    process: ProcessPointer::new(self as *mut _),
+                    started_at: 0,
+                    thread: null_mut(),
+                },
+            );
+        }
+
+        init!(self.stack_pointer => stack.stack_pointer());
+        init!(self.stack => ManuallyDrop::new(stack));
+    }
 }
 
 /// A pointer to a process.
@@ -739,8 +746,7 @@ mod tests {
     #[test]
     fn test_field_offsets() {
         let proc_type = empty_process_type("A");
-        let stack = Stack::new(32, page_size());
-        let proc = OwnedProcess::new(Process::alloc(*proc_type, stack));
+        let proc = OwnedProcess::new(Process::alloc(*proc_type));
 
         assert_eq!(offset_of!(proc, header), 0);
         assert_eq!(
@@ -943,10 +949,7 @@ mod tests {
     #[test]
     fn test_process_new() {
         let typ = empty_process_type("A");
-        let process = OwnedProcess::new(Process::alloc(
-            *typ,
-            Stack::new(32, page_size()),
-        ));
+        let process = OwnedProcess::new(Process::alloc(*typ));
 
         assert_eq!(process.header.instance_of, typ.0);
     }
@@ -954,9 +957,7 @@ mod tests {
     #[test]
     fn test_process_main() {
         let proc_type = empty_process_type("A");
-        let stack = Stack::new(32, page_size());
-        let process =
-            OwnedProcess::new(Process::main(*proc_type, method, stack));
+        let process = OwnedProcess::new(Process::main(*proc_type, method));
 
         assert!(process.is_main());
     }
@@ -964,8 +965,7 @@ mod tests {
     #[test]
     fn test_process_set_main() {
         let typ = empty_process_type("A");
-        let stack = Stack::new(32, page_size());
-        let mut process = OwnedProcess::new(Process::alloc(*typ, stack));
+        let mut process = OwnedProcess::new(Process::alloc(*typ));
 
         assert!(!process.is_main());
 
@@ -976,8 +976,7 @@ mod tests {
     #[test]
     fn test_process_state_suspend() {
         let typ = empty_process_type("A");
-        let stack = Stack::new(32, page_size());
-        let process = OwnedProcess::new(Process::alloc(*typ, stack));
+        let process = OwnedProcess::new(Process::alloc(*typ));
 
         process.state().suspend(TimeoutId(NonZeroU64::new(1).unwrap()));
 
@@ -988,8 +987,7 @@ mod tests {
     #[test]
     fn test_process_timeout_expired() {
         let typ = empty_process_type("A");
-        let stack = Stack::new(32, page_size());
-        let process = OwnedProcess::new(Process::alloc(*typ, stack));
+        let process = OwnedProcess::new(Process::alloc(*typ));
 
         assert!(!process.timeout_expired());
 
@@ -1018,8 +1016,7 @@ mod tests {
     #[test]
     fn test_process_send_message() {
         let proc_type = empty_process_type("A");
-        let stack = Stack::new(32, page_size());
-        let mut process = OwnedProcess::new(Process::alloc(*proc_type, stack));
+        let mut process = OwnedProcess::new(Process::alloc(*proc_type));
         let msg = Message { method, data: null_mut() };
 
         assert_eq!(process.send_message(msg), RescheduleRights::Acquired);
@@ -1029,53 +1026,42 @@ mod tests {
     #[test]
     fn test_process_next_task_without_messages() {
         let proc_type = empty_process_type("A");
-        let stack = Stack::new(32, page_size());
-        let mut process = OwnedProcess::new(Process::alloc(*proc_type, stack));
+        let mut process = OwnedProcess::new(Process::alloc(*proc_type));
+        let conf = Config::new();
 
-        assert!(matches!(process.next_task(), Task::Wait));
+        assert!(matches!(process.next_task(&conf), Task::Wait));
     }
 
     #[test]
     fn test_process_next_task_with_new_message() {
         let proc_type = empty_process_type("A");
-        let stack = Stack::new(32, page_size());
-        let mut process = OwnedProcess::new(Process::alloc(*proc_type, stack));
+        let mut process = OwnedProcess::new(Process::alloc(*proc_type));
         let msg = Message { method, data: null_mut() };
+        let conf = Config::new();
 
         process.send_message(msg);
-        assert!(matches!(process.next_task(), Task::Start(_)));
+        assert!(matches!(process.next_task(&conf), Task::Start(_)));
     }
 
     #[test]
     fn test_process_next_task_with_existing_message() {
         let proc_type = empty_process_type("A");
-        let stack = Stack::new(32, page_size());
-        let mut process = OwnedProcess::new(Process::alloc(*proc_type, stack));
+        let mut process = OwnedProcess::new(Process::alloc(*proc_type));
         let msg1 = Message { method, data: null_mut() };
         let msg2 = Message { method, data: null_mut() };
+        let conf = Config::new();
 
         process.send_message(msg1);
-        process.next_task();
+        process.next_task(&conf);
         process.send_message(msg2);
 
-        assert!(matches!(process.next_task(), Task::Resume));
-    }
-
-    #[test]
-    fn test_process_take_stack() {
-        let proc_type = empty_process_type("A");
-        let stack = Stack::new(32, page_size());
-        let mut process = OwnedProcess::new(Process::alloc(*proc_type, stack));
-
-        assert!(process.take_stack().is_some());
-        assert!(process.stack_pointer.is_null());
+        assert!(matches!(process.next_task(&conf), Task::Resume));
     }
 
     #[test]
     fn test_process_finish_message() {
         let proc_type = empty_process_type("A");
-        let stack = Stack::new(32, page_size());
-        let mut process = OwnedProcess::new(Process::alloc(*proc_type, stack));
+        let mut process = OwnedProcess::new(Process::alloc(*proc_type));
 
         assert!(!process.finish_message());
         assert!(process.state().status.is_waiting_for_message());

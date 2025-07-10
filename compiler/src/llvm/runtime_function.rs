@@ -117,11 +117,10 @@ impl RuntimeFunction {
                 ret.fn_type(&[state, sender, receiver, func, data], false)
             }
             RuntimeFunction::ProcessNew => {
-                let process = context.pointer_type().into();
                 let typ = context.pointer_type().into();
                 let ret = context.pointer_type();
 
-                ret.fn_type(&[process, typ], false)
+                ret.fn_type(&[typ], false)
             }
             RuntimeFunction::RuntimeStackMask => {
                 let state = context.pointer_type().into();

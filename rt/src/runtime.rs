@@ -16,7 +16,6 @@ use crate::network_poller::Worker as NetworkPollerWorker;
 use crate::process::{NativeAsyncMethod, Process};
 use crate::scheduler::signal as signal_sched;
 use crate::stack::total_stack_size;
-use crate::stack::Stack;
 use crate::state::{RcState, State};
 use rustix::param::page_size;
 use std::ffi::CStr;
@@ -149,9 +148,7 @@ impl Runtime {
                 .unwrap();
         }
 
-        let stack_size = self.state.config.stack_size as usize;
-        let stack = Stack::new(stack_size, page_size());
-        let main_proc = Process::main(main_type, main_method, stack);
+        let main_proc = Process::main(main_type, main_method);
 
         self.state.scheduler.run(&self.state, main_proc);
     }

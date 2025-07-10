@@ -123,10 +123,6 @@ against stack overflows. The private page contains data such as a pointer to the
 process that owns the stack. The entire block is aligned to its size. This makes
 it possible to get a pointer to the private page from the current stack pointer.
 
-When a process finishes, its stack is put back into a thread-local stack pool
-for future reuse. Threads periodically inspect the number of reusable stacks
-they have, and may release the memory back to the operating system if needed.
-
 ## Strings
 
 Strings are immutable, and need at least 41 bytes of space. To allow easy

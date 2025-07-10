@@ -64,12 +64,9 @@ pub unsafe extern "system" fn inko_process_panic(
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_process_new(
-    mut process: ProcessPointer,
     instance_of: TypePointer,
 ) -> ProcessPointer {
-    let stack = process.thread().stacks.alloc();
-
-    Process::alloc(instance_of, stack)
+    Process::alloc(instance_of)
 }
 
 #[no_mangle]

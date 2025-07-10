@@ -2,9 +2,7 @@
 use crate::config::Config;
 use crate::mem::{Type, TypePointer};
 use crate::process::{Message, NativeAsyncMethod, Process, ProcessPointer};
-use crate::stack::Stack;
 use crate::state::{RcState, State};
-use rustix::param::page_size;
 use std::mem::{forget, size_of};
 use std::ops::{Deref, DerefMut, Drop};
 
@@ -92,18 +90,14 @@ pub(crate) fn setup() -> RcState {
 }
 
 pub(crate) fn new_process(instance_of: TypePointer) -> OwnedProcess {
-    OwnedProcess::new(Process::alloc(
-        instance_of,
-        Stack::new(1024, page_size()),
-    ))
+    OwnedProcess::new(Process::alloc(instance_of))
 }
 
 pub(crate) fn new_process_with_message(
     instance_of: TypePointer,
     method: NativeAsyncMethod,
 ) -> OwnedProcess {
-    let stack = Stack::new(1024, page_size());
-    let mut proc = Process::alloc(instance_of, stack);
+    let mut proc = Process::alloc(instance_of);
 
     // We use a custom message that takes the process as an argument. This way
     // the tests have access to the current process, without needing to fiddle

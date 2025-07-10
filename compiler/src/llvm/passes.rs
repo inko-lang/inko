@@ -2427,11 +2427,9 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 let name = &self.shared.names.types[&ins.type_id];
                 let global = self.module.add_type(name).as_pointer_value();
                 let proc_type = self.builder.load_pointer(global).into();
-                let proc = self.load_process().into();
                 let func =
                     self.module.runtime_function(RuntimeFunction::ProcessNew);
-                let ptr =
-                    self.builder.call_with_return(func, &[proc, proc_type]);
+                let ptr = self.builder.call_with_return(func, &[proc_type]);
 
                 self.builder.store(reg_var, ptr);
             }

@@ -1,3 +1,4 @@
+use rustix::param::page_size;
 use std::env::var;
 use std::thread::available_parallelism;
 
@@ -33,15 +34,15 @@ const MAX_NETPOLL_THREADS: u8 = 127;
 const DEFAULT_STACK_SIZE: u32 = 512 * 1024;
 
 /// Structure containing the configuration settings for the virtual machine.
-pub struct Config {
+pub(crate) struct Config {
     /// The number of process threads to run.
-    pub process_threads: u16,
+    pub(crate) process_threads: u16,
 
     /// The number of backup process threads to spawn.
-    pub backup_threads: u16,
+    pub(crate) backup_threads: u16,
 
     /// The size of each process' stack in bytes.
-    pub stack_size: u32,
+    pub(crate) stack_size: u32,
 
     /// The number of network poller threads to use.
     ///
@@ -49,7 +50,12 @@ pub struct Config {
     /// This is because internally we use an i8 to store registered poller IDs,
     /// and use the value -1 to signal a file descriptor isn't registered with
     /// any poller.
-    pub netpoll_threads: u8,
+    pub(crate) netpoll_threads: u8,
+
+    /// The size of memory pages.
+    ///
+    /// We store and reuse this value to avoid the system call overhead.
+    pub(crate) page_size: usize,
 }
 
 impl Config {
@@ -62,6 +68,7 @@ impl Config {
             backup_threads: cpu_count * 4,
             netpoll_threads: DEFAULT_NETPOLL_THREADS,
             stack_size: DEFAULT_STACK_SIZE,
+            page_size: page_size(),
         }
     }
 

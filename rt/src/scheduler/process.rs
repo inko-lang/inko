@@ -4,7 +4,6 @@ use crate::context;
 use crate::notifier::Notifier;
 use crate::process::{Process, ProcessPointer, Task};
 use crate::rand::Rand;
-use crate::stack::StackPool;
 use crate::state::{RcState, State};
 use crossbeam_utils::atomic::AtomicCell;
 use std::cell::Cell;
@@ -210,9 +209,6 @@ pub struct Thread {
     /// network poller thread may not be able to complete its work fast enough.
     pub(crate) network_poller: usize,
 
-    /// The pool of stacks to use.
-    pub(crate) stacks: StackPool,
-
     /// A value indicating what to do with a process when it yields back to us.
     ///
     /// The default is to not do anything with a process after it yields back to
@@ -238,7 +234,6 @@ impl Thread {
             blocked_nesting: 0,
             rng: Rand::new(),
             network_poller,
-            stacks: StackPool::new(pool.stack_size),
             action: Action::Ignore,
             pool,
         }
@@ -255,7 +250,6 @@ impl Thread {
             blocked_nesting: 0,
             rng: Rand::new(),
             network_poller,
-            stacks: StackPool::new(pool.stack_size),
             action: Action::Ignore,
             pool,
         }
@@ -437,13 +431,6 @@ impl Thread {
             return Some(p);
         }
 
-        // Now that we ran out of local work, we can try to shrink the stack
-        // if really necessary. We do this _before_ stealing global work to
-        // prevent the stack pool from ballooning in size. If we did this
-        // before going to sleep then in an active system we may never end
-        // up shrinking the stack pool.
-        self.stacks.shrink();
-
         if let Some(p) = self.pool.global.pop() {
             return Some(p);
         }
@@ -524,7 +511,7 @@ impl Thread {
             // the yield.
             let _lock = process.acquire_run_lock();
 
-            match process.next_task() {
+            match process.next_task(&state.config) {
                 Task::Resume => {
                     CURRENT_PROCESS.set(process.as_ptr());
                     process.resume(state, self);
@@ -557,10 +544,6 @@ impl Thread {
                 // using it, hence we do that here.
                 if process.is_main() {
                     state.terminate();
-                }
-
-                if let Some(stack) = process.take_stack() {
-                    self.stacks.add(stack);
                 }
 
                 // Processes drop/free themselves as this must be deferred until
@@ -807,9 +790,6 @@ pub(crate) struct Pool {
 
     /// The state of the process monitor thread.
     monitor: MonitorState,
-
-    /// The size of each stack to allocate for a process.
-    stack_size: usize,
 }
 
 impl Pool {
@@ -883,11 +863,7 @@ pub(crate) struct Scheduler {
 }
 
 impl Scheduler {
-    pub(crate) fn new(
-        size: usize,
-        backup: usize,
-        stack_size: usize,
-    ) -> Scheduler {
+    pub(crate) fn new(size: usize, backup: usize) -> Scheduler {
         let mut shared = Vec::with_capacity(size);
 
         for _ in 0..size {
@@ -911,7 +887,6 @@ impl Scheduler {
                 lock: Mutex::new(()),
                 cvar: Condvar::new(),
             },
-            stack_size,
         });
 
         Self { primary: size, backup, pool: shared }
@@ -1007,7 +982,7 @@ mod tests {
     fn test_thread_schedule() {
         let typ = empty_process_type("A");
         let process = new_process(*typ).take_and_forget();
-        let scheduler = Scheduler::new(1, 1, 32);
+        let scheduler = Scheduler::new(1, 1);
         let mut thread = Thread::new(0, 0, scheduler.pool.clone());
 
         thread.schedule(process);
@@ -1182,7 +1157,7 @@ mod tests {
 
     #[test]
     fn test_scheduler_terminate() {
-        let scheduler = Scheduler::new(1, 1, 32);
+        let scheduler = Scheduler::new(1, 1);
 
         scheduler.terminate();
         assert!(!scheduler.is_alive());
@@ -1195,7 +1170,7 @@ mod tests {
 
     #[test]
     fn test_monitor_check_threads() {
-        let scheduler = Scheduler::new(2, 2, 32);
+        let scheduler = Scheduler::new(2, 2);
         let mut monitor = Monitor::new(&scheduler.pool);
 
         assert!(!monitor.check_threads());
@@ -1223,7 +1198,7 @@ mod tests {
 
     #[test]
     fn test_monitor_update_epoch() {
-        let scheduler = Scheduler::new(1, 1, 32);
+        let scheduler = Scheduler::new(1, 1);
         let mut monitor = Monitor::new(&scheduler.pool);
 
         assert_eq!(monitor.epoch, START_EPOCH);
@@ -1237,7 +1212,7 @@ mod tests {
 
     #[test]
     fn test_monitor_sleep() {
-        let scheduler = Scheduler::new(1, 1, 32);
+        let scheduler = Scheduler::new(1, 1);
         let monitor = Monitor::new(&scheduler.pool);
         let start = Instant::now();
 
@@ -1250,7 +1225,7 @@ mod tests {
 
     #[test]
     fn test_monitor_deep_sleep_with_termination() {
-        let scheduler = Scheduler::new(1, 1, 32);
+        let scheduler = Scheduler::new(1, 1);
         let monitor = Monitor::new(&scheduler.pool);
 
         scheduler.terminate();
@@ -1261,7 +1236,7 @@ mod tests {
 
     #[test]
     fn test_monitor_deep_sleep_with_notification() {
-        let scheduler = Scheduler::new(1, 1, 32);
+        let scheduler = Scheduler::new(1, 1);
         let monitor = Monitor::new(&scheduler.pool);
 
         scope(|s| {
@@ -1284,7 +1259,7 @@ mod tests {
 
     #[test]
     fn test_monitor_deep_sleep_with_blocked_threads() {
-        let scheduler = Scheduler::new(1, 1, 32);
+        let scheduler = Scheduler::new(1, 1);
         let monitor = Monitor::new(&scheduler.pool);
 
         scheduler.pool.threads[0].blocked_at.store(1, Ordering::Release);
