@@ -1,0 +1,695 @@
+# HTTP 1.1 clients and servers.
+#
+# Support for HTTP 1.1 is implemented conforming to the following RFCs:
+#
+# - [HTTP Semantics](https://www.rfc-editor.org/rfc/rfc9110)
+# - [HTTP/1.1](https://www.rfc-editor.org/rfc/rfc9112)
+# - [HTTP State Management Mechanism](https://www.rfc-editor.org/rfc/rfc6265)
+#
+# # Chunked transfer support
+#
+# Chunked transfers are fully supported, with two exceptions:
+#
+# - Trailer fields are not supported and their presence results in a parse error
+# - Chunk extensions _are_ parsed but ignored
+import std.bytes (Bytes)
+import std.clone (Clone)
+import std.cmp (Equal)
+import std.fmt (Format, Formatter)
+import std.hash (Hash, Hasher)
+import std.int (ToInt)
+import std.iter (Stream)
+import std.map (MissingKey)
+import std.net.http.header
+import std.net.http.method
+import std.string (ToString)
+
+# An HTTP header.
+#
+# Standard headers such as `Accept` and `ContentLength` use a dedicated
+# constructor, while non-standard headers use the `Other` constructor.
+type pub inline enum Header {
+  case Accept
+  case AcceptCharset
+  case AcceptEncoding
+  case AcceptLanguage
+  case AcceptRanges
+  case AccessControlAllowCredentials
+  case AccessControlAllowHeaders
+  case AccessControlAllowMethods
+  case AccessControlAllowOrigin
+  case AccessControlMaxAge
+  case AccessControlMethod
+  case AccessControlRequestMethod
+  case AccessControlRequestMethods
+  case AccessControlRequestHeaders
+  case Age
+  case Allow
+  case AltSvc
+  case Authorization
+  case CacheControl
+  case Connection
+  case ContentDisposition
+  case ContentEncoding
+  case ContentLanguage
+  case ContentLength
+  case ContentLocation
+  case ContentRange
+  case ContentType
+  case Cookie
+  case Date
+  case Etag
+  case Expect
+  case Expires
+  case From
+  case Host
+  case IfMatch
+  case IfModifiedSince
+  case IfNoneMatch
+  case IfRange
+  case IfUnmodifiedSince
+  case KeepAlive
+  case LastModified
+  case Link
+  case Location
+  case MaxForwards
+  case Origin
+  case Pragma
+  case ProxyAuthenticate
+  case ProxyAuthorization
+  case ProxyConnection
+  case Range
+  case Referer
+  case RetryAfter
+  case Server
+  case SetCookie
+  case StrictTransportSecurity
+  case Trailer
+  case TransferEncoding
+  case Upgrade
+  case UpgradeInsecureRequests
+  case UserAgent
+  case Vary
+  case Via
+  case WwwAuthenticate
+  case Other(String)
+
+  # Creates a `Header` from a sequence of bytes.
+  #
+  # This method expects that the input is already in lowercase. If this isn't
+  # the case, the input is treated as a non-standard header.
+  #
+  # For non-standard headers the input is converted to a `String` and returned
+  # as `Header.Other`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.parse('content-length') # => Header.ContentLength
+  # Header.parse('example-header') # => Header.Other('example-header')
+  # ```
+  fn pub static parse[B: Bytes + ToString](input: ref B) -> Header {
+    match header.index_of(input) {
+      case 0 -> Accept
+      case 1 -> AcceptCharset
+      case 2 -> AcceptEncoding
+      case 3 -> AcceptLanguage
+      case 4 -> AcceptRanges
+      case 5 -> AccessControlAllowCredentials
+      case 6 -> AccessControlAllowHeaders
+      case 7 -> AccessControlAllowMethods
+      case 8 -> AccessControlAllowOrigin
+      case 9 -> AccessControlMaxAge
+      case 10 -> AccessControlMethod
+      case 11 -> AccessControlRequestMethod
+      case 12 -> AccessControlRequestMethods
+      case 13 -> AccessControlRequestHeaders
+      case 14 -> Age
+      case 15 -> Allow
+      case 16 -> AltSvc
+      case 17 -> Authorization
+      case 18 -> CacheControl
+      case 19 -> Connection
+      case 20 -> ContentDisposition
+      case 21 -> ContentEncoding
+      case 22 -> ContentLanguage
+      case 23 -> ContentLength
+      case 24 -> ContentLocation
+      case 25 -> ContentRange
+      case 26 -> ContentType
+      case 27 -> Cookie
+      case 28 -> Date
+      case 29 -> Etag
+      case 30 -> Expect
+      case 31 -> Expires
+      case 32 -> From
+      case 33 -> Host
+      case 34 -> IfMatch
+      case 35 -> IfModifiedSince
+      case 36 -> IfNoneMatch
+      case 37 -> IfRange
+      case 38 -> IfUnmodifiedSince
+      case 39 -> KeepAlive
+      case 40 -> LastModified
+      case 41 -> Link
+      case 42 -> Location
+      case 43 -> MaxForwards
+      case 44 -> Origin
+      case 45 -> Pragma
+      case 46 -> ProxyAuthenticate
+      case 47 -> ProxyAuthorization
+      case 48 -> ProxyConnection
+      case 49 -> Range
+      case 50 -> Referer
+      case 51 -> RetryAfter
+      case 52 -> Server
+      case 53 -> SetCookie
+      case 54 -> StrictTransportSecurity
+      case 55 -> Trailer
+      case 56 -> TransferEncoding
+      case 57 -> Upgrade
+      case 58 -> UpgradeInsecureRequests
+      case 59 -> UserAgent
+      case 60 -> Vary
+      case 61 -> Via
+      case 62 -> WwwAuthenticate
+      case _ -> Header.Other(input.to_string)
+    }
+  }
+
+  fn index -> Int {
+    match self {
+      case Accept -> 0
+      case AcceptCharset -> 1
+      case AcceptEncoding -> 2
+      case AcceptLanguage -> 3
+      case AcceptRanges -> 4
+      case AccessControlAllowCredentials -> 5
+      case AccessControlAllowHeaders -> 6
+      case AccessControlAllowMethods -> 7
+      case AccessControlAllowOrigin -> 8
+      case AccessControlMaxAge -> 9
+      case AccessControlMethod -> 10
+      case AccessControlRequestMethod -> 11
+      case AccessControlRequestMethods -> 12
+      case AccessControlRequestHeaders -> 13
+      case Age -> 14
+      case Allow -> 15
+      case AltSvc -> 16
+      case Authorization -> 17
+      case CacheControl -> 18
+      case Connection -> 19
+      case ContentDisposition -> 20
+      case ContentEncoding -> 21
+      case ContentLanguage -> 22
+      case ContentLength -> 23
+      case ContentLocation -> 24
+      case ContentRange -> 25
+      case ContentType -> 26
+      case Cookie -> 27
+      case Date -> 28
+      case Etag -> 29
+      case Expect -> 30
+      case Expires -> 31
+      case From -> 32
+      case Host -> 33
+      case IfMatch -> 34
+      case IfModifiedSince -> 35
+      case IfNoneMatch -> 36
+      case IfRange -> 37
+      case IfUnmodifiedSince -> 38
+      case KeepAlive -> 39
+      case LastModified -> 40
+      case Link -> 41
+      case Location -> 42
+      case MaxForwards -> 43
+      case Origin -> 44
+      case Pragma -> 45
+      case ProxyAuthenticate -> 46
+      case ProxyAuthorization -> 47
+      case ProxyConnection -> 48
+      case Range -> 49
+      case Referer -> 50
+      case RetryAfter -> 51
+      case Server -> 52
+      case SetCookie -> 53
+      case StrictTransportSecurity -> 54
+      case Trailer -> 55
+      case TransferEncoding -> 56
+      case Upgrade -> 57
+      case UpgradeInsecureRequests -> 58
+      case UserAgent -> 59
+      case Vary -> 60
+      case Via -> 61
+      case WwwAuthenticate -> 62
+      case Other(_) -> 63
+    }
+  }
+}
+
+impl Hash for Header {
+  fn pub inline hash[H: mut + Hasher](hasher: mut H) {
+    match self {
+      case Other(v) -> v.hash(hasher)
+      case _ -> index.hash(hasher)
+    }
+  }
+}
+
+impl Clone for Header {
+  fn pub inline clone -> Self {
+    match self {
+      case Accept -> Header.Accept
+      case AcceptCharset -> Header.AcceptCharset
+      case AcceptEncoding -> Header.AcceptEncoding
+      case AcceptLanguage -> Header.AcceptLanguage
+      case AcceptRanges -> Header.AcceptRanges
+      case AccessControlAllowCredentials -> Header.AccessControlAllowCredentials
+      case AccessControlAllowHeaders -> Header.AccessControlAllowHeaders
+      case AccessControlAllowMethods -> Header.AccessControlAllowMethods
+      case AccessControlAllowOrigin -> Header.AccessControlAllowOrigin
+      case AccessControlMaxAge -> Header.AccessControlMaxAge
+      case AccessControlMethod -> Header.AccessControlMethod
+      case AccessControlRequestMethod -> Header.AccessControlRequestMethod
+      case AccessControlRequestMethods -> Header.AccessControlRequestMethods
+      case AccessControlRequestHeaders -> Header.AccessControlRequestHeaders
+      case Age -> Header.Age
+      case Allow -> Header.Allow
+      case AltSvc -> Header.AltSvc
+      case Authorization -> Header.Authorization
+      case CacheControl -> Header.CacheControl
+      case Connection -> Header.Connection
+      case ContentDisposition -> Header.ContentDisposition
+      case ContentEncoding -> Header.ContentEncoding
+      case ContentLanguage -> Header.ContentLanguage
+      case ContentLength -> Header.ContentLength
+      case ContentLocation -> Header.ContentLocation
+      case ContentRange -> Header.ContentRange
+      case ContentType -> Header.ContentType
+      case Cookie -> Header.Cookie
+      case Date -> Header.Date
+      case Etag -> Header.Etag
+      case Expect -> Header.Expect
+      case Expires -> Header.Expires
+      case From -> Header.From
+      case Host -> Header.Host
+      case IfMatch -> Header.IfMatch
+      case IfModifiedSince -> Header.IfModifiedSince
+      case IfNoneMatch -> Header.IfNoneMatch
+      case IfRange -> Header.IfRange
+      case IfUnmodifiedSince -> Header.IfUnmodifiedSince
+      case KeepAlive -> Header.KeepAlive
+      case LastModified -> Header.LastModified
+      case Link -> Header.Link
+      case Location -> Header.Location
+      case MaxForwards -> Header.MaxForwards
+      case Origin -> Header.Origin
+      case Pragma -> Header.Pragma
+      case ProxyAuthenticate -> Header.ProxyAuthenticate
+      case ProxyAuthorization -> Header.ProxyAuthorization
+      case ProxyConnection -> Header.ProxyConnection
+      case Range -> Header.Range
+      case Referer -> Header.Referer
+      case RetryAfter -> Header.RetryAfter
+      case Server -> Header.Server
+      case SetCookie -> Header.SetCookie
+      case StrictTransportSecurity -> Header.StrictTransportSecurity
+      case Trailer -> Header.Trailer
+      case TransferEncoding -> Header.TransferEncoding
+      case Upgrade -> Header.Upgrade
+      case UpgradeInsecureRequests -> Header.UpgradeInsecureRequests
+      case UserAgent -> Header.UserAgent
+      case Vary -> Header.Vary
+      case Via -> Header.Via
+      case WwwAuthenticate -> Header.WwwAuthenticate
+      case Other(v) -> Header.Other(v)
+    }
+  }
+}
+
+impl Equal for Header {
+  fn pub ==(other: ref Header) -> Bool {
+    match (self, other) {
+      case (Other(a), Other(b)) -> a == b
+      case (a, b) -> a.index == b.index
+    }
+  }
+}
+
+impl ToString for Header {
+  fn pub to_string -> String {
+    match self {
+      case Other(v) -> v
+      case _ -> header.NAMES.get(index).or_panic
+    }
+  }
+}
+
+impl Format for Header {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case Other(v) -> formatter.write(v)
+      case _ -> formatter.write(header.NAMES.get(index).or_panic)
+    }
+  }
+}
+
+# The value of a header.
+type pub inline enum HeaderValue {
+  # The header is assigned only a single value.
+  #
+  # This is a dedicated constructor as most headers only ever have a single
+  # value, allowing us to avoid the need for allocating an Array.
+  case Single(String)
+
+  # The header is assigned multiple values.
+  case Multiple(Array[String])
+}
+
+impl Equal for HeaderValue {
+  fn pub ==(other: ref Self) -> Bool {
+    match (self, other) {
+      case (Single(a), Single(b)) -> a == b
+      case (Multiple(a), Multiple(b)) -> a == b
+      case _ -> false
+    }
+  }
+}
+
+impl Format for HeaderValue {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case Single(v) -> formatter.tuple('Single').field(v).finish
+      case Multiple(v) -> formatter.tuple('Multiple').field(v).finish
+    }
+  }
+}
+
+impl Clone for HeaderValue {
+  fn pub clone -> Self {
+    match self {
+      case Single(v) -> HeaderValue.Single(v)
+      case Multiple(v) -> HeaderValue.Multiple(v.clone)
+    }
+  }
+}
+
+# A mapping of HTTP headers and their values.
+type pub inline HeaderMap {
+  let @map: Map[Header, HeaderValue]
+
+  # Returns a new and empty `HeaderMap`.
+  fn pub static new -> Self {
+    Self(Map.new)
+  }
+
+  # Adds a `Header` to `self`.
+  #
+  # If the header is already assigned a value, the existing value is turned into
+  # an `Array` and the new value is appended to this `Array`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header, HeaderMap)
+  #
+  # let map = HeaderMap.new
+  #
+  # map.add(Header.ContentLength, '128')
+  # map.add(Header.ContentLength, '256')
+  # map.add(Header.Host, 'example.com')
+  # ```
+  fn pub mut add(header: Header, value: String) {
+    match @map.try_set(header, HeaderValue.Single(value)) {
+      case Error((header, Single(ex), Single(new))) -> {
+        @map.set(header, HeaderValue.Multiple([ex, new]))
+      }
+      case Error((_, Multiple(ex), Single(new))) -> ex.push(new)
+      case _ -> {}
+    }
+  }
+
+  # Returns the first value of the given `Header`, if there is any.
+  #
+  # If the header isn't present, a `MissingKey` error is returned.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header, HeaderMap)
+  #
+  # let map = HeaderMap.new
+  #
+  # map.add(Header.ContentLength, '128')
+  # map.get(Header.ContentLength) # => Result.Ok('128')
+  # ```
+  fn pub get(header: ref Header) -> Result[String, MissingKey[Header]] {
+    match get_value(header) {
+      case Ok(Single(v)) -> Result.Ok(v)
+      case Ok(Multiple(v)) -> Result.Ok(v.get(0).or_panic)
+      case _ -> Result.Error(MissingKey.new(header))
+    }
+  }
+
+  fn inline get_value(
+    header: ref Header,
+  ) -> Result[ref HeaderValue, MissingKey[Header]] {
+    @map.get(header)
+  }
+
+  # Returns an iterator over all the values of the header.
+  #
+  # If the header isn't assigned any values, the returned iterator yields no
+  # values.
+  #
+  # If the header value is a comma-separated list, this method treats it as a
+  # single value.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header, HeaderMap)
+  #
+  # let map = HeaderMap.new
+  #
+  # map.add(Header.ContentLength, '10')
+  # map.add(Header.ContentLength, '20')
+  #
+  # let iter = map.get_all(Header.ContentLength)
+  #
+  # iter.next # => Option.Some('10')
+  # iter.next # => Option.Some('20')
+  # iter.next # => Option.None
+  # ```
+  fn pub get_all(header: ref Header) -> Stream[String] {
+    let val = @map.get(header)
+
+    match val {
+      case Ok(Single(v)) -> {
+        let mut done = false
+
+        Stream.new(fn move {
+          if done := true { Option.None } else { Option.Some(v) }
+        })
+      }
+      case Ok(Multiple(v)) -> v.iter
+      case _ -> Stream.new(fn move { Option.None })
+    }
+  }
+
+  # Returns the number of headers in `self`.
+  fn pub size -> Int {
+    @map.size
+  }
+}
+
+impl Equal for HeaderMap {
+  fn pub ==(other: ref HeaderMap) -> Bool {
+    @map == other.map
+  }
+}
+
+impl Format for HeaderMap {
+  fn pub fmt(formatter: mut Formatter) {
+    let mut len = 0
+
+    formatter.write('{')
+
+    for (name, val) in @map.iter {
+      if len > 0 { formatter.write(', ') }
+
+      formatter.write(name.to_string)
+      formatter.write(': ')
+
+      match val {
+        case Single(v) -> v.fmt(formatter)
+        case Multiple(v) -> v.fmt(formatter)
+      }
+
+      len += 1
+    }
+
+    formatter.write('}')
+  }
+}
+
+# An HTTP request method.
+#
+# Only the standard request methods defined in RFC 9112 are supported. Custom
+# request methods aren't supported as they're virtually unused, and frankly not
+# that useful.
+type pub copy enum Method {
+  case Get
+  case Post
+  case Put
+  case Delete
+  case Head
+  case Options
+  case Connect
+  case Trace
+
+  # Creates a `Method` from a sequence of bytes.
+  #
+  # If the request method isn't recognized, an `Option.None` is returned.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Method)
+  #
+  # Method.parse('GET') # => Option.Some(Method.Get)
+  # Method.parse('FOO') # => Option.None
+  # ```
+  fn pub static parse[B: Bytes](input: ref B) -> Option[Method] {
+    match method.index_of(input) {
+      case Some(0) -> Option.Some(Get)
+      case Some(1) -> Option.Some(Post)
+      case Some(2) -> Option.Some(Put)
+      case Some(3) -> Option.Some(Delete)
+      case Some(4) -> Option.Some(Head)
+      case Some(5) -> Option.Some(Options)
+      case Some(6) -> Option.Some(Connect)
+      case Some(7) -> Option.Some(Trace)
+      case _ -> Option.None
+    }
+  }
+}
+
+impl ToString for Method {
+  fn pub to_string -> String {
+    match self {
+      case Get -> 'GET'
+      case Post -> 'POST'
+      case Put -> 'PUT'
+      case Delete -> 'DELETE'
+      case Head -> 'HEAD'
+      case Options -> 'OPTIONS'
+      case Connect -> 'CONNECT'
+      case Trace -> 'TRACE'
+    }
+  }
+}
+
+impl Equal for Method {
+  fn pub ==(other: Method) -> Bool {
+    match (self, other) {
+      case (Get, Get) -> true
+      case (Post, Post) -> true
+      case (Put, Put) -> true
+      case (Delete, Delete) -> true
+      case (Head, Head) -> true
+      case (Options, Options) -> true
+      case (Connect, Connect) -> true
+      case (Trace, Trace) -> true
+      case _ -> false
+    }
+  }
+}
+
+impl Format for Method {
+  fn pub fmt(formatter: mut Formatter) {
+    let name = match self {
+      case Get -> 'Get'
+      case Post -> 'Post'
+      case Put -> 'Put'
+      case Delete -> 'Delete'
+      case Head -> 'Head'
+      case Options -> 'Options'
+      case Connect -> 'Connect'
+      case Trace -> 'Trace'
+    }
+
+    formatter.tuple(name).finish
+  }
+}
+
+# The status code of a response.
+type pub copy Status {
+  let @code: Int
+
+  # Returns a new `Status` using the given status code.
+  fn inline static new(code: Int) -> Status {
+    Status(code)
+  }
+
+  # Returns the `OK` status code.
+  fn inline static ok -> Status {
+    Status(200)
+  }
+}
+
+impl Equal for Status {
+  fn pub ==(other: Status) -> Bool {
+    @code == other.code
+  }
+}
+
+impl ToString for Status {
+  fn pub to_string -> String {
+    @code.to_string
+  }
+}
+
+impl Format for Status {
+  fn pub fmt(formatter: mut Formatter) {
+    @code.fmt(formatter)
+  }
+}
+
+impl ToInt for Status {
+  fn pub to_int -> Int {
+    @code
+  }
+}
+
+# The version of the HTTP protocol used by a request or response.
+type pub copy Version {
+  # The major version number.
+  let pub @major: Int
+
+  # The minor version number.
+  let pub @minor: Int
+
+  # Returns a new `Version` with the given major and minor components.
+  fn pub static new(major: Int, minor: Int) -> Version {
+    Version(major: major, minor: minor)
+  }
+}
+
+impl Equal for Version {
+  fn pub inline ==(other: Self) -> Bool {
+    @major == other.major and @minor == other.minor
+  }
+}
+
+impl Format for Version {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter
+      .object('Version')
+      .field('major', @major)
+      .field('minor', @minor)
+      .finish
+  }
+}
