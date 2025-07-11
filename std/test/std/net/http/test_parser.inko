@@ -1,0 +1,656 @@
+import std.int
+import std.io (Buffer)
+import std.net.http (Header, HeaderValue, Method, Status, Version)
+import std.net.http.parser (ChunkedReader, Limits, ParseError, Parser)
+import std.test (Tests)
+import std.uri (Path, Uri)
+
+fn path(value: String) -> Uri {
+  let uri = Uri.new
+
+  uri.path = Path.new(value).get
+  uri
+}
+
+fn pub tests(t: mut Tests) {
+  t.test('ChunkedReader.read_chunk_size', fn (t) {
+    let tests = [
+      # Valid chunk sizes
+      ('1\r\n', 10, Result.Ok(1)),
+      ('10\r\n', 100, Result.Ok(16)),
+      ('FF\r\n', 512, Result.Ok(255)),
+      ('ff\r\n', 512, Result.Ok(255)),
+      ('3e7\r\n', 1024, Result.Ok(999)),
+      ('3E7\r\n', 1024, Result.Ok(999)),
+      ('10;\r\n', 256, Result.Ok(16)),
+      ('10;chunk extension\r\n', 256, Result.Ok(16)),
+      ('7fffffffffffffff\r\n', int.MAX, Result.Ok(int.MAX)),
+
+      # Invalid chunk sizes
+      ('FF\r\n', 10, Result.Error(ParseError.BodyTooLarge)),
+      ('Z\r\n', 10, Result.Error(ParseError.InvalidChunk)),
+      ('10;chunk extension\r\n', 5, Result.Error(ParseError.BodyTooLarge)),
+      ('10', 100, Result.Error(ParseError.EndOfInput)),
+      ('10\r', 100, Result.Error(ParseError.EndOfInput)),
+      ('10\rA', 100, Result.Error(ParseError.InvalidChunk)),
+      ('10;chunk extension', 100, Result.Error(ParseError.EndOfInput)),
+      ('10;chunk extension\r', 100, Result.Error(ParseError.EndOfInput)),
+      ('10;chunk extension\rA', 100, Result.Error(ParseError.InvalidChunk)),
+      ('8000000000000000\r\n', int.MAX, Result.Error(ParseError.InvalidChunk)),
+      ('00000000000000000\r\n', 100, Result.Error(ParseError.InvalidChunk)),
+      ('00000000000000001\r\n', 100, Result.Error(ParseError.InvalidChunk)),
+      ('000000000000000012\r\n', 100, Result.Error(ParseError.InvalidChunk)),
+    ]
+
+    for (inp, max, out) in tests {
+      t.equal(ChunkedReader.new(Buffer.new(inp), max).read_chunk_size, out)
+    }
+  })
+
+  t.test('ChunkedReader.read', fn (t) {
+    let tests = [
+      # Valid chunks
+      ('0\r\n\r\n', 1024, [(0, Result.Ok(0), '')]),
+      ('5\r\nhello\r\n0\r\n\r\n', 1024, [(3, Result.Ok(3), 'hel')]),
+      ('5\r\nhello\r\n0\r\n\r\n', 1024, [(5, Result.Ok(5), 'hello')]),
+      ('5\r\nhello\r\n0\r\n\r\n', 1024, [(10, Result.Ok(5), 'hello')]),
+      ('3\r\nhel\r\n2\r\nlo\r\n0\r\n\r\n', 1024, [(5, Result.Ok(5), 'hello')]),
+      ('3\r\nhel\r\n2\r\nlo\r\n0\r\n\r\n', 1024, [(3, Result.Ok(3), 'hel')]),
+      (
+        '5\r\nhello\r\n0\r\n\r\n',
+        1024,
+        [(3, Result.Ok(3), 'hel'), (2, Result.Ok(2), 'hello')],
+      ),
+      (
+        '5\r\nhello\r\n0\r\n\r\n',
+        1024,
+        [(3, Result.Ok(3), 'hel'), (10, Result.Ok(2), 'hello')],
+      ),
+      (
+        '5\r\nhello\r\n0\r\n\r\n5\r\nworld\r\n0\r\n\r\n',
+        1024,
+        [(5, Result.Ok(5), 'hello'), (5, Result.Ok(0), 'hello')],
+      ),
+      (
+        '5\r\nhello\r\n0\r\n\r\n5\r\nworld\r\n0\r\n\r\n',
+        1024,
+        [(20, Result.Ok(5), 'hello'), (5, Result.Ok(0), 'hello')],
+      ),
+      ('3\r\nhel\r\n2\r\nlo\r\n0\r\n\r\n', 1024, [(20, Result.Ok(5), 'hello')]),
+      ('3\r\nabc\r\n0\r\n\r\n', 1024, [(3, Result.Ok(3), 'abc')]),
+
+      # Invalid chunks
+      ('5\r\nhello', 1024, [(5, Result.Error(ParseError.EndOfInput), 'hello')]),
+      (
+        '5\r\nhello\r',
+        1024,
+        [(5, Result.Error(ParseError.EndOfInput), 'hello')],
+      ),
+      (
+        '5\r\nhello\rX',
+        1024,
+        [(5, Result.Error(ParseError.InvalidChunk), 'hello')],
+      ),
+      (
+        '5\r\nhelloX',
+        1024,
+        [(5, Result.Error(ParseError.InvalidChunk), 'hello')],
+      ),
+
+      # Chunks that aren't terminated correctly
+      ('3\r\nabc', 1024, [(3, Result.Error(ParseError.EndOfInput), 'abc')]),
+      ('0\r\n', 1024, [(10, Result.Error(ParseError.EndOfInput), '')]),
+      ('0\r\n\r', 1024, [(10, Result.Error(ParseError.EndOfInput), '')]),
+      ('0\r\n\rX', 1024, [(10, Result.Error(ParseError.InvalidChunk), '')]),
+
+      # Reads that are too large
+      (
+        '5\r\nhello\r\n0\r\n\r\n',
+        3,
+        [(5, Result.Error(ParseError.BodyTooLarge), '')],
+      ),
+      (
+        '3\r\nhel\r\n2\r\nlo\r\n0\r\n\r\n',
+        4,
+        [(4, Result.Error(ParseError.BodyTooLarge), 'hel')],
+      ),
+      (
+        '3\r\nhel\r\n2\r\nlo\r\n5\r\nworld\r\n0\r\n\r\n',
+        5,
+        [
+          (5, Result.Ok(5), 'hello'),
+          (5, Result.Error(ParseError.BodyTooLarge), 'hello'),
+        ],
+      ),
+      (
+        '5;hello\r\nworld\r\n0\r\n\r\n',
+        5,
+        [(5, Result.Error(ParseError.BodyTooLarge), '')],
+      ),
+      (
+        '5;hel\r\nworld\r\n0\r\n\r\n',
+        5,
+        [(5, Result.Error(ParseError.BodyTooLarge), '')],
+      ),
+    ]
+
+    let buf = ByteArray.new
+
+    for (inp, max, reads) in tests {
+      let reader = ChunkedReader.new(Buffer.new(inp), max)
+
+      for (len, exp, out) in reads {
+        let res = reader.read(buf, len)
+
+        t.equal(res, exp)
+        t.equal(buf.to_string, out)
+      }
+
+      buf.clear
+    }
+  })
+
+  t.test('ChunkedReader.read consumes trailing empty lines', fn (t) {
+    let input = Buffer.new('3\r\nabc\r\n0\r\n\r\n')
+    let reader = ChunkedReader.new(mut input, 1024)
+    let buf = ByteArray.new
+
+    t.equal(reader.read_all(buf), Result.Ok(3))
+    t.equal(input.read_all(buf), Result.Ok(0))
+    t.equal(buf.to_string, 'abc')
+  })
+
+  t.test('Parser.request_method', fn (t) {
+    let tests = [
+      # Valid values
+      ('GET ', Result.Ok(Method.Get)),
+      ('POST ', Result.Ok(Method.Post)),
+      ('PUT ', Result.Ok(Method.Put)),
+      ('DELETE ', Result.Ok(Method.Delete)),
+      ('HEAD ', Result.Ok(Method.Head)),
+      ('OPTIONS ', Result.Ok(Method.Options)),
+      ('CONNECT ', Result.Ok(Method.Connect)),
+      ('TRACE ', Result.Ok(Method.Trace)),
+
+      # Invalid values
+      (' GET ', Result.Error(ParseError.InvalidMethod)),
+      ('WAT ', Result.Error(ParseError.InvalidMethod)),
+      (
+        'REALLY_LONG_REQUEST_METHOD_NAME ',
+        Result.Error(ParseError.InvalidMethod),
+      ),
+      ('GETGETGETGETGET ', Result.Error(ParseError.InvalidMethod)),
+      ('GE', Result.Error(ParseError.EndOfInput)),
+    ]
+
+    for (inp, out) in tests {
+      let limits = Limits.new
+      let parser = Parser.new(Buffer.new(inp), limits)
+      let result = parser.request_method
+
+      t.equal(result, out)
+
+      if result.ok? { t.true(parser.buffer.empty?) }
+    }
+  })
+
+  t.test('Parser.uri', fn (t) {
+    let tests = [
+      # Valid values
+      ('foo ', Result.Ok(path('foo'))),
+      ('/foo ', Result.Ok(path('/foo'))),
+      ('* ', Result.Ok(path('*'))),
+
+      # Invalid values
+      (' ', Result.Error(ParseError.MissingUri)),
+      ('😀 ', Result.Error(ParseError.InvalidUri('the path is invalid'))),
+      (
+        'this/uri/is/too/long/and/will/be/rejceted',
+        Result.Error(ParseError.UriTooLarge),
+      ),
+    ]
+
+    for (inp, out) in tests {
+      let limits = Limits.new
+
+      limits.uri_size = 10
+
+      let parser = Parser.new(Buffer.new(inp), limits)
+      let result = parser.uri
+
+      t.equal(result, out)
+
+      if result.ok? { t.true(parser.buffer.empty?) }
+    }
+  })
+
+  t.test('Parser.request_version', fn (t) {
+    let tests = [
+      # Valid values
+      ('HTTP/0.9\r\n', Result.Ok(Version.new(0, 9))),
+      ('HTTP/1.1\r\n', Result.Ok(Version.new(1, 1))),
+      ('HTTP/2.0\r\n', Result.Ok(Version.new(2, 0))),
+
+      # Invalid values
+      ('HTTP\r\n', Result.Error(ParseError.EndOfInput)),
+      ('HTTP/1\r\n', Result.Error(ParseError.InvalidVersion)),
+      ('HTTP/1.\r\n', Result.Error(ParseError.InvalidVersion)),
+      ('HTTP \r\n', Result.Error(ParseError.EndOfInput)),
+      ('HTTP/a.b\r\n', Result.Error(ParseError.InvalidVersion)),
+      ('HTTP/99999.99999\r\n', Result.Error(ParseError.InvalidVersion)),
+      ('AAAA/1.1\r\n', Result.Error(ParseError.InvalidVersion)),
+      ('HTTP/1a1\r\n', Result.Error(ParseError.InvalidVersion)),
+
+      # Incorrect line endings
+      ('HTTP/1.1\ra', Result.Error(ParseError.InvalidVersion)),
+      ('HTTP/1.1\na', Result.Error(ParseError.InvalidVersion)),
+      ('HTTP/1.1ab', Result.Error(ParseError.InvalidVersion)),
+      ('HTTP/1.1\r', Result.Error(ParseError.EndOfInput)),
+    ]
+
+    for (inp, out) in tests {
+      let limits = Limits.new
+      let parser = Parser.new(Buffer.new(inp), limits)
+      let result = parser.request_version
+
+      t.equal(result, out)
+
+      if result.ok? { t.true(parser.buffer.empty?) }
+    }
+  })
+
+  t.test('Parser.headers', fn (t) {
+    let tests = [
+      # Valid values
+      ('\r\n', Result.Ok([])),
+      ('\r\n\r\n', Result.Ok([])),
+      (
+        'Host: foo\r\n\r\n',
+        Result.Ok([(Header.Host, HeaderValue.Single('foo'))]),
+      ),
+      (
+        'Host:foo\r\n\r\n',
+        Result.Ok([(Header.Host, HeaderValue.Single('foo'))]),
+      ),
+      (
+        'HoSt: foo\r\n\r\n',
+        Result.Ok([(Header.Host, HeaderValue.Single('foo'))]),
+      ),
+      (
+        'hOST: foo\r\n\r\n',
+        Result.Ok([(Header.Host, HeaderValue.Single('foo'))]),
+      ),
+      (
+        'Accept: text/html\r\nHost: example.com\r\nx-CuSTOM: foo\r\n\r\n',
+        Result.Ok(
+          [
+            (Header.Accept, HeaderValue.Single('text/html')),
+            (Header.Host, HeaderValue.Single('example.com')),
+            (Header.Other('x-custom'), HeaderValue.Single('foo')),
+          ],
+        ),
+      ),
+      (
+        'Host: foo\r\nHost: bar\r\nHost: baz\r\n\r\n',
+        Result.Ok([(Header.Host, HeaderValue.Multiple(['foo', 'bar', 'baz']))]),
+      ),
+      (
+        'Host:      foo\r\n\r\n',
+        Result.Ok([(Header.Host, HeaderValue.Single('foo'))]),
+      ),
+      (
+        'Host: foo bar\tbaz\r\n\r\n',
+        Result.Ok([(Header.Host, HeaderValue.Single('foo bar\tbaz'))]),
+      ),
+      (
+        'Host: foo  \t\r\n\r\n',
+        Result.Ok([(Header.Host, HeaderValue.Single('foo'))]),
+      ),
+
+      # Invalid values
+      ('', Result.Error(ParseError.EndOfInput)),
+      ('\nHost: foo\r\n\r\n', Result.Error(ParseError.InvalidHeader)),
+      (' Host: foo\r\n\r\n', Result.Error(ParseError.InvalidHeader)),
+      ('Host: foo\nbar\r\n\r\n', Result.Error(ParseError.InvalidHeader)),
+      ('Host: foo', Result.Error(ParseError.EndOfInput)),
+      ('Host: foo\r', Result.Error(ParseError.EndOfInput)),
+      ('Host: foo\n', Result.Error(ParseError.InvalidHeader)),
+      ('Host: foo\r1', Result.Error(ParseError.InvalidHeader)),
+      ('Host: 😀\r\n\r\n', Result.Error(ParseError.InvalidHeader)),
+      ('😀: foo\r\n\r\n', Result.Error(ParseError.InvalidHeader)),
+    ]
+
+    for (input, headers) in tests {
+      let limits = Limits.new
+      let parser = Parser.new(Buffer.new(input), limits)
+      let result = parser.headers.map(fn (m) {
+        match m {
+          case { @map = m } -> m.into_iter.to_array
+        }
+      })
+
+      t.equal(result, headers)
+
+      if result.ok? { t.true(parser.buffer.empty?) }
+    }
+  })
+
+  t.test('Parser.headers with headers that are too large', fn (t) {
+    let inputs = [
+      (3, 'Host: foo'),
+      (5, 'Host: foo'),
+      (6, 'Host: foo'),
+      (7, 'Host: foo'),
+      (5, 'a: foo'),
+      (5, 'a:      b'),
+      (5, 'a: b       '),
+    ]
+
+    for (len, inp) in inputs {
+      let limits = Limits.new
+
+      limits.header_size = len
+
+      let parser = Parser.new(Buffer.new('${inp}\r\n\r\n'), limits)
+
+      t.equal(parser.headers, Result.Error(ParseError.HeaderTooLarge))
+    }
+  })
+
+  t.test('Parser.headers with too many headers', fn (t) {
+    let limits = Limits.new
+
+    limits.headers = 1
+
+    let parser = Parser.new(
+      Buffer.new('header1: foo\r\nheader2: bar\r\n\r\n'),
+      limits,
+    )
+
+    t.equal(parser.headers, Result.Error(ParseError.TooManyHeaders))
+  })
+
+  t.test('Parser.response_version', fn (t) {
+    let tests = [
+      # Valid values
+      ('HTTP/0.9 ', Result.Ok(Version.new(0, 9))),
+      ('HTTP/1.1 ', Result.Ok(Version.new(1, 1))),
+      ('HTTP/2.0 ', Result.Ok(Version.new(2, 0))),
+
+      # Invalid values
+      ('HTTP ', Result.Error(ParseError.EndOfInput)),
+      ('HTTP/1 ', Result.Error(ParseError.EndOfInput)),
+      ('HTTP/1. ', Result.Error(ParseError.InvalidVersion)),
+      ('HTTP  ', Result.Error(ParseError.EndOfInput)),
+      ('HTTP/a.b ', Result.Error(ParseError.InvalidVersion)),
+      ('HTTP/99999.99999 ', Result.Error(ParseError.InvalidVersion)),
+      ('AAAA/1.1 ', Result.Error(ParseError.InvalidVersion)),
+      ('HTTP/1a1 ', Result.Error(ParseError.InvalidVersion)),
+      ('HTTP/1.1x', Result.Error(ParseError.InvalidVersion)),
+    ]
+
+    for (inp, out) in tests {
+      let limits = Limits.new
+      let parser = Parser.new(Buffer.new(inp), limits)
+      let result = parser.response_version
+
+      t.equal(result, out)
+
+      if result.ok? { t.true(parser.buffer.empty?) }
+    }
+  })
+
+  t.test('Parser.status', fn (t) {
+    let tests = [
+      # Valid values
+      ('200 OK\r\n', Result.Ok(Status.new(200))),
+      ('200 hello, this is\tan example\r\n', Result.Ok(Status.new(200))),
+      ('200 \r\n', Result.Ok(Status.new(200))),
+      ('999 \r\n', Result.Ok(Status.new(999))),
+
+      # Invalid values
+      ('200\r\n', Result.Error(ParseError.InvalidStatus)),
+      ('200 😀', Result.Error(ParseError.InvalidStatus)),
+      ('9999 OK', Result.Error(ParseError.InvalidStatus)),
+      ('200OK', Result.Error(ParseError.InvalidStatus)),
+      (
+        '200 mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm',
+        Result.Error(ParseError.StatusTooLarge),
+      ),
+    ]
+
+    for (inp, out) in tests {
+      let limits = Limits.new
+      let parser = Parser.new(Buffer.new(inp), limits)
+      let result = parser.status
+
+      t.equal(result, out)
+
+      if result.ok? { t.true(parser.buffer.empty?) }
+    }
+  })
+
+  t.test('Parser.request', fn (t) {
+    let tests = [
+      # Valid requests
+      (
+        'GET / HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody',
+        Result.Ok(
+          (
+            Method.Get,
+            path('/'),
+            Version.new(1, 1),
+            [(Header.ContentLength, HeaderValue.Single('4'))],
+            'body',
+          ),
+        ),
+      ),
+      (
+        'GET / HTTP/1.1\r\nContent-Length: 4\r\n\r\n',
+        Result.Ok(
+          (
+            Method.Get,
+            path('/'),
+            Version.new(1, 1),
+            [(Header.ContentLength, HeaderValue.Single('4'))],
+            '',
+          ),
+        ),
+      ),
+      (
+        'GET / HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nbody\r\n0\r\n\r\n',
+        Result.Ok(
+          (
+            Method.Get,
+            path('/'),
+            Version.new(1, 1),
+            [(Header.TransferEncoding, HeaderValue.Single('chunked'))],
+            'body',
+          ),
+        ),
+      ),
+
+      # HEAD and CONNECT requests should ignore the body.
+      (
+        'HEAD / HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody',
+        Result.Ok(
+          (
+            Method.Head,
+            path('/'),
+            Version.new(1, 1),
+            [(Header.ContentLength, HeaderValue.Single('4'))],
+            '',
+          ),
+        ),
+      ),
+      (
+        'HEAD / HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nbody\r\n0\r\n\r\n',
+        Result.Ok(
+          (
+            Method.Head,
+            path('/'),
+            Version.new(1, 1),
+            [(Header.TransferEncoding, HeaderValue.Single('chunked'))],
+            '',
+          ),
+        ),
+      ),
+      (
+        'CONNECT / HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody',
+        Result.Ok(
+          (
+            Method.Connect,
+            path('/'),
+            Version.new(1, 1),
+            [(Header.ContentLength, HeaderValue.Single('4'))],
+            '',
+          ),
+        ),
+      ),
+      (
+        'CONNECT / HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nbody\r\n0\r\n\r\n',
+        Result.Ok(
+          (
+            Method.Connect,
+            path('/'),
+            Version.new(1, 1),
+            [(Header.TransferEncoding, HeaderValue.Single('chunked'))],
+            '',
+          ),
+        ),
+      ),
+      (
+        'GET / HTTP/1.1\r\n\r\nbody',
+        Result.Ok((Method.Get, path('/'), Version.new(1, 1), [], '')),
+      ),
+
+      # Invalid requests
+      (
+        'GET / HTTP/1.1\r\nContent-Length: 4\r\n',
+        Result.Error(ParseError.EndOfInput),
+      ),
+      (
+        'GET / HTTP/1.1\r\nContent-Length: 4\r\nTransfer-Encoding: chunked\r\n\r\nbody\r\n0\r\n\r\n',
+        Result.Error(ParseError.InvalidHeader),
+      ),
+      (
+        'GET / HTTP/1.1\r\nContent-Length: 4,10\r\n\r\nbody',
+        Result.Error(ParseError.InvalidHeader),
+      ),
+      (
+        'GET / HTTP/1.1\r\nContent-Length: 4\r\nContent-Length: 10\r\n\r\nbody',
+        Result.Error(ParseError.InvalidHeader),
+      ),
+      (
+        'GET / HTTP/1.1\r\nContent-Length: 99999999999999999\r\n\r\nbody',
+        Result.Error(ParseError.BodyTooLarge),
+      ),
+      (
+        'GET / HTTP/1.1\r\nTransfer-Encoding: whatever\r\n\r\nbody',
+        Result.Error(ParseError.InvalidTransferEncoding),
+      ),
+      (
+        'GET / HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nbody\r\n0\r\nFoo: bar\r\n\r\n',
+        Result.Error(ParseError.InvalidChunk),
+      ),
+      (
+        'GET / HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nbody\r\n0\r\n',
+        Result.Error(ParseError.EndOfInput),
+      ),
+      (
+        'GET / HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nbody\r\n0',
+        Result.Error(ParseError.EndOfInput),
+      ),
+    ]
+
+    for (inp, out) in tests {
+      let limits = Limits.new
+      let parser = Parser.new(Buffer.new(inp), limits)
+      let mapped = match parser.request {
+        case
+          Ok({ @method = m, @uri = u, @version = v, @headers = h, @body = b }) -> {
+          let buf = ByteArray.new
+
+          match b.read_all(buf) {
+            case Ok(_) -> {
+              let headers = match h {
+                case { @map = m } -> m.into_iter.to_array
+              }
+
+              Result.Ok((m, u, v, headers, buf.into_string))
+            }
+            case Error(e) -> Result.Error(e)
+          }
+        }
+        case Error(e) -> Result.Error(e)
+      }
+
+      t.equal(mapped, out)
+    }
+  })
+
+  t.test('Parser.response', fn (t) {
+    let tests = [
+      # Valid responses
+      (
+        'HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\nbody',
+        Result.Ok(
+          (
+            Version.new(1, 1),
+            Status.new(200),
+            [(Header.ContentLength, HeaderValue.Single('4'))],
+            'body',
+          ),
+        ),
+      ),
+      (
+        'HTTP/1.1 200 OK\r\n\r\n',
+        Result.Ok((Version.new(1, 1), Status.new(200), [], '')),
+      ),
+      (
+        'HTTP/1.1 200 \r\n\r\n',
+        Result.Ok((Version.new(1, 1), Status.new(200), [], '')),
+      ),
+      (
+        'HTTP/1.1 200 \r\nTransfer-Encoding: chunked\r\n\r\n4\r\nbody\r\n0\r\n\r\n',
+        Result.Ok(
+          (
+            Version.new(1, 1),
+            Status.new(200),
+            [(Header.TransferEncoding, HeaderValue.Single('chunked'))],
+            'body',
+          ),
+        ),
+      ),
+
+      # Invalid responses
+      ('', Result.Error(ParseError.EndOfInput)),
+      ('\r\n\r\n', Result.Error(ParseError.EndOfInput)),
+      ('HTTP/1.1\r\n\r\nbody', Result.Error(ParseError.InvalidVersion)),
+    ]
+
+    for (inp, out) in tests {
+      let limits = Limits.new
+      let parser = Parser.new(Buffer.new(inp), limits)
+      let mapped = match parser.response {
+        case Ok({ @version = v, @status = s, @headers = h, @body = b }) -> {
+          let buf = ByteArray.new
+
+          match b.read_all(buf) {
+            case Ok(_) -> {
+              let headers = match h {
+                case { @map = m } -> m.into_iter.to_array
+              }
+
+              Result.Ok((v, s, headers, buf.into_string))
+            }
+            case Error(e) -> Result.Error(e)
+          }
+        }
+        case Error(e) -> Result.Error(e)
+      }
+
+      t.equal(mapped, out)
+    }
+  })
+}

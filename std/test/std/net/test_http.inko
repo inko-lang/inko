@@ -1,0 +1,209 @@
+import std.fmt (fmt)
+import std.map (MissingKey)
+import std.net.http (Header, HeaderMap, Method, Status, Version)
+import std.net.http.header
+import std.test (Tests)
+import std.uri (Path, Uri)
+
+fn path(value: String) -> Uri {
+  let uri = Uri.new
+
+  uri.path = Path.new(value).get
+  uri
+}
+
+fn pub tests(t: mut Tests) {
+  t.test('Header.parse', fn (t) {
+    t.equal(Header.parse('accept'), Header.Accept)
+    t.equal(Header.parse('www-authenticate'), Header.WwwAuthenticate)
+    t.equal(Header.parse('Accept'), Header.Other('Accept'))
+    t.equal(Header.parse('example-header'), Header.Other('example-header'))
+
+    for (idx, name) in header.NAMES.iter.with_index {
+      let header = Header.parse(name)
+
+      t.equal(header.index, idx)
+    }
+  })
+
+  t.test('Header.index', fn (t) {
+    for (idx, name) in header.NAMES.iter.with_index {
+      t.equal(Header.parse(name.to_lower).index, idx)
+    }
+  })
+
+  t.test('Header.==', fn (t) {
+    t.equal(Header.Accept, Header.Accept)
+    t.equal(Header.Other('foo'), Header.Other('foo'))
+    t.not_equal(Header.Accept, Header.Host)
+  })
+
+  t.test('Header.to_string', fn (t) {
+    t.equal(Header.Accept.to_string, 'accept')
+    t.equal(Header.ContentLength.to_string, 'content-length')
+    t.equal(Header.Other('example-header').to_string, 'example-header')
+  })
+
+  t.test('Header.fmt', fn (t) {
+    t.equal(fmt(Header.Accept), 'accept')
+    t.equal(fmt(Header.ContentLength), 'content-length')
+    t.equal(fmt(Header.Other('example-header')), 'example-header')
+  })
+
+  t.test('HeaderMap.new', fn (t) {
+    let map = HeaderMap.new
+
+    t.equal(map.map.size, 0)
+  })
+
+  t.test('HeaderMap.add', fn (t) {
+    let map = HeaderMap.new
+
+    map.add(Header.Host, 'example.com')
+    map.add(Header.ContentLength, '10')
+    map.add(Header.ContentLength, '20')
+    map.add(Header.Other('foo'), '100')
+    map.add(Header.Other('bar'), '200')
+    map.add(Header.Other('bar'), '300')
+
+    t.equal(map.get(Header.Host), Result.Ok('example.com'))
+    t.equal(map.get(Header.ContentLength), Result.Ok('10'))
+    t.equal(map.get(Header.Other('foo')), Result.Ok('100'))
+    t.equal(map.get(Header.Other('bar')), Result.Ok('200'))
+  })
+
+  t.test('HeaderMap.get', fn (t) {
+    let map = HeaderMap.new
+
+    map.add(Header.Host, 'example.com')
+    map.add(Header.Other('bar'), 'value')
+
+    t.equal(map.get(Header.Host), Result.Ok('example.com'))
+    t.equal(map.get(Header.Accept), Result.Error(MissingKey.new(Header.Accept)))
+    t.equal(map.get(Header.Other('bar')), Result.Ok('value'))
+    t.equal(
+      map.get(Header.Other('foo')),
+      Result.Error(MissingKey.new(Header.Other('foo'))),
+    )
+  })
+
+  t.test('HeaderMap.get_all', fn (t) {
+    let map = HeaderMap.new
+
+    map.add(Header.Host, 'example.com')
+    map.add(Header.ContentLength, '10')
+    map.add(Header.ContentLength, '20')
+    map.add(Header.Other('foo'), '100')
+    map.add(Header.Other('foo'), '200')
+    map.add(Header.Other('single'), 'value')
+
+    t.equal(map.get_all(Header.Host).to_array, ['example.com'])
+    t.equal(map.get_all(Header.ContentLength).to_array, ['10', '20'])
+    t.equal(map.get_all(Header.Other('foo')).to_array, ['100', '200'])
+    t.equal(map.get_all(Header.Other('single')).to_array, ['value'])
+
+    t.equal(map.get_all(Header.Via).to_array, [])
+    t.equal(map.get_all(Header.Other('missing')).to_array, [])
+  })
+
+  t.test('HeaderMap.size', fn (t) {
+    let map = HeaderMap.new
+
+    t.equal(map.size, 0)
+    map.add(Header.Host, 'a')
+    t.equal(map.size, 1)
+    map.add(Header.Host, 'b')
+    t.equal(map.size, 1)
+  })
+
+  t.test('HeaderMap.==', fn (t) {
+    let map1 = HeaderMap.new
+    let map2 = HeaderMap.new
+    let map3 = HeaderMap.new
+
+    map1.add(Header.Host, 'a')
+    map2.add(Header.Host, 'a')
+    map3.add(Header.Host, 'b')
+
+    t.equal(map1, map2)
+    t.not_equal(map1, map3)
+  })
+
+  t.test('HeaderMap.fmt', fn (t) {
+    let map = HeaderMap.new
+
+    map.add(Header.Host, 'foo')
+    map.add(Header.Connection, 'bar')
+    map.add(Header.Connection, 'baz')
+    map.add(Header.Other('foo'), 'value1')
+    map.add(Header.Other('bar'), 'value2')
+    map.add(Header.Other('bar'), 'value3')
+
+    t.equal(
+      fmt(map),
+      '{host: "foo", connection: ["bar", "baz"], foo: "value1", bar: ["value2", "value3"]}',
+    )
+  })
+
+  t.test('Method.parse', fn (t) {
+    t.equal(Method.parse('GET'), Option.Some(Method.Get))
+    t.equal(Method.parse('OPTIONS'), Option.Some(Method.Options))
+    t.equal(Method.parse('get'), Option.None)
+  })
+
+  t.test('Method.==', fn (t) {
+    t.equal(Method.Get, Method.Get)
+    t.not_equal(Method.Get, Method.Post)
+  })
+
+  t.test('Method.to_string', fn (t) {
+    t.equal(Method.Get.to_string, 'GET')
+    t.equal(Method.Post.to_string, 'POST')
+    t.equal(Method.Put.to_string, 'PUT')
+    t.equal(Method.Delete.to_string, 'DELETE')
+    t.equal(Method.Head.to_string, 'HEAD')
+    t.equal(Method.Options.to_string, 'OPTIONS')
+    t.equal(Method.Connect.to_string, 'CONNECT')
+    t.equal(Method.Trace.to_string, 'TRACE')
+  })
+
+  t.test('Method.fmt', fn (t) {
+    t.equal(fmt(Method.Get), 'Get')
+    t.equal(fmt(Method.Post), 'Post')
+    t.equal(fmt(Method.Put), 'Put')
+    t.equal(fmt(Method.Delete), 'Delete')
+    t.equal(fmt(Method.Head), 'Head')
+    t.equal(fmt(Method.Options), 'Options')
+    t.equal(fmt(Method.Connect), 'Connect')
+    t.equal(fmt(Method.Trace), 'Trace')
+  })
+
+  t.test('Status.new', fn (t) { t.equal(Status.new(404).code, 404) })
+
+  t.test('Status.ok', fn (t) { t.equal(Status.ok.code, 200) })
+
+  t.test('Status.==', fn (t) {
+    t.equal(Status.new(1), Status.new(1))
+    t.not_equal(Status.new(1), Status.new(2))
+  })
+
+  t.test('Status.to_string', fn (t) { t.equal(Status.ok.to_string, '200') })
+
+  t.test('Status.fmt', fn (t) { t.equal(fmt(Status.ok), '200') })
+
+  t.test('Status.to_int', fn (t) { t.equal(Status.ok.to_int, 200) })
+
+  t.test('Version.new', fn (t) {
+    t.equal(Version.new(4, 5), Version(major: 4, minor: 5))
+  })
+
+  t.test('Version.==', fn (t) {
+    t.equal(Version.new(1, 2), Version.new(1, 2))
+    t.not_equal(Version.new(1, 2), Version.new(1, 3))
+    t.not_equal(Version.new(2, 1), Version.new(1, 1))
+  })
+
+  t.test('Version.fmt', fn (t) {
+    t.equal(fmt(Version.new(1, 2)), 'Version(major: 1, minor: 2)')
+  })
+}
