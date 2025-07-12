@@ -1316,6 +1316,30 @@ type pub copy DateTime {
   fn pub to_rfc2822 -> String {
     format('%a, %d %b %Y %H:%M:%S %Z', English.new)
   }
+
+  # Returns the `Duration` since the given `DateTime` relative to `self`.
+  #
+  # If `earlier` is a time _after_ `self` then the returned `Duration` is a
+  # negative value.
+  #
+  # Note that `DateTime` is not a monotonic time and thus subject to clock
+  # adjustments. For measuring the time elapsed (e.g. as part of a benchmark),
+  # use `Instant` instead.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.time (DateTime, Duration)
+  #
+  # let t1 = DateTime.utc
+  # let t2 = t1 + Duration.from_secs(2)
+  #
+  # t2.duration_since(t1) # => Duration.from_secs(2)
+  # t1.duration_since(t2) # => Duration.from_secs(-2)
+  # ```
+  fn pub duration_since(earlier: DateTime) -> Duration {
+    Duration.from_secs(to_int - earlier.to_int)
+  }
 }
 
 impl Clone for DateTime {

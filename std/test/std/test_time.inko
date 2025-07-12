@@ -784,6 +784,15 @@ fn pub tests(t: mut Tests) {
     t.equal(t3.to_rfc2822, 'Sat, 21 Dec 2024 21:47:30 -01:30')
   })
 
+  t.test('DateTime.duration_since', fn (t) {
+    let t1 = DateTime.utc
+    let t2 = t1 + Duration.from_secs(2)
+
+    t.equal(t2.duration_since(t2), Duration.from_secs(0))
+    t.equal(t2.duration_since(t1), Duration.from_secs(2))
+    t.equal(t1.duration_since(t2), Duration.from_secs(-2))
+  })
+
   t.test('Instant.new', fn (t) {
     let t1 = Instant.new
     let t2 = Instant.new
