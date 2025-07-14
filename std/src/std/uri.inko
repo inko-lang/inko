@@ -55,10 +55,6 @@ let RBRK = 93
 let LOWER_V = 118
 let TILD = 126
 
-fn inline unprintable?(byte: Int) -> Bool {
-  byte <= 32 or byte > 126
-}
-
 fn inline unreserved?(byte: Int) -> Bool {
   match byte {
     case MINUS or DOT or UND or TILD -> true
@@ -129,7 +125,7 @@ fn inline encode_into[B: Bytes](
   while idx < len {
     let byte = input.get(idx).or_panic
 
-    if unprintable?(byte) or table.get(byte).or(false) {
+    if table.get(byte).or(false) {
       if idx > start { output.append(Slice.new(input, start, idx)) }
 
       output.push(PERC)
