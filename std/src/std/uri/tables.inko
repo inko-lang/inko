@@ -333,8 +333,8 @@ let ENCODE_QUERY = [
   true, true, true, true, true, true, true, true, true, true, true, true, true,
 ]
 
-# The bytes to encode in a query string when using the QueryMap type.
-let ENCODE_QUERY_MAP = [
+# The bytes to encode in a query string when using the Values type.
+let ENCODE_VALUES_MAP = [
   true, true, true, true, true, true, true, true, true, true, true, true, true,
   true, true, true, true, true, true, true, true, true, true, true, true, true,
   true, true, true, true, true, true, true, false, true, true, false, true,

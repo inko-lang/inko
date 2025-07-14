@@ -145,11 +145,11 @@ fn inline encode_query_pair_into(
   value: String,
   buffer: mut ByteArray,
 ) {
-  encode_into(key, buffer, tables.ENCODE_QUERY_MAP)
+  encode_into(key, buffer, tables.ENCODE_VALUES_MAP)
 
   if value.size > 0 {
     buffer.push(EQ)
-    encode_into(value, buffer, tables.ENCODE_QUERY_MAP)
+    encode_into(value, buffer, tables.ENCODE_VALUES_MAP)
   }
 }
 
@@ -1327,7 +1327,7 @@ type pub inline Query {
   # encoded when converting a `Query` back to a `String` (e.g. through
   # `Uri.to_string`).
   #
-  # Consider using the `QueryMap` type for constructing query strings instead,
+  # Consider using the `Values` type for constructing query strings instead,
   # as it offers an easier to use API for building key/value pairs typically
   # found in query strings.
   #
@@ -1342,9 +1342,9 @@ type pub inline Query {
     Self(value)
   }
 
-  # Parses `self` into a `QueryMap`.
+  # Parses `self` into a `Values`.
   #
-  # Refer to the documentation of `QueryMap.parse` for more details.
+  # Refer to the documentation of `Values.parse` for more details.
   #
   # # Examples
   #
@@ -1356,8 +1356,8 @@ type pub inline Query {
   #
   # map.get('key') # => Result.Ok('value')
   # ```
-  fn pub map -> Option[QueryMap] {
-    QueryMap.parse(@value)
+  fn pub map -> Option[Values] {
+    Values.parse(@value)
   }
 
   fn decoded -> String {
@@ -1419,12 +1419,12 @@ type inline enum QueryValue {
   case Multiple(Array[String])
 }
 
-# A mapping of query string key/value pairs.
+# A mapping of URI/percent encoded key-value pairs.
 #
-# RFC 3986 doesn't specify how exactly a query string should be interpreted.
-# This type separates pairs using a `&` and separates the key and value using a
-# `=`. The characters `&`, `=`, `?` and `#` (along with multi-byte characters)
-# are percent-encoded when found in a key or value.
+# RFC 3986 doesn't specify how exactly a URI encoded/query string should be
+# interpreted. This type separates pairs using a `&` and separates the key and
+# value using a `=`. The characters `&`, `=`, `?` and `#` (along with multi-byte
+# characters) are percent-encoded when found in a key or value.
 #
 # Duplicate pairs are allowed, meaning the query string `?key=10&key=20` results
 # in a mapping containing two values for `key`.
@@ -1432,9 +1432,9 @@ type inline enum QueryValue {
 # # Examples
 #
 # ```inko
-# import std.uri (QueryMap)
+# import std.uri (Values)
 #
-# let map = QueryMap.new
+# let map = Values.new
 #
 # map.add('name', 'Alice')
 # map.add('age', '42')
@@ -1443,10 +1443,10 @@ type inline enum QueryValue {
 #
 # map.to_string # => 'name=Alice&age=42&name=Bob&age=50'
 # ```
-type pub inline QueryMap {
+type pub inline Values {
   let @map: Map[String, QueryValue]
 
-  # Parses a query string (minus the starting `?`) into a `QueryMap`.
+  # Parses a query string (minus the starting `?`) into a `Values`.
   #
   # If the provided query string is invalid (e.g. it contains invalid
   # percent-encoded sequences), an `Option.None` is returned.
@@ -1466,14 +1466,14 @@ type pub inline QueryMap {
   # # Examples
   #
   # ```inko
-  # import std.uri (QueryMap)
+  # import std.uri (Values)
   #
-  # let map = QueryMap.parse('name=Alice&age=42').get
+  # let map = Values.parse('name=Alice&age=42').get
   #
   # map.get('name') # => Result.Ok('Alice')
   # ```
-  fn pub static parse[B: Bytes](input: ref B) -> Option[QueryMap] {
-    let map = QueryMap.new
+  fn pub static parse[B: Bytes](input: ref B) -> Option[Values] {
+    let map = Values.new
     let input = input
     let len = input.size
     let mut idx = 0
@@ -1540,17 +1540,17 @@ type pub inline QueryMap {
     Option.Some(map)
   }
 
-  # Returns an empty `QueryMap`.
+  # Returns an empty `Values`.
   #
   # # Examples
   #
   # ```inko
-  # import std.uri (QueryMap)
+  # import std.uri (Values)
   #
-  # QueryMap.new.size # => 0
+  # Values.new.size # => 0
   # ```
-  fn pub static new -> QueryMap {
-    QueryMap(Map.new)
+  fn pub static new -> Values {
+    Values(Map.new)
   }
 
   # Adds a key/value pair to `self`.
@@ -1561,9 +1561,9 @@ type pub inline QueryMap {
   # # Examples
   #
   # ```inko
-  # import std.uri (QueryMap)
+  # import std.uri (Values)
   #
-  # let map = QueryMap.new
+  # let map = Values.new
   #
   # map.add('name', 'Alice')
   # map.add('name', 'Bob')
@@ -1585,9 +1585,9 @@ type pub inline QueryMap {
   # # Examples
   #
   # ```inko
-  # import std.uri (QueryMap)
+  # import std.uri (Values)
   #
-  # let map = QueryMap.new
+  # let map = Values.new
   #
   # map.add('name', 'Alice')
   #
@@ -1610,9 +1610,9 @@ type pub inline QueryMap {
   # # Examples
   #
   # ```inko
-  # import std.uri (QueryMap)
+  # import std.uri (Values)
   #
-  # let map = QueryMap.new
+  # let map = Values.new
   #
   # map.add('name', 'Alice')
   # map.add('name', 'Bob')
@@ -1641,9 +1641,9 @@ type pub inline QueryMap {
   # # Examples
   #
   # ```inko
-  # import std.uri (QueryMap)
+  # import std.uri (Values)
   #
-  # let map = QueryMap.new
+  # let map = Values.new
   #
   # map.add('name', 'Alice')
   # map.add('name', 'Bob')
@@ -1669,9 +1669,9 @@ type pub inline QueryMap {
   # # Examples
   #
   # ```inko
-  # import std.uri (QueryMap)
+  # import std.uri (Values)
   #
-  # let map = QueryMap.new
+  # let map = Values.new
   #
   # map.add('name', 'Alice')
   # map.add('name', 'Bob')
@@ -1689,9 +1689,9 @@ type pub inline QueryMap {
   # # Examples
   #
   # ```inko
-  # import std.uri (QueryMap)
+  # import std.uri (Values)
   #
-  # let map = QueryMap.new
+  # let map = Values.new
   #
   # map.add('name', 'Alice')
   # map.add('name', 'Bob')
@@ -1708,9 +1708,9 @@ type pub inline QueryMap {
   # # Examples
   #
   # ```inko
-  # import std.uri (QueryMap)
+  # import std.uri (Values)
   #
-  # let map = QueryMap.new
+  # let map = Values.new
   #
   # map.size # => 0
   #
@@ -1726,9 +1726,9 @@ type pub inline QueryMap {
   # # Examples
   #
   # ```inko
-  # import std.uri (Query, QueryMap)
+  # import std.uri (Query, Values)
   #
-  # let map = QueryMap.new
+  # let map = Values.new
   #
   # map.add('name', 'Alice')
   # map.add('age', '42')
@@ -1747,10 +1747,10 @@ type pub inline QueryMap {
   # # Examples
   #
   # ```inko
-  # import std.uri (QueryMap)
+  # import std.uri (Values)
   #
   # let buf = ByteArray.new
-  # let map = QueryMap.new
+  # let map = Values.new
   #
   # map.add('foo bar', 'value')
   # map.add('key#?&=', 'value#?&=')
@@ -1782,7 +1782,7 @@ type pub inline QueryMap {
   }
 }
 
-impl ToString for QueryMap {
+impl ToString for Values {
   fn pub to_string -> String {
     let buf = ByteArray.new
 

@@ -3,8 +3,8 @@ import std.map (MissingKey)
 import std.net.ip (Ipv4Address, Ipv6Address)
 import std.test (Tests)
 import std.uri (
-  Error, Fragment, Host, Path, PathComponent, Query, QueryMap, Scheme, Uri,
-  UserInfo, decode, encode,
+  Error, Fragment, Host, Path, PathComponent, Query, Scheme, Uri, UserInfo,
+  Values, decode, encode,
 )
 
 fn http -> Option[Scheme] {
@@ -426,10 +426,10 @@ fn pub tests(t: mut Tests) {
     t.not_equal(Query('a'), Query('b'))
   })
 
-  t.test('QueryMap.new', fn (t) { t.equal(QueryMap.new.map.size, 0) })
+  t.test('Values.new', fn (t) { t.equal(Values.new.map.size, 0) })
 
-  t.test('QueryMap.get', fn (t) {
-    let map = QueryMap.new
+  t.test('Values.get', fn (t) {
+    let map = Values.new
 
     map.add('name', 'Alice')
     map.add('age', '42')
@@ -440,8 +440,8 @@ fn pub tests(t: mut Tests) {
     t.equal(map.get('name'), Result.Ok('Alice'))
   })
 
-  t.test('QueryMap.get_all', fn (t) {
-    let map = QueryMap.new
+  t.test('Values.get_all', fn (t) {
+    let map = Values.new
 
     map.add('name', 'Alice')
     map.add('name', 'Bob')
@@ -451,8 +451,8 @@ fn pub tests(t: mut Tests) {
     t.equal(map.get_all('age').to_array, ['42'])
   })
 
-  t.test('QueryMap.remove', fn (t) {
-    let map = QueryMap.new
+  t.test('Values.remove', fn (t) {
+    let map = Values.new
 
     map.add('name', 'Alice')
     map.add('name', 'Bob')
@@ -463,8 +463,8 @@ fn pub tests(t: mut Tests) {
     t.equal(map.get_all('age').to_array, ['42'])
   })
 
-  t.test('QueryMap.remove_all', fn (t) {
-    let map = QueryMap.new
+  t.test('Values.remove_all', fn (t) {
+    let map = Values.new
 
     map.add('name', 'Alice')
     map.add('name', 'Bob')
@@ -475,16 +475,16 @@ fn pub tests(t: mut Tests) {
     t.equal(map.get('age'), Result.Ok('42'))
   })
 
-  t.test('QueryMap.size', fn (t) {
-    let map = QueryMap.new
+  t.test('Values.size', fn (t) {
+    let map = Values.new
 
     t.equal(map.size, 0)
     map.add('name', 'Alice')
     t.equal(map.size, 1)
   })
 
-  t.test('QueryMap.to_query', fn (t) {
-    let map = QueryMap.new
+  t.test('Values.to_query', fn (t) {
+    let map = Values.new
 
     map.add('name', 'Alice')
     map.add('age', '42')
@@ -492,9 +492,9 @@ fn pub tests(t: mut Tests) {
     t.equal(map.to_query, Query('name=Alice&age=42'))
   })
 
-  t.test('QueryMap.encode', fn (t) {
+  t.test('Values.encode', fn (t) {
     let buf = ByteArray.new
-    let map = QueryMap.new
+    let map = Values.new
 
     map.add('foo bar', 'value')
     map.add('key#?&=', 'value#?&=')
@@ -502,8 +502,8 @@ fn pub tests(t: mut Tests) {
     t.equal(buf.to_string, 'foo%20bar=value&key%23?%26%3D=value%23?%26%3D')
   })
 
-  t.test('QueryMap.to_string', fn (t) {
-    let map = QueryMap.new
+  t.test('Values.to_string', fn (t) {
+    let map = Values.new
 
     t.equal(map.to_string, '')
 
@@ -523,7 +523,7 @@ fn pub tests(t: mut Tests) {
     t.equal(map.to_string, 'foo%20bar=value&key%23?%26%3D=value%23?%26%3D')
   })
 
-  t.test('QueryMap.parse', fn (t) {
+  t.test('Values.parse', fn (t) {
     let tests = [
       ('', []),
       ('&', []),
@@ -545,7 +545,7 @@ fn pub tests(t: mut Tests) {
     ]
 
     for (string, pairs) in tests {
-      let map = QueryMap.parse(string).or_panic_with(
+      let map = Values.parse(string).or_panic_with(
         "failed to parse '${string}'",
       )
 
