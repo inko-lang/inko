@@ -131,6 +131,13 @@ fn pub tests(t: mut Tests) {
     t.equal(decoded.to_string, reserved)
   })
 
+  t.test('uri.decode with invalid input', fn (t) {
+    let out = ByteArray.new
+
+    t.false(decode('%ZZ', out))
+    t.true(out.empty?)
+  })
+
   t.test('Error.fmt', fn (t) {
     t.equal(fmt(Error.InvalidScheme), 'InvalidScheme')
     t.equal(fmt(Error.InvalidUserInfo), 'InvalidUserInfo')
