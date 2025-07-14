@@ -492,6 +492,16 @@ fn pub tests(t: mut Tests) {
     t.equal(map.to_query, Query('name=Alice&age=42'))
   })
 
+  t.test('QueryMap.encode', fn (t) {
+    let buf = ByteArray.new
+    let map = QueryMap.new
+
+    map.add('foo bar', 'value')
+    map.add('key#?&=', 'value#?&=')
+    map.encode(buf)
+    t.equal(buf.to_string, 'foo%20bar=value&key%23?%26%3D=value%23?%26%3D')
+  })
+
   t.test('QueryMap.to_string', fn (t) {
     let map = QueryMap.new
 

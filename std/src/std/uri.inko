@@ -1738,32 +1738,55 @@ type pub inline QueryMap {
   fn pub to_query -> Query {
     Query(to_string)
   }
-}
 
-impl ToString for QueryMap {
-  fn pub to_string -> String {
-    let buf = ByteArray.new
+  # Encodes `self` as a sequence of bytes into the given `ByteArray`.
+  #
+  # After encoding the data it can be safely used in a query string component or
+  # as the body for an `application/x-www-form-urlencoded` encoded form.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (QueryMap)
+  #
+  # let buf = ByteArray.new
+  # let map = QueryMap.new
+  #
+  # map.add('foo bar', 'value')
+  # map.add('key#?&=', 'value#?&=')
+  # map.encode(buf)
+  #
+  # buf.to_string # => 'foo%20bar=value&key%23?%26%3D=value%23?%26%3D'
+  # ```
+  fn pub encode(into: mut ByteArray) {
     let mut pairs = 0
 
     for (key, val) in @map.iter {
       match val {
         case Single(v) -> {
-          if pairs > 0 { buf.push(AMP) }
+          if pairs > 0 { into.push(AMP) }
 
-          encode_query_pair_into(key, v, buf)
+          encode_query_pair_into(key, v, into)
           pairs += 1
         }
         case Multiple(vals) -> {
           for val in vals.iter {
-            if pairs > 0 { buf.push(AMP) }
+            if pairs > 0 { into.push(AMP) }
 
-            encode_query_pair_into(key, val, buf)
+            encode_query_pair_into(key, val, into)
             pairs += 1
           }
         }
       }
     }
+  }
+}
 
+impl ToString for QueryMap {
+  fn pub to_string -> String {
+    let buf = ByteArray.new
+
+    encode(buf)
     buf.into_string
   }
 }
