@@ -4,7 +4,7 @@ import std.net.ip (Ipv4Address, Ipv6Address)
 import std.test (Tests)
 import std.uri (
   Error, Fragment, Host, Path, PathComponent, Query, QueryMap, Scheme, Uri,
-  UserInfo,
+  UserInfo, decode, encode,
 )
 
 fn http -> Option[Scheme] {
@@ -100,6 +100,37 @@ fn parse(input: String) -> Uri {
 }
 
 fn pub tests(t: mut Tests) {
+  t.test('uri.encode', fn (t) {
+    let buf = ByteArray.new
+
+    encode('😃', buf)
+    t.equal(buf.drain_to_string, '%F0%9F%98%83')
+
+    encode("!#$&'()*+,/:;=?@[]", buf)
+    t.equal(
+      buf.drain_to_string,
+      '%21#$&%27%28%29%2A%2B%2C%2F%3A%3B%3D%3F%40%5B%5D',
+    )
+  })
+
+  t.test('uri.decode', fn (t) {
+    let encoded = ByteArray.new
+    let decoded = ByteArray.new
+
+    encode('😃', encoded)
+    decode(encoded, decoded)
+    t.equal(decoded.to_string, '😃')
+
+    encoded.clear
+    decoded.clear
+
+    let reserved = "!#$&'()*+,/:;=?@[]"
+
+    encode(reserved, encoded)
+    decode(encoded, decoded)
+    t.equal(decoded.to_string, reserved)
+  })
+
   t.test('Error.fmt', fn (t) {
     t.equal(fmt(Error.InvalidScheme), 'InvalidScheme')
     t.equal(fmt(Error.InvalidUserInfo), 'InvalidUserInfo')

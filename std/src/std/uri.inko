@@ -1,4 +1,4 @@
-# [RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986) URIs.
+# [RFC 3986](https://www.rfc-editor.org/rfc/rfc3986.html) URIs.
 #
 # This module provides types for working with RFC 3986 compliant URIs. For
 # example, parsing of URIs is done using `Uri.parse`:
@@ -140,8 +140,7 @@ fn inline encode_into[B: Bytes](
   if idx > start { output.append(Slice.new(input, start, idx)) }
 }
 
-fn inline decode[B: Bytes](input: ref B) -> Option[String] {
-  let buf = ByteArray.new
+fn inline decode_into[B: Bytes](input: ref B, output: mut ByteArray) -> Bool {
   let mut idx = 0
   let mut start = 0
   let len = input.size
@@ -149,9 +148,13 @@ fn inline decode[B: Bytes](input: ref B) -> Option[String] {
   while idx < len {
     match input.get(idx).or_panic {
       case PERC -> {
-        if idx > start { buf.append(Slice.new(input, start, idx)) }
+        if idx > start { output.append(Slice.new(input, start, idx)) }
 
-        buf.push(try decode_triplet(input, idx + 1))
+        match decode_triplet(input, idx + 1) {
+          case Some(v) -> output.push(v)
+          case _ -> return false
+        }
+
         idx += 3
         start = idx
         next
@@ -162,9 +165,19 @@ fn inline decode[B: Bytes](input: ref B) -> Option[String] {
     idx += 1
   }
 
-  if idx > start { buf.append(Slice.new(input, start, idx)) }
+  if idx > start { output.append(Slice.new(input, start, idx)) }
 
-  Option.Some(buf.into_string)
+  true
+}
+
+fn inline decode_string[B: Bytes](input: ref B) -> Option[String] {
+  let output = ByteArray.new
+
+  if decode_into(input, output) {
+    Option.Some(output.into_string)
+  } else {
+    Option.None
+  }
 }
 
 fn inline decode_slice[B: Bytes](
@@ -175,7 +188,7 @@ fn inline decode_slice[B: Bytes](
 ) -> Option[String] {
   let slice = Slice.new(input, start, end)
 
-  if encoded { decode(slice) } else { Option.Some(slice.to_string) }
+  if encoded { decode_string(slice) } else { Option.Some(slice.to_string) }
 }
 
 fn parse_port_into[B: Bytes](
@@ -211,6 +224,50 @@ fn parse_port_into[B: Bytes](
   if idx > start { uri.port = Option.Some(port) }
 
   Result.Ok(idx)
+}
+
+# Percent encodes a `Bytes` value into a `ByteArray`.
+#
+# This encodes all unprintable and reserved characters (section 2.2 of RFC 3986)
+# into percent encoded sequences. This method is meant to allow percent/URI
+# encoding for usecases outside of URIs, such as HTTP form bodies. To encode
+# values for URIs, use the `Uri` type instead.
+#
+# # Examples
+#
+# ```inko
+# import std.uri (encode)
+#
+# let buf = ByteArray.new
+#
+# encode('😃', buf)
+# buf.to_string # => '%F0%9F%98%83'
+# ```
+fn pub encode[B: Bytes](input: ref B, output: mut ByteArray) {
+  encode_into(input, output, tables.GENERIC)
+}
+
+# Percent decodes a `Bytes` value into a `ByteArray`
+#
+# If the input is valid and decoded, the return value is `true`. If the input
+# contains invalid percent sequences, `false` is returned instead.
+#
+# For more information, refer to the documentation of `std.uri.encode`.
+#
+# # Examples
+#
+# ```inko
+# import std.uri (decode, encode)
+#
+# let encoded = ByteArray.new
+# let decoded = ByteArray.new
+#
+# encode('😃', encoded)
+# decode(encoded, decoded)
+# decoded.to_string # => '😃'
+# ```
+fn pub decode[B: Bytes](input: ref B, output: mut ByteArray) -> Bool {
+  decode_into(input, output)
 }
 
 # An error produced while parsing a URI.
@@ -509,7 +566,7 @@ type pub inline UserInfo {
 
           name = Option.Some(
             if perc_user {
-              try decode(slice).ok_or(Error.InvalidUserInfo)
+              try decode_string(slice).ok_or(Error.InvalidUserInfo)
             } else {
               slice.to_string
             },
@@ -531,7 +588,7 @@ type pub inline UserInfo {
           let slice = Slice.new(input, idx, len)
 
           if perc_pass {
-            try decode(slice).ok_or(Error.InvalidUserInfo)
+            try decode_string(slice).ok_or(Error.InvalidUserInfo)
           } else {
             slice.to_string
           }
@@ -545,7 +602,7 @@ type pub inline UserInfo {
       case _ if idx - start > 0 -> {
         let slice = Slice.new(input, start, idx)
         let name = if perc_pass {
-          try decode(slice).ok_or(Error.InvalidUserInfo)
+          try decode_string(slice).ok_or(Error.InvalidUserInfo)
         } else {
           slice.to_string
         }
@@ -1033,7 +1090,7 @@ type pub inline Path {
   }
 
   fn decoded -> String {
-    if decode?(@value) { decode(@value).get } else { @value }
+    if decode?(@value) { decode_string(@value).get } else { @value }
   }
 
   fn encode(scheme: Option[Scheme], buffer: mut ByteArray) {
@@ -1164,7 +1221,7 @@ type pub PathComponents {
     let slice = Slice.new(@path, start, end)
 
     if decode {
-      PathComponent.Owned(decode(slice).get)
+      PathComponent.Owned(decode_string(slice).get)
     } else {
       PathComponent.Borrowed(slice)
     }
@@ -1291,7 +1348,7 @@ type pub inline Query {
   }
 
   fn decoded -> String {
-    if decode?(@value) { decode(@value).get } else { @value }
+    if decode?(@value) { decode_string(@value).get } else { @value }
   }
 
   fn encode(buffer: mut ByteArray) {
@@ -1770,7 +1827,7 @@ type pub inline Fragment {
   }
 
   fn decoded -> String {
-    if decode?(@value) { decode(@value).get } else { @value }
+    if decode?(@value) { decode_string(@value).get } else { @value }
   }
 
   fn encode(buffer: mut ByteArray) {
