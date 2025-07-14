@@ -398,7 +398,7 @@ fn pub tests(t: mut Tests) {
     let q = Query('name=Alice&name=Bob&key%20name=val%20ue')
     let m = q.map.get
 
-    t.equal(m.get_all('name'), Result.Ok(ref ['Alice', 'Bob']))
+    t.equal(m.get_all('name').to_array, ['Alice', 'Bob'])
     t.equal(m.get('key name'), Result.Ok('val ue'))
   })
 
@@ -428,16 +428,6 @@ fn pub tests(t: mut Tests) {
 
   t.test('QueryMap.new', fn (t) { t.equal(QueryMap.new.map.size, 0) })
 
-  t.test('QueryMap.add', fn (t) {
-    let map = QueryMap.new
-
-    map.add('name', 'Alice')
-    t.equal(map.map.get('name'), Result.Ok(ref ['Alice']))
-
-    map.add('name', 'Bob')
-    t.equal(map.map.get('name'), Result.Ok(ref ['Alice', 'Bob']))
-  })
-
   t.test('QueryMap.get', fn (t) {
     let map = QueryMap.new
 
@@ -457,8 +447,8 @@ fn pub tests(t: mut Tests) {
     map.add('name', 'Bob')
     map.add('age', '42')
 
-    t.equal(map.get_all('name'), Result.Ok(ref ['Alice', 'Bob']))
-    t.equal(map.get_all('age'), Result.Ok(ref ['42']))
+    t.equal(map.get_all('name').to_array, ['Alice', 'Bob'])
+    t.equal(map.get_all('age').to_array, ['42'])
   })
 
   t.test('QueryMap.remove', fn (t) {
@@ -469,8 +459,8 @@ fn pub tests(t: mut Tests) {
     map.add('age', '42')
     map.remove('name', 'Bob')
 
-    t.equal(map.get_all('name'), Result.Ok(ref ['Alice']))
-    t.equal(map.get_all('age'), Result.Ok(ref ['42']))
+    t.equal(map.get_all('name').to_array, ['Alice'])
+    t.equal(map.get_all('age').to_array, ['42'])
   })
 
   t.test('QueryMap.remove_all', fn (t) {
@@ -481,8 +471,8 @@ fn pub tests(t: mut Tests) {
     map.add('age', '42')
     map.remove_all('name')
 
-    t.equal(map.get_all('name'), Result.Error(MissingKey.new('name')))
-    t.equal(map.get_all('age'), Result.Ok(ref ['42']))
+    t.equal(map.get('name'), Result.Error(MissingKey.new('name')))
+    t.equal(map.get('age'), Result.Ok('42'))
   })
 
   t.test('QueryMap.size', fn (t) {
@@ -551,9 +541,7 @@ fn pub tests(t: mut Tests) {
 
       t.equal(map.size, pairs.size)
 
-      for (key, vals) in pairs {
-        t.equal(map.get_all(key), Result.Ok(ref vals))
-      }
+      for (key, vals) in pairs { t.equal(map.get_all(key).to_array, vals) }
     }
   })
 

@@ -22,7 +22,7 @@ import std.bytes.parsers (
 import std.clone (Clone)
 import std.cmp (Equal)
 import std.fmt (Format, Formatter)
-import std.iter (Iter)
+import std.iter (Iter, Stream)
 import std.map (MissingKey)
 import std.net.ip (Ipv4Address, Ipv6Address)
 import std.string (ToString)
@@ -138,6 +138,19 @@ fn inline encode_into[B: Bytes](
   }
 
   if idx > start { output.append(Slice.new(input, start, idx)) }
+}
+
+fn inline encode_query_pair_into(
+  key: String,
+  value: String,
+  buffer: mut ByteArray,
+) {
+  encode_into(key, buffer, tables.ENCODE_QUERY_MAP)
+
+  if value.size > 0 {
+    buffer.push(EQ)
+    encode_into(value, buffer, tables.ENCODE_QUERY_MAP)
+  }
 }
 
 fn inline decode_into[B: Bytes](input: ref B, output: mut ByteArray) -> Bool {
@@ -1401,6 +1414,11 @@ impl Equal for Query {
   }
 }
 
+type inline enum QueryValue {
+  case Single(String)
+  case Multiple(Array[String])
+}
+
 # A mapping of query string key/value pairs.
 #
 # RFC 3986 doesn't specify how exactly a query string should be interpreted.
@@ -1426,7 +1444,7 @@ impl Equal for Query {
 # map.to_string # => 'name=Alice&age=42&name=Bob&age=50'
 # ```
 type pub inline QueryMap {
-  let @map: Map[String, Array[String]]
+  let @map: Map[String, QueryValue]
 
   # Parses a query string (minus the starting `?`) into a `QueryMap`.
   #
@@ -1551,18 +1569,13 @@ type pub inline QueryMap {
   # map.add('name', 'Bob')
   # ```
   fn pub mut add(name: String, value: String) {
-    let vals = match @map.get_mut(name) {
-      case Ok(v) -> v
-      case _ -> {
-        let vals = []
-        let ret = mut vals
-
-        @map.set(name, vals)
-        ret
+    match @map.try_set(name, QueryValue.Single(value)) {
+      case Error((header, Single(ex), Single(new))) -> {
+        @map.set(header, QueryValue.Multiple([ex, new]))
       }
+      case Error((_, Multiple(ex), Single(new))) -> ex.push(new)
+      case _ -> {}
     }
-
-    vals.push(value)
   }
 
   # Returns the first value of the given key.
@@ -1583,19 +1596,16 @@ type pub inline QueryMap {
   # ```
   fn pub get(name: String) -> Result[String, MissingKey[String]] {
     match @map.get(name) {
-      case Ok(vals) -> {
-        match vals.get(0) {
-          case Ok(v) -> Result.Ok(v)
-          case _ -> Result.Error(MissingKey.new(name))
-        }
-      }
-      case Error(e) -> Result.Error(e)
+      case Ok(Single(v)) -> Result.Ok(v)
+      case Ok(Multiple(v)) -> Result.Ok(v.get(0).or_panic)
+      case _ -> Result.Error(MissingKey.new(name))
     }
   }
 
-  # Returns all values of the given key.
+  # Returns an iterator over all the values of the given key.
   #
-  # If the key is missing, a `MissingKey` error is returned.
+  # If the key isn't assigned any values, the returned iterator yields no
+  # values.
   #
   # # Examples
   #
@@ -1607,13 +1617,23 @@ type pub inline QueryMap {
   # map.add('name', 'Alice')
   # map.add('name', 'Bob')
   #
-  # map.get_all('name') # => Result.Ok(ref ['Alice', 'Bob'])
-  # map.get_all('age')  # => Result.Error(MissingKey(...))
+  # let iter = map.get_all('name')
+  #
+  # iter.next # => Option.Some('Alice')
+  # iter.next # => Option.Some('Bob')
   # ```
-  fn pub get_all(
-    name: String,
-  ) -> Result[ref Array[String], MissingKey[String]] {
-    @map.get(name)
+  fn pub get_all(name: String) -> Stream[String] {
+    match @map.get(name) {
+      case Ok(Single(v)) -> {
+        let mut done = false
+
+        Stream.new(fn move {
+          if done := true { Option.None } else { Option.Some(v) }
+        })
+      }
+      case Ok(Multiple(v)) -> v.iter
+      case _ -> Stream.new(fn move { Option.None })
+    }
   }
 
   # Removes all key/value pairs that match the given key and value.
@@ -1632,10 +1652,16 @@ type pub inline QueryMap {
   # map.get('name') # => Result.Ok('Bob')
   # ```
   fn pub mut remove(name: String, value: String) {
-    match @map.get_mut(name) {
-      case Ok(v) -> v.remove_if(fn (v) { v == value })
-      case _ -> {}
+    let rm = match @map.get_mut(name) {
+      case Ok(Single(v)) -> v == value
+      case Ok(Multiple(v)) -> {
+        v.remove_if(fn (v) { v == value })
+        v.empty?
+      }
+      case _ -> false
     }
+
+    if rm { @map.remove(name) }
   }
 
   # Removes all values of the key `name`.
@@ -1719,18 +1745,22 @@ impl ToString for QueryMap {
     let buf = ByteArray.new
     let mut pairs = 0
 
-    for (key, vals) in @map.iter {
-      for val in vals.iter {
-        if pairs > 0 { buf.push(AMP) }
+    for (key, val) in @map.iter {
+      match val {
+        case Single(v) -> {
+          if pairs > 0 { buf.push(AMP) }
 
-        encode_into(key, buf, tables.ENCODE_QUERY_MAP)
-
-        if val.size > 0 {
-          buf.push(EQ)
-          encode_into(val, buf, tables.ENCODE_QUERY_MAP)
+          encode_query_pair_into(key, v, buf)
+          pairs += 1
         }
+        case Multiple(vals) -> {
+          for val in vals.iter {
+            if pairs > 0 { buf.push(AMP) }
 
-        pairs += 1
+            encode_query_pair_into(key, val, buf)
+            pairs += 1
+          }
+        }
       }
     }
 
