@@ -14,7 +14,7 @@
 # ```
 #
 # For more information, refer to the documentation of the `Uri` type.
-import std.bytes (Bytes, Slice)
+import std.bytes (Bytes, Slice, ToByteArray)
 import std.bytes.parsers (
   LOWER_A, UPPER_A, alpha?, digit?, hex?, lower?, lower_hex_char?, to_lower,
   upper?, upper_hex_char?,
@@ -80,6 +80,13 @@ fn inline sub_delim?(byte: Int) -> Bool {
   }
 }
 
+fn inline query_or_fragment?(byte: Int) -> Bool {
+  match byte {
+    case SLS or QUES or PERC -> true
+    case v -> unreserved?(v) or reserved?(v)
+  }
+}
+
 fn inline decode_triplet[B: Bytes](input: ref B, start: Int) -> Option[Int] {
   let max = start + 2
   let mut idx = start
@@ -140,16 +147,16 @@ fn inline encode_into[B: Bytes](
   if idx > start { output.append(Slice.new(input, start, idx)) }
 }
 
-fn inline encode_query_pair_into(
+fn inline encode_query_pair_into[V: Bytes](
   key: String,
-  value: String,
+  value: ref V,
   buffer: mut ByteArray,
 ) {
-  encode_into(key, buffer, tables.ENCODE_VALUES_MAP)
+  encode_into(key, buffer, tables.ENCODE_QUERY)
 
   if value.size > 0 {
     buffer.push(EQ)
-    encode_into(value, buffer, tables.ENCODE_VALUES_MAP)
+    encode_into(value, buffer, tables.ENCODE_QUERY)
   }
 }
 
@@ -186,22 +193,39 @@ fn inline decode_into[B: Bytes](input: ref B, output: mut ByteArray) -> Bool {
 fn inline decode_string[B: Bytes](input: ref B) -> Option[String] {
   let output = ByteArray.new
 
-  if decode_into(input, output) {
+  if decode(input, output) {
     Option.Some(output.into_string)
   } else {
     Option.None
   }
 }
 
-fn inline decode_slice[B: Bytes](
-  input: ref B,
-  start: Int,
-  end: Int,
-  encoded: Bool,
-) -> Option[String] {
-  let slice = Slice.new(input, start, end)
+fn inline parse_query[B: Bytes](input: ref Slice[B]) -> Option[ByteArray] {
+  let out = ByteArray.new
+  let mut idx = 0
+  let mut start = 0
+  let len = input.size
 
-  if encoded { decode_string(slice) } else { Option.Some(slice.to_string) }
+  while idx < len {
+    match input.get(idx).or_panic {
+      case PERC -> {
+        if idx > start { out.append(Slice.new(input, start, idx)) }
+
+        out.push(try decode_triplet(input, idx + 1))
+        idx += 3
+        start = idx
+        next
+      }
+      case v if query_or_fragment?(v) -> {}
+      case _ -> return Option.None
+    }
+
+    idx += 1
+  }
+
+  if idx > start { out.append(Slice.new(input, start, idx)) }
+
+  Option.Some(out)
 }
 
 fn parse_port_into[B: Bytes](
@@ -242,7 +266,7 @@ fn parse_port_into[B: Bytes](
 # Percent encodes a `Bytes` value into a `ByteArray`.
 #
 # This encodes all unprintable and reserved characters (section 2.2 of RFC 3986)
-# into percent encoded sequences. This method is meant to allow percent/URI
+# into percent-encoded sequences. This method is meant to allow percent/URI
 # encoding for usecases outside of URIs, such as HTTP form bodies. To encode
 # values for URIs, use the `Uri` type instead.
 #
@@ -1044,7 +1068,7 @@ type pub inline Path {
   # Path.new('/hello/world') # => Option.Some(Path('/hello/world'))
   # Path.new('foo?bar')      # => Option.None
   # ```
-  fn pub static new(path: String) -> Option[Self] {
+  fn pub static new[B: Bytes](path: ref B) -> Option[Self] {
     match parse(path, start: 0, standalone: true) {
       case Ok((Some(val), _)) -> Option.Some(val)
       case Ok(_) -> Option.Some(Path(''))
@@ -1102,10 +1126,6 @@ type pub inline Path {
     PathComponents(path: @value, index: 0)
   }
 
-  fn decoded -> String {
-    if decode?(@value) { decode_string(@value).get } else { @value }
-  }
-
   fn encode(scheme: Option[Scheme], buffer: mut ByteArray) {
     let iter = components
     let mut len = 0
@@ -1158,6 +1178,19 @@ type pub inline Path {
   }
 }
 
+impl ToString for Path {
+  # Returns a `String` containing the percent-decoded value of `self`.
+  #
+  # If after decoding the data contains bytes that aren't valid UTF-8, these
+  # bytes are replaced with  `U+FFFD REPLACEMENT CHARACTER`.
+  fn pub to_string -> String {
+    let buf = ByteArray.new
+
+    decode(@value, buf)
+    buf.into_string
+  }
+}
+
 impl Format for Path {
   fn pub fmt(formatter: mut Formatter) {
     formatter.object('Path').field('value', @value).finish
@@ -1167,10 +1200,9 @@ impl Format for Path {
 impl Equal for Path {
   # Returns `true` if `self` and `other` are equal.
   #
-  # The comparison is performed _after_ performing percent decoding, such that
-  # `hello%20world` and `hello world` are considered to be equal to each other.
+  # This method doesn't perform any percent decoding or normalization.
   fn pub ==(other: ref Path) -> Bool {
-    decoded == other.decoded
+    @value == other.value
   }
 }
 
@@ -1279,147 +1311,31 @@ impl Iter[PathComponent] for PathComponents {
   }
 }
 
-# The query string of a URI.
-type pub inline Query {
-  let @value: String
-
-  fn static parse_into[B: Bytes](
-    uri: mut Uri,
-    input: ref B,
-    start: Int,
-  ) -> Result[Int, Error] {
-    if input.get(start).or(-1) != QUES { return Result.Ok(start) }
-
-    let mut idx = start + 1
-    let mut start = idx
-    let init = start
-    let len = input.size
-
-    while idx < len {
-      match input.get(idx).or_panic {
-        case HASH -> break
-        case PERC -> {
-          idx += 1
-
-          match (input.get(idx), input.get(idx + 1)) {
-            case (Ok(a), Ok(b)) if hex?(a) and hex?(b) -> idx += 1
-            case _ -> throw Error.InvalidQuery
-          }
-        }
-        case SLS or QUES -> {}
-        case v if unreserved?(v) or reserved?(v) -> {}
-        case _ -> throw Error.InvalidQuery
-      }
-
-      idx += 1
-    }
-
-    if idx > init { uri.query = Self(Slice.new(input, start, idx).to_string) }
-
-    Result.Ok(idx)
-  }
-
-  # Returns a `Query` created from the given `String`.
-  #
-  # The provided `String` should _not_ start with a `?`, and is used as-is (i.e.
-  # no percent encoding or decoding is applied). If the `String` contains
-  # characters not valid for a query string, these characters are percent
-  # encoded when converting a `Query` back to a `String` (e.g. through
-  # `Uri.to_string`).
-  #
-  # Consider using the `Values` type for constructing query strings instead,
-  # as it offers an easier to use API for building key/value pairs typically
-  # found in query strings.
-  #
-  # # Examples
-  #
-  # ```inko
-  # import std.uri (Query)
-  #
-  # Query.new('foo') # => Query('foo')
-  # ```
-  fn pub inline static new(value: String) -> Self {
-    Self(value)
-  }
-
-  # Parses `self` into a `Values`.
-  #
-  # Refer to the documentation of `Values.parse` for more details.
-  #
-  # # Examples
-  #
-  # ```inko
-  # import std.uri (Uri)
-  #
-  # let uri = Uri.parse('http://example.com?key=value').or_panic
-  # let map = uri.query.get.map.get
-  #
-  # map.get('key') # => Result.Ok('value')
-  # ```
-  fn pub map -> Option[Values] {
-    Values.parse(@value)
-  }
-
-  fn decoded -> String {
-    if decode?(@value) { decode_string(@value).get } else { @value }
-  }
-
-  fn encode(buffer: mut ByteArray) {
-    buffer.push(QUES)
-    encode_into(decoded, buffer, tables.ENCODE_QUERY)
-  }
-
-  # Returns the size of `self`, before applying percent decoding.
-  #
-  # # Examples
-  #
-  # ```inko
-  # import std.uri (Query)
-  #
-  # Query.empty.size # => 0
-  # Query.new('a%20b').size # => 5
-  # ```
-  fn pub inline size -> Int {
-    @value.size
-  }
-
-  # Returns `true` if `self` is empty.
-  #
-  # # Examples
-  #
-  # ```inko
-  # import std.uri (Query)
-  #
-  # Query.new('').empty? # => true
-  # Query.new('foo').empty? # => false
-  # ```
-  fn pub inline empty? -> Bool {
-    size == 0
-  }
-}
-
-impl Format for Query {
-  fn pub fmt(formatter: mut Formatter) {
-    formatter.object('Query').field('value', @value).finish
-  }
-}
-
-impl Equal for Query {
-  # Returns `true` if `self` and `other` are equal.
-  #
-  # The comparison is performed _after_ performing percent decoding, such that
-  # `hello%20world` and `hello world` are considered to be equal to each other.
-  fn pub ==(other: ref Query) -> Bool {
-    decoded == other.decoded
-  }
-}
-
 type inline enum QueryValue {
-  case Single(String)
-  case Multiple(Array[String])
+  case Single(ByteArray)
+  case Multiple(Array[ByteArray])
 }
 
-# A mapping of URI/percent encoded key-value pairs.
+impl Equal for QueryValue {
+  fn pub ==(other: ref Self) -> Bool {
+    match (self, other) {
+      case (Single(a), Single(b)) -> a == b
+      case (Multiple(a), Multiple(b)) -> a == b
+      case _ -> false
+    }
+  }
+}
+
+impl Format for QueryValue {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case Single(v) -> formatter.tuple('Single').field(v).finish
+      case Multiple(v) -> formatter.tuple('Multiple').field(v).finish
+    }
+  }
+}
+
+# A mapping of URI/percent-encoded key-value pairs.
 #
 # RFC 3986 doesn't specify how exactly a URI encoded/query string should be
 # interpreted. This type separates pairs using a `&` and separates the key and
@@ -1428,6 +1344,13 @@ type inline enum QueryValue {
 #
 # Duplicate pairs are allowed, meaning the query string `?key=10&key=20` results
 # in a mapping containing two values for `key`.
+#
+# While the keys of each pair are a `String` and thus must be valid UTF-8, the
+# values are `ByteArray` values, allowing for arbitrary bytes (after percent
+# decoding) as the values.
+#
+# The order of key-value pairs is the same as the order in which they are
+# inserted, similar to `std.map.Map`.
 #
 # # Examples
 #
@@ -1446,10 +1369,10 @@ type inline enum QueryValue {
 type pub inline Values {
   let @map: Map[String, QueryValue]
 
-  # Parses a query string (minus the starting `?`) into a `Values`.
+  # Parses and decodes a URI encoded set of key-value pairs.
   #
-  # If the provided query string is invalid (e.g. it contains invalid
-  # percent-encoded sequences), an `Option.None` is returned.
+  # If the input is invalid (e.g. it contains invalid percent-encoded
+  # sequences), an `Option.None` is returned.
   #
   # RFC 3986 doesn't specify how exactly a query string should be interpreted.
   # This method follows the widely adopted approach of splitting pairs on a `&`
@@ -1458,11 +1381,6 @@ type pub inline Values {
   # Duplicate pairs are allowed, meaning `?key=10&key=20` yields the pairs
   # `('key', 10)` and `('key', 20)`.
   #
-  # # Percent decoding
-  #
-  # Pairs containing percent-encoded sequences are decoded into a _after_
-  # splitting the components.
-  #
   # # Examples
   #
   # ```inko
@@ -1470,71 +1388,28 @@ type pub inline Values {
   #
   # let map = Values.parse('name=Alice&age=42').get
   #
-  # map.get('name') # => Result.Ok('Alice')
+  # map.get_string('name') # => Result.Ok('Alice')
+  # map.get_string('age') # => Result.Ok('42')
   # ```
   fn pub static parse[B: Bytes](input: ref B) -> Option[Values] {
     let map = Values.new
-    let input = input
-    let len = input.size
-    let mut idx = 0
-    let mut start = idx
-    let mut perc = false
 
-    while idx < len {
-      match input.get(idx).or_panic {
-        case PERC -> {
-          perc = true
-          idx += 1
+    for chunk in Slice.new(input, 0, input.size).split('&') {
+      if chunk.empty? { next }
+
+      match chunk.split_once('=') {
+        case Some((lhs, rhs)) -> {
+          let key = try parse_query(lhs)
+          let val = try parse_query(rhs)
+
+          map.add(key.into_string, val)
         }
-        case AMP if idx == start -> {
-          idx += 1
-          start = idx
+        case _ -> {
+          let key = try parse_query(chunk)
+
+          map.add(key.into_string, ByteArray.new)
         }
-        case AMP -> {
-          map.add(try decode_slice(input, start, idx, perc), '')
-          idx += 1
-          start = idx
-          perc = false
-        }
-        case EQ -> {
-          let key = try decode_slice(input, start, idx, perc)
-          let mut val = Option.None
-
-          idx += 1
-          perc = false
-          start = idx
-
-          while idx < len {
-            match input.get(idx).or_panic {
-              case PERC -> {
-                perc = true
-                idx += 1
-              }
-              case AMP -> {
-                val = Option.Some(try decode_slice(input, start, idx, perc))
-                idx += 1
-                start = idx
-                break
-              }
-              case _ -> idx += 1
-            }
-          }
-
-          match val {
-            case Some(val) -> map.add(key, val)
-            case _ -> map.add(key, try decode_slice(input, start, idx, perc))
-          }
-
-          start = idx
-          perc = false
-        }
-        case _ -> idx += 1
       }
-    }
-
-    # If we reached the end, treat everything as a key without a value.
-    if idx == len and idx > start {
-      map.add(try decode_slice(input, start, idx, perc), '')
     }
 
     Option.Some(map)
@@ -1553,7 +1428,7 @@ type pub inline Values {
     Values(Map.new)
   }
 
-  # Adds a key/value pair to `self`.
+  # Adds a key-value pair to `self`.
   #
   # If the key is already present, the value is added to the list instead of
   # overwriting the previous value.
@@ -1568,10 +1443,17 @@ type pub inline Values {
   # map.add('name', 'Alice')
   # map.add('name', 'Bob')
   # ```
-  fn pub mut add(name: String, value: String) {
+  fn pub mut add[B: Bytes](name: String, value: ref B) {
+    let value = value.to_byte_array
+
     match @map.try_set(name, QueryValue.Single(value)) {
-      case Error((header, Single(ex), Single(new))) -> {
-        @map.set(header, QueryValue.Multiple([ex, new]))
+      case Error((name, Single(_), Single(new))) -> {
+        let ex = match @map.remove(name) {
+          case Ok(Single(v)) -> v
+          case _ -> panic('unreachable')
+        }
+
+        @map.set(name, QueryValue.Multiple([ex, new]))
       }
       case Error((_, Multiple(ex), Single(new))) -> ex.push(new)
       case _ -> {}
@@ -1591,14 +1473,42 @@ type pub inline Values {
   #
   # map.add('name', 'Alice')
   #
-  # map.get('name') # => Result.Ok('Alice')
+  # map.get('name').map(fn (v) { v.to_string }) # => Result.Ok('Alice')
   # map.get('age') # => Result.Error(MissingKey(...))
   # ```
-  fn pub get(name: String) -> Result[String, MissingKey[String]] {
+  fn pub get(name: String) -> Result[ref ByteArray, MissingKey[String]] {
     match @map.get(name) {
       case Ok(Single(v)) -> Result.Ok(v)
       case Ok(Multiple(v)) -> Result.Ok(v.get(0).or_panic)
       case _ -> Result.Error(MissingKey.new(name))
+    }
+  }
+
+  # Returns the first value of the given key, returning it as a `String`.
+  #
+  # By far the most common case when working with URI encoded key-value pairs is
+  # to retrieve a single value as a `String`. Using this method you don't need
+  # to manually map the `Result[ref ByteArray, ...]` from `Values.get` to a
+  # `Result[String, ...]`.
+  #
+  # Refer to the documentation of `Values.get` for more details.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (Values)
+  #
+  # let map = Values.new
+  #
+  # map.add('name', 'Alice')
+  #
+  # map.get_string('name') # => Result.Ok('Alice')
+  # map.get_string('age') # => Result.Error(MissingKey(...))
+  # ```
+  fn pub get_string(name: String) -> Result[String, MissingKey[String]] {
+    match get(name) {
+      case Ok(v) -> Result.Ok(v.to_string)
+      case Error(e) -> Result.Error(e)
     }
   }
 
@@ -1619,10 +1529,10 @@ type pub inline Values {
   #
   # let iter = map.get_all('name')
   #
-  # iter.next # => Option.Some('Alice')
-  # iter.next # => Option.Some('Bob')
+  # iter.next.map(fn (v) { v.to_string }) # => Option.Some('Alice')
+  # iter.next.map(fn (v) { v.to_string }) # => Option.Some('Bob')
   # ```
-  fn pub get_all(name: String) -> Stream[String] {
+  fn pub get_all(name: String) -> Stream[ref ByteArray] {
     match @map.get(name) {
       case Ok(Single(v)) -> {
         let mut done = false
@@ -1636,7 +1546,7 @@ type pub inline Values {
     }
   }
 
-  # Removes all key/value pairs that match the given key and value.
+  # Removes all key-value pairs that match the given key and value.
   #
   # # Examples
   #
@@ -1649,13 +1559,13 @@ type pub inline Values {
   # map.add('name', 'Bob')
   # map.remove('name', 'Alice')
   #
-  # map.get('name') # => Result.Ok('Bob')
+  # map.get('name').map(fn (v) { v.to_string }) # => Result.Ok('Bob')
   # ```
-  fn pub mut remove(name: String, value: String) {
+  fn pub mut remove[B: Bytes](name: String, value: ref B) {
     let rm = match @map.get_mut(name) {
-      case Ok(Single(v)) -> v == value
+      case Ok(Single(v)) -> v.equals?(value)
       case Ok(Multiple(v)) -> {
-        v.remove_if(fn (v) { v == value })
+        v.remove_if(fn (v) { v.equals?(value) })
         v.empty?
       }
       case _ -> false
@@ -1684,7 +1594,7 @@ type pub inline Values {
     @map.remove(name)
   }
 
-  # Removes all key/value pairs in `self`.
+  # Removes all key-value pairs in `self`.
   #
   # # Examples
   #
@@ -1703,7 +1613,7 @@ type pub inline Values {
     @map.clear
   }
 
-  # Returns the number of key/value pairs in `self`.
+  # Returns the number of key-value pairs in `self`.
   #
   # # Examples
   #
@@ -1721,28 +1631,13 @@ type pub inline Values {
     @map.size
   }
 
-  # Returns a `Query` created from the query string of `self`.
-  #
-  # # Examples
-  #
-  # ```inko
-  # import std.uri (Query, Values)
-  #
-  # let map = Values.new
-  #
-  # map.add('name', 'Alice')
-  # map.add('age', '42')
-  #
-  # map.to_query # => Query('name=Alice&age=42')
-  # ```
-  fn pub to_query -> Query {
-    Query(to_string)
-  }
-
   # Encodes `self` as a sequence of bytes into the given `ByteArray`.
   #
   # After encoding the data it can be safely used in a query string component or
   # as the body for an `application/x-www-form-urlencoded` encoded form.
+  #
+  # If you just want a `String` instead of writing the data to an existing
+  # `ByteArray`, use `Values.to_string` instead.
   #
   # # Examples
   #
@@ -1780,9 +1675,41 @@ type pub inline Values {
       }
     }
   }
+
+  # Returns a `Query` containing the percent-encoded key-value pairs.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (Uri, Values)
+  #
+  # let uri = Uri.new
+  # let map = Values.new
+  #
+  # map.add('name', 'Alice')
+  # uri.query = map.to_query
+  # uri.to_string # => '?name=Alice'
+  # ```
+  fn pub to_query -> Query {
+    Query(to_string)
+  }
+}
+
+impl Equal for Values {
+  fn pub ==(other: ref Values) -> Bool {
+    @map == other.map
+  }
+}
+
+impl Format for Values {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter.object('Values').field('map', @map).finish
+  }
 }
 
 impl ToString for Values {
+  # Returns a `String` containing the (optionally percent-encoded) key-value
+  # pairs as a URI compatible `String`.
   fn pub to_string -> String {
     let buf = ByteArray.new
 
@@ -1791,7 +1718,200 @@ impl ToString for Values {
   }
 }
 
+# A (optionally) percent-encoded query string.
+#
+# A `Query` is created using `Query.new`, `Values.to_query` or by simply parsing
+# a URI using `Uri.parse`.
+type pub inline Query {
+  let @value: String
+
+  fn static parse_into[B: Bytes](
+    uri: mut Uri,
+    input: ref B,
+    start: Int,
+  ) -> Result[Int, Error] {
+    match parse_from(input, start, standalone: false) {
+      case Ok((Some(v), idx)) -> {
+        uri.query = v
+        Result.Ok(idx)
+      }
+      case Ok((_, idx)) -> Result.Ok(idx)
+      case Error(e) -> Result.Error(e)
+    }
+  }
+
+  fn static parse_from[B: Bytes](
+    input: ref B,
+    start: Int,
+    standalone: Bool,
+  ) -> Result[(Option[Self], Int), Error] {
+    let mut idx = if standalone {
+      start
+    } else {
+      if input.get(start).or(-1) != QUES {
+        return Result.Ok((Option.None, start))
+      }
+
+      start + 1
+    }
+
+    let mut start = idx
+    let init = start
+    let len = input.size
+
+    while idx < len {
+      match input.get(idx).or_panic {
+        case HASH -> break
+        case PERC -> {
+          idx += 1
+
+          match (input.get(idx), input.get(idx + 1)) {
+            case (Ok(a), Ok(b)) if hex?(a) and hex?(b) -> idx += 1
+            case _ -> throw Error.InvalidQuery
+          }
+        }
+        case v if query_or_fragment?(v) -> {}
+        case _ -> throw Error.InvalidQuery
+      }
+
+      idx += 1
+    }
+
+    let res = if idx > init {
+      Option.Some(Self(Slice.new(input, start, idx).to_string))
+    } else {
+      Option.None
+    }
+
+    Result.Ok((res, idx))
+  }
+
+  # Parses a `Query` from the given `String`.
+  #
+  # The input should _not_ start with a `?` as it will be treated as being part
+  # of the value, instead of merely signalling the start of the value.
+  #
+  # While this method validates percent-encoded sequences it _doesn't_ decode
+  # them. To do so, use `Query.parse` to parse the data into a `Values`, which
+  # can then be converted back to a `String` or `ByteArray`.
+  #
+  # If the input is invalid (e.g. it contains invalid percent-encoded
+  # sequences), an `Option.None` is returned. If the input is empty, an empty
+  # `Query` is returned.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (Query)
+  #
+  # Query.new('foo') # => Option.Some(Query('foo'))
+  # Query.new('?foo') # => Option.None
+  # ```
+  fn pub static new[B: Bytes](value: ref B) -> Option[Self] {
+    match parse_from(value, start: 0, standalone: true) {
+      case Ok((Some(v), _)) -> Option.Some(v)
+      case Ok(_) -> Option.Some(Self(''))
+      case _ -> Option.None
+    }
+  }
+
+  # Parses `self` into a `Values`.
+  #
+  # Because a `Query` is guaranteed to always contain a valid query string, this
+  # method can't fail and thus returns a `Values` instead of an
+  # `Option[Values]`.
+  #
+  # Refer to the documentation of `Values` for more details.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (Uri)
+  #
+  # let uri = Uri.parse('http://example.com?key=value').or_panic
+  # let map = uri.query.get.parse
+  #
+  # map.get('key').map(fn (v) { v.to_string }) # => Result.Ok('value')
+  # ```
+  fn pub parse -> Values {
+    Values.parse(@value).get
+  }
+
+  # Returns the size of `self`, before applying percent decoding.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (Query)
+  #
+  # Query.new('').get.size # => 0
+  # Query.new('a%20b').get.size # => 5
+  # ```
+  fn pub inline size -> Int {
+    @value.size
+  }
+
+  # Returns `true` if `self` is empty.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (Query)
+  #
+  # Query.new('').get.empty? # => true
+  # Query.new('a%20b').get.empty? # => false
+  # ```
+  fn pub inline empty? -> Bool {
+    size == 0
+  }
+
+  fn encode(output: mut ByteArray) {
+    output.push(QUES)
+    parse.encode(output)
+  }
+}
+
+impl ToByteArray for Query {
+  # Returns a `ByteArray` containing the percent-decoded value of `self`.
+  #
+  # The return type is a `ByteArray` instead of `String` because after percent
+  # decoding the data may contain bytes that aren't valid UTF-8, such as when
+  # encoding an image into a fragment string.
+  fn pub to_byte_array -> ByteArray {
+    let buf = ByteArray.new
+
+    decode(@value, buf)
+    buf
+  }
+}
+
+impl ToString for Query {
+  # Returns a `String` containing the percent-decoded value of `self`.
+  #
+  # If after decoding the data contains bytes that aren't valid UTF-8, these
+  # bytes are replaced with  `U+FFFD REPLACEMENT CHARACTER`.
+  fn pub to_string -> String {
+    to_byte_array.into_string
+  }
+}
+
+impl Format for Query {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter.object('Query').field('value', @value).finish
+  }
+}
+
+impl Equal for Query {
+  fn pub ==(other: ref Query) -> Bool {
+    @value == other.value
+  }
+}
+
 # The fragment string of a URI.
+#
+# A `Fragment` wraps a `String` that's valid for a URI fragment. Characters not
+# allowed in the fragment string component (e.g. non-ASCII characters) are
+# percent-encoded.
 type pub inline Fragment {
   let @value: String
 
@@ -1800,9 +1920,31 @@ type pub inline Fragment {
     input: ref B,
     start: Int,
   ) -> Result[Int, Error] {
-    if input.get(start).or(-1) != HASH { return Result.Ok(start) }
+    match parse(input, start, standalone: false) {
+      case Ok((Some(v), idx)) -> {
+        uri.fragment = v
+        Result.Ok(idx)
+      }
+      case Ok((_, idx)) -> Result.Ok(idx)
+      case Error(e) -> Result.Error(e)
+    }
+  }
 
-    let mut idx = start + 1
+  fn static parse[B: Bytes](
+    input: ref B,
+    start: Int,
+    standalone: Bool,
+  ) -> Result[(Option[Self], Int), Error] {
+    let mut idx = if standalone {
+      start
+    } else {
+      if input.get(start).or(-1) != HASH {
+        return Result.Ok((Option.None, start))
+      }
+
+      start + 1
+    }
+
     let mut start = idx
     let init = start
     let len = input.size
@@ -1825,30 +1967,42 @@ type pub inline Fragment {
       idx += 1
     }
 
-    if idx > init {
-      uri.fragment = Self(Slice.new(input, start, idx).to_string)
+    let res = if idx > init {
+      Option.Some(Self(Slice.new(input, start, idx).to_string))
+    } else {
+      Option.None
     }
 
-    Result.Ok(idx)
+    Result.Ok((res, idx))
   }
 
-  # Returns a `Fragment` created from the given `String`.
+  # Parses a `Fragment` from the given `String`.
   #
-  # The provided `String` should _not_ start with a `#`, and is used as-is (i.e.
-  # no percent encoding or decoding is applied). If the `String` contains
-  # characters not valid for a fragment string, these characters are percent
-  # encoded when converting a `Fragment` back to a `String` (e.g. through
-  # `Uri.to_string`).
+  # The input should _not_ start with a `#` as it will be treated as being part
+  # of the value, instead of merely signalling the start of the value.
+  #
+  # While this method validates percent-encoded sequences it _doesn't_ decode
+  # them. For that you can use `Fragment.to_byte_array` and
+  # `Fragment.to_string`.
+  #
+  # If the input is invalid (e.g. it contains invalid percent-encoded
+  # sequences), an `Option.None` is returned. If the input is empty, an empty
+  # `Fragment` is returned.
   #
   # # Examples
   #
   # ```inko
   # import std.uri (Fragment)
   #
-  # Fragment.new('foo') # => Fragment('foo')
+  # Fragment.new('foo') # => Option.Some(Fragment('foo'))
+  # Fragment.new('# foo') # => Option.None
   # ```
-  fn pub inline static new(value: String) -> Self {
-    Self(value)
+  fn pub static new[B: Bytes](value: ref B) -> Option[Self] {
+    match parse(value, start: 0, standalone: true) {
+      case Ok((Some(v), _)) -> Option.Some(v)
+      case Ok(_) -> Option.Some(Self(''))
+      case _ -> Option.None
+    }
   }
 
   # Returns the size of `self`, before applying percent decoding.
@@ -1858,8 +2012,8 @@ type pub inline Fragment {
   # ```inko
   # import std.uri (Fragment)
   #
-  # Fragment.empty.size # => 0
-  # Fragment.new('a%20b').size # => 5
+  # Fragment.new('').get.size # => 0
+  # Fragment.new('a%20b').get.size # => 5
   # ```
   fn pub inline size -> Int {
     @value.size
@@ -1879,13 +2033,33 @@ type pub inline Fragment {
     size == 0
   }
 
-  fn decoded -> String {
-    if decode?(@value) { decode_string(@value).get } else { @value }
+  fn encode(output: mut ByteArray) {
+    output.push(HASH)
+    encode_into(to_byte_array, output, tables.ENCODE_FRAGMENT)
   }
+}
 
-  fn encode(buffer: mut ByteArray) {
-    buffer.push(HASH)
-    encode_into(decoded, buffer, tables.ENCODE_FRAGMENT)
+impl ToByteArray for Fragment {
+  # Returns a `ByteArray` containing the percent-decoded value of `self`.
+  #
+  # The return type is a `ByteArray` instead of `String` because after percent
+  # decoding the data may contain bytes that aren't valid UTF-8, such as when
+  # encoding an image into a fragment string.
+  fn pub to_byte_array -> ByteArray {
+    let buf = ByteArray.new
+
+    decode(@value, buf)
+    buf
+  }
+}
+
+impl ToString for Fragment {
+  # Returns a `String` containing the percent-decoded value of `self`.
+  #
+  # If after decoding the data contains bytes that aren't valid UTF-8, these
+  # bytes are replaced with  `U+FFFD REPLACEMENT CHARACTER`.
+  fn pub to_string -> String {
+    to_byte_array.into_string
   }
 }
 
@@ -1898,10 +2072,9 @@ impl Format for Fragment {
 impl Equal for Fragment {
   # Returns `true` if `self` and `other` are equal.
   #
-  # The comparison is performed _after_ performing percent decoding, such that
-  # `hello%20world` and `hello world` are considered to be equal to each other.
+  # This method doesn't perform any percent decoding or normalization.
   fn pub ==(other: ref Fragment) -> Bool {
-    decoded == other.decoded
+    @value == other.value
   }
 }
 
@@ -1929,7 +2102,7 @@ impl Equal for Fragment {
 # uri.scheme = Option.Some(Scheme.Https)
 # uri.host = Host.named('example.com')
 # uri.path = Path.new('/hello/world').get
-# uri.query = Query.new('example')
+# uri.query = Query.new('example').get
 #
 # uri.to_string # => 'https://example.com/hello/world?example'
 # ```
@@ -1949,7 +2122,7 @@ type pub Uri {
   # The relative or absolute path of the URI.
   let pub mut @path: Path
 
-  # The query string components of the URI.
+  # The query string key-value pairs of the URI.
   let pub mut @query: Query
 
   # The (hash) fragment of the URI.

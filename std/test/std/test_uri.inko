@@ -59,8 +59,12 @@ fn path(value: String) -> Option[Path] {
   Option.Some(Path(value))
 }
 
-fn query(value: String) -> Option[Query] {
-  Option.Some(Query(value))
+fn query(pairs: Array[(String, String)]) -> Option[Query] {
+  let vals = Values.new
+
+  for (k, v) in pairs { vals.add(k, v) }
+
+  Option.Some(vals.to_query)
 }
 
 fn frag(value: String) -> Option[Fragment] {
@@ -90,8 +94,8 @@ fn uri(
     host: host,
     port: port,
     path: path.or(Path('')),
-    query: query.or(Query.new('')),
-    fragment: fragment.or(Fragment.new('')),
+    query: query.or(Query('')),
+    fragment: fragment.or(Fragment('')),
   )
 }
 
@@ -307,9 +311,9 @@ fn pub tests(t: mut Tests) {
     t.equal(Path.normalized('/foo/../../../../bar'), Path('/bar'))
   })
 
-  t.test('Path.decoded', fn (t) {
-    t.equal(Path('foo').decoded, 'foo')
-    t.equal(Path('foo%20bar').decoded, 'foo bar')
+  t.test('Path.to_string', fn (t) {
+    t.equal(Path('foo').to_string, 'foo')
+    t.equal(Path('foo%20bar').to_string, 'foo bar')
   })
 
   t.test('Path.components', fn (t) {
@@ -358,8 +362,8 @@ fn pub tests(t: mut Tests) {
   t.test('Path.==', fn (t) {
     t.equal(Path('a'), Path('a'))
     t.equal(Path('a'), Path('a'))
-    t.equal(Path('a b'), Path('a%20b'))
-    t.equal(Path('a%0Ab'), Path('a%0ab'))
+    t.not_equal(Path('a%0Ab'), Path('a%0ab'))
+    t.not_equal(Path('a b'), Path('a%20b'))
     t.not_equal(Path('a'), Path('b'))
   })
 
@@ -392,40 +396,6 @@ fn pub tests(t: mut Tests) {
     t.equal(fmt(PathComponent.Borrowed('a'.slice(0, 1))), 'Borrowed("a")')
   })
 
-  t.test('Query.new', fn (t) { t.equal(Query.new('foo'), Query('foo')) })
-
-  t.test('Query.map', fn (t) {
-    let q = Query('name=Alice&name=Bob&key%20name=val%20ue')
-    let m = q.map.get
-
-    t.equal(m.get_all('name').to_array, ['Alice', 'Bob'])
-    t.equal(m.get('key name'), Result.Ok('val ue'))
-  })
-
-  t.test('Query.decoded', fn (t) {
-    t.equal(Query('a').decoded, 'a')
-    t.equal(Query('a%20b').decoded, 'a b')
-  })
-
-  t.test('Query.size', fn (t) {
-    t.equal(Query.new('').size, 0)
-    t.equal(Query.new('abc').size, 3)
-    t.equal(Query.new('%20').size, 3)
-  })
-
-  t.test('Query.empty?', fn (t) {
-    t.true(Query.new('').empty?)
-    t.false(Query.new('abc').empty?)
-  })
-
-  t.test('Query.fmt', fn (t) { t.equal(fmt(Query('a')), 'Query(value: "a")') })
-
-  t.test('Query.==', fn (t) {
-    t.equal(Query('a'), Query('a'))
-    t.equal(Query('a%20b'), Query('a b'))
-    t.not_equal(Query('a'), Query('b'))
-  })
-
   t.test('Values.new', fn (t) { t.equal(Values.new.map.size, 0) })
 
   t.test('Values.get', fn (t) {
@@ -433,11 +403,23 @@ fn pub tests(t: mut Tests) {
 
     map.add('name', 'Alice')
     map.add('age', '42')
-    t.equal(map.get('name'), Result.Ok('Alice'))
-    t.equal(map.get('age'), Result.Ok('42'))
+    t.equal(map.get('name'), Result.Ok(ref 'Alice'.to_byte_array))
+    t.equal(map.get('age'), Result.Ok(ref '42'.to_byte_array))
 
     map.add('name', 'Bob')
-    t.equal(map.get('name'), Result.Ok('Alice'))
+    t.equal(map.get('name'), Result.Ok(ref 'Alice'.to_byte_array))
+  })
+
+  t.test('Values.get_string', fn (t) {
+    let map = Values.new
+
+    map.add('name', 'Alice')
+    map.add('age', '42')
+    t.equal(map.get_string('name'), Result.Ok('Alice'))
+    t.equal(map.get_string('age'), Result.Ok('42'))
+
+    map.add('name', 'Bob')
+    t.equal(map.get_string('name'), Result.Ok('Alice'))
   })
 
   t.test('Values.get_all', fn (t) {
@@ -447,8 +429,11 @@ fn pub tests(t: mut Tests) {
     map.add('name', 'Bob')
     map.add('age', '42')
 
-    t.equal(map.get_all('name').to_array, ['Alice', 'Bob'])
-    t.equal(map.get_all('age').to_array, ['42'])
+    t.equal(
+      map.get_all('name').map(fn (v) { v.to_string }).to_array,
+      ['Alice', 'Bob'],
+    )
+    t.equal(map.get_all('age').map(fn (v) { v.to_string }).to_array, ['42'])
   })
 
   t.test('Values.remove', fn (t) {
@@ -459,8 +444,8 @@ fn pub tests(t: mut Tests) {
     map.add('age', '42')
     map.remove('name', 'Bob')
 
-    t.equal(map.get_all('name').to_array, ['Alice'])
-    t.equal(map.get_all('age').to_array, ['42'])
+    t.equal(map.get_all('name').map(fn (v) { v.to_string }).to_array, ['Alice'])
+    t.equal(map.get_all('age').map(fn (v) { v.to_string }).to_array, ['42'])
   })
 
   t.test('Values.remove_all', fn (t) {
@@ -471,8 +456,8 @@ fn pub tests(t: mut Tests) {
     map.add('age', '42')
     map.remove_all('name')
 
-    t.equal(map.get('name'), Result.Error(MissingKey.new('name')))
-    t.equal(map.get('age'), Result.Ok('42'))
+    t.equal(map.get_string('name'), Result.Error(MissingKey.new('name')))
+    t.equal(map.get_string('age'), Result.Ok('42'))
   })
 
   t.test('Values.size', fn (t) {
@@ -481,15 +466,6 @@ fn pub tests(t: mut Tests) {
     t.equal(map.size, 0)
     map.add('name', 'Alice')
     t.equal(map.size, 1)
-  })
-
-  t.test('Values.to_query', fn (t) {
-    let map = Values.new
-
-    map.add('name', 'Alice')
-    map.add('age', '42')
-
-    t.equal(map.to_query, Query('name=Alice&age=42'))
   })
 
   t.test('Values.encode', fn (t) {
@@ -551,28 +527,83 @@ fn pub tests(t: mut Tests) {
 
       t.equal(map.size, pairs.size)
 
-      for (key, vals) in pairs { t.equal(map.get_all(key).to_array, vals) }
+      for (key, vals) in pairs {
+        t.equal(map.get_all(key).map(fn (v) { v.to_string }).to_array, vals)
+      }
     }
   })
 
-  t.test('Fragment.new', fn (t) {
-    t.equal(Fragment.new('foo'), Fragment('foo'))
+  t.test('Query.new', fn (t) {
+    t.equal(Query.new('foo'), Option.Some(Query('foo')))
+    t.equal(Query.new('?foo'), Option.Some(Query('?foo')))
+    t.equal(Query.new('a%20b'), Option.Some(Query('a%20b')))
+    t.equal(Query.new(''), Option.Some(Query('')))
+    t.equal(Query.new('%ZZ'), Option.None)
   })
 
-  t.test('Fragment.decoded', fn (t) {
-    t.equal(Fragment('a').decoded, 'a')
-    t.equal(Fragment('a%20b').decoded, 'a b')
+  t.test('Query.size', fn (t) {
+    t.equal(Query('').size, 0)
+    t.equal(Query('abc').size, 3)
+    t.equal(Query('%20').size, 3)
+  })
+
+  t.test('Query.empty?', fn (t) {
+    t.true(Query('').empty?)
+    t.false(Query('abc').empty?)
+  })
+
+  t.test('Query.fmt', fn (t) { t.equal(fmt(Query('a')), 'Query(value: "a")') })
+
+  t.test('Query.==', fn (t) {
+    t.equal(Query('a'), Query('a'))
+    t.equal(Query('a%20b'), Query('a%20b'))
+    t.not_equal(Query('a'), Query('b'))
+  })
+
+  t.test('Query.parse', fn (t) {
+    let query = Query.new('key=value').get
+    let vals = query.parse
+
+    t.equal(vals.get_string('key'), Result.Ok('value'))
+  })
+
+  t.test('Query.to_byte_array', fn (t) {
+    t.equal(Query.new('foo').get.to_byte_array, 'foo'.to_byte_array)
+    t.equal(Query.new('a%20b').get.to_byte_array, 'a b'.to_byte_array)
+  })
+
+  t.test('Query.to_string', fn (t) {
+    t.equal(Query.new('foo').get.to_string, 'foo')
+    t.equal(Query.new('a%20b').get.to_string, 'a b')
+  })
+
+  t.test('Fragment.new', fn (t) {
+    t.equal(Fragment.new('foo'), Option.Some(Fragment('foo')))
+    t.equal(Fragment.new('#foo'), Option.Some(Fragment('#foo')))
+    t.equal(Fragment.new('a%20b'), Option.Some(Fragment('a%20b')))
+    t.equal(Fragment.new(''), Option.Some(Fragment('')))
+    t.equal(Fragment.new('%ZZ'), Option.None)
+  })
+
+  t.test('Fragment.to_byte_array', fn (t) {
+    t.equal(Fragment.new('foo').get.to_byte_array, 'foo'.to_byte_array)
+    t.equal(Fragment.new('a%20b').get.to_byte_array, 'a b'.to_byte_array)
+  })
+
+  t.test('Fragment.to_string', fn (t) {
+    t.equal(Fragment.new('foo').get.to_string, 'foo')
+    t.equal(Fragment.new('a%20b').get.to_string, 'a b')
   })
 
   t.test('Fragment.size', fn (t) {
-    t.equal(Fragment.new('').size, 0)
-    t.equal(Fragment.new('abc').size, 3)
-    t.equal(Fragment.new('%20').size, 3)
+    t.equal(Fragment('').size, 0)
+    t.equal(Fragment('abc').size, 3)
+    t.equal(Fragment('%20').size, 3)
   })
 
   t.test('Fragment.empty?', fn (t) {
-    t.true(Fragment.new('').empty?)
-    t.false(Fragment.new('abc').empty?)
+    t.true(Fragment('').empty?)
+    t.false(Fragment('abc').empty?)
   })
 
   t.test('Fragment.fmt', fn (t) {
@@ -581,7 +612,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('Fragment.==', fn (t) {
     t.equal(Fragment('a'), Fragment('a'))
-    t.equal(Fragment('a%20b'), Fragment('a b'))
+    t.equal(Fragment('a%20b'), Fragment('a%20b'))
     t.not_equal(Fragment('a'), Fragment('b'))
   })
 
@@ -668,19 +699,41 @@ fn pub tests(t: mut Tests) {
 
       # Query strings
       ('?', uri(__, __, __, __, __, __, __)),
-      ('?key=value', uri(__, __, __, __, __, query('key=value'), __)),
-      ('?a=1&b=2', uri(__, __, __, __, __, query('a=1&b=2'), __)),
-      ('?key[0]=value', uri(__, __, __, __, __, query('key[0]=value'), __)),
-      ('?FOO=BAR&b=2', uri(__, __, __, __, __, query('FOO=BAR&b=2'), __)),
+      ('?#', uri(__, __, __, __, __, __, __)),
+      ('?key=value', uri(__, __, __, __, __, query([('key', 'value')]), __)),
+      (
+        '?a=1&b=2',
+        uri(__, __, __, __, __, query([('a', '1'), ('b', '2')]), __),
+      ),
+      (
+        '?key[0]=value',
+        uri(__, __, __, __, __, query([('key[0]', 'value')]), __),
+      ),
+      (
+        '?FOO=BAR&b=2',
+        uri(__, __, __, __, __, query([('FOO', 'BAR'), ('b', '2')]), __),
+      ),
       (
         '?foo=hello%20world&key%20name=test',
-        uri(__, __, __, __, __, query('foo=hello world&key name=test'), __),
+        uri(
+          __,
+          __,
+          __,
+          __,
+          __,
+          query([('foo', 'hello world'), ('key name', 'test')]),
+          __,
+        ),
       ),
+      ('?key=#', uri(__, __, __, __, __, query([('key', '')]), __)),
+      ('?key#', uri(__, __, __, __, __, query([('key', '')]), __)),
+      ('?&key=val', uri(__, __, __, __, __, query([('key', 'val')]), __)),
 
       # Fragments
       ('#', uri(__, __, __, __, __, __, __)),
       ('#foo', uri(__, __, __, __, __, __, frag('foo'))),
       ('#FOO', uri(__, __, __, __, __, __, frag('FOO'))),
+      ('#foo[bar]', uri(__, __, __, __, __, __, frag('foo[bar]'))),
       ('#foo%20bar', uri(__, __, __, __, __, __, frag('foo bar'))),
 
       # Combinations, some of which are taken from the paper
@@ -693,7 +746,7 @@ fn pub tests(t: mut Tests) {
           named('localhost'),
           Option.Some(8000),
           path('/search'),
-          query('a=foo&b=bar'),
+          query([('a', 'foo'), ('b', 'bar')]),
           frag('hello'),
         ),
       ),
@@ -705,7 +758,7 @@ fn pub tests(t: mut Tests) {
           __,
           __,
           path('80/index.php'),
-          query('test=1'),
+          query([('test', '1')]),
           __,
         ),
       ),
@@ -791,11 +844,17 @@ fn pub tests(t: mut Tests) {
           named('localhost'),
           Option.Some(1234),
           path('/foo'),
-          query('k=v'),
+          query([('k', 'v')]),
           frag('frag'),
         ),
       ),
-      'Uri(scheme: Some(Http), user_info: Some(UserInfo(name: "user", password: "password")), host: Some(Named("localhost")), port: Some(1234), path: Path(value: "/foo"), query: Query(value: "k=v"), fragment: Fragment(value: "frag"))',
+      'Uri(scheme: Some(Http), '
+        + 'user_info: Some(UserInfo(name: "user", password: "password")), '
+        + 'host: Some(Named("localhost")), '
+        + 'port: Some(1234), '
+        + 'path: Path(value: "/foo"), '
+        + 'query: Query(value: "k=v"), '
+        + 'fragment: Fragment(value: "frag"))',
     )
   })
 
@@ -806,7 +865,7 @@ fn pub tests(t: mut Tests) {
       named('localhost'),
       Option.Some(1234),
       path('/foo'),
-      query('k=v'),
+      query([('k', 'v')]),
       frag('frag'),
     )
     let b = uri(
@@ -815,7 +874,7 @@ fn pub tests(t: mut Tests) {
       named('localhost'),
       Option.Some(1234),
       path('/foo'),
-      query('k=v'),
+      query([('k', 'v')]),
       frag('frag'),
     )
     let c = uri(
@@ -824,7 +883,7 @@ fn pub tests(t: mut Tests) {
       named('localhost'),
       Option.Some(1234),
       path('/foo bar'),
-      query('k=v'),
+      query([('k', 'v')]),
       frag('frag'),
     )
 
@@ -864,7 +923,7 @@ fn pub tests(t: mut Tests) {
         __,
         Option.Some(1234),
         path('/foo'),
-        query('k=v'),
+        query([('k', 'v')]),
         frag('frag'),
       )
         .to_string,
@@ -892,14 +951,23 @@ fn pub tests(t: mut Tests) {
 
     # Query strings
     t.equal(parse('http://foo?%4A%3f%23').to_string, 'http://foo?J?%23')
-    t.equal(uri(__, __, __, __, __, query('😃'), __).to_string, '?%F0%9F%98%83')
-    t.equal(uri(__, __, __, __, __, query('a b'), __).to_string, '?a%20b')
-    t.equal(uri(__, __, __, __, __, query('<>'), __).to_string, '?%3C%3E')
-    t.equal(uri(__, __, __, __, __, query('/'), __).to_string, '?/')
-    t.equal(uri(__, __, __, __, __, query('?'), __).to_string, '??')
-    t.equal(uri(__, __, __, __, __, query('!'), __).to_string, '?!')
-    t.equal(uri(__, __, __, __, __, query('^'), __).to_string, '?%5E')
-    t.equal(uri(__, __, __, __, __, query('#'), __).to_string, '?%23')
+    t.equal(
+      uri(__, __, __, __, __, query([('😃', '')]), __).to_string,
+      '?%F0%9F%98%83',
+    )
+    t.equal(
+      uri(__, __, __, __, __, query([('a b', '')]), __).to_string,
+      '?a%20b',
+    )
+    t.equal(
+      uri(__, __, __, __, __, query([('<>', '')]), __).to_string,
+      '?%3C%3E',
+    )
+    t.equal(uri(__, __, __, __, __, query([('/', '')]), __).to_string, '?/')
+    t.equal(uri(__, __, __, __, __, query([('?', '')]), __).to_string, '??')
+    t.equal(uri(__, __, __, __, __, query([('!', '')]), __).to_string, '?!')
+    t.equal(uri(__, __, __, __, __, query([('^', '')]), __).to_string, '?%5E')
+    t.equal(uri(__, __, __, __, __, query([('#', '')]), __).to_string, '?%23')
 
     # Fragments
     t.equal(parse('http://foo#%4A%3f%23%0a').to_string, 'http://foo#J?%23%0A')
@@ -912,4 +980,18 @@ fn pub tests(t: mut Tests) {
     t.equal(uri(__, __, __, __, __, __, frag('^')).to_string, '#%5E')
     t.equal(uri(__, __, __, __, __, __, frag('#')).to_string, '#%23')
   })
+
+  t.test(
+    'Uri.to_string with a query string containing nested separators',
+    fn (t) {
+      let vals = Values.new
+      let uri = Uri.new
+
+      vals.add('foo', 'Alice')
+      vals.add('bar', 'a=20&30')
+
+      uri.query = vals.to_query
+      t.equal(uri.to_string, '?foo=Alice&bar=a%3D20%2630')
+    },
+  )
 }
