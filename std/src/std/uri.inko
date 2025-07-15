@@ -107,19 +107,6 @@ fn inline decode_triplet[B: Bytes](input: ref B, start: Int) -> Option[Int] {
   Option.Some(num)
 }
 
-fn inline decode?[B: Bytes](input: ref B) -> Bool {
-  let mut idx = 0
-  let len = input.size
-
-  while idx < len {
-    if input.get(idx).or_panic == PERC { return true }
-
-    idx += 1
-  }
-
-  false
-}
-
 fn inline encode_into[B: Bytes](
   input: ref B,
   output: mut ByteArray,
@@ -158,36 +145,6 @@ fn inline encode_query_pair_into[V: Bytes](
     buffer.push(EQ)
     encode_into(value, buffer, tables.ENCODE_QUERY)
   }
-}
-
-fn inline decode_into[B: Bytes](input: ref B, output: mut ByteArray) -> Bool {
-  let mut idx = 0
-  let mut start = 0
-  let len = input.size
-
-  while idx < len {
-    match input.get(idx).or_panic {
-      case PERC -> {
-        if idx > start { output.append(Slice.new(input, start, idx)) }
-
-        match decode_triplet(input, idx + 1) {
-          case Some(v) -> output.push(v)
-          case _ -> return false
-        }
-
-        idx += 3
-        start = idx
-        next
-      }
-      case _ -> {}
-    }
-
-    idx += 1
-  }
-
-  if idx > start { output.append(Slice.new(input, start, idx)) }
-
-  true
 }
 
 fn inline decode_string[B: Bytes](input: ref B) -> Option[String] {
@@ -304,7 +261,33 @@ fn pub encode[B: Bytes](input: ref B, output: mut ByteArray) {
 # decoded.to_string # => '😃'
 # ```
 fn pub decode[B: Bytes](input: ref B, output: mut ByteArray) -> Bool {
-  decode_into(input, output)
+  let mut idx = 0
+  let mut start = 0
+  let len = input.size
+
+  while idx < len {
+    match input.get(idx).or_panic {
+      case PERC -> {
+        if idx > start { output.append(Slice.new(input, start, idx)) }
+
+        match decode_triplet(input, idx + 1) {
+          case Some(v) -> output.push(v)
+          case _ -> return false
+        }
+
+        idx += 3
+        start = idx
+        next
+      }
+      case _ -> {}
+    }
+
+    idx += 1
+  }
+
+  if idx > start { output.append(Slice.new(input, start, idx)) }
+
+  true
 }
 
 # An error produced while parsing a URI.
