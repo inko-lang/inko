@@ -242,6 +242,19 @@ fn pub tests(t: mut Tests) {
     t.equal(split('foo/bar/baz', on: '/', start: 0, end: 2), ['fo'])
   })
 
+  t.test('Slice.split_once', fn (t) {
+    let val1 = 'key=value'.slice(0, 9)
+    let val2 = ''.slice(0, 0)
+
+    t.equal(
+      val1.split_once('='),
+      Option.Some((val1.slice(0, 3), val1.slice(4, 9))),
+    )
+    t.equal(val2.split_once('='), Option.None)
+    t.equal('key'.split_once('='), Option.None)
+    t.equal('key'.split_once(''), Option.None)
+  })
+
   t.test('Iter.next', fn (t) {
     let bytes = ByteArray.from_array([10, 20, 30])
     let iter = Iter(source: bytes, index: 0)

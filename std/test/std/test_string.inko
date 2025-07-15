@@ -183,6 +183,19 @@ fn pub tests(t: mut Tests) {
     t.equal(split('', on: '/'), [])
   })
 
+  t.test('String.split_once', fn (t) {
+    let val1 = 'key=value'
+    let val2 = ''
+
+    t.equal(
+      val1.split_once('='),
+      Option.Some((val1.slice(0, 3), val1.slice(4, 9))),
+    )
+    t.equal(val2.split_once('='), Option.None)
+    t.equal('key'.split_once('='), Option.None)
+    t.equal('key'.split_once(''), Option.None)
+  })
+
   t.test('String.empty?', fn (t) {
     t.true(''.empty?)
     t.false('foo'.empty?)

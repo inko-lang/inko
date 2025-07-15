@@ -376,6 +376,28 @@ type pub inline Slice[T: Bytes] {
       }
     })
   }
+
+  # Splits `self` on the first occurrence of `separator`.
+  #
+  # If the separator is found, the return value is a tuple of two slices: one
+  # containing the data before the separator and one containing the data after
+  # the separator. If the separator isn't found, the return value is an
+  # `Option.None`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let left_right = 'key=value'.slice(0, 9).split_once('=').get
+  #
+  # left_right.0.to_string # => 'key'
+  # left_right.1.to_string # => 'value'
+  # ```
+  fn pub split_once[B: Bytes](separator: ref B) -> Option[(Self, Self)] {
+    match index_of(separator, starting_at: 0) {
+      case Some(i) -> Option.Some((slice(0, i), slice(i + 1, size)))
+      case _ -> Option.None
+    }
+  }
 }
 
 impl Clone for Slice {

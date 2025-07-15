@@ -325,6 +325,24 @@ type builtin String {
     Slice.new(self, 0, size).split(separator)
   }
 
+  # Splits `self` on the first occurrence of `separator`.
+  #
+  # Refer to the documentation of `Slice.split_once` for more details.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let left_right = 'key=value'.split_once('=').get
+  #
+  # left_right.0.to_string # => 'key'
+  # left_right.1.to_string # => 'value'
+  # ```
+  fn pub split_once(
+    separator: String,
+  ) -> Option[(Slice[String], Slice[String])] {
+    Slice.new(self, 0, size).split_once(separator)
+  }
+
   # Returns `true` if `self` is an empty `String`.
   #
   # # Examples
