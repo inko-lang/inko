@@ -8,6 +8,10 @@ fn split(string: String, on: String, start: Int, end: Int) -> Array[String] {
   string.slice(start, end).split(on).map(fn (s) { s.to_string }).to_array
 }
 
+fn to_slice(string: String) -> Slice[String] {
+  string.slice(0, string.size)
+}
+
 fn pub tests(t: mut Tests) {
   t.test('Slice.new', fn (t) {
     let bytes1 = ByteArray.from_array([10, 20])
@@ -253,6 +257,42 @@ fn pub tests(t: mut Tests) {
     t.equal(val2.split_once('='), Option.None)
     t.equal('key'.split_once('='), Option.None)
     t.equal('key'.split_once(''), Option.None)
+  })
+
+  t.test('Slice.trim_start', fn (t) {
+    t.equal(to_slice('').trim_start.to_string, '')
+    t.equal(to_slice('hello').trim_start.to_string, 'hello')
+    t.equal(to_slice(' hello ').trim_start.to_string, 'hello ')
+    t.equal(to_slice('  hello  ').trim_start.to_string, 'hello  ')
+    t.equal(to_slice('  ').trim_start.to_string, '')
+    t.equal(to_slice('\thello\t').trim_start.to_string, 'hello\t')
+    t.equal(to_slice('\rhello\r').trim_start.to_string, 'hello\r')
+    t.equal(to_slice('\nhello\n').trim_start.to_string, 'hello\n')
+    t.equal(to_slice('\t\r\n\thello').trim_start.to_string, 'hello')
+  })
+
+  t.test('Slice.trim_end', fn (t) {
+    t.equal(to_slice('').trim_end.to_string, '')
+    t.equal(to_slice('hello').trim_end.to_string, 'hello')
+    t.equal(to_slice(' hello ').trim_end.to_string, ' hello')
+    t.equal(to_slice('  hello  ').trim_end.to_string, '  hello')
+    t.equal(to_slice('  ').trim_end.to_string, '')
+    t.equal(to_slice('\thello\t').trim_end.to_string, '\thello')
+    t.equal(to_slice('\rhello\r').trim_end.to_string, '\rhello')
+    t.equal(to_slice('\nhello\n').trim_end.to_string, '\nhello')
+    t.equal(to_slice('hello\t\r\n\t').trim_end.to_string, 'hello')
+  })
+
+  t.test('Slice.trim', fn (t) {
+    t.equal(to_slice('').trim.to_string, '')
+    t.equal(to_slice('hello').trim.to_string, 'hello')
+    t.equal(to_slice(' hello ').trim.to_string, 'hello')
+    t.equal(to_slice('  hello  ').trim.to_string, 'hello')
+    t.equal(to_slice('  ').trim.to_string, '')
+    t.equal(to_slice('\thello\t').trim.to_string, 'hello')
+    t.equal(to_slice('\rhello\r').trim.to_string, 'hello')
+    t.equal(to_slice('\nhello\n').trim.to_string, 'hello')
+    t.equal(to_slice('hello\t\r\n\t').trim.to_string, 'hello')
   })
 
   t.test('Iter.next', fn (t) {

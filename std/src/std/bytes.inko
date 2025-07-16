@@ -1,7 +1,7 @@
 # Types for working with bytes.
 import std.alloc
 import std.array (OutOfBounds, check_bounds)
-import std.bytes.parsers (to_lower, upper?)
+import std.bytes.parsers (to_lower, upper?, whitespace?)
 import std.clone (Clone)
 import std.cmp (Equal, max)
 import std.drop (Drop)
@@ -397,6 +397,70 @@ type pub inline Slice[T: Bytes] {
       case Some(i) -> Option.Some((slice(0, i), slice(i + 1, size)))
       case _ -> Option.None
     }
+  }
+
+  # Returns a `Slice` without any leading whitespace.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let str = ' hello '
+  #
+  # str.slice(0, str.size).trim_start.to_string # => 'hello '
+  # ```
+  fn pub trim_start -> Self {
+    let mut index = 0
+    let max = size
+
+    while index < max {
+      if whitespace?(get(index).or_panic) { index += 1 } else { break }
+    }
+
+    if index == size { Slice.new(@source, 0, 0) } else { slice(index, size) }
+  }
+
+  # Returns a `Slice` without any trailing whitespace.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let str = ' hello '
+  #
+  # str.slice(0, str.size).trim_end.to_string # => ' hello'
+  # ```
+  fn pub trim_end -> Self {
+    let mut index = size - 1
+
+    while index >= 0 {
+      if whitespace?(get(index).or_panic) { index -= 1 } else { break }
+    }
+
+    if index == -1 { Slice.new(@source, 0, 0) } else { slice(0, index + 1) }
+  }
+
+  # Returns a `Slice` with both leading and trailing whitespace removed.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let str = ' hello '
+  #
+  # str.slice(0, str.size).trim.to_string # => 'hello'
+  # ```
+  fn pub trim -> Self {
+    let max = size
+    let mut start = 0
+    let mut end = max - 1
+
+    while start < max {
+      if whitespace?(get(start).or_panic) { start += 1 } else { break }
+    }
+
+    while end >= 0 {
+      if whitespace?(get(end).or_panic) { end -= 1 } else { break }
+    }
+
+    if start == max { Slice.new(@source, 0, 0) } else { slice(start, end + 1) }
   }
 }
 

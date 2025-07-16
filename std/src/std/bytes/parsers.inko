@@ -3,6 +3,10 @@ import std.bytes (Bytes)
 import std.cmp (min)
 import std.ptr
 
+let TAB = 9
+let LF = 10
+let CR = 13
+let SPACE = 32
 let NINE = 57
 let ZERO = 48
 let LOWER_A = 97
@@ -38,6 +42,10 @@ fn inline upper_hex_char?(byte: Int) -> Bool {
 
 fn inline hex?(byte: Int) -> Bool {
   lower_hex_char?(byte) or upper_hex_char?(byte) or digit?(byte)
+}
+
+fn whitespace?(byte: Int) -> Bool {
+  byte == TAB or byte == LF or byte == CR or byte == SPACE
 }
 
 fn inline to_lower(byte: Int) -> Int {

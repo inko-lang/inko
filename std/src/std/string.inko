@@ -35,10 +35,6 @@ fn extern inko_string_chars_drop(iter: Pointer[UInt8])
 
 fn extern inko_string_from_pointer(pointer: Pointer[UInt8]) -> PrimitiveString
 
-let TAB = 0x9
-let LF = 0xA
-let CR = 0xD
-let SPACE = 0x20
 let DQUOTE = 0x22
 let BSLASH = 0x5C
 let LOWER_B = 0x62
@@ -56,10 +52,6 @@ let ESCAPE_TABLE = [
   -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
   -1, -1, -1, -1, -1, BSLASH, -1, -1, -1,
 ]
-
-fn whitespace?(byte: Int) -> Bool {
-  byte == TAB or byte == LF or byte == CR or byte == SPACE
-}
 
 fn padding(string: String, chars: Int, pad_to: Int) -> String {
   if chars >= pad_to { return '' }
@@ -466,14 +458,7 @@ type builtin String {
   # "\thello".trim_start # => 'hello'
   # ```
   fn pub trim_start -> String {
-    let mut index = 0
-    let max = size
-
-    while index < max {
-      if whitespace?(get(index).or_panic) { index += 1 } else { break }
-    }
-
-    if index == size { '' } else { slice(start: index, end: size).to_string }
+    Slice.new(self, 0, size).trim_start.to_string
   }
 
   # Returns a new `String` without any trailing whitespace.
@@ -485,13 +470,7 @@ type builtin String {
   # "hello\t".trim_end # => 'hello'
   # ```
   fn pub trim_end -> String {
-    let mut index = size - 1
-
-    while index >= 0 {
-      if whitespace?(get(index).or_panic) { index -= 1 } else { break }
-    }
-
-    if index == -1 { '' } else { slice(start: 0, end: index + 1).to_string }
+    Slice.new(self, 0, size).trim_end.to_string
   }
 
   # Returns a new `String` with both leading and trailing whitespace removed.
@@ -503,19 +482,7 @@ type builtin String {
   # " hello\t".trim # => 'hello'
   # ```
   fn pub trim -> String {
-    let max = size
-    let mut start = 0
-    let mut end = max - 1
-
-    while start < max {
-      if whitespace?(get(start).or_panic) { start += 1 } else { break }
-    }
-
-    while end >= 0 {
-      if whitespace?(get(end).or_panic) { end -= 1 } else { break }
-    }
-
-    if start == max { '' } else { slice(start: start, end: end + 1).to_string }
+    Slice.new(self, 0, size).trim.to_string
   }
 
   # Returns a copy of `self` with all special characters escaped.
