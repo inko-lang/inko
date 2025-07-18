@@ -295,6 +295,20 @@ fn pub tests(t: mut Tests) {
     t.equal(to_slice('hello\t\r\n\t').trim.to_string, 'hello')
   })
 
+  t.test('Slice.starts_with?', fn (t) {
+    let str = 'hello'
+
+    t.true(str.slice(0, str.size).starts_with?('h'))
+    t.false(str.slice(1, str.size).starts_with?('h'))
+  })
+
+  t.test('Slice.ends_with?', fn (t) {
+    let str = 'hello'
+
+    t.true(str.slice(0, str.size).ends_with?('o'))
+    t.false(str.slice(0, str.size - 1).ends_with?('o'))
+  })
+
   t.test('Iter.next', fn (t) {
     let bytes = ByteArray.from_array([10, 20, 30])
     let iter = Iter(source: bytes, index: 0)

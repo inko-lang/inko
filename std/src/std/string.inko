@@ -263,34 +263,6 @@ type builtin String {
     buff.into_string
   }
 
-  # Returns `true` if `self` starts with the given `String`.
-  #
-  # # Examples
-  #
-  # Checking if a `String` starts with another `String`:
-  #
-  # ```inko
-  # 'test_starts_with'.starts_with?('test_') # => true
-  # 'hello'.starts_with?('test_')            # => false
-  # ```
-  fn pub starts_with?(prefix: String) -> Bool {
-    ptr.starts_with?(@ptr, size, prefix.ptr, prefix.size)
-  }
-
-  # Returns `true` if `self` ends with the given `String`.
-  #
-  # # Examples
-  #
-  # Checking if a `String` ends with another `String`:
-  #
-  # ```inko
-  # 'hello_world'.ends_with?('world') # => true
-  # 'hello'.ends_with?('world')       # => false
-  # ```
-  fn pub ends_with?(suffix: String) -> Bool {
-    ptr.ends_with?(@ptr, size, suffix.ptr, suffix.size)
-  }
-
   # Splits `self` into an iterator of slices of the data in `self`, each
   # separated by the given separator.
   #

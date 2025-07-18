@@ -92,6 +92,30 @@ trait pub Bytes: ToString + ToByteArray {
     Iter(source: self, index: 0)
   }
 
+  # Returns `true` if `self` starts with the given sequence of bytes.
+  #
+  # # Examples
+  #
+  # ```inko
+  # 'hello'.starts_with?('h'.to_byte_array) # => true
+  # 'hello'.starts_with?('h')               # => true
+  # ```
+  fn pub starts_with?[T: Bytes](prefix: ref T) -> Bool {
+    ptr.starts_with?(pointer, size, prefix.pointer, prefix.size)
+  }
+
+  # Returns `true` if `self` ends with the given sequence of bytes.
+  #
+  # # Examples
+  #
+  # ```inko
+  # 'hello'.ends_with?('o'.to_byte_array) # => true
+  # 'hello'.ends_with?('o')               # => true
+  # ```
+  fn pub ends_with?[T: Bytes](suffix: ref T) -> Bool {
+    ptr.ends_with?(pointer, size, suffix.pointer, suffix.size)
+  }
+
   # Returns `true` if `self` and `other` contain identical bytes.
   #
   # This allows comparing of any `Bytes` type with any other `Bytes` type (e.g.
@@ -1038,30 +1062,6 @@ type pub ByteArray {
   # ```
   fn pub last -> Option[Int] {
     get(size - 1).ok
-  }
-
-  # Returns `true` if `self` starts with the given sequence of bytes.
-  #
-  # # Examples
-  #
-  # ```inko
-  # 'hello'.to_byte_array.starts_with?('h'.to_byte_array) # => true
-  # 'hello'.to_byte_array.starts_with?('h')               # => true
-  # ```
-  fn pub starts_with?[T: Bytes](prefix: ref T) -> Bool {
-    ptr.starts_with?(@buffer, size, prefix.pointer, prefix.size)
-  }
-
-  # Returns `true` if `self` ends with the given sequence of bytes.
-  #
-  # # Examples
-  #
-  # ```inko
-  # 'hello'.to_byte_array.ends_with?('o'.to_byte_array) # => true
-  # 'hello'.to_byte_array.ends_with?('o')               # => true
-  # ```
-  fn pub ends_with?[T: Bytes](suffix: ref T) -> Bool {
-    ptr.ends_with?(@buffer, size, suffix.pointer, suffix.size)
   }
 
   # Overwrites all bytes in `self` with zero bytes.
