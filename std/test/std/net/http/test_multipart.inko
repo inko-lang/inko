@@ -1,0 +1,66 @@
+import std.io (Buffer, Error)
+import std.net.http (Limits)
+import std.net.http.multipart (Parser)
+import std.test (Tests)
+
+fn parser(input: String, limits: ref Limits) -> Parser[Buffer[String], Error] {
+  Parser.new(Buffer.new(input), limits, boundary: 'TEST')
+}
+
+fn pub tests(t: mut Tests) {
+  t.test('Parser.move_to_first_boundary', fn (t) {
+    let buf = ByteArray.new
+    let tests = [
+      # Valid inputs
+      ('--TEST\r\nrest', Result.Ok(true), 'rest'),
+
+      # Invalid inputs
+      ('--T\r\n--TEST\r\nrest', Result.Ok(false), '--T\r\n--TEST\r\nrest'),
+      (' --TEST\r\nrest', Result.Ok(false), ' --TEST\r\nrest'),
+      ('\r\n--TEST\r\nrest', Result.Ok(false), '\r\n--TEST\r\nrest'),
+    ]
+
+    for (inp, res, rem) in tests {
+      buf.clear
+
+      let limits = Limits.new
+      let parser = parser(inp, limits)
+
+      t.equal(parser.move_to_first_boundary, res)
+      t.equal(parser.reader.read_all(buf), Result.Ok(rem.size))
+      t.equal(buf.to_string, rem)
+    }
+  })
+
+  t.test('Parser.move_to_boundary', fn (t) {
+    let buf = ByteArray.new
+    let tests = [
+      # Valid inputs
+      ('\r\n--TEST\r\nrest', Result.Ok(true), 'rest'),
+      ('\r\n--T\r\n--TEST\r\nrest', Result.Ok(true), 'rest'),
+      ('\r\n--TE\r\n--TEST\r\nrest', Result.Ok(true), 'rest'),
+      ('\r\n--TES\r\n--TEST\r\nrest', Result.Ok(true), 'rest'),
+      ('\r\n--TEST\r\n--TEST\r\nrest', Result.Ok(true), '--TEST\r\nrest'),
+      ('before\r\n--TEST\r\nrest', Result.Ok(true), 'rest'),
+      ('\r\n--TEST--\r\nrest', Result.Ok(false), '\r\nrest'),
+
+      # # Invalid inputs
+      ('--TEST\r\nrest', Result.Ok(false), ''),
+      ('--TEST\r', Result.Ok(false), ''),
+      ('--TEST', Result.Ok(false), ''),
+      ('--TESTrest', Result.Ok(false), ''),
+      ('rest', Result.Ok(false), ''),
+    ]
+
+    for (inp, res, rem) in tests {
+      buf.clear
+
+      let limits = Limits.new
+      let parser = parser(inp, limits)
+
+      t.equal(parser.move_to_boundary, res)
+      t.equal(parser.reader.read_all(buf), Result.Ok(rem.size))
+      t.equal(buf.to_string, rem)
+    }
+  })
+}
