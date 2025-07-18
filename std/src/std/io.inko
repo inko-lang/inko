@@ -796,6 +796,46 @@ type pub BufferedReader[T: mut + Read[E], E] {
       offset: 0,
     )
   }
+
+  # Returns a `Slice` containing the first `amount` bytes in the buffer.
+  #
+  # `amount` is limited to the capacity specified when creating `self`,
+  # For example, if the capacity is 10 and `amount` is 20 then `amount` is
+  # limited to 10.
+  #
+  # This method tries to fill up the internal buffer with at least `amount`
+  # bytes. If not enough bytes are available (e.g. the underlying input stream
+  # reached its end), the size of the returned `Slice` will be less than
+  # `amount`.
+  #
+  # # Errors
+  #
+  # This method returns a `std.io.Error` if the underlying stream produced an
+  # error while trying to fill up the buffer.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.io (Buffer, BufferedReader)
+  #
+  # let reader = BufferedReader.new(Buffer.new('hello'))
+  #
+  # reader.peek_first(5).or_panic.to_string # => 'hello'
+  # reader.peek_first(50).or_panic.to_string # => 'hello'
+  # ```
+  fn pub mut peek_first(amount: Int) -> Result[Slice[ByteArray], E] {
+    let amount = min(amount, @capacity)
+    let mut rem = amount
+
+    while @buffer.size - @offset < rem {
+      match try @inner.read(into: @buffer, size: rem) {
+        case 0 -> break
+        case n -> rem -= n
+      }
+    }
+
+    Result.Ok(@buffer.slice(@offset, min(@offset + amount, @buffer.size)))
+  }
 }
 
 impl BufferedRead[E] for BufferedReader {
