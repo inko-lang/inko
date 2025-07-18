@@ -825,12 +825,12 @@ type pub BufferedReader[T: mut + Read[E], E] {
   # ```
   fn pub mut peek_first(amount: Int) -> Result[Slice[ByteArray], E] {
     let amount = min(amount, @capacity)
-    let mut rem = amount
+    let mut add = amount - (@buffer.size - @offset)
 
-    while @buffer.size - @offset < rem {
-      match try @inner.read(into: @buffer, size: rem) {
+    while add > 0 {
+      match try @inner.read(into: @buffer, size: add) {
         case 0 -> break
-        case n -> rem -= n
+        case n -> add -= n
       }
     }
 

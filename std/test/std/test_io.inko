@@ -451,6 +451,7 @@ fn pub tests(t: mut Tests) {
     let r1 = BufferedReader.new(Buffer.new('hello'))
     let r2 = BufferedReader.new(Buffer.new(''))
     let r3 = BufferedReader.with_capacity(Buffer.new('abc'), 2)
+    let r4 = BufferedReader.new(Buffer.new('1234567890'))
 
     t.equal(r1.peek_first(5).or_panic.to_string, 'hello')
     t.equal(r1.peek_first(50).or_panic.to_string, 'hello')
@@ -468,6 +469,9 @@ fn pub tests(t: mut Tests) {
 
     t.equal(r3.read_byte, Result.Ok(Option.None))
     t.equal(r3.peek_first(5).or_panic.to_string, '')
+
+    t.equal(r4.fill_buffer, Result.Ok(10))
+    t.equal(r4.peek_first(3).or_panic.to_string, '123')
   })
 
   t.test('Buffer.read', fn (t) {
