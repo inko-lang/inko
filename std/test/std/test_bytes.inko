@@ -309,6 +309,14 @@ fn pub tests(t: mut Tests) {
     t.false(str.slice(0, str.size - 1).ends_with?('o'))
   })
 
+  t.test('Slice.contains?', fn (t) {
+    let bytes = ByteArray.from_array([10, 20, 30, 40])
+    let slice = bytes.slice(0, 2)
+
+    t.true(slice.contains?(10))
+    t.false(slice.contains?(40))
+  })
+
   t.test('Iter.next', fn (t) {
     let bytes = ByteArray.from_array([10, 20, 30])
     let iter = Iter(source: bytes, index: 0)

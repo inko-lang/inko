@@ -486,6 +486,28 @@ type pub inline Slice[T: Bytes] {
 
     if start == max { Slice.new(@source, 0, 0) } else { slice(start, end + 1) }
   }
+
+  # Returns `true` if the given byte is contained in `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let bytes = ByteArray.from_array([10, 20, 30, 40])
+  # let slice = bytes.slice(0, 2)
+  #
+  # slice.contains?(10) # => true
+  # slice.contains?(40) # => false
+  # ```
+  fn pub contains?(value: Int) -> Bool {
+    let mut idx = 0
+    let len = size
+
+    while idx < len {
+      if get(idx := idx + 1).or_panic == value { return true }
+    }
+
+    false
+  }
 }
 
 impl Clone for Slice {
@@ -1134,7 +1156,7 @@ type pub ByteArray {
   # bytes.contains?(10) # => true
   # ```
   fn pub contains?(value: Int) -> Bool {
-    iter.any?(fn (ours) { ours == value })
+    Slice.new(self, 0, size).contains?(value)
   }
 
   fn inline tail -> Pointer[UInt8] {
