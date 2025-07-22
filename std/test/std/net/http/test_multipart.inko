@@ -1,0 +1,321 @@
+import std.bytes (Bytes)
+import std.io (Buffer, Error as IoError, Write)
+import std.net.http (Limits)
+import std.net.http.multipart (Error, Form, Multipart)
+import std.test (Tests)
+
+fn parser(
+  input: String,
+  limits: ref Limits,
+) -> Multipart[Buffer[String], IoError] {
+  Multipart.new(Buffer.new(input), limits, boundary: 'TEST')
+}
+
+type Writer {
+  let @buffer: ByteArray
+
+  fn static new -> Writer {
+    Writer(ByteArray.new)
+  }
+}
+
+impl Write[IoError] for Writer {
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, IoError] {
+    @buffer.append(bytes)
+    Result.Ok(nil)
+  }
+
+  fn pub mut flush -> Result[Nil, IoError] {
+    Result.Ok(nil)
+  }
+}
+
+fn pub tests(t: mut Tests) {
+  t.test('Multipart.move_to_first_boundary', fn (t) {
+    let buf = ByteArray.new
+    let tests = [
+      # Valid inputs
+      ('--TEST\r\nrest', Result.Ok(true), 'rest'),
+
+      # Invalid inputs
+      ('--T\r\n--TEST\r\nrest', Result.Ok(false), '--T\r\n--TEST\r\nrest'),
+      (' --TEST\r\nrest', Result.Ok(false), ' --TEST\r\nrest'),
+      ('\r\n--TEST\r\nrest', Result.Ok(false), '\r\n--TEST\r\nrest'),
+    ]
+
+    for (inp, res, rem) in tests {
+      buf.clear
+
+      let limits = Limits.new
+      let parser = parser(inp, limits)
+
+      t.equal(parser.move_to_first_boundary, res)
+      t.equal(parser.reader.read_all(buf), Result.Ok(rem.size))
+      t.equal(buf.to_string, rem)
+    }
+  })
+
+  t.test('Multipart.move_to_boundary', fn (t) {
+    let limits = Limits.new
+    let buf = ByteArray.new
+    let tests = [
+      # Valid inputs
+      ('\r\n--TEST\r\nrest', Result.Ok(true), 'rest'),
+      ('\r\n--T\r\n--TEST\r\nrest', Result.Ok(true), 'rest'),
+      ('\r\n--TE\r\n--TEST\r\nrest', Result.Ok(true), 'rest'),
+      ('\r\n--TES\r\n--TEST\r\nrest', Result.Ok(true), 'rest'),
+      ('\r\n--TEST\r\n--TEST\r\nrest', Result.Ok(true), '--TEST\r\nrest'),
+      ('before\r\n--TEST\r\nrest', Result.Ok(true), 'rest'),
+      ('\r\n--TEST--\r\nrest', Result.Ok(false), '\r\nrest'),
+
+      # # Invalid inputs
+      ('--TEST\r\nrest', Result.Error(Error.EndOfInput), ''),
+      ('\r\n--TEST\r', Result.Error(Error.EndOfInput), ''),
+      ('rest', Result.Error(Error.EndOfInput), ''),
+    ]
+
+    for (inp, res, rem) in tests {
+      buf.clear
+
+      let parser = parser(inp, limits)
+
+      t.equal(parser.move_to_boundary, res)
+      t.equal(parser.reader.read_all(buf), Result.Ok(rem.size))
+      t.equal(buf.to_string, rem)
+    }
+  })
+
+  t.test('Multipart.next', fn (t) {
+    let limits = Limits.new
+    let tests = [
+      # Valid inputs
+      (
+        '--TEST\r\n'
+          + 'Content-Disposition: form-data; name="name"\r\n\r\n'
+          + 'value\r\n'
+          + '--TEST--',
+        Result.Ok([('name', '', '', 'value')]),
+      ),
+      (
+        '--TEST\r\n'
+          + 'Content-Disposition: form-data; name="name"; filename="foo"\r\n'
+          + 'Content-Type: text/plain\r\n\r\n'
+          + 'value\r\n'
+          + '--TEST--',
+        Result.Ok([('name', 'foo', 'text/plain', 'value')]),
+      ),
+      (
+        '--TEST\r\n'
+          + 'Content-Disposition: form-data; name="name"; filename="a/b/c.txt"\r\n\r\n'
+          + 'value\r\n'
+          + '--TEST--',
+        Result.Ok([('name', 'c.txt', '', 'value')]),
+      ),
+      (
+        '--TEST\r\n'
+          + 'Content-Disposition: form-data; name="name"; filename="a/b/c.txt/."\r\n\r\n'
+          + 'value\r\n'
+          + '--TEST--',
+        Result.Ok([('name', 'c.txt', '', 'value')]),
+      ),
+      (
+        '--TEST\r\n'
+          + 'Content-Disposition: form-data; name="name"; filename="a/b/c.txt/./../bar.txt"\r\n\r\n'
+          + 'value\r\n'
+          + '--TEST--',
+        Result.Ok([('name', 'bar.txt', '', 'value')]),
+      ),
+      (
+        '--TEST\r\n'
+          + 'Content-Disposition: form-data; name="a"\r\n\r\n'
+          + 'value1\r\n'
+          + '--TEST\r\n'
+          + 'Content-Disposition: form-data; name="b"\r\n\r\n'
+          + 'value2\r\n'
+          + '--TEST--',
+        Result.Ok([('a', '', '', 'value1'), ('b', '', '', 'value2')]),
+      ),
+      (
+        '--TEST\r\n'
+          + 'Content-Disposition: form-data; name="name"\r\n\r\n'
+          + '--FOO\r\n'
+          + '--TEST--',
+        Result.Ok([('name', '', '', '--FOO')]),
+      ),
+      (
+        '--TEST\r\n'
+          + 'Content-Disposition: form-data; name="😀"\r\n\r\n'
+          + 'value\r\n'
+          + '--TEST--',
+        Result.Ok([('😀', '', '', 'value')]),
+      ),
+      (
+        '--TEST\r\n'
+          + 'Content-Disposition: form-data; name="a%20b"\r\n\r\n'
+          + 'value\r\n'
+          + '--TEST--',
+        Result.Ok([('a b', '', '', 'value')]),
+      ),
+      (
+        '--TEST\r\n'
+          + 'Content-Disposition: form-data; name=name; filename="😀"\r\n\r\n'
+          + 'value\r\n'
+          + '--TEST--',
+        Result.Ok([('name', '😀', '', 'value')]),
+      ),
+      (
+        '--TEST\r\n'
+          + 'Content-Disposition: form-data; name=name; filename="a%20b"\r\n\r\n'
+          + 'value\r\n'
+          + '--TEST--',
+        Result.Ok([('name', 'a b', '', 'value')]),
+      ),
+      (
+        '--TEST\r\n'
+          + 'Content-Disposition: form-data; name=name; \r\n'
+          + 'Content-Type: 😀\r\n\r\n'
+          + 'value\r\n'
+          + '--TEST--',
+        Result.Ok([('name', '', '😀', 'value')]),
+      ),
+      (
+        '--TEST\r\n'
+          + 'Content-Disposition: form-data; name=name; \r\n'
+          + 'Content-Type: a%20b\r\n\r\n'
+          + 'value\r\n'
+          + '--TEST--',
+        Result.Ok([('name', '', 'a b', 'value')]),
+      ),
+
+      # Invalid inputs
+      (
+        '--TEST\r\n'
+          + 'Content-Disposition: form-data; \r\n\r\n'
+          + 'value\r\n'
+          + '--TEST--',
+        Result.Error(Error.MissingName),
+      ),
+      (
+        '--TEST\r\n'
+          + 'Content-Disposition: form-data; name="foo\r\n\r\n'
+          + 'value\r\n'
+          + '--TEST--',
+        Result.Error(Error.InvalidHeader),
+      ),
+      (
+        '--TEST\r\n'
+          + 'Content-Disposition: form-data; unknown="foo\r\n\r\n'
+          + 'value\r\n'
+          + '--TEST--',
+        Result.Error(Error.InvalidHeader),
+      ),
+      (
+        '--TEST\r\n'
+          + 'Content-Disposition: form-data; name="foo\r\nCRLF injection"\r\n\r\n'
+          + 'value\r\n'
+          + '--TEST--',
+        Result.Error(Error.InvalidHeader),
+      ),
+      (
+        '--TEST\r\n'
+          + 'Content-Disposition: form-data; name="${'m'.repeat(8192)}"\r\n\r\n'
+          + 'value\r\n'
+          + '--TEST--',
+        Result.Error(Error.HeaderTooLarge),
+      ),
+      (
+        '--TEST\r\n'
+          + 'Content-Disposition: form-data; name="name"\r\n\r\n'
+          + 'value\r\n',
+        Result.Error(Error.EndOfInput),
+      ),
+      (
+        '--TEST\r\n'
+          + 'Content-Disposition: form-data; name="a%ZZb"\r\n\r\n'
+          + 'value\r\n'
+          + '--TEST--',
+        Result.Error(Error.InvalidHeader),
+      ),
+      (
+        '--TEST\r\n'
+          + 'Content-Disposition: form-data; name=foo; filename="a%ZZb"\r\n\r\n'
+          + 'value\r\n'
+          + '--TEST--',
+        Result.Error(Error.InvalidHeader),
+      ),
+    ]
+
+    for (inp, exp) in tests {
+      let parser = parser(inp, limits)
+      let got = parser.try_reduce([], fn (ary, res) {
+        let field = try res
+        let val = ByteArray.new
+        let _ = field.read_all(val).or_panic
+
+        ary.push(
+          (field.name, field.file_name, field.content_type, val.into_string),
+        )
+        Result.Ok(ary)
+      })
+
+      t.equal(got, exp)
+    }
+  })
+
+  t.ok('Field.read', fn (t) {
+    let limits = Limits.new
+    let tests = [
+      ('hello', [5], ['hello']),
+      ('hello', [5, 5], ['hello', '']),
+      ('hello', [50], ['hello']),
+      ('hello', [3, 2], ['hel', 'lo']),
+      (
+        'm'.repeat(10 * 1024),
+        [10 * 1024, 10 * 1024],
+        ['m'.repeat(8 * 1024), 'm'.repeat(2 * 1024)],
+      ),
+      ('--TEST', [5], ['--TES']),
+      ('foo\rbar', [7], ['foo\rbar']),
+    ]
+
+    for (inp, reads, exp) in tests {
+      let buf = ByteArray.new
+      let data = '--TEST\r\n'
+        + 'Content-Disposition: form-data; name="name"\r\n\r\n'
+        + '${inp}\r\n'
+        + '--TEST--'
+      let mp = parser(data, limits)
+      let res = []
+      let field = mp.next.get.get
+
+      for len in reads {
+        try field.read(buf, len)
+        res.push(buf.drain_to_string)
+      }
+
+      t.equal(res, exp)
+    }
+
+    Result.Ok(nil)
+  })
+
+  t.test('Form.text', fn (t) {
+    let w = Writer.new
+    let f = Form.new(mut w, 'TEST')
+
+    t.equal(f.text('name1', 'Alice'), Result.Ok(nil))
+    t.equal(f.text('name2', 'Bob'), Result.Ok(nil))
+    t.equal(f.close, Result.Ok(nil))
+
+    t.equal(
+      w.buffer.to_string,
+      '--TEST\r\n'
+        + 'Content-Disposition: form-data; name="name1"\r\n\r\n'
+        + 'Alice\r\n'
+        + '--TEST\r\n'
+        + 'Content-Disposition: form-data; name="name2"\r\n\r\n'
+        + 'Bob\r\n'
+        + '--TEST--',
+    )
+  })
+}
