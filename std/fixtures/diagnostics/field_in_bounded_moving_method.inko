@@ -1,0 +1,21 @@
+type A[T] {
+  let @value: T
+}
+
+impl A if T: mut {
+  fn mut mutable {
+    @value.test
+  }
+
+  fn immutable {
+    @value.test
+  }
+
+  fn move moving {
+    @value.test
+  }
+}
+
+# field_in_bounded_moving_method.inko:7:5 error(invalid-symbol): the method 'test' isn't defined for type 'mut T: mut'
+# field_in_bounded_moving_method.inko:11:5 error(invalid-symbol): the method 'test' isn't defined for type 'ref T'
+# field_in_bounded_moving_method.inko:15:5 error(invalid-symbol): the method 'test' isn't defined for type 'T: mut'

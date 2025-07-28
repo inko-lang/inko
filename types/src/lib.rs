@@ -3071,6 +3071,16 @@ impl MethodId {
         }
     }
 
+    pub fn is_mutable_or_moving(self, db: &Database) -> bool {
+        matches!(
+            self.kind(db),
+            MethodKind::Mutable
+                | MethodKind::AsyncMutable
+                | MethodKind::Moving
+                | MethodKind::Destructor
+        )
+    }
+
     pub fn is_mutable(self, db: &Database) -> bool {
         matches!(self.kind(db), MethodKind::Mutable | MethodKind::AsyncMutable)
     }
@@ -7484,6 +7494,35 @@ mod tests {
             m2.receiver_for_type_instance(&db, TypeInstance::new(proc)),
             mutable(instance(proc))
         );
+    }
+
+    #[test]
+    fn test_method_id_is_mutable_or_moving() {
+        let mut db = Database::new();
+        let tests = [
+            (MethodKind::Instance, false),
+            (MethodKind::Async, false),
+            (MethodKind::Static, false),
+            (MethodKind::Constructor, false),
+            (MethodKind::Extern, false),
+            (MethodKind::Mutable, true),
+            (MethodKind::AsyncMutable, true),
+            (MethodKind::Moving, true),
+            (MethodKind::Destructor, true),
+        ];
+
+        for (kind, exp) in tests {
+            let method = Method::alloc(
+                &mut db,
+                ModuleId(0),
+                Location::default(),
+                "a".to_string(),
+                Visibility::Private,
+                kind,
+            );
+
+            assert_eq!(method.is_mutable_or_moving(&db), exp);
+        }
     }
 
     #[test]

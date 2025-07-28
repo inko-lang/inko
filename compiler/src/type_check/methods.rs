@@ -753,7 +753,7 @@ impl<'a> DefineMethods<'a> {
             method.always_inline(self.db_mut());
         }
 
-        if !method.is_mutable(self.db()) {
+        if !method.is_mutable_or_moving(self.db()) {
             bounds.make_immutable(self.db_mut());
         }
 
@@ -841,7 +841,7 @@ impl<'a> DefineMethods<'a> {
             kind,
         );
 
-        if !method.is_mutable(self.db()) {
+        if !method.is_mutable_or_moving(self.db()) {
             bounds.make_immutable(self.db_mut());
         }
 
@@ -1420,7 +1420,7 @@ impl<'a> ImplementTraitMethods<'a> {
             method.always_inline(self.db_mut());
         }
 
-        if !method.is_mutable(self.db()) {
+        if !method.is_mutable_or_moving(self.db()) {
             bounds.make_immutable(self.db_mut());
         }
 
