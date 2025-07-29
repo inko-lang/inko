@@ -28,8 +28,9 @@ import std.cmp (Equal)
 import std.crypto.x509 (Certificate, PrivateKey)
 import std.drop (Drop)
 import std.fmt (Format, Formatter)
+import std.fs.file (ReadOnlyFile)
 import std.io (Error, Read, Write, WriteInternal)
-import std.net.socket (RawSocketOperations)
+import std.net.socket (RawSocketOperations, SendFile)
 import std.ptr
 import std.string (PrimitiveString, ToString)
 import std.sys.net
@@ -462,6 +463,22 @@ impl Write[Error] for Client {
   }
 }
 
+impl RawSocketOperations for Client {
+  fn inline mut raw_socket -> Pointer[net.RawSocket] {
+    @socket.raw_socket
+  }
+
+  fn inline raw_deadline -> Int {
+    @socket.raw_deadline
+  }
+}
+
+impl SendFile[Error] for Client {
+  fn pub mut send_file(file: mut ReadOnlyFile) -> Result[Int, Error] {
+    net.send_file_userspace(file, self)
+  }
+}
+
 # A type storing the configuration details for TLS servers.
 #
 # To configure a `Client`, use `ClientConfig` instead.
@@ -693,5 +710,21 @@ impl Write[Error] for Server {
 
   fn pub mut flush -> Result[Nil, Error] {
     Result.Ok(nil)
+  }
+}
+
+impl RawSocketOperations for Server {
+  fn inline mut raw_socket -> Pointer[net.RawSocket] {
+    @socket.raw_socket
+  }
+
+  fn inline raw_deadline -> Int {
+    @socket.raw_deadline
+  }
+}
+
+impl SendFile[Error] for Server {
+  fn pub mut send_file(file: mut ReadOnlyFile) -> Result[Int, Error] {
+    net.send_file_userspace(file, self)
   }
 }

@@ -1,6 +1,7 @@
 import std.env
 import std.fs.file (ReadOnlyFile, ReadWriteFile, WriteOnlyFile)
 import std.fs.path (Path)
+import std.io (SeekFrom)
 import std.test (Tests)
 import std.time (DateTime, Duration)
 
@@ -45,19 +46,21 @@ fn pub tests(t: mut Tests) {
     path.remove_file.get
   })
 
-  t.test('ReadOnlyFile.seek', fn (t) {
+  t.ok('ReadOnlyFile.seek', fn (t) {
     let path = env.temporary_directory.join('inko-test-${t.id}')
 
     write('test', to: path)
 
-    let handle = ReadOnlyFile.new(path.clone).get
+    let handle = try ReadOnlyFile.new(path.clone)
     let bytes = ByteArray.new
-    let _ = handle.seek(1).get
-    let _ = handle.read(into: bytes, size: 4).get
+    let _ = try handle.seek(SeekFrom.Start(1))
+    let _ = try handle.read(into: bytes, size: 4)
 
     t.equal(bytes.into_string, 'est')
+    t.equal(handle.seek(SeekFrom.Current(0)), Result.Ok(4))
 
-    path.remove_file.get
+    try path.remove_file
+    Result.Ok(nil)
   })
 
   t.ok('ReadOnlyFile.metadata', fn (t) {
@@ -159,7 +162,7 @@ fn pub tests(t: mut Tests) {
     let path = env.temporary_directory.join('inko-test-${t.id}')
     let handle = WriteOnlyFile.new(path.clone).get
     let _ = handle.write('test').get
-    let _ = handle.seek(1).get
+    let _ = handle.seek(SeekFrom.Start(1)).get
     let _ = handle.write('ing').get
 
     t.equal(read(path), 'ting')
@@ -199,7 +202,7 @@ fn pub tests(t: mut Tests) {
 
       try file.write('hello')
       try file.flush
-      try file.seek(0)
+      try file.seek(SeekFrom.Start(0))
       try file.read_all(buf)
 
       t.equal(buf.into_string, 'hello')
@@ -274,7 +277,7 @@ fn pub tests(t: mut Tests) {
     let path = env.temporary_directory.join('inko-test-${t.id}')
     let handle = ReadWriteFile.new(path.clone).get
     let _ = handle.write('test').get
-    let _ = handle.seek(1).get
+    let _ = handle.seek(SeekFrom.Start(1)).get
     let _ = handle.write('ing').get
 
     t.equal(read(path), 'ting')

@@ -1,6 +1,7 @@
 import std.drop (Drop)
 import std.env
 import std.fmt (fmt)
+import std.fs.file (ReadOnlyFile)
 import std.fs.path (Path)
 import std.io (Error)
 import std.net.ip (IpAddress, Ipv4Address, Ipv6Address)
@@ -1390,5 +1391,126 @@ fn pub tests(t: mut Tests) {
     let server = UnixServer.new(path.path).get
 
     t.true(server.try_clone.ok?)
+  })
+
+  t.ok('Socket.send_file', fn (t) {
+    let server = try Socket.stream(ipv6: false)
+    let client = try Socket.stream(ipv6: false)
+
+    try server.bind(IpAddress.v4(0, 0, 0, 0), port: 0)
+    try server.listen
+
+    let addr = try server.local_address
+    let file = try ReadOnlyFile.new('fixtures/hello.txt'.to_path)
+
+    try client.connect(addr.ip, addr.port)
+
+    let con = try server.accept
+    let buf = ByteArray.new
+
+    t.equal(try client.send_file(file), 6)
+    t.equal(con.read(buf, size: 1024), Result.Ok(6))
+    t.equal(buf.to_string, 'hello\n')
+    t.equal(file.read_all(buf), Result.Ok(6))
+    t.equal(buf.to_string, 'hello\nhello\n')
+    Result.Ok(nil)
+  })
+
+  t.ok('UdpSocket.send_file', fn (t) {
+    let server = try UdpSocket.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let client = try UdpSocket.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let addr = try server.local_address
+    let file = try ReadOnlyFile.new('fixtures/hello.txt'.to_path)
+    let buf = ByteArray.new
+
+    try client.connect(addr.ip, addr.port)
+
+    t.equal(try client.send_file(file), 6)
+    t.equal(server.read(buf, size: 1024), Result.Ok(6))
+    t.equal(buf.to_string, 'hello\n')
+    t.equal(file.read_all(buf), Result.Ok(6))
+    t.equal(buf.to_string, 'hello\nhello\n')
+    Result.Ok(nil)
+  })
+
+  t.ok('TcpClient.send_file', fn (t) {
+    let server = try Socket.stream(ipv6: false)
+
+    try server.bind(IpAddress.v4(0, 0, 0, 0), port: 0)
+    try server.listen
+
+    let addr = try server.local_address
+    let client = try TcpClient.new([addr.ip], addr.port)
+    let file = try ReadOnlyFile.new('fixtures/hello.txt'.to_path)
+    let con = try server.accept
+    let buf = ByteArray.new
+
+    t.equal(try client.send_file(file), 6)
+    t.equal(con.read(buf, size: 1024), Result.Ok(6))
+    t.equal(buf.to_string, 'hello\n')
+    t.equal(file.read_all(buf), Result.Ok(6))
+    t.equal(buf.to_string, 'hello\nhello\n')
+    Result.Ok(nil)
+  })
+
+  t.ok('UnixSocket.send_file', fn (t) {
+    let path = SocketPath.new(t.id)
+    let server = try UnixSocket.stream
+    let client = try UnixSocket.stream
+
+    try server.bind(path.path)
+    try server.listen
+
+    let file = try ReadOnlyFile.new('fixtures/hello.txt'.to_path)
+
+    try client.connect(path.path)
+
+    let con = try server.accept
+    let buf = ByteArray.new
+
+    t.equal(try client.send_file(file), 6)
+    t.equal(con.read(buf, size: 1024), Result.Ok(6))
+    t.equal(buf.to_string, 'hello\n')
+    t.equal(file.read_all(buf), Result.Ok(6))
+    t.equal(buf.to_string, 'hello\nhello\n')
+    Result.Ok(nil)
+  })
+
+  t.ok('UnixDatagram.send_file', fn (t) {
+    let pair = SocketPath.pair(t.id)
+    let server = try UnixDatagram.new(pair.0.path)
+    let client = try UnixDatagram.new(pair.1.path)
+    let file = try ReadOnlyFile.new('fixtures/hello.txt'.to_path)
+
+    try client.connect(pair.0.path)
+
+    let buf = ByteArray.new
+
+    t.equal(try client.send_file(file), 6)
+    t.equal(server.read(buf, size: 1024), Result.Ok(6))
+    t.equal(buf.to_string, 'hello\n')
+    t.equal(file.read_all(buf), Result.Ok(6))
+    t.equal(buf.to_string, 'hello\nhello\n')
+    Result.Ok(nil)
+  })
+
+  t.ok('UnixClient.send_file', fn (t) {
+    let path = SocketPath.new(t.id)
+    let server = try UnixSocket.stream
+
+    try server.bind(path.path)
+    try server.listen
+
+    let client = try UnixClient.new(path.path)
+    let file = try ReadOnlyFile.new('fixtures/hello.txt'.to_path)
+    let con = try server.accept
+    let buf = ByteArray.new
+
+    t.equal(try client.send_file(file), 6)
+    t.equal(con.read(buf, size: 1024), Result.Ok(6))
+    t.equal(buf.to_string, 'hello\n')
+    t.equal(file.read_all(buf), Result.Ok(6))
+    t.equal(buf.to_string, 'hello\nhello\n')
+    Result.Ok(nil)
   })
 }

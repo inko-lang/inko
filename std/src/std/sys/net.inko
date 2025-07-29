@@ -1,4 +1,5 @@
-import std.io (Error)
+import std.fs.file (ReadOnlyFile)
+import std.io (Error, SeekFrom, Write, copy_using)
 import std.net.ip (Ipv4Address)
 
 # A value that signals a socket isn't registered with a poller.
@@ -6,6 +7,10 @@ let NOT_REGISTERED = -1
 
 # A value that signals the lack of a socket deadline.
 let NO_DEADLINE = -1
+
+# The amount of bytes to copy when using a userspace implementation of
+# `SendFile.send_file`.
+let SEND_FILE_SIZE = 32 * 1024
 
 fn extern inko_socket_poll(
   state: Pointer[UInt8],
@@ -60,4 +65,18 @@ fn inline pack_v4(ip: ref Ipv4Address) -> Int {
 
 fn inline pack_v6_pair(a: Int, b: Int) -> Int {
   htons(b) << 16 | htons(a)
+}
+
+fn send_file_userspace[W: mut + Write[Error]](
+  from: mut ReadOnlyFile,
+  to: mut W,
+) -> Result[Int, Error] {
+  let len = match copy_using(ByteArray.new, from, to, SEND_FILE_SIZE) {
+    case Ok(n) -> n
+    case Error(Read(e)) -> throw e
+    case Error(Write(e)) -> throw e
+  }
+
+  try from.seek(SeekFrom.End(0 - len))
+  Result.Ok(len)
 }

@@ -5,7 +5,7 @@ import std.libc.linux (self as libc)
 import std.sys.unix.fs (self as unix)
 
 # The maximum number of bytes we can copy in a single system call.
-let MAX_COPY = 0x7ffff000
+let MAX_COPY = 2147479552
 
 fn statx_time(time: Pointer[libc.StatxTimestamp]) -> Time {
   Time(secs: time.tv_sec as Int, nanos: time.tv_nsec as Int)

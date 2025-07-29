@@ -1,0 +1,26 @@
+import std.fs.file (ReadOnlyFile)
+import std.net.ip (IpAddress)
+import std.net.socket (TcpClient, TcpServer)
+import std.sys.net
+import std.test (Tests)
+
+fn pub tests(t: mut Tests) {
+  t.ok('net.send_file_userspace', fn (t) {
+    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let addr = try server.local_address
+    let client = try TcpClient.new([addr.ip], addr.port)
+    let con = try server.accept
+    let file = try ReadOnlyFile.new('fixtures/hello.txt'.to_path)
+    let buf = ByteArray.new
+
+    try file.read(buf, size: 1)
+    try net.send_file_userspace(file, client)
+
+    t.equal(con.read(buf, size: 1024), Result.Ok(5))
+    t.equal(buf.to_string, 'hello\n')
+    t.equal(file.read_all(buf), Result.Ok(5))
+    t.equal(buf.to_string, 'hello\nello\n')
+
+    Result.Ok(nil)
+  })
+}

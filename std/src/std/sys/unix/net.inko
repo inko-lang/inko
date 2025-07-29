@@ -1,10 +1,12 @@
+import std.fs.file (ReadOnlyFile)
 import std.fs.path (Path)
-import std.io (Error)
+import std.io (Error, Write)
 import std.libc
 import std.libc.freebsd (self as sys_libc) if freebsd
 import std.libc.linux (self as sys_libc) if linux
 import std.libc.mac (self as sys_libc) if mac
 import std.net.ip (IpAddress)
+import std.net.socket (RawSocketOperations)
 import std.ptr
 import std.sys.freebsd.net (self as sys) if freebsd
 import std.sys.linux.net (self as sys) if linux
@@ -538,4 +540,18 @@ fn inline shutdown(
 
 fn inline close(socket: Pointer[net.RawSocket]) {
   libc.close(socket.inner)
+}
+
+fn inline send_file_stream[S: mut + RawSocketOperations](
+  from: mut ReadOnlyFile,
+  to: mut S,
+) -> Result[Int, Error] {
+  sys.send_file_stream(from, to)
+}
+
+fn inline send_file_datagram[S: mut + RawSocketOperations + Write[Error]](
+  from: mut ReadOnlyFile,
+  to: mut S,
+) -> Result[Int, Error] {
+  sys.send_file_datagram(from, to)
 }

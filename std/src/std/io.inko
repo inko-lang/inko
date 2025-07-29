@@ -97,6 +97,100 @@ fn reset_os_error {
   libc.errno_location.0 = 0 as Int32
 }
 
+# Copies data from `from` to `to` in chunks of `size` bytes, using an existing
+# `ByteArray` as the intermediate buffer.
+#
+# The `from` argument can be any `Read` type while the `to` argument can be any
+# `Write` type.
+#
+# The `buffer` argument is expected to point to an empty `ByteArray`. This
+# buffer is cleared after each successful write. Upon encountering an error, the
+# buffer is _not_ explicitly cleared and it may contain data from `from` that
+# has yet to be written to `to`.
+#
+# Upon success, the number of bytes copied is returned.
+#
+# # Errors
+#
+# This method returns a `CopyError.Read(_)` error if reading from `from`
+# produces an error. If writing the data to `to` produces an error, a
+# `CopyError.Write(_)` error is returned instead.
+#
+# # Examples
+#
+# ```inko
+# import std.fs.file (WriteOnlyFile)
+# import std.io (Buffer, copy_using)
+#
+# let from = Buffer.new('hello')
+# let to = WriteOnlyFile.new('test.txt'.to_path).or_panic
+#
+# copy_using(ByteArray.new, from, to, size: 1024).or_panic # => Result.Ok(5)
+# ```
+fn pub copy_using[R: mut + Read[RE], W: mut + Write[WE], RE, WE](
+  buffer: mut ByteArray,
+  from: mut R,
+  to: mut W,
+  size: Int,
+) -> Result[Int, CopyError[RE, WE]] {
+  let mut len = 0
+
+  loop {
+    match from.read(buffer, size) {
+      case Ok(0) -> break
+      case Ok(n) -> {
+        match to.write(buffer) {
+          case Ok(_) -> {}
+          case Error(e) -> throw CopyError.Write(e)
+        }
+
+        buffer.clear
+        len += n
+      }
+      case Error(e) -> throw CopyError.Read(e)
+    }
+  }
+
+  Result.Ok(len)
+}
+
+# An error produced by `std.io.copy_using`.
+type pub inline enum CopyError[R, W] {
+  # An error produced while reading from the input stream.
+  case Read(R)
+
+  # An error produced while writing to the output stream.
+  case Write(W)
+}
+
+impl Equal for CopyError if R: Equal, W: Equal {
+  fn pub ==(other: ref Self) -> Bool {
+    match (self, other) {
+      case (Read(a), Read(b)) -> a == b
+      case (Write(a), Write(b)) -> a == b
+      case _ -> false
+    }
+  }
+}
+
+impl ToString for CopyError if R: ToString, W: ToString {
+  fn pub to_string -> String {
+    match self {
+      case Read(e) -> 'an error occurred while reading: ${e}'
+      case Write(e) -> 'an error occurred while writing: ${e}'
+    }
+  }
+}
+
+impl Format for CopyError if R: Format, W: Format {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case Read(e) -> formatter.tuple('Read').field(e).finish
+      case Write(e) -> formatter.tuple('Write').field(e).finish
+    }
+  }
+}
+
 # An error type for I/O operations.
 #
 # This type is typically constructed from raw OS error codes such as `ENOENT` on
@@ -559,13 +653,27 @@ trait pub Write[E] {
   fn pub mut flush -> Result[Nil, E]
 }
 
+# The direction/position to seek from.
+type pub copy enum SeekFrom {
+  # Set the position to the given offset relative to the start.
+  case Start(Int)
+
+  # Set the position to the given offset relative to the current position.
+  case Current(Int)
+
+  # Set the position to the given offset relative to the end position.
+  case End(Int)
+}
+
 # Trait for seeking to a given offset in a stream of bytes.
 trait pub Seek[E] {
-  # Seeks to the given byte offset, returning the new offset.
+  # Seeks to the given offset, returning the new offset.
   #
-  # If `position` is negative, seeking is performed in reverse order relative to
-  # the end.
-  fn pub mut seek(position: Int) -> Result[Int, E]
+  # Upon success the new offset (in bytes) is returned.
+  #
+  # Seeking beyond the end of the stream is allowed, but seeking before the
+  # start of the stream is an error.
+  fn pub mut seek(position: SeekFrom) -> Result[Int, E]
 }
 
 # A `Read` type using an internal buffer, allowing more efficient reading and
@@ -1146,14 +1254,16 @@ impl BufferedRead[Error] for Buffer {
 }
 
 impl Seek[Error] for Buffer {
-  fn pub mut seek(position: Int) -> Result[Int, Error] {
-    if position < 0 {
-      @offset = @bytes.size + position
-    } else {
-      @offset = position
+  fn pub mut seek(position: SeekFrom) -> Result[Int, Error] {
+    let pos = match position {
+      case Start(n) -> n
+      case Current(n) -> @offset + n
+      case End(n) -> @bytes.size + n
     }
 
-    Result.Ok(@offset)
+    if pos < 0 { throw Error.InvalidArgument } else { @offset = pos }
+
+    Result.Ok(pos)
   }
 }
 

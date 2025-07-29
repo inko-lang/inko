@@ -63,6 +63,7 @@ import std.bytes (Bytes)
 import std.cmp (Equal)
 import std.drop (Drop)
 import std.fmt (Format, Formatter)
+import std.fs.file (ReadOnlyFile)
 import std.fs.path (Path)
 import std.io (Error, Read, Write, WriteInternal)
 import std.libc
@@ -107,6 +108,56 @@ trait RawSocketOperations {
   fn mut raw_socket -> Pointer[net.RawSocket]
 
   fn raw_deadline -> Int
+}
+
+trait SendFile[E]: RawSocketOperations {
+  # Sends a read-only file to the other half of `self`, without the need for an
+  # intermediate buffer.
+  #
+  # Upon success the number of copied bytes is returned.
+  #
+  # Upon returning from this method, the cursor/offset of the source file is the
+  # same as it was before calling this method.
+  #
+  # # Platform differences
+  #
+  # The exact mechanism used for sending the file may vary per platform. For
+  # example, on FreeBSD, Linux and macOS this method uses the `sendfile` system
+  # call.
+  #
+  # # Fallbacks
+  #
+  # Not all platforms or socket types support zero-copy sending of files. In
+  # such cases a userspace copy is performed. Such a fallback is applied to:
+  #
+  # - TLS sockets provided by `std.net.tls`
+  # - `UdpSocket.send_file` and `UnixDatagram.send_file` on FreeBSD and macOS
+  #
+  # The userspace implementation copies data in chunks of 32 KiB and resets the
+  # cursor of `file` to its original position after copying the data. While
+  # resetting the cursor incurs a small cost, it ensures behavior is consistent
+  # with the kernel implementations of this method.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.fs.file (ReadOnlyFile)
+  # import std.net.ip (IpAddress)
+  # import std.net.socket (UdpSocket)
+  #
+  # let file = ReadOnlyFile.new('README.md'.to_path).or_panic
+  # let server = UdpSocket.new(IpAddress.v4(0, 0, 0, 0), port: 9999).or_panic
+  # let client = UdpSocket.new(IpAddress.v4(0, 0, 0, 0), port: 0).or_panic
+  #
+  # client.connect(IpAddress.v4(0, 0, 0, 0), port: 9999).or_panic
+  # client.send_file(file).or_panic
+  #
+  # let buf = ByteArray.new
+  #
+  # server.read(buf, 1024).or_panic
+  # buf.to_string # => '...'
+  # ```
+  fn pub mut send_file(file: mut ReadOnlyFile) -> Result[Int, E]
 }
 
 # An IPv4 or IPv6 socket address.
@@ -561,6 +612,12 @@ impl RawSocketOperations for Socket {
   }
 }
 
+impl SendFile[Error] for Socket {
+  fn pub mut send_file(file: mut ReadOnlyFile) -> Result[Int, Error] {
+    sys.send_file_stream(file, self)
+  }
+}
+
 impl Drop for Socket {
   fn mut drop {
     sys.close(@socket)
@@ -698,6 +755,12 @@ impl RawSocketOperations for UdpSocket {
 
   fn raw_deadline -> Int {
     @socket.deadline
+  }
+}
+
+impl SendFile[Error] for UdpSocket {
+  fn pub mut send_file(file: mut ReadOnlyFile) -> Result[Int, Error] {
+    sys.send_file_datagram(file, self)
   }
 }
 
@@ -868,6 +931,12 @@ impl RawSocketOperations for TcpClient {
 
   fn raw_deadline -> Int {
     @socket.deadline
+  }
+}
+
+impl SendFile[Error] for TcpClient {
+  fn pub mut send_file(file: mut ReadOnlyFile) -> Result[Int, Error] {
+    sys.send_file_stream(file, self)
   }
 }
 
@@ -1392,6 +1461,12 @@ impl RawSocketOperations for UnixSocket {
   }
 }
 
+impl SendFile[Error] for UnixSocket {
+  fn pub mut send_file(file: mut ReadOnlyFile) -> Result[Int, Error] {
+    sys.send_file_stream(file, self)
+  }
+}
+
 impl Drop for UnixSocket {
   fn mut drop {
     sys.close(@socket)
@@ -1522,6 +1597,12 @@ impl RawSocketOperations for UnixDatagram {
   }
 }
 
+impl SendFile[Error] for UnixDatagram {
+  fn pub mut send_file(file: mut ReadOnlyFile) -> Result[Int, Error] {
+    sys.send_file_datagram(file, self)
+  }
+}
+
 impl Read[Error] for UnixDatagram {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     @socket.read(into, size)
@@ -1645,6 +1726,12 @@ impl RawSocketOperations for UnixClient {
 
   fn raw_deadline -> Int {
     @socket.deadline
+  }
+}
+
+impl SendFile[Error] for UnixClient {
+  fn pub mut send_file(file: mut ReadOnlyFile) -> Result[Int, Error] {
+    sys.send_file_stream(file, self)
   }
 }
 

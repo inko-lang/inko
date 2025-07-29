@@ -1,10 +1,15 @@
 import std.alloc
+import std.fs.file (ReadOnlyFile)
 import std.fs.path (Path)
 import std.io (Error)
 import std.libc
 import std.libc.linux (self as sys)
 import std.net.ip (Ipv4Address, Ipv6Address)
+import std.net.socket (RawSocketOperations)
 import std.sys.net
+
+# The maximum number of bytes we can copy in a single call to `sendfile`.
+let MAX_COPY = 2147479552
 
 fn inline socket(domain: Int, kind: Int, protocol: Int) -> Int32 {
   let kind = kind | sys.SOCK_CLOEXEC | sys.SOCK_NONBLOCK
@@ -102,4 +107,35 @@ fn inline parse_unix_address(
   } else {
     String.from_pointer(name_start)
   }
+}
+
+fn inline send_file_stream[S: mut + RawSocketOperations](
+  from: mut ReadOnlyFile,
+  to: mut S,
+) -> Result[Int, Error] {
+  let max = MAX_COPY as UInt64
+  let off = 0 as Int64
+  let raw = to.raw_socket
+
+  loop {
+    let res = sys.sendfile(raw.inner, from.fd, mut off, max)
+
+    match res as Int {
+      case 0 -> return Result.Ok(off as Int)
+      case -1 -> {
+        match libc.errno {
+          case libc.EAGAIN -> try net.poll(raw, to.raw_deadline, write: true)
+          case e -> throw Error.from_os_error(e)
+        }
+      }
+      case _ -> {}
+    }
+  }
+}
+
+fn inline send_file_datagram[S: mut + RawSocketOperations](
+  from: mut ReadOnlyFile,
+  to: mut S,
+) -> Result[Int, Error] {
+  send_file_stream(from, to)
 }

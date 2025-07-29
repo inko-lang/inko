@@ -1,7 +1,7 @@
 import std.drop (Drop)
 import std.fs (FileType, Metadata)
 import std.fs.file (ReadOnlyFile, WriteOnlyFile)
-import std.io (Error, reset_os_error, start_blocking, stop_blocking)
+import std.io (Error, SeekFrom, reset_os_error, start_blocking, stop_blocking)
 import std.iter (Iter)
 import std.libc
 import std.sys.freebsd.fs (self as sys) if freebsd
@@ -96,12 +96,16 @@ fn flush_file(file: Int32) -> Result[Nil, Error] {
   if res == 0 { Result.Ok(nil) } else { Result.Error(Error.from_os_error(err)) }
 }
 
-fn seek_to(file: Int32, position: Int) -> Result[Int, Error] {
-  let whence = if position < 0 { libc.SEEK_END } else { libc.SEEK_SET } as Int32
+fn seek_to(file: Int32, position: SeekFrom) -> Result[Int, Error] {
+  let args = match position {
+    case Start(n) -> (libc.SEEK_SET, n)
+    case Current(n) -> (libc.SEEK_CUR, n)
+    case End(n) -> (libc.SEEK_END, n)
+  }
 
   start_blocking
 
-  let res = libc.lseek(file, position, whence)
+  let res = libc.lseek(file, offset: args.1, whence: args.0 as Int32)
   let err = stop_blocking
 
   if res >= 0 { Result.Ok(res) } else { Result.Error(Error.from_os_error(err)) }

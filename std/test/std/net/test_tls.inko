@@ -1,6 +1,7 @@
 import std.crypto.pem (PemFile)
 import std.crypto.x509 (Certificate, PrivateKey)
 import std.fmt (fmt)
+import std.fs.file (ReadOnlyFile)
 import std.io (Buffer)
 import std.net.ip (IpAddress)
 import std.net.socket (Socket, TcpClient, TcpServer)
@@ -468,6 +469,29 @@ fn pub tests(t: mut Tests) {
     Result.Ok(nil)
   })
 
+  t.ok('Client.send_file', fn (t) {
+    let port = match DummyServer.new {
+      case Ok((server, port)) -> {
+        server.reply
+        port
+      }
+      case Error(e) -> throw e
+    }
+
+    let conf = try client_config
+    let sock = try connect(port)
+    let file = try ReadOnlyFile.new('fixtures/hello.txt'.to_path).map_error(
+      fn (e) { e.to_string },
+    )
+    let client = Client.new(sock, conf, name: 'localhost').get
+    let bytes = ByteArray.new
+
+    t.equal(try client.send_file(file).map_error(fn (e) { e.to_string }), 6)
+    t.equal(client.read(into: bytes, size: 6), Result.Ok(6))
+    t.equal(bytes.into_string, 'hello\n')
+    Result.Ok(nil)
+  })
+
   t.ok('Client.close', fn (t) {
     let port = match DummyServer.new {
       case Ok((server, port)) -> {
@@ -566,6 +590,34 @@ fn pub tests(t: mut Tests) {
         let server = try accept(sock)
 
         t.equal(server.write('hello'), Result.Ok(nil))
+        t.equal(recover out.get, Result.Ok('hello'))
+      }
+    }
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Server.send_file', fn (t) {
+    let sock_fut = match Future.new {
+      case (future, promise) -> {
+        match try listener {
+          case (sock, port) -> {
+            DummyClient().reply(port, promise)
+            (sock, future)
+          }
+        }
+      }
+    }
+
+    let file = try ReadOnlyFile.new('fixtures/hello.txt'.to_path).map_error(
+      fn (e) { e.to_string },
+    )
+
+    match sock_fut {
+      case (sock, out) -> {
+        let server = try accept(sock)
+
+        t.equal(try server.send_file(file).map_error(fn (e) { e.to_string }), 6)
         t.equal(recover out.get, Result.Ok('hello'))
       }
     }

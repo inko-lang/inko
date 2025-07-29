@@ -1,9 +1,11 @@
 import std.alloc
+import std.fs.file (ReadOnlyFile)
 import std.fs.path (Path)
-import std.io (Error)
+import std.io (Error, Write)
 import std.libc
 import std.libc.freebsd (self as sys)
 import std.net.ip (Ipv4Address, Ipv6Address)
+import std.net.socket (RawSocketOperations)
 import std.sys.net
 
 fn inline socket(domain: Int, kind: Int, protocol: Int) -> Int32 {
@@ -76,4 +78,36 @@ fn inline parse_unix_address(
   size: Int,
 ) -> String {
   String.from_pointer(mut address.sun_path0)
+}
+
+fn inline send_file_stream[S: mut + RawSocketOperations](
+  from: mut ReadOnlyFile,
+  to: mut S,
+) -> Result[Int, Error] {
+  let mut off = 0 as Int64
+  let len = 0 as UInt64
+  let hdtr = 0 as Pointer[UInt8]
+  let flags = 0 as Int32
+  let sock = to.raw_socket
+
+  loop {
+    let res = sys.sendfile(from.fd, sock.inner, off, len, hdtr, mut off, flags)
+
+    match res as Int {
+      case 0 -> return Result.Ok(off as Int)
+      case _ -> {
+        match libc.errno {
+          case libc.EAGAIN -> try net.poll(sock, to.raw_deadline, write: true)
+          case e -> throw Error.from_os_error(e)
+        }
+      }
+    }
+  }
+}
+
+fn inline send_file_datagram[S: mut + RawSocketOperations + Write[Error]](
+  from: mut ReadOnlyFile,
+  to: mut S,
+) -> Result[Int, Error] {
+  net.send_file_userspace(from, to)
 }

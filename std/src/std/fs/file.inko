@@ -27,7 +27,7 @@ import std.bytes (Bytes)
 import std.drop (Drop)
 import std.fs (Metadata)
 import std.fs.path (Path)
-import std.io (Error, Read, Seek, Write, WriteInternal)
+import std.io (Error, Read, Seek, SeekFrom, Write, WriteInternal)
 import std.sys.unix.fs (self as sys) if unix
 
 # A file that can only be used for reads.
@@ -100,7 +100,7 @@ impl Read[Error] for ReadOnlyFile {
 }
 
 impl Seek[Error] for ReadOnlyFile {
-  fn pub mut seek(position: Int) -> Result[Int, Error] {
+  fn pub mut seek(position: SeekFrom) -> Result[Int, Error] {
     sys.seek_to(@fd, position)
   }
 }
@@ -205,7 +205,7 @@ impl Write[Error] for WriteOnlyFile {
 }
 
 impl Seek[Error] for WriteOnlyFile {
-  fn pub mut seek(position: Int) -> Result[Int, Error] {
+  fn pub mut seek(position: SeekFrom) -> Result[Int, Error] {
     sys.seek_to(@fd, position)
   }
 }
@@ -316,7 +316,7 @@ impl Write[Error] for ReadWriteFile {
 }
 
 impl Seek[Error] for ReadWriteFile {
-  fn pub mut seek(position: Int) -> Result[Int, Error] {
+  fn pub mut seek(position: SeekFrom) -> Result[Int, Error] {
     sys.seek_to(@fd, position)
   }
 }

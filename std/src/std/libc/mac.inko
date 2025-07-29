@@ -82,6 +82,7 @@ let O_TRUNC = 0x400
 let O_WRONLY = 0x1
 let POSIX_SPAWN_SETSIGDEF = 0x04
 let POSIX_SPAWN_SETSIGMASK = 0x08
+let SEEK_CUR = 1
 let SEEK_END = 2
 let SEEK_SET = 0
 let SHUT_RD = 0
@@ -347,6 +348,15 @@ fn extern chmod(path: Pointer[UInt8], mode: UInt16) -> Int32
 fn extern fsync(fd: Int32) -> Int32
 
 fn extern fcntl(fd: Int32, cmd: Int32, ...) -> Int32
+
+fn extern sendfile(
+  input: Int32,
+  out: Int32,
+  offset: Int64,
+  len: Pointer[Int64],
+  hdtr: Pointer[UInt8],
+  flags: Int32,
+) -> Int32
 
 fn extern fclonefileat(
   from: Int32,
