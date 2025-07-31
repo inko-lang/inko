@@ -445,10 +445,15 @@ LLVM module timings:
         let start = Instant::now();
         let mut mir = Mir::new();
         let state = &mut self.state;
+
+        // These passes must run first such that compile-time overwritten
+        // constants use the correct value when used as the value for other
+        // constants.
+        mir::define_default_compile_time_variables(state);
+        mir::apply_compile_time_variables(state, &mut mir)
+            .map_err(CompileError::Internal)?;
+
         let ok = if mir::DefineConstants::run_all(state, &mut mir, &modules) {
-            mir::define_default_compile_time_variables(state);
-            mir::apply_compile_time_variables(state, &mut mir)
-                .map_err(CompileError::Internal)?;
             mir::LowerToMir::run_all(state, &mut mir, modules)
         } else {
             false

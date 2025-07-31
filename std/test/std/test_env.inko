@@ -3,12 +3,23 @@ import std.fmt (fmt)
 import std.stdio (Stdout)
 import std.test (Tests)
 
+let COMPILE_TIME_CONCAT = 'version: ' + env.VERSION
+
 fn pub tests(t: mut Tests) {
   t.test('env.ARCH', fn (t) { t.true(env.ARCH.size > 0) })
 
   t.test('env.OS', fn (t) { t.true(env.OS.size > 0) })
 
   t.test('env.ABI', fn (t) { t.true(env.ABI.size > 0) })
+
+  t.test('env.VERSION', fn (t) {
+    t.true(env.VERSION.size > 0)
+    t.not_equal(env.VERSION, 'generated at compile-time')
+
+    # This test exists to make sure that if a constant refers to a compile-time
+    # overwritten constant, it uses the correct value.
+    t.not_equal(COMPILE_TIME_CONCAT, 'version: generated at compile-time')
+  })
 
   t.test('MissingVariable.to_string', fn (t) {
     t.equal(

@@ -18,9 +18,9 @@ use types::format::format_type;
 use types::module_name::ModuleName;
 use types::{
     self, Block as _, ConstantId, FieldId, Inline, MethodId, ModuleId, Symbol,
-    TypeBounds, TypeId, TypeRef, VerificationError, ENUM_TAG_INDEX, EQ_METHOD,
-    OPTION_NONE, OPTION_SOME, RESULT_ERROR, RESULT_MODULE, RESULT_OK,
-    RESULT_TYPE,
+    TypeBounds, TypeId, TypeRef, VerificationError, BOOL_ID, ENUM_TAG_INDEX,
+    EQ_METHOD, INT_ID, OPTION_NONE, OPTION_SOME, RESULT_ERROR, RESULT_MODULE,
+    RESULT_OK, RESULT_TYPE, STRING_ID,
 };
 
 const SELF_NAME: &str = "self";
@@ -43,6 +43,7 @@ pub(crate) fn define_default_compile_time_variables(state: &mut State) {
         ("std.env", "OS", state.config.target.os_name()),
         ("std.env", "ABI", state.config.target.abi_name()),
         ("std.env", "MODE", state.config.opt.name()),
+        ("std.env", "VERSION", env!("CARGO_PKG_VERSION")),
     ];
 
     for (module, name, val) in vars {
@@ -71,10 +72,10 @@ pub(crate) fn apply_compile_time_variables(
             ));
         };
 
-        let new = match mir.constants.get(&id).unwrap() {
-            Constant::Int(_) => i64::from_str(val).ok().map(Constant::Int),
-            Constant::String(_) => Some(Constant::String(val.clone())),
-            Constant::Bool(_) => bool::from_str(val).ok().map(Constant::Bool),
+        let new = match id.value_type(&state.db).type_id(&state.db).unwrap().0 {
+            INT_ID => i64::from_str(val).ok().map(Constant::Int),
+            STRING_ID => Some(Constant::String(val.clone())),
+            BOOL_ID => bool::from_str(val).ok().map(Constant::Bool),
             _ => {
                 return Err(format!(
                     "the value of '{}.{}' can't be overwritten because its \
@@ -835,9 +836,17 @@ impl<'a> DefineConstants<'a> {
     }
 
     fn run(&mut self, node: &hir::DefineConstant) -> bool {
+        let id = node.constant_id.unwrap();
+
+        // If the constant is overwritten at compile-time it will already have a
+        // value, so we skip processing its value entirely.
+        if self.mir.constants.get(&id).is_some() {
+            return true;
+        }
+
         match self.expression(&node.value) {
             Some(v) => {
-                self.mir.constants.insert(node.constant_id.unwrap(), v);
+                self.mir.constants.insert(id, v);
                 true
             }
             _ => false,
@@ -856,16 +865,7 @@ impl<'a> DefineConstants<'a> {
             hir::ConstExpression::Binary(ref n) => self.binary(n),
             hir::ConstExpression::True(_) => Some(Constant::Bool(true)),
             hir::ConstExpression::False(_) => Some(Constant::Bool(false)),
-            hir::ConstExpression::ConstantRef(ref n) => {
-                // We may refer to a constant for which we have yet to generate
-                // the MIR value. In this case we return a `None` so we can
-                // retry this constant definition at a later stage.
-                if let types::ConstantKind::Constant(id) = n.kind {
-                    self.mir.constants.get(&id).cloned()
-                } else {
-                    unreachable!()
-                }
-            }
+            hir::ConstExpression::ConstantRef(ref n) => self.constant_ref(n),
             hir::ConstExpression::Array(ref n) => n
                 .values
                 .iter()
@@ -874,6 +874,17 @@ impl<'a> DefineConstants<'a> {
                     Some(vals)
                 })
                 .map(|v| Constant::Array(v, n.resolved_type)),
+        }
+    }
+
+    fn constant_ref(&mut self, node: &hir::ConstantRef) -> Option<Constant> {
+        // We may refer to a constant for which we have yet to generate
+        // the MIR value. In this case we return a `None` so we can
+        // retry this constant definition at a later stage.
+        if let types::ConstantKind::Constant(id) = node.kind {
+            self.mir.constants.get(&id).cloned()
+        } else {
+            unreachable!()
         }
     }
 
