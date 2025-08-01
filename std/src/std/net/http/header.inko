@@ -1,0 +1,311 @@
+import std.bytes (Bytes, Slice)
+import std.iter (Stream)
+import std.ptr
+
+let SPACE = 32
+let DQUOTE = 34
+let SCOL = 59
+let EQ = 61
+
+let MISSING = 63
+let MIN_SIZE = 3
+let MAX_SIZE = 32
+let MAX_HASH = 80
+
+let HASH = [
+  81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81,
+  81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81,
+  81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81,
+  81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81,
+  81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81,
+  81, 81, 1, 81, 1, 35, 3, 1, 23, 19, 11, 81, 51, 18, 31, 39, 13, 5, 81, 20, 1,
+  14, 38, 14, 49, 81, 6, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81,
+  81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81,
+  81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81,
+  81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81,
+  81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81,
+  81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81,
+  81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81, 81,
+  81, 81, 81, 81, 81, 81,
+]
+
+let WORDS = [
+  '',
+  '',
+  '',
+  '',
+  '',
+  '',
+  '',
+  'age',
+  '',
+  'alt-svc',
+  'cookie',
+  'expires',
+  'pragma',
+  '',
+  'set-cookie',
+  'accept-ranges',
+  'content-type',
+  'content-range',
+  'via',
+  'accept-language',
+  'content-language',
+  'accept',
+  'if-range',
+  'expect',
+  'vary',
+  'access-control-maxage',
+  'proxy-authenticate',
+  'server',
+  'range',
+  'accept-charset',
+  'etag',
+  'if-modified-since',
+  'cache-control',
+  'if-unmodified-since',
+  'content-length',
+  'access-control-allow-credentials',
+  'from',
+  'host',
+  'if-match',
+  'accept-encoding',
+  'content-encoding',
+  'trailer',
+  'date',
+  'if-none-match',
+  'max-forwards',
+  'access-control-requestheaders',
+  'access-control-request-methods',
+  'referer',
+  'upgrade',
+  'access-control-allow-headers',
+  'connection',
+  'retry-after',
+  'strict-transport-security',
+  'authorization',
+  'transfer-encoding',
+  'allow',
+  'content-location',
+  'access-control-method',
+  'origin',
+  'content-disposition',
+  'proxy-connection',
+  'access-control-allow-methods',
+  'user-agent',
+  'proxy-authorization',
+  'keep-alive',
+  'location',
+  'last-modified',
+  'upgrade-insecure-requests',
+  'www-authenticate',
+  '',
+  '',
+  '',
+  '',
+  'link',
+  '',
+  '',
+  '',
+  '',
+  '',
+  'access-control-request-method',
+  'access-control-allow-origin',
+]
+
+# A mapping of the values in WORDS to the values in the NAMES array.
+let INDEXES = [
+  -1, -1, -1, -1, -1, -1, -1, 14, -1, 16, 27, 31, 45, -1, 53, 4, 26, 25, 61, 3,
+  22, 0, 37, 30, 60, 9, 46, 52, 49, 1, 29, 35, 18, 38, 23, 5, 32, 33, 34, 2, 21,
+  55, 28, 36, 43, 13, 12, 50, 57, 6, 19, 51, 54, 17, 56, 15, 24, 10, 44, 20, 48,
+  7, 59, 47, 39, 42, 40, 58, 62, -1, -1, -1, -1, 41, -1, -1, -1, -1, -1, 11, 8,
+]
+
+# The names of the standard headers.
+let NAMES = [
+  'accept',
+  'accept-charset',
+  'accept-encoding',
+  'accept-language',
+  'accept-ranges',
+  'access-control-allow-credentials',
+  'access-control-allow-headers',
+  'access-control-allow-methods',
+  'access-control-allow-origin',
+  'access-control-maxage',
+  'access-control-method',
+  'access-control-request-method',
+  'access-control-request-methods',
+  'access-control-requestheaders',
+  'age',
+  'allow',
+  'alt-svc',
+  'authorization',
+  'cache-control',
+  'connection',
+  'content-disposition',
+  'content-encoding',
+  'content-language',
+  'content-length',
+  'content-location',
+  'content-range',
+  'content-type',
+  'cookie',
+  'date',
+  'etag',
+  'expect',
+  'expires',
+  'from',
+  'host',
+  'if-match',
+  'if-modified-since',
+  'if-none-match',
+  'if-range',
+  'if-unmodified-since',
+  'keep-alive',
+  'last-modified',
+  'link',
+  'location',
+  'max-forwards',
+  'origin',
+  'pragma',
+  'proxy-authenticate',
+  'proxy-authorization',
+  'proxy-connection',
+  'range',
+  'referer',
+  'retry-after',
+  'server',
+  'set-cookie',
+  'strict-transport-security',
+  'trailer',
+  'transfer-encoding',
+  'upgrade',
+  'upgrade-insecure-requests',
+  'user-agent',
+  'vary',
+  'via',
+  'www-authenticate',
+]
+
+fn hash[B: Bytes](input: ref B) -> Int {
+  let len = input.size
+  let mut val = len
+
+  if len > 21 { val = val + HASH.get(input.get(21).or_panic).or_panic }
+
+  let a = HASH.get(input.get(0).or_panic).or_panic
+  let b = HASH.get(input.get(len - 1).or_panic).or_panic
+
+  val + a + b
+}
+
+# Returns the index of a sequence of header name bytes.
+#
+# The implementation is based on the output of
+# `gperf --multiple-iterations=100 --global-table FILE` where `FILE` is a text
+# file containing the standard header names.
+fn index_of[B: Bytes](input: ref B) -> Int {
+  let len = input.size
+
+  if len < MIN_SIZE or len > MAX_SIZE { return MISSING }
+
+  let key = hash(input)
+
+  if key > MAX_HASH { return MISSING }
+
+  match WORDS.get(key) {
+    case
+      Ok(exp) if len == exp.size and ptr.equal(input.pointer, exp.pointer, len)
+    -> {
+      INDEXES.get(key).or_panic
+    }
+    case _ -> MISSING
+  }
+}
+
+fn split_item[B: Bytes](input: Slice[B]) -> (Slice[B], Option[Slice[B]]) {
+  match input.split_once(';') {
+    case Some((item, pars)) -> (item.trim, Option.Some(pars.trim))
+    case _ -> (input, Option.None)
+  }
+}
+
+fn parameters[B: Bytes](
+  input: ref B,
+) -> Stream[Result[(Slice[B], Slice[B]), Nil]] {
+  let mut idx = 0
+  let max = input.size
+
+  # Values may contain ";" when quoted, so we can't just use Slice.split and
+  # related methods.
+  Stream.new(fn move {
+    # Skip the ";" and any spaces at the start of each parameter pair.
+    while idx < max {
+      match input.get(idx).or_panic {
+        case SPACE or SCOL -> idx += 1
+        case _ -> break
+      }
+    }
+
+    let name_start = idx
+
+    while idx < max {
+      match input.get(idx).or_panic {
+        case SPACE -> return Option.Some(Result.Error(nil))
+        case EQ -> break
+        case _ -> idx += 1
+      }
+    }
+
+    # No name means we've reached the end.
+    if idx - name_start == 0 { return Option.None }
+
+    let name = Slice.checked(input, name_start, idx := idx + 1)
+
+    # We've reached the end of the last parameter without a value.
+    if idx >= max {
+      let val = Slice.new(input, 0, 0)
+
+      return Option.Some(Result.Ok((name, val)))
+    }
+
+    let mut quoted = match input.get(idx) {
+      case Ok(DQUOTE) -> {
+        idx += 1
+        true
+      }
+      case _ -> false
+    }
+
+    let val_start = idx
+    let mut val_end = idx
+
+    while idx < max {
+      match input.get(idx).or_panic {
+        case DQUOTE if quoted -> {
+          quoted = false
+          idx += 1
+          break
+        }
+        case DQUOTE -> return Option.Some(Result.Error(nil))
+        case SCOL if quoted -> {}
+        case SCOL -> {
+          idx += 1
+          break
+        }
+        case _ -> {}
+      }
+
+      val_end += 1
+      idx += 1
+    }
+
+    # We reached the end before the closing quote.
+    if quoted { return Option.Some(Result.Error(nil)) }
+
+    let val = Slice.checked(input, val_start, val_end)
+
+    Option.Some(Result.Ok((name, val)))
+  })
+}

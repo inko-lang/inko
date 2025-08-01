@@ -1,0 +1,67 @@
+import std.bytes (Bytes)
+import std.ptr
+
+let MIN_SIZE = 3
+let MAX_SIZE = 7
+let MAX_HASH = 10
+
+let HASH = [
+  11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11,
+  11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11,
+  11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11,
+  11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 3, 3, 11, 11, 5, 2, 11, 11, 11, 11,
+  11, 11, 0, 0, 11, 11, 11, 0, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11,
+  11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11,
+  11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11,
+  11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11,
+  11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11,
+  11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11,
+  11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11,
+  11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11,
+  11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11,
+  11, 11, 11, 11, 11, 11, 11,
+]
+
+let WORDS = [
+  '',
+  '',
+  '',
+  'PUT',
+  'POST',
+  'TRACE',
+  'HEAD',
+  'OPTIONS',
+  'GET',
+  'DELETE',
+  'CONNECT',
+]
+
+let INDEXES = [-1, -1, -1, 2, 1, 7, 4, 5, 0, 3, 6]
+
+fn hash[B: Bytes](input: ref B) -> Int {
+  input.size + HASH.get(input.get(0).or_panic).or_panic
+}
+
+# Returns the index of a sequence of request method name bytes.
+#
+# The implementation is based on the output of
+# `gperf --multiple-iterations=100 --global-table FILE` where `FILE` is a text
+# file containing the request method names.
+fn index_of[B: Bytes](input: ref B) -> Option[Int] {
+  let len = input.size
+
+  if len < MIN_SIZE or len > MAX_SIZE { return Option.None }
+
+  let key = hash(input)
+
+  if key > MAX_HASH { return Option.None }
+
+  match WORDS.get(key) {
+    case
+      Ok(exp) if len == exp.size and ptr.equal(input.pointer, exp.pointer, len)
+    -> {
+      INDEXES.get(key).ok
+    }
+    case _ -> Option.None
+  }
+}
