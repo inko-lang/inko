@@ -281,6 +281,10 @@ fn pub tests(t: mut Tests) {
     }
   })
 
+  t.test('Path.empty', fn (t) { t.true(Path.empty.empty?) })
+
+  t.test('Path.root', fn (t) { t.equal(Path.root, Path('/')) })
+
   t.test('Path.new', fn (t) {
     t.equal(Path.new('a'), Option.Some(Path('a')))
     t.equal(Path.new('a/b'), Option.Some(Path('a/b')))
@@ -533,6 +537,8 @@ fn pub tests(t: mut Tests) {
     }
   })
 
+  t.test('Query.empty', fn (t) { t.true(Query.empty.empty?) })
+
   t.test('Query.new', fn (t) {
     t.equal(Query.new('foo'), Option.Some(Query('foo')))
     t.equal(Query.new('?foo'), Option.Some(Query('?foo')))
@@ -576,6 +582,8 @@ fn pub tests(t: mut Tests) {
     t.equal(Query.new('foo').get.to_string, 'foo')
     t.equal(Query.new('a%20b').get.to_string, 'a b')
   })
+
+  t.test('Fragment.empty', fn (t) { t.true(Fragment.empty.empty?) })
 
   t.test('Fragment.new', fn (t) {
     t.equal(Fragment.new('foo'), Option.Some(Fragment('foo')))

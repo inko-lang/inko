@@ -1034,6 +1034,30 @@ type pub inline Path {
     Result.Ok((res, idx))
   }
 
+  # Returns an empty `Path`
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (Path)
+  #
+  # Path.empty.empty? # => true
+  # ```
+  fn pub static empty -> Self {
+    Self('')
+  }
+
+  # Returns the root `Path`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # Path.root # => Path('/')
+  # ```
+  fn pub static root -> Self {
+    Self('/')
+  }
+
   # Returns a `Path` created from the given `String`.
   #
   # If the supplied path string is invalid, an `Option.None` is returned.
@@ -1769,6 +1793,19 @@ type pub inline Query {
     Result.Ok((res, idx))
   }
 
+  # Returns an empty `Query`
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (Query)
+  #
+  # Query.empty.empty? # => true
+  # ```
+  fn pub static empty -> Self {
+    Self('')
+  }
+
   # Parses a `Query` from the given `String`.
   #
   # The input should _not_ start with a `?` as it will be treated as being part
@@ -1959,6 +1996,19 @@ type pub inline Fragment {
     Result.Ok((res, idx))
   }
 
+  # Returns an empty `Fragment`
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (Fragment)
+  #
+  # Fragment.empty.empty? # => true
+  # ```
+  fn pub static empty -> Self {
+    Self('')
+  }
+
   # Parses a `Fragment` from the given `String`.
   #
   # The input should _not_ start with a `#` as it will be treated as being part
@@ -2118,9 +2168,9 @@ type pub Uri {
       user_info: Option.None,
       host: Option.None,
       port: Option.None,
-      path: Path(''),
-      query: Query(''),
-      fragment: Fragment(''),
+      path: Path.empty,
+      query: Query.empty,
+      fragment: Fragment.empty,
     )
   }
 
