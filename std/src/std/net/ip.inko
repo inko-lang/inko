@@ -4,6 +4,7 @@ import std.bytes.parsers (digit?)
 import std.clone (Clone)
 import std.cmp (Equal)
 import std.fmt (Format as FormatTrait, Formatter)
+import std.hash (Hash, Hasher)
 import std.int (Format)
 import std.string (IntoString, StringBuffer, ToString)
 
@@ -216,6 +217,15 @@ impl Clone for IpAddress {
 impl FormatTrait for IpAddress {
   fn pub fmt(formatter: mut Formatter) {
     formatter.write(to_string)
+  }
+}
+
+impl Hash for IpAddress {
+  fn pub hash[H: mut + Hasher](hasher: mut H) {
+    match self {
+      case V4(v) -> v.hash(hasher)
+      case V6(v) -> v.hash(hasher)
+    }
   }
 }
 
@@ -648,6 +658,19 @@ impl Clone for Ipv6Address {
   }
 }
 
+impl Hash for Ipv6Address {
+  fn pub hash[H: mut + Hasher](hasher: mut H) {
+    @a.hash(hasher)
+    @b.hash(hasher)
+    @c.hash(hasher)
+    @d.hash(hasher)
+    @e.hash(hasher)
+    @f.hash(hasher)
+    @g.hash(hasher)
+    @h.hash(hasher)
+  }
+}
+
 # An IPv4 address.
 type pub copy Ipv4Address {
   let @a: Int
@@ -969,5 +992,14 @@ impl IntoString for Ipv4Address {
 impl Clone for Ipv4Address {
   fn pub inline clone -> Ipv4Address {
     Ipv4Address(a: @a, b: @b, c: @c, d: @d)
+  }
+}
+
+impl Hash for Ipv4Address {
+  fn pub hash[H: mut + Hasher](hasher: mut H) {
+    @a.hash(hasher)
+    @b.hash(hasher)
+    @c.hash(hasher)
+    @d.hash(hasher)
   }
 }
