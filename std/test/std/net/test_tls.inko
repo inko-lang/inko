@@ -9,7 +9,9 @@ import std.net.tls (
   Client, ClientConfig, Server, ServerConfig, ServerConfigError,
 )
 import std.sync (Future, Promise)
+import std.sys.net (NO_DEADLINE)
 import std.test (Tests)
+import std.time (Duration, Instant)
 
 # A private key of which the content is invalid.
 let INVALID_KEY = '
@@ -509,6 +511,30 @@ fn pub tests(t: mut Tests) {
     Result.Ok(nil)
   })
 
+  t.ok('Client.timeout_after=', fn (t) {
+    let port = match DummyServer.new {
+      case Ok((server, port)) -> {
+        server.reply
+        port
+      }
+      case Error(e) -> throw e
+    }
+
+    let conf = try client_config
+    let sock = try connect(port)
+    let client = Client.new(sock, conf, name: 'localhost').get
+
+    let deadline = Instant.new + Duration.from_secs(1)
+
+    client.timeout_after = deadline
+    t.equal(client.socket.socket.deadline, deadline.to_int)
+
+    client.reset_deadline
+    t.equal(client.socket.socket.deadline, NO_DEADLINE)
+
+    Result.Ok(nil)
+  })
+
   # Not much to test here, so this test mostly exists to make sure the
   # underlying code doesn't blow up outright.
   t.ok('Server.new', fn (t) {
@@ -619,6 +645,34 @@ fn pub tests(t: mut Tests) {
 
         t.equal(try server.send_file(file).map_error(fn (e) { e.to_string }), 6)
         t.equal(recover out.get, Result.Ok('hello'))
+      }
+    }
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Server.timeout_after=', fn (t) {
+    let sock_fut = match Future.new {
+      case (future, promise) -> {
+        match try listener {
+          case (sock, port) -> {
+            DummyClient().reply(port, promise)
+            (sock, future)
+          }
+        }
+      }
+    }
+
+    match sock_fut {
+      case (sock, _) -> {
+        let server = try accept(sock)
+        let deadline = Instant.new + Duration.from_secs(1)
+
+        server.timeout_after = deadline
+        t.equal(server.socket.socket.deadline, deadline.to_int)
+
+        server.reset_deadline
+        t.equal(server.socket.socket.deadline, NO_DEADLINE)
       }
     }
 

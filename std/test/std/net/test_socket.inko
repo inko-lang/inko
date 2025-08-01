@@ -12,7 +12,7 @@ import std.net.socket (
 import std.string (ToString)
 import std.sys.net (NO_DEADLINE)
 import std.test (Tests)
-import std.time (Duration)
+import std.time (Duration, Instant)
 
 type SocketPath {
   let @path: Path
@@ -777,6 +777,20 @@ fn pub tests(t: mut Tests) {
     t.true(server.try_clone.ok?)
   })
 
+  t.ok('TcpServer.timeout_after=', fn (t) {
+    let ip = IpAddress.V4(Ipv4Address.new(127, 0, 0, 1))
+    let server = try TcpServer.new(ip: ip, port: 0)
+    let deadline = Instant.new + Duration.from_secs(1)
+
+    server.timeout_after = deadline
+    t.equal(server.socket.deadline, deadline.to_int)
+
+    server.reset_deadline
+    t.equal(server.socket.deadline, NO_DEADLINE)
+
+    Result.Ok(nil)
+  })
+
   t.test('UnixAddress.to_path', fn (t) {
     t.equal(UnixAddress('foo.sock').to_path, Option.Some('foo.sock'.to_path))
     t.true(UnixAddress('\0foo').to_path.none?)
@@ -1393,6 +1407,20 @@ fn pub tests(t: mut Tests) {
     t.true(server.try_clone.ok?)
   })
 
+  t.ok('UnixClient.timeout_after=', fn (t) {
+    let path = SocketPath.new(t.id)
+    let sock = try UnixServer.new(path.path)
+    let deadline = Instant.new + Duration.from_secs(1)
+
+    sock.timeout_after = deadline
+    t.equal(sock.socket.deadline, deadline.to_int)
+
+    sock.reset_deadline
+    t.equal(sock.socket.deadline, NO_DEADLINE)
+
+    Result.Ok(nil)
+  })
+
   t.ok('Socket.send_file', fn (t) {
     let server = try Socket.stream(ipv6: false)
     let client = try Socket.stream(ipv6: false)
@@ -1433,6 +1461,19 @@ fn pub tests(t: mut Tests) {
     Result.Ok(nil)
   })
 
+  t.ok('UdpSocket.timeout_after=', fn (t) {
+    let sock = try UdpSocket.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let deadline = Instant.new + Duration.from_secs(1)
+
+    sock.timeout_after = deadline
+    t.equal(sock.socket.deadline, deadline.to_int)
+
+    sock.reset_deadline
+    t.equal(sock.socket.deadline, NO_DEADLINE)
+
+    Result.Ok(nil)
+  })
+
   t.ok('TcpClient.send_file', fn (t) {
     let server = try Socket.stream(ipv6: false)
 
@@ -1450,6 +1491,22 @@ fn pub tests(t: mut Tests) {
     t.equal(buf.to_string, 'hello\n')
     t.equal(file.read_all(buf), Result.Ok(6))
     t.equal(buf.to_string, 'hello\nhello\n')
+    Result.Ok(nil)
+  })
+
+  t.ok('TcpClient.timeout_after=', fn (t) {
+    let ip = IpAddress.V4(Ipv4Address.new(127, 0, 0, 1))
+    let server = try TcpServer.new(ip: ip, port: 0)
+    let addr = try server.local_address
+    let client = try TcpClient.new([addr.ip], addr.port)
+    let deadline = Instant.new + Duration.from_secs(1)
+
+    client.timeout_after = deadline
+    t.equal(client.socket.deadline, deadline.to_int)
+
+    client.reset_deadline
+    t.equal(client.socket.deadline, NO_DEADLINE)
+
     Result.Ok(nil)
   })
 
@@ -1494,6 +1551,20 @@ fn pub tests(t: mut Tests) {
     Result.Ok(nil)
   })
 
+  t.ok('UnixDatagram.timeout_after=', fn (t) {
+    let path = SocketPath.new(t.id)
+    let sock = try UnixDatagram.new(path.path)
+    let deadline = Instant.new + Duration.from_secs(1)
+
+    sock.timeout_after = deadline
+    t.equal(sock.socket.deadline, deadline.to_int)
+
+    sock.reset_deadline
+    t.equal(sock.socket.deadline, NO_DEADLINE)
+
+    Result.Ok(nil)
+  })
+
   t.ok('UnixClient.send_file', fn (t) {
     let path = SocketPath.new(t.id)
     let server = try UnixSocket.stream
@@ -1511,6 +1582,21 @@ fn pub tests(t: mut Tests) {
     t.equal(buf.to_string, 'hello\n')
     t.equal(file.read_all(buf), Result.Ok(6))
     t.equal(buf.to_string, 'hello\nhello\n')
+    Result.Ok(nil)
+  })
+
+  t.ok('UnixClient.timeout_after=', fn (t) {
+    let path = SocketPath.new(t.id)
+    let _server = try UnixServer.new(path.path)
+    let client = try UnixClient.new(path.path)
+    let deadline = Instant.new + Duration.from_secs(1)
+
+    client.timeout_after = deadline
+    t.equal(client.socket.deadline, deadline.to_int)
+
+    client.reset_deadline
+    t.equal(client.socket.deadline, NO_DEADLINE)
+
     Result.Ok(nil)
   })
 }

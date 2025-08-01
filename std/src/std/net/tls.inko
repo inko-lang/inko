@@ -30,11 +30,12 @@ import std.drop (Drop)
 import std.fmt (Format, Formatter)
 import std.fs.file (ReadOnlyFile)
 import std.io (Error, Read, Write, WriteInternal)
-import std.net.socket (RawSocketOperations, SendFile)
+import std.net.socket (Deadline, RawSocketOperations, SendFile)
 import std.ptr
 import std.string (PrimitiveString, ToString)
 import std.sys.net
 import std.sys.unix.net (self as sys)
+import std.time (ToInstant)
 
 # The error code produced when a TLS certificate is invalid.
 let INVALID_CERT = -1
@@ -324,7 +325,7 @@ impl Clone for ClientConfig {
 #
 # client.read_all(response).or_panic_with('failed to read the response')
 # ```
-type pub Client[T: mut + RawSocketOperations] {
+type pub Client[T: mut + Deadline + RawSocketOperations] {
   # The socket wrapped by this `Client`.
   let pub @socket: T
 
@@ -394,6 +395,16 @@ type pub Client[T: mut + RawSocketOperations] {
       case { @tag = 1 } -> Result.Ok(nil)
       case { @value = e } -> Result.Error(Error.from_os_error(e))
     }
+  }
+}
+
+impl Deadline for Client {
+  fn pub mut timeout_after=[I: ToInstant](deadline: ref I) {
+    @socket.timeout_after = deadline
+  }
+
+  fn pub mut reset_deadline {
+    @socket.reset_deadline
   }
 }
 
@@ -586,7 +597,7 @@ impl Clone for ServerConfig {
 #
 # con.read(into: bytes, size: 32).or_panic_with('failed to read the data')
 # ```
-type pub Server[T: mut + RawSocketOperations] {
+type pub Server[T: mut + Deadline + RawSocketOperations] {
   # The socket wrapped by this `Server`.
   let pub @socket: T
 
@@ -644,6 +655,16 @@ type pub Server[T: mut + RawSocketOperations] {
       case { @tag = 1 } -> Result.Ok(nil)
       case { @value = e } -> Result.Error(Error.from_os_error(e))
     }
+  }
+}
+
+impl Deadline for Server {
+  fn pub mut timeout_after=[I: ToInstant](deadline: ref I) {
+    @socket.timeout_after = deadline
+  }
+
+  fn pub mut reset_deadline {
+    @socket.reset_deadline
   }
 }
 

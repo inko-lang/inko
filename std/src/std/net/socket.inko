@@ -160,6 +160,52 @@ trait SendFile[E]: RawSocketOperations {
   fn pub mut send_file(file: mut ReadOnlyFile) -> Result[Int, E]
 }
 
+trait Deadline {
+  # Sets the point in time after which socket operations must time out, known as
+  # a "deadline".
+  #
+  # # Examples
+  #
+  # Using a `Duration` results in this method calculating the absolute time
+  # after which operations time out:
+  #
+  # ```inko
+  # import std.net.socket (Socket)
+  # import std.time (Duration)
+  #
+  # let socket = Socket.datagram(ipv6: false)
+  #
+  # socket.timeout_after = Duration.from_secs(5)
+  # ```
+  #
+  # We can also use an `Instant`:
+  #
+  # ```inko
+  # import std.net.socket (Socket)
+  # import std.time (Duration, Instant)
+  #
+  # let socket = Socket.datagram(ipv6: false)
+  #
+  # socket.timeout_after = Instant.new + Duration.from_secs(5)
+  # ```
+  fn pub mut timeout_after=[T: ToInstant](deadline: ref T)
+
+  # Resets the deadline.
+  #
+  # Examples
+  #
+  # ```inko
+  # import std.net.socket (Socket)
+  # import std.time (Duration)
+  #
+  # let socket = Socket.datagram(ipv6: false)
+  #
+  # socket.timeout_after = Duration.from_secs(5)
+  # socket.reset_deadline
+  # ```
+  fn pub mut reset_deadline
+}
+
 # An IPv4 or IPv6 socket address.
 type pub copy SocketAddress {
   # The IPv4/IPv6 address of this socket address.
@@ -251,42 +297,6 @@ type pub Socket {
   # ```
   fn pub static raw(ipv6: Bool, protocol: Int) -> Result[Socket, Error] {
     Socket.new(ipv6, libc.SOCK_RAW, protocol)
-  }
-
-  # Sets the point in time after which socket operations must time out, known as
-  # a "deadline".
-  #
-  # # Examples
-  #
-  # Using a `Duration` results in this method calculating the absolute time
-  # after which operations time out:
-  #
-  # ```inko
-  # import std.net.socket (Socket)
-  # import std.time (Duration)
-  #
-  # let socket = Socket.datagram(ipv6: false)
-  #
-  # socket.timeout_after = Duration.from_secs(5)
-  # ```
-  #
-  # We can also use an `Instant`:
-  #
-  # ```inko
-  # import std.net.socket (Socket)
-  # import std.time (Duration, Instant)
-  #
-  # let socket = Socket.datagram(ipv6: false)
-  #
-  # socket.timeout_after = Instant.new + Duration.from_secs(5)
-  # ```
-  fn pub mut timeout_after=[T: ToInstant](deadline: ref T) {
-    @deadline = deadline.to_instant.to_int
-  }
-
-  # Clears the deadline to apply to socket operations.
-  fn pub mut reset_deadline {
-    @deadline = net.NO_DEADLINE
   }
 
   # Binds this socket to the specified address.
@@ -602,6 +612,16 @@ type pub Socket {
   }
 }
 
+impl Deadline for Socket {
+  fn pub mut timeout_after=[T: ToInstant](deadline: ref T) {
+    @deadline = deadline.to_instant.to_int
+  }
+
+  fn pub mut reset_deadline {
+    @deadline = net.NO_DEADLINE
+  }
+}
+
 impl RawSocketOperations for Socket {
   fn mut raw_socket -> Pointer[net.RawSocket] {
     @socket
@@ -745,6 +765,16 @@ type pub UdpSocket {
   # descriptors.
   fn pub try_clone -> Result[UdpSocket, Error] {
     @socket.try_clone.map(fn (sock) { UdpSocket(sock) })
+  }
+}
+
+impl Deadline for UdpSocket {
+  fn pub mut timeout_after=[T: ToInstant](deadline: ref T) {
+    @socket.timeout_after = deadline
+  }
+
+  fn pub mut reset_deadline {
+    @socket.reset_deadline
   }
 }
 
@@ -924,6 +954,16 @@ type pub TcpClient {
   }
 }
 
+impl Deadline for TcpClient {
+  fn pub mut timeout_after=[T: ToInstant](deadline: ref T) {
+    @socket.timeout_after = deadline
+  }
+
+  fn pub mut reset_deadline {
+    @socket.reset_deadline
+  }
+}
+
 impl RawSocketOperations for TcpClient {
   fn mut raw_socket -> Pointer[net.RawSocket] {
     @socket.socket
@@ -1030,6 +1070,16 @@ type pub TcpServer {
   # descriptors.
   fn pub try_clone -> Result[TcpServer, Error] {
     @socket.try_clone.map(fn (sock) { TcpServer(sock) })
+  }
+}
+
+impl Deadline for TcpServer {
+  fn pub mut timeout_after=[T: ToInstant](deadline: ref T) {
+    @socket.timeout_after = deadline
+  }
+
+  fn pub mut reset_deadline {
+    @socket.reset_deadline
   }
 }
 
@@ -1185,42 +1235,6 @@ type pub UnixSocket {
   # ```
   fn pub static datagram -> Result[UnixSocket, Error] {
     UnixSocket.new(libc.SOCK_DGRAM)
-  }
-
-  # Sets the point in time after which socket operations must time out, known as
-  # a "deadline".
-  #
-  # # Examples
-  #
-  # Using a `Duration` results in this method calculating the absolute time
-  # after which operations time out:
-  #
-  # ```inko
-  # import std.net.socket (UnixSocket)
-  # import std.time (Duration)
-  #
-  # let socket = UnixSocket.datagram
-  #
-  # socket.timeout_after = Duration.from_secs(5)
-  # ```
-  #
-  # We can also use an `Instant`:
-  #
-  # ```inko
-  # import std.net.socket (UnixSocket)
-  # import std.time (Duration, Instant)
-  #
-  # let socket = UnixSocket.datagram
-  #
-  # socket.timeout_after = Instant.new + Duration.from_secs(5)
-  # ```
-  fn pub mut timeout_after=[T: ToInstant](deadline: ref T) {
-    @deadline = deadline.to_instant.to_int
-  }
-
-  # Clears the deadline to apply to socket operations.
-  fn pub mut reset_deadline {
-    @deadline = net.NO_DEADLINE
   }
 
   # Binds this socket to the specified path or abstract address.
@@ -1451,6 +1465,16 @@ type pub UnixSocket {
   }
 }
 
+impl Deadline for UnixSocket {
+  fn pub mut timeout_after=[T: ToInstant](deadline: ref T) {
+    @deadline = deadline.to_instant.to_int
+  }
+
+  fn pub mut reset_deadline {
+    @deadline = net.NO_DEADLINE
+  }
+}
+
 impl RawSocketOperations for UnixSocket {
   fn mut raw_socket -> Pointer[net.RawSocket] {
     @socket
@@ -1587,6 +1611,16 @@ type pub UnixDatagram {
   }
 }
 
+impl Deadline for UnixDatagram {
+  fn pub mut timeout_after=[T: ToInstant](deadline: ref T) {
+    @socket.timeout_after = deadline
+  }
+
+  fn pub mut reset_deadline {
+    @socket.reset_deadline
+  }
+}
+
 impl RawSocketOperations for UnixDatagram {
   fn mut raw_socket -> Pointer[net.RawSocket] {
     @socket.socket
@@ -1719,6 +1753,16 @@ type pub UnixClient {
   }
 }
 
+impl Deadline for UnixClient {
+  fn pub mut timeout_after=[T: ToInstant](deadline: ref T) {
+    @socket.timeout_after = deadline
+  }
+
+  fn pub mut reset_deadline {
+    @socket.reset_deadline
+  }
+}
+
 impl RawSocketOperations for UnixClient {
   fn mut raw_socket -> Pointer[net.RawSocket] {
     @socket.socket
@@ -1817,6 +1861,16 @@ type pub UnixServer {
   # descriptors.
   fn pub try_clone -> Result[UnixServer, Error] {
     @socket.try_clone.map(fn (sock) { UnixServer(sock) })
+  }
+}
+
+impl Deadline for UnixServer {
+  fn pub mut timeout_after=[T: ToInstant](deadline: ref T) {
+    @socket.timeout_after = deadline
+  }
+
+  fn pub mut reset_deadline {
+    @socket.reset_deadline
   }
 }
 
