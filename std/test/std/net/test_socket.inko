@@ -263,6 +263,18 @@ fn pub tests(t: mut Tests) {
     t.true((socket.keepalive = true).ok?)
   })
 
+  t.test('Socket.keepalive_time=', fn (t) {
+    let socket = Socket.stream(ipv6: false).get
+
+    t.true((socket.keepalive_time = Duration.from_secs(30)).ok?)
+  })
+
+  t.test('Socket.keepalive_interval=', fn (t) {
+    let socket = Socket.stream(ipv6: false).get
+
+    t.true((socket.keepalive_interval = Duration.from_secs(30)).ok?)
+  })
+
   t.test('Socket.reuse_adress=', fn (t) {
     let socket = Socket.datagram(ipv6: true).get
 

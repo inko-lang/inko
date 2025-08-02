@@ -104,8 +104,14 @@ let S_IFDIR = 0x4000
 let S_IFLNK = 0xA000
 let S_IFMT = 0xF000
 let S_IFREG = 0x8000
+let TCP_KEEPALIVE = 16
+let TCP_KEEPINTVL = 257
 let TCP_NODELAY = 1
 let WNOHANG = 0x00000001
+
+# macOS uses TCP_KEEPALIVE instead of TCP_KEEPIDLE. The latter is apparently too
+# mainstream. We alias them here such std.libc doesn't need to know about this.
+let TCP_KEEPIDLE = TCP_KEEPALIVE
 
 # For macOS we need to use `SO_LINGER_SEC` to control the time in seconds
 # instead of ticks, and `SO_LINGER` itself isn't useful.

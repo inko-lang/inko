@@ -564,6 +564,16 @@ type pub Socket {
     set_option(libc.SOL_SOCKET, libc.SO_KEEPALIVE, value.to_int)
   }
 
+  # Sets the TCP keep-alive time to the given value.
+  fn pub mut keepalive_time=(value: Duration) -> Result[Nil, Error] {
+    set_option(libc.IPPROTO_TCP, libc.TCP_KEEPIDLE, value.to_secs.to_int)
+  }
+
+  # Sets the TCP keep-alive interval to the given value.
+  fn pub mut keepalive_interval=(value: Duration) -> Result[Nil, Error] {
+    set_option(libc.IPPROTO_TCP, libc.TCP_KEEPINTVL, value.to_secs.to_int)
+  }
+
   # Sets the value of the `SO_REUSEADDR` option.
   fn pub mut reuse_address=(value: Bool) -> Result[Nil, Error] {
     set_option(libc.SOL_SOCKET, libc.SO_REUSEADDR, value.to_int)
