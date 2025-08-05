@@ -143,7 +143,9 @@ pub unsafe extern "system" fn inko_tls_client_connection_new(
     config: *const ClientConfig,
     server: PrimitiveString,
 ) -> Result {
-    let name = match ServerName::try_from(server.as_str()) {
+    // ServerName::try_from supports both T and &T as input. We need a T here
+    // as the Inko String input may not outlive the TLS client.
+    let name = match ServerName::try_from(server.as_str().to_string()) {
         Ok(v) => v,
         Err(_) => return Result::none(),
     };
