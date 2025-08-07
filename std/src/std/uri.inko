@@ -22,9 +22,10 @@ import std.bytes.parsers (
 import std.clone (Clone)
 import std.cmp (Equal)
 import std.fmt (Format, Formatter)
+import std.hash (Hash, Hasher)
 import std.iter (Iter, Stream)
 import std.map (MissingKey)
-import std.net.ip (Ipv4Address, Ipv6Address)
+import std.net.ip (IpAddress, Ipv4Address, Ipv6Address)
 import std.string (ToString)
 import std.uri.tables
 
@@ -524,6 +525,19 @@ impl ToString for Scheme {
   }
 }
 
+impl Hash for Scheme {
+  fn pub hash[H: mut + Hasher](hasher: mut H) {
+    match self {
+      case Http -> 0.hash(hasher)
+      case Https -> 1.hash(hasher)
+      case Ws -> 2.hash(hasher)
+      case Wss -> 3.hash(hasher)
+      case File -> 4.hash(hasher)
+      case Other(v) -> v.hash(hasher)
+    }
+  }
+}
+
 # A username and an optional password.
 type pub inline UserInfo {
   # The name of the user.
@@ -652,6 +666,12 @@ type pub inline UserInfo {
   }
 }
 
+impl Clone for UserInfo {
+  fn pub clone -> Self {
+    Self(name: @name, password: @password)
+  }
+}
+
 impl Format for UserInfo {
   fn pub fmt(formatter: mut Formatter) {
     formatter
@@ -680,11 +700,8 @@ type pub inline enum Host {
   # normalization of its input, ensuring the host is always RFC 3986 compliant.
   case Named(String)
 
-  # An IPv4 address.
-  case Ipv4(Ipv4Address)
-
-  # An IPv6 address.
-  case Ipv6(Ipv6Address)
+  # An IPv4 or IPv6 address.
+  case Ip(IpAddress)
 
   # An IPvFuture address.
   #
@@ -772,7 +789,7 @@ type pub inline enum Host {
       Host.Named(buffer.drain_to_string)
     } else if maybe_ip {
       match Ipv4Address.parse(slice) {
-        case Some(v) -> Host.Ipv4(v)
+        case Some(v) -> Host.Ip(IpAddress.V4(v))
         case _ -> Host.Named(slice.to_string)
       }
     } else {
@@ -839,7 +856,9 @@ type pub inline enum Host {
       match input.get(idx).or_panic {
         case RBRK -> {
           match Ipv6Address.parse(Slice.new(input, start, idx)) {
-            case Some(v) -> return Result.Ok((Host.Ipv6(v), idx + 1))
+            case Some(v) -> {
+              return Result.Ok((Host.Ip(IpAddress.V6(v)), idx + 1))
+            }
             case _ -> throw Error.InvalidHost
           }
         }
@@ -881,8 +900,7 @@ type pub inline enum Host {
 
   fn encode(buffer: mut ByteArray) {
     match self {
-      case Ipv4(v) -> buffer.append(v.to_string)
-      case Ipv6(v) -> buffer.append(v.to_string)
+      case Ip(v) -> buffer.append(v.to_string)
       case Future(v) -> buffer.append(v)
       case Named(v) -> encode_into(v, buffer, tables.ENCODE_HOST)
     }
@@ -893,8 +911,7 @@ impl Format for Host {
   fn pub fmt(formatter: mut Formatter) {
     match self {
       case Named(v) -> formatter.tuple('Named').field(v).finish
-      case Ipv4(v) -> formatter.tuple('Ipv4').field(v).finish
-      case Ipv6(v) -> formatter.tuple('Ipv6').field(v).finish
+      case Ip(v) -> formatter.tuple('Ip').field(v).finish
       case Future(v) -> formatter.tuple('Future').field(v).finish
     }
   }
@@ -904,10 +921,38 @@ impl Equal for Host {
   fn pub ==(other: ref Host) -> Bool {
     match (self, other) {
       case (Named(a), Named(b)) -> a == b
-      case (Ipv4(a), Ipv4(b)) -> a == b
-      case (Ipv6(a), Ipv6(b)) -> a == b
+      case (Ip(a), Ip(b)) -> a == b
       case (Future(a), Future(b)) -> a == b
       case _ -> false
+    }
+  }
+}
+
+impl ToString for Host {
+  fn pub to_string -> String {
+    let buf = ByteArray.new
+
+    encode(buf)
+    buf.into_string
+  }
+}
+
+impl Hash for Host {
+  fn pub hash[H: mut + Hasher](hasher: mut H) {
+    match self {
+      case Named(v) -> v.hash(hasher)
+      case Ip(v) -> v.hash(hasher)
+      case Future(v) -> v.hash(hasher)
+    }
+  }
+}
+
+impl Clone for Host {
+  fn pub clone -> Self {
+    match self {
+      case Named(v) -> Host.Named(v)
+      case Ip(v) -> Host.Ip(v)
+      case Future(v) -> Host.Future(v)
     }
   }
 }
@@ -1182,6 +1227,12 @@ type pub inline Path {
   # ```
   fn pub inline empty? -> Bool {
     size == 0
+  }
+}
+
+impl Clone for Path {
+  fn pub clone -> Self {
+    Self(@value)
   }
 }
 
@@ -1891,6 +1942,12 @@ type pub inline Query {
   }
 }
 
+impl Clone for Query {
+  fn pub clone -> Self {
+    Self(@value)
+  }
+}
+
 impl ToByteArray for Query {
   # Returns a `ByteArray` containing the percent-decoded value of `self`.
   #
@@ -2069,6 +2126,12 @@ type pub inline Fragment {
   fn encode(output: mut ByteArray) {
     output.push(HASH)
     encode_into(to_byte_array, output, tables.ENCODE_FRAGMENT)
+  }
+}
+
+impl Clone for Fragment {
+  fn pub clone -> Self {
+    Self(@value)
   }
 }
 
@@ -2253,6 +2316,56 @@ type pub Uri {
 
     Result.Ok(uri)
   }
+
+  # Returns a `String` containing the host and the optional port number (if
+  # present).
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (Uri)
+  #
+  # let uri = Uri.parse('http://example.com:1234').or_panic
+  #
+  # uri.host_and_port # => 'example.com:1234'
+  # ```
+  fn pub host_and_port -> String {
+    let buf = ByteArray.new
+
+    encode_host_port(buf)
+    buf.into_string
+  }
+
+  fn encode_host_port(buffer: mut ByteArray) {
+    match @host {
+      case Some(h) -> h.encode(buffer)
+      case _ -> {}
+    }
+
+    match (@scheme, @port) {
+      case (Some(Http or Ws), Some(80)) -> {}
+      case (Some(Https or Wss), Some(443)) -> {}
+      case (_, Some(v)) -> {
+        buffer.push(COL)
+        buffer.append(v.to_string)
+      }
+      case _ -> {}
+    }
+  }
+}
+
+impl Clone for Uri {
+  fn pub clone -> Self {
+    Self(
+      scheme: @scheme.clone,
+      user_info: @user_info.clone,
+      host: @host.clone,
+      port: @port.clone,
+      path: @path.clone,
+      query: @query.clone,
+      fragment: @fragment.clone,
+    )
+  }
 }
 
 impl Format for Uri {
@@ -2309,20 +2422,7 @@ impl ToString for Uri {
       case _ -> {}
     }
 
-    match @host {
-      case Some(h) -> h.encode(buf)
-      case _ -> {}
-    }
-
-    match (@scheme, @port) {
-      case (Some(Http or Ws), Some(80)) -> {}
-      case (Some(Https or Wss), Some(443)) -> {}
-      case (_, Some(v)) -> {
-        buf.push(COL)
-        buf.append(v.to_string)
-      }
-      case _ -> {}
-    }
+    encode_host_port(buf)
 
     if @path.size > 0 { @path.encode(@scheme.clone, buf) }
 

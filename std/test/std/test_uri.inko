@@ -1,6 +1,7 @@
+import helpers (hash)
 import std.fmt (fmt)
 import std.map (MissingKey)
-import std.net.ip (Ipv4Address, Ipv6Address)
+import std.net.ip (IpAddress)
 import std.test (Tests)
 import std.uri (
   Error, Fragment, Host, Path, PathComponent, Query, Scheme, Uri, UserInfo,
@@ -43,12 +44,8 @@ fn named(name: String) -> Option[Host] {
   Option.Some(Host.Named(name))
 }
 
-fn v4(ip: String) -> Option[Host] {
-  Option.Some(Host.Ipv4(Ipv4Address.parse(ip).get))
-}
-
-fn v6(ip: String) -> Option[Host] {
-  Option.Some(Host.Ipv6(Ipv6Address.parse(ip).get))
+fn ip(ip: String) -> Option[Host] {
+  Option.Some(Host.Ip(IpAddress.parse(ip).get))
 }
 
 fn future(ip: String) -> Option[Host] {
@@ -223,6 +220,19 @@ fn pub tests(t: mut Tests) {
     t.equal(Scheme.Other('foo').to_string, 'foo')
   })
 
+  t.test('Scheme.hash', fn (t) {
+    let tests = [
+      Scheme.Http,
+      Scheme.Https,
+      Scheme.Ws,
+      Scheme.Wss,
+      Scheme.File,
+      Scheme.Other('a'),
+    ]
+
+    for scheme in tests { t.equal(hash(scheme), hash(scheme)) }
+  })
+
   t.test('UserInfo.fmt', fn (t) {
     t.equal(
       fmt(UserInfo(name: 'alice', password: 'hunter2')),
@@ -240,6 +250,13 @@ fn pub tests(t: mut Tests) {
     t.not_equal(b, c)
   })
 
+  t.test('UserInfo.clone', fn (t) {
+    t.equal(
+      UserInfo(name: 'alice', password: 'a').clone,
+      UserInfo(name: 'alice', password: 'a'),
+    )
+  })
+
   t.test('Host.named', fn (t) {
     t.equal(Host.named('example.com'), Option.Some(Host.Named('example.com')))
     t.equal(Host.named('EXAMPLE.com'), Option.Some(Host.Named('example.com')))
@@ -254,19 +271,16 @@ fn pub tests(t: mut Tests) {
 
   t.test('Host.fmt', fn (t) {
     t.equal(fmt(Host.Named('foo')), 'Named("foo")')
-    t.equal(fmt(Host.Ipv4(Ipv4Address.new(1, 2, 3, 4))), 'Ipv4(1.2.3.4)')
-    t.equal(
-      fmt(Host.Ipv6(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1))),
-      'Ipv6(::1)',
-    )
+    t.equal(fmt(Host.Ip(IpAddress.v4(1, 2, 3, 4))), 'Ip(1.2.3.4)')
+    t.equal(fmt(Host.Ip(IpAddress.v6(0, 0, 0, 0, 0, 0, 0, 1))), 'Ip(::1)')
     t.equal(fmt(Host.Future('v1.foo')), 'Future("v1.foo")')
   })
 
   t.test('Host.==', fn (t) {
     let hosts = [
       Host.Named('foo'),
-      Host.Ipv4(Ipv4Address.new(1, 2, 3, 4)),
-      Host.Ipv6(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1)),
+      Host.Ip(IpAddress.v4(1, 2, 3, 4)),
+      Host.Ip(IpAddress.v6(0, 0, 0, 0, 0, 0, 0, 1)),
       Host.Future('v1.foo'),
     ]
 
@@ -279,6 +293,28 @@ fn pub tests(t: mut Tests) {
         }
       }
     }
+  })
+
+  t.test('Host.to_string', fn (t) {
+    let tests = [
+      (Host.Named('foo'), 'foo'),
+      (Host.Named('foo bar'), 'foo%20bar'),
+      (Host.Ip(IpAddress.v4(1, 2, 3, 4)), '1.2.3.4'),
+      (Host.Ip(IpAddress.v6(0, 0, 0, 0, 0, 0, 0, 1)), '::1'),
+      (Host.Future('v1.foo'), 'v1.foo'),
+    ]
+
+    for (host, exp) in tests { t.equal(host.to_string, exp) }
+  })
+
+  t.test('Host.hash', fn (t) {
+    let tests = [
+      Host.Named('foo'),
+      Host.Ip(IpAddress.v4(1, 2, 3, 4)),
+      Host.Ip(IpAddress.v6(0, 0, 0, 0, 0, 0, 0, 1)),
+    ]
+
+    for host in tests { t.equal(hash(host), hash(host)) }
   })
 
   t.test('Path.empty', fn (t) { t.true(Path.empty.empty?) })
@@ -370,6 +406,8 @@ fn pub tests(t: mut Tests) {
     t.not_equal(Path('a b'), Path('a%20b'))
     t.not_equal(Path('a'), Path('b'))
   })
+
+  t.test('Path.clone', fn (t) { t.equal(Path('a').clone, Path('a')) })
 
   t.test('PathComponent.to_string', fn (t) {
     t.equal(PathComponent.Root.to_string, '/')
@@ -583,6 +621,8 @@ fn pub tests(t: mut Tests) {
     t.equal(Query.new('a%20b').get.to_string, 'a b')
   })
 
+  t.test('Query.clone', fn (t) { t.equal(Query('a').clone, Query('a')) })
+
   t.test('Fragment.empty', fn (t) { t.true(Fragment.empty.empty?) })
 
   t.test('Fragment.new', fn (t) {
@@ -622,6 +662,10 @@ fn pub tests(t: mut Tests) {
     t.equal(Fragment('a'), Fragment('a'))
     t.equal(Fragment('a%20b'), Fragment('a%20b'))
     t.not_equal(Fragment('a'), Fragment('b'))
+  })
+
+  t.test('Fragment.clone', fn (t) {
+    t.equal(Fragment('a').clone, Fragment('a'))
   })
 
   t.test('Uri.parse with valid URIs', fn (t) {
@@ -665,8 +709,8 @@ fn pub tests(t: mut Tests) {
       ('http://host', uri(http, __, named('host'), __, __, __, __)),
       ('http://HOST', uri(http, __, named('host'), __, __, __, __)),
       ('http://1.2.host.4', uri(http, __, named('1.2.host.4'), __, __, __, __)),
-      ('http://1.2.3.4', uri(http, __, v4('1.2.3.4'), __, __, __, __)),
-      ('http://[::1]', uri(http, __, v6('::1'), __, __, __, __)),
+      ('http://1.2.3.4', uri(http, __, ip('1.2.3.4'), __, __, __, __)),
+      ('http://[::1]', uri(http, __, ip('::1'), __, __, __, __)),
       ('http://[v123.foo]', uri(http, __, future('v123.foo'), __, __, __, __)),
       ('http://[v123.FOO]', uri(http, __, future('v123.FOO'), __, __, __, __)),
       ('http://host%20name', uri(http, __, named('host name'), __, __, __, __)),
@@ -843,6 +887,25 @@ fn pub tests(t: mut Tests) {
     for (inp, err) in tests { t.equal(Uri.parse(inp), Result.Error(err)) }
   })
 
+  t.test('Uri.host_and_port', fn (t) {
+    let tests = [
+      (
+        uri(http, __, named('localhost'), Option.Some(1234), __, __, __),
+        'localhost:1234',
+      ),
+      (
+        uri(http, __, named('localhost'), Option.Some(80), __, __, __),
+        'localhost',
+      ),
+      (
+        uri(https, __, named('localhost'), Option.Some(443), __, __, __),
+        'localhost',
+      ),
+    ]
+
+    for (uri, exp) in tests { t.equal(uri.host_and_port, exp) }
+  })
+
   t.test('Uri.fmt', fn (t) {
     t.equal(
       fmt(
@@ -1002,4 +1065,10 @@ fn pub tests(t: mut Tests) {
       t.equal(uri.to_string, '?foo=Alice&bar=a%3D20%2630')
     },
   )
+
+  t.test('Uri.clone', fn (t) {
+    let uri = parse('http://user:password@localhost:1234/foo?k=v#frag')
+
+    t.equal(uri.clone, uri)
+  })
 }
