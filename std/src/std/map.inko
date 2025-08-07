@@ -534,6 +534,21 @@ type pub Map[K: Equal + Hash, V] {
     @entries.size
   }
 
+  # Returns `true` if `self` is empty.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let map = Map.new
+  #
+  # map.empty? # => true
+  # map.set('name', 'Alice')
+  # map.empty? # => false
+  # ```
+  fn pub empty? -> Bool {
+    @entries.empty?
+  }
+
   # Returns the number of key-value pairs `self` can store before a resize is
   # required.
   #

@@ -172,6 +172,15 @@ fn pub tests(t: mut Tests) {
     t.equal(map.size, 1)
   })
 
+  t.test('Map.empty?', fn (t) {
+    let map = Map.new
+
+    t.true(map.empty?)
+
+    map.set('name', 'Alice')
+    t.false(map.empty?)
+  })
+
   t.test('Map.==', fn (t) {
     let map1 = Map.new
     let map2 = Map.new
