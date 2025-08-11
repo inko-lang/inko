@@ -1,0 +1,55 @@
+import std.net.http.header (parameters, split_item)
+import std.test (Tests)
+
+fn pub tests(t: mut Tests) {
+  t.test('header.split_item', fn (t) {
+    let a = 'foo ; bar'
+    let b = 'foo'
+    let c = ''
+
+    t.equal(
+      split_item(a.slice(0, a.size)),
+      (a.slice(0, 3), Option.Some(a.slice(6, 9))),
+    )
+    t.equal(split_item(b.slice(0, b.size)), (b.slice(0, b.size), Option.None))
+    t.equal(split_item(c.slice(0, c.size)), (c.slice(0, c.size), Option.None))
+  })
+
+  t.test('parameters', fn (t) {
+    let tests = [
+      # Valid values
+      ('', Result.Ok([])),
+      ('a', Result.Ok([('a', '')])),
+      ('a=v1', Result.Ok([('a', 'v1')])),
+      ('a=v1;', Result.Ok([('a', 'v1')])),
+      ('a= v1 ', Result.Ok([('a', ' v1 ')])),
+      ('a="v1"', Result.Ok([('a', 'v1')])),
+      ('a="v1";', Result.Ok([('a', 'v1')])),
+      ('a=v1; b=v2', Result.Ok([('a', 'v1'), ('b', 'v2')])),
+      ('a=v1;;;b=v2', Result.Ok([('a', 'v1'), ('b', 'v2')])),
+      (
+        'a=v1; b=v2; c="v3"',
+        Result.Ok([('a', 'v1'), ('b', 'v2'), ('c', 'v3')]),
+      ),
+      ('këy=väl', Result.Ok([('këy', 'väl')])),
+
+      # Invalid values
+      (' a ', Result.Error(nil)),
+      ('a =', Result.Error(nil)),
+      ('a="b', Result.Error(nil)),
+      ('a=b"', Result.Error(nil)),
+    ]
+
+    for (inp, exp) in tests {
+      let got = parameters(inp).try_reduce([], fn (ary, res) {
+        match try res {
+          case (k, v) -> ary.push((k.to_string, v.to_string))
+        }
+
+        Result.Ok(ary)
+      })
+
+      t.equal(got, exp)
+    }
+  })
+}
