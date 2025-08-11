@@ -34,6 +34,7 @@
 #   .or_panic_with('failed to decode the input')
 #   .to_string # => 'hello world'
 # ```
+import std.bytes (Bytes)
 import std.cmp (Equal)
 import std.fmt (Format, Formatter)
 import std.string (ToString)
@@ -536,7 +537,7 @@ fn first_invalid(index: Int, a: Int, b: Int, c: Int, d: Int) -> Int {
   index + add
 }
 
-# Encodes a `ByteArray` as a base64 encoded `String`.
+# Encodes a `Bytes` as a base64 encoded `String`.
 #
 # This method uses the standard base64 alphabet and applies padding. For more
 # control over the encoding process, use the `Encoder` type directly.
@@ -546,16 +547,16 @@ fn first_invalid(index: Int, a: Int, b: Int, c: Int, d: Int) -> Int {
 # ```inko
 # import std.base64 (encode)
 #
-# encode('hello world'.to_byte_array) # => 'aGVsbG8gd29ybGQ='
+# encode('hello world') # => 'aGVsbG8gd29ybGQ='
 # ```
-fn pub encode(input: ref ByteArray) -> String {
+fn pub encode[B: Bytes](input: ref B) -> String {
   let base64 = ByteArray.new
 
   Encoder.new.encode(input, base64)
   base64.into_string
 }
 
-# Decodes a base64 encoded `ByteArray` into a raw `ByteArray`.
+# Decodes a base64 encoded `Bytes` into a `ByteArray`.
 #
 # This method uses the standard base64 alphabet and expects padding to be
 # applied if necessary. For more control over the decoding process, use the
@@ -566,11 +567,11 @@ fn pub encode(input: ref ByteArray) -> String {
 # ```inko
 # import std.base64 (decode)
 #
-# decode('aGVsbG8gd29ybGQ='.to_byte_array)
+# decode('aGVsbG8gd29ybGQ=')
 #   .or_panic_with('failed to decode the input')
 #   .to_string # => 'hello world'
 # ```
-fn pub decode(input: ref ByteArray) -> Result[ByteArray, DecodeError] {
+fn pub decode[B: Bytes](input: ref B) -> Result[ByteArray, DecodeError] {
   let plain = ByteArray.new
 
   try Decoder.new.decode(input, plain)
@@ -646,7 +647,7 @@ type pub Encoder {
     )
   }
 
-  # Encodes the `input` `ByteArray` into a sequence of base64 encoded bytes,
+  # Encodes the `input` `Bytes` into a sequence of base64 encoded bytes,
   # appending the sequence to `into.`
   #
   # # Examples
@@ -656,10 +657,10 @@ type pub Encoder {
   #
   # let out = ByteArray.new
   #
-  # Encoder.new.encode('hello world'.to_byte_array, out)
+  # Encoder.new.encode('hello world', out)
   # out.into_string #=> 'aGVsbG8gd29ybGQ='
   # ```
-  fn pub encode(input: ref ByteArray, into: mut ByteArray) {
+  fn pub encode[B: Bytes](input: ref B, into: mut ByteArray) {
     # The implementation here is based on the base64 encoder found in Google
     # Chrome (https://github.com/chromium/chromium/blob/fd8a8914ca0183f0add65ae55f04e287543c7d4a/third_party/modp_b64/modp_b64.cc).
     let t0 = @table0
@@ -841,8 +842,8 @@ type pub Decoder {
   # Decoder.new.decode(base64, into: plain) # => Result.Ok(nil)
   # plain.into_string # => 'hello world'
   # ```
-  fn pub decode(
-    input: ref ByteArray,
+  fn pub decode[B: Bytes](
+    input: ref B,
     into: mut ByteArray,
   ) -> Result[Nil, DecodeError] {
     if input.empty? { return Result.Ok(nil) }
