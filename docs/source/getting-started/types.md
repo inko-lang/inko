@@ -352,7 +352,7 @@ atomic reference counting. This means the following definition is invalid:
 
 ```inko
 type copy InvalidType {
-  let @value: Array[Int] # Array[Int] isn't an `inline` type
+  let @value: Array[Int] # Array[Int] isn't a `copy` type
 }
 ```
 
