@@ -230,6 +230,18 @@ trait pub Bytes: ToString + ToByteArray {
   fn pub contains_bytes?[B: Bytes](bytes: ref B) -> Bool {
     index_of(bytes, starting_at: 0).some?
   }
+
+  # Returns `true` if `self` is empty.
+  #
+  # # Examples
+  #
+  # ```inko
+  # ''.empty? # => true
+  # 'hello'.empty? # => false
+  # ```
+  fn pub empty? -> Bool {
+    size == 0
+  }
 }
 
 # A immutable slice of bytes.
@@ -353,22 +365,6 @@ type pub inline Slice[T: Bytes] {
   # ```
   fn pub move into_iter -> Iter[Self] {
     Iter(source: self, index: 0)
-  }
-
-  # Returns `true` if `self` is an empty slice.
-  #
-  # # Examples
-  #
-  # ```inko
-  # let bytes = ByteArray.from_array([10, 20, 30])
-  # let slice = bytes.slic(start: 0, end: 3)
-  #
-  # slice.empty? # => false
-  # bytes.clear
-  # slice.empty? # => true
-  # ```
-  fn pub empty? -> Bool {
-    size == 0
   }
 
   # Splits `self` into an iterator that yields slices, each separated by the
@@ -909,17 +905,6 @@ type pub ByteArray {
   fn pub mut set(index: Int, value: Int) {
     check_bounds(index, @size).or_panic
     write_to(index, value)
-  }
-
-  # Returns `true` if `self` is empty.
-  #
-  # # Examples
-  #
-  # ```inko
-  # ByteArray.new.empty? => true
-  # ```
-  fn pub inline empty? -> Bool {
-    @size == 0
   }
 
   # Converts the `ByteArray` to an `Array!(Int)`.

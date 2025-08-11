@@ -307,18 +307,6 @@ type builtin String {
     Slice.new(self, 0, size).split_once(separator)
   }
 
-  # Returns `true` if `self` is an empty `String`.
-  #
-  # # Examples
-  #
-  # ```inko
-  # ''.empty?    # => true
-  # 'foo'.empty? # => false
-  # ```
-  fn pub inline empty? -> Bool {
-    size == 0
-  }
-
   # Returns a new `String` that is padded with another `String` until the given
   # number of characters is reached.
   #
