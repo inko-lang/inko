@@ -345,6 +345,11 @@ fn pub tests(t: mut Tests) {
     t.false(Path('/foo').relative?)
   })
 
+  t.test('Path.root?', fn (t) {
+    t.true(Path.root.root?)
+    t.false(Path('/a').root?)
+  })
+
   t.test('Path.normalized', fn (t) {
     t.equal(Path.normalized('/foo/../bar/./baz'), Path('/bar/baz'))
     t.equal(Path.normalized('/foo/../bar/./baz'), Path('/bar/baz'))
@@ -1036,6 +1041,7 @@ fn pub tests(t: mut Tests) {
       uri(__, __, named('host'), __, path('///a'), __, __).to_string,
       '//host/a',
     )
+    t.equal(uri(__, __, __, __, path('/'), __, __).to_string, '/')
 
     # Query strings
     t.equal(parse('http://foo?%4A%3f%23').to_string, 'http://foo?J?%23')

@@ -1245,6 +1245,18 @@ type pub inline Path {
   fn pub inline empty? -> Bool {
     size == 0
   }
+
+  # Returns `true` if `self` is a root path.
+  #
+  # # Examples
+  #
+  # ```inko
+  # Path.new('/').get.root? # => true
+  # Path.new('/a').get.root? # => false
+  # ```
+  fn pub inline root? -> Bool {
+    @value == '/'
+  }
 }
 
 impl Clone for Path {
