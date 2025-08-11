@@ -1178,8 +1178,25 @@ type pub inline Path {
     PathComponents(path: @value, index: 0)
   }
 
-  fn encode(scheme: Option[Scheme], buffer: mut ByteArray) {
-    let iter = components
+  fn encode(scheme: Option[Scheme], host: Option[Host], buffer: mut ByteArray) {
+    # Normalize e.g. `foo.com/` to just `foo.com` for web related URIs. We can't
+    # do this for file:// and others because it's not clear what the path is
+    # relative to.
+    match scheme {
+      case Some(Http or Https or Ws or Wss) if @value == '/' -> return
+      case _ -> {}
+    }
+
+    # If the URI has a host and is assigned a relative path directly (i.e. by
+    # not going through `Uri.parse`), we need to turn that URI into an absolute
+    # URI as URIs such as `host../path` are invalid.
+    let val = if relative? and host.some? {
+      Path.normalized(@value).value
+    } else {
+      @value
+    }
+
+    let iter = PathComponents(path: val, index: 0)
     let mut len = 0
 
     for comp in iter {
@@ -2336,6 +2353,65 @@ type pub Uri {
     buf.into_string
   }
 
+  # Merges the components of the URI into `self`.
+  #
+  # For each component in a URI (e.g. the scheme), if it exists in `other` it
+  # overwrites the corresponding component in `self`. For the path, merging is
+  # done as follows:
+  #
+  # - If `other.path` is absolute, it overwrites the path of `self`
+  # - If `other.path` is relative, it's joined with the path of `self` and
+  #   normalized. If the path in `self` is a relative path, it's turned into an
+  #   absolute path as part of this process
+  # - If `self` has no path, `other.path` is used as-is
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (Uri)
+  #
+  # let a = Uri.parse('http://user:pass@host/path?query#fragment').or_panic
+  # let b = Uri.parse('../bar#example').or_panic
+  #
+  # a.merge(b)
+  # a.to_string # => 'http://user:pass@host/bar?query#example'
+  # ```
+  fn pub mut merge(other: Uri) {
+    match other {
+      case
+        {
+          @scheme = scheme,
+          @user_info = user,
+          @host = host,
+          @port = port,
+          @path = path,
+          @query = query,
+          @fragment = frag,
+        }
+      -> {
+        if scheme.some? { @scheme = scheme }
+
+        if user.some? { @user_info = user }
+
+        if host.some? { @host = host }
+
+        if port.some? { @port = port }
+
+        if path.absolute? {
+          @path = path
+        } else if @path.empty? {
+          @path = path
+        } else {
+          @path = Path.normalized('${@path.value}/${path.value}')
+        }
+
+        if query.size > 0 { @query = query }
+
+        if frag.size > 0 { @fragment = frag }
+      }
+    }
+  }
+
   fn encode_host_port(buffer: mut ByteArray) {
     match @host {
       case Some(h) -> h.encode(buffer)
@@ -2424,7 +2500,7 @@ impl ToString for Uri {
 
     encode_host_port(buf)
 
-    if @path.size > 0 { @path.encode(@scheme.clone, buf) }
+    if @path.size > 0 { @path.encode(@scheme.clone, @host.clone, buf) }
 
     if @query.size > 0 { @query.encode(buf) }
 

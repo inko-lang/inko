@@ -1019,6 +1019,23 @@ fn pub tests(t: mut Tests) {
     t.equal(parse('//../%4A%3f/%4A%3f').to_string, '//../J%3F/J%3F')
     t.equal(parse('../a/b/../c').to_string, '../a/b/../c')
     t.equal(uri(__, __, __, __, path('😃'), __, __).to_string, '%F0%9F%98%83')
+    t.equal(parse('http://host/').to_string, 'http://host')
+    t.equal(
+      uri(__, __, named('host'), __, path('../path'), __, __).to_string,
+      '//host/path',
+    )
+    t.equal(
+      uri(__, __, named('host'), __, path('./path'), __, __).to_string,
+      '//host/path',
+    )
+    t.equal(
+      uri(__, __, named('host'), __, path('a/../b'), __, __).to_string,
+      '//host/b',
+    )
+    t.equal(
+      uri(__, __, named('host'), __, path('///a'), __, __).to_string,
+      '//host/a',
+    )
 
     # Query strings
     t.equal(parse('http://foo?%4A%3f%23').to_string, 'http://foo?J?%23')
@@ -1070,5 +1087,30 @@ fn pub tests(t: mut Tests) {
     let uri = parse('http://user:password@localhost:1234/foo?k=v#frag')
 
     t.equal(uri.clone, uri)
+  })
+
+  t.test('Uri.merge', fn (t) {
+    let tests = [
+      ('a', 'b/c?query', '/a/b/c?query'),
+      ('a', 'http://host', 'http://host/a'),
+      ('a', 'http://user:pass@host', 'http://user:pass@host/a'),
+      ('a', 'http://host:1234', 'http://host:1234/a'),
+      ('/a', 'b/c', '/a/b/c'),
+      ('/a', '/b/c', '/b/c'),
+      (
+        'http://user:pass@host/path?query#fragment',
+        '../bar#example',
+        'http://user:pass@host/bar?query#example',
+      ),
+      ('http://host', '../a', 'http://host/a'),
+    ]
+
+    for (a, b, res) in tests {
+      let lhs = Uri.parse(a).or_panic
+      let rhs = Uri.parse(b).or_panic
+
+      lhs.merge(rhs)
+      t.equal(lhs.to_string, res)
+    }
   })
 }
