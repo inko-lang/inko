@@ -598,6 +598,12 @@ impl ToString for Slice {
   }
 }
 
+impl Hash for Slice {
+  fn pub hash[H: mut + Hasher](hasher: mut H) {
+    hash_bytes(self, hasher)
+  }
+}
+
 # An iterator over the bytes in a `Bytes` type.
 type pub Iter[T: Bytes] {
   let @source: T

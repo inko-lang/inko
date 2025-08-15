@@ -317,6 +317,11 @@ fn pub tests(t: mut Tests) {
     t.false(slice.contains?(40))
   })
 
+  t.test('Slice.hash', fn (t) {
+    t.equal(hash('foo'.slice(0, 3)), hash('foo'.slice(0, 3)))
+    t.not_equal(hash('foo'.slice(0, 3)), hash('foo'.slice(0, 2)))
+  })
+
   t.test('Iter.next', fn (t) {
     let bytes = ByteArray.from_array([10, 20, 30])
     let iter = Iter(source: bytes, index: 0)
