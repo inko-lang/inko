@@ -1,0 +1,39 @@
+fn example1(values: Array[Int]) {
+  match values {
+    case [10] -> {}
+    case [] -> {}
+  }
+}
+
+fn example2(values: Array[Int]) {
+  match values {
+    case [10] -> {}
+    case [] -> {}
+    case _ -> {}
+  }
+}
+
+fn example3 {
+  match [] {
+    case [] -> 10
+    case _ -> 20
+  }
+}
+
+fn example4 {
+  match [] {
+    case [10] -> 10
+    case _ -> 20
+  }
+}
+
+fn example5(values: ByteArray) {
+  match values {
+    case [10] -> 10
+    case _ -> 20
+  }
+}
+
+# array_patterns.inko:2:3 error(invalid-match): not all possible cases are covered, the following patterns are missing: '_'
+# array_patterns.inko:17:9 error(invalid-type): the type of this expression ('Array[T]') can't be fully inferred
+# array_patterns.inko:17:9 error(invalid-type): the type of this expression ('Array[T]') can't be fully inferred

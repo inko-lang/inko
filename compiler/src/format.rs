@@ -2105,6 +2105,7 @@ impl Document {
             nodes::Pattern::Or(_)
                 | nodes::Pattern::Type(_)
                 | nodes::Pattern::Tuple(_)
+                | nodes::Pattern::Array(_)
                 | nodes::Pattern::Identifier(_)
         ) || node.guard.is_some()
         {
@@ -2219,6 +2220,19 @@ impl Document {
                 let gid = self.new_group_id();
                 let vals = self.list(&n.values, gid, |s, n| s.pattern(n));
                 let args = self.argument_list(vals);
+
+                vec![Node::Group(gid, args)]
+            }
+            nodes::Pattern::Array(n) => {
+                let gid = self.new_group_id();
+                let vals = self.list(&n.values, gid, |s, n| s.pattern(n));
+                let args = vec![
+                    Node::text("["),
+                    Node::Line,
+                    Node::Indent(vals),
+                    Node::Line,
+                    Node::text("]"),
+                ];
 
                 vec![Node::Group(gid, args)]
             }

@@ -2684,7 +2684,8 @@ impl Parser {
         | TokenKind::False
         | TokenKind::ParenOpen
         | TokenKind::Mut
-        | TokenKind::CurlyOpen = self.peek().kind
+        | TokenKind::CurlyOpen
+        | TokenKind::BracketOpen = self.peek().kind
         {
             patterns.push(self.pattern()?);
 
@@ -2790,6 +2791,14 @@ impl Parser {
             }
             TokenKind::CurlyOpen => {
                 Pattern::Type(Box::new(self.type_pattern(token)?))
+            }
+            TokenKind::BracketOpen => {
+                let values = self.patterns()?;
+                let close = self.expect(TokenKind::BracketClose)?;
+                let location =
+                    Location::start_end(&token.location, &close.location);
+
+                Pattern::Array(Box::new(ArrayPattern { values, location }))
             }
             _ => {
                 error!(
@@ -9610,6 +9619,79 @@ mod tests {
                 })),
                 expressions: vec![MatchExpression::Case(Box::new(MatchCase {
                     pattern: Pattern::Tuple(Box::new(TuplePattern {
+                        values: vec![
+                            Pattern::Int(Box::new(IntLiteral {
+                                value: "1".to_string(),
+                                location: cols(17, 17)
+                            })),
+                            Pattern::Int(Box::new(IntLiteral {
+                                value: "2".to_string(),
+                                location: cols(20, 20)
+                            })),
+                        ],
+                        location: cols(16, 22)
+                    })),
+                    guard: None,
+                    body: Expressions {
+                        values: vec![Expression::Int(Box::new(IntLiteral {
+                            value: "2".to_string(),
+                            location: cols(29, 29)
+                        }))],
+                        location: cols(27, 31)
+                    },
+                    location: cols(11, 31)
+                }))],
+                location: cols(1, 33)
+            }))
+        );
+    }
+
+    #[test]
+    fn test_match_sequence_pattern() {
+        assert_eq!(
+            expr("match 1 { case [1, 2] -> { 2 } }"),
+            Expression::Match(Box::new(Match {
+                expression: Expression::Int(Box::new(IntLiteral {
+                    value: "1".to_string(),
+                    location: cols(7, 7)
+                })),
+                expressions: vec![MatchExpression::Case(Box::new(MatchCase {
+                    pattern: Pattern::Array(Box::new(ArrayPattern {
+                        values: vec![
+                            Pattern::Int(Box::new(IntLiteral {
+                                value: "1".to_string(),
+                                location: cols(17, 17)
+                            })),
+                            Pattern::Int(Box::new(IntLiteral {
+                                value: "2".to_string(),
+                                location: cols(20, 20)
+                            })),
+                        ],
+                        location: cols(16, 21)
+                    })),
+                    guard: None,
+                    body: Expressions {
+                        values: vec![Expression::Int(Box::new(IntLiteral {
+                            value: "2".to_string(),
+                            location: cols(28, 28)
+                        }))],
+                        location: cols(26, 30)
+                    },
+                    location: cols(11, 30)
+                }))],
+                location: cols(1, 32)
+            }))
+        );
+
+        assert_eq!(
+            expr("match 1 { case [1, 2,] -> { 2 } }"),
+            Expression::Match(Box::new(Match {
+                expression: Expression::Int(Box::new(IntLiteral {
+                    value: "1".to_string(),
+                    location: cols(7, 7)
+                })),
+                expressions: vec![MatchExpression::Case(Box::new(MatchCase {
+                    pattern: Pattern::Array(Box::new(ArrayPattern {
                         values: vec![
                             Pattern::Int(Box::new(IntLiteral {
                                 value: "1".to_string(),

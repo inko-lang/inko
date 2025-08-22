@@ -200,7 +200,13 @@ impl CallSite {
                     Instruction::Switch(ins) => {
                         ins.location.set_inlined_call_id(inline_offset);
                         ins.register += reg_start;
-                        ins.blocks.iter_mut().for_each(|b| *b += blk_start);
+                        ins.blocks
+                            .iter_mut()
+                            .for_each(|(_, b)| *b += blk_start);
+
+                        if let Some(b) = &mut ins.fallback {
+                            *b += blk_start;
+                        }
                     }
                     Instruction::Bool(ins) => {
                         ins.location.set_inlined_call_id(inline_offset);

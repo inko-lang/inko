@@ -1783,14 +1783,17 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                     self.builder.load(reg_typ, reg_var).into_int_value();
                 let mut cases = Vec::with_capacity(ins.blocks.len());
 
-                for (index, block) in ins.blocks.iter().enumerate() {
+                for &(val, block) in &ins.blocks {
                     cases.push((
-                        self.builder.int_literal(bits, index as u64),
+                        self.builder.int_literal(bits, val as u64),
                         all_blocks[block.0],
                     ));
                 }
 
-                self.builder.exhaustive_switch(reg_val, &cases);
+                let fallback =
+                    ins.fallback.map(|b| all_blocks[b.0]).unwrap_or(cases[0].1);
+
+                self.builder.switch(reg_val, &cases, fallback);
             }
             Instruction::Nil(ins) => {
                 let var = self.variables[&ins.register];

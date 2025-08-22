@@ -1451,6 +1451,12 @@ pub struct TuplePattern {
 }
 
 #[derive(Debug, PartialEq, Eq)]
+pub struct ArrayPattern {
+    pub values: Vec<Pattern>,
+    pub location: Location,
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub struct ConstructorPattern {
     pub name: Constant,
     pub values: Vec<Pattern>,
@@ -1508,6 +1514,7 @@ pub enum Pattern {
     Wildcard(Box<WildcardPattern>),
     Or(Box<OrPattern>),
     String(Box<StringLiteral>),
+    Array(Box<ArrayPattern>),
 }
 
 impl Pattern {
@@ -1524,6 +1531,7 @@ impl Pattern {
             Pattern::Wildcard(ref n) => &n.location,
             Pattern::Or(ref n) => &n.location,
             Pattern::String(ref n) => &n.location,
+            Pattern::Array(ref n) => &n.location,
         }
     }
 }

@@ -1,0 +1,17 @@
+import std.bytes (Slice)
+
+fn example1(value: ByteArray) {
+  match value {
+    case 'abc' -> {}
+    case _ -> {}
+  }
+}
+
+fn example2(value: Slice[String]) {
+  match value {
+    case 'abc' -> {}
+    case _ -> {}
+  }
+}
+
+# string_patterns.inko:5:10 error(invalid-type): patterns of type 'String' can't be compared against values of type 'ByteArray'

@@ -91,6 +91,17 @@ match 'world' {
 }
 ```
 
+String patterns can also be compared with `std.bytes.Slice[String]` values:
+
+```inko
+let input = 'abc'
+
+match input.slice(0, 3) {
+  case 'abc' -> 'foo'
+  case _ -> 'bar'
+}
+```
+
 When matching against values of these types, Inko treats the values as having an
 infinite number of possibilities, thus requiring the use of a wildcard pattern
 (`_`) to make the match exhaustive. Booleans are an exception to this, as they
@@ -156,6 +167,77 @@ Pattern matching against tuples is also supported:
 match (10, 'testing') {
   case (num, 'testing') -> num * 2
   case (_, _) -> 0
+}
+```
+
+### Array patterns
+
+Array patterns allow matching against `Array` and `ByteArray` values with an
+exact size:
+
+```inko
+match [10, 20] {
+  case [10, 20] -> 'yay'
+  case _ -> 'nay'
+}
+
+match ByteArray.from_array([10, 20]) {
+  case [10, 20] -> 'yay'
+  case _ -> 'nay'
+}
+```
+
+::: note
+Array patterns with a variable size such as `[a, b, ..]` (i.e. an array with
+two or more values) aren't supported.
+:::
+
+Similar to string and integer patterns, array patterns are treated as having an
+infinite number of possibilities. This means you need a `case` with a wildcard
+pattern to make the match exhaustive. For example, this results in a
+compile-time error:
+
+```inko
+match [10, 20] {
+  case [10, 20] -> 'yay'
+}
+```
+
+This is fine though because of the wildcard `case`:
+
+```inko
+match [10, 20] {
+  case [10, 20] -> 'yay'
+  case _ -> 'nay'
+}
+```
+
+Array patterns are compiled to a branch on the size of the input followed by a
+sub match for each value. When reading the sub values no bounds checking is
+performed, as there's no need for this due to the branch on the input size. This
+means the above example compiles to code equivalent to this example:
+
+```inko
+let input = [10, 20]
+
+match input.size {
+  case 2 if input.get_unchecked(0) == 10 and input.get_unchecked(1) == 20 -> {
+    'yay'
+  }
+  case _ -> 'nay'
+}
+```
+
+When matching against an owned `Array` or `ByteArray`, the sub values are moved
+out of the `Array` or `ByteArray` similar to tuple patterns:
+
+```inko
+match [[10], [20]] {
+  case [a, b] -> {
+    a # => [10]
+    b # => [20]
+  }
+  case _ -> {}
 }
 ```
 

@@ -18,9 +18,10 @@ use types::format::format_type;
 use types::module_name::ModuleName;
 use types::{
     self, Block as _, ConstantId, FieldId, Inline, MethodId, ModuleId, Symbol,
-    TypeBounds, TypeId, TypeRef, VerificationError, BOOL_ID, ENUM_TAG_INDEX,
-    EQ_METHOD, INT_ID, OPTION_NONE, OPTION_SOME, RESULT_ERROR, RESULT_MODULE,
-    RESULT_OK, RESULT_TYPE, STRING_ID,
+    TypeArguments, TypeBounds, TypeId, TypeRef, VerificationError, ARRAY_READ,
+    ARRAY_SIZE_FIELD, BOOL_ID, BYTES_MODULE, BYTE_ARRAY_READ, BYTE_ARRAY_TYPE,
+    ENUM_TAG_INDEX, EQUALS_METHOD, INT_ID, OPTION_NONE, OPTION_SOME,
+    RESULT_ERROR, RESULT_MODULE, RESULT_OK, RESULT_TYPE, STRING_ID,
 };
 
 const SELF_NAME: &str = "self";
@@ -340,6 +341,13 @@ struct DecisionState {
     /// the variables.
     registers: Vec<RegisterId>,
 
+    /// Match registers that should be dropped by calling the dropper, instead
+    /// of only deallocating their memory
+    ///
+    /// This is used for e.g. matching against arrays as we still need to
+    /// deallocate the array's buffer.
+    drop_with_dropper: HashSet<RegisterId>,
+
     /// The action to take per register when destructuring a value.
     actions: HashMap<RegisterId, RegisterAction>,
 
@@ -371,6 +379,7 @@ impl DecisionState {
             output,
             after_block,
             registers: Vec::new(),
+            drop_with_dropper: HashSet::new(),
             child_registers: HashMap::new(),
             actions: HashMap::new(),
             bodies: HashMap::new(),
@@ -2521,7 +2530,7 @@ impl<'a> LowerMethod<'a> {
         let ok_block = self.add_block();
         let err_block = self.add_block();
         let after_block = self.add_block();
-        let mut blocks = vec![BlockId(0), BlockId(0)];
+        let mut blocks = vec![(0, BlockId(0)), (0, BlockId(0))];
         let ret_reg = self.new_untracked_register(node.return_type);
         let err_tag = self.new_untracked_register(tag_typ);
 
@@ -2544,8 +2553,8 @@ impl<'a> LowerMethod<'a> {
                     .id(self.db());
                 let ok_reg = self.new_untracked_register(typ);
 
-                blocks[some_id as usize] = ok_block;
-                blocks[none_id as usize] = err_block;
+                blocks[some_id as usize] = (some_id as i64, ok_block);
+                blocks[none_id as usize] = (none_id as i64, err_block);
 
                 self.current_block_mut().switch(tag_reg, blocks, loc);
 
@@ -2580,8 +2589,8 @@ impl<'a> LowerMethod<'a> {
                 let ok_reg = self.new_untracked_register(ok_typ);
                 let err_val = self.new_untracked_register(err_typ);
 
-                blocks[ok_id as usize] = ok_block;
-                blocks[err_id as usize] = err_block;
+                blocks[ok_id as usize] = (ok_id as i64, ok_block);
+                blocks[err_id as usize] = (err_id as i64, err_block);
 
                 self.current_block_mut().switch(tag_reg, blocks, loc);
 
@@ -3023,7 +3032,26 @@ impl<'a> LowerMethod<'a> {
                             parent_block,
                             registers,
                         ),
+                    pmatch::Constructor::Array(_) => self.type_patterns(
+                        state,
+                        test,
+                        cases,
+                        parent_block,
+                        registers,
+                    ),
                 }
+            }
+            pmatch::Decision::SwitchArray(var, cases, fallback) => {
+                let test = state.registers[var.0];
+
+                self.array_patterns(
+                    state,
+                    test,
+                    cases,
+                    *fallback,
+                    parent_block,
+                    registers,
+                )
             }
             pmatch::Decision::Fail => {
                 // We'll only reach this when the match is non-exhaustive, in
@@ -3195,7 +3223,12 @@ impl<'a> LowerMethod<'a> {
             }
 
             self.mark_register_as_moved(reg);
-            self.current_block_mut().drop_without_dropper(reg, loc);
+
+            if state.drop_with_dropper.contains(&reg) {
+                self.current_block_mut().drop(reg, loc);
+            } else {
+                self.current_block_mut().drop_without_dropper(reg, loc);
+            }
         }
     }
 
@@ -3283,34 +3316,52 @@ impl<'a> LowerMethod<'a> {
             registers.clone(),
         );
 
+        let test_typ = self.register_type(test_reg);
+        let test_ref = test_typ.as_ref(self.db());
+
         for (index, case) in cases.into_iter().enumerate() {
-            let val = match case.constructor {
+            let pat = match case.constructor {
                 pmatch::Constructor::String(val) => val,
                 _ => unreachable!(),
             };
 
-            let test_block = blocks[index];
+            let pat_block = blocks[index];
             let fail_block = blocks.get(index + 1).cloned().unwrap_or(fallback);
             let res_reg = self.new_untracked_register(TypeRef::boolean());
-            let val_reg = self.new_untracked_register(TypeRef::string());
-            let eq_method = TypeId::string()
-                .method(self.db(), EQ_METHOD)
-                .expect("String.== is undefined");
+            let pat_reg = self.new_untracked_register(TypeRef::string());
+            let ref_reg = self.new_untracked_register(test_ref);
+            let eq_meth =
+                TypeId::string().method(self.db(), EQUALS_METHOD).unwrap();
 
-            self.permanent_string(val_reg, val, test_block, loc);
-            self.block_mut(test_block).call_instance(
+            // String.equals? is generic so we need to make sure its type
+            // arguments are set so the method can be specialized correctly.
+            let targs = {
+                let mut args = TypeArguments::new();
+                let par = eq_meth.type_parameters(self.db())[0];
+
+                args.assign(par, test_ref);
+                self.mir.add_type_arguments(args)
+            };
+
+            self.permanent_string(pat_reg, pat, pat_block, loc);
+            self.block_mut(pat_block).borrow(ref_reg, test_reg, loc);
+            self.block_mut(pat_block).call_instance(
                 res_reg,
-                test_reg,
-                eq_method,
-                vec![val_reg],
-                None,
+                pat_reg,
+                eq_meth,
+                vec![ref_reg],
+                targs,
                 loc,
             );
+            // The string might be permanent but we still need to reduce its
+            // reference count, otherwise it may at some point overflow and wrap
+            // around back to zero.
+            self.block_mut(pat_block).drop(pat_reg, loc);
 
             let ok_block =
-                self.decision(state, case.node, test_block, registers.clone());
+                self.decision(state, case.node, pat_block, registers.clone());
 
-            self.block_mut(test_block)
+            self.block_mut(pat_block)
                 .branch(res_reg, ok_block, fail_block, loc);
         }
 
@@ -3435,18 +3486,23 @@ impl<'a> LowerMethod<'a> {
         let tag_reg =
             self.new_untracked_register(tag_field.value_type(self.db()));
         let member_fields = tid.enum_fields(self.db());
+        let owned = test_type.is_owned_or_uni(self.db());
 
         for case in cases {
+            let pmatch::Constructor::Constructor(cons) = case.constructor
+            else {
+                unreachable!()
+            };
             let case_registers = registers.clone();
             let block = self.add_block();
 
             self.add_edge(test_block, block);
-            blocks.push(block);
+            blocks.push((cons.id(self.db()) as i64, block));
 
             for (arg, &field) in case.arguments.into_iter().zip(&member_fields)
             {
                 let reg = state.registers[arg.0];
-                let action = if test_type.is_owned_or_uni(self.db()) {
+                let action = if owned {
                     RegisterAction::Move(test_reg)
                 } else {
                     RegisterAction::Increment(test_reg)
@@ -3462,6 +3518,114 @@ impl<'a> LowerMethod<'a> {
         self.block_mut(test_block)
             .get_field(tag_reg, test_reg, tid, tag_field, loc);
         self.block_mut(test_block).switch(tag_reg, blocks, loc);
+        test_block
+    }
+
+    fn array_patterns(
+        &mut self,
+        state: &mut DecisionState,
+        test_reg: RegisterId,
+        cases: Vec<pmatch::Case>,
+        fallback: pmatch::Decision,
+        parent_block: BlockId,
+        mut registers: Vec<RegisterId>,
+    ) -> BlockId {
+        let loc = state.location;
+        let test_block = self.add_block();
+        let mut blocks = Vec::new();
+
+        self.add_edge(parent_block, test_block);
+        registers.push(test_reg);
+
+        let test_type = self.register_type(test_reg);
+        let owned = test_type.is_owned_or_uni(self.db());
+        let ins = test_type.as_type_instance(self.db()).unwrap();
+        let tid = ins.instance_of();
+        let targs = if tid.is_generic(self.db()) {
+            // We're matching against an Array.
+            self.mir.add_type_arguments(
+                ins.type_arguments(self.db()).unwrap().clone(),
+            )
+        } else {
+            // We're matching against a ByteArray.
+            None
+        };
+        let len_field = tid.field(self.db(), ARRAY_SIZE_FIELD).unwrap();
+        let get_name = if tid == TypeId::array() {
+            ARRAY_READ
+        } else if tid == self.db().type_in_module(BYTES_MODULE, BYTE_ARRAY_TYPE)
+        {
+            BYTE_ARRAY_READ
+        } else {
+            unreachable!()
+        };
+
+        let get_meth = tid.method(self.db(), get_name).unwrap();
+        let len_reg = self.new_untracked_register(TypeRef::int());
+
+        // When matching against owned arrays we force the use of the dropper
+        // method instead of performing a partial drop. This ensures that the
+        // buffer of the array is still deallocated.
+        //
+        // This state _must_ be set before processing the child branches/trees.
+        if owned {
+            state.drop_with_dropper.insert(test_reg);
+        }
+
+        for case in cases {
+            let pmatch::Constructor::Array(len) = case.constructor else {
+                unreachable!()
+            };
+
+            let case_registers = registers.clone();
+            let block = self.add_block();
+
+            self.add_edge(test_block, block);
+            blocks.push((len as i64, block));
+
+            for (idx, arg) in case.arguments.into_iter().enumerate() {
+                let reg = state.registers[arg.0];
+                let action = if owned {
+                    RegisterAction::Move(test_reg)
+                } else {
+                    RegisterAction::Increment(test_reg)
+                };
+
+                let idx_reg = self.new_untracked_register(TypeRef::int());
+
+                state.load_child(reg, test_reg, action);
+                self.block_mut(block).i64_literal(idx_reg, idx as _, loc);
+                self.block_mut(block).call_instance(
+                    reg,
+                    test_reg,
+                    get_meth,
+                    vec![idx_reg],
+                    targs,
+                    loc,
+                );
+            }
+
+            self.decision(state, case.node, block, case_registers);
+        }
+
+        let else_block = self.decision(state, fallback, test_block, registers);
+
+        self.block_mut(test_block)
+            .get_field(len_reg, test_reg, tid, len_field, loc);
+
+        // For owned arrays we _must_ set the size to zero after retrieving it,
+        // otherwise we'll drop the individual values twice.
+        if owned {
+            let zero_reg = self.new_untracked_register(TypeRef::int());
+
+            self.block_mut(test_block).i64_literal(zero_reg, 0, loc);
+            self.block_mut(test_block)
+                .set_field(test_reg, tid, len_field, zero_reg, loc);
+        }
+
+        self.block_mut(test_block)
+            .switch_with_fallback(len_reg, blocks, else_block, loc);
+
         test_block
     }
 
@@ -4760,7 +4924,7 @@ impl<'a> LowerMethod<'a> {
 
             self.current_block_mut().goto(after, location);
             self.add_edge(self.current_block, after);
-            blocks.push(block);
+            blocks.push((con.id(self.db()) as i64, block));
         }
 
         self.block_mut(before)

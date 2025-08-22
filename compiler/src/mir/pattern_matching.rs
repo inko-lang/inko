@@ -25,8 +25,53 @@ use std::collections::{HashMap, HashSet};
 use types::resolve::TypeResolver;
 use types::{
     ConstructorId, Database, FieldId, TypeArguments, TypeBounds, TypeEnum,
-    TypeInstance, TypeKind, TypeRef, VariableId, BOOL_ID, INT_ID, STRING_ID,
+    TypeInstance, TypeKind, TypeRef, VariableId, ARRAY_ID, BOOL_ID,
+    BYTES_MODULE, BYTE_ARRAY_TYPE, INT_ID, SLICE_TYPE, STRING_ID,
 };
+
+fn add_constructor_pattern(
+    db: &Database,
+    var: &Variable,
+    case: &Case,
+    terms: &mut Vec<Term>,
+) {
+    match &case.constructor {
+        Constructor::True => {
+            let name = "true".to_string();
+
+            terms.push(Term::new(*var, name, Vec::new()));
+        }
+        Constructor::False => {
+            let name = "false".to_string();
+
+            terms.push(Term::new(*var, name, Vec::new()));
+        }
+        Constructor::Int(_)
+        | Constructor::String(_)
+        | Constructor::Array(_) => {
+            let name = "_".to_string();
+
+            terms.push(Term::new(*var, name, Vec::new()));
+        }
+        Constructor::Class(_) => {
+            let name = "_".to_string();
+
+            terms.push(Term::new(*var, name, Vec::new()));
+        }
+        Constructor::Tuple(_) => {
+            let name = String::new();
+            let args = case.arguments.clone();
+
+            terms.push(Term::new(*var, name, args));
+        }
+        Constructor::Constructor(constructor) => {
+            let args = case.arguments.clone();
+            let name = constructor.name(db).clone();
+
+            terms.push(Term::new(*var, name, args));
+        }
+    }
+}
 
 fn add_missing_patterns(
     db: &Database,
@@ -64,41 +109,7 @@ fn add_missing_patterns(
         }
         Decision::Switch(var, cases, fallback) => {
             for case in cases {
-                match &case.constructor {
-                    Constructor::True => {
-                        let name = "true".to_string();
-
-                        terms.push(Term::new(*var, name, Vec::new()));
-                    }
-                    Constructor::False => {
-                        let name = "false".to_string();
-
-                        terms.push(Term::new(*var, name, Vec::new()));
-                    }
-                    Constructor::Int(_) | Constructor::String(_) => {
-                        let name = "_".to_string();
-
-                        terms.push(Term::new(*var, name, Vec::new()));
-                    }
-                    Constructor::Class(_) => {
-                        let name = "_".to_string();
-
-                        terms.push(Term::new(*var, name, Vec::new()));
-                    }
-                    Constructor::Tuple(_) => {
-                        let name = String::new();
-                        let args = case.arguments.clone();
-
-                        terms.push(Term::new(*var, name, args));
-                    }
-                    Constructor::Constructor(constructor) => {
-                        let args = case.arguments.clone();
-                        let name = constructor.name(db).clone();
-
-                        terms.push(Term::new(*var, name, args));
-                    }
-                }
-
+                add_constructor_pattern(db, var, case, terms);
                 add_missing_patterns(db, &case.node, terms, missing);
                 terms.pop();
             }
@@ -106,6 +117,15 @@ fn add_missing_patterns(
             if let Some(node) = fallback {
                 add_missing_patterns(db, node, terms, missing);
             }
+        }
+        Decision::SwitchArray(var, cases, fallback) => {
+            for case in cases {
+                add_constructor_pattern(db, var, case, terms);
+                add_missing_patterns(db, &case.node, terms, missing);
+                terms.pop();
+            }
+
+            add_missing_patterns(db, fallback, terms, missing);
         }
     }
 }
@@ -204,6 +224,9 @@ enum Type {
     Int,
     String,
 
+    /// An array of some type T.
+    Array(TypeRef),
+
     /// A type with a finite number of constructors, such as a tuple or enum.
     ///
     /// Each triple stores the following values:
@@ -225,6 +248,7 @@ pub(crate) enum Constructor {
     True,
     Tuple(Vec<FieldId>),
     Constructor(ConstructorId),
+    Array(usize),
 }
 
 impl Constructor {
@@ -235,7 +259,8 @@ impl Constructor {
             | Constructor::Int(_)
             | Constructor::String(_)
             | Constructor::Class(_)
-            | Constructor::Tuple(_) => 0,
+            | Constructor::Tuple(_)
+            | Constructor::Array(_) => 0,
             Constructor::True => 1,
             Constructor::Constructor(id) => id.id(db) as usize,
         }
@@ -248,6 +273,7 @@ pub(crate) enum Pattern {
     Constructor(Constructor, Vec<Pattern>),
     Int(i64),
     String(String),
+    Array(Vec<Pattern>),
     Variable(VariableId),
     Or(Vec<Pattern>),
     Wildcard,
@@ -309,6 +335,15 @@ impl Pattern {
                     .collect();
 
                 Pattern::Constructor(Constructor::Tuple(n.field_ids), args)
+            }
+            hir::Pattern::Array(n) => {
+                let args = n
+                    .values
+                    .into_iter()
+                    .map(|p| Pattern::from_hir(db, mir, p))
+                    .collect();
+
+                Pattern::Array(args)
             }
             hir::Pattern::Constructor(n) => {
                 let args = n
@@ -439,19 +474,30 @@ pub(crate) enum Decision {
     ///
     /// The arguments are as follows:
     ///
-    /// 1. The guard to evaluate.
-    /// 2. The body to evaluate if the guard matches.
-    /// 3. The sub tree to evaluate when the guard fails.
+    /// 1. The guard to evaluate
+    /// 2. The body to evaluate if the guard matches
+    /// 3. The sub tree to evaluate when the guard fails
     Guard(hir::Expression, Body, Box<Decision>),
 
     /// Checks if a value is any of the given patterns.
     ///
-    /// The values are as follows:
+    /// The arguments are as follows:
     ///
-    /// 1. The variable to test.
-    /// 2. The cases to test against this variable.
-    /// 3. A fallback decision to take, in case none of the cases matched.
+    /// 1. The variable to test
+    /// 2. The cases to test against this variable
+    /// 3. A fallback decision to take, in case none of the cases matched
     Switch(Variable, Vec<Case>, Option<Box<Decision>>),
+
+    /// Branches on the size of an array and processes the corresponding cases.
+    ///
+    /// The arguments are as follows:
+    ///
+    /// 1. The variable to test
+    /// 2. The cases to test against, each case should have a
+    ///    `Constructor::Array` with the corresponding number of values as its
+    ///    argument
+    /// 3. A fallback decision to take for inputs of an unknown size
+    SwitchArray(Variable, Vec<Case>, Box<Decision>),
 }
 
 /// Information about a single constructor/value (aka term) being tested, used
@@ -625,6 +671,7 @@ impl<'a> Compiler<'a> {
 
                 Decision::Switch(branch_var, cases, Some(fallback))
             }
+            Type::Array(t) => self.compile_array_cases(t, rows, branch_var),
             Type::Finite(cases) => Decision::Switch(
                 branch_var,
                 self.compile_constructor_cases(rows, branch_var, cases),
@@ -744,6 +791,69 @@ impl<'a> Compiler<'a> {
             .collect()
     }
 
+    fn compile_array_cases(
+        &mut self,
+        value_type: TypeRef,
+        rows: Vec<Row>,
+        branch_var: Variable,
+    ) -> Decision {
+        let mut raw_cases: Vec<(Constructor, Vec<Variable>, Vec<Row>)> =
+            Vec::new();
+        let mut fallback_rows = Vec::new();
+        let mut indexes: HashMap<usize, usize> = HashMap::new();
+        let mut vars = Vec::new();
+
+        for mut row in rows {
+            let col = if let Some(col) = row.remove_column(&branch_var) {
+                col
+            } else {
+                for (_, _, rows) in &mut raw_cases {
+                    rows.push(row.clone());
+                }
+
+                fallback_rows.push(row);
+                continue;
+            };
+
+            let Pattern::Array(args) = col.pattern else { unreachable!() };
+
+            if args.len() > vars.len() {
+                for _ in 0..(args.len() - vars.len()) {
+                    vars.push(self.new_variable(value_type));
+                }
+            }
+
+            let cons = Constructor::Array(args.len());
+            let key = args.len();
+            let case = if let Some(&idx) = indexes.get(&key) {
+                &mut raw_cases[idx]
+            } else {
+                let idx = raw_cases.len();
+                let cvars = vars[0..args.len()].to_vec();
+
+                raw_cases.push((cons, cvars, fallback_rows.clone()));
+                indexes.insert(key, idx);
+                &mut raw_cases[idx]
+            };
+
+            let mut cols = row.columns;
+
+            for (var, pat) in case.1.iter().zip(args.into_iter()) {
+                cols.push(Column::new(*var, pat));
+            }
+
+            case.2.push(Row::new(cols, row.guard, row.body));
+        }
+
+        let cases = raw_cases
+            .into_iter()
+            .map(|(c, v, r)| Case::new(c, v, self.compile_rows(r)))
+            .collect();
+        let fallback = Box::new(self.compile_rows(fallback_rows));
+
+        Decision::SwitchArray(branch_var, cases, fallback)
+    }
+
     /// Given a row, returns the variable in that row that's referred to the
     /// most across all rows.
     fn branch_variable(&self, rows: &[Row]) -> Variable {
@@ -812,6 +922,28 @@ impl<'a> Compiler<'a> {
                 (Constructor::False, Vec::new(), Vec::new()),
                 (Constructor::True, Vec::new(), Vec::new()),
             ]),
+            ARRAY_ID => {
+                let args = type_ins.type_arguments(self.db()).unwrap().clone();
+                let raw_type = args.values().next().unwrap();
+                let val_type =
+                    TypeResolver::new(&mut self.state.db, &args, &self.bounds)
+                        .resolve(raw_type)
+                        .cast_according_to(self.db(), typ);
+
+                Type::Array(val_type)
+            }
+            _ if type_id
+                == self.db().type_in_module(BYTES_MODULE, BYTE_ARRAY_TYPE) =>
+            {
+                Type::Array(TypeRef::int())
+            }
+            // Slice[String] is treated as a String for the purpose of pattern
+            // matching.
+            _ if type_id
+                == self.db().type_in_module(BYTES_MODULE, SLICE_TYPE) =>
+            {
+                Type::String
+            }
             _ => match type_id.kind(self.db()) {
                 TypeKind::Enum => {
                     let cons = type_id
@@ -879,7 +1011,7 @@ mod tests {
     use similar_asserts::assert_eq;
     use types::module_name::ModuleName;
     use types::{
-        Module, Type, TypeEnum, TypeInstance, TypeKind,
+        Module, Symbol, Type, TypeEnum, TypeId, TypeInstance, TypeKind,
         Variable as VariableType, Visibility,
     };
 
@@ -892,7 +1024,24 @@ mod tests {
     }
 
     fn state() -> State {
-        State::new(Config::new())
+        let mut state = State::new(Config::new());
+        let bmod = Module::alloc(
+            &mut state.db,
+            ModuleName::new(BYTES_MODULE),
+            "bytes.inko".into(),
+        );
+
+        for name in [BYTE_ARRAY_TYPE, SLICE_TYPE] {
+            let vis = Visibility::Public;
+            let kind = TypeKind::Regular;
+            let loc = Location::default();
+            let name = name.to_string();
+            let typ =
+                Type::alloc(&mut state.db, name.clone(), kind, vis, bmod, loc);
+            bmod.new_symbol(&mut state.db, name, Symbol::Type(typ));
+        }
+
+        state
     }
 
     fn rules(input: Variable, patterns: Vec<(Pattern, BlockId)>) -> Vec<Row> {
@@ -954,6 +1103,10 @@ mod tests {
 
     fn fail() -> Decision {
         Decision::Fail
+    }
+
+    fn tt() -> Pattern {
+        Pattern::Constructor(Constructor::True, Vec::new())
     }
 
     #[test]
@@ -2239,6 +2392,111 @@ mod tests {
                     ),
                 )],
                 None
+            )
+        );
+    }
+
+    #[test]
+    fn test_simple_array_pattern() {
+        let mut state = state();
+        let mut compiler = compiler(&mut state);
+
+        // The input of type Array[Bool].
+        let par = TypeId::array()
+            .new_type_parameter(compiler.db_mut(), "T".to_string());
+        let mut targs = TypeArguments::new();
+
+        targs.assign(par, TypeRef::boolean());
+
+        let ints = TypeRef::Owned(TypeEnum::TypeInstance(
+            TypeInstance::generic(compiler.db_mut(), TypeId::array(), targs),
+        ));
+        let input = compiler.new_variable(ints);
+        let result = compiler.compile(rules(
+            input,
+            vec![
+                (Pattern::Array(vec![tt()]), BlockId(1)),
+                (Pattern::Array(vec![tt(), tt()]), BlockId(2)),
+                (Pattern::Wildcard, BlockId(10)),
+            ],
+        ));
+
+        assert_eq!(
+            result.tree,
+            Decision::SwitchArray(
+                input,
+                vec![
+                    Case::new(
+                        Constructor::Array(1),
+                        vec![Variable(1)],
+                        Decision::Switch(
+                            Variable(1),
+                            vec![
+                                Case::new(
+                                    Constructor::False,
+                                    Vec::new(),
+                                    success_with_bindings(
+                                        vec![Binding::Ignored(input)],
+                                        BlockId(10)
+                                    ),
+                                ),
+                                Case::new(
+                                    Constructor::True,
+                                    Vec::new(),
+                                    success(BlockId(1)),
+                                ),
+                            ],
+                            None,
+                        )
+                    ),
+                    Case::new(
+                        Constructor::Array(2),
+                        vec![Variable(1), Variable(2)],
+                        Decision::Switch(
+                            Variable(2),
+                            vec![
+                                Case::new(
+                                    Constructor::False,
+                                    Vec::new(),
+                                    success_with_bindings(
+                                        vec![Binding::Ignored(input)],
+                                        BlockId(10)
+                                    ),
+                                ),
+                                Case::new(
+                                    Constructor::True,
+                                    Vec::new(),
+                                    Decision::Switch(
+                                        Variable(1),
+                                        vec![
+                                            Case::new(
+                                                Constructor::False,
+                                                Vec::new(),
+                                                success_with_bindings(
+                                                    vec![Binding::Ignored(
+                                                        input
+                                                    )],
+                                                    BlockId(10)
+                                                ),
+                                            ),
+                                            Case::new(
+                                                Constructor::True,
+                                                Vec::new(),
+                                                success(BlockId(2)),
+                                            ),
+                                        ],
+                                        None
+                                    ),
+                                ),
+                            ],
+                            None,
+                        )
+                    ),
+                ],
+                Box::new(success_with_bindings(
+                    vec![Binding::Ignored(input)],
+                    BlockId(10)
+                ))
             )
         );
     }

@@ -720,6 +720,7 @@ The following patterns are supported:
 - Enum constructors: `case Some(v) -> BODY`
 - Types: `case { @name = name } -> BODY`
 - Tuples: `case (a, b, c) -> BODY`
+- Arrays: `case [a, b, c] -> BODY`
 - OR patterns: `case 10 or 20 -> BODY`
 
 Guards are also supported:

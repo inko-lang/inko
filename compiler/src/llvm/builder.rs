@@ -740,14 +740,6 @@ impl<'ctx> Builder<'ctx> {
         self.inner.build_switch(value, fallback, cases).unwrap();
     }
 
-    pub(crate) fn exhaustive_switch(
-        &self,
-        value: IntValue<'ctx>,
-        cases: &[(IntValue<'ctx>, BasicBlock<'ctx>)],
-    ) {
-        self.switch(value, cases, cases[0].1);
-    }
-
     pub(crate) fn unreachable(&self) {
         self.inner.build_unreachable().unwrap();
     }

@@ -1,4 +1,4 @@
-import std.drop (drop)
+import std.drop (Drop, drop)
 import std.test (Tests)
 
 type enum Letter {
@@ -21,6 +21,28 @@ type enum Transition {
 
 type Person {
   let @name: String
+}
+
+type Value {
+  let mut @dropped: Int
+
+  fn static new -> Value {
+    Value(0)
+  }
+}
+
+type ValueRef {
+  let @value: mut Value
+
+  fn static new(value: mut Value) -> ValueRef {
+    ValueRef(value)
+  }
+}
+
+impl Drop for ValueRef {
+  fn mut drop {
+    @value.dropped += 1
+  }
 }
 
 fn pub tests(t: mut Tests) {
@@ -101,5 +123,68 @@ fn pub tests(t: mut Tests) {
       case None -> nil
       case Some(v) -> v
     }
+  })
+
+  t.test('Pattern matching against an Array', fn (t) {
+    let res = match [10, 20] {
+      case [10, 20] -> true
+      case _ -> false
+    }
+
+    t.true(res)
+
+    let val = Value.new
+    let owned = [ValueRef.new(val)]
+
+    match ref owned {
+      case [_] -> {}
+      case _ -> {}
+    }
+
+    match mut owned {
+      case [_] -> {}
+      case _ -> {}
+    }
+
+    match owned {
+      case [_] -> {}
+      case _ -> {}
+    }
+
+    t.equal(val.dropped, 1)
+  })
+
+  t.test('Pattern matching against a ByteArray', fn (t) {
+    t.true(
+      match ByteArray.from_array([10, 20]) {
+        case [10, 20] -> true
+        case _ -> false
+      },
+    )
+
+    t.true(
+      match ref ByteArray.from_array([10, 20]) {
+        case [10, 20] -> true
+        case _ -> false
+      },
+    )
+
+    t.true(
+      match mut ByteArray.from_array([10, 20]) {
+        case [10, 20] -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('Pattern matching a String against a Slice[String]', fn (t) {
+    let val = 'abc'
+
+    t.true(
+      match val.slice(0, 3) {
+        case 'abc' -> true
+        case _ -> false
+      },
+    )
   })
 }

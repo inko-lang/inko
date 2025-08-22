@@ -18,7 +18,8 @@ use types::{
     IdentifierKind, IntrinsicCall, MethodId, MethodLookup, ModuleId, Receiver,
     Sendability, Sign, Symbol, ThrowKind, TraitId, TraitInstance,
     TypeArguments, TypeBounds, TypeEnum, TypeId, TypeInstance, TypeRef,
-    Variable, VariableId, CALL_METHOD, DEREF_POINTER_FIELD, SELF_TYPE,
+    Variable, VariableId, BYTES_MODULE, BYTE_ARRAY_TYPE, CALL_METHOD,
+    DEREF_POINTER_FIELD, SELF_TYPE, SLICE_TYPE,
 };
 
 const IGNORE_VARIABLE: &str = "_";
@@ -1690,6 +1691,9 @@ impl<'a> CheckMethodBody<'a> {
             hir::Pattern::Tuple(ref mut n) => {
                 self.tuple_pattern(n, value_type, pattern);
             }
+            hir::Pattern::Array(ref mut n) => {
+                self.array_pattern(n, value_type, pattern);
+            }
             hir::Pattern::Type(ref mut n) => {
                 self.type_pattern(n, value_type, pattern);
             }
@@ -1914,15 +1918,8 @@ impl<'a> CheckMethodBody<'a> {
             return;
         }
 
-        let ins = match value_type {
-            TypeRef::Owned(TypeEnum::TypeInstance(ins))
-            | TypeRef::Ref(TypeEnum::TypeInstance(ins))
-            | TypeRef::Mut(TypeEnum::TypeInstance(ins))
-            | TypeRef::Uni(TypeEnum::TypeInstance(ins))
-                if ins.instance_of().kind(self.db()).is_tuple() =>
-            {
-                ins
-            }
+        let ins = match value_type.as_type_instance(self.db()) {
+            Some(ins) if ins.instance_of().kind(self.db()).is_tuple() => ins,
             _ => {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidType,
@@ -1960,17 +1957,64 @@ impl<'a> CheckMethodBody<'a> {
         }
 
         let raw_types = ins.ordered_type_arguments(self.db());
-        let mut values = Vec::with_capacity(raw_types.len());
         let fields = ins.instance_of().fields(self.db());
 
         for (patt, vtype) in node.values.iter_mut().zip(raw_types.into_iter()) {
             let typ = vtype.cast_according_to(self.db(), value_type);
 
             self.pattern(patt, typ, pattern);
-            values.push(typ);
         }
 
         node.field_ids = fields;
+    }
+
+    fn array_pattern(
+        &mut self,
+        node: &mut hir::ArrayPattern,
+        value_type: TypeRef,
+        pattern: &mut Pattern,
+    ) {
+        if value_type == TypeRef::Error {
+            self.error_patterns(&mut node.values, pattern);
+            return;
+        }
+
+        let val_typ = match value_type.as_type_instance(self.db()) {
+            Some(ins) if ins.instance_of() == TypeId::array() => ins
+                .type_arguments(self.db())
+                .unwrap()
+                .values()
+                .next()
+                .unwrap()
+                .cast_according_to(self.db(), value_type),
+            Some(ins)
+                if ins.instance_of()
+                    == self
+                        .db()
+                        .type_in_module(BYTES_MODULE, BYTE_ARRAY_TYPE) =>
+            {
+                TypeRef::int()
+            }
+            _ => {
+                self.state.diagnostics.error(
+                    DiagnosticId::InvalidType,
+                    format!(
+                        "this pattern expects an 'Array' or 'ByteArray', \
+                        but the input type is '{}'",
+                        format_type(self.db(), value_type),
+                    ),
+                    self.file(),
+                    node.location,
+                );
+
+                self.error_patterns(&mut node.values, pattern);
+                return;
+            }
+        };
+
+        for patt in &mut node.values {
+            self.pattern(patt, val_typ, pattern);
+        }
     }
 
     fn type_pattern(
@@ -2074,7 +2118,23 @@ impl<'a> CheckMethodBody<'a> {
     ) {
         let typ = TypeRef::string();
 
-        self.expression_pattern(typ, input_type, node.location);
+        if TypeChecker::check(self.db(), input_type, typ) {
+            return;
+        }
+
+        // This allows comparing of string patterns against both String and
+        // Slice[String].
+        if let Some(ins) = input_type.as_type_instance(self.db()) {
+            if ins.instance_of()
+                == self.db().type_in_module(BYTES_MODULE, SLICE_TYPE)
+                && ins.type_arguments(self.db()).and_then(|a| a.values().next())
+                    == Some(typ)
+            {
+                return;
+            }
+        }
+
+        self.expression_pattern_error(typ, input_type, node.location);
     }
 
     fn true_pattern(&mut self, node: &mut hir::True, input_type: TypeRef) {
@@ -2104,18 +2164,27 @@ impl<'a> CheckMethodBody<'a> {
         };
 
         if !TypeChecker::check(self.db(), compare, pattern_type) {
-            self.state.diagnostics.error(
-                DiagnosticId::InvalidType,
-                format!(
-                    "the type of this pattern is '{}', \
-                    but the input type is '{}'",
-                    format_type(self.db(), pattern_type),
-                    format_type(self.db(), input_type),
-                ),
-                self.file(),
-                location,
-            );
+            self.expression_pattern_error(pattern_type, input_type, location);
         }
+    }
+
+    fn expression_pattern_error(
+        &mut self,
+        pattern_type: TypeRef,
+        input_type: TypeRef,
+        location: Location,
+    ) {
+        self.state.diagnostics.error(
+            DiagnosticId::InvalidType,
+            format!(
+                "patterns of type '{}' can't be compared against values \
+                of type '{}'",
+                format_type(self.db(), pattern_type),
+                format_type(self.db(), input_type),
+            ),
+            self.file(),
+            location,
+        );
     }
 
     fn constructor_pattern(

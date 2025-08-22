@@ -1105,6 +1105,12 @@ pub(crate) struct TuplePattern {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ArrayPattern {
+    pub(crate) values: Vec<Pattern>,
+    pub(crate) location: Location,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct FieldPattern {
     pub(crate) field_id: Option<types::FieldId>,
     pub(crate) field: Field,
@@ -1174,6 +1180,7 @@ pub(crate) enum Pattern {
     True(Box<True>),
     False(Box<False>),
     Or(Box<OrPattern>),
+    Array(Box<ArrayPattern>),
 }
 
 impl Pattern {
@@ -1190,6 +1197,7 @@ impl Pattern {
             Pattern::True(ref n) => n.location,
             Pattern::False(ref n) => n.location,
             Pattern::Or(ref n) => n.location,
+            Pattern::Array(ref n) => n.location,
         }
     }
 }
@@ -3409,6 +3417,10 @@ impl<'a> LowerToHir<'a> {
             }
             ast::Pattern::Tuple(n) => Pattern::Tuple(Box::new(TuplePattern {
                 field_ids: Vec::new(),
+                values: self.patterns(n.values),
+                location: n.location,
+            })),
+            ast::Pattern::Array(n) => Pattern::Array(Box::new(ArrayPattern {
                 values: self.patterns(n.values),
                 location: n.location,
             })),

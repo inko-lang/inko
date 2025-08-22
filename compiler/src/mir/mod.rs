@@ -257,12 +257,28 @@ impl Block {
     pub(crate) fn switch(
         &mut self,
         register: RegisterId,
-        blocks: Vec<BlockId>,
+        blocks: Vec<(i64, BlockId)>,
         location: InstructionLocation,
     ) {
         self.instructions.push(Instruction::Switch(Box::new(Switch {
             register,
             blocks,
+            fallback: None,
+            location,
+        })));
+    }
+
+    pub(crate) fn switch_with_fallback(
+        &mut self,
+        register: RegisterId,
+        blocks: Vec<(i64, BlockId)>,
+        fallback: BlockId,
+        location: InstructionLocation,
+    ) {
+        self.instructions.push(Instruction::Switch(Box::new(Switch {
+            register,
+            blocks,
+            fallback: Some(fallback),
             location,
         })));
     }
@@ -943,7 +959,8 @@ pub(crate) struct Branch {
 #[derive(Clone)]
 pub(crate) struct Switch {
     pub(crate) register: RegisterId,
-    pub(crate) blocks: Vec<BlockId>,
+    pub(crate) blocks: Vec<(i64, BlockId)>,
+    pub(crate) fallback: Option<BlockId>,
     pub(crate) location: InstructionLocation,
 }
 
@@ -1386,16 +1403,22 @@ impl Instruction {
                 )
             }
             Instruction::Switch(ref v) => {
-                format!(
-                    "switch r{}, {}",
-                    v.register.0,
-                    v.blocks
-                        .iter()
-                        .enumerate()
-                        .map(|(idx, block)| format!("{} = b{}", idx, block.0))
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                )
+                let blocks = v
+                    .blocks
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, block)| format!("{} = b{}", idx, block.0))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                if let Some(b) = v.fallback {
+                    format!(
+                        "switch r{}, {}, fallback = b{}",
+                        v.register.0, blocks, b.0
+                    )
+                } else {
+                    format!("switch r{}, {}", v.register.0, blocks)
+                }
             }
             Instruction::Bool(ref v) => {
                 format!("r{} = {}", v.register.0, v.value)
@@ -1850,7 +1873,13 @@ impl Method {
                         }
                     }
                     Some(Instruction::Switch(ins)) => {
-                        for id in &mut ins.blocks {
+                        for (_, id) in &mut ins.blocks {
+                            if *id == cur_id {
+                                *id = succ;
+                            }
+                        }
+
+                        if let Some(id) = &mut ins.fallback {
                             if *id == cur_id {
                                 *id = succ;
                             }
@@ -1939,7 +1968,11 @@ impl Method {
                     ins.if_false -= shift_map[ins.if_false.0];
                 }
                 Some(Instruction::Switch(ins)) => {
-                    for id in &mut ins.blocks {
+                    for (_, id) in &mut ins.blocks {
+                        *id -= shift_map[id.0];
+                    }
+
+                    if let Some(id) = &mut ins.fallback {
                         *id -= shift_map[id.0];
                     }
                 }
@@ -2609,7 +2642,11 @@ mod tests {
         method.body.start_id = b0;
         method.body.add_edge(b0, b1);
         method.body.add_edge(b0, b2);
-        method.body.block_mut(b0).switch(RegisterId(0), vec![b1, b2], loc);
+        method.body.block_mut(b0).switch(
+            RegisterId(0),
+            vec![(0, b1), (1, b2)],
+            loc,
+        );
 
         method.body.add_edge(b1, b3);
         method.body.add_edge(b2, b4);
@@ -2625,6 +2662,6 @@ mod tests {
         };
 
         assert_eq!(method.body.blocks.len(), 3);
-        assert_eq!(ins.blocks, vec![BlockId(1), BlockId(2)]);
+        assert_eq!(ins.blocks, vec![(0, BlockId(1)), (1, BlockId(2))]);
     }
 }
