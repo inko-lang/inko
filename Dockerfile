@@ -1,4 +1,4 @@
-FROM registry.fedoraproject.org/fedora-minimal:41 AS builder
+FROM registry.fedoraproject.org/fedora-minimal:42 AS builder
 
 # Fedora builds LLVM with libffi support, and when statically linking against
 # LLVM the build will fail if libffi-devel isn't installed, hence we include it
@@ -13,7 +13,7 @@ RUN make build PREFIX='/usr'
 RUN strip target/release/inko
 RUN make install PREFIX='/usr'
 
-FROM registry.fedoraproject.org/fedora-minimal:41
+FROM registry.fedoraproject.org/fedora-minimal:42
 
 # gcc is needed to link object files. This also pulls in libgcc, which the
 # generated code links against dynamically.
