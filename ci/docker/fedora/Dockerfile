@@ -19,7 +19,7 @@ RUN sudo dnf install --assumeyes --quiet gcc make tar git rustup rclone \
     libffi-devel zlib-devel
 
 RUN rustup-init --quiet -y --no-modify-path --profile minimal \
-    --component clippyorustfmt --default-toolchain $RUST_VERSION \
+    --component clippy,rustfmt --default-toolchain $RUST_VERSION \
     && rustup toolchain install $MIN_RUST_VERSION
 
 # idoc targets the latest stable release of Inko, but our tests run against a
