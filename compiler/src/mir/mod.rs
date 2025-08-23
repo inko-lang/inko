@@ -2385,7 +2385,7 @@ impl Mir {
                 .id
                 .receiver(db)
                 .type_id(db)
-                .map_or(false, |v| v.is_closure(db))
+                .is_some_and(|v| v.is_closure(db))
                 || used[method.id.0 as usize]
                 || method.id.name(db) == DROPPER_METHOD;
 

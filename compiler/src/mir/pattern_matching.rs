@@ -648,7 +648,7 @@ impl<'a> Compiler<'a> {
         // There may be multiple rows, but if the first one has no patterns
         // those extra rows are redundant, as a row without columns/patterns
         // always matches.
-        if rows.first().map_or(false, |c| c.columns.is_empty()) {
+        if rows.first().is_some_and(|c| c.columns.is_empty()) {
             let row = rows.remove(0);
 
             return if let Some(guard) = row.guard {

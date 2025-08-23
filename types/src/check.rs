@@ -754,8 +754,7 @@ impl<'a> TypeChecker<'a> {
 
                     lhs.instance_of.type_parameters(self.db).into_iter().all(
                         |param| {
-                            lhs_args.get(param).zip(rhs_args.get(param)).map_or(
-                                false,
+                            lhs_args.get(param).zip(rhs_args.get(param)).is_some_and(
                                 |(lhs, rhs)| {
                                     self.check_type_ref(lhs, rhs, env, rules)
                                 },
@@ -1205,7 +1204,7 @@ impl<'a> TypeChecker<'a> {
             lhs_args
                 .get(param)
                 .zip(rhs_args.get(param))
-                .map_or(false, |(l, r)| {
+                .is_some_and(|(l, r)| {
                     self.check_type_ref(l, r, env, rules.infer_as_rigid())
                 })
         })

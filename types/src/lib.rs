@@ -3768,7 +3768,7 @@ impl ModuleId {
     }
 
     pub fn symbol_is_used(self, db: &Database, name: &str) -> bool {
-        self.get(db).symbols.get(name).map_or(false, |v| v.used)
+        self.get(db).symbols.get(name).is_some_and(|v| v.used)
     }
 
     pub fn symbols(self, db: &Database) -> Vec<(String, Symbol)> {
@@ -3904,7 +3904,7 @@ impl ModuleId {
         theirs
             .as_str()
             .strip_prefix("test_")
-            .map_or(false, |name| ours.head() == name)
+            .is_some_and(|name| ours.head() == name)
     }
 
     fn get(self, db: &Database) -> &Module {
@@ -4467,7 +4467,7 @@ impl TypeRef {
         match self {
             TypeRef::Never => true,
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(false, |v| v.is_never(db))
+                id.value(db).is_some_and(|v| v.is_never(db))
             }
             _ => false,
         }
@@ -4493,7 +4493,7 @@ impl TypeRef {
             TypeRef::Owned(TypeEnum::Foreign(_)) => true,
             TypeRef::Pointer(_) => true,
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(false, |v| v.is_foreign_type(db))
+                id.value(db).is_some_and(|v| v.is_foreign_type(db))
             }
             _ => false,
         }
@@ -4513,7 +4513,7 @@ impl TypeRef {
         match self {
             TypeRef::Pointer(_) => true,
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(false, |v| v.is_pointer(db))
+                id.value(db).is_some_and(|v| v.is_pointer(db))
             }
             _ => false,
         }
@@ -4523,7 +4523,7 @@ impl TypeRef {
         match self {
             TypeRef::Error => true,
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(false, |v| v.is_error(db))
+                id.value(db).is_some_and(|v| v.is_error(db))
             }
             _ => false,
         }
@@ -4533,7 +4533,7 @@ impl TypeRef {
         match self {
             TypeRef::Never => false,
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(false, |v| v.is_present(db))
+                id.value(db).is_some_and(|v| v.is_present(db))
             }
             _ => true,
         }
@@ -4543,7 +4543,7 @@ impl TypeRef {
         match self {
             TypeRef::Owned(_) | TypeRef::Uni(_) | TypeRef::Any(_) => true,
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(false, |v| v.is_owned_or_uni(db))
+                id.value(db).is_some_and(|v| v.is_owned_or_uni(db))
             }
             _ => false,
         }
@@ -4553,7 +4553,7 @@ impl TypeRef {
         match self {
             TypeRef::Owned(_) => true,
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(false, |v| v.is_owned(db))
+                id.value(db).is_some_and(|v| v.is_owned(db))
             }
             _ => false,
         }
@@ -4597,7 +4597,7 @@ impl TypeRef {
                 | TypeEnum::AtomicTypeParameter(_),
             ) => true,
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(false, |v| v.is_type_parameter(db))
+                id.value(db).is_some_and(|v| v.is_type_parameter(db))
             }
             _ => false,
         }
@@ -4605,7 +4605,7 @@ impl TypeRef {
 
     pub fn is_closure(self, db: &Database) -> bool {
         self.as_type_enum(db)
-            .map_or(false, |v| matches!(v, TypeEnum::Closure(_)))
+            .is_ok_and(|v| matches!(v, TypeEnum::Closure(_)))
     }
 
     pub fn is_rigid_type_parameter(self, db: &Database) -> bool {
@@ -4621,7 +4621,7 @@ impl TypeRef {
             | TypeRef::UniRef(TypeEnum::TraitInstance(_))
             | TypeRef::UniMut(TypeEnum::TraitInstance(_)) => true,
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(false, |v| v.is_trait_instance(db))
+                id.value(db).is_some_and(|v| v.is_trait_instance(db))
             }
             _ => false,
         }
@@ -4662,7 +4662,7 @@ impl TypeRef {
         match self {
             TypeRef::Uni(_) => true,
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(false, |v| v.is_uni_value(db))
+                id.value(db).is_some_and(|v| v.is_uni_value(db))
             }
             _ => false,
         }
@@ -4672,7 +4672,7 @@ impl TypeRef {
         match self {
             TypeRef::UniRef(_) | TypeRef::UniMut(_) => true,
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(false, |v| v.is_uni_value_borrow(db))
+                id.value(db).is_some_and(|v| v.is_uni_value_borrow(db))
             }
             _ => false,
         }
@@ -4682,7 +4682,7 @@ impl TypeRef {
         match self {
             TypeRef::Uni(_) | TypeRef::UniRef(_) | TypeRef::UniMut(_) => true,
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(false, |v| v.require_sendable_arguments(db))
+                id.value(db).is_some_and(|v| v.require_sendable_arguments(db))
             }
             _ => false,
         }
@@ -4692,7 +4692,7 @@ impl TypeRef {
         match self {
             TypeRef::Ref(_) | TypeRef::UniRef(_) => true,
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(false, |v| v.is_sendable_ref(db))
+                id.value(db).is_some_and(|v| v.is_sendable_ref(db))
             }
             _ => false,
         }
@@ -4719,7 +4719,7 @@ impl TypeRef {
                 }
             }
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(false, |v| v.is_sendable_mut(db))
+                id.value(db).is_some_and(|v| v.is_sendable_mut(db))
             }
             _ => false,
         }
@@ -4743,7 +4743,7 @@ impl TypeRef {
         match self {
             TypeRef::Ref(_) => true,
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(false, |v| v.is_ref(db))
+                id.value(db).is_some_and(|v| v.is_ref(db))
             }
             _ => false,
         }
@@ -4753,7 +4753,7 @@ impl TypeRef {
         match self {
             TypeRef::Mut(_) => true,
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(false, |v| v.is_ref(db))
+                id.value(db).is_some_and(|v| v.is_ref(db))
             }
             _ => false,
         }
@@ -4763,7 +4763,7 @@ impl TypeRef {
         match self {
             TypeRef::Mut(_) | TypeRef::Ref(_) => true,
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(false, |v| v.is_ref_or_mut(db))
+                id.value(db).is_some_and(|v| v.is_ref_or_mut(db))
             }
             _ => false,
         }
@@ -4777,7 +4777,7 @@ impl TypeRef {
             | TypeRef::Mut(_)
             | TypeRef::Pointer(_) => true,
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(false, |v| v.has_ownership(db))
+                id.value(db).is_some_and(|v| v.has_ownership(db))
             }
             _ => false,
         }
@@ -4790,14 +4790,14 @@ impl TypeRef {
             | TypeRef::UniRef(_)
             | TypeRef::UniMut(_) => true,
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(false, |v| v.use_reference_counting(db))
+                id.value(db).is_some_and(|v| v.use_reference_counting(db))
             }
             _ => false,
         }
     }
 
     pub fn use_atomic_reference_counting(self, db: &Database) -> bool {
-        self.type_id(db).map_or(false, |id| id.is_atomic(db))
+        self.type_id(db).is_some_and(|id| id.is_atomic(db))
     }
 
     pub fn is_bool(self, db: &Database) -> bool {
@@ -4835,7 +4835,7 @@ impl TypeRef {
                 i.instance_of.is_stack_allocated(db)
             }
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(false, |v| v.allow_moving(db))
+                id.value(db).is_some_and(|v| v.allow_moving(db))
             }
             _ => false,
         }
@@ -4851,7 +4851,7 @@ impl TypeRef {
                 ins.instance_of.allow_field_assignments(db)
             }
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(false, |v| v.allow_field_assignments(db))
+                id.value(db).is_some_and(|v| v.allow_field_assignments(db))
             }
             _ => false,
         }
@@ -4872,7 +4872,7 @@ impl TypeRef {
                 TypeEnum::TypeParameter(id) | TypeEnum::RigidTypeParameter(id),
             ) => id.is_mutable(db),
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(false, |v| v.allow_mutating(db))
+                id.value(db).is_some_and(|v| v.allow_mutating(db))
             }
             _ => false,
         }
@@ -5036,7 +5036,7 @@ impl TypeRef {
             | TypeRef::Any(_)
             | TypeRef::Error => true,
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(false, |v| v.allow_as_ref(db))
+                id.value(db).is_some_and(|v| v.allow_as_ref(db))
             }
             _ => false,
         }
@@ -5425,7 +5425,7 @@ impl TypeRef {
             TypeRef::Owned(TypeEnum::Foreign(_)) => true,
             TypeRef::Pointer(_) => true,
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(false, |v| v.is_value_type(db))
+                id.value(db).is_some_and(|v| v.is_value_type(db))
             }
             _ => false,
         }
@@ -5450,7 +5450,7 @@ impl TypeRef {
             },
             TypeRef::Error | TypeRef::Pointer(_) => true,
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(false, |v| v.is_copy_type(db))
+                id.value(db).is_some_and(|v| v.is_copy_type(db))
             }
             TypeRef::Never | TypeRef::Unknown => false,
         }
@@ -5772,7 +5772,7 @@ impl TypeRef {
             TypeRef::Owned(TypeEnum::TraitInstance(_))
             | TypeRef::Uni(TypeEnum::TraitInstance(_)) => true,
             TypeRef::Placeholder(p) => {
-                p.value(db).map_or(false, |v| v.must_use(db, receiver))
+                p.value(db).is_some_and(|v| v.must_use(db, receiver))
             }
             _ => false,
         }

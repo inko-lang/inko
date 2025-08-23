@@ -4385,7 +4385,7 @@ impl<'a> LowerMethod<'a> {
             self.field_mapping
                 .get(id)
                 .cloned()
-                .map_or(false, |r| !self.register_is_available(r))
+                .is_some_and(|r| !self.register_is_available(r))
         });
 
         if partially_moved {

@@ -863,7 +863,7 @@ impl Parser {
             self.optional_type_parameter_definitions()?
         };
         let arguments = self.optional_method_arguments(allow_variadic)?;
-        let variadic = arguments.as_ref().map_or(false, |v| v.variadic);
+        let variadic = arguments.as_ref().is_some_and(|v| v.variadic);
         let return_type = self.optional_return_type()?;
         let body = if (self.peek().kind == TokenKind::CurlyOpen
             || kind != MethodKind::Extern)

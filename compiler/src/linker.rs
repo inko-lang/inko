@@ -16,7 +16,7 @@ fn command_is_available(name: &str) -> bool {
         .stdin(Stdio::null())
         .spawn()
         .and_then(|mut child| child.wait())
-        .map_or(false, |status| status.success())
+        .is_ok_and(|status| status.success())
 }
 
 fn cc_is_clang() -> bool {
@@ -70,7 +70,7 @@ fn zig_cc(target: &Target) -> Command {
     // triples into those used by Zig (which in turn are a bit different
     // from the ones used by LLVM).
     cmd.arg("cc");
-    cmd.arg(&format!("--target={}", target.zig_triple()));
+    cmd.arg(format!("--target={}", target.zig_triple()));
     cmd
 }
 
@@ -134,7 +134,7 @@ fn driver(state: &State) -> Result<Command, String> {
                 }
             }
 
-            cmd.arg(&format!("--target={}", triple));
+            cmd.arg(format!("--target={}", triple));
         }
 
         if let Linker::Detect = linker {

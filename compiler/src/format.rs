@@ -1460,7 +1460,7 @@ impl Document {
             let comment = matches!(n, Expression::Comment(_));
             let trailing_comment = iter
                 .peek()
-                .map_or(false, |v| v.is_trailing_comment(n.location()));
+                .is_some_and(|v| v.is_trailing_comment(n.location()));
 
             let sep = if trailing_comment {
                 Node::text(" ")
@@ -1895,8 +1895,8 @@ impl Document {
             // `User()` and `foo.User()`, we retain the parentheses as they
             // might be used to create an instance of a new type.
             if node.is_some()
-                && node.map_or(false, |v| v.values.is_empty())
-                && name.chars().next().map_or(false, |v| v.is_uppercase())
+                && node.is_some_and(|v| v.values.is_empty())
+                && name.chars().next().is_some_and(|v| v.is_uppercase())
             {
                 header.push(Node::text("()"));
             } else if let Some(node) = node {

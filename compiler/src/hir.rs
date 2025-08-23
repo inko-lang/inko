@@ -48,7 +48,7 @@ impl Comments {
         let should_take = self
             .nodes
             .last()
-            .map_or(false, |c| location.line_start - c.location.line_end == 1);
+            .is_some_and(|c| location.line_start - c.location.line_end == 1);
 
         if should_take {
             self.generate()
@@ -1386,7 +1386,7 @@ impl<'a> LowerToHir<'a> {
                 documentation,
                 public: node.public,
                 name: self.identifier(node.name),
-                variadic: node.arguments.as_ref().map_or(false, |a| a.variadic),
+                variadic: node.arguments.as_ref().is_some_and(|a| a.variadic),
                 arguments: self.optional_method_arguments(node.arguments),
                 return_type: node.return_type.map(|n| self.type_reference(n)),
                 method_id: None,

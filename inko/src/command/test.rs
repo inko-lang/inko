@@ -134,7 +134,7 @@ fn is_test_file(path: &Path) -> bool {
 
     path.file_name()
         .map(|v| v.to_string_lossy())
-        .map_or(false, |v| v.starts_with("test_"))
+        .is_some_and(|v| v.starts_with("test_"))
 }
 
 fn test_files(test_dir: &Path) -> Result<Vec<PathBuf>, std::io::Error> {

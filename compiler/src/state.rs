@@ -120,7 +120,7 @@ impl Packages {
         for dep in Manifest::load(&manifest_path).ok()?.into_dependencies() {
             let dir = dependencies
                 .join(dep.url.directory_name())
-                .join(&format!("v{}", dep.version.major))
+                .join(format!("v{}", dep.version.major))
                 .join(SOURCE);
 
             if dep.name == head && found.is_none() {

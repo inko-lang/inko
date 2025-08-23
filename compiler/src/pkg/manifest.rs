@@ -71,7 +71,7 @@ impl Url {
     }
 
     pub fn import_name(&self) -> String {
-        let tail = self.value.split('/').last().unwrap();
+        let tail = self.value.split('/').next_back().unwrap();
 
         // For generic names like "http" or "sqlite3", creating a repository
         // with such a name may be confusing, as one might think it's e.g. a

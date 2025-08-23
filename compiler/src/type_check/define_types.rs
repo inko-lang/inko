@@ -531,7 +531,7 @@ impl<'a> DefineFields<'a> {
             let main_module = state
                 .db
                 .main_module()
-                .map_or(false, |m| m == module.module_id.name(&state.db));
+                .is_some_and(|m| m == module.module_id.name(&state.db));
 
             DefineFields { state, main_module, module: module.module_id }
                 .run(module);

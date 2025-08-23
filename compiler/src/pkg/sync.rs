@@ -168,7 +168,7 @@ fn install_packages(
 
         let base_dir = directory
             .join(url.directory_name())
-            .join(&format!("v{}", ver.major));
+            .join(format!("v{}", ver.major));
 
         let manifest_src = repo.path.join(MANIFEST_FILE);
 

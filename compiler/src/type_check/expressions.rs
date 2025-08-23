@@ -2433,7 +2433,7 @@ impl<'a> CheckMethodBody<'a> {
     ) -> TypeRef {
         let self_type = self.self_type;
         let moving = node.moving
-            || expected.as_ref().map_or(false, |e| e.id.is_moving(self.db()));
+            || expected.as_ref().is_some_and(|e| e.id.is_moving(self.db()));
 
         let closure = Closure::alloc(self.db_mut(), moving);
         let bounds = self.bounds;

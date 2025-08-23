@@ -99,7 +99,7 @@ impl<'ctx> Builder<'ctx> {
     ) -> PointerValue<'ctx> {
         if !receiver_type
             .get_field_type_at_index(field)
-            .map_or(false, |v| v.is_array_type())
+            .is_some_and(|v| v.is_array_type())
         {
             // In practise we'll never reach this point, but the check exists
             // anyway to ensure this method doesn't segfault the compiler due to
