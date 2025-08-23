@@ -65,6 +65,7 @@ fn pub tests(t: mut Tests) {
     t.equal(String.try_from_bytes('abc'.to_byte_array), Option.Some('abc'))
     t.equal(String.try_from_bytes(ByteArray.new), Option.Some(''))
     t.equal(String.try_from_bytes(ByteArray.from_array([255])), Option.None)
+    t.equal(String.try_from_bytes(ByteArray.new), Option.Some(''))
   })
 
   t.test('String.join', fn (t) {

@@ -154,7 +154,11 @@ type builtin String {
   # String.try_from_bytes(ByteArray.from_array([255])) # => Option.None
   # ```
   fn pub static try_from_bytes[B: Bytes](bytes: ref B) -> Option[String] {
-    let prim = inko_string_try_from_bytes(bytes.pointer, bytes.size)
+    let len = bytes.size
+
+    if len == 0 { return Option.Some('') }
+
+    let prim = inko_string_try_from_bytes(bytes.pointer, len)
 
     if prim.size > -1 {
       Option.Some(from_borrowed_primitive(prim))
