@@ -6,7 +6,7 @@ on:
 env:
   CARGO_HOME: ${{ github.workspace }}/.cargo-home
   # We set an explicit version to only install the components we need for CI.
-  RUSTUP_TOOLCHAIN: '1.78'
+  RUSTUP_TOOLCHAIN: '1.89'
 
 jobs:
   vale:
@@ -71,9 +71,14 @@ jobs:
         target:
           - image: fedora-amd64
             name: amd64-linux-gnu
+            version: 1.78
+          - image: fedora-amd64
+            name: amd64-linux-gnu
+            version: ${{ env.RUSTUP_TOOLCHAIN }}
           - image: alpine
             name: amd64-linux-musl
-    name: ${{ matrix.target.name }} compiler
+            version: ${{ env.RUSTUP_TOOLCHAIN }}
+    name: ${{ matrix.target.name }} ${{ matrix.target.version }} compiler
     timeout-minutes: 15
     runs-on: ubuntu-24.04
     container:
@@ -85,7 +90,7 @@ jobs:
           path: '${{ env.CARGO_HOME }}'
           key: ${{ matrix.target.name }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
       - name: Run compiler tests
-        run: cargo test
+        run: cargo +${{ matrix.target.version }} test
 
   std-linux:
     strategy:
