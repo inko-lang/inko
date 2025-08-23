@@ -74,10 +74,10 @@ jobs:
             version: 1.78
           - image: fedora-amd64
             name: amd64-linux-gnu
-            version: ${{ env.RUSTUP_TOOLCHAIN }}
+            version: 1.89
           - image: alpine
             name: amd64-linux-musl
-            version: ${{ env.RUSTUP_TOOLCHAIN }}
+            version: 1.89
     name: ${{ matrix.target.name }} ${{ matrix.target.version }} compiler
     timeout-minutes: 15
     runs-on: ubuntu-24.04
