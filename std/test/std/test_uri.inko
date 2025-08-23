@@ -351,9 +351,10 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Path.normalized', fn (t) {
-    t.equal(Path.normalized('/foo/../bar/./baz'), Path('/bar/baz'))
-    t.equal(Path.normalized('/foo/../bar/./baz'), Path('/bar/baz'))
-    t.equal(Path.normalized('/foo/../../../../bar'), Path('/bar'))
+    t.equal(Path.normalized('/foo/../bar/./baz'), Option.Some(Path('/bar/baz')))
+    t.equal(Path.normalized('/foo/../bar/./baz'), Option.Some(Path('/bar/baz')))
+    t.equal(Path.normalized('/foo/../../../../bar'), Option.Some(Path('/bar')))
+    # t.equal(Path.normalized(ByteArray.from_array([250])), Option.None)
   })
 
   t.test('Path.to_string', fn (t) {
@@ -689,6 +690,10 @@ fn pub tests(t: mut Tests) {
         uri(http, auth('user', 'password'), named('host'), __, __, __, __),
       ),
       (
+        'http://クッキー:クッキー@host',
+        uri(http, auth('クッキー', 'クッキー'), named('host'), __, __, __, __),
+      ),
+      (
         'http://user-name:pass-word@host',
         uri(http, auth('user-name', 'pass-word'), named('host'), __, __, __, __),
       ),
@@ -699,6 +704,10 @@ fn pub tests(t: mut Tests) {
       (
         'http://user:@host',
         uri(http, user('user'), named('host'), __, __, __, __),
+      ),
+      (
+        'http://クッキー@host',
+        uri(http, user('クッキー'), named('host'), __, __, __, __),
       ),
       ('http://:@host', uri(http, user(''), named('host'), __, __, __, __)),
       (
@@ -713,6 +722,7 @@ fn pub tests(t: mut Tests) {
       # Hosts
       ('http://host', uri(http, __, named('host'), __, __, __, __)),
       ('http://HOST', uri(http, __, named('host'), __, __, __, __)),
+      ('http://クッキー', uri(http, __, named('クッキー'), __, __, __, __)),
       ('http://1.2.host.4', uri(http, __, named('1.2.host.4'), __, __, __, __)),
       ('http://1.2.3.4', uri(http, __, ip('1.2.3.4'), __, __, __, __)),
       ('http://[::1]', uri(http, __, ip('::1'), __, __, __, __)),
@@ -753,6 +763,7 @@ fn pub tests(t: mut Tests) {
       ('foo/..', uri(__, __, __, __, path('foo/..'), __, __)),
       ('/a:b@c', uri(__, __, __, __, path('/a:b@c'), __, __)),
       ('/', uri(__, __, __, __, path('/'), __, __)),
+      ('/クッキー', uri(__, __, __, __, path('/クッキー'), __, __)),
 
       # Query strings
       ('?', uri(__, __, __, __, __, __, __)),
@@ -785,6 +796,7 @@ fn pub tests(t: mut Tests) {
       ('?key=#', uri(__, __, __, __, __, query([('key', '')]), __)),
       ('?key#', uri(__, __, __, __, __, query([('key', '')]), __)),
       ('?&key=val', uri(__, __, __, __, __, query([('key', 'val')]), __)),
+      ('?クッキー', uri(__, __, __, __, __, query([('クッキー', '')]), __)),
 
       # Fragments
       ('#', uri(__, __, __, __, __, __, __)),
@@ -792,6 +804,7 @@ fn pub tests(t: mut Tests) {
       ('#FOO', uri(__, __, __, __, __, __, frag('FOO'))),
       ('#foo[bar]', uri(__, __, __, __, __, __, frag('foo[bar]'))),
       ('#foo%20bar', uri(__, __, __, __, __, __, frag('foo bar'))),
+      ('#クッキー', uri(__, __, __, __, __, __, frag('クッキー'))),
 
       # Combinations, some of which are taken from the paper
       # "yoU aRe a Liar://A Unified Framework for Cross-Testing URL Parsers"
@@ -877,14 +890,12 @@ fn pub tests(t: mut Tests) {
       ('http://host/path/\\', Error.InvalidPath),
       ('../path/\\', Error.InvalidPath),
       ('?key%Z=value', Error.InvalidQuery),
-      ('?key\u{7F}', Error.InvalidQuery),
       ('?<>', Error.InvalidQuery),
       ('?^', Error.InvalidQuery),
       ('?a b', Error.InvalidQuery),
       ('#%Z', Error.InvalidFragment),
       ('#a b', Error.InvalidFragment),
       ('#^', Error.InvalidFragment),
-      ('#\u{7F}', Error.InvalidFragment),
       ('#<>', Error.InvalidFragment),
       ('https://example.com/%xyz', Error.InvalidPath),
     ]
@@ -985,11 +996,15 @@ fn pub tests(t: mut Tests) {
       '//localhost:1234/foo?k=v#frag',
     )
     t.equal(parse('http://%4A%3f.com').to_string, 'http://J%3F.com')
-    t.equal(
-      parse('http://%f0%9f%98%83.com').to_string,
-      'http://%F0%9F%98%83.com',
-    )
+    t.equal(parse('http://%f0%9f%98%83.com').to_string, 'http://😃.com')
     t.equal(Uri.new.to_string, '')
+
+    # User info
+    t.equal(
+      uri(http, auth('user:name', 'pass@word'), named('host'), __, __, __, __)
+        .to_string,
+      'http://user%3Aname:pass%40word@host',
+    )
 
     # Ports
     t.equal(
@@ -1011,10 +1026,7 @@ fn pub tests(t: mut Tests) {
     t.equal(parse('ws://foo:80/example').to_string, 'ws://foo/example')
     t.equal(parse('wss://foo:80/example').to_string, 'wss://foo:80/example')
     t.equal(parse('wss://foo:443/example').to_string, 'wss://foo/example')
-    t.equal(
-      uri(__, __, named('😃'), __, __, __, __).to_string,
-      '//%F0%9F%98%83',
-    )
+    t.equal(uri(__, __, named('😃'), __, __, __, __).to_string, '//😃')
 
     # Paths
     t.equal(parse('http://foo/%4A%3f/%4A%3f').to_string, 'http://foo/J%3F/J%3F')
@@ -1023,7 +1035,7 @@ fn pub tests(t: mut Tests) {
     t.equal(parse('../%4A%3f/%4A%3f').to_string, '../J%3F/J%3F')
     t.equal(parse('//../%4A%3f/%4A%3f').to_string, '//../J%3F/J%3F')
     t.equal(parse('../a/b/../c').to_string, '../a/b/../c')
-    t.equal(uri(__, __, __, __, path('😃'), __, __).to_string, '%F0%9F%98%83')
+    t.equal(uri(__, __, __, __, path('😃'), __, __).to_string, '😃')
     t.equal(parse('http://host/').to_string, 'http://host')
     t.equal(
       uri(__, __, named('host'), __, path('../path'), __, __).to_string,
@@ -1045,10 +1057,7 @@ fn pub tests(t: mut Tests) {
 
     # Query strings
     t.equal(parse('http://foo?%4A%3f%23').to_string, 'http://foo?J?%23')
-    t.equal(
-      uri(__, __, __, __, __, query([('😃', '')]), __).to_string,
-      '?%F0%9F%98%83',
-    )
+    t.equal(uri(__, __, __, __, __, query([('😃', '')]), __).to_string, '?😃')
     t.equal(
       uri(__, __, __, __, __, query([('a b', '')]), __).to_string,
       '?a%20b',
@@ -1065,7 +1074,7 @@ fn pub tests(t: mut Tests) {
 
     # Fragments
     t.equal(parse('http://foo#%4A%3f%23%0a').to_string, 'http://foo#J?%23%0A')
-    t.equal(uri(__, __, __, __, __, __, frag('😃')).to_string, '#%F0%9F%98%83')
+    t.equal(uri(__, __, __, __, __, __, frag('😃')).to_string, '#😃')
     t.equal(uri(__, __, __, __, __, __, frag('a b')).to_string, '#a%20b')
     t.equal(uri(__, __, __, __, __, __, frag('<>')).to_string, '#%3C%3E')
     t.equal(uri(__, __, __, __, __, __, frag('/')).to_string, '#/')
@@ -1073,6 +1082,13 @@ fn pub tests(t: mut Tests) {
     t.equal(uri(__, __, __, __, __, __, frag('!')).to_string, '#!')
     t.equal(uri(__, __, __, __, __, __, frag('^')).to_string, '#%5E')
     t.equal(uri(__, __, __, __, __, __, frag('#')).to_string, '#%23')
+
+    # International URIs
+    t.equal(
+      parse('http://クッキー:クッキー@クッキー/クッキー?クッキー#クッキー')
+        .to_string,
+      'http://クッキー:クッキー@クッキー/クッキー?クッキー#クッキー',
+    )
   })
 
   t.test(

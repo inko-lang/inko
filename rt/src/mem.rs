@@ -195,6 +195,10 @@ impl PrimitiveString {
         Self { bytes: null(), size: 0 }
     }
 
+    pub(crate) fn invalid() -> PrimitiveString {
+        Self { bytes: null(), size: -1 }
+    }
+
     pub(crate) fn error(error: io::Error) -> PrimitiveString {
         Self { bytes: error_to_int(error) as *const u8, size: -1 }
     }

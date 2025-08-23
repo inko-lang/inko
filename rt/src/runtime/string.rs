@@ -17,6 +17,18 @@ pub unsafe extern "system" fn inko_string_from_bytes(
 }
 
 #[no_mangle]
+pub unsafe extern "system" fn inko_string_try_from_bytes(
+    bytes: *const u8,
+    size: i64,
+) -> PrimitiveString {
+    let bytes = slice::from_raw_parts(bytes, size as usize);
+
+    str::from_utf8(bytes)
+        .map(PrimitiveString::borrowed)
+        .unwrap_or_else(|_| PrimitiveString::invalid())
+}
+
+#[no_mangle]
 pub unsafe extern "system" fn inko_string_to_lower(
     string: PrimitiveString,
 ) -> PrimitiveString {

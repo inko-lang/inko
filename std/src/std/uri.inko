@@ -1,6 +1,7 @@
-# [RFC 3986](https://www.rfc-editor.org/rfc/rfc3986.html) URIs.
+# [RFC 3986](https://www.rfc-editor.org/rfc/rfc3986.html) and [RFC
+# 3987](https://www.rfc-editor.org/rfc/rfc3987.html) URIs.
 #
-# This module provides types for working with RFC 3986 compliant URIs. For
+# This module provides types for working with RFC 3986/3987 compliant URIs. For
 # example, parsing of URIs is done using `Uri.parse`:
 #
 # ```inko
@@ -14,6 +15,19 @@
 # ```
 #
 # For more information, refer to the documentation of the `Uri` type.
+#
+# # Internationalized resource identifiers
+#
+# This module includes support for international URIs as defined in RFC 3987.
+# Unlike this RFC we don't limit ourselves to the Unicode blocks listed in the
+# RFC, instead allowing all of the Unicode specification (provided the byte
+# sequences translate to valid Unicode characters). This means our parser is a
+# _bit_ more lenient compared to RFC 3987, but in exchange the code is simpler,
+# more future proof and faster (compared to iterating over UTF-8 codepoints).
+#
+# When normalizing an international URI, multi-byte character sequences are
+# _not_ converted to their lowercase equivalent due to this being locale
+# specific.
 import std.bytes (Bytes, Slice, ToByteArray)
 import std.bytes.parsers (
   LOWER_A, UPPER_A, alpha?, digit?, hex?, lower?, lower_hex_char?, to_lower,
@@ -59,8 +73,12 @@ let TILD = 126
 fn inline unreserved?(byte: Int) -> Bool {
   match byte {
     case MINUS or DOT or UND or TILD -> true
-    case _ -> alpha?(byte) or digit?(byte)
+    case _ -> alpha?(byte) or digit?(byte) or unicode?(byte)
   }
+}
+
+fn inline unicode?(byte: Int) -> Bool {
+  byte >= 127
 }
 
 fn inline reserved?(byte: Int) -> Bool {
@@ -152,7 +170,7 @@ fn inline decode_string[B: Bytes](input: ref B) -> Option[String] {
   let output = ByteArray.new
 
   if decode(input, output) {
-    Option.Some(output.into_string)
+    String.try_from_bytes(output)
   } else {
     Option.None
   }
@@ -227,6 +245,8 @@ fn parse_port_into[B: Bytes](
 # into percent-encoded sequences. This method is meant to allow percent/URI
 # encoding for usecases outside of URIs, such as HTTP form bodies. To encode
 # values for URIs, use the `Uri` type instead.
+#
+# This method also encodes non-ASCII characters.
 #
 # # Examples
 #
@@ -602,7 +622,7 @@ type pub inline UserInfo {
             if perc_user {
               try decode_string(slice).ok_or(Error.InvalidUserInfo)
             } else {
-              slice.to_string
+              try String.try_from_bytes(slice).ok_or(Error.InvalidUserInfo)
             },
           )
 
@@ -624,7 +644,7 @@ type pub inline UserInfo {
           if perc_pass {
             try decode_string(slice).ok_or(Error.InvalidUserInfo)
           } else {
-            slice.to_string
+            try String.try_from_bytes(slice).ok_or(Error.InvalidUserInfo)
           }
         } else {
           ''
@@ -638,7 +658,7 @@ type pub inline UserInfo {
         let name = if perc_pass {
           try decode_string(slice).ok_or(Error.InvalidUserInfo)
         } else {
-          slice.to_string
+          try String.try_from_bytes(slice).ok_or(Error.InvalidUserInfo)
         }
 
         uri.user_info = Option.Some(UserInfo(name: name, password: ''))
@@ -653,13 +673,13 @@ type pub inline UserInfo {
   fn encode(buffer: mut ByteArray) {
     match self {
       case { @name = name, @password = pass } if pass.size > 0 -> {
-        buffer.append(name)
+        encode_into(name, buffer, tables.ENCODE_HOST)
         buffer.push(COL)
-        buffer.append(pass)
+        encode_into(pass, buffer, tables.ENCODE_HOST)
         buffer.push(AT)
       }
       case { @name = name } -> {
-        buffer.append(name)
+        encode_into(name, buffer, tables.ENCODE_HOST)
         buffer.push(AT)
       }
     }
@@ -786,14 +806,19 @@ type pub inline enum Host {
     let slice = Slice.new(input, start, idx)
     let host = if buffer.size > 0 {
       buffer.append(slice)
-      Host.Named(buffer.drain_to_string)
+
+      let val = try String.try_from_bytes(buffer).ok_or(Error.InvalidHost)
+
+      Host.Named(val)
     } else if maybe_ip {
       match Ipv4Address.parse(slice) {
         case Some(v) -> Host.Ip(IpAddress.V4(v))
         case _ -> Host.Named(slice.to_string)
       }
     } else {
-      Host.Named(slice.to_string)
+      let val = try String.try_from_bytes(slice).ok_or(Error.InvalidHost)
+
+      Host.Named(val)
     }
 
     Result.Ok((Option.Some(host), idx))
@@ -961,7 +986,7 @@ impl Clone for Host {
 type pub inline Path {
   let @value: String
 
-  fn static normalized[B: Bytes](input: ref B) -> Self {
+  fn pub static normalized[B: Bytes](input: ref B) -> Option[Self] {
     let out = ByteArray.new
     let mut idx = 0
     let len = input.size
@@ -1007,7 +1032,9 @@ type pub inline Path {
 
     if out.empty? { out.push(SLS) }
 
-    Self(out.into_string)
+    let val = try String.try_from_bytes(out)
+
+    Option.Some(Self(val))
   }
 
   fn static parse_into[B: Bytes](
@@ -1068,9 +1095,11 @@ type pub inline Path {
       let slice = Slice.new(input, start, idx)
 
       if norm.false? and abs {
-        Option.Some(normalized(slice))
+        normalized(slice)
       } else {
-        Option.Some(Self(slice.to_string))
+        let val = try String.try_from_bytes(slice).ok_or(Error.InvalidPath)
+
+        Option.Some(Self(val))
       }
     } else {
       Option.None
@@ -1191,7 +1220,7 @@ type pub inline Path {
     # not going through `Uri.parse`), we need to turn that URI into an absolute
     # URI as URIs such as `host../path` are invalid.
     let val = if relative? and host.some? {
-      Path.normalized(@value).value
+      Path.normalized(@value).get.value
     } else {
       @value
     }
@@ -1865,7 +1894,10 @@ type pub inline Query {
     }
 
     let res = if idx > init {
-      Option.Some(Self(Slice.new(input, start, idx).to_string))
+      let slice = Slice.new(input, start, idx)
+      let val = try String.try_from_bytes(slice).ok_or(Error.InvalidQuery)
+
+      Option.Some(Self(val))
     } else {
       Option.None
     }
@@ -2074,7 +2106,10 @@ type pub inline Fragment {
     }
 
     let res = if idx > init {
-      Option.Some(Self(Slice.new(input, start, idx).to_string))
+      let slice = Slice.new(input, start, idx)
+      let val = try String.try_from_bytes(slice).ok_or(Error.InvalidFragment)
+
+      Option.Some(Self(val))
     } else {
       Option.None
     }
@@ -2203,7 +2238,13 @@ impl Equal for Fragment {
   }
 }
 
-# A type that represents a URI.
+# A Unicode aware Uniform Resource Identifier.
+#
+# This type follows [RFC 3986](https://www.rfc-editor.org/rfc/rfc3986.html) and
+# [RFC 3987](https://www.rfc-editor.org/rfc/rfc3987.html). This means it
+# supports URIs containing non-ASCII values.
+#
+# # Parsing URIs
 #
 # Parsing a URI is done using `Uri.parse`. For example:
 #
@@ -2216,6 +2257,8 @@ impl Equal for Fragment {
 #
 # uri.scheme # => Option.Some(Scheme.Https)
 # ```
+#
+# # Building URIs
 #
 # Dynamically constructing a URI is also possible:
 #
@@ -2414,7 +2457,7 @@ type pub Uri {
         } else if @path.empty? {
           @path = path
         } else {
-          @path = Path.normalized('${@path.value}/${path.value}')
+          @path = Path.normalized('${@path.value}/${path.value}').get
         }
 
         if query.size > 0 { @query = query }
@@ -2495,6 +2538,16 @@ impl ToString for Uri {
   # the normalization rules as specified by RFC 3986. This normalization process
   # comes at a cost (e.g. in terms of memory allocations), and as such it's best
   # to avoid doing this in a tight loop if possible.
+  #
+  # Due to a `Uri` being Unicode aware, valid multi-byte sequences are retained.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (Uri)
+  #
+  # Uri.parse('http://クッキー').or_panic.to_string # => 'http://クッキー'
+  # ```
   fn pub to_string -> String {
     let buf = ByteArray.new
 

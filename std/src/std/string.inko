@@ -35,6 +35,11 @@ fn extern inko_string_chars_drop(iter: Pointer[UInt8])
 
 fn extern inko_string_from_pointer(pointer: Pointer[UInt8]) -> PrimitiveString
 
+fn extern inko_string_try_from_bytes(
+  bytes: Pointer[UInt8],
+  size: Int,
+) -> PrimitiveString
+
 let DQUOTE = 0x22
 let BSLASH = 0x5C
 let LOWER_B = 0x62
@@ -136,6 +141,26 @@ type builtin String {
     if pointer as Int == 0 { return '' }
 
     from_primitive(inko_string_from_pointer(pointer))
+  }
+
+  # Returns a new `String` created from the given `Bytes`.
+  #
+  # If the bytes contain invalid UTF-8 sequences, an `Option.None` is returned.
+  #
+  # # Examples
+  #
+  # ```inko
+  # String.try_from_bytes('abc'.to_byte_array)         # => Option.Some('abc')
+  # String.try_from_bytes(ByteArray.from_array([255])) # => Option.None
+  # ```
+  fn pub static try_from_bytes[B: Bytes](bytes: ref B) -> Option[String] {
+    let prim = inko_string_try_from_bytes(bytes.pointer, bytes.size)
+
+    if prim.size > -1 {
+      Option.Some(from_borrowed_primitive(prim))
+    } else {
+      Option.None
+    }
   }
 
   # Return a `String` that contains the values of the iterator, separated by the

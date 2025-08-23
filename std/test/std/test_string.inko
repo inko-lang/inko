@@ -61,6 +61,12 @@ fn pub tests(t: mut Tests) {
     t.equal(a, '')
   })
 
+  t.test('String.from_bytes', fn (t) {
+    t.equal(String.try_from_bytes('abc'.to_byte_array), Option.Some('abc'))
+    t.equal(String.try_from_bytes(ByteArray.new), Option.Some(''))
+    t.equal(String.try_from_bytes(ByteArray.from_array([255])), Option.None)
+  })
+
   t.test('String.join', fn (t) {
     let vals = [10, 20, 30]
 
