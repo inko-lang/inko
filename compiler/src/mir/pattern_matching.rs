@@ -1065,7 +1065,7 @@ mod tests {
             .collect()
     }
 
-    fn compiler(state: &mut State) -> Compiler {
+    fn compiler(state: &mut State) -> Compiler<'_> {
         Compiler::new(state, Variables::new(), TypeBounds::new())
     }
 

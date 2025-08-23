@@ -51,7 +51,9 @@ pub unsafe extern "system" fn inko_env_argument(
     state: *const State,
     index: i64,
 ) -> PrimitiveString {
-    PrimitiveString::borrowed((*state).arguments.get_unchecked(index as usize))
+    PrimitiveString::borrowed(
+        (&(*state)).arguments.get_unchecked(index as usize),
+    )
 }
 
 #[no_mangle]

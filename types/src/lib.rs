@@ -608,7 +608,7 @@ impl TypeArguments {
         self.mapping.is_empty()
     }
 
-    pub fn iter(&self) -> indexmap::map::Iter<TypeParameterId, TypeRef> {
+    pub fn iter(&self) -> indexmap::map::Iter<'_, TypeParameterId, TypeRef> {
         self.mapping.iter()
     }
 
@@ -4604,8 +4604,7 @@ impl TypeRef {
     }
 
     pub fn is_closure(self, db: &Database) -> bool {
-        self.as_type_enum(db)
-            .is_ok_and(|v| matches!(v, TypeEnum::Closure(_)))
+        self.as_type_enum(db).is_ok_and(|v| matches!(v, TypeEnum::Closure(_)))
     }
 
     pub fn is_rigid_type_parameter(self, db: &Database) -> bool {

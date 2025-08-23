@@ -10,7 +10,7 @@ pub(crate) enum Class {
 }
 
 impl Class {
-    pub(crate) fn to_llvm_type(self, context: &Context) -> BasicTypeEnum {
+    pub(crate) fn to_llvm_type(self, context: &Context) -> BasicTypeEnum<'_> {
         match self {
             Class::Int(bytes) => {
                 context.custom_int(bytes as u32 * 8).as_basic_type_enum()

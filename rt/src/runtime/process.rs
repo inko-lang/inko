@@ -158,7 +158,7 @@ pub unsafe extern "system" fn inko_process_stack_frame_name(
     trace: *const Vec<StackFrame>,
     index: i64,
 ) -> PrimitiveString {
-    let val = &(*trace).get_unchecked(index as usize).name;
+    let val = &(&(*trace)).get_unchecked(index as usize).name;
 
     PrimitiveString::borrowed(val)
 }
@@ -168,7 +168,7 @@ pub unsafe extern "system" fn inko_process_stack_frame_path(
     trace: *const Vec<StackFrame>,
     index: i64,
 ) -> PrimitiveString {
-    let val = &(*trace).get_unchecked(index as usize).path;
+    let val = &(&(*trace)).get_unchecked(index as usize).path;
 
     PrimitiveString::borrowed(val)
 }
@@ -178,7 +178,7 @@ pub unsafe extern "system" fn inko_process_stack_frame_line(
     trace: *const Vec<StackFrame>,
     index: i64,
 ) -> i64 {
-    (*trace).get_unchecked(index as usize).line
+    (&(*trace)).get_unchecked(index as usize).line
 }
 
 #[no_mangle]

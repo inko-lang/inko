@@ -90,7 +90,7 @@ pub unsafe extern "system" fn inko_runtime_state(
 pub unsafe extern "system" fn inko_runtime_stack_mask(
     runtime: *mut Runtime,
 ) -> u64 {
-    let raw_size = (*runtime).state.config.stack_size;
+    let raw_size = (&(*runtime)).state.config.stack_size;
     let total = total_stack_size(raw_size as _, page_size()) as u64;
 
     !(total - 1)

@@ -105,7 +105,7 @@ fn download_dependency(
     })?;
 
     if tag.target != dependency.checksum.to_string() {
-        format!(
+        let _ = format!(
             "The checksum of {} version {} didn't match.
 
 The checksum that is expected is:

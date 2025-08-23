@@ -59,39 +59,39 @@ impl Context {
         self.inner.ptr_type(AddressSpace::default())
     }
 
-    pub(crate) fn bool_type(&self) -> IntType {
+    pub(crate) fn bool_type(&self) -> IntType<'_> {
         self.inner.bool_type()
     }
 
-    pub(crate) fn custom_int(&self, bits: u32) -> IntType {
+    pub(crate) fn custom_int(&self, bits: u32) -> IntType<'_> {
         self.inner.custom_width_int_type(bits)
     }
 
-    pub(crate) fn i8_type(&self) -> IntType {
+    pub(crate) fn i8_type(&self) -> IntType<'_> {
         self.inner.i8_type()
     }
 
-    pub(crate) fn i16_type(&self) -> IntType {
+    pub(crate) fn i16_type(&self) -> IntType<'_> {
         self.inner.i16_type()
     }
 
-    pub(crate) fn i32_type(&self) -> IntType {
+    pub(crate) fn i32_type(&self) -> IntType<'_> {
         self.inner.i32_type()
     }
 
-    pub(crate) fn i64_type(&self) -> IntType {
+    pub(crate) fn i64_type(&self) -> IntType<'_> {
         self.inner.i64_type()
     }
 
-    pub(crate) fn f32_type(&self) -> FloatType {
+    pub(crate) fn f32_type(&self) -> FloatType<'_> {
         self.inner.f32_type()
     }
 
-    pub(crate) fn f64_type(&self) -> FloatType {
+    pub(crate) fn f64_type(&self) -> FloatType<'_> {
         self.inner.f64_type()
     }
 
-    pub(crate) fn void_type(&self) -> VoidType {
+    pub(crate) fn void_type(&self) -> VoidType<'_> {
         self.inner.void_type()
     }
 
@@ -110,7 +110,7 @@ impl Context {
         self.inner.struct_type(fields, false)
     }
 
-    pub(crate) fn two_words(&self) -> StructType {
+    pub(crate) fn two_words(&self) -> StructType<'_> {
         let word = self.i64_type().into();
 
         self.inner.struct_type(&[word, word], false)
@@ -148,11 +148,11 @@ impl Context {
         self.inner.append_basic_block(function, "")
     }
 
-    pub(crate) fn create_builder(&self) -> Builder {
+    pub(crate) fn create_builder(&self) -> Builder<'_> {
         self.inner.create_builder()
     }
 
-    pub(crate) fn create_module(&self, name: &str) -> Module {
+    pub(crate) fn create_module(&self, name: &str) -> Module<'_> {
         self.inner.create_module(name)
     }
 

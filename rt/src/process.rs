@@ -520,7 +520,7 @@ impl Process {
         }
     }
 
-    pub(crate) fn state(&self) -> MutexGuard<ProcessState> {
+    pub(crate) fn state(&self) -> MutexGuard<'_, ProcessState> {
         self.state.lock().unwrap()
     }
 
