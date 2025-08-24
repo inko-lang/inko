@@ -1,4 +1,4 @@
-# Methods for working with UTF-8 scalars and code point.
+# Methods for working with UTF-8 scalars and code points.
 
 # The maximum value of a Unicode code point
 let pub MAX_CODEPOINT = 0x10FFFF

@@ -1298,7 +1298,7 @@ impl ToString for Path {
   # Returns a `String` containing the percent-decoded value of `self`.
   #
   # If after decoding the data contains bytes that aren't valid UTF-8, these
-  # bytes are replaced with  `U+FFFD REPLACEMENT CHARACTER`.
+  # bytes are replaced with `U+FFFD REPLACEMENT CHARACTER`.
   fn pub to_string -> String {
     let buf = ByteArray.new
 

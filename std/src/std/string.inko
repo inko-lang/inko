@@ -14,9 +14,35 @@ import std.drop (Drop)
 import std.fmt (Format, Formatter)
 import std.fs.path (Path)
 import std.hash (Hash, Hasher)
+import std.int (ToInt)
 import std.iter (Iter, Stream)
 import std.ops (Add)
 import std.ptr
+import std.utf8
+
+let SCALARS_ACCEPT = 0
+let SCALARS_REJECT = 12
+let SCALARS_TABLE = [
+  # The character classes.
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1,
+  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
+  9, 9, 9, 9, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+  7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 8, 8, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+  2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 10, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+  3, 3, 3, 4, 3, 3, 11, 6, 6, 6, 5, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+
+  # The transition table.
+  0, 12, 24, 36, 60, 96, 84, 12, 12, 12, 48, 72, 12, 12, 12, 12, 12, 12, 12, 12,
+  12, 12, 12, 12, 12, 0, 12, 12, 12, 12, 12, 0, 12, 0, 12, 12, 12, 24, 12, 12,
+  12, 12, 12, 24, 12, 24, 12, 12, 12, 12, 12, 12, 12, 12, 12, 24, 12, 12, 12,
+  12, 12, 24, 12, 12, 12, 12, 12, 12, 12, 24, 12, 12, 12, 12, 12, 12, 12, 12,
+  12, 36, 12, 36, 12, 12, 12, 36, 12, 12, 12, 12, 12, 36, 12, 36, 12, 12, 12,
+  36, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12,
+]
 
 type extern PrimitiveString {
   let @bytes: Pointer[UInt8]
@@ -392,10 +418,22 @@ type builtin String {
   # # Examples
   #
   # ```inko
-  # '😀😃'.chars.next # => Option.Some('😀')
+  # '😀😃'.chars.to_array # => ['😀', '😃']
   # ```
   fn pub inline chars -> Chars {
     Chars(string: self, iter: inko_string_chars(to_primitive))
+  }
+
+  # Returns an iterator over the UTF-8 scalars in `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # 'foo'.scalars.to_array # => [102, 111, 111]
+  # '🤦🏼‍♂️'.scalars.to_array  # => [129318, 127996, 8205, 9794, 65039]
+  # ```
+  fn pub inline scalars -> Scalars[Self] {
+    Scalars.new(self)
   }
 
   # Returns a new `String` without the given prefix.
@@ -767,7 +805,154 @@ impl Compare for String {
   }
 }
 
-# An iterator over the characters (= extended grapheme clusters) in a String.
+# A UTF-8 scalar.
+#
+# A UTF-8 scalar is any UTF-8 code point other than a surrogate code point.
+#
+# A `Scalar` is typically produced through other methods, such as
+# `String.scalars`, but you can manually create one using `Scalar.new`.
+type pub copy Scalar {
+  let @value: Int
+
+  # Creates a `Scalar` from an `Int`.
+  #
+  # If the value is an invalid UTF-8 scalar, an `Option.None` is returned.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.string (Scalar)
+  #
+  # Scalar.new(0xFFFD) # => Option.Some(Scalar(0xFFFD))
+  # Scalar.new(0xD800) # => Option.None
+  # ```
+  fn pub inline static new(value: Int) -> Option[Scalar] {
+    if utf8.valid_scalar?(value) {
+      Option.Some(Self(value))
+    } else {
+      Option.None
+    }
+  }
+
+  # Returns the number of bytes necessary to encode `self` as UTF-8.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.string (Scalar)
+  #
+  # Scalar.new(0x1F600).get.size # => 4
+  # ```
+  fn pub inline size -> Int {
+    utf8.codepoint_size(@value)
+  }
+
+  # Encodes `self` as a UTF-8 sequence of bytes into the given `ByteArray`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.string (Scalar)
+  #
+  # Scalar.new()
+  # ```
+  fn pub encode_into(buffer: mut ByteArray) {
+    utf8.encode_scalar(@value, buffer)
+  }
+}
+
+impl Format for Scalar {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter.tuple('Scalar').field(@value).finish
+  }
+}
+
+impl Equal for Scalar {
+  fn pub inline ==(other: Self) -> Bool {
+    @value == other.value
+  }
+}
+
+impl Hash for Scalar {
+  fn pub hash[H: mut + Hasher](hasher: mut H) {
+    hasher.write(@value)
+  }
+}
+
+impl ToInt for Scalar {
+  # Returns the numerical value of `self`.
+  fn pub inline to_int -> Int {
+    @value
+  }
+}
+
+# An iterator over the UTF-8 scalars in a `Bytes`.
+#
+# This iterator's implementation is based on the improved algorithm from
+# <https://bjoern.hoehrmann.de/utf-8/decoder/dfa/>.
+#
+# When encountering an invalid sequence of bytes, a `U+FFFD REPLACEMENT
+# CHARACTER` is returned.
+#
+# For more information, refer to the documentation of `String.codepoints`.
+type pub Scalars[B: Bytes] {
+  let @input: B
+  let mut @idx: Int
+  let mut @state: Int
+  let mut @code: Int
+
+  fn static new(input: B) -> Self {
+    Self(input: input, idx: 0, state: SCALARS_ACCEPT, code: 0)
+  }
+
+  fn inline mut decode(byte: Int) -> Int {
+    # The cost of bounds checking can be significant for larger inputs. Sadly
+    # there's no way we can instruct the backend that access to the table is
+    # always within bounds.
+    #
+    # For this reason we use unchecked indexing. This is safe because:
+    #
+    # 1. `Scalars.new` and its fields are private, such that it can't be
+    #    constructed manually
+    # 2. The input must be a `Bytes`
+    # 3. The implementation of this method is such that the indexes never go out
+    #    of bounds
+    let typ = SCALARS_TABLE.get_unchecked(byte)
+
+    @code = if @state > SCALARS_REJECT {
+      (byte & 0x3F) | (@code << 6)
+    } else {
+      0xFF >> typ & byte
+    }
+
+    @state = SCALARS_TABLE.get_unchecked(256 + @state + typ)
+    @state
+  }
+}
+
+impl Iter[Scalar] for Scalars {
+  fn pub mut next -> Option[Scalar] {
+    while @idx < @input.size {
+      let old_state = @state
+
+      match decode(@input.get(@idx := @idx + 1).or_panic) {
+        case SCALARS_ACCEPT -> return Option.Some(Scalar(@code))
+        case SCALARS_REJECT -> {
+          @state = SCALARS_ACCEPT
+
+          if old_state != SCALARS_ACCEPT { @idx -= 1 }
+
+          return Option.Some(Scalar(0xFFFD))
+        }
+        case _ -> {}
+      }
+    }
+
+    Option.None
+  }
+}
+
+# An iterator over the characters (= extended grapheme clusters) in a `String`.
 #
 # The exact number of grapheme clusters a `String` contains may change over time
 # as the Unicode specification changes. If you want to index into a `String` in

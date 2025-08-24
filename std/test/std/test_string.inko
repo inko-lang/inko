@@ -5,7 +5,7 @@ import std.cmp (Ordering)
 import std.fmt (fmt)
 import std.fs.path (Path)
 import std.ptr
-import std.string (PrimitiveString, StringBuffer)
+import std.string (PrimitiveString, Scalar, Scalars, StringBuffer)
 import std.test (Tests)
 
 fn split(string: String, on: String) -> Array[String] {
@@ -249,6 +249,26 @@ fn pub tests(t: mut Tests) {
     t.equal('😀😃'.chars.to_array, ['😀', '😃'])
     t.equal('😀x😃'.chars.to_array, ['😀', 'x', '😃'])
     t.equal('🤦🏼‍♂️'.chars.to_array, ['🤦🏼‍♂️'])
+  })
+
+  t.test('String.scalars', fn (t) {
+    t.equal('foo'.scalars.to_array, [Scalar(102), Scalar(111), Scalar(111)])
+    t.equal('fóó'.scalars.to_array, [Scalar(102), Scalar(243), Scalar(243)])
+    t.equal('😀😃'.scalars.to_array, [Scalar(128512), Scalar(128515)])
+    t.equal(
+      '😀x😃'.scalars.to_array,
+      [Scalar(128512), Scalar(120), Scalar(128515)],
+    )
+    t.equal(
+      '🤦🏼‍♂️'.scalars.to_array,
+      [
+        Scalar(129318),
+        Scalar(127996),
+        Scalar(8205),
+        Scalar(9794),
+        Scalar(65039),
+      ],
+    )
   })
 
   t.test('String.contains?', fn (t) {
@@ -560,4 +580,37 @@ fn pub tests(t: mut Tests) {
     buf.push('b')
     t.equal(buf.into_string, 'a😃b')
   })
+
+  t.test('Scalars.next with an invalid sequence of bytes', fn (t) {
+    let iter = Scalars.new(ByteArray.from_array([250, 10]))
+
+    t.equal(iter.next, Option.Some(Scalar(0xFFFD)))
+    t.equal(iter.next, Option.Some(Scalar(10)))
+    t.equal(iter.next, Option.None)
+  })
+
+  t.test('Scalar.new', fn (t) {
+    t.equal(Scalar.new(0xFFFD), Option.Some(Scalar(0xFFFD)))
+    t.equal(Scalar.new(0xD800), Option.None)
+  })
+
+  t.test('Scalar.size', fn (t) { t.equal(Scalar(0x1F600).size, 4) })
+
+  t.test('Scalar.encode_into', fn (t) {
+    let buf = ByteArray.new
+
+    Scalar(0x1F600).encode_into(buf)
+    t.equal(buf, '😀'.to_byte_array)
+  })
+
+  t.test('Scalar.fmt', fn (t) { t.equal(fmt(Scalar(10)), 'Scalar(10)') })
+
+  t.test('Scalar.==', fn (t) {
+    t.equal(Scalar(10), Scalar(10))
+    t.not_equal(Scalar(10), Scalar(20))
+  })
+
+  t.test('Scalar.hash', fn (t) { t.equal(hash(Scalar(10)), hash(Scalar(10))) })
+
+  t.test('Scalar.to_int', fn (t) { t.equal(Scalar(10).to_int, 10) })
 }
