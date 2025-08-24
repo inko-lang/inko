@@ -1,6 +1,6 @@
 use crate::mem::PrimitiveString;
 use crate::result::{self, Result};
-use crate::rustls_platform_verifier::tls_config;
+use crate::rustls_platform_verifier::ConfigVerifierExt;
 use crate::socket::Socket;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, ServerName};
 use rustls::{
@@ -98,7 +98,7 @@ unsafe fn tls_close<
 #[no_mangle]
 pub unsafe extern "system" fn inko_tls_client_config_new() -> *mut ClientConfig
 {
-    Arc::into_raw(Arc::new(tls_config())) as *mut _
+    Arc::into_raw(Arc::new(ClientConfig::with_platform_verifier())) as *mut _
 }
 
 #[no_mangle]

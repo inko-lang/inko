@@ -8,6 +8,7 @@ allow = [
     "Apache-2.0",
     "BSD-2-Clause",
     "BSD-3-Clause",
+    "CDLA-Permissive-2.0",
     "ISC",
     "MIT",
     "MPL-2.0",
@@ -24,10 +25,8 @@ license-files = [{ path = "LICENSE", hash = 0xbd0eed23 }]
 multiple-versions = "warn"
 wildcards = "allow"
 highlight = "all"
-skip = [{ name = "unicode-width" }]
-skip-tree = [
-    { name = "windows-sys", depth = 5 },
-]
+skip = []
+skip-tree = [{ name = "windows-sys", depth = 5 }]
 allow = []
 
 [sources]

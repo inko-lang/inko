@@ -20,7 +20,7 @@ atomic-wait = "^1.1"
 # (e.g. signal management) we still need to use libc in those cases.
 libc = "^0.2"
 unicode-segmentation = "^1.10"
-backtrace = "^0.3"
+backtrace = "=0.3.74"
 rustix = { version = "^0.38", features = ["mm", "param", "process", "std", "event"], default-features = false }
 
 # The dependencies needed for TLS support.
@@ -40,14 +40,17 @@ rustls-pemfile = "^2.1"
 # platform verification process being potentially slow. See
 # https://github.com/rustls/rustls/issues/850 and
 # https://github.com/inko-lang/inko/issues/329 for more details.
-once_cell = "1.9"
+log = { version = "0.4" }
 
-[target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
-rustls-native-certs = "0.7"
-webpki = { package = "rustls-webpki", version = "0.102", default-features = false }
+[target.'cfg(all(unix, not(target_os = "android"), not(target_vendor = "apple"), not(target_arch = "wasm32")))'.dependencies]
+rustls-native-certs = "0.8"
+webpki = { package = "rustls-webpki", version = "0.103", default-features = false }
 
-[target.'cfg(any(target_os = "macos"))'.dependencies]
-core-foundation = "0.9"
+[target.'cfg(any(target_vendor = "apple"))'.dependencies]
+core-foundation = "0.10"
 core-foundation-sys = "0.8"
-security-framework = { version = "2.10", features = ["OSX_10_14"] }
+security-framework = { version = "3", features = ["OSX_10_14"] }
 security-framework-sys = { version = "2.10", features = ["OSX_10_14"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = ">=0.52.0, <0.60.0", default-features = false, features = ["Win32_Foundation", "Win32_Security_Cryptography"] }

@@ -1,8 +1,7 @@
-use super::log_server_cert;
-use crate::rustls_platform_verifier::verification::invalid_certificate;
+use std::sync::Arc;
+
 use core_foundation::date::CFDate;
 use core_foundation_sys::date::kCFAbsoluteTimeIntervalSince1970;
-use once_cell::sync::OnceCell;
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerifier};
 use rustls::crypto::{
     verify_tls12_signature, verify_tls13_signature, CryptoProvider,
@@ -16,9 +15,10 @@ use security_framework::{
     certificate::SecCertificate, policy::SecPolicy,
     secure_transport::SslProtocolSide, trust::SecTrust,
 };
-use std::sync::Arc;
 
+use super::log_server_cert;
 use crate::process::ProcessPointer;
+use crate::rustls_platform_verifier::verification::invalid_certificate;
 use crate::scheduler::process::CURRENT_PROCESS;
 
 mod errors {
@@ -50,18 +50,36 @@ fn system_time_to_cfdate(
 /// A TLS certificate verifier that utilizes the Apple platform certificate facilities.
 #[derive(Debug)]
 pub struct Verifier {
-    pub(super) crypto_provider: OnceCell<Arc<CryptoProvider>>,
+    /// Extra trust anchors to add to the verifier above and beyond those provided by
+    /// the system-provided trust stores.
+    extra_roots: Vec<SecCertificate>,
+    crypto_provider: Arc<CryptoProvider>,
 }
 
 impl Verifier {
-    /// Creates a new instance of a TLS certificate verifier that utilizes the macOS certificate
+    /// Creates a new instance of a TLS certificate verifier that utilizes the Apple certificate
     /// facilities.
+    pub fn new(crypto_provider: Arc<CryptoProvider>) -> Result<Self, TlsError> {
+        Ok(Self { extra_roots: Vec::new(), crypto_provider })
+    }
+
+    /// Creates a new instance of a TLS certificate verifier that utilizes the Apple certificate
+    /// facilities with the addition of extra root certificates to trust.
     ///
-    /// A [`CryptoProvider`] must be set with
-    /// [`set_provider`][Verifier::set_provider]/[`with_provider`][Verifier::with_provider] or
-    /// [`CryptoProvider::install_default`] before the verifier can be used.
-    pub fn new() -> Self {
-        Self { crypto_provider: OnceCell::new() }
+    /// See [Verifier::new] for the external requirements the verifier needs.
+    pub fn new_with_extra_roots(
+        roots: impl IntoIterator<Item = pki_types::CertificateDer<'static>>,
+        crypto_provider: Arc<CryptoProvider>,
+    ) -> Result<Self, TlsError> {
+        let extra_roots = roots
+            .into_iter()
+            .map(|root| {
+                SecCertificate::from_der(&root).map_err(|_| {
+                    TlsError::InvalidCertificate(CertificateError::BadEncoding)
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Self { extra_roots, crypto_provider })
     }
 
     fn verify_certificate(
@@ -120,8 +138,23 @@ impl Verifier {
                 .map_err(|e| invalid_certificate(e.to_string()))?;
         }
 
-        // Safety: well, technically none, but due to the way the runtime uses
-        // the verifier this should never misbehave.
+        let extra_roots = self.extra_roots.as_slice();
+
+        // If any extra roots were provided by the user (or tests), provide them to the trust
+        // evaluation regardless of their system trust settings or status.
+        if !extra_roots.is_empty() {
+            trust_evaluation
+                .set_anchor_certificates(extra_roots)
+                .map_err(|e| TlsError::Other(OtherError(Arc::new(e))))?;
+
+            // We want to trust both the system-installed and the extra roots. This must be set
+            // since calling `SecTrustSetAnchorCertificates` "disables the trusting of any
+            // anchors other than the ones specified by this function call" by default.
+            trust_evaluation
+                .set_trust_anchor_certificates_only(false)
+                .map_err(|e| TlsError::Other(OtherError(Arc::new(e))))?;
+        }
+
         let process = unsafe { ProcessPointer::new(CURRENT_PROCESS.get()) };
 
         process.start_blocking();
@@ -152,7 +185,7 @@ impl Verifier {
                         CertificateError::UnknownIssuer,
                     )),
                     errors::errSecInvalidExtendedKeyUsage => Ok(TlsError::InvalidCertificate(
-                        CertificateError::Other(OtherError(std::sync::Arc::new(super::EkuError))),
+                        CertificateError::Other(OtherError(Arc::new(super::EkuError))),
                     )),
                     errors::errSecCertificateRevoked => {
                         Ok(TlsError::InvalidCertificate(CertificateError::Revoked))
@@ -162,7 +195,7 @@ impl Verifier {
             })
             // Fallback to an error containing the description and specific error code so that
             // the exact error cause can be looked up easily.
-            .unwrap_or_else(|_| invalid_certificate(format!("{}: {}", trust_error, err_code)));
+            .unwrap_or_else(|_| invalid_certificate(format!("{trust_error}: {err_code}")));
 
         Err(err)
     }
@@ -199,6 +232,7 @@ impl ServerCertVerifier for Verifier {
             Err(e) => {
                 // This error only tells us what the system errored with, so it doesn't leak anything
                 // sensitive.
+                log::error!("failed to verify TLS certificate: {}", e);
                 Err(e)
             }
         }
@@ -214,7 +248,7 @@ impl ServerCertVerifier for Verifier {
             message,
             cert,
             dss,
-            &self.get_provider().signature_verification_algorithms,
+            &self.crypto_provider.signature_verification_algorithms,
         )
     }
 
@@ -228,19 +262,13 @@ impl ServerCertVerifier for Verifier {
             message,
             cert,
             dss,
-            &self.get_provider().signature_verification_algorithms,
+            &self.crypto_provider.signature_verification_algorithms,
         )
     }
 
     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
-        self.get_provider()
+        self.crypto_provider
             .signature_verification_algorithms
             .supported_schemes()
-    }
-}
-
-impl Default for Verifier {
-    fn default() -> Self {
-        Self::new()
     }
 }
