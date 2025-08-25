@@ -62,6 +62,6 @@ impl DependencyGraph {
     }
 
     pub(crate) fn module_changed(&self, name: &ModuleName) -> bool {
-        self.mapping.get(name).map_or(true, |&i| self.nodes[i].changed)
+        self.mapping.get(name).is_none_or(|&i| self.nodes[i].changed)
     }
 }

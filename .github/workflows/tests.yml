@@ -71,7 +71,7 @@ jobs:
         target:
           - image: fedora-amd64
             name: amd64-linux-gnu
-            version: 1.78
+            version: 1.84
           - image: fedora-amd64
             name: amd64-linux-gnu
             version: 1.89

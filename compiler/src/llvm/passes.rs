@@ -109,7 +109,7 @@ fn check_object_cache(
         read(&ver_path)
             .ok()
             .and_then(|b| String::from_utf8(b).ok())
-            .map_or(true, |old_ver| old_ver != new_ver)
+            .is_none_or(|old_ver| old_ver != new_ver)
     } else {
         true
     };
@@ -232,7 +232,7 @@ fn check_object_cache(
                 read(&hash_path)
                     .ok()
                     .and_then(|b| String::from_utf8(b).ok())
-                    .map_or(true, |old_hash| old_hash != new_hash)
+                    .is_none_or(|old_hash| old_hash != new_hash)
             } else {
                 true
             };

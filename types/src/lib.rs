@@ -4477,7 +4477,7 @@ impl TypeRef {
         match self {
             TypeRef::UniRef(_) | TypeRef::UniMut(_) => false,
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(true, |v| v.allow_in_array(db))
+                id.value(db).is_none_or(|v| v.allow_in_array(db))
             }
             _ => !self.is_foreign_type(db),
         }
@@ -4710,7 +4710,7 @@ impl TypeRef {
                 }
 
                 if ins.instance_of.is_generic(db) {
-                    ins.type_arguments(db).map_or(true, |args| {
+                    ins.type_arguments(db).is_none_or(|args| {
                         args.iter().all(|(_, t)| t.is_value_type(db))
                     })
                 } else {
@@ -4820,7 +4820,7 @@ impl TypeRef {
             TypeRef::Uni(_) => moving,
             TypeRef::UniRef(_) | TypeRef::UniMut(_) => false,
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(true, |v| v.allow_capturing(db, moving))
+                id.value(db).is_none_or(|v| v.allow_capturing(db, moving))
             }
             _ => true,
         }
@@ -4906,7 +4906,7 @@ impl TypeRef {
             TypeRef::Uni(_) | TypeRef::Never | TypeRef::Error => true,
             TypeRef::Owned(TypeEnum::Closure(id)) => id.can_infer_as_uni(db),
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(true, |v| v.is_sendable(db))
+                id.value(db).is_none_or(|v| v.is_sendable(db))
             }
             _ => self.is_value_type(db),
         }
@@ -4955,7 +4955,7 @@ impl TypeRef {
                     .all(|f| f.value_type(db).is_sendable_output(db))
             }
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(true, |v| v.is_sendable_output(db))
+                id.value(db).is_none_or(|v| v.is_sendable_output(db))
             }
             _ => self.is_value_type(db),
         }

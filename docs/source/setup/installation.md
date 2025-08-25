@@ -19,7 +19,7 @@ the listed platforms. Windows isn't supported.
 
 ## Requirements
 
-- Rust 1.78 or newer
+- Rust 1.84 or newer
 - LLVM 18 or newer
 - A C compiler such as [GCC](https://gcc.gnu.org/) or
   [clang](https://clang.llvm.org/)
@@ -238,28 +238,13 @@ sudo apk add build-base rust cargo llvm18 llvm18-dev llvm18-static libstdc++-dev
 
 ### Debian
 
-Debian 13:
+Debian 13 and newer:
 
 ```bash
 sudo apt-get install --yes rustc cargo git build-essential llvm-18 llvm-18-dev libstdc++-12-dev libclang-common-18-dev zlib1g-dev libpolly-18-dev libzstd-dev
 ```
 
-Debian 12:
-
-```bash
-curl https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
-echo -e "deb http://apt.llvm.org/bookworm/ llvm-toolchain-bookworm-18 main" | sudo tee /etc/apt/sources.list.d/llvm18.list
-sudo apt-get update
-sudo apt-get install --yes git build-essential llvm-18 llvm-18-dev libstdc++-11-dev libclang-common-18-dev zlib1g-dev libpolly-18-dev libzstd-dev
-```
-
-For older versions, refer to [LLVM's Debian/Ubuntu packages page][llvm-apt] and
-adjust the `add-apt-repository` accordingly.
-
-::: note
-For Debian 12 and older, the version of Rust is too old, so you'll need to use
-[rustup](https://rustup.rs/) to install Rust.
-:::
+Older versions of Debian aren't supported.
 
 ### Fedora
 
@@ -267,12 +252,6 @@ For Fedora 41 and newer:
 
 ```bash
 sudo dnf install gcc make rust cargo llvm18 llvm18-devel llvm18-static libstdc++-devel libstdc++-static libffi-devel zlib-devel git
-```
-
-For Fedora 40:
-
-```bash
-sudo dnf install gcc make rust cargo llvm llvm-devel llvm-static libstdc++-devel libstdc++-static libffi-devel zlib-devel git
 ```
 
 Older versions of Fedora aren't supported.
@@ -291,22 +270,10 @@ brew install llvm@18 rust git
 
 ### Ubuntu
 
-For Ubuntu 24.04 and newer:
+For Ubuntu 25.04 and newer:
 
 ```bash
 sudo apt-get install --yes rustc cargo git build-essential llvm-18 llvm-18-dev libstdc++-12-dev libclang-common-18-dev zlib1g-dev libpolly-18-dev libzstd-dev
 ```
 
-For 23.10:
-
-```bash
-curl https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
-echo -e "deb http://apt.llvm.org/mantic/ llvm-toolchain-mantic-18 main" | sudo tee /etc/apt/sources.list.d/llvm18.list
-sudo apt-get update
-sudo apt-get install --yes rustc cargo git build-essential llvm-18 llvm-18-dev libstdc++-11-dev libclang-common-18-dev zlib1g-dev libpolly-18-dev libzstd-dev
-```
-
-For older versions, refer to [LLVM's Debian/Ubuntu packages page][llvm-apt] and
-adjust the `add-apt-repository` accordingly.
-
-[llvm-apt]: https://apt.llvm.org/
+Older versions of Ubuntu aren't supported.

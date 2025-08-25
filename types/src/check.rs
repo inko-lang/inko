@@ -639,7 +639,7 @@ impl<'a> TypeChecker<'a> {
                             (Uni, Uni | Any) => true,
                             (Ref, Any) => id
                                 .required(self.db)
-                                .map_or(true, |p| !p.is_mutable(self.db)),
+                                .is_none_or(|p| !p.is_mutable(self.db)),
                             (Ref, Ref) => true,
                             (Mut, Any | Ref | Mut) => true,
                             _ => false,
