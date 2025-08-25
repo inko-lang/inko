@@ -1189,8 +1189,8 @@ type pub inline Path {
   #
   # # Percent decoding
   #
-  # Components containing percent-encoded sequences are decoded into a
-  # `PathComponent.Owned` _after_ splitting the components.
+  # Components containing percent-encoded sequences are decoded _after_
+  # splitting the components.
   #
   # # Examples
   #
@@ -1230,14 +1230,8 @@ type pub inline Path {
 
     for comp in iter {
       match comp {
-        case Root -> buffer.push(SLS)
-        case Owned(v) -> {
-          if len > 0 { buffer.push(SLS) }
-
-          encode_into(v, buffer, tables.ENCODE_PATH)
-          len += 1
-        }
-        case Borrowed(v) -> {
+        case '/' -> buffer.push(SLS)
+        case v -> {
           if len > 0 { buffer.push(SLS) }
 
           encode_into(v, buffer, tables.ENCODE_PATH)
@@ -1322,75 +1316,26 @@ impl Equal for Path {
   }
 }
 
-# A single component in a URI path.
-#
-# A `PathComponent` represents a single component (e.g. `foo` in `/foo/bar`) in
-# a URI path, optimized to avoid redundant memory allocations.
-type pub inline enum PathComponent {
-  # The root of an absolute path.
-  case Root
-
-  # A path component that contained percent-encoded sequences and is decoded.
-  case Owned(String)
-
-  # A path component that doesn't contain any percent-encoded sequences.
-  #
-  # Using a dedicated constructor for these kind of components means allocations
-  # aren't necessary _until_ the component is converted to a `String`.
-  case Borrowed(Slice[String])
-}
-
-impl ToString for PathComponent {
-  fn pub to_string -> String {
-    match self {
-      case Root -> '/'
-      case Owned(v) -> v
-      case Borrowed(v) -> v.to_string
-    }
-  }
-}
-
-impl Equal for PathComponent {
-  fn pub ==(other: ref PathComponent) -> Bool {
-    match (self, other) {
-      case (Root, Root) -> true
-      case (Owned(a), Owned(b)) -> a == b
-      case (Borrowed(a), Borrowed(b)) -> a == b
-      case (Owned(a), Borrowed(b)) -> a.equals?(b)
-      case (Borrowed(a), Owned(b)) -> a.equals?(b)
-      case _ -> false
-    }
-  }
-}
-
-impl Format for PathComponent {
-  fn pub fmt(formatter: mut Formatter) {
-    match self {
-      case Root -> formatter.tuple('Root').finish
-      case Owned(v) -> formatter.tuple('Owned').field(v).finish
-      case Borrowed(v) -> formatter.tuple('Borrowed').field(v.to_string).finish
-    }
-  }
-}
-
 # An iterator over the components in a `Path`.
 type pub PathComponents {
   let @path: String
   let mut @index: Int
 
-  fn inline slice(start: Int, end: Int, decode: Bool) -> PathComponent {
+  fn inline slice(start: Int, end: Int, decode: Bool) -> Slice[String] {
     let slice = Slice.new(@path, start, end)
 
     if decode {
-      PathComponent.Owned(decode_string(slice).get)
+      let val = decode_string(slice).get
+
+      val.slice(0, val.size)
     } else {
-      PathComponent.Borrowed(slice)
+      slice
     }
   }
 }
 
-impl Iter[PathComponent] for PathComponents {
-  fn pub mut next -> Option[PathComponent] {
+impl Iter[Slice[String]] for PathComponents {
+  fn pub mut next -> Option[Slice[String]] {
     let mut idx = @index
     let mut start = idx
     let mut perc = false
@@ -1405,7 +1350,7 @@ impl Iter[PathComponent] for PathComponents {
         }
         case SLS if idx == 0 -> {
           @index = idx + 1
-          return Option.Some(PathComponent.Root)
+          return Option.Some(@path.slice(idx, @index))
         }
         case SLS if idx == start -> {
           idx += 1

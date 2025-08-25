@@ -4,8 +4,8 @@ import std.map (MissingKey)
 import std.net.ip (IpAddress)
 import std.test (Tests)
 import std.uri (
-  Error, Fragment, Host, Path, PathComponent, Query, Scheme, Uri, UserInfo,
-  Values, decode, encode,
+  Error, Fragment, Host, Path, Query, Scheme, Uri, UserInfo, Values, decode,
+  encode,
 )
 
 fn http -> Option[Scheme] {
@@ -414,35 +414,6 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Path.clone', fn (t) { t.equal(Path('a').clone, Path('a')) })
-
-  t.test('PathComponent.to_string', fn (t) {
-    t.equal(PathComponent.Root.to_string, '/')
-    t.equal(PathComponent.Owned('foo').to_string, 'foo')
-    t.equal(PathComponent.Borrowed('foo'.slice(0, 3)).to_string, 'foo')
-  })
-
-  t.test('PathComponent.==', fn (t) {
-    t.equal(PathComponent.Root, PathComponent.Root)
-    t.equal(PathComponent.Owned('a'), PathComponent.Owned('a'))
-    t.equal(
-      PathComponent.Borrowed('a'.slice(0, 1)),
-      PathComponent.Borrowed('a'.slice(0, 1)),
-    )
-    t.equal(PathComponent.Owned('a'), PathComponent.Borrowed('a'.slice(0, 1)))
-    t.equal(PathComponent.Borrowed('a'.slice(0, 1)), PathComponent.Owned('a'))
-    t.not_equal(PathComponent.Root, PathComponent.Owned('/'))
-    t.not_equal(PathComponent.Owned('a'), PathComponent.Owned('b'))
-    t.not_equal(
-      PathComponent.Owned('a'),
-      PathComponent.Borrowed('b'.slice(0, 1)),
-    )
-  })
-
-  t.test('PathComponent.fmt', fn (t) {
-    t.equal(fmt(PathComponent.Root), 'Root')
-    t.equal(fmt(PathComponent.Owned('a')), 'Owned("a")')
-    t.equal(fmt(PathComponent.Borrowed('a'.slice(0, 1))), 'Borrowed("a")')
-  })
 
   t.test('Values.new', fn (t) { t.equal(Values.new.map.size, 0) })
 
