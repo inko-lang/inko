@@ -96,9 +96,12 @@ unsafe fn tls_close<
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_tls_client_config_new() -> *mut ClientConfig
-{
-    Arc::into_raw(Arc::new(ClientConfig::with_platform_verifier())) as *mut _
+pub unsafe extern "system" fn inko_tls_client_config_new() -> Result {
+    if let Ok(v) = ClientConfig::with_platform_verifier() {
+        Result::ok(Arc::into_raw(Arc::new(v)) as *mut _)
+    } else {
+        Result::none()
+    }
 }
 
 #[no_mangle]

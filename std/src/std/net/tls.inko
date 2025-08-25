@@ -40,7 +40,7 @@ import std.time (ToInstant)
 # The error code produced when a TLS certificate is invalid.
 let INVALID_CERT = -1
 
-fn extern inko_tls_client_config_new -> Pointer[UInt8]
+fn extern inko_tls_client_config_new -> AnyResult
 
 fn extern inko_tls_client_config_clone(config: Pointer[UInt8]) -> Pointer[UInt8]
 
@@ -146,6 +146,7 @@ fn extern inko_tls_server_close(
 ) -> IntResult
 
 let OK = 0
+let NONE = 1
 let ERROR = 2
 
 type extern AnyResult {
@@ -234,15 +235,23 @@ type pub ClientConfig {
 
   # Returns a new `ClientConfig` that uses the system's certificate store.
   #
+  # If the system's TLS configuration can't be loaded, an `Option.None` is
+  # returned.
+  #
   # # Examples
   #
   # ```inko
   # import std.net.tls (ClientConfig)
   #
-  # ClientConfig.new
+  # ClientConfig.new.some? # => true
   # ```
-  fn pub static new -> ClientConfig {
-    ClientConfig(inko_tls_client_config_new)
+  fn pub static new -> Option[ClientConfig] {
+    match inko_tls_client_config_new {
+      case { @tag = OK, @value = v } -> {
+        Option.Some(ClientConfig(v as Pointer[UInt8]))
+      }
+      case _ -> Option.None
+    }
   }
 
   # Returns a new `ClientConfig` using the specified PEM encoded X.509
@@ -274,7 +283,7 @@ type pub ClientConfig {
         certificate.bytes.size,
       )
     {
-      case { @tag = 0, @value = v } -> {
+      case { @tag = OK, @value = v } -> {
         Option.Some(ClientConfig(v as Pointer[UInt8]))
       }
       case _ -> Option.None
@@ -373,7 +382,7 @@ type pub Client[T: mut + Deadline + RawSocketOperations] {
     let state = match
       inko_tls_client_connection_new(config.raw, name.to_primitive)
     {
-      case { @tag = 0, @value = v } -> v as Pointer[UInt8]
+      case { @tag = OK, @value = v } -> v as Pointer[UInt8]
       case _ -> return Option.None
     }
 
@@ -392,7 +401,7 @@ type pub Client[T: mut + Deadline + RawSocketOperations] {
         mut write_callback,
       )
     {
-      case { @tag = 1 } -> Result.Ok(nil)
+      case { @tag = NONE } -> Result.Ok(nil)
       case { @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
@@ -436,7 +445,7 @@ impl Read[Error] for Client {
         mut write_callback,
       )
     {
-      case { @tag = 0, @value = v } -> {
+      case { @tag = OK, @value = v } -> {
         into.size = len + v
         Result.Ok(v)
       }
@@ -458,7 +467,7 @@ impl WriteInternal for Client {
         mut write_callback,
       )
     {
-      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @tag = OK, @value = v } -> Result.Ok(v)
       case { @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
@@ -536,7 +545,7 @@ type pub ServerConfig {
         key_size: key.bytes.size,
       )
     {
-      case { @tag = 0, @value = v } -> {
+      case { @tag = OK, @value = v } -> {
         Result.Ok(ServerConfig(v as Pointer[UInt8]))
       }
       case { @value = e } if e as Int == INVALID_CERT -> {
@@ -652,7 +661,7 @@ type pub Server[T: mut + Deadline + RawSocketOperations] {
         mut write_callback,
       )
     {
-      case { @tag = 1 } -> Result.Ok(nil)
+      case { @tag = NONE } -> Result.Ok(nil)
       case { @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
@@ -696,7 +705,7 @@ impl Read[Error] for Server {
         mut write_callback,
       )
     {
-      case { @tag = 0, @value = v } -> {
+      case { @tag = OK, @value = v } -> {
         into.size = len + v
         Result.Ok(v)
       }
@@ -718,7 +727,7 @@ impl WriteInternal for Server {
         mut write_callback,
       )
     {
-      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @tag = OK, @value = v } -> Result.Ok(v)
       case { @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }

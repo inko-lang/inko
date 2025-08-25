@@ -351,6 +351,8 @@ fn pub tests(t: mut Tests) {
     )
   })
 
+  t.test('ClientConfig.new', fn (t) { t.true(ClientConfig.new.some?) })
+
   t.test('ClientConfig.with_certificate with a valid certificate', fn (t) {
     t.true(ClientConfig.with_certificate(certificate(VALID_CERT)).some?)
   })
