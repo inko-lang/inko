@@ -1,4 +1,5 @@
 # Types for cryptographic hash functions.
+import std.bytes (Bytes)
 import std.cmp (Equal)
 import std.endian.big
 import std.endian.little
@@ -36,7 +37,7 @@ type pub Block {
   }
 
   # Writes `bytes` into the block, calling `transform` if hashing is necessary.
-  fn pub mut write_bytes(bytes: ref ByteArray, transform: fn) {
+  fn pub mut write_bytes[B: Bytes](bytes: ref B, transform: fn) {
     let mut size = bytes.size
     let mut index = 0
 
@@ -160,12 +161,7 @@ impl Format for Hash {
 # A cryptographic hasher.
 trait pub Hasher {
   # Writes the bytes into the hasher.
-  #
-  # This method is free to modify `bytes` if needed, so no assumption should be
-  # made about its contents after this method returns. If you're reusing the
-  # same `ByteArray` for multiple calls to `write`, you should clear the
-  # `ByteArray` after each call.
-  fn pub mut write(bytes: ref ByteArray)
+  fn pub mut write[B: Bytes](bytes: ref B)
 
   # Generate a hash based on the current state.
   fn pub move finish -> Hash

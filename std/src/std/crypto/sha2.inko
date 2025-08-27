@@ -24,6 +24,7 @@
 # The implementations of SHA256 and SHA512 use a 64-bits signed integer for
 # tracking the total message size in bytes. This limits the total message size
 # to 1024 PiB.
+import std.bytes (Bytes)
 import std.crypto.hash (Block, Hash, Hasher)
 import std.crypto.math (rotate_right_u32, shift_right_u32, to_u32)
 import std.endian.big
@@ -97,7 +98,7 @@ type pub Sha256 {
   #
   # Sha256.hash('hello')
   # ```
-  fn pub static hash(bytes: ref ByteArray) -> Hash {
+  fn pub static hash[B: Bytes](bytes: ref B) -> Hash {
     let hasher = new
 
     hasher.write(bytes)
@@ -211,7 +212,7 @@ type pub Sha256 {
 }
 
 impl Hasher for Sha256 {
-  fn pub mut write(bytes: ref ByteArray) {
+  fn pub mut write[B: Bytes](bytes: ref B) {
     @size += bytes.size
     @block.write_bytes(bytes, fn { compress })
   }
@@ -258,7 +259,7 @@ type pub Sha512 {
   #
   # Sha512.hash('hello')
   # ```
-  fn pub static hash(bytes: ref ByteArray) -> Hash {
+  fn pub static hash[B: Bytes](bytes: ref B) -> Hash {
     let hasher = new
 
     hasher.write(bytes)
@@ -350,7 +351,7 @@ type pub Sha512 {
 }
 
 impl Hasher for Sha512 {
-  fn pub mut write(bytes: ref ByteArray) {
+  fn pub mut write[B: Bytes](bytes: ref B) {
     @size += bytes.size
     @block.write_bytes(bytes, fn { compress })
   }

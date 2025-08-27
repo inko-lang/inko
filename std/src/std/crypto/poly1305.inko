@@ -8,6 +8,7 @@
 #
 # For more information about Poly1305, refer to RFC 8439
 # (https://datatracker.ietf.org/doc/html/rfc8439).
+import std.bytes (Bytes)
 import std.crypto.hash (Block, Hash, Hasher)
 import std.crypto.math (to_u32)
 import std.endian.little
@@ -71,7 +72,7 @@ type pub Poly1305 {
   #
   # Poly1305.hash(key, msg)
   # ```
-  fn pub static hash(key: ref ByteArray, bytes: ref ByteArray) -> Hash {
+  fn pub static hash[B: Bytes](key: ref ByteArray, bytes: ref B) -> Hash {
     let hasher = new(key)
 
     hasher.write(bytes)
@@ -164,7 +165,7 @@ type pub Poly1305 {
 }
 
 impl Hasher for Poly1305 {
-  fn pub mut write(bytes: ref ByteArray) {
+  fn pub mut write[B: Bytes](bytes: ref B) {
     @block.write_bytes(bytes, fn { compress(final: false) })
   }
 

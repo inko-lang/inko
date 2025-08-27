@@ -29,6 +29,7 @@
 #
 # The implementation of MD5 uses a 64-bits signed integer for tracking the
 # total message size in bytes. This limits the total message size to 1024 PiB.
+import std.bytes (Bytes)
 import std.crypto.hash (Block, Hash, Hasher)
 import std.crypto.math (rotate_left_u32, to_u32)
 import std.endian.little
@@ -88,7 +89,7 @@ type pub Md5 {
   #
   # Md5.hash('hello')
   # ```
-  fn pub static hash(bytes: ref ByteArray) -> Hash {
+  fn pub static hash[B: Bytes](bytes: ref B) -> Hash {
     let hasher = new
 
     hasher.write(bytes)
@@ -164,7 +165,7 @@ type pub Md5 {
 }
 
 impl Hasher for Md5 {
-  fn pub mut write(bytes: ref ByteArray) {
+  fn pub mut write[B: Bytes](bytes: ref B) {
     @size += bytes.size
     @block.write_bytes(bytes, fn { compress })
   }
