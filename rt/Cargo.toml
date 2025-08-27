@@ -25,16 +25,22 @@ rustix = { version = "^0.38", features = ["mm", "param", "process", "std", "even
 
 # The dependencies needed for TLS support.
 #
-# We use ring instead of the default aws-lc-sys because:
+# We use graviola instead of ring or aws-lc-sys because:
 #
 # 1. aws-lc-sys requires cmake to be installed when building on FreeBSD (and
 #    potentially other platforms), as aws-lc-sys only provides generated
 #    bindings for a limited set of platforms
 # 2. aws-lc-sys increases compile times quite a bit
-# 3. We don't care about FIPS compliance at the time of writing
-rustls = { version = "^0.23", features = ["ring", "tls12", "std"], default-features = false }
+# 3. cross-compiling aws-lc-sys is difficult depending on the target platform
+# 4. We don't care about FIPS compliance at the time of writing
+# 5. ring's maintenance is spotty/uncertain in the future
+#   (https://github.com/briansmith/ring/discussions/2414)
+rustls = { version = "^0.23", features = ["tls12", "std"], default-features = false }
+rustls-graviola = "^0.2"
 rustls-pemfile = "^2.1"
 
+# ------------------------------------------------------------------------------
+#
 # These dependencies are used by the customized version of
 # rustls-platform-modifier. We include a custom version so we can deal with the
 # platform verification process being potentially slow. See
