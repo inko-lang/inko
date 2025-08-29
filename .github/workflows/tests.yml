@@ -70,7 +70,7 @@ jobs:
       matrix:
         target:
           - image: fedora-amd64
-            name: amd64-linux-gnu
+            name: amd64-linux-gnu-1.84
             version: 1.84
           - image: fedora-amd64
             name: amd64-linux-gnu
@@ -78,7 +78,7 @@ jobs:
           - image: alpine
             name: amd64-linux-musl
             version: 1.89
-    name: ${{ matrix.target.name }} ${{ matrix.target.version }} compiler
+    name: ${{ matrix.target.name }} compiler
     timeout-minutes: 15
     runs-on: ubuntu-24.04
     container:
