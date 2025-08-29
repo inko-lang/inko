@@ -110,7 +110,7 @@ trait RawSocketOperations {
   fn raw_deadline -> Int
 }
 
-trait SendFile[E]: RawSocketOperations {
+trait SendFile[E] {
   # Sends a read-only file to the other half of `self`, without the need for an
   # intermediate buffer.
   #
