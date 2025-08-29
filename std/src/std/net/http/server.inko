@@ -1,0 +1,222 @@
+import std.bytes (Bytes)
+import std.fs.file (ReadOnlyFile)
+import std.io (Error as IoError, Read, Write, copy_using)
+import std.net.http (
+  ChunkedWriter, Header, HeaderMap, Limits, Parser, Reader, Request, Status,
+)
+import std.net.ip
+import std.net.socket (TcpClient, TcpServer)
+import std.net.tls
+import std.string (ToString)
+import std.sys.net (SEND_FILE_SIZE)
+import std.time (DateTime)
+
+fn chunked_copy[
+  R: mut + Read[RE],
+  W: mut + Write[WE],
+  RE: ToString,
+  WE: ToString,
+](
+  buffer: mut ByteArray,
+  from: mut R,
+  to: mut W,
+) -> Result[Nil, String] {
+  let w = ChunkedWriter.new(to)
+
+  match copy_using(buffer, from: from, to: w, size: SEND_FILE_SIZE) {
+    case Ok(_) -> Result.Ok(nil)
+    case Error(Read(e)) -> throw e.to_string
+    case Error(Write(e)) -> throw e.to_string
+  }
+}
+
+type copy enum BodySize {
+  case None
+  case Fixed(Int)
+  case Chunked
+}
+
+type pub Response {
+  let pub mut @status: Status
+  let pub @headers: HeaderMap
+  let pub mut @body: Body
+
+  fn pub static new -> Self {
+    Self(status: Status.ok, headers: HeaderMap.new, body: Body.Empty)
+  }
+
+  fn pub static string(value: String) -> Self {
+    Self(status: Status.ok, headers: HeaderMap.new, body: Body.String(value))
+  }
+
+  fn pub static bytes(value: ByteArray) -> Self {
+    Self(status: Status.ok, headers: HeaderMap.new, body: Body.Bytes(value))
+  }
+
+  fn pub static file(file: ReadOnlyFile) -> Self {
+    Self(status: Status.ok, headers: HeaderMap.new, body: Body.File(file))
+  }
+
+  fn pub static reader(reader: Read[String]) -> Self {
+    Self(status: Status.ok, headers: HeaderMap.new, body: Body.Read(reader))
+  }
+
+  fn pub static writer(func: fn (mut Socket) -> Result[Nil, String]) -> Self {
+    Self(status: Status.ok, headers: HeaderMap.new, body: Body.Writer(func))
+  }
+
+  fn pub move with_header(header: Header, value: String) -> Self {
+    self.headers.set(header, value)
+    self
+  }
+
+  fn pub move with_status(status: Status) -> Self {
+    self.status = status
+    self
+  }
+
+  # TODO: pass DateTime as argument
+  fn move write_to(socket: mut Socket) -> Result[Nil, String] {
+    let buf = ByteArray.new
+    let len = @body.size
+
+    @headers.set(Header.Date, DateTime.utc.to_rfc2822)
+    @headers.set(Header.Connection, 'keep-alive')
+
+    match len {
+      case Fixed(n) -> @headers.set(Header.ContentLength, n.to_string)
+      case Chunked -> @headers.set(Header.TransferEncoding, 'chunked')
+      case _ -> {}
+    }
+
+    buf.append('HTTP/1.1 ')
+    buf.append(@status.to_string)
+    buf.append(' \r\n')
+    @headers.write_to(buf)
+    buf.append('\r\n')
+    try socket.write(buf)
+    buf.clear
+
+    match @body {
+      case Empty -> {}
+      case String(v) -> try socket.write(v)
+      case Bytes(v) -> try socket.write(v)
+      case File(from) -> try chunked_copy(buf, from, to: socket)
+      case Read(from) -> try chunked_copy(buf, from, to: socket)
+      case Writer(f) -> try f.call(socket)
+    }
+
+    Result.Ok(nil)
+  }
+}
+
+# TODO: implement Read?
+type pub inline enum Body {
+  case Empty
+  case String(String)
+  case Bytes(ByteArray)
+  case File(ReadOnlyFile)
+  case Read(Read[String])
+
+  # TODO: is this how we want to expose socket hijacking? How are middlewares
+  # supposed to handle this? If so, how is a middleware supposed to read this?
+  case Writer(fn (mut Socket) -> Result[Nil, String])
+
+  fn size -> BodySize {
+    match self {
+      case String(v) -> BodySize.Fixed(v.size)
+      case Bytes(v) -> BodySize.Fixed(v.size)
+      case Read(_) or File(_) -> BodySize.Chunked
+      case Writer(_) -> {
+        # No Content-Length so readers are forced to keep reading until the end
+        # of the stream.
+        BodySize.None
+      }
+      case _ -> BodySize.Fixed(0)
+    }
+  }
+}
+
+type pub inline enum Socket {
+  case Plain(TcpClient)
+  case Secure(tls.Client[TcpClient])
+}
+
+impl Read[IoError] for Socket {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, IoError] {
+    match self {
+      case Plain(v) -> v.read(into, size)
+      case Secure(v) -> v.read(into, size)
+    }
+  }
+}
+
+# TODO: not convert to a String here
+impl Write[String] for Socket {
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, String] {
+    match self {
+      case Plain(v) -> v.write(bytes).map_error(fn (e) { e.to_string })
+      case Secure(v) -> v.write(bytes).map_error(fn (e) { e.to_string })
+    }
+  }
+
+  fn pub mut flush -> Result[Nil, String] {
+    Result.Ok(nil)
+  }
+}
+
+# TODO: handle both HTTP and HTTPS
+type async ServerConnection[H: mut + Handler] {
+  let @socket: Socket
+  let @limits: Limits
+  let @handler: H
+
+  # TODO: keep-alive loop
+  fn async mut start {
+    loop {
+      let parser = Parser.new(Reader.new(mut @socket), @limits)
+      let req = match parser.request {
+        case Ok(v) -> v
+        # TODO: handle the error properly
+        case Error(_) -> return
+      }
+
+      let resp = @handler.handle(req)
+
+      match resp.write_to(@socket) {
+        case Ok(_) -> {}
+        case Error(_) -> return
+      }
+    }
+  }
+}
+
+trait pub Handler {
+  fn pub mut handle(request: ref Request) -> Response
+}
+
+type pub Server {
+  let @socket: TcpServer
+  let @limits: Limits
+
+  fn pub static new(ip: ip.IpAddress, port: Int) -> Result[Server, IoError] {
+    let sock = try TcpServer.new(ip, port)
+
+    Result.Ok(Self(socket: sock, limits: Limits.new))
+  }
+
+  fn pub mut run[H: mut + Handler](
+    handler: fn -> uni H,
+  ) -> Result[Nil, IoError] {
+    loop {
+      let sock = recover Socket.Plain(try @socket.accept)
+      let con = ServerConnection(
+        socket: sock,
+        limits: recover @limits.clone,
+        handler: handler.call,
+      )
+
+      con.start
+    }
+  }
+}
