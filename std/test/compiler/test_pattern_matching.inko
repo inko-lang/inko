@@ -152,6 +152,44 @@ fn pub tests(t: mut Tests) {
     }
 
     t.equal(val.dropped, 1)
+    val.dropped = 0
+
+    match [ValueRef.new(val)] {
+      case [_] if false -> {}
+      case _ignore -> {}
+    }
+
+    t.equal(val.dropped, 1)
+  })
+
+  t.test('Pattern matching an Array against a binding', fn (t) {
+    t.equal(
+      match [10, 20] {
+        case val -> val.size
+      },
+      2,
+    )
+    t.equal(
+      match [10, 20] {
+        case [10] -> -1
+        case val -> val.size
+      },
+      2,
+    )
+    t.equal(
+      match [10, 20] {
+        case [10, 30] -> -1
+        case val -> val.size
+      },
+      2,
+    )
+    t.equal(
+      match [10, 20] {
+        case [10, 20] if false -> -1
+        case val -> val.size
+      },
+      2,
+    )
   })
 
   t.test('Pattern matching against a ByteArray', fn (t) {

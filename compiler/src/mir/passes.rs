@@ -341,12 +341,12 @@ struct DecisionState {
     /// the variables.
     registers: Vec<RegisterId>,
 
-    /// Match registers that should be dropped by calling the dropper, instead
-    /// of only deallocating their memory
+    /// Match values for which the size should be set to zero, and the value
+    /// should be dropped using the regular dropper.
     ///
     /// This is used for e.g. matching against arrays as we still need to
     /// deallocate the array's buffer.
-    drop_with_dropper: HashSet<RegisterId>,
+    drop_with_zero_size: HashMap<RegisterId, (TypeId, FieldId)>,
 
     /// The action to take per register when destructuring a value.
     actions: HashMap<RegisterId, RegisterAction>,
@@ -379,7 +379,7 @@ impl DecisionState {
             output,
             after_block,
             registers: Vec::new(),
-            drop_with_dropper: HashSet::new(),
+            drop_with_zero_size: HashMap::new(),
             child_registers: HashMap::new(),
             actions: HashMap::new(),
             bodies: HashMap::new(),
@@ -3224,7 +3224,11 @@ impl<'a> LowerMethod<'a> {
 
             self.mark_register_as_moved(reg);
 
-            if state.drop_with_dropper.contains(&reg) {
+            if let Some(&(typ, field)) = state.drop_with_zero_size.get(&reg) {
+                let zero = self.new_untracked_register(TypeRef::int());
+
+                self.current_block_mut().i64_literal(zero, 0, loc);
+                self.current_block_mut().set_field(reg, typ, field, zero, loc);
                 self.current_block_mut().drop(reg, loc);
             } else {
                 self.current_block_mut().drop_without_dropper(reg, loc);
@@ -3569,7 +3573,7 @@ impl<'a> LowerMethod<'a> {
         //
         // This state _must_ be set before processing the child branches/trees.
         if owned {
-            state.drop_with_dropper.insert(test_reg);
+            state.drop_with_zero_size.insert(test_reg, (tid, len_field));
         }
 
         for case in cases {
@@ -3612,16 +3616,6 @@ impl<'a> LowerMethod<'a> {
 
         self.block_mut(test_block)
             .get_field(len_reg, test_reg, tid, len_field, loc);
-
-        // For owned arrays we _must_ set the size to zero after retrieving it,
-        // otherwise we'll drop the individual values twice.
-        if owned {
-            let zero_reg = self.new_untracked_register(TypeRef::int());
-
-            self.block_mut(test_block).i64_literal(zero_reg, 0, loc);
-            self.block_mut(test_block)
-                .set_field(test_reg, tid, len_field, zero_reg, loc);
-        }
 
         self.block_mut(test_block)
             .switch_with_fallback(len_reg, blocks, else_block, loc);
