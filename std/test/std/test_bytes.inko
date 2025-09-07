@@ -254,6 +254,10 @@ fn pub tests(t: mut Tests) {
       val1.split_once('='),
       Option.Some((val1.slice(0, 3), val1.slice(4, 9))),
     )
+    t.equal(
+      val1.split_once('=val'),
+      Option.Some((val1.slice(0, 3), val1.slice(7, 9))),
+    )
     t.equal(val2.split_once('='), Option.None)
     t.equal('key'.split_once('='), Option.None)
     t.equal('key'.split_once(''), Option.None)

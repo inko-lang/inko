@@ -414,7 +414,9 @@ type pub inline Slice[T: Bytes] {
   # ```
   fn pub split_once[B: Bytes](separator: ref B) -> Option[(Self, Self)] {
     match index_of(separator, starting_at: 0) {
-      case Some(i) -> Option.Some((slice(0, i), slice(i + 1, size)))
+      case Some(i) -> {
+        Option.Some((slice(0, i), slice(i + separator.size, size)))
+      }
       case _ -> Option.None
     }
   }
