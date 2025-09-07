@@ -11,6 +11,12 @@ fn pub tests(t: mut Tests) {
     t.equal(frame1.line, frame2.line)
   })
 
+  t.test('StackFrame.to_string', fn (t) {
+    let frame = StackFrame.new(path: 'foo'.to_path, name: 'main', line: 42)
+
+    t.equal(frame.to_string, 'foo:42 in main')
+  })
+
   t.test('debug.stacktrace', fn (t) {
     let trace = stacktrace(skip: 0)
     let last = trace.get(trace.size - 1).or_panic
