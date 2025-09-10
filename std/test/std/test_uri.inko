@@ -177,6 +177,7 @@ fn pub tests(t: mut Tests) {
     t.equal(Scheme.from('http'), Scheme.Http)
     t.equal(Scheme.from('https'), Scheme.Https)
     t.equal(Scheme.from('file'), Scheme.File)
+    t.equal(Scheme.from('unix'), Scheme.Unix)
     t.equal(Scheme.from('httpx'), Scheme.Other('httpx'))
     t.equal(Scheme.from(''), Scheme.Other(''))
   })
@@ -187,6 +188,7 @@ fn pub tests(t: mut Tests) {
     t.equal(fmt(Scheme.Ws), 'Ws')
     t.equal(fmt(Scheme.Wss), 'Wss')
     t.equal(fmt(Scheme.File), 'File')
+    t.equal(fmt(Scheme.Unix), 'Unix')
     t.equal(fmt(Scheme.Other('foo')), 'Other("foo")')
   })
 
@@ -197,6 +199,7 @@ fn pub tests(t: mut Tests) {
       Scheme.Ws,
       Scheme.Wss,
       Scheme.File,
+      Scheme.Unix,
       Scheme.Other('foo'),
     ]
 
@@ -217,6 +220,7 @@ fn pub tests(t: mut Tests) {
     t.equal(Scheme.Ws.to_string, 'ws')
     t.equal(Scheme.Wss.to_string, 'wss')
     t.equal(Scheme.File.to_string, 'file')
+    t.equal(Scheme.Unix.to_string, 'unix')
     t.equal(Scheme.Other('foo').to_string, 'foo')
   })
 
@@ -227,6 +231,7 @@ fn pub tests(t: mut Tests) {
       Scheme.Ws,
       Scheme.Wss,
       Scheme.File,
+      Scheme.Unix,
       Scheme.Other('a'),
     ]
 

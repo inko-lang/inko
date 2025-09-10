@@ -398,6 +398,9 @@ type pub inline enum Scheme {
   # The "file" scheme.
   case File
 
+  # The "unix" scheme.
+  case Unix
+
   # Other schemes, such as "file".
   case Other(String)
 
@@ -421,6 +424,7 @@ type pub inline enum Scheme {
       case 3 if bytes.equals?('wss') -> Scheme.Wss
       case 4 if bytes.equals?('http') -> Scheme.Http
       case 4 if bytes.equals?('file') -> Scheme.File
+      case 4 if bytes.equals?('unix') -> Scheme.Unix
       case 5 if bytes.equals?('https') -> Scheme.Https
       case _ -> Scheme.Other(bytes.to_string)
     }
@@ -500,6 +504,7 @@ impl Clone for Scheme {
       case Ws -> Scheme.Ws
       case Wss -> Scheme.Wss
       case File -> Scheme.File
+      case Unix -> Scheme.Unix
       case Other(v) -> Scheme.Other(v)
     }
   }
@@ -513,6 +518,7 @@ impl Format for Scheme {
       case Ws -> formatter.tuple('Ws').finish
       case Wss -> formatter.tuple('Wss').finish
       case File -> formatter.tuple('File').finish
+      case Unix -> formatter.tuple('Unix').finish
       case Other(v) -> formatter.tuple('Other').field(v).finish
     }
   }
@@ -526,6 +532,7 @@ impl Equal for Scheme {
       case (Ws, Ws) -> true
       case (Wss, Wss) -> true
       case (File, File) -> true
+      case (Unix, Unix) -> true
       case (Other(a), Other(b)) -> a == b
       case _ -> false
     }
@@ -540,6 +547,7 @@ impl ToString for Scheme {
       case Ws -> 'ws'
       case Wss -> 'wss'
       case File -> 'file'
+      case Unix -> 'unix'
       case Other(v) -> v
     }
   }
@@ -553,6 +561,7 @@ impl Hash for Scheme {
       case Ws -> 2.hash(hasher)
       case Wss -> 3.hash(hasher)
       case File -> 4.hash(hasher)
+      case Unix -> 5.hash(hasher)
       case Other(v) -> v.hash(hasher)
     }
   }
