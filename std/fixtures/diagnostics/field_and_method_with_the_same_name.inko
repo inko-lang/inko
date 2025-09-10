@@ -1,0 +1,23 @@
+type Response {
+  let mut @status: Int
+
+  fn mut status(value: Int) {
+    @status = value
+  }
+
+  fn foo(value: Int) {}
+}
+
+fn example1(r: Response) {
+  r.status(456).test
+  r.status.test
+}
+
+fn example2(r: Response) {
+  r.foo(42)
+  r.foo
+}
+
+# field_and_method_with_the_same_name.inko:12:3 error(invalid-symbol): the method 'test' isn't defined for type 'Nil'
+# field_and_method_with_the_same_name.inko:13:3 error(invalid-symbol): the method 'test' isn't defined for type 'Int'
+# field_and_method_with_the_same_name.inko:18:5 error(invalid-call): incorrect number of arguments: expected 1, found 0

@@ -3722,34 +3722,44 @@ impl<'a> CheckMethodBody<'a> {
             return TypeRef::Error;
         };
 
+        let name = &node.name.name;
         let method = match rec_id.lookup_method(
             self.db(),
-            &node.name.name,
+            name,
             self.module,
             allow_type_private,
         ) {
-            MethodLookup::Ok(id) => id,
+            MethodLookup::Ok(id) => {
+                // If there are a field and method with the same name, and no
+                // arguments are given but they are required, we resolve to the
+                // field. This way you can have a field `status` and a method
+                // `status(arg)` and still use both.
+                if id.number_of_arguments(self.db()) > 0
+                    && node.arguments.is_empty()
+                    && !node.parens
+                    && rec_id
+                        .as_type_instance()
+                        .and_then(|i| i.instance_of().field(self.db(), name))
+                        .is_some()
+                {
+                    return self
+                        .field_with_receiver(node, receiver, rec_id)
+                        .unwrap_or(TypeRef::Error);
+                }
+
+                id
+            }
             MethodLookup::Private => {
-                self.private_method_call(&node.name.name, node.location);
+                self.private_method_call(name, node.location);
 
                 return TypeRef::Error;
             }
             MethodLookup::InstanceOnStatic => {
-                self.invalid_instance_call(
-                    &node.name.name,
-                    receiver,
-                    node.location,
-                );
-
+                self.invalid_instance_call(name, receiver, node.location);
                 return TypeRef::Error;
             }
             MethodLookup::StaticOnInstance => {
-                self.invalid_static_call(
-                    &node.name.name,
-                    receiver,
-                    node.location,
-                );
-
+                self.invalid_static_call(name, receiver, node.location);
                 return TypeRef::Error;
             }
             MethodLookup::None if node.arguments.is_empty() && !node.parens => {
@@ -3759,8 +3769,10 @@ impl<'a> CheckMethodBody<'a> {
                     return typ;
                 }
 
+                let name = &node.name.name;
+
                 if let TypeEnum::Module(id) = rec_id {
-                    match id.use_symbol(self.db_mut(), &node.name.name) {
+                    match id.use_symbol(self.db_mut(), name) {
                         Some(Symbol::Constant(id)) => {
                             node.kind = CallKind::GetConstant(id);
 
@@ -3773,7 +3785,7 @@ impl<'a> CheckMethodBody<'a> {
                             if !as_receiver =>
                         {
                             self.state.diagnostics.symbol_not_a_value(
-                                &node.name.name,
+                                name,
                                 self.file(),
                                 node.location,
                             );
@@ -3785,9 +3797,7 @@ impl<'a> CheckMethodBody<'a> {
                 }
 
                 return match receiver {
-                    TypeRef::Pointer(id)
-                        if node.name.name == DEREF_POINTER_FIELD =>
-                    {
+                    TypeRef::Pointer(id) if name == DEREF_POINTER_FIELD => {
                         let ret = id.as_type_for_pointer();
 
                         node.kind = CallKind::ReadPointer(ret);
@@ -3795,7 +3805,7 @@ impl<'a> CheckMethodBody<'a> {
                     }
                     _ => {
                         self.state.diagnostics.undefined_method(
-                            &node.name.name,
+                            name,
                             self.fmt(receiver),
                             self.file(),
                             node.location,
@@ -3808,14 +3818,14 @@ impl<'a> CheckMethodBody<'a> {
             MethodLookup::None => {
                 if let TypeEnum::Module(mod_id) = rec_id {
                     if let Some(Symbol::Type(id)) =
-                        mod_id.use_symbol(self.db_mut(), &node.name.name)
+                        mod_id.use_symbol(self.db_mut(), name)
                     {
                         return self.new_type_instance(node, scope, id);
                     }
                 }
 
                 self.state.diagnostics.undefined_method(
-                    &node.name.name,
+                    name,
                     self.fmt(receiver),
                     self.file(),
                     node.location,
