@@ -58,7 +58,7 @@ pub unsafe extern "system" fn inko_runtime_new(
 
     // Configure the TLS provider. This must be done once before we start the
     // program.
-    rustls::crypto::ring::default_provider()
+    rustls_graviola::default_provider()
         .install_default()
         .expect("failed to set up the default TLS cryptography provider");
 
