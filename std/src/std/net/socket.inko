@@ -1041,6 +1041,13 @@ type pub TcpServer {
   #
   # This method does not return until a connection is available.
   #
+  # # Errors
+  #
+  # This method may return a `std.io.Error` error for various reasons depending
+  # on the underlying platform. In particular, if `self` is cloned using
+  # `TcpServer.try_clone` and then `Socket.shutdown` is called on that copy,
+  # this `accept` call will return `std.io.Error.InvalidArgument`.
+  #
   # # Examples
   #
   # Accepting a new connection:

@@ -132,7 +132,20 @@ fn inline accept(
   peer: Pointer[net.RawSocket],
   deadline: Int,
 ) -> Result[Nil, Error] {
-  loop {
+  # For IP sockets, calling shutdown() on a socket that is waiting on an
+  # accept() results in accept() returning EINVAL. However, if the socket is an
+  # AF_UNIX socket then accept() keeps returning EAGAIN (for whatever reason).
+  #
+  # We handle this here by allowing up to two attempts: one for the initial
+  # accept() that _might_ throw EAGAIN for various reasons, and one attempt
+  # _after_ polling for it. If at that point EAGAIN is produced again, it has to
+  # mean the socket has been shut down (concurrently).
+  #
+  # For such cases we return Error.InvalidArgument to keep the visible behavior
+  # consistent between platforms.
+  let mut attempts = 2
+
+  while attempts > 0 {
     let fd = sys.accept(socket.inner)
 
     if fd as Int >= 0 {
@@ -144,7 +157,11 @@ fn inline accept(
       case libc.EAGAIN -> try net.poll(socket, deadline, write: false)
       case e -> throw Error.from_os_error(e)
     }
+
+    attempts -= 1
   }
+
+  Result.Error(Error.InvalidArgument)
 }
 
 fn inline connect_ip(

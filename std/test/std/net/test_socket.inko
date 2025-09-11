@@ -1404,6 +1404,27 @@ fn pub tests(t: mut Tests) {
     Result.Ok(nil)
   })
 
+  t.ok('UnixServer.accept when the socket is shut down', fn (t) {
+    let path = SocketPath.new(t.id)
+    let srv = try UnixServer.new(path.path)
+
+    try srv.socket.shutdown
+
+    t.equal(srv.accept.error, Option.Some(Error.InvalidArgument))
+    Result.Ok(nil)
+  })
+
+  t.ok('UnixServer.accept when a copy is shut down', fn (t) {
+    let path = SocketPath.new(t.id)
+    let srv1 = try UnixServer.new(path.path)
+    let srv2 = try srv1.try_clone
+
+    try srv2.socket.shutdown
+
+    t.equal(srv1.accept.error, Option.Some(Error.InvalidArgument))
+    Result.Ok(nil)
+  })
+
   t.test('UnixServer.local_address', fn (t) {
     let path = SocketPath.new(t.id)
     let listener = UnixServer.new(path.path).get
