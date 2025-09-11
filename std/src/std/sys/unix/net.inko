@@ -132,20 +132,15 @@ fn inline accept(
   peer: Pointer[net.RawSocket],
   deadline: Int,
 ) -> Result[Nil, Error] {
-  # For IP sockets, calling shutdown() on a socket that is waiting on an
-  # accept() results in accept() returning EINVAL. However, if the socket is an
-  # AF_UNIX socket then accept() keeps returning EAGAIN (for whatever reason).
+  # For IP sockets on Linux, calling shutdown() on a socket that is waiting on
+  # an accept() results in accept() returning EINVAL. However, if the socket is
+  # an AF_UNIX socket then accept() keeps returning EAGAIN (for whatever
+  # reason).
   #
   # We handle this here by allowing up to two attempts: one for the initial
   # accept() that _might_ throw EAGAIN for various reasons, and one attempt
   # _after_ polling for it. If at that point EAGAIN is produced again, it has to
   # mean the socket has been shut down (concurrently).
-  #
-  # On macOS and FreeBSD (and possibly other BSD based systems), calling
-  # accept() after shutdown() produces ENOTCONN instead of EINVAL. Here we try
-  # to normalize those differences to `std.io.Error.NotConnected`, as
-  # `EINVAL` can't be triggered through other means due to how we use
-  # `accept()`.
   let mut attempts = 2
 
   while attempts > 0 {
@@ -158,14 +153,13 @@ fn inline accept(
 
     match libc.errno {
       case libc.EAGAIN -> try net.poll(socket, deadline, write: false)
-      case libc.EINVAL -> throw Error.NotConnected
       case e -> throw Error.from_os_error(e)
     }
 
     attempts -= 1
   }
 
-  Result.Error(Error.NotConnected)
+  Result.Error(Error.InvalidArgument)
 }
 
 fn inline connect_ip(

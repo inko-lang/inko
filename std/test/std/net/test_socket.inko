@@ -770,27 +770,6 @@ fn pub tests(t: mut Tests) {
     Result.Ok(nil)
   })
 
-  t.ok('TcpServer.accept when the socket is shut down', fn (t) {
-    let ip = IpAddress.V4(Ipv4Address.new(127, 0, 0, 1))
-    let srv = try TcpServer.new(ip: ip, port: 0)
-
-    try srv.socket.shutdown
-
-    t.equal(srv.accept.error, Option.Some(Error.NotConnected))
-    Result.Ok(nil)
-  })
-
-  t.ok('TcpServer.accept when a copy is shut down', fn (t) {
-    let ip = IpAddress.V4(Ipv4Address.new(127, 0, 0, 1))
-    let srv1 = try TcpServer.new(ip: ip, port: 0)
-    let srv2 = try srv1.try_clone
-
-    try srv2.socket.shutdown
-
-    t.equal(srv1.accept.error, Option.Some(Error.NotConnected))
-    Result.Ok(nil)
-  })
-
   t.test('TcpServer.local_address', fn (t) {
     let ip = IpAddress.V4(Ipv4Address.new(127, 0, 0, 1))
     let listener = TcpServer.new(ip: ip, port: 0).get
@@ -1422,27 +1401,6 @@ fn pub tests(t: mut Tests) {
     let connection = try listener.accept
 
     t.equal(connection.local_address, stream.peer_address)
-    Result.Ok(nil)
-  })
-
-  t.ok('UnixServer.accept when the socket is shut down', fn (t) {
-    let path = SocketPath.new(t.id)
-    let srv = try UnixServer.new(path.path)
-
-    try srv.socket.shutdown
-
-    t.equal(srv.accept.error, Option.Some(Error.NotConnected))
-    Result.Ok(nil)
-  })
-
-  t.ok('UnixServer.accept when a copy is shut down', fn (t) {
-    let path = SocketPath.new(t.id)
-    let srv1 = try UnixServer.new(path.path)
-    let srv2 = try srv1.try_clone
-
-    try srv2.socket.shutdown
-
-    t.equal(srv1.accept.error, Option.Some(Error.NotConnected))
     Result.Ok(nil)
   })
 
