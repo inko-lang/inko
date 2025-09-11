@@ -141,8 +141,11 @@ fn inline accept(
   # _after_ polling for it. If at that point EAGAIN is produced again, it has to
   # mean the socket has been shut down (concurrently).
   #
-  # For such cases we return Error.InvalidArgument to keep the visible behavior
-  # consistent between platforms.
+  # On macOS and FreeBSD (and possibly other BSD based systems), calling
+  # accept() after shutdown() produces ENOTCONN instead of EINVAL. Here we try
+  # to normalize those differences to `std.io.Error.NotConnected`, as
+  # `EINVAL` can't be triggered through other means due to how we use
+  # `accept()`.
   let mut attempts = 2
 
   while attempts > 0 {
@@ -155,13 +158,14 @@ fn inline accept(
 
     match libc.errno {
       case libc.EAGAIN -> try net.poll(socket, deadline, write: false)
+      case libc.EINVAL -> throw Error.NotConnected
       case e -> throw Error.from_os_error(e)
     }
 
     attempts -= 1
   }
 
-  Result.Error(Error.InvalidArgument)
+  Result.Error(Error.NotConnected)
 }
 
 fn inline connect_ip(
