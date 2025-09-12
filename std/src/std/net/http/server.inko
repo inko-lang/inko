@@ -1,0 +1,1179 @@
+import std.bytes (Bytes, Slice)
+import std.clone (Clone)
+import std.cmp (Equal, min)
+import std.crypto.x509 (Certificate, PrivateKey)
+import std.drop (drop)
+import std.fs (Metadata)
+import std.fs.file (ReadOnlyFile)
+import std.fs.path (Path)
+import std.hash (Hash, Hasher)
+import std.io (CopyError, Error as IoError, Read, Write, copy_using)
+import std.json (Json)
+import std.locale.en
+import std.net.http (
+  Header, HeaderMap, Limits, Method, Parser, Reader, Request, Status,
+)
+import std.net.ip (IpAddress)
+import std.net.socket (
+  Deadline, SocketAddress, TcpClient, TcpServer, UnixAddress, UnixClient,
+  UnixServer,
+)
+import std.net.tls
+import std.signal (Signal)
+import std.stdio (Stdout)
+import std.string (ToString)
+import std.sync (Future, Promise)
+import std.sys.net (SEND_FILE_SIZE)
+import std.time (DateTime, Duration, Instant, ToInstant)
+import std.uri (Uri)
+
+# A type for building an HTTP response.
+type pub Response {
+  # The HTTP status code.
+  #
+  # This defaults to 200 OK.
+  let pub mut @status: Status
+
+  # The response headers.
+  let pub @headers: HeaderMap
+
+  # The response body.
+  let pub mut @body: Body
+
+  # A closure to use for hijacking the connection.
+  #
+  # If a closure is provided, the response body is written first and then the
+  # closure is called. Once the closure returns, the connection is closed.
+  let pub mut @hijacker: Option[fn (mut Socket)]
+
+  # Returns a new and empty `Response`.
+  fn pub static new -> Self {
+    Self(
+      status: Status.ok,
+      headers: HeaderMap.new,
+      body: Body.String(''),
+      hijacker: Option.None,
+    )
+  }
+
+  # Assigns the given value to the header.
+  #
+  # This method is just a shortcut for using `HeaderMap.set` through the
+  # `Response.headers` field.
+  fn pub move header(header: Header, value: String) -> Self {
+    @headers.set(header, value)
+    self
+  }
+
+  # Sets the status of `self` to the given `Status`.
+  fn pub move status(status: Status) -> Self {
+    @status = status
+    self
+  }
+
+  # Removes the body of `self`.
+  #
+  # When writing the response, no `Content-Length` header is used.
+  fn pub move without_body -> Self {
+    @body = Body.None
+    self
+  }
+
+  # Sets the body of `self` to the given `String`.
+  #
+  # When writing the response, the `Content-Length` header value is set to the
+  # byte size of the `String`.
+  fn pub move string(value: String) -> Self {
+    @body = Body.String(value)
+    self
+  }
+
+  # Sets the body of `self` to the given `ByteArray`.
+  #
+  # When writing the response, the `Content-Length` header value is set to the
+  # size of the `ByteArray`.
+  fn pub move bytes(value: ByteArray) -> Self {
+    @body = Body.Bytes(value)
+    self
+  }
+
+  # Sets the body of `self` to the given JSON document.
+  #
+  # The `Content-Type` header value is set automatically, and the
+  # `Content-Length` header value is set to the byte size of the JSON document.
+  fn pub move json(value: Json) -> Self {
+    @headers.set(Header.ContentType, 'application/json; charset=utf-8')
+    @body = Body.String(value.to_string)
+    self
+  }
+
+  # Sets the body of `self` to the file located at `path`.
+  #
+  # When writing the response, the `Content-Length` header value is set to the
+  # size of the file.
+  #
+  # # Errors
+  #
+  # If the file can't be opened or its metadata can't be retrieved, an
+  # `std.io.Error` error is returned.
+  fn pub move file(path: ref Path) -> Result[Self, IoError] {
+    let file = try ReadOnlyFile.new(path)
+    let meta = try file.metadata
+
+    @body = Body.File(file, meta)
+    Result.Ok(self)
+  }
+
+  # Sets the closure as the closure to use for hijacking the connection after
+  # writing the response.
+  fn pub move hijack(function: fn (mut Socket)) -> Self {
+    @body = Body.None
+    @hijacker = Option.Some(function)
+    self
+  }
+
+  fn move write(
+    socket: mut Socket,
+    timeout: Duration,
+    keep: Bool,
+  ) -> Result[Nil, CopyError[String, Nil]] {
+    let buf = ByteArray.with_capacity(1024)
+    let len = @body.size
+
+    @headers.set(Header.Connection, if keep { 'keep-alive' } else { 'close' })
+    @headers.set(Header.Date, DateTime.utc.to_rfc2822)
+
+    match len {
+      case Some(n) -> @headers.set(Header.ContentLength, n.to_string)
+      case _ -> {}
+    }
+
+    buf.append('HTTP/1.1 ')
+    buf.append(@status.to_string)
+    buf.append(' \r\n')
+    @headers.write_to(buf)
+    buf.append('\r\n')
+
+    socket.timeout_after = timeout
+
+    match socket.write(buf) {
+      case Ok(_) -> {}
+      case Error(_) -> throw CopyError.Write(nil)
+    }
+
+    buf.clear
+
+    match @body {
+      case None -> {}
+      case String(v) -> {
+        match socket.write(v) {
+          case Ok(_) -> {}
+          case Error(_) -> throw CopyError.Write(nil)
+        }
+      }
+      case Bytes(v) -> {
+        match socket.write(v) {
+          case Ok(_) -> {}
+          case Error(_) -> throw CopyError.Write(nil)
+        }
+      }
+      case File(file, _) -> {
+        match copy_using(buf, from: file, to: socket, size: SEND_FILE_SIZE) {
+          case Ok(_) -> {}
+          case Error(Read(e)) -> throw CopyError.Read(e.to_string)
+          case Error(Write(_)) -> throw CopyError.Write(nil)
+        }
+      }
+    }
+
+    socket.reset_deadline
+    Result.Ok(nil)
+  }
+}
+
+# An error produced when handling a request.
+type pub inline Error {
+  # The status code to use when displaying an error response to the client.
+  let pub @status: Status
+
+  # The message of the error.
+  #
+  # This message _should not_ be shown to the client as it may contain private
+  # information.
+  let pub @message: String
+
+  # Returns a new `Error` with the default status (500 Internal Server Error)
+  # and a message.
+  fn pub static new[T: ToString](error: ref T) -> Self {
+    with_status(Status.internal_server_error, error)
+  }
+
+  # Returns a new `Error` with a custom status and a message.
+  fn pub static with_status[T: ToString](status: Status, error: ref T) -> Self {
+    Self(status: status, message: error.to_string)
+  }
+}
+
+# The body of a response.
+type pub inline enum Body {
+  # The response doesn't have a body and `Content-Length` header.
+  case None
+
+  # The body is a `String` and the `Content-Length` header value is set to the
+  # byte size of the `String`.
+  case String(String)
+
+  # The body is a `ByteArray` and the `Content-Length` header value is set to
+  # the size of the `ByteArray`.
+  case Bytes(ByteArray)
+
+  # The body is a `ReadOnlyFile` to send to the client.
+  #
+  # The `Metadata` is used to obtain the size of the file and is used to set the
+  # `Content-Length` header's value. Consumers of a `Response` or `Body` may
+  # also use this value (e.g. to calculate an ETag).
+  #
+  # When creating a `Body.File` it's expected that the file's cursor points to
+  # the start of the file. If this isn't the case then the value of the
+  # `Content-Length` header won't be correct.
+  case File(ReadOnlyFile, Metadata)
+
+  # Returns a `BodyReader` that can be used to read the body from `self`.
+  #
+  # `Body` doesn't implement `Read` directly due to its internal representation,
+  # so a separate reader must be obtained using this method.
+  #
+  # If the body is a `Body.File` then reading will advance the file's cursor,
+  # and rewinding it manually (uisng `ReadOnlyFile.seek`) is necessary if you
+  # intend to read the same `Body` multiple times.
+  fn pub mut reader -> BodyReader {
+    BodyReader(body: self, offset: 0)
+  }
+
+  fn mut size -> Option[Int] {
+    match self {
+      case None -> Option.None
+      case String(v) -> Option.Some(v.size)
+      case Bytes(v) -> Option.Some(v.size)
+      case File(_, meta) -> Option.Some(meta.size)
+    }
+  }
+}
+
+# A `Read` type for reading bytes from a `Body`.
+type pub BodyReader {
+  let @body: mut Body
+  let mut @offset: Int
+
+  fn mut read_bytes[B: Bytes](
+    input: ref B,
+    into: mut ByteArray,
+    size: Int,
+  ) -> Int {
+    # We use Slice.checked because the `ByteArray` in `Body.Bytes` may be
+    # mutated in between calls, potentially invalidating the slice range.
+    let end = min(@offset + size, input.size)
+    let slice = Slice.checked(input, @offset, end)
+    let len = slice.size
+
+    if len > 0 {
+      into.append(slice)
+      @offset += len
+    }
+
+    len
+  }
+}
+
+impl Read[IoError] for BodyReader {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, IoError] {
+    match @body {
+      case None -> Result.Ok(0)
+      case String(v) -> Result.Ok(read_bytes(v, into, size))
+      case Bytes(v) -> Result.Ok(read_bytes(v, into, size))
+      case File(f, _) -> f.read(into, size)
+    }
+  }
+}
+
+# A TCP or Unix domain socket address.
+type pub inline enum Address {
+  # The address of an IP socket.
+  case Ip(SocketAddress)
+
+  # The address of a Unix domain socket.
+  case Unix(UnixAddress)
+}
+
+impl ToString for Address {
+  # Returns the address as a `String`.
+  #
+  # For IP sockets the return value is the IP address _without_ the port number.
+  # For Unix address it's a human-readable version of the address.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.server (Address)
+  # import std.net.ip (IpAddress)
+  # import std.net.socket (SocketAddress)
+  #
+  # Address
+  #   .Ip(SocketAddress(ip: IpAddress.v4(127, 0, 0, 1), port: 1234))
+  #   .to_string # => '127.0.0.1'
+  # ```
+  fn pub to_string -> String {
+    match self {
+      case Ip(v) -> v.ip.to_string
+      case Unix(v) -> v.to_readable_string
+    }
+  }
+}
+
+# A socket for reading requests and writing responses.
+#
+# A `Socket` supports plain TCP, TLS over TCP and Unix domain socket
+# connections.
+type pub inline enum Socket {
+  # A plain-text TCP socket.
+  case Plain(TcpClient)
+
+  # A TLS TCP socket.
+  case Secure(tls.Server[TcpClient])
+
+  # A plain-text Unix domain socket.
+  case Unix(UnixClient)
+
+  fn address -> Result[Address, IoError] {
+    let addr = match self {
+      case Plain(v) -> Address.Ip(try v.socket.peer_address)
+      case Secure(v) -> Address.Ip(try v.socket.peer_address)
+      case Unix(v) -> Address.Unix(try v.socket.local_address)
+    }
+
+    Result.Ok(addr)
+  }
+
+  fn mut shutdown {
+    match self {
+      case Plain(v) -> v.socket.shutdown
+      case Secure(v) -> v.socket.shutdown
+      case Unix(v) -> v.socket.shutdown
+    }
+  }
+}
+
+impl Read[IoError] for Socket {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, IoError] {
+    match self {
+      case Plain(v) -> v.read(into, size)
+      case Secure(v) -> v.read(into, size)
+      case Unix(v) -> v.read(into, size)
+    }
+  }
+}
+
+impl Deadline for Socket {
+  fn pub mut timeout_after=[T: ToInstant](deadline: ref T) {
+    match self {
+      case Plain(v) -> v.timeout_after = deadline
+      case Secure(v) -> v.timeout_after = deadline
+      case Unix(v) -> v.timeout_after = deadline
+    }
+  }
+
+  fn pub mut reset_deadline {
+    match self {
+      case Plain(v) -> v.reset_deadline
+      case Secure(v) -> v.reset_deadline
+      case Unix(v) -> v.reset_deadline
+    }
+  }
+}
+
+impl Write[IoError] for Socket {
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, IoError] {
+    match self {
+      case Plain(v) -> v.write(bytes)
+      case Secure(v) -> v.write(bytes)
+      case Unix(v) -> v.write(bytes)
+    }
+  }
+
+  fn pub mut flush -> Result[Nil, IoError] {
+    Result.Ok(nil)
+  }
+}
+
+type async Pool[H: mut + Handle] {
+  let @map: Map[ConnectionId, Connection[H]]
+  let mut @state: State
+  let mut @waiter: Option[Promise[Nil]]
+
+  fn static new -> (Self, Future[Nil]) {
+    match Future.new {
+      case (fut, prom) -> {
+        let waiter = recover Option.Some(prom)
+        let con = Self(
+          map: recover Map.new,
+          state: State.Active,
+          waiter: waiter,
+        )
+
+        (con, fut)
+      }
+    }
+  }
+
+  fn async mut add(id: ConnectionId, connection: Connection[H]) {
+    @map.set(id, connection)
+  }
+
+  fn async mut close(id: ConnectionId) {
+    let _ = @map.remove(id)
+
+    # If we are to shut down and this is the last connection, notify the process
+    # waiting for the shutdown to complete.
+    if @state.shutting_down? and @map.empty? { notify_waiter }
+  }
+
+  fn async mut shutdown(wait: Bool) {
+    if @state.shutting_down? { return notify_waiter }
+
+    @state = State.ShuttingDown
+
+    for con in @map.values { con.shutdown }
+
+    if wait.false? or @map.empty? { notify_waiter }
+  }
+
+  fn mut notify_waiter {
+    match @waiter := Option.None {
+      case Some(v) -> v.set(nil)
+      case _ -> {}
+    }
+  }
+}
+
+# A unique identifier to refer to a connection.
+#
+# We maintain a mapping of connection IDs to their connections, such that we can
+# shut them down gracefully when desired. An ID consists of a monotonic
+# timestamp and a wrapping counter.
+#
+# While _just_ a timestamp would be sufficient, _in theory_ it could be possible
+# for two connections to have the same timestamp if by some freak accident (i.e.
+# the system's monotonic clock is in fact not monotonic) the time spent in
+# between accepting the two connections is exactly zero nanoseconds. To ensure
+# this doesn't cause any trobule, we also use a wrapping 64-bits counter.
+type copy ConnectionId {
+  let @time: Int
+  let @counter: Int
+}
+
+impl Equal for ConnectionId {
+  fn pub ==(other: Self) -> Bool {
+    @time == other.time and @counter == other.counter
+  }
+}
+
+impl Hash for ConnectionId {
+  fn pub hash[H: mut + Hasher](hasher: mut H) {
+    @time.hash(hasher)
+    @counter.hash(hasher)
+  }
+}
+
+type copy enum State {
+  case Active
+  case ShuttingDown
+
+  fn shutting_down? -> Bool {
+    match self {
+      case ShuttingDown -> true
+      case _ -> false
+    }
+  }
+}
+
+type inline enum ParseResult {
+  # The request is valid.
+  #
+  # The arguments are:
+  #
+  # 1. The parsed request
+  # 2. A boolean indicating if the connection should be kept alive or closed
+  case Ok(Request, Bool)
+
+  # The request is invalid (e.g. it contains invalid syntax), but a response can
+  # be written back.
+  #
+  # The connection is to be closed after writing the response.
+  case Error(Response)
+
+  # The connection was closed or parsing a request took too long, and we should
+  # stop the connection on our side.
+  case Close
+}
+
+type async Connection[H: mut + Handle] {
+  let @id: ConnectionId
+  let @pool: Pool[H]
+  let mut @state: State
+  let @socket: Socket
+  let @address: Address
+  let @limits: Limits
+  let @handler: H
+  let @read_timeout: Duration
+  let @idle_timeout: Duration
+  let @write_timeout: Duration
+
+  fn async mut run {
+    # It's possible that when we finish the next message is a `shutdown` message
+    # that has yet to be processed. This check ensures that when we schedule
+    # `run` again at the end (such that the order of messages is
+    # `run (current) -> shutdown -> run`), that second message doesn't perform
+    # any work.
+    if @state.shutting_down? { return close }
+
+    match parse_request {
+      case Ok(req, keep) -> {
+        let ctx = Context.new(@address, req)
+        let resp = match @handler.handle(ctx) {
+          case Ok(v) -> v
+          case Error(e) -> @handler.handle_error(ctx, e)
+        }
+
+        let hijacker = resp.hijacker := Option.None
+        let keep = keep and ctx.request.body.consumed? and hijacker.none?
+
+        match resp.write(@socket, @write_timeout, keep) {
+          case Ok(_) if keep -> return run
+          case Ok(_) -> {
+            match hijacker {
+              case Some(f) -> f.call(@socket)
+              case _ -> {}
+            }
+          }
+          # We only route Read errors through handle_error() as write errors
+          # indicate a closed connection, something that just isn't worth
+          # handling in a specific way.
+          case Error(Read(e)) -> @handler.handle_error(ctx, Error.new(e))
+          case Error(_) -> {}
+        }
+      }
+      case Error(resp) -> resp.write(@socket, @write_timeout, keep: false)
+      case _ -> {}
+    }
+
+    # We only reach this point in the event of an error, or a connection that
+    # shouldn't be kept alive.
+    close
+  }
+
+  fn async mut shutdown {
+    @state = State.ShuttingDown
+  }
+
+  fn mut parse_request -> ParseResult {
+    let parser = Parser.new(Reader.new(mut @socket), @limits)
+
+    # Wait until the first byte arrives. This way we don't also apply the idle
+    # timeout to parsing of the request.
+    @socket.timeout_after = @idle_timeout
+
+    match parser.peek {
+      case Ok(Some(_)) -> {}
+      # We're just peeking and not parsing, so an error means the underlying IO
+      # stream is broken (e.g. the connection is closed), at which point all we
+      # can do is abort.
+      case _ -> return ParseResult.Close
+    }
+
+    @socket.timeout_after = @read_timeout
+
+    let parsed = parser.request
+
+    @socket.reset_deadline
+
+    match parsed {
+      case Ok(req) -> {
+        match req.version {
+          case { @major = 1, @minor = 1 } -> ParseResult.Ok(req, true)
+          case { @major = 1, @minor = 0 } -> ParseResult.Ok(req, false)
+          case { @major = 0 } -> {
+            let resp = Response.new
+
+            resp.status = Status.upgrade_required
+            resp.headers.set(Header.Upgrade, 'HTTP/1.1')
+            resp.headers.set(Header.Connection, 'Upgrade')
+            ParseResult.Error(resp)
+          }
+          case _ -> {
+            ParseResult.Error(
+              Response.new.status(Status.http_version_not_supported),
+            )
+          }
+        }
+      }
+      case Error(Read(TimedOut)) -> ParseResult.Close
+      case Error(InvalidMethod) -> {
+        ParseResult.Error(Response.new.status(Status.not_implemented))
+      }
+      case
+        Error(
+          MissingUri
+            or InvalidUri(_)
+            or InvalidVersion
+            or InvalidHeader
+            or InvalidChunk
+            or InvalidStatus
+            or StatusTooLarge
+            or Read(_)
+            or InvalidForm,
+        ) -> {
+        ParseResult.Error(Response.new.status(Status.bad_request))
+      }
+      case Error(InvalidTransferEncoding) -> {
+        ParseResult.Error(Response.new.status(Status.not_implemented))
+      }
+      case Error(UriTooLarge) -> {
+        ParseResult.Error(Response.new.status(Status.uri_too_long))
+      }
+      # This status is from RFC 6585.
+      case Error(HeaderTooLarge or TooManyHeaders) -> {
+        ParseResult.Error(
+          Response.new.status(Status.request_header_fields_too_large),
+        )
+      }
+      # EndOfInput is produced when the socket is closed while parsing, and
+      # there's nothing we can do about that.
+      #
+      # BodyTooLarge is only produced when reading from the body which we
+      # haven't done at this stage, so such errors can't occur here.
+      case Error(EndOfInput or BodyTooLarge) -> ParseResult.Close
+    }
+  }
+
+  fn close {
+    @pool.close(@id)
+  }
+}
+
+# A type containing an incoming request and additional data useful for producing
+# a response.
+type pub Context {
+  # The raw client address of the connection.
+  #
+  # This address isn't necessarily accurate. For example, if your application
+  # sits behind an HTTP proxy then this value will be the address of the proxy
+  # and not the client. A client may also be able to spoof the address.
+  let pub @address: ref Address
+
+  # The request for which a response is to be produced.
+  let pub @request: Request
+
+  # The request method and URI path components.
+  #
+  # This data should be used when routing requests instead of using
+  # `std.net.http.Request.target` directly, as using this field removes the need
+  # for parsing the path components on every call.
+  let pub @target: (Method, Array[Slice[String]])
+
+  fn static new(address: ref Address, request: Request) -> Self {
+    Context(address: address, target: request.target, request: request)
+  }
+
+  # Returns `true` if the requested path starts with the given prefix.
+  fn pub path_starts_with?(prefix: String) -> Bool {
+    for (idx, given) in prefix.split('/').with_index {
+      match @target.1.get(idx) {
+        case Ok(v) if given == v -> {}
+        case _ -> return false
+      }
+    }
+
+    true
+  }
+}
+
+# A type that handles a single request and produces its response.
+trait pub Handle {
+  # Handles an incoming request and produces its response.
+  fn pub mut handle(context: mut Context) -> Result[Response, Error]
+
+  # Handles a request and a corresponding `Error` by converting it into a
+  # `Response`.
+  #
+  # The `Error` value is either produced by an implementation of
+  # `Handle.handle`, or when copying a streaming body (e.g. a `Body.File`) to
+  # the socket produces an error. In the second case the returned `Response` is
+  # ignored.
+  fn pub mut handle_error(context: mut Context, error: Error) -> Response {
+    Response.new.status(error.status)
+  }
+}
+
+type inline enum SocketServer {
+  case Tcp(TcpServer)
+  case Unix(UnixServer)
+
+  fn static tcp(socket: ref TcpServer) -> Result[uni Self, IoError] {
+    Result.Ok(recover SocketServer.Tcp(try socket.try_clone))
+  }
+
+  fn mut accept(
+    tls_config: ref Option[tls.ServerConfig],
+  ) -> Result[uni Socket, IoError] {
+    let sock = match self {
+      case Tcp(s) -> {
+        let sock = recover try s.accept
+
+        match tls_config {
+          case Some(c) -> recover Socket.Secure(tls.Server.new(sock, c.clone))
+          case _ -> recover Socket.Plain(sock)
+        }
+      }
+      case Unix(s) -> recover Socket.Unix(try s.accept)
+    }
+
+    Result.Ok(sock)
+  }
+
+  fn address -> Result[Address, IoError] {
+    match self {
+      case Tcp(v) -> Result.Ok(Address.Ip(try v.local_address))
+      case Unix(v) -> Result.Ok(Address.Unix(try v.local_address))
+    }
+  }
+}
+
+type Shutdown {
+  let mut @future: Option[Future[Nil]]
+
+  fn mut received? -> Bool {
+    match @future := Option.None {
+      case Some(f) -> {
+        match f.try_get {
+          case Ok(_) -> true
+          case Error(f) -> {
+            @future = Option.Some(f)
+            false
+          }
+        }
+      }
+      case _ -> true
+    }
+  }
+}
+
+type async Signals[H: mut + Handle] {
+  let @pool: Pool[H]
+  let @address: Address
+  let mut @shutdown: Option[Promise[Nil]]
+
+  fn static start(pool: Pool[H], address: uni Address) -> Shutdown {
+    match Future.new {
+      case (fut, prom) -> {
+        let sigs = Self(
+          pool: pool,
+          address: address,
+          shutdown: recover Option.Some(prom),
+        )
+
+        # Each signal is given its own process so we can wait for them
+        # concurrently.
+        SignalWaiter.new(sigs, Signal.Quit).immediate_shutdown
+        SignalWaiter.new(sigs, Signal.Interrupt).graceful_shutdown
+        SignalWaiter.new(sigs, Signal.Terminate).graceful_shutdown
+        Shutdown(Option.Some(fut))
+      }
+    }
+  }
+
+  fn async mut shutdown(wait: Bool) {
+    match @shutdown := Option.None {
+      case Some(p) -> {
+        # The Promise must be resolved _before_ the connection is made as to
+        # ensure the accept() loop correctly wakes up.
+        p.set(nil)
+
+        # Wake up the accept() loop using a dummy connection. This must be done
+        # _after_ we resolve the Promise as to ensure the accept() loop observes
+        # it being resolved _before_ it performs another accept().
+        #
+        # Any errors that may occur are ignored because we don't really care for
+        # them, as we'll shut down eventually.
+        #
+        # We don't use shutdown() here because only on Linux does it interrupt
+        # an accept(), while on other platforms it simply won't work on a socket
+        # that isn't already connected.
+        match @address {
+          case Ip(v) -> drop(TcpClient.new([v.ip], v.port))
+          case Unix(v) -> drop(UnixClient.new(v.address.to_path))
+        }
+      }
+      case _ -> {}
+    }
+
+    @pool.shutdown(wait)
+  }
+}
+
+type async SignalWaiter[H: mut + Handle] {
+  let @signals: Signals[H]
+  let @signal: Signal
+
+  fn static new(signals: Signals[H], signal: Signal) -> Self {
+    Self(signals: signals, signal: signal)
+  }
+
+  fn async immediate_shutdown {
+    @signal.wait
+    @signals.shutdown(wait: false)
+  }
+
+  fn async graceful_shutdown {
+    @signal.wait
+    @signals.shutdown(wait: true)
+
+    # For graceful shutdown signals we support sending the signal twice to shut
+    # down immediately.
+    immediate_shutdown
+  }
+}
+
+# An HTTP server that handles incoming requests.
+type pub Server[H: mut + Handle] {
+  let @handler: fn -> uni H
+  let @pool: Pool[H]
+  let @waiter: Future[Nil]
+
+  # The limitations to apply/enforce when parsing HTTP messages.
+  let pub mut @limits: Limits
+
+  # The maximum amount of time a connection is allowed to be idle for before
+  # it's terminated.
+  #
+  # This timeout applies until the first byte is received, after which the
+  # `Server.read_timeout` timeout is applied.
+  #
+  # This defaults to 60 seconds.
+  let pub mut @idle_timeout: Duration
+
+  # The maximum amount of time that can be spent parsing a request.
+  #
+  # This defaults to 5 seconds.
+  let pub mut @read_timeout: Duration
+
+  # The maximum amount of time that can be spent on writing a response.
+  #
+  # This defaults to 5 seconds.
+  let pub mut @write_timeout: Duration
+
+  # The maximum amount of time to wait as part of a graceful shutdown.
+  #
+  # This defaults to 5 seconds.
+  let pub mut @shutdown_wait_time: Duration
+
+  # The TLS/HTTPS configuration to use, if any.
+  #
+  # By default this configuration is absent and the protocol is plain HTTP. When
+  # this value _is_ present, the protocol is automatically turned into HTTPS.
+  let pub mut @tls: Option[tls.ServerConfig]
+
+  # A closure to call when the server is about to shut down.
+  #
+  # This closure is called _before_ waiting for all connections to finish,
+  # unless an error is produced in the server's `accept()` loop.
+  let mut @before_shutdown: Option[fn]
+
+  # Returns a new `Server` that serves requests using the provided handler.
+  #
+  # The `handler` argument is a unique closure that returns some owned value
+  # that implements the `Handle` trait. This closure is called for each new
+  # connection (_not_ for each request), producing a chain of `Handle` types to
+  # call for each incoming request.
+  fn pub static new(handler: fn -> uni H) -> Self {
+    match Pool.new {
+      case (pool, waiter) -> {
+        Self(
+          pool: pool,
+          waiter: waiter,
+          handler: handler,
+          limits: Limits.new,
+          tls: Option.None,
+          idle_timeout: Duration.from_secs(60),
+          read_timeout: Duration.from_secs(5),
+          write_timeout: Duration.from_secs(5),
+          shutdown_wait_time: Duration.from_secs(5),
+          before_shutdown: Option.None,
+        )
+      }
+    }
+  }
+
+  # Parses the certificate and private key files and uses these to configure the
+  # server to use TLS.
+  #
+  # If you want full control over how the certificate and private key are parsed
+  # (e.g. you want to load them from an external service), you'll need to create
+  # a `std.net.tls.ServerConfig` manually and assign it to the `Server.tls`
+  # field.
+  #
+  # # Errors
+  #
+  # If the certificate or private key file can't be parsed, a `String` is
+  # returned as the error. This `String` contains a human-readable error message
+  # meant to be used as the message for a panic, for a server that wants to use
+  # TLS but has an invalid configuration can't start.
+  fn pub mut enable_tls(
+    certificate: ref Path,
+    key: ref Path,
+  ) -> Result[Nil, String] {
+    let cert = match Certificate.from_pem_file(certificate) {
+      case Ok(v) -> v
+      case Error(e) -> throw 'failed to parse ${certificate}: ${e}'
+    }
+    let key = match PrivateKey.from_pem_file(key) {
+      case Ok(v) -> v
+      case Error(e) -> throw 'failed to parse ${key}: ${e}'
+    }
+
+    match tls.ServerConfig.new(cert, key) {
+      case Ok(v) -> @tls = Option.Some(v)
+      case Error(e) -> 'the TLS server configuration is invalid: ${e}'
+    }
+
+    Result.Ok(nil)
+  }
+
+  # Stores the given closure to be called before the server shuts down
+  # gracefully.
+  fn pub mut before_shutdown=(function: fn) {
+    @before_shutdown = Option.Some(function)
+  }
+
+  # Binds the server to IP address `0.0.0.0` (i.e. any IPv4 address) and the
+  # given port, then starts it.
+  #
+  # To specify a custom IP address, use `Server.start_ip` instead.
+  #
+  # For more information, refer to the documentation of `Server.start_ip`.
+  fn pub move start(port: Int) -> Result[Nil, IoError] {
+    run(SocketServer.Tcp(try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port)))
+  }
+
+  # Binds the server to the given IP address and port, then starts it.
+  #
+  # This method blocks the caller until the server stops.
+  #
+  # The port argument is always used as-is, even when a TLS configuration is
+  # specified. This means that for TLS servers you should explicitly set the
+  # port to 443, unless of course you _want_ to use a different port.
+  fn pub move start_ip(ip: IpAddress, port: Int) -> Result[Nil, IoError] {
+    run(SocketServer.Tcp(try TcpServer.new(ip, port)))
+  }
+
+  # Binds the server to the given Unix domain socket path and starts it.
+  #
+  # This method blocks the caller until the server stops.
+  #
+  # The socket file is removed when returning from this method, though it may be
+  # left behind in the event of a panic. Abstract Unix domain sockets are
+  # created by using a `Path` that starts with `\0` (e.g.
+  # `'\0socket-name'.to_path`).
+  fn pub move start_unix(path: ref Path) -> Result[Nil, IoError] {
+    let res = run(SocketServer.Unix(try UnixServer.new(path)))
+    let _ = path.remove_file
+
+    res
+  }
+
+  fn move run(socket: SocketServer) -> Result[Nil, IoError] {
+    let mut shutdown = Signals.start(@pool, recover try socket.address)
+    let start = Instant.new
+    let mut counter = 0
+
+    loop {
+      let client = match socket.accept(ref @tls) {
+        case _ if shutdown.received? -> break
+        case Ok(v) -> v
+        # ConnectionAborted may be produced if a connection is established and
+        # then aborted _just_ before we get to accept it.
+        case Error(ConnectionAborted) -> next
+        case Error(e) -> throw e
+      }
+
+      # Not being able to obtain the peer address is pretty much unheard of at
+      # this point, but _just_ in case it happens we simply skip the connection
+      # and close it.
+      let addr = recover {
+        match client.address {
+          case Ok(v) -> v
+          case _ -> next
+        }
+      }
+
+      let id = ConnectionId(
+        time: start.elapsed.to_nanos,
+        counter: counter := counter.wrapping_add(1),
+      )
+
+      handle(id, client, addr)
+    }
+
+    match @before_shutdown {
+      case Some(f) -> f.call
+      case _ -> {}
+    }
+
+    @waiter.get_until(@shutdown_wait_time)
+    Result.Ok(nil)
+  }
+
+  fn mut handle(id: ConnectionId, socket: uni Socket, address: uni Address) {
+    let con = Connection(
+      id: id,
+      pool: @pool,
+      state: State.Active,
+      socket: socket,
+      address: address,
+      limits: recover @limits.clone,
+      handler: recover @handler.call,
+      idle_timeout: @idle_timeout,
+      read_timeout: @read_timeout,
+      write_timeout: @write_timeout,
+    )
+
+    @pool.add(id, con)
+    con.run
+  }
+}
+
+# A type describing what log format to use.
+type pub copy enum LogFormat {
+  # A format based on Nginx' combined log format.
+  case Common
+
+  # The Common but without a timestamp, as systemd already adds these itself.
+  case Systemd
+
+  # A special "format" that disables logging.
+  #
+  # The purpose of this format is to disable logging when writing unit tests,
+  # such that the test output remains readable.
+  case Disabled
+}
+
+type async LogWriter {
+  let @output: Stdout
+
+  fn static new -> Self {
+    Self(recover Stdout.new)
+  }
+
+  fn async mut write(message: String) {
+    let _ = @output.print(message)
+  }
+}
+
+# A type for logging requests and their responses.
+#
+# Log lines are written to STDOUT, using one of the formats defined by the
+# `LogFormat` type.
+#
+# To use a `Logger`, create one once and clone it using `Logger.clone` for every
+# new connection. This ensures that all connections use the same underlying
+# writer, preventing concurrent writes from messing up the STDOUT output:
+#
+# ```inko
+# import std.net.http.server (Context, Error, Handle, Logger, Response, Server)
+#
+# type async Main {
+#   fn async main {
+#     let logger = Logger.new
+#
+#     Server.new(fn { recover App(logger.clone) }).start(8000).or_panic
+#   }
+# }
+#
+# type App {
+#   let @logger: Logger
+# }
+# ```
+#
+# Logging is then done in your application's `handle` implementation, just
+# before returning the final response:
+#
+# ```inko
+# impl Handle for App {
+#   fn pub mut handle(context: mut Context) -> Result[Response, Error] {
+#     let response = Result.Ok(Response.new.string('Hello, world!'))
+#
+#     @logger.log(context, response)
+#     response
+#   }
+# }
+#
+# Note that `Logger.log` expects a `Result[Response, Error]` and not just a
+# `Response`. This allows it to write a log entry for both OK responses and
+# errors.
+# ```
+type pub inline Logger {
+  let @writer: LogWriter
+  let @format: LogFormat
+
+  # Returns a `Logger` using the default (= common) log format.
+  fn pub static new -> Self {
+    with_format(LogFormat.Common)
+  }
+
+  # Returns a `Logger` using the given format.
+  fn pub static with_format(format: LogFormat) -> Self {
+    Self(writer: LogWriter.new, format: format)
+  }
+
+  # Logs a request along with its response.
+  fn pub mut log(context: ref Context, response: ref Result[Response, Error]) {
+    match @format {
+      case Disabled -> return
+      case _ -> {}
+    }
+
+    let meth = context.request.method
+    let uri = Uri.new
+
+    uri.path = context.request.uri.path.clone
+    uri.query = context.request.uri.query.clone
+
+    let ver = context.request.version
+    let prev = context.request.headers.get(Header.Referer).or('-')
+    let agent = context.request.headers.get(Header.UserAgent).or('-')
+    let mut size = '-'
+    let status = match response {
+      case Ok(v) -> {
+        size = v.headers.get(Header.ContentLength).or('-')
+        v.status
+      }
+      case Error(e) -> e.status
+    }
+
+    let time = match @format {
+      case Common -> {
+        '[${DateTime.utc.format('%d/%b/%Y:%H:%M:%S %Z', en.Locale.new)}]'
+      }
+      case _ -> '-'
+    }
+
+    @writer.write(
+      '${context.address} - - ${time} "${meth} ${uri} HTTP/${ver}" ${status} ${size} "${prev}" "${agent}"',
+    )
+  }
+}
+
+impl Clone for Logger {
+  fn pub clone -> Self {
+    Self(writer: @writer, format: @format)
+  }
+}
