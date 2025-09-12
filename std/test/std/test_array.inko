@@ -472,6 +472,28 @@ fn pub tests(t: mut Tests) {
     t.equal([10, 20, 30].index_of(40), Option.None)
   })
 
+  t.test('Array.slice', fn (t) {
+    let vals = [10, 20, 30, 40]
+    let slice1 = vals.slice(0, 0)
+    let slice2 = vals.slice(1, 4)
+
+    t.equal(slice1.start, 0)
+    t.equal(slice1.size, 0)
+    t.equal(slice1.get(0), Result.Error(OutOfBounds.new(0, 0)))
+
+    t.equal(slice2.start, 1)
+    t.equal(slice2.size, 3)
+    t.equal(slice2.get(0), Result.Ok(20))
+  })
+
+  t.panic('Array.slice with an out of bounds start index', fn {
+    [10, 20].slice(2, 2)
+  })
+
+  t.panic('Array.slice with an out of bounds end index', fn {
+    [10, 20].slice(0, 10)
+  })
+
   t.test('IntoIter.next', fn (t) {
     let vals = [10, 20].into_iter
 
@@ -486,5 +508,74 @@ fn pub tests(t: mut Tests) {
     drop([TrackDrop.new(count), TrackDrop.new(count)].into_iter)
 
     t.equal(count.value, 2)
+  })
+
+  t.test('Slice.size', fn (t) {
+    let vals = [10, 20, 30]
+    let slice = vals.slice(1, 3)
+
+    t.equal(slice.size, 2)
+
+    vals.pop
+    t.equal(slice.size, 1)
+
+    vals.clear
+    t.equal(slice.size, 0)
+  })
+
+  t.test('Slice.slice', fn (t) {
+    let vals = [10, 20, 30, 40, 50, 60, 70]
+    let slice1 = vals.slice(0, 7)
+    let slice2 = slice1.slice(0, 5)
+    let slice3 = slice1.slice(1, 4)
+
+    t.equal(slice1.start, 0)
+    t.equal(slice1.end, 7)
+    t.equal(slice1.to_array, [10, 20, 30, 40, 50, 60, 70])
+
+    t.equal(slice2.start, 0)
+    t.equal(slice2.end, 5)
+    t.equal(slice2.to_array, [10, 20, 30, 40, 50])
+
+    t.equal(slice3.start, 1)
+    t.equal(slice3.end, 4)
+    t.equal(slice3.to_array, [20, 30, 40])
+  })
+
+  t.test('Slice.get', fn (t) {
+    let vals = [10, 20, 30]
+    let slice1 = vals.slice(0, 3)
+    let slice2 = slice1.slice(1, 3)
+
+    t.equal(slice1.get(0), Result.Ok(10))
+    t.equal(slice1.get(1), Result.Ok(20))
+    t.equal(slice1.get(2), Result.Ok(30))
+    t.equal(slice1.get(10), Result.Error(OutOfBounds(10, 3)))
+
+    t.equal(slice2.get(0), Result.Ok(20))
+    t.equal(slice2.get(1), Result.Ok(30))
+    t.equal(slice2.get(2), Result.Error(OutOfBounds(2, 2)))
+
+    vals.clear
+    t.equal(slice1.get(0), Result.Error(OutOfBounds(0, 0)))
+    t.equal(slice2.get(0), Result.Error(OutOfBounds(0, 0)))
+  })
+
+  t.test('Slice.into_iter', fn (t) {
+    let vals = [10, 20, 30, 40]
+
+    t.equal(vals.slice(1, 3).into_iter.to_array, [20, 30])
+  })
+
+  t.test('Slice.into_iter', fn (t) {
+    let vals = [10, 20, 30, 40]
+
+    t.equal(vals.slice(1, 3).iter.to_array, [20, 30])
+  })
+
+  t.test('Slice.to_array', fn (t) {
+    let vals = [10, 20, 30, 40]
+
+    t.equal(vals.slice(1, 3).to_array, [20, 30])
   })
 }

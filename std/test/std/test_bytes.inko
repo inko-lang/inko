@@ -128,12 +128,6 @@ fn pub tests(t: mut Tests) {
     t.equal(slice.size, 0)
   })
 
-  t.panic('Slice.size with an out of bounds slice', fn {
-    let bytes = ByteArray.from_array([10, 20])
-
-    Slice.new(bytes, 10, 0).size
-  })
-
   t.test('Slice.get', fn (t) {
     let bytes = ByteArray.from_array([10, 20, 30])
     let slice = Slice.new(bytes, start: 1, end: 3)

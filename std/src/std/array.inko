@@ -1,5 +1,6 @@
 # An ordered, integer-indexed generic collection of values.
 import std.alloc
+import std.bytes (check_slice_range)
 import std.clone (Clone)
 import std.cmp (Compare, Equal, Ordering, max)
 import std.drop (Drop, drop as drop_value)
@@ -119,6 +120,137 @@ impl Format for OutOfBounds {
 impl Equal for OutOfBounds {
   fn pub ==(other: Self) -> Bool {
     @index == other.index and @size == other.size
+  }
+}
+
+# A immutable slice of values in an `Array`.
+#
+# A `Slice` is a "view" into a range of values in an `Array`. A `Slice` doesn't
+# own or copy the underlying data, instead it merely borrows it. This means
+# creating a `Slice` doesn't require any memory allocations.
+type pub inline Slice[T] {
+  # The `Array` the slice applies to.
+  let pub @source: ref Array[T]
+
+  # The start index (relative to the source) of the slice.
+  let pub @start: Int
+
+  # The end index (relative to the source) of the slice.
+  let pub @end: Int
+
+  # Returns the number of values covered by `self`.
+  #
+  # The returned size is correctly adjusted according to the size of the
+  # underlying `Array`. For example, if a slice starts at index 0 and covers
+  # four values but the underlying `Array` only contains two values, this method
+  # returns two instead of four.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let nums = [10, 20, 30, 40]
+  # let slice = nums.slice(start: 0, end: 4)
+  #
+  # slice.size # => 4
+  # bytes.pop
+  # slice.size # => 3
+  # ```
+  fn pub inline size -> Int {
+    let len = @source.size
+    let start = @start
+    let end = @end
+
+    if end <= len { end - start } else if start < len { len - start } else { 0 }
+  }
+
+  # Returns a sub slice of `self` starting at `start` until (but excluding)
+  # `end`.
+  #
+  # # Panics
+  #
+  # This method panics if `start` or `end` is out of bounds.
+  #
+  # # Examples
+  #
+  # ```inko
+  # [10, 20, 30].slice(1, 2).slice(1, 2).to_array # => [30]
+  # ```
+  fn pub inline slice(start: Int, end: Int) -> Self {
+    let new_start = @start + start
+    let new_end = @start + end
+
+    check_slice_range(start, end, size: @end + @start)
+    Self(source: @source, start: new_start, end: new_end)
+  }
+
+  # Returns an immutable borrow of the value at the given index.
+  #
+  # # Errors
+  #
+  # If the index is out of bounds, a `std.bounds.OutOfBounds` error is returned.
+  #
+  # # Examples
+  #
+  # ```inko
+  # [10, 20, 30].slice(1, 2).get(0)  # => Result.Ok(20)
+  # [10, 20, 30].slice(1, 2).get(10) # => Result.Error(...)
+  # ```
+  fn pub inline get(index: Int) -> Result[ref T, OutOfBounds] {
+    let off = @start + index
+
+    if index >= 0 and index < size and off >= 0 and off < @source.size {
+      Result.Ok(@source.get_unchecked(off))
+    } else {
+      Result.Error(OutOfBounds.new(index, size))
+    }
+  }
+
+  # Returns an iterator that yields immutable borrows of the values in `self`,
+  # consuming `self` in the process.
+  #
+  # # Examples
+  #
+  # ```inko
+  # [10, 20, 30].slice(1, 2).into_iter.next # => Option.Some(20)
+  # ```
+  fn pub move into_iter -> Stream[ref T] {
+    iter
+  }
+
+  # Returns an iterator that yields immutable borrows of the values in `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # [10, 20, 30].slice(1, 2).iter.next # => Option.Some(20)
+  # ```
+  fn pub iter -> Stream[ref T] {
+    let mut idx = 0
+
+    Stream.new(fn move {
+      if idx < size { get(idx := idx + 1).ok } else { Option.None }
+    })
+  }
+}
+
+impl Slice if T: Clone {
+  # Returns a new `Array` containing a copy of every value in `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # [10, 20, 30].slice(1, 2).iter.to_array # => [20, 30]
+  # ```
+  fn pub to_array -> Array[move T] {
+    let vals = Array.with_capacity(size)
+    let mut idx = 0
+    let max = size
+
+    while idx < max {
+      vals.push(@source.get_unchecked(@start + (idx := idx + 1)).clone)
+    }
+
+    vals
   }
 }
 
@@ -697,6 +829,27 @@ type builtin Array[T] {
         case _ -> false
       }
     })
+  }
+
+  # Returns a `Slice` containing the values starting at `start` and up to (but
+  # excluding) `end`.
+  #
+  # The `start` index is allowed to be equal to the size of `self`, but only if
+  # `end` is the same as `start`. Thus given an `Array` with a size of `4`,
+  # `array.slice(4, 4)` is valid.
+  #
+  # # Panics
+  #
+  # This method panics if `start` or `end` is out of bounds.
+  #
+  # # Examples
+  #
+  # ```inko
+  # [10, 20, 30].slice(1, 2).to_array # => [20, 30]
+  # ```
+  fn pub slice(start: Int, end: Int) -> Slice[T] {
+    check_slice_range(start, end, size: size)
+    Slice(source: self, start: start, end: end)
   }
 
   # Returns a raw pointer to the buffer of `self`.

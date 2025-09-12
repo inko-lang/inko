@@ -223,8 +223,8 @@ type builtin String {
   # Both the `start` and `end` arguments are _byte_ indexes.
   #
   # The `start` index is allowed to be equal to the size of `self`, but only if
-  # `end` is the same as `start`. Thus given a `String` with a size of `4`, the
-  # range `4 until 4` is valid.
+  # `end` is the same as `start`. Thus given a `String` with a size of `4`,
+  # `string.slice(4, 4)` is valid.
   #
   # # Panics
   #
