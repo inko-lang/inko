@@ -1458,8 +1458,8 @@ type pub inline Values {
   #
   # let map = Values.parse('name=Alice&age=42').get
   #
-  # map.get_string('name') # => Result.Ok('Alice')
-  # map.get_string('age') # => Result.Ok('42')
+  # map.string('name') # => Result.Ok('Alice')
+  # map.string('age') # => Result.Ok('42')
   # ```
   fn pub static parse[B: Bytes](input: ref B) -> Option[Values] {
     let map = Values.new
@@ -1572,10 +1572,10 @@ type pub inline Values {
   #
   # map.add('name', 'Alice')
   #
-  # map.get_string('name') # => Result.Ok('Alice')
-  # map.get_string('age') # => Result.Error(MissingKey(...))
+  # map.string('name') # => Result.Ok('Alice')
+  # map.string('age') # => Result.Error(MissingKey(...))
   # ```
-  fn pub get_string(name: String) -> Result[String, MissingKey[String]] {
+  fn pub string(name: String) -> Result[String, MissingKey[String]] {
     match get(name) {
       case Ok(v) -> Result.Ok(v.to_string)
       case Error(e) -> Result.Error(e)

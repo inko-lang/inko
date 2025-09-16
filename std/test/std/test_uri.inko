@@ -434,16 +434,16 @@ fn pub tests(t: mut Tests) {
     t.equal(map.get('name'), Result.Ok(ref 'Alice'.to_byte_array))
   })
 
-  t.test('Values.get_string', fn (t) {
+  t.test('Values.string', fn (t) {
     let map = Values.new
 
     map.add('name', 'Alice')
     map.add('age', '42')
-    t.equal(map.get_string('name'), Result.Ok('Alice'))
-    t.equal(map.get_string('age'), Result.Ok('42'))
+    t.equal(map.string('name'), Result.Ok('Alice'))
+    t.equal(map.string('age'), Result.Ok('42'))
 
     map.add('name', 'Bob')
-    t.equal(map.get_string('name'), Result.Ok('Alice'))
+    t.equal(map.string('name'), Result.Ok('Alice'))
   })
 
   t.test('Values.get_all', fn (t) {
@@ -480,8 +480,8 @@ fn pub tests(t: mut Tests) {
     map.add('age', '42')
     map.remove_all('name')
 
-    t.equal(map.get_string('name'), Result.Error(MissingKey.new('name')))
-    t.equal(map.get_string('age'), Result.Ok('42'))
+    t.equal(map.string('name'), Result.Error(MissingKey.new('name')))
+    t.equal(map.string('age'), Result.Ok('42'))
   })
 
   t.test('Values.size', fn (t) {
@@ -590,7 +590,7 @@ fn pub tests(t: mut Tests) {
     let query = Query.new('key=value').get
     let vals = query.parse
 
-    t.equal(vals.get_string('key'), Result.Ok('value'))
+    t.equal(vals.string('key'), Result.Ok('value'))
   })
 
   t.test('Query.to_byte_array', fn (t) {
