@@ -50,6 +50,7 @@ let UPPER_Z = 90
 let ZERO = 48
 
 let RFC_2822_ZONES = ['GMT', 'UT']
+let RFC_2822_FORMAT = '%a, %d %b %Y %H:%M:%S %Z'
 
 fn parse_offset[T: Bytes](input: ref T, start: Int) -> Option[(Int, Int)] {
   let mut inp_idx = start
@@ -1082,6 +1083,25 @@ type pub copy DateTime {
     )
   }
 
+  # Parses a `DateTime` formatted as an [RFC
+  # 2822](https://www.rfc-editor.org/rfc/rfc2822.html) date.
+  #
+  # This method uses `DateTime.parse` with the English locale, as RFC 2822 dates
+  # are always in English.
+  #
+  # For more information, refer to the documentation of `DateTime.parse`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.time (DateTime)
+  #
+  # let dt = DateTime.from_rfc2822('Wed, 17 Sep 2025 14:46:04 GMT').or_panic
+  # ```
+  fn pub static from_rfc2822[T: Bytes](input: ref T) -> Option[DateTime] {
+    parse(input, format: RFC_2822_FORMAT, locale: English.new)
+  }
+
   # Returns the `Date` component of `self`.
   fn pub inline date -> Date {
     @date
@@ -1314,7 +1334,7 @@ type pub copy DateTime {
   # dt.to_rfc2822 # => 'Sat, 21 Dec 2024 21:47:30 +01:00'
   # ```
   fn pub to_rfc2822 -> String {
-    format('%a, %d %b %Y %H:%M:%S %Z', English.new)
+    format(RFC_2822_FORMAT, English.new)
   }
 
   # Returns the `Duration` since the given `DateTime` relative to `self`.

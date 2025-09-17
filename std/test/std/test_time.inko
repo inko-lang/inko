@@ -574,6 +574,21 @@ fn pub tests(t: mut Tests) {
     }
   })
 
+  t.test('DateTime.from_rfc2822', fn (t) {
+    let dt = DateTime.from_rfc2822('Wed, 17 Sep 2025 14:46:04 GMT')
+
+    t.equal(
+      dt,
+      Option.Some(
+        DateTime.new(
+          date: Date.new(2025, 9, 17).get,
+          time: Time.new(14, 46, 4, 0).get,
+          utc_offset: 0,
+        ),
+      ),
+    )
+  })
+
   t.test('DateTime.days_since_unix_epoch', fn (t) {
     let dt = DateTime.from_timestamp(time: 1661538868, utc_offset: 7200).get
 
