@@ -472,6 +472,10 @@ fn pub tests(t: mut Tests) {
     t.equal([10, 20, 30].index_of(40), Option.None)
   })
 
+  t.test('Array.to_slice', fn (t) {
+    t.equal([10, 20, 30].to_slice.to_array, [10, 20, 30])
+  })
+
   t.test('Array.slice', fn (t) {
     let vals = [10, 20, 30, 40]
     let slice1 = vals.slice(0, 0)

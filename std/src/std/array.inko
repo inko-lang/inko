@@ -854,6 +854,17 @@ type builtin Array[T] {
     })
   }
 
+  # Returns a `Slice` that covers all of `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # [10, 20, 30].to_slice.to_array # => [10, 20, 30]
+  # ```
+  fn pub to_slice -> Slice[T] {
+    Slice.new(self, 0, size)
+  }
+
   # Returns a `Slice` containing the values starting at `start` and up to (but
   # excluding) `end`.
   #
@@ -880,7 +891,7 @@ type builtin Array[T] {
   #
   # Refer to the documentation of `Slice.split_first` for more details.
   fn pub split_first -> Option[(ref T, Slice[T])] {
-    Slice.new(self, 0, size).split_first
+    to_slice.split_first
   }
 
   # Returns a raw pointer to the buffer of `self`.
