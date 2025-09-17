@@ -57,6 +57,12 @@ fn pub tests(t: mut Tests) {
     Slice.checked(bytes, start: 0, end: 3)
   })
 
+  t.test('Slice.to_slice', fn (t) {
+    let slice = Slice.new('abc', 0, 3)
+
+    t.equal(slice.to_slice, slice)
+  })
+
   t.test('Slice.slice', fn (t) {
     let input = 'Hello, this is an example String'
     let slice1 = input.slice(start: 0, end: 12)
@@ -426,6 +432,12 @@ fn pub tests(t: mut Tests) {
 
     t.equal(bytes.drain_to_string, 'inko')
     t.equal(bytes, ByteArray.new)
+  })
+
+  t.test('ByteArray.to_slice', fn (t) {
+    let bytes = ByteArray.from_array([1, 2, 3])
+
+    t.equal(bytes.to_slice, bytes.slice(0, bytes.size))
   })
 
   t.test('ByteArray.slice', fn (t) {

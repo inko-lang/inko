@@ -7,7 +7,7 @@
 # Unicode scalar values or bytes.
 import std.alloc
 import std.array (OutOfBounds, check_bounds)
-import std.bytes (Bytes, IntoByteArray, Slice, ToByteArray, hash_bytes)
+import std.bytes (Bytes, IntoByteArray, Slice, ToByteArray, ToSlice, hash_bytes)
 import std.clone (Clone)
 import std.cmp (Compare, Equal, Ordering, min)
 import std.drop (Drop)
@@ -682,6 +682,12 @@ impl Bytes for String {
   # (i.e. `*char` arguments). You should avoid using it for anything else.
   fn pub inline pointer -> Pointer[UInt8] {
     @ptr
+  }
+}
+
+impl ToSlice[Self] for String {
+  fn pub to_slice -> Slice[Self] {
+    Slice.new(self, 0, size)
   }
 }
 

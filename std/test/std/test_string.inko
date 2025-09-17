@@ -111,6 +111,10 @@ fn pub tests(t: mut Tests) {
     t.equal('hello_world'.substring(start: 5, end: 0), '')
   })
 
+  t.test('String.to_slice', fn (t) {
+    t.equal('abc'.to_slice, 'abc'.slice(0, 3))
+  })
+
   t.test('String.slice', fn (t) {
     t.equal('hello_world'.slice(start: 0, end: 5).to_string, 'hello')
     t.equal(

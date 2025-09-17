@@ -1,0 +1,135 @@
+import std.fmt (fmt)
+import std.mime (Mime, parameters, split_item)
+import std.mime.data
+import std.mime.phf
+import std.test (Tests)
+
+fn pub tests(t: mut Tests) {
+  t.test('header.split_item', fn (t) {
+    let a = 'foo ; bar'
+    let b = 'foo'
+    let c = ''
+
+    t.equal(
+      split_item(a.slice(0, a.size)),
+      (a.slice(0, 3), Option.Some(a.slice(6, 9))),
+    )
+    t.equal(split_item(b.slice(0, b.size)), (b.slice(0, b.size), Option.None))
+    t.equal(split_item(c.slice(0, c.size)), (c.slice(0, c.size), Option.None))
+  })
+
+  t.test('parameters', fn (t) {
+    let tests = [
+      # Valid values
+      ('', Result.Ok([])),
+      ('a', Result.Ok([('a', '')])),
+      ('a=v1', Result.Ok([('a', 'v1')])),
+      ('a=v1;', Result.Ok([('a', 'v1')])),
+      ('a= v1 ', Result.Ok([('a', ' v1 ')])),
+      ('a="v1"', Result.Ok([('a', 'v1')])),
+      ('a="v1";', Result.Ok([('a', 'v1')])),
+      ('a=v1; b=v2', Result.Ok([('a', 'v1'), ('b', 'v2')])),
+      ('a=v1;;;b=v2', Result.Ok([('a', 'v1'), ('b', 'v2')])),
+      (
+        'a=v1; b=v2; c="v3"',
+        Result.Ok([('a', 'v1'), ('b', 'v2'), ('c', 'v3')]),
+      ),
+      ('këy=väl', Result.Ok([('këy', 'väl')])),
+
+      # Invalid values
+      (' a ', Result.Error(nil)),
+      ('a =', Result.Error(nil)),
+      ('a="b', Result.Error(nil)),
+      ('a=b"', Result.Error(nil)),
+    ]
+
+    for (inp, exp) in tests {
+      let got = parameters(inp).try_reduce([], fn (ary, res) {
+        match try res {
+          case (k, v) -> ary.push((k.to_string, v.to_string))
+        }
+
+        Result.Ok(ary)
+      })
+
+      t.equal(got, exp)
+    }
+  })
+
+  t.test('Mime.new', fn (t) {
+    let m = Mime.new('text/plain')
+
+    t.equal(m.type.to_string, 'text')
+    t.equal(m.subtype.to_string, 'plain')
+  })
+
+  t.test('Mime.parse', fn (t) {
+    t.equal(Mime.parse('text/plain'), Option.Some(Mime.new('text/plain')))
+    t.equal(
+      Mime.parse('text/plain; foo'),
+      Option.Some(Mime.new('text/plain; foo')),
+    )
+    t.equal(Mime.parse('foo'), Option.None)
+  })
+
+  t.test('Mime.parse with valid parameters', fn (t) {
+    let pars = Mime.parse('text/plain; charset=utf-8; q=0.5; x=; y="foo"').get
+
+    t.equal(pars.type.to_string, 'text')
+    t.equal(pars.subtype.to_string, 'plain')
+    t.equal(pars.get('charset').map(fn (v) { v.to_string }), Result.Ok('utf-8'))
+    t.equal(pars.get('q').map(fn (v) { v.to_string }), Result.Ok('0.5'))
+    t.equal(pars.get('x').map(fn (v) { v.to_string }), Result.Ok(''))
+    t.equal(pars.get('y').map(fn (v) { v.to_string }), Result.Ok('foo'))
+  })
+
+  t.test('Mime.parse with invalid parameters', fn (t) {
+    let pars = Mime.parse('text/plain; charset=utf-8; x = ; foo=bar').get
+
+    t.equal(pars.get('charset').map(fn (v) { v.to_string }), Result.Ok('utf-8'))
+    t.true(pars.get('x').error?)
+    t.true(pars.get('foo').error?)
+  })
+
+  t.panic('Mime.new with an invalid argument', fn { Mime.new('foo') })
+
+  t.test('Mime.from_extension', fn (t) {
+    for (idx, ext) in phf.KEYS.iter.with_index {
+      let typ = data.TYPES.get(idx).or_panic.first.get
+
+      t.equal(phf.index_of(ext), idx)
+      t.equal(Mime.from_extension(ext), Option.Some(Mime.new(typ)))
+    }
+
+    t.equal(Mime.from_extension(''), Option.None)
+    t.equal(Mime.from_extension('invalid-extension'), Option.None)
+  })
+
+  t.test('Mime.type', fn (t) {
+    t.equal(Mime.new('text/plain').type.to_string, 'text')
+  })
+
+  t.test('Mime.subtype', fn (t) {
+    t.equal(Mime.new('text/plain').subtype.to_string, 'plain')
+    t.equal(Mime.new('text/plain; charset=utf-8').subtype.to_string, 'plain')
+  })
+
+  t.test('Mime.fmt', fn (t) {
+    t.equal(fmt(Mime.new('text/plain')), 'Mime("text/plain")')
+    t.equal(
+      fmt(Mime.new('text/plain; a=1; b=2')),
+      'Mime("text/plain; a=1; b=2")',
+    )
+  })
+
+  t.test('Mime.==', fn (t) {
+    t.equal(Mime.new('text/plain'), Mime.new('text/plain'))
+    t.not_equal(Mime.new('text/plain'), Mime.new('text/foo'))
+    t.not_equal(Mime.new('text/plain'), Mime.new('text/foo; q=2'))
+  })
+
+  t.test('Mime.to_string', fn (t) {
+    t.equal(Mime.new('text/plain').to_string, 'text/plain')
+    t.equal(Mime.new('text/plain; a=1; b=2').to_string, 'text/plain; a=1; b=2')
+  })
+}

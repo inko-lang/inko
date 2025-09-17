@@ -59,6 +59,12 @@ trait pub IntoByteArray {
   fn pub move into_byte_array -> ByteArray
 }
 
+# A type that can be converted to a `Slice`.
+trait pub ToSlice[T: Bytes] {
+  # Returns a `Slice` that covers all of `self`.
+  fn pub to_slice -> Slice[T]
+}
+
 # A type that is a contiguous sequence of bytes.
 #
 # This trait is used for providing various foundational methods for Inko's
@@ -569,6 +575,12 @@ impl Bytes for Slice {
   # so manually (e.g. using `Slice.size`).
   fn pub pointer -> Pointer[UInt8] {
     ptr.add(@source.pointer, @start)
+  }
+}
+
+impl ToSlice[T] for Slice {
+  fn pub to_slice -> Self {
+    clone
   }
 }
 
@@ -1201,6 +1213,12 @@ impl Bytes for ByteArray {
 
   fn pub pointer -> Pointer[UInt8] {
     @buffer
+  }
+}
+
+impl ToSlice[Self] for ByteArray {
+  fn pub to_slice -> Slice[Self] {
+    Slice.new(self, 0, size)
   }
 }
 
