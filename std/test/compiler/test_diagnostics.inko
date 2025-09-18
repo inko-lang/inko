@@ -275,14 +275,13 @@ fn pub tests(t: mut Tests) {
 
   for e in base.list.or_panic_with("fixtures/diagnostics doesn't exist") {
     let test_file = match e {
-      case Ok({ @path = p, @type = File }) if p.tail.ends_with?('.inko') -> {
-        recover p.clone
-      }
+      case Ok({ @path = p, @type = File }) if p.tail.ends_with?('.inko') -> p
       case Ok(_) -> next
       case Error(e) -> panic('failed to read the diagnostics directory: ${e}')
     }
 
-    let name = test_file.tail.strip_suffix('.inko').get
+    let name = test_file.tail.to_string.strip_suffix('.inko').get
+    let test_file = recover test_file.clone
 
     t.test('inko check ${name}', fn move (t) {
       match parse_test(test_file) {

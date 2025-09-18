@@ -1,4 +1,5 @@
 # Cross-platform path manipulation.
+import std.bytes (Slice)
 import std.clone (Clone)
 import std.cmp (Equal)
 import std.env (home_directory)
@@ -7,7 +8,7 @@ import std.fs (DirectoryEntry, Metadata)
 import std.hash (Hash, Hasher)
 import std.io (Error)
 import std.iter (Iter, Stream)
-import std.string (IntoString, StringBuffer, ToString)
+import std.string (IntoString, ToString)
 import std.sys.unix.fs (self as sys) if unix
 
 type extern AnyResult {
@@ -163,13 +164,13 @@ type pub Components {
   }
 }
 
-impl Iter[String] for Components {
-  fn pub mut next -> Option[String] {
+impl Iter[Slice[String]] for Components {
+  fn pub mut next -> Option[Slice[String]] {
     if @index >= @size { return Option.None }
 
     if @index == 0 and @root {
       advance_separator
-      return Option.Some(SEPARATOR)
+      return Option.Some(@path.path.slice(0, 1))
     }
 
     let start = @index
@@ -180,7 +181,7 @@ impl Iter[String] for Components {
 
     if end > start {
       advance_separator
-      Option.Some(@path.path.slice(start, end).to_string)
+      Option.Some(@path.path.slice(start, end))
     } else {
       Option.None
     }
@@ -315,22 +316,22 @@ type pub inline Path {
   # Path.new('/').directory # Path.new('/')
   # ```
   fn pub directory -> Path {
-    let buf = StringBuffer.new
+    let buf = ByteArray.new
     let comp = Components.new(self).peekable
     let mut root = false
 
     loop {
       match comp.next {
-        case Some(SEPARATOR) -> {
+        case Some('/') -> {
           root = true
-          buf.push(SEPARATOR)
+          buf.append(SEPARATOR)
         }
         case Some(v) if comp.peek.some? -> {
           let any = buf.empty?.false?
 
-          if any and root { root = false } else if any { buf.push(SEPARATOR) }
+          if any and root { root = false } else if any { buf.append(SEPARATOR) }
 
-          buf.push(v)
+          buf.append(v)
         }
         case _ -> break
       }
@@ -351,7 +352,7 @@ type pub inline Path {
   #
   # Path.new('foo/bar/baz.txt') # => 'baz.txt'
   # ```
-  fn pub tail -> String {
+  fn pub tail -> Slice[String] {
     let comp = Components.new(self)
     let mut start = -1
     let mut end = -1
@@ -372,7 +373,7 @@ type pub inline Path {
       }
     }
 
-    if start == -1 { '' } else { @path.slice(start, end: end).to_string }
+    if start == -1 { @path.slice(0, 0) } else { @path.slice(start, end: end) }
   }
 
   # Returns the file extension of this path (without the leading `.`), if there
@@ -386,7 +387,7 @@ type pub inline Path {
   # Path.new('foo.txt').extension # => Option.Some('txt')
   # Path.new('foo').extension     # => Option.None
   # ```
-  fn pub extension -> Option[String] {
+  fn pub extension -> Option[Slice[String]] {
     let size = @path.size
     let mut min = match bytes_before_last_separator(@path) {
       case -1 -> 0
@@ -424,7 +425,7 @@ type pub inline Path {
     }
 
     if idx < max and idx > min {
-      Option.Some(@path.slice(start: idx + 1, end: size).to_string)
+      Option.Some(@path.slice(start: idx + 1, end: size))
     } else {
       Option.None
     }
@@ -760,7 +761,7 @@ type pub inline Path {
     }
 
     try components.try_reduce('', fn (leading, cur) {
-      let path = join_strings(leading, cur)
+      let path = join_strings(leading, cur.to_string)
 
       match sys.create_directory(path) {
         case Ok(_) or Error(AlreadyExists) -> Result.Ok(path)
