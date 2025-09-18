@@ -766,6 +766,18 @@ type builtin Array[T] {
     }
   }
 
+  # Returns an immutable reference to the first value in `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # [].first       # => Option.None
+  # [10, 20].first # => Option.Some(10)
+  # ```
+  fn pub first -> Option[ref T] {
+    get(0).ok
+  }
+
   # Returns an immutable reference to the last value in `self`.
   #
   # # Examples
@@ -949,6 +961,18 @@ impl Array if T: mut {
         Option.None
       }
     })
+  }
+
+  # Returns a mutable reference to the first value in `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # [].first_mut       # => Option.None
+  # [10, 20].first_mut # => Option.Some(10)
+  # ```
+  fn pub mut first_mut -> Option[mut T] {
+    get_mut(0).ok
   }
 
   # Returns a mutable reference to the last value in `self`.
