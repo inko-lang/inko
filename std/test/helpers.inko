@@ -43,8 +43,8 @@ fn pub compiler_path -> Path {
 
   match
     (
-      debug.metadata.map(fn (m) { m.modified_at }),
-      release.metadata.map(fn (m) { m.modified_at }),
+      debug.metadata.map(fn (m) { m.modified_at.to_date_time }),
+      release.metadata.map(fn (m) { m.modified_at.to_date_time }),
     )
   {
     case (Ok(deb), Ok(rel)) -> if deb >= rel { debug } else { release }

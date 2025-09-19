@@ -74,11 +74,11 @@ fn pub tests(t: mut Tests) {
 
     t.true(meta.size >= 4)
     t.true(meta.type.file?)
-    t.true(meta.modified_at >= today)
-    t.true(meta.accessed_at >= today)
+    t.true(meta.modified_at.to_date_time >= today)
+    t.true(meta.accessed_at.to_date_time >= today)
 
     match meta.created_at {
-      case Some(v) -> t.true(v >= today)
+      case Some(v) -> t.true(v.to_date_time >= today)
       case _ -> {}
     }
 
@@ -181,11 +181,11 @@ fn pub tests(t: mut Tests) {
 
     t.true(meta.size >= 4)
     t.true(meta.type.file?)
-    t.true(meta.modified_at >= today)
-    t.true(meta.accessed_at >= today)
+    t.true(meta.modified_at.to_date_time >= today)
+    t.true(meta.accessed_at.to_date_time >= today)
 
     match meta.created_at {
-      case Some(v) -> t.true(v >= today)
+      case Some(v) -> t.true(v.to_date_time >= today)
       case _ -> {}
     }
 
@@ -296,11 +296,11 @@ fn pub tests(t: mut Tests) {
 
     t.true(meta.size >= 4)
     t.true(meta.type.file?)
-    t.true(meta.modified_at >= today)
-    t.true(meta.accessed_at >= today)
+    t.true(meta.modified_at.to_date_time >= today)
+    t.true(meta.accessed_at.to_date_time >= today)
 
     match meta.created_at {
-      case Some(v) -> t.true(v >= today)
+      case Some(v) -> t.true(v.to_date_time >= today)
       case _ -> {}
     }
 

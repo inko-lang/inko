@@ -1,6 +1,7 @@
 import std.fmt (fmt)
-import std.fs (DirectoryEntry, FileType)
+import std.fs (DirectoryEntry, FileType, Time)
 import std.test (Tests)
+import std.time
 
 fn pub tests(t: mut Tests) {
   t.test('FileType.==', fn (t) {
@@ -54,5 +55,28 @@ fn pub tests(t: mut Tests) {
     let entry = DirectoryEntry(path: 'foo'.to_path, type: FileType.File)
 
     t.equal(fmt(entry), 'DirectoryEntry(path: "foo", type: File)')
+  })
+
+  t.test('Time.to_secs', fn (t) {
+    t.equal(Time(secs: 2, nanos: 100).to_secs, 2.0000001)
+  })
+
+  t.test('Time.to_nanos', fn (t) {
+    t.equal(Time(secs: 2, nanos: 100).to_nanos, 2_000_000_100)
+  })
+
+  t.test('Time.to_date_time', fn (t) {
+    let inp = time.DateTime.new(
+      time: time.Time.new(12, 15, 30, 100_000_000).get,
+      date: time.Date.new(2025, 9, 19).get,
+      utc_offset: 0,
+    )
+    let time = Time(secs: inp.to_int, nanos: inp.nanosecond)
+    let out = time.to_date_time
+
+    t.equal(out.date, inp.date)
+    t.equal(out.time.hour, inp.time.hour)
+    t.equal(out.time.minute, inp.time.minute)
+    t.equal(out.time.second, inp.time.second)
   })
 }
