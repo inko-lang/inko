@@ -769,6 +769,7 @@ pub enum Expression {
     Tuple(Box<Tuple>),
     Comment(Box<Comment>),
     For(Box<For>),
+    Not(Box<Not>),
 }
 
 impl Expression {
@@ -854,6 +855,7 @@ impl Node for Expression {
             Expression::Recover(ref typ) => typ.location(),
             Expression::Comment(ref n) => n.location(),
             Expression::For(ref n) => n.location(),
+            Expression::Not(ref n) => n.location(),
         }
     }
 }
@@ -1619,6 +1621,18 @@ pub struct For {
 }
 
 impl Node for For {
+    fn location(&self) -> &Location {
+        &self.location
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct Not {
+    pub expression: Expression,
+    pub location: Location,
+}
+
+impl Node for Not {
     fn location(&self) -> &Location {
         &self.location
     }

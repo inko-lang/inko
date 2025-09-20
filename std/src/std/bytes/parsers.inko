@@ -106,7 +106,7 @@ fn digits[T: Bytes](
   while idx < max {
     let byte = input.get(idx).or_panic
 
-    if digit?(byte).false? { break }
+    if !digit?(byte) { break }
 
     num = try num.checked_mul(10)
     num = try num.checked_add(byte - ZERO)

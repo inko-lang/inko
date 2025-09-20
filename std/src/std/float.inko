@@ -261,7 +261,7 @@ type builtin Float {
   # Returns `true` if `self` has a positive sign, including `+0.0`, NaNs with a
   # positive sign bit, and positive infinity.
   fn pub inline positive_sign? -> Bool {
-    negative_sign?.false?
+    !negative_sign?
   }
 }
 

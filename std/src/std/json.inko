@@ -975,7 +975,7 @@ type pub PullParser[T: mut + Read[E], E] {
 
     # At this point the codepoint is either straight up invalid (e.g. "\uZZZZ"),
     # or it's a UTF-16 surrogate.
-    if utf8.surrogate?(high).false? {
+    if !utf8.surrogate?(high) {
       throw error(ErrorKind.InvalidSurrogate(high.format(Format.Hex)))
     }
 
@@ -1413,7 +1413,7 @@ type pub inline ObjectParser[T: mut + Read[E], E] {
     })
 
     for (k, v) in @rules.iter {
-      if v.required.true? and found.get(v.id).or_panic.false? {
+      if v.required and !found.get(v.id).or_panic {
         throw Error.generic('the key "${k}" is required', start)
       }
     }

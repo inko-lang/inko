@@ -240,7 +240,7 @@ trait pub Iter[T] {
   fn pub mut all?(func: fn (T) -> Bool) -> Bool {
     loop {
       match self.next {
-        case Some(v) -> if func.call(v).false? { return false }
+        case Some(v) -> if !func.call(v) { return false }
         case _ -> return true
       }
     }

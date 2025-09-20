@@ -169,7 +169,7 @@ type async Connection {
   }
 
   fn async connect {
-    if @run.false? { return }
+    if !@run { return }
 
     # To support cancellation we use an internal timeout. This way we don't just
     # sit around for e.g. 60 seconds even though another socket connected

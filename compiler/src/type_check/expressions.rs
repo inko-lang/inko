@@ -4584,8 +4584,7 @@ impl<'a> CheckMethodBody<'a> {
         self.state.diagnostics.error(
             DiagnosticId::InvalidType,
             format!(
-                "expected a 'Bool', 'ref Bool' or 'mut Bool', \
-                found '{}' instead",
+                "expected a 'Bool', found '{}' instead",
                 format_type(self.db(), typ),
             ),
             self.file(),

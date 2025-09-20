@@ -66,7 +66,7 @@ fn pub tests(t: mut Tests) {
       case Error(e) -> panic('failed to read the directory: ${e}')
     }
 
-    if dir.join('input.inko').file?.false? { next }
+    if !dir.join('input.inko').file? { next }
 
     let tail = dir.tail.to_string
     let dir = recover dir.clone

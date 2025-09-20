@@ -169,6 +169,7 @@ pub enum TokenKind {
     UnsignedShrAssign,
     While,
     Whitespace,
+    Not,
 }
 
 impl TokenKind {
@@ -274,6 +275,7 @@ impl TokenKind {
             TokenKind::Copy => "the 'copy' keyword",
             TokenKind::Type => "the 'type' keyword",
             TokenKind::In => "the 'in' keyword",
+            TokenKind::Not => "a '!'",
         }
     }
 }
@@ -929,7 +931,7 @@ impl Lexer {
                 self.position += 2;
                 self.token(TokenKind::Ne, start, self.line)
             }
-            _ => self.invalid(self.position, self.position + 1),
+            _ => self.single_character_token(TokenKind::Not),
         }
     }
 
@@ -1951,7 +1953,7 @@ mod tests {
 
     #[test]
     fn test_lexer_exclamation() {
-        assert_token!("!", Invalid, "!", 1..=1, 1..=1);
+        assert_token!("!", Not, "!", 1..=1, 1..=1);
         assert_token!("!=", Ne, "!=", 1..=1, 1..=2);
     }
 

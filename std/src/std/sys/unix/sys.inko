@@ -34,7 +34,7 @@ type FileActions {
       case Null -> {
         let null = try fs.open_file(
           '/dev/null',
-          read: write.false?,
+          read: !write,
           write: write,
           append: false,
           truncate: false,

@@ -435,7 +435,7 @@ type pub inline enum Scheme {
     input: ref B,
     buffer: mut ByteArray,
   ) -> Result[Int, Error] {
-    if alpha?(input.get(0).or(-1)).false? { return Result.Ok(0) }
+    if !alpha?(input.get(0).or(-1)) { return Result.Ok(0) }
 
     let mut idx = 0
     let mut start = idx
@@ -455,7 +455,7 @@ type pub inline enum Scheme {
 
     # If we are certain the URI doesn't contain a scheme, don't bother with the
     # parsing logic below.
-    if parse.false? { return Result.Ok(0) }
+    if !parse { return Result.Ok(0) }
 
     idx = start
 
@@ -616,7 +616,7 @@ type pub inline UserInfo {
     }
 
     # If we run out of input before finding the @, we shouldn't parse the input.
-    if parse.false? { return Result.Ok(start) }
+    if !parse { return Result.Ok(start) }
 
     idx = start
 
@@ -1103,7 +1103,7 @@ type pub inline Path {
     let res = if idx > init {
       let slice = Slice.new(input, start, idx)
 
-      if norm.false? and abs {
+      if !norm and abs {
         normalized(slice)
       } else {
         let val = try String.try_from_bytes(slice).ok_or(Error.InvalidPath)
@@ -1191,7 +1191,7 @@ type pub inline Path {
   # Path.new('hello').get.relative? # => true
   # ```
   fn pub inline relative? -> Bool {
-    absolute?.false?
+    !absolute?
   }
 
   # Returns an iterator over the components in `self`.

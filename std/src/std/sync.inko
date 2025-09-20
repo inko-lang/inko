@@ -95,9 +95,7 @@ type FutureState[T] {
 
   fn mut lock {
     while
-      _INKO
-        .int_compare_swap(mut @locked, UNLOCKED as UInt8, LOCKED as UInt8)
-        .false?
+      !_INKO.int_compare_swap(mut @locked, UNLOCKED as UInt8, LOCKED as UInt8)
     {
       # Since a future can only have a single reader and a single writer,
       # contention is limited to at most two OS threads. Combined with the

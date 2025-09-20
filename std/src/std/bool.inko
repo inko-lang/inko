@@ -8,30 +8,6 @@ import std.string (ToString)
 
 # The class for boolean `true` and `false`.
 type builtin Bool {
-  # Returns `true` if `self` is `true`.
-  #
-  # # Examples
-  #
-  # ```inko
-  # true.true?  # => true
-  # false.true? # => false
-  # ```
-  fn pub inline true? -> Bool {
-    self
-  }
-
-  # Returns `true` if `self` is `false`.
-  #
-  # # Examples
-  #
-  # ```inko
-  # true.false?  # => false
-  # false.false? # => true
-  # ```
-  fn pub inline false? -> Bool {
-    self == false
-  }
-
   # Calls the supplied closure and wraps its return value in a `Some` if `self`
   # is `true`, otherwise returns a `None`.
   #

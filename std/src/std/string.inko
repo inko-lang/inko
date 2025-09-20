@@ -208,7 +208,7 @@ type builtin String {
     with: String,
   ) -> String {
     let result = iter.reduce(StringBuffer.new, fn (buff, val) {
-      if buff.empty?.false? { buff.push(with) }
+      if !buff.empty? { buff.push(with) }
 
       buff.push(val.to_string)
       buff
@@ -449,7 +449,7 @@ type builtin String {
   # 'xhellox'.strip_prefix('y') # => Option.None
   # ```
   fn pub strip_prefix(prefix: String) -> Option[String] {
-    if starts_with?(prefix).false? { return Option.None }
+    if !starts_with?(prefix) { return Option.None }
 
     if size == prefix.size {
       Option.Some('')
@@ -471,7 +471,7 @@ type builtin String {
   # 'xhellox'.strip_suffix('y') # => Option.None
   # ```
   fn pub strip_suffix(suffix: String) -> Option[String] {
-    if ends_with?(suffix).false? { return Option.None }
+    if !ends_with?(suffix) { return Option.None }
 
     Option.Some(slice(start: 0, end: size - suffix.size).to_string)
   }
@@ -533,7 +533,7 @@ type builtin String {
   fn pub escaped -> String {
     # If the String doesn't contain any special characters then we can/should
     # avoid the allocations that take place below.
-    if escape?.false? { return self }
+    if !escape? { return self }
 
     let buff = ByteArray.new
     let mut i = 0

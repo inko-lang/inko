@@ -1333,6 +1333,7 @@ impl Document {
             Expression::Match(n) => self.match_value(n),
             Expression::Scope(n) => self.scope(n),
             Expression::For(n) => self.for_loop(n),
+            Expression::Not(n) => self.not(n),
         }
     }
 
@@ -1792,6 +1793,10 @@ impl Document {
 
     fn try_value(&mut self, node: &nodes::Try) -> Node {
         Node::Nodes(vec![Node::text("try "), self.expression(&node.value)])
+    }
+
+    fn not(&mut self, node: &nodes::Not) -> Node {
+        Node::Nodes(vec![Node::text("!"), self.expression(&node.expression)])
     }
 
     fn return_value(&mut self, node: &nodes::Return) -> Node {

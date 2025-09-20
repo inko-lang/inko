@@ -295,7 +295,7 @@ type pub PemFile[I: mut + Read[E], E] {
       case Error(Read(e)) -> throw ParseError.Read(e)
     }
 
-    if @buffer.equals?('----BEGIN ').false? {
+    if !@buffer.equals?('----BEGIN ') {
       throw ParseError.InvalidSectionStart(@line)
     }
 
@@ -317,9 +317,7 @@ type pub PemFile[I: mut + Read[E], E] {
       case Error(e) -> throw ParseError.Read(e)
     }
 
-    if @buffer.equals?('----').false? {
-      throw ParseError.InvalidSectionStart(@line)
-    }
+    if !@buffer.equals?('----') { throw ParseError.InvalidSectionStart(@line) }
 
     @buffer.clear
 
@@ -363,8 +361,7 @@ type pub PemFile[I: mut + Read[E], E] {
 
       if @buffer.get(0).or_panic == DASH {
         if
-          (@buffer.starts_with?('-----END ') and @buffer.ends_with?('-----'))
-            .false?
+          !(@buffer.starts_with?('-----END ') and @buffer.ends_with?('-----'))
         {
           throw ParseError.InvalidSectionEnd(@line)
         }
@@ -373,7 +370,7 @@ type pub PemFile[I: mut + Read[E], E] {
         # tail with the expected section name.
         @buffer.resize(@buffer.size - 5, value: 0)
 
-        if @buffer.size != (name.size + 9) or @buffer.ends_with?(name).false? {
+        if @buffer.size != (name.size + 9) or !@buffer.ends_with?(name) {
           throw ParseError.InvalidSectionEnd(@line)
         }
 

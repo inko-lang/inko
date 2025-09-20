@@ -1,0 +1,5 @@
+fn example {
+  !         true
+  true + !  false
+  !    foo.bar.baaaaaaaaaaaaaaaaaaaaaz.quuuuuuuuuuuuuuuuuuuuuuuuuuuix.teeeeeeeeeeeeeeeeeeeeeest
+}

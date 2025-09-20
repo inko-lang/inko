@@ -626,19 +626,32 @@ Arrays are created using flat brackets:
 
 ## Booleans
 
-Booleans are created using `true` and `false`.
-
-Inko doesn't have a dedicated negation operator such as `!expression` or `not expression`.
-Instead, you'd use the predicate methods `Bool.true?` and `Bool.false?`.
-`Bool.true?` returns `true` if its receiver is also `true`,
-while `Bool.false?` returns `true` if the receiver is `false.`
-
-Here's a simple example:
+Booleans are created using `true` and `false`. A boolean is negated using the
+`!` prefix operator, i.e. `!expression`. For example:
 
 ```inko
-if volume_is_too_loud.false? {
+if !volume_is_too_loud {
   turn_volume_to(11)
 }
+```
+
+When used with the logical operators `and` and `or`, the `!` operator has a
+higher precedence. This means that this:
+
+```inko
+!a and b
+```
+
+Is parsed as:
+
+```inko
+(!a) and b
+```
+
+Instead of:
+
+```inko
+!(a and b)
 ```
 
 ## Nil

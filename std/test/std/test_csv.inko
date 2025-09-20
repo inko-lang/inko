@@ -55,7 +55,7 @@ fn parse(input: String) -> Result[Array[Array[String]], Error[IoError]] {
 
     if row.size > 0 { rows.push(row) }
 
-    if (try parser.next_line).false? { break }
+    if !try parser.next_line { break }
   }
 
   Result.Ok(rows)

@@ -23,6 +23,7 @@ const NEXT_CALL: &str = "next";
 const SOME_CONS: &str = "Some";
 const INTO_ITER_CALL: &str = "into_iter";
 const STR_BUF_VAR: &str = "$buf";
+const BOOL_EQ: &str = "==";
 
 struct Comments {
     nodes: Vec<ast::Comment>,
@@ -2566,6 +2567,7 @@ impl<'a> LowerToHir<'a> {
                 resolved_type: types::TypeRef::Unknown,
                 location: c.location,
             })),
+            ast::Expression::Not(n) => self.not_expression(*n),
         }
     }
 
@@ -3467,6 +3469,30 @@ impl<'a> LowerToHir<'a> {
 
     fn break_expression(&self, location: Location) -> Expression {
         Expression::Break(Box::new(Break { location }))
+    }
+
+    fn not_expression(&mut self, node: ast::Not) -> Expression {
+        Expression::Call(Box::new(Call {
+            kind: types::CallKind::Unknown,
+            receiver: Some(self.expression(node.expression)),
+            name: Identifier {
+                name: BOOL_EQ.to_string(),
+                location: node.location,
+            },
+            arguments: vec![Argument::Positional(Box::new(
+                PositionalArgument {
+                    value: Expression::False(Box::new(False {
+                        resolved_type: types::TypeRef::Unknown,
+                        location: node.location,
+                    })),
+                    expected_type: types::TypeRef::Unknown,
+                },
+            ))],
+            parens: false,
+            in_mut: false,
+            usage: Usage::Used,
+            location: node.location,
+        }))
     }
 
     fn operator_method_not_allowed(
@@ -7144,5 +7170,39 @@ mod tests {
 
         assert!(!int.is_recover());
         assert!(recover.is_recover());
+    }
+
+    #[test]
+    fn test_lower_not() {
+        let hir = lower_expr("fn a { !10 }").0;
+
+        assert_eq!(
+            hir,
+            Expression::Call(Box::new(Call {
+                kind: types::CallKind::Unknown,
+                receiver: Some(Expression::Int(Box::new(IntLiteral {
+                    value: 10,
+                    resolved_type: types::TypeRef::Unknown,
+                    location: cols(9, 10)
+                }))),
+                name: Identifier {
+                    name: BOOL_EQ.to_string(),
+                    location: cols(8, 10),
+                },
+                arguments: vec![Argument::Positional(Box::new(
+                    PositionalArgument {
+                        value: Expression::False(Box::new(False {
+                            resolved_type: types::TypeRef::Unknown,
+                            location: cols(8, 10),
+                        })),
+                        expected_type: types::TypeRef::Unknown,
+                    },
+                ))],
+                parens: false,
+                in_mut: false,
+                usage: Usage::Used,
+                location: cols(8, 10)
+            }))
+        );
     }
 }

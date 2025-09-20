@@ -4,16 +4,6 @@ import std.fmt (fmt)
 import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
-  t.test('Bool.true?', fn (t) {
-    t.true(true.true?)
-    t.false(false.true?)
-  })
-
-  t.test('Bool.false?', fn (t) {
-    t.true(false.false?)
-    t.false(true.false?)
-  })
-
   t.test('Bool.to_int', fn (t) {
     t.equal(true.to_int, 1)
     t.equal(false.to_int, 0)

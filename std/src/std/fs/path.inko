@@ -175,7 +175,7 @@ impl Iter[Slice[String]] for Components {
 
     let start = @index
 
-    while @index < @size and separator?(@index).false? { @index += 1 }
+    while @index < @size and !separator?(@index) { @index += 1 }
 
     let end = @index
 
@@ -264,7 +264,7 @@ type pub inline Path {
   # Path.new('/foo').relative? # => false
   # ```
   fn pub relative? -> Bool {
-    absolute?.false?
+    !absolute?
   }
 
   # Joins `self` and the given path together to form a new `Path`.
@@ -327,7 +327,7 @@ type pub inline Path {
           buf.append(SEPARATOR)
         }
         case Some(v) if comp.peek.some? -> {
-          let any = buf.empty?.false?
+          let any = !buf.empty?
 
           if any and root { root = false } else if any { buf.append(SEPARATOR) }
 
@@ -367,7 +367,7 @@ type pub inline Path {
         end = start
       }
 
-      while comp.index < comp.size and comp.separator?(comp.index).false? {
+      while comp.index < comp.size and !comp.separator?(comp.index) {
         comp.index += 1
         end += 1
       }

@@ -28,7 +28,7 @@ let MAX_THREE_B = 0x10000
 # bytes # => ByteArray.from_array([240, 157, 132, 158])
 # ```
 fn pub encode_scalar(scalar: Int, bytes: mut ByteArray) -> Int {
-  if valid_scalar?(scalar).false? { return 0 }
+  if !valid_scalar?(scalar) { return 0 }
 
   let len = codepoint_size(scalar)
 

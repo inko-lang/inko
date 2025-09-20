@@ -285,7 +285,7 @@ type pub copy Ipv6Address {
       # The moment we encounter a dot we'll enter IPv4 mode, and remain in this
       # mode until we reach the end of the input, as embedded IPv4 addresses
       # must be at the end of an IPv6 address.
-      if ipv4_mode.false? and idx < max and bytes.get(idx).or_panic == DOT {
+      if !ipv4_mode and idx < max and bytes.get(idx).or_panic == DOT {
         ipv4_mode = true
         format = Format.Decimal
         max_hextet_value = IPV4_OCTET_MAXIMUM
@@ -332,7 +332,7 @@ type pub copy Ipv6Address {
           # have to reduce padding by two. Since we already skip padding for the
           # ":" that preceeds the IPv4 address, we only reduce the padding by
           # one.
-          if ipv4_padded.false? and byte == DOT {
+          if !ipv4_padded and byte == DOT {
             ipv4_padded = true
             pad -= 1
           }

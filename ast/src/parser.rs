@@ -1730,6 +1730,7 @@ impl Parser {
             TokenKind::Let => self.define_variable(start)?,
             TokenKind::For => self.for_expression(start)?,
             TokenKind::Comment => Expression::Comment(self.comment(start)),
+            TokenKind::Not => self.not_expression(start)?,
             _ => {
                 error!(start.location, "'{}' can't be used here", start.value)
             }
@@ -2554,6 +2555,7 @@ impl Parser {
             | TokenKind::Try
             | TokenKind::While
             | TokenKind::For
+            | TokenKind::Not
                 if same_line =>
             {
                 let token = self.next();
@@ -2931,6 +2933,19 @@ impl Parser {
         let location = Location::start_end(&start.location, body.location());
 
         Ok(Expression::Loop(Box::new(Loop { body, location })))
+    }
+
+    fn not_expression(
+        &mut self,
+        start: Token,
+    ) -> Result<Expression, ParseError> {
+        let expr_start = self.require()?;
+        // We use binary() here such that `!a and b` is parsed as `(!a) and (b)`
+        // instead of `!(a and b)`.
+        let expr = self.binary(expr_start)?;
+        let loc = Location::start_end(&start.location, expr.location());
+
+        Ok(Expression::Not(Box::new(Not { expression: expr, location: loc })))
     }
 
     fn while_expression(
@@ -9822,6 +9837,38 @@ mod tests {
                     location: cols(6, 11)
                 },
                 location: cols(1, 11)
+            }))
+        );
+    }
+
+    #[test]
+    fn test_not_expression() {
+        assert_eq!(
+            expr("!10"),
+            Expression::Not(Box::new(Not {
+                expression: Expression::Int(Box::new(IntLiteral {
+                    value: "10".to_string(),
+                    location: cols(2, 3)
+                })),
+                location: cols(1, 3)
+            }))
+        );
+
+        assert_eq!(
+            expr("!1 and 2"),
+            Expression::And(Box::new(And {
+                left: Expression::Not(Box::new(Not {
+                    expression: Expression::Int(Box::new(IntLiteral {
+                        value: "1".to_string(),
+                        location: cols(2, 2)
+                    })),
+                    location: cols(1, 2)
+                })),
+                right: Expression::Int(Box::new(IntLiteral {
+                    value: "2".to_string(),
+                    location: cols(8, 8)
+                })),
+                location: cols(1, 8)
             }))
         );
     }

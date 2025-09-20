@@ -225,7 +225,7 @@ impl ToInt for Separator {
 #
 #   # Advance to the next line, and break the loop if there's no more data to
 #   # parse.
-#   if parser.next_line.get.false? { break }
+#   if !parser.next_line.get { break }
 # }
 # ```
 #
@@ -246,7 +246,7 @@ impl ToInt for Separator {
 #     rows.push([parser.column.get, parser.column.get, parser.column.get])
 #   }
 #
-#   if parser.next_line.get.false? { break }
+#   if !parser.next_line.get { break }
 # }
 # ```
 #
