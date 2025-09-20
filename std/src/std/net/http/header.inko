@@ -1,0 +1,10 @@
+import std.bytes (Bytes)
+import std.net.http.header.phf
+
+fn name_of(index: Int) -> String {
+  phf.KEYS.get(index).or_panic
+}
+
+fn index_of[B: Bytes](input: ref B) -> Int {
+  phf.index_of(input)
+}

@@ -1,0 +1,252 @@
+import std.io (Buffer, BufferedReader)
+import std.mime (Mime)
+import std.net.http (
+  Body, Header, HeaderMap, Method, Reader, Request as RawRequest, Version,
+)
+import std.net.http.server (
+  Address, CacheControl, Request, parse_accept_range, parse_accept_ranges,
+)
+import std.net.ip (IpAddress)
+import std.net.socket (SocketAddress)
+import std.test (Tests)
+import std.time (Duration)
+import std.uri (Uri)
+
+fn request(raw: RawRequest) -> Request {
+  let addr = Address.Ip(SocketAddress(ip: IpAddress.v4(0, 0, 0, 0), port: 80))
+
+  Request.new(addr, raw)
+}
+
+fn empty_request -> Request {
+  request(
+    RawRequest(
+      method: Method.Get,
+      uri: Uri.new,
+      version: Version(1, 1),
+      headers: HeaderMap.new,
+      body: Body.bounded(
+        BufferedReader.new(Reader.new(Buffer.new(''))),
+        size: 0,
+        limit: 0,
+      ),
+    ),
+  )
+}
+
+fn pub tests(t: mut Tests) {
+  t.test('parse_accept_range', fn (t) {
+    let tests = [
+      # X- ranges
+      ('10-', Option.Some(10.to(99))),
+      ('9223372036854775807-', Option.None),
+      ('10000000000000000000-', Option.None),
+      ('a-', Option.None),
+      ('-10-', Option.None),
+
+      # -Y ranges
+      ('-10', Option.Some(89.to(99))),
+      ('-9223372036854775807', Option.Some(0.to(99))),
+      ('-10000000000000000000', Option.None),
+      ('--10', Option.None),
+      ('-0', Option.None),
+
+      # X-Y ranges
+      ('10-20', Option.Some(10.to(20))),
+      ('50-9223372036854775807', Option.Some(50.to(99))),
+      ('9223372036854775807-9223372036854775807', Option.None),
+      ('10000000000000000000-10000000000000000000', Option.None),
+      ('1 - 2', Option.None),
+      ('-', Option.None),
+      ('-10-20', Option.None),
+      ('20-10', Option.None),
+    ]
+
+    for (inp, exp) in tests {
+      t.equal(parse_accept_range(inp.to_slice, size: 100), exp)
+    }
+  })
+
+  t.test('parse_accept_ranges', fn (t) {
+    let tests = [
+      ('1-2', Option.Some([1.to(2)])),
+      ('1-1000000', Option.Some([1.to(99)])),
+      ('1-2, 3-4, 5-6, 7-8', Option.Some([1.to(2), 3.to(4), 5.to(6), 7.to(8)])),
+      ('1-2, 3-4, 5-6, 7-8, 9-10', Option.None),
+      ('1-2, 2-3', Option.None),
+      ('1-2, 3-4, 1-2', Option.None),
+    ]
+
+    for (inp, exp) in tests {
+      t.equal(parse_accept_ranges(inp.to_slice, file_size: 100, limit: 4), exp)
+    }
+  })
+
+  t.test('Request.accepted_mime_types', fn (t) {
+    let tests = [
+      # Valid values
+      ('', []),
+      (
+        'text/plain; q=0.5, text/html, text/x-dvi; q=0.8, text/x-c',
+        [
+          Mime.new('text/html'),
+          Mime.new('text/x-c'),
+          Mime.new('text/x-dvi; q=0.8'),
+          Mime.new('text/plain; q=0.5'),
+        ],
+      ),
+      (
+        'text/plain; q=1, text/html; q=900',
+        [Mime.new('text/plain; q=1'), Mime.new('text/html; q=900')],
+      ),
+      (
+        'text/plain; q=-1, text/html; q=-900',
+        [Mime.new('text/plain; q=-1'), Mime.new('text/html; q=-900')],
+      ),
+      (
+        'text/1, text/2, text/3, text/4, text/5, text/6, text/7, text/8, text/9, text/10, text/11, text/12, text/13, text/14, text/15, text/16, text/17',
+        [
+          Mime.new('text/1'),
+          Mime.new('text/2'),
+          Mime.new('text/3'),
+          Mime.new('text/4'),
+          Mime.new('text/5'),
+          Mime.new('text/6'),
+          Mime.new('text/7'),
+          Mime.new('text/8'),
+          Mime.new('text/9'),
+          Mime.new('text/10'),
+          Mime.new('text/11'),
+          Mime.new('text/12'),
+          Mime.new('text/13'),
+          Mime.new('text/14'),
+          Mime.new('text/15'),
+          Mime.new('text/16'),
+        ],
+      ),
+      (
+        '1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, text/16',
+        [Mime.new('text/16')],
+      ),
+      (
+        'text/*, text/plain, text/plain;format=flowed, */*',
+        [
+          Mime.new('text/plain;format=flowed'),
+          Mime.new('text/plain'),
+          Mime.new('text/*'),
+          Mime.new('*/*'),
+        ],
+      ),
+      (
+        'foo/bar, text/*, text/plain, a/b, text/plain;format=flowed, */*',
+        [
+          Mime.new('foo/bar'),
+          Mime.new('text/plain'),
+          Mime.new('text/*'),
+          Mime.new('a/b'),
+          Mime.new('text/plain;format=flowed'),
+          Mime.new('*/*'),
+        ],
+      ),
+      (
+        'text/*, text/plain, text/*; a=b',
+        [Mime.new('text/plain'), Mime.new('text/*; a=b'), Mime.new('text/*')],
+      ),
+      (
+        'application/xml, application/xhtml+xml, text/html; q=0.9, text/plain; q=0.8, image/png, */*; q=0.5',
+        [
+          Mime.new('application/xml'),
+          Mime.new('application/xhtml+xml'),
+          Mime.new('image/png'),
+          Mime.new('text/html; q=0.9'),
+          Mime.new('text/plain; q=0.8'),
+          Mime.new('*/*; q=0.5'),
+        ],
+      ),
+
+      # Invalid values
+      (
+        'text/plain; q=a, text/html',
+        [Mime.new('text/html'), Mime.new('text/plain; q=a')],
+      ),
+      ('text, text/html', [Mime.new('text/html')]),
+      ('1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, text/17', []),
+    ]
+
+    for (inp, exp) in tests {
+      let req = empty_request
+
+      req.data.headers.set(Header.Accept, inp)
+      t.equal(req.accepted_mime_types, exp)
+    }
+  })
+
+  t.test('Request.target', fn (t) {
+    let tests = [
+      ('/', []),
+      ('/foo/bar', ['foo', 'bar']),
+      ('/foo//bar', ['foo', 'bar']),
+      ('/foo/bar%20baz', ['foo', 'bar baz']),
+      ('foo', []),
+      ('foo/bar', []),
+    ]
+
+    for (path, exp) in tests {
+      let req = request(
+        RawRequest(
+          method: Method.Get,
+          uri: Uri.parse(path).or_panic,
+          version: Version(1, 1),
+          headers: HeaderMap.new,
+          body: Body.bounded(
+            BufferedReader.new(Reader.new(Buffer.new(''))),
+            size: 0,
+            limit: 0,
+          ),
+        ),
+      )
+
+      let res = match req.target {
+        case (a, b) -> (a, b.iter.map(fn (v) { v.to_string }).to_array)
+      }
+
+      t.equal(res, (Method.Get, exp))
+    }
+  })
+
+  t.test('CacheControl.to_string', fn (t) {
+    let tests = [
+      (CacheControl.new, 'public, max-age=2592000, must-revalidate'),
+      (
+        CacheControl.new.max_age(Duration.from_secs(10)),
+        'public, max-age=10, must-revalidate',
+      ),
+      (CacheControl.new.no_revalidate, 'public, max-age=2592000'),
+      (CacheControl.new.no_cache, 'no-cache'),
+      (
+        CacheControl.new.no_store,
+        'public, no-store, max-age=2592000, must-revalidate',
+      ),
+      (
+        CacheControl.new.no_transform,
+        'public, max-age=2592000, must-revalidate, no-transform',
+      ),
+      (CacheControl.new.private, 'private, max-age=2592000, must-revalidate'),
+      (
+        CacheControl.new.proxy_revalidate,
+        'public, max-age=2592000, must-revalidate, proxy-revalidate',
+      ),
+      (CacheControl.new.no_cache.proxy_revalidate, 'no-cache'),
+      (
+        CacheControl.new.no_cache.private,
+        'private, max-age=2592000, must-revalidate',
+      ),
+      (
+        CacheControl.new.max_age(Duration.from_secs(10)).no_store,
+        'public, no-store, max-age=10, must-revalidate',
+      ),
+    ]
+
+    for (cache, exp) in tests { t.equal(cache.to_string, exp) }
+  })
+}

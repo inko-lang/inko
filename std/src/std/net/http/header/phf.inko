@@ -1,0 +1,113 @@
+import std.bytes (Bytes)
+
+# The code in this module is generated using ./std/gen/hash.py and _must not_ be
+# edited by hand. For more information, refer to ./std/gen/README.md.
+
+let G = [
+  0, 67, 42, 75, 45, 0, 53, 50, 1, 35, 82, 44, 0, 0, 82, 0, 32, 48, 19, 10, 83,
+  0, 57, 84, 67, 0, 80, 61, 33, 0, 64, 0, 66, 0, 72, 0, 0, 0, 21, 5, 0, 49, 26,
+  0, 45, 52, 0, 20, 18, 30, 33, 68, 52, 15, 11, 61, 0, 32, 0, 44, 41, 51, 59,
+  31, 0, 51, 76, 32, 50, 19, 80, 72, 0, 12, 45, 74, 67, 29, 4, 0, 0, 0, 3, 57,
+  81, 0,
+]
+let S1 = [
+  34, 62, 31, 6, 25, 54, 47, 9, 70, 31, 65, 28, 51, 42, 18, 43, 73, 76, 50, 24,
+  47, 73, 59, 55, 33, 27, 17, 66, 68, 26, 68, 27,
+]
+let S2 = [
+  23, 71, 2, 37, 84, 3, 59, 12, 27, 48, 75, 82, 35, 7, 5, 65, 6, 6, 24, 49, 21,
+  62, 42, 54, 11, 28, 33, 48, 21, 54, 23, 23,
+]
+let KEYS = [
+  'accept',
+  'accept-charset',
+  'accept-encoding',
+  'accept-language',
+  'accept-ranges',
+  'access-control-allow-credentials',
+  'access-control-allow-headers',
+  'access-control-allow-methods',
+  'access-control-allow-origin',
+  'access-control-maxage',
+  'access-control-method',
+  'access-control-request-method',
+  'access-control-request-methods',
+  'access-control-requestheaders',
+  'age',
+  'allow',
+  'alt-svc',
+  'authorization',
+  'cache-control',
+  'connection',
+  'content-disposition',
+  'content-encoding',
+  'content-language',
+  'content-length',
+  'content-location',
+  'content-range',
+  'content-type',
+  'cookie',
+  'date',
+  'etag',
+  'expect',
+  'expires',
+  'from',
+  'host',
+  'if-match',
+  'if-modified-since',
+  'if-none-match',
+  'if-range',
+  'if-unmodified-since',
+  'keep-alive',
+  'last-modified',
+  'link',
+  'location',
+  'max-forwards',
+  'origin',
+  'pragma',
+  'proxy-authenticate',
+  'proxy-authorization',
+  'proxy-connection',
+  'range',
+  'referer',
+  'retry-after',
+  'server',
+  'set-cookie',
+  'strict-transport-security',
+  'trailer',
+  'transfer-encoding',
+  'upgrade',
+  'upgrade-insecure-requests',
+  'user-agent',
+  'vary',
+  'via',
+  'www-authenticate',
+]
+
+fn inline hash[B: Bytes](key: ref B, salt: ref Array[Int]) -> Int {
+  let mut i = 0
+  let mut h = 0
+
+  while i < key.size {
+    h = h.wrapping_add(salt.get(i).or_panic.wrapping_mul(key.get(i).or_panic))
+    i += 1
+  }
+
+  h % 86
+}
+
+# Returns the index of the given key.
+#
+# If the key is an unknown key, `-1` is returned.
+fn index_of[B: Bytes](key: ref B) -> Int {
+  if key.size > 32 { return -1 }
+
+  let a = G.get(hash(key, S1)).or_panic
+  let b = G.get(hash(key, S2)).or_panic
+  let i = a.wrapping_add(b) % 86
+
+  match KEYS.get(i) {
+    case Ok(v) if key.equals?(v) -> i
+    case _ -> -1
+  }
+}
