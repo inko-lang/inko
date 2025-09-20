@@ -1276,3 +1276,39 @@ impl Format for Buffer if T: Format {
       .finish
   }
 }
+
+# A type that implements `Read` and limits the number of bytes to read from the
+# underlying `Read` value.
+#
+# # Examples
+#
+# ```inko
+# import std.io (Buffer, LimitReader)
+#
+# let read = LimitReader.new(Buffer.new('hello'), limit: 3)
+# let buf = ByteArray.new
+#
+# read.read_all(buf).or_panic # => Result.Ok(3)
+# buf.to_string # => 'hel'
+# ```
+type pub LimitReader[T: mut + Read[E], E] {
+  let @inner: T
+  let mut @remaining: Int
+
+  # Returns a new `LimitReader` that reads up to `limit` bytes.
+  fn pub static new(inner: T, limit: Int) -> Self {
+    Self(inner: inner, remaining: limit)
+  }
+}
+
+impl Read[E] for LimitReader {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, E] {
+    if @remaining == 0 { return Result.Ok(0) }
+
+    let size = min(@remaining, size)
+    let res = @inner.read(into, size)
+
+    @remaining -= size
+    res
+  }
+}

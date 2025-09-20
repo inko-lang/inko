@@ -2,8 +2,9 @@ import std.bytes (Bytes)
 import std.drop (drop)
 import std.fmt (fmt)
 import std.io (
-  Buffer, BufferedReader, BufferedWriter, CopyError, Error, READ_BUFFER_SIZE,
-  Read, ReadExactError, SeekFrom, WRITE_BUFFER_SIZE, Write, copy_using,
+  Buffer, BufferedReader, BufferedWriter, CopyError, Error, LimitReader,
+  READ_BUFFER_SIZE, Read, ReadExactError, SeekFrom, WRITE_BUFFER_SIZE, Write,
+  copy_using,
 )
 import std.libc
 import std.test (Tests)
@@ -728,5 +729,18 @@ fn pub tests(t: mut Tests) {
     t.equal(writer.write('abcd'), Result.Ok(nil))
     drop(writer)
     t.equal(raw.buffer, 'abcd'.to_byte_array)
+  })
+
+  t.test('LimitReader.read', fn (t) {
+    let reader = LimitReader.new(Reader.new, limit: 2)
+    let buf = ByteArray.new
+
+    t.equal(reader.read_all(buf), Result.Ok(2))
+    t.equal(buf, ByteArray.from_array([1, 2]))
+    t.equal(reader.remaining, 0)
+
+    t.equal(reader.read_all(buf), Result.Ok(0))
+    t.equal(buf, ByteArray.from_array([1, 2]))
+    t.equal(reader.remaining, 0)
   })
 }
