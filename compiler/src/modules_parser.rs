@@ -102,7 +102,8 @@ impl<'a> ModulesParser<'a> {
 
                 self.state
                     .dependency_graph
-                    .add_depending(init_id, depending_id);
+                    .module_mut(init_id)
+                    .add_depending(depending_id);
 
                 modules
                     .insert(qname.clone(), ParsedModule { name: qname, ast });
@@ -128,7 +129,8 @@ impl<'a> ModulesParser<'a> {
 
                     self.state
                         .dependency_graph
-                        .add_depending(dependency_id, depending_id);
+                        .module_mut(dependency_id)
+                        .add_depending(depending_id);
 
                     if scheduled.contains(&path) {
                         continue;

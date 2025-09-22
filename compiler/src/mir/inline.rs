@@ -702,9 +702,6 @@ pub(crate) struct InlineMethod<'a, 'b, 'c> {
     /// The module of the caller.
     module: ModuleId,
 
-    /// The node ID of the caller's module in the dependency graph.
-    dependency_id: usize,
-
     /// The global MIR index of the caller.
     method: usize,
 }
@@ -723,14 +720,11 @@ impl<'a, 'b, 'c> InlineMethod<'a, 'b, 'c> {
         //    inlining work.
         for index in comps {
             let module = mir.methods[index].id.source_module(&state.db);
-            let dependency_id =
-                state.dependency_graph.add_module(module.name(&state.db));
 
             InlineMethod {
                 state,
                 mir,
                 method: index,
-                dependency_id,
                 module,
                 graph: &mut graph,
             }
@@ -821,19 +815,7 @@ impl<'a, 'b, 'c> InlineMethod<'a, 'b, 'c> {
                     _ => continue,
                 };
 
-                // The calling module might not directly depend on the module
-                // that defines the method. To ensure incremental caches are
-                // flushed when needed, we record the dependency of the caller's
-                // module on the callee's module.
                 let callee_mod_id = callee.source_module(&self.state.db);
-                let callee_mod_node = self
-                    .state
-                    .dependency_graph
-                    .add_module(callee_mod_id.name(&self.state.db));
-
-                self.state
-                    .dependency_graph
-                    .add_depending(self.dependency_id, callee_mod_node);
 
                 // Even if the dependencies remain the same, it's possible that
                 // the state of inlining changes. For example, two methods

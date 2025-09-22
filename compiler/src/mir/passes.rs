@@ -1360,7 +1360,7 @@ impl<'a> LowerToMir<'a> {
         let tmod_id = self.state.dependency_graph.add_module(tmod_name);
         let smod_id = self.state.dependency_graph.add_module(smod_name);
 
-        self.state.dependency_graph.add_depending(smod_id, tmod_id);
+        self.state.dependency_graph.module_mut(smod_id).add_depending(tmod_id);
     }
 }
 

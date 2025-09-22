@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use types::module_name::ModuleName;
 
-struct Node {
+pub(crate) struct Node {
     /// The indexes of the modules that directly depend on this module.
     depending: HashSet<usize>,
 
@@ -12,6 +12,10 @@ struct Node {
 impl Node {
     fn new() -> Node {
         Node { depending: HashSet::new(), changed: false }
+    }
+
+    pub(crate) fn add_depending(&mut self, id: usize) {
+        self.depending.insert(id);
     }
 }
 
@@ -44,8 +48,8 @@ impl DependencyGraph {
         self.mapping.get(name).cloned()
     }
 
-    pub(crate) fn add_depending(&mut self, module: usize, depending: usize) {
-        self.nodes[module].depending.insert(depending);
+    pub(crate) fn module_mut(&mut self, module: usize) -> &mut Node {
+        &mut self.nodes[module]
     }
 
     pub(crate) fn mark_as_changed(&mut self, module: usize) -> bool {
