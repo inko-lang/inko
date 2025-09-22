@@ -724,7 +724,7 @@ type pub inline enum Host {
   # The name of the host is expected to be in lowercase and not contain any
   # percent-encoded sequences (i.e. they must be decoded beforehand).
   #
-  # When creating a named `Host`, one should use `Host.named` instead of the
+  # When creating a named `Host`, one should use `Host.new` instead of the
   # `Host.Named` constructor, as `Host.named` performs validation and
   # normalization of its input, ensuring the host is always RFC 3986 compliant.
   case Named(String)
@@ -903,11 +903,11 @@ type pub inline enum Host {
     throw Error.InvalidHost
   }
 
-  # Returns a new `Host` that uses the `name` argument as the host name.
+  # Parses a `Host` from a given `Bytes`.
   #
-  # If the supplied host name is invalid, an `Option.None` is returned. A named
-  # host is invalid if it contains invalid percent-encoded sequences or other
-  # characters not allowed in host names.
+  # If the supplied host is invalid, an `Option.None` is returned. A named host
+  # is invalid if it contains invalid percent-encoded sequences or other
+  # characters not allowed.
   #
   # If the `name` argument is an empty `String`, the return value is always an
   # `Option.None`.
@@ -922,10 +922,10 @@ type pub inline enum Host {
   # ```inko
   # import std.uri (Host)
   #
-  # Host.named('example.com') # => Option.Some(Host.Named('example.com'))
-  # Host.named('EXAMPLE.com') # => Option.Some(Host.Named('example.com'))
+  # Host.new('example.com') # => Option.Some(Host.Named('example.com'))
+  # Host.new('EXAMPLE.com') # => Option.Some(Host.Named('example.com'))
   # ```
-  fn pub static named(name: String) -> Option[Host] {
+  fn pub static new[B: Bytes](name: ref B) -> Option[Host] {
     match parse(name, ByteArray.new, start: 0, standalone: true) {
       case Ok((host, _)) -> host
       case _ -> Option.None
@@ -2222,7 +2222,7 @@ impl Equal for Fragment {
 # let uri = Uri.new
 #
 # uri.scheme = Option.Some(Scheme.Https)
-# uri.host = Host.named('example.com')
+# uri.host = Host.new('example.com')
 # uri.path = Path.new('/hello/world').get
 # uri.query = Query.new('example').get
 #
