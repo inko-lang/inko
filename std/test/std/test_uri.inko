@@ -262,16 +262,17 @@ fn pub tests(t: mut Tests) {
     )
   })
 
-  t.test('Host.named', fn (t) {
-    t.equal(Host.named('example.com'), Option.Some(Host.Named('example.com')))
-    t.equal(Host.named('EXAMPLE.com'), Option.Some(Host.Named('example.com')))
-    t.equal(Host.named('a%20b.com'), Option.Some(Host.Named('a b.com')))
-    t.equal(Host.named(''), Option.None)
-    t.equal(Host.named('a%ZZb'), Option.None)
-    t.equal(Host.named('host/path'), Option.None)
-    t.equal(Host.named('host?query'), Option.None)
-    t.equal(Host.named('host#fragment'), Option.None)
-    t.equal(Host.named('host:port'), Option.None)
+  t.test('Host.new', fn (t) {
+    t.equal(Host.new('example.com'), Option.Some(Host.Named('example.com')))
+    t.equal(Host.new('EXAMPLE.com'), Option.Some(Host.Named('example.com')))
+    t.equal(Host.new('1.2.3.4'), Option.Some(Host.Ip(IpAddress.v4(1, 2, 3, 4))))
+    t.equal(Host.new('a%20b.com'), Option.Some(Host.Named('a b.com')))
+    t.equal(Host.new(''), Option.None)
+    t.equal(Host.new('a%ZZb'), Option.None)
+    t.equal(Host.new('host/path'), Option.None)
+    t.equal(Host.new('host?query'), Option.None)
+    t.equal(Host.new('host#fragment'), Option.None)
+    t.equal(Host.new('host:port'), Option.None)
   })
 
   t.test('Host.fmt', fn (t) {
