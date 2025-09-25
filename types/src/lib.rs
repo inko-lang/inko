@@ -4075,6 +4075,12 @@ impl ConstantId {
     }
 }
 
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub enum ClosureKind {
+    Regular,
+    Moving,
+}
+
 /// An anonymous function that can optionally capture outer variables.
 ///
 /// Unlike methods, closures don't support type parameters. This makes it easier
@@ -4083,7 +4089,18 @@ impl ConstantId {
 /// method or type.
 #[derive(Clone)]
 pub struct Closure {
-    moving: bool,
+    /// The closure kind.
+    ///
+    /// This is inferred for closure literals based on the types the literal is
+    /// compared against.
+    ///
+    /// We use a Cell here as the type-checker uses immutable borrows to avoid
+    /// borrow conflicts.
+    kind: Cell<ClosureKind>,
+
+    /// If the closure captures its variables by moving them (`true`) or by
+    /// borrowing them (`false`).
+    capture_by_moving: bool,
 
     /// The variables captured by this closure, and the types the variables are
     /// captured as.
@@ -4112,9 +4129,10 @@ impl Closure {
         ClosureId(id)
     }
 
-    fn new(moving: bool) -> Self {
+    fn new(capture_by_moving: bool) -> Self {
         Self {
-            moving,
+            kind: Cell::new(ClosureKind::Regular),
+            capture_by_moving,
             captured_self_type: None,
             captured: HashSet::new(),
             arguments: Arguments::new(),
@@ -4124,10 +4142,26 @@ impl Closure {
     }
 }
 
+// Safety: closures are only mutated during the type checking phase which runs
+// in a single thread.
+unsafe impl Sync for Closure {}
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct ClosureId(pub usize);
 
 impl ClosureId {
+    pub fn kind(self, db: &Database) -> ClosureKind {
+        self.get(db).kind.get()
+    }
+
+    pub fn set_kind(self, db: &mut Database, kind: ClosureKind) {
+        *self.get_mut(db).kind.get_mut() = kind;
+    }
+
+    pub fn is_moving(self, db: &Database) -> bool {
+        matches!(self.get(db).kind.get(), ClosureKind::Moving)
+    }
+
     pub fn number_of_arguments(self, db: &Database) -> usize {
         self.get(db).arguments.len()
     }
@@ -4160,8 +4194,8 @@ impl ClosureId {
         closure.arguments.new_argument(name, value_type, var);
     }
 
-    pub fn is_moving(self, db: &Database) -> bool {
-        self.get(db).moving
+    pub fn captures_by_moving(self, db: &Database) -> bool {
+        self.get(db).capture_by_moving
     }
 
     pub fn set_captured_self_type(
@@ -4216,8 +4250,9 @@ impl ClosureId {
         db: &mut Database,
     ) -> ClosureId {
         let src = self.get(db);
-        let new = Closure::new(src.moving);
+        let new = Closure::new(src.capture_by_moving);
 
+        new.kind.set(src.kind.get());
         Closure::add(db, new)
     }
 

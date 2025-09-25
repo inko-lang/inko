@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use types::check::{Environment, TypeChecker};
 use types::format::format_type;
 use types::{
-    Block, Closure, Database, MethodId, ModuleId, Symbol, TraitId,
+    Block, Closure, ClosureKind, Database, MethodId, ModuleId, Symbol, TraitId,
     TraitInstance, TypeArguments, TypeBounds, TypeEnum, TypeId, TypeInstance,
     TypeParameterId, TypeRef, NEVER_TYPE, SELF_TYPE,
 };
@@ -508,6 +508,10 @@ impl<'a> DefineTypeSignature<'a> {
         kind: RefKind,
     ) -> TypeRef {
         let block = Closure::alloc(self.db_mut(), false);
+
+        if node.moving {
+            block.set_kind(self.db_mut(), ClosureKind::Moving);
+        }
 
         for arg_node in &mut node.arguments {
             let typ = self.define_type(arg_node);
@@ -1378,6 +1382,7 @@ mod tests {
         let self_type = TypeEnum::TypeInstance(TypeInstance::new(int));
         let module = module_type(&mut state, "foo");
         let mut node = hir::Type::Closure(Box::new(hir::ClosureType {
+            moving: false,
             arguments: Vec::new(),
             return_type: None,
             location: cols(1, 1),

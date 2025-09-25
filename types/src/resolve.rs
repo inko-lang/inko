@@ -277,7 +277,7 @@ impl<'a> TypeResolver<'a> {
                 // The ownership of the closure's arguments and return type
                 // shouldn't be changed, instead the ability to use the closure
                 // in the first place is restricted by the type checker where
-                // needede.
+                // needed.
                 self.immutable = false;
 
                 for arg in new.arguments.mapping.values_mut() {

@@ -2433,9 +2433,16 @@ impl<'a> CheckMethodBody<'a> {
     ) -> TypeRef {
         let self_type = self.self_type;
         let moving = node.moving
-            || expected.as_ref().is_some_and(|e| e.id.is_moving(self.db()));
+            || expected
+                .as_ref()
+                .is_some_and(|e| e.id.captures_by_moving(self.db()));
 
         let closure = Closure::alloc(self.db_mut(), moving);
+
+        if let Some(kind) = expected.as_ref().map(|v| v.id.kind(self.db())) {
+            closure.set_kind(self.db_mut(), kind);
+        }
+
         let bounds = self.bounds;
         let return_type = if let Some(n) = node.return_type.as_mut() {
             self.type_signature(n, self_type)
@@ -3638,6 +3645,22 @@ impl<'a> CheckMethodBody<'a> {
             return TypeRef::Error;
         }
 
+        if closure.is_moving(self.db()) && !receiver.is_owned_or_uni(self.db())
+        {
+            self.state.diagnostics.error(
+                DiagnosticId::InvalidCall,
+                format!(
+                    "'{}' takes ownership of the closure, but the \
+                    closure is not owned or unique",
+                    CALL_METHOD
+                ),
+                self.file(),
+                node.location,
+            );
+
+            return TypeRef::Error;
+        }
+
         let num_given = node.arguments.len();
         let num_exp = closure.number_of_arguments(self.db());
 
@@ -4720,7 +4743,6 @@ impl<'a> CheckMethodBody<'a> {
         let var = var?;
         let mut capture_as = var.value_type(self.db());
         let mut expose_as = capture_as;
-        let mut captured = false;
         let mut allow_assignment = true;
 
         // The scope the variable is defined in doesn't influence its type, so
@@ -4743,10 +4765,11 @@ impl<'a> CheckMethodBody<'a> {
                     //    in the captured closure being dropped prematurely,
                     //    unless one explicitly uses `fn move`.
                     // 2. Closure borrows can't be persisted.
-                    let moving = closure.is_moving(self.db())
+                    let cap_by_moving = closure.captures_by_moving(self.db())
                         || capture_as.is_closure(self.db());
+                    let moving = closure.is_moving(self.db());
 
-                    if !expose_as.allow_capturing(self.db(), moving) {
+                    if !expose_as.allow_capturing(self.db(), cap_by_moving) {
                         self.state.diagnostics.error(
                             DiagnosticId::InvalidSymbol,
                             format!(
@@ -4760,43 +4783,39 @@ impl<'a> CheckMethodBody<'a> {
                         );
                     }
 
-                    // The outer-most closure may capture the value as an owned
-                    // value, if the closure is a moving closure. For nested
-                    // closures the capture type is always a reference.
-                    if captured {
-                        capture_as = expose_as;
-                    } else if moving && capture_as.is_uni_value(self.db()) {
-                        // When an `fn move` captures a `uni T`, we capture it
-                        // as-is but expose it as `mut T`, making it easier to
-                        // work with the value. This is safe because:
-                        //
-                        // 1. The closure itself doesn't care about the
-                        //    uniqueness constraint
-                        // 2. We can't move the value out of the closure and
-                        //    back into a `uni T` value
-                        //
-                        // We don't change the capture type such that `fn move`
-                        // closures capturing `uni T` values can still be
-                        // inferred as `uni fn move` closures.
-                        expose_as =
-                            capture_as.as_owned(self.db()).as_mut(self.db());
-                    } else {
-                        if !moving {
-                            capture_as = capture_as.as_mut(self.db());
+                    if cap_by_moving {
+                        if !moving && capture_as.is_uni_value(self.db()) {
+                            // When an `fn move` captures a `uni T`, we capture
+                            // it as-is but expose it as `mut T`, making it
+                            // easier to work with the value. This is safe
+                            // because:
+                            //
+                            // 1. The closure itself doesn't care about the
+                            //    uniqueness constraint
+                            // 2. We can't move the value out of the closure and
+                            //    back into a `uni T` value
+                            //
+                            // We don't change the capture type such that `fn
+                            // move` closures capturing `uni T` values can still
+                            // be inferred as `uni fn move` closures.
+                            expose_as = capture_as
+                                .as_owned(self.db())
+                                .as_mut(self.db());
                         }
-
+                    } else {
+                        capture_as = capture_as.as_mut(self.db());
                         expose_as = expose_as.as_mut(self.db());
                     }
 
                     closure.add_capture(self.db_mut(), var, capture_as);
-                    captured = true;
+                    capture_as = expose_as;
 
                     // Captured variables can only be assigned by moving
                     // closures, as non-moving closures store references to the
                     // captured values, not the values themselves. We can't
                     // assign such captures a new value, as the value referred
                     // to (in most cases at least) wouldn't outlive the closure.
-                    allow_assignment = moving;
+                    allow_assignment = cap_by_moving || moving;
                 }
                 _ => {}
             }

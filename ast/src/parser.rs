@@ -686,14 +686,21 @@ impl Parser {
         &mut self,
         start: Token,
     ) -> Result<ClosureType, ParseError> {
+        let (moving, moving_loc) = if let TokenKind::Move = self.peek().kind {
+            let tok = self.next();
+            (true, Some(tok.location))
+        } else {
+            (false, None)
+        };
         let arguments = self.optional_block_argument_types()?;
         let return_type = self.optional_return_type()?;
         let end_loc = location!(return_type)
             .or_else(|| location!(arguments))
+            .or(moving_loc.as_ref())
             .unwrap_or(&start.location);
         let location = Location::start_end(&start.location, end_loc);
 
-        Ok(ClosureType { arguments, return_type, location })
+        Ok(ClosureType { moving, arguments, return_type, location })
     }
 
     fn optional_block_argument_types(
@@ -4004,6 +4011,7 @@ mod tests {
         assert_eq!(
             parser.type_reference(start).unwrap(),
             Type::Closure(Box::new(ClosureType {
+                moving: false,
                 arguments: None,
                 return_type: None,
                 location: cols(1, 2)
@@ -4019,6 +4027,7 @@ mod tests {
         assert_eq!(
             parser.type_reference(start).unwrap(),
             Type::Closure(Box::new(ClosureType {
+                moving: false,
                 arguments: Some(Types {
                     values: vec![Type::Named(Box::new(TypeName {
                         name: Constant {
@@ -4038,6 +4047,49 @@ mod tests {
     }
 
     #[test]
+    fn test_type_reference_with_closure_type_with_move() {
+        let mut parser = parser("fn move");
+        let start = parser.require().unwrap();
+
+        assert_eq!(
+            parser.type_reference(start).unwrap(),
+            Type::Closure(Box::new(ClosureType {
+                moving: true,
+                arguments: None,
+                return_type: None,
+                location: cols(1, 7)
+            }))
+        );
+    }
+
+    #[test]
+    fn test_type_reference_with_closure_type_with_move_and_arguments() {
+        let mut parser = parser("fn move (T)");
+        let start = parser.require().unwrap();
+
+        assert_eq!(
+            parser.type_reference(start).unwrap(),
+            Type::Closure(Box::new(ClosureType {
+                moving: true,
+                arguments: Some(Types {
+                    values: vec![Type::Named(Box::new(TypeName {
+                        name: Constant {
+                            source: None,
+                            name: "T".to_string(),
+                            location: cols(10, 10),
+                        },
+                        arguments: None,
+                        location: cols(10, 10)
+                    }))],
+                    location: cols(9, 11)
+                }),
+                return_type: None,
+                location: cols(1, 11)
+            }))
+        );
+    }
+
+    #[test]
     fn test_type_reference_with_closure_type_with_return_type() {
         let mut parser = parser("fn -> T");
         let start = parser.require().unwrap();
@@ -4045,6 +4097,7 @@ mod tests {
         assert_eq!(
             parser.type_reference(start).unwrap(),
             Type::Closure(Box::new(ClosureType {
+                moving: false,
                 arguments: None,
                 return_type: Some(Type::Named(Box::new(TypeName {
                     name: Constant {
@@ -4068,6 +4121,7 @@ mod tests {
         assert_eq!(
             parser.type_reference(start).unwrap(),
             Type::Closure(Box::new(ClosureType {
+                moving: false,
                 arguments: Some(Types {
                     values: vec![Type::Named(Box::new(TypeName {
                         name: Constant {

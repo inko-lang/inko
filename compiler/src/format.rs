@@ -2355,10 +2355,11 @@ impl Document {
         node: &nodes::ClosureType,
         ownership: Option<&str>,
     ) -> Node {
+        let base = if node.moving { "fn move" } else { "fn" };
         let open = if let Some(kw) = ownership {
-            Node::text(&format!("{} fn", kw))
+            Node::text(&format!("{} {}", kw, base))
         } else {
-            Node::text("fn")
+            Node::text(base)
         };
         let mut closure = vec![open];
 

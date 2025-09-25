@@ -181,7 +181,7 @@ type pub inline enum Result[T, E] {
   # foo.or_else fn (_) { 0 } # => 42
   # bar.or_else fn (_) { 0 } # => 0
   # ```
-  fn pub inline move or_else(block: fn (E) -> T) -> T {
+  fn pub inline move or_else(block: fn move (E) -> T) -> T {
     match self {
       case Ok(v) -> v
       case Error(v) -> block.call(v)
@@ -200,7 +200,7 @@ type pub inline enum Result[T, E] {
   #
   # res.map fn (val) { val.to_string } # => Result.Ok('42')
   # ```
-  fn pub inline move map[R](block: fn (T) -> R) -> Result[R, E] {
+  fn pub inline move map[R](block: fn move (T) -> R) -> Result[R, E] {
     match self {
       case Ok(v) -> Result.Ok(block.call(v))
       case Error(e) -> Result.Error(e)
@@ -219,7 +219,7 @@ type pub inline enum Result[T, E] {
   #
   # res.map_error fn (val) { val.to_upper } # => Result.Ok('OOPS!')
   # ```
-  fn pub inline move map_error[R](block: fn (E) -> R) -> Result[T, R] {
+  fn pub inline move map_error[R](block: fn move (E) -> R) -> Result[T, R] {
     match self {
       case Ok(v) -> Result.Ok(v)
       case Error(e) -> Result.Error(block.call(e))
@@ -239,7 +239,9 @@ type pub inline enum Result[T, E] {
   #
   # res.then fn (val) { Result.Ok(val.to_string) } # => Result.Ok('42')
   # ```
-  fn pub inline move then[R](block: fn (T) -> Result[R, E]) -> Result[R, E] {
+  fn pub inline move then[R](
+    block: fn move (T) -> Result[R, E],
+  ) -> Result[R, E] {
     match self {
       case Ok(v) -> block.call(v)
       case Error(e) -> Result.Error(e)
@@ -261,7 +263,9 @@ type pub inline enum Result[T, E] {
   # }
   # # => Result.Error('OOPS!')
   # ```
-  fn pub inline move else[R](block: fn (E) -> Result[T, R]) -> Result[T, R] {
+  fn pub inline move else[R](
+    block: fn move (E) -> Result[T, R],
+  ) -> Result[T, R] {
     match self {
       case Ok(v) -> Result.Ok(v)
       case Error(e) -> block.call(e)

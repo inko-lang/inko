@@ -88,7 +88,7 @@ type pub inline enum Option[T] {
   # Option.Some(10).or_else fn { 0 } # => 10
   # Option.None.or_else fn { 0 }     # => 0
   # ```
-  fn pub inline move or_else(block: fn -> T) -> T {
+  fn pub inline move or_else(block: fn move -> T) -> T {
     match self {
       case Some(v) -> v
       case None -> block.call
@@ -114,7 +114,7 @@ type pub inline enum Option[T] {
   # ```inko
   # Option.None.map fn (x) { x * 2 } # => Option.None
   # ```
-  fn pub inline move map[R](block: fn (T) -> R) -> Option[R] {
+  fn pub inline move map[R](block: fn move (T) -> R) -> Option[R] {
     match self {
       case Some(v) -> Option.Some(block.call(v))
       case None -> Option.None
@@ -130,7 +130,7 @@ type pub inline enum Option[T] {
   # This process is sometimes referred to as a "flat map". Inko uses the name
   # "then" because this reads more nicely when chaining multiple instances of
   # this method together.
-  fn pub inline move then[R](block: fn (T) -> Option[R]) -> Option[R] {
+  fn pub inline move then[R](block: fn move (T) -> Option[R]) -> Option[R] {
     match self {
       case Some(v) -> block.call(v)
       case None -> Option.None
@@ -141,7 +141,7 @@ type pub inline enum Option[T] {
   # by the `block` argument.
   #
   # If `self` is a Some, the Some itself is returned.
-  fn pub inline move else(block: fn -> Option[T]) -> Option[T] {
+  fn pub inline move else(block: fn move -> Option[T]) -> Option[T] {
     if some? { self } else { block.call }
   }
 
@@ -221,7 +221,7 @@ type pub inline enum Option[T] {
   # Option.Some(10).ok_or_else(fn { 'oops!' }) # => Result.Ok(10)
   # Option.None.ok_or_else(fn { 'oops!' })     # => Result.Error('oops!')
   # ```
-  fn pub inline move ok_or_else[E](error: fn -> E) -> Result[T, E] {
+  fn pub inline move ok_or_else[E](error: fn move -> E) -> Result[T, E] {
     match self {
       case Some(v) -> Result.Ok(v)
       case _ -> Result.Error(error.call)

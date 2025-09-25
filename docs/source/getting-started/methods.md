@@ -378,7 +378,49 @@ fn move {
 
 The reason for this is that while the captured variables are moved into the
 closure, closures can still be called multiple times and thus the variables have
-to be exposed as borrows. The ability to define closures that can only be called
-once (and thus allow moving captured variables out of closures) is something
-that [we looked into in past](https://github.com/inko-lang/inko/issues/347), but
-support for this isn't planned for the foreseeable future.
+to be exposed as borrows.
+
+### Moving closures
+
+By default closures don't allow moving of captured variables out of the closure,
+and captures are exposed to the closure body as borrows. There's a way around
+that: when passing a closure literal to an argument typed as `fn move`, the
+closure is inferred as a closure that can only be called once. Such closures are
+called "moving closures".
+
+::: tip
+There's no dedicated syntax for creating moving closures. Closure literals
+created using `fn move { ... }` are _regular_ closures that _capture_ by moving,
+rather than moving captures _out_ of the closure.
+:::
+
+Unlike regular closures, moving closure expose captured variables using their
+original type, similar to `fn move` methods. Moving closures _always_ capture
+owned and unique values by moving them:
+
+```inko
+fn example(fun: fn move) {
+  fun.call
+}
+
+let a = [10, 20]
+
+example(fn { a }) # This is OK because the expected closure type is `fn move`
+a.size            # Not OK because `a` is moved into the closure
+```
+
+This is only supported when _directly_ passing a closure literal to an `fn move`
+argument. If the literal is first assigned to a variable or passed around then
+it _won't_ be inferred as a moving closure:
+
+
+```inko
+fn example(fun: fn move) {
+  fun.call
+}
+
+let a = [10, 20]
+let b = fn { a }
+
+example(b) # Not OK as `b` is not inferred as an `fn move` closure
+```

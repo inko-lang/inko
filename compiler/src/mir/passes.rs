@@ -2000,6 +2000,18 @@ impl<'a> LowerMethod<'a> {
 
                 let returns = info.returns;
                 let rec = self.expression(node.receiver.unwrap());
+
+                // This must be done _before_ processing arguments, otherwise
+                // the arguments may try to use a moved receiver.
+                if info.id.is_moving(self.db()) {
+                    self.mark_register_as_moved(rec);
+                    self.record_loop_move(rec, node.location);
+
+                    if let Some(flag) = self.drop_flags.get(&rec).cloned() {
+                        self.current_block_mut().bool_literal(flag, false, loc);
+                    }
+                }
+
                 let mut args = Vec::new();
 
                 for arg in node.arguments.into_iter() {
@@ -3728,6 +3740,7 @@ impl<'a> LowerMethod<'a> {
         let module = self.module;
         let closure_id = node.closure_id.unwrap();
         let moving = closure_id.is_moving(self.db());
+        let move_captures = closure_id.captures_by_moving(self.db());
         let loc = node.location;
         let tid = types::Type::alloc(
             self.db_mut(),
@@ -3738,19 +3751,27 @@ impl<'a> LowerMethod<'a> {
             loc,
         );
 
+        let mtype = if moving {
+            types::MethodKind::Moving
+        } else {
+            types::MethodKind::Mutable
+        };
         let method_id = types::Method::alloc(
             self.db_mut(),
             module,
             loc,
             types::CALL_METHOD.to_string(),
             types::Visibility::Public,
-            types::MethodKind::Mutable,
+            mtype,
         );
 
         let gen_type_ins =
             types::TypeEnum::TypeInstance(types::TypeInstance::new(tid));
-
-        let call_rec_type = TypeRef::Mut(gen_type_ins);
+        let call_rec_type = if moving {
+            TypeRef::Owned(gen_type_ins)
+        } else {
+            TypeRef::Mut(gen_type_ins)
+        };
         let returns = closure_id.return_type(self.db());
 
         method_id.set_receiver(self.db_mut(), call_rec_type);
@@ -3785,17 +3806,13 @@ impl<'a> LowerMethod<'a> {
         let mut captured_self_field = None;
         let mut variable_fields = HashMap::new();
 
-        if let Some(mut captured_as) = closure_id.captured_self_type(self.db())
-        {
-            if !moving && captured_as.is_owned_or_uni(self.db()) {
-                captured_as = captured_as.as_mut(self.db());
-            }
-
-            let exposed_as = if captured_as.is_owned_or_uni(self.db()) {
-                captured_as.as_mut(self.db())
-            } else {
-                captured_as
-            };
+        if let Some(stype) = closure_id.captured_self_type(self.db()) {
+            let captured_as =
+                if !move_captures && stype.is_owned_or_uni(self.db()) {
+                    stype.as_mut(self.db())
+                } else {
+                    stype
+                };
 
             let name = SELF_NAME.to_string();
             let field_loc = tid.location(self.db());
@@ -3830,7 +3847,7 @@ impl<'a> LowerMethod<'a> {
             );
             method_id.set_field_type(self.db_mut(), name, field, captured_as);
 
-            captured_self_field = Some((field, exposed_as));
+            captured_self_field = Some((field, captured_as));
             field_index += 1;
         }
 

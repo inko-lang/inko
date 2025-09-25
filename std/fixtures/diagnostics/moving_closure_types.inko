@@ -1,0 +1,16 @@
+fn moving_closure(f: fn move) {}
+
+fn regular_closure(f: fn) {}
+
+fn example1(f: fn) {
+  regular_closure(f)
+  moving_closure(f)
+}
+
+fn example2(f: fn move) {
+  regular_closure(f)
+  moving_closure(f)
+}
+
+# moving_closure_types.inko:7:18 error(invalid-type): expected a value of type 'fn move', found 'fn'
+# moving_closure_types.inko:11:19 error(invalid-type): expected a value of type 'fn', found 'fn move'

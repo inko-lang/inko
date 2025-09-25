@@ -833,6 +833,7 @@ pub(crate) enum ReferrableType {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ClosureType {
+    pub(crate) moving: bool,
     pub(crate) arguments: Vec<Type>,
     pub(crate) return_type: Option<Type>,
     pub(crate) location: Location,
@@ -2034,6 +2035,7 @@ impl<'a> LowerToHir<'a> {
 
     fn closure_type(&self, node: ast::ClosureType) -> Box<ClosureType> {
         Box::new(ClosureType {
+            moving: node.moving,
             arguments: self.optional_types(node.arguments),
             return_type: node.return_type.map(|n| self.type_reference(n)),
             location: node.location,
@@ -3983,6 +3985,7 @@ mod tests {
         assert_eq!(
             hir,
             Type::Closure(Box::new(ClosureType {
+                moving: false,
                 arguments: vec![Type::Named(Box::new(TypeName {
                     self_type: false,
                     source: None,
@@ -4006,6 +4009,42 @@ mod tests {
                     location: cols(19, 19)
                 }))),
                 location: cols(9, 19),
+                resolved_type: types::TypeRef::Unknown,
+            }))
+        );
+    }
+
+    #[test]
+    fn test_lower_closure_type_with_move() {
+        let hir = lower_type("fn move (A) -> C");
+
+        assert_eq!(
+            hir,
+            Type::Closure(Box::new(ClosureType {
+                moving: true,
+                arguments: vec![Type::Named(Box::new(TypeName {
+                    self_type: false,
+                    source: None,
+                    resolved_type: types::TypeRef::Unknown,
+                    name: Constant {
+                        name: "A".to_string(),
+                        location: cols(18, 18)
+                    },
+                    arguments: Vec::new(),
+                    location: cols(18, 18)
+                }))],
+                return_type: Some(Type::Named(Box::new(TypeName {
+                    self_type: false,
+                    source: None,
+                    resolved_type: types::TypeRef::Unknown,
+                    name: Constant {
+                        name: "C".to_string(),
+                        location: cols(24, 24)
+                    },
+                    arguments: Vec::new(),
+                    location: cols(24, 24)
+                }))),
+                location: cols(9, 24),
                 resolved_type: types::TypeRef::Unknown,
             }))
         );

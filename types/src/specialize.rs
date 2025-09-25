@@ -335,7 +335,7 @@ call arguments:
         }
 
         let key = ClosureKey {
-            moving: old.is_moving(self.db),
+            moving: old.captures_by_moving(self.db),
             arguments: old
                 .arguments(self.db)
                 .into_iter()

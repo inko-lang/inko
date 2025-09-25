@@ -1,9 +1,9 @@
 //! Formatting of types.
 use crate::{
-    Arguments, ClosureId, Database, ForeignType, Inline, MethodId, MethodKind,
-    ModuleId, Ownership, Sign, TraitId, TraitInstance, TypeArguments, TypeEnum,
-    TypeId, TypeInstance, TypeKind, TypeParameterId, TypePlaceholderId,
-    TypeRef, Visibility, NEVER_TYPE, SELF_TYPE,
+    Arguments, ClosureId, ClosureKind, Database, ForeignType, Inline, MethodId,
+    MethodKind, ModuleId, Ownership, Sign, TraitId, TraitInstance,
+    TypeArguments, TypeEnum, TypeId, TypeInstance, TypeKind, TypeParameterId,
+    TypePlaceholderId, TypeRef, Visibility, NEVER_TYPE, SELF_TYPE,
 };
 
 const MAX_FORMATTING_DEPTH: usize = 8;
@@ -423,7 +423,9 @@ impl FormatType for ClosureId {
         buffer.descend(|buffer| {
             let fun = self.get(buffer.db);
 
-            if fun.moving {
+            if fun.capture_by_moving
+                || matches!(fun.kind.get(), ClosureKind::Moving)
+            {
                 buffer.write("fn move");
             } else {
                 buffer.write("fn");

@@ -838,18 +838,20 @@ impl<'a> TypeChecker<'a> {
                     let lhs_obj = lhs.get(self.db);
                     let rhs_obj = rhs.get(self.db);
 
-                    self.check_arguments(
-                        &lhs_obj.arguments,
-                        &rhs_obj.arguments,
-                        env,
-                        rules,
-                        false,
-                    ) && self.check_type_ref(
-                        lhs_obj.return_type,
-                        rhs_obj.return_type,
-                        env,
-                        rules,
-                    )
+                    lhs_obj.kind.get() == rhs_obj.kind.get()
+                        && self.check_arguments(
+                            &lhs_obj.arguments,
+                            &rhs_obj.arguments,
+                            env,
+                            rules,
+                            false,
+                        )
+                        && self.check_type_ref(
+                            lhs_obj.return_type,
+                            rhs_obj.return_type,
+                            env,
+                            rules,
+                        )
                 }
                 TypeEnum::TypeParameter(rhs)
                     if rhs.requirements(self.db).is_empty() =>

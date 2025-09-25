@@ -1031,6 +1031,7 @@ impl Node for ReferrableType {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct ClosureType {
+    pub moving: bool,
     pub arguments: Option<Types>,
     pub return_type: Option<Type>,
     pub location: Location,

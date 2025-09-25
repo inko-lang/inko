@@ -43,7 +43,11 @@ pub(crate) fn format_type_enum(db: &Database, typ: TypeEnum, buf: &mut String) {
         // closure _types_ (e.g. used in a method argument's signature) remain a
         // dedicated type.
         TypeEnum::Closure(t) => {
-            buf.push_str(if t.is_moving(db) { "fn move" } else { "fn" });
+            buf.push_str(if t.captures_by_moving(db) {
+                "fn move"
+            } else {
+                "fn"
+            });
 
             if t.number_of_arguments(db) > 0 {
                 buf.push_str(" (");
