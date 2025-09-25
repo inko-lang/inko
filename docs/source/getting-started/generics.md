@@ -155,11 +155,11 @@ capabilities in the requirements list:
 
 - `mut`: restricts types owned types and mutable borrows, and allows the use of
   `fn mut` methods
-- `inline`: restricts types to those that are `inline`
+- `copy`: restricts types to those that are `copy`
 
 ::: warn
-It's a compile-time error to specify _both_ the `mut` and `inline` requirements,
-as `inline` types are immutable.
+It's a compile-time error to specify _both_ the `mut` and `copy` requirements,
+as `copy` types are immutable.
 :::
 
 Take this type for example:

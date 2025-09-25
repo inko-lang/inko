@@ -21,6 +21,10 @@ type copy enum Enum[A, B] {
   case B(Int)
 }
 
+type inline Inline {
+  let mut @value: Int
+}
+
 fn pub tests(t: mut Tests) {
   t.test('inline types can be used in generic contexts', fn (t) {
     t.true(
@@ -79,5 +83,18 @@ fn pub tests(t: mut Tests) {
 
   t.test('Inline types support method calls in generic contexts', fn (t) {
     t.equal(to_string(Example(a: 10, b: 20)), '1020')
+  })
+
+  t.test('Assigning inline type fields new values', fn (t) {
+    let a = Inline(42)
+    let b = ref a
+
+    a.value = 10
+
+    let c = ref a
+
+    t.equal(a.value, 10)
+    t.equal(b.value, 42)
+    t.equal(c.value, 10)
   })
 }

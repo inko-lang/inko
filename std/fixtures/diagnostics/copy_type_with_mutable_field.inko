@@ -1,5 +1,18 @@
 type copy Example {
-  let mut @invalid: Int
+  let mut @number: Int
+
+  fn move example {
+    @number = 42
+    self
+  }
 }
 
-# copy_type_with_mutable_field.inko:2:3 error(invalid-symbol): 'inline' and 'copy' types don't support mutable fields
+fn example1(value: Example) {
+  value.number = 42
+}
+
+fn example2(value: mut Example) {
+  value.number = 42
+}
+
+# copy_type_with_mutable_field.inko:14:24 error(invalid-type): mutable borrows of type 'Example' are invalid as 'Example' is immutable

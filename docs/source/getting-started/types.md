@@ -287,8 +287,8 @@ borrow count for any interior heap values.
 This approach does mean that `inline` types come with some restrictions and
 caveats:
 
-- Fields can't be assigned new values, as copying the stack data means the
-  assignment would only be visible to the copy used by the assignment.
+- Fields can only be assigned new values through owned references, and such
+  assignments are only visible to borrows created _after_ the assignment
 - Borrowing interior heap data means that if an `inline` type stores 8 heap
   allocated values, borrowing the `inline` type results in 8 borrow count
   increments.
@@ -326,17 +326,18 @@ become _immutable_ value types that are copied upon a move. For the above
 `Number` example that means the memory representation is the same as that of the
 `Int` type.
 
-Because these types are immutable, it's not possible to assign fields new values
-or define `fn mut` methods on such types. Instead, the approach to "mutation" is
-to return a new copy of the instance containing the appropriate changes. For
-example:
+Because `copy` types are immutable, they don't support `fn mut` methods. Fields
+_can_ be assigned new values but only through owned references, such as inside
+an `fn move` method. As such, the approach to mutating them is to return a new
+copy of the instance containing the appropriate changes. For example:
 
 ```inko
 type copy Number {
-  let @value: Int
+  let mut @value: Int
 
-  fn increment(amount: Int) -> Number {
-    Number(@value + amount)
+  fn move increment(amount: Int) -> Number {
+    @value += amount
+    self
   }
 }
 ```
@@ -378,7 +379,8 @@ With Inko supporting both heap and stack allocated types, one might wonder:
 when should I use the `inline` or `copy` modifier when defining a type To
 answer this question, ask yourself the following questions:
 
-- Do you need to assign a field a new value?
+- Do you want to mutate the type in-place without creating a copy or
+  transferring ownership?
 - Is the type a recursive type?
 - Will the type be storing many heap allocated values (e.g. more than 8)?
 - Is the type large (i.e. 128 bytes or more)?

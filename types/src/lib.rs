@@ -2246,13 +2246,13 @@ impl TypeId {
         }
     }
 
-    pub fn allow_field_assignments(self, db: &Database) -> bool {
+    pub fn allow_field_assignments(self, db: &Database, owned: bool) -> bool {
         let obj = self.get(db);
 
         match obj.kind {
             TypeKind::Atomic => false,
             TypeKind::Extern => true,
-            _ => matches!(obj.storage, Storage::Heap),
+            _ => owned || matches!(obj.storage, Storage::Heap),
         }
     }
 
@@ -4842,12 +4842,14 @@ impl TypeRef {
 
     pub fn allow_field_assignments(self, db: &Database) -> bool {
         match self {
-            TypeRef::Owned(TypeEnum::TypeInstance(ins))
-            | TypeRef::Mut(TypeEnum::TypeInstance(ins))
+            TypeRef::Owned(TypeEnum::TypeInstance(ins)) => {
+                ins.instance_of.allow_field_assignments(db, true)
+            }
+            TypeRef::Mut(TypeEnum::TypeInstance(ins))
             | TypeRef::Uni(TypeEnum::TypeInstance(ins))
             | TypeRef::UniMut(TypeEnum::TypeInstance(ins))
             | TypeRef::Pointer(TypeEnum::TypeInstance(ins)) => {
-                ins.instance_of.allow_field_assignments(db)
+                ins.instance_of.allow_field_assignments(db, false)
             }
             TypeRef::Placeholder(id) => {
                 id.value(db).is_some_and(|v| v.allow_field_assignments(db))

@@ -2,4 +2,12 @@ type inline Example {
   let mut @number: Int
 }
 
-# inline_type_with_mutable_field.inko:2:3 error(invalid-symbol): 'inline' and 'copy' types don't support mutable fields
+fn example1(value: Example) {
+  value.number = 42
+}
+
+fn example2(value: mut Example) {
+  value.number = 42
+}
+
+# inline_type_with_mutable_field.inko:10:3 error(invalid-assign): values of type 'mut Example' don't allow fields to be assigned new values
