@@ -1,0 +1,1200 @@
+# Generating of HTML documents.
+#
+# This modules provides a `Html` type to use for generating HTML documents,
+# refer to its documentation for more details.
+#
+# For generating XML documents, use `std.xml` instead.
+import std.bytes (Bytes, IntoByteArray, ToByteArray, ToSlice)
+import std.drop (Drop)
+import std.string (IntoString, ToString)
+
+let DQUOTE = 34
+let AMP = 38
+let LT = 60
+
+# A type for generating HTML documents.
+#
+# This type doesn't build a DOM tree but instead writes directly to an internal
+# buffer, reducing memory usage and CPU time compared to using a tree.
+#
+# Writing to a `std.io.Write` type isn't supported in order to make the API
+# easier to use (by removing the need for error handling as part of writes).
+# However, it's possible to incrementally generate HTML by calling
+# `Html.to_string` and `Html.clear` at certain points in the HTML generation
+# process.
+#
+# Generating HTML is done by using element methods such as `Html.a` and
+# `Html.body`, followed by using methods such as `RegularElement.attr` and
+# `RegularElement.then` to populate their attributes and contents.
+#
+# # Closing elements
+#
+# Dropping a `RegularElement` or `VoidElement` automatically closes the tag.
+# If such a value isn't moved before it's dropped, you'll get a compile-time
+# warning. To avoid this, use `RegularElement.close` or `VoidElement.close` to
+# explicitly close the element:
+#
+# ```inko
+# import std.html (Html)
+#
+# let doc = Html.new
+#
+# doc.p.class('example').close
+# doc.to_string # => '<p class="example"></p>'
+# ```
+#
+# # Examples
+#
+# Generating an HTML document including a doctype:
+#
+# ```inko
+# import std.html (Html)
+#
+# let doc = Html.new
+#
+# doc.doctype
+# doc.html.lang('en').close
+# doc.to_string # => '<!DOCTYPE html><html lang="en"></html>'
+# ```
+type pub inline Html {
+  let @buffer: ByteArray
+
+  # Returns a new and empty `Html` value.
+  fn pub inline static new -> Self {
+    # 1 KiB should be a sufficient starting capacity.
+    Self(ByteArray.with_capacity(1024))
+  }
+
+  # Adds the HTML5 doctype to `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.html (Html)
+  #
+  # let doc = Html.new
+  #
+  # doc.doctype
+  # doc.to_string # => '<!DOCTYPE html>'
+  # ```
+  fn pub mut doctype {
+    add('<!DOCTYPE html>')
+  }
+
+  # Calls the provided closure and passes it a mutable borrow of `self`, then
+  # returns `self`.
+  #
+  # # Examples
+  #
+  # This method is useful when you want to create and return an `Html` document
+  # without the need for intermediate variables. So instead of this:
+  #
+  # ```inko
+  # fn example -> Html {
+  #   let doc = Html.new
+  #
+  #   doc.html.then(fn (html) {
+  #     # ...
+  #   })
+  #
+  #   doc
+  # }
+  # ```
+  #
+  # You can write this:
+  #
+  # ```inko
+  # fn example -> Html {
+  #   Html.new.then(fn (doc) {
+  #     doc.html.then(fn (html) {
+  #       # ...
+  #     })
+  #   })
+  # }
+  # ```
+  fn pub inline move then(body: fn (mut Html)) -> Self {
+    body.call(self)
+    self
+  }
+
+  # Reserves space for `size` additional bytes.
+  #
+  # The actual reserved capacity may be greater than the given value.
+  fn pub mut reserve(size: Int) {
+    @buffer.reserve(size)
+  }
+
+  # Clears the underlying buffer.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.html (Html)
+  #
+  # let doc = Html.new
+  #
+  # doc.doctype
+  # doc.to_string # => '<!DOCTYPE html>'
+  # doc.clear
+  # doc.to_string # => ''
+  # ```
+  fn pub mut clear {
+    @buffer.clear
+  }
+
+  # Returns a `RegularElement` to use for generating a regular HTML element (=
+  # an element with a closing tag).
+  #
+  # The `name` argument is the name of the HTML element.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.html (Html)
+  #
+  # let doc = Html.new
+  #
+  # doc.element('foo').close
+  # doc.to_string # => '<foo></foo>'
+  # ```
+  fn pub inline mut element(name: String) -> RegularElement {
+    RegularElement.new(self, name)
+  }
+
+  # Returns a `VoidElement` to use for generating a void/empty element, such as
+  # the `<link>` element.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.html (Html)
+  #
+  # let doc = Html.new
+  #
+  # doc.void_element('foo').close
+  # doc.to_string # => '<foo>'
+  # ```
+  fn pub inline mut void_element(name: String) -> VoidElement {
+    VoidElement.new(self, name)
+  }
+
+  # Returns `RegularElement` value for generating a `<a>` element.
+  fn pub inline mut a -> RegularElement {
+    element('a')
+  }
+
+  # Returns `RegularElement` value for generating a `<abbr>` element.
+  fn pub inline mut abbr -> RegularElement {
+    element('abbr')
+  }
+
+  # Returns `RegularElement` value for generating a `<address>` element.
+  fn pub inline mut address -> RegularElement {
+    element('address')
+  }
+
+  # Returns `RegularElement` value for generating a `<article>` element.
+  fn pub inline mut article -> RegularElement {
+    element('article')
+  }
+
+  # Returns `RegularElement` value for generating a `<aside>` element.
+  fn pub inline mut aside -> RegularElement {
+    element('aside')
+  }
+
+  # Returns `RegularElement` value for generating a `<audio>` element.
+  fn pub inline mut audio -> RegularElement {
+    element('audio')
+  }
+
+  # Returns `RegularElement` value for generating a `<b>` element.
+  fn pub inline mut b -> RegularElement {
+    element('b')
+  }
+
+  # Returns `RegularElement` value for generating a `<bdi>` element.
+  fn pub inline mut bdi -> RegularElement {
+    element('bdi')
+  }
+
+  # Returns `RegularElement` value for generating a `<bdo>` element.
+  fn pub inline mut bdo -> RegularElement {
+    element('bdo')
+  }
+
+  # Returns `RegularElement` value for generating a `<blockquote>` element.
+  fn pub inline mut blockquote -> RegularElement {
+    element('blockquote')
+  }
+
+  # Returns `RegularElement` value for generating a `<body>` element.
+  fn pub inline mut body -> RegularElement {
+    element('body')
+  }
+
+  # Returns `RegularElement` value for generating a `<button>` element.
+  fn pub inline mut button -> RegularElement {
+    element('button')
+  }
+
+  # Returns `RegularElement` value for generating a `<canvas>` element.
+  fn pub inline mut canvas -> RegularElement {
+    element('canvas')
+  }
+
+  # Returns `RegularElement` value for generating a `<caption>` element.
+  fn pub inline mut caption -> RegularElement {
+    element('caption')
+  }
+
+  # Returns `RegularElement` value for generating a `<cite>` element.
+  fn pub inline mut cite -> RegularElement {
+    element('cite')
+  }
+
+  # Returns `RegularElement` value for generating a `<code>` element.
+  fn pub inline mut code -> RegularElement {
+    element('code')
+  }
+
+  # Returns `RegularElement` value for generating a `<colgroup>` element.
+  fn pub inline mut colgroup -> RegularElement {
+    element('colgroup')
+  }
+
+  # Returns `RegularElement` value for generating a `<data>` element.
+  fn pub inline mut data -> RegularElement {
+    element('data')
+  }
+
+  # Returns `RegularElement` value for generating a `<datalist>` element.
+  fn pub inline mut datalist -> RegularElement {
+    element('datalist')
+  }
+
+  # Returns `RegularElement` value for generating a `<dd>` element.
+  fn pub inline mut dd -> RegularElement {
+    element('dd')
+  }
+
+  # Returns `RegularElement` value for generating a `<del>` element.
+  fn pub inline mut del -> RegularElement {
+    element('del')
+  }
+
+  # Returns `RegularElement` value for generating a `<details>` element.
+  fn pub inline mut details -> RegularElement {
+    element('details')
+  }
+
+  # Returns `RegularElement` value for generating a `<dfn>` element.
+  fn pub inline mut dfn -> RegularElement {
+    element('dfn')
+  }
+
+  # Returns `RegularElement` value for generating a `<dialog>` element.
+  fn pub inline mut dialog -> RegularElement {
+    element('dialog')
+  }
+
+  # Returns `RegularElement` value for generating a `<div>` element.
+  fn pub inline mut div -> RegularElement {
+    element('div')
+  }
+
+  # Returns `RegularElement` value for generating a `<dl>` element.
+  fn pub inline mut dl -> RegularElement {
+    element('dl')
+  }
+
+  # Returns `RegularElement` value for generating a `<dt>` element.
+  fn pub inline mut dt -> RegularElement {
+    element('dt')
+  }
+
+  # Returns `RegularElement` value for generating a `<em>` element.
+  fn pub inline mut em -> RegularElement {
+    element('em')
+  }
+
+  # Returns `RegularElement` value for generating a `<fieldset>` element.
+  fn pub inline mut fieldset -> RegularElement {
+    element('fieldset')
+  }
+
+  # Returns `RegularElement` value for generating a `<figcaption>` element.
+  fn pub inline mut figcaption -> RegularElement {
+    element('figcaption')
+  }
+
+  # Returns `RegularElement` value for generating a `<figure>` element.
+  fn pub inline mut figure -> RegularElement {
+    element('figure')
+  }
+
+  # Returns `RegularElement` value for generating a `<footer>` element.
+  fn pub inline mut footer -> RegularElement {
+    element('footer')
+  }
+
+  # Returns `RegularElement` value for generating a `<form>` element.
+  fn pub inline mut form -> RegularElement {
+    element('form')
+  }
+
+  # Returns `RegularElement` value for generating a `<h1>` element.
+  fn pub inline mut h1 -> RegularElement {
+    element('h1')
+  }
+
+  # Returns `RegularElement` value for generating a `<h2>` element.
+  fn pub inline mut h2 -> RegularElement {
+    element('h2')
+  }
+
+  # Returns `RegularElement` value for generating a `<h3>` element.
+  fn pub inline mut h3 -> RegularElement {
+    element('h3')
+  }
+
+  # Returns `RegularElement` value for generating a `<h4>` element.
+  fn pub inline mut h4 -> RegularElement {
+    element('h4')
+  }
+
+  # Returns `RegularElement` value for generating a `<h5>` element.
+  fn pub inline mut h5 -> RegularElement {
+    element('h5')
+  }
+
+  # Returns `RegularElement` value for generating a `<h6>` element.
+  fn pub inline mut h6 -> RegularElement {
+    element('h6')
+  }
+
+  # Returns `RegularElement` value for generating a `<head>` element.
+  fn pub inline mut head -> RegularElement {
+    element('head')
+  }
+
+  # Returns `RegularElement` value for generating a `<header>` element.
+  fn pub inline mut header -> RegularElement {
+    element('header')
+  }
+
+  # Returns `RegularElement` value for generating a `<hgroup>` element.
+  fn pub inline mut hgroup -> RegularElement {
+    element('hgroup')
+  }
+
+  # Returns `RegularElement` value for generating a `<html>` element.
+  fn pub inline mut html -> RegularElement {
+    element('html')
+  }
+
+  # Returns `RegularElement` value for generating a `<i>` element.
+  fn pub inline mut i -> RegularElement {
+    element('i')
+  }
+
+  # Returns `RegularElement` value for generating a `<ins>` element.
+  fn pub inline mut ins -> RegularElement {
+    element('ins')
+  }
+
+  # Returns `RegularElement` value for generating a `<kbd>` element.
+  fn pub inline mut kbd -> RegularElement {
+    element('kbd')
+  }
+
+  # Returns `RegularElement` value for generating a `<label>` element.
+  fn pub inline mut label -> RegularElement {
+    element('label')
+  }
+
+  # Returns `RegularElement` value for generating a `<legend>` element.
+  fn pub inline mut legend -> RegularElement {
+    element('legend')
+  }
+
+  # Returns `RegularElement` value for generating a `<li>` element.
+  fn pub inline mut li -> RegularElement {
+    element('li')
+  }
+
+  # Returns `RegularElement` value for generating a `<main>` element.
+  fn pub inline mut main -> RegularElement {
+    element('main')
+  }
+
+  # Returns `RegularElement` value for generating a `<map>` element.
+  fn pub inline mut map -> RegularElement {
+    element('map')
+  }
+
+  # Returns `RegularElement` value for generating a `<mark>` element.
+  fn pub inline mut mark -> RegularElement {
+    element('mark')
+  }
+
+  # Returns `RegularElement` value for generating a `<menu>` element.
+  fn pub inline mut menu -> RegularElement {
+    element('menu')
+  }
+
+  # Returns `RegularElement` value for generating a `<meter>` element.
+  fn pub inline mut meter -> RegularElement {
+    element('meter')
+  }
+
+  # Returns `RegularElement` value for generating a `<nav>` element.
+  fn pub inline mut nav -> RegularElement {
+    element('nav')
+  }
+
+  # Returns `RegularElement` value for generating a `<noscript>` element.
+  fn pub inline mut noscript -> RegularElement {
+    element('noscript')
+  }
+
+  # Returns `RegularElement` value for generating a `<object>` element.
+  fn pub inline mut object -> RegularElement {
+    element('object')
+  }
+
+  # Returns `RegularElement` value for generating a `<ol>` element.
+  fn pub inline mut ol -> RegularElement {
+    element('ol')
+  }
+
+  # Returns `RegularElement` value for generating a `<optgroup>` element.
+  fn pub inline mut optgroup -> RegularElement {
+    element('optgroup')
+  }
+
+  # Returns `RegularElement` value for generating a `<option>` element.
+  fn pub inline mut option -> RegularElement {
+    element('option')
+  }
+
+  # Returns `RegularElement` value for generating a `<output>` element.
+  fn pub inline mut output -> RegularElement {
+    element('output')
+  }
+
+  # Returns `RegularElement` value for generating a `<p>` element.
+  fn pub inline mut p -> RegularElement {
+    element('p')
+  }
+
+  # Returns `RegularElement` value for generating a `<picture>` element.
+  fn pub inline mut picture -> RegularElement {
+    element('picture')
+  }
+
+  # Returns `RegularElement` value for generating a `<pre>` element.
+  fn pub inline mut pre -> RegularElement {
+    element('pre')
+  }
+
+  # Returns `RegularElement` value for generating a `<progress>` element.
+  fn pub inline mut progress -> RegularElement {
+    element('progress')
+  }
+
+  # Returns `RegularElement` value for generating a `<q>` element.
+  fn pub inline mut q -> RegularElement {
+    element('q')
+  }
+
+  # Returns `RegularElement` value for generating a `<rp>` element.
+  fn pub inline mut rp -> RegularElement {
+    element('rp')
+  }
+
+  # Returns `RegularElement` value for generating a `<rt>` element.
+  fn pub inline mut rt -> RegularElement {
+    element('rt')
+  }
+
+  # Returns `RegularElement` value for generating a `<ruby>` element.
+  fn pub inline mut ruby -> RegularElement {
+    element('ruby')
+  }
+
+  # Returns `RegularElement` value for generating a `<s>` element.
+  fn pub inline mut s -> RegularElement {
+    element('s')
+  }
+
+  # Returns `RegularElement` value for generating a `<samp>` element.
+  fn pub inline mut samp -> RegularElement {
+    element('samp')
+  }
+
+  # Returns `RegularElement` value for generating a `<script>` element.
+  fn pub inline mut script -> RegularElement {
+    element('script')
+  }
+
+  # Returns `RegularElement` value for generating a `<section>` element.
+  fn pub inline mut section -> RegularElement {
+    element('section')
+  }
+
+  # Returns `RegularElement` value for generating a `<select>` element.
+  fn pub inline mut select -> RegularElement {
+    element('select')
+  }
+
+  # Returns `RegularElement` value for generating a `<slot>` element.
+  fn pub inline mut slot -> RegularElement {
+    element('slot')
+  }
+
+  # Returns `RegularElement` value for generating a `<small>` element.
+  fn pub inline mut small -> RegularElement {
+    element('small')
+  }
+
+  # Returns `RegularElement` value for generating a `<span>` element.
+  fn pub inline mut span -> RegularElement {
+    element('span')
+  }
+
+  # Returns `RegularElement` value for generating a `<strong>` element.
+  fn pub inline mut strong -> RegularElement {
+    element('strong')
+  }
+
+  # Returns `RegularElement` value for generating a `<style>` element.
+  fn pub inline mut style -> RegularElement {
+    element('style')
+  }
+
+  # Returns `RegularElement` value for generating a `<sub>` element.
+  fn pub inline mut sub -> RegularElement {
+    element('sub')
+  }
+
+  # Returns `RegularElement` value for generating a `<summary>` element.
+  fn pub inline mut summary -> RegularElement {
+    element('summary')
+  }
+
+  # Returns `RegularElement` value for generating a `<sup>` element.
+  fn pub inline mut sup -> RegularElement {
+    element('sup')
+  }
+
+  # Returns `RegularElement` value for generating a `<svg>` element.
+  fn pub inline mut svg -> RegularElement {
+    element('svg')
+  }
+
+  # Returns `RegularElement` value for generating a `<table>` element.
+  fn pub inline mut table -> RegularElement {
+    element('table')
+  }
+
+  # Returns `RegularElement` value for generating a `<tbody>` element.
+  fn pub inline mut tbody -> RegularElement {
+    element('tbody')
+  }
+
+  # Returns `RegularElement` value for generating a `<td>` element.
+  fn pub inline mut td -> RegularElement {
+    element('td')
+  }
+
+  # Returns `RegularElement` value for generating a `<template>` element.
+  fn pub inline mut template -> RegularElement {
+    element('template')
+  }
+
+  # Returns `RegularElement` value for generating a `<textarea>` element.
+  fn pub inline mut textarea -> RegularElement {
+    element('textarea')
+  }
+
+  # Returns `RegularElement` value for generating a `<tfoot>` element.
+  fn pub inline mut tfoot -> RegularElement {
+    element('tfoot')
+  }
+
+  # Returns `RegularElement` value for generating a `<th>` element.
+  fn pub inline mut th -> RegularElement {
+    element('th')
+  }
+
+  # Returns `RegularElement` value for generating a `<thead>` element.
+  fn pub inline mut thead -> RegularElement {
+    element('thead')
+  }
+
+  # Returns `RegularElement` value for generating a `<time>` element.
+  fn pub inline mut time -> RegularElement {
+    element('time')
+  }
+
+  # Returns `RegularElement` value for generating a `<title>` element.
+  fn pub inline mut title -> RegularElement {
+    element('title')
+  }
+
+  # Returns `RegularElement` value for generating a `<tr>` element.
+  fn pub inline mut tr -> RegularElement {
+    element('tr')
+  }
+
+  # Returns `RegularElement` value for generating a `<u>` element.
+  fn pub inline mut u -> RegularElement {
+    element('u')
+  }
+
+  # Returns `RegularElement` value for generating a `<ul>` element.
+  fn pub inline mut ul -> RegularElement {
+    element('ul')
+  }
+
+  # Returns `RegularElement` value for generating a `<var>` element.
+  fn pub inline mut var -> RegularElement {
+    element('var')
+  }
+
+  # Returns `RegularElement` value for generating a `<video>` element.
+  fn pub inline mut video -> RegularElement {
+    element('video')
+  }
+
+  # Returns a `VoidElement` for generating a `<area>` element.
+  fn pub inline mut area -> VoidElement {
+    void_element('area')
+  }
+
+  # Returns a `VoidElement` for generating a `<base>` element.
+  fn pub inline mut base -> VoidElement {
+    void_element('base')
+  }
+
+  # Returns a `VoidElement` for generating a `<br>` element.
+  fn pub inline mut br -> VoidElement {
+    void_element('br')
+  }
+
+  # Returns a `VoidElement` for generating a `<col>` element.
+  fn pub inline mut col -> VoidElement {
+    void_element('col')
+  }
+
+  # Returns a `VoidElement` for generating a `<embed>` element.
+  fn pub inline mut embed -> VoidElement {
+    void_element('embed')
+  }
+
+  # Returns a `VoidElement` for generating a `<hr>` element.
+  fn pub inline mut hr -> VoidElement {
+    void_element('hr')
+  }
+
+  # Returns a `VoidElement` for generating a `<img>` element.
+  fn pub inline mut img -> VoidElement {
+    void_element('img')
+  }
+
+  # Returns a `VoidElement` for generating a `<input>` element.
+  fn pub inline mut input -> VoidElement {
+    void_element('input')
+  }
+
+  # Returns a `VoidElement` for generating a `<link>` element.
+  fn pub inline mut link -> VoidElement {
+    void_element('link')
+  }
+
+  # Returns a `VoidElement` for generating a `<meta>` element.
+  fn pub inline mut meta -> VoidElement {
+    void_element('meta')
+  }
+
+  # Returns a `VoidElement` for generating a `<source>` element.
+  fn pub inline mut source -> VoidElement {
+    void_element('source')
+  }
+
+  # Returns a `VoidElement` for generating a `<track>` element.
+  fn pub inline mut track -> VoidElement {
+    void_element('track')
+  }
+
+  # Returns a `VoidElement` for generating a `<wbr>` element.
+  fn pub inline mut wbr -> VoidElement {
+    void_element('wbr')
+  }
+
+  # Appends a comment to the buffer.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.html (Html)
+  #
+  # let doc = Html.new
+  #
+  # doc.comment('hello')
+  # doc.to_string # => '<!-- hello -->'
+  # ```
+  fn pub inline mut comment(value: String) {
+    add('<!-- ')
+    add(value)
+    add(' -->')
+  }
+
+  # Appends a CDATA section to the buffer.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.html (Html)
+  #
+  # let doc = Html.new
+  #
+  # doc.cdata('hello')
+  # doc.to_string # => '<![CDATA[hello]]>'
+  # ```
+  fn pub inline mut cdata(value: String) {
+    add('<![CDATA[')
+    add(value)
+    add(']]>')
+  }
+
+  # Adds the data of the given `Html` value to `self`, draining it in the
+  # process.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.html (Html)
+  #
+  # let a = Html.new
+  # let b = Html.new
+  #
+  # a.p.text('hello')
+  # b.p.text('world')
+  # a.append(b)
+  # a.to_string # => '<p>hello</p><p>world</p>'
+  # ```
+  fn pub inline mut append(other: mut Self) {
+    @buffer.append(other.buffer)
+    other.clear
+  }
+
+  # Add the value as-is to the buffer.
+  #
+  # This can be used to add existing HTML as-is (= without escaping) to the
+  # buffer.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.html (Html)
+  #
+  # let doc = Html.new
+  #
+  # doc.add('<p>hello</p>')
+  # doc.to_string # => '<p>hello</p>'
+  # ```
+  fn pub inline mut add[B: Bytes](value: ref B) {
+    # We expect frequent writes of different sizes, so we want to grow _more_
+    # than we may strictly need for this write.
+    @buffer.reserve(value.size)
+    @buffer.append(value)
+  }
+
+  # Escapes the text (if necessary) and appends it to the buffer.
+  #
+  # The value to append can be a `String`, `ByteArray`, or a `std.bytes.Slice`.
+  #
+  # The following characters are escaped using HTML entities:
+  #
+  # - `&`
+  # - `<`
+  #
+  # Other characters such as `"` and `>` are left as-is as these don't need be
+  # escaped in HTML.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.html (Html)
+  #
+  # let doc = Html.new
+  #
+  # doc.text('hello & world')
+  # doc.to_string # => 'hello &amp; world'
+  # ```
+  fn pub mut text[B: Bytes, T: ToSlice[B]](value: ref T) {
+    let value = value.to_slice
+    let mut idx = 0
+    let mut start = 0
+    let len = value.size
+
+    @buffer.reserve(len)
+
+    while idx < len {
+      let replace = match value.get(idx).or_panic {
+        case AMP -> '&amp;'
+        case LT -> '&lt;'
+        case _ -> {
+          idx += 1
+          next
+        }
+      }
+
+      add(value.slice(start, idx))
+      add(replace)
+      idx += 1
+      start = idx
+    }
+
+    if idx > start { add(value.slice(start, idx)) }
+  }
+
+  fn mut inner_text[B: Bytes, T: ToSlice[B]](name: String, value: ref T) {
+    add('>')
+    text(value)
+    closing_tag(name)
+  }
+
+  fn mut attr(name: String, value: String) {
+    add(name)
+
+    if value.empty? { return }
+
+    let mut idx = 0
+    let mut start = 0
+    let len = value.size
+
+    add('="')
+
+    while idx < len {
+      let replace = match value.get(idx).or_panic {
+        case DQUOTE -> '&quot;'
+        case _ -> {
+          idx += 1
+          next
+        }
+      }
+
+      add(value.slice(start, idx))
+      add(replace)
+      idx += 1
+      start = idx
+    }
+
+    if idx > start { add(value.slice(start, idx)) }
+
+    add('"')
+  }
+
+  fn inline mut enter(name: String, body: fn (mut Html)) {
+    add('>')
+    body.call(self)
+    closing_tag(name)
+  }
+
+  fn inline mut closing_tag(name: String) {
+    @buffer.reserve(name.size + 3)
+    add('</')
+    add(name)
+    add('>')
+  }
+}
+
+impl ToByteArray for Html {
+  fn pub to_byte_array -> ByteArray {
+    @buffer.clone
+  }
+}
+
+impl IntoByteArray for Html {
+  fn pub move into_byte_array -> ByteArray {
+    @buffer
+  }
+}
+
+impl ToString for Html {
+  fn pub to_string -> String {
+    @buffer.to_string
+  }
+}
+
+impl IntoString for Html {
+  fn pub move into_string -> String {
+    @buffer.into_string
+  }
+}
+
+trait Element {
+  fn mut html -> mut Html
+
+  # Adds the closing tag for `self` and consumes it.
+  #
+  # This method should be called when a `RegularElement` or `VoidElement` is
+  # created and other moving methods such as `RegularElement.text` aren't used.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.html (Html)
+  #
+  # let doc = Html.empty
+  #
+  # doc.link.close
+  # doc.to_string # => '<link>'
+  # ```
+  fn pub move close
+
+  # Adds the `class` global attribute to `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.html (Html)
+  #
+  # let doc = Html.empty
+  #
+  # doc.p.class('example').close
+  # doc.to_string # => '<p class="example"></p>'
+  # ```
+  fn pub inline move class(value: String) -> Self {
+    attr('class', value)
+  }
+
+  # Adds the `id` global attribute to `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.html (Html)
+  #
+  # let doc = Html.empty
+  #
+  # doc.p.id('example').close
+  # doc.to_string # => '<p id="example"></p>'
+  # ```
+  fn pub inline move id(value: String) -> Self {
+    attr('id', value)
+  }
+
+  # Adds the `lang` global attribute to `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.html (Html)
+  #
+  # let doc = Html.empty
+  #
+  # doc.p.lang('example').close
+  # doc.to_string # => '<p lang="example"></p>'
+  # ```
+  fn pub inline move lang(value: String) -> Self {
+    attr('lang', value)
+  }
+
+  # Adds the `title` global attribute to `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.html (Html)
+  #
+  # let doc = Html.empty
+  #
+  # doc.p.title('example').close
+  # doc.to_string # => '<p title="example"></p>'
+  # ```
+  fn pub inline move title(value: String) -> Self {
+    attr('title', value)
+  }
+
+  # Adds a data attribute to `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.html (Html)
+  #
+  # let doc = Html.empty
+  #
+  # doc.p.data('key', 'value').close
+  # doc.to_string # => '<p data-key="value"></p>'
+  # ```
+  fn pub inline move data(name: String, value: String) -> Self {
+    html.add(' data-')
+    html.attr(name, value)
+    self
+  }
+
+  # Adds an attribute to `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.html (Html)
+  #
+  # let doc = Html.empty
+  #
+  # doc.p.attr('key', 'value').close
+  # doc.to_string # => '<p key="value"></p>'
+  # ```
+  fn pub inline move attr(name: String, value: String) -> Self {
+    html.add(' ')
+    html.attr(name, value)
+    self
+  }
+
+  # Adds a boolean attribute to `self`.
+  #
+  # If `value` is `true` then the attribute is added, otherwise it's ignored.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.html (Html)
+  #
+  # let doc = Html.empty
+  #
+  # doc.input.attr('type', 'checkbox').bool('checked', true).close
+  # doc.to_string # => '<input type="checkbox" checked>'
+  # ```
+  fn pub inline move bool(name: String, value: Bool) -> Self {
+    if value { attr(name, '') } else { self }
+  }
+}
+
+# A regular HTML element (e.g. the `<p>` element).
+type pub inline RegularElement {
+  let @html: mut Html
+  let @name: String
+  let mut @open: Bool
+
+  fn inline static new(html: mut Html, name: String) -> Self {
+    html.add('<')
+    html.add(name)
+    Self(open: true, html: html, name: name)
+  }
+
+  # Sets the contents of `self` to the given literal value, then closes
+  # `self`.
+  #
+  # Unlike `RegularElement.text` the given value is _not_ escaped.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.html (Html)
+  #
+  # let doc = Html.empty
+  #
+  # doc.p.value('hello & world')
+  # doc.to_string # => '<p>hello & world</p>'
+  # ```
+  fn pub inline move value[B: Bytes](value: ref B) {
+    @open = false
+    @html.add('>')
+    @html.add(value)
+    @html.closing_tag(@name)
+  }
+
+  # Sets the contents of `self` to the given text, then closes `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.html (Html)
+  #
+  # let doc = Html.empty
+  #
+  # doc.p.text('hello & world')
+  # doc.to_string # => '<p>hello &amp; world</p>'
+  # ```
+  fn pub inline move text[B: Bytes, T: ToSlice[B]](value: ref T) {
+    @open = false
+    @html.inner_text(@name, value)
+  }
+
+  # Closes the opening tag of `self`, calls the supplied closure then closes
+  # `self`.
+  #
+  # This method may be used to "enter" or "descend" into an element.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.html (Html)
+  #
+  # let doc = Html.empty
+  #
+  # doc.p.then(fn (p) { p.strong.text('hello') })
+  # doc.to_string # => '<p><strong>hello</strong></p>'
+  # ```
+  fn pub inline move then(body: fn (mut Html)) {
+    @open = false
+    @html.enter(@name, body)
+  }
+
+  fn mut add_closing_tag {
+    @html.add('>')
+    @html.closing_tag(@name)
+  }
+}
+
+impl Element for RegularElement {
+  fn mut html -> mut Html {
+    @html
+  }
+
+  fn pub inline move close {
+    @open = false
+    add_closing_tag
+  }
+}
+
+impl Drop for RegularElement {
+  fn mut drop {
+    if @open { add_closing_tag }
+  }
+}
+
+# An element without an explicit closing tag, such as the `<link>` element.
+type pub inline VoidElement {
+  let @html: mut Html
+  let @name: String
+  let mut @open: Bool
+
+  fn inline static new(html: mut Html, name: String) -> Self {
+    html.add('<')
+    html.add(name)
+    Self(open: true, html: html, name: name)
+  }
+}
+
+impl Element for VoidElement {
+  fn mut html -> mut Html {
+    @html
+  }
+
+  fn pub inline move close {
+    @open = false
+    @html.add('>')
+  }
+}
+
+impl Drop for VoidElement {
+  fn mut drop {
+    if @open { @html.add('>') }
+  }
+}
