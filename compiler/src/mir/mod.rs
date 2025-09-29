@@ -1935,15 +1935,14 @@ impl Method {
             }
         }
 
-        for index in 0..self.body.blocks.len() {
-            if reachable[index] {
-                continue;
+        let mut shift = reachable.iter().filter(|v| !**v).count();
+
+        for index in (0..self.body.blocks.len()).rev() {
+            if !reachable[index] {
+                shift -= 1;
             }
 
-            // The blocks _after_ the current one must be shifted to the left.
-            for incr in (index + 1)..shift_map.len() {
-                shift_map[incr] += 1;
-            }
+            shift_map[index] += shift;
         }
 
         let num_reachable = reachable.iter().filter(|&&v| v).count();
