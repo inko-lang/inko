@@ -1,16 +1,22 @@
 //! Pretty-printing of MIR for debugging purposes.
 use crate::mir::inline::method_weight;
 use crate::mir::{BlockId, Method};
+use crate::symbol_names::SymbolNames;
+use std::collections::{HashSet, VecDeque};
 use std::fmt::Write;
-use types::{Database, MethodId, TypeEnum};
+use types::Database;
 
-fn method_name(db: &Database, id: MethodId) -> String {
-    format!("{}#{}", id.name(db), id.0,)
+fn html_escape(value: &str) -> String {
+    value.replace('&', "&amp;").replace('>', "&gt;").replace('<', "&lt;")
 }
 
 /// Returns a String containing Dot/graphviz code for visualising the MIR of one
 /// or more methods.
-pub(crate) fn to_dot(db: &Database, methods: &[&Method]) -> String {
+pub(crate) fn to_dot(
+    db: &Database,
+    names: &SymbolNames,
+    methods: &[&Method],
+) -> String {
     let mut buffer = String::new();
 
     buffer.push_str("digraph MIR {\n");
@@ -22,20 +28,7 @@ pub(crate) fn to_dot(db: &Database, methods: &[&Method]) -> String {
         buffer.push_str("node[fontname=\"monospace\", fontsize=10];\n");
         buffer.push_str("edge[fontname=\"monospace\", fontsize=10];\n");
 
-        let rec_name = match method.id.receiver_id(db) {
-            TypeEnum::Type(id) => id.name(db).clone(),
-            TypeEnum::Trait(id) => id.name(db).clone(),
-            TypeEnum::TypeInstance(ins) => ins.instance_of().name(db).clone(),
-            TypeEnum::TraitInstance(ins) => ins.instance_of().name(db).clone(),
-            _ => String::new(),
-        };
-
-        let name = if rec_name.is_empty() {
-            format!("{}()", method_name(db, method.id),)
-        } else {
-            format!("{}.{}()", rec_name, method_name(db, method.id),)
-        };
-
+        let name = html_escape(&names.methods[&method.id]);
         let _ = writeln!(
             buffer,
             "label=\"{}\nroot = b{}, inline weight = {}\";",
@@ -90,10 +83,7 @@ pub(crate) fn to_dot(db: &Database, methods: &[&Method]) -> String {
                 let _ = write!(
                     buffer,
                     "<tr><td>{}</td><td>{}</td></tr>",
-                    ins.format(db)
-                        .replace('&', "&amp;")
-                        .replace('>', "&gt;")
-                        .replace('<', "&lt;"),
+                    html_escape(&ins.format(db, names)),
                     ins.location().line,
                 );
             }
@@ -115,5 +105,79 @@ pub(crate) fn to_dot(db: &Database, methods: &[&Method]) -> String {
     }
 
     buffer.push_str("}\n");
+    buffer
+}
+
+pub(crate) fn to_text(
+    db: &Database,
+    names: &SymbolNames,
+    methods: &[&Method],
+) -> String {
+    let mut buffer = String::new();
+
+    for method in methods {
+        let reachable_blocks = method.body.reachable();
+        let mut num_blk = 0;
+        let mut num_ins = 0;
+
+        for (idx, blk) in method.body.blocks.iter().enumerate() {
+            if !reachable_blocks.contains(&BlockId(idx)) {
+                continue;
+            }
+
+            num_blk += 1;
+            num_ins += blk.instructions.len();
+        }
+
+        let name = &names.methods[&method.id];
+        let start = BlockId(method.body.start_id.0);
+        let _ = writeln!(
+            buffer,
+            "\
+--------------------------------------------------------------------------------
+{}
+ID = {}, line = {}
+start = b{}, blocks = {}, instructions = {}, inline weight = {}
+--------------------------------------------------------------------------------",
+            name,
+            method.id.0,
+            method.id.location(db).line_start,
+            start.0,
+            num_blk,
+            num_ins,
+            method_weight(db, method),
+        );
+
+        let mut visit = VecDeque::new();
+        let mut visited = HashSet::new();
+
+        visit.push_back(start);
+        visited.insert(start);
+
+        while let Some(id) = visit.pop_front() {
+            if !reachable_blocks.contains(&id) {
+                continue;
+            }
+
+            let blk = &method.body.block(id);
+            let _ = writeln!(buffer, "b{}:", id.0);
+
+            for ins in &blk.instructions {
+                let _ = writeln!(buffer, "  {}", ins.format(db, names));
+            }
+
+            for &id in &blk.successors {
+                if visited.contains(&id) {
+                    continue;
+                }
+
+                visit.push_back(id);
+                visited.insert(id);
+            }
+        }
+
+        buffer.push('\n');
+    }
+
     buffer
 }

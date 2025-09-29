@@ -26,12 +26,13 @@ use types::{
 /// The register ID of the register that stores `self`.
 pub(crate) const SELF_ID: usize = 0;
 
-fn method_name(db: &Database, id: MethodId) -> String {
-    format!("{}#{}", id.name(db), id.0,)
-}
-
-fn join(values: &[RegisterId]) -> String {
-    values.iter().map(|v| format!("r{}", v.0)).collect::<Vec<_>>().join(", ")
+fn join(initial: Option<RegisterId>, values: &[RegisterId]) -> String {
+    initial
+        .iter()
+        .chain(values)
+        .map(|v| format!("r{}", v.0))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 #[derive(Clone)]
@@ -1394,7 +1395,7 @@ impl Instruction {
         }
     }
 
-    fn format(&self, db: &types::Database) -> String {
+    fn format(&self, db: &types::Database, names: &SymbolNames) -> String {
         match self {
             Instruction::Branch(ref v) => {
                 format!(
@@ -1406,7 +1407,6 @@ impl Instruction {
                 let blocks = v
                     .blocks
                     .iter()
-                    .enumerate()
                     .map(|(idx, block)| format!("{} = b{}", idx, block.0))
                     .collect::<Vec<_>>()
                     .join(", ");
@@ -1450,12 +1450,7 @@ impl Instruction {
                 format!("drop r{}", v.register.0)
             }
             Instruction::Free(ref v) => {
-                format!(
-                    "free r{} {}#{}",
-                    v.register.0,
-                    v.type_id.name(db),
-                    v.type_id.0
-                )
+                format!("free r{}", v.register.0,)
             }
             Instruction::CheckRefs(ref v) => {
                 format!("check_refs r{}", v.register.0)
@@ -1478,17 +1473,16 @@ impl Instruction {
                 format!(
                     "r{} = call_static {}({})",
                     v.register.0,
-                    method_name(db, v.method),
-                    join(&v.arguments),
+                    names.methods[&v.method],
+                    join(None, &v.arguments),
                 )
             }
             Instruction::CallInstance(ref v) => {
                 format!(
-                    "r{} = call_instance r{}.{}({})",
+                    "r{} = call_instance {}({})",
                     v.register.0,
-                    v.receiver.0,
-                    method_name(db, v.method),
-                    join(&v.arguments),
+                    names.methods[&v.method],
+                    join(Some(v.receiver), &v.arguments),
                 )
             }
             Instruction::CallExtern(ref v) => {
@@ -1496,16 +1490,16 @@ impl Instruction {
                     "r{} = call_extern {}({})",
                     v.register.0,
                     v.method.name(db),
-                    join(&v.arguments)
+                    join(None, &v.arguments)
                 )
             }
             Instruction::CallDynamic(ref v) => {
                 format!(
-                    "r{} = call_dynamic r{}.{}({})",
+                    "r{} = call_dynamic {}#{}({})",
                     v.register.0,
-                    v.receiver.0,
-                    method_name(db, v.method),
-                    join(&v.arguments),
+                    v.method.name(db),
+                    v.method.0,
+                    join(Some(v.receiver), &v.arguments),
                 )
             }
             Instruction::CallClosure(ref v) => {
@@ -1513,7 +1507,7 @@ impl Instruction {
                     "r{} = call_closure r{}({})",
                     v.register.0,
                     v.receiver.0,
-                    join(&v.arguments)
+                    join(None, &v.arguments)
                 )
             }
             Instruction::CallDropper(ref v) => {
@@ -1524,15 +1518,14 @@ impl Instruction {
                     "r{} = call_builtin {}({})",
                     v.register.0,
                     v.name.name(),
-                    join(&v.arguments)
+                    join(None, &v.arguments)
                 )
             }
             Instruction::Send(ref v) => {
                 format!(
-                    "send r{}.{}({})",
-                    v.receiver.0,
-                    method_name(db, v.method),
-                    join(&v.arguments),
+                    "send {}({})",
+                    names.methods[&v.method],
+                    join(Some(v.receiver), &v.arguments),
                 )
             }
             Instruction::GetField(ref v) => {
@@ -1604,8 +1597,7 @@ impl Instruction {
             Instruction::MethodPointer(v) => {
                 format!(
                     "r{} = method_pointer {}",
-                    v.register.0,
-                    method_name(db, v.method)
+                    v.register.0, names.methods[&v.method],
                 )
             }
             Instruction::SizeOf(v) => {

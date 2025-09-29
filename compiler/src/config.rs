@@ -77,6 +77,9 @@ pub(crate) struct BuildDirectories {
     /// The directory to write DOT files to.
     pub(crate) dot: PathBuf,
 
+    /// The directory to write MIR files to.
+    pub(crate) mir: PathBuf,
+
     /// The directory to store documentation files in.
     pub(crate) documentation: PathBuf,
 }
@@ -93,13 +96,22 @@ impl BuildDirectories {
         let objects = build.join("objects");
         let llvm_ir = build.join("llvm");
         let dot = build.join("dot");
+        let mir = build.join("mir");
         let bin = build.clone();
 
         // The documentation isn't specific to the optimization level used, so
         // we always store it in the base build directory.
         let documentation = root.join("docs");
 
-        BuildDirectories { build, objects, llvm_ir, bin, dot, documentation }
+        BuildDirectories {
+            build,
+            objects,
+            llvm_ir,
+            bin,
+            dot,
+            mir,
+            documentation,
+        }
     }
 
     pub(crate) fn create(&self) -> Result<(), String> {
@@ -224,7 +236,10 @@ pub struct Config {
     pub(crate) target: Target,
 
     /// If MIR should be printed to DOT files.
-    pub dot: bool,
+    pub write_dot: bool,
+
+    /// If MIR should be printed to text files.
+    pub write_mir: bool,
 
     /// If IRs should be verified at various stages.
     pub verify: bool,
@@ -280,7 +295,8 @@ impl Config {
             init_module: ModuleName::std_init(),
             target: Target::native(),
             opt: Opt::Debug,
-            dot: false,
+            write_dot: false,
+            write_mir: false,
             verify: false,
             write_llvm: false,
             static_linking: false,

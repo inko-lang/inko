@@ -8,7 +8,7 @@ use crate::linker::link;
 use crate::llvm;
 use crate::mir::inline::InlineMethod;
 use crate::mir::passes as mir;
-use crate::mir::printer::to_dot;
+use crate::mir::printer;
 use crate::mir::specialize::Specialize;
 use crate::mir::Mir;
 use crate::modules_parser::{ModulesParser, ParsedModule};
@@ -309,8 +309,12 @@ impl Compiler {
 
         dirs.create().map_err(CompileError::Internal)?;
 
-        if self.state.config.dot {
-            self.write_dot(&dirs, &mir)?;
+        if self.state.config.write_dot {
+            self.write_dot(&dirs, &symbols, &mir)?;
+        }
+
+        if self.state.config.write_mir {
+            self.write_mir(&dirs, &symbols, &mir)?;
         }
 
         let res = self.compile_machine_code(&dirs, mir, &symbols, file);
@@ -583,6 +587,7 @@ LLVM module timings:
     fn write_dot(
         &self,
         directories: &BuildDirectories,
+        symbols: &SymbolNames,
         mir: &Mir,
     ) -> Result<(), CompileError> {
         directories.create_dot().map_err(CompileError::Internal)?;
@@ -598,7 +603,7 @@ LLVM module timings:
                 .map(|m| mir.methods.get(m).unwrap())
                 .collect();
 
-            let dot = to_dot(&self.state.db, &methods);
+            let dot = printer::to_dot(&self.state.db, symbols, &methods);
             let name = module.id.name(&self.state.db);
             let mut path = directories.dot.join(module_debug_path(name));
 
@@ -611,6 +616,49 @@ LLVM module timings:
             };
 
             res.and_then(|_| write(&path, dot)).map_err(|err| {
+                CompileError::Internal(format!(
+                    "failed to write to {}: {}",
+                    path.display(),
+                    err
+                ))
+            })?;
+        }
+
+        Ok(())
+    }
+
+    fn write_mir(
+        &self,
+        directories: &BuildDirectories,
+        symbols: &SymbolNames,
+        mir: &Mir,
+    ) -> Result<(), CompileError> {
+        directories.create_dot().map_err(CompileError::Internal)?;
+
+        for module in mir.modules.values() {
+            if module.methods.is_empty() {
+                continue;
+            }
+
+            let methods: Vec<_> = module
+                .methods
+                .iter()
+                .map(|m| mir.methods.get(m).unwrap())
+                .collect();
+
+            let txt = printer::to_text(&self.state.db, symbols, &methods);
+            let name = module.id.name(&self.state.db);
+            let mut path = directories.mir.join(module_debug_path(name));
+
+            path.set_extension("txt");
+
+            let res = if let Some(dir) = path.parent() {
+                create_dir_all(dir)
+            } else {
+                Ok(())
+            };
+
+            res.and_then(|_| write(&path, txt)).map_err(|err| {
                 CompileError::Internal(format!(
                     "failed to write to {}: {}",
                     path.display(),
