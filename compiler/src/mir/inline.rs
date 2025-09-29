@@ -44,15 +44,17 @@ fn instruction_weight(db: &Database, instruction: &Instruction) -> u16 {
         Instruction::CallClosure(_) => 1,
         Instruction::CallDropper(_) => 1,
 
-        // These instructions introduce one or more branches, though the
-        // instructions themselves are pretty small.
-        Instruction::CheckRefs(_) => 1,
-        Instruction::DecrementAtomic(_) => 1,
-        Instruction::Switch(_) => 1,
-
         // Branches may introduce many basic blocks and code, especially when
         // used for nested if-else trees (such as when matching against an
-        // integer). As such, we give it a greater weight than Switch.
+        // integer).
+        Instruction::CheckRefs(_) => 2,
+        Instruction::DecrementAtomic(_) => 2,
+        Instruction::Switch(ins) => {
+            // Large switch instructions can greatly increase LLVM compile
+            // times, so we try to keep this under control by _not_ inlining
+            // switch instructions with many branches.
+            ins.blocks.len() as u16
+        }
         Instruction::Branch(_) => 2,
 
         // These instructions translate into a bit more code (potentially), such
