@@ -359,7 +359,8 @@ struct DecisionState {
     child_registers: HashMap<RegisterId, Vec<RegisterId>>,
 
     /// The basic blocks for every case body, and the code to compile for them.
-    bodies: HashMap<BlockId, (Vec<hir::Expression>, Vec<RegisterId>, Location)>,
+    bodies:
+        IndexMap<BlockId, (Vec<hir::Expression>, Vec<RegisterId>, Location)>,
 
     /// The location of the `match` expression.
     location: InstructionLocation,
@@ -382,7 +383,7 @@ impl DecisionState {
             drop_with_zero_size: HashMap::new(),
             child_registers: HashMap::new(),
             actions: HashMap::new(),
-            bodies: HashMap::new(),
+            bodies: IndexMap::new(),
             location,
             write_result,
         }
@@ -3149,7 +3150,7 @@ impl<'a> LowerMethod<'a> {
         // ...`), multiple nodes may jump to the body of this case. This check
         // ensures we only compile the code for the block once.
         let (exprs, mut var_regs, body_loc) =
-            if let Some(val) = state.bodies.remove(&start_block) {
+            if let Some(val) = state.bodies.shift_remove(&start_block) {
                 val
             } else {
                 // Don't forget to exit the scope here, since we entered a new

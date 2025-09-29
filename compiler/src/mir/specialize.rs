@@ -5,7 +5,7 @@ use crate::mir::{
 };
 use crate::state::State;
 use indexmap::{IndexMap, IndexSet};
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashSet, VecDeque};
 use std::mem::swap;
 use types::format::format_type;
 use types::specialize::{Closures, TypeSpecializer};
@@ -117,13 +117,13 @@ impl DynamicCall {
 
 /// Info needed to specialize the potential targets of dynamic dispatch calls.
 struct Dynamic {
-    casts: HashMap<TraitId, IndexSet<TypeInstance>>,
-    calls: HashMap<TraitId, IndexSet<DynamicCall>>,
+    casts: IndexMap<TraitId, IndexSet<TypeInstance>>,
+    calls: IndexMap<TraitId, IndexSet<DynamicCall>>,
 }
 
 impl Dynamic {
     fn new() -> Self {
-        Self { casts: HashMap::new(), calls: HashMap::new() }
+        Self { casts: IndexMap::new(), calls: IndexMap::new() }
     }
 
     fn add_cast(&mut self, trait_id: TraitId, instance: TypeInstance) -> bool {

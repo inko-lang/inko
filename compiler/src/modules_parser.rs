@@ -3,8 +3,9 @@ use crate::diagnostics::DiagnosticId;
 use crate::state::{BuildTags, State};
 use ast::nodes::{Module, Node, TopLevelExpression};
 use ast::parser::Parser;
+use indexmap::IndexMap;
 use location::Location;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fs::read;
 use std::path::PathBuf;
 use types::module_name::ModuleName;
@@ -77,7 +78,7 @@ impl<'a> ModulesParser<'a> {
         initial: Vec<(ModuleName, PathBuf)>,
     ) -> Vec<ParsedModule> {
         let mut scheduled = HashSet::new();
-        let mut modules = HashMap::new();
+        let mut modules = IndexMap::new();
         let mut pending = initial;
 
         for (_, path) in &pending {

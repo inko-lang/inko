@@ -57,12 +57,12 @@ struct Pattern<'a> {
     variable_scope: &'a mut VariableScope,
 
     /// The variables introduced by this pattern.
-    variables: HashMap<String, VariableId>,
+    variables: IndexMap<String, VariableId>,
 }
 
 impl<'a> Pattern<'a> {
     fn new(variable_scope: &'a mut VariableScope) -> Self {
-        Self { variable_scope, variables: HashMap::new() }
+        Self { variable_scope, variables: IndexMap::new() }
     }
 }
 

@@ -1632,8 +1632,8 @@ pub struct Type {
     visibility: Visibility,
     fields: IndexMap<String, FieldId>,
     type_parameters: IndexMap<String, TypeParameterId>,
-    methods: HashMap<String, MethodId>,
-    implemented_traits: HashMap<TraitId, TraitImplementation>,
+    methods: IndexMap<String, MethodId>,
+    implemented_traits: IndexMap<TraitId, TraitImplementation>,
     constructors: IndexMap<String, ConstructorId>,
 
     /// The specializations of this type.
@@ -1697,8 +1697,8 @@ impl Type {
             destructor: false,
             fields: IndexMap::new(),
             type_parameters: IndexMap::new(),
-            methods: HashMap::new(),
-            implemented_traits: HashMap::new(),
+            methods: IndexMap::new(),
+            implemented_traits: IndexMap::new(),
             constructors: IndexMap::new(),
             module,
             location,
@@ -2879,13 +2879,13 @@ pub struct Method {
     receiver: TypeRef,
 
     /// The fields this method has access to, along with their types.
-    field_types: HashMap<String, (FieldId, TypeRef)>,
+    field_types: IndexMap<String, (FieldId, TypeRef)>,
 
     /// The specializations of this method, if the method itself is generic.
     ///
     /// Each key is the combination of the receiver and method shapes, in the
     /// same order as their type parameters.
-    specializations: HashMap<Vec<TypeRef>, MethodId>,
+    specializations: IndexMap<Vec<TypeRef>, MethodId>,
 
     /// The arguments of this method's type parameters, if any.
     ///
@@ -2934,10 +2934,10 @@ impl Method {
             return_type: TypeRef::Unknown,
             source: MethodSource::Direct,
             receiver: TypeRef::Unknown,
-            field_types: HashMap::new(),
+            field_types: IndexMap::new(),
             main: false,
             variadic: false,
-            specializations: HashMap::new(),
+            specializations: IndexMap::new(),
             type_arguments: Vec::new(),
             inline,
         };
@@ -3681,10 +3681,10 @@ pub struct Module {
     constants: Vec<ConstantId>,
 
     /// The symbols defined and imported into this module.
-    symbols: HashMap<String, ModuleSymbol>,
+    symbols: IndexMap<String, ModuleSymbol>,
 
     /// The external methods defined in this module.
-    extern_methods: HashMap<String, MethodId>,
+    extern_methods: IndexMap<String, MethodId>,
 }
 
 impl Module {
@@ -3713,8 +3713,8 @@ impl Module {
             type_id: tid,
             file,
             constants: Vec::new(),
-            symbols: HashMap::default(),
-            extern_methods: HashMap::new(),
+            symbols: IndexMap::new(),
+            extern_methods: IndexMap::new(),
         });
         id
     }
@@ -3862,7 +3862,7 @@ impl ModuleId {
         self.get(db).extern_methods.get(name).cloned()
     }
 
-    pub fn extern_methods(self, db: &Database) -> &HashMap<String, MethodId> {
+    pub fn extern_methods(self, db: &Database) -> &IndexMap<String, MethodId> {
         &self.get(db).extern_methods
     }
 
