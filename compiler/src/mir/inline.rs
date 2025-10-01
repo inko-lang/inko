@@ -183,11 +183,7 @@ impl CallSite {
         for blk_idx in blk_start..caller.body.blocks.len() {
             let block = &mut caller.body.blocks[blk_idx];
 
-            for id in
-                block.predecessors.iter_mut().chain(block.successors.iter_mut())
-            {
-                *id += blk_start;
-            }
+            block.map_edges(|id| id + blk_start);
 
             let mut add_goto = None;
 

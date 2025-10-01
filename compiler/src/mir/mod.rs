@@ -11,7 +11,7 @@ pub(crate) mod specialize;
 use crate::symbol_names::SymbolNames;
 use indexmap::{IndexMap, IndexSet};
 use location::Location;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::mem::swap;
@@ -121,23 +121,23 @@ impl Graph {
         let target_block = &mut self.blocks[target.0];
 
         target_block.predecessors.reserve_exact(1);
-        target_block.predecessors.push(source);
+        target_block.predecessors.insert(source);
 
         let source_block = &mut self.blocks[source.0];
 
         source_block.successors.reserve_exact(1);
-        source_block.successors.push(target);
+        source_block.successors.insert(target);
     }
 
     pub(crate) fn is_connected(&self, block: BlockId) -> bool {
         block == self.start_id || !self.blocks[block.0].predecessors.is_empty()
     }
 
-    pub(crate) fn predecessors(&self, block: BlockId) -> Vec<BlockId> {
+    pub(crate) fn predecessors(&self, block: BlockId) -> IndexSet<BlockId> {
         self.blocks[block.0].predecessors.clone()
     }
 
-    pub(crate) fn successors(&self, block: BlockId) -> Vec<BlockId> {
+    pub(crate) fn successors(&self, block: BlockId) -> IndexSet<BlockId> {
         self.blocks[block.0].successors.clone()
     }
 
@@ -167,6 +167,28 @@ impl Graph {
     pub(crate) fn merge(&mut self, mut other: Graph) {
         self.blocks.reserve_exact(other.blocks.len());
         self.blocks.append(&mut other.blocks);
+    }
+
+    pub(crate) fn each_block_in_order<F: FnMut(BlockId)>(&self, mut func: F) {
+        let mut visit = VecDeque::new();
+        let mut visited = HashSet::new();
+        let start = self.start_id;
+
+        visit.push_back(start);
+        visited.insert(start);
+
+        while let Some(id) = visit.pop_front() {
+            func(id);
+
+            for &id in &self.block(id).successors {
+                if visited.contains(&id) {
+                    continue;
+                }
+
+                visit.push_back(id);
+                visited.insert(id);
+            }
+        }
     }
 }
 
@@ -209,26 +231,43 @@ pub(crate) struct Block {
     pub(crate) instructions: Vec<Instruction>,
 
     /// All the successors of this block.
-    pub(crate) successors: Vec<BlockId>,
+    pub(crate) successors: IndexSet<BlockId>,
 
     /// All the predecessors of this block.
-    pub(crate) predecessors: Vec<BlockId>,
+    pub(crate) predecessors: IndexSet<BlockId>,
 }
 
 impl Block {
     pub(crate) fn new() -> Self {
         Self {
             instructions: Vec::new(),
-            successors: Vec::new(),
-            predecessors: Vec::new(),
+            successors: IndexSet::new(),
+            predecessors: IndexSet::new(),
         }
     }
 
-    pub(crate) fn take_successors(&mut self) -> Vec<BlockId> {
-        let mut succ = Vec::new();
+    pub(crate) fn map_edges<F: Fn(BlockId) -> BlockId>(&mut self, func: F) {
+        for id in self.take_successors() {
+            self.successors.insert(func(id));
+        }
 
-        swap(&mut succ, &mut self.successors);
-        succ
+        for id in self.take_predecessors() {
+            self.predecessors.insert(func(id));
+        }
+    }
+
+    pub(crate) fn take_successors(&mut self) -> IndexSet<BlockId> {
+        let mut vals = IndexSet::new();
+
+        swap(&mut vals, &mut self.successors);
+        vals
+    }
+
+    pub(crate) fn take_predecessors(&mut self) -> IndexSet<BlockId> {
+        let mut vals = IndexSet::new();
+
+        swap(&mut vals, &mut self.predecessors);
+        vals
     }
 
     pub(crate) fn goto(
@@ -965,6 +1004,16 @@ pub(crate) struct Switch {
     pub(crate) location: InstructionLocation,
 }
 
+impl Switch {
+    fn blocks(&self) -> impl Iterator<Item = &BlockId> {
+        self.blocks.iter().map(|(_, b)| b).chain(self.fallback.iter())
+    }
+
+    fn blocks_mut(&mut self) -> impl Iterator<Item = &mut BlockId> {
+        self.blocks.iter_mut().map(|(_, b)| b).chain(self.fallback.iter_mut())
+    }
+}
+
 #[derive(Clone)]
 pub(crate) struct Goto {
     pub(crate) block: BlockId,
@@ -1460,14 +1509,12 @@ impl Instruction {
             }
             Instruction::Allocate(ref v) => {
                 format!(
-                    "r{} = allocate {}#{}",
-                    v.register.0,
-                    v.type_id.name(db),
-                    v.type_id.0,
+                    "r{} = allocate {}",
+                    v.register.0, names.types[&v.type_id],
                 )
             }
             Instruction::Spawn(ref v) => {
-                format!("r{} = spawn {}", v.register.0, v.type_id.name(db))
+                format!("r{} = spawn {}", v.register.0, names.types[&v.type_id])
             }
             Instruction::CallStatic(ref v) => {
                 format!(
@@ -1495,10 +1542,9 @@ impl Instruction {
             }
             Instruction::CallDynamic(ref v) => {
                 format!(
-                    "r{} = call_dynamic {}#{}({})",
+                    "r{} = call_dynamic {}({})",
                     v.register.0,
                     v.method.name(db),
-                    v.method.0,
                     join(Some(v.receiver), &v.arguments),
                 )
             }
@@ -1837,7 +1883,7 @@ impl Method {
                 // already skip unreachable blocks, we'll also never find a
                 // block that doesn't have _any_ successors.
                 let succ = block.successors.pop().unwrap();
-                let mut pred = Vec::new();
+                let mut pred = IndexSet::new();
 
                 swap(&mut pred, &mut block.predecessors);
                 (pred, succ)
@@ -1947,8 +1993,7 @@ impl Method {
                 continue;
             }
 
-            block.predecessors.iter_mut().for_each(|b| *b -= shift_map[b.0]);
-            block.successors.iter_mut().for_each(|b| *b -= shift_map[b.0]);
+            block.map_edges(|b| b - shift_map[b.0]);
 
             match block.instructions.last_mut() {
                 Some(Instruction::Goto(ins)) => {
@@ -1986,7 +2031,9 @@ impl Method {
         &mut self,
         constants: &IndexMap<types::ConstantId, Constant>,
     ) {
-        self.simplify_graph();
+        self.merge_switch_blocks();
+        self.merge_goto_blocks();
+        self.compact_switch();
 
         // The above code is likely to produce many unreachable basic
         // blocks, so we need to remove those.
@@ -1995,9 +2042,124 @@ impl Method {
         self.inline_constants(constants);
     }
 
-    /// Simplify the CFG of the method, such as by merging redundant basic
-    /// blocks.
-    fn simplify_graph(&mut self) {
+    /// Modifies switch instructions such that branches to blocks that just
+    /// contain gotos are turned into branches to the target block.
+    ///
+    /// These kind of instructions may be generated when compiling `match`
+    /// expressions, such as when there are many branches/patterns without any
+    /// variables or registers to drop.
+    fn merge_switch_blocks(&mut self) {
+        let mut map = IndexMap::new();
+        let mut links = IndexSet::new();
+
+        for (idx, src) in self.body.blocks.iter().enumerate() {
+            let src_id = BlockId(idx);
+            let ins = match src.instructions.last() {
+                Some(Instruction::Switch(ins)) => ins,
+                _ => continue,
+            };
+
+            for target_id in ins.blocks() {
+                let target = self.body.block(*target_id);
+
+                if target.predecessors.len() > 1
+                    || target.instructions.len() > 1
+                {
+                    continue;
+                }
+
+                let new_target = match target.instructions.last() {
+                    Some(Instruction::Goto(ins)) => ins.block,
+                    _ => continue,
+                };
+
+                links.insert((src_id, new_target));
+                map.insert((src_id, *target_id), new_target);
+            }
+        }
+
+        for (idx, src) in self.body.blocks.iter_mut().enumerate() {
+            let src_id = BlockId(idx);
+            let ins = match src.instructions.last_mut() {
+                Some(Instruction::Switch(ins)) => ins,
+                _ => continue,
+            };
+
+            let mut succ = IndexSet::new();
+
+            for target_id in ins.blocks_mut() {
+                if let Some(&new) = map.get(&(src_id, *target_id)) {
+                    *target_id = new;
+                }
+
+                succ.insert(*target_id);
+            }
+
+            src.successors = succ;
+        }
+
+        for (_, id) in map.into_keys() {
+            let blk = self.body.block_mut(id);
+
+            blk.predecessors.clear();
+            blk.successors.clear();
+            blk.instructions.clear();
+        }
+
+        for (from, to) in links {
+            self.body.add_edge(from, to);
+        }
+    }
+
+    /// Compacts switch instructions by merging branches that all jump to the
+    /// same block.
+    ///
+    /// This change doesn't matter much in terms of performance because LLVM
+    /// also applies this optimization, but it makes visualization easier and
+    /// reduces the inline weight, making it more likely for the code to be
+    /// inlined.
+    ///
+    /// This optimization isn't applied if the switch has a fallback case, as
+    /// for such instructions we don't know what switch/test value to use for
+    /// the fallback.
+    fn compact_switch(&mut self) {
+        let mut map = IndexMap::new();
+
+        for block in &mut self.body.blocks {
+            for ins in &mut block.instructions {
+                let ins = match ins {
+                    Instruction::Switch(v) if v.fallback.is_none() => v,
+                    _ => continue,
+                };
+
+                for (_, blk) in &ins.blocks {
+                    *map.entry(*blk).or_insert(0_usize) += 1;
+                }
+
+                if map.len() == 2 {
+                    let mut pairs = map.iter();
+                    let (&blk1, &len) = pairs.next().unwrap();
+                    let (&blk2, _) = pairs.next().unwrap();
+                    let (test, fallback) =
+                        if len == 1 { (blk1, blk2) } else { (blk2, blk1) };
+                    let (val, _) = ins
+                        .blocks
+                        .iter()
+                        .find(|(_, blk)| *blk == test)
+                        .unwrap();
+
+                    ins.blocks = vec![(*val, test)];
+                    ins.fallback = Some(fallback);
+                }
+
+                map.clear();
+            }
+        }
+    }
+
+    /// Merges blocks that end with a "goto" with their successor whenever
+    /// possible.
+    fn merge_goto_blocks(&mut self) {
         let mut idx = 0;
 
         while idx < self.body.blocks.len() {
@@ -2654,5 +2816,129 @@ mod tests {
 
         assert_eq!(method.body.blocks.len(), 3);
         assert_eq!(ins.blocks, vec![(0, BlockId(1)), (1, BlockId(2))]);
+    }
+
+    #[test]
+    fn test_merge_switch_blocks() {
+        let mut method = Method::new(MethodId(0));
+
+        let b0 = method.body.add_block();
+        let b1 = method.body.add_block();
+        let b2 = method.body.add_block();
+        let loc = InstructionLocation::new(Location::default());
+
+        method.body.start_id = b0;
+        method.body.add_edge(b0, b1);
+        method.body.add_edge(b1, b2);
+        method.body.block_mut(b0).switch(
+            RegisterId(0),
+            vec![(0, b1), (1, b2)],
+            loc,
+        );
+        method.body.block_mut(b1).goto(b2, loc);
+        method.body.block_mut(b2).return_value(RegisterId(10), loc);
+
+        method.merge_switch_blocks();
+
+        let Some(Instruction::Switch(ins)) =
+            method.body.blocks[0].instructions.last()
+        else {
+            unreachable!()
+        };
+
+        assert_eq!(ins.blocks, [(0, b2), (1, b2)]);
+        assert!(method.body.block(b1).predecessors.is_empty());
+        assert!(method.body.block(b1).successors.is_empty());
+    }
+
+    #[test]
+    fn test_merge_goto_blocks() {
+        let mut method = Method::new(MethodId(0));
+
+        let b0 = method.body.add_block();
+        let b1 = method.body.add_block();
+        let b2 = method.body.add_block();
+        let loc = InstructionLocation::new(Location::default());
+
+        method.body.start_id = b0;
+        method.body.add_edge(b0, b1);
+        method.body.add_edge(b1, b2);
+        method.body.block_mut(b0).goto(b1, loc);
+        method.body.block_mut(b1).goto(b2, loc);
+        method.body.block_mut(b2).return_value(RegisterId(10), loc);
+
+        method.merge_goto_blocks();
+
+        assert_eq!(method.body.block(b0).instructions.len(), 1);
+        assert!(method.body.block(b0).predecessors.is_empty());
+        assert!(method.body.block(b0).successors.is_empty());
+        assert!(method.body.block(b1).predecessors.is_empty());
+        assert!(method.body.block(b1).successors.is_empty());
+        assert!(method.body.block(b2).instructions.is_empty());
+    }
+
+    #[test]
+    fn test_compact_switch() {
+        let mut method = Method::new(MethodId(0));
+
+        let b0 = method.body.add_block();
+        let b1 = method.body.add_block();
+        let b2 = method.body.add_block();
+        let loc = InstructionLocation::new(Location::default());
+
+        method.body.start_id = b0;
+        method.body.add_edge(b0, b1);
+        method.body.add_edge(b0, b2);
+        method.body.block_mut(b0).switch(
+            RegisterId(0),
+            vec![(0, b1), (1, b2), (2, b1)],
+            loc,
+        );
+        method.body.block_mut(b1).return_value(RegisterId(10), loc);
+        method.body.block_mut(b2).return_value(RegisterId(20), loc);
+
+        method.compact_switch();
+
+        let Some(Instruction::Switch(ins)) =
+            method.body.blocks[0].instructions.last()
+        else {
+            unreachable!()
+        };
+
+        assert_eq!(ins.blocks, [(1, b2)]);
+        assert_eq!(ins.fallback, Some(b1));
+    }
+
+    #[test]
+    fn test_compact_switch_with_fallback() {
+        let mut method = Method::new(MethodId(0));
+
+        let b0 = method.body.add_block();
+        let b1 = method.body.add_block();
+        let b2 = method.body.add_block();
+        let loc = InstructionLocation::new(Location::default());
+
+        method.body.start_id = b0;
+        method.body.add_edge(b0, b1);
+        method.body.add_edge(b0, b2);
+        method.body.block_mut(b0).switch_with_fallback(
+            RegisterId(0),
+            vec![(0, b1), (1, b2), (2, b1)],
+            b2,
+            loc,
+        );
+        method.body.block_mut(b1).return_value(RegisterId(10), loc);
+        method.body.block_mut(b2).return_value(RegisterId(20), loc);
+
+        method.compact_switch();
+
+        let Some(Instruction::Switch(ins)) =
+            method.body.blocks[0].instructions.last()
+        else {
+            unreachable!()
+        };
+
+        assert_eq!(ins.blocks, [(0, b1), (1, b2), (2, b1)]);
+        assert_eq!(ins.fallback, Some(b2));
     }
 }

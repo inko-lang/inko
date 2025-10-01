@@ -219,7 +219,6 @@ impl Body {
 /// This structure is created from a `TypeRef` and allows us to re-use the same
 /// compilation logic for different types. For example, both tuples and enums
 /// translate to the `Type::Finite` constructor.
-#[derive(Debug)]
 enum Type {
     Int,
     String,
@@ -227,15 +226,11 @@ enum Type {
     /// An array of some type T.
     Array(TypeRef),
 
-    /// A type with a finite number of constructors, such as a tuple or enum.
-    ///
-    /// Each triple stores the following values:
-    ///
-    /// 1. The constructor to match against.
-    /// 2. The variables/arguments to expose to the constructor sub tree.
-    /// 3. An array for storing rows to use for building the constructor's sub
-    ///    tree.
-    Finite(Vec<(Constructor, Vec<Variable>, Vec<Row>)>),
+    /// An enum.
+    Enum(Vec<RawCase>),
+
+    /// A regular type with finite constructors, such as a tuple.
+    Regular(Vec<RawCase>),
 }
 
 /// A type constructor.
@@ -253,7 +248,7 @@ pub(crate) enum Constructor {
 
 impl Constructor {
     /// Returns the index of this constructor relative to its type.
-    fn index(&self, db: &Database) -> usize {
+    pub(crate) fn index(&self, db: &Database) -> usize {
         match self {
             Constructor::False
             | Constructor::Int(_)
@@ -435,6 +430,27 @@ pub(crate) struct Column {
 impl Column {
     pub(crate) fn new(variable: Variable, pattern: Pattern) -> Self {
         Self { variable, pattern }
+    }
+}
+
+struct RawCase {
+    /// The constructor to test against an input variable.
+    constructor: Constructor,
+
+    /// Variables to introduce to the body of this case.
+    arguments: Vec<Variable>,
+
+    /// An array for storing rows to use for building the constructor's sub
+    /// tree.
+    rows: Vec<Row>,
+
+    /// If the pattern for this case is explicitly given and thus visited.
+    visited: bool,
+}
+
+impl RawCase {
+    fn new(constructor: Constructor, arguments: Vec<Variable>) -> Self {
+        Self { constructor, arguments, rows: Vec::new(), visited: false }
     }
 }
 
@@ -635,7 +651,6 @@ impl<'a> Compiler<'a> {
     fn compile_rows(&mut self, mut rows: Vec<Row>) -> Decision {
         if rows.is_empty() {
             self.missing = true;
-
             return Decision::Fail;
         }
 
@@ -672,11 +687,17 @@ impl<'a> Compiler<'a> {
                 Decision::Switch(branch_var, cases, Some(fallback))
             }
             Type::Array(t) => self.compile_array_cases(t, rows, branch_var),
-            Type::Finite(cases) => Decision::Switch(
+            Type::Regular(cases) => Decision::Switch(
                 branch_var,
-                self.compile_constructor_cases(rows, branch_var, cases),
+                self.compile_regular_type_cases(rows, branch_var, cases),
                 None,
             ),
+            Type::Enum(cases) => {
+                let (cases, fallback) =
+                    self.compile_enum_cases(rows, branch_var, cases);
+
+                Decision::Switch(branch_var, cases, fallback)
+            }
         }
     }
 
@@ -685,8 +706,7 @@ impl<'a> Compiler<'a> {
         rows: Vec<Row>,
         branch_var: Variable,
     ) -> (Vec<Case>, Box<Decision>) {
-        let mut raw_cases: Vec<(Constructor, Vec<Variable>, Vec<Row>)> =
-            Vec::new();
+        let mut raw_cases: Vec<RawCase> = Vec::new();
         let mut fallback_rows = Vec::new();
         let mut indexes: HashMap<Key, usize> = HashMap::new();
 
@@ -694,8 +714,8 @@ impl<'a> Compiler<'a> {
             let col = if let Some(col) = row.remove_column(&branch_var) {
                 col
             } else {
-                for (_, _, rows) in &mut raw_cases {
-                    rows.push(row.clone());
+                for c in &mut raw_cases {
+                    c.rows.push(row.clone());
                 }
 
                 fallback_rows.push(row);
@@ -711,7 +731,7 @@ impl<'a> Compiler<'a> {
             };
 
             if let Some(&index) = indexes.get(&key) {
-                raw_cases[index].2.push(row);
+                raw_cases[index].rows.push(row);
                 continue;
             }
 
@@ -719,20 +739,29 @@ impl<'a> Compiler<'a> {
 
             rows.push(row);
             indexes.insert(key, raw_cases.len());
-            raw_cases.push((cons, Vec::new(), rows));
+            raw_cases.push(RawCase {
+                constructor: cons,
+                arguments: Vec::new(),
+                rows,
+                visited: false,
+            });
         }
 
         let cases = raw_cases
             .into_iter()
-            .map(|(cons, vars, rows)| {
-                Case::new(cons, vars, self.compile_rows(rows))
+            .map(|raw| {
+                Case::new(
+                    raw.constructor,
+                    raw.arguments,
+                    self.compile_rows(raw.rows),
+                )
             })
             .collect();
 
         (cases, Box::new(self.compile_rows(fallback_rows)))
     }
 
-    /// Compiles the cases and sub cases for the constructor located at the
+    /// Compiles the cases and sub cases for the enum constructor located at the
     /// column of the branching variable.
     ///
     /// What exactly this method does may be a bit hard to understand from the
@@ -753,20 +782,17 @@ impl<'a> Compiler<'a> {
     /// a triple for every constructor we need to handle. For an ADT with 10
     /// constructors, that means 10 triples. This is needed so this method can
     /// assign the correct sub matches to these constructors.
-    fn compile_constructor_cases(
+    fn compile_enum_cases(
         &mut self,
         rows: Vec<Row>,
         branch_var: Variable,
-        mut cases: Vec<(Constructor, Vec<Variable>, Vec<Row>)>,
-    ) -> Vec<Case> {
+        mut cases: Vec<RawCase>,
+    ) -> (Vec<Case>, Option<Box<Decision>>) {
         for mut row in rows {
             let col = if let Some(col) = row.remove_column(&branch_var) {
                 col
             } else {
-                for (_, _, rows) in &mut cases {
-                    rows.push(row.clone());
-                }
-
+                cases.iter_mut().for_each(|c| c.rows.push(row.clone()));
                 continue;
             };
 
@@ -775,18 +801,66 @@ impl<'a> Compiler<'a> {
                 let mut cols = row.columns;
                 let case = &mut cases[idx];
 
-                for (var, pat) in case.1.iter().zip(args.into_iter()) {
+                for (var, pat) in case.arguments.iter().zip(args.into_iter()) {
                     cols.push(Column::new(*var, pat));
                 }
 
-                case.2.push(Row::new(cols, row.guard, row.body));
+                case.rows.push(Row::new(cols, row.guard, row.body));
+                case.visited = true;
+            }
+        }
+
+        let mut res = Vec::new();
+        let mut fallback = None;
+
+        for raw in cases {
+            if raw.visited {
+                res.push(Case::new(
+                    raw.constructor,
+                    raw.arguments,
+                    self.compile_rows(raw.rows),
+                ));
+            } else if fallback.is_none() {
+                // For cases/patterns not visited the rows are always the same,
+                // so we just pick the first one and use that as the fallback.
+                fallback = Some(Box::new(self.compile_rows(raw.rows)));
+            }
+        }
+
+        (res, fallback)
+    }
+
+    fn compile_regular_type_cases(
+        &mut self,
+        rows: Vec<Row>,
+        branch_var: Variable,
+        mut cases: Vec<RawCase>,
+    ) -> Vec<Case> {
+        for mut row in rows {
+            let col = if let Some(col) = row.remove_column(&branch_var) {
+                col
+            } else {
+                cases.iter_mut().for_each(|c| c.rows.push(row.clone()));
+                continue;
+            };
+
+            if let Pattern::Constructor(cons, args) = col.pattern {
+                let idx = cons.index(self.db());
+                let mut cols = row.columns;
+                let case = &mut cases[idx];
+
+                for (var, pat) in case.arguments.iter().zip(args.into_iter()) {
+                    cols.push(Column::new(*var, pat));
+                }
+
+                case.rows.push(Row::new(cols, row.guard, row.body));
             }
         }
 
         cases
             .into_iter()
-            .map(|(cons, vars, rows)| {
-                Case::new(cons, vars, self.compile_rows(rows))
+            .map(|r| {
+                Case::new(r.constructor, r.arguments, self.compile_rows(r.rows))
             })
             .collect()
     }
@@ -918,9 +992,9 @@ impl<'a> Compiler<'a> {
         match type_id.0 {
             INT_ID => Type::Int,
             STRING_ID => Type::String,
-            BOOL_ID => Type::Finite(vec![
-                (Constructor::False, Vec::new(), Vec::new()),
-                (Constructor::True, Vec::new(), Vec::new()),
+            BOOL_ID => Type::Regular(vec![
+                RawCase::new(Constructor::False, Vec::new()),
+                RawCase::new(Constructor::True, Vec::new()),
             ]),
             ARRAY_ID => {
                 let args = type_ins.type_arguments(self.db()).unwrap().clone();
@@ -949,19 +1023,16 @@ impl<'a> Compiler<'a> {
                     let cons = type_id
                         .constructors(self.db())
                         .into_iter()
-                        .map(|constructor| {
-                            let members =
-                                constructor.arguments(self.db()).to_vec();
+                        .map(|cons| {
+                            let args = cons.arguments(self.db()).to_vec();
+                            let cons = Constructor::Constructor(cons);
+                            let vars = self.new_variables(type_ins, typ, args);
 
-                            (
-                                Constructor::Constructor(constructor),
-                                self.new_variables(type_ins, typ, members),
-                                Vec::new(),
-                            )
+                            RawCase::new(cons, vars)
                         })
                         .collect();
 
-                    Type::Finite(cons)
+                    Type::Enum(cons)
                 }
                 TypeKind::Regular | TypeKind::Extern => {
                     let fields = type_id.fields(self.db());
@@ -970,10 +1041,9 @@ impl<'a> Compiler<'a> {
                         .map(|f| f.value_type(self.db()))
                         .collect();
 
-                    Type::Finite(vec![(
+                    Type::Regular(vec![RawCase::new(
                         Constructor::Class(fields),
                         self.new_variables(type_ins, typ, args),
-                        Vec::new(),
                     )])
                 }
                 TypeKind::Tuple => {
@@ -983,10 +1053,9 @@ impl<'a> Compiler<'a> {
                         .map(|f| f.value_type(self.db()))
                         .collect();
 
-                    Type::Finite(vec![(
+                    Type::Regular(vec![RawCase::new(
                         Constructor::Tuple(fields),
                         self.new_variables(type_ins, typ, args),
-                        Vec::new(),
                     )])
                 }
                 _ => unreachable!(),
@@ -1412,7 +1481,7 @@ mod tests {
             vec![TypeRef::int()],
             Location::default(),
         );
-        let none = option_type.new_constructor(
+        let _none = option_type.new_constructor(
             &mut state.db,
             "None".to_string(),
             Vec::new(),
@@ -1438,27 +1507,20 @@ mod tests {
             result.tree,
             Decision::Switch(
                 input,
-                vec![
-                    Case::new(
-                        Constructor::Constructor(some),
-                        vec![int_var],
-                        Decision::Switch(
-                            int_var,
-                            vec![Case::new(
-                                Constructor::Int(4),
-                                Vec::new(),
-                                success(BlockId(1))
-                            )],
-                            Some(Box::new(fail()))
-                        ),
+                vec![Case::new(
+                    Constructor::Constructor(some),
+                    vec![int_var],
+                    Decision::Switch(
+                        int_var,
+                        vec![Case::new(
+                            Constructor::Int(4),
+                            Vec::new(),
+                            success(BlockId(1))
+                        )],
+                        Some(Box::new(fail()))
                     ),
-                    Case::new(
-                        Constructor::Constructor(none),
-                        Vec::new(),
-                        fail()
-                    )
-                ],
-                None
+                )],
+                Some(Box::new(fail()))
             )
         );
     }
@@ -1536,6 +1598,73 @@ mod tests {
                     )
                 ],
                 None
+            )
+        );
+    }
+
+    #[test]
+    fn test_constructor_with_wildcard() {
+        let mut state = state();
+        let module = Module::alloc(
+            &mut state.db,
+            ModuleName::new("test"),
+            "test.inko".into(),
+        );
+        let option_type = Type::alloc(
+            &mut state.db,
+            "Option".to_string(),
+            TypeKind::Enum,
+            Visibility::Public,
+            module,
+            Location::default(),
+        );
+        let some = option_type.new_constructor(
+            &mut state.db,
+            "Some".to_string(),
+            vec![TypeRef::int()],
+            Location::default(),
+        );
+        let _none = option_type.new_constructor(
+            &mut state.db,
+            "None".to_string(),
+            Vec::new(),
+            Location::default(),
+        );
+        let mut compiler = compiler(&mut state);
+        let input = compiler.new_variable(TypeRef::Owned(
+            TypeEnum::TypeInstance(TypeInstance::new(option_type)),
+        ));
+        let int_var = Variable(1);
+        let result = compiler.compile(rules(
+            input,
+            vec![
+                (
+                    Pattern::Constructor(
+                        Constructor::Constructor(some),
+                        vec![Pattern::Wildcard],
+                    ),
+                    BlockId(1),
+                ),
+                (Pattern::Wildcard, BlockId(2)),
+            ],
+        ));
+
+        assert_eq!(
+            result.tree,
+            Decision::Switch(
+                input,
+                vec![Case::new(
+                    Constructor::Constructor(some),
+                    vec![int_var],
+                    success_with_bindings(
+                        vec![Binding::Ignored(int_var)],
+                        BlockId(1)
+                    )
+                )],
+                Some(Box::new(success_with_bindings(
+                    vec![Binding::Ignored(input)],
+                    BlockId(2)
+                )))
             )
         );
     }

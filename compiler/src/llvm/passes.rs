@@ -1790,8 +1790,13 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                     ));
                 }
 
-                let fallback =
-                    ins.fallback.map(|b| all_blocks[b.0]).unwrap_or(cases[0].1);
+                // We use unwrap_or_else() instead of unwrap_or() because
+                // `cases` might be empty while a fallback is present, and we
+                // don't want to panic in such a case.
+                let fallback = ins
+                    .fallback
+                    .map(|b| all_blocks[b.0])
+                    .unwrap_or_else(|| cases[0].1);
 
                 self.builder.switch(reg_val, &cases, fallback);
             }

@@ -2,7 +2,6 @@
 use crate::mir::inline::method_weight;
 use crate::mir::{BlockId, Method};
 use crate::symbol_names::SymbolNames;
-use std::collections::{HashSet, VecDeque};
 use std::fmt::Write;
 use types::Database;
 
@@ -148,33 +147,14 @@ start = b{}, blocks = {}, instructions = {}, inline weight = {}
             method_weight(db, method),
         );
 
-        let mut visit = VecDeque::new();
-        let mut visited = HashSet::new();
-
-        visit.push_back(start);
-        visited.insert(start);
-
-        while let Some(id) = visit.pop_front() {
-            if !reachable_blocks.contains(&id) {
-                continue;
-            }
-
+        method.body.each_block_in_order(|id| {
             let blk = &method.body.block(id);
             let _ = writeln!(buffer, "b{}:", id.0);
 
             for ins in &blk.instructions {
                 let _ = writeln!(buffer, "  {}", ins.format(db, names));
             }
-
-            for &id in &blk.successors {
-                if visited.contains(&id) {
-                    continue;
-                }
-
-                visit.push_back(id);
-                visited.insert(id);
-            }
-        }
+        });
 
         buffer.push('\n');
     }

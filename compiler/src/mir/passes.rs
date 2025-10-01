@@ -1868,6 +1868,13 @@ impl<'a> LowerMethod<'a> {
     fn tuple_literal(&mut self, node: hir::TupleLiteral) -> RegisterId {
         self.verify_type(node.resolved_type, node.location);
 
+        let regs: Vec<_> = node
+            .values
+            .into_iter()
+            .enumerate()
+            .map(|(i, v)| self.input_expression(v, Some(node.value_types[i])))
+            .collect();
+
         let tup = self.new_register(node.resolved_type);
         let id = node.type_id.unwrap();
         let loc = InstructionLocation::new(node.location);
@@ -1875,13 +1882,8 @@ impl<'a> LowerMethod<'a> {
 
         self.current_block_mut().allocate(tup, id, loc);
 
-        for (index, val) in node.values.into_iter().enumerate() {
-            let field = fields[index];
-            let exp = node.value_types[index];
-            let loc = InstructionLocation::new(val.location());
-            let reg = self.input_expression(val, Some(exp));
-
-            self.current_block_mut().set_field(tup, id, field, reg, loc);
+        for (idx, reg) in regs.into_iter().enumerate() {
+            self.current_block_mut().set_field(tup, id, fields[idx], reg, loc);
         }
 
         tup
@@ -2035,6 +2037,14 @@ impl<'a> LowerMethod<'a> {
 
                 let ins = self.new_register(info.resolved_type);
                 let tid = info.type_id;
+                let regs: Vec<_> = node
+                    .arguments
+                    .into_iter()
+                    .zip(info.fields)
+                    .map(|(arg, (id, exp))| {
+                        (id, self.input_expression(arg.into_value(), Some(exp)))
+                    })
+                    .collect();
 
                 if tid.kind(self.db()).is_async() {
                     self.current_block_mut().spawn(ins, tid, loc);
@@ -2042,13 +2052,7 @@ impl<'a> LowerMethod<'a> {
                     self.current_block_mut().allocate(ins, tid, loc);
                 }
 
-                for (arg, (id, exp)) in
-                    node.arguments.into_iter().zip(info.fields.into_iter())
-                {
-                    let loc = InstructionLocation::new(arg.location());
-                    let val =
-                        self.input_expression(arg.into_value(), Some(exp));
-
+                for (id, val) in regs {
                     self.current_block_mut().set_field(ins, tid, id, val, loc);
                 }
 
@@ -2496,8 +2500,6 @@ impl<'a> LowerMethod<'a> {
             name => {
                 let reg = self.new_register(returns);
 
-                // Builtin calls don't reduce as they're exposed through regular
-                // methods, which already trigger reductions.
                 self.current_block_mut().call_builtin(reg, name, args, loc);
                 self.after_call(returns);
                 reg
@@ -3030,16 +3032,11 @@ impl<'a> LowerMethod<'a> {
                             state,
                             test,
                             cases,
+                            fallback,
                             parent_block,
                             registers,
                         ),
-                    pmatch::Constructor::Array(_) => self.type_patterns(
-                        state,
-                        test,
-                        cases,
-                        parent_block,
-                        registers,
-                    ),
+                    pmatch::Constructor::Array(_) => unreachable!(),
                 }
             }
             pmatch::Decision::SwitchArray(var, cases, fallback) => {
@@ -3154,7 +3151,7 @@ impl<'a> LowerMethod<'a> {
                 val
             } else {
                 // Don't forget to exit the scope here, since we entered a new
-                // one bofer calling this method.
+                // one before calling this method.
                 self.exit_scope(state.location);
 
                 return start_block;
@@ -3475,12 +3472,13 @@ impl<'a> LowerMethod<'a> {
         state: &mut DecisionState,
         test_reg: RegisterId,
         cases: Vec<pmatch::Case>,
+        fallback_node: Option<Box<pmatch::Decision>>,
         parent_block: BlockId,
         mut registers: Vec<RegisterId>,
     ) -> BlockId {
         let loc = state.location;
         let test_block = self.add_block();
-        let mut blocks = Vec::new();
+        let mut blocks: Vec<(i64, BlockId)> = Vec::new();
 
         self.add_edge(parent_block, test_block);
         registers.push(test_reg);
@@ -3522,7 +3520,16 @@ impl<'a> LowerMethod<'a> {
 
         self.block_mut(test_block)
             .get_field(tag_reg, test_reg, tid, tag_field, loc);
-        self.block_mut(test_block).switch(tag_reg, blocks, loc);
+
+        if let Some(n) = fallback_node {
+            let blk = self.decision(state, *n, test_block, registers);
+
+            self.block_mut(test_block)
+                .switch_with_fallback(tag_reg, blocks, blk, loc);
+        } else {
+            self.block_mut(test_block).switch(tag_reg, blocks, loc);
+        }
+
         test_block
     }
 
@@ -4750,7 +4757,7 @@ impl<'a> LowerMethod<'a> {
 
             for block in self.method.body.predecessors(block) {
                 if !visited.contains(&block) {
-                    stack.push(block);
+                    stack.insert(block);
                 }
             }
         }
