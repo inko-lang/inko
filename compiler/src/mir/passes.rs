@@ -1391,7 +1391,7 @@ pub(crate) struct LowerMethod<'a> {
     register_kinds: Vec<RegisterKind>,
 
     /// A mapping of variable type IDs to their MIR registers.
-    variable_mapping: HashMap<types::VariableId, RegisterId>,
+    variable_mapping: IndexMap<types::VariableId, RegisterId>,
 
     /// The variables used in this method.
     used_variables: HashSet<types::VariableId>,
@@ -1432,7 +1432,7 @@ impl<'a> LowerMethod<'a> {
             method,
             current_block,
             scope: Scope::root_scope(),
-            variable_mapping: HashMap::new(),
+            variable_mapping: IndexMap::new(),
             field_mapping: HashMap::new(),
             drop_flags: HashMap::new(),
             register_states: RegisterStates::new(),

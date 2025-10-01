@@ -3,8 +3,8 @@ use crate::mir::{
     InstructionLocation, Method, Mir, MoveRegister, RegisterId, Registers,
 };
 use crate::state::State;
+use indexmap::IndexSet;
 use std::cmp::min;
-use std::collections::HashSet;
 use types::{Database, Inline, MethodId, ModuleId};
 
 /// If a method wouldn't be inlined but is called at most this many times, it
@@ -791,7 +791,7 @@ impl<'a, 'b, 'c> InlineMethod<'a, 'b, 'c> {
         let caller = &self.mir.methods[self.method];
         let mut caller_weight = self.graph.weight_by_index(self.method);
         let mut sites = Vec::new();
-        let mut inlined = HashSet::new();
+        let mut inlined = IndexSet::new();
 
         for (blk_idx, block) in caller.body.blocks.iter().enumerate() {
             for (ins_idx, ins) in block.instructions.iter().enumerate() {

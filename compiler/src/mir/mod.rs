@@ -1688,7 +1688,7 @@ pub(crate) struct Module {
     /// The methods inlined into this module.
     ///
     /// This is used to flush incremental compilation caches when necessary.
-    pub(crate) inlined_methods: HashSet<types::MethodId>,
+    pub(crate) inlined_methods: IndexSet<types::MethodId>,
 }
 
 impl Module {
@@ -1698,7 +1698,7 @@ impl Module {
             types: Vec::new(),
             constants: Vec::new(),
             methods: Vec::new(),
-            inlined_methods: HashSet::new(),
+            inlined_methods: IndexSet::new(),
         }
     }
 }

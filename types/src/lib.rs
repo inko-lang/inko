@@ -16,10 +16,10 @@ pub mod specialize;
 
 use crate::module_name::ModuleName;
 use crate::resolve::TypeResolver;
-use indexmap::IndexMap;
+use indexmap::{IndexMap, IndexSet};
 use location::Location;
 use std::cell::Cell;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::hash::Hash;
 use std::path::PathBuf;
 
@@ -4087,7 +4087,7 @@ pub struct Closure {
 
     /// The variables captured by this closure, and the types the variables are
     /// captured as.
-    captured: HashSet<(VariableId, TypeRef)>,
+    captured: IndexSet<(VariableId, TypeRef)>,
 
     /// The type of `self` as captured by the closure.
     captured_self_type: Option<TypeRef>,
@@ -4116,7 +4116,7 @@ impl Closure {
         Self {
             moving,
             captured_self_type: None,
-            captured: HashSet::new(),
+            captured: IndexSet::new(),
             arguments: Arguments::new(),
             return_type: TypeRef::Unknown,
             specialization_source: None,
