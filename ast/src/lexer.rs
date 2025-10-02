@@ -76,6 +76,7 @@ pub enum TokenKind {
     As,
     Assign,
     Async,
+    Await,
     BitAnd,
     BitAndAssign,
     BitOr,
@@ -182,6 +183,7 @@ impl TokenKind {
             TokenKind::As => "the 'as' keyword",
             TokenKind::Assign => "a '='",
             TokenKind::Async => "the 'async' keyword",
+            TokenKind::Await => "the 'await' keyword",
             TokenKind::BitAnd => "a '&'",
             TokenKind::BitAndAssign => "a '&='",
             TokenKind::BitOr => "a '|'",
@@ -310,6 +312,7 @@ impl Token {
             TokenKind::And
                 | TokenKind::As
                 | TokenKind::Async
+                | TokenKind::Await
                 | TokenKind::Break
                 | TokenKind::Else
                 | TokenKind::Builtin
@@ -1000,6 +1003,7 @@ impl Lexer {
             },
             5 => match value.as_str() {
                 "async" => TokenKind::Async,
+                "await" => TokenKind::Await,
                 "break" => TokenKind::Break,
                 "match" => TokenKind::Match,
                 "throw" => TokenKind::Throw,
@@ -1331,6 +1335,7 @@ mod tests {
     fn test_token_is_keyword() {
         assert!(tok(TokenKind::As, "", 1..=1, 1..=1).is_keyword());
         assert!(tok(TokenKind::Async, "", 1..=1, 1..=1).is_keyword());
+        assert!(tok(TokenKind::Await, "", 1..=1, 1..=1).is_keyword());
         assert!(tok(TokenKind::Break, "", 1..=1, 1..=1).is_keyword());
         assert!(tok(TokenKind::Builtin, "", 1..=1, 1..=1).is_keyword());
         assert!(tok(TokenKind::Case, "", 1..=1, 1..=1).is_keyword());
@@ -1998,6 +2003,7 @@ mod tests {
         assert_token!("type", Type, "type", 1..=1, 1..=4);
 
         assert_token!("async", Async, "async", 1..=1, 1..=5);
+        assert_token!("await", Await, "await", 1..=1, 1..=5);
         assert_token!("break", Break, "break", 1..=1, 1..=5);
         assert_token!("match", Match, "match", 1..=1, 1..=5);
         assert_token!("throw", Throw, "throw", 1..=1, 1..=5);

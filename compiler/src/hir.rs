@@ -11,9 +11,10 @@ use location::Location;
 use std::path::PathBuf;
 use std::str::FromStr;
 use types::{
-    ARRAY_INTERNAL_NAME, ARRAY_PUSH, ARRAY_WITH_CAPACITY,
-    STRING_BUFFER_INTERNAL_NAME, STRING_BUFFER_INTO_STRING, STRING_BUFFER_NEW,
-    STRING_BUFFER_PUSH, TO_STRING_METHOD,
+    ARRAY_INTERNAL_NAME, ARRAY_PUSH, ARRAY_WITH_CAPACITY, FUTURE_GET,
+    FUTURE_INTERNAL_NAME, FUTURE_NEW, STRING_BUFFER_INTERNAL_NAME,
+    STRING_BUFFER_INTO_STRING, STRING_BUFFER_NEW, STRING_BUFFER_PUSH,
+    TO_STRING_METHOD,
 };
 
 const BUILTIN_RECEIVER: &str = "_INKO";
@@ -24,6 +25,8 @@ const SOME_CONS: &str = "Some";
 const INTO_ITER_CALL: &str = "into_iter";
 const STR_BUF_VAR: &str = "$buf";
 const BOOL_EQ: &str = "==";
+const FUTURE_VAR: &str = "$future";
+const PROMISE_VAR: &str = "$promise";
 
 struct Comments {
     nodes: Vec<ast::Comment>,
@@ -2541,6 +2544,8 @@ impl<'a> LowerToHir<'a> {
                 Expression::Return(self.return_expression(*node))
             }
             ast::Expression::Try(node) => self.try_expression(*node),
+            ast::Expression::Async(node) => self.async_expression(*node),
+            ast::Expression::Await(node) => self.await_expression(*node),
             ast::Expression::If(node) => {
                 Expression::Match(self.if_expression(*node))
             }
@@ -3128,6 +3133,119 @@ impl<'a> LowerToHir<'a> {
             kind: types::ThrowKind::Unknown,
             location: node.location,
             return_type: types::TypeRef::Unknown,
+        }))
+    }
+
+    fn async_expression(&mut self, node: ast::Async) -> Expression {
+        self.async_or_await(false, node.value, node.location)
+    }
+
+    fn await_expression(&mut self, node: ast::Await) -> Expression {
+        self.async_or_await(true, node.value, node.location)
+    }
+
+    fn async_or_await(
+        &mut self,
+        resolve: bool,
+        value: ast::Expression,
+        location: Location,
+    ) -> Expression {
+        let vloc = *value.location();
+        let (rec, name, args, nloc) = match value {
+            ast::Expression::Call(n) => {
+                (n.receiver, n.name.name, n.arguments, n.name.location)
+            }
+            ast::Expression::Identifier(n) => (None, n.name, None, n.location),
+            ast::Expression::Constant(n) => (None, n.name, None, n.location),
+            val => {
+                self.state.diagnostics.error(
+                    DiagnosticId::InvalidSyntax,
+                    "this expression must be a method call",
+                    self.file(),
+                    *val.location(),
+                );
+
+                return Expression::Nil(Box::new(Nil {
+                    resolved_type: types::TypeRef::Unknown,
+                    location,
+                }));
+            }
+        };
+
+        // The method that is called.
+        let rec = rec.map(|n| self.expression(n));
+        let mut arg_nodes =
+            vec![Argument::Positional(Box::new(PositionalArgument {
+                value: Expression::identifier_ref(PROMISE_VAR, nloc),
+                expected_type: types::TypeRef::Unknown,
+            }))];
+
+        arg_nodes.append(&mut self.optional_call_arguments(args));
+
+        let call = Expression::Call(Box::new(Call {
+            kind: types::CallKind::Unknown,
+            receiver: rec,
+            name: Identifier { name, location: nloc },
+            parens: true,
+            in_mut: false,
+            usage: Usage::Used,
+            arguments: arg_nodes,
+            location: vloc,
+        }));
+
+        // The value returned by the match body.
+        let mut ret = Expression::identifier_ref(FUTURE_VAR, vloc);
+
+        if resolve {
+            ret = Expression::call(ret, FUTURE_GET, Vec::new(), vloc);
+        }
+
+        // The `case (fut, prom) -> { ... }` branch.
+        let cases = vec![MatchCase {
+            variable_ids: Vec::new(),
+            pattern: Pattern::Tuple(Box::new(TuplePattern {
+                field_ids: Vec::new(),
+                values: vec![
+                    Pattern::Identifier(Box::new(IdentifierPattern {
+                        variable_id: None,
+                        name: Identifier {
+                            name: FUTURE_VAR.to_string(),
+                            location,
+                        },
+                        mutable: false,
+                        value_type: None,
+                        location,
+                    })),
+                    Pattern::Identifier(Box::new(IdentifierPattern {
+                        variable_id: None,
+                        name: Identifier {
+                            name: PROMISE_VAR.to_string(),
+                            location,
+                        },
+                        mutable: false,
+                        value_type: None,
+                        location,
+                    })),
+                ],
+                location,
+            })),
+            guard: None,
+            body: vec![call, ret],
+            location,
+        }];
+
+        // The `match Future.new` expression.
+        Expression::Match(Box::new(Match {
+            resolved_type: types::TypeRef::Unknown,
+            expression: Expression::call_static(
+                FUTURE_INTERNAL_NAME,
+                FUTURE_NEW,
+                Vec::new(),
+                location,
+            ),
+            cases,
+            location,
+            write_result: true,
         }))
     }
 
@@ -7202,6 +7320,164 @@ mod tests {
                 in_mut: false,
                 usage: Usage::Used,
                 location: cols(8, 10)
+            }))
+        );
+    }
+
+    #[test]
+    fn test_lower_async_expression() {
+        let hir = lower_expr("fn a { async foo }").0;
+
+        assert_eq!(
+            hir,
+            Expression::Match(Box::new(Match {
+                resolved_type: types::TypeRef::Unknown,
+                expression: Expression::call_static(
+                    FUTURE_INTERNAL_NAME,
+                    FUTURE_NEW,
+                    Vec::new(),
+                    cols(8, 16),
+                ),
+                cases: vec![MatchCase {
+                    variable_ids: Vec::new(),
+                    pattern: Pattern::Tuple(Box::new(TuplePattern {
+                        field_ids: Vec::new(),
+                        values: vec![
+                            Pattern::Identifier(Box::new(IdentifierPattern {
+                                variable_id: None,
+                                name: Identifier {
+                                    name: FUTURE_VAR.to_string(),
+                                    location: cols(8, 16),
+                                },
+                                mutable: false,
+                                value_type: None,
+                                location: cols(8, 16),
+                            })),
+                            Pattern::Identifier(Box::new(IdentifierPattern {
+                                variable_id: None,
+                                name: Identifier {
+                                    name: PROMISE_VAR.to_string(),
+                                    location: cols(8, 16),
+                                },
+                                mutable: false,
+                                value_type: None,
+                                location: cols(8, 16),
+                            })),
+                        ],
+                        location: cols(8, 16),
+                    })),
+                    guard: None,
+                    body: vec![
+                        Expression::Call(Box::new(Call {
+                            kind: types::CallKind::Unknown,
+                            receiver: None,
+                            name: Identifier {
+                                name: "foo".to_string(),
+                                location: cols(14, 16)
+                            },
+                            parens: true,
+                            in_mut: false,
+                            usage: Usage::Used,
+                            arguments: vec![Argument::Positional(Box::new(
+                                PositionalArgument {
+                                    value: Expression::identifier_ref(
+                                        PROMISE_VAR,
+                                        cols(14, 16)
+                                    ),
+                                    expected_type: types::TypeRef::Unknown,
+                                }
+                            ))],
+                            location: cols(14, 16),
+                        })),
+                        Expression::identifier_ref(FUTURE_VAR, cols(14, 16))
+                    ],
+                    location: cols(8, 16),
+                }],
+                location: cols(8, 16),
+                write_result: true,
+            }))
+        );
+    }
+
+    #[test]
+    fn test_lower_await_expression() {
+        let hir = lower_expr("fn a { await foo }").0;
+
+        assert_eq!(
+            hir,
+            Expression::Match(Box::new(Match {
+                resolved_type: types::TypeRef::Unknown,
+                expression: Expression::call_static(
+                    FUTURE_INTERNAL_NAME,
+                    FUTURE_NEW,
+                    Vec::new(),
+                    cols(8, 16),
+                ),
+                cases: vec![MatchCase {
+                    variable_ids: Vec::new(),
+                    pattern: Pattern::Tuple(Box::new(TuplePattern {
+                        field_ids: Vec::new(),
+                        values: vec![
+                            Pattern::Identifier(Box::new(IdentifierPattern {
+                                variable_id: None,
+                                name: Identifier {
+                                    name: FUTURE_VAR.to_string(),
+                                    location: cols(8, 16),
+                                },
+                                mutable: false,
+                                value_type: None,
+                                location: cols(8, 16),
+                            })),
+                            Pattern::Identifier(Box::new(IdentifierPattern {
+                                variable_id: None,
+                                name: Identifier {
+                                    name: PROMISE_VAR.to_string(),
+                                    location: cols(8, 16),
+                                },
+                                mutable: false,
+                                value_type: None,
+                                location: cols(8, 16),
+                            })),
+                        ],
+                        location: cols(8, 16),
+                    })),
+                    guard: None,
+                    body: vec![
+                        Expression::Call(Box::new(Call {
+                            kind: types::CallKind::Unknown,
+                            receiver: None,
+                            name: Identifier {
+                                name: "foo".to_string(),
+                                location: cols(14, 16)
+                            },
+                            parens: true,
+                            in_mut: false,
+                            usage: Usage::Used,
+                            arguments: vec![Argument::Positional(Box::new(
+                                PositionalArgument {
+                                    value: Expression::identifier_ref(
+                                        PROMISE_VAR,
+                                        cols(14, 16)
+                                    ),
+                                    expected_type: types::TypeRef::Unknown,
+                                }
+                            ))],
+                            location: cols(14, 16),
+                        })),
+                        Expression::call(
+                            Expression::identifier_ref(
+                                FUTURE_VAR,
+                                cols(14, 16)
+                            ),
+                            FUTURE_GET,
+                            Vec::new(),
+                            cols(14, 16)
+                        ),
+                    ],
+                    location: cols(8, 16),
+                }],
+                location: cols(8, 16),
+                write_result: true,
             }))
         );
     }

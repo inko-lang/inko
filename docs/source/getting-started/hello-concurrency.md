@@ -78,7 +78,7 @@ import std.stdio (Stdout)
 import std.sync (Future, Promise)
 
 type async Printer {
-  fn async print(message: String, output: uni Promise[Nil]) {
+  fn async print(output: uni Promise[Nil], message: String) {
     let _ = Stdout.new.print(message)
 
     output.set(nil)
@@ -89,13 +89,13 @@ type async Main {
   fn async main {
     let future1 = match Future.new {
       case (future, promise) -> {
-        Printer().print('Hello', promise)
+        Printer().print(promise, 'Hello')
         future
       }
     }
     let future2 = match Future.new {
       case (future, promise) -> {
-        Printer().print('world', promise)
+        Printer().print(promise, 'world')
         future
       }
     }
@@ -125,6 +125,109 @@ parallel. The function doesn't know what processes it will be called from,
 meaning any child processes can't communicate their results back to the parent
 using messages. Using the `Future` and `Promise` types we _can_ achieve this.
 
+## Async and await
+
+Looking at the above code you might think to yourself "That looks rather
+verbose, surely there's a better way?". Indeed there is! Inko has two types of
+expressions to make working with `Future` and `Promise` values easier: `async`
+expressions and `await` expressions.
+
+An `async` expression is syntax sugar for calling `Future.new` and passing the
+`Promise` to the called method, returning the `Future`:
+
+```inko
+# This expression:
+async foo(10, 20)
+
+# Is compiled into this:
+match Future.new {
+  case (future, promise) -> {
+    foo(promise, 10, 20)
+    future
+  }
+}
+```
+
+This means we can rewrite the `Printer` code to the following:
+
+```inko
+import std.stdio (Stdout)
+import std.sync (Promise)
+
+type async Printer {
+  fn async print(output: uni Promise[Nil], message: String) {
+    let _ = Stdout.new.print(message)
+
+    output.set(nil)
+  }
+}
+
+type async Main {
+  fn async main {
+    let future1 = async Printer().print('Hello')
+    let future2 = async Printer().print('world')
+
+    future1.get
+    future2.get
+  }
+}
+```
+
+An `await` expression is similar to an `async` expression, instead it also
+resolves the `Future` to its value using `Future.get`:
+
+```inko
+# This expression:
+await foo(10, 20)
+
+# Is compiled into this:
+match Future.new {
+  case (future, promise) -> {
+    foo(promise, 10, 20)
+    future.get
+  }
+}
+```
+
+This means we can further adjust the `Printer` example to the following:
+
+```inko
+import std.stdio (Stdout)
+import std.sync (Promise)
+
+type async Printer {
+  fn async print(output: uni Promise[Nil], message: String) {
+    let _ = Stdout.new.print(message)
+
+    output.set(nil)
+  }
+}
+
+type async Main {
+  fn async main {
+    await Printer().print('Hello')
+    await Printer().print('world')
+  }
+}
+```
+
+::: note
+Both `async` and `await` expressions only work with method call expressions
+(e.g. `await [10, 20]` is invalid), and both require that the first argument of
+the method is a `Promise`.
+:::
+
+The above example behaves a little different from the one that uses the `async`
+expression: because `await` resolves the `Future`, the second call to `print`
+doesn't run until the first one finishes, instead of the two calls running
+concurrently.
+
+As for when to use `async` versus `await`: if you need to compute something
+asynchronously but can't continue without the result, use `await`. If you don't
+need the result before continuing, use `async` instead and resolve the `Future`
+to a value using methods such as `Future.get` and `Future.get_until` when you
+need the result.
+
 ## Channels
 
 Inko also provides a `Channel` type in the `std.sync` module, acting is an
@@ -141,7 +244,7 @@ import std.stdio (Stdout)
 import std.sync (Channel)
 
 type async Printer {
-  fn async print(message: String, output: uni Channel[Nil]) {
+  fn async print(output: uni Channel[Nil], message: String) {
     let _ = Stdout.new.print(message)
 
     output.send(nil)
@@ -152,8 +255,8 @@ type async Main {
   fn async main {
     let chan = Channel.new
 
-    Printer().print('Hello', recover chan.clone)
-    Printer().print('world', recover chan.clone)
+    Printer().print(recover chan.clone, 'Hello')
+    Printer().print(recover chan.clone, 'world')
 
     chan.receive
     chan.receive

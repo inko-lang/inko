@@ -30,10 +30,11 @@ type async Main {
 A simple concurrent program:
 
 ```inko
-import std.sync (Future, Promise)
+import std.stdio (Stdout)
+import std.sync (Promise)
 
 type async Calculator {
-  fn async fact(size: Int, output: uni Promise[Int]) {
+  fn async fact(output: uni Promise[Int], size: Int) {
     let result = 1.to(size).iter.reduce(1, fn (product, val) { product * val })
 
     output.set(result)
@@ -44,14 +45,12 @@ type async Main {
   fn async main {
     let calc = Calculator()
 
-    match Future.new {
-      case (future, promise) -> {
-        # This calculates the factorial of 15 in the background, then we wait
-        # for the result to be sent back to us.
-        calc.fact(15, promise)
-        future.get # => 1307674368000
-      }
-    }
+    # This calculates the factorial of 15 in the background and waits for the
+    # result to be sent back to us:
+    let val = await calc.fact(15)
+
+    # Print a message along with the result to STDOUT:
+    Stdout.new.print('the factorial of 15 is: ${val}')
   }
 }
 ```

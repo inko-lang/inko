@@ -104,6 +104,11 @@ pub const STRING_BUFFER_PUSH: &str = "push";
 pub const STRING_BUFFER_INTERNAL_NAME: &str = "$StringBuffer";
 pub const STRING_BUFFER_INTO_STRING: &str = "into_string";
 pub const BYTE_ARRAY_READ: &str = "get_unchecked";
+pub const SYNC_MODULE: &str = "std.sync";
+pub const FUTURE_TYPE: &str = "Future";
+pub const FUTURE_INTERNAL_NAME: &str = "$Future";
+pub const FUTURE_NEW: &str = "new";
+pub const FUTURE_GET: &str = "get";
 
 /// The name of the pseudo field used to deference a pointer.
 pub const DEREF_POINTER_FIELD: &str = "0";

@@ -15,9 +15,10 @@ use types::{
     Constant, Database, ModuleId, Symbol, Trait, TraitId, TraitImplementation,
     Type, TypeEnum, TypeId, TypeInstance, TypeKind, TypeRef, Visibility,
     ARRAY_INTERNAL_NAME, BYTES_MODULE, BYTE_ARRAY_TYPE, CONSTRUCTORS_LIMIT,
-    ENUM_TAG_FIELD, ENUM_TAG_INDEX, MAIN_TYPE, OPTION_MODULE, OPTION_TYPE,
-    RESULT_MODULE, RESULT_TYPE, STRING_BUFFER_INTERNAL_NAME,
-    STRING_BUFFER_TYPE, STRING_MODULE,
+    ENUM_TAG_FIELD, ENUM_TAG_INDEX, FUTURE_INTERNAL_NAME, FUTURE_TYPE,
+    MAIN_TYPE, OPTION_MODULE, OPTION_TYPE, RESULT_MODULE, RESULT_TYPE,
+    STRING_BUFFER_INTERNAL_NAME, STRING_BUFFER_TYPE, STRING_MODULE,
+    SYNC_MODULE,
 };
 
 /// A compiler pass that defines types and traits.
@@ -990,6 +991,15 @@ impl<'a> InsertPrelude<'a> {
             self.db_mut(),
             ARRAY_INTERNAL_NAME.to_string(),
             Symbol::Type(TypeId::array()),
+        );
+
+        // The `Future` symbol used for desugaring `async` expressions.
+        let fut_id = self.state.db.type_in_module(SYNC_MODULE, FUTURE_TYPE);
+
+        self.module.new_symbol(
+            self.db_mut(),
+            FUTURE_INTERNAL_NAME.to_string(),
+            Symbol::Type(fut_id),
         );
 
         // StringBuffer is used for interpolated strings.

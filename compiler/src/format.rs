@@ -1330,6 +1330,8 @@ impl Document {
             Expression::Closure(n) => self.closure(n, false),
             Expression::TypeCast(n) => self.type_cast(n),
             Expression::Try(n) => self.try_value(n),
+            Expression::Async(n) => self.async_expression(n),
+            Expression::Await(n) => self.await_expression(n),
             Expression::Match(n) => self.match_value(n),
             Expression::Scope(n) => self.scope(n),
             Expression::For(n) => self.for_loop(n),
@@ -1793,6 +1795,14 @@ impl Document {
 
     fn try_value(&mut self, node: &nodes::Try) -> Node {
         Node::Nodes(vec![Node::text("try "), self.expression(&node.value)])
+    }
+
+    fn async_expression(&mut self, node: &nodes::Async) -> Node {
+        Node::Nodes(vec![Node::text("async "), self.expression(&node.value)])
+    }
+
+    fn await_expression(&mut self, node: &nodes::Await) -> Node {
+        Node::Nodes(vec![Node::text("await "), self.expression(&node.value)])
     }
 
     fn not(&mut self, node: &nodes::Not) -> Node {

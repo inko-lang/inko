@@ -635,12 +635,7 @@ type pub inline Channel[T] {
   # chan.receive # => 42
   # ```
   fn pub receive -> uni T {
-    match Future.new {
-      case (future, promise) -> {
-        @state.receive(promise)
-        future.get
-      }
-    }
+    await @state.receive
   }
 
   # Receives a value from the channel, blocking the calling process until a
@@ -662,12 +657,7 @@ type pub inline Channel[T] {
   # chan.receive_until(Duration.from_millis(10)) # => Option.Some(42)
   # ```
   fn pub receive_until[D: ToInstant](deadline: ref D) -> Option[uni T] {
-    match Future.new {
-      case (future, promise) -> {
-        @state.receive(promise)
-        future.get_until(deadline)
-      }
-    }
+    (async @state.receive).get_until(deadline)
   }
 }
 

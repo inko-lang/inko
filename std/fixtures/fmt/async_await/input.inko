@@ -1,0 +1,4 @@
+fn example {
+  async fooooooooooooooooooooooooooo.baaaaaaaaaaaaaaaaaaaaaaaaaaar.baaaaaaaaaaaaaaaaaaaz(10)
+  await fooooooooooooooooooooooooooo.baaaaaaaaaaaaaaaaaaaaaaaaaaar.baaaaaaaaaaaaaaaaaaaz(10)
+}

@@ -8,7 +8,7 @@ import std.net.socket (Socket, TcpClient, TcpServer)
 import std.net.tls (
   Client, ClientConfig, Server, ServerConfig, ServerConfigError,
 )
-import std.sync (Future, Promise)
+import std.sync (Promise)
 import std.sys.net (NO_DEADLINE)
 import std.test (Tests)
 import std.time (Duration, Instant)
@@ -225,15 +225,15 @@ type async DummyServer {
 
 type async DummyClient {
   fn async connect(
-    port: Int,
     output: uni Promise[uni Result[Client[TcpClient], String]],
+    port: Int,
   ) {
     output.set(recover client(port))
   }
 
   fn async write(
-    port: Int,
     output: uni Promise[uni Result[Client[TcpClient], String]],
+    port: Int,
   ) {
     let res = recover {
       client(port).then(fn (s) {
@@ -245,7 +245,7 @@ type async DummyClient {
     output.set(res)
   }
 
-  fn async reply(port: Int, output: uni Promise[uni Result[String, String]]) {
+  fn async reply(output: uni Promise[uni Result[String, String]], port: Int) {
     let res = recover {
       client(port).then(fn (s) {
         let buf = ByteArray.new
@@ -549,15 +549,8 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('Server.close', fn (t) {
-    let sock_fut = match Future.new {
-      case (future, promise) -> {
-        match try listener {
-          case (sock, port) -> {
-            DummyClient().connect(port, promise)
-            (sock, future)
-          }
-        }
-      }
+    let sock_fut = match try listener {
+      case (sock, port) -> (sock, async DummyClient().connect(port))
     }
 
     match sock_fut {
@@ -576,15 +569,8 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('Server.read', fn (t) {
-    let sock_fut = match Future.new {
-      case (future, promise) -> {
-        match try listener {
-          case (sock, port) -> {
-            DummyClient().write(port, promise)
-            (sock, future)
-          }
-        }
-      }
+    let sock_fut = match try listener {
+      case (sock, port) -> (sock, async DummyClient().write(port))
     }
 
     match sock_fut {
@@ -602,15 +588,8 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('Server.write', fn (t) {
-    let sock_fut = match Future.new {
-      case (future, promise) -> {
-        match try listener {
-          case (sock, port) -> {
-            DummyClient().reply(port, promise)
-            (sock, future)
-          }
-        }
-      }
+    let sock_fut = match try listener {
+      case (sock, port) -> (sock, async DummyClient().reply(port))
     }
 
     match sock_fut {
@@ -626,15 +605,8 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('Server.send_file', fn (t) {
-    let sock_fut = match Future.new {
-      case (future, promise) -> {
-        match try listener {
-          case (sock, port) -> {
-            DummyClient().reply(port, promise)
-            (sock, future)
-          }
-        }
-      }
+    let sock_fut = match try listener {
+      case (sock, port) -> (sock, async DummyClient().reply(port))
     }
 
     let file = try ReadOnlyFile.new('fixtures/hello.txt'.to_path).map_error(
@@ -654,15 +626,8 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('Server.timeout_after=', fn (t) {
-    let sock_fut = match Future.new {
-      case (future, promise) -> {
-        match try listener {
-          case (sock, port) -> {
-            DummyClient().reply(port, promise)
-            (sock, future)
-          }
-        }
-      }
+    let sock_fut = match try listener {
+      case (sock, port) -> (sock, async DummyClient().reply(port))
     }
 
     match sock_fut {

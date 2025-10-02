@@ -1,0 +1,16 @@
+import std.sync (Promise)
+import std.test (Tests)
+
+fn example(promise: Promise[Int]) {
+  promise.set(42)
+}
+
+fn pub tests(t: mut Tests) {
+  t.test('the async keyword', fn (t) {
+    let fut = async example
+
+    t.equal(fut.get, 42)
+  })
+
+  t.test('the await keyword', fn (t) { t.equal(await example, 42) })
+}

@@ -381,43 +381,9 @@ When defining an `async` method, the following rules are enforced by the
 compiler:
 
 - The arguments must be sendable
-- Return types aren't allowed
-
-## Calling async methods
-
-Calling `async` methods is done using the same syntax as for calling regular
-methods:
-
-```inko
-import std.sync (Future, Promise)
-
-type async Counter {
-  let mut @value: Int
-
-  fn async mut increment {
-    @value += 1
-  }
-
-  fn async value(output: uni Promise[Int]) {
-    output.set(@value)
-  }
-}
-
-type async Main {
-  fn async main {
-    let counter = Counter(value: 0)
-
-    counter.increment
-
-    match Future.new {
-      case (future, promise) -> {
-        counter.value(promise)
-        future.get # => 1
-      }
-    }
-  }
-}
-```
+- Return types aren't allowed, instead you must use a `Promise`, `Channel` or
+  similar value to send the return value back to the sending (or another)
+  process
 
 ## Dropping processes
 

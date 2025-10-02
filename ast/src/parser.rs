@@ -1726,6 +1726,8 @@ impl Parser {
             TokenKind::True => self.true_literal(start),
             TokenKind::Nil => self.nil_literal(start),
             TokenKind::Try => self.try_expression(start)?,
+            TokenKind::Async => self.async_expression(start)?,
+            TokenKind::Await => self.await_expression(start)?,
             TokenKind::While => self.while_expression(start)?,
             TokenKind::Let => self.define_variable(start)?,
             TokenKind::For => self.for_expression(start)?,
@@ -2581,6 +2583,30 @@ impl Parser {
         let location = Location::start_end(&start.location, end_loc);
 
         Ok(Expression::Try(Box::new(Try { value: expression, location })))
+    }
+
+    fn async_expression(
+        &mut self,
+        start: Token,
+    ) -> Result<Expression, ParseError> {
+        let expr_token = self.require()?;
+        let expression = self.expression(expr_token)?;
+        let end_loc = expression.location();
+        let location = Location::start_end(&start.location, end_loc);
+
+        Ok(Expression::Async(Box::new(Async { value: expression, location })))
+    }
+
+    fn await_expression(
+        &mut self,
+        start: Token,
+    ) -> Result<Expression, ParseError> {
+        let expr_token = self.require()?;
+        let expression = self.expression(expr_token)?;
+        let end_loc = expression.location();
+        let location = Location::start_end(&start.location, end_loc);
+
+        Ok(Expression::Await(Box::new(Await { value: expression, location })))
     }
 
     fn if_expression(

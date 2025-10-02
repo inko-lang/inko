@@ -757,6 +757,8 @@ pub enum Expression {
     Throw(Box<Throw>),
     Return(Box<Return>),
     Try(Box<Try>),
+    Async(Box<Async>),
+    Await(Box<Await>),
     If(Box<If>),
     Match(Box<Match>),
     Loop(Box<Loop>),
@@ -811,48 +813,50 @@ impl Expression {
 impl Node for Expression {
     fn location(&self) -> &Location {
         match self {
-            Expression::And(ref typ) => typ.location(),
-            Expression::Array(ref typ) => typ.location(),
-            Expression::AssignField(ref typ) => typ.location(),
-            Expression::ReplaceField(ref typ) => typ.location(),
-            Expression::AssignSetter(ref typ) => typ.location(),
-            Expression::ReplaceSetter(ref typ) => typ.location(),
-            Expression::AssignVariable(ref typ) => typ.location(),
-            Expression::ReplaceVariable(ref typ) => typ.location(),
-            Expression::Binary(ref typ) => typ.location(),
-            Expression::BinaryAssignField(ref typ) => typ.location(),
-            Expression::BinaryAssignSetter(ref typ) => typ.location(),
-            Expression::BinaryAssignVariable(ref typ) => typ.location(),
-            Expression::Break(ref typ) => typ.location(),
-            Expression::Call(ref typ) => typ.location(),
-            Expression::Closure(ref typ) => typ.location(),
-            Expression::Constant(ref typ) => typ.location(),
-            Expression::DefineVariable(ref typ) => typ.location(),
-            Expression::String(ref typ) => typ.location(),
-            Expression::False(ref typ) => typ.location(),
-            Expression::Field(ref typ) => typ.location(),
-            Expression::Float(ref typ) => typ.location(),
-            Expression::Group(ref typ) => typ.location(),
-            Expression::Identifier(ref typ) => typ.location(),
-            Expression::If(ref typ) => typ.location(),
-            Expression::Int(ref typ) => typ.location(),
-            Expression::Loop(ref typ) => typ.location(),
-            Expression::Match(ref typ) => typ.location(),
-            Expression::Next(ref typ) => typ.location(),
-            Expression::Or(ref typ) => typ.location(),
-            Expression::Ref(ref typ) => typ.location(),
-            Expression::Return(ref typ) => typ.location(),
-            Expression::Scope(ref typ) => typ.location(),
-            Expression::SelfObject(ref typ) => typ.location(),
-            Expression::Throw(ref typ) => typ.location(),
-            Expression::True(ref typ) => typ.location(),
-            Expression::Nil(ref typ) => typ.location(),
-            Expression::Try(ref typ) => typ.location(),
-            Expression::Tuple(ref typ) => typ.location(),
-            Expression::TypeCast(ref typ) => typ.location(),
-            Expression::While(ref typ) => typ.location(),
-            Expression::Mut(ref typ) => typ.location(),
-            Expression::Recover(ref typ) => typ.location(),
+            Expression::And(ref n) => n.location(),
+            Expression::Array(ref n) => n.location(),
+            Expression::AssignField(ref n) => n.location(),
+            Expression::ReplaceField(ref n) => n.location(),
+            Expression::AssignSetter(ref n) => n.location(),
+            Expression::ReplaceSetter(ref n) => n.location(),
+            Expression::AssignVariable(ref n) => n.location(),
+            Expression::ReplaceVariable(ref n) => n.location(),
+            Expression::Binary(ref n) => n.location(),
+            Expression::BinaryAssignField(ref n) => n.location(),
+            Expression::BinaryAssignSetter(ref n) => n.location(),
+            Expression::BinaryAssignVariable(ref n) => n.location(),
+            Expression::Break(ref n) => n.location(),
+            Expression::Call(ref n) => n.location(),
+            Expression::Closure(ref n) => n.location(),
+            Expression::Constant(ref n) => n.location(),
+            Expression::DefineVariable(ref n) => n.location(),
+            Expression::String(ref n) => n.location(),
+            Expression::False(ref n) => n.location(),
+            Expression::Field(ref n) => n.location(),
+            Expression::Float(ref n) => n.location(),
+            Expression::Group(ref n) => n.location(),
+            Expression::Identifier(ref n) => n.location(),
+            Expression::If(ref n) => n.location(),
+            Expression::Int(ref n) => n.location(),
+            Expression::Loop(ref n) => n.location(),
+            Expression::Match(ref n) => n.location(),
+            Expression::Next(ref n) => n.location(),
+            Expression::Or(ref n) => n.location(),
+            Expression::Ref(ref n) => n.location(),
+            Expression::Return(ref n) => n.location(),
+            Expression::Scope(ref n) => n.location(),
+            Expression::SelfObject(ref n) => n.location(),
+            Expression::Throw(ref n) => n.location(),
+            Expression::True(ref n) => n.location(),
+            Expression::Nil(ref n) => n.location(),
+            Expression::Try(ref n) => n.location(),
+            Expression::Async(ref n) => n.location(),
+            Expression::Await(ref n) => n.location(),
+            Expression::Tuple(ref n) => n.location(),
+            Expression::TypeCast(ref n) => n.location(),
+            Expression::While(ref n) => n.location(),
+            Expression::Mut(ref n) => n.location(),
+            Expression::Recover(ref n) => n.location(),
             Expression::Comment(ref n) => n.location(),
             Expression::For(ref n) => n.location(),
             Expression::Not(ref n) => n.location(),
@@ -1414,6 +1418,30 @@ pub struct Try {
 }
 
 impl Node for Try {
+    fn location(&self) -> &Location {
+        &self.location
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct Async {
+    pub value: Expression,
+    pub location: Location,
+}
+
+impl Node for Async {
+    fn location(&self) -> &Location {
+        &self.location
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct Await {
+    pub value: Expression,
+    pub location: Location,
+}
+
+impl Node for Await {
     fn location(&self) -> &Location {
         &self.location
     }
