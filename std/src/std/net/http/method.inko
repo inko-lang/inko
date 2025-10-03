@@ -1,0 +1,78 @@
+import std.bytes (Bytes)
+import std.fmt (Formatter)
+import std.hash (Hasher)
+import std.net.http (Method)
+import std.net.http.method.phf
+import std.string (ToString)
+
+# The code in this module is generated and _must not_ be edited by hand. For
+# more information, refer to ./std/gen/README.md.
+
+let MAX = 7
+
+fn parse[B: Bytes + ToString](input: ref B) -> Option[Method] {
+  match phf.index_of(input) {
+    case 0 -> Option.Some(Method.Connect)
+    case 1 -> Option.Some(Method.Delete)
+    case 2 -> Option.Some(Method.Get)
+    case 3 -> Option.Some(Method.Head)
+    case 4 -> Option.Some(Method.Options)
+    case 5 -> Option.Some(Method.Post)
+    case 6 -> Option.Some(Method.Put)
+    case 7 -> Option.Some(Method.Trace)
+    case _ -> Option.None
+  }
+}
+
+fn hash[H: mut + Hasher](hasher: mut H, method: Method) {
+  match method {
+    case Connect -> 0.hash(hasher)
+    case Delete -> 1.hash(hasher)
+    case Get -> 2.hash(hasher)
+    case Head -> 3.hash(hasher)
+    case Options -> 4.hash(hasher)
+    case Post -> 5.hash(hasher)
+    case Put -> 6.hash(hasher)
+    case Trace -> 7.hash(hasher)
+  }
+}
+
+fn eq(left: Method, right: Method) -> Bool {
+  match (left, right) {
+    case (Connect, Connect) -> true
+    case (Delete, Delete) -> true
+    case (Get, Get) -> true
+    case (Head, Head) -> true
+    case (Options, Options) -> true
+    case (Post, Post) -> true
+    case (Put, Put) -> true
+    case (Trace, Trace) -> true
+    case _ -> false
+  }
+}
+
+fn to_string(method: Method) -> String {
+  match method {
+    case Connect -> 'CONNECT'
+    case Delete -> 'DELETE'
+    case Get -> 'GET'
+    case Head -> 'HEAD'
+    case Options -> 'OPTIONS'
+    case Post -> 'POST'
+    case Put -> 'PUT'
+    case Trace -> 'TRACE'
+  }
+}
+
+fn format(formatter: mut Formatter, method: Method) {
+  match method {
+    case Connect -> formatter.tuple('Connect').finish
+    case Delete -> formatter.tuple('Delete').finish
+    case Get -> formatter.tuple('Get').finish
+    case Head -> formatter.tuple('Head').finish
+    case Options -> formatter.tuple('Options').finish
+    case Post -> formatter.tuple('Post').finish
+    case Put -> formatter.tuple('Put').finish
+    case Trace -> formatter.tuple('Trace').finish
+  }
+}

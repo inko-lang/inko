@@ -1,0 +1,46 @@
+import std.bytes (Bytes)
+
+# The code in this module is generated using ./std/gen/hash.py and _must not_ be
+# edited by hand. For more information, refer to ./std/gen/README.md.
+
+let G = [0, 7, 6, 3, 3, 4, 7, 1, 6]
+let S1 = [7, 6, 7, 7, 8, 4, 5]
+let S2 = [6, 3, 1, 5, 2, 6, 4]
+let KEYS = [
+  'CONNECT',
+  'DELETE',
+  'GET',
+  'HEAD',
+  'OPTIONS',
+  'POST',
+  'PUT',
+  'TRACE',
+]
+
+fn inline hash[B: Bytes](key: ref B, salt: ref Array[Int]) -> Int {
+  let mut i = 0
+  let mut h = 0
+
+  while i < key.size {
+    h = h.wrapping_add(salt.get(i).or_panic.wrapping_mul(key.get(i).or_panic))
+    i += 1
+  }
+
+  h % 9
+}
+
+# Returns the index of the given key.
+#
+# If the key is an unknown key, `-1` is returned.
+fn index_of[B: Bytes](key: ref B) -> Int {
+  if key.size > 7 { return -1 }
+
+  let a = G.get(hash(key, S1)).or_panic
+  let b = G.get(hash(key, S2)).or_panic
+  let i = a.wrapping_add(b) % 9
+
+  match KEYS.get(i) {
+    case Ok(v) if key.equals?(v) -> i
+    case _ -> -1
+  }
+}

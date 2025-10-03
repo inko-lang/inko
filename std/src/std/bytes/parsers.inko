@@ -118,6 +118,13 @@ fn digits[T: Bytes](
   if len > 0 { Option.Some((num, len)) } else { Option.None }
 }
 
+fn inline int[T: Bytes](input: ref T) -> Option[Int] {
+  match digits(input, start: 0, limit: 19) {
+    case Some((v, len)) if len == input.size -> Option.Some(v)
+    case _ -> Option.None
+  }
+}
+
 fn name_index_at[T: Bytes](
   input: ref T,
   start: Int,

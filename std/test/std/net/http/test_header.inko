@@ -1,0 +1,812 @@
+import helpers (hash)
+import std.fmt (fmt)
+import std.net.http (Header)
+import std.test (Tests)
+
+fn pub tests(t: mut Tests) {
+  t.test('Header.accept', fn (t) { t.equal(Header.accept, Header.Standard(0)) })
+
+  t.test('Header.accept_charset', fn (t) {
+    t.equal(Header.accept_charset, Header.Standard(1))
+  })
+
+  t.test('Header.accept_encoding', fn (t) {
+    t.equal(Header.accept_encoding, Header.Standard(2))
+  })
+
+  t.test('Header.accept_language', fn (t) {
+    t.equal(Header.accept_language, Header.Standard(3))
+  })
+
+  t.test('Header.accept_ranges', fn (t) {
+    t.equal(Header.accept_ranges, Header.Standard(4))
+  })
+
+  t.test('Header.access_control_allow_credentials', fn (t) {
+    t.equal(Header.access_control_allow_credentials, Header.Standard(5))
+  })
+
+  t.test('Header.access_control_allow_headers', fn (t) {
+    t.equal(Header.access_control_allow_headers, Header.Standard(6))
+  })
+
+  t.test('Header.access_control_allow_methods', fn (t) {
+    t.equal(Header.access_control_allow_methods, Header.Standard(7))
+  })
+
+  t.test('Header.access_control_allow_origin', fn (t) {
+    t.equal(Header.access_control_allow_origin, Header.Standard(8))
+  })
+
+  t.test('Header.access_control_max_age', fn (t) {
+    t.equal(Header.access_control_max_age, Header.Standard(9))
+  })
+
+  t.test('Header.access_control_method', fn (t) {
+    t.equal(Header.access_control_method, Header.Standard(10))
+  })
+
+  t.test('Header.access_control_request_method', fn (t) {
+    t.equal(Header.access_control_request_method, Header.Standard(11))
+  })
+
+  t.test('Header.access_control_request_methods', fn (t) {
+    t.equal(Header.access_control_request_methods, Header.Standard(12))
+  })
+
+  t.test('Header.access_control_request_headers', fn (t) {
+    t.equal(Header.access_control_request_headers, Header.Standard(13))
+  })
+
+  t.test('Header.age', fn (t) { t.equal(Header.age, Header.Standard(14)) })
+
+  t.test('Header.allow', fn (t) { t.equal(Header.allow, Header.Standard(15)) })
+
+  t.test('Header.alt_svc', fn (t) {
+    t.equal(Header.alt_svc, Header.Standard(16))
+  })
+
+  t.test('Header.authorization', fn (t) {
+    t.equal(Header.authorization, Header.Standard(17))
+  })
+
+  t.test('Header.cache_control', fn (t) {
+    t.equal(Header.cache_control, Header.Standard(18))
+  })
+
+  t.test('Header.connection', fn (t) {
+    t.equal(Header.connection, Header.Standard(19))
+  })
+
+  t.test('Header.content_disposition', fn (t) {
+    t.equal(Header.content_disposition, Header.Standard(20))
+  })
+
+  t.test('Header.content_encoding', fn (t) {
+    t.equal(Header.content_encoding, Header.Standard(21))
+  })
+
+  t.test('Header.content_language', fn (t) {
+    t.equal(Header.content_language, Header.Standard(22))
+  })
+
+  t.test('Header.content_length', fn (t) {
+    t.equal(Header.content_length, Header.Standard(23))
+  })
+
+  t.test('Header.content_location', fn (t) {
+    t.equal(Header.content_location, Header.Standard(24))
+  })
+
+  t.test('Header.content_range', fn (t) {
+    t.equal(Header.content_range, Header.Standard(25))
+  })
+
+  t.test('Header.content_type', fn (t) {
+    t.equal(Header.content_type, Header.Standard(26))
+  })
+
+  t.test('Header.cookie', fn (t) { t.equal(Header.cookie, Header.Standard(27)) })
+
+  t.test('Header.date', fn (t) { t.equal(Header.date, Header.Standard(28)) })
+
+  t.test('Header.etag', fn (t) { t.equal(Header.etag, Header.Standard(29)) })
+
+  t.test('Header.expect', fn (t) { t.equal(Header.expect, Header.Standard(30)) })
+
+  t.test('Header.expires', fn (t) {
+    t.equal(Header.expires, Header.Standard(31))
+  })
+
+  t.test('Header.from', fn (t) { t.equal(Header.from, Header.Standard(32)) })
+
+  t.test('Header.host', fn (t) { t.equal(Header.host, Header.Standard(33)) })
+
+  t.test('Header.if_match', fn (t) {
+    t.equal(Header.if_match, Header.Standard(34))
+  })
+
+  t.test('Header.if_modified_since', fn (t) {
+    t.equal(Header.if_modified_since, Header.Standard(35))
+  })
+
+  t.test('Header.if_none_match', fn (t) {
+    t.equal(Header.if_none_match, Header.Standard(36))
+  })
+
+  t.test('Header.if_range', fn (t) {
+    t.equal(Header.if_range, Header.Standard(37))
+  })
+
+  t.test('Header.if_unmodified_since', fn (t) {
+    t.equal(Header.if_unmodified_since, Header.Standard(38))
+  })
+
+  t.test('Header.keep_alive', fn (t) {
+    t.equal(Header.keep_alive, Header.Standard(39))
+  })
+
+  t.test('Header.last_modified', fn (t) {
+    t.equal(Header.last_modified, Header.Standard(40))
+  })
+
+  t.test('Header.link', fn (t) { t.equal(Header.link, Header.Standard(41)) })
+
+  t.test('Header.location', fn (t) {
+    t.equal(Header.location, Header.Standard(42))
+  })
+
+  t.test('Header.max_forwards', fn (t) {
+    t.equal(Header.max_forwards, Header.Standard(43))
+  })
+
+  t.test('Header.origin', fn (t) { t.equal(Header.origin, Header.Standard(44)) })
+
+  t.test('Header.pragma', fn (t) { t.equal(Header.pragma, Header.Standard(45)) })
+
+  t.test('Header.proxy_authenticate', fn (t) {
+    t.equal(Header.proxy_authenticate, Header.Standard(46))
+  })
+
+  t.test('Header.proxy_authorization', fn (t) {
+    t.equal(Header.proxy_authorization, Header.Standard(47))
+  })
+
+  t.test('Header.proxy_connection', fn (t) {
+    t.equal(Header.proxy_connection, Header.Standard(48))
+  })
+
+  t.test('Header.range', fn (t) { t.equal(Header.range, Header.Standard(49)) })
+
+  t.test('Header.referer', fn (t) {
+    t.equal(Header.referer, Header.Standard(50))
+  })
+
+  t.test('Header.retry_after', fn (t) {
+    t.equal(Header.retry_after, Header.Standard(51))
+  })
+
+  t.test('Header.server', fn (t) { t.equal(Header.server, Header.Standard(52)) })
+
+  t.test('Header.set_cookie', fn (t) {
+    t.equal(Header.set_cookie, Header.Standard(53))
+  })
+
+  t.test('Header.strict_transport_security', fn (t) {
+    t.equal(Header.strict_transport_security, Header.Standard(54))
+  })
+
+  t.test('Header.trailer', fn (t) {
+    t.equal(Header.trailer, Header.Standard(55))
+  })
+
+  t.test('Header.transfer_encoding', fn (t) {
+    t.equal(Header.transfer_encoding, Header.Standard(56))
+  })
+
+  t.test('Header.upgrade', fn (t) {
+    t.equal(Header.upgrade, Header.Standard(57))
+  })
+
+  t.test('Header.upgrade_insecure_requests', fn (t) {
+    t.equal(Header.upgrade_insecure_requests, Header.Standard(58))
+  })
+
+  t.test('Header.user_agent', fn (t) {
+    t.equal(Header.user_agent, Header.Standard(59))
+  })
+
+  t.test('Header.vary', fn (t) { t.equal(Header.vary, Header.Standard(60)) })
+
+  t.test('Header.via', fn (t) { t.equal(Header.via, Header.Standard(61)) })
+
+  t.test('Header.www_authenticate', fn (t) {
+    t.equal(Header.www_authenticate, Header.Standard(62))
+  })
+
+  t.test('Header.sec_fetch_site', fn (t) {
+    t.equal(Header.sec_fetch_site, Header.Standard(63))
+  })
+
+  t.test('Header.sec_fetch_mode', fn (t) {
+    t.equal(Header.sec_fetch_mode, Header.Standard(64))
+  })
+
+  t.test('Header.sec_fetch_user', fn (t) {
+    t.equal(Header.sec_fetch_user, Header.Standard(65))
+  })
+
+  t.test('Header.sec_fetch_dest', fn (t) {
+    t.equal(Header.sec_fetch_dest, Header.Standard(66))
+  })
+
+  t.test('Header.new', fn (t) {
+    t.equal(Header.new('accept'), Header.accept)
+    t.equal(Header.new('accept-charset'), Header.accept_charset)
+    t.equal(Header.new('accept-encoding'), Header.accept_encoding)
+    t.equal(Header.new('accept-language'), Header.accept_language)
+    t.equal(Header.new('accept-ranges'), Header.accept_ranges)
+    t.equal(
+      Header.new('access-control-allow-credentials'),
+      Header.access_control_allow_credentials,
+    )
+    t.equal(
+      Header.new('access-control-allow-headers'),
+      Header.access_control_allow_headers,
+    )
+    t.equal(
+      Header.new('access-control-allow-methods'),
+      Header.access_control_allow_methods,
+    )
+    t.equal(
+      Header.new('access-control-allow-origin'),
+      Header.access_control_allow_origin,
+    )
+    t.equal(Header.new('access-control-max-age'), Header.access_control_max_age)
+    t.equal(Header.new('access-control-method'), Header.access_control_method)
+    t.equal(
+      Header.new('access-control-request-method'),
+      Header.access_control_request_method,
+    )
+    t.equal(
+      Header.new('access-control-request-methods'),
+      Header.access_control_request_methods,
+    )
+    t.equal(
+      Header.new('access-control-request-headers'),
+      Header.access_control_request_headers,
+    )
+    t.equal(Header.new('age'), Header.age)
+    t.equal(Header.new('allow'), Header.allow)
+    t.equal(Header.new('alt-svc'), Header.alt_svc)
+    t.equal(Header.new('authorization'), Header.authorization)
+    t.equal(Header.new('cache-control'), Header.cache_control)
+    t.equal(Header.new('connection'), Header.connection)
+    t.equal(Header.new('content-disposition'), Header.content_disposition)
+    t.equal(Header.new('content-encoding'), Header.content_encoding)
+    t.equal(Header.new('content-language'), Header.content_language)
+    t.equal(Header.new('content-length'), Header.content_length)
+    t.equal(Header.new('content-location'), Header.content_location)
+    t.equal(Header.new('content-range'), Header.content_range)
+    t.equal(Header.new('content-type'), Header.content_type)
+    t.equal(Header.new('cookie'), Header.cookie)
+    t.equal(Header.new('date'), Header.date)
+    t.equal(Header.new('etag'), Header.etag)
+    t.equal(Header.new('expect'), Header.expect)
+    t.equal(Header.new('expires'), Header.expires)
+    t.equal(Header.new('from'), Header.from)
+    t.equal(Header.new('host'), Header.host)
+    t.equal(Header.new('if-match'), Header.if_match)
+    t.equal(Header.new('if-modified-since'), Header.if_modified_since)
+    t.equal(Header.new('if-none-match'), Header.if_none_match)
+    t.equal(Header.new('if-range'), Header.if_range)
+    t.equal(Header.new('if-unmodified-since'), Header.if_unmodified_since)
+    t.equal(Header.new('keep-alive'), Header.keep_alive)
+    t.equal(Header.new('last-modified'), Header.last_modified)
+    t.equal(Header.new('link'), Header.link)
+    t.equal(Header.new('location'), Header.location)
+    t.equal(Header.new('max-forwards'), Header.max_forwards)
+    t.equal(Header.new('origin'), Header.origin)
+    t.equal(Header.new('pragma'), Header.pragma)
+    t.equal(Header.new('proxy-authenticate'), Header.proxy_authenticate)
+    t.equal(Header.new('proxy-authorization'), Header.proxy_authorization)
+    t.equal(Header.new('proxy-connection'), Header.proxy_connection)
+    t.equal(Header.new('range'), Header.range)
+    t.equal(Header.new('referer'), Header.referer)
+    t.equal(Header.new('retry-after'), Header.retry_after)
+    t.equal(Header.new('server'), Header.server)
+    t.equal(Header.new('set-cookie'), Header.set_cookie)
+    t.equal(
+      Header.new('strict-transport-security'),
+      Header.strict_transport_security,
+    )
+    t.equal(Header.new('trailer'), Header.trailer)
+    t.equal(Header.new('transfer-encoding'), Header.transfer_encoding)
+    t.equal(Header.new('upgrade'), Header.upgrade)
+    t.equal(
+      Header.new('upgrade-insecure-requests'),
+      Header.upgrade_insecure_requests,
+    )
+    t.equal(Header.new('user-agent'), Header.user_agent)
+    t.equal(Header.new('vary'), Header.vary)
+    t.equal(Header.new('via'), Header.via)
+    t.equal(Header.new('www-authenticate'), Header.www_authenticate)
+    t.equal(Header.new('sec-fetch-site'), Header.sec_fetch_site)
+    t.equal(Header.new('sec-fetch-mode'), Header.sec_fetch_mode)
+    t.equal(Header.new('sec-fetch-user'), Header.sec_fetch_user)
+    t.equal(Header.new('sec-fetch-dest'), Header.sec_fetch_dest)
+
+    t.equal(Header.new('example'), Header.Other('example'))
+    t.not_equal(Header.new('example'), Header.Other('Example'))
+  })
+
+  t.test('Header.hash', fn (t) {
+    t.equal(hash(Header.accept), hash(Header.accept))
+    t.equal(hash(Header.accept_charset), hash(Header.accept_charset))
+    t.equal(hash(Header.accept_encoding), hash(Header.accept_encoding))
+    t.equal(hash(Header.accept_language), hash(Header.accept_language))
+    t.equal(hash(Header.accept_ranges), hash(Header.accept_ranges))
+    t.equal(
+      hash(Header.access_control_allow_credentials),
+      hash(Header.access_control_allow_credentials),
+    )
+    t.equal(
+      hash(Header.access_control_allow_headers),
+      hash(Header.access_control_allow_headers),
+    )
+    t.equal(
+      hash(Header.access_control_allow_methods),
+      hash(Header.access_control_allow_methods),
+    )
+    t.equal(
+      hash(Header.access_control_allow_origin),
+      hash(Header.access_control_allow_origin),
+    )
+    t.equal(
+      hash(Header.access_control_max_age),
+      hash(Header.access_control_max_age),
+    )
+    t.equal(
+      hash(Header.access_control_method),
+      hash(Header.access_control_method),
+    )
+    t.equal(
+      hash(Header.access_control_request_method),
+      hash(Header.access_control_request_method),
+    )
+    t.equal(
+      hash(Header.access_control_request_methods),
+      hash(Header.access_control_request_methods),
+    )
+    t.equal(
+      hash(Header.access_control_request_headers),
+      hash(Header.access_control_request_headers),
+    )
+    t.equal(hash(Header.age), hash(Header.age))
+    t.equal(hash(Header.allow), hash(Header.allow))
+    t.equal(hash(Header.alt_svc), hash(Header.alt_svc))
+    t.equal(hash(Header.authorization), hash(Header.authorization))
+    t.equal(hash(Header.cache_control), hash(Header.cache_control))
+    t.equal(hash(Header.connection), hash(Header.connection))
+    t.equal(hash(Header.content_disposition), hash(Header.content_disposition))
+    t.equal(hash(Header.content_encoding), hash(Header.content_encoding))
+    t.equal(hash(Header.content_language), hash(Header.content_language))
+    t.equal(hash(Header.content_length), hash(Header.content_length))
+    t.equal(hash(Header.content_location), hash(Header.content_location))
+    t.equal(hash(Header.content_range), hash(Header.content_range))
+    t.equal(hash(Header.content_type), hash(Header.content_type))
+    t.equal(hash(Header.cookie), hash(Header.cookie))
+    t.equal(hash(Header.date), hash(Header.date))
+    t.equal(hash(Header.etag), hash(Header.etag))
+    t.equal(hash(Header.expect), hash(Header.expect))
+    t.equal(hash(Header.expires), hash(Header.expires))
+    t.equal(hash(Header.from), hash(Header.from))
+    t.equal(hash(Header.host), hash(Header.host))
+    t.equal(hash(Header.if_match), hash(Header.if_match))
+    t.equal(hash(Header.if_modified_since), hash(Header.if_modified_since))
+    t.equal(hash(Header.if_none_match), hash(Header.if_none_match))
+    t.equal(hash(Header.if_range), hash(Header.if_range))
+    t.equal(hash(Header.if_unmodified_since), hash(Header.if_unmodified_since))
+    t.equal(hash(Header.keep_alive), hash(Header.keep_alive))
+    t.equal(hash(Header.last_modified), hash(Header.last_modified))
+    t.equal(hash(Header.link), hash(Header.link))
+    t.equal(hash(Header.location), hash(Header.location))
+    t.equal(hash(Header.max_forwards), hash(Header.max_forwards))
+    t.equal(hash(Header.origin), hash(Header.origin))
+    t.equal(hash(Header.pragma), hash(Header.pragma))
+    t.equal(hash(Header.proxy_authenticate), hash(Header.proxy_authenticate))
+    t.equal(hash(Header.proxy_authorization), hash(Header.proxy_authorization))
+    t.equal(hash(Header.proxy_connection), hash(Header.proxy_connection))
+    t.equal(hash(Header.range), hash(Header.range))
+    t.equal(hash(Header.referer), hash(Header.referer))
+    t.equal(hash(Header.retry_after), hash(Header.retry_after))
+    t.equal(hash(Header.server), hash(Header.server))
+    t.equal(hash(Header.set_cookie), hash(Header.set_cookie))
+    t.equal(
+      hash(Header.strict_transport_security),
+      hash(Header.strict_transport_security),
+    )
+    t.equal(hash(Header.trailer), hash(Header.trailer))
+    t.equal(hash(Header.transfer_encoding), hash(Header.transfer_encoding))
+    t.equal(hash(Header.upgrade), hash(Header.upgrade))
+    t.equal(
+      hash(Header.upgrade_insecure_requests),
+      hash(Header.upgrade_insecure_requests),
+    )
+    t.equal(hash(Header.user_agent), hash(Header.user_agent))
+    t.equal(hash(Header.vary), hash(Header.vary))
+    t.equal(hash(Header.via), hash(Header.via))
+    t.equal(hash(Header.www_authenticate), hash(Header.www_authenticate))
+    t.equal(hash(Header.sec_fetch_site), hash(Header.sec_fetch_site))
+    t.equal(hash(Header.sec_fetch_mode), hash(Header.sec_fetch_mode))
+    t.equal(hash(Header.sec_fetch_user), hash(Header.sec_fetch_user))
+    t.equal(hash(Header.sec_fetch_dest), hash(Header.sec_fetch_dest))
+
+    t.equal(hash(Header.Other('example')), hash(Header.Other('example')))
+    t.not_equal(hash(Header.Other('foo')), hash(Header.Other('bar')))
+  })
+
+  t.test('Header.clone', fn (t) {
+    t.equal(Header.accept.clone, Header.accept)
+    t.equal(Header.accept_charset.clone, Header.accept_charset)
+    t.equal(Header.accept_encoding.clone, Header.accept_encoding)
+    t.equal(Header.accept_language.clone, Header.accept_language)
+    t.equal(Header.accept_ranges.clone, Header.accept_ranges)
+    t.equal(
+      Header.access_control_allow_credentials.clone,
+      Header.access_control_allow_credentials,
+    )
+    t.equal(
+      Header.access_control_allow_headers.clone,
+      Header.access_control_allow_headers,
+    )
+    t.equal(
+      Header.access_control_allow_methods.clone,
+      Header.access_control_allow_methods,
+    )
+    t.equal(
+      Header.access_control_allow_origin.clone,
+      Header.access_control_allow_origin,
+    )
+    t.equal(Header.access_control_max_age.clone, Header.access_control_max_age)
+    t.equal(Header.access_control_method.clone, Header.access_control_method)
+    t.equal(
+      Header.access_control_request_method.clone,
+      Header.access_control_request_method,
+    )
+    t.equal(
+      Header.access_control_request_methods.clone,
+      Header.access_control_request_methods,
+    )
+    t.equal(
+      Header.access_control_request_headers.clone,
+      Header.access_control_request_headers,
+    )
+    t.equal(Header.age.clone, Header.age)
+    t.equal(Header.allow.clone, Header.allow)
+    t.equal(Header.alt_svc.clone, Header.alt_svc)
+    t.equal(Header.authorization.clone, Header.authorization)
+    t.equal(Header.cache_control.clone, Header.cache_control)
+    t.equal(Header.connection.clone, Header.connection)
+    t.equal(Header.content_disposition.clone, Header.content_disposition)
+    t.equal(Header.content_encoding.clone, Header.content_encoding)
+    t.equal(Header.content_language.clone, Header.content_language)
+    t.equal(Header.content_length.clone, Header.content_length)
+    t.equal(Header.content_location.clone, Header.content_location)
+    t.equal(Header.content_range.clone, Header.content_range)
+    t.equal(Header.content_type.clone, Header.content_type)
+    t.equal(Header.cookie.clone, Header.cookie)
+    t.equal(Header.date.clone, Header.date)
+    t.equal(Header.etag.clone, Header.etag)
+    t.equal(Header.expect.clone, Header.expect)
+    t.equal(Header.expires.clone, Header.expires)
+    t.equal(Header.from.clone, Header.from)
+    t.equal(Header.host.clone, Header.host)
+    t.equal(Header.if_match.clone, Header.if_match)
+    t.equal(Header.if_modified_since.clone, Header.if_modified_since)
+    t.equal(Header.if_none_match.clone, Header.if_none_match)
+    t.equal(Header.if_range.clone, Header.if_range)
+    t.equal(Header.if_unmodified_since.clone, Header.if_unmodified_since)
+    t.equal(Header.keep_alive.clone, Header.keep_alive)
+    t.equal(Header.last_modified.clone, Header.last_modified)
+    t.equal(Header.link.clone, Header.link)
+    t.equal(Header.location.clone, Header.location)
+    t.equal(Header.max_forwards.clone, Header.max_forwards)
+    t.equal(Header.origin.clone, Header.origin)
+    t.equal(Header.pragma.clone, Header.pragma)
+    t.equal(Header.proxy_authenticate.clone, Header.proxy_authenticate)
+    t.equal(Header.proxy_authorization.clone, Header.proxy_authorization)
+    t.equal(Header.proxy_connection.clone, Header.proxy_connection)
+    t.equal(Header.range.clone, Header.range)
+    t.equal(Header.referer.clone, Header.referer)
+    t.equal(Header.retry_after.clone, Header.retry_after)
+    t.equal(Header.server.clone, Header.server)
+    t.equal(Header.set_cookie.clone, Header.set_cookie)
+    t.equal(
+      Header.strict_transport_security.clone,
+      Header.strict_transport_security,
+    )
+    t.equal(Header.trailer.clone, Header.trailer)
+    t.equal(Header.transfer_encoding.clone, Header.transfer_encoding)
+    t.equal(Header.upgrade.clone, Header.upgrade)
+    t.equal(
+      Header.upgrade_insecure_requests.clone,
+      Header.upgrade_insecure_requests,
+    )
+    t.equal(Header.user_agent.clone, Header.user_agent)
+    t.equal(Header.vary.clone, Header.vary)
+    t.equal(Header.via.clone, Header.via)
+    t.equal(Header.www_authenticate.clone, Header.www_authenticate)
+    t.equal(Header.sec_fetch_site.clone, Header.sec_fetch_site)
+    t.equal(Header.sec_fetch_mode.clone, Header.sec_fetch_mode)
+    t.equal(Header.sec_fetch_user.clone, Header.sec_fetch_user)
+    t.equal(Header.sec_fetch_dest.clone, Header.sec_fetch_dest)
+
+    t.equal(Header.Other('example').clone, Header.Other('example'))
+  })
+
+  t.test('Header.==', fn (t) {
+    t.equal(Header.accept, Header.Standard(0))
+    t.equal(Header.accept_charset, Header.Standard(1))
+    t.equal(Header.accept_encoding, Header.Standard(2))
+    t.equal(Header.accept_language, Header.Standard(3))
+    t.equal(Header.accept_ranges, Header.Standard(4))
+    t.equal(Header.access_control_allow_credentials, Header.Standard(5))
+    t.equal(Header.access_control_allow_headers, Header.Standard(6))
+    t.equal(Header.access_control_allow_methods, Header.Standard(7))
+    t.equal(Header.access_control_allow_origin, Header.Standard(8))
+    t.equal(Header.access_control_max_age, Header.Standard(9))
+    t.equal(Header.access_control_method, Header.Standard(10))
+    t.equal(Header.access_control_request_method, Header.Standard(11))
+    t.equal(Header.access_control_request_methods, Header.Standard(12))
+    t.equal(Header.access_control_request_headers, Header.Standard(13))
+    t.equal(Header.age, Header.Standard(14))
+    t.equal(Header.allow, Header.Standard(15))
+    t.equal(Header.alt_svc, Header.Standard(16))
+    t.equal(Header.authorization, Header.Standard(17))
+    t.equal(Header.cache_control, Header.Standard(18))
+    t.equal(Header.connection, Header.Standard(19))
+    t.equal(Header.content_disposition, Header.Standard(20))
+    t.equal(Header.content_encoding, Header.Standard(21))
+    t.equal(Header.content_language, Header.Standard(22))
+    t.equal(Header.content_length, Header.Standard(23))
+    t.equal(Header.content_location, Header.Standard(24))
+    t.equal(Header.content_range, Header.Standard(25))
+    t.equal(Header.content_type, Header.Standard(26))
+    t.equal(Header.cookie, Header.Standard(27))
+    t.equal(Header.date, Header.Standard(28))
+    t.equal(Header.etag, Header.Standard(29))
+    t.equal(Header.expect, Header.Standard(30))
+    t.equal(Header.expires, Header.Standard(31))
+    t.equal(Header.from, Header.Standard(32))
+    t.equal(Header.host, Header.Standard(33))
+    t.equal(Header.if_match, Header.Standard(34))
+    t.equal(Header.if_modified_since, Header.Standard(35))
+    t.equal(Header.if_none_match, Header.Standard(36))
+    t.equal(Header.if_range, Header.Standard(37))
+    t.equal(Header.if_unmodified_since, Header.Standard(38))
+    t.equal(Header.keep_alive, Header.Standard(39))
+    t.equal(Header.last_modified, Header.Standard(40))
+    t.equal(Header.link, Header.Standard(41))
+    t.equal(Header.location, Header.Standard(42))
+    t.equal(Header.max_forwards, Header.Standard(43))
+    t.equal(Header.origin, Header.Standard(44))
+    t.equal(Header.pragma, Header.Standard(45))
+    t.equal(Header.proxy_authenticate, Header.Standard(46))
+    t.equal(Header.proxy_authorization, Header.Standard(47))
+    t.equal(Header.proxy_connection, Header.Standard(48))
+    t.equal(Header.range, Header.Standard(49))
+    t.equal(Header.referer, Header.Standard(50))
+    t.equal(Header.retry_after, Header.Standard(51))
+    t.equal(Header.server, Header.Standard(52))
+    t.equal(Header.set_cookie, Header.Standard(53))
+    t.equal(Header.strict_transport_security, Header.Standard(54))
+    t.equal(Header.trailer, Header.Standard(55))
+    t.equal(Header.transfer_encoding, Header.Standard(56))
+    t.equal(Header.upgrade, Header.Standard(57))
+    t.equal(Header.upgrade_insecure_requests, Header.Standard(58))
+    t.equal(Header.user_agent, Header.Standard(59))
+    t.equal(Header.vary, Header.Standard(60))
+    t.equal(Header.via, Header.Standard(61))
+    t.equal(Header.www_authenticate, Header.Standard(62))
+    t.equal(Header.sec_fetch_site, Header.Standard(63))
+    t.equal(Header.sec_fetch_mode, Header.Standard(64))
+    t.equal(Header.sec_fetch_user, Header.Standard(65))
+    t.equal(Header.sec_fetch_dest, Header.Standard(66))
+
+    t.equal(Header.Other('foo'), Header.Other('foo'))
+    t.not_equal(Header.Other('foo'), Header.Other('bar'))
+  })
+
+  t.test('Header.to_string', fn (t) {
+    t.equal(Header.accept.to_string, 'accept')
+    t.equal(Header.accept_charset.to_string, 'accept-charset')
+    t.equal(Header.accept_encoding.to_string, 'accept-encoding')
+    t.equal(Header.accept_language.to_string, 'accept-language')
+    t.equal(Header.accept_ranges.to_string, 'accept-ranges')
+    t.equal(
+      Header.access_control_allow_credentials.to_string,
+      'access-control-allow-credentials',
+    )
+    t.equal(
+      Header.access_control_allow_headers.to_string,
+      'access-control-allow-headers',
+    )
+    t.equal(
+      Header.access_control_allow_methods.to_string,
+      'access-control-allow-methods',
+    )
+    t.equal(
+      Header.access_control_allow_origin.to_string,
+      'access-control-allow-origin',
+    )
+    t.equal(Header.access_control_max_age.to_string, 'access-control-max-age')
+    t.equal(Header.access_control_method.to_string, 'access-control-method')
+    t.equal(
+      Header.access_control_request_method.to_string,
+      'access-control-request-method',
+    )
+    t.equal(
+      Header.access_control_request_methods.to_string,
+      'access-control-request-methods',
+    )
+    t.equal(
+      Header.access_control_request_headers.to_string,
+      'access-control-request-headers',
+    )
+    t.equal(Header.age.to_string, 'age')
+    t.equal(Header.allow.to_string, 'allow')
+    t.equal(Header.alt_svc.to_string, 'alt-svc')
+    t.equal(Header.authorization.to_string, 'authorization')
+    t.equal(Header.cache_control.to_string, 'cache-control')
+    t.equal(Header.connection.to_string, 'connection')
+    t.equal(Header.content_disposition.to_string, 'content-disposition')
+    t.equal(Header.content_encoding.to_string, 'content-encoding')
+    t.equal(Header.content_language.to_string, 'content-language')
+    t.equal(Header.content_length.to_string, 'content-length')
+    t.equal(Header.content_location.to_string, 'content-location')
+    t.equal(Header.content_range.to_string, 'content-range')
+    t.equal(Header.content_type.to_string, 'content-type')
+    t.equal(Header.cookie.to_string, 'cookie')
+    t.equal(Header.date.to_string, 'date')
+    t.equal(Header.etag.to_string, 'etag')
+    t.equal(Header.expect.to_string, 'expect')
+    t.equal(Header.expires.to_string, 'expires')
+    t.equal(Header.from.to_string, 'from')
+    t.equal(Header.host.to_string, 'host')
+    t.equal(Header.if_match.to_string, 'if-match')
+    t.equal(Header.if_modified_since.to_string, 'if-modified-since')
+    t.equal(Header.if_none_match.to_string, 'if-none-match')
+    t.equal(Header.if_range.to_string, 'if-range')
+    t.equal(Header.if_unmodified_since.to_string, 'if-unmodified-since')
+    t.equal(Header.keep_alive.to_string, 'keep-alive')
+    t.equal(Header.last_modified.to_string, 'last-modified')
+    t.equal(Header.link.to_string, 'link')
+    t.equal(Header.location.to_string, 'location')
+    t.equal(Header.max_forwards.to_string, 'max-forwards')
+    t.equal(Header.origin.to_string, 'origin')
+    t.equal(Header.pragma.to_string, 'pragma')
+    t.equal(Header.proxy_authenticate.to_string, 'proxy-authenticate')
+    t.equal(Header.proxy_authorization.to_string, 'proxy-authorization')
+    t.equal(Header.proxy_connection.to_string, 'proxy-connection')
+    t.equal(Header.range.to_string, 'range')
+    t.equal(Header.referer.to_string, 'referer')
+    t.equal(Header.retry_after.to_string, 'retry-after')
+    t.equal(Header.server.to_string, 'server')
+    t.equal(Header.set_cookie.to_string, 'set-cookie')
+    t.equal(
+      Header.strict_transport_security.to_string,
+      'strict-transport-security',
+    )
+    t.equal(Header.trailer.to_string, 'trailer')
+    t.equal(Header.transfer_encoding.to_string, 'transfer-encoding')
+    t.equal(Header.upgrade.to_string, 'upgrade')
+    t.equal(
+      Header.upgrade_insecure_requests.to_string,
+      'upgrade-insecure-requests',
+    )
+    t.equal(Header.user_agent.to_string, 'user-agent')
+    t.equal(Header.vary.to_string, 'vary')
+    t.equal(Header.via.to_string, 'via')
+    t.equal(Header.www_authenticate.to_string, 'www-authenticate')
+    t.equal(Header.sec_fetch_site.to_string, 'sec-fetch-site')
+    t.equal(Header.sec_fetch_mode.to_string, 'sec-fetch-mode')
+    t.equal(Header.sec_fetch_user.to_string, 'sec-fetch-user')
+    t.equal(Header.sec_fetch_dest.to_string, 'sec-fetch-dest')
+
+    t.equal(Header.Other('foo').to_string, 'foo')
+  })
+
+  t.test('Header.fmt', fn (t) {
+    t.equal(fmt(Header.accept), 'accept')
+    t.equal(fmt(Header.accept_charset), 'accept-charset')
+    t.equal(fmt(Header.accept_encoding), 'accept-encoding')
+    t.equal(fmt(Header.accept_language), 'accept-language')
+    t.equal(fmt(Header.accept_ranges), 'accept-ranges')
+    t.equal(
+      fmt(Header.access_control_allow_credentials),
+      'access-control-allow-credentials',
+    )
+    t.equal(
+      fmt(Header.access_control_allow_headers),
+      'access-control-allow-headers',
+    )
+    t.equal(
+      fmt(Header.access_control_allow_methods),
+      'access-control-allow-methods',
+    )
+    t.equal(
+      fmt(Header.access_control_allow_origin),
+      'access-control-allow-origin',
+    )
+    t.equal(fmt(Header.access_control_max_age), 'access-control-max-age')
+    t.equal(fmt(Header.access_control_method), 'access-control-method')
+    t.equal(
+      fmt(Header.access_control_request_method),
+      'access-control-request-method',
+    )
+    t.equal(
+      fmt(Header.access_control_request_methods),
+      'access-control-request-methods',
+    )
+    t.equal(
+      fmt(Header.access_control_request_headers),
+      'access-control-request-headers',
+    )
+    t.equal(fmt(Header.age), 'age')
+    t.equal(fmt(Header.allow), 'allow')
+    t.equal(fmt(Header.alt_svc), 'alt-svc')
+    t.equal(fmt(Header.authorization), 'authorization')
+    t.equal(fmt(Header.cache_control), 'cache-control')
+    t.equal(fmt(Header.connection), 'connection')
+    t.equal(fmt(Header.content_disposition), 'content-disposition')
+    t.equal(fmt(Header.content_encoding), 'content-encoding')
+    t.equal(fmt(Header.content_language), 'content-language')
+    t.equal(fmt(Header.content_length), 'content-length')
+    t.equal(fmt(Header.content_location), 'content-location')
+    t.equal(fmt(Header.content_range), 'content-range')
+    t.equal(fmt(Header.content_type), 'content-type')
+    t.equal(fmt(Header.cookie), 'cookie')
+    t.equal(fmt(Header.date), 'date')
+    t.equal(fmt(Header.etag), 'etag')
+    t.equal(fmt(Header.expect), 'expect')
+    t.equal(fmt(Header.expires), 'expires')
+    t.equal(fmt(Header.from), 'from')
+    t.equal(fmt(Header.host), 'host')
+    t.equal(fmt(Header.if_match), 'if-match')
+    t.equal(fmt(Header.if_modified_since), 'if-modified-since')
+    t.equal(fmt(Header.if_none_match), 'if-none-match')
+    t.equal(fmt(Header.if_range), 'if-range')
+    t.equal(fmt(Header.if_unmodified_since), 'if-unmodified-since')
+    t.equal(fmt(Header.keep_alive), 'keep-alive')
+    t.equal(fmt(Header.last_modified), 'last-modified')
+    t.equal(fmt(Header.link), 'link')
+    t.equal(fmt(Header.location), 'location')
+    t.equal(fmt(Header.max_forwards), 'max-forwards')
+    t.equal(fmt(Header.origin), 'origin')
+    t.equal(fmt(Header.pragma), 'pragma')
+    t.equal(fmt(Header.proxy_authenticate), 'proxy-authenticate')
+    t.equal(fmt(Header.proxy_authorization), 'proxy-authorization')
+    t.equal(fmt(Header.proxy_connection), 'proxy-connection')
+    t.equal(fmt(Header.range), 'range')
+    t.equal(fmt(Header.referer), 'referer')
+    t.equal(fmt(Header.retry_after), 'retry-after')
+    t.equal(fmt(Header.server), 'server')
+    t.equal(fmt(Header.set_cookie), 'set-cookie')
+    t.equal(fmt(Header.strict_transport_security), 'strict-transport-security')
+    t.equal(fmt(Header.trailer), 'trailer')
+    t.equal(fmt(Header.transfer_encoding), 'transfer-encoding')
+    t.equal(fmt(Header.upgrade), 'upgrade')
+    t.equal(fmt(Header.upgrade_insecure_requests), 'upgrade-insecure-requests')
+    t.equal(fmt(Header.user_agent), 'user-agent')
+    t.equal(fmt(Header.vary), 'vary')
+    t.equal(fmt(Header.via), 'via')
+    t.equal(fmt(Header.www_authenticate), 'www-authenticate')
+    t.equal(fmt(Header.sec_fetch_site), 'sec-fetch-site')
+    t.equal(fmt(Header.sec_fetch_mode), 'sec-fetch-mode')
+    t.equal(fmt(Header.sec_fetch_user), 'sec-fetch-user')
+    t.equal(fmt(Header.sec_fetch_dest), 'sec-fetch-dest')
+
+    t.equal(fmt(Header.Other('example')), 'example')
+  })
+}
