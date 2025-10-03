@@ -132,4 +132,10 @@ fn pub tests(t: mut Tests) {
     t.equal(Mime.new('text/plain').to_string, 'text/plain')
     t.equal(Mime.new('text/plain; a=1; b=2').to_string, 'text/plain; a=1; b=2')
   })
+
+  t.test('Mime.charset', fn (t) {
+    let mime = Mime.parse('text/plain; charset=utf-8; q=0.5').get
+
+    t.equal(mime.charset.map(fn (v) { v.to_string }), Option.Some('utf-8'))
+  })
 }
