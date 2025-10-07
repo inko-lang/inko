@@ -20,7 +20,7 @@
 # ```
 #
 # When accessing values using these methods, the value is returned as a borrow.
-# If you want to destructure a tuple, you can do so using pattern matching:
+# If you want to destructure a tuple, you can do so using `match`:
 #
 # ```inko
 # match (10, "foo", 5.4) {
@@ -30,6 +30,16 @@
 #     c # => 5.4
 #   }
 # }
+# ```
+#
+# Or by using `let`:
+#
+# ```inko
+# let (a, b, c) = (10, "foo", 5.4)
+#
+# a # => 10
+# b # => "foo"
+# c # => 5.4
 # ```
 #
 # # Limitations

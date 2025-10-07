@@ -18,12 +18,10 @@
 #
 # type async Main {
 #   fn async main {
-#     match Future.new {
-#       case (future, promise) -> {
-#         Example().write(promise)
-#         future.get # => 42
-#       }
-#     }
+#     let (future, promise) = Future.new
+#
+#     Example().write(promise)
+#     future.get # => 42
 #   }
 # }
 # ```
@@ -136,12 +134,10 @@ type pub Future[T] {
   # ```inko
   # import std.sync (Future)
   #
-  # match Future.new {
-  #   case (future, promise) -> {
-  #     promise.set(42)
-  #     future.get # => 42
-  #   }
-  # }
+  # let (future, promise) = Future.new
+  #
+  # promise.set(42)
+  # future.get # => 42
   # ```
   fn pub static new -> (uni Future[uni T], uni Promise[uni T]) {
     let fut: FutureState[uni T] = FutureState(
@@ -184,12 +180,10 @@ type pub Future[T] {
   # ```inko
   # import std.sync (Future)
   #
-  # match Future.new {
-  #   case (future, promise) -> {
-  #     promise.set(42)
-  #     future.get # => 42
-  #   }
-  # }
+  # let (future, promise) = Future.new
+  #
+  # promise.set(42)
+  # future.get # => 42
   # ```
   fn pub move get -> uni T {
     loop {
@@ -256,12 +250,10 @@ type pub Future[T] {
   # import std.sync (Future)
   # import std.time (Duration)
   #
-  # match Future.new {
-  #   case (future, promise) -> {
-  #     promise.set(42)
-  #     future.get_until(Duration.from_secs(1)) # => Option.Some(42)
-  #   }
-  # }
+  # let (future, promise) = Future.new
+  #
+  # promise.set(42)
+  # future.get_until(Duration.from_secs(1)) # => Option.Some(42)
   # ```
   fn pub move get_until[D: ToInstant](deadline: ref D) -> Option[uni T] {
     let nanos = deadline.to_instant.to_int as UInt64
@@ -340,12 +332,10 @@ type pub Future[T] {
   # ```inko
   # import std.sync (Future)
   #
-  # match Future.new {
-  #   case (future, promise) -> {
-  #     promise.set(42)
-  #     future.try_get # => Result.Ok(42)
-  #   }
-  # }
+  # let (future, promise) = Future.new
+  #
+  # promise.set(42)
+  # future.try_get # => Result.Ok(42)
   # ```
   fn pub move try_get -> Result[uni T, Future[T]] {
     let fut = lock
@@ -427,12 +417,10 @@ type pub Promise[T] {
   # ```inko
   # import std.sync (Future)
   #
-  # match Future.new {
-  #   case (future, promise) -> {
-  #     promise.set(42) # => Option.None
-  #     future.get      # => 42
-  #   }
-  # }
+  # let (future, promise) = Future.new
+  #
+  # promise.set(42) # => Option.None
+  # future.get      # => 42
   # ```
   #
   # Trying to resolve a dropped `Future`:
@@ -440,12 +428,10 @@ type pub Promise[T] {
   # ```inko
   # import std.sync (Future)
   #
-  # match Future.new {
-  #   case (future, promise) -> {
-  #     drop(future)
-  #     promise.set(42) # => Option.Some(42)
-  #   }
-  # }
+  # let (future, promise) = Future.new
+  #
+  # drop(future)
+  # promise.set(42) # => Option.Some(42)
   # ```
   fn pub move set(value: uni T) -> Option[uni T] {
     let val = Option.Some(value)

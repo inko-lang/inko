@@ -479,9 +479,9 @@ fn inline receive_from_ip(
     if res >= 0 {
       into.size = len + res
 
-      match parse_ip_socket_address(addr_ptr) {
-        case (ip, port) -> return Result.Ok((res, ip, port))
-      }
+      let (ip, port) = parse_ip_socket_address(addr_ptr)
+
+      return Result.Ok((res, ip, port))
     }
 
     match libc.errno {
