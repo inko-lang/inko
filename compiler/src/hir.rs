@@ -631,12 +631,17 @@ impl Expression {
         location: Location,
     ) -> Expression {
         Expression::DefineVariable(Box::new(DefineVariable {
+            variable_ids: Vec::new(),
             resolved_type: types::TypeRef::Unknown,
-            variable_id: None,
-            mutable: false,
-            name: Identifier { name: name.to_string(), location },
-            value_type: None,
+            pattern: Pattern::Identifier(Box::new(IdentifierPattern {
+                variable_id: None,
+                mutable: false,
+                name: Identifier { name: name.to_string(), location },
+                value_type: None,
+                location,
+            })),
             value,
+            else_body: None,
             location,
         }))
     }
@@ -997,12 +1002,11 @@ pub(crate) struct Closure {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct DefineVariable {
+    pub(crate) variable_ids: Vec<types::VariableId>,
     pub(crate) resolved_type: types::TypeRef,
-    pub(crate) variable_id: Option<types::VariableId>,
-    pub(crate) mutable: bool,
-    pub(crate) name: Identifier,
-    pub(crate) value_type: Option<Type>,
+    pub(crate) pattern: Pattern,
     pub(crate) value: Expression,
+    pub(crate) else_body: Option<Expression>,
     pub(crate) location: Location,
 }
 
@@ -2312,17 +2316,11 @@ impl<'a> LowerToHir<'a> {
         let var_ref = Expression::identifier_ref(ARRAY_LIT_VAR, node.location);
         let mut pushes = Vec::new();
 
-        for n in node.values {
-            if let ast::Expression::Comment(_) = n {
-                continue;
-            }
+        for n in self.values(node.values) {
+            let rec = var_ref.clone();
+            let loc = n.location();
 
-            let arg = self.expression(n);
-            let loc = arg.location();
-            let push =
-                Expression::call(var_ref.clone(), ARRAY_PUSH, vec![arg], loc);
-
-            pushes.push(push);
+            pushes.push(Expression::call(rec, ARRAY_PUSH, vec![n], loc));
         }
 
         let mut body = vec![Expression::define_variable(
@@ -2998,12 +2996,11 @@ impl<'a> LowerToHir<'a> {
         node: ast::DefineVariable,
     ) -> Box<DefineVariable> {
         Box::new(DefineVariable {
+            variable_ids: Vec::new(),
             resolved_type: types::TypeRef::Unknown,
-            mutable: node.mutable,
-            variable_id: None,
-            name: self.identifier(node.name),
-            value_type: node.value_type.map(|v| self.type_reference(v)),
+            pattern: self.pattern(node.pattern),
             value: self.expression(node.value),
+            else_body: node.else_body.map(|n| self.expression(n.expression)),
             location: node.location,
         })
     }
@@ -3375,13 +3372,9 @@ impl<'a> LowerToHir<'a> {
     fn for_expression(&mut self, node: ast::For) -> Box<Scope> {
         let pat_loc = *node.pattern.location();
         let iter_loc = *node.iterator.location();
-        let def_var = Expression::DefineVariable(Box::new(DefineVariable {
-            resolved_type: types::TypeRef::Unknown,
-            variable_id: None,
-            mutable: false,
-            name: Identifier { name: ITER_VAR.to_string(), location: pat_loc },
-            value_type: None,
-            value: Expression::Call(Box::new(Call {
+        let def_var = Expression::define_variable(
+            ITER_VAR,
+            Expression::Call(Box::new(Call {
                 kind: types::CallKind::Unknown,
                 receiver: Some(self.expression(node.iterator)),
                 name: Identifier {
@@ -3394,8 +3387,8 @@ impl<'a> LowerToHir<'a> {
                 usage: Usage::Used,
                 location: iter_loc,
             })),
-            location: pat_loc,
-        }));
+            iter_loc,
+        );
 
         let loop_expr = Expression::Loop(Box::new(Loop {
             body: vec![Expression::Match(Box::new(Match {
@@ -5995,29 +5988,22 @@ mod tests {
             Expression::Scope(Box::new(Scope {
                 resolved_type: types::TypeRef::Unknown,
                 body: vec![
-                    Expression::DefineVariable(Box::new(DefineVariable {
-                        resolved_type: types::TypeRef::Unknown,
-                        variable_id: None,
-                        mutable: false,
-                        name: Identifier {
-                            name: "$array".to_string(),
-                            location: loc(2, 4, 15, 15),
-                        },
-                        value_type: None,
-                        value: Expression::Call(Box::new(Call {
+                    Expression::define_variable(
+                        ARRAY_LIT_VAR,
+                        Expression::Call(Box::new(Call {
                             kind: types::CallKind::Unknown,
                             receiver: Some(Expression::ConstantRef(Box::new(
                                 ConstantRef {
                                     kind: types::ConstantKind::Unknown,
                                     source: None,
-                                    name: "$Array".to_string(),
+                                    name: ARRAY_INTERNAL_NAME.to_string(),
                                     resolved_type: types::TypeRef::Unknown,
                                     usage: Usage::Used,
                                     location: loc(2, 4, 15, 15),
                                 }
                             ))),
                             name: Identifier {
-                                name: "with_capacity".to_string(),
+                                name: ARRAY_WITH_CAPACITY.to_string(),
                                 location: loc(2, 4, 15, 15),
                             },
                             parens: true,
@@ -6037,11 +6023,11 @@ mod tests {
                                 }
                             ))],
                             location: loc(2, 4, 15, 15),
-                        },)),
-                        location: loc(2, 4, 15, 15),
-                    })),
+                        })),
+                        loc(2, 4, 15, 15)
+                    ),
                     Expression::IdentifierRef(Box::new(IdentifierRef {
-                        name: "$array".to_string(),
+                        name: ARRAY_LIT_VAR.to_string(),
                         kind: types::IdentifierKind::Unknown,
                         usage: Usage::Used,
                         location: loc(2, 4, 15, 15),
@@ -6690,35 +6676,44 @@ mod tests {
 
     #[test]
     fn test_lower_define_variable() {
-        let hir = lower_expr("fn a { let mut a: T = 10 }").0;
+        let hir = lower_expr("fn a { let mut a: T = 10 else 20 }").0;
 
         assert_eq!(
             hir,
             Expression::DefineVariable(Box::new(DefineVariable {
+                variable_ids: Vec::new(),
                 resolved_type: types::TypeRef::Unknown,
-                variable_id: None,
-                name: Identifier {
-                    name: "a".to_string(),
-                    location: cols(16, 16)
-                },
-                mutable: true,
-                value_type: Some(Type::Named(Box::new(TypeName {
-                    self_type: false,
-                    source: None,
-                    resolved_type: types::TypeRef::Unknown,
-                    name: Constant {
-                        name: "T".to_string(),
-                        location: cols(19, 19)
+                pattern: Pattern::Identifier(Box::new(IdentifierPattern {
+                    variable_id: None,
+                    mutable: true,
+                    name: Identifier {
+                        name: "a".to_string(),
+                        location: cols(16, 16)
                     },
-                    arguments: Vec::new(),
-                    location: cols(19, 19)
-                }))),
+                    value_type: Some(Type::Named(Box::new(TypeName {
+                        self_type: false,
+                        source: None,
+                        resolved_type: types::TypeRef::Unknown,
+                        name: Constant {
+                            name: "T".to_string(),
+                            location: cols(19, 19)
+                        },
+                        arguments: Vec::new(),
+                        location: cols(19, 19)
+                    }))),
+                    location: cols(12, 19),
+                })),
                 value: Expression::Int(Box::new(IntLiteral {
                     value: 10,
                     resolved_type: types::TypeRef::Unknown,
                     location: cols(23, 24)
                 })),
-                location: cols(8, 24)
+                else_body: Some(Expression::Int(Box::new(IntLiteral {
+                    resolved_type: types::TypeRef::Unknown,
+                    value: 20,
+                    location: cols(31, 32)
+                }))),
+                location: cols(8, 32)
             }))
         );
     }
@@ -7078,7 +7073,7 @@ mod tests {
                     }
                 ],
                 location: cols(8, 49),
-                write_result: true
+                write_result: true,
             }))
         );
     }
@@ -7200,7 +7195,7 @@ mod tests {
                     location: cols(18, 33)
                 }],
                 location: cols(8, 35),
-                write_result: true
+                write_result: true,
             }))
         );
     }

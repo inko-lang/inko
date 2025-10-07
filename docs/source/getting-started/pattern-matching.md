@@ -326,6 +326,44 @@ In this example, `if num >= 20` is the guard that must be met before the code
 `out.print('A')` is executed. This is useful if the condition is too complex to
 express as a pattern.
 
+## Pattern matching with let
+
+Besides using `match` for pattern matching, you can also use `let`. For example:
+
+```inko
+let pair = (10, 'hello')
+let (a, b) = pair
+
+a # => 10
+b # => 'hello'
+```
+
+If the pattern is exhaustive (= it always matches), an `else` expression is
+required and this expression _must_ return from the surrounding method _or_
+never return in the first place (e.g. by triggering a panic). For example:
+
+```inko
+let pair = Option.Some((10, 'hello'))
+
+let Some((a, b)) = pair else panic('oh no!')
+```
+
+The `else` expression can in also be a sequence of expressions, if you wrap them
+in curly braces:
+
+
+```inko
+let pair = Option.Some((10, 'hello'))
+
+let Some((a, b)) = pair else {
+  log_error('the pattern did not match!')
+  panic('oh no!')
+}
+```
+
+If the pattern is _not_ exhaustive and the `else` expression is missing, a
+compile-time error is produced.
+
 ## Typing rules
 
 For a given `match` expression, all pattern bodies must return a value of which

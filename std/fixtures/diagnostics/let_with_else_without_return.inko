@@ -1,0 +1,20 @@
+type enum Opt {
+  case Some(Int)
+  case None
+}
+
+fn example1 {
+  let _a = 10 else 20
+}
+
+fn example2 {
+  let (_a, _b) = (10, 20) else 30
+}
+
+fn example3(value: Opt) {
+  let Some(_val) = value else 30
+}
+
+# let_with_else_without_return.inko:7:20 error(invalid-type): this expression must either return from the surrounding method, or never return in the first place
+# let_with_else_without_return.inko:11:32 error(invalid-type): this expression must either return from the surrounding method, or never return in the first place
+# let_with_else_without_return.inko:15:31 error(invalid-type): this expression must either return from the surrounding method, or never return in the first place

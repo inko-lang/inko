@@ -1538,20 +1538,59 @@ impl Document {
     }
 
     fn define_variable(&mut self, node: &nodes::DefineVariable) -> Node {
-        let kw = if node.mutable { "let mut " } else { "let " };
-        let mut var = vec![
-            Node::Text(kw.to_string()),
-            Node::Text(node.name.name.clone()),
+        let gid = self.new_group_id();
+        let hid = self.new_group_id();
+        let mut head = vec![
+            Node::text("let "),
+            self.pattern(&node.pattern),
+            Node::text(" = "),
+            self.expression(&node.value),
         ];
 
-        if let Some(n) = &node.value_type {
-            var.push(Node::text(": "));
-            var.push(self.type_reference(n));
-        }
+        let nodes = if let Some(n) = node.else_body.as_ref() {
+            let (else_expr, curly) = match &n.expression {
+                nodes::Expression::Scope(n) if n.body.values.len() == 1 => {
+                    let expr = n.body.values.first().unwrap();
+                    let node = self.expression(expr);
 
-        var.push(Node::text(" = "));
-        var.push(self.expression(&node.value));
-        Node::Nodes(var)
+                    (node, !matches!(expr, nodes::Expression::Scope(_)))
+                }
+                nodes::Expression::Scope(n) => (self.scope(n), false),
+                n => (self.expression(n), true),
+            };
+
+            head.push(Node::SpaceOrLine);
+            head.push(Node::text("else "));
+
+            let mut nodes = Vec::new();
+
+            if curly {
+                head.push(Node::IfWrap(
+                    gid,
+                    Box::new(Node::text("{")),
+                    Box::new(Node::text("")),
+                ));
+
+                nodes.push(Node::IfWrap(
+                    gid,
+                    Box::new(Node::Nodes(vec![
+                        Node::SpaceOrLine,
+                        Node::Indent(vec![else_expr.clone()]),
+                        Node::SpaceOrLine,
+                        Node::text("}"),
+                    ])),
+                    Box::new(else_expr),
+                ));
+            } else {
+                nodes.push(else_expr);
+            }
+
+            vec![Node::Group(hid, head), Node::Nodes(nodes)]
+        } else {
+            vec![Node::Group(hid, head)]
+        };
+
+        Node::Group(gid, nodes)
     }
 
     fn conditional_loop(&mut self, node: &nodes::While) -> Node {

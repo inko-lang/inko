@@ -365,6 +365,9 @@ struct DecisionState {
     /// The location of the `match` expression.
     location: InstructionLocation,
 
+    /// Registers that should be kept alive when exiting match scopes.
+    keep_alive: Vec<RegisterId>,
+
     /// If the result of a match arm should be written to a register or ignored.
     write_result: bool,
 }
@@ -385,6 +388,7 @@ impl DecisionState {
             actions: HashMap::new(),
             bodies: IndexMap::new(),
             location,
+            keep_alive: Vec::new(),
             write_result,
         }
     }
@@ -2807,39 +2811,99 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn define_variable(&mut self, node: hir::DefineVariable) -> RegisterId {
+        let input_reg = self.input_expression(node.value, None);
+        let input_typ = self.register_type(input_reg);
+        let output_reg = self.new_untracked_register(node.resolved_type);
+
+        let mut rows = Vec::new();
+        let mut vars = pmatch::Variables::new();
+        let input_var = vars.new_variable(input_typ);
+        let after_block = self.add_block();
         let loc = InstructionLocation::new(node.location);
-        let exp = node.resolved_type;
+        let mut state = DecisionState::new(output_reg, after_block, false, loc);
 
-        if let Some(id) = node.variable_id {
-            let src = self.input_expression(node.value, Some(exp));
-            let reg = self.new_variable(id);
+        // Add the pattern that should match.
+        let var_regs = self.match_binding_registers(node.variable_ids);
 
-            self.variable_mapping.insert(id, reg);
-            self.add_drop_flag(reg, loc);
-            self.current_block_mut().move_volatile_register(reg, src, loc);
-        } else {
-            let reg = self.expression(node.value);
+        // For `let` we "leak" the bindings/registers into the surrounding
+        // scope.
+        state.keep_alive = var_regs.clone();
 
-            // When assigning to `_` we drop the value immediately. This is
-            // especially important when assigning the result of a call on a
-            // `uni T` value as in this case we need to drop the value as soon
-            // as possible.
-            self.drop_register(reg, loc);
+        let ok_block = self.add_block();
+        let ok_pat =
+            pmatch::Pattern::from_hir(self.db(), self.mir, node.pattern);
+        let ok_col = pmatch::Column::new(input_var, ok_pat);
+        let ok_body = pmatch::Body::new(ok_block);
+
+        state.bodies.insert(ok_block, (Vec::new(), var_regs, node.location));
+        rows.push(pmatch::Row::new(vec![ok_col], None, ok_body));
+
+        // Add the `else` pattern.
+        if let Some(n) = node.else_body {
+            let loc = n.location();
+            let block = self.add_block();
+            let pat = pmatch::Pattern::Wildcard;
+            let col = pmatch::Column::new(input_var, pat);
+            let body = pmatch::Body::new(block);
+
+            state.bodies.insert(block, (vec![n], Vec::new(), loc));
+            rows.push(pmatch::Row::new(vec![col], None, body));
         }
 
-        self.get_nil(loc)
+        // Build the decision tree
+        let bounds = self.method.id.bounds(self.db()).clone();
+        let compiler = pmatch::Compiler::new(self.state, vars, bounds);
+        let result = compiler.compile(rows);
+
+        if result.missing {
+            self.state.diagnostics.error(
+                DiagnosticId::InvalidMatch,
+                "`let` expressions with non-exhaustive patterns must provide \
+                an `else` expression",
+                self.file(),
+                node.location,
+            );
+
+            return output_reg;
+        }
+
+        for typ in result.variables.types {
+            state.registers.push(self.new_untracked_match_variable(typ));
+        }
+
+        self.current_block_mut().move_register(
+            state.input_register(),
+            input_reg,
+            loc,
+        );
+
+        self.decision(&mut state, result.tree, self.current_block, Vec::new());
+
+        for (_, _, loc) in state.bodies.into_values() {
+            self.state.diagnostics.unreachable(self.file(), loc);
+        }
+
+        self.current_block = after_block;
+        self.current_block_mut().nil_literal(output_reg, loc);
+
+        for reg in state.keep_alive {
+            self.mark_register_as_available(reg);
+            self.scope.created.push(reg);
+        }
+
+        output_reg
     }
 
     fn match_expression(&mut self, node: hir::Match) -> RegisterId {
         let input_reg = self.input_expression(node.expression, None);
-        let input_type = self.register_type(input_reg);
+        let input_typ = self.register_type(input_reg);
 
         // The result is untracked as otherwise an explicit return may drop it
         // before we write to it.
         let output_reg = self.new_untracked_register(node.resolved_type);
         let mut rows = Vec::new();
         let mut vars = pmatch::Variables::new();
-        let input_var = vars.new_variable(input_type);
+        let input_var = vars.new_variable(input_typ);
         let after_block = self.add_block();
         let loc = InstructionLocation::new(node.location);
         let mut state =
@@ -3150,6 +3214,10 @@ impl<'a> LowerMethod<'a> {
             if let Some(val) = state.bodies.shift_remove(&start_block) {
                 val
             } else {
+                for &reg in &state.keep_alive {
+                    self.mark_register_as_moved(reg);
+                }
+
                 // Don't forget to exit the scope here, since we entered a new
                 // one before calling this method.
                 self.exit_scope(state.location);
@@ -3175,6 +3243,10 @@ impl<'a> LowerMethod<'a> {
         // We don't enter a scope in this method, because we must enter a new
         // scope _before_ defining the match bindings, otherwise e.g. a `return`
         // could attempt to drop bindings from another match case.
+        for &reg in &state.keep_alive {
+            self.mark_register_as_moved(reg);
+        }
+
         self.exit_scope(loc);
 
         if self.in_connected_block() {

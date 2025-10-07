@@ -109,6 +109,7 @@ pub const FUTURE_TYPE: &str = "Future";
 pub const FUTURE_INTERNAL_NAME: &str = "$Future";
 pub const FUTURE_NEW: &str = "new";
 pub const FUTURE_GET: &str = "get";
+pub const IGNORE_VARIABLE: &str = "_";
 
 /// The name of the pseudo field used to deference a pointer.
 pub const DEREF_POINTER_FIELD: &str = "0";

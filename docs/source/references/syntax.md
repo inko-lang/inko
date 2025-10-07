@@ -857,7 +857,18 @@ let mut number = 42
 number = 50
 ```
 
-Pattern matching in a `let` isn't supported.
+`let` supports pattern matching using the following syntax:
+
+```inko
+let PATTERN = EXPRESSION
+let PATTERN = EXPRESSION else EXPRESSION
+```
+
+For example:
+
+```inko
+let Some((a, b)) = example else return
+```
 
 ## Assigning variables
 

@@ -56,6 +56,13 @@ assigned value is dropped right away. If the variable name merely starts with an
 underscore (e.g. `_no_warning_for_me`) the value is dropped at the end of the
 surrounding scope.
 
+### Pattern matching
+
+`let` doesn't just _let_ (we're not sorry for that pun) you define variables, it
+supports pattern matching too. In fact, `let` expressions are compiled to
+`match` expressions, just using different syntax. You can find out more about
+this [here](pattern-matching#pattern-matching-with-let).
+
 ### Swapping values
 
 Assigning a variable a new value using `=` drops the existing value first, then

@@ -2390,27 +2390,32 @@ impl Parser {
         &mut self,
         start: Token,
     ) -> Result<Expression, ParseError> {
-        let mutable = if self.peek().kind == TokenKind::Mut {
-            self.next();
-            true
-        } else {
-            false
-        };
-
-        let name = Identifier::from(self.expect(TokenKind::Identifier)?);
-        let value_type = self.optional_type_annotation()?;
+        let pattern = self.pattern()?;
 
         self.expect(TokenKind::Assign)?;
 
         let value_start = self.require()?;
         let value = self.expression(value_start)?;
-        let location = Location::start_end(&start.location, value.location());
+        let else_body = if self.peek().kind == TokenKind::Else {
+            let start = self.next();
+            let tok = self.next();
+            let expr = self.expression(tok)?;
+            let loc = Location::start_end(&start.location, expr.location());
+
+            Some(DefineElse { expression: expr, location: loc })
+        } else {
+            None
+        };
+
+        let location = Location::start_end(
+            &start.location,
+            location!(else_body).unwrap_or_else(|| value.location()),
+        );
 
         Ok(Expression::DefineVariable(Box::new(DefineVariable {
-            mutable,
-            name,
-            value_type,
+            pattern,
             value,
+            else_body,
             location,
         })))
     }
@@ -8288,41 +8293,111 @@ mod tests {
         assert_eq!(
             expr("let x = 10"),
             Expression::DefineVariable(Box::new(DefineVariable {
-                mutable: false,
-                value_type: None,
-                name: Identifier {
-                    name: "x".to_string(),
+                pattern: Pattern::Identifier(Box::new(IdentifierPattern {
+                    name: Identifier {
+                        name: "x".to_string(),
+                        location: cols(5, 5)
+                    },
+                    mutable: false,
+                    value_type: None,
                     location: cols(5, 5)
-                },
+                })),
                 value: Expression::Int(Box::new(IntLiteral {
                     value: "10".to_string(),
                     location: cols(9, 10)
                 })),
+                else_body: None,
                 location: cols(1, 10)
+            }))
+        );
+
+        assert_eq!(
+            expr("let x = 10 else 20"),
+            Expression::DefineVariable(Box::new(DefineVariable {
+                pattern: Pattern::Identifier(Box::new(IdentifierPattern {
+                    name: Identifier {
+                        name: "x".to_string(),
+                        location: cols(5, 5)
+                    },
+                    mutable: false,
+                    value_type: None,
+                    location: cols(5, 5)
+                })),
+                value: Expression::Int(Box::new(IntLiteral {
+                    value: "10".to_string(),
+                    location: cols(9, 10)
+                })),
+                else_body: Some(DefineElse {
+                    expression: Expression::Int(Box::new(IntLiteral {
+                        value: "20".to_string(),
+                        location: cols(17, 18)
+                    })),
+                    location: cols(12, 18)
+                }),
+                location: cols(1, 18)
+            }))
+        );
+
+        assert_eq!(
+            expr("let x = 10 else { 20 }"),
+            Expression::DefineVariable(Box::new(DefineVariable {
+                pattern: Pattern::Identifier(Box::new(IdentifierPattern {
+                    name: Identifier {
+                        name: "x".to_string(),
+                        location: cols(5, 5)
+                    },
+                    mutable: false,
+                    value_type: None,
+                    location: cols(5, 5)
+                })),
+                value: Expression::Int(Box::new(IntLiteral {
+                    value: "10".to_string(),
+                    location: cols(9, 10)
+                })),
+                else_body: Some(DefineElse {
+                    expression: Expression::Scope(Box::new(Scope {
+                        body: Expressions {
+                            values: vec![Expression::Int(Box::new(
+                                IntLiteral {
+                                    value: "20".to_string(),
+                                    location: cols(19, 20)
+                                }
+                            ))],
+                            location: cols(17, 22),
+                        },
+                        location: cols(17, 22),
+                    })),
+                    location: cols(12, 22)
+                }),
+                location: cols(1, 22)
             }))
         );
 
         assert_eq!(
             expr("let x: A = 10"),
             Expression::DefineVariable(Box::new(DefineVariable {
-                name: Identifier {
-                    name: "x".to_string(),
-                    location: cols(5, 5)
-                },
-                mutable: false,
-                value_type: Some(Type::Named(Box::new(TypeName {
-                    name: Constant {
-                        source: None,
-                        name: "A".to_string(),
-                        location: cols(8, 8)
+                pattern: Pattern::Identifier(Box::new(IdentifierPattern {
+                    name: Identifier {
+                        name: "x".to_string(),
+                        location: cols(5, 5)
                     },
-                    arguments: None,
-                    location: cols(8, 8)
-                }))),
+                    mutable: false,
+                    value_type: Some(Type::Named(Box::new(TypeName {
+                        name: Constant {
+                            source: None,
+                            name: "A".to_string(),
+                            location: cols(8, 8)
+                        },
+                        arguments: None,
+                        location: cols(8, 8)
+                    }))),
+                    location: cols(5, 8)
+                })),
                 value: Expression::Int(Box::new(IntLiteral {
                     value: "10".to_string(),
                     location: cols(12, 13)
                 })),
+                else_body: None,
                 location: cols(1, 13)
             }))
         );
@@ -8330,16 +8405,20 @@ mod tests {
         assert_eq!(
             expr("let mut x = 10"),
             Expression::DefineVariable(Box::new(DefineVariable {
-                name: Identifier {
-                    name: "x".to_string(),
-                    location: cols(9, 9)
-                },
-                mutable: true,
-                value_type: None,
+                pattern: Pattern::Identifier(Box::new(IdentifierPattern {
+                    name: Identifier {
+                        name: "x".to_string(),
+                        location: cols(9, 9)
+                    },
+                    mutable: true,
+                    value_type: None,
+                    location: cols(5, 9)
+                })),
                 value: Expression::Int(Box::new(IntLiteral {
                     value: "10".to_string(),
                     location: cols(13, 14)
                 })),
+                else_body: None,
                 location: cols(1, 14)
             }))
         );

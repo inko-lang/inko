@@ -1,0 +1,19 @@
+type enum Opt {
+  case Some(Int)
+  case None
+}
+
+fn example1 {
+  let _a = 10 else return
+}
+
+fn example2 {
+  let (_a, _b) = (10, 20) else return
+}
+
+fn example3(value: Opt) {
+  let Some(_val) = value else return
+}
+
+# let_with_else_with_return.inko:7:20 warning(unreachable): this code is unreachable
+# let_with_else_with_return.inko:11:32 warning(unreachable): this code is unreachable

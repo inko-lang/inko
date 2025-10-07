@@ -1208,11 +1208,22 @@ impl Node for DefineElseBlock {
 }
 
 #[derive(Debug, PartialEq, Eq)]
+pub struct DefineElse {
+    pub expression: Expression,
+    pub location: Location,
+}
+
+impl Node for DefineElse {
+    fn location(&self) -> &Location {
+        &self.location
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub struct DefineVariable {
-    pub mutable: bool,
-    pub name: Identifier,
+    pub pattern: Pattern,
     pub value: Expression,
-    pub value_type: Option<Type>,
+    pub else_body: Option<DefineElse>,
     pub location: Location,
 }
 

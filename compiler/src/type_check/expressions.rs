@@ -19,10 +19,8 @@ use types::{
     Sendability, Sign, Symbol, ThrowKind, TraitId, TraitInstance,
     TypeArguments, TypeBounds, TypeEnum, TypeId, TypeInstance, TypeRef,
     Variable, VariableId, BYTES_MODULE, BYTE_ARRAY_TYPE, CALL_METHOD,
-    DEREF_POINTER_FIELD, SELF_TYPE, SLICE_TYPE,
+    DEREF_POINTER_FIELD, IGNORE_VARIABLE, SELF_TYPE, SLICE_TYPE,
 };
-
-const IGNORE_VARIABLE: &str = "_";
 
 /// The maximum number of methods that a single type can define.
 ///
@@ -63,6 +61,10 @@ struct Pattern<'a> {
 impl<'a> Pattern<'a> {
     fn new(variable_scope: &'a mut VariableScope) -> Self {
         Self { variable_scope, variables: IndexMap::new() }
+    }
+
+    fn variable_ids(&self) -> Vec<VariableId> {
+        self.variables.values().cloned().collect()
     }
 }
 
@@ -1618,64 +1620,39 @@ impl<'a> CheckMethodBody<'a> {
         node: &mut hir::DefineVariable,
         scope: &mut LexicalScope,
     ) -> TypeRef {
-        let discard = node.name.name == IGNORE_VARIABLE;
-
-        if discard {
+        // This is needed so e.g. `let _ = unique_value.non_sendable_return_val`
+        // is allowed as the non-sendable return value isn't used.
+        if matches!(node.pattern, hir::Pattern::Wildcard(_)) {
             node.value.set_usage(hir::Usage::Discarded);
         }
 
-        let value_type = self.input_expression(&mut node.value, scope);
+        let input_type = self.expression(&mut node.value, scope);
+        let mut pat_scope = scope.inherit(ScopeKind::Regular);
+        let mut pattern = Pattern::new(&mut pat_scope.variables);
 
-        if !value_type.is_assignable(self.db()) {
-            self.state.diagnostics.error(
-                DiagnosticId::InvalidType,
-                format!(
-                    "values of type '{}' can't be assigned to variables",
-                    format_type(self.db(), value_type)
-                ),
-                self.file(),
-                node.value.location(),
-            );
+        self.pattern(&mut node.pattern, input_type, &mut pattern);
+        node.variable_ids = pattern.variable_ids();
+
+        for (name, id) in pat_scope.variables.variables {
+            scope.variables.add_variable(name, id);
         }
 
-        let var_type = if let Some(tnode) = node.value_type.as_mut() {
-            let exp_type = self.type_signature(tnode, self.self_type);
-            let value_casted =
-                value_type.cast_according_to(self.db(), exp_type);
+        if let Some(expr) = node.else_body.as_mut() {
+            let typ = self.expression(expr, scope);
 
-            if !TypeChecker::check(self.db(), value_casted, exp_type) {
-                self.state.diagnostics.type_error(
-                    format_type(self.db(), value_type),
-                    format_type(self.db(), exp_type),
+            if !typ.is_never(self.db()) {
+                self.state.diagnostics.error(
+                    DiagnosticId::InvalidType,
+                    "this expression must either return from the surrounding \
+                    method, or never return in the first place",
                     self.file(),
-                    node.value.location(),
+                    expr.location(),
                 );
             }
-
-            exp_type
-        } else {
-            value_type
-        };
-
-        let name = &node.name.name;
-        let rtype = TypeRef::nil();
-
-        node.resolved_type = var_type;
-
-        if discard {
-            return rtype;
         }
 
-        let id = scope.variables.new_variable(
-            self.db_mut(),
-            name.clone(),
-            var_type,
-            node.mutable,
-            node.name.location,
-        );
-
-        node.variable_id = Some(id);
-        rtype
+        node.resolved_type = TypeRef::nil();
+        node.resolved_type
     }
 
     fn pattern(
@@ -1803,7 +1780,6 @@ impl<'a> CheckMethodBody<'a> {
         );
 
         node.variable_id = Some(id);
-
         pattern.variables.insert(name, id);
     }
 
@@ -3118,62 +3094,76 @@ impl<'a> CheckMethodBody<'a> {
         let input_type = self.expression(&mut node.expression, scope);
         let mut types = Vec::new();
         let mut has_nil = false;
+        let mut never = true;
 
         for case in &mut node.cases {
-            let mut new_scope = scope.inherit(ScopeKind::Regular);
-            let mut pattern = Pattern::new(&mut new_scope.variables);
+            let mut pat_scope = scope.inherit(ScopeKind::Regular);
+            let mut pattern = Pattern::new(&mut pat_scope.variables);
 
             self.pattern(&mut case.pattern, input_type, &mut pattern);
-            case.variable_ids = pattern.variables.values().cloned().collect();
+            case.variable_ids = pattern.variable_ids();
+            self.match_guard(&mut pat_scope, case.guard.as_mut());
 
-            if let Some(guard) = case.guard.as_mut() {
-                let mut scope = new_scope.inherit(ScopeKind::Regular);
-                let typ = self.expression(guard, &mut scope);
-
-                self.require_boolean(typ, guard.location());
-            }
-
-            let typ = self.last_expression_type(&mut case.body, &mut new_scope);
+            let typ = self.last_expression_type(&mut case.body, &mut pat_scope);
 
             // If a `case` returns `Nil`, we ignore the return values of all
             // cases. If a case returns `Never`, we only ignore that `case` when
             // type checking.
             if typ.is_nil(self.db()) {
                 has_nil = true;
+                never = false;
             } else if !typ.is_never(self.db()) {
                 let loc =
                     case.body.last().map_or(case.location, |n| n.location());
 
+                never = false;
                 types.push((typ, loc));
             }
+        }
+
+        // If all the cases return `Never` (i.e. they all contain a `loop` that
+        // never breaks), the `match` as a whole also returns `Never`.
+        if never {
+            node.write_result = false;
+            node.resolved_type = TypeRef::Never;
+            return node.resolved_type;
         }
 
         if has_nil || types.is_empty() {
             node.write_result = false;
             node.resolved_type = TypeRef::nil();
-        } else {
-            let first = types[0].0;
+            return node.resolved_type;
+        }
 
-            node.resolved_type = first;
+        let first = types[0].0;
 
-            for (typ, loc) in types.drain(1..) {
-                if !TypeChecker::check_return(
-                    self.db(),
-                    typ,
-                    first,
-                    self.self_type,
-                ) {
-                    self.state.diagnostics.type_error(
-                        format_type(self.db(), typ),
-                        format_type(self.db(), first),
-                        self.file(),
-                        loc,
-                    );
-                }
+        for (typ, loc) in types.drain(1..) {
+            if !TypeChecker::check_return(self.db(), typ, first, self.self_type)
+            {
+                self.state.diagnostics.type_error(
+                    format_type(self.db(), typ),
+                    format_type(self.db(), first),
+                    self.file(),
+                    loc,
+                );
             }
         }
 
+        node.resolved_type = first;
         node.resolved_type
+    }
+
+    fn match_guard(
+        &mut self,
+        scope: &mut LexicalScope,
+        guard: Option<&mut hir::Expression>,
+    ) {
+        if let Some(guard) = guard {
+            let mut scope = scope.inherit(ScopeKind::Regular);
+            let typ = self.expression(guard, &mut scope);
+
+            self.require_boolean(typ, guard.location());
+        }
     }
 
     fn ref_expression(

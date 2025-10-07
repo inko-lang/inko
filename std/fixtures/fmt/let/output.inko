@@ -1,0 +1,98 @@
+fn example {
+  let Some(a) = Option.Some('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
+
+  let Some(a) = Option.Some('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
+
+  let Some(a) = Option.Some(
+    (
+      'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      'bbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    ),
+  )
+
+  let Some(a) = Option.Some(
+    (
+      'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      'bbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    ),
+  )
+
+  let Some(a) = aaaaaaaaaaaaaaaaaaaaaa
+    .bbbbbbbbbbbbbbbbbbbbbbb
+    .ccccccccccccccccccc(10, 20)
+
+  # with else:
+
+  let Some(a) = Option.Some('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa') else foo
+
+  let Some(a) = Option.Some('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa') else {
+    foo(10, 20)
+  }
+
+  let Some(a) = Option.Some('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa') else {
+    [100, 200, 300, 400]
+  }
+
+  let Some(a) = Option.Some('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
+  else {
+    foo
+  }
+
+  let Some(a) = Option.Some('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
+  else {
+    ['fooooooooooo', 'baaaaaaaaaaaar', 'baaaaaaaaaaaaaz']
+  }
+
+  let Some(a) = Option.Some(
+    (
+      'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      'bbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    ),
+  )
+  else {
+    ['fooooooooooo', 'baaaaaaaaaaaar', 'baaaaaaaaaaaaaz']
+  }
+
+  let Some(a) = Option.Some(
+    (
+      'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      'bbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    ),
+  )
+  else {
+    [
+      'fooooooooooo',
+      'baaaaaaaaaaaar',
+      'baaaaaaaaaaaaaz',
+      'xxxxxxxxxxxxxxxxxxxx',
+    ]
+  }
+
+  let Some(a) = aaaaaaaaaaaaaaaaaaaaaa
+    .bbbbbbbbbbbbbbbbbbbbbbb
+    .ccccccccccccccccccc(10, 20)
+  else {
+    aaaaaaaaaa.bbbbbbbbbbbb.cccccccccccccc(10, 20, 30)
+  }
+
+  let Some(a) = aaaaaaaaaaaaaaaaaaaaaa
+    .bbbbbbbbbbbbbbbbbbbbbbb
+    .ccccccccccccccccccc(10, 20)
+  else {
+    # comment
+    aaaaaaaaaa.bbbbbbbbbbbb.cccccccccccccc(10, 20, 30)
+  }
+
+  let Some(
+    (
+      aaaaaaaaaaaaaaa,
+      bbbbbbbbbbbbbb,
+      ccccccccccccc,
+      dddddddddddddd,
+      eeeeeeeeeeeeeee,
+    ),
+  ) = fooooo
+  else {
+    bar
+  }
+}

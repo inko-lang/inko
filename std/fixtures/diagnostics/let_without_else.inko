@@ -1,0 +1,18 @@
+type enum Opt {
+  case Some(Int)
+  case None
+}
+
+fn example1 {
+  let _a = 10
+}
+
+fn example2 {
+  let (_a, _b) = (10, 20)
+}
+
+fn example3(value: Opt) {
+  let Some(_val) = value
+}
+
+# let_without_else.inko:15:3 error(invalid-match): `let` expressions with non-exhaustive patterns must provide an `else` expression
