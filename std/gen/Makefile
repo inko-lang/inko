@@ -13,12 +13,19 @@ mime:
 	inko fmt ${MIME_SRC}/data.inko
 
 http_method:
+	mkdir -p ../src/std/net/http/method
 	python hash.py data/http_methods.txt template.tmpl --hft 2 --trials 200 \
-		--output std | inko fmt - > ../src/std/net/http/method.inko
+		--output std | inko fmt - > ../src/std/net/http/method/phf.inko
+	inko run http_methods/src/main.inko
+	inko fmt ../src/std/net/http/method.inko
+	inko fmt ../test/std/net/http/test_method.inko
 
 http_header:
 	mkdir -p ../src/std/net/http/header
 	python hash.py data/http_headers.txt template.tmpl --hft 2 --trials 200 \
 		--output std | inko fmt - > ../src/std/net/http/header/phf.inko
+	inko run http_headers/src/main.inko
+	inko fmt ../src/std/net/http/header.inko
+	inko fmt ../test/std/net/http/test_header.inko
 
 .PHONY: mime http_method http_header

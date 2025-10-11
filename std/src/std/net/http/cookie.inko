@@ -1,0 +1,750 @@
+# [RFC 6265](https://www.rfc-editor.org/rfc/rfc6265) cookies.
+#
+# The `Cookie` type represents an RFC 6265 cookie, and is used for both parsing
+# and generating `Cookie` and `Set-Cookie` headers.
+#
+# # Parsing cookie strings
+#
+# Parsing `Cookie` header values is done using `Cookie.parse_request`, while
+# `Set-Cookie` header values are parsed using `Cookie.parse_response`.
+#
+# # Generating cookie strings
+#
+# Generating `Cookie` header values is done using `Cookie.to_request`, while
+# generating `Set-Cookie` header values is done using `Cookie.to_response`.
+#
+# # Cookie jar support
+#
+# Support for a cookie jar along with domain and path matching is [currently
+# missing but planned](https://github.com/inko-lang/inko/issues/877).
+#
+# # Additional extensions
+#
+# In addition to implementing cookies per RFC 6265, the following RFCs are also
+# implemented:
+#
+# - [RFC 6265bis](https://httpwg.org/http-extensions/draft-ietf-httpbis-rfc6265bis.html)
+#   (specifically the `SameSite` attribute)
+import std.bytes (Bytes, Slice)
+import std.bytes.parsers (ZERO, alpha?, digit?, digits)
+import std.cmp (Equal)
+import std.fmt (Format, Formatter)
+import std.locale.en (Locale)
+import std.net.http (token?)
+import std.string (StringBuffer, ToString)
+import std.time (DateTime, Duration)
+
+let SP = 32
+let DQUOTE = 34
+let DASH = 45
+let DOT = 46
+let SCOL = 59
+let EQ = 61
+let BSLASH = 92
+
+# The RFC 1123 date format to use for parsing `Expires` attributes.
+let RFC_1123_DATE = '%a, %d %b %Y %H:%M:%S GMT'
+
+# The RFC 1036 date format to use for parsing `Expires` attributes.
+#
+# Oddly enough, RFC 6265 lists an example of this format using the full day name
+# (e.g. "Sunday") while the format seems to use shortened names instead ("Sun").
+# Indeed the latter appears to be what's in use, so that's the format we use
+# here.
+let RFC_1036_DATE = '%a, %d-%b-%y %H:%M:%S GMT'
+
+# The "cookie-pair" rule from section 4.1.1.
+fn inline pair[B: Bytes](
+  input: ref B,
+  start: Int,
+) -> Option[(String, String, Int)] {
+  Option.None
+}
+
+# The "cookie-octet" rule from section 4.1.1.
+#
+# We also allow spaces and commas as both these characters are used in the wild
+# (see for example https://github.com/golang/go/issues/7243).
+fn inline octet?(byte: Int) -> Bool {
+  match byte {
+    case DQUOTE or SCOL or BSLASH -> false
+    case _ -> byte >= 32 and byte <= 126
+  }
+}
+
+fn inline attribute?(byte: Int) -> Bool {
+  byte > 31 and byte < 127
+}
+
+fn inline visible?(slice: ref Slice[String]) -> Bool {
+  slice.bytes.all?(fn (b) { attribute?(b) })
+}
+
+fn inline domain?(slice: ref Slice[String]) -> Bool {
+  let len = slice.size
+
+  if len == 0 or len > 255 { return false }
+
+  let mut idx = 0
+  let mut ok = false
+  let mut label_len = 0
+
+  while idx < len {
+    match slice.get(idx).or_panic {
+      # We need at least one letter, otherwise we can't tell if we're dealing
+      # with a domain name or IPv4 address (or just garbage).
+      case v if alpha?(v) -> {
+        ok = true
+        label_len += 1
+      }
+      case v if digit?(v) -> label_len += 1
+      case DASH -> {
+        match slice.get(idx - 1) {
+          # A "-" can't follow a ".".
+          case Ok(DOT) -> return false
+          case _ -> label_len += 1
+        }
+      }
+      case DOT -> {
+        match slice.get(idx - 1) {
+          # A "." can't follow another "." or "-".
+          case Ok(DOT or DASH) -> return false
+          # Each label must have between 1 and 63 characters (RFC 1123, section
+          # 6.1.3.5)
+          case _ if label_len > 63 or label_len == 0 -> return false
+          case _ -> label_len = 0
+        }
+      }
+      case _ -> return false
+    }
+
+    idx += 1
+  }
+
+  match slice.get(idx - 1) {
+    case Ok(DASH) -> false
+    case _ if label_len > 63 -> false
+    case _ -> ok
+  }
+}
+
+# An error produced when parsing a `Cookie`.
+type pub copy enum ParseError {
+  case InvalidName
+  case MissingValue
+  case InvalidValue
+  case InvalidSecure
+  case InvalidHttpOnly
+  case InvalidExpires
+  case InvalidMaxAge
+  case InvalidDomain
+  case InvalidPath
+  case InvalidAttribute
+  case InvalidSameSite
+}
+
+impl ToString for ParseError {
+  fn pub to_string -> String {
+    match self {
+      case InvalidName -> 'the cookie name is invalid'
+      case MissingValue -> 'the cookie value is missing'
+      case InvalidValue -> 'the cookie value is invalid'
+      case InvalidSecure -> 'the Secure attribute is invalid'
+      case InvalidHttpOnly -> 'the HttpOnly attribute is invalid'
+      case InvalidExpires -> 'the Expires attribute is invalid'
+      case InvalidMaxAge -> 'the MaxAge attribute is invalid'
+      case InvalidDomain -> 'the Domain attribute is invalid'
+      case InvalidPath -> 'the Path attribute is invalid'
+      case InvalidSameSite -> 'the SameSite attribute is invalid'
+      case InvalidAttribute -> 'an attribute contains an invalid character'
+    }
+  }
+}
+
+impl Format for ParseError {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case InvalidName -> formatter.tuple('InvalidName').finish
+      case MissingValue -> formatter.tuple('MissingValue').finish
+      case InvalidValue -> formatter.tuple('InvalidValue').finish
+      case InvalidSecure -> formatter.tuple('InvalidSecure').finish
+      case InvalidHttpOnly -> formatter.tuple('InvalidHttpOnly').finish
+      case InvalidExpires -> formatter.tuple('InvalidExpires').finish
+      case InvalidMaxAge -> formatter.tuple('InvalidMaxAge').finish
+      case InvalidDomain -> formatter.tuple('InvalidDomain').finish
+      case InvalidPath -> formatter.tuple('InvalidPath').finish
+      case InvalidSameSite -> formatter.tuple('InvalidSameSite').finish
+      case InvalidAttribute -> formatter.tuple('InvalidAttribute').finish
+    }
+  }
+}
+
+impl Equal for ParseError {
+  fn pub ==(other: Self) -> Bool {
+    match (self, other) {
+      case (InvalidName, InvalidName) -> true
+      case (MissingValue, MissingValue) -> true
+      case (InvalidValue, InvalidValue) -> true
+      case (InvalidSecure, InvalidSecure) -> true
+      case (InvalidHttpOnly, InvalidHttpOnly) -> true
+      case (InvalidExpires, InvalidExpires) -> true
+      case (InvalidMaxAge, InvalidMaxAge) -> true
+      case (InvalidDomain, InvalidDomain) -> true
+      case (InvalidPath, InvalidPath) -> true
+      case (InvalidSameSite, InvalidSameSite) -> true
+      case (InvalidAttribute, InvalidAttribute) -> true
+      case _ -> false
+    }
+  }
+}
+
+type copy enum Attribute {
+  case Expires
+  case MaxAge
+  case Domain
+  case Path
+  case Secure
+  case HttpOnly
+  case SameSite
+
+  fn static parse[B: Bytes](name: ref B) -> Option[Self] {
+    let attr = match name.size {
+      case 4 if name.equals_while_ignoring_case?('path') -> Attribute.Path
+      case 6 if name.equals_while_ignoring_case?('secure') -> Attribute.Secure
+      case 6 if name.equals_while_ignoring_case?('domain') -> Attribute.Domain
+      case 7 if name.equals_while_ignoring_case?('expires') -> Attribute.Expires
+      case 7 if name.equals_while_ignoring_case?('max-age') -> Attribute.MaxAge
+      case 8 if name.equals_while_ignoring_case?('httponly') -> {
+        Attribute.HttpOnly
+      }
+      case 8 if name.equals_while_ignoring_case?('samesite') -> {
+        Attribute.SameSite
+      }
+      case _ -> return Option.None
+    }
+
+    Option.Some(attr)
+  }
+}
+
+# The value of the `SameSite` attribute.
+type pub copy enum SameSite {
+  case None
+  case Lax
+  case Strict
+}
+
+impl Equal for SameSite {
+  fn pub ==(other: Self) -> Bool {
+    match (self, other) {
+      case (None, None) -> true
+      case (Lax, Lax) -> true
+      case (Strict, Strict) -> true
+      case _ -> false
+    }
+  }
+}
+
+impl Format for SameSite {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case None -> formatter.tuple('None').finish
+      case Lax -> formatter.tuple('Lax').finish
+      case Strict -> formatter.tuple('Strict').finish
+    }
+  }
+}
+
+# An RFC 6265 cookie.
+#
+# # Max-Age vs Expires
+#
+# Cookies support both a `Max-Age` and `Expires` attribute, the former
+# specifying a time in seconds and the latter specifying an absolute time.
+#
+# When parsing a cookie from a `Set-Cookie` header, this type supports both
+# attributes and normalizes them into a single absolute `DateTime`. This makes
+# working with cookie expiration times easier.
+#
+# When serializing a `Cookie` back to a header, a `Max-Age` attribute is used
+# using the absolute date. While RFC 6265 states that if both `Expires` and
+# `Max-Age` are given the latter takes precedence, it makes no suggestion as to
+# which one should be used by servers producing `Set-Cookie` headers.
+#
+# However, the general recommendation seems to be to use the `Max-Age` header as
+# it doesn't rely on the client's clock, only that the client is able to add the
+# value to whatever that clock is set to. In addition, `Max-Age` is both easier
+# to generate and parse.
+type pub Cookie {
+  # The name of the cookie.
+  let pub mut @name: String
+
+  # The value of the cookie.
+  let pub mut @value: String
+
+  # The expiration date/time of the cookie.
+  let pub mut @expires: Option[DateTime]
+
+  # The domain to scope the cookie to.
+  #
+  # An empty `String` means the value is unset.
+  let pub mut @domain: String
+
+  # The path prefix to scope the cookie to.
+  #
+  # An empty `String` means the value is unset.
+  let pub mut @path: String
+
+  # If the cookie is restricted to secure channels (e.g. HTTPS).
+  let pub mut @secure: Bool
+
+  # If the cookie should be scoped to HTTP-only requests.
+  let pub mut @http_only: Bool
+
+  # The `SameSite` attribute.
+  #
+  # This defaults to `SameSite.None`.
+  let pub mut @same_site: SameSite
+
+  # Non-standard attributes.
+  #
+  # RFC 6265 allows for custom attributes in cookies, but assigns no special
+  # meaning to them and only specifies very lax parsing rules. In addition, the
+  # specification doesn't state if any attribute names need to be treated
+  # case-sensitively or not.
+  #
+  # As such, we store each custom chunk as-is and leave further parsing up to
+  # the user of these chunks.
+  let pub mut @attributes: Array[String]
+
+  # Returns a new `Cookie` with the given name and value.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.cookie (Cookie)
+  #
+  # Cookie.new('name', 'Alice') # => Cookie(name: 'name', value: 'Alice', ...)
+  # ```
+  fn pub static new(name: String, value: String) -> Cookie {
+    Cookie(
+      name: name,
+      value: value,
+      expires: Option.None,
+      domain: '',
+      path: '',
+      secure: false,
+      http_only: false,
+      attributes: [],
+      same_site: SameSite.None,
+    )
+  }
+
+  fn static parse_name_value[B: Bytes](
+    input: ref B,
+  ) -> Result[Cookie, ParseError] {
+    # The logic used here is a bit more verbose than we'd like, but this is so
+    # we only need a single pass over the input and avoid any memory
+    # allocations.
+    let mut start = 0
+    let mut idx = 0
+    let mut has_val = false
+    let len = input.size
+
+    while idx < len {
+      match input.get(idx).or_panic {
+        case v if token?(v) -> idx += 1
+        case EQ -> {
+          has_val = true
+          break
+        }
+        case _ -> throw ParseError.InvalidName
+      }
+    }
+
+    if !has_val { throw ParseError.MissingValue }
+
+    let name = Slice.new(input, start, idx)
+
+    idx += 1
+    start = idx
+
+    let mut quoted = match input.get(idx) {
+      case Ok(DQUOTE) -> {
+        idx += 1
+        true
+      }
+      case _ -> false
+    }
+
+    while idx < len {
+      match input.get(idx).or_panic {
+        case byte if octet?(byte) -> idx += 1
+        case DQUOTE if quoted -> {
+          quoted = false
+          idx += 1
+          break
+        }
+        case _ -> throw ParseError.InvalidValue
+      }
+    }
+
+    if quoted { throw ParseError.InvalidValue }
+
+    let val = Slice.new(input, start, idx)
+
+    Result.Ok(Cookie.new(name.to_string, val.to_string))
+  }
+
+  # Parses a list of `Cookie` values from a `Cookie` request header.
+  #
+  # This method returns an `Array[Cookie]` instead of a single `Cookie` as
+  # `Cookie` headers may contain multiple cookie pairs.
+  #
+  # Because `Cookie` headers only specify cookie names and their values,
+  # additional fields of `Cookie` (e.g. `Cookie.domain`) will use their default
+  # values.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.cookie (Cookie)
+  #
+  # Cookie.parse_request('name=Alice')
+  # # => Result.Ok([Cookie(name: 'name', value: 'Alice', ...)])
+  # ```
+  fn pub static parse_request(
+    input: String,
+  ) -> Result[Array[Cookie], ParseError] {
+    input.split(';').try_reduce([], fn (cookies, slice) {
+      cookies.push(try Cookie.parse_name_value(slice))
+      Result.Ok(cookies)
+    })
+  }
+
+  # Parses a single `Cookie` from a `Set-Cookie` header.
+  #
+  # Per RFC 6265 a `Set-Cookie` header may only contain a single cookie pair and
+  # its attributes, so this method returns a single `Cookie` instead of an
+  # `Array[Cookie]`.
+  #
+  # The `input` argument is the cookie string to parse. The `time` argument is a
+  # `DateTime` used to resolve relative `Max-Age` attributes into absolute
+  # times.
+  #
+  # # Limits
+  #
+  # When parsing a `Set-Cookie` header string, the following limitations are
+  # enforced:
+  #
+  # - The `Max-Age` attribute allows a maximum of 10 digits, which is sufficient
+  #   for a range of 317 years into the future. A `Max-Age` attribute with a
+  #   greater value is rejected
+  # - The `Domain` attribute allows up to 255 characters for the domain name, as
+  #   per RFC 1123
+  # - The `Expires` attribute only supports the date formats from RFC 1123 and
+  #   RFC 1036. The `asctime()` format isn't supported
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.cookie (Cookie)
+  #
+  # Cookie.parse_response('name=Alice; secure')
+  # # => Result.Ok([Cookie(name: 'name', value: 'Alice', secure: true, ...)])
+  # ```
+  fn pub static parse_response(
+    input: String,
+    time: DateTime,
+  ) -> Result[Cookie, ParseError] {
+    match input.index_of(';', starting_at: 0) {
+      case Some(i) -> {
+        let cookie = try parse_name_value(input.slice(0, i))
+        let attrs = input.slice(start: i + 1, end: input.size)
+
+        try cookie.parse_attributes(attrs, time)
+        Result.Ok(cookie)
+      }
+      case _ -> parse_name_value(input)
+    }
+  }
+
+  # Returns `true` if `self` is expired.
+  #
+  # The `time` argument is the `DateTime` that acts as the current time.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.cookie (Cookie)
+  # import std.time (DateTime, Duration)
+  #
+  # let cookie = Cookie.new('name', 'Alice')
+  # let time = DateTime.utc
+  #
+  # cookie.expires = Option.Some(time + Duration.from_secs(2))
+  # cookie.expired?(time) # => false
+  # ```
+  fn pub expired?(time: DateTime) -> Bool {
+    match @expires {
+      case Some(v) -> v.duration_since(time) > Duration.from_secs(0)
+      case _ -> false
+    }
+  }
+
+  # Generates the value for a `Cookie` request header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.cookie (Cookie)
+  #
+  # Cookie.new('name', 'Alice').to_request # => 'name=Alice'
+  # ```
+  fn pub to_request -> String {
+    let buf = StringBuffer.new
+
+    write_name_value(buf)
+    buf.into_string
+  }
+
+  # Generates the value for a `Set-Cookie` response header.
+  #
+  # The `time` argument is a `DateTime` to use for turning the cookie expiration
+  # date into a relative `Max-Age` attribute.
+  #
+  # This method doesn't check if the cookie is expired or not. This means that
+  # if the expiration time is in the past, a `Max-Age` attribute with a negative
+  # value is produced. To ensure this doesn't happen, always first check if the
+  # cookie is still valid (e.g. using `Cookie.expired?`) and relevant for a
+  # request (e.g. based on the cookie domain or path).
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.cookie (Cookie)
+  # import std.time (DateTime, Duration)
+  #
+  # let cookie = Cookie.new('name', 'Alice')
+  # let now = DateTime.utc
+  #
+  # cookie.expires = Option.Some(now + Duration.from_secs(5))
+  # cookie.to_response(now) # => 'name=Alice; Max-Age=5'
+  # ```
+  fn pub to_response(time: DateTime) -> String {
+    let buf = StringBuffer.new
+
+    write_name_value(buf)
+
+    match @expires {
+      case Some(v) -> {
+        buf.push('; Max-Age=')
+        buf.push(v.duration_since(time).to_secs.to_int.to_string)
+      }
+      case _ -> {}
+    }
+
+    if @domain.size > 0 {
+      buf.push('; Domain=')
+      buf.push(@domain)
+    }
+
+    if @path.size > 0 {
+      buf.push('; Path=')
+      buf.push(@path)
+    }
+
+    if @secure { buf.push('; Secure') }
+
+    if @http_only { buf.push('; HttpOnly') }
+
+    match @same_site {
+      case None -> {}
+      case Strict -> buf.push('; SameSite=Strict')
+      case Lax -> buf.push('; SameSite=Lax')
+    }
+
+    for attr in @attributes.iter {
+      buf.push('; ')
+      buf.push(attr)
+    }
+
+    buf.into_string
+  }
+
+  fn write_name_value(buffer: mut StringBuffer) {
+    buffer.push(@name)
+    buffer.push('=')
+    buffer.push(@value)
+  }
+
+  fn mut parse_attributes(
+    input: ref Slice[String],
+    time: DateTime,
+  ) -> Result[Nil, ParseError] {
+    let mut max_age = false
+
+    for input in input.split(';') {
+      # Per the "set-cookie-string" syntax rule in section 4.1.1, each ";"
+      # _must_ start with a single space. At the same time the RFC suggests
+      # ignoring whitespace in a bunch of places to be more robust. We too take
+      # this approach by ignoring leading/trailing whitespace.
+      let input = input.trim
+
+      if input.empty? { next }
+
+      let mut idx = 0
+      let len = input.size
+      let mut has_val = false
+      let mut name_end = len
+
+      while idx < len {
+        match input.get(idx).or_panic {
+          case EQ -> {
+            name_end = idx
+            has_val = true
+            idx += 1
+            break
+          }
+          case v if attribute?(v) -> idx += 1
+          case _ -> throw ParseError.InvalidAttribute
+        }
+      }
+
+      match Attribute.parse(input.slice(0, name_end)) {
+        # These attributes are just flags _without_ a value.
+        case Some(Secure) if !has_val -> @secure = true
+        case Some(HttpOnly) if !has_val -> @http_only = true
+        # These attributes all require a value.
+        case Some(Expires) -> {
+          if !has_val { throw ParseError.InvalidExpires }
+
+          # If both Max-Age and Expires are specified, Max-Age takes
+          # precedence (section 4.1.2.2). In this case we just ignore the
+          # value entirely.
+          if max_age { next }
+
+          let val = input.slice(idx, len)
+          let locale = Locale.new
+
+          # The RFC lists three date formats, one of them being the output from
+          # `asctime()`. The latter appears unused and has been deprecated for a
+          # very long time, so we simply don't support it. The first two formats
+          # are still in active use, with some websites (e.g. Twitter) even
+          # using both in different cookies.
+          let dt = match DateTime.parse(val, RFC_1123_DATE, locale) {
+            case Some(v) -> v
+            case _ -> {
+              match DateTime.parse(val, RFC_1036_DATE, locale) {
+                case Some(v) -> v
+                case _ -> throw ParseError.InvalidExpires
+              }
+            }
+          }
+
+          @expires = Option.Some(dt)
+        }
+        case Some(MaxAge) -> {
+          if !has_val { throw ParseError.InvalidMaxAge }
+
+          # The RFC states that the value must start with a non-zero digit and
+          # contain at least one digit.
+          match input.get(idx) {
+            case Ok(ZERO) or Error(_) -> throw ParseError.InvalidMaxAge
+            case _ -> {}
+          }
+
+          let val = input.slice(idx, len)
+
+          # RFC 6265 doesn't enforce a limit on the size. We limit the value to
+          # 10 digits because that's more than enough, and any larger value is
+          # likely the result of somebody trying something "funny".
+          match digits(val, 0, limit: 10) {
+            case Some((num, digits)) if digits == val.size -> {
+              max_age = true
+              @expires = Option.Some(time + Duration.from_secs(num))
+            }
+            case _ -> throw ParseError.InvalidMaxAge
+          }
+        }
+        case Some(Domain) -> {
+          if !has_val { throw ParseError.InvalidDomain }
+
+          # A leading dot is to be ignored (section 4.1.2.3).
+          match input.get(idx) {
+            case Ok(DOT) -> idx += 1
+            case _ -> {}
+          }
+
+          let val = input.slice(idx, len)
+
+          if domain?(val) {
+            @domain = val.to_string
+          } else {
+            throw ParseError.InvalidDomain
+          }
+        }
+        case Some(Path) -> {
+          if !has_val { throw ParseError.InvalidPath }
+
+          let val = input.slice(idx, len)
+
+          if val.size > 0 and visible?(val) {
+            @path = val.to_string
+          } else {
+            throw ParseError.InvalidPath
+          }
+        }
+        case Some(SameSite) -> {
+          if !has_val { throw ParseError.InvalidSameSite }
+
+          let val = input.slice(idx, len)
+
+          @same_site = match val.size {
+            case 3 if val.equals_while_ignoring_case?('lax') -> SameSite.Lax
+            case 6 if val.equals_while_ignoring_case?('strict') -> {
+              SameSite.Strict
+            }
+            case _ -> SameSite.None
+          }
+        }
+        # Non-standard attribute chunks are stored as-is, minus the single
+        # leading space.
+        case _ -> @attributes.push(input.slice(0, len).to_string)
+      }
+    }
+
+    Result.Ok(nil)
+  }
+}
+
+impl Equal for Cookie {
+  fn pub ==(other: ref Self) -> Bool {
+    @name == other.name
+      and @value == other.value
+      and @expires == other.expires
+      and @domain == other.domain
+      and @path == other.path
+      and @secure == other.secure
+      and @http_only == other.http_only
+      and @same_site == other.same_site
+      and @attributes == other.attributes
+  }
+}
+
+impl Format for Cookie {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter
+      .object('Cookie')
+      .field('name', @name)
+      .field('value', @value)
+      .field('expires', @expires)
+      .field('domain', @domain)
+      .field('path', @path)
+      .field('secure', @secure)
+      .field('http_only', @http_only)
+      .field('same_site', @same_site)
+      .field('attributes', @attributes)
+      .finish
+  }
+}

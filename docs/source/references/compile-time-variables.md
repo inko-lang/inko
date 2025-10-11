@@ -58,10 +58,10 @@ To specify a custom value, you use the `-d`/`--define` option when running
 module.name.CONSTANT=VALUE
 ```
 
-Here `module.name` is the fully qualified module name, such as `std.string` or
-`std.net.socket`, `CONSTANT` is the name of the constant and `VALUE` is the
-value to assign to the constant. To set `PATH` to `/usr/local/share/example`,
-we'd build the program as follows:
+Here `module.name` is the fully qualified module name, such as [`std.string`]()
+or [`std.net.socket`](), `CONSTANT` is the name of the constant and `VALUE` is
+the value to assign to the constant. To set `PATH` to
+`/usr/local/share/example`, we'd build the program as follows:
 
 ```bash
 inko build --define main.PATH=/usr/local/share/example
