@@ -1,0 +1,481 @@
+# Generating of XML documents.
+#
+# This modules provides an `Xml` type to use for generating XML documents,
+# refer to its documentation for more details.
+#
+# For generating HTML documents, use `std.html` instead.
+import std.bytes (Bytes, IntoByteArray, ToByteArray, ToSlice)
+import std.drop (Drop)
+import std.string (IntoString, ToString)
+
+let DQUOTE = 34
+let AMP = 38
+let LT = 60
+
+# A type for generating XML documents.
+#
+# This type doesn't build a DOM tree but instead writes directly to an internal
+# buffer, reducing memory usage and CPU time compared to using a tree.
+#
+# Writing to a `std.io.Write` type isn't supported in order to make the API
+# easier to use (by removing the need for error handling as part of writes).
+# However, it's possible to incrementally generate XML by calling
+# `Xml.to_string` and `Xml.clear` at certain points in the XML generation
+# process.
+#
+# Generating XML elements is done using `Xml.element`, while modifying them
+# (e.g. assigning an attribute) is done using methods such as `Element.attr`
+# and `Element.then`.
+#
+# # Closing elements
+#
+# Dropping an `Element` automatically closes the element. If such a value isn't
+# moved before it's dropped, you'll get a compile-time warning. To avoid this,
+# use `Element.close` to explicitly close the element:
+#
+# ```inko
+# import std.xml (Xml)
+#
+# let doc = Xml.new
+#
+# doc.element('foo').attr('class', 'example').close
+# doc.to_string # => '<foo class="example"></foo>'
+# ```
+#
+# # Examples
+#
+# Generating an XML document including the XML declaration:
+#
+# ```inko
+# import std.xml (Xml)
+#
+# let doc = Xml.new
+#
+# doc.declaration
+# doc.element('example').text('hello')
+# doc.to_string # => '<?xml version="1.0" encoding="UTF-8" ?><example>hello</example>'
+# ```
+type pub inline Xml {
+  let @buffer: ByteArray
+
+  # Returns a new and empty `Xml` value.
+  fn pub inline static new -> Self {
+    # 1 KiB should be a sufficient starting capacity.
+    Self(ByteArray.with_capacity(1024))
+  }
+
+  # Adds the XML declaration to `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.xml (Xml)
+  #
+  # let doc = Xml.new
+  #
+  # doc.declaration
+  # doc.to_string # => '<?xml version="1.0" encoding="UTF-8" ?>'
+  # ```
+  fn pub mut declaration {
+    add('<?xml version="1.0" encoding="UTF-8" ?>')
+  }
+
+  # Calls the provided closure and passes it a mutable borrow of `self`, then
+  # returns `self`.
+  #
+  # # Examples
+  #
+  # This method is useful when you want to create and return an `Xml` document
+  # without the need for intermediate variables. So instead of this:
+  #
+  # ```inko
+  # fn example -> Xml {
+  #   let doc = Xml.new
+  #
+  #   doc.element('root').then(fn (root) {
+  #     # ...
+  #   })
+  #
+  #   doc
+  # }
+  # ```
+  #
+  # You can write this:
+  #
+  # ```inko
+  # fn example -> Xml {
+  #   Xml.new.then(fn (doc) {
+  #     doc.element('root').then(fn (root) {
+  #       # ...
+  #     })
+  #   })
+  # }
+  # ```
+  fn pub inline move then(body: fn (mut Xml)) -> Self {
+    body.call(self)
+    self
+  }
+
+  # Reserves space for `size` additional bytes.
+  #
+  # The actual reserved capacity may be greater than the given value.
+  fn pub mut reserve(size: Int) {
+    @buffer.reserve(size)
+  }
+
+  # Clears the underlying buffer.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.xml (Xml)
+  #
+  # let doc = Xml.new
+  #
+  # doc.element('foo').close
+  # doc.to_string # => '<foo></foo>'
+  # doc.clear
+  # doc.to_string # => ''
+  # ```
+  fn pub mut clear {
+    @buffer.clear
+  }
+
+  # Returns a `Element` to use for generating a new XML element.
+  #
+  # The `name` argument is the name of the XML element, optionally including its
+  # namespace (e.g. `namespace:element-name`).
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.xml (Xml)
+  #
+  # let doc = Xml.new
+  #
+  # doc.element('foo').close
+  # doc.to_string # => '<foo></foo>'
+  # ```
+  fn pub inline mut element(name: String) -> Element {
+    Element.new(self, name)
+  }
+
+  # Appends a comment to the buffer.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.xml (Xml)
+  #
+  # let doc = Xml.new
+  #
+  # doc.comment('hello')
+  # doc.to_string # => '<!-- hello -->'
+  # ```
+  fn pub inline mut comment(value: String) {
+    add('<!-- ')
+    add(value)
+    add(' -->')
+  }
+
+  # Appends a CDATA section to the buffer.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.xml (Xml)
+  #
+  # let doc = Xml.new
+  #
+  # doc.cdata('hello')
+  # doc.to_string # => '<![CDATA[hello]]>'
+  # ```
+  fn pub inline mut cdata(value: String) {
+    add('<![CDATA[')
+    add(value)
+    add(']]>')
+  }
+
+  # Adds the data of the given `Xml` value to `self`, draining it in the
+  # process.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.xml (Xml)
+  #
+  # let a = Xml.new
+  # let b = Xml.new
+  #
+  # a.element('foo').text('hello')
+  # b.element('bar').text('world')
+  # a.append(b)
+  # a.to_string # => '<foo>hello</foo><bar>world</bar>'
+  # ```
+  fn pub inline mut append(other: mut Self) {
+    @buffer.append(other.buffer)
+    other.clear
+  }
+
+  # Add the value as-is to the buffer.
+  #
+  # This can be used to add existing XML as-is (= without escaping) to the
+  # buffer.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.xml (Xml)
+  #
+  # let doc = Xml.new
+  #
+  # doc.add('<foo>hello</foo>')
+  # doc.to_string # => '<foo>hello</foo>'
+  # ```
+  fn pub inline mut add[B: Bytes](value: ref B) {
+    @buffer.reserve(value.size)
+    @buffer.append(value)
+  }
+
+  # Escapes the text (if necessary) and appends it to the buffer.
+  #
+  # The value to append can be a `String`, `ByteArray`, or a `std.bytes.Slice`.
+  #
+  # The following characters are escaped using XML entities:
+  #
+  # - `&`
+  # - `<`
+  #
+  # Other characters such as `"` and `>` are left as-is as these don't need be
+  # escaped in XML.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.xml (Xml)
+  #
+  # let doc = Xml.new
+  #
+  # doc.text('hello & world')
+  # doc.to_string # => 'hello &amp; world'
+  # ```
+  fn pub mut text[B: Bytes, T: ToSlice[B]](value: ref T) {
+    let value = value.to_slice
+    let mut idx = 0
+    let mut start = 0
+    let len = value.size
+
+    @buffer.reserve(len)
+
+    while idx < len {
+      let replace = match value.get(idx).or_panic {
+        case AMP -> '&amp;'
+        case LT -> '&lt;'
+        case _ -> {
+          idx += 1
+          next
+        }
+      }
+
+      add(value.slice(start, idx))
+      add(replace)
+      idx += 1
+      start = idx
+    }
+
+    if idx > start { add(value.slice(start, idx)) }
+  }
+
+  fn mut inner_text[B: Bytes, T: ToSlice[B]](name: String, value: ref T) {
+    add('>')
+    text(value)
+    closing_tag(name)
+  }
+
+  fn mut attr(name: String, value: String) {
+    add(name)
+
+    let mut idx = 0
+    let mut start = 0
+    let len = value.size
+
+    add('="')
+
+    while idx < len {
+      let replace = match value.get(idx).or_panic {
+        case DQUOTE -> '&quot;'
+        case _ -> {
+          idx += 1
+          next
+        }
+      }
+
+      add(value.slice(start, idx))
+      add(replace)
+      idx += 1
+      start = idx
+    }
+
+    if idx > start { add(value.slice(start, idx)) }
+
+    add('"')
+  }
+
+  fn inline mut enter(name: String, body: fn (mut Xml)) {
+    add('>')
+    body.call(self)
+    closing_tag(name)
+  }
+
+  fn inline mut closing_tag(name: String) {
+    @buffer.reserve(name.size + 3)
+    add('</')
+    add(name)
+    add('>')
+  }
+}
+
+impl ToByteArray for Xml {
+  fn pub to_byte_array -> ByteArray {
+    @buffer.clone
+  }
+}
+
+impl IntoByteArray for Xml {
+  fn pub move into_byte_array -> ByteArray {
+    @buffer
+  }
+}
+
+impl ToString for Xml {
+  fn pub to_string -> String {
+    @buffer.to_string
+  }
+}
+
+impl IntoString for Xml {
+  fn pub move into_string -> String {
+    @buffer.into_string
+  }
+}
+
+# An XML element.
+type pub inline Element {
+  let @xml: mut Xml
+  let @name: String
+  let mut @open: Bool
+
+  fn inline static new(xml: mut Xml, name: String) -> Self {
+    xml.add('<')
+    xml.add(name)
+    Self(open: true, xml: xml, name: name)
+  }
+
+  # Sets the contents of `self` to the given literal value, then closes
+  # `self`.
+  #
+  # Unlike `Element.text` the given value is _not_ escaped.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.xml (Xml)
+  #
+  # let doc = Xml.empty
+  #
+  # doc.element('foo').value('hello & world')
+  # doc.to_string # => '<foo>hello & world</foo>'
+  # ```
+  fn pub inline move value[B: Bytes](value: ref B) {
+    @open = false
+    @xml.add('>')
+    @xml.add(value)
+    @xml.closing_tag(@name)
+  }
+
+  # Sets the contents of `self` to the given text, then closes `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.xml (Xml)
+  #
+  # let doc = Xml.empty
+  #
+  # doc.element('foo').text('hello & world')
+  # doc.to_string # => '<foo>hello &amp; world</foo>'
+  # ```
+  fn pub inline move text[B: Bytes, T: ToSlice[B]](value: ref T) {
+    @open = false
+    @xml.inner_text(@name, value)
+  }
+
+  # Closes the opening tag of `self`, calls the supplied closure then closes
+  # `self`.
+  #
+  # This method may be used to "enter" or "descend" into an element.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.xml (Xml)
+  #
+  # let doc = Xml.empty
+  #
+  # doc.element('foo').then(fn (foo) { foo.element('bar').text('hello') })
+  # doc.to_string # => '<foo><bar>hello</bar></foo>'
+  # ```
+  fn pub inline move then(body: fn (mut Xml)) {
+    @open = false
+    @xml.enter(@name, body)
+  }
+
+  fn mut add_closing_tag {
+    @xml.add('>')
+    @xml.closing_tag(@name)
+  }
+
+  # Adds an attribute to `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.xml (Xml)
+  #
+  # let doc = Xml.empty
+  #
+  # doc.element('foo').attr('key', 'value').close
+  # doc.to_string # => '<foo key="value"></foo>'
+  # ```
+  fn pub inline move attr(name: String, value: String) -> Self {
+    @xml.add(' ')
+    @xml.attr(name, value)
+    self
+  }
+
+  # Adds the closing tag for `self` and consumes it.
+  #
+  # This method should be called when a `Element` is created and other moving
+  # methods such as `Element.text` aren't used.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.xml (Xml)
+  #
+  # let doc = Xml.empty
+  #
+  # doc.element('foo').close
+  # doc.to_string # => '<foo></foo>'
+  # ```
+  fn pub inline move close {
+    @open = false
+    add_closing_tag
+  }
+}
+
+impl Drop for Element {
+  fn mut drop {
+    if @open { add_closing_tag }
+  }
+}

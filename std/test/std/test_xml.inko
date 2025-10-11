@@ -1,0 +1,181 @@
+import std.drop (drop)
+import std.test (Tests)
+import std.xml (Element, Xml)
+
+fn pub tests(t: mut Tests) {
+  t.test('Xml.new', fn (t) { t.equal(Xml.new.to_string, '') })
+
+  t.test('Xml.declaration', fn (t) {
+    let doc = Xml.new
+
+    doc.declaration
+    t.equal(doc.to_string, '<?xml version="1.0" encoding="UTF-8" ?>')
+  })
+
+  t.test('Xml.then', fn (t) {
+    let doc = Xml.new.then(fn (doc) { doc.element('p').text('hello') })
+
+    t.equal(doc.to_string, '<p>hello</p>')
+  })
+
+  t.test('Xml.reserve', fn (t) {
+    let doc = Xml.new
+
+    doc.reserve(2048)
+    t.equal(doc.buffer.capacity, 3072)
+  })
+
+  t.test('Xml.clear', fn (t) {
+    let doc = Xml.new
+
+    doc.clear
+    t.equal(doc.to_string, '')
+  })
+
+  t.test('Xml.element', fn (t) {
+    let doc = Xml.new
+
+    doc.element('foo').close
+    t.equal(doc.to_string, '<foo></foo>')
+  })
+
+  t.test('Xml.comment', fn (t) {
+    let doc = Xml.new
+
+    doc.comment('hello & world')
+    t.equal(doc.to_string, '<!-- hello & world -->')
+  })
+
+  t.test('Xml.comment', fn (t) {
+    let doc = Xml.new
+
+    doc.cdata('hello & world')
+    t.equal(doc.to_string, '<![CDATA[hello & world]]>')
+  })
+
+  t.test('Xml.append', fn (t) {
+    let a = Xml.new
+    let b = Xml.new
+
+    a.element('p').text('hello')
+    b.element('p').text('world')
+    a.append(b)
+    t.equal(a.to_string, '<p>hello</p><p>world</p>')
+  })
+
+  t.test('Xml.add', fn (t) {
+    let doc = Xml.new
+
+    doc.add('hello & world')
+    t.equal(doc.to_string, 'hello & world')
+  })
+
+  t.test('Xml.text', fn (t) {
+    let doc = Xml.new
+
+    doc.text('hello & < world')
+    doc.text(' foo')
+    t.equal(doc.to_string, 'hello &amp; &lt; world foo')
+  })
+
+  t.test('Xml.inner_text', fn (t) {
+    let doc = Xml.new
+
+    doc.inner_text('tag', 'value')
+    t.equal(doc.to_string, '>value</tag>')
+  })
+
+  t.test('Xml.attr', fn (t) {
+    let doc = Xml.new
+
+    doc.attr('key', 'val"ue')
+    doc.attr('foo', 'bar')
+    t.equal(doc.to_string, 'key="val&quot;ue"foo="bar"')
+  })
+
+  t.test('Xml.enter', fn (t) {
+    let doc = Xml.new
+
+    doc.enter('tag', fn (h) { h.text('value') })
+    t.equal(doc.to_string, '>value</tag>')
+  })
+
+  t.test('Xml.closing_tag', fn (t) {
+    let doc = Xml.new
+
+    doc.closing_tag('tag')
+    t.equal(doc.to_string, '</tag>')
+  })
+
+  t.test('Xml.to_byte_array', fn (t) {
+    let doc = Xml.new
+
+    doc.text('hello')
+    t.equal(doc.to_byte_array, 'hello'.to_byte_array)
+  })
+
+  t.test('Xml.into_byte_array', fn (t) {
+    let doc = Xml.new
+
+    doc.text('hello')
+    t.equal(doc.into_byte_array, 'hello'.to_byte_array)
+  })
+
+  t.test('Xml.into_string', fn (t) {
+    let doc = Xml.new
+
+    doc.text('hello')
+    t.equal(doc.into_string, 'hello')
+  })
+
+  t.test('Element.new', fn (t) {
+    let doc = Xml.new
+    let el = Element.new(doc, 'tag')
+
+    t.equal(doc.to_string, '<tag')
+    t.equal(el.name, 'tag')
+    t.true(el.open)
+  })
+
+  t.test('Element.value', fn (t) {
+    let doc = Xml.new
+
+    doc.element('tag').value('hello & world')
+    t.equal(doc.to_string, '<tag>hello & world</tag>')
+  })
+
+  t.test('Element.text', fn (t) {
+    let doc = Xml.new
+
+    doc.element('tag').text('hello & world')
+    t.equal(doc.to_string, '<tag>hello &amp; world</tag>')
+  })
+
+  t.test('Element.then', fn (t) {
+    let doc = Xml.new
+
+    doc.element('tag').then(fn (t) { t.text('value') })
+    t.equal(doc.to_string, '<tag>value</tag>')
+  })
+
+  t.test('Element.close', fn (t) {
+    let doc = Xml.new
+
+    doc.element('tag').close
+    t.equal(doc.to_string, '<tag></tag>')
+  })
+
+  t.test('Element.attr', fn (t) {
+    let doc = Xml.new
+
+    doc.element('tag').attr('a', 'b').attr('c', 'd').attr('empty', '').close
+    t.equal(doc.to_string, '<tag a="b" c="d" empty=""></tag>')
+  })
+
+  t.test('Element.drop', fn (t) {
+    let doc = Xml.new
+
+    drop(doc.element('tag'))
+    t.equal(doc.to_string, '<tag></tag>')
+  })
+}

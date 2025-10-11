@@ -1,8 +1,111 @@
-import std.crypto.x509 (Certificate, PrivateKey)
+import helpers (VALID_CERT, VALID_KEY, with_directory)
+import std.crypto.pem
+import std.crypto.x509 (Certificate, ParseError, PrivateKey)
 import std.fmt (fmt)
+import std.fs.file
+import std.io
 import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
+  t.test('ParseError.==', fn (t) {
+    t.equal(
+      ParseError.Read(io.Error.NotFound),
+      ParseError.Read(io.Error.NotFound),
+    )
+    t.equal(
+      ParseError.Invalid(pem.ParseError.Read(io.Error.NotFound)),
+      ParseError.Invalid(pem.ParseError.Read(io.Error.NotFound)),
+    )
+    t.equal(ParseError.Missing, ParseError.Missing)
+
+    t.not_equal(
+      ParseError.Read(io.Error.NotFound),
+      ParseError.Read(io.Error.BrokenPipe),
+    )
+    t.not_equal(
+      ParseError.Invalid(pem.ParseError.Read(io.Error.NotFound)),
+      ParseError.Invalid(pem.ParseError.Read(io.Error.BrokenPipe)),
+    )
+  })
+
+  t.test('ParseError.to_string', fn (t) {
+    t.equal(
+      ParseError.Read(io.Error.NotFound).to_string,
+      io.Error.NotFound.to_string,
+    )
+    t.equal(
+      ParseError.Invalid(pem.ParseError.Read(io.Error.NotFound)).to_string,
+      pem.ParseError.Read(io.Error.NotFound).to_string,
+    )
+    t.equal(
+      ParseError.Missing.to_string,
+      "the file doesn't contain a certificate or private key",
+    )
+  })
+
+  t.test('ParseError.fmt', fn (t) {
+    t.equal(fmt(ParseError.Read(io.Error.NotFound)), 'Read(NotFound)')
+    t.equal(
+      fmt(ParseError.Invalid(pem.ParseError.Read(io.Error.NotFound))),
+      'Invalid(Read(NotFound))',
+    )
+    t.equal(fmt(ParseError.Missing), 'Missing')
+  })
+
+  t.ok('Certificate.from_pem_file', fn (t) {
+    try with_directory(t.id, fn (dir) -> Result[Nil, io.Error] {
+      let path = dir.join('cert.pem')
+
+      try dir.create_directory_all
+      try file.WriteOnlyFile.new(path).then(fn (f) { f.write(VALID_CERT) })
+
+      t.equal(Certificate.from_pem_file(path).error, Option.None)
+      Result.Ok(nil)
+    })
+
+    try with_directory(t.id, fn (dir) -> Result[Nil, io.Error] {
+      let path = dir.join('cert.pem')
+
+      try dir.create_directory_all
+
+      t.equal(
+        Certificate.from_pem_file(path).error,
+        Option.Some(ParseError.Read(io.Error.NotFound)),
+      )
+      Result.Ok(nil)
+    })
+
+    try with_directory(t.id, fn (dir) -> Result[Nil, io.Error] {
+      let path = dir.join('cert.pem')
+
+      try dir.create_directory_all
+      try file.WriteOnlyFile.new(path).then(fn (f) { f.write(VALID_KEY) })
+
+      t.equal(
+        Certificate.from_pem_file(path).error,
+        Option.Some(ParseError.Missing),
+      )
+      Result.Ok(nil)
+    })
+
+    try with_directory(t.id, fn (dir) -> Result[Nil, io.Error] {
+      let path = dir.join('cert.pem')
+
+      try dir.create_directory_all
+      try file.WriteOnlyFile.new(path).then(fn (f) {
+        f.write('--BEGIN CERTIFICATE--\n--END CERTIFICATE--')
+      })
+
+      t.equal(
+        Certificate.from_pem_file(path).error,
+        Option.Some(ParseError.Invalid(pem.ParseError.InvalidSectionStart(1))),
+      )
+      Result.Ok(nil)
+    })
+
+    Result.Ok(nil)
+  })
+
   t.test('Certificate.fmt', fn (t) {
     t.equal(
       fmt(Certificate.new(ByteArray.from_array([1, 2]))),
@@ -26,6 +129,60 @@ fn pub tests(t: mut Tests) {
       fmt(PrivateKey.new(ByteArray.from_array([1, 2]))),
       'PrivateKey(2 bytes)',
     )
+  })
+
+  t.ok('PrivateKey.from_pem_file', fn (t) {
+    try with_directory(t.id, fn (dir) -> Result[Nil, io.Error] {
+      let path = dir.join('key.pem')
+
+      try dir.create_directory_all
+      try file.WriteOnlyFile.new(path).then(fn (f) { f.write(VALID_KEY) })
+
+      t.equal(PrivateKey.from_pem_file(path).error, Option.None)
+      Result.Ok(nil)
+    })
+
+    try with_directory(t.id, fn (dir) -> Result[Nil, io.Error] {
+      let path = dir.join('key.pem')
+
+      try dir.create_directory_all
+
+      t.equal(
+        PrivateKey.from_pem_file(path).error,
+        Option.Some(ParseError.Read(io.Error.NotFound)),
+      )
+      Result.Ok(nil)
+    })
+
+    try with_directory(t.id, fn (dir) -> Result[Nil, io.Error] {
+      let path = dir.join('key.pem')
+
+      try dir.create_directory_all
+      try file.WriteOnlyFile.new(path).then(fn (f) { f.write(VALID_CERT) })
+
+      t.equal(
+        PrivateKey.from_pem_file(path).error,
+        Option.Some(ParseError.Missing),
+      )
+      Result.Ok(nil)
+    })
+
+    try with_directory(t.id, fn (dir) -> Result[Nil, io.Error] {
+      let path = dir.join('key.pem')
+
+      try dir.create_directory_all
+      try file.WriteOnlyFile.new(path).then(fn (f) {
+        f.write('--BEGIN PRIVATE KEY--\n--END PRIVATE KEY--')
+      })
+
+      t.equal(
+        PrivateKey.from_pem_file(path).error,
+        Option.Some(ParseError.Invalid(pem.ParseError.InvalidSectionStart(1))),
+      )
+      Result.Ok(nil)
+    })
+
+    Result.Ok(nil)
   })
 
   t.test('PrivateKey.==', fn (t) {

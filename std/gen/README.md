@@ -45,3 +45,11 @@ To add a new MIME type or file extension:
 Note that we only accept additions for officially recognized file types (i.e.
 those in the [IANA media types
 registry](https://www.iana.org/assignments/media-types/media-types.xhtml)).
+
+## HTTP data
+
+HTTP data is generated using the following tasks:
+
+- `make http_method`: generates perfect hashing code for HTTP methods
+- `make http_header`: generates perfect hashing code and various helper methods
+  for HTTP headers

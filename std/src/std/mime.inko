@@ -196,6 +196,24 @@ type pub Mime {
     }
   }
 
+  # Returns the value of the `charset` parameter, if given.
+  #
+  # This method returns an `Option` given that in most cases the parameter is
+  # expected to be absent, instead of this being unexpected.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.mime (Mime)
+  #
+  # let mime = Mime.parse('text/plain; charset=utf-8; q=0.5').get
+  #
+  # mime.charset.get.to_string # => 'utf-8'
+  # ```
+  fn pub charset -> Option[Slice[String]] {
+    get('charset').ok
+  }
+
   # Returns the primary (= first) MIME type for the given file extension.
   #
   # # Examples

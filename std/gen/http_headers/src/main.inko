@@ -1,0 +1,175 @@
+import std.bytes (Slice)
+import std.fs.file (ReadOnlyFile, WriteOnlyFile)
+import std.string (StringBuffer)
+
+let DATA_PATH = 'data/http_headers.txt'
+let SRC_PATH = '../src/std/net/http/header.inko'
+let TEST_PATH = '../test/std/net/http/test_header.inko'
+
+let SRC_TEMPLATE = '
+import std.bytes (Bytes)
+import std.net.http (Header)
+import std.net.http.header.phf
+import std.string (ToString)
+
+# The code in this module is generated and _must not_ be edited by hand. For
+# more information, refer to ./std/gen/README.md.
+
+$CONSTANTS
+
+fn name(index: Int) -> String {
+  phf.KEYS.get(index).or_panic
+}
+
+fn inline index_of[B: Bytes + ToString](input: ref B) -> Int {
+  phf.index_of(input)
+}
+
+impl Header {
+  $STATIC
+}
+'
+
+let TEST_TEMPLATE = "
+import helpers (hash)
+import std.fmt (fmt)
+import std.net.http (Header)
+import std.test (Tests)
+
+fn pub tests(t: mut Tests) {
+  $STATIC
+
+  t.test('Header.new', fn (t) {
+    $PARSE
+    t.equal(Header.new('example'), Header.Other('example'))
+    t.not_equal(Header.new('example'), Header.Other('Example'))
+  })
+
+  t.test('Header.hash', fn (t) {
+    $HASH
+    t.equal(hash(Header.Other('example')), hash(Header.Other('example')))
+    t.not_equal(hash(Header.Other('foo')), hash(Header.Other('bar')))
+  })
+
+  t.test('Header.clone', fn (t) {
+    $CLONE
+    t.equal(Header.Other('example').clone, Header.Other('example'))
+  })
+
+  t.test('Header.==', fn (t) {
+    $EQUAL
+    t.equal(Header.Other('foo'), Header.Other('foo'))
+    t.not_equal(Header.Other('foo'), Header.Other('bar'))
+  })
+
+  t.test('Header.to_string', fn (t) {
+    $TO_STRING
+    t.equal(Header.Other('foo').to_string, 'foo')
+  })
+
+  t.test('Header.fmt', fn (t) {
+    $FORMAT
+    t.equal(fmt(Header.Other('example')), 'example')
+  })
+}
+"
+
+fn to_upper(byte: Int) -> Int {
+  if byte >= 97 and byte <= 122 { byte - 32 } else { byte }
+}
+
+fn to_snake_case(value: ref Slice[String]) -> String {
+  String.join(value.split('-'), '_')
+}
+
+fn to_header_case(value: ref Slice[String]) -> String {
+  let chunks = value.split('-').map(fn (v) {
+    let bytes = v.to_byte_array
+
+    bytes.set(0, to_upper(bytes.get(0).or_panic))
+    bytes.into_string
+  })
+
+  String.join(chunks, '-')
+}
+
+type async Main {
+  fn async main {
+    let data = ByteArray.new
+    let _ = ReadOnlyFile
+      .new(DATA_PATH.to_path)
+      .then(fn (f) { f.read_all(data) })
+      .or_panic
+
+    let src_consts = StringBuffer.new
+    let src_static = StringBuffer.new
+
+    let test_parse = StringBuffer.new
+    let test_static = StringBuffer.new
+    let test_hash = StringBuffer.new
+    let test_clone = StringBuffer.new
+    let test_eq = StringBuffer.new
+    let test_to_string = StringBuffer.new
+    let test_format = StringBuffer.new
+
+    for (idx, header) in data.into_string.split('\n').with_index {
+      let meth = to_snake_case(header)
+      let name = to_header_case(header)
+      let const = meth.to_upper
+
+      src_consts.push(
+        '
+# The ID of the `${name}` header.
+let pub ${const} = ${idx}\n',
+      )
+
+      src_static.push(
+        '
+# Returns the `${name}` header.
+#
+# # Examples
+#
+# ```inko
+# import std.net.http (Header)
+#
+# Header.${meth} # => Header.Standard(${idx})
+# ```
+fn pub inline static ${meth} -> Header {
+  Header.Standard(${const})
+}
+',
+      )
+
+      test_parse.push('t.equal(Header.new("${header}"), Header.${meth})\n')
+      test_static.push(
+        "
+t.test('Header.${meth}', fn (t) {
+  t.equal(Header.${meth}, Header.Standard(${idx}))
+})
+",
+      )
+
+      test_hash.push('t.equal(hash(Header.${meth}), hash(Header.${meth}))\n')
+      test_clone.push('t.equal(Header.${meth}.clone, Header.${meth})\n')
+      test_eq.push('t.equal(Header.${meth}, Header.Standard(${idx}))\n')
+      test_to_string.push('t.equal(Header.${meth}.to_string, "${header}")\n')
+      test_format.push('t.equal(fmt(Header.${meth}), "${header}")\n')
+    }
+
+    let src = SRC_TEMPLATE
+      .replace('$CONSTANTS', src_consts.into_string)
+      .replace('$STATIC', src_static.into_string)
+
+    let test = TEST_TEMPLATE
+      .replace('$PARSE', test_parse.into_string)
+      .replace('$STATIC', test_static.into_string)
+      .replace('$HASH', test_hash.into_string)
+      .replace('$CLONE', test_clone.into_string)
+      .replace('$EQUAL', test_eq.into_string)
+      .replace('$TO_STRING', test_to_string.into_string)
+      .replace('$FORMAT', test_format.into_string)
+
+    WriteOnlyFile.new(SRC_PATH.to_path).then(fn (f) { f.write(src) }).or_panic
+    WriteOnlyFile.new(TEST_PATH.to_path).then(fn (f) { f.write(test) }).or_panic
+  }
+}

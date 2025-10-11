@@ -1,0 +1,2788 @@
+# HTTP 1.1 server support.
+#
+# This module provides types for implementing custom HTTP 1.1 servers.
+#
+# A server consists of at least two components:
+#
+# - An instance of `std.net.http.server.Server` that listens for incoming
+#   requests
+# - A type that implements `std.net.http.server.Handle` and handles the
+#   incoming request and produces a response
+#
+# For example, a server that simply displays "hello" as the response for any
+# request is implemented as follows:
+#
+# ```inko
+# import std.net.http.server (Handle, Request, Response, Server)
+#
+# type async Main {
+#   fn async main {
+#     Server.new(fn { recover App() }).start(8_000).or_panic
+#   }
+# }
+#
+# type App {}
+#
+# impl Handle for App {
+#   fn pub mut handle(request: mut Request) -> Response {
+#     Response.new.string('hello')
+#   }
+# }
+# ```
+#
+# A `Server` is created using `Server.new` which takes a closure. This closure
+# must return a value of `uni T` where `T` is some type that implements the
+# `Handle` trait. This closure is called for every newly established connection,
+# and the returned `Handle` value lives as long as the connection remains
+# active.
+#
+# `Server.start` starts and binds the server to IPv4 address `0.0.0.0` using the
+# given port number (8000 in this case). You can specify a custom IP address and
+# port using `Server.start_ip`, or bind to a Unix domain socket using
+# `Server.start_unix`.
+#
+# In this example `App` is our application and implements the `Handle` trait.
+# This trait has one required method: `handle`, which takes a request and
+# returns its response. The response body in this example is set to the string
+# `hello`.
+#
+# For more details, refer to the documentation of the `Server` and `Handle`
+# types.
+#
+# # TLS support
+#
+# By default a `Server` starts in plain-text mode. To use TLS, create a `Server`
+# using `Server.new` as usual then call `Server.enable_tls` to configure it for
+# TLS connections. A single `Server` can't handle _both_ plain-text and TLS
+# requests at the same time. If this is required, you'll need to create a
+# dedicated `Server` for plain-text requests and a dedicated `Server` for TLS
+# requests.
+#
+# # Keep-alive support
+#
+# A `Server` supports (and by default enables) support for HTTP keep-alive
+# connections, and terminates them if they are idle for too long. The idle
+# timeout defaults to 60 seconds and can be changed by setting
+# `Server.idle_timeout` to a different value.
+#
+# If a request contains a body that isn't fully read, the connection _can't_ be
+# reused and will instead be closed after the response is written to the client.
+#
+# # Middleware
+#
+# A common technique used by HTTP frameworks/servers is to build a pipeline of
+# types that handle the request/response cycle, with the individual components
+# commonly referred to as "middleware". Such pipelines are typically created
+# ahead of time (e.g. when a connection is established), then reused.
+#
+# This module takes a more low-level approach, requiring you to explicitly
+# call/use the appropriate methods/types where necessary. Some of the building
+# blocks this module provides are:
+#
+# - `conditional_request`: adds support for conditional requests using the
+#   `If-None-Match` and `If-Modified-Since` headers
+# - `head_request`: adds support for `HEAD` requests by taking a regular
+#   response and turning it into a `HEAD` response
+# - `RangeRequest`: a type that adds support for range requests using the
+#   `Range` and `If-Range` headers
+# - `Directory`: a type for serving static files from a directory, complete with
+#   the `Cache-Control` and `Content-Type` headers
+# - `Request.same_origin?`: a method for protecting against CSRF requests
+#
+# # CSRF protection
+#
+# By default no protection against CSRF requests is provided. To guard against
+# such requests, use `Request.same_origin?` in your `Handle.handle`
+# implementation like so:
+#
+# ```inko
+# impl Handle for App {
+#   fn pub mut handle(request: mut Request) -> Response {
+#     # This line should be added before any other code.
+#     if !request.same_origin? { return Response.forbidden }
+#
+#     Response.new.string('hello')
+#   }
+# }
+# ```
+#
+# # Logging
+#
+# The `Logger` type is used as a basic request logger, it _doesn't_ support
+# custom log messages. You can use it as follows:
+#
+# ```inko
+# import std.net.http.server (Handle, Logger, Request, Response, Server)
+#
+# type async Main {
+#   fn async main {
+#     let logger = Logger.new
+#
+#     Server.new(fn { recover App(logger.clone) }).start(8_000).or_panic
+#   }
+# }
+#
+# type App {
+#   let @logger: Logger
+# }
+#
+# impl Handle for App {
+#   fn pub mut handle(request: mut Request) -> Response {
+#     Response.new.string('hello')
+#   }
+#
+#   fn pub mut response(request: mut Request, response: Response) -> Response {
+#     @logger.log(request, response)
+#     response
+#   }
+# }
+# ```
+#
+# That is: you create a `Logger` using `Logger.new` _before_ calling
+# `Server.new`, then clone it for each newly established connection. Logging the
+# request/response is done by overriding the default implementation of
+# `Handle.response` to log the request and response data just before we write
+# the response.
+#
+# While logging the request in `Handle.handle` is also fine, moving this code
+# into `Handle.response` means we _always_ log the request regardless of
+# how/where the code returns from `Handle.handle`.
+#
+# # Signal handling
+#
+# A `Server` defines signal handlers for the following signals:
+#
+# - `SIGQUIT`: stops the server immediately
+# - `SIGINT`: gracefully stops the server
+# - `SIGTERM`: gracefully stops the server
+#
+# The time to wait for a graceful shutdown is controlled by the
+# `Server.shutdown_wait_time`.
+#
+# Sending the `SIGINT` or `SIGTERM` signal twice results in an immediate
+# shutdown of the server.
+#
+# # Routing
+#
+# Instead of requiring you to construct a complex data structure to use for
+# determining how to route a request, routing is done by pattern matching
+# against the value of `Request.target`. For example:
+#
+# ```inko
+# import std.net.http.server (Handle, Request, Response, Server)
+#
+# type async Main {
+#   fn async main {
+#     Server.new(fn { recover App() }).start(8_000).or_panic
+#   }
+# }
+#
+# type App {}
+#
+# impl Handle for App {
+#   fn pub mut handle(request: mut Request) -> Response {
+#     match request.target {
+#       case [] -> Response.new.string('Home')
+#       case ['about'] -> Response.new.string('About')
+#       case _ -> Response.not_found
+#     }
+#   }
+# }
+# ```
+#
+# Using this server, requests to `/` show "Home" as the response, while requests
+# to `/about` show "About", while all other requests result in a 404 response.
+#
+# To also route according to the request method, match against the value of
+# `Request.method`:
+#
+# ```inko
+# import std.net.http.server (Get, Handle, Request, Response, Server)
+#
+# type async Main {
+#   fn async main {
+#     Server.new(fn { recover App() }).start(8_000).or_panic
+#   }
+# }
+#
+# type App {}
+#
+# impl Handle for App {
+#   fn pub mut handle(request: mut Request) -> Response {
+#     match request.target {
+#       case [] -> {
+#         match request.method {
+#           case Get -> Response.new.string('Home')
+#           case _ -> Response.only_allow([Get])
+#         }
+#       }
+#       case ['about'] -> {
+#         match request.method {
+#           case Get -> Response.new.string('About')
+#           case _ -> Response.only_allow([Get])
+#         }
+#       }
+#       case _ -> Response.not_found
+#     }
+#   }
+# }
+# ```
+#
+# This example behaves the same as the previous example, except it only allows
+# `GET` requests. Sending a different kind of request (e.g. a `HEAD` request)
+# results in a 405 response with the correct `Allow` header value. The `Allow`
+# header is populated based on the `std.net.http.Method` values passed to
+# `Response.only_allow`. The `std.net.http.server` module provides the following
+# methods to use so you don't have to explicitly use the `Method` type:
+#
+# - `std.net.http.server.Get`
+# - `std.net.http.server.Head`
+# - `std.net.http.server.Post`
+# - `std.net.http.server.Put`
+# - `std.net.http.server.Delete`
+#
+# Instead of placing the routing logic directly in the `handle` method, it's
+# recommended to create a `route` method for the `Handle` type and place the
+# routing logic in this method:
+#
+# ```inko
+# import std.net.http.server (Get, Handle, Request, Response, Server)
+#
+# type async Main {
+#   fn async main {
+#     Server.new(fn { recover App() }).start(8_000).or_panic
+#   }
+# }
+#
+# type App {
+#   fn mut route(request: mut Request) -> Response {
+#     match request.target {
+#       case [] -> {
+#         match request.method {
+#           case Get -> Response.new.string('Home')
+#           case _ -> Response.only_allow([Get])
+#         }
+#       }
+#       case ['about'] -> {
+#         match request.method {
+#           case Get -> Response.new.string('About')
+#           case _ -> Response.only_allow([Get])
+#         }
+#       }
+#       case _ -> Response.not_found
+#     }
+#   }
+# }
+#
+# impl Handle for App {
+#   fn pub mut handle(request: mut Request) -> Response {
+#     route(request)
+#   }
+# }
+# ```
+#
+# Using this approach it's easier to find where the routing logic is located,
+# and makes it easier to modify the response using the various building blocks
+# provided by this module (e.g. by adding support for conditional requests).
+#
+# # Error handling
+#
+# The implementation of `Handle.handle` is required to return a `Response`. This
+# means that if you call a method that may produce an error (i.e. it returns a
+# `Result[A, B]`), you need to somehow convert such values into valid `Response`
+# values.
+#
+# The `Response` type defines the field `Response.error` as `Option[String]`,
+# and is assigned using the `Response.error` method. You can use this field to
+# attach error messages that _must not_ be exposed to users (as such errors may
+# contain sensitive information) but _may_ be recorded somewhere (e.g. by
+# logging the message).
+#
+# Recording error messages is best done in a custom implementation of
+# `Handle.response` instead of in `Handle.handle`.
+#
+# # Static files
+#
+# Serving static files is done using the `Directory` type, removing the need for
+# a dedicated server or HTTP proxy to serve static files. For more information,
+# refer to the documentation of the `Directory` type.
+#
+# # Generating HTML
+#
+# Generating HTML is best done using the `std.html` module and the
+# `Response.html` method. For example:
+#
+# ```inko
+# import std.html (Html)
+# import std.net.http.server (Handle, Request, Response, Server)
+#
+# type async Main {
+#   fn async main {
+#     Server.new(fn { recover App() }).start(8_000).or_panic
+#   }
+# }
+#
+# type App {}
+#
+# impl Handle for App {
+#   fn pub mut handle(request: mut Request) -> Response {
+#     Response.new.html(Html.new.then(fn (h) { h.p.text('Hello') }))
+#   }
+# }
+# ```
+#
+# This server always responds with the body `<p>Hello</p>`. For more details,
+# refer to the documentation of `std.html.Html`.
+#
+# # Connection hijacking
+#
+# The `Response` type supports hijacking of the underlying connection, allowing
+# you to implement e.g. server-sent sevents or websockets. This is done using
+# `Response.hijack`, which takes a closure and passes it the raw HTTP socket.
+# Once the closure returns, the connection is closed:
+#
+# ```inko
+# import std.net.http.server (Handle, Request, Response, Server)
+#
+# type async Main {
+#   fn async main {
+#     Server.new(fn { recover App() }).start(8_000).or_panic
+#   }
+# }
+#
+# type App {}
+#
+# impl Handle for App {
+#   fn pub mut handle(request: mut Request) -> Response {
+#     Response.new.hijack(fn (sock) {
+#       let Ok(_) = sock.write('hello') else return
+#     })
+#   }
+# }
+# ```
+#
+# The hijacking API is still experimental and subject to change.
+import std.array
+import std.bytes (Bytes, IntoByteArray, Slice)
+import std.bytes.parsers
+import std.clone (Clone)
+import std.cmp (Equal, Ordering, max, min)
+import std.crypto.x509 (Certificate, PrivateKey)
+import std.drop (drop)
+import std.fmt (Format, Formatter)
+import std.fs (Metadata)
+import std.fs.file (ReadOnlyFile)
+import std.fs.path
+import std.hash (Hash, Hasher)
+import std.int
+import std.io (Error as IoError, LimitReader, Read, SeekFrom, Write, copy_using)
+import std.mime (Mime)
+import std.multipart
+import std.net.http (
+  Body as RequestBody, CHUNKED, ChunkedWriter, Etag, Header, HeaderMap, Limits,
+  Method, ParseError, Parser, Reader, Request as RawRequest, Status, Version,
+)
+import std.net.ip (IpAddress)
+import std.net.socket (
+  Deadline, SocketAddress, TcpClient, TcpServer, UnixAddress, UnixClient,
+  UnixServer,
+)
+import std.net.tls
+import std.rand (Random)
+import std.range (InclusiveRange)
+import std.signal (Signal)
+import std.stdio (Stdout)
+import std.string (StringBuffer, ToString)
+import std.sync (Future, Promise)
+import std.sys.net (SEND_FILE_SIZE)
+import std.time (DateTime, Duration, Instant, ToInstant)
+import std.uri (Host, Uri, Values)
+
+fn quality_value(mime: ref Mime) -> Float {
+  match mime.get('q') {
+    # X.YYY is the longest input that's allowed per RFC 9110 section 12.4.2
+    case Ok(v) if v.size <= 5 -> {
+      match Float.parse(v) {
+        case Some(v) if v < 0.0 -> 0.0
+        case Some(v) if v > 1.0 -> 1.0
+        case Some(v) -> v
+        case _ -> 0.0
+      }
+    }
+    case Ok(_) -> 0.0
+    case _ -> 1.0
+  }
+}
+
+fn copy_file_range[W: mut + Write[IoError]](
+  buffer: mut ByteArray,
+  file: mut ReadOnlyFile,
+  socket: mut W,
+  range: InclusiveRange,
+) -> Bool {
+  if file.seek(SeekFrom.Start(range.start)).error? { return false }
+
+  let from = LimitReader.new(file, limit: range.size)
+
+  copy_using(buffer, from, socket, SEND_FILE_SIZE).ok?
+}
+
+# An alias for `std.net.http.Method.Get`.
+fn pub inline Get -> Method {
+  Method.Get
+}
+
+# An alias for `std.net.http.Method.Head`.
+fn pub inline Head -> Method {
+  Method.Head
+}
+
+# An alias for `std.net.http.Method.Post`.
+fn pub inline Post -> Method {
+  Method.Post
+}
+
+# An alias for `std.net.http.Method.Put`.
+fn pub inline Put -> Method {
+  Method.Put
+}
+
+# An alias for `std.net.http.Method.Delete`.
+fn pub inline Delete -> Method {
+  Method.Delete
+}
+
+# A method for handling conditional requests.
+#
+# This method takes a request and existing response and turns the response in a
+# conditional response based on the request headers. A `Response` is made
+# conditional if:
+#
+# 1. Its body is a `Body.File`
+# 1. The response status is 200 OK
+# 1. The request method is a safe method (per RFC 9110 section 9.2.1)
+# 1. The request specifies the `If-None-Match` or `If-Modified-Since` header
+#
+# This method automatically generates an ETag for the response. Currently it
+# uses strong etags based on the file size and modification time, but this may
+# change in the future and shouldn't be relied upon (i.e. the tag should be
+# treated as an opaque value).
+#
+# If a `Response` can't be made conditional, it's returned as-is.
+#
+# # Examples
+#
+# ```inko
+# import std.net.http.server (
+#   Handle, Request, Response, Server, conditional_request,
+# )
+#
+# type async Main {
+#   fn async main {
+#     Server.new(fn { recover App() }).start(8_000).or_panic
+#   }
+# }
+#
+# type App {
+#   fn route(request: mut Request) -> Response {
+#     Response.new.string('hello')
+#   }
+# }
+#
+# impl Handle for App {
+#   fn pub mut handle(request: mut Request) -> Response {
+#     conditional_request(request, route(request))
+#   }
+# }
+# ```
+fn pub conditional_request(
+  request: ref Request,
+  response: Response,
+) -> Response {
+  if !request.method.safe? { return response }
+
+  let meta = match response.body {
+    case File(f) -> f.meta
+    case _ -> return response
+  }
+
+  # Our ETags are treated as strong etags because the combination of
+  # size+modification time is accurate enough, and weak ETags aren't effective
+  # enough (e.g. they can't be used with `If-Range` headers).
+  let tag = Etag.from_metadata(meta)
+  let mtime = meta.modified_at.to_date_time
+  let response = response.header(Header.etag, tag.to_string).header(
+    Header.last_modified,
+    mtime.to_rfc2822,
+  )
+
+  # Per RFC 9110 section 13.1.3, If-None-Match takes precedence over
+  # If-Modified-Since.
+  let cached = match request.headers.get(Header.if_none_match) {
+    case Ok('*') -> true
+    case Ok(v) -> Etag.parse_list(v).any?(fn (v) { v == tag })
+    case _ -> {
+      match request.headers.get(Header.if_modified_since) {
+        case Ok(v) -> {
+          match DateTime.from_rfc2822(v) {
+            # The modification time may include nanoseconds but the time
+            # format format doesn't include nanoseconds, hence we compare the
+            # result to `DateTime.to_int` which doesn't include nanoseconds.
+            case Some(v) -> mtime.to_int <= v.to_int
+            case _ -> false
+          }
+        }
+        case _ -> false
+      }
+    }
+  }
+
+  if cached {
+    let status = match request.method {
+      case Get or Head -> Status.not_modified
+      case _ -> Status.precondition_failed
+    }
+
+    response.status(status).without_body
+  } else {
+    response
+  }
+}
+
+fn inline parse_accept_range(
+  input: Slice[String],
+  size: Int,
+) -> Option[InclusiveRange] {
+  match input.split_once('-') {
+    # "123-" means "starting at byte 123, up to and including the end".
+    case Some((v, '')) -> {
+      let start = try parsers.int(v)
+      let end = size - 1
+
+      if start <= size { Option.Some(start.to(end)) } else { Option.None }
+    }
+    # "-123" means "the last 123 bytes".
+    case Some(('', v)) -> {
+      let tail = try parsers.int(v)
+      let end = size - 1
+      let start = max(0, end - tail)
+
+      if tail > 0 { Option.Some(start.to(end)) } else { Option.None }
+    }
+    case Some((a, b)) -> {
+      let start = try parsers.int(a)
+      let end = min(size - 1, try parsers.int(b))
+
+      if start <= end { Option.Some(start.to(end)) } else { Option.None }
+    }
+    case _ -> Option.None
+  }
+}
+
+fn parse_accept_ranges(
+  input: Slice[String],
+  file_size: Int,
+  limit: Int,
+) -> Option[Array[InclusiveRange]] {
+  let ranges: Array[InclusiveRange] = []
+
+  for range in input.split(',') {
+    if ranges.size == limit { return Option.None }
+
+    match (parse_accept_range(range.trim, file_size), ranges.last) {
+      case (Some(r), Some(l)) if r.start > l.end -> ranges.push(r)
+      case (Some(r), None) -> ranges.push(r)
+      case _ -> return Option.None
+    }
+  }
+
+  Option.Some(ranges)
+}
+
+# A method for handling range requests.
+#
+# When combined with the `conditional_request` method, the conditional response
+# must be generated _first_ and used as the input for this method, not the other
+# way around.
+#
+# If a client specifies multiple `Range` headers, only the first header is used.
+# If there are too many ranges, they are not in ascending order or they overlap,
+# a 416 Range Not Satisfiable response is returned.
+#
+# # Requirements
+#
+# For a range request to be supported, the following requirements must be met:
+#
+# 1. The request method must be GET or HEAD
+# 1. The status of the initial response must be 200 OK
+# 1. The initial response must be a file response created using `Response.file`,
+#    with its body set to a `Body.File`
+#
+# # Settings
+#
+# By default the maximum number of ranges allowed in the `Range` header is 8.
+# To change this value, use `RangeRequest.limit`.
+#
+# # Examples
+#
+# ```inko
+# import std.net.http.server (Handle, RangeRequest, Request, Response, Server)
+#
+# type async Main {
+#   fn async main {
+#     Server.new(fn { recover App(RangeRequest.new) }).start(8_000).or_panic
+#   }
+# }
+#
+# type App {
+#   let @range: RangeRequest
+#
+#   fn route(request: mut Request) -> Response {
+#     Response.new.string('hello')
+#   }
+# }
+#
+# impl Handle for App {
+#   fn pub mut handle(request: mut Request) -> Response {
+#     @range.handle(request, route(request))
+#   }
+# }
+# ```
+type pub inline RangeRequest {
+  let @rng: Random
+  let mut @limit: Int
+
+  # Returns a new `RangeRequest` with its default settings.
+  fn pub static new -> Self {
+    Self(rng: Random.new, limit: 8)
+  }
+
+  # Sets the maximum number of ranges allowed in the `Range` header to the given
+  # value.
+  fn pub move limit(limit: Int) -> Self {
+    @limit = limit
+    self
+  }
+
+  # Handles a range request.
+  #
+  # The `response` argument is the initial response produced by a request
+  # handler. This method takes this response and either returns it as-is or
+  # modifies it based on the `Range` header, if range requests are supported.
+  fn pub mut handle(request: ref Request, response: Response) -> Response {
+    # Range requests are only supported for GET requests with an initial OK
+    # response.
+    if !request.method.get? or !response.status.ok? { return response }
+
+    # We only extract the size for now such that when we produce a 416 error and
+    # remove the body, we don't try to drop the `File` that we'd still be
+    # borrowing here.
+    let size = match response.body {
+      case File(f) -> f.meta.size
+      case _ -> return response
+    }
+
+    response.headers.set(Header.accept_ranges, 'bytes')
+
+    let ranges = match request.headers.get(Header.range) {
+      case Ok(v) -> {
+        match v.split_once('=') {
+          case Some(('bytes', v)) -> v
+          case _ -> return response
+        }
+      }
+      case _ -> return response
+    }
+
+    let matches = match request.headers.get(Header.if_range) {
+      case Ok(giv) if giv.starts_with?('W/"') or giv.starts_with?('"') -> {
+        match response.headers.get(Header.etag) {
+          case Ok(cur) -> giv == cur
+          case _ -> false
+        }
+      }
+      case Ok(giv) -> {
+        match response.headers.get(Header.last_modified) {
+          case Ok(cur) -> giv == cur
+          case _ -> false
+        }
+      }
+      case _ -> true
+    }
+
+    if !matches { return response }
+
+    let ranges = match parse_accept_ranges(ranges, size, @limit) {
+      case Some(ranges) if ranges.size > 0 -> ranges
+      case _ -> {
+        # RFC 9110 doesn't make it clear if the `Content-Type` header should be
+        # removed or not in this case. Servers out there don't behave
+        # consistently either. Here we take the simplest choice of just leaving
+        # the header in place, along with any other content specific headers
+        # that may be present.
+        return response
+          .status(Status.range_not_satisfiable)
+          .header(Header.content_range, 'bytes */${size}')
+          .empty_body
+      }
+    }
+
+    let file = match response.body {
+      case File(f) -> f
+      case _ -> return response
+    }
+
+    let resp = match ranges {
+      case [range] -> {
+        let hval = 'bytes ${range.start}-${range.end}/${size}'
+
+        file.ranges = FileRanges.Single(range)
+        response.header(Header.content_range, hval)
+      }
+      case ranges -> {
+        let boundary = multipart.boundary_separator(@rng)
+        let hval = 'multipart/byteranges; boundary=${boundary}'
+
+        file.ranges = FileRanges.Multiple(ranges, boundary)
+        response.header(Header.content_type, hval)
+      }
+    }
+
+    resp.status(Status.partial_content)
+  }
+}
+
+# A method for handling `HEAD` requests.
+#
+# This method takes a `Request` and existing `Response` and turns the response
+# into a `HEAD` response if:
+#
+# 1. The request method is `HEAD`
+# 1. The response status is 200 OK
+#
+# The resulting `Response` sets the `Content-Length` header to the size of the
+# original response body, and sets the body to `Body.None`.
+#
+# ```inko
+# import std.net.http.server (Handle, Request, Response, Server, head_request)
+#
+# type async Main {
+#   fn async main {
+#     Server.new(fn { recover App() }).start(8_000).or_panic
+#   }
+# }
+#
+# type App {
+#   fn route(request: mut Request) -> Response {
+#     Response.new.string('hello')
+#   }
+# }
+#
+# impl Handle for App {
+#   fn pub mut handle(request: mut Request) -> Response {
+#     head_request(request, route(request))
+#   }
+# }
+# ```
+fn pub head_request(request: ref Request, response: Response) -> Response {
+  match request.method {
+    case Head if response.status.ok? or response.status.partial_content? -> {
+      let len = match response.body.size {
+        case Fixed(n) -> n
+        case _ -> 0
+      }
+
+      response.header(Header.content_length, len.to_string).without_body
+    }
+    case _ -> response
+  }
+}
+
+# A type for building an HTTP response.
+type pub Response {
+  # The HTTP status code.
+  #
+  # This defaults to 200 OK.
+  let pub mut @status: Status
+
+  # The response headers.
+  let pub @headers: HeaderMap
+
+  # The response body.
+  let pub mut @body: Body
+
+  # A closure to use for hijacking the connection.
+  #
+  # If a closure is provided, the response body is written first and then the
+  # closure is called. Once the closure returns, the connection is closed.
+  let pub mut @hijacker: Option[fn (mut Socket)]
+
+  # An optional error message associated with this response.
+  #
+  # This message is not written as part of the response. Instead, it signals a
+  # `Response` is created in response to some sort of internal error and is
+  # meant to be logged in some way (if desired).
+  let pub mut @error: Option[String]
+
+  # Returns a new and empty `Response`.
+  fn pub static new -> Self {
+    Self(
+      status: Status.ok,
+      headers: HeaderMap.new,
+      body: Body.String(''),
+      hijacker: Option.None,
+      error: Option.None,
+    )
+  }
+
+  # Returns a new 404 error response.
+  fn pub static not_found -> Self {
+    new.status(Status.not_found)
+  }
+
+  # Returns a new 405 error response.
+  #
+  # The `methods` argument is used to populate the `Allow` header with a list of
+  # allowed request methods.
+  #
+  # The returned `Response` doesn't have a body set.
+  fn pub static only_allow(methods: Array[Method]) -> Self {
+    let names = String.join(methods.into_iter.map(fn (v) { v.to_string }), ', ')
+
+    new.status(Status.method_not_allowed).header(Header.allow, names)
+  }
+
+  # Returns a new 400 error response.
+  #
+  # The returned `Response` doesn't have a body set.
+  fn pub static bad_request -> Self {
+    new.status(Status.bad_request)
+  }
+
+  # Returns a new 403 error response.
+  #
+  # The returned `Response` doesn't have a body set.
+  fn pub static forbidden -> Self {
+    new.status(Status.forbidden)
+  }
+
+  # Returns a new 500 error response.
+  #
+  # The returned `Response` doesn't have a body set.
+  fn pub static internal_server_error -> Self {
+    new.status(Status.internal_server_error)
+  }
+
+  # Assigns the given value to the header.
+  #
+  # This method is just a shortcut for using `HeaderMap.set` through the
+  # `Response.headers` field.
+  fn pub move header(header: Header, value: String) -> Self {
+    @headers.set(header, value)
+    self
+  }
+
+  # Removes all values assigned to the header.
+  fn pub move without_header(header: Header) -> Self {
+    @headers.remove_all(header)
+    self
+  }
+
+  # Sets the status of `self` to the given `Status`.
+  fn pub move status(status: Status) -> Self {
+    @status = status
+    self
+  }
+
+  # Sets the body of `self` to an empty `String`.
+  fn pub move empty_body -> Self {
+    string('')
+  }
+
+  # Removes the body of `self`.
+  #
+  # When writing the response, no `Content-Length` header is used.
+  fn pub move without_body -> Self {
+    @body = Body.None
+    self
+  }
+
+  # Sets the body of `self` to the given `String`.
+  #
+  # When writing the response, the `Content-Length` header value is set to the
+  # byte size of the `String`.
+  fn pub move string(value: String) -> Self {
+    @body = Body.String(value)
+    self
+  }
+
+  # Sets the body of `self` to the given HTML.
+  #
+  # This method is best used with documents generated using `std.html.Html`.
+  #
+  # This method assumes the HTML is valid UTF-8 and sets the `Content-Type`
+  # encoding accordingly.
+  #
+  # The `Content-Type` header value is set automatically, and the
+  # `Content-Length` header value is set to the byte size of the HTML document.
+  fn pub move html[T: IntoByteArray](value: move T) -> Self {
+    @headers.set(Header.content_type, 'text/html; charset=utf-8')
+    @body = Body.Bytes(value.into_byte_array)
+    self
+  }
+
+  # Sets the body of `self` to the given XML.
+  #
+  # This method is best used with documents generated using `std.xml.Xml`.
+  #
+  # This method assumes the XML is valid UTF-8 and sets the `Content-Type`
+  # encoding accordingly.
+  #
+  # The `Content-Type` header value is set automatically, and the
+  # `Content-Length` header value is set to the byte size of the HTML document.
+  fn pub move xml[T: IntoByteArray](value: move T) -> Self {
+    @headers.set(Header.content_type, 'application/xml; charset=utf-8')
+    @body = Body.Bytes(value.into_byte_array)
+    self
+  }
+
+  # Sets the body of `self` to the given `ByteArray`.
+  #
+  # When writing the response, the `Content-Length` header value is set to the
+  # size of the `ByteArray`.
+  fn pub move bytes(value: ByteArray) -> Self {
+    @body = Body.Bytes(value)
+    self
+  }
+
+  # Sets the body of `self` to the given JSON.
+  #
+  # The `Content-Type` header value is set automatically, and the
+  # `Content-Length` header value is set to the byte size of the JSON document.
+  fn pub move json(value: String) -> Self {
+    @headers.set(Header.content_type, 'application/json')
+    @body = Body.String(value)
+    self
+  }
+
+  # Sets the body of `self` to the file located at `path`.
+  #
+  # When writing the response, the `Content-Length` header value is set to the
+  # size of the file.
+  #
+  # If a MIME type can be determined based on the file path, this method
+  # automatically sets the `Content-Type` header.
+  #
+  # # Errors
+  #
+  # If the file can't be opened or its metadata can't be retrieved, an
+  # `std.io.Error` error is returned.
+  #
+  # If the path points to anything but a file (a directory, symbolic link, etc),
+  # the return value is an `std.io.Error.NotFound` error.
+  fn pub move file(path: ref path.Path) -> Result[Self, IoError] {
+    let file = try ReadOnlyFile.new(path)
+    let meta = try file.metadata
+
+    match meta.type {
+      case File -> {}
+      case _ -> throw IoError.NotFound
+    }
+
+    let mime = match path.extension.then(fn (v) { Mime.from_extension(v) }) {
+      case Some(v) -> {
+        @headers.set(Header.content_type, v.to_string)
+        Option.Some(v)
+      }
+      case _ -> Option.None
+    }
+
+    @body = Body.File(
+      File(data: file, mime: mime, meta: meta, ranges: FileRanges.None),
+    )
+    Result.Ok(self)
+  }
+
+  # Sets the closure as the closure to use for hijacking the connection after
+  # writing the response.
+  fn pub move hijack(function: fn (mut Socket)) -> Self {
+    @body = Body.None
+    @hijacker = Option.Some(function)
+    self
+  }
+
+  # Sets the error message of `self` to the given `String`.
+  fn pub move error(message: String) -> Self {
+    @error = Option.Some(message)
+    self
+  }
+
+  fn move write(
+    buf: mut ByteArray,
+    socket: mut Socket,
+    timeout: Duration,
+    keep: Bool,
+  ) -> Bool {
+    let len = @body.size
+
+    # When an upgrade is required the `Connection` header is expected to already
+    # be set to `Upgrade`.
+    if @status != Status.upgrade_required {
+      @headers.set(Header.connection, if keep { 'keep-alive' } else { 'close' })
+    }
+
+    @headers.set(Header.date, DateTime.utc.to_rfc2822)
+
+    match len {
+      case Fixed(n) -> @headers.set(Header.content_length, n.to_string)
+      case Chunked -> @headers.set(Header.transfer_encoding, CHUNKED)
+      case _ -> {}
+    }
+
+    buf.append('HTTP/1.1 ')
+    buf.append(@status.to_string)
+    buf.append(' \r\n')
+    @headers.write_to(buf)
+    buf.append('\r\n')
+
+    socket.timeout_after = timeout
+
+    if socket.write(buf).error? { return false }
+
+    buf.clear
+
+    let res = write_body(buf, socket)
+
+    socket.reset_deadline
+    res
+  }
+
+  fn move write_body(buf: mut ByteArray, socket: mut Socket) -> Bool {
+    match @body {
+      case None -> true
+      case String(v) -> socket.write(v).ok?
+      case Bytes(v) -> socket.write(v).ok?
+      case File({ @data = f, @ranges = None }) -> {
+        copy_using(buf, f, socket, SEND_FILE_SIZE).ok?
+      }
+      case File({ @data = f, @ranges = Single(range) }) -> {
+        copy_file_range(buf, f, socket, range)
+      }
+      case
+        File(
+          {
+            @data = file,
+            @mime = mime,
+            @meta = meta,
+            @ranges = Multiple(ranges, boundary),
+          },
+        ) -> {
+        let writer = ChunkedWriter.new(socket)
+        let ctype = mime.map(fn (v) { v.to_string })
+        let fsize = meta.size.to_string
+
+        for range in ranges {
+          buf.append('--')
+          buf.append(boundary)
+
+          match ref ctype {
+            case Some(v) -> {
+              buf.append('\r\nContent-Type: ')
+              buf.append(v)
+            }
+            case _ -> {}
+          }
+
+          buf.append('\r\nContent-Range: bytes ')
+          buf.append(range.start.to_string)
+          buf.append('-')
+          buf.append(range.end.to_string)
+          buf.append('/')
+          buf.append(fsize)
+          buf.append('\r\n\r\n')
+
+          if writer.write(buf).error? { return false }
+
+          buf.clear
+
+          if !copy_file_range(buf, file, mut writer, range) { return false }
+
+          buf.append('\r\n')
+        }
+
+        buf.append('--')
+        buf.append(boundary)
+        buf.append('--')
+
+        if writer.write(buf).error? { return false }
+
+        buf.clear
+        true
+      }
+    }
+  }
+}
+
+# A type that represents the ranges of a file to send.
+type pub inline enum FileRanges {
+  # The file as a whole should be sent (i.e. there are no ranges).
+  case None
+
+  # A single range.
+  case Single(InclusiveRange)
+
+  # Multiple ranges, along with the multipart boundary string to use.
+  case Multiple(Array[InclusiveRange], String)
+}
+
+# A file to send to the client.
+type pub File {
+  # The data of the file.
+  let pub @data: ReadOnlyFile
+
+  # The MIME type of the file, if one could be determined.
+  let pub @mime: Option[Mime]
+
+  # The metadata (e.g. the size) of the file.
+  let pub @meta: Metadata
+
+  # An optional list of ranges to send.
+  let pub mut @ranges: FileRanges
+}
+
+# The size of a body.
+type pub copy enum BodySize {
+  # The body doesn't have a size (i.e. there's no `Content-Length` or
+  # `Transfer-Encoding` header).
+  case None
+
+  # The body has a fixed size.
+  case Fixed(Int)
+
+  # The body uses the chunked transfer encoding.
+  case Chunked
+}
+
+# The body of a response.
+type pub inline enum Body {
+  # The response doesn't have a body and `Content-Length` header.
+  case None
+
+  # The body is a `String` and the `Content-Length` header value is set to the
+  # byte size of the `String`.
+  case String(String)
+
+  # The body is a `ByteArray` and the `Content-Length` header value is set to
+  # the size of the `ByteArray`.
+  case Bytes(ByteArray)
+
+  # The body is a read-only file.
+  #
+  # The `Metadata` is used to obtain the size of the file and is used to set the
+  # `Content-Length` header's value. Consumers of a `Response` or `Body` may
+  # also use this value (e.g. to calculate an ETag).
+  #
+  # When creating a `Body.File` it's expected that the file's cursor points to
+  # the start of the file. If this isn't the case then the value of the
+  # `Content-Length` header won't be correct.
+  case File(File)
+
+  # Returns a `BodyReader` that can be used to read the body from `self`.
+  #
+  # `Body` doesn't implement `Read` directly due to its internal representation,
+  # so a separate reader must be obtained using this method.
+  #
+  # If the body is a `Body.File` then reading will advance the file's cursor,
+  # and rewinding it manually (uisng `ReadOnlyFile.seek`) is necessary if you
+  # intend to read the same `Body` multiple times.
+  fn pub mut reader -> BodyReader {
+    BodyReader(body: self, offset: 0)
+  }
+
+  # Returns `true` if a body is present.
+  fn pub present? -> Bool {
+    match self {
+      case None -> false
+      case _ -> true
+    }
+  }
+
+  # Returns the size of the body, if there is one.
+  fn pub mut size -> BodySize {
+    match self {
+      case None -> BodySize.None
+      case String(v) -> BodySize.Fixed(v.size)
+      case Bytes(v) -> BodySize.Fixed(v.size)
+      case File({ @meta = m, @ranges = None }) -> BodySize.Fixed(m.size)
+      case File({ @ranges = Single(r) }) -> BodySize.Fixed(r.size)
+      case File(_) -> BodySize.Chunked
+    }
+  }
+}
+
+# A `Read` type for reading bytes from a `Body`.
+#
+# When reading from a `Body.File` with one or more ranges, `BodyReader.read`
+# ignores these ranges and reads from the file directly.
+type pub BodyReader {
+  let @body: mut Body
+  let mut @offset: Int
+
+  fn mut read_bytes[B: Bytes](
+    input: ref B,
+    into: mut ByteArray,
+    size: Int,
+  ) -> Int {
+    # We use Slice.checked because the `ByteArray` in `Body.Bytes` may be
+    # mutated in between calls, potentially invalidating the slice range.
+    let end = min(@offset + size, input.size)
+    let slice = Slice.checked(input, @offset, end)
+    let len = slice.size
+
+    if len > 0 {
+      into.append(slice)
+      @offset += len
+    }
+
+    len
+  }
+}
+
+impl Read[IoError] for BodyReader {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, IoError] {
+    match @body {
+      case None -> Result.Ok(0)
+      case String(v) -> Result.Ok(read_bytes(v, into, size))
+      case Bytes(v) -> Result.Ok(read_bytes(v, into, size))
+      case File(f) -> f.data.read(into, size)
+    }
+  }
+}
+
+# A TCP or Unix domain socket address.
+type pub inline enum Address {
+  # The address of an IP socket.
+  case Ip(SocketAddress)
+
+  # The address of a Unix domain socket.
+  case Unix(UnixAddress)
+}
+
+impl ToString for Address {
+  # Returns the address as a `String`.
+  #
+  # For IP sockets the return value is the IP address _without_ the port number.
+  # For Unix address it's a human-readable version of the address.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.server (Address)
+  # import std.net.ip (IpAddress)
+  # import std.net.socket (SocketAddress)
+  #
+  # Address
+  #   .Ip(SocketAddress(ip: IpAddress.v4(127, 0, 0, 1), port: 1234))
+  #   .to_string # => '127.0.0.1'
+  # ```
+  fn pub to_string -> String {
+    match self {
+      case Ip(v) -> v.ip.to_string
+      case Unix(v) -> v.to_readable_string
+    }
+  }
+}
+
+impl Clone for Address {
+  fn pub clone -> Self {
+    match self {
+      case Ip(v) -> Address.Ip(v.clone)
+      case Unix(v) -> Address.Unix(v.clone)
+    }
+  }
+}
+
+# A socket for reading requests and writing responses.
+#
+# A `Socket` supports plain TCP, TLS over TCP and Unix domain socket
+# connections.
+type pub inline enum Socket {
+  # A plain-text TCP socket.
+  case Plain(TcpClient)
+
+  # A TLS TCP socket.
+  case Secure(tls.Server[TcpClient])
+
+  # A plain-text Unix domain socket.
+  case Unix(UnixClient)
+
+  fn address -> Result[Address, IoError] {
+    let addr = match self {
+      case Plain(v) -> Address.Ip(try v.socket.peer_address)
+      case Secure(v) -> Address.Ip(try v.socket.peer_address)
+      case Unix(v) -> Address.Unix(try v.socket.local_address)
+    }
+
+    Result.Ok(addr)
+  }
+
+  fn mut shutdown {
+    match self {
+      case Plain(v) -> v.socket.shutdown
+      case Secure(v) -> v.socket.shutdown
+      case Unix(v) -> v.socket.shutdown
+    }
+  }
+
+  fn mut shutdown_write {
+    match self {
+      case Plain(v) -> v.socket.shutdown_write
+      case Secure(v) -> v.socket.shutdown_write
+      case Unix(v) -> v.socket.shutdown_write
+    }
+  }
+}
+
+impl Read[IoError] for Socket {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, IoError] {
+    match self {
+      case Plain(v) -> v.read(into, size)
+      case Secure(v) -> v.read(into, size)
+      case Unix(v) -> v.read(into, size)
+    }
+  }
+}
+
+impl Deadline for Socket {
+  fn pub mut timeout_after=[T: ToInstant](deadline: ref T) {
+    match self {
+      case Plain(v) -> v.timeout_after = deadline
+      case Secure(v) -> v.timeout_after = deadline
+      case Unix(v) -> v.timeout_after = deadline
+    }
+  }
+
+  fn pub mut reset_deadline {
+    match self {
+      case Plain(v) -> v.reset_deadline
+      case Secure(v) -> v.reset_deadline
+      case Unix(v) -> v.reset_deadline
+    }
+  }
+}
+
+impl Write[IoError] for Socket {
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, IoError] {
+    match self {
+      case Plain(v) -> v.write(bytes)
+      case Secure(v) -> v.write(bytes)
+      case Unix(v) -> v.write(bytes)
+    }
+  }
+
+  fn pub mut flush -> Result[Nil, IoError] {
+    Result.Ok(nil)
+  }
+}
+
+type async Pool[H: mut + Handle] {
+  let @map: Map[ConnectionId, Connection[H]]
+  let mut @active: Int
+  let mut @state: State
+  let mut @waiter: Option[Promise[Nil]]
+
+  fn static new -> (Self, Future[Nil]) {
+    let (fut, prom) = Future.new
+    let con = Self(
+      map: recover Map.new,
+      active: 0,
+      state: State.Active,
+      waiter: recover Option.Some(prom),
+    )
+
+    (con, fut)
+  }
+
+  fn async mut add(id: ConnectionId, connection: Connection[H]) {
+    @map.set(id, connection)
+    @active += 1
+  }
+
+  fn async mut active {
+    @active += 1
+  }
+
+  fn async mut idle {
+    @active -= 1
+  }
+
+  fn async mut close(id: ConnectionId, was_active: Bool) {
+    if was_active { @active -= 1 }
+
+    let _ = @map.remove(id)
+
+    # If we are to shut down and this is the last connection, notify the process
+    # waiting for the shutdown to complete.
+    if @state.shutting_down? and @active == 0 { notify_waiter }
+  }
+
+  fn async mut shutdown(wait: Bool) {
+    if @state.shutting_down? { return notify_waiter }
+
+    @state = State.ShuttingDown
+
+    for con in @map.values { con.shutdown }
+
+    if !wait or @active == 0 { notify_waiter }
+  }
+
+  fn mut notify_waiter {
+    match @waiter := Option.None {
+      case Some(v) -> v.set(nil)
+      case _ -> {}
+    }
+  }
+}
+
+# A unique identifier to refer to a connection.
+#
+# We maintain a mapping of connection IDs to their connections, such that we can
+# shut them down gracefully when desired. An ID consists of a monotonic
+# timestamp and a wrapping counter.
+#
+# While _just_ a timestamp would be sufficient, _in theory_ it could be possible
+# for two connections to have the same timestamp if by some freak accident (i.e.
+# the system's monotonic clock is in fact not monotonic) the time spent in
+# between accepting the two connections is exactly zero nanoseconds. To ensure
+# this doesn't cause any trobule, we also use a wrapping 64-bits counter.
+type copy ConnectionId {
+  let @time: Int
+  let @counter: Int
+}
+
+impl Equal for ConnectionId {
+  fn pub ==(other: Self) -> Bool {
+    @time == other.time and @counter == other.counter
+  }
+}
+
+impl Hash for ConnectionId {
+  fn pub hash[H: mut + Hasher](hasher: mut H) {
+    @time.hash(hasher)
+    @counter.hash(hasher)
+  }
+}
+
+type copy enum State {
+  case Active
+  case ShuttingDown
+
+  fn shutting_down? -> Bool {
+    match self {
+      case ShuttingDown -> true
+      case _ -> false
+    }
+  }
+}
+
+type inline enum ParseResult {
+  # The request is valid.
+  #
+  # The arguments are:
+  #
+  # 1. The parsed request
+  # 2. A boolean indicating if the connection should be kept alive or closed
+  case Ok(RawRequest, Bool)
+
+  # The request is invalid (e.g. it contains invalid syntax), but a response can
+  # be written back.
+  #
+  # The connection is to be closed after writing the response.
+  case Error(Response)
+
+  # The connection was closed or parsing a request took too long, and we should
+  # stop the connection on our side.
+  case Close
+}
+
+type async Connection[H: mut + Handle] {
+  let @id: ConnectionId
+  let @pool: Pool[H]
+  let mut @state: State
+  let @socket: Socket
+  let @address: Address
+  let @limits: Limits
+  let @handler: H
+  let @buffer: ByteArray
+  let @read_timeout: Duration
+  let @idle_timeout: Duration
+  let @write_timeout: Duration
+  let @close_timeout: Duration
+
+  fn async mut run {
+    # It's possible that when we finish the next message is a `shutdown` message
+    # that has yet to be processed. This check ensures that when we schedule
+    # `run` again at the end (such that the order of messages is
+    # `run (current) -> shutdown -> run`), that second message doesn't perform
+    # any work.
+    if @state.shutting_down? { return close(true) }
+
+    let wait = match parse_request {
+      case Ok(raw_req, keep) -> {
+        let req = Request.new(@address.clone, raw_req, @limits)
+        let resp = @handler.response(req, @handler.handle(req))
+        let hijacker = resp.hijacker := Option.None
+        let keep = keep and req.body.consumed? and hijacker.none?
+        let ok = resp.write(@buffer, @socket, @write_timeout, keep)
+
+        if ok and keep {
+          return run
+        } else if ok {
+          match hijacker {
+            case Some(f) -> f.call(@socket)
+            case _ -> {}
+          }
+        }
+
+        true
+      }
+      case Error(resp) -> {
+        let resp = @handler.invalid_request(resp)
+
+        resp.write(@buffer, @socket, @write_timeout, keep: false)
+        true
+      }
+      # A Close is received due to a timeout, and in such cases we don't
+      # want to also wait for the client to ACK the shutdown.
+      case Close -> false
+    }
+
+    # We only reach this point in the event of an error, or a connection that
+    # shouldn't be kept alive.
+    close(wait)
+  }
+
+  fn async mut shutdown {
+    @state = State.ShuttingDown
+  }
+
+  fn mut parse_request -> ParseResult {
+    let parser = Parser.new(Reader.new(mut @socket), @buffer, @limits)
+
+    # Wait until the first byte arrives. This way we don't also apply the idle
+    # timeout to parsing of the request.
+    @socket.timeout_after = @idle_timeout
+    @pool.idle
+
+    # We're just peeking and not parsing, so an error means the underlying IO
+    # stream is broken (e.g. the connection is closed), at which point all we
+    # can do is abort.
+    let Ok(Some(_)) = parser.peek else return ParseResult.Close
+
+    @pool.active
+    @socket.timeout_after = @read_timeout
+
+    let parsed = parser.request
+
+    @socket.reset_deadline
+
+    match parsed {
+      case Ok(req) -> {
+        let keep = match req.version {
+          case { @major = 1, @minor = 1 } -> true
+          case { @major = 1, @minor = 0 } -> false
+          case { @major = 0 } -> {
+            let resp = Response.new
+
+            resp.status = Status.upgrade_required
+            resp.headers.set(Header.upgrade, 'HTTP/1.1')
+            resp.headers.set(Header.connection, 'Upgrade')
+            return ParseResult.Error(resp)
+          }
+          case _ -> {
+            return ParseResult.Error(
+              Response.new.status(Status.http_version_not_supported),
+            )
+          }
+        }
+
+        # Per RFC 9112 section 3.2, the "Host" header must be specified exactly
+        # once.
+        match req.headers.get_value(Header.host) {
+          case Ok(Single(v)) if v.size > 0 -> ParseResult.Ok(req, keep)
+          case _ -> ParseResult.Error(Response.bad_request)
+        }
+      }
+      case Error(Read(TimedOut)) -> ParseResult.Close
+      case Error(InvalidMethod) -> {
+        ParseResult.Error(Response.new.status(Status.not_implemented))
+      }
+      case
+        Error(
+          MissingUri
+            or InvalidUri(_)
+            or InvalidVersion
+            or InvalidHeader
+            or InvalidChunk
+            or InvalidStatus
+            or StatusTooLarge
+            or Read(_),
+        ) -> {
+        ParseResult.Error(Response.new.status(Status.bad_request))
+      }
+      case Error(InvalidTransferEncoding) -> {
+        ParseResult.Error(Response.new.status(Status.not_implemented))
+      }
+      case Error(UriTooLarge) -> {
+        ParseResult.Error(Response.new.status(Status.uri_too_long))
+      }
+      # This status is from RFC 6585.
+      case Error(HeaderTooLarge or TooManyHeaders) -> {
+        ParseResult.Error(
+          Response.new.status(Status.request_header_fields_too_large),
+        )
+      }
+      # EndOfInput is produced when the socket is closed while parsing, and
+      # there's nothing we can do about that.
+      #
+      # BodyTooLarge is only produced when reading from the body which we
+      # haven't done at this stage, so such errors can't occur here.
+      case Error(EndOfInput or BodyTooLarge) -> ParseResult.Close
+    }
+  }
+
+  fn mut close(active: Bool) {
+    # Shutdown the writing half so the client is aware that it can no longer
+    # read data.
+    @socket.shutdown_write
+
+    # If we close immediately then the client might not have a chance to read
+    # the response.
+    if active {
+      @socket.timeout_after = @close_timeout
+
+      # We don't care about the actual return value here as we just use the
+      # read() to wait for some sort of acknowledgement from the network stack.
+      let _ = @socket.read(into: @buffer, size: 0)
+    }
+
+    @pool.close(@id, active)
+  }
+}
+
+# A parsed request path.
+type pub inline Path {
+  let @components: Array[Slice[String]]
+
+  # Returns a tuple containing two values: the first component, and a slice
+  # containing all remaining components.
+  fn pub split_first -> Option[(ref Slice[String], array.Slice[Slice[String]])] {
+    @components.split_first
+  }
+
+  # Returns `true` if `self` starts with the given prefix.
+  fn pub starts_with?(prefix: String) -> Bool {
+    for (idx, given) in prefix.split('/').with_index {
+      match @components.get(idx) {
+        case Ok(v) if given == v -> {}
+        case _ -> return false
+      }
+    }
+
+    true
+  }
+
+  # Returns the components of `self` as a `std.array.Slice`.
+  fn pub to_slice -> array.Slice[Slice[String]] {
+    @components.to_slice
+  }
+}
+
+# An error produced when parsing a URL encoded form.
+type pub inline enum FormError {
+  # An error produced while reading the request body.
+  case Read(ParseError)
+
+  # The `Content-Type` header is invalid (e.g. an invalid encoding is used).
+  case InvalidContentType
+
+  # The data is read but contains invalid syntax.
+  case InvalidSyntax
+}
+
+impl Format for FormError {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case Read(v) -> formatter.tuple('Read').field(v).finish
+      case InvalidContentType -> formatter.tuple('InvalidContentType').finish
+      case InvalidSyntax -> formatter.tuple('InvalidSyntax').finish
+    }
+  }
+}
+
+impl Equal for FormError {
+  fn pub ==(other: ref Self) -> Bool {
+    match (self, other) {
+      case (Read(a), Read(b)) -> a == b
+      case (InvalidContentType, InvalidContentType) -> true
+      case (InvalidSyntax, InvalidSyntax) -> true
+      case _ -> false
+    }
+  }
+}
+
+impl ToString for FormError {
+  fn pub to_string -> String {
+    match self {
+      case Read(v) -> v.to_string
+      case InvalidContentType -> 'the input encoding is invalid'
+      case InvalidSyntax -> 'the form syntax is invalid'
+    }
+  }
+}
+
+# An HTTP request.
+#
+# This type is a wrapper around `std.net.http.Request` and provides additional
+# data useful when writing a server, such as the socket address.
+type pub Request {
+  # The raw client address of the connection.
+  #
+  # This address isn't necessarily accurate. For example, if your application
+  # sits behind an HTTP proxy then this value will be the address of the proxy
+  # and not the client. A client may also be able to spoof the address.
+  let pub @address: Address
+
+  # The request data for which a response is to be produced.
+  let pub @data: RawRequest
+
+  # The parsed request URI.
+  #
+  # We parse the path once and store it here as it's likely to be used
+  # frequently, removing the need for parsing it every time.
+  #
+  # If the requested path is not an absolute path, the components list is empty.
+  let pub @path: Path
+
+  # The limits to apply when parsing HTTP data.
+  let @limits: Limits
+
+  fn static new(address: Address, request: RawRequest, limits: Limits) -> Self {
+    let comp = if request.uri.path.absolute? {
+      request.uri.path.components.skip(1).to_array
+    } else {
+      []
+    }
+
+    Self(address: address, data: request, path: Path(comp), limits: limits)
+  }
+
+  # Parses the `Host` header into a `(host, port)` tuple.
+  fn pub host -> (Slice[String], Option[Int]) {
+    # Per RFC 9110, the Host header is required and requests without it are
+    # rejected, so this won't panic.
+    let raw = headers.get(Header.host).get
+
+    match raw.split_once(':') {
+      case Some((host, port)) -> (host, Int.parse(port, int.Format.Decimal))
+      case _ -> (raw.to_slice, Option.None)
+    }
+  }
+
+  # Parses the request's `Content-Type` header into a `Mime` value.
+  #
+  # This method always parses the _first_ `Content-Type` header, should multiple
+  # such headers be provided.
+  fn pub content_type -> Option[Mime] {
+    match headers.get(Header.content_type) {
+      case Ok(v) -> Mime.parse(v)
+      case _ -> Option.None
+    }
+  }
+
+  # Parses a form request into a `std.uri.Values`.
+  #
+  # For GET and HEAD requests, this method parses the query string. For other
+  # request methods, this method requires the `Content-Type` header to be set to
+  # `application/x-www-form-urlencoded` and consumes the request body.
+  #
+  # If the query string component of the URI is empty (for GET and HEAD
+  # requests), or the body is empty (for all other request methods), an empty
+  # `Values` is returned. In this case the body _isn't_ consumed.
+  #
+  # # Memory usage
+  #
+  # When parsing the body as a form, the body is read into memory. For large
+  # payloads (e.g. when uploading files), use `Request.parse_multipart` instead
+  # as that allows for streaming of key-value pairs.
+  #
+  # The size limit on the body imposed by the `Limits` type applies to the
+  # _encoded_ body size, i.e. for `a%20b` the body size is considered to be 5
+  # and not 3 bytes.
+  #
+  # # Errors
+  #
+  # For GET and HEAD requests no error is ever returned, as all the necessary
+  # data is already parsed and validated at this point. For other requests an
+  # error is returned if any of the following is true:
+  #
+  # 1. The `Content-Type` header isn't set to
+  #    `application/x-www-form-urlencoded`
+  # 1. The `Content-Type` header specifies the `charset` parameter with a value
+  #    other than `utf-8`
+  # 1. The form data in the body uses invalid syntax
+  # 1. Reading the body fails, such as due to a network error or when the HTTP
+  #    body can't be parsed
+  fn pub mut url_encoded_form -> Result[Values, FormError] {
+    match method {
+      case Get or Head -> return Result.Ok(uri.query.parse)
+      case _ -> {
+        let typ = match content_type {
+          case Some(v) -> v
+          case _ -> throw FormError.InvalidContentType
+        }
+
+        match (typ.type, typ.subtype, typ.charset) {
+          case ('application', 'x-www-form-urlencoded', Some('utf-8') or None)
+          -> {}
+          case _ -> throw FormError.InvalidContentType
+        }
+      }
+    }
+
+    let buf = ByteArray.new
+
+    try body.read_all(buf).map_error(fn (e) { FormError.Read(e) })
+
+    match Values.parse(buf) {
+      case Some(v) -> Result.Ok(v)
+      case _ -> Result.Error(FormError.InvalidSyntax)
+    }
+  }
+
+  # Parses a multipart form request.
+  #
+  # This method doesn't care about the request method used, only that the
+  # `Content-Type` header is set to the correct value.
+  #
+  # For more information, refer to the documentation of the
+  # `std.multipart.Multipart` type.
+  #
+  # # Error handling
+  #
+  # This method returns an error if any of the following is true:
+  #
+  # 1. The `Content-Type` header is not set to `multipart/form-data; boundary=X`
+  #    where `X` is the boundary delimiter
+  # 1. The `Content-Type` header specifies the `charset` parameter with a value
+  #    other than `utf-8`
+  #
+  # Note that while this method enforces the `charset` parameter to either be
+  # set to `utf-8` or be absent, individual form fields may still specify a
+  # different `charset` parameter as part of their `Content-Type` headers.
+  #
+  # Due to the streaming nature of multipart forms, other errors may be produced
+  # when reading fields.
+  fn pub mut multipart_form -> Result[
+    multipart.Multipart[mut RequestBody, ParseError],
+    FormError,
+  ] {
+    let mime = match content_type {
+      case Some(v) -> v
+      case _ -> throw FormError.InvalidContentType
+    }
+
+    let boundary = match (mime.type, mime.subtype, mime.charset) {
+      case ('multipart', 'form-data', Some('utf-8') or None) -> {
+        match mime.get('boundary') {
+          case Ok(v) if v.size > 0 -> v.to_string
+          case _ -> throw FormError.InvalidContentType
+        }
+      }
+      case _ -> throw FormError.InvalidContentType
+    }
+
+    let mp = multipart.Multipart.new(body, boundary)
+
+    mp.header_size = @limits.header_size
+    Result.Ok(mp)
+  }
+
+  # Parses the request's `Accept` header values (if any) into a list of
+  # `std.mime.Mime` values.
+  #
+  # Any invalid values are ignored. If none of the values are valid or none are
+  # specified, an empty `Array` is returned.
+  #
+  # To guard against unreasonably large `Accept` header values (in addition to
+  # the limits applied when parsing requests), this method only parses the first
+  # 16 MIME types.
+  #
+  # # Quality values
+  #
+  # The returned `Array` is sorted such that the most preferred formats come
+  # first, using the `q` parameter if present (aka the "quality value").
+  #
+  # While RFC 9110 states the `q` parameter is case-insensitive, this
+  # implementation treats it as case-sensitive (i.e. it doesn't support `Q`). To
+  # our knowledge nobody uses `Q` instead of `q` so this shouldn't pose any
+  # issues.
+  #
+  # If the value of a `q` parameter is invalid, it's treated as a weight of
+  # `0.0`. If the value is absent, the weight defaults to `1.0`.
+  fn pub accepted_mime_types -> Array[Mime] {
+    let mimes = []
+    let mut parsed = 0
+
+    for val in headers.get_all(Header.accept) {
+      for chunk in val.split(',') {
+        if parsed == 16 { break }
+
+        match Mime.parse(chunk.trim) {
+          case Some(v) -> mimes.push(v)
+          case _ -> {}
+        }
+
+        parsed += 1
+      }
+    }
+
+    mimes.sort_by(fn (a, b) {
+      let mut a_val = quality_value(a)
+      let mut b_val = quality_value(b)
+
+      match b_val.cmp(a_val) {
+        case Equal if a.type.equals?(b.type) -> {
+          # `a/b, a/b;foo=bar` results in `a/b;foo=bar, a/b`
+          if a.subtype.equals?(b.subtype) {
+            return b.parameters.size.cmp(a.parameters.size)
+          }
+
+          # `text/*, text/plain` results in `text/plain, text/*`
+          match (a.subtype, b.subtype) {
+            case ('*', _) -> Ordering.Greater
+            case (_, '*') -> Ordering.Less
+            case _ -> b.parameters.size.cmp(a.parameters.size)
+          }
+        }
+        case ord -> ord
+      }
+    })
+
+    mimes
+  }
+
+  # Returns the components of the request path.
+  #
+  # This differs from `Request.path` in that it returns the components such that
+  # they can be pattern matched against, instead of returning a `Path`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Status)
+  # import std.net.http.server (Handle, Request, Response)
+  #
+  # type App {}
+  #
+  # impl Handle for App {
+  #   fn pub mut handle(request: mut Request) -> Response {
+  #     match request.target {
+  #       case [] -> Response.new.string('home')
+  #       case ['about'] -> Response.new.string('about')
+  #       case _ -> Response.new.status(Status.not_found)
+  #     }
+  #   }
+  # }
+  # ```
+  fn pub target -> ref Array[Slice[String]] {
+    @path.components
+  }
+
+  # Returns the request method.
+  fn pub method -> Method {
+    @data.method
+  }
+
+  # Returns the HTTP version used by the request.
+  fn pub version -> Version {
+    @data.version
+  }
+
+  # Returns an immutable borrow of the request URI.
+  fn pub uri -> ref Uri {
+    @data.uri
+  }
+
+  # Returns an mutable borrow of the request headers.
+  fn pub headers -> ref HeaderMap {
+    @data.headers
+  }
+
+  # Returns a mutable borrow of the request body.
+  fn pub mut body -> mut RequestBody {
+    @data.body
+  }
+
+  # Returns `true` if `self` is a request for which the origin and target are
+  # the same (i.e. it's not a cross-site request).
+  #
+  # This method uses the `Sec-Fetch-Site` header. If this header is missing the
+  # `Origin` and `Host` headers are compared instead.
+  #
+  # If all these headers are missing then the return value is `true` instead of
+  # `false`, as this means the browser in question is severely out of date.
+  fn pub same_origin? -> Bool {
+    if method.safe? { return true }
+
+    match headers.get(Header.sec_fetch_site) {
+      case Ok('same-origin' or 'none') -> true
+      case Ok(_) -> false
+      case _ -> {
+        match headers.get(Header.origin) {
+          case Ok(origin) -> {
+            match (Uri.parse(origin), host) {
+              case (Ok(o), (h, p)) -> o.host == Host.new(h) and o.port == p
+              case _ -> false
+            }
+          }
+          case _ -> true
+        }
+      }
+    }
+  }
+}
+
+# A type that handles a single request and produces its response.
+trait pub Handle {
+  # Handles an incoming request and produces its response.
+  fn pub mut handle(request: mut Request) -> Response
+
+  # A method called when a request can't be parsed, such as when its syntax is
+  # invalid.
+  #
+  # The `response` argument is a default `Response` generated for the type of
+  # error.
+  #
+  # The return value is the `Response` presented to the client. The default
+  # implementation of this method returns the response as-is.
+  fn pub mut invalid_request(response: Response) -> Response {
+    response
+  }
+
+  # A method called before writing a response.
+  #
+  # This method is _only_ called if a request could be parsed, otherwise
+  # `Handle.invalid_request` is called instead.
+  #
+  # This method allows customizing of `Response` values at the
+  # application-level, such as by wrapping them in a layout or by adding extra
+  # headers. It can also be used for logging requests along with their response.
+  #
+  # The default implementation of this method returns the `Response` as-is.
+  fn pub mut response(request: mut Request, response: Response) -> Response {
+    response
+  }
+}
+
+type inline enum SocketServer {
+  case Tcp(TcpServer)
+  case Unix(UnixServer)
+
+  fn static tcp(socket: ref TcpServer) -> Result[uni Self, IoError] {
+    Result.Ok(recover SocketServer.Tcp(try socket.try_clone))
+  }
+
+  fn mut accept(
+    tls_config: Option[ref tls.ServerConfig],
+  ) -> Result[uni Socket, IoError] {
+    let sock = match self {
+      case Tcp(s) -> {
+        let sock = recover try s.accept
+
+        match tls_config {
+          case Some(c) -> recover Socket.Secure(tls.Server.new(sock, c.clone))
+          case _ -> recover Socket.Plain(sock)
+        }
+      }
+      case Unix(s) -> recover Socket.Unix(try s.accept)
+    }
+
+    Result.Ok(sock)
+  }
+
+  fn address -> Result[Address, IoError] {
+    match self {
+      case Tcp(v) -> Result.Ok(Address.Ip(try v.local_address))
+      case Unix(v) -> Result.Ok(Address.Unix(try v.local_address))
+    }
+  }
+}
+
+type Shutdown {
+  let mut @future: Option[Future[Nil]]
+
+  fn mut received? -> Bool {
+    match @future := Option.None {
+      case Some(f) -> {
+        match f.try_get {
+          case Ok(_) -> true
+          case Error(f) -> {
+            @future = Option.Some(f)
+            false
+          }
+        }
+      }
+      case _ -> true
+    }
+  }
+}
+
+# A type for notifying a `Server` that it should shut down.
+type async Notifier[H: mut + Handle] {
+  let @pool: Pool[H]
+  let @address: Address
+  let mut @shutdown: Option[Promise[Nil]]
+
+  fn static new(pool: Pool[H], address: uni Address) -> (Self, Shutdown) {
+    let (fut, prom) = Future.new
+    let not = Self(
+      pool: pool,
+      address: address,
+      shutdown: recover Option.Some(prom),
+    )
+
+    (not, Shutdown(Option.Some(fut)))
+  }
+
+  # Notifies the connection pool (and thus the server) that it should shut down.
+  #
+  # The `wait` argument specifies if the server should shut down gracefully
+  # (`true`) or immediately (`false`).
+  fn async mut notify(wait: Bool) {
+    match @shutdown := Option.None {
+      case Some(p) -> {
+        # The Promise must be resolved _before_ the connection is made as to
+        # ensure the accept() loop correctly wakes up.
+        p.set(nil)
+
+        # Wake up the accept() loop using a dummy connection. This must be done
+        # _after_ we resolve the Promise as to ensure the accept() loop observes
+        # it being resolved _before_ it performs another accept().
+        #
+        # Any errors that may occur are ignored because we don't really care for
+        # them, as we'll shut down eventually.
+        #
+        # We don't use shutdown() here because only on Linux does it interrupt
+        # an accept(), while on other platforms it simply won't work on a socket
+        # that isn't already connected.
+        match @address {
+          case Ip(v) -> drop(TcpClient.new([v.ip], v.port))
+          case Unix(v) -> drop(UnixClient.new(v.address.to_path))
+        }
+      }
+      case _ -> {}
+    }
+
+    @pool.shutdown(wait)
+  }
+}
+
+# A type for handling signals that should result in the server shutting down.
+trait SignalHandler[H: mut + Handle] {
+  # Starts the signal handler.
+  #
+  # The supplied `Notifier` should be used to notify the server that it should
+  # shut down.
+  #
+  # This method shouldn't wait for any signals itself as this blocks the server
+  # from performing any work.
+  fn mut start(notifier: Notifier[H])
+}
+
+# The default signal handler.
+type DefaultSignals[H: mut + Handle] {}
+
+impl SignalHandler[H] for DefaultSignals {
+  fn mut start(notifier: Notifier[H]) {
+    SignalWaiter.new(notifier, Signal.Quit).immediate_shutdown
+    SignalWaiter.new(notifier, Signal.Interrupt).graceful_shutdown
+    SignalWaiter.new(notifier, Signal.Terminate).graceful_shutdown
+  }
+}
+
+# A type that waits for a signal to arrive and notifies the server accordingly.
+type async SignalWaiter[H: mut + Handle] {
+  let @notifier: Notifier[H]
+  let @signal: Signal
+
+  fn static new(notifier: Notifier[H], signal: Signal) -> Self {
+    Self(notifier: notifier, signal: signal)
+  }
+
+  fn async immediate_shutdown {
+    @signal.wait
+    @notifier.notify(wait: false)
+  }
+
+  fn async graceful_shutdown {
+    @signal.wait
+    @notifier.notify(wait: true)
+
+    # For graceful shutdown signals we support sending the signal twice to shut
+    # down immediately.
+    immediate_shutdown
+  }
+}
+
+# An HTTP server that handles incoming requests.
+type pub Server[H: mut + Handle] {
+  let @handler: fn -> uni H
+  let @pool: Pool[H]
+  let @waiter: Future[Nil]
+
+  # The limitations to apply/enforce when parsing HTTP messages.
+  let pub mut @limits: Limits
+
+  # The maximum amount of time a connection is allowed to be idle for before
+  # it's terminated.
+  #
+  # This timeout applies until the first byte is received, after which the
+  # `Server.read_timeout` timeout is applied.
+  #
+  # This defaults to 60 seconds.
+  let pub mut @idle_timeout: Duration
+
+  # The maximum amount of time that can be spent parsing a request.
+  #
+  # This defaults to 5 seconds.
+  let pub mut @read_timeout: Duration
+
+  # The maximum amount of time that can be spent on writing a response.
+  #
+  # This defaults to 5 seconds.
+  let pub mut @write_timeout: Duration
+
+  # The maximum amount of time to wait for a client to acknowledge a connection
+  # shutdown.
+  #
+  # When a connection is to be closed we don't do so immediately, but instead
+  # wait a little while to allow clients to read any responses before observing
+  # the disconnect.
+  #
+  # This value should be less than the value of `Server.shutdown_wait_time` to
+  # ensure connections are in fact shut down gracefully.
+  #
+  # This defaults to 5 seconds.
+  let pub mut @close_timeout: Duration
+
+  # The maximum amount of time to wait as part of a graceful shutdown.
+  #
+  # This defaults to 10 seconds.
+  let pub mut @shutdown_wait_time: Duration
+
+  # The TLS/HTTPS configuration to use, if any.
+  #
+  # By default this configuration is absent and the protocol is plain HTTP. When
+  # this value _is_ present, the protocol is automatically turned into HTTPS.
+  let pub mut @tls: Option[tls.ServerConfig]
+
+  # A closure to call when the server is about to shut down.
+  #
+  # This closure is called _before_ waiting for all connections to finish,
+  # unless an error is produced in the server's `accept()` loop.
+  let mut @before_shutdown: Option[fn]
+
+  # The type to use for handling signals.
+  let mut @signal_handler: SignalHandler[H]
+
+  # Returns a new `Server` that serves requests using the provided handler.
+  #
+  # The `handler` argument is a unique closure that returns some owned value
+  # that implements the `Handle` trait. This closure is called for each new
+  # connection (_not_ for each request), producing a chain of `Handle` types to
+  # call for each incoming request.
+  fn pub static new(handler: fn -> uni H) -> Self {
+    let (pool, waiter) = Pool.new
+
+    Self(
+      pool: pool,
+      waiter: waiter,
+      handler: handler,
+      limits: Limits.new,
+      tls: Option.None,
+      idle_timeout: Duration.from_secs(60),
+      read_timeout: Duration.from_secs(5),
+      write_timeout: Duration.from_secs(5),
+      close_timeout: Duration.from_secs(5),
+      shutdown_wait_time: Duration.from_secs(10),
+      before_shutdown: Option.None,
+      signal_handler: DefaultSignals() as SignalHandler[H],
+    )
+  }
+
+  # Parses the certificate and private key files and uses these to configure the
+  # server to use TLS.
+  #
+  # If you want full control over how the certificate and private key are parsed
+  # (e.g. you want to load them from an external service), you'll need to create
+  # a `std.net.tls.ServerConfig` manually and assign it to the `Server.tls`
+  # field.
+  #
+  # # Errors
+  #
+  # If the certificate or private key file can't be parsed, a `String` is
+  # returned as the error. This `String` contains a human-readable error message
+  # meant to be used as the message for a panic, for a server that wants to use
+  # TLS but has an invalid configuration can't start.
+  fn pub mut enable_tls(
+    certificate: ref path.Path,
+    key: ref path.Path,
+  ) -> Result[Nil, String] {
+    let cert = match Certificate.from_pem_file(certificate) {
+      case Ok(v) -> v
+      case Error(e) -> throw 'failed to parse ${certificate}: ${e}'
+    }
+    let key = match PrivateKey.from_pem_file(key) {
+      case Ok(v) -> v
+      case Error(e) -> throw 'failed to parse ${key}: ${e}'
+    }
+
+    match tls.ServerConfig.new(cert, key) {
+      case Ok(v) -> @tls = Option.Some(v)
+      case Error(e) -> 'the TLS server configuration is invalid: ${e}'
+    }
+
+    Result.Ok(nil)
+  }
+
+  # Stores the given closure to be called before the server shuts down
+  # gracefully.
+  fn pub mut before_shutdown(function: fn) {
+    @before_shutdown = Option.Some(function)
+  }
+
+  # Binds the server to IP address `0.0.0.0` (i.e. any IPv4 address) and the
+  # given port, then starts it.
+  #
+  # To specify a custom IP address, use `Server.start_ip` instead.
+  #
+  # For more information, refer to the documentation of `Server.start_ip`.
+  fn pub move start(port: Int) -> Result[Nil, IoError] {
+    run(SocketServer.Tcp(try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port)))
+  }
+
+  # Binds the server to the given IP address and port, then starts it.
+  #
+  # This method blocks the caller until the server stops.
+  #
+  # The port argument is always used as-is, even when a TLS configuration is
+  # specified. This means that for TLS servers you should explicitly set the
+  # port to 443, unless of course you _want_ to use a different port.
+  fn pub move start_ip(ip: IpAddress, port: Int) -> Result[Nil, IoError] {
+    run(SocketServer.Tcp(try TcpServer.new(ip, port)))
+  }
+
+  # Binds the server to the given Unix domain socket path and starts it.
+  #
+  # This method blocks the caller until the server stops.
+  #
+  # The socket file is removed when returning from this method, though it may be
+  # left behind in the event of a panic. Abstract Unix domain sockets are
+  # created by using a `Path` that starts with `\0` (e.g.
+  # `'\0socket-name'.to_path`).
+  fn pub move start_unix(path: ref path.Path) -> Result[Nil, IoError] {
+    let res = run(SocketServer.Unix(try UnixServer.new(path)))
+    let _ = path.remove_file
+
+    res
+  }
+
+  fn move run(socket: SocketServer) -> Result[Nil, IoError] {
+    let (notifier, shutdown) = Notifier.new(@pool, recover try socket.address)
+
+    @signal_handler.start(notifier)
+
+    let start = Instant.new
+    let mut counter = 0
+
+    loop {
+      let client = match socket.accept(@tls.as_ref) {
+        case _ if shutdown.received? -> break
+        case Ok(v) -> v
+        # ConnectionAborted may be produced if a connection is established and
+        # then aborted _just_ before we get to accept it.
+        case Error(ConnectionAborted) -> next
+        case Error(e) -> throw e
+      }
+
+      # Not being able to obtain the peer address is pretty much unheard of at
+      # this point, but _just_ in case it happens we simply skip the connection
+      # and close it.
+      let addr = recover {
+        match client.address {
+          case Ok(v) -> v
+          case _ -> next
+        }
+      }
+
+      let id = ConnectionId(
+        time: start.elapsed.to_nanos,
+        counter: counter := counter.wrapping_add(1),
+      )
+
+      handle(id, client, addr)
+    }
+
+    match @before_shutdown {
+      case Some(f) -> f.call
+      case _ -> {}
+    }
+
+    @waiter.get_until(@shutdown_wait_time)
+    Result.Ok(nil)
+  }
+
+  fn mut handle(id: ConnectionId, socket: uni Socket, address: uni Address) {
+    let con = Connection(
+      id: id,
+      pool: @pool,
+      state: State.Active,
+      socket: socket,
+      address: address,
+      limits: recover @limits.clone,
+      handler: recover @handler.call,
+      buffer: recover ByteArray.with_capacity(1024),
+      idle_timeout: @idle_timeout,
+      read_timeout: @read_timeout,
+      write_timeout: @write_timeout,
+      close_timeout: @close_timeout,
+    )
+
+    @pool.add(id, con)
+    con.run
+  }
+}
+
+type async LogWriter {
+  let @output: Stdout
+
+  fn static new -> Self {
+    Self(recover Stdout.new)
+  }
+
+  fn async mut write(message: String) {
+    let _ = @output.print(message)
+  }
+}
+
+# A basic request/response logger.
+#
+# Output is written to STDOUT, using a dedicated process to allow for concurrent
+# writes.
+#
+# To use a `Logger`, create one once _before_ creating a `Server`, then clone it
+# using `Logger.clone` for every new connection. This ensures that all
+# connections use the same underlying writer, preventing concurrent writes from
+# messing up the STDOUT output.
+type pub Logger {
+  let @writer: LogWriter
+
+  # If timestamps should be included for each log message.
+  #
+  # This defaults to `true`.
+  let pub mut @time: Bool
+
+  # If logging is enabled or not.
+  #
+  # This defaults to `true`.
+  let pub mut @enabled: Bool
+
+  # Returns a `Logger` using its default settings.
+  fn pub static new -> Self {
+    Self(writer: LogWriter.new, time: true, enabled: true)
+  }
+
+  # Logs a request along with its response.
+  fn pub log(request: ref Request, response: ref Response) {
+    if !@enabled { return }
+
+    let addr = request.address
+    let meth = request.method
+    let ver = request.version
+    let prev = request.headers.get(Header.referer).or('-').escaped
+    let agent = request.headers.get(Header.user_agent).or('-').escaped
+    let status = response.status
+    let time = if @time { '${DateTime.utc.to_iso8601}: ' } else { '' }
+
+    let path = request.uri.path.to_string.to_byte_array
+
+    if request.uri.query.size > 0 {
+      path.append('?')
+      path.append(request.uri.query.to_string)
+    }
+
+    @writer.write(
+      '${time}${addr} ${meth} ${path} HTTP/${ver} ${status} "${prev}" "${agent}"',
+    )
+  }
+}
+
+impl Clone for Logger {
+  fn pub clone -> Self {
+    Self(writer: @writer, time: @time, enabled: @enabled)
+  }
+}
+
+type copy enum CacheControlState {
+  case Disabled
+  case Public
+  case Private
+}
+
+# A type for generating the value of a `Cache-Control` response header.
+#
+# # Examples
+#
+# ```inko
+# import std.net.http.server (CacheControl)
+#
+# CacheControl
+#   .new
+#   .max_age(Duration.from_secs(10))
+#   .no_store
+#   .to_string # => 'public, no-store, max-age=10, must-revalidate'
+# ```
+type pub inline CacheControl {
+  let mut @max_age: Option[Duration]
+  let mut @state: CacheControlState
+  let mut @no_store: Bool
+  let mut @no_transform: Bool
+  let mut @must_revalidate: Bool
+  let mut @proxy_revalidate: Bool
+
+  # Returns a new `CacheControl` with its default settings.
+  #
+  # The defaults are as follows:
+  #
+  # - `max-age`: 30 days
+  # - `must-revalidate`: `true`
+  # - `public`: `true`
+  fn pub static new -> Self {
+    Self(
+      max_age: Option.Some(Duration.from_secs(30 * 86_400)),
+      must_revalidate: true,
+      state: CacheControlState.Public,
+      no_store: false,
+      no_transform: false,
+      proxy_revalidate: false,
+    )
+  }
+
+  # Sets the `max-age` directive to the given `Duration`.
+  fn pub move max_age(duration: Duration) -> Self {
+    @max_age = Option.Some(duration)
+    self
+  }
+
+  # Disables the `must-revalidate` directive.
+  fn pub move no_revalidate -> Self {
+    @must_revalidate = false
+    self
+  }
+
+  # Enables the `no-cache` directive.
+  fn pub move no_cache -> Self {
+    @state = CacheControlState.Disabled
+    self
+  }
+
+  # Enables the `no-store` directive.
+  fn pub move no_store -> Self {
+    @no_store = true
+    self
+  }
+
+  # Enables the `no-transform` directive.
+  fn pub move no_transform -> Self {
+    @no_transform = true
+    self
+  }
+
+  # Enables the `private` directive.
+  #
+  # This automatically disables the `public` and `no-cache` directives.
+  fn pub move private -> Self {
+    @state = CacheControlState.Private
+    self
+  }
+
+  # Enables the `proxy-revalidate` directive.
+  fn pub move proxy_revalidate -> Self {
+    @proxy_revalidate = true
+    self
+  }
+}
+
+impl ToString for CacheControl {
+  fn pub to_string -> String {
+    let start = match @state {
+      case Disabled -> return 'no-cache'
+      case Public -> 'public'
+      case Private -> 'private'
+    }
+
+    let buf = StringBuffer.new
+
+    buf.push(start)
+
+    if @no_store { buf.push(', no-store') }
+
+    match @max_age {
+      case Some(v) -> {
+        buf.push(', max-age=')
+        buf.push(v.to_secs.to_int.to_string)
+      }
+      case _ -> {}
+    }
+
+    if @must_revalidate { buf.push(', must-revalidate') }
+
+    if @proxy_revalidate { buf.push(', proxy-revalidate') }
+
+    if @no_transform { buf.push(', no-transform') }
+
+    buf.into_string
+  }
+}
+
+# A type for serving static files from a directory.
+#
+# This type supports conditional requests (e.g. using the `If-None-Match`
+# header), HEAD requests, and range requests (using the `RangeRequest`
+# type).
+#
+# If a request path resolves to a non-existing file, an HTTP 404 response with
+# an empty body is returned. If the file does exist but couldn't be opened for
+# some reason (e.g. due to insufficient file permissions), an HTTP 500 response
+# with an empty body is returned and its `error` field is set to the underlying
+# error's message.
+#
+# # Caching
+#
+# Requests handled by this type automatically include a `Cache-Control` header.
+# Its default value is `public, max-age=2592000, must-revalidate` and can be
+# changed using the `Directory.cache_control` method.
+#
+# # Security
+#
+# This type guards against path traversal attacks. This is done by taking the
+# user supplied path, joining it to the source path, expanding it to the real
+# path (resolving components such as `..` in the process), and then checking if
+# it's still in the source directory.
+#
+# # Examples
+#
+# This example serves all files from the current working directory:
+#
+# ```inko
+# import std.env
+# import std.net.http.server (Directory, Handle, Request, Response, Server)
+#
+# type async Main {
+#   fn async main {
+#     let dir = env.working_directory.or_panic
+#
+#     Server
+#       .new(fn { recover App(Directory.new(dir.clone)) })
+#       .start(8000)
+#       .or_panic
+#   }
+# }
+#
+# type App {
+#   let @directory: Directory
+# }
+#
+# impl Handle for App {
+#   fn pub mut handle(request: mut Request) -> Response {
+#     match request.target {
+#       case (Get, []) -> Response.new.string('home')
+#       case (Get or Head, path) -> @directory.handle(request, path.to_slice)
+#       case _ -> Response.not_found
+#     }
+#   }
+# }
+# ```
+type pub inline Directory {
+  # The path to the directory to serve files from.
+  let @path: path.Path
+
+  # The value of the `Cache-Control` header.
+  #
+  # We store this as a `String` instead of a `CacheControl` value such that we
+  # only need to generate it once, instead of per request.
+  let mut @cache_control: String
+
+  # The type to use for handling range requests.
+  let @range: RangeRequest
+
+  # Returns a new `Directory` that serves files from the directory the absolute
+  # path points to.
+  #
+  # # Panics
+  #
+  # This method panics if the `path` argument isn't an absolute path or if the
+  # path points to a non-existing directory.
+  #
+  # Absolute paths are required to guard against path traversal attacks. This
+  # method doesn't expand the path automatically such that this can be done
+  # ahead of time, instead of this being done on a per connection basis.
+  fn pub static new(path: path.Path) -> Self {
+    if path.relative? { panic('the path must be absolute') }
+
+    if !path.directory? {
+      panic("${path} doesn't point to an existing directory")
+    }
+
+    Self(
+      path: path,
+      cache_control: CacheControl.new.to_string,
+      range: RangeRequest.new,
+    )
+  }
+
+  # Sets the `Cache-Control` header according to the settings of the
+  # `CacheControl` value.
+  fn pub move cache_control(value: CacheControl) -> Self {
+    @cache_control = value.to_string
+    self
+  }
+
+  # Serves a static file from the source directory.
+  #
+  # The `request` argument is the `Request` to return a `Response` for.
+  #
+  # The `components` argument is a `std.array.Slice` containing the parsed (i.e.
+  # URI decoded) URI path components of the file to serve.
+  fn pub mut handle(
+    request: ref Request,
+    components: array.Slice[Slice[String]],
+  ) -> Response {
+    let rel = components.iter.reduce(@path.clone, fn (p, c) { p.join(c) })
+
+    # This ensures we can't read files outside of the directory.
+    let path = match rel.expand {
+      case Ok(v) if v.to_string.starts_with?(@path.to_string) -> v
+      case _ -> return Response.not_found
+    }
+
+    let resp = match Response.new.file(path) {
+      case Ok(r) -> r.header(Header.cache_control, @cache_control)
+      case Error(NotFound) -> return Response.not_found
+      case Error(e) -> return Response.internal_server_error.error(e.to_string)
+    }
+
+    @range.handle(request, conditional_request(request, resp))
+  }
+}

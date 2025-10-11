@@ -1,0 +1,2040 @@
+# HTTP 1.1 clients and servers.
+#
+# Support for HTTP 1.1 is implemented conforming to the following RFCs:
+#
+# - [HTTP Semantics](https://www.rfc-editor.org/rfc/rfc9110)
+# - [HTTP/1.1](https://www.rfc-editor.org/rfc/rfc9112)
+# - [HTTP State Management Mechanism](https://www.rfc-editor.org/rfc/rfc6265)
+# - [Returning Values from Forms: multipart/form-data](https://www.rfc-editor.org/rfc/rfc7578.html)
+# - [The 'Basic' HTTP Authentication Scheme](https://www.rfc-editor.org/rfc/rfc7617.html)
+#
+# Types for writing HTTP clients are provided by `std.net.http.client` while
+# types for writing servers are provided by `std.net.http.server`. The
+# `std.net.http` module provides the building blocks necessary for this, such as
+# an HTTP request/response parser.
+#
+# # Chunked transfer support
+#
+# Chunked transfers are fully supported, with two exceptions:
+#
+# - Trailer fields are not supported and their presence results in a parse error
+# - Chunk extensions _are_ parsed but ignored
+import std.bytes (Bytes, Slice, ToSlice)
+import std.bytes.parsers (
+  LOWER_A, UPPER_A, ZERO, digit?, digits, lower?, lower_hex_char?, to_lower,
+  upper?, upper_hex_char?,
+)
+import std.clone (Clone)
+import std.cmp (Equal, min)
+import std.drop (Drop)
+import std.fmt (Format, Formatter)
+import std.fs (Metadata)
+import std.hash (Hash, Hasher)
+import std.int (Format as IntFormat, MAX, ToInt)
+import std.io (
+  Buffer, BufferedRead, BufferedReader, Error as IoError, Read, Write,
+)
+import std.iter (Stream as IterStream)
+import std.map (MissingKey)
+import std.net.http.header
+import std.net.http.method
+import std.string (ToString)
+import std.uri (Error as UriError, Uri)
+
+let TAB = 9
+let LF = 10
+let CR = 13
+let SPC = 32
+let EXL = 33
+let DQUOTE = 34
+let HSH = 35
+let DLR = 36
+let PRC = 37
+let AMP = 38
+let SQU = 39
+let AST = 42
+let PLUS = 43
+let COM = 44
+let HYPHEN = 45
+let DOT = 46
+let SLS = 47
+let COL = 58
+let SCOL = 59
+let UPPER_W = 87
+let CAR = 94
+let UND = 95
+let GRV = 96
+let PIP = 124
+let TLD = 126
+
+let CHUNKED = 'chunked'
+
+# The amount of bytes to read per chunk in `Body.discard`.
+let DISCARD_BUFFER_SIZE = 32 * 1024
+
+fn inline token?(byte: Int) -> Bool {
+  match byte {
+    case v if lower?(v) or upper?(v) or digit?(v) -> true
+    case
+      EXL
+        or HSH
+        or DLR
+        or PRC
+        or AMP
+        or SQU
+        or AST
+        or PLUS
+        or HYPHEN
+        or DOT
+        or CAR
+        or UND
+        or GRV
+        or PIP
+        or TLD
+    -> {
+      true
+    }
+    case _ -> false
+  }
+}
+
+fn inline obs_text?(byte: Int) -> Bool {
+  byte >= 128
+}
+
+fn inline etagc?(byte: Int) -> Bool {
+  byte == 33 or (byte >= 35 and byte <= 126) or obs_text?(byte)
+}
+
+fn inline visible?(byte: Int) -> Bool {
+  byte >= 33 and byte <= 126
+}
+
+fn inline whitespace?(byte: Int) -> Bool {
+  byte == SPC or byte == TAB
+}
+
+type inline enum HeaderError[E] {
+  case Invalid
+  case TooLarge
+  case Read(E)
+}
+
+# An HTTP header.
+#
+# A `Header` represents either a standard header or a custom header. If the
+# header is a standard header it's backed by an `Int` specific to the header.
+# These values are defined in `std.net.http.header` (e.g.
+# `std.net.http.header.CONTENT_TYPE`).
+#
+# `Header` doesn't use a dedicated constructor for each standard header for the
+# following reasons:
+#
+# 1. The list of standard headers is quite large (64+), affecting the size of
+#    generated code
+# 1. Using an `Int` value for standard headers makes it easier to update the
+#    code when a new header is added
+# 1. Pattern matching against header names is rare, instead they're almost
+#    always just used as the keys for a `Map`
+type pub inline enum Header {
+  # A standard header such as `Content-Type` or `Host`.
+  case Standard(Int)
+
+  # A non-standard (i.e. custom) header.
+  case Other(String)
+
+  # Parses a `Header` and its value from an input stream.
+  #
+  # This method exists as a standalone method such that both the HTTP and
+  # multipart parsers can reuse the header parsing logic.
+  fn static parse_line[R: mut + BufferedRead[E], E](
+    reader: mut R,
+    buffer: mut ByteArray,
+    limit: Int,
+  ) -> Result[Option[(Header, Slice[ByteArray])], HeaderError[E]] {
+    # Determine if we're at the start of a new header line, or at the start of
+    # the body.
+    match reader.peek {
+      case Ok(Some(CR)) -> {
+        let _ = reader.read_byte
+
+        match reader.read_byte {
+          # We've encountered the start of the body.
+          case Ok(Some(LF)) -> return Result.Ok(Option.None)
+          case _ -> throw HeaderError.Invalid
+        }
+      }
+      case Ok(Some(_)) -> {}
+      case Ok(_) -> throw HeaderError.Invalid
+      case Error(e) -> throw HeaderError.Read(e)
+    }
+
+    let mut len = 0
+
+    loop {
+      match reader.read_byte {
+        case Ok(Some(COL)) -> {
+          len += 1
+          break
+        }
+        case Ok(Some(v)) if upper?(v) -> buffer.push(to_lower(v))
+        case Ok(Some(v)) if token?(v) -> buffer.push(v)
+        case Ok(_) -> throw HeaderError.Invalid
+        case Error(e) -> throw HeaderError.Read(e)
+      }
+
+      len += 1
+
+      if buffer.size > limit { throw HeaderError.TooLarge }
+    }
+
+    let name = Header.new(buffer)
+
+    buffer.clear
+
+    # Whitespace _after_ the colon must be skipped, but still count towards the
+    # header line size limit.
+    loop {
+      match reader.peek {
+        case Ok(Some(v)) if whitespace?(v) -> reader.read_byte
+        case Ok(Some(_)) -> break
+        case Ok(_) -> throw HeaderError.Invalid
+        case Error(e) -> throw HeaderError.Read(e)
+      }
+
+      len += 1
+
+      if len > limit { throw HeaderError.TooLarge }
+    }
+
+    loop {
+      match reader.read_byte {
+        case Ok(Some(v)) if visible?(v) or whitespace?(v) or obs_text?(v) -> {
+          buffer.push(v)
+        }
+        case Ok(Some(CR)) -> {
+          match reader.read_byte {
+            case Ok(Some(LF)) -> break
+            case Ok(_) -> throw HeaderError.Invalid
+            case Error(e) -> throw HeaderError.Read(e)
+          }
+        }
+        case Ok(_) -> throw HeaderError.Invalid
+        case Error(e) -> throw HeaderError.Read(e)
+      }
+
+      len += 1
+
+      if len > limit { throw HeaderError.TooLarge }
+    }
+
+    # If there's any trailing whitespace, it needs to be removed.
+    let val = Slice.new(buffer, 0, buffer.size).trim_end
+
+    Result.Ok(Option.Some((name, val)))
+  }
+
+  # Parses a `Header` from a sequence of bytes.
+  #
+  # This method expects that the input is already in lowercase. If this isn't
+  # the case, the input is treated as a non-standard header.
+  #
+  # For non-standard headers the input is converted to a `String` and returned
+  # as `Header.Other`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.new('content-length') # => Header.content_length
+  # Header.new('example-header') # => Header.Other('example-header')
+  # ```
+  fn pub static new[B: Bytes + ToString](input: ref B) -> Header {
+    match header.index_of(input) {
+      case -1 -> Header.Other(input.to_string)
+      case n -> Header.Standard(n)
+    }
+  }
+}
+
+impl Hash for Header {
+  fn pub hash[H: mut + Hasher](hasher: mut H) {
+    match self {
+      case Standard(v) -> v.hash(hasher)
+      case Other(v) -> v.hash(hasher)
+    }
+  }
+}
+
+impl Clone for Header {
+  fn pub clone -> Self {
+    match self {
+      case Standard(v) -> Header.Standard(v)
+      case Other(v) -> Header.Other(v)
+    }
+  }
+}
+
+impl Equal for Header {
+  fn pub ==(other: ref Header) -> Bool {
+    match (self, other) {
+      case (Standard(a), Standard(b)) -> a == b
+      case (Other(a), Other(b)) -> a == b
+      case _ -> false
+    }
+  }
+}
+
+impl ToString for Header {
+  fn pub to_string -> String {
+    match self {
+      case Standard(v) -> header.name(v)
+      case Other(v) -> v
+    }
+  }
+}
+
+impl Format for Header {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter.write(to_string)
+  }
+}
+
+type inline enum HeaderValue {
+  case Single(String)
+  case Multiple(Array[String])
+}
+
+impl Equal for HeaderValue {
+  fn pub ==(other: ref Self) -> Bool {
+    match (self, other) {
+      case (Single(a), Single(b)) -> a == b
+      case (Multiple(a), Multiple(b)) -> a == b
+      case _ -> false
+    }
+  }
+}
+
+impl Format for HeaderValue {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case Single(v) -> formatter.tuple('Single').field(v).finish
+      case Multiple(v) -> formatter.tuple('Multiple').field(v).finish
+    }
+  }
+}
+
+impl Clone for HeaderValue {
+  fn pub clone -> Self {
+    match self {
+      case Single(v) -> HeaderValue.Single(v)
+      case Multiple(v) -> HeaderValue.Multiple(v.clone)
+    }
+  }
+}
+
+# A mapping of HTTP headers and their values.
+type pub inline HeaderMap {
+  let @map: Map[Header, HeaderValue]
+
+  # Returns a new and empty `HeaderMap`.
+  fn pub static new -> Self {
+    Self(Map.new)
+  }
+
+  # Sets a `Header` to the given value, overwriting any previous values.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header, HeaderMap)
+  #
+  # let map = HeaderMap.new
+  #
+  # map.set(Header.content_length, '128')
+  # map.set(Header.content_length, '256')
+  # map.get(Header.content_length) # => Result.Ok('256')
+  # ```
+  fn pub mut set(header: Header, value: String) {
+    @map.set(header, HeaderValue.Single(value))
+  }
+
+  # Adds a `Header` with the given value.
+  #
+  # If the header is already assigned a value, the existing value is turned into
+  # an `Array` and the new value is appended to this `Array`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header, HeaderMap)
+  #
+  # let map = HeaderMap.new
+  #
+  # map.add(Header.content_length, '128')
+  # map.add(Header.content_length, '256')
+  # map.add(Header.host, 'example.com')
+  #
+  # map.get(Header.content_length) # => Result.Ok('128')
+  # map.get(Header.host) # => Result.Ok('example.com')
+  # ```
+  fn pub mut add(header: Header, value: String) {
+    match @map.try_set(header, HeaderValue.Single(value)) {
+      case Error((header, Single(ex), Single(new))) -> {
+        @map.set(header, HeaderValue.Multiple([ex, new]))
+      }
+      case Error((_, Multiple(ex), Single(new))) -> ex.push(new)
+      case _ -> {}
+    }
+  }
+
+  # Returns the first value of the given `Header`, if there is any.
+  #
+  # If the header isn't present, a `MissingKey` error is returned.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header, HeaderMap)
+  #
+  # let map = HeaderMap.new
+  #
+  # map.add(Header.content_length, '128')
+  # map.get(Header.content_length) # => Result.Ok('128')
+  # ```
+  fn pub get(header: ref Header) -> Result[String, MissingKey[Header]] {
+    match get_value(header) {
+      case Ok(Single(v)) -> Result.Ok(v)
+      case Ok(Multiple(v)) -> Result.Ok(v.get(0).or_panic)
+      case _ -> Result.Error(MissingKey.new(header))
+    }
+  }
+
+  fn inline get_value(
+    header: ref Header,
+  ) -> Result[ref HeaderValue, MissingKey[Header]] {
+    @map.get(header)
+  }
+
+  # Returns an iterator over all the values of the header.
+  #
+  # If the header isn't assigned any values, the returned iterator yields no
+  # values.
+  #
+  # If the header value is a comma-separated list, this method treats it as a
+  # single value.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header, HeaderMap)
+  #
+  # let map = HeaderMap.new
+  #
+  # map.add(Header.content_length, '10')
+  # map.add(Header.content_length, '20')
+  #
+  # let iter = map.get_all(Header.content_length)
+  #
+  # iter.next # => Option.Some('10')
+  # iter.next # => Option.Some('20')
+  # iter.next # => Option.None
+  # ```
+  fn pub get_all(header: ref Header) -> IterStream[String] {
+    let val = @map.get(header)
+
+    match val {
+      case Ok(Single(v)) -> {
+        let mut done = false
+
+        IterStream.new(fn move {
+          if done := true { Option.None } else { Option.Some(v) }
+        })
+      }
+      case Ok(Multiple(v)) -> v.iter
+      case _ -> IterStream.new(fn move { Option.None })
+    }
+  }
+
+  # Removes all values of the header.
+  #
+  # If any values are removed, `true` is returned, otherwise `false` is
+  # returned.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header, HeaderMap)
+  #
+  # let map = Map.new
+  #
+  # map.add(Header.content_length, '10')
+  # map.add(Header.content_length, '20')
+  # map.remove_all(Header.content_length) # => true
+  # map.remove_all(Header.content_length) # => false
+  # map.get(Header.content_length) # => Result.Error(...)
+  # ```
+  fn pub mut remove_all(header: ref Header) -> Bool {
+    @map.remove(header).ok?
+  }
+
+  # Returns an iterator over the headers in `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header, HeaderMap)
+  #
+  # let map = HeaderMap.new
+  #
+  # map.add(Header.content_length, '10')
+  # map.add(Header.content_length, '20')
+  #
+  # let iter = map.iter
+  #
+  # iter.next # => Option.Some((Header.content_length, '10'))
+  # iter.next # => Option.Some((Header.content_length, '20'))
+  # iter.next # => Option.None
+  # ```
+  fn pub iter -> IterStream[(Header, String)] {
+    let mut entry_idx = 0
+    let mut val_idx = 0
+
+    IterStream.new(fn move {
+      loop {
+        match @map.entries.get(entry_idx) {
+          case Ok({ @key = name, @value = Single(val) }) -> {
+            entry_idx += 1
+            return Option.Some((name.clone, val))
+          }
+          case Ok({ @key = name, @value = Multiple(vals) }) -> {
+            match vals.get(val_idx := val_idx + 1) {
+              case Ok(val) -> return Option.Some((name.clone, val))
+              case _ -> {
+                val_idx = 0
+                entry_idx += 1
+              }
+            }
+          }
+          case _ -> return Option.None
+        }
+      }
+    })
+  }
+
+  # Returns the number of headers in `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header, HeaderMap)
+  #
+  # let map = HeaderMap.new
+  #
+  # map.add(Header.content_length, '10')
+  # map.size # => 1
+  # ```
+  fn pub size -> Int {
+    @map.size
+  }
+
+  fn write_to(buffer: mut ByteArray) {
+    for (k, v) in @map.iter {
+      match v {
+        case Single(v) -> {
+          buffer.append(k.to_string)
+          buffer.append(': ')
+          buffer.append(v)
+          buffer.append('\r\n')
+        }
+        case Multiple(vals) -> {
+          for v in vals.iter {
+            buffer.append(k.to_string)
+            buffer.append(': ')
+            buffer.append(v)
+            buffer.append('\r\n')
+          }
+        }
+      }
+    }
+  }
+}
+
+impl Equal for HeaderMap {
+  fn pub ==(other: ref HeaderMap) -> Bool {
+    @map == other.map
+  }
+}
+
+impl Format for HeaderMap {
+  fn pub fmt(formatter: mut Formatter) {
+    let mut len = 0
+
+    formatter.write('{')
+
+    for (name, val) in @map.iter {
+      if len > 0 { formatter.write(', ') }
+
+      formatter.write(name.to_string)
+      formatter.write(': ')
+
+      match val {
+        case Single(v) -> v.fmt(formatter)
+        case Multiple(v) -> v.fmt(formatter)
+      }
+
+      len += 1
+    }
+
+    formatter.write('}')
+  }
+}
+
+# An HTTP request method.
+#
+# Only the standard request methods defined in RFC 9112 are supported. Custom
+# request methods aren't supported as they're virtually unused, and frankly not
+# that useful.
+type pub copy enum Method {
+  case Get
+  case Post
+  case Put
+  case Delete
+  case Head
+  case Options
+  case Connect
+  case Trace
+
+  # Creates a `Method` from a sequence of bytes.
+  #
+  # If the request method isn't recognized, an `Option.None` is returned.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Method)
+  #
+  # Method.parse('GET') # => Option.Some(Method.Get)
+  # Method.parse('FOO') # => Option.None
+  # ```
+  fn pub static parse[B: Bytes](input: ref B) -> Option[Method] {
+    method.parse(input)
+  }
+
+  # Returns `true` if `self` is a `Method.Get`.
+  fn pub inline get? -> Bool {
+    match self {
+      case Get -> true
+      case _ -> false
+    }
+  }
+
+  # Returns `true` if `self` is a "safe" method (RFC 9110, section 9.2.1).
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Method)
+  #
+  # Method.Get.safe? # => true
+  # Method.Post.safe? # => false
+  # ```
+  fn pub inline safe? -> Bool {
+    match self {
+      case Get or Head or Options or Trace -> true
+      case _ -> false
+    }
+  }
+}
+
+impl ToString for Method {
+  fn pub to_string -> String {
+    method.to_string(self)
+  }
+}
+
+impl Equal for Method {
+  fn pub ==(other: Method) -> Bool {
+    method.eq(self, other)
+  }
+}
+
+impl Format for Method {
+  fn pub fmt(formatter: mut Formatter) {
+    method.format(formatter, self)
+  }
+}
+
+impl Hash for Method {
+  fn pub inline hash[H: mut + Hasher](hasher: mut H) {
+    method.hash(hasher, self)
+  }
+}
+
+impl Clone for Method {
+  fn pub inline clone -> Self {
+    self
+  }
+}
+
+# The status code of a response.
+type pub copy Status {
+  let @code: Int
+
+  # Returns a new `Status` using the given status code.
+  fn pub inline static new(code: Int) -> Status {
+    Status(code)
+  }
+
+  # Returns the status code 200.
+  fn pub inline static ok -> Status {
+    Status(200)
+  }
+
+  # Returns the status code 201.
+  fn pub inline static created -> Status {
+    Status(201)
+  }
+
+  # Returns the status code 206.
+  fn pub inline static partial_content -> Status {
+    Status(206)
+  }
+
+  # Returns the status code 304.
+  fn pub inline static not_modified -> Status {
+    Status(304)
+  }
+
+  # Returns the status code 400.
+  fn pub inline static bad_request -> Status {
+    Status(400)
+  }
+
+  # Returns the status code 403.
+  fn pub inline static forbidden -> Status {
+    Status(403)
+  }
+
+  # Returns the status code 404.
+  fn pub inline static not_found -> Status {
+    Status(404)
+  }
+
+  # Returns the status code 405.
+  fn pub inline static method_not_allowed -> Status {
+    Status(405)
+  }
+
+  # Returns the status code 412.
+  fn pub inline static precondition_failed -> Status {
+    Status(412)
+  }
+
+  # Returns the status code 413.
+  fn pub inline static content_too_large -> Status {
+    Status(413)
+  }
+
+  # Returns the status code 414.
+  fn pub inline static uri_too_long -> Status {
+    Status(414)
+  }
+
+  # Returns the status code 415.
+  fn pub inline static unsupported_media_type -> Status {
+    Status(415)
+  }
+
+  # Returns the status code 416.
+  fn pub inline static range_not_satisfiable -> Status {
+    Status(416)
+  }
+
+  # Returns the status code 422.
+  fn pub inline static unprocessable_content -> Status {
+    Status(422)
+  }
+
+  # Returns the status code 426.
+  fn pub inline static upgrade_required -> Status {
+    Status(426)
+  }
+
+  # Returns the status code 431.
+  fn pub inline static request_header_fields_too_large -> Status {
+    Status(431)
+  }
+
+  # Returns the status code 500.
+  fn pub inline static internal_server_error -> Status {
+    Status(500)
+  }
+
+  # Returns the status code 501.
+  fn pub inline static not_implemented -> Status {
+    Status(501)
+  }
+
+  # Returns the status code 505.
+  fn pub inline static http_version_not_supported -> Status {
+    Status(505)
+  }
+
+  # Returns `true` if the status is 200 OK.
+  fn pub inline ok? -> Bool {
+    @code == 200
+  }
+
+  # Returns `true` if the status is 206 Partial Content
+  fn pub inline partial_content? -> Bool {
+    @code == 206
+  }
+
+  # Returns `true` if the status is a 3xx (redirect) status.
+  fn pub inline redirect? -> Bool {
+    @code >= 300 and @code < 400
+  }
+
+  # Returns `true` if the status is 304 Not Modified
+  fn pub inline not_modified? -> Bool {
+    @code == 304
+  }
+}
+
+impl Equal for Status {
+  fn pub ==(other: Status) -> Bool {
+    @code == other.code
+  }
+}
+
+impl ToString for Status {
+  fn pub to_string -> String {
+    @code.to_string
+  }
+}
+
+impl Format for Status {
+  fn pub fmt(formatter: mut Formatter) {
+    @code.fmt(formatter)
+  }
+}
+
+impl ToInt for Status {
+  fn pub to_int -> Int {
+    @code
+  }
+}
+
+# The protocol version of a request or response.
+type pub copy Version {
+  # The major version number.
+  let pub @major: Int
+
+  # The minor version number.
+  let pub @minor: Int
+
+  fn static v11 -> Self {
+    Self(1, 1)
+  }
+}
+
+impl Equal for Version {
+  fn pub inline ==(other: Self) -> Bool {
+    @major == other.major and @minor == other.minor
+  }
+}
+
+impl Format for Version {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter
+      .object('Version')
+      .field('major', @major)
+      .field('minor', @minor)
+      .finish
+  }
+}
+
+impl ToString for Version {
+  fn pub to_string -> String {
+    match self {
+      # We handle the common cases explicitly so we don't need to heap allocate
+      # a String at runtime.
+      case { @major = 1, @minor = 0 } -> '1.0'
+      case { @major = 1, @minor = 1 } -> '1.1'
+      case _ -> '${@major}.${@minor}'
+    }
+  }
+}
+
+# An error produced when parsing a request or response.
+type pub inline enum ParseError {
+  # The request method is invalid.
+  case InvalidMethod
+
+  # No URI is provided.
+  case MissingUri
+
+  # The requested URI is invalid.
+  case InvalidUri(UriError)
+
+  # The requested URI is too large.
+  case UriTooLarge
+
+  # The HTTP version is invalid.
+  case InvalidVersion
+
+  # One or more headers are invalid.
+  case InvalidHeader
+
+  # A header name or value is too large.
+  case HeaderTooLarge
+
+  # A request or response contains too many headers.
+  case TooManyHeaders
+
+  # The request or response body is larger than the allowed limit.
+  case BodyTooLarge
+
+  # A chunked transfer coding chunk is invalid.
+  case InvalidChunk
+
+  # The transfer encoding is invalid.
+  case InvalidTransferEncoding
+
+  # More input is required.
+  #
+  # This error can happen when parsing a response but the connection is closed
+  # before all data is sent.
+  case EndOfInput
+
+  # The HTTP status is invalid.
+  case InvalidStatus
+
+  # The HTTP status reason is too large.
+  case StatusTooLarge
+
+  # An error produced while reading data from the input stream.
+  case Read(IoError)
+}
+
+impl ToString for ParseError {
+  fn pub to_string -> String {
+    match self {
+      case InvalidMethod -> 'the request method is invalid'
+      case MissingUri -> 'a request URI must be specified'
+      case InvalidUri(v) -> 'the request URI is invalid: ${v}'
+      case UriTooLarge -> 'the request URI is too large'
+      case InvalidVersion -> 'the HTTP version is invalid'
+      case InvalidHeader -> 'a header name or value contains invalid bytes'
+      case HeaderTooLarge -> 'a header line is too large'
+      case TooManyHeaders -> 'too many headers are specified'
+      case BodyTooLarge -> 'the request or response body is too large'
+      case InvalidChunk -> 'a chunked transfer coding chunk is invalid'
+      case InvalidTransferEncoding -> 'the transfer coding is invalid'
+      case EndOfInput -> {
+        'the end of the input stream is reached, but more input is required'
+      }
+      case InvalidStatus -> 'the response status is invalid'
+      case StatusTooLarge -> 'the response status is too large'
+      case Read(v) -> v.to_string
+    }
+  }
+}
+
+impl Format for ParseError {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case InvalidMethod -> formatter.tuple('InvalidMethod').finish
+      case MissingUri -> formatter.tuple('MissingUri').finish
+      case InvalidUri(v) -> formatter.tuple('InvalidUri').field(v).finish
+      case UriTooLarge -> formatter.tuple('UriTooLarge').finish
+      case InvalidVersion -> formatter.tuple('InvalidVersion').finish
+      case InvalidHeader -> formatter.tuple('InvalidHeader').finish
+      case HeaderTooLarge -> formatter.tuple('HeaderTooLarge').finish
+      case TooManyHeaders -> formatter.tuple('TooManyHeaders').finish
+      case BodyTooLarge -> formatter.tuple('BodyTooLarge').finish
+      case InvalidChunk -> formatter.tuple('InvalidChunk').finish
+      case InvalidTransferEncoding -> {
+        formatter.tuple('InvalidTransferEncoding').finish
+      }
+      case EndOfInput -> formatter.tuple('EndOfInput').finish
+      case InvalidStatus -> formatter.tuple('InvalidStatus').finish
+      case StatusTooLarge -> formatter.tuple('StatusTooLarge').finish
+      case Read(v) -> formatter.tuple('Read').field(v).finish
+    }
+  }
+}
+
+impl Equal for ParseError {
+  fn pub ==(other: ref Self) -> Bool {
+    match (self, other) {
+      case (InvalidMethod, InvalidMethod) -> true
+      case (MissingUri, MissingUri) -> true
+      case (InvalidUri(a), InvalidUri(b)) -> a == b
+      case (UriTooLarge, UriTooLarge) -> true
+      case (InvalidVersion, InvalidVersion) -> true
+      case (InvalidHeader, InvalidHeader) -> true
+      case (HeaderTooLarge, HeaderTooLarge) -> true
+      case (TooManyHeaders, TooManyHeaders) -> true
+      case (BodyTooLarge, BodyTooLarge) -> true
+      case (InvalidChunk, InvalidChunk) -> true
+      case (InvalidTransferEncoding, InvalidTransferEncoding) -> true
+      case (EndOfInput, EndOfInput) -> true
+      case (InvalidStatus, InvalidStatus) -> true
+      case (StatusTooLarge, StatusTooLarge) -> true
+      case (Read(a), Read(b)) -> a == b
+      case _ -> false
+    }
+  }
+}
+
+# Size/amount limitations to apply when parsing HTTP messages.
+type pub copy Limits {
+  # The maximum size (in bytes) of request URIs.
+  #
+  # This defaults to 1 KiB.
+  let pub mut @uri_size: Int
+
+  # The maximum size (in bytes) of the HTTP status reason text.
+  #
+  # While the parser ignores the status reason (per RFC 9112 section 4), we
+  # still apply a size limit to prevent an attacked from sending arbitrarily
+  # large reasons.
+  #
+  # This defaults to 64 bytes.
+  let pub mut @reason_size: Int
+
+  # The maximum size (in bytes) of header lines.
+  #
+  # This defaults to 8 KiB.
+  let pub mut @header_size: Int
+
+  # The maximum _number_ of headers.
+  #
+  # This defaults to 32.
+  let pub mut @headers: Int
+
+  # The maximum size (in bytes) of a request body.
+  #
+  # This defaults to 1 MiB.
+  #
+  # This limits ensures servers don't run out of memory due to requests
+  # including unreasonably large bodies. You may need to increase this limit if
+  # you want to allow handling of large file uploads.
+  #
+  # If chunked transfer coding is used, the limit is applied to the total size
+  # of all chunk bodies and their chunk extensions. The limit is applied by
+  # looking at the size of each chunk, regardless of the desired number of bytes
+  # to read.
+  let pub mut @request_body_size: Int
+
+  # The maximum size (in bytes) of a response body.
+  #
+  # This defaults to the maximum `Int` value (= i.e. 7 ZiB), meaning it's
+  # effectively unlimited by default. The reason for this is that most servers
+  # won't respond with large responses unless that's intentional/desired (e.g.
+  # when downloading a file).
+  #
+  # If chunked transfer coding is used, the limit is applied to the total size
+  # of all chunk bodies and their chunk extensions. The limit is applied by
+  # looking at the size of each chunk, regardless of the desired number of bytes
+  # to read.
+  let pub mut @response_body_size: Int
+
+  # Returns a `Limits` using the default settings.
+  fn pub static new -> Self {
+    Self(
+      uri_size: 1024,
+      reason_size: 64,
+      header_size: 8 * 1024,
+      headers: 32,
+      request_body_size: 1024 * 1024,
+      response_body_size: MAX,
+    )
+  }
+}
+
+impl Clone for Limits {
+  fn pub clone -> Limits {
+    self
+  }
+}
+
+# An HTTP request parsed from some input stream.
+type pub Request {
+  # The request method (e.g. GET).
+  let pub @method: Method
+
+  # The URI of the request.
+  let pub @uri: Uri
+
+  # The HTTP protocol version.
+  let pub @version: Version
+
+  # The headers of the request.
+  let pub @headers: HeaderMap
+
+  # The body of the request.
+  let pub @body: Body
+}
+
+impl Format for Request {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter
+      .object('Request')
+      .field('method', @method)
+      .field('uri', @uri)
+      .field('version', @version)
+      .field('headers', @headers)
+      .field('body', @body)
+      .finish
+  }
+}
+
+# An HTTP response parsed from some input stream.
+#
+# # Connection reuse
+#
+# If a `Response` is parsed in response to a request produced by a
+# `RequestBuilder`, the underlying stream is a `ActiveConnection`. When dropping
+# such a connection, the connection is kept alive if:
+#
+# 1. keep-alive is enabled by the `Client` used to produce the request
+# 1. The response version is 1.1 and the `Connection` header is missing, or its
+#    value is set to `keep-alive`
+type pub Response {
+  # The HTTP protocol version.
+  let pub @version: Version
+
+  # The HTTP status code.
+  let pub @status: Status
+
+  # The headers of the request.
+  let pub @headers: HeaderMap
+
+  # The body of the request.
+  let pub @body: Body
+}
+
+impl Drop for Response {
+  fn mut drop {
+    let reuse = match @headers.get(Header.connection) {
+      case Ok('keep-alive') -> true
+      case Ok('close') -> false
+      case _ -> @version == Version.v11
+    }
+
+    if reuse { @body.reader.reuse }
+  }
+}
+
+impl Format for Response {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter
+      .object('Response')
+      .field('version', @version)
+      .field('status', @status)
+      .field('headers', @headers)
+      .field('body', @body)
+      .finish
+  }
+}
+
+# The body of a response or request to read.
+type pub inline Body {
+  let @reader: Stream
+
+  fn static bounded[T: mut + Stream](
+    reader: BufferedReader[T, ParseError],
+    size: Int,
+    limit: Int,
+  ) -> Self {
+    Body(BoundedBody.new(reader, size, limit) as Stream)
+  }
+
+  fn static unbounded[T: mut + Stream](
+    reader: BufferedReader[T, ParseError],
+    limit: Int,
+  ) -> Self {
+    Body(UnboundedBody.new(reader, limit) as Stream)
+  }
+
+  fn static chunked[T: mut + Stream](
+    reader: BufferedReader[T, ParseError],
+    size: Int,
+  ) -> Self {
+    Body(ChunkedBody.new(reader, size) as Stream)
+  }
+
+  # Sets the maximum size of the body.
+  #
+  # When reading from a `Body`, if the size is larger than this value a
+  # `ParseError.BodyTooLarge` error is returned.
+  #
+  # When adjusting this value after parsing an HTTP message, this must be done
+  # _before_ reading from the body as otherwise the size limit may not be
+  # applied correctly (e.g. more bytes can be read than the actual limit, based
+  # on how many bytes have already been read).
+  fn pub mut maximum_size=(value: Int) {
+    @reader.maximum_size = value
+  }
+
+  # Reads the body until the end, discarding its data.
+  #
+  # This method reads the remaining body in chunks of 32 KiB, discarding each
+  # chunk before reading the next.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Client)
+  # import std.uri (Uri)
+  #
+  # let client = Client.new
+  # let uri = Uri.parse('https://httpbin.org/get').or_panic
+  # let response = client.get(uri).send.or_panic # => Result.Ok(Response(...))
+  #
+  # response.body.clear # => Result.Ok(nil)
+  # ```
+  fn pub mut clear -> Result[Nil, ParseError] {
+    let buf = ByteArray.with_capacity(DISCARD_BUFFER_SIZE)
+
+    loop {
+      match try read(into: buf, size: DISCARD_BUFFER_SIZE) {
+        case 0 -> break
+        case _ -> buf.clear
+      }
+    }
+
+    Result.Ok(nil)
+  }
+
+  fn consumed? -> Bool {
+    @reader.reusable?
+  }
+}
+
+impl Format for Body {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter.write('Body(...)')
+  }
+}
+
+impl Read[ParseError] for Body {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, ParseError] {
+    @reader.read(into, size)
+  }
+}
+
+# A stream data can be read from, and optionally marked for reuse by some sort
+# of connection pool.
+trait Stream: Read[ParseError] {
+  fn mut reuse
+
+  fn mut maximum_size=(value: Int)
+
+  fn reusable? -> Bool
+}
+
+# A type that wraps a `Read[std.io.Error]` and allows it to be used as the
+# source of a `BoundedBody` or `ChunkedBody`.
+type pub inline Reader[T: mut + Read[IoError]] {
+  let @reader: T
+
+  # Returns a new `Reader` that wraps the given `Read` type.
+  fn pub static new(reader: T) -> Self {
+    Self(reader)
+  }
+}
+
+impl Read[ParseError] for Reader {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, ParseError] {
+    match @reader.read(into, size) {
+      case Ok(v) -> Result.Ok(v)
+      case Error(e) -> Result.Error(ParseError.Read(e))
+    }
+  }
+}
+
+impl Stream for Reader {
+  fn mut reuse {}
+
+  fn mut maximum_size=(value: Int) {}
+
+  fn reusable? -> Bool {
+    false
+  }
+}
+
+# A regular body of a fixed size.
+type BoundedBody[T: mut + Stream] {
+  # The number of remaining bytes that can be read from the input stream.
+  let mut @remaining: Int
+
+  # The maximum number of bytes we're allowed to read.
+  let mut @limit: Int
+
+  # The underlying input stream (e.g. a socket).
+  #
+  # While we don't need buffering ourselves, the parser makes use of buffering
+  # and thus some data may reside in the in-memory buffer instead of the
+  # underlying stream. As such, we just reuse the buffered stream as-is.
+  let @reader: BufferedReader[T, ParseError]
+
+  fn static new(
+    reader: BufferedReader[T, ParseError],
+    size: Int,
+    limit: Int,
+  ) -> Self {
+    Self(reader: reader, remaining: size, limit: limit)
+  }
+}
+
+impl Read[ParseError] for BoundedBody {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, ParseError] {
+    if @remaining > @limit { throw ParseError.BodyTooLarge }
+
+    match min(size, @remaining) {
+      case 0 -> Result.Ok(0)
+      case n -> {
+        let len = try @reader.read(into, n)
+
+        @remaining -= len
+        Result.Ok(len)
+      }
+    }
+  }
+}
+
+impl Stream for BoundedBody {
+  fn mut reuse {
+    if reusable? { @reader.inner.reuse }
+  }
+
+  fn mut maximum_size=(value: Int) {
+    @limit = value
+  }
+
+  fn reusable? -> Bool {
+    @remaining == 0
+  }
+}
+
+# A regular body without a `Content-Length` header.
+type UnboundedBody[T: mut + Stream] {
+  # The total number of bytes read so far.
+  let mut @read: Int
+
+  # The maximum number of bytes we're allowed to read.
+  let mut @limit: Int
+
+  # The underlying input stream (e.g. a socket).
+  let @reader: BufferedReader[T, ParseError]
+
+  fn static new(reader: BufferedReader[T, ParseError], limit: Int) -> Self {
+    Self(reader: reader, read: 0, limit: limit)
+  }
+}
+
+impl Read[ParseError] for UnboundedBody {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, ParseError] {
+    if @read + size > @limit { throw ParseError.BodyTooLarge }
+
+    let len = try @reader.read(into, size)
+
+    @read += len
+    Result.Ok(len)
+  }
+}
+
+impl Stream for UnboundedBody {
+  fn mut reuse {
+    # Unbounded bodies read until EOF and thus can't be reused.
+  }
+
+  fn mut maximum_size=(value: Int) {
+    @limit = value
+  }
+
+  fn reusable? -> Bool {
+    false
+  }
+}
+
+type copy enum ChunkState {
+  case Start
+  case Pending(Int)
+  case End
+}
+
+# A body that uses chunked transfer coding.
+type ChunkedBody[T: mut + Stream] {
+  # The number of remaining bytes that can be read from the input stream before
+  # a `ParseError.BodyTooLarge` error is produced.
+  #
+  # This number only applies to the chunk bodies and not e.g. the number of
+  # bytes that need to be read for the chunk sizes.
+  let mut @remaining: Int
+
+  # The underlying input stream (e.g. a socket).
+  let @reader: BufferedReader[T, ParseError]
+
+  # The current state we're in.
+  let mut @state: ChunkState
+
+  fn static new(reader: BufferedReader[T, ParseError], size: Int) -> Self {
+    Self(remaining: size, reader: reader, state: ChunkState.Start)
+  }
+
+  fn mut read_chunk_size -> Result[Int, ParseError] {
+    let mut len = 0
+    let mut chunk_ext = false
+    let mut digits = 0
+
+    loop {
+      let digit = match try require_byte {
+        case n if digit?(n) -> n - ZERO
+        case n if lower_hex_char?(n) -> n - LOWER_A + 10
+        case n if upper_hex_char?(n) -> n - UPPER_A + 10
+        case SCOL -> {
+          chunk_ext = true
+          break
+        }
+        case CR if (try require_byte) == LF -> break
+        case _ -> throw ParseError.InvalidChunk
+      }
+
+      # Hexadecimal signed integers support up to 16 digits, or 8 EiB of memory.
+      # We _may_ encounter more if somebody uses a size such as
+      # "000000000000000012". We treat such sizes as invalid as otherwise an
+      # attacker could exhaust our resources by supplying _really_ long chunk
+      # sizes.
+      if digits == 16 { throw ParseError.InvalidChunk }
+
+      len = try len.checked_mul(16).ok_or(ParseError.InvalidChunk)
+      len = try len.checked_add(digit).ok_or(ParseError.InvalidChunk)
+      digits += 1
+    }
+
+    # Chunk extensions are hardly ever used and so we ignore them. We still need
+    # to apply the size limit such that an attacker can't exhaust our resources
+    # by using an excessively large chunk extension.
+    while chunk_ext {
+      match try require_byte {
+        case CR -> {
+          match try require_byte {
+            case LF -> break
+            case _ -> throw ParseError.InvalidChunk
+          }
+        }
+        case _ if @remaining == 0 -> throw ParseError.BodyTooLarge
+        case _ -> @remaining -= 1
+      }
+    }
+
+    # We check for this last so we take into account the number of bytes
+    # consumed by the chunk extension.
+    if len > @remaining { throw ParseError.BodyTooLarge }
+
+    Result.Ok(len)
+  }
+
+  fn inline mut require_byte -> Result[Int, ParseError] {
+    match try @reader.read_byte {
+      case Some(n) -> Result.Ok(n)
+      case _ -> Result.Error(ParseError.EndOfInput)
+    }
+  }
+}
+
+impl Read[ParseError] for ChunkedBody {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, ParseError] {
+    let mut pending = size
+
+    while pending > 0 {
+      let rem = match @state {
+        case Start -> {
+          match try read_chunk_size {
+            case 0 -> {
+              @state = ChunkState.End
+
+              # The last chunk must be terminated by an empty line (section 7.1
+              # of RFC 9112).
+              match (try require_byte, try require_byte) {
+                case (CR, LF) -> {}
+                case _ -> throw ParseError.InvalidChunk
+              }
+
+              return Result.Ok(size - pending)
+            }
+            case n -> n
+          }
+        }
+        case Pending(v) -> v
+        case End -> return Result.Ok(0)
+      }
+
+      match try @reader.read(into: into, size: min(pending, rem)) {
+        case 0 -> break
+        case n -> {
+          let new = rem - n
+
+          @state = if new == 0 {
+            match try require_byte {
+              case CR if (try require_byte) == LF -> ChunkState.Start
+              case _ -> throw ParseError.InvalidChunk
+            }
+          } else {
+            ChunkState.Pending(new)
+          }
+
+          @remaining -= n
+          pending -= n
+        }
+      }
+    }
+
+    Result.Ok(size - pending)
+  }
+}
+
+impl Stream for ChunkedBody {
+  fn mut reuse {
+    if reusable? { @reader.inner.reuse }
+  }
+
+  fn mut maximum_size=(value: Int) {
+    @remaining = value
+  }
+
+  fn reusable? -> Bool {
+    match @state {
+      case End -> true
+      case _ -> false
+    }
+  }
+}
+
+# A `Write` type that encodes written data as `Transfer-Encoding: chunked`
+# chunks.
+type inline ChunkedWriter[T: mut + Write[E], E] {
+  let @writer: T
+
+  fn inline static new(writer: T) -> Self {
+    Self(writer)
+  }
+}
+
+impl Drop for ChunkedWriter {
+  fn mut drop {
+    # Due to how TCP works this likely only ever fails if the socket is already
+    # disconnected at this point, which we'll then handle the next time we read
+    # from a socket.
+    let _ = @writer.write('0\r\n\r\n')
+  }
+}
+
+impl Write[E] for ChunkedWriter {
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, E] {
+    try @writer.write('${bytes.size.format(IntFormat.Hex)}\r\n')
+    try @writer.write(bytes)
+    @writer.write('\r\n')
+  }
+
+  fn pub mut flush -> Result[Nil, E] {
+    @writer.flush
+  }
+}
+
+type copy enum ContentLength {
+  case None
+  case Valid(Int)
+  case Invalid
+
+  # Parses and returns the value of the `Content-Length` header.
+  #
+  # # Handling duplicate headers
+  #
+  # RFC 9110 specifies the value format as `1*DIGIT` and not a list, but also
+  # says that _if_ the value is a comma-separated list where each value is the
+  # same (e.g. `Content-Length: 10, 20`) it's up to the receiver to determine
+  # how to handle such headers.
+  #
+  # Because multiple `Content-Length` headers are most likely the result of a
+  # bug and may result in security vulnerabilities (e.g. due to request
+  # smuggling), we always reject such headers. In other words, the only form we
+  # support is a single occurrence of the header in the form
+  # `Content-Length: digits`.
+  fn static parse(headers: ref HeaderMap) -> ContentLength {
+    match headers.get_value(Header.content_length) {
+      case Ok(Single(inp)) -> {
+        match digits(inp, start: 0, limit: 19) {
+          case Some((v, len)) if len == inp.size -> ContentLength.Valid(v)
+          case _ -> ContentLength.Invalid
+        }
+      }
+      case Ok(_) -> ContentLength.Invalid
+      case _ -> ContentLength.None
+    }
+  }
+}
+
+type inline ClearOnDrop {
+  let @buffer: mut ByteArray
+}
+
+impl Drop for ClearOnDrop {
+  fn mut drop {
+    @buffer.clear
+  }
+}
+
+# A type for parsing an HTTP requests and responses.
+#
+# Parsing a request is done using `Parser.request` while parsing a response is
+# done using `Parser.response`.
+#
+# A `Parser` uses a `ByteArray` for buffering data while parsing input. It
+# _borrows_ such a buffer rather than taking ownership, allowing you to reuse
+# the buffer.
+type pub inline Parser[T: mut + Stream] {
+  let @reader: BufferedReader[T, ParseError]
+  let @buffer: mut ByteArray
+  let @limits: Limits
+
+  # Returns a new `Parser` from a `Bytes` type (e.g. a `String`).
+  #
+  # The `input` argument is the bytes to parse.
+  #
+  # The `buffer` argument is a buffer to use as part of the parsing process.
+  #
+  # The `limits` argument specifies various limitations to enforce when parsing.
+  fn pub static from_bytes[B: Bytes](
+    input: B,
+    buffer: mut ByteArray,
+    limits: Limits,
+  ) -> Parser[Reader[Buffer[B]]] {
+    new(Reader.new(Buffer.new(input)), buffer, limits)
+  }
+
+  # Returns a new `Parser`.
+  #
+  # The `reader` argument is a `Stream` containing the data to parse.
+  #
+  # The `buffer` argument is a buffer to use as part of the parsing process.
+  #
+  # The `limits` argument specifies various limitations to enforce when parsing.
+  fn pub static new(reader: T, buffer: mut ByteArray, limits: Limits) -> Self {
+    Self(reader: BufferedReader.new(reader), buffer: buffer, limits: limits)
+  }
+
+  # Parses the input stream as a request.
+  #
+  # Upon returning from this method the buffer passed to `Parser.new` is
+  # cleared.
+  fn pub move request -> Result[Request, ParseError] {
+    let _clear = ClearOnDrop(@buffer)
+    let limit = @limits.request_body_size
+    let method = try request_method
+    let uri = try uri
+    let version = try request_version
+    let headers = try headers
+    let body = try into_body(headers, limit, request: true)
+
+    Result.Ok(
+      Request(
+        method: method,
+        uri: uri,
+        version: version,
+        headers: headers,
+        body: body,
+      ),
+    )
+  }
+
+  # Parses the input stream as a response.
+  #
+  # The `method` argument is the method of the request this response belongs to,
+  # and is used to determine if the body should be ignored or not.
+  #
+  # Upon returning from this method the buffer passed to `Parser.new` is
+  # cleared.
+  fn pub move response(method: Method) -> Result[Response, ParseError] {
+    let _clear = ClearOnDrop(@buffer)
+    let limit = @limits.response_body_size
+    let version = try response_version
+    let status = try status
+    let headers = try headers
+    let body = match status.to_int {
+      # 1xx status codes don't have a body.
+      case n if n >= 100 and n < 200 -> into_empty_body
+      # 204 (No Content) and 304 (Not Modified) don't have a body either.
+      case 204 or 304 -> into_empty_body
+      case _ -> {
+        match method {
+          case Head or Trace -> into_empty_body
+          case _ -> try into_body(headers, limit, request: false)
+        }
+      }
+    }
+
+    Result.Ok(
+      Response(version: version, status: status, headers: headers, body: body),
+    )
+  }
+
+  fn mut request_method -> Result[Method, ParseError] {
+    loop {
+      match try @reader.read_byte {
+        case Some(SPC) -> break
+        case Some(_) if @buffer.size == method.MAX -> {
+          throw ParseError.InvalidMethod
+        }
+        case Some(v) -> @buffer.push(v)
+        case _ -> throw ParseError.EndOfInput
+      }
+    }
+
+    match Method.parse(@buffer) {
+      case Some(v) -> {
+        @buffer.clear
+        Result.Ok(v)
+      }
+      case _ -> throw ParseError.InvalidMethod
+    }
+  }
+
+  fn mut uri -> Result[Uri, ParseError] {
+    loop {
+      match try @reader.read_byte {
+        case Some(SPC) -> break
+        case Some(_) if @buffer.size > @limits.uri_size -> {
+          throw ParseError.UriTooLarge
+        }
+        case Some(v) -> @buffer.push(v)
+        case _ -> throw ParseError.EndOfInput
+      }
+    }
+
+    if @buffer.size == 0 { throw ParseError.MissingUri }
+
+    match Uri.parse(@buffer) {
+      case Ok(v) if v.path.relative? and v.path.value != '*' -> {
+        throw ParseError.InvalidUri(UriError.InvalidPath)
+      }
+      case Ok(v) -> {
+        @buffer.clear
+        Result.Ok(v)
+      }
+      case Error(e) -> throw ParseError.InvalidUri(e)
+    }
+  }
+
+  fn mut request_version -> Result[Version, ParseError] {
+    let ver = try version
+
+    match (try require_byte, try require_byte) {
+      case (CR, LF) -> Result.Ok(ver)
+      case _ -> throw ParseError.InvalidVersion
+    }
+  }
+
+  fn mut response_version -> Result[Version, ParseError] {
+    let ver = try version
+
+    match try require_byte {
+      case SPC -> Result.Ok(ver)
+      case _ -> throw ParseError.InvalidVersion
+    }
+  }
+
+  fn mut version -> Result[Version, ParseError] {
+    # The only HTTP versions supported/in use all take up exactly 8 bytes, plus
+    # two bytes for the line ending: HTTP/0.9, HTTP/1.0, HTTP/1.1, and
+    # HTTP/2.0.
+    match @reader.read_exact(into: @buffer, size: 8) {
+      case Ok(_) if @buffer.starts_with?('HTTP/') -> {}
+      case Ok(_) -> throw ParseError.InvalidVersion
+      case Error(EndOfInput) -> throw ParseError.EndOfInput
+      case Error(Read(e)) -> throw e
+    }
+
+    match (@buffer.get(5), @buffer.get(6), @buffer.get(7)) {
+      case (Ok(maj), Ok(DOT), Ok(min)) if digit?(maj) and digit?(min) -> {
+        @buffer.clear
+        Result.Ok(Version(major: maj - ZERO, minor: min - ZERO))
+      }
+      case _ -> throw ParseError.InvalidVersion
+    }
+  }
+
+  fn mut status -> Result[Status, ParseError] {
+    let status = match @reader.read_exact(into: @buffer, size: 3) {
+      case Ok(_) -> {
+        match digits(@buffer, start: 0, limit: 3) {
+          case Some((v, len)) if len == 3 -> {
+            @buffer.clear
+            Result.Ok(Status.new(v))
+          }
+          case _ -> throw ParseError.InvalidStatus
+        }
+      }
+      case Error(EndOfInput) -> throw ParseError.EndOfInput
+      case Error(Read(e)) -> throw e
+    }
+
+    # Per RFC 9112 section 4, the space after the status code is required _even
+    # if_ the status reason is absent.
+    if (try require_byte) != SPC { throw ParseError.InvalidStatus }
+
+    # The reason should be ignored, but we still have to apply a size limit so
+    # an attacked can't send us arbitrarily large reasons.
+    let mut len = 0
+
+    loop {
+      match try @reader.read_byte {
+        case Some(CR) -> {
+          match try require_byte {
+            case LF -> break
+            case _ -> throw ParseError.InvalidStatus
+          }
+        }
+        case Some(v) if visible?(v) or whitespace?(v) -> {
+          if len == @limits.reason_size {
+            throw ParseError.StatusTooLarge
+          } else {
+            len += 1
+          }
+        }
+        case Some(_) -> throw ParseError.InvalidStatus
+        case _ -> throw ParseError.EndOfInput
+      }
+    }
+
+    status
+  }
+
+  fn mut headers -> Result[HeaderMap, ParseError] {
+    let headers = HeaderMap.new
+
+    loop {
+      match try header {
+        case Some(_) if headers.size == @limits.headers -> {
+          throw ParseError.TooManyHeaders
+        }
+        case Some((name, val)) -> headers.add(name, val)
+        case _ -> break
+      }
+    }
+
+    Result.Ok(headers)
+  }
+
+  fn mut header -> Result[Option[(Header, String)], ParseError] {
+    match Header.parse_line(@reader, @buffer, @limits.header_size) {
+      case Ok(Some((header, val))) -> {
+        let val = val.to_string
+
+        @buffer.clear
+        Result.Ok(Option.Some((header, val)))
+      }
+      case Ok(_) -> Result.Ok(Option.None)
+      case Error(Invalid) -> throw ParseError.InvalidHeader
+      case Error(TooLarge) -> throw ParseError.HeaderTooLarge
+      case Error(Read(e)) -> throw e
+    }
+  }
+
+  fn move into_body(
+    headers: ref HeaderMap,
+    limit: Int,
+    request: Bool,
+  ) -> Result[Body, ParseError] {
+    let body = match
+      (
+        ContentLength.parse(headers),
+        headers.get_value(Header.transfer_encoding),
+      )
+    {
+      # Specifying both Content-Length and Transfer-Encoding is either a bug or
+      # an attempt at request smuggling (or a similar attack). Per RFC 9112
+      # section 6.3 we reject such messages.
+      #
+      # We handle both valid and invalid Content-Length values because a
+      # downstream server may otherwise process the invalid value (e.g. if it's
+      # too large for us but not for the downstream server).
+      case (Valid(_) or Invalid, Ok(_)) -> throw ParseError.InvalidHeader
+      case (Valid(len), _) -> into_bounded_body(len, limit)
+      # We only support the "chunked" encoding, as the others aren't all
+      # that useful, and because at the time of writing we don't support
+      # gzip/deflate/etc in the standard library.
+      case (_, Ok(Single(CHUNKED))) -> into_chunked_body(limit)
+      case (_, Ok(_)) -> throw ParseError.InvalidTransferEncoding
+      case (Invalid, _) -> throw ParseError.InvalidHeader
+      case _ if request -> into_empty_body
+      # Per the RFCs, if for a response both Content-Length and
+      # Transfer-Encoding are missing we are to read until the end of the
+      # connection.
+      case _ -> into_unbounded_body(limit)
+    }
+
+    Result.Ok(body)
+  }
+
+  fn inline move into_unbounded_body(limit: Int) -> Body {
+    Body.unbounded(@reader, limit)
+  }
+
+  fn inline move into_empty_body -> Body {
+    into_bounded_body(size: 0, limit: 0)
+  }
+
+  fn inline move into_bounded_body(size: Int, limit: Int) -> Body {
+    Body.bounded(@reader, size, limit)
+  }
+
+  fn inline move into_chunked_body(size: Int) -> Body {
+    Body.chunked(@reader, size)
+  }
+
+  fn inline mut require_byte -> Result[Int, ParseError] {
+    match try @reader.read_byte {
+      case Some(v) -> Result.Ok(v)
+      case _ -> throw ParseError.EndOfInput
+    }
+  }
+
+  fn inline mut peek -> Result[Option[Int], ParseError] {
+    @reader.peek
+  }
+}
+
+# An ETag.
+#
+# An `Etag` wraps a `Slice[String]` instead of a `String` such that no
+# allocations are necessary when parsing ETags from header values.
+type pub inline Etag {
+  let @strong: Bool
+  let @value: Slice[String]
+
+  fn static from_metadata(meta: ref Metadata) -> Etag {
+    new(strong: true, value: '${meta.size}${meta.modified_at.to_nanos}')
+  }
+
+  # Returns a new `Etag` that wraps the given `String`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Etag)
+  #
+  # Etag.new(strong: false, value: 'foo').to_string # => 'W/"foo"'
+  # ```
+  fn pub static new[S: ToSlice[String]](strong: Bool, value: ref S) -> Self {
+    Self(strong: strong, value: value.to_slice)
+  }
+
+  # Parses a single Etag from a `String` or `Slice[String]`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Etag)
+  #
+  # Etag.parse('W/"foo"') # => Option.Some(Etag(strong: false, value: "foo"))
+  # ```
+  fn pub static parse[S: ToSlice[String]](input: ref S) -> Option[Etag] {
+    let input = input.to_slice
+    let mut idx = 0
+
+    let strong = match (input.get(idx), input.get(idx + 1)) {
+      case (Ok(UPPER_W), Ok(SLS)) -> {
+        idx += 2
+        false
+      }
+      case _ -> true
+    }
+
+    if input.get(idx).or(-1) == DQUOTE { idx += 1 } else { return Option.None }
+
+    let start = idx
+
+    while idx < input.size {
+      match input.get(idx).or_panic {
+        case DQUOTE -> return Option.Some(new(strong, input.slice(start, idx)))
+        case v if etagc?(v) -> idx += 1
+        case _ -> return Option.None
+      }
+    }
+
+    Option.None
+  }
+
+  # Parses a list of ETags from a `String`.
+  #
+  # This is meant to be used when parsing values of headers such as the `Etag`
+  # and `If-None-Match` headers.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Etag)
+  #
+  # Etag.parse_list('W/"foo", "bar"').to_array
+  # # => [Etag(strong: false, value: "foo"), Etag(strong: true, value: "bar")]
+  # ```
+  fn pub static parse_list(input: String) -> IterStream[Etag] {
+    let mut idx = 0
+
+    IterStream.new(fn move {
+      if idx == input.size { return Option.None }
+
+      while idx < input.size {
+        match input.get(idx).or_panic {
+          case SPC or COM -> idx += 1
+          case _ -> break
+        }
+      }
+
+      match parse(input.slice(idx, input.size)) {
+        case Some(t) -> {
+          idx += t.size
+          Option.Some(t)
+        }
+        case _ -> {
+          idx = input.size
+          Option.None
+        }
+      }
+    })
+  }
+
+  # Returns the byte size of `self`.
+  fn pub size -> Int {
+    if @strong { 0 } else { 2 } + 2 + @value.size
+  }
+}
+
+impl Format for Etag {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter
+      .object('Etag')
+      .field('strong', @strong)
+      .field('value', @value.to_string)
+      .finish
+  }
+}
+
+impl Equal for Etag {
+  fn pub ==(other: ref Self) -> Bool {
+    @strong == other.strong and @value == other.value
+  }
+}
+
+impl ToString for Etag {
+  fn pub to_string -> String {
+    if @strong { '"${@value}"' } else { 'W/"${@value}"' }
+  }
+}

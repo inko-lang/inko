@@ -1,0 +1,307 @@
+import std.drop (drop)
+import std.html (Html, RegularElement, VoidElement)
+import std.test (Tests)
+
+fn pub tests(t: mut Tests) {
+  t.test('Html.new', fn (t) { t.equal(Html.new.to_string, '') })
+
+  t.test('Html.doctype', fn (t) {
+    let doc = Html.new
+
+    doc.doctype
+    t.equal(doc.to_string, '<!DOCTYPE html>')
+  })
+
+  t.test('Html.then', fn (t) {
+    let doc = Html.new.then(fn (doc) { doc.p.text('hello') })
+
+    t.equal(doc.to_string, '<p>hello</p>')
+  })
+
+  t.test('Html.reserve', fn (t) {
+    let doc = Html.new
+
+    doc.reserve(2048)
+    t.equal(doc.buffer.capacity, 3072)
+  })
+
+  t.test('Html.clear', fn (t) {
+    let doc = Html.new
+
+    doc.clear
+    t.equal(doc.to_string, '')
+  })
+
+  t.test('Html.element', fn (t) {
+    let doc = Html.new
+
+    doc.element('foo').close
+    t.equal(doc.to_string, '<foo></foo>')
+  })
+
+  t.test('Html.void_element', fn (t) {
+    let doc = Html.new
+
+    doc.void_element('foo').close
+    t.equal(doc.to_string, '<foo>')
+  })
+
+  t.test('Html.comment', fn (t) {
+    let doc = Html.new
+
+    doc.comment('hello & world')
+    t.equal(doc.to_string, '<!-- hello & world -->')
+  })
+
+  t.test('Html.comment', fn (t) {
+    let doc = Html.new
+
+    doc.cdata('hello & world')
+    t.equal(doc.to_string, '<![CDATA[hello & world]]>')
+  })
+
+  t.test('Html.append', fn (t) {
+    let a = Html.new
+    let b = Html.new
+
+    a.p.text('hello')
+    b.p.text('world')
+    a.append(b)
+    t.equal(a.to_string, '<p>hello</p><p>world</p>')
+  })
+
+  t.test('Html.add', fn (t) {
+    let doc = Html.new
+
+    doc.add('hello & world')
+    t.equal(doc.to_string, 'hello & world')
+  })
+
+  t.test('Html.text', fn (t) {
+    let doc = Html.new
+
+    doc.text('hello & < world')
+    doc.text(' foo')
+    t.equal(doc.to_string, 'hello &amp; &lt; world foo')
+  })
+
+  t.test('Html.inner_text', fn (t) {
+    let doc = Html.new
+
+    doc.inner_text('tag', 'value')
+    t.equal(doc.to_string, '>value</tag>')
+  })
+
+  t.test('Html.attr', fn (t) {
+    let doc = Html.new
+
+    doc.attr('key', 'val"ue')
+    doc.attr('foo', 'bar')
+    t.equal(doc.to_string, 'key="val&quot;ue"foo="bar"')
+  })
+
+  t.test('Html.enter', fn (t) {
+    let doc = Html.new
+
+    doc.enter('tag', fn (h) { h.text('value') })
+    t.equal(doc.to_string, '>value</tag>')
+  })
+
+  t.test('Html.closing_tag', fn (t) {
+    let doc = Html.new
+
+    doc.closing_tag('tag')
+    t.equal(doc.to_string, '</tag>')
+  })
+
+  t.test('Html.to_byte_array', fn (t) {
+    let doc = Html.new
+
+    doc.text('hello')
+    t.equal(doc.to_byte_array, 'hello'.to_byte_array)
+  })
+
+  t.test('Html.into_byte_array', fn (t) {
+    let doc = Html.new
+
+    doc.text('hello')
+    t.equal(doc.into_byte_array, 'hello'.to_byte_array)
+  })
+
+  t.test('Html.into_string', fn (t) {
+    let doc = Html.new
+
+    doc.text('hello')
+    t.equal(doc.into_string, 'hello')
+  })
+
+  t.test('RegularElement.new', fn (t) {
+    let doc = Html.new
+    let el = RegularElement.new(doc, 'tag')
+
+    t.equal(doc.to_string, '<tag')
+    t.equal(el.name, 'tag')
+    t.true(el.open)
+  })
+
+  t.test('RegularElement.value', fn (t) {
+    let doc = Html.new
+
+    doc.element('tag').value('hello & world')
+    t.equal(doc.to_string, '<tag>hello & world</tag>')
+  })
+
+  t.test('RegularElement.text', fn (t) {
+    let doc = Html.new
+
+    doc.element('tag').text('hello & world')
+    t.equal(doc.to_string, '<tag>hello &amp; world</tag>')
+  })
+
+  t.test('RegularElement.then', fn (t) {
+    let doc = Html.new
+
+    doc.element('tag').then(fn (t) { t.text('value') })
+    t.equal(doc.to_string, '<tag>value</tag>')
+  })
+
+  t.test('RegularElement.close', fn (t) {
+    let doc = Html.new
+
+    doc.element('tag').close
+    t.equal(doc.to_string, '<tag></tag>')
+  })
+
+  t.test('RegularElement.class', fn (t) {
+    let doc = Html.new
+
+    doc.element('tag').class('foo').close
+    t.equal(doc.to_string, '<tag class="foo"></tag>')
+  })
+
+  t.test('RegularElement.id', fn (t) {
+    let doc = Html.new
+
+    doc.element('tag').id('foo').close
+    t.equal(doc.to_string, '<tag id="foo"></tag>')
+  })
+
+  t.test('RegularElement.lang', fn (t) {
+    let doc = Html.new
+
+    doc.element('tag').lang('foo').close
+    t.equal(doc.to_string, '<tag lang="foo"></tag>')
+  })
+
+  t.test('RegularElement.title', fn (t) {
+    let doc = Html.new
+
+    doc.element('tag').title('foo').close
+    t.equal(doc.to_string, '<tag title="foo"></tag>')
+  })
+
+  t.test('RegularElement.data', fn (t) {
+    let doc = Html.new
+
+    doc.element('tag').data('a', 'b').data('c', 'd').close
+    t.equal(doc.to_string, '<tag data-a="b" data-c="d"></tag>')
+  })
+
+  t.test('RegularElement.attr', fn (t) {
+    let doc = Html.new
+
+    doc.element('tag').attr('a', 'b').attr('c', 'd').attr('empty', '').close
+    t.equal(doc.to_string, '<tag a="b" c="d" empty></tag>')
+  })
+
+  t.test('RegularElement.bool', fn (t) {
+    let doc = Html.new
+
+    doc.element('tag').bool('a', true).bool('b', false).close
+    t.equal(doc.to_string, '<tag a></tag>')
+  })
+
+  t.test('RegularElement.drop', fn (t) {
+    let doc = Html.new
+
+    drop(doc.element('tag'))
+    t.equal(doc.to_string, '<tag></tag>')
+  })
+
+  t.test('VoidElement.new', fn (t) {
+    let doc = Html.new
+    let el = VoidElement.new(doc, 'tag')
+
+    t.equal(doc.to_string, '<tag')
+    t.equal(el.name, 'tag')
+    t.true(el.open)
+  })
+
+  t.test('VoidElement.close', fn (t) {
+    let doc = Html.new
+
+    doc.void_element('tag').close
+    t.equal(doc.to_string, '<tag>')
+  })
+
+  t.test('VoidElement.class', fn (t) {
+    let doc = Html.new
+
+    doc.void_element('tag').class('foo').close
+    t.equal(doc.to_string, '<tag class="foo">')
+  })
+
+  t.test('VoidElement.id', fn (t) {
+    let doc = Html.new
+
+    doc.void_element('tag').id('foo').close
+    t.equal(doc.to_string, '<tag id="foo">')
+  })
+
+  t.test('VoidElement.lang', fn (t) {
+    let doc = Html.new
+
+    doc.void_element('tag').lang('foo').close
+    t.equal(doc.to_string, '<tag lang="foo">')
+  })
+
+  t.test('VoidElement.title', fn (t) {
+    let doc = Html.new
+
+    doc.void_element('tag').title('foo').close
+    t.equal(doc.to_string, '<tag title="foo">')
+  })
+
+  t.test('VoidElement.data', fn (t) {
+    let doc = Html.new
+
+    doc.void_element('tag').data('a', 'b').data('c', 'd').close
+    t.equal(doc.to_string, '<tag data-a="b" data-c="d">')
+  })
+
+  t.test('VoidElement.attr', fn (t) {
+    let doc = Html.new
+
+    doc
+      .void_element('tag')
+      .attr('a', 'b')
+      .attr('c', 'd')
+      .attr('empty', '')
+      .close
+    t.equal(doc.to_string, '<tag a="b" c="d" empty>')
+  })
+
+  t.test('VoidElement.bool', fn (t) {
+    let doc = Html.new
+
+    doc.void_element('tag').bool('a', true).bool('b', false).close
+    t.equal(doc.to_string, '<tag a>')
+  })
+
+  t.test('VoidElement.drop', fn (t) {
+    let doc = Html.new
+
+    drop(doc.void_element('tag'))
+    t.equal(doc.to_string, '<tag>')
+  })
+}
