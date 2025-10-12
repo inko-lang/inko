@@ -230,11 +230,11 @@ need the result.
 
 ## Channels
 
-Inko also provides a `Channel` type in the `std.sync` module, acting is an
+Inko also provides a `Channel` type in the [](std.sync) module, acting is an
 unbounded multiple publisher, multiple subscriber channel. This type is useful
 when M jobs need to be performed by N processes, where `M > N`. While sending
 messages is certainly possible, it may result in an uneven workload across the
-processes, but by using `std.sync.Channel` the workload is balanced
+processes, but by using [](std.sync.Channel) the workload is balanced
 automatically.
 
 We can rewrite the example from earlier using `Channel` as follows:

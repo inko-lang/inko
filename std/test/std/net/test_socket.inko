@@ -62,10 +62,24 @@ fn pub tests(t: mut Tests) {
     t.not_equal(addr1, addr2)
   })
 
+  t.test('SocketAddress.to_string', fn (t) {
+    t.equal(
+      SocketAddress(ip: IpAddress.v4(127, 0, 0, 1), port: 1234).to_string,
+      '127.0.0.1:1234',
+    )
+  })
+
   t.test('SocketAddress.fmt', fn (t) {
     t.equal(
       fmt(SocketAddress(ip: IpAddress.v4(127, 0, 0, 1), port: 1234)),
-      '127.0.0.1:1234',
+      'SocketAddress(ip: 127.0.0.1, port: 1234)',
+    )
+  })
+
+  t.test('SocketAddress.clone', fn (t) {
+    t.equal(
+      SocketAddress(ip: IpAddress.v4(127, 0, 0, 1), port: 1234).clone,
+      SocketAddress(ip: IpAddress.v4(127, 0, 0, 1), port: 1234),
     )
   })
 
@@ -809,6 +823,12 @@ fn pub tests(t: mut Tests) {
     t.true(UnixAddress('').to_path.none?)
   })
 
+  t.test('UnixAddress.to_readable_string', fn (t) {
+    t.equal(UnixAddress('foo.sock').to_readable_string, 'foo.sock')
+    t.equal(UnixAddress('\0foo').to_readable_string, '@foo')
+    t.equal(UnixAddress('').to_readable_string, 'unnamed')
+  })
+
   t.test('UnixAddress.to_string', fn (t) {
     t.equal(UnixAddress('foo.sock').to_string, 'foo.sock')
     t.equal(UnixAddress('\0foo').to_string, '\0foo')
@@ -833,15 +853,13 @@ fn pub tests(t: mut Tests) {
     t.equal(fmt(UnixAddress('')), 'unnamed')
   })
 
+  t.test('UnixAddress.clone', fn (t) {
+    t.equal(UnixAddress('foo.sock').clone, UnixAddress('foo.sock'))
+  })
+
   t.test('UnixAddress.==', fn (t) {
     t.equal(UnixAddress('a.sock'), UnixAddress('a.sock'))
     t.not_equal(UnixAddress('a.sock'), UnixAddress('b.sock'))
-  })
-
-  t.test('UnixAddress.to_string', fn (t) {
-    t.equal(UnixAddress('foo.sock').to_string, 'foo.sock')
-    t.equal(UnixAddress('\0foo').to_string, '\0foo')
-    t.equal(UnixAddress('').to_string, '')
   })
 
   t.test('UnixSocket.new', fn (t) {

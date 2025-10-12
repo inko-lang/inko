@@ -33,6 +33,26 @@ fn pub tests(t: mut Tests) {
     )
   })
 
+  t.test('ParseError.to_string', fn (t) {
+    t.equal(ParseError.Read(Error.NotFound).to_string, Error.NotFound.to_string)
+    t.equal(
+      (ParseError.EndOfInput as ParseError[Error]).to_string,
+      'the end of the input stream is reached, but more input is required',
+    )
+    t.equal(
+      (ParseError.InvalidSectionStart(2) as ParseError[Error]).to_string,
+      'the section start on line 2 is invalid',
+    )
+    t.equal(
+      (ParseError.InvalidSectionEnd(2) as ParseError[Error]).to_string,
+      'the section end on line 2 is invalid',
+    )
+    t.equal(
+      (ParseError.InvalidBase64(2) as ParseError[Error]).to_string,
+      'the base64 encoded data on line 2 is invalid',
+    )
+  })
+
   t.test('PemFile.next_certificate with valid input', fn (t) {
     let input = Buffer.new(
       '

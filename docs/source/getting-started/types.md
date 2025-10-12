@@ -367,7 +367,7 @@ type copy Box[T] {
 Box([10]) # T requires a `copy` type, but `Array[Int]` isn't such a type
 ```
 
-Types defined using the `copy` keyword can't implement the `std.drop.Drop`
+Types defined using the `copy` keyword can't implement the [](std.drop.Drop)
 trait and thus can't define custom destructors. If you need to implement this
 trait, you'll have to use the `inline` keyword instead.
 

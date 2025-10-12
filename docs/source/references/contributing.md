@@ -108,8 +108,8 @@ guide, so this is done manually during code review.
 
 #### Standard library tests
 
-Unit tests for Inko are located in `std/test` and are named `test_X.inko`,
-where `X` is the module to test. For example, the tests for `std.string` are
+Unit tests for Inko are located in `std/test` and are named `test_X.inko`, where
+`X` is the module to test. For example, the tests for [](std.string) are
 located in `std/test/std/test_string.inko`. Test modules are structured as
 follows:
 

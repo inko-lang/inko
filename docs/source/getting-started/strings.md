@@ -41,7 +41,7 @@ Here we can use both `a` and `b` after `b` is defined, because `b` is given a
 Because `String` is immutable, operations such as concatenations create new
 `String` instances. This can be inefficient when performing operations that
 produce many intermediate `String` instances. To work around this, the type
-`std.string.StringBuffer` is used:
+[](std.string.StringBuffer) is used:
 
 ```inko
 import std.string (StringBuffer)

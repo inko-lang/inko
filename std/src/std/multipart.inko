@@ -1,0 +1,817 @@
+# Parsing and generating of multipart/form-data streams, based on RFC
+# [7578](https://www.rfc-editor.org/rfc/rfc7578.html).
+#
+# multipart/form-data streams are typically used for HTTP forms that contain
+# file fields, as application/x-www-form-urlencoded forms don't allow for
+# efficient streaming of data to a server.
+#
+# # Examples
+#
+# Parsing streams is done using the `Multipart` type, capable of parsing any
+# stream that implements `std.io.Read`:
+#
+# ```inko
+# import std.io (Buffer)
+# import std.multipart (Multipart)
+#
+# let input = '--BOUNDARY\r
+# Content-Disposition: form-data; name="name"\r
+# content-type: text/plain\r
+# \r
+# This is the value.\r
+# --BOUNDARY--'
+#
+# let parser = Multipart.new(Buffer.new(input), boundary: 'BOUNDARY')
+# let field = parser.next.get.get
+# let buf = ByteArray.new
+#
+# field.name                   # => 'name'
+# field.content_type           # => 'text/plain'
+# field.read_all(buf).or_panic # => 18
+# buf.to_string                # => 'This is the value.'
+# ```
+#
+# Generating a multipart stream is done using `Form` and `FormField`:
+#
+# ```inko
+# import std.io (Buffer)
+# import std.multipart (Form)
+# import std.stdio (Stdout)
+#
+# let form = Form.new(Stdout.new, boundary: 'TEST')
+#
+# form.field('name').text('Alice') # => Result.Ok(nil)
+# form.field('message').read(Buffer.new('hello')) # => Result.Ok(nil)
+# form.close.or_panic # => Result.Ok(nil)
+# ```
+import std.base64 (Encoder)
+import std.bytes (Bytes, Slice)
+import std.cmp (Equal, max)
+import std.drop (Drop)
+import std.fmt (Format, Formatter)
+import std.fs.path (Path)
+import std.io (
+  BufferedReader, CopyError, READ_BUFFER_SIZE, Read, Write, copy_using,
+)
+import std.iter (Iter)
+import std.mime (Mime, parameters, split_item)
+import std.net.http (Header, HeaderMap)
+import std.net.http.header (CONTENT_DISPOSITION, CONTENT_TYPE)
+import std.rand (Random)
+import std.string (ToString)
+import std.uri
+
+let CR = 13
+
+# The amount of bytes to copy in a single read when using `FormField.read`.
+let FIELD_COPY_SIZE = 32 * 1024
+
+fn decode[B: Bytes, E](
+  value: ref B,
+  buffer: mut ByteArray,
+) -> Result[String, Error[E]] {
+  if uri.decode(value, buffer) {
+    Result.Ok(buffer.drain_to_string)
+  } else {
+    throw Error.InvalidHeader
+  }
+}
+
+# Returns a randomly generated boundary separator.
+fn pub boundary_separator(rng: mut Random) -> String {
+  let plain = ByteArray.new
+  let base64 = ByteArray.new
+  let enc = Encoder.url_safe
+
+  enc.padding = false
+  rng.bytes(into: plain, size: 32)
+  enc.encode(plain, into: base64)
+  'InkoFormBoundary${base64.into_string}'
+}
+
+# An error produced when parsing a multipart stream.
+type pub inline enum Error[E] {
+  # A header line is invalid (e.g. it contains invalid characters).
+  case InvalidHeader
+
+  # The `Content-Type` header contains an invalid value.
+  case InvalidContentType
+
+  # The `Content-Disposition` header is missing the `name` parameter.
+  case MissingName
+
+  # A header line is too large.
+  case HeaderTooLarge
+
+  # The input stream reached its end while more input is expected.
+  #
+  # This error is used when the final boundary delimiter is missing.
+  case EndOfInput
+
+  # An error produced by the underlying stream.
+  case Read(E)
+}
+
+impl Equal for Error if E: Equal {
+  fn pub ==(other: ref Self) -> Bool {
+    match (self, other) {
+      case (InvalidHeader, InvalidHeader) -> true
+      case (InvalidContentType, InvalidContentType) -> true
+      case (MissingName, MissingName) -> true
+      case (HeaderTooLarge, HeaderTooLarge) -> true
+      case (EndOfInput, EndOfInput) -> true
+      case (Read(a), Read(b)) -> a == b
+      case _ -> false
+    }
+  }
+}
+
+impl Format for Error if E: Format {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case InvalidHeader -> formatter.tuple('InvalidHeader').finish
+      case InvalidContentType -> formatter.tuple('InvalidContentType').finish
+      case MissingName -> formatter.tuple('MissingName').finish
+      case HeaderTooLarge -> formatter.tuple('HeaderTooLarge').finish
+      case EndOfInput -> formatter.tuple('EndOfInput').finish
+      case Read(v) -> formatter.tuple('Read').field(v).finish
+    }
+  }
+}
+
+impl ToString for Error if E: ToString {
+  fn pub to_string -> String {
+    match self {
+      case InvalidHeader -> 'a header name or value contains invalid bytes'
+      case InvalidContentType -> 'the Content-Type header is invalid'
+      case MissingName -> {
+        'the Content-Disposition header must include the "name" parameter'
+      }
+      case HeaderTooLarge -> 'a header line is too large'
+      case EndOfInput -> {
+        'the end of the input stream is reached, but more input is required'
+      }
+      case Read(e) -> e.to_string
+    }
+  }
+}
+
+# A field in a multipart/form-data stream.
+#
+# A `Field` contains the name, (optional) file name, and content type of a form
+# field. In addition, it implements `Read` to allow reading of the value as a
+# stream.
+#
+# # Reading values
+#
+# Reading form field values is done using `Field.read`, provided by the
+# implementation of `std.io.Read`. This method takes care to not read beyond the
+# end of a value. This comes at a cost: for reads larger than the internal
+# buffer size (8 KiB) this method falls back to reading one byte at a time from
+# the buffer, otherwise it may read past the field boundary.
+#
+# Once all data from a value is read, `Field.read` always returns
+# `Result.Ok(0)`.
+type pub Field[T: mut + Read[E], E] {
+  # The name of the field.
+  #
+  # An empty value means a name isn't provided.
+  let pub mut @name: String
+
+  # The optional file name.
+  #
+  # An empty value means a file name isn't provided, such as when the value
+  # isn't a file.
+  #
+  # This value only contains the _name_ of the file. If the user originally
+  # supplied a name including path components (e.g. `foo/bar/baz.txt`),
+  # only the last component (`baz.txt`) is used.
+  let pub mut @file_name: String
+
+  # The content type of the content.
+  let pub mut @content_type: Option[Mime]
+
+  # Additional headers included in the field entry.
+  let pub @headers: HeaderMap
+
+  # If there are remaining bytes to read for the field value.
+  let mut @remaining: Bool
+
+  # The parser this field belongs to, used for reading the value.
+  let @parser: mut Multipart[T, E]
+}
+
+impl Read[Error[E]] for Field {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error[E]] {
+    if !@remaining or size == 0 { return Result.Ok(0) }
+
+    # If the requested read size is less than what we can fit in the buffer, we
+    # can avoid reading data one byte at a time and greatly improve performance.
+    match @parser.reader.peek_first(size) {
+      case Ok(v) if !v.contains?(CR) -> {
+        # The slice might be shorter than the requested size, so we have to use
+        # the _slice_ size as the read size, not the requested size.
+        match @parser.reader.read(into: into, size: v.size) {
+          case Ok(n) -> return Result.Ok(n)
+          case Error(e) -> throw Error.Read(e)
+        }
+      }
+      case Ok(_) -> {}
+      case Error(e) -> throw Error.Read(e)
+    }
+
+    into.reserve(size)
+
+    let mut rem = size
+    let old_len = into.size
+
+    # We reach this point if there _might_ be a boundary marker or if the read
+    # size is larger than the buffer size.
+    while rem > 0 {
+      match try @parser.peek {
+        # Checking for the boundary on every byte can be expensive, so we avoid
+        # this if we know for a fact we won't find a boundary.
+        case Some(CR) -> {
+          match try @parser.check_boundary {
+            case NotFound -> {}
+            case Found -> {
+              @remaining = false
+              @parser.state = State.Headers
+              break
+            }
+            case Final -> {
+              @remaining = false
+              @parser.state = State.Done
+              break
+            }
+          }
+        }
+        case _ -> {}
+      }
+
+      match try @parser.read_byte {
+        case Some(v) -> {
+          into.push(v)
+          rem -= 1
+        }
+        case _ -> {
+          @remaining = false
+          break
+        }
+      }
+    }
+
+    Result.Ok(into.size - old_len)
+  }
+}
+
+type copy enum State {
+  case Start
+  case Headers
+  case Value
+  case Done
+}
+
+type copy enum Boundary {
+  case Found
+  case NotFound
+  case Final
+
+  fn static find[B: Bytes](slice: ref Slice[B], boundary: String) -> Boundary {
+    if slice.starts_with?(boundary) {
+      if slice.ends_with?('\r\n') {
+        return Boundary.Found
+      } else if slice.ends_with?('--') {
+        return Boundary.Final
+      }
+    }
+
+    Boundary.NotFound
+  }
+}
+
+# A type for iterating over `multipart/form-data` fields and their values.
+#
+# A `Multipart` is a streaming and buffered parser/iterator, capable of parsing
+# multipart data from any `Read` type. Fields are retrieved using
+# `Multipart.next` and their values are read using `Field.read`.
+#
+# # Reading values
+#
+# While it's fine to only partially (or not at all) read the value of a field
+# using `Field.read`, reading the value from multiple fields concurrently (e.g.
+# by collecting two fields and then reading their values) won't work as
+# expected. This is because fields all use the same underlying stream and
+# advancing to the next field also advances the "cursor" used for reading
+# values. In other words, only read values from the current field and not past
+# fields stored somewhere.
+#
+# # Additional field headers
+#
+# By default non-standard headers (e.g. `Content-Range`) are ignored. To allow
+# up to a fixed number of non-standard headers, set `Multipart.headers` to a
+# non-zero value before parsing a multipart stream.
+type pub Multipart[T: mut + Read[E], E] {
+  let @reader: BufferedReader[T, E]
+  let @boundary: String
+  let @buffer: ByteArray
+  let mut @state: State
+
+  # The maximum size (in bytes) of header lines.
+  #
+  # This defaults to 8 KiB.
+  let pub mut @header_size: Int
+
+  # The number of additional non-standard headers to allow.
+  #
+  # Any non-standard headers beyond this limit are ignored.
+  #
+  # This defaults to zero.
+  let pub mut @headers: Int
+
+  # Returns a new `Multipart` that parses the `reader` stream, using `boundary`
+  # as the boundary delimiter.
+  #
+  # The `limits` argument is used to enforce limits on the size of parsed data
+  # such as header lines.
+  fn pub static new(reader: T, boundary: String) -> Self {
+    # The capacity must be at minimum `boundary.size + 6` so we can correctly
+    # peek ahead for boundary markers.
+    let cap = max(boundary.size + 6, READ_BUFFER_SIZE)
+
+    Self(
+      reader: BufferedReader.with_capacity(reader, size: cap),
+      boundary: boundary,
+      buffer: ByteArray.new,
+      state: State.Start,
+      header_size: 8 * 1024,
+      headers: 0,
+    )
+  }
+
+  fn mut next_field -> Result[Option[Field[T, E]], Error[E]] {
+    let remaining = match @state {
+      case Start -> try move_to_first_boundary
+      case Headers -> true
+      case Value -> try move_to_boundary
+      case Done -> return Result.Ok(Option.None)
+    }
+
+    if remaining {
+      @state = State.Headers
+    } else {
+      @state = State.Done
+      return Result.Ok(Option.None)
+    }
+
+    Result.Ok(Option.Some(try parse_field))
+  }
+
+  fn mut move_to_first_boundary -> Result[Bool, Error[E]] {
+    match try check_first_boundary {
+      case Found -> Result.Ok(true)
+      # While the RFC allows for text in the preamble, this hasn't seen (any?)
+      # use for at least two decades if not longer. As such, we _require_ that
+      # the input starts with a boundary line.
+      case _ -> Result.Ok(false)
+    }
+  }
+
+  fn mut move_to_boundary -> Result[Bool, Error[E]] {
+    loop {
+      match try check_boundary {
+        case NotFound -> if (try read_byte).none? { return Result.Ok(false) }
+        case Found -> return Result.Ok(true)
+        case Final -> return Result.Ok(false)
+      }
+    }
+  }
+
+  fn mut check_first_boundary -> Result[Boundary, Error[E]] {
+    match @reader.peek_first(@boundary.size + 4) {
+      case Ok(slice) if slice.starts_with?('--') -> {
+        match Boundary.find(slice.slice(2, slice.size), @boundary) {
+          case NotFound -> Result.Ok(Boundary.NotFound)
+          case res -> {
+            try skip_exactly(slice.size)
+            @buffer.clear
+            Result.Ok(res)
+          }
+        }
+      }
+      case Ok(_) -> Result.Ok(Boundary.NotFound)
+      case Error(e) -> throw Error.Read(e)
+    }
+  }
+
+  fn mut check_boundary -> Result[Boundary, Error[E]] {
+    match @reader.peek_first(@boundary.size + 6) {
+      case Ok(slice) if slice.starts_with?('\r\n--') -> {
+        match Boundary.find(slice.slice(4, slice.size), @boundary) {
+          case NotFound -> Result.Ok(Boundary.NotFound)
+          case res -> {
+            try skip_exactly(slice.size)
+            @buffer.clear
+            Result.Ok(res)
+          }
+        }
+      }
+      case Ok(slice) if slice.empty? -> throw Error.EndOfInput
+      case Ok(_) -> Result.Ok(Boundary.NotFound)
+      case Error(e) -> throw Error.Read(e)
+    }
+  }
+
+  fn mut parse_field -> Result[Field[T, E], Error[E]] {
+    let buf = ByteArray.new
+    let field = Field(
+      name: '',
+      file_name: '',
+      content_type: Option.None,
+      remaining: true,
+      headers: HeaderMap.new,
+      parser: self,
+    )
+
+    loop {
+      match try header {
+        case Some((Standard(CONTENT_DISPOSITION), val)) if field.name.empty?
+        -> {
+          let pars = match split_item(val) {
+            case (name, Some(attrs)) if name.equals?('form-data') -> attrs
+            case _ -> throw Error.InvalidHeader
+          }
+
+          for par in parameters(pars) {
+            match par {
+              case Ok((k, v)) if k.equals?('name') -> {
+                field.name = try decode(v, buf)
+              }
+              case Ok((k, v)) if k.equals?('filename') -> {
+                let v = try decode(v, buf)
+
+                # If the name contains any directory separators we need to
+                # remove them (RFC 7578, section 4.2). We route this through
+                # `Path.tail` so we also take care of path normalization.
+                field.file_name = if v.contains?('/') {
+                  Path.new(v.to_string).tail.to_string
+                } else {
+                  v.to_string
+                }
+              }
+              case Ok(_) -> {}
+              case Error(_) -> throw Error.InvalidHeader
+            }
+          }
+
+          if field.name.empty? { throw Error.MissingName }
+        }
+        case Some((Standard(CONTENT_TYPE), v)) -> {
+          field.content_type = match Mime.parse(try decode(v, buf)) {
+            case Some(v) -> Option.Some(v)
+            case _ -> throw Error.InvalidContentType
+          }
+        }
+        case Some((header, val)) if field.headers.size < @headers -> {
+          field.headers.set(header, val.to_string)
+        }
+        case Some(_) -> {}
+        case _ -> break
+      }
+
+      @buffer.clear
+    }
+
+    @state = State.Value
+    Result.Ok(field)
+  }
+
+  fn mut header -> Result[Option[(Header, Slice[ByteArray])], Error[E]] {
+    match Header.parse_line(@reader, @buffer, @header_size) {
+      case Ok(v) -> Result.Ok(v)
+      case Error(Invalid) -> throw Error.InvalidHeader
+      case Error(TooLarge) -> throw Error.HeaderTooLarge
+      case Error(Read(e)) -> throw Error.Read(e)
+    }
+  }
+
+  fn mut read_byte -> Result[Option[Int], Error[E]] {
+    match @reader.read_byte {
+      case Ok(v) -> Result.Ok(v)
+      case Error(e) -> Result.Error(Error.Read(e))
+    }
+  }
+
+  fn mut peek -> Result[Option[Int], Error[E]] {
+    match @reader.peek {
+      case Ok(v) -> Result.Ok(v)
+      case Error(e) -> Result.Error(Error.Read(e))
+    }
+  }
+
+  fn mut skip_exactly(amount: Int) -> Result[Nil, Error[E]] {
+    match @reader.read_exact(@buffer, amount) {
+      case Ok(_) -> {}
+      case Error(EndOfInput) -> throw Error.EndOfInput
+      case Error(Read(e)) -> throw Error.Read(e)
+    }
+
+    @buffer.clear
+    Result.Ok(nil)
+  }
+}
+
+impl Iter[Result[Field[T, E], Error[E]]] for Multipart {
+  # Returns the next field in the stream.
+  #
+  # If this method is called before all data of a previous field is consumed, it
+  # moves the cursor to the start of the next field first. This means it's not
+  # required to fully consume the value of each field before calling this method
+  # again.
+  #
+  # If parsing a field produces an error, the error is returned as an
+  # `Option.Some(Result.Error(...))` and the internal state is updated such that
+  # future calls to this method return an `Option.None`.
+  fn pub mut next -> Option[Result[Field[T, E], Error[E]]] {
+    match next_field {
+      case Ok(Some(v)) -> Option.Some(Result.Ok(v))
+      case Ok(_) -> Option.None
+      case Error(e) -> {
+        @state = State.Done
+        Option.Some(Result.Error(e))
+      }
+    }
+  }
+}
+
+# A type for constructing a field in a multipart stream.
+#
+# Instances of this type are created using the `Form.field` method. Refer to its
+# documentation for more information.
+type pub FormField[T: mut + Write[E], E] {
+  # The form we belong to.
+  let @form: mut Form[T, E]
+
+  # The name of the field.
+  let @name: String
+
+  # The optional filename, if the field is used for uploading a file.
+  let mut @file_name: String
+
+  # The optional content/mime type of the data (e.g. `text/plain`), if it's a
+  # file.
+  let mut @content_type: String
+
+  # The `Content-Range` header.
+  let mut @content_range: String
+
+  # Sets the file name to `name`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.multipart (Form, FormField)
+  # import std.stdio (Stdout)
+  #
+  # let form = Form.new(Stdout.new, 'BOUNDARY')
+  #
+  # form.field('resume').file_name('My resume.pdf')
+  # ```
+  fn pub move file_name(name: String) -> Self {
+    @file_name = name
+    self
+  }
+
+  # Sets the content type to `name`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.multipart (Form, FormField)
+  # import std.stdio (Stdout)
+  #
+  # let form = Form.new(Stdout.new, 'BOUNDARY')
+  #
+  # form.field('resume').content_type('application/pdf')
+  # ```
+  fn pub move content_type(value: String) -> Self {
+    @content_type = value
+    self
+  }
+
+  # Sets the `Content-Range` header value to `value`.
+  #
+  # While RFC 7578 doesn't specify this header, it's used as part of RFC 9110 to
+  # allow for multipart range HTTP responses.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.multipart (Form, FormField)
+  # import std.stdio (Stdout)
+  #
+  # let form = Form.new(Stdout.new, 'BOUNDARY')
+  #
+  # form.field('resume').content_range('bytes 0-50/100')
+  # ```
+  fn pub move content_range(value: String) -> Self {
+    @content_range = value
+    self
+  }
+
+  # Generates the multipart data for this field and uses the `Bytes` sequence
+  # as its value, consuming `self` in the process.
+  #
+  # Upon successfully writing the data to the stream, `nil` is returned.
+  #
+  # # Errors
+  #
+  # This method returns an error if the multipart data can't be written to the
+  # underlying stream.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.multipart (Form, FormField)
+  # import std.stdio (Stdout)
+  #
+  # let form = Form.new(Stdout.new, 'BOUNDARY')
+  #
+  # form.field('name').text('Alice') # => Result.Ok(nil)
+  # ```
+  fn pub move text[B: Bytes](value: ref B) -> Result[Nil, E] {
+    add_headers
+    @form.buffer.append(value)
+    @form.buffer.append('\r\n')
+    @form.flush
+  }
+
+  # Generates the multipart data for this field and uses a `Read` value
+  # as its value, consuming `self` in the process.
+  #
+  # This method copies data from `reader` to the underlying steam in chunks of
+  # 32 KiB.
+  #
+  # Upon successfully writing the data to the stream, `nil` is returned.
+  #
+  # # Errors
+  #
+  # This method returns an error if the multipart data can't be written to the
+  # underlying stream.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.io (Buffer)
+  # import std.multipart (Form, FormField)
+  # import std.stdio (Stdout)
+  #
+  # let form = Form.new(Stdout.new, 'BOUNDARY')
+  #
+  # form.field('name').read(Buffer.new('Alice')) # => Result.Ok(nil)
+  # ```
+  fn pub move read[R: mut + Read[RE], RE](
+    reader: mut R,
+  ) -> Result[Nil, CopyError[RE, E]] {
+    add_headers
+    try @form.flush.map_error(fn (e) { CopyError.Write(e) })
+    try copy_using(@form.buffer, reader, @form.writer, FIELD_COPY_SIZE)
+    @form.writer.write('\r\n').map_error(fn (e) { CopyError.Write(e) })
+  }
+
+  fn mut add_headers {
+    @form.buffer.append('--')
+    @form.buffer.append(@form.boundary)
+    @form.buffer.append('\r\nContent-Disposition: form-data; name="')
+    uri.encode(@name, @form.buffer)
+    @form.buffer.append('"')
+
+    if @file_name.size > 0 {
+      @form.buffer.append('; filename="')
+      uri.encode(@file_name, @form.buffer)
+      @form.buffer.append('"')
+    }
+
+    if @content_type.size > 0 {
+      @form.buffer.append('\r\nContent-Type: ')
+      @form.buffer.append(@content_type)
+    }
+
+    if @content_range.size > 0 {
+      @form.buffer.append('\r\nContent-Range: ')
+      @form.buffer.append(@content_range)
+    }
+
+    @form.buffer.append('\r\n\r\n')
+  }
+}
+
+# A type for constructing a multipart/form-data stream of fields and their
+# values.
+#
+# A `Form` wraps a `Write` type and writes its fields directly to the underlying
+# stream.
+#
+# # Closing a Form
+#
+# A multipart form/stream is closed using a dedicated boundary delimiter. This
+# delimiter is produced using `Form.close`. While this method is called when a
+# `Form` is dropped, it's recommended to call this method explicitly as this
+# allows for handling of any errors that may be produced when writing the
+# closing boundary delimiter.
+type pub Form[T: mut + Write[E], E] {
+  # The stream to write the form data to.
+  let @writer: T
+
+  # A buffer to use for building the field data, reducing the amount of writes
+  # to the underlying stream.
+  let @buffer: ByteArray
+
+  # The boundary delimiter to use.
+  let @boundary: String
+
+  # A flag indicating if the stream is open (`true`) or closed (`false`).
+  #
+  # This flag is used to ensure the closing delimiter is only written once, even
+  # if both `Form.close` and `Form.drop` are called on the same `Form` value.
+  let mut @open: Bool
+
+  # Returns a new `Form` that writes to `writer` using the boundary string
+  # `boundary` (minus the leading `--`).
+  fn pub static new(writer: T, boundary: String) -> Self {
+    Self(
+      writer: writer,
+      boundary: boundary,
+      buffer: ByteArray.with_capacity(FIELD_COPY_SIZE),
+      open: true,
+    )
+  }
+
+  # Returns a new `FormField` that will write its data to `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.multipart (Form, FormField)
+  # import std.stdio (Stdout)
+  #
+  # let form = Form.new(Stdout.new, 'BOUNDARY')
+  #
+  # form.field('name')
+  # ```
+  fn pub mut field(name: String) -> FormField[T, E] {
+    FormField(
+      form: self,
+      name: name,
+      file_name: '',
+      content_type: '',
+      content_range: '',
+    )
+  }
+
+  # Writes the final boundary terminator, consuming `self` in the process.
+  #
+  # If this method is called explicitly, dropping a `Form` won't write the
+  # closing delimiter a second time.
+  #
+  # # Errors
+  #
+  # This method returns an error if the closing delimiter can't be written to
+  # the underlying stream (e.g. it's a socket and the connection is closed).
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.multipart (Form, FormField)
+  # import std.stdio (Stdout)
+  #
+  # let form = Form.new(Stdout.new, 'BOUNDARY')
+  #
+  # form.field('name').text('Alice') # => Result.Ok(nil)
+  # form.close # => Result.Ok(nil)
+  # ```
+  fn pub move close -> Result[Nil, E] {
+    try write_close
+    @open = false
+    Result.Ok(nil)
+  }
+
+  fn mut flush -> Result[Nil, E] {
+    try @writer.write(@buffer)
+    @buffer.clear
+    Result.Ok(nil)
+  }
+
+  fn mut write_close -> Result[Nil, E] {
+    @buffer.append('--')
+    @buffer.append(@boundary)
+    @buffer.append('--')
+    flush
+  }
+}
+
+impl Drop for Form {
+  fn mut drop {
+    if @open { write_close }
+  }
+}

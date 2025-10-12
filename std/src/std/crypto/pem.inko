@@ -42,6 +42,7 @@ import std.crypto.x509 (Certificate, PrivateKey)
 import std.fmt (Format, Formatter)
 import std.io (BufferedReader, Read)
 import std.iter (Iter)
+import std.string (ToString)
 
 let LF = 0xA
 let DASH = 0x2D
@@ -148,6 +149,26 @@ impl Equal for ParseError if E: Equal {
       case (InvalidSectionEnd(a), InvalidSectionEnd(b)) -> a == b
       case (InvalidBase64(a), InvalidBase64(b)) -> a == b
       case _ -> false
+    }
+  }
+}
+
+impl ToString for ParseError if E: ToString {
+  fn pub to_string -> String {
+    match self {
+      case Read(e) -> e.to_string
+      case EndOfInput -> {
+        'the end of the input stream is reached, but more input is required'
+      }
+      case InvalidSectionStart(line) -> {
+        'the section start on line ${line} is invalid'
+      }
+      case InvalidSectionEnd(line) -> {
+        'the section end on line ${line} is invalid'
+      }
+      case InvalidBase64(line) -> {
+        'the base64 encoded data on line ${line} is invalid'
+      }
     }
   }
 }

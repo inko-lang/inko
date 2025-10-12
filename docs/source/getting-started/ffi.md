@@ -562,7 +562,7 @@ invalid memory. You'll want to avoid this whenever possible.
 
 Many C functions return some sort of flag upon encountering an error, and set
 `errno` to an error code. Inko supports reading these values using
-`std.io.Error.last_os_error`:
+[](method://std.io.Error.last_os_error):
 
 ```inko
 import std.stdio (Stdout)

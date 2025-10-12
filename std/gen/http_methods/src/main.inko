@@ -1,0 +1,162 @@
+import std.bytes (Slice)
+import std.fs.file (ReadOnlyFile, WriteOnlyFile)
+import std.string (StringBuffer)
+
+let DATA_PATH = 'data/http_methods.txt'
+let SRC_PATH = '../src/std/net/http/method.inko'
+let TEST_PATH = '../test/std/net/http/test_method.inko'
+
+let SRC_TEMPLATE = '
+import std.bytes (Bytes)
+import std.fmt (Formatter)
+import std.hash (Hasher)
+import std.net.http (Method)
+import std.net.http.method.phf
+import std.string (ToString)
+
+# The code in this module is generated and _must not_ be edited by hand. For
+# more information, refer to ./std/gen/README.md.
+
+let MAX = $MAX
+
+fn parse[B: Bytes + ToString](input: ref B) -> Option[Method] {
+  match phf.index_of(input) {
+    $PARSE
+    case _ -> Option.None
+  }
+}
+
+fn hash[H: mut + Hasher](hasher: mut H, method: Method) {
+  match method {
+    $HASH
+  }
+}
+
+fn eq(left: Method, right: Method) -> Bool {
+  match (left, right) {
+    $EQUAL
+    case _ -> false
+  }
+}
+
+fn to_string(method: Method) -> String {
+  match method {
+    $TO_STRING
+  }
+}
+
+fn format(formatter: mut Formatter, method: Method) {
+  match method {
+    $FORMAT
+  }
+}
+'
+
+let TEST_TEMPLATE = "
+import helpers (hash)
+import std.fmt (fmt)
+import std.net.http (Method)
+import std.net.http.method
+import std.test (Tests)
+
+fn pub tests(t: mut Tests) {
+  t.test('parse', fn (t) {
+    $PARSE
+  })
+
+  t.test('hash', fn (t) {
+    $HASH
+  })
+
+  t.test('clone', fn (t) {
+    $CLONE
+  })
+
+  t.test('eq', fn (t) {
+    $EQUAL
+  })
+
+  t.test('to_string', fn (t) {
+    $TO_STRING
+  })
+
+  t.test('format', fn (t) {
+    $FORMAT
+  })
+}
+"
+
+fn to_upper(byte: Int) -> Int {
+  if byte >= 97 and byte <= 122 { byte - 32 } else { byte }
+}
+
+fn to_pascal_case(value: ref Slice[String]) -> String {
+  let name = value.to_string.to_lower.to_byte_array
+
+  name.set(0, to_upper(name.get(0).or_panic))
+  name.into_string
+}
+
+type async Main {
+  fn async main {
+    let data = ByteArray.new
+    let _ = ReadOnlyFile
+      .new(DATA_PATH.to_path)
+      .then(fn (f) { f.read_all(data) })
+      .or_panic
+
+    let src_parse = StringBuffer.new
+    let src_hash = StringBuffer.new
+    let src_eq = StringBuffer.new
+    let src_to_string = StringBuffer.new
+    let src_format = StringBuffer.new
+
+    let test_parse = StringBuffer.new
+    let test_hash = StringBuffer.new
+    let test_clone = StringBuffer.new
+    let test_eq = StringBuffer.new
+    let test_to_string = StringBuffer.new
+    let test_format = StringBuffer.new
+    let mut max = 0
+
+    for (idx, method) in data.into_string.split('\n').with_index {
+      let cons = to_pascal_case(ref method)
+
+      if method.size > max { max = method.size }
+
+      src_parse.push('case ${idx} -> Option.Some(Method.${cons})\n')
+      src_hash.push('case ${cons} -> ${idx}.hash(hasher)\n')
+      src_eq.push('case (${cons}, ${cons}) -> true\n')
+      src_to_string.push("case ${cons} -> '${method}'\n")
+      src_format.push("case ${cons} -> formatter.tuple('${cons}').finish\n")
+
+      test_parse.push(
+        't.equal(method.parse("${method}"), Option.Some(Method.${cons}))\n',
+      )
+      test_hash.push('t.equal(hash(Method.${cons}), hash(Method.${cons}))\n')
+      test_clone.push('t.equal(Method.${cons}.clone, Method.${cons})\n')
+      test_eq.push('t.equal(Method.${cons}, Method.${cons})\n')
+      test_to_string.push('t.equal(Method.${cons}.to_string, "${method}")\n')
+      test_format.push('t.equal(fmt(Method.${cons}), "${cons}")\n')
+    }
+
+    let src = SRC_TEMPLATE
+      .replace('$MAX', max.to_string)
+      .replace('$PARSE', src_parse.into_string)
+      .replace('$HASH', src_hash.into_string)
+      .replace('$EQUAL', src_eq.into_string)
+      .replace('$TO_STRING', src_to_string.into_string)
+      .replace('$FORMAT', src_format.into_string)
+
+    let test = TEST_TEMPLATE
+      .replace('$PARSE', test_parse.into_string)
+      .replace('$HASH', test_hash.into_string)
+      .replace('$CLONE', test_clone.into_string)
+      .replace('$EQUAL', test_eq.into_string)
+      .replace('$TO_STRING', test_to_string.into_string)
+      .replace('$FORMAT', test_format.into_string)
+
+    WriteOnlyFile.new(SRC_PATH.to_path).then(fn (f) { f.write(src) }).or_panic
+    WriteOnlyFile.new(TEST_PATH.to_path).then(fn (f) { f.write(test) }).or_panic
+  }
+}

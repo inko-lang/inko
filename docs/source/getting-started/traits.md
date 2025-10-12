@@ -149,8 +149,8 @@ you'll need to find a way to resolve such conflicts yourself.
 ## Conditional trait implementations
 
 Sometimes we want to implement a trait, but only if additional requirements are
-met. For example, we want to implement `std.cmp.Equal` for `Array` but only if
-its sub values also implement `std.cmp.Equal`. This is done as follows:
+met. For example, we want to implement [](std.cmp.Equal) for `Array` but only
+if its sub values also implement [](std.cmp.Equal). This is done as follows:
 
 ```inko
 import std.cmp (Equal)
@@ -183,7 +183,7 @@ limitations:
 
 `Self` can also be used in the signature of trait methods, in which case it acts
 as a placeholder for the type that implements the trait. For example,
-`std.clone.Clone` uses it as follows:
+[](std.clone.Clone) uses it as follows:
 
 ```inko
 trait pub Clone {
