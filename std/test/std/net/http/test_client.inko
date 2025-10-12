@@ -1,0 +1,1712 @@
+import helpers (certificate, hash, private_key, with_directory)
+import std.bytes (Bytes)
+import std.drop (drop)
+import std.env (VERSION)
+import std.fmt (fmt)
+import std.io (Buffer, BufferedReader, CopyError, Error as IoError, Read, Write)
+import std.net.dns (Error as DnsError)
+import std.net.http (
+  Body, Header, HeaderMap, Limits, Method, ParseError, Parser, Reader, Response,
+  Status, Stream, Version,
+)
+import std.net.http.client (
+  Client, Connection, Error, Pool, Request, RequestWriter, Scope, Socket, State,
+)
+import std.net.ip (IpAddress)
+import std.net.socket (TcpClient, TcpServer, UnixServer)
+import std.net.tls
+import std.rand (Random)
+import std.sync (Future)
+import std.sys.net (NO_DEADLINE)
+import std.test (Tests)
+import std.time (Duration, Instant)
+import std.uri (
+  Error as UriError, Fragment, Host, Path, Query, Scheme, Uri, UserInfo, Values,
+)
+
+fn raw_deadline(socket: mut Socket) -> Int {
+  match socket {
+    case Plain(v) -> v.raw_deadline
+    case Secure(v) -> v.socket.raw_deadline
+    case Unix(v) -> v.raw_deadline
+  }
+}
+
+type async TlsServer {
+  let @conf: tls.ServerConfig
+  let @sock: TcpServer
+
+  fn static new -> Result[(Self, tls.Client[TcpClient]), IoError] {
+    let server_sock = recover {
+      try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    }
+    let server_conf = recover tls.ServerConfig.new(certificate, private_key).get
+    let addr = try server_sock.local_address
+    let client_sock = try TcpClient.new([addr.ip], addr.port)
+    let client_conf = tls.ClientConfig.with_certificate(certificate).get
+    let tls_client = tls
+      .Client
+      .new(client_sock, client_conf, name: 'localhost')
+      .get
+
+    Result.Ok((Self(conf: server_conf, sock: server_sock), tls_client))
+  }
+
+  fn async mut write(message: String) {
+    tls.Server.new(@sock.accept.or_panic, @conf).write(message).or_panic
+  }
+
+  fn async mut reply(size: Int) {
+    let sock = tls.Server.new(@sock.accept.or_panic, @conf)
+    let buf = ByteArray.new
+    let _ = sock.read(buf, size).or_panic
+    let _ = sock.write(buf).or_panic
+  }
+}
+
+type async EchoServer {
+  let @sock: TcpServer
+
+  fn static new -> Result[(Self, Uri), IoError] {
+    let server = recover try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let addr = try server.local_address
+    let this = EchoServer(server)
+
+    Result.Ok((this, uri(http, ip(addr.ip), port(addr.port))))
+  }
+
+  fn async mut redirect {
+    let sock = @sock.accept.or_panic
+    let limits = Limits.new
+    let buf = ByteArray.new
+    let parser = Parser.new(Reader.new(mut sock), buf, limits)
+
+    match parser.request {
+      case Ok(_) -> sock.write('HTTP/1.1 301 \r\nLocation: /foo\r\n\r\n')
+      case Error(e) -> {
+        let msg = e.to_string
+
+        sock.write('HTTP/1.1 500 \r\nContent-Length: ${msg.size}\r\n\r\n${msg}')
+      }
+    }
+  }
+
+  fn async mut echo_uri {
+    let sock = @sock.accept.or_panic
+    let limits = Limits.new
+    let buf = ByteArray.new
+    let parser = Parser.new(Reader.new(mut sock), buf, limits)
+
+    match parser.request {
+      case Ok(req) -> {
+        let msg = req.uri.to_string
+
+        sock.write('HTTP/1.1 200 \r\nContent-Length: ${msg.size}\r\n\r\n${msg}')
+      }
+      case Error(e) -> {
+        let msg = e.to_string
+
+        sock.write('HTTP/1.1 500 \r\nContent-Length: ${msg.size}\r\n\r\n${msg}')
+      }
+    }
+  }
+
+  fn async mut echo {
+    echo_request(@sock.accept.or_panic)
+  }
+
+  fn async mut echo_twice(future: uni Future[Nil]) {
+    let sock = @sock.accept.or_panic
+
+    echo_request(sock)
+    echo_request(sock)
+    future.get
+  }
+
+  fn async mut accept_discard {
+    let _ = @sock.accept.or_panic
+  }
+
+  fn async mut invalid_response(future: uni Future[Nil]) {
+    let sock = @sock.accept.or_panic
+    let limits = Limits.new
+    let buf = ByteArray.new
+    let parser = Parser.new(Reader.new(mut sock), buf, limits)
+    let _req = parser.request
+    let _ = sock.write('HTTP/1.1 200 \r\ninvalid header: value\r\n\r\n')
+
+    # Wait for the test to finish the request so we don't close the socket too
+    # early.
+    let _ = future.get
+  }
+
+  fn mut echo_request(sock: mut TcpClient) {
+    let limits = Limits.new
+    let buf = ByteArray.new
+    let parser = Parser.new(Reader.new(mut sock), buf, limits)
+    let buf = ByteArray.new
+
+    match parser.request {
+      case Ok(req) -> {
+        for (head, val) in req.headers.iter {
+          buf.append('${head}: ${val}\r\n')
+        }
+
+        buf.append('\r\n')
+
+        let _ = req.body.read_all(buf)
+      }
+      case Error(e) -> buf.append(e.to_string)
+    }
+
+    let _ = sock.write(
+      'HTTP/1.1 200 \r\nContent-Length: ${buf.size}\r\n\r\n${buf}',
+    )
+  }
+}
+
+type inline ErrorReader {}
+
+impl Read[IoError] for ErrorReader {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, IoError] {
+    Result.Error(IoError.NotSupported)
+  }
+}
+
+type inline ReaderWithHook {
+  let @func: fn
+}
+
+impl Read[IoError] for ReaderWithHook {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, IoError] {
+    @func.call
+    into.append('a')
+    Result.Ok(1)
+  }
+}
+
+fn uri(scheme: Option[Scheme], host: Option[Host], port: Option[Int]) -> Uri {
+  Uri(
+    scheme: scheme,
+    user_info: Option.None,
+    host: host,
+    port: port,
+    path: Path.empty,
+    query: Query.empty,
+    fragment: Fragment.empty,
+  )
+}
+
+fn http -> Option[Scheme] {
+  Option.Some(Scheme.Http)
+}
+
+fn https -> Option[Scheme] {
+  Option.Some(Scheme.Https)
+}
+
+fn unix -> Option[Scheme] {
+  Option.Some(Scheme.Unix)
+}
+
+fn file -> Option[Scheme] {
+  Option.Some(Scheme.File)
+}
+
+fn named(name: String) -> Option[Host] {
+  Option.Some(Host.Named(name))
+}
+
+fn ip(ip: IpAddress) -> Option[Host] {
+  Option.Some(Host.Ip(ip))
+}
+
+fn port(ip: Int) -> Option[Int] {
+  Option.Some(ip)
+}
+
+fn scope -> Scope {
+  Scope(scheme: Scheme.Http, host: Host.Named('localhost'), port: 1234)
+}
+
+fn client -> Client {
+  let client = Client.new
+
+  client.user_agent = 'foo'
+  client
+}
+
+type Writer {
+  let @buffer: ByteArray
+
+  fn static new -> Self {
+    Self(ByteArray.new)
+  }
+}
+
+impl Write[IoError] for Writer {
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, IoError] {
+    @buffer.append(bytes)
+    Result.Ok(nil)
+  }
+
+  fn pub mut flush -> Result[Nil, IoError] {
+    Result.Ok(nil)
+  }
+}
+
+type Reuse {
+  let mut @reusable: Bool
+}
+
+impl Read[ParseError] for Reuse {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, ParseError] {
+    Result.Ok(0)
+  }
+}
+
+impl Stream for Reuse {
+  fn mut reuse {
+    @reusable = true
+  }
+
+  fn mut maximum_size=(value: Int) {}
+
+  fn reusable? -> Bool {
+    true
+  }
+}
+
+fn path(value: String) -> Uri {
+  let uri = Uri.new
+
+  uri.path = Path.new(value).get
+  uri
+}
+
+fn values(pairs: Array[(String, String)]) -> Values {
+  let vals = Values.new
+
+  for (k, v) in pairs { vals.add(k, v) }
+
+  vals
+}
+
+fn plain -> String {
+  'text/plain'
+}
+
+fn url_encoded -> String {
+  'application/x-www-form-urlencoded'
+}
+
+fn pub tests(t: mut Tests) {
+  t.test('Scope.clone', fn (t) {
+    t.equal(
+      Scope(scheme: Scheme.Https, host: Host.Named('foo'), port: 1234).clone,
+      Scope(scheme: Scheme.Https, host: Host.Named('foo'), port: 1234),
+    )
+  })
+
+  t.test('Scope.hash', fn (t) {
+    t.equal(
+      hash(Scope(scheme: Scheme.Https, host: Host.Named('foo'), port: 1234)),
+      hash(Scope(scheme: Scheme.Https, host: Host.Named('foo'), port: 1234)),
+    )
+    t.not_equal(
+      hash(Scope(scheme: Scheme.Http, host: Host.Named('foo'), port: 1234)),
+      hash(Scope(scheme: Scheme.Https, host: Host.Named('foo'), port: 1234)),
+    )
+    t.not_equal(
+      hash(Scope(scheme: Scheme.Https, host: Host.Named('foo'), port: 1234)),
+      hash(Scope(scheme: Scheme.Https, host: Host.Named('bar'), port: 1234)),
+    )
+    t.not_equal(
+      hash(Scope(scheme: Scheme.Https, host: Host.Named('foo'), port: 1234)),
+      hash(Scope(scheme: Scheme.Https, host: Host.Named('foo'), port: 4567)),
+    )
+  })
+
+  t.test('Scope.==', fn (t) {
+    t.equal(
+      Scope(scheme: Scheme.Https, host: Host.Named('foo'), port: 1234),
+      Scope(scheme: Scheme.Https, host: Host.Named('foo'), port: 1234),
+    )
+    t.not_equal(
+      Scope(scheme: Scheme.Https, host: Host.Named('foo'), port: 1234),
+      Scope(scheme: Scheme.Http, host: Host.Named('foo'), port: 1234),
+    )
+    t.not_equal(
+      Scope(scheme: Scheme.Https, host: Host.Named('foo'), port: 1234),
+      Scope(scheme: Scheme.Https, host: Host.Named('bar'), port: 1234),
+    )
+    t.not_equal(
+      Scope(scheme: Scheme.Https, host: Host.Named('foo'), port: 1234),
+      Scope(scheme: Scheme.Https, host: Host.Named('foo'), port: 4567),
+    )
+  })
+
+  t.test('Scope.fmt', fn (t) {
+    t.equal(
+      fmt(Scope(scheme: Scheme.Https, host: Host.Named('foo'), port: 1234)),
+      'Scope(scheme: Https, host: Named("foo"), port: 1234)',
+    )
+  })
+
+  t.ok('Connection.shutdown', fn (t) {
+    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let addr = try server.local_address
+    let client = try TcpClient.new([addr.ip], addr.port)
+    let pool = Pool.new
+    let con = Connection(
+      pool: mut pool,
+      id: 0,
+      scope: scope,
+      socket: Socket.Plain(client),
+      state: State.Active,
+    )
+
+    con.shutdown
+    t.equal(con.socket.write('a'), Result.Error(IoError.BrokenPipe))
+
+    Result.Ok(nil)
+  })
+
+  t.ok('ActiveConnection.reuse', fn (t) {
+    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let addr = try server.local_address
+    let client = try TcpClient.new([addr.ip], addr.port)
+    let pool = Pool.new
+    let con = pool.add(scope, Socket.Plain(client))
+
+    con.connection.state = State.Idle
+    con.reuse
+    t.true(
+      match con.connection.state {
+        case Idle -> true
+        case _ -> false
+      },
+    )
+
+    con.connection.state = State.Active
+    con.reuse
+    t.true(
+      match con.connection.state {
+        case Reusable -> true
+        case _ -> false
+      },
+    )
+
+    Result.Ok(nil)
+  })
+
+  t.ok('ActiveConnection.drop with a reusable connection', fn (t) {
+    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let addr = try server.local_address
+    let client = try TcpClient.new([addr.ip], addr.port)
+    let pool = Pool.new
+    let con = pool.add(scope.clone, Socket.Plain(client))
+
+    con.reuse
+    drop(con)
+    t.true(pool.pending_close.empty?)
+    t.true(
+      match pool.available.get(scope) {
+        case Ok(v) -> v.size == 1
+        case _ -> false
+      },
+    )
+
+    Result.Ok(nil)
+  })
+
+  t.ok('ActiveConnection.drop with a non-reusable connection', fn (t) {
+    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let addr = try server.local_address
+    let client = try TcpClient.new([addr.ip], addr.port)
+    let pool = Pool.new
+    let con = pool.add(scope.clone, Socket.Plain(client))
+
+    drop(con)
+    t.equal(pool.pending_close.size, 1)
+    t.true(
+      match pool.available.get(scope) {
+        case Ok(v) -> v.size == 0
+        case _ -> true
+      },
+    )
+
+    Result.Ok(nil)
+  })
+
+  t.ok('ActiveConnection.timeout_after= with a plain socket', fn (t) {
+    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let addr = try server.local_address
+    let client = try TcpClient.new([addr.ip], addr.port)
+    let pool = Pool.new
+    let con = pool.add(scope.clone, Socket.Plain(client))
+    let deadline = Instant.new + Duration.from_secs(5)
+
+    con.timeout_after = deadline
+    t.equal(raw_deadline(con.connection.socket), deadline.to_int)
+
+    Result.Ok(nil)
+  })
+
+  t.ok('ActiveConnection.timeout_after= with a TLS socket', fn (t) {
+    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let addr = try server.local_address
+    let conf = tls.ClientConfig.new.get
+    let tcp = try TcpClient.new([addr.ip], addr.port)
+    let client = tls.Client.new(tcp, conf, addr.ip.to_string).get
+    let pool = Pool.new
+    let con = pool.add(scope.clone, Socket.Secure(client))
+    let deadline = Instant.new + Duration.from_secs(5)
+
+    con.timeout_after = deadline
+    t.equal(raw_deadline(con.connection.socket), deadline.to_int)
+
+    Result.Ok(nil)
+  })
+
+  t.ok('ActiveConnection.reset_deadline with a plain socket', fn (t) {
+    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let addr = try server.local_address
+    let client = try TcpClient.new([addr.ip], addr.port)
+    let pool = Pool.new
+    let con = pool.add(scope.clone, Socket.Plain(client))
+    let deadline = Instant.new + Duration.from_secs(5)
+
+    con.timeout_after = deadline
+    con.reset_deadline
+    t.equal(raw_deadline(con.connection.socket), NO_DEADLINE)
+
+    Result.Ok(nil)
+  })
+
+  t.ok('ActiveConnection.reset_deadline with a TLS socket', fn (t) {
+    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let addr = try server.local_address
+    let conf = tls.ClientConfig.new.get
+    let tcp = try TcpClient.new([addr.ip], addr.port)
+    let client = tls.Client.new(tcp, conf, addr.ip.to_string).get
+    let pool = Pool.new
+    let con = pool.add(scope.clone, Socket.Secure(client))
+    let deadline = Instant.new + Duration.from_secs(5)
+
+    con.timeout_after = deadline
+    con.reset_deadline
+    t.equal(raw_deadline(con.connection.socket), NO_DEADLINE)
+
+    Result.Ok(nil)
+  })
+
+  t.ok('ActiveConnection.read with a plain socket', fn (t) {
+    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let addr = try server.local_address
+    let client = try TcpClient.new([addr.ip], addr.port)
+    let pool = Pool.new
+    let con = pool.add(scope.clone, Socket.Plain(client))
+    let buf = ByteArray.new
+
+    try (try server.accept).write('hello')
+    t.equal(con.read(into: buf, size: 5), Result.Ok(5))
+    t.equal(buf.to_string, 'hello')
+
+    Result.Ok(nil)
+  })
+
+  t.ok('ActiveConnection.read with a TLS socket', fn (t) {
+    match try TlsServer.new {
+      case (server, client) -> {
+        let pool = Pool.new
+        let con = pool.add(scope.clone, Socket.Secure(client))
+        let buf = ByteArray.new
+
+        server.write('hello')
+        t.equal(con.read(into: buf, size: 5), Result.Ok(5))
+        t.equal(buf.to_string, 'hello')
+      }
+    }
+
+    Result.Ok(nil)
+  })
+
+  t.ok('ActiveConnection.read with an error', fn (t) {
+    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let addr = try server.local_address
+    let client = try TcpClient.new([addr.ip], addr.port)
+    let pool = Pool.new
+    let con = pool.add(scope.clone, Socket.Plain(client))
+    let buf = ByteArray.new
+
+    drop(server)
+    t.true(con.read(into: buf, size: 5).error?)
+    t.true(
+      match con.connection.state {
+        case Error -> true
+        case _ -> false
+      },
+    )
+
+    Result.Ok(nil)
+  })
+
+  t.ok('ActiveConnection.write with a plain socket', fn (t) {
+    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let addr = try server.local_address
+    let client = try TcpClient.new([addr.ip], addr.port)
+    let pool = Pool.new
+    let con = pool.add(scope.clone, Socket.Plain(client))
+    let buf = ByteArray.new
+    let client = try server.accept
+
+    t.equal(con.write('hello'), Result.Ok(nil))
+    t.equal(client.read(into: buf, size: 5), Result.Ok(5))
+    t.equal(buf.to_string, 'hello')
+
+    Result.Ok(nil)
+  })
+
+  t.ok('ActiveConnection.write with a TLS socket', fn (t) {
+    match try TlsServer.new {
+      case (server, client) -> {
+        let pool = Pool.new
+        let con = pool.add(scope.clone, Socket.Secure(client))
+        let buf = ByteArray.new
+
+        server.reply(5)
+        t.equal(con.write('hello'), Result.Ok(nil))
+        t.equal(con.read(into: buf, size: 5), Result.Ok(5))
+        t.equal(buf.to_string, 'hello')
+      }
+    }
+
+    Result.Ok(nil)
+  })
+
+  t.ok('ActiveConnection.write with an error', fn (t) {
+    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let addr = try server.local_address
+    let client = try TcpClient.new([addr.ip], addr.port)
+    let pool = Pool.new
+    let con = pool.add(scope.clone, Socket.Plain(client))
+
+    con.connection.shutdown
+    t.true(con.write('hello').error?)
+    t.true(
+      match con.connection.state {
+        case Error -> true
+        case _ -> false
+      },
+    )
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Pool.add', fn (t) {
+    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let addr = try server.local_address
+    let pool = Pool.new
+
+    {
+      let sock = try TcpClient.new([addr.ip], addr.port)
+
+      drop(pool.add(scope.clone, Socket.Plain(sock)))
+      t.equal(pool.pending_close.size, 1)
+    }
+
+    let sock = try TcpClient.new([addr.ip], addr.port)
+    let con = pool.add(scope.clone, Socket.Plain(sock))
+
+    t.true(
+      match con.connection.state {
+        case Active -> true
+        case _ -> false
+      },
+    )
+    t.equal(con.connection.scope, scope)
+    t.equal(pool.pending_close.size, 0)
+    t.true(pool.all.get(con.connection.id).ok?)
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Pool.get', fn (t) {
+    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let addr = try server.local_address
+    let pool = Pool.new
+    let sock = try TcpClient.new([addr.ip], addr.port)
+    let con = pool.add(scope.clone, Socket.Plain(sock))
+
+    {
+      let sock = try TcpClient.new([addr.ip], addr.port)
+
+      drop(pool.add(scope.clone, Socket.Plain(sock)))
+      t.equal(pool.pending_close.size, 1)
+    }
+
+    pool.reuse(con.connection)
+
+    let res = pool.get(scope)
+
+    t.true(res.some?)
+    t.equal(pool.pending_close.size, 0)
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Pool.reuse', fn (t) {
+    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let addr = try server.local_address
+    let pool = Pool.new
+    let sock = try TcpClient.new([addr.ip], addr.port)
+    let con = pool.add(scope.clone, Socket.Plain(sock))
+
+    pool.reuse(con.connection)
+    t.equal(pool.available.get(scope).map(fn (v) { v.size }), Result.Ok(1))
+    t.equal(pool.pending_close.size, 0)
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Pool.reuse with too many reusable connections', fn (t) {
+    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let addr = try server.local_address
+    let pool = Pool.new
+
+    pool.limit = 0
+
+    let sock = try TcpClient.new([addr.ip], addr.port)
+    let con = pool.add(scope.clone, Socket.Plain(sock))
+
+    pool.reuse(con.connection)
+    t.equal(pool.available.get(scope).map(fn (v) { v.size }), Result.Ok(0))
+    t.equal(pool.pending_close.size, 1)
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Pool.close', fn (t) {
+    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let addr = try server.local_address
+    let pool = Pool.new
+    let sock = try TcpClient.new([addr.ip], addr.port)
+    let con = pool.add(scope.clone, Socket.Plain(sock))
+    let id = con.connection.id
+
+    pool.close(id)
+    t.true(pool.all.get(id).error?)
+    t.equal(pool.pending_close.size, 1)
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Pool.connections_for', fn (t) {
+    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let addr = try server.local_address
+    let pool = Pool.new
+    let sock = try TcpClient.new([addr.ip], addr.port)
+    let con = pool.add(scope.clone, Socket.Plain(sock))
+
+    t.true(pool.available.empty?)
+    t.equal(pool.connections_for(scope).size, 0)
+
+    pool.reuse(con.connection)
+    t.equal(pool.connections_for(scope).size, 1)
+
+    Result.Ok(nil)
+  })
+
+  t.test('Client.new', fn (t) {
+    let client = Client.new
+
+    t.equal(client.user_agent, 'inko/${VERSION} (https://inko-lang.org)')
+    t.equal(client.connect_timeout, Duration.from_secs(5))
+    t.equal(client.request_timeout, Duration.from_secs(15))
+    t.equal(client.tcp_keepalive_time, Duration.from_secs(15))
+    t.equal(client.tcp_keepalive_interval, Duration.from_secs(15))
+    t.equal(client.connections.limit, 5)
+  })
+
+  t.test('Client.connections_per_host=', fn (t) {
+    let client = Client.new
+
+    client.connections_per_host = 1
+    t.equal(client.connections.limit, 1)
+  })
+
+  t.test('Client.request', fn (t) {
+    let client = Client.new
+    let uri = Uri.parse('http://example.com').or_panic
+    let req = client.request(Method.Get, uri.clone)
+
+    t.equal(req.method, Method.Get)
+    t.equal(req.uri, uri)
+  })
+
+  t.test('Client.get', fn (t) {
+    let client = Client.new
+    let uri = Uri.parse('http://example.com').or_panic
+    let req = client.get(uri.clone)
+
+    t.equal(req.method, Method.Get)
+    t.equal(req.uri, uri)
+  })
+
+  t.test('Client.post', fn (t) {
+    let client = Client.new
+    let uri = Uri.parse('http://example.com').or_panic
+    let req = client.post(uri.clone)
+
+    t.equal(req.method, Method.Post)
+    t.equal(req.uri, uri)
+  })
+
+  t.test('Client.put', fn (t) {
+    let client = Client.new
+    let uri = Uri.parse('http://example.com').or_panic
+    let req = client.put(uri.clone)
+
+    t.equal(req.method, Method.Put)
+    t.equal(req.uri, uri)
+  })
+
+  t.test('Client.delete', fn (t) {
+    let client = Client.new
+    let uri = Uri.parse('http://example.com').or_panic
+    let req = client.delete(uri.clone)
+
+    t.equal(req.method, Method.Delete)
+    t.equal(req.uri, uri)
+  })
+
+  t.test('Client.head', fn (t) {
+    let client = Client.new
+    let uri = Uri.parse('http://example.com').or_panic
+    let req = client.head(uri.clone)
+
+    t.equal(req.method, Method.Head)
+    t.equal(req.uri, uri)
+  })
+
+  t.ok('Client.connect with valid input', fn (t) {
+    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let addr = try server.local_address
+    let tests = [
+      uri(http, ip(addr.ip), port(addr.port)),
+      uri(https, ip(addr.ip), port(addr.port)),
+      uri(http, named('localhost'), port(addr.port)),
+      uri(https, named('localhost'), port(addr.port)),
+    ]
+
+    for uri in tests {
+      let client = Client.new
+      let con = client.connect(uri)
+
+      # Make sure we don't end up filling the listen backlog, as unlikely as
+      # that may be.
+      drop(try server.accept)
+
+      t.true(
+        match mut con {
+          case Ok((sock, false)) -> {
+            raw_deadline(sock.connection.socket) != NO_DEADLINE
+          }
+          case _ -> false
+        },
+      )
+
+      t.equal(client.connections.all.size, 1)
+      t.equal(client.connections.available.size, 1)
+    }
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Client.connect with a reused connection', fn (t) {
+    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let addr = try server.local_address
+    let client = Client.new
+    let uri = uri(http, ip(addr.ip), port(addr.port))
+
+    t.true(
+      match client.connect(uri) {
+        case Ok((sock, false)) -> {
+          sock.reuse
+          true
+        }
+        case _ -> false
+      },
+    )
+
+    t.true(
+      match client.connect(uri) {
+        case Ok((_, true)) -> true
+        case _ -> false
+      },
+    )
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Client.connect with a Unix socket', fn (t) {
+    with_directory(t.id, fn (dir) {
+      try dir.create_directory_all
+
+      let path = dir.join('test.sock')
+      let _server = try UnixServer.new(path)
+      let client = Client.new
+      let con = client.connect(uri(unix, named(path.to_string), Option.None))
+
+      t.true(
+        match mut con {
+          case Ok((sock, false)) -> {
+            raw_deadline(sock.connection.socket) != NO_DEADLINE
+          }
+          case _ -> false
+        },
+      )
+
+      t.equal(client.connections.all.size, 1)
+      t.equal(client.connections.available.size, 1)
+
+      Result.Ok(nil)
+    })
+  })
+
+  t.ok('Client.connect with a reused Unix connection', fn (t) {
+    with_directory(t.id, fn (dir) {
+      try dir.create_directory_all
+
+      let path = dir.join('test.sock')
+      let _server = try UnixServer.new(path)
+      let client = Client.new
+      let uri = uri(unix, named(path.to_string), Option.None)
+
+      t.true(
+        match client.connect(uri) {
+          case Ok((sock, false)) -> {
+            sock.reuse
+            true
+          }
+          case _ -> false
+        },
+      )
+
+      t.true(
+        match client.connect(uri) {
+          case Ok((_, true)) -> true
+          case _ -> false
+        },
+      )
+
+      Result.Ok(nil)
+    })
+  })
+
+  t.ok('Client.connect with invalid input', fn (t) {
+    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let addr = try server.local_address
+    let tests = [
+      (
+        uri(file, ip(addr.ip), port(addr.port)),
+        Option.Some(Error.InvalidScheme),
+      ),
+      (
+        uri(http, Option.Some(Host.Future('foo')), port(addr.port)),
+        Option.Some(Error.InvalidHost),
+      ),
+      (
+        uri(http, ip(IpAddress.v4(192, 0, 2, 0)), port(addr.port)),
+        Option.Some(Error.ConnectionFailed(IoError.TimedOut)),
+      ),
+      (
+        uri(http, ip(addr.ip), port(65_500)),
+        Option.Some(Error.ConnectionFailed(IoError.ConnectionRefused)),
+      ),
+      (
+        uri(https, named('inko_test_invalid.invalid'), port(addr.port)),
+        Option.Some(Error.LookupFailed(DnsError.InvalidHost)),
+      ),
+    ]
+
+    for (uri, exp) in tests {
+      let client = Client.new
+
+      client.connect_timeout = Duration.from_millis(20)
+      t.equal(client.connect(uri).error, exp)
+    }
+
+    Result.Ok(nil)
+  })
+
+  t.test('RequestWriter.body', fn (t) {
+    let writer = RequestWriter.new(Writer.new)
+
+    t.equal(writer.body('hello'), Result.Ok(nil))
+    t.equal(writer.stream.buffer.to_string, 'hello')
+    t.true(writer.buffer.empty?)
+  })
+
+  t.test('RequestWriter.status', fn (t) {
+    let writer = RequestWriter.new(Writer.new)
+    let tests = [
+      (Method.Get, 'http://host/foo', 'GET /foo HTTP/1.1\r\n'),
+      (Method.Post, 'http://host/foo', 'POST /foo HTTP/1.1\r\n'),
+      (Method.Get, 'http://host/', 'GET / HTTP/1.1\r\n'),
+      (Method.Get, 'http://host', 'GET / HTTP/1.1\r\n'),
+      (Method.Get, 'http://host/foo%20bar', 'GET /foo%20bar HTTP/1.1\r\n'),
+      (Method.Get, 'http://host/foo?query', 'GET /foo?query HTTP/1.1\r\n'),
+      (Method.Get, 'http://host?query', 'GET /?query HTTP/1.1\r\n'),
+      (
+        Method.Connect,
+        'http://host:1234/foo',
+        'CONNECT host:1234 HTTP/1.1\r\n',
+      ),
+      (Method.Connect, 'http://host/foo', 'CONNECT host:80 HTTP/1.1\r\n'),
+      (
+        Method.Connect,
+        'http://host%20bar/foo',
+        'CONNECT host%20bar:80 HTTP/1.1\r\n',
+      ),
+    ]
+
+    for (meth, uri, exp) in tests {
+      writer.status(meth, Uri.parse(uri).or_panic)
+      t.equal(writer.buffer.to_string, exp)
+      writer.buffer.clear
+    }
+  })
+
+  t.test('RequestWriter.headers', fn (t) {
+    let writer = RequestWriter.new(Writer.new)
+    let headers = HeaderMap.new
+
+    headers.set(Header.host, 'host')
+    headers.add(Header.set_cookie, 'foo')
+    headers.add(Header.set_cookie, 'bar')
+
+    writer.headers(headers)
+    t.equal(
+      writer.buffer.to_string,
+      'host: host\r\nset-cookie: foo\r\nset-cookie: bar\r\n\r\n',
+    )
+  })
+
+  t.test('RequestWriter.start', fn (t) {
+    let writer = RequestWriter.new(Writer.new)
+    let headers = HeaderMap.new
+
+    headers.set(Header.host, 'host')
+    headers.add(Header.set_cookie, 'foo')
+    headers.add(Header.set_cookie, 'bar')
+
+    writer.start(Method.Get, Uri.parse('/foo').or_panic, headers)
+    t.equal(
+      writer.buffer.to_string,
+      'GET /foo HTTP/1.1\r\nhost: host\r\nset-cookie: foo\r\nset-cookie: bar\r\n\r\n',
+    )
+  })
+
+  t.test('Error.to_string', fn (t) {
+    t.equal(
+      Error.LookupFailed(DnsError.InvalidHost).to_string,
+      'failed to resolve the host: ${DnsError.InvalidHost}',
+    )
+    t.equal(
+      Error.ConnectionFailed(IoError.BrokenPipe).to_string,
+      'failed to connect: ${IoError.BrokenPipe}',
+    )
+    t.equal(
+      Error.WriteFailed(IoError.BrokenPipe).to_string,
+      'failed to write the request: ${IoError.BrokenPipe}',
+    )
+    t.equal(
+      Error.InvalidResponse(ParseError.InvalidHeader).to_string,
+      'failed to parse the response: ${ParseError.InvalidHeader}',
+    )
+  })
+
+  t.test('Error.fmt', fn (t) {
+    t.equal(fmt(Error.InvalidHost), 'InvalidHost')
+    t.equal(fmt(Error.InvalidScheme), 'InvalidScheme')
+    t.equal(
+      fmt(Error.LookupFailed(DnsError.InvalidHost)),
+      'LookupFailed(InvalidHost)',
+    )
+    t.equal(
+      fmt(Error.ConnectionFailed(IoError.BrokenPipe)),
+      'ConnectionFailed(BrokenPipe)',
+    )
+    t.equal(
+      fmt(Error.InvalidResponse(ParseError.InvalidHeader)),
+      'InvalidResponse(InvalidHeader)',
+    )
+    t.equal(
+      fmt(Error.WriteFailed(IoError.BrokenPipe)),
+      'WriteFailed(BrokenPipe)',
+    )
+  })
+
+  t.test('Error.==', fn (t) {
+    t.equal(
+      Error.LookupFailed(DnsError.InvalidHost),
+      Error.LookupFailed(DnsError.InvalidHost),
+    )
+    t.equal(
+      Error.ConnectionFailed(IoError.BrokenPipe),
+      Error.ConnectionFailed(IoError.BrokenPipe),
+    )
+    t.equal(
+      Error.InvalidResponse(ParseError.InvalidHeader),
+      Error.InvalidResponse(ParseError.InvalidHeader),
+    )
+    t.equal(
+      Error.WriteFailed(IoError.BrokenPipe),
+      Error.WriteFailed(IoError.BrokenPipe),
+    )
+
+    t.not_equal(
+      Error.LookupFailed(DnsError.InvalidHost),
+      Error.LookupFailed(DnsError.ServerError),
+    )
+    t.not_equal(
+      Error.ConnectionFailed(IoError.BrokenPipe),
+      Error.ConnectionFailed(IoError.InvalidArgument),
+    )
+    t.not_equal(
+      Error.InvalidResponse(ParseError.InvalidHeader),
+      Error.InvalidResponse(ParseError.InvalidMethod),
+    )
+    t.not_equal(
+      Error.WriteFailed(IoError.BrokenPipe),
+      Error.WriteFailed(IoError.InvalidArgument),
+    )
+  })
+
+  t.ok('Request.send', fn (t) {
+    let client = client
+
+    match try EchoServer.new {
+      case (srv, uri) -> {
+        srv.echo
+
+        let resp = client.get(uri.clone).send.or_panic
+        let body = ByteArray.new
+        let _ = resp.body.read_all(body).or_panic
+
+        t.equal(
+          body.to_string,
+          'host: ${uri.host.clone.get}:${uri.port.clone.get}\r\n'
+            + 'user-agent: foo\r\n\r\n',
+        )
+      }
+    }
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Request.send with basic authentication', fn (t) {
+    let client = client
+
+    match try EchoServer.new {
+      case (srv, uri) -> {
+        srv.echo
+        uri.user_info = Option.Some(UserInfo(name: 'user', password: 'pass'))
+
+        let resp = client.get(uri.clone).send.or_panic
+        let body = ByteArray.new
+        let _ = resp.body.read_all(body).or_panic
+
+        t.equal(
+          body.to_string,
+          'host: ${uri.host.clone.get}:${uri.port.clone.get}\r\n'
+            + 'user-agent: foo\r\n'
+            + 'authorization: Basic dXNlcjpwYXNz\r\n\r\n',
+        )
+      }
+    }
+
+    Result.Ok(nil)
+  })
+
+  t.test('Request.query', fn (t) {
+    let client = Client.new
+    let req = client.get(Uri.parse('/foo?name=Alice').or_panic)
+
+    t.equal(req.query.get('name'), Result.Ok(ref 'Alice'.to_byte_array))
+  })
+
+  t.test('Request.query', fn (t) {
+    let client = Client.new
+    let req = client.get(Uri.parse('/foo?name=Alice').or_panic).query(
+      'name',
+      'Bob',
+    )
+
+    t.equal(
+      req.query.get_all('name').map(fn (v) { v.to_string }).to_array,
+      ['Alice', 'Bob'],
+    )
+  })
+
+  t.ok('Request.body', fn (t) {
+    let client = client
+
+    match try EchoServer.new {
+      case (srv, uri) -> {
+        srv.echo
+
+        let resp = client.post(uri.clone).body('hello').or_panic
+        let body = ByteArray.new
+        let _ = resp.body.read_all(body).or_panic
+
+        t.equal(
+          body.to_string,
+          'host: ${uri.host.clone.get}:${uri.port.clone.get}\r\n'
+            + 'user-agent: foo\r\n'
+            + 'content-length: 5\r\n\r\n'
+            + 'hello',
+        )
+      }
+    }
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Request.body with basic authentication', fn (t) {
+    let client = client
+
+    match try EchoServer.new {
+      case (srv, uri) -> {
+        srv.echo
+        uri.user_info = Option.Some(UserInfo(name: 'user', password: 'pass'))
+
+        let resp = client.get(uri.clone).body('').or_panic
+        let body = ByteArray.new
+        let _ = resp.body.read_all(body).or_panic
+
+        t.equal(
+          body.to_string,
+          'host: ${uri.host.clone.get}:${uri.port.clone.get}\r\n'
+            + 'user-agent: foo\r\n'
+            + 'authorization: Basic dXNlcjpwYXNz\r\n\r\n',
+        )
+      }
+    }
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Request.body with an error while writing', fn (t) {
+    let client = client
+
+    match try EchoServer.new {
+      case (srv, uri) -> {
+        srv.echo
+        t.true(client.post(uri.clone).body('a').or_panic.body.clear.ok?)
+
+        # For TCP sockets the first write usually doesn't observe any errors. To
+        # test the write error handling logic we perform a dummy write here such
+        # that we detect the error when we try to send the second request.
+        {
+          let con = client.connections.all.values_mut.next.get
+
+          t.equal(con.socket.write('a'), Result.Ok(nil))
+        }
+
+        # This request succeeds because on the first try we observe the broken
+        # pipe which we then retry once.
+        srv.echo
+        t.equal(client.post(uri).body('b').error, Option.None)
+      }
+    }
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Request.body with an error while reading', fn (t) {
+    let client = client
+
+    match try EchoServer.new {
+      case (srv, uri) -> {
+        # The first request succeeds so we have an existing connection.
+        srv.echo
+        t.true(client.post(uri.clone).body('a').or_panic.body.clear.ok?)
+        t.equal(client.connections.all.size, 1)
+        t.equal(client.connections.pending_close.size, 0)
+
+        # The second request initially fails because the server socket is
+        # dropped, then succeeds because we retry it once.
+        srv.echo
+        t.equal(client.post(uri.clone).body('b').error, Option.None)
+
+        # The third request fails both on the initial attempt and on the retry.
+        srv.accept_discard
+        t.true(client.post(uri.clone).body('b').error?)
+      }
+    }
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Request.body with a redirect', fn (t) {
+    let client = client
+
+    match try EchoServer.new {
+      case (srv, uri) -> {
+        srv.redirect
+        srv.echo_uri
+
+        let resp = client.get(uri.clone).send.or_panic
+        let data = ByteArray.new
+        let _ = resp.body.read_all(data).or_panic
+
+        t.equal(data.to_string, '/foo')
+      }
+    }
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Request.body with too many redirects', fn (t) {
+    let client = client
+
+    match try EchoServer.new {
+      case (srv, uri) -> {
+        srv.redirect
+        srv.redirect
+        srv.redirect
+        srv.redirect
+        srv.redirect
+        srv.redirect
+
+        t.equal(
+          client.get(uri.clone).send.error,
+          Option.Some(Error.TooManyRedirects),
+        )
+      }
+    }
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Request.url_encoded_form', fn (t) {
+    let client = client
+
+    match try EchoServer.new {
+      case (srv, uri) -> {
+        srv.echo
+
+        let form = client.get(uri.clone).url_encoded_form
+
+        form.add('name', 'Alice')
+
+        let resp = form.send.or_panic
+        let body = ByteArray.new
+        let _ = resp.body.read_all(body).or_panic
+
+        t.equal(
+          body.to_string,
+          'host: ${uri.host.clone.get}:${uri.port.clone.get}\r\n'
+            + 'user-agent: foo\r\n'
+            + 'content-type: application/x-www-form-urlencoded\r\n'
+            + 'content-length: 10\r\n\r\n'
+            + 'name=Alice',
+        )
+      }
+    }
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Request.url_encoded_form with basic authentication', fn (t) {
+    let client = client
+
+    match try EchoServer.new {
+      case (srv, uri) -> {
+        srv.echo
+        uri.user_info = Option.Some(UserInfo(name: 'user', password: 'pass'))
+
+        let form = client.post(uri.clone).url_encoded_form
+
+        form.add('name', 'Alice')
+
+        let resp = form.send.or_panic
+        let body = ByteArray.new
+        let _ = resp.body.read_all(body).or_panic
+
+        t.equal(
+          body.to_string,
+          'host: ${uri.host.clone.get}:${uri.port.clone.get}\r\n'
+            + 'user-agent: foo\r\n'
+            + 'content-type: application/x-www-form-urlencoded\r\n'
+            + 'content-length: 10\r\n'
+            + 'authorization: Basic dXNlcjpwYXNz\r\n\r\n'
+            + 'name=Alice',
+        )
+      }
+    }
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Request.multipart_form', fn (t) {
+    let client = client
+
+    client.rng = Random.from_int(42)
+
+    match try EchoServer.new {
+      case (srv, uri) -> {
+        srv.echo
+
+        let form = client.get(uri.clone).multipart_form.or_panic
+
+        t.true(form.add('name').text('Alice').ok?)
+
+        let resp = form.send.or_panic
+        let body = ByteArray.new
+        let _ = resp.body.read_all(body).or_panic
+
+        t.equal(
+          body.to_string,
+          'host: ${uri.host.clone.get}:${uri.port.clone.get}\r\n'
+            + 'user-agent: foo\r\n'
+            + 'content-type: multipart/form-data; boundary=InkoFormBoundaryHlzwcFgKtvmvB89Js6UhXuY80cn4O3-eIxjOYsIxQsM\r\n'
+            + 'transfer-encoding: chunked\r\n\r\n'
+            + '--InkoFormBoundaryHlzwcFgKtvmvB89Js6UhXuY80cn4O3-eIxjOYsIxQsM\r\n'
+            + 'Content-Disposition: form-data; name="name"\r\n\r\n'
+            + 'Alice\r\n'
+            + '--InkoFormBoundaryHlzwcFgKtvmvB89Js6UhXuY80cn4O3-eIxjOYsIxQsM--',
+        )
+      }
+    }
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Request.multipart_form with basic authentication', fn (t) {
+    let client = client
+
+    client.rng = Random.from_int(42)
+
+    match try EchoServer.new {
+      case (srv, uri) -> {
+        srv.echo
+        uri.user_info = Option.Some(UserInfo(name: 'user', password: 'pass'))
+
+        let form = client.get(uri.clone).multipart_form.or_panic
+
+        t.true(form.add('name').text('Alice').ok?)
+
+        let resp = form.send.or_panic
+        let body = ByteArray.new
+        let _ = resp.body.read_all(body).or_panic
+
+        t.equal(
+          body.to_string,
+          'host: ${uri.host.clone.get}:${uri.port.clone.get}\r\n'
+            + 'user-agent: foo\r\n'
+            + 'content-type: multipart/form-data; boundary=InkoFormBoundaryHlzwcFgKtvmvB89Js6UhXuY80cn4O3-eIxjOYsIxQsM\r\n'
+            + 'transfer-encoding: chunked\r\n'
+            + 'authorization: Basic dXNlcjpwYXNz\r\n\r\n'
+            + '--InkoFormBoundaryHlzwcFgKtvmvB89Js6UhXuY80cn4O3-eIxjOYsIxQsM\r\n'
+            + 'Content-Disposition: form-data; name="name"\r\n\r\n'
+            + 'Alice\r\n'
+            + '--InkoFormBoundaryHlzwcFgKtvmvB89Js6UhXuY80cn4O3-eIxjOYsIxQsM--',
+        )
+      }
+    }
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Request.read', fn (t) {
+    let client = client
+
+    match try EchoServer.new {
+      case (srv, uri) -> {
+        srv.echo
+
+        let resp = client
+          .post(uri.clone)
+          .read(Buffer.new('hello'), size: 5)
+          .or_panic
+        let body = ByteArray.new
+        let _ = resp.body.read_all(body).or_panic
+
+        t.equal(
+          body.to_string,
+          'host: ${uri.host.clone.get}:${uri.port.clone.get}\r\n'
+            + 'user-agent: foo\r\n'
+            + 'transfer-encoding: chunked\r\n\r\n'
+            + 'hello',
+        )
+      }
+    }
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Request.read with basic authentication', fn (t) {
+    let client = client
+
+    match try EchoServer.new {
+      case (srv, uri) -> {
+        srv.echo
+        uri.user_info = Option.Some(UserInfo(name: 'user', password: 'pass'))
+
+        let resp = client
+          .post(uri.clone)
+          .read(Buffer.new('hello'), size: 5)
+          .or_panic
+        let body = ByteArray.new
+        let _ = resp.body.read_all(body).or_panic
+
+        t.equal(
+          body.to_string,
+          'host: ${uri.host.clone.get}:${uri.port.clone.get}\r\n'
+            + 'user-agent: foo\r\n'
+            + 'transfer-encoding: chunked\r\n'
+            + 'authorization: Basic dXNlcjpwYXNz\r\n\r\n'
+            + 'hello',
+        )
+      }
+    }
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Request.read with an error while writing the headers', fn (t) {
+    let client = client
+
+    match try EchoServer.new {
+      case (srv, uri) -> {
+        let prom = match Future.new {
+          case (fut, prom) -> {
+            srv.echo_twice(fut)
+            prom
+          }
+        }
+
+        t.true(
+          client
+            .post(uri.clone)
+            .read(Buffer.new('a'), size: 1)
+            .or_panic
+            .body
+            .clear
+            .ok?,
+        )
+
+        # For TCP sockets the first write usually doesn't observe any errors. To
+        # test the write error handling logic we perform a dummy write here such
+        # that we detect the error when we try to send the second request.
+        {
+          let con = client.connections.all.values_mut.next.get
+
+          t.equal(con.socket.write('a'), Result.Ok(nil))
+        }
+
+        # This request succeeds because on the first try we observe the broken
+        # pipe which we then retry once.
+        t.equal(
+          client.post(uri).read(Buffer.new('b'), size: 1).error,
+          Option.None,
+        )
+        prom.set(nil)
+      }
+    }
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Request.read with an error while reading the input', fn (t) {
+    let client = client
+
+    match try EchoServer.new {
+      case (srv, uri) -> {
+        srv.echo
+        t.equal(
+          client.post(uri.clone).read(ErrorReader(), size: 1).error,
+          Option.Some(CopyError.Read(IoError.NotSupported)),
+        )
+      }
+    }
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Request.read with an error while writing to the socket', fn (t) {
+    let client = client
+
+    match try EchoServer.new {
+      case (srv, uri) -> {
+        let reader = ReaderWithHook(fn {
+          let con = client.connections.all.values_mut.next.get
+
+          con.shutdown
+
+          # Make sure that future writes observe an error.
+          let _ = con.socket.write('a')
+        })
+
+        srv.echo
+
+        t.true(
+          match client.post(uri.clone).read(reader, size: 1).error {
+            case Some(Write(WriteFailed(BrokenPipe or ConnectionReset))) -> true
+            case _ -> false
+          },
+        )
+      }
+    }
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Request.read with an error while parsing the response', fn (t) {
+    let client = client
+
+    match try EchoServer.new {
+      case (srv, uri) -> {
+        let prom = match Future.new {
+          case (fut, prom) -> {
+            srv.invalid_response(fut)
+            prom
+          }
+        }
+
+        let res = client.post(uri.clone).read(Buffer.new('a'), size: 1).error
+        let exp = Error.InvalidResponse(ParseError.InvalidHeader)
+
+        t.equal(res, Option.Some(CopyError.Write(exp)))
+        prom.set(nil)
+      }
+    }
+
+    Result.Ok(nil)
+  })
+
+  t.test('Request.follow_redirect', fn (t) {
+    let client = Client.new
+    let tests = [
+      # Valid redirects
+      ('http://host', '/a', Result.Ok(false), 'http://host/a'),
+      ('http://host', '../a', Result.Ok(false), 'http://host/a'),
+      ('http://host/a/b', '../c', Result.Ok(false), 'http://host/a/c'),
+      ('http://host', 'https://host/a', Result.Ok(false), 'https://host/a'),
+      ('https://host', '/a', Result.Ok(false), 'https://host/a'),
+      ('https://host', 'wss://host/a', Result.Ok(false), 'wss://host/a'),
+      ('unix://host', 'unix://host/a', Result.Ok(false), 'unix://host/a'),
+
+      # The status is a redirect but there's no Location header.
+      ('http://host', '', Result.Ok(true), 'http://host'),
+
+      # Invalid redirects
+      (
+        'http://host',
+        'invalid uri',
+        Result.Error(Error.InvalidLocation(UriError.InvalidPath)),
+        'http://host',
+      ),
+      (
+        'https://host',
+        'http://host',
+        Result.Error(Error.InsecureRedirect),
+        'https://host',
+      ),
+      (
+        'https://host',
+        'ws://host',
+        Result.Error(Error.InsecureRedirect),
+        'https://host',
+      ),
+      (
+        'wss://host',
+        'ws://host',
+        Result.Error(Error.InsecureRedirect),
+        'wss://host',
+      ),
+      (
+        'http://host',
+        'unix://foo',
+        Result.Error(Error.InsecureRedirect),
+        'http://host',
+      ),
+      (
+        'https://host',
+        'unix://foo',
+        Result.Error(Error.InsecureRedirect),
+        'https://host',
+      ),
+      (
+        'unix://host',
+        'http://foo',
+        Result.Error(Error.InsecureRedirect),
+        'unix://host',
+      ),
+    ]
+
+    for (uri, location, exp, new_uri) in tests {
+      let uri = Uri.parse(uri).or_panic
+      let builder = Request(
+        client: mut client,
+        method: Method.Get,
+        query: uri.query.parse,
+        uri: uri,
+        headers: HeaderMap.new,
+      )
+
+      let resp = Response(
+        version: Version.v11,
+        status: Status.new(301),
+        headers: HeaderMap.new,
+        body: Body.bounded(
+          BufferedReader.new(Reader.new(Buffer.new(''))),
+          size: 0,
+          limit: 0,
+        ),
+      )
+
+      if location.size > 0 { resp.headers.set(Header.location, location) }
+
+      let res = match builder.follow_redirect(resp) {
+        case Ok(Some(_)) -> Result.Ok(true)
+        case Ok(_) -> Result.Ok(false)
+        case Error(e) -> Result.Error(e)
+      }
+
+      t.equal(res, exp)
+      t.equal(builder.uri.to_string, new_uri)
+    }
+  })
+
+  t.test('Request.apply_basic_authentication', fn (t) {
+    let client = Client.new
+    let tests = [
+      ('http://host', '', Option.None),
+      ('http://user:pass@host', '', Option.Some('Basic dXNlcjpwYXNz')),
+      ('http://user:pass@host', 'foo', Option.Some('foo')),
+    ]
+
+    for (uri, header_val, exp) in tests {
+      let uri = Uri.parse(uri).or_panic
+      let builder = Request(
+        client: mut client,
+        method: Method.Get,
+        query: uri.query.parse,
+        uri: uri,
+        headers: HeaderMap.new,
+      )
+
+      if header_val.size > 0 {
+        builder.headers.set(Header.authorization, header_val)
+      }
+
+      builder.apply_basic_authentication
+      t.equal(builder.headers.get(Header.authorization).ok, exp)
+    }
+  })
+}

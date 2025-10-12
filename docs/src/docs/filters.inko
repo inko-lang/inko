@@ -2,8 +2,15 @@ import builder.html (Document, Element)
 import docs.menu (Menu)
 import docs.url (link_from, relative?)
 import markdown.html (Filter, TableOfContents)
+import std.string (StringBuffer)
 import wobsite (Page)
 import wobsite.url (relative_to_absolute)
+
+fn starts_with_capital?(value: String) -> Bool {
+  let byte = value.opt(0).or(-1)
+
+  byte >= 65 and byte <= 90
+}
 
 # A filter that automatically inserts a table of contents.
 type AutoTableOfContents {
@@ -86,6 +93,78 @@ type RelativeLinks {
 }
 
 impl Filter for RelativeLinks {
+  fn pub mut run(document: mut Document) {
+    let nodes = document.nodes.iter_mut.to_array
+
+    loop {
+      match nodes.pop {
+        case Some(Element(el)) -> {
+          update(el)
+          nodes.append(el.nodes.iter_mut.to_array)
+        }
+        case Some(_) -> {}
+        case _ -> break
+      }
+    }
+  }
+}
+
+# A filter that generates links to the standard library.
+type StandardLibraryLinks {
+  let @base_url: String
+
+  fn update(element: mut Element) {
+    if element.name != 'a' { return }
+
+    let text = match element.attributes.opt('href') {
+      case Some(v) if v.size > 0 -> v
+      case _ -> return
+    }
+
+    let uri_chunks = text.split('://')
+
+    let frag_rest = match (uri_chunks.next, uri_chunks.next) {
+      case (Some('method'), Some(v)) -> ('#method.', v)
+      case (Some('field'), Some(v)) -> ('#field.', v)
+      case (Some('constructor'), Some(v)) -> ('#constructor.', v)
+      case _ if text.starts_with?('std.') -> ('', text)
+      case _ -> return
+    }
+
+    let frag = frag_rest.0
+    let text = frag_rest.1
+    let path = StringBuffer.new
+    let steps = text.split('.').to_array
+    let len = steps.size
+
+    steps.iter.each_with_index(fn (idx, val) {
+      if frag.size > 0 and idx == (len - 1) {
+        path.push(frag)
+        path.push(val)
+      } else {
+        path.push(val)
+        path.push('/')
+      }
+    })
+
+    element.attr('href', '${@base_url}/module/${path}').attr('title', text)
+
+    if element.nodes.empty? {
+      let tail = steps.last.get
+      let text = if frag.size > 0 {
+        '${steps.opt(steps.size - 2).get}.${tail}'
+      } else if starts_with_capital?(tail) {
+        tail
+      } else {
+        text
+      }
+
+      element.code.text(text)
+    }
+  }
+}
+
+impl Filter for StandardLibraryLinks {
   fn pub mut run(document: mut Document) {
     let nodes = document.nodes.iter_mut.to_array
 

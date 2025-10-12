@@ -14,34 +14,34 @@ The prelude includes the following types and methods:
 | Source module
 |-
 | `Array`
-| `std.array`
+| [](std.array)
 |-
 | `Boolean`
-| `std.bool`
+| [](std.bool)
 |-
 | `ByteArray`
-| `std.byte_array`
+| [](std.bytes)
 |-
 | `Float`
-| `std.float`
+| [](std.float)
 |-
 | `Int`
-| `std.int`
+| [](std.int)
 |-
 | `Map`
-| `std.map`
+| [](std.map)
 |-
 | `Nil`
-| `std.nil`
+| [](std.nil)
 |-
 | `Option`
-| `std.option`
+| [](std.option)
 |-
 | `Result`
-| `std.result`
+| [](std.result)
 |-
 | `String`
-| `std.string`
+| [](std.string)
 |-
 | `panic`
-| `std.process`
+| [](std.process)

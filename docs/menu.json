@@ -38,7 +38,9 @@
     "guides/documentation.md",
     "guides/packages.md",
     "guides/cross-compilation.md",
-    "guides/operators.md"
+    "guides/operators.md",
+    "guides/http-server.md",
+    "guides/http-client.md"
   ],
   "References": [
     "references/cli.md",

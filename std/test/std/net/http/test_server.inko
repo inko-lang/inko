@@ -1,0 +1,2409 @@
+import helpers (
+  VALID_CERT, VALID_KEY, certificate, hash, private_key, with_directory,
+)
+import std.bytes (Bytes)
+import std.drop (Drop)
+import std.drop (drop)
+import std.env
+import std.fmt (fmt)
+import std.fs.file (WriteOnlyFile)
+import std.fs.file (ReadOnlyFile)
+import std.fs.path (Path)
+import std.io (Buffer, BufferedReader, Error as IoError, Write)
+import std.mime (Mime)
+import std.net.http (
+  Body, Etag, Header, HeaderMap, Limits, Method, ParseError, Parser, Reader,
+  Request as RawRequest, Status, Version,
+)
+import std.net.http.client (Client)
+import std.net.http.server (
+  Address, CacheControl, ConnectionId, Delete, Directory, FileRanges, FormError,
+  Get, Handle, Head, LogWriter, Logger, Notifier, Path as RequestPath, Post,
+  Put, RangeRequest, Request, Response, Server, Shutdown, SignalHandler, Socket,
+  SocketServer, State, conditional_request, copy_file_range, head_request,
+  parse_accept_range, parse_accept_ranges, quality_value,
+)
+import std.net.ip (IpAddress)
+import std.net.socket (
+  SocketAddress, TcpClient, TcpServer, UnixAddress, UnixClient, UnixServer,
+)
+import std.net.tls
+import std.rand (Random)
+import std.sync (Future, Promise)
+import std.test (Tests)
+import std.time (DateTime, Duration, Instant)
+import std.uri (Host, Path as UriPath, Query, Scheme, Uri, Values, encode)
+
+fn unix_pair(
+  directory: ref Path,
+) -> Result[(UnixServer, Socket, Socket), IoError] {
+  try directory.create_directory
+
+  let path = directory.join('server.sock')
+  let server = try UnixServer.new(path)
+  let writer = Socket.Unix(try UnixClient.new(path))
+  let reader = Socket.Unix(try server.accept)
+
+  Result.Ok((server, writer, reader))
+}
+
+fn socket_pair -> Result[(TcpServer, Socket, Socket), IoError] {
+  let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+  let addr = try server.local_address
+  let writer = Socket.Plain(try TcpClient.new([addr.ip], addr.port))
+  let reader = Socket.Plain(try server.accept)
+
+  Result.Ok((server, writer, reader))
+}
+
+fn plain -> String {
+  'text/plain'
+}
+
+fn url_encoded -> String {
+  'application/x-www-form-urlencoded'
+}
+
+fn values(pairs: Array[(String, String)]) -> Values {
+  let vals = Values.new
+
+  for (k, v) in pairs { vals.add(k, v) }
+
+  vals
+}
+
+fn request(raw: RawRequest, limits: Limits) -> Request {
+  let addr = Address.Ip(SocketAddress(ip: IpAddress.v4(0, 0, 0, 0), port: 80))
+
+  Request.new(addr, raw, limits)
+}
+
+fn empty_request(limits: Limits) -> Request {
+  request_with_method(limits, Get)
+}
+
+fn request_with_method(limits: Limits, method: Method) -> Request {
+  request(
+    RawRequest(
+      method: method,
+      uri: Uri.parse('/').or_panic,
+      version: Version(1, 1),
+      headers: HeaderMap.new,
+      body: Body.bounded(
+        BufferedReader.new(Reader.new(Buffer.new(''))),
+        size: 0,
+        limit: 0,
+      ),
+    ),
+    limits,
+  )
+}
+
+fn etag -> String {
+  Etag.from_metadata(hello_txt.metadata.or_panic).to_string
+}
+
+fn hello_txt -> Path {
+  'fixtures/hello.txt'.to_path
+}
+
+fn unix_uri(host: ref Path, path: String) -> Uri {
+  let uri = Uri.new
+  let buf = ByteArray.new
+
+  encode(host.to_string, buf)
+
+  uri.scheme = Option.Some(Scheme.Unix)
+  uri.host = Host.new(buf)
+  uri.path = UriPath.new(path).get
+  uri
+}
+
+fn with_http_server(
+  id: Int,
+  body: fn (Path) -> Result[Nil, String],
+) -> Result[Nil, String] {
+  with_directory(id, fn (dir) {
+    try dir.create_directory.map_error(fn (e) { e.to_string })
+
+    let path = dir.join('server.sock')
+    let _waiter = AsyncServer.new(recover path.clone)
+
+    body.call(path)
+  })
+}
+
+type Writer {
+  let @buffer: ByteArray
+
+  fn static new -> Writer {
+    Writer(ByteArray.new)
+  }
+}
+
+impl Write[IoError] for Writer {
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, IoError] {
+    @buffer.append(bytes)
+    Result.Ok(nil)
+  }
+
+  fn pub mut flush -> Result[Nil, IoError] {
+    Result.Ok(nil)
+  }
+}
+
+type Hello {}
+
+impl Handle for Hello {
+  fn pub mut handle(request: mut Request) -> Response {
+    match request.target {
+      case [] -> Response.new.string('hello')
+      case ['hijack'] -> Response.new.hijack(fn (s) { s.write('hijacked') })
+      case _ -> Response.not_found
+    }
+  }
+
+  fn pub mut invalid_request(response: Response) -> Response {
+    response.string('invalid request')
+  }
+}
+
+type ManualShutdown {
+  let mut @promise: Option[Promise[Notifier[Hello]]]
+}
+
+impl SignalHandler[Hello] for ManualShutdown {
+  fn mut start(notifier: Notifier[Hello]) {
+    (@promise := Option.None).get.set(notifier)
+  }
+}
+
+impl LogWriter {
+  fn async wait(promise: uni Promise[Nil]) {
+    promise.set(nil)
+  }
+}
+
+type async AsyncServer {
+  fn static new(path: uni Path) -> ServerWaiter {
+    let (not_fut, not_prom) = Future.new
+    let srv = recover {
+      let srv = Server.new(fn { recover Hello() })
+      let limits = Limits.new
+
+      limits.uri_size = 32
+      limits.headers = 8
+      limits.header_size = 128
+      srv.limits = limits
+
+      # This fake signal handler is used so the test can get access to the
+      # Notifier type and use it to shut down the server.
+      srv.signal_handler = ManualShutdown(Option.Some(not_prom))
+        as SignalHandler[Hello]
+
+      # We don't want to wait for connections during the tests so we don't delay
+      # them.
+      srv.shutdown_wait_time = Duration.from_secs(0)
+      srv
+    }
+
+    let shut_fut = async Self().run(srv, path)
+
+    ServerWaiter(done: Option.Some(shut_fut), notifier: not_fut.get)
+  }
+
+  fn async run(
+    done: uni Promise[Nil],
+    server: uni Server[Hello],
+    path: uni Path,
+  ) {
+    (recover server).start_unix(recover path).or_panic
+    done.set(nil)
+  }
+}
+
+type ServerWaiter {
+  let mut @done: Option[Future[Nil]]
+  let @notifier: Notifier[Hello]
+}
+
+impl Drop for ServerWaiter {
+  fn mut drop {
+    @notifier.notify(wait: false)
+
+    if (@done := Option.None).get.get_until(Duration.from_secs(5)).none? {
+      panic('AsyncServer took longer than 5 seconds to shut down')
+    }
+  }
+}
+
+fn pub tests(t: mut Tests) {
+  t.test('quality_value', fn (t) {
+    let tests = [
+      ('q=-1,2', 0.0),
+      ('q=1.05', 1.0),
+      ('q=1.5', 1.0),
+      ('q=0.5', 0.5),
+      ('q=0.123', 0.123),
+      ('q=0.1234', 0.0),
+      ('q=foo', 0.0),
+      ('q=', 0.0),
+      ('', 1.0),
+    ]
+
+    for (inp, exp) in tests {
+      t.equal(quality_value(Mime.new('text/plain; ${inp}')), exp)
+    }
+  })
+
+  t.test('copy_file_range', fn (t) {
+    let buf = ByteArray.new
+    let from = ReadOnlyFile.new(hello_txt).or_panic
+    let to = Writer.new
+
+    t.true(copy_file_range(buf, from, to, 0.to(2)))
+    t.equal(to.buffer.to_string, 'hel')
+
+    t.false(copy_file_range(buf, from, to, -5.to(2)))
+    t.equal(to.buffer.to_string, 'hel')
+  })
+
+  t.test('Get', fn (t) { t.equal(Get, Method.Get) })
+  t.test('Head', fn (t) { t.equal(Head, Method.Head) })
+  t.test('Post', fn (t) { t.equal(Post, Method.Post) })
+  t.test('Put', fn (t) { t.equal(Put, Method.Put) })
+  t.test('Delete', fn (t) { t.equal(Delete, Method.Delete) })
+
+  t.test('parse_accept_range', fn (t) {
+    let tests = [
+      # X- ranges
+      ('10-', Option.Some(10.to(99))),
+      ('9223372036854775807-', Option.None),
+      ('10000000000000000000-', Option.None),
+      ('a-', Option.None),
+      ('-10-', Option.None),
+
+      # -Y ranges
+      ('-10', Option.Some(89.to(99))),
+      ('-9223372036854775807', Option.Some(0.to(99))),
+      ('-10000000000000000000', Option.None),
+      ('--10', Option.None),
+      ('-0', Option.None),
+
+      # X-Y ranges
+      ('10-20', Option.Some(10.to(20))),
+      ('50-9223372036854775807', Option.Some(50.to(99))),
+      ('9223372036854775807-9223372036854775807', Option.None),
+      ('10000000000000000000-10000000000000000000', Option.None),
+      ('1 - 2', Option.None),
+      ('-', Option.None),
+      ('-10-20', Option.None),
+      ('20-10', Option.None),
+    ]
+
+    for (inp, exp) in tests {
+      t.equal(parse_accept_range(inp.to_slice, size: 100), exp)
+    }
+  })
+
+  t.test('parse_accept_ranges', fn (t) {
+    let tests = [
+      ('1-2', Option.Some([1.to(2)])),
+      ('1-1000000', Option.Some([1.to(99)])),
+      ('1-2, 3-4, 5-6, 7-8', Option.Some([1.to(2), 3.to(4), 5.to(6), 7.to(8)])),
+      ('1-2, 3-4, 5-6, 7-8, 9-10', Option.None),
+      ('1-2, 2-3', Option.None),
+      ('1-2, 3-4, 1-2', Option.None),
+    ]
+
+    for (inp, exp) in tests {
+      t.equal(parse_accept_ranges(inp.to_slice, file_size: 100, limit: 4), exp)
+    }
+  })
+
+  t.test('conditional_request with a regular response', fn (t) {
+    let limits = Limits.new
+    let req = empty_request(limits)
+
+    req.data.headers.set(Header.if_none_match, etag)
+
+    let res = conditional_request(req, Response.new.string('foo'))
+
+    t.true(
+      match res.body {
+        case String('foo') -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('conditional_request with an unsafe request method', fn (t) {
+    let limits = Limits.new
+    let req = request_with_method(limits, Post)
+
+    req.data.headers.set(Header.if_none_match, etag)
+
+    let res = conditional_request(req, Response.new.file(hello_txt).or_panic)
+
+    t.true(
+      match res.body {
+        case File(_) -> true
+        case _ -> false
+      },
+    )
+    t.equal(res.status, Status.ok)
+    t.true(res.headers.get(Header.last_modified).error?)
+  })
+
+  t.test('conditional_request with a valid If-None-Match header', fn (t) {
+    let limits = Limits.new
+    let req = empty_request(limits)
+
+    req.data.headers.set(Header.if_none_match, etag)
+
+    let res = conditional_request(req, Response.new.file(hello_txt).or_panic)
+
+    t.equal(res.status, Status.not_modified)
+    t.true(res.headers.get(Header.last_modified).ok?)
+    t.true(
+      match res.body {
+        case None -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('conditional_request with a valid If-Modified-Since header', fn (t) {
+    let limits = Limits.new
+    let req = empty_request(limits)
+    let now = DateTime.utc + Duration.from_secs(3600)
+
+    req.data.headers.set(Header.if_modified_since, now.to_rfc2822)
+
+    let res = conditional_request(req, Response.new.file(hello_txt).or_panic)
+
+    t.equal(res.status, Status.not_modified)
+    t.true(res.headers.get(Header.last_modified).ok?)
+    t.true(
+      match res.body {
+        case None -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test(
+    'conditional_request with both a If-None-Match and If-Modified-Since header',
+    fn (t) {
+      let limits = Limits.new
+      let req = empty_request(limits)
+      let time = hello_txt.metadata.or_panic.modified_at.to_date_time
+        - Duration.from_secs(3600)
+
+      req.data.headers.set(Header.if_none_match, etag)
+      req.data.headers.set(Header.if_modified_since, time.to_rfc2822)
+
+      let res = conditional_request(req, Response.new.file(hello_txt).or_panic)
+
+      t.equal(res.status, Status.not_modified)
+      t.true(res.headers.get(Header.last_modified).ok?)
+    },
+  )
+
+  t.test('conditional_request with If-None-Match: *', fn (t) {
+    let limits = Limits.new
+    let req = empty_request(limits)
+
+    req.data.headers.set(Header.if_none_match, '*')
+
+    let res = conditional_request(req, Response.new.file(hello_txt).or_panic)
+
+    t.equal(res.status, Status.not_modified)
+    t.true(res.headers.get(Header.last_modified).ok?)
+  })
+
+  t.test('conditional_request with multiple If-None-Match values', fn (t) {
+    let limits = Limits.new
+    let req = empty_request(limits)
+
+    req.data.headers.set(Header.if_none_match, '"foo", ${etag}')
+
+    let res = conditional_request(req, Response.new.file(hello_txt).or_panic)
+
+    t.equal(res.status, Status.not_modified)
+    t.true(res.headers.get(Header.last_modified).ok?)
+  })
+
+  t.test(
+    'conditional_request with a request method other than GET or HEAD',
+    fn (t) {
+      let limits = Limits.new
+      let req = request_with_method(limits, Method.Trace)
+
+      req.data.headers.set(Header.if_none_match, etag)
+
+      let res = conditional_request(req, Response.new.file(hello_txt).or_panic)
+
+      t.equal(res.status, Status.precondition_failed)
+      t.true(res.headers.get(Header.last_modified).ok?)
+      t.true(
+        match res.body {
+          case None -> true
+          case _ -> false
+        },
+      )
+    },
+  )
+
+  t.test('conditional_request with a stale If-None-Match value', fn (t) {
+    let limits = Limits.new
+    let req = request_with_method(limits, Method.Trace)
+
+    req.data.headers.set(Header.if_none_match, 'foo')
+
+    let res = conditional_request(req, Response.new.file(hello_txt).or_panic)
+
+    t.equal(res.status, Status.ok)
+    t.true(res.headers.get(Header.last_modified).ok?)
+    t.true(
+      match res.body {
+        case File(_) -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('conditional_request with a stale If-Modified-Since value', fn (t) {
+    let limits = Limits.new
+    let req = request_with_method(limits, Method.Trace)
+    let time = hello_txt.metadata.or_panic.modified_at.to_date_time
+      - Duration.from_secs(3600)
+
+    req.data.headers.set(Header.if_modified_since, time.to_rfc2822)
+
+    let res = conditional_request(req, Response.new.file(hello_txt).or_panic)
+
+    t.equal(res.status, Status.ok)
+    t.true(res.headers.get(Header.last_modified).ok?)
+    t.true(
+      match res.body {
+        case File(_) -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('RangeRequest.handle with a regular response', fn (t) {
+    let limits = Limits.new
+    let req = empty_request(limits)
+
+    req.data.headers.set(Header.range, 'bytes=0,3')
+
+    let res = RangeRequest.new.handle(req, Response.new.string('foo'))
+
+    t.true(res.headers.get(Header.content_range).error?)
+    t.true(
+      match res.body {
+        case String('foo') -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('RangeRequest.handle with a non-GET request', fn (t) {
+    let limits = Limits.new
+    let req = request_with_method(limits, Post)
+
+    req.data.headers.set(Header.range, 'bytes=0,3')
+
+    let res = Response.new.file(hello_txt).or_panic
+    let res = RangeRequest.new.handle(req, res)
+
+    t.true(res.headers.get(Header.content_range).error?)
+    t.true(
+      match res.body {
+        case File(_) -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('RangeRequest.handle with a non-OK response', fn (t) {
+    let limits = Limits.new
+    let req = empty_request(limits)
+
+    req.data.headers.set(Header.range, 'bytes=0,3')
+
+    let res = Response.new.status(Status.created).file(hello_txt).or_panic
+    let res = RangeRequest.new.handle(req, res)
+
+    t.true(res.headers.get(Header.content_range).error?)
+    t.true(
+      match res.body {
+        case File(_) -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('RangeRequest.handle with a single Range value', fn (t) {
+    let limits = Limits.new
+    let req = empty_request(limits)
+
+    req.data.headers.set(Header.range, 'bytes=0-3')
+
+    let res = Response.new.file(hello_txt).or_panic
+    let res = RangeRequest.new.handle(req, res)
+
+    t.equal(res.status, Status.partial_content)
+    t.equal(res.headers.get(Header.content_range), Result.Ok('bytes 0-3/6'))
+    t.true(
+      match res.body {
+        case File(f) -> {
+          match f.ranges {
+            case Single(r) -> r == 0.to(3)
+            case _ -> false
+          }
+        }
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('RangeRequest.handle with an invalid Range value', fn (t) {
+    let limits = Limits.new
+    let req = empty_request(limits)
+
+    req.data.headers.set(Header.range, 'bytes=0,3')
+
+    let res = Response.new.file(hello_txt).or_panic
+    let res = RangeRequest.new.handle(req, res)
+
+    t.equal(res.headers.get(Header.content_range), Result.Ok('bytes */6'))
+    t.equal(res.status, Status.range_not_satisfiable)
+    t.true(
+      match res.body {
+        case String('') -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('RangeRequest.handle with multiple Range values', fn (t) {
+    let limits = Limits.new
+    let req = empty_request(limits)
+
+    req.data.headers.set(Header.range, 'bytes=0-3,4-5')
+
+    let res = Response.new.file(hello_txt).or_panic
+    let res = RangeRequest(rng: Random.from_int(42), limit: 8).handle(req, res)
+    let sep = 'InkoFormBoundaryHlzwcFgKtvmvB89Js6UhXuY80cn4O3-eIxjOYsIxQsM'
+
+    t.equal(res.status, Status.partial_content)
+    t.true(res.headers.get(Header.content_range).error?)
+    t.equal(
+      res.headers.get(Header.content_type),
+      Result.Ok('multipart/byteranges; boundary=${sep}'),
+    )
+    t.true(
+      match res.body {
+        case File(f) -> {
+          match f.ranges {
+            case Multiple(ranges, bound) -> {
+              ranges == [0.to(3), 4.to(5)] and bound == sep
+            }
+            case _ -> false
+          }
+        }
+        case _ -> false
+      },
+    )
+  })
+
+  t.test(
+    'RangeRequest.handle with an If-Range header with a matching ETag',
+    fn (t) {
+      let limits = Limits.new
+      let req = empty_request(limits)
+
+      req.data.headers.set(Header.range, 'bytes=0-3')
+      req.data.headers.set(Header.if_range, etag)
+
+      let res = Response.new.header(Header.etag, etag).file(hello_txt).or_panic
+      let res = RangeRequest.new.handle(req, res)
+
+      t.equal(res.status, Status.partial_content)
+      t.equal(res.headers.get(Header.content_range), Result.Ok('bytes 0-3/6'))
+      t.true(
+        match res.body {
+          case File(f) -> {
+            match f.ranges {
+              case Single(r) -> r == 0.to(3)
+              case _ -> false
+            }
+          }
+          case _ -> false
+        },
+      )
+    },
+  )
+
+  t.test(
+    'RangeRequest.handle with an If-Range header with a stale ETag',
+    fn (t) {
+      let limits = Limits.new
+      let req = empty_request(limits)
+
+      req.data.headers.set(Header.range, 'bytes=0-3')
+      req.data.headers.set(Header.if_range, '"foo"')
+
+      let res = Response.new.header(Header.etag, etag).file(hello_txt).or_panic
+      let res = RangeRequest.new.handle(req, res)
+
+      t.true(res.headers.get(Header.content_range).error?)
+      t.true(
+        match res.body {
+          case File(f) -> {
+            match f.ranges {
+              case None -> true
+              case _ -> false
+            }
+          }
+          case _ -> false
+        },
+      )
+    },
+  )
+
+  t.test(
+    'RangeRequest.handle with an If-Range header with a matching date',
+    fn (t) {
+      let limits = Limits.new
+      let req = empty_request(limits)
+
+      req.data.headers.set(Header.range, 'bytes=0-3')
+      req.data.headers.set(Header.if_range, 'date')
+
+      let res = Response
+        .new
+        .header(Header.last_modified, 'date')
+        .file(hello_txt)
+        .or_panic
+      let res = RangeRequest.new.handle(req, res)
+
+      t.equal(res.status, Status.partial_content)
+      t.equal(res.headers.get(Header.content_range), Result.Ok('bytes 0-3/6'))
+      t.true(
+        match res.body {
+          case File(f) -> {
+            match f.ranges {
+              case Single(r) -> r == 0.to(3)
+              case _ -> false
+            }
+          }
+          case _ -> false
+        },
+      )
+    },
+  )
+
+  t.test(
+    'RangeRequest.handle with an If-Range header with a stale date',
+    fn (t) {
+      let limits = Limits.new
+      let req = empty_request(limits)
+
+      req.data.headers.set(Header.range, 'bytes=0-3')
+      req.data.headers.set(Header.if_range, '"date"')
+
+      let res = Response
+        .new
+        .header(Header.last_modified, 'updated')
+        .file(hello_txt)
+        .or_panic
+      let res = RangeRequest.new.handle(req, res)
+
+      t.true(res.headers.get(Header.content_range).error?)
+      t.true(
+        match res.body {
+          case File(f) -> {
+            match f.ranges {
+              case None -> true
+              case _ -> false
+            }
+          }
+          case _ -> false
+        },
+      )
+    },
+  )
+
+  t.test('head_request with a GET request', fn (t) {
+    let limits = Limits.new
+    let req = empty_request(limits)
+    let res = head_request(req, Response.new.string('foo'))
+
+    t.true(res.headers.get(Header.content_length).error?)
+    t.true(
+      match res.body {
+        case String('foo') -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('head_request with a HEAD request and a OK response', fn (t) {
+    let limits = Limits.new
+    let req = request_with_method(limits, Head)
+    let res = head_request(req, Response.new.string('foo'))
+
+    t.equal(res.headers.get(Header.content_length), Result.Ok('3'))
+    t.true(
+      match res.body {
+        case None -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test(
+    'head_request with a HEAD request and a partial content response',
+    fn (t) {
+      let limits = Limits.new
+      let req = request_with_method(limits, Head)
+      let res = Response.new.status(Status.partial_content).string('foo')
+      let res = head_request(req, res)
+
+      t.equal(res.status, Status.partial_content)
+      t.equal(res.headers.get(Header.content_length), Result.Ok('3'))
+      t.true(
+        match res.body {
+          case None -> true
+          case _ -> false
+        },
+      )
+    },
+  )
+
+  t.test('head_request with a HEAD request and an error response', fn (t) {
+    let limits = Limits.new
+    let req = request_with_method(limits, Head)
+    let res = Response.new.status(Status.not_found).string('foo')
+    let res = head_request(req, res)
+
+    t.equal(res.status, Status.not_found)
+    t.true(
+      match res.body {
+        case String('foo') -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('Response.new', fn (t) {
+    let res = Response.new
+
+    t.equal(res.status, Status.ok)
+    t.equal(res.headers.size, 0)
+    t.true(
+      match res.body {
+        case String('') -> true
+        case _ -> false
+      },
+    )
+    t.true(res.hijacker.none?)
+    t.true(res.error.none?)
+  })
+
+  t.test('Response.not_found', fn (t) {
+    t.equal(Response.not_found.status, Status.not_found)
+  })
+
+  t.test('Response.only_allow', fn (t) {
+    let res = Response.only_allow([Get, Post])
+
+    t.equal(res.status, Status.method_not_allowed)
+    t.equal(res.headers.get(Header.allow), Result.Ok('GET, POST'))
+  })
+
+  t.test('Response.bad_request', fn (t) {
+    t.equal(Response.bad_request.status, Status.bad_request)
+  })
+
+  t.test('Response.forbidden', fn (t) {
+    t.equal(Response.forbidden.status, Status.forbidden)
+  })
+
+  t.test('Response.internal_server_error', fn (t) {
+    t.equal(Response.internal_server_error.status, Status.internal_server_error)
+  })
+
+  t.test('Response.header', fn (t) {
+    let res = Response.new.header(Header.content_type, 'text/plain')
+
+    t.equal(res.headers.get(Header.content_type), Result.Ok('text/plain'))
+
+    let res = res.header(Header.content_type, 'foo')
+
+    t.equal(res.headers.get(Header.content_type), Result.Ok('foo'))
+  })
+
+  t.test('Response.without_header', fn (t) {
+    let res = Response
+      .new
+      .header(Header.content_type, 'text/plain')
+      .without_header(Header.content_type)
+
+    t.true(res.headers.get(Header.content_type).error?)
+  })
+
+  t.test('Response.status', fn (t) {
+    let res = Response.new.status(Status.not_found)
+
+    t.equal(res.status, Status.not_found)
+  })
+
+  t.test('Response.empty_body', fn (t) {
+    let res = Response.new.empty_body
+
+    t.true(
+      match res.body {
+        case String('') -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('Response.without_body', fn (t) {
+    let res = Response.new.without_body
+
+    t.true(
+      match res.body {
+        case None -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('Response.string', fn (t) {
+    let res = Response.new.string('foo')
+
+    t.true(
+      match res.body {
+        case String('foo') -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('Response.html', fn (t) {
+    let res = Response.new.html('foo')
+
+    t.equal(
+      res.headers.get(Header.content_type),
+      Result.Ok('text/html; charset=utf-8'),
+    )
+    t.true(
+      match res.body {
+        case Bytes([102, 111, 111]) -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('Response.xml', fn (t) {
+    let res = Response.new.xml('foo')
+
+    t.equal(
+      res.headers.get(Header.content_type),
+      Result.Ok('application/xml; charset=utf-8'),
+    )
+    t.true(
+      match res.body {
+        case Bytes([102, 111, 111]) -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('Response.bytes', fn (t) {
+    let res = Response.new.bytes('foo'.to_byte_array)
+
+    t.true(
+      match res.body {
+        case Bytes([102, 111, 111]) -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('Response.json', fn (t) {
+    let res = Response.new.json('[10]')
+
+    t.equal(res.headers.get(Header.content_type), Result.Ok('application/json'))
+    t.true(
+      match res.body {
+        case String('[10]') -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.ok('Response.file with a valid file', fn (t) {
+    let res = try Response.new.file(hello_txt)
+
+    t.equal(res.headers.get(Header.content_type), Result.Ok('text/plain'))
+    t.true(
+      match res.body {
+        case File(_) -> true
+        case _ -> false
+      },
+    )
+
+    Result.Ok(nil)
+  })
+
+  t.test('Response.file with a invalid file', fn (t) {
+    t.equal(
+      Response.new.file('fixtures/missing.txt'.to_path).error,
+      Option.Some(IoError.NotFound),
+    )
+  })
+
+  t.test('Response.file with a directory', fn (t) {
+    t.equal(
+      Response.new.file('fixtures'.to_path).error,
+      Option.Some(IoError.NotFound),
+    )
+  })
+
+  t.test('Response.hijack', fn (t) {
+    let res = Response.new.hijack(fn (s) {})
+
+    t.true(
+      match res.body {
+        case None -> true
+        case _ -> false
+      },
+    )
+    t.true(res.hijacker.some?)
+  })
+
+  t.test('Response.error', fn (t) {
+    let res = Response.new.error('foo')
+
+    t.equal(res.error, Option.Some('foo'))
+  })
+
+  t.ok('Response.write with a connection to keep alive', fn (t) {
+    with_directory(t.id, fn (dir) -> Result[Nil, IoError] {
+      let (_server, writer, reader) = try unix_pair(dir)
+      let res = Response.new.string('foo')
+      let buf = ByteArray.new
+
+      res.write(buf, writer, timeout: Duration.from_secs(5), keep: true)
+      t.true(buf.empty?)
+
+      # Make sure the deadline is cleared.
+      t.true(
+        match ref writer {
+          case Unix({ @socket = sock }) -> sock.deadline <= 0
+          case _ -> false
+        },
+      )
+
+      drop(writer)
+
+      let _ = try reader.read_all(buf)
+      let resp = Parser
+        .from_bytes(mut buf, ByteArray.new, Limits.new)
+        .response(Get)
+        .or_panic
+
+      buf.clear
+
+      t.equal(resp.status, Status.ok)
+      t.equal(resp.headers.get(Header.connection), Result.Ok('keep-alive'))
+      t.true(resp.headers.get(Header.date).ok?)
+      t.equal(resp.headers.get(Header.content_length), Result.Ok('3'))
+      t.equal(resp.body.read_all(buf), Result.Ok(3))
+      t.equal(buf.to_string, 'foo')
+
+      Result.Ok(nil)
+    })
+  })
+
+  t.ok('Response.write with a connection to close', fn (t) {
+    with_directory(t.id, fn (dir) -> Result[Nil, IoError] {
+      let (_server, writer, reader) = try unix_pair(dir)
+      let res = Response.new.string('foo')
+      let buf = ByteArray.new
+
+      res.write(buf, writer, timeout: Duration.from_secs(5), keep: false)
+      t.true(buf.empty?)
+      drop(writer)
+
+      let _ = try reader.read_all(buf)
+      let resp = Parser
+        .from_bytes(mut buf, ByteArray.new, Limits.new)
+        .response(Get)
+        .or_panic
+
+      t.equal(resp.headers.get(Header.connection), Result.Ok('close'))
+
+      Result.Ok(nil)
+    })
+  })
+
+  t.ok('Response.write with a whole file', fn (t) {
+    with_directory(t.id, fn (dir) -> Result[Nil, IoError] {
+      let (_server, writer, reader) = try unix_pair(dir)
+      let res = try Response.new.file(hello_txt)
+      let buf = ByteArray.new
+
+      res.write(buf, writer, timeout: Duration.from_secs(5), keep: true)
+      t.true(buf.empty?)
+      drop(writer)
+
+      let _ = try reader.read_all(buf)
+      let resp = Parser
+        .from_bytes(mut buf, ByteArray.new, Limits.new)
+        .response(Get)
+        .or_panic
+
+      buf.clear
+      t.equal(resp.headers.get(Header.content_length), Result.Ok('6'))
+      t.equal(resp.body.read_all(buf), Result.Ok(6))
+      t.equal(buf.to_string, 'hello\n')
+
+      Result.Ok(nil)
+    })
+  })
+
+  t.ok('Response.write with a single file range', fn (t) {
+    with_directory(t.id, fn (dir) -> Result[Nil, IoError] {
+      let (_server, writer, reader) = try unix_pair(dir)
+      let res = try Response.new.file(hello_txt)
+
+      {
+        let File(f) = mut res.body else panic('unreachable')
+
+        f.ranges = FileRanges.Single(0.to(2))
+      }
+
+      let buf = ByteArray.new
+
+      res.write(buf, writer, timeout: Duration.from_secs(5), keep: true)
+      t.true(buf.empty?)
+      drop(writer)
+
+      let _ = try reader.read_all(buf)
+      let resp = Parser
+        .from_bytes(mut buf, ByteArray.new, Limits.new)
+        .response(Get)
+        .or_panic
+
+      buf.clear
+      t.equal(resp.headers.get(Header.content_length), Result.Ok('3'))
+      t.equal(resp.body.read_all(buf), Result.Ok(3))
+      t.equal(buf.to_string, 'hel')
+
+      Result.Ok(nil)
+    })
+  })
+
+  t.ok('Response.write with multiple file ranges', fn (t) {
+    with_directory(t.id, fn (dir) -> Result[Nil, IoError] {
+      let (_server, writer, reader) = try unix_pair(dir)
+      let res = try Response.new.file(hello_txt)
+
+      {
+        let File(f) = mut res.body else panic('the body must be a File')
+
+        f.ranges = FileRanges.Multiple([0.to(2), 3.to(4)], 'foo')
+      }
+
+      let buf = ByteArray.new
+
+      res.write(buf, writer, timeout: Duration.from_secs(5), keep: true)
+      t.true(buf.empty?)
+      drop(writer)
+
+      let _ = try reader.read_all(buf)
+      let resp = Parser
+        .from_bytes(mut buf, ByteArray.new, Limits.new)
+        .response(Get)
+        .or_panic
+
+      buf.clear
+      t.equal(resp.headers.get(Header.transfer_encoding), Result.Ok('chunked'))
+      t.equal(resp.body.read_all(buf), Result.Ok(142))
+      t.equal(
+        buf.to_string,
+        '--foo\r\nContent-Type: text/plain\r\nContent-Range: bytes 0-2/6\r\n\r\nhel\r\n'
+          + '--foo\r\nContent-Type: text/plain\r\nContent-Range: bytes 3-4/6\r\n\r\nlo\r\n'
+          + '--foo--',
+      )
+
+      Result.Ok(nil)
+    })
+  })
+
+  t.test('Body.present?', fn (t) {
+    t.true(Response.new.string('').body.present?)
+    t.true(Response.new.bytes(ByteArray.new).body.present?)
+    t.true(Response.new.file(hello_txt).or_panic.body.present?)
+    t.false(Response.new.without_body.body.present?)
+  })
+
+  t.test('Body.size', fn (t) {
+    t.true(
+      match Response.new.string('foo').body.size {
+        case Fixed(3) -> true
+        case _ -> false
+      },
+    )
+    t.true(
+      match Response.new.bytes('foo'.to_byte_array).body.size {
+        case Fixed(3) -> true
+        case _ -> false
+      },
+    )
+    t.true(
+      match Response.new.file(hello_txt).or_panic.body.size {
+        case Fixed(6) -> true
+        case _ -> false
+      },
+    )
+
+    let single = Response.new.file(hello_txt).or_panic
+    let multi = Response.new.file(hello_txt).or_panic
+
+    {
+      let File(single) = single.body else panic('unreachable')
+      let File(multi) = multi.body else panic('unreachable')
+
+      single.ranges = FileRanges.Single(0.to(2))
+      multi.ranges = FileRanges.Multiple([0.to(2), 3.to(4)], 'foo')
+    }
+
+    t.true(
+      match single.body.size {
+        case Fixed(3) -> true
+        case _ -> false
+      },
+    )
+
+    t.true(
+      match multi.body.size {
+        case Chunked -> true
+        case _ -> false
+      },
+    )
+
+    t.true(
+      match Response.new.without_body.body.size {
+        case None -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('BodyReader.read', fn (t) {
+    let res1 = Response.new.string('foo')
+    let res2 = Response.new.file(hello_txt).or_panic
+
+    let r1 = res1.body.reader
+    let r2 = res2.body.reader
+    let buf = ByteArray.new
+
+    t.equal(r1.read_all(buf), Result.Ok(3))
+    t.equal(r1.read_all(buf), Result.Ok(0))
+    t.equal(buf.drain_to_string, 'foo')
+
+    t.equal(r2.read_all(buf), Result.Ok(6))
+    t.equal(r2.read_all(buf), Result.Ok(0))
+    t.equal(buf.drain_to_string, 'hello\n')
+  })
+
+  t.test('Address.to_string', fn (t) {
+    let a1 = Address.Ip(SocketAddress(ip: IpAddress.v4(1, 2, 3, 4), port: 1234))
+    let a2 = Address.Unix(UnixAddress('foo'))
+    let a3 = Address.Unix(UnixAddress('\0abstract'))
+
+    t.equal(a1.to_string, '1.2.3.4')
+    t.equal(a2.to_string, 'foo')
+    t.equal(a3.to_string, '@abstract')
+  })
+
+  t.test('Address.clone', fn (t) {
+    let a1 = Address.Ip(SocketAddress(ip: IpAddress.v4(1, 2, 3, 4), port: 1234))
+    let a2 = Address.Unix(UnixAddress('foo'))
+    let a3 = Address.Unix(UnixAddress('\0abstract'))
+
+    t.equal(a1.clone.to_string, a1.to_string)
+    t.equal(a2.clone.to_string, a2.to_string)
+    t.equal(a3.clone.to_string, a3.to_string)
+  })
+
+  t.ok('Socket.address with a TCP socket', fn (t) {
+    let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
+    let addr = try server.local_address
+    let client = try TcpClient.new([addr.ip], addr.port)
+    let sock_addr = try Socket.Plain(client).address
+
+    t.equal(sock_addr.to_string, '127.0.0.1')
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Socket.address with a TLS socket', fn (t) {
+    let conf = tls.ServerConfig.new(certificate, private_key).or_panic
+    let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
+    let addr = try server.local_address
+    let client = try TcpClient.new([addr.ip], addr.port)
+    let sock_addr = try Socket.Secure(tls.Server.new(client, conf)).address
+
+    t.equal(sock_addr.to_string, '127.0.0.1')
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Socket.address with a Unix socket', fn (t) {
+    with_directory(t.id, fn (dir) -> Result[Nil, IoError] {
+      let (_server, _writer, reader) = try unix_pair(dir)
+      let sock_addr = try reader.address
+
+      t.equal(sock_addr.to_string, dir.join('server.sock').to_string)
+
+      Result.Ok(nil)
+    })
+  })
+
+  t.ok('Socket.read', fn (t) {
+    let (_server, writer, reader) = try socket_pair
+    let buf = ByteArray.new
+
+    t.equal(writer.write('foo'), Result.Ok(nil))
+    t.equal(reader.read(buf, size: 3), Result.Ok(3))
+    t.equal(buf.to_string, 'foo')
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Socket.timeout_after=', fn (t) {
+    let (_server, writer, _reader) = try socket_pair
+    let deadline = Instant.new + Duration.from_secs(5)
+
+    writer.timeout_after = deadline
+
+    t.equal(
+      match writer {
+        case Plain({ @socket = sock }) -> sock.deadline
+        case _ -> -1
+      },
+      deadline.to_int,
+    )
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Socket.reset_deadline', fn (t) {
+    let (_server, writer, _reader) = try socket_pair
+    let deadline = Instant.new + Duration.from_secs(5)
+
+    writer.timeout_after = deadline
+    writer.reset_deadline
+
+    t.not_equal(
+      match writer {
+        case Plain({ @socket = sock }) -> sock.deadline
+        case _ -> -1
+      },
+      deadline.to_int,
+    )
+
+    Result.Ok(nil)
+  })
+
+  t.test('ConnectionId.==', fn (t) {
+    t.true(ConnectionId(1, 1) == ConnectionId(1, 1))
+    t.false(ConnectionId(1, 1) == ConnectionId(1, 2))
+    t.false(ConnectionId(1, 1) == ConnectionId(2, 1))
+  })
+
+  t.test('ConnectionId.hash', fn (t) {
+    t.equal(hash(ConnectionId(1, 1)), hash(ConnectionId(1, 1)))
+    t.not_equal(hash(ConnectionId(1, 1)), hash(ConnectionId(1, 2)))
+  })
+
+  t.test('State.shutting_down?', fn (t) {
+    t.true(State.ShuttingDown.shutting_down?)
+    t.false(State.Active.shutting_down?)
+  })
+
+  t.test('Path.split_first', fn (t) {
+    let raw = 'foo/bar/baz'
+    let path = RequestPath(raw.split('/').to_array)
+
+    t.true(
+      match path.split_first {
+        case Some(('foo', rest)) -> rest.size == 2
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('Path.starts_with?', fn (t) {
+    let raw = 'foo/bar/baz'
+    let path = RequestPath(raw.split('/').to_array)
+
+    t.true(path.starts_with?('foo'))
+    t.true(path.starts_with?('foo/bar'))
+    t.false(path.starts_with?('bar'))
+  })
+
+  t.test('Path.to_slice', fn (t) {
+    let raw = 'foo/bar/baz'
+    let path = RequestPath(raw.split('/').to_array)
+
+    t.equal(path.to_slice.size, 3)
+  })
+
+  t.test('FormError.fmt', fn (t) {
+    t.equal(fmt(FormError.Read(ParseError.BodyTooLarge)), 'Read(BodyTooLarge)')
+    t.equal(fmt(FormError.InvalidSyntax), 'InvalidSyntax')
+  })
+
+  t.test('FormError.==', fn (t) {
+    t.equal(
+      FormError.Read(ParseError.BodyTooLarge),
+      FormError.Read(ParseError.BodyTooLarge),
+    )
+    t.equal(FormError.InvalidSyntax, FormError.InvalidSyntax)
+    t.not_equal(
+      FormError.Read(ParseError.BodyTooLarge),
+      FormError.InvalidSyntax,
+    )
+  })
+
+  t.test('FormError.to_string', fn (t) {
+    t.equal(
+      FormError.Read(ParseError.BodyTooLarge).to_string,
+      ParseError.BodyTooLarge.to_string,
+    )
+    t.equal(FormError.InvalidSyntax.to_string, 'the form syntax is invalid')
+  })
+
+  t.test('Request.host', fn (t) {
+    let limits = Limits.new
+    let req = empty_request(limits)
+
+    req.data.headers.set(Header.host, 'foo')
+    t.true(
+      match req.host {
+        case ('foo', None) -> true
+        case _ -> false
+      },
+    )
+
+    req.data.headers.set(Header.host, 'foo:1234')
+    t.true(
+      match req.host {
+        case ('foo', Some(1234)) -> true
+        case _ -> false
+      },
+    )
+
+    req.data.headers.set(Header.host, 'foo:abc')
+    t.true(
+      match req.host {
+        case ('foo', None) -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('Request.method', fn (t) {
+    let limits = Limits.new
+    let req = empty_request(limits)
+
+    t.equal(req.method, req.data.method)
+  })
+
+  t.test('Request.version', fn (t) {
+    let limits = Limits.new
+    let req = empty_request(limits)
+
+    t.equal(req.version, req.data.version)
+  })
+
+  t.test('Request.uri', fn (t) {
+    let limits = Limits.new
+    let req = empty_request(limits)
+
+    t.equal(req.uri, req.data.uri)
+  })
+
+  t.test('Request.headers', fn (t) {
+    let limits = Limits.new
+    let req = empty_request(limits)
+
+    t.equal(req.headers, req.data.headers)
+  })
+
+  t.test('Request.body', fn (t) {
+    let limits = Limits.new
+    let req = empty_request(limits)
+    let buf = ByteArray.new
+
+    t.equal(req.body.read_all(buf), Result.Ok(0))
+  })
+
+  t.test('Request.url_encoded_form', fn (t) {
+    let tests = [
+      # GET requests
+      (plain, Method.Get, '', '', Result.Ok(values([]))),
+      (
+        plain,
+        Method.Get,
+        'name=Alice',
+        '',
+        Result.Ok(values([('name', 'Alice')])),
+      ),
+      (
+        plain,
+        Method.Get,
+        'name=Alice&age=42',
+        '',
+        Result.Ok(values([('name', 'Alice'), ('age', '42')])),
+      ),
+      (
+        plain,
+        Method.Get,
+        'name=Alice&age=42',
+        'foo=bar',
+        Result.Ok(values([('name', 'Alice'), ('age', '42')])),
+      ),
+      (plain, Method.Get, '', 'foo=bar', Result.Ok(values([]))),
+
+      # HEAD requests
+      (plain, Method.Head, '', '', Result.Ok(values([]))),
+      (
+        plain,
+        Method.Head,
+        'name=Alice',
+        '',
+        Result.Ok(values([('name', 'Alice')])),
+      ),
+      (
+        plain,
+        Method.Head,
+        'name=Alice&age=42',
+        '',
+        Result.Ok(values([('name', 'Alice'), ('age', '42')])),
+      ),
+      (
+        plain,
+        Method.Head,
+        'name=Alice&age=42',
+        'foo=bar',
+        Result.Ok(values([('name', 'Alice'), ('age', '42')])),
+      ),
+      (plain, Method.Head, '', 'foo=bar', Result.Ok(values([]))),
+
+      # Other requests (e.g. POST)
+      (url_encoded, Method.Post, '', '', Result.Ok(values([]))),
+      (url_encoded, Method.Post, 'name=Alice', '', Result.Ok(values([]))),
+      (
+        url_encoded,
+        Method.Post,
+        '',
+        'name=Alice',
+        Result.Ok(values([('name', 'Alice')])),
+      ),
+      (
+        url_encoded,
+        Method.Post,
+        '',
+        'name=Alice&age=42',
+        Result.Ok(values([('name', 'Alice'), ('age', '42')])),
+      ),
+      (url_encoded, Method.Put, '', '', Result.Ok(values([]))),
+      (url_encoded, Method.Put, 'name=Alice', '', Result.Ok(values([]))),
+      (
+        url_encoded,
+        Method.Put,
+        '',
+        'name=Alice',
+        Result.Ok(values([('name', 'Alice')])),
+      ),
+      (
+        url_encoded,
+        Method.Put,
+        '',
+        'name=Alice&age=42',
+        Result.Ok(values([('name', 'Alice'), ('age', '42')])),
+      ),
+
+      # Invalid requests
+      (
+        plain,
+        Method.Post,
+        '',
+        'name=Alice',
+        Result.Error(FormError.InvalidContentType),
+      ),
+      (
+        url_encoded + '; charset=whatever',
+        Method.Post,
+        '',
+        'name=Alice',
+        Result.Error(FormError.InvalidContentType),
+      ),
+      (
+        url_encoded + '; charset=UTF-8',
+        Method.Post,
+        '',
+        'name=Alice',
+        Result.Error(FormError.InvalidContentType),
+      ),
+      (
+        url_encoded,
+        Method.Post,
+        '',
+        'foo=\0',
+        Result.Error(FormError.InvalidSyntax),
+      ),
+    ]
+
+    let limits = Limits.new
+
+    for (typ, method, query, body, res) in tests {
+      let uri = Uri.new
+
+      uri.query = Query.new(query).get
+
+      let headers = HeaderMap.new
+
+      headers.add(Header.content_length, body.size.to_string)
+      headers.add(Header.content_type, typ)
+
+      let body = Body.bounded(
+        BufferedReader.new(Reader.new(Buffer.new(body))),
+        size: body.size,
+        limit: body.size,
+      )
+      let req = request(
+        RawRequest(
+          method: method,
+          uri: uri,
+          version: Version(1, 1),
+          headers: headers,
+          body: body,
+        ),
+        limits,
+      )
+
+      t.equal(req.url_encoded_form, res)
+    }
+  })
+
+  t.test('Request.accepted_mime_types', fn (t) {
+    let tests = [
+      # Valid values
+      ('', []),
+      (
+        'text/plain; q=0.5, text/html, text/x-dvi; q=0.8, text/x-c',
+        [
+          Mime.new('text/html'),
+          Mime.new('text/x-c'),
+          Mime.new('text/x-dvi; q=0.8'),
+          Mime.new('text/plain; q=0.5'),
+        ],
+      ),
+      (
+        'text/plain; q=1, text/html; q=900',
+        [Mime.new('text/plain; q=1'), Mime.new('text/html; q=900')],
+      ),
+      (
+        'text/plain; q=-1, text/html; q=-900',
+        [Mime.new('text/plain; q=-1'), Mime.new('text/html; q=-900')],
+      ),
+      (
+        'text/1, text/2, text/3, text/4, text/5, text/6, text/7, text/8, text/9, text/10, text/11, text/12, text/13, text/14, text/15, text/16, text/17',
+        [
+          Mime.new('text/1'),
+          Mime.new('text/2'),
+          Mime.new('text/3'),
+          Mime.new('text/4'),
+          Mime.new('text/5'),
+          Mime.new('text/6'),
+          Mime.new('text/7'),
+          Mime.new('text/8'),
+          Mime.new('text/9'),
+          Mime.new('text/10'),
+          Mime.new('text/11'),
+          Mime.new('text/12'),
+          Mime.new('text/13'),
+          Mime.new('text/14'),
+          Mime.new('text/15'),
+          Mime.new('text/16'),
+        ],
+      ),
+      (
+        '1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, text/16',
+        [Mime.new('text/16')],
+      ),
+      (
+        'text/*, text/plain, text/plain;format=flowed, */*',
+        [
+          Mime.new('text/plain;format=flowed'),
+          Mime.new('text/plain'),
+          Mime.new('text/*'),
+          Mime.new('*/*'),
+        ],
+      ),
+      (
+        'foo/bar, text/*, text/plain, a/b, text/plain;format=flowed, */*',
+        [
+          Mime.new('foo/bar'),
+          Mime.new('text/plain'),
+          Mime.new('text/*'),
+          Mime.new('a/b'),
+          Mime.new('text/plain;format=flowed'),
+          Mime.new('*/*'),
+        ],
+      ),
+      (
+        'text/*, text/plain, text/*; a=b',
+        [Mime.new('text/plain'), Mime.new('text/*; a=b'), Mime.new('text/*')],
+      ),
+      (
+        'application/xml, application/xhtml+xml, text/html; q=0.9, text/plain; q=0.8, image/png, */*; q=0.5',
+        [
+          Mime.new('application/xml'),
+          Mime.new('application/xhtml+xml'),
+          Mime.new('image/png'),
+          Mime.new('text/html; q=0.9'),
+          Mime.new('text/plain; q=0.8'),
+          Mime.new('*/*; q=0.5'),
+        ],
+      ),
+
+      # Invalid values
+      (
+        'text/plain; q=a, text/html',
+        [Mime.new('text/html'), Mime.new('text/plain; q=a')],
+      ),
+      ('text, text/html', [Mime.new('text/html')]),
+      ('1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, text/17', []),
+    ]
+
+    let limits = Limits.new
+
+    for (inp, exp) in tests {
+      let req = empty_request(limits)
+
+      req.data.headers.set(Header.accept, inp)
+      t.equal(req.accepted_mime_types, exp)
+    }
+  })
+
+  # We just test if a Multipart is produced as the actual parsing is already
+  # covered by the Multipart tests.
+  t.test('Request.multipart_form', fn (t) {
+    let tests = [
+      # Valid Inputs
+      ('multipart/form-data; boundary=TEST', true),
+      ('multipart/form-data; boundary="TEST"', true),
+
+      # Invalid Inputs
+      ('multipart/form-data; boundary=', false),
+      ('multipart/form-data;', false),
+      ('I like turtles', false),
+      ('MULTIPART/FORM-DATA; boundary=TEST', false),
+      ('multipart/form-data; invalid=TEST', false),
+      ('', false),
+      ('multipart/form-data; boundary=TEST; charset=whatever', false),
+    ]
+
+    let limits = Limits.new
+
+    for (inp, exp) in tests {
+      let map = HeaderMap.new
+
+      if inp.size > 0 { map.add(Header.content_type, inp) }
+
+      let body = Body.bounded(
+        BufferedReader.new(Reader.new(Buffer.new(''))),
+        size: 0,
+        limit: 0,
+      )
+      let req = request(
+        RawRequest(
+          method: Method.Post,
+          uri: Uri.new,
+          version: Version(1, 1),
+          headers: map,
+          body: body,
+        ),
+        limits,
+      )
+
+      t.equal(req.multipart_form.ok?, exp)
+    }
+  })
+
+  t.test('Request.content_type', fn (t) {
+    let tests = [
+      ('text/plain', Option.Some(Mime.new('text/plain'))),
+      ('text/plain; foo="bar"', Option.Some(Mime.new('text/plain; foo="bar"'))),
+      ('', Option.None),
+      ('foo', Option.None),
+    ]
+
+    let limits = Limits.new
+
+    for (inp, exp) in tests {
+      let req = empty_request(limits)
+
+      req.data.headers.set(Header.content_type, inp)
+      req.data.headers.add(Header.content_type, 'foo')
+      t.equal(req.content_type, exp)
+    }
+  })
+
+  t.test('Request.target', fn (t) {
+    let tests = [
+      ('/', []),
+      ('/foo/bar', ['foo', 'bar']),
+      ('/foo//bar', ['foo', 'bar']),
+      ('/foo/bar%20baz', ['foo', 'bar baz']),
+      ('foo', []),
+      ('foo/bar', []),
+    ]
+    let limits = Limits.new
+
+    for (path, exp) in tests {
+      let req = request(
+        RawRequest(
+          method: Method.Get,
+          uri: Uri.parse(path).or_panic,
+          version: Version(1, 1),
+          headers: HeaderMap.new,
+          body: Body.bounded(
+            BufferedReader.new(Reader.new(Buffer.new(''))),
+            size: 0,
+            limit: 0,
+          ),
+        ),
+        limits,
+      )
+
+      t.equal(req.target.iter.map(fn (v) { v.to_string }).to_array, exp)
+    }
+  })
+
+  t.test('Request.same_origin?', fn (t) {
+    let tests = [
+      # Safe requests are always allowed.
+      (Get, 'same-origin', 'http://host', true),
+      (Get, '', 'http://host', true),
+      (Get, 'cross-site', 'http://host', true),
+      (Get, '', 'http://other-host', true),
+      (Head, 'same-origin', 'http://host', true),
+      (Head, '', 'http://host', true),
+      (Head, 'cross-site', 'http://host', true),
+      (Head, '', 'http://other-host', true),
+
+      # Unsafe requests with the correct header values are allowed.
+      (Post, 'same-origin', 'http://host', true),
+      (Post, 'none', 'http://host', true),
+      (Post, '', 'http://host', true),
+
+      # Other unsafe requests are not allowed.
+      (Post, 'cross-site', 'http://host', false),
+      (Post, 'whatever', 'http://host', false),
+      (Post, '', 'http://other-host', false),
+      (Post, '', 'weird-origin-uri', false),
+
+      # If both headers are missing the request is allowed because it's not a
+      # browser.
+      (Post, '', '', true),
+    ]
+
+    let limits = Limits.new
+
+    for (method, sec_fetch, origin, exp) in tests {
+      let req = request_with_method(limits, method)
+
+      req.data.headers.set(Header.host, 'host')
+
+      if sec_fetch.empty? {
+        req.data.headers.remove_all(Header.sec_fetch_site)
+      } else {
+        req.data.headers.set(Header.sec_fetch_site, sec_fetch)
+      }
+
+      if origin.empty? {
+        req.data.headers.remove_all(Header.origin)
+      } else {
+        req.data.headers.set(Header.origin, origin)
+      }
+
+      t.equal(req.same_origin?, exp)
+    }
+  })
+
+  t.ok('SocketServer.accept with a TCP socket', fn (t) {
+    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let addr = try server.local_address
+    let _client = try TcpClient.new([addr.ip], addr.port)
+
+    t.true(
+      match try SocketServer.Tcp(server).accept(Option.None) {
+        case Plain(_) -> true
+        case _ -> false
+      },
+    )
+
+    Result.Ok(nil)
+  })
+
+  t.ok('SocketServer.accept with a TLS socket', fn (t) {
+    let conf = tls.ServerConfig.new(certificate, private_key).or_panic
+    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let addr = try server.local_address
+    let _client = try TcpClient.new([addr.ip], addr.port)
+
+    t.true(
+      match try SocketServer.Tcp(server).accept(Option.Some(ref conf)) {
+        case Secure(_) -> true
+        case _ -> false
+      },
+    )
+
+    Result.Ok(nil)
+  })
+
+  t.ok('SocketServer.accept with a Unix socket', fn (t) {
+    with_directory(t.id, fn (dir) {
+      try dir.create_directory
+
+      let path = dir.join('server.sock')
+      let server = try UnixServer.new(path)
+      let _client = try UnixClient.new(path)
+
+      t.true(
+        match try SocketServer.Unix(server).accept(Option.None) {
+          case Unix(_) -> true
+          case _ -> false
+        },
+      )
+
+      Result.Ok(nil)
+    })
+  })
+
+  t.ok('SocketServer.address with a TCP socket', fn (t) {
+    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let addr = try server.local_address
+    let _client = try TcpClient.new([addr.ip], addr.port)
+
+    t.true(
+      match SocketServer.Tcp(server).address {
+        case Ok(Ip(v)) -> v == addr
+        case _ -> false
+      },
+    )
+
+    Result.Ok(nil)
+  })
+
+  t.ok('SocketServer.address with a TCP socket', fn (t) {
+    with_directory(t.id, fn (dir) {
+      try dir.create_directory
+
+      let path = dir.join('server.sock')
+      let server = try UnixServer.new(path)
+      let addr = try server.local_address
+      let _client = try UnixClient.new(path)
+
+      t.true(
+        match SocketServer.Unix(server).address {
+          case Ok(Unix(v)) -> v == addr
+          case _ -> false
+        },
+      )
+
+      Result.Ok(nil)
+    })
+  })
+
+  t.test('Shutdown.received?', fn (t) {
+    let (fut, prom) = Future.new
+    let shutdown = Shutdown(Option.Some(fut))
+
+    t.false(shutdown.received?)
+
+    prom.set(nil)
+    t.true(shutdown.received?)
+    t.true(shutdown.received?)
+  })
+
+  t.ok('Server.enable_tls with valid arguments', fn (t) {
+    with_directory(t.id, fn (dir) {
+      try dir.create_directory
+
+      let key = dir.join('key.pem')
+      let cert = dir.join('cert.pem')
+
+      try WriteOnlyFile.new(key).then(fn (f) { f.write(VALID_KEY) })
+      try WriteOnlyFile.new(cert).then(fn (f) { f.write(VALID_CERT) })
+
+      let srv = Server.new(fn { recover Hello() })
+
+      t.equal(srv.enable_tls(cert, key), Result.Ok(nil))
+      t.true(srv.tls.some?)
+
+      Result.Ok(nil)
+    })
+  })
+
+  t.ok('Server.enable_tls with an invalid certificate', fn (t) {
+    with_directory(t.id, fn (dir) {
+      try dir.create_directory
+
+      let key = dir.join('key.pem')
+      let cert = dir.join('cert.pem')
+
+      try WriteOnlyFile.new(key).then(fn (f) { f.write(VALID_KEY) })
+
+      let srv = Server.new(fn { recover Hello() })
+
+      t.true(srv.enable_tls(cert, key).error?)
+
+      Result.Ok(nil)
+    })
+  })
+
+  t.ok('Server.enable_tls with an invalid private key', fn (t) {
+    with_directory(t.id, fn (dir) {
+      try dir.create_directory
+
+      let key = dir.join('key.pem')
+      let cert = dir.join('cert.pem')
+
+      try WriteOnlyFile.new(cert).then(fn (f) { f.write(VALID_CERT) })
+
+      let srv = Server.new(fn { recover Hello() })
+
+      t.true(srv.enable_tls(cert, key).error?)
+
+      Result.Ok(nil)
+    })
+  })
+
+  t.test('Server.before_shutdown', fn (t) {
+    let srv = Server.new(fn { recover Hello() })
+
+    srv.before_shutdown(fn {})
+    t.true(srv.before_shutdown.some?)
+  })
+
+  t.fork(
+    'Logger.log',
+    child: fn {
+      let limits = Limits.new
+      let log = Logger.new
+      let req = empty_request(limits)
+
+      req.data.headers.set(Header.referer, 'referer')
+      req.data.headers.set(Header.user_agent, 'user-agent')
+      log.log(req, Response.new.status(Status.not_found))
+      await log.writer.wait
+    },
+    test: fn (t, p) {
+      let out = p.spawn.stdout
+
+      t.true(out.contains?('GET / HTTP/1.1 404'))
+      t.true(out.contains?('referer'))
+      t.true(out.contains?('user-agent'))
+    },
+  )
+
+  t.fork(
+    'Logger.log when logging is disabled',
+    child: fn {
+      let limits = Limits.new
+      let log = Logger.new
+      let req = empty_request(limits)
+
+      req.data.headers.set(Header.referer, 'referer')
+      req.data.headers.set(Header.user_agent, 'user-agent')
+      log.enabled = false
+      log.log(req, Response.new.status(Status.not_found))
+      await log.writer.wait
+    },
+    test: fn (t, p) { t.equal(p.spawn.stdout, '') },
+  )
+
+  t.fork(
+    'Logger.log without timestamps',
+    child: fn {
+      let limits = Limits.new
+      let log = Logger.new
+      let req = empty_request(limits)
+
+      req.data.uri.query = Query.new('key=value').get
+      req.data.headers.set(Header.referer, 'referer')
+      req.data.headers.set(Header.user_agent, 'user-agent')
+      log.time = false
+      log.log(req, Response.new.status(Status.not_found))
+      await log.writer.wait
+    },
+    test: fn (t, p) {
+      t.equal(
+        p.spawn.stdout,
+        '0.0.0.0 GET /?key=value HTTP/1.1 404 "referer" "user-agent"\n',
+      )
+    },
+  )
+
+  t.test('Logger.clone', fn (t) {
+    let a = Logger.new
+    let b = a.clone
+
+    t.equal(a.time, b.time)
+    t.equal(a.enabled, b.enabled)
+  })
+
+  t.test('CacheControl.to_string', fn (t) {
+    let tests = [
+      (CacheControl.new, 'public, max-age=2592000, must-revalidate'),
+      (
+        CacheControl.new.max_age(Duration.from_secs(10)),
+        'public, max-age=10, must-revalidate',
+      ),
+      (CacheControl.new.no_revalidate, 'public, max-age=2592000'),
+      (CacheControl.new.no_cache, 'no-cache'),
+      (
+        CacheControl.new.no_store,
+        'public, no-store, max-age=2592000, must-revalidate',
+      ),
+      (
+        CacheControl.new.no_transform,
+        'public, max-age=2592000, must-revalidate, no-transform',
+      ),
+      (CacheControl.new.private, 'private, max-age=2592000, must-revalidate'),
+      (
+        CacheControl.new.proxy_revalidate,
+        'public, max-age=2592000, must-revalidate, proxy-revalidate',
+      ),
+      (CacheControl.new.no_cache.proxy_revalidate, 'no-cache'),
+      (
+        CacheControl.new.no_cache.private,
+        'private, max-age=2592000, must-revalidate',
+      ),
+      (
+        CacheControl.new.max_age(Duration.from_secs(10)).no_store,
+        'public, no-store, max-age=10, must-revalidate',
+      ),
+    ]
+
+    for (cache, exp) in tests { t.equal(cache.to_string, exp) }
+  })
+
+  t.panic('Directory.new with a relative path', fn {
+    Directory.new('fixtures'.to_path)
+  })
+
+  t.panic('Directory.new with a path to a file', fn {
+    Directory.new(env.working_directory.get.join('fixtures').join('hello.txt'))
+  })
+
+  t.test('Directory.handle with a valid path', fn (t) {
+    let limits = Limits.new
+    let req = empty_request(limits)
+    let dir = Directory.new(env.working_directory.get.join('fixtures'))
+    let path = ['hello.txt'.to_slice]
+    let res = dir.handle(req, path.to_slice)
+
+    t.equal(res.status, Status.ok)
+    t.equal(res.headers.get(Header.cache_control), Result.Ok(dir.cache_control))
+    t.true(
+      match res.body {
+        case File(_) -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('Directory.handle with a path to a non-existing file', fn (t) {
+    let limits = Limits.new
+    let req = empty_request(limits)
+    let dir = Directory.new(env.working_directory.get.join('fixtures'))
+    let path = ['foo.txt'.to_slice]
+    let res = dir.handle(req, path.to_slice)
+
+    t.equal(res.status, Status.not_found)
+    t.true(res.headers.get(Header.cache_control).error?)
+    t.true(
+      match res.body {
+        case String('') -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test(
+    'Directory.handle with a path to a file outside the directory',
+    fn (t) {
+      let limits = Limits.new
+      let req = empty_request(limits)
+      let dir = Directory.new(env.working_directory.get.join('fixtures'))
+      let path = ['..'.to_slice, 'README.md'.to_slice]
+      let res = dir.handle(req, path.to_slice)
+
+      t.equal(res.status, Status.not_found)
+      t.true(res.headers.get(Header.cache_control).error?)
+    },
+  )
+
+  t.test('Directory.handle with an empty path', fn (t) {
+    let limits = Limits.new
+    let req = empty_request(limits)
+    let dir = Directory.new(env.working_directory.get.join('fixtures'))
+    let path = []
+    let res = dir.handle(req, path.to_slice)
+
+    t.equal(res.status, Status.not_found)
+    t.true(res.headers.get(Header.cache_control).error?)
+  })
+
+  t.test('Directory.cache_control', fn (t) {
+    let dir = Directory
+      .new(env.working_directory.get.join('fixtures'))
+      .cache_control(CacheControl.new.no_cache)
+
+    t.equal(dir.cache_control, 'no-cache')
+  })
+
+  t.ok('A valid GET request', fn (t) {
+    with_http_server(t.id, fn (path) {
+      let client = Client.new
+      let uri = unix_uri(path, '/')
+      let res = try client.get(uri).send.map_error(fn (e) { e.to_string })
+      let buf = ByteArray.new
+
+      t.equal(res.body.read_all(buf), Result.Ok(5))
+      t.equal(buf.into_string, 'hello')
+      t.equal(res.headers.get(Header.connection), Result.Ok('keep-alive'))
+      Result.Ok(nil)
+    })
+  })
+
+  t.ok('A request with a hijacked response', fn (t) {
+    with_http_server(t.id, fn (path) {
+      let client = Client.new
+      let uri = unix_uri(path, '/hijack')
+      let res = try client.get(uri).send.map_error(fn (e) { e.to_string })
+      let buf = ByteArray.new
+
+      t.equal(res.body.read_all(buf), Result.Ok(8))
+      t.equal(buf.into_string, 'hijacked')
+      t.equal(res.headers.get(Header.connection), Result.Ok('close'))
+      Result.Ok(nil)
+    })
+  })
+
+  t.ok('A request with an unconsumed body', fn (t) {
+    with_http_server(t.id, fn (path) {
+      let client = Client.new
+      let uri = unix_uri(path, '/')
+      let res = try client.post(uri).body('a').map_error(fn (e) { e.to_string })
+      let buf = ByteArray.new
+
+      t.equal(res.status, Status.ok)
+      t.equal(res.body.read_all(buf), Result.Ok(5))
+      t.equal(buf.into_string, 'hello')
+      t.equal(res.headers.get(Header.connection), Result.Ok('close'))
+      Result.Ok(nil)
+    })
+  })
+
+  t.ok('A request with an old HTTP version', fn (t) {
+    with_http_server(t.id, fn (path) {
+      let client = try UnixClient.new(path).map_error(fn (e) { e.to_string })
+
+      try client.write('GET / HTTP/0.9\r\n\r\n').map_error(fn (e) {
+        e.to_string
+      })
+
+      let limits = Limits.new
+      let res = try Parser
+        .new(Reader.new(client), ByteArray.new, limits)
+        .response(Get)
+        .map_error(fn (e) { e.to_string })
+      let buf = ByteArray.new
+
+      t.equal(res.status, Status.upgrade_required)
+      t.equal(res.headers.get(Header.upgrade), Result.Ok('HTTP/1.1'))
+      t.equal(res.headers.get(Header.connection), Result.Ok('Upgrade'))
+      t.equal(res.body.read_all(buf), Result.Ok(15))
+      t.equal(buf.to_string, 'invalid request')
+      Result.Ok(nil)
+    })
+  })
+
+  t.ok('A request with an unsupported HTTP version', fn (t) {
+    with_http_server(t.id, fn (path) {
+      let client = try UnixClient.new(path).map_error(fn (e) { e.to_string })
+
+      try client.write('GET / HTTP/1.5\r\n\r\n').map_error(fn (e) {
+        e.to_string
+      })
+
+      let limits = Limits.new
+      let res = try Parser
+        .new(Reader.new(client), ByteArray.new, limits)
+        .response(Get)
+        .map_error(fn (e) { e.to_string })
+      let buf = ByteArray.new
+
+      t.equal(res.status, Status.http_version_not_supported)
+      t.equal(res.headers.get(Header.connection), Result.Ok('close'))
+      t.equal(res.body.read_all(buf), Result.Ok(15))
+      t.equal(buf.to_string, 'invalid request')
+
+      Result.Ok(nil)
+    })
+  })
+
+  t.ok('A request without the Host header', fn (t) {
+    with_http_server(t.id, fn (path) {
+      let client = Client.new
+      let uri = unix_uri(path, '/')
+      let req = client.get(uri)
+
+      req.headers.remove_all(Header.host)
+
+      let res = try req.send.map_error(fn (e) { e.to_string })
+
+      t.equal(res.status, Status.bad_request)
+      Result.Ok(nil)
+    })
+  })
+
+  t.ok('A request with multiple Host headers', fn (t) {
+    with_http_server(t.id, fn (path) {
+      let client = Client.new
+      let uri = unix_uri(path, '/')
+      let req = client.get(uri)
+
+      req.headers.add(Header.host, 'foo')
+
+      let res = try req.send.map_error(fn (e) { e.to_string })
+
+      t.equal(res.status, Status.bad_request)
+      Result.Ok(nil)
+    })
+  })
+
+  t.ok('A request with an invalid method', fn (t) {
+    with_http_server(t.id, fn (path) {
+      let client = try UnixClient.new(path).map_error(fn (e) { e.to_string })
+
+      try client.write('FOO / HTTP/1.1\r\n\r\n').map_error(fn (e) {
+        e.to_string
+      })
+
+      let limits = Limits.new
+      let res = try Parser
+        .new(Reader.new(client), ByteArray.new, limits)
+        .response(Get)
+        .map_error(fn (e) { e.to_string })
+
+      t.equal(res.status, Status.not_implemented)
+      Result.Ok(nil)
+    })
+  })
+
+  t.ok('A request with an invalid URI', fn (t) {
+    with_http_server(t.id, fn (path) {
+      let client = try UnixClient.new(path).map_error(fn (e) { e.to_string })
+
+      try client.write('GET foo HTTP/1.1\r\n\r\n').map_error(fn (e) {
+        e.to_string
+      })
+
+      let limits = Limits.new
+      let res = try Parser
+        .new(Reader.new(client), ByteArray.new, limits)
+        .response(Get)
+        .map_error(fn (e) { e.to_string })
+
+      t.equal(res.status, Status.bad_request)
+      Result.Ok(nil)
+    })
+  })
+
+  t.ok('A request with an invalid transfer encoding', fn (t) {
+    with_http_server(t.id, fn (path) {
+      let client = Client.new
+      let uri = unix_uri(path, '/')
+      let res = try client
+        .get(uri)
+        .header(Header.transfer_encoding, 'kittens')
+        .send
+        .map_error(fn (e) { e.to_string })
+
+      t.equal(res.status, Status.not_implemented)
+      Result.Ok(nil)
+    })
+  })
+
+  t.ok("A request with a URI that's too large", fn (t) {
+    with_http_server(t.id, fn (path) {
+      let client = Client.new
+      let uri = unix_uri(path, '/foo'.repeat(32))
+      let res = try client.get(uri).send.map_error(fn (e) { e.to_string })
+
+      t.equal(res.status, Status.uri_too_long)
+      Result.Ok(nil)
+    })
+  })
+
+  t.ok("A request with a header that's too large", fn (t) {
+    with_http_server(t.id, fn (path) {
+      let client = Client.new
+      let uri = unix_uri(path, '/')
+      let res = try client
+        .get(uri)
+        .header(Header.accept, 'v'.repeat(128))
+        .send
+        .map_error(fn (e) { e.to_string })
+
+      t.equal(res.status, Status.request_header_fields_too_large)
+      Result.Ok(nil)
+    })
+  })
+
+  t.ok('A request with too many headers', fn (t) {
+    with_http_server(t.id, fn (path) {
+      let client = Client.new
+      let uri = unix_uri(path, '/')
+      let req = client.get(uri)
+
+      for i in 0.until(10) {
+        req.headers.set(Header.Other('custom-${i}'), i.to_string)
+      }
+
+      let res = try req.send.map_error(fn (e) { e.to_string })
+
+      t.equal(res.status, Status.request_header_fields_too_large)
+      Result.Ok(nil)
+    })
+  })
+}

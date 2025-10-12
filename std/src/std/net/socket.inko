@@ -60,6 +60,7 @@
 # For more information about timeouts versus deadlines, consider reading [this
 # article](https://vorpus.org/blog/timeouts-and-cancellation-for-humans/).
 import std.bytes (Bytes)
+import std.clone (Clone)
 import std.cmp (Equal)
 import std.drop (Drop)
 import std.fmt (Format, Formatter)
@@ -110,7 +111,7 @@ trait RawSocketOperations {
   fn raw_deadline -> Int
 }
 
-trait SendFile[E]: RawSocketOperations {
+trait SendFile[E] {
   # Sends a read-only file to the other half of `self`, without the need for an
   # intermediate buffer.
   #
@@ -215,6 +216,12 @@ type pub copy SocketAddress {
   let pub @port: Int
 }
 
+impl Clone for SocketAddress {
+  fn pub clone -> Self {
+    self
+  }
+}
+
 impl Equal for SocketAddress {
   # Returns `true` if `self` and `other` are the same.
   fn pub inline ==(other: ref SocketAddress) -> Bool {
@@ -222,9 +229,19 @@ impl Equal for SocketAddress {
   }
 }
 
+impl ToString for SocketAddress {
+  fn pub to_string -> String {
+    '${@ip}:${@port}'
+  }
+}
+
 impl Format for SocketAddress {
   fn pub fmt(formatter: mut Formatter) {
-    formatter.write('${@ip}:${@port}')
+    formatter
+      .object('SocketAddress')
+      .field('ip', @ip)
+      .field('port', @port)
+      .finish
   }
 }
 
@@ -1138,8 +1155,8 @@ type pub inline UnixAddress {
   # ```inko
   # import std.net.socket (UnixAddress)
   #
-  # UnixAddress.new('/tmp/test.sock'.to_path).abstract?    # => false
-  # UnixAddress.new("\0example-address".to_path).abstract? # => true
+  # UnixAddress('/tmp/test.sock'.to_path).abstract?    # => false
+  # UnixAddress("\0example-address".to_path).abstract? # => true
   # ```
   fn pub abstract? -> Bool {
     @address.get(0).or(-1) == 0
@@ -1154,25 +1171,49 @@ type pub inline UnixAddress {
   # ```inko
   # import std.net.socket (UnixAddress)
   #
-  # UnixAddress.new('/tmp/test.sock'.to_path).unnamed? # => false
-  # UnixAddress.new(''.to_path).unnamed?               # => true
+  # UnixAddress('/tmp/test.sock'.to_path).unnamed? # => false
+  # UnixAddress(''.to_path).unnamed?               # => true
   # ```
   fn pub unnamed? -> Bool {
     @address.empty?
   }
-}
 
-impl Format for UnixAddress {
-  fn pub fmt(formatter: mut Formatter) {
-    let write = if abstract? {
+  # Returns a `String` containing a human-readable representation of the
+  # address.
+  #
+  # While `UnixAddress.to_string` returns the address as-is, this method returns
+  # a more readable version. For example, for abstract addresses the leading
+  # NULL byte is replaced with `@` and for unnamed addresses the `String`
+  # "unnamed" is returned.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.socket (UnixAddress)
+  #
+  # UnixAddress('test.sock'.to_path).to_readable_string # => 'test.sock'
+  # UnixAddress('test.sock'.to_path).to_readable_string # => 'test.sock'
+  # ```
+  fn pub to_readable_string -> String {
+    if abstract? {
       '@${@address.slice(start: 1, end: @address.size)}'
     } else if unnamed? {
       'unnamed'
     } else {
       @address
     }
+  }
+}
 
-    formatter.write(write)
+impl Clone for UnixAddress {
+  fn pub clone -> Self {
+    Self(@address)
+  }
+}
+
+impl Format for UnixAddress {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter.write(to_readable_string)
   }
 }
 
@@ -1186,8 +1227,8 @@ impl Equal for UnixAddress {
   # ```inko
   # import std.net.socket (UnixAddress)
   #
-  # UnixAddress.new('a.sock'.to_path) == UnixAddress.new('a.sock'.to_path) # => true
-  # UnixAddress.new('a.sock'.to_path) == UnixAddress.new('b.sock'.to_path) # => false
+  # UnixAddress('a.sock'.to_path) == UnixAddress('a.sock'.to_path) # => true
+  # UnixAddress('a.sock'.to_path) == UnixAddress('b.sock'.to_path) # => false
   # ```
   fn pub ==(other: ref UnixAddress) -> Bool {
     @address == other.address
@@ -1204,8 +1245,8 @@ impl ToString for UnixAddress {
   # ```inko
   # import std.net.socket (UnixAddress)
   #
-  # UnixAddress.new('/tmp/test.sock'.to_path).to_string # => '/tmp/test.sock'
-  # UnixAddress.new("\0example".to_path).to_string      # => "\0example"
+  # UnixAddress('/tmp/test.sock'.to_path).to_string # => '/tmp/test.sock'
+  # UnixAddress("\0example".to_path).to_string      # => "\0example"
   # ```
   fn pub to_string -> String {
     @address
@@ -1818,8 +1859,6 @@ type pub UnixServer {
   let pub @socket: UnixSocket
 
   # Creates a new `UnixServer` bound to and listening on the given address.
-  #
-  # The `backlog` argument can be used to set the listen backlog.
   #
   # # Examples
   #

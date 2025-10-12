@@ -6,7 +6,7 @@
 
 Types can define a method to run when before they are dropped, known as a
 "destructor". Destructors are defined by implementing the `Drop` trait from the
-`std.drop` module like so:
+[](std.drop) module like so:
 
 ```inko
 import std.drop (Drop)

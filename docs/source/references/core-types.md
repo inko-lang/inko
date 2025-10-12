@@ -42,7 +42,7 @@ The `Int` type is used for integers. Integers are 64 bits signed integers.
 ## Map
 
 `Map` is a hash map and can store key-value pairs of any type, as long as the
-keys implement the traits `std.hash.Hash` and `std.cmp.Equal`.
+keys implement the traits [](std.hash.Hash) and [](std.cmp.Equal).
 
 ## Nil
 
@@ -81,7 +81,7 @@ of a 1 GiB `String` only require 1 GiB of memory.
 
 `Never` is a type that indicates something never happens. When used as a return
 type, it means the method never returns. An example of this is
-`std.process.panic()`: this method panics and thus returns a `Never`.
+[](std.process.panic): this method panics and thus returns a `Never`.
 
 You'll likely never need to use this type directly.
 

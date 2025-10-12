@@ -1,0 +1,709 @@
+import std.fmt (fmt)
+import std.net.http.cookie (Cookie, ParseError, SameSite)
+import std.test (Tests)
+import std.time (Date, DateTime, Duration, Time)
+
+fn cookie(
+  name: String,
+  value: String,
+  fun: fn (mut Cookie),
+) -> Result[Cookie, ParseError] {
+  let c = Cookie.new(name, value)
+
+  fun.call(c)
+  Result.Ok(c)
+}
+
+fn pub tests(t: mut Tests) {
+  t.test('SameSite.==', fn (t) {
+    t.equal(SameSite.None, SameSite.None)
+    t.equal(SameSite.Lax, SameSite.Lax)
+    t.equal(SameSite.Strict, SameSite.Strict)
+    t.not_equal(SameSite.None, SameSite.Strict)
+  })
+
+  t.test('SameSite.fmt', fn (t) {
+    t.equal(fmt(SameSite.None), 'None')
+    t.equal(fmt(SameSite.Lax), 'Lax')
+    t.equal(fmt(SameSite.Strict), 'Strict')
+  })
+
+  t.test('Cookie.parse_request', fn (t) {
+    let tests = [
+      # Valid values
+      ('name=val', Result.Ok([Cookie.new('name', 'val')])),
+      ('name=val;', Result.Ok([Cookie.new('name', 'val')])),
+      ('name=a,b;', Result.Ok([Cookie.new('name', 'a,b')])),
+      ('name=a b;', Result.Ok([Cookie.new('name', 'a b')])),
+      ('name=ab ;', Result.Ok([Cookie.new('name', 'ab ')])),
+      ('name= ;', Result.Ok([Cookie.new('name', ' ')])),
+      (
+        'n1=v1;n2=v2',
+        Result.Ok([Cookie.new('n1', 'v1'), Cookie.new('n2', 'v2')]),
+      ),
+      (
+        'n1=v1;n2=v2;',
+        Result.Ok([Cookie.new('n1', 'v1'), Cookie.new('n2', 'v2')]),
+      ),
+      (
+        'n1=v1;n2="v2";n3=v3',
+        Result.Ok(
+          [
+            Cookie.new('n1', 'v1'),
+            Cookie.new('n2', '"v2"'),
+            Cookie.new('n3', 'v3'),
+          ],
+        ),
+      ),
+      ('name=', Result.Ok([Cookie.new('name', '')])),
+      ('name="value"', Result.Ok([Cookie.new('name', '"value"')])),
+
+      # Invalid values
+      (' =value', Result.Error(ParseError.InvalidName)),
+      ('name', Result.Error(ParseError.MissingValue)),
+      ('name=\t', Result.Error(ParseError.InvalidValue)),
+      ('name=\n', Result.Error(ParseError.InvalidValue)),
+      ('name="missing end quote', Result.Error(ParseError.InvalidValue)),
+      ('name=missing start quote"', Result.Error(ParseError.InvalidValue)),
+      ('n1=v1; n2=v2', Result.Error(ParseError.InvalidName)),
+      ('na me=value', Result.Error(ParseError.InvalidName)),
+    ]
+
+    for (inp, out) in tests { t.equal(Cookie.parse_request(inp), out) }
+  })
+
+  t.test('Cookie.parse_response', fn (t) {
+    let time = DateTime.new(
+      Date.new(year: 2025, month: 7, day: 1).get,
+      Time.new(hour: 12, minute: 0, second: 0, nanosecond: 0).get,
+      utc_offset: 0,
+    )
+
+    let tests = [
+      # Valid values
+      ('k=v', Result.Ok(Cookie.new('k', 'v'))),
+      ('k=v;', Result.Ok(Cookie.new('k', 'v'))),
+      ('k=v; ', Result.Ok(Cookie.new('k', 'v'))),
+      ('k=v;  ', Result.Ok(Cookie.new('k', 'v'))),
+      ('k=a b', Result.Ok(Cookie.new('k', 'a b'))),
+      ('k=a,b', Result.Ok(Cookie.new('k', 'a,b'))),
+      ('k=v;Secure', cookie('k', 'v', fn (c) { c.secure = true })),
+      ('k=v; Secure', cookie('k', 'v', fn (c) { c.secure = true })),
+      ('k=v;   Secure', cookie('k', 'v', fn (c) { c.secure = true })),
+      ('k=v; Secure    ', cookie('k', 'v', fn (c) { c.secure = true })),
+      ('k=v; SeCuRe', cookie('k', 'v', fn (c) { c.secure = true })),
+      ('k=v; HttpOnly', cookie('k', 'v', fn (c) { c.http_only = true })),
+      (
+        'k=v; SameSite=Lax',
+        cookie('k', 'v', fn (c) { c.same_site = SameSite.Lax }),
+      ),
+      (
+        'k=v; SameSite=Strict',
+        cookie('k', 'v', fn (c) { c.same_site = SameSite.Strict }),
+      ),
+      (
+        'k=v; SameSite=Whatever',
+        cookie('k', 'v', fn (c) { c.same_site = SameSite.None }),
+      ),
+      (
+        'k=v; SameSite=',
+        cookie('k', 'v', fn (c) { c.same_site = SameSite.None }),
+      ),
+      (
+        'k=v; Expires=Sun, 06 Nov 1994 08:49:37 GMT',
+        cookie('k', 'v', fn (c) {
+          c.expires = Option.Some(
+            DateTime.new(
+              Date.new(year: 1994, month: 11, day: 6).get,
+              Time.new(hour: 8, minute: 49, second: 37, nanosecond: 0).get,
+              utc_offset: 0,
+            ),
+          )
+        }),
+      ),
+      (
+        'k=v; Max-Age=10',
+        cookie('k', 'v', fn (c) {
+          c.expires = Option.Some(time + Duration.from_secs(10))
+        }),
+      ),
+      (
+        'k=v; Max-Age=9999999999',
+        cookie('k', 'v', fn (c) {
+          c.expires = Option.Some(time + Duration.from_secs(9_999_999_999))
+        }),
+      ),
+
+      # Combining Max-Age and Expires should result in Max-Age being used,
+      # regardless of the order.
+      (
+        'k=v; Expires=Sun, 06 Nov 1994 08:49:37 GMT; Max-Age=10',
+        cookie('k', 'v', fn (c) {
+          c.expires = Option.Some(time + Duration.from_secs(10))
+        }),
+      ),
+      (
+        'k=v; Max-Age=10; Expires=ignored-because-of-max-age',
+        cookie('k', 'v', fn (c) {
+          c.expires = Option.Some(time + Duration.from_secs(10))
+        }),
+      ),
+      (
+        'k=v; Max-Age=10; Expires=Sun, 06 Nov 1994 08:49:37 GMT',
+        cookie('k', 'v', fn (c) {
+          c.expires = Option.Some(time + Duration.from_secs(10))
+        }),
+      ),
+      ('k=v; Path=a', cookie('k', 'v', fn (c) { c.path = 'a' })),
+      ('k=v; Path=a b', cookie('k', 'v', fn (c) { c.path = 'a b' })),
+      ('k=v; Path=/foo/bar', cookie('k', 'v', fn (c) { c.path = '/foo/bar' })),
+      (
+        'k=v; Domain=foo.10.hello-world.foo-bar.example.com',
+        cookie('k', 'v', fn (c) {
+          c.domain = 'foo.10.hello-world.foo-bar.example.com'
+        }),
+      ),
+      (
+        'k=v; Domain=' + 'a.'.repeat(127) + 'a',
+        cookie('k', 'v', fn (c) { c.domain = 'a.'.repeat(127) + 'a' }),
+      ),
+      ('k=v; Domain=.foo', cookie('k', 'v', fn (c) { c.domain = 'foo' })),
+      ('k=v; Domain=foo.', cookie('k', 'v', fn (c) { c.domain = 'foo.' })),
+      ('k=v; Domain=1.a', cookie('k', 'v', fn (c) { c.domain = '1.a' })),
+      ('k=v; Custom', cookie('k', 'v', fn (c) { c.attributes.push('Custom') })),
+      (
+        'k=v; Key=Value',
+        cookie('k', 'v', fn (c) { c.attributes.push('Key=Value') }),
+      ),
+      ('k=v; CUSTOM', cookie('k', 'v', fn (c) { c.attributes.push('CUSTOM') })),
+      (
+        'k=v; KEY=Value',
+        cookie('k', 'v', fn (c) { c.attributes.push('KEY=Value') }),
+      ),
+
+      # Examples from random websites.
+      (
+        '_octo=GH1.1.1111111111.1111111111; Path=/; Domain=github.com; Expires=Thu, 09 Jul 2026 19:56:17 GMT; Secure; SameSite=Lax',
+        cookie('_octo', 'GH1.1.1111111111.1111111111', fn (c) {
+          c.path = '/'
+          c.domain = 'github.com'
+          c.expires = Option.Some(
+            DateTime.new(
+              Date.new(year: 2026, month: 7, day: 9).get,
+              Time.new(hour: 19, minute: 56, second: 17, nanosecond: 0).get,
+              utc_offset: 0,
+            ),
+          )
+          c.secure = true
+          c.same_site = SameSite.Lax
+        }),
+      ),
+      (
+        '__cf_bm=a-1752091191-1.0.1.1-a; path=/; expires=Wed, 09-Jul-25 20:29:51 GMT; domain=.twitter.com; HttpOnly; Secure; SameSite=None',
+        cookie('__cf_bm', 'a-1752091191-1.0.1.1-a', fn (c) {
+          c.path = '/'
+          c.domain = 'twitter.com'
+          c.expires = Option.Some(
+            DateTime.new(
+              Date.new(year: 2025, month: 7, day: 9).get,
+              Time.new(hour: 20, minute: 29, second: 51, nanosecond: 0).get,
+              utc_offset: 0,
+            ),
+          )
+          c.secure = true
+          c.http_only = true
+        }),
+      ),
+
+      # Invalid values
+      ('k=v; Foo\nBar', Result.Error(ParseError.InvalidAttribute)),
+      ('k=v; Max-Age=', Result.Error(ParseError.InvalidMaxAge)),
+      ('k=v; Max-Age=abc', Result.Error(ParseError.InvalidMaxAge)),
+      ('k=v; Max-Age=99999999991', Result.Error(ParseError.InvalidMaxAge)),
+      ('k=v; Max-Age=123abc', Result.Error(ParseError.InvalidMaxAge)),
+      ('k=v; Max-Age=0', Result.Error(ParseError.InvalidMaxAge)),
+      ('k=v; Max-Age=00', Result.Error(ParseError.InvalidMaxAge)),
+      ('k=v; Max-Age=02', Result.Error(ParseError.InvalidMaxAge)),
+      ('k=v; Max-Age=-1', Result.Error(ParseError.InvalidMaxAge)),
+      ('k=v; Max-Age=+1', Result.Error(ParseError.InvalidMaxAge)),
+      (
+        'k=v; Expires=2025-01-01 12:00:00 GMT',
+        Result.Error(ParseError.InvalidExpires),
+      ),
+      ('k=v; Expires=foo', Result.Error(ParseError.InvalidExpires)),
+      ('k=v; Expires=', Result.Error(ParseError.InvalidExpires)),
+      ('k=v; Path=', Result.Error(ParseError.InvalidPath)),
+      ('k=v; Path=\n', Result.Error(ParseError.InvalidPath)),
+      ('k=v; Domain=', Result.Error(ParseError.InvalidDomain)),
+      ('k=v; Domain=\n', Result.Error(ParseError.InvalidDomain)),
+      (
+        'k=v; Domain=' + 'a'.repeat(256),
+        Result.Error(ParseError.InvalidDomain),
+      ),
+      ('k=v; Domain=foo_bar.com', Result.Error(ParseError.InvalidDomain)),
+      ('k=v; Domain=foo..bar.com', Result.Error(ParseError.InvalidDomain)),
+      ('k=v; Domain=foo-.com', Result.Error(ParseError.InvalidDomain)),
+      ('k=v; Domain=foo.-com', Result.Error(ParseError.InvalidDomain)),
+      ('k=v; Domain=foo-', Result.Error(ParseError.InvalidDomain)),
+      ('k=v; Domain=1.2.3.4', Result.Error(ParseError.InvalidDomain)),
+      ('k=v; Domain=..', Result.Error(ParseError.InvalidDomain)),
+      ('k=v; Domain=..-', Result.Error(ParseError.InvalidDomain)),
+      ('k=v; Domain=.-', Result.Error(ParseError.InvalidDomain)),
+      ('k=v; Domain=--', Result.Error(ParseError.InvalidDomain)),
+      ('k=v; Domain=' + 'm'.repeat(64), Result.Error(ParseError.InvalidDomain)),
+      (
+        'k=v; Domain=' + 'm'.repeat(64) + '.a',
+        Result.Error(ParseError.InvalidDomain),
+      ),
+      ('k=v; SameSite', Result.Error(ParseError.InvalidSameSite)),
+    ]
+
+    for (inp, out) in tests { t.equal(Cookie.parse_response(inp, time), out) }
+  })
+
+  t.test('Cookie.==', fn (t) {
+    t.equal(Cookie.new('a', 'a'), Cookie.new('a', 'a'))
+    t.equal(
+      Cookie(
+        name: 'a',
+        value: 'a',
+        expires: Option.None,
+        domain: '',
+        path: '',
+        secure: false,
+        http_only: false,
+        same_site: SameSite.None,
+        attributes: [],
+      ),
+      Cookie(
+        name: 'a',
+        value: 'a',
+        expires: Option.None,
+        domain: '',
+        path: '',
+        secure: false,
+        http_only: false,
+        same_site: SameSite.None,
+        attributes: [],
+      ),
+    )
+
+    t.not_equal(
+      Cookie(
+        name: 'a',
+        value: 'a',
+        expires: Option.None,
+        domain: '',
+        path: '',
+        secure: false,
+        http_only: false,
+        same_site: SameSite.None,
+        attributes: [],
+      ),
+      Cookie(
+        name: 'a',
+        value: 'a',
+        expires: Option.Some(DateTime.local),
+        domain: '',
+        path: '',
+        secure: false,
+        http_only: false,
+        same_site: SameSite.None,
+        attributes: [],
+      ),
+    )
+    t.not_equal(
+      Cookie(
+        name: 'a',
+        value: 'a',
+        expires: Option.None,
+        domain: '',
+        path: '',
+        secure: false,
+        http_only: false,
+        same_site: SameSite.None,
+        attributes: [],
+      ),
+      Cookie(
+        name: 'a',
+        value: 'a',
+        expires: Option.None,
+        domain: 'foo',
+        path: '',
+        secure: false,
+        http_only: false,
+        same_site: SameSite.None,
+        attributes: [],
+      ),
+    )
+    t.not_equal(
+      Cookie(
+        name: 'a',
+        value: 'a',
+        expires: Option.None,
+        domain: '',
+        path: '',
+        secure: false,
+        http_only: false,
+        same_site: SameSite.None,
+        attributes: [],
+      ),
+      Cookie(
+        name: 'a',
+        value: 'a',
+        expires: Option.None,
+        domain: '',
+        path: 'foo',
+        secure: false,
+        http_only: false,
+        same_site: SameSite.None,
+        attributes: [],
+      ),
+    )
+    t.not_equal(
+      Cookie(
+        name: 'a',
+        value: 'a',
+        expires: Option.None,
+        domain: '',
+        path: '',
+        secure: false,
+        http_only: false,
+        same_site: SameSite.None,
+        attributes: [],
+      ),
+      Cookie(
+        name: 'a',
+        value: 'a',
+        expires: Option.None,
+        domain: '',
+        path: '',
+        secure: true,
+        http_only: false,
+        same_site: SameSite.None,
+        attributes: [],
+      ),
+    )
+    t.not_equal(
+      Cookie(
+        name: 'a',
+        value: 'a',
+        expires: Option.None,
+        domain: '',
+        path: '',
+        secure: false,
+        http_only: false,
+        same_site: SameSite.None,
+        attributes: [],
+      ),
+      Cookie(
+        name: 'a',
+        value: 'a',
+        expires: Option.None,
+        domain: '',
+        path: '',
+        secure: false,
+        http_only: true,
+        same_site: SameSite.None,
+        attributes: [],
+      ),
+    )
+    t.not_equal(
+      Cookie(
+        name: 'a',
+        value: 'a',
+        expires: Option.None,
+        domain: '',
+        path: '',
+        secure: false,
+        http_only: false,
+        same_site: SameSite.None,
+        attributes: [],
+      ),
+      Cookie(
+        name: 'a',
+        value: 'a',
+        expires: Option.None,
+        domain: '',
+        path: '',
+        secure: false,
+        http_only: false,
+        same_site: SameSite.None,
+        attributes: ['Foo'],
+      ),
+    )
+    t.not_equal(
+      Cookie(
+        name: 'a',
+        value: 'a',
+        expires: Option.None,
+        domain: '',
+        path: '',
+        secure: false,
+        http_only: false,
+        same_site: SameSite.None,
+        attributes: [],
+      ),
+      Cookie(
+        name: 'a',
+        value: 'a',
+        expires: Option.None,
+        domain: '',
+        path: '',
+        secure: false,
+        http_only: false,
+        same_site: SameSite.Strict,
+        attributes: [],
+      ),
+    )
+  })
+
+  t.test('Cookie.fmt', fn (t) {
+    let cookie = Cookie(
+      name: 'a',
+      value: 'b',
+      expires: DateTime.from_timestamp(0, utc_offset: 0),
+      domain: 'foo.com',
+      path: '/foo',
+      secure: true,
+      http_only: true,
+      same_site: SameSite.None,
+      attributes: ['a=b'],
+    )
+
+    t.equal(
+      fmt(cookie),
+      'Cookie(name: "a", value: "b", expires: Some(1970-01-01 00:00:00 UTC), '
+        + 'domain: "foo.com", path: "/foo", secure: true, http_only: true, '
+        + 'same_site: None, attributes: ["a=b"])',
+    )
+  })
+
+  t.test('Cookie.to_request', fn (t) {
+    let time = DateTime.utc
+    let tests = [
+      (Cookie.new('a', 'b'), 'a=b'),
+      (
+        Cookie(
+          name: 'a',
+          value: 'b',
+          expires: Option.Some(time + Duration.from_secs(5)),
+          domain: '',
+          path: '',
+          secure: false,
+          http_only: false,
+          same_site: SameSite.None,
+          attributes: [],
+        ),
+        'a=b',
+      ),
+      (
+        Cookie(
+          name: 'a',
+          value: 'b',
+          expires: Option.None,
+          domain: 'foo.com',
+          path: '',
+          secure: false,
+          http_only: false,
+          same_site: SameSite.None,
+          attributes: [],
+        ),
+        'a=b',
+      ),
+      (
+        Cookie(
+          name: 'a',
+          value: 'b',
+          expires: Option.None,
+          domain: '',
+          path: '/foo/bar',
+          secure: false,
+          http_only: false,
+          same_site: SameSite.None,
+          attributes: [],
+        ),
+        'a=b',
+      ),
+      (
+        Cookie(
+          name: 'a',
+          value: 'b',
+          expires: Option.None,
+          domain: '',
+          path: '',
+          secure: true,
+          http_only: false,
+          same_site: SameSite.None,
+          attributes: [],
+        ),
+        'a=b',
+      ),
+      (
+        Cookie(
+          name: 'a',
+          value: 'b',
+          expires: Option.None,
+          domain: '',
+          path: '',
+          secure: false,
+          http_only: true,
+          same_site: SameSite.None,
+          attributes: [],
+        ),
+        'a=b',
+      ),
+      (
+        Cookie(
+          name: 'a',
+          value: 'b',
+          expires: Option.None,
+          domain: '',
+          path: '',
+          secure: false,
+          http_only: false,
+          same_site: SameSite.None,
+          attributes: ['Foo', 'Hello=World'],
+        ),
+        'a=b',
+      ),
+    ]
+
+    for (cookie, out) in tests { t.equal(cookie.to_request, out) }
+  })
+
+  t.test('Cookie.to_response', fn (t) {
+    let time = DateTime.utc
+    let tests = [
+      (Cookie.new('a', 'b'), 'a=b'),
+      (
+        Cookie(
+          name: 'a',
+          value: 'b',
+          expires: Option.Some(time + Duration.from_secs(5)),
+          domain: '',
+          path: '',
+          secure: false,
+          http_only: false,
+          same_site: SameSite.None,
+          attributes: [],
+        ),
+        'a=b; Max-Age=5',
+      ),
+      (
+        Cookie(
+          name: 'a',
+          value: 'b',
+          expires: Option.None,
+          domain: 'foo.com',
+          path: '',
+          secure: false,
+          http_only: false,
+          same_site: SameSite.None,
+          attributes: [],
+        ),
+        'a=b; Domain=foo.com',
+      ),
+      (
+        Cookie(
+          name: 'a',
+          value: 'b',
+          expires: Option.None,
+          domain: '',
+          path: '/foo/bar',
+          secure: false,
+          http_only: false,
+          same_site: SameSite.None,
+          attributes: [],
+        ),
+        'a=b; Path=/foo/bar',
+      ),
+      (
+        Cookie(
+          name: 'a',
+          value: 'b',
+          expires: Option.None,
+          domain: '',
+          path: '',
+          secure: true,
+          http_only: false,
+          same_site: SameSite.None,
+          attributes: [],
+        ),
+        'a=b; Secure',
+      ),
+      (
+        Cookie(
+          name: 'a',
+          value: 'b',
+          expires: Option.None,
+          domain: '',
+          path: '',
+          secure: false,
+          http_only: true,
+          same_site: SameSite.None,
+          attributes: [],
+        ),
+        'a=b; HttpOnly',
+      ),
+      (
+        Cookie(
+          name: 'a',
+          value: 'b',
+          expires: Option.None,
+          domain: '',
+          path: '',
+          secure: false,
+          http_only: false,
+          same_site: SameSite.None,
+          attributes: ['Foo', 'Hello=World'],
+        ),
+        'a=b; Foo; Hello=World',
+      ),
+      (
+        Cookie(
+          name: 'a',
+          value: 'b',
+          expires: Option.Some(time + Duration.from_secs(5)),
+          domain: 'foo.com',
+          path: '/path',
+          secure: true,
+          http_only: true,
+          same_site: SameSite.None,
+          attributes: ['Foo', 'Hello=World'],
+        ),
+        'a=b; Max-Age=5; Domain=foo.com; Path=/path; Secure; HttpOnly; Foo; Hello=World',
+      ),
+      (
+        Cookie(
+          name: 'a',
+          value: 'b',
+          expires: Option.None,
+          domain: '',
+          path: '',
+          secure: false,
+          http_only: false,
+          same_site: SameSite.Lax,
+          attributes: [],
+        ),
+        'a=b; SameSite=Lax',
+      ),
+      (
+        Cookie(
+          name: 'a',
+          value: 'b',
+          expires: Option.None,
+          domain: '',
+          path: '',
+          secure: false,
+          http_only: false,
+          same_site: SameSite.Strict,
+          attributes: [],
+        ),
+        'a=b; SameSite=Strict',
+      ),
+    ]
+
+    for (cookie, out) in tests { t.equal(cookie.to_response(time), out) }
+  })
+}

@@ -1,0 +1,73 @@
+import helpers (hash)
+import std.fmt (fmt)
+import std.net.http (Method)
+import std.net.http.method
+import std.test (Tests)
+
+fn pub tests(t: mut Tests) {
+  t.test('parse', fn (t) {
+    t.equal(method.parse('CONNECT'), Option.Some(Method.Connect))
+    t.equal(method.parse('DELETE'), Option.Some(Method.Delete))
+    t.equal(method.parse('GET'), Option.Some(Method.Get))
+    t.equal(method.parse('HEAD'), Option.Some(Method.Head))
+    t.equal(method.parse('OPTIONS'), Option.Some(Method.Options))
+    t.equal(method.parse('POST'), Option.Some(Method.Post))
+    t.equal(method.parse('PUT'), Option.Some(Method.Put))
+    t.equal(method.parse('TRACE'), Option.Some(Method.Trace))
+  })
+
+  t.test('hash', fn (t) {
+    t.equal(hash(Method.Connect), hash(Method.Connect))
+    t.equal(hash(Method.Delete), hash(Method.Delete))
+    t.equal(hash(Method.Get), hash(Method.Get))
+    t.equal(hash(Method.Head), hash(Method.Head))
+    t.equal(hash(Method.Options), hash(Method.Options))
+    t.equal(hash(Method.Post), hash(Method.Post))
+    t.equal(hash(Method.Put), hash(Method.Put))
+    t.equal(hash(Method.Trace), hash(Method.Trace))
+  })
+
+  t.test('clone', fn (t) {
+    t.equal(Method.Connect.clone, Method.Connect)
+    t.equal(Method.Delete.clone, Method.Delete)
+    t.equal(Method.Get.clone, Method.Get)
+    t.equal(Method.Head.clone, Method.Head)
+    t.equal(Method.Options.clone, Method.Options)
+    t.equal(Method.Post.clone, Method.Post)
+    t.equal(Method.Put.clone, Method.Put)
+    t.equal(Method.Trace.clone, Method.Trace)
+  })
+
+  t.test('eq', fn (t) {
+    t.equal(Method.Connect, Method.Connect)
+    t.equal(Method.Delete, Method.Delete)
+    t.equal(Method.Get, Method.Get)
+    t.equal(Method.Head, Method.Head)
+    t.equal(Method.Options, Method.Options)
+    t.equal(Method.Post, Method.Post)
+    t.equal(Method.Put, Method.Put)
+    t.equal(Method.Trace, Method.Trace)
+  })
+
+  t.test('to_string', fn (t) {
+    t.equal(Method.Connect.to_string, 'CONNECT')
+    t.equal(Method.Delete.to_string, 'DELETE')
+    t.equal(Method.Get.to_string, 'GET')
+    t.equal(Method.Head.to_string, 'HEAD')
+    t.equal(Method.Options.to_string, 'OPTIONS')
+    t.equal(Method.Post.to_string, 'POST')
+    t.equal(Method.Put.to_string, 'PUT')
+    t.equal(Method.Trace.to_string, 'TRACE')
+  })
+
+  t.test('format', fn (t) {
+    t.equal(fmt(Method.Connect), 'Connect')
+    t.equal(fmt(Method.Delete), 'Delete')
+    t.equal(fmt(Method.Get), 'Get')
+    t.equal(fmt(Method.Head), 'Head')
+    t.equal(fmt(Method.Options), 'Options')
+    t.equal(fmt(Method.Post), 'Post')
+    t.equal(fmt(Method.Put), 'Put')
+    t.equal(fmt(Method.Trace), 'Trace')
+  })
+}

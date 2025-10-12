@@ -19,18 +19,21 @@ type pub Config {
   # If we're building the documentation for the main branch.
   let @main: Bool
 
+  # The base URL to use for standard library documentation links.
+  let @std_docs: String
+
   fn pub static new(source: ref Path) -> Result[Config, String] {
     let menu = try Menu.parse(source, Path.new(MENU_FILE))
+    let branch = env.opt('DOCS_REF').or('main')
 
     Result.Ok(
-      {
-        Config(
-          title: 'The Inko manual',
-          base_url: 'https://docs.inko-lang.org/manual',
-          menu: menu,
-          main: env.opt('DOCS_REF').or('main') == 'main',
-        )
-      },
+      Config(
+        title: 'The Inko manual',
+        base_url: 'https://docs.inko-lang.org/manual',
+        menu: menu,
+        main: branch == 'main',
+        std_docs: 'https://docs.inko-lang.org/std/${branch}',
+      ),
     )
   }
 
@@ -41,6 +44,12 @@ type pub Config {
 
 impl Clone for Config {
   fn pub clone -> Config {
-    Config(title: @title, base_url: @base_url, menu: @menu.clone, main: @main)
+    Config(
+      title: @title,
+      base_url: @base_url,
+      menu: @menu.clone,
+      main: @main,
+      std_docs: @std_docs,
+    )
   }
 }

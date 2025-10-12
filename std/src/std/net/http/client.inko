@@ -1,0 +1,1458 @@
+# HTTP 1.1 client support.
+#
+# Requests are sent by creating a `Client` and using methods such as
+# `Client.get` to create a `Request`, which is then used for constructing the
+# request (e.g. by setting headers) and sending it. For example:
+#
+# ```inko
+# import std.net.http.client (Client)
+# import std.uri (Uri)
+#
+# let client = Client.new
+# let uri = Uri.parse('https://example.com').or_panic
+# let req = client.get(uri)
+# let resp = req.send.or_panic
+# let body = ByteArray.new
+#
+# # Read the entire response and panic upon encountering an error.
+# let _ = resp.body.read_all(body).or_panic
+# ```
+import std.base64 (Encoder)
+import std.bytes (Bytes)
+import std.clone (Clone)
+import std.cmp (Equal)
+import std.drop (Drop)
+import std.env (VERSION)
+import std.fmt (Format, Formatter)
+import std.hash (Hash, Hasher)
+import std.io (CopyError, Error as IoError, Read, Write, copy_using)
+import std.multipart
+import std.net.dns
+import std.net.http (
+  CHUNKED, ChunkedWriter, Header, HeaderMap, Limits, Method, ParseError, Parser,
+  Response, Stream,
+)
+import std.net.socket (Deadline, TcpClient, UnixClient)
+import std.net.tls
+import std.rand (Random)
+import std.string (ToString)
+import std.time (Duration, ToInstant)
+import std.uri (Error as UriError, Host, Scheme, Uri, Values)
+
+# The default user agent string to use.
+let USER_AGENT = 'inko/' + VERSION + ' (https://inko-lang.org)'
+
+type inline enum Socket {
+  case Plain(TcpClient)
+  case Secure(tls.Client[TcpClient])
+  case Unix(UnixClient)
+
+  fn mut configure_tcp_keepalive(
+    time: Duration,
+    interval: Duration,
+  ) -> Result[Nil, IoError] {
+    let raw = match self {
+      case Plain(v) -> v.socket
+      case Secure(v) -> v.socket.socket
+      case Unix(_) -> return Result.Ok(nil)
+    }
+
+    try raw.keepalive = true
+    try raw.keepalive_time = time
+    try raw.keepalive_interval = interval
+    Result.Ok(nil)
+  }
+
+  fn mut shutdown {
+    match self {
+      case Plain(v) -> v.shutdown
+      case Secure(v) -> v.socket.shutdown
+      case Unix(v) -> v.shutdown
+    }
+  }
+}
+
+impl Write[IoError] for Socket {
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, IoError] {
+    match self {
+      case Plain(v) -> v.write(bytes)
+      case Secure(v) -> v.write(bytes)
+      case Unix(v) -> v.write(bytes)
+    }
+  }
+
+  fn pub mut flush -> Result[Nil, IoError] {
+    Result.Ok(nil)
+  }
+}
+
+impl Deadline for Socket {
+  fn pub mut timeout_after=[T: ToInstant](deadline: ref T) {
+    match self {
+      case Plain(v) -> v.timeout_after = deadline
+      case Secure(v) -> v.timeout_after = deadline
+      case Unix(v) -> v.timeout_after = deadline
+    }
+  }
+
+  fn pub mut reset_deadline {
+    match self {
+      case Plain(v) -> v.reset_deadline
+      case Secure(v) -> v.reset_deadline
+      case Unix(v) -> v.reset_deadline
+    }
+  }
+}
+
+type inline Scope {
+  let @scheme: Scheme
+  let @host: Host
+  let @port: Int
+}
+
+impl Clone for Scope {
+  fn pub clone -> Self {
+    Self(scheme: @scheme.clone, host: @host.clone, port: @port)
+  }
+}
+
+impl Hash for Scope {
+  fn pub hash[H: mut + Hasher](hasher: mut H) {
+    @scheme.hash(hasher)
+    @host.hash(hasher)
+    @port.hash(hasher)
+  }
+}
+
+impl Equal for Scope {
+  fn pub ==(other: ref Self) -> Bool {
+    @scheme == other.scheme and @host == other.host and @port == other.port
+  }
+}
+
+impl Format for Scope {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter
+      .object('Scope')
+      .field('scheme', @scheme)
+      .field('host', @host)
+      .field('port', @port)
+      .finish
+  }
+}
+
+type copy enum State {
+  # The connection is idle and available for reuse by a future request.
+  case Idle
+
+  # The connection is in active use.
+  case Active
+
+  # A connection is no longer in use and can be added back to the list of
+  # reusable connections.
+  case Reusable
+
+  # An error is produced while reading from or writing to the connection,
+  # reusing the connection isn't possible.
+  case Error
+}
+
+# A connection established by a client.
+type Connection {
+  # The pool this connection belongs to.
+  let @pool: mut Pool
+
+  # The unique ID of the connection.
+  let @id: Int
+
+  # The scope (host, scheme, etc) of the connection.
+  let @scope: Scope
+
+  # The network socket used for reading and writing data.
+  let @socket: Socket
+
+  # The state the connection is in.
+  #
+  # This state is used to determine if a connection can be reused or not.
+  let mut @state: State
+
+  fn mut shutdown {
+    @socket.shutdown
+  }
+}
+
+# A client connection available for sending requests and parsing responses.
+type pub inline ActiveConnection {
+  let @connection: mut Connection
+}
+
+impl Stream for ActiveConnection {
+  fn mut reuse {
+    match @connection.state {
+      case Active -> @connection.state = State.Reusable
+      case _ -> {}
+    }
+  }
+
+  fn mut maximum_size=(value: Int) {
+    # Not used here as limits are applied by the body readers.
+  }
+
+  fn reusable? -> Bool {
+    # We don't actually use this method as BoundedBody and ChunkedBody don't
+    # call (nor need to call) this method.
+    true
+  }
+}
+
+impl Drop for ActiveConnection {
+  fn mut drop {
+    match @connection.state {
+      case Reusable -> @connection.pool.reuse(@connection)
+      case _ -> @connection.pool.close(@connection.id)
+    }
+  }
+}
+
+impl Deadline for ActiveConnection {
+  fn pub mut timeout_after=[T: ToInstant](deadline: ref T) {
+    @connection.socket.timeout_after = deadline
+  }
+
+  fn pub mut reset_deadline {
+    @connection.socket.reset_deadline
+  }
+}
+
+impl Read[ParseError] for ActiveConnection {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, ParseError] {
+    let res = match @connection.socket {
+      case Plain(v) -> v.read(into, size)
+      case Secure(v) -> v.read(into, size)
+      case Unix(v) -> v.read(into, size)
+    }
+
+    match res {
+      case Ok(v) -> Result.Ok(v)
+      case Error(e) -> {
+        @connection.state = State.Error
+        Result.Error(ParseError.Read(e))
+      }
+    }
+  }
+}
+
+impl Write[IoError] for ActiveConnection {
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, IoError] {
+    let res = @connection.socket.write(bytes)
+
+    if res.error? { @connection.state = State.Error }
+
+    res
+  }
+
+  fn pub mut flush -> Result[Nil, IoError] {
+    @connection.socket.flush
+  }
+}
+
+type Pool {
+  # A mapping of connection IDs to their corresponding connections.
+  let @all: Map[Int, Connection]
+
+  # A list of connection IDs for which the connection should be closed.
+  #
+  # When closing an `ActiveConnection` we retain a borrow of its `Connection`
+  # value and thus can't drop it immediately, instead we have to defer this to
+  # the next time a connection is requested.
+  #
+  # Assuming most connections can in fact be reused, this Array isn't likely to
+  # grow very large (let alone for a long time).
+  let @pending_close: Array[Connection]
+
+  # The reusable connections available per each scope.
+  let @available: Map[Scope, Array[mut Connection]]
+
+  # The maximum number of connections per scope.
+  let mut @limit: Int
+
+  fn static new -> Self {
+    Self(all: Map.new, available: Map.new, pending_close: [], limit: 5)
+  }
+
+  fn mut add(scope: Scope, socket: Socket) -> ActiveConnection {
+    @pending_close.clear
+
+    let id = @all.size
+    let con = Connection(
+      pool: self,
+      id: id,
+      scope: scope,
+      socket: socket,
+      state: State.Active,
+    )
+    let ret = ActiveConnection(mut con)
+
+    @all.set(id, con)
+    ret
+  }
+
+  fn mut get(scope: ref Scope) -> Option[ActiveConnection] {
+    @pending_close.clear
+
+    match connections_for(scope).pop {
+      case Some(v) -> {
+        v.state = State.Active
+        Option.Some(ActiveConnection(v))
+      }
+      case _ -> Option.None
+    }
+  }
+
+  fn mut reuse(connection: mut Connection) {
+    connection.state = State.Idle
+
+    match connections_for(connection.scope) {
+      case v if v.size < @limit -> v.push(connection)
+      case _ -> close(connection.id)
+    }
+  }
+
+  fn mut close(id: Int) {
+    match @all.remove(id) {
+      case Ok(con) -> {
+        # We explicitly shut down the socket just in case it takes a while
+        # before we request another connection from this pool (and thus clear
+        # out connections pending a close).
+        con.shutdown
+        @pending_close.push(con)
+      }
+      case _ -> {}
+    }
+  }
+
+  fn mut connections_for(scope: ref Scope) -> mut Array[mut Connection] {
+    match @available.get_mut(scope) {
+      case Ok(v) -> v
+      case Error(_) -> {
+        let vals = []
+        let ret = mut vals
+
+        @available.set(scope.clone, vals)
+        ret
+      }
+    }
+  }
+}
+
+# An HTTP client for sending requests and parsing their responses.
+#
+# A `Client` transparently supports both HTTP and HTTPS connections.
+#
+# Constructing a `Client` is considered to be somewhat expensive due to the
+# various data structures it needs to set up (e.g. TLS configuration, a
+# connection pool, etc). It's best to do this once and reuse the `Client` as
+# much as possible.
+#
+# Requests are built using methods such as `Client.get`, `Client.post` or
+# `Client.put`. These methods return a `Request`, used for constructing
+# the request (e.g. setting the headers, body, etc). For example, to send a GET
+# request:
+#
+# ```inko
+# import std.net.http.client (Client)
+# import std.uri (Uri)
+#
+# let client = Client.new
+# let uri = Uri.parse('https://example.com').or_panic
+# let req = client.get(uri)
+# let resp = req.send.or_panic
+# let body = ByteArray.new
+#
+# # Read the entire response and panic upon encountering an error.
+# let _ = resp.body.read_all(body).or_panic
+# ```
+#
+# Refer to the documentation of these methods and the `Request` type for
+# more details.
+#
+# # TLS configuration
+#
+# The configuration for TLS clients is stored in the `Client.tls` field. By
+# default the system certificate store is used. To use a custom certificate,
+# use `std.net.tls.ClientConfig.with_certificate` to create a custom client
+# configuration object and assign it to the `Client.tls` field:
+#
+# ```inko
+# import std.net.http.client (Client)
+# import std.net.tls (ClientConfig)
+#
+# let client = Client.new
+#
+# client.tls = ClientConfig
+#   .with_certificate(...)
+#   .or_panic_with('the certificate is invalid')
+# ```
+#
+# # Default User-Agent header
+#
+# The default value for the User-Agent header is `inko/VERSION
+# (https://inko-lang.org)` where `VERSION` is the version of Inko (e.g.
+# `inko/1.2.3 (https://inko-lang.org)`). It's _highly_ recommended to use a
+# custom value instead. This can be changed by setting the field
+# `Client.user_agent` to a different value, or by setting the `User-Agent`
+# header to a custom value on a per-request basis.
+#
+# # Timeouts
+#
+# A `Client` uses a timeout when connecting to a server and when sending
+# requests and parsing their responses. These timeouts are controlled by the
+# following fields:
+#
+# - `Client.connect_timeout`
+# - `Client.request_timeout`
+#
+# # TCP keepalive
+#
+# Each connection uses a custom set of TCP keepalive settings, controlled by the
+# following fields:
+#
+# - `Client.tcp_keepalive_time`
+# - `Client.tcp_keepalive_interval`
+#
+# Both default to 15 seconds in an attempt to prevent idle reusable connections
+# from being terminated prematurely.
+#
+# # Connection reuse
+#
+# Connections are reused whenever possible, unless a server explicitly signals
+# that keep-alive conections aren't supported. By default the maximum number of
+# connections per host is limited to 5 connections. To disable keeping
+# connections alive, set this value to 0 using `Client.connections_per_host=`.
+#
+# Connections can _only_ be reused if the body of a response is consumed as a
+# whole. If any bytes remain available, the connection is terminated when a
+# `Response` is dropped.
+#
+# # Redirects
+#
+# Redirects are followed when using `Request.send` or `Request.body` to send a
+# request. For more details, refer to the documentation of `Request.body`.
+#
+# # Basic authentication
+#
+# If the URI to send a request to includes the user info component (i.e.
+# `https://user:pass@host`), this component is used to set the `Authorization`
+# header before sending a request, unless a custom `Authorization` header is
+# already specified. For example:
+#
+# ```inko
+# import std.net.http.client (Client)
+# import std.uri (Uri)
+#
+# let client = Client.new
+# let uri = Uri
+#   .parse('https://user:pass@httpbun.org/basic-auth/user/pass')
+#   .or_panic
+#
+# let resp = client.get(uri).send.or_panic
+# let body = ByteArray.new
+# let _ = resp.body.read_all(body).or_panic
+#
+# body.to_string
+# ```
+#
+# The output of this is:
+#
+# ```json
+# {
+#   "authenticated": true,
+#   "user": "user"
+# }
+# ```
+#
+# By default this header is removed when redirecting to a different host. This
+# can be disabled by setting `Client.remove_authorization_for_different_host` to
+# `false`.
+type pub Client {
+  # The random number generator to use when generating multipart form
+  # boundaries.
+  #
+  # This is a mutable field so we can assign it a deterministic RNG as part of
+  # the test suite.
+  let mut @rng: Random
+
+  # The DNS resolver to use for resolving URI host names.
+  let @dns: dns.Resolver
+
+  # The pool of HTTP connections.
+  let @connections: Pool
+
+  # The TLS configuration to use for client connections.
+  #
+  # When set to an `Option.None`, the TLS configuration is lazily initialized
+  # the first time an HTTPS request is performed. If this fails (i.e. there are
+  # no certificates to use), an `Error.InvalidTlsConfig` error is produced.
+  #
+  # This defaults to an `Option.None`.
+  let pub mut @tls: Option[tls.ClientConfig]
+
+  # Limits to apply when parsing responses.
+  let pub @limits: Limits
+
+  # The value to use for the User-Agent header.
+  let pub mut @user_agent: String
+
+  # The timeout to apply when connecting to a server.
+  #
+  # This defaults to 5 seconds.
+  let pub mut @connect_timeout: Duration
+
+  # The timeout to apply when sending a request and parsing its response.
+  #
+  # This defaults to 15 seconds.
+  let pub mut @request_timeout: Duration
+
+  # The time after which an idle connection should start sending TCP keepalive
+  # messages.
+  #
+  # This defaults to 15 seconds.
+  let pub mut @tcp_keepalive_time: Duration
+
+  # The interval at which TCP keepalive messages should be sent.
+  #
+  # This defaults to 15 seconds.
+  let pub mut @tcp_keepalive_interval: Duration
+
+  # The maximum number of redirects to follow when performing a GET, HEAD,
+  # OPTIONS or TRACE request.
+  #
+  # This defaults to 5. Setting this to zero disables the following of redirects
+  # entirely.
+  let pub mut @max_redirects: Int
+
+  # If the `Authorization` header used for basic authentication should be
+  # removed when redirecting to a different host.
+  #
+  # This is enabled by default to ensure basic authentication details aren't
+  # leaked by accident.
+  let pub mut @remove_authorization_for_different_host: Bool
+
+  # The buffer to use for parsing HTTP responses.
+  let @buffer: ByteArray
+
+  # Returns a new `Client` with its default configuration.
+  fn pub static new -> Self {
+    Self(
+      rng: Random.new,
+      tls: Option.None,
+      dns: dns.Resolver.new,
+      connections: Pool.new,
+      user_agent: USER_AGENT,
+      limits: Limits.new,
+      connect_timeout: Duration.from_secs(5),
+      request_timeout: Duration.from_secs(15),
+      tcp_keepalive_time: Duration.from_secs(15),
+      tcp_keepalive_interval: Duration.from_secs(15),
+      max_redirects: 5,
+      remove_authorization_for_different_host: true,
+      buffer: ByteArray.new,
+    )
+  }
+
+  # Sets maximum number of connections to keep alive per scope.
+  #
+  # This defaults to 5 connections per host. Setting this to zero disables
+  # keeping connections alive.
+  fn pub mut connections_per_host=(value: Int) {
+    @connections.limit = value
+  }
+
+  # Returns a `Request` using the request method and URI.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Method)
+  # import std.net.http.client (Client)
+  # import std.uri (Uri)
+  #
+  # let client = Client.new
+  # let uri = Uri.parse('https://example.com').or_panic
+  #
+  # client.request(Method.Get, uri)
+  # ```
+  fn pub mut request(method: Method, uri: Uri) -> Request {
+    Request.new(self, method, uri)
+  }
+
+  # Returns a `Request` for sending a GET request.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.client (Client)
+  # import std.uri (Uri)
+  #
+  # let client = Client.new
+  # let uri = Uri.parse('https://example.com').or_panic
+  #
+  # client.get(uri)
+  # ```
+  fn pub mut get(uri: Uri) -> Request {
+    request(Method.Get, uri)
+  }
+
+  # Returns a `Request` for sending a POST request.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.client (Client)
+  # import std.uri (Uri)
+  #
+  # let client = Client.new
+  # let uri = Uri.parse('https://example.com').or_panic
+  #
+  # client.post(uri)
+  # ```
+  fn pub mut post(uri: Uri) -> Request {
+    request(Method.Post, uri)
+  }
+
+  # Returns a `Request` for sending a PUT request.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.client (Client)
+  # import std.uri (Uri)
+  #
+  # let client = Client.new
+  # let uri = Uri.parse('https://example.com').or_panic
+  #
+  # client.put(uri)
+  # ```
+  fn pub mut put(uri: Uri) -> Request {
+    request(Method.Put, uri)
+  }
+
+  # Returns a `Request` for sending a DELETE request.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.client (Client)
+  # import std.uri (Uri)
+  #
+  # let client = Client.new
+  # let uri = Uri.parse('https://example.com').or_panic
+  #
+  # client.delete(uri)
+  # ```
+  fn pub mut delete(uri: Uri) -> Request {
+    request(Method.Delete, uri)
+  }
+
+  # Returns a `Request` for sending a HEAD request.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.client (Client)
+  # import std.uri (Uri)
+  #
+  # let client = Client.new
+  # let uri = Uri.parse('https://example.com').or_panic
+  #
+  # client.head(uri)
+  # ```
+  fn pub mut head(uri: Uri) -> Request {
+    request(Method.Head, uri)
+  }
+
+  fn mut connect(uri: ref Uri) -> Result[(ActiveConnection, Bool), Error] {
+    let scheme = match uri.scheme {
+      case Some(Http) -> Scheme.Http
+      case Some(Https) -> Scheme.Https
+      case Some(Unix) -> Scheme.Unix
+      case Some(_) -> throw Error.InvalidScheme
+      case _ -> Scheme.Http
+    }
+
+    let port = match (ref scheme, uri.port) {
+      case (Unix, _) -> 0
+      case (Https, None) -> 443
+      case (_, Some(port)) -> port
+      case _ -> 80
+    }
+
+    let host = match uri.host {
+      case Some(Future(_)) or None -> throw Error.InvalidHost
+      case Some(v) -> v.clone
+    }
+
+    let scope = Scope(scheme: scheme, host: host, port: port)
+    let con_ex = match @connections.get(scope) {
+      case Some(v) -> (v, true)
+      case _ -> {
+        # To work around https://github.com/inko-lang/inko/issues/885 we have to
+        # first assign the tuple here.
+        let con = try connect_new(scope)
+
+        (con, false)
+      }
+    }
+
+    con_ex.0.timeout_after = @request_timeout
+    Result.Ok(con_ex)
+  }
+
+  fn mut connect_new(scope: Scope) -> Result[ActiveConnection, Error] {
+    let secure = match scope.scheme {
+      case Unix -> return connect_unix(scope)
+      case Https -> true
+      case _ -> false
+    }
+
+    let timeout = @connect_timeout.to_instant
+    let ips = match scope.host {
+      case Named(v) -> {
+        @dns.timeout_after = timeout
+
+        let res = @dns.resolve(v).map_error(fn (e) { Error.LookupFailed(e) })
+
+        @dns.reset_deadline
+        try res
+      }
+      case Ip(v) -> [v]
+      # This is unreachable because Client.connect throws when encountering a
+      # Host.Future value.
+      case _ -> panic('unreachable')
+    }
+
+    let sock = match TcpClient.with_timeout(ips, scope.port, timeout) {
+      case Ok(v) if secure -> {
+        let conf = try tls_config
+
+        # The chance of the server name being invalid at this point is basically
+        # zero due to how rustls works and the prior validation, but _just_ in
+        # case we run into an error we throw here instead of triggering a panic.
+        match tls.Client.new(v, conf, name: scope.host.to_string) {
+          case Some(v) -> Socket.Secure(v)
+          case _ -> throw Error.InvalidHost
+        }
+      }
+      case Ok(v) -> Socket.Plain(v)
+      case Error(e) -> throw Error.ConnectionFailed(e)
+    }
+
+    try sock
+      .configure_tcp_keepalive(@tcp_keepalive_time, @tcp_keepalive_interval)
+      .map_error(fn (e) { Error.ConnectionFailed(e) })
+
+    Result.Ok(@connections.add(scope, sock))
+  }
+
+  fn mut connect_unix(scope: Scope) -> Result[ActiveConnection, Error] {
+    let path = match scope.host {
+      case Named(v) -> v.to_path
+      case _ -> throw Error.InvalidHost
+    }
+    let timeout = @connect_timeout.to_instant
+    let sock = match UnixClient.with_timeout(path, timeout) {
+      case Ok(v) -> Socket.Unix(v)
+      case Error(e) -> throw Error.ConnectionFailed(e)
+    }
+
+    Result.Ok(@connections.add(scope, sock))
+  }
+
+  fn mut tls_config -> Result[mut tls.ClientConfig, Error] {
+    match @tls.as_mut {
+      case Some(v) -> return Result.Ok(v)
+      case _ -> {}
+    }
+
+    let Some(v) = tls.ClientConfig.new else throw Error.InvalidTlsConfig
+    let ret = mut v
+
+    @tls = Option.Some(v)
+    Result.Ok(ret)
+  }
+}
+
+type inline RequestWriter[W: mut + Write[IoError]] {
+  let @stream: W
+  let @buffer: ByteArray
+
+  fn static new(stream: W) -> Self {
+    Self(stream: stream, buffer: ByteArray.with_capacity(4 * 1024))
+  }
+
+  fn mut body[B: Bytes](bytes: ref B) -> Result[Nil, IoError] {
+    try flush
+
+    if bytes.size > 0 { @stream.write(bytes) } else { Result.Ok(nil) }
+  }
+
+  fn mut status(method: Method, uri: ref Uri) {
+    push(method.to_string)
+    push(' ')
+
+    match method {
+      case Connect -> {
+        uri.host.as_ref.get.encode(@buffer)
+        push(':')
+
+        match uri.port {
+          case Some(v) -> push(v.to_string)
+          case _ -> push('80')
+        }
+      }
+      case _ -> {
+        if uri.path.empty? or uri.path.root? {
+          push('/')
+        } else {
+          uri.path.encode(uri.scheme.clone, uri.host.clone, @buffer)
+        }
+
+        if uri.query.size > 0 { uri.query.encode(@buffer) }
+      }
+    }
+
+    push(' HTTP/1.1')
+    crlf
+  }
+
+  fn mut headers(headers: ref HeaderMap) {
+    for (key, val) in headers.map.iter {
+      match val {
+        case Single(val) -> add_header(key, val)
+        case Multiple(vals) -> for val in vals.iter { add_header(key, val) }
+      }
+    }
+
+    crlf
+  }
+
+  fn mut start(
+    method: Method,
+    uri: ref Uri,
+    headers: ref HeaderMap,
+  ) -> mut Self {
+    status(method, uri)
+    headers(headers)
+    self
+  }
+
+  fn mut add_header(header: ref Header, value: String) {
+    push(header.to_string)
+    push(': ')
+    push(value)
+    crlf
+  }
+
+  fn mut crlf {
+    push('\r\n')
+  }
+
+  fn mut push[B: Bytes](value: ref B) {
+    @buffer.append(value)
+  }
+
+  fn mut flush -> Result[Nil, IoError] {
+    try @stream.write(@buffer)
+    @buffer.clear
+    Result.Ok(nil)
+  }
+}
+
+# An error produced by an HTTP client.
+type pub inline enum Error {
+  # The URI is missing a host name or IP address, or the host name isn't valid
+  # (e.g. the host is an IP address while the "unix" scheme is used).
+  case InvalidHost
+
+  # The URI scheme isn't supported.
+  case InvalidScheme
+
+  # The hostname couldn't be resolved into a list of IP addresses.
+  case LookupFailed(dns.Error)
+
+  # A connection couldn't be established to the server.
+  case ConnectionFailed(IoError)
+
+  # The request data couldn't be written to the socket (e.g. the server
+  # disconnected the socket).
+  case WriteFailed(IoError)
+
+  # The server produced an invalid response.
+  case InvalidResponse(ParseError)
+
+  # The value of a `Location` header is invalid.
+  case InvalidLocation(UriError)
+
+  # A response tried to redirect from a secure resource (e.g. HTTPS) to an
+  # insecure resource (e.g. HTTP).
+  case InsecureRedirect
+
+  # The request is redirected too many times.
+  case TooManyRedirects
+
+  # The system's TLS configuration couldn't be loaded.
+  case InvalidTlsConfig
+}
+
+impl ToString for Error {
+  fn pub to_string -> String {
+    match self {
+      case InvalidHost -> 'the URI must contain a valid host name or IP address'
+      case InvalidScheme -> "the URI scheme isn't unsupported"
+      case LookupFailed(e) -> 'failed to resolve the host: ${e}'
+      case ConnectionFailed(e) -> 'failed to connect: ${e}'
+      case WriteFailed(e) -> 'failed to write the request: ${e}'
+      case InvalidResponse(e) -> 'failed to parse the response: ${e}'
+      case InvalidLocation(e) -> 'the Location header value is invalid: ${e}'
+      case InsecureRedirect -> {
+        'redirecting from secure URIs to insecure URIs is not allowed'
+      }
+      case TooManyRedirects -> 'the request is redirected too many times'
+      case InvalidTlsConfig -> {
+        "the system's TLS certificates couldn't be loaded"
+      }
+    }
+  }
+}
+
+impl Format for Error {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case InvalidHost -> formatter.tuple('InvalidHost').finish
+      case InvalidScheme -> formatter.tuple('InvalidScheme').finish
+      case LookupFailed(v) -> formatter.tuple('LookupFailed').field(v).finish
+      case ConnectionFailed(v) -> {
+        formatter.tuple('ConnectionFailed').field(v).finish
+      }
+      case InvalidResponse(v) -> {
+        formatter.tuple('InvalidResponse').field(v).finish
+      }
+      case WriteFailed(v) -> formatter.tuple('WriteFailed').field(v).finish
+      case InvalidLocation(v) -> {
+        formatter.tuple('InvalidLocation').field(v).finish
+      }
+      case InsecureRedirect -> formatter.tuple('InsecureRedirect').finish
+      case TooManyRedirects -> formatter.tuple('TooManyRedirects').finish
+      case InvalidTlsConfig -> formatter.tuple('InvalidTlsConfig').finish
+    }
+  }
+}
+
+impl Equal for Error {
+  fn pub ==(other: ref Self) -> Bool {
+    match (self, other) {
+      case (InvalidHost, InvalidHost) -> true
+      case (InvalidScheme, InvalidScheme) -> true
+      case (LookupFailed(a), LookupFailed(b)) -> a == b
+      case (ConnectionFailed(a), ConnectionFailed(b)) -> a == b
+      case (InvalidResponse(a), InvalidResponse(b)) -> a == b
+      case (WriteFailed(a), WriteFailed(b)) -> a == b
+      case (InvalidLocation(a), InvalidLocation(b)) -> a == b
+      case (TooManyRedirects, TooManyRedirects) -> true
+      case (InsecureRedirect, InsecureRedirect) -> true
+      case (InvalidTlsConfig, InvalidTlsConfig) -> true
+      case _ -> false
+    }
+  }
+}
+
+# A type for building a URL encoded form.
+#
+# Fields and their values are added using `UrlEncodedForm.add`. Once all fields
+# are added the form can be sent to the server using `UrlEncodedForm.send`.
+type pub inline UrlEncodedForm {
+  let @builder: Request
+  let @values: Values
+
+  # Adds a field and its value to the form.
+  #
+  # This method buffers the field and its value until `UrlEncodedForm.send` is
+  # called.
+  fn pub mut add[B: Bytes](name: String, value: ref B) {
+    @values.add(name, value)
+  }
+
+  # Sends the form data to the server and returns its response.
+  #
+  # This method sets the `Content-Type` to `application/x-www-form-urlencoded`
+  # and sends the form as a single body (i.e. no chunking is used).
+  fn pub move send -> Result[Response, Error] {
+    @builder.headers.set(
+      Header.content_type,
+      'application/x-www-form-urlencoded',
+    )
+    @builder.body(@values.to_string)
+  }
+}
+
+# A type for building a multipart/form-data form.
+#
+# Fields and their values are streamed directly to the underlying writer,
+# allowing for efficient uploads of large amounts of data. The downside is that
+# connection errors can't be retried. As such, callers must be prepared to
+# handle sporadic network errors when building multipart forms.
+type pub inline MultipartForm {
+  let @client: mut Client
+  let @connection: ActiveConnection
+  let @form: multipart.Form[MultipartWriter, Error]
+  let @method: Method
+
+  # Returns a  new field to add to the form.
+  #
+  # This method itself doesn't write any data, instead it merely returns a
+  # `std.multipart.FormField` value used for building the data of a single
+  # field.
+  #
+  # Refer to the documentation of `std.multipart.FormField` for more details.
+  fn pub mut add(name: String) -> multipart.FormField[MultipartWriter, Error] {
+    @form.field(name)
+  }
+
+  # Sends the closing delimiter of the form and parses the response.
+  #
+  # # Errors
+  #
+  # If an error occurs while writing the closing delimiter of the form or when
+  # parsing the response, a `Error` is returned. This method performs no
+  # retrying of the operation due to this not being reliable for streaming
+  # multipart forms.
+  fn pub move send -> Result[Response, Error] {
+    try @form.close
+
+    # Due to the streaming nature of multipart forms, there's no way we can
+    # meaningfully retry errors here.
+    match
+      Parser.new(@connection, @client.buffer, @client.limits).response(@method)
+    {
+      case Ok(v) -> Result.Ok(v)
+      case Error(e) -> Result.Error(Error.InvalidResponse(e))
+    }
+  }
+}
+
+# A type for writing data to a multipart/form-data stream.
+type pub inline MultipartWriter {
+  let @writer: ChunkedWriter[mut ActiveConnection, IoError]
+
+  fn static new(connection: mut ActiveConnection) -> Self {
+    Self(ChunkedWriter.new(connection))
+  }
+}
+
+impl Write[Error] for MultipartWriter {
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
+    @writer.write(bytes).map_error(fn (e) { Error.WriteFailed(e) })
+  }
+
+  fn pub mut flush -> Result[Nil, Error] {
+    @writer.flush.map_error(fn (e) { Error.WriteFailed(e) })
+  }
+}
+
+# A type for building and sending a single HTTP request.
+type pub inline Request {
+  let @client: mut Client
+
+  # The request method.
+  let pub @method: Method
+
+  # The full URI (including the scheme and host) of the request.
+  let pub @uri: Uri
+
+  # The parsed query string parameters.
+  let pub @query: Values
+
+  # The headers of the request.
+  let pub @headers: HeaderMap
+
+  fn static new(client: mut Client, method: Method, uri: Uri) -> Self {
+    let query = uri.query.parse
+    let headers = HeaderMap.new
+
+    headers.set(Header.host, uri.host_and_port)
+    headers.set(Header.user_agent, client.user_agent)
+
+    Self(
+      client: client,
+      method: method,
+      uri: uri,
+      query: query,
+      headers: headers,
+    )
+  }
+
+  # Sets the header to the given value.
+  #
+  # This overwrites any existing values assigned to the header.
+  #
+  # Refer to the documentation of `std.net.http.HeaderMap.set` for more details.
+  fn pub move header(header: Header, value: String) -> Self {
+    @headers.set(header, value)
+    self
+  }
+
+  # Adds a query string parameter and value to `self`.
+  #
+  # Refer to the documentation of `std.uri.Values.add` for more details.
+  fn pub move query(key: String, value: String) -> Self {
+    @query.add(key, value)
+    self
+  }
+
+  # Sends the request without a body and parses its response.
+  #
+  # The value of the `Content-Length` header is set to zero.
+  #
+  # # Redirects
+  #
+  # This method follows redirects using the same rules as `Request.body`,
+  # refer to its documentation for more details.
+  #
+  # # Errors
+  #
+  # This method returns an error if either the request couldn't be sent (e.g.
+  # the socket is closed) or the response couldn't be parsed (e.g. the socket is
+  # closed or the response contains invalid syntax).
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.client (Client)
+  # import std.uri (Uri)
+  #
+  # let client = Client.new
+  # let uri = Uri.parse('https://example.com').or_panic
+  #
+  # client.get(uri).send # => Result.Ok(...)
+  # ```
+  fn pub move send -> Result[Response, Error] {
+    body('')
+  }
+
+  # Sends the request with the given body and parses its response.
+  #
+  # The value of the `Content-Length` header is set to the size of `bytes`.
+  #
+  # # Redirects
+  #
+  # Requests sent using this method follow redirects, provided that the request
+  # method is GET, HEAD, OPTIONS or TRACE. The maximum number of redirects is
+  # specified by `Client.max_redirects`.
+  #
+  # If an attempt is made to redirect the client from a secure URI (e.g. an
+  # HTTPS URI) to an insecure URI, a `Error.InsecureRedirect` error is
+  # returned.
+  #
+  # # Errors
+  #
+  # This method returns an error if either the request couldn't be sent (e.g.
+  # the socket is closed) or the response couldn't be parsed (e.g. the socket is
+  # closed or the response contains invalid syntax).
+  #
+  # If this method ends up using a previously established connection and the
+  # connection is now closed (e.g. due to the connection being idle for too
+  # long), this method retries the request until it either succeeds or an error
+  # is produced using a _new_ connection.
+  #
+  # If an error related to parsing the response is produced (e.g. the syntax is
+  # invalid), no retries are performed.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.client (Client)
+  # import std.uri (Uri)
+  #
+  # let client = Client.new
+  # let uri = Uri.parse('https://httpbun.org/post').or_panic
+  #
+  # client.post(uri).body('hello') # => Result.Ok(...)
+  # ```
+  fn pub move body[B: Bytes](bytes: ref B) -> Result[Response, Error] {
+    set_content_length(bytes.size)
+    prepare
+
+    let mut attempts = @client.max_redirects + 1
+
+    while attempts > 0 {
+      let (con, existing) = try @client.connect(@uri)
+      let writer = RequestWriter.new(mut con)
+
+      match writer.start(@method, @uri, @headers).body(bytes) {
+        case Ok(_) -> {}
+        case Error(ConnectionReset or BrokenPipe) if existing -> next
+        case Error(e) -> throw Error.WriteFailed(e)
+      }
+
+      match Parser.new(con, @client.buffer, @client.limits).response(@method) {
+        case Ok(resp) if @method.safe? and resp.status.redirect? -> {
+          match try follow_redirect(resp) {
+            case Some(v) -> return Result.Ok(v)
+            case _ -> {}
+          }
+
+          attempts -= 1
+          next
+        }
+        case Ok(v) -> return Result.Ok(v)
+        case
+          Error(EndOfInput or Read(ConnectionReset or BrokenPipe)) if existing
+        -> {}
+        case Error(e) -> throw Error.InvalidResponse(e)
+      }
+    }
+
+    throw Error.TooManyRedirects
+  }
+
+  # Returns a type for building and sending a URL encoded form.
+  #
+  # Fields are added using `UrlEncodedForm.add`. Sending the form and parsing
+  # its response is done using `UrlEncodedForm.send`.
+  #
+  # Forms built using this method buffer their fields in memory, sending all of
+  # them in a single request body.
+  #
+  # # Errors
+  #
+  # While this method itself produces no errors, sending a form may produce
+  # errors. Refer to the documentation of `Request.body` for more
+  # details. This method also employs the same retry logic as
+  # `Request.body`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.client (Client)
+  # import std.uri (Uri)
+  #
+  # let client = Client.new
+  # let uri = Uri.parse('https://httpbun.org/post').or_panic
+  # let form = client.post(uri).url_encoded_form
+  #
+  # form.add('name', 'Alice')
+  # form.send # => Result.Ok(...)
+  # ```
+  fn pub move url_encoded_form -> UrlEncodedForm {
+    UrlEncodedForm(builder: self, values: Values.new)
+  }
+
+  # Returns a type for building and sending a multipart/form-data encoded form.
+  #
+  # Unlike `Request.url_encoded_form` forms created using this method
+  # aren't sent as a whole. Instead, a chunked transfer body is used and each
+  # field is streamed to the server. This allows for efficient sending/uploading
+  # of large amounts of data.
+  #
+  # This method sets the `Content-Type` header to `multipart/form-data` and
+  # automatically generates a random boundary delimiter. The `Transfer-Encoding`
+  # header is set to `chunked`.
+  #
+  # # Errors
+  #
+  # This method returns an error if the request headers couldn't be sent (e.g.
+  # the socket is closed). If this happens using an existing connection, this
+  # method retries writing the headers until it either succeeds or an error is
+  # produced using a _new_ connection.
+  #
+  # Writing the body is done using `MultipartForm.send` and _no_ retrying is
+  # performed, as the streaming nature of multipart forms.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.client (Client)
+  # import std.uri (Uri)
+  #
+  # let client = Client.new
+  # let uri = Uri.parse('https://httpbun.org/post').or_panic
+  # let form = client.post(uri).multipart_form
+  #
+  # form.add('name').text('Alice') # => Result.Ok(...)
+  # form.send # => Result.Ok(...)
+  # ```
+  fn pub move multipart_form -> Result[MultipartForm, Error] {
+    let boundary = multipart.boundary_separator(@client.rng)
+
+    @headers.set(
+      Header.content_type,
+      'multipart/form-data; boundary=${boundary}',
+    )
+    @headers.set(Header.transfer_encoding, CHUNKED)
+    prepare
+
+    loop {
+      let (con, existing) = try @client.connect(@uri)
+      let writer = RequestWriter.new(mut con)
+
+      match writer.start(@method, @uri, @headers).flush {
+        case Ok(_) -> {}
+        case Error(ConnectionReset or BrokenPipe) if existing -> next
+        case Error(e) -> throw Error.WriteFailed(e)
+      }
+
+      let form = multipart.Form.new(MultipartWriter.new(mut con), boundary)
+
+      return Result.Ok(
+        MultipartForm(
+          client: @client,
+          form: form,
+          connection: con,
+          method: @method,
+        ),
+      )
+    }
+  }
+
+  # Sends a request for which the body is set to the output of the given `Read`
+  # value.
+  #
+  # This method reads from the input stream and writes to the socket in chunks.
+  # The `size` argument specifies the size (in bytes) of each chunk.
+  #
+  # This method uses chunked transfers and sets the `Transfer-Encoding` header
+  # to `chunked`.
+  #
+  # # Errors
+  #
+  # This method returns an error if either the request couldn't be sent (e.g.
+  # the socket is closed) or the response couldn't be parsed (e.g. the socket is
+  # closed or the response contains invalid syntax).
+  #
+  # If an error occurs using an existing connection while writing the request
+  # headers, this method retries writing the headers until it either succeeds or
+  # an error is produced using a _new_ connection.
+  #
+  # If an error occurs while writing the body, no retries are performed as this
+  # method has no way of rewinding the input stream to its initial position.
+  # Callers of this method should be prepared to handle sporadic network errors.
+  #
+  # The returned error type is an `std.io.CopyError` error. If an error occurs
+  # while reading from the input stream, the `CopyError.Read` constructor is
+  # used to construct the error, otherwise the `CopyError.Write` constructor is
+  # used (e.g. when the response is invalid).
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.io (Buffer)
+  # import std.net.http.client (Client)
+  # import std.uri (Uri)
+  #
+  # let client = Client.new
+  # let uri = Uri.parse('https://httpbun.org/post').or_panic
+  #
+  # client.post(uri).read(Buffer.new('hello')) # => Result.Ok(...)
+  # ```
+  fn pub move read[R: mut + Read[RE], RE](
+    reader: mut R,
+    size: Int,
+  ) -> Result[Response, CopyError[RE, Error]] {
+    @headers.set(Header.transfer_encoding, CHUNKED)
+    prepare
+
+    loop {
+      match @client.connect(@uri) {
+        case Ok((con, existing)) -> {
+          let writer = RequestWriter.new(mut con)
+
+          match writer.start(@method, @uri, @headers).flush {
+            case Ok(_) -> {}
+            case Error(ConnectionReset or BrokenPipe) if existing -> next
+            case Error(e) -> throw CopyError.Write(Error.WriteFailed(e))
+          }
+
+          match
+            copy_using(writer.buffer, reader, ChunkedWriter.new(mut con), size)
+          {
+            case Ok(_) -> {}
+            case Error(Read(e)) -> throw CopyError.Read(e)
+            case Error(Write(e)) -> throw CopyError.Write(Error.WriteFailed(e))
+          }
+
+          match
+            Parser.new(con, @client.buffer, @client.limits).response(@method)
+          {
+            case Ok(v) -> return Result.Ok(v)
+            case Error(e) -> throw CopyError.Write(Error.InvalidResponse(e))
+          }
+        }
+        case Error(e) -> throw CopyError.Write(e)
+      }
+    }
+  }
+
+  fn mut set_content_length(size: Int) {
+    match @method {
+      # `Request.send` uses `Request.body('')` but we don't want a
+      # `Content-Length` header for request methods that shouldn't have one per
+      # RFC 9110.
+      case Get or Head or Connect or Trace if size == 0 -> {}
+      case _ -> @headers.set(Header.content_length, size.to_string)
+    }
+  }
+
+  fn mut prepare {
+    @uri.query = @query.to_query
+    apply_basic_authentication
+  }
+
+  fn mut apply_basic_authentication {
+    match @uri.user_info {
+      case
+        Some({ @name = name, @password = pass })
+      if @headers.get(Header.authorization).error?
+      -> {
+        let val = ByteArray.new
+
+        val.append('Basic ')
+        Encoder.new.encode('${name}:${pass}', into: val)
+        @headers.set(Header.authorization, val.to_string)
+      }
+      case _ -> return
+    }
+  }
+
+  fn mut follow_redirect(
+    response: Response,
+  ) -> Result[Option[Response], Error] {
+    let new_uri = match response.headers.get(Header.location) {
+      case Ok(v) -> {
+        try Uri.parse(v).map_error(fn (e) { Error.InvalidLocation(e) })
+      }
+      case _ -> return Result.Ok(Option.Some(response))
+    }
+
+    match (@uri.scheme, new_uri.scheme) {
+      case (Some(Https or Wss), Some(Https or Wss) or None) -> {}
+      case (Some(Https or Wss), Some(_)) -> throw Error.InsecureRedirect
+      # For Unix sockets we only allow Unix to Unix redirects, as other
+      # redirects (e.g. HTTPS to Unix) are potentially dangerous.
+      case (Some(Unix), Some(Unix) or None) -> {}
+      case (Some(Unix), Some(_)) -> throw Error.InsecureRedirect
+      case (_, Some(Unix)) -> throw Error.InsecureRedirect
+      case _ -> {}
+    }
+
+    if
+      @uri.host != new_uri.host
+        and @client.remove_authorization_for_different_host
+    {
+      @headers.remove_all(Header.authorization)
+    }
+
+    try response.body.clear.map_error(fn (e) { Error.InvalidResponse(e) })
+    @uri.merge(new_uri)
+    Result.Ok(Option.None)
+  }
+}

@@ -21,7 +21,7 @@ type async Main {
 }
 ```
 
-Here we import the `Stdout` type from the module `std.stdio`. We can also
+Here we import the `Stdout` type from the module [](std.stdio). We can also
 import modules as a whole:
 
 ```inko

@@ -116,7 +116,7 @@ loop {
 
 A `for` loop supports any collection/iterator that implements the `into_iter`
 method, which in turn is expected to return a type that implements the
-`std.iter.Iter` trait.
+[](std.iter.Iter) trait.
 
 `for` loops can use pattern matching to match against specific values returned
 by `next`:
@@ -242,7 +242,7 @@ This program prints "hello", then stops the loop.
 ## throw
 
 `throw` takes an expression and wraps it in the `Error` constructor of the
-`std.result.Result` enum, then returns it:
+[](std.result.Result) enum, then returns it:
 
 ```inko
 fn example -> Result[Int, String] {
@@ -263,8 +263,8 @@ The `throw` keyword is only available in methods of which the return type is a
 
 ## try
 
-`try` takes an expression of which the type is either `std.result.Result` or
-`std.option.Option`, and gets it. If the value is a `Result.Error` or an
+`try` takes an expression of which the type is either [](std.result.Result) or
+[](std.option.Option), and gets it. If the value is a `Result.Error` or an
 `Option.None`, the value is returned as-is.
 
 Consider this example of using `try` with an `Option` value:

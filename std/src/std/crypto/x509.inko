@@ -1,6 +1,49 @@
 # X.509 private keys and certificates.
 import std.cmp (Equal)
+import std.crypto.pem
 import std.fmt (Format, Formatter)
+import std.fs.file (ReadOnlyFile)
+import std.fs.path (Path)
+import std.io
+import std.string (ToString)
+
+# An error produced when parsing a certificate or private key from a PEM file.
+type pub inline enum ParseError {
+  case Read(io.Error)
+  case Invalid(pem.ParseError[io.Error])
+  case Missing
+}
+
+impl Equal for ParseError {
+  fn pub ==(other: ref Self) -> Bool {
+    match (self, other) {
+      case (Read(a), Read(b)) -> a == b
+      case (Invalid(a), Invalid(b)) -> a == b
+      case (Missing, Missing) -> true
+      case _ -> false
+    }
+  }
+}
+
+impl ToString for ParseError {
+  fn pub to_string -> String {
+    match self {
+      case Read(e) -> e.to_string
+      case Invalid(e) -> e.to_string
+      case Missing -> "the file doesn't contain a certificate or private key"
+    }
+  }
+}
+
+impl Format for ParseError {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case Read(v) -> formatter.tuple('Read').field(v).finish
+      case Invalid(v) -> formatter.tuple('Invalid').field(v).finish
+      case Missing -> formatter.tuple('Missing').finish
+    }
+  }
+}
 
 # An X.509 certificate.
 #
@@ -11,6 +54,38 @@ type pub inline Certificate {
   # Returns a new `Certificate` that wraps the given `ByteArray`.
   fn pub inline static new(bytes: ByteArray) -> Certificate {
     Certificate(bytes)
+  }
+
+  # Parses the first certificate from a PEM file.
+  #
+  # For more control over the parsing of PEM files, use `std.crypto.pem.PemFile`
+  # directly.
+  #
+  # # Errors
+  #
+  # If the file is invalid or no certificate is found, a `ParseError` error is
+  # returned.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.crypto.x509
+  #
+  # Certificate.from_pem_file('cacert.pem').or_panic # => Result.Ok(Certificate(...))
+  # ```
+  fn pub static from_pem_file(
+    path: ref Path,
+  ) -> Result[Certificate, ParseError] {
+    let file = match ReadOnlyFile.new(path) {
+      case Ok(v) -> pem.PemFile.new(v)
+      case Error(e) -> throw ParseError.Read(e)
+    }
+
+    match file.next_certificate {
+      case Ok(Some(v)) -> Result.Ok(v)
+      case Ok(None) -> Result.Error(ParseError.Missing)
+      case Error(e) -> Result.Error(ParseError.Invalid(e))
+    }
   }
 }
 
@@ -35,6 +110,38 @@ type pub inline PrivateKey {
   # Returns a new `PrivateKey` that wraps the given `ByteArray`.
   fn pub inline static new(bytes: ByteArray) -> PrivateKey {
     PrivateKey(bytes)
+  }
+
+  # Parses the first private key from a PEM file.
+  #
+  # For more control over the parsing of PEM files, use `std.crypto.pem.PemFile`
+  # directly.
+  #
+  # # Errors
+  #
+  # If the file is invalid or no private key is found, a `ParseError` error is
+  # returned.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.crypto.x509
+  #
+  # PrivateKey.from_pem_file('key.pem').or_panic # => Result.Ok(PrivateKey(...))
+  # ```
+  fn pub static from_pem_file(
+    path: ref Path,
+  ) -> Result[PrivateKey, ParseError] {
+    let file = match ReadOnlyFile.new(path) {
+      case Ok(v) -> pem.PemFile.new(v)
+      case Error(e) -> throw ParseError.Read(e)
+    }
+
+    match file.next_private_key {
+      case Ok(Some(v)) -> Result.Ok(v)
+      case Ok(None) -> throw ParseError.Missing
+      case Error(e) -> throw ParseError.Invalid(e)
+    }
   }
 }
 

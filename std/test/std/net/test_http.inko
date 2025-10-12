@@ -1,0 +1,1608 @@
+import helpers (VALID_CERT, VALID_KEY)
+import std.bytes (Bytes)
+import std.crypto.pem
+import std.crypto.x509
+import std.drop (drop)
+import std.fmt (fmt)
+import std.int
+import std.io (Buffer, BufferedReader, Error as IoError, Read, Write)
+import std.map (MissingKey)
+import std.net.http (
+  Body, BoundedBody, ChunkState, ChunkedBody, ChunkedWriter, ContentLength,
+  Etag, Header, HeaderMap, HeaderValue, Limits, Method, ParseError, Parser,
+  Reader, Request, Response, Status, Stream, UnboundedBody, Version,
+)
+import std.net.ip (IpAddress)
+import std.test (Tests)
+import std.uri (Error as UriError, Fragment, Host, Path, Query, Scheme, Uri)
+
+fn uri(scheme: Option[Scheme], host: Option[Host], port: Option[Int]) -> Uri {
+  Uri(
+    scheme: scheme,
+    user_info: Option.None,
+    host: host,
+    port: port,
+    path: Path.empty,
+    query: Query.empty,
+    fragment: Fragment.empty,
+  )
+}
+
+fn http -> Option[Scheme] {
+  Option.Some(Scheme.Http)
+}
+
+fn https -> Option[Scheme] {
+  Option.Some(Scheme.Https)
+}
+
+fn file -> Option[Scheme] {
+  Option.Some(Scheme.File)
+}
+
+fn ip(ip: IpAddress) -> Option[Host] {
+  Option.Some(Host.Ip(ip))
+}
+
+fn port(ip: Int) -> Option[Int] {
+  Option.Some(ip)
+}
+
+fn path(value: String) -> Uri {
+  let uri = Uri.new
+
+  uri.path = Path.new(value).get
+  uri
+}
+
+fn certificate -> x509.Certificate {
+  match pem.PemFile.new(Buffer.new(VALID_CERT)).next {
+    case Some(Ok(Certificate(cert))) -> cert
+    case _ -> panic('the certificate data is invalid')
+  }
+}
+
+fn private_key -> x509.PrivateKey {
+  match pem.PemFile.new(Buffer.new(VALID_KEY)).next {
+    case Some(Ok(PrivateKey(cert))) -> cert
+    case _ -> panic('the private key data is invalid')
+  }
+}
+
+type Writer {
+  let @buffer: ByteArray
+
+  fn static new -> Self {
+    Self(ByteArray.new)
+  }
+}
+
+impl Write[IoError] for Writer {
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, IoError] {
+    @buffer.append(bytes)
+    Result.Ok(nil)
+  }
+
+  fn pub mut flush -> Result[Nil, IoError] {
+    Result.Ok(nil)
+  }
+}
+
+type Reuse {
+  let mut @reusable: Bool
+}
+
+impl Read[ParseError] for Reuse {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, ParseError] {
+    Result.Ok(0)
+  }
+}
+
+impl Stream for Reuse {
+  fn mut reuse {
+    @reusable = true
+  }
+
+  fn mut maximum_size=(value: Int) {}
+
+  fn reusable? -> Bool {
+    true
+  }
+}
+
+fn pub tests(t: mut Tests) {
+  t.test('HeaderValue.==', fn (t) {
+    t.equal(HeaderValue.Single('a'), HeaderValue.Single('a'))
+    t.equal(HeaderValue.Multiple(['a']), HeaderValue.Multiple(['a']))
+    t.not_equal(HeaderValue.Single('a'), HeaderValue.Single('b'))
+    t.not_equal(HeaderValue.Multiple(['a']), HeaderValue.Multiple(['b']))
+  })
+
+  t.test('HeaderValue.fmt', fn (t) {
+    t.equal(fmt(HeaderValue.Single('a')), 'Single("a")')
+    t.equal(fmt(HeaderValue.Multiple(['a'])), 'Multiple(["a"])')
+  })
+
+  t.test('HeaderValue.clone', fn (t) {
+    t.equal(HeaderValue.Single('a').clone, HeaderValue.Single('a'))
+    t.equal(HeaderValue.Multiple(['a']).clone, HeaderValue.Multiple(['a']))
+  })
+
+  t.test('HeaderMap.new', fn (t) {
+    let map = HeaderMap.new
+
+    t.equal(map.map.size, 0)
+  })
+
+  t.test('HeaderMap.set', fn (t) {
+    let map = HeaderMap.new
+
+    map.set(Header.host, 'example.com')
+    map.set(Header.content_length, '10')
+    map.set(Header.content_length, '20')
+    map.set(Header.Other('foo'), '100')
+
+    t.equal(map.get(Header.host), Result.Ok('example.com'))
+    t.equal(map.get(Header.content_length), Result.Ok('20'))
+    t.equal(map.get(Header.Other('foo')), Result.Ok('100'))
+  })
+
+  t.test('HeaderMap.add', fn (t) {
+    let map = HeaderMap.new
+
+    map.add(Header.host, 'example.com')
+    map.add(Header.content_length, '10')
+    map.add(Header.content_length, '20')
+    map.add(Header.Other('foo'), '100')
+    map.add(Header.Other('bar'), '200')
+    map.add(Header.Other('bar'), '300')
+
+    t.equal(map.get(Header.host), Result.Ok('example.com'))
+    t.equal(map.get(Header.content_length), Result.Ok('10'))
+    t.equal(map.get(Header.Other('foo')), Result.Ok('100'))
+    t.equal(map.get(Header.Other('bar')), Result.Ok('200'))
+  })
+
+  t.test('HeaderMap.get', fn (t) {
+    let map = HeaderMap.new
+
+    map.add(Header.host, 'example.com')
+    map.add(Header.Other('bar'), 'value')
+
+    t.equal(map.get(Header.host), Result.Ok('example.com'))
+    t.equal(map.get(Header.accept), Result.Error(MissingKey.new(Header.accept)))
+    t.equal(map.get(Header.Other('bar')), Result.Ok('value'))
+    t.equal(
+      map.get(Header.Other('foo')),
+      Result.Error(MissingKey.new(Header.Other('foo'))),
+    )
+  })
+
+  t.test('HeaderMap.get_all', fn (t) {
+    let map = HeaderMap.new
+
+    map.add(Header.host, 'example.com')
+    map.add(Header.content_length, '10')
+    map.add(Header.content_length, '20')
+    map.add(Header.Other('foo'), '100')
+    map.add(Header.Other('foo'), '200')
+    map.add(Header.Other('single'), 'value')
+
+    t.equal(map.get_all(Header.host).to_array, ['example.com'])
+    t.equal(map.get_all(Header.content_length).to_array, ['10', '20'])
+    t.equal(map.get_all(Header.Other('foo')).to_array, ['100', '200'])
+    t.equal(map.get_all(Header.Other('single')).to_array, ['value'])
+
+    t.equal(map.get_all(Header.via).to_array, [])
+    t.equal(map.get_all(Header.Other('missing')).to_array, [])
+  })
+
+  t.test('HeaderMap.iter', fn (t) {
+    let map = HeaderMap.new
+
+    t.equal(map.iter.to_array, [])
+
+    map.add(Header.host, 'example.com')
+    map.add(Header.content_length, '10')
+    map.add(Header.content_length, '20')
+    map.add(Header.Other('foo'), '100')
+
+    t.equal(
+      map.iter.to_array,
+      [
+        (Header.host, 'example.com'),
+        (Header.content_length, '10'),
+        (Header.content_length, '20'),
+        (Header.Other('foo'), '100'),
+      ],
+    )
+  })
+
+  t.test('HeaderMap.size', fn (t) {
+    let map = HeaderMap.new
+
+    t.equal(map.size, 0)
+    map.add(Header.host, 'a')
+    t.equal(map.size, 1)
+    map.add(Header.host, 'b')
+    t.equal(map.size, 1)
+  })
+
+  t.test('HeaderMap.==', fn (t) {
+    let map1 = HeaderMap.new
+    let map2 = HeaderMap.new
+    let map3 = HeaderMap.new
+
+    map1.add(Header.host, 'a')
+    map2.add(Header.host, 'a')
+    map3.add(Header.host, 'b')
+
+    t.equal(map1, map2)
+    t.not_equal(map1, map3)
+  })
+
+  t.test('HeaderMap.fmt', fn (t) {
+    let map = HeaderMap.new
+
+    map.add(Header.host, 'foo')
+    map.add(Header.connection, 'bar')
+    map.add(Header.connection, 'baz')
+    map.add(Header.Other('foo'), 'value1')
+    map.add(Header.Other('bar'), 'value2')
+    map.add(Header.Other('bar'), 'value3')
+
+    t.equal(
+      fmt(map),
+      '{host: "foo", connection: ["bar", "baz"], foo: "value1", bar: ["value2", "value3"]}',
+    )
+  })
+
+  t.test('Method.parse', fn (t) {
+    t.equal(Method.parse('GET'), Option.Some(Method.Get))
+    t.equal(Method.parse('OPTIONS'), Option.Some(Method.Options))
+    t.equal(Method.parse('get'), Option.None)
+  })
+
+  t.test('Method.get?', fn (t) {
+    t.true(Method.Get.get?)
+    t.false(Method.Head.get?)
+    t.false(Method.Options.get?)
+    t.false(Method.Trace.get?)
+    t.false(Method.Post.get?)
+    t.false(Method.Put.get?)
+    t.false(Method.Delete.get?)
+    t.false(Method.Connect.get?)
+  })
+
+  t.test('Method.safe?', fn (t) {
+    t.true(Method.Get.safe?)
+    t.true(Method.Head.safe?)
+    t.true(Method.Options.safe?)
+    t.true(Method.Trace.safe?)
+    t.false(Method.Post.safe?)
+    t.false(Method.Put.safe?)
+    t.false(Method.Delete.safe?)
+    t.false(Method.Connect.safe?)
+  })
+
+  t.test('Status.new', fn (t) { t.equal(Status.new(404).code, 404) })
+
+  t.test('Status.ok', fn (t) { t.equal(Status.ok.code, 200) })
+
+  t.test('Status.created', fn (t) { t.equal(Status.created.code, 201) })
+
+  t.test('Status.partial_content', fn (t) {
+    t.equal(Status.partial_content.code, 206)
+    t.true(Status.partial_content.partial_content?)
+  })
+
+  t.test('Status.not_modified', fn (t) {
+    t.equal(Status.not_modified.code, 304)
+    t.true(Status.not_modified.not_modified?)
+  })
+
+  t.test('Status.bad_request', fn (t) { t.equal(Status.bad_request.code, 400) })
+
+  t.test('Status.forbidden', fn (t) { t.equal(Status.forbidden.code, 403) })
+
+  t.test('Status.not_found', fn (t) { t.equal(Status.not_found.code, 404) })
+
+  t.test('Status.method_not_allowed', fn (t) {
+    t.equal(Status.method_not_allowed.code, 405)
+  })
+
+  t.test('Status.precondition_failed', fn (t) {
+    t.equal(Status.precondition_failed.code, 412)
+  })
+
+  t.test('Status.content_too_large', fn (t) {
+    t.equal(Status.content_too_large.code, 413)
+  })
+
+  t.test('Status.uri_too_long', fn (t) {
+    t.equal(Status.uri_too_long.code, 414)
+  })
+
+  t.test('Status.unsupported_media_type', fn (t) {
+    t.equal(Status.unsupported_media_type.code, 415)
+  })
+
+  t.test('Status.range_not_satisfiable', fn (t) {
+    t.equal(Status.range_not_satisfiable.code, 416)
+  })
+
+  t.test('Status.unprocessable_content', fn (t) {
+    t.equal(Status.unprocessable_content.code, 422)
+  })
+
+  t.test('Status.upgrade_required', fn (t) {
+    t.equal(Status.upgrade_required.code, 426)
+  })
+
+  t.test('Status.request_header_fields_too_large', fn (t) {
+    t.equal(Status.request_header_fields_too_large.code, 431)
+  })
+
+  t.test('Status.internal_server_error', fn (t) {
+    t.equal(Status.internal_server_error.code, 500)
+  })
+
+  t.test('Status.not_implemented', fn (t) {
+    t.equal(Status.not_implemented.code, 501)
+  })
+
+  t.test('Status.http_version_not_supported', fn (t) {
+    t.equal(Status.http_version_not_supported.code, 505)
+  })
+
+  t.test('Status.==', fn (t) {
+    t.equal(Status.new(1), Status.new(1))
+    t.not_equal(Status.new(1), Status.new(2))
+  })
+
+  t.test('Status.to_string', fn (t) { t.equal(Status.ok.to_string, '200') })
+
+  t.test('Status.fmt', fn (t) { t.equal(fmt(Status.ok), '200') })
+
+  t.test('Status.to_int', fn (t) { t.equal(Status.ok.to_int, 200) })
+
+  t.test('Status.ok?', fn (t) {
+    t.true(Status.ok.ok?)
+    t.false(Status.not_found.ok?)
+  })
+
+  t.test('Status.redirect?', fn (t) {
+    t.true(Status.new(300).redirect?)
+    t.true(Status.new(399).redirect?)
+    t.false(Status.new(299).redirect?)
+    t.false(Status.new(400).redirect?)
+  })
+
+  t.test('Version.v11', fn (t) { t.equal(Version.v11, Version(1, 1)) })
+
+  t.test('Version.==', fn (t) {
+    t.equal(Version(1, 2), Version(1, 2))
+    t.not_equal(Version(1, 2), Version(1, 3))
+    t.not_equal(Version(2, 1), Version(1, 1))
+  })
+
+  t.test('Version.fmt', fn (t) {
+    t.equal(fmt(Version(1, 2)), 'Version(major: 1, minor: 2)')
+  })
+
+  t.test('Version.to_string', fn (t) {
+    t.equal(Version(1, 0).to_string, '1.0')
+    t.equal(Version(1, 1).to_string, '1.1')
+    t.equal(Version(1, 2).to_string, '1.2')
+  })
+
+  t.test('ParseError.to_string', fn (t) {
+    t.equal(
+      ParseError.InvalidUri(UriError.InvalidScheme).to_string,
+      'the request URI is invalid: the scheme is invalid',
+    )
+    t.equal(
+      ParseError.Read(IoError.BrokenPipe).to_string,
+      IoError.BrokenPipe.to_string,
+    )
+  })
+
+  t.test('ParseError.fmt', fn (t) {
+    t.equal(fmt(ParseError.InvalidMethod), 'InvalidMethod')
+    t.equal(fmt(ParseError.MissingUri), 'MissingUri')
+    t.equal(
+      fmt(ParseError.InvalidUri(UriError.InvalidScheme)),
+      'InvalidUri(InvalidScheme)',
+    )
+    t.equal(fmt(ParseError.UriTooLarge), 'UriTooLarge')
+    t.equal(fmt(ParseError.InvalidVersion), 'InvalidVersion')
+    t.equal(fmt(ParseError.InvalidHeader), 'InvalidHeader')
+    t.equal(fmt(ParseError.HeaderTooLarge), 'HeaderTooLarge')
+    t.equal(fmt(ParseError.TooManyHeaders), 'TooManyHeaders')
+    t.equal(fmt(ParseError.BodyTooLarge), 'BodyTooLarge')
+    t.equal(fmt(ParseError.InvalidChunk), 'InvalidChunk')
+    t.equal(fmt(ParseError.InvalidTransferEncoding), 'InvalidTransferEncoding')
+    t.equal(fmt(ParseError.EndOfInput), 'EndOfInput')
+    t.equal(fmt(ParseError.InvalidStatus), 'InvalidStatus')
+    t.equal(fmt(ParseError.Read(IoError.BrokenPipe)), 'Read(BrokenPipe)')
+  })
+
+  t.test('ParseError.==', fn (t) {
+    t.equal(ParseError.InvalidMethod, ParseError.InvalidMethod)
+    t.equal(ParseError.MissingUri, ParseError.MissingUri)
+    t.equal(
+      ParseError.InvalidUri(UriError.InvalidScheme),
+      ParseError.InvalidUri(UriError.InvalidScheme),
+    )
+    t.equal(ParseError.UriTooLarge, ParseError.UriTooLarge)
+    t.equal(ParseError.InvalidVersion, ParseError.InvalidVersion)
+    t.equal(ParseError.InvalidHeader, ParseError.InvalidHeader)
+    t.equal(ParseError.HeaderTooLarge, ParseError.HeaderTooLarge)
+    t.equal(ParseError.TooManyHeaders, ParseError.TooManyHeaders)
+    t.equal(ParseError.BodyTooLarge, ParseError.BodyTooLarge)
+    t.equal(ParseError.InvalidChunk, ParseError.InvalidChunk)
+    t.equal(
+      ParseError.InvalidTransferEncoding,
+      ParseError.InvalidTransferEncoding,
+    )
+    t.equal(ParseError.EndOfInput, ParseError.EndOfInput)
+    t.equal(ParseError.InvalidStatus, ParseError.InvalidStatus)
+    t.equal(
+      ParseError.Read(IoError.BrokenPipe),
+      ParseError.Read(IoError.BrokenPipe),
+    )
+
+    t.not_equal(ParseError.InvalidMethod, ParseError.MissingUri)
+    t.not_equal(ParseError.MissingUri, ParseError.InvalidMethod)
+    t.not_equal(
+      ParseError.InvalidUri(UriError.InvalidScheme),
+      ParseError.InvalidUri(UriError.InvalidPath),
+    )
+    t.not_equal(ParseError.UriTooLarge, ParseError.MissingUri)
+    t.not_equal(ParseError.InvalidVersion, ParseError.MissingUri)
+    t.not_equal(ParseError.InvalidHeader, ParseError.MissingUri)
+    t.not_equal(ParseError.HeaderTooLarge, ParseError.MissingUri)
+    t.not_equal(ParseError.TooManyHeaders, ParseError.MissingUri)
+    t.not_equal(ParseError.BodyTooLarge, ParseError.MissingUri)
+    t.not_equal(ParseError.InvalidChunk, ParseError.MissingUri)
+    t.not_equal(ParseError.InvalidTransferEncoding, ParseError.MissingUri)
+    t.not_equal(ParseError.EndOfInput, ParseError.MissingUri)
+    t.not_equal(ParseError.InvalidStatus, ParseError.MissingUri)
+    t.not_equal(
+      ParseError.Read(IoError.BrokenPipe),
+      ParseError.Read(IoError.NotConnected),
+    )
+  })
+
+  t.test('Limits.clone', fn (t) {
+    let a = Limits.new
+    let b = Limits.new
+
+    t.equal(a.uri_size, b.uri_size)
+    t.equal(a.reason_size, b.reason_size)
+    t.equal(a.header_size, b.header_size)
+    t.equal(a.headers, b.headers)
+    t.equal(a.request_body_size, b.request_body_size)
+    t.equal(a.response_body_size, b.response_body_size)
+  })
+
+  t.test('Request.fmt', fn (t) {
+    let body = Body.bounded(
+      BufferedReader.new(Reader.new(Buffer.new(''))),
+      size: 0,
+      limit: 0,
+    )
+    let req = Request(
+      method: Method.Get,
+      uri: Uri.new,
+      version: Version(1, 1),
+      headers: HeaderMap.new,
+      body: body,
+    )
+
+    t.equal(
+      fmt(req),
+      'Request(method: Get, '
+        + 'uri: Uri(scheme: None, user_info: None, host: None, port: None, path: Path(value: ""), query: Query(value: ""), fragment: Fragment(value: "")), '
+        + 'version: Version(major: 1, minor: 1), headers: {}, body: Body(...))',
+    )
+  })
+
+  t.test('Response.drop', fn (t) {
+    let tests = [
+      # Cases where the connection should be reused.
+      (Option.Some('keep-alive'), Version.v11, 0, true),
+      (Option.Some('keep-alive'), Version(1, 2), 0, true),
+      (Option.None, Version.v11, 0, true),
+
+      # Cases where the connection can't be reused.
+      (Option.Some('keep-alive'), Version.v11, 5, false),
+      (Option.Some('close'), Version.v11, 0, false),
+      (Option.None, Version(1, 2), 0, false),
+      (Option.Some('keep-alive'), Version(1, 2), 5, false),
+      (Option.None, Version.v11, 5, false),
+    ]
+
+    for (val, ver, len, exp) in tests {
+      let body = Reuse(reusable: false)
+      let resp = Response(
+        version: ver,
+        status: Status.ok,
+        headers: HeaderMap.new,
+        body: Body.bounded(BufferedReader.new(mut body), size: len, limit: len),
+      )
+
+      match val {
+        case Some(v) -> resp.headers.set(Header.connection, v)
+        case _ -> {}
+      }
+
+      drop(resp)
+      t.equal(body.reusable, exp)
+    }
+  })
+
+  t.test('Response.fmt', fn (t) {
+    let body = Reuse(reusable: false)
+    let resp = Response(
+      version: Version.v11,
+      status: Status.ok,
+      headers: HeaderMap.new,
+      body: Body.bounded(BufferedReader.new(mut body), size: 0, limit: 0),
+    )
+
+    t.equal(
+      fmt(resp),
+      'Response(version: Version(major: 1, minor: 1), status: 200, headers: {}, body: Body(...))',
+    )
+  })
+
+  t.test('Body.clear', fn (t) {
+    let buf = ByteArray.new
+    let body = Body.bounded(
+      BufferedReader.new(Reader.new(Buffer.new('[10]'))),
+      size: 4,
+      limit: 4,
+    )
+
+    t.equal(body.clear, Result.Ok(nil))
+    t.equal(body.read_all(buf), Result.Ok(0))
+    t.equal(buf.size, 0)
+  })
+
+  t.test('Body.fmt', fn (t) {
+    let body = Body.bounded(
+      BufferedReader.new(Reader.new(Buffer.new('[10]'))),
+      size: 4,
+      limit: 4,
+    )
+
+    t.equal(fmt(body), 'Body(...)')
+  })
+
+  t.test('Body.read', fn (t) {
+    let buf = ByteArray.new
+    let body = Body.bounded(
+      BufferedReader.new(Reader.new(Buffer.new('hello'))),
+      size: 5,
+      limit: 5,
+    )
+
+    t.equal(body.read_all(buf), Result.Ok(5))
+    t.equal(buf.to_string, 'hello')
+  })
+
+  t.test('Reader.read', fn (t) {
+    let buf = ByteArray.new
+    let reader = Reader.new(Buffer.new('hello'))
+
+    t.equal(reader.read_all(buf), Result.Ok(5))
+    t.equal(buf.to_string, 'hello')
+  })
+
+  t.test('BoundedBody.read', fn (t) {
+    let buf = ByteArray.new
+    let reader = BoundedBody.new(
+      BufferedReader.new(Reader.new(Buffer.new('hello'))),
+      size: 5,
+      limit: 5,
+    )
+
+    t.equal(reader.remaining, 5)
+    t.equal(reader.read_all(buf), Result.Ok(5))
+
+    t.equal(reader.remaining, 0)
+    t.equal(reader.read_all(buf), Result.Ok(0))
+
+    t.equal(buf.to_string, 'hello')
+  })
+
+  t.test('BoundedBody.reuse', fn (t) {
+    let reuse = Reuse(reusable: false)
+    let reader = BoundedBody.new(
+      BufferedReader.new(mut reuse),
+      size: 5,
+      limit: 5,
+    )
+
+    reader.reuse
+    t.false(reuse.reusable)
+
+    reader.remaining = 0
+    reader.reuse
+    t.true(reuse.reusable)
+  })
+
+  t.test('UnboundedBody.read', fn (t) {
+    let buf = ByteArray.new
+    let reader = UnboundedBody.new(
+      BufferedReader.new(Reader.new(Buffer.new('hello world'))),
+      limit: 5,
+    )
+
+    t.equal(reader.read(buf, 5), Result.Ok(5))
+    t.equal(buf.to_string, 'hello')
+
+    t.equal(reader.read(buf, 1), Result.Error(ParseError.BodyTooLarge))
+  })
+
+  t.test('UnboundedBody.reuse', fn (t) {
+    let reuse = Reuse(reusable: false)
+    let reader = UnboundedBody.new(BufferedReader.new(mut reuse), limit: 5)
+
+    reader.reuse
+    t.false(reuse.reusable)
+  })
+
+  t.test('ChunkedBody.read_chunk_size', fn (t) {
+    let tests = [
+      # Valid chunk sizes
+      ('1\r\n', 10, Result.Ok(1)),
+      ('10\r\n', 100, Result.Ok(16)),
+      ('FF\r\n', 512, Result.Ok(255)),
+      ('ff\r\n', 512, Result.Ok(255)),
+      ('3e7\r\n', 1024, Result.Ok(999)),
+      ('3E7\r\n', 1024, Result.Ok(999)),
+      ('10;\r\n', 256, Result.Ok(16)),
+      ('10;chunk extension\r\n', 256, Result.Ok(16)),
+      ('7fffffffffffffff\r\n', int.MAX, Result.Ok(int.MAX)),
+
+      # Invalid chunk sizes
+      ('FF\r\n', 10, Result.Error(ParseError.BodyTooLarge)),
+      ('Z\r\n', 10, Result.Error(ParseError.InvalidChunk)),
+      ('10;chunk extension\r\n', 5, Result.Error(ParseError.BodyTooLarge)),
+      ('10', 100, Result.Error(ParseError.EndOfInput)),
+      ('10\r', 100, Result.Error(ParseError.EndOfInput)),
+      ('10\rA', 100, Result.Error(ParseError.InvalidChunk)),
+      ('10;chunk extension', 100, Result.Error(ParseError.EndOfInput)),
+      ('10;chunk extension\r', 100, Result.Error(ParseError.EndOfInput)),
+      ('10;chunk extension\rA', 100, Result.Error(ParseError.InvalidChunk)),
+      ('8000000000000000\r\n', int.MAX, Result.Error(ParseError.InvalidChunk)),
+      ('00000000000000000\r\n', 100, Result.Error(ParseError.InvalidChunk)),
+      ('00000000000000001\r\n', 100, Result.Error(ParseError.InvalidChunk)),
+      ('000000000000000012\r\n', 100, Result.Error(ParseError.InvalidChunk)),
+    ]
+
+    for (inp, max, out) in tests {
+      let reader = ChunkedBody.new(
+        BufferedReader.new(Reader.new(Buffer.new(inp))),
+        max,
+      )
+
+      t.equal(reader.read_chunk_size, out)
+    }
+  })
+
+  t.test('ChunkedBody.read', fn (t) {
+    let tests = [
+      # Valid chunks
+      ('0\r\n\r\n', 1024, [(0, Result.Ok(0), '')]),
+      ('5\r\nhello\r\n0\r\n\r\n', 1024, [(3, Result.Ok(3), 'hel')]),
+      ('5\r\nhello\r\n0\r\n\r\n', 1024, [(5, Result.Ok(5), 'hello')]),
+      ('5\r\nhello\r\n0\r\n\r\n', 1024, [(10, Result.Ok(5), 'hello')]),
+      ('3\r\nhel\r\n2\r\nlo\r\n0\r\n\r\n', 1024, [(5, Result.Ok(5), 'hello')]),
+      ('3\r\nhel\r\n2\r\nlo\r\n0\r\n\r\n', 1024, [(3, Result.Ok(3), 'hel')]),
+      (
+        '5\r\nhello\r\n0\r\n\r\n',
+        1024,
+        [(3, Result.Ok(3), 'hel'), (2, Result.Ok(2), 'hello')],
+      ),
+      (
+        '5\r\nhello\r\n0\r\n\r\n',
+        1024,
+        [(3, Result.Ok(3), 'hel'), (10, Result.Ok(2), 'hello')],
+      ),
+      (
+        '5\r\nhello\r\n0\r\n\r\n5\r\nworld\r\n0\r\n\r\n',
+        1024,
+        [(5, Result.Ok(5), 'hello'), (5, Result.Ok(0), 'hello')],
+      ),
+      (
+        '5\r\nhello\r\n0\r\n\r\n5\r\nworld\r\n0\r\n\r\n',
+        1024,
+        [(20, Result.Ok(5), 'hello'), (5, Result.Ok(0), 'hello')],
+      ),
+      ('3\r\nhel\r\n2\r\nlo\r\n0\r\n\r\n', 1024, [(20, Result.Ok(5), 'hello')]),
+      ('3\r\nabc\r\n0\r\n\r\n', 1024, [(3, Result.Ok(3), 'abc')]),
+
+      # Invalid chunks
+      ('5\r\nhello', 1024, [(5, Result.Error(ParseError.EndOfInput), 'hello')]),
+      (
+        '5\r\nhello\r',
+        1024,
+        [(5, Result.Error(ParseError.EndOfInput), 'hello')],
+      ),
+      (
+        '5\r\nhello\rX',
+        1024,
+        [(5, Result.Error(ParseError.InvalidChunk), 'hello')],
+      ),
+      (
+        '5\r\nhelloX',
+        1024,
+        [(5, Result.Error(ParseError.InvalidChunk), 'hello')],
+      ),
+
+      # Chunks that aren't terminated correctly
+      ('3\r\nabc', 1024, [(3, Result.Error(ParseError.EndOfInput), 'abc')]),
+      ('0\r\n', 1024, [(10, Result.Error(ParseError.EndOfInput), '')]),
+      ('0\r\n\r', 1024, [(10, Result.Error(ParseError.EndOfInput), '')]),
+      ('0\r\n\rX', 1024, [(10, Result.Error(ParseError.InvalidChunk), '')]),
+
+      # Reads that are too large
+      (
+        '5\r\nhello\r\n0\r\n\r\n',
+        3,
+        [(5, Result.Error(ParseError.BodyTooLarge), '')],
+      ),
+      (
+        '3\r\nhel\r\n2\r\nlo\r\n0\r\n\r\n',
+        4,
+        [(4, Result.Error(ParseError.BodyTooLarge), 'hel')],
+      ),
+      (
+        '3\r\nhel\r\n2\r\nlo\r\n5\r\nworld\r\n0\r\n\r\n',
+        5,
+        [
+          (5, Result.Ok(5), 'hello'),
+          (5, Result.Error(ParseError.BodyTooLarge), 'hello'),
+        ],
+      ),
+      (
+        '5;hello\r\nworld\r\n0\r\n\r\n',
+        5,
+        [(5, Result.Error(ParseError.BodyTooLarge), '')],
+      ),
+      (
+        '5;hel\r\nworld\r\n0\r\n\r\n',
+        5,
+        [(5, Result.Error(ParseError.BodyTooLarge), '')],
+      ),
+    ]
+
+    let buf = ByteArray.new
+
+    for (inp, max, reads) in tests {
+      let reader = ChunkedBody.new(
+        BufferedReader.new(Reader.new(Buffer.new(inp))),
+        max,
+      )
+
+      for (len, exp, out) in reads {
+        let res = reader.read(buf, len)
+
+        t.equal(res, exp)
+        t.equal(buf.to_string, out)
+      }
+
+      buf.clear
+    }
+  })
+
+  t.test('ChunkedBody.read consumes trailing empty lines', fn (t) {
+    let input = BufferedReader.new(
+      Reader.new(Buffer.new('3\r\nabc\r\n0\r\n\r\n')),
+    )
+    let reader = ChunkedBody.new(input, 1024)
+    let buf = ByteArray.new
+
+    t.equal(reader.read_all(buf), Result.Ok(3))
+    t.equal(reader.reader.read_all(buf), Result.Ok(0))
+    t.equal(buf.to_string, 'abc')
+  })
+
+  t.test('ChunkedBody.reuse', fn (t) {
+    let reuse = Reuse(reusable: false)
+    let reader = ChunkedBody.new(BufferedReader.new(mut reuse), 1024)
+
+    reader.reuse
+    t.false(reuse.reusable)
+
+    reader.state = ChunkState.End
+    reader.reuse
+    t.true(reuse.reusable)
+  })
+
+  t.test('ChunkedWriter.write', fn (t) {
+    let writer = Writer.new
+    let chunked = ChunkedWriter(mut writer)
+
+    t.equal(chunked.write('hello world'), Result.Ok(nil))
+    t.equal(writer.buffer.to_string, 'b\r\nhello world\r\n')
+  })
+
+  t.test('ChunkedWriter.drop', fn (t) {
+    let writer = Writer.new
+    let chunked = ChunkedWriter(mut writer)
+
+    drop(chunked)
+    t.equal(writer.buffer.to_string, '0\r\n\r\n')
+  })
+
+  t.test('ContentLength.parse', fn (t) {
+    let map = HeaderMap.new
+
+    t.true(
+      match ContentLength.parse(map) {
+        case None -> true
+        case _ -> false
+      },
+    )
+
+    map.set(Header.content_length, '10')
+    t.true(
+      match ContentLength.parse(map) {
+        case Valid(10) -> true
+        case _ -> false
+      },
+    )
+
+    map.set(Header.content_length, '1111111111111111111')
+    t.true(
+      match ContentLength.parse(map) {
+        case Valid(1111111111111111111) -> true
+        case _ -> false
+      },
+    )
+
+    map.set(Header.content_length, '9999999999999999999')
+    t.true(
+      match ContentLength.parse(map) {
+        case Invalid -> true
+        case _ -> false
+      },
+    )
+
+    map.set(Header.content_length, '11111111111111111111')
+    t.true(
+      match ContentLength.parse(map) {
+        case Invalid -> true
+        case _ -> false
+      },
+    )
+
+    map.set(Header.content_length, 'foo')
+    t.true(
+      match ContentLength.parse(map) {
+        case Invalid -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('Parser.request_method', fn (t) {
+    let tests = [
+      # Valid values
+      ('GET ', Result.Ok(Method.Get)),
+      ('POST ', Result.Ok(Method.Post)),
+      ('PUT ', Result.Ok(Method.Put)),
+      ('DELETE ', Result.Ok(Method.Delete)),
+      ('HEAD ', Result.Ok(Method.Head)),
+      ('OPTIONS ', Result.Ok(Method.Options)),
+      ('CONNECT ', Result.Ok(Method.Connect)),
+      ('TRACE ', Result.Ok(Method.Trace)),
+
+      # Invalid values
+      (' GET ', Result.Error(ParseError.InvalidMethod)),
+      ('WAT ', Result.Error(ParseError.InvalidMethod)),
+      (
+        'REALLY_LONG_REQUEST_METHOD_NAME ',
+        Result.Error(ParseError.InvalidMethod),
+      ),
+      ('GETGETGETGETGET ', Result.Error(ParseError.InvalidMethod)),
+      ('GE', Result.Error(ParseError.EndOfInput)),
+    ]
+
+    for (inp, out) in tests {
+      let limits = Limits.new
+      let buf = ByteArray.new
+      let parser = Parser.new(Reader.new(Buffer.new(inp)), buf, limits)
+      let result = parser.request_method
+
+      t.equal(result, out)
+
+      if result.ok? { t.true(parser.buffer.empty?) }
+    }
+  })
+
+  t.test('Parser.uri', fn (t) {
+    let tests = [
+      # Valid values
+      ('/foo ', Result.Ok(path('/foo'))),
+      ('* ', Result.Ok(path('*'))),
+
+      # Invalid values
+      ('foo ', Result.Error(ParseError.InvalidUri(UriError.InvalidPath))),
+      ('../foo ', Result.Error(ParseError.InvalidUri(UriError.InvalidPath))),
+      (' ', Result.Error(ParseError.MissingUri)),
+      ('😀 ', Result.Error(ParseError.InvalidUri(UriError.InvalidPath))),
+      (
+        'this/uri/is/too/long/and/will/be/rejceted',
+        Result.Error(ParseError.UriTooLarge),
+      ),
+    ]
+
+    for (inp, out) in tests {
+      let limits = Limits.new
+
+      limits.uri_size = 10
+
+      let buf = ByteArray.new
+      let parser = Parser.new(Reader.new(Buffer.new(inp)), buf, limits)
+      let result = parser.uri
+
+      t.equal(result, out)
+
+      if result.ok? { t.true(parser.buffer.empty?) }
+    }
+  })
+
+  t.test('Parser.request_version', fn (t) {
+    let tests = [
+      # Valid values
+      ('HTTP/0.9\r\n', Result.Ok(Version(0, 9))),
+      ('HTTP/1.1\r\n', Result.Ok(Version(1, 1))),
+      ('HTTP/2.0\r\n', Result.Ok(Version(2, 0))),
+
+      # Invalid values
+      ('HTTP\r\n', Result.Error(ParseError.EndOfInput)),
+      ('HTTP/1\r\n', Result.Error(ParseError.InvalidVersion)),
+      ('HTTP/1.\r\n', Result.Error(ParseError.InvalidVersion)),
+      ('HTTP \r\n', Result.Error(ParseError.EndOfInput)),
+      ('HTTP/a.b\r\n', Result.Error(ParseError.InvalidVersion)),
+      ('HTTP/99999.99999\r\n', Result.Error(ParseError.InvalidVersion)),
+      ('AAAA/1.1\r\n', Result.Error(ParseError.InvalidVersion)),
+      ('HTTP/1a1\r\n', Result.Error(ParseError.InvalidVersion)),
+
+      # Incorrect line endings
+      ('HTTP/1.1\ra', Result.Error(ParseError.InvalidVersion)),
+      ('HTTP/1.1\na', Result.Error(ParseError.InvalidVersion)),
+      ('HTTP/1.1ab', Result.Error(ParseError.InvalidVersion)),
+      ('HTTP/1.1\r', Result.Error(ParseError.EndOfInput)),
+    ]
+
+    for (inp, out) in tests {
+      let limits = Limits.new
+      let buf = ByteArray.new
+      let parser = Parser.new(Reader.new(Buffer.new(inp)), buf, limits)
+      let result = parser.request_version
+
+      t.equal(result, out)
+
+      if result.ok? { t.true(parser.buffer.empty?) }
+    }
+  })
+
+  t.test('Parser.headers', fn (t) {
+    let tests = [
+      # Valid values
+      ('\r\n', Result.Ok([])),
+      ('\r\n\r\n', Result.Ok([])),
+      (
+        'Host: foo\r\n\r\n',
+        Result.Ok([(Header.host, HeaderValue.Single('foo'))]),
+      ),
+      (
+        'Host:foo\r\n\r\n',
+        Result.Ok([(Header.host, HeaderValue.Single('foo'))]),
+      ),
+      (
+        'HoSt: foo\r\n\r\n',
+        Result.Ok([(Header.host, HeaderValue.Single('foo'))]),
+      ),
+      (
+        'hOST: foo\r\n\r\n',
+        Result.Ok([(Header.host, HeaderValue.Single('foo'))]),
+      ),
+      (
+        'Accept: text/html\r\nHost: example.com\r\nx-CuSTOM: foo\r\n\r\n',
+        Result.Ok(
+          [
+            (Header.accept, HeaderValue.Single('text/html')),
+            (Header.host, HeaderValue.Single('example.com')),
+            (Header.Other('x-custom'), HeaderValue.Single('foo')),
+          ],
+        ),
+      ),
+      (
+        'Host: foo\r\nHost: bar\r\nHost: baz\r\n\r\n',
+        Result.Ok([(Header.host, HeaderValue.Multiple(['foo', 'bar', 'baz']))]),
+      ),
+      (
+        'Host:      foo\r\n\r\n',
+        Result.Ok([(Header.host, HeaderValue.Single('foo'))]),
+      ),
+      (
+        'Host: foo bar\tbaz\r\n\r\n',
+        Result.Ok([(Header.host, HeaderValue.Single('foo bar\tbaz'))]),
+      ),
+      (
+        'Host: foo  \t\r\n\r\n',
+        Result.Ok([(Header.host, HeaderValue.Single('foo'))]),
+      ),
+      (
+        'Host: héllo\r\n\r\n',
+        Result.Ok([(Header.host, HeaderValue.Single('héllo'))]),
+      ),
+      (
+        'Host: 😀\r\n\r\n',
+        Result.Ok([(Header.host, HeaderValue.Single('😀'))]),
+      ),
+
+      # Invalid values
+      ('', Result.Error(ParseError.InvalidHeader)),
+      ('\nHost: foo\r\n\r\n', Result.Error(ParseError.InvalidHeader)),
+      (' Host: foo\r\n\r\n', Result.Error(ParseError.InvalidHeader)),
+      ('Host: foo\nbar\r\n\r\n', Result.Error(ParseError.InvalidHeader)),
+      ('Host: foo', Result.Error(ParseError.InvalidHeader)),
+      ('Host: foo\r', Result.Error(ParseError.InvalidHeader)),
+      ('Host: foo\n', Result.Error(ParseError.InvalidHeader)),
+      ('Host: foo\r1', Result.Error(ParseError.InvalidHeader)),
+      ('😀: foo\r\n\r\n', Result.Error(ParseError.InvalidHeader)),
+    ]
+
+    for (input, headers) in tests {
+      let limits = Limits.new
+      let buf = ByteArray.new
+      let parser = Parser.new(Reader.new(Buffer.new(input)), buf, limits)
+      let result = parser.headers.map(fn (m) {
+        match m {
+          case { @map = m } -> m.into_iter.to_array
+        }
+      })
+
+      t.equal(result, headers)
+
+      if result.ok? { t.true(parser.buffer.empty?) }
+    }
+  })
+
+  t.test('Parser.headers with headers that are too large', fn (t) {
+    let inputs = [
+      (3, 'Host: foo'),
+      (5, 'Host: foo'),
+      (6, 'Host: foo'),
+      (7, 'Host: foo'),
+      (5, 'a: foo'),
+      (5, 'a:      b'),
+      (5, 'a: b       '),
+    ]
+
+    for (len, inp) in inputs {
+      let limits = Limits.new
+
+      limits.header_size = len
+
+      let buf = ByteArray.new
+      let parser = Parser.new(
+        Reader.new(Buffer.new('${inp}\r\n\r\n')),
+        buf,
+        limits,
+      )
+
+      t.equal(parser.headers, Result.Error(ParseError.HeaderTooLarge))
+    }
+  })
+
+  t.test('Parser.headers with too many headers', fn (t) {
+    let limits = Limits.new
+
+    limits.headers = 1
+
+    let buf = ByteArray.new
+    let parser = Parser.new(
+      Reader.new(Buffer.new('header1: foo\r\nheader2: bar\r\n\r\n')),
+      buf,
+      limits,
+    )
+
+    t.equal(parser.headers, Result.Error(ParseError.TooManyHeaders))
+  })
+
+  t.test('Parser.response_version', fn (t) {
+    let tests = [
+      # Valid values
+      ('HTTP/0.9 ', Result.Ok(Version(0, 9))),
+      ('HTTP/1.1 ', Result.Ok(Version(1, 1))),
+      ('HTTP/2.0 ', Result.Ok(Version(2, 0))),
+
+      # Invalid values
+      ('HTTP ', Result.Error(ParseError.EndOfInput)),
+      ('HTTP/1 ', Result.Error(ParseError.EndOfInput)),
+      ('HTTP/1. ', Result.Error(ParseError.InvalidVersion)),
+      ('HTTP  ', Result.Error(ParseError.EndOfInput)),
+      ('HTTP/a.b ', Result.Error(ParseError.InvalidVersion)),
+      ('HTTP/99999.99999 ', Result.Error(ParseError.InvalidVersion)),
+      ('AAAA/1.1 ', Result.Error(ParseError.InvalidVersion)),
+      ('HTTP/1a1 ', Result.Error(ParseError.InvalidVersion)),
+      ('HTTP/1.1x', Result.Error(ParseError.InvalidVersion)),
+    ]
+
+    for (inp, out) in tests {
+      let limits = Limits.new
+      let buf = ByteArray.new
+      let parser = Parser.new(Reader.new(Buffer.new(inp)), buf, limits)
+      let result = parser.response_version
+
+      t.equal(result, out)
+
+      if result.ok? { t.true(parser.buffer.empty?) }
+    }
+  })
+
+  t.test('Parser.status', fn (t) {
+    let tests = [
+      # Valid values
+      ('200 OK\r\n', Result.Ok(Status.new(200))),
+      ('200 hello, this is\tan example\r\n', Result.Ok(Status.new(200))),
+      ('200 \r\n', Result.Ok(Status.new(200))),
+      ('999 \r\n', Result.Ok(Status.new(999))),
+
+      # Invalid values
+      ('200\r\n', Result.Error(ParseError.InvalidStatus)),
+      ('200 😀', Result.Error(ParseError.InvalidStatus)),
+      ('9999 OK', Result.Error(ParseError.InvalidStatus)),
+      ('200OK', Result.Error(ParseError.InvalidStatus)),
+      (
+        '200 mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm',
+        Result.Error(ParseError.StatusTooLarge),
+      ),
+    ]
+
+    for (inp, out) in tests {
+      let limits = Limits.new
+      let buf = ByteArray.new
+      let parser = Parser.new(Reader.new(Buffer.new(inp)), buf, limits)
+      let result = parser.status
+
+      t.equal(result, out)
+
+      if result.ok? { t.true(parser.buffer.empty?) }
+    }
+  })
+
+  t.test('Parser.request', fn (t) {
+    let tests = [
+      # Valid requests
+      (
+        'GET / HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody',
+        Result.Ok(
+          (
+            Method.Get,
+            path('/'),
+            Version(1, 1),
+            [(Header.content_length, HeaderValue.Single('4'))],
+            'body',
+          ),
+        ),
+      ),
+      (
+        'GET / HTTP/1.1\r\nContent-Length: 4\r\n\r\n',
+        Result.Ok(
+          (
+            Method.Get,
+            path('/'),
+            Version(1, 1),
+            [(Header.content_length, HeaderValue.Single('4'))],
+            '',
+          ),
+        ),
+      ),
+      (
+        'GET / HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nbody\r\n0\r\n\r\n',
+        Result.Ok(
+          (
+            Method.Get,
+            path('/'),
+            Version(1, 1),
+            [(Header.transfer_encoding, HeaderValue.Single('chunked'))],
+            'body',
+          ),
+        ),
+      ),
+      (
+        'HEAD / HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody',
+        Result.Ok(
+          (
+            Method.Head,
+            path('/'),
+            Version(1, 1),
+            [(Header.content_length, HeaderValue.Single('4'))],
+            'body',
+          ),
+        ),
+      ),
+      (
+        'HEAD / HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nbody\r\n0\r\n\r\n',
+        Result.Ok(
+          (
+            Method.Head,
+            path('/'),
+            Version(1, 1),
+            [(Header.transfer_encoding, HeaderValue.Single('chunked'))],
+            'body',
+          ),
+        ),
+      ),
+      (
+        'CONNECT / HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody',
+        Result.Ok(
+          (
+            Method.Connect,
+            path('/'),
+            Version(1, 1),
+            [(Header.content_length, HeaderValue.Single('4'))],
+            'body',
+          ),
+        ),
+      ),
+      (
+        'CONNECT / HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nbody\r\n0\r\n\r\n',
+        Result.Ok(
+          (
+            Method.Connect,
+            path('/'),
+            Version(1, 1),
+            [(Header.transfer_encoding, HeaderValue.Single('chunked'))],
+            'body',
+          ),
+        ),
+      ),
+      (
+        'GET / HTTP/1.1\r\n\r\nbody',
+        Result.Ok((Method.Get, path('/'), Version(1, 1), [], '')),
+      ),
+
+      # Invalid requests
+      (
+        'GET / HTTP/1.1\r\nContent-Length: 4\r\n',
+        Result.Error(ParseError.InvalidHeader),
+      ),
+      (
+        'GET / HTTP/1.1\r\nContent-Length: 4\r\nTransfer-Encoding: chunked\r\n\r\nbody\r\n0\r\n\r\n',
+        Result.Error(ParseError.InvalidHeader),
+      ),
+      (
+        'GET / HTTP/1.1\r\nContent-Length: 9999999999999999999999\r\nTransfer-Encoding: chunked\r\n\r\nbody\r\n0\r\n\r\n',
+        Result.Error(ParseError.InvalidHeader),
+      ),
+      (
+        'GET / HTTP/1.1\r\nContent-Length: 4,10\r\n\r\nbody',
+        Result.Error(ParseError.InvalidHeader),
+      ),
+      (
+        'GET / HTTP/1.1\r\nContent-Length: 4\r\nContent-Length: 10\r\n\r\nbody',
+        Result.Error(ParseError.InvalidHeader),
+      ),
+      (
+        'GET / HTTP/1.1\r\nContent-Length: 99999999999999999\r\n\r\nbody',
+        Result.Error(ParseError.BodyTooLarge),
+      ),
+      (
+        'GET / HTTP/1.1\r\nTransfer-Encoding: whatever\r\n\r\nbody',
+        Result.Error(ParseError.InvalidTransferEncoding),
+      ),
+      (
+        'GET / HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nbody\r\n0\r\nFoo: bar\r\n\r\n',
+        Result.Error(ParseError.InvalidChunk),
+      ),
+      (
+        'GET / HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nbody\r\n0\r\n',
+        Result.Error(ParseError.EndOfInput),
+      ),
+      (
+        'GET / HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nbody\r\n0',
+        Result.Error(ParseError.EndOfInput),
+      ),
+
+      # Relative paths are not valid.
+      (
+        'GET foo HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody',
+        Result.Error(ParseError.InvalidUri(UriError.InvalidPath)),
+      ),
+
+      # Based on various examples from
+      # https://portswigger.net/research/http1-must-die
+      #
+      # Invalid because we don't allow spaces in header names.
+      (
+        'GET / HTTP/1.1\r\n Content-Length: 23\r\n\r\n',
+        Result.Error(ParseError.InvalidHeader),
+      ),
+
+      # Invalid because we only allow CRLF for newlines, not bare LFs (even
+      # though RFC 9112 allows them).
+      (
+        'GET / HTTP/1.1\r\nContent-Length: 22\r\nA: B\r\n'
+          + '\nExpect: 100-continue\r\n',
+        Result.Error(ParseError.InvalidHeader),
+      ),
+
+      # Invalid because we don't allow line folding.
+      (
+        'GET / HTTP/1.1\r\nContent-Length:\r\n  4\r\n\r\n',
+        Result.Error(ParseError.InvalidHeader),
+      ),
+      (
+        'GET / HTTP/1.1\r\nContent-Length:\n 4\r\n\r\n',
+        Result.Error(ParseError.InvalidHeader),
+      ),
+    ]
+
+    for (inp, out) in tests {
+      let limits = Limits.new
+      let buf = ByteArray.new
+      let parser = Parser.new(Reader.new(Buffer.new(inp)), buf, limits)
+      let mapped = match parser.request {
+        case
+          Ok({ @method = m, @uri = u, @version = v, @headers = h, @body = b }) -> {
+          let buf = ByteArray.new
+
+          match b.read_all(buf) {
+            case Ok(_) -> {
+              let headers = match h {
+                case { @map = m } -> m.into_iter.to_array
+              }
+
+              Result.Ok((m, u, v, headers, buf.into_string))
+            }
+            case Error(e) -> Result.Error(e)
+          }
+        }
+        case Error(e) -> Result.Error(e)
+      }
+
+      t.equal(mapped, out)
+      t.equal(buf.size, 0)
+    }
+  })
+
+  t.test('Parser.response', fn (t) {
+    let tests = [
+      # Valid responses
+      (
+        Method.Get,
+        'HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\nbody',
+        Result.Ok(
+          (
+            Version(1, 1),
+            Status.new(200),
+            [(Header.content_length, HeaderValue.Single('4'))],
+            'body',
+          ),
+        ),
+      ),
+      (
+        Method.Get,
+        'HTTP/1.1 200 OK\r\n\r\n',
+        Result.Ok((Version(1, 1), Status.new(200), [], '')),
+      ),
+      (
+        Method.Get,
+        'HTTP/1.1 200 \r\n\r\n',
+        Result.Ok((Version(1, 1), Status.new(200), [], '')),
+      ),
+      (
+        Method.Get,
+        'HTTP/1.1 200 \r\nTransfer-Encoding: chunked\r\n\r\n4\r\nbody\r\n0\r\n\r\n',
+        Result.Ok(
+          (
+            Version(1, 1),
+            Status.new(200),
+            [(Header.transfer_encoding, HeaderValue.Single('chunked'))],
+            'body',
+          ),
+        ),
+      ),
+      (
+        Method.Get,
+        'HTTP/1.1 400 OK\r\n\r\nbody',
+        Result.Ok((Version(1, 1), Status.new(400), [], 'body')),
+      ),
+
+      # For these responses the body is to be ignored.
+      (
+        Method.Get,
+        'HTTP/1.1 101 OK\r\nContent-Length: 4\r\n\r\nbody',
+        Result.Ok(
+          (
+            Version(1, 1),
+            Status.new(101),
+            [(Header.content_length, HeaderValue.Single('4'))],
+            '',
+          ),
+        ),
+      ),
+      (
+        Method.Get,
+        'HTTP/1.1 199 OK\r\nContent-Length: 4\r\n\r\nbody',
+        Result.Ok(
+          (
+            Version(1, 1),
+            Status.new(199),
+            [(Header.content_length, HeaderValue.Single('4'))],
+            '',
+          ),
+        ),
+      ),
+      (
+        Method.Get,
+        'HTTP/1.1 204 OK\r\nContent-Length: 4\r\n\r\nbody',
+        Result.Ok(
+          (
+            Version(1, 1),
+            Status.new(204),
+            [(Header.content_length, HeaderValue.Single('4'))],
+            '',
+          ),
+        ),
+      ),
+      (
+        Method.Get,
+        'HTTP/1.1 304 OK\r\nContent-Length: 4\r\n\r\nbody',
+        Result.Ok(
+          (
+            Version(1, 1),
+            Status.new(304),
+            [(Header.content_length, HeaderValue.Single('4'))],
+            '',
+          ),
+        ),
+      ),
+      (
+        Method.Head,
+        'HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\nbody',
+        Result.Ok(
+          (
+            Version(1, 1),
+            Status.new(200),
+            [(Header.content_length, HeaderValue.Single('4'))],
+            '',
+          ),
+        ),
+      ),
+      (
+        Method.Trace,
+        'HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\nbody',
+        Result.Ok(
+          (
+            Version(1, 1),
+            Status.new(200),
+            [(Header.content_length, HeaderValue.Single('4'))],
+            '',
+          ),
+        ),
+      ),
+
+      # Invalid responses
+      (Method.Get, '', Result.Error(ParseError.EndOfInput)),
+      (Method.Get, '\r\n\r\n', Result.Error(ParseError.EndOfInput)),
+      (
+        Method.Get,
+        'HTTP/1.1\r\n\r\nbody',
+        Result.Error(ParseError.InvalidVersion),
+      ),
+    ]
+
+    for (method, inp, out) in tests {
+      let limits = Limits.new
+      let buf = ByteArray.new
+      let parser = Parser.new(Reader.new(Buffer.new(inp)), buf, limits)
+      let mapped = match parser.response(method) {
+        case Ok(resp) -> {
+          let buf = ByteArray.new
+
+          match resp.body.read_all(buf) {
+            case Ok(_) -> {
+              let headers = resp
+                .headers
+                .map
+                .iter
+                .map(fn (v) { v.clone })
+                .to_array
+
+              Result.Ok((resp.version, resp.status, headers, buf.into_string))
+            }
+            case Error(e) -> Result.Error(e)
+          }
+        }
+        case Error(e) -> Result.Error(e)
+      }
+
+      t.equal(mapped, out)
+      t.equal(buf.size, 0)
+    }
+  })
+
+  t.test('Etag.parse', fn (t) {
+    let tests = [
+      # Valid values
+      ('"foo"', Option.Some(Etag.new(strong: true, value: 'foo'))),
+      ('W/"foo"', Option.Some(Etag.new(strong: false, value: 'foo'))),
+      ('W/""', Option.Some(Etag.new(strong: false, value: ''))),
+      ('"foo", x, "bar"', Option.Some(Etag.new(strong: true, value: 'foo'))),
+
+      # Invalid values
+      ('W', Option.None),
+      ('W/', Option.None),
+      ('W/"', Option.None),
+      ('W/"foo', Option.None),
+      ('"foo', Option.None),
+      ('"', Option.None),
+    ]
+
+    for (inp, exp) in tests { t.equal(Etag.parse(inp), exp) }
+  })
+
+  t.test('Etag.parse_list', fn (t) {
+    let tests = [
+      # Valid values
+      ('"foo"', [Etag.new(strong: true, value: 'foo')]),
+      ('W/"foo"', [Etag.new(strong: false, value: 'foo')]),
+      ('W/""', [Etag.new(strong: false, value: '')]),
+      (
+        '"foo"    , "bar"',
+        [
+          Etag.new(strong: true, value: 'foo'),
+          Etag.new(strong: true, value: 'bar'),
+        ],
+      ),
+      (
+        '"foo", W/"bar", ""',
+        [
+          Etag.new(strong: true, value: 'foo'),
+          Etag.new(strong: false, value: 'bar'),
+          Etag.new(strong: true, value: ''),
+        ],
+      ),
+
+      # Invalid values
+      ('W', []),
+      ('W/', []),
+      ('W/"', []),
+      ('W/"foo', []),
+      ('"foo', []),
+      ('"', []),
+      ('"foo", x, "bar"', [Etag.new(strong: true, value: 'foo')]),
+    ]
+
+    for (inp, exp) in tests { t.equal(Etag.parse_list(inp).to_array, exp) }
+  })
+
+  t.test('Etag.size', fn (t) {
+    t.equal(Etag.new(strong: true, value: 'foo').size, 5)
+    t.equal(Etag.new(strong: false, value: 'foo').size, 7)
+  })
+
+  t.test('Etag.fmt', fn (t) {
+    t.equal(
+      fmt(Etag.new(strong: false, value: 'foo')),
+      'Etag(strong: false, value: "foo")',
+    )
+  })
+
+  t.test('Etag.to_string', fn (t) {
+    t.equal(Etag.new(strong: true, value: 'foo').to_string, '"foo"')
+    t.equal(Etag.new(strong: false, value: 'foo').to_string, 'W/"foo"')
+  })
+}

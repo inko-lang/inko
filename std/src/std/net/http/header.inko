@@ -1,0 +1,1089 @@
+import std.bytes (Bytes)
+import std.net.http (Header)
+import std.net.http.header.phf
+import std.string (ToString)
+
+# The code in this module is generated and _must not_ be edited by hand. For
+# more information, refer to ./std/gen/README.md.
+
+# The ID of the `Accept` header.
+let pub ACCEPT = 0
+
+# The ID of the `Accept-Charset` header.
+let pub ACCEPT_CHARSET = 1
+
+# The ID of the `Accept-Encoding` header.
+let pub ACCEPT_ENCODING = 2
+
+# The ID of the `Accept-Language` header.
+let pub ACCEPT_LANGUAGE = 3
+
+# The ID of the `Accept-Ranges` header.
+let pub ACCEPT_RANGES = 4
+
+# The ID of the `Access-Control-Allow-Credentials` header.
+let pub ACCESS_CONTROL_ALLOW_CREDENTIALS = 5
+
+# The ID of the `Access-Control-Allow-Headers` header.
+let pub ACCESS_CONTROL_ALLOW_HEADERS = 6
+
+# The ID of the `Access-Control-Allow-Methods` header.
+let pub ACCESS_CONTROL_ALLOW_METHODS = 7
+
+# The ID of the `Access-Control-Allow-Origin` header.
+let pub ACCESS_CONTROL_ALLOW_ORIGIN = 8
+
+# The ID of the `Access-Control-Max-Age` header.
+let pub ACCESS_CONTROL_MAX_AGE = 9
+
+# The ID of the `Access-Control-Method` header.
+let pub ACCESS_CONTROL_METHOD = 10
+
+# The ID of the `Access-Control-Request-Method` header.
+let pub ACCESS_CONTROL_REQUEST_METHOD = 11
+
+# The ID of the `Access-Control-Request-Methods` header.
+let pub ACCESS_CONTROL_REQUEST_METHODS = 12
+
+# The ID of the `Access-Control-Request-Headers` header.
+let pub ACCESS_CONTROL_REQUEST_HEADERS = 13
+
+# The ID of the `Age` header.
+let pub AGE = 14
+
+# The ID of the `Allow` header.
+let pub ALLOW = 15
+
+# The ID of the `Alt-Svc` header.
+let pub ALT_SVC = 16
+
+# The ID of the `Authorization` header.
+let pub AUTHORIZATION = 17
+
+# The ID of the `Cache-Control` header.
+let pub CACHE_CONTROL = 18
+
+# The ID of the `Connection` header.
+let pub CONNECTION = 19
+
+# The ID of the `Content-Disposition` header.
+let pub CONTENT_DISPOSITION = 20
+
+# The ID of the `Content-Encoding` header.
+let pub CONTENT_ENCODING = 21
+
+# The ID of the `Content-Language` header.
+let pub CONTENT_LANGUAGE = 22
+
+# The ID of the `Content-Length` header.
+let pub CONTENT_LENGTH = 23
+
+# The ID of the `Content-Location` header.
+let pub CONTENT_LOCATION = 24
+
+# The ID of the `Content-Range` header.
+let pub CONTENT_RANGE = 25
+
+# The ID of the `Content-Type` header.
+let pub CONTENT_TYPE = 26
+
+# The ID of the `Cookie` header.
+let pub COOKIE = 27
+
+# The ID of the `Date` header.
+let pub DATE = 28
+
+# The ID of the `Etag` header.
+let pub ETAG = 29
+
+# The ID of the `Expect` header.
+let pub EXPECT = 30
+
+# The ID of the `Expires` header.
+let pub EXPIRES = 31
+
+# The ID of the `From` header.
+let pub FROM = 32
+
+# The ID of the `Host` header.
+let pub HOST = 33
+
+# The ID of the `If-Match` header.
+let pub IF_MATCH = 34
+
+# The ID of the `If-Modified-Since` header.
+let pub IF_MODIFIED_SINCE = 35
+
+# The ID of the `If-None-Match` header.
+let pub IF_NONE_MATCH = 36
+
+# The ID of the `If-Range` header.
+let pub IF_RANGE = 37
+
+# The ID of the `If-Unmodified-Since` header.
+let pub IF_UNMODIFIED_SINCE = 38
+
+# The ID of the `Keep-Alive` header.
+let pub KEEP_ALIVE = 39
+
+# The ID of the `Last-Modified` header.
+let pub LAST_MODIFIED = 40
+
+# The ID of the `Link` header.
+let pub LINK = 41
+
+# The ID of the `Location` header.
+let pub LOCATION = 42
+
+# The ID of the `Max-Forwards` header.
+let pub MAX_FORWARDS = 43
+
+# The ID of the `Origin` header.
+let pub ORIGIN = 44
+
+# The ID of the `Pragma` header.
+let pub PRAGMA = 45
+
+# The ID of the `Proxy-Authenticate` header.
+let pub PROXY_AUTHENTICATE = 46
+
+# The ID of the `Proxy-Authorization` header.
+let pub PROXY_AUTHORIZATION = 47
+
+# The ID of the `Proxy-Connection` header.
+let pub PROXY_CONNECTION = 48
+
+# The ID of the `Range` header.
+let pub RANGE = 49
+
+# The ID of the `Referer` header.
+let pub REFERER = 50
+
+# The ID of the `Retry-After` header.
+let pub RETRY_AFTER = 51
+
+# The ID of the `Server` header.
+let pub SERVER = 52
+
+# The ID of the `Set-Cookie` header.
+let pub SET_COOKIE = 53
+
+# The ID of the `Strict-Transport-Security` header.
+let pub STRICT_TRANSPORT_SECURITY = 54
+
+# The ID of the `Trailer` header.
+let pub TRAILER = 55
+
+# The ID of the `Transfer-Encoding` header.
+let pub TRANSFER_ENCODING = 56
+
+# The ID of the `Upgrade` header.
+let pub UPGRADE = 57
+
+# The ID of the `Upgrade-Insecure-Requests` header.
+let pub UPGRADE_INSECURE_REQUESTS = 58
+
+# The ID of the `User-Agent` header.
+let pub USER_AGENT = 59
+
+# The ID of the `Vary` header.
+let pub VARY = 60
+
+# The ID of the `Via` header.
+let pub VIA = 61
+
+# The ID of the `Www-Authenticate` header.
+let pub WWW_AUTHENTICATE = 62
+
+# The ID of the `Sec-Fetch-Site` header.
+let pub SEC_FETCH_SITE = 63
+
+# The ID of the `Sec-Fetch-Mode` header.
+let pub SEC_FETCH_MODE = 64
+
+# The ID of the `Sec-Fetch-User` header.
+let pub SEC_FETCH_USER = 65
+
+# The ID of the `Sec-Fetch-Dest` header.
+let pub SEC_FETCH_DEST = 66
+
+fn name(index: Int) -> String {
+  phf.KEYS.get(index).or_panic
+}
+
+fn inline index_of[B: Bytes + ToString](input: ref B) -> Int {
+  phf.index_of(input)
+}
+
+impl Header {
+  # Returns the `Accept` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.accept # => Header.Standard(0)
+  # ```
+  fn pub inline static accept -> Header {
+    Header.Standard(ACCEPT)
+  }
+
+  # Returns the `Accept-Charset` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.accept_charset # => Header.Standard(1)
+  # ```
+  fn pub inline static accept_charset -> Header {
+    Header.Standard(ACCEPT_CHARSET)
+  }
+
+  # Returns the `Accept-Encoding` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.accept_encoding # => Header.Standard(2)
+  # ```
+  fn pub inline static accept_encoding -> Header {
+    Header.Standard(ACCEPT_ENCODING)
+  }
+
+  # Returns the `Accept-Language` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.accept_language # => Header.Standard(3)
+  # ```
+  fn pub inline static accept_language -> Header {
+    Header.Standard(ACCEPT_LANGUAGE)
+  }
+
+  # Returns the `Accept-Ranges` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.accept_ranges # => Header.Standard(4)
+  # ```
+  fn pub inline static accept_ranges -> Header {
+    Header.Standard(ACCEPT_RANGES)
+  }
+
+  # Returns the `Access-Control-Allow-Credentials` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.access_control_allow_credentials # => Header.Standard(5)
+  # ```
+  fn pub inline static access_control_allow_credentials -> Header {
+    Header.Standard(ACCESS_CONTROL_ALLOW_CREDENTIALS)
+  }
+
+  # Returns the `Access-Control-Allow-Headers` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.access_control_allow_headers # => Header.Standard(6)
+  # ```
+  fn pub inline static access_control_allow_headers -> Header {
+    Header.Standard(ACCESS_CONTROL_ALLOW_HEADERS)
+  }
+
+  # Returns the `Access-Control-Allow-Methods` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.access_control_allow_methods # => Header.Standard(7)
+  # ```
+  fn pub inline static access_control_allow_methods -> Header {
+    Header.Standard(ACCESS_CONTROL_ALLOW_METHODS)
+  }
+
+  # Returns the `Access-Control-Allow-Origin` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.access_control_allow_origin # => Header.Standard(8)
+  # ```
+  fn pub inline static access_control_allow_origin -> Header {
+    Header.Standard(ACCESS_CONTROL_ALLOW_ORIGIN)
+  }
+
+  # Returns the `Access-Control-Max-Age` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.access_control_max_age # => Header.Standard(9)
+  # ```
+  fn pub inline static access_control_max_age -> Header {
+    Header.Standard(ACCESS_CONTROL_MAX_AGE)
+  }
+
+  # Returns the `Access-Control-Method` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.access_control_method # => Header.Standard(10)
+  # ```
+  fn pub inline static access_control_method -> Header {
+    Header.Standard(ACCESS_CONTROL_METHOD)
+  }
+
+  # Returns the `Access-Control-Request-Method` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.access_control_request_method # => Header.Standard(11)
+  # ```
+  fn pub inline static access_control_request_method -> Header {
+    Header.Standard(ACCESS_CONTROL_REQUEST_METHOD)
+  }
+
+  # Returns the `Access-Control-Request-Methods` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.access_control_request_methods # => Header.Standard(12)
+  # ```
+  fn pub inline static access_control_request_methods -> Header {
+    Header.Standard(ACCESS_CONTROL_REQUEST_METHODS)
+  }
+
+  # Returns the `Access-Control-Request-Headers` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.access_control_request_headers # => Header.Standard(13)
+  # ```
+  fn pub inline static access_control_request_headers -> Header {
+    Header.Standard(ACCESS_CONTROL_REQUEST_HEADERS)
+  }
+
+  # Returns the `Age` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.age # => Header.Standard(14)
+  # ```
+  fn pub inline static age -> Header {
+    Header.Standard(AGE)
+  }
+
+  # Returns the `Allow` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.allow # => Header.Standard(15)
+  # ```
+  fn pub inline static allow -> Header {
+    Header.Standard(ALLOW)
+  }
+
+  # Returns the `Alt-Svc` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.alt_svc # => Header.Standard(16)
+  # ```
+  fn pub inline static alt_svc -> Header {
+    Header.Standard(ALT_SVC)
+  }
+
+  # Returns the `Authorization` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.authorization # => Header.Standard(17)
+  # ```
+  fn pub inline static authorization -> Header {
+    Header.Standard(AUTHORIZATION)
+  }
+
+  # Returns the `Cache-Control` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.cache_control # => Header.Standard(18)
+  # ```
+  fn pub inline static cache_control -> Header {
+    Header.Standard(CACHE_CONTROL)
+  }
+
+  # Returns the `Connection` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.connection # => Header.Standard(19)
+  # ```
+  fn pub inline static connection -> Header {
+    Header.Standard(CONNECTION)
+  }
+
+  # Returns the `Content-Disposition` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.content_disposition # => Header.Standard(20)
+  # ```
+  fn pub inline static content_disposition -> Header {
+    Header.Standard(CONTENT_DISPOSITION)
+  }
+
+  # Returns the `Content-Encoding` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.content_encoding # => Header.Standard(21)
+  # ```
+  fn pub inline static content_encoding -> Header {
+    Header.Standard(CONTENT_ENCODING)
+  }
+
+  # Returns the `Content-Language` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.content_language # => Header.Standard(22)
+  # ```
+  fn pub inline static content_language -> Header {
+    Header.Standard(CONTENT_LANGUAGE)
+  }
+
+  # Returns the `Content-Length` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.content_length # => Header.Standard(23)
+  # ```
+  fn pub inline static content_length -> Header {
+    Header.Standard(CONTENT_LENGTH)
+  }
+
+  # Returns the `Content-Location` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.content_location # => Header.Standard(24)
+  # ```
+  fn pub inline static content_location -> Header {
+    Header.Standard(CONTENT_LOCATION)
+  }
+
+  # Returns the `Content-Range` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.content_range # => Header.Standard(25)
+  # ```
+  fn pub inline static content_range -> Header {
+    Header.Standard(CONTENT_RANGE)
+  }
+
+  # Returns the `Content-Type` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.content_type # => Header.Standard(26)
+  # ```
+  fn pub inline static content_type -> Header {
+    Header.Standard(CONTENT_TYPE)
+  }
+
+  # Returns the `Cookie` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.cookie # => Header.Standard(27)
+  # ```
+  fn pub inline static cookie -> Header {
+    Header.Standard(COOKIE)
+  }
+
+  # Returns the `Date` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.date # => Header.Standard(28)
+  # ```
+  fn pub inline static date -> Header {
+    Header.Standard(DATE)
+  }
+
+  # Returns the `Etag` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.etag # => Header.Standard(29)
+  # ```
+  fn pub inline static etag -> Header {
+    Header.Standard(ETAG)
+  }
+
+  # Returns the `Expect` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.expect # => Header.Standard(30)
+  # ```
+  fn pub inline static expect -> Header {
+    Header.Standard(EXPECT)
+  }
+
+  # Returns the `Expires` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.expires # => Header.Standard(31)
+  # ```
+  fn pub inline static expires -> Header {
+    Header.Standard(EXPIRES)
+  }
+
+  # Returns the `From` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.from # => Header.Standard(32)
+  # ```
+  fn pub inline static from -> Header {
+    Header.Standard(FROM)
+  }
+
+  # Returns the `Host` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.host # => Header.Standard(33)
+  # ```
+  fn pub inline static host -> Header {
+    Header.Standard(HOST)
+  }
+
+  # Returns the `If-Match` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.if_match # => Header.Standard(34)
+  # ```
+  fn pub inline static if_match -> Header {
+    Header.Standard(IF_MATCH)
+  }
+
+  # Returns the `If-Modified-Since` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.if_modified_since # => Header.Standard(35)
+  # ```
+  fn pub inline static if_modified_since -> Header {
+    Header.Standard(IF_MODIFIED_SINCE)
+  }
+
+  # Returns the `If-None-Match` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.if_none_match # => Header.Standard(36)
+  # ```
+  fn pub inline static if_none_match -> Header {
+    Header.Standard(IF_NONE_MATCH)
+  }
+
+  # Returns the `If-Range` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.if_range # => Header.Standard(37)
+  # ```
+  fn pub inline static if_range -> Header {
+    Header.Standard(IF_RANGE)
+  }
+
+  # Returns the `If-Unmodified-Since` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.if_unmodified_since # => Header.Standard(38)
+  # ```
+  fn pub inline static if_unmodified_since -> Header {
+    Header.Standard(IF_UNMODIFIED_SINCE)
+  }
+
+  # Returns the `Keep-Alive` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.keep_alive # => Header.Standard(39)
+  # ```
+  fn pub inline static keep_alive -> Header {
+    Header.Standard(KEEP_ALIVE)
+  }
+
+  # Returns the `Last-Modified` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.last_modified # => Header.Standard(40)
+  # ```
+  fn pub inline static last_modified -> Header {
+    Header.Standard(LAST_MODIFIED)
+  }
+
+  # Returns the `Link` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.link # => Header.Standard(41)
+  # ```
+  fn pub inline static link -> Header {
+    Header.Standard(LINK)
+  }
+
+  # Returns the `Location` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.location # => Header.Standard(42)
+  # ```
+  fn pub inline static location -> Header {
+    Header.Standard(LOCATION)
+  }
+
+  # Returns the `Max-Forwards` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.max_forwards # => Header.Standard(43)
+  # ```
+  fn pub inline static max_forwards -> Header {
+    Header.Standard(MAX_FORWARDS)
+  }
+
+  # Returns the `Origin` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.origin # => Header.Standard(44)
+  # ```
+  fn pub inline static origin -> Header {
+    Header.Standard(ORIGIN)
+  }
+
+  # Returns the `Pragma` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.pragma # => Header.Standard(45)
+  # ```
+  fn pub inline static pragma -> Header {
+    Header.Standard(PRAGMA)
+  }
+
+  # Returns the `Proxy-Authenticate` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.proxy_authenticate # => Header.Standard(46)
+  # ```
+  fn pub inline static proxy_authenticate -> Header {
+    Header.Standard(PROXY_AUTHENTICATE)
+  }
+
+  # Returns the `Proxy-Authorization` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.proxy_authorization # => Header.Standard(47)
+  # ```
+  fn pub inline static proxy_authorization -> Header {
+    Header.Standard(PROXY_AUTHORIZATION)
+  }
+
+  # Returns the `Proxy-Connection` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.proxy_connection # => Header.Standard(48)
+  # ```
+  fn pub inline static proxy_connection -> Header {
+    Header.Standard(PROXY_CONNECTION)
+  }
+
+  # Returns the `Range` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.range # => Header.Standard(49)
+  # ```
+  fn pub inline static range -> Header {
+    Header.Standard(RANGE)
+  }
+
+  # Returns the `Referer` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.referer # => Header.Standard(50)
+  # ```
+  fn pub inline static referer -> Header {
+    Header.Standard(REFERER)
+  }
+
+  # Returns the `Retry-After` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.retry_after # => Header.Standard(51)
+  # ```
+  fn pub inline static retry_after -> Header {
+    Header.Standard(RETRY_AFTER)
+  }
+
+  # Returns the `Server` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.server # => Header.Standard(52)
+  # ```
+  fn pub inline static server -> Header {
+    Header.Standard(SERVER)
+  }
+
+  # Returns the `Set-Cookie` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.set_cookie # => Header.Standard(53)
+  # ```
+  fn pub inline static set_cookie -> Header {
+    Header.Standard(SET_COOKIE)
+  }
+
+  # Returns the `Strict-Transport-Security` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.strict_transport_security # => Header.Standard(54)
+  # ```
+  fn pub inline static strict_transport_security -> Header {
+    Header.Standard(STRICT_TRANSPORT_SECURITY)
+  }
+
+  # Returns the `Trailer` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.trailer # => Header.Standard(55)
+  # ```
+  fn pub inline static trailer -> Header {
+    Header.Standard(TRAILER)
+  }
+
+  # Returns the `Transfer-Encoding` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.transfer_encoding # => Header.Standard(56)
+  # ```
+  fn pub inline static transfer_encoding -> Header {
+    Header.Standard(TRANSFER_ENCODING)
+  }
+
+  # Returns the `Upgrade` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.upgrade # => Header.Standard(57)
+  # ```
+  fn pub inline static upgrade -> Header {
+    Header.Standard(UPGRADE)
+  }
+
+  # Returns the `Upgrade-Insecure-Requests` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.upgrade_insecure_requests # => Header.Standard(58)
+  # ```
+  fn pub inline static upgrade_insecure_requests -> Header {
+    Header.Standard(UPGRADE_INSECURE_REQUESTS)
+  }
+
+  # Returns the `User-Agent` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.user_agent # => Header.Standard(59)
+  # ```
+  fn pub inline static user_agent -> Header {
+    Header.Standard(USER_AGENT)
+  }
+
+  # Returns the `Vary` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.vary # => Header.Standard(60)
+  # ```
+  fn pub inline static vary -> Header {
+    Header.Standard(VARY)
+  }
+
+  # Returns the `Via` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.via # => Header.Standard(61)
+  # ```
+  fn pub inline static via -> Header {
+    Header.Standard(VIA)
+  }
+
+  # Returns the `Www-Authenticate` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.www_authenticate # => Header.Standard(62)
+  # ```
+  fn pub inline static www_authenticate -> Header {
+    Header.Standard(WWW_AUTHENTICATE)
+  }
+
+  # Returns the `Sec-Fetch-Site` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.sec_fetch_site # => Header.Standard(63)
+  # ```
+  fn pub inline static sec_fetch_site -> Header {
+    Header.Standard(SEC_FETCH_SITE)
+  }
+
+  # Returns the `Sec-Fetch-Mode` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.sec_fetch_mode # => Header.Standard(64)
+  # ```
+  fn pub inline static sec_fetch_mode -> Header {
+    Header.Standard(SEC_FETCH_MODE)
+  }
+
+  # Returns the `Sec-Fetch-User` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.sec_fetch_user # => Header.Standard(65)
+  # ```
+  fn pub inline static sec_fetch_user -> Header {
+    Header.Standard(SEC_FETCH_USER)
+  }
+
+  # Returns the `Sec-Fetch-Dest` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.sec_fetch_dest # => Header.Standard(66)
+  # ```
+  fn pub inline static sec_fetch_dest -> Header {
+    Header.Standard(SEC_FETCH_DEST)
+  }
+}

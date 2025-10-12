@@ -49,10 +49,10 @@ pair.0 = 20 # => not valid, resulting in a compile-time error
 ## Limitations
 
 The tuple syntax is syntax sugar for creating instances of the various tuple
-types provided by the `std.tuple` module. For example, the expression
-`(10, 'hello')` is syntax sugar for creating an instance of `std.tuple.Tuple2`.
-The `std.tuple` module only provides types for tuples with up to 8 values, and
-thus tuples can only store at most 8 values.
+types provided by the [](std.tuple) module. For example, the expression
+`(10, 'hello')` is syntax sugar for creating an instance of
+[](std.tuple.Tuple2). The `std.tuple` module only provides types for tuples with
+up to 8 values, and thus tuples can only store at most 8 values.
 
 ::: tip
 It's highly recommended to avoid creating tuples with more than three values.
