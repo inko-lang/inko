@@ -16,16 +16,11 @@ allow = [
 ]
 confidence-threshold = 0.8
 
-[[licenses.clarify]]
-name = "ring"
-expression = "OpenSSL"
-license-files = [{ path = "LICENSE", hash = 0xbd0eed23 }]
-
 [bans]
 multiple-versions = "warn"
 wildcards = "allow"
 highlight = "all"
-skip = []
+skip = [{ name = "zerocopy" }]
 skip-tree = [{ name = "windows-sys", depth = 5 }]
 allow = []
 
