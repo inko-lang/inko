@@ -42,7 +42,7 @@ jobs:
           compression-level: 0
 
   amd64-mac:
-    runs-on: macos-13
+    runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
@@ -58,7 +58,7 @@ jobs:
           compression-level: 0
 
   arm64-mac:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies

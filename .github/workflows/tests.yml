@@ -123,9 +123,9 @@ jobs:
       fail-fast: false
       matrix:
         target:
-          - runner: macos-13
+          - runner: macos-15-intel
             name: amd64-mac-native
-          - runner: macos-14
+          - runner: macos-15
             name: arm64-mac-native
     name: ${{ matrix.target.name }} compiler
     timeout-minutes: 15
@@ -153,9 +153,9 @@ jobs:
           - ''
           - '--release'
         target:
-          - runner: macos-13
+          - runner: macos-15-intel
             name: amd64-mac-native
-          - runner: macos-14
+          - runner: macos-15
             name: arm64-mac-native
     name: ${{ matrix.target.name }} std ${{ matrix.flags }}
     timeout-minutes: 15
