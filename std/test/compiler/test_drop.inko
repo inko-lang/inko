@@ -47,6 +47,28 @@ type enum CyclicEnum {
   case Backref(Backref[CyclicEnum])
 }
 
+type Container {
+  let @a: Words
+  let @b: Bool
+}
+
+type Words {
+  let @numbers: Array[String]
+}
+
+fn early_return_in_init -> Result[Nil, String] {
+  match false {
+    case true -> Container(Words(['foo']), true)
+    case _ -> Container(try always_error, false)
+  }
+
+  Result.Ok(nil)
+}
+
+fn always_error -> Result[Words, String] {
+  Result.Error('oops')
+}
+
 fn pub tests(t: mut Tests) {
   t.test('Assigning a variable drops the old value', fn (t) {
     let val = Value.new
@@ -119,4 +141,11 @@ fn pub tests(t: mut Tests) {
     ignore_unused(ValueRef.new(val))
     t.equal(val.dropped, 1)
   })
+
+  # If the compiler is implemented incorrectly, this test would trigger a
+  # segfault.
+  t.no_panic(
+    'Returning as part of an initialization should not drop the uninitialized container',
+    fn { early_return_in_init },
+  )
 }

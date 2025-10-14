@@ -1872,6 +1872,8 @@ impl<'a> LowerMethod<'a> {
     fn tuple_literal(&mut self, node: hir::TupleLiteral) -> RegisterId {
         self.verify_type(node.resolved_type, node.location);
 
+        // Process the values first so that if they perform an early return they
+        // don't drop the not yet initialized container.
         let regs: Vec<_> = node
             .values
             .into_iter()
@@ -2039,8 +2041,8 @@ impl<'a> LowerMethod<'a> {
             types::CallKind::TypeInstance(info) => {
                 self.verify_type(info.resolved_type, node.location);
 
-                let ins = self.new_register(info.resolved_type);
-                let tid = info.type_id;
+                // Process the values first so that if they perform an early
+                // return they don't drop the not yet initialized container.
                 let regs: Vec<_> = node
                     .arguments
                     .into_iter()
@@ -2049,6 +2051,9 @@ impl<'a> LowerMethod<'a> {
                         (id, self.input_expression(arg.into_value(), Some(exp)))
                     })
                     .collect();
+
+                let tid = info.type_id;
+                let ins = self.new_register(info.resolved_type);
 
                 if tid.kind(self.db()).is_async() {
                     self.current_block_mut().spawn(ins, tid, loc);
