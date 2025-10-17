@@ -2563,6 +2563,8 @@ impl Parser {
             | TokenKind::While
             | TokenKind::For
             | TokenKind::Not
+            | TokenKind::Async
+            | TokenKind::Await
                 if same_line =>
             {
                 let token = self.next();
@@ -8957,6 +8959,34 @@ mod tests {
                     location: cols(8, 17)
                 }))),
                 location: cols(1, 17)
+            }))
+        );
+
+        assert_eq!(
+            expr("return await 10"),
+            Expression::Return(Box::new(Return {
+                value: Some(Expression::Await(Box::new(Await {
+                    value: Expression::Int(Box::new(IntLiteral {
+                        value: "10".to_string(),
+                        location: cols(14, 15)
+                    })),
+                    location: cols(8, 15)
+                }))),
+                location: cols(1, 15)
+            }))
+        );
+
+        assert_eq!(
+            expr("return async 10"),
+            Expression::Return(Box::new(Return {
+                value: Some(Expression::Async(Box::new(Async {
+                    value: Expression::Int(Box::new(IntLiteral {
+                        value: "10".to_string(),
+                        location: cols(14, 15)
+                    })),
+                    location: cols(8, 15)
+                }))),
+                location: cols(1, 15)
             }))
         );
     }
