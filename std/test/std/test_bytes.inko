@@ -875,4 +875,11 @@ fn pub tests(t: mut Tests) {
     t.true(value.contains_bytes?('hello'))
     t.false(value.contains_bytes?('hellox'))
   })
+
+  t.test('ByteArray.write', fn (t) {
+    let buf = ByteArray.new
+
+    t.equal(buf.write('hello'), Result.Ok(nil))
+    t.equal(buf.to_string, 'hello')
+  })
 }

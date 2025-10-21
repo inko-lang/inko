@@ -7,6 +7,7 @@ import std.cmp (Equal, max)
 import std.drop (Drop)
 import std.fmt (Format, Formatter)
 import std.hash (Hash, Hasher)
+import std.io (Error as IoError, Write)
 import std.iter (Iter as IterTrait, Stream)
 import std.option (Option)
 import std.ptr
@@ -1315,5 +1316,16 @@ impl Format for ByteArray {
     for byte in iter { fmt.value(byte) }
 
     fmt.finish
+  }
+}
+
+impl Write[IoError] for ByteArray {
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, IoError] {
+    append(bytes)
+    Result.Ok(nil)
+  }
+
+  fn pub mut flush -> Result[Nil, IoError] {
+    Result.Ok(nil)
   }
 }
