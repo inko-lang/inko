@@ -58,6 +58,45 @@
 #
 # For more information, refer to the documentation of the various methods of the
 # `Server` and `Mock` types.
+#
+# # Testing HTTP servers
+#
+# Testing HTTP servers is done by using the `RequestBuilder` type to create and
+# send a request to a type that implements `std.net.http.server.Handle`. For
+# example:
+#
+# ```inko
+# import std.net.http (Status)
+# import std.net.http.server (Handle, Request, Response)
+# import std.net.http.test (RequestBuilder)
+# import std.test (Tests)
+#
+# type Handler {}
+#
+# impl Handle for Handler {
+#   fn pub mut handle(request: mut Request) -> Response {
+#     Response.new.string('hello')
+#   }
+# }
+#
+# type async Main {
+#   fn async main {
+#     let tests = Tests.new
+#
+#     tests.test('Example test', fn (t) {
+#       let handler = Handler()
+#       let resp = RequestBuilder.get('/').send(handler)
+#       let body = ByteArray.new
+#
+#       t.equal(resp.status, Status.ok)
+#       t.true(resp.body.reader.read_all(body).ok?)
+#       t.equal(body.to_string, 'hello')
+#     })
+#
+#     tests.run
+#   }
+# }
+# ```
 import std.clone (Clone)
 import std.debug (StackFrame)
 import std.drop (Drop)
