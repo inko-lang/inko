@@ -87,16 +87,13 @@ let ERROR_EXIT_STATUS = 2
 fn unit_test_stack_frame -> debug.StackFrame {
   let frames = debug.stacktrace(skip: 2)
 
-  loop {
-    match frames.pop {
-      case Some(frame) -> {
-        if frame.path.tail.starts_with?('test_') { return frame }
-      }
-      case _ -> break
-    }
+  for frame in frames.reverse_iter {
+    if frame.path.tail.starts_with?('test_') { return frame.clone }
   }
 
-  panic('failed to find a stack frame originating from a unit test file')
+  frames.pop.or_panic_with(
+    'failed to find a stack frame originating from a unit test file',
+  )
 }
 
 # A single unit test.
@@ -246,6 +243,9 @@ impl Reporter for Plain {
         for (failure_index, fail) in test.failures.iter.with_index {
           let num = '${test_index + failure_index + 1}.'
           let indent = ' '.repeat(num.chars.count)
+          let lf = '\n${indent}             '
+          let exp = fail.expected.replace('\n', lf)
+          let got = fail.got.replace('\n', lf)
 
           @out
             .print(
@@ -253,8 +253,8 @@ impl Reporter for Plain {
 ${num} Test: ${test.name}
 ${indent} Line: ${fail.path}:${fail.line}
 
-${indent}   ${green('expected:')} ${fail.expected}
-${indent}        ${red('got:')} ${fail.got}',
+${indent}   ${green('expected:')} ${exp}
+${indent}        ${red('got:')} ${got}',
             )
             .get
         }

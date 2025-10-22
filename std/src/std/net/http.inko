@@ -301,7 +301,7 @@ impl Format for Header {
   }
 }
 
-type inline enum HeaderValue {
+type pub inline enum HeaderValue {
   case Single(String)
   case Multiple(Array[String])
 }
@@ -389,6 +389,26 @@ type pub inline HeaderMap {
     }
   }
 
+  # Returns the raw value of the given header.
+  #
+  # If the header isn't present, a `MissingKey` error is returned.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header, HeaderMap)
+  #
+  # let map = HeaderMap.new
+  #
+  # map.add(Header.content_length, '128')
+  # map.value(Header.content_length) # => Result.Ok(HeaderValue.Single('128'))
+  # ```
+  fn pub value(
+    name: ref Header,
+  ) -> Result[ref HeaderValue, MissingKey[Header]] {
+    @map.get(name)
+  }
+
   # Returns the first value of the given `Header`, if there is any.
   #
   # If the header isn't present, a `MissingKey` error is returned.
@@ -404,17 +424,11 @@ type pub inline HeaderMap {
   # map.get(Header.content_length) # => Result.Ok('128')
   # ```
   fn pub get(header: ref Header) -> Result[String, MissingKey[Header]] {
-    match get_value(header) {
+    match value(header) {
       case Ok(Single(v)) -> Result.Ok(v)
       case Ok(Multiple(v)) -> Result.Ok(v.get(0).or_panic)
       case _ -> Result.Error(MissingKey.new(header))
     }
-  }
-
-  fn inline get_value(
-    header: ref Header,
-  ) -> Result[ref HeaderValue, MissingKey[Header]] {
-    @map.get(header)
   }
 
   # Returns an iterator over all the values of the header.
@@ -479,7 +493,7 @@ type pub inline HeaderMap {
     @map.remove(header).ok?
   }
 
-  # Returns an iterator over the headers in `self`.
+  # Returns an iterator over the headers and their values.
   #
   # # Examples
   #
@@ -523,6 +537,25 @@ type pub inline HeaderMap {
     })
   }
 
+  # Returns an iterator over the header names.
+  #
+  # ```inko
+  # import std.net.http (Header, HeaderMap)
+  #
+  # let map = HeaderMap.new
+  #
+  # map.add(Header.content_length, '10')
+  # map.add(Header.content_length, '20')
+  #
+  # let iter = map.keys
+  #
+  # iter.next # => Option.Some(Header.content_length)
+  # iter.next # => Option.None
+  # ```
+  fn pub keys -> IterStream[Header] {
+    @map.keys.map(fn (v) { v.clone })
+  }
+
   # Returns the number of headers in `self`.
   #
   # # Examples
@@ -558,6 +591,12 @@ type pub inline HeaderMap {
         }
       }
     }
+  }
+}
+
+impl Clone for HeaderMap {
+  fn pub clone -> Self {
+    Self(@map.clone)
   }
 }
 
@@ -1568,7 +1607,7 @@ type copy enum ContentLength {
   # support is a single occurrence of the header in the form
   # `Content-Length: digits`.
   fn static parse(headers: ref HeaderMap) -> ContentLength {
-    match headers.get_value(Header.content_length) {
+    match headers.value(Header.content_length) {
       case Ok(Single(inp)) -> {
         match digits(inp, start: 0, limit: 19) {
           case Some((v, len)) if len == inp.size -> ContentLength.Valid(v)
@@ -1853,10 +1892,7 @@ type pub inline Parser[T: mut + Stream] {
     request: Bool,
   ) -> Result[Body, ParseError] {
     let body = match
-      (
-        ContentLength.parse(headers),
-        headers.get_value(Header.transfer_encoding),
-      )
+      (ContentLength.parse(headers), headers.value(Header.transfer_encoding))
     {
       # Specifying both Content-Length and Transfer-Encoding is either a bug or
       # an attempt at request smuggling (or a similar attack). Per RFC 9112

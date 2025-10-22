@@ -1297,6 +1297,12 @@ impl Clone for Path {
   }
 }
 
+impl Hash for Path {
+  fn pub hash[H: mut + Hasher](hasher: mut H) {
+    @value.hash(hasher)
+  }
+}
+
 impl ToString for Path {
   # Returns a `String` containing the percent-decoded value of `self`.
   #
@@ -1381,9 +1387,18 @@ impl Iter[Slice[String]] for PathComponents {
   }
 }
 
-type inline enum QueryValue {
+type pub inline enum QueryValue {
   case Single(ByteArray)
   case Multiple(Array[ByteArray])
+}
+
+impl Clone for QueryValue {
+  fn pub clone -> Self {
+    match self {
+      case Single(v) -> QueryValue.Single(v.clone)
+      case Multiple(v) -> QueryValue.Multiple(v.clone)
+    }
+  }
 }
 
 impl Equal for QueryValue {
@@ -1530,6 +1545,24 @@ type pub inline Values {
     }
   }
 
+  # Returns the raw value of the given key.
+  #
+  # If the key is missing, a `MissingKey` error is returned.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (Values)
+  #
+  # let map = Values.new
+  #
+  # map.add('name', 'Alice')
+  # map.value('name') # => Result.Ok(QueryValue.Single(...))
+  # ```
+  fn pub value(name: String) -> Result[ref QueryValue, MissingKey[String]] {
+    @map.get(name)
+  }
+
   # Returns the first value of the given key.
   #
   # If the key is missing, a `MissingKey` error is returned.
@@ -1547,7 +1580,7 @@ type pub inline Values {
   # map.get('age') # => Result.Error(MissingKey(...))
   # ```
   fn pub get(name: String) -> Result[ref ByteArray, MissingKey[String]] {
-    match @map.get(name) {
+    match value(name) {
       case Ok(Single(v)) -> Result.Ok(v)
       case Ok(Multiple(v)) -> Result.Ok(v.get(0).or_panic)
       case _ -> Result.Error(MissingKey.new(name))
@@ -1762,6 +1795,33 @@ type pub inline Values {
   # ```
   fn pub to_query -> Query {
     Query(to_string)
+  }
+
+  # Returns an iterator over the parameter names.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (Values)
+  #
+  # let map = Values.new
+  #
+  # map.add('name', 'Alice')
+  # map.add('name', 'Bob')
+  #
+  # let iter = map.keys
+  #
+  # iter.next # => Option.Some(('name'))
+  # iter.next # => Option.None
+  # ```
+  fn pub keys -> Stream[String] {
+    @map.keys
+  }
+}
+
+impl Clone for Values {
+  fn pub clone -> Self {
+    Self(@map.clone)
   }
 }
 

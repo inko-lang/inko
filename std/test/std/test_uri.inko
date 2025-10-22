@@ -4,8 +4,8 @@ import std.map (MissingKey)
 import std.net.ip (IpAddress)
 import std.test (Tests)
 import std.uri (
-  Error, Fragment, Host, Path, Query, Scheme, Uri, UserInfo, Values, decode,
-  encode,
+  Error, Fragment, Host, Path, Query, QueryValue, Scheme, Uri, UserInfo, Values,
+  decode, encode,
 )
 
 fn http -> Option[Scheme] {
@@ -421,6 +421,11 @@ fn pub tests(t: mut Tests) {
 
   t.test('Path.clone', fn (t) { t.equal(Path('a').clone, Path('a')) })
 
+  t.test('Path.hash', fn (t) {
+    t.equal(hash(Path.new('foo').get), hash(Path.new('foo').get))
+    t.not_equal(hash(Path.new('foo').get), hash(Path.new('bar').get))
+  })
+
   t.test('Values.new', fn (t) { t.equal(Values.new.map.size, 0) })
 
   t.test('Values.get', fn (t) {
@@ -556,6 +561,47 @@ fn pub tests(t: mut Tests) {
         t.equal(map.get_all(key).map(fn (v) { v.to_string }).to_array, vals)
       }
     }
+  })
+
+  t.test('Values.clone', fn (t) {
+    let a = Values.new
+
+    a.add('key', 'value')
+    a.add('foo', 'bar')
+    a.add('foo', 'baz')
+
+    let b = a.clone
+
+    t.equal(a, b)
+  })
+
+  t.test('Values.value', fn (t) {
+    let map = Values.new
+
+    map.add('name', 'Alice')
+    map.add('name', 'Bob')
+    map.add('age', '42')
+
+    t.equal(
+      map.value('name'),
+      Result.Ok(
+        ref QueryValue.Multiple(['Alice'.to_byte_array, 'Bob'.to_byte_array]),
+      ),
+    )
+    t.equal(
+      map.value('age'),
+      Result.Ok(ref QueryValue.Single('42'.to_byte_array)),
+    )
+  })
+
+  t.test('Values.keys', fn (t) {
+    let map = Values.new
+
+    map.add('name', 'Alice')
+    map.add('name', 'Bob')
+    map.add('age', '42')
+
+    t.equal(map.keys.to_array, ['name', 'age'])
   })
 
   t.test('Query.empty', fn (t) { t.true(Query.empty.empty?) })

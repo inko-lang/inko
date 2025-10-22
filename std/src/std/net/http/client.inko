@@ -477,10 +477,7 @@ type Pool {
 type pub Client {
   # The random number generator to use when generating multipart form
   # boundaries.
-  #
-  # This is a mutable field so we can assign it a deterministic RNG as part of
-  # the test suite.
-  let mut @rng: Random
+  let pub mut @random: Random
 
   # The DNS resolver to use for resolving URI host names.
   let @dns: dns.Resolver
@@ -538,13 +535,25 @@ type pub Client {
   # leaked by accident.
   let pub mut @remove_authorization_for_different_host: Bool
 
+  # A base URI to use for all requests.
+  #
+  # The components of this base URI are merged with the target URI, overwriting
+  # the components in the target URI. This means that if this base URI has a
+  # host set, it always overwrites the host of the request URI.
+  #
+  # The purpose of this field is to force requests to use certain components
+  # (e.g. the hostname) regardless of what the original URI contains. This in
+  # turn makes it possible to test client by setting this field to a host+port
+  # combination of some test specific HTTP server.
+  let pub mut @base_uri: Option[Uri]
+
   # The buffer to use for parsing HTTP responses.
   let @buffer: ByteArray
 
   # Returns a new `Client` with its default configuration.
   fn pub static new -> Self {
     Self(
-      rng: Random.new,
+      random: Random.new,
       tls: Option.None,
       dns: dns.Resolver.new,
       connections: Pool.new,
@@ -556,6 +565,7 @@ type pub Client {
       tcp_keepalive_interval: Duration.from_secs(15),
       max_redirects: 5,
       remove_authorization_for_different_host: true,
+      base_uri: Option.None,
       buffer: ByteArray.new,
     )
   }
@@ -1091,13 +1101,11 @@ type pub inline Request {
     )
   }
 
-  # Sets the header to the given value.
+  # Adds the header with the given value.
   #
-  # This overwrites any existing values assigned to the header.
-  #
-  # Refer to the documentation of `std.net.http.HeaderMap.set` for more details.
+  # Refer to the documentation of `std.net.http.HeaderMap.add` for more details.
   fn pub move header(header: Header, value: String) -> Self {
-    @headers.set(header, value)
+    @headers.add(header, value)
     self
   }
 
@@ -1282,7 +1290,7 @@ type pub inline Request {
   # form.send # => Result.Ok(...)
   # ```
   fn pub move multipart_form -> Result[MultipartForm, Error] {
-    let boundary = multipart.boundary_separator(@client.rng)
+    let boundary = multipart.boundary_separator(@client.random)
 
     @headers.set(
       Header.content_type,
@@ -1404,6 +1412,18 @@ type pub inline Request {
 
   fn mut prepare {
     @uri.query = @query.to_query
+
+    match @client.base_uri {
+      case Some(v) -> {
+        @uri.merge(v.clone)
+
+        # If the base URI is present we need to update the Host header
+        # accordingly.
+        @headers.set(Header.host, @uri.host_and_port)
+      }
+      case _ -> {}
+    }
+
     apply_basic_authentication
   }
 

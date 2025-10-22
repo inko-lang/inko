@@ -1,0 +1,1691 @@
+# Testing of HTTP clients and servers.
+#
+# This module provides types for testing HTTP clients and HTTP servers
+# implemented using the types of the `std.net.http.server` module.
+#
+# # Testing HTTP clients
+#
+# Testing an HTTP client is done by creating a `Server`, defining the expected
+# requests and their responses, configuring a `Client` to redirect its requests
+# to the mock server, and finally setting expectations on the results using the
+# usual testing methods.
+#
+# The following is an example of a mock server that defines an expected GET
+# request to `/` that responds with the body "hello":
+#
+# ```inko
+# import std.net.http (Status)
+# import std.net.http.client (Client)
+# import std.net.http.server (Response)
+# import std.net.http.test (Server)
+# import std.test (Tests)
+# import std.uri (Uri)
+#
+# type async Main {
+#   fn async main {
+#     let tests = Tests.new
+#
+#     tests.test('Example test', fn (t) {
+#       let server = Server.new(t, fn (srv) {
+#         srv.get('/').then(fn { Response.new.string('hello') })
+#       })
+#
+#       let client = Client.new
+#
+#       server.prepare_client(client)
+#
+#       let uri = Uri.parse('http://example.com').or_panic
+#       let resp = client.get(uri).send.or_panic
+#       let body = ByteArray.new
+#       let _ = resp.body.read_all(body).or_panic
+#
+#       t.equal(resp.status, Status.ok)
+#       t.equal(body.to_string, 'hello')
+#     })
+#
+#     tests.run
+#   }
+# }
+# ```
+#
+# An important detail here is the expression `server.prepare_client(client)`.
+# This ensures the `Client` "redirects" its requests to the mock server instead
+# of whatever server would normally receive the requests.
+#
+# When a `Server` is dropped it automatically verifies that all expected
+# requests have been received with the right data (e.g. HTTP headers), and that
+# no unexpected requests have been received.
+#
+# For more information, refer to the documentation of the various methods of the
+# `Server` and `Mock` types.
+import std.clone (Clone)
+import std.debug (StackFrame)
+import std.drop (Drop)
+import std.io (Buffer, BufferedReader, Error as IoError)
+import std.multipart
+import std.net.http (
+  Body as RawBody, Header, HeaderMap, Limits, Method, Reader as HttpReader,
+  Request as RawRequest, Version,
+)
+import std.net.http.client (Client)
+import std.net.http.server (
+  Address, Handle, Notifier, Request, Response, Server as Http,
+)
+import std.net.ip (IpAddress)
+import std.net.socket (SocketAddress)
+import std.rand (Random)
+import std.sync (Promise)
+import std.test (Failure, Test, unit_test_stack_frame)
+import std.uri (Host, Path, Query, Scheme, Uri, Values)
+
+let URL_FORM = 'application/x-www-form-urlencoded'
+
+fn format_headers(buf: mut ByteArray, map: ref HeaderMap) {
+  if map.size == 0 { return }
+
+  for (key, val) in map.iter {
+    buf.append('\n')
+    buf.append(key.to_string)
+    buf.append(': ')
+    buf.append(val)
+  }
+}
+
+fn format_body(buf: mut ByteArray, body: ref Body) {
+  if body.size == 0 { return }
+
+  buf.append('\n\n')
+
+  match body {
+    case None -> {}
+    case String(v) -> buf.append(v)
+    case Bytes(v) -> buf.append(v)
+  }
+}
+
+fn url_encoded_form_data(body: fn (mut Values)) -> String {
+  let vals = Values.new
+
+  body.call(vals)
+  vals.to_string
+}
+
+fn multipart_form_data(
+  body: fn (mut multipart.Form[mut ByteArray, IoError]),
+) -> (String, ByteArray) {
+  let rng = Random.from_int(0)
+  let sep = multipart.boundary_separator(rng)
+  let buf = ByteArray.new
+  let form = multipart.Form.new(mut buf, boundary: sep)
+
+  body.call(form)
+
+  let _ = form.close
+
+  ('multipart/form-data; boundary=${sep}', buf)
+}
+
+# A type that handles incoming requests and generates a response based on a
+# matching mock.
+type Handler {
+  let @shared: SharedState
+  let @matchers: Matchers
+}
+
+impl Handle for Handler {
+  fn pub mut handle(request: mut Request) -> Response {
+    let body = ByteArray.new
+    let _ = match request.body.read_all(body) {
+      case Ok(_) -> {}
+      case Error(e) -> {
+        return Response.bad_request.string(
+          'Failed to read the request body: ${e}',
+        )
+      }
+    }
+
+    match @matchers.for_route(request.method, request.uri.path.clone) {
+      case Some(matchers) -> {
+        for matcher in matchers.iter_mut {
+          if !matcher.matches?(request, body) { next }
+
+          match await @shared.response_for(matcher.id, matcher.calls) {
+            case Some(v) -> return v
+            case _ -> matcher.disable
+          }
+        }
+      }
+      case _ -> {}
+    }
+
+    @shared.add_unmatched(UnmatchedRequest.for_request(request, body))
+    Response.not_found.string('No mock is defined for this request')
+  }
+}
+
+# A process that runs the mock HTTP server.
+type async Runner {
+  fn async mut start(
+    address: uni Promise[(SocketAddress, Notifier[Handler])],
+    shared: SharedState,
+    matchers: uni Matchers,
+  ) {
+    let server = Http.new(fn move { recover Handler(shared, matchers.clone) })
+    let mut address = Option.Some(address)
+
+    # Signal handling is disabled for tests as we don't want random Unix signals
+    # to stop the mock server.
+    server.handle_signals = false
+
+    # We need to send back the server's randomly generated address to the unit
+    # test such that clients can connect to it.
+    server.before_start(fn move (addr, notifier) {
+      let Some(prom) = address := Option.None else return
+      let Ip(ip) = addr else return
+
+      prom.set(recover (ip, notifier))
+    })
+
+    # Encountering an error in the accept loop is rare and generally only
+    # happens when there's nothing we can do to proceed (e.g. we've run out of
+    # available file descriptors).
+    server.start(port: 0).or_panic
+  }
+}
+
+# The mock/matching state shared between the tests and the requests handler.
+type async SharedState {
+  # A mapping of mock IDs to their response generators.
+  let @responses: Map[Int, fn -> Response]
+
+  # An array of requests for which no matching mock is found.
+  let mut @unmatched: uni Array[UnmatchedRequest]
+
+  # The number of requests received per mock.
+  #
+  # This array is indexed using the mock/matcher IDs.
+  let @counts: Array[Int]
+
+  fn static new(responses: uni Map[Int, fn -> Response]) -> Self {
+    let counts = recover Array.filled(with: 0, times: responses.size)
+
+    Self(responses: responses, unmatched: recover [], counts: counts)
+  }
+
+  fn async calls(result: uni Promise[Int], id: Int) {
+    result.set(@counts.get(id).or_panic_with('invalid matcher ID'))
+  }
+
+  fn async mut unmatched_requests(
+    result: uni Promise[Array[UnmatchedRequest]],
+  ) {
+    result.set(@unmatched := recover [])
+  }
+
+  fn async mut response_for(
+    result: uni Promise[Option[Response]],
+    id: Int,
+    range: Calls,
+  ) {
+    let new = @counts.get(id).or_panic + 1
+    let allow = match range {
+      case Exactly(n) or Maximum(n) -> new <= n
+      case Minimum(_) -> true
+    }
+
+    if !allow {
+      result.set(recover Option.None)
+      return
+    }
+
+    @counts.set(id, new)
+
+    let f = @responses.get_mut(id).or_panic_with('invalid matcher ID')
+
+    result.set(recover Option.Some(f.call))
+  }
+
+  fn async mut add_unmatched(request: uni UnmatchedRequest) {
+    @unmatched.push(request)
+  }
+}
+
+# An HTTP server for generating mock responses and recording unmocked requests.
+type pub Server {
+  let mut @id: Int
+  let @matchers: uni Matchers
+  let @responses: uni Map[Int, fn -> Response]
+  let @locations: Array[StackFrame]
+
+  # Returns and starts a new `Server`.
+  #
+  # The `test` argument is the currently running `std.test.Test`. This is used
+  # for recording any failures (e.g. unmatched requests).
+  #
+  # The `builder` argument is a closure used to populate the `Server` with mock
+  # responses.
+  fn pub static new(test: mut Test, builder: fn (mut Server)) -> RunningServer {
+    let srv = Self(
+      id: 0,
+      matchers: recover Matchers.new,
+      responses: recover Map.new,
+      locations: [],
+    )
+
+    builder.call(srv)
+    srv.start(test)
+  }
+
+  # Returns a `Mock` for the given request method and path.
+  #
+  # The `path` argument is the _relative_ request path, excluding any query
+  # string parameters.
+  #
+  # # Panics
+  #
+  # This method panics if the `path` argument is not a valid path (i.e. it
+  # contains characters that must be percent encoded but aren't).
+  #
+  # # Examples
+  #
+  # This defines a mock GET request:
+  #
+  # ```inko
+  # import std.net.http (Method)
+  # import std.net.http.server (Response)
+  # import std.net.http.test (Server)
+  # import std.test (Tests)
+  #
+  # type async Main {
+  #   fn async main {
+  #     let tests = Tests.new
+  #
+  #     tests.test('Example test', fn (t) {
+  #       let _server = Server.new(t, fn (srv) {
+  #         srv.request(Method.Get, '/').then(fn { Response.new.string('hello') })
+  #       })
+  #     })
+  #
+  #     tests.run
+  #   }
+  # }
+  # ```
+  #
+  # For common request methods there are also dedicated methods on this type:
+  #
+  # ```inko
+  # import std.net.http.server (Response)
+  # import std.net.http.test (Server)
+  # import std.test (Tests)
+  #
+  # type async Main {
+  #   fn async main {
+  #     let tests = Tests.new
+  #
+  #     tests.test('Example test', fn (t) {
+  #       let _server = Server.new(t, fn (srv) {
+  #         srv.get('/').then(fn { Response.new.string('hello') })
+  #       })
+  #     })
+  #
+  #     tests.run
+  #   }
+  # }
+  # ```
+  fn pub mut request(method: Method, path: String) -> Mock {
+    Mock.new(self, method, path)
+  }
+
+  # Returns a `Mock` for a GET request.
+  #
+  # Refer to the documentation of `Server.request` for more details.
+  fn pub mut get(path: String) -> Mock {
+    request(Method.Get, path)
+  }
+
+  # Returns a `Mock` for a POST request.
+  #
+  # Refer to the documentation of `Server.request` for more details.
+  fn pub mut post(path: String) -> Mock {
+    request(Method.Post, path)
+  }
+
+  # Returns a `Mock` for a PUT request.
+  #
+  # Refer to the documentation of `Server.request` for more details.
+  fn pub mut put(path: String) -> Mock {
+    request(Method.Put, path)
+  }
+
+  # Returns a `Mock` for a DELETE request.
+  #
+  # Refer to the documentation of `Server.request` for more details.
+  fn pub mut delete(path: String) -> Mock {
+    request(Method.Delete, path)
+  }
+
+  # Returns a `Mock` for a HEAD request.
+  #
+  # Refer to the documentation of `Server.request` for more details.
+  fn pub mut head(path: String) -> Mock {
+    request(Method.Head, path)
+  }
+
+  fn move start(test: mut Test) -> RunningServer {
+    let shared = SharedState.new(@responses)
+    let (addr, notifier) = await Runner().start(shared, recover @matchers.clone)
+    let uri = Uri.new
+
+    uri.scheme = Option.Some(Scheme.Http)
+    uri.host = Option.Some(Host.Ip(addr.ip))
+    uri.port = Option.Some(addr.port)
+    RunningServer(
+      uri: uri,
+      shared: shared,
+      test: test,
+      matchers: @matchers,
+      locations: @locations,
+      notifier: notifier,
+    )
+  }
+
+  fn mut next_id -> Int {
+    @id := @id + 1
+  }
+}
+
+# A handle to a running mock HTTP server.
+type pub inline RunningServer {
+  let @shared: SharedState
+  let @test: mut Test
+  let @uri: Uri
+  let @matchers: Matchers
+  let @locations: Array[StackFrame]
+  let @notifier: Notifier[Handler]
+
+  # Returns a `std.uri.Uri` to use for connecting to the mock HTTP server.
+  #
+  # This `Uri` should be used to populate the `Client.base_uri` field of a
+  # `std.net.http.client.Client` used to perform HTTP requests that need to be
+  # mocked.
+  fn pub uri -> Uri {
+    @uri.clone
+  }
+
+  # Prepares a `Client` so it redirects its requests to the mock server.
+  #
+  # Using this method is preferred over manually populating a `Client` whenever
+  # possible.
+  fn pub prepare_client(client: mut Client) {
+    client.base_uri = Option.Some(uri)
+    client.random = Random.from_int(0)
+  }
+
+  fn mut verify {
+    for ((method, path), matchers) in @matchers.map.iter {
+      for matcher in matchers.iter { verify_matcher(method, path, matcher) }
+    }
+
+    verify_unmatched
+  }
+
+  fn mut verify_unmatched {
+    for req in await @shared.unmatched_requests {
+      let target = if req.query.size > 0 {
+        '${req.path}?${req.query}'
+      } else {
+        req.path.to_string
+      }
+
+      let got = '${req.method} ${target}'.into_byte_array
+
+      format_headers(got, req.headers)
+      format_body(got, Body.String(req.body))
+
+      let exp = 'a mock matching this request'
+
+      @test.failures.push(
+        Failure(
+          got: got.into_string,
+          expected: exp,
+          path: @test.path.clone,
+          line: @test.line.clone,
+        ),
+      )
+    }
+  }
+
+  fn mut verify_matcher(method: Method, path: ref Path, matcher: ref Matcher) {
+    let count = await @shared.calls(matcher.id)
+
+    if matcher.calls.matches?(count) { return }
+
+    let target = if matcher.query.size > 0 {
+      '${path}?${matcher.query}'
+    } else {
+      path.to_string
+    }
+
+    let got = match count {
+      case 1 -> '1 request'
+      case n -> '${n} requests'
+    }
+
+    let exp = 'this request to be received ${matcher.calls.description}:\n\n${method} ${target}'
+      .into_byte_array
+
+    format_headers(exp, matcher.headers)
+    format_body(exp, matcher.body)
+    exp.append('\n')
+
+    let loc = @locations.get(matcher.id).or_panic
+
+    @test.failures.push(
+      Failure(
+        got: got,
+        expected: exp.into_string,
+        path: loc.path.clone,
+        line: loc.line,
+      ),
+    )
+  }
+}
+
+impl Drop for RunningServer {
+  fn mut drop {
+    verify
+    @notifier.notify(wait: false)
+  }
+}
+
+type inline enum Body {
+  case None
+  case String(String)
+  case Bytes(ByteArray)
+
+  fn size -> Int {
+    match self {
+      case None -> 0
+      case String(v) -> v.size
+      case Bytes(v) -> v.size
+    }
+  }
+}
+
+impl Clone for Body {
+  fn pub clone -> Self {
+    match self {
+      case None -> Body.None
+      case String(v) -> Body.String(v)
+      case Bytes(v) -> Body.Bytes(v.clone)
+    }
+  }
+}
+
+type inline Matchers {
+  let @map: Map[(Method, Path), Array[Matcher]]
+
+  fn static new -> Self {
+    Self(Map.new)
+  }
+
+  fn mut add(method: Method, path: Path, matcher: Matcher) {
+    let key = (method, path)
+
+    match @map.get_mut(key) {
+      case Ok(v) -> v.push(matcher)
+      case _ -> @map.set(key, [matcher])
+    }
+  }
+
+  fn mut for_route(method: Method, path: Path) -> Option[mut Array[Matcher]] {
+    @map.get_mut((method, path)).ok
+  }
+}
+
+impl Clone for Matchers {
+  fn pub clone -> Self {
+    Self(@map.clone)
+  }
+}
+
+type copy enum Calls {
+  case Exactly(Int)
+  case Minimum(Int)
+  case Maximum(Int)
+
+  fn matches?(amount: Int) -> Bool {
+    match self {
+      case Exactly(n) -> amount == n
+      case Minimum(n) -> amount >= n
+      case Maximum(n) -> amount <= n
+    }
+  }
+
+  fn description -> String {
+    match self {
+      case Exactly(1) -> 'exactly once'
+      case Minimum(1) -> 'at least once'
+      case Maximum(1) -> 'at most once'
+      case Exactly(n) -> 'exactly ${n} times'
+      case Minimum(n) -> 'at least ${n} times'
+      case Maximum(n) -> 'at most ${n} times'
+    }
+  }
+}
+
+type UnmatchedRequest {
+  let @method: Method
+  let @path: Path
+  let @query: Query
+  let @headers: HeaderMap
+  let @body: String
+
+  fn static for_request(request: ref Request, body: ref ByteArray) -> uni Self {
+    recover {
+      UnmatchedRequest(
+        method: request.method,
+        path: request.data.uri.path.clone,
+        query: request.data.uri.query.clone,
+        headers: request.data.headers.clone,
+        body: body.to_string,
+      )
+    }
+  }
+}
+
+type Matcher {
+  let @id: Int
+  let mut @enabled: Bool
+  let @calls: Calls
+  let @query: Values
+  let @headers: HeaderMap
+  let @body: Body
+
+  fn matches?(request: ref Request, body: ref ByteArray) -> Bool {
+    if !@enabled { return false }
+
+    let req_query = request.uri.query.parse
+
+    for k in @query.keys {
+      if @query.value(k) != req_query.value(k) { return false }
+    }
+
+    for k in @headers.keys {
+      if @headers.value(k) != request.headers.value(k) { return false }
+    }
+
+    match @body {
+      case None -> {
+        body.empty? and request.headers.get(Header.content_length).error?
+      }
+      case String(v) -> v.equals?(body)
+      case Bytes(v) -> v.equals?(body)
+    }
+  }
+
+  fn mut disable {
+    @enabled = false
+  }
+}
+
+impl Clone for Matcher {
+  fn pub clone -> Self {
+    Self(
+      id: @id,
+      enabled: @enabled,
+      calls: @calls,
+      query: @query.clone,
+      headers: @headers.clone,
+      body: @body.clone,
+    )
+  }
+}
+
+# A type for defining an expected request and its response.
+#
+# Mocks are defined using methods such as `Server.get` and `Server.post`. A
+# `Mock` is only activated if `Mock.then` is called.
+#
+# Mocks can define requirements such as expected query string parameters,
+# headers, and how many times the request is expected to be received.
+#
+# # Query string matching
+#
+# When a mock defines a set of expected query string parameters, these
+# parameters are treated as the _minimum_ required parameters, meaning
+# additional parameters are allowed. The order of the request parameters must
+# match that of the mock, and the values assigned must match exactly:
+#
+# |=
+# | Mock value
+# | Request value
+# | Result
+# |-
+# | `name=Alice`
+# | `name=Alice&age=42`
+# | match
+# |-
+# | `name=Alice&name=Bob`
+# | `name=Alice`
+# | no match
+# |-
+# | `name=Alice&name=Bob`
+# | `name=Bob&name=Alice`
+# | no match
+#
+# # Header matching
+#
+# Header matching follows the same rules as query string matching:
+#
+# |=
+# | Mock value
+# | Request value
+# | Result
+# |-
+# | `Accept: foo`
+# | `Accept: foo`
+# | match
+# |-
+# | `Accept: foo, bar`
+# | `Accept: foo`
+# | no match
+# |-
+# | `Accept: foo, bar`
+# | `Accept: bar, foo`
+# | no match
+#
+# # Body matching
+#
+# Request bodies must match exactly that of the mock. If a mock doesn't define a
+# body, a request only matches if it too doesn't specify a body.
+#
+# # Ordering
+#
+# Mocks are matched against requests in order, skipping over mocks that are
+# disabled (e.g. they're received the maximum number of requests allowed). For
+# example:
+#
+# ```inko
+# import std.net.http.client (Client)
+# import std.net.http.server (Response)
+# import std.net.http.test (Server)
+# import std.test (Tests)
+# import std.uri (Uri)
+#
+# type async Main {
+#   fn async main {
+#     let tests = Tests.new
+#
+#     tests.test('Example test', fn (t) {
+#       let server = Server.new(t, fn (srv) {
+#         srv.get('/').then(fn { Response.new.string('hello') })
+#         srv.get('/').then(fn { Response.new.string('world') })
+#       })
+#
+#       let client = Client.new
+#
+#       server.prepare_client(client)
+#
+#       let body = ByteArray.new
+#
+#       2.times(fn (_) {
+#         let resp = client
+#           .get(Uri.parse('http://example.com').or_panic)
+#           .send
+#           .or_panic
+#
+#         resp.body.read_all(body).or_panic
+#       })
+#
+#       t.equal(body.to_string, 'helloworld')
+#     })
+#
+#     tests.run
+#   }
+# }
+# ```
+#
+# For the first request the response body is "hello", while for the second
+# response it's "world", resulting in the buffer being equal to "helloworld".
+type pub inline Mock {
+  let @server: mut Server
+  let @method: Method
+  let @path: uni Path
+  let @location: uni StackFrame
+  let mut @query: uni Values
+  let mut @headers: uni HeaderMap
+  let mut @body: uni Body
+  let mut @calls: Calls
+
+  fn static new(server: mut Server, method: Method, path: String) -> Self {
+    let loc = recover unit_test_stack_frame
+
+    Self(
+      server: server,
+      method: method,
+      path: recover Path.new(path).or_panic_with('the request path is invalid'),
+      location: loc,
+      query: recover Values.new,
+      headers: recover HeaderMap.new,
+      body: recover Body.None,
+      calls: Calls.Exactly(1),
+    )
+  }
+
+  # Adds a query string parameter and its value to the set of expected
+  # parameters.
+  #
+  # If the parameter is already assigned a value, the value is appended to the
+  # list of expected values.
+  #
+  # # Examples
+  #
+  # This defines a mock that only matches if the request includes at least the
+  # `name=Alice` and `age=42` query string parameters:
+  #
+  # ```inko
+  # import std.net.http.server (Response)
+  # import std.net.http.test (Server)
+  # import std.test (Tests)
+  #
+  # type async Main {
+  #   fn async main {
+  #     let tests = Tests.new
+  #
+  #     tests.test('Example test', fn (t) {
+  #       let _server = Server.new(t, fn (srv) {
+  #         srv.get('/').query('name', 'Alice').query('age', '42').then(fn {
+  #           Response.new.string('hello')
+  #         })
+  #       })
+  #     })
+  #
+  #     tests.run
+  #   }
+  # }
+  # ```
+  fn pub move query(key: String, value: String) -> Self {
+    @query.add(key, value)
+    self
+  }
+
+  # Adds a header and its value to the set of expected headers.
+  #
+  # If the header is already assigned a value, the value is appended to the list
+  # of expected values.
+  #
+  # # Examples
+  #
+  # This defines a mock that only matches if the request includes at least the
+  # `Accept: foo` and `User-Agent: bar` headers:
+  #
+  # ```inko
+  # import std.net.http (Header)
+  # import std.net.http.server (Response)
+  # import std.net.http.test (Server)
+  # import std.test (Tests)
+  #
+  # type async Main {
+  #   fn async main {
+  #     let tests = Tests.new
+  #
+  #     tests.test('Example test', fn (t) {
+  #       let _server = Server.new(t, fn (srv) {
+  #         srv
+  #           .get('/')
+  #           .header(Header.accept, 'foo')
+  #           .header(Header.user_agent, 'bar')
+  #           .then(fn { Response.new.string('hello') })
+  #       })
+  #     })
+  #
+  #     tests.run
+  #   }
+  # }
+  # ```
+  fn pub move header(header: ref Header, value: String) -> Self {
+    @headers.add(recover header.clone, value)
+    self
+  }
+
+  # Sets the expected body to the given `ByteArray`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.server (Response)
+  # import std.net.http.test (Server)
+  # import std.test (Tests)
+  #
+  # type async Main {
+  #   fn async main {
+  #     let tests = Tests.new
+  #
+  #     tests.test('Example test', fn (t) {
+  #       let _server = Server.new(t, fn (srv) {
+  #         srv.get('/').bytes('hello'.to_byte_array).then(fn {
+  #           Response.new.string('hello')
+  #         })
+  #       })
+  #     })
+  #
+  #     tests.run
+  #   }
+  # }
+  # ```
+  fn pub move bytes(body: ref ByteArray) -> Self {
+    @body = recover Body.Bytes(body.clone)
+    self
+  }
+
+  # Sets the expected body to the given `String`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.server (Response)
+  # import std.net.http.test (Server)
+  # import std.test (Tests)
+  #
+  # type async Main {
+  #   fn async main {
+  #     let tests = Tests.new
+  #
+  #     tests.test('Example test', fn (t) {
+  #       let _server = Server.new(t, fn (srv) {
+  #         srv.get('/').string('hello').then(fn { Response.new.string('hello') })
+  #       })
+  #     })
+  #
+  #     tests.run
+  #   }
+  # }
+  # ```
+  fn pub move string(body: String) -> Self {
+    @body = recover Body.String(body)
+    self
+  }
+
+  # Expect the request to be a URL encoded form request.
+  #
+  # The `body` argument is a closure used to set the expected form fields and
+  # their values.
+  #
+  # The returned mock expects the `Content-Type` header to be set to
+  # `application/x-www-form-urlencoded` and the body to be _exactly_ the same as
+  # the form populated by the `body` argument. If additional fields are provided
+  # or the order doesn't match, the mock won't match a request.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.client (Client)
+  # import std.net.http.server (Response)
+  # import std.net.http.test (Server)
+  # import std.test (Tests)
+  # import std.uri (Uri)
+  #
+  # type async Main {
+  #   fn async main {
+  #     let tests = Tests.new
+  #
+  #     tests.test('Example test', fn (t) {
+  #       let server = Server.new(t, fn (srv) {
+  #         srv
+  #           .post('/')
+  #           .url_encoded_form(fn (f) {
+  #             f.add('name', 'Alice')
+  #             f.add('age', '42')
+  #           })
+  #           .then(fn { Response.new.string('created') })
+  #       })
+  #
+  #       let client = Client.new
+  #
+  #       server.prepare_client(client)
+  #
+  #       let body = ByteArray.new
+  #       let form = client.post(Uri.parse('/').or_panic).url_encoded_form
+  #
+  #       form.add('name', 'Alice')
+  #       form.add('age', '42')
+  #
+  #       let resp = form.send.or_panic
+  #       let _ = resp.body.read_all(body).or_panic
+  #
+  #       t.equal(body.to_string, 'created')
+  #     })
+  #
+  #     tests.run
+  #   }
+  # }
+  # ```
+  fn pub move url_encoded_form(body: fn (mut Values)) -> Self {
+    header(Header.content_type, URL_FORM).string(url_encoded_form_data(body))
+  }
+
+  # Expects the request to be a multipart form request.
+  #
+  # The `body` argument is a closure used to set the expected form fields and
+  # their values.
+  #
+  # The returned mock expects the `Content-Type` header to be set to
+  # `multipart/form-data; boundary=XXX` where XXX is randomly generated string
+  # using a fixed seed. To achieve this, the `Client.random` field of a
+  # `std.net.http.client.Client` must be set to the result of
+  # `std.rand.Random.new(0)`. The easiest way of doing so is by using
+  # `RunningServer.prepare_client`.
+  #
+  # The body must be _exactly_ the same as the form populated by the `body`
+  # argument. If additional fields are provided or the order doesn't match, the
+  # mock won't match a request.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.client (Client)
+  # import std.net.http.server (Response)
+  # import std.net.http.test (Server)
+  # import std.test (Tests)
+  # import std.uri (Uri)
+  #
+  # type async Main {
+  #   fn async main {
+  #     let tests = Tests.new
+  #
+  #     tests.test('Example test', fn (t) {
+  #       let server = Server.new(t, fn (srv) {
+  #         srv
+  #           .post('/')
+  #           .multipart_form(fn (f) {
+  #             let _ = f.field('name').text('Alice')
+  #             let _ = f.field('age').text('42')
+  #           })
+  #           .then(fn { Response.new.string('created') })
+  #       })
+  #
+  #       let client = Client.new
+  #
+  #       server.prepare_client(client)
+  #
+  #       let body = ByteArray.new
+  #       let form = client.post(Uri.parse('/').or_panic).multipart_form.or_panic
+  #
+  #       form.add('name').text('Alice').or_panic
+  #       form.add('age').text('42').or_panic
+  #
+  #       let resp = form.send.or_panic
+  #       let _ = resp.body.read_all(body).or_panic
+  #
+  #       t.equal(body.to_string, 'created')
+  #     })
+  #
+  #     tests.run
+  #   }
+  # }
+  # ```
+  fn pub move multipart_form(
+    body: fn (mut multipart.Form[mut ByteArray, IoError]),
+  ) -> Self {
+    let (header, buf) = multipart_form_data(body)
+
+    header(Header.content_type, header).bytes(buf)
+  }
+
+  # Sets the expected minimum number of requests to the given value.
+  #
+  # Once the given number of requests is received this mock remains active.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.server (Response)
+  # import std.net.http.test (Server)
+  # import std.test (Tests)
+  #
+  # type async Main {
+  #   fn async main {
+  #     let tests = Tests.new
+  #
+  #     tests.test('Example test', fn (t) {
+  #       let _server = Server.new(t, fn (srv) {
+  #         srv.get('/').at_least(2).then(fn { Response.new.string('hello') })
+  #       })
+  #     })
+  #
+  #     tests.run
+  #   }
+  # }
+  # ```
+  fn pub move at_least(amount: Int) -> Self {
+    @calls = Calls.Minimum(amount)
+    self
+  }
+
+  # Sets the expected maximum number of requests to the given value.
+  #
+  # Once the given number of requests is received, the mock is disabled.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.server (Response)
+  # import std.net.http.test (Server)
+  # import std.test (Tests)
+  #
+  # type async Main {
+  #   fn async main {
+  #     let tests = Tests.new
+  #
+  #     tests.test('Example test', fn (t) {
+  #       let _server = Server.new(t, fn (srv) {
+  #         srv.get('/').at_most(2).then(fn { Response.new.string('hello') })
+  #       })
+  #     })
+  #
+  #     tests.run
+  #   }
+  # }
+  # ```
+  fn pub move at_most(amount: Int) -> Self {
+    @calls = Calls.Maximum(amount)
+    self
+  }
+
+  # Sets the expected exact number of requests to the given value.
+  #
+  # Once the given number of requests is received, the mock is disabled.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.server (Response)
+  # import std.net.http.test (Server)
+  # import std.test (Tests)
+  #
+  # type async Main {
+  #   fn async main {
+  #     let tests = Tests.new
+  #
+  #     tests.test('Example test', fn (t) {
+  #       let _server = Server.new(t, fn (srv) {
+  #         srv.get('/').exactly(2).then(fn { Response.new.string('hello') })
+  #       })
+  #     })
+  #
+  #     tests.run
+  #   }
+  # }
+  # ```
+  fn pub move exactly(amount: Int) -> Self {
+    @calls = Calls.Exactly(amount)
+    self
+  }
+
+  # Installs the mock and defines its response body.
+  #
+  # The `response` argument is the closure used for generating the response
+  # body. This closure _must_ be a `uni` closure such that it can be moved
+  # between processes. This means the closure can only capture data that is
+  # sendable.
+  #
+  # # Examples
+  #
+  # In this example a `uni Array[Int]` is captured and modified for each
+  # request, with the response showing the size of the array:
+  #
+  # ```inko
+  # import std.net.http.server (Response)
+  # import std.net.http.test (Server)
+  # import std.test (Tests)
+  #
+  # type async Main {
+  #   fn async main {
+  #     let tests = Tests.new
+  #
+  #     tests.test('Example test', fn (t) {
+  #       let _server = Server.new(t, fn (srv) {
+  #         let mut counts = recover []
+  #
+  #         srv.get('/').then(fn move {
+  #           counts.push(1)
+  #           Response.new.string('size: ${counts.size}')
+  #         })
+  #       })
+  #     })
+  #
+  #     tests.run
+  #   }
+  # }
+  # ```
+  fn pub move then(response: uni fn -> Response) {
+    let id = @server.next_id
+    let mat = recover {
+      Matcher(
+        id: id,
+        enabled: true,
+        calls: @calls,
+        query: @query,
+        headers: @headers,
+        body: @body,
+      )
+    }
+
+    @server.locations.push(@location)
+    @server.matchers.add(@method, @path, mat)
+    @server.responses.set(id, response)
+  }
+}
+
+# A type for building a `std.net.http.server.Request` to use for testing an HTTP
+# server.
+#
+# Using a `RequestBuilder` it's possible to test a type that implements
+# `std.net.http.server.Handle` without the need for running an actual HTTP
+# server and sending actual HTTP requests.
+#
+# # Default values
+#
+# A `RequestBuilder` uses the following default headers:
+#
+# - `Host: localhost`
+# - `User-Agent: test`
+# - `Connection: close`
+#
+# For the generated request the source address (`Request.address`) is set to the
+# address `192.0.2.0:80`.
+#
+# The HTTP version is always set to HTTP 1.1 and can't be changed.
+#
+# # Examples
+#
+# ```inko
+# import std.net.http (Header, Status)
+# import std.net.http.server (Handle, Request, Response)
+# import std.net.http.test (RequestBuilder)
+# import std.test (Tests)
+#
+# type Handler {}
+#
+# impl Handle for Handler {
+#   fn pub mut handle(request: mut Request) -> Response {
+#     Response.new.string(request.data.uri.to_string)
+#   }
+# }
+#
+# type async Main {
+#   fn async main {
+#     let tests = Tests.new
+#
+#     tests.test('Example test', fn (t) {
+#       let handler = Handler()
+#       let resp = RequestBuilder
+#         .post('/')
+#         .header(Header.host, 'foo')
+#         .query('key', 'value')
+#         .string('hello')
+#         .send(handler)
+#
+#       let body = ByteArray.new
+#
+#       t.equal(resp.status, Status.ok)
+#       t.true(resp.body.reader.read_all(body).ok?)
+#       t.equal(body.to_string, '/?key=value')
+#     })
+#
+#     tests.run
+#   }
+# }
+# ```
+type pub inline RequestBuilder {
+  let @method: Method
+  let @uri: Uri
+
+  # The request headers.
+  let pub @headers: HeaderMap
+
+  # The request query string parameters.
+  let pub @query: Values
+  let mut @body: Body
+
+  # Returns a new request builder using the given method and request path.
+  #
+  # # Panics
+  #
+  # This method panics if the `path` argument is not a valid path (i.e. it
+  # contains characters that must be percent encoded but aren't).
+  fn pub static new(method: Method, path: String) -> Self {
+    let headers = HeaderMap.new
+
+    # These default headers are added because either they're required (the Host
+    # header) or probably expected to be present in a real request.
+    headers.set(Header.host, 'localhost')
+    headers.set(Header.user_agent, 'test')
+    headers.set(Header.connection, 'close')
+
+    let uri = Uri.new
+
+    uri.path = Path.new(path).or_panic_with('the request path is invalid')
+    Self(
+      method: method,
+      uri: uri,
+      headers: headers,
+      query: Values.new,
+      body: Body.None,
+    )
+  }
+
+  # Returns a builder for a GET request.
+  #
+  # Refer to the documentation of `RequestBuilder.new` for more details.
+  fn pub static get(path: String) -> Self {
+    new(Method.Get, path)
+  }
+
+  # Returns a builder for a POST request.
+  #
+  # Refer to the documentation of `RequestBuilder.new` for more details.
+  fn pub static post(path: String) -> Self {
+    new(Method.Post, path)
+  }
+
+  # Returns a builder for a PUT request.
+  #
+  # Refer to the documentation of `RequestBuilder.new` for more details.
+  fn pub static put(path: String) -> Self {
+    new(Method.Put, path)
+  }
+
+  # Returns a builder for a DELETE request.
+  #
+  # Refer to the documentation of `RequestBuilder.new` for more details.
+  fn pub static delete(path: String) -> Self {
+    new(Method.Delete, path)
+  }
+
+  # Returns a builder for a HEAD request.
+  #
+  # Refer to the documentation of `RequestBuilder.new` for more details.
+  fn pub static head(path: String) -> Self {
+    new(Method.Head, path)
+  }
+
+  # Adds a query string parameter and its value to the set of request query
+  # string parameters.
+  #
+  # If the parameter is already assigned a value, the value is appended to the
+  # list of expected values.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Status)
+  # import std.net.http.server (Handle, Request, Response)
+  # import std.net.http.test (RequestBuilder)
+  # import std.test (Tests)
+  #
+  # type Handler {}
+  #
+  # impl Handle for Handler {
+  #   fn pub mut handle(request: mut Request) -> Response {
+  #     Response.new.string(request.data.uri.to_string)
+  #   }
+  # }
+  #
+  # type async Main {
+  #   fn async main {
+  #     let tests = Tests.new
+  #
+  #     tests.test('Example test', fn (t) {
+  #       let handler = Handler()
+  #       let resp = RequestBuilder
+  #         .get('/')
+  #         .query('key', 'value')
+  #         .send(handler)
+  #       let body = ByteArray.new
+  #
+  #       t.equal(resp.status, Status.ok)
+  #       t.true(resp.body.reader.read_all(body).ok?)
+  #       t.equal(body.to_string, '/?key=value')
+  #     })
+  #
+  #     tests.run
+  #   }
+  # }
+  # ```
+  fn pub move query(key: String, value: String) -> Self {
+    @query.add(key, value)
+    self
+  }
+
+  # Adds a header and its value to the set of request headers.
+  #
+  # If the header is already assigned a value, the value is appended to the list
+  # of expected values.
+  #
+  # Examples
+  #
+  # ```inko
+  # import std.net.http (Header, Status)
+  # import std.net.http.server (Handle, Request, Response)
+  # import std.net.http.test (RequestBuilder)
+  # import std.test (Tests)
+  #
+  # type Handler {}
+  #
+  # impl Handle for Handler {
+  #   fn pub mut handle(request: mut Request) -> Response {
+  #     Response.new.string(request.headers.get(Header.accept).or('missing header'))
+  #   }
+  # }
+  #
+  # type async Main {
+  #   fn async main {
+  #     let tests = Tests.new
+  #
+  #     tests.test('Example test', fn (t) {
+  #       let handler = Handler()
+  #       let resp = RequestBuilder
+  #         .get('/')
+  #         .header(Header.accept, 'text/plain')
+  #         .send(handler)
+  #       let body = ByteArray.new
+  #
+  #       t.equal(resp.status, Status.ok)
+  #       t.true(resp.body.reader.read_all(body).ok?)
+  #       t.equal(body.to_string, 'text/plain')
+  #     })
+  #
+  #     tests.run
+  #   }
+  # }
+  # ```
+  fn pub move header(header: Header, value: String) -> Self {
+    @headers.add(header, value)
+    self
+  }
+
+  # Sets the request body to the given `String`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Status)
+  # import std.net.http.server (Handle, Request, Response)
+  # import std.net.http.test (RequestBuilder)
+  # import std.test (Tests)
+  #
+  # type Handler {}
+  #
+  # impl Handle for Handler {
+  #   fn pub mut handle(request: mut Request) -> Response {
+  #     let body = ByteArray.new
+  #     let _ = request.body.read_all(body).or_panic
+  #
+  #     Response.new.bytes(body)
+  #   }
+  # }
+  #
+  # type async Main {
+  #   fn async main {
+  #     let tests = Tests.new
+  #
+  #     tests.test('Example test', fn (t) {
+  #       let handler = Handler()
+  #       let resp = RequestBuilder.post('/').string('foo').send(handler)
+  #       let body = ByteArray.new
+  #
+  #       t.equal(resp.status, Status.ok)
+  #       t.true(resp.body.reader.read_all(body).ok?)
+  #       t.equal(body.to_string, 'foo')
+  #     })
+  #
+  #     tests.run
+  #   }
+  # }
+  # ```
+  fn pub move string(body: String) -> Self {
+    @body = Body.String(body)
+    self
+  }
+
+  # Sets the request body to the given `ByteArray`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Status)
+  # import std.net.http.server (Handle, Request, Response)
+  # import std.net.http.test (RequestBuilder)
+  # import std.test (Tests)
+  #
+  # type Handler {}
+  #
+  # impl Handle for Handler {
+  #   fn pub mut handle(request: mut Request) -> Response {
+  #     let body = ByteArray.new
+  #     let _ = request.body.read_all(body).or_panic
+  #
+  #     Response.new.bytes(body)
+  #   }
+  # }
+  #
+  # type async Main {
+  #   fn async main {
+  #     let tests = Tests.new
+  #
+  #     tests.test('Example test', fn (t) {
+  #       let handler = Handler()
+  #       let resp = RequestBuilder
+  #         .post('/')
+  #         .bytes('foo'.to_byte_array)
+  #         .send(handler)
+  #       let body = ByteArray.new
+  #
+  #       t.equal(resp.status, Status.ok)
+  #       t.true(resp.body.reader.read_all(body).ok?)
+  #       t.equal(body.to_string, 'foo')
+  #     })
+  #
+  #     tests.run
+  #   }
+  # }
+  # ```
+  fn pub move bytes(body: ByteArray) -> Self {
+    @body = Body.Bytes(body)
+    self
+  }
+
+  # Turns `self` into a URL encoded form request.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Status)
+  # import std.net.http.server (Handle, Request, Response)
+  # import std.net.http.test (RequestBuilder)
+  # import std.test (Tests)
+  #
+  # type Handler {}
+  #
+  # impl Handle for Handler {
+  #   fn pub mut handle(request: mut Request) -> Response {
+  #     let body = ByteArray.new
+  #     let _ = request.body.read_all(body).or_panic
+  #
+  #     Response.new.bytes(body)
+  #   }
+  # }
+  #
+  # type async Main {
+  #   fn async main {
+  #     let tests = Tests.new
+  #
+  #     tests.test('Example test', fn (t) {
+  #       let handler = Handler()
+  #       let resp = RequestBuilder
+  #         .post('/')
+  #         .url_encoded_form(fn (f) {
+  #           f.add('name', 'Alice')
+  #           f.add('age', '42')
+  #         })
+  #         .send(handler)
+  #       let body = ByteArray.new
+  #
+  #       t.equal(resp.status, Status.ok)
+  #       t.true(resp.body.reader.read_all(body).ok?)
+  #       t.equal(body.to_string, 'name=Alice&age=42')
+  #     })
+  #
+  #     tests.run
+  #   }
+  # }
+  # ```
+  fn pub move url_encoded_form(body: fn (mut Values)) -> Self {
+    header(Header.content_type, URL_FORM).string(url_encoded_form_data(body))
+  }
+
+  # Turns `self` into a multipart form request.
+  #
+  # Examples
+  #
+  # ```inko
+  # import std.net.http (Status)
+  # import std.net.http.server (Handle, Request, Response)
+  # import std.net.http.test (RequestBuilder)
+  # import std.test (Tests)
+  #
+  # type Handler {}
+  #
+  # impl Handle for Handler {
+  #   fn pub mut handle(request: mut Request) -> Response {
+  #     let pairs = []
+  #     let buf = ByteArray.new
+  #
+  #     for res in request.multipart_form.or_panic {
+  #       let Ok(res) = res else next
+  #       let _ = res.read_all(buf).or_panic
+  #
+  #       pairs.push('${res.name}=${buf}')
+  #       buf.clear
+  #     }
+  #
+  #     Response.new.string(String.join(pairs.into_iter, '&'))
+  #   }
+  # }
+  #
+  # type async Main {
+  #   fn async main {
+  #     let tests = Tests.new
+  #
+  #     tests.test('Example test', fn (t) {
+  #       let handler = Handler()
+  #       let resp = RequestBuilder
+  #         .post('/')
+  #         .multipart_form(fn (f) {
+  #           let _ = f.field('name').text('Alice')
+  #           let _ = f.field('age').text('42')
+  #         })
+  #         .send(handler)
+  #       let body = ByteArray.new
+  #
+  #       t.equal(resp.status, Status.ok)
+  #       t.true(resp.body.reader.read_all(body).ok?)
+  #       t.equal(body.to_string, 'name=Alice&age=42')
+  #     })
+  #
+  #     tests.run
+  #   }
+  # }
+  # ```
+  fn pub move multipart_form(
+    body: fn (mut multipart.Form[mut ByteArray, IoError]),
+  ) -> Self {
+    let (header, buf) = multipart_form_data(body)
+
+    header(Header.content_type, header).bytes(buf)
+  }
+
+  # Converts `self` into a request and sends it to the given request handler.
+  #
+  # The return value is the `Response` returned by the handler.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Status)
+  # import std.net.http.server (Handle, Request, Response)
+  # import std.net.http.test (RequestBuilder)
+  # import std.test (Tests)
+  #
+  # type Handler {}
+  #
+  # impl Handle for Handler {
+  #   fn pub mut handle(request: mut Request) -> Response {
+  #     Response.new
+  #   }
+  # }
+  #
+  # type async Main {
+  #   fn async main {
+  #     let tests = Tests.new
+  #
+  #     tests.test('Example test', fn (t) {
+  #       let handler = Handler()
+  #       let resp = RequestBuilder.get('/').send(handler)
+  #
+  #       t.equal(resp.status, Status.ok)
+  #     })
+  #
+  #     tests.run
+  #   }
+  # }
+  # ```
+  fn pub move send[H: mut + Handle](handler: mut H) -> Response {
+    @uri.query = @query.to_query
+
+    let addr = Address.Ip(
+      SocketAddress(ip: IpAddress.v4(192, 0, 2, 0), port: 80),
+    )
+    let body = match @body {
+      case None -> {
+        RawBody.bounded(
+          BufferedReader.new(HttpReader.new(Buffer.new(''))),
+          size: 0,
+          limit: 0,
+        )
+      }
+      case String(v) -> {
+        RawBody.bounded(
+          BufferedReader.new(HttpReader.new(Buffer.new(v))),
+          size: v.size,
+          limit: v.size,
+        )
+      }
+      case Bytes(v) -> {
+        let len = v.size
+
+        RawBody.bounded(
+          BufferedReader.new(HttpReader.new(Buffer.new(v))),
+          size: len,
+          limit: len,
+        )
+      }
+    }
+
+    let req = Request.new(
+      addr,
+      RawRequest(
+        method: @method,
+        uri: @uri,
+        version: Version(1, 1),
+        headers: @headers,
+        body: body,
+      ),
+      Limits.new,
+    )
+
+    handler.handle(req)
+  }
+}

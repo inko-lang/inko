@@ -19,9 +19,9 @@ import std.net.http.client (Client)
 import std.net.http.server (
   Address, CacheControl, ConnectionId, Delete, Directory, FileRanges, FormError,
   Get, Handle, Head, LogWriter, Logger, Notifier, Path as RequestPath, Post,
-  Put, RangeRequest, Request, Response, Server, Shutdown, SignalHandler, Socket,
-  SocketServer, State, conditional_request, copy_file_range, head_request,
-  parse_accept_range, parse_accept_ranges, quality_value,
+  Put, RangeRequest, Request, Response, Server, Shutdown, Socket, SocketServer,
+  State, conditional_request, copy_file_range, head_request, parse_accept_range,
+  parse_accept_ranges, quality_value,
 )
 import std.net.ip (IpAddress)
 import std.net.socket (
@@ -168,16 +168,6 @@ impl Handle for Hello {
   }
 }
 
-type ManualShutdown {
-  let mut @promise: Option[Promise[Notifier[Hello]]]
-}
-
-impl SignalHandler[Hello] for ManualShutdown {
-  fn mut start(notifier: Notifier[Hello]) {
-    (@promise := Option.None).get.set(notifier)
-  }
-}
-
 impl LogWriter {
   fn async wait(promise: uni Promise[Nil]) {
     promise.set(nil)
@@ -195,11 +185,16 @@ type async AsyncServer {
       limits.headers = 8
       limits.header_size = 128
       srv.limits = limits
+      srv.handle_signals = false
 
-      # This fake signal handler is used so the test can get access to the
-      # Notifier type and use it to shut down the server.
-      srv.signal_handler = ManualShutdown(Option.Some(not_prom))
-        as SignalHandler[Hello]
+      let mut not_prom = Option.Some(not_prom)
+
+      srv.before_start(fn move (addr, notifier) {
+        match not_prom := Option.None {
+          case Some(v) -> v.set(notifier)
+          case _ -> {}
+        }
+      })
 
       # We don't want to wait for connections during the tests so we don't delay
       # them.
@@ -1226,12 +1221,22 @@ fn pub tests(t: mut Tests) {
     t.equal(buf.drain_to_string, 'hello\n')
   })
 
+  t.test('Address.host', fn (t) {
+    let a1 = Address.Ip(SocketAddress(ip: IpAddress.v4(1, 2, 3, 4), port: 1234))
+    let a2 = Address.Unix(UnixAddress('foo'))
+    let a3 = Address.Unix(UnixAddress('\0abstract'))
+
+    t.equal(a1.host, '1.2.3.4')
+    t.equal(a2.host, 'foo')
+    t.equal(a3.host, '@abstract')
+  })
+
   t.test('Address.to_string', fn (t) {
     let a1 = Address.Ip(SocketAddress(ip: IpAddress.v4(1, 2, 3, 4), port: 1234))
     let a2 = Address.Unix(UnixAddress('foo'))
     let a3 = Address.Unix(UnixAddress('\0abstract'))
 
-    t.equal(a1.to_string, '1.2.3.4')
+    t.equal(a1.to_string, '1.2.3.4:1234')
     t.equal(a2.to_string, 'foo')
     t.equal(a3.to_string, '@abstract')
   })
@@ -1252,7 +1257,7 @@ fn pub tests(t: mut Tests) {
     let client = try TcpClient.new([addr.ip], addr.port)
     let sock_addr = try Socket.Plain(client).address
 
-    t.equal(sock_addr.to_string, '127.0.0.1')
+    t.equal(sock_addr.host, '127.0.0.1')
 
     Result.Ok(nil)
   })
@@ -1264,7 +1269,7 @@ fn pub tests(t: mut Tests) {
     let client = try TcpClient.new([addr.ip], addr.port)
     let sock_addr = try Socket.Secure(tls.Server.new(client, conf)).address
 
-    t.equal(sock_addr.to_string, '127.0.0.1')
+    t.equal(sock_addr.host, '127.0.0.1')
 
     Result.Ok(nil)
   })
@@ -2010,6 +2015,13 @@ fn pub tests(t: mut Tests) {
 
     srv.before_shutdown(fn {})
     t.true(srv.before_shutdown.some?)
+  })
+
+  t.test('Server.before_start', fn (t) {
+    let srv = Server.new(fn { recover Hello() })
+
+    srv.before_start(fn (_addr, _notifier) {})
+    t.true(srv.before_start.some?)
   })
 
   t.fork(

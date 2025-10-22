@@ -1266,10 +1266,8 @@ type pub inline enum Address {
 
   # The address of a Unix domain socket.
   case Unix(UnixAddress)
-}
 
-impl ToString for Address {
-  # Returns the address as a `String`.
+  # Returns the host name as a `String`.
   #
   # For IP sockets the return value is the IP address _without_ the port number.
   # For Unix address it's a human-readable version of the address.
@@ -1283,11 +1281,36 @@ impl ToString for Address {
   #
   # Address
   #   .Ip(SocketAddress(ip: IpAddress.v4(127, 0, 0, 1), port: 1234))
-  #   .to_string # => '127.0.0.1'
+  #   .host # => '127.0.0.1'
+  # ```
+  fn pub host -> String {
+    match self {
+      case Ip(v) -> v.ip.to_string
+      case Unix(v) -> v.to_readable_string
+    }
+  }
+}
+
+impl ToString for Address {
+  # Returns the address as a `String`.
+  #
+  # For IP sockets the return value includes both the IP address and port
+  # number. For Unix address it's a human-readable version of the address.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.server (Address)
+  # import std.net.ip (IpAddress)
+  # import std.net.socket (SocketAddress)
+  #
+  # Address
+  #   .Ip(SocketAddress(ip: IpAddress.v4(127, 0, 0, 1), port: 1234))
+  #   .to_string # => '127.0.0.1:1234'
   # ```
   fn pub to_string -> String {
     match self {
-      case Ip(v) -> v.ip.to_string
+      case Ip(v) -> v.to_string
       case Unix(v) -> v.to_readable_string
     }
   }
@@ -1608,7 +1631,7 @@ type async Connection[H: mut + Handle] {
 
         # Per RFC 9112 section 3.2, the "Host" header must be specified exactly
         # once.
-        match req.headers.get_value(Header.host) {
+        match req.headers.value(Header.host) {
           case Ok(Single(v)) if v.size > 0 -> ParseResult.Ok(req, keep)
           case _ -> ParseResult.Error(Response.bad_request)
         }
@@ -2139,7 +2162,7 @@ type Shutdown {
 }
 
 # A type for notifying a `Server` that it should shut down.
-type async Notifier[H: mut + Handle] {
+type pub async Notifier[H: mut + Handle] {
   let @pool: Pool[H]
   let @address: Address
   let mut @shutdown: Option[Promise[Nil]]
@@ -2159,7 +2182,7 @@ type async Notifier[H: mut + Handle] {
   #
   # The `wait` argument specifies if the server should shut down gracefully
   # (`true`) or immediately (`false`).
-  fn async mut notify(wait: Bool) {
+  fn pub async mut notify(wait: Bool) {
     match @shutdown := Option.None {
       case Some(p) -> {
         # The Promise must be resolved _before_ the connection is made as to
@@ -2185,29 +2208,6 @@ type async Notifier[H: mut + Handle] {
     }
 
     @pool.shutdown(wait)
-  }
-}
-
-# A type for handling signals that should result in the server shutting down.
-trait SignalHandler[H: mut + Handle] {
-  # Starts the signal handler.
-  #
-  # The supplied `Notifier` should be used to notify the server that it should
-  # shut down.
-  #
-  # This method shouldn't wait for any signals itself as this blocks the server
-  # from performing any work.
-  fn mut start(notifier: Notifier[H])
-}
-
-# The default signal handler.
-type DefaultSignals[H: mut + Handle] {}
-
-impl SignalHandler[H] for DefaultSignals {
-  fn mut start(notifier: Notifier[H]) {
-    SignalWaiter.new(notifier, Signal.Quit).immediate_shutdown
-    SignalWaiter.new(notifier, Signal.Interrupt).graceful_shutdown
-    SignalWaiter.new(notifier, Signal.Terminate).graceful_shutdown
   }
 }
 
@@ -2287,14 +2287,19 @@ type pub Server[H: mut + Handle] {
   # this value _is_ present, the protocol is automatically turned into HTTPS.
   let pub mut @tls: Option[tls.ServerConfig]
 
+  # If the server should shut down in response to certain Unix signals.
+  let pub mut @handle_signals: Bool
+
+  # A closure to call before starting the server.
+  #
+  # The `Address` argument is the local address of the server.
+  let mut @before_start: Option[fn (uni Address, Notifier[H])]
+
   # A closure to call when the server is about to shut down.
   #
   # This closure is called _before_ waiting for all connections to finish,
   # unless an error is produced in the server's `accept()` loop.
   let mut @before_shutdown: Option[fn]
-
-  # The type to use for handling signals.
-  let mut @signal_handler: SignalHandler[H]
 
   # Returns a new `Server` that serves requests using the provided handler.
   #
@@ -2316,8 +2321,9 @@ type pub Server[H: mut + Handle] {
       write_timeout: Duration.from_secs(5),
       close_timeout: Duration.from_secs(5),
       shutdown_wait_time: Duration.from_secs(10),
+      handle_signals: true,
       before_shutdown: Option.None,
-      signal_handler: DefaultSignals() as SignalHandler[H],
+      before_start: Option.None,
     )
   }
 
@@ -2362,6 +2368,11 @@ type pub Server[H: mut + Handle] {
     @before_shutdown = Option.Some(function)
   }
 
+  # Stores the given closure to be called before the server starts.
+  fn pub mut before_start(function: fn (uni Address, Notifier[H])) {
+    @before_start = Option.Some(function)
+  }
+
   # Binds the server to IP address `0.0.0.0` (i.e. any IPv4 address) and the
   # given port, then starts it.
   #
@@ -2399,9 +2410,19 @@ type pub Server[H: mut + Handle] {
   }
 
   fn move run(socket: SocketServer) -> Result[Nil, IoError] {
-    let (notifier, shutdown) = Notifier.new(@pool, recover try socket.address)
+    let addr = recover try socket.address
+    let (notifier, shutdown) = Notifier.new(@pool, recover addr.clone)
 
-    @signal_handler.start(notifier)
+    if @handle_signals {
+      SignalWaiter.new(notifier, Signal.Quit).immediate_shutdown
+      SignalWaiter.new(notifier, Signal.Interrupt).graceful_shutdown
+      SignalWaiter.new(notifier, Signal.Terminate).graceful_shutdown
+    }
+
+    match @before_start.as_mut {
+      case Some(f) -> f.call(addr, notifier)
+      case _ -> {}
+    }
 
     let start = Instant.new
     let mut counter = 0
@@ -2523,7 +2544,7 @@ type pub Logger {
     }
 
     @writer.write(
-      '${time}${addr} ${meth} ${path} HTTP/${ver} ${status} "${prev}" "${agent}"',
+      '${time}${addr.host} ${meth} ${path} HTTP/${ver} ${status} "${prev}" "${agent}"',
     )
   }
 }

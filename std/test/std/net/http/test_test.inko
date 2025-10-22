@@ -1,0 +1,507 @@
+import std.drop (drop)
+import std.net.http (Header, HeaderMap, HeaderValue, Method, Status)
+import std.net.http.client (Client)
+import std.net.http.server (Handle, Request, Response)
+import std.net.http.test (
+  Body, Matchers, Mock, RequestBuilder, Server, format_body, format_headers,
+)
+import std.test (Test, Tests)
+import std.uri (QueryValue, Uri)
+
+fn new_test -> Test {
+  Test.new(
+    id: 42,
+    name: 'example',
+    path: 'example.inko'.to_path,
+    line: 1,
+    code: fn (t) {},
+  )
+}
+
+fn new_server -> Server {
+  Server(
+    id: 0,
+    matchers: recover Matchers.new,
+    responses: recover Map.new,
+    locations: [],
+  )
+}
+
+type Echo {}
+
+impl Handle for Echo {
+  fn pub mut handle(request: mut Request) -> Response {
+    let body = ByteArray.new
+    let _ = request.body.read_all(body).or_panic
+
+    Response.new.string(
+      '${request.data.uri} ${request.headers.get(Header.accept).or('missing header')} ${body}',
+    )
+  }
+}
+
+fn pub tests(t: mut Tests) {
+  t.test('format_headers', fn (t) {
+    let buf = ByteArray.new
+    let map = HeaderMap.new
+
+    format_headers(buf, map)
+    t.true(buf.empty?)
+
+    map.add(Header.host, 'foo')
+    map.add(Header.accept, 'bar')
+
+    format_headers(buf, map)
+    t.equal(buf.to_string, '\nhost: foo\naccept: bar')
+  })
+
+  t.test('formart_body', fn (t) {
+    let buf = ByteArray.new
+
+    format_body(buf, Body.String(''))
+    t.true(buf.empty?)
+
+    format_body(buf, Body.String('foo'))
+    t.equal(buf.to_string, '\n\nfoo')
+  })
+
+  t.test('A Server without any mocks and requests', fn (t) {
+    let test = new_test
+
+    drop(Server.new(test, fn (s) {}))
+    t.true(test.failures.empty?)
+  })
+
+  t.test('A Server with a mock without any matching requests', fn (t) {
+    let test = new_test
+    let server = Server.new(test, fn (s) {
+      s.get('/').then(fn { Response.new.string('foo') })
+    })
+
+    drop(server)
+    t.equal(test.failures.size, 1)
+  })
+
+  t.ok('A Server with an unmatched request', fn (t) {
+    let test = new_test
+    let server = Server.new(test, fn (s) {})
+    let client = Client.new
+
+    client.base_uri = Option.Some(server.uri)
+
+    let resp = try client.get(Uri.parse('/').or_panic).send
+    let body = ByteArray.new
+
+    t.true(resp.body.read_all(body).ok?)
+    t.equal(resp.status, Status.not_found)
+    t.equal(body.to_string, 'No mock is defined for this request')
+
+    drop(server)
+    t.equal(test.failures.size, 1)
+
+    Result.Ok(nil)
+  })
+
+  t.ok('A Server with a mock and a matching request', fn (t) {
+    let test = new_test
+    let server = Server.new(test, fn (s) {
+      s.get('/').then(fn { Response.new.string('foo') })
+    })
+
+    let client = Client.new
+
+    client.base_uri = Option.Some(server.uri)
+
+    let resp = try client.get(Uri.parse('/').or_panic).send
+    let body = ByteArray.new
+
+    t.true(resp.body.read_all(body).ok?)
+    t.equal(resp.status, Status.ok)
+    t.equal(body.to_string, 'foo')
+
+    drop(server)
+    t.equal(test.failures.size, 0)
+
+    Result.Ok(nil)
+  })
+
+  t.ok(
+    'A Server with a mock with a minimum request count and a matching request',
+    fn (t) {
+      let test = new_test
+      let server = Server.new(test, fn (s) {
+        s.get('/').at_least(1).then(fn { Response.new.string('foo') })
+      })
+
+      let client = Client.new
+
+      client.base_uri = Option.Some(server.uri)
+
+      let resp = try client.get(Uri.parse('/').or_panic).send
+      let body = ByteArray.new
+
+      t.true(resp.body.read_all(body).ok?)
+      t.equal(resp.status, Status.ok)
+      t.equal(body.to_string, 'foo')
+
+      drop(server)
+      t.equal(test.failures.size, 0)
+
+      Result.Ok(nil)
+    },
+  )
+
+  t.ok(
+    'A Server with a mock with a minimum request count and not enough requests',
+    fn (t) {
+      let test = new_test
+      let server = Server.new(test, fn (s) {
+        s.get('/').at_least(2).then(fn { Response.new.string('foo') })
+      })
+
+      let client = Client.new
+
+      client.base_uri = Option.Some(server.uri)
+
+      let resp = try client.get(Uri.parse('/').or_panic).send
+      let body = ByteArray.new
+
+      t.true(resp.body.read_all(body).ok?)
+      t.equal(resp.status, Status.ok)
+      t.equal(body.to_string, 'foo')
+
+      drop(server)
+      t.equal(test.failures.size, 1)
+
+      Result.Ok(nil)
+    },
+  )
+
+  t.ok(
+    'A Server with a mock with a maximum request count and a matching request',
+    fn (t) {
+      let test = new_test
+      let server = Server.new(test, fn (s) {
+        s.get('/').at_most(2).then(fn { Response.new.string('foo') })
+      })
+
+      let client = Client.new
+
+      client.base_uri = Option.Some(server.uri)
+
+      let resp = try client.get(Uri.parse('/').or_panic).send
+      let body = ByteArray.new
+
+      t.true(resp.body.read_all(body).ok?)
+      t.equal(resp.status, Status.ok)
+      t.equal(body.to_string, 'foo')
+
+      drop(server)
+      t.equal(test.failures.size, 0)
+
+      Result.Ok(nil)
+    },
+  )
+
+  t.ok(
+    'A Server with a mock with a maximum request count and too many requests',
+    fn (t) {
+      let test = new_test
+      let server = Server.new(test, fn (s) {
+        s.get('/').at_most(1).then(fn { Response.new.string('foo') })
+      })
+
+      let client = Client.new
+
+      client.base_uri = Option.Some(server.uri)
+
+      let resp = try client.get(Uri.parse('/').or_panic).send
+      let body = ByteArray.new
+
+      t.true(resp.body.read_all(body).ok?)
+      t.equal(resp.status, Status.ok)
+      t.equal(body.to_string, 'foo')
+
+      let resp = try client.get(Uri.parse('/').or_panic).send
+      let body = ByteArray.new
+
+      t.true(resp.body.read_all(body).ok?)
+      t.equal(resp.status, Status.not_found)
+
+      drop(server)
+      t.equal(test.failures.size, 1)
+
+      Result.Ok(nil)
+    },
+  )
+
+  t.ok('A Server with a mock with too many requests', fn (t) {
+    let test = new_test
+    let server = Server.new(test, fn (s) {
+      s.get('/').then(fn { Response.new.string('foo') })
+    })
+
+    let client = Client.new
+
+    client.base_uri = Option.Some(server.uri)
+
+    let resp = try client.get(Uri.parse('/').or_panic).send
+    let body = ByteArray.new
+
+    t.true(resp.body.read_all(body).ok?)
+    t.equal(resp.status, Status.ok)
+    t.equal(body.to_string, 'foo')
+
+    let resp = try client.get(Uri.parse('/').or_panic).send
+    let body = ByteArray.new
+
+    t.true(resp.body.read_all(body).ok?)
+    t.equal(resp.status, Status.not_found)
+
+    drop(server)
+    t.equal(test.failures.size, 1)
+
+    Result.Ok(nil)
+  })
+
+  t.ok('A Server with a mock and an unmatched request', fn (t) {
+    let test = new_test
+    let server = Server.new(test, fn (s) {
+      s.get('/').query('key', 'value').then(fn { Response.new.string('foo') })
+    })
+
+    let client = Client.new
+
+    client.base_uri = Option.Some(server.uri)
+
+    let resp = try client.get(Uri.parse('/').or_panic).send
+
+    t.equal(resp.status, Status.not_found)
+
+    drop(server)
+    t.equal(test.failures.size, 2)
+
+    Result.Ok(nil)
+  })
+
+  t.test('Mock.query', fn (t) {
+    let srv = new_server
+    let { @query = val } = Mock.new(srv, Method.Get, '/').query('key', 'value')
+
+    t.equal((recover val).string('key'), Result.Ok('value'))
+  })
+
+  t.test('Mock.header', fn (t) {
+    let srv = new_server
+    let { @headers = val } = Mock.new(srv, Method.Get, '/').header(
+      Header.accept,
+      'foo',
+    )
+
+    t.equal((recover val).get(Header.accept), Result.Ok('foo'))
+  })
+
+  t.test('Mock.bytes', fn (t) {
+    let srv = new_server
+    let { @body = val } = Mock.new(srv, Method.Get, '/').bytes(
+      'foo'.to_byte_array,
+    )
+
+    t.true(
+      match recover val {
+        case Bytes(v) -> v.equals?('foo')
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('Mock.string', fn (t) {
+    let srv = new_server
+    let { @body = val } = Mock.new(srv, Method.Get, '/').string('foo')
+
+    t.true(
+      match recover val {
+        case String('foo') -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('Mock.url_encoded_form', fn (t) {
+    let srv = new_server
+    let { @headers = headers, @body = body } = Mock
+      .new(srv, Method.Get, '/')
+      .url_encoded_form(fn (f) { f.add('name', 'Alice') })
+
+    t.equal(
+      (recover headers).get(Header.content_type),
+      Result.Ok('application/x-www-form-urlencoded'),
+    )
+    t.true(
+      match recover body {
+        case String('name=Alice') -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('Mock.multipart_form', fn (t) {
+    let srv = new_server
+    let { @headers = headers, @body = body } = Mock
+      .new(srv, Method.Get, '/')
+      .multipart_form(fn (f) { f.field('name').text('Alice') })
+
+    t.equal(
+      (recover headers).get(Header.content_type),
+      Result.Ok(
+        'multipart/form-data; boundary=InkoFormBoundaryP5IJ_NfBpOMfWWvNc5rJmvGT362zYue-9XUi-1Oic4U',
+      ),
+    )
+
+    t.true(
+      match recover body {
+        case Bytes(v) -> {
+          v.equals?(
+            '--InkoFormBoundaryP5IJ_NfBpOMfWWvNc5rJmvGT362zYue-9XUi-1Oic4U\r\n'
+              + 'Content-Disposition: form-data; name="name"\r\n'
+              + '\r\nAlice\r\n'
+              + '--InkoFormBoundaryP5IJ_NfBpOMfWWvNc5rJmvGT362zYue-9XUi-1Oic4U--',
+          )
+        }
+        case _ -> false
+      },
+    )
+  })
+
+  t.panic('RequestBuilder.new with an invalid path', fn {
+    RequestBuilder.new(Method.Get, 'foo bar')
+  })
+
+  t.test('RequestBuilder.new', fn (t) {
+    let b = RequestBuilder.new(Method.Get, '/')
+
+    t.equal(b.headers.get(Header.host), Result.Ok('localhost'))
+    t.equal(b.headers.get(Header.user_agent), Result.Ok('test'))
+    t.equal(b.headers.get(Header.connection), Result.Ok('close'))
+    t.equal(b.uri.to_string, '/')
+  })
+
+  t.test('RequestBuilder.get', fn (t) {
+    t.equal(RequestBuilder.get('/').method, Method.Get)
+  })
+
+  t.test('RequestBuilder.post', fn (t) {
+    t.equal(RequestBuilder.post('/').method, Method.Post)
+  })
+
+  t.test('RequestBuilder.put', fn (t) {
+    t.equal(RequestBuilder.put('/').method, Method.Put)
+  })
+
+  t.test('RequestBuilder.delete', fn (t) {
+    t.equal(RequestBuilder.delete('/').method, Method.Delete)
+  })
+
+  t.test('RequestBuilder.head', fn (t) {
+    t.equal(RequestBuilder.head('/').method, Method.Head)
+  })
+
+  t.test('RequestBuilder.query', fn (t) {
+    let r = RequestBuilder.get('/').query('name', 'Alice').query('name', 'Bob')
+
+    t.equal(
+      r.query.value('name'),
+      Result.Ok(
+        ref QueryValue.Multiple(['Alice'.to_byte_array, 'Bob'.to_byte_array]),
+      ),
+    )
+  })
+
+  t.test('RequestBuilder.header', fn (t) {
+    let r = RequestBuilder.get('/').header(Header.accept, 'foo').header(
+      Header.accept,
+      'bar',
+    )
+
+    t.equal(
+      r.headers.value(Header.accept),
+      Result.Ok(ref HeaderValue.Multiple(['foo', 'bar'])),
+    )
+  })
+
+  t.test('RequestBuilder.string', fn (t) {
+    t.true(
+      match RequestBuilder.get('/').string('foo').body {
+        case String('foo') -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('RequestBuilder.bytes', fn (t) {
+    t.true(
+      match RequestBuilder.get('/').bytes('foo'.to_byte_array).body {
+        case Bytes(v) -> v.equals?('foo')
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('RequestBuilder.url_encoded_form', fn (t) {
+    let req = RequestBuilder.get('/').url_encoded_form(fn (f) {
+      f.add('name', 'Alice')
+    })
+
+    t.equal(
+      req.headers.get(Header.content_type),
+      Result.Ok('application/x-www-form-urlencoded'),
+    )
+    t.true(
+      match req.body {
+        case String('name=Alice') -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('RequestBuilder.multipart_form', fn (t) {
+    let req = RequestBuilder.get('/').multipart_form(fn (f) {
+      let _ = f.field('name').text('Alice')
+    })
+
+    t.equal(
+      req.headers.get(Header.content_type),
+      Result.Ok(
+        'multipart/form-data; boundary=InkoFormBoundaryP5IJ_NfBpOMfWWvNc5rJmvGT362zYue-9XUi-1Oic4U',
+      ),
+    )
+    t.true(
+      match req.body {
+        case Bytes(v) -> {
+          v.equals?(
+            '--InkoFormBoundaryP5IJ_NfBpOMfWWvNc5rJmvGT362zYue-9XUi-1Oic4U\r\n'
+              + 'Content-Disposition: form-data; name="name"\r\n'
+              + '\r\nAlice\r\n'
+              + '--InkoFormBoundaryP5IJ_NfBpOMfWWvNc5rJmvGT362zYue-9XUi-1Oic4U--',
+          )
+        }
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('RequestBuilder.send', fn (t) {
+    let handler = Echo()
+    let resp = RequestBuilder
+      .post('/')
+      .header(Header.accept, 'text/plain')
+      .query('key', 'value')
+      .string('foo')
+      .send(handler)
+    let body = ByteArray.new
+
+    t.equal(resp.status, Status.ok)
+    t.true(resp.body.reader.read_all(body).ok?)
+    t.equal(body.to_string, '/?key=value text/plain foo')
+  })
+}

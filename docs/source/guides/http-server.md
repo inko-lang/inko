@@ -956,6 +956,46 @@ If the referrer or user agent isn't specified, the value is `-`:
 2025-10-10T23:00:00.63Z: 127.0.0.1 GET /static/README.md HTTP/1.1 404 "-" "-"
 ```
 
+## Testing
+
+Testing an HTTP server is done using the
+[](std.net.http.test.RequestBuilder) type. This type is used for building a
+[](std.net.http.server.Request) and sending it to a type that implements
+[](std.net.http.server.Handle):
+
+```inko
+import std.net.http (Status)
+import std.net.http.server (Handle, Request, Response)
+import std.net.http.test (RequestBuilder)
+import std.test (Tests)
+
+type Handler {}
+
+impl Handle for Handler {
+  fn pub mut handle(request: mut Request) -> Response {
+    Response.new.string('hello')
+  }
+}
+
+type async Main {
+  fn async main {
+    let tests = Tests.new
+
+    tests.test('Example test', fn (t) {
+      let handler = Handler()
+      let resp = RequestBuilder.get('/').send(handler)
+      let body = ByteArray.new
+
+      t.equal(resp.status, Status.ok)
+      t.true(resp.body.reader.read_all(body).ok?)
+      t.equal(body.to_string, 'hello')
+    })
+
+    tests.run
+  }
+}
+```
+
 ## More information
 
 For more information, refer to the documentation of the following:

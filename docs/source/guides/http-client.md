@@ -403,6 +403,155 @@ Support for client cookie jars is not yet provided. Refer to [this
 issue](https://github.com/inko-lang/inko/issues/877) for more details.
 :::
 
+## Testing
+
+Testing an HTTP client is done using the [](std.net.http.test.Server) type. This
+type is an HTTP server that responds to requests using pre-defined mock
+responses:
+
+```inko
+import std.net.http (Status)
+import std.net.http.client (Client)
+import std.net.http.server (Response)
+import std.net.http.test (Server)
+import std.test (Tests)
+import std.uri (Uri)
+
+type async Main {
+  fn async main {
+    let tests = Tests.new
+
+    tests.test('Example test', fn (t) {
+      let server = Server.new(t, fn (srv) {
+        srv.get('/').then(fn { Response.new.string('hello') })
+      })
+
+      let client = Client.new
+
+      server.prepare_client(client)
+
+      let uri = Uri.parse('http://example.com').or_panic
+      let resp = client.get(uri).send.or_panic
+      let body = ByteArray.new
+      let _ = resp.body.read_all(body).or_panic
+
+      t.equal(resp.status, Status.ok)
+      t.equal(body.to_string, 'hello')
+    })
+
+    tests.run
+  }
+}
+```
+
+If a mock's criteria aren't met, the test fails:
+
+```inko
+import std.net.http.server (Response)
+import std.net.http.test (Server)
+import std.test (Tests)
+
+type async Main {
+  fn async main {
+    let tests = Tests.new
+
+    tests.test('Example test', fn (t) {
+      let _server = Server.new(t, fn (srv) {
+        srv.get('/').then(fn { Response.new.string('hello') })
+      })
+    })
+
+    tests.run
+  }
+}
+```
+
+Running this test produces the following:
+
+```
+F
+
+Failures:
+
+1. Test: Example test
+   Line: test_http.inko:11
+
+     expected: this request to be received exactly once:
+
+               GET /
+
+          got: 0 requests
+
+Finished running 1 tests in 0 milliseconds, 1 failures, seed: -4558206327035014586
+```
+
+Similarly, requests for which no mocks exist also result in test failures:
+
+```inko
+import std.net.http (Status)
+import std.net.http.client (Client)
+import std.net.http.test (Server)
+import std.test (Tests)
+import std.uri (Uri)
+
+type async Main {
+  fn async main {
+    let tests = Tests.new
+
+    tests.test('Example test', fn (t) {
+      let server = Server.new(t, fn (srv) {})
+
+      let client = Client.new
+
+      server.prepare_client(client)
+
+      let uri = Uri.parse('http://example.com').or_panic
+      let resp = client.get(uri).send.or_panic
+      let body = ByteArray.new
+      let _ = resp.body.read_all(body).or_panic
+
+      t.equal(resp.status, Status.ok)
+      t.equal(body.to_string, 'hello')
+    })
+
+    tests.run
+  }
+}
+```
+
+This test produces the following output:
+
+```
+F
+
+Failures:
+
+1. Test: Example test
+   Line: test_http.inko:23
+
+     expected: 200
+          got: 404
+
+2. Test: Example test
+   Line: test_http.inko:24
+
+     expected: "hello"
+          got: "No mock is defined for this request"
+
+3. Test: Example test
+   Line: test_http.inko:11
+
+     expected: a mock matching this request
+          got: GET /
+               host: 0.0.0.0:34813
+               user-agent: inko/0.18.1 (https://inko-lang.org)
+
+Finished running 1 tests in 2 milliseconds, 3 failures, seed: 3246212169450956797
+```
+
+For more information on how to define mock expectations, refer to the
+documentation of the [](std.net.http.test.Mock) type and its various methods.
+
 ## More information
 
 For more information, refer to the documentation of the following:

@@ -1151,6 +1151,16 @@ fn pub tests(t: mut Tests) {
     )
   })
 
+  t.test('Request.header', fn (t) {
+    let client = Client.new
+    let req = client
+      .get(Uri.parse('/foo?name=Alice').or_panic)
+      .header(Header.accept, 'foo')
+      .header(Header.accept, 'bar')
+
+    t.equal(req.headers.get_all(Header.accept).to_array, ['foo', 'bar'])
+  })
+
   t.ok('Request.body', fn (t) {
     let client = client
 
@@ -1355,7 +1365,7 @@ fn pub tests(t: mut Tests) {
   t.ok('Request.multipart_form', fn (t) {
     let client = client
 
-    client.rng = Random.from_int(42)
+    client.random = Random.from_int(42)
 
     match try EchoServer.new {
       case (srv, uri) -> {
@@ -1389,7 +1399,7 @@ fn pub tests(t: mut Tests) {
   t.ok('Request.multipart_form with basic authentication', fn (t) {
     let client = client
 
-    client.rng = Random.from_int(42)
+    client.random = Random.from_int(42)
 
     match try EchoServer.new {
       case (srv, uri) -> {
@@ -1681,6 +1691,20 @@ fn pub tests(t: mut Tests) {
       t.equal(res, exp)
       t.equal(builder.uri.to_string, new_uri)
     }
+  })
+
+  t.test('Request.prepare', fn (t) {
+    let client = Client.new
+
+    client.base_uri = Uri.parse('http://foo:1234').ok
+
+    let req = client.get(Uri.parse('https://bar:80/path').get)
+
+    req.query.add('key', 'value')
+    req.prepare
+
+    t.equal(req.uri.to_string, 'http://foo:1234/path?key=value')
+    t.equal(req.headers.get(Header.host), Result.Ok('foo:1234'))
   })
 
   t.test('Request.apply_basic_authentication', fn (t) {

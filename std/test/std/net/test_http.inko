@@ -178,6 +178,23 @@ fn pub tests(t: mut Tests) {
     )
   })
 
+  t.test('HeaderMap.value', fn (t) {
+    let map = HeaderMap.new
+
+    map.add(Header.host, 'example.com')
+    map.add(Header.Other('bar'), 'foo')
+    map.add(Header.Other('bar'), 'bar')
+
+    t.equal(
+      map.value(Header.host),
+      Result.Ok(ref HeaderValue.Single('example.com')),
+    )
+    t.equal(
+      map.value(Header.Other('bar')),
+      Result.Ok(ref HeaderValue.Multiple(['foo', 'bar'])),
+    )
+  })
+
   t.test('HeaderMap.get_all', fn (t) {
     let map = HeaderMap.new
 
@@ -218,6 +235,22 @@ fn pub tests(t: mut Tests) {
     )
   })
 
+  t.test('HeaderMap.keys', fn (t) {
+    let map = HeaderMap.new
+
+    t.equal(map.keys.to_array, [])
+
+    map.add(Header.host, 'example.com')
+    map.add(Header.content_length, '10')
+    map.add(Header.content_length, '20')
+    map.add(Header.Other('foo'), '100')
+
+    t.equal(
+      map.keys.to_array,
+      [Header.host, Header.content_length, Header.Other('foo')],
+    )
+  })
+
   t.test('HeaderMap.size', fn (t) {
     let map = HeaderMap.new
 
@@ -255,6 +288,18 @@ fn pub tests(t: mut Tests) {
       fmt(map),
       '{host: "foo", connection: ["bar", "baz"], foo: "value1", bar: ["value2", "value3"]}',
     )
+  })
+
+  t.test('HeaderMap.clone', fn (t) {
+    let a = HeaderMap.new
+
+    a.add(Header.host, 'foo')
+    a.add(Header.connection, 'bar')
+    a.add(Header.connection, 'baz')
+
+    let b = a.clone
+
+    t.equal(a, b)
   })
 
   t.test('Method.parse', fn (t) {
