@@ -207,6 +207,21 @@ let pub SEC_FETCH_USER = 65
 # The ID of the `Sec-Fetch-Dest` header.
 let pub SEC_FETCH_DEST = 66
 
+# The ID of the `Sec-Websocket-Accept` header.
+let pub SEC_WEBSOCKET_ACCEPT = 67
+
+# The ID of the `Sec-Websocket-Extensions` header.
+let pub SEC_WEBSOCKET_EXTENSIONS = 68
+
+# The ID of the `Sec-Websocket-Key` header.
+let pub SEC_WEBSOCKET_KEY = 69
+
+# The ID of the `Sec-Websocket-Protocol` header.
+let pub SEC_WEBSOCKET_PROTOCOL = 70
+
+# The ID of the `Sec-Websocket-Version` header.
+let pub SEC_WEBSOCKET_VERSION = 71
+
 fn name(index: Int) -> String {
   phf.KEYS.get(index).or_panic
 }
@@ -1085,5 +1100,70 @@ impl Header {
   # ```
   fn pub inline static sec_fetch_dest -> Header {
     Header.Standard(SEC_FETCH_DEST)
+  }
+
+  # Returns the `Sec-Websocket-Accept` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.sec_websocket_accept # => Header.Standard(67)
+  # ```
+  fn pub inline static sec_websocket_accept -> Header {
+    Header.Standard(SEC_WEBSOCKET_ACCEPT)
+  }
+
+  # Returns the `Sec-Websocket-Extensions` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.sec_websocket_extensions # => Header.Standard(68)
+  # ```
+  fn pub inline static sec_websocket_extensions -> Header {
+    Header.Standard(SEC_WEBSOCKET_EXTENSIONS)
+  }
+
+  # Returns the `Sec-Websocket-Key` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.sec_websocket_key # => Header.Standard(69)
+  # ```
+  fn pub inline static sec_websocket_key -> Header {
+    Header.Standard(SEC_WEBSOCKET_KEY)
+  }
+
+  # Returns the `Sec-Websocket-Protocol` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.sec_websocket_protocol # => Header.Standard(70)
+  # ```
+  fn pub inline static sec_websocket_protocol -> Header {
+    Header.Standard(SEC_WEBSOCKET_PROTOCOL)
+  }
+
+  # Returns the `Sec-Websocket-Version` header.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http (Header)
+  #
+  # Header.sec_websocket_version # => Header.Standard(71)
+  # ```
+  fn pub inline static sec_websocket_version -> Header {
+    Header.Standard(SEC_WEBSOCKET_VERSION)
   }
 }

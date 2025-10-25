@@ -240,6 +240,26 @@ fn pub tests(t: mut Tests) {
     t.equal(Header.sec_fetch_dest, Header.Standard(66))
   })
 
+  t.test('Header.sec_websocket_accept', fn (t) {
+    t.equal(Header.sec_websocket_accept, Header.Standard(67))
+  })
+
+  t.test('Header.sec_websocket_extensions', fn (t) {
+    t.equal(Header.sec_websocket_extensions, Header.Standard(68))
+  })
+
+  t.test('Header.sec_websocket_key', fn (t) {
+    t.equal(Header.sec_websocket_key, Header.Standard(69))
+  })
+
+  t.test('Header.sec_websocket_protocol', fn (t) {
+    t.equal(Header.sec_websocket_protocol, Header.Standard(70))
+  })
+
+  t.test('Header.sec_websocket_version', fn (t) {
+    t.equal(Header.sec_websocket_version, Header.Standard(71))
+  })
+
   t.test('Header.new', fn (t) {
     t.equal(Header.new('accept'), Header.accept)
     t.equal(Header.new('accept-charset'), Header.accept_charset)
@@ -335,6 +355,14 @@ fn pub tests(t: mut Tests) {
     t.equal(Header.new('sec-fetch-mode'), Header.sec_fetch_mode)
     t.equal(Header.new('sec-fetch-user'), Header.sec_fetch_user)
     t.equal(Header.new('sec-fetch-dest'), Header.sec_fetch_dest)
+    t.equal(Header.new('sec-websocket-accept'), Header.sec_websocket_accept)
+    t.equal(
+      Header.new('sec-websocket-extensions'),
+      Header.sec_websocket_extensions,
+    )
+    t.equal(Header.new('sec-websocket-key'), Header.sec_websocket_key)
+    t.equal(Header.new('sec-websocket-protocol'), Header.sec_websocket_protocol)
+    t.equal(Header.new('sec-websocket-version'), Header.sec_websocket_version)
 
     t.equal(Header.new('example'), Header.Other('example'))
     t.not_equal(Header.new('example'), Header.Other('Example'))
@@ -441,6 +469,23 @@ fn pub tests(t: mut Tests) {
     t.equal(hash(Header.sec_fetch_mode), hash(Header.sec_fetch_mode))
     t.equal(hash(Header.sec_fetch_user), hash(Header.sec_fetch_user))
     t.equal(hash(Header.sec_fetch_dest), hash(Header.sec_fetch_dest))
+    t.equal(
+      hash(Header.sec_websocket_accept),
+      hash(Header.sec_websocket_accept),
+    )
+    t.equal(
+      hash(Header.sec_websocket_extensions),
+      hash(Header.sec_websocket_extensions),
+    )
+    t.equal(hash(Header.sec_websocket_key), hash(Header.sec_websocket_key))
+    t.equal(
+      hash(Header.sec_websocket_protocol),
+      hash(Header.sec_websocket_protocol),
+    )
+    t.equal(
+      hash(Header.sec_websocket_version),
+      hash(Header.sec_websocket_version),
+    )
 
     t.equal(hash(Header.Other('example')), hash(Header.Other('example')))
     t.not_equal(hash(Header.Other('foo')), hash(Header.Other('bar')))
@@ -541,6 +586,14 @@ fn pub tests(t: mut Tests) {
     t.equal(Header.sec_fetch_mode.clone, Header.sec_fetch_mode)
     t.equal(Header.sec_fetch_user.clone, Header.sec_fetch_user)
     t.equal(Header.sec_fetch_dest.clone, Header.sec_fetch_dest)
+    t.equal(Header.sec_websocket_accept.clone, Header.sec_websocket_accept)
+    t.equal(
+      Header.sec_websocket_extensions.clone,
+      Header.sec_websocket_extensions,
+    )
+    t.equal(Header.sec_websocket_key.clone, Header.sec_websocket_key)
+    t.equal(Header.sec_websocket_protocol.clone, Header.sec_websocket_protocol)
+    t.equal(Header.sec_websocket_version.clone, Header.sec_websocket_version)
 
     t.equal(Header.Other('example').clone, Header.Other('example'))
   })
@@ -613,6 +666,11 @@ fn pub tests(t: mut Tests) {
     t.equal(Header.sec_fetch_mode, Header.Standard(64))
     t.equal(Header.sec_fetch_user, Header.Standard(65))
     t.equal(Header.sec_fetch_dest, Header.Standard(66))
+    t.equal(Header.sec_websocket_accept, Header.Standard(67))
+    t.equal(Header.sec_websocket_extensions, Header.Standard(68))
+    t.equal(Header.sec_websocket_key, Header.Standard(69))
+    t.equal(Header.sec_websocket_protocol, Header.Standard(70))
+    t.equal(Header.sec_websocket_version, Header.Standard(71))
 
     t.equal(Header.Other('foo'), Header.Other('foo'))
     t.not_equal(Header.Other('foo'), Header.Other('bar'))
@@ -713,6 +771,14 @@ fn pub tests(t: mut Tests) {
     t.equal(Header.sec_fetch_mode.to_string, 'sec-fetch-mode')
     t.equal(Header.sec_fetch_user.to_string, 'sec-fetch-user')
     t.equal(Header.sec_fetch_dest.to_string, 'sec-fetch-dest')
+    t.equal(Header.sec_websocket_accept.to_string, 'sec-websocket-accept')
+    t.equal(
+      Header.sec_websocket_extensions.to_string,
+      'sec-websocket-extensions',
+    )
+    t.equal(Header.sec_websocket_key.to_string, 'sec-websocket-key')
+    t.equal(Header.sec_websocket_protocol.to_string, 'sec-websocket-protocol')
+    t.equal(Header.sec_websocket_version.to_string, 'sec-websocket-version')
 
     t.equal(Header.Other('foo').to_string, 'foo')
   })
@@ -806,6 +872,11 @@ fn pub tests(t: mut Tests) {
     t.equal(fmt(Header.sec_fetch_mode), 'sec-fetch-mode')
     t.equal(fmt(Header.sec_fetch_user), 'sec-fetch-user')
     t.equal(fmt(Header.sec_fetch_dest), 'sec-fetch-dest')
+    t.equal(fmt(Header.sec_websocket_accept), 'sec-websocket-accept')
+    t.equal(fmt(Header.sec_websocket_extensions), 'sec-websocket-extensions')
+    t.equal(fmt(Header.sec_websocket_key), 'sec-websocket-key')
+    t.equal(fmt(Header.sec_websocket_protocol), 'sec-websocket-protocol')
+    t.equal(fmt(Header.sec_websocket_version), 'sec-websocket-version')
 
     t.equal(fmt(Header.Other('example')), 'example')
   })

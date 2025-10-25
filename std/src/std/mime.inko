@@ -6,103 +6,10 @@ import std.iter (Stream)
 import std.map (MissingKey)
 import std.mime.data
 import std.mime.phf
+import std.net.http.header.values (
+  Items, Parameter, ParameterValue, Parameters, split_item,
+)
 import std.string (ToString)
-
-let SPACE = 32
-let DQUOTE = 34
-let SCOL = 59
-let EQ = 61
-
-fn split_item[B: Bytes](input: Slice[B]) -> (Slice[B], Option[Slice[B]]) {
-  match input.split_once(';') {
-    case Some((item, pars)) -> (item.trim, Option.Some(pars.trim))
-    case _ -> (input, Option.None)
-  }
-}
-
-# Parses a set of key=value parameters as used by MIME types and HTTP headers.
-#
-# This is a separate method such that it can be used by other parts of the
-# standard library, such as the `std.net.http` modules.
-fn parameters[B: Bytes, S: ToSlice[B]](
-  input: ref S,
-) -> Stream[Result[(Slice[B], Slice[B]), Nil]] {
-  let input = input.to_slice
-  let mut idx = 0
-  let max = input.size
-
-  # Values may contain ";" when quoted, so we can't just use Slice.split and
-  # related methods.
-  Stream.new(fn move {
-    # Skip the ";" and any spaces at the start of each parameter pair.
-    while idx < max {
-      match input.get(idx).or_panic {
-        case SPACE or SCOL -> idx += 1
-        case _ -> break
-      }
-    }
-
-    let name_start = idx
-
-    while idx < max {
-      match input.get(idx).or_panic {
-        case SPACE -> return Option.Some(Result.Error(nil))
-        case EQ -> break
-        case _ -> idx += 1
-      }
-    }
-
-    # No name means we've reached the end.
-    if idx - name_start == 0 { return Option.None }
-
-    let name = input.slice(name_start, idx := idx + 1)
-
-    # We've reached the end of the last parameter without a value.
-    if idx >= max {
-      let val = input.slice(0, 0)
-
-      return Option.Some(Result.Ok((name, val)))
-    }
-
-    let mut quoted = match input.get(idx) {
-      case Ok(DQUOTE) -> {
-        idx += 1
-        true
-      }
-      case _ -> false
-    }
-
-    let val_start = idx
-    let mut val_end = idx
-
-    while idx < max {
-      match input.get(idx).or_panic {
-        case DQUOTE if quoted -> {
-          quoted = false
-          idx += 1
-          break
-        }
-        case DQUOTE -> return Option.Some(Result.Error(nil))
-        case SCOL if quoted -> {}
-        case SCOL -> {
-          idx += 1
-          break
-        }
-        case _ -> {}
-      }
-
-      val_end += 1
-      idx += 1
-    }
-
-    # We reached the end before the closing quote.
-    if quoted { return Option.Some(Result.Error(nil)) }
-
-    let val = input.slice(val_start, val_end)
-
-    Option.Some(Result.Ok((name, val)))
-  })
-}
 
 # A MIME type.
 #
@@ -120,7 +27,7 @@ type pub Mime {
   let pub @subtype: Slice[String]
 
   # Any additional parameters, such as a `charset` parameter.
-  let pub @parameters: Map[Slice[String], Slice[String]]
+  let pub @parameters: Map[Parameter[String], ParameterValue[String]]
 
   # Returns a new `Mime` type from the given `String`.
   #
@@ -160,7 +67,7 @@ type pub Mime {
         let parameters = Map.new
         let sub = match split_item(sub) {
           case (sub, Some(pars)) -> {
-            for res in parameters(pars) {
+            for res in Parameters.new(pars) {
               match res {
                 case Ok((key, val)) -> parameters.set(key, val)
                 case _ -> break
@@ -178,6 +85,38 @@ type pub Mime {
     }
   }
 
+  # Parses a list of MIME types (e.g. as stored in an HTTP `Accept` header).
+  #
+  # The iterator stops when encountering an invalid MIME type.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.mime (Mime)
+  #
+  # Mime
+  #   .parse_list('text/plain, text/html')
+  #   .to_array # => [Mime('text/plain'), Mime('text/html')]
+  # ```
+  fn pub static parse_list[S: ToSlice[String]](value: ref S) -> Stream[Mime] {
+    let items = Items.new(value)
+
+    Stream.new(fn move {
+      let (name, pars) = match items.next {
+        case Some((name, Some(map))) -> (name, map)
+        case Some((name, _)) -> (name, Map.new)
+        case _ -> return Option.None
+      }
+
+      match name.split_once('/') {
+        case Some((typ, sub)) -> {
+          Option.Some(Self(type: typ, subtype: sub, parameters: pars))
+        }
+        case _ -> Option.None
+      }
+    })
+  }
+
   # Returns the value of the given parameter.
   #
   # # Examples
@@ -189,9 +128,9 @@ type pub Mime {
   #
   # mime.get('charset').map(fn (v) { v.to_string }) # => Result.Ok('utf-8')
   # ```
-  fn pub get(key: String) -> Result[Slice[String], MissingKey[String]] {
-    match @parameters.get(key.slice(0, key.size)) {
-      case Ok(v) -> Result.Ok(v.clone)
+  fn pub get(key: String) -> Result[String, MissingKey[String]] {
+    match @parameters.get(Parameter(key.to_slice)) {
+      case Ok(v) -> Result.Ok(v.to_string)
       case _ -> Result.Error(MissingKey.new(key))
     }
   }
@@ -210,8 +149,11 @@ type pub Mime {
   #
   # mime.charset.get.to_string # => 'utf-8'
   # ```
-  fn pub charset -> Option[Slice[String]] {
-    get('charset').ok
+  fn pub charset -> Option[String] {
+    match get('charset') {
+      case Ok(v) -> Option.Some(v.to_string)
+      case _ -> Option.None
+    }
   }
 
   # Returns the primary (= first) MIME type for the given file extension.
@@ -257,9 +199,9 @@ impl ToString for Mime {
 
     for (key, val) in @parameters.iter {
       buf.append('; ')
-      buf.append(key)
+      buf.append(key.to_string)
       buf.append('=')
-      buf.append(val)
+      val.encode(buf)
     }
 
     buf.into_string

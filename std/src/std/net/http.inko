@@ -21,11 +21,11 @@
 # - Chunk extensions _are_ parsed but ignored
 import std.bytes (Bytes, Slice, ToSlice)
 import std.bytes.parsers (
-  LOWER_A, UPPER_A, ZERO, digit?, digits, lower?, lower_hex_char?, to_lower,
-  upper?, upper_hex_char?,
+  LOWER_A, UPPER_A, ZERO, digit?, digits, lower_hex_char?, to_lower, upper?,
+  upper_hex_char?,
 )
 import std.clone (Clone)
-import std.cmp (Equal, min)
+import std.cmp (Compare, Equal, Ordering, min)
 import std.drop (Drop)
 import std.fmt (Format, Formatter)
 import std.fs (Metadata)
@@ -38,81 +38,25 @@ import std.iter (Stream as IterStream)
 import std.map (MissingKey)
 import std.net.http.header
 import std.net.http.method
+import std.net.http.parsers (etagc?, obs_text?, token?, visible?, whitespace?)
 import std.string (ToString)
 import std.uri (Error as UriError, Uri)
 
-let TAB = 9
 let LF = 10
 let CR = 13
 let SPC = 32
-let EXL = 33
 let DQUOTE = 34
-let HSH = 35
-let DLR = 36
-let PRC = 37
-let AMP = 38
-let SQU = 39
-let AST = 42
-let PLUS = 43
 let COM = 44
-let HYPHEN = 45
 let DOT = 46
 let SLS = 47
 let COL = 58
 let SCOL = 59
 let UPPER_W = 87
-let CAR = 94
-let UND = 95
-let GRV = 96
-let PIP = 124
-let TLD = 126
 
 let CHUNKED = 'chunked'
 
 # The amount of bytes to read per chunk in `Body.discard`.
 let DISCARD_BUFFER_SIZE = 32 * 1024
-
-fn inline token?(byte: Int) -> Bool {
-  match byte {
-    case v if lower?(v) or upper?(v) or digit?(v) -> true
-    case
-      EXL
-        or HSH
-        or DLR
-        or PRC
-        or AMP
-        or SQU
-        or AST
-        or PLUS
-        or HYPHEN
-        or DOT
-        or CAR
-        or UND
-        or GRV
-        or PIP
-        or TLD
-    -> {
-      true
-    }
-    case _ -> false
-  }
-}
-
-fn inline obs_text?(byte: Int) -> Bool {
-  byte >= 128
-}
-
-fn inline etagc?(byte: Int) -> Bool {
-  byte == 33 or (byte >= 35 and byte <= 126) or obs_text?(byte)
-}
-
-fn inline visible?(byte: Int) -> Bool {
-  byte >= 33 and byte <= 126
-}
-
-fn inline whitespace?(byte: Int) -> Bool {
-  byte == SPC or byte == TAB
-}
 
 type inline enum HeaderError[E] {
   case Invalid
@@ -592,6 +536,10 @@ type pub inline HeaderMap {
       }
     }
   }
+
+  fn mut try_set(header: Header, value: String) {
+    @map.try_set(header, HeaderValue.Single(value))
+  }
 }
 
 impl Clone for HeaderMap {
@@ -722,103 +670,108 @@ type pub copy Status {
   let @code: Int
 
   # Returns a new `Status` using the given status code.
-  fn pub inline static new(code: Int) -> Status {
-    Status(code)
+  fn pub inline static new(code: Int) -> Self {
+    Self(code)
+  }
+
+  # Returns the status code 101.
+  fn pub inline static switching_protocols -> Self {
+    Self(101)
   }
 
   # Returns the status code 200.
-  fn pub inline static ok -> Status {
-    Status(200)
+  fn pub inline static ok -> Self {
+    Self(200)
   }
 
   # Returns the status code 201.
-  fn pub inline static created -> Status {
-    Status(201)
+  fn pub inline static created -> Self {
+    Self(201)
   }
 
   # Returns the status code 206.
-  fn pub inline static partial_content -> Status {
-    Status(206)
+  fn pub inline static partial_content -> Self {
+    Self(206)
   }
 
   # Returns the status code 304.
-  fn pub inline static not_modified -> Status {
-    Status(304)
+  fn pub inline static not_modified -> Self {
+    Self(304)
   }
 
   # Returns the status code 400.
-  fn pub inline static bad_request -> Status {
-    Status(400)
+  fn pub inline static bad_request -> Self {
+    Self(400)
   }
 
   # Returns the status code 403.
-  fn pub inline static forbidden -> Status {
-    Status(403)
+  fn pub inline static forbidden -> Self {
+    Self(403)
   }
 
   # Returns the status code 404.
-  fn pub inline static not_found -> Status {
-    Status(404)
+  fn pub inline static not_found -> Self {
+    Self(404)
   }
 
   # Returns the status code 405.
-  fn pub inline static method_not_allowed -> Status {
-    Status(405)
+  fn pub inline static method_not_allowed -> Self {
+    Self(405)
   }
 
   # Returns the status code 412.
-  fn pub inline static precondition_failed -> Status {
-    Status(412)
+  fn pub inline static precondition_failed -> Self {
+    Self(412)
   }
 
   # Returns the status code 413.
-  fn pub inline static content_too_large -> Status {
-    Status(413)
+  fn pub inline static content_too_large -> Self {
+    Self(413)
   }
 
   # Returns the status code 414.
-  fn pub inline static uri_too_long -> Status {
-    Status(414)
+  fn pub inline static uri_too_long -> Self {
+    Self(414)
   }
 
   # Returns the status code 415.
-  fn pub inline static unsupported_media_type -> Status {
-    Status(415)
+  fn pub inline static unsupported_media_type -> Self {
+    Self(415)
   }
 
   # Returns the status code 416.
-  fn pub inline static range_not_satisfiable -> Status {
-    Status(416)
+  fn pub inline static range_not_satisfiable -> Self {
+    Self(416)
   }
 
   # Returns the status code 422.
-  fn pub inline static unprocessable_content -> Status {
-    Status(422)
+  fn pub inline static unprocessable_content -> Self {
+    Self(422)
   }
 
   # Returns the status code 426.
-  fn pub inline static upgrade_required -> Status {
-    Status(426)
+  fn pub inline static upgrade_required -> Self {
+    Self(426)
   }
 
   # Returns the status code 431.
-  fn pub inline static request_header_fields_too_large -> Status {
-    Status(431)
+  fn pub inline static request_header_fields_too_large -> Self {
+    Self(431)
   }
 
   # Returns the status code 500.
-  fn pub inline static internal_server_error -> Status {
-    Status(500)
+  fn pub inline static internal_server_error -> Self {
+    Self(500)
   }
 
   # Returns the status code 501.
-  fn pub inline static not_implemented -> Status {
-    Status(501)
+  fn pub inline static not_implemented -> Self {
+    Self(501)
   }
 
   # Returns the status code 505.
-  fn pub inline static http_version_not_supported -> Status {
-    Status(505)
+  fn pub inline static http_version_not_supported -> Self {
+    Self(505)
   }
 
   # Returns `true` if the status is 200 OK.
@@ -876,6 +829,15 @@ type pub copy Version {
 
   fn static v11 -> Self {
     Self(1, 1)
+  }
+}
+
+impl Compare for Version {
+  fn pub cmp(other: Version) -> Ordering {
+    match @major.cmp(other.major) {
+      case Equal -> @minor.cmp(other.minor)
+      case ord -> ord
+    }
   }
 }
 

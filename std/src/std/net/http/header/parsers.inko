@@ -1,0 +1,15 @@
+# Parsing of HTTP header values.
+import std.bytes (Bytes, Slice)
+
+let SPACE = 32
+let DQUOTE = 34
+let SCOL = 59
+let EQ = 61
+let BSLASH = 92
+
+fn split_item[B: Bytes](input: Slice[B]) -> (Slice[B], Option[Slice[B]]) {
+  match input.split_once(';') {
+    case Some((item, pars)) -> (item.trim, Option.Some(pars.trim))
+    case _ -> (input, Option.None)
+  }
+}

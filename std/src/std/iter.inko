@@ -198,6 +198,44 @@ trait pub Iter[T] {
     })
   }
 
+  # Returns an `Iter` that maps every value into a new `Iter` and flattens these
+  # iterators.
+  #
+  # This allows you to take for example an `Iter[Foo]` and for each `Foo`
+  # produce and flatten a `Iter[Bar]` such that the final iterator yields all
+  # the individual `Bar` values instead of the `Iter[Bar]` iterators.
+  #
+  # # Examples
+  #
+  # ```inko
+  # ['foo', 'bar']
+  #   .into_iter
+  #   .flat_map(fn (str) { str.chars })
+  #   .to_array # => ['f', 'o', 'o', 'b', 'a', 'r']
+  # ```
+  fn pub move flat_map[V, I: mut + Iter[V]](func: fn (T) -> I) -> Stream[V] {
+    let mut iter_opt: Option[I] = Option.None
+
+    Stream.new(fn move {
+      loop {
+        match iter_opt.as_mut {
+          case Some(v) -> {
+            match v.next {
+              case Some(v) -> return Option.Some(v)
+              case _ -> {}
+            }
+          }
+          case _ -> {}
+        }
+
+        match self.next {
+          case Some(v) -> iter_opt = Option.Some(func.call(v))
+          case _ -> return Option.None
+        }
+      }
+    })
+  }
+
   # Partitions the `Iter` into a tuple of two `Array` objects.
   #
   # The first value of the tuple contains all values for which the supplied
@@ -579,12 +617,6 @@ trait pub Iter[T] {
       }
     })
   }
-}
-
-# A type that can be moved into an iterator.
-trait pub IntoIter[T] {
-  # Moves `self` into an iterator.
-  fn pub move into_iter -> Iter[T]
 }
 
 # A type for easily creating iterators using closures.
