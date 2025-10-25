@@ -26,7 +26,7 @@ type FileActions {
   }
 
   fn mut redirect(
-    stream: ref Stream,
+    stream: Stream,
     fd: Int32,
     write: Bool,
   ) -> Result[Option[Int32], Error] {
@@ -133,9 +133,9 @@ fn spawn(
   args: ref Array[String],
   env: ref Map[String, String],
   directory: Option[String],
-  stdin: ref Stream,
-  stdout: ref Stream,
-  stderr: ref Stream,
+  stdin: Stream,
+  stdout: Stream,
+  stderr: Stream,
 ) -> Result[ChildProcess, Error] {
   let argv = StringPointers.new(args.size + 1)
   let envp = StringPointers.new(env.size)

@@ -194,7 +194,7 @@ type pub copy enum ServerConfigError {
 }
 
 impl Equal for ServerConfigError {
-  fn pub ==(other: ref ServerConfigError) -> Bool {
+  fn pub ==(other: ServerConfigError) -> Bool {
     match (self, other) {
       case (InvalidCertificate, InvalidCertificate) -> true
       case (InvalidPrivateKey, InvalidPrivateKey) -> true

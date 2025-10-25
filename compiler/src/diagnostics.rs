@@ -45,6 +45,7 @@ pub(crate) enum DiagnosticId {
     Unreachable,
     UnusedSymbol,
     UnusedResult,
+    BorrowValueType,
 }
 
 impl fmt::Display for DiagnosticId {
@@ -72,6 +73,7 @@ impl fmt::Display for DiagnosticId {
             DiagnosticId::InvalidCast => "invalid-cast",
             DiagnosticId::UnusedSymbol => "unused-symbol",
             DiagnosticId::UnusedResult => "unused-result",
+            DiagnosticId::BorrowValueType => "borrow-value-type",
         };
 
         write!(f, "{}", id)

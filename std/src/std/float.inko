@@ -284,37 +284,37 @@ impl Clone for Float {
 }
 
 impl Add[Float, Float] for Float {
-  fn pub inline +(other: ref Float) -> Float {
+  fn pub inline +(other: Float) -> Float {
     _INKO.float_add(self, other)
   }
 }
 
 impl Subtract[Float, Float] for Float {
-  fn pub inline -(other: ref Float) -> Float {
+  fn pub inline -(other: Float) -> Float {
     _INKO.float_sub(self, other)
   }
 }
 
 impl Divide[Float, Float] for Float {
-  fn pub inline /(other: ref Float) -> Float {
+  fn pub inline /(other: Float) -> Float {
     _INKO.float_div(self, other)
   }
 }
 
 impl Multiply[Float, Float] for Float {
-  fn pub inline *(other: ref Float) -> Float {
+  fn pub inline *(other: Float) -> Float {
     _INKO.float_mul(self, other)
   }
 }
 
 impl Modulo[Float, Float] for Float {
-  fn pub inline %(other: ref Float) -> Float {
+  fn pub inline %(other: Float) -> Float {
     _INKO.float_mod(self, other)
   }
 }
 
 impl Power[Int, Float] for Float {
-  fn pub inline **(other: ref Int) -> Float {
+  fn pub inline **(other: Int) -> Float {
     _INKO.float_powi(self, other)
   }
 }
@@ -337,7 +337,7 @@ impl Compare for Float {
   # - positive infinity
   # - positive signaling NaN
   # - positive quiet NaN
-  fn pub inline cmp(other: ref Float) -> Ordering {
+  fn pub inline cmp(other: Float) -> Ordering {
     let mut lhs = to_bits
     let mut rhs = other.to_bits
 
@@ -347,19 +347,19 @@ impl Compare for Float {
     lhs.cmp(rhs)
   }
 
-  fn pub inline <(other: ref Float) -> Bool {
+  fn pub inline <(other: Float) -> Bool {
     _INKO.float_lt(self, other)
   }
 
-  fn pub inline <=(other: ref Float) -> Bool {
+  fn pub inline <=(other: Float) -> Bool {
     _INKO.float_le(self, other)
   }
 
-  fn pub inline >(other: ref Float) -> Bool {
+  fn pub inline >(other: Float) -> Bool {
     _INKO.float_gt(self, other)
   }
 
-  fn pub inline >=(other: ref Float) -> Bool {
+  fn pub inline >=(other: Float) -> Bool {
     _INKO.float_ge(self, other)
   }
 }
@@ -376,7 +376,7 @@ impl Equal for Float {
   #
   # See https://randomascii.wordpress.com/2012/02/25/comparing-floating-point-numbers-2012-edition/
   # for more details on how ULPs work.
-  fn pub inline ==(other: ref Float) -> Bool {
+  fn pub inline ==(other: Float) -> Bool {
     # Handle simple comparisons such as `1.2 == 1.2` and `0.0 == -0.0`.
     if _INKO.float_eq(self, other) { return true }
 

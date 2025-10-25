@@ -25,4 +25,6 @@ fn bar {
   eq(42)
 }
 
+# uni_with_owned.inko:11:9 warning(borrow-value-type): borrows of value types are redundant, as value types always use owned references
+# uni_with_owned.inko:12:16 warning(borrow-value-type): borrows of value types are redundant, as value types always use owned references
 # uni_with_owned.inko:22:6 error(invalid-type): expected a value of type 'F', found 'Thing'

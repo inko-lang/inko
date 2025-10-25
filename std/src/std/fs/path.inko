@@ -66,7 +66,7 @@ fn absolute_path?(path: String) -> Bool {
   path.get(0).or_panic == SEPARATOR_BYTE
 }
 
-fn join_strings(base: ref String, with: ref String) -> String {
+fn join_strings(base: String, with: String) -> String {
   if base.empty? { return with.clone }
 
   if with.empty? { return base.clone }

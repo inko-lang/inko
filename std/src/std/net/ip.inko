@@ -169,7 +169,7 @@ type pub copy enum IpAddress {
 }
 
 impl Equal for IpAddress {
-  fn pub inline ==(other: ref IpAddress) -> Bool {
+  fn pub inline ==(other: IpAddress) -> Bool {
     match self {
       case V4(a) -> {
         match other {
@@ -531,7 +531,7 @@ impl Equal for Ipv6Address {
   # addr1 == addr2 # => true
   # addr1 == addr3 # => false
   # ```
-  fn pub inline ==(other: ref Ipv6Address) -> Bool {
+  fn pub inline ==(other: Ipv6Address) -> Bool {
     @a == other.a
       and @b == other.b
       and @c == other.c
@@ -960,7 +960,7 @@ impl Equal for Ipv4Address {
   # addr1 == addr2 # => true
   # addr1 == addr3 # => false
   # ```
-  fn pub inline ==(other: ref Ipv4Address) -> Bool {
+  fn pub inline ==(other: Ipv4Address) -> Bool {
     @a == other.a and @b == other.b and @c == other.c and @d == other.d
   }
 }

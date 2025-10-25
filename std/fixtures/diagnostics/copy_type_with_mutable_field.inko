@@ -16,3 +16,4 @@ fn example2(value: mut Example) {
 }
 
 # copy_type_with_mutable_field.inko:14:24 error(invalid-type): mutable borrows of type 'Example' are invalid as 'Example' is immutable
+# copy_type_with_mutable_field.inko:14:20 warning(borrow-value-type): borrows of value types are redundant, as value types always use owned references

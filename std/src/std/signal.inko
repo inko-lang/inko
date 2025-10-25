@@ -211,7 +211,7 @@ impl Clone for Signal {
 }
 
 impl Equal for Signal {
-  fn pub ==(other: ref Signal) -> Bool {
+  fn pub ==(other: Signal) -> Bool {
     id == other.id
   }
 }
@@ -248,7 +248,7 @@ impl Format for Signal {
 # A type that waits for a signal to be delivered, notifying a channel upon
 # receiving the signal.
 type async Waiter {
-  fn async wait(signal: uni Signal, channel: uni Channel[Signal]) {
+  fn async wait(signal: Signal, channel: uni Channel[Signal]) {
     signal.wait
     channel.send(signal)
   }

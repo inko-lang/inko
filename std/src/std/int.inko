@@ -133,10 +133,7 @@ type builtin Int {
   # Int.parse('-0xef', Format.Hex) # => Option.Some(-239)
   # Int.parse('zz', Format.Hex)    # => Option.None
   # ```
-  fn pub static parse[T: Bytes](
-    bytes: ref T,
-    format: ref Format,
-  ) -> Option[Int] {
+  fn pub static parse[T: Bytes](bytes: ref T, format: Format) -> Option[Int] {
     let base = format.to_base
     let len = bytes.size
     let mut idx = 0
@@ -239,7 +236,7 @@ type builtin Int {
   # ```inko
   # -123.format(Format.Hex) # => '-7b'
   # ```
-  fn pub format(format: ref Format) -> String {
+  fn pub format(format: Format) -> String {
     let base = format.to_base
 
     match self {
@@ -790,7 +787,7 @@ impl Power[Int, Int] for Int {
   #
   # In debug mode, this method triggers a panic upon overflowing. In release
   # mode, two's complement wrapping is used instead.
-  fn pub inline **(other: ref Int) -> Int {
+  fn pub inline **(other: Int) -> Int {
     mode.pow(self, other)
   }
 }
@@ -808,7 +805,7 @@ impl ToFloat for Int {
 }
 
 impl Compare for Int {
-  fn pub inline cmp(other: ref Int) -> Ordering {
+  fn pub inline cmp(other: Int) -> Ordering {
     if self > other {
       Ordering.Greater
     } else if self < other {
@@ -818,29 +815,29 @@ impl Compare for Int {
     }
   }
 
-  fn pub inline <(other: ref Int) -> Bool {
+  fn pub inline <(other: Int) -> Bool {
     _INKO.int_lt(self, other)
   }
 
-  fn pub inline <=(other: ref Int) -> Bool {
+  fn pub inline <=(other: Int) -> Bool {
     _INKO.int_le(self, other)
   }
 
-  fn pub inline >(other: ref Int) -> Bool {
+  fn pub inline >(other: Int) -> Bool {
     _INKO.int_gt(self, other)
   }
 
-  fn pub inline >=(other: ref Int) -> Bool {
+  fn pub inline >=(other: Int) -> Bool {
     _INKO.int_ge(self, other)
   }
 }
 
 impl Equal for Int {
-  fn pub inline ==(other: ref Int) -> Bool {
+  fn pub inline ==(other: Int) -> Bool {
     _INKO.int_eq(self, other)
   }
 
-  fn pub inline !=(other: ref Int) -> Bool {
+  fn pub inline !=(other: Int) -> Bool {
     _INKO.int_ne(self, other)
   }
 }
@@ -864,7 +861,7 @@ impl Divide[Int, Int] for Int {
   #
   # This method panics if `other` is zero, or if `self` is `MIN` and `other` is
   # `-1`. This is true for both debug and release builds.
-  fn pub inline /(other: ref Int) -> Int {
+  fn pub inline /(other: Int) -> Int {
     if other == 0 or (self == MIN and other == -1) { overflow_error }
 
     unchecked_div(other)
@@ -872,19 +869,19 @@ impl Divide[Int, Int] for Int {
 }
 
 impl BitAnd[Int, Int] for Int {
-  fn pub inline &(other: ref Int) -> Int {
+  fn pub inline &(other: Int) -> Int {
     _INKO.int_bit_and(self, other)
   }
 }
 
 impl BitOr[Int, Int] for Int {
-  fn pub inline |(other: ref Int) -> Int {
+  fn pub inline |(other: Int) -> Int {
     _INKO.int_bit_or(self, other)
   }
 }
 
 impl BitXor[Int, Int] for Int {
-  fn pub inline ^(other: ref Int) -> Int {
+  fn pub inline ^(other: Int) -> Int {
     _INKO.int_bit_xor(self, other)
   }
 }

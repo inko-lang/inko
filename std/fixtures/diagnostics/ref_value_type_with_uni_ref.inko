@@ -34,4 +34,7 @@ fn test {
   eq(Opt.Some(recover Thing()) as Opt[uni Thing])
 }
 
+# ref_value_type_with_uni_ref.inko:20:9 warning(borrow-value-type): borrows of value types are redundant, as value types always use owned references
+# ref_value_type_with_uni_ref.inko:21:16 warning(borrow-value-type): borrows of value types are redundant, as value types always use owned references
+# ref_value_type_with_uni_ref.inko:30:26 warning(borrow-value-type): borrows of value types are redundant, as value types always use owned references
 # ref_value_type_with_uni_ref.inko:34:6 error(invalid-type): expected a value of type 'ref T', found 'ref Opt[uni Thing]'

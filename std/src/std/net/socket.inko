@@ -224,7 +224,7 @@ impl Clone for SocketAddress {
 
 impl Equal for SocketAddress {
   # Returns `true` if `self` and `other` are the same.
-  fn pub inline ==(other: ref SocketAddress) -> Bool {
+  fn pub inline ==(other: SocketAddress) -> Bool {
     @ip == other.ip and @port == other.port
   }
 }
@@ -330,7 +330,7 @@ type pub Socket {
   #
   # socket.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).get
   # ```
-  fn pub mut bind(ip: ref IpAddress, port: Int) -> Result[Nil, Error] {
+  fn pub mut bind(ip: IpAddress, port: Int) -> Result[Nil, Error] {
     sys.bind_ip(@socket.inner, ip, port)
   }
 
@@ -351,7 +351,7 @@ type pub Socket {
   # socket.listen.get
   # client.connect(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).get
   # ```
-  fn pub mut connect(ip: ref IpAddress, port: Int) -> Result[Nil, Error] {
+  fn pub mut connect(ip: IpAddress, port: Int) -> Result[Nil, Error] {
     sys.connect_ip(@socket, ip, port, @deadline)
   }
 
@@ -427,7 +427,7 @@ type pub Socket {
   # ```
   fn pub mut send_to[B: Bytes](
     bytes: ref B,
-    ip: ref IpAddress,
+    ip: IpAddress,
     port: Int,
   ) -> Result[Int, Error] {
     sys.send_to_ip(@socket, bytes.pointer, bytes.size, ip, port, @deadline)
@@ -713,7 +713,7 @@ type pub UdpSocket {
   #
   # UdpSocket.new(IpAddress.v4(0, 0, 0, 0), port: 0).get
   # ```
-  fn pub static new(ip: ref IpAddress, port: Int) -> Result[UdpSocket, Error] {
+  fn pub static new(ip: IpAddress, port: Int) -> Result[UdpSocket, Error] {
     let socket = try Socket.datagram(ip.v6?)
 
     try socket.bind(ip, port)
@@ -741,7 +741,7 @@ type pub UdpSocket {
   #
   # socket1.connect(ip: IpAddress.v4(0, 0, 0, 0), port: 41_000).get
   # ```
-  fn pub mut connect(ip: ref IpAddress, port: Int) -> Result[Nil, Error] {
+  fn pub mut connect(ip: IpAddress, port: Int) -> Result[Nil, Error] {
     @socket.connect(ip, port)
   }
 
@@ -762,7 +762,7 @@ type pub UdpSocket {
   # ```
   fn pub mut send_to[B: Bytes](
     bytes: ref B,
-    ip: ref IpAddress,
+    ip: IpAddress,
     port: Int,
   ) -> Result[Int, Error] {
     @socket.send_to(bytes, ip, port)
@@ -1043,7 +1043,7 @@ type pub TcpServer {
   #
   # TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 40_000).get
   # ```
-  fn pub static new(ip: ref IpAddress, port: Int) -> Result[TcpServer, Error] {
+  fn pub static new(ip: IpAddress, port: Int) -> Result[TcpServer, Error] {
     let socket = try Socket.stream(ip.v6?)
 
     try socket.no_delay = true

@@ -556,7 +556,7 @@ type pub copy enum Number {
 }
 
 impl Equal for Number {
-  fn pub ==(other: ref Number) -> Bool {
+  fn pub ==(other: Number) -> Bool {
     match (self, other) {
       case (Int(a), Int(b)) -> a == b
       case (Float(a), Float(b)) -> a == b
@@ -586,7 +586,7 @@ type pub copy enum Type {
 }
 
 impl Equal for Type {
-  fn pub ==(other: ref Type) -> Bool {
+  fn pub ==(other: Type) -> Bool {
     match (self, other) {
       case (Array, Array) -> true
       case (Bool, Bool) -> true

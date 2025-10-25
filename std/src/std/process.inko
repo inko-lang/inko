@@ -28,6 +28,6 @@ fn pub panic(message: String) -> Never {
 #
 # If the specified duration is less than or equal to zero, the process is
 # rescheduled immediately.
-fn pub sleep(time: ref Duration) {
+fn pub sleep(time: Duration) {
   inko_process_suspend(_INKO.state, _INKO.process, time.to_nanos)
 }

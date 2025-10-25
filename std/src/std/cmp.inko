@@ -10,7 +10,7 @@ type pub copy enum Ordering {
 }
 
 impl Equal for Ordering {
-  fn pub inline ==(other: ref Ordering) -> Bool {
+  fn pub inline ==(other: Ordering) -> Bool {
     match (self, other) {
       case (Less, Less) -> true
       case (Equal, Equal) -> true

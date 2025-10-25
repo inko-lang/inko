@@ -1,0 +1,19 @@
+type async Process {}
+
+type Container {
+  let mut @a: Process
+  let mut @b: ref Process
+  let mut @c: mut Process
+  let mut @d: uni Process
+
+  fn mut example {
+    @a = Process()
+    @b = Process()
+    @c = Process()
+    @d = Process()
+  }
+}
+
+# field_containing_process_types.inko:5:15 warning(borrow-value-type): borrows of value types are redundant, as value types always use owned references
+# field_containing_process_types.inko:6:15 warning(borrow-value-type): borrows of value types are redundant, as value types always use owned references
+# field_containing_process_types.inko:7:15 warning(borrow-value-type): borrows of value types are redundant, as value types always use owned references

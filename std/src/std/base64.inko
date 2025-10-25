@@ -743,7 +743,7 @@ impl Format for DecodeError {
 }
 
 impl Equal for DecodeError {
-  fn pub ==(other: ref DecodeError) -> Bool {
+  fn pub ==(other: DecodeError) -> Bool {
     match (self, other) {
       case (InvalidSize, InvalidSize) -> true
       case (InvalidCharacter(a), InvalidCharacter(b)) -> a == b

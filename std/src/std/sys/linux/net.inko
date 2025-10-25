@@ -28,7 +28,7 @@ fn inline accept(fd: Int32) -> Int32 {
 
 fn inline init_v4_address(
   address: Pointer[sys.SockAddrIn],
-  ip: ref Ipv4Address,
+  ip: Ipv4Address,
   port: Int,
 ) {
   address.sin_family = libc.AF_INET as UInt16
@@ -39,7 +39,7 @@ fn inline init_v4_address(
 
 fn inline init_v6_address(
   address: Pointer[sys.SockAddrIn6],
-  ip: ref Ipv6Address,
+  ip: Ipv6Address,
   port: Int,
 ) {
   address.sin6_family = libc.AF_INET6 as UInt16

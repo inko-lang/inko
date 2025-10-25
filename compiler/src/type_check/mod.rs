@@ -28,7 +28,7 @@ enum RefKind {
 }
 
 impl RefKind {
-    fn into_type_ref(self, id: TypeEnum) -> TypeRef {
+    fn into_type_ref(self, db: &Database, id: TypeEnum) -> TypeRef {
         match self {
             Self::Default => match id {
                 TypeEnum::TypeParameter(_)
@@ -36,9 +36,9 @@ impl RefKind {
                 _ => TypeRef::Owned(id),
             },
             Self::Owned => TypeRef::Owned(id),
-            Self::Ref => TypeRef::Ref(id),
-            Self::Mut => TypeRef::Mut(id),
-            Self::Uni => TypeRef::Uni(id),
+            Self::Ref => TypeRef::Owned(id).as_ref(db),
+            Self::Mut => TypeRef::Owned(id).as_mut(db),
+            Self::Uni => TypeRef::Owned(id).as_uni(db),
         }
     }
 }
@@ -309,10 +309,14 @@ impl<'a> DefineTypeSignature<'a> {
                     TypeRef::Owned(self.define_type_instance(id, node))
                 }
                 Symbol::Type(id) => {
-                    kind.into_type_ref(self.define_type_instance(id, node))
+                    let raw = self.define_type_instance(id, node);
+
+                    kind.into_type_ref(self.db(), raw)
                 }
                 Symbol::Trait(id) => {
-                    kind.into_type_ref(self.define_trait_instance(id, node))
+                    let raw = self.define_trait_instance(id, node);
+
+                    kind.into_type_ref(self.db(), raw)
                 }
                 Symbol::TypeParameter(id) => {
                     self.define_type_parameter(id, node, kind)
@@ -383,7 +387,7 @@ impl<'a> DefineTypeSignature<'a> {
                     }
 
                     node.self_type = true;
-                    kind.into_type_ref(self.scope.self_type)
+                    kind.into_type_ref(self.db(), self.scope.self_type)
                 }
                 name => {
                     if let Some(ctype) = self.resolve_foreign_type(
@@ -424,7 +428,7 @@ impl<'a> DefineTypeSignature<'a> {
             types,
         ));
 
-        kind.into_type_ref(ins)
+        kind.into_type_ref(self.db(), ins)
     }
 
     fn define_type_instance(
@@ -499,7 +503,7 @@ impl<'a> DefineTypeSignature<'a> {
             }
         }
 
-        kind.into_type_ref(type_id)
+        kind.into_type_ref(self.db(), type_id)
     }
 
     fn define_closure_type(
@@ -523,7 +527,7 @@ impl<'a> DefineTypeSignature<'a> {
 
         block.set_return_type(self.db_mut(), return_type);
 
-        let typ = kind.into_type_ref(TypeEnum::Closure(block));
+        let typ = kind.into_type_ref(self.db(), TypeEnum::Closure(block));
 
         node.resolved_type = typ;
         typ
@@ -723,6 +727,23 @@ impl<'a> CheckTypeSignature<'a> {
             hir::Type::Owned(ref n) => self.check_reference_type(n),
             hir::Type::Closure(ref n) => self.check_closure_type(n),
             hir::Type::Tuple(ref n) => self.check_tuple_type(n),
+        }
+
+        if let hir::Type::Ref(n) | hir::Type::Mut(n) | hir::Type::Uni(n) = node
+        {
+            if let hir::ReferrableType::Named(n) = &n.type_reference {
+                let typ = n.resolved_type;
+
+                if typ.is_value_type(self.db()) && !typ.is_pointer(self.db()) {
+                    self.state.diagnostics.warn(
+                        DiagnosticId::BorrowValueType,
+                        "borrows of value types are redundant, as value types \
+                        always use owned references",
+                        self.file(),
+                        node.location(),
+                    );
+                }
+            }
         }
     }
 

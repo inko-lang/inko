@@ -2,17 +2,14 @@ import std.base64 (self, DecodeError, Decoder, Encoder)
 import std.fmt (fmt)
 import std.test (Tests)
 
-fn encode(encoder: ref Encoder, input: ref String) -> String {
+fn encode(encoder: ref Encoder, input: String) -> String {
   let output = ByteArray.new
 
   encoder.encode(input.to_byte_array, output)
   output.into_string
 }
 
-fn decode(
-  decoder: ref Decoder,
-  input: ref String,
-) -> Result[String, DecodeError] {
+fn decode(decoder: ref Decoder, input: String) -> Result[String, DecodeError] {
   let output = ByteArray.new
 
   match decoder.decode(input.to_byte_array, output) {

@@ -59,7 +59,7 @@ fn inline htons(value: Int) -> Int {
   _INKO.int_swap_bytes(value as UInt16)
 }
 
-fn inline pack_v4(ip: ref Ipv4Address) -> Int {
+fn inline pack_v4(ip: Ipv4Address) -> Int {
   ip.a | (ip.b << 8) | (ip.c << 16) | (ip.d << 24)
 }
 

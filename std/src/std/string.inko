@@ -746,7 +746,7 @@ impl Equal for String {
   # ```inko
   # 'foo' == 'bar' # => false
   # ```
-  fn pub ==(other: ref String) -> Bool {
+  fn pub ==(other: String) -> Bool {
     let lsize = self.size
 
     if lsize == other.size { ptr.equal(@ptr, other.ptr, lsize) } else { false }
@@ -767,7 +767,7 @@ impl Add[String, String] for String {
   # ```inko
   # 'hello ' + 'world' # => 'hello world'
   # ```
-  fn pub inline +(other: ref String) -> String {
+  fn pub inline +(other: String) -> String {
     let tot = size + other.size
     let new = alloc.allocate(tot + 1)
 

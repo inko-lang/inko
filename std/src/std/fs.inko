@@ -44,7 +44,7 @@ type pub copy enum FileType {
 }
 
 impl Equal for FileType {
-  fn pub ==(other: ref FileType) -> Bool {
+  fn pub ==(other: FileType) -> Bool {
     match (self, other) {
       case (File, File) -> true
       case (Directory, Directory) -> true

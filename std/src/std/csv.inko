@@ -328,7 +328,7 @@ type pub Parser[I: mut + Read[E], E] {
   #
   # parser.separator = Separator.Tab
   # ```
-  fn pub mut separator=(separator: ref Separator) {
+  fn pub mut separator=(separator: Separator) {
     @separator = separator.to_int
   }
 
@@ -751,7 +751,7 @@ type pub Generator[I: mut + Write[E], E] {
   #
   # gen.separator = Separator.Tab
   # ```
-  fn pub mut separator=(separator: ref Separator) {
+  fn pub mut separator=(separator: Separator) {
     @separator_string = separator.to_string
     @separator_byte = separator.to_int
   }

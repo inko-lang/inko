@@ -442,7 +442,7 @@ impl Format for Error {
 }
 
 impl Equal for Error {
-  fn pub ==(other: ref Error) -> Bool {
+  fn pub ==(other: Error) -> Bool {
     match (self, other) {
       case (AddressInUse, AddressInUse) -> true
       case (AddressUnavailable, AddressUnavailable) -> true

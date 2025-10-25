@@ -21,7 +21,7 @@ type builtin Nil {
 }
 
 impl Equal for Nil {
-  fn pub ==(other: ref Nil) -> Bool {
+  fn pub ==(other: Nil) -> Bool {
     true
   }
 }

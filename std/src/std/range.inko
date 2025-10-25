@@ -127,7 +127,7 @@ impl Equal for InclusiveRange {
   # ```inko
   # 1.to(10) == 1.to(5) # => false
   # ```
-  fn pub inline ==(other: ref InclusiveRange) -> Bool {
+  fn pub inline ==(other: InclusiveRange) -> Bool {
     @start == other.start and @end == other.end
   }
 }
@@ -220,7 +220,7 @@ impl Equal for ExclusiveRange {
   # ```inko
   # 1.until(10) == 1.until(5) # => false
   # ```
-  fn pub inline ==(other: ref ExclusiveRange) -> Bool {
+  fn pub inline ==(other: ExclusiveRange) -> Bool {
     @start == other.start and @end == other.end
   }
 }

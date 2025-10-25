@@ -37,7 +37,7 @@ fn inline init_socket(
 
 fn inline init_ip_address(
   storage: Pointer[sys_libc.SockAddrStorage],
-  ip: ref IpAddress,
+  ip: IpAddress,
   port: Int,
 ) -> Int {
   match ip {
@@ -52,11 +52,7 @@ fn inline init_ip_address(
   }
 }
 
-fn inline bind_ip(
-  fd: Int32,
-  ip: ref IpAddress,
-  port: Int,
-) -> Result[Nil, Error] {
+fn inline bind_ip(fd: Int32, ip: IpAddress, port: Int) -> Result[Nil, Error] {
   let addr = sys_libc.SockAddrStorage()
   let addr_ptr = mut addr
   let size = init_ip_address(addr_ptr, ip, port)
@@ -164,7 +160,7 @@ fn inline accept(
 
 fn inline connect_ip(
   socket: Pointer[net.RawSocket],
-  ip: ref IpAddress,
+  ip: IpAddress,
   port: Int,
   deadline: Int,
 ) -> Result[Nil, Error] {
@@ -397,7 +393,7 @@ fn inline send_to_ip(
   socket: Pointer[net.RawSocket],
   data: Pointer[UInt8],
   size: Int,
-  ip: ref IpAddress,
+  ip: IpAddress,
   port: Int,
   deadline: Int,
 ) -> Result[Int, Error] {
