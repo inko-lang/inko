@@ -31,12 +31,3 @@ fn example {
   mutable_borrow('test')
   mutable_borrow(A(1))
 }
-
-# value_types_passed_to_mutable_arguments.inko:24:17 error(invalid-type): expected a value of type 'T: mut', found 'Int'
-# value_types_passed_to_mutable_arguments.inko:25:17 error(invalid-type): expected a value of type 'T: mut', found 'Float'
-# value_types_passed_to_mutable_arguments.inko:26:17 error(invalid-type): expected a value of type 'T: mut', found 'String'
-# value_types_passed_to_mutable_arguments.inko:27:17 error(invalid-type): expected a value of type 'T: mut', found 'A'
-# value_types_passed_to_mutable_arguments.inko:29:18 error(invalid-type): expected a value of type 'mut T: mut', found 'Int'
-# value_types_passed_to_mutable_arguments.inko:30:18 error(invalid-type): expected a value of type 'mut T: mut', found 'Float'
-# value_types_passed_to_mutable_arguments.inko:31:18 error(invalid-type): expected a value of type 'mut T: mut', found 'String'
-# value_types_passed_to_mutable_arguments.inko:32:18 error(invalid-type): expected a value of type 'mut T: mut', found 'A'

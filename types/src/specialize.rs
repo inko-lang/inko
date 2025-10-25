@@ -762,6 +762,17 @@ mod test {
         )
         .specialize(TypeRef::int());
 
+        let mut_int = TypeSpecializer::new(
+            &mut db,
+            &mut closures,
+            &mut interned,
+            &targs,
+            &targs,
+            &mut types,
+            stype,
+        )
+        .specialize(mutable(instance(TypeId::int())));
+
         let new_int64 = TypeSpecializer::new(
             &mut db,
             &mut closures,
@@ -774,6 +785,7 @@ mod test {
         .specialize(TypeRef::foreign_signed_int(64));
 
         assert_eq!(new_int, new_int64);
+        assert_eq!(new_int, mut_int);
     }
 
     #[test]

@@ -253,33 +253,6 @@ trait MethodDefiner {
             type_id.add_method(self.db_mut(), name.to_string(), method);
         }
     }
-
-    fn check_if_mutating_method_is_allowed(
-        &mut self,
-        kind: hir::MethodKind,
-        type_id: TypeId,
-        location: Location,
-    ) {
-        if !matches!(kind, hir::MethodKind::Mutable)
-            || type_id.allow_mutating(self.db())
-        {
-            return;
-        }
-
-        let name = type_id.name(self.db()).clone();
-        let file = self.file();
-
-        self.state_mut().diagnostics.error(
-            DiagnosticId::InvalidMethod,
-            format!(
-                "'{}' doesn't support mutating methods because it's an \
-                immutable type",
-                name
-            ),
-            file,
-            location,
-        );
-    }
 }
 
 /// A compiler pass that defines the basic details for module methods.
@@ -721,12 +694,6 @@ impl<'a> DefineMethods<'a> {
                 node.location,
             );
         }
-
-        self.check_if_mutating_method_is_allowed(
-            node.kind,
-            type_id,
-            node.location,
-        );
 
         let self_id = TypeEnum::Type(type_id);
         let module = self.module;
@@ -1268,23 +1235,8 @@ impl<'a> ImplementTraitMethods<'a> {
         let trait_id = trait_ins.instance_of();
         let type_ins = node.type_instance.unwrap();
         let type_id = type_ins.instance_of();
-        let mut mut_error = false;
-        let allow_mut = type_id.allow_mutating(self.db());
 
         for method in trait_id.default_methods(self.db()) {
-            if method.is_mutable(self.db()) && !allow_mut && !mut_error {
-                self.state.diagnostics.error(
-                    DiagnosticId::InvalidImplementation,
-                    "the trait '{}' can't be implemented because it defines \
-                    one or more mutating methods, and '{}' is an immutable \
-                    type",
-                    self.file(),
-                    node.location,
-                );
-
-                mut_error = true;
-            }
-
             if !type_id.method_exists(self.db(), method.name(self.db())) {
                 continue;
             }
@@ -1393,18 +1345,6 @@ impl<'a> ImplementTraitMethods<'a> {
 
         let is_drop = trait_instance.instance_of() == self.drop_trait
             && name == DROP_METHOD;
-
-        // `Drop.drop` is the only exception because it may be used to e.g.
-        // deallocate memory, which is an immutable type (as is the case for
-        // `String.drop`).
-        if !is_drop {
-            self.check_if_mutating_method_is_allowed(
-                node.kind,
-                type_instance.instance_of(),
-                node.location,
-            );
-        }
-
         let rec_type = TypeEnum::TypeInstance(type_instance);
         let module = self.module;
         let method = Method::alloc(

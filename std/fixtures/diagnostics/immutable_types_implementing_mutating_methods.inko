@@ -15,7 +15,3 @@ impl Mutate for A {
 
   fn mut quix {}
 }
-
-# immutable_types_implementing_mutating_methods.inko:13:1 error(invalid-implementation): the trait '{}' can't be implemented because it defines one or more mutating methods, and '{}' is an immutable type
-# immutable_types_implementing_mutating_methods.inko:14:3 error(invalid-method): 'A' doesn't support mutating methods because it's an immutable type
-# immutable_types_implementing_mutating_methods.inko:16:3 error(invalid-method): 'A' doesn't support mutating methods because it's an immutable type

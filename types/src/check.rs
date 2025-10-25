@@ -375,27 +375,6 @@ impl<'a> TypeChecker<'a> {
         })
     }
 
-    pub fn type_compatible_with_bound(
-        &mut self,
-        left: TypeInstance,
-        bound: TypeParameterId,
-    ) -> bool {
-        if bound.is_mutable(self.db)
-            && !left.instance_of.allow_mutating(self.db)
-        {
-            return false;
-        }
-
-        if bound.is_copy(self.db) && !left.instance_of.is_copy_type(self.db) {
-            return false;
-        }
-
-        bound
-            .requirements(self.db)
-            .into_iter()
-            .all(|req| self.type_implements_trait(left, req))
-    }
-
     fn check_type_ref(
         &mut self,
         left: TypeRef,

@@ -326,10 +326,10 @@ become _immutable_ value types that are copied upon a move. For the above
 `Number` example that means the memory representation is the same as that of the
 `Int` type.
 
-Because `copy` types are immutable, they don't support `fn mut` methods. Fields
-_can_ be assigned new values but only through owned references, such as inside
-an `fn move` method. As such, the approach to mutating them is to return a new
-copy of the instance containing the appropriate changes. For example:
+Fields _can_ be assigned new values but only through owned references, such as
+inside an `fn move` method. As such, the approach to mutating `copy` types is to
+return a new copy of the instance containing the appropriate changes. For
+example:
 
 ```inko
 type copy Number {

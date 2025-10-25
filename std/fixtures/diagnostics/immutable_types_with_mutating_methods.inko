@@ -5,6 +5,3 @@ type copy A {
 impl String {
   fn mut invalid {}
 }
-
-# immutable_types_with_mutating_methods.inko:2:3 error(invalid-method): 'A' doesn't support mutating methods because it's an immutable type
-# immutable_types_with_mutating_methods.inko:6:3 error(invalid-method): 'String' doesn't support mutating methods because it's an immutable type

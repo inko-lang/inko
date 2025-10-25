@@ -2242,16 +2242,6 @@ impl TypeId {
         Type::add(db, new)
     }
 
-    pub fn allow_mutating(self, db: &Database) -> bool {
-        let obj = self.get(db);
-
-        match obj.kind {
-            TypeKind::Extern => true,
-            TypeKind::Atomic => false,
-            _ => matches!(obj.storage, Storage::Heap | Storage::Inline),
-        }
-    }
-
     pub fn allow_field_assignments(self, db: &Database, owned: bool) -> bool {
         let obj = self.get(db);
 
@@ -4866,10 +4856,6 @@ impl TypeRef {
 
     pub fn allow_mutating(self, db: &Database) -> bool {
         match self {
-            TypeRef::Owned(TypeEnum::TypeInstance(ins))
-            | TypeRef::Mut(TypeEnum::TypeInstance(ins)) => {
-                ins.instance_of.allow_mutating(db)
-            }
             TypeRef::Owned(_)
             | TypeRef::Uni(_)
             | TypeRef::Mut(_)
@@ -7057,12 +7043,12 @@ mod tests {
         assert!(placeholder(var2).allow_as_mut(&db));
         assert!(owned(rigid(param)).allow_as_mut(&db));
         assert!(uni(instance(int)).allow_as_mut(&db));
+        assert!(owned(instance(int)).allow_as_mut(&db));
+        assert!(owned(instance(int)).allow_as_mut(&db));
+        assert!(owned(instance(int)).allow_as_mut(&db));
+        assert!(placeholder(var1).allow_as_mut(&db));
 
-        assert!(!owned(instance(int)).allow_as_mut(&db));
         assert!(!immutable(instance(int)).allow_as_mut(&db));
-        assert!(!placeholder(var1).allow_as_mut(&db));
-        assert!(!owned(instance(int)).allow_as_mut(&db));
-        assert!(!owned(instance(int)).allow_as_mut(&db));
     }
 
     #[test]
@@ -7353,14 +7339,14 @@ mod tests {
         assert!(uni(rigid(param2)).allow_mutating(&db));
         assert!(owned(instance(proc)).allow_mutating(&db));
         assert!(mutable(instance(proc)).allow_mutating(&db));
+        assert!(owned(instance(TypeId::string())).allow_mutating(&db));
+        assert!(TypeRef::int().allow_mutating(&db));
 
         assert!(!immutable(instance(TypeId::string())).allow_mutating(&db));
         assert!(!immutable(instance(proc)).allow_mutating(&db));
         assert!(!immutable(parameter(param1)).allow_mutating(&db));
-        assert!(!owned(instance(TypeId::string())).allow_mutating(&db));
         assert!(!any(parameter(param1)).allow_mutating(&db));
         assert!(!any(rigid(param1)).allow_mutating(&db));
-        assert!(!TypeRef::int().allow_mutating(&db));
     }
 
     #[test]
