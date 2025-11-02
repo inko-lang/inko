@@ -1,0 +1,344 @@
+# Parsing of HTTP header values.
+#
+# This module provides types for parsing/generating HTTP header values,
+# parameters, etc (e.g. those used by the `Accept` header).
+#
+# This code resides in a standalone module such that modules (e.g. `std.mime`)
+# can reuse this code without having to depend on the (much larger)
+# `std.net.http` module.
+import std.bytes (Bytes, Slice, ToSlice)
+import std.bytes.parsers (digit?, lower?, to_lower, upper?)
+import std.clone (Clone)
+import std.cmp (Equal)
+import std.hash (Hash, Hasher)
+import std.iter (Iter, Stream)
+import std.net.http.parsers (token?, tokens?)
+import std.string (ToString)
+
+let SPACE = 32
+let DQUOTE = 34
+let AST = 42
+let COMMA = 44
+let DASH = 45
+let DOT = 46
+let SCOL = 59
+let EQ = 61
+let BSLASH = 92
+let UNDER = 95
+
+fn split_item[B: Bytes](input: Slice[B]) -> (Slice[B], Option[Slice[B]]) {
+  match input.split_once(';') {
+    case Some((item, pars)) -> (item.trim, Option.Some(pars.trim))
+    case _ -> (input, Option.None)
+  }
+}
+
+fn tokens(value: String) -> Stream[Slice[String]] {
+  value.split(',').map(fn (v) { v.trim }).take_while(fn (v) { tokens?(v) })
+}
+
+# An iterator over the items and their parameters.
+type Items[B: Bytes] {
+  let @input: Slice[B]
+  let mut @index: Int
+
+  fn static new[S: ToSlice[B]](input: ref S) -> Self {
+    Self(input: input.to_slice, index: 0)
+  }
+}
+
+impl Iter[(Slice[B], Option[Map[Parameter[B], ParameterValue[B]]])] for Items {
+  fn pub mut next -> Option[
+    (Slice[B], Option[Map[Parameter[B], ParameterValue[B]]]),
+  ] {
+    let start = @index
+    let mut has_pars = false
+
+    while @index < @input.size {
+      match @input.get(@index).or_panic {
+        case SCOL -> {
+          has_pars = true
+          break
+        }
+        case COMMA -> break
+        case _ -> {}
+      }
+
+      @index += 1
+    }
+
+    # If we didn't advance it means we've reached the end.
+    if @index == start { return Option.None }
+
+    let val = @input.slice(start, @index := @index + 1).trim
+
+    if val.empty? { return Option.None }
+
+    if !has_pars { return Option.Some((val, Option.None)) }
+
+    let pars = Map.new
+    let pars_iter = Parameters(input: @input.clone, index: @index, done: false)
+
+    loop {
+      match pars_iter.next {
+        case Some(Ok((key, val))) -> pars.set(key, val)
+        case Some(Error(_)) -> {
+          @index = @input.size
+          return Option.None
+        }
+        case _ -> break
+      }
+    }
+
+    @index = pars_iter.index
+
+    # Skip any commas after the last parameter.
+    while @index < @input.size {
+      if @input.get(@index).or_panic == COMMA { @index += 1 } else { break }
+    }
+
+    Option.Some((val, Option.Some(pars)))
+  }
+}
+
+# An iterator over the parameters of an item.
+#
+# The iterator stops when it reaches the end of the input or a comma (",").
+type Parameters[B: Bytes] {
+  let @input: Slice[B]
+  let mut @index: Int
+  let mut @done: Bool
+
+  fn static new[S: ToSlice[B]](input: ref S) -> Self {
+    Self(input: input.to_slice, index: 0, done: false)
+  }
+}
+
+impl Iter[Result[(Parameter[B], ParameterValue[B]), Nil]] for Parameters {
+  fn pub mut next -> Option[Result[(Parameter[B], ParameterValue[B]), Nil]] {
+    if @done { return Option.None }
+
+    # Skip the ";" and any spaces at the start of each parameter pair.
+    while @index < @input.size {
+      match @input.get(@index).or_panic {
+        case SPACE or SCOL -> @index += 1
+        case _ -> break
+      }
+    }
+
+    let name_start = @index
+
+    while @index < @input.size {
+      match @input.get(@index).or_panic {
+        case SPACE -> return Option.Some(Result.Error(nil))
+        case EQ -> break
+        case UNDER or DASH or DOT or AST -> {}
+        case v if lower?(v) or digit?(v) -> {}
+        case COMMA -> {
+          @done = true
+          break
+        }
+        case _ -> {}
+      }
+
+      @index += 1
+    }
+
+    # No name means we've reached the end.
+    if @index - name_start == 0 { return Option.None }
+
+    let name = @input.slice(name_start, @index := @index + 1)
+
+    # We've reached the end of the last parameter without a value.
+    if @index >= @input.size or @done {
+      let val = @input.slice(0, 0)
+
+      return Option.Some(Result.Ok((Parameter(name), ParameterValue(val))))
+    }
+
+    let mut quoted = match @input.get(@index) {
+      case Ok(DQUOTE) -> {
+        @index += 1
+        true
+      }
+      case _ -> false
+    }
+
+    let val_start = @index
+    let mut val_end = @index
+
+    if quoted {
+      while @index < @input.size {
+        match @input.get(@index).or_panic {
+          case DQUOTE -> {
+            quoted = false
+            @index += 1
+            break
+          }
+          case BSLASH -> {
+            match @input.get(@index + 1) {
+              case Ok(BSLASH or DQUOTE) -> {
+                @index += 1
+                val_end += 1
+              }
+              case _ -> return Option.Some(Result.Error(nil))
+            }
+          }
+          case _ -> {}
+        }
+
+        val_end += 1
+        @index += 1
+      }
+
+      # We reached the end before the closing quote.
+      if quoted { return Option.Some(Result.Error(nil)) }
+    } else {
+      while @index < @input.size {
+        match @input.get(@index).or_panic {
+          case v if token?(v) -> {}
+          case COMMA -> {
+            @done = true
+            @index += 1
+            break
+          }
+          case SCOL -> {
+            @index += 1
+            break
+          }
+          case _ -> return Option.Some(Result.Error(nil))
+        }
+
+        @index += 1
+        val_end += 1
+      }
+    }
+
+    let val = @input.slice(val_start, val_end)
+
+    Option.Some(Result.Ok((Parameter(name), ParameterValue(val))))
+  }
+}
+
+# A case-insensive parameter name.
+#
+# This type internally wraps a `Slice` over some `Bytes` (i.e. a `String`). This
+# means the source must remain alive for the duration of the `Parameter`
+# lifetime.
+#
+# When comparing two `Parameter` values, the comparison is performed using an
+# ASCII case-insensitive comparison. When converting a `Parameter` to a
+# `String`, the returned `String` is in lowercase.
+type pub inline Parameter[B: Bytes] {
+  let @value: Slice[B]
+
+  fn equals?[O: Bytes](other: ref O) -> Bool {
+    @value.equals_while_ignoring_case?(other)
+  }
+}
+
+impl Hash for Parameter {
+  fn pub hash[H: mut + Hasher](hasher: mut H) {
+    hasher.write(@value.size)
+
+    for byte in @value.bytes {
+      let byte = if upper?(byte) { to_lower(byte) } else { byte }
+
+      hasher.write(byte)
+    }
+  }
+}
+
+impl Equal for Parameter {
+  fn pub ==(other: ref Self) -> Bool {
+    equals?(other.value)
+  }
+}
+
+impl ToString for Parameter {
+  fn pub to_string -> String {
+    let buf = ByteArray.with_capacity(@value.size)
+
+    for byte in @value.bytes {
+      let byte = if upper?(byte) { to_lower(byte) } else { byte }
+
+      buf.push(byte)
+    }
+
+    buf.into_string
+  }
+}
+
+# A decoded parameter value (= escaped sequences are replaced with their
+# replacement values).
+type inline enum DecodedParameterValue[B: Bytes] {
+  case Borrowed(Slice[B])
+  case Owned(String)
+}
+
+# A lazily decoded (but already validated) parameter value.
+#
+# This type internally wraps a `Slice` over some `Bytes` (i.e. a `String`). This
+# means the source must remain alive for the duration of the `Parameter`
+# lifetime.
+#
+# Parameter values may contain escaped quotes or backslashes, which are decoded
+# upon calling `Value.to_string`.
+type pub inline ParameterValue[B: Bytes] {
+  let @value: Slice[B]
+
+  fn get -> DecodedParameterValue[B] {
+    if tokens?(@value) { return DecodedParameterValue.Borrowed(@value.clone) }
+
+    let buf = ByteArray.with_capacity(@value.size)
+    let mut i = 0
+    let len = @value.size
+
+    while i < len {
+      match @value.get(i).or_panic {
+        case BSLASH -> {
+          let Ok(v) = @value.get(i + 1) else break
+
+          buf.push(v)
+          i += 1
+        }
+        case v -> buf.push(v)
+      }
+
+      i += 1
+    }
+
+    DecodedParameterValue.Owned(buf.into_string)
+  }
+
+  fn encode(into: mut ByteArray) {
+    if tokens?(@value) {
+      into.append(@value)
+    } else {
+      into.append('"')
+      into.append(@value)
+      into.append('"')
+    }
+  }
+}
+
+impl ToString for ParameterValue {
+  fn pub to_string -> String {
+    match get {
+      case Borrowed(v) -> v.to_string
+      case Owned(v) -> v
+    }
+  }
+}
+
+impl Clone for ParameterValue {
+  fn pub clone -> Self {
+    Self(@value.clone)
+  }
+}
+
+impl Equal for ParameterValue {
+  fn pub ==(other: ref Self) -> Bool {
+    @value == other.value
+  }
+}

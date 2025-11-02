@@ -376,6 +376,7 @@ import std.fs.path
 import std.hash (Hash, Hasher)
 import std.int
 import std.io (Error as IoError, LimitReader, Read, SeekFrom, Write, copy_using)
+import std.iter (Stream)
 import std.mime (Mime)
 import std.multipart
 import std.net.http (
@@ -873,6 +874,15 @@ type pub Response {
     new.status(Status.internal_server_error)
   }
 
+  # Returns an HTTP 426 response instructing the client to upgrade the used
+  # HTTP version.
+  fn pub static upgrade_http_version -> Response {
+    new
+      .status(Status.upgrade_required)
+      .header(Header.upgrade, 'HTTP/1.1')
+      .header(Header.connection, 'Upgrade')
+  }
+
   # Assigns the given value to the header.
   #
   # This method is just a shortcut for using `HeaderMap.set` through the
@@ -1025,12 +1035,12 @@ type pub Response {
   ) -> Bool {
     let len = @body.size
 
-    # When an upgrade is required the `Connection` header is expected to already
-    # be set to `Upgrade`.
-    if @status != Status.upgrade_required {
-      @headers.set(Header.connection, if keep { 'keep-alive' } else { 'close' })
-    }
-
+    # If the Connection header is already set (e.g. when upgrading or switching
+    # protocols), leave the existing value as-is.
+    @headers.try_set(
+      Header.connection,
+      if keep { 'keep-alive' } else { 'close' },
+    )
     @headers.set(Header.date, DateTime.utc.to_rfc2822)
 
     match len {
@@ -1615,12 +1625,7 @@ type async Connection[H: mut + Handle] {
           case { @major = 1, @minor = 1 } -> true
           case { @major = 1, @minor = 0 } -> false
           case { @major = 0 } -> {
-            let resp = Response.new
-
-            resp.status = Status.upgrade_required
-            resp.headers.set(Header.upgrade, 'HTTP/1.1')
-            resp.headers.set(Header.connection, 'Upgrade')
-            return ParseResult.Error(resp)
+            return ParseResult.Error(Response.upgrade_http_version)
           }
           case _ -> {
             return ParseResult.Error(
@@ -1934,12 +1939,12 @@ type pub Request {
   # Parses the request's `Accept` header values (if any) into a list of
   # `std.mime.Mime` values.
   #
-  # Any invalid values are ignored. If none of the values are valid or none are
-  # specified, an empty `Array` is returned.
+  # When encountering an invalid MIME type, it and any remaining MIME types are
+  # ignored.
   #
   # To guard against unreasonably large `Accept` header values (in addition to
-  # the limits applied when parsing requests), this method only parses the first
-  # 16 MIME types.
+  # the limits applied when parsing requests), this method only parses up to 16
+  # valid MIME types.
   #
   # # Quality values
   #
@@ -1954,21 +1959,11 @@ type pub Request {
   # If the value of a `q` parameter is invalid, it's treated as a weight of
   # `0.0`. If the value is absent, the weight defaults to `1.0`.
   fn pub accepted_mime_types -> Array[Mime] {
-    let mimes = []
-    let mut parsed = 0
-
-    for val in headers.get_all(Header.accept) {
-      for chunk in val.split(',') {
-        if parsed == 16 { break }
-
-        match Mime.parse(chunk.trim) {
-          case Some(v) -> mimes.push(v)
-          case _ -> {}
-        }
-
-        parsed += 1
-      }
-    }
+    let mimes = headers
+      .get_all(Header.accept)
+      .flat_map(fn (v) -> Stream[Mime] { Mime.parse_list(v) })
+      .take(16)
+      .to_array
 
     mimes.sort_by(fn (a, b) {
       let mut a_val = quality_value(a)
@@ -2061,17 +2056,23 @@ type pub Request {
     match headers.get(Header.sec_fetch_site) {
       case Ok('same-origin' or 'none') -> true
       case Ok(_) -> false
-      case _ -> {
-        match headers.get(Header.origin) {
-          case Ok(origin) -> {
-            match (Uri.parse(origin), host) {
-              case (Ok(o), (h, p)) -> o.host == Host.new(h) and o.port == p
-              case _ -> false
-            }
-          }
-          case _ -> true
+      case _ -> origin_matches_host?
+    }
+  }
+
+  # Returns `true` if the value of the `Origin` header matches the value of the
+  # `Host` header.
+  #
+  # If the `Origin` header is missing then the return value is `true`.
+  fn pub origin_matches_host? -> Bool {
+    match headers.get(Header.origin) {
+      case Ok(origin) -> {
+        match (Uri.parse(origin), host) {
+          case (Ok(o), (h, p)) -> o.host == Host.new(h) and o.port == p
+          case _ -> false
         }
       }
+      case _ -> true
     }
   }
 }

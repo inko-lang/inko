@@ -1,5 +1,6 @@
 import helpers (VALID_CERT, VALID_KEY)
 import std.bytes (Bytes)
+import std.cmp (Ordering)
 import std.crypto.pem
 import std.crypto.x509
 import std.drop (drop)
@@ -332,6 +333,10 @@ fn pub tests(t: mut Tests) {
 
   t.test('Status.new', fn (t) { t.equal(Status.new(404).code, 404) })
 
+  t.test('Status.switching_protocols', fn (t) {
+    t.equal(Status.switching_protocols.code, 101)
+  })
+
   t.test('Status.ok', fn (t) { t.equal(Status.ok.code, 200) })
 
   t.test('Status.created', fn (t) { t.equal(Status.created.code, 201) })
@@ -424,6 +429,14 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Version.v11', fn (t) { t.equal(Version.v11, Version(1, 1)) })
+
+  t.test('Version.cmp', fn (t) {
+    t.equal(Version(1, 1).cmp(Version(1, 1)), Ordering.Equal)
+    t.equal(Version(1, 1).cmp(Version(1, 0)), Ordering.Greater)
+    t.equal(Version(1, 0).cmp(Version(1, 1)), Ordering.Less)
+    t.equal(Version(2, 0).cmp(Version(1, 1)), Ordering.Greater)
+    t.equal(Version(0, 3).cmp(Version(0, 2)), Ordering.Greater)
+  })
 
   t.test('Version.==', fn (t) {
     t.equal(Version(1, 2), Version(1, 2))

@@ -54,9 +54,10 @@ import std.io (
   BufferedReader, CopyError, READ_BUFFER_SIZE, Read, Write, copy_using,
 )
 import std.iter (Iter)
-import std.mime (Mime, parameters, split_item)
+import std.mime (Mime)
 import std.net.http (Header, HeaderMap)
 import std.net.http.header (CONTENT_DISPOSITION, CONTENT_TYPE)
+import std.net.http.header.values (Parameters, split_item)
 import std.rand (Random)
 import std.string (ToString)
 import std.uri
@@ -442,13 +443,19 @@ type pub Multipart[T: mut + Read[E], E] {
             case _ -> throw Error.InvalidHeader
           }
 
-          for par in parameters(pars) {
+          for par in Parameters.new(pars) {
             match par {
               case Ok((k, v)) if k.equals?('name') -> {
-                field.name = try decode(v, buf)
+                field.name = match v.get {
+                  case Borrowed(v) -> try decode(v, buf)
+                  case Owned(v) -> try decode(v, buf)
+                }
               }
               case Ok((k, v)) if k.equals?('filename') -> {
-                let v = try decode(v, buf)
+                let v = match v.get {
+                  case Borrowed(v) -> try decode(v, buf)
+                  case Owned(v) -> try decode(v, buf)
+                }
 
                 # If the name contains any directory separators we need to
                 # remove them (RFC 7578, section 4.2). We route this through

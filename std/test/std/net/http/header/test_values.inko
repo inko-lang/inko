@@ -1,0 +1,145 @@
+import std.net.http.header.values (
+  Items, ParameterValue, Parameters, split_item,
+)
+import std.test (Tests)
+
+fn pub tests(t: mut Tests) {
+  t.test('split_item', fn (t) {
+    let a = 'foo ; bar'
+    let b = 'foo'
+    let c = ''
+
+    t.equal(
+      split_item(a.slice(0, a.size)),
+      (a.slice(0, 3), Option.Some(a.slice(6, 9))),
+    )
+    t.equal(split_item(b.slice(0, b.size)), (b.slice(0, b.size), Option.None))
+    t.equal(split_item(c.slice(0, c.size)), (c.slice(0, c.size), Option.None))
+  })
+
+  t.test('Items.next', fn (t) {
+    let tests: Array[(String, Array[(String, Array[(String, String)])])] = [
+      # Valid values without parameters
+      ('a', [('a', [])]),
+      ('a,b', [('a', []), ('b', [])]),
+      ('a, b', [('a', []), ('b', [])]),
+      ('a,      b', [('a', []), ('b', [])]),
+      ('a    ,      b', [('a', []), ('b', [])]),
+
+      # Valid values with parameters
+      ('a;b', [('a', [('b', '')])]),
+      ('a;    b', [('a', [('b', '')])]),
+      ('a    ;    b', [('a', [('b', '')])]),
+      ('a; key=val', [('a', [('key', 'val')])]),
+      (
+        'a; key1=val1, b; key2=val2',
+        [('a', [('key1', 'val1')]), ('b', [('key2', 'val2')])],
+      ),
+      (
+        'a; key1=val1; key2=val2, b; key3=val3',
+        [
+          ('a', [('key1', 'val1'), ('key2', 'val2')]),
+          ('b', [('key3', 'val3')]),
+        ],
+      ),
+      ('a; key="a b", b', [('a', [('key', 'a b')]), ('b', [])]),
+      (
+        'a; key1="a b"; key2=val2, b',
+        [('a', [('key1', 'a b'), ('key2', 'val2')]), ('b', [])],
+      ),
+
+      # Invalid inputs
+      ('a; key=a b, b', []),
+
+      # Empty inputs
+      ('', []),
+      ('      ', []),
+      ('   ;   ,   ', []),
+    ]
+
+    for (inp, exp) in tests {
+      let got = []
+
+      for (val, pars_opt) in Items.new(inp) {
+        let val = val.to_string
+        let pars = []
+        let Some(map) = pars_opt else {
+          got.push((val, pars))
+          next
+        }
+
+        for (key, val) in map { pars.push((key.to_string, val.to_string)) }
+
+        got.push((val, pars))
+      }
+
+      t.equal(got, exp)
+    }
+  })
+
+  t.test('Parameters.next', fn (t) {
+    let tests = [
+      # Valid values
+      ('', Result.Ok([])),
+      ('a', Result.Ok([('a', '')])),
+      ('a=v1', Result.Ok([('a', 'v1')])),
+      ('a=v1;', Result.Ok([('a', 'v1')])),
+      ('a="v1"', Result.Ok([('a', 'v1')])),
+      ('a="v1";', Result.Ok([('a', 'v1')])),
+      ('a="a;b";', Result.Ok([('a', 'a;b')])),
+      ('a="a,b";', Result.Ok([('a', 'a,b')])),
+      ('a="a b";', Result.Ok([('a', 'a b')])),
+      ('a="a b"; b=2', Result.Ok([('a', 'a b'), ('b', '2')])),
+      ('a="a\\"b";', Result.Ok([('a', 'a"b')])),
+      ('a="a\\\\b";', Result.Ok([('a', 'a\\b')])),
+      ('a=v1; b=v2', Result.Ok([('a', 'v1'), ('b', 'v2')])),
+      ('a=v1;;;b=v2', Result.Ok([('a', 'v1'), ('b', 'v2')])),
+      (
+        'a=v1; b=v2; c="v3"',
+        Result.Ok([('a', 'v1'), ('b', 'v2'), ('c', 'v3')]),
+      ),
+      ('key_12-3.4*5=val', Result.Ok([('key_12-3.4*5', 'val')])),
+
+      # Iteration stops when encountering a comma.
+      ('a=v1, b=v2', Result.Ok([('a', 'v1')])),
+      ('a,b', Result.Ok([('a', '')])),
+
+      # Invalid values
+      (' a ', Result.Error(nil)),
+      ('a =', Result.Error(nil)),
+      ('a="b', Result.Error(nil)),
+      ('a=b"', Result.Error(nil)),
+      ('a="a\\xb";', Result.Error(nil)),
+      ('a="a\\;', Result.Error(nil)),
+      ('a=foo"; b=10', Result.Error(nil)),
+      ('a=a b', Result.Error(nil)),
+      ('këy=väl', Result.Error(nil)),
+      ('a= v1 ', Result.Error(nil)),
+    ]
+
+    for (inp, exp) in tests {
+      let got = Parameters.new(inp).try_reduce([], fn (ary, res) {
+        match try res {
+          case (k, v) -> ary.push((k.to_string, v.to_string))
+        }
+
+        Result.Ok(ary)
+      })
+
+      t.equal(got, exp)
+    }
+  })
+
+  t.test('Value.to_string', fn (t) {
+    let tests = [
+      ('a', 'a'),
+      ('a b', 'a b'),
+      ('a\\"b', 'a"b'),
+      ('a\\\\b', 'a\\b'),
+    ]
+
+    for (inp, out) in tests {
+      t.equal(ParameterValue(inp.to_slice).to_string, out)
+    }
+  })
+}
