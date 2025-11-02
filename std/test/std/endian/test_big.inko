@@ -3,6 +3,29 @@ import std.int (MAX, MIN)
 import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
+  t.test('big.write_i16', fn (t) {
+    let b1 = ByteArray.filled(with: 0, times: 2)
+    let b2 = ByteArray.filled(with: 0, times: 2)
+
+    big.write_i16(65_000, into: b1, at: 0)
+    big.write_i16(MAX, into: b2, at: 0)
+
+    t.equal(b1, ByteArray.from_array([253, 232]))
+    t.equal(b2, ByteArray.from_array([255, 255]))
+  })
+
+  t.test('big.read_i16', fn (t) {
+    let bytes = ByteArray.filled(with: 0, times: 2)
+
+    big.write_i16(65_000, into: bytes, at: 0)
+
+    t.equal(big.read_i16(from: bytes, at: 0), 65_000)
+  })
+
+  t.panic('big.read_i16 with not enough bytes', fn {
+    big.read_i16(from: ByteArray.new, at: 0)
+  })
+
   t.test('big.write_i32', fn (t) {
     let b1 = ByteArray.filled(with: 0, times: 4)
     let b2 = ByteArray.filled(with: 0, times: 4)
