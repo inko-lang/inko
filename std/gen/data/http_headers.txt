@@ -65,3 +65,8 @@ sec-fetch-site
 sec-fetch-mode
 sec-fetch-user
 sec-fetch-dest
+sec-websocket-accept
+sec-websocket-extensions
+sec-websocket-key
+sec-websocket-protocol
+sec-websocket-version

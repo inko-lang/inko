@@ -4,19 +4,19 @@ import std.bytes (Bytes)
 # edited by hand. For more information, refer to ./std/gen/README.md.
 
 let G = [
-  0, 0, 0, 0, 0, 25, 0, 1, 9, 10, 0, 0, 0, 0, 49, 59, 45, 73, 78, 80, 0, 32, 0,
-  81, 0, 0, 17, 77, 0, 72, 6, 79, 11, 0, 38, 0, 1, 49, 36, 20, 81, 19, 27, 80,
-  91, 0, 67, 22, 0, 0, 79, 0, 30, 1, 9, 15, 0, 39, 55, 66, 62, 28, 1, 15, 3, 86,
-  75, 36, 19, 54, 20, 29, 2, 64, 50, 48, 53, 46, 4, 39, 16, 25, 24, 63, 69, 75,
-  0, 0, 61, 0, 20, 17,
+  0, 0, 0, 64, 0, 32, 0, 52, 44, 59, 0, 84, 30, 63, 20, 0, 32, 44, 20, 44, 0, 3,
+  59, 0, 58, 73, 76, 0, 8, 38, 0, 18, 31, 58, 3, 43, 52, 36, 17, 20, 0, 46, 17,
+  33, 50, 10, 79, 41, 8, 0, 17, 40, 73, 10, 5, 28, 0, 21, 23, 19, 0, 24, 0, 0,
+  0, 28, 3, 23, 20, 89, 9, 88, 19, 56, 23, 6, 87, 33, 7, 41, 45, 22, 34, 79, 42,
+  84, 19, 57, 50, 6,
 ]
 let S1 = [
-  10, 50, 10, 71, 26, 21, 8, 85, 65, 19, 69, 16, 69, 22, 88, 24, 43, 48, 64, 30,
-  37, 23, 65, 27, 4, 14, 2, 40, 23, 17, 42, 6,
+  27, 48, 23, 34, 52, 26, 36, 14, 63, 70, 79, 57, 36, 15, 78, 72, 81, 10, 4, 1,
+  5, 58, 69, 33, 3, 15, 89, 51, 4, 24, 32, 42,
 ]
 let S2 = [
-  6, 34, 15, 55, 80, 84, 41, 9, 16, 1, 40, 69, 83, 71, 82, 25, 29, 82, 19, 23,
-  7, 70, 10, 64, 66, 81, 71, 81, 83, 40, 36, 14,
+  86, 7, 7, 68, 82, 35, 38, 89, 71, 60, 6, 86, 39, 86, 45, 6, 51, 83, 8, 44, 71,
+  29, 36, 50, 55, 22, 55, 30, 58, 24, 77, 59,
 ]
 let KEYS = [
   'accept',
@@ -86,6 +86,11 @@ let KEYS = [
   'sec-fetch-mode',
   'sec-fetch-user',
   'sec-fetch-dest',
+  'sec-websocket-accept',
+  'sec-websocket-extensions',
+  'sec-websocket-key',
+  'sec-websocket-protocol',
+  'sec-websocket-version',
 ]
 
 fn inline hash[B: Bytes](key: ref B, salt: ref Array[Int]) -> Int {
@@ -97,7 +102,7 @@ fn inline hash[B: Bytes](key: ref B, salt: ref Array[Int]) -> Int {
     i += 1
   }
 
-  h % 92
+  h % 90
 }
 
 # Returns the index of the given key.
@@ -108,7 +113,7 @@ fn index_of[B: Bytes](key: ref B) -> Int {
 
   let a = G.get(hash(key, S1)).or_panic
   let b = G.get(hash(key, S2)).or_panic
-  let i = a.wrapping_add(b) % 92
+  let i = a.wrapping_add(b) % 90
 
   match KEYS.get(i) {
     case Ok(v) if key.equals?(v) -> i
