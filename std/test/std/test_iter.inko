@@ -1,4 +1,5 @@
 import std.iter (Stream)
+import std.string (Chars)
 import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
@@ -206,6 +207,12 @@ fn pub tests(t: mut Tests) {
       ([] as Array[Int]).into_iter.take_while(fn (_) { true }).to_array,
       [],
     )
+  })
+
+  t.test('Iter.flat_map', fn (t) {
+    let iter = ['foo', 'bar'].into_iter.flat_map(fn (v) -> Chars { v.chars })
+
+    t.equal(iter.to_array, ['f', 'o', 'o', 'b', 'a', 'r'])
   })
 
   t.test('Peekable.peek with an empty iterator', fn (t) {
