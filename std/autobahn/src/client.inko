@@ -1,0 +1,64 @@
+import std.int (Format)
+import std.net.http.client (Client)
+import std.net.http.websocket (Error)
+import std.stdio (Stdout)
+import std.uri (Uri)
+
+let AGENT = 'inko'
+let HOST = '127.0.0.1:8001'
+
+fn get_case_count(client: mut Client) -> Int {
+  let uri = Uri.parse('ws://${HOST}/getCaseCount').or_panic
+  let (sock, _) = client.websocket(uri).send.or_panic
+  let msg = sock.receive
+
+  match msg.or_panic {
+    case Text(v) -> Int.parse(v, Format.Decimal).get
+    case _ -> panic('expected a text message')
+  }
+}
+
+fn run_test(client: mut Client, id: Int) -> Result[Nil, Error] {
+  let uri = Uri.parse('ws://${HOST}/runCase?case=${id}&agent=${AGENT}').or_panic
+  let (sock, _) = client.websocket(uri).send.or_panic
+
+  loop {
+    match sock.receive {
+      case Ok(Text(v)) -> try sock.text(v)
+      case Ok(Binary(v)) -> try sock.binary(v)
+      case Ok(_) -> {}
+      case Error(Closed or InvalidFrame or MessageTooLarge or InvalidUtf8) -> {
+        break
+      }
+      case Error(e) -> throw e
+    }
+  }
+
+  Result.Ok(nil)
+}
+
+fn update_reports(client: mut Client) {
+  let uri = Uri.parse('ws://${HOST}/updateReports?agent=${AGENT}').or_panic
+  let _ = client.websocket(uri).send.or_panic
+}
+
+type async Main {
+  fn async main {
+    let client = Client.new
+    let count = get_case_count(client)
+    let out = Stdout.new
+
+    for id in 1.to(count) {
+      match run_test(client, id) {
+        case Ok(_) -> {}
+        case Error(e) -> panic('test ${id} failed: ${e}')
+      }
+
+      out.write('.')
+    }
+
+    let _ = out.write('\n')
+
+    update_reports(client)
+  }
+}

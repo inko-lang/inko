@@ -20,15 +20,17 @@ import std.net.http.server (
   Address, CacheControl, ConnectionId, Delete, Directory, FileRanges, FormError,
   Get, Handle, Head, LogWriter, Logger, Notifier, Path as RequestPath, Post,
   Put, RangeRequest, Request, Response, Server, Shutdown, Socket, SocketServer,
-  State, conditional_request, copy_file_range, head_request, parse_accept_range,
-  parse_accept_ranges, quality_value,
+  State, WebsocketResponse, conditional_request, copy_file_range, head_request,
+  parse_accept_range, parse_accept_ranges, quality_value,
 )
+import std.net.http.websocket (WEBSOCKET_VERSION)
 import std.net.ip (IpAddress)
 import std.net.socket (
   SocketAddress, TcpClient, TcpServer, UnixAddress, UnixClient, UnixServer,
 )
 import std.net.tls
 import std.rand (Random)
+import std.set (Set)
 import std.sync (Future, Promise)
 import std.test (Tests)
 import std.time (DateTime, Duration, Instant)
@@ -41,8 +43,8 @@ fn unix_pair(
 
   let path = directory.join('server.sock')
   let server = try UnixServer.new(path)
-  let writer = Socket.Unix(try UnixClient.new(path))
-  let reader = Socket.Unix(try server.accept)
+  let writer = Socket.unix(try UnixClient.new(path))
+  let reader = Socket.unix(try server.accept)
 
   Result.Ok((server, writer, reader))
 }
@@ -50,8 +52,8 @@ fn unix_pair(
 fn socket_pair -> Result[(TcpServer, Socket, Socket), IoError] {
   let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
   let addr = try server.local_address
-  let writer = Socket.Plain(try TcpClient.new([addr.ip], addr.port))
-  let reader = Socket.Plain(try server.accept)
+  let writer = Socket.plain(try TcpClient.new([addr.ip], addr.port))
+  let reader = Socket.plain(try server.accept)
 
   Result.Ok((server, writer, reader))
 }
@@ -72,30 +74,35 @@ fn values(pairs: Array[(String, String)]) -> Values {
   vals
 }
 
-fn request(raw: RawRequest, limits: Limits) -> Request {
+fn request(raw: RawRequest, limits: Limits, random: mut Random) -> Request {
   let addr = Address.Ip(SocketAddress(ip: IpAddress.v4(0, 0, 0, 0), port: 80))
 
-  Request.new(addr, raw, limits)
+  Request.new(addr, raw, limits, random)
 }
 
-fn empty_request(limits: Limits) -> Request {
-  request_with_method(limits, Get)
+fn empty_request(limits: Limits, random: mut Random) -> Request {
+  request_with_method(limits, Get, random)
 }
 
-fn request_with_method(limits: Limits, method: Method) -> Request {
+fn empty_body -> Body {
+  Body.bounded(Reader.new(Buffer.new('')), size: 0, limit: 0)
+}
+
+fn request_with_method(
+  limits: Limits,
+  method: Method,
+  random: mut Random,
+) -> Request {
   request(
     RawRequest(
       method: method,
       uri: Uri.parse('/').or_panic,
       version: Version(1, 1),
       headers: HeaderMap.new,
-      body: Body.bounded(
-        BufferedReader.new(Reader.new(Buffer.new(''))),
-        size: 0,
-        limit: 0,
-      ),
+      body: empty_body,
     ),
     limits,
+    random,
   )
 }
 
@@ -156,6 +163,11 @@ type Hello {}
 
 impl Handle for Hello {
   fn pub mut handle(request: mut Request) -> Response {
+    # Wait for the client to write the body before we proceed (and potentially
+    # close the connection)
+    let buf = ByteArray.new
+    let _ = request.body.read(into: buf, size: 1)
+
     match request.target {
       case [] -> Response.new.string('hello')
       case ['hijack'] -> Response.new.hijack(fn (s) { s.write('hijacked') })
@@ -196,9 +208,10 @@ type async AsyncServer {
         }
       })
 
-      # We don't want to wait for connections during the tests so we don't delay
-      # them.
-      srv.shutdown_wait_time = Duration.from_secs(0)
+      # We wait only a short amount of time during a shutdown such that tests
+      # aren't stalled for too long in the event of a bug, but still have enough
+      # time to e.g. finish writing bodies and reading a response.
+      srv.shutdown_wait_time = Duration.from_secs(1)
       srv
     }
 
@@ -318,7 +331,8 @@ fn pub tests(t: mut Tests) {
 
   t.test('conditional_request with a regular response', fn (t) {
     let limits = Limits.new
-    let req = empty_request(limits)
+    let rng = Random.new
+    let req = empty_request(limits, rng)
 
     req.data.headers.set(Header.if_none_match, etag)
 
@@ -334,7 +348,8 @@ fn pub tests(t: mut Tests) {
 
   t.test('conditional_request with an unsafe request method', fn (t) {
     let limits = Limits.new
-    let req = request_with_method(limits, Post)
+    let rng = Random.new
+    let req = request_with_method(limits, Post, rng)
 
     req.data.headers.set(Header.if_none_match, etag)
 
@@ -352,7 +367,8 @@ fn pub tests(t: mut Tests) {
 
   t.test('conditional_request with a valid If-None-Match header', fn (t) {
     let limits = Limits.new
-    let req = empty_request(limits)
+    let rng = Random.new
+    let req = empty_request(limits, rng)
 
     req.data.headers.set(Header.if_none_match, etag)
 
@@ -370,7 +386,8 @@ fn pub tests(t: mut Tests) {
 
   t.test('conditional_request with a valid If-Modified-Since header', fn (t) {
     let limits = Limits.new
-    let req = empty_request(limits)
+    let rng = Random.new
+    let req = empty_request(limits, rng)
     let now = DateTime.utc + Duration.from_secs(3600)
 
     req.data.headers.set(Header.if_modified_since, now.to_rfc2822)
@@ -391,7 +408,8 @@ fn pub tests(t: mut Tests) {
     'conditional_request with both a If-None-Match and If-Modified-Since header',
     fn (t) {
       let limits = Limits.new
-      let req = empty_request(limits)
+      let rng = Random.new
+      let req = empty_request(limits, rng)
       let time = hello_txt.metadata.or_panic.modified_at.to_date_time
         - Duration.from_secs(3600)
 
@@ -407,7 +425,8 @@ fn pub tests(t: mut Tests) {
 
   t.test('conditional_request with If-None-Match: *', fn (t) {
     let limits = Limits.new
-    let req = empty_request(limits)
+    let rng = Random.new
+    let req = empty_request(limits, rng)
 
     req.data.headers.set(Header.if_none_match, '*')
 
@@ -419,7 +438,8 @@ fn pub tests(t: mut Tests) {
 
   t.test('conditional_request with multiple If-None-Match values', fn (t) {
     let limits = Limits.new
-    let req = empty_request(limits)
+    let rng = Random.new
+    let req = empty_request(limits, rng)
 
     req.data.headers.set(Header.if_none_match, '"foo", ${etag}')
 
@@ -433,7 +453,8 @@ fn pub tests(t: mut Tests) {
     'conditional_request with a request method other than GET or HEAD',
     fn (t) {
       let limits = Limits.new
-      let req = request_with_method(limits, Method.Trace)
+      let rng = Random.new
+      let req = request_with_method(limits, Method.Trace, rng)
 
       req.data.headers.set(Header.if_none_match, etag)
 
@@ -452,7 +473,8 @@ fn pub tests(t: mut Tests) {
 
   t.test('conditional_request with a stale If-None-Match value', fn (t) {
     let limits = Limits.new
-    let req = request_with_method(limits, Method.Trace)
+    let rng = Random.new
+    let req = request_with_method(limits, Method.Trace, rng)
 
     req.data.headers.set(Header.if_none_match, 'foo')
 
@@ -470,7 +492,8 @@ fn pub tests(t: mut Tests) {
 
   t.test('conditional_request with a stale If-Modified-Since value', fn (t) {
     let limits = Limits.new
-    let req = request_with_method(limits, Method.Trace)
+    let rng = Random.new
+    let req = request_with_method(limits, Method.Trace, rng)
     let time = hello_txt.metadata.or_panic.modified_at.to_date_time
       - Duration.from_secs(3600)
 
@@ -490,7 +513,8 @@ fn pub tests(t: mut Tests) {
 
   t.test('RangeRequest.handle with a regular response', fn (t) {
     let limits = Limits.new
-    let req = empty_request(limits)
+    let rng = Random.new
+    let req = empty_request(limits, rng)
 
     req.data.headers.set(Header.range, 'bytes=0,3')
 
@@ -507,7 +531,8 @@ fn pub tests(t: mut Tests) {
 
   t.test('RangeRequest.handle with a non-GET request', fn (t) {
     let limits = Limits.new
-    let req = request_with_method(limits, Post)
+    let rng = Random.new
+    let req = request_with_method(limits, Post, rng)
 
     req.data.headers.set(Header.range, 'bytes=0,3')
 
@@ -525,7 +550,8 @@ fn pub tests(t: mut Tests) {
 
   t.test('RangeRequest.handle with a non-OK response', fn (t) {
     let limits = Limits.new
-    let req = empty_request(limits)
+    let rng = Random.new
+    let req = empty_request(limits, rng)
 
     req.data.headers.set(Header.range, 'bytes=0,3')
 
@@ -543,7 +569,8 @@ fn pub tests(t: mut Tests) {
 
   t.test('RangeRequest.handle with a single Range value', fn (t) {
     let limits = Limits.new
-    let req = empty_request(limits)
+    let rng = Random.new
+    let req = empty_request(limits, rng)
 
     req.data.headers.set(Header.range, 'bytes=0-3')
 
@@ -567,7 +594,8 @@ fn pub tests(t: mut Tests) {
 
   t.test('RangeRequest.handle with an invalid Range value', fn (t) {
     let limits = Limits.new
-    let req = empty_request(limits)
+    let rng = Random.new
+    let req = empty_request(limits, rng)
 
     req.data.headers.set(Header.range, 'bytes=0,3')
 
@@ -586,12 +614,13 @@ fn pub tests(t: mut Tests) {
 
   t.test('RangeRequest.handle with multiple Range values', fn (t) {
     let limits = Limits.new
-    let req = empty_request(limits)
+    let rng = Random.from_int(42)
+    let req = empty_request(limits, rng)
 
     req.data.headers.set(Header.range, 'bytes=0-3,4-5')
 
     let res = Response.new.file(hello_txt).or_panic
-    let res = RangeRequest(rng: Random.from_int(42), limit: 8).handle(req, res)
+    let res = RangeRequest(limit: 8).handle(req, res)
     let sep = 'InkoFormBoundaryHlzwcFgKtvmvB89Js6UhXuY80cn4O3-eIxjOYsIxQsM'
 
     t.equal(res.status, Status.partial_content)
@@ -619,7 +648,8 @@ fn pub tests(t: mut Tests) {
     'RangeRequest.handle with an If-Range header with a matching ETag',
     fn (t) {
       let limits = Limits.new
-      let req = empty_request(limits)
+      let rng = Random.new
+      let req = empty_request(limits, rng)
 
       req.data.headers.set(Header.range, 'bytes=0-3')
       req.data.headers.set(Header.if_range, etag)
@@ -647,7 +677,8 @@ fn pub tests(t: mut Tests) {
     'RangeRequest.handle with an If-Range header with a stale ETag',
     fn (t) {
       let limits = Limits.new
-      let req = empty_request(limits)
+      let rng = Random.new
+      let req = empty_request(limits, rng)
 
       req.data.headers.set(Header.range, 'bytes=0-3')
       req.data.headers.set(Header.if_range, '"foo"')
@@ -674,7 +705,8 @@ fn pub tests(t: mut Tests) {
     'RangeRequest.handle with an If-Range header with a matching date',
     fn (t) {
       let limits = Limits.new
-      let req = empty_request(limits)
+      let rng = Random.new
+      let req = empty_request(limits, rng)
 
       req.data.headers.set(Header.range, 'bytes=0-3')
       req.data.headers.set(Header.if_range, 'date')
@@ -706,7 +738,8 @@ fn pub tests(t: mut Tests) {
     'RangeRequest.handle with an If-Range header with a stale date',
     fn (t) {
       let limits = Limits.new
-      let req = empty_request(limits)
+      let rng = Random.new
+      let req = empty_request(limits, rng)
 
       req.data.headers.set(Header.range, 'bytes=0-3')
       req.data.headers.set(Header.if_range, '"date"')
@@ -735,7 +768,8 @@ fn pub tests(t: mut Tests) {
 
   t.test('head_request with a GET request', fn (t) {
     let limits = Limits.new
-    let req = empty_request(limits)
+    let rng = Random.new
+    let req = empty_request(limits, rng)
     let res = head_request(req, Response.new.string('foo'))
 
     t.true(res.headers.get(Header.content_length).error?)
@@ -749,7 +783,8 @@ fn pub tests(t: mut Tests) {
 
   t.test('head_request with a HEAD request and a OK response', fn (t) {
     let limits = Limits.new
-    let req = request_with_method(limits, Head)
+    let rng = Random.new
+    let req = request_with_method(limits, Head, rng)
     let res = head_request(req, Response.new.string('foo'))
 
     t.equal(res.headers.get(Header.content_length), Result.Ok('3'))
@@ -765,7 +800,8 @@ fn pub tests(t: mut Tests) {
     'head_request with a HEAD request and a partial content response',
     fn (t) {
       let limits = Limits.new
-      let req = request_with_method(limits, Head)
+      let rng = Random.new
+      let req = request_with_method(limits, Head, rng)
       let res = Response.new.status(Status.partial_content).string('foo')
       let res = head_request(req, res)
 
@@ -782,7 +818,8 @@ fn pub tests(t: mut Tests) {
 
   t.test('head_request with a HEAD request and an error response', fn (t) {
     let limits = Limits.new
-    let req = request_with_method(limits, Head)
+    let rng = Random.new
+    let req = request_with_method(limits, Head, rng)
     let res = Response.new.status(Status.not_found).string('foo')
     let res = head_request(req, res)
 
@@ -1001,7 +1038,7 @@ fn pub tests(t: mut Tests) {
 
       # Make sure the deadline is cleared.
       t.true(
-        match ref writer {
+        match ref writer.reader.inner {
           case Unix({ @socket = sock }) -> sock.deadline <= 0
           case _ -> false
         },
@@ -1010,19 +1047,18 @@ fn pub tests(t: mut Tests) {
       drop(writer)
 
       let _ = try reader.read_all(buf)
+      let body = ByteArray.new
       let resp = Parser
         .from_bytes(mut buf, ByteArray.new, Limits.new)
         .response(Get)
         .or_panic
 
-      buf.clear
-
       t.equal(resp.status, Status.ok)
       t.equal(resp.headers.get(Header.connection), Result.Ok('keep-alive'))
       t.true(resp.headers.get(Header.date).ok?)
       t.equal(resp.headers.get(Header.content_length), Result.Ok('3'))
-      t.equal(resp.body.read_all(buf), Result.Ok(3))
-      t.equal(buf.to_string, 'foo')
+      t.equal(resp.body.read_all(body), Result.Ok(3))
+      t.equal(body.to_string, 'foo')
 
       Result.Ok(nil)
     })
@@ -1061,15 +1097,15 @@ fn pub tests(t: mut Tests) {
       drop(writer)
 
       let _ = try reader.read_all(buf)
+      let body = ByteArray.new
       let resp = Parser
         .from_bytes(mut buf, ByteArray.new, Limits.new)
         .response(Get)
         .or_panic
 
-      buf.clear
       t.equal(resp.headers.get(Header.content_length), Result.Ok('6'))
-      t.equal(resp.body.read_all(buf), Result.Ok(6))
-      t.equal(buf.to_string, 'hello\n')
+      t.equal(resp.body.read_all(body), Result.Ok(6))
+      t.equal(body.to_string, 'hello\n')
 
       Result.Ok(nil)
     })
@@ -1098,10 +1134,11 @@ fn pub tests(t: mut Tests) {
         .response(Get)
         .or_panic
 
-      buf.clear
+      let body = ByteArray.new
+
       t.equal(resp.headers.get(Header.content_length), Result.Ok('3'))
-      t.equal(resp.body.read_all(buf), Result.Ok(3))
-      t.equal(buf.to_string, 'hel')
+      t.equal(resp.body.read_all(body), Result.Ok(3))
+      t.equal(body.to_string, 'hel')
 
       Result.Ok(nil)
     })
@@ -1130,11 +1167,12 @@ fn pub tests(t: mut Tests) {
         .response(Get)
         .or_panic
 
-      buf.clear
+      let body = ByteArray.new
+
       t.equal(resp.headers.get(Header.transfer_encoding), Result.Ok('chunked'))
-      t.equal(resp.body.read_all(buf), Result.Ok(142))
+      t.equal(resp.body.read_all(body), Result.Ok(142))
       t.equal(
-        buf.to_string,
+        body.to_string,
         '--foo\r\nContent-Type: text/plain\r\nContent-Range: bytes 0-2/6\r\n\r\nhel\r\n'
           + '--foo\r\nContent-Type: text/plain\r\nContent-Range: bytes 3-4/6\r\n\r\nlo\r\n'
           + '--foo--',
@@ -1255,7 +1293,7 @@ fn pub tests(t: mut Tests) {
     let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     let addr = try server.local_address
     let client = try TcpClient.new([addr.ip], addr.port)
-    let sock_addr = try Socket.Plain(client).address
+    let sock_addr = try Socket.plain(client).address
 
     t.equal(sock_addr.host, '127.0.0.1')
 
@@ -1267,7 +1305,7 @@ fn pub tests(t: mut Tests) {
     let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     let addr = try server.local_address
     let client = try TcpClient.new([addr.ip], addr.port)
-    let sock_addr = try Socket.Secure(tls.Server.new(client, conf)).address
+    let sock_addr = try Socket.secure(tls.Server.new(client, conf)).address
 
     t.equal(sock_addr.host, '127.0.0.1')
 
@@ -1303,7 +1341,7 @@ fn pub tests(t: mut Tests) {
     writer.timeout_after = deadline
 
     t.equal(
-      match writer {
+      match writer.reader.inner {
         case Plain({ @socket = sock }) -> sock.deadline
         case _ -> -1
       },
@@ -1321,7 +1359,7 @@ fn pub tests(t: mut Tests) {
     writer.reset_deadline
 
     t.not_equal(
-      match writer {
+      match writer.reader.inner {
         case Plain({ @socket = sock }) -> sock.deadline
         case _ -> -1
       },
@@ -1402,7 +1440,8 @@ fn pub tests(t: mut Tests) {
 
   t.test('Request.host', fn (t) {
     let limits = Limits.new
-    let req = empty_request(limits)
+    let rng = Random.new
+    let req = empty_request(limits, rng)
 
     req.data.headers.set(Header.host, 'foo')
     t.true(
@@ -1431,35 +1470,40 @@ fn pub tests(t: mut Tests) {
 
   t.test('Request.method', fn (t) {
     let limits = Limits.new
-    let req = empty_request(limits)
+    let rng = Random.new
+    let req = empty_request(limits, rng)
 
     t.equal(req.method, req.data.method)
   })
 
   t.test('Request.version', fn (t) {
     let limits = Limits.new
-    let req = empty_request(limits)
+    let rng = Random.new
+    let req = empty_request(limits, rng)
 
     t.equal(req.version, req.data.version)
   })
 
   t.test('Request.uri', fn (t) {
     let limits = Limits.new
-    let req = empty_request(limits)
+    let rng = Random.new
+    let req = empty_request(limits, rng)
 
     t.equal(req.uri, req.data.uri)
   })
 
   t.test('Request.headers', fn (t) {
     let limits = Limits.new
-    let req = empty_request(limits)
+    let rng = Random.new
+    let req = empty_request(limits, rng)
 
     t.equal(req.headers, req.data.headers)
   })
 
   t.test('Request.body', fn (t) {
     let limits = Limits.new
-    let req = empty_request(limits)
+    let rng = Random.new
+    let req = empty_request(limits, rng)
     let buf = ByteArray.new
 
     t.equal(req.body.read_all(buf), Result.Ok(0))
@@ -1595,10 +1639,11 @@ fn pub tests(t: mut Tests) {
       headers.add(Header.content_type, typ)
 
       let body = Body.bounded(
-        BufferedReader.new(Reader.new(Buffer.new(body))),
+        Reader.new(Buffer.new(body)),
         size: body.size,
         limit: body.size,
       )
+      let rng = Random.new
       let req = request(
         RawRequest(
           method: method,
@@ -1608,6 +1653,7 @@ fn pub tests(t: mut Tests) {
           body: body,
         ),
         limits,
+        rng,
       )
 
       t.equal(req.url_encoded_form, res)
@@ -1741,7 +1787,8 @@ fn pub tests(t: mut Tests) {
     let limits = Limits.new
 
     for (inp, exp) in tests {
-      let req = empty_request(limits)
+      let rng = Random.new
+      let req = empty_request(limits, rng)
 
       for val in inp { req.data.headers.add(Header.accept, val) }
 
@@ -1774,11 +1821,8 @@ fn pub tests(t: mut Tests) {
 
       if inp.size > 0 { map.add(Header.content_type, inp) }
 
-      let body = Body.bounded(
-        BufferedReader.new(Reader.new(Buffer.new(''))),
-        size: 0,
-        limit: 0,
-      )
+      let body = Body.bounded(Reader.new(Buffer.new('')), size: 0, limit: 0)
+      let rng = Random.new
       let req = request(
         RawRequest(
           method: Method.Post,
@@ -1788,6 +1832,7 @@ fn pub tests(t: mut Tests) {
           body: body,
         ),
         limits,
+        rng,
       )
 
       t.equal(req.multipart_form.ok?, exp)
@@ -1805,7 +1850,8 @@ fn pub tests(t: mut Tests) {
     let limits = Limits.new
 
     for (inp, exp) in tests {
-      let req = empty_request(limits)
+      let rng = Random.new
+      let req = empty_request(limits, rng)
 
       req.data.headers.set(Header.content_type, inp)
       req.data.headers.add(Header.content_type, 'foo')
@@ -1825,19 +1871,17 @@ fn pub tests(t: mut Tests) {
     let limits = Limits.new
 
     for (path, exp) in tests {
+      let rng = Random.new
       let req = request(
         RawRequest(
           method: Method.Get,
           uri: Uri.parse(path).or_panic,
           version: Version(1, 1),
           headers: HeaderMap.new,
-          body: Body.bounded(
-            BufferedReader.new(Reader.new(Buffer.new(''))),
-            size: 0,
-            limit: 0,
-          ),
+          body: Body.bounded(Reader.new(Buffer.new('')), size: 0, limit: 0),
         ),
         limits,
+        rng,
       )
 
       t.equal(req.target.iter.map(fn (v) { v.to_string }).to_array, exp)
@@ -1875,7 +1919,8 @@ fn pub tests(t: mut Tests) {
     let limits = Limits.new
 
     for (method, sec_fetch, origin, exp) in tests {
-      let req = request_with_method(limits, method)
+      let rng = Random.new
+      let req = request_with_method(limits, method, rng)
 
       req.data.headers.set(Header.host, 'host')
 
@@ -1899,9 +1944,10 @@ fn pub tests(t: mut Tests) {
     let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
     let addr = try server.local_address
     let _client = try TcpClient.new([addr.ip], addr.port)
+    let sock: Socket = try SocketServer.Tcp(server).accept(Option.None)
 
     t.true(
-      match try SocketServer.Tcp(server).accept(Option.None) {
+      match sock.reader.inner {
         case Plain(_) -> true
         case _ -> false
       },
@@ -1915,9 +1961,12 @@ fn pub tests(t: mut Tests) {
     let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
     let addr = try server.local_address
     let _client = try TcpClient.new([addr.ip], addr.port)
+    let sock: Socket = try SocketServer.Tcp(server).accept(
+      Option.Some(ref conf),
+    )
 
     t.true(
-      match try SocketServer.Tcp(server).accept(Option.Some(ref conf)) {
+      match sock.reader.inner {
         case Secure(_) -> true
         case _ -> false
       },
@@ -1933,9 +1982,10 @@ fn pub tests(t: mut Tests) {
       let path = dir.join('server.sock')
       let server = try UnixServer.new(path)
       let _client = try UnixClient.new(path)
+      let sock: Socket = try SocketServer.Unix(server).accept(Option.None)
 
       t.true(
-        match try SocketServer.Unix(server).accept(Option.None) {
+        match sock.reader.inner {
           case Unix(_) -> true
           case _ -> false
         },
@@ -2063,7 +2113,8 @@ fn pub tests(t: mut Tests) {
     child: fn {
       let limits = Limits.new
       let log = Logger.new
-      let req = empty_request(limits)
+      let rng = Random.new
+      let req = empty_request(limits, rng)
 
       req.data.headers.set(Header.referer, 'referer')
       req.data.headers.set(Header.user_agent, 'user-agent')
@@ -2084,7 +2135,8 @@ fn pub tests(t: mut Tests) {
     child: fn {
       let limits = Limits.new
       let log = Logger.new
-      let req = empty_request(limits)
+      let rng = Random.new
+      let req = empty_request(limits, rng)
 
       req.data.headers.set(Header.referer, 'referer')
       req.data.headers.set(Header.user_agent, 'user-agent')
@@ -2100,7 +2152,8 @@ fn pub tests(t: mut Tests) {
     child: fn {
       let limits = Limits.new
       let log = Logger.new
-      let req = empty_request(limits)
+      let rng = Random.new
+      let req = empty_request(limits, rng)
 
       req.data.uri.query = Query.new('key=value').get
       req.data.headers.set(Header.referer, 'referer')
@@ -2171,7 +2224,8 @@ fn pub tests(t: mut Tests) {
 
   t.test('Directory.handle with a valid path', fn (t) {
     let limits = Limits.new
-    let req = empty_request(limits)
+    let rng = Random.new
+    let req = empty_request(limits, rng)
     let dir = Directory.new(env.working_directory.get.join('fixtures'))
     let path = ['hello.txt'.to_slice]
     let res = dir.handle(req, path.to_slice)
@@ -2188,7 +2242,8 @@ fn pub tests(t: mut Tests) {
 
   t.test('Directory.handle with a path to a non-existing file', fn (t) {
     let limits = Limits.new
-    let req = empty_request(limits)
+    let rng = Random.new
+    let req = empty_request(limits, rng)
     let dir = Directory.new(env.working_directory.get.join('fixtures'))
     let path = ['foo.txt'.to_slice]
     let res = dir.handle(req, path.to_slice)
@@ -2207,7 +2262,8 @@ fn pub tests(t: mut Tests) {
     'Directory.handle with a path to a file outside the directory',
     fn (t) {
       let limits = Limits.new
-      let req = empty_request(limits)
+      let rng = Random.new
+      let req = empty_request(limits, rng)
       let dir = Directory.new(env.working_directory.get.join('fixtures'))
       let path = ['..'.to_slice, 'README.md'.to_slice]
       let res = dir.handle(req, path.to_slice)
@@ -2219,7 +2275,8 @@ fn pub tests(t: mut Tests) {
 
   t.test('Directory.handle with an empty path', fn (t) {
     let limits = Limits.new
-    let req = empty_request(limits)
+    let rng = Random.new
+    let req = empty_request(limits, rng)
     let dir = Directory.new(env.working_directory.get.join('fixtures'))
     let path = []
     let res = dir.handle(req, path.to_slice)
@@ -2268,7 +2325,9 @@ fn pub tests(t: mut Tests) {
     with_http_server(t.id, fn (path) {
       let client = Client.new
       let uri = unix_uri(path, '/')
-      let res = try client.post(uri).body('a').map_error(fn (e) { e.to_string })
+      let res = try client.post(uri).body('foo').map_error(fn (e) {
+        e.to_string
+      })
       let buf = ByteArray.new
 
       t.equal(res.status, Status.ok)
@@ -2289,7 +2348,7 @@ fn pub tests(t: mut Tests) {
 
       let limits = Limits.new
       let res = try Parser
-        .new(Reader.new(client), ByteArray.new, limits)
+        .new(Reader.new(BufferedReader.new(client)), ByteArray.new, limits)
         .response(Get)
         .map_error(fn (e) { e.to_string })
       let buf = ByteArray.new
@@ -2313,7 +2372,7 @@ fn pub tests(t: mut Tests) {
 
       let limits = Limits.new
       let res = try Parser
-        .new(Reader.new(client), ByteArray.new, limits)
+        .new(Reader.new(BufferedReader.new(client)), ByteArray.new, limits)
         .response(Get)
         .map_error(fn (e) { e.to_string })
       let buf = ByteArray.new
@@ -2367,7 +2426,7 @@ fn pub tests(t: mut Tests) {
 
       let limits = Limits.new
       let res = try Parser
-        .new(Reader.new(client), ByteArray.new, limits)
+        .new(Reader.new(BufferedReader.new(client)), ByteArray.new, limits)
         .response(Get)
         .map_error(fn (e) { e.to_string })
 
@@ -2386,7 +2445,7 @@ fn pub tests(t: mut Tests) {
 
       let limits = Limits.new
       let res = try Parser
-        .new(Reader.new(client), ByteArray.new, limits)
+        .new(Reader.new(BufferedReader.new(client)), ByteArray.new, limits)
         .response(Get)
         .map_error(fn (e) { e.to_string })
 
@@ -2451,5 +2510,227 @@ fn pub tests(t: mut Tests) {
       t.equal(res.status, Status.request_header_fields_too_large)
       Result.Ok(nil)
     })
+  })
+
+  t.test('WebsocketResponse.protocols', fn (t) {
+    let limits = Limits.new
+    let rng = Random.new
+    let req = empty_request(limits, rng)
+    let mut up = WebsocketResponse.new(req)
+
+    t.equal(up.protocols, Set.new)
+
+    up = up.protocols(['foo', 'foo', 'bar'])
+    t.equal(up.protocols, Set.from_array(['foo'.to_slice, 'bar'.to_slice]))
+  })
+
+  t.test('WebsocketResponse.max_protocols', fn (t) {
+    let limits = Limits.new
+    let rng = Random.new
+    let req = empty_request(limits, rng)
+    let mut up = WebsocketResponse.new(req)
+
+    t.equal(up.max_protocols, 8)
+
+    up = up.max_protocols(16)
+    t.equal(up.max_protocols, 16)
+  })
+
+  t.test('WebsocketResponse.then', fn (t) {
+    let key = 'HXmtbPKLapNNEGJO+iIyfw==' # head -c 16 /dev/random | base64
+    let tests = [
+      # Valid requests
+      (
+        Get,
+        Version(1, 1),
+        [
+          (Header.connection, 'upgrade'),
+          (Header.upgrade, 'websocket'),
+          (Header.sec_websocket_key, key),
+          (Header.sec_websocket_version, WEBSOCKET_VERSION),
+        ],
+        Status.switching_protocols,
+        [
+          (Header.upgrade, 'websocket'),
+          (Header.connection, 'Upgrade'),
+          (Header.sec_websocket_accept, 'hnYOgo1dpWI0hQE705FKai309zM='),
+        ],
+      ),
+      (
+        Get,
+        Version(1, 1),
+        [
+          (Header.connection, 'upgrade'),
+          (Header.upgrade, 'websocket'),
+          (Header.sec_websocket_key, key),
+          (Header.sec_websocket_version, WEBSOCKET_VERSION),
+          (Header.origin, 'http://0.0.0.0:80'),
+          (Header.host, '0.0.0.0:80'),
+        ],
+        Status.switching_protocols,
+        [
+          (Header.upgrade, 'websocket'),
+          (Header.connection, 'Upgrade'),
+          (Header.sec_websocket_accept, 'hnYOgo1dpWI0hQE705FKai309zM='),
+        ],
+      ),
+      (
+        Get,
+        Version(1, 1),
+        [
+          (Header.connection, 'keep-alive, upgrade'),
+          (Header.upgrade, 'websocket'),
+          (Header.sec_websocket_key, key),
+          (Header.sec_websocket_version, WEBSOCKET_VERSION),
+        ],
+        Status.switching_protocols,
+        [
+          (Header.upgrade, 'websocket'),
+          (Header.connection, 'Upgrade'),
+          (Header.sec_websocket_accept, 'hnYOgo1dpWI0hQE705FKai309zM='),
+        ],
+      ),
+      (
+        Get,
+        Version(1, 1),
+        [
+          (Header.connection, 'upgrade'),
+          (Header.upgrade, 'websocket'),
+          (Header.sec_websocket_key, key),
+          (Header.sec_websocket_version, WEBSOCKET_VERSION),
+          (Header.sec_websocket_protocol, 'foo, bar'),
+          (Header.sec_websocket_protocol, 'baz'),
+        ],
+        Status.switching_protocols,
+        [
+          (Header.upgrade, 'websocket'),
+          (Header.connection, 'Upgrade'),
+          (Header.sec_websocket_protocol, 'bar'),
+        ],
+      ),
+
+      # Invalid requests
+      (
+        Post,
+        Version(1, 1),
+        [
+          (Header.connection, 'upgrade'),
+          (Header.upgrade, 'websocket'),
+          (Header.sec_websocket_key, key),
+          (Header.sec_websocket_version, WEBSOCKET_VERSION),
+        ],
+        Status.method_not_allowed,
+        [],
+      ),
+      (
+        Get,
+        Version(1, 0),
+        [
+          (Header.connection, 'upgrade'),
+          (Header.upgrade, 'websocket'),
+          (Header.sec_websocket_key, key),
+          (Header.sec_websocket_version, WEBSOCKET_VERSION),
+        ],
+        Status.upgrade_required,
+        [],
+      ),
+      (
+        Get,
+        Version(1, 1),
+        [
+          (Header.connection, 'oops'),
+          (Header.upgrade, 'websocket'),
+          (Header.sec_websocket_key, key),
+          (Header.sec_websocket_version, WEBSOCKET_VERSION),
+        ],
+        Status.bad_request,
+        [],
+      ),
+      (
+        Get,
+        Version(1, 1),
+        [
+          (Header.connection, 'upgrade'),
+          (Header.upgrade, 'oops'),
+          (Header.sec_websocket_key, key),
+          (Header.sec_websocket_version, WEBSOCKET_VERSION),
+        ],
+        Status.bad_request,
+        [],
+      ),
+      (
+        Get,
+        Version(1, 1),
+        [
+          (Header.connection, 'upgrade'),
+          (Header.upgrade, 'websocket'),
+          (Header.sec_websocket_key, 'foo'),
+          (Header.sec_websocket_version, WEBSOCKET_VERSION),
+        ],
+        Status.bad_request,
+        [],
+      ),
+      (
+        Get,
+        Version(1, 1),
+        [
+          (Header.connection, 'upgrade'),
+          (Header.upgrade, 'websocket'),
+          (Header.sec_websocket_key, key),
+          (Header.sec_websocket_version, WEBSOCKET_VERSION),
+          (Header.origin, 'http://0.0.0.0:80'),
+          (Header.host, '1.2.3.4:80'),
+        ],
+        Status.forbidden,
+        [],
+      ),
+      (
+        Get,
+        Version(1, 1),
+        [
+          (Header.connection, 'upgrade'),
+          (Header.upgrade, 'websocket'),
+          (Header.sec_websocket_key, key),
+          (Header.sec_websocket_version, '14'),
+        ],
+        Status.upgrade_required,
+        [
+          (Header.upgrade, 'websocket'),
+          (Header.connection, 'Upgrade'),
+          (Header.sec_websocket_version, WEBSOCKET_VERSION),
+        ],
+      ),
+    ]
+
+    let rng = Random.new
+    let limits = Limits.new
+
+    for (meth, ver, headers, exp_status, exp_headers) in tests {
+      let req = request(
+        RawRequest(
+          method: meth,
+          uri: Uri.parse('/').or_panic,
+          version: ver,
+          headers: HeaderMap.new,
+          body: empty_body,
+        ),
+        limits,
+        rng,
+      )
+
+      for (name, val) in headers { req.data.headers.add(name, val) }
+
+      let resp = WebsocketResponse
+        .new(req)
+        .protocols(['bar'])
+        .max_protocols(2)
+        .then(fn (_) {})
+
+      t.equal(resp.status, exp_status)
+
+      for (name, val) in exp_headers {
+        t.equal(resp.headers.get(name), Result.Ok(val))
+      }
+    }
   })
 }

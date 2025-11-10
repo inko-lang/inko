@@ -207,6 +207,17 @@ trait Deadline {
   fn pub mut reset_deadline
 }
 
+trait Shutdown {
+  # Shuts down both the reading and writing half of this socket.
+  fn pub mut shutdown -> Result[Nil, Error]
+
+  # Shuts down the reading half of this socket.
+  fn pub mut shutdown_read -> Result[Nil, Error]
+
+  # Shuts down the writing half of this socket.
+  fn pub mut shutdown_write -> Result[Nil, Error]
+}
+
 # An IPv4 or IPv6 socket address.
 type pub copy SocketAddress {
   # The IPv4/IPv6 address of this socket address.
@@ -604,21 +615,6 @@ type pub Socket {
     set_option(libc.SOL_SOCKET, libc.SO_REUSEPORT, value.to_int)
   }
 
-  # Shuts down the reading half of this socket.
-  fn pub mut shutdown_read -> Result[Nil, Error] {
-    sys.shutdown(@socket, read: true, write: false)
-  }
-
-  # Shuts down the writing half of this socket.
-  fn pub mut shutdown_write -> Result[Nil, Error] {
-    sys.shutdown(@socket, read: false, write: true)
-  }
-
-  # Shuts down both the reading and writing half of this socket.
-  fn pub mut shutdown -> Result[Nil, Error] {
-    sys.shutdown(@socket, read: true, write: true)
-  }
-
   # Attempts to clone the socket.
   #
   # Cloning a socket may fail, such as when the program has too many open file
@@ -636,6 +632,20 @@ type pub Socket {
 
   fn get_option(level: Int, option: Int) -> Int {
     sys.get_int32_option(@socket.inner, level, option)
+  }
+}
+
+impl Shutdown for Socket {
+  fn pub mut shutdown_read -> Result[Nil, Error] {
+    sys.shutdown(@socket, read: true, write: false)
+  }
+
+  fn pub mut shutdown_write -> Result[Nil, Error] {
+    sys.shutdown(@socket, read: false, write: true)
+  }
+
+  fn pub mut shutdown -> Result[Nil, Error] {
+    sys.shutdown(@socket, read: true, write: true)
   }
 }
 
@@ -957,27 +967,26 @@ type pub TcpClient {
     @socket.peer_address
   }
 
-  # Shuts down the reading half of this socket.
-  fn pub mut shutdown_read -> Result[Nil, Error] {
-    @socket.shutdown_read
-  }
-
-  # Shuts down the writing half of this socket.
-  fn pub mut shutdown_write -> Result[Nil, Error] {
-    @socket.shutdown_write
-  }
-
-  # Shuts down both the reading and writing half of this socket.
-  fn pub mut shutdown -> Result[Nil, Error] {
-    @socket.shutdown
-  }
-
   # Attempts to clone the socket.
   #
   # Cloning a socket may fail, such as when the program has too many open file
   # descriptors.
   fn pub try_clone -> Result[TcpClient, Error] {
     @socket.try_clone.map(fn (sock) { TcpClient(sock) })
+  }
+}
+
+impl Shutdown for TcpClient {
+  fn pub mut shutdown_read -> Result[Nil, Error] {
+    @socket.shutdown_read
+  }
+
+  fn pub mut shutdown_write -> Result[Nil, Error] {
+    @socket.shutdown_write
+  }
+
+  fn pub mut shutdown -> Result[Nil, Error] {
+    @socket.shutdown
   }
 }
 
@@ -1492,21 +1501,6 @@ type pub UnixSocket {
     set_option(libc.SOL_SOCKET, libc.SO_SNDBUF, value.to_int)
   }
 
-  # Shuts down the reading half of this socket.
-  fn pub mut shutdown_read -> Result[Nil, Error] {
-    sys.shutdown(@socket, read: true, write: false)
-  }
-
-  # Shuts down the writing half of this socket.
-  fn pub mut shutdown_write -> Result[Nil, Error] {
-    sys.shutdown(@socket, read: false, write: true)
-  }
-
-  # Shuts down both the reading and writing half of this socket.
-  fn pub mut shutdown -> Result[Nil, Error] {
-    sys.shutdown(@socket, read: true, write: true)
-  }
-
   # Attempts to clone the socket.
   #
   # Cloning a socket may fail, such as when the program has too many open file
@@ -1520,6 +1514,20 @@ type pub UnixSocket {
 
   fn mut set_option(level: Int, option: Int, value: Int) -> Result[Nil, Error] {
     sys.set_int32_option(@socket.inner, level, option, value)
+  }
+}
+
+impl Shutdown for UnixSocket {
+  fn pub mut shutdown_read -> Result[Nil, Error] {
+    sys.shutdown(@socket, read: true, write: false)
+  }
+
+  fn pub mut shutdown_write -> Result[Nil, Error] {
+    sys.shutdown(@socket, read: false, write: true)
+  }
+
+  fn pub mut shutdown -> Result[Nil, Error] {
+    sys.shutdown(@socket, read: true, write: true)
   }
 }
 
@@ -1787,27 +1795,26 @@ type pub UnixClient {
     @socket.peer_address
   }
 
-  # Shuts down the reading half of this socket.
-  fn pub mut shutdown_read -> Result[Nil, Error] {
-    @socket.shutdown_read
-  }
-
-  # Shuts down the writing half of this socket.
-  fn pub mut shutdown_write -> Result[Nil, Error] {
-    @socket.shutdown_write
-  }
-
-  # Shuts down both the reading and writing half of this socket.
-  fn pub mut shutdown -> Result[Nil, Error] {
-    @socket.shutdown
-  }
-
   # Attempts to clone the socket.
   #
   # Cloning a socket may fail, such as when the program has too many open file
   # descriptors.
   fn pub try_clone -> Result[UnixClient, Error] {
     @socket.try_clone.map(fn (sock) { UnixClient(sock) })
+  }
+}
+
+impl Shutdown for UnixClient {
+  fn pub mut shutdown_read -> Result[Nil, Error] {
+    @socket.shutdown_read
+  }
+
+  fn pub mut shutdown_write -> Result[Nil, Error] {
+    @socket.shutdown_write
+  }
+
+  fn pub mut shutdown -> Result[Nil, Error] {
+    @socket.shutdown
   }
 }
 

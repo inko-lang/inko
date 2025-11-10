@@ -1,4 +1,7 @@
 # Methods for working with UTF-8 scalars and code points.
+import std.bytes (Bytes)
+
+fn extern inko_string_is_valid_utf8(pointer: Pointer[UInt8], size: Int) -> Bool
 
 # The maximum value of a Unicode code point
 let pub MAX_CODEPOINT = 0x10FFFF
@@ -124,4 +127,18 @@ fn pub codepoint_size(code: Int) -> Int {
   } else {
     4
   }
+}
+
+# Returns `true` if `value` contains valid UTF-8.
+#
+# # Examples
+#
+# ```inko
+# import std.utf8
+#
+# utf8.valid?('hello') # => true
+# utf8.valid?(ByteArray.from_array([255, 255])) # => false
+# ```
+fn pub valid?[B: Bytes](value: ref B) -> Bool {
+  inko_string_is_valid_utf8(value.pointer, value.size)
 }

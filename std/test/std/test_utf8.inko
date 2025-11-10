@@ -51,4 +51,9 @@ fn pub tests(t: mut Tests) {
     t.equal(utf8.codepoint_size(0x1D11), 3)
     t.equal(utf8.codepoint_size(0x1D11E), 4)
   })
+
+  t.test('utf8.valid?', fn (t) {
+    t.true(utf8.valid?('hello'))
+    t.false(utf8.valid?(ByteArray.from_array([255, 255])))
+  })
 }

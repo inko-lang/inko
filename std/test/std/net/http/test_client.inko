@@ -11,6 +11,7 @@ import std.net.http (
 )
 import std.net.http.client (
   Client, Connection, Error, Pool, Request, RequestWriter, Scope, Socket, State,
+  WebsocketError,
 )
 import std.net.ip (IpAddress)
 import std.net.socket (TcpClient, TcpServer, UnixServer)
@@ -25,7 +26,7 @@ import std.uri (
 )
 
 fn raw_deadline(socket: mut Socket) -> Int {
-  match socket {
+  match socket.reader.inner {
     case Plain(v) -> v.raw_deadline
     case Secure(v) -> v.socket.raw_deadline
     case Unix(v) -> v.raw_deadline
@@ -79,7 +80,8 @@ type async EchoServer {
     let sock = @sock.accept.or_panic
     let limits = Limits.new
     let buf = ByteArray.new
-    let parser = Parser.new(Reader.new(mut sock), buf, limits)
+    let stream = Reader.new(BufferedReader.new(mut sock))
+    let parser = Parser.new(stream, buf, limits)
 
     match parser.request {
       case Ok(_) -> sock.write('HTTP/1.1 301 \r\nLocation: /foo\r\n\r\n')
@@ -95,7 +97,8 @@ type async EchoServer {
     let sock = @sock.accept.or_panic
     let limits = Limits.new
     let buf = ByteArray.new
-    let parser = Parser.new(Reader.new(mut sock), buf, limits)
+    let stream = Reader.new(BufferedReader.new(mut sock))
+    let parser = Parser.new(stream, buf, limits)
 
     match parser.request {
       case Ok(req) -> {
@@ -131,7 +134,8 @@ type async EchoServer {
     let sock = @sock.accept.or_panic
     let limits = Limits.new
     let buf = ByteArray.new
-    let parser = Parser.new(Reader.new(mut sock), buf, limits)
+    let stream = Reader.new(BufferedReader.new(mut sock))
+    let parser = Parser.new(stream, buf, limits)
     let _req = parser.request
     let _ = sock.write('HTTP/1.1 200 \r\ninvalid header: value\r\n\r\n')
 
@@ -143,7 +147,8 @@ type async EchoServer {
   fn mut echo_request(sock: mut TcpClient) {
     let limits = Limits.new
     let buf = ByteArray.new
-    let parser = Parser.new(Reader.new(mut sock), buf, limits)
+    let stream = Reader.new(BufferedReader.new(mut sock))
+    let parser = Parser.new(stream, buf, limits)
     let buf = ByteArray.new
 
     match parser.request {
@@ -162,6 +167,74 @@ type async EchoServer {
     let _ = sock.write(
       'HTTP/1.1 200 \r\nContent-Length: ${buf.size}\r\n\r\n${buf}',
     )
+  }
+}
+
+type async WebsocketServer {
+  let @sock: TcpServer
+
+  fn static new -> Result[(Self, Uri), IoError] {
+    let server = recover try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let addr = try server.local_address
+    let this = Self(server)
+
+    Result.Ok((this, uri(http, ip(addr.ip), port(addr.port))))
+  }
+
+  fn async mut valid {
+    let sock = @sock.accept.or_panic
+    let _ = sock.write(
+      'HTTP/1.1 101 \r\n'
+        + 'Upgrade: websocket\r\n'
+        + 'Connection: upgrade\r\n'
+        + 'Sec-Websocket-Accept: 1oBRrIM+btGV1UDfG2Brln7ShBE=\r\n'
+        + '\r\n',
+    )
+  }
+
+  fn async mut invalid_handshake {
+    let sock = @sock.accept.or_panic
+    let _ = sock.write(
+      'HTTP/1.1 101 \r\n'
+        + 'Upgrade: websocket\r\n'
+        + 'Connection: upgrade\r\n'
+        + 'Sec-Websocket-Accept: invalid-key\r\n'
+        + '\r\n',
+    )
+  }
+
+  fn async mut with_protocol {
+    let sock = @sock.accept.or_panic
+    let _ = sock.write(
+      'HTTP/1.1 101 \r\n'
+        + 'Upgrade: websocket\r\n'
+        + 'Connection: upgrade\r\n'
+        + 'Sec-Websocket-Protocol: foo\r\n'
+        + 'Sec-Websocket-Accept: 1oBRrIM+btGV1UDfG2Brln7ShBE=\r\n'
+        + '\r\n',
+    )
+  }
+
+  fn async mut with_extension {
+    let sock = @sock.accept.or_panic
+    let _ = sock.write(
+      'HTTP/1.1 101 \r\n'
+        + 'Upgrade: websocket\r\n'
+        + 'Connection: upgrade\r\n'
+        + 'Sec-Websocket-Extensions: foo\r\n'
+        + 'Sec-Websocket-Accept: 1oBRrIM+btGV1UDfG2Brln7ShBE=\r\n'
+        + '\r\n',
+    )
+  }
+
+  fn async mut io_error {
+    let sock = @sock.accept.or_panic
+    let _ = sock.shutdown
+  }
+
+  fn async mut server_error {
+    let sock = @sock.accept.or_panic
+    let _ = sock.write('HTTP/1.1 400 \r\n\r\n')
   }
 }
 
@@ -231,8 +304,10 @@ fn scope -> Scope {
 
 fn client -> Client {
   let client = Client.new
+  let random = Random.from_int(42)
 
   client.user_agent = 'foo'
+  client.random = random
   client
 }
 
@@ -362,7 +437,7 @@ fn pub tests(t: mut Tests) {
       pool: mut pool,
       id: 0,
       scope: scope,
-      socket: Socket.Plain(client),
+      socket: Socket.plain(client),
       state: State.Active,
     )
 
@@ -377,7 +452,7 @@ fn pub tests(t: mut Tests) {
     let addr = try server.local_address
     let client = try TcpClient.new([addr.ip], addr.port)
     let pool = Pool.new
-    let con = pool.add(scope, Socket.Plain(client))
+    let con = pool.add(scope, Socket.plain(client))
 
     con.connection.state = State.Idle
     con.reuse
@@ -405,7 +480,7 @@ fn pub tests(t: mut Tests) {
     let addr = try server.local_address
     let client = try TcpClient.new([addr.ip], addr.port)
     let pool = Pool.new
-    let con = pool.add(scope.clone, Socket.Plain(client))
+    let con = pool.add(scope.clone, Socket.plain(client))
 
     con.reuse
     drop(con)
@@ -425,7 +500,7 @@ fn pub tests(t: mut Tests) {
     let addr = try server.local_address
     let client = try TcpClient.new([addr.ip], addr.port)
     let pool = Pool.new
-    let con = pool.add(scope.clone, Socket.Plain(client))
+    let con = pool.add(scope.clone, Socket.plain(client))
 
     drop(con)
     t.equal(pool.pending_close.size, 1)
@@ -444,7 +519,7 @@ fn pub tests(t: mut Tests) {
     let addr = try server.local_address
     let client = try TcpClient.new([addr.ip], addr.port)
     let pool = Pool.new
-    let con = pool.add(scope.clone, Socket.Plain(client))
+    let con = pool.add(scope.clone, Socket.plain(client))
     let deadline = Instant.new + Duration.from_secs(5)
 
     con.timeout_after = deadline
@@ -460,7 +535,7 @@ fn pub tests(t: mut Tests) {
     let tcp = try TcpClient.new([addr.ip], addr.port)
     let client = tls.Client.new(tcp, conf, addr.ip.to_string).get
     let pool = Pool.new
-    let con = pool.add(scope.clone, Socket.Secure(client))
+    let con = pool.add(scope.clone, Socket.secure(client))
     let deadline = Instant.new + Duration.from_secs(5)
 
     con.timeout_after = deadline
@@ -474,7 +549,7 @@ fn pub tests(t: mut Tests) {
     let addr = try server.local_address
     let client = try TcpClient.new([addr.ip], addr.port)
     let pool = Pool.new
-    let con = pool.add(scope.clone, Socket.Plain(client))
+    let con = pool.add(scope.clone, Socket.plain(client))
     let deadline = Instant.new + Duration.from_secs(5)
 
     con.timeout_after = deadline
@@ -491,7 +566,7 @@ fn pub tests(t: mut Tests) {
     let tcp = try TcpClient.new([addr.ip], addr.port)
     let client = tls.Client.new(tcp, conf, addr.ip.to_string).get
     let pool = Pool.new
-    let con = pool.add(scope.clone, Socket.Secure(client))
+    let con = pool.add(scope.clone, Socket.secure(client))
     let deadline = Instant.new + Duration.from_secs(5)
 
     con.timeout_after = deadline
@@ -506,7 +581,7 @@ fn pub tests(t: mut Tests) {
     let addr = try server.local_address
     let client = try TcpClient.new([addr.ip], addr.port)
     let pool = Pool.new
-    let con = pool.add(scope.clone, Socket.Plain(client))
+    let con = pool.add(scope.clone, Socket.plain(client))
     let buf = ByteArray.new
 
     try (try server.accept).write('hello')
@@ -520,7 +595,7 @@ fn pub tests(t: mut Tests) {
     match try TlsServer.new {
       case (server, client) -> {
         let pool = Pool.new
-        let con = pool.add(scope.clone, Socket.Secure(client))
+        let con = pool.add(scope.clone, Socket.secure(client))
         let buf = ByteArray.new
 
         server.write('hello')
@@ -537,7 +612,7 @@ fn pub tests(t: mut Tests) {
     let addr = try server.local_address
     let client = try TcpClient.new([addr.ip], addr.port)
     let pool = Pool.new
-    let con = pool.add(scope.clone, Socket.Plain(client))
+    let con = pool.add(scope.clone, Socket.plain(client))
     let buf = ByteArray.new
 
     drop(server)
@@ -557,7 +632,7 @@ fn pub tests(t: mut Tests) {
     let addr = try server.local_address
     let client = try TcpClient.new([addr.ip], addr.port)
     let pool = Pool.new
-    let con = pool.add(scope.clone, Socket.Plain(client))
+    let con = pool.add(scope.clone, Socket.plain(client))
     let buf = ByteArray.new
     let client = try server.accept
 
@@ -572,7 +647,7 @@ fn pub tests(t: mut Tests) {
     match try TlsServer.new {
       case (server, client) -> {
         let pool = Pool.new
-        let con = pool.add(scope.clone, Socket.Secure(client))
+        let con = pool.add(scope.clone, Socket.secure(client))
         let buf = ByteArray.new
 
         server.reply(5)
@@ -590,7 +665,7 @@ fn pub tests(t: mut Tests) {
     let addr = try server.local_address
     let client = try TcpClient.new([addr.ip], addr.port)
     let pool = Pool.new
-    let con = pool.add(scope.clone, Socket.Plain(client))
+    let con = pool.add(scope.clone, Socket.plain(client))
 
     con.connection.shutdown
     t.true(con.write('hello').error?)
@@ -612,12 +687,12 @@ fn pub tests(t: mut Tests) {
     {
       let sock = try TcpClient.new([addr.ip], addr.port)
 
-      drop(pool.add(scope.clone, Socket.Plain(sock)))
+      drop(pool.add(scope.clone, Socket.plain(sock)))
       t.equal(pool.pending_close.size, 1)
     }
 
     let sock = try TcpClient.new([addr.ip], addr.port)
-    let con = pool.add(scope.clone, Socket.Plain(sock))
+    let con = pool.add(scope.clone, Socket.plain(sock))
 
     t.true(
       match con.connection.state {
@@ -637,12 +712,12 @@ fn pub tests(t: mut Tests) {
     let addr = try server.local_address
     let pool = Pool.new
     let sock = try TcpClient.new([addr.ip], addr.port)
-    let con = pool.add(scope.clone, Socket.Plain(sock))
+    let con = pool.add(scope.clone, Socket.plain(sock))
 
     {
       let sock = try TcpClient.new([addr.ip], addr.port)
 
-      drop(pool.add(scope.clone, Socket.Plain(sock)))
+      drop(pool.add(scope.clone, Socket.plain(sock)))
       t.equal(pool.pending_close.size, 1)
     }
 
@@ -661,7 +736,7 @@ fn pub tests(t: mut Tests) {
     let addr = try server.local_address
     let pool = Pool.new
     let sock = try TcpClient.new([addr.ip], addr.port)
-    let con = pool.add(scope.clone, Socket.Plain(sock))
+    let con = pool.add(scope.clone, Socket.plain(sock))
 
     pool.reuse(con.connection)
     t.equal(pool.available.get(scope).map(fn (v) { v.size }), Result.Ok(1))
@@ -678,7 +753,7 @@ fn pub tests(t: mut Tests) {
     pool.limit = 0
 
     let sock = try TcpClient.new([addr.ip], addr.port)
-    let con = pool.add(scope.clone, Socket.Plain(sock))
+    let con = pool.add(scope.clone, Socket.plain(sock))
 
     pool.reuse(con.connection)
     t.equal(pool.available.get(scope).map(fn (v) { v.size }), Result.Ok(0))
@@ -692,7 +767,7 @@ fn pub tests(t: mut Tests) {
     let addr = try server.local_address
     let pool = Pool.new
     let sock = try TcpClient.new([addr.ip], addr.port)
-    let con = pool.add(scope.clone, Socket.Plain(sock))
+    let con = pool.add(scope.clone, Socket.plain(sock))
     let id = con.connection.id
 
     pool.close(id)
@@ -707,7 +782,7 @@ fn pub tests(t: mut Tests) {
     let addr = try server.local_address
     let pool = Pool.new
     let sock = try TcpClient.new([addr.ip], addr.port)
-    let con = pool.add(scope.clone, Socket.Plain(sock))
+    let con = pool.add(scope.clone, Socket.plain(sock))
 
     t.true(pool.available.empty?)
     t.equal(pool.connections_for(scope).size, 0)
@@ -1087,46 +1162,40 @@ fn pub tests(t: mut Tests) {
 
   t.ok('Request.send', fn (t) {
     let client = client
+    let (srv, uri) = try EchoServer.new
 
-    match try EchoServer.new {
-      case (srv, uri) -> {
-        srv.echo
+    srv.echo
 
-        let resp = client.get(uri.clone).send.or_panic
-        let body = ByteArray.new
-        let _ = resp.body.read_all(body).or_panic
+    let resp = client.get(uri.clone).send.or_panic
+    let body = ByteArray.new
+    let _ = resp.body.read_all(body).or_panic
 
-        t.equal(
-          body.to_string,
-          'host: ${uri.host.clone.get}:${uri.port.clone.get}\r\n'
-            + 'user-agent: foo\r\n\r\n',
-        )
-      }
-    }
+    t.equal(
+      body.to_string,
+      'host: ${uri.host.clone.get}:${uri.port.clone.get}\r\n'
+        + 'user-agent: foo\r\n\r\n',
+    )
 
     Result.Ok(nil)
   })
 
   t.ok('Request.send with basic authentication', fn (t) {
     let client = client
+    let (srv, uri) = try EchoServer.new
 
-    match try EchoServer.new {
-      case (srv, uri) -> {
-        srv.echo
-        uri.user_info = Option.Some(UserInfo(name: 'user', password: 'pass'))
+    srv.echo
+    uri.user_info = Option.Some(UserInfo(name: 'user', password: 'pass'))
 
-        let resp = client.get(uri.clone).send.or_panic
-        let body = ByteArray.new
-        let _ = resp.body.read_all(body).or_panic
+    let resp = client.get(uri.clone).send.or_panic
+    let body = ByteArray.new
+    let _ = resp.body.read_all(body).or_panic
 
-        t.equal(
-          body.to_string,
-          'host: ${uri.host.clone.get}:${uri.port.clone.get}\r\n'
-            + 'user-agent: foo\r\n'
-            + 'authorization: Basic dXNlcjpwYXNz\r\n\r\n',
-        )
-      }
-    }
+    t.equal(
+      body.to_string,
+      'host: ${uri.host.clone.get}:${uri.port.clone.get}\r\n'
+        + 'user-agent: foo\r\n'
+        + 'authorization: Basic dXNlcjpwYXNz\r\n\r\n',
+    )
 
     Result.Ok(nil)
   })
@@ -1163,201 +1232,177 @@ fn pub tests(t: mut Tests) {
 
   t.ok('Request.body', fn (t) {
     let client = client
+    let (srv, uri) = try EchoServer.new
 
-    match try EchoServer.new {
-      case (srv, uri) -> {
-        srv.echo
+    srv.echo
 
-        let resp = client.post(uri.clone).body('hello').or_panic
-        let body = ByteArray.new
-        let _ = resp.body.read_all(body).or_panic
+    let resp = client.post(uri.clone).body('hello').or_panic
+    let body = ByteArray.new
+    let _ = resp.body.read_all(body).or_panic
 
-        t.equal(
-          body.to_string,
-          'host: ${uri.host.clone.get}:${uri.port.clone.get}\r\n'
-            + 'user-agent: foo\r\n'
-            + 'content-length: 5\r\n\r\n'
-            + 'hello',
-        )
-      }
-    }
+    t.equal(
+      body.to_string,
+      'host: ${uri.host.clone.get}:${uri.port.clone.get}\r\n'
+        + 'user-agent: foo\r\n'
+        + 'content-length: 5\r\n\r\n'
+        + 'hello',
+    )
 
     Result.Ok(nil)
   })
 
   t.ok('Request.body with basic authentication', fn (t) {
     let client = client
+    let (srv, uri) = try EchoServer.new
 
-    match try EchoServer.new {
-      case (srv, uri) -> {
-        srv.echo
-        uri.user_info = Option.Some(UserInfo(name: 'user', password: 'pass'))
+    srv.echo
+    uri.user_info = Option.Some(UserInfo(name: 'user', password: 'pass'))
 
-        let resp = client.get(uri.clone).body('').or_panic
-        let body = ByteArray.new
-        let _ = resp.body.read_all(body).or_panic
+    let resp = client.get(uri.clone).body('').or_panic
+    let body = ByteArray.new
+    let _ = resp.body.read_all(body).or_panic
 
-        t.equal(
-          body.to_string,
-          'host: ${uri.host.clone.get}:${uri.port.clone.get}\r\n'
-            + 'user-agent: foo\r\n'
-            + 'authorization: Basic dXNlcjpwYXNz\r\n\r\n',
-        )
-      }
-    }
+    t.equal(
+      body.to_string,
+      'host: ${uri.host.clone.get}:${uri.port.clone.get}\r\n'
+        + 'user-agent: foo\r\n'
+        + 'authorization: Basic dXNlcjpwYXNz\r\n\r\n',
+    )
 
     Result.Ok(nil)
   })
 
   t.ok('Request.body with an error while writing', fn (t) {
     let client = client
+    let (srv, uri) = try EchoServer.new
 
-    match try EchoServer.new {
-      case (srv, uri) -> {
-        srv.echo
-        t.true(client.post(uri.clone).body('a').or_panic.body.clear.ok?)
+    srv.echo
+    t.true(client.post(uri.clone).body('a').or_panic.body.clear.ok?)
 
-        # For TCP sockets the first write usually doesn't observe any errors. To
-        # test the write error handling logic we perform a dummy write here such
-        # that we detect the error when we try to send the second request.
-        {
-          let con = client.connections.all.values_mut.next.get
+    # For TCP sockets the first write usually doesn't observe any errors. To
+    # test the write error handling logic we perform a dummy write here such
+    # that we detect the error when we try to send the second request.
+    {
+      let con = client.connections.all.values_mut.next.get
 
-          t.equal(con.socket.write('a'), Result.Ok(nil))
-        }
-
-        # This request succeeds because on the first try we observe the broken
-        # pipe which we then retry once.
-        srv.echo
-        t.equal(client.post(uri).body('b').error, Option.None)
-      }
+      t.equal(con.socket.write('a'), Result.Ok(nil))
     }
+
+    # This request succeeds because on the first try we observe the broken
+    # pipe which we then retry once.
+    srv.echo
+    t.equal(client.post(uri).body('b').error, Option.None)
 
     Result.Ok(nil)
   })
 
   t.ok('Request.body with an error while reading', fn (t) {
     let client = client
+    let (srv, uri) = try EchoServer.new
 
-    match try EchoServer.new {
-      case (srv, uri) -> {
-        # The first request succeeds so we have an existing connection.
-        srv.echo
-        t.true(client.post(uri.clone).body('a').or_panic.body.clear.ok?)
-        t.equal(client.connections.all.size, 1)
-        t.equal(client.connections.pending_close.size, 0)
+    # The first request succeeds so we have an existing connection.
+    srv.echo
+    t.true(client.post(uri.clone).body('a').or_panic.body.clear.ok?)
+    t.equal(client.connections.all.size, 1)
+    t.equal(client.connections.pending_close.size, 0)
 
-        # The second request initially fails because the server socket is
-        # dropped, then succeeds because we retry it once.
-        srv.echo
-        t.equal(client.post(uri.clone).body('b').error, Option.None)
+    # The second request initially fails because the server socket is
+    # dropped, then succeeds because we retry it once.
+    srv.echo
+    t.equal(client.post(uri.clone).body('b').error, Option.None)
 
-        # The third request fails both on the initial attempt and on the retry.
-        srv.accept_discard
-        t.true(client.post(uri.clone).body('b').error?)
-      }
-    }
+    # The third request fails both on the initial attempt and on the retry.
+    srv.accept_discard
+    t.true(client.post(uri.clone).body('b').error?)
 
     Result.Ok(nil)
   })
 
   t.ok('Request.body with a redirect', fn (t) {
     let client = client
+    let (srv, uri) = try EchoServer.new
 
-    match try EchoServer.new {
-      case (srv, uri) -> {
-        srv.redirect
-        srv.echo_uri
+    srv.redirect
+    srv.echo_uri
 
-        let resp = client.get(uri.clone).send.or_panic
-        let data = ByteArray.new
-        let _ = resp.body.read_all(data).or_panic
+    let resp = client.get(uri.clone).send.or_panic
+    let data = ByteArray.new
+    let _ = resp.body.read_all(data).or_panic
 
-        t.equal(data.to_string, '/foo')
-      }
-    }
+    t.equal(data.to_string, '/foo')
 
     Result.Ok(nil)
   })
 
   t.ok('Request.body with too many redirects', fn (t) {
     let client = client
+    let (srv, uri) = try EchoServer.new
 
-    match try EchoServer.new {
-      case (srv, uri) -> {
-        srv.redirect
-        srv.redirect
-        srv.redirect
-        srv.redirect
-        srv.redirect
-        srv.redirect
+    srv.redirect
+    srv.redirect
+    srv.redirect
+    srv.redirect
+    srv.redirect
+    srv.redirect
 
-        t.equal(
-          client.get(uri.clone).send.error,
-          Option.Some(Error.TooManyRedirects),
-        )
-      }
-    }
+    t.equal(
+      client.get(uri.clone).send.error,
+      Option.Some(Error.TooManyRedirects),
+    )
 
     Result.Ok(nil)
   })
 
   t.ok('Request.url_encoded_form', fn (t) {
     let client = client
+    let (srv, uri) = try EchoServer.new
 
-    match try EchoServer.new {
-      case (srv, uri) -> {
-        srv.echo
+    srv.echo
 
-        let form = client.get(uri.clone).url_encoded_form
+    let form = client.get(uri.clone).url_encoded_form
 
-        form.add('name', 'Alice')
+    form.add('name', 'Alice')
 
-        let resp = form.send.or_panic
-        let body = ByteArray.new
-        let _ = resp.body.read_all(body).or_panic
+    let resp = form.send.or_panic
+    let body = ByteArray.new
+    let _ = resp.body.read_all(body).or_panic
 
-        t.equal(
-          body.to_string,
-          'host: ${uri.host.clone.get}:${uri.port.clone.get}\r\n'
-            + 'user-agent: foo\r\n'
-            + 'content-type: application/x-www-form-urlencoded\r\n'
-            + 'content-length: 10\r\n\r\n'
-            + 'name=Alice',
-        )
-      }
-    }
+    t.equal(
+      body.to_string,
+      'host: ${uri.host.clone.get}:${uri.port.clone.get}\r\n'
+        + 'user-agent: foo\r\n'
+        + 'content-type: application/x-www-form-urlencoded\r\n'
+        + 'content-length: 10\r\n\r\n'
+        + 'name=Alice',
+    )
 
     Result.Ok(nil)
   })
 
   t.ok('Request.url_encoded_form with basic authentication', fn (t) {
     let client = client
+    let (srv, uri) = try EchoServer.new
 
-    match try EchoServer.new {
-      case (srv, uri) -> {
-        srv.echo
-        uri.user_info = Option.Some(UserInfo(name: 'user', password: 'pass'))
+    srv.echo
+    uri.user_info = Option.Some(UserInfo(name: 'user', password: 'pass'))
 
-        let form = client.post(uri.clone).url_encoded_form
+    let form = client.post(uri.clone).url_encoded_form
 
-        form.add('name', 'Alice')
+    form.add('name', 'Alice')
 
-        let resp = form.send.or_panic
-        let body = ByteArray.new
-        let _ = resp.body.read_all(body).or_panic
+    let resp = form.send.or_panic
+    let body = ByteArray.new
+    let _ = resp.body.read_all(body).or_panic
 
-        t.equal(
-          body.to_string,
-          'host: ${uri.host.clone.get}:${uri.port.clone.get}\r\n'
-            + 'user-agent: foo\r\n'
-            + 'content-type: application/x-www-form-urlencoded\r\n'
-            + 'content-length: 10\r\n'
-            + 'authorization: Basic dXNlcjpwYXNz\r\n\r\n'
-            + 'name=Alice',
-        )
-      }
-    }
+    t.equal(
+      body.to_string,
+      'host: ${uri.host.clone.get}:${uri.port.clone.get}\r\n'
+        + 'user-agent: foo\r\n'
+        + 'content-type: application/x-www-form-urlencoded\r\n'
+        + 'content-length: 10\r\n'
+        + 'authorization: Basic dXNlcjpwYXNz\r\n\r\n'
+        + 'name=Alice',
+    )
 
     Result.Ok(nil)
   })
@@ -1367,31 +1412,29 @@ fn pub tests(t: mut Tests) {
 
     client.random = Random.from_int(42)
 
-    match try EchoServer.new {
-      case (srv, uri) -> {
-        srv.echo
+    let (srv, uri) = try EchoServer.new
 
-        let form = client.get(uri.clone).multipart_form.or_panic
+    srv.echo
 
-        t.true(form.add('name').text('Alice').ok?)
+    let form = client.get(uri.clone).multipart_form.or_panic
 
-        let resp = form.send.or_panic
-        let body = ByteArray.new
-        let _ = resp.body.read_all(body).or_panic
+    t.true(form.add('name').text('Alice').ok?)
 
-        t.equal(
-          body.to_string,
-          'host: ${uri.host.clone.get}:${uri.port.clone.get}\r\n'
-            + 'user-agent: foo\r\n'
-            + 'content-type: multipart/form-data; boundary=InkoFormBoundaryHlzwcFgKtvmvB89Js6UhXuY80cn4O3-eIxjOYsIxQsM\r\n'
-            + 'transfer-encoding: chunked\r\n\r\n'
-            + '--InkoFormBoundaryHlzwcFgKtvmvB89Js6UhXuY80cn4O3-eIxjOYsIxQsM\r\n'
-            + 'Content-Disposition: form-data; name="name"\r\n\r\n'
-            + 'Alice\r\n'
-            + '--InkoFormBoundaryHlzwcFgKtvmvB89Js6UhXuY80cn4O3-eIxjOYsIxQsM--',
-        )
-      }
-    }
+    let resp = form.send.or_panic
+    let body = ByteArray.new
+    let _ = resp.body.read_all(body).or_panic
+
+    t.equal(
+      body.to_string,
+      'host: ${uri.host.clone.get}:${uri.port.clone.get}\r\n'
+        + 'user-agent: foo\r\n'
+        + 'content-type: multipart/form-data; boundary=InkoFormBoundaryHlzwcFgKtvmvB89Js6UhXuY80cn4O3-eIxjOYsIxQsM\r\n'
+        + 'transfer-encoding: chunked\r\n\r\n'
+        + '--InkoFormBoundaryHlzwcFgKtvmvB89Js6UhXuY80cn4O3-eIxjOYsIxQsM\r\n'
+        + 'Content-Disposition: form-data; name="name"\r\n\r\n'
+        + 'Alice\r\n'
+        + '--InkoFormBoundaryHlzwcFgKtvmvB89Js6UhXuY80cn4O3-eIxjOYsIxQsM--',
+    )
 
     Result.Ok(nil)
   })
@@ -1401,33 +1444,31 @@ fn pub tests(t: mut Tests) {
 
     client.random = Random.from_int(42)
 
-    match try EchoServer.new {
-      case (srv, uri) -> {
-        srv.echo
-        uri.user_info = Option.Some(UserInfo(name: 'user', password: 'pass'))
+    let (srv, uri) = try EchoServer.new
 
-        let form = client.get(uri.clone).multipart_form.or_panic
+    srv.echo
+    uri.user_info = Option.Some(UserInfo(name: 'user', password: 'pass'))
 
-        t.true(form.add('name').text('Alice').ok?)
+    let form = client.get(uri.clone).multipart_form.or_panic
 
-        let resp = form.send.or_panic
-        let body = ByteArray.new
-        let _ = resp.body.read_all(body).or_panic
+    t.true(form.add('name').text('Alice').ok?)
 
-        t.equal(
-          body.to_string,
-          'host: ${uri.host.clone.get}:${uri.port.clone.get}\r\n'
-            + 'user-agent: foo\r\n'
-            + 'content-type: multipart/form-data; boundary=InkoFormBoundaryHlzwcFgKtvmvB89Js6UhXuY80cn4O3-eIxjOYsIxQsM\r\n'
-            + 'transfer-encoding: chunked\r\n'
-            + 'authorization: Basic dXNlcjpwYXNz\r\n\r\n'
-            + '--InkoFormBoundaryHlzwcFgKtvmvB89Js6UhXuY80cn4O3-eIxjOYsIxQsM\r\n'
-            + 'Content-Disposition: form-data; name="name"\r\n\r\n'
-            + 'Alice\r\n'
-            + '--InkoFormBoundaryHlzwcFgKtvmvB89Js6UhXuY80cn4O3-eIxjOYsIxQsM--',
-        )
-      }
-    }
+    let resp = form.send.or_panic
+    let body = ByteArray.new
+    let _ = resp.body.read_all(body).or_panic
+
+    t.equal(
+      body.to_string,
+      'host: ${uri.host.clone.get}:${uri.port.clone.get}\r\n'
+        + 'user-agent: foo\r\n'
+        + 'content-type: multipart/form-data; boundary=InkoFormBoundaryHlzwcFgKtvmvB89Js6UhXuY80cn4O3-eIxjOYsIxQsM\r\n'
+        + 'transfer-encoding: chunked\r\n'
+        + 'authorization: Basic dXNlcjpwYXNz\r\n\r\n'
+        + '--InkoFormBoundaryHlzwcFgKtvmvB89Js6UhXuY80cn4O3-eIxjOYsIxQsM\r\n'
+        + 'Content-Disposition: form-data; name="name"\r\n\r\n'
+        + 'Alice\r\n'
+        + '--InkoFormBoundaryHlzwcFgKtvmvB89Js6UhXuY80cn4O3-eIxjOYsIxQsM--',
+    )
 
     Result.Ok(nil)
   })
@@ -1435,26 +1476,24 @@ fn pub tests(t: mut Tests) {
   t.ok('Request.read', fn (t) {
     let client = client
 
-    match try EchoServer.new {
-      case (srv, uri) -> {
-        srv.echo
+    let (srv, uri) = try EchoServer.new
 
-        let resp = client
-          .post(uri.clone)
-          .read(Buffer.new('hello'), size: 5)
-          .or_panic
-        let body = ByteArray.new
-        let _ = resp.body.read_all(body).or_panic
+    srv.echo
 
-        t.equal(
-          body.to_string,
-          'host: ${uri.host.clone.get}:${uri.port.clone.get}\r\n'
-            + 'user-agent: foo\r\n'
-            + 'transfer-encoding: chunked\r\n\r\n'
-            + 'hello',
-        )
-      }
-    }
+    let resp = client
+      .post(uri.clone)
+      .read(Buffer.new('hello'), size: 5)
+      .or_panic
+    let body = ByteArray.new
+    let _ = resp.body.read_all(body).or_panic
+
+    t.equal(
+      body.to_string,
+      'host: ${uri.host.clone.get}:${uri.port.clone.get}\r\n'
+        + 'user-agent: foo\r\n'
+        + 'transfer-encoding: chunked\r\n\r\n'
+        + 'hello',
+    )
 
     Result.Ok(nil)
   })
@@ -1462,28 +1501,26 @@ fn pub tests(t: mut Tests) {
   t.ok('Request.read with basic authentication', fn (t) {
     let client = client
 
-    match try EchoServer.new {
-      case (srv, uri) -> {
-        srv.echo
-        uri.user_info = Option.Some(UserInfo(name: 'user', password: 'pass'))
+    let (srv, uri) = try EchoServer.new
 
-        let resp = client
-          .post(uri.clone)
-          .read(Buffer.new('hello'), size: 5)
-          .or_panic
-        let body = ByteArray.new
-        let _ = resp.body.read_all(body).or_panic
+    srv.echo
+    uri.user_info = Option.Some(UserInfo(name: 'user', password: 'pass'))
 
-        t.equal(
-          body.to_string,
-          'host: ${uri.host.clone.get}:${uri.port.clone.get}\r\n'
-            + 'user-agent: foo\r\n'
-            + 'transfer-encoding: chunked\r\n'
-            + 'authorization: Basic dXNlcjpwYXNz\r\n\r\n'
-            + 'hello',
-        )
-      }
-    }
+    let resp = client
+      .post(uri.clone)
+      .read(Buffer.new('hello'), size: 5)
+      .or_panic
+    let body = ByteArray.new
+    let _ = resp.body.read_all(body).or_panic
+
+    t.equal(
+      body.to_string,
+      'host: ${uri.host.clone.get}:${uri.port.clone.get}\r\n'
+        + 'user-agent: foo\r\n'
+        + 'transfer-encoding: chunked\r\n'
+        + 'authorization: Basic dXNlcjpwYXNz\r\n\r\n'
+        + 'hello',
+    )
 
     Result.Ok(nil)
   })
@@ -1491,110 +1528,93 @@ fn pub tests(t: mut Tests) {
   t.ok('Request.read with an error while writing the headers', fn (t) {
     let client = client
 
-    match try EchoServer.new {
-      case (srv, uri) -> {
-        let prom = match Future.new {
-          case (fut, prom) -> {
-            srv.echo_twice(fut)
-            prom
-          }
-        }
-
-        t.true(
-          client
-            .post(uri.clone)
-            .read(Buffer.new('a'), size: 1)
-            .or_panic
-            .body
-            .clear
-            .ok?,
-        )
-
-        # For TCP sockets the first write usually doesn't observe any errors. To
-        # test the write error handling logic we perform a dummy write here such
-        # that we detect the error when we try to send the second request.
-        {
-          let con = client.connections.all.values_mut.next.get
-
-          t.equal(con.socket.write('a'), Result.Ok(nil))
-        }
-
-        # This request succeeds because on the first try we observe the broken
-        # pipe which we then retry once.
-        t.equal(
-          client.post(uri).read(Buffer.new('b'), size: 1).error,
-          Option.None,
-        )
-        prom.set(nil)
+    let (srv, uri) = try EchoServer.new
+    let prom = match Future.new {
+      case (fut, prom) -> {
+        srv.echo_twice(fut)
+        prom
       }
     }
+
+    t.true(
+      client
+        .post(uri.clone)
+        .read(Buffer.new('a'), size: 1)
+        .or_panic
+        .body
+        .clear
+        .ok?,
+    )
+
+    # For TCP sockets the first write usually doesn't observe any errors. To
+    # test the write error handling logic we perform a dummy write here such
+    # that we detect the error when we try to send the second request.
+    {
+      let con = client.connections.all.values_mut.next.get
+
+      t.equal(con.socket.write('a'), Result.Ok(nil))
+    }
+
+    # This request succeeds because on the first try we observe the broken
+    # pipe which we then retry once.
+    t.equal(client.post(uri).read(Buffer.new('b'), size: 1).error, Option.None)
+    prom.set(nil)
 
     Result.Ok(nil)
   })
 
   t.ok('Request.read with an error while reading the input', fn (t) {
     let client = client
+    let (srv, uri) = try EchoServer.new
 
-    match try EchoServer.new {
-      case (srv, uri) -> {
-        srv.echo
-        t.equal(
-          client.post(uri.clone).read(ErrorReader(), size: 1).error,
-          Option.Some(CopyError.Read(IoError.NotSupported)),
-        )
-      }
-    }
+    srv.echo
+    t.equal(
+      client.post(uri.clone).read(ErrorReader(), size: 1).error,
+      Option.Some(CopyError.Read(IoError.NotSupported)),
+    )
 
     Result.Ok(nil)
   })
 
   t.ok('Request.read with an error while writing to the socket', fn (t) {
     let client = client
+    let (srv, uri) = try EchoServer.new
+    let reader = ReaderWithHook(fn {
+      let con = client.connections.all.values_mut.next.get
 
-    match try EchoServer.new {
-      case (srv, uri) -> {
-        let reader = ReaderWithHook(fn {
-          let con = client.connections.all.values_mut.next.get
+      con.shutdown
 
-          con.shutdown
+      # Make sure that future writes observe an error.
+      let _ = con.socket.write('a')
+    })
 
-          # Make sure that future writes observe an error.
-          let _ = con.socket.write('a')
-        })
+    srv.echo
 
-        srv.echo
-
-        t.true(
-          match client.post(uri.clone).read(reader, size: 1).error {
-            case Some(Write(WriteFailed(BrokenPipe or ConnectionReset))) -> true
-            case _ -> false
-          },
-        )
-      }
-    }
+    t.true(
+      match client.post(uri.clone).read(reader, size: 1).error {
+        case Some(Write(WriteFailed(BrokenPipe or ConnectionReset))) -> true
+        case _ -> false
+      },
+    )
 
     Result.Ok(nil)
   })
 
   t.ok('Request.read with an error while parsing the response', fn (t) {
     let client = client
-
-    match try EchoServer.new {
-      case (srv, uri) -> {
-        let prom = match Future.new {
-          case (fut, prom) -> {
-            srv.invalid_response(fut)
-            prom
-          }
-        }
-
-        let res = client.post(uri.clone).read(Buffer.new('a'), size: 1).error
-        let exp = Error.InvalidResponse(ParseError.InvalidHeader)
-
-        t.equal(res, Option.Some(CopyError.Write(exp)))
-        prom.set(nil)
+    let (srv, uri) = try EchoServer.new
+    let prom = match Future.new {
+      case (fut, prom) -> {
+        srv.invalid_response(fut)
+        prom
       }
     }
+
+    let res = client.post(uri.clone).read(Buffer.new('a'), size: 1).error
+    let exp = Error.InvalidResponse(ParseError.InvalidHeader)
+
+    t.equal(res, Option.Some(CopyError.Write(exp)))
+    prom.set(nil)
 
     Result.Ok(nil)
   })
@@ -1673,11 +1693,7 @@ fn pub tests(t: mut Tests) {
         version: Version.v11,
         status: Status.new(301),
         headers: HeaderMap.new,
-        body: Body.bounded(
-          BufferedReader.new(Reader.new(Buffer.new(''))),
-          size: 0,
-          limit: 0,
-        ),
+        body: Body.bounded(Reader.new(Buffer.new('')), size: 0, limit: 0),
       )
 
       if location.size > 0 { resp.headers.set(Header.location, location) }
@@ -1732,5 +1748,114 @@ fn pub tests(t: mut Tests) {
       builder.apply_basic_authentication
       t.equal(builder.headers.get(Header.authorization).ok, exp)
     }
+  })
+
+  t.test('Request.websocket', fn (t) {
+    let client = Client.new
+    let req = client.websocket(Uri.parse('ws://127.0.0.1').or_panic)
+
+    t.equal(req.request.method, Method.Get)
+    t.equal(req.protocols.size, 0)
+  })
+
+  t.test('WebsocketRequest.protocols', fn (t) {
+    let client = Client.new
+    let req = client.websocket(Uri.parse('ws://127.0.0.1').or_panic).protocols(
+      ['foo', 'bar', 'bar'],
+    )
+
+    t.equal(req.protocols.iter.to_array, ['foo', 'bar'])
+  })
+
+  t.ok('WebsocketRequest.send', fn (t) {
+    let client = client
+    let (srv, uri) = try WebsocketServer.new
+
+    srv.valid
+    t.equal(client.websocket(uri).send.error, Option.None)
+
+    Result.Ok(nil)
+  })
+
+  t.ok('WebsocketRequest.send with an invalid handshake', fn (t) {
+    let client = client
+    let (srv, uri) = try WebsocketServer.new
+
+    srv.invalid_handshake
+    t.equal(
+      client.websocket(uri).send.error,
+      Option.Some(WebsocketError.InvalidHandshake),
+    )
+
+    Result.Ok(nil)
+  })
+
+  t.ok('WebsocketRequest.send with a supported protocol', fn (t) {
+    let client = client
+    let (srv, uri) = try WebsocketServer.new.map_error(fn (e) { e.to_string })
+
+    srv.with_protocol
+
+    let (sock, _) = try client.websocket(uri).protocols(['foo']).send.map_error(
+      fn (e) { e.to_string },
+    )
+
+    t.equal(sock.protocol, Option.Some('foo'.to_slice))
+
+    Result.Ok(nil)
+  })
+
+  t.ok('WebsocketRequest.send with an unsupported protocol', fn (t) {
+    let client = client
+    let (srv, uri) = try WebsocketServer.new.map_error(fn (e) { e.to_string })
+
+    srv.with_protocol
+    t.equal(
+      client.websocket(uri).send.error,
+      Option.Some(WebsocketError.InvalidProtocol),
+    )
+
+    Result.Ok(nil)
+  })
+
+  t.ok('WebsocketRequest.send with an unsupported extension', fn (t) {
+    let client = client
+    let (srv, uri) = try WebsocketServer.new.map_error(fn (e) { e.to_string })
+
+    srv.with_extension
+    t.equal(
+      client.websocket(uri).send.error,
+      Option.Some(WebsocketError.InvalidExtension),
+    )
+
+    Result.Ok(nil)
+  })
+
+  t.ok('WebsocketRequest.send with an IO response error', fn (t) {
+    let client = client
+    let (srv, uri) = try WebsocketServer.new.map_error(fn (e) { e.to_string })
+
+    srv.io_error
+    t.true(
+      match client.websocket(uri).send.error {
+        case Some(Other(InvalidResponse(_))) -> true
+        case _ -> false
+      },
+    )
+
+    Result.Ok(nil)
+  })
+
+  t.ok('WebsocketRequest.send with a server response error', fn (t) {
+    let client = client
+    let (srv, uri) = try WebsocketServer.new.map_error(fn (e) { e.to_string })
+
+    srv.server_error
+    t.equal(
+      client.websocket(uri).send.error,
+      Option.Some(WebsocketError.ServerError(Status.bad_request)),
+    )
+
+    Result.Ok(nil)
   })
 }

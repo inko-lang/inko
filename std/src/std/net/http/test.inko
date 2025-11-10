@@ -100,7 +100,7 @@
 import std.clone (Clone)
 import std.debug (StackFrame)
 import std.drop (Drop)
-import std.io (Buffer, BufferedReader, Error as IoError)
+import std.io (Buffer, Error as IoError)
 import std.multipart
 import std.net.http (
   Body as RawBody, Header, HeaderMap, Limits, Method, Reader as HttpReader,
@@ -1689,15 +1689,11 @@ type pub inline RequestBuilder {
     )
     let body = match @body {
       case None -> {
-        RawBody.bounded(
-          BufferedReader.new(HttpReader.new(Buffer.new(''))),
-          size: 0,
-          limit: 0,
-        )
+        RawBody.bounded(HttpReader.new(Buffer.new('')), size: 0, limit: 0)
       }
       case String(v) -> {
         RawBody.bounded(
-          BufferedReader.new(HttpReader.new(Buffer.new(v))),
+          HttpReader.new(Buffer.new(v)),
           size: v.size,
           limit: v.size,
         )
@@ -1705,14 +1701,11 @@ type pub inline RequestBuilder {
       case Bytes(v) -> {
         let len = v.size
 
-        RawBody.bounded(
-          BufferedReader.new(HttpReader.new(Buffer.new(v))),
-          size: len,
-          limit: len,
-        )
+        RawBody.bounded(HttpReader.new(Buffer.new(v)), size: len, limit: len)
       }
     }
 
+    let rng = Random.new
     let req = Request.new(
       addr,
       RawRequest(
@@ -1723,6 +1716,7 @@ type pub inline RequestBuilder {
         body: body,
       ),
       Limits.new,
+      rng,
     )
 
     handler.handle(req)

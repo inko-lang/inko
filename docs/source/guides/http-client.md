@@ -403,6 +403,38 @@ Support for client cookie jars is not yet provided. Refer to [this
 issue](https://github.com/inko-lang/inko/issues/877) for more details.
 :::
 
+## WebSockets
+
+A [WebSocket](https://www.rfc-editor.org/rfc/rfc6455.html) connection is
+established using [](method://std.net.http.client.Client.websocket) and
+[](method://std.net.http.client.WebsocketRequest.send):
+
+```inko
+import std.fmt (fmt)
+import std.net.http.client (Client)
+import std.stdio (Stdout)
+import std.uri (Uri)
+
+type async Main {
+  fn async main {
+    let client = Client.new
+    let uri = Uri.parse('https://echo.websocket.org').or_panic
+    let (sock, _response) = client.websocket(uri).send.or_panic
+
+    let _ = sock.receive.or_panic
+    let _ = sock.text('hello').or_panic
+
+    Stdout.new.print(fmt(sock.receive))
+  }
+}
+```
+
+Building and running this program results in the following output:
+
+```
+Ok(Text("hello"))
+```
+
 ## Testing
 
 Testing an HTTP client is done using the [](std.net.http.test.Server) type. This

@@ -17,24 +17,32 @@
 # # Read the entire response and panic upon encountering an error.
 # let _ = resp.body.read_all(body).or_panic
 # ```
+#
+# For more information, refer to the documentation of the `Client` type.
 import std.base64 (Encoder)
 import std.bytes (Bytes)
 import std.clone (Clone)
 import std.cmp (Equal)
+import std.crypto.sha1 (Sha1)
 import std.drop (Drop)
 import std.env (VERSION)
 import std.fmt (Format, Formatter)
 import std.hash (Hash, Hasher)
-import std.io (CopyError, Error as IoError, Read, Write, copy_using)
+import std.io (
+  BufferedRead, BufferedReader, CopyError, Error as IoError, Read, Write,
+  copy_using,
+)
 import std.multipart
 import std.net.dns
 import std.net.http (
   CHUNKED, ChunkedWriter, Header, HeaderMap, Limits, Method, ParseError, Parser,
-  Response, Stream,
+  Response, Status, Stream,
 )
-import std.net.socket (Deadline, TcpClient, UnixClient)
+import std.net.http.websocket (WEBSOCKET_KEY, WEBSOCKET_VERSION, Websocket)
+import std.net.socket (Deadline, Shutdown, TcpClient, UnixClient)
 import std.net.tls
 import std.rand (Random)
+import std.set (Set)
 import std.string (ToString)
 import std.time (Duration, ToInstant)
 import std.uri (Error as UriError, Host, Scheme, Uri, Values)
@@ -42,16 +50,54 @@ import std.uri (Error as UriError, Host, Scheme, Uri, Values)
 # The default user agent string to use.
 let USER_AGENT = 'inko/' + VERSION + ' (https://inko-lang.org)'
 
-type inline enum Socket {
+fn inline header_eq[B: Bytes](
+  response: ref Response,
+  header: Header,
+  value: ref B,
+) -> Bool {
+  response.headers.get(header).or('').equals_while_ignoring_case?(value)
+}
+
+type inline enum SocketKind {
   case Plain(TcpClient)
   case Secure(tls.Client[TcpClient])
   case Unix(UnixClient)
+}
+
+impl Read[IoError] for SocketKind {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, IoError] {
+    match self {
+      case Plain(v) -> v.read(into, size)
+      case Secure(v) -> v.read(into, size)
+      case Unix(v) -> v.read(into, size)
+    }
+  }
+}
+
+type pub inline Socket {
+  # The buffered stream to read from.
+  #
+  # Buffering is done at the socket/connection level so that we don't lose
+  # partially read data in between requests, or when upgrading connections.
+  let @reader: BufferedReader[SocketKind, IoError]
+
+  fn static plain(socket: TcpClient) -> Self {
+    Self(BufferedReader.new(SocketKind.Plain(socket)))
+  }
+
+  fn static secure(socket: tls.Client[TcpClient]) -> Self {
+    Self(BufferedReader.new(SocketKind.Secure(socket)))
+  }
+
+  fn static unix(socket: UnixClient) -> Self {
+    Self(BufferedReader.new(SocketKind.Unix(socket)))
+  }
 
   fn mut configure_tcp_keepalive(
     time: Duration,
     interval: Duration,
   ) -> Result[Nil, IoError] {
-    let raw = match self {
+    let raw = match @reader.inner {
       case Plain(v) -> v.socket
       case Secure(v) -> v.socket.socket
       case Unix(_) -> return Result.Ok(nil)
@@ -62,19 +108,61 @@ type inline enum Socket {
     try raw.keepalive_interval = interval
     Result.Ok(nil)
   }
+}
 
-  fn mut shutdown {
-    match self {
-      case Plain(v) -> v.shutdown
-      case Secure(v) -> v.socket.shutdown
-      case Unix(v) -> v.shutdown
+impl Shutdown for Socket {
+  fn pub mut shutdown_read -> Result[Nil, IoError] {
+    match @reader.inner {
+      case Plain(v) -> v.socket.shutdown_read
+      case Secure(v) -> v.socket.shutdown_read
+      case Unix(v) -> v.socket.shutdown_read
     }
+  }
+
+  fn pub mut shutdown_write -> Result[Nil, IoError] {
+    match @reader.inner {
+      case Plain(v) -> v.socket.shutdown_write
+      case Secure(v) -> v.socket.shutdown_write
+      case Unix(v) -> v.socket.shutdown_write
+    }
+  }
+
+  fn pub mut shutdown -> Result[Nil, IoError] {
+    match @reader.inner {
+      case Plain(v) -> v.socket.shutdown
+      case Secure(v) -> v.socket.shutdown
+      case Unix(v) -> v.socket.shutdown
+    }
+  }
+}
+
+impl Read[IoError] for Socket {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, IoError] {
+    @reader.read(into, size)
+  }
+}
+
+impl BufferedRead[IoError] for Socket {
+  fn mut fill_buffer -> Result[Int, IoError] {
+    @reader.fill_buffer
+  }
+
+  fn mut read_buffer(into: mut ByteArray, size: Int) -> Int {
+    @reader.read_buffer(into, size)
+  }
+
+  fn pub mut read_byte -> Result[Option[Int], IoError] {
+    @reader.read_byte
+  }
+
+  fn pub mut peek -> Result[Option[Int], IoError] {
+    @reader.peek
   }
 }
 
 impl Write[IoError] for Socket {
   fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, IoError] {
-    match self {
+    match @reader.inner {
       case Plain(v) -> v.write(bytes)
       case Secure(v) -> v.write(bytes)
       case Unix(v) -> v.write(bytes)
@@ -88,7 +176,7 @@ impl Write[IoError] for Socket {
 
 impl Deadline for Socket {
   fn pub mut timeout_after=[T: ToInstant](deadline: ref T) {
-    match self {
+    match @reader.inner {
       case Plain(v) -> v.timeout_after = deadline
       case Secure(v) -> v.timeout_after = deadline
       case Unix(v) -> v.timeout_after = deadline
@@ -96,7 +184,7 @@ impl Deadline for Socket {
   }
 
   fn pub mut reset_deadline {
-    match self {
+    match @reader.inner {
       case Plain(v) -> v.reset_deadline
       case Secure(v) -> v.reset_deadline
       case Unix(v) -> v.reset_deadline
@@ -155,6 +243,9 @@ type copy enum State {
   # An error is produced while reading from or writing to the connection,
   # reusing the connection isn't possible.
   case Error
+
+  # The connection is upgraded to a WebSocket connection.
+  case Websocket
 }
 
 # A connection established by a client.
@@ -182,8 +273,13 @@ type Connection {
 }
 
 # A client connection available for sending requests and parsing responses.
-type pub inline ActiveConnection {
+type inline ActiveConnection {
   let @connection: mut Connection
+
+  fn mut error(error: IoError) -> ParseError {
+    @connection.state = State.Error
+    ParseError.Read(error)
+  }
 }
 
 impl Stream for ActiveConnection {
@@ -209,6 +305,9 @@ impl Drop for ActiveConnection {
   fn mut drop {
     match @connection.state {
       case Reusable -> @connection.pool.reuse(@connection)
+      case Websocket -> {
+        # In this case the connection is managed separately.
+      }
       case _ -> @connection.pool.close(@connection.id)
     }
   }
@@ -226,18 +325,36 @@ impl Deadline for ActiveConnection {
 
 impl Read[ParseError] for ActiveConnection {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, ParseError] {
-    let res = match @connection.socket {
-      case Plain(v) -> v.read(into, size)
-      case Secure(v) -> v.read(into, size)
-      case Unix(v) -> v.read(into, size)
-    }
-
-    match res {
+    match @connection.socket.read(into, size) {
       case Ok(v) -> Result.Ok(v)
-      case Error(e) -> {
-        @connection.state = State.Error
-        Result.Error(ParseError.Read(e))
-      }
+      case Error(e) -> throw error(e)
+    }
+  }
+}
+
+impl BufferedRead[ParseError] for ActiveConnection {
+  fn mut fill_buffer -> Result[Int, ParseError] {
+    match @connection.socket.fill_buffer {
+      case Ok(v) -> Result.Ok(v)
+      case Error(e) -> throw error(e)
+    }
+  }
+
+  fn mut read_buffer(into: mut ByteArray, size: Int) -> Int {
+    @connection.socket.read_buffer(into, size)
+  }
+
+  fn pub mut read_byte -> Result[Option[Int], ParseError] {
+    match @connection.socket.read_byte {
+      case Ok(v) -> Result.Ok(v)
+      case Error(e) -> throw error(e)
+    }
+  }
+
+  fn pub mut peek -> Result[Option[Int], ParseError] {
+    match @connection.socket.peek {
+      case Ok(v) -> Result.Ok(v)
+      case Error(e) -> throw error(e)
     }
   }
 }
@@ -253,6 +370,56 @@ impl Write[IoError] for ActiveConnection {
 
   fn pub mut flush -> Result[Nil, IoError] {
     @connection.socket.flush
+  }
+}
+
+type pub inline WebsocketConnection {
+  let @connection: mut Connection
+}
+
+impl Deadline for WebsocketConnection {
+  fn pub mut timeout_after=[T: ToInstant](deadline: ref T) {
+    @connection.socket.timeout_after = deadline
+  }
+
+  fn pub mut reset_deadline {
+    @connection.socket.reset_deadline
+  }
+}
+
+impl Shutdown for WebsocketConnection {
+  fn pub mut shutdown_read -> Result[Nil, IoError] {
+    @connection.socket.shutdown_read
+  }
+
+  fn pub mut shutdown_write -> Result[Nil, IoError] {
+    @connection.socket.shutdown_write
+  }
+
+  fn pub mut shutdown -> Result[Nil, IoError] {
+    @connection.socket.shutdown
+  }
+}
+
+impl Read[IoError] for WebsocketConnection {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, IoError] {
+    @connection.socket.read(into, size)
+  }
+}
+
+impl Write[IoError] for WebsocketConnection {
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, IoError] {
+    @connection.socket.write(bytes)
+  }
+
+  fn pub mut flush -> Result[Nil, IoError] {
+    @connection.socket.flush
+  }
+}
+
+impl Drop for WebsocketConnection {
+  fn mut drop {
+    @connection.pool.close(@connection.id)
   }
 }
 
@@ -452,7 +619,7 @@ type Pool {
 #
 # let client = Client.new
 # let uri = Uri
-#   .parse('https://user:pass@httpbun.org/basic-auth/user/pass')
+#   .parse('https://user:pass@httpbun.com/basic-auth/user/pass')
 #   .or_panic
 #
 # let resp = client.get(uri).send.or_panic
@@ -474,6 +641,31 @@ type Pool {
 # By default this header is removed when redirecting to a different host. This
 # can be disabled by setting `Client.remove_authorization_for_different_host` to
 # `false`.
+#
+# # Websockets
+#
+# A `Client` supports establishing a WebSocket connection, using the schemes
+# `ws`, `wss`, `http` and `https`. To create such a connection, use
+# `Client.websocket` to create a `WebsocketRequest`, then call
+# `WebsocketRequest.send` to send the request and establish the connection:
+#
+# ```inko
+# import std.net.http.client (Client)
+# import std.uri (Uri)
+#
+# type async Main {
+#   fn async main {
+#     let client = Client.new
+#     let uri = Uri.parse('https://echo.websocket.org').or_panic
+#     let (sock, _response) = client.websocket(uri).send.or_panic
+#
+#     let _ = sock.receive.or_panic
+#     let _ = sock.text('hello').or_panic
+#
+#     sock.receive.or_panic # => Message.Text('hello')
+#   }
+# }
+# ```
 type pub Client {
   # The random number generator to use when generating multipart form
   # boundaries.
@@ -596,6 +788,23 @@ type pub Client {
     Request.new(self, method, uri)
   }
 
+  # Returns a `WebsocketRequest` for establishing a WebSocket connection.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.client (Client)
+  # import std.uri (Uri)
+  #
+  # let client = Client.new
+  # let uri = Uri.parse('https://example.com').or_panic
+  #
+  # client.websocket(uri)
+  # ```
+  fn pub mut websocket(uri: Uri) -> WebsocketRequest {
+    WebsocketRequest.new(get(uri))
+  }
+
   # Returns a `Request` for sending a GET request.
   #
   # # Examples
@@ -686,13 +895,15 @@ type pub Client {
       case Some(Http) -> Scheme.Http
       case Some(Https) -> Scheme.Https
       case Some(Unix) -> Scheme.Unix
+      case Some(Ws) -> Scheme.Ws
+      case Some(Wss) -> Scheme.Wss
       case Some(_) -> throw Error.InvalidScheme
       case _ -> Scheme.Http
     }
 
     let port = match (ref scheme, uri.port) {
       case (Unix, _) -> 0
-      case (Https, None) -> 443
+      case (Https or Wss, None) -> 443
       case (_, Some(port)) -> port
       case _ -> 80
     }
@@ -721,7 +932,7 @@ type pub Client {
   fn mut connect_new(scope: Scope) -> Result[ActiveConnection, Error] {
     let secure = match scope.scheme {
       case Unix -> return connect_unix(scope)
-      case Https -> true
+      case Https or Wss -> true
       case _ -> false
     }
 
@@ -749,11 +960,11 @@ type pub Client {
         # zero due to how rustls works and the prior validation, but _just_ in
         # case we run into an error we throw here instead of triggering a panic.
         match tls.Client.new(v, conf, name: scope.host.to_string) {
-          case Some(v) -> Socket.Secure(v)
+          case Some(v) -> Socket.secure(v)
           case _ -> throw Error.InvalidHost
         }
       }
-      case Ok(v) -> Socket.Plain(v)
+      case Ok(v) -> Socket.plain(v)
       case Error(e) -> throw Error.ConnectionFailed(e)
     }
 
@@ -771,7 +982,7 @@ type pub Client {
     }
     let timeout = @connect_timeout.to_instant
     let sock = match UnixClient.with_timeout(path, timeout) {
-      case Ok(v) -> Socket.Unix(v)
+      case Ok(v) -> Socket.unix(v)
       case Error(e) -> throw Error.ConnectionFailed(e)
     }
 
@@ -972,6 +1183,63 @@ impl Equal for Error {
       case (InsecureRedirect, InsecureRedirect) -> true
       case (InvalidTlsConfig, InvalidTlsConfig) -> true
       case _ -> false
+    }
+  }
+}
+
+# An error produced while attempting to upgrade to a WebSocket connection.
+type pub inline enum WebsocketError {
+  # The server returned an incorrect handshake response.
+  case InvalidHandshake
+
+  # The server responded with a protocol we didn't request.
+  case InvalidProtocol
+
+  # The server enabled an extension we don't support.
+  case InvalidExtension
+
+  # The server responded with an unexpected response status.
+  case ServerError(Status)
+
+  # A different error (e.g. a network error) occurred.
+  case Other(Error)
+}
+
+impl Equal for WebsocketError {
+  fn pub ==(other: ref Self) -> Bool {
+    match (self, other) {
+      case (InvalidHandshake, InvalidHandshake) -> true
+      case (InvalidProtocol, InvalidProtocol) -> true
+      case (InvalidExtension, InvalidExtension) -> true
+      case (ServerError(a), ServerError(b)) -> a == b
+      case (Other(a), Other(b)) -> a == b
+      case _ -> false
+    }
+  }
+}
+
+impl Format for WebsocketError {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case InvalidHandshake -> formatter.tuple('InvalidHandshake').finish
+      case InvalidProtocol -> formatter.tuple('InvalidProtocol').finish
+      case InvalidExtension -> formatter.tuple('InvalidExtension').finish
+      case ServerError(v) -> formatter.tuple('ServerError').field(v).finish
+      case Other(v) -> formatter.tuple('Other').field(v).finish
+    }
+  }
+}
+
+impl ToString for WebsocketError {
+  fn pub to_string -> String {
+    match self {
+      case InvalidHandshake -> {
+        'the handshake response returned by the server is invalid'
+      }
+      case InvalidProtocol -> 'the server enabled an unsupported protocol'
+      case InvalidExtension -> 'the server enabled an unsupported extension'
+      case ServerError(v) -> 'the server returned a response with status ${v}'
+      case Other(v) -> v.to_string
     }
   }
 }
@@ -1182,45 +1450,14 @@ type pub inline Request {
   # import std.uri (Uri)
   #
   # let client = Client.new
-  # let uri = Uri.parse('https://httpbun.org/post').or_panic
+  # let uri = Uri.parse('https://httpbun.com/post').or_panic
   #
   # client.post(uri).body('hello') # => Result.Ok(...)
   # ```
   fn pub move body[B: Bytes](bytes: ref B) -> Result[Response, Error] {
-    set_content_length(bytes.size)
-    prepare
+    let (resp, _) = try send_with_body(bytes)
 
-    let mut attempts = @client.max_redirects + 1
-
-    while attempts > 0 {
-      let (con, existing) = try @client.connect(@uri)
-      let writer = RequestWriter.new(mut con)
-
-      match writer.start(@method, @uri, @headers).body(bytes) {
-        case Ok(_) -> {}
-        case Error(ConnectionReset or BrokenPipe) if existing -> next
-        case Error(e) -> throw Error.WriteFailed(e)
-      }
-
-      match Parser.new(con, @client.buffer, @client.limits).response(@method) {
-        case Ok(resp) if @method.safe? and resp.status.redirect? -> {
-          match try follow_redirect(resp) {
-            case Some(v) -> return Result.Ok(v)
-            case _ -> {}
-          }
-
-          attempts -= 1
-          next
-        }
-        case Ok(v) -> return Result.Ok(v)
-        case
-          Error(EndOfInput or Read(ConnectionReset or BrokenPipe)) if existing
-        -> {}
-        case Error(e) -> throw Error.InvalidResponse(e)
-      }
-    }
-
-    throw Error.TooManyRedirects
+    Result.Ok(resp)
   }
 
   # Returns a type for building and sending a URL encoded form.
@@ -1245,7 +1482,7 @@ type pub inline Request {
   # import std.uri (Uri)
   #
   # let client = Client.new
-  # let uri = Uri.parse('https://httpbun.org/post').or_panic
+  # let uri = Uri.parse('https://httpbun.com/post').or_panic
   # let form = client.post(uri).url_encoded_form
   #
   # form.add('name', 'Alice')
@@ -1283,7 +1520,7 @@ type pub inline Request {
   # import std.uri (Uri)
   #
   # let client = Client.new
-  # let uri = Uri.parse('https://httpbun.org/post').or_panic
+  # let uri = Uri.parse('https://httpbun.com/post').or_panic
   # let form = client.post(uri).multipart_form
   #
   # form.add('name').text('Alice') # => Result.Ok(...)
@@ -1358,7 +1595,7 @@ type pub inline Request {
   # import std.uri (Uri)
   #
   # let client = Client.new
-  # let uri = Uri.parse('https://httpbun.org/post').or_panic
+  # let uri = Uri.parse('https://httpbun.com/post').or_panic
   #
   # client.post(uri).read(Buffer.new('hello')) # => Result.Ok(...)
   # ```
@@ -1398,6 +1635,46 @@ type pub inline Request {
         case Error(e) -> throw CopyError.Write(e)
       }
     }
+  }
+
+  fn move send_with_body[B: Bytes](
+    bytes: ref B,
+  ) -> Result[(Response, mut Connection), Error] {
+    set_content_length(bytes.size)
+    prepare
+
+    let mut attempts = @client.max_redirects + 1
+
+    while attempts > 0 {
+      let (con, existing) = try @client.connect(@uri)
+      let raw_con = con.connection
+      let writer = RequestWriter.new(mut con)
+
+      match writer.start(@method, @uri, @headers).body(bytes) {
+        case Ok(_) -> {}
+        case Error(ConnectionReset or BrokenPipe) if existing -> next
+        case Error(e) -> throw Error.WriteFailed(e)
+      }
+
+      match Parser.new(con, @client.buffer, @client.limits).response(@method) {
+        case Ok(resp) if @method.safe? and resp.status.redirect? -> {
+          match try follow_redirect(resp) {
+            case Some(v) -> return Result.Ok((v, raw_con))
+            case _ -> {}
+          }
+
+          attempts -= 1
+          next
+        }
+        case Ok(v) -> return Result.Ok((v, raw_con))
+        case
+          Error(EndOfInput or Read(ConnectionReset or BrokenPipe)) if existing
+        -> {}
+        case Error(e) -> throw Error.InvalidResponse(e)
+      }
+    }
+
+    throw Error.TooManyRedirects
   }
 
   fn mut set_content_length(size: Int) {
@@ -1474,5 +1751,126 @@ type pub inline Request {
     try response.body.clear.map_error(fn (e) { Error.InvalidResponse(e) })
     @uri.merge(new_uri)
     Result.Ok(Option.None)
+  }
+}
+
+# A type for upgrading an HTTP connection to a WebSocket connection.
+type pub inline WebsocketRequest {
+  let @request: Request
+
+  # The protocols that we support.
+  let @protocols: Set[String]
+
+  fn static new(request: Request) -> Self {
+    Self(request: request, protocols: Set.new)
+  }
+
+  # Adds the given protocols to the protocols supported by the server.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.client (Client)
+  # import std.uri (Uri)
+  #
+  # type async Main {
+  #   fn async main {
+  #     let client = Client.new
+  #     let uri = Uri.parse('https://echo.websocket.org').or_panic
+  #
+  #     client.websocket(uri).protocols(['foo', 'bar']).send.or_panic
+  #   }
+  # }
+  # ```
+  fn pub move protocols(values: Array[String]) -> Self {
+    for value in values { @protocols.insert(value) }
+
+    self
+  }
+
+  # Adds the header with the given value.
+  #
+  # Refer to the documentation of `std.net.http.HeaderMap.add` for more details.
+  fn pub move header(header: Header, value: String) -> Self {
+    @request.headers.add(header, value)
+    self
+  }
+
+  # Adds a query string parameter and value to `self`.
+  #
+  # Refer to the documentation of `std.uri.Values.add` for more details.
+  fn pub move query(key: String, value: String) -> Self {
+    @request.query.add(key, value)
+    self
+  }
+
+  # Sends the request and returns a websocket and its raw response.
+  #
+  # The returned `Response` is the response returned by the server. This is
+  # returned such that additional data (e.g. headers) can be used if necessary.
+  #
+  # When the `Websocket` is dropped the underlying connection is closed.
+  fn pub move send -> Result[
+    (Websocket[WebsocketConnection], Response),
+    WebsocketError,
+  ] {
+    let buf = ByteArray.new
+    let key = ByteArray.new
+    let enc = Encoder.new
+
+    @request.client.random.bytes(into: buf, size: 16)
+    enc.encode(buf, into: key)
+    buf.clear
+
+    let key = key.into_string
+
+    enc.encode(Sha1.hash(key + WEBSOCKET_KEY).bytes, into: buf)
+
+    @request.headers.set(Header.connection, 'upgrade')
+    @request.headers.set(Header.upgrade, 'websocket')
+    @request.headers.set(Header.sec_websocket_key, key)
+    @request.headers.set(Header.sec_websocket_version, WEBSOCKET_VERSION)
+
+    if @protocols.size > 0 {
+      let proto = String.join(@protocols.iter, ', ')
+
+      @request.headers.set(Header.sec_websocket_protocol, proto)
+    }
+
+    let rng = @request.client.random
+    let (resp, con) = match @request.send_with_body('') {
+      case Ok(v) -> v
+      case Error(e) -> throw WebsocketError.Other(e)
+    }
+
+    match resp.status.to_int {
+      case
+        101
+      if header_eq(resp, Header.upgrade, 'websocket')
+        and header_eq(resp, Header.connection, 'upgrade')
+        and header_eq(resp, Header.sec_websocket_accept, buf)
+      -> {}
+      case 101 -> throw WebsocketError.InvalidHandshake
+      case _ -> throw WebsocketError.ServerError(resp.status)
+    }
+
+    # For websockets the connection is managed by the Websocket that we return,
+    # not the Response.
+    con.state = State.Websocket
+
+    # Extensions are not supported at this time.
+    if resp.headers.get(Header.sec_websocket_extensions).ok? {
+      throw WebsocketError.InvalidExtension
+    }
+
+    let proto = match resp.headers.get(Header.sec_websocket_protocol) {
+      case Ok(v) if @protocols.contains?(v) -> Option.Some(v.to_slice)
+      case Ok(_) -> throw WebsocketError.InvalidProtocol
+      case _ -> Option.None
+    }
+
+    let ws = Websocket.client(WebsocketConnection(con), rng, proto)
+
+    return Result.Ok((ws, resp))
   }
 }

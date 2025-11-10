@@ -1,0 +1,574 @@
+import std.bytes (Bytes)
+import std.endian.big
+import std.fmt (fmt)
+import std.io (Buffer, Error as IoError, Read, Write)
+import std.net.http.websocket (
+  Close, Error, FrameHeader, Message, Opcode, Role, State, Websocket,
+  read_exact_from,
+)
+import std.net.ip (IpAddress)
+import std.net.socket (Deadline, Shutdown, TcpClient, TcpServer)
+import std.rand (Random)
+import std.test (Tests)
+import std.time (Duration, ToInstant)
+
+fn sockets(
+  rng: mut Random,
+) -> Result[(Websocket[TcpClient], Websocket[TcpClient]), IoError] {
+  let listener = try TcpServer.new(ip: IpAddress.v4(0, 0, 0, 0), port: 0)
+  let addr = try listener.local_address
+  let client = try TcpClient.new(ips: [addr.ip], port: addr.port)
+  let server = try listener.accept
+
+  let client = Websocket.client(client, rng, Option.None)
+  let server = Websocket.server(server, rng, Option.None)
+
+  client.close_timeout = Duration.from_secs(0)
+  server.close_timeout = Duration.from_secs(0)
+
+  Result.Ok((client, server))
+}
+
+type Stream {
+  let @input: Buffer[ByteArray]
+  let @output: ByteArray
+
+  fn static new(input: ByteArray) -> Self {
+    Self(input: Buffer.new(input), output: ByteArray.new)
+  }
+}
+
+impl Read[IoError] for Stream {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, IoError] {
+    @input.read(into, size)
+  }
+}
+
+impl Write[IoError] for Stream {
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, IoError] {
+    @output.append(bytes)
+    Result.Ok(nil)
+  }
+
+  fn pub mut flush -> Result[Nil, IoError] {
+    Result.Ok(nil)
+  }
+}
+
+impl Deadline for Stream {
+  fn pub mut timeout_after=[T: ToInstant](deadline: ref T) {}
+
+  fn pub mut reset_deadline {}
+}
+
+impl Shutdown for Stream {
+  fn pub mut shutdown -> Result[Nil, IoError] {
+    Result.Ok(nil)
+  }
+
+  fn pub mut shutdown_read -> Result[Nil, IoError] {
+    Result.Ok(nil)
+  }
+
+  fn pub mut shutdown_write -> Result[Nil, IoError] {
+    Result.Ok(nil)
+  }
+}
+
+fn pub tests(t: mut Tests) {
+  t.test('read_exact_from', fn (t) {
+    let reader = Buffer.new('abc')
+    let buf = ByteArray.new
+
+    t.equal(read_exact_from(reader, into: buf, size: 2), Result.Ok(nil))
+    t.equal(buf.to_string, 'ab')
+  })
+
+  t.test('Error.==', fn (t) {
+    t.equal(Error.Closed, Error.Closed)
+    t.equal(Error.AlreadyClosed, Error.AlreadyClosed)
+    t.equal(Error.InvalidFrame, Error.InvalidFrame)
+    t.equal(Error.MessageTooLarge, Error.MessageTooLarge)
+    t.equal(Error.InvalidUtf8, Error.InvalidUtf8)
+    t.equal(Error.Other(IoError.BrokenPipe), Error.Other(IoError.BrokenPipe))
+    t.not_equal(Error.Other(IoError.BrokenPipe), Error.Other(IoError.NotFound))
+  })
+
+  t.test('Error.fmt', fn (t) {
+    t.equal(fmt(Error.Closed), 'Closed')
+    t.equal(fmt(Error.AlreadyClosed), 'AlreadyClosed')
+    t.equal(fmt(Error.InvalidFrame), 'InvalidFrame')
+    t.equal(fmt(Error.MessageTooLarge), 'MessageTooLarge')
+    t.equal(fmt(Error.InvalidUtf8), 'InvalidUtf8')
+    t.equal(fmt(Error.Other(IoError.BrokenPipe)), 'Other(BrokenPipe)')
+  })
+
+  t.test('Error.to_string', fn (t) {
+    t.equal(Error.Closed.to_string, 'the connection is closed')
+    t.equal(Error.AlreadyClosed.to_string, 'the connection is already closed')
+    t.equal(Error.InvalidFrame.to_string, 'the frame contains invalid data')
+    t.equal(Error.MessageTooLarge.to_string, 'the message is too large')
+    t.equal(Error.InvalidUtf8.to_string, 'the message contains invalid UTF-8')
+    t.equal(
+      Error.Other(IoError.BrokenPipe).to_string,
+      IoError.BrokenPipe.to_string,
+    )
+  })
+
+  t.test('State.default?', fn (t) {
+    t.true(State.Default.default?)
+    t.false(State.Text.default?)
+  })
+
+  t.test('Role.client?', fn (t) {
+    t.true(Role.Client.client?)
+    t.false(Role.Server.client?)
+  })
+
+  t.test('Close.new', fn (t) { t.equal(Close.new(1234), Close(1234)) })
+
+  t.panic('Close.new with a negative code', fn { Close.new(-2) })
+
+  t.panic('Close.new with a code that is too large', fn { Close.new(70_000) })
+
+  t.test('Close.normal', fn (t) { t.equal(Close.normal, Close(1_000)) })
+
+  t.test('Close.protocol_error', fn (t) {
+    t.equal(Close.protocol_error, Close(1_002))
+  })
+
+  t.test('Close.invalid_data', fn (t) {
+    t.equal(Close.invalid_data, Close(1_007))
+  })
+
+  t.test('Close.policy_violation', fn (t) {
+    t.equal(Close.policy_violation, Close(1_008))
+  })
+
+  t.test('Close.message_too_large', fn (t) {
+    t.equal(Close.message_too_large, Close(1_009))
+  })
+
+  t.test('Close.==', fn (t) {
+    t.equal(Close.normal, Close.normal)
+    t.not_equal(Close.normal, Close.invalid_data)
+  })
+
+  t.test('Close.fmt', fn (t) { t.equal(fmt(Close.normal), '1000') })
+
+  t.test('Close.to_string', fn (t) { t.equal(Close.normal.to_string, '1000') })
+
+  t.test('Close.to_int', fn (t) { t.equal(Close.normal.to_int, 1_000) })
+
+  t.test('Message.==', fn (t) {
+    t.equal(Message.Text('a'), Message.Text('a'))
+    t.equal(
+      Message.Binary('a'.to_byte_array),
+      Message.Binary('a'.to_byte_array),
+    )
+    t.equal(Message.Pong('a'.to_byte_array), Message.Pong('a'.to_byte_array))
+
+    t.not_equal(Message.Text('a'), Message.Text('b'))
+    t.not_equal(
+      Message.Binary('a'.to_byte_array),
+      Message.Binary('b'.to_byte_array),
+    )
+    t.not_equal(
+      Message.Pong('a'.to_byte_array),
+      Message.Pong('b'.to_byte_array),
+    )
+  })
+
+  t.test('Message.fmt', fn (t) {
+    t.equal(fmt(Message.Text('a')), 'Text("a")')
+    t.equal(fmt(Message.Binary('a'.to_byte_array)), 'Binary([97])')
+    t.equal(fmt(Message.Pong('a'.to_byte_array)), 'Pong([97])')
+  })
+
+  t.test('Websocket.server', fn (t) {
+    let rng = Random.new
+    let io = Stream.new(ByteArray.new)
+    let sock = Websocket.server(io, rng, protocol: Option.Some('foo'.to_slice))
+
+    t.true(
+      match sock.role {
+        case Server -> true
+        case _ -> false
+      },
+    )
+
+    t.equal(sock.protocol, Option.Some('foo'.to_slice))
+  })
+
+  t.test('Websocket.client', fn (t) {
+    let rng = Random.new
+    let io = Stream.new(ByteArray.new)
+    let sock = Websocket.client(io, rng, protocol: Option.Some('foo'.to_slice))
+
+    t.true(
+      match sock.role {
+        case Client -> true
+        case _ -> false
+      },
+    )
+
+    t.equal(sock.protocol, Option.Some('foo'.to_slice))
+  })
+
+  t.test('Websocket.text with a client socket', fn (t) {
+    let rng = Random.from_int(42)
+    let io = Stream.new(ByteArray.new)
+    let sock = Websocket.client(mut io, rng, protocol: Option.None)
+
+    t.equal(sock.text('hello'), Result.Ok(nil))
+    t.equal(
+      io.output,
+      ByteArray.from_array([129, 133, 30, 92, 240, 112, 118, 57, 156, 28, 113]),
+    )
+  })
+
+  t.test('Websocket.text with a server socket', fn (t) {
+    let rng = Random.from_int(42)
+    let io = Stream.new(ByteArray.new)
+    let sock = Websocket.server(mut io, rng, protocol: Option.None)
+
+    t.equal(sock.text('hello'), Result.Ok(nil))
+    t.equal(io.output, ByteArray.from_array([129, 5, 104, 101, 108, 108, 111]))
+  })
+
+  t.test('Websocket.binary with a client socket', fn (t) {
+    let rng = Random.from_int(42)
+    let io = Stream.new(ByteArray.new)
+    let sock = Websocket.client(mut io, rng, protocol: Option.None)
+
+    t.equal(sock.binary('hello'), Result.Ok(nil))
+    t.equal(
+      io.output,
+      ByteArray.from_array([130, 133, 30, 92, 240, 112, 118, 57, 156, 28, 113]),
+    )
+  })
+
+  t.test('Websocket.binary with a server socket', fn (t) {
+    let rng = Random.from_int(42)
+    let io = Stream.new(ByteArray.new)
+    let sock = Websocket.server(mut io, rng, protocol: Option.None)
+
+    t.equal(sock.binary('hello'), Result.Ok(nil))
+    t.equal(io.output, ByteArray.from_array([130, 5, 104, 101, 108, 108, 111]))
+  })
+
+  t.test('Websocket.ping with a client socket', fn (t) {
+    let rng = Random.from_int(42)
+    let io = Stream.new(ByteArray.new)
+    let sock = Websocket.client(mut io, rng, protocol: Option.None)
+
+    t.equal(sock.binary('hello'), Result.Ok(nil))
+    t.equal(
+      io.output,
+      ByteArray.from_array([130, 133, 30, 92, 240, 112, 118, 57, 156, 28, 113]),
+    )
+  })
+
+  t.test('Websocket.ping with a server socket', fn (t) {
+    let rng = Random.from_int(42)
+    let io = Stream.new(ByteArray.new)
+    let sock = Websocket.server(mut io, rng, protocol: Option.None)
+
+    t.equal(sock.binary('hello'), Result.Ok(nil))
+    t.equal(io.output, ByteArray.from_array([130, 5, 104, 101, 108, 108, 111]))
+  })
+
+  t.ok('Websocket.receive with a text message', fn (t) {
+    let rng = Random.from_int(42)
+    let (client, server) = try sockets(rng)
+
+    t.equal(client.text('hello'), Result.Ok(nil))
+    t.equal(server.receive, Result.Ok(Message.Text('hello')))
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Websocket.receive with a binary message', fn (t) {
+    let rng = Random.from_int(42)
+    let (client, server) = try sockets(rng)
+
+    t.equal(client.binary('hello'), Result.Ok(nil))
+    t.equal(server.receive, Result.Ok(Message.Binary('hello'.to_byte_array)))
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Websocket.receive with a pong message', fn (t) {
+    let rng = Random.from_int(42)
+    let (client, server) = try sockets(rng)
+
+    t.equal(client.ping('hello'), Result.Ok(nil))
+    t.equal(client.text('world'), Result.Ok(nil))
+
+    t.equal(server.receive, Result.Ok(Message.Text('world')))
+    t.equal(client.receive, Result.Ok(Message.Pong('hello'.to_byte_array)))
+
+    Result.Ok(nil)
+  })
+
+  t.test('Websocket.receive with a pending pong message', fn (t) {
+    let rng = Random.from_int(42)
+    let io = Stream.new(ByteArray.new)
+    let sock = Websocket.client(mut io, rng, protocol: Option.None)
+
+    # This is difficult to test because it requires fragmented messages and
+    # precise ordering of the frames. So instead we use a simulation.
+    sock.pending_pong = Option.Some('hello'.to_byte_array)
+    t.equal(sock.receive, Result.Ok(Message.Pong('hello'.to_byte_array)))
+  })
+
+  t.ok('Websocket.receive with a text message with invalid UTF-8', fn (t) {
+    let rng = Random.from_int(42)
+    let (client, server) = try sockets(rng)
+
+    t.equal(
+      client.write(Opcode.Text, ByteArray.from_array([255, 255])),
+      Result.Ok(nil),
+    )
+    t.equal(server.receive, Result.Error(Error.InvalidUtf8))
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Websocket.receive with a timeout', fn (t) {
+    let rng = Random.from_int(42)
+    let (client, server) = try sockets(rng)
+    let buf = ByteArray.new
+
+    server.read_timeout = Duration.from_secs(0)
+
+    t.equal(server.receive, Result.Error(Error.Other(IoError.TimedOut)))
+    t.equal(client.stream.read(into: buf, size: 8), Result.Ok(4))
+    t.equal(buf, ByteArray.from_array([136, 2, 3, 240]))
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Websocket.close', fn (t) {
+    let rng = Random.from_int(42)
+    let (client, server) = try sockets(rng)
+
+    client.close(Close.normal)
+    server.close(Close.normal)
+
+    t.true(client.state.closed?)
+    t.true(server.state.closed?)
+
+    Result.Ok(nil)
+  })
+
+  t.test('Websocket.echo_close with a valid frame', fn (t) {
+    let rng = Random.from_int(42)
+    let io = Stream.new(ByteArray.from_array([3, 232, 104, 101, 108, 108, 111]))
+    let sock = Websocket.server(mut io, rng, protocol: Option.None)
+    let frame = FrameHeader(
+      opcode: Opcode.Close,
+      finished: true,
+      masked: false,
+      key: 0,
+      size: 7,
+    )
+
+    sock.echo_close(frame)
+    t.equal(
+      io.output,
+      ByteArray.from_array([136, 7, 3, 232, 104, 101, 108, 108, 111]),
+    )
+  })
+
+  t.test('Websocket.echo_close with a single byte payload', fn (t) {
+    let rng = Random.from_int(42)
+    let io = Stream.new(ByteArray.from_array([1]))
+    let sock = Websocket.server(mut io, rng, protocol: Option.None)
+    let frame = FrameHeader(
+      opcode: Opcode.Close,
+      finished: true,
+      masked: false,
+      key: 0,
+      size: 1,
+    )
+
+    sock.echo_close(frame)
+    t.equal(io.output, ByteArray.from_array([136, 2, 3, 234]))
+  })
+
+  t.test('Websocket.echo_close with an invalid close code', fn (t) {
+    let rng = Random.from_int(42)
+    let input = ByteArray.filled(with: 0, times: 2)
+
+    big.write_i16(9999, into: input, at: 0)
+
+    let io = Stream.new(input)
+    let sock = Websocket.server(mut io, rng, protocol: Option.None)
+    let frame = FrameHeader(
+      opcode: Opcode.Close,
+      finished: true,
+      masked: false,
+      key: 0,
+      size: 2,
+    )
+
+    sock.echo_close(frame)
+    t.equal(io.output, ByteArray.from_array([136, 2, 3, 234]))
+  })
+
+  t.test('Websocket.echo_close with invalid UTF-8', fn (t) {
+    let rng = Random.from_int(42)
+    let input = ByteArray.filled(with: 0, times: 2)
+
+    big.write_i16(1000, into: input, at: 0)
+    input.push(255)
+    input.push(255)
+
+    let io = Stream.new(input)
+    let sock = Websocket.server(mut io, rng, protocol: Option.None)
+    let frame = FrameHeader(
+      opcode: Opcode.Close,
+      finished: true,
+      masked: false,
+      key: 0,
+      size: 4,
+    )
+
+    sock.echo_close(frame)
+    t.equal(io.output, ByteArray.from_array([136, 2, 3, 239]))
+  })
+
+  t.test('Websocket.send_close_frame with a client socket', fn (t) {
+    let rng = Random.from_int(42)
+    let io = Stream.new(ByteArray.new)
+    let sock = Websocket.client(mut io, rng, protocol: Option.None)
+
+    t.equal(sock.send_close_frame(Close.normal), Result.Ok(nil))
+    t.equal(
+      io.output,
+      ByteArray.from_array([136, 130, 30, 92, 240, 112, 29, 180]),
+    )
+  })
+
+  t.test('Websocket.send_close_frame with a server socket', fn (t) {
+    let rng = Random.from_int(42)
+    let io = Stream.new(ByteArray.new)
+    let sock = Websocket.server(mut io, rng, protocol: Option.None)
+
+    t.equal(sock.send_close_frame(Close.normal), Result.Ok(nil))
+    t.equal(io.output, ByteArray.from_array([136, 2, 3, 232]))
+  })
+
+  t.test('Websocket.build_frame_header', fn (t) {
+    let rng = Random.from_int(42)
+    let io = Stream.new(ByteArray.new)
+    let sock = Websocket.client(mut io, rng, protocol: Option.None)
+
+    t.equal(sock.build_frame_header(Opcode.Close, size: 2), 509_407_344)
+    t.equal(sock.buffer, ByteArray.from_array([136, 130, 30, 92, 240, 112]))
+  })
+
+  t.test('Websocket.build_frame_header with a two byte size', fn (t) {
+    let rng = Random.from_int(42)
+    let io = Stream.new(ByteArray.new)
+    let sock = Websocket.client(mut io, rng, protocol: Option.None)
+
+    t.equal(sock.build_frame_header(Opcode.Text, size: 200), 509_407_344)
+    t.equal(
+      sock.buffer,
+      ByteArray.from_array([129, 254, 0, 200, 30, 92, 240, 112]),
+    )
+  })
+
+  t.test('Websocket.build_frame_header with an eight byte size', fn (t) {
+    let rng = Random.from_int(42)
+    let io = Stream.new(ByteArray.new)
+    let sock = Websocket.client(mut io, rng, protocol: Option.None)
+
+    t.equal(sock.build_frame_header(Opcode.Text, size: 70_000), 509_407_344)
+    t.equal(
+      sock.buffer,
+      ByteArray.from_array(
+        [129, 255, 0, 0, 0, 0, 0, 1, 17, 112, 30, 92, 240, 112],
+      ),
+    )
+  })
+
+  t.ok('Websocket.skip_until_close_frame', fn (t) {
+    let rng = Random.from_int(42)
+    let (client, server) = try sockets(rng)
+
+    t.equal(client.text('text'), Result.Ok(nil))
+    client.close(Close.normal)
+    t.equal(server.skip_until_close_frame, Result.Ok(nil))
+
+    Result.Ok(nil)
+  })
+
+  t.test('Opcode.from_int', fn (t) {
+    t.true(
+      match Opcode.from_int(0) {
+        case Some(Continue) -> true
+        case _ -> false
+      },
+    )
+    t.true(
+      match Opcode.from_int(1) {
+        case Some(Text) -> true
+        case _ -> false
+      },
+    )
+    t.true(
+      match Opcode.from_int(2) {
+        case Some(Binary) -> true
+        case _ -> false
+      },
+    )
+    t.true(
+      match Opcode.from_int(8) {
+        case Some(Close) -> true
+        case _ -> false
+      },
+    )
+    t.true(
+      match Opcode.from_int(9) {
+        case Some(Ping) -> true
+        case _ -> false
+      },
+    )
+    t.true(
+      match Opcode.from_int(10) {
+        case Some(Pong) -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('Opcode.to_int', fn (t) {
+    t.equal(Opcode.Continue.to_int, 0)
+    t.equal(Opcode.Text.to_int, 1)
+    t.equal(Opcode.Binary.to_int, 2)
+    t.equal(Opcode.Close.to_int, 8)
+    t.equal(Opcode.Ping.to_int, 9)
+    t.equal(Opcode.Pong.to_int, 10)
+  })
+
+  t.test('Opcode.data?', fn (t) {
+    t.true(Opcode.Text.data?)
+    t.true(Opcode.Binary.data?)
+    t.true(Opcode.Continue.data?)
+    t.false(Opcode.Ping.data?)
+    t.false(Opcode.Pong.data?)
+    t.false(Opcode.Close.data?)
+  })
+
+  t.test('Opcode.control?', fn (t) {
+    t.false(Opcode.Text.control?)
+    t.false(Opcode.Binary.control?)
+    t.false(Opcode.Continue.control?)
+    t.true(Opcode.Ping.control?)
+    t.true(Opcode.Pong.control?)
+    t.true(Opcode.Close.control?)
+  })
+}

@@ -1,0 +1,29 @@
+import std.net.http.server (Handle, Request, Response, Server)
+import std.time (Duration)
+
+type Handler {}
+
+impl Handle for Handler {
+  fn pub mut handle(request: mut Request) -> Response {
+    Response.websocket(request).then(fn (sock) {
+      loop {
+        let Ok(msg) = sock.receive else return
+
+        match msg {
+          case Text(v) -> let Ok(_) = sock.text(v) else return
+          case Binary(v) -> let Ok(_) = sock.binary(v) else return
+          case Pong(_) -> {}
+        }
+      }
+    })
+  }
+}
+
+type async Main {
+  fn async main {
+    let srv = Server.new(fn { recover Handler() })
+
+    srv.shutdown_wait_time = Duration.from_secs(0)
+    srv.start(8_000).or_panic
+  }
+}

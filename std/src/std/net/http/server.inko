@@ -363,10 +363,12 @@
 #
 # The hijacking API is still experimental and subject to change.
 import std.array
+import std.base64
 import std.bytes (Bytes, IntoByteArray, Slice)
 import std.bytes.parsers
 import std.clone (Clone)
 import std.cmp (Equal, Ordering, max, min)
+import std.crypto.sha1 (Sha1)
 import std.crypto.x509 (Certificate, PrivateKey)
 import std.drop (drop)
 import std.fmt (Format, Formatter)
@@ -375,7 +377,10 @@ import std.fs.file (ReadOnlyFile)
 import std.fs.path
 import std.hash (Hash, Hasher)
 import std.int
-import std.io (Error as IoError, LimitReader, Read, SeekFrom, Write, copy_using)
+import std.io (
+  BufferedRead, BufferedReader, Error as IoError, LimitReader, Read, SeekFrom,
+  Write, copy_using,
+)
 import std.iter (Stream)
 import std.mime (Mime)
 import std.multipart
@@ -383,14 +388,17 @@ import std.net.http (
   Body as RequestBody, CHUNKED, ChunkedWriter, Etag, Header, HeaderMap, Limits,
   Method, ParseError, Parser, Reader, Request as RawRequest, Status, Version,
 )
+import std.net.http.header.values (tokens)
+import std.net.http.websocket (WEBSOCKET_KEY, WEBSOCKET_VERSION, Websocket)
 import std.net.ip (IpAddress)
 import std.net.socket (
-  Deadline, SocketAddress, TcpClient, TcpServer, UnixAddress, UnixClient,
-  UnixServer,
+  Deadline, Shutdown as ShutdownTrait, SocketAddress, TcpClient, TcpServer,
+  UnixAddress, UnixClient, UnixServer,
 )
 import std.net.tls
 import std.rand (Random)
 import std.range (InclusiveRange)
+import std.set (Set)
 import std.signal (Signal)
 import std.stdio (Stdout)
 import std.string (StringBuffer, ToString)
@@ -650,12 +658,11 @@ fn parse_accept_ranges(
 # }
 # ```
 type pub inline RangeRequest {
-  let @rng: Random
   let mut @limit: Int
 
   # Returns a new `RangeRequest` with its default settings.
   fn pub static new -> Self {
-    Self(rng: Random.new, limit: 8)
+    Self(limit: 8)
   }
 
   # Sets the maximum number of ranges allowed in the `Range` header to the given
@@ -670,7 +677,7 @@ type pub inline RangeRequest {
   # The `response` argument is the initial response produced by a request
   # handler. This method takes this response and either returns it as-is or
   # modifies it based on the `Range` header, if range requests are supported.
-  fn pub mut handle(request: ref Request, response: Response) -> Response {
+  fn pub mut handle(request: mut Request, response: Response) -> Response {
     # Range requests are only supported for GET requests with an initial OK
     # response.
     if !request.method.get? or !response.status.ok? { return response }
@@ -741,7 +748,7 @@ type pub inline RangeRequest {
         response.header(Header.content_range, hval)
       }
       case ranges -> {
-        let boundary = multipart.boundary_separator(@rng)
+        let boundary = multipart.boundary_separator(request.random)
         let hval = 'multipart/byteranges; boundary=${boundary}'
 
         file.ranges = FileRanges.Multiple(ranges, boundary)
@@ -881,6 +888,40 @@ type pub Response {
       .status(Status.upgrade_required)
       .header(Header.upgrade, 'HTTP/1.1')
       .header(Header.connection, 'Upgrade')
+  }
+
+  # Returns an `WebsocketResponse` for upgrading an HTTP connection to a
+  # WebSocket connection.
+  #
+  # Refer to the documentation of the `WebsocketResponse` type for more details.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.server (Handle, Request, Response, Server)
+  # import std.time (Duration)
+  #
+  # type Handler {}
+  #
+  # impl Handle for Handler {
+  #   fn pub mut handle(request: mut Request) -> Response {
+  #     Response.websocket(request).then(fn (sock) {
+  #       # ...
+  #     })
+  #   }
+  # }
+  #
+  # type async Main {
+  #   fn async main {
+  #     let srv = Server.new(fn { recover Handler() })
+  #
+  #     srv.shutdown_wait_time = Duration.from_secs(0)
+  #     srv.start(8_000).or_panic
+  #   }
+  # }
+  # ```
+  fn pub static websocket(request: mut Request) -> WebsocketResponse {
+    WebsocketResponse.new(request)
   }
 
   # Assigns the given value to the header.
@@ -1335,48 +1376,13 @@ impl Clone for Address {
   }
 }
 
-# A socket for reading requests and writing responses.
-#
-# A `Socket` supports plain TCP, TLS over TCP and Unix domain socket
-# connections.
-type pub inline enum Socket {
-  # A plain-text TCP socket.
+type inline enum SocketKind {
   case Plain(TcpClient)
-
-  # A TLS TCP socket.
   case Secure(tls.Server[TcpClient])
-
-  # A plain-text Unix domain socket.
   case Unix(UnixClient)
-
-  fn address -> Result[Address, IoError] {
-    let addr = match self {
-      case Plain(v) -> Address.Ip(try v.socket.peer_address)
-      case Secure(v) -> Address.Ip(try v.socket.peer_address)
-      case Unix(v) -> Address.Unix(try v.socket.local_address)
-    }
-
-    Result.Ok(addr)
-  }
-
-  fn mut shutdown {
-    match self {
-      case Plain(v) -> v.socket.shutdown
-      case Secure(v) -> v.socket.shutdown
-      case Unix(v) -> v.socket.shutdown
-    }
-  }
-
-  fn mut shutdown_write {
-    match self {
-      case Plain(v) -> v.socket.shutdown_write
-      case Secure(v) -> v.socket.shutdown_write
-      case Unix(v) -> v.socket.shutdown_write
-    }
-  }
 }
 
-impl Read[IoError] for Socket {
+impl Read[IoError] for SocketKind {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, IoError] {
     match self {
       case Plain(v) -> v.read(into, size)
@@ -1386,9 +1392,93 @@ impl Read[IoError] for Socket {
   }
 }
 
+# A socket for reading requests and writing responses.
+#
+# A `Socket` supports plain TCP, TLS over TCP and Unix domain socket
+# connections.
+type pub inline Socket {
+  # The buffered stream to read from.
+  #
+  # Buffering is done at the socket/connection level so that we don't lose
+  # partially read data in between requests, or when upgrading connections.
+  let @reader: BufferedReader[SocketKind, IoError]
+
+  fn static plain(socket: TcpClient) -> Self {
+    Self(BufferedReader.new(SocketKind.Plain(socket)))
+  }
+
+  fn static secure(socket: tls.Server[TcpClient]) -> Self {
+    Self(BufferedReader.new(SocketKind.Secure(socket)))
+  }
+
+  fn static unix(socket: UnixClient) -> Self {
+    Self(BufferedReader.new(SocketKind.Unix(socket)))
+  }
+
+  fn address -> Result[Address, IoError] {
+    let addr = match @reader.inner {
+      case Plain(v) -> Address.Ip(try v.socket.peer_address)
+      case Secure(v) -> Address.Ip(try v.socket.peer_address)
+      case Unix(v) -> Address.Unix(try v.socket.local_address)
+    }
+
+    Result.Ok(addr)
+  }
+}
+
+impl ShutdownTrait for Socket {
+  fn pub mut shutdown_read -> Result[Nil, IoError] {
+    match @reader.inner {
+      case Plain(v) -> v.socket.shutdown_read
+      case Secure(v) -> v.socket.shutdown_read
+      case Unix(v) -> v.socket.shutdown_read
+    }
+  }
+
+  fn pub mut shutdown_write -> Result[Nil, IoError] {
+    match @reader.inner {
+      case Plain(v) -> v.socket.shutdown_write
+      case Secure(v) -> v.socket.shutdown_write
+      case Unix(v) -> v.socket.shutdown_write
+    }
+  }
+
+  fn pub mut shutdown -> Result[Nil, IoError] {
+    match @reader.inner {
+      case Plain(v) -> v.socket.shutdown
+      case Secure(v) -> v.socket.shutdown
+      case Unix(v) -> v.socket.shutdown
+    }
+  }
+}
+
+impl Read[IoError] for Socket {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, IoError] {
+    @reader.read(into, size)
+  }
+}
+
+impl BufferedRead[IoError] for Socket {
+  fn mut fill_buffer -> Result[Int, IoError] {
+    @reader.fill_buffer
+  }
+
+  fn mut read_buffer(into: mut ByteArray, size: Int) -> Int {
+    @reader.read_buffer(into, size)
+  }
+
+  fn pub mut read_byte -> Result[Option[Int], IoError] {
+    @reader.read_byte
+  }
+
+  fn pub mut peek -> Result[Option[Int], IoError] {
+    @reader.peek
+  }
+}
+
 impl Deadline for Socket {
   fn pub mut timeout_after=[T: ToInstant](deadline: ref T) {
-    match self {
+    match @reader.inner {
       case Plain(v) -> v.timeout_after = deadline
       case Secure(v) -> v.timeout_after = deadline
       case Unix(v) -> v.timeout_after = deadline
@@ -1396,7 +1486,7 @@ impl Deadline for Socket {
   }
 
   fn pub mut reset_deadline {
-    match self {
+    match @reader.inner {
       case Plain(v) -> v.reset_deadline
       case Secure(v) -> v.reset_deadline
       case Unix(v) -> v.reset_deadline
@@ -1406,7 +1496,7 @@ impl Deadline for Socket {
 
 impl Write[IoError] for Socket {
   fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, IoError] {
-    match self {
+    match @reader.inner {
       case Plain(v) -> v.write(bytes)
       case Secure(v) -> v.write(bytes)
       case Unix(v) -> v.write(bytes)
@@ -1547,6 +1637,7 @@ type async Connection[H: mut + Handle] {
   let @limits: Limits
   let @handler: H
   let @buffer: ByteArray
+  let @random: Random
   let @read_timeout: Duration
   let @idle_timeout: Duration
   let @write_timeout: Duration
@@ -1562,7 +1653,7 @@ type async Connection[H: mut + Handle] {
 
     let wait = match parse_request {
       case Ok(raw_req, keep) -> {
-        let req = Request.new(@address.clone, raw_req, @limits)
+        let req = Request.new(@address.clone, raw_req, @limits, @random)
         let resp = @handler.response(req, @handler.handle(req))
         let hijacker = resp.hijacker := Option.None
         let keep = keep and req.body.consumed? and hijacker.none?
@@ -1572,7 +1663,7 @@ type async Connection[H: mut + Handle] {
           return run
         } else if ok {
           match hijacker {
-            case Some(f) -> f.call(@socket)
+            case Some(f) -> return hijack_connection(f)
             case _ -> {}
           }
         }
@@ -1600,7 +1691,7 @@ type async Connection[H: mut + Handle] {
   }
 
   fn mut parse_request -> ParseResult {
-    let parser = Parser.new(Reader.new(mut @socket), @buffer, @limits)
+    let parser = Parser.new(Reader.new(@socket), @buffer, @limits)
 
     # Wait until the first byte arrives. This way we don't also apply the idle
     # timeout to parsing of the request.
@@ -1679,10 +1770,26 @@ type async Connection[H: mut + Handle] {
     }
   }
 
+  fn mut hijack_connection(hijacker: fn (mut Socket)) {
+    # De-register the connection _first_ so that during a graceful shutdown we
+    # don't (potentially forever) wait for the hijacked connection to stop.
+    @pool.close(@id, was_active: true)
+    hijacker.call(@socket)
+
+    # Close _just_ the socket as we've already removed the connection from the
+    # pool at this point.
+    close_socket(active: true)
+  }
+
   fn mut close(active: Bool) {
+    close_socket(active)
+    @pool.close(@id, active)
+  }
+
+  fn mut close_socket(active: Bool) {
     # Shutdown the writing half so the client is aware that it can no longer
     # read data.
-    @socket.shutdown_write
+    let _ = @socket.shutdown_write
 
     # If we close immediately then the client might not have a chance to read
     # the response.
@@ -1693,8 +1800,6 @@ type async Connection[H: mut + Handle] {
       # read() to wait for some sort of acknowledgement from the network stack.
       let _ = @socket.read(into: @buffer, size: 0)
     }
-
-    @pool.close(@id, active)
   }
 }
 
@@ -1774,6 +1879,11 @@ impl ToString for FormError {
 # This type is a wrapper around `std.net.http.Request` and provides additional
 # data useful when writing a server, such as the socket address.
 type pub Request {
+  # A connection-local random number generator.
+  #
+  # This `Random` instance is created when a connection is established.
+  let pub @random: mut Random
+
   # The raw client address of the connection.
   #
   # This address isn't necessarily accurate. For example, if your application
@@ -1795,14 +1905,25 @@ type pub Request {
   # The limits to apply when parsing HTTP data.
   let @limits: Limits
 
-  fn static new(address: Address, request: RawRequest, limits: Limits) -> Self {
+  fn static new(
+    address: Address,
+    request: RawRequest,
+    limits: Limits,
+    random: mut Random,
+  ) -> Self {
     let comp = if request.uri.path.absolute? {
       request.uri.path.components.skip(1).to_array
     } else {
       []
     }
 
-    Self(address: address, data: request, path: Path(comp), limits: limits)
+    Self(
+      address: address,
+      data: request,
+      path: Path(comp),
+      limits: limits,
+      random: random,
+    )
   }
 
   # Parses the `Host` header into a `(host, port)` tuple.
@@ -2125,11 +2246,11 @@ type inline enum SocketServer {
         let sock = recover try s.accept
 
         match tls_config {
-          case Some(c) -> recover Socket.Secure(tls.Server.new(sock, c.clone))
-          case _ -> recover Socket.Plain(sock)
+          case Some(c) -> recover Socket.secure(tls.Server.new(sock, c.clone))
+          case _ -> recover Socket.plain(sock)
         }
       }
-      case Unix(s) -> recover Socket.Unix(try s.accept)
+      case Unix(s) -> recover Socket.unix(try s.accept)
     }
 
     Result.Ok(sock)
@@ -2479,6 +2600,7 @@ type pub Server[H: mut + Handle] {
       read_timeout: @read_timeout,
       write_timeout: @write_timeout,
       close_timeout: @close_timeout,
+      random: recover Random.new,
     )
 
     @pool.add(id, con)
@@ -2788,7 +2910,7 @@ type pub inline Directory {
   # The `components` argument is a `std.array.Slice` containing the parsed (i.e.
   # URI decoded) URI path components of the file to serve.
   fn pub mut handle(
-    request: ref Request,
+    request: mut Request,
     components: array.Slice[Slice[String]],
   ) -> Response {
     let rel = components.iter.reduce(@path.clone, fn (p, c) { p.join(c) })
@@ -2806,5 +2928,144 @@ type pub inline Directory {
     }
 
     @range.handle(request, conditional_request(request, resp))
+  }
+}
+
+# A type used for upgrading an HTTP connection to a WebSocket connection.
+#
+# # Defaults
+#
+# The defaults of a `WebsocketResponse` are as follows:
+#
+# - The list of protocols supported by the server is empty
+# - The maximum number of client provided protocols considered is set to 8
+#
+# These defaults are changed using `WebsocketResponse.protocols` and
+# `WebsocketResponse.max_protocols` respectively.
+#
+# # Extensions
+#
+# WebSocket extensions are not supported.
+type pub inline WebsocketResponse {
+  let @request: mut Request
+
+  # The protocols supported by the server.
+  let @protocols: Set[Slice[String]]
+
+  # The maximum number of protocols as supplied by a client that are considered.
+  #
+  # If more protocols are specified these additional protocols are ignored.
+  let mut @max_protocols: Int
+
+  fn static new(request: mut Request) -> Self {
+    Self(request: request, protocols: Set.new, max_protocols: 8)
+  }
+
+  # Adds the given protocols to the protocols supported by the server.
+  fn pub move protocols(values: Array[String]) -> Self {
+    for value in values { @protocols.insert(value.to_slice) }
+
+    self
+  }
+
+  # Sets the maximum number of protocols considered to the given value.
+  fn pub move max_protocols(value: Int) -> Self {
+    @max_protocols = value
+    self
+  }
+
+  # Performs the WebSocket handshake and returns a response.
+  #
+  # If the handshake succeeds then the response will hijack the HTTP connection
+  # and turn it into a WebSocket connection. In this case the `body` argument is
+  # called after writing the response headers and should be used for
+  # reading/writing WebSocket messages.
+  #
+  # If the handshake fails an error response is returned, based on why the
+  # handshake failed.
+  fn pub move then(body: fn (mut Websocket[mut Socket])) -> Response {
+    # Section 4.1 handshake requirement 2: the method must be GET and the
+    # version at least 1.1.
+    if !@request.method.get? { return Response.only_allow([Get]) }
+
+    if @request.data.version < Version(1, 1) {
+      return Response.upgrade_http_version
+    }
+
+    # Handshake requirements 5 and 6: Connection must contain "upgrade" and
+    # Upgrade must be "websocket". Browsers (most notarbly Firefox) may also
+    # include keep-alive in the "Connection" header, so we can't just check it
+    # for equality.
+    if
+      !@request.headers.get(Header.connection).or('').split(',').any?(fn (v) {
+        v.trim.equals_while_ignoring_case?('upgrade')
+      })
+    {
+      return Response.bad_request
+    }
+
+    match @request.headers.get(Header.upgrade) {
+      case Ok(v) if v.equals_while_ignoring_case?('websocket') -> {}
+      case _ -> return Response.bad_request
+    }
+
+    # Requirement 7: the nonce must be 16 bytes encoded as base64, with padding.
+    # This results in an encoded size of 24.
+    let client_key = match @request.headers.get(Header.sec_websocket_key) {
+      case Ok(v) if v.size == 24 -> v
+      case _ -> return Response.bad_request
+    }
+
+    # Requirement 8: if the Origin header is present (= browsers), then it must
+    # match the Host header value.
+    if !@request.origin_matches_host? { return Response.forbidden }
+
+    # Requirement 9: the version must match.
+    match @request.headers.get(Header.sec_websocket_version) {
+      case Ok(WEBSOCKET_VERSION) -> {}
+      case _ -> {
+        return Response
+          .new
+          .status(Status.upgrade_required)
+          .header(Header.upgrade, 'websocket')
+          .header(Header.connection, 'Upgrade')
+          .header(Header.sec_websocket_version, WEBSOCKET_VERSION)
+      }
+    }
+
+    # The RFC makes no mention of a limit applied to the number of protocols.
+    # While we already limit the maximum size of header values, we still apply a
+    # limit to the number of protocols so we don't waste time parsing large
+    # values.
+    let protocol = @request
+      .headers
+      .get_all(Header.sec_websocket_protocol)
+      .flat_map(fn (v) -> Stream[Slice[String]] { tokens(v) })
+      .take(@max_protocols)
+      .find(fn (v) { @protocols.contains?(v) })
+
+    let accept = base64.encode(Sha1.hash(client_key + WEBSOCKET_KEY).bytes)
+    let resp = Response
+      .new
+      .status(Status.switching_protocols)
+      .header(Header.upgrade, 'websocket')
+      .header(Header.connection, 'Upgrade')
+      .header(Header.sec_websocket_accept, accept)
+
+    # Notify the client about the protocol that we're using.
+    match ref protocol {
+      case Some(v) -> {
+        resp.headers.set(Header.sec_websocket_protocol, v.to_string)
+      }
+      case _ -> {}
+    }
+
+    let rng = @request.random
+
+    resp.hijack(fn move (socket) {
+      let socket = Websocket.server(socket, rng, protocol.clone)
+
+      body.call(socket)
+    })
   }
 }

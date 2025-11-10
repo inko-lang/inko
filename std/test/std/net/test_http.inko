@@ -6,7 +6,7 @@ import std.crypto.x509
 import std.drop (drop)
 import std.fmt (fmt)
 import std.int
-import std.io (Buffer, BufferedReader, Error as IoError, Read, Write)
+import std.io (Buffer, BufferedRead, Error as IoError, Read, Write)
 import std.map (MissingKey)
 import std.net.http (
   Body, BoundedBody, ChunkState, ChunkedBody, ChunkedWriter, ContentLength,
@@ -96,6 +96,24 @@ type Reuse {
 impl Read[ParseError] for Reuse {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, ParseError] {
     Result.Ok(0)
+  }
+}
+
+impl BufferedRead[ParseError] for Reuse {
+  fn mut fill_buffer -> Result[Int, ParseError] {
+    Result.Ok(0)
+  }
+
+  fn mut read_buffer(into: mut ByteArray, size: Int) -> Int {
+    0
+  }
+
+  fn pub mut read_byte -> Result[Option[Int], ParseError] {
+    Result.Ok(Option.None)
+  }
+
+  fn pub mut peek -> Result[Option[Int], ParseError] {
+    Result.Ok(Option.None)
   }
 }
 
@@ -545,11 +563,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Request.fmt', fn (t) {
-    let body = Body.bounded(
-      BufferedReader.new(Reader.new(Buffer.new(''))),
-      size: 0,
-      limit: 0,
-    )
+    let body = Body.bounded(Reader.new(Buffer.new('')), size: 0, limit: 0)
     let req = Request(
       method: Method.Get,
       uri: Uri.new,
@@ -587,7 +601,7 @@ fn pub tests(t: mut Tests) {
         version: ver,
         status: Status.ok,
         headers: HeaderMap.new,
-        body: Body.bounded(BufferedReader.new(mut body), size: len, limit: len),
+        body: Body.bounded(mut body, size: len, limit: len),
       )
 
       match val {
@@ -606,7 +620,7 @@ fn pub tests(t: mut Tests) {
       version: Version.v11,
       status: Status.ok,
       headers: HeaderMap.new,
-      body: Body.bounded(BufferedReader.new(mut body), size: 0, limit: 0),
+      body: Body.bounded(mut body, size: 0, limit: 0),
     )
 
     t.equal(
@@ -617,11 +631,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('Body.clear', fn (t) {
     let buf = ByteArray.new
-    let body = Body.bounded(
-      BufferedReader.new(Reader.new(Buffer.new('[10]'))),
-      size: 4,
-      limit: 4,
-    )
+    let body = Body.bounded(Reader.new(Buffer.new('[10]')), size: 4, limit: 4)
 
     t.equal(body.clear, Result.Ok(nil))
     t.equal(body.read_all(buf), Result.Ok(0))
@@ -629,22 +639,14 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Body.fmt', fn (t) {
-    let body = Body.bounded(
-      BufferedReader.new(Reader.new(Buffer.new('[10]'))),
-      size: 4,
-      limit: 4,
-    )
+    let body = Body.bounded(Reader.new(Buffer.new('[10]')), size: 4, limit: 4)
 
     t.equal(fmt(body), 'Body(...)')
   })
 
   t.test('Body.read', fn (t) {
     let buf = ByteArray.new
-    let body = Body.bounded(
-      BufferedReader.new(Reader.new(Buffer.new('hello'))),
-      size: 5,
-      limit: 5,
-    )
+    let body = Body.bounded(Reader.new(Buffer.new('hello')), size: 5, limit: 5)
 
     t.equal(body.read_all(buf), Result.Ok(5))
     t.equal(buf.to_string, 'hello')
@@ -661,7 +663,7 @@ fn pub tests(t: mut Tests) {
   t.test('BoundedBody.read', fn (t) {
     let buf = ByteArray.new
     let reader = BoundedBody.new(
-      BufferedReader.new(Reader.new(Buffer.new('hello'))),
+      Reader.new(Buffer.new('hello')),
       size: 5,
       limit: 5,
     )
@@ -677,11 +679,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('BoundedBody.reuse', fn (t) {
     let reuse = Reuse(reusable: false)
-    let reader = BoundedBody.new(
-      BufferedReader.new(mut reuse),
-      size: 5,
-      limit: 5,
-    )
+    let reader = BoundedBody.new(mut reuse, size: 5, limit: 5)
 
     reader.reuse
     t.false(reuse.reusable)
@@ -694,7 +692,7 @@ fn pub tests(t: mut Tests) {
   t.test('UnboundedBody.read', fn (t) {
     let buf = ByteArray.new
     let reader = UnboundedBody.new(
-      BufferedReader.new(Reader.new(Buffer.new('hello world'))),
+      Reader.new(Buffer.new('hello world')),
       limit: 5,
     )
 
@@ -706,7 +704,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('UnboundedBody.reuse', fn (t) {
     let reuse = Reuse(reusable: false)
-    let reader = UnboundedBody.new(BufferedReader.new(mut reuse), limit: 5)
+    let reader = UnboundedBody.new(mut reuse, limit: 5)
 
     reader.reuse
     t.false(reuse.reusable)
@@ -742,10 +740,7 @@ fn pub tests(t: mut Tests) {
     ]
 
     for (inp, max, out) in tests {
-      let reader = ChunkedBody.new(
-        BufferedReader.new(Reader.new(Buffer.new(inp))),
-        max,
-      )
+      let reader = ChunkedBody.new(Reader.new(Buffer.new(inp)), max)
 
       t.equal(reader.read_chunk_size, out)
     }
@@ -841,10 +836,7 @@ fn pub tests(t: mut Tests) {
     let buf = ByteArray.new
 
     for (inp, max, reads) in tests {
-      let reader = ChunkedBody.new(
-        BufferedReader.new(Reader.new(Buffer.new(inp))),
-        max,
-      )
+      let reader = ChunkedBody.new(Reader.new(Buffer.new(inp)), max)
 
       for (len, exp, out) in reads {
         let res = reader.read(buf, len)
@@ -858,9 +850,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('ChunkedBody.read consumes trailing empty lines', fn (t) {
-    let input = BufferedReader.new(
-      Reader.new(Buffer.new('3\r\nabc\r\n0\r\n\r\n')),
-    )
+    let input = Reader.new(Buffer.new('3\r\nabc\r\n0\r\n\r\n'))
     let reader = ChunkedBody.new(input, 1024)
     let buf = ByteArray.new
 
@@ -871,7 +861,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('ChunkedBody.reuse', fn (t) {
     let reuse = Reuse(reusable: false)
-    let reader = ChunkedBody.new(BufferedReader.new(mut reuse), 1024)
+    let reader = ChunkedBody.new(mut reuse, 1024)
 
     reader.reuse
     t.false(reuse.reusable)

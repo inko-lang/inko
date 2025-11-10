@@ -7,6 +7,16 @@ use std::str;
 use unicode_segmentation::{Graphemes, UnicodeSegmentation};
 
 #[no_mangle]
+pub unsafe extern "system" fn inko_string_is_valid_utf8(
+    bytes: *const u8,
+    size: i64,
+) -> bool {
+    let bytes = slice::from_raw_parts(bytes, size as usize);
+
+    str::from_utf8(bytes).is_ok()
+}
+
+#[no_mangle]
 pub unsafe extern "system" fn inko_string_from_bytes(
     bytes: *const u8,
     size: i64,

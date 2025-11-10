@@ -31,9 +31,7 @@ import std.fmt (Format, Formatter)
 import std.fs (Metadata)
 import std.hash (Hash, Hasher)
 import std.int (Format as IntFormat, MAX, ToInt)
-import std.io (
-  Buffer, BufferedRead, BufferedReader, Error as IoError, Read, Write,
-)
+import std.io (Buffer, BufferedRead, Error as IoError, Read, Write)
 import std.iter (Stream as IterStream)
 import std.map (MissingKey)
 import std.net.http.header
@@ -1147,23 +1145,16 @@ impl Format for Response {
 type pub inline Body {
   let @reader: Stream
 
-  fn static bounded[T: mut + Stream](
-    reader: BufferedReader[T, ParseError],
-    size: Int,
-    limit: Int,
-  ) -> Self {
+  fn static bounded[T: mut + Stream](reader: T, size: Int, limit: Int) -> Self {
     Body(BoundedBody.new(reader, size, limit) as Stream)
   }
 
-  fn static unbounded[T: mut + Stream](
-    reader: BufferedReader[T, ParseError],
-    limit: Int,
-  ) -> Self {
+  fn static unbounded[T: mut + Stream](reader: T, limit: Int) -> Self {
     Body(UnboundedBody.new(reader, limit) as Stream)
   }
 
-  fn static chunked[T: mut + Stream](
-    reader: BufferedReader[T, ParseError],
+  fn static chunked[T: mut + BufferedRead[ParseError] + Stream](
+    reader: T,
     size: Int,
   ) -> Self {
     Body(ChunkedBody.new(reader, size) as Stream)
@@ -1240,13 +1231,40 @@ trait Stream: Read[ParseError] {
 }
 
 # A type that wraps a `Read[std.io.Error]` and allows it to be used as the
-# source of a `BoundedBody` or `ChunkedBody`.
-type pub inline Reader[T: mut + Read[IoError]] {
+# source of a `Parser`.
+type pub inline Reader[T: mut + BufferedRead[IoError]] {
   let @reader: T
 
   # Returns a new `Reader` that wraps the given `Read` type.
   fn pub static new(reader: T) -> Self {
     Self(reader)
+  }
+}
+
+impl BufferedRead[ParseError] for Reader {
+  fn mut fill_buffer -> Result[Int, ParseError] {
+    match @reader.fill_buffer {
+      case Ok(v) -> Result.Ok(v)
+      case Error(e) -> Result.Error(ParseError.Read(e))
+    }
+  }
+
+  fn mut read_buffer(into: mut ByteArray, size: Int) -> Int {
+    @reader.read_buffer(into, size)
+  }
+
+  fn pub mut read_byte -> Result[Option[Int], ParseError] {
+    match @reader.read_byte {
+      case Ok(v) -> Result.Ok(v)
+      case Error(e) -> Result.Error(ParseError.Read(e))
+    }
+  }
+
+  fn pub mut peek -> Result[Option[Int], ParseError] {
+    match @reader.peek {
+      case Ok(v) -> Result.Ok(v)
+      case Error(e) -> Result.Error(ParseError.Read(e))
+    }
   }
 }
 
@@ -1278,17 +1296,9 @@ type BoundedBody[T: mut + Stream] {
   let mut @limit: Int
 
   # The underlying input stream (e.g. a socket).
-  #
-  # While we don't need buffering ourselves, the parser makes use of buffering
-  # and thus some data may reside in the in-memory buffer instead of the
-  # underlying stream. As such, we just reuse the buffered stream as-is.
-  let @reader: BufferedReader[T, ParseError]
+  let @reader: T
 
-  fn static new(
-    reader: BufferedReader[T, ParseError],
-    size: Int,
-    limit: Int,
-  ) -> Self {
+  fn static new(reader: T, size: Int, limit: Int) -> Self {
     Self(reader: reader, remaining: size, limit: limit)
   }
 }
@@ -1311,7 +1321,7 @@ impl Read[ParseError] for BoundedBody {
 
 impl Stream for BoundedBody {
   fn mut reuse {
-    if reusable? { @reader.inner.reuse }
+    if reusable? { @reader.reuse }
   }
 
   fn mut maximum_size=(value: Int) {
@@ -1332,9 +1342,9 @@ type UnboundedBody[T: mut + Stream] {
   let mut @limit: Int
 
   # The underlying input stream (e.g. a socket).
-  let @reader: BufferedReader[T, ParseError]
+  let @reader: T
 
-  fn static new(reader: BufferedReader[T, ParseError], limit: Int) -> Self {
+  fn static new(reader: T, limit: Int) -> Self {
     Self(reader: reader, read: 0, limit: limit)
   }
 }
@@ -1371,7 +1381,7 @@ type copy enum ChunkState {
 }
 
 # A body that uses chunked transfer coding.
-type ChunkedBody[T: mut + Stream] {
+type ChunkedBody[T: mut + BufferedRead[ParseError] + Stream] {
   # The number of remaining bytes that can be read from the input stream before
   # a `ParseError.BodyTooLarge` error is produced.
   #
@@ -1380,12 +1390,12 @@ type ChunkedBody[T: mut + Stream] {
   let mut @remaining: Int
 
   # The underlying input stream (e.g. a socket).
-  let @reader: BufferedReader[T, ParseError]
+  let @reader: T
 
   # The current state we're in.
   let mut @state: ChunkState
 
-  fn static new(reader: BufferedReader[T, ParseError], size: Int) -> Self {
+  fn static new(reader: T, size: Int) -> Self {
     Self(remaining: size, reader: reader, state: ChunkState.Start)
   }
 
@@ -1503,7 +1513,7 @@ impl Read[ParseError] for ChunkedBody {
 
 impl Stream for ChunkedBody {
   fn mut reuse {
-    if reusable? { @reader.inner.reuse }
+    if reusable? { @reader.reuse }
   }
 
   fn mut maximum_size=(value: Int) {
@@ -1600,8 +1610,8 @@ impl Drop for ClearOnDrop {
 # A `Parser` uses a `ByteArray` for buffering data while parsing input. It
 # _borrows_ such a buffer rather than taking ownership, allowing you to reuse
 # the buffer.
-type pub inline Parser[T: mut + Stream] {
-  let @reader: BufferedReader[T, ParseError]
+type pub inline Parser[T: mut + BufferedRead[ParseError] + Stream] {
+  let @reader: T
   let @buffer: mut ByteArray
   let @limits: Limits
 
@@ -1628,7 +1638,7 @@ type pub inline Parser[T: mut + Stream] {
   #
   # The `limits` argument specifies various limitations to enforce when parsing.
   fn pub static new(reader: T, buffer: mut ByteArray, limits: Limits) -> Self {
-    Self(reader: BufferedReader.new(reader), buffer: buffer, limits: limits)
+    Self(reader: reader, buffer: buffer, limits: limits)
   }
 
   # Parses the input stream as a request.

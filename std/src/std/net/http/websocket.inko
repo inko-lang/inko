@@ -1,0 +1,1040 @@
+# WebSockets.
+#
+# This module provides various types for creating WebSocket client and servers.
+# Such sockets are not created directly but instead using the client and server
+# APIs provides by the `std.net.http.client` and `std.net.http.server` modules.
+import std.bytes (Bytes, Slice)
+import std.cmp (Equal)
+import std.drop (Drop)
+import std.endian.big
+import std.fmt (Format, Formatter)
+import std.int (ToInt)
+import std.io (Error as IoError, Read, Write)
+import std.net.socket (Deadline, Shutdown)
+import std.rand (Random)
+import std.string (ToString)
+import std.time (Duration)
+import std.utf8
+
+let WEBSOCKET_VERSION = '13'
+let WEBSOCKET_KEY = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
+
+fn read_exact_from[I: mut + Read[IoError]](
+  input: mut I,
+  into: mut ByteArray,
+  size: Int,
+) -> Result[Nil, Error] {
+  match input.read_exact(into, size) {
+    case Ok(_) -> Result.Ok(nil)
+    case Error(EndOfInput) -> throw Error.Closed
+    case Error(Read(e)) -> throw Error.Other(e)
+  }
+}
+
+fn invalid_control_frame_payload_size -> Never {
+  panic('control frame payloads must not be greater than 125 bytes')
+}
+
+fn invalid_close_code -> Never {
+  panic('close codes must be in the range [0 to 65 535]')
+}
+
+fn inline mask_value_at(key: Int, index: Int) -> Int {
+  key >> (24 - ((index & 3) << 3)) & 0xFF
+}
+
+# An error produced while reading a message.
+type pub inline enum Error {
+  # The connection was closed during or after an operation.
+  #
+  # This typically isn't an actual unexpected error, instead it simply means the
+  # peer closed the connection (e.g. the server restarted).
+  case Closed
+
+  # The connection was already closed when performing an operation.
+  #
+  # This is an error produced when performing e.g. a receive on a socket
+  # previously closed (e.g. by the peer).
+  case AlreadyClosed
+
+  # A frame contains invalid data, such as RSV bets that are set without the use
+  # of an extension.
+  case InvalidFrame
+
+  # A message is too large to parse any further.
+  case MessageTooLarge
+
+  # A text message contained invalid UTF-8.
+  case InvalidUtf8
+
+  # An error produced by the underlying IO stream.
+  case Other(IoError)
+}
+
+impl Equal for Error {
+  fn pub ==(other: ref Self) -> Bool {
+    match (self, other) {
+      case (Closed, Closed) -> true
+      case (AlreadyClosed, AlreadyClosed) -> true
+      case (InvalidFrame, InvalidFrame) -> true
+      case (MessageTooLarge, MessageTooLarge) -> true
+      case (InvalidUtf8, InvalidUtf8) -> true
+      case (Other(a), Other(b)) -> a == b
+      case _ -> false
+    }
+  }
+}
+
+impl Format for Error {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case Closed -> formatter.tuple('Closed').finish
+      case AlreadyClosed -> formatter.tuple('AlreadyClosed').finish
+      case InvalidFrame -> formatter.tuple('InvalidFrame').finish
+      case MessageTooLarge -> formatter.tuple('MessageTooLarge').finish
+      case InvalidUtf8 -> formatter.tuple('InvalidUtf8').finish
+      case Other(v) -> formatter.tuple('Other').field(v).finish
+    }
+  }
+}
+
+impl ToString for Error {
+  fn pub to_string -> String {
+    match self {
+      case Closed -> 'the connection is closed'
+      case AlreadyClosed -> 'the connection is already closed'
+      case InvalidFrame -> 'the frame contains invalid data'
+      case MessageTooLarge -> 'the message is too large'
+      case InvalidUtf8 -> 'the message contains invalid UTF-8'
+      case Other(e) -> e.to_string
+    }
+  }
+}
+
+type copy enum State {
+  case Default
+  case Text
+  case Binary
+  case Closed
+
+  fn inline closed? -> Bool {
+    match self {
+      case Closed -> true
+      case _ -> false
+    }
+  }
+
+  fn inline default? -> Bool {
+    match self {
+      case Default -> true
+      case _ -> false
+    }
+  }
+}
+
+type copy enum Role {
+  case Client
+  case Server
+
+  fn inline client? -> Bool {
+    match self {
+      case Client -> true
+      case _ -> false
+    }
+  }
+}
+
+# A type that represents the close code/status used in close frame.
+type pub copy Close {
+  let @value: Int
+
+  # Returns a new `Close` using the given value as the status code.
+  #
+  # # Panics
+  #
+  # This method panics if `value` is less than 0 or greater than 65 535, as
+  # WebSocket close codes are limited to 16 bits integers.
+  fn pub inline static new(value: Int) -> Self {
+    if value < 0 or value > 65_535 { invalid_close_code }
+
+    Self(value)
+  }
+
+  # Returns a `Close` for a regular closure.
+  fn pub inline static normal -> Self {
+    new(1_000)
+  }
+
+  # Returns a `Close` for a protocol error.
+  fn pub inline static protocol_error -> Self {
+    new(1_002)
+  }
+
+  # Returns a `Close` for a message with invalid data.
+  fn pub inline static invalid_data -> Self {
+    new(1_007)
+  }
+
+  # Returns a `Close` to signal a policy violation.
+  fn pub inline static policy_violation -> Self {
+    new(1_008)
+  }
+
+  # Returns a `Close` for a message that's too large.
+  fn pub inline static message_too_large -> Self {
+    new(1_009)
+  }
+}
+
+impl Equal for Close {
+  fn pub inline ==(other: Self) -> Bool {
+    @value == other.value
+  }
+}
+
+impl Format for Close {
+  fn pub fmt(formatter: mut Formatter) {
+    @value.fmt(formatter)
+  }
+}
+
+impl ToString for Close {
+  fn pub to_string -> String {
+    @value.to_string
+  }
+}
+
+impl ToInt for Close {
+  fn pub to_int -> Int {
+    @value
+  }
+}
+
+# A message returned by `Websocket.receive`.
+#
+# This enum only covers the types of messages that can be handled by users. For
+# example, ping and close messages are handled automatically and thus aren't
+# covered by this enum.
+type pub inline enum Message {
+  # A text message containing valid UTF-8.
+  case Text(String)
+
+  # A message containing arbitrary binary data.
+  case Binary(ByteArray)
+
+  # A pong message along with the payload of the corresponding ping message.
+  case Pong(ByteArray)
+}
+
+impl Equal for Message {
+  fn pub ==(other: ref Self) -> Bool {
+    match (self, other) {
+      case (Text(a), Text(b)) -> a == b
+      case (Binary(a), Binary(b)) -> a == b
+      case (Pong(a), Pong(b)) -> a == b
+      case _ -> false
+    }
+  }
+}
+
+impl Format for Message {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case Text(v) -> formatter.tuple('Text').field(v).finish
+      case Binary(v) -> formatter.tuple('Binary').field(v).finish
+      case Pong(v) -> formatter.tuple('Pong').field(v).finish
+    }
+  }
+}
+
+# A client or server WebSocket.
+#
+# Messages are received using `Websocket.receive`, while sending messages is
+# done using the following methods:
+#
+# - `Websocket.text` to send a text message
+# - `Websocket.binary` to send a binary message
+# - `Websocket.ping` to send a ping message (with a payload)
+#
+# # Examples
+#
+# The following example implements a simple echo server:
+#
+# ```inko
+# import std.net.http.server (Handle, Request, Response, Server)
+# import std.time (Duration)
+#
+# type Handler {}
+#
+# impl Handle for Handler {
+#   fn pub mut handle(request: mut Request) -> Response {
+#     Response.websocket(request).then(fn (sock) {
+#       loop {
+#         let Ok(msg) = sock.receive else return
+#
+#         match msg {
+#           case Text(v) -> let Ok(_) = sock.text(v) else return
+#           case Binary(v) -> let Ok(_) = sock.binary(v) else return
+#           case Pong(_) -> {}
+#         }
+#       }
+#     })
+#   }
+# }
+#
+# type async Main {
+#   fn async main {
+#     let srv = Server.new(fn { recover Handler() })
+#
+#     srv.shutdown_wait_time = Duration.from_secs(0)
+#     srv.start(8_000).or_panic
+#   }
+# }
+# ```
+#
+# # Security limits
+#
+# To guard against attacks and network issues, a `Websocket` enforces the
+# following limits:
+#
+# - The default maximum message size is 4 MiB
+# - The default read timeout is 60 seconds
+# - The default write timeout is 5 seconds
+# - The default connection close timeout is 5 seconds
+#
+# To change these limits, adjust the values of the following corresponding
+# fields:
+#
+# - `Websocket.max_read_size`
+# - `Websocket.read_timeout`
+# - `Websocket.write_timeout`
+# - `Websocket.close_timeout`
+#
+# # Client write buffering
+#
+# When sending messages using `Websocket.text` and similar methods, if the
+# socket is acting as a client socket then the payload is copied/buffered in
+# memory before flushing it to the socket. This is necessary to allow masking of
+# the data, without modifying the original value. This means that if a client
+# socket writes a payload of 1 MiB, the total memory required is 2 Mib.
+type pub Websocket[
+  T: mut + Deadline + Read[IoError] + Shutdown + Write[IoError],
+] {
+  # The current state of the socket.
+  let mut @state: State
+
+  # What role (client or server) this socket has.
+  let @role: Role
+
+  # The network stream to use for reading/writing of messages.
+  let @stream: T
+
+  # A buffer to use for parsing frames.
+  let @buffer: ByteArray
+
+  # A random number generator to use for generating masking keys.
+  let @random: mut Random
+
+  # The maximum total size of a single received message.
+  #
+  # This defaults to 4 MiB.
+  let pub mut @max_read_size: Int
+
+  # The maximum amount of time that can be spent parsing a message
+  #
+  # This defaults to 5 seconds.
+  let pub mut @read_timeout: Duration
+
+  # The maximum amount of time that can be spent on writing a message.
+  #
+  # This defaults to 5 seconds.
+  let pub mut @write_timeout: Duration
+
+  # The time to wait for a connection to close.
+  #
+  # This timeout is used as part of the closing handshake. Note that increasing
+  # this may result in the closing handshake taking a long time if a peer is
+  # slow or there are many messages left to process.
+  #
+  # This timeout is only applied when calling `Websocket.close` and when a
+  # `Websocket` is dropped. If a close frame is received during a read, the
+  # closing handshake is instead subject to the `Websocket.read_timeout`
+  # value.
+  #
+  # This defaults to 5 seconds.
+  let pub mut @close_timeout: Duration
+
+  # The sub protocol that was negotiated during the websocket handshake.
+  let pub @protocol: Option[Slice[String]]
+
+  # A pong message that should be returned on the next receive.
+  let mut @pending_pong: Option[ByteArray]
+
+  fn static server(
+    stream: T,
+    random: mut Random,
+    protocol: Option[Slice[String]],
+  ) -> Self {
+    new(stream, random, protocol, Role.Server)
+  }
+
+  fn static client(
+    stream: T,
+    random: mut Random,
+    protocol: Option[Slice[String]],
+  ) -> Self {
+    new(stream, random, protocol, Role.Client)
+  }
+
+  fn static new(
+    stream: T,
+    random: mut Random,
+    protocol: Option[Slice[String]],
+    role: Role,
+  ) -> Self {
+    Self(
+      stream: stream,
+      buffer: ByteArray.new,
+      state: State.Default,
+      protocol: protocol,
+      role: role,
+      pending_pong: Option.None,
+      max_read_size: 4 * 1024 * 1024,
+      random: random,
+      read_timeout: Duration.from_secs(60),
+      write_timeout: Duration.from_secs(5),
+      close_timeout: Duration.from_secs(5),
+    )
+  }
+
+  # Send a text message.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.server (Handle, Request, Response, Server)
+  # import std.time (Duration)
+  #
+  # type Handler {}
+  #
+  # impl Handle for Handler {
+  #   fn pub mut handle(request: mut Request) -> Response {
+  #     Response.websocket(request).then(fn (sock) {
+  #       sock.text('hello')
+  #     })
+  #   }
+  # }
+  #
+  # type async Main {
+  #   fn async main {
+  #     let srv = Server.new(fn { recover Handler() })
+  #
+  #     srv.shutdown_wait_time = Duration.from_secs(0)
+  #     srv.start(8_000).or_panic
+  #   }
+  # }
+  # ```
+  fn pub mut text(value: String) -> Result[Nil, Error] {
+    @stream.timeout_after = @write_timeout
+    write(Opcode.Text, value)
+  }
+
+  # Send a binary message.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.server (Handle, Request, Response, Server)
+  # import std.time (Duration)
+  #
+  # type Handler {}
+  #
+  # impl Handle for Handler {
+  #   fn pub mut handle(request: mut Request) -> Response {
+  #     Response.websocket(request).then(fn (sock) {
+  #       sock.binary('hello')
+  #     })
+  #   }
+  # }
+  #
+  # type async Main {
+  #   fn async main {
+  #     let srv = Server.new(fn { recover Handler() })
+  #
+  #     srv.shutdown_wait_time = Duration.from_secs(0)
+  #     srv.start(8_000).or_panic
+  #   }
+  # }
+  # ```
+  fn pub mut binary[B: Bytes](value: ref B) -> Result[Nil, Error] {
+    @stream.timeout_after = @write_timeout
+    write(Opcode.Binary, value)
+  }
+
+  # Send a ping message.
+  #
+  # The `value` argument is the optional payload to include in the message. If
+  # you don't want to send any data along with the message, simply pass this is
+  # an empty `String`.
+  #
+  # Panics
+  #
+  # This method panics if `value` is greater than 125 bytes, as control frames
+  # are limited to payloads of at most 125 bytes per the WebSocket protocol.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.server (Handle, Request, Response, Server)
+  # import std.time (Duration)
+  #
+  # type Handler {}
+  #
+  # impl Handle for Handler {
+  #   fn pub mut handle(request: mut Request) -> Response {
+  #     Response.websocket(request).then(fn (sock) {
+  #       sock.ping('hello')
+  #     })
+  #   }
+  # }
+  #
+  # type async Main {
+  #   fn async main {
+  #     let srv = Server.new(fn { recover Handler() })
+  #
+  #     srv.shutdown_wait_time = Duration.from_secs(0)
+  #     srv.start(8_000).or_panic
+  #   }
+  # }
+  # ```
+  fn pub mut ping[B: Bytes](value: ref B) -> Result[Nil, Error] {
+    @stream.timeout_after = @write_timeout
+    write(Opcode.Ping, value)
+  }
+
+  # Receives a message from the socket.
+  #
+  # This method blocks the calling process until a message is received.
+  #
+  # If a ping message is received, this method immediately sends a pong message
+  # to the peer, before it continues waiting for a message.
+  #
+  # If a pong message is received while this method is reading the data of a
+  # text or binary message, the pong message is stored in `self` and returned
+  # the next time this method is called.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.server (Handle, Request, Response, Server)
+  # import std.time (Duration)
+  #
+  # type Handler {}
+  #
+  # impl Handle for Handler {
+  #   fn pub mut handle(request: mut Request) -> Response {
+  #     Response.websocket(request).then(fn (sock) {
+  #       loop {
+  #         let Ok(msg) = sock.receive else return
+  #
+  #         match msg {
+  #           case Text(v) -> let Ok(_) = sock.text(v) else return
+  #           case Binary(v) -> let Ok(_) = sock.binary(v) else return
+  #           case Pong(_) -> {}
+  #         }
+  #       }
+  #     })
+  #   }
+  # }
+  #
+  # type async Main {
+  #   fn async main {
+  #     let srv = Server.new(fn { recover Handler() })
+  #
+  #     srv.shutdown_wait_time = Duration.from_secs(0)
+  #     srv.start(8_000).or_panic
+  #   }
+  # }
+  # ```
+  fn pub mut receive -> Result[Message, Error] {
+    match @pending_pong := Option.None {
+      case Some(v) -> return Result.Ok(Message.Pong(v))
+      case _ -> {}
+    }
+
+    if @state.closed? { throw Error.AlreadyClosed }
+
+    let mut payload = ByteArray.new
+
+    @stream.timeout_after = @read_timeout
+
+    loop {
+      let frame = match FrameHeader.parse(@stream, @buffer, @role) {
+        case Ok(v) -> v
+        case Error(e) -> {
+          let code = match ref e {
+            case Other(TimedOut) -> Close.policy_violation
+            case _ -> Close.protocol_error
+          }
+
+          @buffer.clear
+          close(code)
+          throw e
+        }
+      }
+
+      if payload.size + frame.size > @max_read_size {
+        close(Close.message_too_large)
+        throw Error.MessageTooLarge
+      }
+
+      match frame.opcode {
+        case Close -> {
+          echo_close(frame)
+          throw Error.Closed
+        }
+        # When receiving a ping we should send a pong ASAP, otherwise this may
+        # be delayed for a long time depending on when we receive a data
+        # message.
+        case Ping -> {
+          let buf = ByteArray.new
+
+          try read_masked_data(buf, frame)
+          try write(Opcode.Pong, buf)
+        }
+        # If we receive a pong while we're in the middle of reading a fragmented
+        # message, we defer returning it until the next call to this method.
+        case Pong -> {
+          let buf = ByteArray.new
+
+          try read_masked_data(buf, frame)
+
+          if @state.default? {
+            return Result.Ok(Message.Pong(buf))
+          } else {
+            @pending_pong = Option.Some(buf)
+          }
+        }
+        case Text -> {
+          if !@state.default? {
+            close(Close.protocol_error)
+            throw Error.InvalidFrame
+          }
+
+          @state = State.Text
+          try read_masked_data_or_close(payload, frame)
+        }
+        case Binary -> {
+          if !@state.default? {
+            close(Close.protocol_error)
+            throw Error.InvalidFrame
+          }
+
+          @state = State.Binary
+          try read_masked_data_or_close(payload, frame)
+        }
+        case Continue -> {
+          match @state {
+            case Text or Binary -> {}
+            case _ -> {
+              close(Close.protocol_error)
+              throw Error.InvalidFrame
+            }
+          }
+
+          try read_masked_data_or_close(payload, frame)
+        }
+      }
+
+      # Only break if this was the last frame for a _data_ message, e.g. a ping
+      # frame always has this set, but we should continue reading until a
+      # message is found.
+      if frame.opcode.data? and frame.finished { break }
+    }
+
+    let res = match @state {
+      case Text -> {
+        match String.try_from_bytes(payload) {
+          case Some(v) -> Result.Ok(Message.Text(v))
+          case _ -> {
+            close(Close.invalid_data)
+            throw Error.InvalidUtf8
+          }
+        }
+      }
+      case Binary -> Result.Ok(Message.Binary(payload))
+      case _ -> panic('unreachable')
+    }
+
+    @state = State.Default
+    res
+  }
+
+  # Closes the connection.
+  #
+  # This sends a close frame to the peer and waits for it to send back a close
+  # frame, discarding any remaining frames/messages before the close frame is
+  # received.
+  #
+  # The total time spent waiting for the closing handshake to complete is
+  # dictated by the `Websocket.close_timeout` value. If the handshake takes
+  # longer than the given value, this method returns early.
+  fn pub mut close(code: Close) {
+    if @state.closed? { return }
+
+    @stream.timeout_after = @close_timeout
+
+    # Send the close frame to the peer. If this fails it's probably because the
+    # connection is already closed (e.g. by the peer), in which case we skip the
+    # rest of the work.
+    let Ok(_) = send_close_frame(code) else {
+      @state = State.Closed
+      return
+    }
+
+    @state = State.Closed
+
+    let _ = skip_until_close_frame
+    let _ = shutdown_socket
+  }
+
+  fn mut shutdown_socket {
+    # If we're a server we'll give the client some time to process any remaining
+    # data, instead of abruptly disconnecting them.
+    if @role.client? {
+      @stream.shutdown
+    } else {
+      let _ = @stream.shutdown_write
+      let _ = @stream.read(into: @buffer, size: 0)
+    }
+  }
+
+  fn mut echo_close(frame: FrameHeader) {
+    let payload = ByteArray.new
+    let _ = read_masked_data(payload, frame)
+    let mut err = Option.None
+
+    # If the close frame contains a status code, it must be a valid one.
+    if payload.size == 1 {
+      err = Option.Some(Close.protocol_error)
+    } else if payload.size >= 2 {
+      match big.read_i16(from: payload, at: 0) {
+        case n if n >= 1000 and n <= 1003 -> {}
+        case n if n >= 1007 and n <= 1011 -> {}
+        case n if n >= 3000 and n <= 4999 -> {}
+        case _ -> err = Option.Some(Close.protocol_error)
+      }
+    }
+
+    # Section 5.5.1: close frames may contain a status code and a UTF-8 payload.
+    # Although the section doesn't say so explicitly, the fact that the data is
+    # UTF-8 seems to imply we should produce an "invalid data" error. The
+    # autobahn test suite further implies this.
+    if
+      err.none?
+        and payload.size > 2
+        and !utf8.valid?(payload.slice(2, payload.size))
+    {
+      err = Option.Some(Close.invalid_data)
+    }
+
+    match err {
+      case Some(v) -> send_close_frame(v)
+      case _ -> {
+        # We don't use write() here because it will overwrite the close
+        # timeout with the write timeout.
+        let key = build_frame_header(Opcode.Close, payload.size)
+        let _ = flush(payload, key)
+      }
+    }
+
+    @state = State.Closed
+
+    # If the peer initiated the shutdown then there's no point in waiting for
+    # anything, so we just shut down immediately.
+    let _ = @stream.shutdown
+  }
+
+  fn mut write[B: Bytes](opcode: Opcode, value: ref B) -> Result[Nil, Error] {
+    if @state.closed? { throw Error.AlreadyClosed }
+
+    let key = build_frame_header(opcode, value.size)
+    let res = flush(value, key)
+
+    match res {
+      case Ok(_) -> Result.Ok(nil)
+      case Error(e) -> Result.Error(Error.Other(e))
+    }
+  }
+
+  fn mut flush[B: Bytes](value: ref B, key: Int) -> Result[Nil, IoError] {
+    try @stream.write(@buffer)
+
+    let res = if @role.client? {
+      @buffer.clear
+      @buffer.append(value)
+
+      for idx in 0.until(@buffer.size) {
+        @buffer.set(idx, @buffer.get(idx).or_panic ^ mask_value_at(key, idx))
+      }
+
+      @stream.write(@buffer)
+    } else {
+      @stream.write(value)
+    }
+
+    @buffer.clear
+    res
+  }
+
+  fn mut send_close_frame(code: Close) -> Result[Nil, Error] {
+    let len = 2
+    let key = build_frame_header(Opcode.Close, len)
+
+    @buffer.resize(@buffer.size + len, value: 0)
+    big.write_i16(code.value, into: @buffer, at: @buffer.size - len)
+
+    # We do this so we can avoid allocating a ByteArray just to encode the
+    # closing code.
+    if @role.client? {
+      let a = @buffer.size - 2
+      let b = @buffer.size - 1
+
+      @buffer.set(a, @buffer.get(a).or_panic ^ mask_value_at(key, 0))
+      @buffer.set(b, @buffer.get(b).or_panic ^ mask_value_at(key, 1))
+    }
+
+    let res = match @stream.write(@buffer) {
+      case Ok(_) -> Result.Ok(nil)
+      case Error(e) -> Result.Error(Error.Other(e))
+    }
+
+    @buffer.clear
+    res
+  }
+
+  fn mut build_frame_header(opcode: Opcode, size: Int) -> Int {
+    if opcode.control? and size > 125 { invalid_control_frame_payload_size }
+
+    @buffer.push(opcode.to_int | 0x80)
+
+    let masked = if @role.client? { 0x80 } else { 0 }
+
+    if size <= 125 {
+      @buffer.push(size | masked)
+    } else if size <= 65_535 {
+      @buffer.push(126 | masked)
+      @buffer.resize(@buffer.size + 2, value: 0)
+      big.write_i16(size, into: @buffer, at: @buffer.size - 2)
+    } else {
+      @buffer.push(127 | masked)
+      @buffer.resize(@buffer.size + 8, value: 0)
+      big.write_i64(size, into: @buffer, at: @buffer.size - 8)
+    }
+
+    if @role.client? {
+      @random.bytes(into: @buffer, size: 4)
+
+      let key = big.read_i32(from: @buffer, at: @buffer.size - 4)
+
+      key
+    } else {
+      0
+    }
+  }
+
+  fn mut skip_until_close_frame -> Result[Nil, Error] {
+    loop {
+      let frame = match FrameHeader.parse(@stream, @buffer, @role) {
+        case Ok(v) -> v
+        case Error(e) -> {
+          @buffer.clear
+          close(Close.protocol_error)
+          throw e
+        }
+      }
+
+      match frame.opcode {
+        case Close -> break
+        case _ -> try skip_frame_data(frame)
+      }
+
+      if frame.finished { break }
+    }
+
+    Result.Ok(nil)
+  }
+
+  fn mut skip_frame_data(frame: ref FrameHeader) -> Result[Nil, Error] {
+    let mut rem = frame.size
+
+    while rem > 0 {
+      match @stream.read(into: @buffer, size: @max_read_size) {
+        case Ok(0) -> break
+        case Ok(n) -> rem -= n
+        case Error(e) -> throw Error.Other(e)
+      }
+
+      @buffer.clear
+    }
+
+    Result.Ok(nil)
+  }
+
+  fn mut read_masked_data_or_close(
+    into: mut ByteArray,
+    frame: ref FrameHeader,
+  ) -> Result[Nil, Error] {
+    match read_masked_data(into, frame) {
+      case Ok(_) -> Result.Ok(nil)
+      case Error(e) -> {
+        # If a read fails it's almost certainly due to a broken connection, so
+        # performing the closing handshake here is redundant.
+        @state = State.Closed
+        throw e
+      }
+    }
+  }
+
+  fn mut read_masked_data(
+    into: mut ByteArray,
+    frame: ref FrameHeader,
+  ) -> Result[Nil, Error] {
+    try read_exact_from(@stream, into: into, size: frame.size)
+
+    if frame.masked {
+      let mut key_idx = 0
+      let mut buf_idx = into.size - frame.size
+      let max = into.size
+
+      while buf_idx < max {
+        let old = into.get(buf_idx).or_panic
+
+        into.set(buf_idx, old ^ mask_value_at(frame.key, key_idx))
+        key_idx += 1
+        buf_idx += 1
+      }
+    }
+
+    Result.Ok(nil)
+  }
+}
+
+impl Drop for Websocket {
+  fn mut drop {
+    close(Close.normal)
+  }
+}
+
+type copy enum Opcode {
+  case Continue
+  case Text
+  case Binary
+  case Close
+  case Ping
+  case Pong
+
+  fn static from_int(value: Int) -> Option[Opcode] {
+    match value {
+      case 0 -> Option.Some(Opcode.Continue)
+      case 1 -> Option.Some(Opcode.Text)
+      case 2 -> Option.Some(Opcode.Binary)
+      case 8 -> Option.Some(Opcode.Close)
+      case 9 -> Option.Some(Opcode.Ping)
+      case 10 -> Option.Some(Opcode.Pong)
+      case _ -> Option.None
+    }
+  }
+
+  fn to_int -> Int {
+    match self {
+      case Continue -> 0
+      case Text -> 1
+      case Binary -> 2
+      case Close -> 8
+      case Ping -> 9
+      case Pong -> 10
+    }
+  }
+
+  fn data? -> Bool {
+    match self {
+      case Text or Binary or Continue -> true
+      case _ -> false
+    }
+  }
+
+  fn control? -> Bool {
+    match self {
+      case Close or Ping or Pong -> true
+      case _ -> false
+    }
+  }
+}
+
+type inline FrameHeader {
+  let @opcode: Opcode
+  let @finished: Bool
+  let @masked: Bool
+  let @key: Int
+  let @size: Int
+
+  fn static parse[R: mut + Read[IoError]](
+    input: mut R,
+    buffer: mut ByteArray,
+    role: Role,
+  ) -> Result[Self, Error] {
+    let _ = try read_exact_from(input, into: buffer, size: 2)
+    let fin_rsv_op = buffer.get(0).or_panic
+    let fin = fin_rsv_op & 0x80 > 0
+
+    if fin_rsv_op & 0x70 > 0 { throw Error.InvalidFrame }
+
+    let Some(op) = Opcode.from_int(fin_rsv_op & 0xF) else {
+      throw Error.InvalidFrame
+    }
+    let mask_len = buffer.get(1).or_panic
+    let masked = mask_len & 0x80 > 0
+
+    match role {
+      case Server if !masked -> throw Error.InvalidFrame
+      case Client if masked -> throw Error.InvalidFrame
+      case _ -> {}
+    }
+
+    let len = match mask_len & 0x7F {
+      case 126 -> {
+        let _ = try read_exact_from(input, into: buffer, size: 2)
+
+        big.read_i16(buffer, at: 2)
+      }
+      case 127 -> {
+        let _ = try read_exact_from(input, into: buffer, size: 8)
+
+        big.read_i64(buffer, at: 2)
+      }
+      case len -> len
+    }
+
+    buffer.clear
+
+    if len < 0 or (op.control? and len > 125) { throw Error.MessageTooLarge }
+
+    if op.control? and !fin { throw Error.InvalidFrame }
+
+    let key = if masked {
+      try read_exact_from(input, into: buffer, size: 4)
+
+      let key = big.read_i32(from: buffer, at: 0)
+
+      buffer.clear
+      key
+    } else {
+      0
+    }
+
+    Result.Ok(
+      Self(finished: fin, opcode: op, masked: masked, size: len, key: key),
+    )
+  }
+}

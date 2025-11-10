@@ -887,6 +887,128 @@ directories, including hidden files and directories, so make sure these
 files don't contain any sensitive information.
 :::
 
+## WebSockets
+
+[WebSocket](https://www.rfc-editor.org/rfc/rfc6455.html) responses/connections
+are created using the method
+[](method://std.net.http.server.Response.websocket):
+
+```inko
+import std.html (Html)
+import std.net.http.server (Handle, Request, Response, Server)
+import std.time (Duration)
+
+type Handler {
+  fn index -> Response {
+    Response.new.html(
+      Html.new.then(fn (h) {
+        h.doctype
+        h.head.then(fn (head) {
+          head.title.text('WebSockets')
+          head.style.value(
+            '
+#input {
+  height: 100px;
+  width: 400px;
+}
+
+#output {
+  border: 1px solid #ccc;
+  height: 200px;
+  padding: 5px;
+  width: 400px;
+}
+          ',
+          )
+
+          head.script.value(
+            '
+(function() {
+  "use strict";
+
+  document.addEventListener("DOMContentLoaded", function() {
+    let ws = new WebSocket("http://localhost:8000/websocket");
+    let btn = document.getElementById("submit");
+    let inp = document.getElementById("input");
+    let out = document.getElementById("output");
+
+    ws.onmessage = function(msg) {
+      let now = new Date();
+
+      out.append(`\${now.toISOString()}: \${msg.data}\\n`);
+    };
+
+    ws.onclose = function(e) {
+      let now = new Date();
+
+      out.append(`\${now.toISOString()}: <connection closed>\\n`);
+      btn.innerText = "Connection closed";
+      btn.disabled = true;
+    };
+
+    ws.onopen = function() {
+      btn.addEventListener("click", function(e) {
+        e.preventDefault();
+        ws.send(inp.value);
+        inp.value = "";
+      });
+    };
+  });
+})();
+          ',
+          )
+        })
+
+        h.body.then(fn (body) {
+          body.textarea.id('input').close
+          body.br.close
+          body.button.id('submit').text('Send')
+          body.pre.id('output').close
+        })
+      }),
+    )
+  }
+
+  fn websocket(request: mut Request) -> Response {
+    Response.websocket(request).then(fn (sock) {
+      loop {
+        match sock.receive {
+          case Ok(Text(v)) -> sock.text(v)
+          case Ok(Binary(v)) -> sock.binary(v)
+          case Ok(_) -> {}
+          case Error(_) -> return
+        }
+      }
+    })
+  }
+}
+
+impl Handle for Handler {
+  fn pub mut handle(request: mut Request) -> Response {
+    match request.target {
+      case [] -> index
+      case ['websocket'] -> websocket(request)
+      case _ -> Response.not_found
+    }
+  }
+}
+
+type async Main {
+  fn async main {
+    let srv = Server.new(fn { recover Handler() })
+
+    srv.shutdown_wait_time = Duration.from_secs(0)
+    srv.start(8_000).or_panic
+  }
+}
+```
+
+If you build and run this program then navigate to <http://localhost:8000>,
+you'll be presented with a form. Entering text in the text box and clicking
+"Send" results in the browser sending the text to the server, which then sends
+it back to the browser. After 60 seconds of not receiving a message, the server
+closes the connection and the form is disabled.
+
 ## Request logging
 
 For basic request/response logging you can use the type
