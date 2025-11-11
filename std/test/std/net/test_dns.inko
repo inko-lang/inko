@@ -1,8 +1,34 @@
+import std.fmt (fmt)
+import std.io (Error as IoError)
 import std.net.dns (Error, Resolver)
 import std.net.ip (IpAddress)
 import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
+  t.test('Error.to_string', fn (t) {
+    t.equal(Error.InvalidHost.to_string, "the hostname can't be resolved")
+    t.equal(Error.ServerError.to_string, 'the DNS server returned an error')
+    t.equal(
+      Error.Other(IoError.BrokenPipe).to_string,
+      IoError.BrokenPipe.to_string,
+    )
+  })
+
+  t.test('Error.fmt', fn (t) {
+    t.equal(fmt(Error.InvalidHost), 'InvalidHost')
+    t.equal(fmt(Error.ServerError), 'ServerError')
+    t.equal(fmt(Error.Other(IoError.BrokenPipe)), 'Other(BrokenPipe)')
+  })
+
+  t.test('Error.==', fn (t) {
+    t.equal(Error.InvalidHost, Error.InvalidHost)
+    t.equal(Error.ServerError, Error.ServerError)
+    t.equal(Error.Other(IoError.BrokenPipe), Error.Other(IoError.BrokenPipe))
+    t.not_equal(Error.Other(IoError.BrokenPipe), Error.Other(IoError.NotFound))
+    t.not_equal(Error.InvalidHost, Error.ServerError)
+    t.not_equal(Error.ServerError, Error.InvalidHost)
+  })
+
   t.test('Resolver.resolve with an IP address', fn (t) {
     let dns = Resolver.new
 
@@ -27,7 +53,10 @@ fn pub tests(t: mut Tests) {
   t.test('Resolver.resolve with an invalid hostname', fn (t) {
     let dns = Resolver.new
 
-    t.equal(dns.resolve('invalid.'), Result.Error(Error.InvalidHost))
-    t.equal(dns.resolve(''), Result.Error(Error.InvalidHost))
+    # The exact error (ServerError or InvalidHost) may differ per platform, i.e.
+    # FreeBSD seems to sometimes produce ServerError while on Linux you'll
+    # usually get an InvalidHost.
+    t.true(dns.resolve('invalid.').error?)
+    t.true(dns.resolve('').error?)
   })
 }

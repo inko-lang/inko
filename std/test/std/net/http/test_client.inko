@@ -1000,10 +1000,6 @@ fn pub tests(t: mut Tests) {
         uri(http, ip(addr.ip), port(65_500)),
         Option.Some(Error.ConnectionFailed(IoError.ConnectionRefused)),
       ),
-      (
-        uri(https, named('inko_test_invalid.invalid'), port(addr.port)),
-        Option.Some(Error.LookupFailed(DnsError.InvalidHost)),
-      ),
     ]
 
     for (uri, exp) in tests {
@@ -1014,6 +1010,19 @@ fn pub tests(t: mut Tests) {
     }
 
     Result.Ok(nil)
+  })
+
+  t.test('Client.connect with an invalid hostname', fn (t) {
+    let client = Client.new
+    let uri = uri(https, named('inko_test_invalid.invalid'), port(1234))
+
+    client.connect_timeout = Duration.from_millis(20)
+    t.true(
+      match client.connect(uri) {
+        case Error(LookupFailed(_)) -> true
+        case _ -> false
+      },
+    )
   })
 
   t.test('RequestWriter.body', fn (t) {
