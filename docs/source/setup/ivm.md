@@ -11,7 +11,7 @@ is written in Rust.
 ## Requirements
 
 - Rust 1.84 or newer
-- The [dependencies](../installation#dependencies) necessary to build Inko from
+- The [dependencies](installation#dependencies) necessary to build Inko from
   source
 
 ## Installing
