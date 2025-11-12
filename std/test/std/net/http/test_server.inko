@@ -17,11 +17,12 @@ import std.net.http (
 )
 import std.net.http.client (Client)
 import std.net.http.server (
-  Address, CacheControl, ConnectionId, Delete, Directory, FileRanges, FormError,
-  Get, Handle, Head, LogWriter, Logger, Notifier, Path as RequestPath, Post,
-  Put, RangeRequest, Request, Response, Server, Shutdown, Socket, SocketServer,
-  State, WebsocketResponse, conditional_request, copy_file_range, head_request,
-  parse_accept_range, parse_accept_ranges, quality_value,
+  Address, CacheControl, ConnectionId, Delete, Directory, Event, Events,
+  FileRanges, FormError, Get, Handle, Head, LogWriter, Logger, Notifier,
+  Path as RequestPath, Post, Put, RangeRequest, Request, Response, Server,
+  Shutdown, Socket, SocketServer, State, WebsocketResponse, conditional_request,
+  copy_file_range, head_request, parse_accept_range, parse_accept_ranges,
+  quality_value,
 )
 import std.net.http.websocket (WEBSOCKET_VERSION)
 import std.net.ip (IpAddress)
@@ -1180,6 +1181,18 @@ fn pub tests(t: mut Tests) {
 
       Result.Ok(nil)
     })
+  })
+
+  t.test('Response.events', fn (t) {
+    let res = Response.new.events(fn (_ev) {})
+
+    t.equal(res.status, Status.ok)
+    t.equal(
+      res.headers.get(Header.content_type),
+      Result.Ok('text/event-stream'),
+    )
+    t.equal(res.headers.get(Header.cache_control), Result.Ok('no-cache'))
+    t.true(res.hijacker.some?)
   })
 
   t.test('Body.present?', fn (t) {
@@ -2732,5 +2745,77 @@ fn pub tests(t: mut Tests) {
         t.equal(resp.headers.get(name), Result.Ok(val))
       }
     }
+  })
+
+  t.test('Events.send', fn (t) {
+    let io = Writer.new
+    let ev = Events.new(mut io)
+    let tests = [
+      (Event.new('name', 'value'), 'event: name\ndata: value\n\n'),
+      (Event.new('', 'value'), 'data: value\n\n'),
+      (Event.new('', ''), 'data: \n\n'),
+      (Event.new('name', ''), 'event: name\ndata: \n\n'),
+      (
+        Event.new('', '1\n2\r\n3\r4\r\r5'),
+        'data: 1\ndata: 2\ndata: 3\ndata: 4\ndata: \ndata: 5\n\n',
+      ),
+      (Event.new('', '1\n\n\n'), 'data: 1\ndata: \ndata: \n\n'),
+      (
+        Event.new('name', 'value').id('123'),
+        'event: name\nid: 123\ndata: value\n\n',
+      ),
+      (
+        Event.new('name', 'value').retry(Duration.from_secs(1)),
+        'event: name\nretry: 1000\ndata: value\n\n',
+      ),
+      (
+        Event.new('name', 'value').id('123').retry(Duration.from_secs(1)),
+        'event: name\nid: 123\nretry: 1000\ndata: value\n\n',
+      ),
+    ]
+
+    for (event, exp) in tests {
+      t.equal(ev.send(event), Result.Ok(nil))
+      t.equal(io.buffer.to_string, exp)
+      io.buffer.clear
+    }
+  })
+
+  t.test('Events.comment', fn (t) {
+    let io = Writer.new
+    let ev = Events.new(mut io)
+    let tests = [
+      ('', ': \n\n'),
+      ('foo', ': foo\n\n'),
+      ('1\n2', ': 1\n2\n\n'),
+      ('1\r\n2', ': 1\r\n2\n\n'),
+    ]
+
+    for (val, exp) in tests {
+      t.equal(ev.comment(val), Result.Ok(nil))
+      t.equal(io.buffer.to_string, exp)
+      io.buffer.clear
+    }
+  })
+
+  t.test('Event.new', fn (t) {
+    let ev = Event.new('name', 'value')
+
+    t.equal(ev.name, 'name')
+    t.equal(ev.data, 'value')
+    t.equal(ev.id, Option.None)
+    t.equal(ev.retry, Option.None)
+  })
+
+  t.test('Event.id', fn (t) {
+    let ev = Event.new('name', 'value').id('id')
+
+    t.equal(ev.id, Option.Some('id'))
+  })
+
+  t.test('Event.retry', fn (t) {
+    let ev = Event.new('name', 'value').retry(Duration.from_secs(1))
+
+    t.equal(ev.retry, Option.Some(Duration.from_secs(1)))
   })
 }

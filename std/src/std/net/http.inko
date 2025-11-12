@@ -687,6 +687,11 @@ type pub copy Status {
     Self(201)
   }
 
+  # Returns the status code 204.
+  fn pub inline static no_content -> Self {
+    Self(204)
+  }
+
   # Returns the status code 206.
   fn pub inline static partial_content -> Self {
     Self(206)

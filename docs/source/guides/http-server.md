@@ -1009,6 +1009,44 @@ you'll be presented with a form. Entering text in the text box and clicking
 it back to the browser. After 60 seconds of not receiving a message, the server
 closes the connection and the form is disabled.
 
+## Server-sent events
+
+To produce a server-sent event stream, use `Response.events` and the
+[](std.net.http.server.Event) type:
+
+```inko
+import std.net.http.server (Event, Handle, Request, Response, Server)
+import std.process (sleep)
+import std.time (Duration)
+
+type App {}
+
+impl Handle for App {
+  fn pub mut handle(request: mut Request) -> Response {
+    Response.new.events(fn (ev) {
+      loop {
+        let Ok(_) = ev.send(Event.new('message', 'hello')) else return
+
+        sleep(Duration.from_secs(5))
+      }
+    })
+  }
+}
+
+type async Main {
+  fn async main {
+    Server.new(fn { recover App() }).start(8_000).or_panic
+  }
+}
+```
+
+When connecting to <http://localhost:8000>, an event is produced every five
+seconds.
+
+Note that the `std.net.http.server` module only provides you with the means for
+creating and sending events to clients. You still need a source for those events
+such as a message broker, a database, or something else.
+
 ## Request logging
 
 For basic request/response logging you can use the type

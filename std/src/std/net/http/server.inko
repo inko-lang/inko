@@ -365,7 +365,7 @@
 import std.array
 import std.base64
 import std.bytes (Bytes, IntoByteArray, Slice)
-import std.bytes.parsers
+import std.bytes.parsers (CR, LF, int)
 import std.clone (Clone)
 import std.cmp (Equal, Ordering, max, min)
 import std.crypto.sha1 (Sha1)
@@ -376,10 +376,10 @@ import std.fs (Metadata)
 import std.fs.file (ReadOnlyFile)
 import std.fs.path
 import std.hash (Hash, Hasher)
-import std.int
+import std.int (Format as IntFormat)
 import std.io (
-  BufferedRead, BufferedReader, Error as IoError, LimitReader, Read, SeekFrom,
-  Write, copy_using,
+  BufferedRead, BufferedReader, BufferedWriter, Error as IoError, LimitReader,
+  Read, SeekFrom, Write, copy_using,
 )
 import std.iter (Stream)
 import std.mime (Mime)
@@ -565,22 +565,22 @@ fn inline parse_accept_range(
   match input.split_once('-') {
     # "123-" means "starting at byte 123, up to and including the end".
     case Some((v, '')) -> {
-      let start = try parsers.int(v)
+      let start = try int(v)
       let end = size - 1
 
       if start <= size { Option.Some(start.to(end)) } else { Option.None }
     }
     # "-123" means "the last 123 bytes".
     case Some(('', v)) -> {
-      let tail = try parsers.int(v)
+      let tail = try int(v)
       let end = size - 1
       let start = max(0, end - tail)
 
       if tail > 0 { Option.Some(start.to(end)) } else { Option.None }
     }
     case Some((a, b)) -> {
-      let start = try parsers.int(a)
-      let end = min(size - 1, try parsers.int(b))
+      let start = try int(a)
+      let end = min(size - 1, try int(b))
 
       if start <= end { Option.Some(start.to(end)) } else { Option.None }
     }
@@ -922,6 +922,40 @@ type pub Response {
   # ```
   fn pub static websocket(request: mut Request) -> WebsocketResponse {
     WebsocketResponse.new(request)
+  }
+
+  # Returns a server-sent event stream response.
+  #
+  # The stream remains open until the `producer` closure returns. To produce
+  # events, the closure should call `Events.send` or `Events.comment` on the
+  # `Events` type it receives as an argument.
+  #
+  # This method sets the `Cache-Control` header to `no-cache` to ensure proxies
+  # don't buffer or cache the event stream output.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.server (Event, Handle, Request, Response, Server)
+  #
+  # type App {}
+  #
+  # impl Handle for App {
+  #   fn pub mut handle(request: mut Request) -> Response {
+  #     Response.new.events(fn (ev) { ev.send(Event.new('message', 'hello')) })
+  #   }
+  # }
+  #
+  # type async Main {
+  #   fn async main {
+  #     Server.new(fn { recover App() }).start(8_000).or_panic
+  #   }
+  # }
+  # ```
+  fn pub move events(producer: fn (Events[mut Socket])) -> Self {
+    header(Header.content_type, 'text/event-stream')
+      .header(Header.cache_control, 'no-cache')
+      .hijack(fn move (sock) { producer.call(Events.new(sock)) })
   }
 
   # Assigns the given value to the header.
@@ -1372,6 +1406,25 @@ impl Clone for Address {
     match self {
       case Ip(v) -> Address.Ip(v.clone)
       case Unix(v) -> Address.Unix(v.clone)
+    }
+  }
+}
+
+impl Equal for Address {
+  fn pub ==(other: ref Self) -> Bool {
+    match (self, other) {
+      case (Ip(a), Ip(b)) -> a == b
+      case (Unix(a), Unix(b)) -> a == b
+      case _ -> false
+    }
+  }
+}
+
+impl Hash for Address {
+  fn pub hash[H: mut + Hasher](hasher: mut H) {
+    match self {
+      case Ip(v) -> v.hash(hasher)
+      case Unix(v) -> v.hash(hasher)
     }
   }
 }
@@ -1933,7 +1986,7 @@ type pub Request {
     let raw = headers.get(Header.host).get
 
     match raw.split_once(':') {
-      case Some((host, port)) -> (host, Int.parse(port, int.Format.Decimal))
+      case Some((host, port)) -> (host, Int.parse(port, IntFormat.Decimal))
       case _ -> (raw.to_slice, Option.None)
     }
   }
@@ -3067,5 +3120,213 @@ type pub inline WebsocketResponse {
 
       body.call(socket)
     })
+  }
+}
+
+# A stream of server-sent events.
+type pub inline Events[T: mut + Write[IoError]] {
+  let @stream: BufferedWriter[T, IoError]
+
+  fn static new(stream: T) -> Self {
+    Self(stream: BufferedWriter.new(stream))
+  }
+
+  # Sends an event to the client.
+  #
+  # The event's data is split into separate `data:` lines for each `\r\n`, `\n`
+  # or `\r` sequence.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.server (Event, Handle, Request, Response, Server)
+  #
+  # type App {}
+  #
+  # impl Handle for App {
+  #   fn pub mut handle(request: mut Request) -> Response {
+  #     Response.new.events(fn (ev) { ev.send(Event.new('message', 'hello')) })
+  #   }
+  # }
+  #
+  # type async Main {
+  #   fn async main {
+  #     Server.new(fn { recover App() }).start(8_000).or_panic
+  #   }
+  # }
+  # ```
+  fn pub mut send[B: Bytes](event: Event[B]) -> Result[Nil, IoError] {
+    if event.name.size > 0 {
+      try @stream.write('event: ')
+      try @stream.print(event.name)
+    }
+
+    match event.id {
+      case Some(v) -> {
+        try @stream.write('id: ')
+        try @stream.print(v)
+      }
+      case _ -> {}
+    }
+
+    match event.retry {
+      case Some(v) -> {
+        try @stream.write('retry: ')
+        try @stream.print(v.to_millis.to_string)
+      }
+      case _ -> {}
+    }
+
+    # Data may be terminated by \r\n, \n or _just_ a \r, so we have to split on
+    # any of these sequences.
+    let mut idx = 0
+    let mut start = idx
+    let max = event.data.size
+
+    while idx < max {
+      match event.data.get(idx).or_panic {
+        case CR -> {
+          try @stream.write('data: ')
+          try @stream.print(Slice.new(event.data, start, idx))
+
+          idx += 1
+
+          if event.data.get(idx).or(-1) == LF { idx += 1 }
+
+          start = idx
+        }
+        case LF -> {
+          try @stream.write('data: ')
+          try @stream.print(Slice.new(event.data, start, idx))
+          idx += 1
+          start = idx
+        }
+        case _ -> idx += 1
+      }
+    }
+
+    if idx > start {
+      try @stream.write('data: ')
+      try @stream.print(Slice.new(event.data, start, idx))
+    } else if idx == 0 {
+      try @stream.print('data: ')
+    }
+
+    try @stream.write('\n')
+    @stream.flush
+  }
+
+  # Sends a comment line to the client.
+  #
+  # Comments may be used as a keep-alive mechanism, though they may only be
+  # useful when the response passes through one or more proxies.
+  #
+  # Note that this method _doesn't_ split the data into separate lines as the
+  # SSE specification doesn't make it clear if this is supported or not, and if
+  # so how the data should be split (e.g. there are no `data` fields for
+  # comments). This means that `value` _shouldn't_ contain any line separators
+  # as this could break the event stream.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.server (Handle, Request, Response, Server)
+  #
+  # type App {}
+  #
+  # impl Handle for App {
+  #   fn pub mut handle(request: mut Request) -> Response {
+  #     Response.new.events(fn (ev) { ev.comment('ping') })
+  #   }
+  # }
+  #
+  # type async Main {
+  #   fn async main {
+  #     Server.new(fn { recover App() }).start(8_000).or_panic
+  #   }
+  # }
+  # ```
+  fn pub mut comment[B: Bytes](value: ref B) -> Result[Nil, IoError] {
+    try @stream.write(': ')
+    try @stream.print(value)
+    try @stream.write('\n')
+    @stream.flush
+  }
+}
+
+# A server-sent event.
+type pub inline Event[B: Bytes] {
+  let @name: String
+  let @data: B
+  let mut @id: Option[String]
+  let mut @retry: Option[Duration]
+
+  # Returns a new `Event`.
+  #
+  # The `name` argument is the name of the event. This can be an empty `String`
+  # to leave out the event name.
+  #
+  # The `data` argument is the data to include in the event. This can be an
+  # empty `String` or `ByteArray` to produce an event without any data.
+  fn pub static new(name: String, data: B) -> Self {
+    Self(name: name, data: data, id: Option.None, retry: Option.None)
+  }
+
+  # Sets the ID of `self` to the given value.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.server (Event, Handle, Request, Response, Server)
+  #
+  # type App {}
+  #
+  # impl Handle for App {
+  #   fn pub mut handle(request: mut Request) -> Response {
+  #     Response.new.events(fn (ev) {
+  #       ev.send(Event.new('event', 'data').id('event-id'))
+  #     })
+  #   }
+  # }
+  #
+  # type async Main {
+  #   fn async main {
+  #     Server.new(fn { recover App() }).start(8_000).or_panic
+  #   }
+  # }
+  # ```
+  fn pub move id(value: String) -> Self {
+    @id = Option.Some(value)
+    self
+  }
+
+  # Sets the time a client should wait before reconnecting if the connection is
+  # lost.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.server (Event, Handle, Request, Response, Server)
+  # import std.time (Duration)
+  #
+  # type App {}
+  #
+  # impl Handle for App {
+  #   fn pub mut handle(request: mut Request) -> Response {
+  #     Response.new.events(fn (ev) {
+  #       ev.send(Event.new('event', 'data').retry(Duration.from_secs(5)))
+  #     })
+  #   }
+  # }
+  #
+  # type async Main {
+  #   fn async main {
+  #     Server.new(fn { recover App() }).start(8_000).or_panic
+  #   }
+  # }
+  # ```
+  fn pub move retry(value: Duration) -> Self {
+    @retry = Option.Some(value)
+    self
   }
 }

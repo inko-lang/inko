@@ -66,6 +66,7 @@ import std.drop (Drop)
 import std.fmt (Format, Formatter)
 import std.fs.file (ReadOnlyFile)
 import std.fs.path (Path)
+import std.hash (Hash, Hasher)
 import std.io (Error, Read, Write, WriteInternal)
 import std.libc
 import std.net.happy
@@ -237,6 +238,13 @@ impl Equal for SocketAddress {
   # Returns `true` if `self` and `other` are the same.
   fn pub inline ==(other: SocketAddress) -> Bool {
     @ip == other.ip and @port == other.port
+  }
+}
+
+impl Hash for SocketAddress {
+  fn pub hash[H: mut + Hasher](hasher: mut H) {
+    @ip.hash(hasher)
+    @port.hash(hasher)
   }
 }
 
@@ -1259,6 +1267,12 @@ impl ToString for UnixAddress {
   # ```
   fn pub to_string -> String {
     @address
+  }
+}
+
+impl Hash for UnixAddress {
+  fn pub hash[H: mut + Hasher](hasher: mut H) {
+    @address.hash(hasher)
   }
 }
 
