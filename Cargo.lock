@@ -37,7 +37,7 @@ checksum = "7c02d123df017efcdfbd739ef81735b36c5ba83ec3c59c80a9d7ecc718f92e50"
 
 [[package]]
 name = "ast"
-version = "0.18.1"
+version = "0.19.0"
 dependencies = [
  "location",
  "similar-asserts",
@@ -128,7 +128,7 @@ checksum = "2fd1289c04a9ea8cb22300a459a72a385d7c73d3259e2ed7dcb2af674838cfa9"
 
 [[package]]
 name = "compiler"
-version = "0.18.1"
+version = "0.19.0"
 dependencies = [
  "ast",
  "blake3",
@@ -329,7 +329,7 @@ dependencies = [
 
 [[package]]
 name = "inko"
-version = "0.18.1"
+version = "0.19.0"
 dependencies = [
  "blake3",
  "compiler",
@@ -414,7 +414,7 @@ dependencies = [
 
 [[package]]
 name = "location"
-version = "0.18.1"
+version = "0.19.0"
 
 [[package]]
 name = "log"
@@ -525,7 +525,7 @@ dependencies = [
 
 [[package]]
 name = "rt"
-version = "0.18.1"
+version = "0.19.0"
 dependencies = [
  "atomic-wait",
  "backtrace",
@@ -543,7 +543,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "unicode-segmentation",
- "windows-sys 0.59.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -764,7 +764,7 @@ dependencies = [
 
 [[package]]
 name = "types"
-version = "0.18.1"
+version = "0.19.0"
 dependencies = [
  "indexmap",
  "location",
