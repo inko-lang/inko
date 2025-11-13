@@ -150,7 +150,7 @@ docs/setup:
 
 docs/build:
 	rm -rf docs/public
-	cd docs && inko build && DOCS_REF=${DOCS_REF} ./build/main
+	cd docs && inko build --release && DOCS_REF=${DOCS_REF} ./build/release/main
 
 docs/watch:
 	cd docs && DOCS_REF=${DOCS_REF} ./scripts/watch.sh

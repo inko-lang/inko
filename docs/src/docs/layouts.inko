@@ -26,8 +26,8 @@ fn filters(config: ref Config, page: ref Page) -> Array[Filter] {
 fn extract_toc(document: mut html.Document) -> Option[html.Node] {
   match document.nodes.last {
     case Some(Element({ @name = 'ul', @attributes = attr })) -> {
-      match attr.opt('class') {
-        case Some('toc') -> document.nodes.pop
+      match attr.get('class') {
+        case Ok('toc') -> document.nodes.pop
         case _ -> Option.None
       }
     }
@@ -62,36 +62,33 @@ fn sidebar_list(
 ) {
   root.header.h1.text(title)
   root.ul.with(fn (ul) {
-    items.iter.each(fn (item) {
+    for item in items.iter {
       let a = ul.li.a
 
       if item.url == page.url { a.attr('class', 'current') }
 
       a.attr('href', link_from(page, item.url)).text(item.title)
-    })
+    }
   })
 }
 
 fn sidebar(config: ref Config, root: mut html.Element, page: ref Page) {
   let section = config.menu.items.iter.find(fn (pair) {
-    pair.value.iter.any?(fn (item) { item.url == page.url })
+    pair.1.iter.any?(fn (item) { item.url == page.url })
   })
 
-  let pair = match section {
-    case Some(v) -> v
-    case _ -> return
-  }
+  let Some((key, val)) = section else return
   let left = root.aside.attr('class', 'left')
 
-  sidebar_list(left, pair.key, pair.value, page)
+  sidebar_list(left, key, val, page)
 }
 
 fn home_sidebar(config: ref Config, root: mut html.Element, page: ref Page) {
   let left = root.aside.attr('class', 'left')
 
-  config.menu.items.iter.each(fn (pair) {
-    sidebar_list(left, pair.key, pair.value, page)
-  })
+  for (key, val) in config.menu.items.iter {
+    sidebar_list(left, key, val, page)
+  }
 }
 
 fn toggle_menu(query: String, open: String, close: String) -> html.Element {
@@ -166,20 +163,17 @@ fn header(root: mut html.Element, config: ref Config, page: ref Page) {
     })
 
     h.nav.ul.with(fn (ul) {
-      config.menu.items.iter.each(fn (pair) {
-        let item = match pair.value.opt(0) {
-          case Some(v) -> v
-          case _ -> return
-        }
+      for (key, val) in config.menu.items.iter {
+        let Ok(item) = val.get(0) else return
 
         ul.li.a.attr('href', link_from(page, item.url)).with(fn (a) {
-          a.text(pair.key)
+          a.text(key)
 
           if page.url.starts_with?(item.parent_url) or page.url == item.url {
             a.attr('class', 'current')
           }
         })
-      })
+      }
     })
   })
 }

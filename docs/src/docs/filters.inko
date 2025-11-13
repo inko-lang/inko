@@ -2,12 +2,13 @@ import builder.html (Document, Element)
 import docs.menu (Menu)
 import docs.url (link_from, relative?)
 import markdown.html (Filter, TableOfContents)
+import std.bytes (Bytes)
 import std.string (StringBuffer)
 import wobsite (Page)
 import wobsite.url (relative_to_absolute)
 
-fn starts_with_capital?(value: String) -> Bool {
-  let byte = value.opt(0).or(-1)
+fn starts_with_capital?[B: Bytes](value: ref B) -> Bool {
+  let byte = value.get(0).or(-1)
 
   byte >= 65 and byte <= 90
 }
@@ -38,11 +39,11 @@ type AddCopyButton {
 
 impl Filter for AddCopyButton {
   fn pub mut run(document: mut Document) {
-    document.nodes.iter_mut.each(fn (n) {
+    for n in document.nodes.iter_mut {
       let el = match n {
         case Element(e) if e.name == 'div' -> {
-          match e.attributes.opt('class') {
-            case Some('highlight') -> e
+          match e.attributes.get('class') {
+            case Ok('highlight') -> e
             case _ -> return
           }
         }
@@ -54,7 +55,7 @@ impl Filter for AddCopyButton {
         btn.span.attr('class', 'copy-text').text(' Copy')
         btn.span.attr('class', 'copied-text').text(' Copied!')
       })
-    })
+    }
   }
 }
 
@@ -68,8 +69,8 @@ type RelativeLinks {
   fn update(element: mut Element) {
     if element.name != 'a' { return }
 
-    let href = match element.attributes.opt('href') {
-      case Some(v) if relative?(v) -> v
+    let href = match element.attributes.get('href') {
+      case Ok(v) if relative?(v) -> v
       case _ -> return
     }
 
@@ -86,9 +87,9 @@ type RelativeLinks {
   fn title(relative: String) -> Option[String] {
     let mut abs = relative_to_absolute(@page.url, relative, as_file: false)
 
-    if abs.ends_with?('/').false? { abs = abs + '/' }
+    if !abs.ends_with?('/') { abs = abs + '/' }
 
-    @menu.titles.opt(abs)
+    @menu.titles.get(abs).ok
   }
 }
 
@@ -116,8 +117,8 @@ type StandardLibraryLinks {
   fn update(element: mut Element) {
     if element.name != 'a' { return }
 
-    let text = match element.attributes.opt('href') {
-      case Some(v) if v.size > 0 -> v
+    let text = match element.attributes.get('href') {
+      case Ok(v) if v.size > 0 -> v
       case _ -> return
     }
 
@@ -127,7 +128,7 @@ type StandardLibraryLinks {
       case (Some('method'), Some(v)) -> ('#method.', v)
       case (Some('field'), Some(v)) -> ('#field.', v)
       case (Some('constructor'), Some(v)) -> ('#constructor.', v)
-      case _ if text.starts_with?('std.') -> ('', text)
+      case _ if text.starts_with?('std.') -> ('', text.to_slice)
       case _ -> return
     }
 
@@ -137,26 +138,29 @@ type StandardLibraryLinks {
     let steps = text.split('.').to_array
     let len = steps.size
 
-    steps.iter.each_with_index(fn (idx, val) {
+    for (idx, val) in steps.iter.with_index {
       if frag.size > 0 and idx == (len - 1) {
         path.push(frag)
-        path.push(val)
+        path.push(val.to_string)
       } else {
-        path.push(val)
+        path.push(val.to_string)
         path.push('/')
       }
-    })
+    }
 
-    element.attr('href', '${@base_url}/module/${path}').attr('title', text)
+    element.attr('href', '${@base_url}/module/${path.into_string}').attr(
+      'title',
+      text.to_string,
+    )
 
     if element.nodes.empty? {
       let tail = steps.last.get
       let text = if frag.size > 0 {
-        '${steps.opt(steps.size - 2).get}.${tail}'
+        '${steps.get(steps.size - 2).get}.${tail}'
       } else if starts_with_capital?(tail) {
-        tail
+        tail.to_string
       } else {
-        text
+        text.to_string
       }
 
       element.code.text(text)

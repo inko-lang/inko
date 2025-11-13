@@ -51,33 +51,22 @@ type Menu {
     let titles = Map.new
     let items = Map.new
 
-    try root.into_iter.try_each(fn (pair) {
-      let key = pair.key
-      let val = match pair {
-        case { @value = Array(v) } -> v
-        case _ -> throw 'the values of each key must be an array'
-      }
-
+    for (key, val) in root.into_iter {
+      let Array(val) = val else throw 'the values of each key must be an array'
       let values = []
 
-      try val.into_iter.try_each(fn (val) {
-        let rel = match val {
-          case String(v) -> v
-          case _ -> throw 'each array value must be a string'
-        }
-
+      for val in val.into_iter {
+        let String(rel) = val else throw 'each array value must be a string'
         let path = source.join(rel)
         let front = try parse_front_matter(path)
         let url = file_url(source, path)
 
         titles.set(url, front.title)
         values.push(Item(title: front.title, url: url))
-        Result.Ok(nil)
-      })
+      }
 
       items.set(key, values)
-      Result.Ok(nil)
-    })
+    }
 
     Result.Ok(Menu(items: items, titles: titles))
   }
@@ -85,15 +74,6 @@ type Menu {
 
 impl Clone for Menu {
   fn pub clone -> Menu {
-    Menu(
-      items: @items.iter.reduce(Map.new, fn (map, pair) {
-        map.set(pair.key, pair.value.clone)
-        map
-      }),
-      titles: @titles.iter.reduce(Map.new, fn (map, pair) {
-        map.set(pair.key, pair.value)
-        map
-      }),
-    )
+    Menu(items: @items.clone, titles: @titles.clone)
   }
 }

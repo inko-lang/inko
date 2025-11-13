@@ -24,7 +24,7 @@ type pub Config {
 
   fn pub static new(source: ref Path) -> Result[Config, String] {
     let menu = try Menu.parse(source, Path.new(MENU_FILE))
-    let branch = env.opt('DOCS_REF').or('main')
+    let branch = env.get('DOCS_REF').or('main')
 
     Result.Ok(
       Config(
