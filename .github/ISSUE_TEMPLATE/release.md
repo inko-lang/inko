@@ -9,6 +9,8 @@ Prepare the release:
 
 - [ ] Run `make release/publish VERSION=X` in `main`
 - [ ] Make sure the tag pipeline passes
+- [ ] Purge the Cloudflare cache for inko-lang.org
+- [ ] Run `ivm install X` to make sure the release artifacts are present
 - [ ] Run the [AUR](https://github.com/inko-lang/aur/actions/workflows/release.yml) pipeline
 - [ ] Run the [Copr](https://github.com/inko-lang/copr/actions/workflows/release.yml) pipeline
 
