@@ -4,6 +4,12 @@
 Entries from before version 0.10.0 are no longer included, but can be viewed
 [here](https://github.com/inko-lang/inko/blob/f9c01b86af70596021e649be5d43ec2a22b6d298/CHANGELOG.md).
 
+## 0.19.1 (2025-11-13)
+
+### Fixed
+
+- [Fix String.join not joining empty values correctly](https://github.com/inko-lang/inko/commit/41ec2192c5d4bd049a8f5c5632e3a55e839a7d22)
+
 ## 0.19.0 (2025-11-13)
 
 ### Added
