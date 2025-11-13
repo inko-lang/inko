@@ -254,10 +254,10 @@ Older versions of Debian aren't supported.
 
 ### Fedora
 
-For Fedora 41 and newer:
+For Fedora 42 and newer:
 
 ```bash
-sudo dnf install gcc make rust cargo llvm18 llvm18-devel llvm18-static libstdc++-devel libstdc++-static libffi-devel zlib-devel git
+sudo dnf install gcc make rust cargo llvm llvm-devel llvm-static libstdc++-devel libstdc++-static libffi-devel zlib-devel git libxml2-devel
 ```
 
 Older versions of Fedora aren't supported.
