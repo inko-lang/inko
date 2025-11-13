@@ -1,19 +1,19 @@
-FROM registry.fedoraproject.org/fedora-minimal:42 AS builder
+FROM registry.fedoraproject.org/fedora-minimal:43 AS builder
 
 # Fedora builds LLVM with libffi support, and when statically linking against
 # LLVM the build will fail if libffi-devel isn't installed, hence we include it
 # here. See https://gitlab.com/taricorp/llvm-sys.rs/-/issues/41 for some extra
 # details.
 RUN microdnf install --assumeyes gcc make rust cargo \
-    llvm18 llvm18-devel llvm18-static libstdc++-devel libstdc++-static \
-    libffi-devel zlib-devel
+    llvm llvm-devel llvm-static libstdc++-devel libstdc++-static \
+    libffi-devel zlib-devel libxml2-devel
 ADD . /inko/
 WORKDIR /inko
 RUN make build PREFIX='/usr'
 RUN strip target/release/inko
 RUN make install PREFIX='/usr'
 
-FROM registry.fedoraproject.org/fedora-minimal:42
+FROM registry.fedoraproject.org/fedora-minimal:43
 
 # gcc is needed to link object files. This also pulls in libgcc, which the
 # generated code links against dynamically.
