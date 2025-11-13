@@ -207,14 +207,15 @@ type builtin String {
     iter: move I,
     with: String,
   ) -> String {
-    let result = iter.reduce(StringBuffer.new, fn (buff, val) {
-      if !buff.empty? { buff.push(with) }
+    let buf = StringBuffer.new
 
-      buff.push(val.to_string)
-      buff
-    })
+    for (idx, val) in iter.with_index {
+      if idx > 0 { buf.push(with) }
 
-    result.into_string
+      buf.push(val.to_string)
+    }
+
+    buf.into_string
   }
 
   # Slices `self` into a slice of bytes using a _byte_ range from `start` until

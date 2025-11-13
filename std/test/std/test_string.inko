@@ -69,9 +69,9 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('String.join', fn (t) {
-    let vals = [10, 20, 30]
-
-    t.equal(String.join(vals.iter, with: ', '), '10, 20, 30')
+    t.equal(String.join([10, 20, 30].into_iter, with: ', '), '10, 20, 30')
+    t.equal(String.join(['', 'foo'].into_iter, with: '/'), '/foo')
+    t.equal(String.join(['', '', ''].into_iter, with: '/'), '//')
   })
 
   t.test('String.to_upper', fn (t) {
