@@ -17,7 +17,7 @@ To send a request, we need two things:
 - An instance of [](std.net.http.client.Client) to send the request
 - An instance of [](std.uri.Uri) that specifies _where_ to send the request to
 
-For example, here's how to send a GET request to <http://httpbun.org/get> and
+For example, here's how to send a GET request to <https://httpbun.com/get> and
 read its response:
 
 ```inko
@@ -28,7 +28,7 @@ import std.uri (Uri)
 type async Main {
   fn async main {
     let client = Client.new
-    let uri = Uri.parse('http://httpbun.org/get').or_panic
+    let uri = Uri.parse('https://httpbun.com/get').or_panic
     let res = client.get(uri).send.or_panic
     let buf = ByteArray.new
     let _ = res.body.read_all(buf).or_panic
@@ -56,12 +56,12 @@ The output of this example is as follows:
   "args": {},
   "headers": {
     "Accept-Encoding": "gzip",
-    "Host": "httpbun.org",
+    "Host": "httpbun.com",
     "User-Agent": "inko/0.18.1 (https://inko-lang.org)",
     "Via": "1.1 Caddy"
   },
   "origin": "86.93.96.67",
-  "url": "http://httpbun.org/get",
+  "url": "https://httpbun.com/get",
   "form": {},
   "data": "",
   "json": null,
@@ -97,7 +97,7 @@ import std.uri (Uri)
 type async Main {
   fn async main {
     let client = Client.new
-    let uri = Uri.parse('http://httpbun.org/get').or_panic
+    let uri = Uri.parse('https://httpbun.com/get').or_panic
     let res = client
       .get(uri)
       .header(Header.user_agent, 'custom agent')
@@ -121,12 +121,12 @@ The output is as follows:
   "headers": {
     "Accept-Encoding": "gzip",
     "Custom-Header": "custom-value",
-    "Host": "httpbun.org",
+    "Host": "httpbun.com",
     "User-Agent": "custom agent",
     "Via": "1.1 Caddy"
   },
   "origin": "86.93.96.67",
-  "url": "http://httpbun.org/get",
+  "url": "https://httpbun.com/get",
   "form": {},
   "data": "",
   "json": null,
@@ -147,7 +147,7 @@ import std.uri (Uri)
 type async Main {
   fn async main {
     let client = Client.new
-    let uri = Uri.parse('http://httpbun.org/get').or_panic
+    let uri = Uri.parse('https://httpbun.com/get').or_panic
     let res = client
       .get(uri)
       .query('name', 'Alice')
@@ -173,12 +173,12 @@ The output is as follows:
   },
   "headers": {
     "Accept-Encoding": "gzip",
-    "Host": "httpbun.org",
+    "Host": "httpbun.com",
     "User-Agent": "inko/0.18.1 (https://inko-lang.org)",
     "Via": "1.1 Caddy"
   },
   "origin": "86.93.96.67",
-  "url": "http://httpbun.org/get?name=Alice&age=42",
+  "url": "https://httpbun.com/get?name=Alice&age=42",
   "form": {},
   "data": "",
   "json": null,
@@ -199,7 +199,7 @@ import std.uri (Uri)
 type async Main {
   fn async main {
     let client = Client.new
-    let uri = Uri.parse('http://httpbun.org/post').or_panic
+    let uri = Uri.parse('https://httpbun.com/post').or_panic
     let res = client.post(uri).body('request body').or_panic
     let buf = ByteArray.new
     let _ = res.body.read_all(buf).or_panic
@@ -218,12 +218,12 @@ The output is as follows:
   "headers": {
     "Accept-Encoding": "gzip",
     "Content-Length": "12",
-    "Host": "httpbun.org",
+    "Host": "httpbun.com",
     "User-Agent": "inko/0.18.1 (https://inko-lang.org)",
     "Via": "1.1 Caddy"
   },
   "origin": "86.93.96.67",
-  "url": "http://httpbun.org/post",
+  "url": "https://httpbun.com/post",
   "form": {},
   "data": "request body",
   "json": null,
@@ -247,7 +247,7 @@ import std.uri (Uri)
 type async Main {
   fn async main {
     let client = Client.new
-    let uri = Uri.parse('http://httpbun.org/post').or_panic
+    let uri = Uri.parse('https://httpbun.com/post').or_panic
     let form = client.post(uri).url_encoded_form
 
     form.add('name', 'Alice')
@@ -272,12 +272,12 @@ The output is as follows:
     "Accept-Encoding": "gzip",
     "Content-Length": "17",
     "Content-Type": "application/x-www-form-urlencoded",
-    "Host": "httpbun.org",
+    "Host": "httpbun.com",
     "User-Agent": "inko/0.18.1 (https://inko-lang.org)",
     "Via": "1.1 Caddy"
   },
   "origin": "86.93.96.67",
-  "url": "http://httpbun.org/post",
+  "url": "https://httpbun.com/post",
   "form": {
     "age": "42",
     "name": "Alice"
@@ -318,7 +318,7 @@ type async Main {
 
     client.tls = Option.Some(ClientConfig.new.get)
 
-    let uri = Uri.parse('https://httpbun.org/get').or_panic
+    let uri = Uri.parse('https://httpbun.com/get').or_panic
     let res = client.get(uri).send.or_panic
     let buf = ByteArray.new
     let _ = res.body.read_all(buf).or_panic
@@ -371,7 +371,7 @@ import std.uri (Uri)
 type async Main {
   fn async main {
     let client = Client.new
-    let uri = Uri.parse('https://httpbun.org/cookies').or_panic
+    let uri = Uri.parse('https://httpbun.com/cookies').or_panic
     let name = Cookie.new('name', 'Alice')
     let age = Cookie.new('age', '42')
     let res = client
