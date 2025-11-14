@@ -44,10 +44,10 @@ impl Filter for AddCopyButton {
         case Element(e) if e.name == 'div' -> {
           match e.attributes.get('class') {
             case Ok('highlight') -> e
-            case _ -> return
+            case _ -> next
           }
         }
-        case _ -> return
+        case _ -> next
       }
 
       el.button.attr('class', 'copy').with(fn (btn) {
