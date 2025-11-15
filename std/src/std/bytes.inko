@@ -43,10 +43,10 @@ fn hash_bytes[T: Bytes, H: mut + Hasher](bytes: ref T, hasher: mut H) {
   let mut start = bytes.pointer
   let mut i = 0
 
-  hasher.write(len)
+  hasher.write_int(len)
 
   while i < len {
-    hasher.write(ptr.add(start, i := i.wrapping_add(1)).0 as Int)
+    hasher.write_byte(ptr.add(start, i := i.wrapping_add(1)).0 as Int)
   }
 }
 

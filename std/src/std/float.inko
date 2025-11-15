@@ -425,7 +425,7 @@ impl ToString for Float {
 
 impl Hash for Float {
   fn pub inline hash[H: mut + Hasher](hasher: mut H) {
-    hasher.write(to_bits)
+    hasher.write_int(to_bits)
   }
 }
 

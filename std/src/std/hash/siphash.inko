@@ -16,7 +16,7 @@ import std.hash (Hasher)
 # let rng = Random.new
 # let hasher = SipHasher13.new(key0: rng.int, key1: rng.int)
 #
-# hasher.write(42)
+# hasher.write_int(42)
 # hasher.finish
 # ```
 type pub SipHasher13 {
@@ -77,9 +77,9 @@ type pub SipHasher13 {
 }
 
 impl Hasher for SipHasher13 {
-  fn pub mut write(value: Int) {
+  fn pub mut write_byte(value: Int) {
     @size += 1
-    @m |= (value & 0xFF) << ((@m_index := @m_index + 1) * 8)
+    @m |= value << (8 * (@m_index := @m_index + 1))
 
     if @m_index < 8 { return }
 
@@ -90,12 +90,25 @@ impl Hasher for SipHasher13 {
     @m = 0
   }
 
+  fn pub mut write_int(value: Int) {
+    let len = 8
+    let need = len - @m_index
+
+    @size += len
+    @m |= value << (8 * @m_index)
+    @v3 ^= @m
+    round
+    @v0 ^= @m
+    @m_index = len - need
+    @m = if need < 8 { value >> (8 * need) } else { 0 }
+  }
+
   fn pub move finish -> Int {
     let len = @size
 
-    while @m_index < 7 { write(0) }
+    while @m_index < 7 { write_byte(0) }
 
-    write(len)
+    write_int(len)
     @v2 ^= 0xFF
     round
     round

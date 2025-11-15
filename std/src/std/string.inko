@@ -882,7 +882,7 @@ impl Equal for Scalar {
 
 impl Hash for Scalar {
   fn pub hash[H: mut + Hasher](hasher: mut H) {
-    hasher.write(@value)
+    hasher.write_int(@value)
   }
 }
 

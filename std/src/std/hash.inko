@@ -5,8 +5,15 @@
 # A `Hasher` is a streaming hasher: instead of feeding it a single value and
 # receiving a hash right away, you write individual values to the `Hasher`.
 trait pub Hasher {
-  # Writes an `Int` into the hasher.
-  fn pub mut write(value: Int)
+  # Writes a byte (an `Int` in the range of 0 up to and including 255) into
+  # `self`.
+  #
+  # If the value doesn't fit within the given range the hasher may produce a
+  # poor or wrong hash. Use `Hasher.write_int` for such values.
+  fn pub mut write_byte(value: Int)
+
+  # Writes a regular `Int` into `self`.
+  fn pub mut write_int(value: Int)
 
   # Returns the hash for the values written so far.
   fn pub move finish -> Int

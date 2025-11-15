@@ -218,7 +218,7 @@ impl Equal for Signal {
 
 impl Hash for Signal {
   fn pub hash[H: mut + Hasher](hasher: mut H) {
-    hasher.write(id)
+    hasher.write_int(id)
   }
 }
 

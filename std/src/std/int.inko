@@ -888,7 +888,7 @@ impl BitXor[Int, Int] for Int {
 
 impl Hash for Int {
   fn pub inline hash[H: mut + Hasher](hasher: mut H) {
-    hasher.write(clone)
+    hasher.write_int(self)
   }
 }
 

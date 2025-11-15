@@ -239,12 +239,12 @@ type pub inline Parameter[B: Bytes] {
 
 impl Hash for Parameter {
   fn pub hash[H: mut + Hasher](hasher: mut H) {
-    hasher.write(@value.size)
+    hasher.write_int(@value.size)
 
     for byte in @value.bytes {
       let byte = if upper?(byte) { to_lower(byte) } else { byte }
 
-      hasher.write(byte)
+      hasher.write_byte(byte)
     }
   }
 }

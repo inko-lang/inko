@@ -54,7 +54,7 @@ impl Compare for Bool {
 
 impl Hash for Bool {
   fn pub inline hash[H: mut + Hasher](hasher: mut H) {
-    hasher.write(to_int)
+    hasher.write_byte(to_int)
   }
 }
 
