@@ -110,6 +110,15 @@ podman pull ghcr.io/inko-lang/inko:main
 podman run inko-lang/inko:main inko --version
 ```
 
+## Alpine Linux
+
+Inko is available for Alpine Edge in the [community
+repository](https://pkgs.alpinelinux.org/packages?name=inko&branch=edge&repo=community&arch=):
+
+```bash
+sudo apk add inko
+```
+
 ## Arch Linux
 
 Inko is available in the [AUR](https://aur.archlinux.org/):
