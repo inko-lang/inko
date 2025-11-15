@@ -126,6 +126,14 @@ fn pub tests(t: mut Tests) {
     t.equal(vals, [0, 1, 2])
   })
 
+  t.test('Int.sign', fn (t) {
+    t.equal(42.sign, 1)
+    t.equal(-42.sign, -1)
+    t.equal(0.sign, 0)
+    t.equal(-9223372036854775807.sign, -1)
+    t.equal(9223372036854775807.sign, 1)
+  })
+
   t.test('Int.absolute', fn (t) {
     t.equal(0.absolute, 0)
     t.equal(1.absolute, 1)

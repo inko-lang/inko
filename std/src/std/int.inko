@@ -285,6 +285,20 @@ type builtin Int {
     }
   }
 
+  # Returns the value -1 or 1 based on the sign of the given number,
+  # 0 if the value is zero.
+  #
+  # # Examples
+  #
+  # ```inko
+  # -42.sign # => -1
+  # 42.sign  # => 1
+  # 0.sign   # => 0
+  # ```
+  fn pub inline sign -> Int {
+    if self > 0 { 1 } else if self == 0 { 0 } else { -1 }
+  }
+
   # Returns the absolute value of `self`.
   #
   # If `self` is equal to `std.int.MIN`, then the returned value is also
