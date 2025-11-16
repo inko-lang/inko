@@ -2,7 +2,7 @@ use crate::process::ProcessPointer;
 use crate::state::RcState;
 use libc::{
     kill, pthread_sigmask, sigaddset, sigdelset, sigemptyset, sigfillset,
-    sigset_t, sigwait, SIGPIPE, SIGURG, SIG_SETMASK,
+    sigset_t, sigwait, SIGBUS, SIGILL, SIGPIPE, SIGSEGV, SIGURG, SIG_SETMASK,
 };
 use std::ffi::c_int;
 use std::mem::MaybeUninit;
@@ -15,6 +15,13 @@ use std::sync::Mutex;
 /// We use SIGURG as it's not commonly (if ever) used, isn't handled explicitly
 /// by debuggers, and is ignored by default instead of terminating the program.
 const NOTIFY: c_int = SIGURG;
+
+/// The signals we _shouldn't_ mask for application threads.
+///
+/// These signals should _not_ be masked, otherwise a program may hang when
+/// encountering an error. For example, on macOS a stack overflow triggers a
+/// SIGBUS but if this signal is masked the program just freezes.
+const UNMASKED: [c_int; 3] = [SIGSEGV, SIGBUS, SIGILL];
 
 struct SignalSet {
     raw: sigset_t,
@@ -29,7 +36,12 @@ impl SignalSet {
             raw.assume_init()
         };
 
-        SignalSet { raw }
+        let mut set = SignalSet { raw };
+
+        for sig in UNMASKED {
+            set.remove(sig);
+        }
+        set
     }
 
     fn new() -> SignalSet {
@@ -172,6 +184,21 @@ impl Worker {
                 set.add(*sig);
                 set.block();
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use libc::sigismember;
+
+    #[test]
+    fn test_signal_set_full() {
+        let set = SignalSet::full();
+
+        for sig in UNMASKED {
+            assert_eq!(unsafe { sigismember(&set.raw, sig) }, 0);
         }
     }
 }
