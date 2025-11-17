@@ -1609,9 +1609,10 @@ type pub Generator {
               generate_value(val)
             }
           })
+
+          indent
         }
 
-        indent
         @buffer.push(']')
       }
       case Object(vals) -> {
@@ -1629,9 +1630,10 @@ type pub Generator {
               generate_value(v)
             }
           })
+
+          indent
         }
 
-        indent
         @buffer.push('}')
       }
       case Bool(val) -> @buffer.push(val.to_string)
