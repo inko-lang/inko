@@ -468,12 +468,15 @@ fn pub tests(t: mut Tests) {
     let map1 = Map.new
     let map2 = Map.new
     let map3 = Map.new
+    let map4 = Map.new
 
     map1.set('a', Json.Int(1))
     map1.set('b', Json.Int(2))
     map2.set('a', Json.Array([Json.Int(1), Json.Int(2)]))
     map3.set('a', Json.Int(1))
     map3.set('b', Json.Object(map2))
+    map4.set('a', Json.Array([]))
+    map4.set('b', Json.Object(Map.new))
 
     t.equal(Json.Object(Map.new).to_pretty_string, '{}')
     t.equal(
@@ -494,6 +497,14 @@ fn pub tests(t: mut Tests) {
       2
     ]
   }
+}',
+    )
+
+    t.equal(
+      Json.Object(map4).to_pretty_string,
+      '{
+  "a": [],
+  "b": {}
 }',
     )
   })
