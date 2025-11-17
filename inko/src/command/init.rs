@@ -90,7 +90,8 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     let bin = !matches.opt_present("lib");
     let src = root.join("src");
     let test = root.join("test");
-    let mut main = src.join(name);
+    let main_name = name.strip_prefix("inko-").unwrap_or(name);
+    let mut main = src.join(main_name);
 
     main.set_extension(SOURCE_EXT);
 
