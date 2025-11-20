@@ -1233,6 +1233,13 @@ type pub File {
 
   # An optional list of ranges to send.
   let pub mut @ranges: FileRanges
+
+  fn mime_components -> Option[(Slice[String], Slice[String])] {
+    match @mime {
+      case Some({ @type = a, @subtype = b }) -> Option.Some((a.clone, b.clone))
+      case _ -> Option.None
+    }
+  }
 }
 
 # The size of a body.
@@ -2865,11 +2872,30 @@ impl ToString for CacheControl {
 # with an empty body is returned and its `error` field is set to the underlying
 # error's message.
 #
+# # Directory index files
+#
+# If the client requests a directory (e.g. `/foo`) and this directory contains
+# an `index.html` file, the file's contents are served as if the file was
+# requested directly. This allows clients to use both `/foo` and
+# `/foo/index.html` to access the same data.
+#
 # # Caching
 #
 # Requests handled by this type automatically include a `Cache-Control` header.
 # Its default value is `public, max-age=2592000, must-revalidate` and can be
 # changed using the `Directory.cache_control` method.
+#
+# Caching is disabled for responses with the following content types:
+#
+# - text/html
+# - text/xml
+# - application/atom+xml
+# - application/rss+xml
+#
+# The reason for this is that these types of files are typically updated
+# frequently and as such should always be fresh. Due to the presence of ETags a
+# client can still avoid downloading the entire body when the content hasn't
+# changed.
 #
 # # Security
 #
@@ -2969,16 +2995,34 @@ type pub inline Directory {
     let rel = components.iter.reduce(@path.clone, fn (p, c) { p.join(c) })
 
     # This ensures we can't read files outside of the directory.
-    let path = match rel.expand {
+    let mut path = match rel.expand {
       case Ok(v) if v.to_string.starts_with?(@path.to_string) -> v
       case _ -> return Response.not_found
     }
 
+    if path.directory? { path = path.join('index.html') }
+
     let resp = match Response.new.file(path) {
-      case Ok(r) -> r.header(Header.cache_control, @cache_control)
+      case Ok(v) -> v
       case Error(NotFound) -> return Response.not_found
       case Error(e) -> return Response.internal_server_error.error(e.to_string)
     }
+
+    let cache = match resp.body {
+      case File(f) -> {
+        match f.mime_components {
+          case Some(('text', 'html' or 'xml')) -> false
+          case Some(('application', 'atom+xml' or 'rss+xml')) -> false
+          case _ -> true
+        }
+      }
+      case _ -> false
+    }
+
+    resp.headers.set(
+      Header.cache_control,
+      if cache { @cache_control } else { 'no-cache' },
+    )
 
     @range.handle(request, conditional_request(request, resp))
   }

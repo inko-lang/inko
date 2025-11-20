@@ -2306,6 +2306,71 @@ fn pub tests(t: mut Tests) {
     t.equal(dir.cache_control, 'no-cache')
   })
 
+  t.test(
+    'Directory.handle with a directory containing an index.html file',
+    fn (t) {
+      let limits = Limits.new
+      let rng = Random.new
+      let req = empty_request(limits, rng)
+      let dir = Directory.new(
+        env.working_directory.get.join('fixtures').join('html'),
+      )
+      let path = [''.to_slice]
+      let res = dir.handle(req, path.to_slice)
+
+      t.equal(res.status, Status.ok)
+      t.equal(res.headers.get(Header.content_type), Result.Ok('text/html'))
+      t.equal(res.headers.get(Header.cache_control), Result.Ok('no-cache'))
+      t.true(
+        match res.body {
+          case File(_) -> true
+          case _ -> false
+        },
+      )
+    },
+  )
+
+  t.test(
+    'Directory.handle with a directory without an index.html file',
+    fn (t) {
+      let limits = Limits.new
+      let rng = Random.new
+      let req = empty_request(limits, rng)
+      let dir = Directory.new(
+        env.working_directory.get.join('fixtures').join('html').join(
+          'empty_directory',
+        ),
+      )
+      let path = [''.to_slice]
+      let res = dir.handle(req, path.to_slice)
+
+      t.equal(res.status, Status.not_found)
+    },
+  )
+
+  t.test("Directory.handle with a file that shouldn't be cached", fn (t) {
+    let limits = Limits.new
+    let rng = Random.new
+    let req = empty_request(limits, rng)
+    let dir = Directory.new(
+      env.working_directory.get.join('fixtures').join('html'),
+    )
+    let files = ['index.html', 'test.xml', 'test.atom', 'test.rss']
+
+    for file in files {
+      let res = dir.handle(req, [file.to_slice].to_slice)
+
+      t.equal(res.status, Status.ok)
+      t.equal(res.headers.get(Header.cache_control), Result.Ok('no-cache'))
+      t.true(
+        match res.body {
+          case File(_) -> true
+          case _ -> false
+        },
+      )
+    }
+  })
+
   t.ok('A valid GET request', fn (t) {
     with_http_server(t.id, fn (path) {
       let client = Client.new
