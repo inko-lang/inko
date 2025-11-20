@@ -121,6 +121,10 @@ trait SendFile[E] {
   # Upon returning from this method, the cursor/offset of the source file is the
   # same as it was before calling this method.
   #
+  # The `buffer` argument may be used by the implementation to read chunks from
+  # the input file before sending the chunks to the client. Currently this is
+  # only used when the fallback implementation is used.
+  #
   # # Platform differences
   #
   # The exact mechanism used for sending the file may vary per platform. For
@@ -135,7 +139,7 @@ trait SendFile[E] {
   # - TLS sockets provided by `std.net.tls`
   # - `UdpSocket.send_file` and `UnixDatagram.send_file` on FreeBSD and macOS
   #
-  # The userspace implementation copies data in chunks of 32 KiB and resets the
+  # The userspace implementation copies data in chunks of 256 KiB and resets the
   # cursor of `file` to its original position after copying the data. While
   # resetting the cursor incurs a small cost, it ensures behavior is consistent
   # with the kernel implementations of this method.
@@ -150,16 +154,17 @@ trait SendFile[E] {
   # let file = ReadOnlyFile.new('README.md'.to_path).or_panic
   # let server = UdpSocket.new(IpAddress.v4(0, 0, 0, 0), port: 9999).or_panic
   # let client = UdpSocket.new(IpAddress.v4(0, 0, 0, 0), port: 0).or_panic
-  #
-  # client.connect(IpAddress.v4(0, 0, 0, 0), port: 9999).or_panic
-  # client.send_file(file).or_panic
-  #
   # let buf = ByteArray.new
   #
+  # client.connect(IpAddress.v4(0, 0, 0, 0), port: 9999).or_panic
+  # client.send_file(buf, file).or_panic
   # server.read(buf, 1024).or_panic
   # buf.to_string # => '...'
   # ```
-  fn pub mut send_file(file: mut ReadOnlyFile) -> Result[Int, E]
+  fn pub mut send_file(
+    buffer: mut ByteArray,
+    file: mut ReadOnlyFile,
+  ) -> Result[Int, E]
 }
 
 trait Deadline {
@@ -678,7 +683,10 @@ impl RawSocketOperations for Socket {
 }
 
 impl SendFile[Error] for Socket {
-  fn pub mut send_file(file: mut ReadOnlyFile) -> Result[Int, Error] {
+  fn pub mut send_file(
+    buffer: mut ByteArray,
+    file: mut ReadOnlyFile,
+  ) -> Result[Int, Error] {
     sys.send_file_stream(file, self)
   }
 }
@@ -834,7 +842,10 @@ impl RawSocketOperations for UdpSocket {
 }
 
 impl SendFile[Error] for UdpSocket {
-  fn pub mut send_file(file: mut ReadOnlyFile) -> Result[Int, Error] {
+  fn pub mut send_file(
+    buffer: mut ByteArray,
+    file: mut ReadOnlyFile,
+  ) -> Result[Int, Error] {
     sys.send_file_datagram(file, self)
   }
 }
@@ -1019,7 +1030,10 @@ impl RawSocketOperations for TcpClient {
 }
 
 impl SendFile[Error] for TcpClient {
-  fn pub mut send_file(file: mut ReadOnlyFile) -> Result[Int, Error] {
+  fn pub mut send_file(
+    buffer: mut ByteArray,
+    file: mut ReadOnlyFile,
+  ) -> Result[Int, Error] {
     sys.send_file_stream(file, self)
   }
 }
@@ -1566,7 +1580,10 @@ impl RawSocketOperations for UnixSocket {
 }
 
 impl SendFile[Error] for UnixSocket {
-  fn pub mut send_file(file: mut ReadOnlyFile) -> Result[Int, Error] {
+  fn pub mut send_file(
+    buffer: mut ByteArray,
+    file: mut ReadOnlyFile,
+  ) -> Result[Int, Error] {
     sys.send_file_stream(file, self)
   }
 }
@@ -1712,7 +1729,10 @@ impl RawSocketOperations for UnixDatagram {
 }
 
 impl SendFile[Error] for UnixDatagram {
-  fn pub mut send_file(file: mut ReadOnlyFile) -> Result[Int, Error] {
+  fn pub mut send_file(
+    buffer: mut ByteArray,
+    file: mut ReadOnlyFile,
+  ) -> Result[Int, Error] {
     sys.send_file_datagram(file, self)
   }
 }
@@ -1853,7 +1873,10 @@ impl RawSocketOperations for UnixClient {
 }
 
 impl SendFile[Error] for UnixClient {
-  fn pub mut send_file(file: mut ReadOnlyFile) -> Result[Int, Error] {
+  fn pub mut send_file(
+    buffer: mut ByteArray,
+    file: mut ReadOnlyFile,
+  ) -> Result[Int, Error] {
     sys.send_file_stream(file, self)
   }
 }

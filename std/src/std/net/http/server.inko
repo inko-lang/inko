@@ -392,8 +392,8 @@ import std.net.http.header.values (tokens)
 import std.net.http.websocket (WEBSOCKET_KEY, WEBSOCKET_VERSION, Websocket)
 import std.net.ip (IpAddress)
 import std.net.socket (
-  Deadline, Shutdown as ShutdownTrait, SocketAddress, TcpClient, TcpServer,
-  UnixAddress, UnixClient, UnixServer,
+  Deadline, SendFile, Shutdown as ShutdownTrait, SocketAddress, TcpClient,
+  TcpServer, UnixAddress, UnixClient, UnixServer,
 )
 import std.net.tls
 import std.rand (Random)
@@ -1147,9 +1147,7 @@ type pub Response {
       case None -> true
       case String(v) -> socket.write(v).ok?
       case Bytes(v) -> socket.write(v).ok?
-      case File({ @data = f, @ranges = None }) -> {
-        copy_using(buf, f, socket, SEND_FILE_SIZE).ok?
-      }
+      case File({ @data = f, @ranges = None }) -> socket.send_file(buf, f).ok?
       case File({ @data = f, @ranges = Single(range) }) -> {
         copy_file_range(buf, f, socket, range)
       }
@@ -1565,6 +1563,19 @@ impl Write[IoError] for Socket {
 
   fn pub mut flush -> Result[Nil, IoError] {
     Result.Ok(nil)
+  }
+}
+
+impl SendFile[IoError] for Socket {
+  fn pub mut send_file(
+    buffer: mut ByteArray,
+    file: mut ReadOnlyFile,
+  ) -> Result[Int, IoError] {
+    match @reader.inner {
+      case Plain(v) -> v.send_file(buffer, file)
+      case Secure(v) -> v.send_file(buffer, file)
+      case Unix(v) -> v.send_file(buffer, file)
+    }
   }
 }
 

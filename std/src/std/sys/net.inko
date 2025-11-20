@@ -10,7 +10,7 @@ let NO_DEADLINE = -1
 
 # The amount of bytes to copy when using a userspace implementation of
 # `SendFile.send_file`.
-let SEND_FILE_SIZE = 32 * 1024
+let SEND_FILE_SIZE = 256 * 1024
 
 fn extern inko_socket_poll(
   state: Pointer[UInt8],
@@ -68,10 +68,11 @@ fn inline pack_v6_pair(a: Int, b: Int) -> Int {
 }
 
 fn send_file_userspace[W: mut + Write[Error]](
+  buffer: mut ByteArray,
   from: mut ReadOnlyFile,
   to: mut W,
 ) -> Result[Int, Error] {
-  let len = match copy_using(ByteArray.new, from, to, SEND_FILE_SIZE) {
+  let len = match copy_using(buffer, from, to, SEND_FILE_SIZE) {
     case Ok(n) -> n
     case Error(Read(e)) -> throw e
     case Error(Write(e)) -> throw e

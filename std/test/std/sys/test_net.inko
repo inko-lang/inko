@@ -14,7 +14,7 @@ fn pub tests(t: mut Tests) {
     let buf = ByteArray.new
 
     try file.read(buf, size: 1)
-    try net.send_file_userspace(file, client)
+    try net.send_file_userspace(ByteArray.new, file, client)
 
     t.equal(con.read(buf, size: 1024), Result.Ok(5))
     t.equal(buf.to_string, 'hello\n')

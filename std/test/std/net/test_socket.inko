@@ -1466,7 +1466,7 @@ fn pub tests(t: mut Tests) {
     let con = try server.accept
     let buf = ByteArray.new
 
-    t.equal(try client.send_file(file), 6)
+    t.equal(try client.send_file(buf, file), 6)
     t.equal(con.read(buf, size: 1024), Result.Ok(6))
     t.equal(buf.to_string, 'hello\n')
     t.equal(file.read_all(buf), Result.Ok(6))
@@ -1483,7 +1483,7 @@ fn pub tests(t: mut Tests) {
 
     try client.connect(addr.ip, addr.port)
 
-    t.equal(try client.send_file(file), 6)
+    t.equal(try client.send_file(buf, file), 6)
     t.equal(server.read(buf, size: 1024), Result.Ok(6))
     t.equal(buf.to_string, 'hello\n')
     t.equal(file.read_all(buf), Result.Ok(6))
@@ -1516,7 +1516,7 @@ fn pub tests(t: mut Tests) {
     let con = try server.accept
     let buf = ByteArray.new
 
-    t.equal(try client.send_file(file), 6)
+    t.equal(try client.send_file(buf, file), 6)
     t.equal(con.read(buf, size: 1024), Result.Ok(6))
     t.equal(buf.to_string, 'hello\n')
     t.equal(file.read_all(buf), Result.Ok(6))
@@ -1555,7 +1555,7 @@ fn pub tests(t: mut Tests) {
     let con = try server.accept
     let buf = ByteArray.new
 
-    t.equal(try client.send_file(file), 6)
+    t.equal(try client.send_file(buf, file), 6)
     t.equal(con.read(buf, size: 1024), Result.Ok(6))
     t.equal(buf.to_string, 'hello\n')
     t.equal(file.read_all(buf), Result.Ok(6))
@@ -1573,7 +1573,7 @@ fn pub tests(t: mut Tests) {
 
     let buf = ByteArray.new
 
-    t.equal(try client.send_file(file), 6)
+    t.equal(try client.send_file(buf, file), 6)
     t.equal(server.read(buf, size: 1024), Result.Ok(6))
     t.equal(buf.to_string, 'hello\n')
     t.equal(file.read_all(buf), Result.Ok(6))
@@ -1607,7 +1607,7 @@ fn pub tests(t: mut Tests) {
     let con = try server.accept
     let buf = ByteArray.new
 
-    t.equal(try client.send_file(file), 6)
+    t.equal(try client.send_file(buf, file), 6)
     t.equal(con.read(buf, size: 1024), Result.Ok(6))
     t.equal(buf.to_string, 'hello\n')
     t.equal(file.read_all(buf), Result.Ok(6))

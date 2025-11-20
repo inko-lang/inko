@@ -494,8 +494,11 @@ impl RawSocketOperations for Client {
 }
 
 impl SendFile[Error] for Client {
-  fn pub mut send_file(file: mut ReadOnlyFile) -> Result[Int, Error] {
-    net.send_file_userspace(file, self)
+  fn pub mut send_file(
+    buffer: mut ByteArray,
+    file: mut ReadOnlyFile,
+  ) -> Result[Int, Error] {
+    net.send_file_userspace(buffer, file, self)
   }
 }
 
@@ -754,7 +757,10 @@ impl RawSocketOperations for Server {
 }
 
 impl SendFile[Error] for Server {
-  fn pub mut send_file(file: mut ReadOnlyFile) -> Result[Int, Error] {
-    net.send_file_userspace(file, self)
+  fn pub mut send_file(
+    buffer: mut ByteArray,
+    file: mut ReadOnlyFile,
+  ) -> Result[Int, Error] {
+    net.send_file_userspace(buffer, file, self)
   }
 }

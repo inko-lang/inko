@@ -369,7 +369,10 @@ fn pub tests(t: mut Tests) {
     let client = Client.new(sock, conf, name: 'localhost').get
     let bytes = ByteArray.new
 
-    t.equal(try client.send_file(file).map_error(fn (e) { e.to_string }), 6)
+    t.equal(
+      try client.send_file(bytes, file).map_error(fn (e) { e.to_string }),
+      6,
+    )
     t.equal(client.read(into: bytes, size: 6), Result.Ok(6))
     t.equal(bytes.into_string, 'hello\n')
     Result.Ok(nil)
@@ -495,8 +498,12 @@ fn pub tests(t: mut Tests) {
     match sock_fut {
       case (sock, out) -> {
         let server = try accept(sock)
+        let buf = ByteArray.new
 
-        t.equal(try server.send_file(file).map_error(fn (e) { e.to_string }), 6)
+        t.equal(
+          try server.send_file(buf, file).map_error(fn (e) { e.to_string }),
+          6,
+        )
         t.equal(recover out.get, Result.Ok('hello'))
       }
     }
