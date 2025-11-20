@@ -134,6 +134,7 @@ fn inline send_file_stream[S: mut + RawSocketOperations](
 }
 
 fn inline send_file_datagram[S: mut + RawSocketOperations](
+  buffer: mut ByteArray,
   from: mut ReadOnlyFile,
   to: mut S,
 ) -> Result[Int, Error] {

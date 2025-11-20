@@ -846,7 +846,7 @@ impl SendFile[Error] for UdpSocket {
     buffer: mut ByteArray,
     file: mut ReadOnlyFile,
   ) -> Result[Int, Error] {
-    sys.send_file_datagram(file, self)
+    sys.send_file_datagram(buffer, file, self)
   }
 }
 
@@ -1733,7 +1733,7 @@ impl SendFile[Error] for UnixDatagram {
     buffer: mut ByteArray,
     file: mut ReadOnlyFile,
   ) -> Result[Int, Error] {
-    sys.send_file_datagram(file, self)
+    sys.send_file_datagram(buffer, file, self)
   }
 }
 
