@@ -12,8 +12,8 @@ import std.fs.path (Path)
 import std.io (Buffer, BufferedReader, Error as IoError, Write)
 import std.mime (Mime)
 import std.net.http (
-  Body, Etag, Header, HeaderMap, Limits, Method, ParseError, Parser, Reader,
-  Request as RawRequest, Status, Version,
+  Body, Encoding, Etag, Header, HeaderMap, Limits, Method, ParseError, Parser,
+  Reader, Request as RawRequest, Status, Version,
 )
 import std.net.http.client (Client)
 import std.net.http.server (
@@ -22,7 +22,6 @@ import std.net.http.server (
   Path as RequestPath, Post, Put, RangeRequest, Request, Response, Server,
   Shutdown, Socket, SocketServer, State, WebsocketResponse, conditional_request,
   copy_file_range, head_request, parse_accept_range, parse_accept_ranges,
-  quality_value,
 )
 import std.net.http.websocket (WEBSOCKET_VERSION)
 import std.net.ip (IpAddress)
@@ -247,24 +246,6 @@ impl Drop for ServerWaiter {
 }
 
 fn pub tests(t: mut Tests) {
-  t.test('quality_value', fn (t) {
-    let tests = [
-      ('q=-1,2', 0.0),
-      ('q=1.05', 1.0),
-      ('q=1.5', 1.0),
-      ('q=0.5', 0.5),
-      ('q=0.123', 0.123),
-      ('q=0.1234', 0.0),
-      ('q=foo', 0.0),
-      ('q=', 0.0),
-      ('', 1.0),
-    ]
-
-    for (inp, exp) in tests {
-      t.equal(quality_value(Mime.new('text/plain; ${inp}')), exp)
-    }
-  })
-
   t.test('copy_file_range', fn (t) {
     let buf = ByteArray.new
     let from = ReadOnlyFile.new(hello_txt).or_panic
@@ -1806,6 +1787,88 @@ fn pub tests(t: mut Tests) {
       for val in inp { req.data.headers.add(Header.accept, val) }
 
       t.equal(req.accepted_mime_types, exp)
+    }
+  })
+
+  t.test('Request.accepted_encodings', fn (t) {
+    let tests = [
+      (
+        ['gzip,deflate', 'br'],
+        [
+          Encoding(name: 'gzip'.to_slice, quality: 1.0),
+          Encoding(name: 'deflate'.to_slice, quality: 1.0),
+          Encoding(name: 'br'.to_slice, quality: 1.0),
+        ],
+      ),
+      (
+        ['gzip,deflate', 'br;q=0.5'],
+        [
+          Encoding(name: 'gzip'.to_slice, quality: 1.0),
+          Encoding(name: 'deflate'.to_slice, quality: 1.0),
+          Encoding(name: 'br'.to_slice, quality: 0.5),
+        ],
+      ),
+      (
+        ['deflate;q=0.3, gzip', 'br;q=0.5'],
+        [
+          Encoding(name: 'gzip'.to_slice, quality: 1.0),
+          Encoding(name: 'br'.to_slice, quality: 0.5),
+          Encoding(name: 'deflate'.to_slice, quality: 0.3),
+        ],
+      ),
+      (
+        ['1,2,3,4,5,6,7,8,9,10', '11,12,13,14,15,16', '17', '18'],
+        [
+          Encoding(name: '1'.to_slice, quality: 1.0),
+          Encoding(name: '2'.to_slice, quality: 1.0),
+          Encoding(name: '3'.to_slice, quality: 1.0),
+          Encoding(name: '4'.to_slice, quality: 1.0),
+          Encoding(name: '5'.to_slice, quality: 1.0),
+          Encoding(name: '6'.to_slice, quality: 1.0),
+          Encoding(name: '7'.to_slice, quality: 1.0),
+          Encoding(name: '8'.to_slice, quality: 1.0),
+          Encoding(name: '9'.to_slice, quality: 1.0),
+          Encoding(name: '10'.to_slice, quality: 1.0),
+          Encoding(name: '11'.to_slice, quality: 1.0),
+          Encoding(name: '12'.to_slice, quality: 1.0),
+          Encoding(name: '13'.to_slice, quality: 1.0),
+          Encoding(name: '14'.to_slice, quality: 1.0),
+          Encoding(name: '15'.to_slice, quality: 1.0),
+          Encoding(name: '16'.to_slice, quality: 1.0),
+        ],
+      ),
+      (
+        ['1,2,3,4,5,6,7,8,9,10;q=1.0', '11,12,13,14,15,16', '17', '18;q=1.0'],
+        [
+          Encoding(name: '1'.to_slice, quality: 1.0),
+          Encoding(name: '2'.to_slice, quality: 1.0),
+          Encoding(name: '3'.to_slice, quality: 1.0),
+          Encoding(name: '4'.to_slice, quality: 1.0),
+          Encoding(name: '5'.to_slice, quality: 1.0),
+          Encoding(name: '6'.to_slice, quality: 1.0),
+          Encoding(name: '7'.to_slice, quality: 1.0),
+          Encoding(name: '8'.to_slice, quality: 1.0),
+          Encoding(name: '9'.to_slice, quality: 1.0),
+          Encoding(name: '10'.to_slice, quality: 1.0),
+          Encoding(name: '11'.to_slice, quality: 1.0),
+          Encoding(name: '12'.to_slice, quality: 1.0),
+          Encoding(name: '13'.to_slice, quality: 1.0),
+          Encoding(name: '14'.to_slice, quality: 1.0),
+          Encoding(name: '15'.to_slice, quality: 1.0),
+          Encoding(name: '16'.to_slice, quality: 1.0),
+        ],
+      ),
+    ]
+
+    let limits = Limits.new
+
+    for (inp, exp) in tests {
+      let rng = Random.new
+      let req = empty_request(limits, rng)
+
+      for val in inp { req.data.headers.add(Header.accept_encoding, val) }
+
+      t.equal(req.accepted_encodings.to_array, exp)
     }
   })
 

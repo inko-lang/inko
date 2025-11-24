@@ -10,8 +10,9 @@ import std.io (Buffer, BufferedRead, Error as IoError, Read, Write)
 import std.map (MissingKey)
 import std.net.http (
   Body, BoundedBody, ChunkState, ChunkedBody, ChunkedWriter, ContentLength,
-  Etag, Header, HeaderMap, HeaderValue, Limits, Method, ParseError, Parser,
-  Reader, Request, Response, Status, Stream, UnboundedBody, Version,
+  Encoding, Etag, Header, HeaderMap, HeaderValue, Limits, Method, ParseError,
+  Parser, Reader, Request, Response, Status, Stream, UnboundedBody, Version,
+  quality_value,
 )
 import std.net.ip (IpAddress)
 import std.test (Tests)
@@ -130,6 +131,22 @@ impl Stream for Reuse {
 }
 
 fn pub tests(t: mut Tests) {
+  t.test('quality_value', fn (t) {
+    let tests = [
+      (Option.Some('-1,2'), 0.0),
+      (Option.Some('1.05'), 1.0),
+      (Option.Some('1.5'), 1.0),
+      (Option.Some('0.5'), 0.5),
+      (Option.Some('0.123'), 0.123),
+      (Option.Some('0.1234'), 0.0),
+      (Option.Some('foo'), 0.0),
+      (Option.Some(''), 0.0),
+      (Option.None, 1.0),
+    ]
+
+    for (inp, exp) in tests { t.equal(quality_value(inp), exp) }
+  })
+
   t.test('HeaderValue.==', fn (t) {
     t.equal(HeaderValue.Single('a'), HeaderValue.Single('a'))
     t.equal(HeaderValue.Multiple(['a']), HeaderValue.Multiple(['a']))
@@ -1652,5 +1669,69 @@ fn pub tests(t: mut Tests) {
   t.test('Etag.to_string', fn (t) {
     t.equal(Etag.new(strong: true, value: 'foo').to_string, '"foo"')
     t.equal(Etag.new(strong: false, value: 'foo').to_string, 'W/"foo"')
+  })
+
+  t.test('Encoding.parse_list', fn (t) {
+    let tests = [
+      # Valid values
+      (
+        'gzip,deflate',
+        [
+          Encoding(name: 'gzip'.to_slice, quality: 1.0),
+          Encoding(name: 'deflate'.to_slice, quality: 1.0),
+        ],
+      ),
+      (
+        'gzip   ,   deflate',
+        [
+          Encoding(name: 'gzip'.to_slice, quality: 1.0),
+          Encoding(name: 'deflate'.to_slice, quality: 1.0),
+        ],
+      ),
+      (
+        'a;q=0.5,b;q=0.8',
+        [
+          Encoding(name: 'a'.to_slice, quality: 0.5),
+          Encoding(name: 'b'.to_slice, quality: 0.8),
+        ],
+      ),
+      ('*', [Encoding(name: '*'.to_slice, quality: 1.0)]),
+      ('', []),
+      (
+        'a;q=foo,b',
+        [
+          Encoding(name: 'a'.to_slice, quality: 0.0),
+          Encoding(name: 'b'.to_slice, quality: 1.0),
+        ],
+      ),
+
+      # Invalid values
+      (',b', []),
+      ('    ,   b', []),
+    ]
+
+    for (inp, exp) in tests { t.equal(Encoding.parse_list(inp).to_array, exp) }
+  })
+
+  t.test('Encoding.==', fn (t) {
+    t.equal(
+      Encoding(name: 'a'.to_slice, quality: 1.0),
+      Encoding(name: 'a'.to_slice, quality: 1.0),
+    )
+    t.not_equal(
+      Encoding(name: 'b'.to_slice, quality: 1.0),
+      Encoding(name: 'a'.to_slice, quality: 1.0),
+    )
+    t.not_equal(
+      Encoding(name: 'a'.to_slice, quality: 1.0),
+      Encoding(name: 'a'.to_slice, quality: 0.0),
+    )
+  })
+
+  t.test('Encoding.fmt', fn (t) {
+    t.equal(
+      fmt(Encoding(name: 'a'.to_slice, quality: 1.0)),
+      'Encoding(name: "a", quality: 1.0)',
+    )
   })
 }

@@ -35,6 +35,7 @@ import std.io (Buffer, BufferedRead, Error as IoError, Read, Write)
 import std.iter (Stream as IterStream)
 import std.map (MissingKey)
 import std.net.http.header
+import std.net.http.header.values (Items, Parameter)
 import std.net.http.method
 import std.net.http.parsers (etagc?, obs_text?, token?, visible?, whitespace?)
 import std.string (ToString)
@@ -55,6 +56,22 @@ let CHUNKED = 'chunked'
 
 # The amount of bytes to read per chunk in `Body.discard`.
 let DISCARD_BUFFER_SIZE = 32 * 1024
+
+fn quality_value[B: Bytes](value: Option[ref B]) -> Float {
+  match value {
+    # X.YYY is the longest input that's allowed per RFC 9110 section 12.4.2
+    case Some(v) if v.size <= 5 -> {
+      match Float.parse(v) {
+        case Some(v) if v < 0.0 -> 0.0
+        case Some(v) if v > 1.0 -> 1.0
+        case Some(v) -> v
+        case _ -> 0.0
+      }
+    }
+    case Some(_) -> 0.0
+    case _ -> 1.0
+  }
+}
 
 type inline enum HeaderError[E] {
   case Invalid
@@ -2049,5 +2066,70 @@ impl Equal for Etag {
 impl ToString for Etag {
   fn pub to_string -> String {
     if @strong { '"${@value}"' } else { 'W/"${@value}"' }
+  }
+}
+
+# The name of an encoding used in the `Accept-Encoding` header.
+type pub inline Encoding {
+  # The name of the encoding.
+  let pub @name: Slice[String]
+
+  # The value of the "q"/quality parameter, if any.
+  let pub @quality: Float
+
+  fn static parse_list(value: String) -> IterStream[Encoding] {
+    let items = Items.new(value)
+
+    IterStream.new(fn move {
+      let (name, qpar) = match items.next {
+        case Some((name, Some(map))) -> {
+          (name, map.get(Parameter('q'.to_slice)).ok)
+        }
+        case Some((name, _)) -> (name, Option.None)
+        case _ -> return Option.None
+      }
+
+      # The "q" parameter may only contain digits, so we don't need to do any
+      # decoding/unescaping here.
+      let qval = match qpar {
+        case Some({ @value = val }) -> quality_value(Option.Some(val))
+        case _ -> 1.0
+      }
+
+      Option.Some(Encoding(name: name, quality: qval))
+    })
+  }
+
+  fn static parse_simple_list(value: String) -> IterStream[Encoding] {
+    let items = Items.new(value)
+
+    IterStream.new(fn move {
+      match items.next {
+        case Some((name, _)) -> Option.Some(Encoding(name: name, quality: 1.0))
+        case _ -> Option.None
+      }
+    })
+  }
+}
+
+impl Compare for Encoding {
+  fn pub cmp(other: ref Self) -> Ordering {
+    other.quality.cmp(@quality)
+  }
+}
+
+impl Equal for Encoding {
+  fn pub ==(other: ref Self) -> Bool {
+    @name == other.name and @quality == other.quality
+  }
+}
+
+impl Format for Encoding {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter
+      .object('Encoding')
+      .field('name', @name.to_string)
+      .field('quality', @quality)
+      .finish
   }
 }
