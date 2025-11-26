@@ -209,6 +209,20 @@ pub(crate) fn link(
         })?;
     }
 
+    // Ensure that unused symbols for all object files/libraries that follow are
+    // removed. This can reduce the size of executables quite a lot. We set
+    // these options _first_ just in case there's a platform where they're
+    // positional options (i.e. they only affect the objects/libraries that come
+    // _after_ the option).
+    match state.config.target.os {
+        OperatingSystem::Linux | OperatingSystem::Freebsd => {
+            cmd.arg("-Wl,--gc-sections");
+        }
+        OperatingSystem::Mac => {
+            cmd.arg("-Wl,-dead_strip");
+        }
+    }
+
     cmd.arg(format!("@{}", rsp.display()));
 
     if state.config.target.is_native() {
