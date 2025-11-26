@@ -642,7 +642,15 @@ impl IterTrait[Int] for Iter {
 # you're better off using the `Array` type.
 type pub ByteArray {
   # The number of bytes stored in this `ByteArray`
-  let mut @size: Int
+  #
+  # While this field is public and allows new values to be assigned, you should
+  # only ever do so when interacting with the FFI. For example, a C function may
+  # write to a buffer and return the number of bytes written, requiring you to
+  # manually set the correct size of a `ByteArray`.
+  #
+  # Outside the above scenario you _should never_ manually assign this field a
+  # new value.
+  let pub mut @size: Int
 
   # The number of bytes that can be stored before a resize is necessary.
   let mut @capacity: Int
