@@ -107,3 +107,10 @@ fn equal(left: Pointer[UInt8], right: Pointer[UInt8], size: Int) -> Bool {
 fn add[T](pointer: Pointer[T], amount: Int) -> Pointer[T] {
   pointer as Int + (amount * _INKO.size_of_type_name(T)) as Pointer[T]
 }
+
+# Returns a NULL pointer.
+#
+# TODO: make private
+fn pub null -> Pointer[UInt8] {
+  0x0 as Pointer[UInt8]
+}
