@@ -381,12 +381,13 @@ import std.io (
   BufferedRead, BufferedReader, BufferedWriter, Error as IoError, LimitReader,
   Read, SeekFrom, Write, copy_using,
 )
-import std.iter (Stream)
+import std.iter (Iter, Stream)
 import std.mime (Mime)
 import std.multipart
 import std.net.http (
-  Body as RequestBody, CHUNKED, ChunkedWriter, Etag, Header, HeaderMap, Limits,
-  Method, ParseError, Parser, Reader, Request as RawRequest, Status, Version,
+  Body as RequestBody, CHUNKED, ChunkedWriter, Encoding, Etag, Header,
+  HeaderMap, Limits, Method, ParseError, Parser, Reader, Request as RawRequest,
+  Status, Version, quality_value,
 )
 import std.net.http.header.values (tokens)
 import std.net.http.websocket (WEBSOCKET_KEY, WEBSOCKET_VERSION, Websocket)
@@ -407,21 +408,7 @@ import std.sys.net (SEND_FILE_SIZE)
 import std.time (DateTime, Duration, Instant, ToInstant)
 import std.uri (Host, Uri, Values)
 
-fn quality_value(mime: ref Mime) -> Float {
-  match mime.get('q') {
-    # X.YYY is the longest input that's allowed per RFC 9110 section 12.4.2
-    case Ok(v) if v.size <= 5 -> {
-      match Float.parse(v) {
-        case Some(v) if v < 0.0 -> 0.0
-        case Some(v) if v > 1.0 -> 1.0
-        case Some(v) -> v
-        case _ -> 0.0
-      }
-    }
-    case Ok(_) -> 0.0
-    case _ -> 1.0
-  }
-}
+let MAX_HEADER_VALUES = 16
 
 fn copy_file_range[W: mut + Write[IoError]](
   buffer: mut ByteArray,
@@ -2155,12 +2142,12 @@ type pub Request {
     let mimes = headers
       .get_all(Header.accept)
       .flat_map(fn (v) -> Stream[Mime] { Mime.parse_list(v) })
-      .take(16)
+      .take(MAX_HEADER_VALUES)
       .to_array
 
     mimes.sort_by(fn (a, b) {
-      let mut a_val = quality_value(a)
-      let mut b_val = quality_value(b)
+      let mut a_val = quality_value(a.get('q').ok)
+      let mut b_val = quality_value(b.get('q').ok)
 
       match b_val.cmp(a_val) {
         case Equal if a.type.equals?(b.type) -> {
@@ -2181,6 +2168,47 @@ type pub Request {
     })
 
     mimes
+  }
+
+  # Parses the request's `Accept-Encoding` header values into an iterator of
+  # `std.net.http.Encoding` values, ordered by their quality values.
+  #
+  # When encountering an invalid value, it and any remaining values are ignored.
+  #
+  # To guard against unreasonably large `Accept-Encoding` header values, this
+  # method only parses up to 16 valid values.
+  #
+  # Similar to `Request.accepted_mime_types`, this method treats the "q"
+  # parameter as case-sensitive. Refer to its documenation for more details on
+  # how quality values are handled.
+  fn pub accepted_encodings -> AcceptEncodings {
+    let params = headers.get_all(Header.accept_encoding).any?(fn (v) {
+      v.contains?(';')
+    })
+
+    # The "q" parameter is quite rare for Accept-Encoding headers, and the
+    # header itself is frequently used.
+    #
+    # If we're certain no "q" parameters are ever included we can avoid parsing
+    # these parameters and sorting the list, reducing the amount of allocations
+    # necessary.
+    if params {
+      let encs = headers
+        .get_all(Header.accept_encoding)
+        .flat_map(fn (v) -> Stream[Encoding] { Encoding.parse_list(v) })
+        .take(MAX_HEADER_VALUES)
+        .to_array
+
+      encs.sort
+      AcceptEncodings.Eager(encs.into_iter)
+    } else {
+      let iter = headers
+        .get_all(Header.accept_encoding)
+        .flat_map(fn (v) -> Stream[Encoding] { Encoding.parse_simple_list(v) })
+        .take(MAX_HEADER_VALUES)
+
+      AcceptEncodings.Lazy(iter)
+    }
   }
 
   # Returns the components of the request path.
@@ -3384,5 +3412,20 @@ type pub inline Event[B: Bytes] {
   fn pub move retry(value: Duration) -> Self {
     @retry = Option.Some(value)
     self
+  }
+}
+
+# An iterator over the values in the `Accept-Encoding` header.
+type pub inline enum AcceptEncodings {
+  case Lazy(Stream[Encoding])
+  case Eager(array.IntoIter[Encoding])
+}
+
+impl Iter[Encoding] for AcceptEncodings {
+  fn pub mut next -> Option[Encoding] {
+    match self {
+      case Lazy(v) -> v.next
+      case Eager(v) -> v.next
+    }
   }
 }
