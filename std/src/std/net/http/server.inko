@@ -1232,7 +1232,8 @@ type pub File {
   # An optional list of ranges to send.
   let pub mut @ranges: FileRanges
 
-  fn mime_components -> Option[(Slice[String], Slice[String])] {
+  # Returns the MIME type's type and subtype, if a MIME type is present.
+  fn pub mime_components -> Option[(Slice[String], Slice[String])] {
     match @mime {
       case Some({ @type = a, @subtype = b }) -> Option.Some((a.clone, b.clone))
       case _ -> Option.None

@@ -15,6 +15,7 @@ crate-type = ["staticlib", "lib"]
 [dependencies]
 crossbeam-utils = "^0.8"
 atomic-wait = "^1.1"
+libz-rs-sys = { version = "^0.5", features = ["c-allocator", "export-symbols"], default-features = false }
 
 # We use rustix where possible, but as it doesn't offer support for everything
 # (e.g. signal management) we still need to use libc in those cases.
@@ -37,7 +38,7 @@ rustix = { version = "^0.38", features = ["mm", "param", "process", "std", "even
 #   (https://github.com/briansmith/ring/discussions/2414)
 rustls = { version = "^0.23", features = ["tls12", "std"], default-features = false }
 rustls-graviola = "^0.2"
-rustls-pemfile = "^2.1"
+rustls-pemfile = "^2.2"
 
 # ------------------------------------------------------------------------------
 #

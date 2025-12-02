@@ -16,7 +16,7 @@ types = { path = "../types" }
 location = { path = "../location" }
 unicode-width = "^0.2"
 fnv = "^1.0"
-blake3 = "^1.5"
+blake3 = "^1.8"
 inkwell = { git = "https://github.com/TheDan64/inkwell.git", rev = "caabaa5a8e05c52c531f9a0df784ac5651434803", features = ["llvm18-0", "llvm18-0-prefer-static"] }
 indexmap = "^2.6"
 

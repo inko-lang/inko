@@ -1,0 +1,258 @@
+import std.compress.gzip (
+  BUFFER_SIZE, Compression, DecodeError, Decoder, Encoder, Reader,
+)
+import std.env
+import std.fmt (fmt)
+import std.io (Buffer, Error as IoError, Read)
+import std.test (Tests)
+
+let COMPRESSED = [
+  31, 139, 8, 0, 0, 0, 0, 0, 0, 3, 203, 72, 205, 201, 201, 87, 40, 207, 47, 202,
+  73, 129, 144, 0, 152, 82, 183, 165, 17, 0, 0, 0,
+]
+
+type BrokenReader {}
+
+impl Read[IoError] for BrokenReader {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, IoError] {
+    throw IoError.BrokenPipe
+  }
+}
+
+fn pub tests(t: mut Tests) {
+  t.test('Compression.to_int', fn (t) {
+    t.equal(Compression.None.to_int, 0)
+    t.equal(Compression.Speed.to_int, 1)
+    t.equal(Compression.Balanced.to_int, 6)
+    t.equal(Compression.Best.to_int, 9)
+  })
+
+  t.test('Encoder.new', fn (t) {
+    let enc = Encoder.new(ByteArray.new)
+
+    t.equal(enc.buffer.size, 0)
+    t.equal(enc.buffer.capacity, BUFFER_SIZE)
+    t.true(enc.open)
+  })
+
+  t.test('Encoder.with_compression', fn (t) {
+    let enc = Encoder.with_compression(ByteArray.new, Compression.Speed)
+
+    t.equal(enc.buffer.size, 0)
+    t.equal(enc.buffer.capacity, BUFFER_SIZE)
+    t.true(enc.open)
+  })
+
+  t.test('Encoder.write', fn (t) {
+    let enc = Encoder.new(ByteArray.new)
+    let exp = if env.OS == 'mac' {
+      [31, 139, 8, 0, 0, 0, 0, 0, 0, 19]
+    } else {
+      [31, 139, 8, 0, 0, 0, 0, 0, 0, 3]
+    }
+
+    t.equal(enc.write('hello'), Result.Ok(nil))
+    t.equal(enc.output, ByteArray.from_array(exp))
+
+    # zlib buffers, so additional writes don't necessarily result in writes to
+    # the underlying output stream.
+    t.equal(enc.write('world'), Result.Ok(nil))
+    t.equal(enc.output, ByteArray.from_array(exp))
+  })
+
+  # We don't actually have an input larger than the limit, so we just use this
+  # test as a smoke test.
+  t.test('Encoder.write_large', fn (t) {
+    let enc = Encoder.new(ByteArray.new)
+    let exp = if env.OS == 'mac' {
+      [31, 139, 8, 0, 0, 0, 0, 0, 0, 19]
+    } else {
+      [31, 139, 8, 0, 0, 0, 0, 0, 0, 3]
+    }
+
+    t.equal(enc.write_large('hello'), Result.Ok(nil))
+    t.equal(enc.output, ByteArray.from_array(exp))
+  })
+
+  t.test('Encoder.finish', fn (t) {
+    let buf = ByteArray.new
+    let enc = Encoder.new(mut buf)
+
+    t.equal(enc.write('hello'), Result.Ok(nil))
+    t.equal(
+      buf,
+      ByteArray.from_array(
+        if env.OS == 'mac' {
+          [31, 139, 8, 0, 0, 0, 0, 0, 0, 19]
+        } else {
+          [31, 139, 8, 0, 0, 0, 0, 0, 0, 3]
+        },
+      ),
+    )
+
+    t.equal(enc.write('world'), Result.Ok(nil))
+    t.equal(enc.finish, Result.Ok(nil))
+    t.equal(
+      buf,
+      ByteArray.from_array(
+        if env.OS == 'mac' {
+          [
+            31, 139, 8, 0, 0, 0, 0, 0, 0, 19, 203, 72, 205, 201, 201, 47, 207,
+            47, 202, 73, 1, 0, 173, 32, 235, 249, 10, 0, 0, 0,
+          ]
+        } else {
+          [
+            31, 139, 8, 0, 0, 0, 0, 0, 0, 3, 203, 72, 205, 201, 201, 47, 207,
+            47, 202, 73, 1, 0, 173, 32, 235, 249, 10, 0, 0, 0,
+          ]
+        },
+      ),
+    )
+  })
+
+  t.test('DecodeError.to_string', fn (t) {
+    t.equal(
+      (DecodeError.Generic('test') as DecodeError[IoError]).to_string,
+      'failed to decompress the input: test',
+    )
+    t.equal(
+      (DecodeError.Read(IoError.BrokenPipe) as DecodeError[IoError]).to_string,
+      'failed to read the input: ${IoError.BrokenPipe}',
+    )
+  })
+
+  t.test('DecodeError.fmt', fn (t) {
+    t.equal(
+      fmt((DecodeError.Generic('test') as DecodeError[IoError])),
+      'Generic("test")',
+    )
+    t.equal(
+      fmt((DecodeError.Read(IoError.BrokenPipe) as DecodeError[IoError])),
+      'Read(BrokenPipe)',
+    )
+  })
+
+  t.test('DecodeError.==', fn (t) {
+    t.equal(
+      DecodeError.Generic('a') as DecodeError[IoError],
+      DecodeError.Generic('a'),
+    )
+    t.equal(
+      DecodeError.Read(IoError.BrokenPipe) as DecodeError[IoError],
+      DecodeError.Read(IoError.BrokenPipe),
+    )
+
+    t.not_equal(
+      DecodeError.Generic('a') as DecodeError[IoError],
+      DecodeError.Generic('5'),
+    )
+    t.not_equal(
+      DecodeError.Read(IoError.BrokenPipe) as DecodeError[IoError],
+      DecodeError.Read(IoError.NotFound),
+    )
+  })
+
+  t.test('Decoder.new', fn (t) {
+    let dec = Decoder.new(Buffer.new(ByteArray.from_array(COMPRESSED)))
+
+    t.equal(dec.input.size, 0)
+    t.equal(dec.input.capacity, BUFFER_SIZE)
+    t.equal(dec.output.size, 0)
+    t.equal(dec.output.capacity, BUFFER_SIZE)
+    t.true(dec.open)
+  })
+
+  t.test('Decoder.read', fn (t) {
+    let dec = Decoder.new(Buffer.new(ByteArray.from_array(COMPRESSED)))
+    let buf = ByteArray.new
+
+    t.equal(dec.read(into: buf, size: 5), Result.Ok(5))
+    t.equal(buf.to_string, 'hello')
+
+    t.equal(dec.read(into: buf, size: 6), Result.Ok(6))
+    t.equal(buf.to_string, 'hello world')
+
+    t.equal(dec.read(into: buf, size: 128), Result.Ok(6))
+    t.equal(buf.to_string, 'hello world world')
+
+    t.equal(dec.read(into: buf, size: 128), Result.Ok(0))
+    t.equal(buf.to_string, 'hello world world')
+  })
+
+  t.test('Decoder.read with invalid input', fn (t) {
+    let dec = Decoder.new(Buffer.new('hello'))
+    let buf = ByteArray.new
+
+    t.true(
+      match dec.read(into: buf, size: 5) {
+        case Error(Generic(_)) -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('Decoder.read with an IO error', fn (t) {
+    let dec = Decoder.new(BrokenReader())
+    let buf = ByteArray.new
+
+    t.equal(
+      dec.read(into: buf, size: 5),
+      Result.Error(DecodeError.Read(IoError.BrokenPipe)),
+    )
+  })
+
+  t.test('Reader.read', fn (t) {
+    let enc = Reader.new(Buffer.new('hello world'))
+    let exp = if env.OS == 'mac' {
+      [
+        31, 139, 8, 0, 0, 0, 0, 0, 0, 19, 203, 72, 205, 201, 201, 87, 40, 207,
+        47, 202, 73, 1, 0, 133, 17, 74, 13, 11, 0, 0, 0,
+      ]
+    } else {
+      [
+        31, 139, 8, 0, 0, 0, 0, 0, 0, 3, 203, 72, 205, 201, 201, 87, 40, 207,
+        47, 202, 73, 1, 0, 133, 17, 74, 13, 11, 0, 0, 0,
+      ]
+    }
+
+    let buf = ByteArray.new
+
+    t.equal(enc.read(into: buf, size: 5), Result.Ok(5))
+    t.equal(buf, ByteArray.from_array([31, 139, 8, 0, 0]))
+
+    t.equal(enc.read(into: buf, size: 128), Result.Ok(26))
+    t.equal(buf, ByteArray.from_array(exp.clone))
+
+    t.equal(enc.read(into: buf, size: 5), Result.Ok(0))
+    t.equal(buf, ByteArray.from_array(exp))
+  })
+
+  t.test('Decoder produces the same output as its input', fn (t) {
+    let input = 'hello world world hello world world'
+    let compressed = ByteArray.new
+    let enc = Encoder.new(mut compressed)
+
+    t.equal(enc.write(input), Result.Ok(nil))
+    t.equal(enc.finish, Result.Ok(nil))
+
+    let dec = Decoder.new(Buffer.new(compressed))
+    let buf = ByteArray.new
+
+    t.equal(dec.read_all(buf), Result.Ok(input.size))
+    t.equal(buf.into_string, input)
+  })
+
+  t.test('Reader produces the same output as its input', fn (t) {
+    let input = 'hello world world hello world world'
+    let compressed = ByteArray.new
+    let enc = Reader.new(Buffer.new(input))
+
+    t.equal(enc.read_all(compressed), Result.Ok(input.size))
+
+    let dec = Decoder.new(Buffer.new(compressed))
+    let buf = ByteArray.new
+
+    t.equal(dec.read_all(buf), Result.Ok(input.size))
+    t.equal(buf.into_string, input)
+  })
+}

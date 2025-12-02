@@ -13,6 +13,7 @@ allow = [
     "MIT",
     "MPL-2.0",
     "Unicode-3.0",
+    "Zlib",
 ]
 confidence-threshold = 0.8
 
@@ -20,7 +21,7 @@ confidence-threshold = 0.8
 multiple-versions = "warn"
 wildcards = "allow"
 highlight = "all"
-skip = [{ name = "zerocopy" }]
+skip = []
 skip-tree = [{ name = "windows-sys", depth = 5 }]
 allow = []
 

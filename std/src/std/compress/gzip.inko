@@ -1,0 +1,624 @@
+# Compression and decompression using gzip.
+#
+# This module provides types for compressing and decompressing data using the
+# [gzip compression algorithm](https://en.wikipedia.org/wiki/Gzip).
+#
+# Compressing data is done using the `Encoder` type, while decompressing is done
+# using either a `Decoder` or `Reader`. Refer to the documentation of these
+# types for more details.
+#
+# The API exposed is currently limited to compressing and decompressing data.
+# Accessing additional data such as the gzip headers isn't supported.
+#
+# # Compression backend
+#
+# Compression is implemented using the
+# [libz-rs-sys](https://crates.io/crates/libz-rs-sys) Rust crate, included by
+# Inko's runtime library. This crate in turn implements an API compatible with
+# that of [zlib](https://zlib.net/), but removes the need for having to install
+# zlib to compile and/or run the code. This also makes cross-compilation easier.
+# The performance of this crate should be on par with that of
+# [zlib-ng](https://github.com/zlib-ng/zlib-ng).
+import std.bytes (Bytes, Slice)
+import std.cmp (Equal, min)
+import std.drop (Drop)
+import std.fmt (Format, Formatter)
+import std.int (ToInt)
+import std.io (Error as IoError, Read, Write)
+import std.ptr
+import std.string (ToString)
+
+# The maximum amount of data that can be written to a zlib stream.
+let MAX_WRITE = 4_294_967_295
+
+# The size/capacity of the zlib output buffer.
+let BUFFER_SIZE = 4 * 1024
+
+let Z_DEFAULT_MEM_LEVEL = 8
+let Z_DEFAULT_STRATEGY = 0
+let Z_DEFLATED = 8
+let Z_FINISH = 4
+let Z_NO_FLUSH = 0
+let Z_GZIP = 16
+let Z_OK = 0
+let Z_STREAM_END = 1
+let Z_MEM_ERROR = -4
+let Z_WINDOW_BITS = 15
+
+fn extern zlibVersion -> Pointer[UInt8]
+
+fn extern deflateInit2_(
+  stream: Pointer[Stream],
+  level: Int32,
+  method: Int32,
+  window_bits: Int32,
+  mem_level: Int32,
+  strategy: Int32,
+  version: Pointer[UInt8],
+  stream_size: Int32,
+) -> Int32
+
+fn extern inflateInit2_(
+  stream: Pointer[Stream],
+  window_bits: Int32,
+  version: Pointer[UInt8],
+  stream_size: Int32,
+) -> Int32
+
+fn extern deflateEnd(stream: Pointer[Stream]) -> Int32
+
+fn extern inflateEnd(stream: Pointer[Stream]) -> Int32
+
+fn extern deflate(stream: Pointer[Stream], flush: Int32) -> Int32
+
+fn extern inflate(stream: Pointer[Stream], flush: Int32) -> Int32
+
+fn init_error -> Never {
+  panic('failed to initialize the zlib stream')
+}
+
+fn inline deflate_init(stream: Pointer[Stream], compression: Compression) {
+  stream.zalloc = ptr.null
+  stream.zfree = ptr.null
+  stream.opaque = ptr.null
+
+  let res = deflateInit2_(
+    stream,
+    level: compression.to_int as Int32,
+    method: Z_DEFLATED as Int32,
+    window_bits: Z_WINDOW_BITS + Z_GZIP as Int32,
+    mem_level: Z_DEFAULT_MEM_LEVEL as Int32,
+    strategy: Z_DEFAULT_STRATEGY as Int32,
+    version: zlibVersion,
+    stream_size: _INKO.size_of_type_name(Stream) as Int32,
+  )
+
+  if res as Int != Z_OK { init_error }
+}
+
+fn inline inflate_init(stream: Pointer[Stream]) {
+  stream.zalloc = ptr.null
+  stream.zfree = ptr.null
+  stream.opaque = ptr.null
+  stream.avail_in = 0 as UInt32
+
+  let res = inflateInit2_(
+    stream,
+    window_bits: Z_WINDOW_BITS + Z_GZIP as Int32,
+    version: zlibVersion,
+    stream_size: _INKO.size_of_type_name(Stream) as Int32,
+  )
+
+  if res as Int != Z_OK { init_error }
+}
+
+fn set_input[B: Bytes](stream: Pointer[Stream], buffer: ref B) {
+  stream.avail_in = buffer.size as UInt32
+  stream.next_in = buffer.pointer
+}
+
+fn copy_buffer(
+  from: ref ByteArray,
+  at: Int,
+  to: mut ByteArray,
+  size: Int,
+) -> Int {
+  let end = min(at + size, from.size)
+  let len = end - at
+
+  to.append(from.slice(at, end))
+  len
+}
+
+type extern Stream {
+  let @next_in: Pointer[UInt8]
+  let @avail_in: UInt32
+  let @total_in: UInt64
+  let @next_out: Pointer[UInt8]
+  let @avail_out: UInt32
+  let @total_out: UInt64
+  let @msg: Pointer[UInt8]
+  let @state: Pointer[UInt8]
+  let @zalloc: Pointer[UInt8]
+  let @zfree: Pointer[UInt8]
+  let @opaque: Pointer[UInt8]
+  let @data_type: Int32
+  let @adler: UInt64
+  let @reserved: UInt64
+}
+
+# A type describing the compression level to use.
+type pub copy enum Compression {
+  # Don't apply any compression.
+  #
+  # This corresponds to zlib's compression level 0.
+  case None
+
+  # Compress as fast as possible.
+  #
+  # This corresponds to zlib's compression level 1.
+  case Speed
+
+  # A balance between performance and good compression.
+  #
+  # This is the default compression level used.
+  #
+  # This corresponds to zlib's compression level 6.
+  case Balanced
+
+  # Compress as much as possible.
+  #
+  # This corresponds to zlib's compression level 9.
+  case Best
+}
+
+impl ToInt for Compression {
+  fn pub to_int -> Int {
+    match self {
+      case None -> 0
+      case Speed -> 1
+      case Balanced -> 6
+      case Best -> 9
+    }
+  }
+}
+
+# A type for compressing data using gzip.
+#
+# An `Encoder` wraps a `Write` and implements `Write`. Data passed to
+# `Encoder.write` is compressed then written to the wrapped `Write` type.
+#
+# # Buffering
+#
+# Because zlib internally buffers data, not all data may be written to the
+# wrapped `Write` type until `Encoder.finish` is called. When dropping an
+# `Encoder`, `Encoder.finish` is called if not done so already. Because
+# `Encoder.finish` may return an error if the wrapped `Write` type produced an
+# error, it's recommended that you explicitly call `Encoder.finish` when all
+# data to compress is written to the `Encoder`.
+#
+# # Write sizes
+#
+# zlib is only capable of processing up to 4 GiB in a single write. When calling
+# `Encoder.write` with a value larger than this limit, the write is split into
+# separate writes each with a maximum amount of 4 GiB of data.
+#
+# # Examples
+#
+# ```inko
+# import std.compress.gzip (Encoder)
+# import std.stdio (Stdout)
+#
+# let enc = Encoder.new(Stdout.new)
+#
+# enc.write('hello world').or_panic
+# enc.finish.or_panic
+# ```
+type pub Encoder[W: mut + Write[E], E] {
+  # The output stream to write compressed data to.
+  let @output: W
+
+  # The zlib stream.
+  let @stream: Stream
+
+  # The input buffer containing uncompressed data.
+  let @buffer: ByteArray
+
+  # If the stream is open or closed (= after encountering Z_STREAM_END).
+  let mut @open: Bool
+
+  # Returns a new `Encoder` that writes to `output`.
+  #
+  # This method uses `Compression.Balanced` as the compression level.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.compress.gzip (Encoder)
+  # import std.stdio (Stdout)
+  #
+  # Encoder.new(Stdout.new)
+  # ```
+  fn pub static new(output: W) -> Self {
+    with_compression(output, Compression.Balanced)
+  }
+
+  # Returns a new `Encoder` that writes to `output` and uses a custom
+  # compression level.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.compress.gzip (Compression, Encoder)
+  # import std.stdio (Stdout)
+  #
+  # Encoder.with_compression(Stdout.new, Compression.Best)
+  # ```
+  fn pub static with_compression(output: W, compression: Compression) -> Self {
+    let enc = Self(
+      output: output,
+      stream: Stream(),
+      buffer: ByteArray.with_capacity(BUFFER_SIZE),
+      open: true,
+    )
+
+    deflate_init(enc.stream, compression)
+    enc
+  }
+
+  # Flushes pending data to the output stream and consumes `self`.
+  fn pub move finish -> Result[Nil, E] {
+    finish_and_close
+  }
+
+  fn mut finish_and_close -> Result[Nil, E] {
+    @open = false
+    @stream.avail_in = 0 as UInt32
+    @stream.next_in = ptr.null
+    compress_loop(Z_FINISH)
+  }
+
+  fn mut compress_loop(flush: Int) -> Result[Nil, E] {
+    loop {
+      if try compress(flush) { break }
+    }
+
+    Result.Ok(nil)
+  }
+
+  fn mut compress(flush: Int) -> Result[Bool, E] {
+    @stream.avail_out = @buffer.capacity as UInt32
+    @stream.next_out = @buffer.pointer
+    deflate(@stream, flush as Int32)
+    @buffer.size = @buffer.capacity - (@stream.avail_out as Int)
+
+    # There may be nothing to write based on the buffer size, so we avoid
+    # unnecessary IO calls for such cases.
+    if @buffer.size > 0 { try @output.write(@buffer) }
+
+    Result.Ok(@stream.avail_out as Int > 0)
+  }
+
+  fn mut write_small[B: Bytes](bytes: ref B) -> Result[Nil, E] {
+    set_input(@stream, bytes)
+    compress_loop(Z_NO_FLUSH)
+  }
+
+  fn mut write_large[B: Bytes](bytes: ref B) -> Result[Nil, E] {
+    let len = bytes.size
+    let mut idx = 0
+
+    while idx < len {
+      let end = min(idx + MAX_WRITE, len)
+      let slice = Slice.checked(bytes, idx, end)
+
+      try write_small(slice)
+      idx += slice.size
+    }
+
+    Result.Ok(nil)
+  }
+}
+
+impl Write[E] for Encoder {
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, E] {
+    if bytes.size <= MAX_WRITE {
+      write_small(bytes)
+    } else {
+      write_large(bytes)
+    }
+  }
+
+  fn pub mut flush -> Result[Nil, E] {
+    @output.flush
+  }
+}
+
+impl Drop for Encoder {
+  fn mut drop {
+    if @open { finish_and_close }
+
+    deflateEnd(@stream)
+  }
+}
+
+# An error produced while decompressing compressed data.
+type pub inline enum DecodeError[E] {
+  # A generic error produced by zlib.
+  #
+  # The `String` argument is a human-readable error message. The format is
+  # unspecified and shouldn't be relied upon, and may contain sensitive
+  # information.
+  case Generic(String)
+
+  # An error produced while reading from the input stream.
+  case Read(E)
+}
+
+impl ToString for DecodeError if E: ToString {
+  fn pub to_string -> String {
+    match self {
+      case Generic(v) -> 'failed to decompress the input: ${v}'
+      case Read(v) -> 'failed to read the input: ${v}'
+    }
+  }
+}
+
+impl Format for DecodeError if E: Format {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case Generic(v) -> formatter.tuple('Generic').field(v).finish
+      case Read(v) -> formatter.tuple('Read').field(v).finish
+    }
+  }
+}
+
+impl Equal for DecodeError if E: Equal {
+  fn pub ==(other: ref Self) -> Bool {
+    match (self, other) {
+      case (Generic(a), Generic(b)) -> a == b
+      case (Read(a), Read(b)) -> a == b
+      case _ -> false
+    }
+  }
+}
+
+# A type for decompressing data compressed using gzip.
+#
+# A `Decoder` wraps a `Read` and implements `Read`. When calling `Decoder.read`,
+# up to N bytes of data is read from the wrapped `Read` type (depending on how
+# much data was still buffered) and decompressed. `Decoder.read` then reads up
+# to the given number of _decompressed_ bytes into the target `ByteArray`. The
+# returned number is the number of _decompressed_ bytes read.
+#
+# # Examples
+#
+# ```inko
+# import std.compress.gzip (Encoder, Decoder)
+# import std.io (Buffer)
+#
+# let buf = ByteArray.new
+# let enc = Encoder.new(mut buf)
+#
+# # Writing to a ByteArray can't fail, so we ignore the return values.
+# let _ = enc.write('hello world')
+# let _ = enc.finish
+#
+# # Decompressing _can_ fail, in which case we panic.
+# let dec = Decoder.new(Buffer.new(buf))
+# let out = ByteArray.new
+# let _ = dec.read_all(out).or_panic
+#
+# out.to_string # => 'hello world'
+# ```
+type pub Decoder[R: mut + Read[E], E] {
+  # The Read type to read compressed bytes from.
+  let @reader: R
+
+  # The zlib stream.
+  let @stream: Stream
+
+  # Compressed bytes that have yet to be decompressed.
+  let @input: ByteArray
+
+  # The uncompressed bytes to consume.
+  let @output: ByteArray
+
+  # The offset into the output buffer to use for reading uncompressed bytes.
+  let mut @offset: Int
+
+  # If the stream is open or closed (= after encountering Z_STREAM_END).
+  let mut @open: Bool
+
+  # Returns a new `Decoder` that reads its input from `reader`.
+  fn pub static new(reader: R) -> Self {
+    let dec = Self(
+      reader: reader,
+      stream: Stream(),
+      input: ByteArray.with_capacity(BUFFER_SIZE),
+      output: ByteArray.with_capacity(BUFFER_SIZE),
+      offset: 0,
+      open: true,
+    )
+
+    inflate_init(dec.stream)
+    dec
+  }
+
+  fn mut read_buffer(into: mut ByteArray, size: Int) -> Int {
+    let len = copy_buffer(@output, @offset, into, size)
+
+    @offset += len
+    len
+  }
+
+  fn mut fill_buffer -> Result[Nil, DecodeError[E]] {
+    if @stream.avail_in as Int == 0 {
+      @input.clear
+
+      match @reader.read(into: @input, size: @input.capacity) {
+        case Ok(_) -> {}
+        case Error(e) -> throw DecodeError.Read(e)
+      }
+
+      set_input(@stream, @input)
+    }
+
+    decompress(Z_NO_FLUSH)
+  }
+
+  fn mut decompress(flush: Int) -> Result[Nil, DecodeError[E]] {
+    @stream.avail_out = @output.capacity as UInt32
+    @stream.next_out = @output.pointer
+
+    let res = inflate(@stream, flush as Int32) as Int
+    let out = @stream.avail_out as Int
+
+    @output.size = @output.capacity - out
+    @offset = 0
+
+    # gzip doesn't support custom dictionaries so we don't need to handle
+    # Z_NEED_DICT.
+    match res {
+      case Z_OK -> {}
+      case Z_STREAM_END -> {
+        # zlib allows you to keep calling inflate() after this point, but
+        # zlib-rs doesn't
+        # (https://github.com/trifectatechfoundation/zlib-rs/issues/433), so we
+        # need to prevent future such calls.
+        @open = false
+      }
+      case Z_MEM_ERROR -> panic('zlib failed to allocate the necessary memory')
+      case _ -> throw DecodeError.Generic(String.from_pointer(@stream.msg))
+    }
+
+    Result.Ok(nil)
+  }
+}
+
+impl Read[DecodeError[E]] for Decoder {
+  fn pub mut read(
+    into: mut ByteArray,
+    size: Int,
+  ) -> Result[Int, DecodeError[E]] {
+    let mut total = 0
+
+    loop {
+      if @offset < @output.size { total += read_buffer(into, size - total) }
+
+      if total == size or !@open { break } else { try fill_buffer }
+    }
+
+    Result.Ok(total)
+  }
+}
+
+impl Drop for Decoder {
+  fn mut drop {
+    inflateEnd(@stream)
+  }
+}
+
+# A reader type that compresses data from a `Read` type.
+#
+# An `Encoder` wraps a `Write` and expects you to write uncompressed data into
+# the `Encoder`. In contrast, a `Reader` wraps a `Read` type that produces
+# uncompressed data and allows you to read _compressed_ data through
+# `Reader.read`.
+#
+# Using a `Reader` instead of an `Encoder` is useful if you have e.g. a file
+# that you want to compress and then pass that to something that expects a
+# `Read`, such as a function that uploads the result to an external service.
+#
+# # Examples
+#
+# ```inko
+# import std.compress.gzip (Decoder, Reader)
+# import std.io (Buffer)
+#
+# let enc = Reader.new(Buffer.new('hello world'))
+# let dec = Decoder.new(enc)
+# let out = ByteArray.new
+# let _ = dec.read_all(out).or_panic
+#
+# out.to_string # => 'hello world'
+# ```
+type pub Reader[R: mut + Read[E], E] {
+  let @reader: R
+  let @encoder: Encoder[ByteArray, IoError]
+  let @buffer: ByteArray
+  let mut @offset: Int
+
+  # Returns a new `Reader` that reads from `reader`, using the default
+  # compression level.
+  #
+  # This method uses `Compression.Balanced` as the compression level.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.compress.gzip (Encoder)
+  # import std.io (Buffer)
+  #
+  # Reader.new(Buffer.new('hello world'))
+  # ```
+  fn pub static new(reader: R) -> Self {
+    with_compression(reader, Compression.Balanced)
+  }
+
+  # Returns a new `Reader` that reads from `reader`, using a custom compression
+  # level.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.compress.gzip (Compression, Encoder)
+  # import std.io (Buffer)
+  #
+  # Reader.with_compression(Buffer.new('hello world'), Compression.Best)
+  # ```
+  fn pub static with_compression(reader: R, compression: Compression) -> Self {
+    Self(
+      reader: reader,
+      encoder: Encoder.with_compression(ByteArray.new, compression),
+      buffer: ByteArray.new,
+      offset: 0,
+    )
+  }
+
+  fn mut read_buffer(into: mut ByteArray, size: Int) -> Int {
+    let len = copy_buffer(@encoder.output, @offset, into, size)
+
+    @offset += len
+    len
+  }
+
+  fn mut fill_buffer -> Result[Nil, E] {
+    @encoder.output.clear
+
+    match try @reader.read(into: @buffer, size: @encoder.buffer.capacity) {
+      case 0 -> @encoder.finish_and_close
+      case _ -> @encoder.write(@buffer)
+    }
+
+    @offset = 0
+    @buffer.clear
+    Result.Ok(nil)
+  }
+}
+
+impl Read[E] for Reader {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, E] {
+    let mut total = 0
+
+    loop {
+      if @offset < @encoder.output.size {
+        total += read_buffer(into, size - total)
+      }
+
+      if total == size or !@encoder.open { break } else { try fill_buffer }
+    }
+
+    Result.Ok(total)
+  }
+}

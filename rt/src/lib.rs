@@ -3,6 +3,10 @@
 #![allow(clippy::missing_safety_doc)]
 #![allow(clippy::too_many_arguments)]
 
+// This is necessary so the zlib code is included and can be used by the
+// standard library.
+extern crate libz_rs_sys;
+
 mod macros;
 
 mod arc_without_weak;
