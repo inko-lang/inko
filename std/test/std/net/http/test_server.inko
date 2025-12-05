@@ -749,6 +749,13 @@ fn pub tests(t: mut Tests) {
     },
   )
 
+  t.test('RangeRequest.clone', fn (t) {
+    let req1 = RangeRequest.new.limit(42)
+    let req2 = req1.clone
+
+    t.equal(req1.limit, req2.limit)
+  })
+
   t.test('head_request with a GET request', fn (t) {
     let limits = Limits.new
     let rng = Random.new
@@ -2613,6 +2620,16 @@ fn pub tests(t: mut Tests) {
         },
       )
     }
+  })
+
+  t.test('Directory.clone', fn (t) {
+    let dir1 = Directory.new(
+      env.working_directory.get.join('fixtures').join('html'),
+    )
+    let dir2 = dir1.clone
+
+    t.equal(dir1.path, dir2.path)
+    t.equal(dir1.cache_control, dir2.cache_control)
   })
 
   t.ok('A valid GET request', fn (t) {

@@ -645,7 +645,7 @@ fn parse_accept_ranges(
 #   }
 # }
 # ```
-type pub inline RangeRequest {
+type pub copy RangeRequest {
   let mut @limit: Int
 
   # Returns a new `RangeRequest` with its default settings.
@@ -665,7 +665,7 @@ type pub inline RangeRequest {
   # The `response` argument is the initial response produced by a request
   # handler. This method takes this response and either returns it as-is or
   # modifies it based on the `Range` header, if range requests are supported.
-  fn pub mut handle(request: mut Request, response: Response) -> Response {
+  fn pub handle(request: mut Request, response: Response) -> Response {
     # Range requests are only supported for GET requests with an initial OK
     # response.
     if !request.method.get? or !response.status.ok? { return response }
@@ -745,6 +745,12 @@ type pub inline RangeRequest {
     }
 
     resp.status(Status.partial_content)
+  }
+}
+
+impl Clone for RangeRequest {
+  fn pub clone -> Self {
+    self
   }
 }
 
@@ -3175,7 +3181,7 @@ type pub inline Directory {
   #
   # The `components` argument is a `std.array.Slice` containing the parsed (i.e.
   # URI decoded) URI path components of the file to serve.
-  fn pub mut handle(
+  fn pub handle(
     request: mut Request,
     components: array.Slice[Slice[String]],
   ) -> Response {
@@ -3209,6 +3215,12 @@ type pub inline Directory {
     )
 
     @range.handle(request, conditional_request(request, resp))
+  }
+}
+
+impl Clone for Directory {
+  fn pub clone -> Self {
+    Self(path: @path.clone, cache_control: @cache_control, range: @range)
   }
 }
 
