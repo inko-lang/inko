@@ -20,8 +20,9 @@ import std.net.http.server (
   Address, CacheControl, ConnectionId, Delete, Directory, Event, Events,
   FileRanges, FormError, Get, Handle, Head, LogWriter, Logger, Notifier,
   Path as RequestPath, Post, Put, RangeRequest, Request, Response, Server,
-  Shutdown, Socket, SocketServer, State, WebsocketResponse, conditional_request,
-  copy_file_range, head_request, parse_accept_range, parse_accept_ranges,
+  Shutdown, Socket, SocketServer, State, WebsocketResponse, compress_response,
+  conditional_request, copy_file_range, head_request, parse_accept_range,
+  parse_accept_ranges,
 )
 import std.net.http.websocket (WEBSOCKET_VERSION)
 import std.net.ip (IpAddress)
@@ -778,25 +779,31 @@ fn pub tests(t: mut Tests) {
     )
   })
 
-  t.test(
-    'head_request with a HEAD request and a partial content response',
-    fn (t) {
-      let limits = Limits.new
-      let rng = Random.new
-      let req = request_with_method(limits, Head, rng)
-      let res = Response.new.status(Status.partial_content).string('foo')
-      let res = head_request(req, res)
+  t.ok('head_request with a chunked response', fn (t) {
+    let limits = Limits.new
+    let rng = Random.new
+    let req = request_with_method(limits, Head, rng)
+    let res = try Response.new.file(hello_txt)
 
-      t.equal(res.status, Status.partial_content)
-      t.equal(res.headers.get(Header.content_length), Result.Ok('3'))
-      t.true(
-        match res.body {
-          case None -> true
-          case _ -> false
-        },
-      )
-    },
-  )
+    {
+      let File(f) = mut res.body else panic('the body must be a File')
+
+      f.ranges = FileRanges.Multiple([0.to(2), 3.to(4)], 'foo')
+    }
+
+    let res = head_request(req, res)
+
+    t.equal(res.status, Status.ok)
+    t.true(res.headers.get(Header.content_length).error?)
+    t.true(
+      match res.body {
+        case None -> true
+        case _ -> false
+      },
+    )
+
+    Result.Ok(nil)
+  })
 
   t.test('head_request with a HEAD request and an error response', fn (t) {
     let limits = Limits.new
@@ -808,7 +815,146 @@ fn pub tests(t: mut Tests) {
     t.equal(res.status, Status.not_found)
     t.true(
       match res.body {
-        case String('foo') -> true
+        case None -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.ok('compress_response with a supported file type', fn (t) {
+    let limits = Limits.new
+    let rng = Random.new
+    let req = request_with_method(limits, Head, rng)
+
+    req.data.headers.set(Header.accept_encoding, 'gzip')
+
+    for file in ['index.html', 'test.json'] {
+      let res = try Response.new.file('fixtures/html'.to_path.join(file))
+      let res = compress_response(req, res)
+
+      t.equal(res.status, Status.ok)
+      t.equal(res.headers.get(Header.vary), Result.Ok('accept-encoding'))
+      t.equal(res.headers.get(Header.content_encoding), Result.Ok('gzip'))
+      t.true(
+        match res.body {
+          case Stream(_) -> true
+          case _ -> false
+        },
+      )
+    }
+
+    Result.Ok(nil)
+  })
+
+  t.ok('compress_response without an accept-encoding request header', fn (t) {
+    let limits = Limits.new
+    let rng = Random.new
+    let req = request_with_method(limits, Head, rng)
+    let res = try Response.new.file('fixtures/html/index.html'.to_path)
+    let res = compress_response(req, res)
+
+    t.equal(res.status, Status.ok)
+    t.true(res.headers.get(Header.vary).error?)
+    t.true(res.headers.get(Header.content_encoding).error?)
+    t.true(
+      match res.body {
+        case File(_) -> true
+        case _ -> false
+      },
+    )
+
+    Result.Ok(nil)
+  })
+
+  t.ok(
+    'compress_response with an accept-encoding header that disables gzip',
+    fn (t) {
+      let limits = Limits.new
+      let rng = Random.new
+      let req = request_with_method(limits, Head, rng)
+
+      req.data.headers.set(Header.accept_encoding, 'gzip;q=0.0, br')
+
+      let res = try Response.new.file('fixtures/html/index.html'.to_path)
+      let res = compress_response(req, res)
+
+      t.equal(res.status, Status.ok)
+      t.true(res.headers.get(Header.vary).error?)
+      t.true(res.headers.get(Header.content_encoding).error?)
+      t.true(
+        match res.body {
+          case File(_) -> true
+          case _ -> false
+        },
+      )
+
+      Result.Ok(nil)
+    },
+  )
+
+  t.ok('compress_response with an unsupported accept-encoding value', fn (t) {
+    let limits = Limits.new
+    let rng = Random.new
+    let req = request_with_method(limits, Head, rng)
+
+    req.data.headers.set(Header.accept_encoding, 'kittens')
+
+    let res = try Response.new.file('fixtures/html/index.html'.to_path)
+    let res = compress_response(req, res)
+
+    t.equal(res.status, Status.ok)
+    t.true(res.headers.get(Header.vary).error?)
+    t.true(res.headers.get(Header.content_encoding).error?)
+    t.true(
+      match res.body {
+        case File(_) -> true
+        case _ -> false
+      },
+    )
+
+    Result.Ok(nil)
+  })
+
+  t.test('compress_response with a dynamic HTML response', fn (t) {
+    let limits = Limits.new
+    let rng = Random.new
+    let req = request_with_method(limits, Head, rng)
+
+    req.data.headers.set(Header.accept_encoding, 'gzip')
+
+    let res = Response.new.html('hello')
+    let res = compress_response(req, res)
+
+    t.equal(res.status, Status.ok)
+    t.equal(res.headers.get(Header.vary), Result.Ok('accept-encoding'))
+    t.equal(res.headers.get(Header.content_encoding), Result.Ok('gzip'))
+    t.true(
+      match res.body {
+        case Stream(_) -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('compress_response with a dynamic plain text response', fn (t) {
+    let limits = Limits.new
+    let rng = Random.new
+    let req = request_with_method(limits, Head, rng)
+
+    req.data.headers.set(Header.accept_encoding, 'gzip')
+
+    let res = Response.new.string('hello').header(
+      Header.content_type,
+      'text/plain',
+    )
+    let res = compress_response(req, res)
+
+    t.equal(res.status, Status.ok)
+    t.equal(res.headers.get(Header.vary), Result.Ok('accept-encoding'))
+    t.equal(res.headers.get(Header.content_encoding), Result.Ok('gzip'))
+    t.true(
+      match res.body {
+        case Stream(_) -> true
         case _ -> false
       },
     )
@@ -1003,6 +1149,17 @@ fn pub tests(t: mut Tests) {
     t.true(res.hijacker.some?)
   })
 
+  t.test('Response.stream', fn (t) {
+    let res = Response.new.stream(fn (s) { true })
+
+    t.true(
+      match res.body {
+        case Stream(_) -> true
+        case _ -> false
+      },
+    )
+  })
+
   t.test('Response.error', fn (t) {
     let res = Response.new.error('foo')
 
@@ -1013,10 +1170,9 @@ fn pub tests(t: mut Tests) {
     with_directory(t.id, fn (dir) -> Result[Nil, IoError] {
       let (_server, writer, reader) = try unix_pair(dir)
       let res = Response.new.string('foo')
-      let buf = ByteArray.new
 
-      res.write(buf, writer, timeout: Duration.from_secs(5), keep: true)
-      t.true(buf.empty?)
+      res.write(writer, timeout: Duration.from_secs(5), keep: true)
+      t.true(writer.buffer.empty?)
 
       # Make sure the deadline is cleared.
       t.true(
@@ -1028,6 +1184,7 @@ fn pub tests(t: mut Tests) {
 
       drop(writer)
 
+      let buf = ByteArray.new
       let _ = try reader.read_all(buf)
       let body = ByteArray.new
       let resp = Parser
@@ -1050,12 +1207,12 @@ fn pub tests(t: mut Tests) {
     with_directory(t.id, fn (dir) -> Result[Nil, IoError] {
       let (_server, writer, reader) = try unix_pair(dir)
       let res = Response.new.string('foo')
-      let buf = ByteArray.new
 
-      res.write(buf, writer, timeout: Duration.from_secs(5), keep: false)
-      t.true(buf.empty?)
+      res.write(writer, timeout: Duration.from_secs(5), keep: false)
+      t.true(writer.buffer.empty?)
       drop(writer)
 
+      let buf = ByteArray.new
       let _ = try reader.read_all(buf)
       let resp = Parser
         .from_bytes(mut buf, ByteArray.new, Limits.new)
@@ -1072,12 +1229,12 @@ fn pub tests(t: mut Tests) {
     with_directory(t.id, fn (dir) -> Result[Nil, IoError] {
       let (_server, writer, reader) = try unix_pair(dir)
       let res = try Response.new.file(hello_txt)
-      let buf = ByteArray.new
 
-      res.write(buf, writer, timeout: Duration.from_secs(5), keep: true)
-      t.true(buf.empty?)
+      res.write(writer, timeout: Duration.from_secs(5), keep: true)
+      t.true(writer.buffer.empty?)
       drop(writer)
 
+      let buf = ByteArray.new
       let _ = try reader.read_all(buf)
       let body = ByteArray.new
       let resp = Parser
@@ -1104,12 +1261,11 @@ fn pub tests(t: mut Tests) {
         f.ranges = FileRanges.Single(0.to(2))
       }
 
-      let buf = ByteArray.new
-
-      res.write(buf, writer, timeout: Duration.from_secs(5), keep: true)
-      t.true(buf.empty?)
+      res.write(writer, timeout: Duration.from_secs(5), keep: true)
+      t.true(writer.buffer.empty?)
       drop(writer)
 
+      let buf = ByteArray.new
       let _ = try reader.read_all(buf)
       let resp = Parser
         .from_bytes(mut buf, ByteArray.new, Limits.new)
@@ -1137,12 +1293,11 @@ fn pub tests(t: mut Tests) {
         f.ranges = FileRanges.Multiple([0.to(2), 3.to(4)], 'foo')
       }
 
-      let buf = ByteArray.new
-
-      res.write(buf, writer, timeout: Duration.from_secs(5), keep: true)
-      t.true(buf.empty?)
+      res.write(writer, timeout: Duration.from_secs(5), keep: true)
+      t.true(writer.buffer.empty?)
       drop(writer)
 
+      let buf = ByteArray.new
       let _ = try reader.read_all(buf)
       let resp = Parser
         .from_bytes(mut buf, ByteArray.new, Limits.new)
@@ -1159,6 +1314,32 @@ fn pub tests(t: mut Tests) {
           + '--foo\r\nContent-Type: text/plain\r\nContent-Range: bytes 3-4/6\r\n\r\nlo\r\n'
           + '--foo--',
       )
+
+      Result.Ok(nil)
+    })
+  })
+
+  t.ok('Response.write with a streaming response', fn (t) {
+    with_directory(t.id, fn (dir) -> Result[Nil, IoError] {
+      let (_server, writer, reader) = try unix_pair(dir)
+      let res = Response.new.stream(fn (s) { s.write('hello').ok? })
+
+      res.write(writer, timeout: Duration.from_secs(5), keep: true)
+      t.true(writer.buffer.empty?)
+      drop(writer)
+
+      let buf = ByteArray.new
+      let _ = try reader.read_all(buf)
+      let resp = Parser
+        .from_bytes(mut buf, ByteArray.new, Limits.new)
+        .response(Get)
+        .or_panic
+
+      let body = ByteArray.new
+
+      t.equal(resp.headers.get(Header.transfer_encoding), Result.Ok('chunked'))
+      t.equal(resp.body.read_all(body), Result.Ok(5))
+      t.equal(body.to_string, 'hello')
 
       Result.Ok(nil)
     })

@@ -1554,9 +1554,20 @@ impl Stream for ChunkedBody {
 # chunks.
 type inline ChunkedWriter[T: mut + Write[E], E] {
   let @writer: T
+  let mut @open: Bool
 
   fn inline static new(writer: T) -> Self {
-    Self(writer)
+    Self(writer: writer, open: true)
+  }
+
+  # Writes the closing/final chunk and consumes `self`.
+  fn move finish -> Result[Nil, E] {
+    @open = false
+    write_close
+  }
+
+  fn mut write_close -> Result[Nil, E] {
+    @writer.write('0\r\n\r\n')
   }
 }
 
@@ -1565,7 +1576,7 @@ impl Drop for ChunkedWriter {
     # Due to how TCP works this likely only ever fails if the socket is already
     # disconnected at this point, which we'll then handle the next time we read
     # from a socket.
-    let _ = @writer.write('0\r\n\r\n')
+    if @open { write_close }
   }
 }
 

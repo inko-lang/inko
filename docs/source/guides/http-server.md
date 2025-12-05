@@ -66,36 +66,8 @@ hello
 
 ## HEAD requests
 
-The above example always responds with a body, even if the client sends a HEAD
-request. To prevent this from happening, use the method
-[](std.net.http.server.head_request) to add support for proper HEAD responses:
-
-```inko
-import std.net.http.server (Handle, Request, Response, Server, head_request)
-
-type async Main {
-  fn async main {
-    Server.new(fn { recover App() }).start(8_000).or_panic
-  }
-}
-
-type App {}
-
-impl Handle for App {
-  fn pub mut handle(request: mut Request) -> Response {
-    let response = Response.new.string('hello')
-
-    head_request(request, response)
-  }
-}
-```
-
-The `head_request` method expects two arguments: a `mut Request` containing
-request details, and the `Response` to return (either as-is or as a HEAD
-response).
-
-It's best to always use this method before returning the final response, unless
-you explicitly _don't_ want to support HEAD requests.
+`HEAD` requests are automatically supported and require no additional work.
+Nice!
 
 ## Path routing
 
@@ -106,7 +78,7 @@ you pattern match the return value of the method
 [](method://std.net.http.server.Request.target):
 
 ```inko
-import std.net.http.server (Handle, Request, Response, Server, head_request)
+import std.net.http.server (Handle, Request, Response, Server)
 
 type async Main {
   fn async main {
@@ -118,13 +90,11 @@ type App {}
 
 impl Handle for App {
   fn pub mut handle(request: mut Request) -> Response {
-    let response = match request.target {
+    match request.target {
       case [] -> Response.new.string('home')
       case ['about'] -> Response.new.string('about')
       case _ -> Response.not_found
     }
-
-    head_request(request, response)
   }
 }
 ```
@@ -142,7 +112,7 @@ handle all requests for which the path starts with `kittens`, we can do so as
 follows:
 
 ```inko
-import std.net.http.server (Handle, Request, Response, Server, head_request)
+import std.net.http.server (Handle, Request, Response, Server)
 
 type async Main {
   fn async main {
@@ -158,13 +128,11 @@ impl Handle for App {
       return Response.new.string('kittens!')
     }
 
-    let response = match request.target {
+    match request.target {
       case [] -> Response.new.string('home')
       case ['about'] -> Response.new.string('about')
       case _ -> Response.not_found
     }
-
-    head_request(request, response)
   }
 }
 ```
@@ -179,9 +147,7 @@ the request method. In the above examples we allowed all request methods, so
 let's change that such that _only_ GET and HEAD requests are allowed:
 
 ```inko
-import std.net.http.server (
-  Get, Handle, Head, Request, Response, Server, head_request,
-)
+import std.net.http.server (Get, Handle, Head, Request, Response, Server)
 
 type async Main {
   fn async main {
@@ -193,7 +159,7 @@ type App {}
 
 impl Handle for App {
   fn pub mut handle(request: mut Request) -> Response {
-    let response = match request.target {
+    match request.target {
       case [] -> {
         match request.method {
           case Get or Head -> Response.new.string('home')
@@ -208,8 +174,6 @@ impl Handle for App {
       }
       case _ -> Response.not_found
     }
-
-    head_request(request, response)
   }
 }
 ```
@@ -240,7 +204,7 @@ results in slightly more verbose code:
 
 ```inko
 import std.net.http (Method)
-import std.net.http.server (Handle, Request, Response, Server, head_request)
+import std.net.http.server (Handle, Request, Response, Server)
 
 type async Main {
   fn async main {
@@ -252,7 +216,7 @@ type App {}
 
 impl Handle for App {
   fn pub mut handle(request: mut Request) -> Response {
-    let response = match request.target {
+    match request.target {
       case [] -> {
         match request.method {
           case Get or Head -> Response.new.string('home')
@@ -267,8 +231,6 @@ impl Handle for App {
       }
       case _ -> Response.not_found
     }
-
-    head_request(request, response)
   }
 }
 ```
@@ -287,7 +249,7 @@ routing logic into this method like so:
 
 ```inko
 import std.net.http (Method)
-import std.net.http.server (Handle, Request, Response, Server, head_request)
+import std.net.http.server (Handle, Request, Response, Server)
 
 type async Main {
   fn async main {
@@ -317,7 +279,7 @@ type App {
 
 impl Handle for App {
   fn pub mut handle(request: mut Request) -> Response {
-    head_request(request, route(request))
+    route(request)
   }
 }
 ```
@@ -332,7 +294,7 @@ the method [](method://std.net.http.server.Response.html):
 
 ```inko
 import std.html (Html)
-import std.net.http.server (Handle, Request, Response, Server, head_request)
+import std.net.http.server (Handle, Request, Response, Server)
 
 type async Main {
   fn async main {
@@ -359,7 +321,7 @@ type App {
 
 impl Handle for App {
   fn pub mut handle(request: mut Request) -> Response {
-    head_request(request, route(request))
+    route(request)
   }
 }
 ```
@@ -391,9 +353,7 @@ For example, here's how you'd handle an HTML form that encodes its data using
 
 ```inko
 import std.html (Html)
-import std.net.http.server (
-  Get, Handle, Head, Request, Response, Server, head_request,
-)
+import std.net.http.server (Get, Handle, Head, Request, Response, Server)
 
 type async Main {
   fn async main {
@@ -479,7 +439,7 @@ type App {
 
 impl Handle for App {
   fn pub mut handle(request: mut Request) -> Response {
-    head_request(request, route(request))
+    route(request)
   }
 }
 ```
@@ -497,9 +457,7 @@ stream of unordered fields rather than a simple list of key-value pairs:
 
 ```inko
 import std.html (Html)
-import std.net.http.server (
-  Get, Handle, Head, Request, Response, Server, head_request,
-)
+import std.net.http.server (Get, Handle, Head, Request, Response, Server)
 
 type async Main {
   fn async main {
@@ -616,7 +574,7 @@ type App {
 
 impl Handle for App {
   fn pub mut handle(request: mut Request) -> Response {
-    head_request(request, route(request))
+    route(request)
   }
 }
 ```
@@ -650,7 +608,7 @@ cookie and adjusts the response body based on the presence of this cookie:
 ```inko
 import std.net.http (Header)
 import std.net.http.cookie (Cookie)
-import std.net.http.server (Handle, Request, Response, Server, head_request)
+import std.net.http.server (Handle, Request, Response, Server)
 import std.time (DateTime, Duration)
 
 type async Main {
@@ -697,7 +655,7 @@ type App {
 
 impl Handle for App {
   fn pub mut handle(request: mut Request) -> Response {
-    head_request(request, route(request))
+    route(request)
   }
 }
 ```
@@ -738,7 +696,7 @@ response, logging any errors, etc, without cluttering the `handle`
 implementation:
 
 ```inko
-import std.net.http.server (Handle, Request, Response, Server, head_request)
+import std.net.http.server (Handle, Request, Response, Server)
 import std.stdio (Stderr)
 
 type async Main {
@@ -759,7 +717,7 @@ type App {
 
 impl Handle for App {
   fn pub mut handle(request: mut Request) -> Response {
-    head_request(request, route(request))
+    route(request)
   }
 
   fn pub mut response(request: mut Request, response: Response) -> Response {
@@ -805,9 +763,7 @@ under the path `/static`:
 
 ```inko
 import std.env
-import std.net.http.server (
-  Directory, Handle, Request, Response, Server, head_request,
-)
+import std.net.http.server (Directory, Handle, Request, Response, Server)
 
 type async Main {
   fn async main {
@@ -838,7 +794,7 @@ type App {
 
 impl Handle for App {
   fn pub mut handle(request: mut Request) -> Response {
-    head_request(request, route(request))
+    route(request)
   }
 }
 ```
@@ -1053,9 +1009,7 @@ For basic request/response logging you can use the type
 [](std.net.http.server.Logger):
 
 ```inko
-import std.net.http.server (
-  Handle, Logger, Request, Response, Server, head_request,
-)
+import std.net.http.server (Handle, Logger, Request, Response, Server)
 
 type async Main {
   fn async main {
@@ -1078,7 +1032,7 @@ type App {
 
 impl Handle for App {
   fn pub mut handle(request: mut Request) -> Response {
-    head_request(request, route(request))
+    route(request)
   }
 
   fn pub mut response(request: mut Request, response: Response) -> Response {

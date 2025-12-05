@@ -890,15 +890,23 @@ fn pub tests(t: mut Tests) {
 
   t.test('ChunkedWriter.write', fn (t) {
     let writer = Writer.new
-    let chunked = ChunkedWriter(mut writer)
+    let chunked = ChunkedWriter.new(mut writer)
 
     t.equal(chunked.write('hello world'), Result.Ok(nil))
     t.equal(writer.buffer.to_string, 'b\r\nhello world\r\n')
   })
 
+  t.test('ChunkedWriter.finish', fn (t) {
+    let writer = Writer.new
+    let chunked = ChunkedWriter.new(mut writer)
+
+    t.equal(chunked.finish, Result.Ok(nil))
+    t.equal(writer.buffer.to_string, '0\r\n\r\n')
+  })
+
   t.test('ChunkedWriter.drop', fn (t) {
     let writer = Writer.new
-    let chunked = ChunkedWriter(mut writer)
+    let chunked = ChunkedWriter.new(mut writer)
 
     drop(chunked)
     t.equal(writer.buffer.to_string, '0\r\n\r\n')

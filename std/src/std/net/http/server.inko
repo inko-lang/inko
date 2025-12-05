@@ -368,6 +368,7 @@ import std.bytes (Bytes, IntoByteArray, Slice)
 import std.bytes.parsers (CR, LF, int)
 import std.clone (Clone)
 import std.cmp (Equal, Ordering, max, min)
+import std.compress.gzip (Encoder as Gzip)
 import std.crypto.sha1 (Sha1)
 import std.crypto.x509 (Certificate, PrivateKey)
 import std.drop (drop)
@@ -747,50 +748,122 @@ type pub inline RangeRequest {
   }
 }
 
-# A method for handling `HEAD` requests.
+fn head_request(request: ref Request, response: Response) -> Response {
+  match request.method {
+    case Head -> {
+      let header = Header.content_length
+
+      match response.body.size {
+        case Fixed(n) -> response.headers.set(header, n.to_string)
+        case None -> response.headers.set(header, '0')
+        case Chunked -> {}
+      }
+
+      response.without_body
+    }
+    case _ -> response
+  }
+}
+
+# Dynamically compresses the response, if it's a dynamic HTML response or a
+# static text-like file (HTML, CSS, JSON, etc).
 #
-# This method takes a `Request` and existing `Response` and turns the response
-# into a `HEAD` response if:
+# Files with the following MIME types and dynamic responses with the following
+# content types are compressed:
 #
-# 1. The request method is `HEAD`
-# 1. The response status is 200 OK
+# - `text/*` (`text/html`, `text/css`, etc)
+# - `application/json`
 #
-# The resulting `Response` sets the `Content-Length` header to the size of the
-# original response body, and sets the body to `Body.None`.
+# Compression is only applied if the client includes the `Accept-Encoding`
+# header containing the value `gzip`. Other encodings (e.g. Brotli) aren't
+# supported.
+#
+# This method should be the last method used in a middleware pipeline as it
+# modifies the body such that e.g. a `BodyReader` is no longer able to read the
+# body. Refer to `Response.stream` for more details and caveats about streaming
+# responses.
+#
+# # Examples
+#
+# This servers all static files in a given directory, compressing those where
+# relevant (e.g. HTML files):
 #
 # ```inko
-# import std.net.http.server (Handle, Request, Response, Server, head_request)
-#
-# type async Main {
-#   fn async main {
-#     Server.new(fn { recover App() }).start(8_000).or_panic
-#   }
-# }
+# import std.env
+# import std.net.http.server (
+#   Directory, Handle, Request, Response, Server, compress_response, head_request,
+# )
 #
 # type App {
-#   fn route(request: mut Request) -> Response {
-#     Response.new.string('hello')
-#   }
+#   let @directory: Directory
 # }
 #
 # impl Handle for App {
 #   fn pub mut handle(request: mut Request) -> Response {
-#     head_request(request, route(request))
+#     let res = @directory.handle(request, request.path.to_slice)
+#     let res = compress_response(request, res)
+#
+#     head_request(request, res)
+#   }
+# }
+#
+# type async Main {
+#   fn async main {
+#     let path = env.arguments.get(0).or('.').to_path.expand.or_panic
+#
+#     Server
+#       .new(fn { recover App(directory: Directory.new(path.clone)) })
+#       .start(8_000)
+#       .or_panic
 #   }
 # }
 # ```
-fn pub head_request(request: ref Request, response: Response) -> Response {
-  match request.method {
-    case Head if response.status.ok? or response.status.partial_content? -> {
-      let len = match response.body.size {
-        case Fixed(n) -> n
-        case _ -> 0
-      }
-
-      response.header(Header.content_length, len.to_string).without_body
-    }
-    case _ -> response
+fn pub compress_response(request: ref Request, response: Response) -> Response {
+  # Don't bother with the rest if the client didn't request a supported encoding
+  # format.
+  if
+    !request.accepted_encodings.any?(fn (enc) {
+      enc.name.equals_while_ignoring_case?('gzip') and enc.quality > 0.0
+    })
+  {
+    return response
   }
+
+  match response.body {
+    case File(file) -> {
+      match file.mime_components {
+        case Some(('text', _)) -> {}
+        case Some(('application', 'json')) -> {}
+        case _ -> return response
+      }
+    }
+    case String(_) or Bytes(_) -> {
+      match response.headers.get(Header.content_type) {
+        case Ok(v) if v.starts_with?('text/') -> {}
+        case Ok('application/json') -> {}
+        case _ -> return response
+      }
+    }
+    case _ -> return response
+  }
+
+  let body = response.body := Body.None
+
+  response
+    .header(Header.content_encoding, 'gzip')
+    .header(Header.vary, 'accept-encoding')
+    .stream(fn move (stream) {
+      match body {
+        case File({ @data = file }) -> {
+          let enc = Gzip.new(stream)
+
+          copy_using(stream.buffer, file, to: enc, size: SEND_FILE_SIZE).ok?
+        }
+        case String(v) -> Gzip.new(stream).write(v).ok?
+        case Bytes(v) -> Gzip.new(stream).write(v).ok?
+        case _ -> true
+      }
+    })
 }
 
 # A type for building an HTTP response.
@@ -1089,12 +1162,59 @@ type pub Response {
     self
   }
 
-  fn move write(
-    buf: mut ByteArray,
-    socket: mut Socket,
-    timeout: Duration,
-    keep: Bool,
-  ) -> Bool {
+  # Turns `self` into a streaming response, the body of which is produced by the
+  # provided closure.
+  #
+  # When writing a streaming response, the `Transfer-Encoding` header is set to
+  # `chunked`.
+  #
+  # The purpose of this method is to allow streaming of dynamic content, such as
+  # compressed file responses. For server-sent events or websockets you should
+  # use `Response.events` and `Response.websocket` instead.
+  #
+  # # Writing responses
+  #
+  # The `writer` argument is a closure that is given an output stream to write
+  # its data to. The return value _must_ be `true` to keep the connection open,
+  # and `false` in the event of an error to ensure the connection is closed.
+  #
+  # Because this closure outlives the scope it's created in, if you capture any
+  # data local to surrounding scope you should capture it by moving using an `fn
+  # move` closure.
+  #
+  # # Reading streaming bodies
+  #
+  # When reading a body of `self` through a `BodyReader`, no data is read as
+  # there's no way to incrementally/lazily read data produced by these kind of
+  # responses. This means that if you have a pipeline of middlewares, you should
+  # avoid using this method unless you are certain there are no parent/outer
+  # middlewares that will need to read the body (e.g. to mutate it in some way).
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.http.server (Handle, Request, Response, Server)
+  #
+  # type App {}
+  #
+  # impl Handle for App {
+  #   fn pub mut handle(request: mut Request) -> Response {
+  #     Response.new.stream(fn (stream) { stream.write('hello').ok? })
+  #   }
+  # }
+  #
+  # type async Main {
+  #   fn async main {
+  #     Server.new(fn { recover App() }).start(8_000).or_panic
+  #   }
+  # }
+  # ```
+  fn pub move stream(writer: fn (mut StreamingBody) -> Bool) -> Self {
+    @body = Body.Stream(writer)
+    self
+  }
+
+  fn move write(socket: mut Socket, timeout: Duration, keep: Bool) -> Bool {
     let len = @body.size
 
     # If the Connection header is already set (e.g. when upgrading or switching
@@ -1111,25 +1231,27 @@ type pub Response {
       case _ -> {}
     }
 
-    buf.append('HTTP/1.1 ')
-    buf.append(@status.to_string)
-    buf.append(' \r\n')
-    @headers.write_to(buf)
-    buf.append('\r\n')
+    socket.buffer.append('HTTP/1.1 ')
+    socket.buffer.append(@status.to_string)
+    socket.buffer.append(' \r\n')
+    @headers.write_to(socket.buffer)
+    socket.buffer.append('\r\n')
 
     socket.timeout_after = timeout
 
-    if socket.write(buf).error? { return false }
+    if socket.write(socket.buffer).error? { return false }
 
-    buf.clear
+    socket.buffer.clear
 
-    let res = write_body(buf, socket)
+    let res = write_body(socket)
 
     socket.reset_deadline
     res
   }
 
-  fn move write_body(buf: mut ByteArray, socket: mut Socket) -> Bool {
+  fn move write_body(socket: mut Socket) -> Bool {
+    let buf = socket.buffer
+
     match @body {
       case None -> true
       case String(v) -> socket.write(v).ok?
@@ -1187,7 +1309,12 @@ type pub Response {
         if writer.write(buf).error? { return false }
 
         buf.clear
-        true
+        writer.finish.ok?
+      }
+      case Stream(f) -> {
+        let body = StreamingBody(ChunkedWriter.new(socket))
+
+        if f.call(body) { body.finish.ok? } else { false }
       }
     }
   }
@@ -1265,6 +1392,13 @@ type pub inline enum Body {
   # `Content-Length` header won't be correct.
   case File(File)
 
+  # A chunked/streaming response.
+  #
+  # Using a `BodyReader` for this kind of body results in no data being read
+  # through the `BodyReader`, as there's no way to lazily/incrementally read
+  # data in this case, similar to responses for hijacked connections.
+  case Stream(fn (mut StreamingBody) -> Bool)
+
   # Returns a `BodyReader` that can be used to read the body from `self`.
   #
   # `Body` doesn't implement `Read` directly due to its internal representation,
@@ -1293,7 +1427,7 @@ type pub inline enum Body {
       case Bytes(v) -> BodySize.Fixed(v.size)
       case File({ @meta = m, @ranges = None }) -> BodySize.Fixed(m.size)
       case File({ @ranges = Single(r) }) -> BodySize.Fixed(r.size)
-      case File(_) -> BodySize.Chunked
+      case File(_) or Stream(_) -> BodySize.Chunked
     }
   }
 }
@@ -1333,6 +1467,7 @@ impl Read[IoError] for BodyReader {
       case String(v) -> Result.Ok(read_bytes(v, into, size))
       case Bytes(v) -> Result.Ok(read_bytes(v, into, size))
       case File(f) -> f.data.read(into, size)
+      case Stream(_) -> Result.Ok(0)
     }
   }
 }
@@ -1449,16 +1584,26 @@ type pub inline Socket {
   # partially read data in between requests, or when upgrading connections.
   let @reader: BufferedReader[SocketKind, IoError]
 
+  # An intermediate buffer to use when streaming responses.
+  #
+  # This field is public so it may be used when streaming e.g. a compressed file
+  # to the socket, allowing the buffer to be reused between requests.
+  let pub @buffer: ByteArray
+
+  fn static new(reader: BufferedReader[SocketKind, IoError]) -> Self {
+    Self(reader: reader, buffer: ByteArray.with_capacity(1024))
+  }
+
   fn static plain(socket: TcpClient) -> Self {
-    Self(BufferedReader.new(SocketKind.Plain(socket)))
+    new(BufferedReader.new(SocketKind.Plain(socket)))
   }
 
   fn static secure(socket: tls.Server[TcpClient]) -> Self {
-    Self(BufferedReader.new(SocketKind.Secure(socket)))
+    new(BufferedReader.new(SocketKind.Secure(socket)))
   }
 
   fn static unix(socket: UnixClient) -> Self {
-    Self(BufferedReader.new(SocketKind.Unix(socket)))
+    new(BufferedReader.new(SocketKind.Unix(socket)))
   }
 
   fn address -> Result[Address, IoError] {
@@ -1695,7 +1840,6 @@ type async Connection[H: mut + Handle] {
   let @address: Address
   let @limits: Limits
   let @handler: H
-  let @buffer: ByteArray
   let @random: Random
   let @read_timeout: Duration
   let @idle_timeout: Duration
@@ -1714,9 +1858,13 @@ type async Connection[H: mut + Handle] {
       case Ok(raw_req, keep) -> {
         let req = Request.new(@address.clone, raw_req, @limits, @random)
         let resp = @handler.response(req, @handler.handle(req))
+
+        # HEAD requests are always supported.
+        let resp = head_request(req, resp)
+
         let hijacker = resp.hijacker := Option.None
         let keep = keep and req.body.consumed? and hijacker.none?
-        let ok = resp.write(@buffer, @socket, @write_timeout, keep)
+        let ok = resp.write(@socket, @write_timeout, keep)
 
         if ok and keep {
           return run
@@ -1732,7 +1880,7 @@ type async Connection[H: mut + Handle] {
       case Error(resp) -> {
         let resp = @handler.invalid_request(resp)
 
-        resp.write(@buffer, @socket, @write_timeout, keep: false)
+        resp.write(@socket, @write_timeout, keep: false)
         true
       }
       # A Close is received due to a timeout, and in such cases we don't
@@ -1750,7 +1898,7 @@ type async Connection[H: mut + Handle] {
   }
 
   fn mut parse_request -> ParseResult {
-    let parser = Parser.new(Reader.new(@socket), @buffer, @limits)
+    let parser = Parser.new(Reader.new(@socket), @socket.buffer, @limits)
 
     # Wait until the first byte arrives. This way we don't also apply the idle
     # timeout to parsing of the request.
@@ -1857,7 +2005,7 @@ type async Connection[H: mut + Handle] {
 
       # We don't care about the actual return value here as we just use the
       # read() to wait for some sort of acknowledgement from the network stack.
-      let _ = @socket.read(into: @buffer, size: 0)
+      let _ = @socket.read(into: @socket.buffer, size: 0)
     }
   }
 }
@@ -2695,7 +2843,6 @@ type pub Server[H: mut + Handle] {
       address: address,
       limits: recover @limits.clone,
       handler: recover @handler.call,
-      buffer: recover ByteArray.with_capacity(1024),
       idle_timeout: @idle_timeout,
       read_timeout: @read_timeout,
       write_timeout: @write_timeout,
@@ -3427,5 +3574,35 @@ impl Iter[Encoding] for AcceptEncodings {
       case Lazy(v) -> v.next
       case Eager(v) -> v.next
     }
+  }
+}
+
+# A stream to write a response body to without buffering it.
+#
+# This currently uses the chunked transfer-encoding mechanism of HTTP 1.1, but
+# in the future may transparently handle the streaming differences between
+# different HTTP versions.
+type pub inline StreamingBody {
+  let @writer: ChunkedWriter[mut Socket, IoError]
+
+  # Returns a `ByteArray` that may be used as an intermediate buffer for a
+  # `Reader` that produces output to be written to `self` (e.g. using
+  # `std.io.copy_using`).
+  fn pub mut buffer -> mut ByteArray {
+    @writer.writer.buffer
+  }
+
+  fn move finish -> Result[Nil, IoError] {
+    @writer.finish
+  }
+}
+
+impl Write[IoError] for StreamingBody {
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, IoError] {
+    @writer.write(bytes)
+  }
+
+  fn pub mut flush -> Result[Nil, IoError] {
+    @writer.flush
   }
 }
