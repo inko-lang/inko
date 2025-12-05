@@ -1,0 +1,33 @@
+type A {}
+
+type B {
+  let @a: ref A
+}
+
+type Empty {}
+
+type Sendable[T] {
+  let @source: ref T
+
+  fn clone -> Self {
+    Self(source: @source)
+  }
+}
+
+fn example1(value: Sendable[B]) {
+  recover value.clone
+}
+
+fn example2(value: Sendable[String]) {
+  recover value.clone
+}
+
+fn example3(value: Sendable[Int]) {
+  recover value.clone
+}
+
+fn example4(value: Sendable[Empty]) {
+  recover value.clone
+}
+
+# sendable_type_with_borrowed_type_parameters.inko:18:17 error(invalid-call): the receiver of this call requires a sendable return type, but 'Sendable[B]' isn't sendable
