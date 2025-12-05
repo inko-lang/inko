@@ -477,4 +477,30 @@ fn pub tests(t: mut Tests) {
 
     Result.Ok(nil)
   })
+
+  t.test('Path.starts_with?', fn (t) {
+    t.true(Path.new('/foo/bar').starts_with?('/foo'))
+    t.false(Path.new('/foo/bar').starts_with?('foo'))
+  })
+
+  t.test('Path.ends_with?', fn (t) {
+    t.true(Path.new('/foo/bar').ends_with?('bar'))
+    t.false(Path.new('/foo/bar').ends_with?('baz'))
+  })
+
+  t.ok('Path.join_strict', fn (t) {
+    let pwd = try env.working_directory
+
+    t.equal(
+      Path.new('src').join_strict('std'),
+      Option.Some(pwd.join('src').join('std')),
+    )
+
+    t.equal(Path.new('src').join_strict('/etc/shadow'), Option.None)
+    t.equal(Path.new('src').join_strict('../../'), Option.None)
+    t.equal(Path.new('src').join_strict('non-existing'), Option.None)
+    t.equal(Path.new('non-existing').join_strict('path'), Option.None)
+
+    Result.Ok(nil)
+  })
 }

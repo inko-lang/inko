@@ -290,6 +290,31 @@ type pub inline Path {
     Path.new(join_strings(@path, with: path.to_string))
   }
 
+  # Joins `self` and the given path together, returning a new `Path` if and only
+  # if this path resides _within_ `self`.
+  #
+  # Using this method it's possible to join `self` to a user-provided (or
+  # otherwise untrusted) path while ensuring the resulting path doesn't allow
+  # for access to data outside of `self`.
+  #
+  # This method expands both `self` and `path` using `Path.expand`. If this
+  # fails (e.g. a path doesn't exist), an `Option.None` is returned.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.fs.path (Path)
+  #
+  # Path.new('/foo').join_strict('bar')    # => Option.Some(Path.new('/foo/bar'))
+  # Path.new('/foo').join_strict('../baz') # => Option.None
+  # ```
+  fn pub join_strict[T: ToString](path: ref T) -> Option[Self] {
+    let Ok(this) = expand else return Option.None
+    let Ok(joined) = this.join(path).expand else return Option.None
+
+    if joined.starts_with?(this) { Option.Some(joined) } else { Option.None }
+  }
+
   # Returns a `Path` to the directory of the current `Path`.
   #
   # This method does not touch the filesystem, and thus does not resolve paths
@@ -877,6 +902,40 @@ type pub inline Path {
   # ```
   fn pub metadata -> Result[Metadata, Error] {
     sys.path_metadata(@path)
+  }
+
+  # Returns `true` if `self` starts with `path`.
+  #
+  # This method doesn't resolve path components such as `..` and instead
+  # compares the two paths as-is.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.fs.path (Path)
+  #
+  # Path.new('/foo/bar').starts_with?('/foo') # => true
+  # Path.new('/foo/bar').starts_with?('foo')  # => false
+  # ```
+  fn pub starts_with?[T: ToString](path: ref T) -> Bool {
+    @path.starts_with?(path.to_string)
+  }
+
+  # Returns `true` if `self` ends with `path`.
+  #
+  # This method doesn't resolve path components such as `..` and instead
+  # compares the two paths as-is.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.fs.path (Path)
+  #
+  # Path.new('/foo/bar').ends_with?('bar') # => true
+  # Path.new('/foo/bar').ends_with?('baz') # => false
+  # ```
+  fn pub ends_with?[T: ToString](path: ref T) -> Bool {
+    @path.ends_with?(path.to_string)
   }
 }
 

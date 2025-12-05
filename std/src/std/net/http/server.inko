@@ -3182,10 +3182,7 @@ type pub inline Directory {
     let rel = components.iter.reduce(@path.clone, fn (p, c) { p.join(c) })
 
     # This ensures we can't read files outside of the directory.
-    let mut path = match rel.expand {
-      case Ok(v) if v.to_string.starts_with?(@path.to_string) -> v
-      case _ -> return Response.not_found
-    }
+    let Some(mut path) = @path.join_strict(rel) else return Response.not_found
 
     if path.directory? { path = path.join('index.html') }
 
