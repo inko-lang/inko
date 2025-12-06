@@ -3132,7 +3132,7 @@ impl ToString for CacheControl {
 # ```
 type pub inline Directory {
   # The path to the directory to serve files from.
-  let @path: path.Path
+  let pub @path: path.Path
 
   # The value of the `Cache-Control` header.
   #
