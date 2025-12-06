@@ -38,7 +38,6 @@ rustix = { version = "^0.38", features = ["mm", "param", "process", "std", "even
 #   (https://github.com/briansmith/ring/discussions/2414)
 rustls = { version = "^0.23", features = ["tls12", "std"], default-features = false }
 rustls-graviola = "^0.2"
-rustls-pemfile = "^2.2"
 
 # ------------------------------------------------------------------------------
 #
