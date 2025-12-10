@@ -39,7 +39,6 @@ import std.time (ToInstant)
 
 let INVALID_CERT = -1
 let INVALID_CLIENT_HELLO = -3
-let INVALID_CONNECTION = -4
 let DEFAULT_ALPN = []
 
 fn extern inko_tls_client_config_new -> AnyResult
