@@ -37,12 +37,20 @@ import std.sys.net
 import std.sys.unix.net (self as sys)
 import std.time (ToInstant)
 
-# The error code produced when a TLS certificate is invalid.
 let INVALID_CERT = -1
+let INVALID_CLIENT_HELLO = -3
+let INVALID_CONNECTION = -4
+let DEFAULT_ALPN = []
 
 fn extern inko_tls_client_config_new -> AnyResult
 
 fn extern inko_tls_client_config_clone(config: Pointer[UInt8]) -> Pointer[UInt8]
+
+fn extern inko_tls_client_config_add_alpn(
+  config: Pointer[UInt8],
+  name: Pointer[UInt8],
+  size: Int,
+) -> Bool
 
 fn extern inko_tls_client_config_drop(config: Pointer[UInt8])
 
@@ -54,7 +62,13 @@ fn extern inko_tls_client_config_with_certificate(
 fn extern inko_tls_client_connection_new(
   config: Pointer[UInt8],
   name: PrimitiveString,
+  alpn: Pointer[PrimitiveString],
+  alpn_size: Int,
 ) -> AnyResult
+
+fn extern inko_tls_client_connection_alpn(
+  connection: Pointer[UInt8],
+) -> PrimitiveString
 
 fn extern inko_tls_client_connection_drop(connection: Pointer[UInt8])
 
@@ -65,6 +79,12 @@ fn extern inko_tls_server_config_new(
   key_size: Int,
 ) -> AnyResult
 
+fn extern inko_tls_server_config_add_alpn(
+  config: Pointer[UInt8],
+  name: Pointer[UInt8],
+  size: Int,
+) -> Bool
+
 fn extern inko_tls_server_config_clone(config: Pointer[UInt8]) -> Pointer[UInt8]
 
 fn extern inko_tls_server_config_drop(config: Pointer[UInt8])
@@ -72,6 +92,10 @@ fn extern inko_tls_server_config_drop(config: Pointer[UInt8])
 fn extern inko_tls_server_connection_new(
   config: Pointer[UInt8],
 ) -> Pointer[UInt8]
+
+fn extern inko_tls_server_connection_alpn(
+  connection: Pointer[UInt8],
+) -> PrimitiveString
 
 fn extern inko_tls_server_connection_drop(connection: Pointer[UInt8])
 
@@ -145,6 +169,44 @@ fn extern inko_tls_server_close(
   writer: Pointer[UInt8],
 ) -> IntResult
 
+fn extern inko_tls_client_complete_io(
+  socket: Pointer[net.RawSocket],
+  connection: Pointer[UInt8],
+  deadline: Int,
+  reader: Pointer[UInt8],
+  writer: Pointer[UInt8],
+) -> IntResult
+
+fn extern inko_tls_server_complete_io(
+  socket: Pointer[net.RawSocket],
+  connection: Pointer[UInt8],
+  deadline: Int,
+  reader: Pointer[UInt8],
+  writer: Pointer[UInt8],
+) -> IntResult
+
+fn extern inko_tls_pending_server_new(
+  socket: Pointer[net.RawSocket],
+  deadline: Int,
+  reader: Pointer[UInt8],
+  writer: Pointer[UInt8],
+) -> AnyResult
+
+fn extern inko_tls_pending_server_name(
+  accepted: Pointer[UInt8],
+) -> PrimitiveString
+
+fn extern inko_tls_pending_server_into_server_connection(
+  accepted: Pointer[UInt8],
+  config: Pointer[UInt8],
+  socket: Pointer[net.RawSocket],
+  deadline: Int,
+  reader: Pointer[UInt8],
+  writer: Pointer[UInt8],
+) -> AnyResult
+
+fn extern inko_tls_pending_server_drop(accepted: Pointer[UInt8])
+
 let OK = 0
 let NONE = 1
 let ERROR = 2
@@ -181,6 +243,14 @@ fn extern write_callback(
     case Ok(v) -> IntResult(tag: OK, value: v)
     case Error(e) -> IntResult(tag: ERROR, value: e)
   }
+}
+
+fn client_config_not_unique_error -> Never {
+  panic('a ClientConfig may only be updated if it has a single owner')
+}
+
+fn server_config_not_unique_error -> Never {
+  panic('a ServerConfig may only be updated if it has a single owner')
 }
 
 # An error produced when creating a `ServerConfig`.
@@ -289,6 +359,34 @@ type pub ClientConfig {
       case _ -> Option.None
     }
   }
+
+  # Adds the given ALPN names to `self`.
+  #
+  # # Panics
+  #
+  # This method panics if `self` has more than one owner, such as when
+  # `ClientConfig.clone` is called or one or more `Client` instances using
+  # `self` exist.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.tls (ClientConfig)
+  #
+  # ClientConfig
+  #   .new
+  #   .get
+  #   .alpn(['h2', 'http/1.1'])
+  # ```
+  fn pub move alpn(names: ref Array[String]) -> Self {
+    for name in names.iter {
+      if !inko_tls_client_config_add_alpn(@raw, name.pointer, name.size) {
+        client_config_not_unique_error
+      }
+    }
+
+    self
+  }
 }
 
 impl Drop for ClientConfig {
@@ -300,6 +398,56 @@ impl Drop for ClientConfig {
 impl Clone for ClientConfig {
   fn pub clone -> ClientConfig {
     ClientConfig(inko_tls_client_config_clone(@raw))
+  }
+}
+
+# An error produced when creating a new client.
+type pub inline enum ClientError {
+  # The server name is not a valid DNS name or IP address.
+  case InvalidServer
+
+  # The handshake timed out.
+  case TimedOut
+
+  # The server's certificate is invalid.
+  case InvalidCertificate
+
+  # The TLS handshake couldn't be completed, such as when the client's "hello"
+  # message contains invalid data.
+  case InvalidHandshake
+}
+
+impl ToString for ClientError {
+  fn pub to_string -> String {
+    match self {
+      case InvalidServer -> 'the server name is invalid'
+      case InvalidCertificate -> "the server's certificate is invalid"
+      case TimedOut -> 'the operation timed out'
+      case InvalidHandshake -> "the TLS handshake couldn't be completed"
+    }
+  }
+}
+
+impl Format for ClientError {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case InvalidServer -> formatter.tuple('InvalidServer').finish
+      case InvalidCertificate -> formatter.tuple('InvalidCertificate').finish
+      case TimedOut -> formatter.tuple('TimedOut').finish
+      case InvalidHandshake -> formatter.tuple('InvalidHandshake').finish
+    }
+  }
+}
+
+impl Equal for ClientError {
+  fn pub ==(other: ref Self) -> Bool {
+    match (self, other) {
+      case (InvalidServer, InvalidServer) -> true
+      case (InvalidHandshake, InvalidHandshake) -> true
+      case (InvalidCertificate, InvalidCertificate) -> true
+      case (TimedOut, TimedOut) -> true
+      case _ -> false
+    }
   }
 }
 
@@ -353,10 +501,40 @@ type pub Client[T: mut + Deadline + RawSocketOperations] {
   # The `config` argument is a `ClientConfig` instance to use for configuring
   # the TLS connection.
   #
+  # This method returns once the TLS handshake is complete or an error is
+  # encountered during the handshake.
+  #
   # # Errors
   #
-  # This method returns an `Option.None` if the `name` argument contains an
-  # invalid value.
+  # This method returns a `ClientError` if the handshake couldn't be completed,
+  # such as when it times out or the server's certificate is invalid.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.ip (IpAddress)
+  # import std.net.socket (TcpClient)
+  # import std.net.tls (Client, ClientConfig)
+  #
+  # let conf = ClientConfig.new
+  # let sock = TcpClient
+  #   .new(ips: [IpAddress.v4(127, 0, 0, 1)], port: 9000)
+  #   .or_panic_with('failed to connect to the server')
+  #
+  # Client.new(sock, conf, server: 'localhost').or_panic
+  # ```
+  fn pub static new(
+    socket: T,
+    config: ref ClientConfig,
+    server: String,
+  ) -> Result[Client[T], ClientError] {
+    with_alpn(socket, config, server, DEFAULT_ALPN)
+  }
+
+  # Returns a `Client` with a list of enabled ALPN names for just this
+  # connection.
+  #
+  # Refer to the documentation of `Client.new` for more details.
   #
   # # Examples
   #
@@ -371,22 +549,63 @@ type pub Client[T: mut + Deadline + RawSocketOperations] {
   #   .or_panic_with('failed to connect to the server')
   #
   # Client
-  #   .new(sock, conf, name: 'localhost')
-  #   .or_panic_with('the server name is invalid')
+  #   .with_alpn(sock, conf, server: 'localhost', alpn: ['h2', 'http/1.1'])
+  #   .or_panic
   # ```
-  fn pub static new(
+  fn pub static with_alpn(
     socket: T,
     config: ref ClientConfig,
-    name: String,
-  ) -> Option[Client[T]] {
+    server: String,
+    alpn: ref Array[String],
+  ) -> Result[Client[T], ClientError] {
+    let alpn_raw = alpn.iter.map(fn (n) { n.to_primitive }).to_array
     let state = match
-      inko_tls_client_connection_new(config.raw, name.to_primitive)
+      inko_tls_client_connection_new(
+        config.raw,
+        server.to_primitive,
+        alpn_raw.pointer,
+        alpn_raw.size,
+      )
     {
       case { @tag = OK, @value = v } -> v as Pointer[UInt8]
-      case _ -> return Option.None
+      case { @tag = NONE } -> throw ClientError.InvalidServer
+      case _ -> throw ClientError.InvalidHandshake
     }
 
-    Option.Some(Client(socket, state))
+    match
+      inko_tls_client_complete_io(
+        socket.raw_socket,
+        state,
+        socket.raw_deadline,
+        mut read_callback,
+        mut write_callback,
+      )
+    {
+      case { @tag = NONE } -> {}
+      case { @value = INVALID_CERT } -> throw ClientError.InvalidCertificate
+      case { @value = v } -> {
+        match Error.from_os_error(v) {
+          case TimedOut -> throw ClientError.TimedOut
+          case _ -> throw ClientError.InvalidHandshake
+        }
+      }
+    }
+
+    Result.Ok(Client(socket, state))
+  }
+
+  # Returns the negotiated ALPN name.
+  #
+  # If no name is negotiated (e.g. the client didn't supply any names) then an
+  # `Option.None` is returned.
+  fn pub alpn -> Option[String] {
+    let prim = inko_tls_client_connection_alpn(@state)
+
+    if prim.size > 0 {
+      Option.Some(String.from_primitive(prim))
+    } else {
+      Option.None
+    }
   }
 
   # Sends the TLS `close_notify` message to the socket, informing the peer that
@@ -513,7 +732,7 @@ impl SendFile[Error] for Client {
 type pub ServerConfig {
   let @raw: Pointer[UInt8]
 
-  # Returns a new `ClientConfig` using the specified PEM encoded X.509
+  # Returns a new `ServerConfig` using the specified PEM encoded X.509
   # certificate and private key.
   #
   # # Errors
@@ -534,7 +753,7 @@ type pub ServerConfig {
   #
   # ServerConfig
   #   .new(cert, key)
-  #   .or_panic_with('failed to create the configuration')
+  #   .or_panic
   # ```
   fn pub static new(
     certificate: ref Certificate,
@@ -557,6 +776,38 @@ type pub ServerConfig {
       case _ -> Result.Error(ServerConfigError.InvalidPrivateKey)
     }
   }
+
+  # Adds the given ALPN names to `self`.
+  #
+  # # Panics
+  #
+  # This method panics if `self` has more than one owner, such as when
+  # `ServerConfig.clone` is called or one or more `Server` instances using
+  # `self` exist.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.tls (ServerConfig)
+  # import std.crypto.x509 (Certificate, PrivateKey)
+  #
+  # let cert = Certificate.new(ByteArray.from_array([1, 2, 3]))
+  # let key = PrivateKey.new(ByteArray.from_array([4, 5, 6]))
+  #
+  # ServerConfig
+  #   .new(cert, key)
+  #   .or_panic
+  #   .alpn(['h2', 'http/1.1'])
+  # ```
+  fn pub move alpn(names: ref Array[String]) -> Self {
+    for name in names.iter {
+      if !inko_tls_server_config_add_alpn(@raw, name.pointer, name.size) {
+        server_config_not_unique_error
+      }
+    }
+
+    self
+  }
 }
 
 impl Drop for ServerConfig {
@@ -568,6 +819,44 @@ impl Drop for ServerConfig {
 impl Clone for ServerConfig {
   fn pub clone -> ServerConfig {
     ServerConfig(inko_tls_server_config_clone(@raw))
+  }
+}
+
+# An error produced when creating a new server.
+type pub inline enum ServerError {
+  # The handshake timed out.
+  case TimedOut
+
+  # The TLS handshake couldn't be completed, such as when the client's "hello"
+  # message contains invalid data.
+  case InvalidHandshake
+}
+
+impl ToString for ServerError {
+  fn pub to_string -> String {
+    match self {
+      case InvalidHandshake -> "the TLS handshake couldn't be completed"
+      case TimedOut -> 'the operation timed out'
+    }
+  }
+}
+
+impl Format for ServerError {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case InvalidHandshake -> formatter.tuple('InvalidHandshake').finish
+      case TimedOut -> formatter.tuple('TimedOut').finish
+    }
+  }
+}
+
+impl Equal for ServerError {
+  fn pub ==(other: ref Self) -> Bool {
+    match (self, other) {
+      case (InvalidHandshake, InvalidHandshake) -> true
+      case (TimedOut, TimedOut) -> true
+      case _ -> false
+    }
   }
 }
 
@@ -602,7 +891,7 @@ impl Clone for ServerConfig {
 #
 # let con = server
 #   .accept
-#   .map(fn (sock) { Server.new(sock, conf) })
+#   .map(fn (sock) { Server.new(sock, conf).or_panic })
 #   .or_panic_with('failed to accept the new connection')
 #
 # let bytes = ByteArray.new
@@ -623,6 +912,15 @@ type pub Server[T: mut + Deadline + RawSocketOperations] {
   #
   # The `config` argument is a `ServerConfig` instance to use for configuring
   # the TLS connection.
+  #
+  # This method returns once the TLS handshake is complete or an error is
+  # encountered during the handshake.
+  #
+  # # Errors
+  #
+  # This method returns a `ServerError` if the TLS handshake couldn't be
+  # completed, such as when it times out or the client's hello message is
+  # invalid.
   #
   # # Examples
   #
@@ -645,11 +943,48 @@ type pub Server[T: mut + Deadline + RawSocketOperations] {
   #
   # server
   #   .accept
-  #   .map(fn (sock) { Server.new(sock, conf) })
+  #   .map(fn (sock) { Server.new(sock, conf).or_panic })
   #   .or_panic_with('failed to accept the new connection')
   # ```
-  fn pub static new(socket: T, config: ref ServerConfig) -> Server[T] {
-    Server(socket, inko_tls_server_connection_new(config.raw))
+  fn pub static new(
+    socket: T,
+    config: ref ServerConfig,
+  ) -> Result[Server[T], ServerError] {
+    let state = inko_tls_server_connection_new(config.raw)
+
+    match
+      inko_tls_server_complete_io(
+        socket.raw_socket,
+        state,
+        socket.raw_deadline,
+        mut read_callback,
+        mut write_callback,
+      )
+    {
+      case { @tag = NONE } -> {}
+      case { @value = v } -> {
+        match Error.from_os_error(v) {
+          case TimedOut -> throw ServerError.TimedOut
+          case _ -> throw ServerError.InvalidHandshake
+        }
+      }
+    }
+
+    Result.Ok(Server(socket, state))
+  }
+
+  # Returns the negotiated ALPN name.
+  #
+  # If no name is negotiated (e.g. the client didn't supply any names) then an
+  # `Option.None` is returned.
+  fn pub alpn -> Option[String] {
+    let prim = inko_tls_server_connection_alpn(@state)
+
+    if prim.size > 0 {
+      Option.Some(String.from_primitive(prim))
+    } else {
+      Option.None
+    }
   }
 
   # Sends the TLS `close_notify` message to the socket, informing the peer that
@@ -762,5 +1097,210 @@ impl SendFile[Error] for Server {
     file: mut ReadOnlyFile,
   ) -> Result[Int, Error] {
     net.send_file_userspace(buffer, file, self)
+  }
+}
+
+# An error produced when creating a `PendingServer` or when converting it into a
+# `Server`.
+type pub inline enum PendingServerError {
+  # The client's hello message is invalid.
+  case InvalidClientHello
+
+  # The handshake timed out.
+  case TimedOut
+
+  # The TLS handshake couldn't be completed, such as when the client's "hello"
+  # message contains invalid data.
+  case InvalidHandshake
+
+  # An error produced while reading TLS data.
+  case Read(Error)
+}
+
+impl ToString for PendingServerError {
+  fn pub to_string -> String {
+    match self {
+      case InvalidClientHello -> "the client's hello message is invalid"
+      case InvalidHandshake -> "the TLS handshake couldn't be completed"
+      case TimedOut -> 'the operation timed out'
+      case Read(e) -> 'failed to read the TLS data: ${e}'
+    }
+  }
+}
+
+impl Format for PendingServerError {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case InvalidClientHello -> formatter.tuple('InvalidClientHello').finish
+      case InvalidHandshake -> formatter.tuple('InvalidHandshake').finish
+      case TimedOut -> formatter.tuple('TimedOut').finish
+      case Read(v) -> formatter.tuple('Read').field(v).finish
+    }
+  }
+}
+
+impl Equal for PendingServerError {
+  fn pub ==(other: ref Self) -> Bool {
+    match (self, other) {
+      case (InvalidClientHello, InvalidClientHello) -> true
+      case (InvalidHandshake, InvalidHandshake) -> true
+      case (TimedOut, TimedOut) -> true
+      case (Read(a), Read(b)) -> a == b
+      case _ -> false
+    }
+  }
+}
+
+# A type that represents a socket that has parsed the client's "hello" message
+# and may be converted into a `Server`.
+#
+# # Examples
+#
+# ```inko
+# import std.crypto.x509 (Certificate, PrivateKey)
+# import std.net.ip (IpAddress)
+# import std.net.socket (TcpServer)
+# import std.net.tls (PendingServer, ServerConfig)
+#
+# let tcp_server = TcpServer
+#   .new(IpAddress.v4(127, 0, 0, 1), port: 8_000)
+#   .or_panic
+# let pending = PendingServer.new(tcp_server.accept.or_panic).or_panic
+# let (cert, key) = match pending.server_name {
+#   case Some('foo.com') -> {
+#     (
+#       Certificate.new('foo.com cert'.to_byte_array),
+#       PrivateKey.new('foo.com key'.to_byte_array),
+#     )
+#   }
+#   case Some('bar.com') -> {
+#     (
+#       Certificate.new('bar.com cert'.to_byte_array),
+#       PrivateKey.new('bar.com key'.to_byte_array),
+#     )
+#   }
+#   case _ -> panic('unsupported server name')
+# }
+#
+# let conf = ServerConfig.new(cert, key).or_panic
+#
+# pending.into_server(conf).or_panic
+# ```
+type pub PendingServer[T: mut + Deadline + RawSocketOperations] {
+  # The socket to use for the server.
+  #
+  # This uses an `Option` so we can move the socket out of a `PendingServer` in
+  # spite of it defining a custom destructor.
+  let mut @socket: Option[T]
+
+  # The rustls `Accepted` state.
+  let @state: Pointer[UInt8]
+
+  # Returns a new `PendingServer` that uses the given socket.
+  #
+  # This method performs the initial handshake and returns a `PendingServer` if
+  # this succeeeds.
+  #
+  # Once created, you can use `PendingServer.server_name` to determine what TLS
+  # configuration to use based on the server name indicator.
+  #
+  # # Errors
+  #
+  # If the handshake fails (e.g. the client's hello message is invalid) or times
+  # out, a `PendingServerError` is returned.
+  fn pub static new(socket: T) -> Result[Self, PendingServerError] {
+    let state = match
+      inko_tls_pending_server_new(
+        socket.raw_socket,
+        socket.raw_deadline,
+        mut read_callback,
+        mut write_callback,
+      )
+    {
+      case { @tag = OK, @value = state } -> state as Pointer[UInt8]
+      case { @value = code } -> {
+        let code = code as Int
+
+        if code == INVALID_CLIENT_HELLO {
+          throw PendingServerError.InvalidClientHello
+        } else {
+          match Error.from_os_error(code) {
+            case TimedOut -> throw PendingServerError.TimedOut
+            case e -> throw PendingServerError.Read(e)
+          }
+        }
+      }
+    }
+
+    Result.Ok(Self(socket: Option.Some(socket), state: state))
+  }
+
+  # Returns a mutable borrow of the underlying socket.
+  fn pub mut socket -> mut T {
+    @socket.as_mut.get
+  }
+
+  # Returns the server name indicator.
+  #
+  # If no server name is given, an `Option.None` is returned.
+  fn pub server_name -> Option[String] {
+    let prim = inko_tls_pending_server_name(@state)
+
+    if prim.size > 0 {
+      Option.Some(String.from_borrowed_primitive(prim))
+    } else {
+      Option.None
+    }
+  }
+
+  # Converts `self` into a `Server` using the given TLS configuration.
+  #
+  # # Errors
+  #
+  # This method may fail if the client's hello message is invalid or if the TLS
+  # handshake can't be completed.
+  fn pub move into_server(
+    config: ref ServerConfig,
+  ) -> Result[Server[T], PendingServerError] {
+    let sock = (@socket := Option.None).get
+    let server_state = match
+      inko_tls_pending_server_into_server_connection(
+        @state,
+        config.raw,
+        sock.raw_socket,
+        sock.raw_deadline,
+        mut read_callback,
+        mut write_callback,
+      )
+    {
+      case { @tag = OK, @value = state } -> state as Pointer[UInt8]
+      case _ -> throw PendingServerError.InvalidClientHello
+    }
+
+    match
+      inko_tls_server_complete_io(
+        sock.raw_socket,
+        server_state,
+        sock.raw_deadline,
+        mut read_callback,
+        mut write_callback,
+      )
+    {
+      case { @tag = NONE } -> {}
+      case { @value = v } -> {
+        match Error.from_os_error(v) {
+          case TimedOut -> throw PendingServerError.TimedOut
+          case _ -> throw PendingServerError.InvalidHandshake
+        }
+      }
+    }
+
+    Result.Ok(Server(socket: sock, state: server_state))
+  }
+}
+
+impl Drop for PendingServer {
+  fn mut drop {
+    if @socket.some? { inko_tls_pending_server_drop(@state) }
   }
 }

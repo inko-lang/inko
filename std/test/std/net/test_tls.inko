@@ -1,13 +1,15 @@
 import helpers (VALID_CERT, VALID_KEY)
 import std.crypto.pem (PemFile)
 import std.crypto.x509 (Certificate, PrivateKey)
+import std.drop (drop)
 import std.fmt (fmt)
 import std.fs.file (ReadOnlyFile)
-import std.io (Buffer)
+import std.io (Buffer, Error as IoError)
 import std.net.ip (IpAddress)
 import std.net.socket (Socket, TcpClient, TcpServer)
 import std.net.tls (
-  Client, ClientConfig, Server, ServerConfig, ServerConfigError,
+  Client, ClientConfig, ClientError, PendingServer, PendingServerError, Server,
+  ServerConfig, ServerConfigError, ServerError,
 )
 import std.sync (Promise)
 import std.sys.net (NO_DEADLINE)
@@ -62,9 +64,11 @@ type async DummyServer {
 
   fn static new -> Result[(DummyServer, Int), String] {
     let conf = recover {
-      try ServerConfig
+      let conf = try ServerConfig
         .new(certificate(VALID_CERT), private_key(VALID_KEY))
         .map_error(fn (e) { 'failed to create the server config: ${e}' })
+
+      conf.alpn(['foo', 'bar'])
     }
 
     # We bind to port zero so we get a random port number, such that we don't
@@ -85,7 +89,7 @@ type async DummyServer {
     # We may encounter an error such as when the client closes the connection.
     # We want to ignore those so we don't terminate the test suite.
     let _ = @socket.accept.then(fn (sock) {
-      Server.new(sock, @config).write('hello')
+      Server.new(sock, @config).get.write('hello')
     })
   }
 
@@ -93,7 +97,7 @@ type async DummyServer {
     # We may encounter an error such as when the client closes the connection.
     # We want to ignore those so we don't terminate the test suite.
     let _ = @socket.accept.then(fn (sock) {
-      let con = Server.new(sock, @config)
+      let con = Server.new(sock, @config).get
       let bytes = ByteArray.new
 
       try con.read(into: bytes, size: 32)
@@ -107,7 +111,7 @@ type async DummyClient {
     output: uni Promise[uni Result[Client[TcpClient], String]],
     port: Int,
   ) {
-    output.set(recover client(port))
+    output.set(recover client(port, alpn: []))
   }
 
   fn async write(
@@ -115,7 +119,7 @@ type async DummyClient {
     port: Int,
   ) {
     let res = recover {
-      client(port).then(fn (s) {
+      client(port, alpn: []).then(fn (s) {
         try s.write('hello').map_error(fn (e) { 'write failed: ${e}' })
         Result.Ok(s)
       })
@@ -126,7 +130,7 @@ type async DummyClient {
 
   fn async reply(output: uni Promise[uni Result[String, String]], port: Int) {
     let res = recover {
-      client(port).then(fn (s) {
+      client(port, alpn: []).then(fn (s) {
         let buf = ByteArray.new
 
         try s.read(into: buf, size: 5).map_error(fn (e) { 'read failed: ${e}' })
@@ -137,13 +141,25 @@ type async DummyClient {
     output.set(res)
   }
 
-  fn client(port: Int) -> Result[Client[TcpClient], String] {
-    let conf = try client_config
+  fn async alpn(port: Int) {
+    client(port, ['foo'])
+  }
+
+  fn async invalid_hello(port: Int) {
+    let Ok(sock) = TcpClient.new([IpAddress.v4(127, 0, 0, 1)], port) else return
+    let _ = sock.write('oops')
+  }
+
+  fn client(
+    port: Int,
+    alpn: ref Array[String],
+  ) -> Result[Client[TcpClient], String] {
+    let conf = (try client_config).alpn(alpn)
     let sock = try TcpClient.new([IpAddress.v4(127, 0, 0, 1)], port).map_error(
       fn (e) { 'failed to connect: ${e}' },
     )
 
-    Client.new(sock, conf, name: 'localhost').ok_or('invalid server name')
+    Client.new(sock, conf, server: 'localhost').map_error(fn (e) { e.to_string })
   }
 }
 
@@ -188,13 +204,10 @@ fn dummy_socket -> Result[Socket, String] {
 }
 
 fn accept(socket: mut TcpServer) -> Result[Server[TcpClient], String] {
-  let conf = try server_config
-  let server = Server.new(
-    try socket.accept.map_error(fn (e) { 'accept failed: ${e}' }),
-    conf,
-  )
+  let conf = (try server_config).alpn(['foo', 'bar'])
+  let sock = try socket.accept.map_error(fn (e) { 'accept failed: ${e}' })
 
-  Result.Ok(server)
+  Server.new(sock, conf).map_error(fn (e) { e.to_string })
 }
 
 fn listener -> Result[(TcpServer, Int), String] {
@@ -240,6 +253,12 @@ fn pub tests(t: mut Tests) {
     t.true(ClientConfig.with_certificate(certificate(INVALID_CERT)).none?)
   })
 
+  t.panic('ClientConfig.alpn when the ClientConfig has multiple owners', fn {
+    let conf1 = ClientConfig.new.get
+
+    conf1.clone.alpn(['foo'])
+  })
+
   t.ok('ClientConfig.clone', fn (t) {
     let a = try client_config
     let b = a.clone
@@ -273,6 +292,14 @@ fn pub tests(t: mut Tests) {
     )
   })
 
+  t.panic('ServerConfig.alpn when the ServerConfig has multiple owners', fn {
+    let cert = certificate(VALID_CERT)
+    let key = private_key(VALID_KEY)
+    let conf1 = ServerConfig.new(cert, key).or_panic
+
+    conf1.clone.alpn(['foo'])
+  })
+
   t.ok('ServerConfig.clone', fn (t) {
     let a = try server_config
     let b = a.clone
@@ -281,19 +308,56 @@ fn pub tests(t: mut Tests) {
     Result.Ok(nil)
   })
 
-  t.ok('Client.new with a valid DNS name as the server name', fn (t) {
-    let conf = try client_config
-    let sock = try dummy_socket
+  t.test('ClientError.to_string', fn (t) {
+    t.false(ClientError.InvalidServer.to_string.empty?)
+    t.false(ClientError.InvalidHandshake.to_string.empty?)
+    t.false(ClientError.TimedOut.to_string.empty?)
+  })
 
-    t.true(Client.new(sock, conf, name: 'localhost').some?)
+  t.test('ClientError.fmt', fn (t) {
+    t.equal(fmt(ClientError.InvalidServer), 'InvalidServer')
+    t.equal(fmt(ClientError.InvalidHandshake), 'InvalidHandshake')
+    t.equal(fmt(ClientError.TimedOut), 'TimedOut')
+  })
+
+  t.test('ClientError.==', fn (t) {
+    t.equal(ClientError.InvalidServer, ClientError.InvalidServer)
+    t.equal(ClientError.InvalidHandshake, ClientError.InvalidHandshake)
+    t.equal(ClientError.TimedOut, ClientError.TimedOut)
+    t.not_equal(ClientError.InvalidServer, ClientError.InvalidHandshake)
+    t.not_equal(ClientError.InvalidHandshake, ClientError.InvalidServer)
+    t.not_equal(ClientError.TimedOut, ClientError.InvalidHandshake)
+  })
+
+  t.ok('Client.new with a valid DNS name as the server name', fn (t) {
+    let port = match DummyServer.new {
+      case Ok((server, port)) -> {
+        server.reply
+        port
+      }
+      case Error(e) -> throw e
+    }
+
+    let conf = try client_config
+    let sock = try connect(port)
+
+    t.equal(Client.new(sock, conf, server: 'localhost').error, Option.None)
     Result.Ok(nil)
   })
 
   t.ok('Client.new with a valid IP address as the server name', fn (t) {
-    let conf = try client_config
-    let sock = try dummy_socket
+    let port = match DummyServer.new {
+      case Ok((server, port)) -> {
+        server.reply
+        port
+      }
+      case Error(e) -> throw e
+    }
 
-    t.true(Client.new(sock, conf, name: '127.0.0.1').some?)
+    let conf = try client_config
+    let sock = try connect(port)
+
+    t.equal(Client.new(sock, conf, server: '127.0.0.1').error, Option.None)
     Result.Ok(nil)
   })
 
@@ -301,7 +365,10 @@ fn pub tests(t: mut Tests) {
     let conf = try client_config
     let sock = try dummy_socket
 
-    t.true(Client.new(sock, conf, name: 'what?!').none?)
+    t.equal(
+      Client.new(sock, conf, server: 'what?!').error,
+      Option.Some(ClientError.InvalidServer),
+    )
     Result.Ok(nil)
   })
 
@@ -309,7 +376,29 @@ fn pub tests(t: mut Tests) {
     let conf = try client_config
     let sock = try dummy_socket
 
-    t.true(Client.new(sock, conf, name: '1.2.3.4.5').none?)
+    t.equal(
+      Client.new(sock, conf, server: '1.2.3.4.5').error,
+      Option.Some(ClientError.InvalidServer),
+    )
+    Result.Ok(nil)
+  })
+
+  t.ok('Client.with_alpn', fn (t) {
+    let port = match DummyServer.new {
+      case Ok((server, port)) -> {
+        server.reply
+        port
+      }
+      case Error(e) -> throw e
+    }
+
+    let conf = try client_config
+    let sock = try connect(port)
+    let client = try Client
+      .with_alpn(sock, conf, server: 'localhost', alpn: ['bar'])
+      .map_error(fn (e) { e.to_string })
+
+    t.equal(client.alpn, Option.Some('bar'))
     Result.Ok(nil)
   })
 
@@ -324,7 +413,7 @@ fn pub tests(t: mut Tests) {
 
     let conf = try client_config
     let sock = try connect(port)
-    let client = Client.new(sock, conf, name: 'localhost').get
+    let client = Client.new(sock, conf, server: 'localhost').get
     let bytes = ByteArray.new
 
     t.equal(client.read(into: bytes, size: 5), Result.Ok(5))
@@ -343,7 +432,7 @@ fn pub tests(t: mut Tests) {
 
     let conf = try client_config
     let sock = try connect(port)
-    let client = Client.new(sock, conf, name: 'localhost').get
+    let client = Client.new(sock, conf, server: 'localhost').get
     let bytes = ByteArray.new
 
     t.equal(client.write('ping'), Result.Ok(nil))
@@ -366,7 +455,7 @@ fn pub tests(t: mut Tests) {
     let file = try ReadOnlyFile.new('fixtures/hello.txt'.to_path).map_error(
       fn (e) { e.to_string },
     )
-    let client = Client.new(sock, conf, name: 'localhost').get
+    let client = Client.new(sock, conf, server: 'localhost').get
     let bytes = ByteArray.new
 
     t.equal(
@@ -389,7 +478,7 @@ fn pub tests(t: mut Tests) {
 
     let conf = try client_config
     let sock = try connect(port)
-    let client = Client.new(sock, conf, name: 'localhost').get
+    let client = Client.new(sock, conf, server: 'localhost').get
 
     t.equal(client.close, Result.Ok(nil))
     Result.Ok(nil)
@@ -406,8 +495,7 @@ fn pub tests(t: mut Tests) {
 
     let conf = try client_config
     let sock = try connect(port)
-    let client = Client.new(sock, conf, name: 'localhost').get
-
+    let client = Client.new(sock, conf, server: 'localhost').get
     let deadline = Instant.new + Duration.from_secs(1)
 
     client.timeout_after = deadline
@@ -419,116 +507,265 @@ fn pub tests(t: mut Tests) {
     Result.Ok(nil)
   })
 
-  # Not much to test here, so this test mostly exists to make sure the
-  # underlying code doesn't blow up outright.
-  t.ok('Server.new', fn (t) {
-    let conf = try server_config
-    let sock = try dummy_socket
-    let server = Server.new(sock, conf)
+  t.ok('Client.alpn without a negotiated ALPN name', fn (t) {
+    let port = match DummyServer.new {
+      case Ok((server, port)) -> {
+        server.reply
+        port
+      }
+      case Error(e) -> throw e
+    }
 
-    t.not_equal(server.state as Int, 0)
+    let conf = try client_config
+    let sock = try connect(port)
+    let client = try Client.new(sock, conf, server: 'localhost').map_error(
+      fn (e) { e.to_string },
+    )
+
+    t.equal(client.alpn, Option.None)
+    Result.Ok(nil)
+  })
+
+  t.ok('Client.alpn with a negotiated ALPN name', fn (t) {
+    let port = match DummyServer.new {
+      case Ok((server, port)) -> {
+        server.reply
+        port
+      }
+      case Error(e) -> throw e
+    }
+
+    let conf = try client_config
+    let conf = conf.alpn(['foo'])
+    let sock = try connect(port)
+    let client = try Client.new(sock, conf, server: 'localhost').map_error(
+      fn (e) { e.to_string },
+    )
+
+    t.equal(client.alpn, Option.Some('foo'))
+    Result.Ok(nil)
+  })
+
+  t.test('ServerError.to_string', fn (t) {
+    t.false(ServerError.InvalidHandshake.to_string.empty?)
+    t.false(ServerError.TimedOut.to_string.empty?)
+  })
+
+  t.test('ServerError.fmt', fn (t) {
+    t.equal(fmt(ServerError.InvalidHandshake), 'InvalidHandshake')
+    t.equal(fmt(ServerError.TimedOut), 'TimedOut')
+  })
+
+  t.test('ServerError.==', fn (t) {
+    t.equal(ServerError.InvalidHandshake, ServerError.InvalidHandshake)
+    t.equal(ServerError.TimedOut, ServerError.TimedOut)
+    t.not_equal(ServerError.InvalidHandshake, ServerError.TimedOut)
+    t.not_equal(ServerError.TimedOut, ServerError.InvalidHandshake)
+  })
+
+  t.ok('Server.new', fn (t) {
+    let (sock, port) = try listener
+    let _ = async DummyClient().write(port)
+
+    t.equal(accept(sock).error, Option.None)
     Result.Ok(nil)
   })
 
   t.ok('Server.close', fn (t) {
-    let sock_fut = match try listener {
-      case (sock, port) -> (sock, async DummyClient().connect(port))
-    }
+    let (sock, port) = try listener
+    let out = async DummyClient().connect(port)
+    let server = try accept(sock)
 
-    match sock_fut {
-      case (sock, out) -> {
-        let server = try accept(sock)
-
-        # There's not really a sensible way we can test close_notify handling as
-        # it's timing/ordering sensitive, so we just test that the initial call
-        # doesn't fail outright.
-        t.equal(server.close, Result.Ok(nil))
-        t.true(out.get.ok?)
-      }
-    }
+    # There's not really a sensible way we can test close_notify handling as
+    # it's timing/ordering sensitive, so we just test that the initial call
+    # doesn't fail outright.
+    t.equal(server.close, Result.Ok(nil))
+    t.true(out.get.ok?)
 
     Result.Ok(nil)
   })
 
   t.ok('Server.read', fn (t) {
-    let sock_fut = match try listener {
-      case (sock, port) -> (sock, async DummyClient().write(port))
-    }
+    let (sock, port) = try listener
+    let out = async DummyClient().write(port)
+    let server = try accept(sock)
+    let bytes = ByteArray.new
 
-    match sock_fut {
-      case (sock, out) -> {
-        let server = try accept(sock)
-        let bytes = ByteArray.new
-
-        t.equal(server.read(into: bytes, size: 5), Result.Ok(5))
-        t.equal(bytes.into_string, 'hello')
-        t.true(out.get.ok?)
-      }
-    }
+    t.equal(server.read(into: bytes, size: 5), Result.Ok(5))
+    t.equal(bytes.into_string, 'hello')
+    t.true(out.get.ok?)
 
     Result.Ok(nil)
   })
 
   t.ok('Server.write', fn (t) {
-    let sock_fut = match try listener {
-      case (sock, port) -> (sock, async DummyClient().reply(port))
-    }
+    let (sock, port) = try listener
+    let out = async DummyClient().reply(port)
+    let server = try accept(sock)
 
-    match sock_fut {
-      case (sock, out) -> {
-        let server = try accept(sock)
-
-        t.equal(server.write('hello'), Result.Ok(nil))
-        t.equal(recover out.get, Result.Ok('hello'))
-      }
-    }
+    t.equal(server.write('hello'), Result.Ok(nil))
+    t.equal(recover out.get, Result.Ok('hello'))
 
     Result.Ok(nil)
   })
 
   t.ok('Server.send_file', fn (t) {
-    let sock_fut = match try listener {
-      case (sock, port) -> (sock, async DummyClient().reply(port))
-    }
-
+    let (sock, port) = try listener
+    let out = async DummyClient().reply(port)
     let file = try ReadOnlyFile.new('fixtures/hello.txt'.to_path).map_error(
       fn (e) { e.to_string },
     )
+    let server = try accept(sock)
+    let buf = ByteArray.new
 
-    match sock_fut {
-      case (sock, out) -> {
-        let server = try accept(sock)
-        let buf = ByteArray.new
-
-        t.equal(
-          try server.send_file(buf, file).map_error(fn (e) { e.to_string }),
-          6,
-        )
-        t.equal(recover out.get, Result.Ok('hello'))
-      }
-    }
+    t.equal(
+      try server.send_file(buf, file).map_error(fn (e) { e.to_string }),
+      6,
+    )
+    t.equal(recover out.get, Result.Ok('hello'))
 
     Result.Ok(nil)
   })
 
   t.ok('Server.timeout_after=', fn (t) {
-    let sock_fut = match try listener {
-      case (sock, port) -> (sock, async DummyClient().reply(port))
-    }
+    let (sock, port) = try listener
+    let _ = async DummyClient().reply(port)
+    let server = try accept(sock)
+    let deadline = Instant.new + Duration.from_secs(1)
 
-    match sock_fut {
-      case (sock, _) -> {
-        let server = try accept(sock)
-        let deadline = Instant.new + Duration.from_secs(1)
+    server.timeout_after = deadline
+    t.equal(server.socket.socket.deadline, deadline.to_int)
 
-        server.timeout_after = deadline
-        t.equal(server.socket.socket.deadline, deadline.to_int)
+    server.reset_deadline
+    t.equal(server.socket.socket.deadline, NO_DEADLINE)
 
-        server.reset_deadline
-        t.equal(server.socket.socket.deadline, NO_DEADLINE)
-      }
-    }
+    Result.Ok(nil)
+  })
 
+  t.ok('Server.alpn without a negotiated ALPN name', fn (t) {
+    let (sock, port) = try listener
+    let _ = async DummyClient().reply(port)
+    let server = try accept(sock)
+
+    t.equal(server.alpn, Option.None)
+    Result.Ok(nil)
+  })
+
+  t.ok('Server.alpn with a negotiated ALPN name', fn (t) {
+    let (sock, port) = try listener
+
+    DummyClient().alpn(port)
+
+    let server = try accept(sock)
+
+    t.equal(server.alpn, Option.Some('foo'))
+    Result.Ok(nil)
+  })
+
+  t.test('PendingServerError.to_string', fn (t) {
+    t.false(PendingServerError.InvalidHandshake.to_string.empty?)
+    t.false(PendingServerError.InvalidClientHello.to_string.empty?)
+    t.false(PendingServerError.TimedOut.to_string.empty?)
+    t.false(PendingServerError.InvalidHandshake.to_string.empty?)
+    t.false(PendingServerError.Read(IoError.BrokenPipe).to_string.empty?)
+  })
+
+  t.test('PendingServerError.fmt', fn (t) {
+    t.equal(fmt(PendingServerError.InvalidClientHello), 'InvalidClientHello')
+    t.equal(fmt(PendingServerError.TimedOut), 'TimedOut')
+    t.equal(fmt(PendingServerError.InvalidHandshake), 'InvalidHandshake')
+    t.equal(
+      fmt(PendingServerError.Read(IoError.BrokenPipe)),
+      'Read(BrokenPipe)',
+    )
+  })
+
+  t.test('PendingServerError.==', fn (t) {
+    t.equal(
+      PendingServerError.InvalidClientHello,
+      PendingServerError.InvalidClientHello,
+    )
+    t.equal(PendingServerError.TimedOut, PendingServerError.TimedOut)
+    t.equal(
+      PendingServerError.InvalidHandshake,
+      PendingServerError.InvalidHandshake,
+    )
+    t.equal(
+      PendingServerError.Read(IoError.BrokenPipe),
+      PendingServerError.Read(IoError.BrokenPipe),
+    )
+
+    t.not_equal(
+      PendingServerError.InvalidClientHello,
+      PendingServerError.TimedOut,
+    )
+    t.not_equal(
+      PendingServerError.TimedOut,
+      PendingServerError.InvalidHandshake,
+    )
+    t.not_equal(
+      PendingServerError.InvalidHandshake,
+      PendingServerError.TimedOut,
+    )
+    t.not_equal(
+      PendingServerError.Read(IoError.BrokenPipe),
+      PendingServerError.Read(IoError.NotFound),
+    )
+  })
+
+  t.ok('PendingServer.new', fn (t) {
+    let (sock, port) = try listener
+    let _ = async DummyClient().reply(port)
+    let peer = try sock.accept.map_error(fn (e) { e.to_string })
+
+    t.equal(PendingServer.new(peer).error, Option.None)
+    Result.Ok(nil)
+  })
+
+  t.ok('PendingServer.new with an invalid client hello message', fn (t) {
+    let (sock, port) = try listener
+
+    DummyClient().invalid_hello(port)
+
+    let peer = try sock.accept.map_error(fn (e) { e.to_string })
+
+    t.equal(
+      PendingServer.new(peer).error,
+      Option.Some(PendingServerError.InvalidClientHello),
+    )
+    Result.Ok(nil)
+  })
+
+  t.ok('PendingServer.server_name', fn (t) {
+    let (sock, port) = try listener
+    let _ = async DummyClient().reply(port)
+    let peer = try sock.accept.map_error(fn (e) { e.to_string })
+    let serv = try PendingServer.new(peer).map_error(fn (e) { e.to_string })
+
+    t.equal(serv.server_name, Option.Some('localhost'))
+    Result.Ok(nil)
+  })
+
+  t.ok('PendingServer.into_server', fn (t) {
+    let (sock, port) = try listener
+    let _ = async DummyClient().reply(port)
+    let peer = try sock.accept.map_error(fn (e) { e.to_string })
+    let pending = try PendingServer.new(peer).map_error(fn (e) { e.to_string })
+    let conf = try server_config
+
+    t.equal(pending.into_server(conf).error, Option.None)
+    Result.Ok(nil)
+  })
+
+  # This is just a smoke test to ensure the internal state is dropped
+  # correctly when `into_server` isn't called.
+  t.ok('PendingServer.drop', fn (t) {
+    let (sock, port) = try listener
+    let _ = async DummyClient().reply(port)
+    let peer = try sock.accept.map_error(fn (e) { e.to_string })
+    let pending = try PendingServer.new(peer).map_error(fn (e) { e.to_string })
+
+    drop(pending)
     Result.Ok(nil)
   })
 }

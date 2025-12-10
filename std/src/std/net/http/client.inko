@@ -959,9 +959,12 @@ type pub Client {
         # The chance of the server name being invalid at this point is basically
         # zero due to how rustls works and the prior validation, but _just_ in
         # case we run into an error we throw here instead of triggering a panic.
-        match tls.Client.new(v, conf, name: scope.host.to_string) {
-          case Some(v) -> Socket.secure(v)
-          case _ -> throw Error.InvalidHost
+        match tls.Client.new(v, conf, server: scope.host.to_string) {
+          case Ok(v) -> Socket.secure(v)
+          case Error(InvalidServer) -> throw Error.InvalidHost
+          case Error(InvalidHandshake) -> throw Error.InvalidHandshake
+          case Error(InvalidCertificate) -> throw Error.InvalidTlsConfig
+          case Error(TimedOut) -> throw Error.ConnectionFailed(IoError.TimedOut)
         }
       }
       case Ok(v) -> Socket.plain(v)
@@ -1121,8 +1124,12 @@ type pub inline enum Error {
   # The request is redirected too many times.
   case TooManyRedirects
 
-  # The system's TLS configuration couldn't be loaded.
+  # The client's TLS configuration is invalid, such as when its certificate
+  # expired or the system TLS configuration couldn't be loaded.
   case InvalidTlsConfig
+
+  # The TLS handshake (if TLS is used) couldn't be completed.
+  case InvalidHandshake
 }
 
 impl ToString for Error {
@@ -1139,9 +1146,8 @@ impl ToString for Error {
         'redirecting from secure URIs to insecure URIs is not allowed'
       }
       case TooManyRedirects -> 'the request is redirected too many times'
-      case InvalidTlsConfig -> {
-        "the system's TLS certificates couldn't be loaded"
-      }
+      case InvalidTlsConfig -> 'the TLS configuration is invalid'
+      case InvalidHandshake -> "the TLS handshake couldn't be completed"
     }
   }
 }
@@ -1165,6 +1171,7 @@ impl Format for Error {
       case InsecureRedirect -> formatter.tuple('InsecureRedirect').finish
       case TooManyRedirects -> formatter.tuple('TooManyRedirects').finish
       case InvalidTlsConfig -> formatter.tuple('InvalidTlsConfig').finish
+      case InvalidHandshake -> formatter.tuple('InvalidHandshake').finish
     }
   }
 }
@@ -1182,6 +1189,7 @@ impl Equal for Error {
       case (TooManyRedirects, TooManyRedirects) -> true
       case (InsecureRedirect, InsecureRedirect) -> true
       case (InvalidTlsConfig, InvalidTlsConfig) -> true
+      case (InvalidHandshake, InvalidHandshake) -> true
       case _ -> false
     }
   }

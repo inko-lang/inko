@@ -2500,7 +2500,17 @@ type inline enum SocketServer {
         let sock = recover try s.accept
 
         match tls_config {
-          case Some(c) -> recover Socket.secure(tls.Server.new(sock, c.clone))
+          case Some(c) -> {
+            recover {
+              # If the TLS connection can't be established we'll just abandon
+              # the socket and try another.
+              let Ok(con) = tls.Server.new(sock, c.clone) else {
+                throw IoError.ConnectionAborted
+              }
+
+              Socket.secure(con)
+            }
+          }
           case _ -> recover Socket.plain(sock)
         }
       }

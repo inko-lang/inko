@@ -14,7 +14,7 @@ import std.net.http.client (
   WebsocketError,
 )
 import std.net.ip (IpAddress)
-import std.net.socket (TcpClient, TcpServer, UnixServer)
+import std.net.socket (SocketAddress, TcpClient, TcpServer, UnixServer)
 import std.net.tls
 import std.rand (Random)
 import std.sync (Future)
@@ -33,32 +33,43 @@ fn raw_deadline(socket: mut Socket) -> Int {
   }
 }
 
+fn tls_client(
+  address: SocketAddress,
+) -> Result[tls.Client[TcpClient], IoError] {
+  let client_sock = try TcpClient.new([address.ip], address.port)
+  let client_conf = tls.ClientConfig.with_certificate(certificate).get
+  let tls_client = tls
+    .Client
+    .new(client_sock, client_conf, server: 'localhost')
+    .or_panic
+
+  Result.Ok(tls_client)
+}
+
 type async TlsServer {
   let @conf: tls.ServerConfig
   let @sock: TcpServer
 
-  fn static new -> Result[(Self, tls.Client[TcpClient]), IoError] {
+  fn static new -> Result[(Self, SocketAddress), IoError] {
     let server_sock = recover {
-      try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+      try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     }
     let server_conf = recover tls.ServerConfig.new(certificate, private_key).get
     let addr = try server_sock.local_address
-    let client_sock = try TcpClient.new([addr.ip], addr.port)
-    let client_conf = tls.ClientConfig.with_certificate(certificate).get
-    let tls_client = tls
-      .Client
-      .new(client_sock, client_conf, name: 'localhost')
-      .get
 
-    Result.Ok((Self(conf: server_conf, sock: server_sock), tls_client))
+    Result.Ok((Self(conf: server_conf, sock: server_sock), addr))
   }
 
   fn async mut write(message: String) {
-    tls.Server.new(@sock.accept.or_panic, @conf).write(message).or_panic
+    tls.Server.new(@sock.accept.or_panic, @conf).get.write(message).or_panic
+  }
+
+  fn async mut accept {
+    tls.Server.new(@sock.accept.or_panic, @conf).or_panic
   }
 
   fn async mut reply(size: Int) {
-    let sock = tls.Server.new(@sock.accept.or_panic, @conf)
+    let sock = tls.Server.new(@sock.accept.or_panic, @conf).get
     let buf = ByteArray.new
     let _ = sock.read(buf, size).or_panic
     let _ = sock.write(buf).or_panic
@@ -529,11 +540,11 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('ActiveConnection.timeout_after= with a TLS socket', fn (t) {
-    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
-    let addr = try server.local_address
-    let conf = tls.ClientConfig.new.get
-    let tcp = try TcpClient.new([addr.ip], addr.port)
-    let client = tls.Client.new(tcp, conf, addr.ip.to_string).get
+    let (server, addr) = try TlsServer.new
+
+    server.accept
+
+    let client = try tls_client(addr)
     let pool = Pool.new
     let con = pool.add(scope.clone, Socket.secure(client))
     let deadline = Instant.new + Duration.from_secs(5)
@@ -560,11 +571,12 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('ActiveConnection.reset_deadline with a TLS socket', fn (t) {
-    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
-    let addr = try server.local_address
-    let conf = tls.ClientConfig.new.get
-    let tcp = try TcpClient.new([addr.ip], addr.port)
-    let client = tls.Client.new(tcp, conf, addr.ip.to_string).get
+    let (server, addr) = try TlsServer.new
+
+    server.accept
+
+    let client = try tls_client(addr)
+
     let pool = Pool.new
     let con = pool.add(scope.clone, Socket.secure(client))
     let deadline = Instant.new + Duration.from_secs(5)
@@ -592,17 +604,17 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('ActiveConnection.read with a TLS socket', fn (t) {
-    match try TlsServer.new {
-      case (server, client) -> {
-        let pool = Pool.new
-        let con = pool.add(scope.clone, Socket.secure(client))
-        let buf = ByteArray.new
+    let (server, addr) = try TlsServer.new
 
-        server.write('hello')
-        t.equal(con.read(into: buf, size: 5), Result.Ok(5))
-        t.equal(buf.to_string, 'hello')
-      }
-    }
+    server.write('hello')
+
+    let client = try tls_client(addr)
+    let pool = Pool.new
+    let con = pool.add(scope.clone, Socket.secure(client))
+    let buf = ByteArray.new
+
+    t.equal(con.read(into: buf, size: 5), Result.Ok(5))
+    t.equal(buf.to_string, 'hello')
 
     Result.Ok(nil)
   })
@@ -644,18 +656,18 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('ActiveConnection.write with a TLS socket', fn (t) {
-    match try TlsServer.new {
-      case (server, client) -> {
-        let pool = Pool.new
-        let con = pool.add(scope.clone, Socket.secure(client))
-        let buf = ByteArray.new
+    let (server, addr) = try TlsServer.new
 
-        server.reply(5)
-        t.equal(con.write('hello'), Result.Ok(nil))
-        t.equal(con.read(into: buf, size: 5), Result.Ok(5))
-        t.equal(buf.to_string, 'hello')
-      }
-    }
+    server.reply(5)
+
+    let client = try tls_client(addr)
+    let pool = Pool.new
+    let con = pool.add(scope.clone, Socket.secure(client))
+    let buf = ByteArray.new
+
+    t.equal(con.write('hello'), Result.Ok(nil))
+    t.equal(con.read(into: buf, size: 5), Result.Ok(5))
+    t.equal(buf.to_string, 'hello')
 
     Result.Ok(nil)
   })
@@ -865,14 +877,12 @@ fn pub tests(t: mut Tests) {
     t.equal(req.uri, uri)
   })
 
-  t.ok('Client.connect with valid input', fn (t) {
+  t.ok('Client.connect with valid HTTP URIs', fn (t) {
     let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
     let addr = try server.local_address
     let tests = [
       uri(http, ip(addr.ip), port(addr.port)),
-      uri(https, ip(addr.ip), port(addr.port)),
       uri(http, named('localhost'), port(addr.port)),
-      uri(https, named('localhost'), port(addr.port)),
     ]
 
     for uri in tests {
@@ -882,6 +892,39 @@ fn pub tests(t: mut Tests) {
       # Make sure we don't end up filling the listen backlog, as unlikely as
       # that may be.
       drop(try server.accept)
+
+      t.true(
+        match mut con {
+          case Ok((sock, false)) -> {
+            raw_deadline(sock.connection.socket) != NO_DEADLINE
+          }
+          case _ -> false
+        },
+      )
+
+      t.equal(client.connections.all.size, 1)
+      t.equal(client.connections.available.size, 1)
+    }
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Client.connect with valid HTTPS URIs', fn (t) {
+    let (server, addr) = try TlsServer.new
+    let conf = tls.ClientConfig.with_certificate(certificate).get
+    let tests = [
+      uri(https, ip(addr.ip), port(addr.port)),
+      uri(https, named('localhost'), port(addr.port)),
+    ]
+
+    for uri in tests {
+      server.accept
+
+      let client = Client.new
+
+      client.tls = Option.Some(conf.clone)
+
+      let con = client.connect(uri)
 
       t.true(
         match mut con {
@@ -1014,7 +1057,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('Client.connect with an invalid hostname', fn (t) {
     let client = Client.new
-    let uri = uri(https, named('inko_test_invalid.invalid'), port(1234))
+    let uri = uri(http, named('inko_test_invalid.invalid'), port(1234))
 
     client.connect_timeout = Duration.from_millis(20)
     t.true(
@@ -1131,6 +1174,7 @@ fn pub tests(t: mut Tests) {
       fmt(Error.WriteFailed(IoError.BrokenPipe)),
       'WriteFailed(BrokenPipe)',
     )
+    t.equal(fmt(Error.InvalidHandshake), 'InvalidHandshake')
   })
 
   t.test('Error.==', fn (t) {
@@ -1150,6 +1194,7 @@ fn pub tests(t: mut Tests) {
       Error.WriteFailed(IoError.BrokenPipe),
       Error.WriteFailed(IoError.BrokenPipe),
     )
+    t.equal(Error.InvalidHandshake, Error.InvalidHandshake)
 
     t.not_equal(
       Error.LookupFailed(DnsError.InvalidHost),

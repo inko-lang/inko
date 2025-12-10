@@ -37,6 +37,22 @@ import std.test (Tests)
 import std.time (DateTime, Duration, Instant)
 import std.uri (Host, Path as UriPath, Query, Scheme, Uri, Values, encode)
 
+type async TlsClient {
+  fn async connect(
+    promise: uni Promise[tls.Client[TcpClient]],
+    address: SocketAddress,
+  ) {
+    let res = recover {
+      let conf = tls.ClientConfig.with_certificate(certificate).get
+      let sock = TcpClient.new([address.ip], address.port).or_panic
+
+      tls.Client.new(sock, conf, server: 'localhost').or_panic
+    }
+
+    promise.set(res)
+  }
+}
+
 fn unix_pair(
   directory: ref Path,
 ) -> Result[(UnixServer, Socket, Socket), IoError] {
@@ -1485,12 +1501,12 @@ fn pub tests(t: mut Tests) {
   t.ok('Socket.address with a TLS socket', fn (t) {
     let conf = tls.ServerConfig.new(certificate, private_key).or_panic
     let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
-    let addr = try server.local_address
-    let client = try TcpClient.new([addr.ip], addr.port)
-    let sock_addr = try Socket.secure(tls.Server.new(client, conf)).address
+    let addr = recover try server.local_address
+    let _client = async TlsClient().connect(addr)
+    let tls_srv = tls.Server.new(try server.accept, conf).get
+    let sock_addr = try Socket.secure(tls_srv).address
 
     t.equal(sock_addr.host, '127.0.0.1')
-
     Result.Ok(nil)
   })
 
@@ -2222,9 +2238,9 @@ fn pub tests(t: mut Tests) {
 
   t.ok('SocketServer.accept with a TLS socket', fn (t) {
     let conf = tls.ServerConfig.new(certificate, private_key).or_panic
-    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
-    let addr = try server.local_address
-    let _client = try TcpClient.new([addr.ip], addr.port)
+    let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
+    let addr = recover try server.local_address
+    let _client = async TlsClient().connect(addr)
     let sock: Socket = try SocketServer.Tcp(server).accept(
       Option.Some(ref conf),
     )

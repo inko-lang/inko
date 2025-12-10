@@ -3,11 +3,13 @@ use crate::result::{self, Result};
 use crate::rustls_platform_verifier::ConfigVerifierExt;
 use crate::socket::Socket;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, ServerName};
+use rustls::server::{Accepted, Acceptor};
 use rustls::{
     ClientConfig, ClientConnection, Error as TlsError, RootCertStore,
     ServerConfig, ServerConnection, SideData, Stream,
 };
 use std::io::{self, Read, Write};
+use std::mem::forget;
 use std::ops::{Deref, DerefMut};
 use std::slice;
 use std::sync::Arc;
@@ -17,6 +19,12 @@ const INVALID_CERT: isize = -1;
 
 /// The error code produced when a TLS private key is invalid.
 const INVALID_KEY: isize = -2;
+
+/// The client's hello message is invalid.
+const INVALID_CLIENT_HELLO: isize = -3;
+
+/// A client or server connection couldn't be established.
+const INVALID_CONNECTION: isize = -4;
 
 type Callback = unsafe extern "system" fn(
     socket: *mut Socket,
@@ -73,7 +81,7 @@ impl Write for CallbackIo {
     }
 }
 
-unsafe fn tls_close<
+unsafe fn close<
     C: Deref<Target = rustls::ConnectionCommon<S>> + DerefMut,
     S: SideData,
 >(
@@ -95,6 +103,52 @@ unsafe fn tls_close<
     Ok(())
 }
 
+unsafe fn complete_io<
+    C: Deref<Target = rustls::ConnectionCommon<S>> + DerefMut,
+    S: SideData,
+>(
+    socket: *mut Socket,
+    con: *mut C,
+    deadline: i64,
+    reader: Callback,
+    writer: Callback,
+) -> io::Result<()> {
+    let mut io = CallbackIo { socket, reader, writer, deadline };
+    let con = &mut *con;
+
+    con.complete_io(&mut io).map(|_| ())
+}
+
+unsafe fn alpn_name<
+    C: Deref<Target = rustls::ConnectionCommon<S>> + DerefMut,
+    S: SideData,
+>(
+    state: *mut C,
+) -> PrimitiveString {
+    (&*state)
+        .alpn_protocol()
+        .map(|v| {
+            PrimitiveString::owned(String::from_utf8_lossy(v).into_owned())
+        })
+        .unwrap_or(PrimitiveString::empty())
+}
+
+unsafe fn with_unique_config<T, F: FnOnce(&mut T)>(
+    config: *const T,
+    func: F,
+) -> bool {
+    let mut config = Arc::from_raw(config);
+    let res = if let Some(conf) = Arc::get_mut(&mut config) {
+        func(conf);
+        true
+    } else {
+        false
+    };
+
+    forget(config);
+    res
+}
+
 #[no_mangle]
 pub unsafe extern "system" fn inko_tls_client_config_new() -> Result {
     if let Ok(v) = ClientConfig::with_platform_verifier() {
@@ -102,6 +156,18 @@ pub unsafe extern "system" fn inko_tls_client_config_new() -> Result {
     } else {
         Result::none()
     }
+}
+
+#[no_mangle]
+pub unsafe extern "system" fn inko_tls_client_config_add_alpn(
+    config: *const ClientConfig,
+    name: *const u8,
+    size: i64,
+) -> bool {
+    with_unique_config(config, |conf| {
+        conf.alpn_protocols
+            .push(slice::from_raw_parts(name, size as usize).to_vec());
+    })
 }
 
 #[no_mangle]
@@ -145,6 +211,8 @@ pub unsafe extern "system" fn inko_tls_client_config_drop(
 pub unsafe extern "system" fn inko_tls_client_connection_new(
     config: *const ClientConfig,
     server: PrimitiveString,
+    alpn: *mut PrimitiveString,
+    alpn_size: i64,
 ) -> Result {
     // ServerName::try_from supports both T and &T as input. We need a T here
     // as the Inko String input may not outlive the TLS client.
@@ -155,13 +223,29 @@ pub unsafe extern "system" fn inko_tls_client_connection_new(
 
     Arc::increment_strong_count(config);
 
-    // ClientConnection::new() _can_ in theory fail, but based on the source
-    // code it seems this only happens when certain settings are adjusted, which
-    // we don't allow at this time.
-    let con = ClientConnection::new(Arc::from_raw(config), name)
-        .expect("failed to set up the TLS client connection");
+    let config = Arc::from_raw(config);
+    let con = if alpn_size > 0 {
+        let alpn = slice::from_raw_parts(alpn, alpn_size as usize)
+            .iter()
+            .map(|s| s.as_str().as_bytes().to_vec())
+            .collect();
 
-    Result::ok_boxed(con)
+        ClientConnection::new_with_alpn(config, name, alpn)
+    } else {
+        ClientConnection::new(config, name)
+    };
+
+    match con {
+        Ok(v) => Result::ok_boxed(v),
+        Err(_) => Result::error(INVALID_CONNECTION as _),
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "system" fn inko_tls_client_connection_alpn(
+    state: *mut ClientConnection,
+) -> PrimitiveString {
+    alpn_name(state)
 }
 
 #[no_mangle]
@@ -212,6 +296,18 @@ pub unsafe extern "system" fn inko_tls_server_config_new(
 }
 
 #[no_mangle]
+pub unsafe extern "system" fn inko_tls_server_config_add_alpn(
+    config: *const ServerConfig,
+    name: *const u8,
+    size: i64,
+) -> bool {
+    with_unique_config(config, |conf| {
+        conf.alpn_protocols
+            .push(slice::from_raw_parts(name, size as usize).to_vec());
+    })
+}
+
+#[no_mangle]
 pub unsafe extern "system" fn inko_tls_server_config_clone(
     config: *const ServerConfig,
 ) -> *const ServerConfig {
@@ -239,6 +335,13 @@ pub unsafe extern "system" fn inko_tls_server_connection_new(
         .expect("failed to set up the TLS server connection");
 
     Box::into_raw(Box::new(con))
+}
+
+#[no_mangle]
+pub unsafe extern "system" fn inko_tls_server_connection_alpn(
+    state: *mut ServerConnection,
+) -> PrimitiveString {
+    alpn_name(state)
 }
 
 #[no_mangle]
@@ -294,7 +397,7 @@ pub unsafe extern "system" fn inko_tls_client_close(
     reader: Callback,
     writer: Callback,
 ) -> Result {
-    tls_close(sock, con, deadline, reader, writer)
+    close(sock, con, deadline, reader, writer)
         .map(|_| Result::none())
         .unwrap_or_else(Result::io_error)
 }
@@ -345,7 +448,126 @@ pub unsafe extern "system" fn inko_tls_server_close(
     reader: Callback,
     writer: Callback,
 ) -> Result {
-    tls_close(sock, con, deadline, reader, writer)
+    close(sock, con, deadline, reader, writer)
         .map(|_| Result::none())
         .unwrap_or_else(Result::io_error)
+}
+
+#[no_mangle]
+pub unsafe extern "system" fn inko_tls_server_complete_io(
+    socket: *mut Socket,
+    con: *mut ServerConnection,
+    deadline: i64,
+    reader: Callback,
+    writer: Callback,
+) -> Result {
+    match complete_io(socket, con, deadline, reader, writer) {
+        Ok(_) => Result::none(),
+        Err(e) => Result::io_error(e),
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "system" fn inko_tls_client_complete_io(
+    socket: *mut Socket,
+    con: *mut ClientConnection,
+    deadline: i64,
+    reader: Callback,
+    writer: Callback,
+) -> Result {
+    // TODO: move into the common method
+    match complete_io(socket, con, deadline, reader, writer) {
+        Ok(_) => Result::none(),
+        Err(e) => {
+            match e.get_ref().and_then(|e| e.downcast_ref::<TlsError>()) {
+                Some(
+                    TlsError::NoCertificatesPresented
+                    | TlsError::InvalidCertificate(_)
+                    | TlsError::UnsupportedNameType
+                    | TlsError::InvalidCertRevocationList(_),
+                ) => Result::error(INVALID_CERT as _),
+                _ => Result::io_error(e),
+            }
+        }
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "system" fn inko_tls_pending_server_new(
+    socket: *mut Socket,
+    deadline: i64,
+    reader: Callback,
+    writer: Callback,
+) -> Result {
+    let mut io = CallbackIo { socket, reader, writer, deadline };
+    let mut acceptor = Acceptor::default();
+
+    loop {
+        if let Err(e) = acceptor.read_tls(&mut io) {
+            return Result::io_error(e);
+        }
+
+        let accepted = match acceptor.accept() {
+            Ok(Some(v)) => v,
+            Ok(_) => continue,
+            Err((_, mut alert)) => {
+                // If writing the alert fails that's fine because it can fail
+                // for all sorts of reasons we don't care about (e.g. a network
+                // error) and we don't want it to overwrite the error below.
+                let _ = alert.write_all(&mut io);
+
+                // rustls errors are opaque and it's not clear what exact errors
+                // we may encounter here, so we just generalize all of them as a
+                // "client hello is invalid" error.
+                return Result::error(INVALID_CLIENT_HELLO as _);
+            }
+        };
+
+        return Result::ok_boxed(accepted);
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "system" fn inko_tls_pending_server_name(
+    accepted: *mut Accepted,
+) -> PrimitiveString {
+    let accepted = &*accepted;
+
+    accepted
+        .client_hello()
+        .server_name()
+        .map(PrimitiveString::borrowed)
+        .unwrap_or(PrimitiveString::empty())
+}
+
+#[no_mangle]
+pub unsafe extern "system" fn inko_tls_pending_server_into_server_connection(
+    accepted: *mut Accepted,
+    config: *const ServerConfig,
+    socket: *mut Socket,
+    deadline: i64,
+    reader: Callback,
+    writer: Callback,
+) -> Result {
+    Arc::increment_strong_count(config);
+
+    let mut io = CallbackIo { socket, reader, writer, deadline };
+    let config = Arc::from_raw(config);
+    let acc = Box::from_raw(accepted);
+
+    match acc.into_connection(config) {
+        Ok(v) => Result::ok_boxed(v),
+        Err((_, mut alert)) => {
+            let _ = alert.write_all(&mut io);
+
+            Result::error(INVALID_CLIENT_HELLO as _)
+        }
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "system" fn inko_tls_pending_server_drop(
+    accepted: *mut Accepted,
+) {
+    drop(Box::from_raw(accepted));
 }
