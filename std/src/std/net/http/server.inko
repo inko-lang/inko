@@ -52,11 +52,10 @@
 # # TLS support
 #
 # By default a `Server` starts in plain-text mode. To use TLS, create a `Server`
-# using `Server.new` as usual then call `Server.enable_tls` to configure it for
-# TLS connections. A single `Server` can't handle _both_ plain-text and TLS
-# requests at the same time. If this is required, you'll need to create a
-# dedicated `Server` for plain-text requests and a dedicated `Server` for TLS
-# requests.
+# using `Server.new` as usual then call `Server.tls` to configure it for TLS
+# connections. A single `Server` can't handle _both_ plain-text and TLS requests
+# at the same time. If this is required, you'll need to create a dedicated
+# `Server` for plain-text requests and a dedicated `Server` for TLS requests.
 #
 # # Keep-alive support
 #
@@ -370,7 +369,6 @@ import std.clone (Clone)
 import std.cmp (Equal, Ordering, max, min)
 import std.compress.gzip (Encoder as Gzip)
 import std.crypto.sha1 (Sha1)
-import std.crypto.x509 (Certificate, PrivateKey)
 import std.drop (drop)
 import std.fmt (Format, Formatter)
 import std.fs (Metadata)
@@ -1621,6 +1619,20 @@ type pub inline Socket {
 
     Result.Ok(addr)
   }
+
+  fn server_name_equals_host?(host: String) -> Bool {
+    # The Host header may contain the port number, but the SNI only contains the
+    # host name.
+    let host_without_port = match host.split_once(':') {
+      case Some((host, _)) -> host
+      case _ -> host.to_slice
+    }
+
+    let Secure(srv) = @reader.inner else return true
+    let Some(sni) = srv.server_name else return true
+
+    sni.equals?(host_without_port)
+  }
 }
 
 impl ShutdownTrait for Socket {
@@ -1938,10 +1950,19 @@ type async Connection[H: mut + Handle] {
           }
         }
 
-        # Per RFC 9112 section 3.2, the "Host" header must be specified exactly
+        # Per RFC 9112 section 3.2, the Host header must be specified exactly
         # once.
+        #
+        # If the TLS server name indicator is given it must also equal the Host
+        # header.
         match req.headers.value(Header.host) {
-          case Ok(Single(v)) if v.size > 0 -> ParseResult.Ok(req, keep)
+          case Ok(Single(host)) if host.size > 0 -> {
+            if @socket.server_name_equals_host?(host) {
+              ParseResult.Ok(req, keep)
+            } else {
+              ParseResult.Error(Response.new.status(Status.misdirected_request))
+            }
+          }
           case _ -> ParseResult.Error(Response.bad_request)
         }
       }
@@ -2493,26 +2514,60 @@ type inline enum SocketServer {
   }
 
   fn mut accept(
-    tls_config: Option[ref tls.ServerConfig],
+    config: mut Tls,
+    shutdown: mut Shutdown,
+    timeout: Duration,
   ) -> Result[uni Socket, IoError] {
     let sock = match self {
       case Tcp(s) -> {
         let sock = recover try s.accept
 
-        match tls_config {
-          case Some(c) -> {
-            recover {
-              # If the TLS connection can't be established we'll just abandon
-              # the socket and try another.
-              let Ok(con) = tls.Server.new(sock, c.clone) else {
-                throw IoError.ConnectionAborted
-              }
+        # If we received a shutdown request just now then we avoid doing the TLS
+        # handshake (if TLS is used), otherwise the server may end up waiting
+        # unnecessarily long before shutting down.
+        #
+        # The error thrown here doesn't really matter as we check `Shutdown`
+        # again in the server's run loop.
+        if shutdown.received? { throw IoError.ConnectionAborted }
 
-              Socket.secure(con)
+        # If we encounter any TLS errors we'll drop the socket and move on to
+        # the next one, as there's nothing we can do about such errors.
+        let sock = match config {
+          case Static(c) -> {
+            sock.timeout_after = timeout
+
+            recover {
+              match tls.Server.new(sock, c.clone) {
+                case Ok(v) -> Socket.secure(v)
+                case _ -> throw IoError.ConnectionAborted
+              }
+            }
+          }
+          case Dynamic(fun) -> {
+            sock.timeout_after = timeout
+
+            let pending = recover {
+              match tls.PendingServer.new(sock) {
+                case Ok(v) -> v
+                case _ -> throw IoError.ConnectionAborted
+              }
+            }
+
+            let name = pending.server_name
+            let Some(conf) = fun.call(name) else throw IoError.ConnectionAborted
+
+            recover {
+              match pending.into_server(recover conf) {
+                case Ok(v) -> Socket.secure(v)
+                case _ -> throw IoError.ConnectionAborted
+              }
             }
           }
           case _ -> recover Socket.plain(sock)
         }
+
+        sock.reset_deadline
+        sock
       }
       case Unix(s) -> recover Socket.unix(try s.accept)
     }
@@ -2530,6 +2585,10 @@ type inline enum SocketServer {
 
 type Shutdown {
   let mut @future: Option[Future[Nil]]
+
+  fn static new(future: Future[Nil]) -> Self {
+    Self(Option.Some(future))
+  }
 
   fn mut received? -> Bool {
     match @future := Option.None {
@@ -2561,7 +2620,7 @@ type pub async Notifier[H: mut + Handle] {
       shutdown: recover Option.Some(prom),
     )
 
-    (not, Shutdown(Option.Some(fut)))
+    (not, Shutdown.new(fut))
   }
 
   # Notifies the connection pool (and thus the server) that it should shut down.
@@ -2621,6 +2680,12 @@ type async SignalWaiter[H: mut + Handle] {
   }
 }
 
+type pub inline enum Tls {
+  case None
+  case Static(tls.ServerConfig)
+  case Dynamic(fn (Option[String]) -> Option[uni tls.ServerConfig])
+}
+
 # An HTTP server that handles incoming requests.
 type pub Server[H: mut + Handle] {
   let @handler: fn -> uni H
@@ -2671,7 +2736,7 @@ type pub Server[H: mut + Handle] {
   #
   # By default this configuration is absent and the protocol is plain HTTP. When
   # this value _is_ present, the protocol is automatically turned into HTTPS.
-  let pub mut @tls: Option[tls.ServerConfig]
+  let mut @tls: Tls
 
   # If the server should shut down in response to certain Unix signals.
   let pub mut @handle_signals: Bool
@@ -2701,7 +2766,7 @@ type pub Server[H: mut + Handle] {
       waiter: waiter,
       handler: handler,
       limits: Limits.new,
-      tls: Option.None,
+      tls: Tls.None,
       idle_timeout: Duration.from_secs(60),
       read_timeout: Duration.from_secs(5),
       write_timeout: Duration.from_secs(5),
@@ -2713,39 +2778,34 @@ type pub Server[H: mut + Handle] {
     )
   }
 
-  # Parses the certificate and private key files and uses these to configure the
-  # server to use TLS.
+  # Enables the use of TLS using the given `std.net.tls.ServerConfig`.
   #
-  # If you want full control over how the certificate and private key are parsed
-  # (e.g. you want to load them from an external service), you'll need to create
-  # a `std.net.tls.ServerConfig` manually and assign it to the `Server.tls`
-  # field.
-  #
-  # # Errors
-  #
-  # If the certificate or private key file can't be parsed, a `String` is
-  # returned as the error. This `String` contains a human-readable error message
-  # meant to be used as the message for a panic, for a server that wants to use
-  # TLS but has an invalid configuration can't start.
-  fn pub mut enable_tls(
-    certificate: ref path.Path,
-    key: ref path.Path,
-  ) -> Result[Nil, String] {
-    let cert = match Certificate.from_pem_file(certificate) {
-      case Ok(v) -> v
-      case Error(e) -> throw 'failed to parse ${certificate}: ${e}'
-    }
-    let key = match PrivateKey.from_pem_file(key) {
-      case Ok(v) -> v
-      case Error(e) -> throw 'failed to parse ${key}: ${e}'
-    }
+  # The configuration is used for all connections, regardless of the server name
+  # indicator value used as part of the TLS handshake. To use different
+  # configurations per server name, configure TLS using `Server.dynamic_tls`
+  # instead.
+  fn pub mut tls(config: tls.ServerConfig) {
+    @tls = Tls.Static(config)
+  }
 
-    match tls.ServerConfig.new(cert, key) {
-      case Ok(v) -> @tls = Option.Some(v)
-      case Error(e) -> 'the TLS server configuration is invalid: ${e}'
-    }
-
-    Result.Ok(nil)
+  # Enables the use of TLS using a configuration based on the server name
+  # indicator.
+  #
+  # The provided closure is called every time a new TLS connection is
+  # established and is given the name of the server as specified by the client's
+  # hello message.
+  #
+  # Note that the server name indicator may be left out by the client (e.g. when
+  # they connect using an IP address instead of a DNS name), so the closure
+  # should take this into account and provide some sort of fallback
+  # configuration for such cases.
+  #
+  # The return value is an optional `uni std.net.tls.ServerConfig` to use for
+  # the connection. If an `Option.None` is returned the connection is aborted.
+  fn pub mut dynamic_tls(
+    fun: fn (Option[String]) -> Option[uni tls.ServerConfig],
+  ) {
+    @tls = Tls.Dynamic(fun)
   }
 
   # Stores the given closure to be called before the server shuts down
@@ -2814,7 +2874,7 @@ type pub Server[H: mut + Handle] {
     let mut counter = 0
 
     loop {
-      let client = match socket.accept(@tls.as_ref) {
+      let client = match socket.accept(@tls, shutdown, @read_timeout) {
         case _ if shutdown.received? -> break
         case Ok(v) -> v
         # ConnectionAborted may be produced if a connection is established and

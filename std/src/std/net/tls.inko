@@ -29,6 +29,7 @@ import std.crypto.x509 (Certificate, PrivateKey)
 import std.drop (Drop)
 import std.fmt (Format, Formatter)
 import std.fs.file (ReadOnlyFile)
+import std.fs.path (Path)
 import std.io (Error, Read, Write, WriteInternal)
 import std.net.socket (Deadline, RawSocketOperations, SendFile)
 import std.ptr
@@ -94,6 +95,10 @@ fn extern inko_tls_server_connection_new(
 
 fn extern inko_tls_server_connection_alpn(
   connection: Pointer[UInt8],
+) -> PrimitiveString
+
+fn extern inko_tls_server_connection_server_name(
+  accepted: Pointer[UInt8],
 ) -> PrimitiveString
 
 fn extern inko_tls_server_connection_drop(connection: Pointer[UInt8])
@@ -776,6 +781,32 @@ type pub ServerConfig {
     }
   }
 
+  # Returns a new `ServerConfig` that uses the certificate and private key
+  # located at the given file paths.
+  #
+  # For more details, refer to the documentation of `ServerConfig.new`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.tls (ServerConfig)
+  #
+  # ServerConfig.from_files('cert.pem'.to_path, 'key.pem'.to_path).or_panic
+  # ```
+  fn pub static from_files(
+    certificate: ref Path,
+    key: ref Path,
+  ) -> Result[ServerConfig, ServerConfigError] {
+    let Ok(cert) = Certificate.from_pem_file(certificate) else {
+      throw ServerConfigError.InvalidCertificate
+    }
+    let Ok(key) = PrivateKey.from_pem_file(key) else {
+      throw ServerConfigError.InvalidPrivateKey
+    }
+
+    new(cert, key)
+  }
+
   # Adds the given ALPN names to `self`.
   #
   # # Panics
@@ -981,6 +1012,19 @@ type pub Server[T: mut + Deadline + RawSocketOperations] {
 
     if prim.size > 0 {
       Option.Some(String.from_primitive(prim))
+    } else {
+      Option.None
+    }
+  }
+
+  # Returns the server name indicator.
+  #
+  # If no server name is given, an `Option.None` is returned.
+  fn pub server_name -> Option[String] {
+    let prim = inko_tls_server_connection_server_name(@state)
+
+    if prim.size > 0 {
+      Option.Some(String.from_borrowed_primitive(prim))
     } else {
       Option.None
     }

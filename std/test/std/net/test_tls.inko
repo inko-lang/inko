@@ -1,9 +1,9 @@
-import helpers (VALID_CERT, VALID_KEY)
+import helpers (VALID_CERT, VALID_KEY, with_directory)
 import std.crypto.pem (PemFile)
 import std.crypto.x509 (Certificate, PrivateKey)
 import std.drop (drop)
 import std.fmt (fmt)
-import std.fs.file (ReadOnlyFile)
+import std.fs.file (ReadOnlyFile, WriteOnlyFile)
 import std.io (Buffer, Error as IoError)
 import std.net.ip (IpAddress)
 import std.net.socket (Socket, TcpClient, TcpServer)
@@ -274,7 +274,7 @@ fn pub tests(t: mut Tests) {
     t.true(ServerConfig.new(cert, key).ok?)
   })
 
-  t.test('ServerConfig with an invalid certificate', fn (t) {
+  t.test('ServerConfig.new with an invalid certificate', fn (t) {
     let key = private_key(VALID_KEY)
 
     t.equal(
@@ -283,13 +283,64 @@ fn pub tests(t: mut Tests) {
     )
   })
 
-  t.test('ServerConfig with an invalid private key', fn (t) {
+  t.test('ServerConfig.new with an invalid private key', fn (t) {
     let cert = certificate(VALID_CERT)
 
     t.equal(
       ServerConfig.new(cert, private_key(INVALID_KEY)).error,
       Option.Some(ServerConfigError.InvalidPrivateKey),
     )
+  })
+
+  t.ok('ServerConfig.from_files with a valid certificate and key', fn (t) {
+    with_directory(t.id, fn (dir) {
+      try dir.create_directory
+
+      let cert = dir.join('cert.pem')
+      let key = dir.join('key.pem')
+
+      try WriteOnlyFile.new(cert).then(fn (f) { f.write(VALID_CERT) })
+      try WriteOnlyFile.new(key).then(fn (f) { f.write(VALID_KEY) })
+
+      t.equal(ServerConfig.from_files(cert, key).error, Option.None)
+      Result.Ok(nil)
+    })
+  })
+
+  t.ok('ServerConfig.from_files with an invalid certificate', fn (t) {
+    with_directory(t.id, fn (dir) {
+      try dir.create_directory
+
+      let cert = dir.join('cert.pem')
+      let key = dir.join('key.pem')
+
+      try WriteOnlyFile.new(cert).then(fn (f) { f.write('wat') })
+      try WriteOnlyFile.new(key).then(fn (f) { f.write(VALID_KEY) })
+
+      t.equal(
+        ServerConfig.from_files(cert, key).error,
+        Option.Some(ServerConfigError.InvalidCertificate),
+      )
+      Result.Ok(nil)
+    })
+  })
+
+  t.ok('ServerConfig.from_files with an invalid key', fn (t) {
+    with_directory(t.id, fn (dir) {
+      try dir.create_directory
+
+      let cert = dir.join('cert.pem')
+      let key = dir.join('key.pem')
+
+      try WriteOnlyFile.new(cert).then(fn (f) { f.write(VALID_CERT) })
+      try WriteOnlyFile.new(key).then(fn (f) { f.write('wat') })
+
+      t.equal(
+        ServerConfig.from_files(cert, key).error,
+        Option.Some(ServerConfigError.InvalidPrivateKey),
+      )
+      Result.Ok(nil)
+    })
   })
 
   t.panic('ServerConfig.alpn when the ServerConfig has multiple owners', fn {
@@ -659,6 +710,17 @@ fn pub tests(t: mut Tests) {
     let server = try accept(sock)
 
     t.equal(server.alpn, Option.Some('foo'))
+    Result.Ok(nil)
+  })
+
+  t.ok('Server.server_name', fn (t) {
+    let (sock, port) = try listener
+
+    DummyClient().alpn(port)
+
+    let server = try accept(sock)
+
+    t.equal(server.server_name, Option.Some('localhost'))
     Result.Ok(nil)
   })
 

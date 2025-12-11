@@ -345,6 +345,16 @@ pub unsafe extern "system" fn inko_tls_server_connection_alpn(
 }
 
 #[no_mangle]
+pub unsafe extern "system" fn inko_tls_server_connection_server_name(
+    state: *mut ServerConnection,
+) -> PrimitiveString {
+    (&*state)
+        .server_name()
+        .map(PrimitiveString::borrowed)
+        .unwrap_or(PrimitiveString::empty())
+}
+
+#[no_mangle]
 pub unsafe extern "system" fn inko_tls_server_connection_drop(
     state: *mut ServerConnection,
 ) {

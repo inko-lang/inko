@@ -1,12 +1,9 @@
-import helpers (
-  VALID_CERT, VALID_KEY, certificate, hash, private_key, with_directory,
-)
+import helpers (certificate, hash, private_key, with_directory)
 import std.bytes (Bytes)
 import std.drop (Drop)
 import std.drop (drop)
 import std.env
 import std.fmt (fmt)
-import std.fs.file (WriteOnlyFile)
 import std.fs.file (ReadOnlyFile)
 import std.fs.path (Path)
 import std.io (Buffer, BufferedReader, Error as IoError, Write)
@@ -20,9 +17,9 @@ import std.net.http.server (
   Address, CacheControl, ConnectionId, Delete, Directory, Event, Events,
   FileRanges, FormError, Get, Handle, Head, LogWriter, Logger, Notifier,
   Path as RequestPath, Post, Put, RangeRequest, Request, Response, Server,
-  Shutdown, Socket, SocketServer, State, WebsocketResponse, compress_response,
-  conditional_request, copy_file_range, head_request, parse_accept_range,
-  parse_accept_ranges,
+  Shutdown, Socket, SocketServer, State, Tls, WebsocketResponse,
+  compress_response, conditional_request, copy_file_range, head_request,
+  parse_accept_range, parse_accept_ranges,
 )
 import std.net.http.websocket (WEBSOCKET_VERSION)
 import std.net.ip (IpAddress)
@@ -143,6 +140,31 @@ fn unix_uri(host: ref Path, path: String) -> Uri {
   uri
 }
 
+fn https_uri(port: Int, path: String) -> Uri {
+  let uri = Uri.new
+
+  uri.scheme = Option.Some(Scheme.Https)
+  uri.host = Host.new('localhost')
+  uri.port = Option.Some(port)
+  uri.path = UriPath.new(path).get
+  uri
+}
+
+fn configure_server(server: mut Server[Hello]) {
+  let limits = Limits.new
+
+  limits.uri_size = 32
+  limits.headers = 8
+  limits.header_size = 128
+  server.limits = limits
+  server.handle_signals = false
+
+  # We wait only a short amount of time during a shutdown such that tests aren't
+  # stalled for too long in the event of a bug, but still have enough time to
+  # e.g. finish writing bodies and reading a response.
+  server.shutdown_wait_time = Duration.from_secs(1)
+}
+
 fn with_http_server(
   id: Int,
   body: fn (Path) -> Result[Nil, String],
@@ -151,10 +173,31 @@ fn with_http_server(
     try dir.create_directory.map_error(fn (e) { e.to_string })
 
     let path = dir.join('server.sock')
-    let _waiter = AsyncServer.new(recover path.clone)
+    let _waiter = AsyncServer.new(recover path.clone, secure: false)
 
     body.call(path)
   })
+}
+
+fn with_https_server(
+  id: Int,
+  dynamic: Bool,
+  body: fn (Int) -> Result[Nil, String],
+) -> Result[Nil, String] {
+  let (port, port_prom) = Future.new
+  let _waiter = AsyncSecureServer.new(port_prom, dynamic)
+
+  body.call(port.get)
+}
+
+fn accept(
+  server: mut SocketServer,
+  config: Tls,
+) -> Result[uni Socket, IoError] {
+  let (fut, _prom) = Future.new
+  let shut = Shutdown.new(fut)
+
+  server.accept(config, shut, timeout: Duration.from_secs(5))
 }
 
 type Writer {
@@ -204,17 +247,12 @@ impl LogWriter {
 }
 
 type async AsyncServer {
-  fn static new(path: uni Path) -> ServerWaiter {
+  fn static new(path: uni Path, secure: Bool) -> ServerWaiter {
     let (not_fut, not_prom) = Future.new
     let srv = recover {
       let srv = Server.new(fn { recover Hello() })
-      let limits = Limits.new
 
-      limits.uri_size = 32
-      limits.headers = 8
-      limits.header_size = 128
-      srv.limits = limits
-      srv.handle_signals = false
+      configure_server(srv)
 
       let mut not_prom = Option.Some(not_prom)
 
@@ -225,10 +263,6 @@ type async AsyncServer {
         }
       })
 
-      # We wait only a short amount of time during a shutdown such that tests
-      # aren't stalled for too long in the event of a bug, but still have enough
-      # time to e.g. finish writing bodies and reading a response.
-      srv.shutdown_wait_time = Duration.from_secs(1)
       srv
     }
 
@@ -243,6 +277,60 @@ type async AsyncServer {
     path: uni Path,
   ) {
     (recover server).start_unix(recover path).or_panic
+    done.set(nil)
+  }
+}
+
+type async AsyncSecureServer {
+  fn static new(port: uni Promise[Int], dynamic: Bool) -> ServerWaiter {
+    let (not_fut, not_prom) = Future.new
+    let srv = recover {
+      let srv = Server.new(fn { recover Hello() })
+
+      configure_server(srv)
+
+      if dynamic {
+        srv.dynamic_tls(fn (name) {
+          recover {
+            Option.Some(
+              recover tls.ServerConfig.new(certificate, private_key).or_panic,
+            )
+          }
+        })
+      } else {
+        srv.tls(tls.ServerConfig.new(certificate, private_key).or_panic)
+      }
+
+      let mut not_prom = Option.Some(not_prom)
+      let mut port = Option.Some(port)
+
+      srv.before_start(fn move (addr, notifier) {
+        match not_prom := Option.None {
+          case Some(v) -> v.set(notifier)
+          case _ -> {}
+        }
+
+        match port := Option.None {
+          case Some(port) -> {
+            match addr {
+              case Ip(v) -> port.set(v.port)
+              case _ -> {}
+            }
+          }
+          case _ -> {}
+        }
+      })
+
+      srv
+    }
+
+    let shut_fut = async Self().run(srv)
+
+    ServerWaiter(done: Option.Some(shut_fut), notifier: not_fut.get)
+  }
+
+  fn async run(done: uni Promise[Nil], server: uni Server[Hello]) {
+    (recover server).start(0).or_panic
     done.set(nil)
   }
 }
@@ -1521,6 +1609,44 @@ fn pub tests(t: mut Tests) {
     })
   })
 
+  t.ok('Socket.server_name_equals_host? with a TLS socket', fn (t) {
+    let conf = tls.ServerConfig.new(certificate, private_key).or_panic
+    let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
+    let addr = recover try server.local_address
+    let _client = async TlsClient().connect(addr)
+    let sock = Socket.secure(tls.Server.new(try server.accept, conf).get)
+
+    t.true(sock.server_name_equals_host?('localhost'))
+    t.true(sock.server_name_equals_host?('localhost:1234'))
+    t.false(sock.server_name_equals_host?('example.com'))
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Socket.server_name_equals_host? with a TCP socket', fn (t) {
+    let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
+    let addr = try server.local_address
+    let sock = Socket.plain(try TcpClient.new([addr.ip], addr.port))
+
+    t.true(sock.server_name_equals_host?('localhost'))
+    t.true(sock.server_name_equals_host?('localhost:1234'))
+    t.true(sock.server_name_equals_host?('example.com'))
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Socket.server_name_equals_host? with a Unix socket', fn (t) {
+    with_directory(t.id, fn (dir) -> Result[Nil, IoError] {
+      let (_server, _writer, reader) = try unix_pair(dir)
+
+      t.true(reader.server_name_equals_host?('localhost'))
+      t.true(reader.server_name_equals_host?('localhost:1234'))
+      t.true(reader.server_name_equals_host?('example.com'))
+
+      Result.Ok(nil)
+    })
+  })
+
   t.ok('Socket.read', fn (t) {
     let (_server, writer, reader) = try socket_pair
     let buf = ByteArray.new
@@ -2224,7 +2350,8 @@ fn pub tests(t: mut Tests) {
     let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
     let addr = try server.local_address
     let _client = try TcpClient.new([addr.ip], addr.port)
-    let sock: Socket = try SocketServer.Tcp(server).accept(Option.None)
+    let server = SocketServer.Tcp(server)
+    let sock: Socket = try accept(server, Tls.None)
 
     t.true(
       match sock.reader.inner {
@@ -2241,9 +2368,8 @@ fn pub tests(t: mut Tests) {
     let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     let addr = recover try server.local_address
     let _client = async TlsClient().connect(addr)
-    let sock: Socket = try SocketServer.Tcp(server).accept(
-      Option.Some(ref conf),
-    )
+    let server = SocketServer.Tcp(server)
+    let sock: Socket = try accept(server, Tls.Static(conf))
 
     t.true(
       match sock.reader.inner {
@@ -2262,7 +2388,8 @@ fn pub tests(t: mut Tests) {
       let path = dir.join('server.sock')
       let server = try UnixServer.new(path)
       let _client = try UnixClient.new(path)
-      let sock: Socket = try SocketServer.Unix(server).accept(Option.None)
+      let server = SocketServer.Unix(server)
+      let sock: Socket = try accept(server, Tls.None)
 
       t.true(
         match sock.reader.inner {
@@ -2321,57 +2448,19 @@ fn pub tests(t: mut Tests) {
     t.true(shutdown.received?)
   })
 
-  t.ok('Server.enable_tls with valid arguments', fn (t) {
-    with_directory(t.id, fn (dir) {
-      try dir.create_directory
+  t.ok('Server.tls', fn (t) {
+    let srv = Server.new(fn { recover Hello() })
+    let cfg = try tls.ServerConfig.new(certificate, private_key)
 
-      let key = dir.join('key.pem')
-      let cert = dir.join('cert.pem')
+    srv.tls(cfg)
+    t.true(
+      match srv.tls {
+        case Static(_) -> true
+        case _ -> false
+      },
+    )
 
-      try WriteOnlyFile.new(key).then(fn (f) { f.write(VALID_KEY) })
-      try WriteOnlyFile.new(cert).then(fn (f) { f.write(VALID_CERT) })
-
-      let srv = Server.new(fn { recover Hello() })
-
-      t.equal(srv.enable_tls(cert, key), Result.Ok(nil))
-      t.true(srv.tls.some?)
-
-      Result.Ok(nil)
-    })
-  })
-
-  t.ok('Server.enable_tls with an invalid certificate', fn (t) {
-    with_directory(t.id, fn (dir) {
-      try dir.create_directory
-
-      let key = dir.join('key.pem')
-      let cert = dir.join('cert.pem')
-
-      try WriteOnlyFile.new(key).then(fn (f) { f.write(VALID_KEY) })
-
-      let srv = Server.new(fn { recover Hello() })
-
-      t.true(srv.enable_tls(cert, key).error?)
-
-      Result.Ok(nil)
-    })
-  })
-
-  t.ok('Server.enable_tls with an invalid private key', fn (t) {
-    with_directory(t.id, fn (dir) {
-      try dir.create_directory
-
-      let key = dir.join('key.pem')
-      let cert = dir.join('cert.pem')
-
-      try WriteOnlyFile.new(cert).then(fn (f) { f.write(VALID_CERT) })
-
-      let srv = Server.new(fn { recover Hello() })
-
-      t.true(srv.enable_tls(cert, key).error?)
-
-      Result.Ok(nil)
-    })
+    Result.Ok(nil)
   })
 
   t.test('Server.before_shutdown', fn (t) {
@@ -2770,6 +2859,69 @@ fn pub tests(t: mut Tests) {
       Result.Ok(nil)
     })
   })
+
+  t.ok('An HTTPS request with a SNI that matches the Host header', fn (t) {
+    with_https_server(t.id, false, fn (port) {
+      let client = Client.new
+
+      client.tls = Option.Some(
+        tls.ClientConfig.with_certificate(certificate).get,
+      )
+
+      let uri = https_uri(port, '/')
+      let req = client.get(uri)
+      let res = try req.send.map_error(fn (e) { e.to_string })
+
+      t.equal(res.status, Status.ok)
+      Result.Ok(nil)
+    })
+  })
+
+  t.ok(
+    "An HTTPS request with a SNI that doesn't match the Host header",
+    fn (t) {
+      with_https_server(t.id, false, fn (port) {
+        let client = Client.new
+
+        client.tls = Option.Some(
+          tls.ClientConfig.with_certificate(certificate).get,
+        )
+
+        let uri = https_uri(port, '/')
+        let req = client.get(uri)
+
+        req.headers.set(Header.host, 'example.com')
+
+        let res = try req.send.map_error(fn (e) { e.to_string })
+
+        t.equal(res.status, Status.misdirected_request)
+        Result.Ok(nil)
+      })
+    },
+  )
+
+  t.ok(
+    "An HTTPS request with a SNI that doesn't match the Host header using dynamic TLS configuration",
+    fn (t) {
+      with_https_server(t.id, true, fn (port) {
+        let client = Client.new
+
+        client.tls = Option.Some(
+          tls.ClientConfig.with_certificate(certificate).get,
+        )
+
+        let uri = https_uri(port, '/')
+        let req = client.get(uri)
+
+        req.headers.set(Header.host, 'example.com')
+
+        let res = try req.send.map_error(fn (e) { e.to_string })
+
+        t.equal(res.status, Status.misdirected_request)
+        Result.Ok(nil)
+      })
+    },
+  )
 
   t.ok('A request with an invalid method', fn (t) {
     with_http_server(t.id, fn (path) {

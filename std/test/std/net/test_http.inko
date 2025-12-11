@@ -416,6 +416,10 @@ fn pub tests(t: mut Tests) {
     t.equal(Status.range_not_satisfiable.code, 416)
   })
 
+  t.test('Status.misdirected_request', fn (t) {
+    t.equal(Status.misdirected_request.code, 421)
+  })
+
   t.test('Status.unprocessable_content', fn (t) {
     t.equal(Status.unprocessable_content.code, 422)
   })

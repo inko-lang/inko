@@ -764,6 +764,11 @@ type pub copy Status {
     Self(416)
   }
 
+  # Returns the status code 421.
+  fn pub inline static misdirected_request -> Self {
+    Self(421)
+  }
+
   # Returns the status code 422.
   fn pub inline static unprocessable_content -> Self {
     Self(422)
