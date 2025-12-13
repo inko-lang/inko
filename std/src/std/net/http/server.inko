@@ -161,6 +161,10 @@
 # Sending the `SIGINT` or `SIGTERM` signal twice results in an immediate
 # shutdown of the server.
 #
+# On macOS the signal handlers aren't installed and the server always stops
+# immediately. This is because we use the `shutdown()` system call to interrupt
+# the server's `accept()` call, but this isn't supported by macOS.
+#
 # # Routing
 #
 # Instead of requiring you to construct a complex data structure to use for
@@ -369,7 +373,7 @@ import std.clone (Clone)
 import std.cmp (Equal, Ordering, max, min)
 import std.compress.gzip (Encoder as Gzip)
 import std.crypto.sha1 (Sha1)
-import std.drop (drop)
+import std.env
 import std.fmt (Format, Formatter)
 import std.fs (Metadata)
 import std.fs.file (ReadOnlyFile)
@@ -2581,6 +2585,20 @@ type inline enum SocketServer {
       case Unix(v) -> Result.Ok(Address.Unix(try v.local_address))
     }
   }
+
+  fn mut shutdown {
+    match self {
+      case Tcp(v) -> v.socket.shutdown
+      case Unix(v) -> v.socket.shutdown
+    }
+  }
+
+  fn try_clone -> Result[Self, IoError] {
+    match self {
+      case Tcp(v) -> Result.Ok(SocketServer.Tcp(try v.try_clone))
+      case Unix(v) -> Result.Ok(SocketServer.Unix(try v.try_clone))
+    }
+  }
 }
 
 type Shutdown {
@@ -2609,14 +2627,14 @@ type Shutdown {
 # A type for notifying a `Server` that it should shut down.
 type pub async Notifier[H: mut + Handle] {
   let @pool: Pool[H]
-  let @address: Address
+  let @closer: SocketServer
   let mut @shutdown: Option[Promise[Nil]]
 
-  fn static new(pool: Pool[H], address: uni Address) -> (Self, Shutdown) {
+  fn static new(pool: Pool[H], closer: uni SocketServer) -> (Self, Shutdown) {
     let (fut, prom) = Future.new
     let not = Self(
       pool: pool,
-      address: address,
+      closer: closer,
       shutdown: recover Option.Some(prom),
     )
 
@@ -2633,21 +2651,7 @@ type pub async Notifier[H: mut + Handle] {
         # The Promise must be resolved _before_ the connection is made as to
         # ensure the accept() loop correctly wakes up.
         p.set(nil)
-
-        # Wake up the accept() loop using a dummy connection. This must be done
-        # _after_ we resolve the Promise as to ensure the accept() loop observes
-        # it being resolved _before_ it performs another accept().
-        #
-        # Any errors that may occur are ignored because we don't really care for
-        # them, as we'll shut down eventually.
-        #
-        # We don't use shutdown() here because only on Linux does it interrupt
-        # an accept(), while on other platforms it simply won't work on a socket
-        # that isn't already connected.
-        match @address {
-          case Ip(v) -> drop(TcpClient.new([v.ip], v.port))
-          case Unix(v) -> drop(UnixClient.new(v.address.to_path))
-        }
+        @closer.shutdown
       }
       case _ -> {}
     }
@@ -2857,9 +2861,10 @@ type pub Server[H: mut + Handle] {
 
   fn move run(socket: SocketServer) -> Result[Nil, IoError] {
     let addr = recover try socket.address
-    let (notifier, shutdown) = Notifier.new(@pool, recover addr.clone)
+    let closer = recover try socket.try_clone
+    let (notifier, shutdown) = Notifier.new(@pool, closer)
 
-    if @handle_signals {
+    if @handle_signals and (env.OS == 'linux' or env.OS == 'freebsd') {
       SignalWaiter.new(notifier, Signal.Quit).immediate_shutdown
       SignalWaiter.new(notifier, Signal.Interrupt).graceful_shutdown
       SignalWaiter.new(notifier, Signal.Terminate).graceful_shutdown
