@@ -2,7 +2,6 @@ use crate::network_poller::Interest;
 use crate::process::ProcessPointer;
 use crate::state::State;
 use std::os::fd::{BorrowedFd, RawFd};
-use std::sync::atomic::{AtomicI8, Ordering};
 
 /// The registered value to use to signal a source isn't registered with a
 /// network poller.
@@ -29,51 +28,43 @@ pub struct Poll {
     /// flags. For example, epoll requires the use of EPOLL_CTL_MOD when
     /// overwriting a registration, as using EPOLL_CTL_ADD will produce an error
     /// if a file descriptor is already registered.
-    pub registered: AtomicI8,
+    pub registered: i8,
 }
 
 impl Poll {
-    pub(crate) fn register(
+    /// Registers `self` with a network poller.
+    ///
+    /// This must be done when the run lock for the given process is acquired,
+    /// otherwise we may end up rescheduling a process multiple times or observe
+    /// an inconsistent state between threads.
+    pub(crate) unsafe fn register(
         &mut self,
         state: &State,
         process: ProcessPointer,
         interest: Interest,
     ) {
-        let cur = self.registered.load(Ordering::Acquire);
-
         // Safety: the standard library guarantees the file descriptor is valid
         // at this point.
         let fd = unsafe { BorrowedFd::borrow_raw(self.inner) };
+        let cur = self.registered;
 
-        // Once registered, the process might be rescheduled immediately if
-        // there is data available. This means that once we (re)register the
-        // source, it is not safe to use "self" anymore.
-        //
-        // To deal with this we:
-        //
-        // 1. Set "registered" _first_ (if necessary)
-        // 2. Add the source to the poller
         if cur == NOT_REGISTERED {
             let new = self.inner as usize % state.network_pollers.len();
 
-            self.registered.store(new as i8, Ordering::Release);
+            self.registered = new as i8;
             state.network_pollers[new].add(process, fd, interest);
         } else {
             state.network_pollers[cur as usize].modify(process, fd, interest);
         }
-        // *DO NOT* use "self" from here on, as the source/process may already
-        // be running on a different thread.
     }
 
-    pub(crate) fn deregister(&mut self, state: &State) {
-        let poller_id = self.registered.load(Ordering::Acquire) as usize;
-
+    pub(crate) unsafe fn deregister(&mut self, state: &State) {
         // Safety: the standard library guarantees the file descriptor is valid
         // at this point.
         let fd = unsafe { BorrowedFd::borrow_raw(self.inner) };
 
-        state.network_pollers[poller_id].delete(fd);
-        self.registered.store(NOT_REGISTERED, Ordering::Release);
+        state.network_pollers[self.registered as usize].delete(fd);
+        self.registered = NOT_REGISTERED;
     }
 }
 
