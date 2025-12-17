@@ -441,7 +441,7 @@ fn inline dirent_name(pointer: Pointer[Dirent]) -> Pointer[UInt8] {
   pointer as Int + 21 as Pointer[UInt8]
 }
 
-fn inline pipes -> Result[(Int32, Int32), Error] {
+fn inline pipes(nonblocking: Bool) -> Result[(Int32, Int32), Error] {
   let pipes = Pipes()
 
   if pipe(mut pipes) as Int != 0 { throw Error.last_os_error }
@@ -453,6 +453,18 @@ fn inline pipes -> Result[(Int32, Int32), Error] {
 
   if fcntl(pipes.writer, F_SETFD as Int32, FD_CLOEXEC as Int32) as Int != 0 {
     throw Error.last_os_error
+  }
+
+  if nonblocking {
+    let flags = O_NONBLOCK as Int32
+
+    if fcntl(pipes.reader, F_SETFL as Int32, flags) as Int != 0 {
+      throw Error.last_os_error
+    }
+
+    if fcntl(pipes.writer, F_SETFL as Int32, flags) as Int != 0 {
+      throw Error.last_os_error
+    }
   }
 
   Result.Ok((pipes.reader, pipes.writer))

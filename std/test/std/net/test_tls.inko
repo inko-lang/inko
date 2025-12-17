@@ -12,7 +12,7 @@ import std.net.tls (
   ServerConfig, ServerConfigError, ServerError,
 )
 import std.sync (Promise)
-import std.sys.net (NO_DEADLINE)
+import std.sys.poll (NO_DEADLINE)
 import std.test (Tests)
 import std.time (Duration, Instant)
 
@@ -85,7 +85,7 @@ type async DummyServer {
     Result.Ok((DummyServer(sock, conf), addr.port))
   }
 
-  fn async hello {
+  fn async mut hello {
     # We may encounter an error such as when the client closes the connection.
     # We want to ignore those so we don't terminate the test suite.
     let _ = @socket.accept.then(fn (sock) {
@@ -93,7 +93,7 @@ type async DummyServer {
     })
   }
 
-  fn async reply {
+  fn async mut reply {
     # We may encounter an error such as when the client closes the connection.
     # We want to ignore those so we don't terminate the test suite.
     let _ = @socket.accept.then(fn (sock) {

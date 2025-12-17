@@ -1,10 +1,11 @@
 # Types and methods for interacting with the underlying system.
 import std.bytes (Bytes)
-import std.drop (Drop, drop)
+import std.drop (drop)
 import std.env
 import std.fs.path (Path)
 import std.int (ToInt)
-import std.io (Error, Read, Write, WriteInternal)
+import std.io (Error, Read, Write)
+import std.pipe (Pipe, PipeWriter)
 import std.string (ToString)
 import std.sys.unix.sys if unix
 
@@ -273,24 +274,12 @@ impl ToInt for ExitStatus {
 
 # The standard input stream of a child process.
 type pub inline Stdin {
-  let @fd: Int32
-}
-
-impl Drop for Stdin {
-  fn mut drop {
-    sys.close(@fd)
-  }
-}
-
-impl WriteInternal for Stdin {
-  fn mut write_internal(data: Pointer[UInt8], size: Int) -> Result[Int, Error] {
-    sys.write(@fd, data, size)
-  }
+  let @pipe: PipeWriter
 }
 
 impl Write[Error] for Stdin {
   fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
-    write_all_internal(bytes.pointer, bytes.size)
+    @pipe.write(bytes)
   }
 
   fn pub mut flush -> Result[Nil, Error] {
@@ -300,35 +289,23 @@ impl Write[Error] for Stdin {
 
 # The standard output stream of a child process.
 type pub inline Stdout {
-  let @fd: Int32
-}
-
-impl Drop for Stdout {
-  fn mut drop {
-    sys.close(@fd)
-  }
+  let @pipe: Pipe
 }
 
 impl Read[Error] for Stdout {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
-    sys.read(@fd, into, size)
+    @pipe.read(into, size)
   }
 }
 
 # The standard error stream of a child process.
 type pub inline Stderr {
-  let @fd: Int32
-}
-
-impl Drop for Stderr {
-  fn mut drop {
-    sys.close(@fd)
-  }
+  let @pipe: Pipe
 }
 
 impl Read[Error] for Stderr {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
-    sys.read(@fd, into, size)
+    @pipe.read(into, size)
   }
 }
 
@@ -347,20 +324,21 @@ type pub ChildProcess {
   let pub mut @stderr: Option[Stderr]
 
   fn static new(inner: sys.ChildProcess) -> ChildProcess {
-    let stdin = match inner.stdin {
-      case Some(v) -> Option.Some(Stdin(v))
+    let { @id = id, @stdin = stdin, @stdout = stdout, @stderr = stderr } = inner
+    let stdin = match stdin {
+      case Some(v) -> Option.Some(Stdin(PipeWriter.from(v)))
       case _ -> Option.None
     }
-    let stdout = match inner.stdout {
-      case Some(v) -> Option.Some(Stdout(v))
+    let stdout = match stdout {
+      case Some(v) -> Option.Some(Stdout(Pipe.from(v)))
       case _ -> Option.None
     }
-    let stderr = match inner.stderr {
-      case Some(v) -> Option.Some(Stderr(v))
+    let stderr = match stderr {
+      case Some(v) -> Option.Some(Stderr(Pipe.from(v)))
       case _ -> Option.None
     }
 
-    ChildProcess(id: inner.id, stdin: stdin, stdout: stdout, stderr: stderr)
+    ChildProcess(id: id, stdin: stdin, stdout: stdout, stderr: stderr)
   }
 
   # Waits for the child process to finish running, and returns an `ExitStatus`

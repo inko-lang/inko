@@ -71,8 +71,10 @@ import std.io (Error, Read, Write, WriteInternal)
 import std.libc
 import std.net.happy
 import std.net.ip (IpAddress)
+import std.pipe (Pipe, PipeWriter)
 import std.string (ToString)
 import std.sys.net
+import std.sys.poll
 import std.sys.unix.net (self as sys) if unix
 import std.time (Duration, Instant, ToInstant)
 
@@ -107,7 +109,7 @@ fn pub try_ips[R, E](
 }
 
 trait RawSocketOperations {
-  fn mut raw_socket -> Pointer[net.RawSocket]
+  fn mut raw_socket -> Pointer[poll.Poll]
 
   fn raw_deadline -> Int
 }
@@ -271,7 +273,7 @@ impl Format for SocketAddress {
 
 # A low-level, non-blocking IPv4 or IPv6 socket.
 type pub Socket {
-  let @socket: net.RawSocket
+  let @socket: poll.Poll
 
   # A point in time after which socket operations time out.
   #
@@ -283,7 +285,7 @@ type pub Socket {
     let domain = if ipv6 { libc.AF_INET6 } else { libc.AF_INET }
 
     try sys.init_socket(mut sock, domain, kind, protocol)
-    Result.Ok(Socket(socket: sock, deadline: net.NO_DEADLINE))
+    Result.Ok(Socket(socket: sock, deadline: poll.NO_DEADLINE))
   }
 
   # Returns a new `Socket` configured as a stream socket.
@@ -355,7 +357,7 @@ type pub Socket {
   # socket.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).get
   # ```
   fn pub mut bind(ip: IpAddress, port: Int) -> Result[Nil, Error] {
-    sys.bind_ip(@socket.inner, ip, port)
+    sys.bind_ip(@socket.fd, ip, port)
   }
 
   # Connects this socket to the specified address.
@@ -396,7 +398,7 @@ type pub Socket {
   # socket.listen.get
   # ```
   fn pub mut listen -> Result[Nil, Error] {
-    sys.listen(@socket.inner, MAXIMUM_LISTEN_BACKLOG)
+    sys.listen(@socket.fd, MAXIMUM_LISTEN_BACKLOG)
   }
 
   # Accepts a new incoming connection from this socket.
@@ -431,7 +433,7 @@ type pub Socket {
     let peer = net.raw_socket
 
     try sys.accept(@socket, mut peer, @deadline)
-    Result.Ok(Socket(socket: peer, deadline: net.NO_DEADLINE))
+    Result.Ok(Socket(socket: peer, deadline: poll.NO_DEADLINE))
   }
 
   # Sends a `Bytes` value to the given address.
@@ -555,7 +557,7 @@ type pub Socket {
     }
 
     let res = libc.setsockopt(
-      @socket.inner,
+      @socket.fd,
       libc.SOL_SOCKET as Int32,
       libc.SO_LINGER as Int32,
       (mut linger) as Pointer[UInt8],
@@ -571,7 +573,7 @@ type pub Socket {
     let linger = libc.Linger(l_onoff: 0 as Int32, l_linger: 0 as Int32)
     let size = 8 as Int32
     let res = libc.getsockopt(
-      @socket.inner,
+      @socket.fd,
       libc.SOL_SOCKET as Int32,
       libc.SO_LINGER as Int32,
       (mut linger) as Pointer[UInt8],
@@ -636,15 +638,15 @@ type pub Socket {
     let sock = net.raw_socket
 
     try sys.try_clone(@socket, mut sock)
-    Result.Ok(Socket(socket: sock, deadline: net.NO_DEADLINE))
+    Result.Ok(Socket(socket: sock, deadline: poll.NO_DEADLINE))
   }
 
   fn mut set_option(level: Int, option: Int, value: Int) -> Result[Nil, Error] {
-    sys.set_int32_option(@socket.inner, level, option, value)
+    sys.set_int32_option(@socket.fd, level, option, value)
   }
 
   fn get_option(level: Int, option: Int) -> Int {
-    sys.get_int32_option(@socket.inner, level, option)
+    sys.get_int32_option(@socket.fd, level, option)
   }
 }
 
@@ -668,16 +670,16 @@ impl Deadline for Socket {
   }
 
   fn pub mut reset_deadline {
-    @deadline = net.NO_DEADLINE
+    @deadline = poll.NO_DEADLINE
   }
 }
 
 impl RawSocketOperations for Socket {
-  fn mut raw_socket -> Pointer[net.RawSocket] {
+  fn inline mut raw_socket -> Pointer[poll.Poll] {
     @socket
   }
 
-  fn raw_deadline -> Int {
+  fn inline raw_deadline -> Int {
     @deadline
   }
 }
@@ -832,11 +834,11 @@ impl Deadline for UdpSocket {
 }
 
 impl RawSocketOperations for UdpSocket {
-  fn mut raw_socket -> Pointer[net.RawSocket] {
+  fn inline mut raw_socket -> Pointer[poll.Poll] {
     @socket.socket
   }
 
-  fn raw_deadline -> Int {
+  fn inline raw_deadline -> Int {
     @socket.deadline
   }
 }
@@ -1020,11 +1022,11 @@ impl Deadline for TcpClient {
 }
 
 impl RawSocketOperations for TcpClient {
-  fn mut raw_socket -> Pointer[net.RawSocket] {
+  fn inline mut raw_socket -> Pointer[poll.Poll] {
     @socket.socket
   }
 
-  fn raw_deadline -> Int {
+  fn inline raw_deadline -> Int {
     @socket.deadline
   }
 }
@@ -1054,10 +1056,61 @@ impl Write[Error] for TcpClient {
   }
 }
 
+type inline Waiter {
+  let @reader: Pipe
+  let @buffer: ByteArray
+
+  fn static new(reader: Pipe) -> Self {
+    Self(reader: reader, buffer: ByteArray.with_capacity(1))
+  }
+
+  fn mut clear {
+    let _ = @reader.read(into: @buffer, size: 1)
+
+    @buffer.clear
+  }
+
+  fn mut as_poll -> Pointer[poll.Poll] {
+    @reader.as_poll
+  }
+}
+
+# A type for notifying a `TcpServer` or `UnixServer` such that the current or
+# next call to `accept` returns an `std.io.Error.Interrupted` error.
+type pub inline Notifier {
+  let @writer: PipeWriter
+
+  fn static new -> Result[(uni Notifier, Waiter), Error] {
+    let (r, w) = try Pipe.new
+
+    Result.Ok((recover Notifier(w), Waiter.new(r)))
+  }
+
+  # Notifies the corresponding `TcpServer` or `UnixServer` socket.
+  #
+  # The return value is `true` if the notification is queued up, or `false` if
+  # the receiving socket is dropped.
+  fn pub mut notify -> Bool {
+    @writer.write('1').ok?
+  }
+}
+
 # A TCP socket server that can accept incoming connections.
 type pub TcpServer {
   # The raw `Socket` wrapped by this `TcpServer`.
   let pub @socket: Socket
+
+  # The pipe to poll for interrupts.
+  let @waiter: Waiter
+
+  # The pipe to use for sending interrupts.
+  let mut @notifier: Option[uni Notifier]
+
+  fn static from(socket: Socket) -> Result[Self, Error] {
+    let (not, wait) = try Notifier.new
+
+    Result.Ok(Self(socket: socket, waiter: wait, notifier: Option.Some(not)))
+  }
 
   # Creates a new `TcpServer` bound to and listening on the given IP address
   # and port.
@@ -1082,7 +1135,8 @@ type pub TcpServer {
     try socket.reuse_port = true
     try socket.bind(ip, port)
     try socket.listen
-    Result.Ok(TcpServer(socket))
+
+    from(socket)
   }
 
   # Accepts a new incoming connection from `self`.
@@ -1092,9 +1146,32 @@ type pub TcpServer {
   # # Errors
   #
   # This method may return a `std.io.Error` error for various reasons depending
-  # on the underlying platform. For example, a `std.io.Error.ConnectiondAborted`
-  # may be returned if a connection in the process of being established was
-  # aborted.
+  # on the underlying platform.
+  #
+  # # Interrupts
+  #
+  # An application may wish to interrupt a call to this method as part of a
+  # graceful shutdown sequence. While some platforms support doing so using
+  # `TcpServer.try_clone` and calling `Socket.shutdown` on the resulting socket
+  # (through the `TcpServer.socket` field), this is not portable and most
+  # notably macOS doesn't support this.
+  #
+  # Instead one can obtain a `Notifier` instance using `TcpServer.notifier`.
+  # This `Notifier` can then be sent to another process to notify and wake up a
+  # `TcpServer` based on some condition. A `Notifier` may only be acquired once.
+  #
+  # When a `Notifier` notifies its corresponding `TcpServer`, the current or
+  # next call to `TcpServer.accept` will return a `std.io.Error.Interrupted`
+  # error. The socket _is not_ shut down, meaning you can continue using it
+  # after receiving an interrupt.
+  #
+  # Each notification is observed only once, so if you reuse the socket after
+  # receiving a notification you would need to send another notification to
+  # interrupt the call again.
+  #
+  # If an interrupt is received at the same time a connection is established,
+  # the `std.io.Error.Interrupted` error is returned and the connection remains
+  # in the socket backlog.
   #
   # # Examples
   #
@@ -1104,10 +1181,8 @@ type pub TcpServer {
   # import std.net.socket (TcpServer, TcpClient)
   # import std.net.ip (IpAddress)
   #
-  # let listener =
-  #   TcpServer.new(ip: IpAddress.v4(127, 0, 0, 1), port: 40_000).get
-  # let client =
-  #   TcpClient.new(ip: IpAddress.v4(127, 0, 0, 1), port: 40_000).get
+  # let listener = TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 40_000).get
+  # let client = TcpClient.new(IpAddress.v4(127, 0, 0, 1), port: 40_000).get
   #
   # client.write('ping')
   #
@@ -1118,8 +1193,46 @@ type pub TcpServer {
   #
   # buffer.to_string # => 'ping'
   # ```
-  fn pub accept -> Result[TcpClient, Error] {
-    @socket.accept.then(fn (sock) { TcpClient.from(sock) })
+  #
+  # Interrupting the `accept` call:
+  #
+  # ```inko
+  # import std.net.ip (IpAddress)
+  # import std.net.socket (Notifier, TcpServer)
+  # import std.process (sleep)
+  # import std.time (Duration)
+  #
+  # type async Notify {
+  #   fn async notify(notifier: uni Notifier) {
+  #     sleep(Duration.from_secs(1))
+  #     notifier.notify
+  #   }
+  # }
+  #
+  # type async Main {
+  #   fn async main {
+  #     let sock = TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 8000).get
+  #     let not = sock.notifier.get
+  #
+  #     Notify().notify(not)
+  #     sock.accept # => Result.Error(std.io.Error.Interrupted)
+  #   }
+  # }
+  # ```
+  fn pub mut accept -> Result[TcpClient, Error] {
+    match
+      try net.poll_socket_or_pipe(
+        @socket.raw_socket,
+        @waiter.as_poll,
+        @socket.deadline,
+      )
+    {
+      case Socket -> TcpClient.from(try @socket.accept)
+      case _ -> {
+        @waiter.clear
+        throw Error.Interrupted
+      }
+    }
   }
 
   # Returns the local address of this socket.
@@ -1134,7 +1247,15 @@ type pub TcpServer {
   # Cloning a socket may fail, such as when the program has too many open file
   # descriptors.
   fn pub try_clone -> Result[TcpServer, Error] {
-    @socket.try_clone.map(fn (sock) { TcpServer(sock) })
+    TcpServer.from(try @socket.try_clone)
+  }
+
+  # Takes ownership of the notifier in `self` and returns it, if it's still
+  # present.
+  #
+  # For more details refer to the documentation of `TcpServer.accept`.
+  fn pub mut notifier -> Option[uni Notifier] {
+    @notifier := Option.None
   }
 }
 
@@ -1149,11 +1270,11 @@ impl Deadline for TcpServer {
 }
 
 impl RawSocketOperations for TcpServer {
-  fn mut raw_socket -> Pointer[net.RawSocket] {
+  fn inline mut raw_socket -> Pointer[poll.Poll] {
     @socket.socket
   }
 
-  fn raw_deadline -> Int {
+  fn inline raw_deadline -> Int {
     @socket.deadline
   }
 }
@@ -1292,7 +1413,7 @@ impl Hash for UnixAddress {
 
 # A low-level, non-blocking Unix domain socket.
 type pub UnixSocket {
-  let @socket: net.RawSocket
+  let @socket: poll.Poll
 
   # A point in time after which socket operations time out.
   #
@@ -1303,7 +1424,7 @@ type pub UnixSocket {
     let sock = net.raw_socket
 
     try sys.init_socket(mut sock, libc.AF_UNIX, kind, protocol: 0)
-    Result.Ok(UnixSocket(socket: sock, deadline: net.NO_DEADLINE))
+    Result.Ok(UnixSocket(socket: sock, deadline: poll.NO_DEADLINE))
   }
 
   # Returns a new `UnixSocket` configured as a stream socket.
@@ -1371,7 +1492,7 @@ type pub UnixSocket {
   # socket.bind('/tmp/test.sock'.to_path).get
   # ```
   fn pub mut bind(path: ref Path) -> Result[Nil, Error] {
-    sys.bind_unix(@socket.inner, path)
+    sys.bind_unix(@socket.fd, path)
   }
 
   # Connects this socket to the specified address.
@@ -1411,7 +1532,7 @@ type pub UnixSocket {
   # socket.listen.get
   # ```
   fn pub mut listen -> Result[Nil, Error] {
-    sys.listen(@socket.inner, MAXIMUM_LISTEN_BACKLOG)
+    sys.listen(@socket.fd, MAXIMUM_LISTEN_BACKLOG)
   }
 
   # Accepts a new incoming connection from this socket.
@@ -1445,7 +1566,7 @@ type pub UnixSocket {
     let peer = net.raw_socket
 
     try sys.accept(@socket, mut peer, @deadline)
-    Result.Ok(UnixSocket(socket: peer, deadline: net.NO_DEADLINE))
+    Result.Ok(UnixSocket(socket: peer, deadline: poll.NO_DEADLINE))
   }
 
   # Sends a `ByteArray` to the given address.
@@ -1537,11 +1658,11 @@ type pub UnixSocket {
     let sock = net.raw_socket
 
     try sys.try_clone(@socket, mut sock)
-    Result.Ok(UnixSocket(socket: sock, deadline: net.NO_DEADLINE))
+    Result.Ok(UnixSocket(socket: sock, deadline: poll.NO_DEADLINE))
   }
 
   fn mut set_option(level: Int, option: Int, value: Int) -> Result[Nil, Error] {
-    sys.set_int32_option(@socket.inner, level, option, value)
+    sys.set_int32_option(@socket.fd, level, option, value)
   }
 }
 
@@ -1565,16 +1686,16 @@ impl Deadline for UnixSocket {
   }
 
   fn pub mut reset_deadline {
-    @deadline = net.NO_DEADLINE
+    @deadline = poll.NO_DEADLINE
   }
 }
 
 impl RawSocketOperations for UnixSocket {
-  fn mut raw_socket -> Pointer[net.RawSocket] {
+  fn inline mut raw_socket -> Pointer[poll.Poll] {
     @socket
   }
 
-  fn raw_deadline -> Int {
+  fn inline raw_deadline -> Int {
     @deadline
   }
 }
@@ -1719,11 +1840,11 @@ impl Deadline for UnixDatagram {
 }
 
 impl RawSocketOperations for UnixDatagram {
-  fn mut raw_socket -> Pointer[net.RawSocket] {
+  fn inline mut raw_socket -> Pointer[poll.Poll] {
     @socket.socket
   }
 
-  fn raw_deadline -> Int {
+  fn inline raw_deadline -> Int {
     @socket.deadline
   }
 }
@@ -1863,11 +1984,11 @@ impl Deadline for UnixClient {
 }
 
 impl RawSocketOperations for UnixClient {
-  fn mut raw_socket -> Pointer[net.RawSocket] {
+  fn inline mut raw_socket -> Pointer[poll.Poll] {
     @socket.socket
   }
 
-  fn raw_deadline -> Int {
+  fn inline raw_deadline -> Int {
     @socket.deadline
   }
 }
@@ -1902,6 +2023,18 @@ type pub UnixServer {
   # The raw `UnixSocket` wrapped by this `UnixServer`.
   let pub @socket: UnixSocket
 
+  # The pipe to poll for interrupts.
+  let @waiter: Waiter
+
+  # The pipe to use for sending interrupts.
+  let mut @notifier: Option[uni Notifier]
+
+  fn static from(socket: UnixSocket) -> Result[Self, Error] {
+    let (not, wait) = try Notifier.new
+
+    Result.Ok(Self(socket: socket, waiter: wait, notifier: Option.Some(not)))
+  }
+
   # Creates a new `UnixServer` bound to and listening on the given address.
   #
   # # Examples
@@ -1918,12 +2051,26 @@ type pub UnixServer {
 
     try socket.bind(address)
     try socket.listen
-    Result.Ok(UnixServer(socket))
+    from(socket)
   }
 
   # Accepts a new incoming connection from `self`.
   #
   # This method does not return until a connection is available.
+  #
+  # # Errors
+  #
+  # This method may return a `std.io.Error` error for various reasons depending
+  # on the underlying platform.
+  #
+  # A call to this method may be interrupted using a `Notifier`, in which case
+  # this method returns a `std.io.Error.Interrupted` error.
+  #
+  # # Interrupts
+  #
+  # This method may be interrupted using a `Notifier` similar to
+  # `TcpServer.accept`. For more details refer to the documentation of
+  # `TcpServer.accept`.
   #
   # # Examples
   #
@@ -1944,8 +2091,20 @@ type pub UnixServer {
   #
   # buffer.to_string # => 'ping'
   # ```
-  fn pub accept -> Result[UnixClient, Error] {
-    @socket.accept.map(fn (sock) { UnixClient(sock) })
+  fn pub mut accept -> Result[UnixClient, Error] {
+    match
+      try net.poll_socket_or_pipe(
+        @socket.raw_socket,
+        @waiter.as_poll,
+        @socket.deadline,
+      )
+    {
+      case Socket -> Result.Ok(UnixClient(try @socket.accept))
+      case _ -> {
+        @waiter.clear
+        throw Error.Interrupted
+      }
+    }
   }
 
   # Returns the local address of this socket.
@@ -1960,7 +2119,15 @@ type pub UnixServer {
   # Cloning a socket may fail, such as when the program has too many open file
   # descriptors.
   fn pub try_clone -> Result[UnixServer, Error] {
-    @socket.try_clone.map(fn (sock) { UnixServer(sock) })
+    UnixServer.from(try @socket.try_clone)
+  }
+
+  # Takes ownership of the notifier in `self` and returns it, if it's still
+  # present.
+  #
+  # For more details refer to the documentation of `TcpServer.accept`.
+  fn pub mut notifier -> Option[uni Notifier] {
+    @notifier := Option.None
   }
 }
 
@@ -1975,11 +2142,11 @@ impl Deadline for UnixServer {
 }
 
 impl RawSocketOperations for UnixServer {
-  fn mut raw_socket -> Pointer[net.RawSocket] {
+  fn inline mut raw_socket -> Pointer[poll.Poll] {
     @socket.socket
   }
 
-  fn raw_deadline -> Int {
+  fn inline raw_deadline -> Int {
     @socket.deadline
   }
 }

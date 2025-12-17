@@ -1,0 +1,62 @@
+import std.io (Error)
+import std.libc
+import std.ptr
+import std.sys.poll (Poll, new as new_poll, poll)
+
+type extern Pipe {
+  let @inner: Poll
+}
+
+fn inline new -> Result[(Pipe, Pipe), Error] {
+  let (r, w) = try libc.pipes(nonblocking: true)
+
+  Result.Ok((Pipe(new_poll(r)), Pipe(new_poll(w))))
+}
+
+fn inline read(
+  pipe: Pointer[Pipe],
+  into: mut ByteArray,
+  size: Int,
+  deadline: Int,
+) -> Result[Int, Error] {
+  into.reserve_exact(size)
+
+  let len = into.size
+  let ptr = ptr.add(into.pointer, len)
+
+  loop {
+    let res = libc.read(pipe.inner.fd, ptr, size as UInt64)
+
+    if res >= 0 {
+      into.size = len + res
+      return Result.Ok(res)
+    }
+
+    match libc.errno {
+      case libc.EAGAIN -> try poll(pipe.inner, deadline, write: false)
+      case e -> throw Error.from_os_error(e)
+    }
+  }
+}
+
+fn inline write(
+  pipe: Pointer[Pipe],
+  data: Pointer[UInt8],
+  size: Int,
+  deadline: Int,
+) -> Result[Int, Error] {
+  loop {
+    let res = libc.write(pipe.inner.fd, data, size as UInt64)
+
+    if res >= 0 { return Result.Ok(res) }
+
+    match libc.errno {
+      case libc.EAGAIN -> try poll(pipe.inner, deadline, write: true)
+      case e -> throw Error.from_os_error(e)
+    }
+  }
+}
+
+fn inline close(pipe: Pointer[Pipe]) {
+  libc.close(pipe.inner.fd)
+}

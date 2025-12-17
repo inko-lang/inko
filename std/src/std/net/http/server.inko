@@ -392,8 +392,8 @@ import std.net.http.header.values (tokens)
 import std.net.http.websocket (WEBSOCKET_KEY, WEBSOCKET_VERSION, Websocket)
 import std.net.ip (IpAddress)
 import std.net.socket (
-  Deadline, SendFile, Shutdown as ShutdownTrait, SocketAddress, TcpClient,
-  TcpServer, UnixAddress, UnixClient, UnixServer,
+  Deadline, Notifier as SocketNotifier, SendFile, Shutdown as ShutdownTrait,
+  SocketAddress, TcpClient, TcpServer, UnixAddress, UnixClient, UnixServer,
 )
 import std.net.tls
 import std.rand (Random)
@@ -2509,26 +2509,20 @@ type inline enum SocketServer {
   case Tcp(TcpServer)
   case Unix(UnixServer)
 
-  fn static tcp(socket: ref TcpServer) -> Result[uni Self, IoError] {
-    Result.Ok(recover SocketServer.Tcp(try socket.try_clone))
+  fn mut notifier -> Option[uni SocketNotifier] {
+    match self {
+      case Tcp(s) -> s.notifier
+      case Unix(s) -> s.notifier
+    }
   }
 
   fn mut accept(
     config: mut Tls,
-    shutdown: mut Shutdown,
     timeout: Duration,
   ) -> Result[uni Socket, IoError] {
     let sock = match self {
       case Tcp(s) -> {
         let sock = recover try s.accept
-
-        # If we received a shutdown request just now then we avoid doing the TLS
-        # handshake (if TLS is used), otherwise the server may end up waiting
-        # unnecessarily long before shutting down.
-        #
-        # The error thrown here doesn't really matter as we check `Shutdown`
-        # again in the server's run loop.
-        if shutdown.received? { throw IoError.ConnectionAborted }
 
         # If we encounter any TLS errors we'll drop the socket and move on to
         # the next one, as there's nothing we can do about such errors.
@@ -2583,44 +2577,13 @@ type inline enum SocketServer {
   }
 }
 
-type Shutdown {
-  let mut @future: Option[Future[Nil]]
-
-  fn static new(future: Future[Nil]) -> Self {
-    Self(Option.Some(future))
-  }
-
-  fn mut received? -> Bool {
-    match @future := Option.None {
-      case Some(f) -> {
-        match f.try_get {
-          case Ok(_) -> true
-          case Error(f) -> {
-            @future = Option.Some(f)
-            false
-          }
-        }
-      }
-      case _ -> true
-    }
-  }
-}
-
 # A type for notifying a `Server` that it should shut down.
 type pub async Notifier[H: mut + Handle] {
   let @pool: Pool[H]
-  let @address: Address
-  let mut @shutdown: Option[Promise[Nil]]
+  let @notifier: SocketNotifier
 
-  fn static new(pool: Pool[H], address: uni Address) -> (Self, Shutdown) {
-    let (fut, prom) = Future.new
-    let not = Self(
-      pool: pool,
-      address: address,
-      shutdown: recover Option.Some(prom),
-    )
-
-    (not, Shutdown.new(fut))
+  fn static new(pool: Pool[H], notifier: uni SocketNotifier) -> Self {
+    Self(pool: pool, notifier: notifier)
   }
 
   # Notifies the connection pool (and thus the server) that it should shut down.
@@ -2628,30 +2591,7 @@ type pub async Notifier[H: mut + Handle] {
   # The `wait` argument specifies if the server should shut down gracefully
   # (`true`) or immediately (`false`).
   fn pub async mut notify(wait: Bool) {
-    match @shutdown := Option.None {
-      case Some(p) -> {
-        # The Promise must be resolved _before_ the connection is made as to
-        # ensure the accept() loop correctly wakes up.
-        p.set(nil)
-
-        # Wake up the accept() loop using a dummy connection. This must be done
-        # _after_ we resolve the Promise as to ensure the accept() loop observes
-        # it being resolved _before_ it performs another accept().
-        #
-        # Any errors that may occur are ignored because we don't really care for
-        # them, as we'll shut down eventually.
-        #
-        # We don't use shutdown() here because only on Linux does it interrupt
-        # an accept(), while on other platforms it simply won't work on a socket
-        # that isn't already connected.
-        match @address {
-          case Ip(v) -> drop(TcpClient.new([v.ip], v.port))
-          case Unix(v) -> drop(UnixClient.new(v.address.to_path))
-        }
-      }
-      case _ -> {}
-    }
-
+    @notifier.notify
     @pool.shutdown(wait)
   }
 }
@@ -2857,7 +2797,7 @@ type pub Server[H: mut + Handle] {
 
   fn move run(socket: SocketServer) -> Result[Nil, IoError] {
     let addr = recover try socket.address
-    let (notifier, shutdown) = Notifier.new(@pool, recover addr.clone)
+    let notifier = Notifier.new(@pool, socket.notifier.get)
 
     if @handle_signals {
       SignalWaiter.new(notifier, Signal.Quit).immediate_shutdown
@@ -2874,12 +2814,13 @@ type pub Server[H: mut + Handle] {
     let mut counter = 0
 
     loop {
-      let client = match socket.accept(@tls, shutdown, @read_timeout) {
-        case _ if shutdown.received? -> break
+      let client = match socket.accept(@tls, @read_timeout) {
         case Ok(v) -> v
         # ConnectionAborted may be produced if a connection is established and
         # then aborted _just_ before we get to accept it.
         case Error(ConnectionAborted) -> next
+        # Interrupted is produced when we need to shut down.
+        case Error(Interrupted) -> break
         case Error(e) -> throw e
       }
 
@@ -2900,6 +2841,10 @@ type pub Server[H: mut + Handle] {
 
       handle(id, client, addr)
     }
+
+    # Drop the socket as soon as possible so the backlog doesn't fill up with
+    # new connections while we wait for existing ones to shut down.
+    drop(socket)
 
     match @before_shutdown {
       case Some(f) -> f.call

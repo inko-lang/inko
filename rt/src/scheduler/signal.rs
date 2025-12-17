@@ -173,7 +173,7 @@ impl Worker {
                 // We remove the signal from the set as to invoke the default
                 // behaviour for when the signal is received in the future.
                 set.remove(received);
-                self.state.scheduler.schedule_multiple(resched);
+                self.state.scheduler.schedule_multiple(&mut resched);
             }
 
             // This ensures that any remaining or newly added signals are part

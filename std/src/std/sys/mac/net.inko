@@ -7,6 +7,7 @@ import std.libc.mac (self as sys)
 import std.net.ip (Ipv4Address, Ipv6Address)
 import std.net.socket (RawSocketOperations)
 import std.sys.net
+import std.sys.poll
 
 # macOS doesn't have `SOCK_CLOEXEC` and `SOCK_NONBLOCK`, so we need to use
 # `fcntl()` to make a socket non-blocking.
@@ -108,7 +109,7 @@ fn inline send_file_stream[S: mut + RawSocketOperations](
   let sock = to.raw_socket
 
   loop {
-    let res = sys.sendfile(from.fd, sock.inner, off, mut len, hdtr, flags)
+    let res = sys.sendfile(from.fd, sock.fd, off, mut len, hdtr, flags)
 
     match res as Int {
       case 0 -> return Result.Ok((off as Int) + (len as Int))
@@ -120,7 +121,7 @@ fn inline send_file_stream[S: mut + RawSocketOperations](
             # length.
             off = (off as Int) + (len as Int) as Int64
             len = 0 as Int64
-            try net.poll(sock, to.raw_deadline, write: true)
+            try poll.poll(sock, to.raw_deadline, write: true)
           }
           case e -> throw Error.from_os_error(e)
         }

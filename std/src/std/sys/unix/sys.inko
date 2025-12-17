@@ -5,6 +5,7 @@ import std.libc
 import std.ptr
 import std.sys (Stream)
 import std.sys.unix.fs
+import std.sys.unix.pipe (self as sys_pipe)
 import std.sys.unix.stdio
 
 type FileActions {
@@ -29,7 +30,7 @@ type FileActions {
     stream: Stream,
     fd: Int32,
     write: Bool,
-  ) -> Result[Option[Int32], Error] {
+  ) -> Result[Option[sys_pipe.Pipe], Error] {
     let res = match stream {
       case Null -> {
         let null = try fs.open_file(
@@ -44,16 +45,26 @@ type FileActions {
         Option.None
       }
       case Piped -> {
-        match try libc.pipes {
-          case (parent, child) if write -> {
-            dup(child, fd)
-            Option.Some(parent)
-          }
-          case (child, parent) -> {
-            dup(child, fd)
-            Option.Some(parent)
-          }
+        let (ours, theirs) = match try sys_pipe.new {
+          case (r, w) if write -> (r, w.inner.fd)
+          case (r, w) -> (w, r.inner.fd)
         }
+
+        # We need to unset the NONBLOCK flag for the child process, otherwise it
+        # might break due to not expecting a non-blocking stream.
+        let get = libc.F_GETFL as Int32
+        let set = libc.F_SETFL as Int32
+        let opt = libc.O_NONBLOCK
+        let cur = libc.fcntl(theirs, get, 0 as Int32) as Int
+
+        if cur == -1 { throw Error.last_os_error }
+
+        if libc.fcntl(theirs, set, cur & opt.not as Int32) as Int == -1 {
+          throw Error.last_os_error
+        }
+
+        dup(theirs, fd)
+        Option.Some(ours)
       }
       case Inherit -> Option.None
     }
@@ -79,7 +90,7 @@ impl Drop for FileActions {
     # here.
     loop {
       match @close.pop {
-        case Some(v) -> close(v)
+        case Some(v) -> fs.close_file(v)
         case _ -> break
       }
     }
@@ -243,25 +254,13 @@ fn try_wait(pid: Int32) -> Result[Option[Int], Error] {
   )
 }
 
-fn read(fd: Int32, into: mut ByteArray, size: Int) -> Result[Int, Error] {
-  fs.read_file(fd, into, size)
-}
-
-fn write(fd: Int32, data: Pointer[UInt8], size: Int) -> Result[Int, Error] {
-  fs.write_file(fd, data, size)
-}
-
-fn close(fd: Int32) {
-  fs.close_file(fd)
-}
-
 fn exit(status: Int) -> Never {
   libc.exit(status as Int32)
 }
 
-type ChildProcess {
+type inline ChildProcess {
   let @id: Int32
-  let @stdin: Option[Int32]
-  let @stdout: Option[Int32]
-  let @stderr: Option[Int32]
+  let @stdin: Option[sys_pipe.Pipe]
+  let @stdout: Option[sys_pipe.Pipe]
+  let @stderr: Option[sys_pipe.Pipe]
 }

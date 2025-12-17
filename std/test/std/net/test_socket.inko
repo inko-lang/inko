@@ -1,4 +1,4 @@
-import std.drop (Drop)
+import std.drop (Drop, drop)
 import std.env
 import std.fmt (fmt)
 import std.fs.file (ReadOnlyFile)
@@ -6,11 +6,11 @@ import std.fs.path (Path)
 import std.io (Error)
 import std.net.ip (IpAddress, Ipv4Address, Ipv6Address)
 import std.net.socket (
-  Socket, SocketAddress, TcpClient, TcpServer, UdpSocket, UnixAddress,
+  Notifier, Socket, SocketAddress, TcpClient, TcpServer, UdpSocket, UnixAddress,
   UnixClient, UnixDatagram, UnixServer, UnixSocket,
 )
 import std.string (ToString)
-import std.sys.net (NO_DEADLINE)
+import std.sys.poll (NO_DEADLINE)
 import std.test (Tests)
 import std.time (Duration, Instant)
 
@@ -784,6 +784,35 @@ fn pub tests(t: mut Tests) {
     Result.Ok(nil)
   })
 
+  t.ok('TcpServer.accept with an interrupt', fn (t) {
+    let srv = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
+    let not = srv.notifier.get
+
+    t.true(not.notify)
+    t.equal(srv.accept.error, Option.Some(Error.Interrupted))
+
+    Result.Ok(nil)
+  })
+
+  t.ok('TcpServer.accept with an interrupt and pending connection', fn (t) {
+    let srv = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
+    let not = srv.notifier.get
+    let addr = try srv.local_address
+    let _client = try TcpClient.new([addr.ip], addr.port)
+
+    t.true(not.notify)
+
+    # Depending on the order and timing of events we may observe either of the
+    # sources being available or both. So instead of asserting an exact order,
+    # we just assert that both expectations are true.
+    let res = [srv.accept.error, srv.accept.error]
+
+    t.true(res.contains?(Option.Some(Error.Interrupted)))
+    t.true(res.contains?(Option.None))
+
+    Result.Ok(nil)
+  })
+
   t.test('TcpServer.local_address', fn (t) {
     let ip = IpAddress.V4(Ipv4Address.new(127, 0, 0, 1))
     let listener = TcpServer.new(ip: ip, port: 0).get
@@ -1422,6 +1451,30 @@ fn pub tests(t: mut Tests) {
     Result.Ok(nil)
   })
 
+  t.ok('UnixServer.accept with an interrupt', fn (t) {
+    let path = SocketPath.new(t.id)
+    let srv = try UnixServer.new(path.path)
+    let not = srv.notifier.get
+
+    t.true(not.notify)
+    t.equal(srv.accept.error, Option.Some(Error.Interrupted))
+
+    Result.Ok(nil)
+  })
+
+  t.ok('UnixServer.accept with an interrupt and pending connection', fn (t) {
+    let path = SocketPath.new(t.id)
+    let srv = try UnixServer.new(path.path)
+    let not = srv.notifier.get
+    let _client = try UnixClient.new(path.path)
+
+    t.true(not.notify)
+    t.equal(srv.accept.error, Option.Some(Error.Interrupted))
+    t.true(srv.accept.ok?)
+
+    Result.Ok(nil)
+  })
+
   t.test('UnixServer.local_address', fn (t) {
     let path = SocketPath.new(t.id)
     let listener = UnixServer.new(path.path).get
@@ -1626,6 +1679,39 @@ fn pub tests(t: mut Tests) {
 
     client.reset_deadline
     t.equal(client.socket.deadline, NO_DEADLINE)
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Notifier.notify', fn (t) {
+    let (not, wait) = try Notifier.new
+    let buf = ByteArray.new
+
+    t.true(not.notify)
+    wait.reader.timeout_after = Duration.from_secs(5)
+    t.equal(wait.reader.read(buf, size: 1), Result.Ok(1))
+
+    t.true(not.notify)
+    t.true(not.notify)
+    wait.reader.timeout_after = Duration.from_secs(5)
+    t.equal(wait.reader.read(buf, size: 1), Result.Ok(1))
+    t.equal(wait.reader.read(buf, size: 1), Result.Ok(1))
+
+    drop(wait)
+    t.false(not.notify)
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Waiter.clear', fn (t) {
+    let (not, wait) = try Notifier.new
+    let buf = ByteArray.new
+
+    not.notify
+    wait.clear
+
+    wait.reader.timeout_after = Duration.from_millis(10)
+    t.equal(wait.reader.read(buf, size: 1), Result.Error(Error.TimedOut))
 
     Result.Ok(nil)
   })

@@ -56,6 +56,8 @@ let ESPIPE = 29
 let ETIMEDOUT = 60
 let EXDEV = 18
 let F_DUPFD_CLOEXEC = 17
+let F_GETFL = 3
+let F_SETFL = 4
 let IPPROTO_IP = 0
 let IPPROTO_IPV6 = 41
 let IPPROTO_TCP = 6
@@ -64,6 +66,7 @@ let IP_TTL = 4
 let O_APPEND = 0x8
 let O_CLOEXEC = 0x100000
 let O_CREAT = 0x200
+let O_NONBLOCK = 0x4
 let O_RDONLY = 0
 let O_RDWR = 0x2
 let O_TRUNC = 0x400
@@ -405,12 +408,13 @@ fn inline dirent_name(pointer: Pointer[Dirent]) -> Pointer[UInt8] {
   pointer as Int + 24 as Pointer[UInt8]
 }
 
-fn inline pipes -> Result[(Int32, Int32), Error] {
+fn inline pipes(nonblocking: Bool) -> Result[(Int32, Int32), Error] {
   let pipes = Pipes()
+  let mut flags = O_CLOEXEC
 
-  if pipe2(mut pipes, O_CLOEXEC as Int32) as Int != 0 {
-    throw Error.last_os_error
-  }
+  if nonblocking { flags |= O_NONBLOCK }
+
+  if pipe2(mut pipes, flags as Int32) as Int != 0 { throw Error.last_os_error }
 
   Result.Ok((pipes.reader, pipes.writer))
 }

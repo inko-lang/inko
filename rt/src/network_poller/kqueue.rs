@@ -1,5 +1,4 @@
 use crate::network_poller::Interest;
-use crate::process::ProcessPointer;
 use rustix::event::kqueue::{kevent, kqueue, Event, EventFilter, EventFlags};
 use rustix::fd::{AsFd, AsRawFd, OwnedFd};
 use rustix::io::Errno;
@@ -17,30 +16,20 @@ impl Poller {
         Poller { fd }
     }
 
-    pub(crate) fn poll(&self, events: &mut Events) -> Vec<ProcessPointer> {
+    pub(crate) fn poll<'a>(
+        &self,
+        events: &'a mut Events,
+    ) -> impl Iterator<Item = u64> + 'a {
         match unsafe { kevent(&self.fd, &[], events, None) } {
             Ok(_) | Err(Errno::INTR) => {}
             Err(_) => panic!("kevent() failed"),
         }
 
-        let procs = events
-            .iter()
-            .map(|e| unsafe {
-                ProcessPointer::new(e.udata() as usize as *mut _)
-            })
-            .collect();
-
-        events.clear();
-        procs
+        events.iter().map(|e| e.udata() as u64)
     }
 
-    pub(crate) fn add(
-        &self,
-        process: ProcessPointer,
-        source: impl AsFd,
-        interest: Interest,
-    ) {
-        let id = process.identifier() as isize;
+    pub(crate) fn add(&self, id: u64, source: impl AsFd, interest: Interest) {
+        let id = id as isize;
         let fd = source.as_fd().as_raw_fd();
         let flags =
             EventFlags::CLEAR | EventFlags::ONESHOT | EventFlags::RECEIPT;
@@ -60,11 +49,11 @@ impl Poller {
 
     pub(crate) fn modify(
         &self,
-        process: ProcessPointer,
+        id: u64,
         source: impl AsFd,
         interest: Interest,
     ) {
-        self.add(process, source, interest);
+        self.add(id, source, interest);
     }
 
     pub(crate) fn delete(&self, source: impl AsFd) {

@@ -35,6 +35,7 @@ import std.net.socket (Deadline, RawSocketOperations, SendFile)
 import std.ptr
 import std.string (PrimitiveString, ToString)
 import std.sys.net
+import std.sys.poll
 import std.sys.unix.net (self as sys)
 import std.time (ToInstant)
 
@@ -104,7 +105,7 @@ fn extern inko_tls_server_connection_server_name(
 fn extern inko_tls_server_connection_drop(connection: Pointer[UInt8])
 
 fn extern inko_tls_client_read(
-  socket: Pointer[net.RawSocket],
+  socket: Pointer[poll.Poll],
   connection: Pointer[UInt8],
   buffer: Pointer[UInt8],
   size: Int,
@@ -114,7 +115,7 @@ fn extern inko_tls_client_read(
 ) -> IntResult
 
 fn extern inko_tls_client_write(
-  socket: Pointer[net.RawSocket],
+  socket: Pointer[poll.Poll],
   connection: Pointer[UInt8],
   buffer: Pointer[UInt8],
   size: Int,
@@ -126,12 +127,12 @@ fn extern inko_tls_client_write(
 fn extern inko_tls_client_flush(
   state: Pointer[UInt8],
   process: Pointer[UInt8],
-  socket: Pointer[net.RawSocket],
+  socket: Pointer[poll.Poll],
   connection: Pointer[UInt8],
 ) -> IntResult
 
 fn extern inko_tls_client_close(
-  socket: Pointer[net.RawSocket],
+  socket: Pointer[poll.Poll],
   connection: Pointer[UInt8],
   deadline: Int,
   reader: Pointer[UInt8],
@@ -139,7 +140,7 @@ fn extern inko_tls_client_close(
 ) -> IntResult
 
 fn extern inko_tls_server_read(
-  socket: Pointer[net.RawSocket],
+  socket: Pointer[poll.Poll],
   connection: Pointer[UInt8],
   buffer: Pointer[UInt8],
   size: Int,
@@ -149,7 +150,7 @@ fn extern inko_tls_server_read(
 ) -> IntResult
 
 fn extern inko_tls_server_write(
-  socket: Pointer[net.RawSocket],
+  socket: Pointer[poll.Poll],
   connection: Pointer[UInt8],
   buffer: Pointer[UInt8],
   size: Int,
@@ -161,12 +162,12 @@ fn extern inko_tls_server_write(
 fn extern inko_tls_server_flush(
   state: Pointer[UInt8],
   process: Pointer[UInt8],
-  socket: Pointer[net.RawSocket],
+  socket: Pointer[poll.Poll],
   connection: Pointer[UInt8],
 ) -> IntResult
 
 fn extern inko_tls_server_close(
-  socket: Pointer[net.RawSocket],
+  socket: Pointer[poll.Poll],
   connection: Pointer[UInt8],
   deadline: Int,
   reader: Pointer[UInt8],
@@ -174,7 +175,7 @@ fn extern inko_tls_server_close(
 ) -> IntResult
 
 fn extern inko_tls_client_complete_io(
-  socket: Pointer[net.RawSocket],
+  socket: Pointer[poll.Poll],
   connection: Pointer[UInt8],
   deadline: Int,
   reader: Pointer[UInt8],
@@ -182,7 +183,7 @@ fn extern inko_tls_client_complete_io(
 ) -> IntResult
 
 fn extern inko_tls_server_complete_io(
-  socket: Pointer[net.RawSocket],
+  socket: Pointer[poll.Poll],
   connection: Pointer[UInt8],
   deadline: Int,
   reader: Pointer[UInt8],
@@ -190,7 +191,7 @@ fn extern inko_tls_server_complete_io(
 ) -> IntResult
 
 fn extern inko_tls_pending_server_new(
-  socket: Pointer[net.RawSocket],
+  socket: Pointer[poll.Poll],
   deadline: Int,
   reader: Pointer[UInt8],
   writer: Pointer[UInt8],
@@ -203,7 +204,7 @@ fn extern inko_tls_pending_server_name(
 fn extern inko_tls_pending_server_into_server_connection(
   accepted: Pointer[UInt8],
   config: Pointer[UInt8],
-  socket: Pointer[net.RawSocket],
+  socket: Pointer[poll.Poll],
   deadline: Int,
   reader: Pointer[UInt8],
   writer: Pointer[UInt8],
@@ -226,7 +227,7 @@ type extern IntResult {
 }
 
 fn extern read_callback(
-  socket: Pointer[net.RawSocket],
+  socket: Pointer[poll.Poll],
   buffer: Pointer[UInt8],
   size: Int,
   deadline: Int,
@@ -238,7 +239,7 @@ fn extern read_callback(
 }
 
 fn extern write_callback(
-  socket: Pointer[net.RawSocket],
+  socket: Pointer[poll.Poll],
   buffer: Pointer[UInt8],
   size: Int,
   deadline: Int,
@@ -707,7 +708,7 @@ impl Write[Error] for Client {
 }
 
 impl RawSocketOperations for Client {
-  fn inline mut raw_socket -> Pointer[net.RawSocket] {
+  fn inline mut raw_socket -> Pointer[poll.Poll] {
     @socket.raw_socket
   }
 
@@ -1125,7 +1126,7 @@ impl Write[Error] for Server {
 }
 
 impl RawSocketOperations for Server {
-  fn inline mut raw_socket -> Pointer[net.RawSocket] {
+  fn inline mut raw_socket -> Pointer[poll.Poll] {
     @socket.raw_socket
   }
 

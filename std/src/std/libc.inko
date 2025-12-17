@@ -69,6 +69,8 @@ let ETIME = sys.ETIME
 let ETIMEDOUT = sys.ETIMEDOUT
 let EXDEV = sys.EXDEV
 let F_DUPFD_CLOEXEC = sys.F_DUPFD_CLOEXEC
+let F_GETFL = sys.F_GETFL
+let F_SETFL = sys.F_SETFL
 let IPPROTO_IP = sys.IPPROTO_IP
 let IPPROTO_IPV6 = sys.IPPROTO_IPV6
 let IPPROTO_TCP = sys.IPPROTO_TCP
@@ -77,6 +79,7 @@ let IP_TTL = sys.IP_TTL
 let O_APPEND = sys.O_APPEND
 let O_CLOEXEC = sys.O_CLOEXEC
 let O_CREAT = sys.O_CREAT
+let O_NONBLOCK = sys.O_NONBLOCK
 let O_RDONLY = sys.O_RDONLY
 let O_RDWR = sys.O_RDWR
 let O_TRUNC = sys.O_TRUNC
@@ -360,8 +363,8 @@ fn inline dirent_name(pointer: Pointer[sys.Dirent]) -> Pointer[UInt8] {
   sys.dirent_name(pointer)
 }
 
-fn inline pipes -> Result[(Int32, Int32), Error] {
-  sys.pipes
+fn inline pipes(nonblocking: Bool) -> Result[(Int32, Int32), Error] {
+  sys.pipes(nonblocking)
 }
 
 fn inline errno_location -> Pointer[Int32] {

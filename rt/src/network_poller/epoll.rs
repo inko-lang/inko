@@ -1,5 +1,4 @@
 use crate::network_poller::Interest;
-use crate::process::ProcessPointer;
 use rustix::event::epoll::{
     add, create, delete, modify, wait, CreateFlags, EventData, EventFlags,
     EventVec,
@@ -29,28 +28,20 @@ impl Poller {
         Poller { fd }
     }
 
-    pub(crate) fn poll(&self, events: &mut Events) -> Vec<ProcessPointer> {
+    pub(crate) fn poll<'a>(
+        &self,
+        events: &'a mut Events,
+    ) -> impl Iterator<Item = u64> + 'a {
         match wait(&self.fd, events, -1) {
             Ok(_) | Err(Errno::INTR) => {}
             Err(_) => panic!("epoll_wait() failed"),
         }
 
-        let procs = events
-            .iter()
-            .map(|e| unsafe { ProcessPointer::new(e.data.u64() as *mut _) })
-            .collect();
-
-        events.clear();
-        procs
+        events.iter().map(|e| e.data.u64())
     }
 
-    pub(crate) fn add(
-        &self,
-        process: ProcessPointer,
-        source: impl AsFd,
-        interest: Interest,
-    ) {
-        let data = EventData::new_u64(process.identifier() as _);
+    pub(crate) fn add(&self, id: u64, source: impl AsFd, interest: Interest) {
+        let data = EventData::new_u64(id);
 
         add(&self.fd, source, data, flags_for(interest))
             .expect("epoll_ctl() failed");
@@ -58,11 +49,11 @@ impl Poller {
 
     pub(crate) fn modify(
         &self,
-        process: ProcessPointer,
+        id: u64,
         source: impl AsFd,
         interest: Interest,
     ) {
-        let data = EventData::new_u64(process.identifier() as _);
+        let data = EventData::new_u64(id);
 
         modify(&self.fd, source, data, flags_for(interest))
             .expect("epoll_ctl() failed");

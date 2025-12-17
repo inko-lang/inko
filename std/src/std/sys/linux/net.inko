@@ -7,6 +7,7 @@ import std.libc.linux (self as sys)
 import std.net.ip (Ipv4Address, Ipv6Address)
 import std.net.socket (RawSocketOperations)
 import std.sys.net
+import std.sys.poll
 
 # The maximum number of bytes we can copy in a single call to `sendfile`.
 let MAX_COPY = 2147479552
@@ -118,13 +119,13 @@ fn inline send_file_stream[S: mut + RawSocketOperations](
   let raw = to.raw_socket
 
   loop {
-    let res = sys.sendfile(raw.inner, from.fd, mut off, max)
+    let res = sys.sendfile(raw.fd, from.fd, mut off, max)
 
     match res as Int {
       case 0 -> return Result.Ok(off as Int)
       case -1 -> {
         match libc.errno {
-          case libc.EAGAIN -> try net.poll(raw, to.raw_deadline, write: true)
+          case libc.EAGAIN -> try poll.poll(raw, to.raw_deadline, write: true)
           case e -> throw Error.from_os_error(e)
         }
       }

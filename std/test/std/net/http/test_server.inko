@@ -17,9 +17,9 @@ import std.net.http.server (
   Address, CacheControl, ConnectionId, Delete, Directory, Event, Events,
   FileRanges, FormError, Get, Handle, Head, LogWriter, Logger, Notifier,
   Path as RequestPath, Post, Put, RangeRequest, Request, Response, Server,
-  Shutdown, Socket, SocketServer, State, Tls, WebsocketResponse,
-  compress_response, conditional_request, copy_file_range, head_request,
-  parse_accept_range, parse_accept_ranges,
+  Socket, SocketServer, State, Tls, WebsocketResponse, compress_response,
+  conditional_request, copy_file_range, head_request, parse_accept_range,
+  parse_accept_ranges,
 )
 import std.net.http.websocket (WEBSOCKET_VERSION)
 import std.net.ip (IpAddress)
@@ -194,10 +194,7 @@ fn accept(
   server: mut SocketServer,
   config: Tls,
 ) -> Result[uni Socket, IoError] {
-  let (fut, _prom) = Future.new
-  let shut = Shutdown.new(fut)
-
-  server.accept(config, shut, timeout: Duration.from_secs(5))
+  server.accept(config, timeout: Duration.from_secs(5))
 }
 
 type Writer {
@@ -2435,17 +2432,6 @@ fn pub tests(t: mut Tests) {
 
       Result.Ok(nil)
     })
-  })
-
-  t.test('Shutdown.received?', fn (t) {
-    let (fut, prom) = Future.new
-    let shutdown = Shutdown(Option.Some(fut))
-
-    t.false(shutdown.received?)
-
-    prom.set(nil)
-    t.true(shutdown.received?)
-    t.true(shutdown.received?)
   })
 
   t.ok('Server.tls', fn (t) {

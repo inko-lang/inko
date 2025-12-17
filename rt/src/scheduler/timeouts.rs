@@ -167,8 +167,8 @@ impl Timeouts {
     pub(crate) fn processes_to_reschedule(
         &mut self,
         state: &State,
-    ) -> (Vec<ProcessPointer>, Option<Duration>) {
-        let mut reschedule = Vec::new();
+        reschedule: &mut Vec<ProcessPointer>,
+    ) -> Option<Duration> {
         let mut time_until_expiration = None;
 
         while let Some(entry) = self.entries.pop() {
@@ -196,7 +196,7 @@ impl Timeouts {
             }
         }
 
-        (reschedule, time_until_expiration)
+        time_until_expiration
     }
 
     fn remove_expired(&mut self) {
@@ -246,17 +246,19 @@ impl Worker {
     }
 
     pub(crate) fn run(&self, state: &State) {
+        let mut expired = Vec::new();
+
         while state.scheduler.is_alive() {
-            self.run_iteration(state);
+            self.run_iteration(state, &mut expired);
         }
     }
 
-    fn run_iteration(&self, state: &State) {
+    fn run_iteration(&self, state: &State, expired: &mut Vec<ProcessPointer>) {
         let mut timeouts = self.timeouts.lock().unwrap();
 
         timeouts.compact();
 
-        let (expired, next_dur) = timeouts.processes_to_reschedule(state);
+        let next_dur = timeouts.processes_to_reschedule(state, expired);
 
         state.scheduler.schedule_multiple(expired);
 
@@ -423,8 +425,9 @@ mod tests {
 
             timeouts.active.remove(&id);
 
-            let (reschedule, expiration) =
-                timeouts.processes_to_reschedule(&state);
+            let mut reschedule = Vec::new();
+            let expiration =
+                timeouts.processes_to_reschedule(&state, &mut reschedule);
 
             assert!(reschedule.is_empty());
             assert!(expiration.is_none());
@@ -441,8 +444,9 @@ mod tests {
 
             process.state().waiting_for_value(Some(id));
 
-            let (reschedule, expiration) =
-                timeouts.processes_to_reschedule(&state);
+            let mut reschedule = Vec::new();
+            let expiration =
+                timeouts.processes_to_reschedule(&state, &mut reschedule);
 
             assert!(reschedule.is_empty());
             assert!(expiration.is_some());
@@ -460,8 +464,9 @@ mod tests {
 
             process.state().waiting_for_value(Some(id));
 
-            let (reschedule, expiration) =
-                timeouts.processes_to_reschedule(&state);
+            let mut reschedule = Vec::new();
+            let expiration =
+                timeouts.processes_to_reschedule(&state, &mut reschedule);
 
             assert_eq!(reschedule.len(), 1);
             assert!(expiration.is_none());
@@ -530,14 +535,16 @@ mod tests {
             let process = new_process(*typ).take_and_forget();
             let worker = Worker::new();
             let timeout = Deadline::duration(&state, Duration::from_secs(0));
+            let mut reschedule = Vec::new();
 
             state.scheduler.terminate();
             process
                 .state()
                 .waiting_for_value(Some(worker.suspend(process, timeout)));
-            worker.run_iteration(&state);
+            worker.run_iteration(&state, &mut reschedule);
 
             assert_eq!(worker.timeouts.lock().unwrap().entries.len(), 0);
+            assert_eq!(reschedule.len(), 0);
         }
     }
 }

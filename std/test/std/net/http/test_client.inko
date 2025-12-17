@@ -18,7 +18,7 @@ import std.net.socket (SocketAddress, TcpClient, TcpServer, UnixServer)
 import std.net.tls
 import std.rand (Random)
 import std.sync (Future)
-import std.sys.net (NO_DEADLINE)
+import std.sys.poll (NO_DEADLINE)
 import std.test (Tests)
 import std.time (Duration, Instant)
 import std.uri (

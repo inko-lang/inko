@@ -1,7 +1,7 @@
 use crate::mem::PrimitiveString;
+use crate::poll::Poll;
 use crate::result::{self, Result};
 use crate::rustls_platform_verifier::ConfigVerifierExt;
-use crate::socket::Socket;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, ServerName};
 use rustls::server::{Accepted, Acceptor};
 use rustls::{
@@ -27,7 +27,7 @@ const INVALID_CLIENT_HELLO: isize = -3;
 const INVALID_CONNECTION: isize = -4;
 
 type Callback = unsafe extern "system" fn(
-    socket: *mut Socket,
+    socket: *mut Poll,
     buffer: *mut u8,
     size: i64,
     deadline: i64,
@@ -35,7 +35,7 @@ type Callback = unsafe extern "system" fn(
 
 struct CallbackIo {
     /// The socket to read data from/write data to.
-    socket: *mut Socket,
+    socket: *mut Poll,
 
     /// The callback function to use when data must be read.
     reader: Callback,
@@ -85,7 +85,7 @@ unsafe fn close<
     C: Deref<Target = rustls::ConnectionCommon<S>> + DerefMut,
     S: SideData,
 >(
-    socket: *mut Socket,
+    socket: *mut Poll,
     con: *mut C,
     deadline: i64,
     reader: Callback,
@@ -107,7 +107,7 @@ unsafe fn complete_io<
     C: Deref<Target = rustls::ConnectionCommon<S>> + DerefMut,
     S: SideData,
 >(
-    socket: *mut Socket,
+    socket: *mut Poll,
     con: *mut C,
     deadline: i64,
     reader: Callback,
@@ -363,7 +363,7 @@ pub unsafe extern "system" fn inko_tls_server_connection_drop(
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_tls_client_write(
-    socket: *mut Socket,
+    socket: *mut Poll,
     con: *mut ClientConnection,
     buffer: *mut u8,
     size: i64,
@@ -382,7 +382,7 @@ pub unsafe extern "system" fn inko_tls_client_write(
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_tls_client_read(
-    socket: *mut Socket,
+    socket: *mut Poll,
     con: *mut ClientConnection,
     buffer: *mut u8,
     size: i64,
@@ -401,7 +401,7 @@ pub unsafe extern "system" fn inko_tls_client_read(
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_tls_client_close(
-    sock: *mut Socket,
+    sock: *mut Poll,
     con: *mut ClientConnection,
     deadline: i64,
     reader: Callback,
@@ -414,7 +414,7 @@ pub unsafe extern "system" fn inko_tls_client_close(
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_tls_server_write(
-    socket: *mut Socket,
+    socket: *mut Poll,
     con: *mut ServerConnection,
     buffer: *mut u8,
     size: i64,
@@ -433,7 +433,7 @@ pub unsafe extern "system" fn inko_tls_server_write(
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_tls_server_read(
-    socket: *mut Socket,
+    socket: *mut Poll,
     con: *mut ServerConnection,
     buffer: *mut u8,
     size: i64,
@@ -452,7 +452,7 @@ pub unsafe extern "system" fn inko_tls_server_read(
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_tls_server_close(
-    sock: *mut Socket,
+    sock: *mut Poll,
     con: *mut ServerConnection,
     deadline: i64,
     reader: Callback,
@@ -465,7 +465,7 @@ pub unsafe extern "system" fn inko_tls_server_close(
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_tls_server_complete_io(
-    socket: *mut Socket,
+    socket: *mut Poll,
     con: *mut ServerConnection,
     deadline: i64,
     reader: Callback,
@@ -479,13 +479,12 @@ pub unsafe extern "system" fn inko_tls_server_complete_io(
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_tls_client_complete_io(
-    socket: *mut Socket,
+    socket: *mut Poll,
     con: *mut ClientConnection,
     deadline: i64,
     reader: Callback,
     writer: Callback,
 ) -> Result {
-    // TODO: move into the common method
     match complete_io(socket, con, deadline, reader, writer) {
         Ok(_) => Result::none(),
         Err(e) => {
@@ -504,7 +503,7 @@ pub unsafe extern "system" fn inko_tls_client_complete_io(
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_tls_pending_server_new(
-    socket: *mut Socket,
+    socket: *mut Poll,
     deadline: i64,
     reader: Callback,
     writer: Callback,
@@ -554,7 +553,7 @@ pub unsafe extern "system" fn inko_tls_pending_server_name(
 pub unsafe extern "system" fn inko_tls_pending_server_into_server_connection(
     accepted: *mut Accepted,
     config: *const ServerConfig,
-    socket: *mut Socket,
+    socket: *mut Poll,
     deadline: i64,
     reader: Callback,
     writer: Callback,

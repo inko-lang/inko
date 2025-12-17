@@ -1,0 +1,154 @@
+# Anonymous pipes.
+#
+# A pipe is a one-way stream of bytes, consisting of a reader (`Pipe`) and a
+# writer (`PipeWriter`). Pipes can be moved between lightweight processes and
+# can be used to move data between processes without the need for sending
+# messages and extra copying of memory. Pipes are also used when spawning
+# processes using `std.sys.Command`.
+#
+# Pipes uses non-blocking IO similar to sockets. Just like sockets they also
+# support deadlines using `Pipe.timeout_after`, `PipeWriter.timeout_after`,
+# `Pipe.reset_deadline` and `PipeWriter.reset_deadline`.
+#
+# Just like sockets pipes don't reach the end of their stream until one of the
+# halves is dropped. This means that e.g. `Pipe.read_all` will block until the
+# corresponding `PipeWriter` is dropped. `PipeWriter.write` will return a
+# `std.io.Error.BrokenPipe` error if the corresponding `Pipe` is dropped.
+#
+# The capacity of a pipe depends on the underlying platform and can't be
+# adjusted.
+#
+# # Examples
+#
+# ```inko
+# import std.pipe (Pipe, PipeWriter)
+#
+# type async Writer {
+#   fn async write(pipe: uni PipeWriter) {
+#     pipe.write('hello').or_panic
+#   }
+# }
+#
+# type async Main {
+#   fn async main {
+#     let (read, write) = Pipe.new.or_panic
+#     let buf = ByteArray.new
+#
+#     Writer().write(write)
+#     read.read(into: buf, size: 32).or_panic
+#     buf.to_string # => 'hello'
+#   }
+# }
+# ```
+import std.bytes (Bytes)
+import std.drop (Drop)
+import std.io (Error, Read, Write, WriteInternal)
+import std.net.socket (Deadline)
+import std.sys.poll
+import std.sys.unix.pipe (self as sys) if unix
+import std.time (ToInstant)
+
+# The reading half of a pipe.
+type pub Pipe {
+  let @fd: sys.Pipe
+  let mut @deadline: Int
+
+  fn static from(fd: sys.Pipe) -> Self {
+    Self(fd: fd, deadline: poll.NO_DEADLINE)
+  }
+
+  # Returns a new pipe.
+  #
+  # Both the `Pipe` and `PipeWriter` are `uni` values so they may be moved
+  # between processes.
+  #
+  # # Errors
+  #
+  # This method may return a `std.io.Error` error if creating the pipe fails,
+  # such as when the maximum number of file descriptors is exceeded.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.pipe (Pipe)
+  #
+  # let (read, write) = Pipe.new.or_panic
+  # ```
+  fn pub static new -> Result[(uni Pipe, uni PipeWriter), Error] {
+    let (r, w) = try sys.new
+
+    Result.Ok((recover from(r), recover PipeWriter.from(w)))
+  }
+
+  fn mut as_poll -> Pointer[poll.Poll] {
+    @fd.inner
+  }
+}
+
+impl Drop for Pipe {
+  fn mut drop {
+    sys.close(@fd)
+  }
+}
+
+impl Deadline for Pipe {
+  fn pub mut timeout_after=[T: ToInstant](deadline: ref T) {
+    @deadline = deadline.to_instant.to_int
+  }
+
+  fn pub mut reset_deadline {
+    @deadline = poll.NO_DEADLINE
+  }
+}
+
+impl Read[Error] for Pipe {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
+    sys.read(@fd, into, size, @deadline)
+  }
+}
+
+# The writing half of a pipe.
+type pub PipeWriter {
+  let @fd: sys.Pipe
+  let mut @deadline: Int
+
+  fn static from(fd: sys.Pipe) -> Self {
+    Self(fd: fd, deadline: poll.NO_DEADLINE)
+  }
+
+  fn mut as_poll -> Pointer[poll.Poll] {
+    @fd.inner
+  }
+}
+
+impl Drop for PipeWriter {
+  fn mut drop {
+    sys.close(@fd)
+  }
+}
+
+impl Deadline for PipeWriter {
+  fn pub mut timeout_after=[T: ToInstant](deadline: ref T) {
+    @deadline = deadline.to_instant.to_int
+  }
+
+  fn pub mut reset_deadline {
+    @deadline = poll.NO_DEADLINE
+  }
+}
+
+impl WriteInternal for PipeWriter {
+  fn mut write_internal(data: Pointer[UInt8], size: Int) -> Result[Int, Error] {
+    sys.write(@fd, data, size, @deadline)
+  }
+}
+
+impl Write[Error] for PipeWriter {
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
+    write_all_internal(bytes.pointer, bytes.size)
+  }
+
+  fn pub mut flush -> Result[Nil, Error] {
+    Result.Ok(nil)
+  }
+}

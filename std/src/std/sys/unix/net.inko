@@ -12,6 +12,7 @@ import std.sys.freebsd.net (self as sys) if freebsd
 import std.sys.linux.net (self as sys) if linux
 import std.sys.mac.net (self as sys) if mac
 import std.sys.net
+import std.sys.poll
 
 fn getsockopt_error -> Never {
   panic('getsockopt(2) failed: ${Error.last_os_error}')
@@ -22,7 +23,7 @@ fn address_family_error(value: Int) -> Never {
 }
 
 fn inline init_socket(
-  socket: Pointer[net.RawSocket],
+  socket: Pointer[poll.Poll],
   domain: Int,
   kind: Int,
   protocol: Int,
@@ -31,7 +32,7 @@ fn inline init_socket(
 
   if fd as Int == -1 { throw Error.last_os_error }
 
-  socket.inner = fd
+  socket.fd = fd
   Result.Ok(nil)
 }
 
@@ -124,8 +125,8 @@ fn inline listen(fd: Int32, backlog: Int) -> Result[Nil, Error] {
 }
 
 fn inline accept(
-  socket: Pointer[net.RawSocket],
-  peer: Pointer[net.RawSocket],
+  socket: Pointer[poll.Poll],
+  peer: Pointer[poll.Poll],
   deadline: Int,
 ) -> Result[Nil, Error] {
   # For IP sockets on Linux, calling shutdown() on a socket that is waiting on
@@ -140,15 +141,15 @@ fn inline accept(
   let mut attempts = 2
 
   while attempts > 0 {
-    let fd = sys.accept(socket.inner)
+    let fd = sys.accept(socket.fd)
 
     if fd as Int >= 0 {
-      peer.inner = fd
+      peer.fd = fd
       return Result.Ok(nil)
     }
 
     match libc.errno {
-      case libc.EAGAIN -> try net.poll(socket, deadline, write: false)
+      case libc.EAGAIN -> try poll.poll(socket, deadline, write: false)
       case e -> throw Error.from_os_error(e)
     }
 
@@ -159,7 +160,7 @@ fn inline accept(
 }
 
 fn inline connect_ip(
-  socket: Pointer[net.RawSocket],
+  socket: Pointer[poll.Poll],
   ip: IpAddress,
   port: Int,
   deadline: Int,
@@ -172,7 +173,7 @@ fn inline connect_ip(
 }
 
 fn inline connect_unix(
-  socket: Pointer[net.RawSocket],
+  socket: Pointer[poll.Poll],
   path: ref Path,
   deadline: Int,
 ) -> Result[Nil, Error] {
@@ -184,13 +185,13 @@ fn inline connect_unix(
 }
 
 fn inline connect(
-  socket: Pointer[net.RawSocket],
+  socket: Pointer[poll.Poll],
   deadline: Int,
   address: Pointer[UInt8],
   size: Int,
 ) -> Result[Nil, Error] {
   loop {
-    let res = libc.connect(socket.inner, address, size as UInt32) as Int
+    let res = libc.connect(socket.fd, address, size as UInt32) as Int
 
     if res == 0 { break }
 
@@ -198,8 +199,8 @@ fn inline connect(
       # Depending on the platform we may encounter EAGAIN or EINPROGRESS. In
       # both cases the actual error may be stored in SO_ERROR.
       case libc.EAGAIN or libc.EINPROGRESS -> {
-        match get_int32_option(socket.inner, libc.SOL_SOCKET, libc.SO_ERROR) {
-          case 0 -> try net.poll(socket, deadline, write: true)
+        match get_int32_option(socket.fd, libc.SOL_SOCKET, libc.SO_ERROR) {
+          case 0 -> try poll.poll(socket, deadline, write: true)
           case e -> throw Error.from_os_error(e)
         }
       }
@@ -258,12 +259,12 @@ fn inline parse_ip_socket_address(
 }
 
 fn inline ip_local_address(
-  socket: Pointer[net.RawSocket],
+  socket: Pointer[poll.Poll],
 ) -> Result[(IpAddress, Int), Error] {
   let size = sys_libc.sockaddr_storage_size as UInt32
   let addr = sys_libc.SockAddrStorage()
   let addr_ptr = (mut addr) as Pointer[UInt8]
-  let res = libc.getsockname(socket.inner, addr_ptr, mut size) as Int
+  let res = libc.getsockname(socket.fd, addr_ptr, mut size) as Int
 
   if res == 0 {
     Result.Ok(parse_ip_socket_address(mut addr))
@@ -273,12 +274,12 @@ fn inline ip_local_address(
 }
 
 fn inline ip_peer_address(
-  socket: Pointer[net.RawSocket],
+  socket: Pointer[poll.Poll],
 ) -> Result[(IpAddress, Int), Error] {
   let size = sys_libc.sockaddr_storage_size as UInt32
   let addr = sys_libc.SockAddrStorage()
   let addr_ptr = (mut addr) as Pointer[UInt8]
-  let res = libc.getpeername(socket.inner, addr_ptr, mut size) as Int
+  let res = libc.getpeername(socket.fd, addr_ptr, mut size) as Int
 
   if res == 0 {
     Result.Ok(parse_ip_socket_address(mut addr))
@@ -288,12 +289,12 @@ fn inline ip_peer_address(
 }
 
 fn inline unix_local_address(
-  socket: Pointer[net.RawSocket],
+  socket: Pointer[poll.Poll],
 ) -> Result[String, Error] {
   let size = sys_libc.sockaddr_un_size as UInt32
   let addr = sys_libc.SockAddrUn()
   let addr_ptr = (mut addr) as Pointer[UInt8]
-  let res = libc.getsockname(socket.inner, addr_ptr, mut size) as Int
+  let res = libc.getsockname(socket.fd, addr_ptr, mut size) as Int
 
   if res == -1 { throw Error.last_os_error }
 
@@ -301,12 +302,12 @@ fn inline unix_local_address(
 }
 
 fn inline unix_peer_address(
-  socket: Pointer[net.RawSocket],
+  socket: Pointer[poll.Poll],
 ) -> Result[String, Error] {
   let size = sys_libc.sockaddr_un_size as UInt32
   let addr = sys_libc.SockAddrUn()
   let addr_ptr = (mut addr) as Pointer[UInt8]
-  let res = libc.getpeername(socket.inner, addr_ptr, mut size) as Int
+  let res = libc.getpeername(socket.fd, addr_ptr, mut size) as Int
 
   if res == -1 { throw Error.last_os_error }
 
@@ -314,7 +315,7 @@ fn inline unix_peer_address(
 }
 
 fn inline read(
-  socket: Pointer[net.RawSocket],
+  socket: Pointer[poll.Poll],
   into: mut ByteArray,
   size: Int,
   deadline: Int,
@@ -334,19 +335,19 @@ fn inline read(
 }
 
 fn inline read_raw(
-  socket: Pointer[net.RawSocket],
+  socket: Pointer[poll.Poll],
   data: Pointer[UInt8],
   size: Int,
   deadline: Int,
 ) -> Result[Int, Int] {
   loop {
-    let res = libc.recv(socket.inner, data, size as UInt64, flags: 0 as Int32)
+    let res = libc.recv(socket.fd, data, size as UInt64, flags: 0 as Int32)
 
     if res >= 0 { return Result.Ok(res) }
 
     match libc.errno {
       case libc.EAGAIN -> {
-        if net.poll_raw(socket, deadline, write: false) { next }
+        if poll.poll_raw(socket, deadline, write: false) { next }
 
         throw libc.ETIMEDOUT
       }
@@ -356,7 +357,7 @@ fn inline read_raw(
 }
 
 fn inline write(
-  socket: Pointer[net.RawSocket],
+  socket: Pointer[poll.Poll],
   data: Pointer[UInt8],
   size: Int,
   deadline: Int,
@@ -368,19 +369,19 @@ fn inline write(
 }
 
 fn inline write_raw(
-  socket: Pointer[net.RawSocket],
+  socket: Pointer[poll.Poll],
   data: Pointer[UInt8],
   size: Int,
   deadline: Int,
 ) -> Result[Int, Int] {
   loop {
-    let res = libc.send(socket.inner, data, size as UInt64, flags: 0 as Int32)
+    let res = libc.send(socket.fd, data, size as UInt64, flags: 0 as Int32)
 
     if res >= 0 { return Result.Ok(res) }
 
     match libc.errno {
       case libc.EAGAIN -> {
-        if net.poll_raw(socket, deadline, write: true) { next }
+        if poll.poll_raw(socket, deadline, write: true) { next }
 
         throw libc.ETIMEDOUT
       }
@@ -390,7 +391,7 @@ fn inline write_raw(
 }
 
 fn inline send_to_ip(
-  socket: Pointer[net.RawSocket],
+  socket: Pointer[poll.Poll],
   data: Pointer[UInt8],
   size: Int,
   ip: IpAddress,
@@ -404,7 +405,7 @@ fn inline send_to_ip(
   loop {
     let flags = 0 as Int32
     let res = libc.sendto(
-      socket.inner,
+      socket.fd,
       data,
       size as UInt64,
       flags,
@@ -415,14 +416,14 @@ fn inline send_to_ip(
     if res >= 0 { return Result.Ok(res) }
 
     match libc.errno {
-      case libc.EAGAIN -> try net.poll(socket, deadline, write: true)
+      case libc.EAGAIN -> try poll.poll(socket, deadline, write: true)
       case e -> throw Error.from_os_error(e)
     }
   }
 }
 
 fn inline send_to_unix(
-  socket: Pointer[net.RawSocket],
+  socket: Pointer[poll.Poll],
   data: Pointer[UInt8],
   size: Int,
   path: ref Path,
@@ -435,7 +436,7 @@ fn inline send_to_unix(
   loop {
     let flags = 0 as Int32
     let res = libc.sendto(
-      socket.inner,
+      socket.fd,
       data,
       size as UInt64,
       flags,
@@ -446,14 +447,14 @@ fn inline send_to_unix(
     if res >= 0 { return Result.Ok(res) }
 
     match libc.errno {
-      case libc.EAGAIN -> try net.poll(socket, deadline, write: true)
+      case libc.EAGAIN -> try poll.poll(socket, deadline, write: true)
       case e -> throw Error.from_os_error(e)
     }
   }
 }
 
 fn inline receive_from_ip(
-  socket: Pointer[net.RawSocket],
+  socket: Pointer[poll.Poll],
   into: mut ByteArray,
   size: Int,
   deadline: Int,
@@ -470,7 +471,7 @@ fn inline receive_from_ip(
   loop {
     let size = size as UInt64
     let addr = addr_ptr as Pointer[UInt8]
-    let res = libc.recvfrom(socket.inner, ptr, size, flags, addr, mut addr_size)
+    let res = libc.recvfrom(socket.fd, ptr, size, flags, addr, mut addr_size)
 
     if res >= 0 {
       into.size = len + res
@@ -481,14 +482,14 @@ fn inline receive_from_ip(
     }
 
     match libc.errno {
-      case libc.EAGAIN -> try net.poll(socket, deadline, write: false)
+      case libc.EAGAIN -> try poll.poll(socket, deadline, write: false)
       case e -> throw Error.from_os_error(e)
     }
   }
 }
 
 fn inline receive_from_unix(
-  socket: Pointer[net.RawSocket],
+  socket: Pointer[poll.Poll],
   into: mut ByteArray,
   size: Int,
   deadline: Int,
@@ -505,7 +506,7 @@ fn inline receive_from_unix(
   loop {
     let size = size as UInt64
     let addr = addr_ptr as Pointer[UInt8]
-    let res = libc.recvfrom(socket.inner, ptr, size, flags, addr, mut addr_size)
+    let res = libc.recvfrom(socket.fd, ptr, size, flags, addr, mut addr_size)
 
     if res >= 0 {
       into.size = len + res
@@ -514,26 +515,26 @@ fn inline receive_from_unix(
     }
 
     match libc.errno {
-      case libc.EAGAIN -> try net.poll(socket, deadline, write: false)
+      case libc.EAGAIN -> try poll.poll(socket, deadline, write: false)
       case e -> throw Error.from_os_error(e)
     }
   }
 }
 
 fn inline try_clone(
-  socket: Pointer[net.RawSocket],
-  clone: Pointer[net.RawSocket],
+  socket: Pointer[poll.Poll],
+  clone: Pointer[poll.Poll],
 ) -> Result[Nil, Error] {
-  let fd = libc.fcntl(socket.inner, libc.F_DUPFD_CLOEXEC as Int32, 0 as Int32)
+  let fd = libc.fcntl(socket.fd, libc.F_DUPFD_CLOEXEC as Int32, 0 as Int32)
 
   if fd as Int == -1 { throw Error.last_os_error }
 
-  clone.inner = fd
+  clone.fd = fd
   Result.Ok(nil)
 }
 
 fn inline shutdown(
-  socket: Pointer[net.RawSocket],
+  socket: Pointer[poll.Poll],
   read: Bool,
   write: Bool,
 ) -> Result[Nil, Error] {
@@ -544,13 +545,13 @@ fn inline shutdown(
   } else {
     libc.SHUT_RD
   }
-  let res = libc.shutdown(socket.inner, how as Int32) as Int
+  let res = libc.shutdown(socket.fd, how as Int32) as Int
 
   if res == 0 { Result.Ok(nil) } else { Result.Error(Error.last_os_error) }
 }
 
-fn inline close(socket: Pointer[net.RawSocket]) {
-  libc.close(socket.inner)
+fn inline close(socket: Pointer[poll.Poll]) {
+  libc.close(socket.fd)
 }
 
 fn inline send_file_stream[S: mut + RawSocketOperations](

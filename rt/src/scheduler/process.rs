@@ -154,8 +154,8 @@ impl Queue {
         self.inner.lock().unwrap().pop_front()
     }
 
-    fn push_multiple(&self, values: Vec<ProcessPointer>) {
-        self.inner.lock().unwrap().extend(values);
+    fn push_multiple(&self, values: &mut Vec<ProcessPointer>) {
+        self.inner.lock().unwrap().extend(values.drain(0..));
     }
 }
 
@@ -202,13 +202,6 @@ pub struct Thread {
     /// A random number generator to use when stealing work.
     rng: Rand,
 
-    /// The ID of the network poller assigned to this thread.
-    ///
-    /// Threads are each assigned a network poller in a round-robin fashion.
-    /// This is useful for programs that heavily rely on sockets, as a single
-    /// network poller thread may not be able to complete its work fast enough.
-    pub(crate) network_poller: usize,
-
     /// A value indicating what to do with a process when it yields back to us.
     ///
     /// The default is to not do anything with a process after it yields back to
@@ -217,11 +210,7 @@ pub struct Thread {
 }
 
 impl Thread {
-    fn new(
-        id: usize,
-        network_poller: usize,
-        pool: ArcWithoutWeak<Pool>,
-    ) -> Thread {
+    fn new(id: usize, pool: ArcWithoutWeak<Pool>) -> Thread {
         // The main thread never uses the local queue but its ID is not in
         // bounds, so we just assign it the queue 0.
         let qid = if id == MAIN_THREAD { 0 } else { id };
@@ -233,13 +222,12 @@ impl Thread {
             blocked_at: NOT_BLOCKING,
             blocked_nesting: 0,
             rng: Rand::new(),
-            network_poller,
             action: Action::Ignore,
             pool,
         }
     }
 
-    fn backup(network_poller: usize, pool: ArcWithoutWeak<Pool>) -> Thread {
+    fn backup(pool: ArcWithoutWeak<Pool>) -> Thread {
         Self {
             // For backup threads the ID/queue doesn't matter, because we won't
             // use them until we're turned into a regular thread.
@@ -249,7 +237,6 @@ impl Thread {
             blocked_at: NOT_BLOCKING,
             blocked_nesting: 0,
             rng: Rand::new(),
-            network_poller,
             action: Action::Ignore,
             pool,
         }
@@ -820,10 +807,10 @@ impl Pool {
         self.notifier.notify_one();
     }
 
-    fn schedule_multiple(&self, processes: Vec<ProcessPointer>) {
+    fn schedule_multiple(&self, processes: &mut Vec<ProcessPointer>) {
         match processes.len() {
             0 => {}
-            1 => self.schedule(processes[0]),
+            1 => self.schedule(processes.pop().unwrap()),
             n => {
                 self.global.push_multiple(processes);
 
@@ -896,7 +883,10 @@ impl Scheduler {
         self.pool.is_alive()
     }
 
-    pub(crate) fn schedule_multiple(&self, processes: Vec<ProcessPointer>) {
+    pub(crate) fn schedule_multiple(
+        &self,
+        processes: &mut Vec<ProcessPointer>,
+    ) {
         self.pool.schedule_multiple(processes);
     }
 
@@ -905,8 +895,6 @@ impl Scheduler {
     }
 
     pub(crate) fn run(&self, state: &RcState, process: ProcessPointer) {
-        let pollers = state.network_pollers.len();
-
         // We deliberately don't join threads as this may result in the program
         // hanging during shutdown if one or more threads are performing a
         // blocking system call (e.g. reading from STDIN).
@@ -931,24 +919,22 @@ impl Scheduler {
         }
 
         for id in 0..self.primary {
-            let poll_id = id % pollers;
             let state = state.clone();
             let pool = self.pool.clone();
 
             ThreadBuilder::new()
                 .name(format!("proc {}", id))
-                .spawn(move || Thread::new(id, poll_id, pool).run(&state))
+                .spawn(move || Thread::new(id, pool).run(&state))
                 .expect("failed to start a process thread");
         }
 
         for id in 0..self.backup {
-            let poll_id = id % pollers;
             let state = state.clone();
             let pool = self.pool.clone();
 
             ThreadBuilder::new()
                 .name(format!("backup {}", id))
-                .spawn(move || Thread::backup(poll_id, pool).run(&state))
+                .spawn(move || Thread::backup(pool).run(&state))
                 .expect("failed to start a backup thread");
         }
 
@@ -958,7 +944,7 @@ impl Scheduler {
         // makes it possible for this process to interface with libraries
         // that require the same thread to be used for all operations (e.g.
         // most GUI libraries).
-        Thread::new(MAIN_THREAD, 0, self.pool.clone()).run_main(state);
+        Thread::new(MAIN_THREAD, self.pool.clone()).run_main(state);
     }
 }
 
@@ -983,7 +969,7 @@ mod tests {
         let typ = empty_process_type("A");
         let process = new_process(*typ).take_and_forget();
         let scheduler = Scheduler::new(1, 1);
-        let mut thread = Thread::new(0, 0, scheduler.pool.clone());
+        let mut thread = Thread::new(0, scheduler.pool.clone());
 
         thread.schedule(process);
 
@@ -996,7 +982,7 @@ mod tests {
         let typ = empty_process_type("A");
         let process = new_process_with_message(*typ, method).take_and_forget();
         let state = setup();
-        let mut thread = Thread::new(0, 0, state.scheduler.pool.clone());
+        let mut thread = Thread::new(0, state.scheduler.pool.clone());
 
         thread.schedule(process);
         thread.run(&state);
@@ -1009,8 +995,8 @@ mod tests {
         let typ = empty_process_type("A");
         let process = new_process_with_message(*typ, method).take_and_forget();
         let state = setup();
-        let mut thread0 = Thread::new(0, 0, state.scheduler.pool.clone());
-        let mut thread1 = Thread::new(1, 0, state.scheduler.pool.clone());
+        let mut thread0 = Thread::new(0, state.scheduler.pool.clone());
+        let mut thread1 = Thread::new(1, state.scheduler.pool.clone());
 
         thread1.schedule(process);
         thread0.run(&state);
@@ -1024,7 +1010,7 @@ mod tests {
         let typ = empty_process_type("A");
         let process = new_process_with_message(*typ, method).take_and_forget();
         let state = setup();
-        let mut thread = Thread::new(0, 0, state.scheduler.pool.clone());
+        let mut thread = Thread::new(0, state.scheduler.pool.clone());
 
         state.scheduler.pool.schedule(process);
         thread.run(&state);
@@ -1038,7 +1024,7 @@ mod tests {
         let typ = empty_process_type("A");
         let process = new_process_with_message(*typ, method).take_and_forget();
         let state = setup();
-        let mut thread = Thread::new(0, 0, state.scheduler.pool.clone());
+        let mut thread = Thread::new(0, state.scheduler.pool.clone());
 
         thread.backup = true;
 
@@ -1061,7 +1047,7 @@ mod tests {
         let proc = new_process(*typ).take_and_forget();
         let state = setup();
         let pool = &state.scheduler.pool;
-        let mut thread = Thread::new(0, 0, pool.clone());
+        let mut thread = Thread::new(0, pool.clone());
 
         pool.epoch.store(4, Ordering::Release);
         pool.monitor.status.store(MonitorStatus::Sleeping);
@@ -1079,7 +1065,7 @@ mod tests {
     fn test_thread_stop_blocking() {
         let state = setup();
         let pool = &state.scheduler.pool;
-        let mut thread = Thread::new(1, 0, pool.clone());
+        let mut thread = Thread::new(1, pool.clone());
         let typ = empty_process_type("A");
         let process = new_process(*typ).take_and_forget();
 
@@ -1104,7 +1090,7 @@ mod tests {
     fn test_thread_start_blocking_nested() {
         let state = setup();
         let pool = &state.scheduler.pool;
-        let mut thread = Thread::new(0, 0, pool.clone());
+        let mut thread = Thread::new(0, pool.clone());
         let typ = empty_process_type("A");
         let process = new_process(*typ).take_and_forget();
 
@@ -1136,7 +1122,7 @@ mod tests {
         let proc = new_process_with_message(*typ, method).take_and_forget();
         let state = setup();
         let pool = &state.scheduler.pool;
-        let mut thread = Thread::new(0, 0, pool.clone());
+        let mut thread = Thread::new(0, pool.clone());
 
         pool.epoch.store(4, Ordering::Release);
         pool.monitor.status.store(MonitorStatus::Sleeping);

@@ -16,13 +16,13 @@ mod mem;
 mod memory_map;
 mod network_poller;
 mod notifier;
+mod poll;
 mod process;
 mod rand;
 mod result;
 mod runtime;
 mod rustls_platform_verifier;
 mod scheduler;
-mod socket;
 mod stack;
 mod state;
 

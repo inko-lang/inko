@@ -61,6 +61,8 @@ let ETIME = 62
 let ETIMEDOUT = 110
 let EXDEV = 18
 let F_DUPFD_CLOEXEC = 1030
+let F_GETFL = 3
+let F_SETFL = 4
 let IPPROTO_IP = 0
 let IPPROTO_IPV6 = 41
 let IPPROTO_TCP = 6
@@ -69,6 +71,7 @@ let IP_TTL = 2
 let O_APPEND = 0x400
 let O_CLOEXEC = 0x80000
 let O_CREAT = 0x40
+let O_NONBLOCK = 0x800
 let O_RDONLY = 0
 let O_RDWR = 0x2
 let O_TRUNC = 0x200
@@ -482,12 +485,13 @@ fn inline statx(
     as Int
 }
 
-fn inline pipes -> Result[(Int32, Int32), Error] {
+fn inline pipes(nonblocking: Bool) -> Result[(Int32, Int32), Error] {
   let pipes = Pipes()
+  let mut flags = O_CLOEXEC
 
-  if pipe2(mut pipes, O_CLOEXEC as Int32) as Int != 0 {
-    throw Error.last_os_error
-  }
+  if nonblocking { flags |= O_NONBLOCK }
+
+  if pipe2(mut pipes, flags as Int32) as Int != 0 { throw Error.last_os_error }
 
   Result.Ok((pipes.reader, pipes.writer))
 }

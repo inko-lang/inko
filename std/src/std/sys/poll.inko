@@ -1,0 +1,66 @@
+import std.io (Error)
+
+# A value that signals a source isn't registered with a poller.
+let NOT_REGISTERED = -1
+
+# A value that signals the lack of a deadline.
+let NO_DEADLINE = -1
+
+fn extern inko_poll(
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
+  poll: Pointer[Poll],
+  interest: Int,
+  deadline: Int,
+) -> Bool
+
+fn extern inko_poll_read_either(
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
+  primary: Pointer[Poll],
+  secondary: Pointer[Poll],
+  deadline: Int,
+) -> Int
+
+# A type which can be polled by the runtime.
+type extern Poll {
+  # The file descriptor of the socket.
+  let @fd: Int32
+
+  # The ID of the poller the source is registered with.
+  let @registered: UInt8
+}
+
+fn inline new(fd: Int32) -> Poll {
+  Poll(fd: fd, registered: NOT_REGISTERED as UInt8)
+}
+
+fn inline poll_raw(poll: Pointer[Poll], deadline: Int, write: Bool) -> Bool {
+  inko_poll(_INKO.state, _INKO.process, poll, write.to_int, deadline)
+}
+
+fn inline poll(
+  poll: Pointer[Poll],
+  deadline: Int,
+  write: Bool,
+) -> Result[Nil, Error] {
+  if poll_raw(poll, deadline, write) {
+    Result.Ok(nil)
+  } else {
+    throw Error.TimedOut
+  }
+}
+
+fn inline poll_either(
+  primary: Pointer[Poll],
+  secondary: Pointer[Poll],
+  deadline: Int,
+) -> Int {
+  inko_poll_read_either(
+    _INKO.state,
+    _INKO.process,
+    primary,
+    secondary,
+    deadline,
+  )
+}

@@ -1,0 +1,57 @@
+import std.drop (drop)
+import std.io (Error)
+import std.pipe (Pipe)
+import std.sys.poll (NO_DEADLINE)
+import std.test (Tests)
+import std.time (Duration)
+
+fn pub tests(t: mut Tests) {
+  t.ok('Pipe.new', fn (t) {
+    let (r, w) = try Pipe.new
+
+    t.equal(r.deadline, NO_DEADLINE)
+    t.equal(w.deadline, NO_DEADLINE)
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Pipe.read', fn (t) {
+    let (r, w) = try Pipe.new
+    let buf = ByteArray.new
+
+    t.equal(w.write('hello'), Result.Ok(nil))
+    t.equal(r.read(into: buf, size: 32), Result.Ok(5))
+    t.equal(buf.to_string, 'hello')
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Pipe.read with a timeout', fn (t) {
+    let (r, _w) = try Pipe.new
+    let buf = ByteArray.new
+
+    r.timeout_after = Duration.from_millis(10)
+    t.equal(r.read(into: buf, size: 32), Result.Error(Error.TimedOut))
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Pipe.read with a dropped writer', fn (t) {
+    let (r, w) = try Pipe.new
+    let buf = ByteArray.new
+
+    drop(w)
+    t.equal(r.read(into: buf, size: 32), Result.Ok(0))
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Pipe.write with a dropped reader', fn (t) {
+    let (r, w) = try Pipe.new
+
+    drop(r)
+    t.equal(w.write('hello'), Result.Error(Error.BrokenPipe))
+
+    Result.Ok(nil)
+  })
+}
