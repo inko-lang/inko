@@ -1469,8 +1469,14 @@ fn pub tests(t: mut Tests) {
     let _client = try UnixClient.new(path.path)
 
     t.true(not.notify)
-    t.equal(srv.accept.error, Option.Some(Error.Interrupted))
-    t.true(srv.accept.ok?)
+
+    # Depending on the order and timing of events we may observe either of the
+    # sources being available or both. So instead of asserting an exact order,
+    # we just assert that both expectations are true.
+    let res = [srv.accept.error, srv.accept.error]
+
+    t.true(res.contains?(Option.Some(Error.Interrupted)))
+    t.true(res.contains?(Option.None))
 
     Result.Ok(nil)
   })
