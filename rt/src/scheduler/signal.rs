@@ -2,7 +2,8 @@ use crate::process::ProcessPointer;
 use crate::state::RcState;
 use libc::{
     kill, pthread_sigmask, sigaddset, sigdelset, sigemptyset, sigfillset,
-    sigset_t, sigwait, SIGBUS, SIGILL, SIGPIPE, SIGSEGV, SIGURG, SIG_SETMASK,
+    signal, sigset_t, sigwait, SIGBUS, SIGCHLD, SIGCONT, SIGILL, SIGPIPE,
+    SIGSEGV, SIGURG, SIGWINCH, SIG_SETMASK,
 };
 use std::ffi::c_int;
 use std::mem::MaybeUninit;
@@ -22,6 +23,14 @@ const NOTIFY: c_int = SIGURG;
 /// encountering an error. For example, on macOS a stack overflow triggers a
 /// SIGBUS but if this signal is masked the program just freezes.
 const UNMASKED: [c_int; 3] = [SIGSEGV, SIGBUS, SIGILL];
+
+/// Signals that some platforms may discard entirely by default and thus should
+/// be re-enabled.
+///
+/// Most notably macOS discards these signals by default.
+const ENABLE: [c_int; 4] = [NOTIFY, SIGCHLD, SIGCONT, SIGWINCH];
+
+extern "system" fn noop_signal_handler(_ignore: i32) {}
 
 struct SignalSet {
     raw: sigset_t,
@@ -87,9 +96,15 @@ impl SignalSet {
     }
 }
 
-/// Ignores the allowed signals sent to the current _process_.
-pub(crate) fn block_all() {
-    SignalSet::full().block()
+/// Sets up the global signal handling configuration that applies to all
+/// threads.
+pub(crate) fn setup() {
+    // Ensure all signals are ignored by default.
+    SignalSet::full().block();
+
+    for &sig in ENABLE.iter() {
+        unsafe { signal(sig, noop_signal_handler as _) };
+    }
 }
 
 /// Notifies the current process that the signals to wait for has changed.
@@ -182,8 +197,9 @@ impl Worker {
             // invoked.
             for (_, sig) in waiting.iter() {
                 set.add(*sig);
-                set.block();
             }
+
+            set.block();
         }
     }
 }

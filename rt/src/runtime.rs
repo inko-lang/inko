@@ -54,7 +54,7 @@ pub unsafe extern "system" fn inko_runtime_new(
     // We ignore all signals by default so they're routed to the signal handler
     // thread. This also takes care of ignoring SIGPIPE, which Rust normally
     // does for us when compiling an executable.
-    signal_sched::block_all();
+    signal_sched::setup();
 
     // Configure the TLS provider. This must be done once before we start the
     // program.

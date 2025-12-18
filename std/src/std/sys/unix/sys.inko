@@ -254,8 +254,18 @@ fn try_wait(pid: Int32) -> Result[Option[Int], Error] {
   )
 }
 
-fn exit(status: Int) -> Never {
+fn inline exit(status: Int) -> Never {
   libc.exit(status as Int32)
+}
+
+fn inline send_signal(pid: Int32, signal: Int) -> Result[Nil, Error] {
+  let res = libc.kill(pid, signal as Int32) as Int
+
+  if res == 0 { Result.Ok(nil) } else { throw Error.last_os_error }
+}
+
+fn inline terminate(pid: Int32) -> Result[Nil, Error] {
+  send_signal(pid, libc.SIGKILL)
 }
 
 type inline ChildProcess {

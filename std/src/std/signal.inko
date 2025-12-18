@@ -65,6 +65,8 @@ import std.clone (Clone)
 import std.cmp (Equal)
 import std.fmt (Format, Formatter)
 import std.hash (Hash, Hasher)
+import std.int (ToInt)
+import std.libc
 import std.sync (Channel)
 
 fn extern inko_signal_wait(
@@ -72,21 +74,6 @@ fn extern inko_signal_wait(
   process: Pointer[UInt8],
   signal: Int,
 )
-
-let SIGHUP = 1
-let SIGINT = 2
-let SIGQUIT = 3
-let SIGABRT = 6
-let SIGUSR1 = 10
-let SIGUSR2 = 12
-let SIGTERM = 15
-let SIGCHLD = 17
-let SIGCONT = 18
-let SIGTSTP = 20
-let SIGTTIN = 21
-let SIGTTOU = 22
-let SIGXFSZ = 25
-let SIGWINCH = 28
 
 # A Unix signal.
 #
@@ -162,29 +149,27 @@ type pub copy enum Signal {
   # Signal.User1.wait
   # ```
   fn pub wait {
-    inko_signal_wait(_INKO.state, _INKO.process, id)
+    inko_signal_wait(_INKO.state, _INKO.process, to_int)
   }
+}
 
-  # Returns the raw signal ID.
-  #
-  # This method is private as the values might be platform specific and as such
-  # shouldn't be relied upon.
-  fn id -> Int {
+impl ToInt for Signal {
+  fn pub to_int -> Int {
     match self {
-      case Hangup -> SIGHUP
-      case Interrupt -> SIGINT
-      case Quit -> SIGQUIT
-      case Abort -> SIGABRT
-      case User1 -> SIGUSR1
-      case User2 -> SIGUSR2
-      case Terminate -> SIGTERM
-      case Child -> SIGCHLD
-      case Continue -> SIGCONT
-      case Stop -> SIGTSTP
-      case Input -> SIGTTIN
-      case Output -> SIGTTOU
-      case FileSizeExceeded -> SIGXFSZ
-      case Resize -> SIGWINCH
+      case Hangup -> libc.SIGHUP
+      case Interrupt -> libc.SIGINT
+      case Quit -> libc.SIGQUIT
+      case Abort -> libc.SIGABRT
+      case User1 -> libc.SIGUSR1
+      case User2 -> libc.SIGUSR2
+      case Terminate -> libc.SIGTERM
+      case Child -> libc.SIGCHLD
+      case Continue -> libc.SIGCONT
+      case Stop -> libc.SIGTSTP
+      case Input -> libc.SIGTTIN
+      case Output -> libc.SIGTTOU
+      case FileSizeExceeded -> libc.SIGXFSZ
+      case Resize -> libc.SIGWINCH
     }
   }
 }
@@ -212,13 +197,13 @@ impl Clone for Signal {
 
 impl Equal for Signal {
   fn pub ==(other: Signal) -> Bool {
-    id == other.id
+    to_int == other.to_int
   }
 }
 
 impl Hash for Signal {
   fn pub hash[H: mut + Hasher](hasher: mut H) {
-    hasher.write_int(id)
+    hasher.write_int(to_int)
   }
 }
 

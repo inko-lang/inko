@@ -92,6 +92,21 @@ let SEEK_SET = sys.SEEK_SET
 let SHUT_RD = sys.SHUT_RD
 let SHUT_RDWR = sys.SHUT_RDWR
 let SHUT_WR = sys.SHUT_WR
+let SIGABRT = sys.SIGABRT
+let SIGCHLD = sys.SIGCHLD
+let SIGCONT = sys.SIGCONT
+let SIGHUP = sys.SIGHUP
+let SIGINT = sys.SIGINT
+let SIGKILL = sys.SIGKILL
+let SIGQUIT = sys.SIGQUIT
+let SIGTERM = sys.SIGTERM
+let SIGTSTP = sys.SIGTSTP
+let SIGTTIN = sys.SIGTTIN
+let SIGTTOU = sys.SIGTTOU
+let SIGUSR1 = sys.SIGUSR1
+let SIGUSR2 = sys.SIGUSR2
+let SIGWINCH = sys.SIGWINCH
+let SIGXFSZ = sys.SIGXFSZ
 let SOCK_DGRAM = sys.SOCK_DGRAM
 let SOCK_RAW = sys.SOCK_RAW
 let SOCK_STREAM = sys.SOCK_STREAM
@@ -352,6 +367,8 @@ fn extern freeaddrinfo(addr: Pointer[sys.AddrInfo])
 fn extern getcwd(buf: Pointer[UInt8], size: UInt64) -> Pointer[UInt8]
 
 fn extern chdir(path: Pointer[UInt8]) -> Int32
+
+fn extern kill(pid: Int32, signal: Int32) -> Int32
 
 # Returns the type of a directory entry.
 fn inline dirent_type(pointer: Pointer[sys.Dirent]) -> Int {

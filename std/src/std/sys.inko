@@ -6,6 +6,7 @@ import std.fs.path (Path)
 import std.int (ToInt)
 import std.io (Error, Read, Write)
 import std.pipe (Pipe, PipeWriter)
+import std.signal (Signal)
 import std.string (ToString)
 import std.sys.unix.sys if unix
 
@@ -374,5 +375,46 @@ type pub ChildProcess {
       case Ok(Some(n)) -> Result.Ok(Option.Some(ExitStatus(n)))
       case Error(e) -> Result.Error(e)
     }
+  }
+
+  # Sends the given signal to the child process.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.signal (Signal)
+  # import std.sys (Command)
+  #
+  # let cmd = Command.new('sleep')
+  #
+  # cmd.arguments.push('60')
+  #
+  # let child = cmd.spawn.or_panic
+  #
+  # child.signal(Signal.Terminate).or_panic
+  # child.wait.or_panic
+  # ```
+  fn pub signal(signal: Signal) -> Result[Nil, Error] {
+    sys.send_signal(@id, signal.to_int)
+  }
+
+  # Forcefully terminates the child process.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.sys (Command)
+  #
+  # let cmd = Command.new('sleep')
+  #
+  # cmd.arguments.push('60')
+  #
+  # let child = cmd.spawn.or_panic
+  #
+  # child.terminate.or_panic
+  # child.wait.or_panic
+  # ```
+  fn pub terminate -> Result[Nil, Error] {
+    sys.terminate(@id)
   }
 }

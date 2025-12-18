@@ -1,7 +1,10 @@
 import helpers (hash)
 import std.fmt (fmt)
+import std.process (sleep)
 import std.signal (Signal, Signals)
+import std.stdio (Stdout)
 import std.test (Tests)
+import std.time (Duration)
 
 fn pub tests(t: mut Tests) {
   t.test('Signal.clone', fn (t) {
@@ -56,4 +59,35 @@ fn pub tests(t: mut Tests) {
     sigs.channel.send(Signal.Quit)
     t.equal(sigs.wait, Signal.Quit)
   })
+
+  for sig in [Signal.User1, Signal.Child, Signal.Continue, Signal.Resize] {
+    t.fork(
+      'Signal.wait with a ${fmt(sig)} signal',
+      child: fn {
+        let out = Stdout.new
+        let _ = out.write('a')
+
+        sig.wait
+        out.write('b')
+      },
+      test: fn (t, proc) {
+        let child = proc.cmd.spawn.or_panic
+        let buf = ByteArray.new
+        let stdout = child.stdout.as_mut.get
+
+        # Wait for the process to start.
+        t.equal(stdout.read(into: buf, size: 1), Result.Ok(1))
+
+        # Now we need to wait an additional amount of time so the child process
+        # has a chance to register the signal handler before we send the signal.
+        # This is sadly very racy and there's not really a better way of testing
+        # this.
+        sleep(Duration.from_millis(100))
+
+        t.equal(child.signal(sig), Result.Ok(nil))
+        t.equal(stdout.read(into: buf, size: 1), Result.Ok(1))
+        t.equal(buf.to_string, 'ab')
+      },
+    )
+  }
 }

@@ -1,5 +1,6 @@
 import helpers (compiler_path)
 import std.env
+import std.signal (Signal)
 import std.stdio (Stdout)
 import std.sys (self, Command, ExitStatus, Stream)
 import std.test (Tests)
@@ -87,6 +88,38 @@ fn pub tests(t: mut Tests) {
 
   t.test('Command.spawn with an invalid command', fn (t) {
     t.true(Command.new('inko-test-invalid').spawn.error?)
+  })
+
+  t.ok('ChildProcess.signal', fn (t) {
+    let cmd = Command.new('sleep')
+
+    cmd.arguments.push('60')
+
+    let child = try cmd.spawn
+
+    t.equal(child.signal(Signal.Terminate), Result.Ok(nil))
+
+    let status = try child.wait
+
+    t.equal(status.to_int, 0)
+
+    Result.Ok(nil)
+  })
+
+  t.ok('ChildProcess.terminate', fn (t) {
+    let cmd = Command.new('sleep')
+
+    cmd.arguments.push('60')
+
+    let child = try cmd.spawn
+
+    t.equal(child.terminate, Result.Ok(nil))
+
+    let status = try child.wait
+
+    t.equal(status.to_int, 0)
+
+    Result.Ok(nil)
   })
 
   t.test('ExitStatus.to_int', fn (t) { t.equal(ExitStatus.new(42).to_int, 42) })
