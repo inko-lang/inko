@@ -60,7 +60,7 @@ pub(crate) unsafe extern "system" fn inko_poll(
         // deregister first. If we don't and suspend for another IO operation,
         // the poller could end up rescheduling the process multiple times (as
         // there are multiple events still in flight for the process).
-        poll.deregister(state);
+        poll.deregister(state, interest);
         false
     } else {
         true
@@ -78,6 +78,7 @@ pub(crate) unsafe extern "system" fn inko_poll_read_either(
     let state = &*state;
     let prim = &mut *primary;
     let sec = &mut *secondary;
+    let interest = Interest::Read;
 
     {
         let mut proc_state = process.state();
@@ -90,8 +91,8 @@ pub(crate) unsafe extern "system" fn inko_poll_read_either(
         let sec_proc = ProcessPointer::new((id | SEC_BIT as usize) as _);
 
         waiting_for_io(state, process, &mut proc_state, deadline);
-        prim.register(state, prim_proc, Interest::Read);
-        sec.register(state, sec_proc, Interest::Read);
+        prim.register(state, prim_proc, interest);
+        sec.register(state, sec_proc, interest);
     }
 
     // Safety: the current thread is holding on to the process' run lock
@@ -99,19 +100,19 @@ pub(crate) unsafe extern "system" fn inko_poll_read_either(
 
     match process.check_timeout_and_take_poll_bits() {
         (true, _) => {
-            prim.deregister(state);
-            sec.deregister(state);
+            prim.deregister(state, interest);
+            sec.deregister(state, interest);
             0
         }
         // The primary source is readable. We need to deregister the secondary
         // source so the current process won't get scheduled twice.
         (_, PRIM_BIT) => {
-            sec.deregister(state);
+            sec.deregister(state, interest);
             1
         }
         // The secondary source is readable.
         (_, SEC_BIT) => {
-            prim.deregister(state);
+            prim.deregister(state, interest);
             2
         }
         // Both sources are readable.

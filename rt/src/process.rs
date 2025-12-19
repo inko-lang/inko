@@ -732,8 +732,8 @@ impl DerefMut for ProcessPointer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mem::page_size;
     use crate::test::{empty_process_type, OwnedProcess};
-    use rustix::param::page_size;
     use std::mem::size_of;
     use std::num::NonZeroU64;
 

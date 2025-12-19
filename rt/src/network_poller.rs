@@ -1,7 +1,7 @@
 //! Polling of non-blocking sockets using the system's polling mechanism.
 use crate::process::{ProcessPointer, RescheduleRights};
 use crate::state::RcState;
-use rustix::fd::AsFd;
+use std::os::fd::{AsFd, AsRawFd};
 
 #[cfg(target_os = "linux")]
 mod epoll;
@@ -29,7 +29,7 @@ const CAPACITY: usize = 1024;
 const EVENT_MASK: u64 = 0b0011;
 
 /// The type of event a poller should wait for.
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub(crate) enum Interest {
     Read,
     Write,
@@ -47,7 +47,7 @@ impl NetworkPoller {
 
     pub(crate) fn poll<'a>(
         &self,
-        events: &'a mut sys::Events,
+        events: &'a mut Vec<sys::Event>,
     ) -> impl Iterator<Item = ProcessPointer> + 'a {
         events.clear();
 
@@ -70,7 +70,9 @@ impl NetworkPoller {
         source: impl AsFd,
         interest: Interest,
     ) {
-        self.inner.add(process.identifier() as _, source, interest);
+        let fd = source.as_fd().as_raw_fd();
+
+        self.inner.add(process.identifier() as _, fd, interest);
     }
 
     pub(crate) fn modify(
@@ -79,11 +81,15 @@ impl NetworkPoller {
         source: impl AsFd,
         interest: Interest,
     ) {
-        self.inner.modify(process.identifier() as _, source, interest)
+        let fd = source.as_fd().as_raw_fd();
+
+        self.inner.modify(process.identifier() as _, fd, interest)
     }
 
-    pub(crate) fn delete(&self, source: impl AsFd) {
-        self.inner.delete(source);
+    pub(crate) fn delete(&self, source: impl AsFd, interest: Interest) {
+        let fd = source.as_fd().as_raw_fd();
+
+        self.inner.delete(fd, interest);
     }
 }
 
@@ -99,7 +105,7 @@ impl Worker {
     }
 
     pub(crate) fn run(&mut self) {
-        let mut events = sys::Events::with_capacity(CAPACITY);
+        let mut events = Vec::with_capacity(CAPACITY);
         let mut procs = Vec::with_capacity(128);
         let poller = &self.state.network_pollers[self.id];
 
@@ -163,7 +169,7 @@ mod tests {
         let process = new_process(*typ);
 
         poller.add(*process, &output, Interest::Write);
-        poller.delete(&output);
+        poller.delete(&output, Interest::Write);
     }
 
     #[test]
@@ -172,7 +178,7 @@ mod tests {
         let poller = NetworkPoller::new();
         let typ = empty_process_type("A");
         let process = new_process(*typ);
-        let mut events = sys::Events::with_capacity(1);
+        let mut events = Vec::with_capacity(1);
 
         poller.add(*process, &output, Interest::Write);
 
@@ -187,7 +193,7 @@ mod tests {
         let poller = NetworkPoller::new();
         let typ = empty_process_type("A");
         let process = new_process(*typ);
-        let mut events = sys::Events::with_capacity(1);
+        let mut events = Vec::with_capacity(1);
 
         let tagged =
             unsafe { ProcessPointer::new((process.identifier() | 0b01) as _) };
@@ -207,7 +213,7 @@ mod tests {
         let typ = empty_process_type("A");
         let proc1 = new_process(*typ);
         let proc2 = new_process(*typ);
-        let mut events = sys::Events::with_capacity(1);
+        let mut events = Vec::with_capacity(1);
 
         poller.add(*proc1, &sock1, Interest::Write);
         poller.add(*proc2, &sock2, Interest::Write);

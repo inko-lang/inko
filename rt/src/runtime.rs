@@ -17,7 +17,6 @@ use crate::process::{NativeAsyncMethod, Process};
 use crate::scheduler::signal as signal_sched;
 use crate::stack::total_stack_size;
 use crate::state::{RcState, State};
-use rustix::param::page_size;
 use std::ffi::CStr;
 use std::slice;
 use std::thread;
@@ -90,8 +89,10 @@ pub unsafe extern "system" fn inko_runtime_state(
 pub unsafe extern "system" fn inko_runtime_stack_mask(
     runtime: *mut Runtime,
 ) -> u64 {
-    let raw_size = (&(*runtime)).state.config.stack_size;
-    let total = total_stack_size(raw_size as _, page_size()) as u64;
+    let rt = &*runtime;
+    let raw_size = rt.state.config.stack_size;
+    let page = rt.state.config.page_size;
+    let total = total_stack_size(raw_size as _, page) as u64;
 
     !(total - 1)
 }

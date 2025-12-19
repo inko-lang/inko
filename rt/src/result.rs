@@ -1,4 +1,4 @@
-use rustix::io::Errno;
+use libc::ETIMEDOUT;
 use std::io;
 
 pub(crate) const OK: i64 = 0;
@@ -11,7 +11,7 @@ pub(crate) fn error_to_int(error: io::Error) -> i64 {
     } else if let io::ErrorKind::TimedOut = error.kind() {
         // Socket deadlines produce a TimedOut manually, in which case
         // raw_os_error() above returns a None.
-        Errno::TIMEDOUT.raw_os_error()
+        ETIMEDOUT
     } else {
         match error.kind() {
             io::ErrorKind::InvalidData => -2,

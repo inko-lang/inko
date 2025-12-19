@@ -1,4 +1,4 @@
-use rustix::param::page_size;
+use crate::mem::page_size;
 use std::env::var;
 use std::thread::available_parallelism;
 

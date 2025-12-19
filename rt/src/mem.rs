@@ -1,4 +1,5 @@
 use crate::result::error_to_int;
+use libc::{sysconf, _SC_PAGESIZE};
 use std::alloc::{alloc, alloc_zeroed, handle_alloc_error, Layout};
 use std::io;
 use std::mem::{align_of, forget, size_of};
@@ -10,6 +11,10 @@ use std::string::String as RustString;
 
 /// The alignment to use for Inko objects.
 const ALIGNMENT: usize = align_of::<usize>();
+
+pub(crate) fn page_size() -> usize {
+    unsafe { sysconf(_SC_PAGESIZE) as usize }
+}
 
 pub(crate) fn allocate(layout: Layout) -> *mut u8 {
     unsafe {

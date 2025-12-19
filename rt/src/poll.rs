@@ -58,12 +58,16 @@ impl Poll {
         }
     }
 
-    pub(crate) unsafe fn deregister(&mut self, state: &State) {
+    pub(crate) unsafe fn deregister(
+        &mut self,
+        state: &State,
+        interest: Interest,
+    ) {
         // Safety: the standard library guarantees the file descriptor is valid
         // at this point.
         let fd = unsafe { BorrowedFd::borrow_raw(self.inner) };
 
-        state.network_pollers[self.registered as usize].delete(fd);
+        state.network_pollers[self.registered as usize].delete(fd, interest);
         self.registered = NOT_REGISTERED;
     }
 }

@@ -1,11 +1,12 @@
-use rustix::mm::{
-    mmap_anonymous, mprotect, munmap, MapFlags, MprotectFlags, ProtFlags,
+use libc::{
+    c_int, mmap, mprotect, munmap, MAP_ANON, MAP_FAILED, MAP_PRIVATE,
+    PROT_NONE, PROT_READ, PROT_WRITE,
 };
 use std::io::{Error, Result as IoResult};
 use std::ptr::null_mut;
 
-fn mmap_options(_stack: bool) -> MapFlags {
-    let base = MapFlags::PRIVATE;
+fn mmap_options(_stack: bool) -> c_int {
+    let base = MAP_PRIVATE | MAP_ANON;
 
     // For FreeBSD we _shouldn't_ use MAP_STACK, as this inserts an implicit
     // guard page at the start of the returned pointer, and this could mess up
@@ -16,7 +17,7 @@ fn mmap_options(_stack: bool) -> MapFlags {
     // OpenBSD doesn't have this behaviour, and on Linux MAP_STACK is a no-op.
     #[cfg(any(target_os = "linux", target_os = "openbsd"))]
     if _stack {
-        return base | MapFlags::STACK;
+        return base | libc::MAP_STACK;
     }
 
     base
@@ -38,22 +39,13 @@ impl MemoryMap {
         // more and manually align the resulting pointer.
         let alloc_size = size * 2;
         let opts = mmap_options(true);
-        let res = unsafe {
-            mmap_anonymous(
-                null_mut(),
-                alloc_size,
-                ProtFlags::READ | ProtFlags::WRITE,
-                opts,
-            )
+        let ptr = unsafe {
+            mmap(null_mut(), alloc_size, PROT_READ | PROT_WRITE, opts, -1, 0)
         };
 
-        let ptr = match res {
-            Ok(ptr) => ptr as *mut u8,
-            Err(e) => panic!(
-                "mmap(2) failed: {}",
-                Error::from_raw_os_error(e.raw_os_error())
-            ),
-        };
+        if ptr == MAP_FAILED {
+            panic!("mmap(2) failed: {}", Error::last_os_error());
+        }
 
         let start = ((ptr as usize + (size - 1)) & !(size - 1)) as *mut u8;
         let end = start as usize + size;
@@ -82,13 +74,13 @@ impl MemoryMap {
         start: usize,
         size: usize,
     ) -> IoResult<()> {
-        let res = unsafe {
-            mprotect(self.ptr.add(start) as _, size, MprotectFlags::empty())
-        };
+        let res =
+            unsafe { mprotect(self.ptr.add(start) as _, size, PROT_NONE) };
 
-        match res {
-            Ok(_) => Ok(()),
-            Err(e) => Err(Error::from_raw_os_error(e.raw_os_error())),
+        if res == 0 {
+            Ok(())
+        } else {
+            Err(Error::last_os_error())
         }
     }
 }
@@ -104,7 +96,7 @@ impl Drop for MemoryMap {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rustix::param::page_size;
+    use crate::mem::page_size;
 
     #[test]
     fn test_new() {

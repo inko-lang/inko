@@ -16,13 +16,9 @@ crate-type = ["staticlib", "lib"]
 crossbeam-utils = "^0.8"
 atomic-wait = "^1.1"
 libz-rs-sys = { version = "^0.5", features = ["c-allocator", "export-symbols"], default-features = false }
-
-# We use rustix where possible, but as it doesn't offer support for everything
-# (e.g. signal management) we still need to use libc in those cases.
 libc = "^0.2"
 unicode-segmentation = "^1.10"
 backtrace = "^0.3"
-rustix = { version = "^0.38", features = ["mm", "param", "process", "std", "event"], default-features = false }
 
 # The dependencies needed for TLS support.
 #
