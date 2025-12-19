@@ -6,7 +6,7 @@ import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
   t.ok('net.send_file_userspace', fn (t) {
-    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     let addr = try server.local_address
     let client = try TcpClient.new([addr.ip], addr.port)
     let con = try server.accept

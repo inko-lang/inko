@@ -64,7 +64,7 @@ fn unix_pair(
 }
 
 fn socket_pair -> Result[(TcpServer, Socket, Socket), IoError] {
-  let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+  let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
   let addr = try server.local_address
   let writer = Socket.plain(try TcpClient.new([addr.ip], addr.port))
   let reader = Socket.plain(try server.accept)
@@ -89,7 +89,7 @@ fn values(pairs: Array[(String, String)]) -> Values {
 }
 
 fn request(raw: RawRequest, limits: Limits, random: mut Random) -> Request {
-  let addr = Address.Ip(SocketAddress(ip: IpAddress.v4(0, 0, 0, 0), port: 80))
+  let addr = Address.Ip(SocketAddress(ip: IpAddress.v4(127, 0, 0, 1), port: 80))
 
   Request.new(addr, raw, limits, random)
 }
@@ -2344,7 +2344,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('SocketServer.accept with a TCP socket', fn (t) {
-    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     let addr = try server.local_address
     let _client = try TcpClient.new([addr.ip], addr.port)
     let server = SocketServer.Tcp(server)
@@ -2400,7 +2400,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('SocketServer.address with a TCP socket', fn (t) {
-    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     let addr = try server.local_address
     let _client = try TcpClient.new([addr.ip], addr.port)
 
@@ -2520,7 +2520,7 @@ fn pub tests(t: mut Tests) {
     test: fn (t, p) {
       t.equal(
         p.spawn.stdout,
-        '0.0.0.0 GET /?key=value HTTP/1.1 404 "referer" "user-agent"\n',
+        '127.0.0.1 GET /?key=value HTTP/1.1 404 "referer" "user-agent"\n',
       )
     },
   )

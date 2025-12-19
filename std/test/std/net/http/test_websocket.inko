@@ -15,7 +15,7 @@ import std.time (Duration, ToInstant)
 fn sockets(
   rng: mut Random,
 ) -> Result[(Websocket[TcpClient], Websocket[TcpClient]), IoError] {
-  let listener = try TcpServer.new(ip: IpAddress.v4(0, 0, 0, 0), port: 0)
+  let listener = try TcpServer.new(ip: IpAddress.v4(127, 0, 0, 1), port: 0)
   let addr = try listener.local_address
   let client = try TcpClient.new(ips: [addr.ip], port: addr.port)
   let server = try listener.accept

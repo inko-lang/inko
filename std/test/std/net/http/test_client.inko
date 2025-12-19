@@ -80,7 +80,7 @@ type async EchoServer {
   let @sock: TcpServer
 
   fn static new -> Result[(Self, Uri), IoError] {
-    let server = recover try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let server = recover try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     let addr = try server.local_address
     let this = EchoServer(server)
 
@@ -185,7 +185,7 @@ type async WebsocketServer {
   let @sock: TcpServer
 
   fn static new -> Result[(Self, Uri), IoError] {
-    let server = recover try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let server = recover try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     let addr = try server.local_address
     let this = Self(server)
 
@@ -440,7 +440,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('Connection.shutdown', fn (t) {
-    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     let addr = try server.local_address
     let client = try TcpClient.new([addr.ip], addr.port)
     let pool = Pool.new
@@ -459,7 +459,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('ActiveConnection.reuse', fn (t) {
-    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     let addr = try server.local_address
     let client = try TcpClient.new([addr.ip], addr.port)
     let pool = Pool.new
@@ -487,7 +487,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('ActiveConnection.drop with a reusable connection', fn (t) {
-    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     let addr = try server.local_address
     let client = try TcpClient.new([addr.ip], addr.port)
     let pool = Pool.new
@@ -507,7 +507,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('ActiveConnection.drop with a non-reusable connection', fn (t) {
-    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     let addr = try server.local_address
     let client = try TcpClient.new([addr.ip], addr.port)
     let pool = Pool.new
@@ -526,7 +526,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('ActiveConnection.timeout_after= with a plain socket', fn (t) {
-    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     let addr = try server.local_address
     let client = try TcpClient.new([addr.ip], addr.port)
     let pool = Pool.new
@@ -556,7 +556,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('ActiveConnection.reset_deadline with a plain socket', fn (t) {
-    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     let addr = try server.local_address
     let client = try TcpClient.new([addr.ip], addr.port)
     let pool = Pool.new
@@ -589,7 +589,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('ActiveConnection.read with a plain socket', fn (t) {
-    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     let addr = try server.local_address
     let client = try TcpClient.new([addr.ip], addr.port)
     let pool = Pool.new
@@ -620,7 +620,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('ActiveConnection.read with an error', fn (t) {
-    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     let addr = try server.local_address
     let client = try TcpClient.new([addr.ip], addr.port)
     let pool = Pool.new
@@ -640,7 +640,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('ActiveConnection.write with a plain socket', fn (t) {
-    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     let addr = try server.local_address
     let client = try TcpClient.new([addr.ip], addr.port)
     let pool = Pool.new
@@ -673,7 +673,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('ActiveConnection.write with an error', fn (t) {
-    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     let addr = try server.local_address
     let client = try TcpClient.new([addr.ip], addr.port)
     let pool = Pool.new
@@ -692,7 +692,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('Pool.add', fn (t) {
-    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     let addr = try server.local_address
     let pool = Pool.new
 
@@ -720,7 +720,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('Pool.get', fn (t) {
-    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     let addr = try server.local_address
     let pool = Pool.new
     let sock = try TcpClient.new([addr.ip], addr.port)
@@ -744,7 +744,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('Pool.reuse', fn (t) {
-    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     let addr = try server.local_address
     let pool = Pool.new
     let sock = try TcpClient.new([addr.ip], addr.port)
@@ -758,7 +758,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('Pool.reuse with too many reusable connections', fn (t) {
-    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     let addr = try server.local_address
     let pool = Pool.new
 
@@ -775,7 +775,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('Pool.close', fn (t) {
-    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     let addr = try server.local_address
     let pool = Pool.new
     let sock = try TcpClient.new([addr.ip], addr.port)
@@ -790,7 +790,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('Pool.connections_for', fn (t) {
-    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     let addr = try server.local_address
     let pool = Pool.new
     let sock = try TcpClient.new([addr.ip], addr.port)
@@ -878,7 +878,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('Client.connect with valid HTTP URIs', fn (t) {
-    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     let addr = try server.local_address
     let tests = [
       uri(http, ip(addr.ip), port(addr.port)),
@@ -943,7 +943,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('Client.connect with a reused connection', fn (t) {
-    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     let addr = try server.local_address
     let client = Client.new
     let uri = uri(http, ip(addr.ip), port(addr.port))
@@ -1024,7 +1024,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('Client.connect with invalid input', fn (t) {
-    let server = try TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     let addr = try server.local_address
     let tests = [
       (

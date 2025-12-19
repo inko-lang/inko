@@ -74,7 +74,7 @@ type async DummyServer {
     # We bind to port zero so we get a random port number, such that we don't
     # accidentally pick one that's already in use.
     let sock = recover {
-      try TcpServer.new(ip: IpAddress.v4(0, 0, 0, 0), port: 0).map_error(
+      try TcpServer.new(ip: IpAddress.v4(127, 0, 0, 1), port: 0).map_error(
         fn (e) { 'failed to start the server: ${e}' },
       )
     }
@@ -211,9 +211,9 @@ fn accept(socket: mut TcpServer) -> Result[Server[TcpClient], String] {
 }
 
 fn listener -> Result[(TcpServer, Int), String] {
-  let sock = try TcpServer.new(ip: IpAddress.v4(0, 0, 0, 0), port: 0).map_error(
-    fn (e) { 'failed to start the server: ${e}' },
-  )
+  let sock = try TcpServer
+    .new(ip: IpAddress.v4(127, 0, 0, 1), port: 0)
+    .map_error(fn (e) { 'failed to start the server: ${e}' })
   let addr = try sock.local_address.map_error(fn (e) {
     'failed to get the server address: ${e}'
   })
