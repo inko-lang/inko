@@ -1269,25 +1269,25 @@ type pub inline Reader[T: mut + BufferedRead[IoError]] {
 }
 
 impl BufferedRead[ParseError] for Reader {
-  fn mut fill_buffer -> Result[Int, ParseError] {
+  fn inline mut fill_buffer -> Result[Int, ParseError] {
     match @reader.fill_buffer {
       case Ok(v) -> Result.Ok(v)
       case Error(e) -> Result.Error(ParseError.Read(e))
     }
   }
 
-  fn mut read_buffer(into: mut ByteArray, size: Int) -> Int {
+  fn inline mut read_buffer(into: mut ByteArray, size: Int) -> Int {
     @reader.read_buffer(into, size)
   }
 
-  fn pub mut read_byte -> Result[Option[Int], ParseError] {
+  fn pub inline mut read_byte -> Result[Option[Int], ParseError] {
     match @reader.read_byte {
       case Ok(v) -> Result.Ok(v)
       case Error(e) -> Result.Error(ParseError.Read(e))
     }
   }
 
-  fn pub mut peek -> Result[Option[Int], ParseError] {
+  fn pub inline mut peek -> Result[Option[Int], ParseError] {
     match @reader.peek {
       case Ok(v) -> Result.Ok(v)
       case Error(e) -> Result.Error(ParseError.Read(e))
@@ -1296,7 +1296,10 @@ impl BufferedRead[ParseError] for Reader {
 }
 
 impl Read[ParseError] for Reader {
-  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, ParseError] {
+  fn pub inline mut read(
+    into: mut ByteArray,
+    size: Int,
+  ) -> Result[Int, ParseError] {
     match @reader.read(into, size) {
       case Ok(v) -> Result.Ok(v)
       case Error(e) -> Result.Error(ParseError.Read(e))

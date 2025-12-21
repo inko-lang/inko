@@ -1236,19 +1236,20 @@ impl BufferedRead[Error] for Buffer {
     }
   }
 
-  fn pub mut read_byte -> Result[Option[Int], Error] {
-    if @offset < @bytes.size {
-      Result.Ok(@bytes.get(@offset := @offset + 1).ok)
-    } else {
-      Result.Ok(Option.None)
+  fn pub inline mut read_byte -> Result[Option[Int], Error] {
+    match @bytes.get(@offset) {
+      case Ok(v) -> {
+        @offset += 1
+        Result.Ok(Option.Some(v))
+      }
+      case _ -> Result.Ok(Option.None)
     }
   }
 
-  fn pub mut peek -> Result[Option[Int], Error] {
-    if @offset < @bytes.size {
-      Result.Ok(@bytes.get(@offset).ok)
-    } else {
-      Result.Ok(Option.None)
+  fn pub inline mut peek -> Result[Option[Int], Error] {
+    match @bytes.get(@offset) {
+      case Ok(v) -> Result.Ok(Option.Some(v))
+      case _ -> Result.Ok(Option.None)
     }
   }
 }
