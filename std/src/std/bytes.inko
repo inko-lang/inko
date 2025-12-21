@@ -832,10 +832,13 @@ type pub ByteArray {
   # bytes.push(10) # => 10
   # bytes.size     # => 1
   # ```
-  fn pub mut push(value: Int) {
-    reserve(1)
-    write_to(@size, value)
-    @size += 1
+  fn pub inline mut push(value: Int) {
+    let len = @size
+
+    if len == @capacity { grow(1) }
+
+    write_to(len, value)
+    @size = len + 1
   }
 
   # Removes a value from the back of the `ByteArray`, returning the removed
@@ -1059,10 +1062,7 @@ type pub ByteArray {
   # bytes.capacity # => 8
   # ```
   fn pub mut reserve(size: Int) {
-    if @capacity - @size >= size { return }
-
-    @capacity = max(@capacity * 2, @capacity + size)
-    @buffer = alloc.resize(@buffer, @capacity)
+    if @capacity - @size < size { grow(size) }
   }
 
   # Reserves space for exactly `size` additional values.
@@ -1187,6 +1187,11 @@ type pub ByteArray {
 
   fn inline address_of(index: Int) -> Pointer[UInt8] {
     (@buffer as Int).wrapping_add(index) as Pointer[UInt8]
+  }
+
+  fn inline mut grow(size: Int) {
+    @capacity = max(@capacity * 2, @capacity + size)
+    @buffer = alloc.resize(@buffer, @capacity)
   }
 }
 

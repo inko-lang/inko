@@ -344,10 +344,7 @@ type builtin Array[T] {
   # If the capacity is great enough or the given size is less than zero, this
   # method does nothing.
   fn pub mut reserve(size: Int) {
-    if @capacity - @size >= size { return }
-
-    @capacity = max(@capacity * 2, @capacity + size)
-    @buffer = alloc.resize(@buffer, @capacity)
+    if @capacity - @size < size { grow(size) }
   }
 
   # Reserves space for exactly `size` additional values.
@@ -395,10 +392,13 @@ type builtin Array[T] {
   # array.push(10) # => Nil
   # array.get(0)   # => 10
   # ```
-  fn pub mut push(value: T) {
-    reserve(1)
-    write_to(@size, value)
-    @size += 1
+  fn pub inline mut push(value: T) {
+    let len = @size
+
+    if len == @capacity { grow(1) }
+
+    write_to(len, value)
+    @size = len + 1
   }
 
   # Removes a value from the back of the Array, returning the removed value.
@@ -929,6 +929,11 @@ type builtin Array[T] {
     let bytes = index.wrapping_mul(_INKO.size_of_type_name(T))
 
     (@buffer as Int).wrapping_add(bytes) as Pointer[T]
+  }
+
+  fn inline mut grow(size: Int) {
+    @capacity = max(@capacity * 2, @capacity + size)
+    @buffer = alloc.resize(@buffer, @capacity)
   }
 }
 
