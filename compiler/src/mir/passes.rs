@@ -2506,6 +2506,10 @@ impl<'a> LowerMethod<'a> {
                 self.mark_register_as_moved(val);
                 reg
             }
+            types::Intrinsic::Cold => {
+                self.current_block_mut().cold(loc);
+                self.get_nil(loc)
+            }
             name => {
                 let reg = self.new_register(returns);
 

@@ -235,6 +235,8 @@ pub(crate) struct Block {
 
     /// All the predecessors of this block.
     pub(crate) predecessors: IndexSet<BlockId>,
+
+    pub(crate) cold: bool,
 }
 
 impl Block {
@@ -243,6 +245,7 @@ impl Block {
             instructions: Vec::new(),
             successors: IndexSet::new(),
             predecessors: IndexSet::new(),
+            cold: false,
         }
     }
 
@@ -844,6 +847,10 @@ impl Block {
         })));
     }
 
+    pub(crate) fn cold(&mut self, location: InstructionLocation) {
+        self.instructions.push(Instruction::Cold(location));
+    }
+
     fn split_when<R, W: Fn(&Instruction) -> bool, T: Fn(Instruction) -> R>(
         &mut self,
         when: W,
@@ -1396,6 +1403,7 @@ pub(crate) enum Instruction {
     FieldPointer(Box<FieldPointer>),
     MethodPointer(Box<MethodPointer>),
     SizeOf(Box<SizeOf>),
+    Cold(InstructionLocation),
 }
 
 impl Instruction {
@@ -1441,6 +1449,7 @@ impl Instruction {
             Instruction::FieldPointer(ref v) => v.location,
             Instruction::MethodPointer(ref v) => v.location,
             Instruction::SizeOf(ref v) => v.location,
+            Instruction::Cold(v) => *v,
         }
     }
 
@@ -1653,6 +1662,7 @@ impl Instruction {
                     types::format::format_type(db, v.argument)
                 )
             }
+            Instruction::Cold(_) => "cold".to_string(),
         }
     }
 }
@@ -2315,6 +2325,44 @@ impl Method {
             }
         }
     }
+
+    fn mark_blocks_as_cold(&mut self) {
+        let mut suc = Vec::new();
+
+        for (idx, blk) in self.body.blocks.iter_mut().enumerate() {
+            let mut cold = false;
+
+            for ins in &blk.instructions {
+                if let Instruction::Cold(_) = ins {
+                    cold = true;
+                    break;
+                }
+            }
+
+            // The instruction is no longer relevant at this point
+            if cold {
+                blk.cold = true;
+                blk.instructions.retain(|i| !matches!(i, Instruction::Cold(_)));
+                suc.push(BlockId(idx));
+            }
+        }
+
+        while let Some(id) = suc.pop() {
+            let blk = &mut self.body.blocks[id.0];
+
+            if blk.predecessors.len() > 1 {
+                continue;
+            }
+
+            blk.cold = true;
+
+            // If we unconditionally flow into another block, also mark that
+            // block as cold.
+            if let Some(Instruction::Goto(ins)) = blk.instructions.last() {
+                suc.push(ins.block);
+            }
+        }
+    }
 }
 
 /// An Inko program in its MIR form.
@@ -2604,6 +2652,20 @@ impl Mir {
         }
 
         self.constants.retain(|k, _| used[k.0]);
+    }
+
+    pub(crate) fn mark_blocks_as_cold(&mut self, threads: usize) {
+        let queue = Mutex::new(self.methods.values_mut().collect::<Vec<_>>());
+
+        thread::scope(|s| {
+            for _ in 0..threads {
+                s.spawn(|| loop {
+                    let Some(m) = queue.lock().unwrap().pop() else { break };
+
+                    m.mark_blocks_as_cold();
+                });
+            }
+        });
     }
 
     pub(crate) fn verify(

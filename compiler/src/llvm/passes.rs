@@ -1718,7 +1718,8 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                     }
                     Intrinsic::Moved
                     | Intrinsic::RefMove
-                    | Intrinsic::MutMove => unreachable!(),
+                    | Intrinsic::MutMove
+                    | Intrinsic::Cold => unreachable!(),
                 }
             }
             Instruction::Goto(ins) => {
@@ -1768,9 +1769,29 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
             Instruction::Branch(ins) => {
                 let var = self.variables[&ins.condition];
                 let val = self.builder.load_bool(var);
+                let btyp = self.builder.context.bool_type().into();
+                let exp = self.module.intrinsic("llvm.expect", &[btyp, btyp]);
+                let tt = self.builder.bool_literal(true).into();
+                let ff = self.builder.bool_literal(false).into();
+                let cmp = match (
+                    !self.method.body.block(ins.if_true).cold,
+                    !self.method.body.block(ins.if_false).cold,
+                ) {
+                    // true is hot
+                    (true, false) => self
+                        .builder
+                        .call_with_return(exp, &[val.into(), tt])
+                        .into_int_value(),
+                    // false is hot
+                    (false, true) => self
+                        .builder
+                        .call_with_return(exp, &[val.into(), ff])
+                        .into_int_value(),
+                    _ => val,
+                };
 
                 self.builder.branch(
-                    val,
+                    cmp,
                     all_blocks[ins.if_true.0],
                     all_blocks[ins.if_false.0],
                 );
@@ -1779,8 +1800,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 let reg_var = self.variables[&ins.register];
                 let reg_typ = self.variable_types[&ins.register];
                 let bits = reg_typ.into_int_type().get_bit_width();
-                let reg_val =
-                    self.builder.load(reg_typ, reg_var).into_int_value();
+                let inp = self.builder.load(reg_typ, reg_var).into_int_value();
                 let mut cases = Vec::with_capacity(ins.blocks.len());
 
                 for &(val, block) in &ins.blocks {
@@ -1798,7 +1818,37 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                     .map(|b| all_blocks[b.0])
                     .unwrap_or_else(|| cases[0].1);
 
-                self.builder.switch(reg_val, &cases, fallback);
+                let btyp = self.builder.context.bool_type().into();
+                let exp = self.module.intrinsic("llvm.expect", &[btyp, btyp]);
+                let cmp = if cases.len() == 1 && ins.fallback.is_some() {
+                    let (a_blk, a_val) = (ins.blocks[0].1, cases[0].0);
+                    let (b_blk, b_val) = (
+                        ins.fallback.unwrap(),
+                        self.builder
+                            .int_literal(bits, (ins.blocks[0].0 + 1) as u64),
+                    );
+
+                    match (
+                        !self.method.body.block(a_blk).cold,
+                        !self.method.body.block(b_blk).cold,
+                    ) {
+                        // A is hot, fallback is cold
+                        (true, false) => self
+                            .builder
+                            .call_with_return(exp, &[inp.into(), a_val.into()])
+                            .into_int_value(),
+                        // A is cold, fallback is hot
+                        (false, true) => self
+                            .builder
+                            .call_with_return(exp, &[inp.into(), b_val.into()])
+                            .into_int_value(),
+                        _ => inp,
+                    }
+                } else {
+                    inp
+                };
+
+                self.builder.switch(cmp, &cases, fallback);
             }
             Instruction::Nil(ins) => {
                 let var = self.variables[&ins.register];
@@ -2607,8 +2657,9 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                 self.builder.store(reg_var, typ.size_of().unwrap());
             }
-            Instruction::Borrow(_) => unreachable!(),
-            Instruction::Drop(_) => unreachable!(),
+            Instruction::Borrow(_)
+            | Instruction::Drop(_)
+            | Instruction::Cold(_) => unreachable!(),
         }
     }
 

@@ -581,6 +581,11 @@ LLVM module timings:
             mir.remove_unused_constants(&self.state.db);
         }
 
+        // This pass needs to always run because we need to eliminate the "cold"
+        // instruction. We also need to do this last to take inlining into
+        // account.
+        mir.mark_blocks_as_cold(self.state.config.threads);
+
         self.timings.optimize.total = start.elapsed();
     }
 

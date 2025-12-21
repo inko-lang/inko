@@ -1,0 +1,14 @@
+# Compiler hints that affect code generation or optimization.
+
+# Marks the current basic block or method as "cold".
+#
+# A block or method that's cold means it's unlikely to be reached or called. The
+# compiler in turn may decide to optimize the code differently based on this
+# information.
+#
+# When used at the start of a method, the method as a whole is marked as cold.
+# When used in e.g. a branch of an `if`, only that particular branch is marked
+# as cold.
+fn pub inline cold {
+  # _INKO.cold
+}

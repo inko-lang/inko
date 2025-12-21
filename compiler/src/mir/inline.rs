@@ -394,6 +394,9 @@ impl CallSite {
                     Instruction::Finish(ins) => {
                         ins.location.set_inlined_call_id(inline_offset);
                     }
+                    Instruction::Cold(loc) => {
+                        loc.set_inlined_call_id(inline_offset);
+                    }
                 }
             }
 

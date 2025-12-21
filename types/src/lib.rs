@@ -2560,6 +2560,7 @@ pub enum Intrinsic {
     MutMove,
     IntLeadingZeros,
     IntTrailingZeros,
+    Cold,
 }
 
 impl Intrinsic {
@@ -2618,6 +2619,7 @@ impl Intrinsic {
             Intrinsic::MutMove,
             Intrinsic::IntLeadingZeros,
             Intrinsic::IntTrailingZeros,
+            Intrinsic::Cold,
         ]
         .into_iter()
         .fold(HashMap::new(), |mut map, func| {
@@ -2681,6 +2683,7 @@ impl Intrinsic {
             Intrinsic::MutMove => "mut_move",
             Intrinsic::IntLeadingZeros => "int_leading_zeros",
             Intrinsic::IntTrailingZeros => "int_trailing_zeros",
+            Intrinsic::Cold => "cold",
         }
     }
 
@@ -2747,6 +2750,7 @@ impl Intrinsic {
             Intrinsic::MutMove => arguments[0].as_mut(db),
             Intrinsic::IntLeadingZeros => TypeRef::int(),
             Intrinsic::IntTrailingZeros => TypeRef::int(),
+            Intrinsic::Cold => TypeRef::nil(),
         }
     }
 }

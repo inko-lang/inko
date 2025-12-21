@@ -149,7 +149,14 @@ start = b{}, blocks = {}, instructions = {}, inline weight = {}
 
         method.body.each_block_in_order(|id| {
             let blk = &method.body.block(id);
-            let _ = writeln!(buffer, "b{}:", id.0);
+            let mut header = format!("b{}:", id.0);
+
+            if blk.cold {
+                header = format!("{:<50} # cold", header);
+            }
+
+            buffer.push_str(&header);
+            buffer.push('\n');
 
             for ins in &blk.instructions {
                 let _ = writeln!(buffer, "  {}", ins.format(db, names));
