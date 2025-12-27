@@ -228,7 +228,7 @@ type async Runner {
     # Encountering an error in the accept loop is rare and generally only
     # happens when there's nothing we can do to proceed (e.g. we've run out of
     # available file descriptors).
-    server.start(port: 0).or_panic
+    server.start_ip(IpAddress.v4(127, 0, 0, 1), port: 0).or_panic
   }
 }
 
