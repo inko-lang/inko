@@ -443,12 +443,14 @@ fn pub tests(t: mut Tests) {
 
   t.test('UdpSocket.new', fn (t) {
     t.true(
-      UdpSocket.new(ip: IpAddress.V4(Ipv4Address.new(0, 0, 0, 0)), port: 0).ok?,
+      UdpSocket
+        .new(ip: IpAddress.V4(Ipv4Address.new(127, 0, 0, 1)), port: 0)
+        .ok?,
     )
 
     t.true(
       UdpSocket
-        .new(ip: IpAddress.V6(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 0)), port: 0)
+        .new(ip: IpAddress.V6(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1)), port: 0)
         .ok?,
     )
   })
@@ -762,7 +764,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('TcpServer.new', fn (t) {
-    let ip = IpAddress.V4(Ipv4Address.new(0, 0, 0, 0))
+    let ip = IpAddress.V4(Ipv4Address.new(127, 0, 0, 1))
 
     t.true(TcpServer.new(ip: ip.clone, port: 0).ok?)
 
@@ -1514,7 +1516,7 @@ fn pub tests(t: mut Tests) {
     let server = try Socket.stream(ipv6: false)
     let client = try Socket.stream(ipv6: false)
 
-    try server.bind(IpAddress.v4(0, 0, 0, 0), port: 0)
+    try server.bind(IpAddress.v4(127, 0, 0, 1), port: 0)
     try server.listen
 
     let addr = try server.local_address
@@ -1534,8 +1536,8 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('UdpSocket.send_file', fn (t) {
-    let server = try UdpSocket.new(IpAddress.v4(0, 0, 0, 0), port: 0)
-    let client = try UdpSocket.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let server = try UdpSocket.new(IpAddress.v4(127, 0, 0, 1), port: 0)
+    let client = try UdpSocket.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     let addr = try server.local_address
     let file = try ReadOnlyFile.new('fixtures/hello.txt'.to_path)
     let buf = ByteArray.new
@@ -1551,7 +1553,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('UdpSocket.timeout_after=', fn (t) {
-    let sock = try UdpSocket.new(IpAddress.v4(0, 0, 0, 0), port: 0)
+    let sock = try UdpSocket.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     let deadline = Instant.new + Duration.from_secs(1)
 
     sock.timeout_after = deadline
@@ -1566,7 +1568,7 @@ fn pub tests(t: mut Tests) {
   t.ok('TcpClient.send_file', fn (t) {
     let server = try Socket.stream(ipv6: false)
 
-    try server.bind(IpAddress.v4(0, 0, 0, 0), port: 0)
+    try server.bind(IpAddress.v4(127, 0, 0, 1), port: 0)
     try server.listen
 
     let addr = try server.local_address
