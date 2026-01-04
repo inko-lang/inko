@@ -98,7 +98,7 @@ impl<'a> DefineTypes<'a> {
                 _ => unreachable!(),
             };
 
-            let cls = Type::alloc(
+            let typ = Type::alloc(
                 self.db_mut(),
                 name.clone(),
                 kind,
@@ -111,11 +111,12 @@ impl<'a> DefineTypes<'a> {
 
             match node.semantics {
                 hir::TypeSemantics::Default => {}
-                hir::TypeSemantics::Inline => cls.set_inline_storage(db),
-                hir::TypeSemantics::Copy => cls.set_copy_storage(db),
+                hir::TypeSemantics::Inline => typ.set_inline_storage(db),
+                hir::TypeSemantics::Copy => typ.set_copy_storage(db),
+                hir::TypeSemantics::Atomic => typ.set_atomic_kind(db),
             }
 
-            cls
+            typ
         };
 
         if self.module.symbol_exists(self.db(), &name) {
@@ -561,6 +562,7 @@ impl<'a> DefineFields<'a> {
         let scope = TypeScope::new(self.module, TypeEnum::Type(type_id), None);
         let is_enum = type_id.kind(self.db()).is_enum();
         let is_copy = type_id.is_copy_type(self.db());
+        let req_val = type_id.require_value_types(self.db());
         let is_main = self.main_module && node.name.name == MAIN_TYPE;
 
         for expr in &mut node.body {
@@ -570,6 +572,7 @@ impl<'a> DefineFields<'a> {
                 continue;
             };
 
+            let tloc = fnode.value_type.location();
             let name = fnode.name.name.clone();
 
             if is_main || is_enum {
@@ -610,8 +613,16 @@ impl<'a> DefineFields<'a> {
                 self.state.diagnostics.not_a_copy_type(
                     &format_type(self.db(), typ),
                     self.file(),
-                    fnode.location,
+                    tloc,
                 );
+            }
+
+            if req_val && !typ.is_value_type(self.db()) {
+                self.state.diagnostics.not_a_value_type(
+                    &format_type(self.db(), typ),
+                    self.file(),
+                    tloc,
+                )
             }
 
             if !type_id.is_public(self.db()) && vis == Visibility::Public {
@@ -633,7 +644,17 @@ impl<'a> DefineFields<'a> {
             );
 
             if fnode.mutable {
-                field.set_mutable(self.db_mut());
+                if type_id.allow_field_assignments(self.db(), true) {
+                    field.set_mutable(self.db_mut());
+                } else {
+                    let name = type_id.name(self.db()).clone();
+
+                    self.state.diagnostics.mutable_field_not_allowed(
+                        &name,
+                        self.file(),
+                        loc,
+                    );
+                }
             }
 
             id += 1;
@@ -768,6 +789,7 @@ impl<'a> DefineTypeParameters<'a> {
     fn define_type(&mut self, node: &mut hir::DefineType) {
         let id = node.type_id.unwrap();
         let is_copy = id.is_copy_type(self.db());
+        let req_val = id.require_value_types(self.db());
 
         for param in &mut node.type_parameters {
             let name = &param.name.name;
@@ -787,6 +809,10 @@ impl<'a> DefineTypeParameters<'a> {
 
                 if is_copy || param.copy {
                     pid.set_copy(self.db_mut());
+                }
+
+                if req_val {
+                    pid.set_value(self.db_mut());
                 }
 
                 param.type_parameter_id = Some(pid);

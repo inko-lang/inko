@@ -743,6 +743,7 @@ impl Document {
         match node.semantics {
             nodes::TypeSemantics::Inline => header.push(Node::text("inline ")),
             nodes::TypeSemantics::Copy => header.push(Node::text("copy ")),
+            nodes::TypeSemantics::Atomic => header.push(Node::text("ref ")),
             _ => {}
         }
 

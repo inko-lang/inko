@@ -346,21 +346,34 @@ impl TypePlaceholderId {
 // `TypePlaceholder::assign()`, which requires a `&mut Database`.
 unsafe impl Sync for TypePlaceholder {}
 
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+enum TypeParameterKind {
+    /// A regular type parameter.
+    Regular,
+
+    /// A type parameter that requires mutable types.
+    Mutable,
+
+    /// A type parameter that requires copy types.
+    Copy,
+
+    /// A type parameter that requires any value (copy, async, atomic, etc)
+    /// type.
+    Value,
+}
+
 /// A type parameter for a method or type.
 #[derive(Clone)]
 pub struct TypeParameter {
     /// The name of the type parameter.
     name: String,
 
+    /// The kind of type parameter, dictating what types may be assigned to it.
+    kind: TypeParameterKind,
+
     /// The traits that must be implemented before a type can be assigned to
     /// this type parameter.
     requirements: Vec<TraitInstance>,
-
-    /// If mutable references to this type parameter are allowed.
-    mutable: bool,
-
-    /// If types assigned to this parameter must be trivial to copy.
-    copy: bool,
 
     /// The ID of the original type parameter in case the current one is a
     /// parameter introduced through additional type bounds.
@@ -383,10 +396,21 @@ impl TypeParameter {
         Self {
             name,
             requirements: Vec::new(),
-            mutable: false,
-            copy: false,
+            kind: TypeParameterKind::Regular,
             original: None,
         }
+    }
+
+    fn is_copy(&self) -> bool {
+        matches!(self.kind, TypeParameterKind::Copy)
+    }
+
+    fn is_mutable(&self) -> bool {
+        matches!(self.kind, TypeParameterKind::Mutable)
+    }
+
+    fn is_value(&self) -> bool {
+        matches!(self.kind, TypeParameterKind::Value)
     }
 }
 
@@ -431,25 +455,89 @@ impl TypeParameterId {
     }
 
     pub fn set_mutable(self, db: &mut Database) {
-        self.get_mut(db).mutable = true;
+        self.get_mut(db).kind = TypeParameterKind::Mutable;
     }
 
     pub fn is_mutable(self, db: &Database) -> bool {
-        self.get(db).mutable
+        self.get(db).is_mutable()
     }
 
     pub fn set_copy(self, db: &mut Database) {
-        self.get_mut(db).copy = true;
+        self.get_mut(db).kind = TypeParameterKind::Copy;
     }
 
     pub fn is_copy(self, db: &Database) -> bool {
-        self.get(db).copy
+        self.get(db).is_copy()
+    }
+
+    pub fn set_value(self, db: &mut Database) {
+        self.get_mut(db).kind = TypeParameterKind::Value;
+    }
+
+    pub(crate) fn allow_type(self, db: &Database, typ: TypeRef) -> bool {
+        let kind = self.get(db).kind;
+
+        match kind {
+            TypeParameterKind::Mutable => typ.allow_mutating(db),
+            TypeParameterKind::Copy => typ.is_copy_type(db),
+            TypeParameterKind::Value => typ.is_value_type(db),
+            _ => true,
+        }
+    }
+
+    pub(crate) fn allow_type_instance(
+        self,
+        db: &Database,
+        ins: TypeInstance,
+    ) -> bool {
+        let kind = self.get(db).kind;
+        let typ = ins.instance_of();
+
+        match kind {
+            TypeParameterKind::Copy => typ.is_copy_type(db),
+            TypeParameterKind::Value => typ.is_value_type(db),
+            _ => true,
+        }
+    }
+
+    pub(crate) fn allow_type_parameter(
+        self,
+        db: &Database,
+        rhs: TypeParameterId,
+    ) -> bool {
+        use TypeParameterKind::*;
+
+        match (self.get(db).kind, rhs.get(db).kind) {
+            (Copy, Copy) => true,
+            (Copy, _) => false,
+            (Value, Copy | Value) => true,
+            (Value, _) => false,
+            _ => true,
+        }
+    }
+
+    pub(crate) fn same_kind_as(
+        self,
+        db: &Database,
+        rhs: TypeParameterId,
+    ) -> bool {
+        self.get(db).kind == rhs.get(db).kind
+    }
+
+    pub fn is_value_type(self, db: &Database) -> bool {
+        let ins = self.get(db);
+
+        ins.is_value() || ins.is_copy()
     }
 
     pub fn as_immutable(self, db: &mut Database) -> TypeParameterId {
-        let mut copy = self.get(db).clone();
+        let src = self.get(db);
+        let mut copy = src.clone();
 
-        copy.mutable = false;
+        if src.is_mutable() {
+            copy.kind = TypeParameterKind::Regular;
+        }
+
         TypeParameter::add(db, copy)
     }
 
@@ -1558,12 +1646,16 @@ impl TypeKind {
         matches!(self, TypeKind::Extern)
     }
 
-    pub fn allow_pattern_matching(self) -> bool {
+    fn allow_pattern_matching(self) -> bool {
         matches!(self, TypeKind::Regular | TypeKind::Extern)
     }
 
-    fn is_atomic(self) -> bool {
+    fn is_async_or_atomic(self) -> bool {
         matches!(self, TypeKind::Async | TypeKind::Atomic)
+    }
+
+    fn is_atomic(self) -> bool {
+        matches!(self, TypeKind::Atomic)
     }
 }
 
@@ -2047,6 +2139,10 @@ impl TypeId {
     }
 
     pub fn is_atomic(self, db: &Database) -> bool {
+        self.kind(db).is_async_or_atomic()
+    }
+
+    pub fn require_value_types(self, db: &Database) -> bool {
         self.kind(db).is_atomic()
     }
 
@@ -2226,6 +2322,10 @@ impl TypeId {
 
     pub fn set_copy_storage(self, db: &mut Database) {
         self.get_mut(db).storage = Storage::Copy;
+    }
+
+    pub fn set_atomic_kind(self, db: &mut Database) {
+        self.get_mut(db).kind = TypeKind::Atomic;
     }
 
     pub(crate) fn clone_for_specialization(self, db: &mut Database) -> TypeId {
@@ -4924,14 +5024,14 @@ impl TypeRef {
             // the final types when lowering to LLVM. This means we need to
             // treat such types as sendable.
             TypeRef::Unknown => true,
-            // Processes are always sendable, regardless of what they store
-            // internally.
+            // Processes and atomic types are always sendable, regardless of
+            // what they store internally.
             TypeRef::Owned(TypeEnum::TypeInstance(i))
             | TypeRef::Ref(TypeEnum::TypeInstance(i))
             | TypeRef::Mut(TypeEnum::TypeInstance(i))
             | TypeRef::UniMut(TypeEnum::TypeInstance(i))
             | TypeRef::UniRef(TypeEnum::TypeInstance(i))
-                if i.instance_of.kind(db).is_async() =>
+                if i.instance_of.kind(db).is_async_or_atomic() =>
             {
                 true
             }
@@ -5005,7 +5105,7 @@ impl TypeRef {
             | TypeRef::Ref(id) => match id {
                 TypeEnum::TypeParameter(pid)
                 | TypeEnum::RigidTypeParameter(pid)
-                    if pid.is_copy(db) =>
+                    if pid.is_value_type(db) =>
                 {
                     TypeRef::Owned(id)
                 }
@@ -5048,7 +5148,7 @@ impl TypeRef {
                 id @ TypeEnum::RigidTypeParameter(pid)
                 | id @ TypeEnum::TypeParameter(pid),
             ) => {
-                if pid.is_copy(db) {
+                if pid.is_value_type(db) {
                     TypeRef::Owned(id)
                 } else if pid.is_mutable(db) {
                     TypeRef::Mut(id)
@@ -5064,7 +5164,7 @@ impl TypeRef {
                 id @ TypeEnum::RigidTypeParameter(pid)
                 | id @ TypeEnum::TypeParameter(pid),
             ) => {
-                if pid.is_copy(db) {
+                if pid.is_value_type(db) {
                     TypeRef::Owned(id)
                 } else {
                     TypeRef::Mut(id)
@@ -5073,7 +5173,7 @@ impl TypeRef {
             TypeRef::Uni(
                 id @ TypeEnum::RigidTypeParameter(pid)
                 | id @ TypeEnum::TypeParameter(pid),
-            ) if pid.is_copy(db) => TypeRef::Owned(id),
+            ) if pid.is_value_type(db) => TypeRef::Owned(id),
             TypeRef::Owned(TypeEnum::TypeInstance(ins))
                 if ins.instance_of().kind(db).is_extern() =>
             {
@@ -5115,7 +5215,7 @@ impl TypeRef {
                 match id {
                     TypeEnum::TypeParameter(tid)
                     | TypeEnum::RigidTypeParameter(tid)
-                        if tid.is_copy(db) =>
+                        if tid.is_value_type(db) =>
                     {
                         TypeRef::Owned(id)
                     }
@@ -5125,7 +5225,7 @@ impl TypeRef {
             TypeRef::Uni(id) => match id {
                 TypeEnum::TypeParameter(tid)
                 | TypeEnum::RigidTypeParameter(tid)
-                    if tid.is_copy(db) =>
+                    if tid.is_value_type(db) =>
                 {
                     TypeRef::Owned(id)
                 }
@@ -5403,24 +5503,34 @@ impl TypeRef {
     /// strings), those allocated on the stack (Int, pointers, inline types,
     /// etc), or non-values (e.g. modules).
     pub fn is_value_type(self, db: &Database) -> bool {
+        use TypeEnum::*;
+        use TypeRef::*;
+
         match self {
-            TypeRef::Owned(TypeEnum::TypeInstance(ins))
-            | TypeRef::Ref(TypeEnum::TypeInstance(ins))
-            | TypeRef::Mut(TypeEnum::TypeInstance(ins))
-            | TypeRef::UniRef(TypeEnum::TypeInstance(ins))
-            | TypeRef::UniMut(TypeEnum::TypeInstance(ins))
-            | TypeRef::Uni(TypeEnum::TypeInstance(ins)) => {
-                ins.instance_of().is_value_type(db)
+            Owned(TypeInstance(ins))
+            | Ref(TypeInstance(ins))
+            | Mut(TypeInstance(ins))
+            | UniRef(TypeInstance(ins))
+            | UniMut(TypeInstance(ins))
+            | Uni(TypeInstance(ins)) => ins.instance_of().is_value_type(db),
+            // Type parameters with `T: copy` and those defined in atomic types
+            // are also value types.
+            Any(TypeParameter(t) | RigidTypeParameter(t))
+            | Owned(TypeParameter(t) | RigidTypeParameter(t))
+            | Ref(TypeParameter(t) | RigidTypeParameter(t))
+            | Mut(TypeParameter(t) | RigidTypeParameter(t))
+            | UniRef(TypeParameter(t) | RigidTypeParameter(t))
+            | UniMut(TypeParameter(t) | RigidTypeParameter(t))
+            | Uni(TypeParameter(t) | RigidTypeParameter(t)) => {
+                t.is_value_type(db)
             }
             // Modules technically aren't values, but this allows certain checks
             // for value types (e.g. to see if `self` can be captured) to
             // automatically also handle modules.
-            TypeRef::Owned(TypeEnum::Module(_))
-            | TypeRef::Ref(TypeEnum::Module(_))
-            | TypeRef::Mut(TypeEnum::Module(_)) => true,
-            TypeRef::Owned(TypeEnum::Foreign(_)) => true,
-            TypeRef::Pointer(_) => true,
-            TypeRef::Placeholder(id) => {
+            Owned(Module(_)) | Ref(Module(_)) | Mut(Module(_)) => true,
+            Owned(Foreign(_)) => true,
+            Pointer(_) => true,
+            Placeholder(id) => {
                 id.value(db).is_some_and(|v| v.is_value_type(db))
             }
             _ => false,
@@ -6185,7 +6295,7 @@ mod tests {
         let param2 = param1.clone_for_bound(&mut db);
 
         assert_eq!(param1.is_mutable(&db), param2.is_mutable(&db));
-        assert_eq!(param1.is_copy(&db), param2.is_copy(&db));
+        assert_eq!(param1.get(&db).kind, param2.get(&db).kind);
     }
 
     #[test]

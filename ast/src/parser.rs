@@ -1040,6 +1040,10 @@ impl Parser {
                 self.next();
                 TypeSemantics::Copy
             }
+            TokenKind::Ref => {
+                self.next();
+                TypeSemantics::Atomic
+            }
             _ => TypeSemantics::Default,
         };
         let kind = match self.peek().kind {
@@ -4808,6 +4812,29 @@ mod tests {
                     location: cols(13, 14)
                 },
                 location: cols(1, 14)
+            }))
+        );
+    }
+
+    #[test]
+    fn test_atomic_type() {
+        assert_eq!(
+            top(parse("type ref A {}")),
+            TopLevelExpression::DefineType(Box::new(DefineType {
+                public: false,
+                semantics: TypeSemantics::Atomic,
+                name: Constant {
+                    source: None,
+                    name: "A".to_string(),
+                    location: cols(10, 10)
+                },
+                kind: TypeKind::Regular,
+                type_parameters: None,
+                body: TypeExpressions {
+                    values: Vec::new(),
+                    location: cols(12, 13)
+                },
+                location: cols(1, 13)
             }))
         );
     }

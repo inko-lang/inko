@@ -531,7 +531,10 @@ impl<'a> GenerateDropper<'a> {
         });
 
         if tid.is_heap_allocated(lower.db()) {
-            lower.current_block_mut().check_refs(rec, loc);
+            if !tid.is_atomic(lower.db()) {
+                lower.current_block_mut().check_refs(rec, loc);
+            }
+
             lower.current_block_mut().free(rec, tid, loc);
         }
 
@@ -582,7 +585,10 @@ impl<'a> GenerateDropper<'a> {
         }
 
         if tid.is_heap_allocated(lower.db()) && free_self {
-            lower.current_block_mut().check_refs(rec, loc);
+            if !tid.is_atomic(lower.db()) {
+                lower.current_block_mut().check_refs(rec, loc);
+            }
+
             lower.current_block_mut().free(rec, tid, loc);
         }
 
@@ -4332,13 +4338,12 @@ impl<'a> LowerMethod<'a> {
         }
 
         let reg = self.new_register(typ);
-        let tid = typ.type_id(self.db()).unwrap();
 
-        if tid.is_atomic(self.db()) {
-            self.current_block_mut().increment_atomic(source, location);
-        }
-
-        self.current_block_mut().move_register(reg, source, location);
+        // We may encounter a type parameter owned by an atomic type. If such a
+        // parameter is assigned an atomic value after specialization, we need
+        // to increment the reference count. For copy types this instruction is
+        // ignored during specialization.
+        self.current_block_mut().borrow(reg, source, location);
         self.mark_register_as_moved(reg);
         reg
     }
