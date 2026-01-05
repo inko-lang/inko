@@ -1,0 +1,14 @@
+type ref Atomic {
+  let @number: Int
+
+  fn mut example1 {
+    @number = 42
+  }
+}
+
+fn example2(value: Atomic) {
+  value.number = 42
+}
+
+# atomic_type_with_field_assignment.inko:5:5 error(invalid-assign): the field 'number' is immutable and can't be assigned a new value
+# atomic_type_with_field_assignment.inko:10:3 error(invalid-assign): the field 'number' is immutable and can't be assigned a new value

@@ -45,6 +45,6 @@ type List {
 }
 
 # field_in_recover.inko:17:5 error(invalid-type): values of type 'uni ref Array[Int]' can't be recovered
-# field_in_recover.inko:22:7 error(invalid-symbol): the field 'values' can't be assigned a value of type 'Array[Int]', as it's not sendable
-# field_in_recover.inko:37:12 error(invalid-symbol): the field 'values' can't be assigned a value of type 'Array[Int]', as it's not sendable
+# field_in_recover.inko:22:7 error(invalid-assign): the field 'values' can't be assigned a value of type 'Array[Int]', as it's not sendable
+# field_in_recover.inko:37:12 error(invalid-assign): the field 'values' can't be assigned a value of type 'Array[Int]', as it's not sendable
 # field_in_recover.inko:43:13 error(invalid-assign): the value of 'values' can't be replaced inside a 'recover', as the old value isn't sendable

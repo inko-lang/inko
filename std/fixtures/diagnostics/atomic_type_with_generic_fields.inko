@@ -1,0 +1,14 @@
+type ref Atomic[T] {
+  let @concrete: Int
+  let @generic: T
+}
+
+fn example1 {
+  Atomic(concrete: 10, generic: 'test')
+}
+
+fn example2 {
+  Atomic(concrete: 10, generic: [10])
+}
+
+# atomic_type_with_generic_fields.inko:11:33 error(invalid-type): expected a value of type 'T: value type', found 'Array[Int]'

@@ -361,11 +361,7 @@ impl<'a> TypeChecker<'a> {
             let mut env = env.with_left_as_right();
             let rules = Rules::new().with_relaxed_subtyping();
 
-            if bound.is_mutable(self.db) && !val.allow_mutating(self.db) {
-                return false;
-            }
-
-            if bound.is_copy(self.db) && !val.is_copy_type(self.db) {
+            if !bound.allow_type(self.db, val) {
                 return false;
             }
 
@@ -754,9 +750,7 @@ impl<'a> TypeChecker<'a> {
                 }
                 TypeEnum::TypeParameter(_) if rules.kind.is_cast() => false,
                 TypeEnum::TypeParameter(rhs) => {
-                    if rhs.is_copy(self.db)
-                        && !lhs.instance_of().is_copy_type(self.db)
-                    {
+                    if !rhs.allow_type_instance(self.db, lhs) {
                         return false;
                     }
 
@@ -787,7 +781,9 @@ impl<'a> TypeChecker<'a> {
                     self.check_traits(lhs, rhs, env, rules)
                 }
                 TypeEnum::TypeParameter(_) if rules.kind.is_cast() => false,
-                TypeEnum::TypeParameter(rhs) if rhs.is_copy(self.db) => false,
+                TypeEnum::TypeParameter(rhs) if rhs.is_value_type(self.db) => {
+                    false
+                }
                 TypeEnum::TypeParameter(rhs) => rhs
                     .requirements(self.db)
                     .into_iter()
@@ -836,7 +832,7 @@ impl<'a> TypeChecker<'a> {
                     // Closures can't implement traits, so they're only
                     // compatible with type parameters that don't have any
                     // requirements.
-                    !rhs.is_copy(self.db)
+                    !rhs.is_value_type(self.db)
                 }
                 _ => false,
             },
@@ -896,7 +892,7 @@ impl<'a> TypeChecker<'a> {
                     return true;
                 }
 
-                if left.is_copy(self.db) != rhs.is_copy(self.db) {
+                if !left.allow_type_parameter(self.db, rhs) {
                     return false;
                 }
 
@@ -951,9 +947,7 @@ impl<'a> TypeChecker<'a> {
             return true;
         };
 
-        if (req.is_mutable(self.db) && !left.allow_mutating(self.db))
-            || (req.is_copy(self.db) && !left.is_copy_type(self.db))
-        {
+        if !req.allow_type(self.db, left) {
             placeholder.assign_internal(self.db, TypeRef::Unknown);
             return false;
         }
@@ -1140,7 +1134,7 @@ impl<'a> TypeChecker<'a> {
             return true;
         }
 
-        if left.is_copy(self.db) != right.is_copy(self.db) {
+        if !left.same_kind_as(self.db, right) {
             return false;
         }
 

@@ -1,0 +1,10 @@
+type ref Atomic[T] {
+  let @concrete: Int
+  let @generic: T
+}
+
+fn example1(value: Atomic[Int]) {}
+
+fn example2(value: Atomic[Array[Int]]) {}
+
+# atomic_type_with_generic_fields_in_signature.inko:8:27 error(invalid-type): 'Array[Int]' can't be assigned to type parameter 'T: value type'

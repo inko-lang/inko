@@ -288,6 +288,16 @@ type inline enum Example {
 }
 ```
 
+### Reference counted types
+
+Atomically reference counted types are defined using the `ref` keyword:
+
+```inko
+type ref Person {
+  let @name: String
+}
+```
+
 ### Generic types
 
 Generic types are defined like so:

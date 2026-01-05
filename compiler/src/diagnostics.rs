@@ -46,6 +46,7 @@ pub(crate) enum DiagnosticId {
     UnusedSymbol,
     UnusedResult,
     BorrowValueType,
+    InvalidField,
 }
 
 impl fmt::Display for DiagnosticId {
@@ -74,6 +75,7 @@ impl fmt::Display for DiagnosticId {
             DiagnosticId::UnusedSymbol => "unused-symbol",
             DiagnosticId::UnusedResult => "unused-result",
             DiagnosticId::BorrowValueType => "borrow-value-type",
+            DiagnosticId::InvalidField => "invalid-field",
         };
 
         write!(f, "{}", id)
@@ -293,6 +295,20 @@ impl Diagnostics {
         );
     }
 
+    pub(crate) fn not_a_value_type(
+        &mut self,
+        name: &str,
+        file: PathBuf,
+        location: Location,
+    ) {
+        self.error(
+            DiagnosticId::InvalidType,
+            format!("a value type is expected, but '{}' is a heap type", name),
+            file,
+            location,
+        );
+    }
+
     pub(crate) fn fields_not_allowed(
         &mut self,
         name: &str,
@@ -300,8 +316,22 @@ impl Diagnostics {
         location: Location,
     ) {
         self.error(
-            DiagnosticId::DuplicateSymbol,
+            DiagnosticId::InvalidField,
             format!("fields can't be defined for '{}'", name),
+            file,
+            location,
+        );
+    }
+
+    pub(crate) fn mutable_field_not_allowed(
+        &mut self,
+        name: &str,
+        file: PathBuf,
+        location: Location,
+    ) {
+        self.error(
+            DiagnosticId::InvalidField,
+            format!("the type '{}' doesn't allow for mutable fields", name),
             file,
             location,
         );
@@ -348,7 +378,7 @@ impl Diagnostics {
         location: Location,
     ) {
         self.error(
-            DiagnosticId::DuplicateSymbol,
+            DiagnosticId::InvalidField,
             "public fields can't be defined for private types",
             file,
             location,
@@ -758,7 +788,7 @@ impl Diagnostics {
         location: Location,
     ) {
         self.error(
-            DiagnosticId::InvalidSymbol,
+            DiagnosticId::InvalidAssign,
             format!(
                 "the field '{}' can't be assigned a value of type '{}', \
                 as it's not sendable",

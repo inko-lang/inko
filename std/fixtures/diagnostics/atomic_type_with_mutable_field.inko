@@ -1,0 +1,5 @@
+type ref Atomic {
+  let mut @number: Int
+}
+
+# atomic_type_with_mutable_field.inko:2:3 error(invalid-field): the type 'Atomic' doesn't allow for mutable fields

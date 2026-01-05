@@ -7,4 +7,4 @@ type async Thing[A, B] {
   }
 }
 
-# assign_async_field_recover_owned.inko:6:14 error(invalid-symbol): the field 'a' can't be assigned a value of type 'A', as it's not sendable
+# assign_async_field_recover_owned.inko:6:14 error(invalid-assign): the field 'a' can't be assigned a value of type 'A', as it's not sendable

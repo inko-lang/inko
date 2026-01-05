@@ -31,6 +31,12 @@ impl RefKind {
     fn into_type_ref(self, db: &Database, id: TypeEnum) -> TypeRef {
         match self {
             Self::Default => match id {
+                TypeEnum::TypeParameter(p)
+                | TypeEnum::RigidTypeParameter(p)
+                    if p.is_value_type(db) =>
+                {
+                    TypeRef::Owned(id)
+                }
                 TypeEnum::TypeParameter(_)
                 | TypeEnum::RigidTypeParameter(_) => TypeRef::Any(id),
                 _ => TypeRef::Owned(id),

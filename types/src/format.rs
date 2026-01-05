@@ -2,8 +2,8 @@
 use crate::{
     Arguments, ClosureId, Database, ForeignType, Inline, MethodId, MethodKind,
     ModuleId, Ownership, Sign, TraitId, TraitInstance, TypeArguments, TypeEnum,
-    TypeId, TypeInstance, TypeKind, TypeParameterId, TypePlaceholderId,
-    TypeRef, Visibility, NEVER_TYPE, SELF_TYPE,
+    TypeId, TypeInstance, TypeKind, TypeParameterId, TypeParameterKind,
+    TypePlaceholderId, TypeRef, Visibility, NEVER_TYPE, SELF_TYPE,
 };
 
 const MAX_FORMATTING_DEPTH: usize = 8;
@@ -24,14 +24,13 @@ pub fn type_parameter_capabilities(
     db: &Database,
     id: TypeParameterId,
 ) -> Option<&'static str> {
-    let param = id.get(db);
+    use TypeParameterKind::*;
 
-    if param.copy {
-        Some("copy")
-    } else if param.mutable {
-        Some("mut")
-    } else {
-        None
+    match id.get(db).kind {
+        Mutable => Some("mut"),
+        Copy => Some("copy"),
+        Value => Some("value type"),
+        _ => None,
     }
 }
 
@@ -43,7 +42,7 @@ fn format_type_parameter_without_argument(
 ) {
     let param = id.get(buffer.db);
 
-    if owned {
+    if owned && !id.is_value_type(buffer.db) {
         buffer.write_ownership("move ");
     }
 
@@ -267,7 +266,16 @@ impl FormatType for TypePlaceholderId {
 
         let ownership = match self.ownership {
             Ownership::Any => "",
-            Ownership::Owned => "move ",
+            Ownership::Owned => {
+                if self
+                    .required(buffer.db)
+                    .is_some_and(|r| r.is_value_type(buffer.db))
+                {
+                    ""
+                } else {
+                    "move "
+                }
+            }
             Ownership::Uni => "uni ",
             Ownership::Ref => "ref ",
             Ownership::Mut => "mut ",
@@ -534,7 +542,7 @@ mod tests {
     use super::*;
     use crate::test::{
         any, immutable, immutable_uni, instance, mutable, mutable_uni,
-        new_parameter, new_type, owned, placeholder, uni,
+        new_parameter, new_type, owned, parameter, placeholder, uni,
     };
     use crate::{
         Block, Closure, Database, Inline, Location, Method, MethodKind, Module,
@@ -1040,6 +1048,29 @@ mod tests {
 
         assert_eq!(format_type(&db, param_ins), "T");
         assert_eq!(format_type(&db, TypeRef::Owned(param_ins)), "move T");
+    }
+
+    #[test]
+    fn test_type_id_format_type_with_owned_value_type_type_parameter() {
+        let mut db = Database::new();
+        let p1 = TypeParameter::alloc(&mut db, "T".to_string());
+        let p2 = TypeParameter::alloc(&mut db, "T".to_string());
+
+        p2.set_value(&mut db);
+
+        assert_eq!(format_type(&db, owned(parameter(p1))), "move T");
+        assert_eq!(format_type(&db, owned(parameter(p2))), "T: value type");
+    }
+
+    #[test]
+    fn test_type_id_format_type_with_owned_value_type_placeholder() {
+        let mut db = Database::new();
+        let par = TypeParameter::alloc(&mut db, "T".to_string());
+        let var = TypePlaceholder::alloc(&mut db, Some(par)).as_owned();
+
+        par.set_value(&mut db);
+
+        assert_eq!(format_type(&db, placeholder(var)), "T: value type");
     }
 
     #[test]

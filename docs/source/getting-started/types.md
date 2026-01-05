@@ -373,6 +373,41 @@ trait, you'll have to use the `inline` keyword instead.
 
 Similar to `inline` types, `copy` types can't be cast to traits.
 
+## Reference counted types
+
+Types defined using the `ref` keyword are heap allocated types that use atomic
+reference counting, and are treated as value types (e.g. moving them means you
+can still use the old reference):
+
+```inko
+type ref Person {
+  let @name: String
+  let @age: Int
+}
+
+let alice1 = Person(name: 'Alice', age: 42) # ref count = 1
+let alice2 = alice1                         # ref count = 2
+
+alice1.name # => 'Alice'
+alice2.name # => 'Alice'
+```
+
+The `String` type is an example of an atomically reference counted type.
+
+Similar to `copy` types, reference counted types come with a few restrictions:
+
+- They can only store `copy` and `ref` types in their fields
+- Fields can't be assigned new values
+- Mutations are not allowed
+
+Reference counted types are sendable and may be moved between processes without
+the need for copying. This makes them useful for when multiple processes need
+access to a small amount of shared state, such as a configuration object or a
+set of statistics. For more complex shared state you should use a process
+instead.
+
+The destructor of a `ref` type is called when the last reference is dropped.
+
 ## Inline vs heap types
 
 With Inko supporting both heap and stack allocated types, one might wonder:
