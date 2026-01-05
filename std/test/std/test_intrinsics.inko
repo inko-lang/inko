@@ -4,13 +4,13 @@
 import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
-  t.test('int_compare_swap', fn (t) {
+  t.test('int_atomic_compare_swap', fn (t) {
     let val = 0 as Int64
 
-    t.true(_INKO.int_compare_swap(mut val, 0, 1))
+    t.true(_INKO.int_atomic_compare_swap(mut val, 0, 1))
     t.equal(val as Int, 1)
 
-    t.false(_INKO.int_compare_swap(mut val, 0, 2))
+    t.false(_INKO.int_atomic_compare_swap(mut val, 0, 2))
     t.equal(val as Int, 1)
   })
 }

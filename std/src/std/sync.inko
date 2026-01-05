@@ -28,6 +28,7 @@
 import std.clone (Clone)
 import std.deque (Deque)
 import std.drop (Drop, drop as drop_value)
+import std.fmt (Format, Formatter)
 import std.time (ToInstant)
 
 fn extern inko_process_wait_for_value(
@@ -93,7 +94,11 @@ type FutureState[T] {
 
   fn mut lock {
     while
-      !_INKO.int_compare_swap(mut @locked, UNLOCKED as UInt8, LOCKED as UInt8)
+      !_INKO.int_atomic_compare_swap(
+        mut @locked,
+        UNLOCKED as UInt8,
+        LOCKED as UInt8,
+      )
     {
       # Since a future can only have a single reader and a single writer,
       # contention is limited to at most two OS threads. Combined with the
@@ -108,7 +113,11 @@ type FutureState[T] {
   }
 
   fn mut unlock {
-    _INKO.int_compare_swap(mut @locked, LOCKED as UInt8, UNLOCKED as UInt8)
+    _INKO.int_atomic_compare_swap(
+      mut @locked,
+      LOCKED as UInt8,
+      UNLOCKED as UInt8,
+    )
   }
 }
 
@@ -650,5 +659,219 @@ type pub inline Channel[T] {
 impl Clone for Channel {
   fn pub clone -> Channel[T] {
     Channel(@state)
+  }
+}
+
+# An `Int` that uses atomic reference counting and atomic operations for
+# mutations.
+#
+# Atomic operations use the "acquire" ordering for loads and "release" for
+# stores, though this is considered an implementation detail and shouldn't be
+# relied upon.
+type pub ref AtomicInt {
+  let @value: Int64
+
+  # Returns a new `AtomicInt` using `value` as its initial value.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.sync (AtomicInt)
+  #
+  # AtomicInt.new(42) # => AtomicInt(42)
+  # ```
+  fn pub static new(value: Int) -> Self {
+    Self(value as Int64)
+  }
+
+  # Performs an atomic compare-and-swap, replacing the value of `self` with
+  # `new` if and only if the current value equals `current`.
+  #
+  # The return value is `true` if the swap succeeded (in which case `self` is
+  # now equal to `new`), or `false` if `self` didn't equal `current` at the time
+  # of the swap.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.sync (AtomicInt)
+  #
+  # let val = AtomicInt.new(10)
+  #
+  # val.compare_and_swap(10, 20) # => true
+  # val                          # => AtomicInt(20)
+  #
+  # val.compare_and_swap(10, 30) # => false
+  # val                          # => AtomicInt(20)
+  # ```
+  fn pub compare_and_swap(current: Int, new: Int) -> Bool {
+    _INKO.int_atomic_compare_swap(mut @value, current, new)
+  }
+
+  # Stores `value` in `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.sync (AtomicInt)
+  #
+  # let val = AtomicInt.new(0)
+  #
+  # val.store(10)
+  # val # => AtomicInt(10)
+  # ```
+  fn pub store(value: Int) {
+    _INKO.int_atomic_store(mut @value, value)
+  }
+
+  # Loads the current value of `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.sync (AtomicInt)
+  #
+  # let val = AtomicInt.new(0)
+  #
+  # val.store(10)
+  # val.load # => 10
+  # ```
+  fn pub load -> Int {
+    _INKO.int_atomic_load(mut @value) as Int
+  }
+
+  # Adds `value` to `self` and returns the previous value.
+  #
+  # This operation wraps around upon overflowing.
+  #
+  # ```inko
+  # import std.sync (AtomicInt)
+  #
+  # let val = AtomicInt.new(0)
+  #
+  # val.add(1) # => 0
+  # val.add(1) # => 1
+  # val        # => AtomicInt(2)
+  fn pub add(value: Int) -> Int {
+    _INKO.int_atomic_add(mut @value, value) as Int
+  }
+
+  # Subtracts `value` from `self` and returns the previous value.
+  #
+  # This operation wraps around upon overflowing.
+  #
+  # ```inko
+  # import std.sync (AtomicInt)
+  #
+  # let val = AtomicInt.new(2)
+  #
+  # val.sub(1) # 2
+  # val.sub(1) # 1
+  # val        # => AtomicInt(0)
+  fn pub sub(value: Int) -> Int {
+    _INKO.int_atomic_sub(mut @value, value) as Int
+  }
+}
+
+impl Clone for AtomicInt {
+  fn pub clone -> Self {
+    self
+  }
+}
+
+impl Format for AtomicInt {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter.tuple('AtomicInt').field(load).finish
+  }
+}
+
+# A `Bool` that uses atomic reference counting and atomic operations for
+# mutations.
+#
+# Atomic operations use the "acquire" ordering for loads and "release" for
+# stores, though this is considered an implementation detail and shouldn't be
+# relied upon.
+type pub ref AtomicBool {
+  let @value: UInt8
+
+  # Returns a new `AtomicBool` using `value` as its initial value.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.sync (AtomicBool)
+  #
+  # AtomicBool.new(false) # => AtomicBool(false)
+  # ```
+  fn pub static new(value: Bool) -> Self {
+    Self(value as UInt8)
+  }
+
+  # Performs an atomic compare-and-swap, replacing the value of `self` with
+  # `new` if and only if the current value equals `current`.
+  #
+  # The return value is `true` if the swap succeeded (in which case `self` is
+  # now equal to `new`), or `false` if `self` didn't equal `current` at the time
+  # of the swap.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.sync (AtomicBool)
+  #
+  # let val = AtomicBool.new(false)
+  #
+  # val.compare_and_swap(false, true) # => true
+  # val                               # => AtomicBool(true)
+  #
+  # val.compare_and_swap(false, false) # => false
+  # val                                # => AtomicBool(true)
+  # ```
+  fn pub compare_and_swap(current: Bool, new: Bool) -> Bool {
+    _INKO.int_atomic_compare_swap(mut @value, current as UInt8, new as UInt8)
+  }
+
+  # Stores `value` in `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.sync (AtomicBool)
+  #
+  # let val = AtomicBool.new(false)
+  #
+  # val.store(true)
+  # val # => AtomicBool(true)
+  # ```
+  fn pub store(value: Bool) {
+    _INKO.int_atomic_store(mut @value, value as UInt8)
+  }
+
+  # Loads the current value of `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.sync (AtomicBool)
+  #
+  # let val = AtomicBool.new(false)
+  #
+  # val.store(true)
+  # val.load # => true
+  # ```
+  fn pub load -> Bool {
+    _INKO.int_atomic_load(mut @value) as Bool
+  }
+}
+
+impl Clone for AtomicBool {
+  fn pub clone -> Self {
+    self
+  }
+}
+
+impl Format for AtomicBool {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter.tuple('AtomicBool').field(load).finish
   }
 }

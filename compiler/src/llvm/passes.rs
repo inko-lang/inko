@@ -1623,7 +1623,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    Intrinsic::IntCompareSwap => {
+                    Intrinsic::IntAtomicCompareSwap => {
                         let reg_var = self.variables[&ins.register];
                         let ptr_var = self.variables[&ins.arguments[0]];
                         let old_var = self.variables[&ins.arguments[1]];
@@ -1634,6 +1634,68 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                         let old = self.builder.load(old_typ, old_var);
                         let new = self.builder.load(new_typ, new_var);
                         let res = self.builder.atomic_swap(ptr, old, new);
+
+                        self.builder.store(reg_var, res);
+                    }
+                    Intrinsic::IntAtomicLoad => {
+                        let reg_var = self.variables[&ins.register];
+                        let reg_typ = self.variable_types[&ins.register];
+                        let ptr_var = self.variables[&ins.arguments[0]];
+                        let ptr = self.builder.load_pointer(ptr_var);
+                        let res = self.builder.atomic_load(
+                            self.layouts.target_data,
+                            reg_typ,
+                            ptr,
+                        );
+
+                        self.builder.store(reg_var, res);
+                    }
+                    Intrinsic::IntAtomicStore => {
+                        let reg_var = self.variables[&ins.register];
+                        let ptr_var = self.variables[&ins.arguments[0]];
+                        let val_var = self.variables[&ins.arguments[1]];
+                        let val_typ = self.variable_types[&ins.arguments[1]];
+                        let nil = self.builder.bool_literal(NIL_VALUE);
+                        let ptr = self.builder.load_pointer(ptr_var);
+                        let val = self
+                            .builder
+                            .load(val_typ, val_var)
+                            .into_int_value();
+
+                        self.builder.atomic_store(
+                            self.layouts.target_data,
+                            ptr,
+                            val,
+                        );
+                        self.builder.store(reg_var, nil);
+                    }
+                    Intrinsic::IntAtomicAdd => {
+                        let reg_var = self.variables[&ins.register];
+                        let ptr_var = self.variables[&ins.arguments[0]];
+                        let val_var = self.variables[&ins.arguments[1]];
+                        let val_typ = self.variable_types[&ins.arguments[1]];
+                        let ptr = self.builder.load_pointer(ptr_var);
+                        let val = self
+                            .builder
+                            .load(val_typ, val_var)
+                            .into_int_value();
+
+                        let res = self.builder.atomic_add(ptr, val);
+
+                        self.builder.store(reg_var, res);
+                    }
+                    Intrinsic::IntAtomicSub => {
+                        let reg_var = self.variables[&ins.register];
+                        let ptr_var = self.variables[&ins.arguments[0]];
+                        let val_var = self.variables[&ins.arguments[1]];
+                        let val_typ = self.variable_types[&ins.arguments[1]];
+                        let ptr = self.builder.load_pointer(ptr_var);
+                        let val = self
+                            .builder
+                            .load(val_typ, val_var)
+                            .into_int_value();
+
+                        let res = self.builder.atomic_sub(ptr, val);
 
                         self.builder.store(reg_var, res);
                     }

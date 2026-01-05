@@ -1,7 +1,7 @@
 use crate::{
     Arguments, Database, ForeignType, MethodId, Ownership, TraitInstance,
     TypeArguments, TypeBounds, TypeEnum, TypeInstance, TypeParameterId,
-    TypePlaceholderId, TypeRef, FLOAT_ID, INT_ID,
+    TypePlaceholderId, TypeRef, BOOL_ID, FLOAT_ID, INT_ID,
 };
 use std::collections::HashSet;
 
@@ -843,8 +843,10 @@ impl<'a> TypeChecker<'a> {
                         TypeEnum::TypeInstance(ins) => {
                             // 64-bits integers can be cast to Inko objects, as
                             // this is needed when interfacing with C.
-                            matches!(ins.instance_of().0, INT_ID | FLOAT_ID)
-                                || lsize == 64
+                            matches!(
+                                ins.instance_of().0,
+                                INT_ID | FLOAT_ID | BOOL_ID
+                            ) || lsize == 64
                         }
                         _ => lsize == 64,
                     }
@@ -2982,6 +2984,7 @@ mod tests {
             ))),
             TypeRef::pointer(TypeEnum::Foreign(ForeignType::Float(32))),
         );
+        check_ok_cast(&db, TypeRef::foreign_signed_int(8), TypeRef::boolean());
 
         check_err(
             &db,

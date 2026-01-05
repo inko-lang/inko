@@ -1,6 +1,7 @@
 import std.drop (drop)
+import std.fmt (fmt)
 import std.process (sleep)
-import std.sync (Channel, Future, Promise)
+import std.sync (AtomicBool, AtomicInt, Channel, Future, Promise)
 import std.test (Tests)
 import std.time (Duration)
 
@@ -152,5 +153,121 @@ fn pub tests(t: mut Tests) {
 
     t.equal(chan2.receive_until(deadline), Option.Some(10))
     t.equal(chan1.receive_until(deadline), Option.None)
+  })
+
+  t.test('AtomicInt.new', fn (t) {
+    let val = AtomicInt.new(42)
+
+    t.equal(val.value as Int, 42)
+  })
+
+  t.test('AtomicInt.compare_and_swap', fn (t) {
+    let val = AtomicInt.new(10)
+
+    t.true(val.compare_and_swap(10, 20))
+    t.equal(val.value as Int, 20)
+
+    t.false(val.compare_and_swap(10, 30))
+    t.equal(val.value as Int, 20)
+  })
+
+  t.test('AtomicInt.store', fn (t) {
+    let val = AtomicInt.new(0)
+
+    val.store(10)
+    t.equal(val.value as Int, 10)
+
+    val.store(20)
+    t.equal(val.value as Int, 20)
+  })
+
+  t.test('AtomicInt.load', fn (t) {
+    let val = AtomicInt.new(0)
+
+    val.store(10)
+    t.equal(val.value as Int, 10)
+
+    val.store(20)
+    t.equal(val.value as Int, 20)
+  })
+
+  t.test('AtomicInt.add', fn (t) {
+    let val = AtomicInt.new(0)
+
+    t.equal(val.add(1), 0)
+    t.equal(val.add(2), 1)
+    t.equal(val.value as Int, 3)
+  })
+
+  t.test('AtomicInt.sub', fn (t) {
+    let val = AtomicInt.new(2)
+
+    t.equal(val.sub(1), 2)
+    t.equal(val.sub(1), 1)
+    t.equal(val.value as Int, 0)
+  })
+
+  t.test('AtomicInt.fmt', fn (t) {
+    t.equal(fmt(AtomicInt.new(2)), 'AtomicInt(2)')
+  })
+
+  t.test('AtomicInt.clone', fn (t) {
+    let a = AtomicInt.new(1)
+    let b = a.clone
+
+    a.store(2)
+
+    t.equal(a.value as Int, 2)
+    t.equal(b.value as Int, 2)
+  })
+
+  t.test('AtomicBool.new', fn (t) {
+    let val = AtomicBool.new(true)
+
+    t.equal(val.value as Bool, true)
+  })
+
+  t.test('AtomicBool.compare_and_swap', fn (t) {
+    let val = AtomicBool.new(false)
+
+    t.true(val.compare_and_swap(false, true))
+    t.equal(val.value as Bool, true)
+
+    t.false(val.compare_and_swap(false, false))
+    t.equal(val.value as Bool, true)
+  })
+
+  t.test('AtomicBool.store', fn (t) {
+    let val = AtomicBool.new(false)
+
+    val.store(true)
+    t.equal(val.value as Bool, true)
+
+    val.store(false)
+    t.equal(val.value as Bool, false)
+  })
+
+  t.test('AtomicBool.load', fn (t) {
+    let val = AtomicBool.new(false)
+
+    val.store(true)
+    t.equal(val.value as Bool, true)
+
+    val.store(false)
+    t.equal(val.value as Bool, false)
+  })
+
+  t.test('AtomicBool.fmt', fn (t) {
+    t.equal(fmt(AtomicBool.new(true)), 'AtomicBool(true)')
+  })
+
+  t.test('AtomicBool.clone', fn (t) {
+    let a = AtomicBool.new(true)
+    let b = a.clone
+
+    a.store(false)
+
+    t.equal(a.value as Bool, false)
+    t.equal(b.value as Bool, false)
   })
 }

@@ -2653,7 +2653,11 @@ pub enum Intrinsic {
     IntCheckedSub,
     IntSwapBytes,
     IntAbsolute,
-    IntCompareSwap,
+    IntAtomicCompareSwap,
+    IntAtomicLoad,
+    IntAtomicStore,
+    IntAtomicAdd,
+    IntAtomicSub,
     SpinLoopHint,
     BoolEq,
     RefMove,
@@ -2711,7 +2715,11 @@ impl Intrinsic {
             Intrinsic::FloatPowi,
             Intrinsic::IntSwapBytes,
             Intrinsic::IntAbsolute,
-            Intrinsic::IntCompareSwap,
+            Intrinsic::IntAtomicCompareSwap,
+            Intrinsic::IntAtomicLoad,
+            Intrinsic::IntAtomicStore,
+            Intrinsic::IntAtomicAdd,
+            Intrinsic::IntAtomicSub,
             Intrinsic::SpinLoopHint,
             Intrinsic::BoolEq,
             Intrinsic::RefMove,
@@ -2774,7 +2782,11 @@ impl Intrinsic {
             Intrinsic::FloatPowi => "float_powi",
             Intrinsic::IntSwapBytes => "int_swap_bytes",
             Intrinsic::IntAbsolute => "int_absolute",
-            Intrinsic::IntCompareSwap => "int_compare_swap",
+            Intrinsic::IntAtomicCompareSwap => "int_atomic_compare_swap",
+            Intrinsic::IntAtomicLoad => "int_atomic_load",
+            Intrinsic::IntAtomicStore => "int_atomic_store",
+            Intrinsic::IntAtomicAdd => "int_atomic_add",
+            Intrinsic::IntAtomicSub => "int_atomic_sub",
             Intrinsic::SpinLoopHint => "spin_loop_hint",
             Intrinsic::BoolEq => "bool_eq",
             Intrinsic::RefMove => "ref_move",
@@ -2840,7 +2852,18 @@ impl Intrinsic {
             Intrinsic::FloatPowi => TypeRef::float(),
             Intrinsic::IntSwapBytes => TypeRef::int(),
             Intrinsic::IntAbsolute => TypeRef::int(),
-            Intrinsic::IntCompareSwap => TypeRef::boolean(),
+            Intrinsic::IntAtomicCompareSwap => TypeRef::boolean(),
+            Intrinsic::IntAtomicLoad
+            | Intrinsic::IntAtomicAdd
+            | Intrinsic::IntAtomicSub => {
+                // These instructions take a pointer to some Int of any size, so
+                // we should ensure the return type is of the correct
+                // corresponding type.
+                let arg = arguments[0];
+
+                arg.as_type_enum(db).map(TypeRef::Owned).unwrap_or(arg)
+            }
+            Intrinsic::IntAtomicStore => TypeRef::nil(),
             Intrinsic::SpinLoopHint => TypeRef::nil(),
             Intrinsic::BoolEq => TypeRef::boolean(),
             Intrinsic::RefMove => arguments[0].as_ref(db),

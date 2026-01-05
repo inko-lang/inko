@@ -367,6 +367,35 @@ impl<'ctx> Builder<'ctx> {
         self.extract_field(res, 1).into_int_value()
     }
 
+    pub(crate) fn atomic_store(
+        &self,
+        target_data: &TargetData,
+        pointer: PointerValue<'ctx>,
+        value: IntValue<'ctx>,
+    ) {
+        let typ = value.get_type();
+        let align = target_data.get_abi_alignment(&typ);
+        let ins = self.inner.build_store(pointer, value).unwrap();
+
+        ins.set_alignment(align).unwrap();
+        ins.set_atomic_ordering(AtomicOrdering::Release).unwrap();
+    }
+
+    pub(crate) fn atomic_load<T: BasicType<'ctx>>(
+        &self,
+        target_data: &TargetData,
+        typ: T,
+        variable: PointerValue<'ctx>,
+    ) -> IntValue<'ctx> {
+        let align = target_data.get_abi_alignment(&typ);
+        let res = self.inner.build_load(typ, variable, "").unwrap();
+        let ins = res.as_instruction_value().unwrap();
+
+        ins.set_alignment(align).unwrap();
+        ins.set_atomic_ordering(AtomicOrdering::Acquire).unwrap();
+        res.into_int_value()
+    }
+
     pub(crate) fn load_atomic_counter(
         &self,
         variable: PointerValue<'ctx>,
