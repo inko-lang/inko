@@ -113,7 +113,7 @@ impl<'a> DefineTypes<'a> {
                 hir::TypeSemantics::Default => {}
                 hir::TypeSemantics::Inline => typ.set_inline_storage(db),
                 hir::TypeSemantics::Copy => typ.set_copy_storage(db),
-                hir::TypeSemantics::Atomic => typ.set_atomic_kind(db),
+                hir::TypeSemantics::Atomic => typ.set_atomic_storage(db),
             }
 
             typ
@@ -1112,7 +1112,8 @@ impl<'a> DefineConstructors<'a> {
     fn define_type(&mut self, node: &mut hir::DefineType) {
         let type_id = node.type_id.unwrap();
         let is_enum = type_id.kind(self.db()).is_enum();
-        let is_copy = type_id.is_copy_type(self.db());
+        let req_copy = type_id.is_copy_type(self.db());
+        let req_val = type_id.require_value_types(self.db());
         let rules = Rules::default();
         let scope = TypeScope::new(self.module, TypeEnum::Type(type_id), None);
         let mut constructors_count = 0;
@@ -1161,12 +1162,20 @@ impl<'a> DefineConstructors<'a> {
                 )
                 .define_type(n);
 
-                if is_copy && !typ.is_copy_type(self.db()) {
+                if req_copy && !typ.is_copy_type(self.db()) {
                     self.state.diagnostics.not_a_copy_type(
                         &format_type(self.db(), typ),
                         self.file(),
                         n.location(),
                     );
+                }
+
+                if req_val && !typ.is_value_type(self.db()) {
+                    self.state.diagnostics.not_a_value_type(
+                        &format_type(self.db(), typ),
+                        self.file(),
+                        n.location(),
+                    )
                 }
 
                 args.push(typ);

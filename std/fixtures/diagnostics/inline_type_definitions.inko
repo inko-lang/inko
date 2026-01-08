@@ -10,5 +10,5 @@ type inline async E {}
 
 type inline extern F {}
 
-# inline_type_definitions.inko:9:19 error(invalid-type): only regular and 'enum' types support the 'inline' and 'copy' keywords
-# inline_type_definitions.inko:11:20 error(invalid-type): only regular and 'enum' types support the 'inline' and 'copy' keywords
+# inline_type_definitions.inko:9:19 error(invalid-type): only regular and enum types support the 'inline', 'copy' and 'ref' keywords
+# inline_type_definitions.inko:11:20 error(invalid-type): only regular and enum types support the 'inline', 'copy' and 'ref' keywords

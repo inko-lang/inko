@@ -1449,8 +1449,8 @@ impl<'a> LowerToHir<'a> {
                 _ => {
                     self.state.diagnostics.error(
                         DiagnosticId::InvalidType,
-                        "only regular and 'enum' types support the 'inline' \
-                        and 'copy' keywords",
+                        "only regular and enum types support the 'inline', \
+                        'copy' and 'ref' keywords",
                         self.file(),
                         node.name.location,
                     );

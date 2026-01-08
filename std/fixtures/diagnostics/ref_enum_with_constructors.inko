@@ -1,0 +1,10 @@
+type ref enum Example {
+  case A
+  case B(Int)
+  case C(String)
+  case D(Array[Int])
+  case E(Int, Array[String])
+}
+
+# ref_enum_with_constructors.inko:5:10 error(invalid-type): a value type is expected, but 'Array[Int]' is a heap type
+# ref_enum_with_constructors.inko:6:15 error(invalid-type): a value type is expected, but 'Array[String]' is a heap type

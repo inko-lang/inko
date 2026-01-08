@@ -8,7 +8,8 @@ use std::mem::take;
 use std::path::Path;
 use types::format::{format_type, type_parameter_capabilities};
 use types::{
-    Database, MethodId, ModuleId, TraitId, TypeBounds, TypeId, TypeKind,
+    Database, MethodId, ModuleId, Storage, TraitId, TypeBounds, TypeId,
+    TypeKind,
 };
 
 fn location_to_json(location: Location) -> Json {
@@ -25,17 +26,16 @@ fn location_to_json(location: Location) -> Json {
     Json::Object(obj)
 }
 
-fn type_kind(kind: TypeKind, copy: bool) -> i64 {
-    if copy {
-        return 4;
-    }
-
-    match kind {
-        TypeKind::Enum => 1,
-        TypeKind::Async => 2,
-        TypeKind::Extern => 3,
-        TypeKind::Atomic => 5,
-        _ => 0,
+fn type_kind(kind: TypeKind, storage: Storage) -> i64 {
+    match storage {
+        Storage::Copy => 4,
+        Storage::Atomic => 5,
+        _ => match kind {
+            TypeKind::Enum => 1,
+            TypeKind::Async => 2,
+            TypeKind::Extern => 3,
+            _ => 0,
+        },
     }
 }
 
@@ -415,7 +415,7 @@ impl<'a> GenerateDocumentation<'a> {
             );
 
             obj.add("name", Json::String(name));
-            obj.add("kind", Json::Int(type_kind(kind, is_copy)));
+            obj.add("kind", Json::Int(type_kind(kind, id.storage(self.db()))));
             obj.add("location", location_to_json(id.location(self.db())));
             obj.add("public", Json::Bool(public));
             obj.add("type", Json::String(typ));

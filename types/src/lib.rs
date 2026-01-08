@@ -1586,6 +1586,9 @@ pub enum Storage {
     /// The value must be allocated on the heap.
     Heap,
 
+    /// The value is a heap allocated value that uses atomic reference counting.
+    Atomic,
+
     /// The value is allocated inline/on the stack.
     Inline,
 
@@ -1594,13 +1597,16 @@ pub enum Storage {
     Copy,
 }
 
+impl Storage {
+    fn is_atomic(self) -> bool {
+        matches!(self, Storage::Atomic)
+    }
+}
+
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub enum TypeKind {
     /// The type is an async type, aka a process.
     Async,
-
-    /// The type is a type that uses atomic reference counting.
-    Atomic,
 
     /// The type is a closure.
     Closure,
@@ -1648,14 +1654,6 @@ impl TypeKind {
 
     fn allow_pattern_matching(self) -> bool {
         matches!(self, TypeKind::Regular | TypeKind::Extern)
-    }
-
-    fn is_async_or_atomic(self) -> bool {
-        matches!(self, TypeKind::Async | TypeKind::Atomic)
-    }
-
-    fn is_atomic(self) -> bool {
-        matches!(self, TypeKind::Atomic)
     }
 }
 
@@ -1831,13 +1829,16 @@ impl Type {
     }
 
     fn atomic(name: String) -> Self {
-        Self::new(
+        let mut typ = Self::new(
             name,
-            TypeKind::Atomic,
+            TypeKind::Regular,
             Visibility::Public,
             ModuleId(DEFAULT_BUILTIN_MODULE_ID),
             Location::default(),
-        )
+        );
+
+        typ.storage = Storage::Atomic;
+        typ
     }
 
     fn tuple(name: String) -> Self {
@@ -1942,6 +1943,10 @@ impl TypeId {
 
     pub fn kind(self, db: &Database) -> TypeKind {
         self.get(db).kind
+    }
+
+    pub fn storage(self, db: &Database) -> Storage {
+        self.get(db).storage
     }
 
     pub fn allow_trait_implementations(self, db: &Database) -> bool {
@@ -2139,11 +2144,13 @@ impl TypeId {
     }
 
     pub fn is_atomic(self, db: &Database) -> bool {
-        self.kind(db).is_async_or_atomic()
+        let obj = self.get(db);
+
+        obj.kind.is_async() || matches!(obj.storage, Storage::Atomic)
     }
 
     pub fn require_value_types(self, db: &Database) -> bool {
-        self.kind(db).is_atomic()
+        self.storage(db).is_atomic()
     }
 
     pub fn set_module(self, db: &mut Database, module: ModuleId) {
@@ -2251,13 +2258,13 @@ impl TypeId {
 
         match typ.kind {
             // These types are allocated on the heap but treated as value types.
-            TypeKind::Async | TypeKind::Atomic => true,
-            _ => matches!(typ.storage, Storage::Copy),
+            TypeKind::Async => true,
+            _ => matches!(typ.storage, Storage::Copy | Storage::Atomic),
         }
     }
 
     pub fn is_heap_allocated(self, db: &Database) -> bool {
-        matches!(self.get(db).storage, Storage::Heap)
+        matches!(self.get(db).storage, Storage::Heap | Storage::Atomic)
     }
 
     pub fn is_copy_type(self, db: &Database) -> bool {
@@ -2296,7 +2303,7 @@ impl TypeId {
     }
 
     pub fn allow_cast_to_foreign(self, db: &Database) -> bool {
-        matches!(self.get(db).storage, Storage::Heap)
+        matches!(self.get(db).storage, Storage::Heap | Storage::Atomic)
             || matches!(self.0, INT_ID | FLOAT_ID | BOOL_ID)
     }
 
@@ -2324,8 +2331,8 @@ impl TypeId {
         self.get_mut(db).storage = Storage::Copy;
     }
 
-    pub fn set_atomic_kind(self, db: &mut Database) {
-        self.get_mut(db).kind = TypeKind::Atomic;
+    pub fn set_atomic_storage(self, db: &mut Database) {
+        self.get_mut(db).storage = Storage::Atomic;
     }
 
     pub(crate) fn clone_for_specialization(self, db: &mut Database) -> TypeId {
@@ -2346,9 +2353,12 @@ impl TypeId {
         let obj = self.get(db);
 
         match obj.kind {
-            TypeKind::Atomic => false,
             TypeKind::Extern => true,
-            _ => owned || matches!(obj.storage, Storage::Heap),
+            _ => match obj.storage {
+                Storage::Heap => true,
+                Storage::Atomic => false,
+                _ => owned,
+            },
         }
     }
 
@@ -5054,7 +5064,7 @@ impl TypeRef {
             | TypeRef::Mut(TypeEnum::TypeInstance(i))
             | TypeRef::UniMut(TypeEnum::TypeInstance(i))
             | TypeRef::UniRef(TypeEnum::TypeInstance(i))
-                if i.instance_of.kind(db).is_async_or_atomic() =>
+                if i.instance_of.is_atomic(db) =>
             {
                 true
             }
