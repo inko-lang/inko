@@ -402,9 +402,9 @@ import std.set (Set)
 import std.signal (Signal)
 import std.stdio (Stdout)
 import std.string (StringBuffer, ToString)
-import std.sync (Future, Promise)
+import std.sync (AtomicBool, AtomicInt, Future, Promise)
 import std.sys.net (SEND_FILE_SIZE)
-import std.time (DateTime, Duration, Instant, ToInstant)
+import std.time (DateTime, Duration, ToInstant)
 import std.uri (Host, Uri, Values)
 
 let MAX_HEADER_VALUES = 16
@@ -1730,102 +1730,84 @@ impl SendFile[IoError] for Socket {
   }
 }
 
+# State shared by the pool and its connections.
+#
+# This state is accessed frequently (i.e. possible several times per request).
+# We use atomics instead of processes and messages to reduce the overhead of
+# this as much as possible.
+type inline SharedState {
+  # A boolean indicating if the server is alive or not.
+  let @alive: AtomicBool
+
+  # The number of currently active connections.
+  let @active_connections: AtomicInt
+
+  fn static new -> Self {
+    Self(alive: AtomicBool.new(true), active_connections: AtomicInt.new(0))
+  }
+
+  fn inline no_active_connections? -> Bool {
+    @active_connections.load == 0
+  }
+
+  fn inline add_active {
+    @active_connections.add(1)
+  }
+
+  # Reduces the number of active connections by one, returns `true` if this was
+  # the last active connection.
+  fn inline reduce_active -> Bool {
+    @active_connections.sub(1) == 1
+  }
+
+  fn inline shutdown -> Bool {
+    @alive.compare_and_swap(current: true, new: false)
+  }
+
+  fn inline alive? -> Bool {
+    @alive.load
+  }
+}
+
+impl Clone for SharedState {
+  fn pub clone -> Self {
+    Self(alive: @alive, active_connections: @active_connections)
+  }
+}
+
 type async Pool[H: mut + Handle] {
-  let @map: Map[ConnectionId, Connection[H]]
-  let mut @active: Int
-  let mut @state: State
+  let @shared: SharedState
   let mut @waiter: Option[Promise[Nil]]
 
-  fn static new -> (Self, Future[Nil]) {
+  fn static new -> (Self, Future[Nil], SharedState) {
+    let shared = SharedState.new
     let (fut, prom) = Future.new
     let con = Self(
-      map: recover Map.new,
-      active: 0,
-      state: State.Active,
+      shared: recover shared.clone,
       waiter: recover Option.Some(prom),
     )
 
-    (con, fut)
+    (con, fut, shared)
   }
 
-  fn async mut add(id: ConnectionId, connection: Connection[H]) {
-    @map.set(id, connection)
-    @active += 1
-  }
-
-  fn async mut active {
-    @active += 1
-  }
-
-  fn async mut idle {
-    @active -= 1
-  }
-
-  fn async mut close(id: ConnectionId, was_active: Bool) {
-    if was_active { @active -= 1 }
-
-    let _ = @map.remove(id)
-
-    # If we are to shut down and this is the last connection, notify the process
-    # waiting for the shutdown to complete.
-    if @state.shutting_down? and @active == 0 { notify_waiter }
+  fn async mut all_connections_are_idle {
+    notify_waiter
   }
 
   fn async mut shutdown(wait: Bool) {
-    if @state.shutting_down? { return notify_waiter }
-
-    @state = State.ShuttingDown
-
-    for con in @map.values { con.shutdown }
-
-    if !wait or @active == 0 { notify_waiter }
+    if @shared.shutdown {
+      # The first time the shutdown signal is received.
+      if !wait or @shared.no_active_connections? { notify_waiter }
+    } else {
+      # The second time the shutdown signal is received, stop immediately.
+      notify_waiter
+    }
   }
 
   fn mut notify_waiter {
     match @waiter := Option.None {
       case Some(v) -> v.set(nil)
       case _ -> {}
-    }
-  }
-}
-
-# A unique identifier to refer to a connection.
-#
-# We maintain a mapping of connection IDs to their connections, such that we can
-# shut them down gracefully when desired. An ID consists of a monotonic
-# timestamp and a wrapping counter.
-#
-# While _just_ a timestamp would be sufficient, _in theory_ it could be possible
-# for two connections to have the same timestamp if by some freak accident (i.e.
-# the system's monotonic clock is in fact not monotonic) the time spent in
-# between accepting the two connections is exactly zero nanoseconds. To ensure
-# this doesn't cause any trobule, we also use a wrapping 64-bits counter.
-type copy ConnectionId {
-  let @time: Int
-  let @counter: Int
-}
-
-impl Equal for ConnectionId {
-  fn pub ==(other: Self) -> Bool {
-    @time == other.time and @counter == other.counter
-  }
-}
-
-impl Hash for ConnectionId {
-  fn pub hash[H: mut + Hasher](hasher: mut H) {
-    @time.hash(hasher)
-    @counter.hash(hasher)
-  }
-}
-
-type copy enum State {
-  case Active
-  case ShuttingDown
-
-  fn shutting_down? -> Bool {
-    match self {
-      case ShuttingDown -> true
-      case _ -> false
     }
   }
 }
@@ -1851,9 +1833,8 @@ type inline enum ParseResult {
 }
 
 type async Connection[H: mut + Handle] {
-  let @id: ConnectionId
   let @pool: Pool[H]
-  let mut @state: State
+  let @shared: SharedState
   let @socket: Socket
   let @address: Address
   let @limits: Limits
@@ -1865,54 +1846,44 @@ type async Connection[H: mut + Handle] {
   let @close_timeout: Duration
 
   fn async mut run {
-    # It's possible that when we finish the next message is a `shutdown` message
-    # that has yet to be processed. This check ensures that when we schedule
-    # `run` again at the end (such that the order of messages is
-    # `run (current) -> shutdown -> run`), that second message doesn't perform
-    # any work.
-    if @state.shutting_down? { return close(true) }
+    @shared.add_active
 
-    let wait = match parse_request {
-      case Ok(raw_req, keep) -> {
-        let req = Request.new(@address.clone, raw_req, @limits, @random)
-        let resp = @handler.response(req, @handler.handle(req))
+    while @shared.alive? {
+      match parse_request {
+        case Ok(raw_req, keep) -> {
+          let req = Request.new(@address.clone, raw_req, @limits, @random)
+          let resp = @handler.response(req, @handler.handle(req))
 
-        # HEAD requests are always supported.
-        let resp = head_request(req, resp)
+          # HEAD requests are always supported.
+          let resp = head_request(req, resp)
 
-        let hijacker = resp.hijacker := Option.None
-        let keep = keep and req.body.consumed? and hijacker.none?
-        let ok = resp.write(@socket, @write_timeout, keep)
+          let hijacker = resp.hijacker := Option.None
+          let keep = keep and req.body.consumed? and hijacker.none?
+          let ok = resp.write(@socket, @write_timeout, keep)
 
-        if ok and keep {
-          return run
-        } else if ok {
-          match hijacker {
-            case Some(f) -> return hijack_connection(f)
-            case _ -> {}
+          if ok and keep { next }
+
+          if ok {
+            match hijacker {
+              case Some(f) -> return hijack_connection(f)
+              case _ -> {}
+            }
           }
         }
+        case Error(resp) -> {
+          let resp = @handler.invalid_request(resp)
 
-        true
+          resp.write(@socket, @write_timeout, keep: false)
+        }
+        case Close -> {}
       }
-      case Error(resp) -> {
-        let resp = @handler.invalid_request(resp)
 
-        resp.write(@socket, @write_timeout, keep: false)
-        true
-      }
-      # A Close is received due to a timeout, and in such cases we don't
-      # want to also wait for the client to ACK the shutdown.
-      case Close -> false
+      # We only reach this point in the event of an error, or a connection that
+      # shouldn't be kept alive.
+      break
     }
 
-    # We only reach this point in the event of an error, or a connection that
-    # shouldn't be kept alive.
-    close(wait)
-  }
-
-  fn async mut shutdown {
-    @state = State.ShuttingDown
+    close
   }
 
   fn mut parse_request -> ParseResult {
@@ -1921,14 +1892,24 @@ type async Connection[H: mut + Handle] {
     # Wait until the first byte arrives. This way we don't also apply the idle
     # timeout to parsing of the request.
     @socket.timeout_after = @idle_timeout
-    @pool.idle
+
+    # Flag the connection is inactive so that we don't wait for it as part of
+    # the shutdown sequence.
+    reduce_active
 
     # We're just peeking and not parsing, so an error means the underlying IO
     # stream is broken (e.g. the connection is closed), at which point all we
     # can do is abort.
-    let Ok(Some(_)) = parser.peek else return ParseResult.Close
+    let Ok(Some(_)) = parser.peek else {
+      # We flag the connection as active again so the shutdown sequence doesn't
+      # have to account for this case _not_ incrementing it.
+      @shared.add_active
+      return ParseResult.Close
+    }
 
-    @pool.active
+    # Make the connection active again so we _do_ wait for it as part of the
+    # shutdown sequence.
+    @shared.add_active
     @socket.timeout_after = @read_timeout
 
     let parsed = parser.request
@@ -2005,35 +1986,44 @@ type async Connection[H: mut + Handle] {
   }
 
   fn mut hijack_connection(hijacker: fn (mut Socket)) {
-    # De-register the connection _first_ so that during a graceful shutdown we
+    # Update the connection state _first_ so that during a graceful shutdown we
     # don't (potentially forever) wait for the hijacked connection to stop.
-    @pool.close(@id, was_active: true)
+    reduce_active
     hijacker.call(@socket)
-
-    # Close _just_ the socket as we've already removed the connection from the
-    # pool at this point.
-    close_socket(active: true)
+    close_socket
   }
 
-  fn mut close(active: Bool) {
-    close_socket(active)
-    @pool.close(@id, active)
+  fn mut close {
+    close_socket
+    reduce_active
   }
 
-  fn mut close_socket(active: Bool) {
+  fn mut reduce_active {
+    # A shutdown signal may be sent while one or more connections are active. If
+    # we _just_ reduced the active count here then the server would wait until
+    # the shutdown timeout expires, because there's nothing to wake it up
+    # earlier.
+    #
+    # If the shutdown signal is received after this check then either the server
+    # shuts down because all connections are idle, or if there are new active
+    # connections they'll eventually reach this point again.
+    if @shared.reduce_active and !@shared.alive? {
+      @pool.all_connections_are_idle
+    }
+  }
+
+  fn mut close_socket {
     # Shutdown the writing half so the client is aware that it can no longer
     # read data.
     let _ = @socket.shutdown_write
 
     # If we close immediately then the client might not have a chance to read
     # the response.
-    if active {
-      @socket.timeout_after = @close_timeout
+    @socket.timeout_after = @close_timeout
 
-      # We don't care about the actual return value here as we just use the
-      # read() to wait for some sort of acknowledgement from the network stack.
-      let _ = @socket.read(into: @socket.buffer, size: 0)
-    }
+    # We don't care about the actual return value here as we just use the
+    # read() to wait for some sort of acknowledgement from the network stack.
+    let _ = @socket.read(into: @socket.buffer, size: 0)
   }
 }
 
@@ -2629,6 +2619,7 @@ type pub inline enum Tls {
 # An HTTP server that handles incoming requests.
 type pub Server[H: mut + Handle] {
   let @handler: fn -> uni H
+  let @shared: SharedState
   let @pool: Pool[H]
   let @waiter: Future[Nil]
 
@@ -2699,9 +2690,10 @@ type pub Server[H: mut + Handle] {
   # connection (_not_ for each request), producing a chain of `Handle` types to
   # call for each incoming request.
   fn pub static new(handler: fn -> uni H) -> Self {
-    let (pool, waiter) = Pool.new
+    let (pool, waiter, shared) = Pool.new
 
     Self(
+      shared: shared,
       pool: pool,
       waiter: waiter,
       handler: handler,
@@ -2810,9 +2802,6 @@ type pub Server[H: mut + Handle] {
       case _ -> {}
     }
 
-    let start = Instant.new
-    let mut counter = 0
-
     loop {
       let client = match socket.accept(@tls, @read_timeout) {
         case Ok(v) -> v
@@ -2834,12 +2823,7 @@ type pub Server[H: mut + Handle] {
         }
       }
 
-      let id = ConnectionId(
-        time: start.elapsed.to_nanos,
-        counter: counter := counter.wrapping_add(1),
-      )
-
-      handle(id, client, addr)
+      handle(client, addr)
     }
 
     # Drop the socket as soon as possible so the backlog doesn't fill up with
@@ -2855,11 +2839,10 @@ type pub Server[H: mut + Handle] {
     Result.Ok(nil)
   }
 
-  fn mut handle(id: ConnectionId, socket: uni Socket, address: uni Address) {
-    let con = Connection(
-      id: id,
+  fn mut handle(socket: uni Socket, address: uni Address) {
+    Connection(
+      shared: recover @shared.clone,
       pool: @pool,
-      state: State.Active,
       socket: socket,
       address: address,
       limits: recover @limits.clone,
@@ -2870,9 +2853,7 @@ type pub Server[H: mut + Handle] {
       close_timeout: @close_timeout,
       random: recover Random.new,
     )
-
-    @pool.add(id, con)
-    con.run
+      .run
   }
 }
 

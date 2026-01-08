@@ -1,4 +1,4 @@
-import helpers (certificate, hash, private_key, with_directory)
+import helpers (certificate, private_key, with_directory)
 import std.bytes (Bytes)
 import std.drop (Drop)
 import std.drop (drop)
@@ -14,10 +14,10 @@ import std.net.http (
 )
 import std.net.http.client (Client)
 import std.net.http.server (
-  Address, CacheControl, ConnectionId, Delete, Directory, Event, Events,
-  FileRanges, FormError, Get, Handle, Head, LogWriter, Logger, Notifier,
+  Address, CacheControl, Delete, Directory, Event, Events, FileRanges,
+  FormError, Get, Handle, Head, LogWriter, Logger, Notifier,
   Path as RequestPath, Post, Put, RangeRequest, Request, Response, Server,
-  Socket, SocketServer, State, Tls, WebsocketResponse, compress_response,
+  SharedState, Socket, SocketServer, Tls, WebsocketResponse, compress_response,
   conditional_request, copy_file_range, head_request, parse_accept_range,
   parse_accept_ranges,
 )
@@ -1690,20 +1690,59 @@ fn pub tests(t: mut Tests) {
     Result.Ok(nil)
   })
 
-  t.test('ConnectionId.==', fn (t) {
-    t.true(ConnectionId(1, 1) == ConnectionId(1, 1))
-    t.false(ConnectionId(1, 1) == ConnectionId(1, 2))
-    t.false(ConnectionId(1, 1) == ConnectionId(2, 1))
+  t.test('SharedState.no_active_connections?', fn (t) {
+    let state = SharedState.new
+
+    t.true(state.no_active_connections?)
+    state.add_active
+    t.false(state.no_active_connections?)
   })
 
-  t.test('ConnectionId.hash', fn (t) {
-    t.equal(hash(ConnectionId(1, 1)), hash(ConnectionId(1, 1)))
-    t.not_equal(hash(ConnectionId(1, 1)), hash(ConnectionId(1, 2)))
+  t.test('SharedState.add_active', fn (t) {
+    let state = SharedState.new
+
+    state.add_active
+    t.equal(state.active_connections.load, 1)
   })
 
-  t.test('State.shutting_down?', fn (t) {
-    t.true(State.ShuttingDown.shutting_down?)
-    t.false(State.Active.shutting_down?)
+  t.test('SharedState.reduce_active', fn (t) {
+    let state = SharedState.new
+
+    state.add_active
+    state.add_active
+
+    t.false(state.reduce_active)
+    t.equal(state.active_connections.load, 1)
+    t.true(state.reduce_active)
+    t.equal(state.active_connections.load, 0)
+  })
+
+  t.test('SharedState.shutdown', fn (t) {
+    let state = SharedState.new
+
+    t.true(state.shutdown)
+    t.false(state.alive.load)
+
+    t.false(state.shutdown)
+    t.false(state.alive.load)
+  })
+
+  t.test('SharedState.alive?', fn (t) {
+    let state = SharedState.new
+
+    t.true(state.alive?)
+
+    state.alive.store(false)
+    t.false(state.alive?)
+  })
+
+  t.test('SharedState.clone', fn (t) {
+    let state1 = SharedState.new
+    let state2 = state1.clone
+
+    state1.alive.store(false)
+    t.false(state1.alive?)
+    t.false(state2.alive?)
   })
 
   t.test('Path.split_first', fn (t) {
