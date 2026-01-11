@@ -1,22 +1,11 @@
 import std.fmt (fmt)
+import std.int
 import std.io (Buffer, Error as IoError)
-import std.json (
-  Error, ErrorKind, Json, Number, ObjectParser, Parser, PullParser, Type,
-)
+import std.json (Error, ErrorKind, Json, Number, Parser, PullParser, Type)
 import std.test (Tests)
-
-fn parse_invalid(input: String) -> Option[String] {
-  let bytes = Buffer.new(input.to_byte_array)
-
-  Parser.new(bytes).parse.error.map(fn (v) { v.to_string })
-}
 
 fn parse(input: String) -> Result[Json, Error[IoError]] {
   Json.parse(Buffer.new(input))
-}
-
-fn pull(input: String) -> PullParser[Buffer[String], IoError] {
-  PullParser.new(Buffer.new(input))
 }
 
 fn pub tests(t: mut Tests) {
@@ -26,8 +15,8 @@ fn pub tests(t: mut Tests) {
       ErrorKind.RecursionLimitExceeded(1),
     )
     t.equal(
-      ErrorKind.InvalidSurrogate('a') as ErrorKind[IoError],
-      ErrorKind.InvalidSurrogate('a'),
+      ErrorKind.InvalidSurrogate as ErrorKind[IoError],
+      ErrorKind.InvalidSurrogate,
     )
     t.equal(ErrorKind.Read(IoError.Other(1)), ErrorKind.Read(IoError.Other(1)))
 
@@ -43,8 +32,8 @@ fn pub tests(t: mut Tests) {
       'RecursionLimitExceeded(1)',
     )
     t.equal(
-      fmt(ErrorKind.InvalidSurrogate('a') as ErrorKind[IoError]),
-      'InvalidSurrogate("a")',
+      fmt(ErrorKind.InvalidSurrogate as ErrorKind[IoError]),
+      'InvalidSurrogate',
     )
     t.equal(fmt(ErrorKind.Read(IoError.Other(1))), 'Read(Other(1))')
   })
@@ -84,276 +73,361 @@ fn pub tests(t: mut Tests) {
     t.equal(err, Error(kind: ErrorKind.Generic('foo'), offset: 42))
   })
 
-  t.test('PullParser.value_type', fn (t) {
-    t.equal(pull('10').value_type, Result.Ok(Type.Number))
-    t.equal(pull('10.2').value_type, Result.Ok(Type.Number))
-    t.equal(pull('"a"').value_type, Result.Ok(Type.String))
-    t.equal(pull('true').value_type, Result.Ok(Type.Bool))
-    t.equal(pull('false').value_type, Result.Ok(Type.Bool))
-    t.equal(pull('null').value_type, Result.Ok(Type.Null))
-    t.equal(pull('[]').value_type, Result.Ok(Type.Array))
-    t.equal(pull('{}').value_type, Result.Ok(Type.Object))
-  })
+  t.test('PullParser.object', fn (t) {
+    let tests = [
+      # Valid input
+      ('{}', Result.Ok(nil)),
+      (' {}', Result.Ok(nil)),
+      ('{ }', Result.Ok(nil)),
+      ('{       }', Result.Ok(nil)),
+      ('{"k": "v"}', Result.Ok(nil)),
+      ('{ "k": "v" }', Result.Ok(nil)),
+      ('{   "k": "v" }', Result.Ok(nil)),
 
-  t.test('PullParser.skip', fn (t) {
-    let parser = pull('10')
+      # Invalid input
+      ('', Result.Error(Error(ErrorKind.EndOfInput, offset: 0))),
+      ('"k": "v"', Result.Error(Error(ErrorKind.Unexpected('"'), offset: 0))),
+      ('{,}', Result.Error(Error(ErrorKind.Unexpected(','), offset: 1))),
+      ('{', Result.Error(Error(ErrorKind.EndOfInput, offset: 1))),
+    ]
 
-    t.equal(parser.skip, Result.Ok(nil))
-    t.equal(parser.offset, 1)
-  })
-
-  t.test('PullParser.skip with invalid data', fn (t) {
-    t.true(pull('10.a').skip.error?)
-    t.true(pull('[').skip.error?)
-    t.true(pull('{').skip.error?)
-    t.true(pull('"').skip.error?)
-    t.true(pull('t').skip.error?)
-    t.true(pull('f').skip.error?)
-  })
-
-  t.test('PullParser.values with valid input', fn (t) {
-    let parser = pull('[10,20]')
-    let values = []
-    let res = parser.values(fn { parser.int.map(fn (v) { values.push(v) }) })
-
-    t.true(res.ok?)
-    t.equal(values, [10, 20])
-  })
-
-  t.test('PullParser.values with invalid input', fn (t) {
-    for input in ['', '10', '[,]', '[10,]'] {
-      let parser = pull(input)
-
-      t.true(parser.values(fn { parser.int.map(fn (_) { nil }) }).error?)
+    for (inp, res) in tests {
+      t.equal(PullParser.new(Buffer.new(inp)).object, res)
     }
   })
 
-  t.test('PullParser.keys with valid input', fn (t) {
-    let parser = pull('{"a": 10, "b": 20}')
-    let positions = []
-    let values = []
-    let res = parser.keys(fn (pos, k) {
-      parser.int.map(fn (v) {
-        positions.push(pos)
-        values.push((k, v))
-      })
-    })
+  t.test('PullParser.key?', fn (t) {
+    let tests = [
+      # Valid input
+      ('"k":', Result.Ok(true)),
+      ('  "k":', Result.Ok(true)),
+      (' } ', Result.Ok(false)),
 
-    t.true(res.ok?)
-    t.equal(values, [('a', 10), ('b', 20)])
-    t.equal(positions, [1, 10])
+      # Invalid input
+      (' , "key": ', Result.Error(Error(ErrorKind.Unexpected(','), offset: 1))),
+      (',,', Result.Error(Error(ErrorKind.Unexpected(','), offset: 0))),
+      ('', Result.Error(Error(ErrorKind.EndOfInput, offset: 0))),
+      (',1', Result.Error(Error(ErrorKind.Unexpected(','), offset: 0))),
+      ('1', Result.Error(Error(ErrorKind.Unexpected('1'), offset: 0))),
+      (']', Result.Error(Error(ErrorKind.Unexpected(']'), offset: 0))),
+    ]
+
+    for (inp, res) in tests {
+      t.equal(PullParser.new(Buffer.new(inp)).key?, res)
+    }
   })
 
-  t.test('PullParser.keys with invalid input', fn (t) {
-    for input in ['', '10', '{,}', '{"a":10,}'] {
-      let parser = pull(input)
+  t.test('PullParser.next_key', fn (t) {
+    let tests = [
+      # Valid input
+      (',10', Result.Ok(nil)),
+      ('}', Result.Ok(nil)),
 
-      t.true(parser.keys(fn (_p, k) { parser.int.map(fn (_) { nil }) }).error?)
+      # Invalid input
+      (',', Result.Error(Error(ErrorKind.EndOfInput, offset: 1))),
+      (',,', Result.Error(Error(ErrorKind.Unexpected(','), offset: 1))),
+      (',}', Result.Error(Error(ErrorKind.Unexpected('}'), offset: 1))),
+      ('1', Result.Error(Error(ErrorKind.Unexpected('1'), offset: 0))),
+    ]
+
+    for (inp, exp) in tests {
+      t.equal(PullParser.new(Buffer.new(inp)).next_key, exp)
+    }
+  })
+
+  t.test('PullParser.key', fn (t) {
+    let tests = [
+      # Valid input
+      ('"a": "b"', Result.Ok('a')),
+      (' "a": "b"', Result.Ok('a')),
+      ('"a" : "b"', Result.Ok('a')),
+
+      # Invalid input
+      ('10: 20', Result.Error(Error(ErrorKind.Unexpected('1'), offset: 0))),
+      ('}', Result.Error(Error(ErrorKind.Unexpected('}'), offset: 0))),
+      (']', Result.Error(Error(ErrorKind.Unexpected(']'), offset: 0))),
+    ]
+
+    for (inp, res) in tests {
+      t.equal(PullParser.new(Buffer.new(inp)).key, res)
+    }
+  })
+  t.test('PullParser.array', fn (t) {
+    let tests = [
+      # Valid input
+      ('[]', Result.Ok(nil)),
+      (' []', Result.Ok(nil)),
+      ('[ ]', Result.Ok(nil)),
+      ('[       ]', Result.Ok(nil)),
+      ('[10]', Result.Ok(nil)),
+      ('[ 10 ]', Result.Ok(nil)),
+      ('[   10 ]', Result.Ok(nil)),
+
+      # Invalid input
+      ('', Result.Error(Error(ErrorKind.EndOfInput, offset: 0))),
+      ('10', Result.Error(Error(ErrorKind.Unexpected('1'), offset: 0))),
+      ('[,]', Result.Error(Error(ErrorKind.Unexpected(','), offset: 1))),
+      ('[', Result.Error(Error(ErrorKind.EndOfInput, offset: 1))),
+    ]
+
+    for (inp, res) in tests {
+      t.equal(PullParser.new(Buffer.new(inp)).array, res)
+    }
+  })
+
+  t.test('PullParser.array_value?', fn (t) {
+    let tests = [
+      # Valid input
+      ('10', Result.Ok(true)),
+      ('  10', Result.Ok(true)),
+      (' ] ', Result.Ok(false)),
+
+      # Invalid input
+      ('', Result.Error(Error(ErrorKind.EndOfInput, offset: 0))),
+    ]
+
+    for (inp, res) in tests {
+      t.equal(PullParser.new(Buffer.new(inp)).array_value?, res)
+    }
+  })
+
+  t.test('PullParser.next_value', fn (t) {
+    let tests = [
+      # Valid input
+      (',10', Result.Ok(nil)),
+      (']', Result.Ok(nil)),
+
+      # Invalid input
+      (',', Result.Error(Error(ErrorKind.EndOfInput, offset: 1))),
+      (',,', Result.Error(Error(ErrorKind.Unexpected(','), offset: 1))),
+      (',]', Result.Error(Error(ErrorKind.Unexpected(']'), offset: 1))),
+      ('1', Result.Error(Error(ErrorKind.Unexpected('1'), offset: 0))),
+    ]
+
+    for (inp, exp) in tests {
+      t.equal(PullParser.new(Buffer.new(inp)).next_value, exp)
+    }
+  })
+
+  t.test('PullParser.string', fn (t) {
+    let tests = [
+      # Valid input
+      ('"foo"', Result.Ok('foo')),
+      ('"foo bar"', Result.Ok('foo bar')),
+      ('"foo\\nbar"', Result.Ok('foo\nbar')),
+      ('"foo\\tbar"', Result.Ok('foo\tbar')),
+      ('"foo\\rbar"', Result.Ok('foo\rbar')),
+      ('"foo\\bbar"', Result.Ok('foo\u{8}bar')),
+      ('"foo\\fbar"', Result.Ok('foo\u{C}bar')),
+      ('"foo\\"bar"', Result.Ok('foo"bar')),
+      ('"foo\\/bar"', Result.Ok('foo/bar')),
+      ('"foo\\\\bar"', Result.Ok('foo\\bar')),
+      ('"foo\\u005Cbar"', Result.Ok('foo\\bar')),
+      ('"foo\\u001Fbar"', Result.Ok('foo\u{1F}bar')),
+      ('"\\uD834\\uDD1E"', Result.Ok('\u{1D11E}')),
+      ('"\\uE000\\uE000"', Result.Ok('\u{E000}\u{E000}')),
+      ('"🐱"', Result.Ok('🐱')),
+
+      # Invalid input
+      ('"\0"', Result.Error(Error(ErrorKind.InvalidControl, offset: 1))),
+      ('"\n"', Result.Error(Error(ErrorKind.InvalidControl, offset: 1))),
+      ('"\t"', Result.Error(Error(ErrorKind.InvalidControl, offset: 1))),
+      ('"\r"', Result.Error(Error(ErrorKind.InvalidControl, offset: 1))),
+      ('"\u{8}"', Result.Error(Error(ErrorKind.InvalidControl, offset: 1))),
+      ('"\u{C}"', Result.Error(Error(ErrorKind.InvalidControl, offset: 1))),
+      ('"\\x42"', Result.Error(Error(ErrorKind.Unexpected('x'), offset: 2))),
+      ('"\\u1"', Result.Error(Error(ErrorKind.Unexpected('"'), offset: 4))),
+      ('"\\u12"', Result.Error(Error(ErrorKind.Unexpected('"'), offset: 5))),
+      ('"\\u123"', Result.Error(Error(ErrorKind.Unexpected('"'), offset: 6))),
+      (
+        '"\\u{XXXX}"',
+        Result.Error(Error(ErrorKind.Unexpected('{'), offset: 3)),
+      ),
+      (
+        '"\\uD834\\uE000"',
+        Result.Error(Error(ErrorKind.InvalidSurrogate, offset: 1)),
+      ),
+      (
+        '"\\uD834\\uZZZZ"',
+        Result.Error(Error(ErrorKind.InvalidSurrogate, offset: 1)),
+      ),
+      (
+        '"\\uDFFF\\uDFFF"',
+        Result.Error(Error(ErrorKind.InvalidSurrogate, offset: 1)),
+      ),
+      ('"eof', Result.Error(Error(ErrorKind.EndOfInput, offset: 4))),
+      ('', Result.Error(Error(ErrorKind.EndOfInput, offset: 0))),
+      ('1', Result.Error(Error(ErrorKind.Unexpected('1'), offset: 0))),
+    ]
+
+    for (inp, res) in tests {
+      t.equal(PullParser.new(Buffer.new(inp)).string, res)
+    }
+  })
+
+  t.test('PullParser.int', fn (t) {
+    let tests = [
+      # Valid input
+      ('10', Result.Ok(10)),
+      ('  10', Result.Ok(10)),
+      ('10.2', Result.Ok(10)),
+      ('-10', Result.Ok(-10)),
+      ('-10.2', Result.Ok(-10)),
+      ('99999999999999999999999999999999999999999999999', Result.Ok(int.MAX)),
+      ('-99999999999999999999999999999999999999999999999', Result.Ok(int.MIN)),
+
+      # Invalid input
+      ('00', Result.Error(Error(ErrorKind.Unexpected('0'), offset: 1))),
+      ('01', Result.Error(Error(ErrorKind.Unexpected('1'), offset: 1))),
+      ('a', Result.Error(Error(ErrorKind.Unexpected('a'), offset: 0))),
+      ('  a', Result.Error(Error(ErrorKind.Unexpected('a'), offset: 2))),
+      ('', Result.Error(Error(ErrorKind.EndOfInput, offset: 0))),
+    ]
+
+    for (inp, exp) in tests {
+      let parser = PullParser.new(Buffer.new(inp))
+      let got = parser.int
+
+      t.equal(got, exp)
+
+      if got.ok? { t.true(parser.buffer.empty?) }
+    }
+  })
+
+  t.test('PullParser.float', fn (t) {
+    let tests = [
+      # Valid input
+      ('10', Result.Ok(10.0)),
+      ('  10', Result.Ok(10.0)),
+      ('10.2', Result.Ok(10.2)),
+      ('-10', Result.Ok(-10.0)),
+      ('-10.2', Result.Ok(-10.2)),
+      (
+        '99999999999999999999999999999999999999999999999',
+        Result.Ok(99999999999999999999999999999999999999999999999.0),
+      ),
+      (
+        '-99999999999999999999999999999999999999999999999',
+        Result.Ok(-99999999999999999999999999999999999999999999999.0),
+      ),
+      ('1.2e1', Result.Ok(1.2e1)),
+      ('1.2e+1', Result.Ok(1.2e+1)),
+      ('1.2e-1', Result.Ok(1.2e-1)),
+      ('1.2E1', Result.Ok(1.2e1)),
+      ('1.2E+1', Result.Ok(1.2e+1)),
+      ('1.2E-1', Result.Ok(1.2e-1)),
+      ('1e4', Result.Ok(1e4)),
+      ('1E4', Result.Ok(1e4)),
+
+      # Invalid input
+      ('00', Result.Error(Error(ErrorKind.Unexpected('0'), offset: 1))),
+      ('01', Result.Error(Error(ErrorKind.Unexpected('1'), offset: 1))),
+      ('01.0', Result.Error(Error(ErrorKind.Unexpected('1'), offset: 1))),
+      ('a', Result.Error(Error(ErrorKind.Unexpected('a'), offset: 0))),
+      ('  a', Result.Error(Error(ErrorKind.Unexpected('a'), offset: 2))),
+      ('', Result.Error(Error(ErrorKind.EndOfInput, offset: 0))),
+      ('1.', Result.Error(Error(ErrorKind.EndOfInput, offset: 2))),
+      ('1.2e', Result.Error(Error(ErrorKind.EndOfInput, offset: 4))),
+      ('1.2e+', Result.Error(Error(ErrorKind.EndOfInput, offset: 5))),
+      ('1.2e-', Result.Error(Error(ErrorKind.EndOfInput, offset: 5))),
+      ('1e', Result.Error(Error(ErrorKind.EndOfInput, offset: 2))),
+      ('1E', Result.Error(Error(ErrorKind.EndOfInput, offset: 2))),
+    ]
+
+    for (inp, exp) in tests {
+      let parser = PullParser.new(Buffer.new(inp))
+      let got = parser.float
+
+      t.equal(got, exp)
+
+      if got.ok? { t.true(parser.buffer.empty?) }
+    }
+  })
+
+  t.test('PullParser.number', fn (t) {
+    let tests = [
+      ('10', Result.Ok(Number.Int(10))),
+      ('10.2', Result.Ok(Number.Float(10.2))),
+    ]
+
+    for (inp, exp) in tests {
+      let parser = PullParser.new(Buffer.new(inp))
+      let got = parser.number
+
+      t.equal(got, exp)
+
+      if got.ok? { t.true(parser.buffer.empty?) }
+    }
+  })
+
+  t.test('PullParser.null', fn (t) {
+    let tests = [
+      # Valid input
+      ('null', Result.Ok(nil)),
+
+      # Invalid input
+      ('10', Result.Error(Error(ErrorKind.Unexpected('1'), offset: 0))),
+      ('nu', Result.Error(Error(ErrorKind.EndOfInput, offset: 2))),
+      ('nuf', Result.Error(Error(ErrorKind.Unexpected('f'), offset: 2))),
+      ('', Result.Error(Error(ErrorKind.EndOfInput, offset: 0))),
+    ]
+
+    for (inp, exp) in tests {
+      t.equal(PullParser.new(Buffer.new(inp)).null, exp)
     }
   })
 
   t.test('PullParser.bool', fn (t) {
-    t.equal(pull('true').bool, Result.Ok(true))
-    t.equal(pull('false').bool, Result.Ok(false))
-    t.true(pull('null').bool.error?)
-    t.true(pull('').bool.error?)
+    let tests = [
+      # Valid input
+      ('true', Result.Ok(true)),
+      ('false', Result.Ok(false)),
+
+      # Invalid input
+      ('10', Result.Error(Error(ErrorKind.Unexpected('1'), offset: 0))),
+      ('tr', Result.Error(Error(ErrorKind.EndOfInput, offset: 2))),
+      ('tra', Result.Error(Error(ErrorKind.Unexpected('a'), offset: 2))),
+      ('fa', Result.Error(Error(ErrorKind.EndOfInput, offset: 2))),
+      ('fax', Result.Error(Error(ErrorKind.Unexpected('x'), offset: 2))),
+      ('', Result.Error(Error(ErrorKind.EndOfInput, offset: 0))),
+    ]
+
+    for (inp, exp) in tests {
+      t.equal(PullParser.new(Buffer.new(inp)).bool, exp)
+    }
   })
 
-  t.test('PullParser.null', fn (t) {
-    t.equal(pull('null').null, Result.Ok(nil))
-    t.true(pull('n').null.error?)
-    t.true(pull('').null.error?)
-  })
+  t.test('PullParser.value_type', fn (t) {
+    let tests = [
+      # Valid input
+      ('10', Result.Ok(Type.Number)),
+      ('-1', Result.Ok(Type.Number)),
+      ('[', Result.Ok(Type.Array)),
+      ('t', Result.Ok(Type.Bool)),
+      ('f', Result.Ok(Type.Bool)),
+      ('n', Result.Ok(Type.Null)),
+      ('"a"', Result.Ok(Type.String)),
 
-  t.test('PullParser.string', fn (t) {
-    t.equal(pull('"hello"').string, Result.Ok('hello'))
-    t.true(pull('"hello').string.error?)
-    t.true(pull('').string.error?)
-  })
+      # Invalid input
+      ('x', Result.Error(Error(ErrorKind.Unexpected('x'), offset: 0))),
+      ('', Result.Error(Error(ErrorKind.EndOfInput, offset: 0))),
+    ]
 
-  t.test('PullParser.int', fn (t) {
-    t.equal(pull('10').int, Result.Ok(10))
-    t.equal(pull('10.5').int, Result.Ok(10))
-    t.true(pull('null').int.error?)
-    t.true(pull('').int.error?)
-  })
-
-  t.test('PullParser.float', fn (t) {
-    t.equal(pull('10.5').float, Result.Ok(10.5))
-    t.equal(pull('10').float, Result.Ok(10.0))
-    t.true(pull('null').float.error?)
-    t.true(pull('').float.error?)
-  })
-
-  t.test('PullParser.number', fn (t) {
-    t.equal(pull('10.5').number, Result.Ok(Number.Float(10.5)))
-    t.equal(pull('10').number, Result.Ok(Number.Int(10)))
-    t.true(pull('null').number.error?)
-    t.true(pull('').number.error?)
-  })
-
-  t.test('PullParser.offset', fn (t) {
-    let parser = pull('10')
-
-    parser.offset = 10
-    t.equal(parser.offset, 10)
+    for (inp, exp) in tests {
+      t.equal(PullParser.new(Buffer.new(inp)).value_type, exp)
+    }
   })
 
   t.test('PullParser.start_of_next_value', fn (t) {
-    t.equal(pull('10').start_of_next_value, Result.Ok(0))
-    t.equal(pull('  10').start_of_next_value, Result.Ok(2))
-    t.equal(pull('  ,').start_of_next_value, Result.Ok(2))
-  })
+    let tests = [
+      ('10', Result.Ok(0)),
+      ('  10', Result.Ok(2)),
+      ('  ,', Result.Ok(2)),
+    ]
 
-  t.test('PullParser.object', fn (t) {
-    let parser = pull('{ "a": 10 }')
-    let nums = []
-    let res = parser.object(fn (o) { o.int('a', fn (v) { nums.push(v) }) })
-
-    t.true(res.ok?)
-    t.equal(nums, [10])
-  })
-
-  t.test('ObjectParser.key', fn (t) {
-    let parser = pull('{"a":10,"b":10}')
-    let values = []
-    let obj = ObjectParser.new
-
-    obj.key('a', fn (p) { p.int.map(fn (v) { values.push(v) }) })
-
-    let res = obj.parse(parser)
-
-    t.true(res.ok?)
-    t.equal(values, [10])
-  })
-
-  t.test('ObjectParser.string', fn (t) {
-    let parser = pull('{"a":"foo","b":10}')
-    let values = []
-    let obj = ObjectParser.new
-
-    obj.string('a', fn (v) { values.push(v) })
-
-    let res = obj.parse(parser)
-
-    t.true(res.ok?)
-    t.equal(values, ['foo'])
-  })
-
-  t.test('ObjectParser.int', fn (t) {
-    let parser = pull('{"a":10,"b":10}')
-    let values = []
-    let obj = ObjectParser.new
-
-    obj.int('a', fn (v) { values.push(v) })
-
-    let res = obj.parse(parser)
-
-    t.true(res.ok?)
-    t.equal(values, [10])
-  })
-
-  t.test('ObjectParser.float', fn (t) {
-    let parser = pull('{"a":10.5,"b":10}')
-    let values = []
-    let obj = ObjectParser.new
-
-    obj.float('a', fn (v) { values.push(v) })
-
-    let res = obj.parse(parser)
-
-    t.true(res.ok?)
-    t.equal(values, [10.5])
-  })
-
-  t.test('ObjectParser.bool', fn (t) {
-    let parser = pull('{"a":true,"b":10}')
-    let values = []
-    let obj = ObjectParser.new
-
-    obj.bool('a', fn (v) { values.push(v) })
-
-    let res = obj.parse(parser)
-
-    t.true(res.ok?)
-    t.equal(values, [true])
-  })
-
-  t.test('ObjectParser.keys', fn (t) {
-    let parser = pull('{"a":{"foo":10}}')
-    let values = []
-    let positions = []
-    let obj = ObjectParser.new
-
-    obj.keys('a', fn (parser, pos, k) {
-      positions.push(pos)
-      parser.int.map(fn (v) { values.push((k, v)) })
-    })
-
-    let res = obj.parse(parser)
-
-    t.true(res.ok?)
-    t.equal(values, [('foo', 10)])
-    t.equal(positions, [6])
-  })
-
-  t.test('ObjectParser.values', fn (t) {
-    let parser = pull('{"a":[10,20]}')
-    let values = []
-    let obj = ObjectParser.new
-
-    obj.values('a', fn (p) { p.int.map(fn (v) { values.push(v) }) })
-
-    let res = obj.parse(parser)
-
-    t.true(res.ok?)
-    t.equal(values, [10, 20])
-  })
-
-  t.test('ObjectParser.parse with all required keys present', fn (t) {
-    let parser = pull('{"a":10}')
-    let values = []
-    let obj = ObjectParser.new
-
-    obj.int('a', fn (v) { values.push(v) })
-
-    let res = obj.parse(parser)
-
-    t.true(res.ok?)
-    t.equal(values, [10])
-  })
-
-  t.test('ObjectParser.parse with a missing optional key', fn (t) {
-    let parser = pull(' {"a":10} ')
-    let values = []
-    let obj = ObjectParser.new
-
-    obj.int('a', fn (v) { values.push(v) })
-    obj.int('b', fn (v) { values.push(v) }).optional
-
-    let res = obj.parse(parser)
-
-    t.true(res.ok?)
-    t.equal(values, [10])
-  })
-
-  t.test('ObjectParser.parse with a missing key', fn (t) {
-    let parser = pull(' {"a":10} ')
-    let values = []
-    let obj = ObjectParser.new
-
-    obj.int('a', fn (v) { values.push(v) })
-    obj.int('b', fn (v) { values.push(v) })
-
-    let res = obj.parse(parser)
-
-    t.equal(
-      res,
-      Result.Error(
-        Error(kind: ErrorKind.Generic('the key "b" is required'), offset: 1),
-      ),
-    )
-    t.equal(values, [10])
+    for (inp, exp) in tests {
+      t.equal(PullParser.new(Buffer.new(inp)).start_of_next_value, exp)
+    }
   })
 
   t.test('Json.fmt', fn (t) {
@@ -582,10 +656,8 @@ fn pub tests(t: mut Tests) {
     t.true(parse('10.2,').error?)
 
     t.equal(
-      parse_invalid('\n1.2e'),
-      Option.Some(
-        'all input is consumed but more input is expected, at byte offset 4',
-      ),
+      parse('\n1.2e'),
+      Result.Error(Error(ErrorKind.EndOfInput, offset: 5)),
     )
   })
 
@@ -670,12 +742,7 @@ fn pub tests(t: mut Tests) {
     t.true(parse('"\\uD834\\uZZZZ"').error?)
     t.true(parse('"\\uDFFF\\uDFFF"').error?)
 
-    t.equal(
-      parse_invalid('"a'),
-      Option.Some(
-        'all input is consumed but more input is expected, at byte offset 1',
-      ),
-    )
+    t.equal(parse('"a'), Result.Error(Error(ErrorKind.EndOfInput, offset: 2)))
   })
 
   t.test('Json.parse with objects', fn (t) {
@@ -726,10 +793,8 @@ fn pub tests(t: mut Tests) {
     }
 
     t.equal(
-      parse_invalid('{"a"}'),
-      Option.Some(
-        "the character ':' is expected but '}' was found instead, at byte offset 4",
-      ),
+      parse('{"a"}'),
+      Result.Error(Error(ErrorKind.Unexpected('}'), offset: 4)),
     )
   })
 

@@ -143,15 +143,23 @@ fn char(byte: Int) -> String {
 
 # A type describing the different possible errors.
 #
-# End users don't really care about the difference between
-# RecursionLimitExceeded and InvalidSurrogate(...), nor can they really act
-# differently based on the kind of error.
+# TODO: rename Generic to InvalidSyntax
+# TODO: add EndOfInput for EOF errors
 type pub inline enum ErrorKind[E] {
   # The maximum recursion limit is exceeded.
   case RecursionLimitExceeded(Int)
 
   # An invalid UTF-16 surrogate pair is encountered.
-  case InvalidSurrogate(String)
+  case InvalidSurrogate
+
+  # An invalid control character is encountered.
+  case InvalidControl
+
+  # More input is required.
+  case EndOfInput
+
+  # An invalid character is found.
+  case Unexpected(String)
 
   # A generic error with a custom message.
   case Generic(String)
@@ -164,9 +172,12 @@ impl Equal for ErrorKind if E: Equal {
   fn pub ==(other: ref ErrorKind[E]) -> Bool {
     match (self, other) {
       case (RecursionLimitExceeded(a), RecursionLimitExceeded(b)) -> a == b
-      case (InvalidSurrogate(a), InvalidSurrogate(b)) -> a == b
+      case (InvalidSurrogate, InvalidSurrogate) -> true
+      case (Unexpected(a), Unexpected(b)) -> a == b
       case (Read(a), Read(b)) -> a == b
       case (Generic(a), Generic(b)) -> a == b
+      case (EndOfInput, EndOfInput) -> true
+      case (InvalidControl, InvalidControl) -> true
       case _ -> false
     }
   }
@@ -178,11 +189,12 @@ impl FormatTrait for ErrorKind if E: FormatTrait {
       case RecursionLimitExceeded(v) -> {
         formatter.tuple('RecursionLimitExceeded').field(v).finish
       }
-      case InvalidSurrogate(v) -> {
-        formatter.tuple('InvalidSurrogate').field(v).finish
-      }
+      case InvalidSurrogate -> formatter.tuple('InvalidSurrogate').finish
+      case Unexpected(v) -> formatter.tuple('Unexpected').field(v).finish
       case Read(v) -> formatter.tuple('Read').field(v).finish
       case Generic(v) -> formatter.tuple('Generic').field(v).finish
+      case EndOfInput -> formatter.tuple('EndOfInput').finish
+      case InvalidControl -> formatter.tuple('InvalidControl').finish
     }
   }
 }
@@ -193,9 +205,16 @@ impl ToString for ErrorKind if E: ToString {
       case RecursionLimitExceeded(v) -> {
         'the maximum recursion depth of ${v} is exceeded'
       }
-      case InvalidSurrogate(v) -> "${v} isn't a valid UTF-16 surrogate pair"
+      case InvalidSurrogate -> 'the UTF-16 surrogate pair is invalid'
+      case Unexpected(v) -> "the character '${v}' is unexpected"
       case Read(v) -> v.to_string
       case Generic(v) -> v.to_string
+      case EndOfInput -> {
+        'the end of the input stream is reached, but more input is required'
+      }
+      case InvalidControl -> {
+        'control characters in the range 0x0..0x001F must be escaped'
+      }
     }
   }
 }
@@ -617,8 +636,11 @@ impl FormatTrait for Type {
 # A pull parser for turning a stream of bytes into JSON values.
 #
 # Using a `PullParser` you can parse a JSON document into a desired set of
-# values, without the need for any intermediate `Json` values. For example,
-# parsing an array of integers is done as follows:
+# values, without the need for any intermediate `Json` values.
+#
+# # Examples
+#
+# Parsing an array:
 #
 # ```inko
 # import std.io (Buffer)
@@ -627,57 +649,50 @@ impl FormatTrait for Type {
 # let parser = PullParser.new(Buffer.new('[10, 20]'))
 # let values = []
 #
-# parser.values(fn { Result.Ok(values.push(try parser.int)) }).get
+# parser.array.or_panic
+#
+# while parser.array_value?.or_panic {
+#   values.push(parser.int.or_panic)
+#   parser.next_value.or_panic
+# }
+#
 # values # => [10, 20]
 # ```
 #
-# For objects one _can_ use the low-level method `PullParser.keys`, but it's
-# recommended to use `PullParser.object` when the names of the keys are known at
-# compile-time. For example:
+# Parsing an object:
 #
 # ```inko
 # import std.io (Buffer)
 # import std.json (PullParser)
 #
-# type Person {
-#   let @name: String
-#   let @age: Int
+# let parser = PullParser.new(Buffer.new('{ "name": "Alice" }'))
+# let map = Map.new
+#
+# parser.object.or_panic
+#
+# while parser.key?.or_panic {
+#   map.set(parser.key.or_panic, parser.string.or_panic)
+#   parser.next_key.or_panic
 # }
 #
-# let parser = PullParser.new(Buffer.new('{ "name": "Alice", "age": 42 }'))
-# let person = Person(name: '', age: 0)
-#
-# parser
-#   .object
-#   .string('name', fn (v) { person.name = name })
-#   .int('age', fn (v) { person.age = v })
-#   .parse
-#   .get
+# map.get('name').or_panic # => 'Alice'
 # ```
 type pub PullParser[T: mut + Read[E], E] {
+  # The input stream to parse
   let @input: BufferedReader[T, E]
+
+  # The offset into the input stream, used for error reporting.
   let mut @offset: Int
+
+  # A buffer to use for parsing certain values such as integers.
   let @buffer: ByteArray
 
-  # Returns a new parser that parses the given `Read` type.
-  fn pub static new(input: T) -> PullParser[T, E] {
-    PullParser(
-      input: BufferedReader.new(input),
-      offset: -1,
-      buffer: ByteArray.new,
-    )
+  # Returns a new `PullParser` that parses the given `Read` type.
+  fn pub static new(input: T) -> Self {
+    Self(input: BufferedReader.new(input), offset: 0, buffer: ByteArray.new)
   }
 
-  # Returns the current byte offset in the input stream.
-  fn pub offset -> Int {
-    @offset
-  }
-
-  # Returns the byte offset of the start of the next non-whitespace value.
-  #
-  # This method is useful when you want to obtain the start of some value and
-  # use it when reporting an error when parsing said value, such as when you
-  # want to parse a JSON string into a Markdown document.
+  # Parses the opening tag of an object (`{`).
   #
   # # Examples
   #
@@ -685,67 +700,170 @@ type pub PullParser[T: mut + Read[E], E] {
   # import std.io (Buffer)
   # import std.json (PullParser)
   #
-  # let parser = PullParser.new(Buffer.new('  10'))
+  # let parser = PullParser.new(Buffer.new('{ "name": "Alice" }'))
   #
-  # parser.start_of_next_value # => Result.Ok(2)
+  # parser.object # => Result.Ok(nil)
   # ```
-  fn pub mut start_of_next_value -> Result[Int, Error[E]] {
-    try skip_whitespace
-    Result.Ok(@offset + 1)
-  }
+  fn pub mut object -> Result[Nil, Error[E]] {
+    try expect(CURLY_OPEN, skip_whitespace: true)
 
-  # Returns a `Type` describing what type of value is located at the current
-  # offset.
-  fn pub mut value_type -> Result[Type, Error[E]] {
-    let typ = match try peek {
-      case Some(MINUS) -> Type.Number
-      case Some(BRACKET_OPEN) -> Type.Array
-      case Some(CURLY_OPEN) -> Type.Object
-      case Some(LOWER_T or LOWER_F) -> Type.Bool
-      case Some(LOWER_N) -> Type.Null
-      case Some(DQUOTE) -> Type.String
-      case Some(byte) if digit?(byte) -> Type.Number
-      # This is to take care of any random garbage that may be included in the
-      # JSON document, including Unicode BOMs. This also saves us from having to
-      # explicitly check for all the different BOMs.
-      case Some(byte) -> throw unexpected(byte)
-      case _ -> throw missing_input
-    }
-
-    Result.Ok(typ)
-  }
-
-  # Recursively parses but ignores the current value.
-  #
-  # # Examples
-  #
-  # ```inko
-  # import std.io (Buffer)
-  # import std.json (PullParser)
-  #
-  # PullParser.new(Buffer.new('[10, 20]')).skip # => Result.Ok(nil)
-  # ```
-  fn pub mut skip -> Result[Nil, Error[E]] {
-    match value_type {
-      case Ok(Number) -> {
-        try number
-        nil
-      }
-      case Ok(Array) -> try values(fn { skip })
-      case Ok(Object) -> try keys(fn (_pos, _key) { skip })
-      case Ok(String) -> try string
-      case Ok(Null) -> try null
-      case Ok(Bool) -> try bool
+    match peek {
+      case Ok(Some(COMMA)) -> throw unexpected(COMMA)
+      case Ok(Some(_)) -> Result.Ok(nil)
+      case Ok(_) -> throw end_of_input
       case Error(e) -> throw e
     }
-
-    Result.Ok(nil)
   }
 
-  # Parses an array, calling the `value` closure for every value in the array.
+  # Returns a `Bool` indicating if the current value is a key or the end of an
+  # object.
   #
-  # It's expected that the `value` closure advances the parser by parsing the
-  # value in it's desired format.
+  # If the current value is the start of a key (= `"`), this method returns
+  # `Result.Ok(true)`. If the current value is instead `}` then
+  # `Result.Ok(false)` is returned.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.io (Buffer)
+  # import std.json (PullParser)
+  #
+  # let parser = PullParser.new(Buffer.new('{ "name": "Alice" }'))
+  #
+  # parser.object # => Result.Ok(nil)
+  # parser.key?   # => Result.Ok(true)
+  # ```
+  fn pub mut key? -> Result[Bool, Error[E]] {
+    try skip_whitespace
+
+    match peek {
+      case Ok(Some(CURLY_CLOSE)) -> {
+        try advance
+        Result.Ok(false)
+      }
+      case Ok(Some(DQUOTE)) -> Result.Ok(true)
+      case Ok(Some(v)) -> throw unexpected(v)
+      case Ok(_) -> throw end_of_input
+      case Error(e) -> throw e
+    }
+  }
+
+  # Parses the key-value pair separator (`,`) and advances to the next value, or
+  # the end of the object.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.io (Buffer)
+  # import std.json (PullParser)
+  #
+  # let parser = PullParser.new(Buffer.new('{ "a": 10, "b": 20 }'))
+  #
+  # parser.object   # => Result.Ok(nil)
+  # parser.key      # => Result.Ok('a')
+  # parser.int      # => Result.Ok(10)
+  # parser.next_key # => Result.Ok(nil)
+  # parser.key      # => Result.Ok('b')
+  # ```
+  fn pub mut next_key -> Result[Nil, Error[E]] {
+    try skip_whitespace
+
+    match peek {
+      case Ok(Some(CURLY_CLOSE)) -> Result.Ok(nil)
+      case Ok(Some(COMMA)) -> {
+        try advance
+        try skip_whitespace
+
+        match peek {
+          case Ok(Some(COMMA or CURLY_CLOSE)) -> throw unexpected(peek.get.get)
+          case Ok(Some(_)) -> Result.Ok(nil)
+          case Ok(_) -> throw end_of_input
+          case Error(e) -> throw e
+        }
+      }
+      case Ok(Some(v)) -> throw unexpected(v)
+      case Ok(_) -> throw end_of_input
+      case Error(e) -> throw e
+    }
+  }
+
+  # Parses the key of an object and returns its name.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.io (Buffer)
+  # import std.json (PullParser)
+  #
+  # let parser = PullParser.new(Buffer.new('{ "name": "Alice" }'))
+  #
+  # parser.object # => Result.Ok(nil)
+  # parser.key    # => Result.Ok('name')
+  # ```
+  fn pub mut key -> Result[String, Error[E]] {
+    let key = try string
+
+    try expect(COLON, skip_whitespace: true)
+    Result.Ok(key)
+  }
+
+  # Parses the opening tag of an array (`[`).
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.io (Buffer)
+  # import std.json (PullParser)
+  #
+  # let parser = PullParser.new(Buffer.new('[ 10 ]'))
+  #
+  # parser.array # => Result.Ok(nil)
+  # ```
+  fn pub mut array -> Result[Nil, Error[E]] {
+    try expect(BRACKET_OPEN, skip_whitespace: true)
+
+    match peek {
+      case Ok(Some(COMMA)) -> throw unexpected(COMMA)
+      case Ok(Some(_)) -> Result.Ok(nil)
+      case Ok(_) -> throw end_of_input
+      case Error(e) -> throw e
+    }
+  }
+
+  # Returns a `Bool` indicating if the current value is an array value or the
+  # end of an array.
+  #
+  # If the current value is the start of an array value, this method returns
+  # `Result.Ok(true)`. If the current value is instead `]` then
+  # `Result.Ok(false)` is returned.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.io (Buffer)
+  # import std.json (PullParser)
+  #
+  # let parser = PullParser.new(Buffer.new('[10]'))
+  #
+  # parser.array        # => Result.Ok(nil)
+  # parser.array_value? # => Result.Ok(true)
+  # ```
+  fn pub mut array_value? -> Result[Bool, Error[E]] {
+    try skip_whitespace
+
+    match peek {
+      case Ok(Some(BRACKET_CLOSE)) -> {
+        try advance
+        Result.Ok(false)
+      }
+      case Ok(Some(_)) -> Result.Ok(true)
+      case Ok(_) -> throw end_of_input
+      case Error(e) -> throw e
+    }
+  }
+
+  # Parses the array value separator (`,`) and advances to the next value, or
+  # the end of the array.
   #
   # # Examples
   #
@@ -754,173 +872,34 @@ type pub PullParser[T: mut + Read[E], E] {
   # import std.json (PullParser)
   #
   # let parser = PullParser.new(Buffer.new('[10, 20]'))
-  # let values = []
   #
-  # parser
-  #   .values(fn {
-  #     values.push(parser.int.get)
-  #     Result.Ok(nil)
-  #   })
-  #   .get
-  #
-  # values # => [10, 20]
+  # parser.array      # => Result.Ok(nil)
+  # parser.int        # => Result.Ok(10)
+  # parser.next_value # => Result.Ok(nil)
+  # parser.int        # => Result.Ok(20)
   # ```
-  fn pub mut values(
-    value: fn -> Result[Nil, Error[E]],
-  ) -> Result[Nil, Error[E]] {
-    try expect(BRACKET_OPEN, skip_whitespace: true)
+  fn pub mut next_value -> Result[Nil, Error[E]] {
+    try skip_whitespace
 
-    loop {
-      match try peek {
-        case Some(BRACKET_CLOSE) -> {
-          try advance
-          break
+    match peek {
+      case Ok(Some(BRACKET_CLOSE)) -> Result.Ok(nil)
+      case Ok(Some(COMMA)) -> {
+        try advance
+        try skip_whitespace
+
+        match peek {
+          case Ok(Some(COMMA or BRACKET_CLOSE)) -> {
+            throw unexpected(peek.get.get)
+          }
+          case Ok(Some(_)) -> Result.Ok(nil)
+          case Ok(_) -> throw end_of_input
+          case Error(e) -> throw e
         }
-        case Some(_) -> {
-          try value.call
-          try separator(BRACKET_CLOSE)
-        }
-        case _ -> throw missing_input
       }
+      case Ok(Some(v)) -> throw unexpected(v)
+      case Ok(_) -> throw end_of_input
+      case Error(e) -> throw e
     }
-
-    Result.Ok(nil)
-  }
-
-  # Parses an object, calling `value` for each key and passing it the position
-  # and name of the key.
-  #
-  # It's expected that the `value` closure advances the parser by parsing the
-  # value in it's desired format.
-  #
-  # # Examples
-  #
-  # ```inko
-  # import std.io (Buffer)
-  # import std.json (PullParser)
-  #
-  # type Person {
-  #   let @name: String
-  #   let @age: Int
-  # }
-  #
-  # let parser = PullParser.new(Buffer.new('{ "name": "Alice", "age": 42 }'))
-  # let person = Person(name: '', age: 0)
-  #
-  # parser
-  #   .keys(fn (pos, key) {
-  #     match key {
-  #       case 'name' -> person.name = parser.string.get
-  #       case 'age' -> person.age = parser.int.get
-  #       case _ -> {}
-  #     }
-  #
-  #     Result.Ok(nil)
-  #   })
-  #   .get
-  #
-  # person.name # => 'Alice'
-  # person.age  # => 42
-  # ```
-  fn pub mut keys(
-    value: fn (Int, String) -> Result[Nil, Error[E]],
-  ) -> Result[Nil, Error[E]] {
-    try expect(CURLY_OPEN, skip_whitespace: true)
-
-    loop {
-      match try peek {
-        case Some(CURLY_CLOSE) -> {
-          let _ = advance
-
-          break
-        }
-        case Some(DQUOTE) -> {
-          let pos = @offset + 1
-          let key = try string
-
-          try expect(COLON, skip_whitespace: true)
-          try value.call(pos, key)
-          try separator(CURLY_CLOSE)
-        }
-        case Some(byte) -> throw unexpected(byte)
-        case _ -> throw missing_input
-      }
-    }
-
-    Result.Ok(nil)
-  }
-
-  # Creates a new `ObjectParser` and passes it to the provided closure, which is
-  # used to define the parsing rules. Upon returning from the closure, the
-  # `ObjectParser` is used to parse the data at the current byte offset.
-  #
-  # For more information, refer to the documentation of the `ObjectParser` type.
-  #
-  # # Examples
-  #
-  # ```inko
-  # import std.io (Buffer)
-  # import std.json (PullParser)
-  #
-  # type Person {
-  #   let @name: String
-  # }
-  #
-  # let parser = PullParser.new(Buffer.new('{ "name": "String" }'))
-  # let person = Person(name: '')
-  #
-  # parser
-  #   .object(fn (o) { o.string('name', fn (v) { person.name = v }) })
-  #   .or_panic_with('failed to parse the JSON')
-  # ```
-  fn pub mut object(
-    rules: fn (mut ObjectParser[T, E]),
-  ) -> Result[Nil, Error[E]] {
-    let obj = ObjectParser.new
-
-    rules.call(obj)
-    obj.parse(self)
-  }
-
-  # Parses the boolean value `true` or `false`.
-  #
-  # # Examples
-  #
-  # ```inko
-  # import std.io (Buffer)
-  # import std.json (PullParser)
-  #
-  # PullParser.new(Buffer.new('true')).bool # => Result.Ok(true)
-  # ```
-  fn pub mut bool -> Result[Bool, Error[E]] {
-    match try peek {
-      case Some(LOWER_T) -> {
-        let _ = advance
-
-        identifier('rue').map(fn (_) { true })
-      }
-      case Some(LOWER_F) -> {
-        let _ = advance
-
-        identifier('alse').map(fn (_) { false })
-      }
-      case Some(v) -> throw unexpected(v)
-      case _ -> throw missing_input
-    }
-  }
-
-  # Parses a `null` value.
-  #
-  # # Examples
-  #
-  # ```inko
-  # import std.io (Buffer)
-  # import std.json (PullParser)
-  #
-  # PullParser.new(Buffer.new('null')).null # => Result.Ok(nil)
-  # ```
-  fn pub mut null -> Result[Nil, Error[E]] {
-    identifier('null')
   }
 
   # Parses a string.
@@ -931,13 +910,15 @@ type pub PullParser[T: mut + Read[E], E] {
   # import std.io (Buffer)
   # import std.json (PullParser)
   #
-  # PullParser.new(Buffer.new('"hello"')).string # => Result.Ok('hello')
+  # PullParser.new(Buffer.new('"name"')).string # => Result.Ok('name')
   # ```
   fn pub mut string -> Result[String, Error[E]] {
-    match try peek {
-      case Some(DQUOTE) -> try advance
-      case Some(byte) -> throw unexpected(byte)
-      case _ -> throw missing_input
+    try skip_whitespace
+
+    match try advance {
+      case Some(DQUOTE) -> {}
+      case Some(byte) -> throw was_unexpected(byte)
+      case _ -> throw end_of_input
     }
 
     loop {
@@ -947,86 +928,29 @@ type pub PullParser[T: mut + Read[E], E] {
             case Some(LOWER_U) -> try escaped_unicode
             case Some(byte) -> {
               match ESCAPE_TABLE.get(byte).or_panic {
-                case -1 -> throw unexpected(byte)
+                case -1 -> throw was_unexpected(byte)
                 case val -> @buffer.push(val)
               }
             }
-            case _ -> throw missing_input
+            case _ -> throw end_of_input
           }
         }
         case Some(DQUOTE) -> break
         case Some(val) if val >= 0x0 and val <= 0x001F -> {
-          throw generic_error(
-            'control characters in the range 0x0..0x001F must be escaped',
-          )
+          throw Error(ErrorKind.InvalidControl, previous_offset)
         }
         case Some(byte) -> @buffer.push(byte)
-        case _ -> throw missing_input
+        case _ -> throw end_of_input
       }
     }
 
     Result.Ok(@buffer.drain_to_string)
   }
 
-  fn mut escaped_unicode -> Result[Nil, Error[E]] {
-    let high = try codepoint
-
-    if utf8.encode_scalar(high, @buffer) > 0 { return Result.Ok(nil) }
-
-    # At this point the codepoint is either straight up invalid (e.g. "\uZZZZ"),
-    # or it's a UTF-16 surrogate.
-    if !utf8.surrogate?(high) {
-      throw error(ErrorKind.InvalidSurrogate(high.format(Format.Hex)))
-    }
-
-    try expect(BSLASH, skip_whitespace: false)
-    try expect(LOWER_U, skip_whitespace: false)
-
-    let low = try codepoint
-
-    if utf8.surrogate?(low) {
-      let codepoint = utf8.codepoint_from_surrogates(high, low)
-
-      # The encoding may fail for pairs such as "\uDFFF\uDFFF".
-      if utf8.encode_scalar(codepoint, @buffer) > 0 { return Result.Ok(nil) }
-    }
-
-    let pair = '\\u${high.format(Format.Hex)}\\u${low.format(Format.Hex)}'
-
-    throw error(ErrorKind.InvalidSurrogate(pair))
-  }
-
-  fn mut codepoint -> Result[Int, Error[E]] {
-    let mut num = 0
-    let mut idx = 0
-
-    while idx < 4 {
-      let digit = match try advance {
-        case Some(byte) -> {
-          if byte >= ZERO and byte <= NINE {
-            byte - ZERO
-          } else if byte >= LOWER_A and byte <= LOWER_F {
-            byte - LOWER_A + 10
-          } else if byte >= UPPER_A and byte <= UPPER_F {
-            byte - UPPER_A + 10
-          } else {
-            throw unexpected(byte)
-          }
-        }
-        case _ -> throw missing_input
-      }
-
-      num = num * 16 + digit
-      idx += 1
-    }
-
-    Result.Ok(num)
-  }
-
   # Parses a number as an `Int`.
   #
   # If the value in the input stream is in fact a float (e.g. `1.2` instead of
-  # just `1`), it's first pased as a `Float` and then cast to an `Int`.
+  # just `1`), it's first parsed as a `Float` then cast to an `Int`.
   #
   # # Examples
   #
@@ -1048,7 +972,7 @@ type pub PullParser[T: mut + Read[E], E] {
   # Parses a number as a `Float`.
   #
   # If the value in the input stream is in fact an integer (e.g. `1` instead of
-  # `1.0` or `1.2`), the value is first parsed as an `Int` and then cast to a
+  # `1.0` or `1.2`), the value is first parsed as an `Int` then cast to a
   # `Float`.
   #
   # # Examples
@@ -1070,9 +994,9 @@ type pub PullParser[T: mut + Read[E], E] {
 
   # Parses a number into a `Number` value.
   #
-  # A `Number` is a wrapper enum around either a `Float` or an `Int`. If you
-  # only care about numbers in a particular format (e.g. integers), use
-  # `PullParser.int` or `PullParser.float` instead.
+  # A `Number` is an enum storing either a `Float` or an `Int`. If you only care
+  # about numbers in a particular format (e.g. integers), use `PullParser.int`
+  # or `PullParser.float` instead.
   #
   # # Examples
   #
@@ -1091,12 +1015,12 @@ type pub PullParser[T: mut + Read[E], E] {
         match try peek_next {
           case Some(byte) if digit?(byte) -> {}
           case Some(byte) -> throw unexpected(byte)
-          case _ -> throw missing_input
+          case _ -> throw end_of_input
         }
       }
       case Some(byte) if digit?(byte) -> {}
       case Some(byte) -> throw unexpected(byte)
-      case _ -> throw missing_input
+      case _ -> throw end_of_input
     }
 
     # Numbers such as 001, 010, 01.0, etc are invalid.
@@ -1122,7 +1046,7 @@ type pub PullParser[T: mut + Read[E], E] {
         match try peek_next {
           case Some(byte) if digit?(byte) -> {}
           case Some(byte) -> throw unexpected(byte)
-          case _ -> throw missing_input
+          case _ -> throw end_of_input
         }
 
         try buffer_digits
@@ -1157,6 +1081,193 @@ type pub PullParser[T: mut + Read[E], E] {
     res
   }
 
+  # Parses a `null` value.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.io (Buffer)
+  # import std.json (PullParser)
+  #
+  # PullParser.new(Buffer.new('null')).null # => Result.Ok(nil)
+  # ```
+  fn pub mut null -> Result[Nil, Error[E]] {
+    identifier('null')
+  }
+
+  # Parses the boolean value `true` or `false`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.io (Buffer)
+  # import std.json (PullParser)
+  #
+  # PullParser.new(Buffer.new('true')).bool  # => Result.Ok(true)
+  # PullParser.new(Buffer.new('false')).bool # => Result.Ok(false)
+  # ```
+  fn pub mut bool -> Result[Bool, Error[E]] {
+    match try peek {
+      case Some(LOWER_T) -> {
+        let _ = advance
+
+        try identifier('rue')
+        Result.Ok(true)
+      }
+      case Some(LOWER_F) -> {
+        let _ = advance
+
+        try identifier('alse')
+        Result.Ok(false)
+      }
+      case Some(v) -> throw unexpected(v)
+      case _ -> throw end_of_input
+    }
+  }
+
+  # Returns a `Type` describing what type of value is located at the current
+  # offset.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.stdio (Buffer)
+  # import std.json (PullParser)
+  #
+  # Parser.new(Buffer.new('10')).value_type # => Result.Ok(Type.Number)
+  # ```
+  fn pub mut value_type -> Result[Type, Error[E]] {
+    let typ = match try peek {
+      case Some(MINUS) -> Type.Number
+      case Some(BRACKET_OPEN) -> Type.Array
+      case Some(CURLY_OPEN) -> Type.Object
+      case Some(LOWER_T or LOWER_F) -> Type.Bool
+      case Some(LOWER_N) -> Type.Null
+      case Some(DQUOTE) -> Type.String
+      case Some(byte) if digit?(byte) -> Type.Number
+      # This is to take care of any random garbage that may be included in the
+      # JSON document, including Unicode BOMs. This also saves us from having to
+      # explicitly check for all the different BOMs.
+      case Some(byte) -> throw unexpected(byte)
+      case _ -> throw end_of_input
+    }
+
+    Result.Ok(typ)
+  }
+
+  # Returns the byte offset of the start of the next non-whitespace value.
+  #
+  # This method is useful when you want to obtain the start of some value and
+  # use it when reporting an error when parsing said value, such as when you
+  # want to parse a JSON string into a Markdown document.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.io (Buffer)
+  # import std.json (PullParser)
+  #
+  # PullParser.new(Buffer.new('  10')).start_of_next_value # => Result.Ok(2)
+  # ```
+  fn pub mut start_of_next_value -> Result[Int, Error[E]] {
+    try skip_whitespace
+    Result.Ok(@offset)
+  }
+
+  fn mut escaped_unicode -> Result[Nil, Error[E]] {
+    let start = @offset - 2
+    let high = try codepoint
+
+    if utf8.encode_scalar(high, @buffer) > 0 { return Result.Ok(nil) }
+
+    # At this point the codepoint is either straight up invalid (e.g. "\uZZZZ"),
+    # or it's a UTF-16 surrogate.
+    if !utf8.surrogate?(high) { throw Error(ErrorKind.InvalidSurrogate, start) }
+
+    try expect(BSLASH, skip_whitespace: false)
+    try expect(LOWER_U, skip_whitespace: false)
+
+    let low = try codepoint
+
+    if utf8.surrogate?(low) {
+      let codepoint = utf8.codepoint_from_surrogates(high, low)
+
+      # The encoding may fail for pairs such as "\uDFFF\uDFFF".
+      if utf8.encode_scalar(codepoint, @buffer) > 0 { return Result.Ok(nil) }
+    }
+
+    throw Error(ErrorKind.InvalidSurrogate, start)
+  }
+
+  fn mut codepoint -> Result[Int, Error[E]] {
+    let mut num = 0
+    let mut idx = 0
+
+    while idx < 4 {
+      let digit = match try advance {
+        case Some(byte) -> {
+          if byte >= ZERO and byte <= NINE {
+            byte - ZERO
+          } else if byte >= LOWER_A and byte <= LOWER_F {
+            byte - LOWER_A + 10
+          } else if byte >= UPPER_A and byte <= UPPER_F {
+            byte - UPPER_A + 10
+          } else {
+            throw was_unexpected(byte)
+          }
+        }
+        case _ -> throw end_of_input
+      }
+
+      num = num * 16 + digit
+      idx += 1
+    }
+
+    Result.Ok(num)
+  }
+
+  fn mut identifier(name: String) -> Result[Nil, Error[E]] {
+    try skip_whitespace
+
+    let mut index = 0
+    let max = name.size
+
+    while index < max {
+      try expect(name.get(index := index + 1).or_panic, skip_whitespace: false)
+    }
+
+    Result.Ok(nil)
+  }
+
+  fn mut expect(byte: Int, skip_whitespace: Bool) -> Result[Nil, Error[E]] {
+    if skip_whitespace { try self.skip_whitespace }
+
+    match try advance {
+      case Some(val) if val == byte -> Result.Ok(nil)
+      case Some(val) -> throw was_unexpected(val)
+      case _ -> throw end_of_input
+    }
+  }
+
+  fn mut skip_whitespace -> Result[Nil, Error[E]] {
+    loop {
+      match try peek_next {
+        case Some(SPACE or CR or TAB or LF) -> try advance
+        case _ -> return Result.Ok(nil)
+      }
+    }
+  }
+
+  fn mut advance_and_buffer -> Result[Option[Int], Error[E]] {
+    match try advance {
+      case Some(val) -> {
+        @buffer.push(val)
+        Result.Ok(Option.Some(val))
+      }
+      case _ -> Result.Ok(Option.None)
+    }
+  }
+
   fn mut exponent -> Result[Nil, Error[E]] {
     try advance_and_buffer
 
@@ -1171,7 +1282,7 @@ type pub PullParser[T: mut + Read[E], E] {
     match try peek_next {
       case Some(byte) if digit?(byte) -> {}
       case Some(byte) -> throw unexpected(byte)
-      case _ -> throw missing_input
+      case _ -> throw end_of_input
     }
 
     try buffer_digits
@@ -1190,47 +1301,12 @@ type pub PullParser[T: mut + Read[E], E] {
     }
   }
 
-  fn mut advance_and_buffer -> Result[Option[Int], Error[E]] {
-    match try advance {
-      case Some(val) -> {
-        @buffer.push(val)
-        Result.Ok(Option.Some(val))
-      }
-      case _ -> Result.Ok(Option.None)
-    }
-  }
-
   fn mut advance -> Result[Option[Int], Error[E]] {
     match @input.read_byte {
       case Ok(Some(v)) -> {
         @offset += 1
         Result.Ok(Option.Some(v))
       }
-      case Ok(None) -> Result.Ok(Option.None)
-      case Error(e) -> Result.Error(error(ErrorKind.Read(e)))
-    }
-  }
-
-  fn mut expect(byte: Int, skip_whitespace: Bool) -> Result[Nil, Error[E]] {
-    if skip_whitespace { try self.skip_whitespace }
-
-    match try advance {
-      case Some(val) if val == byte -> Result.Ok(nil)
-      case Some(val) -> {
-        let exp = char(byte)
-        let got = char(val)
-
-        throw generic_error(
-          "the character '${exp}' is expected but '${got}' was found instead",
-        )
-      }
-      case _ -> throw missing_input
-    }
-  }
-
-  fn mut peek_next -> Result[Option[Int], Error[E]] {
-    match @input.peek {
-      case Ok(Some(v)) -> Result.Ok(Option.Some(v))
       case Ok(None) -> Result.Ok(Option.None)
       case Error(e) -> Result.Error(error(ErrorKind.Read(e)))
     }
@@ -1247,189 +1323,32 @@ type pub PullParser[T: mut + Read[E], E] {
     }
   }
 
-  fn mut identifier(name: String) -> Result[Nil, Error[E]] {
-    try skip_whitespace
-
-    let mut index = 0
-    let max = name.size
-
-    while index < max {
-      try expect(name.get(index := index + 1).or_panic, skip_whitespace: false)
-    }
-
-    Result.Ok(nil)
-  }
-
-  fn mut skip_whitespace -> Result[Nil, Error[E]] {
-    loop {
-      match try peek_next {
-        case Some(SPACE or CR or TAB or LF) -> try advance
-        case _ -> return Result.Ok(nil)
-      }
-    }
-  }
-
-  fn mut separator(closing: Int) -> Result[Nil, Error[E]] {
-    match try peek {
-      case Some(byte) if byte == closing -> return Result.Ok(nil)
-      case Some(COMMA) -> try advance
-      case Some(byte) -> throw unexpected(byte)
-      case _ -> throw missing_input
-    }
-
-    match try peek {
-      case Some(byte) if byte == closing -> throw unexpected(byte)
-      case _ -> Result.Ok(nil)
+  fn mut peek_next -> Result[Option[Int], Error[E]] {
+    match @input.peek {
+      case Ok(Some(v)) -> Result.Ok(Option.Some(v))
+      case Ok(None) -> Result.Ok(Option.None)
+      case Error(e) -> Result.Error(error(ErrorKind.Read(e)))
     }
   }
 
   fn unexpected(byte: Int) -> Error[E] {
-    generic_error("the character '${char(byte)}' is unexpected")
+    error(ErrorKind.Unexpected(char(byte)))
   }
 
-  fn missing_input -> Error[E] {
-    generic_error('all input is consumed but more input is expected')
+  fn end_of_input -> Error[E] {
+    error(ErrorKind.EndOfInput)
   }
 
-  fn generic_error(message: String) -> Error[E] {
-    Error.generic(message, @offset)
+  fn was_unexpected(byte: Int) -> Error[E] {
+    Error(ErrorKind.Unexpected(char(byte)), previous_offset)
   }
 
   fn error(kind: ErrorKind[E]) -> Error[E] {
     Error(kind, offset: @offset)
   }
-}
 
-# A parsing rule defined for an `ObjectParser`.
-type pub Rule[T: mut + Read[E], E] {
-  let @id: Int
-  let @parser: fn (mut PullParser[T, E]) -> Result[Nil, Error[E]]
-  let mut @required: Bool
-
-  # Marks this rule as an optional rule.
-  fn pub mut optional {
-    @required = false
-  }
-}
-
-# A type for parsing an object with a known set of keys.
-#
-# # Required vs optional keys
-#
-# By default all keys defined using this type are required. A key can be made
-# optional using `Rule.optional`. For example:
-#
-# ```inko
-# import std.io (Buffer)
-# import std.json (ObjectParser, PullParser)
-#
-# let parser = PullParser.new(Buffer.new('{ "a": 10 }'))
-# let obj = ObjectParser.new
-# let nums = []
-#
-# obj.int('a', fn (v) { nums.push(v) })
-# obj.int('b', fn (v) { nums.push(v) }).optional
-# obj.parse(parser).or_panic_with('failed to parse the JSON')
-# ```
-type pub inline ObjectParser[T: mut + Read[E], E] {
-  # The keys to parse along with the closures that parse their values.
-  let @rules: Map[String, Rule[T, E]]
-
-  # Returns a new, empty `ObjectParser`.
-  fn static new -> ObjectParser[T, E] {
-    ObjectParser(Map.new)
-  }
-
-  # Parses the key `name` as a custom value.
-  #
-  # It's expected that the `value` closure parses the value, advancing the
-  # parser in the process.
-  fn pub mut key(
-    name: String,
-    value: fn (mut PullParser[T, E]) -> Result[Nil, Error[E]],
-  ) -> mut Rule[T, E] {
-    add(name, value)
-  }
-
-  # Parses the key `name` as a `String`, passing the parsed value to the `value`
-  # closure.
-  fn pub mut string(name: String, value: fn (String)) -> mut Rule[T, E] {
-    add(name, fn move (p) { p.string.map(fn (v) { value.call(v) }) })
-  }
-
-  # Parses the key `name` as an `Int`, passing the parsed value to the `value`
-  # closure.
-  fn pub mut int(name: String, value: fn (Int)) -> mut Rule[T, E] {
-    add(name, fn move (p) { p.int.map(fn (v) { value.call(v) }) })
-  }
-
-  # Parses the key `name` as a `Float`, passing the parsed value to the `value`
-  # closure.
-  fn pub mut float(name: String, value: fn (Float)) -> mut Rule[T, E] {
-    add(name, fn move (p) { p.float.map(fn (v) { value.call(v) }) })
-  }
-
-  # Parses the key `name` as a `Bool`, passing the parsed value to the `value`
-  # closure.
-  fn pub mut bool(name: String, value: fn (Bool)) -> mut Rule[T, E] {
-    add(name, fn move (p) { p.bool.map(fn (v) { value.call(v) }) })
-  }
-
-  # Parses the key `name` as an object without a known structure, passing each
-  # key to the `value` closure.
-  #
-  # For more information, refer to the documentation of `PullParser.keys`.
-  fn pub mut keys(
-    name: String,
-    value: fn (mut PullParser[T, E], Int, String) -> Result[Nil, Error[E]],
-  ) -> mut Rule[T, E] {
-    add(name, fn move (p) { p.keys(fn (pos, key) { value.call(p, pos, key) }) })
-  }
-
-  # Parses the key `name` as an array of arbitrary values, using the `value`
-  # closure to parse the values and advance the parser.
-  #
-  # For more information, refer to the documentation of `PullParser.values`.
-  fn pub mut values(
-    name: String,
-    value: fn (mut PullParser[T, E]) -> Result[Nil, Error[E]],
-  ) -> mut Rule[T, E] {
-    add(name, fn move (p) { p.values(fn { value.call(p) }) })
-  }
-
-  # Parses the current object according to the rules in `self`.
-  fn pub mut parse(parser: mut PullParser[T, E]) -> Result[Nil, Error[E]] {
-    let found = Array.filled(with: false, times: @rules.size)
-    let start = try parser.start_of_next_value
-
-    try parser.keys(fn (_pos, key) {
-      match @rules.get_mut(key) {
-        case Ok(rule) -> {
-          found.set(rule.id, true)
-          rule.parser.call(parser)
-        }
-        case _ -> parser.skip
-      }
-    })
-
-    for (k, v) in @rules.iter {
-      if v.required and !found.get(v.id).or_panic {
-        throw Error.generic('the key "${k}" is required', start)
-      }
-    }
-
-    Result.Ok(nil)
-  }
-
-  fn mut add(
-    name: String,
-    parser: fn (mut PullParser[T, E]) -> Result[Nil, Error[E]],
-  ) -> mut Rule[T, E] {
-    let rule = Rule(id: @rules.size, parser: parser, required: true)
-    let ret = mut rule
-
-    @rules.set(name, rule)
-    ret
+  fn previous_offset -> Int {
+    if @offset == 0 { 0 } else { @offset - 1 }
   }
 }
 
@@ -1496,15 +1415,16 @@ type pub Parser[T: mut + Read[E], E] {
   }
 
   fn mut string -> Result[Json, Error[E]] {
-    @pull.string.map(fn (val) { Json.String(val) })
+    Result.Ok(Json.String(try @pull.string))
   }
 
   fn mut bool -> Result[Json, Error[E]] {
-    @pull.bool.map(fn (v) { Json.Bool(v) })
+    Result.Ok(Json.Bool(try @pull.bool))
   }
 
   fn mut null -> Result[Json, Error[E]] {
-    @pull.null.map(fn (_) { Json.Null })
+    try @pull.null
+    Result.Ok(Json.Null)
   }
 
   fn mut array -> Result[Json, Error[E]] {
@@ -1513,21 +1433,30 @@ type pub Parser[T: mut + Read[E], E] {
     let values = []
 
     @depth += 1
-    try @pull.values(fn { Result.Ok(values.push(try value)) })
+
+    try @pull.array
+
+    while try @pull.array_value? {
+      values.push(try value)
+      try @pull.next_value
+    }
+
     @depth -= 1
     Result.Ok(Json.Array(values))
   }
 
   fn mut object -> Result[Json, Error[E]] {
-    try check_depth
-
     let map = Map.new
 
+    try check_depth
     @depth += 1
-    try @pull.keys(fn (_pos, k) {
-      map.set(k, try value)
-      Result.Ok(nil)
-    })
+    try @pull.object
+
+    while try @pull.key? {
+      map.set(try @pull.key, try value)
+      try @pull.next_key
+    }
+
     @depth -= 1
     Result.Ok(Json.Object(map))
   }
