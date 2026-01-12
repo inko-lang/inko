@@ -75,7 +75,7 @@ import std.cmp (Equal)
 import std.fmt (Format as FormatTrait, Formatter)
 import std.int (Format)
 import std.io (BufferedReader, Read)
-import std.string (StringBuffer, ToString)
+import std.string (IntoString, StringBuffer, ToString)
 import std.utf8
 
 let BRACKET_OPEN = 0x5B
@@ -465,6 +465,33 @@ type pub inline enum Json {
   case Bool(Bool)
   case Null
 
+  # Returns an `ObjectBuilder` for building a JSON object.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.json (Json)
+  #
+  # Json.object.string('name', 'Alice').int('age', 42).into_string
+  # # => '{"name": "Alice"}'
+  # ```
+  fn pub static object -> ObjectBuilder {
+    ObjectBuilder(Map.new)
+  }
+
+  # Returns an `ArrayBuilder` for building a JSON array.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.json (Json)
+  #
+  # Json.array.int(10).int(20).into_string # => '[10,20]'
+  # ```
+  fn pub static array -> ArrayBuilder {
+    ArrayBuilder([])
+  }
+
   # Parses a `Read` type into a JSON object.
   #
   # # Examples
@@ -565,6 +592,286 @@ impl Equal for Json {
       case (Null, Null) -> true
       case _ -> false
     }
+  }
+}
+
+# A type for building a JSON object.
+#
+# An `ObjectBuilder` is created using the `Json.object` method and makes it
+# easier to construct a JSON object using a fluent/builder API. Once an object
+# is built it's converted to a `String` using `ObjectBuilder.into_string` or
+# `ObjectBuilder.into_pretty_string`.
+type pub inline ObjectBuilder {
+  let @map: Map[String, Json]
+
+  # Adds a key with its value set to a JSON string.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.json (Json)
+  #
+  # Json.object.string('key', 'value').into_string # => '{"key":"value"}'
+  # ```
+  fn pub move string(key: String, value: String) -> Self {
+    @map.set(key, Json.String(value))
+    self
+  }
+
+  # Adds a key with its value set to a JSON integer.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.json (Json)
+  #
+  # Json.object.int('key', 42).into_string # => '{"key":42}'
+  # ```
+  fn pub move int(key: String, value: Int) -> Self {
+    @map.set(key, Json.Int(value))
+    self
+  }
+
+  # Adds a key with its value set to a JSON float.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.json (Json)
+  #
+  # Json.object.float('key', 42.0).into_string # => '{"key":42.0}'
+  # ```
+  fn pub move float(key: String, value: Float) -> Self {
+    @map.set(key, Json.Float(value))
+    self
+  }
+
+  # Adds a key with its value set to a JSON boolean.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.json (Json)
+  #
+  # Json.object.bool('key', true).into_string # => '{"key":true}'
+  # ```
+  fn pub move bool(key: String, value: Bool) -> Self {
+    @map.set(key, Json.Bool(value))
+    self
+  }
+
+  # Adds a key with its value set to the JSON null value.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.json (Json)
+  #
+  # Json.object.null('key').into_string # => '{"key":null}'
+  # ```
+  fn pub move null(key: String) -> Self {
+    @map.set(key, Json.Null)
+    self
+  }
+
+  # Adds a key with its value set to a JSON object created using another
+  # `ObjectBuilder`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.json (Json)
+  #
+  # Json
+  #   .object
+  #   .object('address', Json.object.string('city', 'Amsterdam'))
+  #   .into_string
+  # # => '{"address":{"city":"Amsterdam"}}'
+  # ```
+  fn pub move object(key: String, value: ObjectBuilder) -> Self {
+    let { @map = other } = value
+
+    @map.set(key, Json.Object(other))
+    self
+  }
+
+  # Adds a key with its value set to a JSON array created using a
+  # `ArrayBuilder`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.json (Json)
+  #
+  # Json
+  #   .object
+  #   .array('numbers', Json.array.int(10).int(20))
+  #   .into_string
+  # # => '{"numbers":[10,20]}'
+  # ```
+  fn pub move array(key: String, value: ArrayBuilder) -> Self {
+    let { @values = other } = value
+
+    @map.set(key, Json.Array(other))
+    self
+  }
+
+  # Converts `self` into a JSON string using indendation for nested values.
+  #
+  # Refer to the documentation of `Json.to_pretty_string` for more details.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.json (Json)
+  #
+  # Json.object.string('key', 'value').into_pretty_string
+  # # => '{\n  "key": "value"\n}'
+  # ```
+  fn pub move into_pretty_string -> String {
+    Json.Object(@map).to_pretty_string
+  }
+}
+
+impl IntoString for ObjectBuilder {
+  fn pub move into_string -> String {
+    Json.Object(@map).to_string
+  }
+}
+
+# A type for building a JSON array.
+#
+# An `ArrayBuilder` is created using the `Json.array` method and makes it easier
+# to construct a JSON array using a fluent/builder API. Once an array is built
+# it's converted to a `String` using `ArrayBuilder.into_string` or
+# `ArrayBuilder.into_pretty_string`.
+type pub inline ArrayBuilder {
+  let @values: Array[Json]
+
+  # Adds a JSON string value.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.json (Json)
+  #
+  # Json.array.string('value').into_string # => '["value"]'
+  # ```
+  fn pub move string(value: String) -> Self {
+    @values.push(Json.String(value))
+    self
+  }
+
+  # Adds a JSON int value.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.json (Json)
+  #
+  # Json.array.int(42).into_string # => '[42]'
+  # ```
+  fn pub move int(value: Int) -> Self {
+    @values.push(Json.Int(value))
+    self
+  }
+
+  # Adds a JSON float value.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.json (Json)
+  #
+  # Json.array.float(42.0).into_string # => '[42.0]'
+  # ```
+  fn pub move float(value: Float) -> Self {
+    @values.push(Json.Float(value))
+    self
+  }
+
+  # Adds a JSON boolean value.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.json (Json)
+  #
+  # Json.array.bool(true).into_string # => '[true]'
+  # ```
+  fn pub move bool(value: Bool) -> Self {
+    @values.push(Json.Bool(value))
+    self
+  }
+
+  # Adds a JSON null value.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.json (Json)
+  #
+  # Json.array.null.into_string # => '[null]'
+  # ```
+  fn pub move null -> Self {
+    @values.push(Json.Null)
+    self
+  }
+
+  # Adds a JSON object created using an `ObjectBuilder`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.json (Json)
+  #
+  # Json.array.object(Json.object.string('key', 'value')).into_string
+  # # => '[{"key":"value"}]'
+  # ```
+  fn pub move object(value: ObjectBuilder) -> Self {
+    let { @map = other } = value
+
+    @values.push(Json.Object(other))
+    self
+  }
+
+  # Adds a JSON array created using another `ArrayBuilder`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.json (Json)
+  #
+  # Json.array.array(Json.array.int(10)).into_string
+  # # => '[[10]]'
+  # ```
+  fn pub move array(value: ArrayBuilder) -> Self {
+    let { @values = other } = value
+
+    @values.push(Json.Array(other))
+    self
+  }
+
+  # Converts `self` into a JSON string using indendation for nested values.
+  #
+  # Refer to the documentation of `Json.to_pretty_string` for more details.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.json (Json)
+  #
+  # Json.array.int(10).into_pretty_string
+  # # => '[\n  10\n]'
+  # ```
+  fn pub move into_pretty_string -> String {
+    Json.Array(@values).to_pretty_string
+  }
+}
+
+impl IntoString for ArrayBuilder {
+  fn pub move into_string -> String {
+    Json.Array(@values).to_string
   }
 }
 

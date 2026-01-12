@@ -880,4 +880,139 @@ fn pub tests(t: mut Tests) {
     t.equal(Json.Bool(false).query.as_bool, Option.Some(false))
     t.equal(Json.Int(42).query.as_bool, Option.None)
   })
+
+  t.test('ObjectBuilder.string', fn (t) {
+    let obj = Json.object.string('key', 'value')
+
+    t.equal(obj.map.get('key'), Result.Ok(ref Json.String('value')))
+  })
+
+  t.test('ObjectBuilder.int', fn (t) {
+    let obj = Json.object.int('key', 42)
+
+    t.equal(obj.map.get('key'), Result.Ok(ref Json.Int(42)))
+  })
+
+  t.test('ObjectBuilder.float', fn (t) {
+    let obj = Json.object.float('key', 42.0)
+
+    t.equal(obj.map.get('key'), Result.Ok(ref Json.Float(42.0)))
+  })
+
+  t.test('ObjectBuilder.bool', fn (t) {
+    let obj = Json.object.bool('key', true)
+
+    t.equal(obj.map.get('key'), Result.Ok(ref Json.Bool(true)))
+  })
+
+  t.test('ObjectBuilder.null', fn (t) {
+    let obj = Json.object.null('key')
+
+    t.equal(obj.map.get('key'), Result.Ok(ref Json.Null))
+  })
+
+  t.test('ObjectBuilder.object', fn (t) {
+    let obj = Json.object.object('key', Json.object.string('sub', 'value'))
+
+    t.equal(
+      obj.map.get('key'),
+      Result.Ok(
+        ref Json.Object(
+          {
+            let map = Map.new
+
+            map.set('sub', Json.String('value'))
+            map
+          },
+        ),
+      ),
+    )
+  })
+
+  t.test('ObjectBuilder.array', fn (t) {
+    let obj = Json.object.array('key', Json.array.int(10).int(20))
+
+    t.equal(
+      obj.map.get('key'),
+      Result.Ok(ref Json.Array([Json.Int(10), Json.Int(20)])),
+    )
+  })
+
+  t.test('ObjectBuilder.into_pretty_string', fn (t) {
+    let val = Json.object.string('key', 'value').into_pretty_string
+
+    t.equal(val, '{\n  "key": "value"\n}')
+  })
+
+  t.test('ObjectBuilder.into_string', fn (t) {
+    let val = Json.object.string('key', 'value').into_string
+
+    t.equal(val, '{"key": "value"}')
+  })
+
+  t.test('ArrayBuilder.string', fn (t) {
+    let ary = Json.array.string('value')
+
+    t.equal(ary.values, ref [Json.String('value')])
+  })
+
+  t.test('ArrayBuilder.int', fn (t) {
+    let ary = Json.array.int(10)
+
+    t.equal(ary.values, ref [Json.Int(10)])
+  })
+
+  t.test('ArrayBuilder.float', fn (t) {
+    let ary = Json.array.float(10.0)
+
+    t.equal(ary.values, ref [Json.Float(10.0)])
+  })
+
+  t.test('ArrayBuilder.bool', fn (t) {
+    let ary = Json.array.bool(true)
+
+    t.equal(ary.values, ref [Json.Bool(true)])
+  })
+
+  t.test('ArrayBuilder.null', fn (t) {
+    let ary = Json.array.null
+
+    t.equal(ary.values, ref [Json.Null])
+  })
+
+  t.test('ArrayBuilder.object', fn (t) {
+    let ary = Json.array.object(Json.object.string('key', 'value'))
+
+    t.equal(
+      ary.values,
+      ref [
+        Json.Object(
+          {
+            let map = Map.new
+
+            map.set('key', Json.String('value'))
+            map
+          },
+        ),
+      ],
+    )
+  })
+
+  t.test('ArrayBuilder.array', fn (t) {
+    let ary = Json.array.array(Json.array.int(10).int(20))
+
+    t.equal(ary.values, ref [Json.Array([Json.Int(10), Json.Int(20)])])
+  })
+
+  t.test('ArrayBuilder.into_pretty_string', fn (t) {
+    let val = Json.array.int(10).into_pretty_string
+
+    t.equal(val, '[\n  10\n]')
+  })
+
+  t.test('ArrayBuilder.into_string', fn (t) {
+    let val = Json.array.int(10).into_string
+
+    t.equal(val, '[10]')
+  })
 }
