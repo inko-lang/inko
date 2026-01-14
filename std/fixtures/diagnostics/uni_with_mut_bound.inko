@@ -1,0 +1,15 @@
+type Thing {}
+
+type Box[T] {
+  let @value: T
+}
+
+impl Box if T: mut {
+  fn mut update {}
+}
+
+fn example1(value: uni Thing) {
+  Box(value).update
+}
+
+# uni_with_mut_bound.inko:12:14 error(invalid-symbol): the method 'update' exists but isn't available because one or more type parameter bounds aren't met

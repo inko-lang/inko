@@ -365,6 +365,13 @@ impl<'a> TypeChecker<'a> {
                 return false;
             }
 
+            // Unique values can't be assigned to `T: mut` bounds (e.g. in an
+            // `impl ... if T: mut { ... }` block) because that could allow
+            // storing non-sendable data in the unique value.
+            if val.is_uni_value(self.db) && bound.is_mutable(self.db) {
+                return false;
+            }
+
             bound.requirements(self.db).into_iter().all(|r| {
                 self.check_type_ref_with_trait(val, r, &mut env, rules)
             })
@@ -494,7 +501,14 @@ impl<'a> TypeChecker<'a> {
                         Ownership::Owned => {
                             rules.uni_compatible_with_owned || is_val
                         }
-                        Ownership::Any | Ownership::Uni => true,
+                        // Unique values can't be passed to `T: mut` type
+                        // parameters as this would allow violating its
+                        // uniqueness constraint by putting aliases _into_ the
+                        // unique value.
+                        Ownership::Any => !id
+                            .required(self.db)
+                            .is_some_and(|p| p.is_mutable(self.db)),
+                        Ownership::Uni => true,
                         _ => false,
                     };
 
@@ -1709,6 +1723,22 @@ mod tests {
         check_err(&db, uni(instance(foo)), mutable(instance(foo)));
         check_err(&db, uni(instance(foo)), uni(instance(bar)));
         check_err(&db, uni(instance(foo)), TypeRef::Never);
+    }
+
+    #[test]
+    fn test_uni_with_mutable_placeholder() {
+        let mut db = Database::new();
+        let foo = new_type(&mut db, "Foo");
+        let param = new_parameter(&mut db, "T");
+        let var1 = TypePlaceholder::alloc(&mut db, Some(param));
+        let var2 = TypePlaceholder::alloc(&mut db, Some(param));
+
+        param.set_mutable(&mut db);
+
+        check_err(&db, uni(instance(foo)), placeholder(var1));
+        check_err(&db, uni(instance(foo)), placeholder(var1.as_mut()));
+        check_ok(&db, uni(instance(foo)), placeholder(var1.as_owned()));
+        check_ok(&db, uni(instance(foo)), placeholder(var2.as_uni()));
     }
 
     #[test]

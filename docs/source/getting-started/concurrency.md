@@ -116,6 +116,20 @@ restrictions:
 This effectively means they can only be used as method call receivers, provided
 the method is available as discussed below.
 
+### Generics
+
+A unique value may be assigned to a type parameter provided the parameters
+requirements (e.g. the required traits) are satisfied, with one exception: if a
+type parameter requires the `mut` capability, it can't be assigned a `uni T`
+value. This limitation exists as otherwise it's possible to violate the
+uniqueness constraint through generic code, such as by storing non-sendable data
+in the `uni T` value.
+
+::: tip
+For more details about this limitation refer to [this
+issue](https://github.com/inko-lang/inko/issues/840).
+:::
+
 ## Unique values and method calls
 
 Calling methods on unique values is possible as long as the compiler is able to

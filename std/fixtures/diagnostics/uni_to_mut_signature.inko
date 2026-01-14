@@ -1,0 +1,11 @@
+type Thing {}
+
+type Foo[T: mut] {
+  let @value: T
+}
+
+fn example1(value: Foo[uni Thing]) {}
+
+fn example2(value: Foo[Thing]) {}
+
+# uni_to_mut_signature.inko:7:24 error(invalid-type): 'uni Thing' can't be assigned to type parameter 'T: mut'

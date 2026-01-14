@@ -1,0 +1,35 @@
+type Thing {}
+
+type Box[T: mut] {
+  let @value: T
+}
+
+type BoxOpt[T: mut] {
+  let mut @value: Option[T]
+}
+
+fn foo[T: mut](value: T) {}
+
+fn example1(value: uni Thing) {
+  foo(value)
+}
+
+fn example2(value: uni Thing) {
+  Box(value: value)
+}
+
+fn example3(value: uni Thing) {
+  let box: Box[uni Thing] = Box(value)
+}
+
+fn example4(value: uni Thing) {
+  let box = BoxOpt(Option.None)
+
+  box.value = Option.Some(value)
+}
+
+# pass_uni_to_mut.inko:14:7 error(invalid-type): expected a value of type 'T: mut', found 'uni Thing'
+# pass_uni_to_mut.inko:18:14 error(invalid-type): expected a value of type 'T: mut', found 'uni Thing'
+# pass_uni_to_mut.inko:22:33 error(invalid-type): expected a value of type 'T: mut', found 'uni Thing'
+# pass_uni_to_mut.inko:22:16 error(invalid-type): 'uni Thing' can't be assigned to type parameter 'T: mut'
+# pass_uni_to_mut.inko:28:3 error(invalid-type): expected a value of type 'Option[T: mut]', found 'Option[uni Thing]'

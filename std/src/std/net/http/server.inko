@@ -2521,7 +2521,7 @@ type inline enum SocketServer {
             sock.timeout_after = timeout
 
             recover {
-              match tls.Server.new(sock, c.clone) {
+              match tls.Server.new(recover sock, c.clone) {
                 case Ok(v) -> Socket.secure(v)
                 case _ -> throw IoError.ConnectionAborted
               }
@@ -2531,7 +2531,7 @@ type inline enum SocketServer {
             sock.timeout_after = timeout
 
             let pending = recover {
-              match tls.PendingServer.new(sock) {
+              match tls.PendingServer.new(recover sock) {
                 case Ok(v) -> v
                 case _ -> throw IoError.ConnectionAborted
               }
