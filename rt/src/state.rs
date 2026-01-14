@@ -149,23 +149,14 @@ impl State {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    macro_rules! offset_of {
-        ($value: expr, $field: ident) => {{
-            (std::ptr::addr_of!($value.$field) as usize)
-                - (&*$value as *const _ as usize)
-        }};
-    }
+    use std::mem::offset_of;
 
     #[test]
     fn test_field_offsets() {
-        let config = Config::new();
-        let state = State::new(config, Vec::new());
-
         // These offsets are tested against because the runtime makes use of
         // them.
-        assert_eq!(offset_of!(state, hash_key0), 0);
-        assert_eq!(offset_of!(state, hash_key1), 8);
-        assert_eq!(offset_of!(state, cores), 24);
+        assert_eq!(offset_of!(State, hash_key0), 0);
+        assert_eq!(offset_of!(State, hash_key1), 8);
+        assert_eq!(offset_of!(State, cores), 24);
     }
 }

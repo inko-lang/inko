@@ -142,8 +142,8 @@ mod tests {
 
     #[test]
     fn test_add() {
-        let typ = empty_process_type("A");
-        let process = new_process(*typ);
+        let typ = empty_process_type();
+        let process = new_process(typ.as_pointer());
         let output = UdpSocket::bind("0.0.0.0:0").unwrap();
         let poller = NetworkPoller::new();
 
@@ -154,8 +154,8 @@ mod tests {
     fn test_modify() {
         let output = UdpSocket::bind("0.0.0.0:0").unwrap();
         let poller = NetworkPoller::new();
-        let typ = empty_process_type("A");
-        let process = new_process(*typ);
+        let typ = empty_process_type();
+        let process = new_process(typ.as_pointer());
 
         poller.add(*process, &output, Interest::Read);
         poller.modify(*process, &output, Interest::Write);
@@ -165,8 +165,8 @@ mod tests {
     fn test_delete() {
         let output = UdpSocket::bind("0.0.0.0:0").unwrap();
         let poller = NetworkPoller::new();
-        let typ = empty_process_type("A");
-        let process = new_process(*typ);
+        let typ = empty_process_type();
+        let process = new_process(typ.as_pointer());
 
         poller.add(*process, &output, Interest::Write);
         poller.delete(&output, Interest::Write);
@@ -176,8 +176,8 @@ mod tests {
     fn test_poll() {
         let output = UdpSocket::bind("0.0.0.0:0").unwrap();
         let poller = NetworkPoller::new();
-        let typ = empty_process_type("A");
-        let process = new_process(*typ);
+        let typ = empty_process_type();
+        let process = new_process(typ.as_pointer());
         let mut events = Vec::with_capacity(1);
 
         poller.add(*process, &output, Interest::Write);
@@ -191,8 +191,8 @@ mod tests {
     fn test_poll_with_bits() {
         let output = UdpSocket::bind("0.0.0.0:0").unwrap();
         let poller = NetworkPoller::new();
-        let typ = empty_process_type("A");
-        let process = new_process(*typ);
+        let typ = empty_process_type();
+        let process = new_process(typ.as_pointer());
         let mut events = Vec::with_capacity(1);
 
         let tagged =
@@ -210,9 +210,9 @@ mod tests {
         let sock1 = UdpSocket::bind("0.0.0.0:0").unwrap();
         let sock2 = UdpSocket::bind("0.0.0.0:0").unwrap();
         let poller = NetworkPoller::new();
-        let typ = empty_process_type("A");
-        let proc1 = new_process(*typ);
-        let proc2 = new_process(*typ);
+        let typ = empty_process_type();
+        let proc1 = new_process(typ.as_pointer());
+        let proc2 = new_process(typ.as_pointer());
         let mut events = Vec::with_capacity(1);
 
         poller.add(*proc1, &sock1, Interest::Write);

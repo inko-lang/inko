@@ -966,8 +966,8 @@ mod tests {
 
     #[test]
     fn test_thread_schedule() {
-        let typ = empty_process_type("A");
-        let process = new_process(*typ).take_and_forget();
+        let typ = empty_process_type();
+        let process = new_process(typ.as_pointer()).take_and_forget();
         let scheduler = Scheduler::new(1, 1);
         let mut thread = Thread::new(0, scheduler.pool.clone());
 
@@ -979,8 +979,9 @@ mod tests {
 
     #[test]
     fn test_thread_run_with_local_job() {
-        let typ = empty_process_type("A");
-        let process = new_process_with_message(*typ, method).take_and_forget();
+        let typ = empty_process_type();
+        let process = new_process_with_message(typ.as_pointer(), method)
+            .take_and_forget();
         let state = setup();
         let mut thread = Thread::new(0, state.scheduler.pool.clone());
 
@@ -992,8 +993,9 @@ mod tests {
 
     #[test]
     fn test_thread_run_with_stolen_job() {
-        let typ = empty_process_type("A");
-        let process = new_process_with_message(*typ, method).take_and_forget();
+        let typ = empty_process_type();
+        let process = new_process_with_message(typ.as_pointer(), method)
+            .take_and_forget();
         let state = setup();
         let mut thread0 = Thread::new(0, state.scheduler.pool.clone());
         let mut thread1 = Thread::new(1, state.scheduler.pool.clone());
@@ -1007,8 +1009,9 @@ mod tests {
 
     #[test]
     fn test_thread_run_with_global_job() {
-        let typ = empty_process_type("A");
-        let process = new_process_with_message(*typ, method).take_and_forget();
+        let typ = empty_process_type();
+        let process = new_process_with_message(typ.as_pointer(), method)
+            .take_and_forget();
         let state = setup();
         let mut thread = Thread::new(0, state.scheduler.pool.clone());
 
@@ -1021,8 +1024,9 @@ mod tests {
 
     #[test]
     fn test_thread_run_as_backup() {
-        let typ = empty_process_type("A");
-        let process = new_process_with_message(*typ, method).take_and_forget();
+        let typ = empty_process_type();
+        let process = new_process_with_message(typ.as_pointer(), method)
+            .take_and_forget();
         let state = setup();
         let mut thread = Thread::new(0, state.scheduler.pool.clone());
 
@@ -1043,8 +1047,8 @@ mod tests {
 
     #[test]
     fn test_thread_start_blocking() {
-        let typ = empty_process_type("A");
-        let proc = new_process(*typ).take_and_forget();
+        let typ = empty_process_type();
+        let proc = new_process(typ.as_pointer()).take_and_forget();
         let state = setup();
         let pool = &state.scheduler.pool;
         let mut thread = Thread::new(0, pool.clone());
@@ -1066,8 +1070,8 @@ mod tests {
         let state = setup();
         let pool = &state.scheduler.pool;
         let mut thread = Thread::new(1, pool.clone());
-        let typ = empty_process_type("A");
-        let process = new_process(*typ).take_and_forget();
+        let typ = empty_process_type();
+        let process = new_process(typ.as_pointer()).take_and_forget();
 
         thread.start_blocking();
         thread.stop_blocking(process);
@@ -1091,8 +1095,8 @@ mod tests {
         let state = setup();
         let pool = &state.scheduler.pool;
         let mut thread = Thread::new(0, pool.clone());
-        let typ = empty_process_type("A");
-        let process = new_process(*typ).take_and_forget();
+        let typ = empty_process_type();
+        let process = new_process(typ.as_pointer()).take_and_forget();
 
         thread.start_blocking();
         thread.start_blocking();
@@ -1118,8 +1122,9 @@ mod tests {
 
     #[test]
     fn test_thread_start_blocking_without_stop_blocking() {
-        let typ = empty_process_type("A");
-        let proc = new_process_with_message(*typ, method).take_and_forget();
+        let typ = empty_process_type();
+        let proc = new_process_with_message(typ.as_pointer(), method)
+            .take_and_forget();
         let state = setup();
         let pool = &state.scheduler.pool;
         let mut thread = Thread::new(0, pool.clone());

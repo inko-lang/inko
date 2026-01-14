@@ -71,7 +71,7 @@ pub(crate) struct Methods {
 
     /// The number of method slots for each type.
     ///
-    /// This `Vec` is indexed using `ClassId` values.
+    /// This `Vec` is indexed using `TypeId` values.
     pub(crate) counts: Vec<usize>,
 }
 

@@ -448,6 +448,7 @@ impl<'a> Worker<'a> {
         let layouts = Layouts::new(
             self.shared.state,
             self.shared.mir,
+            self.shared.methods,
             &context,
             &target_data,
         );
@@ -634,65 +635,44 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
     }
 
     fn setup_types(&mut self) {
-        let mod_id = self.shared.mir.modules[self.index].id;
-        let fn_name = &self.shared.names.setup_types[&mod_id];
-        let fn_val = self.module.add_setup_function(fn_name);
-        let builder = Builder::new(self.module.context, fn_val);
-        let entry_block = self.module.context.append_basic_block(fn_val);
+        let ctx = self.module.context;
 
-        builder.switch_to_block(entry_block);
-
-        let body = self.module.context.append_basic_block(fn_val);
-
-        builder.jump(body);
-        builder.switch_to_block(body);
-
-        // Allocate all types defined in this module, and store them in their
-        // corresponding globals.
         for &tid in &self.shared.mir.modules[self.index].types {
-            let raw_name = tid.name(&self.shared.state.db);
-            let name_ptr = builder.string_literal(raw_name).0.into();
-            let methods_len = self
-                .module
-                .context
-                .i16_type()
-                .const_int(
-                    self.shared.methods.counts[tid.0 as usize] as _,
-                    false,
-                )
-                .into();
+            let tidx = tid.0 as usize;
 
-            let type_new = if tid.kind(&self.shared.state.db).is_async() {
-                self.module.runtime_function(RuntimeFunction::NewProcess)
-            } else {
-                self.module.runtime_function(RuntimeFunction::NewType)
-            };
+            if !tid.is_heap_allocated(&self.shared.state.db) {
+                continue;
+            }
 
+            // Define the name of the type as a static C string.
+            let type_name = tid.name(&self.shared.state.db);
+            let (type_name_typ, type_name_val) =
+                ctx.null_terminated_string(type_name.as_bytes());
+            let type_name_global = self.module.add_global(type_name_typ, "");
+
+            type_name_global.set_linkage(Linkage::Private);
+            type_name_global.set_initializer(&type_name_val);
+            type_name_global.set_unnamed_addr(true);
+
+            let type_name_ptr = type_name_global.as_pointer_value();
+            let methods_len = self.shared.methods.counts[tidx];
             let global_name = &self.shared.names.types[&tid];
-            let global = self.module.add_type(global_name);
+            let global_typ = self.layouts.types[tidx];
+            let global = self.module.add_type(global_name, global_typ);
 
-            // The type globals must have an initializer, otherwise LLVM treats
-            // them as external globals.
-            global.set_initializer(
-                &builder
-                    .context
-                    .pointer_type()
-                    .const_null()
-                    .as_basic_value_enum(),
-            );
-
-            let size = builder.int_to_int(
-                self.layouts.instances[tid.0 as usize].size_of().unwrap(),
-                32,
+            // The size of the type.
+            let size = ctx.i32_type().const_int(
+                self.layouts
+                    .target_data
+                    .get_abi_size(&self.layouts.instances[tidx]),
                 false,
             );
 
-            let type_ptr = builder
-                .call_with_return(
-                    type_new,
-                    &[name_ptr, size.into(), methods_len],
-                )
-                .into_pointer_value();
+            // Populate the method slots of the type. The method slots don't
+            // necessarily match the order in which they're defined, so we
+            // create an initial list with dummy methods that we then overwrite.
+            let mut methods =
+                vec![self.layouts.method.const_zero(); methods_len];
 
             for method in &self.shared.mir.types[&tid].methods {
                 // Static methods aren't stored in types, nor can we call them
@@ -710,32 +690,26 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
                     .as_global_value()
                     .as_pointer_value();
 
-                let slot = builder.u32_literal(info.index as u32);
-                let method_addr = builder.array_field_index_address(
-                    self.layouts.empty_type,
-                    type_ptr,
-                    TYPE_METHODS_INDEX,
-                    slot,
-                );
+                let slot = info.index as usize;
+                let hash = ctx.i64_type().const_int(info.hash, false);
 
-                let hash = builder.u64_literal(info.hash);
-                let layout = self.layouts.method;
-                let hash_idx = METHOD_HASH_INDEX;
-                let func_idx = METHOD_FUNCTION_INDEX;
-                let var = builder.new_temporary(self.layouts.method);
-
-                builder.store_field(layout, var, hash_idx, hash);
-                builder.store_field(layout, var, func_idx, func);
-
-                let method = builder.load(layout, var);
-
-                builder.store(method_addr, method);
+                methods[slot] = self
+                    .layouts
+                    .method
+                    .const_named_struct(&[hash.into(), func.into()]);
             }
 
-            builder.store(global.as_pointer_value(), type_ptr);
-        }
+            // The number of methods the type has.
+            let methods_len_val =
+                ctx.i16_type().const_int(methods_len as _, false);
 
-        builder.return_value(None);
+            global.set_initializer(&global_typ.const_named_struct(&[
+                type_name_ptr.into(),
+                size.into(),
+                methods_len_val.into(),
+                self.layouts.method.const_array(&methods).into(),
+            ]));
+        }
     }
 
     fn setup_constants(&mut self) {
@@ -850,6 +824,7 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
                 buf_global.set_initializer(
                     &buf_typ.const_zero().as_basic_value_enum(),
                 );
+                buf_global.set_unnamed_addr(true);
 
                 for (index, arg) in vals.iter().enumerate() {
                     let val = self.permanent_value(builder, arg);
@@ -880,6 +855,7 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
 
         global.set_linkage(Linkage::Private);
         global.set_initializer(&bytes.as_basic_value_enum());
+        global.set_unnamed_addr(true);
 
         // This is the size of the string _minus_ the trailing NULL byte.
         let len = builder.u64_literal(value.len() as u64);
@@ -2493,10 +2469,14 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
             Instruction::Spawn(ins) => {
                 self.set_debug_location(ins.location);
 
+                let tid = ins.type_id;
                 let reg_var = self.variables[&ins.register];
-                let name = &self.shared.names.types[&ins.type_id];
-                let global = self.module.add_type(name).as_pointer_value();
-                let proc_type = self.builder.load_pointer(global).into();
+                let name = &self.shared.names.types[&tid];
+                let proc_type = self
+                    .module
+                    .add_type(name, self.layouts.types[tid.0 as usize])
+                    .as_pointer_value()
+                    .into();
                 let func =
                     self.module.runtime_function(RuntimeFunction::ProcessNew);
                 let ptr = self.builder.call_with_return(func, &[proc_type]);
@@ -3038,18 +3018,6 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
 
         self.builder.store(stack_size_global.as_pointer_value(), stack_size);
 
-        // Allocate and store all the types in their corresponding globals.
-        // We iterate over the values here and below such that the order is
-        // stable between compilations. This doesn't matter for the code that we
-        // generate here, but it makes it easier to inspect the resulting
-        // executable (e.g. using `objdump --disassemble`).
-        for module in self.mir.modules.values() {
-            let name = &self.names.setup_types[&module.id];
-            let func = self.module.add_setup_function(name);
-
-            self.builder.direct_call(func, &[]);
-        }
-
         // Constants need to be defined in a separate pass, as they may depends
         // on the types (e.g. array constants need the Array type to be set
         // up).
@@ -3062,7 +3030,7 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
 
         let main_tid = self.db.main_type().unwrap();
         let main_method_id = self.db.main_method().unwrap();
-        let main_type_ptr = self
+        let main_type = self
             .module
             .add_global_pointer(&self.names.types[&main_tid])
             .as_pointer_value();
@@ -3079,8 +3047,6 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
             )
             .as_global_value()
             .as_pointer_value();
-
-        let main_type = self.builder.load_pointer(main_type_ptr);
 
         self.builder.direct_call(
             rt_start,

@@ -45,7 +45,7 @@ pub(crate) fn panic(process: ProcessPointer, message: &str) -> ! {
     let _ = write!(
         buffer,
         "\nProcess '{}' ({:#x}) panicked: {}",
-        process.header.instance_of.name,
+        unsafe { process.header.instance_of.name() },
         process.identifier(),
         message
     );

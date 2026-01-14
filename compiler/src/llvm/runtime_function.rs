@@ -6,8 +6,6 @@ pub(crate) enum RuntimeFunction {
     AllocationError,
     Free,
     Malloc,
-    NewProcess,
-    NewType,
     ProcessFinishMessage,
     ProcessNew,
     ProcessSendMessage,
@@ -26,8 +24,6 @@ impl RuntimeFunction {
             RuntimeFunction::ReferenceCountError => {
                 "inko_reference_count_error"
             }
-            RuntimeFunction::NewType => "inko_type_object",
-            RuntimeFunction::NewProcess => "inko_type_process",
             RuntimeFunction::ProcessFinishMessage => {
                 "inko_process_finish_message"
             }
@@ -97,14 +93,6 @@ impl RuntimeFunction {
                 let ret = context.pointer_type();
 
                 ret.fn_type(&[runtime], false)
-            }
-            RuntimeFunction::NewType | RuntimeFunction::NewProcess => {
-                let name = context.pointer_type().into();
-                let size = context.i32_type().into();
-                let methods = context.i16_type().into();
-                let ret = context.pointer_type();
-
-                ret.fn_type(&[name, size, methods], false)
             }
             RuntimeFunction::ProcessSendMessage => {
                 let state = context.pointer_type().into();

@@ -734,15 +734,8 @@ mod tests {
     use super::*;
     use crate::mem::page_size;
     use crate::test::{empty_process_type, OwnedProcess};
-    use std::mem::size_of;
+    use std::mem::{offset_of, size_of};
     use std::num::NonZeroU64;
-
-    macro_rules! offset_of {
-        ($value: expr, $field: ident) => {{
-            (std::ptr::addr_of!($value.$field) as usize)
-                .saturating_sub($value.0.as_ptr() as usize)
-        }};
-    }
 
     unsafe extern "system" fn method(_ctx: *mut u8) {
         // This function is used for testing the sending/receiving of messages.
@@ -768,12 +761,9 @@ mod tests {
 
     #[test]
     fn test_field_offsets() {
-        let proc_type = empty_process_type("A");
-        let proc = OwnedProcess::new(Process::alloc(*proc_type));
-
-        assert_eq!(offset_of!(proc, header), 0);
+        assert_eq!(offset_of!(Process, header), 0);
         assert_eq!(
-            offset_of!(proc, fields),
+            offset_of!(Process, fields),
             if cfg!(any(target_os = "linux", target_os = "freebsd")) {
                 104
             } else {
@@ -971,24 +961,25 @@ mod tests {
 
     #[test]
     fn test_process_new() {
-        let typ = empty_process_type("A");
-        let process = OwnedProcess::new(Process::alloc(*typ));
+        let typ = empty_process_type();
+        let process = OwnedProcess::new(Process::alloc(typ.as_pointer()));
 
-        assert_eq!(process.header.instance_of, typ.0);
+        assert_eq!(process.header.instance_of, typ.as_pointer());
     }
 
     #[test]
     fn test_process_main() {
-        let proc_type = empty_process_type("A");
-        let process = OwnedProcess::new(Process::main(*proc_type, method));
+        let typ = empty_process_type();
+        let process =
+            OwnedProcess::new(Process::main(typ.as_pointer(), method));
 
         assert!(process.is_main());
     }
 
     #[test]
     fn test_process_set_main() {
-        let typ = empty_process_type("A");
-        let mut process = OwnedProcess::new(Process::alloc(*typ));
+        let typ = empty_process_type();
+        let mut process = OwnedProcess::new(Process::alloc(typ.as_pointer()));
 
         assert!(!process.is_main());
 
@@ -998,8 +989,8 @@ mod tests {
 
     #[test]
     fn test_process_state_suspend() {
-        let typ = empty_process_type("A");
-        let process = OwnedProcess::new(Process::alloc(*typ));
+        let typ = empty_process_type();
+        let process = OwnedProcess::new(Process::alloc(typ.as_pointer()));
 
         process.state().suspend(TimeoutId(NonZeroU64::new(1).unwrap()));
 
@@ -1009,8 +1000,8 @@ mod tests {
 
     #[test]
     fn test_process_timeout_expired() {
-        let typ = empty_process_type("A");
-        let process = OwnedProcess::new(Process::alloc(*typ));
+        let typ = empty_process_type();
+        let process = OwnedProcess::new(Process::alloc(typ.as_pointer()));
 
         assert!(!process.timeout_expired());
 
@@ -1038,8 +1029,8 @@ mod tests {
 
     #[test]
     fn test_process_send_message() {
-        let proc_type = empty_process_type("A");
-        let mut process = OwnedProcess::new(Process::alloc(*proc_type));
+        let typ = empty_process_type();
+        let mut process = OwnedProcess::new(Process::alloc(typ.as_pointer()));
         let msg = Message { method, data: null_mut() };
 
         assert_eq!(process.send_message(msg), RescheduleRights::Acquired);
@@ -1048,8 +1039,8 @@ mod tests {
 
     #[test]
     fn test_process_next_task_without_messages() {
-        let proc_type = empty_process_type("A");
-        let mut process = OwnedProcess::new(Process::alloc(*proc_type));
+        let typ = empty_process_type();
+        let mut process = OwnedProcess::new(Process::alloc(typ.as_pointer()));
         let conf = Config::new();
 
         assert!(matches!(process.next_task(&conf), Task::Wait));
@@ -1057,8 +1048,8 @@ mod tests {
 
     #[test]
     fn test_process_next_task_with_new_message() {
-        let proc_type = empty_process_type("A");
-        let mut process = OwnedProcess::new(Process::alloc(*proc_type));
+        let typ = empty_process_type();
+        let mut process = OwnedProcess::new(Process::alloc(typ.as_pointer()));
         let msg = Message { method, data: null_mut() };
         let conf = Config::new();
 
@@ -1068,8 +1059,8 @@ mod tests {
 
     #[test]
     fn test_process_next_task_with_existing_message() {
-        let proc_type = empty_process_type("A");
-        let mut process = OwnedProcess::new(Process::alloc(*proc_type));
+        let typ = empty_process_type();
+        let mut process = OwnedProcess::new(Process::alloc(typ.as_pointer()));
         let msg1 = Message { method, data: null_mut() };
         let msg2 = Message { method, data: null_mut() };
         let conf = Config::new();
@@ -1083,8 +1074,8 @@ mod tests {
 
     #[test]
     fn test_process_finish_message() {
-        let proc_type = empty_process_type("A");
-        let mut process = OwnedProcess::new(Process::alloc(*proc_type));
+        let typ = empty_process_type();
+        let mut process = OwnedProcess::new(Process::alloc(typ.as_pointer()));
 
         assert!(!process.finish_message());
         assert!(process.state().status.is_waiting_for_message());

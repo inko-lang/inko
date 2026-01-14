@@ -302,21 +302,6 @@ impl<'ctx> Builder<'ctx> {
         self.context.f64_type().const_float(value)
     }
 
-    pub(crate) fn string_literal(
-        &self,
-        value: &str,
-    ) -> (PointerValue<'ctx>, IntValue<'ctx>) {
-        let string = self
-            .inner
-            .build_global_string_ptr(value, "")
-            .unwrap()
-            .as_pointer_value();
-
-        let len = self.u64_literal(value.len() as _);
-
-        (string, len)
-    }
-
     pub(crate) fn atomic_add(
         &self,
         pointer: PointerValue<'ctx>,
@@ -821,8 +806,9 @@ impl<'ctx> Builder<'ctx> {
     ) -> PointerValue<'ctx> {
         let atomic = type_id.is_atomic(db);
         let name = &names.types[&type_id];
-        let global = module.add_type(name).as_pointer_value();
-        let type_ptr = self.load_pointer(global);
+        let type_ptr = module
+            .add_type(name, module.layouts.types[type_id.0 as usize])
+            .as_pointer_value();
         let typ = module.layouts.instances[type_id.0 as usize];
         let res = self.malloc(module, typ);
         let header = module.layouts.header;

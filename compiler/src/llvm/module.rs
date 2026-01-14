@@ -5,7 +5,7 @@ use crate::llvm::runtime_function::RuntimeFunction;
 use crate::symbol_names::SYMBOL_PREFIX;
 use inkwell::attributes::AttributeLoc;
 use inkwell::intrinsics::Intrinsic;
-use inkwell::types::{BasicType, BasicTypeEnum};
+use inkwell::types::{BasicType, BasicTypeEnum, StructType};
 use inkwell::values::{BasicValue, FunctionValue, GlobalValue};
 use inkwell::{module, AddressSpace};
 use std::collections::HashMap;
@@ -84,12 +84,13 @@ impl<'a, 'ctx> Module<'a, 'ctx> {
             .unwrap_or_else(|| self.add_global_pointer(name))
     }
 
-    pub(crate) fn add_type(&self, name: &str) -> GlobalValue<'ctx> {
+    pub(crate) fn add_type(
+        &self,
+        name: &str,
+        typ: StructType<'ctx>,
+    ) -> GlobalValue<'ctx> {
         self.inner.get_global(name).unwrap_or_else(|| {
-            let typ = self.context.pointer_type();
-            let space = typ.get_address_space();
-
-            self.inner.add_global(typ, Some(space), name)
+            self.inner.add_global(typ, Some(AddressSpace::default()), name)
         })
     }
 
@@ -134,7 +135,7 @@ impl<'a, 'ctx> Module<'a, 'ctx> {
                         let sret =
                             self.context.type_attribute("sret", t.into());
                         let noalias = self.context.flag("noalias");
-                        let nocapt = self.context.flag("nocapture");
+                        let nocapt = self.context.no_capture_flag();
 
                         fn_val.add_attribute(loc, sret);
                         fn_val.add_attribute(loc, noalias);
@@ -152,7 +153,7 @@ impl<'a, 'ctx> Module<'a, 'ctx> {
                 let loc = AttributeLoc::Param(0);
                 let ro = self.context.flag("readonly");
                 let noal = self.context.flag("noalias");
-                let nocap = self.context.flag("nocapture");
+                let nocap = self.context.no_capture_flag();
 
                 fn_val.add_attribute(loc, ro);
                 fn_val.add_attribute(loc, noal);

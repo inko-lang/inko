@@ -8,7 +8,6 @@ mod signal;
 mod string;
 mod time;
 mod tls;
-mod types;
 
 use crate::config::Config;
 use crate::mem::TypePointer;

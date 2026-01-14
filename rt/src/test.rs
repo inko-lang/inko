@@ -5,6 +5,7 @@ use crate::process::{Message, NativeAsyncMethod, Process, ProcessPointer};
 use crate::state::{RcState, State};
 use std::mem::{forget, size_of};
 use std::ops::{Deref, DerefMut, Drop};
+use std::ptr::null;
 
 /// Processes normally drop themselves when they finish running. But in tests we
 /// don't actually run a process.
@@ -49,32 +50,13 @@ impl Drop for OwnedProcess {
 }
 
 /// A type that is dropped when this pointer is dropped.
-#[repr(transparent)]
-pub(crate) struct OwnedType(pub(crate) TypePointer);
+pub(crate) struct OwnedType {
+    pub(crate) inner: Type,
+}
 
 impl OwnedType {
-    pub(crate) fn new(ptr: TypePointer) -> Self {
-        Self(ptr)
-    }
-}
-
-impl Deref for OwnedType {
-    type Target = TypePointer;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl Drop for OwnedType {
-    fn drop(&mut self) {
-        unsafe {
-            let layout = Type::layout(self.0.method_slots);
-            let raw_ptr = (self.0).0;
-
-            std::ptr::drop_in_place(raw_ptr);
-            std::alloc::dealloc(raw_ptr as *mut u8, layout);
-        }
+    pub(crate) fn as_pointer(&self) -> TypePointer {
+        TypePointer(&self.inner as _)
     }
 }
 
@@ -108,10 +90,13 @@ pub(crate) fn new_process_with_message(
     OwnedProcess::new(proc)
 }
 
-pub(crate) fn empty_process_type(name: &str) -> OwnedType {
-    OwnedType::new(Type::process(
-        name.to_string(),
-        size_of::<Process>() as _,
-        0,
-    ))
+pub(crate) fn empty_process_type() -> OwnedType {
+    OwnedType {
+        inner: Type {
+            name: null(),
+            instance_size: size_of::<Process>() as _,
+            method_slots: 0,
+            methods: [],
+        },
+    }
 }

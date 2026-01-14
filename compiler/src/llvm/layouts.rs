@@ -1,4 +1,5 @@
 use crate::llvm::context::Context;
+use crate::llvm::methods::Methods;
 use crate::mir::Mir;
 use crate::state::State;
 use crate::target::OperatingSystem;
@@ -182,9 +183,12 @@ pub(crate) struct Layouts<'ctx> {
     /// The type to use for Inko methods (used for dynamic dispatch).
     pub(crate) method: StructType<'ctx>,
 
+    /// The structure layouts for each _type_ (not their instances).
+    pub(crate) types: Vec<StructType<'ctx>>,
+
     /// The structure layouts for all type instances.
     ///
-    /// This `Vec` is indexed using `ClassId` values.
+    /// This `Vec` is indexed using `TypeId` values.
     pub(crate) instances: Vec<StructType<'ctx>>,
 
     /// The structure layout of the runtime's `State` type.
@@ -206,6 +210,7 @@ impl<'ctx> Layouts<'ctx> {
     pub(crate) fn new(
         state: &State,
         mir: &Mir,
+        methods: &Methods,
         context: &'ctx Context,
         target_data: &'ctx TargetData,
     ) -> Self {
@@ -214,11 +219,12 @@ impl<'ctx> Layouts<'ctx> {
         let num_types = db.number_of_types();
 
         // Instead of using a HashMap, we use a Vec that's indexed using a
-        // ClassId. This works since type IDs are sequential numbers starting
+        // TypeId. This works since type IDs are sequential numbers starting
         // at zero.
         //
         // This may over-allocate the number of types, depending on how many
         // are removed through optimizations, but at worst we'd waste a few KiB.
+        let mut types = vec![empty_struct; num_types];
         let mut instances = vec![empty_struct; num_types];
         let header = context.struct_type(&[
             context.pointer_type().into(), // Type
@@ -263,7 +269,10 @@ impl<'ctx> Layouts<'ctx> {
                 }
             };
 
-            instances[id.0 as usize] = instance;
+            let idx = id.0 as usize;
+
+            instances[idx] = instance;
+            types[idx] = context.new_type(method, methods.counts[idx]);
         }
 
         // This may over-allocate if many methods are removed through
@@ -272,8 +281,9 @@ impl<'ctx> Layouts<'ctx> {
         let num_methods = db.number_of_methods();
         let mut layouts = Self {
             target_data,
-            empty_type: context.empty_type(method),
+            empty_type: context.new_type(method, 0),
             method,
+            types,
             instances,
             state: state_layout,
             header,

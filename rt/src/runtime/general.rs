@@ -15,7 +15,8 @@ pub unsafe extern "system" fn inko_reference_count_error(
         process,
         &format!(
             "can't drop a value of type '{}' as it still has {} reference(s)",
-            &header.instance_of.name, header.references
+            header.instance_of.name(),
+            header.references
         ),
     );
 }

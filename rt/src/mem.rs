@@ -1,8 +1,10 @@
 use crate::result::error_to_int;
 use libc::{sysconf, _SC_PAGESIZE};
-use std::alloc::{alloc, alloc_zeroed, handle_alloc_error, Layout};
+use std::alloc::{alloc, handle_alloc_error, Layout};
+use std::ffi::c_char;
+use std::ffi::CStr;
 use std::io;
-use std::mem::{align_of, forget, size_of};
+use std::mem::{align_of, forget};
 use std::ops::Deref;
 use std::ptr::null;
 use std::slice;
@@ -80,10 +82,18 @@ pub struct Method {
 }
 
 /// An Inko type.
+///
+/// If the layout/size of this type changes, be sure to also update
+/// `Context::empty_type` in the compiler accordingly.
 #[repr(C)]
 pub struct Type {
     /// The name of the type.
-    pub(crate) name: RustString,
+    ///
+    /// The memory for this name is allocated statically by the compiler as a
+    /// NULL terminated string.
+    ///
+    /// The name is expected (and guaranteed by the compiler) to be valid UTF-8.
+    pub(crate) name: *const c_char,
 
     /// The size (in bytes) of instances of this type.
     ///
@@ -109,76 +119,30 @@ pub struct Type {
 }
 
 impl Type {
-    pub(crate) fn alloc(
-        name: RustString,
-        methods: u16,
-        size: u32,
-    ) -> TypePointer {
-        let ptr = unsafe {
-            let layout = Self::layout(methods);
-
-            // For types we zero memory out, so unused method slots are set to
-            // zeroed memory, instead of random garbage.
-            let ptr = alloc_zeroed(layout) as *mut Type;
-
-            if ptr.is_null() {
-                handle_alloc_error(layout);
-            }
-
-            ptr
-        };
-        let obj = unsafe { &mut *ptr };
-
-        init!(obj.name => name);
-        init!(obj.instance_size => size);
-        init!(obj.method_slots => methods);
-
-        TypePointer(ptr)
-    }
-
-    /// Returns a new type for a regular object.
-    pub(crate) fn object(
-        name: RustString,
-        size: u32,
-        methods: u16,
-    ) -> TypePointer {
-        Self::alloc(name, methods, size)
-    }
-
-    /// Returns a new type for a process.
-    pub(crate) fn process(
-        name: RustString,
-        size: u32,
-        methods: u16,
-    ) -> TypePointer {
-        Self::alloc(name, methods, size)
-    }
-
-    /// Returns the `Layout` for a type itself.
-    pub(crate) unsafe fn layout(methods: u16) -> Layout {
-        let size = size_of::<Type>() + (methods as usize * size_of::<Method>());
-
-        Layout::from_size_align_unchecked(size, align_of::<Type>())
-    }
-
     pub(crate) unsafe fn instance_layout(&self) -> Layout {
         Layout::from_size_align_unchecked(
             self.instance_size as usize,
             ALIGNMENT,
         )
     }
+
+    pub(crate) unsafe fn name(&self) -> &str {
+        CStr::from_ptr(self.name)
+            .to_str()
+            .expect("type names must be valid UTF-8")
+    }
 }
 
 /// A pointer to a type.
 #[repr(transparent)]
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
-pub struct TypePointer(pub(crate) *mut Type);
+pub struct TypePointer(pub(crate) *const Type);
 
 impl Deref for TypePointer {
     type Target = Type;
 
     fn deref(&self) -> &Type {
-        unsafe { &*(self.0 as *const Type) }
+        unsafe { &*self.0 }
     }
 }
 
@@ -234,8 +198,7 @@ impl PrimitiveString {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test::OwnedType;
-    use std::mem::{align_of, size_of};
+    use std::mem::{align_of, offset_of, size_of};
     use std::ptr::addr_of;
 
     extern "system" fn dummy() {}
@@ -252,13 +215,10 @@ mod tests {
 
     #[test]
     fn test_type_field_offsets() {
-        let typ = OwnedType(Type::alloc("A".to_string(), 4, 8));
-        let base = (typ.0).0 as usize;
-
-        assert_eq!(addr_of!(typ.name) as usize - base, 0);
-        assert_eq!(addr_of!(typ.instance_size) as usize - base, 24);
-        assert_eq!(addr_of!(typ.method_slots) as usize - base, 28);
-        assert_eq!(addr_of!(typ.methods) as usize - base, 32);
+        assert_eq!(offset_of!(Type, name), 0);
+        assert_eq!(offset_of!(Type, instance_size), 8);
+        assert_eq!(offset_of!(Type, method_slots), 12);
+        assert_eq!(offset_of!(Type, methods), 16);
     }
 
     #[test]
@@ -275,7 +235,7 @@ mod tests {
         assert_eq!(size_of::<Header>(), 16);
         assert_eq!(size_of::<Method>(), 16);
         assert_eq!(size_of::<Method>(), 16);
-        assert_eq!(size_of::<Type>(), 32);
+        assert_eq!(size_of::<Type>(), 16);
     }
 
     #[test]
@@ -283,29 +243,5 @@ mod tests {
         assert_eq!(align_of::<Header>(), ALIGNMENT);
         assert_eq!(align_of::<Method>(), ALIGNMENT);
         assert_eq!(align_of::<Type>(), ALIGNMENT);
-    }
-
-    #[test]
-    fn test_type_alloc() {
-        let typ = OwnedType(Type::alloc("A".to_string(), 0, 24));
-
-        assert_eq!(typ.method_slots, 0);
-        assert_eq!(typ.instance_size, 24);
-    }
-
-    #[test]
-    fn test_type_object() {
-        let typ = OwnedType(Type::object("A".to_string(), 24, 0));
-
-        assert_eq!(typ.method_slots, 0);
-        assert_eq!(typ.instance_size, 24);
-    }
-
-    #[test]
-    fn test_type_process() {
-        let typ = OwnedType(Type::process("A".to_string(), 24, 0));
-
-        assert_eq!(typ.method_slots, 0);
-        assert_eq!(typ.instance_size, 24);
     }
 }

@@ -120,16 +120,6 @@ mod tests {
     }
 
     #[test]
-    fn test_context_type_sizes() {
-        let ctx = Context::new();
-
-        // These tests exists just to make sure the layouts match that which the
-        // runtime expects. This would only ever fail if Rust suddenly changes
-        // the layout of String/Vec.
-        assert_eq!(ctx.rust_string_type().len(), 24);
-    }
-
-    #[test]
     fn test_class_to_llvm_type() {
         let ctx = Context::new();
         let tests = [

@@ -285,7 +285,6 @@ pub(crate) struct SymbolNames {
     pub(crate) types: HashMap<TypeId, String>,
     pub(crate) methods: HashMap<MethodId, String>,
     pub(crate) constants: HashMap<ConstantId, String>,
-    pub(crate) setup_types: HashMap<ModuleId, String>,
     pub(crate) setup_constants: HashMap<ModuleId, String>,
 }
 
@@ -294,7 +293,6 @@ impl SymbolNames {
         let mut types = HashMap::new();
         let mut methods = HashMap::new();
         let mut constants = HashMap::new();
-        let mut setup_types = HashMap::new();
         let mut setup_constants = HashMap::new();
 
         for module in mir.modules.values() {
@@ -325,15 +323,13 @@ impl SymbolNames {
 
         for &id in mir.modules.keys() {
             let mod_name = id.name(db).as_str();
-            let types = format!("{}M_{}.$types", SYMBOL_PREFIX, mod_name);
             let constants =
                 format!("{}M_{}.$constants", SYMBOL_PREFIX, mod_name);
 
-            setup_types.insert(id, types);
             setup_constants.insert(id, constants);
         }
 
-        Self { types, methods, constants, setup_types, setup_constants }
+        Self { types, methods, constants, setup_constants }
     }
 }
 

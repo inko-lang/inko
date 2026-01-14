@@ -376,8 +376,8 @@ mod tests {
         #[test]
         fn test_insert() {
             let state = setup();
-            let typ = empty_process_type("A");
-            let process = new_process(*typ);
+            let typ = empty_process_type();
+            let process = new_process(typ.as_pointer());
             let mut timeouts = Timeouts::new();
             let timeout = Deadline::duration(&state, Duration::from_secs(10));
 
@@ -388,8 +388,8 @@ mod tests {
         #[test]
         fn test_remove_invalid_entries_with_valid_entries() {
             let state = setup();
-            let typ = empty_process_type("A");
-            let process = new_process(*typ);
+            let typ = empty_process_type();
+            let process = new_process(typ.as_pointer());
             let mut timeouts = Timeouts::new();
             let timeout = Deadline::duration(&state, Duration::from_secs(10));
             let id = timeouts.insert(*process, timeout);
@@ -403,8 +403,8 @@ mod tests {
         #[test]
         fn test_remove_invalid_entries_with_invalid_entries() {
             let state = setup();
-            let typ = empty_process_type("A");
-            let process = new_process(*typ);
+            let typ = empty_process_type();
+            let process = new_process(typ.as_pointer());
             let mut timeouts = Timeouts::new();
             let timeout = Deadline::duration(&state, Duration::from_secs(10));
             let id = timeouts.insert(*process, timeout);
@@ -417,8 +417,8 @@ mod tests {
         #[test]
         fn test_processes_to_reschedule_with_invalid_entries() {
             let state = setup();
-            let typ = empty_process_type("A");
-            let process = new_process(*typ);
+            let typ = empty_process_type();
+            let process = new_process(typ.as_pointer());
             let mut timeouts = Timeouts::new();
             let timeout = Deadline::duration(&state, Duration::from_secs(10));
             let id = timeouts.insert(*process, timeout);
@@ -436,8 +436,8 @@ mod tests {
         #[test]
         fn test_processes_to_reschedule_with_remaining_time() {
             let state = setup();
-            let typ = empty_process_type("A");
-            let process = new_process(*typ);
+            let typ = empty_process_type();
+            let process = new_process(typ.as_pointer());
             let mut timeouts = Timeouts::new();
             let timeout = Deadline::duration(&state, Duration::from_secs(10));
             let id = timeouts.insert(*process, timeout);
@@ -456,8 +456,8 @@ mod tests {
         #[test]
         fn test_processes_to_reschedule_with_entries_to_reschedule() {
             let state = setup();
-            let typ = empty_process_type("A");
-            let process = new_process(*typ);
+            let typ = empty_process_type();
+            let process = new_process(typ.as_pointer());
             let mut timeouts = Timeouts::new();
             let timeout = Deadline::duration(&state, Duration::from_secs(0));
             let id = timeouts.insert(*process, timeout);
@@ -475,9 +475,9 @@ mod tests {
         #[test]
         fn test_compact() {
             let mut timeouts = Timeouts::new();
-            let typ = empty_process_type("A");
-            let p1 = new_process(*typ);
-            let p2 = new_process(*typ);
+            let typ = empty_process_type();
+            let p1 = new_process(typ.as_pointer());
+            let p2 = new_process(typ.as_pointer());
             let a = timeouts.insert(*p1, Deadline::until(0));
             let b = timeouts.insert(*p1, Deadline::until(0));
             let c = timeouts.insert(*p1, Deadline::until(0));
@@ -503,8 +503,8 @@ mod tests {
         fn test_expire() {
             let state = setup();
             let worker = Worker::new();
-            let typ = empty_process_type("A");
-            let process = new_process(*typ);
+            let typ = empty_process_type();
+            let process = new_process(typ.as_pointer());
             let id = worker.suspend(
                 *process,
                 Deadline::duration(&state, Duration::from_secs(1)),
@@ -518,8 +518,8 @@ mod tests {
         fn test_suspend() {
             let state = setup();
             let worker = Worker::new();
-            let typ = empty_process_type("A");
-            let process = new_process(*typ);
+            let typ = empty_process_type();
+            let process = new_process(typ.as_pointer());
             let id = worker.suspend(
                 *process,
                 Deadline::duration(&state, Duration::from_secs(1)),
@@ -531,8 +531,8 @@ mod tests {
         #[test]
         fn test_run_with_reschedule() {
             let state = setup();
-            let typ = empty_process_type("A");
-            let process = new_process(*typ).take_and_forget();
+            let typ = empty_process_type();
+            let process = new_process(typ.as_pointer()).take_and_forget();
             let worker = Worker::new();
             let timeout = Deadline::duration(&state, Duration::from_secs(0));
             let mut reschedule = Vec::new();

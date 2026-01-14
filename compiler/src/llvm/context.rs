@@ -8,15 +8,15 @@ use inkwell::attributes::Attribute;
 use inkwell::basic_block::BasicBlock;
 use inkwell::builder::Builder;
 use inkwell::module::Module;
+use inkwell::support::get_llvm_version;
 use inkwell::targets::TargetData;
 use inkwell::types::{
     AnyTypeEnum, ArrayType, BasicType, BasicTypeEnum, FloatType, IntType,
     PointerType, StructType, VoidType,
 };
-use inkwell::values::FunctionValue;
+use inkwell::values::{ArrayValue, FunctionValue};
 use inkwell::{context, AddressSpace};
 use std::cmp::max;
-use std::mem::size_of;
 use types::{
     Block, Database, ForeignType, MethodId, TypeEnum, TypeRef, BOOL_ID,
     FLOAT_ID, INT_ID, NIL_ID,
@@ -49,10 +49,25 @@ impl Context {
         self.inner.create_type_attribute(id, typ)
     }
 
+    pub(crate) fn no_capture_flag(&self) -> Attribute {
+        if get_llvm_version().0 < 21 {
+            self.flag("nocapture")
+        } else {
+            // Starting with version 21 the "nocapture" flag is replaced with
+            // "captures(none)". The flag value 0 translates to "none" so we can
+            // reuse Context::flag() here.
+            self.flag("captures")
+        }
+    }
+
     pub(crate) fn flag(&self, name: &str) -> Attribute {
         let id = Attribute::get_named_enum_kind_id(name);
 
         self.inner.create_enum_attribute(id, 0)
+    }
+
+    pub(crate) fn bytes_type(&self, size: usize) -> ArrayType<'_> {
+        self.i8_type().array_type(size as _)
     }
 
     pub(crate) fn pointer_type(&self) -> PointerType<'_> {
@@ -95,8 +110,14 @@ impl Context {
         self.inner.void_type()
     }
 
-    pub(crate) fn rust_string_type(&self) -> ArrayType<'_> {
-        self.inner.i8_type().array_type(size_of::<String>() as u32)
+    pub(crate) fn null_terminated_string(
+        &self,
+        value: &[u8],
+    ) -> (ArrayType<'_>, ArrayValue<'_>) {
+        let val = self.inner.const_string(value, true);
+        let typ = self.bytes_type(value.len() + 1);
+
+        (typ, val)
     }
 
     pub(crate) fn opaque_struct<'a>(&'a self, name: &str) -> StructType<'a> {
@@ -116,17 +137,17 @@ impl Context {
         self.inner.struct_type(&[word, word], false)
     }
 
-    pub(crate) fn empty_type<'a>(
+    pub(crate) fn new_type<'a>(
         &'a self,
         method_type: StructType<'a>,
+        methods: usize,
     ) -> StructType<'a> {
-        let name_type = self.rust_string_type();
         let typ = self.inner.opaque_struct_type("");
 
         typ.set_body(
             &[
                 // Name
-                name_type.into(),
+                self.pointer_type().into(),
                 // Instance size
                 self.inner.i32_type().into(),
                 // Number of methods
@@ -134,7 +155,7 @@ impl Context {
                 // The method table entries. We use an array instead of one
                 // field per method, as this allows us to generate indexes
                 // (using `getelementptr`) that are out of bounds.
-                method_type.array_type(0).into(),
+                method_type.array_type(methods as _).into(),
             ],
             false,
         );
