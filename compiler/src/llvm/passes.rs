@@ -2,12 +2,10 @@ use crate::compiler::module_debug_path;
 use crate::config::{BuildDirectories, Opt};
 use crate::llvm::builder::Builder;
 use crate::llvm::constants::{
-    ARRAY_BUF_INDEX, ARRAY_CAPA_INDEX, ARRAY_SIZE_INDEX, CLOSURE_CALL_INDEX,
-    DROPPER_INDEX, FIELD_OFFSET, HEADER_REFS_INDEX, HEADER_TYPE_INDEX,
-    METHOD_FUNCTION_INDEX, METHOD_HASH_INDEX, PROCESS_FIELD_OFFSET,
-    STACK_DATA_EPOCH_INDEX, STACK_DATA_PROCESS_INDEX, STATE_EPOCH_INDEX,
-    STRING_BUF_INDEX, STRING_SIZE_INDEX, TYPE_METHODS_COUNT_INDEX,
-    TYPE_METHODS_INDEX,
+    CLOSURE_CALL_INDEX, DROPPER_INDEX, FIELD_OFFSET, HEADER_REFS_INDEX,
+    HEADER_TYPE_INDEX, METHOD_FUNCTION_INDEX, METHOD_HASH_INDEX,
+    PROCESS_FIELD_OFFSET, STACK_DATA_EPOCH_INDEX, STACK_DATA_PROCESS_INDEX,
+    STATE_EPOCH_INDEX, TYPE_METHODS_COUNT_INDEX, TYPE_METHODS_INDEX,
 };
 use crate::llvm::context::Context;
 use crate::llvm::layouts::{
@@ -35,8 +33,8 @@ use inkwell::targets::{
 };
 use inkwell::types::{BasicType, BasicTypeEnum, FunctionType, StructType};
 use inkwell::values::{
-    BasicMetadataValueEnum, BasicValue, BasicValueEnum, FloatValue,
-    FunctionValue, GlobalValue, IntValue, PointerValue,
+    ArrayValue, BasicMetadataValueEnum, BasicValue, BasicValueEnum, FloatValue,
+    FunctionValue, IntValue, PointerValue,
 };
 use inkwell::OptimizationLevel;
 use std::collections::HashMap;
@@ -513,13 +511,8 @@ impl<'a> Worker<'a> {
         let path = Path::new("$main.inko");
         let main = Module::new(context, layouts, name.clone(), path);
 
-        GenerateMain::new(
-            &self.shared.state.db,
-            self.shared.mir,
-            self.shared.names,
-            &main,
-        )
-        .run();
+        GenerateMain::new(&self.shared.state.db, self.shared.names, &main)
+            .run();
 
         let path = object_path(self.shared.directories, &name);
         let res = self.process_module(&main, layouts, path);
@@ -648,10 +641,9 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
             let type_name = tid.name(&self.shared.state.db);
             let (type_name_typ, type_name_val) =
                 ctx.null_terminated_string(type_name.as_bytes());
-            let type_name_global = self.module.add_global(type_name_typ, "");
+            let type_name_global =
+                self.module.add_static_global(type_name_typ, type_name_val);
 
-            type_name_global.set_linkage(Linkage::Private);
-            type_name_global.set_initializer(&type_name_val);
             type_name_global.set_unnamed_addr(true);
 
             let type_name_ptr = type_name_global.as_pointer_value();
@@ -713,33 +705,14 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
     }
 
     fn setup_constants(&mut self) {
-        let mod_id = self.shared.mir.modules[self.index].id;
-        let fn_name = &self.shared.names.setup_constants[&mod_id];
-        let fn_val = self.module.add_setup_function(fn_name);
-        let builder = Builder::new(self.module.context, fn_val);
-        let entry_block = self.module.context.append_basic_block(fn_val);
-
-        builder.switch_to_block(entry_block);
-
-        let body = self.module.context.append_basic_block(fn_val);
-
-        builder.jump(body);
-        builder.switch_to_block(body);
-
         for &cid in &self.shared.mir.modules[self.index].constants {
             let name = &self.shared.names.constants[&cid];
-            let global = self.module.add_constant(name);
-            let value = &self.shared.mir.constants[&cid];
+            let cons = &self.shared.mir.constants[&cid];
+            let val = self.permanent_value(self.module.context, cons);
 
-            global.set_initializer(
-                &self
-                    .module
-                    .context
-                    .pointer_type()
-                    .const_null()
-                    .as_basic_value_enum(),
-            );
-            self.set_constant_global(&builder, value, global);
+            self.module
+                .add_constant(name, val.get_type())
+                .set_initializer(&val);
         }
 
         // We sort this list so different compilations always produce this list
@@ -750,128 +723,119 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
         strings.sort_by_key(|p| p.0);
 
         for (value, global) in strings {
-            let ptr = global.as_pointer_value();
-            let val = self.new_string(&builder, value);
-
-            builder.store(ptr, val);
+            global
+                .set_initializer(&self.new_string(self.module.context, value));
         }
-
-        builder.return_value(None);
-    }
-
-    fn set_constant_global(
-        &mut self,
-        builder: &Builder<'ctx>,
-        constant: &Constant,
-        global: GlobalValue<'ctx>,
-    ) -> PointerValue<'ctx> {
-        let global = global.as_pointer_value();
-        let value = self.permanent_value(builder, constant);
-
-        builder.store(global, value);
-        global
     }
 
     fn permanent_value(
         &mut self,
-        builder: &Builder<'ctx>,
+        context: &'ctx Context,
         constant: &Constant,
     ) -> BasicValueEnum<'ctx> {
         match constant {
             Constant::Int(val) => {
-                builder.i64_literal(*val).as_basic_value_enum()
+                context.i64_literal(*val).as_basic_value_enum()
             }
             Constant::Float(val) => {
-                builder.f64_literal(*val).as_basic_value_enum()
+                context.f64_literal(*val).as_basic_value_enum()
             }
-            Constant::String(val) => self.new_string(builder, val),
-            Constant::Bool(v) => builder.bool_literal(*v).as_basic_value_enum(),
-            Constant::Array(vals, typ) => {
-                let tid = typ.type_id(&self.shared.state.db).unwrap();
-                let arg = tid
-                    .type_arguments(&self.shared.state.db)
-                    .unwrap()
-                    .values()
-                    .next()
-                    .unwrap();
-                let val_typ = builder.context.llvm_type(
-                    &self.shared.state.db,
-                    self.layouts,
-                    arg,
-                );
-
-                let layout = self.layouts.instances[tid.0 as usize];
-                let array = builder.allocate_instance(
-                    self.module,
-                    &self.shared.state.db,
-                    self.shared.names,
-                    tid,
-                );
-
-                let buf_typ = val_typ.array_type(vals.len() as _);
-
-                // The memory of array constants is statically allocated, as we
-                // never need to resize it. Using malloc() would also mean that
-                // we'd need to handle it failing, which means triggering a
-                // panic, which we can't do at this point as we don't have a
-                // process set up yet.
-                let buf_global = self.module.add_global(buf_typ, "");
-                let buf_ptr = buf_global.as_pointer_value();
-
-                // We use a private linkage so we don't need to generate a
-                // globally unique symbol name for the buffer global.
-                buf_global.set_linkage(Linkage::Private);
-                buf_global.set_initializer(
-                    &buf_typ.const_zero().as_basic_value_enum(),
-                );
-                buf_global.set_unnamed_addr(true);
-
-                for (index, arg) in vals.iter().enumerate() {
-                    let val = self.permanent_value(builder, arg);
-
-                    builder
-                        .store_array_field(buf_typ, buf_ptr, index as _, val);
-                }
-
-                let len = builder.i64_literal(vals.len() as _);
-
-                builder.store_field(layout, array, ARRAY_SIZE_INDEX, len);
-                builder.store_field(layout, array, ARRAY_CAPA_INDEX, len);
-                builder.store_field(layout, array, ARRAY_BUF_INDEX, buf_ptr);
-                array.as_basic_value_enum()
-            }
+            Constant::String(val) => self.new_string(context, val),
+            Constant::Bool(v) => context.bool_literal(*v).as_basic_value_enum(),
+            Constant::Array(vals, typ) => self.new_array(context, vals, *typ),
         }
+    }
+
+    fn new_array(
+        &mut self,
+        context: &'ctx Context,
+        values: &[Constant],
+        typ: TypeRef,
+    ) -> BasicValueEnum<'ctx> {
+        let tid = typ.type_id(&self.shared.state.db).unwrap();
+        let tidx = tid.0 as usize;
+        let arg = tid
+            .type_arguments(&self.shared.state.db)
+            .unwrap()
+            .values()
+            .next()
+            .unwrap();
+        let val_typ =
+            context.llvm_type(&self.shared.state.db, self.layouts, arg);
+
+        let type_layout = self.layouts.types[tidx];
+        let instance_layout = self.layouts.instances[tidx];
+        let type_name = &self.shared.names.types[&tid];
+        let type_global = self.module.add_type(type_name, type_layout);
+
+        // Allocate the memory for the buffer.
+        let vals = values
+            .iter()
+            .map(|v| self.permanent_value(context, v))
+            .collect::<Vec<_>>();
+        let buf_typ = val_typ.array_type(vals.len() as _);
+        let buf_val = unsafe {
+            // Safety: Inko arrays are statically typed so the values will
+            // always have the same type as `val_typ`.
+            ArrayValue::new_const_array(&val_typ, &vals)
+        };
+        let buf_global = self.module.add_static_global(buf_typ, buf_val);
+
+        buf_global.set_unnamed_addr(true);
+
+        // Allocate the array itself
+        let ary_val = instance_layout.const_named_struct(&[
+            // Header
+            context.header(self.layouts, type_global.as_pointer_value()).into(),
+            // Size
+            context.i64_literal(vals.len() as _).into(),
+            // Capacity
+            context.i64_literal(vals.len() as _).into(),
+            // Buffer
+            buf_global.as_pointer_value().into(),
+        ]);
+        let ary_global = self.module.add_global(instance_layout, "");
+
+        ary_global.set_initializer(&ary_val);
+        ary_global.set_linkage(Linkage::Private);
+        ary_global.as_pointer_value().as_basic_value_enum()
     }
 
     fn new_string(
         &self,
-        builder: &Builder<'ctx>,
+        context: &'ctx Context,
         value: &str,
     ) -> BasicValueEnum<'ctx> {
-        let bytes_len = (value.len() + 1) as u32;
-        let bytes_typ = builder.context.i8_type().array_type(bytes_len);
-        let bytes = builder.string_bytes(value);
-        let global = self.module.add_global(bytes_typ, "");
-
-        global.set_linkage(Linkage::Private);
-        global.set_initializer(&bytes.as_basic_value_enum());
-        global.set_unnamed_addr(true);
-
-        // This is the size of the string _minus_ the trailing NULL byte.
-        let len = builder.u64_literal(value.len() as u64);
-        let ptr = global.as_pointer_value();
         let tid = TypeId::string();
-        let val = builder.allocate_instance(
-            self.module,
-            &self.shared.state.db,
-            self.shared.names,
-            tid,
-        );
-        let layout = self.layouts.instances[tid.0 as usize];
+        let tidx = tid.0 as usize;
+        let type_layout = self.layouts.types[tidx];
+        let instance_layout = self.layouts.instances[tidx];
+        let type_name = &self.shared.names.types[&tid];
+        let type_global = self.module.add_type(type_name, type_layout);
 
-        builder.store_field(layout, val, STRING_SIZE_INDEX, len);
-        builder.store_field(layout, val, STRING_BUF_INDEX, ptr);
-        val.as_basic_value_enum()
+        // Allocate the memory for the string's bytes.
+        let (buf_typ, buf_val) =
+            context.null_terminated_string(value.as_bytes());
+        let buf_global = self.module.add_static_global(buf_typ, buf_val);
+
+        buf_global.set_unnamed_addr(true);
+
+        // Allocate the string itself.
+        let str_val = instance_layout.const_named_struct(&[
+            // Header
+            context
+                .atomic_header(self.layouts, type_global.as_pointer_value())
+                .into(),
+            // Size
+            context.i64_literal(value.len() as _).into(),
+            // Buffer
+            buf_global.as_pointer_value().into(),
+        ]);
+        let str_global = self.module.add_global(instance_layout, "");
+
+        str_global.set_initializer(&str_val);
+        str_global.set_linkage(Linkage::Private);
+        str_global.as_pointer_value().as_basic_value_enum()
     }
 }
 
@@ -2487,7 +2451,8 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 let var = self.variables[&ins.register];
                 let typ = self.variable_types[&ins.register];
                 let name = &self.shared.names.constants[&ins.id];
-                let global = self.module.add_constant(name).as_pointer_value();
+                let global =
+                    self.module.add_constant(name, typ).as_pointer_value();
                 let value = self.builder.load(typ, global);
 
                 self.builder.store(var, value);
@@ -2896,17 +2861,20 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
     }
 
     fn load_state(&mut self) -> PointerValue<'ctx> {
-        let var = self.module.add_constant(STATE_GLOBAL);
+        let var = self
+            .module
+            .add_constant(STATE_GLOBAL, self.builder.context.pointer_type())
+            .as_pointer_value();
 
-        self.builder.load_pointer(var.as_pointer_value())
+        self.builder.load_pointer(var)
     }
 
     fn load_stack_mask(&mut self) -> IntValue<'ctx> {
-        let var = self.module.add_constant(STACK_MASK_GLOBAL);
+        let typ = self.builder.context.i64_type();
+        let var =
+            self.module.add_constant(STACK_MASK_GLOBAL, typ).as_pointer_value();
 
-        self.builder
-            .load(self.builder.context.i64_type(), var.as_pointer_value())
-            .into_int_value()
+        self.builder.load(typ, var).into_int_value()
     }
 
     fn allocate(&mut self, type_id: TypeId) -> PointerValue<'ctx> {
@@ -2922,7 +2890,6 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 /// A pass for generating the entry module and method (i.e. `main()`).
 pub(crate) struct GenerateMain<'a, 'ctx> {
     db: &'a Database,
-    mir: &'a Mir,
     names: &'a SymbolNames,
     module: &'a Module<'a, 'ctx>,
     builder: Builder<'ctx>,
@@ -2931,7 +2898,6 @@ pub(crate) struct GenerateMain<'a, 'ctx> {
 impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
     fn new(
         db: &'a Database,
-        mir: &'a Mir,
         names: &'a SymbolNames,
         module: &'a Module<'a, 'ctx>,
     ) -> GenerateMain<'a, 'ctx> {
@@ -2945,7 +2911,7 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
         let function = module.add_function("main", typ, None);
         let builder = Builder::new(module.context, function);
 
-        GenerateMain { db, mir, names, module, builder }
+        GenerateMain { db, names, module, builder }
     }
 
     fn run(self) {
@@ -3017,16 +2983,6 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
             .into_int_value();
 
         self.builder.store(stack_size_global.as_pointer_value(), stack_size);
-
-        // Constants need to be defined in a separate pass, as they may depends
-        // on the types (e.g. array constants need the Array type to be set
-        // up).
-        for module in self.mir.modules.values() {
-            let name = &self.names.setup_constants[&module.id];
-            let func = self.module.add_setup_function(name);
-
-            self.builder.direct_call(func, &[]);
-        }
 
         let main_tid = self.db.main_type().unwrap();
         let main_method_id = self.db.main_method().unwrap();

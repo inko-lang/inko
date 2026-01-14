@@ -16,10 +16,3 @@ pub(crate) const METHOD_FUNCTION_INDEX: u32 = 1;
 
 pub(crate) const DROPPER_INDEX: u32 = 0;
 pub(crate) const CLOSURE_CALL_INDEX: u32 = 1;
-
-pub(crate) const ARRAY_SIZE_INDEX: u32 = 1;
-pub(crate) const ARRAY_CAPA_INDEX: u32 = 2;
-pub(crate) const ARRAY_BUF_INDEX: u32 = 3;
-
-pub(crate) const STRING_SIZE_INDEX: u32 = 1;
-pub(crate) const STRING_BUF_INDEX: u32 = 2;

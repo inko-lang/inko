@@ -12,13 +12,11 @@ use inkwell::debug_info::{
 };
 use inkwell::module::{FlagBehavior, Module as InkwellModule};
 use inkwell::targets::TargetData;
-use inkwell::types::{
-    ArrayType, BasicType, BasicTypeEnum, FunctionType, StructType,
-};
+use inkwell::types::{BasicType, BasicTypeEnum, FunctionType, StructType};
 use inkwell::values::{
-    AggregateValue, ArrayValue, BasicMetadataValueEnum, BasicValue,
-    BasicValueEnum, CallSiteValue, FloatValue, FunctionValue,
-    InstructionOpcode, IntValue, PointerValue,
+    AggregateValue, BasicMetadataValueEnum, BasicValue, BasicValueEnum,
+    CallSiteValue, FloatValue, FunctionValue, InstructionOpcode, IntValue,
+    PointerValue,
 };
 use inkwell::{AtomicOrdering, AtomicRMWBinOp, FloatPredicate, IntPredicate};
 use std::collections::HashMap;
@@ -117,30 +115,6 @@ impl<'ctx> Builder<'ctx> {
                 )
                 .unwrap()
         }
-    }
-
-    pub(crate) fn store_array_field<V: BasicValue<'ctx>>(
-        &self,
-        array_type: ArrayType<'ctx>,
-        array: PointerValue<'ctx>,
-        index: u32,
-        value: V,
-    ) {
-        let ptr = unsafe {
-            self.inner
-                .build_gep(
-                    array_type,
-                    array,
-                    &[
-                        self.context.i32_type().const_int(0, false),
-                        self.context.i32_type().const_int(index as _, false),
-                    ],
-                    "",
-                )
-                .unwrap()
-        };
-
-        self.store(ptr, value);
     }
 
     pub(crate) fn store_field<V: BasicValue<'ctx>>(
@@ -275,11 +249,7 @@ impl<'ctx> Builder<'ctx> {
     }
 
     pub(crate) fn bool_literal(&self, value: bool) -> IntValue<'ctx> {
-        self.context.bool_type().const_int(value as u64, false)
-    }
-
-    pub(crate) fn i64_literal(&self, value: i64) -> IntValue<'ctx> {
-        self.int_literal(64, value as u64)
+        self.context.bool_literal(value)
     }
 
     pub(crate) fn u16_literal(&self, value: u16) -> IntValue<'ctx> {
@@ -299,7 +269,7 @@ impl<'ctx> Builder<'ctx> {
     }
 
     pub(crate) fn f64_literal(&self, value: f64) -> FloatValue<'ctx> {
-        self.context.f64_type().const_float(value)
+        self.context.f64_literal(value)
     }
 
     pub(crate) fn atomic_add(
@@ -756,17 +726,6 @@ impl<'ctx> Builder<'ctx> {
 
     pub(crate) fn unreachable(&self) {
         self.inner.build_unreachable().unwrap();
-    }
-
-    pub(crate) fn string_bytes(&self, value: &str) -> ArrayValue<'ctx> {
-        let mut bytes = value
-            .bytes()
-            .map(|v| self.context.i8_type().const_int(v as _, false))
-            .collect::<Vec<_>>();
-
-        // Strings are NULL terminated in addition to storing a size.
-        bytes.push(self.context.i8_type().const_int(0 as _, false));
-        self.context.i8_type().const_array(&bytes)
     }
 
     pub(crate) fn new_stack_slot<T: BasicType<'ctx>>(

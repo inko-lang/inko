@@ -5,6 +5,7 @@ use crate::llvm::runtime_function::RuntimeFunction;
 use crate::symbol_names::SYMBOL_PREFIX;
 use inkwell::attributes::AttributeLoc;
 use inkwell::intrinsics::Intrinsic;
+use inkwell::module::Linkage;
 use inkwell::types::{BasicType, BasicTypeEnum, StructType};
 use inkwell::values::{BasicValue, FunctionValue, GlobalValue};
 use inkwell::{module, AddressSpace};
@@ -56,6 +57,19 @@ impl<'a, 'ctx> Module<'a, 'ctx> {
         self.inner.add_global(typ, Some(AddressSpace::default()), name)
     }
 
+    pub(crate) fn add_static_global<T: BasicType<'ctx>, V: BasicValue<'ctx>>(
+        &self,
+        typ: T,
+        value: V,
+    ) -> GlobalValue<'ctx> {
+        let glob =
+            self.inner.add_global(typ, Some(AddressSpace::default()), "");
+
+        glob.set_linkage(Linkage::Private);
+        glob.set_initializer(&value);
+        glob
+    }
+
     pub(crate) fn add_string(&mut self, value: &String) -> GlobalValue<'ctx> {
         if let Some(&global) = self.strings.get(value) {
             global
@@ -78,10 +92,14 @@ impl<'a, 'ctx> Module<'a, 'ctx> {
         }
     }
 
-    pub(crate) fn add_constant(&mut self, name: &str) -> GlobalValue<'ctx> {
+    pub(crate) fn add_constant<T: BasicType<'ctx>>(
+        &mut self,
+        name: &str,
+        typ: T,
+    ) -> GlobalValue<'ctx> {
         self.inner
             .get_global(name)
-            .unwrap_or_else(|| self.add_global_pointer(name))
+            .unwrap_or_else(|| self.add_global(typ, name))
     }
 
     pub(crate) fn add_type(
@@ -226,16 +244,6 @@ impl<'a, 'ctx> Module<'a, 'ctx> {
 
             fn_val
         })
-    }
-
-    pub(crate) fn add_setup_function(&self, name: &str) -> FunctionValue<'ctx> {
-        if let Some(func) = self.inner.get_function(name) {
-            func
-        } else {
-            let typ = self.context.void_type().fn_type(&[], false);
-
-            self.inner.add_function(name, typ, None)
-        }
     }
 
     pub(crate) fn runtime_function(

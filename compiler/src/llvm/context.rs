@@ -14,7 +14,9 @@ use inkwell::types::{
     AnyTypeEnum, ArrayType, BasicType, BasicTypeEnum, FloatType, IntType,
     PointerType, StructType, VoidType,
 };
-use inkwell::values::{ArrayValue, FunctionValue};
+use inkwell::values::{
+    ArrayValue, FloatValue, FunctionValue, IntValue, PointerValue, StructValue,
+};
 use inkwell::{context, AddressSpace};
 use std::cmp::max;
 use types::{
@@ -110,6 +112,18 @@ impl Context {
         self.inner.void_type()
     }
 
+    pub(crate) fn bool_literal(&self, value: bool) -> IntValue<'_> {
+        self.bool_type().const_int(value as u64, false)
+    }
+
+    pub(crate) fn i64_literal(&self, value: i64) -> IntValue<'_> {
+        self.inner.i64_type().const_int(value as _, false)
+    }
+
+    pub(crate) fn f64_literal(&self, value: f64) -> FloatValue<'_> {
+        self.inner.f64_type().const_float(value)
+    }
+
     pub(crate) fn null_terminated_string(
         &self,
         value: &[u8],
@@ -160,6 +174,28 @@ impl Context {
             false,
         );
         typ
+    }
+
+    pub(crate) fn atomic_header<'a>(
+        &'a self,
+        layouts: &Layouts<'a>,
+        typ: PointerValue<'a>,
+    ) -> StructValue<'a> {
+        layouts.header.const_named_struct(&[
+            typ.into(),
+            self.i32_type().const_int(1, false).into(),
+        ])
+    }
+
+    pub(crate) fn header<'a>(
+        &'a self,
+        layouts: &Layouts<'a>,
+        typ: PointerValue<'a>,
+    ) -> StructValue<'a> {
+        layouts.header.const_named_struct(&[
+            typ.into(),
+            self.i32_type().const_int(0, false).into(),
+        ])
     }
 
     pub(crate) fn append_basic_block<'a>(
