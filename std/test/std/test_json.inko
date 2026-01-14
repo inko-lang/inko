@@ -22,7 +22,7 @@ fn pub tests(t: mut Tests) {
 
     t.not_equal(
       ErrorKind.RecursionLimitExceeded(1) as ErrorKind[IoError],
-      ErrorKind.Generic('foo'),
+      ErrorKind.InvalidControl,
     )
   })
 
@@ -43,18 +43,21 @@ fn pub tests(t: mut Tests) {
       (ErrorKind.RecursionLimitExceeded(1) as ErrorKind[IoError]).to_string,
       'the maximum recursion depth of 1 is exceeded',
     )
-    t.equal((ErrorKind.Generic('foo') as ErrorKind[IoError]).to_string, 'foo')
+    t.equal(
+      (ErrorKind.Unexpected('f') as ErrorKind[IoError]).to_string,
+      "the character 'f' is unexpected",
+    )
   })
 
   t.test('Error.fmt', fn (t) {
-    let err = Error(ErrorKind.Generic('foo'), offset: 5) as Error[IoError]
+    let err = Error(ErrorKind.Unexpected('f'), offset: 5) as Error[IoError]
 
-    t.equal(fmt(err), 'Error(kind: Generic("foo"), offset: 5)')
+    t.equal(fmt(err), 'Error(kind: Unexpected("f"), offset: 5)')
   })
 
   t.test('Error.==', fn (t) {
-    let err1 = Error(ErrorKind.Generic('a'), offset: 5) as Error[IoError]
-    let err2 = Error(ErrorKind.Generic('a'), offset: 5)
+    let err1 = Error(ErrorKind.Unexpected('a'), offset: 5) as Error[IoError]
+    let err2 = Error(ErrorKind.Unexpected('a'), offset: 5)
     let err3 = Error(ErrorKind.RecursionLimitExceeded(1), offset: 6)
 
     t.equal(err1, err2)
@@ -62,15 +65,9 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Error.to_string', fn (t) {
-    let err = Error(ErrorKind.Generic('test'), offset: 5) as Error[IoError]
+    let err = Error(ErrorKind.Unexpected('t'), offset: 5) as Error[IoError]
 
-    t.equal(err.to_string, 'test, at byte offset 5')
-  })
-
-  t.test('Error.generic', fn (t) {
-    let err = Error.generic('foo', offset: 42) as Error[IoError]
-
-    t.equal(err, Error(kind: ErrorKind.Generic('foo'), offset: 42))
+    t.equal(err.to_string, "the character 't' is unexpected, at byte offset 5")
   })
 
   t.test('PullParser.object', fn (t) {

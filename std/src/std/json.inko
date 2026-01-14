@@ -142,9 +142,6 @@ fn char(byte: Int) -> String {
 }
 
 # A type describing the different possible errors.
-#
-# TODO: rename Generic to InvalidSyntax
-# TODO: add EndOfInput for EOF errors
 type pub inline enum ErrorKind[E] {
   # The maximum recursion limit is exceeded.
   case RecursionLimitExceeded(Int)
@@ -161,9 +158,6 @@ type pub inline enum ErrorKind[E] {
   # An invalid character is found.
   case Unexpected(String)
 
-  # A generic error with a custom message.
-  case Generic(String)
-
   # An error occurred while reading from the input stream.
   case Read(E)
 }
@@ -175,7 +169,6 @@ impl Equal for ErrorKind if E: Equal {
       case (InvalidSurrogate, InvalidSurrogate) -> true
       case (Unexpected(a), Unexpected(b)) -> a == b
       case (Read(a), Read(b)) -> a == b
-      case (Generic(a), Generic(b)) -> a == b
       case (EndOfInput, EndOfInput) -> true
       case (InvalidControl, InvalidControl) -> true
       case _ -> false
@@ -192,7 +185,6 @@ impl FormatTrait for ErrorKind if E: FormatTrait {
       case InvalidSurrogate -> formatter.tuple('InvalidSurrogate').finish
       case Unexpected(v) -> formatter.tuple('Unexpected').field(v).finish
       case Read(v) -> formatter.tuple('Read').field(v).finish
-      case Generic(v) -> formatter.tuple('Generic').field(v).finish
       case EndOfInput -> formatter.tuple('EndOfInput').finish
       case InvalidControl -> formatter.tuple('InvalidControl').finish
     }
@@ -208,7 +200,6 @@ impl ToString for ErrorKind if E: ToString {
       case InvalidSurrogate -> 'the UTF-16 surrogate pair is invalid'
       case Unexpected(v) -> "the character '${v}' is unexpected"
       case Read(v) -> v.to_string
-      case Generic(v) -> v.to_string
       case EndOfInput -> {
         'the end of the input stream is reached, but more input is required'
       }
@@ -234,11 +225,6 @@ type pub inline Error[E] {
   # The article at https://www.foonathan.net/2021/02/column/ contains additional
   # information regarding this topic.
   let pub @offset: Int
-
-  # Returns a generic error with the given message and offset.
-  fn pub static generic(message: String, offset: Int) -> Error[E] {
-    Error(kind: ErrorKind.Generic(message), offset: offset)
-  }
 }
 
 impl Equal for Error if E: Equal {
