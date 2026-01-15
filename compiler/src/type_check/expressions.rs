@@ -2413,31 +2413,99 @@ impl<'a> CheckMethodBody<'a> {
 
         let closure = Closure::alloc(self.db_mut(), moving);
         let bounds = self.bounds;
-        let return_type = if let Some(n) = node.return_type.as_mut() {
-            self.type_signature(n, self_type)
-        } else {
-            let db = self.db_mut();
-
-            expected
-                .as_mut()
-                .map(|e| {
-                    let raw = e.id.return_type(db);
-
-                    TypeResolver::new(db, e.arguments, bounds)
-                        .with_self_type(e.self_type)
-                        .resolve(raw)
-                })
-                .unwrap_or_else(|| TypeRef::placeholder(db, None))
-        };
-
-        closure.set_return_type(self.db_mut(), return_type);
-
         let surrounding_type =
             if scope.surrounding_type.is_owned_or_uni(self.db()) {
                 scope.surrounding_type.as_mut(self.db())
             } else {
                 scope.surrounding_type
             };
+
+        let mut arg_vars = Vec::new();
+
+        for (idx, arg) in node.arguments.iter_mut().enumerate() {
+            let name = arg.name.name.clone();
+            let exp_typ = {
+                let db = self.db_mut();
+
+                expected.as_mut().and_then(|e| {
+                    e.id.positional_argument_input_type(db, idx).map(|t| {
+                        TypeResolver::new(db, e.arguments, bounds)
+                            .with_self_type(e.self_type)
+                            .resolve(t)
+                    })
+                })
+            };
+
+            let typ = if let Some(n) = arg.value_type.as_mut() {
+                let typ = self.type_signature(n, self.self_type);
+
+                // If an explicit type is given and an expected type is derived
+                // based on the argument this closure is passed to, make sure
+                // the explicit type is in fact compatible.
+                if let Some(exp) = exp_typ {
+                    // Since the expected closure is passing data to _us_ we
+                    // need to check `expected -> given` and not the other way
+                    // around.
+                    if !TypeChecker::check(self.db(), exp, typ) {
+                        self.state.diagnostics.type_error(
+                            format_type(self.db(), typ),
+                            format_type(self.db(), exp),
+                            self.file(),
+                            n.location(),
+                        );
+                    }
+                }
+
+                typ
+            } else {
+                exp_typ.unwrap_or_else(|| {
+                    TypeRef::placeholder(self.db_mut(), None)
+                })
+            };
+
+            let var = closure.new_argument(
+                self.db_mut(),
+                name.clone(),
+                typ,
+                typ,
+                arg.location,
+            );
+
+            arg_vars.push((name, var));
+        }
+
+        let exp_ret = {
+            let db = self.db_mut();
+
+            expected.as_mut().map(|e| {
+                let raw = e.id.return_type(db);
+
+                TypeResolver::new(db, e.arguments, bounds)
+                    .with_self_type(e.self_type)
+                    .resolve(raw)
+            })
+        };
+
+        let return_type = if let Some(n) = node.return_type.as_mut() {
+            let typ = self.type_signature(n, self_type);
+
+            if let Some(exp) = exp_ret {
+                if !TypeChecker::check(self.db(), exp, typ) {
+                    self.state.diagnostics.type_error(
+                        format_type(self.db(), typ),
+                        format_type(self.db(), exp),
+                        self.file(),
+                        n.location(),
+                    );
+                }
+            }
+
+            typ
+        } else {
+            exp_ret.unwrap_or_else(|| TypeRef::placeholder(self.db_mut(), None))
+        };
+
+        closure.set_return_type(self.db_mut(), return_type);
 
         let mut new_scope = LexicalScope {
             kind: ScopeKind::Closure(closure),
@@ -2449,33 +2517,7 @@ impl<'a> CheckMethodBody<'a> {
             break_in_loop: Cell::new(false),
         };
 
-        for (idx, arg) in node.arguments.iter_mut().enumerate() {
-            let name = arg.name.name.clone();
-            let typ = if let Some(n) = arg.value_type.as_mut() {
-                self.type_signature(n, self.self_type)
-            } else {
-                let db = self.db_mut();
-
-                expected
-                    .as_mut()
-                    .and_then(|e| {
-                        e.id.positional_argument_input_type(db, idx).map(|t| {
-                            TypeResolver::new(db, e.arguments, bounds)
-                                .with_self_type(e.self_type)
-                                .resolve(t)
-                        })
-                    })
-                    .unwrap_or_else(|| TypeRef::placeholder(db, None))
-            };
-
-            let var = closure.new_argument(
-                self.db_mut(),
-                name.clone(),
-                typ,
-                typ,
-                arg.location,
-            );
-
+        for (name, var) in arg_vars {
             new_scope.variables.add_variable(name, var);
         }
 
@@ -2514,6 +2556,13 @@ impl<'a> CheckMethodBody<'a> {
                     .diagnostics
                     .default_method_capturing_self(self.file(), node.location);
             }
+        }
+
+        // TODO: remove
+        if self.file().ends_with("server.inko")
+            && node.location.line_start == 2309
+        {
+            println!("closure: {}", format_type(self.db(), node.resolved_type));
         }
 
         node.closure_id = Some(closure);
