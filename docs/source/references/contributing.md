@@ -44,7 +44,7 @@ For an up to date list, take a look at the [inko-lang GitHub
 group](https://github.com/inko-lang).
 
 Before reporting a bug, please make sure an issue doesn't already exist for the
-bug. To find all reported bugs, filter the list of issues using the `bug` label.
+bug. To find all reported bugs, filter the list of issues using the `Bug` type.
 Duplicate issues may be closed without warning. If you found an existing issue,
 please don't reply with comments such as "Me too!" and "+1". Instead, click on
 the thumbs up Emoji displayed when viewing the issue.
@@ -60,7 +60,7 @@ the easier it will be for maintainers to help you out.
 ### Feature requests
 
 Before creating an issue to request a new feature, make sure no issue already
-exists. Features use the label `feature`. Similar to existing bug reports,
+exists. Features use the type `Feature`. Similar to existing bug reports,
 please use the thumbs up Emoji if you'd like to see the feature implemented;
 instead of replying with comments such as "+1".
 
