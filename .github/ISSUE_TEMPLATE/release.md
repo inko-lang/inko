@@ -2,7 +2,7 @@
 name: Release
 title: Release X.Y.Z
 about: Tasks for a new release of Inko
-labels: release
+type: Release
 ---
 
 Prepare the release:

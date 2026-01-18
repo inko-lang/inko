@@ -1,8 +1,7 @@
 ---
 name: Bug
 description: Report a new bug
-labels:
-  - bug
+type: Bug
 body:
   - type: textarea
     id: description
