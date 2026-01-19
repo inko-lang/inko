@@ -2404,7 +2404,7 @@ impl<'a> CheckMethodBody<'a> {
     fn closure(
         &mut self,
         node: &mut hir::Closure,
-        mut expected: Option<ExpectedClosure>,
+        expected: Option<ExpectedClosure>,
         scope: &mut LexicalScope,
     ) -> TypeRef {
         let self_type = self.self_type;
@@ -2413,31 +2413,72 @@ impl<'a> CheckMethodBody<'a> {
 
         let closure = Closure::alloc(self.db_mut(), moving);
         let bounds = self.bounds;
-        let return_type = if let Some(n) = node.return_type.as_mut() {
-            self.type_signature(n, self_type)
-        } else {
-            let db = self.db_mut();
-
-            expected
-                .as_mut()
-                .map(|e| {
-                    let raw = e.id.return_type(db);
-
-                    TypeResolver::new(db, e.arguments, bounds)
-                        .with_self_type(e.self_type)
-                        .resolve(raw)
-                })
-                .unwrap_or_else(|| TypeRef::placeholder(db, None))
-        };
-
-        closure.set_return_type(self.db_mut(), return_type);
-
         let surrounding_type =
             if scope.surrounding_type.is_owned_or_uni(self.db()) {
                 scope.surrounding_type.as_mut(self.db())
             } else {
                 scope.surrounding_type
             };
+
+        let mut arg_vars = Vec::new();
+
+        for (idx, arg) in node.arguments.iter_mut().enumerate() {
+            let name = arg.name.name.clone();
+            let typ = if let Some(n) = arg.value_type.as_mut() {
+                self.type_signature(n, self.self_type)
+            } else if let Some(exp) = expected.as_ref() {
+                let db = self.db_mut();
+
+                exp.id
+                    .positional_argument_input_type(db, idx)
+                    .map(|v| {
+                        TypeResolver::new(db, exp.arguments, bounds)
+                            .with_self_type(exp.self_type)
+                            .resolve(v)
+                    })
+                    .unwrap_or_else(|| TypeRef::placeholder(db, None))
+            } else {
+                TypeRef::placeholder(self.db_mut(), None)
+            };
+
+            let var = closure.new_argument(
+                self.db_mut(),
+                name.clone(),
+                typ,
+                typ,
+                arg.location,
+            );
+
+            arg_vars.push((name, var));
+        }
+
+        let return_type = if let Some(n) = node.return_type.as_mut() {
+            self.type_signature(n, self_type)
+        } else if let Some(exp) = expected.as_ref() {
+            match exp.id.return_type(self.db()) {
+                // In the closure's body we won't have access to all the type
+                // arguments of the expected return type (as we don't have a way
+                // of bundling those with an arbitrary type). This means we may
+                // end up performing type comparisons that aren't valid,
+                // resulting in issues such as
+                // https://github.com/inko-lang/inko/issues/915.
+                //
+                // To avoid this we create a new and standalone type
+                // placeholder. We then compare this against the expected type
+                // (if there is any) as part of the closure comparison, which
+                // _doesn have access to all the necessary type arguments.
+                TypeRef::Any(TypeEnum::TypeParameter(_)) => {
+                    TypeRef::placeholder(self.db_mut(), None)
+                }
+                v => TypeResolver::new(self.db_mut(), exp.arguments, bounds)
+                    .with_self_type(exp.self_type)
+                    .resolve(v),
+            }
+        } else {
+            TypeRef::placeholder(self.db_mut(), None)
+        };
+
+        closure.set_return_type(self.db_mut(), return_type);
 
         let mut new_scope = LexicalScope {
             kind: ScopeKind::Closure(closure),
@@ -2449,33 +2490,7 @@ impl<'a> CheckMethodBody<'a> {
             break_in_loop: Cell::new(false),
         };
 
-        for (idx, arg) in node.arguments.iter_mut().enumerate() {
-            let name = arg.name.name.clone();
-            let typ = if let Some(n) = arg.value_type.as_mut() {
-                self.type_signature(n, self.self_type)
-            } else {
-                let db = self.db_mut();
-
-                expected
-                    .as_mut()
-                    .and_then(|e| {
-                        e.id.positional_argument_input_type(db, idx).map(|t| {
-                            TypeResolver::new(db, e.arguments, bounds)
-                                .with_self_type(e.self_type)
-                                .resolve(t)
-                        })
-                    })
-                    .unwrap_or_else(|| TypeRef::placeholder(db, None))
-            };
-
-            let var = closure.new_argument(
-                self.db_mut(),
-                name.clone(),
-                typ,
-                typ,
-                arg.location,
-            );
-
+        for (name, var) in arg_vars {
             new_scope.variables.add_variable(name, var);
         }
 

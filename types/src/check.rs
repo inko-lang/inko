@@ -826,19 +826,24 @@ impl<'a> TypeChecker<'a> {
                 TypeEnum::Closure(rhs) => {
                     let lhs_obj = lhs.get(self.db);
                     let rhs_obj = rhs.get(self.db);
-
-                    self.check_arguments(
+                    let valid = self.check_arguments(
                         &lhs_obj.arguments,
                         &rhs_obj.arguments,
                         env,
                         rules,
                         false,
-                    ) && self.check_type_ref(
-                        lhs_obj.return_type,
-                        rhs_obj.return_type,
-                        env,
-                        rules,
-                    )
+                    );
+
+                    // We _don't_ short-circut so that we can still infer the
+                    // return type and produce more meaningful type errors (e.g.
+                    // when the return type is a to-infer type parameter).
+                    valid
+                        & self.check_type_ref(
+                            lhs_obj.return_type,
+                            rhs_obj.return_type,
+                            env,
+                            rules.with_kind(Kind::Return),
+                        )
                 }
                 TypeEnum::TypeParameter(rhs)
                     if rhs.requirements(self.db).is_empty() =>
@@ -1337,7 +1342,11 @@ impl<'a> TypeChecker<'a> {
         self_type: Option<TypeEnum>,
         rules: Rules,
     ) -> TypeRef {
-        match arguments.get(id.original(self.db).unwrap_or(id)) {
+        let key = id.original(self.db).unwrap_or(id);
+
+        // We may end up with `A -> B -> ActualType`, in which case we want to
+        // return `ActualType` and not `B`.
+        match arguments.get_recursive(self.db, key) {
             Some(arg @ TypeRef::Placeholder(id)) => id
                 .value(self.db)
                 .map(|v| self.resolve(v, arguments, self_type, rules))

@@ -2306,7 +2306,7 @@ type pub Request {
   fn pub accepted_mime_types -> Array[Mime] {
     let mimes = headers
       .get_all(Header.accept)
-      .flat_map(fn (v) -> Stream[Mime] { Mime.parse_list(v) })
+      .flat_map(fn (v) { Mime.parse_list(v) })
       .take(MAX_HEADER_VALUES)
       .to_array
 
@@ -2360,7 +2360,7 @@ type pub Request {
     if params {
       let encs = headers
         .get_all(Header.accept_encoding)
-        .flat_map(fn (v) -> Stream[Encoding] { Encoding.parse_list(v) })
+        .flat_map(fn (v) { Encoding.parse_list(v) })
         .take(MAX_HEADER_VALUES)
         .to_array
 
@@ -2369,7 +2369,7 @@ type pub Request {
     } else {
       let iter = headers
         .get_all(Header.accept_encoding)
-        .flat_map(fn (v) -> Stream[Encoding] { Encoding.parse_simple_list(v) })
+        .flat_map(fn (v) { Encoding.parse_simple_list(v) })
         .take(MAX_HEADER_VALUES)
 
       AcceptEncodings.Lazy(iter)
@@ -3329,7 +3329,7 @@ type pub inline WebsocketResponse {
     let protocol = @request
       .headers
       .get_all(Header.sec_websocket_protocol)
-      .flat_map(fn (v) -> Stream[Slice[String]] { tokens(v) })
+      .flat_map(fn (v) { tokens(v) })
       .take(@max_protocols)
       .find(fn (v) { @protocols.contains?(v) })
 

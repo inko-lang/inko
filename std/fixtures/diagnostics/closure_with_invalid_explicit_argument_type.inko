@@ -1,0 +1,38 @@
+type Thing {}
+
+type List[T] {}
+
+trait Iter[ITER] {
+  fn map(closure: fn (ITER)) {}
+
+  fn map_ref(closure: fn (ref ITER)) {}
+
+  fn returns(closure: fn -> ITER) {}
+}
+
+impl Iter[T] for List {}
+
+fn example1(value: List[Thing]) {
+  value.map(fn (arg: String) {})
+}
+
+fn example2(value: List[Thing]) {
+  value.map_ref(fn (arg: mut Thing) {})
+}
+
+fn example3(value: List[Thing]) {
+  value.returns(fn -> String { 'invalid' })
+}
+
+fn example4(value: List[Thing]) {
+  value.returns(fn -> ref Thing { ref Thing() })
+}
+
+fn example5(value: List[Thing]) {
+  value.returns(fn -> mut Thing { mut Thing() })
+}
+
+# closure_with_invalid_explicit_argument_type.inko:16:13 error(invalid-type): expected a value of type 'fn (Thing)', found 'fn (String)'
+# closure_with_invalid_explicit_argument_type.inko:24:17 error(invalid-type): expected a value of type 'fn -> Thing', found 'fn -> String'
+# closure_with_invalid_explicit_argument_type.inko:28:17 error(invalid-type): expected a value of type 'fn -> Thing', found 'fn -> ref Thing'
+# closure_with_invalid_explicit_argument_type.inko:32:17 error(invalid-type): expected a value of type 'fn -> Thing', found 'fn -> mut Thing'
