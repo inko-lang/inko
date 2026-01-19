@@ -1775,7 +1775,7 @@ impl Clone for SharedState {
   }
 }
 
-type async Pool[H: mut + Handle] {
+type async Pool {
   let @shared: SharedState
   let mut @waiter: Option[Promise[Nil]]
 
@@ -1833,7 +1833,7 @@ type inline enum ParseResult {
 }
 
 type async Connection[H: mut + Handle] {
-  let @pool: Pool[H]
+  let @pool: Pool
   let @shared: SharedState
   let @socket: Socket
   let @address: Address
@@ -2569,10 +2569,10 @@ type inline enum SocketServer {
 
 # A type for notifying a `Server` that it should shut down.
 type pub async Notifier[H: mut + Handle] {
-  let @pool: Pool[H]
+  let @pool: Pool
   let @notifier: SocketNotifier
 
-  fn static new(pool: Pool[H], notifier: uni SocketNotifier) -> Self {
+  fn static new(pool: Pool, notifier: uni SocketNotifier) -> Self {
     Self(pool: pool, notifier: notifier)
   }
 
@@ -2620,7 +2620,7 @@ type pub inline enum Tls {
 type pub Server[H: mut + Handle] {
   let @handler: fn -> uni H
   let @shared: SharedState
-  let @pool: Pool[H]
+  let @pool: Pool
   let @waiter: Future[Nil]
 
   # The limitations to apply/enforce when parsing HTTP messages.

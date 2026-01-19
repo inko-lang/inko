@@ -628,7 +628,6 @@ impl MethodCall {
             &self.bounds,
         )
         .with_rigid(rigid)
-        .with_owned()
         .with_self_type(rec)
         .resolve(raw);
 

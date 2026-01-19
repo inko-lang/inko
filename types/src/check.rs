@@ -436,6 +436,7 @@ impl<'a> TypeChecker<'a> {
                 _ => true,
             },
             TypeRef::Owned(left_id) => match right {
+                TypeRef::Any(TypeEnum::RigidTypeParameter(_)) => false,
                 TypeRef::Any(right_id) if !rules.kind.is_return() => {
                     self.check_type_enum(left_id, right_id, env, rules)
                 }
@@ -482,6 +483,7 @@ impl<'a> TypeChecker<'a> {
                 _ => false,
             },
             TypeRef::Uni(left_id) => match right {
+                TypeRef::Any(TypeEnum::RigidTypeParameter(_)) => false,
                 TypeRef::Owned(right_id)
                     if rules.uni_compatible_with_owned || is_val =>
                 {
@@ -537,6 +539,7 @@ impl<'a> TypeChecker<'a> {
                 _ => false,
             },
             TypeRef::Ref(left_id) => match right {
+                TypeRef::Any(TypeEnum::RigidTypeParameter(_)) => false,
                 TypeRef::Any(TypeEnum::TypeParameter(pid))
                     if pid.is_mutable(self.db) && !is_val =>
                 {
@@ -571,6 +574,7 @@ impl<'a> TypeChecker<'a> {
                 _ => false,
             },
             TypeRef::Mut(left_id) => match right {
+                TypeRef::Any(TypeEnum::RigidTypeParameter(_)) => false,
                 TypeRef::Any(right_id) if !rules.kind.is_return() => {
                     self.check_type_enum(left_id, right_id, env, rules)
                 }
@@ -2505,6 +2509,11 @@ mod tests {
         check_err(&db, owned(parameter(p3)), owned(parameter(p4)));
         check_err(&db, owned(parameter(p1)), owned(parameter(p5)));
         check_err(&db, owned(parameter(p5)), owned(parameter(p1)));
+
+        check_err(&db, owned(rigid(p1)), any(rigid(p1)));
+        check_err(&db, immutable(rigid(p1)), any(rigid(p1)));
+        check_err(&db, mutable(rigid(p1)), any(rigid(p1)));
+        check_err(&db, uni(rigid(p1)), any(rigid(p1)));
     }
 
     #[test]
@@ -2537,7 +2546,6 @@ mod tests {
         check_ok(&db, owned(rigid(p1)), TypeRef::Error);
         check_ok(&db, immutable(rigid(p1)), immutable(rigid(p1)));
         check_ok(&db, owned(rigid(p1)), owned(rigid(p1)));
-        check_ok(&db, owned(rigid(p1)), any(rigid(p1)));
         check_ok(&db, owned(rigid(p1)), any(parameter(p1)));
         check_ok(&db, immutable(rigid(p1)), immutable(parameter(p1)));
         check_ok(&db, owned(rigid(p1)), owned(parameter(p1)));
@@ -2546,6 +2554,7 @@ mod tests {
         check_ok(&db, owned(rigid(p1)), placeholder(var));
         assert_eq!(var.value(&db), Some(owned(rigid(p1))));
 
+        check_err(&db, owned(rigid(p1)), any(rigid(p1)));
         check_err(&db, owned(rigid(p1)), owned(rigid(p2)));
         check_err(&db, owned(rigid(p1)), owned(rigid(p3)));
         check_err(&db, owned(rigid(p3)), owned(rigid(p1)));

@@ -1,0 +1,21 @@
+type Example[T] {
+  let mut @value: T
+
+  fn mut example1(value: ref T) {
+    @value = value
+  }
+
+  fn mut example2(value: uni T) {
+    @value = value
+  }
+}
+
+impl Example if T: mut {
+  fn mut example3(value: mut T) {
+    @value = value
+  }
+}
+
+# storing_in_generic_field_with_wrong_ownership.inko:5:5 error(invalid-type): expected a value of type 'T', found 'ref T'
+# storing_in_generic_field_with_wrong_ownership.inko:9:5 error(invalid-type): expected a value of type 'T', found 'uni T'
+# storing_in_generic_field_with_wrong_ownership.inko:15:5 error(invalid-type): expected a value of type 'T: mut', found 'mut T: mut'

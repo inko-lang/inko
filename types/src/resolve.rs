@@ -37,10 +37,6 @@ pub struct TypeResolver<'a> {
     /// parameters instead of placeholders.
     rigid: bool,
 
-    /// When set to `true`, types assigned to `move T` type parameters have
-    /// their ownership changed to `T`, i.e. `ref Foo` becomes `Foo`.
-    owned: bool,
-
     /// The surrounding trait definition, if any.
     ///
     /// If present it's used to remap inherited type parameters to their correct
@@ -63,7 +59,6 @@ impl<'a> TypeResolver<'a> {
             bounds,
             immutable: false,
             rigid: false,
-            owned: false,
             surrounding_trait: None,
             cached: HashMap::new(),
             self_type: None,
@@ -77,11 +72,6 @@ impl<'a> TypeResolver<'a> {
 
     pub fn with_rigid(mut self, rigid: bool) -> TypeResolver<'a> {
         self.rigid = rigid;
-        self
-    }
-
-    pub fn with_owned(mut self) -> TypeResolver<'a> {
-        self.owned = true;
         self
     }
 
@@ -120,11 +110,9 @@ impl<'a> TypeResolver<'a> {
                 Either::Right(TypeRef::Placeholder(id)) => {
                     TypeRef::Placeholder(id.as_owned())
                 }
-                // For e.g. return types we want `move T` to be resolved such
-                // that if `T = ref User`, the return type is `User`, not
-                // `ref User`.
-                Either::Right(typ) if self.owned => typ.as_owned(self.db),
-                Either::Right(typ) => typ,
+                // If a `move T` is assigned `ref Foo` we should resolve it to
+                // `Foo` instead of keeping it as `ref Foo`.
+                Either::Right(typ) => typ.as_owned(self.db),
             },
             TypeRef::Any(id) => match self.resolve_type_enum(id) {
                 Either::Left(res) => TypeRef::Any(res),
@@ -335,8 +323,8 @@ mod tests {
     use crate::test::{
         any, closure, generic_instance, generic_trait_instance,
         generic_trait_instance_id, immutable, immutable_uni, instance, mutable,
-        mutable_uni, new_parameter, new_trait, owned, parameter, placeholder,
-        pointer, rigid, type_arguments, type_bounds, uni,
+        mutable_uni, new_parameter, new_trait, new_type, owned, parameter,
+        placeholder, pointer, rigid, type_arguments, type_bounds, uni,
     };
     use crate::{
         Block, Closure, Ownership, TypeId, TypePlaceholder, TypePlaceholderId,
@@ -592,14 +580,23 @@ mod tests {
     fn test_type_parameter() {
         let mut db = Database::new();
         let string = TypeId::string();
+        let thing = new_type(&mut db, "Thing");
         let param1 = new_parameter(&mut db, "A");
         let param2 = new_parameter(&mut db, "B");
-        let args = type_arguments(vec![(param1, owned(instance(string)))]);
+        let param3 = new_parameter(&mut db, "C");
+        let args = type_arguments(vec![
+            (param1, owned(instance(string))),
+            (param3, immutable(instance(thing))),
+        ]);
         let bounds = TypeBounds::new();
 
         assert_eq!(
             resolve(&mut db, &args, &bounds, owned(parameter(param1))),
             owned(instance(string))
+        );
+        assert_eq!(
+            resolve(&mut db, &args, &bounds, owned(parameter(param3))),
+            owned(instance(thing))
         );
 
         assert_eq!(
