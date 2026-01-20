@@ -133,20 +133,18 @@ unsafe fn alpn_name<
         .unwrap_or(PrimitiveString::empty())
 }
 
-unsafe fn with_unique_config<T, F: FnOnce(&mut T)>(
-    config: *const T,
-    func: F,
-) -> bool {
+unsafe fn with_unique_config<T, F: FnOnce(&mut T)>(config: *const T, func: F) {
     let mut config = Arc::from_raw(config);
-    let res = if let Some(conf) = Arc::get_mut(&mut config) {
+
+    if let Some(conf) = Arc::get_mut(&mut config) {
         func(conf);
-        true
     } else {
-        false
-    };
+        // Due to how the standard library is implemented we should never reach
+        // this branch, but it doesn't hurt to check _just_ in case.
+        unreachable!("can't modify TLS configuration with multiple owners");
+    }
 
     forget(config);
-    res
 }
 
 #[no_mangle]
@@ -163,11 +161,11 @@ pub unsafe extern "system" fn inko_tls_client_config_add_alpn(
     config: *const ClientConfig,
     name: *const u8,
     size: i64,
-) -> bool {
+) {
     with_unique_config(config, |conf| {
         conf.alpn_protocols
             .push(slice::from_raw_parts(name, size as usize).to_vec());
-    })
+    });
 }
 
 #[no_mangle]
@@ -190,14 +188,6 @@ pub unsafe extern "system" fn inko_tls_client_config_with_certificate(
     );
 
     Result::ok(Arc::into_raw(conf) as *mut _)
-}
-
-#[no_mangle]
-pub unsafe extern "system" fn inko_tls_client_config_clone(
-    config: *const ClientConfig,
-) -> *const ClientConfig {
-    Arc::increment_strong_count(config);
-    config
 }
 
 #[no_mangle]
@@ -300,19 +290,11 @@ pub unsafe extern "system" fn inko_tls_server_config_add_alpn(
     config: *const ServerConfig,
     name: *const u8,
     size: i64,
-) -> bool {
+) {
     with_unique_config(config, |conf| {
         conf.alpn_protocols
             .push(slice::from_raw_parts(name, size as usize).to_vec());
-    })
-}
-
-#[no_mangle]
-pub unsafe extern "system" fn inko_tls_server_config_clone(
-    config: *const ServerConfig,
-) -> *const ServerConfig {
-    Arc::increment_strong_count(config);
-    config
+    });
 }
 
 #[no_mangle]

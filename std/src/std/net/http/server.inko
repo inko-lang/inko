@@ -2613,7 +2613,7 @@ type async SignalWaiter[H: mut + Handle] {
 type pub inline enum Tls {
   case None
   case Static(tls.ServerConfig)
-  case Dynamic(fn (Option[String]) -> Option[uni tls.ServerConfig])
+  case Dynamic(fn (Option[String]) -> Option[tls.ServerConfig])
 }
 
 # An HTTP server that handles incoming requests.
@@ -2734,9 +2734,7 @@ type pub Server[H: mut + Handle] {
   #
   # The return value is an optional `uni std.net.tls.ServerConfig` to use for
   # the connection. If an `Option.None` is returned the connection is aborted.
-  fn pub mut dynamic_tls(
-    fun: fn (Option[String]) -> Option[uni tls.ServerConfig],
-  ) {
+  fn pub mut dynamic_tls(fun: fn (Option[String]) -> Option[tls.ServerConfig]) {
     @tls = Tls.Dynamic(fun)
   }
 

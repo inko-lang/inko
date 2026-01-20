@@ -37,7 +37,7 @@ fn tls_client(
   address: SocketAddress,
 ) -> Result[tls.Client[TcpClient], IoError] {
   let client_sock = try TcpClient.new([address.ip], address.port)
-  let client_conf = tls.ClientConfig.with_certificate(certificate).get
+  let client_conf = tls.ClientConfig.builder.with_certificate(certificate).get
   let tls_client = tls
     .Client
     .new(client_sock, client_conf, server: 'localhost')
@@ -54,7 +54,9 @@ type async TlsServer {
     let server_sock = recover {
       try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     }
-    let server_conf = recover tls.ServerConfig.new(certificate, private_key).get
+    let server_conf = recover {
+      tls.ServerConfig.builder.new(certificate, private_key).get
+    }
     let addr = try server_sock.local_address
 
     Result.Ok((Self(conf: server_conf, sock: server_sock), addr))
@@ -911,7 +913,7 @@ fn pub tests(t: mut Tests) {
 
   t.ok('Client.connect with valid HTTPS URIs', fn (t) {
     let (server, addr) = try TlsServer.new
-    let conf = tls.ClientConfig.with_certificate(certificate).get
+    let conf = tls.ClientConfig.builder.with_certificate(certificate).get
     let tests = [
       uri(https, ip(addr.ip), port(addr.port)),
       uri(https, named('localhost'), port(addr.port)),

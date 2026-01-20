@@ -45,13 +45,11 @@ let DEFAULT_ALPN = []
 
 fn extern inko_tls_client_config_new -> AnyResult
 
-fn extern inko_tls_client_config_clone(config: Pointer[UInt8]) -> Pointer[UInt8]
-
 fn extern inko_tls_client_config_add_alpn(
   config: Pointer[UInt8],
   name: Pointer[UInt8],
   size: Int,
-) -> Bool
+)
 
 fn extern inko_tls_client_config_drop(config: Pointer[UInt8])
 
@@ -84,9 +82,7 @@ fn extern inko_tls_server_config_add_alpn(
   config: Pointer[UInt8],
   name: Pointer[UInt8],
   size: Int,
-) -> Bool
-
-fn extern inko_tls_server_config_clone(config: Pointer[UInt8]) -> Pointer[UInt8]
+)
 
 fn extern inko_tls_server_config_drop(config: Pointer[UInt8])
 
@@ -296,45 +292,25 @@ impl Format for ServerConfigError {
   }
 }
 
-# A type storing the configuration details for TLS clients.
-#
-# To configure a `Server`, use `ServerConfig` instead.
-#
-# Creating a `ClientConfig` is potentially expensive, depending on the amount of
-# certificates that need to be processed. As such, it's recommended to only
-# create a `ClientConfig` once and use `ClientConfig.clone` to clone it whenever
-# necessary (e.g. when sharing a `ClientConfig` between processes), as cloning a
-# `ClientConfig` is cheap.
-type pub ClientConfig {
-  let @raw: Pointer[UInt8]
+# A type for building a `ClientConfig`.
+type pub inline ClientConfigBuilder {
+  let mut @alpn: Option[ref Array[String]]
 
-  # Returns a new `ClientConfig` that uses the system's certificate store.
+  # Sets the list of enabled ALPN names to the given `Array`.
   #
-  # If the system's TLS configuration can't be loaded, an `Option.None` is
-  # returned.
-  #
-  # # Examples
-  #
-  # ```inko
-  # import std.net.tls (ClientConfig)
-  #
-  # ClientConfig.new.some? # => true
-  # ```
-  fn pub static new -> Option[ClientConfig] {
-    match inko_tls_client_config_new {
-      case { @tag = OK, @value = v } -> {
-        Option.Some(ClientConfig(v as Pointer[UInt8]))
-      }
-      case _ -> Option.None
-    }
+  # This method _borrows_ the list of names as to avoid the need for additional
+  # allocations/copies.
+  fn pub move alpn(names: ref Array[String]) -> Self {
+    @alpn = Option.Some(names)
+    self
   }
 
-  # Returns a new `ClientConfig` using the specified PEM encoded X.509
-  # certificate.
+  # Returns a `ClientConfig` that uses the given certificate instead of the
+  # system's certificate store.
   #
   # # Errors
   #
-  # If the certificate isn't valid, a `None` is returned.
+  # If the certificate isn't valid, an `Option.None` is returned.
   #
   # # Examples
   #
@@ -346,51 +322,81 @@ type pub ClientConfig {
   # let cert = Certificate.new(ByteArray.from_array[1, 2, 3, 4])
   #
   # ClientConfig
+  #   .builder
   #   .with_certificate(cert)
   #   .or_panic_with('the client configuration is invalid')
   # ```
-  fn pub static with_certificate(
+  fn pub move with_certificate(
     certificate: ref Certificate,
   ) -> Option[ClientConfig] {
-    match
+    build(
       inko_tls_client_config_with_certificate(
         certificate.bytes.pointer,
         certificate.bytes.size,
-      )
-    {
-      case { @tag = OK, @value = v } -> {
-        Option.Some(ClientConfig(v as Pointer[UInt8]))
-      }
-      case _ -> Option.None
-    }
+      ),
+    )
   }
 
-  # Adds the given ALPN names to `self`.
+  # Returns a `ClientConfig` that uses the system's certificate store.
   #
-  # # Panics
+  # # Errors
   #
-  # This method panics if `self` has more than one owner, such as when
-  # `ClientConfig.clone` is called or one or more `Client` instances using
-  # `self` exist.
+  # If the system's TLS configuration can't be loaded, an `Option.None` is
+  # returned.
   #
   # # Examples
   #
   # ```inko
   # import std.net.tls (ClientConfig)
   #
-  # ClientConfig
-  #   .new
-  #   .get
-  #   .alpn(['h2', 'http/1.1'])
+  # ClientConfig.builder.new.some? # => true
   # ```
-  fn pub move alpn(names: ref Array[String]) -> Self {
-    for name in names.iter {
-      if !inko_tls_client_config_add_alpn(@raw, name.pointer, name.size) {
-        client_config_not_unique_error
-      }
+  fn pub move new -> Option[ClientConfig] {
+    build(inko_tls_client_config_new)
+  }
+
+  fn move build(result: AnyResult) -> Option[ClientConfig] {
+    let conf = match result {
+      case { @tag = OK, @value = v } -> ClientConfig(v as Pointer[UInt8])
+      case _ -> return Option.None
     }
 
-    self
+    match @alpn {
+      case Some(names) -> {
+        for v in names.iter {
+          inko_tls_client_config_add_alpn(conf.raw, v.pointer, v.size)
+        }
+      }
+      case _ -> {}
+    }
+
+    Option.Some(conf)
+  }
+}
+
+# A type storing the configuration details for TLS clients.
+#
+# To configure a `Server`, use `ServerConfig` instead.
+#
+# Creating a `ClientConfig` is potentially expensive, depending on the amount of
+# certificates that need to be processed. As such, it's recommended to only
+# create a `ClientConfig` once and use `ClientConfig.clone` to clone it whenever
+# necessary (e.g. when sharing a `ClientConfig` between processes), as cloning a
+# `ClientConfig` is cheap.
+type pub ref ClientConfig {
+  let @raw: Pointer[UInt8]
+
+  # Returns a new `ClientConfigBuilder` for building a new `ClientConfig`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.net.tls (ClientConfig)
+  #
+  # ClientConfig.builder.new
+  # ```
+  fn pub static builder -> ClientConfigBuilder {
+    ClientConfigBuilder(alpn: Option.None)
   }
 }
 
@@ -402,7 +408,7 @@ impl Drop for ClientConfig {
 
 impl Clone for ClientConfig {
   fn pub clone -> ClientConfig {
-    ClientConfig(inko_tls_client_config_clone(@raw))
+    self
   }
 }
 
@@ -473,7 +479,7 @@ impl Equal for ClientError {
 # import std.net.socket (TcpClient)
 # import std.net.tls (Client, ClientConfig)
 #
-# let conf = ClientConfig.new
+# let conf = ClientConfig.builder.new
 # let sock = TcpClient
 #   .new(ips: [IpAddress.v4(127, 0, 0, 1)], port: 9000)
 #   .or_panic_with('failed to connect to the server')
@@ -521,7 +527,7 @@ type pub Client[T: mut + Deadline + RawSocketOperations] {
   # import std.net.socket (TcpClient)
   # import std.net.tls (Client, ClientConfig)
   #
-  # let conf = ClientConfig.new
+  # let conf = ClientConfig.builder.new
   # let sock = TcpClient
   #   .new(ips: [IpAddress.v4(127, 0, 0, 1)], port: 9000)
   #   .or_panic_with('failed to connect to the server')
@@ -530,7 +536,7 @@ type pub Client[T: mut + Deadline + RawSocketOperations] {
   # ```
   fn pub static new(
     socket: T,
-    config: ref ClientConfig,
+    config: ClientConfig,
     server: String,
   ) -> Result[Client[T], ClientError] {
     with_alpn(socket, config, server, DEFAULT_ALPN)
@@ -548,7 +554,7 @@ type pub Client[T: mut + Deadline + RawSocketOperations] {
   # import std.net.socket (TcpClient)
   # import std.net.tls (Client, ClientConfig)
   #
-  # let conf = ClientConfig.new
+  # let conf = ClientConfig.builder.new
   # let sock = TcpClient
   #   .new(ips: [IpAddress.v4(127, 0, 0, 1)], port: 9000)
   #   .or_panic_with('failed to connect to the server')
@@ -559,7 +565,7 @@ type pub Client[T: mut + Deadline + RawSocketOperations] {
   # ```
   fn pub static with_alpn(
     socket: T,
-    config: ref ClientConfig,
+    config: ClientConfig,
     server: String,
     alpn: ref Array[String],
   ) -> Result[Client[T], ClientError] {
@@ -726,16 +732,18 @@ impl SendFile[Error] for Client {
   }
 }
 
-# A type storing the configuration details for TLS servers.
-#
-# To configure a `Client`, use `ClientConfig` instead.
-#
-# Creating a `ServerConfig` is potentially expensive, depending on the
-# certificate and private key that are used. As such, it's recommended to only
-# create a `ServerConfig` once and use `ServerConfig.clone` to clone it whenever
-# necessary, as cloning a `ServerConfig` is cheap.
-type pub ServerConfig {
-  let @raw: Pointer[UInt8]
+# A type for building a `ServerConfig`.
+type pub inline ServerConfigBuilder {
+  let mut @alpn: Option[ref Array[String]]
+
+  # Sets the list of enabled ALPN names to the given `Array`.
+  #
+  # This method _borrows_ the list of names as to avoid the need for additional
+  # allocations/copies.
+  fn pub move alpn(names: ref Array[String]) -> Self {
+    @alpn = Option.Some(names)
+    self
+  }
 
   # Returns a new `ServerConfig` using the specified PEM encoded X.509
   # certificate and private key.
@@ -757,14 +765,15 @@ type pub ServerConfig {
   # let key = PrivateKey.new(ByteArray.from_array([4, 5, 6]))
   #
   # ServerConfig
+  #   .builder
   #   .new(cert, key)
   #   .or_panic
   # ```
-  fn pub static new(
+  fn pub move new(
     certificate: ref Certificate,
     key: ref PrivateKey,
   ) -> Result[ServerConfig, ServerConfigError] {
-    match
+    let conf = match
       inko_tls_server_config_new(
         certificate: certificate.bytes.pointer,
         certificate_size: certificate.bytes.size,
@@ -772,29 +781,32 @@ type pub ServerConfig {
         key_size: key.bytes.size,
       )
     {
-      case { @tag = OK, @value = v } -> {
-        Result.Ok(ServerConfig(v as Pointer[UInt8]))
-      }
+      case { @tag = OK, @value = v } -> ServerConfig(v as Pointer[UInt8])
       case { @value = e } if e as Int == INVALID_CERT -> {
-        Result.Error(ServerConfigError.InvalidCertificate)
+        throw ServerConfigError.InvalidCertificate
       }
-      case _ -> Result.Error(ServerConfigError.InvalidPrivateKey)
+      case _ -> throw ServerConfigError.InvalidPrivateKey
     }
+
+    build(conf)
   }
 
   # Returns a new `ServerConfig` that uses the certificate and private key
   # located at the given file paths.
   #
-  # For more details, refer to the documentation of `ServerConfig.new`.
+  # For more details, refer to the documentation of `ServerConfigBuilder.new`.
   #
   # # Examples
   #
   # ```inko
   # import std.net.tls (ServerConfig)
   #
-  # ServerConfig.from_files('cert.pem'.to_path, 'key.pem'.to_path).or_panic
+  # ServerConfig
+  #   .builder
+  #   .from_files('cert.pem'.to_path, 'key.pem'.to_path)
+  #   .or_panic
   # ```
-  fn pub static from_files(
+  fn pub move from_files(
     certificate: ref Path,
     key: ref Path,
   ) -> Result[ServerConfig, ServerConfigError] {
@@ -808,36 +820,44 @@ type pub ServerConfig {
     new(cert, key)
   }
 
-  # Adds the given ALPN names to `self`.
-  #
-  # # Panics
-  #
-  # This method panics if `self` has more than one owner, such as when
-  # `ServerConfig.clone` is called or one or more `Server` instances using
-  # `self` exist.
+  fn move build(
+    config: ServerConfig,
+  ) -> Result[ServerConfig, ServerConfigError] {
+    match @alpn {
+      case Some(names) -> {
+        for v in names.iter {
+          inko_tls_server_config_add_alpn(config.raw, v.pointer, v.size)
+        }
+      }
+      case _ -> {}
+    }
+
+    Result.Ok(config)
+  }
+}
+
+# A type storing the configuration details for TLS servers.
+#
+# To configure a `Client`, use `ClientConfig` instead.
+#
+# Creating a `ServerConfig` is potentially expensive, depending on the
+# certificate and private key that are used. As such, it's recommended to only
+# create a `ServerConfig` once and use `ServerConfig.clone` to clone it whenever
+# necessary, as cloning a `ServerConfig` is cheap.
+type pub ref ServerConfig {
+  let @raw: Pointer[UInt8]
+
+  # Returns a new `ServerConfigBuilder` for building a new `ServerConfig`.
   #
   # # Examples
   #
   # ```inko
   # import std.net.tls (ServerConfig)
-  # import std.crypto.x509 (Certificate, PrivateKey)
   #
-  # let cert = Certificate.new(ByteArray.from_array([1, 2, 3]))
-  # let key = PrivateKey.new(ByteArray.from_array([4, 5, 6]))
-  #
-  # ServerConfig
-  #   .new(cert, key)
-  #   .or_panic
-  #   .alpn(['h2', 'http/1.1'])
+  # ServerConfig.builder.new
   # ```
-  fn pub move alpn(names: ref Array[String]) -> Self {
-    for name in names.iter {
-      if !inko_tls_server_config_add_alpn(@raw, name.pointer, name.size) {
-        server_config_not_unique_error
-      }
-    }
-
-    self
+  fn pub static builder -> ServerConfigBuilder {
+    ServerConfigBuilder(alpn: Option.None)
   }
 }
 
@@ -849,7 +869,7 @@ impl Drop for ServerConfig {
 
 impl Clone for ServerConfig {
   fn pub clone -> ServerConfig {
-    ServerConfig(inko_tls_server_config_clone(@raw))
+    self
   }
 }
 
@@ -979,7 +999,7 @@ type pub Server[T: mut + Deadline + RawSocketOperations] {
   # ```
   fn pub static new(
     socket: T,
-    config: ref ServerConfig,
+    config: ServerConfig,
   ) -> Result[Server[T], ServerError] {
     let state = inko_tls_server_connection_new(config.raw)
 
@@ -1226,7 +1246,7 @@ impl Equal for PendingServerError {
 #   case _ -> panic('unsupported server name')
 # }
 #
-# let conf = ServerConfig.new(cert, key).or_panic
+# let conf = ServerConfig.builder.new(cert, key).or_panic
 #
 # pending.into_server(conf).or_panic
 # ```
@@ -1304,7 +1324,7 @@ type pub PendingServer[T: mut + Deadline + RawSocketOperations] {
   # This method may fail if the client's hello message is invalid or if the TLS
   # handshake can't be completed.
   fn pub move into_server(
-    config: ref ServerConfig,
+    config: ServerConfig,
   ) -> Result[Server[T], PendingServerError] {
     let sock = (@socket := Option.None).get
     let server_state = match

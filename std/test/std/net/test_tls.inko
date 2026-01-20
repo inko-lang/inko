@@ -64,11 +64,11 @@ type async DummyServer {
 
   fn static new -> Result[(DummyServer, Int), String] {
     let conf = recover {
-      let conf = try ServerConfig
+      try ServerConfig
+        .builder
+        .alpn(['foo', 'bar'])
         .new(certificate(VALID_CERT), private_key(VALID_KEY))
         .map_error(fn (e) { 'failed to create the server config: ${e}' })
-
-      conf.alpn(['foo', 'bar'])
     }
 
     # We bind to port zero so we get a random port number, such that we don't
@@ -154,7 +154,7 @@ type async DummyClient {
     port: Int,
     alpn: ref Array[String],
   ) -> Result[Client[TcpClient], String] {
-    let conf = (try client_config).alpn(alpn)
+    let conf = try client_config_with_alpn(alpn)
     let sock = try TcpClient.new([IpAddress.v4(127, 0, 0, 1)], port).map_error(
       fn (e) { 'failed to connect: ${e}' },
     )
@@ -188,15 +188,36 @@ fn private_key(data: String) -> PrivateKey {
 }
 
 fn client_config -> Result[ClientConfig, String] {
-  ClientConfig.with_certificate(certificate(VALID_CERT)).ok_or(
-    'failed to create the client configuration',
+  ClientConfig.builder.with_certificate(certificate(VALID_CERT)).ok_or(
+    'invalid client config',
   )
 }
 
+fn client_config_with_alpn(
+  names: ref Array[String],
+) -> Result[ClientConfig, String] {
+  ClientConfig
+    .builder
+    .alpn(names)
+    .with_certificate(certificate(VALID_CERT))
+    .ok_or('invalid client config')
+}
+
 fn server_config -> Result[ServerConfig, String] {
-  ServerConfig.new(certificate(VALID_CERT), private_key(VALID_KEY)).map_error(
-    fn (e) { e.to_string },
-  )
+  ServerConfig
+    .builder
+    .new(certificate(VALID_CERT), private_key(VALID_KEY))
+    .map_error(fn (e) { e.to_string })
+}
+
+fn server_config_with_alpn(
+  names: ref Array[String],
+) -> Result[ServerConfig, String] {
+  ServerConfig
+    .builder
+    .alpn(names)
+    .new(certificate(VALID_CERT), private_key(VALID_KEY))
+    .map_error(fn (e) { e.to_string })
 }
 
 fn dummy_socket -> Result[Socket, String] {
@@ -204,7 +225,7 @@ fn dummy_socket -> Result[Socket, String] {
 }
 
 fn accept(socket: mut TcpServer) -> Result[Server[TcpClient], String] {
-  let conf = (try server_config).alpn(['foo', 'bar'])
+  let conf = try server_config_with_alpn(['foo', 'bar'])
   let sock = try socket.accept.map_error(fn (e) { 'accept failed: ${e}' })
 
   Server.new(sock, conf).map_error(fn (e) { e.to_string })
@@ -243,20 +264,33 @@ fn pub tests(t: mut Tests) {
     )
   })
 
-  t.test('ClientConfig.new', fn (t) { t.true(ClientConfig.new.some?) })
-
-  t.test('ClientConfig.with_certificate with a valid certificate', fn (t) {
-    t.true(ClientConfig.with_certificate(certificate(VALID_CERT)).some?)
+  t.test('ClientConfigBuilder.new', fn (t) {
+    t.true(ClientConfig.builder.new.some?)
   })
 
-  t.test('ClientConfig.with_certificate with an invalid certificate', fn (t) {
-    t.true(ClientConfig.with_certificate(certificate(INVALID_CERT)).none?)
-  })
+  t.test(
+    'ClientConfigBuilder.with_certificate with a valid certificate',
+    fn (t) {
+      t.true(
+        ClientConfig.builder.with_certificate(certificate(VALID_CERT)).some?,
+      )
+    },
+  )
 
-  t.panic('ClientConfig.alpn when the ClientConfig has multiple owners', fn {
-    let conf1 = ClientConfig.new.get
+  t.test(
+    'ClientConfigBuilder.with_certificate with an invalid certificate',
+    fn (t) {
+      t.true(
+        ClientConfig.builder.with_certificate(certificate(INVALID_CERT)).none?,
+      )
+    },
+  )
 
-    conf1.clone.alpn(['foo'])
+  t.test('ClientConfigBuilder.alpn', fn (t) {
+    let names = ['foo']
+    let conf = ClientConfig.builder.alpn(names)
+
+    t.equal(conf.alpn, Option.Some(ref names))
   })
 
   t.ok('ClientConfig.clone', fn (t) {
@@ -267,47 +301,53 @@ fn pub tests(t: mut Tests) {
     Result.Ok(nil)
   })
 
-  t.test('ServerConfig.new with a valid certificate and private key', fn (t) {
-    let cert = certificate(VALID_CERT)
-    let key = private_key(VALID_KEY)
+  t.test(
+    'ServerConfigBuilder.new with a valid certificate and private key',
+    fn (t) {
+      let cert = certificate(VALID_CERT)
+      let key = private_key(VALID_KEY)
 
-    t.true(ServerConfig.new(cert, key).ok?)
-  })
+      t.true(ServerConfig.builder.new(cert, key).ok?)
+    },
+  )
 
-  t.test('ServerConfig.new with an invalid certificate', fn (t) {
+  t.test('ServerConfigBuilder.new with an invalid certificate', fn (t) {
     let key = private_key(VALID_KEY)
 
     t.equal(
-      ServerConfig.new(certificate(INVALID_CERT), key).error,
+      ServerConfig.builder.new(certificate(INVALID_CERT), key).error,
       Option.Some(ServerConfigError.InvalidCertificate),
     )
   })
 
-  t.test('ServerConfig.new with an invalid private key', fn (t) {
+  t.test('ServerConfigBuilder.new with an invalid private key', fn (t) {
     let cert = certificate(VALID_CERT)
 
     t.equal(
-      ServerConfig.new(cert, private_key(INVALID_KEY)).error,
+      ServerConfig.builder.new(cert, private_key(INVALID_KEY)).error,
       Option.Some(ServerConfigError.InvalidPrivateKey),
     )
   })
 
-  t.ok('ServerConfig.from_files with a valid certificate and key', fn (t) {
-    with_directory(t.id, fn (dir) {
-      try dir.create_directory
+  t.ok(
+    'ServerConfigBuilder.from_files with a valid certificate and key',
+    fn (t) {
+      with_directory(t.id, fn (dir) {
+        try dir.create_directory
 
-      let cert = dir.join('cert.pem')
-      let key = dir.join('key.pem')
+        let cert = dir.join('cert.pem')
+        let key = dir.join('key.pem')
 
-      try WriteOnlyFile.new(cert).then(fn (f) { f.write(VALID_CERT) })
-      try WriteOnlyFile.new(key).then(fn (f) { f.write(VALID_KEY) })
+        try WriteOnlyFile.new(cert).then(fn (f) { f.write(VALID_CERT) })
+        try WriteOnlyFile.new(key).then(fn (f) { f.write(VALID_KEY) })
 
-      t.equal(ServerConfig.from_files(cert, key).error, Option.None)
-      Result.Ok(nil)
-    })
-  })
+        t.equal(ServerConfig.builder.from_files(cert, key).error, Option.None)
+        Result.Ok(nil)
+      })
+    },
+  )
 
-  t.ok('ServerConfig.from_files with an invalid certificate', fn (t) {
+  t.ok('ServerConfigBuilder.from_files with an invalid certificate', fn (t) {
     with_directory(t.id, fn (dir) {
       try dir.create_directory
 
@@ -318,14 +358,14 @@ fn pub tests(t: mut Tests) {
       try WriteOnlyFile.new(key).then(fn (f) { f.write(VALID_KEY) })
 
       t.equal(
-        ServerConfig.from_files(cert, key).error,
+        ServerConfig.builder.from_files(cert, key).error,
         Option.Some(ServerConfigError.InvalidCertificate),
       )
       Result.Ok(nil)
     })
   })
 
-  t.ok('ServerConfig.from_files with an invalid key', fn (t) {
+  t.ok('ServerConfigBuilder.from_files with an invalid key', fn (t) {
     with_directory(t.id, fn (dir) {
       try dir.create_directory
 
@@ -336,19 +376,18 @@ fn pub tests(t: mut Tests) {
       try WriteOnlyFile.new(key).then(fn (f) { f.write('wat') })
 
       t.equal(
-        ServerConfig.from_files(cert, key).error,
+        ServerConfig.builder.from_files(cert, key).error,
         Option.Some(ServerConfigError.InvalidPrivateKey),
       )
       Result.Ok(nil)
     })
   })
 
-  t.panic('ServerConfig.alpn when the ServerConfig has multiple owners', fn {
-    let cert = certificate(VALID_CERT)
-    let key = private_key(VALID_KEY)
-    let conf1 = ServerConfig.new(cert, key).or_panic
+  t.test('ServerConfigBuilder.alpn', fn (t) {
+    let names = ['foo']
+    let conf = ServerConfig.builder.alpn(names)
 
-    conf1.clone.alpn(['foo'])
+    t.equal(conf.alpn, Option.Some(ref names))
   })
 
   t.ok('ServerConfig.clone', fn (t) {
@@ -586,8 +625,7 @@ fn pub tests(t: mut Tests) {
       case Error(e) -> throw e
     }
 
-    let conf = try client_config
-    let conf = conf.alpn(['foo'])
+    let conf = try client_config_with_alpn(['foo'])
     let sock = try connect(port)
     let client = try Client.new(sock, conf, server: 'localhost').map_error(
       fn (e) { e.to_string },

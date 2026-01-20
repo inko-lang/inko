@@ -316,7 +316,7 @@ type async Main {
   fn async main {
     let client = Client.new
 
-    client.tls = Option.Some(ClientConfig.new.get)
+    client.tls = Option.Some(ClientConfig.builder.new.get)
 
     let uri = Uri.parse('https://httpbun.com/get').or_panic
     let res = client.get(uri).send.or_panic

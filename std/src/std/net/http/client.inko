@@ -992,13 +992,13 @@ type pub Client {
     Result.Ok(@connections.add(scope, sock))
   }
 
-  fn mut tls_config -> Result[mut tls.ClientConfig, Error] {
+  fn mut tls_config -> Result[tls.ClientConfig, Error] {
     match @tls.as_mut {
       case Some(v) -> return Result.Ok(v)
       case _ -> {}
     }
 
-    let Some(v) = tls.ClientConfig.new else throw Error.InvalidTlsConfig
+    let Some(v) = tls.ClientConfig.builder.new else throw Error.InvalidTlsConfig
     let ret = mut v
 
     @tls = Option.Some(v)
