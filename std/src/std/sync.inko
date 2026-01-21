@@ -571,7 +571,7 @@ type async ChannelState[T] {
 # `Promise`.
 #
 # If you need to retrieve a value without blocking indefinitely, use
-# `Channel.try_receive` with an appropriate deadline instead.
+# `Channel.receive_until` with an appropriate deadline instead.
 #
 # # Sharing channels
 #
