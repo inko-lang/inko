@@ -80,8 +80,6 @@
 #
 # - `conditional_request`: adds support for conditional requests using the
 #   `If-None-Match` and `If-Modified-Since` headers
-# - `head_request`: adds support for `HEAD` requests by taking a regular
-#   response and turning it into a `HEAD` response
 # - `RangeRequest`: a type that adds support for range requests using the
 #   `Range` and `If-Range` headers
 # - `Directory`: a type for serving static files from a directory, complete with
@@ -228,7 +226,7 @@
 # ```
 #
 # This example behaves the same as the previous example, except it only allows
-# `GET` requests. Sending a different kind of request (e.g. a `HEAD` request)
+# `GET` requests. Sending a different kind of request (e.g. a `POST` request)
 # results in a 405 response with the correct `Allow` header value. The `Allow`
 # header is populated based on the `std.net.http.Method` values passed to
 # `Response.only_allow`. The `std.net.http.server` module provides the following
@@ -795,7 +793,7 @@ fn head_request(request: ref Request, response: Response) -> Response {
 # ```inko
 # import std.env
 # import std.net.http.server (
-#   Directory, Handle, Request, Response, Server, compress_response, head_request,
+#   Directory, Handle, Request, Response, Server, compress_response,
 # )
 #
 # type App {
@@ -805,9 +803,8 @@ fn head_request(request: ref Request, response: Response) -> Response {
 # impl Handle for App {
 #   fn pub mut handle(request: mut Request) -> Response {
 #     let res = @directory.handle(request, request.path.to_slice)
-#     let res = compress_response(request, res)
 #
-#     head_request(request, res)
+#     compress_response(request, res)
 #   }
 # }
 #
