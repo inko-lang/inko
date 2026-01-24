@@ -804,6 +804,11 @@ type pub copy Status {
     @code == 200
   }
 
+  # Returns `true` if the status is 404 Not Found.
+  fn pub inline not_found? -> Bool {
+    @code == 404
+  }
+
   # Returns `true` if the status is 206 Partial Content
   fn pub inline partial_content? -> Bool {
     @code == 206

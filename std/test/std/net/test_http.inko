@@ -460,6 +460,11 @@ fn pub tests(t: mut Tests) {
     t.false(Status.not_found.ok?)
   })
 
+  t.test('Status.not_found?', fn (t) {
+    t.true(Status.not_found.not_found?)
+    t.false(Status.ok.not_found?)
+  })
+
   t.test('Status.redirect?', fn (t) {
     t.true(Status.new(300).redirect?)
     t.true(Status.new(399).redirect?)
