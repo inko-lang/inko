@@ -3183,6 +3183,20 @@ type pub inline Directory {
 
     if path.directory? { path = path.join('index.html') }
 
+    file(request, path)
+  }
+
+  # Serves a static file from the given path.
+  #
+  # This method _does not_ check if `path` resides in the root directory and
+  # instead assumes it just does. This means you _must_ check if the client is
+  # authorized to request this file yourself.
+  #
+  # This method exists and is a public method such that it may be used to render
+  # static fallback files (e.g. a custom `404.html` file) that may not
+  # necessarily reside in the root directory (e.g. it's a fallback file shared
+  # between different static websites).
+  fn pub file(request: mut Request, path: path.Path) -> Response {
     let resp = match Response.new.file(path) {
       case Ok(v) -> v
       case Error(NotFound) -> return Response.not_found
