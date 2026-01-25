@@ -628,4 +628,9 @@ fn pub tests(t: mut Tests) {
       Option.None,
     )
   })
+
+  t.test('Slice.last', fn (t) {
+    t.equal([10, 20].to_slice.last, Option.Some(20))
+    t.equal(([] as Array[Int]).to_slice.last, Option.None)
+  })
 }

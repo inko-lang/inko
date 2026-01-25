@@ -254,6 +254,17 @@ type pub inline Slice[T] {
       case _ -> Option.None
     }
   }
+
+  # Returns the last value in `self`, if there is any.
+  #
+  # # Examples
+  #
+  # ```inko
+  # [10, 20, 30].to_slice.last # => Option.Some(30)
+  # ```
+  fn pub last -> Option[ref T] {
+    get(size - 1).ok
+  }
 }
 
 impl Slice if T: Clone {
