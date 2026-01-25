@@ -2902,7 +2902,7 @@ type pub Logger {
     let agent = request.headers.get(Header.user_agent).or('-').escaped
     let status = response.status
     let time = if @time { '${DateTime.utc.to_iso8601}: ' } else { '' }
-
+    let host = request.headers.get(Header.host).or('-')
     let path = request.uri.path.to_string.to_byte_array
 
     if request.uri.query.size > 0 {
@@ -2911,7 +2911,7 @@ type pub Logger {
     }
 
     @writer.write(
-      '${time}${addr.host} ${meth} ${path} HTTP/${ver} ${status} "${prev}" "${agent}"',
+      '${time}${addr.host} ${host} ${meth} ${path} HTTP/${ver} ${status} "${prev}" "${agent}"',
     )
   }
 }

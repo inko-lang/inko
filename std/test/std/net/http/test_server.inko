@@ -2514,6 +2514,7 @@ fn pub tests(t: mut Tests) {
 
       req.data.headers.set(Header.referer, 'referer')
       req.data.headers.set(Header.user_agent, 'user-agent')
+      req.data.headers.set(Header.host, 'example.com')
       log.log(req, Response.new.status(Status.not_found))
       await log.writer.wait
     },
@@ -2523,6 +2524,7 @@ fn pub tests(t: mut Tests) {
       t.true(out.contains?('GET / HTTP/1.1 404'))
       t.true(out.contains?('referer'))
       t.true(out.contains?('user-agent'))
+      t.true(out.contains?('example.com'))
     },
   )
 
@@ -2552,6 +2554,7 @@ fn pub tests(t: mut Tests) {
       let req = empty_request(limits, rng)
 
       req.data.uri.query = Query.new('key=value').get
+      req.data.headers.set(Header.host, 'example.com')
       req.data.headers.set(Header.referer, 'referer')
       req.data.headers.set(Header.user_agent, 'user-agent')
       log.time = false
@@ -2561,7 +2564,7 @@ fn pub tests(t: mut Tests) {
     test: fn (t, p) {
       t.equal(
         p.spawn.stdout,
-        '127.0.0.1 GET /?key=value HTTP/1.1 404 "referer" "user-agent"\n',
+        '127.0.0.1 example.com GET /?key=value HTTP/1.1 404 "referer" "user-agent"\n',
       )
     },
   )
