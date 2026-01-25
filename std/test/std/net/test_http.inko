@@ -444,6 +444,10 @@ fn pub tests(t: mut Tests) {
     t.equal(Status.http_version_not_supported.code, 505)
   })
 
+  t.test('Status.permanent_redirect', fn (t) {
+    t.equal(Status.permanent_redirect.code, 308)
+  })
+
   t.test('Status.==', fn (t) {
     t.equal(Status.new(1), Status.new(1))
     t.not_equal(Status.new(1), Status.new(2))
@@ -468,6 +472,7 @@ fn pub tests(t: mut Tests) {
   t.test('Status.redirect?', fn (t) {
     t.true(Status.new(300).redirect?)
     t.true(Status.new(399).redirect?)
+    t.true(Status.permanent_redirect.redirect?)
     t.false(Status.new(299).redirect?)
     t.false(Status.new(400).redirect?)
   })

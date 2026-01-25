@@ -799,6 +799,11 @@ type pub copy Status {
     Self(505)
   }
 
+  # Returns the status code 308.
+  fn pub inline static permanent_redirect -> Self {
+    Self(308)
+  }
+
   # Returns `true` if the status is 200 OK.
   fn pub inline ok? -> Bool {
     @code == 200

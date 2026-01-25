@@ -3181,7 +3181,16 @@ type pub inline Directory {
     # This ensures we can't read files outside of the directory.
     let Some(mut path) = @path.join_strict(rel) else return Response.not_found
 
-    if path.directory? { path = path.join('index.html') }
+    if path.directory? {
+      path = path.join('index.html')
+    } else {
+      # When requesting an index.html file directly, redirect to the directory
+      # instead so e.g. search indexes don't index both.
+      match components.last {
+        case Some('index.html') -> return redirect_to_parent(components)
+        case _ -> {}
+      }
+    }
 
     file(request, path)
   }
@@ -3220,6 +3229,16 @@ type pub inline Directory {
     )
 
     @range.handle(request, conditional_request(request, resp))
+  }
+
+  fn redirect_to_parent(components: array.Slice[Slice[String]]) -> Response {
+    let comp = components.slice(0, components.size - 1).into_iter
+    let dir = '/${String.join(comp, '/')}'
+
+    return Response.new.status(Status.permanent_redirect).header(
+      Header.location,
+      dir,
+    )
   }
 }
 

@@ -938,7 +938,7 @@ fn pub tests(t: mut Tests) {
 
     req.data.headers.set(Header.accept_encoding, 'gzip')
 
-    for file in ['index.html', 'test.json'] {
+    for file in ['test.html', 'test.json'] {
       let res = try Response.new.file('fixtures/html'.to_path.join(file))
       let res = compress_response(req, res)
 
@@ -960,7 +960,7 @@ fn pub tests(t: mut Tests) {
     let limits = Limits.new
     let rng = Random.new
     let req = request_with_method(limits, Head, rng)
-    let res = try Response.new.file('fixtures/html/index.html'.to_path)
+    let res = try Response.new.file('fixtures/html/test.html'.to_path)
     let res = compress_response(req, res)
 
     t.equal(res.status, Status.ok)
@@ -985,7 +985,7 @@ fn pub tests(t: mut Tests) {
 
       req.data.headers.set(Header.accept_encoding, 'gzip;q=0.0, br')
 
-      let res = try Response.new.file('fixtures/html/index.html'.to_path)
+      let res = try Response.new.file('fixtures/html/test.html'.to_path)
       let res = compress_response(req, res)
 
       t.equal(res.status, Status.ok)
@@ -1009,7 +1009,7 @@ fn pub tests(t: mut Tests) {
 
     req.data.headers.set(Header.accept_encoding, 'kittens')
 
-    let res = try Response.new.file('fixtures/html/index.html'.to_path)
+    let res = try Response.new.file('fixtures/html/test.html'.to_path)
     let res = compress_response(req, res)
 
     t.equal(res.status, Status.ok)
@@ -2639,6 +2639,50 @@ fn pub tests(t: mut Tests) {
     )
   })
 
+  t.test(
+    'Directory.handle with an explicit request to an index.html file',
+    fn (t) {
+      let limits = Limits.new
+      let rng = Random.new
+      let req = empty_request(limits, rng)
+      let dir = Directory.new(env.working_directory.get.join('fixtures'))
+      let path = ['html'.to_slice, 'index.html'.to_slice]
+      let res = dir.handle(req, path.to_slice)
+
+      t.equal(res.status, Status.new(308))
+      t.equal(res.headers.get(Header.location), Result.Ok('/html'))
+      t.true(
+        match res.body {
+          case String('') -> true
+          case _ -> false
+        },
+      )
+    },
+  )
+
+  t.test(
+    'Directory.handle with an explicit request to a root index.html file',
+    fn (t) {
+      let limits = Limits.new
+      let rng = Random.new
+      let req = empty_request(limits, rng)
+      let dir = Directory.new(
+        env.working_directory.get.join('fixtures').join('html'),
+      )
+      let path = ['index.html'.to_slice]
+      let res = dir.handle(req, path.to_slice)
+
+      t.equal(res.status, Status.new(308))
+      t.equal(res.headers.get(Header.location), Result.Ok('/'))
+      t.true(
+        match res.body {
+          case String('') -> true
+          case _ -> false
+        },
+      )
+    },
+  )
+
   t.test('Directory.handle with a path to a non-existing file', fn (t) {
     let limits = Limits.new
     let rng = Random.new
@@ -2741,7 +2785,7 @@ fn pub tests(t: mut Tests) {
     let dir = Directory.new(
       env.working_directory.get.join('fixtures').join('html'),
     )
-    let files = ['index.html', 'test.xml', 'test.atom', 'test.rss']
+    let files = ['test.html', 'test.xml', 'test.atom', 'test.rss']
 
     for file in files {
       let res = dir.handle(req, [file.to_slice].to_slice)
