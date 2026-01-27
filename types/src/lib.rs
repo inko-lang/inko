@@ -5039,6 +5039,18 @@ impl TypeRef {
         }
     }
 
+    pub fn maybe_allows_borrows(self, db: &Database) -> bool {
+        match self {
+            TypeRef::UniMut(TypeEnum::TypeInstance(i))
+            | TypeRef::UniRef(TypeEnum::TypeInstance(i))
+                if i.instance_of.kind(db).is_async() =>
+            {
+                false
+            }
+            _ => self.as_owned(db).is_sendable_output(db),
+        }
+    }
+
     pub fn is_sendable_output(self, db: &Database) -> bool {
         match self {
             TypeRef::Uni(_) | TypeRef::Never | TypeRef::Error => true,
@@ -5294,10 +5306,26 @@ impl TypeRef {
     }
 
     pub fn as_uni_borrow(self, db: &Database) -> Self {
-        // Value types can always be exposed to recover blocks, as we can simply
-        // copy them upon moving them around.
-        if self.is_value_type(db) {
-            return self;
+        // Borrows of async types are used inside async methods. If we uniquely
+        // borrow such values we should produce e.g. `uni mut T` instead of `T`,
+        // otherwise we may be able to alias unique values (e.g. through method
+        // call arguments).
+        match self {
+            TypeRef::Mut(TypeEnum::TypeInstance(i))
+                if i.instance_of.kind(db).is_async() =>
+            {
+                return TypeRef::UniMut(TypeEnum::TypeInstance(i));
+            }
+
+            TypeRef::Ref(TypeEnum::TypeInstance(i))
+                if i.instance_of.kind(db).is_async() =>
+            {
+                return TypeRef::UniRef(TypeEnum::TypeInstance(i));
+            }
+            // Value types can always be exposed to recover blocks, as we can
+            // simply copy them upon moving them around.
+            _ if self.is_value_type(db) => return self,
+            _ => {}
         }
 
         match self {

@@ -1,0 +1,58 @@
+type Thing {}
+
+type async AsyncType {
+  let @aliases: Array[mut Thing]
+
+  fn async mut example1(thing: uni Thing) {
+    let _thing = recover {
+      let thing = recover thing
+
+      alias(thing)
+      thing
+    }
+  }
+
+  fn async mut example2(thing: uni Thing) {
+    let _thing = recover {
+      let thing = recover thing
+
+      self.alias(thing)
+      thing
+    }
+  }
+
+  fn mut alias(thing: mut Thing) {
+    @aliases.push(thing)
+  }
+}
+
+type RegularType {
+  let @aliases: Array[mut Thing]
+
+  fn mut example1(thing: uni Thing) {
+    let _thing = recover {
+      let thing = recover thing
+
+      alias(thing)
+      thing
+    }
+  }
+
+  fn mut example2(thing: uni Thing) {
+    let _thing = recover {
+      let thing = recover thing
+
+      self.alias(thing)
+      thing
+    }
+  }
+
+  fn mut alias(thing: mut Thing) {
+    @aliases.push(thing)
+  }
+}
+
+# alias_unique_value_through_self_call.inko:10:13 error(invalid-type): the receiver of this call requires sendable arguments, but 'mut Thing' isn't sendable
+# alias_unique_value_through_self_call.inko:19:18 error(invalid-type): the receiver of this call requires sendable arguments, but 'mut Thing' isn't sendable
+# alias_unique_value_through_self_call.inko:36:13 error(invalid-type): the receiver of this call requires sendable arguments, but 'mut Thing' isn't sendable
+# alias_unique_value_through_self_call.inko:45:18 error(invalid-type): the receiver of this call requires sendable arguments, but 'mut Thing' isn't sendable

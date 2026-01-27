@@ -103,7 +103,7 @@ impl VariableScope {
     }
 }
 
-#[derive(Eq, PartialEq)]
+#[derive(Eq, PartialEq, Copy, Clone)]
 enum ScopeKind {
     Closure(ClosureId),
     Loop,
@@ -140,6 +140,9 @@ struct LexicalScope<'a> {
     /// having to walk the scope up every time.
     in_closure: bool,
 
+    /// A boolean flag indicating that we're in a recover expression.
+    in_recover: bool,
+
     /// A boolean indicating that we broke out of this loop scope using `break`.
     ///
     /// We use a Cell here as each scope's parent is an immutable reference, as
@@ -156,6 +159,7 @@ impl<'a> LexicalScope<'a> {
             return_type,
             parent: None,
             in_closure: false,
+            in_recover: false,
             break_in_loop: Cell::new(false),
         }
     }
@@ -168,16 +172,13 @@ impl<'a> LexicalScope<'a> {
             variables: VariableScope::new(),
             parent: Some(self),
             in_closure: self.in_closure,
+            in_recover: matches!(kind, ScopeKind::Recover) || self.in_recover,
             break_in_loop: Cell::new(false),
         }
     }
 
     fn in_loop(&self) -> bool {
         self.inside(ScopeKind::Loop)
-    }
-
-    fn in_recover(&self) -> bool {
-        self.inside(ScopeKind::Recover)
     }
 
     fn in_closure_in_recover(&self) -> bool {
@@ -545,8 +546,7 @@ impl MethodCall {
         }
 
         let immutable = self.method.is_immutable(&state.db);
-        let sendable_rec =
-            self.receiver.as_owned(&state.db).is_sendable_output(&state.db);
+        let sendable_rec = self.receiver.maybe_allows_borrows(&state.db);
         let maybe_allow_borrows = immutable || sendable_rec;
         let mut allow_borrows = maybe_allow_borrows;
         let mut args = Vec::with_capacity(self.check_sendable.len());
@@ -1591,7 +1591,7 @@ impl<'a> CheckMethodBody<'a> {
         // capture `uni ref T` / `uni mut T` values.
         self.check_if_self_is_allowed(scope, node.location);
 
-        if scope.in_recover() {
+        if scope.in_recover {
             typ = typ.as_uni_borrow(self.db());
         }
 
@@ -2486,6 +2486,7 @@ impl<'a> CheckMethodBody<'a> {
             variables: VariableScope::new(),
             parent: Some(scope),
             in_closure: true,
+            in_recover: scope.in_recover,
             break_in_loop: Cell::new(false),
         };
 
@@ -2794,7 +2795,7 @@ impl<'a> CheckMethodBody<'a> {
             false,
         );
 
-        if scope.in_recover() {
+        if scope.in_recover {
             ret = ret.as_uni_borrow(self.db());
         }
 
@@ -2840,7 +2841,7 @@ impl<'a> CheckMethodBody<'a> {
             node.field.location,
             scope,
         ) {
-            if scope.in_recover() && !typ.is_value_type(self.db()) {
+            if scope.in_recover && !typ.is_value_type(self.db()) {
                 self.state.diagnostics.unsendable_old_value(
                     &node.field.name,
                     self.file(),
@@ -2900,7 +2901,7 @@ impl<'a> CheckMethodBody<'a> {
             );
         }
 
-        if scope.in_recover() && !val_type.is_sendable(self.db()) {
+        if scope.in_recover && !val_type.is_sendable(self.db()) {
             self.state.diagnostics.unsendable_field_value(
                 name,
                 self.fmt(val_type),
@@ -3023,7 +3024,7 @@ impl<'a> CheckMethodBody<'a> {
             .map(|n| self.expression(n, scope))
             .unwrap_or_else(TypeRef::nil);
 
-        if scope.in_recover() && returned.is_owned(self.db()) {
+        if scope.in_recover && returned.is_owned(self.db()) {
             returned = returned.as_uni(self.db());
         }
 
@@ -3059,7 +3060,7 @@ impl<'a> CheckMethodBody<'a> {
         }
 
         let ret_type = scope.return_type;
-        let throw_type = if scope.in_recover() && expr.is_owned(self.db()) {
+        let throw_type = if scope.in_recover && expr.is_owned(self.db()) {
             expr.as_uni(self.db())
         } else {
             expr
@@ -3474,7 +3475,7 @@ impl<'a> CheckMethodBody<'a> {
             return TypeRef::Error;
         }
 
-        if scope.in_recover() && !var_type.is_value_type(self.db()) {
+        if scope.in_recover && !var_type.is_value_type(self.db()) {
             self.state.diagnostics.unsendable_old_value(
                 &node.name.name,
                 self.file(),
@@ -3877,7 +3878,12 @@ impl<'a> CheckMethodBody<'a> {
     ) -> TypeRef {
         let name = &node.name.name;
         let module = self.module;
-        let rec = scope.surrounding_type;
+        let rec = if scope.in_recover {
+            scope.surrounding_type.as_uni_borrow(self.db())
+        } else {
+            scope.surrounding_type
+        };
+
         let rec_id = rec.as_type_enum(self.db()).unwrap();
         let (rec_info, rec, rec_id, method) =
             match rec_id.lookup_method(self.db(), name, module, true) {
@@ -4298,7 +4304,7 @@ impl<'a> CheckMethodBody<'a> {
             return expr;
         }
 
-        let recovery = scope.in_recover();
+        let recovery = scope.in_recover;
         let expr_kind = expr.throw_kind(self.db());
         let ret_type = scope.return_type;
         let ret_kind = ret_type.throw_kind(self.db());
