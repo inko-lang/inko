@@ -2532,13 +2532,12 @@ fn pub tests(t: mut Tests) {
     'Logger.log when logging is disabled',
     child: fn {
       let limits = Limits.new
-      let log = Logger.new
+      let log = Logger.new.disabled
       let rng = Random.new
       let req = empty_request(limits, rng)
 
       req.data.headers.set(Header.referer, 'referer')
       req.data.headers.set(Header.user_agent, 'user-agent')
-      log.enabled = false
       log.log(req, Response.new.status(Status.not_found))
       await log.writer.wait
     },
@@ -2549,7 +2548,7 @@ fn pub tests(t: mut Tests) {
     'Logger.log without timestamps',
     child: fn {
       let limits = Limits.new
-      let log = Logger.new
+      let log = Logger.new.without_timestamps
       let rng = Random.new
       let req = empty_request(limits, rng)
 
@@ -2557,7 +2556,6 @@ fn pub tests(t: mut Tests) {
       req.data.headers.set(Header.host, 'example.com')
       req.data.headers.set(Header.referer, 'referer')
       req.data.headers.set(Header.user_agent, 'user-agent')
-      log.time = false
       log.log(req, Response.new.status(Status.not_found))
       await log.writer.wait
     },

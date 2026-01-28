@@ -1055,19 +1055,19 @@ request handlers.
 The log format is as follows:
 
 ```
-YEAR-MONTH-DAY:HOUR:MINUTE:SECOND.SUBSECONDZ: IP METHOD PATH+QUERY HTTP/1.1 STATUS "REFERRER" "USER AGENT"
+YEAR-MONTH-DAY:HOUR:MINUTE:SECOND.SUBSECONDZ: IP HOSTNAME METHOD PATH+QUERY HTTP/1.1 STATUS "REFERRER" "USER AGENT"
 ```
 
 For example:
 
 ```
-2025-10-10T23:00:00.63Z: 127.0.0.1 GET /static/README.md HTTP/1.1 404 "http://localhost:3000/" "Mozilla/5.0 (X11; Linux x86_64; rv:143.0) Gecko/20100101 Firefox/143.0"
+2025-10-10T23:00:00.63Z: 127.0.0.1 localhost GET /static/README.md HTTP/1.1 404 "http://localhost:3000/" "Mozilla/5.0 (X11; Linux x86_64; rv:143.0) Gecko/20100101 Firefox/143.0"
 ```
 
 If the referrer or user agent isn't specified, the value is `-`:
 
 ```
-2025-10-10T23:00:00.63Z: 127.0.0.1 GET /static/README.md HTTP/1.1 404 "-" "-"
+2025-10-10T23:00:00.63Z: 127.0.0.1 localhost GET /static/README.md HTTP/1.1 404 "-" "-"
 ```
 
 ## Testing

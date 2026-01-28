@@ -2873,22 +2873,34 @@ type async LogWriter {
 # using `Logger.clone` for every new connection. This ensures that all
 # connections use the same underlying writer, preventing concurrent writes from
 # messing up the STDOUT output.
-type pub Logger {
+type pub inline Logger {
   let @writer: LogWriter
 
   # If timestamps should be included for each log message.
   #
   # This defaults to `true`.
-  let pub mut @time: Bool
+  let mut @time: Bool
 
   # If logging is enabled or not.
   #
   # This defaults to `true`.
-  let pub mut @enabled: Bool
+  let mut @enabled: Bool
 
   # Returns a `Logger` using its default settings.
   fn pub static new -> Self {
     Self(writer: LogWriter.new, time: true, enabled: true)
+  }
+
+  # Disables the logger entirely.
+  fn pub move disabled -> Self {
+    @enabled = false
+    self
+  }
+
+  # Disables the inclusion of timestamps in log entries.
+  fn pub move without_timestamps -> Self {
+    @time = false
+    self
   }
 
   # Logs a request along with its response.
