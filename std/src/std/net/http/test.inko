@@ -108,7 +108,7 @@ import std.net.http (
 )
 import std.net.http.client (Client)
 import std.net.http.server (
-  Address, Handle, Notifier, Request, Response, Server as Http,
+  Address, Handle, Notifier, Request, Response, Server as Http, head_request,
 )
 import std.net.ip (IpAddress)
 import std.net.socket (SocketAddress)
@@ -1719,6 +1719,8 @@ type pub inline RequestBuilder {
       rng,
     )
 
-    handler.handle(req)
+    # HEAD requests are supported by default so we need to handle them here as
+    # well.
+    head_request(req, handler.handle(req))
   }
 }

@@ -504,4 +504,14 @@ fn pub tests(t: mut Tests) {
     t.true(resp.body.reader.read_all(body).ok?)
     t.equal(body.to_string, '/?key=value text/plain foo')
   })
+
+  t.test('RequestBuilder.send with a HEAD request', fn (t) {
+    let handler = Echo()
+    let resp = RequestBuilder.head('/').send(handler)
+    let body = ByteArray.new
+
+    t.equal(resp.status, Status.ok)
+    t.equal(resp.body.reader.read_all(body), Result.Ok(0))
+    t.equal(body.to_string, '')
+  })
 }
