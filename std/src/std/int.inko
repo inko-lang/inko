@@ -185,7 +185,7 @@ type builtin Int {
         case _ -> return Option.None
       }
 
-      if digit > base or digit < 0 { return Option.None }
+      if digit >= base or digit < 0 { return Option.None }
 
       num = try num.checked_mul(base)
       num = try if pos {

@@ -35,6 +35,12 @@ fn pub tests(t: mut Tests) {
     t.equal(Int.parse('1'.repeat(times: 70), Format.Binary), Option.None)
     t.equal(Int.parse('', Format.Binary), Option.None)
     t.equal(Int.parse('1_1', Format.Binary), Option.None)
+    t.equal(Int.parse('a', Format.Binary), Option.None)
+    t.equal(Int.parse('f', Format.Binary), Option.None)
+    t.equal(Int.parse('A', Format.Binary), Option.None)
+    t.equal(Int.parse('F', Format.Binary), Option.None)
+    t.equal(Int.parse('2', Format.Binary), Option.None)
+    t.equal(Int.parse('9', Format.Binary), Option.None)
   })
 
   t.test('Int.parse with decimal numbers', fn (t) {
@@ -65,6 +71,10 @@ fn pub tests(t: mut Tests) {
     t.equal(Int.parse('1_1', Format.Decimal), Option.None)
     t.equal(Int.parse('+', Format.Decimal), Option.None)
     t.equal(Int.parse('-', Format.Decimal), Option.None)
+    t.equal(Int.parse('a', Format.Decimal), Option.None)
+    t.equal(Int.parse('f', Format.Decimal), Option.None)
+    t.equal(Int.parse('A', Format.Decimal), Option.None)
+    t.equal(Int.parse('F', Format.Decimal), Option.None)
   })
 
   t.test('Int.parse with hexadecimal numbers', fn (t) {
@@ -82,11 +92,16 @@ fn pub tests(t: mut Tests) {
       Int.parse('-0x4a3f043013b2c4d1', Format.Hex),
       Option.Some(-5349999486874862801),
     )
+    t.equal(Int.parse('a', Format.Hex), Option.Some(10))
+    t.equal(Int.parse('f', Format.Hex), Option.Some(15))
+    t.equal(Int.parse('A', Format.Hex), Option.Some(10))
+    t.equal(Int.parse('F', Format.Hex), Option.Some(15))
 
     t.equal(Int.parse('0x', Format.Hex), Option.None)
     t.equal(Int.parse('f'.repeat(times: 100), Format.Hex), Option.None)
     t.equal(Int.parse('', Format.Hex), Option.None)
     t.equal(Int.parse('f_f', Format.Hex), Option.None)
+    t.equal(Int.parse('g', Format.Hex), Option.None)
   })
 
   t.test('Int.format when formatting as binary', fn (t) {
