@@ -72,7 +72,7 @@ import std.process
 import std.rand (Random)
 import std.stdio (Stdout)
 import std.sync (Channel)
-import std.sys (Command, ExitStatus, Stream, cpu_cores, exit)
+import std.sys (ChildProcess, Command, ExitStatus, Stream, cpu_cores, exit)
 import std.time (Duration, Instant)
 
 let CHILD_VAR = 'INKO_TEST_CHILD'
@@ -441,6 +441,14 @@ type pub Process {
   # Sets the data to write to STDIN.
   fn pub mut stdin(bytes: String) {
     @stdin = bytes
+  }
+
+  # Only spawsn the process and returns the result.
+  #
+  # This method may be used when complete control over interacting with the
+  # child process is required.
+  fn pub move spawn_only -> Result[ChildProcess, Error] {
+    @cmd.spawn
   }
 
   # Spawns the process, waits for it to finish, and returns an `Output`
