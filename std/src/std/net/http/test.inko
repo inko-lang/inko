@@ -1261,7 +1261,6 @@ type pub inline Mock {
 #       let handler = Handler()
 #       let resp = RequestBuilder
 #         .post('/')
-#         .header(Header.host, 'foo')
 #         .query('key', 'value')
 #         .string('hello')
 #         .send(handler)
