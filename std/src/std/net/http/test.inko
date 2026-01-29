@@ -1720,6 +1720,6 @@ type pub inline RequestBuilder {
 
     # HEAD requests are supported by default so we need to handle them here as
     # well.
-    head_request(req, handler.handle(req))
+    handler.response(req, head_request(req, handler.handle(req)))
   }
 }

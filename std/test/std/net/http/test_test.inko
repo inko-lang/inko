@@ -40,6 +40,18 @@ impl Handle for Echo {
   }
 }
 
+type WithResponseHandler {}
+
+impl Handle for WithResponseHandler {
+  fn pub mut handle(request: mut Request) -> Response {
+    Response.new
+  }
+
+  fn pub mut response(request: mut Request, response: Response) -> Response {
+    response.string('after')
+  }
+}
+
 fn pub tests(t: mut Tests) {
   t.test('format_headers', fn (t) {
     let buf = ByteArray.new
@@ -513,5 +525,15 @@ fn pub tests(t: mut Tests) {
     t.equal(resp.status, Status.ok)
     t.equal(resp.body.reader.read_all(body), Result.Ok(0))
     t.equal(body.to_string, '')
+  })
+
+  t.test('RequestBuilder.send calls Handle.response', fn (t) {
+    let handler = WithResponseHandler()
+    let resp = RequestBuilder.head('/').send(handler)
+    let body = ByteArray.new
+
+    t.equal(resp.status, Status.ok)
+    t.equal(resp.body.reader.read_all(body), Result.Ok(5))
+    t.equal(body.to_string, 'after')
   })
 }
