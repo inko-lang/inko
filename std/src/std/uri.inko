@@ -28,6 +28,7 @@
 # When normalizing an international URI, multi-byte character sequences are
 # _not_ converted to their lowercase equivalent due to this being locale
 # specific.
+import std.array (Slice as ArraySlice)
 import std.bytes (Bytes, Slice, ToByteArray)
 import std.bytes.parsers (
   LOWER_A, UPPER_A, alpha?, digit?, hex?, lower?, lower_hex_char?, to_lower,
@@ -993,9 +994,10 @@ impl Clone for Host {
 
 # The path of a URI.
 type pub inline Path {
-  let @value: String
+  # The raw percent-encoded value of this path.
+  let pub @value: String
 
-  fn pub static normalized[B: Bytes](input: ref B) -> Option[Self] {
+  fn static normalized[B: Bytes](input: ref B) -> Option[Self] {
     let out = ByteArray.new
     let mut idx = 0
     let len = input.size
@@ -1164,6 +1166,73 @@ type pub inline Path {
       case Ok(_) -> Option.Some(Path(''))
       case _ -> Option.None
     }
+  }
+
+  # Returns a new `Path` from a `std.array.Slice` of percent-decoded path
+  # components.
+  #
+  # This method is useful when you've previously parsed a `Path` using e.g.
+  # `Path.components` and want to turn it back into a percent-encoded URI path.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (Path)
+  #
+  # let path = Path.new('a/b/%20/c').get
+  # let comp = path.components.to_array
+  #
+  # Path.from_slice(comp.slice(0, comp.size - 1)) # => Path('a/b/%20')
+  # ```
+  fn pub static from_slice[B: Bytes](slice: ArraySlice[B]) -> Path {
+    let buf = ByteArray.new
+    let mut len = 0
+
+    for val in slice {
+      if len > 0 { buf.push(SLS) }
+
+      encode_into(val, buf, tables.ENCODE_PATH)
+      len += 1
+    }
+
+    Path(buf.into_string)
+  }
+
+  # Joins `self` and `with` together to form a new `Path`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (Path)
+  #
+  # Path.root.join(Path.new('foo/bar').get)         # => Path('/foo/bar')
+  # Path.new('/foo').get.join(Path.new('/bar').get) # => Path('/foo/bar')
+  # ```
+  fn pub join(with: ref Path) -> Path {
+    if empty? { return with.clone }
+
+    if with.empty? { return clone }
+
+    if with.absolute? {
+      with.clone
+    } else if @value.ends_with?('/') {
+      Path('${@value}${with.value}')
+    } else {
+      Path('${@value}/${with.value}')
+    }
+  }
+
+  # Returns a new `Path` that ends with a path separator.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.uri (Path)
+  #
+  # Path.new('foo/bar').get.with_trailing_separator
+  # ```
+  fn pub with_trailing_separator -> Path {
+    if @value.ends_with?('/') { clone } else { Path('${@value}/') }
   }
 
   # Returns `true` if `self` is an absolute path.
@@ -1853,7 +1922,8 @@ impl ToString for Values {
 # A `Query` is created using `Query.new`, `Values.to_query` or by simply parsing
 # a URI using `Uri.parse`.
 type pub inline Query {
-  let @value: String
+  # The raw percent-encoded value of this query string fragment.
+  let pub @value: String
 
   fn static parse_into[B: Bytes](
     uri: mut Uri,
@@ -2065,7 +2135,8 @@ impl Equal for Query {
 # allowed in the fragment string component (e.g. non-ASCII characters) are
 # percent-encoded.
 type pub inline Fragment {
-  let @value: String
+  # The raw percent-encoded value of this hash fragment.
+  let pub @value: String
 
   fn static parse_into[B: Bytes](
     uri: mut Uri,

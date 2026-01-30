@@ -341,6 +341,29 @@ fn pub tests(t: mut Tests) {
     t.equal(Path.new('/a%ZZ/b'), Option.None)
   })
 
+  t.test('Path.from_slice', fn (t) {
+    t.equal(Path.from_slice(([] as Array[String]).to_slice), Path(''))
+    t.equal(Path.from_slice(['a'].to_slice), Path('a'))
+    t.equal(Path.from_slice(['a', 'b'].to_slice), Path('a/b'))
+    t.equal(Path.from_slice(['a', 'b', '..', 'c'].to_slice), Path('a/b/../c'))
+  })
+
+  t.test('Path.join', fn (t) {
+    t.equal(Path.empty.join(Path.empty), Path.empty)
+    t.equal(Path.empty.join(Path('a')), Path('a'))
+    t.equal(Path('a').join(Path.empty), Path('a'))
+    t.equal(Path('a/b').join(Path('/c/d')), Path('/c/d'))
+    t.equal(Path('a/').join(Path('b/c')), Path('a/b/c'))
+    t.equal(Path('a').join(Path('b')), Path('a/b'))
+    t.equal(Path('a').join(Path('/')), Path('/'))
+  })
+
+  t.test('Path.with_trailing_separator', fn (t) {
+    t.equal(Path.root.with_trailing_separator, Path.root)
+    t.equal(Path('a').with_trailing_separator, Path('a/'))
+    t.equal(Path('a/').with_trailing_separator, Path('a/'))
+  })
+
   t.test('Path.absolute?', fn (t) {
     t.false(Path('foo').absolute?)
     t.true(Path('/foo').absolute?)
