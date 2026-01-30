@@ -2647,8 +2647,8 @@ fn pub tests(t: mut Tests) {
       let path = ['html'.to_slice, 'index.html'.to_slice]
       let res = dir.handle(req, path.to_slice)
 
-      t.equal(res.status, Status.new(308))
-      t.equal(res.headers.get(Header.location), Result.Ok('/html'))
+      t.equal(res.status, Status.permanent_redirect)
+      t.equal(res.headers.get(Header.location), Result.Ok('/html/'))
       t.true(
         match res.body {
           case String('') -> true
@@ -2670,7 +2670,7 @@ fn pub tests(t: mut Tests) {
       let path = ['index.html'.to_slice]
       let res = dir.handle(req, path.to_slice)
 
-      t.equal(res.status, Status.new(308))
+      t.equal(res.status, Status.permanent_redirect)
       t.equal(res.headers.get(Header.location), Result.Ok('/'))
       t.true(
         match res.body {
@@ -2755,6 +2755,26 @@ fn pub tests(t: mut Tests) {
           case _ -> false
         },
       )
+    },
+  )
+
+  t.test(
+    'Directory.handle with a directory containing an index.html file without a trailing slash',
+    fn (t) {
+      let limits = Limits.new
+      let rng = Random.new
+      let req = empty_request(limits, rng)
+
+      req.data.uri.path = UriPath.new('/directory').get
+
+      let dir = Directory.new(
+        env.working_directory.get.join('fixtures').join('html'),
+      )
+      let path = ['directory'.to_slice]
+      let res = dir.handle(req, path.to_slice)
+
+      t.equal(res.status, Status.permanent_redirect)
+      t.equal(res.headers.get(Header.location), Result.Ok('/directory/'))
     },
   )
 

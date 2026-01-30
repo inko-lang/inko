@@ -403,7 +403,7 @@ import std.string (StringBuffer, ToString)
 import std.sync (AtomicBool, AtomicInt, Future, Promise)
 import std.sys.net (SEND_FILE_SIZE)
 import std.time (DateTime, Duration, ToInstant)
-import std.uri (Host, Uri, Values)
+import std.uri (Host, Path as UriPath, Uri, Values)
 
 let MAX_HEADER_VALUES = 16
 
@@ -3194,7 +3194,14 @@ type pub inline Directory {
     let Some(mut path) = @path.join_strict(rel) else return Response.not_found
 
     if path.directory? {
-      path = path.join('index.html')
+      if request.uri.path.value.ends_with?('/') {
+        path = path.join('index.html')
+      } else {
+        # When requesting e.g. `/foo/bar` we want to redirect to `/foo/bar/`
+        # such that relative URLs are evaluated against `/foo/bar` and not
+        # `/foo`.
+        return redirect_to_slash(request)
+      }
     } else {
       # When requesting an index.html file directly, redirect to the directory
       # instead so e.g. search indexes don't index both.
@@ -3244,12 +3251,23 @@ type pub inline Directory {
   }
 
   fn redirect_to_parent(components: array.Slice[Slice[String]]) -> Response {
-    let comp = components.slice(0, components.size - 1).into_iter
-    let dir = '/${String.join(comp, '/')}'
+    let dir = match components.split_last {
+      case Some((_, head)) -> {
+        UriPath.root.join(UriPath.from_slice(head)).with_trailing_separator
+      }
+      case _ -> UriPath.root
+    }
 
     return Response.new.status(Status.permanent_redirect).header(
       Header.location,
-      dir,
+      dir.value,
+    )
+  }
+
+  fn redirect_to_slash(request: ref Request) -> Response {
+    Response.new.status(Status.permanent_redirect).header(
+      Header.location,
+      request.uri.path.with_trailing_separator.value,
     )
   }
 }
