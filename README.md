@@ -9,8 +9,8 @@ typing, type-safe concurrency, efficient error handling, and more. Inko source
 code is compiled to machine code using [LLVM](https://llvm.org/).
 
 For more information, refer to the [Inko website][website] or [the
-documentation](https://docs.inko-lang.org). If you'd like to follow the
-development of Inko, consider joining [our Discord
+documentation](https://docs.inko-lang.org/manual/main). If you'd like to follow
+the development of Inko, consider joining [our Discord
 server](https://discord.gg/seeURxHxCb).
 
 ## Examples
