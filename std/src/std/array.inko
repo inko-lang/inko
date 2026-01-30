@@ -236,21 +236,41 @@ type pub inline Slice[T] {
     })
   }
 
-  # Returns a tuple containing an the first value in the slice and a slice of
-  # all the remaining values, or an `Option.None` if `self` is empty.
+  # Returns a tuple containing the first value in `self` and a slice of all the
+  # remaining values, or an `Option.None` if `self` is empty.
   #
   # # Examples
   #
   # ```inko
   # let nums = [10, 20, 30, 40]
-  # let opt = nums.slice(0, nums.size).split_first.get
+  # let (head, tail) = nums.to_slice.split_first.get
   #
-  # opt.0          # => 10
-  # opt.1.to_array # => [20, 30, 40]
+  # head          # => 10
+  # tail.to_array # => [20, 30, 40]
   # ```
   fn pub split_first -> Option[(ref T, Slice[T])] {
     match get(0) {
       case Ok(v) -> Option.Some((v, slice(1, size)))
+      case _ -> Option.None
+    }
+  }
+
+  # Returns a tuple containing the last value in `self` and a slice of all
+  # values up to (but excluding) the last value in `self`, or an `Option.None`
+  # if `self` is empty.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let nums = [10, 20, 30, 40]
+  # let (tail, head) = nums.to_slice.split_last.get
+  #
+  # tail          # => 40
+  # head.to_array # => [10, 20, 30]
+  # ```
+  fn pub split_last -> Option[(ref T, Slice[T])] {
+    match get(size - 1) {
+      case Ok(v) -> Option.Some((v, slice(0, size - 1)))
       case _ -> Option.None
     }
   }
@@ -909,12 +929,21 @@ type builtin Array[T] {
     Slice.new(self, start, end)
   }
 
-  # Returns a tuple containing an the first value in the slice and a slice of
-  # all the remaining values, or an `Option.None` if `self` is empty.
+  # Returns a tuple containing the first value in `self` and a slice of all the
+  # remaining values, or an `Option.None` if `self` is empty.
   #
   # Refer to the documentation of `Slice.split_first` for more details.
   fn pub split_first -> Option[(ref T, Slice[T])] {
     to_slice.split_first
+  }
+
+  # Returns a tuple containing the last value in `self` and a slice of all
+  # values up to (but excluding) the last value in `self`, or an `Option.None`
+  # if `self` is empty.
+  #
+  # Refer to the documentation of `Slice.split_last` for more details.
+  fn pub split_last -> Option[(ref T, Slice[T])] {
+    to_slice.split_last
   }
 
   # Returns a raw pointer to the buffer of `self`.

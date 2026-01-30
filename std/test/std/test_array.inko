@@ -525,6 +525,21 @@ fn pub tests(t: mut Tests) {
     )
   })
 
+  t.test('Array.split_last', fn (t) {
+    t.equal(
+      [10, 20, 30, 40].split_last.map(fn (v) { (v.0, v.1.to_array) }),
+      Option.Some((40, [10, 20, 30])),
+    )
+    t.equal(
+      [10].split_last.map(fn (v) { (v.0, v.1.to_array) }),
+      Option.Some((10, [])),
+    )
+    t.equal(
+      ([] as Array[Int]).split_last.map(fn (v) { (v.0, v.1.to_array) }),
+      Option.None,
+    )
+  })
+
   t.test('IntoIter.next', fn (t) {
     let vals = [10, 20].into_iter
 
@@ -623,6 +638,23 @@ fn pub tests(t: mut Tests) {
     )
     t.equal(
       ([] as Array[Int]).slice(0, 0).split_first.map(fn (v) {
+        (v.0, v.1.to_array)
+      }),
+      Option.None,
+    )
+  })
+
+  t.test('Slice.split_last', fn (t) {
+    t.equal(
+      [10, 20, 30, 40].slice(0, 4).split_last.map(fn (v) { (v.0, v.1.to_array) }),
+      Option.Some((40, [10, 20, 30])),
+    )
+    t.equal(
+      [10].slice(0, 1).split_last.map(fn (v) { (v.0, v.1.to_array) }),
+      Option.Some((10, [])),
+    )
+    t.equal(
+      ([] as Array[Int]).slice(0, 0).split_last.map(fn (v) {
         (v.0, v.1.to_array)
       }),
       Option.None,
