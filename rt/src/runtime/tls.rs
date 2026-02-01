@@ -247,18 +247,16 @@ pub unsafe extern "system" fn inko_tls_client_connection_drop(
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_tls_server_config_new(
-    cert: *mut u8,
-    cert_size: i64,
+    chain: *mut Vec<Vec<u8>>,
     key: *mut u8,
     key_size: i64,
 ) -> Result {
-    let cert = slice::from_raw_parts(cert, cert_size as usize).to_vec();
-    let key = slice::from_raw_parts(key, key_size as usize).to_vec();
-
     // CertificateDer/PrivateKeyDer either borrow a value or take an owned
     // value. We can't use borrows because we don't know if the Inko values
     // outlive the configuration, so we have to clone the bytes here.
-    let chain = vec![CertificateDer::from(cert)];
+    let chain =
+        Box::from_raw(chain).into_iter().map(CertificateDer::from).collect();
+    let key = slice::from_raw_parts(key, key_size as usize).to_vec();
     let Ok(key) = PrivateKeyDer::try_from(key) else {
         return Result::error(INVALID_KEY as _);
     };
@@ -561,4 +559,20 @@ pub unsafe extern "system" fn inko_tls_pending_server_drop(
     accepted: *mut Accepted,
 ) {
     drop(Box::from_raw(accepted));
+}
+
+#[no_mangle]
+pub unsafe extern "system" fn inko_tls_cert_chain_new() -> *mut Vec<Vec<u8>> {
+    Box::into_raw(Box::new(Vec::new()))
+}
+
+#[no_mangle]
+pub unsafe extern "system" fn inko_tls_cert_chain_push(
+    chain: *mut Vec<Vec<u8>>,
+    bytes: *mut u8,
+    size: i64,
+) {
+    let slice = slice::from_raw_parts(bytes, size as usize).to_vec();
+
+    (&mut *chain).push(slice.to_vec());
 }

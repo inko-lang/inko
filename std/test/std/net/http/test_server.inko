@@ -291,13 +291,19 @@ type async AsyncSecureServer {
           recover {
             Option.Some(
               recover {
-                tls.ServerConfig.builder.new(certificate, private_key).or_panic
+                tls
+                  .ServerConfig
+                  .builder
+                  .new([certificate], private_key)
+                  .or_panic
               },
             )
           }
         })
       } else {
-        srv.tls(tls.ServerConfig.builder.new(certificate, private_key).or_panic)
+        srv.tls(
+          tls.ServerConfig.builder.new([certificate], private_key).or_panic,
+        )
       }
 
       let mut not_prom = Option.Some(not_prom)
@@ -1586,7 +1592,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('Socket.address with a TLS socket', fn (t) {
-    let conf = tls.ServerConfig.builder.new(certificate, private_key).or_panic
+    let conf = tls.ServerConfig.builder.new([certificate], private_key).or_panic
     let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     let addr = recover try server.local_address
     let _client = async TlsClient().connect(addr)
@@ -1609,7 +1615,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('Socket.server_name_equals_host? with a TLS socket', fn (t) {
-    let conf = tls.ServerConfig.builder.new(certificate, private_key).or_panic
+    let conf = tls.ServerConfig.builder.new([certificate], private_key).or_panic
     let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     let addr = recover try server.local_address
     let _client = async TlsClient().connect(addr)
@@ -2402,7 +2408,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('SocketServer.accept with a TLS socket', fn (t) {
-    let conf = tls.ServerConfig.builder.new(certificate, private_key).or_panic
+    let conf = tls.ServerConfig.builder.new([certificate], private_key).or_panic
     let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     let addr = recover try server.local_address
     let _client = async TlsClient().connect(addr)
@@ -2477,7 +2483,7 @@ fn pub tests(t: mut Tests) {
 
   t.ok('Server.tls', fn (t) {
     let srv = Server.new(fn { recover Hello() })
-    let cfg = try tls.ServerConfig.builder.new(certificate, private_key)
+    let cfg = try tls.ServerConfig.builder.new([certificate], private_key)
 
     srv.tls(cfg)
     t.true(

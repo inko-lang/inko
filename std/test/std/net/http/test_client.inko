@@ -55,7 +55,7 @@ type async TlsServer {
       try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     }
     let server_conf = recover {
-      tls.ServerConfig.builder.new(certificate, private_key).get
+      tls.ServerConfig.builder.new([certificate], private_key).get
     }
     let addr = try server_sock.local_address
 

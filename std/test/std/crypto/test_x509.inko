@@ -53,7 +53,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('Certificate.from_pem_file', fn (t) {
-    try with_directory(t.id, fn (dir) -> Result[Nil, io.Error] {
+    try with_directory(t.id, fn (dir) {
       let path = dir.join('cert.pem')
 
       try dir.create_directory_all
@@ -63,7 +63,7 @@ fn pub tests(t: mut Tests) {
       Result.Ok(nil)
     })
 
-    try with_directory(t.id, fn (dir) -> Result[Nil, io.Error] {
+    try with_directory(t.id, fn (dir) {
       let path = dir.join('cert.pem')
 
       try dir.create_directory_all
@@ -75,7 +75,7 @@ fn pub tests(t: mut Tests) {
       Result.Ok(nil)
     })
 
-    try with_directory(t.id, fn (dir) -> Result[Nil, io.Error] {
+    try with_directory(t.id, fn (dir) {
       let path = dir.join('cert.pem')
 
       try dir.create_directory_all
@@ -88,7 +88,7 @@ fn pub tests(t: mut Tests) {
       Result.Ok(nil)
     })
 
-    try with_directory(t.id, fn (dir) -> Result[Nil, io.Error] {
+    try with_directory(t.id, fn (dir) {
       let path = dir.join('cert.pem')
 
       try dir.create_directory_all
@@ -98,6 +98,92 @@ fn pub tests(t: mut Tests) {
 
       t.equal(
         Certificate.from_pem_file(path).error,
+        Option.Some(ParseError.Invalid(pem.ParseError.InvalidSectionStart(1))),
+      )
+      Result.Ok(nil)
+    })
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Certificate.chain_from_pem_file', fn (t) {
+    try with_directory(t.id, fn (dir) {
+      let path = dir.join('cert.pem')
+
+      try dir.create_directory_all.map_error(fn (e) { e.to_string })
+      try file
+        .WriteOnlyFile
+        .new(path)
+        .then(fn (f) {
+          try f.print(VALID_CERT)
+          f.write(VALID_CERT)
+        })
+        .map_error(fn (e) { e.to_string })
+
+      let res = try Certificate.chain_from_pem_file(path).map_error(fn (e) {
+        e.to_string
+      })
+
+      t.equal(res.size, 2)
+      Result.Ok(nil)
+    })
+
+    try with_directory(t.id, fn (dir) {
+      let path = dir.join('cert.pem')
+
+      try dir.create_directory_all.map_error(fn (e) { e.to_string })
+      try file.WriteOnlyFile.new(path).map_error(fn (e) { e.to_string })
+
+      let res = try Certificate.chain_from_pem_file(path).map_error(fn (e) {
+        e.to_string
+      })
+
+      t.true(res.empty?)
+      Result.Ok(nil)
+    })
+
+    try with_directory(t.id, fn (dir) {
+      let path = dir.join('cert.pem')
+
+      try dir.create_directory_all.map_error(fn (e) { e.to_string })
+
+      t.equal(
+        Certificate.chain_from_pem_file(path).error,
+        Option.Some(ParseError.Read(io.Error.NotFound)),
+      )
+      Result.Ok(nil)
+    })
+
+    try with_directory(t.id, fn (dir) {
+      let path = dir.join('cert.pem')
+
+      try dir.create_directory_all.map_error(fn (e) { e.to_string })
+      try file
+        .WriteOnlyFile
+        .new(path)
+        .then(fn (f) { f.write(VALID_KEY) })
+        .map_error(fn (e) { e.to_string })
+
+      let res = try Certificate.chain_from_pem_file(path).map_error(fn (e) {
+        e.to_string
+      })
+
+      t.true(res.empty?)
+      Result.Ok(nil)
+    })
+
+    try with_directory(t.id, fn (dir) {
+      let path = dir.join('cert.pem')
+
+      try dir.create_directory_all.map_error(fn (e) { e.to_string })
+      try file
+        .WriteOnlyFile
+        .new(path)
+        .then(fn (f) { f.write('--BEGIN CERTIFICATE--\n--END CERTIFICATE--') })
+        .map_error(fn (e) { e.to_string })
+
+      t.equal(
+        Certificate.chain_from_pem_file(path).error,
         Option.Some(ParseError.Invalid(pem.ParseError.InvalidSectionStart(1))),
       )
       Result.Ok(nil)

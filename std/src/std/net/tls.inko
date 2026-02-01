@@ -71,9 +71,16 @@ fn extern inko_tls_client_connection_alpn(
 
 fn extern inko_tls_client_connection_drop(connection: Pointer[UInt8])
 
+fn extern inko_tls_cert_chain_new -> Pointer[UInt8]
+
+fn extern inko_tls_cert_chain_push(
+  chain: Pointer[UInt8],
+  data: Pointer[UInt8],
+  size: Int,
+)
+
 fn extern inko_tls_server_config_new(
-  certificate: Pointer[UInt8],
-  certificate_size: Int,
+  chain: Pointer[UInt8],
   key: Pointer[UInt8],
   key_size: Int,
 ) -> AnyResult
@@ -746,7 +753,7 @@ type pub inline ServerConfigBuilder {
   }
 
   # Returns a new `ServerConfig` using the specified PEM encoded X.509
-  # certificate and private key.
+  # certificate chain (as an `Array`) and private key.
   #
   # # Errors
   #
@@ -766,17 +773,22 @@ type pub inline ServerConfigBuilder {
   #
   # ServerConfig
   #   .builder
-  #   .new(cert, key)
+  #   .new([cert], key)
   #   .or_panic
   # ```
   fn pub move new(
-    certificate: ref Certificate,
-    key: ref PrivateKey,
+    certificates: Array[Certificate],
+    key: PrivateKey,
   ) -> Result[ServerConfig, ServerConfigError] {
+    let chain = inko_tls_cert_chain_new
+
+    for cert in certificates {
+      inko_tls_cert_chain_push(chain, cert.bytes.pointer, cert.bytes.size)
+    }
+
     let conf = match
       inko_tls_server_config_new(
-        certificate: certificate.bytes.pointer,
-        certificate_size: certificate.bytes.size,
+        chain: chain,
         key: key.bytes.pointer,
         key_size: key.bytes.size,
       )
@@ -791,7 +803,7 @@ type pub inline ServerConfigBuilder {
     build(conf)
   }
 
-  # Returns a new `ServerConfig` that uses the certificate and private key
+  # Returns a new `ServerConfig` that uses the certificates and private key
   # located at the given file paths.
   #
   # For more details, refer to the documentation of `ServerConfigBuilder.new`.
@@ -807,17 +819,17 @@ type pub inline ServerConfigBuilder {
   #   .or_panic
   # ```
   fn pub move from_files(
-    certificate: ref Path,
+    certificates: ref Path,
     key: ref Path,
   ) -> Result[ServerConfig, ServerConfigError] {
-    let Ok(cert) = Certificate.from_pem_file(certificate) else {
+    let Ok(certs) = Certificate.chain_from_pem_file(certificates) else {
       throw ServerConfigError.InvalidCertificate
     }
     let Ok(key) = PrivateKey.from_pem_file(key) else {
       throw ServerConfigError.InvalidPrivateKey
     }
 
-    new(cert, key)
+    new(certs, key)
   }
 
   fn move build(

@@ -69,7 +69,7 @@ type pub inline Certificate {
   # # Examples
   #
   # ```inko
-  # import std.crypto.x509
+  # import std.crypto.x509 (Certificate)
   #
   # Certificate.from_pem_file('cacert.pem').or_panic # => Result.Ok(Certificate(...))
   # ```
@@ -86,6 +86,49 @@ type pub inline Certificate {
       case Ok(None) -> Result.Error(ParseError.Missing)
       case Error(e) -> Result.Error(ParseError.Invalid(e))
     }
+  }
+
+  # Parses multiple certificates from a PEM file.
+  #
+  # The returned array contains the certificates in the same order as found in
+  # the PEM file.
+  #
+  # If the PEM file doesn't contain any certificates an empty `Array` is
+  # returned. If the PEM file contains one or more private keys, they are
+  # ignored.
+  #
+  # # Errors
+  #
+  # If the file contains one or more invalid certificates, a `ParseError` error
+  # is returned.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.crypto.x509 (Certificate)
+  #
+  # Certificate
+  #   .chain_from_pem_file('cacert.pem')
+  #   .or_panic # => Result.Ok([Certificate(...)])
+  # ```
+  fn pub static chain_from_pem_file(
+    path: ref Path,
+  ) -> Result[Array[Certificate], ParseError] {
+    let file = match ReadOnlyFile.new(path) {
+      case Ok(v) -> pem.PemFile.new(v)
+      case Error(e) -> throw ParseError.Read(e)
+    }
+    let chain = []
+
+    loop {
+      match file.next_certificate {
+        case Ok(Some(v)) -> chain.push(v)
+        case Ok(None) -> break
+        case Error(e) -> throw ParseError.Invalid(e)
+      }
+    }
+
+    Result.Ok(chain)
   }
 }
 
@@ -125,7 +168,7 @@ type pub inline PrivateKey {
   # # Examples
   #
   # ```inko
-  # import std.crypto.x509
+  # import std.crypto.x509 (PrivateKey)
   #
   # PrivateKey.from_pem_file('key.pem').or_panic # => Result.Ok(PrivateKey(...))
   # ```

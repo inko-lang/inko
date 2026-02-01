@@ -67,7 +67,7 @@ type async DummyServer {
       try ServerConfig
         .builder
         .alpn(['foo', 'bar'])
-        .new(certificate(VALID_CERT), private_key(VALID_KEY))
+        .new([certificate(VALID_CERT)], private_key(VALID_KEY))
         .map_error(fn (e) { 'failed to create the server config: ${e}' })
     }
 
@@ -206,7 +206,7 @@ fn client_config_with_alpn(
 fn server_config -> Result[ServerConfig, String] {
   ServerConfig
     .builder
-    .new(certificate(VALID_CERT), private_key(VALID_KEY))
+    .new([certificate(VALID_CERT)], private_key(VALID_KEY))
     .map_error(fn (e) { e.to_string })
 }
 
@@ -216,7 +216,7 @@ fn server_config_with_alpn(
   ServerConfig
     .builder
     .alpn(names)
-    .new(certificate(VALID_CERT), private_key(VALID_KEY))
+    .new([certificate(VALID_CERT)], private_key(VALID_KEY))
     .map_error(fn (e) { e.to_string })
 }
 
@@ -307,15 +307,24 @@ fn pub tests(t: mut Tests) {
       let cert = certificate(VALID_CERT)
       let key = private_key(VALID_KEY)
 
-      t.true(ServerConfig.builder.new(cert, key).ok?)
+      t.true(ServerConfig.builder.new([cert], key).ok?)
     },
   )
+
+  t.test('ServerConfigBuilder.new with an empty certificate chain', fn (t) {
+    let key = private_key(VALID_KEY)
+
+    t.equal(
+      ServerConfig.builder.new([], key).error,
+      Option.Some(ServerConfigError.InvalidCertificate),
+    )
+  })
 
   t.test('ServerConfigBuilder.new with an invalid certificate', fn (t) {
     let key = private_key(VALID_KEY)
 
     t.equal(
-      ServerConfig.builder.new(certificate(INVALID_CERT), key).error,
+      ServerConfig.builder.new([certificate(INVALID_CERT)], key).error,
       Option.Some(ServerConfigError.InvalidCertificate),
     )
   })
@@ -324,7 +333,7 @@ fn pub tests(t: mut Tests) {
     let cert = certificate(VALID_CERT)
 
     t.equal(
-      ServerConfig.builder.new(cert, private_key(INVALID_KEY)).error,
+      ServerConfig.builder.new([cert], private_key(INVALID_KEY)).error,
       Option.Some(ServerConfigError.InvalidPrivateKey),
     )
   })
