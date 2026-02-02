@@ -6,6 +6,7 @@ import std.net.http.test (
   Body, Matchers, Mock, RequestBuilder, Server, format_body, format_headers,
 )
 import std.test (Test, Tests)
+import std.uri (Scheme)
 import std.uri (QueryValue, Uri)
 
 fn new_test -> Test {
@@ -395,7 +396,7 @@ fn pub tests(t: mut Tests) {
     t.equal(b.headers.get(Header.host), Result.Ok('localhost'))
     t.equal(b.headers.get(Header.user_agent), Result.Ok('test'))
     t.equal(b.headers.get(Header.connection), Result.Ok('close'))
-    t.equal(b.uri.to_string, '/')
+    t.equal(b.uri.to_string, 'http://localhost')
   })
 
   t.test('RequestBuilder.get', fn (t) {
@@ -416,6 +417,12 @@ fn pub tests(t: mut Tests) {
 
   t.test('RequestBuilder.head', fn (t) {
     t.equal(RequestBuilder.head('/').method, Method.Head)
+  })
+
+  t.test('RequestBuilder.scheme', fn (t) {
+    let r = RequestBuilder.get('/').scheme(Scheme.Https)
+
+    t.equal(r.uri.scheme, Option.Some(Scheme.Https))
   })
 
   t.test('RequestBuilder.query', fn (t) {
@@ -514,7 +521,7 @@ fn pub tests(t: mut Tests) {
 
     t.equal(resp.status, Status.ok)
     t.true(resp.body.reader.read_all(body).ok?)
-    t.equal(body.to_string, '/?key=value text/plain foo')
+    t.equal(body.to_string, 'http://localhost?key=value text/plain foo')
   })
 
   t.test('RequestBuilder.send with a HEAD request', fn (t) {

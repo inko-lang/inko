@@ -1304,6 +1304,8 @@ type pub inline RequestBuilder {
 
     let uri = Uri.new
 
+    uri.scheme = Option.Some(Scheme.Http)
+    uri.host = Host.new('localhost')
     uri.path = Path.new(path).or_panic_with('the request path is invalid')
     Self(
       method: method,
@@ -1347,6 +1349,12 @@ type pub inline RequestBuilder {
   # Refer to the documentation of `RequestBuilder.new` for more details.
   fn pub static head(path: String) -> Self {
     new(Method.Head, path)
+  }
+
+  # Sets the URI scheme of `self` to `scheme`.
+  fn pub move scheme(scheme: Scheme) -> Self {
+    @uri.scheme = Option.Some(scheme)
+    self
   }
 
   # Adds a query string parameter and its value to the set of request query
