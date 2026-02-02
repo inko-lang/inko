@@ -513,6 +513,46 @@ type pub inline Slice[T: Bytes] {
 
     false
   }
+
+  # Returns a new `Slice` without the given prefix.
+  #
+  # If `self` starts with the prefix, a `Option.Some` is returned containing the
+  # subslice after the prefix. If `self` doesn't start with the prefix, an
+  # `Option.None` is returned.
+  #
+  # # Examples
+  #
+  # ```inko
+  # 'xhellox'.to_slice.strip_prefix('x') # => Option.Some('hellox'.to_slice)
+  # 'xhellox'.to_slice.strip_prefix('y') # => Option.None
+  # ```
+  fn pub strip_prefix[B: Bytes](prefix: ref B) -> Option[Self] {
+    if !starts_with?(prefix) { return Option.None }
+
+    if size == prefix.size {
+      Option.Some(slice(0, 0))
+    } else {
+      Option.Some(slice(start: prefix.size, end: size))
+    }
+  }
+
+  # Returns a new `Slice` without the given suffix.
+  #
+  # If `self` ends with the suffix, a `Option.Some` is returned containing the
+  # subslice before the prefix. If `self` doesn't end with the suffix, an
+  # `Option.None` is returned.
+  #
+  # # Examples
+  #
+  # ```inko
+  # 'xhellox'.to_slice.strip_suffix('x') # => Option.Some('xhello'.to_slice)
+  # 'xhellox'.to_slice.strip_suffix('y') # => Option.None
+  # ```
+  fn pub strip_suffix[B: Bytes](suffix: ref B) -> Option[Self] {
+    if !ends_with?(suffix) { return Option.None }
+
+    Option.Some(slice(start: 0, end: size - suffix.size))
+  }
 }
 
 impl Clone for Slice {
