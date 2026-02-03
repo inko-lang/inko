@@ -492,8 +492,13 @@ pub unsafe extern "system" fn inko_tls_pending_server_new(
     let mut acceptor = Acceptor::default();
 
     loop {
-        if let Err(e) = acceptor.read_tls(&mut io) {
-            return Result::io_error(e);
+        match acceptor.read_tls(&mut io) {
+            // If a client disconnects their writing half we may encounter a
+            // zero value here. In this case we should abort the loop instead of
+            // just trying again forever.
+            Ok(0) => return Result::error(INVALID_CLIENT_HELLO as _),
+            Ok(_) => {}
+            Err(e) => return Result::io_error(e),
         }
 
         let accepted = match acceptor.accept() {

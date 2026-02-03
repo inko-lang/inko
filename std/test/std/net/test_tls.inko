@@ -141,6 +141,26 @@ type async DummyClient {
     output.set(res)
   }
 
+  fn async shutdown_write(
+    output: uni Promise[uni Result[TcpClient, String]],
+    port: Int,
+  ) {
+    let res = recover {
+      # This uses a regular TCP client so we don't deadlock when both the client
+      # and server are waiting for the TLS handshake to complete.
+      TcpClient
+        .new([IpAddress.v4(127, 0, 0, 1)], port)
+        .map_error(fn (e) { 'failed to connect: ${e}' })
+        .map(fn (s) {
+          let _ = s.shutdown_write
+
+          s
+        })
+    }
+
+    output.set(res)
+  }
+
   fn async alpn(port: Int) {
     client(port, ['foo'])
   }
@@ -830,6 +850,22 @@ fn pub tests(t: mut Tests) {
     t.equal(PendingServer.new(peer).error, Option.None)
     Result.Ok(nil)
   })
+
+  t.ok(
+    'PendingServer.new with a client that shuts down its writing half',
+    fn (t) {
+      let (sock, port) = try listener
+      let client_fut = async DummyClient().shutdown_write(port)
+      let peer = try sock.accept.map_error(fn (e) { e.to_string })
+      let _client = client_fut.get
+
+      t.equal(
+        PendingServer.new(peer).error,
+        Option.Some(PendingServerError.InvalidClientHello),
+      )
+      Result.Ok(nil)
+    },
+  )
 
   t.ok('PendingServer.new with an invalid client hello message', fn (t) {
     let (sock, port) = try listener
