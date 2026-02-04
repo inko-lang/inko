@@ -2935,15 +2935,10 @@ type pub inline Logger {
     let status = response.status
     let time = if @time { '${DateTime.utc.to_iso8601}: ' } else { '' }
     let host = request.headers.get(Header.host).or('-')
-    let path = request.uri.path.to_string.to_byte_array
-
-    if request.uri.query.size > 0 {
-      path.append('?')
-      path.append(request.uri.query.to_string)
-    }
+    let uri = request.uri.to_string
 
     @writer.write(
-      '${time}${addr.host} ${host} ${meth} ${path} HTTP/${ver} ${status} "${prev}" "${agent}"',
+      '${time}${addr.host} ${host} ${meth} ${uri} HTTP/${ver} ${status} "${prev}" "${agent}"',
     )
   }
 }

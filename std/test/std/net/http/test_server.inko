@@ -2571,6 +2571,40 @@ fn pub tests(t: mut Tests) {
   )
 
   t.fork(
+    'Logger.log with a percent-encoded request path',
+    child: fn {
+      let limits = Limits.new
+      let log = Logger.new
+      let rng = Random.new
+      let req = empty_request(limits, rng)
+
+      req.data.uri.path = UriPath.new('/a%20b').get
+      log.log(req, Response.new.status(Status.not_found))
+      await log.writer.wait
+    },
+    test: fn (t, p) {
+      t.true(p.spawn.stdout.contains?('GET /a%20b HTTP/1.1 404'))
+    },
+  )
+
+  t.fork(
+    'Logger.log with a percent-encoded query string',
+    child: fn {
+      let limits = Limits.new
+      let log = Logger.new
+      let rng = Random.new
+      let req = empty_request(limits, rng)
+
+      req.data.uri.query = Query.new('key=a%20b').get
+      log.log(req, Response.new.status(Status.not_found))
+      await log.writer.wait
+    },
+    test: fn (t, p) {
+      t.true(p.spawn.stdout.contains?('GET /?key=a%20b HTTP/1.1 404'))
+    },
+  )
+
+  t.fork(
     'Logger.log when logging is disabled',
     child: fn {
       let limits = Limits.new
