@@ -1239,7 +1239,8 @@ type pub Response {
     # protocols), leave the existing value as-is.
     let ok = match @headers.try_set(Header.connection, con) {
       case Error((_, Single('close'), _)) -> WriteResult.Close
-      case _ -> WriteResult.Ok
+      case _ if keep -> WriteResult.Ok
+      case _ -> WriteResult.Close
     }
 
     @headers.set(Header.date, DateTime.utc.to_rfc2822)

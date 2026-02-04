@@ -1292,8 +1292,13 @@ fn pub tests(t: mut Tests) {
     with_directory(t.id, fn (dir) -> Result[Nil, IoError] {
       let (_server, writer, reader) = try unix_pair(dir)
       let res = Response.new.string('foo')
-      let _ = res.write(writer, timeout: Duration.from_secs(5), keep: true)
 
+      t.true(
+        match res.write(writer, timeout: Duration.from_secs(5), keep: true) {
+          case Ok -> true
+          case _ -> false
+        },
+      )
       t.true(writer.buffer.empty?)
 
       # Make sure the deadline is cleared.
@@ -1329,7 +1334,13 @@ fn pub tests(t: mut Tests) {
     with_directory(t.id, fn (dir) -> Result[Nil, IoError] {
       let (_server, writer, reader) = try unix_pair(dir)
       let res = Response.new.string('foo')
-      let _ = res.write(writer, timeout: Duration.from_secs(5), keep: false)
+
+      t.true(
+        match res.write(writer, timeout: Duration.from_secs(5), keep: false) {
+          case Close -> true
+          case _ -> false
+        },
+      )
 
       t.true(writer.buffer.empty?)
       drop(writer)
