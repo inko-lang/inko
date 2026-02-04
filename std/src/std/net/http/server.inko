@@ -867,6 +867,12 @@ fn pub compress_response(request: ref Request, response: Response) -> Response {
     })
 }
 
+type copy enum WriteResult {
+  case Ok
+  case Close
+  case Error
+}
+
 # A type for building an HTTP response.
 type pub Response {
   # The HTTP status code.
@@ -1031,6 +1037,12 @@ type pub Response {
   # Removes all values assigned to the header.
   fn pub move without_header(header: Header) -> Self {
     @headers.remove_all(header)
+    self
+  }
+
+  # Closes the connection after writing the response.
+  fn pub move close -> Self {
+    @headers.set(Header.connection, 'close')
     self
   }
 
@@ -1215,15 +1227,21 @@ type pub Response {
     self
   }
 
-  fn move write(socket: mut Socket, timeout: Duration, keep: Bool) -> Bool {
+  fn move write(
+    socket: mut Socket,
+    timeout: Duration,
+    keep: Bool,
+  ) -> WriteResult {
     let len = @body.size
+    let con = if keep { 'keep-alive' } else { 'close' }
 
     # If the Connection header is already set (e.g. when upgrading or switching
     # protocols), leave the existing value as-is.
-    @headers.try_set(
-      Header.connection,
-      if keep { 'keep-alive' } else { 'close' },
-    )
+    let ok = match @headers.try_set(Header.connection, con) {
+      case Error((_, Single('close'), _)) -> WriteResult.Close
+      case _ -> WriteResult.Ok
+    }
+
     @headers.set(Header.date, DateTime.utc.to_rfc2822)
 
     match len {
@@ -1240,14 +1258,15 @@ type pub Response {
 
     socket.timeout_after = timeout
 
-    if socket.write(socket.buffer).error? { return false }
+    if socket.write(socket.buffer).error? { return WriteResult.Error }
 
     socket.buffer.clear
 
     let res = write_body(socket)
 
     socket.reset_deadline
-    res
+
+    if res { ok } else { WriteResult.Error }
   }
 
   fn move write_body(socket: mut Socket) -> Bool {
@@ -1856,14 +1875,15 @@ type async Connection[H: mut + Handle] {
 
           let hijacker = resp.hijacker := Option.None
           let keep = keep and req.body.consumed? and hijacker.none?
-          let ok = resp.write(@socket, @write_timeout, keep)
 
-          if ok and keep { next }
-
-          if ok {
-            match hijacker {
-              case Some(f) -> return hijack_connection(f)
-              case _ -> {}
+          match resp.write(@socket, @write_timeout, keep) {
+            case Ok if keep -> next
+            case Error -> {}
+            case Ok or Close -> {
+              match hijacker {
+                case Some(f) -> return hijack_connection(f)
+                case _ -> {}
+              }
             }
           }
         }

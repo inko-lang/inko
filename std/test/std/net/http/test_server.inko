@@ -1124,6 +1124,12 @@ fn pub tests(t: mut Tests) {
     t.equal(res.headers.get(Header.content_type), Result.Ok('foo'))
   })
 
+  t.test('Response.close', fn (t) {
+    let res = Response.new.close
+
+    t.equal(res.headers.get(Header.connection), Result.Ok('close'))
+  })
+
   t.test('Response.without_header', fn (t) {
     let res = Response
       .new
@@ -1286,8 +1292,8 @@ fn pub tests(t: mut Tests) {
     with_directory(t.id, fn (dir) -> Result[Nil, IoError] {
       let (_server, writer, reader) = try unix_pair(dir)
       let res = Response.new.string('foo')
+      let _ = res.write(writer, timeout: Duration.from_secs(5), keep: true)
 
-      res.write(writer, timeout: Duration.from_secs(5), keep: true)
       t.true(writer.buffer.empty?)
 
       # Make sure the deadline is cleared.
@@ -1323,8 +1329,36 @@ fn pub tests(t: mut Tests) {
     with_directory(t.id, fn (dir) -> Result[Nil, IoError] {
       let (_server, writer, reader) = try unix_pair(dir)
       let res = Response.new.string('foo')
+      let _ = res.write(writer, timeout: Duration.from_secs(5), keep: false)
 
-      res.write(writer, timeout: Duration.from_secs(5), keep: false)
+      t.true(writer.buffer.empty?)
+      drop(writer)
+
+      let buf = ByteArray.new
+      let _ = try reader.read_all(buf)
+      let resp = Parser
+        .from_bytes(mut buf, ByteArray.new, Limits.new)
+        .response(Get)
+        .or_panic
+
+      t.equal(resp.headers.get(Header.connection), Result.Ok('close'))
+
+      Result.Ok(nil)
+    })
+  })
+
+  t.ok('Response.write with an explicit Connection: close header', fn (t) {
+    with_directory(t.id, fn (dir) -> Result[Nil, IoError] {
+      let (_server, writer, reader) = try unix_pair(dir)
+      let res = Response.new.string('foo').header(Header.connection, 'close')
+
+      t.true(
+        match res.write(writer, timeout: Duration.from_secs(5), keep: false) {
+          case Close -> true
+          case _ -> false
+        },
+      )
+
       t.true(writer.buffer.empty?)
       drop(writer)
 
@@ -1345,8 +1379,8 @@ fn pub tests(t: mut Tests) {
     with_directory(t.id, fn (dir) -> Result[Nil, IoError] {
       let (_server, writer, reader) = try unix_pair(dir)
       let res = try Response.new.file(hello_txt)
+      let _ = res.write(writer, timeout: Duration.from_secs(5), keep: true)
 
-      res.write(writer, timeout: Duration.from_secs(5), keep: true)
       t.true(writer.buffer.empty?)
       drop(writer)
 
@@ -1377,7 +1411,8 @@ fn pub tests(t: mut Tests) {
         f.ranges = FileRanges.Single(0.to(2))
       }
 
-      res.write(writer, timeout: Duration.from_secs(5), keep: true)
+      let _ = res.write(writer, timeout: Duration.from_secs(5), keep: true)
+
       t.true(writer.buffer.empty?)
       drop(writer)
 
@@ -1409,7 +1444,8 @@ fn pub tests(t: mut Tests) {
         f.ranges = FileRanges.Multiple([0.to(2), 3.to(4)], 'foo')
       }
 
-      res.write(writer, timeout: Duration.from_secs(5), keep: true)
+      let _ = res.write(writer, timeout: Duration.from_secs(5), keep: true)
+
       t.true(writer.buffer.empty?)
       drop(writer)
 
@@ -1439,8 +1475,8 @@ fn pub tests(t: mut Tests) {
     with_directory(t.id, fn (dir) -> Result[Nil, IoError] {
       let (_server, writer, reader) = try unix_pair(dir)
       let res = Response.new.stream(fn (s) { s.write('hello').ok? })
+      let _ = res.write(writer, timeout: Duration.from_secs(5), keep: true)
 
-      res.write(writer, timeout: Duration.from_secs(5), keep: true)
       t.true(writer.buffer.empty?)
       drop(writer)
 

@@ -552,7 +552,10 @@ type pub inline HeaderMap {
     }
   }
 
-  fn mut try_set(header: Header, value: String) {
+  fn mut try_set(
+    header: Header,
+    value: String,
+  ) -> Result[Nil, (Header, mut HeaderValue, HeaderValue)] {
     @map.try_set(header, HeaderValue.Single(value))
   }
 }
