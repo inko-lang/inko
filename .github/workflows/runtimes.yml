@@ -100,9 +100,8 @@ jobs:
     container:
       image: ghcr.io/inko-lang/ci:fedora-amd64
     env:
-      RCLONE_S3_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_ACCESS_KEY_ID }}
-      RCLONE_S3_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
-      RCLONE_S3_ENDPOINT: https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
     needs:
       - amd64-linux
       - arm64-linux

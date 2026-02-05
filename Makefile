@@ -42,14 +42,8 @@ else
 	VERSION != cargo pkgid -p inko | cut -d\# -f2 | cut -d: -f2
 endif
 
-# The name of the Cloudflare bucket that contains all releases.
-RELEASES_BUCKET := inko-releases
-
-# The name of the Cloudflare bucket for uploading documentation.
-DOCS_BUCKET := inko-docs
-
-# The ID of the cloudfront distribution that serves the documentation.
-DOCS_CLOUDFRONT_ID := E3S16BR117BJOL
+RCLONE_DOCS_TARGET     := /var/lib/shost/docs.inko-lang.org
+RCLONE_RELEASES_TARGET := /var/lib/shost/releases.inko-lang.org
 
 # The folder to put the documentation in, allowing for branch specific
 # documentation.
@@ -89,16 +83,14 @@ ${SOURCE_TAR}: ${TMP_DIR}
 		| gzip > "${@}"
 
 release/source: ${SOURCE_TAR}
-	rclone copy --config rclone.conf --checksum --verbose \
-		"${SOURCE_TAR}" "production:${RELEASES_BUCKET}"
+	scripts/rclone.sh copy "${SOURCE_TAR}" ":sftp:${RCLONE_RELEASES_TARGET}"
 
 release/manifest: ${TMP_DIR}
-	rclone copyto --config rclone.conf \
-		"production:${RELEASES_BUCKET}/${MANIFEST_NAME}" "${MANIFEST}"
+	scripts/rclone.sh copyto \
+		":sftp:${RCLONE_RELEASES_TARGET}/${MANIFEST_NAME}" "${MANIFEST}"
 	echo "${VERSION}" >> "${MANIFEST}"
 	sort --version-sort "${MANIFEST}"
-	rclone copy --config rclone.conf --checksum --verbose \
-		"${MANIFEST}" "production:${RELEASES_BUCKET}"
+	scripts/rclone.sh copy "${MANIFEST}" ":sftp:${RCLONE_RELEASES_TARGET}"
 
 release/changelog:
 	clogs "${VERSION}"
@@ -156,8 +148,7 @@ docs/watch:
 	cd docs && DOCS_REF=${DOCS_REF} ./scripts/watch.sh
 
 docs/publish: docs/setup docs/build
-	rclone sync --config rclone.conf --checksum --verbose \
-		docs/public "production:${DOCS_BUCKET}/manual/${DOCS_REF}"
+	scripts/rclone.sh sync docs/public ":sftp:${RCLONE_DOCS_TARGET}/manual/${DOCS_REF}"
 
 std-docs/build:
 	rm -rf std/build
@@ -165,8 +156,7 @@ std-docs/build:
 	cd std && idoc --compiler ../target/debug/inko
 
 std-docs/publish: std-docs/build
-	rclone sync --config rclone.conf --checksum --verbose \
-		std/build/idoc/public "production:${DOCS_BUCKET}/std/${DOCS_REF}"
+	scripts/rclone.sh sync std/build/idoc/public ":sftp:${RCLONE_DOCS_TARGET}/std/${DOCS_REF}"
 
 .PHONY: release/source release/manifest release/changelog release/versions
 .PHONY: release/commit release/publish release/tag

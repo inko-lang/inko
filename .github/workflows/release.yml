@@ -25,9 +25,8 @@ jobs:
     needs:
       - tests
     env:
-      RCLONE_S3_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_ACCESS_KEY_ID }}
-      RCLONE_S3_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
-      RCLONE_S3_ENDPOINT: https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - run: git config --global --add safe.directory $PWD
@@ -53,9 +52,8 @@ jobs:
       - source
       - runtimes
     env:
-      RCLONE_S3_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_ACCESS_KEY_ID }}
-      RCLONE_S3_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
-      RCLONE_S3_ENDPOINT: https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
     steps:
       - name: Install dependencies
         run: microdnf install --quiet --assumeyes rclone git tar make
@@ -80,9 +78,8 @@ jobs:
     container:
       image: ghcr.io/inko-lang/ci:fedora-amd64
     env:
-      RCLONE_S3_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_ACCESS_KEY_ID }}
-      RCLONE_S3_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
-      RCLONE_S3_ENDPOINT: https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
     needs:
       - tests
       - source

@@ -56,15 +56,11 @@ jobs:
     runs-on: ubuntu-24.04
     container:
       image: ghcr.io/inko-lang/inko:latest
-    env:
-      RCLONE_S3_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_ACCESS_KEY_ID }}
-      RCLONE_S3_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
-      RCLONE_S3_ENDPOINT: https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
     needs:
       - tests
     steps:
       - name: Install dependencies
-        run: microdnf install --quiet --assumeyes rclone git tar make
+        run: microdnf install --quiet --assumeyes rclone make hcloud
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
         with:
@@ -72,6 +68,9 @@ jobs:
           key: docs-main-${{ hashFiles('docs/inko.pkg') }}
       - run: git config --global --add safe.directory $PWD
       - name: Build the documentation
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
         run: >
           if [[ ${{ github.ref_name }} = 'main' ]]
           then
@@ -85,10 +84,6 @@ jobs:
     runs-on: ubuntu-24.04
     container:
       image: ghcr.io/inko-lang/ci:fedora-amd64
-    env:
-      RCLONE_S3_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_ACCESS_KEY_ID }}
-      RCLONE_S3_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
-      RCLONE_S3_ENDPOINT: https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
     needs:
       - tests
     steps:
@@ -99,6 +94,9 @@ jobs:
           key: std-docs-main-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
       - run: git config --global --add safe.directory $PWD
       - name: Deploy the documentation
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
         run: >
           if [[ ${{ github.ref_name }} = 'main' ]]
           then
