@@ -1,4 +1,4 @@
-FROM registry.fedoraproject.org/fedora:42
+FROM registry.fedoraproject.org/fedora:43
 
 ENV LLVM_VERSION 18
 ENV RUST_VERSION 1.89
@@ -13,7 +13,7 @@ ENV CARGO_HOME /opt/cargo
 # ARM64 host).
 ENV CC_aarch64_unknown_linux_musl=musl-gcc
 
-RUN sudo dnf install --assumeyes --quiet gcc make tar git rustup rclone \
+RUN sudo dnf install --assumeyes --quiet gcc make tar git rustup rclone hcloud \
     musl-gcc llvm$LLVM_VERSION llvm$LLVM_VERSION-devel \
     llvm$LLVM_VERSION-static libstdc++-devel libstdc++-static \
     libffi-devel zlib-devel
