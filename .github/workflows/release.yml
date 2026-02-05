@@ -26,7 +26,6 @@ jobs:
       - tests
     env:
       SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - run: git config --global --add safe.directory $PWD
@@ -53,7 +52,6 @@ jobs:
       - runtimes
     env:
       SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
     steps:
       - name: Install dependencies
         run: microdnf install --quiet --assumeyes rclone git tar make
@@ -79,7 +77,6 @@ jobs:
       image: ghcr.io/inko-lang/ci:fedora-amd64
     env:
       SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
     needs:
       - tests
       - source

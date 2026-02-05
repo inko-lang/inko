@@ -3,7 +3,7 @@
 set -e
 
 USER=root
-SERVER=web
+SERVER=web.hetzner.yorickpeterse.com
 PORT=2222
 
 run() {
@@ -13,7 +13,7 @@ run() {
         --metadata \
         --checksum \
         --no-update-dir-modtime \
-        --sftp-host "$(hcloud server ip "${SERVER}")" \
+        --sftp-host "${SERVER}" \
         --sftp-user "${USER}" \
         --sftp-port "${PORT}" \
         ${@:4} \

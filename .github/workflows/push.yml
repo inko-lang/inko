@@ -60,7 +60,7 @@ jobs:
       - tests
     steps:
       - name: Install dependencies
-        run: microdnf install --quiet --assumeyes rclone make hcloud
+        run: microdnf install --quiet --assumeyes rclone make
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
         with:
@@ -70,7 +70,6 @@ jobs:
       - name: Build the documentation
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
         run: >
           if [[ ${{ github.ref_name }} = 'main' ]]
           then
@@ -96,7 +95,6 @@ jobs:
       - name: Deploy the documentation
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
         run: >
           if [[ ${{ github.ref_name }} = 'main' ]]
           then

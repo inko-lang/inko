@@ -101,7 +101,6 @@ jobs:
       image: ghcr.io/inko-lang/ci:fedora-amd64
     env:
       SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
     needs:
       - amd64-linux
       - arm64-linux
