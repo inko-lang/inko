@@ -1,7 +1,14 @@
-import std.rand (MAX_COUNTER, Random)
+import std.rand (MAX_COUNTER, Random, bytes)
 import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
+  t.test('rand.bytes', fn (t) {
+    let buf = ByteArray.new
+
+    bytes(buf, size: 8)
+    t.equal(buf.size, 8)
+  })
+
   t.test('Random.new', fn (t) {
     let rng = Random.new
 

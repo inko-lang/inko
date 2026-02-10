@@ -1479,17 +1479,24 @@ fn pub tests(t: mut Tests) {
     let resp = form.send.or_panic
     let body = ByteArray.new
     let _ = resp.body.read_all(body).or_panic
+    let body = body.to_string
+    let sep = body
+      .split_once('boundary=')
+      .then(fn (pair) { pair.1.split_once('\r\n') })
+      .map(fn (v) { v.0.to_string })
+      .or('')
 
+    t.true(sep.starts_with?('InkoFormBoundary'))
     t.equal(
-      body.to_string,
+      body,
       'host: ${uri.host.clone.get}:${uri.port.clone.get}\r\n'
         + 'user-agent: foo\r\n'
-        + 'content-type: multipart/form-data; boundary=InkoFormBoundaryHlzwcFgKtvmvB89Js6UhXuY80cn4O3-eIxjOYsIxQsM\r\n'
+        + 'content-type: multipart/form-data; boundary=${sep}\r\n'
         + 'transfer-encoding: chunked\r\n\r\n'
-        + '--InkoFormBoundaryHlzwcFgKtvmvB89Js6UhXuY80cn4O3-eIxjOYsIxQsM\r\n'
+        + '--${sep}\r\n'
         + 'Content-Disposition: form-data; name="name"\r\n\r\n'
         + 'Alice\r\n'
-        + '--InkoFormBoundaryHlzwcFgKtvmvB89Js6UhXuY80cn4O3-eIxjOYsIxQsM--',
+        + '--${sep}--',
     )
 
     Result.Ok(nil)
@@ -1512,18 +1519,25 @@ fn pub tests(t: mut Tests) {
     let resp = form.send.or_panic
     let body = ByteArray.new
     let _ = resp.body.read_all(body).or_panic
+    let body = body.to_string
+    let sep = body
+      .split_once('boundary=')
+      .then(fn (pair) { pair.1.split_once('\r\n') })
+      .map(fn (v) { v.0.to_string })
+      .or('')
 
+    t.true(sep.starts_with?('InkoFormBoundary'))
     t.equal(
-      body.to_string,
+      body,
       'host: ${uri.host.clone.get}:${uri.port.clone.get}\r\n'
         + 'user-agent: foo\r\n'
-        + 'content-type: multipart/form-data; boundary=InkoFormBoundaryHlzwcFgKtvmvB89Js6UhXuY80cn4O3-eIxjOYsIxQsM\r\n'
+        + 'content-type: multipart/form-data; boundary=${sep}\r\n'
         + 'transfer-encoding: chunked\r\n'
         + 'authorization: Basic dXNlcjpwYXNz\r\n\r\n'
-        + '--InkoFormBoundaryHlzwcFgKtvmvB89Js6UhXuY80cn4O3-eIxjOYsIxQsM\r\n'
+        + '--${sep}\r\n'
         + 'Content-Disposition: form-data; name="name"\r\n\r\n'
         + 'Alice\r\n'
-        + '--InkoFormBoundaryHlzwcFgKtvmvB89Js6UhXuY80cn4O3-eIxjOYsIxQsM--',
+        + '--${sep}--',
     )
 
     Result.Ok(nil)

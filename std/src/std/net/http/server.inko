@@ -732,7 +732,7 @@ type pub copy RangeRequest {
         response.header(Header.content_range, hval)
       }
       case ranges -> {
-        let boundary = multipart.boundary_separator(request.random)
+        let boundary = multipart.boundary_separator
         let hval = 'multipart/byteranges; boundary=${boundary}'
 
         file.ranges = FileRanges.Multiple(ranges, boundary)
@@ -1856,7 +1856,6 @@ type async Connection[H: mut + Handle] {
   let @address: Address
   let @limits: Limits
   let @handler: H
-  let @random: Random
   let @read_timeout: Duration
   let @idle_timeout: Duration
   let @write_timeout: Duration
@@ -1868,7 +1867,7 @@ type async Connection[H: mut + Handle] {
     while @shared.alive? {
       match parse_request {
         case Ok(raw_req, keep) -> {
-          let req = Request.new(@address.clone, raw_req, @limits, @random)
+          let req = Request.new(@address.clone, raw_req, @limits)
           let resp = @handler.response(req, @handler.handle(req))
 
           # HEAD requests are always supported.
@@ -2121,11 +2120,6 @@ impl ToString for FormError {
 # This type is a wrapper around `std.net.http.Request` and provides additional
 # data useful when writing a server, such as the socket address.
 type pub Request {
-  # A connection-local random number generator.
-  #
-  # This `Random` instance is created when a connection is established.
-  let pub @random: mut Random
-
   # The raw client address of the connection.
   #
   # This address isn't necessarily accurate. For example, if your application
@@ -2147,25 +2141,14 @@ type pub Request {
   # The limits to apply when parsing HTTP data.
   let @limits: Limits
 
-  fn static new(
-    address: Address,
-    request: RawRequest,
-    limits: Limits,
-    random: mut Random,
-  ) -> Self {
+  fn static new(address: Address, request: RawRequest, limits: Limits) -> Self {
     let comp = if request.uri.path.absolute? {
       request.uri.path.components.skip(1).to_array
     } else {
       []
     }
 
-    Self(
-      address: address,
-      data: request,
-      path: Path(comp),
-      limits: limits,
-      random: random,
-    )
+    Self(address: address, data: request, path: Path(comp), limits: limits)
   }
 
   # Parses the `Host` header into a `(host, port)` tuple.
@@ -2867,7 +2850,6 @@ type pub Server[H: mut + Handle] {
       read_timeout: @read_timeout,
       write_timeout: @write_timeout,
       close_timeout: @close_timeout,
-      random: recover Random.new,
     )
       .run
   }
@@ -3423,9 +3405,8 @@ type pub inline WebsocketResponse {
       case _ -> {}
     }
 
-    let rng = @request.random
-
     resp.hijack(fn move (socket) {
+      let rng = Random.new
       let socket = Websocket.server(socket, rng, protocol.clone)
 
       body.call(socket)

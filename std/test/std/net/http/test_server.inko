@@ -27,7 +27,6 @@ import std.net.socket (
   SocketAddress, TcpClient, TcpServer, UnixAddress, UnixClient, UnixServer,
 )
 import std.net.tls
-import std.rand (Random)
 import std.set (Set)
 import std.sync (Future, Promise)
 import std.test (Tests)
@@ -88,25 +87,21 @@ fn values(pairs: Array[(String, String)]) -> Values {
   vals
 }
 
-fn request(raw: RawRequest, limits: Limits, random: mut Random) -> Request {
+fn request(raw: RawRequest, limits: Limits) -> Request {
   let addr = Address.Ip(SocketAddress(ip: IpAddress.v4(127, 0, 0, 1), port: 80))
 
-  Request.new(addr, raw, limits, random)
+  Request.new(addr, raw, limits)
 }
 
-fn empty_request(limits: Limits, random: mut Random) -> Request {
-  request_with_method(limits, Get, random)
+fn empty_request(limits: Limits) -> Request {
+  request_with_method(limits, Get)
 }
 
 fn empty_body -> Body {
   Body.bounded(Reader.new(Buffer.new('')), size: 0, limit: 0)
 }
 
-fn request_with_method(
-  limits: Limits,
-  method: Method,
-  random: mut Random,
-) -> Request {
+fn request_with_method(limits: Limits, method: Method) -> Request {
   request(
     RawRequest(
       method: method,
@@ -116,7 +111,6 @@ fn request_with_method(
       body: empty_body,
     ),
     limits,
-    random,
   )
 }
 
@@ -423,8 +417,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('conditional_request with a regular response', fn (t) {
     let limits = Limits.new
-    let rng = Random.new
-    let req = empty_request(limits, rng)
+    let req = empty_request(limits)
 
     req.data.headers.set(Header.if_none_match, etag)
 
@@ -440,8 +433,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('conditional_request with an unsafe request method', fn (t) {
     let limits = Limits.new
-    let rng = Random.new
-    let req = request_with_method(limits, Post, rng)
+    let req = request_with_method(limits, Post)
 
     req.data.headers.set(Header.if_none_match, etag)
 
@@ -459,8 +451,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('conditional_request with a valid If-None-Match header', fn (t) {
     let limits = Limits.new
-    let rng = Random.new
-    let req = empty_request(limits, rng)
+    let req = empty_request(limits)
 
     req.data.headers.set(Header.if_none_match, etag)
 
@@ -478,8 +469,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('conditional_request with a valid If-Modified-Since header', fn (t) {
     let limits = Limits.new
-    let rng = Random.new
-    let req = empty_request(limits, rng)
+    let req = empty_request(limits)
     let now = DateTime.utc + Duration.from_secs(3600)
 
     req.data.headers.set(Header.if_modified_since, now.to_rfc2822)
@@ -500,8 +490,7 @@ fn pub tests(t: mut Tests) {
     'conditional_request with both a If-None-Match and If-Modified-Since header',
     fn (t) {
       let limits = Limits.new
-      let rng = Random.new
-      let req = empty_request(limits, rng)
+      let req = empty_request(limits)
       let time = hello_txt.metadata.or_panic.modified_at.to_date_time
         - Duration.from_secs(3600)
 
@@ -517,8 +506,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('conditional_request with If-None-Match: *', fn (t) {
     let limits = Limits.new
-    let rng = Random.new
-    let req = empty_request(limits, rng)
+    let req = empty_request(limits)
 
     req.data.headers.set(Header.if_none_match, '*')
 
@@ -530,8 +518,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('conditional_request with multiple If-None-Match values', fn (t) {
     let limits = Limits.new
-    let rng = Random.new
-    let req = empty_request(limits, rng)
+    let req = empty_request(limits)
 
     req.data.headers.set(Header.if_none_match, '"foo", ${etag}')
 
@@ -545,8 +532,7 @@ fn pub tests(t: mut Tests) {
     'conditional_request with a request method other than GET or HEAD',
     fn (t) {
       let limits = Limits.new
-      let rng = Random.new
-      let req = request_with_method(limits, Method.Trace, rng)
+      let req = request_with_method(limits, Method.Trace)
 
       req.data.headers.set(Header.if_none_match, etag)
 
@@ -565,8 +551,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('conditional_request with a stale If-None-Match value', fn (t) {
     let limits = Limits.new
-    let rng = Random.new
-    let req = request_with_method(limits, Method.Trace, rng)
+    let req = request_with_method(limits, Method.Trace)
 
     req.data.headers.set(Header.if_none_match, 'foo')
 
@@ -584,8 +569,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('conditional_request with a stale If-Modified-Since value', fn (t) {
     let limits = Limits.new
-    let rng = Random.new
-    let req = request_with_method(limits, Method.Trace, rng)
+    let req = request_with_method(limits, Method.Trace)
     let time = hello_txt.metadata.or_panic.modified_at.to_date_time
       - Duration.from_secs(3600)
 
@@ -605,8 +589,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('RangeRequest.handle with a regular response', fn (t) {
     let limits = Limits.new
-    let rng = Random.new
-    let req = empty_request(limits, rng)
+    let req = empty_request(limits)
 
     req.data.headers.set(Header.range, 'bytes=0,3')
 
@@ -623,8 +606,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('RangeRequest.handle with a non-GET request', fn (t) {
     let limits = Limits.new
-    let rng = Random.new
-    let req = request_with_method(limits, Post, rng)
+    let req = request_with_method(limits, Post)
 
     req.data.headers.set(Header.range, 'bytes=0,3')
 
@@ -642,8 +624,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('RangeRequest.handle with a non-OK response', fn (t) {
     let limits = Limits.new
-    let rng = Random.new
-    let req = empty_request(limits, rng)
+    let req = empty_request(limits)
 
     req.data.headers.set(Header.range, 'bytes=0,3')
 
@@ -661,8 +642,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('RangeRequest.handle with a single Range value', fn (t) {
     let limits = Limits.new
-    let rng = Random.new
-    let req = empty_request(limits, rng)
+    let req = empty_request(limits)
 
     req.data.headers.set(Header.range, 'bytes=0-3')
 
@@ -686,8 +666,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('RangeRequest.handle with an invalid Range value', fn (t) {
     let limits = Limits.new
-    let rng = Random.new
-    let req = empty_request(limits, rng)
+    let req = empty_request(limits)
 
     req.data.headers.set(Header.range, 'bytes=0,3')
 
@@ -706,27 +685,26 @@ fn pub tests(t: mut Tests) {
 
   t.test('RangeRequest.handle with multiple Range values', fn (t) {
     let limits = Limits.new
-    let rng = Random.from_int(42)
-    let req = empty_request(limits, rng)
+    let req = empty_request(limits)
 
     req.data.headers.set(Header.range, 'bytes=0-3,4-5')
 
     let res = Response.new.file(hello_txt).or_panic
     let res = RangeRequest(limit: 8).handle(req, res)
-    let sep = 'InkoFormBoundaryHlzwcFgKtvmvB89Js6UhXuY80cn4O3-eIxjOYsIxQsM'
+    let ctype = res.headers.get(Header.content_type).or('')
 
     t.equal(res.status, Status.partial_content)
     t.true(res.headers.get(Header.content_range).error?)
-    t.equal(
-      res.headers.get(Header.content_type),
-      Result.Ok('multipart/byteranges; boundary=${sep}'),
+    t.true(
+      ctype.starts_with?('multipart/byteranges; boundary=InkoFormBoundary'),
     )
     t.true(
       match res.body {
         case File(f) -> {
           match f.ranges {
             case Multiple(ranges, bound) -> {
-              ranges == [0.to(3), 4.to(5)] and bound == sep
+              ranges == [0.to(3), 4.to(5)]
+                and bound.equals?(ctype.split_once('boundary=').get.1)
             }
             case _ -> false
           }
@@ -740,8 +718,7 @@ fn pub tests(t: mut Tests) {
     'RangeRequest.handle with an If-Range header with a matching ETag',
     fn (t) {
       let limits = Limits.new
-      let rng = Random.new
-      let req = empty_request(limits, rng)
+      let req = empty_request(limits)
 
       req.data.headers.set(Header.range, 'bytes=0-3')
       req.data.headers.set(Header.if_range, etag)
@@ -769,8 +746,7 @@ fn pub tests(t: mut Tests) {
     'RangeRequest.handle with an If-Range header with a stale ETag',
     fn (t) {
       let limits = Limits.new
-      let rng = Random.new
-      let req = empty_request(limits, rng)
+      let req = empty_request(limits)
 
       req.data.headers.set(Header.range, 'bytes=0-3')
       req.data.headers.set(Header.if_range, '"foo"')
@@ -797,8 +773,7 @@ fn pub tests(t: mut Tests) {
     'RangeRequest.handle with an If-Range header with a matching date',
     fn (t) {
       let limits = Limits.new
-      let rng = Random.new
-      let req = empty_request(limits, rng)
+      let req = empty_request(limits)
 
       req.data.headers.set(Header.range, 'bytes=0-3')
       req.data.headers.set(Header.if_range, 'date')
@@ -830,8 +805,7 @@ fn pub tests(t: mut Tests) {
     'RangeRequest.handle with an If-Range header with a stale date',
     fn (t) {
       let limits = Limits.new
-      let rng = Random.new
-      let req = empty_request(limits, rng)
+      let req = empty_request(limits)
 
       req.data.headers.set(Header.range, 'bytes=0-3')
       req.data.headers.set(Header.if_range, '"date"')
@@ -867,8 +841,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('head_request with a GET request', fn (t) {
     let limits = Limits.new
-    let rng = Random.new
-    let req = empty_request(limits, rng)
+    let req = empty_request(limits)
     let res = head_request(req, Response.new.string('foo'))
 
     t.true(res.headers.get(Header.content_length).error?)
@@ -882,8 +855,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('head_request with a HEAD request and a OK response', fn (t) {
     let limits = Limits.new
-    let rng = Random.new
-    let req = request_with_method(limits, Head, rng)
+    let req = request_with_method(limits, Head)
     let res = head_request(req, Response.new.string('foo'))
 
     t.equal(res.headers.get(Header.content_length), Result.Ok('3'))
@@ -897,8 +869,7 @@ fn pub tests(t: mut Tests) {
 
   t.ok('head_request with a chunked response', fn (t) {
     let limits = Limits.new
-    let rng = Random.new
-    let req = request_with_method(limits, Head, rng)
+    let req = request_with_method(limits, Head)
     let res = try Response.new.file(hello_txt)
 
     {
@@ -923,8 +894,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('head_request with a HEAD request and an error response', fn (t) {
     let limits = Limits.new
-    let rng = Random.new
-    let req = request_with_method(limits, Head, rng)
+    let req = request_with_method(limits, Head)
     let res = Response.new.status(Status.not_found).string('foo')
     let res = head_request(req, res)
 
@@ -939,8 +909,7 @@ fn pub tests(t: mut Tests) {
 
   t.ok('compress_response with a supported file type', fn (t) {
     let limits = Limits.new
-    let rng = Random.new
-    let req = request_with_method(limits, Head, rng)
+    let req = request_with_method(limits, Head)
 
     req.data.headers.set(Header.accept_encoding, 'gzip')
 
@@ -964,8 +933,7 @@ fn pub tests(t: mut Tests) {
 
   t.ok('compress_response without an accept-encoding request header', fn (t) {
     let limits = Limits.new
-    let rng = Random.new
-    let req = request_with_method(limits, Head, rng)
+    let req = request_with_method(limits, Head)
     let res = try Response.new.file('fixtures/html/test.html'.to_path)
     let res = compress_response(req, res)
 
@@ -986,8 +954,7 @@ fn pub tests(t: mut Tests) {
     'compress_response with an accept-encoding header that disables gzip',
     fn (t) {
       let limits = Limits.new
-      let rng = Random.new
-      let req = request_with_method(limits, Head, rng)
+      let req = request_with_method(limits, Head)
 
       req.data.headers.set(Header.accept_encoding, 'gzip;q=0.0, br')
 
@@ -1010,8 +977,7 @@ fn pub tests(t: mut Tests) {
 
   t.ok('compress_response with an unsupported accept-encoding value', fn (t) {
     let limits = Limits.new
-    let rng = Random.new
-    let req = request_with_method(limits, Head, rng)
+    let req = request_with_method(limits, Head)
 
     req.data.headers.set(Header.accept_encoding, 'kittens')
 
@@ -1033,8 +999,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('compress_response with a dynamic HTML response', fn (t) {
     let limits = Limits.new
-    let rng = Random.new
-    let req = request_with_method(limits, Head, rng)
+    let req = request_with_method(limits, Head)
 
     req.data.headers.set(Header.accept_encoding, 'gzip')
 
@@ -1054,8 +1019,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('compress_response with a dynamic plain text response', fn (t) {
     let limits = Limits.new
-    let rng = Random.new
-    let req = request_with_method(limits, Head, rng)
+    let req = request_with_method(limits, Head)
 
     req.data.headers.set(Header.accept_encoding, 'gzip')
 
@@ -1855,8 +1819,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('Request.host', fn (t) {
     let limits = Limits.new
-    let rng = Random.new
-    let req = empty_request(limits, rng)
+    let req = empty_request(limits)
 
     req.data.headers.set(Header.host, 'foo')
     t.true(
@@ -1885,40 +1848,35 @@ fn pub tests(t: mut Tests) {
 
   t.test('Request.method', fn (t) {
     let limits = Limits.new
-    let rng = Random.new
-    let req = empty_request(limits, rng)
+    let req = empty_request(limits)
 
     t.equal(req.method, req.data.method)
   })
 
   t.test('Request.version', fn (t) {
     let limits = Limits.new
-    let rng = Random.new
-    let req = empty_request(limits, rng)
+    let req = empty_request(limits)
 
     t.equal(req.version, req.data.version)
   })
 
   t.test('Request.uri', fn (t) {
     let limits = Limits.new
-    let rng = Random.new
-    let req = empty_request(limits, rng)
+    let req = empty_request(limits)
 
     t.equal(req.uri, req.data.uri)
   })
 
   t.test('Request.headers', fn (t) {
     let limits = Limits.new
-    let rng = Random.new
-    let req = empty_request(limits, rng)
+    let req = empty_request(limits)
 
     t.equal(req.headers, req.data.headers)
   })
 
   t.test('Request.body', fn (t) {
     let limits = Limits.new
-    let rng = Random.new
-    let req = empty_request(limits, rng)
+    let req = empty_request(limits)
     let buf = ByteArray.new
 
     t.equal(req.body.read_all(buf), Result.Ok(0))
@@ -2058,7 +2016,6 @@ fn pub tests(t: mut Tests) {
         size: body.size,
         limit: body.size,
       )
-      let rng = Random.new
       let req = request(
         RawRequest(
           method: method,
@@ -2068,7 +2025,6 @@ fn pub tests(t: mut Tests) {
           body: body,
         ),
         limits,
-        rng,
       )
 
       t.equal(req.url_encoded_form, res)
@@ -2202,8 +2158,7 @@ fn pub tests(t: mut Tests) {
     let limits = Limits.new
 
     for (inp, exp) in tests {
-      let rng = Random.new
-      let req = empty_request(limits, rng)
+      let req = empty_request(limits)
 
       for val in inp { req.data.headers.add(Header.accept, val) }
 
@@ -2284,8 +2239,7 @@ fn pub tests(t: mut Tests) {
     let limits = Limits.new
 
     for (inp, exp) in tests {
-      let rng = Random.new
-      let req = empty_request(limits, rng)
+      let req = empty_request(limits)
 
       for val in inp { req.data.headers.add(Header.accept_encoding, val) }
 
@@ -2319,7 +2273,6 @@ fn pub tests(t: mut Tests) {
       if inp.size > 0 { map.add(Header.content_type, inp) }
 
       let body = Body.bounded(Reader.new(Buffer.new('')), size: 0, limit: 0)
-      let rng = Random.new
       let req = request(
         RawRequest(
           method: Method.Post,
@@ -2329,7 +2282,6 @@ fn pub tests(t: mut Tests) {
           body: body,
         ),
         limits,
-        rng,
       )
 
       t.equal(req.multipart_form.ok?, exp)
@@ -2347,8 +2299,7 @@ fn pub tests(t: mut Tests) {
     let limits = Limits.new
 
     for (inp, exp) in tests {
-      let rng = Random.new
-      let req = empty_request(limits, rng)
+      let req = empty_request(limits)
 
       req.data.headers.set(Header.content_type, inp)
       req.data.headers.add(Header.content_type, 'foo')
@@ -2368,7 +2319,6 @@ fn pub tests(t: mut Tests) {
     let limits = Limits.new
 
     for (path, exp) in tests {
-      let rng = Random.new
       let req = request(
         RawRequest(
           method: Method.Get,
@@ -2378,7 +2328,6 @@ fn pub tests(t: mut Tests) {
           body: Body.bounded(Reader.new(Buffer.new('')), size: 0, limit: 0),
         ),
         limits,
-        rng,
       )
 
       t.equal(req.target.iter.map(fn (v) { v.to_string }).to_array, exp)
@@ -2416,8 +2365,7 @@ fn pub tests(t: mut Tests) {
     let limits = Limits.new
 
     for (method, sec_fetch, origin, exp) in tests {
-      let rng = Random.new
-      let req = request_with_method(limits, method, rng)
+      let req = request_with_method(limits, method)
 
       req.data.headers.set(Header.host, 'host')
 
@@ -2562,8 +2510,7 @@ fn pub tests(t: mut Tests) {
     child: fn {
       let limits = Limits.new
       let log = Logger.new
-      let rng = Random.new
-      let req = empty_request(limits, rng)
+      let req = empty_request(limits)
 
       req.data.headers.set(Header.referer, 'referer')
       req.data.headers.set(Header.user_agent, 'user-agent')
@@ -2586,8 +2533,7 @@ fn pub tests(t: mut Tests) {
     child: fn {
       let limits = Limits.new
       let log = Logger.new
-      let rng = Random.new
-      let req = empty_request(limits, rng)
+      let req = empty_request(limits)
 
       req.data.uri.path = UriPath.new('/a%20b').get
       log.log(req, Response.new.status(Status.not_found))
@@ -2603,8 +2549,7 @@ fn pub tests(t: mut Tests) {
     child: fn {
       let limits = Limits.new
       let log = Logger.new
-      let rng = Random.new
-      let req = empty_request(limits, rng)
+      let req = empty_request(limits)
 
       req.data.uri.query = Query.new('key=a%20b').get
       log.log(req, Response.new.status(Status.not_found))
@@ -2620,8 +2565,7 @@ fn pub tests(t: mut Tests) {
     child: fn {
       let limits = Limits.new
       let log = Logger.new.disabled
-      let rng = Random.new
-      let req = empty_request(limits, rng)
+      let req = empty_request(limits)
 
       req.data.headers.set(Header.referer, 'referer')
       req.data.headers.set(Header.user_agent, 'user-agent')
@@ -2636,8 +2580,7 @@ fn pub tests(t: mut Tests) {
     child: fn {
       let limits = Limits.new
       let log = Logger.new.without_timestamps
-      let rng = Random.new
-      let req = empty_request(limits, rng)
+      let req = empty_request(limits)
 
       req.data.uri.query = Query.new('key=value').get
       req.data.headers.set(Header.host, 'example.com')
@@ -2708,8 +2651,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('Directory.handle with a valid path', fn (t) {
     let limits = Limits.new
-    let rng = Random.new
-    let req = empty_request(limits, rng)
+    let req = empty_request(limits)
     let dir = Directory.new(env.working_directory.get.join('fixtures'))
     let path = ['hello.txt'.to_slice]
     let res = dir.handle(req, path.to_slice)
@@ -2728,8 +2670,7 @@ fn pub tests(t: mut Tests) {
     'Directory.handle with an explicit request to an index.html file',
     fn (t) {
       let limits = Limits.new
-      let rng = Random.new
-      let req = empty_request(limits, rng)
+      let req = empty_request(limits)
       let dir = Directory.new(env.working_directory.get.join('fixtures'))
       let path = ['html'.to_slice, 'index.html'.to_slice]
       let res = dir.handle(req, path.to_slice)
@@ -2749,8 +2690,7 @@ fn pub tests(t: mut Tests) {
     'Directory.handle with an explicit request to a root index.html file',
     fn (t) {
       let limits = Limits.new
-      let rng = Random.new
-      let req = empty_request(limits, rng)
+      let req = empty_request(limits)
       let dir = Directory.new(
         env.working_directory.get.join('fixtures').join('html'),
       )
@@ -2770,8 +2710,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('Directory.handle with a path to a non-existing file', fn (t) {
     let limits = Limits.new
-    let rng = Random.new
-    let req = empty_request(limits, rng)
+    let req = empty_request(limits)
     let dir = Directory.new(env.working_directory.get.join('fixtures'))
     let path = ['foo.txt'.to_slice]
     let res = dir.handle(req, path.to_slice)
@@ -2790,8 +2729,7 @@ fn pub tests(t: mut Tests) {
     'Directory.handle with a path to a file outside the directory',
     fn (t) {
       let limits = Limits.new
-      let rng = Random.new
-      let req = empty_request(limits, rng)
+      let req = empty_request(limits)
       let dir = Directory.new(env.working_directory.get.join('fixtures'))
       let path = ['..'.to_slice, 'README.md'.to_slice]
       let res = dir.handle(req, path.to_slice)
@@ -2803,8 +2741,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('Directory.handle with an empty path', fn (t) {
     let limits = Limits.new
-    let rng = Random.new
-    let req = empty_request(limits, rng)
+    let req = empty_request(limits)
     let dir = Directory.new(env.working_directory.get.join('fixtures'))
     let path = []
     let res = dir.handle(req, path.to_slice)
@@ -2825,8 +2762,7 @@ fn pub tests(t: mut Tests) {
     'Directory.handle with a directory containing an index.html file',
     fn (t) {
       let limits = Limits.new
-      let rng = Random.new
-      let req = empty_request(limits, rng)
+      let req = empty_request(limits)
       let dir = Directory.new(
         env.working_directory.get.join('fixtures').join('html'),
       )
@@ -2849,8 +2785,7 @@ fn pub tests(t: mut Tests) {
     'Directory.handle with a directory containing an index.html file without a trailing slash',
     fn (t) {
       let limits = Limits.new
-      let rng = Random.new
-      let req = empty_request(limits, rng)
+      let req = empty_request(limits)
 
       req.data.uri.path = UriPath.new('/directory').get
 
@@ -2869,8 +2804,7 @@ fn pub tests(t: mut Tests) {
     'Directory.handle with a directory without an index.html file',
     fn (t) {
       let limits = Limits.new
-      let rng = Random.new
-      let req = empty_request(limits, rng)
+      let req = empty_request(limits)
       let dir = Directory.new(
         env.working_directory.get.join('fixtures').join('html').join(
           'empty_directory',
@@ -2885,8 +2819,7 @@ fn pub tests(t: mut Tests) {
 
   t.test("Directory.handle with a file that shouldn't be cached", fn (t) {
     let limits = Limits.new
-    let rng = Random.new
-    let req = empty_request(limits, rng)
+    let req = empty_request(limits)
     let dir = Directory.new(
       env.working_directory.get.join('fixtures').join('html'),
     )
@@ -3200,8 +3133,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('WebsocketResponse.protocols', fn (t) {
     let limits = Limits.new
-    let rng = Random.new
-    let req = empty_request(limits, rng)
+    let req = empty_request(limits)
     let mut up = WebsocketResponse.new(req)
 
     t.equal(up.protocols, Set.new)
@@ -3212,8 +3144,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('WebsocketResponse.max_protocols', fn (t) {
     let limits = Limits.new
-    let rng = Random.new
-    let req = empty_request(limits, rng)
+    let req = empty_request(limits)
     let mut up = WebsocketResponse.new(req)
 
     t.equal(up.max_protocols, 8)
@@ -3388,7 +3319,6 @@ fn pub tests(t: mut Tests) {
       ),
     ]
 
-    let rng = Random.new
     let limits = Limits.new
 
     for (meth, ver, headers, exp_status, exp_headers) in tests {
@@ -3401,7 +3331,6 @@ fn pub tests(t: mut Tests) {
           body: empty_body,
         ),
         limits,
-        rng,
       )
 
       for (name, val) in headers { req.data.headers.add(name, val) }

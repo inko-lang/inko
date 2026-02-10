@@ -1535,7 +1535,7 @@ type pub inline Request {
   # form.send # => Result.Ok(...)
   # ```
   fn pub move multipart_form -> Result[MultipartForm, Error] {
-    let boundary = multipart.boundary_separator(@client.random)
+    let boundary = multipart.boundary_separator
 
     @headers.set(
       Header.content_type,

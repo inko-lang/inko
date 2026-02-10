@@ -15,6 +15,26 @@ let BUFFER_SIZE = 256
 let MAX_COUNTER = 15
 let SEED_SIZE = 32
 
+# Read `size` random bytes into `into` using the operating system's CSPRNG.
+#
+# If you intend to generate random data frequently you should use a `Random`
+# instance as it will likely perform better. This method is meant for one-off
+# cases where you just need some random bytes once.
+#
+# # Examples
+#
+# ```inko
+# import std.rand
+#
+# let buf = ByteArray.new
+#
+# rand.bytes(into: buf, size: 8)
+# buf.size # => 8
+# ```
+fn pub bytes(into: mut ByteArray, size: Int) {
+  sys.random_bytes(into, size)
+}
+
 # A cryptographically secure pseudo random number generator (CSPRNG).
 #
 # The underlying algorithm is ChaCha8, loosely based on Go's ChaCha8 CSPRNG as

@@ -5,7 +5,6 @@ import std.io (Buffer, Error as IoError, Write)
 import std.mime (Mime)
 import std.multipart (Error, Form, Multipart, boundary_separator)
 import std.net.http (Header)
-import std.rand (Random)
 import std.test (Tests)
 
 fn parser(input: String) -> Multipart[Buffer[String], IoError] {
@@ -33,10 +32,10 @@ impl Write[IoError] for Writer {
 
 fn pub tests(t: mut Tests) {
   t.test('boundary_separator', fn (t) {
-    t.equal(
-      boundary_separator(Random.from_int(42)),
-      'InkoFormBoundaryHlzwcFgKtvmvB89Js6UhXuY80cn4O3-eIxjOYsIxQsM',
-    )
+    let sep = boundary_separator
+
+    t.equal(sep.size, 59)
+    t.true(sep.starts_with?('InkoFormBoundary'))
   })
 
   t.test('Error.==', fn (t) {

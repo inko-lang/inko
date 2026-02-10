@@ -362,22 +362,18 @@ fn pub tests(t: mut Tests) {
     let { @headers = headers, @body = body } = Mock
       .new(srv, Method.Get, '/')
       .multipart_form(fn (f) { f.field('name').text('Alice') })
+    let ctype = (recover headers).get(Header.content_type).or('')
+    let sep = ctype.split_once('boundary=').map(fn (v) { v.1.to_string }).or('')
 
-    t.equal(
-      (recover headers).get(Header.content_type),
-      Result.Ok(
-        'multipart/form-data; boundary=InkoFormBoundaryP5IJ_NfBpOMfWWvNc5rJmvGT362zYue-9XUi-1Oic4U',
-      ),
-    )
-
+    t.equal(ctype, 'multipart/form-data; boundary=${sep}')
     t.true(
       match recover body {
         case Bytes(v) -> {
           v.equals?(
-            '--InkoFormBoundaryP5IJ_NfBpOMfWWvNc5rJmvGT362zYue-9XUi-1Oic4U\r\n'
+            '--${sep}\r\n'
               + 'Content-Disposition: form-data; name="name"\r\n'
               + '\r\nAlice\r\n'
-              + '--InkoFormBoundaryP5IJ_NfBpOMfWWvNc5rJmvGT362zYue-9XUi-1Oic4U--',
+              + '--${sep}--',
           )
         }
         case _ -> false
@@ -480,21 +476,18 @@ fn pub tests(t: mut Tests) {
     let req = RequestBuilder.get('/').multipart_form(fn (f) {
       let _ = f.field('name').text('Alice')
     })
+    let ctype = req.headers.get(Header.content_type).or('')
+    let sep = ctype.split_once('boundary=').map(fn (v) { v.1.to_string }).or('')
 
-    t.equal(
-      req.headers.get(Header.content_type),
-      Result.Ok(
-        'multipart/form-data; boundary=InkoFormBoundaryP5IJ_NfBpOMfWWvNc5rJmvGT362zYue-9XUi-1Oic4U',
-      ),
-    )
+    t.equal(ctype, 'multipart/form-data; boundary=${sep}')
     t.true(
       match req.body {
         case Bytes(v) -> {
           v.equals?(
-            '--InkoFormBoundaryP5IJ_NfBpOMfWWvNc5rJmvGT362zYue-9XUi-1Oic4U\r\n'
+            '--${sep}\r\n'
               + 'Content-Disposition: form-data; name="name"\r\n'
               + '\r\nAlice\r\n'
-              + '--InkoFormBoundaryP5IJ_NfBpOMfWWvNc5rJmvGT362zYue-9XUi-1Oic4U--',
+              + '--${sep}--',
           )
         }
         case _ -> false

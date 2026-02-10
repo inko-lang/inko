@@ -152,8 +152,7 @@ fn url_encoded_form_data(body: fn (mut Values)) -> String {
 fn multipart_form_data(
   body: fn (mut multipart.Form[mut ByteArray, IoError]),
 ) -> (String, ByteArray) {
-  let rng = Random.from_int(0)
-  let sep = multipart.boundary_separator(rng)
+  let sep = multipart.boundary_separator
   let buf = ByteArray.new
   let form = multipart.Form.new(mut buf, boundary: sep)
 
@@ -1704,7 +1703,6 @@ type pub inline RequestBuilder {
       }
     }
 
-    let rng = Random.new
     let req = Request.new(
       addr,
       RawRequest(
@@ -1715,7 +1713,6 @@ type pub inline RequestBuilder {
         body: body,
       ),
       Limits.new,
-      rng,
     )
 
     # HEAD requests are supported by default so we need to handle them here as

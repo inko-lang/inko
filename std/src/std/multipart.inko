@@ -58,7 +58,7 @@ import std.mime (Mime)
 import std.net.http (Header, HeaderMap)
 import std.net.http.header (CONTENT_DISPOSITION, CONTENT_TYPE)
 import std.net.http.header.values (Parameters, split_item)
-import std.rand (Random)
+import std.rand
 import std.string (ToString)
 import std.uri
 
@@ -79,13 +79,13 @@ fn decode[B: Bytes, E](
 }
 
 # Returns a randomly generated boundary separator.
-fn pub boundary_separator(rng: mut Random) -> String {
+fn pub boundary_separator -> String {
   let plain = ByteArray.new
   let base64 = ByteArray.new
   let enc = Encoder.url_safe
 
   enc.padding = false
-  rng.bytes(into: plain, size: 32)
+  rand.bytes(into: plain, size: 32)
   enc.encode(plain, into: base64)
   'InkoFormBoundary${base64.into_string}'
 }
