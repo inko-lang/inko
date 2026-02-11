@@ -242,8 +242,7 @@ impl Thread {
         }
     }
 
-    /// Schedules a process onto the local queue, overflowing to the global
-    /// queue if the local queue is full.
+    /// Schedules a process onto the local queue.
     ///
     /// This method shouldn't be used when the thread is to transition to a
     /// backup thread, as the work might never get picked up again.
