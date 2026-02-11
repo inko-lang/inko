@@ -17,7 +17,7 @@ const FRAGMENTATION_THRESHOLD: f64 = 0.1;
 const MIN_SLEEP_TIME: u64 = 10;
 
 /// A point in the future relative to the runtime's monotonic clock.
-#[derive(Eq, PartialEq)]
+#[derive(Eq, PartialEq, Copy, Clone)]
 pub(crate) struct Deadline {
     /// The time after which to resume, in nanoseconds since the runtime epoch.
     ///
@@ -104,8 +104,8 @@ pub(crate) struct Timeouts {
     /// be removed from this map.
     ///
     /// The keys are the entry IDs, and the values the pointer to the process
-    /// the ID belongs to.
-    active: HashMap<Id, ProcessPointer>,
+    /// and deadline the ID belongs to.
+    active: HashMap<Id, (ProcessPointer, Deadline)>,
 
     /// The ID to assign to the next entry.
     ///
@@ -134,19 +134,31 @@ impl Timeouts {
         &mut self,
         process: ProcessPointer,
         deadline: Deadline,
-    ) -> Id {
+    ) -> (Id, bool) {
         let id = Id(self.next_id);
+        let notify = match self.entries.peek() {
+            Some(ex) => deadline.resume_after < ex.time.resume_after,
+            // If there are no timeouts we _should_ wake up the thread so it can
+            // wait for the appropriate amount of time.
+            _ => true,
+        };
 
         self.next_id =
             self.next_id.checked_add(1).or(NonZeroU64::new(1)).unwrap();
         self.entries.push(Timeout::new(id, deadline));
-        self.active.insert(id, process);
-        id
+        self.active.insert(id, (process, deadline));
+        (id, notify)
     }
 
-    pub(crate) fn expire(&mut self, id: Id) {
-        self.active.remove(&id);
+    pub(crate) fn expire(&mut self, id: Id) -> bool {
+        let Some((_, deadline)) = self.active.remove(&id) else { return false };
+        let notify = match self.entries.peek() {
+            Some(ex) => deadline.resume_after <= ex.time.resume_after,
+            _ => true,
+        };
+
         self.expired += 1;
+        notify
     }
 
     pub(crate) fn compact(&mut self) {
@@ -172,7 +184,7 @@ impl Timeouts {
         let mut time_until_expiration = None;
 
         while let Some(entry) = self.entries.pop() {
-            let Some(&proc) = self.active.get(&entry.id) else { continue };
+            let Some(&(proc, _)) = self.active.get(&entry.id) else { continue };
             let mut proc_state = proc.state();
 
             if let Some(duration) = entry.time.remaining_time(state) {
@@ -226,17 +238,21 @@ impl Worker {
         deadline: Deadline,
     ) -> Id {
         let mut timeouts = self.timeouts.lock().unwrap();
-        let id = timeouts.insert(process, deadline);
+        let (id, notify) = timeouts.insert(process, deadline);
 
-        self.cvar.notify_one();
+        if notify {
+            self.cvar.notify_one();
+        }
+
         id
     }
 
     pub(crate) fn expire(&self, id: Id) {
         let mut timeouts = self.timeouts.lock().unwrap();
 
-        timeouts.expire(id);
-        self.cvar.notify_one();
+        if timeouts.expire(id) {
+            self.cvar.notify_one();
+        }
     }
 
     pub(crate) fn terminate(&self) {
@@ -392,12 +408,13 @@ mod tests {
             let process = new_process(typ.as_pointer());
             let mut timeouts = Timeouts::new();
             let timeout = Deadline::duration(&state, Duration::from_secs(10));
-            let id = timeouts.insert(*process, timeout);
+            let (id, notify) = timeouts.insert(*process, timeout);
 
             process.state().waiting_for_value(Some(id));
 
             timeouts.remove_expired();
             assert_eq!(timeouts.entries.len(), 1);
+            assert!(notify);
         }
 
         #[test]
@@ -407,11 +424,12 @@ mod tests {
             let process = new_process(typ.as_pointer());
             let mut timeouts = Timeouts::new();
             let timeout = Deadline::duration(&state, Duration::from_secs(10));
-            let id = timeouts.insert(*process, timeout);
+            let (id, notify) = timeouts.insert(*process, timeout);
 
             timeouts.active.remove(&id);
             timeouts.remove_expired();
             assert_eq!(timeouts.entries.len(), 0);
+            assert!(notify);
         }
 
         #[test]
@@ -421,7 +439,7 @@ mod tests {
             let process = new_process(typ.as_pointer());
             let mut timeouts = Timeouts::new();
             let timeout = Deadline::duration(&state, Duration::from_secs(10));
-            let id = timeouts.insert(*process, timeout);
+            let (id, notify) = timeouts.insert(*process, timeout);
 
             timeouts.active.remove(&id);
 
@@ -431,6 +449,7 @@ mod tests {
 
             assert!(reschedule.is_empty());
             assert!(expiration.is_none());
+            assert!(notify);
         }
 
         #[test]
@@ -440,7 +459,7 @@ mod tests {
             let process = new_process(typ.as_pointer());
             let mut timeouts = Timeouts::new();
             let timeout = Deadline::duration(&state, Duration::from_secs(10));
-            let id = timeouts.insert(*process, timeout);
+            let (id, notify) = timeouts.insert(*process, timeout);
 
             process.state().waiting_for_value(Some(id));
 
@@ -448,6 +467,7 @@ mod tests {
             let expiration =
                 timeouts.processes_to_reschedule(&state, &mut reschedule);
 
+            assert!(notify);
             assert!(reschedule.is_empty());
             assert!(expiration.is_some());
             assert!(expiration.unwrap() <= Duration::from_secs(10));
@@ -460,7 +480,7 @@ mod tests {
             let process = new_process(typ.as_pointer());
             let mut timeouts = Timeouts::new();
             let timeout = Deadline::duration(&state, Duration::from_secs(0));
-            let id = timeouts.insert(*process, timeout);
+            let (id, notify) = timeouts.insert(*process, timeout);
 
             process.state().waiting_for_value(Some(id));
 
@@ -470,6 +490,7 @@ mod tests {
 
             assert_eq!(reschedule.len(), 1);
             assert!(expiration.is_none());
+            assert!(notify);
         }
 
         #[test]
@@ -478,10 +499,15 @@ mod tests {
             let typ = empty_process_type();
             let p1 = new_process(typ.as_pointer());
             let p2 = new_process(typ.as_pointer());
-            let a = timeouts.insert(*p1, Deadline::until(0));
-            let b = timeouts.insert(*p1, Deadline::until(0));
-            let c = timeouts.insert(*p1, Deadline::until(0));
-            let d = timeouts.insert(*p2, Deadline::until(0));
+            let (a, not1) = timeouts.insert(*p1, Deadline::until(0));
+            let (b, not2) = timeouts.insert(*p1, Deadline::until(0));
+            let (c, not3) = timeouts.insert(*p1, Deadline::until(0));
+            let (d, not4) = timeouts.insert(*p2, Deadline::until(0));
+
+            assert_eq!(not1, true);
+            assert_eq!(not2, false);
+            assert_eq!(not3, false);
+            assert_eq!(not4, false);
 
             timeouts.expire(a);
             timeouts.expire(b);
@@ -492,6 +518,41 @@ mod tests {
             assert!(timeouts.active.contains_key(&c));
             assert!(timeouts.active.contains_key(&d));
             assert_eq!(timeouts.entries.len(), 2);
+        }
+
+        #[test]
+        fn test_insert_notify() {
+            let typ = empty_process_type();
+            let process = new_process(typ.as_pointer());
+            let mut timeouts = Timeouts::new();
+
+            let (_, not1) = timeouts.insert(*process, Deadline::until(10));
+            let (_, not2) = timeouts.insert(*process, Deadline::until(20));
+            let (_, not3) = timeouts.insert(*process, Deadline::until(5));
+
+            assert_eq!(not1, true);
+            assert_eq!(not2, false);
+            assert_eq!(not3, true);
+        }
+
+        #[test]
+        fn test_expire_notify() {
+            let typ = empty_process_type();
+            let process = new_process(typ.as_pointer());
+            let mut timeouts = Timeouts::new();
+            let (id1, _) = timeouts.insert(*process, Deadline::until(10));
+            let (id2, _) = timeouts.insert(*process, Deadline::until(20));
+            let (id3, _) = timeouts.insert(*process, Deadline::until(5));
+            let (id4, _) = timeouts.insert(*process, Deadline::until(8));
+
+            assert_eq!(timeouts.expire(id1), false);
+            assert_eq!(timeouts.expire(id3), true);
+            timeouts.remove_expired();
+
+            assert_eq!(timeouts.expire(id4), true);
+            timeouts.remove_expired();
+
+            assert_eq!(timeouts.expire(id2), true);
         }
     }
 

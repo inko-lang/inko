@@ -81,6 +81,7 @@ pub unsafe extern "system" fn inko_process_send_message(
     let state = &*state;
     let reschedule = match receiver.send_message(message) {
         RescheduleRights::AcquiredWithTimeout(id) => {
+            // TODO: this is dead code
             state.timeout_worker.expire(id);
             true
         }
