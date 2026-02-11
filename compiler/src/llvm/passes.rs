@@ -2156,13 +2156,12 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                     args
                 };
 
-                let state = self.load_state();
                 let sender = self.load_process().into();
                 let rec = self.builder.load(rec_typ, rec_var).into();
 
                 self.builder.direct_call(
                     send_message,
-                    &[state.into(), sender, rec, method, args.into()],
+                    &[sender, rec, method, args.into()],
                 );
             }
             Instruction::GetField(ins)

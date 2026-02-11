@@ -71,25 +71,14 @@ pub unsafe extern "system" fn inko_process_new(
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_process_send_message(
-    state: *const State,
     mut sender: ProcessPointer,
     mut receiver: ProcessPointer,
     method: NativeAsyncMethod,
     data: *mut u8,
 ) {
     let message = Message { method, data };
-    let state = &*state;
-    let reschedule = match receiver.send_message(message) {
-        RescheduleRights::AcquiredWithTimeout(id) => {
-            // TODO: this is dead code
-            state.timeout_worker.expire(id);
-            true
-        }
-        RescheduleRights::Acquired => true,
-        RescheduleRights::Failed => false,
-    };
 
-    if reschedule {
+    if matches!(receiver.send_message(message), RescheduleRights::Acquired) {
         sender.thread().schedule(receiver);
     }
 }

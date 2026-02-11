@@ -95,14 +95,13 @@ impl RuntimeFunction {
                 ret.fn_type(&[runtime], false)
             }
             RuntimeFunction::ProcessSendMessage => {
-                let state = context.pointer_type().into();
                 let sender = context.pointer_type().into();
                 let receiver = context.pointer_type().into();
                 let func = context.pointer_type().into();
                 let data = context.pointer_type().into();
                 let ret = context.void_type();
 
-                ret.fn_type(&[state, sender, receiver, func, data], false)
+                ret.fn_type(&[sender, receiver, func, data], false)
             }
             RuntimeFunction::ProcessNew => {
                 let typ = context.pointer_type().into();
