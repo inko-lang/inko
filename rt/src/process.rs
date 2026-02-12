@@ -60,7 +60,7 @@ struct Mailbox {
 
 impl Mailbox {
     fn new() -> Self {
-        Mailbox { messages: VecDeque::new() }
+        Mailbox { messages: VecDeque::with_capacity(4) }
     }
 
     fn send(&mut self, message: Message) {
@@ -1016,6 +1016,13 @@ mod tests {
         let ptr = unsafe { ProcessPointer::new(0x4 as *mut _) };
 
         assert_eq!(ptr.identifier(), 0x4);
+    }
+
+    #[test]
+    fn test_mailbox_new() {
+        let mail = Mailbox::new();
+
+        assert_eq!(mail.messages.capacity(), 4);
     }
 
     #[test]
