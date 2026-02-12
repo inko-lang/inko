@@ -873,11 +873,6 @@ type pub TcpClient {
   # The raw `Socket` wrapped by this `TcpClient`.
   let pub @socket: Socket
 
-  fn static from(socket: Socket) -> Result[TcpClient, Error] {
-    try socket.no_delay = true
-    Result.Ok(TcpClient(socket))
-  }
-
   fn static connect(
     ip: IpAddress,
     port: Int,
@@ -885,10 +880,11 @@ type pub TcpClient {
   ) -> Result[TcpClient, Error] {
     let socket = try Socket.stream(ip.v6?)
 
+    try socket.no_delay = true
     socket.timeout_after = timeout_after
     try socket.connect(ip, port)
     socket.reset_deadline
-    from(socket)
+    Result.Ok(TcpClient(socket))
   }
 
   # Creates a new `TcpClient` that's connected to an IP address and port number,
@@ -1227,7 +1223,7 @@ type pub TcpServer {
         @socket.deadline,
       )
     {
-      case Socket -> TcpClient.from(try @socket.accept)
+      case Socket -> Result.Ok(TcpClient(try @socket.accept))
       case _ -> {
         @waiter.clear
         throw Error.Interrupted
