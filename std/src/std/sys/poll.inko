@@ -1,4 +1,10 @@
 import std.io (Error)
+import std.sys.freebsd.poll (self as sys) if freebsd
+import std.sys.linux.poll (self as sys) if linux
+import std.sys.mac.poll (self as sys) if mac
+
+let PRIMARY = 1
+let SECONDARY = 2
 
 # A value that signals a source isn't registered with a poller.
 let NOT_REGISTERED = -1
@@ -13,14 +19,6 @@ fn extern inko_poll(
   interest: Int,
   deadline: Int,
 ) -> Bool
-
-fn extern inko_poll_read_either(
-  state: Pointer[UInt8],
-  process: Pointer[UInt8],
-  primary: Pointer[Poll],
-  secondary: Pointer[Poll],
-  deadline: Int,
-) -> Int
 
 # A type which can be polled by the runtime.
 type extern Poll {
@@ -51,16 +49,26 @@ fn inline poll(
   }
 }
 
-fn inline poll_either(
-  primary: Pointer[Poll],
-  secondary: Pointer[Poll],
-  deadline: Int,
-) -> Int {
-  inko_poll_read_either(
-    _INKO.state,
-    _INKO.process,
-    primary,
-    secondary,
-    deadline,
-  )
+type inline Poller {
+  let @inner: sys.Poller
+
+  fn static new -> Result[Self, Error] {
+    Result.Ok(Self(try sys.Poller.new))
+  }
+
+  fn mut add(
+    primary: Pointer[Poll],
+    secondary: Pointer[Poll],
+  ) -> Result[Nil, Error] {
+    try @inner.add(primary, id: PRIMARY)
+    @inner.add(secondary, id: SECONDARY)
+  }
+
+  fn mut poll(deadline: Int) -> Result[Nil, Error] {
+    match @inner.poll(deadline) {
+      case Ok((1, PRIMARY)) -> Result.Ok(nil)
+      case Ok(_) -> throw Error.Interrupted
+      case Error(e) -> throw e
+    }
+  }
 }

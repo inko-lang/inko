@@ -1,4 +1,4 @@
-import std.drop (Drop, drop)
+import std.drop (Drop)
 import std.env
 import std.fmt (fmt)
 import std.fs.file (ReadOnlyFile)
@@ -790,7 +790,24 @@ fn pub tests(t: mut Tests) {
     let srv = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     let not = srv.notifier.get
 
-    t.true(not.notify)
+    # We reset the notified boolean so the accept call doesn't _immediately_
+    # return, allowing us to test the polling logic.
+    not.notify
+    not.notified.store(false)
+    t.equal(srv.accept.error, Option.Some(Error.Interrupted))
+
+    not.notified.store(true)
+    t.equal(srv.accept.error, Option.Some(Error.Interrupted))
+
+    Result.Ok(nil)
+  })
+
+  t.ok('TcpServer.accept with an existing interrupt', fn (t) {
+    let srv = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
+    let not = srv.notifier.get
+
+    not.notify
+    t.equal(srv.accept.error, Option.Some(Error.Interrupted))
     t.equal(srv.accept.error, Option.Some(Error.Interrupted))
 
     Result.Ok(nil)
@@ -802,15 +819,9 @@ fn pub tests(t: mut Tests) {
     let addr = try srv.local_address
     let _client = try TcpClient.new([addr.ip], addr.port)
 
-    t.true(not.notify)
-
-    # Depending on the order and timing of events we may observe either of the
-    # sources being available or both. So instead of asserting an exact order,
-    # we just assert that both expectations are true.
-    let res = [srv.accept.error, srv.accept.error]
-
-    t.true(res.contains?(Option.Some(Error.Interrupted)))
-    t.true(res.contains?(Option.None))
+    not.notify
+    t.equal(srv.accept.error, Option.Some(Error.Interrupted))
+    t.equal(srv.accept.error, Option.Some(Error.Interrupted))
 
     Result.Ok(nil)
   })
@@ -1458,7 +1469,8 @@ fn pub tests(t: mut Tests) {
     let srv = try UnixServer.new(path.path)
     let not = srv.notifier.get
 
-    t.true(not.notify)
+    not.notify
+    t.equal(srv.accept.error, Option.Some(Error.Interrupted))
     t.equal(srv.accept.error, Option.Some(Error.Interrupted))
 
     Result.Ok(nil)
@@ -1470,15 +1482,9 @@ fn pub tests(t: mut Tests) {
     let not = srv.notifier.get
     let _client = try UnixClient.new(path.path)
 
-    t.true(not.notify)
-
-    # Depending on the order and timing of events we may observe either of the
-    # sources being available or both. So instead of asserting an exact order,
-    # we just assert that both expectations are true.
-    let res = [srv.accept.error, srv.accept.error]
-
-    t.true(res.contains?(Option.Some(Error.Interrupted)))
-    t.true(res.contains?(Option.None))
+    not.notify
+    t.equal(srv.accept.error, Option.Some(Error.Interrupted))
+    t.equal(srv.accept.error, Option.Some(Error.Interrupted))
 
     Result.Ok(nil)
   })
@@ -1695,31 +1701,25 @@ fn pub tests(t: mut Tests) {
     let (not, wait) = try Notifier.new
     let buf = ByteArray.new
 
-    t.true(not.notify)
+    not.notify
     wait.reader.timeout_after = Duration.from_secs(5)
-    t.equal(wait.reader.read(buf, size: 1), Result.Ok(1))
 
-    t.true(not.notify)
-    t.true(not.notify)
-    wait.reader.timeout_after = Duration.from_secs(5)
+    t.true(not.notified.load)
+    t.true(wait.notified.load)
     t.equal(wait.reader.read(buf, size: 1), Result.Ok(1))
-    t.equal(wait.reader.read(buf, size: 1), Result.Ok(1))
-
-    drop(wait)
-    t.false(not.notify)
 
     Result.Ok(nil)
   })
 
-  t.ok('Waiter.clear', fn (t) {
+  t.ok('Notifier.notify with an already notified Notifier', fn (t) {
     let (not, wait) = try Notifier.new
     let buf = ByteArray.new
 
     not.notify
-    wait.clear
+    not.notify
 
-    wait.reader.timeout_after = Duration.from_millis(10)
-    t.equal(wait.reader.read(buf, size: 1), Result.Error(Error.TimedOut))
+    t.equal(wait.reader.read(buf, size: 2), Result.Ok(1))
+    t.equal(buf.size, 1)
 
     Result.Ok(nil)
   })

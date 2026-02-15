@@ -1,0 +1,73 @@
+import std.drop (Drop)
+import std.io (Error)
+import std.libc (close)
+import std.libc.mac (self as libc)
+import std.ptr
+import std.sys.poll (self as sys)
+
+type extern Events {
+  let @a: libc.Kevent
+  let @b: libc.Kevent
+}
+
+type Poller {
+  let @poll: sys.Poll
+
+  fn static new -> Result[Self, Error] {
+    let fd = libc.kqueue
+
+    if fd as Int == -1 { throw Error.last_os_error }
+
+    if
+      libc.fcntl(fd, libc.F_SETFD as Int32, libc.FD_CLOEXEC as Int32) as Int
+        == -1
+    {
+      throw Error.last_os_error
+    }
+
+    Result.Ok(Poller(poll: sys.new(fd)))
+  }
+
+  fn mut add(source: Pointer[sys.Poll], id: Int) -> Result[Nil, Error] {
+    let filter = libc.EVFILT_READ
+    let flags = libc.EV_ADD | libc.EV_CLEAR | libc.EV_RECEIPT
+    let event = libc.new_kevent(source.fd, id, filter, flags)
+    let res = libc.kevent(
+      @poll.fd,
+      changes: mut event,
+      nchanges: 1 as Int32,
+      events: mut event,
+      nevents: 1 as Int32,
+      timeout: ptr.null,
+    )
+
+    if res as Int >= 0 { Result.Ok(nil) } else { throw Error.last_os_error }
+  }
+
+  fn mut poll(deadline: Int) -> Result[(Int, Int), Error] {
+    try sys.poll(@poll, deadline, write: false)
+
+    let events = Events()
+    let len = libc.kevent(
+      @poll.fd,
+      changes: 0 as Pointer[libc.Kevent],
+      nchanges: 0 as Int32,
+      events: (mut events) as Pointer[libc.Kevent],
+      nevents: 2 as Int32,
+      timeout: ptr.null,
+    )
+
+    match len as Int {
+      case -1 or 0 -> throw Error.last_os_error
+      case n -> {
+        Result.Ok((n, ((events.a as Int) + 24 as Pointer[UInt64]).0 as Int))
+      }
+    }
+  }
+}
+
+impl Drop for Poller {
+  fn mut drop {
+    close(@poll.fd)
+  }
+}

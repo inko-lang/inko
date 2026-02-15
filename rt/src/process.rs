@@ -219,10 +219,6 @@ pub(crate) struct ProcessState {
     /// The status of the process.
     status: ProcessStatus,
 
-    /// Additional bits that may be set by the network poller, the meaning of
-    /// which depends on the context.
-    poll_bits: u8,
-
     /// The ID of the timeout this process is suspended with, if any.
     ///
     /// If missing and the process is suspended, it means the process is
@@ -235,7 +231,6 @@ impl ProcessState {
         Self {
             mailbox: Mailbox::new(),
             status: ProcessStatus::new(),
-            poll_bits: 0,
             timeout: None,
         }
     }
@@ -312,10 +307,6 @@ impl ProcessState {
         } else {
             RescheduleRights::Acquired
         }
-    }
-
-    pub(crate) fn set_poll_bit(&mut self, bit: u8) {
-        self.poll_bits |= bit;
     }
 }
 
@@ -526,20 +517,6 @@ impl Process {
             true
         } else {
             false
-        }
-    }
-
-    pub(crate) fn check_timeout_and_take_poll_bits(&self) -> (bool, u8) {
-        let mut state = self.state.lock().unwrap();
-        let bits = state.poll_bits;
-
-        state.poll_bits = 0;
-
-        if state.status.timeout_expired() {
-            state.status.set_timeout_expired(false);
-            (true, bits)
-        } else {
-            (false, bits)
         }
     }
 

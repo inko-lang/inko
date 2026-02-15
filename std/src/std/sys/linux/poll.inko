@@ -1,0 +1,57 @@
+import std.drop (Drop)
+import std.io (Error)
+import std.libc (close)
+import std.libc.linux (self as libc)
+import std.sys.poll (self as sys)
+
+type extern Events {
+  let @a: libc.EpollEvent
+  let @b: libc.EpollEvent
+}
+
+type Poller {
+  let @poll: sys.Poll
+
+  fn static new -> Result[Self, Error] {
+    let fd = libc.epoll_create1(libc.EPOLL_CLOEXEC as Int32)
+
+    if fd as Int == -1 { throw Error.last_os_error }
+
+    Result.Ok(Poller(poll: sys.new(fd)))
+  }
+
+  fn mut add(source: Pointer[sys.Poll], id: Int) -> Result[Nil, Error] {
+    let event = libc.new_epoll_event(id, flags: libc.EPOLLIN | libc.EPOLLET)
+    let op = libc.EPOLL_CTL_ADD as Int32
+    let res = libc.epoll_ctl(@poll.fd, op, source.fd, mut event) as Int
+
+    if res == -1 { throw Error.last_os_error }
+
+    Result.Ok(nil)
+  }
+
+  fn mut poll(deadline: Int) -> Result[(Int, Int), Error] {
+    try sys.poll(@poll, deadline, write: false)
+
+    let events = Events()
+    let len = libc.epoll_wait(
+      @poll.fd,
+      events: (mut events) as Pointer[libc.EpollEvent],
+      max: 2 as Int32,
+      timeout: 0 as Int32,
+    )
+
+    match len as Int {
+      case -1 or 0 -> throw Error.last_os_error
+      case n -> {
+        Result.Ok((n, (events.a as Int + 4 as Pointer[UInt64]).0 as Int))
+      }
+    }
+  }
+}
+
+impl Drop for Poller {
+  fn mut drop {
+    close(@poll.fd)
+  }
+}

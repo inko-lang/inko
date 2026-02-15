@@ -54,6 +54,10 @@ let ENOTSUP = 95
 let EOPNOTSUPP = 95
 let EPERM = 1
 let EPIPE = 32
+let EPOLLET = 0x80000000
+let EPOLLIN = 1
+let EPOLL_CLOEXEC = 0x80000
+let EPOLL_CTL_ADD = 1
 let ERANGE = 34
 let EROFS = 30
 let ESPIPE = 29
@@ -427,6 +431,21 @@ type extern AddrInfo {
   let @ai_next: Pointer[AddrInfo]
 }
 
+type extern EpollEvent {
+  let @__val0: UInt8
+  let @__val1: UInt8
+  let @__val2: UInt8
+  let @__val3: UInt8
+  let @__val4: UInt8
+  let @__val5: UInt8
+  let @__val6: UInt8
+  let @__val7: UInt8
+  let @__val8: UInt8
+  let @__val9: UInt8
+  let @__val10: UInt8
+  let @__val11: UInt8
+}
+
 fn extern fchmod(fd: Int32, mode: UInt16) -> Int32
 
 fn extern syscall(number: Int32, ...) -> Int32
@@ -465,6 +484,22 @@ fn extern accept4(
 ) -> Int32
 
 fn extern getrandom(buf: Pointer[UInt8], size: UInt64, flags: Int32) -> Int
+
+fn extern epoll_create1(flags: Int32) -> Int32
+
+fn extern epoll_ctl(
+  epfd: Int32,
+  op: Int32,
+  fd: Int32,
+  event: Pointer[EpollEvent],
+) -> Int32
+
+fn extern epoll_wait(
+  epfd: Int32,
+  events: Pointer[EpollEvent],
+  max: Int32,
+  timeout: Int32,
+) -> Int32
 
 fn inline flush(fd: Int32) -> Int32 {
   fsync(fd)
@@ -510,6 +545,14 @@ fn inline pipes(nonblocking: Bool) -> Result[(Int32, Int32), Error] {
   if pipe2(mut pipes, flags as Int32) as Int != 0 { throw Error.last_os_error }
 
   Result.Ok((pipes.reader, pipes.writer))
+}
+
+fn inline new_epoll_event(id: Int, flags: Int) -> EpollEvent {
+  let event = EpollEvent()
+
+  ((mut event) as Pointer[UInt32]).0 = flags as UInt32
+  ((mut event) as Int + 4 as Pointer[UInt64]).0 = id as UInt64
+  event
 }
 
 fn inline errno_location -> Pointer[Int32] {

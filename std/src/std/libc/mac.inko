@@ -58,6 +58,10 @@ let EROFS = 30
 let ESPIPE = 29
 let ETIME = 101
 let ETIMEDOUT = 60
+let EVFILT_READ = -1
+let EV_ADD = 0x1
+let EV_CLEAR = 0x20
+let EV_RECEIPT = 0x040
 let EXDEV = 18
 let FD_CLOEXEC = 1
 let F_BARRIERFSYNC = 85
@@ -365,6 +369,17 @@ type extern AddrInfo {
   let @ai_next: Pointer[AddrInfo]
 }
 
+type extern Kevent {
+  let @__val0: UInt32
+  let @__val1: UInt32
+  let @__val2: UInt32
+  let @__val3: UInt32
+  let @__val4: UInt32
+  let @__val5: UInt32
+  let @__val6: UInt32
+  let @__val7: UInt32
+}
+
 fn extern chmod(path: Pointer[UInt8], mode: UInt16) -> Int32
 
 fn extern fsync(fd: Int32) -> Int32
@@ -405,6 +420,17 @@ fn extern accept(
 ) -> Int32
 
 fn extern getentropy(buffer: Pointer[UInt8], size: UInt64) -> Int
+
+fn extern kqueue -> Int32
+
+fn extern kevent(
+  kq: Int32,
+  changes: Pointer[Kevent],
+  nchanges: Int32,
+  events: Pointer[Kevent],
+  nevents: Int32,
+  timeout: Pointer[UInt8],
+) -> Int32
 
 fn inline fstat(fd: Int32, buf: Pointer[StatBuf]) -> Int32 {
   sys.fstat(fd, buf)
@@ -484,6 +510,17 @@ fn inline pipes(nonblocking: Bool) -> Result[(Int32, Int32), Error] {
   }
 
   Result.Ok((pipes.reader, pipes.writer))
+}
+
+fn inline new_kevent(fd: Int32, id: Int, filter: Int, flags: Int) -> Kevent {
+  let event = Kevent()
+
+  ((mut event) as Pointer[UInt64]).0 = fd as UInt64
+  ((mut event) as Int + 8 as Pointer[Int16]).0 = filter as Int16
+  ((mut event) as Int + 10 as Pointer[UInt16]).0 = flags as UInt16
+  ((mut event) as Int + 24 as Pointer[UInt64]).0 = id as UInt64
+
+  event
 }
 
 fn inline errno_location -> Pointer[Int32] {

@@ -128,6 +128,7 @@ fn inline accept(
   socket: Pointer[poll.Poll],
   peer: Pointer[poll.Poll],
   deadline: Int,
+  poller: Option[mut poll.Poller],
 ) -> Result[Nil, Error] {
   # For IP sockets on Linux, calling shutdown() on a socket that is waiting on
   # an accept() results in accept() returning EINVAL. However, if the socket is
@@ -149,7 +150,12 @@ fn inline accept(
     }
 
     match libc.errno {
-      case libc.EAGAIN -> try poll.poll(socket, deadline, write: false)
+      case libc.EAGAIN -> {
+        match poller.as_mut {
+          case Some(v) -> try v.poll(deadline)
+          case _ -> try poll.poll(socket, deadline, write: false)
+        }
+      }
       case e -> throw Error.from_os_error(e)
     }
 

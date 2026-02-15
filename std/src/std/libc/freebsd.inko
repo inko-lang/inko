@@ -54,6 +54,10 @@ let ERANGE = 34
 let EROFS = 30
 let ESPIPE = 29
 let ETIMEDOUT = 60
+let EVFILT_READ = -1
+let EV_ADD = 0x0001
+let EV_CLEAR = 0x0020
+let EV_RECEIPT = 0x0040
 let EXDEV = 18
 let F_DUPFD_CLOEXEC = 17
 let F_GETFL = 3
@@ -63,6 +67,7 @@ let IPPROTO_IPV6 = 41
 let IPPROTO_TCP = 6
 let IPV6_V6ONLY = 27
 let IP_TTL = 4
+let KQUEUE_CLOEXEC = 1
 let MSG_NOSIGNAL = 0x20000
 let O_APPEND = 0x8
 let O_CLOEXEC = 0x100000
@@ -368,6 +373,19 @@ type extern AddrInfo {
   let @ai_next: Pointer[AddrInfo]
 }
 
+type extern Kevent {
+  let @ident: UInt64
+  let @filter: Int16
+  let @flags: UInt16
+  let @fflags: UInt32
+  let @data: Int
+  let @udata: Pointer[UInt8]
+  let @ext0: UInt64
+  let @ext1: UInt64
+  let @ext2: UInt64
+  let @ext3: UInt64
+}
+
 fn extern fchmod(fd: Int32, mode: UInt16) -> Int32
 
 fn extern fstat(fd: Int32, buf: Pointer[StatBuf]) -> Int32
@@ -412,6 +430,17 @@ fn extern accept4(
 
 fn extern getrandom(buf: Pointer[UInt8], size: UInt64, flags: Int32) -> Int
 
+fn extern kqueuex(flags: UInt32) -> Int32
+
+fn extern kevent(
+  kq: Int32,
+  changes: Pointer[Kevent],
+  nchanges: Int32,
+  events: Pointer[Kevent],
+  nevents: Int32,
+  timeout: Pointer[UInt8],
+) -> Int32
+
 fn inline flush(fd: Int32) -> Int32 {
   fsync(fd)
 }
@@ -433,6 +462,21 @@ fn inline pipes(nonblocking: Bool) -> Result[(Int32, Int32), Error] {
   if pipe2(mut pipes, flags as Int32) as Int != 0 { throw Error.last_os_error }
 
   Result.Ok((pipes.reader, pipes.writer))
+}
+
+fn inline new_kevent(fd: Int32, id: Int, filter: Int, flags: Int) -> Kevent {
+  Kevent(
+    ident: fd as UInt64,
+    filter: filter as Int16,
+    flags: flags as UInt16,
+    fflags: 0 as UInt32,
+    data: 0,
+    udata: id as Pointer[UInt8],
+    ext0: 0 as UInt64,
+    ext1: 0 as UInt64,
+    ext2: 0 as UInt64,
+    ext3: 0 as UInt64,
+  )
 }
 
 fn inline errno_location -> Pointer[Int32] {
