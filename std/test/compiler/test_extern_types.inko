@@ -14,4 +14,11 @@ fn pub tests(t: mut Tests) {
       },
     )
   })
+
+  t.test('extern types are zeroed out by default', fn (t) {
+    let ex = Example()
+
+    t.equal(ex.a, 0)
+    t.equal(ex.b, 0)
+  })
 }

@@ -17,19 +17,6 @@ fn inline raw_socket -> sys_poll.Poll {
   sys_poll.new(0 as Int32)
 }
 
-fn inline poll_socket_or_pipe(
-  socket: Pointer[sys_poll.Poll],
-  pipe: Pointer[sys_poll.Poll],
-  deadline: Int,
-) -> Result[SocketOrPipe, Error] {
-  match sys_poll.poll_either(socket, pipe, deadline) {
-    case 0 -> throw Error.TimedOut
-    case 1 -> Result.Ok(SocketOrPipe.Socket)
-    case 2 -> Result.Ok(SocketOrPipe.Pipe)
-    case _ -> Result.Ok(SocketOrPipe.Both)
-  }
-}
-
 fn inline htons(value: Int) -> Int {
   _INKO.int_swap_bytes(value as UInt16)
 }

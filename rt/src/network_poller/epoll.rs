@@ -1,6 +1,6 @@
 use crate::network_poller::Interest;
 use libc::{
-    epoll_create, epoll_ctl, epoll_event, epoll_wait, EPOLLET, EPOLLIN,
+    epoll_create1, epoll_ctl, epoll_event, epoll_wait, EPOLLET, EPOLLIN,
     EPOLLONESHOT, EPOLLOUT, EPOLL_CLOEXEC, EPOLL_CTL_ADD, EPOLL_CTL_DEL,
     EPOLL_CTL_MOD,
 };
@@ -26,7 +26,7 @@ pub(crate) struct Poller {
 
 impl Poller {
     pub(crate) fn new() -> Poller {
-        let fd = unsafe { epoll_create(EPOLL_CLOEXEC) };
+        let fd = unsafe { epoll_create1(EPOLL_CLOEXEC) };
 
         if fd == -1 {
             panic!("epoll_create() failed");

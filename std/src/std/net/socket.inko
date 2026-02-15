@@ -73,6 +73,7 @@ import std.net.happy
 import std.net.ip (IpAddress)
 import std.pipe (Pipe, PipeWriter)
 import std.string (ToString)
+import std.sync (AtomicBool)
 import std.sys.net
 import std.sys.poll
 import std.sys.unix.net (self as sys) if unix
@@ -280,12 +281,16 @@ type pub Socket {
   # We use an `Int` to remove the need for using `Option[Instant]`.
   let mut @deadline: Int
 
+  fn inline static from(socket: poll.Poll) -> Self {
+    Self(socket: socket, deadline: poll.NO_DEADLINE)
+  }
+
   fn static new(ipv6: Bool, kind: Int, protocol: Int) -> Result[Socket, Error] {
     let sock = net.raw_socket
     let domain = if ipv6 { libc.AF_INET6 } else { libc.AF_INET }
 
     try sys.init_socket(mut sock, domain, kind, protocol)
-    Result.Ok(Socket(socket: sock, deadline: poll.NO_DEADLINE))
+    Result.Ok(from(sock))
   }
 
   # Returns a new `Socket` configured as a stream socket.
@@ -432,8 +437,8 @@ type pub Socket {
   fn pub accept -> Result[Socket, Error] {
     let peer = net.raw_socket
 
-    try sys.accept(@socket, mut peer, @deadline)
-    Result.Ok(Socket(socket: peer, deadline: poll.NO_DEADLINE))
+    try sys.accept(@socket, mut peer, @deadline, poller: Option.None)
+    Result.Ok(Socket.from(peer))
   }
 
   # Sends a `Bytes` value to the given address.
@@ -638,7 +643,7 @@ type pub Socket {
     let sock = net.raw_socket
 
     try sys.try_clone(@socket, mut sock)
-    Result.Ok(Socket(socket: sock, deadline: poll.NO_DEADLINE))
+    Result.Ok(Socket.from(sock))
   }
 
   fn mut set_option(level: Int, option: Int, value: Int) -> Result[Nil, Error] {
@@ -1054,16 +1059,14 @@ impl Write[Error] for TcpClient {
 
 type inline Waiter {
   let @reader: Pipe
-  let @buffer: ByteArray
+  let @notified: AtomicBool
 
-  fn static new(reader: Pipe) -> Self {
-    Self(reader: reader, buffer: ByteArray.with_capacity(1))
+  fn static new(reader: Pipe, notified: AtomicBool) -> Self {
+    Self(reader: reader, notified: notified)
   }
 
-  fn mut clear {
-    let _ = @reader.read(into: @buffer, size: 1)
-
-    @buffer.clear
+  fn notified? -> Bool {
+    @notified.load
   }
 
   fn mut as_poll -> Pointer[poll.Poll] {
@@ -1075,19 +1078,20 @@ type inline Waiter {
 # next call to `accept` returns an `std.io.Error.Interrupted` error.
 type pub inline Notifier {
   let @writer: PipeWriter
+  let @notified: AtomicBool
 
   fn static new -> Result[(uni Notifier, Waiter), Error] {
     let (r, w) = try Pipe.new
+    let not = AtomicBool.new(false)
 
-    Result.Ok((recover Notifier(w), Waiter.new(r)))
+    Result.Ok((recover Notifier(writer: w, notified: not), Waiter.new(r, not)))
   }
 
   # Notifies the corresponding `TcpServer` or `UnixServer` socket.
-  #
-  # The return value is `true` if the notification is queued up, or `false` if
-  # the receiving socket is dropped.
-  fn pub mut notify -> Bool {
-    @writer.write('1').ok?
+  fn pub mut notify {
+    if @notified.compare_and_swap(current: false, new: true) {
+      @writer.write('1')
+    }
   }
 }
 
@@ -1095,17 +1099,23 @@ type pub inline Notifier {
 type pub TcpServer {
   # The raw `Socket` wrapped by this `TcpServer`.
   let pub @socket: Socket
-
-  # The pipe to poll for interrupts.
   let @waiter: Waiter
-
-  # The pipe to use for sending interrupts.
   let mut @notifier: Option[uni Notifier]
+  let @poller: poll.Poller
 
   fn static from(socket: Socket) -> Result[Self, Error] {
     let (not, wait) = try Notifier.new
+    let poller = try poll.Poller.new
 
-    Result.Ok(Self(socket: socket, waiter: wait, notifier: Option.Some(not)))
+    try poller.add(socket.raw_socket, wait.as_poll)
+    Result.Ok(
+      Self(
+        socket: socket,
+        waiter: wait,
+        notifier: Option.Some(not),
+        poller: poller,
+      ),
+    )
   }
 
   # Creates a new `TcpServer` bound to and listening on the given IP address
@@ -1158,16 +1168,8 @@ type pub TcpServer {
   #
   # When a `Notifier` notifies its corresponding `TcpServer`, the current or
   # next call to `TcpServer.accept` will return a `std.io.Error.Interrupted`
-  # error. The socket _is not_ shut down, meaning you can continue using it
-  # after receiving an interrupt.
-  #
-  # Each notification is observed only once, so if you reuse the socket after
-  # receiving a notification you would need to send another notification to
-  # interrupt the call again.
-  #
-  # If an interrupt is received at the same time a connection is established,
-  # the `std.io.Error.Interrupted` error is returned and the connection remains
-  # in the socket backlog.
+  # error, and continues to do so on future calls, meaning the `TcpServer` is no
+  # longer able to accept new connections.
   #
   # # Examples
   #
@@ -1216,19 +1218,18 @@ type pub TcpServer {
   # }
   # ```
   fn pub mut accept -> Result[TcpClient, Error] {
-    match
-      try net.poll_socket_or_pipe(
-        @socket.raw_socket,
-        @waiter.as_poll,
-        @socket.deadline,
-      )
-    {
-      case Socket -> Result.Ok(TcpClient(try @socket.accept))
-      case _ -> {
-        @waiter.clear
-        throw Error.Interrupted
-      }
-    }
+    if @waiter.notified? { throw Error.Interrupted }
+
+    let peer = net.raw_socket
+
+    try sys.accept(
+      @socket.raw_socket,
+      mut peer,
+      @socket.deadline,
+      poller: Option.Some(@poller),
+    )
+
+    Result.Ok(TcpClient(Socket.from(peer)))
   }
 
   # Returns the local address of this socket.
@@ -1416,11 +1417,15 @@ type pub UnixSocket {
   # We use an `Int` to remove the need for using `Option[Instant]`.
   let mut @deadline: Int
 
+  fn inline static from(socket: poll.Poll) -> Self {
+    Self(socket: socket, deadline: poll.NO_DEADLINE)
+  }
+
   fn static new(kind: Int) -> Result[UnixSocket, Error] {
     let sock = net.raw_socket
 
     try sys.init_socket(mut sock, libc.AF_UNIX, kind, protocol: 0)
-    Result.Ok(UnixSocket(socket: sock, deadline: poll.NO_DEADLINE))
+    Result.Ok(from(sock))
   }
 
   # Returns a new `UnixSocket` configured as a stream socket.
@@ -1561,7 +1566,7 @@ type pub UnixSocket {
   fn pub accept -> Result[UnixSocket, Error] {
     let peer = net.raw_socket
 
-    try sys.accept(@socket, mut peer, @deadline)
+    try sys.accept(@socket, mut peer, @deadline, poller: Option.None)
     Result.Ok(UnixSocket(socket: peer, deadline: poll.NO_DEADLINE))
   }
 
@@ -2018,17 +2023,23 @@ impl Write[Error] for UnixClient {
 type pub UnixServer {
   # The raw `UnixSocket` wrapped by this `UnixServer`.
   let pub @socket: UnixSocket
-
-  # The pipe to poll for interrupts.
   let @waiter: Waiter
-
-  # The pipe to use for sending interrupts.
   let mut @notifier: Option[uni Notifier]
+  let @poller: poll.Poller
 
   fn static from(socket: UnixSocket) -> Result[Self, Error] {
     let (not, wait) = try Notifier.new
+    let poller = try poll.Poller.new
 
-    Result.Ok(Self(socket: socket, waiter: wait, notifier: Option.Some(not)))
+    try poller.add(socket.raw_socket, wait.as_poll)
+    Result.Ok(
+      Self(
+        socket: socket,
+        waiter: wait,
+        notifier: Option.Some(not),
+        poller: poller,
+      ),
+    )
   }
 
   # Creates a new `UnixServer` bound to and listening on the given address.
@@ -2088,19 +2099,18 @@ type pub UnixServer {
   # buffer.to_string # => 'ping'
   # ```
   fn pub mut accept -> Result[UnixClient, Error] {
-    match
-      try net.poll_socket_or_pipe(
-        @socket.raw_socket,
-        @waiter.as_poll,
-        @socket.deadline,
-      )
-    {
-      case Socket -> Result.Ok(UnixClient(try @socket.accept))
-      case _ -> {
-        @waiter.clear
-        throw Error.Interrupted
-      }
-    }
+    if @waiter.notified? { throw Error.Interrupted }
+
+    let peer = net.raw_socket
+
+    try sys.accept(
+      @socket.raw_socket,
+      mut peer,
+      @socket.deadline,
+      poller: Option.Some(@poller),
+    )
+
+    Result.Ok(UnixClient(UnixSocket.from(peer)))
   }
 
   # Returns the local address of this socket.

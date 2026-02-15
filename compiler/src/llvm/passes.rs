@@ -2619,16 +2619,31 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
     }
 
     fn define_register_variables(&mut self) {
+        let mut zero = Vec::new();
+
         for index in 0..self.method.registers.len() {
             let reg = RegisterId(index as _);
+            let reg_typ = self.register_type(reg);
             let typ = self.builder.context.llvm_type(
                 &self.shared.state.db,
                 self.layouts,
-                self.register_type(reg),
+                reg_typ,
             );
 
-            self.variables.insert(reg, self.builder.new_temporary(typ));
+            let alloca = self.builder.new_temporary(typ);
+
+            // Extern types are zeroed out by default because we allow partial
+            // initialization to make working with C easier.
+            if reg_typ.is_extern_instance(&self.shared.state.db) {
+                zero.push((alloca, typ));
+            }
+
+            self.variables.insert(reg, alloca);
             self.variable_types.insert(reg, typ);
+        }
+
+        for (alloca, typ) in zero {
+            self.builder.store(alloca, typ.const_zero());
         }
     }
 

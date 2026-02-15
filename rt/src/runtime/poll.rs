@@ -5,12 +5,6 @@ use crate::process::{ProcessPointer, ProcessState};
 use crate::scheduler::timeouts::Deadline;
 use crate::state::State;
 
-/// The bit to use for marking the primary source to poll for.
-const PRIM_BIT: u8 = 0b01;
-
-/// The bit to use for marking the secondary source to poll for.
-const SEC_BIT: u8 = 0b10;
-
 fn waiting_for_io(
     state: &State,
     process: ProcessPointer,
@@ -64,58 +58,5 @@ pub(crate) unsafe extern "system" fn inko_poll(
         false
     } else {
         true
-    }
-}
-
-#[no_mangle]
-pub(crate) unsafe extern "system" fn inko_poll_read_either(
-    state: *const State,
-    process: ProcessPointer,
-    primary: *mut Poll,
-    secondary: *mut Poll,
-    deadline: i64,
-) -> i64 {
-    let state = &*state;
-    let prim = &mut *primary;
-    let sec = &mut *secondary;
-    let interest = Interest::Read;
-
-    {
-        let mut proc_state = process.state();
-        let id = process.identifier();
-
-        // We poll using the same process twice but using unique tag bits. This
-        // way when we're rescheduled we can determine which source(s) is/are
-        // readable.
-        let prim_proc = ProcessPointer::new((id | PRIM_BIT as usize) as _);
-        let sec_proc = ProcessPointer::new((id | SEC_BIT as usize) as _);
-
-        waiting_for_io(state, process, &mut proc_state, deadline);
-        prim.register(state, prim_proc, interest);
-        sec.register(state, sec_proc, interest);
-    }
-
-    // Safety: the current thread is holding on to the process' run lock
-    unsafe { context::switch(process) };
-
-    match process.check_timeout_and_take_poll_bits() {
-        (true, _) => {
-            prim.deregister(state, interest);
-            sec.deregister(state, interest);
-            0
-        }
-        // The primary source is readable. We need to deregister the secondary
-        // source so the current process won't get scheduled twice.
-        (_, PRIM_BIT) => {
-            sec.deregister(state, interest);
-            1
-        }
-        // The secondary source is readable.
-        (_, SEC_BIT) => {
-            prim.deregister(state, interest);
-            2
-        }
-        // Both sources are readable.
-        _ => 3,
     }
 }
