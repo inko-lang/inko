@@ -45,4 +45,5 @@ fn example {
   a.Foo()
   a.Foo(number: 1)
   a.Foo
+  a.foo()
 }
