@@ -1957,7 +1957,7 @@ impl Document {
             } else if let Some(node) = node {
                 let list_id = self.new_group_id();
                 let mut list = List::new(list_id, node.values.len());
-                let max = node.values.len() - 1;
+                let max = node.values.len().saturating_sub(1);
 
                 for (idx, node) in node.values.iter().enumerate() {
                     let arg_id = self.new_group_id();
