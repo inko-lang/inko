@@ -1,21 +1,15 @@
 use crate::process::ProcessPointer;
 use crate::state::RcState;
 use libc::{
-    kill, pthread_sigmask, sigaddset, sigdelset, sigemptyset, sigfillset,
-    signal, sigset_t, sigwait, SIGBUS, SIGCHLD, SIGCONT, SIGILL, SIGPIPE,
-    SIGSEGV, SIGURG, SIGWINCH, SIG_SETMASK,
+    pthread_sigmask, raise, sigaddset, sigdelset, sigfillset, signal, sigset_t,
+    sigwait, SIGBUS, SIGCHLD, SIGCONT, SIGILL, SIGPIPE, SIGSEGV, SIGWINCH,
+    SIG_IGN, SIG_SETMASK,
 };
+use std::collections::HashMap;
 use std::ffi::c_int;
 use std::mem::MaybeUninit;
-use std::process::id as pid;
 use std::ptr::null_mut;
 use std::sync::Mutex;
-
-/// The signal to use to wake up the worker thread.
-///
-/// We use SIGURG as it's not commonly (if ever) used, isn't handled explicitly
-/// by debuggers, and is ignored by default instead of terminating the program.
-const NOTIFY: c_int = SIGURG;
 
 /// The signals we _shouldn't_ mask for application threads.
 ///
@@ -28,7 +22,7 @@ const UNMASKED: [c_int; 3] = [SIGSEGV, SIGBUS, SIGILL];
 /// be re-enabled.
 ///
 /// Most notably macOS discards these signals by default.
-const ENABLE: [c_int; 4] = [NOTIFY, SIGCHLD, SIGCONT, SIGWINCH];
+const ENABLE: [c_int; 3] = [SIGCHLD, SIGCONT, SIGWINCH];
 
 extern "system" fn noop_signal_handler(_ignore: i32) {}
 
@@ -50,20 +44,6 @@ impl SignalSet {
         for sig in UNMASKED {
             set.remove(sig);
         }
-        set
-    }
-
-    fn new() -> SignalSet {
-        let raw = unsafe {
-            let mut raw = MaybeUninit::uninit();
-
-            sigemptyset(raw.as_mut_ptr());
-            raw.assume_init()
-        };
-
-        let mut set = SignalSet { raw };
-
-        set.add(NOTIFY);
         set
     }
 
@@ -102,33 +82,28 @@ pub(crate) fn setup() {
     // Ensure all signals are ignored by default.
     SignalSet::full().block();
 
+    // Ensure that if a SIGPIPE is somehow triggered _just_ after a sigwait() we
+    // don't do anything with the signal.
+    unsafe {
+        signal(SIGPIPE, SIG_IGN);
+    }
+
     for &sig in ENABLE.iter() {
         unsafe { signal(sig, noop_signal_handler as _) };
     }
 }
 
-/// Notifies the current process that the signals to wait for has changed.
-pub(crate) fn notify_worker() {
-    unsafe {
-        // The thread used to register the process isn't the same as the
-        // thread handling signals, so we use kill() here instead of e.g.
-        // pthread_kill().
-        kill(pid() as _, NOTIFY);
-    }
-}
-
 pub(crate) struct Signals {
-    waiting: Mutex<Vec<(ProcessPointer, c_int)>>,
+    waiting: Mutex<HashMap<c_int, Vec<ProcessPointer>>>,
 }
 
 impl Signals {
     pub(crate) fn new() -> Signals {
-        Signals { waiting: Mutex::new(Vec::new()) }
+        Signals { waiting: Mutex::new(HashMap::new()) }
     }
 
     pub(crate) fn register(&self, process: ProcessPointer, signal: c_int) {
-        self.waiting.lock().unwrap().push((process, signal));
-        notify_worker();
+        self.waiting.lock().unwrap().entry(signal).or_default().push(process);
     }
 }
 
@@ -142,64 +117,40 @@ impl Worker {
     }
 
     pub(crate) fn run(&mut self) {
-        {
-            let mut blocked = SignalSet::new();
-
-            // We explicitly block the notification signal such that if it's
-            // sent before a wait() call we still observe it, and to make sure
-            // the system's default behaviour isn't to e.g. terminate the
-            // program.
-            blocked.add(NOTIFY);
-
-            // We block this signal because we don't allow handling it (as to
-            // not mess with e.g. non-blocking sockets), and because in this
-            // thread we don't want it to interrupt anything either.
-            blocked.add(SIGPIPE);
-
-            // For all other signals we retain the default behaviour, which is
-            // usually to terminate the program.
-            blocked.block();
-        }
-
-        let mut set = SignalSet::new();
+        // We mask/block all signals by default as different platforms handle
+        // not doing so differently. For example, when _not_ blocking a signal
+        // and calling sigwait(), Linux will still invoke the default signal
+        // handler but macOS ignores the signal entirely.
+        let mut set = SignalSet::full();
 
         loop {
-            // Because we block the NOTIFY signal, if it's sent _before_ this
-            // call we still observe it. This isn't the case for other signals
-            // though.
-            let received = set.wait();
-            let mut waiting = self.state.signals.waiting.lock().unwrap();
+            let sig = set.wait();
 
-            if received != NOTIFY {
-                let mut resched = Vec::new();
-
-                // As the list of processes waiting for signals is typically
-                // small (maybe a few at most), performing this linear scan
-                // should take little time.
-                waiting.retain(|(proc, desired)| {
-                    if received == *desired {
-                        resched.push(*proc);
-                        false
-                    } else {
-                        true
-                    }
-                });
-
-                // We remove the signal from the set as to invoke the default
-                // behaviour for when the signal is received in the future.
-                set.remove(received);
-                self.state.scheduler.schedule_multiple(&mut resched);
+            // We mask SIGPIPE so it won't get triggered between now and the
+            // next wait(), which could invoke its default behavior and cause
+            // unexpected results.
+            if sig == SIGPIPE {
+                continue;
             }
 
-            // This ensures that any remaining or newly added signals are part
-            // of the set and masked for the current thread, such that our
-            // wait() waits for them, instead of the default behaviour being
-            // invoked.
-            for (_, sig) in waiting.iter() {
-                set.add(*sig);
-            }
+            let mut procs = self.state.signals.waiting.lock().unwrap();
 
-            set.block();
+            if let Some(v) = procs.get_mut(&sig).filter(|v| !v.is_empty()) {
+                self.state.scheduler.schedule_multiple(v);
+            } else {
+                drop(procs);
+
+                // Invoke the default signal handler installed by the OS, which
+                // we can't retrieve using e.g. sigaction().
+                set.remove(sig);
+                set.block();
+                unsafe { raise(sig) };
+
+                // If the default action doesn't terminate the program, add the
+                // signal back to the set so we can wait for it again.
+                set.add(sig);
+                set.block();
+            }
         }
     }
 }

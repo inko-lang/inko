@@ -150,20 +150,6 @@ that signal are rescheduled. Waiting for a signal is performed using
 default behaviour is invoked, which in most cases means the process is
 terminated.
 
-When a process registers itself with the signal handler, the signal handling
-thread may be waiting for a signal and needs to be woken up, such that it
-observes the change in the list of processes waiting for a signal. This is
-achieved by sending the SIGURG signal to the signal thread each time a process
-waits for a signal to arrive. The signal SIGURG is used because of the following
-reasons:
-
-1. It's part of the POSIX 2001 specification, meaning it's well supported by
-   POSIX compatible systems.
-1. By default it's ignored, so our use won't conflict with what the system or
-   user might expect by default.
-1. Applications aren't likely to use it (if at all), in contrast to commonly
-   used signals such as SIGUSR1 and SIGUSR2.
-
 The standard library only allows waiting for a limited number of signals such as
 SIGHUP, SIGUSR1, and SIGXFSZ. This is done to increase portability, and to make
 it more difficult to shoot oneself in the foot (i.e. by waiting for SIGSEGV).

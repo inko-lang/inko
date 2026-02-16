@@ -1,11 +1,11 @@
 use crate::network_poller::Interest;
 use libc::{
-    epoll_create, epoll_ctl, epoll_event, epoll_wait, EPOLLET, EPOLLIN,
+    epoll_create1, epoll_ctl, epoll_event, epoll_wait, EPOLLET, EPOLLIN,
     EPOLLONESHOT, EPOLLOUT, EPOLL_CLOEXEC, EPOLL_CTL_ADD, EPOLL_CTL_DEL,
     EPOLL_CTL_MOD,
 };
 use std::ffi::c_int;
-use std::io::Error;
+use std::io::{Error, ErrorKind};
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use std::ptr::null_mut;
 
@@ -26,7 +26,7 @@ pub(crate) struct Poller {
 
 impl Poller {
     pub(crate) fn new() -> Poller {
-        let fd = unsafe { epoll_create(EPOLL_CLOEXEC) };
+        let fd = unsafe { epoll_create1(EPOLL_CLOEXEC) };
 
         if fd == -1 {
             panic!("epoll_create() failed");
@@ -41,22 +41,30 @@ impl Poller {
         &self,
         events: &'a mut Vec<Event>,
     ) -> impl Iterator<Item = u64> + 'a {
-        let res = unsafe {
-            epoll_wait(
-                self.fd.as_raw_fd(),
-                events.as_mut_ptr(),
-                events.capacity() as _,
-                -1,
-            )
-        };
+        loop {
+            let res = unsafe {
+                epoll_wait(
+                    self.fd.as_raw_fd(),
+                    events.as_mut_ptr(),
+                    events.capacity() as _,
+                    -1,
+                )
+            };
 
-        if res == -1 {
-            panic!("epoll_wait() failed: {}", Error::last_os_error());
+            if res == -1 {
+                let err = Error::last_os_error();
+
+                if let ErrorKind::Interrupted = err.kind() {
+                    continue;
+                } else {
+                    panic!("epoll_wait() failed: {}", err);
+                }
+            }
+
+            // Safety: the above check ensures the length value is valid.
+            unsafe { events.set_len(res as _) };
+            return events.iter().map(|e| e.u64);
         }
-
-        // Safety: the above check ensures the length value is valid.
-        unsafe { events.set_len(res as _) };
-        events.iter().map(|e| e.u64)
     }
 
     pub(crate) fn add(

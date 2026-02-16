@@ -375,7 +375,12 @@ fn inline write_raw(
   deadline: Int,
 ) -> Result[Int, Int] {
   loop {
-    let res = libc.send(socket.fd, data, size as UInt64, flags: 0 as Int32)
+    let res = libc.send(
+      socket.fd,
+      data,
+      size as UInt64,
+      flags: libc.MSG_NOSIGNAL as Int32,
+    )
 
     if res >= 0 { return Result.Ok(res) }
 
@@ -403,7 +408,7 @@ fn inline send_to_ip(
   let addr_size = init_ip_address(addr_ptr, ip, port)
 
   loop {
-    let flags = 0 as Int32
+    let flags = libc.MSG_NOSIGNAL as Int32
     let res = libc.sendto(
       socket.fd,
       data,
@@ -434,7 +439,7 @@ fn inline send_to_unix(
   let addr_size = try sys.init_unix_address(addr_ptr, path)
 
   loop {
-    let flags = 0 as Int32
+    let flags = libc.MSG_NOSIGNAL as Int32
     let res = libc.sendto(
       socket.fd,
       data,

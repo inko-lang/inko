@@ -1,5 +1,7 @@
 import helpers (hash)
+import std.env
 import std.fmt (fmt)
+import std.net.socket (UnixClient, UnixServer)
 import std.process (sleep)
 import std.signal (Signal, Signals)
 import std.stdio (Stdout)
@@ -90,4 +92,32 @@ fn pub tests(t: mut Tests) {
       },
     )
   }
+
+  t.fork(
+    'Handling signals no process is waiting for',
+    child: fn {
+      let path = env.get('SOCKET_PATH').or_panic.to_path
+      let sock = UnixClient.new(path).or_panic
+      let buf = ByteArray.new
+
+      let _ = sock.read(into: buf, size: 32)
+      let _ = sock.write(buf)
+    },
+    test: fn (t, p) {
+      let path = env.temporary_directory.join('inko_signals.${t.id}.sock')
+      let sock = UnixServer.new(path).or_panic
+
+      p.variable('SOCKET_PATH', path.to_string)
+
+      let child = p.spawn_only.or_panic
+      let client = sock.accept.or_panic
+
+      # If the child honors the signal then the read produces 0 instead of
+      # hanging forever.
+      t.equal(child.signal(Signal.Interrupt), Result.Ok(nil))
+      t.equal(client.read(into: ByteArray.new, size: 32), Result.Ok(0))
+
+      let _ = path.remove_file
+    },
+  )
 }

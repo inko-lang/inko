@@ -3,7 +3,7 @@ use libc::{
     fcntl, kevent, kqueue, ENOENT, EVFILT_READ, EVFILT_WRITE, EV_ADD, EV_CLEAR,
     EV_DELETE, EV_ONESHOT, EV_RECEIPT, FD_CLOEXEC, F_SETFD,
 };
-use std::io::Error;
+use std::io::{Error, ErrorKind};
 use std::mem::zeroed;
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use std::ptr::null;
@@ -30,31 +30,39 @@ impl Poller {
             OwnedFd::from_raw_fd(fd)
         };
 
-        Poller { fd: fd }
+        Poller { fd }
     }
 
     pub(crate) fn poll<'a>(
         &self,
         events: &'a mut Vec<kevent>,
     ) -> impl Iterator<Item = u64> + 'a {
-        let res = unsafe {
-            kevent(
-                self.fd.as_raw_fd(),
-                null(),
-                0,
-                events.as_mut_ptr(),
-                events.capacity() as _,
-                null(),
-            )
-        };
+        loop {
+            let res = unsafe {
+                kevent(
+                    self.fd.as_raw_fd(),
+                    null(),
+                    0,
+                    events.as_mut_ptr(),
+                    events.capacity() as _,
+                    null(),
+                )
+            };
 
-        if res == -1 {
-            panic!("kevent() failed: {}", Error::last_os_error());
+            if res == -1 {
+                let err = Error::last_os_error();
+
+                if let ErrorKind::Interrupted = err.kind() {
+                    continue;
+                } else {
+                    panic!("kevent() failed: {}", err);
+                }
+            }
+
+            // Safety: the above check ensures the length value is valid.
+            unsafe { events.set_len(res as _) };
+            return events.iter().map(|e| e.udata as u64);
         }
-
-        // Safety: the above check ensures the length value is valid.
-        unsafe { events.set_len(res as _) };
-        events.iter().map(|e| e.udata as u64)
     }
 
     pub(crate) fn add(
@@ -118,7 +126,7 @@ impl Poller {
 
         self.apply(&mut [kevent {
             ident: fd as _,
-            filter: filter,
+            filter,
             flags: EV_DELETE | EV_RECEIPT,
             ..unsafe { zeroed() }
         }]);
