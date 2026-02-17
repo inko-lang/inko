@@ -458,12 +458,16 @@ impl Process {
         state.try_reschedule_for_message()
     }
 
-    pub(crate) fn next_task(&mut self, config: &Config) -> Task {
+    pub(crate) fn next_task(
+        &mut self,
+        config: &Config,
+        stacks: &mut Vec<Stack>,
+    ) -> Task {
         // We set up the stack here such that the time spent doing so doesn't
         // affect the process/thread that sent us the message or initially
         // spawned the process.
         if self.stack_pointer.is_null() {
-            self.initialize_stack(config);
+            self.initialize_stack(config, stacks);
         }
 
         let mut state = self.state.lock().unwrap();
@@ -622,8 +626,23 @@ impl Process {
         unsafe { &mut *(self.stack.private_data_pointer() as *mut StackData) }
     }
 
-    fn initialize_stack(&mut self, config: &Config) {
-        let stack = Stack::new(config.stack_size as usize, config.page_size);
+    pub(crate) fn take_stack(&mut self) -> Option<Stack> {
+        if self.stack_pointer.is_null() {
+            None
+        } else {
+            unsafe {
+                let stack = ManuallyDrop::take(&mut self.stack);
+
+                self.stack_pointer = null_mut();
+                Some(stack)
+            }
+        }
+    }
+
+    fn initialize_stack(&mut self, config: &Config, stacks: &mut Vec<Stack>) {
+        let stack = stacks.pop().unwrap_or_else(|| {
+            Stack::new(config.stack_size as usize, config.page_size)
+        });
 
         // Generated code needs access to the current process. Rust's way of
         // handling thread-locals is such that we can't reliably expose them to
@@ -1026,8 +1045,9 @@ mod tests {
         let typ = empty_process_type();
         let mut process = OwnedProcess::new(Process::alloc(typ.as_pointer()));
         let conf = Config::new();
+        let mut stacks = Vec::new();
 
-        assert!(matches!(process.next_task(&conf), Task::Wait));
+        assert!(matches!(process.next_task(&conf, &mut stacks), Task::Wait));
     }
 
     #[test]
@@ -1036,9 +1056,13 @@ mod tests {
         let mut process = OwnedProcess::new(Process::alloc(typ.as_pointer()));
         let msg = Message { method, data: null_mut() };
         let conf = Config::new();
+        let mut stacks = Vec::new();
 
         process.send_message(msg);
-        assert!(matches!(process.next_task(&conf), Task::Start(_)));
+        assert!(matches!(
+            process.next_task(&conf, &mut stacks),
+            Task::Start(_)
+        ));
     }
 
     #[test]
@@ -1048,12 +1072,13 @@ mod tests {
         let msg1 = Message { method, data: null_mut() };
         let msg2 = Message { method, data: null_mut() };
         let conf = Config::new();
+        let mut stacks = Vec::new();
 
         process.send_message(msg1);
-        process.next_task(&conf);
+        process.next_task(&conf, &mut stacks);
         process.send_message(msg2);
 
-        assert!(matches!(process.next_task(&conf), Task::Resume));
+        assert!(matches!(process.next_task(&conf, &mut stacks), Task::Resume));
     }
 
     #[test]
@@ -1063,5 +1088,19 @@ mod tests {
 
         assert!(!process.finish_message());
         assert!(process.state().status.is_waiting_for_message());
+    }
+
+    #[test]
+    fn test_process_take_stack() {
+        let typ = empty_process_type();
+        let mut process = OwnedProcess::new(Process::alloc(typ.as_pointer()));
+        let conf = Config::new();
+        let mut stacks = Vec::new();
+
+        process.initialize_stack(&conf, &mut stacks);
+        assert!(!process.stack_pointer.is_null());
+        assert!(process.take_stack().is_some());
+        assert!(process.stack_pointer.is_null());
+        assert!(process.take_stack().is_none());
     }
 }

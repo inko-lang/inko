@@ -67,19 +67,6 @@ impl Stack {
             You may need to increase the number of memory map areas allowed",
         );
 
-        // Because the stack is managed using mmap, its memory is only allocated
-        // on demand. When starting a process we need to write some data to the
-        // stack, triggering a page fault and thus increasing the amount of time
-        // it takes to spawn a process.
-        //
-        // To ensure the first page is committed in a portable manner, we simply
-        // write some dummy data to the start of the stack. We can then combine
-        // this with reserving stacks on a per-thread basis to reduce the time
-        // it takes to spawn a process.
-        unsafe {
-            std::ptr::write_volatile(mem.ptr, 0);
-        }
-
         Self { mem }
     }
 

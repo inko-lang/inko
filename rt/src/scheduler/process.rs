@@ -1,9 +1,11 @@
 //! Scheduling and execution of lightweight Inko processes.
 use crate::arc_without_weak::ArcWithoutWeak;
+use crate::config::Config;
 use crate::context;
 use crate::notifier::Notifier;
 use crate::process::{Process, ProcessPointer, Task};
 use crate::rand::Rand;
+use crate::stack::Stack;
 use crate::state::{RcState, State};
 use crossbeam_utils::atomic::AtomicCell;
 use std::cell::Cell;
@@ -78,6 +80,9 @@ const MONITOR_INTERVAL: u64 = 100;
 /// we perform a number of regular cycles before entering a deep sleep.
 const MAX_IDLE_CYCLES: u64 = 1_000_000 / MONITOR_INTERVAL;
 
+/// The maximum amount of reusable stacks per OS thread.
+const REUSABLE_STACKS: usize = 32;
+
 thread_local! {
     /// The process that's currently running.
     ///
@@ -94,6 +99,23 @@ pub(crate) fn epoch_loop(state: &State) {
     while state.scheduler.pool.is_alive() {
         sleep(Duration::from_millis(EPOCH_INTERVAL));
         state.scheduler_epoch.fetch_add(1, Ordering::Relaxed);
+    }
+}
+
+fn default_stacks(id: usize, config: &Config) -> Vec<Stack> {
+    if id == MAIN_THREAD {
+        // Processes spawned by the main thread never run on the main thread, so
+        // we don't need to reserve any space.
+        Vec::new()
+    } else {
+        let mut stacks = Vec::with_capacity(REUSABLE_STACKS);
+
+        for _ in 0..stacks.capacity() {
+            stacks
+                .push(Stack::new(config.stack_size as usize, config.page_size));
+        }
+
+        stacks
     }
 }
 
@@ -207,10 +229,17 @@ pub struct Thread {
     /// The default is to not do anything with a process after it yields back to
     /// the thread.
     pub(crate) action: Action,
+
+    /// A pool of process stacks to reuse.
+    ///
+    /// Creating stacks can be expensive especially for short-lived processes.
+    /// To amortize this cost we maintain a small list of reusable stacks that
+    /// we reuse before allocating a new one.
+    stacks: Vec<Stack>,
 }
 
 impl Thread {
-    fn new(id: usize, pool: ArcWithoutWeak<Pool>) -> Thread {
+    fn new(id: usize, pool: ArcWithoutWeak<Pool>, config: &Config) -> Thread {
         // The main thread never uses the local queue but its ID is not in
         // bounds, so we just assign it the queue 0.
         let qid = if id == MAIN_THREAD { 0 } else { id };
@@ -224,10 +253,11 @@ impl Thread {
             rng: Rand::new(),
             action: Action::Ignore,
             pool,
+            stacks: default_stacks(id, config),
         }
     }
 
-    fn backup(pool: ArcWithoutWeak<Pool>) -> Thread {
+    fn backup(pool: ArcWithoutWeak<Pool>, config: &Config) -> Thread {
         Self {
             // For backup threads the ID/queue doesn't matter, because we won't
             // use them until we're turned into a regular thread.
@@ -239,6 +269,7 @@ impl Thread {
             rng: Rand::new(),
             action: Action::Ignore,
             pool,
+            stacks: default_stacks(0, config),
         }
     }
 
@@ -497,7 +528,7 @@ impl Thread {
             // the yield.
             let _lock = process.acquire_run_lock();
 
-            match process.next_task(&state.config) {
+            match process.next_task(&state.config, &mut self.stacks) {
                 Task::Resume => {
                     CURRENT_PROCESS.set(process.as_ptr());
                     process.resume(state, self);
@@ -525,6 +556,12 @@ impl Thread {
 
         match self.action.take() {
             Action::Terminate => {
+                if let Some(stack) = process.take_stack() {
+                    if self.stacks.len() < self.stacks.capacity() {
+                        self.stacks.push(stack);
+                    }
+                }
+
                 // Process termination can't be safely done on the process'
                 // stack, because its memory would be dropped while we're still
                 // using it, hence we do that here.
@@ -923,7 +960,7 @@ impl Scheduler {
 
             ThreadBuilder::new()
                 .name(format!("proc {}", id))
-                .spawn(move || Thread::new(id, pool).run(&state))
+                .spawn(move || Thread::new(id, pool, &state.config).run(&state))
                 .expect("failed to start a process thread");
         }
 
@@ -933,7 +970,7 @@ impl Scheduler {
 
             ThreadBuilder::new()
                 .name(format!("backup {}", id))
-                .spawn(move || Thread::backup(pool).run(&state))
+                .spawn(move || Thread::backup(pool, &state.config).run(&state))
                 .expect("failed to start a backup thread");
         }
 
@@ -943,7 +980,8 @@ impl Scheduler {
         // makes it possible for this process to interface with libraries
         // that require the same thread to be used for all operations (e.g.
         // most GUI libraries).
-        Thread::new(MAIN_THREAD, self.pool.clone()).run_main(state);
+        Thread::new(MAIN_THREAD, self.pool.clone(), &state.config)
+            .run_main(state);
     }
 }
 
@@ -968,7 +1006,8 @@ mod tests {
         let typ = empty_process_type();
         let process = new_process(typ.as_pointer()).take_and_forget();
         let scheduler = Scheduler::new(1, 1);
-        let mut thread = Thread::new(0, scheduler.pool.clone());
+        let conf = Config::new();
+        let mut thread = Thread::new(0, scheduler.pool.clone(), &conf);
 
         thread.schedule(process);
 
@@ -982,7 +1021,8 @@ mod tests {
         let process = new_process_with_message(typ.as_pointer(), method)
             .take_and_forget();
         let state = setup();
-        let mut thread = Thread::new(0, state.scheduler.pool.clone());
+        let conf = Config::new();
+        let mut thread = Thread::new(0, state.scheduler.pool.clone(), &conf);
 
         thread.schedule(process);
         thread.run(&state);
@@ -996,8 +1036,9 @@ mod tests {
         let process = new_process_with_message(typ.as_pointer(), method)
             .take_and_forget();
         let state = setup();
-        let mut thread0 = Thread::new(0, state.scheduler.pool.clone());
-        let mut thread1 = Thread::new(1, state.scheduler.pool.clone());
+        let conf = Config::new();
+        let mut thread0 = Thread::new(0, state.scheduler.pool.clone(), &conf);
+        let mut thread1 = Thread::new(1, state.scheduler.pool.clone(), &conf);
 
         thread1.schedule(process);
         thread0.run(&state);
@@ -1012,7 +1053,8 @@ mod tests {
         let process = new_process_with_message(typ.as_pointer(), method)
             .take_and_forget();
         let state = setup();
-        let mut thread = Thread::new(0, state.scheduler.pool.clone());
+        let conf = Config::new();
+        let mut thread = Thread::new(0, state.scheduler.pool.clone(), &conf);
 
         state.scheduler.pool.schedule(process);
         thread.run(&state);
@@ -1027,7 +1069,8 @@ mod tests {
         let process = new_process_with_message(typ.as_pointer(), method)
             .take_and_forget();
         let state = setup();
-        let mut thread = Thread::new(0, state.scheduler.pool.clone());
+        let conf = Config::new();
+        let mut thread = Thread::new(0, state.scheduler.pool.clone(), &conf);
 
         thread.backup = true;
 
@@ -1050,7 +1093,8 @@ mod tests {
         let proc = new_process(typ.as_pointer()).take_and_forget();
         let state = setup();
         let pool = &state.scheduler.pool;
-        let mut thread = Thread::new(0, pool.clone());
+        let conf = Config::new();
+        let mut thread = Thread::new(0, pool.clone(), &conf);
 
         pool.epoch.store(4, Ordering::Release);
         pool.monitor.status.store(MonitorStatus::Sleeping);
@@ -1068,7 +1112,8 @@ mod tests {
     fn test_thread_stop_blocking() {
         let state = setup();
         let pool = &state.scheduler.pool;
-        let mut thread = Thread::new(1, pool.clone());
+        let conf = Config::new();
+        let mut thread = Thread::new(1, pool.clone(), &conf);
         let typ = empty_process_type();
         let process = new_process(typ.as_pointer()).take_and_forget();
 
@@ -1093,7 +1138,8 @@ mod tests {
     fn test_thread_start_blocking_nested() {
         let state = setup();
         let pool = &state.scheduler.pool;
-        let mut thread = Thread::new(0, pool.clone());
+        let conf = Config::new();
+        let mut thread = Thread::new(0, pool.clone(), &conf);
         let typ = empty_process_type();
         let process = new_process(typ.as_pointer()).take_and_forget();
 
@@ -1126,7 +1172,8 @@ mod tests {
             .take_and_forget();
         let state = setup();
         let pool = &state.scheduler.pool;
-        let mut thread = Thread::new(0, pool.clone());
+        let conf = Config::new();
+        let mut thread = Thread::new(0, pool.clone(), &conf);
 
         pool.epoch.store(4, Ordering::Release);
         pool.monitor.status.store(MonitorStatus::Sleeping);
