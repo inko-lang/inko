@@ -38,7 +38,7 @@ type Poller {
       @poll.fd,
       events: (mut events) as Pointer[libc.EpollEvent],
       max: 2 as Int32,
-      timeout: 0 as Int32,
+      timeout: -1 as Int32,
     )
 
     match len as Int {
