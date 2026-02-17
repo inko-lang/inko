@@ -168,16 +168,36 @@ impl Queue {
         Self { inner: Mutex::new(VecDeque::with_capacity(size)) }
     }
 
-    fn push(&self, value: ProcessPointer) {
-        self.inner.lock().unwrap().push_back(value);
+    fn push(&self, value: ProcessPointer) -> bool {
+        let mut vals = self.inner.lock().unwrap();
+        let first = vals.is_empty();
+
+        vals.push_back(value);
+        first
+    }
+
+    fn push_with_limit(&self, value: ProcessPointer) -> (bool, bool) {
+        let mut vals = self.inner.lock().unwrap();
+        let first = vals.is_empty();
+
+        if vals.len() < vals.capacity() {
+            vals.push_back(value);
+            (true, first)
+        } else {
+            (false, false)
+        }
     }
 
     fn pop(&self) -> Option<ProcessPointer> {
         self.inner.lock().unwrap().pop_front()
     }
 
-    fn push_multiple(&self, values: &mut Vec<ProcessPointer>) {
-        self.inner.lock().unwrap().extend(values.drain(0..));
+    fn push_multiple(&self, values: &mut Vec<ProcessPointer>) -> bool {
+        let mut vals = self.inner.lock().unwrap();
+        let first = vals.is_empty();
+
+        vals.extend(values.drain(0..));
+        first
     }
 }
 
@@ -282,12 +302,20 @@ impl Thread {
         // be another process, and we only want to schedule the main process
         // onto ourselves.
         if self.is_main() {
-            self.pool.schedule(process);
+            self.schedule_global(process);
             return;
         }
 
-        self.work.push(process);
-        self.pool.notifier.notify_one();
+        // This ensures the memory of thread-local queues stays bounded, that
+        // way we don't end up with e.g. one or two threads using way more
+        // memory compared to others.
+        let (added, first) = self.work.push_with_limit(process);
+
+        if added && first {
+            self.pool.notifier.notify_one();
+        } else if !added {
+            self.schedule_global(process);
+        }
     }
 
     /// Schedules a process onto the global queue.
@@ -445,10 +473,12 @@ impl Thread {
         let wait_tok = self.pool.notifier.prepare_wait();
 
         if let Some(p) = self.steal_from_thread() {
+            self.pool.notifier.notify_one();
             return Some(p);
         }
 
-        if let Some(p) = self.pool.global.pop() {
+        if let Some(p) = self.steal_from_global() {
+            self.pool.notifier.notify_one();
             return Some(p);
         }
 
@@ -486,6 +516,10 @@ impl Thread {
         }
 
         None
+    }
+
+    fn steal_from_global(&mut self) -> Option<ProcessPointer> {
+        self.pool.global.pop()
     }
 
     fn sleep_main(&self) {
@@ -839,28 +873,18 @@ impl Pool {
     }
 
     fn schedule(&self, process: ProcessPointer) {
-        self.global.push(process);
-        self.notifier.notify_one();
+        if self.global.push(process) {
+            self.notifier.notify_one();
+        }
     }
 
     fn schedule_multiple(&self, processes: &mut Vec<ProcessPointer>) {
         match processes.len() {
             0 => {}
             1 => self.schedule(processes.pop().unwrap()),
-            n => {
-                self.global.push_multiple(processes);
-
-                // If we reschedule a small number of processes we don't want to
-                // wake up all sleeping threads.
-                //
-                // The upper limit of 4 is arbitrarily chosen as to reduce the
-                // time spent in the notification loop.
-                if n <= 4 {
-                    for _ in 0..n {
-                        self.notifier.notify_one();
-                    }
-                } else {
-                    self.notifier.notify_all();
+            _ => {
+                if self.global.push_multiple(processes) {
+                    self.notifier.notify_one();
                 }
             }
         }
@@ -1303,5 +1327,29 @@ mod tests {
         monitor.deep_sleep();
 
         assert_eq!(scheduler.pool.monitor.status.load(), MonitorStatus::Normal);
+    }
+
+    #[test]
+    fn test_queue_push() {
+        let q = Queue::new(4);
+        let p = unsafe { ProcessPointer::new(0x4 as _) };
+
+        assert!(q.push(p));
+        assert!(!q.push(p));
+        assert_eq!(q.inner.lock().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn test_queue_push_with_limit() {
+        let q = Queue::new(4);
+        let p = unsafe { ProcessPointer::new(0x4 as _) };
+
+        assert_eq!(q.push_with_limit(p), (true, true));
+        assert_eq!(q.push_with_limit(p), (true, false));
+        assert_eq!(q.push_with_limit(p), (true, false));
+        assert_eq!(q.push_with_limit(p), (true, false));
+        assert_eq!(q.push_with_limit(p), (false, false));
+        assert_eq!(q.push_with_limit(p), (false, false));
+        assert_eq!(q.inner.lock().unwrap().len(), 4);
     }
 }
