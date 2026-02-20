@@ -32,6 +32,7 @@
 #
 # gen.write(['foo', 'bar'])
 # ```
+import std.bytes (Bytes)
 import std.cmp (Equal)
 import std.fmt (Format, Formatter)
 import std.int (ToInt)
@@ -44,7 +45,7 @@ let CR = 0xD
 let COMMA = 0x2C
 let DQUOTE = 0x22
 
-fn quote?(value: String, separator: Int) -> Bool {
+fn quote?[B: Bytes](value: ref B, separator: Int) -> Bool {
   let mut i = 0
   let max = value.size
 
@@ -720,6 +721,7 @@ type pub Generator[I: mut + Write[E], E] {
   let @output: I
   let mut @separator_string: String
   let mut @separator_byte: Int
+  let @buffer: ByteArray
 
   # Returns a new `Generator` that uses a comma as the column separator.
   #
@@ -732,7 +734,12 @@ type pub Generator[I: mut + Write[E], E] {
   # Generator.new(Stdout.new)
   # ```
   fn pub static new(output: I) -> Self {
-    Self(output: output, separator_string: ',', separator_byte: COMMA)
+    Self(
+      output: output,
+      separator_string: ',',
+      separator_byte: COMMA,
+      buffer: ByteArray.new,
+    )
   }
 
   # Changes the separator to use for separating columns to the given
@@ -777,17 +784,16 @@ type pub Generator[I: mut + Write[E], E] {
   #
   # gen.write(['foo', 'bar', 'baz']) # => Result.Ok(nil)
   # ```
-  fn pub mut write(columns: ref Array[String]) -> Result[Nil, E] {
+  fn pub mut write[B: Bytes](columns: ref Array[B]) -> Result[Nil, E] {
     let mut i = 0
 
     for col in columns.iter {
       if i > 0 { try @output.write(@separator_string) }
 
       if quote?(col, @separator_byte) {
-        try @output
-          .write('"')
-          .then(fn (_) { @output.write(col.replace('"', '""')) })
-          .then(fn (_) { @output.write('"') })
+        try @output.write('"')
+        try write_quoted(col)
+        try @output.write('"')
       } else {
         try @output.write(col)
       }
@@ -820,5 +826,19 @@ type pub Generator[I: mut + Write[E], E] {
   # ```
   fn pub mut flush -> Result[Nil, E] {
     @output.flush
+  }
+
+  fn mut write_quoted[B: Bytes](value: ref B) -> Result[Nil, E] {
+    @buffer.reserve(value.size)
+
+    for byte in value.bytes {
+      if byte == DQUOTE { @buffer.push(DQUOTE) }
+
+      @buffer.push(byte)
+    }
+
+    try @output.write(@buffer)
+    @buffer.clear
+    Result.Ok(nil)
   }
 }
