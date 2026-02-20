@@ -261,9 +261,23 @@ impl<'a, 'b> Specialize<'a, 'b> {
         swap(&mut mir.methods, &mut old);
 
         for method in old.into_values() {
-            if work.done.contains(&method.id) {
-                mir.methods.insert(method.id, method);
+            if !work.done.contains(&method.id) {
+                continue;
             }
+
+            // Default methods for traits _are_ tracked in the work list so we
+            // don't process their implementations/copies multiple times, but we
+            // _don't_ want to keep them here because:
+            //
+            // 1. We don't use them again as at this point they've all been
+            //    copied into the implementing types
+            // 2. Symbol name generation (and possibly other stages) expect
+            //    methods to only be defined for concrete types and not traits
+            if method.id.receiver(&state.db).is_trait_instance(&state.db) {
+                continue;
+            }
+
+            mir.methods.insert(method.id, method);
         }
 
         // The specialization source is also set for regular types that we
