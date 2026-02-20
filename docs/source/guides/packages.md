@@ -73,6 +73,31 @@ Using minimal version selection offers several benefits:
 For more details we suggest reading through the [article by Russ
 Cox](https://research.swtch.com/vgo-mvs) (also linked to above).
 
+For packages that use zero as the major version duplicates aren't allowed and
+instead different zero based versions are treated as being compatible with each
+other, contrary to what the semantic versioning specification states. Take these
+requirements for example:
+
+```
+json >= 0.1.2
+json >= 0.2.3
+```
+
+According to semantic versioning these requirements aren't compatible because
+the major version is zero and the minor version differs. Inko _does_ treat these
+versions as compatible and thus ends up selecting `json` version 0.2.3 as the
+package version. This is done for the following reasons:
+
+- It's common for packages to keep using 0.x version numbers for a long time out
+  of a fear of committing to a stable API
+- It would result in many (likely) redundant dependencies if different packages
+  specify different version requirements for the same 0.x based dependency
+
+::: info
+You can find some additional details about this choice in [this
+issue](https://github.com/inko-lang/inko/issues/738)
+:::
+
 ## Handling security updates
 
 If a new version of a package is released, Inko ignores it due to the use of
