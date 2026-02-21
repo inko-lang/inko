@@ -916,6 +916,18 @@ When using named arguments, they must come _after_ positional arguments:
 foo(10, bar: 20)
 ```
 
+If the method is generic its type arguments may be specified explicitly:
+
+```inko
+fn example[A, B](a: A, b: B) {}
+
+example[Int, String](10, 'hello')
+```
+
+If explicit type arguments are specified the number of given arguments must be
+the same as the number of type parameters, i.e. you can't only specify a subset
+of them.
+
 ## Binary expressions
 
 Binary operator expressions use the following syntax:

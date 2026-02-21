@@ -101,6 +101,26 @@ fn example[T](value: T) -> T {
 
 This method takes a value of any type and returns it as-is.
 
+When calling generic methods you can (but don't have to) specify the type
+arguments explicitly:
+
+```inko
+fn example[T](value: T) -> T {
+  value
+}
+
+example[Int](10)
+```
+
+An example where you need to do this is when using `std.reflect.size_of` to get
+the size of a type:
+
+```inko
+import std.reflect (size_of)
+
+size_of[Int] # => 8
+```
+
 ## Type parameter requirements
 
 In these examples the type parameters don't specify any sort of requirements a
