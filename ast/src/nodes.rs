@@ -163,6 +163,7 @@ impl Node for Constant {
 pub struct Call {
     pub receiver: Option<Expression>,
     pub name: Identifier,
+    pub type_arguments: Option<Types>,
     pub arguments: Option<Arguments>,
     pub location: Location,
 }

@@ -1929,20 +1929,13 @@ impl Parser {
     }
 
     fn constant(&mut self, start: Token) -> Result<Expression, ParseError> {
-        if let Some(args) = self.arguments(&start.location)? {
-            let name = Identifier::from(start);
-            let location =
-                Location::start_end(name.location(), args.location());
+        let (targs, args) = self.arguments(&start.location)?;
 
-            return Ok(Expression::Call(Box::new(Call {
-                receiver: None,
-                name,
-                arguments: Some(args),
-                location,
-            })));
+        if targs.is_some() || args.is_some() {
+            self.call_from_identifier(start, targs, args)
+        } else {
+            Ok(Expression::Constant(Box::new(Constant::from(start))))
         }
-
-        Ok(Expression::Constant(Box::new(Constant::from(start))))
     }
 
     fn identifier(&mut self, start: Token) -> Result<Expression, ParseError> {
@@ -1989,60 +1982,90 @@ impl Parser {
             _ => {}
         }
 
-        if let Some(args) = self.arguments(&start.location)? {
-            let name = Identifier::from(start);
-            let location =
-                Location::start_end(name.location(), args.location());
+        let (targs, args) = self.arguments(&start.location)?;
 
-            return Ok(Expression::Call(Box::new(Call {
-                receiver: None,
-                name,
-                arguments: Some(args),
-                location,
-            })));
+        if targs.is_some() || args.is_some() {
+            self.call_from_identifier(start, targs, args)
+        } else {
+            Ok(Expression::Identifier(Box::new(Identifier::from(start))))
         }
+    }
 
-        Ok(Expression::Identifier(Box::new(Identifier::from(start))))
+    fn call_from_identifier(
+        &mut self,
+        name: Token,
+        type_arguments: Option<Types>,
+        arguments: Option<Arguments>,
+    ) -> Result<Expression, ParseError> {
+        let name = Identifier::from(name);
+        let end_loc = location!(arguments)
+            .or_else(|| location!(type_arguments))
+            .unwrap_or_else(|| name.location());
+
+        let location = Location::start_end(name.location(), end_loc);
+
+        Ok(Expression::Call(Box::new(Call {
+            receiver: None,
+            name,
+            type_arguments,
+            arguments,
+            location,
+        })))
     }
 
     fn arguments(
         &mut self,
         start_location: &Location,
-    ) -> Result<Option<Arguments>, ParseError> {
-        let peeked = self.peek();
+    ) -> Result<(Option<Types>, Option<Arguments>), ParseError> {
+        let mut targs = None;
+        let mut args = None;
+        let mut peeked = self.peek();
 
-        if peeked.kind != TokenKind::ParenOpen
-            || peeked.location.line_start != start_location.line_start
+        if peeked.kind == TokenKind::BracketOpen
+            && peeked.location.line_start == start_location.line_start
         {
-            return Ok(None);
+            let (values, location) = self.list(
+                TokenKind::BracketOpen,
+                TokenKind::BracketClose,
+                |parser, tok| parser.type_reference(tok),
+            )?;
+
+            targs = Some(Types { values, location });
+            peeked = self.peek();
         }
 
-        let mut allow_pos = true;
-        let (values, location) = self.list(
-            TokenKind::ParenOpen,
-            TokenKind::ParenClose,
-            |parser, token| {
-                let node = if (token.kind == TokenKind::Identifier
-                    || token.is_keyword())
-                    && parser.peek().kind == TokenKind::Colon
-                {
-                    allow_pos = false;
-                    Argument::Named(Box::new(parser.named_argument(token)?))
-                } else if allow_pos {
-                    Argument::Positional(parser.expression(token)?)
-                } else {
-                    error!(
-                        token.location,
-                        "expected a named argument, found '{}' instead",
-                        token.value
-                    );
-                };
+        if peeked.kind == TokenKind::ParenOpen
+            && peeked.location.line_start == start_location.line_start
+        {
+            let mut allow_pos = true;
+            let (values, location) = self.list(
+                TokenKind::ParenOpen,
+                TokenKind::ParenClose,
+                |parser, token| {
+                    let node = if (token.kind == TokenKind::Identifier
+                        || token.is_keyword())
+                        && parser.peek().kind == TokenKind::Colon
+                    {
+                        allow_pos = false;
+                        Argument::Named(Box::new(parser.named_argument(token)?))
+                    } else if allow_pos {
+                        Argument::Positional(parser.expression(token)?)
+                    } else {
+                        error!(
+                            token.location,
+                            "expected a named argument, found '{}' instead",
+                            token.value
+                        );
+                    };
 
-                Ok(node)
-            },
-        )?;
+                    Ok(node)
+                },
+            )?;
 
-        Ok(Some(Arguments { values, location }))
+            args = Some(Arguments { values, location });
+        }
+
+        Ok((targs, args))
     }
 
     fn call_with_receiver(
@@ -2162,14 +2185,17 @@ impl Parser {
         }
 
         let name = Identifier::from(name_token);
-        let arguments = self.arguments(name.location())?;
-        let end_loc = location!(arguments).unwrap_or_else(|| name.location());
+        let (targs, args) = self.arguments(name.location())?;
+        let end_loc = location!(args)
+            .or_else(|| location!(targs))
+            .unwrap_or_else(|| name.location());
         let location = Location::start_end(receiver.location(), end_loc);
 
         Ok(Expression::Call(Box::new(Call {
             receiver: Some(receiver),
             name,
-            arguments,
+            type_arguments: targs,
+            arguments: args,
             location,
         })))
     }
@@ -7847,6 +7873,7 @@ mod tests {
             expr("foo()"),
             Expression::Call(Box::new(Call {
                 receiver: None,
+                type_arguments: None,
                 arguments: Some(Arguments {
                     values: Vec::new(),
                     location: cols(4, 5)
@@ -7863,6 +7890,7 @@ mod tests {
             expr("Foo()"),
             Expression::Call(Box::new(Call {
                 receiver: None,
+                type_arguments: None,
                 arguments: Some(Arguments {
                     values: Vec::new(),
                     location: cols(4, 5)
@@ -7883,6 +7911,7 @@ mod tests {
                     name: "foo".to_string(),
                     location: cols(1, 3)
                 },
+                type_arguments: None,
                 arguments: Some(Arguments {
                     values: vec![
                         Argument::Positional(Expression::Int(Box::new(
@@ -7912,6 +7941,7 @@ mod tests {
                     name: "foo".to_string(),
                     location: cols(1, 3)
                 },
+                type_arguments: None,
                 arguments: Some(Arguments {
                     values: vec![Argument::Named(Box::new(NamedArgument {
                         name: Identifier {
@@ -7938,6 +7968,7 @@ mod tests {
                     name: "foo".to_string(),
                     location: cols(1, 3)
                 },
+                type_arguments: None,
                 arguments: Some(Arguments {
                     values: vec![Argument::Named(Box::new(NamedArgument {
                         name: Identifier {
@@ -7953,6 +7984,63 @@ mod tests {
                     location: cols(4, 13)
                 }),
                 location: cols(1, 13)
+            }))
+        );
+
+        assert_eq!(
+            expr("foo[A]"),
+            Expression::Call(Box::new(Call {
+                receiver: None,
+                type_arguments: Some(Types {
+                    values: vec![Type::Named(Box::new(TypeName {
+                        name: Constant {
+                            source: None,
+                            name: "A".to_string(),
+                            location: cols(5, 5)
+                        },
+                        arguments: None,
+                        location: cols(5, 5)
+                    }))],
+                    location: cols(4, 6)
+                }),
+                arguments: None,
+                name: Identifier {
+                    name: "foo".to_string(),
+                    location: cols(1, 3)
+                },
+                location: cols(1, 6)
+            }))
+        );
+        assert_eq!(
+            expr("foo[A](10)"),
+            Expression::Call(Box::new(Call {
+                receiver: None,
+                type_arguments: Some(Types {
+                    values: vec![Type::Named(Box::new(TypeName {
+                        name: Constant {
+                            source: None,
+                            name: "A".to_string(),
+                            location: cols(5, 5)
+                        },
+                        arguments: None,
+                        location: cols(5, 5)
+                    }))],
+                    location: cols(4, 6)
+                }),
+                arguments: Some(Arguments {
+                    values: vec![Argument::Positional(Expression::Int(
+                        Box::new(IntLiteral {
+                            value: "10".to_string(),
+                            location: cols(8, 9)
+                        })
+                    )),],
+                    location: cols(7, 10)
+                }),
+                name: Identifier {
+                    name: "foo".to_string(),
+                    location: cols(1, 3)
+                },
+                location: cols(1, 10)
             }))
         );
     }
@@ -8001,6 +8089,7 @@ mod tests {
                     name: "foo".to_string(),
                     location: cols(4, 6)
                 },
+                type_arguments: None,
                 arguments: Some(Arguments {
                     values: Vec::new(),
                     location: cols(7, 8)
@@ -8020,6 +8109,7 @@ mod tests {
                     name: "Foo".to_string(),
                     location: cols(4, 6)
                 },
+                type_arguments: None,
                 arguments: Some(Arguments {
                     values: Vec::new(),
                     location: cols(7, 8)
@@ -8039,6 +8129,7 @@ mod tests {
                     name: "foo".to_string(),
                     location: cols(4, 6)
                 },
+                type_arguments: None,
                 arguments: None,
                 location: cols(1, 6)
             }))
@@ -8055,6 +8146,7 @@ mod tests {
                     name: "123".to_string(),
                     location: cols(4, 6)
                 },
+                type_arguments: None,
                 arguments: None,
                 location: cols(1, 6)
             }))
@@ -8071,6 +8163,7 @@ mod tests {
                     name: "try".to_string(),
                     location: cols(4, 6)
                 },
+                type_arguments: None,
                 arguments: None,
                 location: cols(1, 6)
             }))
@@ -8149,6 +8242,7 @@ mod tests {
                         name: "foo".to_string(),
                         location: cols(4, 6)
                     },
+                    type_arguments: None,
                     arguments: None,
                     location: cols(1, 6)
                 }))),
@@ -8156,8 +8250,71 @@ mod tests {
                     name: "bar".to_string(),
                     location: cols(8, 10)
                 },
+                type_arguments: None,
                 arguments: None,
                 location: cols(1, 10)
+            }))
+        );
+        assert_eq!(
+            expr("10.foo[A]"),
+            Expression::Call(Box::new(Call {
+                receiver: Some(Expression::Int(Box::new(IntLiteral {
+                    value: "10".to_string(),
+                    location: cols(1, 2)
+                }))),
+                name: Identifier {
+                    name: "foo".to_string(),
+                    location: cols(4, 6)
+                },
+                type_arguments: Some(Types {
+                    values: vec![Type::Named(Box::new(TypeName {
+                        name: Constant {
+                            source: None,
+                            name: "A".to_string(),
+                            location: cols(8, 8)
+                        },
+                        arguments: None,
+                        location: cols(8, 8)
+                    }))],
+                    location: cols(7, 9)
+                }),
+                arguments: None,
+                location: cols(1, 9)
+            }))
+        );
+        assert_eq!(
+            expr("10.foo[A](10)"),
+            Expression::Call(Box::new(Call {
+                receiver: Some(Expression::Int(Box::new(IntLiteral {
+                    value: "10".to_string(),
+                    location: cols(1, 2)
+                }))),
+                name: Identifier {
+                    name: "foo".to_string(),
+                    location: cols(4, 6)
+                },
+                type_arguments: Some(Types {
+                    values: vec![Type::Named(Box::new(TypeName {
+                        name: Constant {
+                            source: None,
+                            name: "A".to_string(),
+                            location: cols(8, 8)
+                        },
+                        arguments: None,
+                        location: cols(8, 8)
+                    }))],
+                    location: cols(7, 9)
+                }),
+                arguments: Some(Arguments {
+                    values: vec![Argument::Positional(Expression::Int(
+                        Box::new(IntLiteral {
+                            value: "10".to_string(),
+                            location: cols(11, 12)
+                        })
+                    )),],
+                    location: cols(10, 13)
+                }),
+                location: cols(1, 13)
             }))
         );
     }
@@ -10182,6 +10339,7 @@ mod tests {
                     name: "B".to_string(),
                     location: cols(3, 3)
                 },
+                type_arguments: None,
                 arguments: None,
                 location: cols(1, 3)
             }))

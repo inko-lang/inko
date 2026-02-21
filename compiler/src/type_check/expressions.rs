@@ -504,6 +504,16 @@ impl MethodCall {
     ) -> TypeRef {
         let given = argument.cast_according_to(&state.db, expected);
 
+        self.check_type(state, given, expected, location)
+    }
+
+    fn check_type(
+        &mut self,
+        state: &mut State,
+        given: TypeRef,
+        expected: TypeRef,
+        location: Location,
+    ) -> TypeRef {
         if self.require_sendable || given.is_uni_value_borrow(&state.db) {
             self.check_sendable.push((given, location));
         }
@@ -1707,7 +1717,7 @@ impl<'a> CheckMethodBody<'a> {
         pattern: &mut Pattern,
     ) {
         let var_type = if let Some(tnode) = node.value_type.as_mut() {
-            let exp_type = self.type_signature(tnode, self.self_type);
+            let exp_type = self.type_signature(tnode);
 
             if !TypeChecker::check(self.db(), value_type, exp_type) {
                 self.state.diagnostics.pattern_type_error(
@@ -2406,7 +2416,6 @@ impl<'a> CheckMethodBody<'a> {
         expected: Option<ExpectedClosure>,
         scope: &mut LexicalScope,
     ) -> TypeRef {
-        let self_type = self.self_type;
         let moving = node.moving
             || expected.as_ref().is_some_and(|e| e.id.is_moving(self.db()));
 
@@ -2424,7 +2433,7 @@ impl<'a> CheckMethodBody<'a> {
         for (idx, arg) in node.arguments.iter_mut().enumerate() {
             let name = arg.name.name.clone();
             let typ = if let Some(n) = arg.value_type.as_mut() {
-                self.type_signature(n, self.self_type)
+                self.type_signature(n)
             } else if let Some(exp) = expected.as_ref() {
                 let db = self.db_mut();
 
@@ -2452,7 +2461,7 @@ impl<'a> CheckMethodBody<'a> {
         }
 
         let return_type = if let Some(n) = node.return_type.as_mut() {
-            self.type_signature(n, self_type)
+            self.type_signature(n)
         } else if let Some(exp) = expected.as_ref() {
             match exp.id.return_type(self.db()) {
                 // In the closure's body we won't have access to all the type
@@ -3852,6 +3861,7 @@ impl<'a> CheckMethodBody<'a> {
 
         call.check_mutability(self.state, loc);
         call.check_type_bounds(self.state, loc);
+        self.call_type_arguments(&mut node.type_arguments, &mut call, loc);
         self.call_arguments(&mut node.arguments, &mut call, scope);
         call.check_arguments(self.state, loc);
         call.resolve_return_type(self.state);
@@ -3975,6 +3985,7 @@ impl<'a> CheckMethodBody<'a> {
 
         call.check_mutability(self.state, loc);
         call.check_type_bounds(self.state, loc);
+        self.call_type_arguments(&mut node.type_arguments, &mut call, loc);
         self.call_arguments(&mut node.arguments, &mut call, scope);
         call.check_arguments(self.state, loc);
         call.resolve_return_type(self.state);
@@ -4287,8 +4298,7 @@ impl<'a> CheckMethodBody<'a> {
     }
 
     fn size_of(&mut self, node: &mut hir::SizeOf) -> TypeRef {
-        node.resolved_type =
-            self.type_signature(&mut node.argument, self.self_type);
+        node.resolved_type = self.type_signature(&mut node.argument);
 
         TypeRef::int()
     }
@@ -4483,6 +4493,41 @@ impl<'a> CheckMethodBody<'a> {
         }
     }
 
+    fn call_type_arguments(
+        &mut self,
+        nodes: &mut [hir::Type],
+        call: &mut MethodCall,
+        location: Location,
+    ) {
+        let got = nodes.len();
+
+        if got == 0 {
+            return;
+        }
+
+        let exp = call.method.number_of_type_parameters(self.db());
+
+        if got != exp {
+            self.state.diagnostics.incorrect_number_of_type_arguments(
+                exp,
+                got,
+                self.file(),
+                location,
+            );
+        }
+
+        for (idx, node) in nodes.iter_mut().enumerate() {
+            let typ = self.type_signature(node);
+            let Some(par) = call.method.type_parameter_by_index(self.db(), idx)
+            else {
+                break;
+            };
+            let exp = call.type_arguments.get(par).unwrap();
+
+            call.check_type(self.state, typ, exp, node.location());
+        }
+    }
+
     fn positional_argument(
         &mut self,
         call: &mut MethodCall,
@@ -4602,15 +4647,11 @@ impl<'a> CheckMethodBody<'a> {
         );
     }
 
-    fn type_signature(
-        &mut self,
-        node: &mut hir::Type,
-        self_type: TypeEnum,
-    ) -> TypeRef {
+    fn type_signature(&mut self, node: &mut hir::Type) -> TypeRef {
         // Within the bodies of static and module methods, the meaning of `Self`
         // is either unclear or there simply is no type to replace it with.
         let allow_self = matches!(
-            self_type,
+            self.self_type,
             TypeEnum::TypeInstance(_) | TypeEnum::TraitInstance(_)
         );
         let rules = Rules {
@@ -4620,7 +4661,7 @@ impl<'a> CheckMethodBody<'a> {
         };
         let type_scope = TypeScope::with_bounds(
             self.module,
-            self_type,
+            self.self_type,
             Some(self.method),
             self.bounds,
         );

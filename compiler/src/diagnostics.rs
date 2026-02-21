@@ -929,6 +929,24 @@ impl Diagnostics {
         );
     }
 
+    pub(crate) fn cant_infer_type_parameter(
+        &mut self,
+        method: &str,
+        parameter: &str,
+        file: PathBuf,
+        location: Location,
+    ) {
+        self.error(
+            DiagnosticId::InvalidType,
+            format!(
+                "type parameter '{}' defined by '{}' must be assigned a type",
+                parameter, method
+            ),
+            file,
+            location,
+        );
+    }
+
     pub(crate) fn type_depth_exceeded(
         &mut self,
         name: String,

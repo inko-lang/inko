@@ -1,0 +1,26 @@
+trait Trait {}
+
+type Foo {}
+
+type Bar {}
+
+impl Trait for Bar {}
+
+fn method[A, B: Trait](value: B) {}
+
+fn example1 {
+  method[Int, Bar](Foo())
+}
+
+fn example2 {
+  method[Int, Int](10)
+}
+
+fn example3 {
+  method[Int, Bar, Int](Bar())
+}
+
+# method_with_wrong_type_arguments.inko:12:20 error(invalid-type): expected a value of type 'Bar', found 'Foo'
+# method_with_wrong_type_arguments.inko:16:15 error(invalid-type): expected a value of type 'B', found 'Int'
+# method_with_wrong_type_arguments.inko:16:20 error(invalid-type): expected a value of type 'B', found 'Int'
+# method_with_wrong_type_arguments.inko:20:3 error(invalid-type): incorrect number of type arguments: expected 2, found 3

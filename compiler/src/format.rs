@@ -1917,7 +1917,11 @@ impl Document {
             match start {
                 Some(Expression::Call(n)) => {
                     start = n.receiver.as_ref();
-                    calls.push((&n.name.name, n.arguments.as_ref()));
+                    calls.push((
+                        &n.name.name,
+                        n.type_arguments.as_ref(),
+                        n.arguments.as_ref(),
+                    ));
                 }
                 Some(node) => {
                     start = Some(node);
@@ -1937,24 +1941,37 @@ impl Document {
 
         let gid = self.new_group_id();
 
-        while let Some((name, node)) = calls.pop() {
+        while let Some((name, tnode, anode)) = calls.pop() {
             let mut header = if head.is_empty() {
                 vec![Node::text(name)]
             } else {
                 vec![Node::text("."), Node::text(name)]
             };
 
+            if let Some(v) = tnode.filter(|n| !n.values.is_empty()) {
+                let vals =
+                    self.list(&v.values, gid, |s, n| s.type_reference(n));
+
+                header.push(Node::Nodes(vec![
+                    Node::text("["),
+                    Node::Line,
+                    Node::Indent(vals),
+                    Node::Line,
+                    Node::text("]"),
+                ]));
+            }
+
             let mut args = Vec::new();
 
             // When parentheses are explicitly used for expressions such as
             // `User()` and `foo.User()`, we retain the parentheses as they
             // might be used to create an instance of a new type.
-            if node.is_some()
-                && node.is_some_and(|v| v.values.is_empty())
+            if anode.is_some()
+                && anode.is_some_and(|v| v.values.is_empty())
                 && name.chars().next().is_some_and(|v| v.is_uppercase())
             {
                 header.push(Node::text("()"));
-            } else if let Some(node) = node {
+            } else if let Some(node) = anode {
                 let list_id = self.new_group_id();
                 let mut list = List::new(list_id, node.values.len());
                 let max = node.values.len().saturating_sub(1);

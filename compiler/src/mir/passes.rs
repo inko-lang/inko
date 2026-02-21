@@ -1953,7 +1953,7 @@ impl<'a> LowerMethod<'a> {
         let loc = InstructionLocation::new(node.name.location);
         let reg = match node.kind {
             types::CallKind::Call(info) => {
-                self.verify_type(info.returns, node.location);
+                self.verify_call(&info, node.location);
 
                 let rec = if info.receiver.is_explicit() {
                     node.receiver.map(|expr| self.expression(expr))
@@ -2225,6 +2225,29 @@ impl<'a> LowerMethod<'a> {
         }
     }
 
+    fn verify_call(&mut self, info: &types::CallInfo, location: Location) {
+        for par in info.id.type_parameters(self.db()) {
+            let Some(TypeRef::Placeholder(pid)) = info.type_arguments.get(par)
+            else {
+                continue;
+            };
+
+            if pid.value(self.db()).is_some() {
+                continue;
+            }
+
+            let mname = info.id.name(self.db()).clone();
+            let pname = par.name(self.db()).clone();
+            let path = self.file();
+
+            self.state
+                .diagnostics
+                .cant_infer_type_parameter(&mname, &pname, path, location);
+        }
+
+        self.verify_type(info.returns, location);
+    }
+
     fn verify_type(&mut self, typ: TypeRef, location: Location) {
         match typ.verify_type(self.db()) {
             Ok(()) => {}
@@ -2288,7 +2311,7 @@ impl<'a> LowerMethod<'a> {
         let loc = InstructionLocation::new(node.location);
         let reg = match node.kind {
             types::CallKind::Call(info) => {
-                self.verify_type(info.returns, node.location);
+                self.verify_call(&info, node.location);
 
                 let rec = if info.receiver.is_explicit() {
                     Some(self.expression(node.receiver))

@@ -1,0 +1,15 @@
+fn method[A, B](value: B) {}
+
+fn method2[A, B](value: B) -> A {
+  panic('nope')
+}
+
+fn example1 {
+  method(10)
+}
+
+fn example2 {
+  let _x: Int = method2(10)
+}
+
+# method_with_unassigned_type_parameter.inko:8:3 error(invalid-type): type parameter 'A' defined by 'method' must be assigned a type

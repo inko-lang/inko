@@ -3095,6 +3095,14 @@ impl MethodId {
         self.get(db).type_parameters.values().cloned().collect()
     }
 
+    pub fn type_parameter_by_index(
+        self,
+        db: &Database,
+        index: usize,
+    ) -> Option<TypeParameterId> {
+        self.get(db).type_parameters.get_index(index).map(|(_, v)| *v)
+    }
+
     pub fn number_of_type_parameters(self, db: &Database) -> usize {
         self.get(db).type_parameters.len()
     }
