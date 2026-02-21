@@ -1223,7 +1223,8 @@ impl<'a> DefineConstructors<'a> {
             let module = self.module;
             let db = self.db_mut();
             let vis = Visibility::TypePrivate;
-            let tag_typ = TypeRef::foreign_unsigned_int(16);
+            let tag_size = if constructors_count <= 256 { 8 } else { 16 };
+            let tag_typ = TypeRef::foreign_unsigned_int(tag_size);
             let tag_name = ENUM_TAG_FIELD.to_string();
             let loc = type_id.location(db);
 

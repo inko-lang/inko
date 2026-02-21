@@ -10,6 +10,7 @@ import std.iter (Iter, Stream)
 import std.option (Option)
 import std.ptr
 import std.rand (Random)
+import std.reflect (size_of)
 import std.string (ToString)
 
 # The capacity to use when resizing an array for the first time.
@@ -966,7 +967,7 @@ type builtin Array[T] {
   }
 
   fn inline address_of(index: Int) -> Pointer[T] {
-    let bytes = index.wrapping_mul(_INKO.size_of_type_name(T))
+    let bytes = index.wrapping_mul(size_of[T])
 
     (@buffer as Int).wrapping_add(bytes) as Pointer[T]
   }

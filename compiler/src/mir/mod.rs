@@ -382,15 +382,6 @@ impl Block {
         })));
     }
 
-    pub(crate) fn u16_literal(
-        &mut self,
-        register: RegisterId,
-        value: u16,
-        location: InstructionLocation,
-    ) {
-        self.int_literal(register, 16, value as i64, location)
-    }
-
     pub(crate) fn i64_literal(
         &mut self,
         register: RegisterId,

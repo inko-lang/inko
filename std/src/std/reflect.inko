@@ -1,0 +1,23 @@
+# Methods for obtaining type information.
+
+# Returns the size of references to the type `T`.
+#
+# For heap allocated values this always returns the size of a single
+# word/pointer as heap allocated values are referred to using pointers.
+#
+# # Examples
+#
+# ```inko
+# import std.reflect
+#
+# type copy Pair {
+#   let @a: Int
+#   let @b: Int
+# }
+#
+# mem.size_of[String] # => 8
+# mem.size_of[Pair]   # => 16
+# ```
+fn pub size_of[T] -> Int {
+  _INKO.size_of_type_name(T)
+}

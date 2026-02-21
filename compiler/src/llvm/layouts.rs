@@ -9,8 +9,8 @@ use inkwell::types::{
 };
 use std::collections::VecDeque;
 use types::{
-    CallConvention, Database, MethodId, TypeId, TypeRef, BOOL_ID, FLOAT_ID,
-    INT_ID, NIL_ID, STRING_ID,
+    CallConvention, Database, MethodId, TypeId, TypeRef, BOOL_ID,
+    ENUM_TAG_INDEX, FLOAT_ID, INT_ID, NIL_ID, STRING_ID,
 };
 
 /// The size of an object header.
@@ -371,7 +371,7 @@ impl<'ctx> Layouts<'ctx> {
                 }
 
                 // Add the type for the tag.
-                let tag_typ = fields[0].value_type(db);
+                let tag_typ = fields[ENUM_TAG_INDEX].value_type(db);
 
                 types.push(context.llvm_type(db, self, tag_typ));
 

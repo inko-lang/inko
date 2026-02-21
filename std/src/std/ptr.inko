@@ -2,6 +2,7 @@
 #
 # The methods in this module are intended for use within the standard library
 # only, and must be used with extreme care due to their unsafe nature.
+import std.reflect (size_of)
 
 # Returns `true` if the `left` pointer's data starts with the data of the
 # `right` pointer.
@@ -105,7 +106,7 @@ fn equal(left: Pointer[UInt8], right: Pointer[UInt8], size: Int) -> Bool {
 
 # Takes a pointer and increments it offset by `amount` _values_.
 fn add[T](pointer: Pointer[T], amount: Int) -> Pointer[T] {
-  pointer as Int + (amount * _INKO.size_of_type_name(T)) as Pointer[T]
+  pointer as Int + (amount * size_of[T]) as Pointer[T]
 }
 
 fn null -> Pointer[UInt8] {

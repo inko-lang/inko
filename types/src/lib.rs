@@ -4592,6 +4592,16 @@ impl TypeRef {
         }
     }
 
+    pub fn integer_size_in_bits(self, db: &Database) -> u8 {
+        if let Ok(TypeEnum::Foreign(ForeignType::Int(size, _))) =
+            self.as_type_enum(db)
+        {
+            size as u8
+        } else {
+            64
+        }
+    }
+
     pub fn closure_id(self, db: &Database) -> Option<ClosureId> {
         if let Ok(TypeEnum::Closure(id)) = self.as_type_enum(db) {
             Some(id)
@@ -7966,5 +7976,16 @@ mod tests {
         assert_eq!(mutable(instance(cop)).shape(&db), Shape::Copy);
         assert_eq!(immutable_uni(instance(cop)).shape(&db), Shape::Copy);
         assert_eq!(mutable_uni(instance(cop)).shape(&db), Shape::Copy);
+    }
+
+    #[test]
+    fn test_type_ref_integer_size_in_bits() {
+        let db = Database::new();
+
+        assert_eq!(TypeRef::int().integer_size_in_bits(&db), 64);
+        assert_eq!(
+            TypeRef::foreign_unsigned_int(16).integer_size_in_bits(&db),
+            16
+        );
     }
 }

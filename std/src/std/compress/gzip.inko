@@ -26,6 +26,7 @@ import std.fmt (Format, Formatter)
 import std.int (ToInt)
 import std.io (Error as IoError, Read, Write)
 import std.ptr
+import std.reflect (size_of)
 import std.string (ToString)
 
 # The maximum amount of data that can be written to a zlib stream.
@@ -90,7 +91,7 @@ fn inline deflate_init(stream: Pointer[Stream], compression: Compression) {
     mem_level: Z_DEFAULT_MEM_LEVEL as Int32,
     strategy: Z_DEFAULT_STRATEGY as Int32,
     version: zlibVersion,
-    stream_size: _INKO.size_of_type_name(Stream) as Int32,
+    stream_size: size_of[Stream] as Int32,
   )
 
   if res as Int != Z_OK { init_error }
@@ -106,7 +107,7 @@ fn inline inflate_init(stream: Pointer[Stream]) {
     stream,
     window_bits: Z_WINDOW_BITS + Z_GZIP as Int32,
     version: zlibVersion,
-    stream_size: _INKO.size_of_type_name(Stream) as Int32,
+    stream_size: size_of[Stream] as Int32,
   )
 
   if res as Int != Z_OK { init_error }

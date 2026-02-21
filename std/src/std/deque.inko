@@ -5,6 +5,7 @@ import std.cmp (max)
 import std.drop (Drop, drop as drop_value)
 import std.iter (Iter, Stream)
 import std.ptr
+import std.reflect (size_of)
 
 fn invalid_capacity(size: Int) -> Never {
   panic('the capacity (${size}) must be greater than or equal to zero')
@@ -308,7 +309,7 @@ type pub Deque[T] {
   }
 
   fn inline address_of(index: Int) -> Pointer[T] {
-    @buffer as Int + (index * _INKO.size_of_type_name(T)) as Pointer[T]
+    @buffer as Int + (index * size_of[T]) as Pointer[T]
   }
 
   fn inline get_unchecked(index: Int) -> ref T {

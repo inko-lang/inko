@@ -1,4 +1,5 @@
 import std.io (Error)
+import std.reflect (size_of)
 
 let AF_INET = 2
 let AF_INET6 = 28
@@ -484,15 +485,15 @@ fn inline errno_location -> Pointer[Int32] {
 }
 
 fn inline sockaddr_in_size -> Int {
-  _INKO.size_of_type_name(SockAddrIn)
+  size_of[SockAddrIn]
 }
 
 fn inline sockaddr_in6_size -> Int {
-  _INKO.size_of_type_name(SockAddrIn6)
+  size_of[SockAddrIn6]
 }
 
 fn inline sockaddr_un_size -> Int {
-  _INKO.size_of_type_name(SockAddrUn)
+  size_of[SockAddrUn]
 }
 
 fn inline sockaddr_un_name_offset -> Int {
@@ -504,5 +505,5 @@ fn inline unix_socket_path_limit -> Int {
 }
 
 fn inline sockaddr_storage_size -> Int {
-  _INKO.size_of_type_name(SockAddrStorage)
+  size_of[SockAddrStorage]
 }

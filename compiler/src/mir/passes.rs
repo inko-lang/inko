@@ -1323,13 +1323,15 @@ impl<'a> LowerToMir<'a> {
         lower.prepare(loc);
 
         let ins_reg = lower.new_register(ins);
-        let tag_val = constructor_id.id(lower.db());
+        let tag_val = constructor_id.id(lower.db()) as i64;
         let tag_field =
             type_id.field_by_index(lower.db(), ENUM_TAG_INDEX).unwrap();
-        let tag_reg = lower.new_register(tag_field.value_type(lower.db()));
+        let tag_typ = tag_field.value_type(lower.db());
+        let tag_reg = lower.new_register(tag_typ);
+        let tag_bits = tag_typ.integer_size_in_bits(lower.db());
 
         lower.current_block_mut().allocate(ins_reg, type_id, loc);
-        lower.current_block_mut().u16_literal(tag_reg, tag_val, loc);
+        lower.current_block_mut().int_literal(tag_reg, tag_bits, tag_val, loc);
         lower
             .current_block_mut()
             .set_field(ins_reg, type_id, tag_field, tag_reg, loc);
@@ -2566,6 +2568,7 @@ impl<'a> LowerMethod<'a> {
         let tid = self.register_type(reg).type_id(self.db()).unwrap();
         let tag_field = tid.field_by_index(self.db(), ENUM_TAG_INDEX).unwrap();
         let tag_typ = tag_field.value_type(self.db());
+        let tag_bits = tag_typ.integer_size_in_bits(self.db());
         let tag_reg = self.new_untracked_register(tag_typ);
         let val_field = tid.enum_fields(self.db())[0];
         let ok_block = self.add_block();
@@ -2591,11 +2594,11 @@ impl<'a> LowerMethod<'a> {
                 let none_id = tid
                     .constructor(self.db(), OPTION_NONE)
                     .unwrap()
-                    .id(self.db());
+                    .id(self.db()) as i64;
                 let ok_reg = self.new_untracked_register(typ);
 
                 blocks[some_id as usize] = (some_id as i64, ok_block);
-                blocks[none_id as usize] = (none_id as i64, err_block);
+                blocks[none_id as usize] = (none_id, err_block);
 
                 self.current_block_mut().switch(tag_reg, blocks, loc);
 
@@ -2609,7 +2612,8 @@ impl<'a> LowerMethod<'a> {
                 self.current_block = err_block;
 
                 self.current_block_mut().allocate(ret_reg, tid, loc);
-                self.current_block_mut().u16_literal(err_tag, none_id, loc);
+                self.current_block_mut()
+                    .int_literal(err_tag, tag_bits, none_id, loc);
                 self.current_block_mut()
                     .set_field(ret_reg, tid, tag_field, err_tag, loc);
                 self.current_block_mut().drop_without_dropper(reg, loc);
@@ -2626,12 +2630,12 @@ impl<'a> LowerMethod<'a> {
                 let err_id = tid
                     .constructor(self.db(), RESULT_ERROR)
                     .unwrap()
-                    .id(self.db());
+                    .id(self.db()) as i64;
                 let ok_reg = self.new_untracked_register(ok_typ);
                 let err_val = self.new_untracked_register(err_typ);
 
                 blocks[ok_id as usize] = (ok_id as i64, ok_block);
-                blocks[err_id as usize] = (err_id as i64, err_block);
+                blocks[err_id as usize] = (err_id, err_block);
 
                 self.current_block_mut().switch(tag_reg, blocks, loc);
 
@@ -2645,7 +2649,8 @@ impl<'a> LowerMethod<'a> {
                 self.current_block = err_block;
 
                 self.current_block_mut().allocate(ret_reg, tid, loc);
-                self.current_block_mut().u16_literal(err_tag, err_id, loc);
+                self.current_block_mut()
+                    .int_literal(err_tag, tag_bits, err_id, loc);
                 self.current_block_mut()
                     .get_field(err_val, reg, tid, val_field, loc);
                 self.current_block_mut()
@@ -2679,14 +2684,17 @@ impl<'a> LowerMethod<'a> {
         let reg = self.expression(node.value);
         let tid = self.db().type_in_module(RESULT_MODULE, RESULT_TYPE);
         let err_id =
-            tid.constructor(self.db(), RESULT_ERROR).unwrap().id(self.db());
+            tid.constructor(self.db(), RESULT_ERROR).unwrap().id(self.db())
+                as i64;
         let tag_field = tid.field_by_index(self.db(), ENUM_TAG_INDEX).unwrap();
-        let tag_reg = self.new_register(tag_field.value_type(self.db()));
+        let tag_typ = tag_field.value_type(self.db());
+        let tag_bits = tag_typ.integer_size_in_bits(self.db());
+        let tag_reg = self.new_register(tag_typ);
         let val_field = tid.enum_fields(self.db())[0];
         let result_reg = self.new_register(node.return_type);
 
         self.current_block_mut().allocate(result_reg, tid, loc);
-        self.current_block_mut().u16_literal(tag_reg, err_id, loc);
+        self.current_block_mut().int_literal(tag_reg, tag_bits, err_id, loc);
         self.current_block_mut()
             .set_field(result_reg, tid, tag_field, tag_reg, loc);
         self.current_block_mut()
