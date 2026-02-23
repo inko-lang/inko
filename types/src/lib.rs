@@ -1957,6 +1957,14 @@ impl TypeId {
         self.get(db).type_parameters.values().cloned().collect()
     }
 
+    pub fn type_parameter_by_index(
+        self,
+        db: &Database,
+        index: usize,
+    ) -> Option<TypeParameterId> {
+        self.get(db).type_parameters.get_index(index).map(|(_, v)| *v)
+    }
+
     pub fn add_trait_implementation(
         self,
         db: &mut Database,
@@ -2807,10 +2815,6 @@ impl Intrinsic {
     }
 
     pub fn return_type(self, db: &Database, arguments: &[TypeRef]) -> TypeRef {
-        let int_res = TypeRef::Owned(TypeEnum::TypeInstance(
-            TypeInstance::new(TypeId::checked_int_result()),
-        ));
-
         match self {
             Intrinsic::FloatAdd => TypeRef::float(),
             Intrinsic::FloatCeil => TypeRef::float(),
@@ -2848,9 +2852,13 @@ impl Intrinsic {
             Intrinsic::IntWrappingAdd => TypeRef::int(),
             Intrinsic::IntWrappingMul => TypeRef::int(),
             Intrinsic::IntWrappingSub => TypeRef::int(),
-            Intrinsic::IntCheckedAdd => int_res,
-            Intrinsic::IntCheckedMul => int_res,
-            Intrinsic::IntCheckedSub => int_res,
+            Intrinsic::IntCheckedAdd
+            | Intrinsic::IntCheckedMul
+            | Intrinsic::IntCheckedSub => {
+                TypeRef::Owned(TypeEnum::TypeInstance(TypeInstance::new(
+                    TypeId::checked_int_result(),
+                )))
+            }
             Intrinsic::Moved => TypeRef::nil(),
             Intrinsic::State => TypeRef::pointer(TypeEnum::Foreign(
                 ForeignType::Int(8, Sign::Unsigned),
