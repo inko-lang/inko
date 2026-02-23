@@ -1,48 +1,37 @@
 import std.bytes (Bytes, ToSlice)
-import std.bytes.parsers (digit?, lower?, upper?)
 
 let TAB = 9
 let SPC = 32
-let EXL = 33
-let HSH = 35
-let DLR = 36
-let PRC = 37
-let AMP = 38
-let SQU = 39
-let AST = 42
-let PLUS = 43
-let HYPHEN = 45
-let DOT = 46
-let CAR = 94
-let UND = 95
-let GRV = 96
-let PIP = 124
-let TLD = 126
+
+# The bytes that are valid HTTP token bytes.
+let TOKEN_BYTES = [
+  false, false, false, false, false, false, false, false, false, false, false,
+  false, false, false, false, false, false, false, false, false, false, false,
+  false, false, false, false, false, false, false, false, false, false, false,
+  true, false, true, true, true, true, true, false, false, true, true, false,
+  true, true, false, true, true, true, true, true, true, true, true, true, true,
+  false, false, false, false, false, false, false, true, true, true, true, true,
+  true, true, true, true, true, true, true, true, true, true, true, true, true,
+  true, true, true, true, true, true, true, true, false, false, false, true,
+  true, true, true, true, true, true, true, true, true, true, true, true, true,
+  true, true, true, true, true, true, true, true, true, true, true, true, true,
+  true, true, false, true, false, true, false, false, false, false, false,
+  false, false, false, false, false, false, false, false, false, false, false,
+  false, false, false, false, false, false, false, false, false, false, false,
+  false, false, false, false, false, false, false, false, false, false, false,
+  false, false, false, false, false, false, false, false, false, false, false,
+  false, false, false, false, false, false, false, false, false, false, false,
+  false, false, false, false, false, false, false, false, false, false, false,
+  false, false, false, false, false, false, false, false, false, false, false,
+  false, false, false, false, false, false, false, false, false, false, false,
+  false, false, false, false, false, false, false, false, false, false, false,
+  false, false, false, false, false, false, false, false, false, false, false,
+  false, false, false, false, false, false, false, false, false, false, false,
+  false, false, false,
+]
 
 fn inline token?(byte: Int) -> Bool {
-  match byte {
-    case v if lower?(v) or upper?(v) or digit?(v) -> true
-    case
-      EXL
-        or HSH
-        or DLR
-        or PRC
-        or AMP
-        or SQU
-        or AST
-        or PLUS
-        or HYPHEN
-        or DOT
-        or CAR
-        or UND
-        or GRV
-        or PIP
-        or TLD
-    -> {
-      true
-    }
-    case _ -> false
-  }
+  TOKEN_BYTES.get_unchecked(byte)
 }
 
 fn inline tokens?[B: Bytes, S: ToSlice[B]](input: ref S) -> Bool {
