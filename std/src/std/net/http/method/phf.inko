@@ -3,9 +3,9 @@ import std.bytes (Bytes)
 # The code in this module is generated using ./std/gen/hash.py and _must not_ be
 # edited by hand. For more information, refer to ./std/gen/README.md.
 
-let G = [0, 7, 6, 3, 3, 4, 7, 1, 6]
-let S1 = [7, 6, 7, 7, 8, 4, 5]
-let S2 = [6, 3, 1, 5, 2, 6, 4]
+let G = [0, 0, 0, 5, 5, 0, 14, 4, 0, 2, 0, 0, 0, 0, 3, 2]
+let S1 = [10, 1, 5, 7, 3, 6, 5]
+let S2 = [13, 7, 9, 12, 2, 11, 12]
 let KEYS = [
   'CONNECT',
   'DELETE',
@@ -26,7 +26,7 @@ fn inline hash[B: Bytes](key: ref B, salt: ref Array[Int]) -> Int {
     i += 1
   }
 
-  h % 9
+  h & 15
 }
 
 # Returns the index of the given key.
@@ -37,7 +37,7 @@ fn index_of[B: Bytes](key: ref B) -> Int {
 
   let a = G.get(hash(key, S1)).or_panic
   let b = G.get(hash(key, S2)).or_panic
-  let i = a.wrapping_add(b) % 9
+  let i = a.wrapping_add(b) & 15
 
   match KEYS.get(i) {
     case Ok(v) if key.equals?(v) -> i
