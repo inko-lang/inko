@@ -299,7 +299,7 @@ type pub inline HeaderMap {
 
   # Returns a new and empty `HeaderMap`.
   fn pub static new -> Self {
-    Self(Map.new)
+    Self(Map.with_capacity(16))
   }
 
   # Sets a `Header` to the given value, overwriting any previous values.
