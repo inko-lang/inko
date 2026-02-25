@@ -9,20 +9,36 @@ let TEST_PATH = '../test/std/net/http/test_header.inko'
 let SRC_TEMPLATE = '
 import std.bytes (Bytes)
 import std.net.http (Header)
-import std.net.http.header.phf
+import std.ptr
 import std.string (ToString)
 
 # The code in this module is generated and _must not_ be edited by hand. For
 # more information, refer to ./std/gen/README.md.
 
+let MIN = $MIN
+let MAX = $MAX
+let NAMES = [
+  $NAMES
+]
+
 $CONSTANTS
 
 fn name(index: Int) -> String {
-  phf.KEYS.get(index).or_panic
+  NAMES.get(index).or_panic
 }
 
 fn inline index_of[B: Bytes + ToString](input: ref B) -> Int {
-  phf.index_of(input)
+  let len = input.size
+
+  if len < MIN or len > MAX { return -1 }
+
+  let start = input.pointer.0 as Int
+  let tail = ptr.add(input.pointer, 1)
+
+  match len {
+    $PARSE
+    case _ -> -1
+  }
 }
 
 impl Header {
@@ -41,6 +57,9 @@ fn pub tests(t: mut Tests) {
 
   t.test('Header.new', fn (t) {
     $PARSE
+    t.equal(Header.new(''), Header.Other(''))
+    t.equal(Header.new('acc'), Header.Other('acc'))
+    t.equal(Header.new('ACCEPT'), Header.Other('ACCEPT'))
     t.equal(Header.new('example'), Header.Other('example'))
     t.not_equal(Header.new('example'), Header.Other('Example'))
   })
@@ -103,6 +122,8 @@ type async Main {
 
     let src_consts = StringBuffer.new
     let src_static = StringBuffer.new
+    let src_parse = ByteArray.new
+    let src_names = StringBuffer.new
 
     let test_parse = StringBuffer.new
     let test_static = StringBuffer.new
@@ -111,12 +132,38 @@ type async Main {
     let test_eq = StringBuffer.new
     let test_to_string = StringBuffer.new
     let test_format = StringBuffer.new
+    let mut max = 0
+    let mut min = 10_000
+    let trie: Map[Int, ByteArray] = Map.new
 
     for (idx, header) in data.into_string.split('\n').with_index {
       let meth = to_snake_case(header)
       let name = to_header_case(header)
       let const = meth.to_upper
+      let len = header.size
+      let head = header.get(0).or_panic
+      let tail = header.slice(1, header.size).to_string
 
+      if len > max { max = len }
+
+      if len < min { min = len }
+
+      let rows = match trie.get_mut(len) {
+        case Ok(v) -> v
+        case _ -> {
+          let rows = ByteArray.new
+          let ret = mut rows
+
+          trie.set(len, rows)
+          ret
+        }
+      }
+
+      rows.append(
+        'case ${head} if ptr.equal(tail, "${tail}".pointer, ${tail.size}) -> ${idx}\n',
+      )
+
+      src_names.push('"${header}",\n')
       src_consts.push(
         '
 # The ID of the `${name}` header.
@@ -156,7 +203,24 @@ t.test('Header.${meth}', fn (t) {
       test_format.push('t.equal(fmt(Header.${meth}), "${header}")\n')
     }
 
+    let cases = trie.iter_mut.to_array
+
+    cases.sort_by(fn (a, b) { a.0.cmp(b.0) })
+
+    for (len, rows) in cases {
+      src_parse.append('case ${len} -> {\n')
+      src_parse.append('match start {\n')
+      src_parse.append(rows)
+      src_parse.append('case _ -> -1\n')
+      src_parse.append('}\n')
+      src_parse.append('}\n')
+    }
+
     let src = SRC_TEMPLATE
+      .replace('$MIN', min.to_string)
+      .replace('$MAX', max.to_string)
+      .replace('$PARSE', src_parse.into_string)
+      .replace('$NAMES', src_names.into_string)
       .replace('$CONSTANTS', src_consts.into_string)
       .replace('$STATIC', src_static.into_string)
 

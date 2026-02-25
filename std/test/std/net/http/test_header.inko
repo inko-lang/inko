@@ -364,6 +364,9 @@ fn pub tests(t: mut Tests) {
     t.equal(Header.new('sec-websocket-protocol'), Header.sec_websocket_protocol)
     t.equal(Header.new('sec-websocket-version'), Header.sec_websocket_version)
 
+    t.equal(Header.new(''), Header.Other(''))
+    t.equal(Header.new('acc'), Header.Other('acc'))
+    t.equal(Header.new('ACCEPT'), Header.Other('ACCEPT'))
     t.equal(Header.new('example'), Header.Other('example'))
     t.not_equal(Header.new('example'), Header.Other('Example'))
   })

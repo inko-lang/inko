@@ -20,8 +20,6 @@ http_method:
 
 http_header:
 	mkdir -p ../src/std/net/http/header
-	python hash.py data/http_headers.txt template.tmpl --hft 2 --trials 200 \
-		--pow2 --output std | inko fmt - > ../src/std/net/http/header/phf.inko
 	inko run http_headers/src/main.inko
 	inko fmt ../src/std/net/http/header.inko
 	inko fmt ../test/std/net/http/test_header.inko
