@@ -1,11 +1,12 @@
 import std.bytes (Bytes)
+import std.ptr
 
 # The code in this module is generated using ./std/gen/hash.py and _must not_ be
 # edited by hand. For more information, refer to ./std/gen/README.md.
 
-let G = [0, 0, 0, 5, 5, 0, 14, 4, 0, 2, 0, 0, 0, 0, 3, 2]
-let S1 = [10, 1, 5, 7, 3, 6, 5]
-let S2 = [13, 7, 9, 12, 2, 11, 12]
+let G = [0, 0, 3, 6, 0, 4, 0, 4, 0, 1, 0, 14, 0, 0, 7, 0]
+let S1 = [14, 11, 7, 5, 13, 4, 11]
+let S2 = [6, 13, 4, 3, 7, 1, 12]
 let KEYS = [
   'CONNECT',
   'DELETE',
@@ -17,26 +18,33 @@ let KEYS = [
   'TRACE',
 ]
 
-fn inline hash[B: Bytes](key: ref B, salt: ref Array[Int]) -> Int {
+fn inline hash[B: Bytes](key: ref B) -> (Int, Int) {
   let mut i = 0
-  let mut h = 0
+  let mut h1 = 0
+  let mut h2 = 0
 
   while i < key.size {
-    h = h.wrapping_add(salt.get(i).or_panic.wrapping_mul(key.get(i).or_panic))
+    let s1 = S1.get_unchecked(i)
+    let s2 = S2.get_unchecked(i)
+    let k = ptr.add(key.pointer, i).0 as Int
+
+    h1 = h1.wrapping_add(s1.wrapping_mul(k))
+    h2 = h2.wrapping_add(s2.wrapping_mul(k))
     i += 1
   }
 
-  h & 15
+  (h1 & 15, h2 & 15)
 }
 
 # Returns the index of the given key.
 #
 # If the key is an unknown key, `-1` is returned.
-fn index_of[B: Bytes](key: ref B) -> Int {
+fn inline index_of[B: Bytes](key: ref B) -> Int {
   if key.size > 7 { return -1 }
 
-  let a = G.get(hash(key, S1)).or_panic
-  let b = G.get(hash(key, S2)).or_panic
+  let (k1, k2) = hash(key)
+  let a = G.get_unchecked(k1)
+  let b = G.get_unchecked(k2)
   let i = a.wrapping_add(b) & 15
 
   match KEYS.get(i) {

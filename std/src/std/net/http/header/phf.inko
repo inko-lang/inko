@@ -1,23 +1,24 @@
 import std.bytes (Bytes)
+import std.ptr
 
 # The code in this module is generated using ./std/gen/hash.py and _must not_ be
 # edited by hand. For more information, refer to ./std/gen/README.md.
 
 let G = [
-  0, 0, 0, 0, 0, 0, 0, 69, 0, 0, 0, 13, 0, 0, 57, 73, 0, 0, 0, 0, 88, 45, 0, 95,
-  65, 0, 25, 93, 0, 24, 0, 62, 0, 0, 33, 34, 0, 53, 0, 0, 22, 44, 70, 120, 0,
-  42, 0, 0, 0, 0, 106, 0, 0, 115, 0, 0, 32, 36, 0, 48, 0, 124, 0, 17, 0, 0, 126,
-  0, 12, 39, 78, 126, 14, 73, 44, 0, 114, 9, 0, 71, 41, 27, 0, 33, 111, 16, 44,
-  39, 9, 56, 65, 97, 114, 18, 4, 8, 85, 18, 17, 0, 0, 49, 79, 125, 15, 0, 6, 25,
-  126, 0, 0, 0, 55, 0, 0, 0, 40, 49, 60, 0, 72, 0, 0, 23, 101, 0, 0, 35,
+  0, 0, 0, 0, 59, 116, 0, 0, 0, 0, 43, 0, 0, 111, 0, 0, 57, 0, 0, 100, 0, 17,
+  82, 108, 123, 0, 35, 0, 117, 110, 0, 0, 0, 0, 0, 0, 73, 0, 92, 0, 0, 0, 0, 48,
+  56, 11, 0, 31, 90, 0, 0, 0, 0, 90, 121, 0, 47, 2, 0, 0, 9, 54, 11, 0, 2, 20,
+  53, 1, 0, 56, 0, 36, 37, 0, 0, 0, 36, 0, 42, 19, 20, 26, 30, 121, 0, 0, 33,
+  32, 81, 0, 9, 9, 57, 7, 0, 15, 68, 9, 51, 90, 0, 119, 25, 50, 0, 16, 44, 41,
+  55, 120, 0, 9, 0, 30, 0, 94, 0, 30, 42, 120, 25, 0, 0, 26, 13, 0, 115, 5,
 ]
 let S1 = [
-  92, 79, 103, 125, 37, 86, 14, 81, 32, 63, 81, 119, 67, 57, 23, 71, 119, 47,
-  12, 18, 48, 115, 18, 31, 26, 68, 64, 59, 13, 35, 8, 54,
+  44, 46, 97, 50, 29, 113, 102, 112, 61, 78, 87, 124, 49, 125, 2, 105, 108, 91,
+  59, 101, 2, 17, 52, 22, 112, 64, 39, 28, 37, 111, 56, 106,
 ]
 let S2 = [
-  83, 116, 9, 69, 34, 40, 13, 102, 10, 29, 87, 32, 15, 127, 34, 104, 93, 122,
-  12, 18, 42, 66, 62, 8, 31, 21, 127, 107, 26, 28, 21, 34,
+  22, 100, 37, 107, 104, 90, 48, 3, 29, 65, 17, 119, 71, 35, 70, 117, 7, 104,
+  115, 78, 15, 77, 119, 40, 94, 68, 33, 90, 41, 18, 75, 51,
 ]
 let KEYS = [
   'accept',
@@ -94,26 +95,33 @@ let KEYS = [
   'sec-websocket-version',
 ]
 
-fn inline hash[B: Bytes](key: ref B, salt: ref Array[Int]) -> Int {
+fn inline hash[B: Bytes](key: ref B) -> (Int, Int) {
   let mut i = 0
-  let mut h = 0
+  let mut h1 = 0
+  let mut h2 = 0
 
   while i < key.size {
-    h = h.wrapping_add(salt.get(i).or_panic.wrapping_mul(key.get(i).or_panic))
+    let s1 = S1.get_unchecked(i)
+    let s2 = S2.get_unchecked(i)
+    let k = ptr.add(key.pointer, i).0 as Int
+
+    h1 = h1.wrapping_add(s1.wrapping_mul(k))
+    h2 = h2.wrapping_add(s2.wrapping_mul(k))
     i += 1
   }
 
-  h & 127
+  (h1 & 127, h2 & 127)
 }
 
 # Returns the index of the given key.
 #
 # If the key is an unknown key, `-1` is returned.
-fn index_of[B: Bytes](key: ref B) -> Int {
+fn inline index_of[B: Bytes](key: ref B) -> Int {
   if key.size > 32 { return -1 }
 
-  let a = G.get(hash(key, S1)).or_panic
-  let b = G.get(hash(key, S2)).or_panic
+  let (k1, k2) = hash(key)
+  let a = G.get_unchecked(k1)
+  let b = G.get_unchecked(k2)
   let i = a.wrapping_add(b) & 127
 
   match KEYS.get(i) {
