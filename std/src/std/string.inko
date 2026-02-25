@@ -744,9 +744,7 @@ impl Equal for String {
   # 'foo' == 'bar' # => false
   # ```
   fn pub ==(other: String) -> Bool {
-    let lsize = self.size
-
-    if lsize == other.size { ptr.equal(@ptr, other.ptr, lsize) } else { false }
+    equals?(other)
   }
 }
 
