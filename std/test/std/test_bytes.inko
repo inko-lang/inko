@@ -615,6 +615,7 @@ fn pub tests(t: mut Tests) {
     t.equal('AÄ'.to_byte_array, 'AÄ'.to_byte_array)
     t.equal('쿠키'.to_byte_array, '쿠키'.to_byte_array)
 
+    t.not_equal('abc'.to_byte_array, 'abC'.to_byte_array)
     t.not_equal('foo'.to_byte_array, 'bar'.to_byte_array)
     t.not_equal('Ä'.to_byte_array, '쿠'.to_byte_array)
     t.not_equal('AÄ'.to_byte_array, 'A쿠'.to_byte_array)

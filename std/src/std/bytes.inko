@@ -138,7 +138,7 @@ trait pub Bytes: ToString + ToByteArray {
   fn pub equals?[O: Bytes](other: ref O) -> Bool {
     let len = size
 
-    len == other.size and (len == 0 or ptr.equal(pointer, other.pointer, len))
+    len == other.size and ptr.equal(pointer, other.pointer, len)
   }
 
   # Returns `true` if `self` and `other` contain identical bytes, using an ASCII
@@ -1337,13 +1337,7 @@ impl Equal for ByteArray {
   # ByteArray.from_array([10]) == ByteArray.from_array([20]) # => false
   # ```
   fn pub ==(other: ref ByteArray) -> Bool {
-    let size = self.size
-
-    if size == other.size {
-      ptr.equal(pointer, other.pointer, size: size)
-    } else {
-      false
-    }
+    equals?(other)
   }
 }
 

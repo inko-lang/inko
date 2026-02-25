@@ -340,6 +340,7 @@ fn pub tests(t: mut Tests) {
     t.equal('AÄ', 'AÄ')
     t.equal('쿠키', '쿠키')
 
+    t.not_equal('abc', 'abC')
     t.not_equal('foo', 'bar')
     t.not_equal('Ä', '쿠')
     t.not_equal('AÄ', 'A쿠')

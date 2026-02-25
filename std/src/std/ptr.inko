@@ -57,8 +57,32 @@ fn ends_with?(
 # `size` bytes of data. If this isn't the case, the behaviour of this function
 # is undefined.
 fn equal(left: Pointer[UInt8], right: Pointer[UInt8], size: Int) -> Bool {
-  let mut chunks = size / 8
+  if size == 0 { return true }
+
+  let mut size = size
   let mut idx = 0
+
+  # For inputs with more than two bytes we first compare the first and last
+  # bytes. If this isn't the case we can skip all the other logic further below.
+  # This way when we compare e.g. "kitten mittens" and "kitten mittenS" we only
+  # need two reads and comparisons instead of many.
+  #
+  # Of course there are plenty of strings where both the start and end will
+  # match for both the LHS and RHS values, but for cases like e.g. keywords or
+  # HTTP verbs this can help cut down the amount of redundant reads and
+  # comparisons.
+  if size > 2 {
+    if left.0 as Int != (right.0 as Int) { return false }
+
+    let last = size - 1
+
+    if add(left, last).0 as Int != (add(right, last).0 as Int) { return false }
+
+    idx += 1
+    size -= 1
+  }
+
+  let mut chunks = size / 8
 
   # We take advantage of the fact that an Int can fit 8 bytes, and thus read 8
   # bytes at once and compare the resulting Int, instead of comparing each
