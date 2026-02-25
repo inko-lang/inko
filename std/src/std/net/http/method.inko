@@ -1,25 +1,66 @@
+import std.alloc
 import std.bytes (Bytes)
 import std.fmt (Formatter)
 import std.hash (Hasher)
 import std.net.http (Method)
-import std.net.http.method.phf
 import std.string (ToString)
 
 # The code in this module is generated and _must not_ be edited by hand. For
 # more information, refer to ./std/gen/README.md.
 
+let MIN = 3
 let MAX = 7
 
+fn inline string_to_int[B: Bytes](value: ref B) -> Int {
+  let val = 0 as UInt64
+  let len = value.size
+
+  alloc.copy(from: value.pointer, to: (mut val) as Pointer[UInt8], size: len)
+  val as Int
+}
+
 fn parse[B: Bytes + ToString](input: ref B) -> Option[Method] {
-  match phf.index_of(input) {
-    case 0 -> Option.Some(Method.Connect)
-    case 1 -> Option.Some(Method.Delete)
-    case 2 -> Option.Some(Method.Get)
-    case 3 -> Option.Some(Method.Head)
-    case 4 -> Option.Some(Method.Options)
-    case 5 -> Option.Some(Method.Post)
-    case 6 -> Option.Some(Method.Put)
-    case 7 -> Option.Some(Method.Trace)
+  let len = input.size
+
+  if len < MIN or len > MAX { return Option.None }
+
+  let val = string_to_int(input)
+  let start = val & 0xFF
+
+  match len {
+    case 3 -> {
+      match start {
+        case 71 if val == 0x544547 -> Option.Some(Method.Get)
+        case 80 if val == 0x545550 -> Option.Some(Method.Put)
+        case _ -> Option.None
+      }
+    }
+    case 4 -> {
+      match start {
+        case 72 if val == 0x44414548 -> Option.Some(Method.Head)
+        case 80 if val == 0x54534f50 -> Option.Some(Method.Post)
+        case _ -> Option.None
+      }
+    }
+    case 5 -> {
+      match start {
+        case 84 if val == 0x4543415254 -> Option.Some(Method.Trace)
+        case _ -> Option.None
+      }
+    }
+    case 6 -> {
+      match start {
+        case 68 if val == 0x4554454c4544 -> Option.Some(Method.Delete)
+        case _ -> Option.None
+      }
+    }
+    case 7 -> {
+      match start {
+        case 67 if val == 0x5443454e4e4f43 -> Option.Some(Method.Connect)
+        case 79 if val == 0x534e4f4954504f -> Option.Some(Method.Options)
+        case _ -> Option.None
+      }
+    }
     case _ -> Option.None
   }
 }

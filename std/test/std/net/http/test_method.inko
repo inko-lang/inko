@@ -14,6 +14,13 @@ fn pub tests(t: mut Tests) {
     t.equal(method.parse('POST'), Option.Some(Method.Post))
     t.equal(method.parse('PUT'), Option.Some(Method.Put))
     t.equal(method.parse('TRACE'), Option.Some(Method.Trace))
+
+    t.equal(method.parse(''), Option.None)
+    t.equal(method.parse('a'), Option.None)
+    t.equal(method.parse('ab'), Option.None)
+    t.equal(method.parse('GETX'), Option.None)
+    t.equal(method.parse('HAED'), Option.None)
+    t.equal(method.parse('INVALID_METHOD'), Option.None)
   })
 
   t.test('hash', fn (t) {

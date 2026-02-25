@@ -14,8 +14,6 @@ mime:
 
 http_method:
 	mkdir -p ../src/std/net/http/method
-	python hash.py data/http_methods.txt template.tmpl --hft 2 --trials 200 \
-		--pow2 --output std | inko fmt - > ../src/std/net/http/method/phf.inko
 	inko run http_methods/src/main.inko
 	inko fmt ../src/std/net/http/method.inko
 	inko fmt ../test/std/net/http/test_method.inko

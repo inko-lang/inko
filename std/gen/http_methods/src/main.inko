@@ -1,5 +1,6 @@
-import std.bytes (Slice)
+import std.bytes (Bytes, Slice)
 import std.fs.file (ReadOnlyFile, WriteOnlyFile)
+import std.int (Format)
 import std.string (StringBuffer)
 
 let DATA_PATH = 'data/http_methods.txt'
@@ -7,20 +8,36 @@ let SRC_PATH = '../src/std/net/http/method.inko'
 let TEST_PATH = '../test/std/net/http/test_method.inko'
 
 let SRC_TEMPLATE = '
+import std.alloc
 import std.bytes (Bytes)
 import std.fmt (Formatter)
 import std.hash (Hasher)
 import std.net.http (Method)
-import std.net.http.method.phf
 import std.string (ToString)
 
 # The code in this module is generated and _must not_ be edited by hand. For
 # more information, refer to ./std/gen/README.md.
 
+let MIN = $MIN
 let MAX = $MAX
 
+fn inline string_to_int[B: Bytes](value: ref B) -> Int {
+  let val = 0 as UInt64
+  let len = value.size
+
+  alloc.copy(from: value.pointer, to: (mut val) as Pointer[UInt8], size: len)
+  val as Int
+}
+
 fn parse[B: Bytes + ToString](input: ref B) -> Option[Method] {
-  match phf.index_of(input) {
+  let len = input.size
+
+  if len < MIN or len > MAX { return Option.None }
+
+  let val = string_to_int(input)
+  let start = val & 0xFF
+
+  match len {
     $PARSE
     case _ -> Option.None
   }
@@ -62,6 +79,12 @@ import std.test (Tests)
 fn pub tests(t: mut Tests) {
   t.test('parse', fn (t) {
     $PARSE
+    t.equal(method.parse(''), Option.None)
+    t.equal(method.parse('a'), Option.None)
+    t.equal(method.parse('ab'), Option.None)
+    t.equal(method.parse('GETX'), Option.None)
+    t.equal(method.parse('HAED'), Option.None)
+    t.equal(method.parse('INVALID_METHOD'), Option.None)
   })
 
   t.test('hash', fn (t) {
@@ -86,6 +109,24 @@ fn pub tests(t: mut Tests) {
 }
 "
 
+fn extern memmove(
+  to: Pointer[UInt8],
+  from: Pointer[UInt8],
+  size: UInt64,
+) -> Pointer[UInt8]
+
+fn string_to_int[B: Bytes](value: ref B) -> Int {
+  let val = 0 as UInt64
+  let len = value.size
+
+  memmove(
+    to: (mut val) as Pointer[UInt8],
+    from: value.pointer,
+    size: len as UInt64,
+  )
+  val as Int
+}
+
 fn to_upper(byte: Int) -> Int {
   if byte >= 97 and byte <= 122 { byte - 32 } else { byte }
 }
@@ -105,7 +146,7 @@ type async Main {
       .then(fn (f) { f.read_all(data) })
       .or_panic
 
-    let src_parse = StringBuffer.new
+    let src_parse = ByteArray.new
     let src_hash = StringBuffer.new
     let src_eq = StringBuffer.new
     let src_to_string = StringBuffer.new
@@ -118,13 +159,34 @@ type async Main {
     let test_to_string = StringBuffer.new
     let test_format = StringBuffer.new
     let mut max = 0
+    let mut min = 10_000
+    let trie: Map[Int, ByteArray] = Map.new
 
     for (idx, method) in data.into_string.split('\n').with_index {
       let cons = to_pascal_case(ref method)
+      let len = method.size
+      let head = method.get(0).or_panic
+      let ival = string_to_int(method).format(Format.Hex)
 
-      if method.size > max { max = method.size }
+      if len > max { max = len }
 
-      src_parse.push('case ${idx} -> Option.Some(Method.${cons})\n')
+      if len < min { min = len }
+
+      let rows = match trie.get_mut(len) {
+        case Ok(v) -> v
+        case _ -> {
+          let rows = ByteArray.new
+          let ret = mut rows
+
+          trie.set(len, rows)
+          ret
+        }
+      }
+
+      rows.append(
+        'case ${head} if val == 0x${ival} -> Option.Some(Method.${cons})\n',
+      )
+
       src_hash.push('case ${cons} -> ${idx}.hash(hasher)\n')
       src_eq.push('case (${cons}, ${cons}) -> true\n')
       src_to_string.push("case ${cons} -> '${method}'\n")
@@ -140,7 +202,21 @@ type async Main {
       test_format.push('t.equal(fmt(Method.${cons}), "${cons}")\n')
     }
 
+    let cases = trie.iter_mut.to_array
+
+    cases.sort_by(fn (a, b) { a.0.cmp(b.0) })
+
+    for (len, rows) in cases {
+      src_parse.append('case ${len} -> {\n')
+      src_parse.append('match start {\n')
+      src_parse.append(rows)
+      src_parse.append('case _ -> Option.None\n')
+      src_parse.append('}\n')
+      src_parse.append('}\n')
+    }
+
     let src = SRC_TEMPLATE
+      .replace('$MIN', min.to_string)
       .replace('$MAX', max.to_string)
       .replace('$PARSE', src_parse.into_string)
       .replace('$HASH', src_hash.into_string)
