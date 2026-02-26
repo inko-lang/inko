@@ -135,13 +135,12 @@ type builtin String {
   fn static from_borrowed_primitive(value: PrimitiveString) -> String {
     if value.size == 0 { return '' }
 
-    let new = alloc.allocate(value.size + 1)
-
     # String values are NULL terminated _in addition_ to storing a length, such
     # that we can pass pointers to C functions as-is, so we have to make sure
     # the NULL byte is indeed present.
+    let new = alloc.allocate_zeroed(value.size + 1)
+
     alloc.copy(from: value.bytes, to: new, size: value.size)
-    alloc.write(byte: 0, to: ptr.add(new, value.size), size: 1)
     String(ptr: new, size: value.size)
   }
 

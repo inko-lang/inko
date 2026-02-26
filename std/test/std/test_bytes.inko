@@ -2,6 +2,7 @@ import helpers (hash)
 import std.array (OutOfBounds)
 import std.bytes (Iter, Slice)
 import std.fmt (fmt)
+import std.ptr
 import std.test (Tests)
 
 fn split(string: String, on: String, start: Int, end: Int) -> Array[String] {
@@ -579,7 +580,18 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('ByteArray.to_string', fn (t) {
-    t.equal(ByteArray.from_array([105, 110, 107, 111]).to_string, 'inko')
+    let valid = ByteArray.from_array([105, 110, 107, 111]).to_string
+    let invalid = ByteArray
+      .from_array(
+        [72, 101, 108, 108, 111, 32, 240, 144, 128, 87, 111, 114, 108, 100],
+      )
+      .to_string
+
+    t.equal(valid, 'inko')
+    t.equal(ptr.add(valid.pointer, valid.size).0 as Int, 0)
+
+    t.equal(invalid, 'Hello �World')
+    t.equal(ptr.add(invalid.pointer, invalid.size).0 as Int, 0)
   })
 
   t.test('ByteArray.==', fn (t) {

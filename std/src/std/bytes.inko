@@ -952,12 +952,10 @@ type pub ByteArray {
   # bytes.empty?          # => true
   # ```
   fn pub mut drain_to_string -> String {
-    if empty? { return '' }
-
-    let str = String.from_primitive(inko_string_from_bytes(@buffer, @size))
+    let res = to_string
 
     clear
-    str
+    res
   }
 
   # Writes the byte `value` to the position `index`.
@@ -1312,7 +1310,9 @@ impl ToString for ByteArray {
   fn pub to_string -> String {
     if empty? { return '' }
 
-    String.from_primitive(inko_string_from_bytes(@buffer, @size))
+    let str = inko_string_from_bytes(@buffer, @size)
+
+    String(ptr: str.bytes, size: str.size - 1)
   }
 }
 

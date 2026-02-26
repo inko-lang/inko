@@ -419,7 +419,9 @@ impl ToString for Float {
   # Float.infinity.to_string # => 'Infinity'
   # ```
   fn pub to_string -> String {
-    String.from_primitive(inko_float_to_string(self as Float64))
+    let str = inko_float_to_string(self as Float64)
+
+    String(ptr: str.bytes, size: str.size - 1)
   }
 }
 

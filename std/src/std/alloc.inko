@@ -31,6 +31,11 @@ fn allocate[T](size: Int) -> Pointer[T] {
   resize(buffer: 0 as Pointer[T], size: size)
 }
 
+fn allocate_zeroed[T](size: Int) -> Pointer[T] {
+  libc.calloc(elements: size as UInt64, size: size_of[T] as UInt64)
+    as Pointer[T]
+}
+
 fn free[T](pointer: Pointer[T]) {
   libc.free(pointer as Pointer[UInt8])
 }

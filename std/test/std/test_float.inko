@@ -2,6 +2,7 @@ import helpers (hash)
 import std.cmp (Ordering)
 import std.fmt (fmt)
 import std.int (MAX as INT_MAX)
+import std.ptr
 import std.test (Tests)
 
 let NAN = 0.0 / 0.0
@@ -268,6 +269,17 @@ fn pub tests(t: mut Tests) {
     t.equal(Float.not_a_number.to_string, 'NaN')
     t.equal(Float.infinity.to_string, 'Infinity')
     t.equal(Float.negative_infinity.to_string, '-Infinity')
+
+    # Ensure all values are NULL terminated.
+    for
+      val
+    in
+      [10.2, Float.not_a_number, Float.infinity, Float.negative_infinity]
+    {
+      let str = val.to_string
+
+      t.equal(ptr.add(str.pointer, str.size).0 as Int, 0)
+    }
   })
 
   t.test('Float.hash', fn (t) { t.equal(hash(10.2), hash(10.2)) })
