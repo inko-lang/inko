@@ -60,10 +60,10 @@ fn parse_resolve_host_response(json: Json) -> Result[Array[IpAddress], Error] {
       let ptr = addr.pointer
       let ip = match fam {
         case libc.AF_INET if addr.size == 4 -> {
-          net.parse_v4_address(ptr as Pointer[UInt8])
+          net.parse_v4_address(ptr as Pointer[Uint8])
         }
         case libc.AF_INET6 if addr.size == 16 -> {
-          net.parse_v6_address(ptr as Pointer[UInt16])
+          net.parse_v6_address(ptr as Pointer[Uint16])
         }
         case _ -> throw Error.ServerError
       }

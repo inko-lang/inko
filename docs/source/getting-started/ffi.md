@@ -59,19 +59,19 @@ equivalents:
 | 64
 | `int64_t`
 |-
-| `UInt8`
+| `Uint8`
 | 8
 | `uint8_t`
 |-
-| `UInt16`
+| `Uint16`
 | 16
 | `uint16_t`
 |-
-| `UInt32`
+| `Uint32`
 | 32
 | `uint32_t`
 |-
-| `UInt64`
+| `Uint64`
 | 64
 | `uint64_t`
 |-
@@ -92,7 +92,7 @@ Pointer-pointers don't have a dedicated type (i.e. there's no
 (e.g. `Pointer[Int8]`).
 
 There's no equivalent of C's `size_t` type, as Inko only supports 64-bits
-platforms, and thus you can just use `UInt64` instead.
+platforms, and thus you can just use `Uint64` instead.
 
 C types don't support methods and operators. This means you'll need to
 explicitly cast them to Inko types (e.g. `Int`) first.
@@ -266,7 +266,7 @@ Rust, and shouldn't be used outside of the standard library.
 Variadic functions are also supported, and are defined as follows:
 
 ```inko
-fn extern printf(format: Pointer[UInt8], ...) -> Int32
+fn extern printf(format: Pointer[Uint8], ...) -> Int32
 
 type async Main {
   fn async main {

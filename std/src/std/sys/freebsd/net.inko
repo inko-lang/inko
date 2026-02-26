@@ -19,7 +19,7 @@ fn inline accept(fd: Int32) -> Int32 {
   sys.accept4(
     fd,
     0 as Pointer[sys.SockAddr],
-    0 as Pointer[UInt32],
+    0 as Pointer[Uint32],
     sys.SOCK_CLOEXEC | sys.SOCK_NONBLOCK as Int32,
   )
 }
@@ -29,11 +29,11 @@ fn inline init_v4_address(
   ip: Ipv4Address,
   port: Int,
 ) {
-  address.sin_len = sys.sockaddr_in_size as UInt8
-  address.sin_family = libc.AF_INET as UInt8
-  address.sin_port = net.htons(port) as UInt16
-  address.sin_addr = net.pack_v4(ip) as UInt32
-  address.sin_zero = 0 as UInt64
+  address.sin_len = sys.sockaddr_in_size as Uint8
+  address.sin_family = libc.AF_INET as Uint8
+  address.sin_port = net.htons(port) as Uint16
+  address.sin_addr = net.pack_v4(ip) as Uint32
+  address.sin_zero = 0 as Uint64
 }
 
 fn inline init_v6_address(
@@ -41,15 +41,15 @@ fn inline init_v6_address(
   ip: Ipv6Address,
   port: Int,
 ) {
-  address.sin6_len = sys.sockaddr_in6_size as UInt8
-  address.sin6_family = libc.AF_INET6 as UInt8
-  address.sin6_port = net.htons(port) as UInt16
-  address.sin6_addr0 = net.pack_v6_pair(ip.a, ip.b) as UInt32
-  address.sin6_addr1 = net.pack_v6_pair(ip.c, ip.d) as UInt32
-  address.sin6_addr2 = net.pack_v6_pair(ip.e, ip.f) as UInt32
-  address.sin6_addr3 = net.pack_v6_pair(ip.g, ip.h) as UInt32
-  address.sin6_flowinfo = 0 as UInt32
-  address.sin6_scope_id = 0 as UInt32
+  address.sin6_len = sys.sockaddr_in6_size as Uint8
+  address.sin6_family = libc.AF_INET6 as Uint8
+  address.sin6_port = net.htons(port) as Uint16
+  address.sin6_addr0 = net.pack_v6_pair(ip.a, ip.b) as Uint32
+  address.sin6_addr1 = net.pack_v6_pair(ip.c, ip.d) as Uint32
+  address.sin6_addr2 = net.pack_v6_pair(ip.e, ip.f) as Uint32
+  address.sin6_addr3 = net.pack_v6_pair(ip.g, ip.h) as Uint32
+  address.sin6_flowinfo = 0 as Uint32
+  address.sin6_scope_id = 0 as Uint32
 }
 
 fn inline init_unix_address(
@@ -65,11 +65,11 @@ fn inline init_unix_address(
 
   if path.empty? or path_size > max_size { throw Error.InvalidArgument }
 
-  let addr_path_ptr = address as Int + name_offset as Pointer[UInt8]
+  let addr_path_ptr = address as Int + name_offset as Pointer[Uint8]
   let addr_size = name_offset + path_size
 
-  address.sun_family = libc.AF_UNIX as UInt8
-  address.sun_len = addr_size as UInt8
+  address.sun_family = libc.AF_UNIX as Uint8
+  address.sun_len = addr_size as Uint8
   alloc.copy(path.pointer, addr_path_ptr, path_size)
   Result.Ok(addr_size)
 }
@@ -86,8 +86,8 @@ fn inline send_file_stream[S: mut + RawSocketOperations](
   to: mut S,
 ) -> Result[Int, Error] {
   let mut off = 0 as Int64
-  let len = 0 as UInt64
-  let hdtr = 0 as Pointer[UInt8]
+  let len = 0 as Uint64
+  let hdtr = 0 as Pointer[Uint8]
   let flags = 0 as Int32
   let sock = to.raw_socket
 

@@ -14,7 +14,7 @@ import std.ptr
 import std.string (IntoString, PrimitiveString, ToString)
 
 fn extern inko_string_from_bytes(
-  bytes: Pointer[UInt8],
+  bytes: Pointer[Uint8],
   size: Int,
 ) -> PrimitiveString
 
@@ -83,7 +83,7 @@ trait pub Bytes: ToString + ToByteArray {
   #
   # This method is meant for FFI purposes, and use of it should be avoided at
   # all costs.
-  fn pub pointer -> Pointer[UInt8]
+  fn pub pointer -> Pointer[Uint8]
 
   # Returns an iterator over the bytes in `self`.
   #
@@ -614,7 +614,7 @@ impl Bytes for Slice {
   #
   # This method doesn't perform any bounds checking, meaning callers should do
   # so manually (e.g. using `Slice.size`).
-  fn pub pointer -> Pointer[UInt8] {
+  fn pub pointer -> Pointer[Uint8] {
     ptr.add(@source.pointer, @start)
   }
 }
@@ -696,7 +696,7 @@ type pub ByteArray {
   let mut @capacity: Int
 
   # The buffer containing the raw bytes.
-  let mut @buffer: Pointer[UInt8]
+  let mut @buffer: Pointer[Uint8]
 
   # Returns a new empty `ByteArray`.
   #
@@ -709,7 +709,7 @@ type pub ByteArray {
   # bytes.capacity # => 0
   # ```
   fn pub static new -> ByteArray {
-    Self(size: 0, capacity: 0, buffer: 0 as Pointer[UInt8])
+    Self(size: 0, capacity: 0, buffer: 0 as Pointer[Uint8])
   }
 
   # Returns a `ByteArray` with enough space for at least `size` bytes.
@@ -729,7 +729,7 @@ type pub ByteArray {
     Self(
       size: 0,
       capacity: size,
-      buffer: alloc.resize(0 as Pointer[UInt8], size),
+      buffer: alloc.resize(0 as Pointer[Uint8], size),
     )
   }
 
@@ -761,7 +761,7 @@ type pub ByteArray {
   # # Panics
   #
   # This method panics of `size` if less than zero.
-  fn pub static from_pointer(pointer: Pointer[UInt8], size: Int) -> ByteArray {
+  fn pub static from_pointer(pointer: Pointer[Uint8], size: Int) -> ByteArray {
     if size < 0 { invalid_size(size) }
 
     # While it's unlikely for `pointer` to be NULL while `size` is e.g. 4, it
@@ -1211,7 +1211,7 @@ type pub ByteArray {
     Slice.new(self, 0, size).contains?(value)
   }
 
-  fn inline tail -> Pointer[UInt8] {
+  fn inline tail -> Pointer[Uint8] {
     ptr.add(@buffer, @size)
   }
 
@@ -1220,11 +1220,11 @@ type pub ByteArray {
   }
 
   fn inline mut write_to(index: Int, value: Int) {
-    address_of(index).0 = value as UInt8
+    address_of(index).0 = value as Uint8
   }
 
-  fn inline address_of(index: Int) -> Pointer[UInt8] {
-    (@buffer as Int).wrapping_add(index) as Pointer[UInt8]
+  fn inline address_of(index: Int) -> Pointer[Uint8] {
+    (@buffer as Int).wrapping_add(index) as Pointer[Uint8]
   }
 
   fn inline mut grow(size: Int) {
@@ -1263,7 +1263,7 @@ impl Bytes for ByteArray {
     Result.Ok(get_unchecked(index))
   }
 
-  fn pub pointer -> Pointer[UInt8] {
+  fn pub pointer -> Pointer[Uint8] {
     @buffer
   }
 }

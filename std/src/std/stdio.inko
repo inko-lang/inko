@@ -132,7 +132,7 @@ type pub inline Stdout {
 }
 
 impl WriteInternal for Stdout {
-  fn mut write_internal(data: Pointer[UInt8], size: Int) -> Result[Int, Error] {
+  fn mut write_internal(data: Pointer[Uint8], size: Int) -> Result[Int, Error] {
     sys.write(@fd, data, size)
   }
 }
@@ -180,7 +180,7 @@ type pub inline Stderr {
 }
 
 impl WriteInternal for Stderr {
-  fn mut write_internal(data: Pointer[UInt8], size: Int) -> Result[Int, Error] {
+  fn mut write_internal(data: Pointer[Uint8], size: Int) -> Result[Int, Error] {
     sys.write(@fd, data, size)
   }
 }

@@ -13,9 +13,9 @@ import std.reflect (size_of)
 # must contain at least the number of bytes of their corresponding size argument
 # (e.g. `left` must contain at least `left_size` bytes).
 fn starts_with?(
-  left: Pointer[UInt8],
+  left: Pointer[Uint8],
   left_size: Int,
-  right: Pointer[UInt8],
+  right: Pointer[Uint8],
   right_size: Int,
 ) -> Bool {
   if left_size < right_size or right_size == 0 {
@@ -34,15 +34,15 @@ fn starts_with?(
 # must contain at least the number of bytes of their corresponding size argument
 # (e.g. `left` must contain at least `left_size` bytes).
 fn ends_with?(
-  left: Pointer[UInt8],
+  left: Pointer[Uint8],
   left_size: Int,
-  right: Pointer[UInt8],
+  right: Pointer[Uint8],
   right_size: Int,
 ) -> Bool {
   if left_size < right_size or right_size == 0 {
     false
   } else {
-    let lhs = (left as Int + left_size - right_size) as Pointer[UInt8]
+    let lhs = (left as Int + left_size - right_size) as Pointer[Uint8]
 
     equal(lhs, right, right_size)
   }
@@ -56,7 +56,7 @@ fn ends_with?(
 # Callers of this method _must_ ensure that `left` and `right` point to at least
 # `size` bytes of data. If this isn't the case, the behaviour of this function
 # is undefined.
-fn equal(left: Pointer[UInt8], right: Pointer[UInt8], size: Int) -> Bool {
+fn equal(left: Pointer[Uint8], right: Pointer[Uint8], size: Int) -> Bool {
   if size == 0 { return true }
 
   let mut size = size
@@ -117,8 +117,8 @@ fn equal(left: Pointer[UInt8], right: Pointer[UInt8], size: Int) -> Bool {
 
   # For the remainder we just compare the individual bytes.
   while idx < size {
-    let lhs = (left as Int + idx as Pointer[UInt8]).0 as Int
-    let rhs = (right as Int + idx as Pointer[UInt8]).0 as Int
+    let lhs = (left as Int + idx as Pointer[Uint8]).0 as Int
+    let rhs = (right as Int + idx as Pointer[Uint8]).0 as Int
 
     if lhs != rhs { return false }
 
@@ -133,6 +133,6 @@ fn add[T](pointer: Pointer[T], amount: Int) -> Pointer[T] {
   pointer as Int + (amount * size_of[T]) as Pointer[T]
 }
 
-fn null -> Pointer[UInt8] {
-  0x0 as Pointer[UInt8]
+fn null -> Pointer[Uint8] {
+  0x0 as Pointer[Uint8]
 }

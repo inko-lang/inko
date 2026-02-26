@@ -3,13 +3,13 @@ import std.string (PrimitiveString)
 import std.time (Duration)
 
 fn extern inko_process_panic(
-  process: Pointer[UInt8],
+  process: Pointer[Uint8],
   message: PrimitiveString,
 ) -> Never
 
 fn extern inko_process_suspend(
-  state: Pointer[UInt8],
-  process: Pointer[UInt8],
+  state: Pointer[Uint8],
+  process: Pointer[Uint8],
   time: Int,
 )
 

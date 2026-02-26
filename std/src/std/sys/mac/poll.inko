@@ -60,7 +60,7 @@ type Poller {
     match len as Int {
       case -1 or 0 -> throw Error.last_os_error
       case n -> {
-        Result.Ok((n, ((events.a as Int) + 24 as Pointer[UInt64]).0 as Int))
+        Result.Ok((n, ((events.a as Int) + 24 as Pointer[Uint64]).0 as Int))
       }
     }
   }

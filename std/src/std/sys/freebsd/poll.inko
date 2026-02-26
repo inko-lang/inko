@@ -14,7 +14,7 @@ type Poller {
   let @poll: sys.Poll
 
   fn static new -> Result[Self, Error] {
-    let fd = libc.kqueuex(libc.KQUEUE_CLOEXEC as UInt32)
+    let fd = libc.kqueuex(libc.KQUEUE_CLOEXEC as Uint32)
 
     if fd as Int == -1 { throw Error.last_os_error }
 

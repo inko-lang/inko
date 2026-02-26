@@ -528,7 +528,7 @@ impl FormatType for TypeEnum {
                 buffer.write(&format!("Int{}", size))
             }
             TypeEnum::Foreign(ForeignType::Int(size, Sign::Unsigned)) => {
-                buffer.write(&format!("UInt{}", size))
+                buffer.write(&format!("Uint{}", size))
             }
             TypeEnum::Foreign(ForeignType::Float(size)) => {
                 buffer.write(&format!("Float{}", size))
@@ -1189,18 +1189,18 @@ mod tests {
         assert_eq!(format_type(&db, TypeRef::foreign_signed_int(16)), "Int16");
         assert_eq!(format_type(&db, TypeRef::foreign_signed_int(32)), "Int32");
         assert_eq!(format_type(&db, TypeRef::foreign_signed_int(64)), "Int64");
-        assert_eq!(format_type(&db, TypeRef::foreign_unsigned_int(8)), "UInt8");
+        assert_eq!(format_type(&db, TypeRef::foreign_unsigned_int(8)), "Uint8");
         assert_eq!(
             format_type(&db, TypeRef::foreign_unsigned_int(16)),
-            "UInt16"
+            "Uint16"
         );
         assert_eq!(
             format_type(&db, TypeRef::foreign_unsigned_int(32)),
-            "UInt32"
+            "Uint32"
         );
         assert_eq!(
             format_type(&db, TypeRef::foreign_unsigned_int(64)),
-            "UInt64"
+            "Uint64"
         );
         assert_eq!(
             format_type(
@@ -1220,7 +1220,7 @@ mod tests {
                     Sign::Unsigned
                 )))
             ),
-            "Pointer[UInt8]"
+            "Pointer[Uint8]"
         );
     }
 

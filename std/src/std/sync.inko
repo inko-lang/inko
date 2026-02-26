@@ -32,25 +32,25 @@ import std.fmt (Format, Formatter)
 import std.time (ToInstant)
 
 fn extern inko_process_wait_for_value(
-  process: Pointer[UInt8],
-  lock: Pointer[UInt8],
-  current: UInt8,
-  new: UInt8,
+  process: Pointer[Uint8],
+  lock: Pointer[Uint8],
+  current: Uint8,
+  new: Uint8,
 )
 
 fn extern inko_process_wait_for_value_until(
-  state: Pointer[UInt8],
-  process: Pointer[UInt8],
-  lock: Pointer[UInt8],
-  current: UInt8,
-  new: UInt8,
-  nanos: UInt64,
+  state: Pointer[Uint8],
+  process: Pointer[Uint8],
+  lock: Pointer[Uint8],
+  current: Uint8,
+  new: Uint8,
+  nanos: Uint64,
 ) -> Bool
 
 fn extern inko_process_reschedule_for_value(
-  state: Pointer[UInt8],
-  process: Pointer[UInt8],
-  waiter: Pointer[UInt8],
+  state: Pointer[Uint8],
+  process: Pointer[Uint8],
+  waiter: Pointer[Uint8],
 )
 
 let NO_WAITER = 0
@@ -73,13 +73,13 @@ type FutureState[T] {
   # - `0`: the lock is unlocked
   # - `1`: the lock is locked
   #
-  # This field is of type `UInt8` such that we can take a pointer to it, which
+  # This field is of type `Uint8` such that we can take a pointer to it, which
   # is only supported for foreign types.
   #
   # The reason for using a spinlock is to avoid the complexity and platform
   # differences of pthread mutexes, and because it's unlikely we actually need
   # them to begin with for this particular workload.
-  let mut @locked: UInt8
+  let mut @locked: Uint8
 
   # The status of the `Future` and `Promise`.
   let mut @status: Status
@@ -87,7 +87,7 @@ type FutureState[T] {
   # The process waiting for a value to be written to the future.
   #
   # A value of NULL means no process is waiting.
-  let mut @waiter: Pointer[UInt8]
+  let mut @waiter: Pointer[Uint8]
 
   # The value the future resolves to, if any.
   let mut @value: Option[T]
@@ -96,8 +96,8 @@ type FutureState[T] {
     while
       !_INKO.int_atomic_compare_swap(
         mut @locked,
-        UNLOCKED as UInt8,
-        LOCKED as UInt8,
+        UNLOCKED as Uint8,
+        LOCKED as Uint8,
       )
     {
       # Since a future can only have a single reader and a single writer,
@@ -115,8 +115,8 @@ type FutureState[T] {
   fn mut unlock {
     _INKO.int_atomic_compare_swap(
       mut @locked,
-      LOCKED as UInt8,
-      UNLOCKED as UInt8,
+      LOCKED as Uint8,
+      UNLOCKED as Uint8,
     )
   }
 }
@@ -131,7 +131,7 @@ type FutureState[T] {
 # - `Future.try_get`
 # - `Future.get_until`
 type pub Future[T] {
-  let @state: UInt64
+  let @state: Uint64
 
   # Returns a new `Future` along with its corresponding `Promise`.
   #
@@ -150,8 +150,8 @@ type pub Future[T] {
   # ```
   fn pub static new -> (uni Future[uni T], uni Promise[uni T]) {
     let fut: FutureState[uni T] = FutureState(
-      waiter: NO_WAITER as Pointer[UInt8],
-      locked: UNLOCKED as UInt8,
+      waiter: NO_WAITER as Pointer[Uint8],
+      locked: UNLOCKED as Uint8,
       status: Status.Connected,
       value: Option.None,
     )
@@ -163,7 +163,7 @@ type pub Future[T] {
     #
     # This is of course highly unsafe, but it's how this particular sausage is
     # made.
-    let fut = fut as UInt64
+    let fut = fut as Uint64
 
     (recover Future(fut), recover Promise(fut))
   }
@@ -214,8 +214,8 @@ type pub Future[T] {
           inko_process_wait_for_value(
             _INKO.process,
             mut fut.locked,
-            LOCKED as UInt8,
-            UNLOCKED as UInt8,
+            LOCKED as Uint8,
+            UNLOCKED as Uint8,
           )
 
           # Ensure the shared state isn't dropped.
@@ -265,7 +265,7 @@ type pub Future[T] {
   # future.get_until(Duration.from_secs(1)) # => Option.Some(42)
   # ```
   fn pub move get_until[D: ToInstant](deadline: ref D) -> Option[uni T] {
-    let nanos = deadline.to_instant.to_int as UInt64
+    let nanos = deadline.to_instant.to_int as Uint64
 
     loop {
       let fut = lock
@@ -287,8 +287,8 @@ type pub Future[T] {
             _INKO.state,
             _INKO.process,
             mut fut.locked,
-            LOCKED as UInt8,
-            UNLOCKED as UInt8,
+            LOCKED as Uint8,
+            UNLOCKED as Uint8,
             nanos,
           )
 
@@ -403,7 +403,7 @@ impl Drop for Future {
 # A `Promise` is used to write a value to a future, such that a corresponding
 # `Future` can be resolved into this value.
 type pub Promise[T] {
-  let @state: UInt64
+  let @state: Uint64
 
   # Sets the value of the `Future` that belongs to this `Promise` to the given
   # value.
@@ -457,7 +457,7 @@ type pub Promise[T] {
       case _ -> {}
     }
 
-    let waiter = fut.waiter := NO_WAITER as Pointer[UInt8]
+    let waiter = fut.waiter := NO_WAITER as Pointer[Uint8]
 
     fut.value = val
     fut.unlock
@@ -792,7 +792,7 @@ impl Format for AtomicInt {
 # stores, though this is considered an implementation detail and shouldn't be
 # relied upon.
 type pub ref AtomicBool {
-  let @value: UInt8
+  let @value: Uint8
 
   # Returns a new `AtomicBool` using `value` as its initial value.
   #
@@ -804,7 +804,7 @@ type pub ref AtomicBool {
   # AtomicBool.new(false) # => AtomicBool(false)
   # ```
   fn pub static new(value: Bool) -> Self {
-    Self(value as UInt8)
+    Self(value as Uint8)
   }
 
   # Performs an atomic compare-and-swap, replacing the value of `self` with
@@ -828,7 +828,7 @@ type pub ref AtomicBool {
   # val                                # => AtomicBool(true)
   # ```
   fn pub compare_and_swap(current: Bool, new: Bool) -> Bool {
-    _INKO.int_atomic_compare_swap(mut @value, current as UInt8, new as UInt8)
+    _INKO.int_atomic_compare_swap(mut @value, current as Uint8, new as Uint8)
   }
 
   # Stores `value` in `self`.
@@ -844,7 +844,7 @@ type pub ref AtomicBool {
   # val # => AtomicBool(true)
   # ```
   fn pub store(value: Bool) {
-    _INKO.int_atomic_store(mut @value, value as UInt8)
+    _INKO.int_atomic_store(mut @value, value as Uint8)
   }
 
   # Loads the current value of `self`.

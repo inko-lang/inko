@@ -25,7 +25,7 @@ fn inline read(
   let ptr = ptr.add(into.pointer, len)
 
   loop {
-    let res = libc.read(pipe.inner.fd, ptr, size as UInt64)
+    let res = libc.read(pipe.inner.fd, ptr, size as Uint64)
 
     if res >= 0 {
       into.size = len + res
@@ -41,12 +41,12 @@ fn inline read(
 
 fn inline write(
   pipe: Pointer[Pipe],
-  data: Pointer[UInt8],
+  data: Pointer[Uint8],
   size: Int,
   deadline: Int,
 ) -> Result[Int, Error] {
   loop {
-    let res = libc.write(pipe.inner.fd, data, size as UInt64)
+    let res = libc.write(pipe.inner.fd, data, size as Uint64)
 
     if res >= 0 { return Result.Ok(res) }
 

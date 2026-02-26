@@ -21,9 +21,9 @@ type ref RefType {
 }
 
 type extern ExternType {
-  let @a: UInt8
-  let @b: UInt8
-  let @c: UInt8
+  let @a: Uint8
+  let @b: Uint8
+  let @c: Uint8
 }
 
 type HeapType {

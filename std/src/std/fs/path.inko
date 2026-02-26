@@ -13,7 +13,7 @@ import std.sys.unix.fs (self as sys) if unix
 
 type extern AnyResult {
   let @tag: Int
-  let @value: UInt64
+  let @value: Uint64
 }
 
 # The byte used to represent a single dot/period.

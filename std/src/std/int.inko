@@ -46,7 +46,7 @@ let LOWER_X = 120
 # intrinsics, and must match its layout.
 type builtin CheckedIntResult {
   let @value: Int64
-  let @tag: UInt8
+  let @tag: Uint8
 }
 
 # Produces a panic in response to an overflowed operation.

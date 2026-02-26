@@ -22,10 +22,10 @@ let MIN = $MIN
 let MAX = $MAX
 
 fn inline string_to_int[B: Bytes](value: ref B) -> Int {
-  let val = 0 as UInt64
+  let val = 0 as Uint64
   let len = value.size
 
-  alloc.copy(from: value.pointer, to: (mut val) as Pointer[UInt8], size: len)
+  alloc.copy(from: value.pointer, to: (mut val) as Pointer[Uint8], size: len)
   val as Int
 }
 
@@ -110,19 +110,19 @@ fn pub tests(t: mut Tests) {
 "
 
 fn extern memmove(
-  to: Pointer[UInt8],
-  from: Pointer[UInt8],
-  size: UInt64,
-) -> Pointer[UInt8]
+  to: Pointer[Uint8],
+  from: Pointer[Uint8],
+  size: Uint64,
+) -> Pointer[Uint8]
 
 fn string_to_int[B: Bytes](value: ref B) -> Int {
-  let val = 0 as UInt64
+  let val = 0 as Uint64
   let len = value.size
 
   memmove(
-    to: (mut val) as Pointer[UInt8],
+    to: (mut val) as Pointer[Uint8],
     from: value.pointer,
-    size: len as UInt64,
+    size: len as Uint64,
   )
   val as Int
 }

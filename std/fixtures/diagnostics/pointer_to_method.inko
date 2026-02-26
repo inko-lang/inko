@@ -8,4 +8,4 @@ fn foo {
   a.TEST
 }
 
-# pointer_to_method.inko:8:3 error(invalid-symbol): the method 'TEST' isn't defined for type 'Pointer[UInt8]'
+# pointer_to_method.inko:8:3 error(invalid-symbol): the method 'TEST' isn't defined for type 'Pointer[Uint8]'

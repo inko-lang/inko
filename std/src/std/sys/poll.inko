@@ -13,8 +13,8 @@ let NOT_REGISTERED = -1
 let NO_DEADLINE = -1
 
 fn extern inko_poll(
-  state: Pointer[UInt8],
-  process: Pointer[UInt8],
+  state: Pointer[Uint8],
+  process: Pointer[Uint8],
   poll: Pointer[Poll],
   interest: Int,
   deadline: Int,
@@ -26,11 +26,11 @@ type extern Poll {
   let @fd: Int32
 
   # The ID of the poller the source is registered with.
-  let @registered: UInt8
+  let @registered: Uint8
 }
 
 fn inline new(fd: Int32) -> Poll {
-  Poll(fd: fd, registered: NOT_REGISTERED as UInt8)
+  Poll(fd: fd, registered: NOT_REGISTERED as Uint8)
 }
 
 fn inline poll_raw(poll: Pointer[Poll], deadline: Int, write: Bool) -> Bool {

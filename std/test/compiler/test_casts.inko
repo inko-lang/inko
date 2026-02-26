@@ -11,12 +11,12 @@ fn pub tests(t: mut Tests) {
     t.equal(255 as Int8 as Int, -1)
   })
 
-  t.test('Casting Int to UInt8', fn (t) {
-    t.equal(-64 as UInt8 as Int, 192)
-    t.equal(-16 as UInt8 as Int, 240)
-    t.equal(127 as UInt8 as Int, 127)
-    t.equal(240 as UInt8 as Int, 240)
-    t.equal(255 as UInt8 as Int, 255)
+  t.test('Casting Int to Uint8', fn (t) {
+    t.equal(-64 as Uint8 as Int, 192)
+    t.equal(-16 as Uint8 as Int, 240)
+    t.equal(127 as Uint8 as Int, 127)
+    t.equal(240 as Uint8 as Int, 240)
+    t.equal(255 as Uint8 as Int, 255)
   })
 
   t.test('Casting Int to Int16', fn (t) {
@@ -27,11 +27,11 @@ fn pub tests(t: mut Tests) {
     t.equal(255 as Int16 as Int, 255)
   })
 
-  t.test('Casting Int to UInt16', fn (t) {
-    t.equal(-64 as UInt16 as Int, 65_472)
-    t.equal(-16 as UInt16 as Int, 65_520)
-    t.equal(127 as UInt16 as Int, 127)
-    t.equal(240 as UInt16 as Int, 240)
-    t.equal(255 as UInt16 as Int, 255)
+  t.test('Casting Int to Uint16', fn (t) {
+    t.equal(-64 as Uint16 as Int, 65_472)
+    t.equal(-16 as Uint16 as Int, 65_520)
+    t.equal(127 as Uint16 as Int, 127)
+    t.equal(240 as Uint16 as Int, 240)
+    t.equal(255 as Uint16 as Int, 255)
   })
 }

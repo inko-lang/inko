@@ -46,7 +46,7 @@ let Z_STREAM_END = 1
 let Z_MEM_ERROR = -4
 let Z_WINDOW_BITS = 15
 
-fn extern zlibVersion -> Pointer[UInt8]
+fn extern zlibVersion -> Pointer[Uint8]
 
 fn extern deflateInit2_(
   stream: Pointer[Stream],
@@ -55,14 +55,14 @@ fn extern deflateInit2_(
   window_bits: Int32,
   mem_level: Int32,
   strategy: Int32,
-  version: Pointer[UInt8],
+  version: Pointer[Uint8],
   stream_size: Int32,
 ) -> Int32
 
 fn extern inflateInit2_(
   stream: Pointer[Stream],
   window_bits: Int32,
-  version: Pointer[UInt8],
+  version: Pointer[Uint8],
   stream_size: Int32,
 ) -> Int32
 
@@ -101,7 +101,7 @@ fn inline inflate_init(stream: Pointer[Stream]) {
   stream.zalloc = ptr.null
   stream.zfree = ptr.null
   stream.opaque = ptr.null
-  stream.avail_in = 0 as UInt32
+  stream.avail_in = 0 as Uint32
 
   let res = inflateInit2_(
     stream,
@@ -114,7 +114,7 @@ fn inline inflate_init(stream: Pointer[Stream]) {
 }
 
 fn set_input[B: Bytes](stream: Pointer[Stream], buffer: ref B) {
-  stream.avail_in = buffer.size as UInt32
+  stream.avail_in = buffer.size as Uint32
   stream.next_in = buffer.pointer
 }
 
@@ -132,20 +132,20 @@ fn copy_buffer(
 }
 
 type extern Stream {
-  let @next_in: Pointer[UInt8]
-  let @avail_in: UInt32
-  let @total_in: UInt64
-  let @next_out: Pointer[UInt8]
-  let @avail_out: UInt32
-  let @total_out: UInt64
-  let @msg: Pointer[UInt8]
-  let @state: Pointer[UInt8]
-  let @zalloc: Pointer[UInt8]
-  let @zfree: Pointer[UInt8]
-  let @opaque: Pointer[UInt8]
+  let @next_in: Pointer[Uint8]
+  let @avail_in: Uint32
+  let @total_in: Uint64
+  let @next_out: Pointer[Uint8]
+  let @avail_out: Uint32
+  let @total_out: Uint64
+  let @msg: Pointer[Uint8]
+  let @state: Pointer[Uint8]
+  let @zalloc: Pointer[Uint8]
+  let @zfree: Pointer[Uint8]
+  let @opaque: Pointer[Uint8]
   let @data_type: Int32
-  let @adler: UInt64
-  let @reserved: UInt64
+  let @adler: Uint64
+  let @reserved: Uint64
 }
 
 # A type describing the compression level to use.
@@ -274,7 +274,7 @@ type pub Encoder[W: mut + Write[E], E] {
 
   fn mut finish_and_close -> Result[Nil, E] {
     @open = false
-    @stream.avail_in = 0 as UInt32
+    @stream.avail_in = 0 as Uint32
     @stream.next_in = ptr.null
     compress_loop(Z_FINISH)
   }
@@ -288,7 +288,7 @@ type pub Encoder[W: mut + Write[E], E] {
   }
 
   fn mut compress(flush: Int) -> Result[Bool, E] {
-    @stream.avail_out = @buffer.capacity as UInt32
+    @stream.avail_out = @buffer.capacity as Uint32
     @stream.next_out = @buffer.pointer
     deflate(@stream, flush as Int32)
     @buffer.size = @buffer.capacity - (@stream.avail_out as Int)
@@ -469,7 +469,7 @@ type pub Decoder[R: mut + Read[E], E] {
   }
 
   fn mut decompress(flush: Int) -> Result[Nil, DecodeError[E]] {
-    @stream.avail_out = @output.capacity as UInt32
+    @stream.avail_out = @output.capacity as Uint32
     @stream.next_out = @output.pointer
 
     let res = inflate(@stream, flush as Int32) as Int

@@ -6,24 +6,24 @@ import std.clone (Clone)
 import std.fs.path (Path)
 import std.string (PrimitiveString, ToString)
 
-fn extern inko_process_stacktrace(process: Pointer[UInt8]) -> Pointer[UInt8]
+fn extern inko_process_stacktrace(process: Pointer[Uint8]) -> Pointer[Uint8]
 
-fn extern inko_process_stacktrace_size(trace: Pointer[UInt8]) -> Int64
+fn extern inko_process_stacktrace_size(trace: Pointer[Uint8]) -> Int64
 
-fn extern inko_process_stacktrace_drop(trace: Pointer[UInt8])
+fn extern inko_process_stacktrace_drop(trace: Pointer[Uint8])
 
 fn extern inko_process_stack_frame_line(
-  trace: Pointer[UInt8],
+  trace: Pointer[Uint8],
   index: Int,
 ) -> Int64
 
 fn extern inko_process_stack_frame_name(
-  trace: Pointer[UInt8],
+  trace: Pointer[Uint8],
   index: Int,
 ) -> PrimitiveString
 
 fn extern inko_process_stack_frame_path(
-  trace: Pointer[UInt8],
+  trace: Pointer[Uint8],
   index: Int,
 ) -> PrimitiveString
 

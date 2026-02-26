@@ -153,7 +153,7 @@ type extern Tm {
   let @tm_yday: Int32
   let @tm_isdst: Int32
   let @tm_gmtoff: Int64
-  let @tm_zone: Pointer[UInt8]
+  let @tm_zone: Pointer[Uint8]
 }
 
 type extern Timespec {
@@ -161,21 +161,21 @@ type extern Timespec {
   let @tv_nsec: Int64
 }
 
-fn opendir(path: Pointer[UInt8]) -> Pointer[UInt8] {
+fn opendir(path: Pointer[Uint8]) -> Pointer[Uint8] {
   sys.opendir(path)
 }
 
-fn readdir(path: Pointer[UInt8]) -> Pointer[sys.Dirent] {
+fn readdir(path: Pointer[Uint8]) -> Pointer[sys.Dirent] {
   sys.readdir(path)
 }
 
-fn extern closedir(stream: Pointer[UInt8]) -> Int32
+fn extern closedir(stream: Pointer[Uint8]) -> Int32
 
-fn extern mkdir(path: Pointer[UInt8], mode: UInt32) -> Int32
+fn extern mkdir(path: Pointer[Uint8], mode: Uint32) -> Int32
 
-fn extern rmdir(path: Pointer[UInt8]) -> Int32
+fn extern rmdir(path: Pointer[Uint8]) -> Int32
 
-fn extern unlink(path: Pointer[UInt8]) -> Int32
+fn extern unlink(path: Pointer[Uint8]) -> Int32
 
 # Opens the file at `path` with a set of flags and an optional mode. See
 # `open(2)` for more details.
@@ -184,16 +184,16 @@ fn extern unlink(path: Pointer[UInt8]) -> Int32
 # `open()` the same as `open64()`, we can just use `open()`. This also removes
 # the need for dealing with some platforms that _don't_ offer `open64()` such as
 # musl.
-fn extern open(path: Pointer[UInt8], flags: Int32, ...) -> Int32
+fn extern open(path: Pointer[Uint8], flags: Int32, ...) -> Int32
 
-fn extern read(fd: Int32, buf: Pointer[UInt8], size: UInt64) -> Int
+fn extern read(fd: Int32, buf: Pointer[Uint8], size: Uint64) -> Int
 
-fn extern write(fd: Int32, buf: Pointer[UInt8], size: UInt64) -> Int
+fn extern write(fd: Int32, buf: Pointer[Uint8], size: Uint64) -> Int
 
 fn extern realpath(
-  path: Pointer[UInt8],
-  resolved: Pointer[UInt8],
-) -> Pointer[UInt8]
+  path: Pointer[Uint8],
+  resolved: Pointer[Uint8],
+) -> Pointer[Uint8]
 
 fn flush(fd: Int32) -> Int32 {
   sys.flush(fd)
@@ -205,15 +205,15 @@ fn extern close(fd: Int32) -> Int32
 
 fn extern isatty(fd: Int32) -> Int32
 
-fn extern strlen(pointer: Pointer[UInt8]) -> UInt64
+fn extern strlen(pointer: Pointer[Uint8]) -> Uint64
 
 fn extern posix_spawnp(
   pid: Pointer[Int32],
-  file: Pointer[UInt8],
+  file: Pointer[Uint8],
   file_actions: Pointer[PosixSpawnFileActions],
   attrp: Pointer[PosixSpawnAttrs],
-  argv: Pointer[UInt64],
-  envp: Pointer[UInt64],
+  argv: Pointer[Uint64],
+  envp: Pointer[Uint64],
 ) -> Int32
 
 fn extern posix_spawn_file_actions_init(
@@ -232,7 +232,7 @@ fn extern posix_spawn_file_actions_adddup2(
 
 fn extern posix_spawn_file_actions_addchdir_np(
   actions: mut Pointer[PosixSpawnFileActions],
-  path: Pointer[UInt8],
+  path: Pointer[Uint8],
 ) -> Int32
 
 fn extern posix_spawnattr_init(attr: mut Pointer[PosixSpawnAttrs]) -> Int32
@@ -260,31 +260,31 @@ fn extern sigfillset(set: mut Pointer[SigSet]) -> Int32
 
 fn extern waitpid(pid: Int32, status: Pointer[Int32], options: Int32) -> Int32
 
-fn extern realloc(pointer: Pointer[UInt8], size: Int) -> Pointer[UInt8]
+fn extern realloc(pointer: Pointer[Uint8], size: Int) -> Pointer[Uint8]
 
-fn extern calloc(elements: UInt64, size: UInt64) -> Pointer[UInt8]
+fn extern calloc(elements: Uint64, size: Uint64) -> Pointer[Uint8]
 
 fn extern memset(
-  pointer: Pointer[UInt8],
+  pointer: Pointer[Uint8],
   byte: Int32,
-  size: UInt64,
-) -> Pointer[UInt8]
+  size: Uint64,
+) -> Pointer[Uint8]
 
 fn extern memmove(
-  to: Pointer[UInt8],
-  from: Pointer[UInt8],
-  size: UInt64,
-) -> Pointer[UInt8]
+  to: Pointer[Uint8],
+  from: Pointer[Uint8],
+  size: Uint64,
+) -> Pointer[Uint8]
 
-fn extern free(pointer: Pointer[UInt8])
+fn extern free(pointer: Pointer[Uint8])
 
 fn extern exit(status: Int32) -> Never
 
 fn extern socket(domain: Int32, typ: Int32, protocol: Int32) -> Int32
 
-fn extern bind(socket: Int32, addr: Pointer[UInt8], size: UInt32) -> Int32
+fn extern bind(socket: Int32, addr: Pointer[Uint8], size: Uint32) -> Int32
 
-fn extern connect(socket: Int32, addr: Pointer[UInt8], size: UInt32) -> Int32
+fn extern connect(socket: Int32, addr: Pointer[Uint8], size: Uint32) -> Int32
 
 fn extern listen(socket: Int32, backlog: Int32) -> Int32
 
@@ -292,7 +292,7 @@ fn extern setsockopt(
   socket: Int32,
   level: Int32,
   option: Int32,
-  value: Pointer[UInt8],
+  value: Pointer[Uint8],
   size: Int32,
 ) -> Int32
 
@@ -300,52 +300,52 @@ fn extern getsockopt(
   socket: Int32,
   level: Int32,
   option: Int32,
-  value: Pointer[UInt8],
+  value: Pointer[Uint8],
   size: Pointer[Int32],
 ) -> Int32
 
 fn extern getsockname(
   socket: Int32,
-  address: Pointer[UInt8],
-  size: Pointer[UInt32],
+  address: Pointer[Uint8],
+  size: Pointer[Uint32],
 ) -> Int32
 
 fn extern getpeername(
   socket: Int32,
-  address: Pointer[UInt8],
-  size: Pointer[UInt32],
+  address: Pointer[Uint8],
+  size: Pointer[Uint32],
 ) -> Int32
 
 fn extern recv(
   socket: Int32,
-  buf: Pointer[UInt8],
-  size: UInt64,
+  buf: Pointer[Uint8],
+  size: Uint64,
   flags: Int32,
 ) -> Int
 
 fn extern send(
   socket: Int32,
-  buf: Pointer[UInt8],
-  size: UInt64,
+  buf: Pointer[Uint8],
+  size: Uint64,
   flags: Int32,
 ) -> Int
 
 fn extern sendto(
   socket: Int32,
-  buf: Pointer[UInt8],
-  size: UInt64,
+  buf: Pointer[Uint8],
+  size: Uint64,
   flags: Int32,
-  address: Pointer[UInt8],
-  address_size: UInt32,
+  address: Pointer[Uint8],
+  address_size: Uint32,
 ) -> Int
 
 fn extern recvfrom(
   socket: Int32,
-  buf: Pointer[UInt8],
-  size: UInt64,
+  buf: Pointer[Uint8],
+  size: Uint64,
   flags: Int32,
-  address: Pointer[UInt8],
-  address_size: Pointer[UInt32],
+  address: Pointer[Uint8],
+  address_size: Pointer[Uint32],
 ) -> Int
 
 fn extern shutdown(fd: Int32, how: Int32) -> Int32
@@ -359,17 +359,17 @@ fn extern gmtime_r(time: Pointer[Int64], result: Pointer[Tm]) -> Pointer[Tm]
 fn extern localtime_r(time: Pointer[Int64], result: Pointer[Tm]) -> Pointer[Tm]
 
 fn extern getaddrinfo(
-  node: Pointer[UInt8],
-  service: Pointer[UInt8],
+  node: Pointer[Uint8],
+  service: Pointer[Uint8],
   hints: Pointer[sys.AddrInfo],
   res: Pointer[sys.AddrInfo],
 ) -> Int32
 
 fn extern freeaddrinfo(addr: Pointer[sys.AddrInfo])
 
-fn extern getcwd(buf: Pointer[UInt8], size: UInt64) -> Pointer[UInt8]
+fn extern getcwd(buf: Pointer[Uint8], size: Uint64) -> Pointer[Uint8]
 
-fn extern chdir(path: Pointer[UInt8]) -> Int32
+fn extern chdir(path: Pointer[Uint8]) -> Int32
 
 fn extern kill(pid: Int32, signal: Int32) -> Int32
 
@@ -379,7 +379,7 @@ fn inline dirent_type(pointer: Pointer[sys.Dirent]) -> Int {
 }
 
 # Returns a pointer to the start of a directory entry's name.
-fn inline dirent_name(pointer: Pointer[sys.Dirent]) -> Pointer[UInt8] {
+fn inline dirent_name(pointer: Pointer[sys.Dirent]) -> Pointer[Uint8] {
   sys.dirent_name(pointer)
 }
 

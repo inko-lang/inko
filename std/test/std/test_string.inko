@@ -22,7 +22,7 @@ fn pub tests(t: mut Tests) {
 
     let str1 = String.from_primitive(PrimitiveString(bytes: raw, size: 3))
     let str2 = String.from_primitive(
-      PrimitiveString(bytes: 0x1 as Pointer[UInt8], size: 0),
+      PrimitiveString(bytes: 0x1 as Pointer[Uint8], size: 0),
     )
 
     t.equal(str1, 'foo')
@@ -56,7 +56,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('String.from_pointer with a NULL pointer', fn (t) {
-    let a = String.from_pointer(0 as Pointer[UInt8])
+    let a = String.from_pointer(0 as Pointer[Uint8])
 
     t.equal(a, '')
   })

@@ -57,7 +57,7 @@ fn inline bind_ip(fd: Int32, ip: IpAddress, port: Int) -> Result[Nil, Error] {
   let addr = sys_libc.SockAddrStorage()
   let addr_ptr = mut addr
   let size = init_ip_address(addr_ptr, ip, port)
-  let res = libc.bind(fd, addr_ptr as Pointer[UInt8], size as UInt32) as Int
+  let res = libc.bind(fd, addr_ptr as Pointer[Uint8], size as Uint32) as Int
 
   if res == 0 { Result.Ok(nil) } else { Result.Error(Error.last_os_error) }
 }
@@ -67,7 +67,7 @@ fn inline bind_unix(fd: Int32, path: ref Path) -> Result[Nil, Error] {
   let addr_ptr = mut addr
   let size = try sys.init_unix_address(addr_ptr, path)
 
-  if libc.bind(fd, addr_ptr as Pointer[UInt8], size as UInt32) as Int == 0 {
+  if libc.bind(fd, addr_ptr as Pointer[Uint8], size as Uint32) as Int == 0 {
     Result.Ok(nil)
   } else {
     Result.Error(Error.last_os_error)
@@ -85,7 +85,7 @@ fn inline set_int32_option(
     fd,
     level as Int32,
     option as Int32,
-    (mut val) as Pointer[UInt8],
+    (mut val) as Pointer[Uint8],
     4 as Int32,
   )
     as Int
@@ -100,7 +100,7 @@ fn inline get_int32_option(fd: Int32, level: Int, option: Int) -> Int {
     fd,
     level as Int32,
     option as Int32,
-    (mut val) as Pointer[UInt8],
+    (mut val) as Pointer[Uint8],
     mut size,
   )
     as Int
@@ -175,7 +175,7 @@ fn inline connect_ip(
   let addr_ptr = mut addr
   let size = init_ip_address(addr_ptr, ip, port)
 
-  connect(socket, deadline, addr_ptr as Pointer[UInt8], size)
+  connect(socket, deadline, addr_ptr as Pointer[Uint8], size)
 }
 
 fn inline connect_unix(
@@ -187,17 +187,17 @@ fn inline connect_unix(
   let addr_ptr = mut addr
   let size = try sys.init_unix_address(addr_ptr, path)
 
-  connect(socket, deadline, addr_ptr as Pointer[UInt8], size)
+  connect(socket, deadline, addr_ptr as Pointer[Uint8], size)
 }
 
 fn inline connect(
   socket: Pointer[poll.Poll],
   deadline: Int,
-  address: Pointer[UInt8],
+  address: Pointer[Uint8],
   size: Int,
 ) -> Result[Nil, Error] {
   loop {
-    let res = libc.connect(socket.fd, address, size as UInt32) as Int
+    let res = libc.connect(socket.fd, address, size as Uint32) as Int
 
     if res == 0 { break }
 
@@ -220,7 +220,7 @@ fn inline connect(
   Result.Ok(nil)
 }
 
-fn inline parse_v4_address(pointer: Pointer[UInt8]) -> IpAddress {
+fn inline parse_v4_address(pointer: Pointer[Uint8]) -> IpAddress {
   let a = pointer.0 as Int
   let b = ptr.add(pointer, 1).0 as Int
   let c = ptr.add(pointer, 2).0 as Int
@@ -229,7 +229,7 @@ fn inline parse_v4_address(pointer: Pointer[UInt8]) -> IpAddress {
   IpAddress.v4(a, b, c, d)
 }
 
-fn inline parse_v6_address(pointer: Pointer[UInt16]) -> IpAddress {
+fn inline parse_v6_address(pointer: Pointer[Uint16]) -> IpAddress {
   let a = net.htons(pointer.0 as Int)
   let b = net.htons(ptr.add(pointer, 1).0 as Int)
   let c = net.htons(ptr.add(pointer, 2).0 as Int)
@@ -249,14 +249,14 @@ fn inline parse_ip_socket_address(
     case libc.AF_INET -> {
       let addr_ptr = address as Pointer[sys_libc.SockAddrIn]
       let port = net.htons(addr_ptr.sin_port as Int)
-      let ip = parse_v4_address((mut addr_ptr.sin_addr) as Pointer[UInt8])
+      let ip = parse_v4_address((mut addr_ptr.sin_addr) as Pointer[Uint8])
 
       (ip, port)
     }
     case libc.AF_INET6 -> {
       let addr_ptr = address as Pointer[sys_libc.SockAddrIn6]
       let port = net.htons(addr_ptr.sin6_port as Int)
-      let ip = parse_v6_address((mut addr_ptr.sin6_addr0) as Pointer[UInt16])
+      let ip = parse_v6_address((mut addr_ptr.sin6_addr0) as Pointer[Uint16])
 
       (ip, port)
     }
@@ -267,9 +267,9 @@ fn inline parse_ip_socket_address(
 fn inline ip_local_address(
   socket: Pointer[poll.Poll],
 ) -> Result[(IpAddress, Int), Error] {
-  let size = sys_libc.sockaddr_storage_size as UInt32
+  let size = sys_libc.sockaddr_storage_size as Uint32
   let addr = sys_libc.SockAddrStorage()
-  let addr_ptr = (mut addr) as Pointer[UInt8]
+  let addr_ptr = (mut addr) as Pointer[Uint8]
   let res = libc.getsockname(socket.fd, addr_ptr, mut size) as Int
 
   if res == 0 {
@@ -282,9 +282,9 @@ fn inline ip_local_address(
 fn inline ip_peer_address(
   socket: Pointer[poll.Poll],
 ) -> Result[(IpAddress, Int), Error] {
-  let size = sys_libc.sockaddr_storage_size as UInt32
+  let size = sys_libc.sockaddr_storage_size as Uint32
   let addr = sys_libc.SockAddrStorage()
-  let addr_ptr = (mut addr) as Pointer[UInt8]
+  let addr_ptr = (mut addr) as Pointer[Uint8]
   let res = libc.getpeername(socket.fd, addr_ptr, mut size) as Int
 
   if res == 0 {
@@ -297,9 +297,9 @@ fn inline ip_peer_address(
 fn inline unix_local_address(
   socket: Pointer[poll.Poll],
 ) -> Result[String, Error] {
-  let size = sys_libc.sockaddr_un_size as UInt32
+  let size = sys_libc.sockaddr_un_size as Uint32
   let addr = sys_libc.SockAddrUn()
-  let addr_ptr = (mut addr) as Pointer[UInt8]
+  let addr_ptr = (mut addr) as Pointer[Uint8]
   let res = libc.getsockname(socket.fd, addr_ptr, mut size) as Int
 
   if res == -1 { throw Error.last_os_error }
@@ -310,9 +310,9 @@ fn inline unix_local_address(
 fn inline unix_peer_address(
   socket: Pointer[poll.Poll],
 ) -> Result[String, Error] {
-  let size = sys_libc.sockaddr_un_size as UInt32
+  let size = sys_libc.sockaddr_un_size as Uint32
   let addr = sys_libc.SockAddrUn()
-  let addr_ptr = (mut addr) as Pointer[UInt8]
+  let addr_ptr = (mut addr) as Pointer[Uint8]
   let res = libc.getpeername(socket.fd, addr_ptr, mut size) as Int
 
   if res == -1 { throw Error.last_os_error }
@@ -342,12 +342,12 @@ fn inline read(
 
 fn inline read_raw(
   socket: Pointer[poll.Poll],
-  data: Pointer[UInt8],
+  data: Pointer[Uint8],
   size: Int,
   deadline: Int,
 ) -> Result[Int, Int] {
   loop {
-    let res = libc.recv(socket.fd, data, size as UInt64, flags: 0 as Int32)
+    let res = libc.recv(socket.fd, data, size as Uint64, flags: 0 as Int32)
 
     if res >= 0 { return Result.Ok(res) }
 
@@ -364,7 +364,7 @@ fn inline read_raw(
 
 fn inline write(
   socket: Pointer[poll.Poll],
-  data: Pointer[UInt8],
+  data: Pointer[Uint8],
   size: Int,
   deadline: Int,
 ) -> Result[Int, Error] {
@@ -376,7 +376,7 @@ fn inline write(
 
 fn inline write_raw(
   socket: Pointer[poll.Poll],
-  data: Pointer[UInt8],
+  data: Pointer[Uint8],
   size: Int,
   deadline: Int,
 ) -> Result[Int, Int] {
@@ -384,7 +384,7 @@ fn inline write_raw(
     let res = libc.send(
       socket.fd,
       data,
-      size as UInt64,
+      size as Uint64,
       flags: libc.MSG_NOSIGNAL as Int32,
     )
 
@@ -403,7 +403,7 @@ fn inline write_raw(
 
 fn inline send_to_ip(
   socket: Pointer[poll.Poll],
-  data: Pointer[UInt8],
+  data: Pointer[Uint8],
   size: Int,
   ip: IpAddress,
   port: Int,
@@ -418,10 +418,10 @@ fn inline send_to_ip(
     let res = libc.sendto(
       socket.fd,
       data,
-      size as UInt64,
+      size as Uint64,
       flags,
-      addr_ptr as Pointer[UInt8],
-      addr_size as UInt32,
+      addr_ptr as Pointer[Uint8],
+      addr_size as Uint32,
     )
 
     if res >= 0 { return Result.Ok(res) }
@@ -435,7 +435,7 @@ fn inline send_to_ip(
 
 fn inline send_to_unix(
   socket: Pointer[poll.Poll],
-  data: Pointer[UInt8],
+  data: Pointer[Uint8],
   size: Int,
   path: ref Path,
   deadline: Int,
@@ -449,10 +449,10 @@ fn inline send_to_unix(
     let res = libc.sendto(
       socket.fd,
       data,
-      size as UInt64,
+      size as Uint64,
       flags,
-      addr_ptr as Pointer[UInt8],
-      addr_size as UInt32,
+      addr_ptr as Pointer[Uint8],
+      addr_size as Uint32,
     )
 
     if res >= 0 { return Result.Ok(res) }
@@ -475,13 +475,13 @@ fn inline receive_from_ip(
   let len = into.size
   let ptr = ptr.add(into.pointer, len)
   let addr = sys_libc.SockAddrStorage()
-  let addr_size = sys_libc.sockaddr_storage_size as UInt32
+  let addr_size = sys_libc.sockaddr_storage_size as Uint32
   let addr_ptr = mut addr
   let flags = 0 as Int32
 
   loop {
-    let size = size as UInt64
-    let addr = addr_ptr as Pointer[UInt8]
+    let size = size as Uint64
+    let addr = addr_ptr as Pointer[Uint8]
     let res = libc.recvfrom(socket.fd, ptr, size, flags, addr, mut addr_size)
 
     if res >= 0 {
@@ -510,13 +510,13 @@ fn inline receive_from_unix(
   let len = into.size
   let ptr = ptr.add(into.pointer, len)
   let addr = sys_libc.SockAddrUn()
-  let addr_size = sys_libc.sockaddr_un_size as UInt32
+  let addr_size = sys_libc.sockaddr_un_size as Uint32
   let addr_ptr = mut addr
   let flags = 0 as Int32
 
   loop {
-    let size = size as UInt64
-    let addr = addr_ptr as Pointer[UInt8]
+    let size = size as Uint64
+    let addr = addr_ptr as Pointer[Uint8]
     let res = libc.recvfrom(socket.fd, ptr, size, flags, addr, mut addr_size)
 
     if res >= 0 {

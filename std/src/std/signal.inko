@@ -70,8 +70,8 @@ import std.libc
 import std.sync (Channel)
 
 fn extern inko_signal_wait(
-  state: Pointer[UInt8],
-  process: Pointer[UInt8],
+  state: Pointer[Uint8],
+  process: Pointer[Uint8],
   signal: Int,
 )
 

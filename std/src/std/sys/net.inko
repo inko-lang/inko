@@ -18,7 +18,7 @@ fn inline raw_socket -> sys_poll.Poll {
 }
 
 fn inline htons(value: Int) -> Int {
-  _INKO.int_swap_bytes(value as UInt16)
+  _INKO.int_swap_bytes(value as Uint16)
 }
 
 fn inline pack_v4(ip: Ipv4Address) -> Int {

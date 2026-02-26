@@ -1,9 +1,9 @@
 import std.libc.mac (Dirent, StatBuf)
 
-fn extern opendir(path: Pointer[UInt8]) -> Pointer[UInt8]
+fn extern opendir(path: Pointer[Uint8]) -> Pointer[Uint8]
 
-fn extern readdir(stream: Pointer[UInt8]) -> Pointer[Dirent]
+fn extern readdir(stream: Pointer[Uint8]) -> Pointer[Dirent]
 
 fn extern fstat(fd: Int32, buf: Pointer[StatBuf]) -> Int32
 
-fn extern stat(path: Pointer[UInt8], buf: Pointer[StatBuf]) -> Int32
+fn extern stat(path: Pointer[Uint8], buf: Pointer[StatBuf]) -> Int32

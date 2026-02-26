@@ -18,7 +18,7 @@ fn stdin -> Int32 {
   STDIN as Int32
 }
 
-fn write(fd: Int32, data: Pointer[UInt8], size: Int) -> Result[Int, Error] {
+fn write(fd: Int32, data: Pointer[Uint8], size: Int) -> Result[Int, Error] {
   fs.write_file(fd, data, size)
 }
 

@@ -9,7 +9,7 @@ fn inline random_bytes(into: mut ByteArray, size: Int) {
   into.resize(size: old_size + size, value: 0)
 
   let mut pending = size
-  let ptr = (into.pointer as Int).wrapping_add(old_size) as Pointer[UInt8]
+  let ptr = (into.pointer as Int).wrapping_add(old_size) as Pointer[Uint8]
 
   while pending > 0 {
     start_blocking

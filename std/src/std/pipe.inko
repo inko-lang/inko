@@ -138,7 +138,7 @@ impl Deadline for PipeWriter {
 }
 
 impl WriteInternal for PipeWriter {
-  fn mut write_internal(data: Pointer[UInt8], size: Int) -> Result[Int, Error] {
+  fn mut write_internal(data: Pointer[Uint8], size: Int) -> Result[Int, Error] {
     sys.write(@fd, data, size, @deadline)
   }
 }

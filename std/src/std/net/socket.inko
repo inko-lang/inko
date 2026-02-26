@@ -565,7 +565,7 @@ type pub Socket {
       @socket.fd,
       libc.SOL_SOCKET as Int32,
       libc.SO_LINGER as Int32,
-      (mut linger) as Pointer[UInt8],
+      (mut linger) as Pointer[Uint8],
       8 as Int32,
     )
       as Int
@@ -581,7 +581,7 @@ type pub Socket {
       @socket.fd,
       libc.SOL_SOCKET as Int32,
       libc.SO_LINGER as Int32,
-      (mut linger) as Pointer[UInt8],
+      (mut linger) as Pointer[Uint8],
       mut size,
     )
       as Int
@@ -711,7 +711,7 @@ impl Read[Error] for Socket {
 }
 
 impl WriteInternal for Socket {
-  fn mut write_internal(data: Pointer[UInt8], size: Int) -> Result[Int, Error] {
+  fn mut write_internal(data: Pointer[Uint8], size: Int) -> Result[Int, Error] {
     sys.write(@socket, data, size, @deadline)
   }
 }
@@ -1723,7 +1723,7 @@ impl Read[Error] for UnixSocket {
 }
 
 impl WriteInternal for UnixSocket {
-  fn mut write_internal(data: Pointer[UInt8], size: Int) -> Result[Int, Error] {
+  fn mut write_internal(data: Pointer[Uint8], size: Int) -> Result[Int, Error] {
     sys.write(@socket, data, size, @deadline)
   }
 }

@@ -22,12 +22,12 @@ fn example {
   1.0 as ToString
   A() as ToString
   B() as ToString
-  A() as UInt64
-  0x4 as Pointer[UInt64] as UInt64
+  A() as Uint64
+  0x4 as Pointer[Uint64] as Uint64
 }
 
 # casting_value_types.inko:20:3 error(invalid-cast): the type 'String' can't be cast to 'ToString'
 # casting_value_types.inko:21:3 error(invalid-cast): the type 'Int' can't be cast to 'ToString'
 # casting_value_types.inko:22:3 error(invalid-cast): the type 'Float' can't be cast to 'ToString'
 # casting_value_types.inko:23:3 error(invalid-cast): the type 'A' can't be cast to 'ToString'
-# casting_value_types.inko:25:3 error(invalid-cast): the type 'A' can't be cast to 'UInt64'
+# casting_value_types.inko:25:3 error(invalid-cast): the type 'A' can't be cast to 'Uint64'

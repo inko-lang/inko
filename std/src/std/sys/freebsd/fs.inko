@@ -64,8 +64,8 @@ fn kernel_copy(from: Int32, to: Int32) -> Result[Int, Error] {
       off_in: 0x0 as Pointer[Int64],
       out: to,
       off_out: 0x0 as Pointer[Int64],
-      len: MAX_COPY as UInt64,
-      flags: 0 as UInt32,
+      len: MAX_COPY as Uint64,
+      flags: 0 as Uint32,
     )
       as Int
     let err = stop_blocking
@@ -108,7 +108,7 @@ fn copy_file(from: String, to: String) -> Result[Int, Error] {
 
   start_blocking
 
-  let res = libc.fchmod(to_file.fd, from_meta.mode as UInt16) as Int
+  let res = libc.fchmod(to_file.fd, from_meta.mode as Uint16) as Int
   let err = stop_blocking
 
   if res == 0 {

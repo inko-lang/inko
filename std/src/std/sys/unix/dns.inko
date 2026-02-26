@@ -30,9 +30,9 @@ impl Resolve for Resolver {
       ai_family: libc.AF_UNSPEC as Int32,
       ai_socktype: libc.SOCK_STREAM as Int32,
       ai_protocol: 0 as Int32,
-      ai_addrlen: 0 as UInt64,
+      ai_addrlen: 0 as Uint64,
       ai_addr: 0x0 as Pointer[sys_libc.SockAddr],
-      ai_canonname: 0x0 as Pointer[UInt8],
+      ai_canonname: 0x0 as Pointer[Uint8],
       ai_next: 0x0 as Pointer[sys_libc.AddrInfo],
     )
     let list = 0x0 as Pointer[sys_libc.AddrInfo]
@@ -40,7 +40,7 @@ impl Resolve for Resolver {
 
     io.start_blocking
 
-    let res = libc.getaddrinfo(ptr, 0 as Pointer[UInt8], mut hints, mut list)
+    let res = libc.getaddrinfo(ptr, 0 as Pointer[Uint8], mut hints, mut list)
     let errno = io.stop_blocking
 
     match res as Int {

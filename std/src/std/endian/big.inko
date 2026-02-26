@@ -28,8 +28,8 @@ fn size_error(min: Int) -> Never {
 fn pub write_i16(value: Int, into: mut ByteArray, at: Int) {
   if into.size - at < 2 { size_error(2) }
 
-  (into.pointer as Int + at as Pointer[UInt16]).0 = value.swap_bytes >>> 48
-    as UInt16
+  (into.pointer as Int + at as Pointer[Uint16]).0 = value.swap_bytes >>> 48
+    as Uint16
 }
 
 # Writes a value interpreted as a 32-bits unsigned integer into `into` as a
@@ -56,8 +56,8 @@ fn pub write_i16(value: Int, into: mut ByteArray, at: Int) {
 fn pub write_i32(value: Int, into: mut ByteArray, at: Int) {
   if into.size - at < 4 { size_error(4) }
 
-  (into.pointer as Int + at as Pointer[UInt32]).0 = value.swap_bytes >>> 32
-    as UInt32
+  (into.pointer as Int + at as Pointer[Uint32]).0 = value.swap_bytes >>> 32
+    as Uint32
 }
 
 # Writes a value interpreted as a 64-bits signed integer into `into` as a series
@@ -81,7 +81,7 @@ fn pub write_i32(value: Int, into: mut ByteArray, at: Int) {
 fn pub write_i64(value: Int, into: mut ByteArray, at: Int) {
   if into.size - at < 8 { size_error(8) }
 
-  (into.pointer as Int + at as Pointer[UInt64]).0 = value.swap_bytes as UInt64
+  (into.pointer as Int + at as Pointer[Uint64]).0 = value.swap_bytes as Uint64
 }
 
 # Reads two bytes starting at `at` as a 16-bits signed integer.
@@ -104,7 +104,7 @@ fn pub write_i64(value: Int, into: mut ByteArray, at: Int) {
 fn pub read_i16(from: ref ByteArray, at: Int) -> Int {
   if from.size - at < 2 { size_error(2) }
 
-  ((from.pointer as Int + at as Pointer[UInt16]).0 as Int).swap_bytes >>> 48
+  ((from.pointer as Int + at as Pointer[Uint16]).0 as Int).swap_bytes >>> 48
 }
 
 # Reads four bytes starting at `at` as a 32-bits signed integer.
@@ -127,7 +127,7 @@ fn pub read_i16(from: ref ByteArray, at: Int) -> Int {
 fn pub read_i32(from: ref ByteArray, at: Int) -> Int {
   if from.size - at < 4 { size_error(4) }
 
-  ((from.pointer as Int + at as Pointer[UInt32]).0 as Int).swap_bytes >>> 32
+  ((from.pointer as Int + at as Pointer[Uint32]).0 as Int).swap_bytes >>> 32
 }
 
 # Reads eight bytes starting at `at` as a 64-bits signed integer.
@@ -150,5 +150,5 @@ fn pub read_i32(from: ref ByteArray, at: Int) -> Int {
 fn pub read_i64(from: ref ByteArray, at: Int) -> Int {
   if from.size - at < 8 { size_error(8) }
 
-  ((from.pointer as Int + at as Pointer[UInt64]).0 as Int).swap_bytes
+  ((from.pointer as Int + at as Pointer[Uint64]).0 as Int).swap_bytes
 }

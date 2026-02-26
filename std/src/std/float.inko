@@ -10,12 +10,12 @@ import std.string (PrimitiveString, ToString)
 
 type extern FloatResult {
   let @tag: Int
-  let @value: UInt64
+  let @value: Uint64
 }
 
 fn extern inko_float_to_string(float: Float64) -> PrimitiveString
 
-fn extern inko_string_to_float(bytes: Pointer[UInt8], size: Int) -> FloatResult
+fn extern inko_string_to_float(bytes: Pointer[Uint8], size: Int) -> FloatResult
 
 # A type that can be converted to a Float.
 trait pub ToFloat {

@@ -12,10 +12,10 @@ let MIN = 3
 let MAX = 7
 
 fn inline string_to_int[B: Bytes](value: ref B) -> Int {
-  let val = 0 as UInt64
+  let val = 0 as Uint64
   let len = value.size
 
-  alloc.copy(from: value.pointer, to: (mut val) as Pointer[UInt8], size: len)
+  alloc.copy(from: value.pointer, to: (mut val) as Pointer[Uint8], size: len)
   val as Int
 }
 

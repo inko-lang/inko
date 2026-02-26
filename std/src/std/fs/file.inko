@@ -189,7 +189,7 @@ impl Drop for WriteOnlyFile {
 }
 
 impl WriteInternal for WriteOnlyFile {
-  fn mut write_internal(data: Pointer[UInt8], size: Int) -> Result[Int, Error] {
+  fn mut write_internal(data: Pointer[Uint8], size: Int) -> Result[Int, Error] {
     sys.write_file(@fd, data, size)
   }
 }
@@ -300,7 +300,7 @@ impl Read[Error] for ReadWriteFile {
 }
 
 impl WriteInternal for ReadWriteFile {
-  fn mut write_internal(data: Pointer[UInt8], size: Int) -> Result[Int, Error] {
+  fn mut write_internal(data: Pointer[Uint8], size: Int) -> Result[Int, Error] {
     sys.write_file(@fd, data, size)
   }
 }

@@ -46,174 +46,174 @@ let DEFAULT_ALPN = []
 fn extern inko_tls_client_config_new -> AnyResult
 
 fn extern inko_tls_client_config_add_alpn(
-  config: Pointer[UInt8],
-  name: Pointer[UInt8],
+  config: Pointer[Uint8],
+  name: Pointer[Uint8],
   size: Int,
 )
 
-fn extern inko_tls_client_config_drop(config: Pointer[UInt8])
+fn extern inko_tls_client_config_drop(config: Pointer[Uint8])
 
 fn extern inko_tls_client_config_with_certificate(
-  certificate: Pointer[UInt8],
+  certificate: Pointer[Uint8],
   size: Int,
 ) -> AnyResult
 
 fn extern inko_tls_client_connection_new(
-  config: Pointer[UInt8],
+  config: Pointer[Uint8],
   name: PrimitiveString,
   alpn: Pointer[PrimitiveString],
   alpn_size: Int,
 ) -> AnyResult
 
 fn extern inko_tls_client_connection_alpn(
-  connection: Pointer[UInt8],
+  connection: Pointer[Uint8],
 ) -> PrimitiveString
 
-fn extern inko_tls_client_connection_drop(connection: Pointer[UInt8])
+fn extern inko_tls_client_connection_drop(connection: Pointer[Uint8])
 
-fn extern inko_tls_cert_chain_new -> Pointer[UInt8]
+fn extern inko_tls_cert_chain_new -> Pointer[Uint8]
 
 fn extern inko_tls_cert_chain_push(
-  chain: Pointer[UInt8],
-  data: Pointer[UInt8],
+  chain: Pointer[Uint8],
+  data: Pointer[Uint8],
   size: Int,
 )
 
 fn extern inko_tls_server_config_new(
-  chain: Pointer[UInt8],
-  key: Pointer[UInt8],
+  chain: Pointer[Uint8],
+  key: Pointer[Uint8],
   key_size: Int,
 ) -> AnyResult
 
 fn extern inko_tls_server_config_add_alpn(
-  config: Pointer[UInt8],
-  name: Pointer[UInt8],
+  config: Pointer[Uint8],
+  name: Pointer[Uint8],
   size: Int,
 )
 
-fn extern inko_tls_server_config_drop(config: Pointer[UInt8])
+fn extern inko_tls_server_config_drop(config: Pointer[Uint8])
 
 fn extern inko_tls_server_connection_new(
-  config: Pointer[UInt8],
-) -> Pointer[UInt8]
+  config: Pointer[Uint8],
+) -> Pointer[Uint8]
 
 fn extern inko_tls_server_connection_alpn(
-  connection: Pointer[UInt8],
+  connection: Pointer[Uint8],
 ) -> PrimitiveString
 
 fn extern inko_tls_server_connection_server_name(
-  accepted: Pointer[UInt8],
+  accepted: Pointer[Uint8],
 ) -> PrimitiveString
 
-fn extern inko_tls_server_connection_drop(connection: Pointer[UInt8])
+fn extern inko_tls_server_connection_drop(connection: Pointer[Uint8])
 
 fn extern inko_tls_client_read(
   socket: Pointer[poll.Poll],
-  connection: Pointer[UInt8],
-  buffer: Pointer[UInt8],
+  connection: Pointer[Uint8],
+  buffer: Pointer[Uint8],
   size: Int,
   deadline: Int,
-  reader: Pointer[UInt8],
-  writer: Pointer[UInt8],
+  reader: Pointer[Uint8],
+  writer: Pointer[Uint8],
 ) -> IntResult
 
 fn extern inko_tls_client_write(
   socket: Pointer[poll.Poll],
-  connection: Pointer[UInt8],
-  buffer: Pointer[UInt8],
+  connection: Pointer[Uint8],
+  buffer: Pointer[Uint8],
   size: Int,
   deadline: Int,
-  reader: Pointer[UInt8],
-  writer: Pointer[UInt8],
+  reader: Pointer[Uint8],
+  writer: Pointer[Uint8],
 ) -> IntResult
 
 fn extern inko_tls_client_flush(
-  state: Pointer[UInt8],
-  process: Pointer[UInt8],
+  state: Pointer[Uint8],
+  process: Pointer[Uint8],
   socket: Pointer[poll.Poll],
-  connection: Pointer[UInt8],
+  connection: Pointer[Uint8],
 ) -> IntResult
 
 fn extern inko_tls_client_close(
   socket: Pointer[poll.Poll],
-  connection: Pointer[UInt8],
+  connection: Pointer[Uint8],
   deadline: Int,
-  reader: Pointer[UInt8],
-  writer: Pointer[UInt8],
+  reader: Pointer[Uint8],
+  writer: Pointer[Uint8],
 ) -> IntResult
 
 fn extern inko_tls_server_read(
   socket: Pointer[poll.Poll],
-  connection: Pointer[UInt8],
-  buffer: Pointer[UInt8],
+  connection: Pointer[Uint8],
+  buffer: Pointer[Uint8],
   size: Int,
   deadline: Int,
-  reader: Pointer[UInt8],
-  writer: Pointer[UInt8],
+  reader: Pointer[Uint8],
+  writer: Pointer[Uint8],
 ) -> IntResult
 
 fn extern inko_tls_server_write(
   socket: Pointer[poll.Poll],
-  connection: Pointer[UInt8],
-  buffer: Pointer[UInt8],
+  connection: Pointer[Uint8],
+  buffer: Pointer[Uint8],
   size: Int,
   deadline: Int,
-  reader: Pointer[UInt8],
-  writer: Pointer[UInt8],
+  reader: Pointer[Uint8],
+  writer: Pointer[Uint8],
 ) -> IntResult
 
 fn extern inko_tls_server_flush(
-  state: Pointer[UInt8],
-  process: Pointer[UInt8],
+  state: Pointer[Uint8],
+  process: Pointer[Uint8],
   socket: Pointer[poll.Poll],
-  connection: Pointer[UInt8],
+  connection: Pointer[Uint8],
 ) -> IntResult
 
 fn extern inko_tls_server_close(
   socket: Pointer[poll.Poll],
-  connection: Pointer[UInt8],
+  connection: Pointer[Uint8],
   deadline: Int,
-  reader: Pointer[UInt8],
-  writer: Pointer[UInt8],
+  reader: Pointer[Uint8],
+  writer: Pointer[Uint8],
 ) -> IntResult
 
 fn extern inko_tls_client_complete_io(
   socket: Pointer[poll.Poll],
-  connection: Pointer[UInt8],
+  connection: Pointer[Uint8],
   deadline: Int,
-  reader: Pointer[UInt8],
-  writer: Pointer[UInt8],
+  reader: Pointer[Uint8],
+  writer: Pointer[Uint8],
 ) -> IntResult
 
 fn extern inko_tls_server_complete_io(
   socket: Pointer[poll.Poll],
-  connection: Pointer[UInt8],
+  connection: Pointer[Uint8],
   deadline: Int,
-  reader: Pointer[UInt8],
-  writer: Pointer[UInt8],
+  reader: Pointer[Uint8],
+  writer: Pointer[Uint8],
 ) -> IntResult
 
 fn extern inko_tls_pending_server_new(
   socket: Pointer[poll.Poll],
   deadline: Int,
-  reader: Pointer[UInt8],
-  writer: Pointer[UInt8],
+  reader: Pointer[Uint8],
+  writer: Pointer[Uint8],
 ) -> AnyResult
 
 fn extern inko_tls_pending_server_name(
-  accepted: Pointer[UInt8],
+  accepted: Pointer[Uint8],
 ) -> PrimitiveString
 
 fn extern inko_tls_pending_server_into_server_connection(
-  accepted: Pointer[UInt8],
-  config: Pointer[UInt8],
+  accepted: Pointer[Uint8],
+  config: Pointer[Uint8],
   socket: Pointer[poll.Poll],
   deadline: Int,
-  reader: Pointer[UInt8],
-  writer: Pointer[UInt8],
+  reader: Pointer[Uint8],
+  writer: Pointer[Uint8],
 ) -> AnyResult
 
-fn extern inko_tls_pending_server_drop(accepted: Pointer[UInt8])
+fn extern inko_tls_pending_server_drop(accepted: Pointer[Uint8])
 
 let OK = 0
 let NONE = 1
@@ -221,7 +221,7 @@ let ERROR = 2
 
 type extern AnyResult {
   let @tag: Int
-  let @value: UInt64
+  let @value: Uint64
 }
 
 type extern IntResult {
@@ -231,7 +231,7 @@ type extern IntResult {
 
 fn extern read_callback(
   socket: Pointer[poll.Poll],
-  buffer: Pointer[UInt8],
+  buffer: Pointer[Uint8],
   size: Int,
   deadline: Int,
 ) -> IntResult {
@@ -243,7 +243,7 @@ fn extern read_callback(
 
 fn extern write_callback(
   socket: Pointer[poll.Poll],
-  buffer: Pointer[UInt8],
+  buffer: Pointer[Uint8],
   size: Int,
   deadline: Int,
 ) -> IntResult {
@@ -364,7 +364,7 @@ type pub inline ClientConfigBuilder {
 
   fn move build(result: AnyResult) -> Option[ClientConfig] {
     let conf = match result {
-      case { @tag = OK, @value = v } -> ClientConfig(v as Pointer[UInt8])
+      case { @tag = OK, @value = v } -> ClientConfig(v as Pointer[Uint8])
       case _ -> return Option.None
     }
 
@@ -391,7 +391,7 @@ type pub inline ClientConfigBuilder {
 # necessary (e.g. when sharing a `ClientConfig` between processes), as cloning a
 # `ClientConfig` is cheap.
 type pub ref ClientConfig {
-  let @raw: Pointer[UInt8]
+  let @raw: Pointer[Uint8]
 
   # Returns a new `ClientConfigBuilder` for building a new `ClientConfig`.
   #
@@ -505,7 +505,7 @@ type pub Client[T: mut + Deadline + RawSocketOperations] {
   let pub @socket: T
 
   # The TLS connection state.
-  let @state: Pointer[UInt8]
+  let @state: Pointer[Uint8]
 
   # Returns a `Client` acting as the client in a TLS session.
   #
@@ -585,7 +585,7 @@ type pub Client[T: mut + Deadline + RawSocketOperations] {
         alpn_raw.size,
       )
     {
-      case { @tag = OK, @value = v } -> v as Pointer[UInt8]
+      case { @tag = OK, @value = v } -> v as Pointer[Uint8]
       case { @tag = NONE } -> throw ClientError.InvalidServer
       case _ -> throw ClientError.InvalidHandshake
     }
@@ -692,7 +692,7 @@ impl Read[Error] for Client {
 }
 
 impl WriteInternal for Client {
-  fn mut write_internal(data: Pointer[UInt8], size: Int) -> Result[Int, Error] {
+  fn mut write_internal(data: Pointer[Uint8], size: Int) -> Result[Int, Error] {
     match
       inko_tls_client_write(
         @socket.raw_socket,
@@ -793,7 +793,7 @@ type pub inline ServerConfigBuilder {
         key_size: key.bytes.size,
       )
     {
-      case { @tag = OK, @value = v } -> ServerConfig(v as Pointer[UInt8])
+      case { @tag = OK, @value = v } -> ServerConfig(v as Pointer[Uint8])
       case { @value = e } if e as Int == INVALID_CERT -> {
         throw ServerConfigError.InvalidCertificate
       }
@@ -857,7 +857,7 @@ type pub inline ServerConfigBuilder {
 # create a `ServerConfig` once and use `ServerConfig.clone` to clone it whenever
 # necessary, as cloning a `ServerConfig` is cheap.
 type pub ref ServerConfig {
-  let @raw: Pointer[UInt8]
+  let @raw: Pointer[Uint8]
 
   # Returns a new `ServerConfigBuilder` for building a new `ServerConfig`.
   #
@@ -966,7 +966,7 @@ type pub Server[T: mut + Deadline + RawSocketOperations] {
   let pub @socket: T
 
   # The TLS connection state.
-  let @state: Pointer[UInt8]
+  let @state: Pointer[Uint8]
 
   # Returns a `Server` acting as the server in a TLS session.
   #
@@ -1129,7 +1129,7 @@ impl Read[Error] for Server {
 }
 
 impl WriteInternal for Server {
-  fn mut write_internal(data: Pointer[UInt8], size: Int) -> Result[Int, Error] {
+  fn mut write_internal(data: Pointer[Uint8], size: Int) -> Result[Int, Error] {
     match
       inko_tls_server_write(
         @socket.raw_socket,
@@ -1270,7 +1270,7 @@ type pub PendingServer[T: mut + Deadline + RawSocketOperations] {
   let mut @socket: Option[T]
 
   # The rustls `Accepted` state.
-  let @state: Pointer[UInt8]
+  let @state: Pointer[Uint8]
 
   # Returns a new `PendingServer` that uses the given socket.
   #
@@ -1293,7 +1293,7 @@ type pub PendingServer[T: mut + Deadline + RawSocketOperations] {
         mut write_callback,
       )
     {
-      case { @tag = OK, @value = state } -> state as Pointer[UInt8]
+      case { @tag = OK, @value = state } -> state as Pointer[Uint8]
       case { @value = code } -> {
         let code = code as Int
 
@@ -1349,7 +1349,7 @@ type pub PendingServer[T: mut + Deadline + RawSocketOperations] {
         mut write_callback,
       )
     {
-      case { @tag = OK, @value = state } -> state as Pointer[UInt8]
+      case { @tag = OK, @value = state } -> state as Pointer[Uint8]
       case _ -> throw PendingServerError.InvalidClientHello
     }
 

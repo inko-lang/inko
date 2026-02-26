@@ -1,6 +1,6 @@
 import std.libc
 
-fn extern inko_time_monotonic(state: Pointer[UInt8]) -> Int
+fn extern inko_time_monotonic(state: Pointer[Uint8]) -> Int
 
 type copy RawDateTime {
   let @year: Int

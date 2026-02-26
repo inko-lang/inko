@@ -6,19 +6,19 @@ import std.libc.mac (Dirent, StatBuf)
 #
 # - <https://assert.cc/posts/darwin_use_64_bit_inode_vs_ctypes/>
 # - <https://github.com/rust-lang/libc/issues/414>
-fn extern opendir$INODE64(path: Pointer[UInt8]) -> Pointer[UInt8]
+fn extern opendir$INODE64(path: Pointer[Uint8]) -> Pointer[Uint8]
 
-fn extern readdir$INODE64(stream: Pointer[UInt8]) -> Pointer[Dirent]
+fn extern readdir$INODE64(stream: Pointer[Uint8]) -> Pointer[Dirent]
 
 fn extern fstat$INODE64(fd: Int32, buf: Pointer[StatBuf]) -> Int32
 
-fn extern stat$INODE64(path: Pointer[UInt8], buf: Pointer[StatBuf]) -> Int32
+fn extern stat$INODE64(path: Pointer[Uint8], buf: Pointer[StatBuf]) -> Int32
 
-fn inline opendir(path: Pointer[UInt8]) -> Pointer[UInt8] {
+fn inline opendir(path: Pointer[Uint8]) -> Pointer[Uint8] {
   opendir$INODE64(path)
 }
 
-fn inline readdir(path: Pointer[UInt8]) -> Pointer[Dirent] {
+fn inline readdir(path: Pointer[Uint8]) -> Pointer[Dirent] {
   readdir$INODE64(path)
 }
 
@@ -26,6 +26,6 @@ fn inline fstat(fd: Int32, buf: Pointer[StatBuf]) -> Int32 {
   fstat$INODE64(fd, buf)
 }
 
-fn inline stat(path: Pointer[UInt8], buf: Pointer[StatBuf]) -> Int32 {
+fn inline stat(path: Pointer[Uint8], buf: Pointer[StatBuf]) -> Int32 {
   stat$INODE64(path, buf)
 }

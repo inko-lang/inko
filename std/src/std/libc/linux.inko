@@ -131,73 +131,73 @@ let TCP_NODELAY = 1
 let WNOHANG = 0x00000001
 
 type extern Dirent {
-  let @d_ino: UInt64
-  let @d_off: UInt64
-  let @d_reclen: UInt16
-  let @d_type: UInt8
+  let @d_ino: Uint64
+  let @d_off: Uint64
+  let @d_reclen: Uint16
+  let @d_type: Uint8
 }
 
 type extern StatxBuf {
-  let @stx_mask: UInt32
-  let @stx_blksize: UInt32
-  let @stx_attributes: UInt64
-  let @stx_nlink: UInt32
-  let @stx_uid: UInt32
-  let @stx_gid: UInt32
-  let @stx_mode: UInt16
-  let @__pad0: UInt16
-  let @stx_ino: UInt64
-  let @stx_size: UInt64
-  let @stx_blocks: UInt64
-  let @stx_attributes_mask: UInt64
+  let @stx_mask: Uint32
+  let @stx_blksize: Uint32
+  let @stx_attributes: Uint64
+  let @stx_nlink: Uint32
+  let @stx_uid: Uint32
+  let @stx_gid: Uint32
+  let @stx_mode: Uint16
+  let @__pad0: Uint16
+  let @stx_ino: Uint64
+  let @stx_size: Uint64
+  let @stx_blocks: Uint64
+  let @stx_attributes_mask: Uint64
   let @stx_atime: StatxTimestamp
   let @stx_btime: StatxTimestamp
   let @stx_ctime: StatxTimestamp
   let @stx_mtime: StatxTimestamp
-  let @stx_rdev_major: UInt32
-  let @stx_rdev_minor: UInt32
-  let @stx_dev_major: UInt32
-  let @stx_dev_minor: UInt32
-  let @stx_mnt_id: UInt64
-  let @stx_dio_mem_align: UInt32
-  let @stx_dio_offset_align: UInt32
-  let @__pad1: UInt64
-  let @__pad2: UInt64
-  let @__pad3: UInt64
-  let @__pad4: UInt64
-  let @__pad5: UInt64
-  let @__pad6: UInt64
-  let @__pad7: UInt64
-  let @__pad8: UInt64
-  let @__pad9: UInt64
-  let @__pad10: UInt64
-  let @__pad11: UInt64
-  let @__pad12: UInt64
+  let @stx_rdev_major: Uint32
+  let @stx_rdev_minor: Uint32
+  let @stx_dev_major: Uint32
+  let @stx_dev_minor: Uint32
+  let @stx_mnt_id: Uint64
+  let @stx_dio_mem_align: Uint32
+  let @stx_dio_offset_align: Uint32
+  let @__pad1: Uint64
+  let @__pad2: Uint64
+  let @__pad3: Uint64
+  let @__pad4: Uint64
+  let @__pad5: Uint64
+  let @__pad6: Uint64
+  let @__pad7: Uint64
+  let @__pad8: Uint64
+  let @__pad9: Uint64
+  let @__pad10: Uint64
+  let @__pad11: Uint64
+  let @__pad12: Uint64
 }
 
 type extern StatxTimestamp {
   let @tv_sec: Int64
-  let @tv_nsec: UInt32
+  let @tv_nsec: Uint32
   let @__pad0: Int32
 }
 
 type extern SigSet {
-  let @__val0: UInt64
-  let @__val1: UInt64
-  let @__val2: UInt64
-  let @__val3: UInt64
-  let @__val4: UInt64
-  let @__val5: UInt64
-  let @__val6: UInt64
-  let @__val7: UInt64
-  let @__val8: UInt64
-  let @__val9: UInt64
-  let @__val10: UInt64
-  let @__val11: UInt64
-  let @__val12: UInt64
-  let @__val13: UInt64
-  let @__val14: UInt64
-  let @__val15: UInt64
+  let @__val0: Uint64
+  let @__val1: Uint64
+  let @__val2: Uint64
+  let @__val3: Uint64
+  let @__val4: Uint64
+  let @__val5: Uint64
+  let @__val6: Uint64
+  let @__val7: Uint64
+  let @__val8: Uint64
+  let @__val9: Uint64
+  let @__val10: Uint64
+  let @__val11: Uint64
+  let @__val12: Uint64
+  let @__val13: Uint64
+  let @__val14: Uint64
+  let @__val15: Uint64
 }
 
 type extern PosixSpawnAttrs {
@@ -228,7 +228,7 @@ type extern PosixSpawnAttrs {
 type extern PosixSpawnFileActions {
   let @__allocated: Int32
   let @__used: Int32
-  let @__actions: Pointer[UInt8]
+  let @__actions: Pointer[Uint8]
   let @__pad0: Int32
   let @__pad1: Int32
   let @__pad2: Int32
@@ -253,172 +253,172 @@ type extern Pipes {
 }
 
 type extern SockAddrIn {
-  let @sin_family: UInt16
-  let @sin_port: UInt16
-  let @sin_addr: UInt32
-  let @sin_zero: UInt64
+  let @sin_family: Uint16
+  let @sin_port: Uint16
+  let @sin_addr: Uint32
+  let @sin_zero: Uint64
 }
 
 type extern SockAddrIn6 {
-  let @sin6_family: UInt16
-  let @sin6_port: UInt16
-  let @sin6_flowinfo: UInt32
-  let @sin6_addr0: UInt32
-  let @sin6_addr1: UInt32
-  let @sin6_addr2: UInt32
-  let @sin6_addr3: UInt32
-  let @sin6_scope_id: UInt32
+  let @sin6_family: Uint16
+  let @sin6_port: Uint16
+  let @sin6_flowinfo: Uint32
+  let @sin6_addr0: Uint32
+  let @sin6_addr1: Uint32
+  let @sin6_addr2: Uint32
+  let @sin6_addr3: Uint32
+  let @sin6_scope_id: Uint32
 }
 
 type extern SockAddrUn {
-  let @sun_family: UInt16
-  let @sun_path0: UInt8
-  let @sun_path1: UInt8
-  let @sun_path2: UInt8
-  let @sun_path3: UInt8
-  let @sun_path4: UInt8
-  let @sun_path5: UInt8
-  let @sun_path6: UInt8
-  let @sun_path7: UInt8
-  let @sun_path8: UInt8
-  let @sun_path9: UInt8
-  let @sun_path10: UInt8
-  let @sun_path11: UInt8
-  let @sun_path12: UInt8
-  let @sun_path13: UInt8
-  let @sun_path14: UInt8
-  let @sun_path15: UInt8
-  let @sun_path16: UInt8
-  let @sun_path17: UInt8
-  let @sun_path18: UInt8
-  let @sun_path19: UInt8
-  let @sun_path20: UInt8
-  let @sun_path21: UInt8
-  let @sun_path22: UInt8
-  let @sun_path23: UInt8
-  let @sun_path24: UInt8
-  let @sun_path25: UInt8
-  let @sun_path26: UInt8
-  let @sun_path27: UInt8
-  let @sun_path28: UInt8
-  let @sun_path29: UInt8
-  let @sun_path30: UInt8
-  let @sun_path31: UInt8
-  let @sun_path32: UInt8
-  let @sun_path33: UInt8
-  let @sun_path34: UInt8
-  let @sun_path35: UInt8
-  let @sun_path36: UInt8
-  let @sun_path37: UInt8
-  let @sun_path38: UInt8
-  let @sun_path39: UInt8
-  let @sun_path40: UInt8
-  let @sun_path41: UInt8
-  let @sun_path42: UInt8
-  let @sun_path43: UInt8
-  let @sun_path44: UInt8
-  let @sun_path45: UInt8
-  let @sun_path46: UInt8
-  let @sun_path47: UInt8
-  let @sun_path48: UInt8
-  let @sun_path49: UInt8
-  let @sun_path50: UInt8
-  let @sun_path51: UInt8
-  let @sun_path52: UInt8
-  let @sun_path53: UInt8
-  let @sun_path54: UInt8
-  let @sun_path55: UInt8
-  let @sun_path56: UInt8
-  let @sun_path57: UInt8
-  let @sun_path58: UInt8
-  let @sun_path59: UInt8
-  let @sun_path60: UInt8
-  let @sun_path61: UInt8
-  let @sun_path62: UInt8
-  let @sun_path63: UInt8
-  let @sun_path64: UInt8
-  let @sun_path65: UInt8
-  let @sun_path66: UInt8
-  let @sun_path67: UInt8
-  let @sun_path68: UInt8
-  let @sun_path69: UInt8
-  let @sun_path70: UInt8
-  let @sun_path71: UInt8
-  let @sun_path72: UInt8
-  let @sun_path73: UInt8
-  let @sun_path74: UInt8
-  let @sun_path75: UInt8
-  let @sun_path76: UInt8
-  let @sun_path77: UInt8
-  let @sun_path78: UInt8
-  let @sun_path79: UInt8
-  let @sun_path80: UInt8
-  let @sun_path81: UInt8
-  let @sun_path82: UInt8
-  let @sun_path83: UInt8
-  let @sun_path84: UInt8
-  let @sun_path85: UInt8
-  let @sun_path86: UInt8
-  let @sun_path87: UInt8
-  let @sun_path88: UInt8
-  let @sun_path89: UInt8
-  let @sun_path90: UInt8
-  let @sun_path91: UInt8
-  let @sun_path92: UInt8
-  let @sun_path93: UInt8
-  let @sun_path94: UInt8
-  let @sun_path95: UInt8
-  let @sun_path96: UInt8
-  let @sun_path97: UInt8
-  let @sun_path98: UInt8
-  let @sun_path99: UInt8
-  let @sun_path100: UInt8
-  let @sun_path101: UInt8
-  let @sun_path102: UInt8
-  let @sun_path103: UInt8
-  let @sun_path104: UInt8
-  let @sun_path105: UInt8
-  let @sun_path106: UInt8
-  let @sun_path107: UInt8
+  let @sun_family: Uint16
+  let @sun_path0: Uint8
+  let @sun_path1: Uint8
+  let @sun_path2: Uint8
+  let @sun_path3: Uint8
+  let @sun_path4: Uint8
+  let @sun_path5: Uint8
+  let @sun_path6: Uint8
+  let @sun_path7: Uint8
+  let @sun_path8: Uint8
+  let @sun_path9: Uint8
+  let @sun_path10: Uint8
+  let @sun_path11: Uint8
+  let @sun_path12: Uint8
+  let @sun_path13: Uint8
+  let @sun_path14: Uint8
+  let @sun_path15: Uint8
+  let @sun_path16: Uint8
+  let @sun_path17: Uint8
+  let @sun_path18: Uint8
+  let @sun_path19: Uint8
+  let @sun_path20: Uint8
+  let @sun_path21: Uint8
+  let @sun_path22: Uint8
+  let @sun_path23: Uint8
+  let @sun_path24: Uint8
+  let @sun_path25: Uint8
+  let @sun_path26: Uint8
+  let @sun_path27: Uint8
+  let @sun_path28: Uint8
+  let @sun_path29: Uint8
+  let @sun_path30: Uint8
+  let @sun_path31: Uint8
+  let @sun_path32: Uint8
+  let @sun_path33: Uint8
+  let @sun_path34: Uint8
+  let @sun_path35: Uint8
+  let @sun_path36: Uint8
+  let @sun_path37: Uint8
+  let @sun_path38: Uint8
+  let @sun_path39: Uint8
+  let @sun_path40: Uint8
+  let @sun_path41: Uint8
+  let @sun_path42: Uint8
+  let @sun_path43: Uint8
+  let @sun_path44: Uint8
+  let @sun_path45: Uint8
+  let @sun_path46: Uint8
+  let @sun_path47: Uint8
+  let @sun_path48: Uint8
+  let @sun_path49: Uint8
+  let @sun_path50: Uint8
+  let @sun_path51: Uint8
+  let @sun_path52: Uint8
+  let @sun_path53: Uint8
+  let @sun_path54: Uint8
+  let @sun_path55: Uint8
+  let @sun_path56: Uint8
+  let @sun_path57: Uint8
+  let @sun_path58: Uint8
+  let @sun_path59: Uint8
+  let @sun_path60: Uint8
+  let @sun_path61: Uint8
+  let @sun_path62: Uint8
+  let @sun_path63: Uint8
+  let @sun_path64: Uint8
+  let @sun_path65: Uint8
+  let @sun_path66: Uint8
+  let @sun_path67: Uint8
+  let @sun_path68: Uint8
+  let @sun_path69: Uint8
+  let @sun_path70: Uint8
+  let @sun_path71: Uint8
+  let @sun_path72: Uint8
+  let @sun_path73: Uint8
+  let @sun_path74: Uint8
+  let @sun_path75: Uint8
+  let @sun_path76: Uint8
+  let @sun_path77: Uint8
+  let @sun_path78: Uint8
+  let @sun_path79: Uint8
+  let @sun_path80: Uint8
+  let @sun_path81: Uint8
+  let @sun_path82: Uint8
+  let @sun_path83: Uint8
+  let @sun_path84: Uint8
+  let @sun_path85: Uint8
+  let @sun_path86: Uint8
+  let @sun_path87: Uint8
+  let @sun_path88: Uint8
+  let @sun_path89: Uint8
+  let @sun_path90: Uint8
+  let @sun_path91: Uint8
+  let @sun_path92: Uint8
+  let @sun_path93: Uint8
+  let @sun_path94: Uint8
+  let @sun_path95: Uint8
+  let @sun_path96: Uint8
+  let @sun_path97: Uint8
+  let @sun_path98: Uint8
+  let @sun_path99: Uint8
+  let @sun_path100: Uint8
+  let @sun_path101: Uint8
+  let @sun_path102: Uint8
+  let @sun_path103: Uint8
+  let @sun_path104: Uint8
+  let @sun_path105: Uint8
+  let @sun_path106: Uint8
+  let @sun_path107: Uint8
 }
 
 type extern SockAddr {
-  let @sa_family: UInt16
-  let @sa_data0: UInt8
-  let @sa_data1: UInt8
-  let @sa_data2: UInt8
-  let @sa_data3: UInt8
-  let @sa_data4: UInt8
-  let @sa_data5: UInt8
-  let @sa_data6: UInt8
-  let @sa_data7: UInt8
-  let @sa_data8: UInt8
-  let @sa_data9: UInt8
-  let @sa_data10: UInt8
-  let @sa_data11: UInt8
-  let @sa_data12: UInt8
-  let @sa_data13: UInt8
+  let @sa_family: Uint16
+  let @sa_data0: Uint8
+  let @sa_data1: Uint8
+  let @sa_data2: Uint8
+  let @sa_data3: Uint8
+  let @sa_data4: Uint8
+  let @sa_data5: Uint8
+  let @sa_data6: Uint8
+  let @sa_data7: Uint8
+  let @sa_data8: Uint8
+  let @sa_data9: Uint8
+  let @sa_data10: Uint8
+  let @sa_data11: Uint8
+  let @sa_data12: Uint8
+  let @sa_data13: Uint8
 }
 
 type extern SockAddrStorage {
-  let @ss_family: UInt16
-  let @__pad0: UInt16
-  let @__pad1: UInt32
-  let @__val0: UInt64
-  let @__val1: UInt64
-  let @__val2: UInt64
-  let @__val3: UInt64
-  let @__val4: UInt64
-  let @__val5: UInt64
-  let @__val6: UInt64
-  let @__val7: UInt64
-  let @__val8: UInt64
-  let @__val9: UInt64
-  let @__val10: UInt64
-  let @__val11: UInt64
-  let @__val12: UInt64
-  let @__val13: UInt64
-  let @__val14: UInt64
+  let @ss_family: Uint16
+  let @__pad0: Uint16
+  let @__pad1: Uint32
+  let @__val0: Uint64
+  let @__val1: Uint64
+  let @__val2: Uint64
+  let @__val3: Uint64
+  let @__val4: Uint64
+  let @__val5: Uint64
+  let @__val6: Uint64
+  let @__val7: Uint64
+  let @__val8: Uint64
+  let @__val9: Uint64
+  let @__val10: Uint64
+  let @__val11: Uint64
+  let @__val12: Uint64
+  let @__val13: Uint64
+  let @__val14: Uint64
 }
 
 type extern AddrInfo {
@@ -426,34 +426,34 @@ type extern AddrInfo {
   let @ai_family: Int32
   let @ai_socktype: Int32
   let @ai_protocol: Int32
-  let @ai_addrlen: UInt64
+  let @ai_addrlen: Uint64
   let @ai_addr: Pointer[SockAddr]
-  let @ai_canonname: Pointer[UInt8]
+  let @ai_canonname: Pointer[Uint8]
   let @ai_next: Pointer[AddrInfo]
 }
 
 type extern EpollEvent {
-  let @__val0: UInt8
-  let @__val1: UInt8
-  let @__val2: UInt8
-  let @__val3: UInt8
-  let @__val4: UInt8
-  let @__val5: UInt8
-  let @__val6: UInt8
-  let @__val7: UInt8
-  let @__val8: UInt8
-  let @__val9: UInt8
-  let @__val10: UInt8
-  let @__val11: UInt8
+  let @__val0: Uint8
+  let @__val1: Uint8
+  let @__val2: Uint8
+  let @__val3: Uint8
+  let @__val4: Uint8
+  let @__val5: Uint8
+  let @__val6: Uint8
+  let @__val7: Uint8
+  let @__val8: Uint8
+  let @__val9: Uint8
+  let @__val10: Uint8
+  let @__val11: Uint8
 }
 
-fn extern fchmod(fd: Int32, mode: UInt16) -> Int32
+fn extern fchmod(fd: Int32, mode: Uint16) -> Int32
 
 fn extern syscall(number: Int32, ...) -> Int32
 
-fn extern opendir(path: Pointer[UInt8]) -> Pointer[UInt8]
+fn extern opendir(path: Pointer[Uint8]) -> Pointer[Uint8]
 
-fn extern readdir(stream: Pointer[UInt8]) -> Pointer[Dirent]
+fn extern readdir(stream: Pointer[Uint8]) -> Pointer[Dirent]
 
 fn extern fsync(fd: Int32) -> Int32
 
@@ -461,7 +461,7 @@ fn extern sendfile(
   out: Int32,
   input: Int32,
   offset: Pointer[Int64],
-  count: UInt64,
+  count: Uint64,
 ) -> Int64
 
 fn extern copy_file_range(
@@ -469,8 +469,8 @@ fn extern copy_file_range(
   off_in: Pointer[Int64],
   out: Int32,
   off_out: Pointer[Int64],
-  len: UInt64,
-  flags: UInt32,
+  len: Uint64,
+  flags: Uint32,
 ) -> Int64
 
 fn extern pipe2(pipes: Pointer[Pipes], flags: Int32) -> Int32
@@ -480,11 +480,11 @@ fn extern __errno_location -> Pointer[Int32]
 fn extern accept4(
   socket: Int32,
   addr: Pointer[SockAddr],
-  size: Pointer[UInt32],
+  size: Pointer[Uint32],
   flags: Int32,
 ) -> Int32
 
-fn extern getrandom(buf: Pointer[UInt8], size: UInt64, flags: Int32) -> Int
+fn extern getrandom(buf: Pointer[Uint8], size: Uint64, flags: Int32) -> Int
 
 fn extern epoll_create1(flags: Int32) -> Int32
 
@@ -510,8 +510,8 @@ fn inline dirent_type(pointer: Pointer[Dirent]) -> Int {
   pointer.d_type as Int
 }
 
-fn inline dirent_name(pointer: Pointer[Dirent]) -> Pointer[UInt8] {
-  pointer as Int + 19 as Pointer[UInt8]
+fn inline dirent_name(pointer: Pointer[Dirent]) -> Pointer[Uint8] {
+  pointer as Int + 19 as Pointer[Uint8]
 }
 
 # statx() has been available in glibc since version 2.28 (August 2018), but for
@@ -531,7 +531,7 @@ fn inline statx(
     fd,
     name.pointer,
     flags as Int32,
-    mask as UInt32,
+    mask as Uint32,
     buf,
   )
     as Int
@@ -551,8 +551,8 @@ fn inline pipes(nonblocking: Bool) -> Result[(Int32, Int32), Error] {
 fn inline new_epoll_event(id: Int, flags: Int) -> EpollEvent {
   let event = EpollEvent()
 
-  ((mut event) as Pointer[UInt32]).0 = flags as UInt32
-  ((mut event) as Int + 4 as Pointer[UInt64]).0 = id as UInt64
+  ((mut event) as Pointer[Uint32]).0 = flags as Uint32
+  ((mut event) as Int + 4 as Pointer[Uint64]).0 = id as Uint64
   event
 }
 

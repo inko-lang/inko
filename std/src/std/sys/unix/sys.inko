@@ -98,18 +98,18 @@ impl Drop for FileActions {
 }
 
 type StringPointers {
-  let @raw: Pointer[UInt64]
+  let @raw: Pointer[Uint64]
 
   fn static new(size: Int) -> StringPointers {
-    let raw = alloc.resize(0 as Pointer[UInt64], size + 1)
+    let raw = alloc.resize(0 as Pointer[Uint64], size + 1)
 
     # The argv/envp arrays passed to posix_spawnp() must be NULL terminated.
-    ptr.add(raw, size).0 = 0 as UInt64
+    ptr.add(raw, size).0 = 0 as Uint64
     StringPointers(raw)
   }
 
   fn mut set(index: Int, value: String) {
-    ptr.add(@raw, index).0 = value.pointer as UInt64
+    ptr.add(@raw, index).0 = value.pointer as Uint64
   }
 }
 
@@ -119,14 +119,14 @@ impl Drop for StringPointers {
   }
 }
 
-fn add_null(pointer: Pointer[UInt64], size: Int) {
+fn add_null(pointer: Pointer[Uint64], size: Int) {
   let target = if size == 0 {
     ptr.add(pointer, 1)
   } else {
     ptr.add(pointer, size - 1)
   }
 
-  target.0 = 0 as UInt64
+  target.0 = 0 as Uint64
 }
 
 # The WEXITSTATUS() macro as described in `wait(2)`.

@@ -1,7 +1,7 @@
 # Methods for working with UTF-8 scalars and code points.
 import std.bytes (Bytes)
 
-fn extern inko_string_is_valid_utf8(pointer: Pointer[UInt8], size: Int) -> Bool
+fn extern inko_string_is_valid_utf8(pointer: Pointer[Uint8], size: Int) -> Bool
 
 # The maximum value of a Unicode code point
 let pub MAX_CODEPOINT = 0x10FFFF

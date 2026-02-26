@@ -23,9 +23,9 @@ let READ_BUFFER_SIZE = 8 * 1024
 # The default size of the buffer maintained by `BufferedWriter`.
 let WRITE_BUFFER_SIZE = 8 * 1024
 
-fn extern inko_process_start_blocking(process: Pointer[UInt8])
+fn extern inko_process_start_blocking(process: Pointer[Uint8])
 
-fn extern inko_process_stop_blocking(process: Pointer[UInt8])
+fn extern inko_process_stop_blocking(process: Pointer[Uint8])
 
 fn invalid_buffer_size(size: Int) -> Never {
   panic('the buffer size (${size}) must be greater than zero')
@@ -56,7 +56,7 @@ fn invalid_buffer_size(size: Int) -> Never {
 # ```inko
 # import std.io (Error, start_blocking, stop_blocking)
 #
-# fn extern open(path: Pointer[UInt8], flags: Int32, ...) -> Int32
+# fn extern open(path: Pointer[Uint8], flags: Int32, ...) -> Int32
 #
 # start_blocking
 #
@@ -600,11 +600,11 @@ trait pub Read[E] {
 
 trait WriteInternal {
   # Performs a single raw write to the underlying stream.
-  fn mut write_internal(data: Pointer[UInt8], size: Int) -> Result[Int, Error]
+  fn mut write_internal(data: Pointer[Uint8], size: Int) -> Result[Int, Error]
 
   # Writes all the data to the underlying stream.
   fn mut write_all_internal(
-    data: Pointer[UInt8],
+    data: Pointer[Uint8],
     size: Int,
   ) -> Result[Nil, Error] {
     let mut rem = size

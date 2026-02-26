@@ -59,11 +59,11 @@ fn read_file(
   into.reserve_exact(size)
 
   let len = into.size
-  let ptr = (into.pointer as Int + len) as Pointer[UInt8]
+  let ptr = (into.pointer as Int + len) as Pointer[Uint8]
 
   start_blocking
 
-  let res = libc.read(file, ptr, size as UInt64)
+  let res = libc.read(file, ptr, size as Uint64)
   let err = stop_blocking
 
   if res >= 0 {
@@ -76,12 +76,12 @@ fn read_file(
 
 fn write_file(
   file: Int32,
-  data: Pointer[UInt8],
+  data: Pointer[Uint8],
   size: Int,
 ) -> Result[Int, Error] {
   start_blocking
 
-  let res = libc.write(file, data, size as UInt64)
+  let res = libc.write(file, data, size as Uint64)
   let err = stop_blocking
 
   if res >= 0 { Result.Ok(res) } else { Result.Error(Error.from_os_error(err)) }
@@ -122,7 +122,7 @@ fn path_metadata(path: String) -> Result[Metadata, Error] {
 fn create_directory(path: String) -> Result[Nil, Error] {
   start_blocking
 
-  let res = libc.mkdir(path.pointer, DIR_MODE as UInt32) as Int
+  let res = libc.mkdir(path.pointer, DIR_MODE as Uint32) as Int
   let err = stop_blocking
 
   if res == 0 {
@@ -166,7 +166,7 @@ fn copy_file(from: String, to: String) -> Result[Int, Error] {
 fn expand_path(path: String) -> Result[String, Error] {
   start_blocking
 
-  let res = libc.realpath(path.pointer, 0x0 as Pointer[UInt8])
+  let res = libc.realpath(path.pointer, 0x0 as Pointer[Uint8])
   let err = stop_blocking
 
   if res as Int == 0x0 { throw Error.from_os_error(err) }
@@ -222,7 +222,7 @@ fn copy_file_fallback(
 }
 
 type ReadDirectory {
-  let @stream: Pointer[UInt8]
+  let @stream: Pointer[Uint8]
 
   fn static new(path: String) -> Result[ReadDirectory, Error] {
     let stream = libc.opendir(path.pointer)
@@ -262,7 +262,7 @@ impl Iter[Result[(String, FileType), Error]] for ReadDirectory {
       if
         name_len == 2
           and first == DOT
-          and (name_ptr as Int + 1 as Pointer[UInt8]).0 as Int == DOT
+          and (name_ptr as Int + 1 as Pointer[Uint8]).0 as Int == DOT
       {
         next
       }

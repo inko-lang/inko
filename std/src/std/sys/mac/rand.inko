@@ -2,7 +2,7 @@ import std.cmp (min)
 import std.libc.mac (self as sys)
 import std.ptr
 
-fn inline random_bytes(buffer: Pointer[UInt8], size: Int) -> Int {
+fn inline random_bytes(buffer: Pointer[Uint8], size: Int) -> Int {
   let mut rem = size
   let mut buf = buffer
 
@@ -10,7 +10,7 @@ fn inline random_bytes(buffer: Pointer[UInt8], size: Int) -> Int {
   # reads into smaller chunks.
   while rem > 0 {
     let len = min(rem, 256)
-    let res = sys.getentropy(buf, size: len as UInt64) as Int
+    let res = sys.getentropy(buf, size: len as Uint64) as Int
 
     if res == -1 { return -1 }
 
