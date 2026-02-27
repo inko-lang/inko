@@ -120,6 +120,10 @@ impl Context {
         self.inner.i64_type().const_int(value as _, false)
     }
 
+    pub(crate) fn u32_literal(&self, value: u32) -> IntValue<'_> {
+        self.inner.i32_type().const_int(value as _, false)
+    }
+
     pub(crate) fn f64_literal(&self, value: f64) -> FloatValue<'_> {
         self.inner.f64_type().const_float(value)
     }
@@ -176,26 +180,14 @@ impl Context {
         typ
     }
 
-    pub(crate) fn atomic_header<'a>(
-        &'a self,
-        layouts: &Layouts<'a>,
-        typ: PointerValue<'a>,
-    ) -> StructValue<'a> {
-        layouts.header.const_named_struct(&[
-            typ.into(),
-            self.i32_type().const_int(1, false).into(),
-        ])
-    }
-
     pub(crate) fn header<'a>(
         &'a self,
         layouts: &Layouts<'a>,
         typ: PointerValue<'a>,
     ) -> StructValue<'a> {
-        layouts.header.const_named_struct(&[
-            typ.into(),
-            self.i32_type().const_int(0, false).into(),
-        ])
+        layouts
+            .header
+            .const_named_struct(&[typ.into(), self.u32_literal(0).into()])
     }
 
     pub(crate) fn append_basic_block<'a>(

@@ -1,5 +1,6 @@
-use crate::mem::PrimitiveString;
+use crate::mem::{PrimitiveString, PrimitiveStringResult};
 use crate::result::Result as InkoResult;
+use std::borrow::Cow;
 use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::slice;
@@ -20,28 +21,13 @@ pub unsafe extern "system" fn inko_string_is_valid_utf8(
 pub unsafe extern "system" fn inko_string_from_bytes(
     bytes: *const u8,
     size: i64,
-) -> PrimitiveString {
+) -> PrimitiveStringResult {
     let bytes = slice::from_raw_parts(bytes, size as usize);
 
-    // Most strings will be valid. This approach instead of using
-    // `String::from_utf8_lossy` allows us to avoid unnecessary intermediate
-    // allocations/resizes for such cases.
-    let mut val = String::with_capacity(size as usize + 1);
-
-    for chunk in bytes.utf8_chunks() {
-        val.push_str(chunk.valid());
-
-        if !chunk.invalid().is_empty() {
-            val.push('\u{FFFD}');
-        }
+    match String::from_utf8_lossy(bytes) {
+        Cow::Borrowed(v) => PrimitiveStringResult::borrowed(v),
+        Cow::Owned(v) => PrimitiveStringResult::owned(v),
     }
-
-    // Add the NULL byte and shrink the buffer in case we had to grow it as part
-    // of replacing invalid sequences. This way we can use the resulting pointer
-    // as-is without carrying around extra memory bloat.
-    val.push('\0');
-    val.shrink_to_fit();
-    PrimitiveString::owned(val)
 }
 
 #[no_mangle]

@@ -125,10 +125,10 @@ it possible to get a pointer to the private page from the current stack pointer.
 
 ## Strings
 
-Strings are immutable, and need at least 41 bytes of space. To allow easy
-passing of strings to C, each string ends with a NULL byte on top of storing its
-size. This NULL byte is ignored by Inko code. When passing a string to C, we
-just pass the pointer to the string's bytes which includes the NULL byte.
+Strings are immutable. To allow easy passing of strings to C, each string ends
+with a NULL byte on top of storing its size. This NULL byte is ignored by Inko
+code. When passing a string to C, we just pass the pointer to the string's bytes
+which includes the NULL byte.
 
 Since C strings must be NULL terminated, the alternative would've been to create
 a copy of the Inko string with a NULL byte at the end. When passing C strings to
@@ -138,6 +138,42 @@ additional cost.
 
 Strings use atomic reference counting when copying, meaning that a copy of a
 string increments the reference count instead of creating a full copy.
+
+The memory layout of a string is as follows:
+
+```
+╭──────────────────────╮
+│ Size        8 bytes  │
+├──────────────────────┤
+│ References  4 bytes  │
+├──────────────────────┤
+│ Contents    N bytes  │
+├──────────────────────┤
+│ NULL byte   1 byte   │
+╰──────────────────────╯
+```
+
+For example, the layout of the string "abc" is as follows:
+
+```
+╭──────╮
+│ 3    │ The number of bytes in the string, minus the NULL byte
+├──────┤
+│ 1    │ The number of references
+├──────┤
+│ a    │
+├──────┤
+│ b    │
+├──────┤
+│ c    │
+├──────┤
+│ NULL │ The trailing NULL byte
+╰──────╯
+```
+
+Unlike say a `ByteArray` or `Array` the contents are _not_ stored in a separate
+buffer allocated using e.g. `malloc()`, instead it's directly part of the string
+object. The minimum size of a string is 13 bytes (`8 + 4 + 1 = 13`).
 
 ## Signal handling
 

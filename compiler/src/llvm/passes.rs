@@ -806,31 +806,21 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
         context: &'ctx Context,
         value: &str,
     ) -> BasicValueEnum<'ctx> {
-        let tid = TypeId::string();
-        let tidx = tid.0 as usize;
-        let type_layout = self.layouts.types[tidx];
-        let instance_layout = self.layouts.instances[tidx];
-        let type_name = &self.shared.names.types[&tid];
-        let type_global = self.module.add_type(type_name, type_layout);
-
-        // Allocate the memory for the string's bytes.
-        let (buf_typ, buf_val) =
-            context.null_terminated_string(value.as_bytes());
-        let buf_global = self.module.add_static_global(buf_typ, buf_val);
-
-        buf_global.set_unnamed_addr(true);
-
-        // Allocate the string itself.
+        let instance_layout = context.struct_type(&[
+            context.i64_type().into(),
+            context.i32_type().into(),
+            context.i8_type().array_type((value.len() + 1) as _).into(),
+        ]);
+        let (_, bytes) = context.null_terminated_string(value.as_bytes());
         let str_val = instance_layout.const_named_struct(&[
-            // Header
-            context
-                .atomic_header(self.layouts, type_global.as_pointer_value())
-                .into(),
             // Size
             context.i64_literal(value.len() as _).into(),
+            // Ref count
+            context.u32_literal(1).into(),
             // Buffer
-            buf_global.as_pointer_value().into(),
+            bytes.into(),
         ]);
+
         let str_global = self.module.add_global(instance_layout, "");
 
         str_global.set_initializer(&str_val);

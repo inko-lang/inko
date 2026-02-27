@@ -262,6 +262,11 @@ impl<'ctx> Layouts<'ctx> {
                     typ.set_body(&[header.into()], false);
                     typ
                 }
+                STRING_ID => context.struct_type(&[
+                    context.i64_type().into(),
+                    context.i32_type().into(),
+                    context.i8_type().array_type(0).into(),
+                ]),
                 _ => {
                     // First we forward-declare the structures, as fields may
                     // need to refer to other types regardless of ordering.
@@ -332,14 +337,14 @@ impl<'ctx> Layouts<'ctx> {
 
         // These types have a fixed size and don't define any fields. To ensure
         // the work loop terminates, we manually flag them as known.
-        for id in [INT_ID, FLOAT_ID, BOOL_ID, NIL_ID] {
+        for id in [INT_ID, FLOAT_ID, BOOL_ID, NIL_ID, STRING_ID] {
             sized.set_has_size(TypeId(id as _));
         }
 
         while let Some(id) = queue.pop_front() {
             let kind = id.kind(db);
 
-            if id.is_builtin() && id.0 != STRING_ID {
+            if id.is_builtin() {
                 continue;
             }
 

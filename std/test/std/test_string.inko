@@ -27,8 +27,8 @@ fn pub tests(t: mut Tests) {
 
     t.equal(str1, 'foo')
     t.equal(str1.size, 3)
-    t.equal(ptr.add(str1.ptr, 3).0 as Int, 0)
-    t.not_equal(str1.ptr as Int, raw as Int)
+    t.equal(ptr.add(str1.pointer, 3).0 as Int, 0)
+    t.not_equal(str1.pointer as Int, raw as Int)
 
     t.equal(str2, '')
     t.equal(str2.size, 0)
@@ -43,7 +43,7 @@ fn pub tests(t: mut Tests) {
     t.equal(a.size, 3)
     t.equal(b, 'foo')
     t.equal(b.size, 3)
-    t.not_equal(b.ptr as Int, a.ptr as Int)
+    t.not_equal(b.pointer as Int, a.pointer as Int)
     t.equal(c, '')
     t.equal(c.size, 0)
   })
@@ -421,6 +421,7 @@ fn pub tests(t: mut Tests) {
     t.equal('A' + 'Ä', 'AÄ')
     t.equal('쿠' + '키', '쿠키')
     t.equal('😃' + '😃', '😃😃')
+    t.equal('' + '', '')
   })
 
   t.test('String.to_path', fn (t) {

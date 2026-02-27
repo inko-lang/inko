@@ -262,8 +262,6 @@ fn extern waitpid(pid: Int32, status: Pointer[Int32], options: Int32) -> Int32
 
 fn extern realloc(pointer: Pointer[Uint8], size: Int) -> Pointer[Uint8]
 
-fn extern calloc(elements: Uint64, size: Uint64) -> Pointer[Uint8]
-
 fn extern memset(
   pointer: Pointer[Uint8],
   byte: Int32,

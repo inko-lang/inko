@@ -11,12 +11,9 @@ import std.io (Error as IoError, Write)
 import std.iter (Iter as IterTrait, Stream)
 import std.option (Option)
 import std.ptr
-import std.string (IntoString, PrimitiveString, ToString)
-
-fn extern inko_string_from_bytes(
-  bytes: Pointer[Uint8],
-  size: Int,
-) -> PrimitiveString
+import std.string (
+  IntoString, PrimitiveString, ToString, inko_string_from_bytes,
+)
 
 fn invalid_capacity(size: Int) -> Never {
   panic('the capacity (${size}) must be greater than or equal to zero')
@@ -1310,9 +1307,10 @@ impl ToString for ByteArray {
   fn pub to_string -> String {
     if empty? { return '' }
 
-    let str = inko_string_from_bytes(@buffer, @size)
-
-    String(ptr: str.bytes, size: str.size - 1)
+    match inko_string_from_bytes(@buffer, @size) {
+      case { @value = ptr, @owned = true } -> String.from_primitive(ptr)
+      case { @value = ptr } -> String.from_borrowed_primitive(ptr)
+    }
   }
 }
 

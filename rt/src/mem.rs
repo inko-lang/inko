@@ -146,6 +146,22 @@ impl Deref for TypePointer {
     }
 }
 
+#[repr(C)]
+pub struct PrimitiveStringResult {
+    pub value: PrimitiveString,
+    pub owned: bool,
+}
+
+impl PrimitiveStringResult {
+    pub(crate) fn borrowed(value: &str) -> Self {
+        Self { value: PrimitiveString::borrowed(value), owned: false }
+    }
+
+    pub(crate) fn owned(value: String) -> Self {
+        Self { value: PrimitiveString::owned(value), owned: true }
+    }
+}
+
 /// An FFI-safe primitive string.
 ///
 /// These values are created either by the runtime or the standard library, and

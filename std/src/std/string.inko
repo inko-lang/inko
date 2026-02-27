@@ -18,6 +18,7 @@ import std.int (ToInt)
 import std.iter (Iter, Stream)
 import std.ops (Add)
 import std.ptr
+import std.reflect (size_of)
 import std.utf8
 
 let SCALARS_ACCEPT = 0
@@ -44,11 +45,6 @@ let SCALARS_TABLE = [
   36, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12,
 ]
 
-type extern PrimitiveString {
-  let @bytes: Pointer[Uint8]
-  let @size: Int
-}
-
 fn extern inko_string_to_lower(string: PrimitiveString) -> PrimitiveString
 
 fn extern inko_string_to_upper(string: PrimitiveString) -> PrimitiveString
@@ -60,6 +56,11 @@ fn extern inko_string_chars_next(iter: Pointer[Uint8]) -> PrimitiveString
 fn extern inko_string_chars_drop(iter: Pointer[Uint8])
 
 fn extern inko_string_from_pointer(pointer: Pointer[Uint8]) -> PrimitiveString
+
+fn extern inko_string_from_bytes(
+  bytes: Pointer[Uint8],
+  size: Int,
+) -> PrimitiveStringResult
 
 fn extern inko_string_try_from_bytes(
   bytes: Pointer[Uint8],
@@ -115,13 +116,65 @@ trait pub ToString {
   fn pub to_string -> String
 }
 
-# An UTF-8 encoded and immutable string type.
-type builtin String {
-  # The size of the string in bytes, _excluding_ the trailing NULL byte.
+type extern PrimitiveString {
+  let @bytes: Pointer[Uint8]
+  let @size: Int
+}
+
+type extern PrimitiveStringResult {
+  let @value: PrimitiveString
+  let @owned: Bool
+}
+
+# The raw layout of a variable sized `String`.
+#
+# Internally a `String` is a pointer to this structure, using an object layout
+# compatible with other atomic types. The size of this type is variable and
+# depends on the number of bytes in a `String`. This approach removes the need
+# for two allocations: one for the `String` and one for the buffer of bytes.
+type extern StringLayout {
+  # The size of the string.
+  #
+  # Normally the first field of a heap allocated object is a pointer to the type
+  # structure, used for dynamic dispatch. For atomic types this isn't used but
+  # still required to be present until
+  # https://github.com/inko-lang/inko/issues/945 is resolved.
+  #
+  # We take advantage of this here by instead using this field to store the
+  # number of bytes stored in the `String`, minus the trailing NULL byte.
   let @size: Int
 
-  # A pointer to the bytes of this string, including the trailing NULL byte.
-  let @ptr: Pointer[Uint8]
+  # The atomic reference count.
+  let @references: Uint32
+
+  # The first byte of the `String`.
+  #
+  # The remaining bytes are added at the end of this type, i.e. they're part of
+  # the type and not a pointer to a separate buffer.
+  #
+  # The last byte is always a NULL byte such that strings can be passed to C
+  # functions without requiring an additional copy.
+  let @bytes: Uint8
+}
+
+# An UTF-8 encoded and immutable string type.
+type builtin String {
+  fn static allocate(size: Int) -> Pointer[StringLayout] {
+    # String values are NULL terminated _in addition_ to storing a length, such
+    # that we can pass pointers to C functions as-is, so we have to make sure
+    # the NULL byte is indeed present.
+    let len = size_of[Int] + size_of[Uint32] + size + 1
+    let val = alloc.allocate(len) as Pointer[StringLayout]
+
+    # Based on some rough measurements it seems a malloc/realloc and a write is
+    # faster than using calloc, so we don't use calloc here.
+    alloc.write(byte: 0, to: ptr.add(mut val.bytes, size), size: 1)
+
+    # Atomic types start with a reference count of 1 instead of 0.
+    val.references = 1 as Uint32
+    val.size = size
+    val
+  }
 
   fn static from_primitive(value: PrimitiveString) -> String {
     if value.size == 0 { return '' }
@@ -135,13 +188,10 @@ type builtin String {
   fn static from_borrowed_primitive(value: PrimitiveString) -> String {
     if value.size == 0 { return '' }
 
-    # String values are NULL terminated _in addition_ to storing a length, such
-    # that we can pass pointers to C functions as-is, so we have to make sure
-    # the NULL byte is indeed present.
-    let new = alloc.allocate_zeroed(value.size + 1)
+    let mem = allocate(value.size)
 
-    alloc.copy(from: value.bytes, to: new, size: value.size)
-    String(ptr: new, size: value.size)
+    alloc.copy(from: value.bytes, to: mut mem.bytes, size: value.size)
+    mem as Uint64 as String
   }
 
   # Returns a `String` created from the given NULL terminated pointer.
@@ -621,7 +671,7 @@ type builtin String {
   }
 
   fn inline byte_unchecked(index: Int) -> Int {
-    (@ptr as Int + index as Pointer[Uint8]).0 as Int
+    (pointer as Int + index as Pointer[Uint8]).0 as Int
   }
 
   fn inline escape? -> Bool {
@@ -638,7 +688,11 @@ type builtin String {
   }
 
   fn inline to_primitive -> PrimitiveString {
-    PrimitiveString(bytes: @ptr, size: size)
+    PrimitiveString(bytes: pointer, size: size)
+  }
+
+  fn inline layout -> Pointer[StringLayout] {
+    (self as Uint64 as Pointer[StringLayout])
   }
 }
 
@@ -654,7 +708,7 @@ impl Bytes for String {
   # '😀'.size  # => 4
   # ```
   fn pub inline size -> Int {
-    @size
+    layout.size
   }
 
   # Returns the byte at the given index.
@@ -677,19 +731,13 @@ impl Bytes for String {
   # This method is meant to be used when passing strings to foreign functions
   # (i.e. `*char` arguments). You should avoid using it for anything else.
   fn pub inline pointer -> Pointer[Uint8] {
-    @ptr
+    mut layout.bytes
   }
 }
 
 impl ToSlice[Self] for String {
   fn pub to_slice -> Slice[Self] {
     Slice.new(self, 0, size)
-  }
-}
-
-impl Drop for String {
-  fn mut drop {
-    alloc.free(@ptr)
   }
 }
 
@@ -762,13 +810,16 @@ impl Add[String, String] for String {
   # 'hello ' + 'world' # => 'hello world'
   # ```
   fn pub inline +(other: String) -> String {
-    let tot = size + other.size
-    let new = alloc.allocate(tot + 1)
+    let len = size + other.size
 
-    alloc.copy(from: pointer, to: new, size: size)
-    alloc.copy(from: other.pointer, to: ptr.add(new, size), size: other.size)
-    alloc.write(byte: 0, to: ptr.add(new, tot), size: 1)
-    String(size: tot, ptr: new)
+    if len == 0 { return '' }
+
+    let mem = String.allocate(len)
+    let buf = mut mem.bytes
+
+    alloc.copy(from: pointer, to: buf, size: size)
+    alloc.copy(from: other.pointer, to: ptr.add(buf, size), size: other.size)
+    mem as Uint64 as String
   }
 }
 
@@ -1126,16 +1177,8 @@ impl IntoString for StringBuffer {
   # buffer.into_string # => 'hello world'
   # ```
   fn pub move into_string -> String {
-    if empty? { return '' }
-
-    let len = @bytes.size
-
-    # Strings end with a NULL byte in addition to storing a size.
-    @bytes.push(0)
-
-    let buf = @bytes.buffer := 0 as Pointer[Uint8]
-
-    @bytes.size = 0
-    String(ptr: buf, size: len)
+    String.from_borrowed_primitive(
+      PrimitiveString(bytes: @bytes.pointer, size: @bytes.size),
+    )
   }
 }
