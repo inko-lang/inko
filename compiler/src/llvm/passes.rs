@@ -593,6 +593,9 @@ impl<'a> Worker<'a> {
             })?;
         }
 
+        // TODO: remove
+        println!("updating module {} file {}", module.name, path.display());
+
         self.machine
             .write_to_file(&module.inner, FileType::Object, &path)
             .map_err(|e| {

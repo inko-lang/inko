@@ -700,6 +700,9 @@ pub(crate) struct InlineMethod<'a, 'b, 'c> {
     /// The module of the caller.
     module: ModuleId,
 
+    /// The ID of the caller's module in the dependency graph.
+    dependency_id: usize,
+
     /// The global MIR index of the caller.
     method: usize,
 }
@@ -718,11 +721,16 @@ impl<'a, 'b, 'c> InlineMethod<'a, 'b, 'c> {
         //    inlining work.
         for index in comps {
             let module = mir.methods[index].id.source_module(&state.db);
+            let dep_id = state
+                .dependency_graph
+                .module_id(module.name(&state.db))
+                .unwrap();
 
             InlineMethod {
                 state,
                 mir,
                 method: index,
+                dependency_id: dep_id,
                 module,
                 graph: &mut graph,
             }
@@ -779,6 +787,22 @@ impl<'a, 'b, 'c> InlineMethod<'a, 'b, 'c> {
                     .block_mut(after)
                     .instructions
                     .append(&mut after_ins);
+
+                // Through inlining we may come to depend on a module that we
+                // didn't explicitly import. If such a module changes the code
+                // for the inlined-into module must also be updated.
+                let callee_mod = self
+                    .state
+                    .dependency_graph
+                    .module_id(
+                        call.id.module(&self.state.db).name(&self.state.db),
+                    )
+                    .unwrap();
+
+                self.state
+                    .dependency_graph
+                    .module_mut(callee_mod)
+                    .add_depending(self.dependency_id);
 
                 call.inline_into(caller, callee, after);
             }

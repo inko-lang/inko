@@ -289,6 +289,10 @@ impl Compiler {
         // type database. This must be done _after_ specialization.
         self.state.db.compact();
 
+        // Splitting is done _after_ specialization, since specialization
+        // introduces new types and methods.
+        mir.split_modules(&mut self.state);
+
         // Symbol names are needed to ensure certain passes can operate on data
         // in a stable order, which in turn is needed to ensure incremental
         // caches aren't flushed unnecessarily.
