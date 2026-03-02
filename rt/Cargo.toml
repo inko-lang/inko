@@ -13,7 +13,6 @@ doctest = false
 crate-type = ["staticlib", "lib"]
 
 [dependencies]
-crossbeam-utils = "^0.8"
 atomic-wait = "^1.1"
 libz-rs-sys = { version = "^0.5", features = ["c-allocator", "export-symbols"], default-features = false }
 libc = "^0.2"

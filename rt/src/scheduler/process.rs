@@ -7,13 +7,12 @@ use crate::process::{Process, ProcessPointer, Task};
 use crate::rand::Rand;
 use crate::stack::Stack;
 use crate::state::{RcState, State};
-use crossbeam_utils::atomic::AtomicCell;
 use std::cell::Cell;
 use std::collections::VecDeque;
 use std::mem::swap;
 use std::ops::Drop;
 use std::ptr::null_mut;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
 use std::sync::{Condvar, Mutex};
 use std::thread::{sleep, Builder as ThreadBuilder};
 use std::time::{Duration, Instant};
@@ -357,7 +356,6 @@ impl Thread {
                 .monitor
                 .status
                 .compare_exchange(status, MonitorStatus::Notified)
-                .is_ok()
         {
             let _lock = self.pool.monitor.lock.lock().unwrap();
 
@@ -637,6 +635,43 @@ enum MonitorStatus {
     Sleeping,
 }
 
+impl From<u8> for MonitorStatus {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => Self::Normal,
+            1 => Self::Notified,
+            _ => Self::Sleeping,
+        }
+    }
+}
+
+struct AtomicMonitorStatus {
+    inner: AtomicU8,
+}
+
+impl AtomicMonitorStatus {
+    fn new() -> Self {
+        Self { inner: AtomicU8::new(MonitorStatus::Normal as u8) }
+    }
+
+    fn store(&self, value: MonitorStatus) {
+        self.inner.store(value as u8, Ordering::Release);
+    }
+
+    fn load(&self) -> MonitorStatus {
+        MonitorStatus::from(self.inner.load(Ordering::Acquire))
+    }
+
+    fn compare_exchange(&self, old: MonitorStatus, new: MonitorStatus) -> bool {
+        let old = old as u8;
+        let new = new as u8;
+
+        self.inner
+            .compare_exchange(old, new, Ordering::AcqRel, Ordering::Acquire)
+            .is_ok()
+    }
+}
+
 /// A thread that monitors the thread pool, replacing any blocking threads with
 /// backup threads.
 struct Monitor<'a> {
@@ -795,7 +830,7 @@ impl<'a> Monitor<'a> {
 
 struct MonitorState {
     /// The status of the monitor thread.
-    status: AtomicCell<MonitorStatus>,
+    status: AtomicMonitorStatus,
 
     /// The mutex used for putting a monitor to sleep.
     lock: Mutex<()>,
@@ -930,7 +965,7 @@ impl Scheduler {
             blocked_threads: Mutex::new(VecDeque::with_capacity(size + backup)),
             blocked_cvar: Condvar::new(),
             monitor: MonitorState {
-                status: AtomicCell::new(MonitorStatus::Normal),
+                status: AtomicMonitorStatus::new(),
                 lock: Mutex::new(()),
                 cvar: Condvar::new(),
             },
@@ -1225,11 +1260,6 @@ mod tests {
     }
 
     #[test]
-    fn test_monitor_status_is_lock_free() {
-        assert!(AtomicCell::<MonitorStatus>::is_lock_free());
-    }
-
-    #[test]
     fn test_monitor_check_threads() {
         let scheduler = Scheduler::new(2, 2);
         let mut monitor = Monitor::new(&scheduler.pool);
@@ -1351,5 +1381,27 @@ mod tests {
         assert_eq!(q.push_with_limit(p), (false, false));
         assert_eq!(q.push_with_limit(p), (false, false));
         assert_eq!(q.inner.lock().unwrap().len(), 4);
+    }
+
+    #[test]
+    fn test_atomic_monitor_status_store_load() {
+        let status = AtomicMonitorStatus::new();
+
+        status.store(MonitorStatus::Sleeping);
+
+        assert_eq!(status.load(), MonitorStatus::Sleeping);
+    }
+
+    #[test]
+    fn test_atomic_monitor_status_compare_exchange() {
+        let status = AtomicMonitorStatus::new();
+
+        assert!(status
+            .compare_exchange(MonitorStatus::Normal, MonitorStatus::Sleeping));
+        assert_eq!(status.load(), MonitorStatus::Sleeping);
+
+        assert!(!status
+            .compare_exchange(MonitorStatus::Normal, MonitorStatus::Notified));
+        assert_eq!(status.load(), MonitorStatus::Sleeping);
     }
 }
