@@ -1,0 +1,99 @@
+import helpers (compiler_path, with_directory)
+import std.fs.file (ReadOnlyFile)
+import std.fs.path (Path)
+import std.sys (Command, Stream)
+import std.test (Tests)
+
+fn read(path: ref Path) -> Result[String, String] {
+  let buf = ByteArray.new
+
+  try ReadOnlyFile.new(path).then(fn (v) { v.read_all(buf) }).map_error(
+    fn (e) { e.to_string },
+  )
+  Result.Ok(buf.into_string)
+}
+
+fn init(
+  directory: ref Path,
+  arguments: Array[String],
+) -> Result[String, String] {
+  let cmd = Command.new(compiler_path)
+
+  cmd.stdout = Stream.Piped
+  cmd.stdin = Stream.Null
+  cmd.stderr = Stream.Piped
+  cmd.directory = directory.clone
+  cmd.arguments = ['init']
+  cmd.arguments.append(arguments)
+
+  let child = try cmd.spawn.map_error(fn (e) { 'failed to start: ${e}' })
+  let stdout = ByteArray.new
+  let stderr = ByteArray.new
+  let status = try child.wait.map_error(fn (e) { 'failed to wait: ${e}' })
+  let _ = try child.stderr.as_mut.get.read_all(stderr).map_error(fn (e) {
+    'failed to read STDERR: ${e}'
+  })
+  let _ = try child.stdout.as_mut.get.read_all(stdout).map_error(fn (e) {
+    'failed to read STDOUT: ${e}'
+  })
+
+  if status.success? {
+    Result.Ok(stdout.into_string)
+  } else {
+    Result.Error(stderr.into_string)
+  }
+}
+
+fn pub tests(t: mut Tests) {
+  t.ok('inko init hello', fn (t) {
+    with_directory(t.id, fn (dir) -> Result[Nil, String] {
+      let _ = dir.create_directory
+      let out = try init(dir, ['hello'])
+      let root = dir.join('hello')
+      let main = root.join('src').join('hello.inko')
+
+      t.true(out.empty?)
+      t.true(main.file?)
+      t.true((try read(main)).contains?('type async Main'))
+      t.true(root.join('.gitignore').file?)
+      t.true(root.join('inko.pkg').file?)
+
+      Result.Ok(nil)
+    })
+  })
+
+  t.ok('inko init hello --lib', fn (t) {
+    with_directory(t.id, fn (dir) -> Result[Nil, String] {
+      let _ = dir.create_directory
+      let out = try init(dir, ['hello', '--lib'])
+      let root = dir.join('hello')
+      let main = root.join('src').join('hello.inko')
+
+      t.true(out.empty?)
+      t.true(main.file?)
+      t.true((try read(main)).empty?)
+      t.true(root.join('.gitignore').file?)
+      t.true(root.join('inko.pkg').file?)
+
+      Result.Ok(nil)
+    })
+  })
+
+  t.ok('inko init .', fn (t) {
+    with_directory(t.id, fn (dir) -> Result[Nil, String] {
+      let dir = dir.join('hello')
+      let _ = dir.create_directory_all
+      let out = try init(dir, ['hello'])
+      let root = dir.join('hello')
+      let main = root.join('src').join('hello.inko')
+
+      t.true(out.empty?)
+      t.true(main.file?)
+      t.true((try read(main)).contains?('type async Main'))
+      t.true(root.join('.gitignore').file?)
+      t.true(root.join('inko.pkg').file?)
+
+      Result.Ok(nil)
+    })
+  })
+}

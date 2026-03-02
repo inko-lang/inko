@@ -4,6 +4,7 @@ use compiler::config::SOURCE_EXT;
 use compiler::pkg::manifest::{Manifest, MANIFEST_FILE};
 use compiler::pkg::version::Version;
 use getopts::Options;
+use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -21,6 +22,7 @@ Examples:
 
     inko init hello       # Create a project that compiles an executable
     inko init inko-hello  # Creates ./inko-hello containing a src/hello.inko file
+    inko init .           # Create a project in the current working directory
     inko init hello --lib # Create a project that's an Inko library";
 
 const BIN: &str = "type async Main {
@@ -78,23 +80,43 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         return Ok(0);
     }
 
-    let Some(name) = matches.free.first() else {
+    let Some(mut name) = matches.free.first().cloned() else {
         return Err(Error::from("a project name is required".to_string()));
     };
 
-    let root = PathBuf::from(name);
+    let root = if name == "." {
+        let pwd = env::current_dir().map_err(|e| {
+            format!("failed to determine the current working directory: {}", e)
+        })?;
 
-    if root.is_dir() {
-        return Err(Error::from(format!(
-            "the directory '{}' already exists",
-            name
-        )));
-    }
+        if let Some(v) = pwd.file_name() {
+            name = v.to_string_lossy().into_owned();
+        } else {
+            return Err(Error::from(
+                "failed to derive the project name \
+                from the current working directory"
+                    .to_string(),
+            ));
+        }
+
+        pwd
+    } else {
+        let dir = PathBuf::from(&name);
+
+        if dir.is_dir() {
+            return Err(Error::from(format!(
+                "the directory '{}' already exists",
+                name
+            )));
+        }
+
+        dir
+    };
 
     let bin = !matches.opt_present("lib");
     let src = root.join("src");
     let test = root.join("test");
-    let main_name = name.strip_prefix("inko-").unwrap_or(name);
+    let main_name = name.strip_prefix("inko-").unwrap_or(&name);
     let mut main = src.join(main_name);
 
     main.set_extension(SOURCE_EXT);
