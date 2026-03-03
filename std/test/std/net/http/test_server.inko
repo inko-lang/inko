@@ -35,14 +35,16 @@ import std.uri (Host, Path as UriPath, Query, Scheme, Uri, Values, encode)
 
 type async TlsClient {
   fn async connect(
-    promise: uni Promise[tls.Client[TcpClient]],
+    promise: uni Promise[Option[tls.Client[TcpClient]]],
     address: SocketAddress,
   ) {
     let res = recover {
       let conf = tls.ClientConfig.builder.with_certificate(certificate).get
       let sock = TcpClient.new([address.ip], address.port).or_panic
 
-      tls.Client.new(sock, conf, server: 'localhost').or_panic
+      # The server may be dropped before we fully finish all handshaking IO, so
+      # we ignore any errors here.
+      tls.Client.new(sock, conf, server: 'localhost').ok
     }
 
     promise.set(res)

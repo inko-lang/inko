@@ -21,7 +21,7 @@ const INVALID_CERT: isize = -1;
 const INVALID_KEY: isize = -2;
 
 /// The client's hello message is invalid.
-const INVALID_CLIENT_HELLO: isize = -3;
+const INVALID_HANDSHAKE: isize = -3;
 
 /// A client or server connection couldn't be established.
 const INVALID_CONNECTION: isize = -4;
@@ -81,6 +81,68 @@ impl Write for CallbackIo {
     }
 }
 
+unsafe fn accept(
+    socket: *mut Poll,
+    deadline: i64,
+    reader: Callback,
+    writer: Callback,
+) -> std::result::Result<Accepted, Result> {
+    let mut io = CallbackIo { socket, reader, writer, deadline };
+    let mut acceptor = Acceptor::default();
+
+    loop {
+        match acceptor.read_tls(&mut io) {
+            // If a client disconnects their writing half we may encounter a
+            // zero value here. In this case we should abort the loop instead of
+            // just trying again forever.
+            Ok(0) => return Err(Result::error(INVALID_HANDSHAKE as _)),
+            Ok(_) => {}
+            Err(e) => return Err(Result::io_error(e)),
+        }
+
+        let accepted = match acceptor.accept() {
+            Ok(Some(v)) => v,
+            Ok(_) => continue,
+            Err((_, mut alert)) => {
+                // If writing the alert fails that's fine because it can fail
+                // for all sorts of reasons we don't care about (e.g. a network
+                // error) and we don't want it to overwrite the error below.
+                let _ = alert.write_all(&mut io);
+
+                // rustls errors are opaque and it's not clear what exact errors
+                // we may encounter here, so we just generalize all of them as a
+                // "client hello is invalid" error.
+                return Err(Result::error(INVALID_HANDSHAKE as _));
+            }
+        };
+
+        return Ok(accepted);
+    }
+}
+
+unsafe fn accepted_into_connection(
+    accepted: Accepted,
+    config: *const ServerConfig,
+    socket: *mut Poll,
+    deadline: i64,
+    reader: Callback,
+    writer: Callback,
+) -> Result {
+    Arc::increment_strong_count(config);
+
+    let config = Arc::from_raw(config);
+    let mut io = CallbackIo { socket, reader, writer, deadline };
+
+    match accepted.into_connection(config) {
+        Ok(v) => Result::ok_boxed(v),
+        Err((_, mut alert)) => {
+            let _ = alert.write_all(&mut io);
+
+            Result::error(INVALID_HANDSHAKE as _)
+        }
+    }
+}
+
 unsafe fn close<
     C: Deref<Target = rustls::ConnectionCommon<S>> + DerefMut,
     S: SideData,
@@ -101,22 +163,6 @@ unsafe fn close<
     }
 
     Ok(())
-}
-
-unsafe fn complete_io<
-    C: Deref<Target = rustls::ConnectionCommon<S>> + DerefMut,
-    S: SideData,
->(
-    socket: *mut Poll,
-    con: *mut C,
-    deadline: i64,
-    reader: Callback,
-    writer: Callback,
-) -> io::Result<()> {
-    let mut io = CallbackIo { socket, reader, writer, deadline };
-    let con = &mut *con;
-
-    con.complete_io(&mut io).map(|_| ())
 }
 
 unsafe fn alpn_name<
@@ -305,16 +351,17 @@ pub unsafe extern "system" fn inko_tls_server_config_drop(
 #[no_mangle]
 pub unsafe extern "system" fn inko_tls_server_connection_new(
     config: *const ServerConfig,
-) -> *mut ServerConnection {
-    Arc::increment_strong_count(config);
-
-    // ServerConnection::new() _can_ in theory fail, but based on the source
-    // code it seems this only happens when certain settings are adjusted, which
-    // we don't allow at this time.
-    let con = ServerConnection::new(Arc::from_raw(config))
-        .expect("failed to set up the TLS server connection");
-
-    Box::into_raw(Box::new(con))
+    socket: *mut Poll,
+    deadline: i64,
+    reader: Callback,
+    writer: Callback,
+) -> Result {
+    match accept(socket, deadline, reader, writer) {
+        Ok(v) => accepted_into_connection(
+            v, config, socket, deadline, reader, writer,
+        ),
+        Err(v) => v,
+    }
 }
 
 #[no_mangle]
@@ -352,7 +399,11 @@ pub unsafe extern "system" fn inko_tls_client_write(
     writer: Callback,
 ) -> Result {
     let mut io = CallbackIo { socket, reader, writer, deadline };
-    let buf = std::slice::from_raw_parts(buffer, size as _);
+    let buf = if size == 0 {
+        &[]
+    } else {
+        std::slice::from_raw_parts(buffer, size as _)
+    };
 
     Stream::new(&mut *con, &mut io)
         .write(buf)
@@ -371,7 +422,11 @@ pub unsafe extern "system" fn inko_tls_client_read(
     writer: Callback,
 ) -> Result {
     let mut io = CallbackIo { socket, reader, writer, deadline };
-    let buf = slice::from_raw_parts_mut(buffer, size as usize);
+    let buf = if size == 0 {
+        &mut []
+    } else {
+        slice::from_raw_parts_mut(buffer, size as usize)
+    };
 
     Stream::new(&mut *con, &mut io)
         .read(buf)
@@ -403,7 +458,11 @@ pub unsafe extern "system" fn inko_tls_server_write(
     writer: Callback,
 ) -> Result {
     let mut io = CallbackIo { socket, reader, writer, deadline };
-    let buf = std::slice::from_raw_parts(buffer, size as _);
+    let buf = if size == 0 {
+        &[]
+    } else {
+        std::slice::from_raw_parts(buffer, size as _)
+    };
 
     Stream::new(&mut *con, &mut io)
         .write(buf)
@@ -422,7 +481,11 @@ pub unsafe extern "system" fn inko_tls_server_read(
     writer: Callback,
 ) -> Result {
     let mut io = CallbackIo { socket, reader, writer, deadline };
-    let buf = slice::from_raw_parts_mut(buffer, size as usize);
+    let buf = if size == 0 {
+        &mut []
+    } else {
+        slice::from_raw_parts_mut(buffer, size as usize)
+    };
 
     Stream::new(&mut *con, &mut io)
         .read(buf)
@@ -444,28 +507,17 @@ pub unsafe extern "system" fn inko_tls_server_close(
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_tls_server_complete_io(
-    socket: *mut Poll,
-    con: *mut ServerConnection,
-    deadline: i64,
-    reader: Callback,
-    writer: Callback,
-) -> Result {
-    match complete_io(socket, con, deadline, reader, writer) {
-        Ok(_) => Result::none(),
-        Err(e) => Result::io_error(e),
-    }
-}
-
-#[no_mangle]
-pub unsafe extern "system" fn inko_tls_client_complete_io(
+pub unsafe extern "system" fn inko_tls_client_complete_handshake(
     socket: *mut Poll,
     con: *mut ClientConnection,
     deadline: i64,
     reader: Callback,
     writer: Callback,
 ) -> Result {
-    match complete_io(socket, con, deadline, reader, writer) {
+    let mut io = CallbackIo { socket, reader, writer, deadline };
+    let con = &mut *con;
+
+    match con.complete_io(&mut io).map(|_| ()) {
         Ok(_) => Result::none(),
         Err(e) => {
             match e.get_ref().and_then(|e| e.downcast_ref::<TlsError>()) {
@@ -488,36 +540,9 @@ pub unsafe extern "system" fn inko_tls_pending_server_new(
     reader: Callback,
     writer: Callback,
 ) -> Result {
-    let mut io = CallbackIo { socket, reader, writer, deadline };
-    let mut acceptor = Acceptor::default();
-
-    loop {
-        match acceptor.read_tls(&mut io) {
-            // If a client disconnects their writing half we may encounter a
-            // zero value here. In this case we should abort the loop instead of
-            // just trying again forever.
-            Ok(0) => return Result::error(INVALID_CLIENT_HELLO as _),
-            Ok(_) => {}
-            Err(e) => return Result::io_error(e),
-        }
-
-        let accepted = match acceptor.accept() {
-            Ok(Some(v)) => v,
-            Ok(_) => continue,
-            Err((_, mut alert)) => {
-                // If writing the alert fails that's fine because it can fail
-                // for all sorts of reasons we don't care about (e.g. a network
-                // error) and we don't want it to overwrite the error below.
-                let _ = alert.write_all(&mut io);
-
-                // rustls errors are opaque and it's not clear what exact errors
-                // we may encounter here, so we just generalize all of them as a
-                // "client hello is invalid" error.
-                return Result::error(INVALID_CLIENT_HELLO as _);
-            }
-        };
-
-        return Result::ok_boxed(accepted);
+    match accept(socket, deadline, reader, writer) {
+        Ok(v) => Result::ok_boxed(v),
+        Err(v) => v,
     }
 }
 
@@ -543,20 +568,9 @@ pub unsafe extern "system" fn inko_tls_pending_server_into_server_connection(
     reader: Callback,
     writer: Callback,
 ) -> Result {
-    Arc::increment_strong_count(config);
-
-    let mut io = CallbackIo { socket, reader, writer, deadline };
-    let config = Arc::from_raw(config);
     let acc = Box::from_raw(accepted);
 
-    match acc.into_connection(config) {
-        Ok(v) => Result::ok_boxed(v),
-        Err((_, mut alert)) => {
-            let _ = alert.write_all(&mut io);
-
-            Result::error(INVALID_CLIENT_HELLO as _)
-        }
-    }
+    accepted_into_connection(*acc, config, socket, deadline, reader, writer)
 }
 
 #[no_mangle]

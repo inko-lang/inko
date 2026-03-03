@@ -8,8 +8,8 @@ import std.io (Buffer, Error as IoError)
 import std.net.ip (IpAddress)
 import std.net.socket (Socket, TcpClient, TcpServer)
 import std.net.tls (
-  Client, ClientConfig, ClientError, PendingServer, PendingServerError, Server,
-  ServerConfig, ServerConfigError, ServerError,
+  Client, ClientConfig, ClientError, PendingServer, Server, ServerConfig,
+  ServerConfigError, ServerError,
 )
 import std.sync (Promise)
 import std.sys.poll (NO_DEADLINE)
@@ -540,6 +540,25 @@ fn pub tests(t: mut Tests) {
     Result.Ok(nil)
   })
 
+  t.ok('Client.read with zero bytes', fn (t) {
+    let port = match DummyServer.new {
+      case Ok((server, port)) -> {
+        server.hello
+        port
+      }
+      case Error(e) -> throw e
+    }
+
+    let conf = try client_config
+    let sock = try connect(port)
+    let client = Client.new(sock, conf, server: 'localhost').get
+    let bytes = ByteArray.new
+
+    t.equal(client.read(into: bytes, size: 0), Result.Ok(0))
+    t.true(bytes.empty?)
+    Result.Ok(nil)
+  })
+
   t.ok('Client.write', fn (t) {
     let port = match DummyServer.new {
       case Ok((server, port)) -> {
@@ -557,6 +576,23 @@ fn pub tests(t: mut Tests) {
     t.equal(client.write('ping'), Result.Ok(nil))
     t.equal(client.read(into: bytes, size: 4), Result.Ok(4))
     t.equal(bytes.into_string, 'ping')
+    Result.Ok(nil)
+  })
+
+  t.ok('Client.write with empty input', fn (t) {
+    let port = match DummyServer.new {
+      case Ok((server, port)) -> {
+        server.reply
+        port
+      }
+      case Error(e) -> throw e
+    }
+
+    let conf = try client_config
+    let sock = try connect(port)
+    let client = Client.new(sock, conf, server: 'localhost').get
+
+    t.equal(client.write(''), Result.Ok(nil))
     Result.Ok(nil)
   })
 
@@ -664,23 +700,6 @@ fn pub tests(t: mut Tests) {
     Result.Ok(nil)
   })
 
-  t.test('ServerError.to_string', fn (t) {
-    t.false(ServerError.InvalidHandshake.to_string.empty?)
-    t.false(ServerError.TimedOut.to_string.empty?)
-  })
-
-  t.test('ServerError.fmt', fn (t) {
-    t.equal(fmt(ServerError.InvalidHandshake), 'InvalidHandshake')
-    t.equal(fmt(ServerError.TimedOut), 'TimedOut')
-  })
-
-  t.test('ServerError.==', fn (t) {
-    t.equal(ServerError.InvalidHandshake, ServerError.InvalidHandshake)
-    t.equal(ServerError.TimedOut, ServerError.TimedOut)
-    t.not_equal(ServerError.InvalidHandshake, ServerError.TimedOut)
-    t.not_equal(ServerError.TimedOut, ServerError.InvalidHandshake)
-  })
-
   t.ok('Server.new', fn (t) {
     let (sock, port) = try listener
     let _ = async DummyClient().write(port)
@@ -716,6 +735,18 @@ fn pub tests(t: mut Tests) {
     Result.Ok(nil)
   })
 
+  t.ok('Server.read with zero bytes', fn (t) {
+    let (sock, port) = try listener
+    let _out = async DummyClient().write(port)
+    let server = try accept(sock)
+    let bytes = ByteArray.new
+
+    t.equal(server.read(into: bytes, size: 0), Result.Ok(0))
+    t.true(bytes.empty?)
+
+    Result.Ok(nil)
+  })
+
   t.ok('Server.write', fn (t) {
     let (sock, port) = try listener
     let out = async DummyClient().reply(port)
@@ -723,6 +754,16 @@ fn pub tests(t: mut Tests) {
 
     t.equal(server.write('hello'), Result.Ok(nil))
     t.equal(recover out.get, Result.Ok('hello'))
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Server.write with empty input', fn (t) {
+    let (sock, port) = try listener
+    let _out = async DummyClient().reply(port)
+    let server = try accept(sock)
+
+    t.equal(server.write(''), Result.Ok(nil))
 
     Result.Ok(nil)
   })
@@ -791,54 +832,32 @@ fn pub tests(t: mut Tests) {
     Result.Ok(nil)
   })
 
-  t.test('PendingServerError.to_string', fn (t) {
-    t.false(PendingServerError.InvalidHandshake.to_string.empty?)
-    t.false(PendingServerError.InvalidClientHello.to_string.empty?)
-    t.false(PendingServerError.TimedOut.to_string.empty?)
-    t.false(PendingServerError.InvalidHandshake.to_string.empty?)
-    t.false(PendingServerError.Read(IoError.BrokenPipe).to_string.empty?)
+  t.test('ServerError.to_string', fn (t) {
+    t.false(ServerError.InvalidHandshake.to_string.empty?)
+    t.false(ServerError.TimedOut.to_string.empty?)
+    t.false(ServerError.InvalidHandshake.to_string.empty?)
+    t.false(ServerError.Read(IoError.BrokenPipe).to_string.empty?)
   })
 
-  t.test('PendingServerError.fmt', fn (t) {
-    t.equal(fmt(PendingServerError.InvalidClientHello), 'InvalidClientHello')
-    t.equal(fmt(PendingServerError.TimedOut), 'TimedOut')
-    t.equal(fmt(PendingServerError.InvalidHandshake), 'InvalidHandshake')
-    t.equal(
-      fmt(PendingServerError.Read(IoError.BrokenPipe)),
-      'Read(BrokenPipe)',
-    )
+  t.test('ServerError.fmt', fn (t) {
+    t.equal(fmt(ServerError.TimedOut), 'TimedOut')
+    t.equal(fmt(ServerError.InvalidHandshake), 'InvalidHandshake')
+    t.equal(fmt(ServerError.Read(IoError.BrokenPipe)), 'Read(BrokenPipe)')
   })
 
-  t.test('PendingServerError.==', fn (t) {
+  t.test('ServerError.==', fn (t) {
+    t.equal(ServerError.TimedOut, ServerError.TimedOut)
+    t.equal(ServerError.InvalidHandshake, ServerError.InvalidHandshake)
     t.equal(
-      PendingServerError.InvalidClientHello,
-      PendingServerError.InvalidClientHello,
-    )
-    t.equal(PendingServerError.TimedOut, PendingServerError.TimedOut)
-    t.equal(
-      PendingServerError.InvalidHandshake,
-      PendingServerError.InvalidHandshake,
-    )
-    t.equal(
-      PendingServerError.Read(IoError.BrokenPipe),
-      PendingServerError.Read(IoError.BrokenPipe),
+      ServerError.Read(IoError.BrokenPipe),
+      ServerError.Read(IoError.BrokenPipe),
     )
 
+    t.not_equal(ServerError.TimedOut, ServerError.InvalidHandshake)
+    t.not_equal(ServerError.InvalidHandshake, ServerError.TimedOut)
     t.not_equal(
-      PendingServerError.InvalidClientHello,
-      PendingServerError.TimedOut,
-    )
-    t.not_equal(
-      PendingServerError.TimedOut,
-      PendingServerError.InvalidHandshake,
-    )
-    t.not_equal(
-      PendingServerError.InvalidHandshake,
-      PendingServerError.TimedOut,
-    )
-    t.not_equal(
-      PendingServerError.Read(IoError.BrokenPipe),
-      PendingServerError.Read(IoError.NotFound),
+      ServerError.Read(IoError.BrokenPipe),
+      ServerError.Read(IoError.NotFound),
     )
   })
 
@@ -861,7 +880,7 @@ fn pub tests(t: mut Tests) {
 
       t.equal(
         PendingServer.new(peer).error,
-        Option.Some(PendingServerError.InvalidClientHello),
+        Option.Some(ServerError.InvalidHandshake),
       )
       Result.Ok(nil)
     },
@@ -876,7 +895,7 @@ fn pub tests(t: mut Tests) {
 
     t.equal(
       PendingServer.new(peer).error,
-      Option.Some(PendingServerError.InvalidClientHello),
+      Option.Some(ServerError.InvalidHandshake),
     )
     Result.Ok(nil)
   })

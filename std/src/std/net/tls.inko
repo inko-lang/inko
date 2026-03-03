@@ -40,7 +40,7 @@ import std.sys.unix.net (self as sys)
 import std.time (ToInstant)
 
 let INVALID_CERT = -1
-let INVALID_CLIENT_HELLO = -3
+let INVALID_HANDSHAKE = -3
 let DEFAULT_ALPN = []
 
 fn extern inko_tls_client_config_new -> AnyResult
@@ -95,7 +95,11 @@ fn extern inko_tls_server_config_drop(config: Pointer[Uint8])
 
 fn extern inko_tls_server_connection_new(
   config: Pointer[Uint8],
-) -> Pointer[Uint8]
+  socket: Pointer[poll.Poll],
+  deadline: Int,
+  reader: Pointer[Uint8],
+  writer: Pointer[Uint8],
+) -> AnyResult
 
 fn extern inko_tls_server_connection_alpn(
   connection: Pointer[Uint8],
@@ -177,15 +181,7 @@ fn extern inko_tls_server_close(
   writer: Pointer[Uint8],
 ) -> IntResult
 
-fn extern inko_tls_client_complete_io(
-  socket: Pointer[poll.Poll],
-  connection: Pointer[Uint8],
-  deadline: Int,
-  reader: Pointer[Uint8],
-  writer: Pointer[Uint8],
-) -> IntResult
-
-fn extern inko_tls_server_complete_io(
+fn extern inko_tls_client_complete_handshake(
   socket: Pointer[poll.Poll],
   connection: Pointer[Uint8],
   deadline: Int,
@@ -591,7 +587,7 @@ type pub Client[T: mut + Deadline + RawSocketOperations] {
     }
 
     match
-      inko_tls_client_complete_io(
+      inko_tls_client_complete_handshake(
         socket.raw_socket,
         state,
         socket.raw_deadline,
@@ -885,44 +881,6 @@ impl Clone for ServerConfig {
   }
 }
 
-# An error produced when creating a new server.
-type pub inline enum ServerError {
-  # The handshake timed out.
-  case TimedOut
-
-  # The TLS handshake couldn't be completed, such as when the client's "hello"
-  # message contains invalid data.
-  case InvalidHandshake
-}
-
-impl ToString for ServerError {
-  fn pub to_string -> String {
-    match self {
-      case InvalidHandshake -> "the TLS handshake couldn't be completed"
-      case TimedOut -> 'the operation timed out'
-    }
-  }
-}
-
-impl Format for ServerError {
-  fn pub fmt(formatter: mut Formatter) {
-    match self {
-      case InvalidHandshake -> formatter.tuple('InvalidHandshake').finish
-      case TimedOut -> formatter.tuple('TimedOut').finish
-    }
-  }
-}
-
-impl Equal for ServerError {
-  fn pub ==(other: ref Self) -> Bool {
-    match (self, other) {
-      case (InvalidHandshake, InvalidHandshake) -> true
-      case (TimedOut, TimedOut) -> true
-      case _ -> false
-    }
-  }
-}
-
 # A type that acts as the server in a TLS session.
 #
 # `Server` values wrap existing sockets such as `std.net.socket.TcpClient` and
@@ -1013,22 +971,26 @@ type pub Server[T: mut + Deadline + RawSocketOperations] {
     socket: T,
     config: ServerConfig,
   ) -> Result[Server[T], ServerError] {
-    let state = inko_tls_server_connection_new(config.raw)
-
-    match
-      inko_tls_server_complete_io(
+    let state = match
+      inko_tls_server_connection_new(
+        config.raw,
         socket.raw_socket,
-        state,
         socket.raw_deadline,
         mut read_callback,
         mut write_callback,
       )
     {
-      case { @tag = NONE } -> {}
-      case { @value = v } -> {
-        match Error.from_os_error(v) {
-          case TimedOut -> throw ServerError.TimedOut
-          case _ -> throw ServerError.InvalidHandshake
+      case { @tag = OK, @value = state } -> state as Pointer[Uint8]
+      case { @value = code } -> {
+        let code = code as Int
+
+        if code == INVALID_HANDSHAKE {
+          throw ServerError.InvalidHandshake
+        } else {
+          match Error.from_os_error(code) {
+            case TimedOut -> throw ServerError.TimedOut
+            case e -> throw ServerError.Read(e)
+          }
         }
       }
     }
@@ -1176,12 +1138,8 @@ impl SendFile[Error] for Server {
   }
 }
 
-# An error produced when creating a `PendingServer` or when converting it into a
-# `Server`.
-type pub inline enum PendingServerError {
-  # The client's hello message is invalid.
-  case InvalidClientHello
-
+# An error produced when creating a `Server` or `PendingServer`.
+type pub inline enum ServerError {
   # The handshake timed out.
   case TimedOut
 
@@ -1189,14 +1147,14 @@ type pub inline enum PendingServerError {
   # message contains invalid data.
   case InvalidHandshake
 
-  # An error produced while reading TLS data.
+  # An error produced while reading TLS data (i.e. the connection was suddenly
+  # closed).
   case Read(Error)
 }
 
-impl ToString for PendingServerError {
+impl ToString for ServerError {
   fn pub to_string -> String {
     match self {
-      case InvalidClientHello -> "the client's hello message is invalid"
       case InvalidHandshake -> "the TLS handshake couldn't be completed"
       case TimedOut -> 'the operation timed out'
       case Read(e) -> 'failed to read the TLS data: ${e}'
@@ -1204,10 +1162,9 @@ impl ToString for PendingServerError {
   }
 }
 
-impl Format for PendingServerError {
+impl Format for ServerError {
   fn pub fmt(formatter: mut Formatter) {
     match self {
-      case InvalidClientHello -> formatter.tuple('InvalidClientHello').finish
       case InvalidHandshake -> formatter.tuple('InvalidHandshake').finish
       case TimedOut -> formatter.tuple('TimedOut').finish
       case Read(v) -> formatter.tuple('Read').field(v).finish
@@ -1215,10 +1172,9 @@ impl Format for PendingServerError {
   }
 }
 
-impl Equal for PendingServerError {
+impl Equal for ServerError {
   fn pub ==(other: ref Self) -> Bool {
     match (self, other) {
-      case (InvalidClientHello, InvalidClientHello) -> true
       case (InvalidHandshake, InvalidHandshake) -> true
       case (TimedOut, TimedOut) -> true
       case (Read(a), Read(b)) -> a == b
@@ -1283,8 +1239,8 @@ type pub PendingServer[T: mut + Deadline + RawSocketOperations] {
   # # Errors
   #
   # If the handshake fails (e.g. the client's hello message is invalid) or times
-  # out, a `PendingServerError` is returned.
-  fn pub static new(socket: T) -> Result[Self, PendingServerError] {
+  # out, a `ServerError` is returned.
+  fn pub static new(socket: T) -> Result[Self, ServerError] {
     let state = match
       inko_tls_pending_server_new(
         socket.raw_socket,
@@ -1297,12 +1253,12 @@ type pub PendingServer[T: mut + Deadline + RawSocketOperations] {
       case { @value = code } -> {
         let code = code as Int
 
-        if code == INVALID_CLIENT_HELLO {
-          throw PendingServerError.InvalidClientHello
+        if code == INVALID_HANDSHAKE {
+          throw ServerError.InvalidHandshake
         } else {
           match Error.from_os_error(code) {
-            case TimedOut -> throw PendingServerError.TimedOut
-            case e -> throw PendingServerError.Read(e)
+            case TimedOut -> throw ServerError.TimedOut
+            case e -> throw ServerError.Read(e)
           }
         }
       }
@@ -1337,7 +1293,7 @@ type pub PendingServer[T: mut + Deadline + RawSocketOperations] {
   # handshake can't be completed.
   fn pub move into_server(
     config: ServerConfig,
-  ) -> Result[Server[T], PendingServerError] {
+  ) -> Result[Server[T], ServerError] {
     let sock = (@socket := Option.None).get
     let server_state = match
       inko_tls_pending_server_into_server_connection(
@@ -1350,25 +1306,7 @@ type pub PendingServer[T: mut + Deadline + RawSocketOperations] {
       )
     {
       case { @tag = OK, @value = state } -> state as Pointer[Uint8]
-      case _ -> throw PendingServerError.InvalidClientHello
-    }
-
-    match
-      inko_tls_server_complete_io(
-        sock.raw_socket,
-        server_state,
-        sock.raw_deadline,
-        mut read_callback,
-        mut write_callback,
-      )
-    {
-      case { @tag = NONE } -> {}
-      case { @value = v } -> {
-        match Error.from_os_error(v) {
-          case TimedOut -> throw PendingServerError.TimedOut
-          case _ -> throw PendingServerError.InvalidHandshake
-        }
-      }
+      case _ -> throw ServerError.InvalidHandshake
     }
 
     Result.Ok(Server(socket: sock, state: server_state))

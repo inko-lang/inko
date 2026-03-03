@@ -49,6 +49,7 @@ fn tls_client(
 type async TlsServer {
   let @conf: tls.ServerConfig
   let @sock: TcpServer
+  let @buf: ByteArray
 
   fn static new -> Result[(Self, SocketAddress), IoError] {
     let server_sock = recover {
@@ -58,8 +59,13 @@ type async TlsServer {
       tls.ServerConfig.builder.new([certificate], private_key).get
     }
     let addr = try server_sock.local_address
+    let srv = Self(
+      conf: server_conf,
+      sock: server_sock,
+      buf: recover ByteArray.new,
+    )
 
-    Result.Ok((Self(conf: server_conf, sock: server_sock), addr))
+    Result.Ok((srv, addr))
   }
 
   fn async mut write(message: String) {
@@ -67,7 +73,11 @@ type async TlsServer {
   }
 
   fn async mut accept {
-    tls.Server.new(@sock.accept.or_panic, @conf).or_panic
+    let con = tls.Server.new(@sock.accept.or_panic, @conf).or_panic
+
+    # Trigger a TLS read to ensure the handshake is completed, otherwise tests
+    # may deadlock.
+    let _ = con.read(into: @buf, size: 0)
   }
 
   fn async mut reply(size: Int) {
