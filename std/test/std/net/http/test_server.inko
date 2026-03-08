@@ -2563,6 +2563,29 @@ fn pub tests(t: mut Tests) {
   )
 
   t.fork(
+    'Logger.log with a fully qualified URI',
+    child: fn {
+      let limits = Limits.new
+      let log = Logger.new.without_timestamps
+      let req = empty_request(limits)
+
+      req.data.uri.scheme = Option.Some(Scheme.Http)
+      req.data.uri.host = Host.new('foo.com')
+      req.data.uri.port = Option.Some(1234)
+      req.data.uri.path = UriPath.new('/foo/bar').get
+      req.data.uri.query = Query.new('foo').get
+      log.log(req, Response.new.status(Status.ok))
+      await log.writer.wait
+    },
+    test: fn (t, p) {
+      t.equal(
+        p.spawn.stdout,
+        '127.0.0.1 - GET /foo/bar?foo HTTP/1.1 200 "-" "-"\n',
+      )
+    },
+  )
+
+  t.fork(
     'Logger.log when logging is disabled',
     child: fn {
       let limits = Limits.new
