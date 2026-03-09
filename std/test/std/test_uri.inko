@@ -339,6 +339,7 @@ fn pub tests(t: mut Tests) {
     t.equal(Path.new('/a?foo'), Option.None)
     t.equal(Path.new('/a#foo'), Option.None)
     t.equal(Path.new('/a%ZZ/b'), Option.None)
+    t.equal(Path.new('/%ff'), Option.Some(Path('/%ff')))
   })
 
   t.test('Path.from_slice', fn (t) {
@@ -389,6 +390,7 @@ fn pub tests(t: mut Tests) {
   t.test('Path.to_string', fn (t) {
     t.equal(Path('foo').to_string, 'foo')
     t.equal(Path('foo%20bar').to_string, 'foo bar')
+    t.equal(Path.new('%ffabc').get.to_string, '\u{FFFD}abc')
   })
 
   t.test('Path.components', fn (t) {
@@ -419,6 +421,7 @@ fn pub tests(t: mut Tests) {
     t.equal(path_components('file://host/../a'), ['/', 'a'])
     t.equal(path_components('foo://host/../a'), ['/', 'a'])
     t.equal(path_components('//host/../a'), ['/', 'a'])
+    t.equal(path_components('/%ff/b'), ['/', '\u{FFFD}', 'b'])
   })
 
   t.test('Path.size', fn (t) {
@@ -671,6 +674,7 @@ fn pub tests(t: mut Tests) {
   t.test('Query.to_string', fn (t) {
     t.equal(Query.new('foo').get.to_string, 'foo')
     t.equal(Query.new('a%20b').get.to_string, 'a b')
+    t.equal(Query.new('%ffabc').get.to_string, '\u{FFFD}abc')
   })
 
   t.test('Query.clone', fn (t) { t.equal(Query('a').clone, Query('a')) })
@@ -693,6 +697,7 @@ fn pub tests(t: mut Tests) {
   t.test('Fragment.to_string', fn (t) {
     t.equal(Fragment.new('foo').get.to_string, 'foo')
     t.equal(Fragment.new('a%20b').get.to_string, 'a b')
+    t.equal(Fragment.new('%ffabc').get.to_string, '\u{FFFD}abc')
   })
 
   t.test('Fragment.size', fn (t) {

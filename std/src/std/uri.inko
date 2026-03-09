@@ -995,7 +995,7 @@ impl Clone for Host {
 # The path of a URI.
 type pub inline Path {
   # The raw percent-encoded value of this path.
-  let pub @value: String
+  let @value: String
 
   fn static normalized[B: Bytes](input: ref B) -> Option[Self] {
     let out = ByteArray.new
@@ -1117,6 +1117,11 @@ type pub inline Path {
     }
 
     Result.Ok((res, idx))
+  }
+
+  # Returns the raw percent-encoded value.
+  fn pub inline value -> String {
+    @value
   }
 
   # Returns an empty `Path`
@@ -1282,7 +1287,7 @@ type pub inline Path {
   # iter.next.or_panic.to_string # => 'foo'
   # ```
   fn pub components -> PathComponents {
-    PathComponents(path: @value, index: 0)
+    PathComponents.new(@value)
   }
 
   fn encode(scheme: Option[Scheme], host: Option[Host], buffer: mut ByteArray) {
@@ -1303,7 +1308,7 @@ type pub inline Path {
       @value
     }
 
-    let iter = PathComponents(path: val, index: 0)
+    let iter = PathComponents.new(val)
     let mut len = 0
 
     for comp in iter {
@@ -1403,17 +1408,18 @@ impl Equal for Path {
 # An iterator over the components in a `Path`.
 type pub PathComponents {
   let @path: String
+  let @buffer: ByteArray
   let mut @index: Int
 
-  fn inline slice(start: Int, end: Int, decode: Bool) -> Slice[String] {
-    let slice = Slice.new(@path, start, end)
+  fn static new(path: String) -> Self {
+    Self(path: path, buffer: ByteArray.new, index: 0)
+  }
 
-    if decode {
-      let val = decode_string(slice).get
-
-      val.slice(0, val.size)
+  fn inline mut slice(start: Int, end: Int, decode: Bool) -> Slice[String] {
+    if decode(Slice.new(@path, start, end), @buffer) {
+      @buffer.drain_to_string.to_slice
     } else {
-      slice
+      panic('Path must contain only valid percent-encoded sequences')
     }
   }
 }
@@ -1923,7 +1929,7 @@ impl ToString for Values {
 # a URI using `Uri.parse`.
 type pub inline Query {
   # The raw percent-encoded value of this query string fragment.
-  let pub @value: String
+  let @value: String
 
   fn static parse_into[B: Bytes](
     uri: mut Uri,
@@ -2031,6 +2037,11 @@ type pub inline Query {
     }
   }
 
+  # Returns the raw percent-encoded value.
+  fn pub inline value -> String {
+    @value
+  }
+
   # Parses `self` into a `Values`.
   #
   # Because a `Query` is guaranteed to always contain a valid query string, this
@@ -2111,7 +2122,7 @@ impl ToString for Query {
   # Returns a `String` containing the percent-decoded value of `self`.
   #
   # If after decoding the data contains bytes that aren't valid UTF-8, these
-  # bytes are replaced with  `U+FFFD REPLACEMENT CHARACTER`.
+  # bytes are replaced with `U+FFFD REPLACEMENT CHARACTER`.
   fn pub to_string -> String {
     to_byte_array.into_string
   }
@@ -2136,7 +2147,7 @@ impl Equal for Query {
 # percent-encoded.
 type pub inline Fragment {
   # The raw percent-encoded value of this hash fragment.
-  let pub @value: String
+  let @value: String
 
   fn static parse_into[B: Bytes](
     uri: mut Uri,
@@ -2242,6 +2253,11 @@ type pub inline Fragment {
       case Ok(_) -> Option.Some(Self(''))
       case _ -> Option.None
     }
+  }
+
+  # Returns the raw percent-encoded value.
+  fn pub inline value -> String {
+    @value
   }
 
   # Returns the size of `self`, before applying percent decoding.
