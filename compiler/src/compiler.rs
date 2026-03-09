@@ -289,6 +289,10 @@ impl Compiler {
         // type database. This must be done _after_ specialization.
         self.state.db.compact();
 
+        // Splitting is done _after_ specialization, since specialization
+        // introduces new types and methods.
+        mir.split_modules(&mut self.state);
+
         // Symbol names are needed to ensure certain passes can operate on data
         // in a stable order, which in turn is needed to ensure incremental
         // caches aren't flushed unnecessarily.
@@ -406,13 +410,38 @@ Total: {total}\
     pub fn print_full_timings(&self) {
         self.print_timings();
 
-        let width = self
+        let total = self.timings.llvm.as_secs_f64();
+        let timings: Vec<_> = self
             .timings
             .llvm_modules
             .iter()
-            .map(|v| v.0.as_str().len())
-            .max()
-            .unwrap_or(0);
+            .filter_map(|(name, dur)| {
+                // Timings less than 1% of the total time aren't interesting.
+                // For large projects we also expect _many_ such modules, such
+                // that showing all of them makes the output unreadable.
+                if dur.as_secs_f64() / total < 0.01 {
+                    return None;
+                }
+
+                let name = name.as_str();
+
+                // Generated module names may be very long making the output
+                // unreadable, so we trim them whenever necessary.
+                if name.len() >= 40 {
+                    let trimmed = format!(
+                        "{}...{}",
+                        &name[0..20],
+                        &name[(name.len() - 20)..]
+                    );
+
+                    Some((trimmed, *dur))
+                } else {
+                    Some((name.to_string(), *dur))
+                }
+            })
+            .collect();
+
+        let width = timings.iter().map(|v| v.0.len()).max().unwrap_or(0);
 
         println!(
             "
@@ -424,11 +453,11 @@ LLVM module timings:
             width = width
         );
 
-        for (name, dur) in &self.timings.llvm_modules {
+        for (name, dur) in timings {
             println!(
                 "{:width$}    {}",
-                name.as_str(),
-                format_timing(*dur, Some(self.timings.llvm)),
+                name,
+                format_timing(dur, Some(self.timings.llvm)),
                 width = width
             );
         }
