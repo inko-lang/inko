@@ -1,4 +1,5 @@
-import std.drop (Drop)
+import std.drop (Drop, drop)
+import std.stdio (Stdout)
 import std.test (Tests)
 
 fn ignore_unused(value: ValueRef) -> Option[ValueRef] {
@@ -54,6 +55,38 @@ type Container {
 
 type Words {
   let @numbers: Array[String]
+}
+
+type Inner {}
+
+impl Drop for Inner {
+  fn mut drop {
+    Stdout.new.print('Inner.drop')
+  }
+}
+
+type inline Outer {
+  let @inner: Inner
+
+  fn move move_true {
+    if true { drop(@inner) }
+
+    Stdout.new.print('Outer.move_true')
+  }
+
+  fn move move_false {
+    if false { drop(@inner) }
+
+    Stdout.new.print('Outer.move_false')
+  }
+
+  fn move move_whole {
+    if true { move_self } else { drop(@inner) }
+
+    Stdout.new.print('Outer.move_whole')
+  }
+
+  fn move move_self {}
 }
 
 fn early_return_in_init -> Result[Nil, String] {
@@ -147,5 +180,41 @@ fn pub tests(t: mut Tests) {
   t.no_panic(
     'Returning as part of an initialization should not drop the uninitialized container',
     fn { early_return_in_init },
+  )
+
+  t.fork(
+    'Conditional partial moves of fields when the condition is true',
+    child: fn { Outer(Inner()).move_true },
+    test: fn (t, p) {
+      let child = p.spawn
+
+      t.equal(child.status.to_int, 0)
+      t.equal(child.stdout, 'Inner.drop\nOuter.move_true\n')
+      t.equal(child.stderr, '')
+    },
+  )
+
+  t.fork(
+    'Conditional partial moves of fields when the condition is false',
+    child: fn { Outer(Inner()).move_false },
+    test: fn (t, p) {
+      let child = p.spawn
+
+      t.equal(child.status.to_int, 0)
+      t.equal(child.stdout, 'Outer.move_false\nInner.drop\n')
+      t.equal(child.stderr, '')
+    },
+  )
+
+  t.fork(
+    'Conditional moves of self using a moving method',
+    child: fn { Outer(Inner()).move_whole },
+    test: fn (t, p) {
+      let child = p.spawn
+
+      t.equal(child.status.to_int, 0)
+      t.equal(child.stdout, 'Inner.drop\nOuter.move_whole\n')
+      t.equal(child.stderr, '')
+    },
   )
 }

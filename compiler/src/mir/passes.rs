@@ -4503,27 +4503,72 @@ impl<'a> LowerMethod<'a> {
                 .is_some_and(|r| !self.register_is_available(r))
         });
 
-        if partially_moved {
-            for (id, _) in &fields {
-                let reg = self.field_mapping.get(id).cloned().unwrap();
-
-                if self.register_is_moved_or_permanent(reg) {
-                    continue;
-                }
-                self.drop_field(self_reg, *id, reg, location);
-            }
-        }
-
         match self.register_state(self_reg) {
             RegisterState::PartiallyMoved => {
+                self.drop_remaining_fields(&fields, location);
                 self.current_block_mut()
                     .drop_without_dropper(self_reg, location);
+            }
+            // Parts of self may be moved conditionally, such as for code like
+            // `if foo { drop(field) }`. In this case we need to determine at
+            // runtime if `self` is to be dropped as a whole or only its memory
+            // should be deallocated.
+            RegisterState::MaybeMoved if partially_moved => {
+                self.drop_partial_self(&fields, location);
             }
             RegisterState::Available | RegisterState::MaybeMoved => {
                 self.drop_register(self_reg, location);
             }
             RegisterState::Moved => {}
         }
+    }
+
+    fn drop_remaining_fields(
+        &mut self,
+        fields: &[(FieldId, TypeRef)],
+        location: InstructionLocation,
+    ) {
+        for (id, _) in fields {
+            let rec = self.surrounding_type_register;
+            let reg = self.field_mapping.get(id).cloned().unwrap();
+
+            if self.register_is_moved_or_permanent(reg) {
+                continue;
+            }
+
+            self.drop_field(rec, *id, reg, location);
+        }
+    }
+
+    fn drop_partial_self(
+        &mut self,
+        fields: &[(FieldId, TypeRef)],
+        location: InstructionLocation,
+    ) {
+        let self_reg = self.surrounding_type_register;
+        let before_block = self.current_block;
+        let drop_block = self.add_block();
+        let after_block = self.add_block();
+        let drop_flag = self.drop_flags.get(&self_reg).cloned().unwrap();
+
+        self.current_block_mut().branch(
+            drop_flag,
+            drop_block,
+            after_block,
+            location,
+        );
+
+        self.add_edge(before_block, drop_block);
+        self.add_edge(before_block, after_block);
+        self.add_edge(drop_block, after_block);
+
+        self.current_block = drop_block;
+        self.drop_remaining_fields(fields, location);
+        self.current_block_mut().drop_without_dropper(self_reg, location);
+        self.current_block_mut().goto(after_block, location);
+
+        self.current_block = after_block;
+        self.mark_register_as_moved(self_reg);
     }
 
     fn drop_loop_registers(&mut self, location: InstructionLocation) {
