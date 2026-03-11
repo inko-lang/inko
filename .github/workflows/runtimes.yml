@@ -14,7 +14,7 @@ jobs:
     container:
       image: ghcr.io/inko-lang/ci:fedora-amd64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Build runtimes
         run: bash ci/runtimes.sh amd64-linux
       - uses: actions/upload-artifact@v4
@@ -30,7 +30,7 @@ jobs:
     container:
       image: ghcr.io/inko-lang/ci:fedora-arm64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Build runtimes
         run: bash ci/runtimes.sh arm64-linux
       - uses: actions/upload-artifact@v4
@@ -44,7 +44,7 @@ jobs:
   amd64-mac:
     runs-on: macos-15-intel
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install dependencies
         run: ./ci/mac.sh
       - name: Build runtimes
@@ -60,7 +60,7 @@ jobs:
   arm64-mac:
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install dependencies
         run: ./ci/mac.sh
       - name: Build runtimes
@@ -76,9 +76,9 @@ jobs:
   amd64-freebsd:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Build runtimes
-        uses: cross-platform-actions/action@v0.24.0
+        uses: cross-platform-actions/action@v0.32.0
         with:
           operating_system: freebsd
           version: '14.0'
@@ -108,7 +108,7 @@ jobs:
       - arm64-mac
       - amd64-freebsd
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/download-artifact@v4
         with:
           path: tmp/runtimes

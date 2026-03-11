@@ -12,7 +12,7 @@ jobs:
   vale:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: errata-ai/vale-action@v2.1.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -24,7 +24,7 @@ jobs:
   cargo-deny:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: EmbarkStudios/cargo-deny-action@v2
 
   cargo-clippy:
@@ -32,8 +32,8 @@ jobs:
     container:
       image: ghcr.io/inko-lang/ci:fedora-amd64
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/cache@v4
+      - uses: actions/checkout@v6
+      - uses: actions/cache@v5
         with:
           path: '${{ env.CARGO_HOME }}'
           key: cargo-clippy-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
@@ -45,7 +45,7 @@ jobs:
     container:
       image: ghcr.io/inko-lang/ci:fedora-amd64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Run rustfmt
         run: 'cargo fmt --all --check'
 
@@ -54,8 +54,8 @@ jobs:
     container:
       image: ghcr.io/inko-lang/ci:fedora-amd64
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/cache@v4
+      - uses: actions/checkout@v6
+      - uses: actions/cache@v5
         with:
           path: '${{ env.CARGO_HOME }}'
           key: inko-fmt-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
@@ -84,8 +84,8 @@ jobs:
     container:
       image: ghcr.io/inko-lang/ci:${{ matrix.target.image }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/cache@v4
+      - uses: actions/checkout@v6
+      - uses: actions/cache@v5
         with:
           path: '${{ env.CARGO_HOME }}'
           key: ${{ matrix.target.name }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
@@ -110,8 +110,8 @@ jobs:
     container:
       image: ghcr.io/inko-lang/ci:${{ matrix.target.image }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/cache@v4
+      - uses: actions/checkout@v6
+      - uses: actions/cache@v5
         with:
           path: '${{ env.CARGO_HOME }}'
           key: ${{ matrix.target.name }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
@@ -133,8 +133,8 @@ jobs:
     env:
       RUSTUP_HOME: ${{ github.workspace }}/.rustup-home
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/cache@v4
+      - uses: actions/checkout@v6
+      - uses: actions/cache@v5
         with:
           path: |
             ${{ env.CARGO_HOME }}
@@ -163,8 +163,8 @@ jobs:
     env:
       RUSTUP_HOME: ${{ github.workspace }}/.rustup-home
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/cache@v4
+      - uses: actions/checkout@v6
+      - uses: actions/cache@v5
         with:
           path: |
             ${{ env.CARGO_HOME }}
@@ -182,15 +182,15 @@ jobs:
     env:
       RUSTUP_HOME: ${{ github.workspace }}/.rustup-home
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/cache@v4
+      - uses: actions/checkout@v6
+      - uses: actions/cache@v5
         with:
           path: |
             ${{ env.CARGO_HOME }}
             ${{ env.RUSTUP_HOME }}
           key: amd64-freebsd-native-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
       - name: Run tests
-        uses: cross-platform-actions/action@v0.24.0
+        uses: cross-platform-actions/action@v0.32.0
         with:
           operating_system: freebsd
           version: '14.0'
@@ -208,15 +208,15 @@ jobs:
     env:
       RUSTUP_HOME: ${{ github.workspace }}/.rustup-home
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/cache@v4
+      - uses: actions/checkout@v6
+      - uses: actions/cache@v5
         with:
           path: |
             ${{ env.CARGO_HOME }}
             ${{ env.RUSTUP_HOME }}
           key: amd64-freebsd-native-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
       - name: Run tests
-        uses: cross-platform-actions/action@v0.24.0
+        uses: cross-platform-actions/action@v0.32.0
         with:
           operating_system: freebsd
           version: '14.0'
