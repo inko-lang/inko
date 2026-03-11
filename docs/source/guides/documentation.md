@@ -228,7 +228,7 @@ jobs:
     steps:
       - name: Install dependencies
         run: microdnf install --quiet --assumeyes tar git
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Run tests
         run: inko test
       - name: Build documentation
