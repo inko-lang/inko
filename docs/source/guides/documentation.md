@@ -173,8 +173,8 @@ jobs:
     steps:
       - name: Install dependencies
         run: microdnf install --quiet --assumeyes tar git
-      - uses: actions/checkout@v4
-      - uses: actions/cache@v4
+      - uses: actions/checkout@v6
+      - uses: actions/cache@v5
         with:
           path: '~/.local/share/inko/packages'
           key: deps-${{ hashFiles('inko.pkg') }}

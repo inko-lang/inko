@@ -52,7 +52,7 @@ jobs:
     container:
       image: ghcr.io/inko-lang/inko:latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: inko --version
       - run: inko fmt --check
 
@@ -61,7 +61,7 @@ jobs:
     container:
       image: ghcr.io/inko-lang/inko:latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: inko --version
       - run: inko test
 ";
