@@ -113,7 +113,7 @@
 #
 # type async Main {
 #   fn async main {
-#     let logger = Logger.new
+#     let logger = Logger.default
 #
 #     Server.new(fn { recover App(logger.clone) }).start(8_000).or_panic
 #   }
@@ -135,7 +135,7 @@
 # }
 # ```
 #
-# That is: you create a `Logger` using `Logger.new` _before_ calling
+# That is: you create a `Logger` using `Logger.default` _before_ calling
 # `Server.new`, then clone it for each newly established connection. Logging the
 # request/response is done by overriding the default implementation of
 # `Handle.response` to log the request and response data just before we write
@@ -144,6 +144,13 @@
 # While logging the request in `Handle.handle` is also fine, moving this code
 # into `Handle.response` means we _always_ log the request regardless of
 # how/where the code returns from `Handle.handle`.
+#
+# For more control over what is logged (e.g. you want to include additional
+# data), use `std.net.http.server.Logger.prepare` and
+# `std.net.http.server.Logger.submit` explicitly.
+#
+# The `Logger` type wraps a `std.log.Logger` and can thus log to anything that
+# `std.log.Logger` can log to.
 #
 # # Signal handling
 #
@@ -379,6 +386,7 @@ import std.io (
   Read, SeekFrom, Write, copy_using,
 )
 import std.iter (Iter, Stream)
+import std.log (self as slog)
 import std.mime (Mime)
 import std.multipart
 import std.net.http (
@@ -398,7 +406,6 @@ import std.rand (Random)
 import std.range (InclusiveRange)
 import std.set (Set)
 import std.signal (Signal)
-import std.stdio (Stdout)
 import std.string (StringBuffer, ToString)
 import std.sync (AtomicBool, AtomicInt, Future, Promise)
 import std.sys.net (SEND_FILE_SIZE)
@@ -2855,18 +2862,6 @@ type pub Server[H: mut + Handle] {
   }
 }
 
-type async LogWriter {
-  let @output: Stdout
-
-  fn static new -> Self {
-    Self(recover Stdout.new)
-  }
-
-  fn async mut write(message: String) {
-    let _ = @output.print(message)
-  }
-}
-
 # A basic request/response logger.
 #
 # Output is written to STDOUT, using a dedicated process to allow for concurrent
@@ -2877,61 +2872,61 @@ type async LogWriter {
 # connections use the same underlying writer, preventing concurrent writes from
 # messing up the STDOUT output.
 type pub inline Logger {
-  let @writer: LogWriter
-
-  # If timestamps should be included for each log message.
-  #
-  # This defaults to `true`.
-  let mut @time: Bool
-
-  # If logging is enabled or not.
-  #
-  # This defaults to `true`.
-  let mut @enabled: Bool
+  let @logger: slog.Logger
 
   # Returns a `Logger` using its default settings.
-  fn pub static new -> Self {
-    Self(writer: LogWriter.new, time: true, enabled: true)
+  #
+  # This uses `std.log.TextHandler` for formatting the output and writes the
+  # output to STDERR.
+  fn pub static default -> Self {
+    new(slog.Logger.text)
   }
 
-  # Disables the logger entirely.
-  fn pub move disabled -> Self {
-    @enabled = false
-    self
+  # Returns a `Logger` created from a `std.log.Logger`.
+  fn pub static new(logger: slog.Logger) -> Self {
+    Self(logger)
   }
 
-  # Disables the inclusion of timestamps in log entries.
-  fn pub move without_timestamps -> Self {
-    @time = false
-    self
+  # Prepares a new event but doesn't immediately log it.
+  #
+  # The name of the event is `http_request` and the event contains various
+  # request related fields such as the IP address, request path, user-agent and
+  # more.
+  fn pub mut prepare(request: ref Request) -> slog.EventBuilder {
+    @logger
+      .event('http_request')
+      .with('address', request.address.host)
+      .with('method', request.method.to_string)
+      .with('host', request.headers.get(Header.host).ok)
+      .with('path', request.uri.path.to_string)
+      .with('query', request.uri.query.to_string)
+      .with('version', request.data.version.to_string)
+      .with('referer', request.headers.get(Header.referer).ok)
+      .with('user-agent', request.headers.get(Header.user_agent).ok)
+  }
+
+  # Adds response data to the given event and submits it.
+  #
+  # This method adds the following fields based on the response, overwriting any
+  # existing fields with these names:
+  #
+  # - `status`: the response status code
+  fn pub mut submit(event: slog.EventBuilder, response: ref Response) {
+    event.with('status', response.status.to_int).submit
   }
 
   # Logs a request along with its response.
-  fn pub log(request: ref Request, response: ref Response) {
-    if !@enabled { return }
-
-    let addr = request.address
-    let meth = request.method
-    let ver = request.version
-    let prev = request.headers.get(Header.referer).or('-').escaped
-    let agent = request.headers.get(Header.user_agent).or('-').escaped
-    let status = response.status
-    let time = if @time { '${DateTime.utc.to_iso8601}: ' } else { '' }
-    let host = request.headers.get(Header.host).or('-')
-    let uri = Uri.new
-
-    uri.path = request.uri.path.clone
-    uri.query = request.uri.query.clone
-
-    @writer.write(
-      '${time}${addr.host} ${host} ${meth} ${uri} HTTP/${ver} ${status} "${prev}" "${agent}"',
-    )
+  #
+  # This is a convenience method for when you just want to log some basic data
+  # and not add extra fields to the event.
+  fn pub mut log(request: ref Request, response: ref Response) {
+    submit(prepare(request), response)
   }
 }
 
 impl Clone for Logger {
   fn pub clone -> Self {
-    Self(writer: @writer, time: @time, enabled: @enabled)
+    Self(@logger.clone)
   }
 }
 

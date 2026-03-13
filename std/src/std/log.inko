@@ -1,0 +1,536 @@
+# Structured logging of wide events.
+#
+# This module provides the `Logger` and `Event` types for producing wide and
+# structured logs, sometimes also known as "wide events". The approach taken by
+# this module differs from traditional logging in a few ways:
+#
+# 1. There are no log levels and instead the output is closer to a series of
+#    events, each with a name and a bunch of additional fields
+# 1. Instead of producing many small log entries/events, you're supposed to
+#    produce fewer but (much) wider (= more fields) events
+# 1. There is no way to disable the logging of data apart from simply discarding
+#    it
+#
+# The idea behind these differences is that you should only log what truly
+# matters instead of "we might need this so let's log it", as the traditional
+# approach to logging results in a lot of data that needs to be stored much of
+# which will never be looked at, which in turn can significantly increase
+# operational costs. Such a traditional setup also makes it significantly
+# difficult and time consuming to filter through the data.
+#
+# For more details consider reading the following resources:
+#
+# - https://loggingsucks.com/
+# - https://brandur.org/canonical-log-lines
+#
+# # Usage
+#
+# Logging consists of two components: a `Logger` and one or more `Event` values.
+# Events are submitted using `Event.submit`:
+#
+# ```inko
+# import std.log (Logger)
+#
+# let logger = Logger.text
+#
+# logger.event('example').submit
+# ```
+#
+# Adding fields is done using `Event.with`:
+#
+# ```inko
+# import std.log (Logger)
+#
+# let logger = Logger.text
+#
+# logger.event('example').with('name', 'Alice').submit
+# ```
+#
+# Or using `Event.add`:
+#
+# ```inko
+# import std.log (Logger)
+#
+# let logger = Logger.text
+# let event = logger.event('example')
+#
+# event.add('name', 'Alice')
+# event.submit
+# ```
+#
+# Grouping data is also possible using `std.log.with`, which is a shortcut for
+# using `Group.new.with(...)`:
+#
+# ```inko
+# import std.log (Logger, with)
+#
+# let logger = Logger.text
+#
+# logger
+#   .event('example')
+#   .group('user', with('name', 'Alice').with('age', 42))
+#   .submit
+# ```
+#
+# If a `Logger` is to be used by multiple processes, clone it for each process:
+#
+# ```inko
+# import std.log (Logger)
+#
+# let a = Logger.text
+# let b = a.clone
+#
+# a.event('foo').submit
+# b.event('bar').submit
+# ```
+#
+# # Backends and handlers
+#
+# Each logger has a backend that handles serializing and submitting the log data
+# to some storage medium using a type that implements the `Handle` trait. The
+# following handlers are provided by this module:
+#
+# - `std.log.JsonHandler`: writes data as JSON
+# - `std.log.TextHandler`: writes data as (mostly) human-readable text
+# - `std.log.NullHandler`: discards all events
+#
+# The `NullHandler` handler is meant to be used when you either want to
+# conditionally disable logging, or disable it entirely as part of e.g. a test
+# suite.
+import std.clone (Clone)
+import std.io (Error, Write, Writer)
+import std.json
+import std.stdio (Stderr)
+import std.time (DateTime, Duration)
+
+# Returns a new `Group` with the given key and value set.
+#
+# This is a shortcut for using `std.log.Group.new` and `std.log.Group.with`.
+fn pub with[T: ToLogValue](key: String, value: ref T) -> Group {
+  Group.new.with(key, value)
+}
+
+# A value of a field.
+type pub inline enum Value {
+  # There is no value.
+  #
+  # Handlers should ignore these values.
+  case None
+
+  # A `String`.
+  case String(String)
+
+  # An `Int`.
+  case Int(Int)
+
+  # A `Float`.
+  case Float(Float)
+
+  # A `Bool`.
+  case Bool(Bool)
+
+  # A group of fields and their values.
+  case Group(uni Map[String, Value])
+}
+
+# A type which can be converted to a `std.log.Value`.
+trait pub ToLogValue {
+  # Converts `self` to a `std.log.Value`.
+  #
+  # The returned `std.log.Value` must be a _unique_ value such that it can be
+  # sent to the backend process.
+  fn pub to_log_value -> uni Value
+}
+
+impl ToLogValue for Bool {
+  fn pub to_log_value -> uni Value {
+    recover Value.Bool(self)
+  }
+}
+
+impl ToLogValue for Int {
+  fn pub to_log_value -> uni Value {
+    recover Value.Int(self)
+  }
+}
+
+impl ToLogValue for Float {
+  fn pub to_log_value -> uni Value {
+    recover Value.Float(self)
+  }
+}
+
+impl ToLogValue for String {
+  fn pub to_log_value -> uni Value {
+    recover Value.String(self)
+  }
+}
+
+impl ToLogValue for Duration {
+  fn pub to_log_value -> uni Value {
+    recover Value.Float(to_secs)
+  }
+}
+
+impl ToLogValue for Option if T: ToLogValue {
+  fn pub to_log_value -> uni Value {
+    match self {
+      case Some(v) -> v.to_log_value
+      case _ -> recover Value.None
+    }
+  }
+}
+
+# A group of fields and their values.
+type pub inline Group {
+  let @fields: uni Map[String, Value]
+
+  # Returns a new and empty group.
+  fn pub static new -> Self {
+    Self(recover Map.new)
+  }
+
+  # Adds the given field and value to `self`.
+  fn pub move with[T: ToLogValue](key: String, value: ref T) -> Self {
+    @fields.set(key, value.to_log_value)
+    self
+  }
+
+  # Adds a new group to `self`.
+  fn pub move group(key: String, group: Group) -> Self {
+    let { @fields = other } = group
+
+    @fields.set(key, recover Value.Group(other))
+    self
+  }
+}
+
+# An event to submit to a backend.
+type pub inline Event {
+  # The name of the event.
+  let pub @name: String
+
+  # The time at which the event is created.
+  let pub @time: DateTime
+
+  # The fields and values of the event.
+  let pub @fields: Map[String, Value]
+}
+
+# A type for building a `std.log.Event`.
+#
+# Instances of this type are created using `std.log.Logger.event`.
+#
+# This type is a heap-allocated type so it may be borrowed mutably efficiently,
+# such as when it's stored somewhere and borrows are passed around the call
+# stack to allow mutating the `EventBuilder` in-place.
+type pub EventBuilder {
+  let @logger: mut Logger
+  let @event: uni Event
+
+  fn static new(name: String, logger: mut Logger) -> Self {
+    Self(
+      logger: logger,
+      event: recover Event(name: name, time: DateTime.utc, fields: Map.new),
+    )
+  }
+
+  # Submits the event to the backend, consuming it in the process.
+  fn pub move submit {
+    @logger.backend.submit(@event)
+  }
+
+  # Adds a field and its value to `self` without taking ownership of `self`.
+  fn pub mut add[T: ToLogValue](key: String, value: ref T) {
+    @event.fields.set(key, value.to_log_value)
+  }
+
+  # Adds a group to `self` without taking ownership of `self`.
+  fn pub mut add_group(key: String, group: Group) {
+    let { @fields = other } = group
+
+    @event.fields.set(key, recover Value.Group(other))
+  }
+
+  # Adds a group to `self` and returns `self`, taking ownership of it in the
+  # process.
+  #
+  # This method is meant to be used when chaning multiple calls to
+  # `std.log.EventBuilder.group` and `std.log.EventBuilder.with`. If you instead
+  # want to add a group to an existing `std.log.EventBuilder`, use
+  # `std.log.EventBuilder.add_group` instead.
+  fn pub move group(key: String, group: Group) -> Self {
+    add_group(key, group)
+    self
+  }
+
+  # Adds a field and its value to `self` and returns `self`, taking ownership of
+  # it in the process.
+  #
+  # This method is meant to be used when chaning multiple calls to
+  # `std.log.EventBuilder.group` and `std.log.EventBuilder.with`. If you instead
+  # want to add a field to an existing `std.log.EventBuilder`, use
+  # `std.log.EventBuilder.add` instead.
+  #
+  # The `value` argument may be any type that implements the
+  # `std.log.ToLogValue` trait such as `Int`, `Float`, `String` and more.
+  fn pub move with[T: ToLogValue](key: String, value: ref T) -> Self {
+    add(key, value)
+    self
+  }
+}
+
+# A type that serializes and writes an event to some storage medium.
+trait pub Handle {
+  # Handles a newly created event.
+  #
+  # How exactly the event is serialized and what it's written to is up to the
+  # implementation.
+  fn pub mut handle(event: uni Event)
+}
+
+# A type that serializes events to (mostly) human-readable text, encoding fields
+# and values using the [logfmt](https://brandur.org/logfmt) format.
+#
+# Each event uses the following format:
+#
+# ```
+# ISO-8601-DATE EVENT_NAME field1=value1 field2=value2 ...
+# ```
+#
+# For example (the output is manually wrapped across lines to keep things
+# readable):
+#
+# ```
+# 2026-03-12T20:35:15.223Z http_request status=200 version="1.1" uri="/"
+#   address="127.0.0.1" method="GET" agent="curl/8.15.0"
+#   host="localhost:8000" group_name.key="val" group_name.number=123
+# ```
+type pub TextHandler {
+  let @buffer: ByteArray
+  let @output: Write[Error]
+
+  # Returns a new `std.log.TextHandler` that writes to STDERR.
+  fn pub static stderr -> Self {
+    new(Writer.new(Stderr.new) as Write[Error])
+  }
+
+  # Returns a new `std.log.TextHandler` that writes to the given output stream.
+  fn pub static new(output: Write[Error]) -> Self {
+    Self(buffer: ByteArray.with_capacity(1024), output: output)
+  }
+
+  fn mut key(key: String) {
+    @buffer.append(' ')
+    @buffer.append(key)
+    @buffer.append('=')
+  }
+
+  fn mut fields(fields: Map[String, Value], namespace: String) {
+    for (key, val) in fields {
+      let key = if namespace.empty? { key } else { '${namespace}.${key}' }
+
+      value(key, val)
+    }
+  }
+
+  fn mut value(key: String, value: Value) {
+    match value {
+      case None -> {}
+      case String(v) if v.size > 0 -> {
+        key(key)
+        @buffer.append('"')
+        @buffer.append(v.escaped)
+        @buffer.append('"')
+      }
+      case String(_) -> {}
+      case Int(v) -> {
+        key(key)
+        @buffer.append(v.to_string)
+      }
+      case Float(v) -> {
+        key(key)
+        @buffer.append(v.to_string)
+      }
+      case Bool(v) -> {
+        key(key)
+        @buffer.append(v.to_string)
+      }
+      case Group(m) -> fields(m, namespace: key)
+    }
+  }
+}
+
+impl Handle for TextHandler {
+  fn pub mut handle(event: uni Event) {
+    let { @time = time, @name = name, @fields = fields } = event
+
+    @buffer.append(time.to_iso8601)
+    @buffer.append(' ')
+    @buffer.append(name)
+    fields(fields, namespace: '')
+    @buffer.append('\n')
+
+    let _ = @output.write(@buffer)
+
+    @buffer.clear
+  }
+}
+
+# A handler that simply discards all events.
+#
+# This handler is useful when you want to ignore all events but still run the
+# code that produces them, such as part of a test suite or when logging may be
+# disabled by the user.
+type pub NullHandler {
+  fn pub static new -> Self {
+    Self()
+  }
+}
+
+impl Handle for NullHandler {
+  fn pub mut handle(event: uni Event) {}
+}
+
+# A type that serializes events to JSON and writes them to an output stream
+# (e.g. STDERR).
+#
+# Each event uses the following structure:
+#
+# ```json
+# {
+#   "time": "ISO-8601-DATE",
+#   "name": "EVENT_NAME",
+#   "fields": {
+#     "field1": "value1",
+#     "field2": "value2"
+#   }
+# }
+# ```
+#
+# For example:
+#
+# ```json
+# {
+#   "time": "2026-03-12T20:40:42.579Z",
+#   "name": "http_request",
+#   "fields": {
+#     "status": 200,
+#     "version": "1.1",
+#     "uri": "/",
+#     "address": "127.0.0.1",
+#     "method": "GET",
+#     "agent": "curl/8.15.0",
+#     "host": "localhost:8000",
+#     "group_name": {
+#       "key": "val",
+#       "number": 123
+#     }
+#   }
+# }
+# ```
+type pub JsonHandler {
+  let @output: Write[Error]
+
+  # Returns a new `std.log.JsonHandler` that writes to STDERR.
+  fn pub static stderr -> Self {
+    new(Writer.new(Stderr.new) as Write[Error])
+  }
+
+  # Returns a new `std.log.JsonHandler` that writes to the given output stream.
+  fn pub static new(output: Write[Error]) -> Self {
+    Self(output)
+  }
+
+  fn value(
+    builder: json.ObjectBuilder,
+    key: String,
+    value: Value,
+  ) -> json.ObjectBuilder {
+    match value {
+      case None -> builder
+      case String(v) if v.size > 0 -> builder.string(key, v)
+      case String(_) -> builder
+      case Int(v) -> builder.int(key, v)
+      case Float(v) -> builder.float(key, v)
+      case Bool(v) -> builder.bool(key, v)
+      case Group(v) -> builder.object(key, fields(v))
+    }
+  }
+
+  fn fields(fields: Map[String, Value]) -> json.ObjectBuilder {
+    let mut builder = json.Json.object
+
+    for (key, val) in fields { builder = value(builder, key, val) }
+
+    builder
+  }
+}
+
+impl Handle for JsonHandler {
+  fn pub mut handle(event: uni Event) {
+    let { @time = time, @name = name, @fields = fields } = event
+    let res = json
+      .Json
+      .object
+      .string('time', time.to_iso8601)
+      .string('name', name)
+      .object('fields', fields(fields))
+      .into_string
+
+    let _ = @output.print(res)
+  }
+}
+
+type async Backend {
+  let @handler: Handle
+
+  fn static new(handler: uni Handle) -> Self {
+    Self(handler)
+  }
+
+  fn async mut submit(event: uni Event) {
+    @handler.handle(event)
+  }
+}
+
+# A structured logger.
+type pub inline Logger {
+  let @backend: Backend
+
+  # Returns a new `std.log.Logger` that uses the given handler.
+  #
+  # The logger must be typed as a `Handle` trait and must be a unique value so
+  # it can be moved into the backend process that handles serialization.
+  fn pub static new(handler: uni Handle) -> Self {
+    Self(Backend.new(handler))
+  }
+
+  # Returns a `std.log.Logger` that uses `std.log.TextHandler` as the handler
+  # and writes to STDERR.
+  fn pub static text -> Self {
+    new(recover TextHandler.stderr as Handle)
+  }
+
+  # Returns a `std.log.Logger` that uses `std.log.JsonHandler` as the handler
+  # and writes to STDERR.
+  fn pub static json -> Self {
+    new(recover JsonHandler.stderr as Handle)
+  }
+
+  # Returns a `std.log.Logger` that uses `std.log.NullHandler` as the handler.
+  fn pub static null -> Self {
+    new(recover NullHandler.new as Handle)
+  }
+
+  # Returns a new `std.log.EventBuilder` with the given event name.
+  fn pub mut event(name: String) -> EventBuilder {
+    EventBuilder.new(name, self)
+  }
+}
+
+impl Clone for Logger {
+  fn pub clone -> Self {
+    Self(@backend)
+  }
+}

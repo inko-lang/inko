@@ -1,0 +1,292 @@
+import std.bytes (Bytes)
+import std.io (Error, Write)
+import std.log (self, Handle)
+import std.sync (Channel)
+import std.test (Tests)
+import std.time (Date, DateTime, Duration, Time)
+
+type Writer {
+  let @buffer: mut ByteArray
+}
+
+impl Write[Error] for Writer {
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
+    @buffer.write(bytes)
+  }
+
+  fn pub mut flush -> Result[Nil, Error] {
+    @buffer.flush
+  }
+}
+
+fn new_logger -> (log.Logger, Channel[log.Event]) {
+  let chan = Channel.new
+  let logger = log.Logger.new(recover Handler(chan.clone) as log.Handle)
+
+  (logger, chan)
+}
+
+fn time -> DateTime {
+  DateTime(
+    date: Date.new(year: 2026, month: 3, day: 12).get,
+    time: Time.new(hour: 22, minute: 30, second: 0, nanosecond: 0).get,
+    utc_offset: 0,
+  )
+}
+
+type Handler {
+  let @channel: Channel[log.Event]
+}
+
+impl Handle for Handler {
+  fn pub mut handle(event: uni log.Event) {
+    @channel.send(event)
+  }
+}
+
+fn pub tests(t: mut Tests) {
+  t.test('log.with', fn (t) {
+    let group = log.with('key', 'value')
+
+    t.equal(group.fields.size, 1)
+  })
+
+  t.test('Bool.to_log_value', fn (t) {
+    t.true(
+      match true.to_log_value {
+        case Bool(true) -> true
+        case _ -> false
+      },
+    )
+
+    t.true(
+      match false.to_log_value {
+        case Bool(false) -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('Int.to_log_value', fn (t) {
+    t.true(
+      match 10.to_log_value {
+        case Int(10) -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('Float.to_log_value', fn (t) {
+    t.true(
+      match 10.5.to_log_value {
+        case Float(v) -> v == 10.5
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('String.to_log_value', fn (t) {
+    t.true(
+      match 'foo'.to_log_value {
+        case String('foo') -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('Duration.to_log_value', fn (t) {
+    t.true(
+      match Duration.from_secs(1).to_log_value {
+        case Float(v) -> v == 1.0
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('Option.to_log_value', fn (t) {
+    t.true(
+      match Option.Some(10).to_log_value {
+        case Int(10) -> true
+        case _ -> false
+      },
+    )
+    t.true(
+      match (Option.None as Option[Int]).to_log_value {
+        case None -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('Group.new', fn (t) {
+    let group = log.Group.new
+
+    t.equal(group.fields.size, 0)
+  })
+
+  t.test('Group.with', fn (t) {
+    let group = log.Group.new.with('key', 'value')
+
+    t.equal(group.fields.size, 1)
+  })
+
+  t.test('Group.group', fn (t) {
+    let group = log.Group.new.group('name', log.with('key', 'value'))
+
+    t.equal(group.fields.size, 1)
+  })
+
+  t.test('EventBuilder.submit', fn (t) {
+    let (logger, chan) = new_logger
+
+    logger.event('name').submit
+    t.equal(chan.receive.name, 'name')
+  })
+
+  t.test('EventBuilder.add', fn (t) {
+    let (logger, _) = new_logger
+    let builder = logger.event('name')
+
+    builder.add('key', 'value')
+
+    let event = match builder {
+      case { @event = event } -> recover event
+    }
+
+    t.true(
+      match event.fields.get('key') {
+        case Ok(String('value')) -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('EventBuilder.add_group', fn (t) {
+    let (logger, _) = new_logger
+    let builder = logger.event('name')
+
+    builder.add_group('group', log.with('key', 'value'))
+
+    let event = match builder {
+      case { @event = event } -> recover event
+    }
+
+    t.true(
+      match event.fields.get('group') {
+        case Ok(Group(v)) -> v.size == 1
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('EventBuilder.with', fn (t) {
+    let (logger, _) = new_logger
+    let builder = logger.event('name').with('key', 'value')
+
+    let event = match builder {
+      case { @event = event } -> recover event
+    }
+
+    t.true(
+      match event.fields.get('key') {
+        case Ok(String('value')) -> true
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('EventBuilder.group', fn (t) {
+    let (logger, _) = new_logger
+    let builder = logger.event('name').group('group', log.with('key', 'value'))
+
+    let event = match builder {
+      case { @event = event } -> recover event
+    }
+
+    t.true(
+      match event.fields.get('group') {
+        case Ok(Group(v)) -> v.size == 1
+        case _ -> false
+      },
+    )
+  })
+
+  t.test('TextHandler.handle', fn (t) {
+    let buf = ByteArray.new
+    let out = log.TextHandler.new(Writer(mut buf) as Write[Error])
+
+    let event = recover {
+      let fields = Map.new
+      let group = recover Map.new
+
+      group.set('int', recover log.Value.Int(20))
+      fields.set('int', log.Value.Int(10))
+      fields.set('float', log.Value.Float(10.5))
+      fields.set('string', log.Value.String('string'))
+      fields.set('bool', log.Value.Bool(true))
+      fields.set('group', log.Value.Group(group))
+      fields.set('none', log.Value.None)
+      log.Event(name: 'event', time: time, fields: fields)
+    }
+
+    out.handle(event)
+    t.equal(
+      buf.to_string,
+      '2026-03-12T22:30:00.0Z event int=10 float=10.5 string="string" bool=true group.int=20\n',
+    )
+  })
+
+  t.test('NullHandler.handle', fn (t) {
+    let out = log.NullHandler.new
+    let event = recover log.Event(name: 'event', time: time, fields: Map.new)
+
+    # Since the implementation does nothing there's nothing we can really test
+    # for other than, well, nothing happening.
+    out.handle(event)
+  })
+
+  t.test('JsonHandler.handle', fn (t) {
+    let buf = ByteArray.new
+    let out = log.JsonHandler.new(Writer(mut buf) as Write[Error])
+
+    let event = recover {
+      let fields = Map.new
+      let group = recover Map.new
+
+      group.set('int', recover log.Value.Int(20))
+      fields.set('int', log.Value.Int(10))
+      fields.set('float', log.Value.Float(10.5))
+      fields.set('string', log.Value.String('string'))
+      fields.set('bool', log.Value.Bool(true))
+      fields.set('group', log.Value.Group(group))
+      fields.set('none', log.Value.None)
+      log.Event(name: 'event', time: time, fields: fields)
+    }
+
+    out.handle(event)
+    t.equal(
+      buf.to_string,
+      '{"time": "2026-03-12T22:30:00.0Z", "name": "event", "fields": {"int": 10, "float": 10.5, "string": "string", "bool": true, "group": {"int": 20}}}\n',
+    )
+  })
+
+  t.test('Backend.submit', fn (t) {
+    let chan = Channel.new
+    let backend = log.Backend(recover Handler(chan.clone) as log.Handle)
+    let event = recover log.Event(name: 'event', time: time, fields: Map.new)
+
+    backend.submit(event)
+    t.equal(chan.receive.name, 'event')
+  })
+
+  t.test('Logger.clone', fn (t) {
+    let (l1, chan) = new_logger
+    let l2 = l1.clone
+
+    l1.event('foo').submit
+    l2.event('bar').submit
+
+    t.equal(chan.receive.name, 'foo')
+    t.equal(chan.receive.name, 'bar')
+  })
+}

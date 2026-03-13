@@ -4,7 +4,7 @@ import std.fmt (fmt)
 import std.io (
   Buffer, BufferedReader, BufferedWriter, CopyError, Error, LimitReader,
   READ_BUFFER_SIZE, Read, ReadExactError, SeekFrom, WRITE_BUFFER_SIZE, Write,
-  copy_using,
+  Writer, copy_using,
 )
 import std.libc
 import std.test (Tests)
@@ -80,15 +80,15 @@ impl Write[Error] for ErrorWriter {
   }
 }
 
-type Writer {
+type BufWriter {
   let @buffer: ByteArray
 
-  fn static new -> Writer {
-    Writer(ByteArray.new)
+  fn static new -> Self {
+    Self(ByteArray.new)
   }
 }
 
-impl Write[Error] for Writer {
+impl Write[Error] for BufWriter {
   fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
     @buffer.append(bytes)
     Result.Ok(nil)
@@ -99,10 +99,31 @@ impl Write[Error] for Writer {
   }
 }
 
+type TestWriter {
+  let mut @written: Int
+  let mut @flushed: Bool
+
+  fn static new -> Self {
+    Self(written: 0, flushed: true)
+  }
+}
+
+impl Write[Error] for TestWriter {
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, Error] {
+    @written += bytes.size
+    Result.Ok(nil)
+  }
+
+  fn pub mut flush -> Result[Nil, Error] {
+    @flushed = true
+    Result.Ok(nil)
+  }
+}
+
 fn pub tests(t: mut Tests) {
   t.test('io.copy_using', fn (t) {
     let from = Buffer.new('hello')
-    let to = Writer.new
+    let to = BufWriter.new
     let buf = ByteArray.new
 
     t.equal(copy_using(buf, from, to, size: 32), Result.Ok(5))
@@ -112,7 +133,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('io.copy_using with a read error', fn (t) {
     let from = ErrorReader()
-    let to = Writer.new
+    let to = BufWriter.new
     let buf = ByteArray.new
 
     t.equal(
@@ -323,7 +344,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Write.print', fn (t) {
-    let writer = Writer.new
+    let writer = BufWriter.new
 
     writer.print('foo').get
 
@@ -656,27 +677,27 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('BufferedWriter.new', fn (t) {
-    let writer = BufferedWriter.new(Writer.new)
+    let writer = BufferedWriter.new(BufWriter.new)
 
     t.equal(writer.size, WRITE_BUFFER_SIZE)
   })
 
   t.test('BufferedWriter.with_capacity', fn (t) {
-    let writer = BufferedWriter.with_capacity(Writer.new, size: 4)
+    let writer = BufferedWriter.with_capacity(BufWriter.new, size: 4)
 
     t.equal(writer.size, 4)
   })
 
   t.panic('BufferedWriter.with_capacity with a size of zero', fn {
-    BufferedWriter.with_capacity(Writer.new, size: 0)
+    BufferedWriter.with_capacity(BufWriter.new, size: 0)
   })
 
   t.panic('BufferedWriter.with_capacity with a negative size ', fn {
-    BufferedWriter.with_capacity(Writer.new, size: -4)
+    BufferedWriter.with_capacity(BufWriter.new, size: -4)
   })
 
   t.test('BufferedWriter.write', fn (t) {
-    let writer = BufferedWriter.with_capacity(Writer.new, size: 8)
+    let writer = BufferedWriter.with_capacity(BufWriter.new, size: 8)
 
     t.equal(writer.write('abcd'.to_byte_array), Result.Ok(nil))
     t.equal(writer.buffer, 'abcd'.to_byte_array)
@@ -705,7 +726,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('BufferedWriter.flush', fn (t) {
-    let writer = BufferedWriter.with_capacity(Writer.new, size: 8)
+    let writer = BufferedWriter.with_capacity(BufWriter.new, size: 8)
 
     t.equal(writer.write('abcd'), Result.Ok(nil))
     t.equal(writer.buffer, 'abcd'.to_byte_array)
@@ -715,7 +736,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('BufferedWriter.inner', fn (t) {
-    let writer = BufferedWriter.with_capacity(Writer.new, size: 8)
+    let writer = BufferedWriter.with_capacity(BufWriter.new, size: 8)
 
     t.equal(writer.inner.write('abcd'), Result.Ok(nil))
     t.equal(writer.buffer, ByteArray.new)
@@ -723,7 +744,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('BufferedWriter.drop', fn (t) {
-    let raw = Writer.new
+    let raw = BufWriter.new
     let writer = BufferedWriter.with_capacity(mut raw, size: 8)
 
     t.equal(writer.write('abcd'), Result.Ok(nil))
@@ -742,5 +763,19 @@ fn pub tests(t: mut Tests) {
     t.equal(reader.read_all(buf), Result.Ok(0))
     t.equal(buf, ByteArray.from_array([1, 2]))
     t.equal(reader.remaining, 0)
+  })
+
+  t.test('Writer.write', fn (t) {
+    let w = Writer.new(TestWriter.new)
+
+    t.equal(w.write('hello'), Result.Ok(nil))
+    t.equal(w.inner.written, 5)
+  })
+
+  t.test('Writer.flush', fn (t) {
+    let w = Writer.new(TestWriter.new)
+
+    t.equal(w.flush, Result.Ok(nil))
+    t.true(w.inner.flushed)
   })
 }

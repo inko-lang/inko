@@ -1313,3 +1313,30 @@ impl Read[E] for LimitReader {
     res
   }
 }
+
+# A heap allocated type that implements `Write` and wraps a generic `Write`.
+#
+# This type is meant to be used when you have an _inline_ type that implements
+# `Write` and you want to use it using dynamic dispatch, which isn't possible
+# with `inline` types because they can't be cast to a trait.
+#
+# If your type is already heap allocated then using this `Writer` adds no value.
+type pub Writer[T: mut + Write[E], E] {
+  # The writer that is wrapped.
+  let pub @inner: T
+
+  # Wraps the `Write` type in a `Writer`.
+  fn pub static new(inner: T) -> Self {
+    Self(inner)
+  }
+}
+
+impl Write[E] for Writer {
+  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, E] {
+    @inner.write(bytes)
+  }
+
+  fn pub mut flush -> Result[Nil, E] {
+    @inner.flush
+  }
+}

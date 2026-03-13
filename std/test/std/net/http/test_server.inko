@@ -7,6 +7,7 @@ import std.fmt (fmt)
 import std.fs.file (ReadOnlyFile)
 import std.fs.path (Path)
 import std.io (Buffer, BufferedReader, Error as IoError, Write)
+import std.log (self, Handle as HandleLog)
 import std.mime (Mime)
 import std.net.http (
   Body, Encoding, Etag, Header, HeaderMap, Limits, Method, ParseError, Parser,
@@ -15,11 +16,10 @@ import std.net.http (
 import std.net.http.client (Client)
 import std.net.http.server (
   Address, CacheControl, Delete, Directory, Event, Events, FileRanges,
-  FormError, Get, Handle, Head, LogWriter, Logger, Notifier,
-  Path as RequestPath, Post, Put, RangeRequest, Request, Response, Server,
-  SharedState, Socket, SocketServer, Tls, WebsocketResponse, compress_response,
-  conditional_request, copy_file_range, head_request, parse_accept_range,
-  parse_accept_ranges,
+  FormError, Get, Handle, Head, Logger, Notifier, Path as RequestPath, Post,
+  Put, RangeRequest, Request, Response, Server, SharedState, Socket,
+  SocketServer, Tls, WebsocketResponse, compress_response, conditional_request,
+  copy_file_range, head_request, parse_accept_range, parse_accept_ranges,
 )
 import std.net.http.websocket (WEBSOCKET_VERSION)
 import std.net.ip (IpAddress)
@@ -28,10 +28,20 @@ import std.net.socket (
 )
 import std.net.tls
 import std.set (Set)
-import std.sync (Future, Promise)
+import std.sync (Channel, Future, Promise)
 import std.test (Tests)
 import std.time (DateTime, Duration, Instant)
 import std.uri (Host, Path as UriPath, Query, Scheme, Uri, Values, encode)
+
+type LogHandler {
+  let @channel: Channel[log.Event]
+}
+
+impl HandleLog for LogHandler {
+  fn pub mut handle(event: uni log.Event) {
+    @channel.send(event)
+  }
+}
 
 type async TlsClient {
   fn async connect(
@@ -49,6 +59,13 @@ type async TlsClient {
 
     promise.set(res)
   }
+}
+
+fn new_logger -> (log.Logger, Channel[log.Event]) {
+  let chan = Channel.new
+  let logger = log.Logger.new(recover LogHandler(chan.clone) as log.Handle)
+
+  (logger, chan)
 }
 
 fn unix_pair(
@@ -230,12 +247,6 @@ impl Handle for Hello {
 
   fn pub mut invalid_request(response: Response) -> Response {
     response.string('invalid request')
-  }
-}
-
-impl LogWriter {
-  fn async wait(promise: uni Promise[Nil]) {
-    promise.set(nil)
   }
 }
 
@@ -2507,127 +2518,131 @@ fn pub tests(t: mut Tests) {
     t.true(srv.before_start.some?)
   })
 
-  t.fork(
-    'Logger.log',
-    child: fn {
-      let limits = Limits.new
-      let log = Logger.new
-      let req = empty_request(limits)
+  t.test('Logger.log', fn (t) {
+    let limits = Limits.new
+    let (raw, chan) = new_logger
+    let log = Logger.new(raw)
+    let req = empty_request(limits)
 
-      req.data.headers.set(Header.referer, 'referer')
-      req.data.headers.set(Header.user_agent, 'user-agent')
-      req.data.headers.set(Header.host, 'example.com')
-      log.log(req, Response.new.status(Status.not_found))
-      await log.writer.wait
-    },
-    test: fn (t, p) {
-      let out = p.spawn.stdout
+    req.data.headers.set(Header.referer, 'referer')
+    req.data.headers.set(Header.user_agent, 'user-agent')
+    req.data.headers.set(Header.host, 'example.com')
+    log.log(req, Response.new.status(Status.not_found))
 
-      t.true(out.contains?('GET / HTTP/1.1 404'))
-      t.true(out.contains?('referer'))
-      t.true(out.contains?('user-agent'))
-      t.true(out.contains?('example.com'))
-    },
-  )
+    let event = recover chan.receive
 
-  t.fork(
-    'Logger.log with a percent-encoded request path',
-    child: fn {
-      let limits = Limits.new
-      let log = Logger.new
-      let req = empty_request(limits)
+    t.equal(event.name, 'http_request')
+    t.true(
+      match event.fields.get('method') {
+        case Ok(String('GET')) -> true
+        case _ -> false
+      },
+    )
+    t.true(
+      match event.fields.get('referer') {
+        case Ok(String('referer')) -> true
+        case _ -> false
+      },
+    )
+    t.true(
+      match event.fields.get('user-agent') {
+        case Ok(String('user-agent')) -> true
+        case _ -> false
+      },
+    )
+    t.true(
+      match event.fields.get('host') {
+        case Ok(String('example.com')) -> true
+        case _ -> false
+      },
+    )
+    t.true(
+      match event.fields.get('status') {
+        case Ok(Int(404)) -> true
+        case _ -> false
+      },
+    )
+  })
 
-      req.data.uri.path = UriPath.new('/a%20b').get
-      log.log(req, Response.new.status(Status.not_found))
-      await log.writer.wait
-    },
-    test: fn (t, p) {
-      t.true(p.spawn.stdout.contains?('GET /a%20b HTTP/1.1 404'))
-    },
-  )
+  t.test('Logger.log with a percent-encoded request path', fn (t) {
+    let limits = Limits.new
+    let (raw, chan) = new_logger
+    let log = Logger.new(raw)
+    let req = empty_request(limits)
 
-  t.fork(
-    'Logger.log with a percent-encoded query string',
-    child: fn {
-      let limits = Limits.new
-      let log = Logger.new
-      let req = empty_request(limits)
+    req.data.uri.path = UriPath.new('/a%20b').get
+    log.log(req, Response.new.status(Status.ok))
 
-      req.data.uri.query = Query.new('key=a%20b').get
-      log.log(req, Response.new.status(Status.not_found))
-      await log.writer.wait
-    },
-    test: fn (t, p) {
-      t.true(p.spawn.stdout.contains?('GET /?key=a%20b HTTP/1.1 404'))
-    },
-  )
+    let event = recover chan.receive
 
-  t.fork(
-    'Logger.log with a fully qualified URI',
-    child: fn {
-      let limits = Limits.new
-      let log = Logger.new.without_timestamps
-      let req = empty_request(limits)
+    t.true(
+      match event.fields.get('path') {
+        case Ok(String('/a b')) -> true
+        case _ -> false
+      },
+    )
+  })
 
-      req.data.uri.scheme = Option.Some(Scheme.Http)
-      req.data.uri.host = Host.new('foo.com')
-      req.data.uri.port = Option.Some(1234)
-      req.data.uri.path = UriPath.new('/foo/bar').get
-      req.data.uri.query = Query.new('foo').get
-      log.log(req, Response.new.status(Status.ok))
-      await log.writer.wait
-    },
-    test: fn (t, p) {
-      t.equal(
-        p.spawn.stdout,
-        '127.0.0.1 - GET /foo/bar?foo HTTP/1.1 200 "-" "-"\n',
-      )
-    },
-  )
+  t.test('Logger.log with a percent-encoded query string', fn (t) {
+    let limits = Limits.new
+    let (raw, chan) = new_logger
+    let log = Logger.new(raw)
+    let req = empty_request(limits)
 
-  t.fork(
-    'Logger.log when logging is disabled',
-    child: fn {
-      let limits = Limits.new
-      let log = Logger.new.disabled
-      let req = empty_request(limits)
+    req.data.uri.query = Query.new('key=a%20b').get
+    log.log(req, Response.new.status(Status.ok))
 
-      req.data.headers.set(Header.referer, 'referer')
-      req.data.headers.set(Header.user_agent, 'user-agent')
-      log.log(req, Response.new.status(Status.not_found))
-      await log.writer.wait
-    },
-    test: fn (t, p) { t.equal(p.spawn.stdout, '') },
-  )
+    let event = recover chan.receive
 
-  t.fork(
-    'Logger.log without timestamps',
-    child: fn {
-      let limits = Limits.new
-      let log = Logger.new.without_timestamps
-      let req = empty_request(limits)
+    t.true(
+      match event.fields.get('query') {
+        case Ok(String('key=a b')) -> true
+        case _ -> false
+      },
+    )
+  })
 
-      req.data.uri.query = Query.new('key=value').get
-      req.data.headers.set(Header.host, 'example.com')
-      req.data.headers.set(Header.referer, 'referer')
-      req.data.headers.set(Header.user_agent, 'user-agent')
-      log.log(req, Response.new.status(Status.not_found))
-      await log.writer.wait
-    },
-    test: fn (t, p) {
-      t.equal(
-        p.spawn.stdout,
-        '127.0.0.1 example.com GET /?key=value HTTP/1.1 404 "referer" "user-agent"\n',
-      )
-    },
-  )
+  t.test('Logger.log with a fully qualified URI', fn (t) {
+    let limits = Limits.new
+    let (raw, chan) = new_logger
+    let log = Logger.new(raw)
+    let req = empty_request(limits)
+
+    req.data.uri.scheme = Option.Some(Scheme.Http)
+    req.data.uri.host = Host.new('foo.com')
+    req.data.uri.port = Option.Some(1234)
+    req.data.uri.path = UriPath.new('/foo/bar').get
+    req.data.uri.query = Query.new('foo').get
+    log.log(req, Response.new.status(Status.ok))
+
+    let event = recover chan.receive
+
+    t.true(
+      match event.fields.get('path') {
+        case Ok(String('/foo/bar')) -> true
+        case _ -> false
+      },
+    )
+    t.true(
+      match event.fields.get('query') {
+        case Ok(String('foo')) -> true
+        case _ -> false
+      },
+    )
+  })
 
   t.test('Logger.clone', fn (t) {
-    let a = Logger.new
+    let limits = Limits.new
+    let (raw, chan) = new_logger
+    let a = Logger.new(raw)
     let b = a.clone
+    let req = empty_request(limits)
 
-    t.equal(a.time, b.time)
-    t.equal(a.enabled, b.enabled)
+    a.log(req, Response.new.status(Status.ok))
+    b.log(req, Response.new.status(Status.ok))
+
+    t.equal(chan.receive.name, 'http_request')
+    t.equal(chan.receive.name, 'http_request')
   })
 
   t.test('CacheControl.to_string', fn (t) {
