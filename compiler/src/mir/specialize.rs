@@ -916,7 +916,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
                 args.assign(typ_par, type_arguments.get(dyn_par).unwrap());
             }
 
-            self.add_implementation_arguments(method, &mut args);
+            self.add_implementation_arguments(typ_method, &mut args);
             self.call_static(typ, typ_method, Some(&args));
         }
     }

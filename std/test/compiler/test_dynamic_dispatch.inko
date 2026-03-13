@@ -1,0 +1,33 @@
+import std.test (Tests)
+
+trait Write[E] {
+  fn mut write(value: String) -> Result[Nil, E]
+
+  fn mut print(value: String) {
+    write(value)
+  }
+}
+
+type Writer {
+  let @buffer: mut ByteArray
+}
+
+impl Write[Int] for Writer {
+  fn mut write(value: String) -> Result[Nil, Int] {
+    @buffer.append(value)
+    Result.Ok(nil)
+  }
+}
+
+fn pub tests(t: mut Tests) {
+  t.test(
+    'Calling a default method of a generic trait using dynamic dispatch',
+    fn (t) {
+      let buf = ByteArray.new
+      let out = Writer(mut buf) as Write[Int]
+
+      out.print('hello')
+      t.equal(buf.to_string, 'hello')
+    },
+  )
+}
