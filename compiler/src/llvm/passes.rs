@@ -2732,7 +2732,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
         }
 
         if layout.returns.is_regular() {
-            let val = call_site.try_as_basic_value().left().unwrap();
+            let val = call_site.try_as_basic_value().basic().unwrap();
 
             self.builder.copy_value(
                 self.layouts.target_data,

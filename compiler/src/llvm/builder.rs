@@ -220,7 +220,7 @@ impl<'ctx> Builder<'ctx> {
             .build_call(function, arguments, "")
             .unwrap()
             .try_as_basic_value()
-            .left()
+            .basic()
             .unwrap()
     }
 

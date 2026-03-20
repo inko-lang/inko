@@ -186,12 +186,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "either"
-version = "1.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
-
-[[package]]
 name = "encode_unicode"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -333,10 +327,10 @@ dependencies = [
 
 [[package]]
 name = "inkwell"
-version = "0.5.0"
-source = "git+https://github.com/TheDan64/inkwell.git?rev=caabaa5a8e05c52c531f9a0df784ac5651434803#caabaa5a8e05c52c531f9a0df784ac5651434803"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1def4112dfb2ce2993db7027f7acdb43c1f4ee1c70a082a2eef306ed5d0df365"
 dependencies = [
- "either",
  "inkwell_internals",
  "libc",
  "llvm-sys",
@@ -346,8 +340,9 @@ dependencies = [
 
 [[package]]
 name = "inkwell_internals"
-version = "0.10.0"
-source = "git+https://github.com/TheDan64/inkwell.git?rev=caabaa5a8e05c52c531f9a0df784ac5651434803#caabaa5a8e05c52c531f9a0df784ac5651434803"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "63736175c9a30ea123f7018de9f26163e0b39cd6978990ae486b510c4f3bad69"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -729,18 +724,18 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "1.0.69"
+version = "2.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6aaf5339b578ea85b50e080feb250a3e8ae8cfcdff9a461c9ec2904bc923f52"
+checksum = "4288b5bcbc7920c07a1149a35cf9590a2aa808e0bc1eafaade0b80947865fbc4"
 dependencies = [
  "thiserror-impl",
 ]
 
 [[package]]
 name = "thiserror-impl"
-version = "1.0.69"
+version = "2.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1"
+checksum = "ebc4ee7f67670e9b64d05fa4253e753e016c6c95ff35b89b7941d6b856dec1d5"
 dependencies = [
  "proc-macro2",
  "quote",

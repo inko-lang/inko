@@ -26,7 +26,7 @@ runtimes. As such, we can't guarantee Inko will always work on older versions.
 ## Requirements
 
 - Rust 1.84 or newer
-- LLVM 18 or newer
+- LLVM 18.1 or newer
 - A C compiler such as [GCC](https://gcc.gnu.org/) or
   [clang](https://clang.llvm.org/)
 - Git, for managing packages using the `inko pkg` command
