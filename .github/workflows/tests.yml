@@ -6,7 +6,7 @@ on:
 env:
   CARGO_HOME: ${{ github.workspace }}/.cargo-home
   # We set an explicit version to only install the components we need for CI.
-  RUSTUP_TOOLCHAIN: '1.89'
+  RUSTUP_TOOLCHAIN: '1.94'
 
 jobs:
   vale:
@@ -70,14 +70,14 @@ jobs:
       matrix:
         target:
           - image: fedora-amd64
-            name: amd64-linux-gnu-1.84
-            version: 1.84
+            name: amd64-linux-gnu-1.85
+            version: 1.85
           - image: fedora-amd64
             name: amd64-linux-gnu
-            version: 1.89
+            version: 1.94
           - image: alpine
             name: amd64-linux-musl
-            version: 1.89
+            version: 1.94
     name: ${{ matrix.target.name }} compiler
     timeout-minutes: 15
     runs-on: ubuntu-24.04

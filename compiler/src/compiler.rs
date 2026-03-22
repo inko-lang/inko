@@ -6,11 +6,11 @@ use crate::docs::{
 use crate::hir;
 use crate::linker::link;
 use crate::llvm;
+use crate::mir::Mir;
 use crate::mir::inline::InlineMethod;
 use crate::mir::passes as mir;
 use crate::mir::printer;
 use crate::mir::specialize::Specialize;
-use crate::mir::Mir;
 use crate::modules_parser::{ModulesParser, ParsedModule};
 use crate::pkg::manifest::Manifest;
 use crate::pkg::sync::sync_if_needed;
@@ -18,14 +18,14 @@ use crate::pkg::version::Version;
 use crate::state::State;
 use crate::symbol_names::SymbolNames;
 use crate::type_check::define_types::{
-    check_recursive_types, CheckTraitImplementations, CheckTraitRequirements,
-    CheckTypeParameters, DefineConstructors, DefineFields,
-    DefineTraitRequirements, DefineTypeParameterRequirements,
-    DefineTypeParameters, DefineTypes, ImplementTraits, InsertPrelude,
+    CheckTraitImplementations, CheckTraitRequirements, CheckTypeParameters,
+    DefineConstructors, DefineFields, DefineTraitRequirements,
+    DefineTypeParameterRequirements, DefineTypeParameters, DefineTypes,
+    ImplementTraits, InsertPrelude, check_recursive_types,
 };
-use crate::type_check::expressions::{define_constants, Expressions};
+use crate::type_check::expressions::{Expressions, define_constants};
 use crate::type_check::imports::{
-    check_unused_imports, CollectExternImports, DefineImportedTypes,
+    CollectExternImports, DefineImportedTypes, check_unused_imports,
 };
 use crate::type_check::methods::{
     CheckMainMethod, DefineMethods, DefineModuleMethodNames,
@@ -157,11 +157,7 @@ fn format_timing(duration: Duration, total: Option<Duration>) -> String {
 
         let line = format!("{} ({}%)", base, percent);
 
-        if percent >= 20 {
-            format!("\x1b[31m{}\x1b[0m", line)
-        } else {
-            line
-        }
+        if percent >= 20 { format!("\x1b[31m{}\x1b[0m", line) } else { line }
     } else {
         base
     }
@@ -494,11 +490,7 @@ LLVM module timings:
 
         self.timings.mir = start.elapsed();
 
-        if ok {
-            Ok(mir)
-        } else {
-            Err(CompileError::Invalid)
-        }
+        if ok { Ok(mir) } else { Err(CompileError::Invalid) }
     }
 
     fn parse(
@@ -561,11 +553,7 @@ LLVM module timings:
 
         self.timings.type_check = start.elapsed();
 
-        if res {
-            Ok(())
-        } else {
-            Err(CompileError::Invalid)
-        }
+        if res { Ok(()) } else { Err(CompileError::Invalid) }
     }
 
     fn specialize_mir(&mut self, mir: &mut Mir) {
@@ -779,15 +767,21 @@ mod tests {
         );
         assert_eq!(
             module_debug_path(&ModuleName::new("a.b.c#foo.bar")),
-            PathBuf::from("a/b/c#029fa720ef93772028396d0b41779e1ca4ef3ae659914822d16ff85574b7cf2b")
+            PathBuf::from(
+                "a/b/c#029fa720ef93772028396d0b41779e1ca4ef3ae659914822d16ff85574b7cf2b"
+            )
         );
         assert_eq!(
             module_debug_path(&ModuleName::new("c#foo.bar")),
-            PathBuf::from("c#029fa720ef93772028396d0b41779e1ca4ef3ae659914822d16ff85574b7cf2b")
+            PathBuf::from(
+                "c#029fa720ef93772028396d0b41779e1ca4ef3ae659914822d16ff85574b7cf2b"
+            )
         );
         assert_eq!(
             module_debug_path(&ModuleName::new("a.b.c<closure>(a,1,2)")),
-            PathBuf::from("a/b/c<closure>bd2fd1bac3b67b10585aa5ae8a79f359ec15d969c2962765799cf957ff40f468")
+            PathBuf::from(
+                "a/b/c<closure>bd2fd1bac3b67b10585aa5ae8a79f359ec15d969c2962765799cf957ff40f468"
+            )
         );
     }
 }

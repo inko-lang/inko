@@ -9,7 +9,7 @@ pub(crate) mod printer;
 pub(crate) mod specialize;
 
 use crate::state::State;
-use crate::symbol_names::{qualified_type_name, SymbolNames};
+use crate::symbol_names::{SymbolNames, qualified_type_name};
 use indexmap::{IndexMap, IndexSet};
 use location::Location;
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -21,9 +21,9 @@ use std::sync::Mutex;
 use std::thread;
 use types::module_name::ModuleName;
 use types::{
-    ClosureSelfType, Database, ForeignType, Intrinsic, MethodId,
-    Module as ModuleType, Sign, TypeArguments, TypeEnum, TypeRef, BOOL_ID,
-    DROPPER_METHOD, FLOAT_ID, INT_ID, NIL_ID,
+    BOOL_ID, ClosureSelfType, DROPPER_METHOD, Database, FLOAT_ID, ForeignType,
+    INT_ID, Intrinsic, MethodId, Module as ModuleType, NIL_ID, Sign,
+    TypeArguments, TypeEnum, TypeRef,
 };
 
 /// The register ID of the register that stores `self`.
@@ -1395,58 +1395,58 @@ pub(crate) enum Instruction {
 impl Instruction {
     pub(crate) fn location(&self) -> InstructionLocation {
         match self {
-            Instruction::Branch(ref v) => v.location,
-            Instruction::Switch(ref v) => v.location,
-            Instruction::Bool(ref v) => v.location,
-            Instruction::Goto(ref v) => v.location,
-            Instruction::MoveRegister(ref v) => v.location,
-            Instruction::Return(ref v) => v.location,
-            Instruction::Nil(ref v) => v.location,
-            Instruction::Int(ref v) => v.location,
-            Instruction::Float(ref v) => v.location,
-            Instruction::String(ref v) => v.location,
-            Instruction::CallStatic(ref v) => v.location,
-            Instruction::CallInstance(ref v) => v.location,
-            Instruction::CallExtern(ref v) => v.location,
-            Instruction::CallDynamic(ref v) => v.location,
-            Instruction::CallClosure(ref v) => v.location,
-            Instruction::CallDropper(ref v) => v.location,
-            Instruction::CallBuiltin(ref v) => v.location,
-            Instruction::Send(ref v) => v.location,
-            Instruction::GetField(ref v) => v.location,
-            Instruction::SetField(ref v) => v.location,
-            Instruction::CheckRefs(ref v) => v.location,
-            Instruction::Drop(ref v) => v.location,
-            Instruction::Free(ref v) => v.location,
-            Instruction::Borrow(ref v) => v.location,
-            Instruction::Increment(ref v) => v.location,
-            Instruction::Decrement(ref v) => v.location,
-            Instruction::IncrementAtomic(ref v) => v.location,
-            Instruction::DecrementAtomic(ref v) => v.location,
-            Instruction::Allocate(ref v) => v.location,
-            Instruction::Spawn(ref v) => v.location,
-            Instruction::GetConstant(ref v) => v.location,
-            Instruction::Preempt(ref v) => v.location,
-            Instruction::Finish(ref v) => v.location,
-            Instruction::Cast(ref v) => v.location,
-            Instruction::Pointer(ref v) => v.location,
-            Instruction::ReadPointer(ref v) => v.location,
-            Instruction::WritePointer(ref v) => v.location,
-            Instruction::FieldPointer(ref v) => v.location,
-            Instruction::MethodPointer(ref v) => v.location,
-            Instruction::SizeOf(ref v) => v.location,
+            Instruction::Branch(v) => v.location,
+            Instruction::Switch(v) => v.location,
+            Instruction::Bool(v) => v.location,
+            Instruction::Goto(v) => v.location,
+            Instruction::MoveRegister(v) => v.location,
+            Instruction::Return(v) => v.location,
+            Instruction::Nil(v) => v.location,
+            Instruction::Int(v) => v.location,
+            Instruction::Float(v) => v.location,
+            Instruction::String(v) => v.location,
+            Instruction::CallStatic(v) => v.location,
+            Instruction::CallInstance(v) => v.location,
+            Instruction::CallExtern(v) => v.location,
+            Instruction::CallDynamic(v) => v.location,
+            Instruction::CallClosure(v) => v.location,
+            Instruction::CallDropper(v) => v.location,
+            Instruction::CallBuiltin(v) => v.location,
+            Instruction::Send(v) => v.location,
+            Instruction::GetField(v) => v.location,
+            Instruction::SetField(v) => v.location,
+            Instruction::CheckRefs(v) => v.location,
+            Instruction::Drop(v) => v.location,
+            Instruction::Free(v) => v.location,
+            Instruction::Borrow(v) => v.location,
+            Instruction::Increment(v) => v.location,
+            Instruction::Decrement(v) => v.location,
+            Instruction::IncrementAtomic(v) => v.location,
+            Instruction::DecrementAtomic(v) => v.location,
+            Instruction::Allocate(v) => v.location,
+            Instruction::Spawn(v) => v.location,
+            Instruction::GetConstant(v) => v.location,
+            Instruction::Preempt(v) => v.location,
+            Instruction::Finish(v) => v.location,
+            Instruction::Cast(v) => v.location,
+            Instruction::Pointer(v) => v.location,
+            Instruction::ReadPointer(v) => v.location,
+            Instruction::WritePointer(v) => v.location,
+            Instruction::FieldPointer(v) => v.location,
+            Instruction::MethodPointer(v) => v.location,
+            Instruction::SizeOf(v) => v.location,
         }
     }
 
     fn format(&self, db: &types::Database, names: &SymbolNames) -> String {
         match self {
-            Instruction::Branch(ref v) => {
+            Instruction::Branch(v) => {
                 format!(
                     "branch r{}, true = b{}, false = b{}",
                     v.condition.0, v.if_true.0, v.if_false.0
                 )
             }
-            Instruction::Switch(ref v) => {
+            Instruction::Switch(v) => {
                 let blocks = v
                     .blocks
                     .iter()
@@ -1463,25 +1463,25 @@ impl Instruction {
                     format!("switch r{}, {}", v.register.0, blocks)
                 }
             }
-            Instruction::Bool(ref v) => {
+            Instruction::Bool(v) => {
                 format!("r{} = {}", v.register.0, v.value)
             }
-            Instruction::Nil(ref v) => {
+            Instruction::Nil(v) => {
                 format!("r{} = nil", v.register.0)
             }
-            Instruction::Int(ref v) => {
+            Instruction::Int(v) => {
                 format!("r{} = i{} {:?}", v.register.0, v.bits, v.value)
             }
-            Instruction::Float(ref v) => {
+            Instruction::Float(v) => {
                 format!("r{} = float {:?}", v.register.0, v.value)
             }
-            Instruction::String(ref v) => {
+            Instruction::String(v) => {
                 format!("r{} = string {:?}", v.register.0, v.value)
             }
-            Instruction::Goto(ref v) => {
+            Instruction::Goto(v) => {
                 format!("goto b{}", v.block.0)
             }
-            Instruction::MoveRegister(ref v) => {
+            Instruction::MoveRegister(v) => {
                 format!(
                     "r{} = move r{}{}",
                     v.target.0,
@@ -1489,28 +1489,28 @@ impl Instruction {
                     if v.volatile { " (volatile)" } else { "" }
                 )
             }
-            Instruction::Drop(ref v) => {
+            Instruction::Drop(v) => {
                 format!("drop r{}", v.register.0)
             }
-            Instruction::Free(ref v) => {
+            Instruction::Free(v) => {
                 format!("free r{}", v.register.0,)
             }
-            Instruction::CheckRefs(ref v) => {
+            Instruction::CheckRefs(v) => {
                 format!("check_refs r{}", v.register.0)
             }
-            Instruction::Return(ref v) => {
+            Instruction::Return(v) => {
                 format!("return r{}", v.register.0)
             }
-            Instruction::Allocate(ref v) => {
+            Instruction::Allocate(v) => {
                 format!(
                     "r{} = allocate {}",
                     v.register.0, names.types[&v.type_id],
                 )
             }
-            Instruction::Spawn(ref v) => {
+            Instruction::Spawn(v) => {
                 format!("r{} = spawn {}", v.register.0, names.types[&v.type_id])
             }
-            Instruction::CallStatic(ref v) => {
+            Instruction::CallStatic(v) => {
                 format!(
                     "r{} = call_static {}({})",
                     v.register.0,
@@ -1518,7 +1518,7 @@ impl Instruction {
                     join(None, &v.arguments),
                 )
             }
-            Instruction::CallInstance(ref v) => {
+            Instruction::CallInstance(v) => {
                 format!(
                     "r{} = call_instance {}({})",
                     v.register.0,
@@ -1526,7 +1526,7 @@ impl Instruction {
                     join(Some(v.receiver), &v.arguments),
                 )
             }
-            Instruction::CallExtern(ref v) => {
+            Instruction::CallExtern(v) => {
                 format!(
                     "r{} = call_extern {}({})",
                     v.register.0,
@@ -1534,7 +1534,7 @@ impl Instruction {
                     join(None, &v.arguments)
                 )
             }
-            Instruction::CallDynamic(ref v) => {
+            Instruction::CallDynamic(v) => {
                 format!(
                     "r{} = call_dynamic {}({})",
                     v.register.0,
@@ -1542,7 +1542,7 @@ impl Instruction {
                     join(Some(v.receiver), &v.arguments),
                 )
             }
-            Instruction::CallClosure(ref v) => {
+            Instruction::CallClosure(v) => {
                 format!(
                     "r{} = call_closure r{}({})",
                     v.register.0,
@@ -1550,10 +1550,10 @@ impl Instruction {
                     join(None, &v.arguments)
                 )
             }
-            Instruction::CallDropper(ref v) => {
+            Instruction::CallDropper(v) => {
                 format!("r{} = call_dropper r{}", v.register.0, v.receiver.0,)
             }
-            Instruction::CallBuiltin(ref v) => {
+            Instruction::CallBuiltin(v) => {
                 format!(
                     "r{} = call_builtin {}({})",
                     v.register.0,
@@ -1561,14 +1561,14 @@ impl Instruction {
                     join(None, &v.arguments)
                 )
             }
-            Instruction::Send(ref v) => {
+            Instruction::Send(v) => {
                 format!(
                     "send {}({})",
                     names.methods[&v.method],
                     join(Some(v.receiver), &v.arguments),
                 )
             }
-            Instruction::GetField(ref v) => {
+            Instruction::GetField(v) => {
                 format!(
                     "r{} = get_field r{}.{}",
                     v.register.0,
@@ -1576,7 +1576,7 @@ impl Instruction {
                     v.field.name(db)
                 )
             }
-            Instruction::SetField(ref v) => {
+            Instruction::SetField(v) => {
                 format!(
                     "set_field r{}.{} = r{}",
                     v.receiver.0,
@@ -1584,25 +1584,25 @@ impl Instruction {
                     v.value.0
                 )
             }
-            Instruction::Borrow(ref v) => {
+            Instruction::Borrow(v) => {
                 format!("r{} = borrow r{}", v.register.0, v.value.0)
             }
-            Instruction::Increment(ref v) => {
+            Instruction::Increment(v) => {
                 format!("increment r{}", v.register.0)
             }
-            Instruction::Decrement(ref v) => {
+            Instruction::Decrement(v) => {
                 format!("decrement r{}", v.register.0)
             }
-            Instruction::IncrementAtomic(ref v) => {
+            Instruction::IncrementAtomic(v) => {
                 format!("increment_atomic r{}", v.register.0)
             }
-            Instruction::DecrementAtomic(ref v) => {
+            Instruction::DecrementAtomic(v) => {
                 format!(
                     "decrement_atomic r{}, true = b{}, false = b{}",
                     v.register.0, v.if_true.0, v.if_false.0
                 )
             }
-            Instruction::GetConstant(ref v) => {
+            Instruction::GetConstant(v) => {
                 format!(
                     "r{} = const {}::{}",
                     v.register.0,
@@ -1626,7 +1626,7 @@ impl Instruction {
             Instruction::Pointer(v) => {
                 format!("r{} = pointer r{}", v.register.0, v.value.0)
             }
-            Instruction::FieldPointer(ref v) => {
+            Instruction::FieldPointer(v) => {
                 format!(
                     "r{} = field_pointer r{}.{}",
                     v.register.0,
@@ -2651,10 +2651,14 @@ impl Mir {
 
         thread::scope(|s| {
             for _ in 0..threads {
-                s.spawn(|| loop {
-                    let Some(m) = queue.lock().unwrap().pop() else { break };
+                s.spawn(|| {
+                    loop {
+                        let Some(m) = queue.lock().unwrap().pop() else {
+                            break;
+                        };
 
-                    m.apply_local_optimizations(consts);
+                        m.apply_local_optimizations(consts);
+                    }
                 });
             }
         });

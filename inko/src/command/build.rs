@@ -230,7 +230,7 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
                 return Err(Error::from(format!(
                     "failed to get the files to compile: {}",
                     e
-                )))
+                )));
             }
         }
     };

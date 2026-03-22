@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::mem::{allocate, header_of, Header, TypePointer};
+use crate::mem::{Header, TypePointer, allocate, header_of};
 use crate::scheduler::process::Thread;
 use crate::scheduler::timeouts::Id as TimeoutId;
 use crate::stack::Stack;
@@ -10,7 +10,7 @@ use std::collections::VecDeque;
 use std::mem::ManuallyDrop;
 use std::ops::Drop;
 use std::ops::{Deref, DerefMut};
-use std::ptr::{drop_in_place, null_mut, write, NonNull};
+use std::ptr::{NonNull, drop_in_place, null_mut, write};
 use std::sync::atomic::Ordering;
 use std::sync::{Mutex, MutexGuard};
 
@@ -405,8 +405,7 @@ impl Process {
     }
 
     pub(crate) fn alloc(instance_of: TypePointer) -> ProcessPointer {
-        let ptr =
-            allocate(unsafe { instance_of.instance_layout() }) as *mut Self;
+        let ptr = allocate(instance_of.instance_layout()) as *mut Self;
         let obj = unsafe { &mut *ptr };
         let mut state = ProcessState::new();
 
@@ -551,7 +550,7 @@ impl Process {
     /// remains valid even when moving the process around, as a thread always
     /// outlives a process.
     pub(crate) unsafe fn thread<'a>(&mut self) -> &'a mut Thread {
-        &mut *self.stack_data().thread
+        unsafe { &mut *self.stack_data().thread }
     }
 
     pub(crate) fn stacktrace(&self) -> Vec<StackFrame> {
@@ -679,7 +678,7 @@ unsafe impl Send for ProcessPointer {}
 
 impl ProcessPointer {
     pub(crate) unsafe fn new(pointer: *mut Process) -> Self {
-        Self(NonNull::new_unchecked(pointer))
+        unsafe { Self(NonNull::new_unchecked(pointer)) }
     }
 
     pub(crate) fn as_ptr(self) -> *mut Process {
@@ -729,7 +728,7 @@ impl DerefMut for ProcessPointer {
 mod tests {
     use super::*;
     use crate::mem::page_size;
-    use crate::test::{empty_process_type, OwnedProcess};
+    use crate::test::{OwnedProcess, empty_process_type};
     use std::mem::{offset_of, size_of};
     use std::num::NonZeroU64;
 
@@ -855,10 +854,12 @@ mod tests {
     fn test_reschedule_rights_are_acquired() {
         assert!(!RescheduleRights::Failed.are_acquired());
         assert!(RescheduleRights::Acquired.are_acquired());
-        assert!(RescheduleRights::AcquiredWithTimeout(TimeoutId(
-            NonZeroU64::new(1).unwrap()
-        ))
-        .are_acquired());
+        assert!(
+            RescheduleRights::AcquiredWithTimeout(TimeoutId(
+                NonZeroU64::new(1).unwrap()
+            ))
+            .are_acquired()
+        );
     }
 
     #[test]

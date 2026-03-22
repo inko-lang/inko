@@ -28,7 +28,7 @@ use std::{
 
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerifier};
 use rustls::crypto::{
-    verify_tls12_signature, verify_tls13_signature, CryptoProvider,
+    CryptoProvider, verify_tls12_signature, verify_tls13_signature,
 };
 use rustls::pki_types;
 use rustls::{
@@ -42,13 +42,8 @@ use windows_sys::Win32::{
         TRUE,
     },
     Security::Cryptography::{
-        CertAddEncodedCertificateToStore, CertCloseStore,
-        CertCreateCertificateChainEngine, CertFreeCertificateChain,
-        CertFreeCertificateChainEngine, CertFreeCertificateContext,
-        CertGetCertificateChain, CertOpenStore,
-        CertSetCertificateContextProperty, CertVerifyCertificateChainPolicy,
-        HTTPSPolicyCallbackData, AUTHTYPE_SERVER, CERT_CHAIN_CACHE_END_CERT,
-        CERT_CHAIN_CONTEXT, CERT_CHAIN_ENGINE_CONFIG,
+        AUTHTYPE_SERVER, CERT_CHAIN_CACHE_END_CERT, CERT_CHAIN_CONTEXT,
+        CERT_CHAIN_ENGINE_CONFIG,
         CERT_CHAIN_POLICY_IGNORE_ALL_REV_UNKNOWN_FLAGS, CERT_CHAIN_POLICY_PARA,
         CERT_CHAIN_POLICY_SSL, CERT_CHAIN_POLICY_STATUS,
         CERT_CHAIN_REVOCATION_ACCUMULATIVE_TIMEOUT,
@@ -57,11 +52,16 @@ use windows_sys::Win32::{
         CERT_SET_PROPERTY_IGNORE_PERSIST_ERROR_FLAG, CERT_STORE_ADD_ALWAYS,
         CERT_STORE_DEFER_CLOSE_UNTIL_LAST_FREE_FLAG, CERT_STORE_PROV_MEMORY,
         CERT_STRONG_SIGN_PARA, CERT_TRUST_IS_PARTIAL_CHAIN, CERT_USAGE_MATCH,
-        CRYPT_INTEGER_BLOB, CTL_USAGE, USAGE_MATCH_TYPE_AND, X509_ASN_ENCODING,
+        CRYPT_INTEGER_BLOB, CTL_USAGE, CertAddEncodedCertificateToStore,
+        CertCloseStore, CertCreateCertificateChainEngine,
+        CertFreeCertificateChain, CertFreeCertificateChainEngine,
+        CertFreeCertificateContext, CertGetCertificateChain, CertOpenStore,
+        CertSetCertificateContextProperty, CertVerifyCertificateChainPolicy,
+        HTTPSPolicyCallbackData, USAGE_MATCH_TYPE_AND, X509_ASN_ENCODING,
     },
 };
 
-use super::{log_server_cert, ALLOWED_EKUS};
+use super::{ALLOWED_EKUS, log_server_cert};
 
 // The `windows-sys` definition for `CERT_CHAIN_PARA` does not take old OS versions
 // into account so we define it ourselves for better (hypothetical) OS backwards compat.

@@ -45,7 +45,7 @@ pub(crate) fn panic(process: ProcessPointer, message: &str) -> ! {
     let _ = write!(
         buffer,
         "\nProcess '{}' ({:#x}) panicked: {}",
-        unsafe { process.header.instance_of.name() },
+        process.header.instance_of.name(),
         process.identifier(),
         message
     );
@@ -54,7 +54,7 @@ pub(crate) fn panic(process: ProcessPointer, message: &str) -> ! {
     exit(PANIC_STATUS);
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_process_panic(
     process: ProcessPointer,
     message: PrimitiveString,
@@ -62,14 +62,14 @@ pub unsafe extern "system" fn inko_process_panic(
     panic(process, message.as_str());
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_process_new(
     instance_of: TypePointer,
 ) -> ProcessPointer {
     Process::alloc(instance_of)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_process_send_message(
     mut sender: ProcessPointer,
     mut receiver: ProcessPointer,
@@ -79,11 +79,11 @@ pub unsafe extern "system" fn inko_process_send_message(
     let message = Message { method, data };
 
     if matches!(receiver.send_message(message), RescheduleRights::Acquired) {
-        sender.thread().schedule(receiver);
+        unsafe { sender.thread() }.schedule(receiver);
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_process_finish_message(
     mut process: ProcessPointer,
     terminate: bool,
@@ -94,28 +94,30 @@ pub unsafe extern "system" fn inko_process_finish_message(
         // Safety: we can't terminate the process here as that would result in
         // us corrupting the current stack (= the process' stack), so instead we
         // defer this until we switch back to the thread's stack.
-        process.thread().action = Action::Terminate;
+        unsafe { process.thread() }.action = Action::Terminate;
     } else if resched {
-        process.thread().schedule(process);
+        unsafe { process.thread() }.schedule(process);
     }
 
-    context::switch(process);
+    unsafe { context::switch(process) };
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_process_yield(mut process: ProcessPointer) {
     // Safety: the current thread is holding on to the run lock
-    process.thread().schedule(process);
-    context::switch(process);
+    unsafe {
+        process.thread().schedule(process);
+        context::switch(process);
+    }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_process_suspend(
     state: *const State,
     process: ProcessPointer,
     nanos: i64,
 ) {
-    let state = &*state;
+    let state = unsafe { &*state };
     let timeout = Deadline::duration(state, Duration::from_nanos(nanos as _));
 
     {
@@ -129,77 +131,79 @@ pub unsafe extern "system" fn inko_process_suspend(
     }
 
     // Safety: the current thread is holding on to the run lock
-    context::switch(process);
+    unsafe { context::switch(process) };
 
     // We need to clear the timeout flag, otherwise future operations may time
     // out promaturely.
     process.clear_timeout();
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_process_stacktrace(
     process: ProcessPointer,
 ) -> *mut Vec<StackFrame> {
     Box::into_raw(Box::new(process.stacktrace()))
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_process_stack_frame_name(
     trace: *const Vec<StackFrame>,
     index: i64,
 ) -> PrimitiveString {
-    let val = &(&(*trace)).get_unchecked(index as usize).name;
+    let val = unsafe { &(&(*trace)).get_unchecked(index as usize).name };
 
     PrimitiveString::borrowed(val)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_process_stack_frame_path(
     trace: *const Vec<StackFrame>,
     index: i64,
 ) -> PrimitiveString {
-    let val = &(&(*trace)).get_unchecked(index as usize).path;
+    let val = unsafe { &(&(*trace)).get_unchecked(index as usize).path };
 
     PrimitiveString::borrowed(val)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_process_stack_frame_line(
     trace: *const Vec<StackFrame>,
     index: i64,
 ) -> i64 {
-    (&(*trace)).get_unchecked(index as usize).line
+    unsafe { (&(*trace)).get_unchecked(index as usize).line }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_process_stacktrace_size(
     trace: *const Vec<StackFrame>,
 ) -> i64 {
-    (*trace).len() as i64
+    unsafe { (*trace).len() as i64 }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_process_stacktrace_drop(
     trace: *mut Vec<StackFrame>,
 ) {
-    drop(Box::from_raw(trace));
+    unsafe {
+        drop(Box::from_raw(trace));
+    }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_process_start_blocking(
     process: ProcessPointer,
 ) {
     process.start_blocking();
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_process_stop_blocking(
     process: ProcessPointer,
 ) {
     process.stop_blocking();
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_process_wait_for_value(
     process: ProcessPointer,
     lock: *const AtomicU8,
@@ -210,7 +214,7 @@ pub unsafe extern "system" fn inko_process_wait_for_value(
 
     state.waiting_for_value(None);
 
-    let _ = (*lock).compare_exchange(
+    let _ = unsafe { &*lock }.compare_exchange(
         current,
         new,
         Ordering::AcqRel,
@@ -218,10 +222,10 @@ pub unsafe extern "system" fn inko_process_wait_for_value(
     );
 
     drop(state);
-    context::switch(process);
+    unsafe { context::switch(process) };
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_process_wait_for_value_until(
     state: *const State,
     process: ProcessPointer,
@@ -230,10 +234,10 @@ pub unsafe extern "system" fn inko_process_wait_for_value_until(
     new: u8,
     nanos: u64,
 ) -> bool {
-    let state = &*state;
+    let state = unsafe { &*state };
     let deadline = Deadline::until(nanos);
     let mut proc_state = process.state();
-    let _ = (*lock).compare_exchange(
+    let _ = unsafe { &*lock }.compare_exchange(
         current,
         new,
         Ordering::AcqRel,
@@ -246,17 +250,17 @@ pub unsafe extern "system" fn inko_process_wait_for_value_until(
     drop(proc_state);
 
     // Safety: the current thread is holding on to the run lock
-    context::switch(process);
+    unsafe { context::switch(process) };
     process.timeout_expired()
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_process_reschedule_for_value(
     state: *const State,
     mut process: ProcessPointer,
     waiter: ProcessPointer,
 ) {
-    let state = &*state;
+    let state = unsafe { &*state };
 
     // Acquiring the rights first _then_ matching on then ensures we don't
     // deadlock with the timeout worker.
@@ -271,6 +275,6 @@ pub unsafe extern "system" fn inko_process_reschedule_for_value(
     };
 
     if reschedule {
-        process.thread().schedule(waiter);
+        unsafe { process.thread() }.schedule(waiter);
     }
 }

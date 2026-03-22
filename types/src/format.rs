@@ -1,9 +1,9 @@
 //! Formatting of types.
 use crate::{
     Arguments, ClosureId, Database, ForeignType, Inline, MethodId, MethodKind,
-    ModuleId, Ownership, Sign, TraitId, TraitInstance, TypeArguments, TypeEnum,
-    TypeId, TypeInstance, TypeKind, TypeParameterId, TypeParameterKind,
-    TypePlaceholderId, TypeRef, Visibility, NEVER_TYPE, SELF_TYPE,
+    ModuleId, NEVER_TYPE, Ownership, SELF_TYPE, Sign, TraitId, TraitInstance,
+    TypeArguments, TypeEnum, TypeId, TypeInstance, TypeKind, TypeParameterId,
+    TypeParameterKind, TypePlaceholderId, TypeRef, Visibility,
 };
 
 const MAX_FORMATTING_DEPTH: usize = 8;

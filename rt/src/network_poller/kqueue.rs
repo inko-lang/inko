@@ -1,7 +1,7 @@
 use crate::network_poller::Interest;
 use libc::{
-    fcntl, kevent, kqueue, ENOENT, EVFILT_READ, EVFILT_WRITE, EV_ADD, EV_CLEAR,
-    EV_DELETE, EV_ONESHOT, EV_RECEIPT, FD_CLOEXEC, F_SETFD,
+    ENOENT, EV_ADD, EV_CLEAR, EV_DELETE, EV_ONESHOT, EV_RECEIPT, EVFILT_READ,
+    EVFILT_WRITE, F_SETFD, FD_CLOEXEC, fcntl, kevent, kqueue,
 };
 use std::io::{Error, ErrorKind};
 use std::mem::zeroed;

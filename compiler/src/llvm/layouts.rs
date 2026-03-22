@@ -9,8 +9,8 @@ use inkwell::types::{
 };
 use std::collections::VecDeque;
 use types::{
-    CallConvention, Database, MethodId, TypeId, TypeRef, BOOL_ID,
-    ENUM_TAG_INDEX, FLOAT_ID, INT_ID, NIL_ID, STRING_ID,
+    BOOL_ID, CallConvention, Database, ENUM_TAG_INDEX, FLOAT_ID, INT_ID,
+    MethodId, NIL_ID, STRING_ID, TypeId, TypeRef,
 };
 
 /// The size of an object header.

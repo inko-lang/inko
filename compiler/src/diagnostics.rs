@@ -2,7 +2,7 @@
 use location::Location;
 use std::env;
 use std::fmt;
-use std::io::{stdout, IsTerminal as _, Write as _};
+use std::io::{IsTerminal as _, Write as _, stdout};
 use std::path::PathBuf;
 
 pub(crate) fn enable_colors() -> bool {

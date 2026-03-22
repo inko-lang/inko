@@ -3,7 +3,7 @@
 set -e
 
 LLVM_VERSION='18'
-RUST_VERSION='1.89'
+RUST_VERSION='1.94'
 
 echo "::group::Installing Homebrew packages"
 brew install llvm@${LLVM_VERSION}

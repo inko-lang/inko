@@ -668,42 +668,42 @@ impl Expression {
 
     pub(crate) fn location(&self) -> Location {
         match self {
-            Expression::And(ref n) => n.location,
-            Expression::AssignField(ref n) => n.location,
-            Expression::ReplaceField(ref n) => n.location,
-            Expression::AssignSetter(ref n) => n.location,
-            Expression::ReplaceSetter(ref n) => n.location,
-            Expression::AssignVariable(ref n) => n.location,
-            Expression::ReplaceVariable(ref n) => n.location,
-            Expression::Break(ref n) => n.location,
-            Expression::BuiltinCall(ref n) => n.location,
-            Expression::Call(ref n) => n.location,
-            Expression::Closure(ref n) => n.location,
-            Expression::ConstantRef(ref n) => n.location,
-            Expression::DefineVariable(ref n) => n.location,
-            Expression::False(ref n) => n.location,
-            Expression::FieldRef(ref n) => n.location,
-            Expression::Float(ref n) => n.location,
-            Expression::IdentifierRef(ref n) => n.location,
-            Expression::Int(ref n) => n.location,
-            Expression::Loop(ref n) => n.location,
-            Expression::Match(ref n) => n.location,
-            Expression::Mut(ref n) => n.location,
-            Expression::Next(ref n) => n.location,
-            Expression::Or(ref n) => n.location,
-            Expression::Ref(ref n) => n.location,
-            Expression::Return(ref n) => n.location,
-            Expression::Scope(ref n) => n.location,
-            Expression::SelfObject(ref n) => n.location,
-            Expression::String(ref n) => n.location,
-            Expression::Throw(ref n) => n.location,
-            Expression::True(ref n) => n.location,
-            Expression::Nil(ref n) => n.location,
-            Expression::Tuple(ref n) => n.location,
-            Expression::TypeCast(ref n) => n.location,
-            Expression::Recover(ref n) => n.location,
-            Expression::Try(ref n) => n.location,
-            Expression::SizeOf(ref n) => n.location,
+            Expression::And(n) => n.location,
+            Expression::AssignField(n) => n.location,
+            Expression::ReplaceField(n) => n.location,
+            Expression::AssignSetter(n) => n.location,
+            Expression::ReplaceSetter(n) => n.location,
+            Expression::AssignVariable(n) => n.location,
+            Expression::ReplaceVariable(n) => n.location,
+            Expression::Break(n) => n.location,
+            Expression::BuiltinCall(n) => n.location,
+            Expression::Call(n) => n.location,
+            Expression::Closure(n) => n.location,
+            Expression::ConstantRef(n) => n.location,
+            Expression::DefineVariable(n) => n.location,
+            Expression::False(n) => n.location,
+            Expression::FieldRef(n) => n.location,
+            Expression::Float(n) => n.location,
+            Expression::IdentifierRef(n) => n.location,
+            Expression::Int(n) => n.location,
+            Expression::Loop(n) => n.location,
+            Expression::Match(n) => n.location,
+            Expression::Mut(n) => n.location,
+            Expression::Next(n) => n.location,
+            Expression::Or(n) => n.location,
+            Expression::Ref(n) => n.location,
+            Expression::Return(n) => n.location,
+            Expression::Scope(n) => n.location,
+            Expression::SelfObject(n) => n.location,
+            Expression::String(n) => n.location,
+            Expression::Throw(n) => n.location,
+            Expression::True(n) => n.location,
+            Expression::Nil(n) => n.location,
+            Expression::Tuple(n) => n.location,
+            Expression::TypeCast(n) => n.location,
+            Expression::Recover(n) => n.location,
+            Expression::Try(n) => n.location,
+            Expression::SizeOf(n) => n.location,
         }
     }
 
@@ -753,14 +753,14 @@ pub(crate) enum ConstExpression {
 impl ConstExpression {
     pub(crate) fn location(&self) -> Location {
         match self {
-            Self::Int(ref n) => n.location,
-            Self::String(ref n) => n.location,
-            Self::Float(ref n) => n.location,
-            Self::Binary(ref n) => n.location,
-            Self::ConstantRef(ref n) => n.location,
-            Self::Array(ref n) => n.location,
-            Self::True(ref n) => n.location,
-            Self::False(ref n) => n.location,
+            Self::Int(n) => n.location,
+            Self::String(n) => n.location,
+            Self::Float(n) => n.location,
+            Self::Binary(n) => n.location,
+            Self::ConstantRef(n) => n.location,
+            Self::Array(n) => n.location,
+            Self::True(n) => n.location,
+            Self::False(n) => n.location,
         }
     }
 }
@@ -871,13 +871,13 @@ pub(crate) enum Type {
 impl Type {
     pub(crate) fn location(&self) -> Location {
         match self {
-            Type::Named(ref node) => node.location,
-            Type::Ref(ref node) => node.location,
-            Type::Mut(ref node) => node.location,
-            Type::Uni(ref node) => node.location,
-            Type::Owned(ref node) => node.location,
-            Type::Closure(ref node) => node.location,
-            Type::Tuple(ref node) => node.location,
+            Type::Named(node) => node.location,
+            Type::Ref(node) => node.location,
+            Type::Mut(node) => node.location,
+            Type::Uni(node) => node.location,
+            Type::Owned(node) => node.location,
+            Type::Closure(node) => node.location,
+            Type::Tuple(node) => node.location,
         }
     }
 }
@@ -1197,18 +1197,18 @@ pub(crate) enum Pattern {
 impl Pattern {
     pub(crate) fn location(&self) -> Location {
         match self {
-            Pattern::Constant(ref n) => n.location,
-            Pattern::Constructor(ref n) => n.location,
-            Pattern::Int(ref n) => n.location,
-            Pattern::String(ref n) => n.location,
-            Pattern::Identifier(ref n) => n.location,
-            Pattern::Tuple(ref n) => n.location,
-            Pattern::Type(ref n) => n.location,
-            Pattern::Wildcard(ref n) => n.location,
-            Pattern::True(ref n) => n.location,
-            Pattern::False(ref n) => n.location,
-            Pattern::Or(ref n) => n.location,
-            Pattern::Array(ref n) => n.location,
+            Pattern::Constant(n) => n.location,
+            Pattern::Constructor(n) => n.location,
+            Pattern::Int(n) => n.location,
+            Pattern::String(n) => n.location,
+            Pattern::Identifier(n) => n.location,
+            Pattern::Tuple(n) => n.location,
+            Pattern::Type(n) => n.location,
+            Pattern::Wildcard(n) => n.location,
+            Pattern::True(n) => n.location,
+            Pattern::False(n) => n.location,
+            Pattern::Or(n) => n.location,
+            Pattern::Array(n) => n.location,
         }
     }
 }
@@ -2106,11 +2106,7 @@ impl<'a> LowerToHir<'a> {
         &self,
         node: Option<ast::TypeNames>,
     ) -> Vec<TypeName> {
-        if let Some(types) = node {
-            self.type_names(types)
-        } else {
-            Vec::new()
-        }
+        if let Some(types) = node { self.type_names(types) } else { Vec::new() }
     }
 
     fn type_names(&self, node: ast::TypeNames) -> Vec<TypeName> {
@@ -2156,11 +2152,7 @@ impl<'a> LowerToHir<'a> {
         let hex_prefix = if input.starts_with('-') { "-0x" } else { "0x" };
         let result = if let Some(slice) = input.strip_prefix(hex_prefix) {
             i64::from_str_radix(slice, 16).map(|v| {
-                if input.starts_with('-') {
-                    0_i64.wrapping_sub(v)
-                } else {
-                    v
-                }
+                if input.starts_with('-') { 0_i64.wrapping_sub(v) } else { v }
             })
         } else {
             i64::from_str(&input)
@@ -2419,11 +2411,7 @@ impl<'a> LowerToHir<'a> {
         &mut self,
         node: Option<ast::Expressions>,
     ) -> Vec<Expression> {
-        if let Some(node) = node {
-            self.expressions(node)
-        } else {
-            Vec::new()
-        }
+        if let Some(node) = node { self.expressions(node) } else { Vec::new() }
     }
 
     fn expressions(&mut self, node: ast::Expressions) -> Vec<Expression> {
@@ -2728,9 +2716,7 @@ impl<'a> LowerToHir<'a> {
     }
 
     fn is_builtin_call(&self, node: &ast::Call) -> bool {
-        if let Some(ast::Expression::Constant(ref node)) =
-            node.receiver.as_ref()
-        {
+        if let Some(ast::Expression::Constant(node)) = node.receiver.as_ref() {
             node.name == BUILTIN_RECEIVER
         } else {
             false

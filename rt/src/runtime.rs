@@ -20,11 +20,11 @@ use std::ffi::CStr;
 use std::slice;
 use std::thread;
 
-extern "C" {
+unsafe extern "C" {
     fn tzset();
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_runtime_new(
     argc: u32,
     argv: *const *const i8,
@@ -34,13 +34,19 @@ pub unsafe extern "system" fn inko_runtime_new(
     // to deal with any platform specifics.
     let mut args = Vec::with_capacity(argc as usize);
 
-    if !argv.is_null() {
-        for &ptr in slice::from_raw_parts(argv, argc as usize).iter().skip(1) {
-            if ptr.is_null() {
-                break;
-            }
+    unsafe {
+        if !argv.is_null() {
+            for &ptr in
+                slice::from_raw_parts(argv, argc as usize).iter().skip(1)
+            {
+                if ptr.is_null() {
+                    break;
+                }
 
-            args.push(CStr::from_ptr(ptr as _).to_string_lossy().into_owned());
+                args.push(
+                    CStr::from_ptr(ptr as _).to_string_lossy().into_owned(),
+                );
+            }
         }
     }
 
@@ -63,32 +69,36 @@ pub unsafe extern "system" fn inko_runtime_new(
     Box::into_raw(Box::new(Runtime::new(args)))
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_runtime_drop(runtime: *mut Runtime) {
-    drop(Box::from_raw(runtime));
+    unsafe {
+        drop(Box::from_raw(runtime));
+    }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_runtime_start(
     runtime: *mut Runtime,
     main_type: TypePointer,
     method: NativeAsyncMethod,
 ) {
-    (*runtime).start(main_type, method);
+    unsafe {
+        (*runtime).start(main_type, method);
+    }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_runtime_state(
     runtime: *mut Runtime,
 ) -> *const State {
-    (*runtime).state.as_ptr() as _
+    unsafe { (*runtime).state.as_ptr() as _ }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_runtime_stack_mask(
     runtime: *mut Runtime,
 ) -> u64 {
-    let rt = &*runtime;
+    let rt = unsafe { &*runtime };
     let raw_size = rt.state.config.stack_size;
     let page = rt.state.config.page_size;
     let total = total_stack_size(raw_size as _, page) as u64;

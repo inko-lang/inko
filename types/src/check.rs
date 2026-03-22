@@ -1,7 +1,7 @@
 use crate::{
-    Arguments, Database, ForeignType, MethodId, Ownership, TraitInstance,
-    TypeArguments, TypeBounds, TypeEnum, TypeInstance, TypeParameterId,
-    TypePlaceholderId, TypeRef, BOOL_ID, FLOAT_ID, INT_ID,
+    Arguments, BOOL_ID, Database, FLOAT_ID, ForeignType, INT_ID, MethodId,
+    Ownership, TraitInstance, TypeArguments, TypeBounds, TypeEnum,
+    TypeInstance, TypeParameterId, TypePlaceholderId, TypeRef,
 };
 use std::collections::HashSet;
 

@@ -2,7 +2,7 @@
 
 set -e
 
-RUST_VERSION='1.89'
+RUST_VERSION='1.94'
 
 echo "::group::Installing Rust"
 curl --proto '=https' \

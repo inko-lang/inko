@@ -1,7 +1,7 @@
 use crate::pkg::git::Repository;
-use crate::pkg::manifest::{Dependency, Manifest, Url, MANIFEST_FILE};
+use crate::pkg::manifest::{Dependency, MANIFEST_FILE, Manifest, Url};
 use crate::pkg::util::{cp_r, data_dir};
-use crate::pkg::version::{select, Version};
+use crate::pkg::version::{Version, select};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs::{
@@ -20,11 +20,7 @@ struct Package {
 }
 
 pub fn sync_if_needed(directory: &Path) -> Result<(), String> {
-    if manifest_hash_changed(directory)? {
-        sync(directory)
-    } else {
-        Ok(())
-    }
+    if manifest_hash_changed(directory)? { sync(directory) } else { Ok(()) }
 }
 
 pub fn sync(directory: &Path) -> Result<(), String> {

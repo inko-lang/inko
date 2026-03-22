@@ -17,11 +17,11 @@ use inkwell::types::{
 use inkwell::values::{
     ArrayValue, FloatValue, FunctionValue, IntValue, PointerValue, StructValue,
 };
-use inkwell::{context, AddressSpace};
+use inkwell::{AddressSpace, context};
 use std::cmp::max;
 use types::{
-    Block, Database, ForeignType, MethodId, TypeEnum, TypeRef, BOOL_ID,
-    FLOAT_ID, INT_ID, NIL_ID,
+    BOOL_ID, Block, Database, FLOAT_ID, ForeignType, INT_ID, MethodId, NIL_ID,
+    TypeEnum, TypeRef,
 };
 
 pub(crate) fn size_in_bits(bytes: u32) -> u32 {

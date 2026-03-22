@@ -4,7 +4,7 @@ use core_foundation::date::CFDate;
 use core_foundation_sys::date::kCFAbsoluteTimeIntervalSince1970;
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerifier};
 use rustls::crypto::{
-    verify_tls12_signature, verify_tls13_signature, CryptoProvider,
+    CryptoProvider, verify_tls12_signature, verify_tls13_signature,
 };
 use rustls::pki_types;
 use rustls::{

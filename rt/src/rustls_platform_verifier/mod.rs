@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use rustls::{
-    client::WantsClientCert, ClientConfig, ConfigBuilder, WantsVerifier,
+    ClientConfig, ConfigBuilder, WantsVerifier, client::WantsClientCert,
 };
 
 mod verification;

@@ -1,5 +1,5 @@
 //! Formatters for diagnostics.
-use crate::diagnostics::{enable_colors, Diagnostic, Diagnostics};
+use crate::diagnostics::{Diagnostic, Diagnostics, enable_colors};
 use std::env::current_dir;
 use std::path::PathBuf;
 

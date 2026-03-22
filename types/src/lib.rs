@@ -2611,11 +2611,7 @@ pub enum Visibility {
 
 impl Visibility {
     pub fn public(public: bool) -> Visibility {
-        if public {
-            Self::Public
-        } else {
-            Self::Private
-        }
+        if public { Self::Public } else { Self::Private }
     }
 
     pub fn is_private(self) -> bool {
@@ -2972,11 +2968,7 @@ pub enum CallConvention {
 
 impl CallConvention {
     pub fn new(c: bool) -> CallConvention {
-        if c {
-            CallConvention::C
-        } else {
-            CallConvention::Inko
-        }
+        if c { CallConvention::C } else { CallConvention::Inko }
     }
 }
 
@@ -3944,11 +3936,7 @@ impl ModuleId {
             Symbol::TypeParameter(_) => return None,
         };
 
-        if self == module_id {
-            Some(symbol)
-        } else {
-            None
-        }
+        if self == module_id { Some(symbol) } else { None }
     }
 
     pub fn new_symbol(self, db: &mut Database, name: String, symbol: Symbol) {
@@ -4037,7 +4025,7 @@ impl ModuleId {
         if Some(theirs) == db.main_module() {
             match (self.file(db).parent(), other.file(db).parent()) {
                 (Some(ours), Some(theirs)) if ours.starts_with(theirs) => {
-                    return true
+                    return true;
                 }
                 _ => {}
             }
@@ -4546,11 +4534,7 @@ impl TypeRef {
     }
 
     pub fn float_with_size(size: u32) -> TypeRef {
-        if size == 64 {
-            TypeRef::float()
-        } else {
-            TypeRef::foreign_float(size)
-        }
+        if size == 64 { TypeRef::float() } else { TypeRef::foreign_float(size) }
     }
 
     pub fn foreign_signed_int(size: u32) -> TypeRef {
@@ -5150,11 +5134,7 @@ impl TypeRef {
     }
 
     pub fn value_type_as_owned(self, db: &Database) -> Self {
-        if self.is_value_type(db) {
-            self.as_owned(db)
-        } else {
-            self
-        }
+        if self.is_value_type(db) { self.as_owned(db) } else { self }
     }
 
     pub fn as_ref(self, db: &Database) -> Self {
@@ -5956,11 +5936,7 @@ impl TypeRef {
                 // produced in ways such that it's fine to ignore them (e.g.
                 // `Map.set`), _unless_ they are produced by an `Option` method
                 // itself, in which case they probably _should_ be used.
-                if tid == opt_id {
-                    Some(opt_id) == rec_id
-                } else {
-                    true
-                }
+                if tid == opt_id { Some(opt_id) == rec_id } else { true }
             }
             TypeRef::Owned(TypeEnum::TraitInstance(_))
             | TypeRef::Uni(TypeEnum::TraitInstance(_)) => true,
@@ -6088,11 +6064,7 @@ impl TypeEnum {
     }
 
     pub fn as_type_instance(self) -> Option<TypeInstance> {
-        if let TypeEnum::TypeInstance(i) = self {
-            Some(i)
-        } else {
-            None
-        }
+        if let TypeEnum::TypeInstance(i) = self { Some(i) } else { None }
     }
 
     fn can_call(

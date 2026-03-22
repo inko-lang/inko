@@ -4,8 +4,8 @@ use crate::state::State;
 use location::Location;
 use types::module_name::ModuleName;
 use types::{
-    Module, ModuleId, Symbol, Trait, TypeRef, Visibility, DROP_MODULE,
-    DROP_TRAIT,
+    DROP_MODULE, DROP_TRAIT, Module, ModuleId, Symbol, Trait, TypeRef,
+    Visibility,
 };
 
 pub(crate) fn loc(

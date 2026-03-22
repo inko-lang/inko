@@ -1,4 +1,4 @@
-use crate::llvm::context::{size_in_bits, Context};
+use crate::llvm::context::{Context, size_in_bits};
 use crate::llvm::layouts::{ArgumentType, ReturnType};
 use inkwell::targets::TargetData;
 use inkwell::types::{BasicType, StructType};
@@ -44,12 +44,12 @@ pub(crate) fn struct_return<'ctx>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use inkwell::OptimizationLevel;
     use inkwell::targets::{
         CodeModel, InitializationConfig, RelocMode, Target, TargetMachine,
         TargetTriple,
     };
     use inkwell::types::BasicTypeEnum;
-    use inkwell::OptimizationLevel;
 
     fn setup() -> TargetMachine {
         Target::initialize_x86(&InitializationConfig::default());

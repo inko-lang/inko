@@ -10,9 +10,9 @@ use std::mem::swap;
 use types::format::format_type;
 use types::specialize::{Closures, TypeSpecializer};
 use types::{
-    Block as _, Database, InternedTypeArguments, MethodId, Shape, TraitId,
-    TypeArguments, TypeEnum, TypeId, TypeInstance, TypeRef, CALL_METHOD,
-    DECREMENT_METHOD, DROPPER_METHOD, INCREMENT_METHOD,
+    Block as _, CALL_METHOD, DECREMENT_METHOD, DROPPER_METHOD, Database,
+    INCREMENT_METHOD, InternedTypeArguments, MethodId, Shape, TraitId,
+    TypeArguments, TypeEnum, TypeId, TypeInstance, TypeRef,
 };
 
 fn specialize_constants(

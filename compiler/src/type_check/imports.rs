@@ -5,7 +5,7 @@ use crate::state::State;
 use location::Location;
 use std::path::PathBuf;
 use types::module_name::ModuleName;
-use types::{Database, ModuleId, Symbol, IMPORT_MODULE_ITSELF_NAME};
+use types::{Database, IMPORT_MODULE_ITSELF_NAME, ModuleId, Symbol};
 
 /// A compiler pass that defines any imported types.
 ///
@@ -171,7 +171,7 @@ impl<'a> CollectExternImports<'a> {
 
     fn run(self, module: &hir::Module) {
         for expr in &module.expressions {
-            if let hir::TopLevelExpression::ExternImport(ref node) = expr {
+            if let hir::TopLevelExpression::ExternImport(node) = expr {
                 self.state.libraries.insert(node.source.clone());
             }
         }

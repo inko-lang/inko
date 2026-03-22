@@ -6,7 +6,7 @@ mod http;
 mod options;
 
 use crate::command::main;
-use std::io::{stdout, IsTerminal as _};
+use std::io::{IsTerminal as _, stdout};
 use std::process::exit;
 
 fn main() {

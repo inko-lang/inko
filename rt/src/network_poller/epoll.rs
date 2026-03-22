@@ -1,8 +1,8 @@
 use crate::network_poller::Interest;
 use libc::{
-    epoll_create1, epoll_ctl, epoll_event, epoll_wait, EPOLLET, EPOLLIN,
-    EPOLLONESHOT, EPOLLOUT, EPOLL_CLOEXEC, EPOLL_CTL_ADD, EPOLL_CTL_DEL,
-    EPOLL_CTL_MOD,
+    EPOLL_CLOEXEC, EPOLL_CTL_ADD, EPOLL_CTL_DEL, EPOLL_CTL_MOD, EPOLLET,
+    EPOLLIN, EPOLLONESHOT, EPOLLOUT, epoll_create1, epoll_ctl, epoll_event,
+    epoll_wait,
 };
 use std::ffi::c_int;
 use std::io::{Error, ErrorKind};

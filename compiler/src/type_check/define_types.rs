@@ -4,21 +4,21 @@ use crate::hir;
 use crate::state::State;
 use crate::type_check::graph::RecursiveTypeChecker;
 use crate::type_check::{
-    define_type_bounds, CheckTypeSignature, DefineAndCheckTypeSignature,
-    DefineTypeSignature, Rules, TypeScope,
+    CheckTypeSignature, DefineAndCheckTypeSignature, DefineTypeSignature,
+    Rules, TypeScope, define_type_bounds,
 };
 use location::Location;
 use std::path::PathBuf;
 use types::check::TypeChecker;
 use types::format::format_type;
 use types::{
-    Constant, Database, ModuleId, Symbol, Trait, TraitId, TraitImplementation,
-    Type, TypeEnum, TypeId, TypeInstance, TypeKind, TypeRef, Visibility,
-    ARRAY_INTERNAL_NAME, BYTES_MODULE, BYTE_ARRAY_TYPE, CONSTRUCTORS_LIMIT,
-    ENUM_TAG_FIELD, ENUM_TAG_INDEX, FUTURE_INTERNAL_NAME, FUTURE_TYPE,
-    MAIN_TYPE, OPTION_MODULE, OPTION_TYPE, RESULT_MODULE, RESULT_TYPE,
-    STRING_BUFFER_INTERNAL_NAME, STRING_BUFFER_TYPE, STRING_MODULE,
-    SYNC_MODULE,
+    ARRAY_INTERNAL_NAME, BYTE_ARRAY_TYPE, BYTES_MODULE, CONSTRUCTORS_LIMIT,
+    Constant, Database, ENUM_TAG_FIELD, ENUM_TAG_INDEX, FUTURE_INTERNAL_NAME,
+    FUTURE_TYPE, MAIN_TYPE, ModuleId, OPTION_MODULE, OPTION_TYPE,
+    RESULT_MODULE, RESULT_TYPE, STRING_BUFFER_INTERNAL_NAME,
+    STRING_BUFFER_TYPE, STRING_MODULE, SYNC_MODULE, Symbol, Trait, TraitId,
+    TraitImplementation, Type, TypeEnum, TypeId, TypeInstance, TypeKind,
+    TypeRef, Visibility,
 };
 
 /// A compiler pass that defines types and traits.
@@ -45,16 +45,16 @@ impl<'a> DefineTypes<'a> {
     fn run(mut self, module: &mut hir::Module) {
         for expression in module.expressions.iter_mut() {
             match expression {
-                hir::TopLevelExpression::Type(ref mut node) => {
+                hir::TopLevelExpression::Type(node) => {
                     self.define_type(node);
                 }
-                hir::TopLevelExpression::ExternType(ref mut node) => {
+                hir::TopLevelExpression::ExternType(node) => {
                     self.define_extern_type(node);
                 }
-                hir::TopLevelExpression::Trait(ref mut node) => {
+                hir::TopLevelExpression::Trait(node) => {
                     self.define_trait(node);
                 }
-                hir::TopLevelExpression::Constant(ref mut node) => {
+                hir::TopLevelExpression::Constant(node) => {
                     self.define_constant(node);
                 }
                 _ => {}
@@ -242,7 +242,7 @@ impl<'a> ImplementTraits<'a> {
 
     fn run(mut self, module: &mut hir::Module) {
         for expr in module.expressions.iter_mut() {
-            if let hir::TopLevelExpression::Implement(ref mut n) = expr {
+            if let hir::TopLevelExpression::Implement(n) = expr {
                 self.implement_trait(n);
             }
         }
@@ -388,7 +388,7 @@ impl<'a> DefineTraitRequirements<'a> {
 
     fn run(mut self, module: &mut hir::Module) {
         for expr in module.expressions.iter_mut() {
-            if let hir::TopLevelExpression::Trait(ref mut n) = expr {
+            if let hir::TopLevelExpression::Trait(n) = expr {
                 self.define_trait(n);
             }
         }
@@ -436,7 +436,7 @@ impl<'a> CheckTraitRequirements<'a> {
 
     fn run(mut self, module: &mut hir::Module) {
         for expr in module.expressions.iter_mut() {
-            if let hir::TopLevelExpression::Trait(ref mut n) = expr {
+            if let hir::TopLevelExpression::Trait(n) = expr {
                 self.define_trait(n);
             }
         }
@@ -471,7 +471,7 @@ impl<'a> CheckTraitImplementations<'a> {
 
     fn run(mut self, module: &mut hir::Module) {
         for expr in module.expressions.iter_mut() {
-            if let hir::TopLevelExpression::Implement(ref n) = expr {
+            if let &mut hir::TopLevelExpression::Implement(ref n) = expr {
                 self.implement_trait(n);
             }
         }
@@ -545,10 +545,10 @@ impl<'a> DefineFields<'a> {
     fn run(mut self, module: &mut hir::Module) {
         for expr in &mut module.expressions {
             match expr {
-                hir::TopLevelExpression::Type(ref mut node) => {
+                hir::TopLevelExpression::Type(node) => {
                     self.define_type(node);
                 }
-                hir::TopLevelExpression::ExternType(ref mut node) => {
+                hir::TopLevelExpression::ExternType(node) => {
                     self.define_extern_type(node);
                 }
                 _ => (),
@@ -566,7 +566,7 @@ impl<'a> DefineFields<'a> {
         let is_main = self.main_module && node.name.name == MAIN_TYPE;
 
         for expr in &mut node.body {
-            let fnode = if let hir::TypeExpression::Field(ref mut n) = expr {
+            let fnode = if let hir::TypeExpression::Field(n) = expr {
                 n
             } else {
                 continue;
@@ -775,10 +775,10 @@ impl<'a> DefineTypeParameters<'a> {
     fn run(mut self, module: &mut hir::Module) {
         for expr in module.expressions.iter_mut() {
             match expr {
-                hir::TopLevelExpression::Type(ref mut node) => {
+                hir::TopLevelExpression::Type(node) => {
                     self.define_type(node);
                 }
-                hir::TopLevelExpression::Trait(ref mut node) => {
+                hir::TopLevelExpression::Trait(node) => {
                     self.define_trait(node);
                 }
                 _ => {}
@@ -880,10 +880,10 @@ impl<'a> DefineTypeParameterRequirements<'a> {
     fn run(mut self, module: &mut hir::Module) {
         for expr in module.expressions.iter_mut() {
             match expr {
-                hir::TopLevelExpression::Type(ref mut node) => {
+                hir::TopLevelExpression::Type(node) => {
                     self.define_type(node);
                 }
-                hir::TopLevelExpression::Trait(ref mut node) => {
+                hir::TopLevelExpression::Trait(node) => {
                     self.define_trait(node);
                 }
                 _ => {}
@@ -959,10 +959,10 @@ impl<'a> CheckTypeParameters<'a> {
     fn run(mut self, module: &mut hir::Module) {
         for expr in module.expressions.iter_mut() {
             match expr {
-                hir::TopLevelExpression::Type(ref node) => {
+                hir::TopLevelExpression::Type(node) => {
                     self.check_type_parameters(&node.type_parameters);
                 }
-                hir::TopLevelExpression::Trait(ref node) => {
+                hir::TopLevelExpression::Trait(node) => {
                     self.check_type_parameters(&node.type_parameters);
                 }
                 _ => {}
@@ -1103,7 +1103,7 @@ impl<'a> DefineConstructors<'a> {
 
     fn run(mut self, module: &mut hir::Module) {
         for expr in module.expressions.iter_mut() {
-            if let hir::TopLevelExpression::Type(ref mut node) = expr {
+            if let hir::TopLevelExpression::Type(node) = expr {
                 self.define_type(node);
             }
         }
@@ -1120,12 +1120,11 @@ impl<'a> DefineConstructors<'a> {
         let mut args_count = 0;
 
         for expr in &mut node.body {
-            let node =
-                if let hir::TypeExpression::Constructor(ref mut node) = expr {
-                    node
-                } else {
-                    continue;
-                };
+            let node = if let hir::TypeExpression::Constructor(node) = expr {
+                node
+            } else {
+                continue;
+            };
 
             if !is_enum {
                 self.state.diagnostics.error(
@@ -1282,7 +1281,7 @@ pub(crate) fn check_recursive_types(
     for module in modules {
         for expr in &module.expressions {
             let (typ, loc) = match expr {
-                hir::TopLevelExpression::Type(ref n) => {
+                hir::TopLevelExpression::Type(n) => {
                     let id = n.type_id.unwrap();
 
                     // Heap types _are_ allowed to be recursive as they can't
@@ -1293,7 +1292,7 @@ pub(crate) fn check_recursive_types(
 
                     (id, n.location)
                 }
-                hir::TopLevelExpression::ExternType(ref n) => {
+                hir::TopLevelExpression::ExternType(n) => {
                     (n.type_id.unwrap(), n.location)
                 }
                 _ => continue,
@@ -1327,8 +1326,8 @@ mod tests {
     use ast::parser::Parser;
     use types::module_name::ModuleName;
     use types::{
-        ConstantId, TraitId, TraitInstance, TypeBounds, TypeId,
-        FIRST_USER_TYPE_ID,
+        ConstantId, FIRST_USER_TYPE_ID, TraitId, TraitInstance, TypeBounds,
+        TypeId,
     };
 
     fn get_trait(db: &mut Database, module: ModuleId, name: &str) -> TraitId {
@@ -1349,14 +1348,14 @@ mod tests {
 
     fn type_expr(module: &hir::Module) -> &hir::DefineType {
         match &module.expressions[0] {
-            hir::TopLevelExpression::Type(ref node) => node,
+            hir::TopLevelExpression::Type(node) => node,
             _ => panic!("expected a DefineClass node"),
         }
     }
 
     fn trait_expr(module: &hir::Module) -> &hir::DefineTrait {
         match &module.expressions[0] {
-            hir::TopLevelExpression::Trait(ref node) => node,
+            hir::TopLevelExpression::Trait(node) => node,
             _ => panic!("expected a DefineTrait node"),
         }
     }

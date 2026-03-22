@@ -8,7 +8,7 @@ use inkwell::intrinsics::Intrinsic;
 use inkwell::module::Linkage;
 use inkwell::types::{BasicType, BasicTypeEnum, StructType};
 use inkwell::values::{BasicValue, FunctionValue, GlobalValue};
-use inkwell::{module, AddressSpace};
+use inkwell::{AddressSpace, module};
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::path::Path;

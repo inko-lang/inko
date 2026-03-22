@@ -83,11 +83,7 @@ impl<'a> TypeResolver<'a> {
     pub fn resolve(&mut self, value: TypeRef) -> TypeRef {
         let typ = self.resolve_type_ref(value);
 
-        if self.immutable {
-            typ.as_ref(self.db)
-        } else {
-            typ
-        }
+        if self.immutable { typ.as_ref(self.db) } else { typ }
     }
 
     pub fn resolve_type_ref(&mut self, value: TypeRef) -> TypeRef {

@@ -589,15 +589,15 @@ pub enum TopLevelExpression {
 impl Node for TopLevelExpression {
     fn location(&self) -> &Location {
         match self {
-            TopLevelExpression::DefineConstant(ref n) => n.location(),
-            TopLevelExpression::DefineMethod(ref n) => n.location(),
-            TopLevelExpression::DefineType(ref n) => n.location(),
-            TopLevelExpression::DefineTrait(ref n) => n.location(),
-            TopLevelExpression::ReopenType(ref n) => n.location(),
-            TopLevelExpression::ImplementTrait(ref n) => n.location(),
-            TopLevelExpression::Import(ref n) => n.location(),
-            TopLevelExpression::ExternImport(ref n) => n.location(),
-            TopLevelExpression::Comment(ref n) => n.location(),
+            TopLevelExpression::DefineConstant(n) => n.location(),
+            TopLevelExpression::DefineMethod(n) => n.location(),
+            TopLevelExpression::DefineType(n) => n.location(),
+            TopLevelExpression::DefineTrait(n) => n.location(),
+            TopLevelExpression::ReopenType(n) => n.location(),
+            TopLevelExpression::ImplementTrait(n) => n.location(),
+            TopLevelExpression::Import(n) => n.location(),
+            TopLevelExpression::ExternImport(n) => n.location(),
+            TopLevelExpression::Comment(n) => n.location(),
         }
     }
 }
@@ -815,53 +815,53 @@ impl Expression {
 impl Node for Expression {
     fn location(&self) -> &Location {
         match self {
-            Expression::And(ref n) => n.location(),
-            Expression::Array(ref n) => n.location(),
-            Expression::AssignField(ref n) => n.location(),
-            Expression::ReplaceField(ref n) => n.location(),
-            Expression::AssignSetter(ref n) => n.location(),
-            Expression::ReplaceSetter(ref n) => n.location(),
-            Expression::AssignVariable(ref n) => n.location(),
-            Expression::ReplaceVariable(ref n) => n.location(),
-            Expression::Binary(ref n) => n.location(),
-            Expression::BinaryAssignField(ref n) => n.location(),
-            Expression::BinaryAssignSetter(ref n) => n.location(),
-            Expression::BinaryAssignVariable(ref n) => n.location(),
-            Expression::Break(ref n) => n.location(),
-            Expression::Call(ref n) => n.location(),
-            Expression::Closure(ref n) => n.location(),
-            Expression::Constant(ref n) => n.location(),
-            Expression::DefineVariable(ref n) => n.location(),
-            Expression::String(ref n) => n.location(),
-            Expression::False(ref n) => n.location(),
-            Expression::Field(ref n) => n.location(),
-            Expression::Float(ref n) => n.location(),
-            Expression::Group(ref n) => n.location(),
-            Expression::Identifier(ref n) => n.location(),
-            Expression::If(ref n) => n.location(),
-            Expression::Int(ref n) => n.location(),
-            Expression::Loop(ref n) => n.location(),
-            Expression::Match(ref n) => n.location(),
-            Expression::Next(ref n) => n.location(),
-            Expression::Or(ref n) => n.location(),
-            Expression::Ref(ref n) => n.location(),
-            Expression::Return(ref n) => n.location(),
-            Expression::Scope(ref n) => n.location(),
-            Expression::SelfObject(ref n) => n.location(),
-            Expression::Throw(ref n) => n.location(),
-            Expression::True(ref n) => n.location(),
-            Expression::Nil(ref n) => n.location(),
-            Expression::Try(ref n) => n.location(),
-            Expression::Async(ref n) => n.location(),
-            Expression::Await(ref n) => n.location(),
-            Expression::Tuple(ref n) => n.location(),
-            Expression::TypeCast(ref n) => n.location(),
-            Expression::While(ref n) => n.location(),
-            Expression::Mut(ref n) => n.location(),
-            Expression::Recover(ref n) => n.location(),
-            Expression::Comment(ref n) => n.location(),
-            Expression::For(ref n) => n.location(),
-            Expression::Not(ref n) => n.location(),
+            Expression::And(n) => n.location(),
+            Expression::Array(n) => n.location(),
+            Expression::AssignField(n) => n.location(),
+            Expression::ReplaceField(n) => n.location(),
+            Expression::AssignSetter(n) => n.location(),
+            Expression::ReplaceSetter(n) => n.location(),
+            Expression::AssignVariable(n) => n.location(),
+            Expression::ReplaceVariable(n) => n.location(),
+            Expression::Binary(n) => n.location(),
+            Expression::BinaryAssignField(n) => n.location(),
+            Expression::BinaryAssignSetter(n) => n.location(),
+            Expression::BinaryAssignVariable(n) => n.location(),
+            Expression::Break(n) => n.location(),
+            Expression::Call(n) => n.location(),
+            Expression::Closure(n) => n.location(),
+            Expression::Constant(n) => n.location(),
+            Expression::DefineVariable(n) => n.location(),
+            Expression::String(n) => n.location(),
+            Expression::False(n) => n.location(),
+            Expression::Field(n) => n.location(),
+            Expression::Float(n) => n.location(),
+            Expression::Group(n) => n.location(),
+            Expression::Identifier(n) => n.location(),
+            Expression::If(n) => n.location(),
+            Expression::Int(n) => n.location(),
+            Expression::Loop(n) => n.location(),
+            Expression::Match(n) => n.location(),
+            Expression::Next(n) => n.location(),
+            Expression::Or(n) => n.location(),
+            Expression::Ref(n) => n.location(),
+            Expression::Return(n) => n.location(),
+            Expression::Scope(n) => n.location(),
+            Expression::SelfObject(n) => n.location(),
+            Expression::Throw(n) => n.location(),
+            Expression::True(n) => n.location(),
+            Expression::Nil(n) => n.location(),
+            Expression::Try(n) => n.location(),
+            Expression::Async(n) => n.location(),
+            Expression::Await(n) => n.location(),
+            Expression::Tuple(n) => n.location(),
+            Expression::TypeCast(n) => n.location(),
+            Expression::While(n) => n.location(),
+            Expression::Mut(n) => n.location(),
+            Expression::Recover(n) => n.location(),
+            Expression::Comment(n) => n.location(),
+            Expression::For(n) => n.location(),
+            Expression::Not(n) => n.location(),
         }
     }
 }
@@ -950,8 +950,8 @@ pub enum Argument {
 impl Node for Argument {
     fn location(&self) -> &Location {
         match self {
-            Argument::Positional(ref typ) => typ.location(),
-            Argument::Named(ref typ) => typ.location(),
+            Argument::Positional(typ) => typ.location(),
+            Argument::Named(typ) => typ.location(),
         }
     }
 }
@@ -1028,9 +1028,9 @@ pub enum ReferrableType {
 impl Node for ReferrableType {
     fn location(&self) -> &Location {
         match self {
-            ReferrableType::Named(ref node) => node.location(),
-            ReferrableType::Closure(ref node) => node.location(),
-            ReferrableType::Tuple(ref node) => node.location(),
+            ReferrableType::Named(node) => node.location(),
+            ReferrableType::Closure(node) => node.location(),
+            ReferrableType::Tuple(node) => node.location(),
         }
     }
 }
@@ -1074,13 +1074,13 @@ pub enum Type {
 impl Node for Type {
     fn location(&self) -> &Location {
         match self {
-            Type::Named(ref typ) => typ.location(),
-            Type::Ref(ref typ) => typ.location(),
-            Type::Mut(ref typ) => typ.location(),
-            Type::Uni(ref typ) => typ.location(),
-            Type::Owned(ref typ) => typ.location(),
-            Type::Closure(ref typ) => typ.location(),
-            Type::Tuple(ref typ) => typ.location(),
+            Type::Named(typ) => typ.location(),
+            Type::Ref(typ) => typ.location(),
+            Type::Mut(typ) => typ.location(),
+            Type::Uni(typ) => typ.location(),
+            Type::Owned(typ) => typ.location(),
+            Type::Closure(typ) => typ.location(),
+            Type::Tuple(typ) => typ.location(),
         }
     }
 }
@@ -1563,18 +1563,18 @@ pub enum Pattern {
 impl Pattern {
     pub fn location(&self) -> &Location {
         match self {
-            Pattern::Constant(ref n) => &n.location,
-            Pattern::Constructor(ref n) => &n.location,
-            Pattern::Type(ref n) => &n.location,
-            Pattern::Int(ref n) => n.location(),
-            Pattern::True(ref n) => n.location(),
-            Pattern::False(ref n) => n.location(),
-            Pattern::Identifier(ref n) => &n.location,
-            Pattern::Tuple(ref n) => &n.location,
-            Pattern::Wildcard(ref n) => &n.location,
-            Pattern::Or(ref n) => &n.location,
-            Pattern::String(ref n) => &n.location,
-            Pattern::Array(ref n) => &n.location,
+            Pattern::Constant(n) => &n.location,
+            Pattern::Constructor(n) => &n.location,
+            Pattern::Type(n) => &n.location,
+            Pattern::Int(n) => n.location(),
+            Pattern::True(n) => n.location(),
+            Pattern::False(n) => n.location(),
+            Pattern::Identifier(n) => &n.location,
+            Pattern::Tuple(n) => &n.location,
+            Pattern::Wildcard(n) => &n.location,
+            Pattern::Or(n) => &n.location,
+            Pattern::String(n) => &n.location,
+            Pattern::Array(n) => &n.location,
         }
     }
 }

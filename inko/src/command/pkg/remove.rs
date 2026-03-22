@@ -1,6 +1,6 @@
 use crate::error::Error;
 use crate::options::print_usage;
-use compiler::pkg::manifest::{Manifest, Url, MANIFEST_FILE};
+use compiler::pkg::manifest::{MANIFEST_FILE, Manifest, Url};
 use getopts::Options;
 
 const USAGE: &str = "inko pkg remove [OPTIONS] [URI]

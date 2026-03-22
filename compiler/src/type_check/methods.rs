@@ -3,17 +3,17 @@ use crate::diagnostics::DiagnosticId;
 use crate::hir;
 use crate::state::State;
 use crate::type_check::{
-    define_type_bounds, DefineAndCheckTypeSignature, Rules, TypeScope,
+    DefineAndCheckTypeSignature, Rules, TypeScope, define_type_bounds,
 };
 use location::Location;
 use std::path::PathBuf;
 use types::check::{Environment, TypeChecker};
-use types::format::{format_type, TypeFormatter};
+use types::format::{TypeFormatter, format_type};
 use types::{
-    Block, Database, Method, MethodId, MethodKind, MethodSource, ModuleId,
-    Symbol, TraitId, TraitInstance, TypeArguments, TypeBounds, TypeEnum,
-    TypeId, TypeInstance, TypeRef, Visibility, DROP_METHOD, MAIN_METHOD,
-    MAIN_TYPE,
+    Block, DROP_METHOD, Database, MAIN_METHOD, MAIN_TYPE, Method, MethodId,
+    MethodKind, MethodSource, ModuleId, Symbol, TraitId, TraitInstance,
+    TypeArguments, TypeBounds, TypeEnum, TypeId, TypeInstance, TypeRef,
+    Visibility,
 };
 
 fn method_kind(kind: hir::MethodKind) -> MethodKind {
@@ -283,10 +283,10 @@ impl<'a> DefineModuleMethodNames<'a> {
     fn run(mut self, module: &mut hir::Module) {
         for expr in module.expressions.iter_mut() {
             match expr {
-                hir::TopLevelExpression::ModuleMethod(ref mut node) => {
+                hir::TopLevelExpression::ModuleMethod(node) => {
                     self.define_module_method(node);
                 }
-                hir::TopLevelExpression::ExternFunction(ref mut node) => {
+                hir::TopLevelExpression::ExternFunction(node) => {
                     self.define_extern_function(node);
                 }
                 _ => (),
@@ -401,19 +401,19 @@ impl<'a> DefineMethods<'a> {
     fn run(mut self, module: &mut hir::Module) {
         for expression in module.expressions.iter_mut() {
             match expression {
-                hir::TopLevelExpression::Type(ref mut node) => {
+                hir::TopLevelExpression::Type(node) => {
                     self.define_type(node);
                 }
-                hir::TopLevelExpression::Trait(ref mut node) => {
+                hir::TopLevelExpression::Trait(node) => {
                     self.define_trait(node);
                 }
-                hir::TopLevelExpression::ModuleMethod(ref mut node) => {
+                hir::TopLevelExpression::ModuleMethod(node) => {
                     self.define_module_method(node);
                 }
-                hir::TopLevelExpression::ExternFunction(ref mut node) => {
+                hir::TopLevelExpression::ExternFunction(node) => {
                     self.define_extern_function(node);
                 }
-                hir::TopLevelExpression::Reopen(ref mut node) => {
+                hir::TopLevelExpression::Reopen(node) => {
                     self.reopen_type(node);
                 }
                 _ => {}
@@ -426,20 +426,20 @@ impl<'a> DefineMethods<'a> {
 
         for expr in &mut node.body {
             match expr {
-                hir::TypeExpression::AsyncMethod(ref mut node) => {
+                hir::TypeExpression::AsyncMethod(node) => {
                     self.define_async_method(type_id, node, TypeBounds::new());
                 }
-                hir::TypeExpression::StaticMethod(ref mut node) => {
+                hir::TypeExpression::StaticMethod(node) => {
                     self.define_static_method(type_id, node)
                 }
-                hir::TypeExpression::InstanceMethod(ref mut node) => {
+                hir::TypeExpression::InstanceMethod(node) => {
                     self.define_instance_method(
                         type_id,
                         node,
                         TypeBounds::new(),
                     );
                 }
-                hir::TypeExpression::Constructor(ref mut node) => {
+                hir::TypeExpression::Constructor(node) => {
                     self.define_constructor_method(type_id, node);
                 }
                 _ => {}
@@ -452,10 +452,10 @@ impl<'a> DefineMethods<'a> {
 
         for expr in &mut node.body {
             match expr {
-                hir::TraitExpression::InstanceMethod(ref mut n) => {
+                hir::TraitExpression::InstanceMethod(n) => {
                     self.define_default_method(trait_id, n);
                 }
-                hir::TraitExpression::RequiredMethod(ref mut n) => {
+                hir::TraitExpression::RequiredMethod(n) => {
                     self.define_required_method(trait_id, n);
                 }
             }
@@ -535,13 +535,13 @@ impl<'a> DefineMethods<'a> {
 
         for expr in &mut node.body {
             match expr {
-                hir::ReopenTypeExpression::InstanceMethod(ref mut n) => {
+                hir::ReopenTypeExpression::InstanceMethod(n) => {
                     self.define_instance_method(type_id, n, bounds.clone());
                 }
-                hir::ReopenTypeExpression::StaticMethod(ref mut n) => {
+                hir::ReopenTypeExpression::StaticMethod(n) => {
                     self.define_static_method(type_id, n);
                 }
-                hir::ReopenTypeExpression::AsyncMethod(ref mut n) => {
+                hir::ReopenTypeExpression::AsyncMethod(n) => {
                     self.define_async_method(type_id, n, bounds.clone());
                 }
             }
@@ -1224,7 +1224,7 @@ impl<'a> ImplementTraitMethods<'a> {
 
     fn run(mut self, module: &mut hir::Module) {
         for expr in module.expressions.iter_mut() {
-            if let hir::TopLevelExpression::Implement(ref mut node) = expr {
+            if let hir::TopLevelExpression::Implement(node) = expr {
                 self.implement_trait(node);
             }
         }

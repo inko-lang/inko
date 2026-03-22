@@ -1,6 +1,6 @@
-use crate::config::{local_runtimes_directory, BuildDirectories, Linker};
+use crate::config::{BuildDirectories, Linker, local_runtimes_directory};
 use crate::state::State;
-use crate::target::{OperatingSystem, Target, MAC_SDK_VERSION};
+use crate::target::{MAC_SDK_VERSION, OperatingSystem, Target};
 use std::fs::File;
 use std::io::{Read as _, Write as _};
 use std::path::{Path, PathBuf};

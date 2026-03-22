@@ -1,6 +1,6 @@
 use libc::{
-    c_int, mmap, mprotect, munmap, MAP_ANON, MAP_FAILED, MAP_PRIVATE,
-    PROT_NONE, PROT_READ, PROT_WRITE,
+    MAP_ANON, MAP_FAILED, MAP_PRIVATE, PROT_NONE, PROT_READ, PROT_WRITE, c_int,
+    mmap, mprotect, munmap,
 };
 use std::io::{Error, Result as IoResult};
 use std::ptr::null_mut;
@@ -77,11 +77,7 @@ impl MemoryMap {
         let res =
             unsafe { mprotect(self.ptr.add(start) as _, size, PROT_NONE) };
 
-        if res == 0 {
-            Ok(())
-        } else {
-            Err(Error::last_os_error())
-        }
+        if res == 0 { Ok(()) } else { Err(Error::last_os_error()) }
     }
 }
 

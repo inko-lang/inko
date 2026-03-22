@@ -1,14 +1,14 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use rustls::client::WebPkiServerVerifier;
 use rustls::client::danger::{
     HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier,
 };
-use rustls::client::WebPkiServerVerifier;
 use rustls::pki_types;
 use rustls::{
-    crypto::CryptoProvider, CertificateError, DigitallySignedStruct,
-    Error as TlsError, OtherError, SignatureScheme,
+    CertificateError, DigitallySignedStruct, Error as TlsError, OtherError,
+    SignatureScheme, crypto::CryptoProvider,
 };
 
 use super::log_server_cert;
@@ -71,7 +71,9 @@ impl Verifier {
             let (added, ignored) =
                 root_store.add_parsable_certificates(result.certs);
             if ignored > 0 {
-                log::warn!("{ignored} platform CA root certificates were ignored due to errors");
+                log::warn!(
+                    "{ignored} platform CA root certificates were ignored due to errors"
+                );
             }
 
             for error in result.errors {

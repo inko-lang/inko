@@ -1,6 +1,6 @@
 use crate::mem::PrimitiveStringResult;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_float_to_string(
     value: f64,
 ) -> PrimitiveStringResult {

@@ -9,9 +9,7 @@ use ureq::{self, Agent, Body};
 const TIMEOUT: u64 = 10;
 
 pub fn get(url: &str) -> Result<Response<Body>, Error> {
-    let agent = agent();
-
-    match agent.get(url).call() {
+    match agent().get(url).call() {
         Ok(response) => Ok(response),
         Err(err) => Err(Error::from(format!("GET {} failed: {}", url, err))),
     }

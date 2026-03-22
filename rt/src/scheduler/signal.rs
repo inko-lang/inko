@@ -1,9 +1,9 @@
 use crate::process::ProcessPointer;
 use crate::state::RcState;
 use libc::{
-    pthread_sigmask, raise, sigaddset, sigdelset, sigfillset, signal, sigset_t,
-    sigwait, SIGBUS, SIGCHLD, SIGCONT, SIGILL, SIGPIPE, SIGSEGV, SIGWINCH,
-    SIG_IGN, SIG_SETMASK,
+    SIG_IGN, SIG_SETMASK, SIGBUS, SIGCHLD, SIGCONT, SIGILL, SIGPIPE, SIGSEGV,
+    SIGWINCH, pthread_sigmask, raise, sigaddset, sigdelset, sigfillset, signal,
+    sigset_t, sigwait,
 };
 use std::collections::HashMap;
 use std::ffi::c_int;
@@ -89,7 +89,7 @@ pub(crate) fn setup() {
     }
 
     for &sig in ENABLE.iter() {
-        unsafe { signal(sig, noop_signal_handler as _) };
+        unsafe { signal(sig, noop_signal_handler as *const () as _) };
     }
 }
 

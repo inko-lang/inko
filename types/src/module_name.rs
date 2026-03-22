@@ -1,6 +1,6 @@
 //! Types to represent module names.
 use std::fmt;
-use std::path::{Path, PathBuf, MAIN_SEPARATOR, MAIN_SEPARATOR_STR};
+use std::path::{MAIN_SEPARATOR, MAIN_SEPARATOR_STR, Path, PathBuf};
 
 const MAIN_MODULE: &str = "main";
 const SOURCE_EXT: &str = "inko";

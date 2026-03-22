@@ -1,7 +1,7 @@
 use crate::error::Error;
 use crate::options::print_usage;
 use compiler::config::SOURCE_EXT;
-use compiler::pkg::manifest::{Manifest, MANIFEST_FILE};
+use compiler::pkg::manifest::{MANIFEST_FILE, Manifest};
 use compiler::pkg::version::Version;
 use getopts::Options;
 use std::env;

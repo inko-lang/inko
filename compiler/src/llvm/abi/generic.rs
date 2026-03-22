@@ -94,12 +94,12 @@ pub(crate) fn combine_classes(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use inkwell::OptimizationLevel;
     use inkwell::targets::{
         CodeModel, InitializationConfig, RelocMode, Target, TargetMachine,
         TargetTriple,
     };
     use inkwell::types::BasicTypeEnum;
-    use inkwell::OptimizationLevel;
 
     fn setup() -> TargetMachine {
         Target::initialize_x86(&InitializationConfig::default());

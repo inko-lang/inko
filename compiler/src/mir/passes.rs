@@ -4,7 +4,7 @@ use crate::hir;
 use crate::mir::pattern_matching as pmatch;
 use crate::mir::{
     Block, BlockId, CastType, Constant, InstructionLocation, Method, Mir,
-    Module, RegisterId, Type, SELF_ID,
+    Module, RegisterId, SELF_ID, Type,
 };
 use crate::state::State;
 use indexmap::IndexMap;
@@ -17,11 +17,12 @@ use std::str::FromStr;
 use types::format::format_type;
 use types::module_name::ModuleName;
 use types::{
-    self, Block as _, ConstantId, FieldId, Inline, MethodId, ModuleId, Symbol,
-    TypeArguments, TypeBounds, TypeId, TypeRef, VerificationError, ARRAY_READ,
-    ARRAY_SIZE_FIELD, BOOL_ID, BYTES_MODULE, BYTE_ARRAY_READ, BYTE_ARRAY_TYPE,
-    ENUM_TAG_INDEX, EQUALS_METHOD, INT_ID, OPTION_NONE, OPTION_SOME,
-    RESULT_ERROR, RESULT_MODULE, RESULT_OK, RESULT_TYPE, STRING_ID,
+    self, ARRAY_READ, ARRAY_SIZE_FIELD, BOOL_ID, BYTE_ARRAY_READ,
+    BYTE_ARRAY_TYPE, BYTES_MODULE, Block as _, ConstantId, ENUM_TAG_INDEX,
+    EQUALS_METHOD, FieldId, INT_ID, Inline, MethodId, ModuleId, OPTION_NONE,
+    OPTION_SOME, RESULT_ERROR, RESULT_MODULE, RESULT_OK, RESULT_TYPE,
+    STRING_ID, Symbol, TypeArguments, TypeBounds, TypeId, TypeRef,
+    VerificationError,
 };
 
 const SELF_NAME: &str = "self";
@@ -834,7 +835,7 @@ impl<'a> DefineConstants<'a> {
 
         for module in modules {
             for expr in &module.expressions {
-                if let hir::TopLevelExpression::Constant(ref n) = expr {
+                if let hir::TopLevelExpression::Constant(n) = expr {
                     work.push_back((module.module_id, n));
                 }
             }
@@ -875,18 +876,16 @@ impl<'a> DefineConstants<'a> {
 
     fn expression(&mut self, node: &hir::ConstExpression) -> Option<Constant> {
         match node {
-            hir::ConstExpression::Int(ref n) => Some(Constant::Int(n.value)),
-            hir::ConstExpression::String(ref n) => {
+            hir::ConstExpression::Int(n) => Some(Constant::Int(n.value)),
+            hir::ConstExpression::String(n) => {
                 Some(Constant::String(n.value.clone()))
             }
-            hir::ConstExpression::Float(ref n) => {
-                Some(Constant::Float(n.value))
-            }
-            hir::ConstExpression::Binary(ref n) => self.binary(n),
+            hir::ConstExpression::Float(n) => Some(Constant::Float(n.value)),
+            hir::ConstExpression::Binary(n) => self.binary(n),
             hir::ConstExpression::True(_) => Some(Constant::Bool(true)),
             hir::ConstExpression::False(_) => Some(Constant::Bool(false)),
-            hir::ConstExpression::ConstantRef(ref n) => self.constant_ref(n),
-            hir::ConstExpression::Array(ref n) => n
+            hir::ConstExpression::ConstantRef(n) => self.constant_ref(n),
+            hir::ConstExpression::Array(n) => n
                 .values
                 .iter()
                 .try_fold(Vec::new(), |mut vals, node| {

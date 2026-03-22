@@ -1,7 +1,7 @@
 use crate::error::Error;
 use crate::options::print_usage;
 use compiler::pkg::git::Repository;
-use compiler::pkg::manifest::{Checksum, Manifest, Url, MANIFEST_FILE};
+use compiler::pkg::manifest::{Checksum, MANIFEST_FILE, Manifest, Url};
 use compiler::pkg::util::data_dir;
 use compiler::pkg::version::Version;
 use getopts::Options;

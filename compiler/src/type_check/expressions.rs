@@ -10,16 +10,16 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::mem::swap;
 use std::path::PathBuf;
 use types::check::{Environment, TypeChecker};
-use types::format::{format_type, format_type_with_arguments, TypeFormatter};
+use types::format::{TypeFormatter, format_type, format_type_with_arguments};
 use types::resolve::TypeResolver;
 use types::{
-    Block, CallInfo, CallKind, Closure, ClosureCallInfo, ClosureId,
-    ConstantKind, ConstantPatternKind, Database, FieldId, FieldInfo,
+    BYTE_ARRAY_TYPE, BYTES_MODULE, Block, CALL_METHOD, CallInfo, CallKind,
+    Closure, ClosureCallInfo, ClosureId, ConstantKind, ConstantPatternKind,
+    DEREF_POINTER_FIELD, Database, FieldId, FieldInfo, IGNORE_VARIABLE,
     IdentifierKind, IntrinsicCall, MethodId, MethodLookup, ModuleId, Receiver,
-    Sendability, Sign, Symbol, ThrowKind, TraitId, TraitInstance,
-    TypeArguments, TypeBounds, TypeEnum, TypeId, TypeInstance, TypeRef,
-    Variable, VariableId, BYTES_MODULE, BYTE_ARRAY_TYPE, CALL_METHOD,
-    DEREF_POINTER_FIELD, IGNORE_VARIABLE, SELF_TYPE, SLICE_TYPE,
+    SELF_TYPE, SLICE_TYPE, Sendability, Sign, Symbol, ThrowKind, TraitId,
+    TraitInstance, TypeArguments, TypeBounds, TypeEnum, TypeId, TypeInstance,
+    TypeRef, Variable, VariableId,
 };
 
 /// The maximum number of methods that a single type can define.
@@ -662,7 +662,7 @@ pub(crate) fn define_constants(
 
     for module in modules.iter_mut() {
         for expr in &mut module.expressions {
-            if let hir::TopLevelExpression::Constant(ref mut n) = expr {
+            if let hir::TopLevelExpression::Constant(n) = expr {
                 work.push_back((module.module_id, n));
             }
         }
@@ -732,19 +732,19 @@ impl<'a> Expressions<'a> {
     fn run(mut self, module: &mut hir::Module) {
         for expression in module.expressions.iter_mut() {
             match expression {
-                hir::TopLevelExpression::Type(ref mut n) => {
+                hir::TopLevelExpression::Type(n) => {
                     self.define_type(n);
                 }
-                hir::TopLevelExpression::Trait(ref mut n) => {
+                hir::TopLevelExpression::Trait(n) => {
                     self.define_trait(n);
                 }
-                hir::TopLevelExpression::Reopen(ref mut n) => {
+                hir::TopLevelExpression::Reopen(n) => {
                     self.reopen_type(n);
                 }
-                hir::TopLevelExpression::Implement(ref mut n) => {
+                hir::TopLevelExpression::Implement(n) => {
                     self.implement_trait(n);
                 }
-                hir::TopLevelExpression::ModuleMethod(ref mut n) => {
+                hir::TopLevelExpression::ModuleMethod(n) => {
                     self.define_module_method(n);
                 }
                 _ => {}
@@ -773,13 +773,13 @@ impl<'a> Expressions<'a> {
 
         for node in &mut node.body {
             match node {
-                hir::TypeExpression::AsyncMethod(ref mut n) => {
+                hir::TypeExpression::AsyncMethod(n) => {
                     self.define_async_method(n);
                 }
-                hir::TypeExpression::InstanceMethod(ref mut n) => {
+                hir::TypeExpression::InstanceMethod(n) => {
                     self.define_instance_method(n);
                 }
-                hir::TypeExpression::StaticMethod(ref mut n) => {
+                hir::TypeExpression::StaticMethod(n) => {
                     self.define_static_method(n);
                 }
                 _ => {}
@@ -790,13 +790,13 @@ impl<'a> Expressions<'a> {
     fn reopen_type(&mut self, node: &mut hir::ReopenType) {
         for node in &mut node.body {
             match node {
-                hir::ReopenTypeExpression::InstanceMethod(ref mut n) => {
+                hir::ReopenTypeExpression::InstanceMethod(n) => {
                     self.define_instance_method(n)
                 }
-                hir::ReopenTypeExpression::StaticMethod(ref mut n) => {
+                hir::ReopenTypeExpression::StaticMethod(n) => {
                     self.define_static_method(n)
                 }
-                hir::ReopenTypeExpression::AsyncMethod(ref mut n) => {
+                hir::ReopenTypeExpression::AsyncMethod(n) => {
                     self.define_async_method(n)
                 }
             }
@@ -811,7 +811,7 @@ impl<'a> Expressions<'a> {
         );
 
         for node in &mut node.body {
-            if let hir::TraitExpression::InstanceMethod(ref mut n) = node {
+            if let hir::TraitExpression::InstanceMethod(n) = node {
                 self.define_instance_method(n);
             }
         }
@@ -1032,14 +1032,14 @@ impl<'a> CheckConstant<'a> {
 
     fn expression(&mut self, node: &mut hir::ConstExpression) -> TypeRef {
         match node {
-            hir::ConstExpression::Int(ref mut n) => self.int_literal(n),
-            hir::ConstExpression::Float(ref mut n) => self.float_literal(n),
-            hir::ConstExpression::String(ref mut n) => self.string_literal(n),
-            hir::ConstExpression::True(ref mut n) => self.true_literal(n),
-            hir::ConstExpression::False(ref mut n) => self.false_literal(n),
-            hir::ConstExpression::Binary(ref mut n) => self.binary(n),
-            hir::ConstExpression::ConstantRef(ref mut n) => self.constant(n),
-            hir::ConstExpression::Array(ref mut n) => self.array(n),
+            hir::ConstExpression::Int(n) => self.int_literal(n),
+            hir::ConstExpression::Float(n) => self.float_literal(n),
+            hir::ConstExpression::String(n) => self.string_literal(n),
+            hir::ConstExpression::True(n) => self.true_literal(n),
+            hir::ConstExpression::False(n) => self.false_literal(n),
+            hir::ConstExpression::Binary(n) => self.binary(n),
+            hir::ConstExpression::ConstantRef(n) => self.constant(n),
+            hir::ConstExpression::Array(n) => self.array(n),
         }
     }
 
@@ -1411,72 +1411,50 @@ impl<'a> CheckMethodBody<'a> {
         scope: &mut LexicalScope,
     ) -> TypeRef {
         match node {
-            hir::Expression::And(ref mut n) => self.and_expression(n, scope),
-            hir::Expression::AssignField(ref mut n) => {
-                self.assign_field(n, scope)
-            }
-            hir::Expression::ReplaceField(ref mut n) => {
-                self.replace_field(n, scope)
-            }
-            hir::Expression::AssignSetter(ref mut n) => {
-                self.assign_setter(n, scope)
-            }
-            hir::Expression::ReplaceSetter(ref mut n) => {
-                self.replace_setter(n, scope)
-            }
-            hir::Expression::AssignVariable(ref mut n) => {
+            hir::Expression::And(n) => self.and_expression(n, scope),
+            hir::Expression::AssignField(n) => self.assign_field(n, scope),
+            hir::Expression::ReplaceField(n) => self.replace_field(n, scope),
+            hir::Expression::AssignSetter(n) => self.assign_setter(n, scope),
+            hir::Expression::ReplaceSetter(n) => self.replace_setter(n, scope),
+            hir::Expression::AssignVariable(n) => {
                 self.assign_variable(n, scope)
             }
-            hir::Expression::ReplaceVariable(ref mut n) => {
+            hir::Expression::ReplaceVariable(n) => {
                 self.replace_variable(n, scope)
             }
-            hir::Expression::Break(ref n) => self.break_expression(n, scope),
-            hir::Expression::BuiltinCall(ref mut n) => {
-                self.builtin_call(n, scope)
-            }
-            hir::Expression::Call(ref mut n) => self.call(n, scope, false),
-            hir::Expression::Closure(ref mut n) => self.closure(n, None, scope),
-            hir::Expression::ConstantRef(ref mut n) => {
-                self.constant(n, scope, false)
-            }
-            hir::Expression::DefineVariable(ref mut n) => {
+            hir::Expression::Break(n) => self.break_expression(n, scope),
+            hir::Expression::BuiltinCall(n) => self.builtin_call(n, scope),
+            hir::Expression::Call(n) => self.call(n, scope, false),
+            hir::Expression::Closure(n) => self.closure(n, None, scope),
+            hir::Expression::ConstantRef(n) => self.constant(n, scope, false),
+            hir::Expression::DefineVariable(n) => {
                 self.define_variable(n, scope)
             }
-            hir::Expression::False(ref mut n) => self.false_literal(n),
-            hir::Expression::FieldRef(ref mut n) => self.field(n, scope),
-            hir::Expression::Float(ref mut n) => self.float_literal(n),
-            hir::Expression::IdentifierRef(ref mut n) => {
+            hir::Expression::False(n) => self.false_literal(n),
+            hir::Expression::FieldRef(n) => self.field(n, scope),
+            hir::Expression::Float(n) => self.float_literal(n),
+            hir::Expression::IdentifierRef(n) => {
                 self.identifier(n, scope, false)
             }
-            hir::Expression::Int(ref mut n) => self.int_literal(n),
-            hir::Expression::Loop(ref mut n) => self.loop_expression(n, scope),
-            hir::Expression::Match(ref mut n) => {
-                self.match_expression(n, scope)
-            }
-            hir::Expression::Next(ref n) => self.next_expression(n, scope),
-            hir::Expression::Or(ref mut n) => self.or_expression(n, scope),
-            hir::Expression::Ref(ref mut n) => self.ref_expression(n, scope),
-            hir::Expression::Mut(ref mut n) => self.mut_expression(n, scope),
-            hir::Expression::Recover(ref mut n) => {
-                self.recover_expression(n, scope)
-            }
-            hir::Expression::Return(ref mut n) => {
-                self.return_expression(n, scope)
-            }
-            hir::Expression::Scope(ref mut n) => self.scope(n, scope),
-            hir::Expression::SelfObject(ref mut n) => {
-                self.self_expression(n, scope)
-            }
-            hir::Expression::String(ref mut n) => self.string_literal(n),
-            hir::Expression::Throw(ref mut n) => {
-                self.throw_expression(n, scope)
-            }
-            hir::Expression::True(ref mut n) => self.true_literal(n),
-            hir::Expression::Nil(ref mut n) => self.nil_literal(n),
-            hir::Expression::Tuple(ref mut n) => self.tuple_literal(n, scope),
-            hir::Expression::TypeCast(ref mut n) => self.type_cast(n, scope),
-            hir::Expression::Try(ref mut n) => self.try_expression(n, scope),
-            hir::Expression::SizeOf(ref mut n) => self.size_of(n),
+            hir::Expression::Int(n) => self.int_literal(n),
+            hir::Expression::Loop(n) => self.loop_expression(n, scope),
+            hir::Expression::Match(n) => self.match_expression(n, scope),
+            hir::Expression::Next(n) => self.next_expression(n, scope),
+            hir::Expression::Or(n) => self.or_expression(n, scope),
+            hir::Expression::Ref(n) => self.ref_expression(n, scope),
+            hir::Expression::Mut(n) => self.mut_expression(n, scope),
+            hir::Expression::Recover(n) => self.recover_expression(n, scope),
+            hir::Expression::Return(n) => self.return_expression(n, scope),
+            hir::Expression::Scope(n) => self.scope(n, scope),
+            hir::Expression::SelfObject(n) => self.self_expression(n, scope),
+            hir::Expression::String(n) => self.string_literal(n),
+            hir::Expression::Throw(n) => self.throw_expression(n, scope),
+            hir::Expression::True(n) => self.true_literal(n),
+            hir::Expression::Nil(n) => self.nil_literal(n),
+            hir::Expression::Tuple(n) => self.tuple_literal(n, scope),
+            hir::Expression::TypeCast(n) => self.type_cast(n, scope),
+            hir::Expression::Try(n) => self.try_expression(n, scope),
+            hir::Expression::SizeOf(n) => self.size_of(n),
         }
     }
 
@@ -1509,7 +1487,7 @@ impl<'a> CheckMethodBody<'a> {
         scope: &mut LexicalScope,
     ) -> TypeRef {
         match node {
-            hir::Expression::Closure(ref mut n) => {
+            hir::Expression::Closure(n) => {
                 let expected = expected_type.closure_id(self.db()).map(|id| {
                     ExpectedClosure {
                         id,
@@ -1671,40 +1649,40 @@ impl<'a> CheckMethodBody<'a> {
         pattern: &mut Pattern,
     ) {
         match node {
-            hir::Pattern::Identifier(ref mut n) => {
+            hir::Pattern::Identifier(n) => {
                 self.identifier_pattern(n, value_type, pattern);
             }
-            hir::Pattern::Tuple(ref mut n) => {
+            hir::Pattern::Tuple(n) => {
                 self.tuple_pattern(n, value_type, pattern);
             }
-            hir::Pattern::Array(ref mut n) => {
+            hir::Pattern::Array(n) => {
                 self.array_pattern(n, value_type, pattern);
             }
-            hir::Pattern::Type(ref mut n) => {
+            hir::Pattern::Type(n) => {
                 self.type_pattern(n, value_type, pattern);
             }
-            hir::Pattern::Int(ref mut n) => {
+            hir::Pattern::Int(n) => {
                 self.int_pattern(n, value_type);
             }
-            hir::Pattern::String(ref mut n) => {
+            hir::Pattern::String(n) => {
                 self.string_pattern(n, value_type);
             }
-            hir::Pattern::True(ref mut n) => {
+            hir::Pattern::True(n) => {
                 self.true_pattern(n, value_type);
             }
-            hir::Pattern::False(ref mut n) => {
+            hir::Pattern::False(n) => {
                 self.false_pattern(n, value_type);
             }
-            hir::Pattern::Constant(ref mut n) => {
+            hir::Pattern::Constant(n) => {
                 self.constant_pattern(n, value_type);
             }
-            hir::Pattern::Constructor(ref mut n) => {
+            hir::Pattern::Constructor(n) => {
                 self.constructor_pattern(n, value_type, pattern);
             }
             hir::Pattern::Wildcard(_) => {
                 // Nothing to do for wildcards, as we just ignore the value.
             }
-            hir::Pattern::Or(ref mut n) => {
+            hir::Pattern::Or(n) => {
                 self.or_pattern(n, value_type, pattern);
             }
         }
@@ -4457,13 +4435,11 @@ impl<'a> CheckMethodBody<'a> {
         scope: &mut LexicalScope,
     ) -> (TypeRef, bool) {
         let typ = match node {
-            hir::Expression::ConstantRef(ref mut n) => {
-                self.constant(n, scope, true)
-            }
-            hir::Expression::IdentifierRef(ref mut n) => {
+            hir::Expression::ConstantRef(n) => self.constant(n, scope, true),
+            hir::Expression::IdentifierRef(n) => {
                 self.identifier(n, scope, true)
             }
-            hir::Expression::Call(ref mut n) => self.call(n, scope, true),
+            hir::Expression::Call(n) => self.call(n, scope, true),
             _ => self.expression(node, scope),
         };
 
@@ -4478,7 +4454,7 @@ impl<'a> CheckMethodBody<'a> {
     ) {
         for (index, arg) in nodes.iter_mut().enumerate() {
             match arg {
-                hir::Argument::Positional(ref mut n) => {
+                hir::Argument::Positional(n) => {
                     n.expected_type = self.positional_argument(
                         call,
                         index,
@@ -4486,7 +4462,7 @@ impl<'a> CheckMethodBody<'a> {
                         scope,
                     );
                 }
-                hir::Argument::Named(ref mut n) => {
+                hir::Argument::Named(n) => {
                     n.expected_type = self.named_argument(call, n, scope);
                 }
             }

@@ -1,8 +1,8 @@
 FROM registry.fedoraproject.org/fedora:43
 
 ENV LLVM_VERSION 18
-ENV RUST_VERSION 1.89
-env MIN_RUST_VERSION 1.84
+ENV RUST_VERSION 1.94
+env MIN_RUST_VERSION 1.85
 
 ENV PATH /opt/cargo/bin:$PATH
 ENV RUSTUP_HOME /opt/rustup

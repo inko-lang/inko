@@ -2,7 +2,7 @@ use crate::config::Config;
 use crate::pkg::version::Version;
 use blake3;
 use std::fmt;
-use std::fs::{read_dir, File, OpenOptions};
+use std::fs::{File, OpenOptions, read_dir};
 use std::io::{BufRead, BufReader, Error, Read, Write};
 use std::path::{Path, PathBuf};
 

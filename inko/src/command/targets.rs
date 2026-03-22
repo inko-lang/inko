@@ -2,7 +2,7 @@ use crate::error::Error;
 use crate::options::print_usage;
 use compiler::target::Target;
 use getopts::{Options, ParsingStyle};
-use std::io::{stdout, IsTerminal as _};
+use std::io::{IsTerminal as _, stdout};
 
 const USAGE: &str = "inko targets [OPTIONS]
 

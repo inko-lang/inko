@@ -7,22 +7,22 @@ use std::slice;
 use std::str;
 use unicode_segmentation::{Graphemes, UnicodeSegmentation};
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_string_is_valid_utf8(
     bytes: *const u8,
     size: i64,
 ) -> bool {
-    let bytes = slice::from_raw_parts(bytes, size as usize);
+    let bytes = unsafe { slice::from_raw_parts(bytes, size as usize) };
 
     str::from_utf8(bytes).is_ok()
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_string_from_bytes(
     bytes: *const u8,
     size: i64,
 ) -> PrimitiveStringResult {
-    let bytes = slice::from_raw_parts(bytes, size as usize);
+    let bytes = unsafe { slice::from_raw_parts(bytes, size as usize) };
 
     match String::from_utf8_lossy(bytes) {
         Cow::Borrowed(v) => PrimitiveStringResult::borrowed(v),
@@ -30,33 +30,33 @@ pub unsafe extern "system" fn inko_string_from_bytes(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_string_try_from_bytes(
     bytes: *const u8,
     size: i64,
 ) -> PrimitiveString {
-    let bytes = slice::from_raw_parts(bytes, size as usize);
+    let bytes = unsafe { slice::from_raw_parts(bytes, size as usize) };
 
     str::from_utf8(bytes)
         .map(PrimitiveString::borrowed)
         .unwrap_or_else(|_| PrimitiveString::invalid())
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_string_to_lower(
     string: PrimitiveString,
 ) -> PrimitiveString {
     PrimitiveString::owned(string.as_str().to_lowercase())
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_string_to_upper(
     string: PrimitiveString,
 ) -> PrimitiveString {
     PrimitiveString::owned(string.as_str().to_uppercase())
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_string_to_float(
     bytes: *mut u8,
     size: i64,
@@ -76,8 +76,9 @@ pub unsafe extern "system" fn inko_string_to_float(
     // Long term we want to replace this function with a pure Inko
     // implementation, solving this problem entirely, but that proved to be too
     // much work at the time of writing this comment.
-    let slice =
-        str::from_utf8_unchecked(slice::from_raw_parts(bytes, size as _));
+    let slice = unsafe {
+        str::from_utf8_unchecked(slice::from_raw_parts(bytes, size as _))
+    };
 
     let parsed = match slice {
         "Infinity" => Ok(f64::INFINITY),
@@ -90,7 +91,7 @@ pub unsafe extern "system" fn inko_string_to_float(
         .unwrap_or_else(|_| InkoResult::none())
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_string_chars(
     string: PrimitiveString,
 ) -> *mut u8 {
@@ -104,25 +105,29 @@ pub unsafe extern "system" fn inko_string_chars(
     Box::into_raw(Box::new(string.as_str().graphemes(true))) as _
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_string_chars_next(
     iter: *mut u8,
 ) -> PrimitiveString {
-    let iter = &mut *(iter as *mut Graphemes);
+    let iter = unsafe { &mut *(iter as *mut Graphemes) };
 
     iter.next()
         .map(PrimitiveString::borrowed)
         .unwrap_or_else(PrimitiveString::empty)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_string_chars_drop(iter: *mut u8) {
-    drop(Box::from_raw(iter as *mut Graphemes));
+    unsafe {
+        drop(Box::from_raw(iter as *mut Graphemes));
+    }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_string_from_pointer(
     ptr: *const c_char,
 ) -> PrimitiveString {
-    PrimitiveString::owned(CStr::from_ptr(ptr).to_string_lossy().into_owned())
+    PrimitiveString::owned(
+        unsafe { CStr::from_ptr(ptr) }.to_string_lossy().into_owned(),
+    )
 }

@@ -489,11 +489,7 @@ impl Lexer {
     }
 
     fn current_byte(&self) -> u8 {
-        if self.has_next() {
-            self.input[self.position]
-        } else {
-            0
-        }
+        if self.has_next() { self.input[self.position] } else { 0 }
     }
 
     fn next_byte(&self) -> u8 {
@@ -503,11 +499,7 @@ impl Lexer {
     fn peek(&self, offset: usize) -> u8 {
         let index = self.position + offset;
 
-        if index < self.max_position {
-            self.input[index]
-        } else {
-            0
-        }
+        if index < self.max_position { self.input[index] } else { 0 }
     }
 
     fn advance_line(&mut self) {

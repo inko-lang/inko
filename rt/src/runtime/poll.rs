@@ -22,7 +22,7 @@ fn waiting_for_io(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub(crate) unsafe extern "system" fn inko_poll(
     state: *const State,
     process: ProcessPointer,
@@ -31,8 +31,8 @@ pub(crate) unsafe extern "system" fn inko_poll(
     deadline: i64,
 ) -> bool {
     let interest = if interest == 1 { Interest::Write } else { Interest::Read };
-    let state = &*state;
-    let poll = &mut *poll;
+    let state = unsafe { &*state };
+    let poll = unsafe { &mut *poll };
 
     // We must keep the process' state lock open until everything is registered,
     // otherwise a timeout thread may reschedule the process (i.e. the timeout
@@ -41,7 +41,7 @@ pub(crate) unsafe extern "system" fn inko_poll(
         let mut proc_state = process.state();
 
         waiting_for_io(state, process, &mut proc_state, deadline);
-        poll.register(state, process, interest);
+        unsafe { poll.register(state, process, interest) };
     }
 
     // Safety: the current thread is holding on to the process' run lock, so if
@@ -54,7 +54,7 @@ pub(crate) unsafe extern "system" fn inko_poll(
         // deregister first. If we don't and suspend for another IO operation,
         // the poller could end up rescheduling the process multiple times (as
         // there are multiple events still in flight for the process).
-        poll.deregister(state, interest);
+        unsafe { poll.deregister(state, interest) };
         false
     } else {
         true

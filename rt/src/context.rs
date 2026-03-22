@@ -15,7 +15,7 @@ mod unix;
 
 // These functions are defined in the inline assembly macros, found in modules
 // such as context/unix/x86_64.rs.
-extern "system" {
+unsafe extern "system" {
     fn inko_context_init(
         high: *mut *mut u8,
         func: NativeAsyncMethod,
@@ -31,10 +31,14 @@ pub(crate) unsafe fn start(
     func: NativeAsyncMethod,
     data: *mut u8,
 ) {
-    inko_context_init(&mut process.stack_pointer, func as _, data);
+    unsafe {
+        inko_context_init(&mut process.stack_pointer, func as _, data);
+    }
 }
 
 #[inline(always)]
 pub(crate) unsafe fn switch(mut process: ProcessPointer) {
-    inko_context_switch(&mut process.stack_pointer);
+    unsafe {
+        inko_context_switch(&mut process.stack_pointer);
+    }
 }

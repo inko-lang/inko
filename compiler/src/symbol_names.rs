@@ -3,9 +3,9 @@ use crate::mir::Mir;
 use std::collections::HashMap;
 use std::fmt::Write as _;
 use types::{
-    Block, ClosureSelfType, ConstantId, Database, ForeignType, MethodId,
-    ModuleId, Sign, TraitId, TypeArguments, TypeEnum, TypeId, TypeRef,
-    FLOAT_ID, INT_ID,
+    Block, ClosureSelfType, ConstantId, Database, FLOAT_ID, ForeignType,
+    INT_ID, MethodId, ModuleId, Sign, TraitId, TypeArguments, TypeEnum, TypeId,
+    TypeRef,
 };
 
 pub(crate) const SYMBOL_PREFIX: &str = "_I";

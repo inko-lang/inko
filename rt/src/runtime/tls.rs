@@ -81,7 +81,7 @@ impl Write for CallbackIo {
     }
 }
 
-unsafe fn accept(
+fn accept(
     socket: *mut Poll,
     deadline: i64,
     reader: Callback,
@@ -120,7 +120,7 @@ unsafe fn accept(
     }
 }
 
-unsafe fn accepted_into_connection(
+fn accepted_into_connection(
     accepted: Accepted,
     config: *const ServerConfig,
     socket: *mut Poll,
@@ -128,9 +128,10 @@ unsafe fn accepted_into_connection(
     reader: Callback,
     writer: Callback,
 ) -> Result {
-    Arc::increment_strong_count(config);
-
-    let config = Arc::from_raw(config);
+    let config = unsafe {
+        Arc::increment_strong_count(config);
+        Arc::from_raw(config)
+    };
     let mut io = CallbackIo { socket, reader, writer, deadline };
 
     match accepted.into_connection(config) {
@@ -143,7 +144,7 @@ unsafe fn accepted_into_connection(
     }
 }
 
-unsafe fn close<
+fn close<
     C: Deref<Target = rustls::ConnectionCommon<S>> + DerefMut,
     S: SideData,
 >(
@@ -154,7 +155,7 @@ unsafe fn close<
     writer: Callback,
 ) -> io::Result<()> {
     let mut io = CallbackIo { socket, reader, writer, deadline };
-    let mut stream = Stream::new(&mut *con, &mut io);
+    let mut stream = Stream::new(unsafe { &mut *con }, &mut io);
 
     stream.conn.send_close_notify();
 
@@ -165,13 +166,13 @@ unsafe fn close<
     Ok(())
 }
 
-unsafe fn alpn_name<
+fn alpn_name<
     C: Deref<Target = rustls::ConnectionCommon<S>> + DerefMut,
     S: SideData,
 >(
     state: *mut C,
 ) -> PrimitiveString {
-    (&*state)
+    unsafe { &*state }
         .alpn_protocol()
         .map(|v| {
             PrimitiveString::owned(String::from_utf8_lossy(v).into_owned())
@@ -179,8 +180,8 @@ unsafe fn alpn_name<
         .unwrap_or(PrimitiveString::empty())
 }
 
-unsafe fn with_unique_config<T, F: FnOnce(&mut T)>(config: *const T, func: F) {
-    let mut config = Arc::from_raw(config);
+fn with_unique_config<T, F: FnOnce(&mut T)>(config: *const T, func: F) {
+    let mut config = unsafe { Arc::from_raw(config) };
 
     if let Some(conf) = Arc::get_mut(&mut config) {
         func(conf);
@@ -193,7 +194,7 @@ unsafe fn with_unique_config<T, F: FnOnce(&mut T)>(config: *const T, func: F) {
     forget(config);
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_tls_client_config_new() -> Result {
     if let Ok(v) = ClientConfig::with_platform_verifier() {
         Result::ok(Arc::into_raw(Arc::new(v)) as *mut _)
@@ -202,25 +203,26 @@ pub unsafe extern "system" fn inko_tls_client_config_new() -> Result {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_tls_client_config_add_alpn(
     config: *const ClientConfig,
     name: *const u8,
     size: i64,
 ) {
     with_unique_config(config, |conf| {
-        conf.alpn_protocols
-            .push(slice::from_raw_parts(name, size as usize).to_vec());
+        conf.alpn_protocols.push(unsafe {
+            slice::from_raw_parts(name, size as usize).to_vec()
+        });
     });
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_tls_client_config_with_certificate(
     bytes: *mut u8,
     size: i64,
 ) -> Result {
     let mut store = RootCertStore::empty();
-    let bytes = slice::from_raw_parts(bytes, size as usize);
+    let bytes = unsafe { slice::from_raw_parts(bytes, size as usize) };
     let cert = CertificateDer::from(bytes.to_vec());
 
     if store.add(cert).is_err() {
@@ -236,14 +238,16 @@ pub unsafe extern "system" fn inko_tls_client_config_with_certificate(
     Result::ok(Arc::into_raw(conf) as *mut _)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_tls_client_config_drop(
     config: *const ClientConfig,
 ) {
-    drop(Arc::from_raw(config));
+    unsafe {
+        drop(Arc::from_raw(config));
+    }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_tls_client_connection_new(
     config: *const ClientConfig,
     server: PrimitiveString,
@@ -257,11 +261,13 @@ pub unsafe extern "system" fn inko_tls_client_connection_new(
         Err(_) => return Result::none(),
     };
 
-    Arc::increment_strong_count(config);
+    let config = unsafe {
+        Arc::increment_strong_count(config);
+        Arc::from_raw(config)
+    };
 
-    let config = Arc::from_raw(config);
     let con = if alpn_size > 0 {
-        let alpn = slice::from_raw_parts(alpn, alpn_size as usize)
+        let alpn = unsafe { slice::from_raw_parts(alpn, alpn_size as usize) }
             .iter()
             .map(|s| s.as_str().as_bytes().to_vec())
             .collect();
@@ -277,21 +283,23 @@ pub unsafe extern "system" fn inko_tls_client_connection_new(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_tls_client_connection_alpn(
     state: *mut ClientConnection,
 ) -> PrimitiveString {
     alpn_name(state)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_tls_client_connection_drop(
     state: *mut ClientConnection,
 ) {
-    drop(Box::from_raw(state));
+    unsafe {
+        drop(Box::from_raw(state));
+    }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_tls_server_config_new(
     chain: *mut Vec<Vec<u8>>,
     key: *mut u8,
@@ -300,9 +308,11 @@ pub unsafe extern "system" fn inko_tls_server_config_new(
     // CertificateDer/PrivateKeyDer either borrow a value or take an owned
     // value. We can't use borrows because we don't know if the Inko values
     // outlive the configuration, so we have to clone the bytes here.
-    let chain =
-        Box::from_raw(chain).into_iter().map(CertificateDer::from).collect();
-    let key = slice::from_raw_parts(key, key_size as usize).to_vec();
+    let chain = unsafe { Box::from_raw(chain) }
+        .into_iter()
+        .map(CertificateDer::from)
+        .collect();
+    let key = unsafe { slice::from_raw_parts(key, key_size as usize).to_vec() };
     let Ok(key) = PrivateKeyDer::try_from(key) else {
         return Result::error(INVALID_KEY as _);
     };
@@ -329,26 +339,29 @@ pub unsafe extern "system" fn inko_tls_server_config_new(
     Result::ok(Arc::into_raw(Arc::new(conf)) as *mut _)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_tls_server_config_add_alpn(
     config: *const ServerConfig,
     name: *const u8,
     size: i64,
 ) {
     with_unique_config(config, |conf| {
-        conf.alpn_protocols
-            .push(slice::from_raw_parts(name, size as usize).to_vec());
+        conf.alpn_protocols.push(unsafe {
+            slice::from_raw_parts(name, size as usize).to_vec()
+        });
     });
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_tls_server_config_drop(
     config: *const ServerConfig,
 ) {
-    drop(Arc::from_raw(config));
+    unsafe {
+        drop(Arc::from_raw(config));
+    }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_tls_server_connection_new(
     config: *const ServerConfig,
     socket: *mut Poll,
@@ -364,31 +377,33 @@ pub unsafe extern "system" fn inko_tls_server_connection_new(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_tls_server_connection_alpn(
     state: *mut ServerConnection,
 ) -> PrimitiveString {
     alpn_name(state)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_tls_server_connection_server_name(
     state: *mut ServerConnection,
 ) -> PrimitiveString {
-    (&*state)
+    unsafe { &*state }
         .server_name()
         .map(PrimitiveString::borrowed)
         .unwrap_or(PrimitiveString::empty())
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_tls_server_connection_drop(
     state: *mut ServerConnection,
 ) {
-    drop(Box::from_raw(state));
+    unsafe {
+        drop(Box::from_raw(state));
+    }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_tls_client_write(
     socket: *mut Poll,
     con: *mut ClientConnection,
@@ -402,16 +417,16 @@ pub unsafe extern "system" fn inko_tls_client_write(
     let buf = if size == 0 {
         &[]
     } else {
-        std::slice::from_raw_parts(buffer, size as _)
+        unsafe { std::slice::from_raw_parts(buffer, size as _) }
     };
 
-    Stream::new(&mut *con, &mut io)
+    Stream::new(unsafe { &mut *con }, &mut io)
         .write(buf)
         .map(|v| Result::ok(v as _))
         .unwrap_or_else(Result::io_error)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_tls_client_read(
     socket: *mut Poll,
     con: *mut ClientConnection,
@@ -425,16 +440,16 @@ pub unsafe extern "system" fn inko_tls_client_read(
     let buf = if size == 0 {
         &mut []
     } else {
-        slice::from_raw_parts_mut(buffer, size as usize)
+        unsafe { slice::from_raw_parts_mut(buffer, size as usize) }
     };
 
-    Stream::new(&mut *con, &mut io)
+    Stream::new(unsafe { &mut *con }, &mut io)
         .read(buf)
         .map(|v| Result::ok(v as _))
         .unwrap_or_else(Result::io_error)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_tls_client_close(
     sock: *mut Poll,
     con: *mut ClientConnection,
@@ -447,7 +462,7 @@ pub unsafe extern "system" fn inko_tls_client_close(
         .unwrap_or_else(Result::io_error)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_tls_server_write(
     socket: *mut Poll,
     con: *mut ServerConnection,
@@ -461,16 +476,16 @@ pub unsafe extern "system" fn inko_tls_server_write(
     let buf = if size == 0 {
         &[]
     } else {
-        std::slice::from_raw_parts(buffer, size as _)
+        unsafe { std::slice::from_raw_parts(buffer, size as _) }
     };
 
-    Stream::new(&mut *con, &mut io)
+    Stream::new(unsafe { &mut *con }, &mut io)
         .write(buf)
         .map(|v| Result::ok(v as _))
         .unwrap_or_else(Result::io_error)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_tls_server_read(
     socket: *mut Poll,
     con: *mut ServerConnection,
@@ -484,16 +499,16 @@ pub unsafe extern "system" fn inko_tls_server_read(
     let buf = if size == 0 {
         &mut []
     } else {
-        slice::from_raw_parts_mut(buffer, size as usize)
+        unsafe { slice::from_raw_parts_mut(buffer, size as usize) }
     };
 
-    Stream::new(&mut *con, &mut io)
+    Stream::new(unsafe { &mut *con }, &mut io)
         .read(buf)
         .map(|v| Result::ok(v as _))
         .unwrap_or_else(Result::io_error)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_tls_server_close(
     sock: *mut Poll,
     con: *mut ServerConnection,
@@ -506,7 +521,7 @@ pub unsafe extern "system" fn inko_tls_server_close(
         .unwrap_or_else(Result::io_error)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_tls_client_complete_handshake(
     socket: *mut Poll,
     con: *mut ClientConnection,
@@ -515,7 +530,7 @@ pub unsafe extern "system" fn inko_tls_client_complete_handshake(
     writer: Callback,
 ) -> Result {
     let mut io = CallbackIo { socket, reader, writer, deadline };
-    let con = &mut *con;
+    let con = unsafe { &mut *con };
 
     match con.complete_io(&mut io).map(|_| ()) {
         Ok(_) => Result::none(),
@@ -533,7 +548,7 @@ pub unsafe extern "system" fn inko_tls_client_complete_handshake(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_tls_pending_server_new(
     socket: *mut Poll,
     deadline: i64,
@@ -546,11 +561,11 @@ pub unsafe extern "system" fn inko_tls_pending_server_new(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_tls_pending_server_name(
     accepted: *mut Accepted,
 ) -> PrimitiveString {
-    let accepted = &*accepted;
+    let accepted = unsafe { &*accepted };
 
     accepted
         .client_hello()
@@ -559,7 +574,7 @@ pub unsafe extern "system" fn inko_tls_pending_server_name(
         .unwrap_or(PrimitiveString::empty())
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_tls_pending_server_into_server_connection(
     accepted: *mut Accepted,
     config: *const ServerConfig,
@@ -568,30 +583,34 @@ pub unsafe extern "system" fn inko_tls_pending_server_into_server_connection(
     reader: Callback,
     writer: Callback,
 ) -> Result {
-    let acc = Box::from_raw(accepted);
+    let acc = unsafe { Box::from_raw(accepted) };
 
     accepted_into_connection(*acc, config, socket, deadline, reader, writer)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_tls_pending_server_drop(
     accepted: *mut Accepted,
 ) {
-    drop(Box::from_raw(accepted));
+    unsafe {
+        drop(Box::from_raw(accepted));
+    }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_tls_cert_chain_new() -> *mut Vec<Vec<u8>> {
     Box::into_raw(Box::new(Vec::new()))
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_tls_cert_chain_push(
     chain: *mut Vec<Vec<u8>>,
     bytes: *mut u8,
     size: i64,
 ) {
-    let slice = slice::from_raw_parts(bytes, size as usize).to_vec();
+    unsafe {
+        let slice = slice::from_raw_parts(bytes, size as usize).to_vec();
 
-    (&mut *chain).push(slice.to_vec());
+        (&mut *chain).push(slice.to_vec());
+    }
 }

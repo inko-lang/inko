@@ -2,13 +2,13 @@
 use crate::config::{Config, Opt, SOURCE, TESTS};
 use crate::diagnostics::Diagnostics;
 use crate::incremental::DependencyGraph;
-use crate::pkg::manifest::{Manifest, MANIFEST_FILE};
+use crate::pkg::manifest::{MANIFEST_FILE, Manifest};
 use crate::target::{OperatingSystem, Target};
 use indexmap::IndexSet;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use types::module_name::ModuleName;
 use types::Database;
+use types::module_name::ModuleName;
 
 pub(crate) struct BuildTags {
     values: HashSet<String>,

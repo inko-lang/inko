@@ -3,7 +3,7 @@ use crate::llvm::method_hasher::MethodHasher;
 use crate::mir::Mir;
 use crate::symbol_names::format_types;
 use std::cmp::max;
-use types::{Database, MethodId, TypeRef, CALL_METHOD, DROPPER_METHOD};
+use types::{CALL_METHOD, DROPPER_METHOD, Database, MethodId, TypeRef};
 
 /// Method table sizes are multiplied by this value in an attempt to reduce the
 /// amount of collisions when performing dynamic dispatch.

@@ -19,9 +19,10 @@ use crate::mir::{
     RegisterId,
 };
 use crate::state::State;
-use crate::symbol_names::{SymbolNames, STACK_MASK_GLOBAL, STATE_GLOBAL};
+use crate::symbol_names::{STACK_MASK_GLOBAL, STATE_GLOBAL, SymbolNames};
 use crate::target::Architecture;
-use blake3::{hash, Hasher};
+use blake3::{Hasher, hash};
+use inkwell::OptimizationLevel;
 use inkwell::attributes::AttributeLoc;
 use inkwell::basic_block::BasicBlock;
 use inkwell::debug_info::AsDIScope as _;
@@ -36,7 +37,6 @@ use inkwell::values::{
     ArrayValue, BasicMetadataValueEnum, BasicValue, BasicValueEnum, FloatValue,
     FunctionValue, IntValue, PointerValue,
 };
-use inkwell::OptimizationLevel;
 use std::collections::HashMap;
 use std::fs::{create_dir_all, read, write};
 use std::path::Path;

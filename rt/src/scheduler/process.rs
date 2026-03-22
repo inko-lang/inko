@@ -12,9 +12,9 @@ use std::collections::VecDeque;
 use std::mem::swap;
 use std::ops::Drop;
 use std::ptr::null_mut;
-use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
 use std::sync::{Condvar, Mutex};
-use std::thread::{sleep, Builder as ThreadBuilder};
+use std::thread::{Builder as ThreadBuilder, sleep};
 use std::time::{Duration, Instant};
 
 /// The ID of the main thread.
@@ -1053,11 +1053,13 @@ mod tests {
     use std::thread::{scope, sleep};
 
     unsafe extern "system" fn method(data: *mut u8) {
-        let mut proc = ProcessPointer::new(data as _);
+        unsafe {
+            let mut proc = ProcessPointer::new(data as _);
 
-        proc.thread().action = Action::Terminate;
-        proc.thread().pool.terminate();
-        context::switch(proc);
+            proc.thread().action = Action::Terminate;
+            proc.thread().pool.terminate();
+            context::switch(proc);
+        }
     }
 
     #[test]
@@ -1396,12 +1398,20 @@ mod tests {
     fn test_atomic_monitor_status_compare_exchange() {
         let status = AtomicMonitorStatus::new();
 
-        assert!(status
-            .compare_exchange(MonitorStatus::Normal, MonitorStatus::Sleeping));
+        assert!(
+            status.compare_exchange(
+                MonitorStatus::Normal,
+                MonitorStatus::Sleeping
+            )
+        );
         assert_eq!(status.load(), MonitorStatus::Sleeping);
 
-        assert!(!status
-            .compare_exchange(MonitorStatus::Normal, MonitorStatus::Notified));
+        assert!(
+            !status.compare_exchange(
+                MonitorStatus::Normal,
+                MonitorStatus::Notified
+            )
+        );
         assert_eq!(status.load(), MonitorStatus::Sleeping);
     }
 }

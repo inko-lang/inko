@@ -2,7 +2,7 @@ use crate::error::Error;
 use crate::options::print_usage;
 use compiler::pkg::git::Repository;
 use compiler::pkg::manifest::{
-    Checksum, Dependency, Manifest, Url, MANIFEST_FILE,
+    Checksum, Dependency, MANIFEST_FILE, Manifest, Url,
 };
 use compiler::pkg::util::data_dir;
 use compiler::pkg::version::Version;
@@ -110,11 +110,7 @@ fn version_candidates(
         .filter_map(|v| Version::parse(&v[1..]))
         .filter(
             |v| {
-                if major {
-                    true
-                } else {
-                    v.major == dependency.version.major
-                }
+                if major { true } else { v.major == dependency.version.major }
             },
         )
         .collect()

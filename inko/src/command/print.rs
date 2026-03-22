@@ -1,6 +1,6 @@
 use crate::error::Error;
 use crate::options::print_usage;
-use compiler::config::{local_runtimes_directory, Config};
+use compiler::config::{Config, local_runtimes_directory};
 use compiler::target::Target;
 use getopts::Options;
 

@@ -1,7 +1,7 @@
 max_width = 80
 use_try_shorthand = true
 reorder_imports = true
-edition = "2021"
+edition = "2024"
 
 # The default setting results in too aggressive/clunky wrapping for a lot of
 # code. For example, this:

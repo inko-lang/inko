@@ -4,7 +4,7 @@ pub struct CheckedIntResult {
     pub tag: u8,
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_int_checked_pow(
     left: i64,
     right: i64,
@@ -16,7 +16,7 @@ pub unsafe extern "system" fn inko_int_checked_pow(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_int_wrapping_pow(
     left: i64,
     right: i64,

@@ -1,8 +1,8 @@
 use crate::result::error_to_int;
-use libc::{sysconf, _SC_PAGESIZE};
-use std::alloc::{alloc, handle_alloc_error, Layout};
-use std::ffi::c_char;
+use libc::{_SC_PAGESIZE, sysconf};
+use std::alloc::{Layout, alloc, handle_alloc_error};
 use std::ffi::CStr;
+use std::ffi::c_char;
 use std::io;
 use std::mem::{align_of, forget};
 use std::ops::Deref;
@@ -31,7 +31,7 @@ pub(crate) fn allocate(layout: Layout) -> *mut u8 {
 }
 
 pub(crate) unsafe fn header_of<'a, T>(ptr: *const T) -> &'a mut Header {
-    &mut *(ptr as *mut Header)
+    unsafe { &mut *(ptr as *mut Header) }
 }
 
 /// The header used by heap allocated objects.
@@ -119,17 +119,21 @@ pub struct Type {
 }
 
 impl Type {
-    pub(crate) unsafe fn instance_layout(&self) -> Layout {
-        Layout::from_size_align_unchecked(
-            self.instance_size as usize,
-            ALIGNMENT,
-        )
+    pub(crate) fn instance_layout(&self) -> Layout {
+        unsafe {
+            Layout::from_size_align_unchecked(
+                self.instance_size as usize,
+                ALIGNMENT,
+            )
+        }
     }
 
-    pub(crate) unsafe fn name(&self) -> &str {
-        CStr::from_ptr(self.name)
-            .to_str()
-            .expect("type names must be valid UTF-8")
+    pub(crate) fn name(&self) -> &str {
+        unsafe {
+            CStr::from_ptr(self.name)
+                .to_str()
+                .expect("type names must be valid UTF-8")
+        }
     }
 }
 

@@ -1886,41 +1886,41 @@ impl Parser {
             TokenKind::Assign => return self.assign_field(start),
             TokenKind::Replace => return self.replace_field(start),
             TokenKind::AddAssign => {
-                return self.binary_assign_field(start, OperatorKind::Add)
+                return self.binary_assign_field(start, OperatorKind::Add);
             }
             TokenKind::SubAssign => {
-                return self.binary_assign_field(start, OperatorKind::Sub)
+                return self.binary_assign_field(start, OperatorKind::Sub);
             }
             TokenKind::DivAssign => {
-                return self.binary_assign_field(start, OperatorKind::Div)
+                return self.binary_assign_field(start, OperatorKind::Div);
             }
             TokenKind::MulAssign => {
-                return self.binary_assign_field(start, OperatorKind::Mul)
+                return self.binary_assign_field(start, OperatorKind::Mul);
             }
             TokenKind::PowAssign => {
-                return self.binary_assign_field(start, OperatorKind::Pow)
+                return self.binary_assign_field(start, OperatorKind::Pow);
             }
             TokenKind::ModAssign => {
-                return self.binary_assign_field(start, OperatorKind::Mod)
+                return self.binary_assign_field(start, OperatorKind::Mod);
             }
             TokenKind::ShlAssign => {
-                return self.binary_assign_field(start, OperatorKind::Shl)
+                return self.binary_assign_field(start, OperatorKind::Shl);
             }
             TokenKind::ShrAssign => {
-                return self.binary_assign_field(start, OperatorKind::Shr)
+                return self.binary_assign_field(start, OperatorKind::Shr);
             }
             TokenKind::UnsignedShrAssign => {
                 return self
-                    .binary_assign_field(start, OperatorKind::UnsignedShr)
+                    .binary_assign_field(start, OperatorKind::UnsignedShr);
             }
             TokenKind::BitOrAssign => {
-                return self.binary_assign_field(start, OperatorKind::BitOr)
+                return self.binary_assign_field(start, OperatorKind::BitOr);
             }
             TokenKind::BitAndAssign => {
-                return self.binary_assign_field(start, OperatorKind::BitAnd)
+                return self.binary_assign_field(start, OperatorKind::BitAnd);
             }
             TokenKind::BitXorAssign => {
-                return self.binary_assign_field(start, OperatorKind::BitXor)
+                return self.binary_assign_field(start, OperatorKind::BitXor);
             }
             _ => {}
         }
@@ -1943,25 +1943,25 @@ impl Parser {
             TokenKind::Assign => return self.assign_variable(start),
             TokenKind::Replace => return self.replace_variable(start),
             TokenKind::AddAssign => {
-                return self.binary_assign_variable(start, OperatorKind::Add)
+                return self.binary_assign_variable(start, OperatorKind::Add);
             }
             TokenKind::SubAssign => {
-                return self.binary_assign_variable(start, OperatorKind::Sub)
+                return self.binary_assign_variable(start, OperatorKind::Sub);
             }
             TokenKind::DivAssign => {
-                return self.binary_assign_variable(start, OperatorKind::Div)
+                return self.binary_assign_variable(start, OperatorKind::Div);
             }
             TokenKind::MulAssign => {
-                return self.binary_assign_variable(start, OperatorKind::Mul)
+                return self.binary_assign_variable(start, OperatorKind::Mul);
             }
             TokenKind::PowAssign => {
-                return self.binary_assign_variable(start, OperatorKind::Pow)
+                return self.binary_assign_variable(start, OperatorKind::Pow);
             }
             TokenKind::ModAssign => {
-                return self.binary_assign_variable(start, OperatorKind::Mod)
+                return self.binary_assign_variable(start, OperatorKind::Mod);
             }
             TokenKind::ShlAssign => {
-                return self.binary_assign_variable(start, OperatorKind::Shl)
+                return self.binary_assign_variable(start, OperatorKind::Shl);
             }
             TokenKind::ShrAssign => {
                 return self.binary_assign_variable(start, OperatorKind::Shr);
@@ -1971,13 +1971,13 @@ impl Parser {
                     .binary_assign_variable(start, OperatorKind::UnsignedShr);
             }
             TokenKind::BitOrAssign => {
-                return self.binary_assign_variable(start, OperatorKind::BitOr)
+                return self.binary_assign_variable(start, OperatorKind::BitOr);
             }
             TokenKind::BitAndAssign => {
-                return self.binary_assign_variable(start, OperatorKind::BitAnd)
+                return self.binary_assign_variable(start, OperatorKind::BitAnd);
             }
             TokenKind::BitXorAssign => {
-                return self.binary_assign_variable(start, OperatorKind::BitXor)
+                return self.binary_assign_variable(start, OperatorKind::BitXor);
             }
             _ => {}
         }

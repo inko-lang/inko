@@ -6,9 +6,9 @@ use crate::symbol_names::SymbolNames;
 use inkwell::basic_block::BasicBlock;
 use inkwell::builder;
 use inkwell::debug_info::{
-    debug_metadata_version, AsDIScope, DICompileUnit, DIFlags,
-    DIFlagsConstants, DILocation, DIScope, DISubprogram, DWARFEmissionKind,
-    DWARFSourceLanguage, DebugInfoBuilder,
+    AsDIScope, DICompileUnit, DIFlags, DIFlagsConstants, DILocation, DIScope,
+    DISubprogram, DWARFEmissionKind, DWARFSourceLanguage, DebugInfoBuilder,
+    debug_metadata_version,
 };
 use inkwell::module::{FlagBehavior, Module as InkwellModule};
 use inkwell::targets::TargetData;

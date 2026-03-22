@@ -24,9 +24,9 @@ use crate::state::State;
 use std::collections::{HashMap, HashSet};
 use types::resolve::TypeResolver;
 use types::{
-    ConstructorId, Database, FieldId, TypeArguments, TypeBounds, TypeEnum,
-    TypeInstance, TypeKind, TypeRef, VariableId, ARRAY_ID, BOOL_ID,
-    BYTES_MODULE, BYTE_ARRAY_TYPE, INT_ID, SLICE_TYPE, STRING_ID,
+    ARRAY_ID, BOOL_ID, BYTE_ARRAY_TYPE, BYTES_MODULE, ConstructorId, Database,
+    FieldId, INT_ID, SLICE_TYPE, STRING_ID, TypeArguments, TypeBounds,
+    TypeEnum, TypeInstance, TypeKind, TypeRef, VariableId,
 };
 
 fn add_constructor_pattern(

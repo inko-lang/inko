@@ -17,7 +17,7 @@ env:
   IMAGE_NAME: ${{ github.repository }}
   CARGO_HOME: ${{ github.workspace }}/.cargo-home
   # We set an explicit version to only install the components we need for CI.
-  RUSTUP_TOOLCHAIN: '1.84'
+  RUSTUP_TOOLCHAIN: '1.85'
 
 jobs:
   tests:

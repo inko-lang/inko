@@ -18,7 +18,7 @@ fn imported_modules(
 
     for expr in &mut module.expressions {
         let (path, loc) = match expr {
-            TopLevelExpression::Import(ref mut node) => {
+            TopLevelExpression::Import(node) => {
                 node.include = node.tags.as_ref().is_none_or(|n| {
                     n.values.iter().all(|i| tags.is_defined(&i.name))
                 });

@@ -1,5 +1,5 @@
 use std::env;
-use std::path::{PathBuf, MAIN_SEPARATOR};
+use std::path::{MAIN_SEPARATOR, PathBuf};
 
 fn main() {
     // To make development easier we default to using repository-local paths.
@@ -42,11 +42,7 @@ fn runtime_directory() -> PathBuf {
     let without_target = base.join(&profile);
     let with_target = base.join(target).join(profile);
 
-    if with_target.is_dir() {
-        with_target
-    } else {
-        without_target
-    }
+    if with_target.is_dir() { with_target } else { without_target }
 }
 
 /// Returns the name of the profile used, taking into account custom profile

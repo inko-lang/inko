@@ -7,9 +7,9 @@ use std::path::PathBuf;
 use types::check::{Environment, TypeChecker};
 use types::format::format_type;
 use types::{
-    Block, Closure, Database, MethodId, ModuleId, Symbol, TraitId,
-    TraitInstance, TypeArguments, TypeBounds, TypeEnum, TypeId, TypeInstance,
-    TypeParameterId, TypeRef, NEVER_TYPE, SELF_TYPE,
+    Block, Closure, Database, MethodId, ModuleId, NEVER_TYPE, SELF_TYPE,
+    Symbol, TraitId, TraitInstance, TypeArguments, TypeBounds, TypeEnum,
+    TypeId, TypeInstance, TypeParameterId, TypeRef,
 };
 
 pub(crate) mod define_types;
@@ -205,9 +205,7 @@ impl<'a> DefineTypeSignature<'a> {
 
     fn define_type(&mut self, node: &mut hir::Type) -> TypeRef {
         match node {
-            hir::Type::Named(ref mut n) => {
-                self.define_type_name(n, RefKind::Default)
-            }
+            hir::Type::Named(n) => self.define_type_name(n, RefKind::Default),
             hir::Type::Ref(_) | hir::Type::Mut(_) if !self.rules.allow_refs => {
                 self.state.diagnostics.error(
                     DiagnosticId::DuplicateSymbol,
@@ -217,24 +215,16 @@ impl<'a> DefineTypeSignature<'a> {
                 );
                 TypeRef::Error
             }
-            hir::Type::Ref(ref mut n) => {
-                self.define_reference_type(n, RefKind::Ref)
-            }
-            hir::Type::Mut(ref mut n) => {
-                self.define_reference_type(n, RefKind::Mut)
-            }
-            hir::Type::Uni(ref mut n) => {
-                self.define_reference_type(n, RefKind::Uni)
-            }
-            hir::Type::Owned(ref mut n) => {
+            hir::Type::Ref(n) => self.define_reference_type(n, RefKind::Ref),
+            hir::Type::Mut(n) => self.define_reference_type(n, RefKind::Mut),
+            hir::Type::Uni(n) => self.define_reference_type(n, RefKind::Uni),
+            hir::Type::Owned(n) => {
                 self.define_reference_type(n, RefKind::Owned)
             }
-            hir::Type::Closure(ref mut n) => {
+            hir::Type::Closure(n) => {
                 self.define_closure_type(n, RefKind::Owned)
             }
-            hir::Type::Tuple(ref mut n) => {
-                self.define_tuple_type(n, RefKind::Owned)
-            }
+            hir::Type::Tuple(n) => self.define_tuple_type(n, RefKind::Owned),
         }
     }
 
@@ -726,13 +716,13 @@ impl<'a> CheckTypeSignature<'a> {
 
     pub(crate) fn check(&mut self, node: &hir::Type) {
         match node {
-            hir::Type::Named(ref n) => self.check_type_name(n),
-            hir::Type::Ref(ref n) => self.check_reference_type(n),
-            hir::Type::Uni(ref n) => self.check_reference_type(n),
-            hir::Type::Mut(ref n) => self.check_reference_type(n),
-            hir::Type::Owned(ref n) => self.check_reference_type(n),
-            hir::Type::Closure(ref n) => self.check_closure_type(n),
-            hir::Type::Tuple(ref n) => self.check_tuple_type(n),
+            hir::Type::Named(n) => self.check_type_name(n),
+            hir::Type::Ref(n) => self.check_reference_type(n),
+            hir::Type::Uni(n) => self.check_reference_type(n),
+            hir::Type::Mut(n) => self.check_reference_type(n),
+            hir::Type::Owned(n) => self.check_reference_type(n),
+            hir::Type::Closure(n) => self.check_closure_type(n),
+            hir::Type::Tuple(n) => self.check_tuple_type(n),
         }
 
         if let hir::Type::Ref(n) | hir::Type::Mut(n) | hir::Type::Uni(n) = node

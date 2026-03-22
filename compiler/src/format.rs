@@ -10,7 +10,7 @@ use ast::parser::Parser;
 use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::fs::{read, write};
-use std::io::{stdin, stdout, Error as IoError, Read as _, Write as _};
+use std::io::{Error as IoError, Read as _, Write as _, stdin, stdout};
 use std::path::PathBuf;
 use unicode_width::UnicodeWidthStr;
 
@@ -425,18 +425,18 @@ impl List {
 }
 
 struct Document {
-    gen: Generator,
+    generator: Generator,
     group_id: usize,
 }
 
 impl Document {
     fn new() -> Document {
-        Document { gen: Generator::new(), group_id: 0 }
+        Document { generator: Generator::new(), group_id: 0 }
     }
 
     fn format(mut self, ast: nodes::Module) -> String {
         self.top_level(&ast);
-        self.gen.buf
+        self.generator.buf
     }
 
     fn top_level(&mut self, ast: &nodes::Module) {
@@ -458,7 +458,7 @@ impl Document {
                     self.imports(imports);
 
                     if iter.peek().is_some() {
-                        self.gen.new_line();
+                        self.generator.new_line();
                     }
                 }
                 TopLevelExpression::ExternImport(n) => {
@@ -474,7 +474,7 @@ impl Document {
                     self.extern_imports(imports);
 
                     if iter.peek().is_some() {
-                        self.gen.new_line();
+                        self.generator.new_line();
                     }
                 }
                 TopLevelExpression::Comment(c) => {
@@ -488,7 +488,7 @@ impl Document {
                     if let Some(node) = iter.peek() {
                         if node.location().line_start - c.location.line_end > 1
                         {
-                            self.gen.new_line();
+                            self.generator.new_line();
                         }
                     }
                 }
@@ -499,61 +499,61 @@ impl Document {
                         Some(TopLevelExpression::Comment(c))
                             if c.location.is_trailing(&n.location) =>
                         {
-                            self.gen.single_space();
+                            self.generator.single_space();
                         }
                         Some(TopLevelExpression::DefineConstant(node))
                             if node.location().line_start
                                 - n.location.line_end
                                 > 1 =>
                         {
-                            self.gen.new_line();
-                            self.gen.new_line();
+                            self.generator.new_line();
+                            self.generator.new_line();
                         }
                         Some(TopLevelExpression::DefineConstant(_)) | None => {
-                            self.gen.new_line();
+                            self.generator.new_line();
                         }
                         Some(_) => {
-                            self.gen.new_line();
-                            self.gen.new_line();
+                            self.generator.new_line();
+                            self.generator.new_line();
                         }
                     }
                 }
                 TopLevelExpression::DefineMethod(n) => {
                     let node = self.define_method(n);
 
-                    self.gen.generate(node);
-                    self.gen.new_line();
+                    self.generator.generate(node);
+                    self.generator.new_line();
 
                     if iter.peek().is_some() {
-                        self.gen.new_line();
+                        self.generator.new_line();
                     }
                 }
                 TopLevelExpression::DefineType(n) => {
                     self.define_type(n);
 
                     if iter.peek().is_some() {
-                        self.gen.new_line();
+                        self.generator.new_line();
                     }
                 }
                 TopLevelExpression::DefineTrait(n) => {
                     self.define_trait(n);
 
                     if iter.peek().is_some() {
-                        self.gen.new_line();
+                        self.generator.new_line();
                     }
                 }
                 TopLevelExpression::ReopenType(n) => {
                     self.reopen_type(n);
 
                     if iter.peek().is_some() {
-                        self.gen.new_line();
+                        self.generator.new_line();
                     }
                 }
                 TopLevelExpression::ImplementTrait(n) => {
                     self.implement_trait(n);
 
                     if iter.peek().is_some() {
-                        self.gen.new_line();
+                        self.generator.new_line();
                     }
                 }
             }
@@ -680,8 +680,8 @@ impl Document {
                 nodes.push(Node::WrapIf(syms_id, Box::new(self.group(group))));
             }
 
-            self.gen.generate(Node::Nodes(nodes));
-            self.gen.new_line();
+            self.generator.generate(Node::Nodes(nodes));
+            self.generator.new_line();
         }
     }
 
@@ -695,16 +695,16 @@ impl Document {
                 Node::unicode(path),
             ]);
 
-            self.gen.generate(node);
-            self.gen.new_line();
+            self.generator.generate(node);
+            self.generator.new_line();
         }
     }
 
     fn top_level_comment(&mut self, node: &nodes::Comment) {
         let group = self.comment(node);
 
-        self.gen.generate(group);
-        self.gen.new_line();
+        self.generator.generate(group);
+        self.generator.new_line();
     }
 
     fn comment(&mut self, node: &nodes::Comment) -> Node {
@@ -729,7 +729,7 @@ impl Document {
             val,
         ]);
 
-        self.gen.generate(nodes);
+        self.generator.generate(nodes);
     }
 
     fn define_type(&mut self, node: &nodes::DefineType) {
@@ -827,8 +827,8 @@ impl Document {
             Node::WrapIf(header_id, Box::new(self.group(body))),
         ];
 
-        self.gen.generate(Node::Nodes(typ));
-        self.gen.new_line();
+        self.generator.generate(Node::Nodes(typ));
+        self.generator.new_line();
     }
 
     fn define_trait(&mut self, node: &nodes::DefineTrait) {
@@ -927,8 +927,8 @@ impl Document {
             Node::WrapIf(header_id, Box::new(self.group(body))),
         ];
 
-        self.gen.generate(Node::Nodes(group));
-        self.gen.new_line();
+        self.generator.generate(Node::Nodes(group));
+        self.generator.new_line();
     }
 
     fn reopen_type(&mut self, node: &nodes::ReopenType) {
@@ -949,8 +949,8 @@ impl Document {
             Node::WrapIf(header_id, Box::new(self.group(body))),
         ];
 
-        self.gen.generate(Node::Nodes(group));
-        self.gen.new_line();
+        self.generator.generate(Node::Nodes(group));
+        self.generator.new_line();
     }
 
     fn implement_trait(&mut self, node: &nodes::ImplementTrait) {
@@ -977,8 +977,8 @@ impl Document {
             Node::WrapIf(header_id, Box::new(self.group(body))),
         ];
 
-        self.gen.generate(Node::Nodes(group));
-        self.gen.new_line();
+        self.generator.generate(Node::Nodes(group));
+        self.generator.new_line();
     }
 
     fn type_bounds(&mut self, node: &nodes::TypeBounds) -> Node {
@@ -2606,11 +2606,7 @@ impl Wrap {
     }
 
     fn enable(self) -> Wrap {
-        if let Wrap::Disable = self {
-            Wrap::Disable
-        } else {
-            Wrap::Enable
-        }
+        if let Wrap::Disable = self { Wrap::Disable } else { Wrap::Enable }
     }
 
     fn detect(self) -> Wrap {

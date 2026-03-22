@@ -4,7 +4,7 @@ resolver = "2"
 
 [workspace.package]
 version = "0.19.1" # VERSION
-rust-version = "1.84"
+rust-version = "1.85"
 
 [profile.release]
 panic = "abort"
