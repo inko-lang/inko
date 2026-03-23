@@ -1974,10 +1974,12 @@ impl Parser {
                 return self.binary_assign_variable(start, OperatorKind::BitOr);
             }
             TokenKind::BitAndAssign => {
-                return self.binary_assign_variable(start, OperatorKind::BitAnd);
+                return self
+                    .binary_assign_variable(start, OperatorKind::BitAnd);
             }
             TokenKind::BitXorAssign => {
-                return self.binary_assign_variable(start, OperatorKind::BitXor);
+                return self
+                    .binary_assign_variable(start, OperatorKind::BitXor);
             }
             _ => {}
         }
