@@ -4263,6 +4263,18 @@ impl<'a> LowerMethod<'a> {
     ) -> RegisterId {
         let ins_loc = InstructionLocation::new(location);
 
+        if register == self.self_register
+            && self.method.id.pass_self_as_pointer(self.db())
+        {
+            // In this case `self` is a pointer so we need to special-case it so
+            // we don't just pass it as-is.
+            let reg = self.new_register(register_type);
+
+            self.current_block_mut().borrow(reg, register, ins_loc);
+            self.mark_register_as_moved(reg);
+            return reg;
+        }
+
         if register_type.is_copy_type(self.db()) {
             return register;
         }
@@ -4770,7 +4782,12 @@ impl<'a> LowerMethod<'a> {
         self.add_register(RegisterKind::Field(id), value_type)
     }
 
-    fn new_self(&mut self, value_type: TypeRef) -> RegisterId {
+    fn new_self(&mut self, mut value_type: TypeRef) -> RegisterId {
+        if self.method.id.pass_self_as_pointer(self.db()) {
+            value_type =
+                TypeRef::pointer(value_type.as_type_enum(self.db()).unwrap());
+        }
+
         let id = self.add_register(RegisterKind::SelfObject, value_type);
 
         self.scope.created.push(id);

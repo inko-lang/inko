@@ -126,12 +126,19 @@ impl<'ctx> Method<'ctx> {
             Vec::new()
         };
 
-        for &typ in method
-            .is_instance(db)
-            .then(|| method.receiver(db))
-            .iter()
-            .chain(method.argument_types(db))
-        {
+        if method.is_instance(db) {
+            let arg = if method.pass_self_as_pointer(db) {
+                ArgumentType::Regular(
+                    context.pointer_type().as_basic_type_enum(),
+                )
+            } else {
+                context.argument_type(state, layouts, method.receiver(db))
+            };
+
+            args.push(arg);
+        }
+
+        for &typ in method.argument_types(db) {
             args.push(context.argument_type(state, layouts, typ));
         }
 

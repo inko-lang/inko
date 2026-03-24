@@ -2363,7 +2363,7 @@ impl TypeId {
         match obj.kind {
             TypeKind::Extern => true,
             _ => match obj.storage {
-                Storage::Heap => true,
+                Storage::Heap | Storage::Inline => true,
                 Storage::Atomic => false,
                 _ => owned,
             },
@@ -3536,6 +3536,15 @@ impl MethodId {
 
     pub fn inline(self, db: &Database) -> Inline {
         self.get(db).inline
+    }
+
+    pub fn pass_self_as_pointer(self, db: &Database) -> bool {
+        let m = self.get(db);
+
+        matches!(
+            m.kind,
+            MethodKind::Instance | MethodKind::Mutable | MethodKind::Destructor
+        ) && m.receiver.type_id(db).is_some_and(|v| v.is_inline_type(db))
     }
 
     fn get(self, db: &Database) -> &Method {

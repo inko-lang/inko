@@ -1,7 +1,7 @@
 use crate::mir::{
     Block, BlockId, Borrow, CallDynamic, CallInstance, CastType, Constant,
-    Drop, Instruction, InstructionLocation, Method, Mir, RegisterId,
-    Type as MirType,
+    Drop, Instruction, InstructionLocation, Method, Mir, Pointer, RegisterId,
+    SELF_ID, Type as MirType,
 };
 use crate::state::State;
 use indexmap::{IndexMap, IndexSet};
@@ -317,6 +317,21 @@ impl<'a, 'b> Specialize<'a, 'b> {
             .specialize(reg.value_type);
         }
 
+        // If `self` is passed by pointer we have to update the register
+        // type accordingly. We don't need to worry about `self` when used
+        // inside another type as in those cases the value stored is the
+        // result of reading the pointer and not the pointer itself.
+        let self_reg = RegisterId(SELF_ID);
+        let self_typ = method.registers.value_type(self_reg);
+
+        if method.id.pass_self_as_pointer(&self.state.db)
+            && !self_typ.is_pointer(&self.state.db)
+        {
+            method.registers.get_mut(self_reg).value_type = TypeRef::pointer(
+                self_typ.as_type_enum(&self.state.db).unwrap(),
+            );
+        }
+
         for block in &mut method.body.blocks {
             for instruction in &mut block.instructions {
                 match instruction {
@@ -484,8 +499,10 @@ impl<'a, 'b> Specialize<'a, 'b> {
     fn expand_instructions(&mut self, mir: &mut Mir) {
         let method = mir.methods.get_mut(&self.method).unwrap();
 
+        InlineFieldPointer { db: &self.state.db, method }.run();
         ExpandDrop { db: &self.state.db, method }.run();
         ExpandBorrow { db: &self.state.db, method }.run();
+        CallByReference { db: &self.state.db, method }.run();
     }
 
     fn process_specialized_types(&mut self, mir: &mut Mir) {
@@ -1303,19 +1320,21 @@ impl<'a> ExpandBorrow<'a> {
         match typ.shape(self.db) {
             Shape::Copy => {
                 // These values should be left as-is.
+                self.block_mut(block_id).move_register(reg, val, loc);
             }
             Shape::Borrow | Shape::Owned => {
                 self.block_mut(block_id).increment(val, loc);
+                self.block_mut(block_id).move_register(reg, val, loc);
             }
             Shape::Atomic => {
                 self.block_mut(block_id).increment_atomic(val, loc);
+                self.block_mut(block_id).move_register(reg, val, loc);
             }
             Shape::Inline | Shape::InlineBorrow => {
-                self.borrow_inline_type(block_id, val, loc);
+                self.borrow_inline_type(block_id, reg, val, loc);
             }
         }
 
-        self.block_mut(block_id).move_register(reg, val, loc);
         self.block_mut(block_id).goto(after_id, loc);
         self.method.body.add_edge(block_id, after_id);
     }
@@ -1327,23 +1346,156 @@ impl<'a> ExpandBorrow<'a> {
     fn borrow_inline_type(
         &mut self,
         block: BlockId,
+        register: RegisterId,
         value: RegisterId,
         location: InstructionLocation,
     ) {
-        let instance = self
-            .method
-            .registers
-            .value_type(value)
-            .as_type_instance(self.db)
-            .unwrap();
-        let reg = self.method.registers.alloc(TypeRef::nil());
-        let method = instance
-            .instance_of()
-            .method(self.db, types::INCREMENT_METHOD)
-            .unwrap();
+        let rtype = self.method.registers.value_type(register);
+        let vtype = self.method.registers.value_type(value);
+        let ins = vtype.as_type_instance(self.db).unwrap();
+        let nil = self.method.registers.alloc(TypeRef::nil());
+        let meth =
+            ins.instance_of().method(self.db, types::INCREMENT_METHOD).unwrap();
         let args = Vec::new();
 
+        // When borrowing `self` in an `fn` or `fn mut` method we need to act
+        // on a copy of it.
+        let rec = if register.0 == SELF_ID && vtype.is_pointer(self.db) {
+            let copy = self.method.registers.alloc(rtype);
+
+            self.block_mut(block).read_pointer(copy, value, location);
+            copy
+        } else {
+            value
+        };
+
         self.block_mut(block)
-            .call_instance(reg, value, method, args, None, location);
+            .call_instance(nil, rec, meth, args, None, location);
+        self.block_mut(block).move_register(register, rec, location);
+    }
+}
+
+/// A pass that updates instance calls to pass the receiver by reference if
+/// necessary.
+///
+/// This is used when calling `fn` and `fn mut` methods with an `inline` type as
+/// the receiver, allowing for in-place updates and less copying of stack data
+/// (though this shouldn't matter much depending on how LLVM optimizes the
+/// code).
+struct CallByReference<'a> {
+    db: &'a types::Database,
+    method: &'a mut Method,
+}
+
+impl<'a> CallByReference<'a> {
+    fn run(mut self) {
+        for bid in 0..self.method.body.blocks.len() {
+            for iid in 0..self.method.body.blocks[bid].instructions.len() {
+                match &self.method.body.blocks[bid].instructions[iid] {
+                    Instruction::CallInstance(i)
+                        if i.method.pass_self_as_pointer(self.db) => {}
+                    _ => continue,
+                }
+
+                self.update(bid, iid);
+            }
+        }
+    }
+
+    fn update(&mut self, block_id: usize, instruction_id: usize) {
+        let Instruction::CallInstance(ins) =
+            &mut self.method.body.blocks[block_id].instructions[instruction_id]
+        else {
+            unreachable!()
+        };
+
+        let rec = ins.receiver;
+        let rec_typ = self.method.registers.value_type(rec);
+
+        // If the receiver is already a pointer we pass it as-is, otherwise weId
+        // create a pointer-pointer which is not what we want.
+        if rec_typ.is_pointer(self.db) {
+            return;
+        }
+
+        let typ = TypeRef::pointer(rec_typ.as_type_enum(self.db).unwrap());
+        let ptr = self.method.registers.alloc(typ);
+        let loc = ins.location;
+
+        ins.receiver = ptr;
+        self.method.body.blocks[block_id].instructions.insert(
+            instruction_id,
+            Instruction::Pointer(Box::new(Pointer {
+                register: ptr,
+                value: rec,
+                location: loc,
+            })),
+        );
+    }
+}
+
+/// A pass that rewrites GetField instructions into FieldPointer instructions if
+/// the field stores an inline type that can't be assigned a new value.
+struct InlineFieldPointer<'a> {
+    db: &'a types::Database,
+    method: &'a mut Method,
+}
+
+impl<'a> InlineFieldPointer<'a> {
+    fn run(mut self) {
+        for bid in 0..self.method.body.blocks.len() {
+            for iid in 0..self.method.body.blocks[bid].instructions.len() {
+                let Instruction::GetField(ins) =
+                    &mut self.method.body.blocks[bid].instructions[iid]
+                else {
+                    continue;
+                };
+
+                if !ins.field.is_mutable(self.db)
+                    && ins
+                        .field
+                        .value_type(self.db)
+                        .type_id(self.db)
+                        .is_some_and(|v| v.is_inline_type(self.db))
+                {
+                    // TODO: the target register type should now be a pointer
+                    // but changing that also requires updating any registers it
+                    // may be assigned to.
+                }
+
+                self.update(bid, iid);
+            }
+        }
+    }
+
+    fn update(&mut self, block_id: usize, instruction_id: usize) {
+        let Instruction::CallInstance(ins) =
+            &mut self.method.body.blocks[block_id].instructions[instruction_id]
+        else {
+            unreachable!()
+        };
+
+        let rec = ins.receiver;
+        let rec_typ = self.method.registers.value_type(rec);
+
+        // If the receiver is already a pointer we pass it as-is, otherwise weId
+        // create a pointer-pointer which is not what we want.
+        if rec_typ.is_pointer(self.db) {
+            return;
+        }
+
+        let typ = TypeRef::pointer(rec_typ.as_type_enum(self.db).unwrap());
+        let ptr = self.method.registers.alloc(typ);
+        let loc = ins.location;
+
+        ins.receiver = ptr;
+        self.method.body.blocks[block_id].instructions.insert(
+            instruction_id,
+            Instruction::Pointer(Box::new(Pointer {
+                register: ptr,
+                value: rec,
+                location: loc,
+            })),
+        );
     }
 }
