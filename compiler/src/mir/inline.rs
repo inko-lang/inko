@@ -452,7 +452,7 @@ struct InlineNode {
     /// An integer used to prevent tracking duplicate callees.
     ///
     /// This value has no meaning once the graph is built.
-    epoch: u32,
+    epoch: Option<u32>,
 
     /// A boolean indicating the method returns a value or not.
     returns: bool,
@@ -488,7 +488,7 @@ impl InlineGraph {
                 calls: 0,
                 recursive: false,
                 callees: Vec::new(),
-                epoch: 0,
+                epoch: None,
                 returns: m.id.returns_value(db),
             })
             .collect();
@@ -524,10 +524,10 @@ impl InlineGraph {
                     // count we _do_ track duplicates, but that's OK because the
                     // graph routines can handle that; we're just trying to
                     // reduce the amount of work.
-                    if data.epoch == epoch {
+                    if data.epoch == Some(epoch) {
                         continue;
                     } else {
-                        data.epoch = epoch;
+                        data.epoch = Some(epoch);
                     }
 
                     // Tarjan's algorithm doesn't handle self recursive nodes,
@@ -564,7 +564,7 @@ impl InlineGraph {
     /// "Verification of an iterative implementation of Tarjan’s algorithm for
     /// Strongly Connected Components using Dafny" found at
     /// <https://research.tue.nl/en/studentTheses/verification-of-an-iterative-implementation-of-tarjans-algorithm->.
-    fn strongly_connected_components(&mut self) -> Vec<usize> {
+    fn strongly_connected_components(&mut self) -> Vec<Vec<usize>> {
         let size = self.nodes.len();
         let mut result = Vec::new();
         let mut stack = Vec::new();
@@ -614,7 +614,7 @@ impl InlineGraph {
 
                 if low[node] == ids[node] {
                     let mut rec = true;
-                    let mut rec_nodes = Vec::new();
+                    let mut scc = Vec::new();
 
                     while let Some(connected) = stack.pop() {
                         on_stack[connected] = false;
@@ -624,7 +624,7 @@ impl InlineGraph {
                         // by the program terminating.
                         //
                         // An example of where this is important is `Int`: when
-                        // operators ovewflor, they call a method to present the
+                        // operators overflow, they call a method to present the
                         // error and passes the LHS and RHS of the operation.
                         // These values are then formatted to a String, which
                         // may result in the code recursing back into the
@@ -637,20 +637,23 @@ impl InlineGraph {
                             rec = false;
                         }
 
-                        if rec_nodes.is_empty() {
-                            result.push(connected);
-                        }
+                        scc.push(connected);
 
                         if connected == node {
                             break;
                         }
-
-                        rec_nodes.push(connected);
                     }
 
-                    for node in rec_nodes {
-                        self.nodes[node].recursive = rec;
+                    // If there is more than one component it means there's a
+                    // recursive call. In this case the last component is where
+                    // the recursion starts. We only flag this tail node as
+                    // recursive so its callees may still be inlined, provided
+                    // those aren't recursive themselves of course.
+                    if scc.len() > 1 {
+                        self.nodes[*scc.last().unwrap()].recursive = rec;
                     }
+
+                    result.push(scc);
                 }
 
                 if let Some((last, _)) = work.last().cloned() {
@@ -719,22 +722,24 @@ impl<'a, 'b, 'c> InlineMethod<'a, 'b, 'c> {
         //    same.
         // 2. We process methods bottom-up, reducing the amount of redundant
         //    inlining work.
-        for index in comps {
-            let module = mir.methods[index].id.source_module(&state.db);
-            let dep_id = state
-                .dependency_graph
-                .module_id(module.name(&state.db))
-                .unwrap();
+        for scc in comps {
+            for index in scc {
+                let module = mir.methods[index].id.source_module(&state.db);
+                let dep_id = state
+                    .dependency_graph
+                    .module_id(module.name(&state.db))
+                    .unwrap();
 
-            InlineMethod {
-                state,
-                mir,
-                method: index,
-                dependency_id: dep_id,
-                module,
-                graph: &mut graph,
+                InlineMethod {
+                    state,
+                    mir,
+                    method: index,
+                    dependency_id: dep_id,
+                    module,
+                    graph: &mut graph,
+                }
+                .run();
             }
-            .run();
         }
     }
 
