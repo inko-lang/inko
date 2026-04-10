@@ -251,6 +251,19 @@ pub(crate) fn link(
         {
             cmd.arg(unwind);
         }
+
+    }
+
+    // When using Zig as the linker for GNU Linux targets, Zig's bundled
+    // glibc doesn't include libgcc_s which normally provides the
+    // _Unwind_* symbols. We instead link Zig's bundled libunwind.
+    // This applies to both native and cross-compilation, as Zig's
+    // sysroot is used in either case.
+    if state.config.linker.is_zig()
+        && state.config.target.os.is_linux()
+        && !state.config.target.abi.is_musl()
+    {
+        cmd.arg("-lunwind");
     }
 
     // Include any extra platform specific libraries, such as libm on the
