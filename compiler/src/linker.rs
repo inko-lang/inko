@@ -253,6 +253,15 @@ pub(crate) fn link(
         }
     }
 
+    // `zig cc` targeting Linux GNU targets doesn't include symbols `_Unwind_*`
+    // unless we explicitly link to `libunwind`.
+    if state.config.linker.is_zig()
+        && state.config.target.os.is_linux()
+        && !state.config.target.abi.is_musl()
+    {
+        cmd.arg("-lunwind");
+    }
+
     // Include any extra platform specific libraries, such as libm on the
     // various Unix platforms. These must come _after_ any object files and
     // the runtime library path.
@@ -338,7 +347,9 @@ pub(crate) fn link(
         // "closing" `-Bdynamic` also affects any linker flags that come after
         // it, which can prevent us from static linking against e.g. libc for
         // musl targets.
-        let flag = if static_linking {
+        let flag = if static_linking
+            && state.config.linker.supports_static_lib_flag()
+        {
             format!("-l:lib{}.a", lib)
         } else {
             format!("-l{}", lib)

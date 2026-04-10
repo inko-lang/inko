@@ -196,6 +196,10 @@ impl Linker {
     pub(crate) fn is_zig(&self) -> bool {
         matches!(self, Linker::Zig)
     }
+
+    pub(crate) fn supports_static_lib_flag(&self) -> bool {
+        !self.is_zig()
+    }
 }
 
 /// A type for storing compiler configuration, such as the source directories to
@@ -371,5 +375,26 @@ impl Default for Config {
 
         cfg.add_default_source_directories();
         cfg
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_linker_is_zig() {
+        assert!(Linker::Zig.is_zig());
+        assert!(!Linker::Mold.is_zig());
+    }
+
+    #[test]
+    fn test_linker_supports_static_lib_flag() {
+        assert!(Linker::Detect.supports_static_lib_flag());
+        assert!(Linker::System.supports_static_lib_flag());
+        assert!(Linker::Lld.supports_static_lib_flag());
+        assert!(Linker::Mold.supports_static_lib_flag());
+        assert!(Linker::Custom("foo".to_string()).supports_static_lib_flag());
+        assert!(!Linker::Zig.supports_static_lib_flag());
     }
 }
