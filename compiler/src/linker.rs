@@ -338,7 +338,15 @@ pub(crate) fn link(
         // "closing" `-Bdynamic` also affects any linker flags that come after
         // it, which can prevent us from static linking against e.g. libc for
         // musl targets.
-        let flag = if static_linking {
+        //
+        // The `-l:libX.a` syntax (note the colon) is a GNU ld/ld.lld extension
+        // that tells the linker to search for a file literally named
+        // `libX.a`. Zig's cc wrapper doesn't properly forward `-L` search
+        // paths to its internal linker for this syntax, so we fall back to
+        // `-lX` when using Zig. This still links the static library because
+        // `-L` search paths work correctly with `-lX`, and for
+        // cross-compilation there's unlikely to be a `.so` alongside the `.a`.
+        let flag = if static_linking && !state.config.linker.is_zig() {
             format!("-l:lib{}.a", lib)
         } else {
             format!("-l{}", lib)
