@@ -818,12 +818,17 @@ impl Parser {
         Ok(BlockArgument { name, value_type, location })
     }
 
-    fn optional_inline_keyword(&mut self) -> bool {
-        if let TokenKind::Inline = self.peek().kind {
-            self.next();
-            true
-        } else {
-            false
+    fn optional_inline_keyword(&mut self) -> Inline {
+        match self.peek().kind {
+            TokenKind::Inline => {
+                self.next();
+                Inline::Always
+            }
+            TokenKind::NoInline => {
+                self.next();
+                Inline::Never
+            }
+            _ => Inline::Infer,
         }
     }
 
@@ -4242,7 +4247,7 @@ mod tests {
         assert_eq!(
             top(parse("fn foo {}")),
             TopLevelExpression::DefineMethod(Box::new(DefineMethod {
-                inline: false,
+                inline: Inline::Infer,
                 public: false,
                 operator: false,
                 kind: MethodKind::Instance,
@@ -4264,7 +4269,7 @@ mod tests {
         assert_eq!(
             top(parse("fn inline foo {}")),
             TopLevelExpression::DefineMethod(Box::new(DefineMethod {
-                inline: true,
+                inline: Inline::Always,
                 public: false,
                 operator: false,
                 kind: MethodKind::Instance,
@@ -4286,7 +4291,7 @@ mod tests {
         assert_eq!(
             top(parse("fn FOO {}")),
             TopLevelExpression::DefineMethod(Box::new(DefineMethod {
-                inline: false,
+                inline: Inline::Infer,
                 public: false,
                 operator: false,
                 kind: MethodKind::Instance,
@@ -4308,7 +4313,7 @@ mod tests {
         assert_eq!(
             top(parse("fn pub foo {}")),
             TopLevelExpression::DefineMethod(Box::new(DefineMethod {
-                inline: false,
+                inline: Inline::Infer,
                 public: true,
                 operator: false,
                 kind: MethodKind::Instance,
@@ -4330,7 +4335,7 @@ mod tests {
         assert_eq!(
             top(parse("fn pub inline foo {}")),
             TopLevelExpression::DefineMethod(Box::new(DefineMethod {
-                inline: true,
+                inline: Inline::Always,
                 public: true,
                 operator: false,
                 kind: MethodKind::Instance,
@@ -4352,7 +4357,7 @@ mod tests {
         assert_eq!(
             top(parse("fn 123 {}")),
             TopLevelExpression::DefineMethod(Box::new(DefineMethod {
-                inline: false,
+                inline: Inline::Infer,
                 public: false,
                 operator: false,
                 kind: MethodKind::Instance,
@@ -4374,7 +4379,7 @@ mod tests {
         assert_eq!(
             top(parse("fn ab= {}")),
             TopLevelExpression::DefineMethod(Box::new(DefineMethod {
-                inline: false,
+                inline: Inline::Infer,
                 public: false,
                 operator: false,
                 kind: MethodKind::Instance,
@@ -4396,7 +4401,7 @@ mod tests {
         assert_eq!(
             top(parse("fn 12= {}")),
             TopLevelExpression::DefineMethod(Box::new(DefineMethod {
-                inline: false,
+                inline: Inline::Infer,
                 public: false,
                 operator: false,
                 kind: MethodKind::Instance,
@@ -4418,7 +4423,7 @@ mod tests {
         assert_eq!(
             top(parse("fn let {}")),
             TopLevelExpression::DefineMethod(Box::new(DefineMethod {
-                inline: false,
+                inline: Inline::Infer,
                 public: false,
                 operator: false,
                 kind: MethodKind::Instance,
@@ -4443,7 +4448,7 @@ mod tests {
         assert_eq!(
             top(parse("fn foo [T] {}")),
             TopLevelExpression::DefineMethod(Box::new(DefineMethod {
-                inline: false,
+                inline: Inline::Infer,
                 public: false,
                 operator: false,
                 kind: MethodKind::Instance,
@@ -4476,7 +4481,7 @@ mod tests {
         assert_eq!(
             top(parse("fn foo [T: A + B] {}")),
             TopLevelExpression::DefineMethod(Box::new(DefineMethod {
-                inline: false,
+                inline: Inline::Infer,
                 public: false,
                 operator: false,
                 kind: MethodKind::Instance,
@@ -4534,7 +4539,7 @@ mod tests {
         assert_eq!(
             top(parse("fn foo (a: A, b: B) {}")),
             TopLevelExpression::DefineMethod(Box::new(DefineMethod {
-                inline: false,
+                inline: Inline::Infer,
                 public: false,
                 operator: false,
                 kind: MethodKind::Instance,
@@ -4596,7 +4601,7 @@ mod tests {
         assert_eq!(
             top(parse("fn foo -> A {}")),
             TopLevelExpression::DefineMethod(Box::new(DefineMethod {
-                inline: false,
+                inline: Inline::Infer,
                 public: false,
                 operator: false,
                 kind: MethodKind::Instance,
@@ -4629,7 +4634,7 @@ mod tests {
         assert_eq!(
             top(parse("fn foo { 10 }")),
             TopLevelExpression::DefineMethod(Box::new(DefineMethod {
-                inline: false,
+                inline: Inline::Infer,
                 public: false,
                 operator: false,
                 kind: MethodKind::Instance,
@@ -4657,7 +4662,7 @@ mod tests {
         assert_eq!(
             top(parse("fn extern foo")),
             TopLevelExpression::DefineMethod(Box::new(DefineMethod {
-                inline: false,
+                inline: Inline::Infer,
                 public: false,
                 operator: false,
                 kind: MethodKind::Extern,
@@ -4676,7 +4681,7 @@ mod tests {
         assert_eq!(
             top(parse("fn extern foo {}")),
             TopLevelExpression::DefineMethod(Box::new(DefineMethod {
-                inline: false,
+                inline: Inline::Infer,
                 public: false,
                 operator: false,
                 kind: MethodKind::Extern,
@@ -4698,7 +4703,7 @@ mod tests {
         assert_eq!(
             top(parse("fn extern foo(...)")),
             TopLevelExpression::DefineMethod(Box::new(DefineMethod {
-                inline: false,
+                inline: Inline::Infer,
                 public: false,
                 operator: false,
                 kind: MethodKind::Extern,
@@ -4721,7 +4726,7 @@ mod tests {
         assert_eq!(
             top(parse("fn extern foo(...,)")),
             TopLevelExpression::DefineMethod(Box::new(DefineMethod {
-                inline: false,
+                inline: Inline::Infer,
                 public: false,
                 operator: false,
                 kind: MethodKind::Extern,
@@ -4907,7 +4912,7 @@ mod tests {
                 body: TypeExpressions {
                     values: vec![TypeExpression::DefineMethod(Box::new(
                         DefineMethod {
-                            inline: false,
+                            inline: Inline::Infer,
                             public: false,
                             operator: false,
                             kind: MethodKind::Async,
@@ -4946,7 +4951,7 @@ mod tests {
                 body: TypeExpressions {
                     values: vec![TypeExpression::DefineMethod(Box::new(
                         DefineMethod {
-                            inline: false,
+                            inline: Inline::Infer,
                             public: false,
                             operator: false,
                             kind: MethodKind::AsyncMutable,
@@ -5089,7 +5094,7 @@ mod tests {
                 body: TypeExpressions {
                     values: vec![TypeExpression::DefineMethod(Box::new(
                         DefineMethod {
-                            inline: false,
+                            inline: Inline::Infer,
                             public: false,
                             operator: false,
                             kind: MethodKind::Instance,
@@ -5128,7 +5133,7 @@ mod tests {
                 body: TypeExpressions {
                     values: vec![TypeExpression::DefineMethod(Box::new(
                         DefineMethod {
-                            inline: false,
+                            inline: Inline::Infer,
                             public: true,
                             operator: false,
                             kind: MethodKind::Instance,
@@ -5170,7 +5175,7 @@ mod tests {
                 body: TypeExpressions {
                     values: vec![TypeExpression::DefineMethod(Box::new(
                         DefineMethod {
-                            inline: false,
+                            inline: Inline::Infer,
                             public: false,
                             operator: false,
                             kind: MethodKind::Moving,
@@ -5212,7 +5217,7 @@ mod tests {
                 body: TypeExpressions {
                     values: vec![TypeExpression::DefineMethod(Box::new(
                         DefineMethod {
-                            inline: true,
+                            inline: Inline::Always,
                             public: false,
                             operator: false,
                             kind: MethodKind::Instance,
@@ -5234,7 +5239,46 @@ mod tests {
                 },
                 location: cols(1, 27)
             }))
-        )
+        );
+
+        assert_eq!(
+            top(parse("type A { fn noinline foo {} }")),
+            TopLevelExpression::DefineType(Box::new(DefineType {
+                public: false,
+                semantics: TypeSemantics::Default,
+                name: Constant {
+                    source: None,
+                    name: "A".to_string(),
+                    location: cols(6, 6)
+                },
+                kind: TypeKind::Regular,
+                type_parameters: None,
+                body: TypeExpressions {
+                    values: vec![TypeExpression::DefineMethod(Box::new(
+                        DefineMethod {
+                            inline: Inline::Never,
+                            public: false,
+                            operator: false,
+                            kind: MethodKind::Instance,
+                            name: Identifier {
+                                name: "foo".to_string(),
+                                location: cols(22, 24)
+                            },
+                            type_parameters: None,
+                            arguments: None,
+                            return_type: None,
+                            body: Some(Expressions {
+                                values: Vec::new(),
+                                location: cols(26, 27)
+                            }),
+                            location: cols(10, 27)
+                        }
+                    ))],
+                    location: cols(8, 29)
+                },
+                location: cols(1, 29)
+            }))
+        );
     }
 
     #[test]
@@ -5254,7 +5298,7 @@ mod tests {
                 body: TypeExpressions {
                     values: vec![TypeExpression::DefineMethod(Box::new(
                         DefineMethod {
-                            inline: false,
+                            inline: Inline::Infer,
                             public: false,
                             operator: false,
                             kind: MethodKind::Mutable,
@@ -5296,7 +5340,7 @@ mod tests {
                 body: TypeExpressions {
                     values: vec![TypeExpression::DefineMethod(Box::new(
                         DefineMethod {
-                            inline: false,
+                            inline: Inline::Infer,
                             public: false,
                             operator: false,
                             kind: MethodKind::Static,
@@ -5619,7 +5663,7 @@ mod tests {
                 body: ImplementationExpressions {
                     values: vec![ImplementationExpression::DefineMethod(
                         Box::new(DefineMethod {
-                            inline: false,
+                            inline: Inline::Infer,
                             public: false,
                             operator: false,
                             kind: MethodKind::Instance,
@@ -5675,7 +5719,7 @@ mod tests {
                 body: ImplementationExpressions {
                     values: vec![ImplementationExpression::DefineMethod(
                         Box::new(DefineMethod {
-                            inline: false,
+                            inline: Inline::Infer,
                             public: false,
                             operator: false,
                             kind: MethodKind::Instance,
@@ -5711,7 +5755,7 @@ mod tests {
                 body: ImplementationExpressions {
                     values: vec![ImplementationExpression::DefineMethod(
                         Box::new(DefineMethod {
-                            inline: false,
+                            inline: Inline::Infer,
                             public: false,
                             operator: false,
                             kind: MethodKind::Async,
@@ -5843,7 +5887,7 @@ mod tests {
                 body: ImplementationExpressions {
                     values: vec![ImplementationExpression::DefineMethod(
                         Box::new(DefineMethod {
-                            inline: false,
+                            inline: Inline::Infer,
                             public: false,
                             operator: false,
                             kind: MethodKind::Static,
@@ -5882,7 +5926,7 @@ mod tests {
                 body: ImplementationExpressions {
                     values: vec![ImplementationExpression::DefineMethod(
                         Box::new(DefineMethod {
-                            inline: true,
+                            inline: Inline::Always,
                             public: false,
                             operator: false,
                             kind: MethodKind::Instance,
@@ -6105,7 +6149,7 @@ mod tests {
                 body: TraitExpressions {
                     values: vec![TraitExpression::DefineMethod(Box::new(
                         DefineMethod {
-                            inline: false,
+                            inline: Inline::Infer,
                             public: false,
                             operator: false,
                             kind: MethodKind::Instance,
@@ -6143,7 +6187,7 @@ mod tests {
                 body: TraitExpressions {
                     values: vec![TraitExpression::DefineMethod(Box::new(
                         DefineMethod {
-                            inline: false,
+                            inline: Inline::Infer,
                             public: false,
                             operator: false,
                             kind: MethodKind::Instance,
@@ -6181,7 +6225,7 @@ mod tests {
                 body: TraitExpressions {
                     values: vec![TraitExpression::DefineMethod(Box::new(
                         DefineMethod {
-                            inline: false,
+                            inline: Inline::Infer,
                             public: false,
                             operator: false,
                             kind: MethodKind::Instance,
@@ -6229,7 +6273,7 @@ mod tests {
                 body: TraitExpressions {
                     values: vec![TraitExpression::DefineMethod(Box::new(
                         DefineMethod {
-                            inline: false,
+                            inline: Inline::Infer,
                             public: false,
                             operator: false,
                             kind: MethodKind::Instance,
@@ -6288,7 +6332,7 @@ mod tests {
                 body: TraitExpressions {
                     values: vec![TraitExpression::DefineMethod(Box::new(
                         DefineMethod {
-                            inline: false,
+                            inline: Inline::Infer,
                             public: false,
                             operator: false,
                             kind: MethodKind::Instance,
@@ -6337,7 +6381,7 @@ mod tests {
                 body: TraitExpressions {
                     values: vec![TraitExpression::DefineMethod(Box::new(
                         DefineMethod {
-                            inline: false,
+                            inline: Inline::Infer,
                             public: false,
                             operator: false,
                             kind: MethodKind::Instance,
@@ -6378,7 +6422,7 @@ mod tests {
                 body: TraitExpressions {
                     values: vec![TraitExpression::DefineMethod(Box::new(
                         DefineMethod {
-                            inline: true,
+                            inline: Inline::Always,
                             public: false,
                             operator: false,
                             kind: MethodKind::Instance,
@@ -6419,7 +6463,7 @@ mod tests {
                 body: TraitExpressions {
                     values: vec![TraitExpression::DefineMethod(Box::new(
                         DefineMethod {
-                            inline: false,
+                            inline: Inline::Infer,
                             public: false,
                             operator: false,
                             kind: MethodKind::Moving,

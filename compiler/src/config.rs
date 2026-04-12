@@ -276,6 +276,19 @@ pub struct Config {
 
     /// Custom constant values to set at compile time.
     pub compile_time_variables: IndexMap<(ModuleName, String), String>,
+
+    /// If escape analysis is enabled.
+    pub escape_analysis: bool,
+
+    /// If escape analysis statistics should be shown.
+    pub escape_stats: bool,
+
+    /// If the allocations in a module processed by escape analysis should be
+    /// shown.
+    pub escapes: Option<ModuleName>,
+
+    /// If code generation is enabled.
+    pub generate_code: bool,
 }
 
 impl Config {
@@ -310,6 +323,10 @@ impl Config {
             incremental: true,
             compiled_at,
             compile_time_variables: IndexMap::new(),
+            escape_analysis: true,
+            escape_stats: false,
+            escapes: None,
+            generate_code: true,
         }
     }
 

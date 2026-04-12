@@ -1,0 +1,13 @@
+type A {}
+
+type async Receiver {
+  fn async message(value: uni A) {}
+}
+
+type async Main {
+  fn async main {
+    Receiver().message(recover A())
+  }
+}
+
+# 9:32 A heap

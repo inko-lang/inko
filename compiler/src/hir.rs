@@ -12,7 +12,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use types::{
     ARRAY_INTERNAL_NAME, ARRAY_PUSH, ARRAY_WITH_CAPACITY, FUTURE_GET,
-    FUTURE_INTERNAL_NAME, FUTURE_NEW, STRING_BUFFER_INTERNAL_NAME,
+    FUTURE_INTERNAL_NAME, FUTURE_NEW, Inline, STRING_BUFFER_INTERNAL_NAME,
     STRING_BUFFER_INTO_STRING, STRING_BUFFER_NEW, STRING_BUFFER_PUSH,
     TO_STRING_METHOD,
 };
@@ -27,6 +27,14 @@ const STR_BUF_VAR: &str = "$buf";
 const BOOL_EQ: &str = "==";
 const FUTURE_VAR: &str = "$future";
 const PROMISE_VAR: &str = "$promise";
+
+fn inline_attribute(node: ast::Inline) -> Inline {
+    match node {
+        ast::Inline::Infer => Inline::Infer,
+        ast::Inline::Always => Inline::Always,
+        ast::Inline::Never => Inline::Never,
+    }
+}
 
 struct Comments {
     nodes: Vec<ast::Comment>,
@@ -301,7 +309,7 @@ pub(crate) enum MethodKind {
 pub(crate) struct DefineInstanceMethod {
     pub(crate) documentation: String,
     pub(crate) public: bool,
-    pub(crate) inline: bool,
+    pub(crate) inline: Inline,
     pub(crate) kind: MethodKind,
     pub(crate) name: Identifier,
     pub(crate) type_parameters: Vec<TypeParameter>,
@@ -316,7 +324,7 @@ pub(crate) struct DefineInstanceMethod {
 pub(crate) struct DefineModuleMethod {
     pub(crate) documentation: String,
     pub(crate) public: bool,
-    pub(crate) inline: bool,
+    pub(crate) inline: Inline,
     pub(crate) c_calling_convention: bool,
     pub(crate) name: Identifier,
     pub(crate) type_parameters: Vec<TypeParameter>,
@@ -356,7 +364,7 @@ pub(crate) struct DefineRequiredMethod {
 pub(crate) struct DefineStaticMethod {
     pub(crate) documentation: String,
     pub(crate) public: bool,
-    pub(crate) inline: bool,
+    pub(crate) inline: Inline,
     pub(crate) name: Identifier,
     pub(crate) type_parameters: Vec<TypeParameter>,
     pub(crate) arguments: Vec<MethodArgument>,
@@ -1405,7 +1413,7 @@ impl<'a> LowerToHir<'a> {
             }))
         } else {
             TopLevelExpression::ModuleMethod(Box::new(DefineModuleMethod {
-                inline: node.inline,
+                inline: inline_attribute(node.inline),
                 documentation,
                 public: node.public,
                 c_calling_convention: external,
@@ -1614,7 +1622,7 @@ impl<'a> LowerToHir<'a> {
         self.operator_method_not_allowed(node.operator, node.location);
 
         Box::new(DefineStaticMethod {
-            inline: node.inline,
+            inline: inline_attribute(node.inline),
             documentation,
             public: node.public,
             name: self.identifier(node.name),
@@ -1657,7 +1665,7 @@ impl<'a> LowerToHir<'a> {
         documentation: String,
     ) -> DefineInstanceMethod {
         DefineInstanceMethod {
-            inline: node.inline,
+            inline: inline_attribute(node.inline),
             documentation,
             public: node.public,
             kind: match node.kind {
@@ -3624,7 +3632,7 @@ impl<'a> LowerToHir<'a> {
     }
 
     fn disallow_inline_method(&mut self, node: &ast::DefineMethod) {
-        if node.inline {
+        if !matches!(node.inline, ast::Inline::Infer) {
             self.state
                 .diagnostics
                 .invalid_inline_method(self.file(), node.location);
@@ -4130,7 +4138,7 @@ mod tests {
         assert_eq!(
             hir,
             TopLevelExpression::ModuleMethod(Box::new(DefineModuleMethod {
-                inline: false,
+                inline: Inline::Infer,
                 documentation: String::new(),
                 public: false,
                 c_calling_convention: false,
@@ -4207,7 +4215,7 @@ mod tests {
         assert_eq!(
             hir,
             TopLevelExpression::ModuleMethod(Box::new(DefineModuleMethod {
-                inline: true,
+                inline: Inline::Always,
                 documentation: String::new(),
                 public: false,
                 c_calling_convention: false,
@@ -4258,7 +4266,7 @@ mod tests {
         assert_eq!(
             hir,
             TopLevelExpression::ModuleMethod(Box::new(DefineModuleMethod {
-                inline: false,
+                inline: Inline::Infer,
                 documentation: String::new(),
                 public: false,
                 c_calling_convention: true,
@@ -4687,7 +4695,7 @@ mod tests {
                 type_parameters: Vec::new(),
                 body: vec![TypeExpression::StaticMethod(Box::new(
                     DefineStaticMethod {
-                        inline: false,
+                        inline: Inline::Infer,
                         documentation: String::new(),
                         public: false,
                         name: Identifier {
@@ -4842,7 +4850,7 @@ mod tests {
                 type_parameters: Vec::new(),
                 body: vec![TypeExpression::InstanceMethod(Box::new(
                     DefineInstanceMethod {
-                        inline: false,
+                        inline: Inline::Infer,
                         documentation: String::new(),
                         public: false,
                         kind: MethodKind::Regular,
@@ -4920,7 +4928,7 @@ mod tests {
                 type_parameters: Vec::new(),
                 body: vec![TypeExpression::InstanceMethod(Box::new(
                     DefineInstanceMethod {
-                        inline: true,
+                        inline: Inline::Always,
                         documentation: String::new(),
                         public: false,
                         kind: MethodKind::Regular,
@@ -4937,6 +4945,43 @@ mod tests {
                     }
                 ))],
                 location: cols(1, 27)
+            })),
+        );
+    }
+
+    #[test]
+    fn test_lower_type_with_noinline_method() {
+        let hir = lower_top_expr("type A { fn noinline foo {} }").0;
+
+        assert_eq!(
+            hir,
+            TopLevelExpression::Type(Box::new(DefineType {
+                documentation: String::new(),
+                public: false,
+                semantics: TypeSemantics::Default,
+                type_id: None,
+                kind: TypeKind::Regular,
+                name: Constant { name: "A".to_string(), location: cols(6, 6) },
+                type_parameters: Vec::new(),
+                body: vec![TypeExpression::InstanceMethod(Box::new(
+                    DefineInstanceMethod {
+                        inline: Inline::Never,
+                        documentation: String::new(),
+                        public: false,
+                        kind: MethodKind::Regular,
+                        name: Identifier {
+                            name: "foo".to_string(),
+                            location: cols(22, 24)
+                        },
+                        type_parameters: Vec::new(),
+                        arguments: Vec::new(),
+                        return_type: None,
+                        body: Vec::new(),
+                        method_id: None,
+                        location: cols(10, 27)
+                    }
+                ))],
+                location: cols(1, 29)
             })),
         );
     }
@@ -5136,7 +5181,7 @@ mod tests {
                 type_parameters: Vec::new(),
                 body: vec![TraitExpression::InstanceMethod(Box::new(
                     DefineInstanceMethod {
-                        inline: false,
+                        inline: Inline::Infer,
                         documentation: String::new(),
                         public: false,
                         kind: MethodKind::Moving,
@@ -5172,7 +5217,7 @@ mod tests {
                 type_parameters: Vec::new(),
                 body: vec![TraitExpression::InstanceMethod(Box::new(
                     DefineInstanceMethod {
-                        inline: false,
+                        inline: Inline::Infer,
                         documentation: String::new(),
                         public: false,
                         kind: MethodKind::Regular,
@@ -5249,7 +5294,7 @@ mod tests {
                 type_parameters: Vec::new(),
                 body: vec![TraitExpression::InstanceMethod(Box::new(
                     DefineInstanceMethod {
-                        inline: true,
+                        inline: Inline::Always,
                         documentation: String::new(),
                         public: false,
                         kind: MethodKind::Regular,
@@ -5324,7 +5369,7 @@ mod tests {
                 },
                 body: vec![ReopenTypeExpression::InstanceMethod(Box::new(
                     DefineInstanceMethod {
-                        inline: false,
+                        inline: Inline::Infer,
                         documentation: String::new(),
                         public: false,
                         kind: MethodKind::Regular,
@@ -5360,7 +5405,7 @@ mod tests {
                 },
                 body: vec![ReopenTypeExpression::StaticMethod(Box::new(
                     DefineStaticMethod {
-                        inline: false,
+                        inline: Inline::Infer,
                         documentation: String::new(),
                         public: false,
                         name: Identifier {
@@ -5597,7 +5642,7 @@ mod tests {
                 },
                 bounds: Vec::new(),
                 body: vec![DefineInstanceMethod {
-                    inline: false,
+                    inline: Inline::Infer,
                     documentation: String::new(),
                     public: false,
                     kind: MethodKind::Regular,
@@ -5643,7 +5688,7 @@ mod tests {
                 },
                 bounds: Vec::new(),
                 body: vec![DefineInstanceMethod {
-                    inline: false,
+                    inline: Inline::Infer,
                     documentation: String::new(),
                     public: false,
                     kind: MethodKind::Moving,

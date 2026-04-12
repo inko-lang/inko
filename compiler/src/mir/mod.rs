@@ -2,6 +2,7 @@
 //!
 //! MIR is used for various optimisations, analysing moves of values, compiling
 //! pattern matching into decision trees, and more.
+pub(crate) mod escape;
 pub(crate) mod inline;
 pub(crate) mod passes;
 pub(crate) mod pattern_matching;
@@ -776,6 +777,7 @@ impl Block {
             register,
             type_id,
             location,
+            stack: false,
         })));
     }
 
@@ -1225,6 +1227,7 @@ pub(crate) struct Allocate {
     pub(crate) register: RegisterId,
     pub(crate) type_id: types::TypeId,
     pub(crate) location: InstructionLocation,
+    pub(crate) stack: bool,
 }
 
 #[derive(Clone)]
@@ -1503,8 +1506,14 @@ impl Instruction {
             }
             Instruction::Allocate(v) => {
                 format!(
-                    "r{} = allocate {}",
-                    v.register.0, names.types[&v.type_id],
+                    "r{} = {} {}",
+                    v.register.0,
+                    if v.type_id.is_stack_allocated(db) || v.stack {
+                        "allocate_stack"
+                    } else {
+                        "allocate"
+                    },
+                    names.types[&v.type_id],
                 )
             }
             Instruction::Spawn(v) => {
@@ -2212,7 +2221,7 @@ impl Method {
     /// This method isn't terribly useful on its own, but when combined with
     /// e.g. copy propagation it can result in the removal of many redundant
     /// instructions.
-    pub(crate) fn remove_unused_instructions(&mut self) {
+    fn remove_unused_instructions(&mut self) {
         let mut uses = self.register_use_counts();
         let mut repeat = true;
 
@@ -2268,7 +2277,7 @@ impl Method {
     /// Constants such as integers and floats are redundant as we can use their
     /// values directly instead. In fact, doing so avoids unnecessary loads and
     /// can improve performance.
-    pub(crate) fn inline_constants(
+    fn inline_constants(
         &mut self,
         constants: &IndexMap<types::ConstantId, Constant>,
     ) {

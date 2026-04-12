@@ -1,0 +1,20 @@
+type A {
+  let mut @b: B
+}
+
+type B {}
+
+type async Main {
+  fn async main {
+    example(A(B()))
+  }
+
+  fn noinline example(value: A) -> A {
+    value.b = B() # escapes through the return value
+    value
+  }
+}
+
+# 9:13 A heap
+# 9:15 B heap
+# 13:15 B heap

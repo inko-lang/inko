@@ -1,0 +1,13 @@
+type A {}
+
+trait Trait {}
+
+impl Trait for A {}
+
+type async Main {
+  fn async main {
+    (A() as Trait)
+  }
+}
+
+# 9:6 A heap

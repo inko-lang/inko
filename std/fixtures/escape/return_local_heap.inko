@@ -1,0 +1,13 @@
+type A {}
+
+type async Main {
+  fn async main {
+    example
+  }
+
+  fn noinline example -> A {
+    A()
+  }
+}
+
+# 9:5 A heap

@@ -7,6 +7,7 @@
 pub mod diagnostics;
 pub mod docs;
 pub mod format;
+mod graph;
 mod hir;
 mod incremental;
 mod json;

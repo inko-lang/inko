@@ -417,8 +417,15 @@ pub enum MethodKind {
 }
 
 #[derive(Debug, PartialEq, Eq)]
+pub enum Inline {
+    Infer,
+    Always,
+    Never,
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub struct DefineMethod {
-    pub inline: bool,
+    pub inline: Inline,
     pub public: bool,
     pub kind: MethodKind,
     pub operator: bool,

@@ -1,0 +1,19 @@
+type A {}
+
+type enum Enum {
+  case Cons(A)
+}
+
+type async Main {
+  fn async main {
+    example
+  }
+
+  fn noinline example -> Enum {
+    Enum.Cons(A())
+  }
+}
+
+# 4:3 Enum heap
+# 4:3 Enum heap
+# 13:15 A heap

@@ -1,0 +1,47 @@
+type B {}
+
+type A {
+  let mut @b: B
+
+  fn noinline move return_self -> A {
+    self
+  }
+
+  fn noinline move return_unrelated -> A {
+    A(B())
+  }
+
+  fn noinline move store_local_in_self -> A {
+    @b = B()
+    self
+  }
+
+  fn noinline move store_self_in_local_then_return -> A {
+    let x = self
+
+    x.b = B()
+    x
+  }
+}
+
+type async Main {
+  fn async main {
+    let _ = A(B()).return_self
+    let _ = A(B()).return_unrelated
+    let _ = A(B()).store_local_in_self
+    let _ = A(B()).store_self_in_local_then_return
+  }
+}
+
+# 11:5 A heap
+# 11:7 B heap
+# 15:10 B heap
+# 22:11 B heap
+# 29:13 A stack
+# 29:15 B stack
+# 30:13 A stack
+# 30:15 B stack
+# 31:13 A stack
+# 31:15 B stack
+# 32:13 A heap
+# 32:15 B heap

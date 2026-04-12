@@ -247,7 +247,7 @@ is necessary, greatly reducing the time spent in LLVM. Caches used by
 incremental compilation are tied to the version of Inko used to compile them.
 This means that when upgrading to a newer version of Inko, the cache is
 refreshed automatically. Incremental compilation can be disabled using
-`inko build --disable-incremental`.
+`inko build --no-incremental`.
 
 ### Methods
 

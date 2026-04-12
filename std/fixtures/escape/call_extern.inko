@@ -1,0 +1,15 @@
+fn extern extern_without_body(value: A)
+
+fn extern extern_with_body(value: A) {}
+
+type A {}
+
+type async Main {
+  fn async main {
+    extern_without_body(A())
+    extern_with_body(A())
+  }
+}
+
+# 9:25 A heap
+# 10:22 A stack

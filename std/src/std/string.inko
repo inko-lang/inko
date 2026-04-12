@@ -147,6 +147,9 @@ type extern StringLayout {
   # The atomic reference count.
   let @references: Uint32
 
+  # A flag indicating if this value is heap allocated or not.
+  let @heap_allocated: Bool
+
   # The first byte of the `String`.
   #
   # The remaining bytes are added at the end of this type, i.e. they're part of
@@ -173,6 +176,7 @@ type builtin String {
     # Atomic types start with a reference count of 1 instead of 0.
     val.references = 1 as Uint32
     val.size = size
+    val.heap_allocated = true
     val
   }
 

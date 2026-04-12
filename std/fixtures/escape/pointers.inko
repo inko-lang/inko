@@ -1,0 +1,9 @@
+type A {}
+
+type async Main {
+  fn async main {
+    (0x0 as Pointer[A]).0 = A()
+  }
+}
+
+# 5:29 A heap

@@ -5,7 +5,8 @@ import std.cmp (Ordering)
 import std.fmt (fmt)
 import std.fs.path (Path)
 import std.ptr
-import std.string (PrimitiveString, Scalar, Scalars, StringBuffer)
+import std.reflect (size_of)
+import std.string (PrimitiveString, Scalar, Scalars, StringBuffer, StringLayout)
 import std.test (Tests)
 
 fn split(string: String, on: String) -> Array[String] {
@@ -13,6 +14,8 @@ fn split(string: String, on: String) -> Array[String] {
 }
 
 fn pub tests(t: mut Tests) {
+  t.test('StringLayout type size', fn (t) { t.equal(size_of[StringLayout], 16) })
+
   t.test('String.from_primitive', fn (t) {
     let raw = alloc.allocate(3)
 

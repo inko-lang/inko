@@ -17,12 +17,12 @@ use std::str::FromStr;
 use types::format::format_type;
 use types::module_name::ModuleName;
 use types::{
-    self, ARRAY_READ, ARRAY_SIZE_FIELD, BOOL_ID, BYTE_ARRAY_READ,
-    BYTE_ARRAY_TYPE, BYTES_MODULE, Block as _, ConstantId, ENUM_TAG_INDEX,
-    EQUALS_METHOD, FieldId, INT_ID, Inline, MethodId, ModuleId, OPTION_NONE,
-    OPTION_SOME, RESULT_ERROR, RESULT_MODULE, RESULT_OK, RESULT_TYPE,
-    STRING_ID, Symbol, TypeArguments, TypeBounds, TypeId, TypeRef,
-    VerificationError,
+    self, ARRAY_READ, ARRAY_SIZE_FIELD, ASYNC_DROPPER_METHOD, BOOL_ID,
+    BYTE_ARRAY_READ, BYTE_ARRAY_TYPE, BYTES_MODULE, Block as _, ConstantId,
+    DROPPER_METHOD, ENUM_TAG_INDEX, EQUALS_METHOD, FieldId, INT_ID, Inline,
+    MethodId, ModuleId, OPTION_NONE, OPTION_SOME, RESULT_ERROR, RESULT_MODULE,
+    RESULT_OK, RESULT_TYPE, STRING_ID, Symbol, TypeArguments, TypeBounds,
+    TypeId, TypeRef, VerificationError,
 };
 
 const SELF_NAME: &str = "self";
@@ -439,7 +439,7 @@ impl<'a> GenerateDropper<'a> {
     /// dropper of every field. Finally, it frees the receiver.
     fn regular_type(&mut self) {
         self.generate_dropper(
-            types::DROPPER_METHOD,
+            DROPPER_METHOD,
             types::MethodKind::Mutable,
             true,
             false,
@@ -455,13 +455,13 @@ impl<'a> GenerateDropper<'a> {
     /// like a regular type, and the process shuts down.
     fn async_type(&mut self) {
         let async_dropper = self.generate_dropper(
-            types::ASYNC_DROPPER_METHOD,
+            ASYNC_DROPPER_METHOD,
             types::MethodKind::AsyncMutable,
             false,
             true,
         );
         let dropper_type =
-            self.method_type(types::DROPPER_METHOD, types::MethodKind::Mutable);
+            self.method_type(DROPPER_METHOD, types::MethodKind::Mutable);
         let mut dropper_method = Method::new(dropper_type);
         let mut lower = LowerMethod::new(
             self.state,
@@ -488,7 +488,7 @@ impl<'a> GenerateDropper<'a> {
         );
 
         lower.current_block_mut().return_value(nil_reg, loc);
-        self.add_method(types::DROPPER_METHOD, dropper_type, dropper_method);
+        self.add_method(DROPPER_METHOD, dropper_type, dropper_method);
     }
 
     /// Generates the dropper method for an enum type.
@@ -497,7 +497,7 @@ impl<'a> GenerateDropper<'a> {
     /// tag, certain fields may be set to NULL. As such we branch based on the
     /// tag value, and only drop the fields relevant for that tag.
     fn enum_type(&mut self) {
-        let name = types::DROPPER_METHOD;
+        let name = DROPPER_METHOD;
         let tid = self.type_id;
         let drop_method_opt = tid.method(&self.state.db, types::DROP_METHOD);
         let method_type = self.method_type(name, types::MethodKind::Mutable);

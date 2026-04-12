@@ -1,0 +1,23 @@
+type A {}
+
+type async Main {
+  fn async main {
+    let _ = example1(A())
+    let _ = example2(A())
+  }
+
+  fn noinline example1(value: A) -> A {
+    value
+  }
+
+  fn noinline example2(value: A) -> A {
+    foo(value)
+  }
+
+  fn noinline foo(value: A) -> A {
+    value
+  }
+}
+
+# 5:22 A heap
+# 6:22 A heap

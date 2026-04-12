@@ -1,3 +1,4 @@
+use crate::mir::escape;
 use crate::mir::{
     BlockId, Goto, Graph, InlinedCall, InlinedCalls, Instruction,
     InstructionLocation, Method, Mir, MoveRegister, RegisterId, Registers,
@@ -714,6 +715,8 @@ impl<'a, 'b, 'c> InlineMethod<'a, 'b, 'c> {
     pub(crate) fn run_all(state: &'a mut State, mir: &'a mut Mir) {
         let mut graph = InlineGraph::new(&state.db, mir);
         let comps = graph.strongly_connected_components();
+        let mut escapes = escape::Entries::new();
+        let mut escape_stats = escape::Stats::new();
 
         // This ensures that:
         //
@@ -739,6 +742,31 @@ impl<'a, 'b, 'c> InlineMethod<'a, 'b, 'c> {
                     graph: &mut graph,
                 }
                 .run();
+
+                if !state.config.escape_analysis {
+                    continue;
+                }
+
+                // We run escape analysis as path of the SCC traversal so we
+                // don't need to do this a second time.
+                let stats = escape::AnalyzeMethod::new(
+                    &state.db,
+                    &mut escapes,
+                    &mut mir.methods[index],
+                )
+                .run(state.config.escapes.as_ref());
+
+                escape_stats.merge(stats);
+            }
+        }
+
+        if state.config.escape_analysis {
+            if state.config.escape_stats {
+                escape_stats.show_statistics();
+            }
+
+            if state.config.escapes.is_some() {
+                escape_stats.show_allocations(&state.db);
             }
         }
     }

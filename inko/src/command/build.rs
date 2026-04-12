@@ -83,10 +83,6 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     );
     options.optflag("", "release", "Perform a release build");
     options.optflag("", "static", "Statically link imported C libraries");
-    options.optflag("", "dot", "Output the MIR of every module as DOT files");
-    options.optflag("", "mir", "Output the MIR of every module as text files");
-    options.optflag("", "verify", "Verify build output at various stages");
-    options.optflag("", "write-llvm", "Write LLVM IR files to disk");
     options.optflagopt(
         "",
         "timings",
@@ -111,17 +107,29 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         "An extra argument to pass to the linker",
         "ARG",
     );
-    options.optflag(
-        "",
-        "disable-incremental",
-        "Disables incremental compilation",
-    );
+    options.optflag("", "no-incremental", "Disables incremental compilation");
+    options.optflag("", "no-escape", "Disables escape analysis");
     options.optmulti(
         "d",
         "define",
         "Define a custom value for a public constant",
         "NAME=VALUE",
     );
+
+    // Flags useful for developing the compiler itself. These may be removed at
+    // any time and thus aren't part of the stable API.
+    options.optflag("", "dot", "Save the MIR of every module as DOT files");
+    options.optflag("", "mir", "Save the MIR of every module as text files");
+    options.optflag("", "verify", "Verify build output at various stages");
+    options.optflag("", "write-llvm", "Write LLVM IR files to disk");
+    options.optflag("", "escape-stats", "Show escape analysis statistics");
+    options.optopt(
+        "",
+        "escapes",
+        "Show allocations processed by escape analysis",
+        "PATH",
+    );
+    options.optflag("", "no-codegen", "Don't generate any machine code");
 
     let matches = options.parse(arguments)?;
 
@@ -168,8 +176,12 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         config.add_source_directory(path.into());
     }
 
-    if matches.opt_present("disable-incremental") {
+    if matches.opt_present("no-incremental") {
         config.incremental = false;
+    }
+
+    if matches.opt_present("no-escape") {
+        config.escape_analysis = false;
     }
 
     if let Some(val) = matches.opt_str("threads") {
@@ -212,6 +224,19 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
                 val,
             )));
         }
+    }
+
+    if matches.opt_present("escape-stats") {
+        config.escape_stats = true;
+    }
+
+    if let Some(v) = matches.opt_str("escapes") {
+        config.escapes = Some(ModuleName::new(v));
+    }
+
+    if matches.opt_present("no-codegen") {
+        config.generate_code = false;
+        config.incremental = false;
     }
 
     let inputs = if let Some(v) = matches.free.first() {

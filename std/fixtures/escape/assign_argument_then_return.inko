@@ -1,0 +1,16 @@
+type A {}
+
+type async Main {
+  fn async main {
+    example(A())
+  }
+
+  fn noinline example(value: A) -> A {
+    let a = value
+    let b = a
+
+    b
+  }
+}
+
+# 5:13 A heap

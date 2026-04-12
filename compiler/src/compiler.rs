@@ -317,7 +317,11 @@ impl Compiler {
             self.write_mir(&dirs, &symbols, &mir)?;
         }
 
-        let res = self.compile_machine_code(&dirs, mir, &symbols, file);
+        let res = if self.state.config.generate_code {
+            self.compile_machine_code(&dirs, mir, &symbols, file)
+        } else {
+            Ok(dirs.bin.join("null"))
+        };
 
         self.timings.total = start.elapsed();
         res

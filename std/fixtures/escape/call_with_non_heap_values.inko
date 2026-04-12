@@ -1,0 +1,15 @@
+type A {}
+
+fn noinline example1(a: Int, b: A) {}
+
+type async Main {
+  fn async main {
+    example1(10, A())
+    example2(10, A())
+  }
+
+  fn noinline example2(a: Int, b: A) {}
+}
+
+# 7:18 A stack
+# 8:18 A stack

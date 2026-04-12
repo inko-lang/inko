@@ -1,0 +1,82 @@
+type A {}
+
+fn noinline return_closure -> fn (A) {
+  fn (_a) {}
+}
+
+fn noinline example1(value: fn) {}
+
+fn noinline example2(value: fn) {
+  value.call
+}
+
+fn noinline example3(value: fn) -> fn {
+  value
+}
+
+fn noinline example4 {
+  let a = fn {}
+
+  fn { a.call }
+}
+
+fn noinline example5 {
+  let a = fn {}
+
+  fn move { a.call }
+}
+
+fn noinline example6 -> fn {
+  let a = fn {}
+
+  fn move { a.call }
+}
+
+fn noinline example7 -> fn {
+  let a = A()
+
+  fn move {
+    a
+    nil
+  }
+}
+
+fn noinline example8 {
+  return_closure.call(A())
+}
+
+fn noinline example9 {
+  let a = fn (_a) {}
+
+  a.call(A())
+}
+
+type async Main {
+  fn async main {
+    let _ = example1(fn {})
+    let _ = example2(fn {})
+    let _ = example3(fn {})
+    let _ = example4
+    let _ = example5
+    let _ = example6
+    let _ = example7
+    let _ = example8
+    let _ = example9
+  }
+}
+
+# 4:3 <closure> heap
+# 18:11 <closure> stack
+# 20:3 <closure> stack
+# 24:11 <closure> stack
+# 26:3 <closure> stack
+# 30:11 <closure> heap
+# 32:3 <closure> heap
+# 36:11 A heap
+# 38:3 <closure> heap
+# 45:23 A heap
+# 49:11 <closure> stack
+# 51:10 A heap
+# 56:22 <closure> stack
+# 57:22 <closure> stack
+# 58:22 <closure> heap

@@ -1101,7 +1101,11 @@ impl Document {
             nodes::MethodKind::Extern => " extern ",
         };
         let kw = if node.public { "fn pub" } else { "fn" };
-        let inline = if node.inline { " inline" } else { "" };
+        let inline = match node.inline {
+            nodes::Inline::Infer => "",
+            nodes::Inline::Always => " inline",
+            nodes::Inline::Never => " noinline",
+        };
         let mut header = vec![
             Node::text(kw),
             Node::text(inline),

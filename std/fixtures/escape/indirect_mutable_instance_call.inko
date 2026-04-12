@@ -1,0 +1,37 @@
+type A {}
+
+type B {
+  let mut @a: A
+
+  fn noinline mut mutable_method {
+    (0x0 as Pointer[A]).0 = @a := A()
+  }
+}
+
+type async Main {
+  fn async main {
+    example1(B(A()))
+    example2(B(A()))
+    example3(B(A()))
+  }
+
+  fn noinline example1(value: B) {}
+
+  fn noinline example2(value: B) {
+    value.mutable_method
+  }
+
+  fn noinline example3(value: B) {
+    value.a = A()
+    value.mutable_method
+  }
+}
+
+# 7:35 A heap
+# 13:14 B stack
+# 13:16 A stack
+# 14:14 B stack
+# 14:16 A heap
+# 15:14 B stack
+# 15:16 A heap
+# 25:15 A heap

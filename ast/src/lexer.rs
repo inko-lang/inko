@@ -135,6 +135,8 @@ pub enum TokenKind {
     Ne,
     Next,
     Nil,
+    NoInline,
+    Not,
     Null,
     Or,
     ParenClose,
@@ -170,7 +172,6 @@ pub enum TokenKind {
     UnsignedShrAssign,
     While,
     Whitespace,
-    Not,
 }
 
 impl TokenKind {
@@ -274,6 +275,7 @@ impl TokenKind {
             TokenKind::Replace => "a '=:'",
             TokenKind::Extern => "the 'extern' keyword",
             TokenKind::Inline => "the 'inline' keyword",
+            TokenKind::NoInline => "the 'noinline' keyword",
             TokenKind::Copy => "the 'copy' keyword",
             TokenKind::Type => "the 'type' keyword",
             TokenKind::In => "the 'in' keyword",
@@ -1015,6 +1017,10 @@ impl Lexer {
             7 => match value.as_str() {
                 "builtin" => TokenKind::Builtin,
                 "recover" => TokenKind::Recover,
+                _ => TokenKind::Identifier,
+            },
+            8 => match value.as_str() {
+                "noinline" => TokenKind::NoInline,
                 _ => TokenKind::Identifier,
             },
             _ => TokenKind::Identifier,
@@ -2011,6 +2017,8 @@ mod tests {
 
         assert_token!("builtin", Builtin, "builtin", 1..=1, 1..=7);
         assert_token!("recover", Recover, "recover", 1..=1, 1..=7);
+
+        assert_token!("noinline", NoInline, "noinline", 1..=1, 1..=8);
     }
 
     #[test]

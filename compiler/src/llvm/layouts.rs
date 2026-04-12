@@ -229,6 +229,7 @@ impl<'ctx> Layouts<'ctx> {
         let header = context.struct_type(&[
             context.pointer_type().into(), // Type
             context.i32_type().into(),     // References
+            context.bool_type().into(),    // heap flag
         ]);
 
         let method = context.struct_type(&[

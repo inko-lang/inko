@@ -1,0 +1,18 @@
+type A {}
+
+type B {
+  let @a: A
+}
+
+type async Main {
+  fn async main {
+    example
+  }
+
+  fn noinline example -> B {
+    B(A())
+  }
+}
+
+# 13:5 B heap
+# 13:7 A heap

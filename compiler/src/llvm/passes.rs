@@ -2,10 +2,11 @@ use crate::compiler::module_debug_path;
 use crate::config::{BuildDirectories, Opt};
 use crate::llvm::builder::Builder;
 use crate::llvm::constants::{
-    CLOSURE_CALL_INDEX, DROPPER_INDEX, FIELD_OFFSET, HEADER_REFS_INDEX,
-    HEADER_TYPE_INDEX, METHOD_FUNCTION_INDEX, METHOD_HASH_INDEX,
-    PROCESS_FIELD_OFFSET, STACK_DATA_EPOCH_INDEX, STACK_DATA_PROCESS_INDEX,
-    STATE_EPOCH_INDEX, TYPE_METHODS_COUNT_INDEX, TYPE_METHODS_INDEX,
+    CLOSURE_CALL_INDEX, DROPPER_INDEX, FIELD_OFFSET, HEADER_HEAP_INDEX,
+    HEADER_REFS_INDEX, HEADER_TYPE_INDEX, METHOD_FUNCTION_INDEX,
+    METHOD_HASH_INDEX, PROCESS_FIELD_OFFSET, STACK_DATA_EPOCH_INDEX,
+    STACK_DATA_PROCESS_INDEX, STATE_EPOCH_INDEX, TYPE_METHODS_COUNT_INDEX,
+    TYPE_METHODS_INDEX,
 };
 use crate::llvm::context::Context;
 use crate::llvm::layouts::{
@@ -784,9 +785,10 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
         buf_global.set_unnamed_addr(true);
 
         // Allocate the array itself
+        let typ_ptr = type_global.as_pointer_value();
         let ary_val = instance_layout.const_named_struct(&[
             // Header
-            context.header(self.layouts, type_global.as_pointer_value()).into(),
+            context.constant_header(self.layouts, typ_ptr).into(),
             // Size
             context.i64_literal(vals.len() as _).into(),
             // Capacity
@@ -807,17 +809,16 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
         value: &str,
     ) -> BasicValueEnum<'ctx> {
         let instance_layout = context.struct_type(&[
-            context.i64_type().into(),
-            context.i32_type().into(),
-            context.i8_type().array_type((value.len() + 1) as _).into(),
+            context.i64_type().into(),  // size
+            context.i32_type().into(),  // refs
+            context.bool_type().into(), // heap
+            context.i8_type().array_type((value.len() + 1) as _).into(), // buf
         ]);
         let (_, bytes) = context.null_terminated_string(value.as_bytes());
         let str_val = instance_layout.const_named_struct(&[
-            // Size
             context.i64_literal(value.len() as _).into(),
-            // Ref count
             context.u32_literal(1).into(),
-            // Buffer
+            context.bool_literal(false).into(),
             bytes.into(),
         ]);
 
@@ -2344,11 +2345,25 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 self.builder.switch_to_block(ok_block);
             }
             Instruction::Free(ins) => {
+                let drop_block = self.builder.add_block();
+                let after_block = self.builder.add_block();
                 let var = self.variables[&ins.register];
                 let ptr = self.builder.load_pointer(var);
-                let func = self.module.runtime_function(RuntimeFunction::Free);
+                let free = self.module.runtime_function(RuntimeFunction::Free);
+                let is_heap = self
+                    .builder
+                    .load_field(self.layouts.header, ptr, HEADER_HEAP_INDEX)
+                    .into_int_value();
 
-                self.builder.direct_call(func, &[ptr.into()]);
+                self.builder.branch(is_heap, drop_block, after_block);
+
+                // The block to jump to when the value is a heap value.
+                self.builder.switch_to_block(drop_block);
+                self.builder.direct_call(free, &[ptr.into()]);
+                self.builder.jump(after_block);
+
+                // The block to jump to afterwards.
+                self.builder.switch_to_block(after_block);
             }
             Instruction::Increment(ins) => {
                 let reg_var = self.variables[&ins.register];
@@ -2415,7 +2430,8 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 self.set_debug_location(ins.location);
 
                 let reg_var = self.variables[&ins.register];
-                let ptr = self.allocate(ins.type_id).as_basic_value_enum();
+                let ptr =
+                    self.allocate(ins.type_id, ins.stack).as_basic_value_enum();
 
                 self.builder.store(reg_var, ptr);
             }
@@ -2881,12 +2897,13 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
         self.builder.load(typ, var).into_int_value()
     }
 
-    fn allocate(&mut self, type_id: TypeId) -> PointerValue<'ctx> {
+    fn allocate(&mut self, type_id: TypeId, stack: bool) -> PointerValue<'ctx> {
         self.builder.allocate_instance(
             self.module,
             &self.shared.state.db,
             self.shared.names,
             type_id,
+            stack,
         )
     }
 }

@@ -1,0 +1,105 @@
+import helpers (compiler_path)
+import std.env
+import std.fs.file (ReadOnlyFile)
+import std.fs.path (Path)
+import std.io (BufferedReader)
+import std.sys (Command, Stdout, Stream)
+import std.test (Tests)
+
+fn parse_test(path: ref Path) -> Result[Array[String], String] {
+  let reader = try ReadOnlyFile
+    .new(path.clone)
+    .map(fn (f) { BufferedReader.new(f) })
+    .map_error(fn (e) { e.to_string })
+  let buf = ByteArray.new
+  let allocs = []
+
+  loop {
+    match reader.read_line(into: buf, inclusive: false) {
+      case Ok(0) -> break
+      case Ok(_) -> {}
+      case Error(e) -> throw e.to_string
+    }
+
+    match buf.to_slice.strip_prefix('# ') {
+      case Some(v) -> allocs.push(v.to_string)
+      case _ -> {}
+    }
+
+    buf.clear
+  }
+
+  Result.Ok(allocs)
+}
+
+fn parse_output(output: mut Stdout) -> Result[Array[String], String] {
+  let reader = BufferedReader.new(output)
+  let buf = ByteArray.new
+  let allocs = []
+
+  loop {
+    match reader.read_line(into: buf, inclusive: false) {
+      case Ok(0) -> break
+      case Ok(_) -> allocs.push(buf.drain_to_string)
+      case Error(e) -> throw e.to_string
+    }
+  }
+
+  Result.Ok(allocs)
+}
+
+fn run(id: Int, compiler: String, file: Path) -> Array[String] {
+  let cmd = Command.new(compiler)
+  let dir = env.temporary_directory.join('inko-escape-analysis-${id}')
+
+  dir.create_directory.or_panic
+
+  cmd.stdout = Stream.Piped
+  cmd.stdin = Stream.Null
+  cmd.stderr = Stream.Null
+  cmd.directory = dir.clone
+  cmd.arguments = [
+    'build',
+    '--threads=1',
+    '--release',
+    '--no-codegen',
+    '--escapes=main',
+    file.to_string,
+  ]
+
+  let child = cmd.spawn.or_panic_with('failed to start the compiler')
+  let _ = child.wait.or_panic_with('failed to wait for the compiler')
+  let out = match parse_output(child.stdout.as_mut.get) {
+    case Ok(v) -> v
+    case Error(e) -> panic('failed to parse the data for ${file.tail}: ${e}')
+  }
+  let _ = dir.remove_directory_all
+
+  out
+}
+
+fn pub tests(t: mut Tests) {
+  let base = env
+    .working_directory
+    .or_else(fn (_) { '.'.to_path })
+    .join('fixtures')
+    .join('escape')
+  let compiler = compiler_path.to_string
+
+  for e in base.list.or_panic {
+    let test_file = match e {
+      case Ok({ @path = p, @type = File }) if p.tail.ends_with?('.inko') -> p
+      case Ok(_) -> next
+      case Error(e) -> panic(e.to_string)
+    }
+
+    let test_file = recover test_file.clone
+
+    t.test('escape analysis of ${test_file.tail}', fn move (t) {
+      match parse_test(test_file) {
+        case Ok(exp) -> t.equal(run(t.id, compiler, test_file.clone), exp)
+        case Error(e) -> panic('failed to parse ${test_file}: ${e}')
+      }
+    })
+  }
+}

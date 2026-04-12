@@ -59,11 +59,19 @@ pub struct Header {
     /// checked decrement, so starting with 1 ensures we don't underflow this
     /// value.
     pub references: u32,
+
+    /// If the value is heap allocated or not.
+    ///
+    /// For values allocated on the heap this is set to `true`. If an otherwise
+    /// heap allocated value is promoted to a stack allocated value, this is set
+    /// to `false`.
+    pub heap_allocated: bool,
 }
 
 impl Header {
     pub(crate) fn init_atomic(&mut self, instance_of: TypePointer) {
         self.instance_of = instance_of;
+        self.heap_allocated = true;
         self.references = 1;
     }
 }
@@ -225,8 +233,11 @@ mod tests {
 
     #[test]
     fn test_header_field_offsets() {
-        let header =
-            Header { instance_of: TypePointer(0x7 as _), references: 42 };
+        let header = Header {
+            instance_of: TypePointer(0x7 as _),
+            heap_allocated: true,
+            references: 42,
+        };
         let base = addr_of!(header) as usize;
 
         assert_eq!(addr_of!(header.instance_of) as usize - base, 0);

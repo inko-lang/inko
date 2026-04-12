@@ -1,0 +1,15 @@
+fn example {
+  10
+
+  20
+
+  30
+}
+
+fn inline example {
+  # foo
+}
+
+fn noinline example {
+  # foo
+}

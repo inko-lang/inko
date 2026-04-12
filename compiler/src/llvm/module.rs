@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use std::path::Path;
 use types::module_name::ModuleName;
-use types::{Block, CallConvention, Database, MethodId};
+use types::{Block, CallConvention, Database, Inline, MethodId};
 
 /// A wrapper around an LLVM Module that provides some additional methods.
 pub(crate) struct Module<'a, 'ctx> {
@@ -240,6 +240,10 @@ impl<'a, 'ctx> Module<'a, 'ctx> {
                 fn_val.add_attribute(AttributeLoc::Function, cold);
                 fn_val.add_attribute(AttributeLoc::Function, noin);
                 fn_val.add_attribute(AttributeLoc::Function, noret);
+            } else if let Inline::Never = method.inline(db) {
+                let flag = self.context.flag("noinline");
+
+                fn_val.add_attribute(AttributeLoc::Function, flag);
             }
 
             fn_val

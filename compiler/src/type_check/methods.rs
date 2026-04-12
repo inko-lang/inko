@@ -306,9 +306,7 @@ impl<'a> DefineModuleMethodNames<'a> {
             MethodKind::Static,
         );
 
-        if node.inline {
-            method.always_inline(self.db_mut());
-        }
+        method.set_inline(self.db_mut(), node.inline);
 
         if node.c_calling_convention {
             method.use_c_calling_convention(self.db_mut());
@@ -632,10 +630,7 @@ impl<'a> DefineMethods<'a> {
             MethodKind::Static,
         );
 
-        if node.inline {
-            method.always_inline(self.db_mut());
-        }
-
+        method.set_inline(self.db_mut(), node.inline);
         method.set_receiver(self.db_mut(), receiver);
 
         let scope = TypeScope::new(self.module, self_type, Some(method));
@@ -716,9 +711,7 @@ impl<'a> DefineMethods<'a> {
             kind,
         );
 
-        if node.inline {
-            method.always_inline(self.db_mut());
-        }
+        method.set_inline(self.db_mut(), node.inline);
 
         if !method.is_mutable_or_moving(self.db()) {
             bounds.make_immutable(self.db_mut());
@@ -975,10 +968,7 @@ impl<'a> DefineMethods<'a> {
             kind,
         );
 
-        if node.inline {
-            method.always_inline(self.db_mut());
-        }
-
+        method.set_inline(self.db_mut(), node.inline);
         self.define_type_parameters(&mut node.type_parameters, method, self_id);
 
         let rules = Rules {
@@ -1356,9 +1346,7 @@ impl<'a> ImplementTraitMethods<'a> {
             method_kind(node.kind),
         );
 
-        if node.inline {
-            method.always_inline(self.db_mut());
-        }
+        method.set_inline(self.db_mut(), node.inline);
 
         if !method.is_mutable_or_moving(self.db()) {
             bounds.make_immutable(self.db_mut());

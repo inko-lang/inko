@@ -180,14 +180,16 @@ impl Context {
         typ
     }
 
-    pub(crate) fn header<'a>(
+    pub(crate) fn constant_header<'a>(
         &'a self,
         layouts: &Layouts<'a>,
         typ: PointerValue<'a>,
     ) -> StructValue<'a> {
-        layouts
-            .header
-            .const_named_struct(&[typ.into(), self.u32_literal(0).into()])
+        layouts.header.const_named_struct(&[
+            typ.into(),
+            self.u32_literal(0).into(),
+            self.bool_literal(false).into(),
+        ])
     }
 
     pub(crate) fn append_basic_block<'a>(

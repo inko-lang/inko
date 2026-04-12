@@ -1,0 +1,23 @@
+type A {}
+
+type B {
+  let mut @a: A
+
+  fn noinline mut update(a: A) {
+    @a = a
+  }
+}
+
+type async Main {
+  fn async main {
+    example(B(A()))
+  }
+
+  fn noinline example(value: B) {
+    value.update(A())
+  }
+}
+
+# 13:13 B stack
+# 13:15 A stack
+# 17:18 A heap

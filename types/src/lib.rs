@@ -2157,6 +2157,10 @@ impl TypeId {
         obj.kind.is_async() || matches!(obj.storage, Storage::Atomic)
     }
 
+    pub fn is_async(self, db: &Database) -> bool {
+        self.kind(db).is_async()
+    }
+
     pub fn require_value_types(self, db: &Database) -> bool {
         self.storage(db).is_atomic()
     }
@@ -2269,6 +2273,10 @@ impl TypeId {
             TypeKind::Async => true,
             _ => matches!(typ.storage, Storage::Copy | Storage::Atomic),
         }
+    }
+
+    pub fn is_regular_heap_value(self, db: &Database) -> bool {
+        matches!(self.get(db).storage, Storage::Heap)
     }
 
     pub fn is_heap_allocated(self, db: &Database) -> bool {
@@ -3333,11 +3341,7 @@ impl MethodId {
         let method = self.get_mut(db);
 
         method.kind = MethodKind::Destructor;
-
-        // Since destructors are always called through dropper methods, we want
-        // to avoid the extra function call, so we inline these into their
-        // droppers.
-        method.inline = Inline::Always;
+        method.inline = Inline::Infer;
     }
 
     pub fn kind(self, db: &Database) -> MethodKind {
@@ -5938,8 +5942,12 @@ impl TypeRef {
                 // itself, in which case they probably _should_ be used.
                 if tid == opt_id { Some(opt_id) == rec_id } else { true }
             }
-            TypeRef::Owned(TypeEnum::TraitInstance(_))
-            | TypeRef::Uni(TypeEnum::TraitInstance(_)) => true,
+            TypeRef::Owned(
+                TypeEnum::TraitInstance(_) | TypeEnum::Closure(_),
+            )
+            | TypeRef::Uni(TypeEnum::TraitInstance(_) | TypeEnum::Closure(_)) => {
+                true
+            }
             TypeRef::Placeholder(p) => {
                 p.value(db).is_some_and(|v| v.must_use(db, receiver))
             }

@@ -1,0 +1,9 @@
+type A {}
+
+type async Main {
+  fn async main {
+    A()
+  }
+}
+
+# 5:5 A stack

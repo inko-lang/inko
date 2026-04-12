@@ -136,6 +136,9 @@ fn value= {}
 fn inline foo {}
 fn pub inline foo {}
 fn pub inline mut foo {}
+
+# Inlining may also be disabled:
+fn noinline foo {}
 ```
 
 Methods with arguments are defined like so, optional arguments aren't supported:

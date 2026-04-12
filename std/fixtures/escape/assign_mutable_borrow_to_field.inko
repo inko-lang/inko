@@ -1,0 +1,19 @@
+type A {}
+
+type B {
+  let mut @a: mut A
+}
+
+type async Main {
+  fn async main {
+    example(B(mut A()))
+  }
+
+  fn noinline example(value: mut B) {
+    value.a = mut A()
+  }
+}
+
+# 9:13 B stack
+# 9:19 A stack
+# 13:19 A stack

@@ -1,0 +1,43 @@
+type A {
+  let mut @b: B
+
+  fn noinline mut move_field -> B {
+    @b := B()
+  }
+}
+
+type B {}
+
+fn noinline example1(value: A) {}
+
+fn noinline example2(value: A) -> A {
+  value
+}
+
+fn noinline example3(value: A) -> B {
+  value.b := B()
+}
+
+fn noinline example4(value: A) -> B {
+  value.move_field
+}
+
+type async Main {
+  fn async main {
+    let _ = example1(A(B()))
+    let _ = example2(A(B()))
+    let _ = example3(A(B()))
+    let _ = example4(A(B()))
+  }
+}
+
+# 5:11 B heap
+# 18:14 B heap
+# 27:22 A stack
+# 27:24 B stack
+# 28:22 A heap
+# 28:24 B heap
+# 29:22 A heap
+# 29:24 B heap
+# 30:22 A stack
+# 30:24 B heap

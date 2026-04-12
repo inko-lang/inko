@@ -1,0 +1,20 @@
+type A {}
+
+type B {}
+
+trait Trait {
+  fn example(value: B)
+}
+
+impl Trait for A {
+  fn noinline example(value: B) {}
+}
+
+type async Main {
+  fn async main {
+    (A() as Trait).example(B())
+  }
+}
+
+# 15:6 A heap
+# 15:28 B heap

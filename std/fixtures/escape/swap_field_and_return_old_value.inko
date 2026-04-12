@@ -1,0 +1,23 @@
+type A {}
+
+type B {
+  let mut @a: A
+}
+
+type async Main {
+  fn async main {
+    example
+  }
+
+  fn noinline example -> A {
+    swap(B(A()))
+  }
+
+  fn noinline swap(value: B) -> A {
+    value.a := A()
+  }
+}
+
+# 13:10 B heap
+# 13:12 A heap
+# 17:16 A heap

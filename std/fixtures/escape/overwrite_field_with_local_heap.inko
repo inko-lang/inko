@@ -1,0 +1,45 @@
+type A {}
+
+type B {
+  let mut @a: A
+}
+
+type async Main {
+  fn async main {
+    let _ = example1(B(A()))
+    let _ = example2(B(A()))
+    let _ = example3(B(A()))
+  }
+
+  fn noinline no_escape(value: B) {}
+
+  fn noinline example1(value: B) {
+    # `value` won't escape so neither will `A`
+    value.a = A()
+  }
+
+  fn noinline example2(value: B) -> B {
+    # whether `value` escapes is up to the caller, but `A` escapes
+    value.a = A()
+    value
+  }
+
+  fn noinline example3(value: B) {
+    value.a = A()
+
+    # We don't know what the method does due to the `noinline` attribute, but we
+    # know the argument doesn't escape based on the analysis of the method's
+    # body, so `value` won't escape here either.
+    no_escape(value)
+  }
+}
+
+# 9:22 B stack
+# 9:24 A stack
+# 10:22 B heap
+# 10:24 A heap
+# 11:22 B stack
+# 11:24 A stack
+# 18:15 A stack
+# 23:15 A heap
+# 28:15 A stack
