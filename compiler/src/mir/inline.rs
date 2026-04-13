@@ -8,13 +8,6 @@ use indexmap::IndexSet;
 use std::cmp::min;
 use types::{Database, Inline, MethodId, ModuleId};
 
-/// If a method wouldn't be inlined but is called at most this many times, it
-/// will still be inlined.
-///
-/// The goal of this setting is to allow inlining of methods that aren't used
-/// much, such as (large) private helper methods.
-const INLINE_ANYWAY_CALL_COUNT: u16 = 2;
-
 /// The maximum weight a method is allowed to have before we stop inlining other
 /// methods into it.
 ///
@@ -441,9 +434,6 @@ struct InlineNode {
     /// The inlining weight of the method.
     weight: u16,
 
-    /// The number of call sites of the method.
-    calls: u16,
-
     /// A flag indicating the method is a recursive method.
     recursive: bool,
 
@@ -486,7 +476,6 @@ impl InlineGraph {
             .values()
             .map(|m| InlineNode {
                 weight: 0,
-                calls: 0,
                 recursive: false,
                 callees: Vec::new(),
                 epoch: None,
@@ -516,8 +505,6 @@ impl InlineGraph {
 
                     let idx = indexes[to_id.0 as usize];
                     let data = &mut nodes[idx];
-
-                    data.calls += 1;
 
                     // If we encounter the same callee in the same method, we
                     // don't want nor need to collect the edge data again. In
@@ -852,23 +839,25 @@ impl<'a, 'b, 'c> InlineMethod<'a, 'b, 'c> {
 
         for (blk_idx, block) in caller.body.blocks.iter().enumerate() {
             for (ins_idx, ins) in block.instructions.iter().enumerate() {
-                let callee = match self.inline_result(caller_weight, ins) {
-                    Some(call) => {
-                        let id = call.id;
-                        let weight = self.graph.node(id).weight;
+                let callee =
+                    match self.inline_result(caller.id, caller_weight, ins) {
+                        Some(call) => {
+                            let id = call.id;
+                            let weight = self.graph.node(id).weight;
 
-                        sites.push(CallSite::new(
-                            BlockId(blk_idx),
-                            ins_idx,
-                            call,
-                            self.mir.methods.get(&id).unwrap(),
-                        ));
+                            sites.push(CallSite::new(
+                                BlockId(blk_idx),
+                                ins_idx,
+                                call,
+                                self.mir.methods.get(&id).unwrap(),
+                            ));
 
-                        caller_weight = caller_weight.saturating_add(weight);
-                        id
-                    }
-                    _ => continue,
-                };
+                            caller_weight =
+                                caller_weight.saturating_add(weight);
+                            id
+                        }
+                        _ => continue,
+                    };
 
                 let callee_mod_id = callee.source_module(&self.state.db);
 
@@ -897,6 +886,7 @@ impl<'a, 'b, 'c> InlineMethod<'a, 'b, 'c> {
 
     fn inline_result<'ins>(
         &self,
+        caller: MethodId,
         caller_weight: u16,
         instruction: &'ins Instruction,
     ) -> Option<Call<'ins>> {
@@ -930,7 +920,19 @@ impl<'a, 'b, 'c> InlineMethod<'a, 'b, 'c> {
         // When encountering a recursive method we simply don't inline it at
         // all, as this is likely a waste of the inline budget better served
         // inlining other methods.
-        if self.graph.is_recursive(call.id) {
+        //
+        // It's also possible that when processing an SCC containing multiple
+        // methods the methods towards the end are inlined into their callers
+        // (= those towards the stard of the SCC). This may eventually result in
+        // a self-recursive call that we have to handle here. For example, this
+        // SCC:
+        //
+        //     A -> B -> A -> C -> D
+        //
+        // May end up being inlined into this:
+        //
+        //     A -> A
+        if self.graph.is_recursive(call.id) || caller == call.id {
             return None;
         }
 
@@ -938,9 +940,7 @@ impl<'a, 'b, 'c> InlineMethod<'a, 'b, 'c> {
         let inline = match call.id.inline(&self.state.db) {
             Inline::Always => true,
             Inline::Infer => {
-                node.weight == 0
-                    || (node.calls <= INLINE_ANYWAY_CALL_COUNT)
-                    || (caller_weight.saturating_add(node.weight) <= MAX_WEIGHT)
+                caller_weight.saturating_add(node.weight) <= MAX_WEIGHT
             }
             Inline::Never => false,
         };
