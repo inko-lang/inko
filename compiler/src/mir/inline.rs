@@ -163,9 +163,11 @@ impl CallSite {
             vec![InlinedCall::new(caller.id, loc)]
         };
 
+        caller.inlined_calls.reserve_exact(callee.inlined_calls.len() + 1);
         caller.inlined_calls.push(InlinedCalls::new(self.id, chain.clone()));
 
         for calls in &mut callee.inlined_calls {
+            calls.chain.reserve_exact(chain.len());
             calls.chain.append(&mut chain.clone());
         }
 

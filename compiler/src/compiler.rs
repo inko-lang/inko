@@ -310,6 +310,9 @@ impl Compiler {
         dirs.create().map_err(CompileError::Internal)?;
 
         if self.state.config.write_dot {
+            // Remove any duplicate edges to make the graph output a bit easier
+            // to read.
+            mir.remove_duplicate_edges();
             self.write_dot(&dirs, &symbols, &mir)?;
         }
 

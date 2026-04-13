@@ -125,23 +125,23 @@ impl Graph {
         let target_block = &mut self.blocks[target.0];
 
         target_block.predecessors.reserve_exact(1);
-        target_block.predecessors.insert(source);
+        target_block.predecessors.push(source);
 
         let source_block = &mut self.blocks[source.0];
 
         source_block.successors.reserve_exact(1);
-        source_block.successors.insert(target);
+        source_block.successors.push(target);
     }
 
     pub(crate) fn is_connected(&self, block: BlockId) -> bool {
         block == self.start_id || !self.blocks[block.0].predecessors.is_empty()
     }
 
-    pub(crate) fn predecessors(&self, block: BlockId) -> IndexSet<BlockId> {
+    pub(crate) fn predecessors(&self, block: BlockId) -> Vec<BlockId> {
         self.blocks[block.0].predecessors.clone()
     }
 
-    pub(crate) fn successors(&self, block: BlockId) -> IndexSet<BlockId> {
+    pub(crate) fn successors(&self, block: BlockId) -> Vec<BlockId> {
         self.blocks[block.0].successors.clone()
     }
 
@@ -197,7 +197,7 @@ impl Graph {
 }
 
 /// The ID/index to a basic block within a method.
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub(crate) struct BlockId(pub(crate) usize);
 
 impl Add<usize> for BlockId {
@@ -235,42 +235,43 @@ pub(crate) struct Block {
     pub(crate) instructions: Vec<Instruction>,
 
     /// All the successors of this block.
-    pub(crate) successors: IndexSet<BlockId>,
+    pub(crate) successors: Vec<BlockId>,
 
     /// All the predecessors of this block.
-    pub(crate) predecessors: IndexSet<BlockId>,
+    pub(crate) predecessors: Vec<BlockId>,
 }
 
 impl Block {
     pub(crate) fn new() -> Self {
         Self {
             instructions: Vec::new(),
-            successors: IndexSet::new(),
-            predecessors: IndexSet::new(),
+            successors: Vec::new(),
+            predecessors: Vec::new(),
         }
+    }
+
+    pub(crate) fn remove_duplicate_edges(&mut self) {
+        self.predecessors.sort();
+        self.predecessors.dedup();
+
+        self.successors.sort();
+        self.successors.dedup();
     }
 
     pub(crate) fn map_edges<F: Fn(BlockId) -> BlockId>(&mut self, func: F) {
-        for id in self.take_successors() {
-            self.successors.insert(func(id));
+        for old in &mut self.successors {
+            *old = func(*old);
         }
 
-        for id in self.take_predecessors() {
-            self.predecessors.insert(func(id));
+        for old in &mut self.predecessors {
+            *old = func(*old);
         }
     }
 
-    pub(crate) fn take_successors(&mut self) -> IndexSet<BlockId> {
-        let mut vals = IndexSet::new();
+    pub(crate) fn take_successors(&mut self) -> Vec<BlockId> {
+        let mut vals = Vec::with_capacity(self.successors.len());
 
         swap(&mut vals, &mut self.successors);
-        vals
-    }
-
-    pub(crate) fn take_predecessors(&mut self) -> IndexSet<BlockId> {
-        let mut vals = IndexSet::new();
-
-        swap(&mut vals, &mut self.predecessors);
         vals
     }
 
@@ -1886,7 +1887,7 @@ impl Method {
                 // already skip unreachable blocks, we'll also never find a
                 // block that doesn't have _any_ successors.
                 let succ = block.successors.pop().unwrap();
-                let mut pred = IndexSet::new();
+                let mut pred = Vec::new();
 
                 swap(&mut pred, &mut block.predecessors);
                 (pred, succ)
@@ -2088,14 +2089,14 @@ impl Method {
                 _ => continue,
             };
 
-            let mut succ = IndexSet::new();
+            let mut succ = Vec::new();
 
             for target_id in ins.blocks_mut() {
                 if let Some(&new) = map.get(&(src_id, *target_id)) {
                     *target_id = new;
                 }
 
-                succ.insert(*target_id);
+                succ.push(*target_id);
             }
 
             src.successors = succ;
@@ -2547,6 +2548,14 @@ impl Mir {
                     block: block.successors[0],
                     location,
                 })));
+            }
+        }
+    }
+
+    pub(crate) fn remove_duplicate_edges(&mut self) {
+        for method in self.methods.values_mut() {
+            for block in &mut method.body.blocks {
+                block.remove_duplicate_edges();
             }
         }
     }
@@ -3036,5 +3045,36 @@ mod tests {
 
         assert_eq!(ins.blocks, [(0, b1), (1, b2), (2, b1)]);
         assert_eq!(ins.fallback, Some(b2));
+    }
+
+    #[test]
+    fn test_block_map_edges() {
+        let mut block = Block::new();
+
+        block.successors.push(BlockId(1));
+        block.successors.push(BlockId(2));
+        block.predecessors.push(BlockId(3));
+        block.map_edges(|i| i + 2);
+
+        assert_eq!(&block.successors, &[BlockId(3), BlockId(4)]);
+        assert_eq!(&block.predecessors, &[BlockId(5)]);
+    }
+
+    #[test]
+    fn test_block_remove_duplicate_edges() {
+        let mut block = Block::new();
+
+        block.successors.push(BlockId(1));
+        block.successors.push(BlockId(2));
+        block.successors.push(BlockId(1));
+
+        block.predecessors.push(BlockId(1));
+        block.predecessors.push(BlockId(2));
+        block.predecessors.push(BlockId(1));
+
+        block.remove_duplicate_edges();
+
+        assert_eq!(&block.successors, &[BlockId(1), BlockId(2)]);
+        assert_eq!(&block.predecessors, &[BlockId(1), BlockId(2)]);
     }
 }

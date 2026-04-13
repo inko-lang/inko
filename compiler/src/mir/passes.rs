@@ -4914,7 +4914,7 @@ impl<'a> LowerMethod<'a> {
 
             for block in self.method.body.predecessors(block) {
                 if !visited.contains(&block) {
-                    stack.insert(block);
+                    stack.push(block);
                 }
             }
         }
