@@ -37,11 +37,11 @@ type async Main {
 # 11:7 B heap
 # 15:10 B heap
 # 22:11 B heap
-# 29:13 A stack
-# 29:15 B stack
+# 29:13 A heap
+# 29:15 B heap
 # 30:13 A stack
 # 30:15 B stack
-# 31:13 A stack
-# 31:15 B stack
+# 31:13 A heap
+# 31:15 B heap
 # 32:13 A heap
 # 32:15 B heap

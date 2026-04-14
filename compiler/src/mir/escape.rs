@@ -456,18 +456,6 @@ impl<'a> AnalyzeMethod<'a> {
                     Instruction::Return(i)
                         if self.is_escape_candidate(i.register) =>
                     {
-                        // If a moving method returns `self` then `self` itself
-                        // won't necessarily escape, but its contents might.
-                        //
-                        // This mostly benefits builder-like methods that make
-                        // use of heap types instead of `inline` types.
-                        if self.method.id.is_moving(self.db)
-                            && i.register.0 == SELF_ID
-                        {
-                            self.state.inner_escapes(i.register);
-                            continue;
-                        }
-
                         self.state.escapes(i.register);
                     }
                     _ => {}
