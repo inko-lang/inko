@@ -34,7 +34,7 @@ trait pub Iter[T] {
   #
   # This method exists such that one can use a for loop with an existing
   # iterator, as `for` loops call `into_iter` on the collection to iterate over.
-  fn pub move into_iter -> Self {
+  fn pub inline move into_iter -> Self {
     self
   }
 
