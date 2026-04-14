@@ -633,11 +633,15 @@ impl InlineGraph {
                     }
 
                     // If there is more than one component it means there's a
-                    // recursive call. In this case the last component is where
-                    // the recursion starts. We only flag this tail node as
-                    // recursive so its callees may still be inlined, provided
-                    // those aren't recursive themselves of course.
+                    // recursive call.
+                    //
+                    // We flag only the first and last components as recursive
+                    // such that intermediate components may still be inlined
+                    // into their callers. We flag _both_ the first and last so
+                    // we can still handle recursive methods that must always be
+                    // inlined.
                     if scc.len() > 1 {
+                        self.nodes[*scc.first().unwrap()].recursive = rec;
                         self.nodes[*scc.last().unwrap()].recursive = rec;
                     }
 
