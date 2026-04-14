@@ -3,7 +3,7 @@ use rustls_graviola::default_provider;
 use std::sync::Arc;
 use std::time::Duration;
 use ureq::http::Response;
-use ureq::tls::{TlsConfig, TlsProvider};
+use ureq::tls::{RootCerts, TlsConfig, TlsProvider};
 use ureq::{self, Agent, Body};
 
 const TIMEOUT: u64 = 10;
@@ -19,6 +19,7 @@ fn agent() -> Agent {
     let tls = TlsConfig::builder()
         .provider(TlsProvider::Rustls)
         .unversioned_rustls_crypto_provider(Arc::new(default_provider()))
+        .root_certs(RootCerts::PlatformVerifier)
         .build();
 
     Agent::config_builder()
