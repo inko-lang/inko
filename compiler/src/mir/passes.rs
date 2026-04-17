@@ -3493,53 +3493,30 @@ impl<'a> LowerMethod<'a> {
         mut registers: Vec<RegisterId>,
     ) -> BlockId {
         let loc = state.location;
-        let blocks = self.add_blocks(cases.len());
+        let test_block = self.add_block();
+        let mut blocks: Vec<(i64, BlockId)> = Vec::new();
 
-        self.add_edge(parent_block, blocks[0]);
-        self.connect_block_sequence(&blocks);
+        self.add_edge(parent_block, test_block);
         registers.push(test_reg);
 
-        let fallback = self.decision(
-            state,
-            fallback_node,
-            blocks[blocks.len() - 1],
-            registers.clone(),
-        );
-
-        for (index, case) in cases.into_iter().enumerate() {
-            let test_block = blocks[index];
-            let fail_block = blocks.get(index + 1).cloned().unwrap_or(fallback);
-            let res_reg = self.new_untracked_register(TypeRef::boolean());
-
-            let test_end_block = match case.constructor {
-                pmatch::Constructor::Int(val) => {
-                    let val_reg = self.new_untracked_register(TypeRef::int());
-
-                    self.block_mut(test_block).i64_literal(val_reg, val, loc);
-                    self.block_mut(test_block).call_builtin(
-                        res_reg,
-                        types::Intrinsic::IntEq,
-                        vec![test_reg, val_reg],
-                        loc,
-                    );
-
-                    test_block
-                }
-                _ => unreachable!(),
+        for case in cases {
+            let pmatch::Constructor::Int(val) = case.constructor else {
+                unreachable!()
             };
+            let block = self.add_block();
 
-            let ok_block = self.decision(
-                state,
-                case.node,
-                test_end_block,
-                registers.clone(),
-            );
-
-            self.block_mut(test_end_block)
-                .branch(res_reg, ok_block, fail_block, loc);
+            self.add_edge(test_block, block);
+            blocks.push((val, block));
+            self.decision(state, case.node, block, registers.clone());
         }
 
-        blocks[0]
+        let fallback =
+            self.decision(state, fallback_node, test_block, registers.clone());
+
+        self.block_mut(test_block)
+            .switch_with_fallback(test_reg, blocks, fallback, loc);
+
+        test_block
     }
 
     fn type_patterns(
