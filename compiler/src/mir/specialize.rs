@@ -518,7 +518,11 @@ impl<'a, 'b> Specialize<'a, 'b> {
     }
 
     fn add_methods(&mut self, mir: &mut Mir) {
-        for &(old, new) in &self.specialized_methods {
+        let mut methods = Vec::new();
+
+        swap(&mut methods, &mut self.specialized_methods);
+
+        for (old, new) in methods {
             if old != new {
                 let mut method = mir.methods.get(&old).unwrap().clone();
 
@@ -530,7 +534,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
         }
     }
 
-    fn track_method(&self, method: MethodId, mir: &mut Mir) {
+    fn track_method(&mut self, method: MethodId, mir: &mut Mir) {
         let tid =
             method.receiver(&self.state.db).type_id(&self.state.db).unwrap();
         let mid = &tid.module(&self.state.db);
@@ -592,7 +596,20 @@ impl<'a, 'b> Specialize<'a, 'b> {
         // of `self` should refer to the type of `self` as used by the method in
         // which the closure is defined, instead of pointing to the closure's
         // type.
-        self.specialize_method(type_id, method, targs, Some(self.self_type));
+        let new_method = self.specialize_method(
+            type_id,
+            method,
+            targs,
+            Some(self.self_type),
+        );
+
+        // We explicitly store the call method in the new type so the closure
+        // devirtualization pass can look it up.
+        type_id.add_method(
+            &mut self.state.db,
+            CALL_METHOD.to_string(),
+            new_method,
+        );
     }
 
     fn generate_inline_type_methods(

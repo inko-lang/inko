@@ -51,8 +51,7 @@ fn parse_output(output: mut Stdout) -> Result[Array[String], String] {
 fn run(id: Int, compiler: String, file: Path) -> Array[String] {
   let cmd = Command.new(compiler)
   let dir = env.temporary_directory.join('inko-escape-analysis-${id}')
-
-  dir.create_directory.or_panic
+  let _ = dir.create_directory
 
   cmd.stdout = Stream.Piped
   cmd.stdin = Stream.Null

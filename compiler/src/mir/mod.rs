@@ -64,6 +64,14 @@ impl Registers {
         self.get(register).value_type
     }
 
+    pub(crate) fn set_value_type(
+        &mut self,
+        register: RegisterId,
+        value_type: types::TypeRef,
+    ) {
+        self.values[register.0].value_type = value_type;
+    }
+
     pub(crate) fn len(&self) -> usize {
         self.values.len()
     }
@@ -2044,6 +2052,7 @@ impl Method {
         self.remove_unreachable_blocks();
         self.remove_unused_instructions();
         self.inline_constants(constants);
+        self.merge_redundant_moves();
     }
 
     /// Modifies switch instructions such that branches to blocks that just
@@ -2316,6 +2325,74 @@ impl Method {
                 };
 
                 *ins = new_ins;
+            }
+        }
+    }
+
+    fn merge_redundant_moves(&mut self) {
+        let counts = self.register_use_counts();
+
+        for block in &mut self.body.blocks {
+            let mut i = 0;
+
+            loop {
+                let new_target = match (
+                    block.instructions.get(i),
+                    block.instructions.get(i + 1),
+                ) {
+                    // b = move a
+                    // c = move b
+                    (
+                        Some(Instruction::MoveRegister(a)),
+                        Some(Instruction::MoveRegister(b)),
+                    ) if a.target == b.source
+                        && counts[a.target.0] == 1
+                        && counts[b.target.0] == 1 =>
+                    {
+                        b.target
+                    }
+                    // a = allocate ...
+                    // b = move a
+                    (
+                        Some(Instruction::Allocate(alloc)),
+                        Some(Instruction::MoveRegister(mov)),
+                    ) if mov.source == alloc.register => mov.target,
+                    // a = int 10
+                    // b = move a
+                    (
+                        Some(Instruction::Int(lit)),
+                        Some(Instruction::MoveRegister(mov)),
+                    ) if mov.source == lit.register
+                        && counts[lit.register.0] == 1 =>
+                    {
+                        mov.target
+                    }
+                    // a = float 1.2
+                    // b = move a
+                    (
+                        Some(Instruction::Float(lit)),
+                        Some(Instruction::MoveRegister(mov)),
+                    ) if mov.source == lit.register
+                        && counts[lit.register.0] == 1 =>
+                    {
+                        mov.target
+                    }
+                    (None, _) => break,
+                    _ => {
+                        i += 1;
+                        continue;
+                    }
+                };
+
+                match &mut block.instructions[i] {
+                    Instruction::MoveRegister(ins) => ins.target = new_target,
+                    Instruction::Allocate(ins) => ins.register = new_target,
+                    Instruction::Int(ins) => ins.register = new_target,
+                    Instruction::Float(ins) => ins.register = new_target,
+                    _ => {}
+                }
+
+                block.instructions.remove(i + 1);
             }
         }
     }

@@ -1,12 +1,15 @@
 use crate::mir::escape;
 use crate::mir::{
-    BlockId, Goto, Graph, InlinedCall, InlinedCalls, Instruction,
+    BlockId, CallInstance, Goto, Graph, InlinedCall, InlinedCalls, Instruction,
     InstructionLocation, Method, Mir, MoveRegister, RegisterId, Registers,
 };
 use crate::state::State;
 use indexmap::IndexSet;
 use std::cmp::min;
-use types::{Database, Inline, MethodId, ModuleId};
+use std::mem::swap;
+use types::{
+    CALL_METHOD, DROPPER_METHOD, Database, Inline, MethodId, ModuleId,
+};
 
 /// The maximum weight a method is allowed to have before we stop inlining other
 /// methods into it.
@@ -726,6 +729,7 @@ impl<'a, 'b, 'c> InlineMethod<'a, 'b, 'c> {
                     .module_id(module.name(&state.db))
                     .unwrap();
 
+                // TODO: add new() method
                 InlineMethod {
                     state,
                     mir,
@@ -764,16 +768,12 @@ impl<'a, 'b, 'c> InlineMethod<'a, 'b, 'c> {
         }
     }
 
-    fn run(mut self) -> bool {
-        let mut inlined = false;
-
+    fn run(mut self) {
         loop {
             let mut work = self.inline_call_sites();
 
             if work.is_empty() {
                 break;
-            } else {
-                inlined = true;
             }
 
             // We process the work list in reverse order so that modifying the
@@ -832,9 +832,17 @@ impl<'a, 'b, 'c> InlineMethod<'a, 'b, 'c> {
 
                 call.inline_into(caller, callee, after);
             }
-        }
 
-        inlined
+            // After inlining we may end up with closures that were passed as
+            // arguments (but are now just regular registerst) and still use
+            // closure dispatch. Since the types may now be statically known
+            // there's no reason for that any more.
+            //
+            // Replacing closure dispatch with static dispatch may also allow
+            // for additional inlining, so we run this as part of the inlining
+            // loop.
+            self.devirtualize_closure_calls();
+        }
     }
 
     fn inline_call_sites(&mut self) -> Vec<CallSite> {
@@ -952,5 +960,86 @@ impl<'a, 'b, 'c> InlineMethod<'a, 'b, 'c> {
         };
 
         inline.then_some(call)
+    }
+
+    fn devirtualize_closure_calls(&mut self) {
+        let method = &mut self.mir.methods[self.method];
+        let db = &self.state.db;
+
+        // First we need to propagate the generated closure types across any
+        // MoveRegister instructions. Without this the receiver of a CallClosure
+        // instruction would always be an opaque closure type, preventing us
+        // from replacing the CallClosure with a CallInstance.
+        for block in &mut method.body.blocks {
+            for ins in &block.instructions {
+                let Instruction::MoveRegister(mov) = ins else { continue };
+
+                if !method.registers.value_type(mov.target).is_closure(db) {
+                    continue;
+                }
+
+                let src_typ = method.registers.value_type(mov.source);
+
+                if src_typ.as_type_instance(db).is_some() {
+                    method.registers.set_value_type(mov.target, src_typ);
+                }
+            }
+        }
+
+        for block in &mut method.body.blocks {
+            for ins in &mut block.instructions {
+                match ins {
+                    Instruction::CallClosure(i) => {
+                        let rec = i.receiver;
+                        let Some(typ) = method
+                            .registers
+                            .value_type(rec)
+                            .as_type_instance(db)
+                        else {
+                            continue;
+                        };
+                        let reg = i.register;
+                        let loc = i.location;
+                        let met = typ.method(db, CALL_METHOD).unwrap();
+                        let mut args = Vec::new();
+
+                        swap(&mut args, &mut i.arguments);
+                        *ins =
+                            Instruction::CallInstance(Box::new(CallInstance {
+                                register: reg,
+                                receiver: rec,
+                                method: met,
+                                arguments: args,
+                                type_arguments: None,
+                                location: loc,
+                            }));
+                    }
+                    Instruction::CallDropper(i) => {
+                        let rec = i.receiver;
+                        let Some(typ) = method
+                            .registers
+                            .value_type(rec)
+                            .as_type_instance(db)
+                        else {
+                            continue;
+                        };
+                        let reg = i.register;
+                        let loc = i.location;
+                        let met = typ.method(db, DROPPER_METHOD).unwrap();
+
+                        *ins =
+                            Instruction::CallInstance(Box::new(CallInstance {
+                                register: reg,
+                                receiver: rec,
+                                method: met,
+                                arguments: Vec::new(),
+                                type_arguments: None,
+                                location: loc,
+                            }));
+                    }
+                    _ => {}
+                }
+            }
+        }
     }
 }

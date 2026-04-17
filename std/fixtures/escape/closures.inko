@@ -4,6 +4,10 @@ fn noinline return_closure -> fn (A) {
   fn (_a) {}
 }
 
+fn return_closure_that_allows_inlining -> fn (A) {
+  fn (_a) {}
+}
+
 fn noinline example1(value: fn) {}
 
 fn noinline example2(value: fn) {
@@ -51,6 +55,10 @@ fn noinline example9 {
   a.call(A())
 }
 
+fn noinline example10 {
+  return_closure_that_allows_inlining.call(A())
+}
+
 type async Main {
   fn async main {
     let _ = example1(fn {})
@@ -62,21 +70,25 @@ type async Main {
     let _ = example7
     let _ = example8
     let _ = example9
+    let _ = example10
   }
 }
 
 # 4:3 <closure> heap
-# 18:11 <closure> stack
-# 20:3 <closure> stack
-# 24:11 <closure> stack
-# 26:3 <closure> stack
-# 30:11 <closure> heap
-# 32:3 <closure> heap
-# 36:11 A heap
-# 38:3 <closure> heap
-# 45:23 A heap
-# 49:11 <closure> stack
-# 51:10 A heap
-# 56:22 <closure> stack
-# 57:22 <closure> stack
-# 58:22 <closure> heap
+# 8:3 <closure> heap
+# 8:3 <closure> stack
+# 22:11 <closure> stack
+# 24:3 <closure> stack
+# 28:11 <closure> stack
+# 30:3 <closure> stack
+# 34:11 <closure> heap
+# 36:3 <closure> heap
+# 40:11 A heap
+# 42:3 <closure> heap
+# 49:23 A heap
+# 53:11 <closure> stack
+# 55:10 A heap
+# 59:44 A stack
+# 64:22 <closure> stack
+# 65:22 <closure> stack
+# 66:22 <closure> heap
