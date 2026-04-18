@@ -12,8 +12,8 @@ jobs:
   vale:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
-      - uses: errata-ai/vale-action@v2.1.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: errata-ai/vale-action@d89dee975228ae261d22c15adcd03578634d429c
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -24,16 +24,16 @@ jobs:
   cargo-deny:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
-      - uses: EmbarkStudios/cargo-deny-action@v2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: EmbarkStudios/cargo-deny-action@91bf2b620e09e18d6eb78b92e7861937469acedb
 
   cargo-clippy:
     runs-on: ubuntu-24.04
     container:
       image: ghcr.io/inko-lang/ci:fedora-amd64
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/cache@v5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
         with:
           path: '${{ env.CARGO_HOME }}'
           key: cargo-clippy-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
@@ -45,7 +45,7 @@ jobs:
     container:
       image: ghcr.io/inko-lang/ci:fedora-amd64
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       - name: Run rustfmt
         run: 'cargo fmt --all --check'
 
@@ -54,8 +54,8 @@ jobs:
     container:
       image: ghcr.io/inko-lang/ci:fedora-amd64
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/cache@v5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
         with:
           path: '${{ env.CARGO_HOME }}'
           key: inko-fmt-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
@@ -84,8 +84,8 @@ jobs:
     container:
       image: ghcr.io/inko-lang/ci:${{ matrix.target.image }}
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/cache@v5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
         with:
           path: '${{ env.CARGO_HOME }}'
           key: ${{ matrix.target.name }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
@@ -110,8 +110,8 @@ jobs:
     container:
       image: ghcr.io/inko-lang/ci:${{ matrix.target.image }}
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/cache@v5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
         with:
           path: '${{ env.CARGO_HOME }}'
           key: ${{ matrix.target.name }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
@@ -133,8 +133,8 @@ jobs:
     env:
       RUSTUP_HOME: ${{ github.workspace }}/.rustup-home
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/cache@v5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
         with:
           path: |
             ${{ env.CARGO_HOME }}
@@ -163,8 +163,8 @@ jobs:
     env:
       RUSTUP_HOME: ${{ github.workspace }}/.rustup-home
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/cache@v5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
         with:
           path: |
             ${{ env.CARGO_HOME }}
@@ -182,15 +182,15 @@ jobs:
     env:
       RUSTUP_HOME: ${{ github.workspace }}/.rustup-home
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/cache@v5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
         with:
           path: |
             ${{ env.CARGO_HOME }}
             ${{ env.RUSTUP_HOME }}
           key: amd64-freebsd-native-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
       - name: Run tests
-        uses: cross-platform-actions/action@v0.32.0
+        uses: cross-platform-actions/action@233156312992f3f169d8d0c633c21d12a5d30455
         with:
           operating_system: freebsd
           version: '14.0'
@@ -208,15 +208,15 @@ jobs:
     env:
       RUSTUP_HOME: ${{ github.workspace }}/.rustup-home
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/cache@v5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
         with:
           path: |
             ${{ env.CARGO_HOME }}
             ${{ env.RUSTUP_HOME }}
           key: amd64-freebsd-native-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
       - name: Run tests
-        uses: cross-platform-actions/action@v0.32.0
+        uses: cross-platform-actions/action@233156312992f3f169d8d0c633c21d12a5d30455
         with:
           operating_system: freebsd
           version: '14.0'

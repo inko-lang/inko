@@ -34,17 +34,17 @@ jobs:
       - tests
     if: github.ref_name == 'main'
     steps:
-      - uses: actions/checkout@v6
-      - uses: docker/login-action@v3
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/metadata-action@v5
+      - uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf
         id: meta
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-      - uses: docker/build-push-action@v5
+      - uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f
         with:
           context: .
           push: true
@@ -61,8 +61,8 @@ jobs:
     steps:
       - name: Install dependencies
         run: microdnf install --quiet --assumeyes rclone make
-      - uses: actions/checkout@v6
-      - uses: actions/cache@v5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
         with:
           path: '~/.local/share/inko/packages'
           key: docs-main-${{ hashFiles('docs/inko.pkg') }}
@@ -86,8 +86,8 @@ jobs:
     needs:
       - tests
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/cache@v5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
         with:
           path: '${{ env.CARGO_HOME }}'
           key: std-docs-main-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}

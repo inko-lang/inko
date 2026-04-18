@@ -14,10 +14,10 @@ jobs:
     container:
       image: ghcr.io/inko-lang/ci:fedora-amd64
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       - name: Build runtimes
         run: bash ci/runtimes.sh amd64-linux
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: amd64-linux
           path: tmp/runtimes/*.tar.gz
@@ -30,10 +30,10 @@ jobs:
     container:
       image: ghcr.io/inko-lang/ci:fedora-arm64
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       - name: Build runtimes
         run: bash ci/runtimes.sh arm64-linux
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: arm64-linux
           path: tmp/runtimes/*.tar.gz
@@ -44,12 +44,12 @@ jobs:
   amd64-mac:
     runs-on: macos-15-intel
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       - name: Install dependencies
         run: ./ci/mac.sh
       - name: Build runtimes
         run: bash ci/runtimes.sh amd64-mac
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: amd64-mac
           path: tmp/runtimes/*.tar.gz
@@ -60,12 +60,12 @@ jobs:
   arm64-mac:
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       - name: Install dependencies
         run: ./ci/mac.sh
       - name: Build runtimes
         run: bash ci/runtimes.sh arm64-mac
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: arm64-mac
           path: tmp/runtimes/*.tar.gz
@@ -76,9 +76,9 @@ jobs:
   amd64-freebsd:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       - name: Build runtimes
-        uses: cross-platform-actions/action@v0.32.0
+        uses: cross-platform-actions/action@233156312992f3f169d8d0c633c21d12a5d30455
         with:
           operating_system: freebsd
           version: '14.0'
@@ -86,7 +86,7 @@ jobs:
           environment_variables: 'CARGO_HOME RUSTUP_HOME'
           image_url: 'https://github.com/inko-lang/freebsd-builder/releases/download/v0.8.0/freebsd-14.0-x86-64.qcow2'
           run: bash ci/runtimes.sh amd64-freebsd
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: amd64-freebsd
           path: tmp/runtimes/*.tar.gz
@@ -108,8 +108,8 @@ jobs:
       - arm64-mac
       - amd64-freebsd
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           path: tmp/runtimes
           merge-multiple: true
