@@ -623,8 +623,9 @@ impl<'a> GenerateDocumentation<'a> {
             let docs = field.documentation(self.db()).clone();
             let loc = location_to_json(field.location(self.db()));
             let typ = format!(
-                "let{} @{}: {}",
+                "let{}{} @{}: {}",
                 if public { " pub" } else { "" },
+                if mutable { " mut" } else { "" },
                 name,
                 format_type(self.db(), field.value_type(self.db()))
             );
