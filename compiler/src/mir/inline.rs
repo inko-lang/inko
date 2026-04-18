@@ -729,7 +729,6 @@ impl<'a, 'b, 'c> InlineMethod<'a, 'b, 'c> {
                     .module_id(module.name(&state.db))
                     .unwrap();
 
-                // TODO: add new() method
                 InlineMethod {
                     state,
                     mir,

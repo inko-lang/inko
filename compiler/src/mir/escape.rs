@@ -1,8 +1,7 @@
 use crate::graph;
 use crate::mir::{Instruction, Method, RegisterId, SELF_ID};
-use indexmap::IndexSet;
 use std::cmp::Ordering;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::mem::swap;
 use types::format::format_type;
 use types::module_name::ModuleName;
@@ -89,30 +88,40 @@ struct State {
     graph: graph::Graph<Node>,
 
     /// A mapping of register IDs to their graph nodes.
-    map: HashMap<RegisterId, graph::NodeId>,
+    ///
+    /// This Vec is indexed using register IDs.
+    map: Vec<Option<graph::NodeId>>,
 
     /// The registers to process while traversing a register graph.
     work: Vec<RegisterId>,
 
     /// The registers processed while traversing a register graph.
-    done: HashSet<RegisterId>,
+    ///
+    /// This Vec is indexed using register IDs.
+    done: Vec<bool>,
 }
 
 impl State {
-    fn new() -> Self {
+    fn new(registers: usize) -> Self {
         Self {
             graph: graph::Graph::new(),
-            map: HashMap::new(),
+            map: vec![None; registers],
             work: Vec::new(),
-            done: HashSet::new(),
+            done: vec![false; registers],
         }
     }
 
     fn get_or_add(&mut self, register: RegisterId) -> graph::NodeId {
-        *self
-            .map
-            .entry(register)
-            .or_insert_with(|| self.graph.add(Node::new(register)))
+        let slot = &mut self.map[register.0];
+
+        if let Some(v) = slot {
+            *v
+        } else {
+            let id = self.graph.add(Node::new(register));
+
+            *slot = Some(id);
+            id
+        }
     }
 
     fn add_edge(&mut self, from: RegisterId, to: RegisterId) {
@@ -139,12 +148,12 @@ impl State {
         let mut state = Escape::No;
 
         self.work.push(register);
-        self.done.insert(register);
+        self.done[register.0] = true;
 
         while let Some(register) = self.work.pop() {
             // If there's no node it means the register wasn't seen anywhere,
             // which in turn means it was never moved.
-            let Some(&id) = self.map.get(&register) else {
+            let Some(id) = self.map[register.0] else {
                 break;
             };
 
@@ -164,14 +173,18 @@ impl State {
             for &id in &node.incoming {
                 let reg = self.graph.get(id).value.register;
 
-                if self.done.insert(reg) {
+                if !self.done[reg.0] {
+                    self.done[reg.0] = true;
                     self.work.push(reg);
                 }
             }
         }
 
+        for val in &mut self.done {
+            *val = false;
+        }
+
         self.work.clear();
-        self.done.clear();
         state
     }
 
@@ -269,21 +282,25 @@ pub(crate) struct AnalyzeMethod<'a> {
     state: State,
 
     /// The registers containing values _moved_ out of fields.
-    fields: IndexSet<RegisterId>,
+    ///
+    /// This Vec is indexed using register IDs.
+    fields: Vec<bool>,
 }
 
 impl<'a> AnalyzeMethod<'a> {
     pub(crate) fn new(
         db: &'a Database,
-        state: &'a mut Entries,
+        entries: &'a mut Entries,
         method: &'a mut Method,
     ) -> Self {
+        let num_regs = method.registers.len();
+
         Self {
             db,
-            entries: state,
-            state: State::new(),
+            entries,
+            state: State::new(num_regs),
             method,
-            fields: IndexSet::new(),
+            fields: vec![false; num_regs],
         }
     }
 
@@ -306,8 +323,8 @@ impl<'a> AnalyzeMethod<'a> {
     }
 
     fn connect_nodes(&mut self) {
-        self.method.body.each_block_in_order(|bid| {
-            for ins in &self.method.body.blocks[bid.0].instructions {
+        for block in &self.method.body.blocks {
+            for ins in &block.instructions {
                 let (from, to) = match ins {
                     Instruction::MoveRegister(i) => (i.target, i.source),
                     Instruction::GetField(i)
@@ -317,7 +334,7 @@ impl<'a> AnalyzeMethod<'a> {
                             .value_type(i.register)
                             .is_owned_or_uni(self.db) =>
                     {
-                        self.fields.insert(i.register);
+                        self.fields[i.register.0] = true;
                         (i.register, i.receiver)
                     }
                     Instruction::SetField(i)
@@ -334,7 +351,7 @@ impl<'a> AnalyzeMethod<'a> {
 
                 self.state.add_edge(from, to);
             }
-        });
+        }
     }
 
     fn mark_escaping(&mut self) {
@@ -522,13 +539,19 @@ impl<'a> AnalyzeMethod<'a> {
             Escape::No
         };
 
-        let mut fields = IndexSet::new();
+        let mut fields = Vec::new();
 
         // We can't iterate over `self.fields` below while also using other
         // methods in `self`, so we perform this swap to work around that.
         swap(&mut fields, &mut self.fields);
 
-        for reg in fields {
+        for (idx, is_field) in fields.into_iter().enumerate() {
+            if !is_field {
+                continue;
+            }
+
+            let reg = RegisterId(idx);
+
             if !self.is_escape_candidate(reg) {
                 continue;
             }

@@ -1,5 +1,4 @@
 //! Graph data structures.
-use indexmap::IndexSet;
 
 /// A graph that supports insertions and retrievals but not removals.
 pub(crate) struct Graph<T> {
@@ -27,8 +26,8 @@ impl<T> Graph<T> {
     }
 
     pub(crate) fn add_edge(&mut self, from: NodeId, to: NodeId) {
-        self.get_mut(from).outgoing.insert(to);
-        self.get_mut(to).incoming.insert(from);
+        self.get_mut(from).outgoing.push(to);
+        self.get_mut(to).incoming.push(from);
     }
 }
 
@@ -37,13 +36,13 @@ pub(crate) struct NodeId(pub(crate) usize);
 
 pub(crate) struct Node<T> {
     pub(crate) value: T,
-    pub(crate) incoming: IndexSet<NodeId>,
-    pub(crate) outgoing: IndexSet<NodeId>,
+    pub(crate) incoming: Vec<NodeId>,
+    pub(crate) outgoing: Vec<NodeId>,
 }
 
 impl<T> Node<T> {
     pub(crate) fn new(value: T) -> Self {
-        Self { value, incoming: IndexSet::new(), outgoing: IndexSet::new() }
+        Self { value, incoming: Vec::new(), outgoing: Vec::new() }
     }
 }
 
