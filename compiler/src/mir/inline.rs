@@ -8,7 +8,8 @@ use indexmap::IndexSet;
 use std::cmp::min;
 use std::mem::swap;
 use types::{
-    CALL_METHOD, DROPPER_METHOD, Database, Inline, MethodId, ModuleId,
+    Block as _, CALL_METHOD, DROPPER_METHOD, Database, Inline, MethodId,
+    ModuleId,
 };
 
 /// The maximum weight a method is allowed to have before we stop inlining other
@@ -30,8 +31,17 @@ fn instruction_weight(db: &Database, instruction: &Instruction) -> u16 {
         // processes translate into a function call, so we give them the same
         // weight as calls.
         Instruction::Allocate(ins) if ins.type_id.is_stack_allocated(db) => 0,
+        Instruction::Allocate(i) if i.stack => 0,
         Instruction::Allocate(_) => 1,
         Instruction::Spawn(_) => 1,
+
+        // A pattern used by the standard library is to move panic producers
+        // into a module method that returns `Never`, which is then not inlined.
+        // We don't want such calls to prevent inlining other more useful
+        // methods, so we assign them a zero weight.
+        Instruction::CallStatic(i) if i.method.return_type(db).is_never(db) => {
+            0
+        }
 
         // These instructions translate into (more or less) regular function
         // calls, which don't take up that much space.
@@ -40,19 +50,15 @@ fn instruction_weight(db: &Database, instruction: &Instruction) -> u16 {
         Instruction::CallStatic(_) => 1,
         Instruction::CallClosure(_) => 1,
         Instruction::CallDropper(_) => 1,
+        Instruction::CallExtern(_) => 1,
 
-        // Branches may introduce many basic blocks and code, especially when
-        // used for nested if-else trees (such as when matching against an
-        // integer).
-        Instruction::CheckRefs(_) => 2,
-        Instruction::DecrementAtomic(_) => 2,
-        Instruction::Switch(ins) => {
-            // Large switch instructions can greatly increase LLVM compile
-            // times, so we try to keep this under control by _not_ inlining
-            // switch instructions with many branches.
-            ins.blocks.len() as u16
-        }
-        Instruction::Branch(_) => 2,
+        // Branches themselves are cheap but may indicate more complex code, but
+        // we also don't want to "punish" a method too hard if it just contains
+        // a few branches.
+        Instruction::CheckRefs(_) => 1,
+        Instruction::DecrementAtomic(_) => 1,
+        Instruction::Switch(_) => 1,
+        Instruction::Branch(_) => 1,
 
         // These instructions translate into a bit more code (potentially), such
         // as dynamic dispatch when probing is necessary.
