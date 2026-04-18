@@ -56,7 +56,7 @@ fn object_path(directories: &BuildDirectories, name: &ModuleName) -> PathBuf {
     directories.objects.join(format!("{}.o", hash))
 }
 
-fn hash_compile_time_variables(state: &State) -> String {
+fn hash_compile_time_state(state: &State) -> String {
     let mut hasher = Hasher::new();
     let mut pairs: Vec<_> =
         state.config.compile_time_variables.iter().collect();
@@ -68,6 +68,10 @@ fn hash_compile_time_variables(state: &State) -> String {
         hasher.update(const_name.as_bytes());
         hasher.update(val.as_bytes());
     }
+
+    // Enabling/disabling escape analysis affects the generated code, so if this
+    // changes we need to flush object file caches.
+    hasher.update(&(state.config.escape_analysis as u8).to_le_bytes());
 
     hasher.finalize().to_string()
 }
@@ -100,7 +104,7 @@ fn check_object_cache(
         .map(|d| d.as_secs())
         .unwrap_or(0);
 
-    let vars_hash = hash_compile_time_variables(state);
+    let vars_hash = hash_compile_time_state(state);
     let new_ver =
         format!("{}-{}-{}", env!("CARGO_PKG_VERSION"), time, vars_hash);
     let ver_path = directories.objects.join("version");
