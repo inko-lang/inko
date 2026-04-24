@@ -13,8 +13,9 @@ import std.ops (
   Add, BitAnd, BitOr, BitXor, Divide, Modulo, Multiply, Power, ShiftLeft,
   ShiftRight, Subtract, UnsignedShiftRight,
 )
+import std.ptr
 import std.range (ExclusiveRange, InclusiveRange)
-import std.string (ToString)
+import std.string (PrimitiveString, ToString)
 
 fn extern inko_int_checked_pow(left: Int, right: Int) -> CheckedIntResult
 
@@ -38,6 +39,10 @@ let LOWER_F = 102
 let UPPER_A = 65
 let UPPER_F = 90
 let LOWER_X = 120
+
+let FORMAT_BYTES = [
+  48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 97, 98, 99, 100, 101, 102,
+]
 
 # The type returned by checked integer builtin functions, such as
 # `int_checked_add()`.
@@ -72,6 +77,82 @@ type pub copy enum Format {
       case Hex -> 16
     }
   }
+}
+
+# A buffer used for formatting an `Int`.
+#
+# We don't support stack allocated fixed-size arrays
+# (https://github.com/inko-lang/inko/issues/975) at this time, so this is the
+# least messy workaround.
+#
+# The size of this buffer is 65 bytes, which is the maximum size needed for the
+# supported formats (64 bytes for base 10, plus one byte for the sign).
+type extern FormatBuffer {
+  let @0: Uint8
+  let @1: Uint8
+  let @2: Uint8
+  let @3: Uint8
+  let @4: Uint8
+  let @5: Uint8
+  let @6: Uint8
+  let @7: Uint8
+  let @8: Uint8
+  let @9: Uint8
+  let @10: Uint8
+  let @11: Uint8
+  let @12: Uint8
+  let @13: Uint8
+  let @14: Uint8
+  let @15: Uint8
+  let @16: Uint8
+  let @17: Uint8
+  let @18: Uint8
+  let @19: Uint8
+  let @20: Uint8
+  let @21: Uint8
+  let @22: Uint8
+  let @23: Uint8
+  let @24: Uint8
+  let @25: Uint8
+  let @26: Uint8
+  let @27: Uint8
+  let @28: Uint8
+  let @29: Uint8
+  let @30: Uint8
+  let @31: Uint8
+  let @32: Uint8
+  let @33: Uint8
+  let @34: Uint8
+  let @35: Uint8
+  let @36: Uint8
+  let @37: Uint8
+  let @38: Uint8
+  let @39: Uint8
+  let @40: Uint8
+  let @41: Uint8
+  let @42: Uint8
+  let @43: Uint8
+  let @44: Uint8
+  let @45: Uint8
+  let @46: Uint8
+  let @47: Uint8
+  let @48: Uint8
+  let @49: Uint8
+  let @50: Uint8
+  let @51: Uint8
+  let @52: Uint8
+  let @53: Uint8
+  let @54: Uint8
+  let @55: Uint8
+  let @56: Uint8
+  let @57: Uint8
+  let @58: Uint8
+  let @59: Uint8
+  let @60: Uint8
+  let @61: Uint8
+  let @62: Uint8
+  let @63: Uint8
+  let @64: Uint8
 }
 
 # A 64-bits signed integer type.
@@ -251,19 +332,28 @@ type builtin Int {
       case _ -> {}
     }
 
-    let alphabet = '0123456789abcdef'
-    let bytes = ByteArray.new
+    let buf = FormatBuffer()
+    let buf_ptr = (mut buf) as Pointer[Uint8]
     let mut int = absolute
+    let mut idx = 64
+    let mut len = 0
 
     while int > 0 {
-      bytes.push(alphabet.get(int % base).or_panic)
+      ptr.add(buf_ptr, idx).0 = FORMAT_BYTES.get_unchecked(int % base) as Uint8
       int /= base
+      len += 1
+      idx -= 1
     }
 
-    if self < 0 { bytes.push(0x2D) }
+    if self < 0 {
+      ptr.add(buf_ptr, idx).0 = 0x2D as Uint8
+      len += 1
+      idx -= 1
+    }
 
-    bytes.reverse
-    bytes.into_string
+    let start = ptr.add(buf_ptr, idx + 1)
+
+    String.from_borrowed_primitive(PrimitiveString(bytes: start, size: len))
   }
 
   # Calls the supplied closure `self` times.
