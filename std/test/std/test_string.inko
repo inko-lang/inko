@@ -189,12 +189,13 @@ fn pub tests(t: mut Tests) {
     t.equal(split('foo//bar/baz', on: '/'), ['foo', '', 'bar', 'baz'])
     t.equal(split('foo/bar/baz', on: ''), ['foo/bar/baz'])
     t.equal(split('foo/bar', on: '///////////////'), ['foo/bar'])
-    t.equal(split('foo/', on: '/'), ['foo'])
-    t.equal(split('foo//', on: '/'), ['foo', ''])
-    t.equal(split('foo///', on: '/'), ['foo', '', ''])
-    t.equal(split('foo//', on: '//'), ['foo'])
+    t.equal(split('foo/', on: '/'), ['foo', ''])
+    t.equal(split('foo//', on: '/'), ['foo', '', ''])
+    t.equal(split('foo///', on: '/'), ['foo', '', '', ''])
+    t.equal(split('foo//', on: '//'), ['foo', ''])
     t.equal(split('foo///', on: '//'), ['foo', '/'])
-    t.equal(split('', on: '/'), [])
+    t.equal(split('/foo//', on: '/'), ['', 'foo', '', ''])
+    t.equal(split('', on: '/'), [''])
   })
 
   t.test('String.split_once', fn (t) {

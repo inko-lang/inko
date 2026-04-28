@@ -417,7 +417,8 @@ type pub Cookie {
     input: String,
   ) -> Result[Array[Cookie], ParseError] {
     input.split(';').try_reduce([], fn (cookies, slice) {
-      cookies.push(try Cookie.parse_name_value(slice))
+      if slice.size > 0 { cookies.push(try Cookie.parse_name_value(slice)) }
+
       Result.Ok(cookies)
     })
   }

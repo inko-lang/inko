@@ -377,6 +377,8 @@ type pub inline Slice[T: Bytes] {
   # If the separator isn't present in `self`, the returned iterator yields
   # `self` exactly once.
   #
+  # If `self` is empty then a single empty `String` is yielded.
+  #
   # # Examples
   #
   # ```inko
@@ -395,7 +397,7 @@ type pub inline Slice[T: Bytes] {
     Stream.new(fn move {
       match index_of(separator, starting_at: off) {
         case Some(i) -> Option.Some(slice(off := i + sep_len, i))
-        case _ if off < len -> Option.Some(slice(off := len, len))
+        case _ if off <= len -> Option.Some(slice(off := len + 1, len))
         case _ -> Option.None
       }
     })
