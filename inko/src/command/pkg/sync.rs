@@ -1,7 +1,7 @@
 use crate::error::Error;
 use crate::options::print_usage;
 use compiler::config::Config;
-use compiler::pkg::sync::sync;
+use compiler::pkg::sync::sync_if_needed;
 use getopts::Options;
 
 const USAGE: &str = "inko pkg sync [OPTIONS]
@@ -27,7 +27,7 @@ pub(crate) fn run(args: &[String]) -> Result<i32, Error> {
 
     let config = Config::default();
 
-    sync(&config.dependencies)?;
+    sync_if_needed(&config.dependencies)?;
 
     Ok(0)
 }

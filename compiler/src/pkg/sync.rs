@@ -1,3 +1,4 @@
+use crate::file_lock::FileLock;
 use crate::pkg::git::Repository;
 use crate::pkg::manifest::{Dependency, MANIFEST_FILE, Manifest, Url};
 use crate::pkg::util::{cp_r, data_dir};
@@ -5,7 +6,7 @@ use crate::pkg::version::{Version, select};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs::{
-    copy, create_dir_all, read, read_to_string, remove_dir_all, write,
+    copy, create_dir_all, read, read_dir, read_to_string, remove_dir_all, write,
 };
 use std::io;
 use std::path::Path;
@@ -20,21 +21,33 @@ struct Package {
 }
 
 pub fn sync_if_needed(directory: &Path) -> Result<(), String> {
+    mkdir(directory)?;
+
+    // This lock must be held so e.g. an `inko build` and `inko pkg sync` don't
+    // concurrently interfere with the same dep/ directory
+    let _deps_lock = FileLock::new(&directory.join("lock"))
+        .map_err(|e| format!("failed to get the dependencies lock: {}", e))?;
+
     if manifest_hash_changed(directory)? { sync(directory) } else { Ok(()) }
 }
 
-pub fn sync(directory: &Path) -> Result<(), String> {
-    let packages = download_packages()?;
+fn mkdir(path: &Path) -> Result<(), String> {
+    create_dir_all(path)
+        .map_err(|e| format!("failed to create {}: {}", path.display(), e))
+}
+
+fn sync(dependencies: &Path) -> Result<(), String> {
+    let (data, _data_lock) = data_dir()?;
+    let packages = download_packages(&data)?;
     let versions = select(packages.iter().map(|p| &p.dependency));
 
-    remove_dependencies(directory)?;
-    install_packages(packages, versions, directory)?;
-    save_manifest_hash(directory)?;
+    remove_dependencies(dependencies)?;
+    install_packages(packages, versions, dependencies)?;
+    save_manifest_hash(dependencies)?;
     Ok(())
 }
 
-fn download_packages() -> Result<Vec<Package>, String> {
-    let data_dir = data_dir()?;
+fn download_packages(data_dir: &Path) -> Result<Vec<Package>, String> {
     let mut manifests = vec![Manifest::load(&MANIFEST_FILE)?];
     let mut packages = Vec::new();
     let mut downloaded = HashSet::new();
@@ -49,7 +62,7 @@ fn download_packages() -> Result<Vec<Package>, String> {
                 downloaded.insert(key);
             }
 
-            match download_dependency(&data_dir, dep)? {
+            match download_dependency(data_dir, dep)? {
                 (package, Some(manifest)) => {
                     manifests.push(manifest);
                     packages.push(package);
@@ -88,21 +101,21 @@ fn download_dependency(
 
     let tag = tag.ok_or_else(|| {
         format!(
-            "The version {} of package {} doesn't exist",
+            "the version {} of package {} doesn't exist",
             dependency.version, url
         )
     })?;
 
     repo.checkout(&tag.target).map_err(|err| {
         format!(
-            "Failed to checkout tag {} of package {}: {}",
+            "failed to checkout tag {} of package {}: {}",
             tag_name, url, err
         )
     })?;
 
     if tag.target != dependency.checksum.to_string() {
         let _ = format!(
-            "The checksum of {} version {} didn't match.
+            "the checksum of {} version {} didn't match.
 
 The checksum that is expected is:
 
@@ -135,10 +148,22 @@ changes.",
 }
 
 fn remove_dependencies(directory: &Path) -> Result<(), String> {
-    if directory.is_dir() {
-        remove_dir_all(directory).map_err(|err| {
-            format!("Failed to remove {}: {}", directory.display(), err)
-        })?;
+    let iter = read_dir(directory).map_err(|e| {
+        format!("failed to open {}: {}", directory.display(), e)
+    })?;
+
+    // We don't remove the entire dep/ directory as doing so would also remove
+    // the lock file, which we don't want.
+    for entry in iter {
+        let Ok(entry) = entry else { continue };
+
+        if entry.file_type().is_ok_and(|v| v.is_dir()) {
+            let path = entry.path();
+
+            remove_dir_all(&path).map_err(|err| {
+                format!("failed to remove {}: {}", path.display(), err)
+            })?;
+        }
     }
 
     Ok(())
@@ -160,7 +185,7 @@ fn install_packages(
         let tag = repo.tag(&tag_name).unwrap();
 
         repo.checkout(&tag.target)
-            .map_err(|e| format!("Failed to check out {}: {}", tag_name, e))?;
+            .map_err(|e| format!("failed to check out {}: {}", tag_name, e))?;
 
         let base_dir = directory
             .join(url.directory_name())
@@ -175,7 +200,7 @@ fn install_packages(
 
             copy(&manifest_src, &to).map_err(|e| {
                 format!(
-                    "Failed to copy {} to {}: {}",
+                    "failed to copy {} to {}: {}",
                     manifest_src.display(),
                     to.display(),
                     e
@@ -192,7 +217,7 @@ fn manifest_hash() -> Result<Option<String>, String> {
         Ok(data) => data,
         Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(None),
         Err(e) => {
-            return Err(format!("Failed to read {}: {}", MANIFEST_FILE, e));
+            return Err(format!("failed to read {}: {}", MANIFEST_FILE, e));
         }
     };
 
@@ -206,12 +231,9 @@ fn save_manifest_hash(directory: &Path) -> Result<(), String> {
 
     let hash_file = directory.join("hash");
 
-    create_dir_all(directory).map_err(|err| {
-        format!("Failed to create {}: {}", directory.display(), err)
-    })?;
-
+    mkdir(directory)?;
     write(&hash_file, hash).map_err(|err| {
-        format!("Failed to update {}: {}", hash_file.display(), err)
+        format!("failed to update {}: {}", hash_file.display(), err)
     })?;
 
     Ok(())
@@ -220,13 +242,12 @@ fn save_manifest_hash(directory: &Path) -> Result<(), String> {
 fn manifest_hash_changed(directory: &Path) -> Result<bool, String> {
     let hash = manifest_hash()?;
     let hash_file = directory.join("hash");
-
     let saved_hash = match read_to_string(&hash_file) {
         Ok(data) => Some(data),
         Err(err) if err.kind() == io::ErrorKind::NotFound => None,
         Err(err) => {
             return Err(format!(
-                "Failed to read {}: {}",
+                "failed to read {}: {}",
                 hash_file.display(),
                 err
             ));
@@ -234,4 +255,35 @@ fn manifest_hash_changed(directory: &Path) -> Result<bool, String> {
     };
 
     Ok(hash != saved_hash)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::env::temp_dir;
+    use std::fs::{create_dir_all, remove_dir_all, write};
+    use std::io;
+
+    #[test]
+    fn test_remove_dependencies() -> io::Result<()> {
+        let root = temp_dir().join("inko-tests-remove-dependencies");
+        let dir1 = root.join("foo");
+        let dir2 = root.join("bar");
+        let file = root.join("test.txt");
+
+        create_dir_all(&root)?;
+        create_dir_all(&dir1)?;
+        create_dir_all(&dir2)?;
+        write(&file, "hello")?;
+
+        assert_eq!(remove_dependencies(&root), Ok(()));
+        assert!(!dir1.is_dir());
+        assert!(!dir2.is_dir());
+        assert!(file.is_file());
+        assert!(root.is_dir());
+
+        let _ = remove_dir_all(root);
+
+        Ok(())
+    }
 }

@@ -1,11 +1,25 @@
 use crate::config;
+use crate::file_lock::FileLock;
 use std::fs::{copy, create_dir_all, read_dir};
 use std::path::{Path, PathBuf};
 
-pub fn data_dir() -> Result<PathBuf, String> {
-    config::data_directory()
+/// Returns the path to the data directory and its exclusive access lock.
+///
+/// Access to the data directory is guarded using a lock so concurrent processes
+/// (e.g. an `inko pkg sync` and an `inko pkg add`) won't interfere with each
+/// other.
+pub fn data_dir() -> Result<(PathBuf, FileLock), String> {
+    let path = config::data_directory()
         .map(|p| p.join("packages"))
-        .ok_or_else(|| "No data directory could be determined".to_string())
+        .ok_or_else(|| "no data directory could be determined".to_string())?;
+
+    create_dir_all(&path)
+        .map_err(|e| format!("failed to create {}: {}", path.display(), e))?;
+
+    let lock = FileLock::new(&path.join("lock"))
+        .map_err(|e| format!("failed to get the packages lock: {}", e))?;
+
+    Ok((path, lock))
 }
 
 pub fn cp_r(source: &Path, target: &Path) -> Result<(), String> {

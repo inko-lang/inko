@@ -39,6 +39,8 @@ impl Drop for FileLock {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::env::temp_dir;
+    use std::fs::remove_file;
     use std::sync::mpsc::sync_channel;
     use std::thread;
     use std::time::Duration;
@@ -46,12 +48,12 @@ mod tests {
     #[test]
     fn test_file_lock_new() {
         let (send, rec) = sync_channel(1);
-        let path = Path::new("/tmp/a");
+        let path = temp_dir().join("inko-test-file-lock-new");
 
         thread::scope(|s| {
-            let lock = FileLock::new(path);
+            let lock = FileLock::new(&path);
             let handle = s.spawn(|| {
-                let _lock = FileLock::new(path);
+                let _lock = FileLock::new(&path);
                 let _ = send.send(true);
                 true
             });
@@ -65,5 +67,7 @@ mod tests {
             drop(lock);
             assert_eq!(handle.join().ok(), Some(true));
         });
+
+        let _ = remove_file(&path);
     }
 }

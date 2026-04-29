@@ -53,8 +53,10 @@ pub(crate) fn run(args: &[String]) -> Result<i32, Error> {
         manifest.dependencies_mut()
     };
 
+    let (data, _data_lock) = data_dir()?;
+
     for dep in update {
-        let dir = data_dir()?.join(dep.url.directory_name());
+        let dir = data.join(dep.url.directory_name());
         let repo = if dir.is_dir() {
             let mut repo = Repository::open(&dir)?;
 

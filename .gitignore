@@ -4,6 +4,8 @@
 /docs/dep
 /docs/public
 /std/build
+/std/dep
+/std/fixtures/diagnostics/dep
 /target
 /tmp
 __pycache__

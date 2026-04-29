@@ -69,7 +69,8 @@ pub(crate) fn run(args: &[String]) -> Result<i32, Error> {
         )?;
     let tag_name = version.tag_name();
 
-    let dir = data_dir()?.join(url.directory_name());
+    let (data, _data_lock) = data_dir()?;
+    let dir = data.join(url.directory_name());
     let (mut repo, fetch) = if dir.is_dir() {
         (Repository::open(&dir)?, true)
     } else {
