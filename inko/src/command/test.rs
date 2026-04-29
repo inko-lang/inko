@@ -98,7 +98,7 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     compiler.print_diagnostics();
 
     match result {
-        Ok(exe) => {
+        Ok((exe, _build_lock)) => {
             let status = Command::new(exe)
                 .args(matches.free)
                 .spawn()

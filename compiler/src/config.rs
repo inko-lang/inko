@@ -141,6 +141,10 @@ impl BuildDirectories {
     pub(crate) fn create_llvm(&self) -> Result<(), String> {
         create_directory(&self.llvm_ir)
     }
+
+    pub(crate) fn build_lock(&self) -> PathBuf {
+        self.build.join("lock")
+    }
 }
 
 /// A type describing to what degree a program should be optimised.
@@ -361,7 +365,8 @@ impl Config {
     }
 
     pub fn main_test_module(&self) -> PathBuf {
-        let mut main_file = self.build.join(MAIN_TEST_MODULE);
+        let mut main_file =
+            self.build.join(self.opt.name()).join(MAIN_TEST_MODULE);
 
         main_file.set_extension(SOURCE_EXT);
         main_file

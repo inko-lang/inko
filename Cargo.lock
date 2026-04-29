@@ -153,6 +153,7 @@ dependencies = [
  "fnv",
  "indexmap",
  "inkwell",
+ "libc",
  "location",
  "similar-asserts",
  "types",

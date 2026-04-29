@@ -3,6 +3,7 @@ use crate::config::{Config, Opt, SOURCE, SOURCE_EXT, TESTS};
 use crate::docs::{
     Config as DocsConfig, DefineDocumentation, GenerateDocumentation,
 };
+use crate::file_lock::FileLock;
 use crate::hir;
 use crate::linker::link;
 use crate::llvm;
@@ -231,6 +232,10 @@ impl Compiler {
         Self { state: State::new(config), timings: Timings::new() }
     }
 
+    /// Type checks a project or a given file.
+    ///
+    /// Unlike a regular build we _do_ allow concurrent checks as `inko check`
+    /// doesn't modify anything on disk.
     pub fn check(&mut self, file: Option<PathBuf>) -> Result<(), CompileError> {
         self.prepare()?;
 
@@ -261,7 +266,30 @@ impl Compiler {
         res
     }
 
-    pub fn build(&mut self, file: PathBuf) -> Result<PathBuf, CompileError> {
+    /// Builds the executable and returns its path and the build directory lock.
+    ///
+    /// Only a single build instance may run for a given build mode, ensuring
+    /// concurrent runs don't mess up each other's output (e.g. object files).
+    ///
+    /// The build lock is returned so we can also prevent concurrent `inko run`
+    /// and `inko test` commands from messing with each other's output.
+    pub fn build(
+        &mut self,
+        file: PathBuf,
+    ) -> Result<(PathBuf, FileLock), CompileError> {
+        let dirs = BuildDirectories::new(&self.state.config);
+
+        dirs.create().map_err(CompileError::Internal)?;
+
+        // The build lock must be held for the entire duration of the
+        // compilation process.
+        let build_lock = FileLock::new(&dirs.build_lock()).map_err(|e| {
+            CompileError::Internal(format!(
+                "failed to get the build lock: {}",
+                e
+            ))
+        })?;
+
         self.prepare()?;
 
         let start = Instant::now();
@@ -305,10 +333,6 @@ impl Compiler {
             mir.verify(&self.state.db, &symbols)?;
         }
 
-        let dirs = BuildDirectories::new(&self.state.config);
-
-        dirs.create().map_err(CompileError::Internal)?;
-
         if self.state.config.write_dot {
             // Remove any duplicate edges to make the graph output a bit easier
             // to read.
@@ -320,14 +344,14 @@ impl Compiler {
             self.write_mir(&dirs, &symbols, &mir)?;
         }
 
-        let res = if self.state.config.generate_code {
-            self.compile_machine_code(&dirs, mir, &symbols, file)
+        let path = if self.state.config.generate_code {
+            self.compile_machine_code(&dirs, mir, &symbols, file)?
         } else {
-            Ok(dirs.bin.join("null"))
+            dirs.bin.join("null")
         };
 
         self.timings.total = start.elapsed();
-        res
+        Ok((path, build_lock))
     }
 
     pub fn document(&mut self, config: DocsConfig) -> Result<(), CompileError> {

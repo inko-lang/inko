@@ -6,6 +6,7 @@
 
 pub mod diagnostics;
 pub mod docs;
+mod file_lock;
 pub mod format;
 mod graph;
 mod hir;
