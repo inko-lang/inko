@@ -37,7 +37,7 @@ fn mkdir(path: &Path) -> Result<(), String> {
 }
 
 fn sync(data: &Path, dependencies: &Path) -> Result<(), String> {
-    let packages = download_packages(&data)?;
+    let packages = download_packages(data)?;
     let versions = select(packages.iter().map(|p| &p.dependency));
 
     remove_dependencies(dependencies)?;
