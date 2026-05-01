@@ -1,0 +1,10 @@
+fn example {
+  match 10 {
+    case 10 -> true
+    case 20 -> {
+      true
+      false
+    }
+    case _ -> false
+  }
+}

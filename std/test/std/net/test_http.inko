@@ -1442,7 +1442,8 @@ fn pub tests(t: mut Tests) {
       let parser = Parser.new(Reader.new(Buffer.new(inp)), buf, limits)
       let mapped = match parser.request {
         case
-          Ok({ @method = m, @uri = u, @version = v, @headers = h, @body = b }) -> {
+          Ok({ @method = m, @uri = u, @version = v, @headers = h, @body = b })
+        -> {
           let buf = ByteArray.new
 
           match b.read_all(buf) {

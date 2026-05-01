@@ -1,0 +1,15 @@
+fn example {
+  match Option.Some(10) {
+    case Some(10)
+    -> true
+    case Some(20)
+    -> {
+      true
+      false
+    }
+    case Some(1_2_3_4_5_6_7_8_9) -> {
+      'a body that does not fit on a single line to see what happens'
+    }
+    case _ -> false
+  }
+}

@@ -1,0 +1,23 @@
+fn example {
+  {
+    {
+      match foo {
+        case
+          Ok({ @method = m, @uri = u, @version = v, @headers = h, @body = b }) -> {
+          # ...
+        }
+        case Error(_) -> {}
+      }
+    }
+  }
+
+  {
+    match foo {
+      case Ok({ @method = m, @uri = u, @version = v, @headers = h, @body = b })
+      -> {
+        # ...
+      }
+      case Error(_) -> {}
+    }
+  }
+}

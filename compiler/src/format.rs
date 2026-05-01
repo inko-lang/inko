@@ -2185,18 +2185,15 @@ impl Document {
                 | nodes::Pattern::Identifier(_)
         ) || node.guard.is_some()
         {
-            Node::HardLine
-        } else {
-            Node::text(" ")
-        };
-        let arrow = self.group(vec![
             Node::IfWrap(
                 head_id,
-                Box::new(arrow_sep),
+                Box::new(Node::HardLine),
                 Box::new(Node::SpaceOrLine),
-            ),
-            Node::text("-> {"),
-        ]);
+            )
+        } else {
+            Node::SpaceOrLine
+        };
+        let arrow = self.group(vec![arrow_sep, Node::text("-> {")]);
         let body = if node.body.values.is_empty() {
             vec![arrow, Node::text("}")]
         } else if node.body.values.len() == 1 {
