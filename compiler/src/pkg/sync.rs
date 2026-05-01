@@ -1,4 +1,3 @@
-use crate::file_lock::FileLock;
 use crate::pkg::git::Repository;
 use crate::pkg::manifest::{Dependency, MANIFEST_FILE, Manifest, Url};
 use crate::pkg::util::{cp_r, data_dir};
@@ -6,7 +5,7 @@ use crate::pkg::version::{Version, select};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs::{
-    copy, create_dir_all, read, read_dir, read_to_string, remove_dir_all, write,
+    copy, create_dir_all, read, read_to_string, remove_dir_all, write,
 };
 use std::io;
 use std::path::Path;
@@ -21,14 +20,15 @@ struct Package {
 }
 
 pub fn sync_if_needed(directory: &Path) -> Result<(), String> {
-    mkdir(directory)?;
-
     // This lock must be held so e.g. an `inko build` and `inko pkg sync` don't
     // concurrently interfere with the same dep/ directory
-    let _deps_lock = FileLock::new(&directory.join("lock"))
-        .map_err(|e| format!("failed to get the dependencies lock: {}", e))?;
+    let (data, _data_lock) = data_dir()?;
 
-    if manifest_hash_changed(directory)? { sync(directory) } else { Ok(()) }
+    if manifest_hash_changed(directory)? {
+        sync(&data, directory)
+    } else {
+        Ok(())
+    }
 }
 
 fn mkdir(path: &Path) -> Result<(), String> {
@@ -36,8 +36,7 @@ fn mkdir(path: &Path) -> Result<(), String> {
         .map_err(|e| format!("failed to create {}: {}", path.display(), e))
 }
 
-fn sync(dependencies: &Path) -> Result<(), String> {
-    let (data, _data_lock) = data_dir()?;
+fn sync(data: &Path, dependencies: &Path) -> Result<(), String> {
     let packages = download_packages(&data)?;
     let versions = select(packages.iter().map(|p| &p.dependency));
 
@@ -148,22 +147,10 @@ changes.",
 }
 
 fn remove_dependencies(directory: &Path) -> Result<(), String> {
-    let iter = read_dir(directory).map_err(|e| {
-        format!("failed to open {}: {}", directory.display(), e)
-    })?;
-
-    // We don't remove the entire dep/ directory as doing so would also remove
-    // the lock file, which we don't want.
-    for entry in iter {
-        let Ok(entry) = entry else { continue };
-
-        if entry.file_type().is_ok_and(|v| v.is_dir()) {
-            let path = entry.path();
-
-            remove_dir_all(&path).map_err(|err| {
-                format!("failed to remove {}: {}", path.display(), err)
-            })?;
-        }
+    if directory.is_dir() {
+        remove_dir_all(directory).map_err(|err| {
+            format!("failed to remove {}: {}", directory.display(), err)
+        })?;
     }
 
     Ok(())
@@ -279,8 +266,8 @@ mod tests {
         assert_eq!(remove_dependencies(&root), Ok(()));
         assert!(!dir1.is_dir());
         assert!(!dir2.is_dir());
-        assert!(file.is_file());
-        assert!(root.is_dir());
+        assert!(!file.is_file());
+        assert!(!root.is_dir());
 
         let _ = remove_dir_all(root);
 
