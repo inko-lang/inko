@@ -1,4 +1,4 @@
-FROM registry.fedoraproject.org/fedora:43
+FROM registry.fedoraproject.org/fedora:44
 
 ENV LLVM_VERSION 18
 ENV RUST_VERSION 1.94
