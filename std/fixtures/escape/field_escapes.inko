@@ -1,0 +1,22 @@
+type Value {
+  let @a: Int
+  let @b: Array[Int]
+
+  fn move example1 {
+    @a as Uint64
+  }
+
+  fn move example2 {
+    @b as Uint64
+  }
+}
+
+type async Main {
+  fn async main {
+    Value(10, []).example1
+    Value(10, []).example2
+  }
+}
+
+# 16:5 Value stack
+# 17:5 Value heap

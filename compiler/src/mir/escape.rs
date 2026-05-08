@@ -604,6 +604,8 @@ impl<'a> AnalyzeMethod<'a> {
     }
 
     fn is_escape_candidate(&self, register: RegisterId) -> bool {
-        self.method.registers.value_type(register).is_owned_or_uni(self.db)
+        let typ = self.method.registers.value_type(register);
+
+        typ.is_owned_or_uni(self.db) && !typ.is_value_type(self.db)
     }
 }
