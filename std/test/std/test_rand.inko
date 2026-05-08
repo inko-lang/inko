@@ -20,6 +20,14 @@ fn pub tests(t: mut Tests) {
     t.equal(Random.from_int(42).int, -453163337535955938)
   })
 
+  t.test("Random.int when the buffer doesn't have enough space", fn (t) {
+    let rng = Random.from_int(42)
+
+    rng.index = rng.buffer.size - 4
+
+    t.equal(rng.int, -5475842003760653787)
+  })
+
   t.test('Random.float', fn (t) {
     t.equal(Random.from_int(42).float, 0.9754339662476367)
     t.true(
@@ -135,6 +143,16 @@ fn pub tests(t: mut Tests) {
     buf.clear
     rng.bytes(into: buf, size: 512)
     t.equal(buf.size, 512)
+  })
+
+  t.test("Random.bytes when the buffer doesn't have enough space", fn (t) {
+    let rng = Random.from_int(42)
+    let buf = ByteArray.new
+
+    rng.index = rng.buffer.size - 4
+    rng.bytes(into: buf, size: 8)
+
+    t.equal(buf, ByteArray.from_array([192, 21, 206, 244, 37, 218, 174, 183]))
   })
 
   t.test('Random.refill', fn (t) {
