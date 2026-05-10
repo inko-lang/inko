@@ -243,6 +243,8 @@ impl<'ctx> Layouts<'ctx> {
         let state_layout = context.struct_type(&[
             context.pointer_type().into(), // hash_key0
             context.pointer_type().into(), // hash_key1
+            context.pointer_type().into(), // hash_key2
+            context.pointer_type().into(), // hash_key3
             context.i32_type().into(),     // scheduler_epoch
         ]);
 

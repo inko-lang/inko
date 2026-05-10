@@ -2836,7 +2836,7 @@ impl Intrinsic {
             Intrinsic::FloatMul => TypeRef::float(),
             Intrinsic::FloatSub => TypeRef::float(),
             Intrinsic::FloatToBits => TypeRef::int(),
-            Intrinsic::IntBitAnd => TypeRef::int(),
+            Intrinsic::IntBitAnd => arguments[0],
             Intrinsic::IntBitNot => TypeRef::int(),
             Intrinsic::IntBitOr => TypeRef::int(),
             Intrinsic::IntBitXor => TypeRef::int(),
@@ -2852,9 +2852,9 @@ impl Intrinsic {
             Intrinsic::IntRotateRight => TypeRef::int(),
             Intrinsic::IntShl => TypeRef::int(),
             Intrinsic::IntShr => TypeRef::int(),
-            Intrinsic::IntUnsignedShr => TypeRef::int(),
+            Intrinsic::IntUnsignedShr => arguments[0],
             Intrinsic::IntWrappingAdd => TypeRef::int(),
-            Intrinsic::IntWrappingMul => TypeRef::int(),
+            Intrinsic::IntWrappingMul => arguments[0],
             Intrinsic::IntWrappingSub => TypeRef::int(),
             Intrinsic::IntCheckedAdd
             | Intrinsic::IntCheckedMul

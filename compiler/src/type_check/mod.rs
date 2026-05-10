@@ -559,10 +559,12 @@ impl<'a> DefineTypeSignature<'a> {
             "Int16" => Some(TypeRef::foreign_signed_int(16)),
             "Int32" => Some(TypeRef::foreign_signed_int(32)),
             "Int64" => Some(TypeRef::foreign_signed_int(64)),
+            "Int128" => Some(TypeRef::foreign_signed_int(128)),
             "Uint8" => Some(TypeRef::foreign_unsigned_int(8)),
             "Uint16" => Some(TypeRef::foreign_unsigned_int(16)),
             "Uint32" => Some(TypeRef::foreign_unsigned_int(32)),
             "Uint64" => Some(TypeRef::foreign_unsigned_int(64)),
+            "Uint128" => Some(TypeRef::foreign_unsigned_int(128)),
             "Float32" => Some(TypeRef::foreign_float(32)),
             "Float64" => Some(TypeRef::foreign_float(64)),
             "Pointer" => {

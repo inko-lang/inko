@@ -1024,8 +1024,8 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.builder.load_int(lhs_var);
-                        let rhs = self.builder.load_int(rhs_var);
+                        let lhs = self.builder.load_int64(lhs_var);
+                        let rhs = self.builder.load_int64(rhs_var);
                         let res = self.builder.int_div(lhs, rhs);
 
                         self.builder.store(reg_var, res);
@@ -1034,18 +1034,18 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.builder.load_int(lhs_var);
-                        let rhs = self.builder.load_int(rhs_var);
+                        let lhs = self.builder.load_int64(lhs_var);
+                        let rhs = self.builder.load_int64(rhs_var);
                         let res = self.builder.int_rem(lhs, rhs);
 
                         self.builder.store(reg_var, res);
                     }
                     Intrinsic::IntBitAnd => {
                         let reg_var = self.variables[&ins.register];
-                        let lhs_var = self.variables[&ins.arguments[0]];
-                        let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.builder.load_int(lhs_var);
-                        let rhs = self.builder.load_int(rhs_var);
+                        let (ltyp, lvar) = self.variable(ins.arguments[0]);
+                        let (rtyp, rvar) = self.variable(ins.arguments[1]);
+                        let lhs = self.builder.load_int(ltyp, lvar);
+                        let rhs = self.builder.load_int(rtyp, rvar);
                         let res = self.builder.bit_and(lhs, rhs);
 
                         self.builder.store(reg_var, res);
@@ -1054,8 +1054,8 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.builder.load_int(lhs_var);
-                        let rhs = self.builder.load_int(rhs_var);
+                        let lhs = self.builder.load_int64(lhs_var);
+                        let rhs = self.builder.load_int64(rhs_var);
                         let res = self.builder.bit_or(lhs, rhs);
 
                         self.builder.store(reg_var, res);
@@ -1063,7 +1063,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                     Intrinsic::IntBitNot => {
                         let reg_var = self.variables[&ins.register];
                         let val_var = self.variables[&ins.arguments[0]];
-                        let val = self.builder.load_int(val_var);
+                        let val = self.builder.load_int64(val_var);
                         let res = self.builder.bit_not(val);
 
                         self.builder.store(reg_var, res);
@@ -1072,8 +1072,8 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.builder.load_int(lhs_var);
-                        let rhs = self.builder.load_int(rhs_var);
+                        let lhs = self.builder.load_int64(lhs_var);
+                        let rhs = self.builder.load_int64(rhs_var);
                         let res = self.builder.bit_xor(lhs, rhs);
 
                         self.builder.store(reg_var, res);
@@ -1082,8 +1082,8 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.builder.load_int(lhs_var);
-                        let rhs = self.builder.load_int(rhs_var);
+                        let lhs = self.builder.load_int64(lhs_var);
+                        let rhs = self.builder.load_int64(rhs_var);
                         let res = self.builder.int_eq(lhs, rhs);
 
                         self.builder.store(reg_var, res);
@@ -1092,8 +1092,8 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.builder.load_int(lhs_var);
-                        let rhs = self.builder.load_int(rhs_var);
+                        let lhs = self.builder.load_int64(lhs_var);
+                        let rhs = self.builder.load_int64(rhs_var);
                         let res = self.builder.int_ne(lhs, rhs);
 
                         self.builder.store(reg_var, res);
@@ -1102,8 +1102,8 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.builder.load_int(lhs_var);
-                        let rhs = self.builder.load_int(rhs_var);
+                        let lhs = self.builder.load_int64(lhs_var);
+                        let rhs = self.builder.load_int64(rhs_var);
                         let res = self.builder.int_gt(lhs, rhs);
 
                         self.builder.store(reg_var, res);
@@ -1112,8 +1112,8 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.builder.load_int(lhs_var);
-                        let rhs = self.builder.load_int(rhs_var);
+                        let lhs = self.builder.load_int64(lhs_var);
+                        let rhs = self.builder.load_int64(rhs_var);
                         let res = self.builder.int_ge(lhs, rhs);
 
                         self.builder.store(reg_var, res);
@@ -1122,8 +1122,8 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.builder.load_int(lhs_var);
-                        let rhs = self.builder.load_int(rhs_var);
+                        let lhs = self.builder.load_int64(lhs_var);
+                        let rhs = self.builder.load_int64(rhs_var);
                         let res = self.builder.int_le(lhs, rhs);
 
                         self.builder.store(reg_var, res);
@@ -1132,8 +1132,8 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.builder.load_int(lhs_var);
-                        let rhs = self.builder.load_int(rhs_var);
+                        let lhs = self.builder.load_int64(lhs_var);
+                        let rhs = self.builder.load_int64(rhs_var);
                         let res = self.builder.int_lt(lhs, rhs);
 
                         self.builder.store(reg_var, res);
@@ -1250,7 +1250,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                     Intrinsic::FloatFromBits => {
                         let reg_var = self.variables[&ins.register];
                         let val_var = self.variables[&ins.arguments[0]];
-                        let val = self.builder.load_int(val_var);
+                        let val = self.builder.load_int64(val_var);
                         let res = self
                             .builder
                             .bitcast(val, self.builder.context.f64_type())
@@ -1346,7 +1346,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
                         let lhs = self.builder.load_float(lhs_var);
-                        let raw_rhs = self.builder.load_int(rhs_var);
+                        let raw_rhs = self.builder.load_int64(rhs_var);
                         let rhs = self.builder.int_to_int(raw_rhs, 32, false);
                         let func = self.module.intrinsic(
                             "llvm.powi",
@@ -1367,8 +1367,8 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.builder.load_int(lhs_var).into();
-                        let rhs = self.builder.load_int(rhs_var).into();
+                        let lhs = self.builder.load_int64(lhs_var).into();
+                        let rhs = self.builder.load_int64(rhs_var).into();
                         let func = self.module.intrinsic(
                             "llvm.fshl",
                             &[self.builder.context.i64_type().into()],
@@ -1384,8 +1384,8 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.builder.load_int(lhs_var).into();
-                        let rhs = self.builder.load_int(rhs_var).into();
+                        let lhs = self.builder.load_int64(lhs_var).into();
+                        let rhs = self.builder.load_int64(rhs_var).into();
                         let func = self.module.intrinsic(
                             "llvm.fshr",
                             &[self.builder.context.i64_type().into()],
@@ -1401,8 +1401,8 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.builder.load_int(lhs_var);
-                        let rhs = self.builder.load_int(rhs_var);
+                        let lhs = self.builder.load_int64(lhs_var);
+                        let rhs = self.builder.load_int64(rhs_var);
                         let res = self.builder.left_shift(lhs, rhs);
 
                         self.builder.store(reg_var, res);
@@ -1411,18 +1411,18 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.builder.load_int(lhs_var);
-                        let rhs = self.builder.load_int(rhs_var);
+                        let lhs = self.builder.load_int64(lhs_var);
+                        let rhs = self.builder.load_int64(rhs_var);
                         let res = self.builder.signed_right_shift(lhs, rhs);
 
                         self.builder.store(reg_var, res);
                     }
                     Intrinsic::IntUnsignedShr => {
                         let reg_var = self.variables[&ins.register];
-                        let lhs_var = self.variables[&ins.arguments[0]];
-                        let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.builder.load_int(lhs_var);
-                        let rhs = self.builder.load_int(rhs_var);
+                        let (ltyp, lvar) = self.variable(ins.arguments[0]);
+                        let (rtyp, rvar) = self.variable(ins.arguments[1]);
+                        let lhs = self.builder.load_int(ltyp, lvar);
+                        let rhs = self.builder.load_int(rtyp, rvar);
                         let res = self.builder.right_shift(lhs, rhs);
 
                         self.builder.store(reg_var, res);
@@ -1431,18 +1431,18 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.builder.load_int(lhs_var);
-                        let rhs = self.builder.load_int(rhs_var);
+                        let lhs = self.builder.load_int64(lhs_var);
+                        let rhs = self.builder.load_int64(rhs_var);
                         let res = self.builder.int_add(lhs, rhs);
 
                         self.builder.store(reg_var, res);
                     }
                     Intrinsic::IntWrappingMul => {
                         let reg_var = self.variables[&ins.register];
-                        let lhs_var = self.variables[&ins.arguments[0]];
-                        let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.builder.load_int(lhs_var);
-                        let rhs = self.builder.load_int(rhs_var);
+                        let (ltyp, lvar) = self.variable(ins.arguments[0]);
+                        let (rtyp, rvar) = self.variable(ins.arguments[1]);
+                        let lhs = self.builder.load_int(ltyp, lvar);
+                        let rhs = self.builder.load_int(rtyp, rvar);
                         let res = self.builder.int_mul(lhs, rhs);
 
                         self.builder.store(reg_var, res);
@@ -1451,8 +1451,8 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.builder.load_int(lhs_var);
-                        let rhs = self.builder.load_int(rhs_var);
+                        let lhs = self.builder.load_int64(lhs_var);
+                        let rhs = self.builder.load_int64(rhs_var);
                         let res = self.builder.int_sub(lhs, rhs);
 
                         self.builder.store(reg_var, res);
@@ -1461,8 +1461,8 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.builder.load_int(lhs_var);
-                        let rhs = self.builder.load_int(rhs_var);
+                        let lhs = self.builder.load_int64(lhs_var);
+                        let rhs = self.builder.load_int64(rhs_var);
                         let add = self.module.intrinsic(
                             "llvm.sadd.with.overflow",
                             &[self.builder.context.i64_type().into()],
@@ -1479,8 +1479,8 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.builder.load_int(lhs_var);
-                        let rhs = self.builder.load_int(rhs_var);
+                        let lhs = self.builder.load_int64(lhs_var);
+                        let rhs = self.builder.load_int64(rhs_var);
                         let add = self.module.intrinsic(
                             "llvm.smul.with.overflow",
                             &[self.builder.context.i64_type().into()],
@@ -1497,8 +1497,8 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.builder.load_int(lhs_var);
-                        let rhs = self.builder.load_int(rhs_var);
+                        let lhs = self.builder.load_int64(lhs_var);
+                        let rhs = self.builder.load_int64(rhs_var);
                         let add = self.module.intrinsic(
                             "llvm.ssub.with.overflow",
                             &[self.builder.context.i64_type().into()],
@@ -1542,7 +1542,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                     Intrinsic::IntAbsolute => {
                         let reg_var = self.variables[&ins.register];
                         let val_var = self.variables[&ins.arguments[0]];
-                        let val = self.builder.load_int(val_var);
+                        let val = self.builder.load_int64(val_var);
                         let fun = self.module.intrinsic(
                             "llvm.abs",
                             &[self.builder.context.i64_type().into()],
@@ -1684,7 +1684,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                     Intrinsic::IntLeadingZeros => {
                         let reg_var = self.variables[&ins.register];
                         let val_var = self.variables[&ins.arguments[0]];
-                        let val = self.builder.load_int(val_var).into();
+                        let val = self.builder.load_int64(val_var).into();
                         let func = self.module.intrinsic(
                             "llvm.ctlz",
                             &[self.builder.context.i64_type().into()],
@@ -1700,7 +1700,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                     Intrinsic::IntTrailingZeros => {
                         let reg_var = self.variables[&ins.register];
                         let val_var = self.variables[&ins.arguments[0]];
-                        let val = self.builder.load_int(val_var).into();
+                        let val = self.builder.load_int64(val_var).into();
                         let func = self.module.intrinsic(
                             "llvm.cttz",
                             &[self.builder.context.i64_type().into()],
@@ -2628,6 +2628,13 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
         }
     }
 
+    fn variable(
+        &self,
+        register: RegisterId,
+    ) -> (BasicTypeEnum<'ctx>, PointerValue<'ctx>) {
+        (self.variable_types[&register], self.variables[&register])
+    }
+
     fn define_register_variables(&mut self) {
         let mut zero = Vec::new();
 
@@ -2840,13 +2847,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
         source: FloatValue<'ctx>,
         size: u32,
     ) -> IntValue<'ctx> {
-        let target = match size {
-            8 => self.builder.context.i8_type(),
-            16 => self.builder.context.i16_type(),
-            32 => self.builder.context.i32_type(),
-            _ => self.builder.context.i64_type(),
-        };
-
+        let target = self.builder.context.custom_int(size);
         let func = self.module.intrinsic(
             "llvm.fptosi.sat",
             &[target.into(), source.get_type().into()],

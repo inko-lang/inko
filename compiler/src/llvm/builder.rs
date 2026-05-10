@@ -25,6 +25,13 @@ use std::collections::HashMap;
 use std::path::Path;
 use types::{Database, MethodId, TypeId};
 
+fn byte_alignment_for(typ: BasicTypeEnum) -> Option<u32> {
+    match typ {
+        BasicTypeEnum::IntType(t) if t.get_bit_width() == 128 => Some(16),
+        _ => None,
+    }
+}
+
 /// A wrapper around an LLVM Builder that provides some additional methods.
 pub(crate) struct Builder<'ctx> {
     inner: builder::Builder<'ctx>,
@@ -174,7 +181,12 @@ impl<'ctx> Builder<'ctx> {
         variable: PointerValue<'ctx>,
         value: V,
     ) {
-        self.inner.build_store(variable, value).unwrap();
+        let typ = value.as_basic_value_enum().get_type();
+        let ins = self.inner.build_store(variable, value).unwrap();
+
+        if let Some(v) = byte_alignment_for(typ) {
+            ins.set_alignment(v).unwrap();
+        }
     }
 
     pub(crate) fn load<T: BasicType<'ctx>>(
@@ -185,11 +197,25 @@ impl<'ctx> Builder<'ctx> {
         self.inner.build_load(typ, variable, "").unwrap()
     }
 
-    pub(crate) fn load_int(
+    pub(crate) fn load_int64(
         &self,
         variable: PointerValue<'ctx>,
     ) -> IntValue<'ctx> {
-        self.load(self.context.i64_type(), variable).into_int_value()
+        self.load_int(self.context.i64_type().as_basic_type_enum(), variable)
+    }
+
+    pub(crate) fn load_int(
+        &self,
+        typ: BasicTypeEnum<'ctx>,
+        variable: PointerValue<'ctx>,
+    ) -> IntValue<'ctx> {
+        let val = self.load(typ, variable).into_int_value();
+
+        if let Some(v) = byte_alignment_for(typ) {
+            val.as_instruction_value().unwrap().set_alignment(v).unwrap();
+        }
+
+        val
     }
 
     pub(crate) fn load_float(
@@ -534,10 +560,7 @@ impl<'ctx> Builder<'ctx> {
     ) -> IntValue<'ctx> {
         let target = match size {
             1 => self.context.bool_type(),
-            8 => self.context.i8_type(),
-            16 => self.context.i16_type(),
-            32 => self.context.i32_type(),
-            _ => self.context.i64_type(),
+            n => self.context.custom_int(n),
         };
 
         self.inner.build_int_cast_sign_flag(value, target, signed, "").unwrap()
@@ -695,7 +718,14 @@ impl<'ctx> Builder<'ctx> {
         &self,
         typ: T,
     ) -> PointerValue<'ctx> {
-        self.inner.build_alloca(typ, "").unwrap()
+        let typ = typ.as_basic_type_enum();
+        let val = self.inner.build_alloca(typ, "").unwrap();
+
+        if let Some(v) = byte_alignment_for(typ) {
+            val.as_instruction_value().unwrap().set_alignment(v).unwrap();
+        }
+
+        val
     }
 
     pub(crate) fn jump(&self, block: BasicBlock<'ctx>) {

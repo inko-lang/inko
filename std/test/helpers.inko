@@ -3,7 +3,7 @@ import std.crypto.x509
 import std.env
 import std.fs.path (Path)
 import std.hash (Hash)
-import std.hash.siphash (SipHasher13)
+import std.hash.ahash (Ahasher)
 import std.io (Buffer)
 
 # A valid private key. Do not actually use this key outside of this test suite.
@@ -133,7 +133,7 @@ fn pub inline debug? -> Bool {
 }
 
 fn pub hash[T: Hash](value: ref T) -> Int {
-  let hasher = SipHasher13.default
+  let hasher = Ahasher.default
 
   value.hash(hasher)
   hasher.finish

@@ -1,0 +1,184 @@
+import std.hash.ahash (Ahasher, folded_multiply, read_small)
+import std.test (Tests)
+
+fn pub tests(t: mut Tests) {
+  t.test('ahash.read_small', fn (t) {
+    let tests = [
+      # (input bytes, (out1, out2))
+      ([10], (10, 10)),
+      ([10, 20], (5130, 20)),
+      ([10, 20, 30], (5130, 30)),
+      ([10, 20, 30, 40], (673059850, 673059850)),
+      ([10, 20, 30, 40, 50], (673059850, 841489940)),
+      ([10, 20, 30, 40, 50, 60], (673059850, 1009920030)),
+      ([10, 20, 30, 40, 50, 60, 70], (673059850, 1178350120)),
+      ([10, 20, 30, 40, 50, 60, 70, 80], (673059850, 1346780210)),
+    ]
+
+    for (inp, exp) in tests {
+      t.equal(read_small(ByteArray.from_array(inp)), exp)
+    }
+  })
+
+  t.test('ahash.folded_multiply', fn (t) {
+    t.equal(folded_multiply(123, 456), 56088)
+  })
+
+  t.test('Ahasher.default', fn (t) {
+    let hasher = Ahasher.default
+
+    t.not_equal(hasher.buffer, 0)
+    t.not_equal(hasher.pad, 0)
+    t.not_equal(hasher.key0, 0)
+    t.not_equal(hasher.key1, 0)
+  })
+
+  t.test('Ahasher.new', fn (t) {
+    let tests = [
+      # ((keys, ...), buf, pad, extra0, extra1)
+      (
+        (0, 0, 0, 0),
+        2611923443488327891,
+        1376283091369227076,
+        -6626703657320631856,
+        589684135938649225,
+      ),
+      (
+        (10, 0, 20, 0),
+        2611923443488327897,
+        1376283091369227076,
+        -6626703657320631868,
+        589684135938649225,
+      ),
+      (
+        (-6520528254577606657, -49873299935, 7129721423850954888, -49873325034),
+        -9098110651340687572,
+        -1376283055338969755,
+        -4109283979482377896,
+        -589684112393037665,
+      ),
+    ]
+
+    for ((k0, k1, k2, k3), buf, pad, ext1, ext2) in tests {
+      let hasher = Ahasher.new(k0, k1, k2, k3)
+
+      t.equal(hasher.buffer, buf)
+      t.equal(hasher.pad, pad)
+      t.equal(hasher.key0, ext1)
+      t.equal(hasher.key1, ext2)
+    }
+  })
+
+  t.test('Ahasher.finish with Int inputs', fn (t) {
+    # These inputs were derived by hacking together a similar test in the aHash
+    # Rust crate, as aHash itself doesn't define any exact test vectors.
+    let tests = [
+      # (buffer after write, expected hash)
+      (-7028099596183006817, -3621777593211358683),
+      (3901578483828560226, 7121024052126637824),
+      (-1237640211496234950, 2536022677333410708),
+      (-8754707270341912809, -3713728376796410037),
+      (-522562863462343358, -8656773625324057158),
+      (-7535279536272663529, 649810281545677513),
+      (5700241552952595448, 7607578456748377063),
+      (-1744820155864083764, 7638567382403041238),
+      (6414403561818298612, -3474485029068149265),
+      (-1030587228431802408, -2918451062798672406),
+    ]
+
+    for (idx, (buf, hash)) in tests.into_iter.with_index {
+      let hasher = Ahasher.new(0, 0, 0, 0)
+
+      hasher.write_int(idx)
+      t.equal(hasher.buffer, buf)
+      t.equal(hasher.finish, hash)
+    }
+  })
+
+  t.test('Ahasher.finish with String inputs and zero seeds', fn (t) {
+    let tests = [
+      ('hello', 4561946636223250798),
+      ('world', 102777465077068785),
+      ('inko', -2656979761619274894),
+    ]
+
+    for (key, hash) in tests {
+      let hasher = Ahasher.new(0, 0, 0, 0)
+
+      hasher.write_int(key.size)
+
+      for byte in key.bytes { hasher.write_byte(byte) }
+
+      t.equal(hasher.finish, hash)
+    }
+  })
+
+  t.test('Ahasher.finish with String inputs and non-zero seeds', fn (t) {
+    let tests = [
+      ('hello', -8956152681734978099),
+      ('world', -2709612583940684694),
+      ('inko', 65982045238771979),
+    ]
+
+    for (key, hash) in tests {
+      let hasher = Ahasher.new(10, 0, 20, 0)
+
+      hasher.write_int(key.size)
+
+      for byte in key.bytes { hasher.write_byte(byte) }
+
+      t.equal(hasher.finish, hash)
+    }
+  })
+
+  t.test('Ahasher.write_bytes', fn (t) {
+    let tests = [
+      (0, -7312296741682325670),
+      (1, 2483348693961855715),
+      (2, -6085970562980566713),
+      (3, -1137710676770519371),
+      (4, -8095399159209345530),
+      (5, -2725412337226891639),
+      (6, 4507198419406852680),
+      (7, -3381269992550132583),
+      (8, 3203274774259859334),
+      (9, 7997101467534328475),
+      (10, -1436078564914422534),
+      (11, -2209357134497390882),
+      (12, -5445016045506623108),
+      (13, -5283085534426396942),
+      (14, 911291426086190732),
+      (15, 1213419986397857896),
+      (16, 46784941087388825),
+      (17, -6725865203992333231),
+      (18, -7975294448947543945),
+      (19, -8517967790851229247),
+      (20, 6757856120931813627),
+      (21, -2246204302178658048),
+      (22, 1309198527340109357),
+      (23, -2758284290741465068),
+      (24, -6008623682139011537),
+      (25, 6053526502636584196),
+      (26, 8129129096557497884),
+      (27, 8753224555976658010),
+      (28, -7153856638575390064),
+      (29, 3673992211309549427),
+      (30, 4529578759625023587),
+      (31, 4090391814162568265),
+      (32, 7165523713009594209),
+    ]
+
+    for (size, hash) in tests {
+      let hasher = Ahasher.new(
+        -6520528254577606657,
+        -49873299935,
+        7129721423850954888,
+        -49873325034,
+      )
+      let key = 'a'.repeat(size)
+
+      hasher.write_bytes(key)
+      t.equal(hasher.finish, hash)
+    }
+  })
+}

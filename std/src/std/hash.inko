@@ -1,4 +1,5 @@
 # Types and methods for hashing objects.
+import std.bytes (Bytes)
 
 # A type used for hashing objects.
 #
@@ -10,7 +11,13 @@ trait pub Hasher {
   #
   # If the value doesn't fit within the given range the hasher may produce a
   # poor or wrong hash. Use `Hasher.write_int` for such values.
+  #
+  # TODO: remove
   fn pub mut write_byte(value: Int)
+
+  # Writes one or more bytes from a `std.bytes.Bytes` (e.g. a `String`) into
+  # `self`.
+  fn pub mut write_bytes[B: Bytes](value: ref B)
 
   # Writes a regular `Int` into `self`.
   fn pub mut write_int(value: Int)

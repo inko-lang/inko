@@ -1,0 +1,167 @@
+# The aHash hashing algorithm (https://github.com/tkaitchuck/aHash/).
+import std.bytes (Bytes)
+import std.hash (Hasher)
+import std.ops (BitXor)
+import std.ptr (add)
+import std.reflect (size_of)
+
+let MULTIPLE = 6364136223846793005
+let PI_LO0 = 0x243F_6A88_85A3_08D3
+let PI_HI0 = 0x1319_8A2E_0370_7344
+let PI_LO1 = -0x5BF6_C7DD_D660_CE30
+let PI_HI1 = 0x082E_FA98_EC4E_6C89
+
+type copy U128 {
+  let @lo: Int
+  let @hi: Int
+
+  fn inline static pi0 -> Self {
+    U128(lo: PI_LO0, hi: PI_HI0)
+  }
+
+  fn inline static pi1 -> Self {
+    U128(lo: PI_LO1, hi: PI_HI1)
+  }
+}
+
+impl BitXor[Self, Self] for U128 {
+  fn pub inline ^(other: Self) -> Self {
+    Self(lo: @lo ^ other.lo, hi: @hi ^ other.hi)
+  }
+}
+
+fn inline read_last[B: Bytes, T](input: Pointer[Uint8], size: Int) -> T {
+  (add(input, size - size_of[T]) as Pointer[T]).0
+}
+
+fn inline read_small[B: Bytes](input: ref B) -> (Int, Int) {
+  let len = input.size
+  let ptr = input.pointer
+
+  if len >= 4 {
+    # 4-8
+    let a = (ptr as Pointer[Uint32]).0 as Int
+    let b = read_last[B, Uint32](ptr, len) as Int
+
+    (a, b)
+  } else if len >= 2 {
+    # 2-3
+    let a = (ptr as Pointer[Uint16]).0 as Int
+    let b = add(ptr, len - 1).0 as Int
+
+    (a, b)
+  } else if len == 1 {
+    let b = input.get(0).or_panic
+
+    (b, b)
+  } else {
+    (0, 0)
+  }
+}
+
+fn inline folded_multiply(a: Int, b: Int) -> Int {
+  # The aHash algorithm assumes unsigned integers and zero extensions to a u128,
+  # not _sign_ extensions.
+  let a = a as Uint64 as Uint128
+  let b = b as Uint64 as Uint128
+  let mul = _INKO.int_wrapping_mul(a, b)
+  let lhs = _INKO.int_bit_and(mul, -1 as Uint128) as Int
+  let rhs = _INKO.int_unsigned_shr(mul, 64 as Uint128) as Int
+
+  lhs ^ rhs
+}
+
+# An implementation of the aHash hashing algorithm.
+#
+# The implementation is a port of the fallback algorithm. The AES version of
+# aHash isn't implemented.
+#
+# # Examples
+#
+# ```inko
+# import std.hash.ahash (Ahasher)
+# import std.rand (Random)
+#
+# let rng = Random.new
+# let hasher = Ahasher.new(rng.int, rng.int, rng.int, rng.int)
+#
+# hasher.write_int(42)
+# hasher.finish
+# ```
+type pub Ahasher {
+  let mut @buffer: Int
+  let mut @pad: Int
+  let @key0: Int
+  let @key1: Int
+
+  # Returns a new hasher using the default randomly generated keys.
+  #
+  # The keys are generated once when the program starts up, so all instances
+  # returned by `Ahasher.default` use the same set of keys/initial state.
+  fn pub inline static default -> Self {
+    let a = (_INKO.state as Pointer[U128]).0
+    let b = (_INKO.state as Int + 16 as Pointer[U128]).0
+    let k0 = a ^ U128.pi0
+    let k1 = b ^ U128.pi1
+
+    Self(buffer: k0.lo, pad: k0.hi, key0: k1.lo, key1: k1.hi)
+  }
+
+  # Returns a new hasher using the specific keys.
+  #
+  # They keys _should_ be randomly generated using e.g. `std.rand.Random`.
+  fn pub inline static new(key0: Int, key1: Int, key2: Int, key3: Int) -> Self {
+    let k0 = U128(lo: key0, hi: key1) ^ U128.pi0
+    let k1 = U128(lo: key2, hi: key3) ^ U128.pi1
+
+    Self(buffer: k0.lo, pad: k0.hi, key0: k1.lo, key1: k1.hi)
+  }
+
+  fn inline mut large_update(value: U128) {
+    let comb = folded_multiply(value.lo ^ @key0, value.hi ^ @key1)
+
+    @buffer = (@buffer.wrapping_add(@pad) ^ comb).rotate_left(23)
+  }
+}
+
+impl Hasher for Ahasher {
+  fn pub mut write_bytes[B: Bytes](value: ref B) {
+    let len = value.size
+    let ptr = value.pointer
+
+    @buffer = @buffer.wrapping_add(len).wrapping_mul(MULTIPLE)
+
+    if len > 16 {
+      let tail = read_last[B, U128](ptr, len)
+      let mut idx = 0
+
+      large_update(tail)
+
+      while len - idx > 16 {
+        large_update((add(ptr, idx) as Pointer[U128]).0)
+        idx += 16
+      }
+    } else if len > 8 {
+      let head = (ptr as Pointer[Int]).0
+      let tail = read_last[B, Int](ptr, len)
+
+      large_update(U128(lo: tail, hi: head))
+    } else {
+      let (lo, hi) = read_small(value)
+
+      large_update(U128(lo: lo, hi: hi))
+    }
+  }
+
+  fn pub inline mut write_byte(value: Int) {
+    write_int(value)
+  }
+
+  fn pub inline mut write_int(value: Int) {
+    @buffer = folded_multiply(value ^ @buffer, MULTIPLE)
+  }
+
+  fn pub inline move finish -> Int {
+    folded_multiply(@buffer, @pad).rotate_left(@buffer & 63)
+  }
+}

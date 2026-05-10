@@ -1,7 +1,7 @@
 import helpers (debug?, hash)
 import std.cmp (Ordering)
 import std.fmt (fmt)
-import std.hash.siphash (SipHasher13)
+import std.hash.ahash (Ahasher)
 import std.int (Format, MAX, MIN)
 import std.test (Tests)
 
@@ -347,15 +347,15 @@ fn pub tests(t: mut Tests) {
     # These tests are in place to ensure that the Int hashing optimization
     # produces the expected results.
     let tests = [
-      (0, -4800647303603446203),
-      (100, -287097316359754895),
-      (10000, -165298609968420698),
-      (12_345_678_901_234_567, -8_985_495_780_834_460_314),
-      (-12_345_678_901_234_567, -119358607335353167),
+      (0, -3621777593211358683),
+      (100, -7626036658360950700),
+      (10000, 1977106439458529485),
+      (12_345_678_901_234_567, -7351243525355143138),
+      (-12_345_678_901_234_567, -9145426991475743542),
     ]
 
     for (inp, exp) in tests {
-      let hasher = SipHasher13.new(0, 0)
+      let hasher = Ahasher.new(0, 0, 0, 0)
 
       inp.hash(hasher)
       t.equal(hasher.finish, exp)

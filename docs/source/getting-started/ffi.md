@@ -59,6 +59,10 @@ equivalents:
 | 64
 | `int64_t`
 |-
+| `Int128`
+| 128
+| `__int128_t`
+|-
 | `Uint8`
 | 8
 | `uint8_t`
@@ -74,6 +78,10 @@ equivalents:
 | `Uint64`
 | 64
 | `uint64_t`
+|-
+| `Uint128`
+| 128
+| `__uint128_t`
 |-
 | `Float32`
 | 32

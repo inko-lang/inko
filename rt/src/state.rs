@@ -53,11 +53,10 @@ impl Env {
 /// The state of the Inko runtime.
 #[repr(C)]
 pub struct State {
-    /// The first randomly generated key to use for hashers.
     pub hash_key0: i64,
-
-    /// The second randomly generated key to use for hashers.
     pub hash_key1: i64,
+    pub hash_key2: i64,
+    pub hash_key3: i64,
 
     /// The scheduler epoch.
     ///
@@ -113,6 +112,8 @@ impl State {
     pub(crate) fn new(config: Config, arguments: Vec<String>) -> RcState {
         let hash_key0 = RandomState::new().build_hasher().finish() as i64;
         let hash_key1 = RandomState::new().build_hasher().finish() as i64;
+        let hash_key2 = RandomState::new().build_hasher().finish() as i64;
+        let hash_key3 = RandomState::new().build_hasher().finish() as i64;
         let environment = Env::new();
         let scheduler = Scheduler::new(
             config.process_threads as usize,
@@ -125,6 +126,8 @@ impl State {
         let state = State {
             hash_key0,
             hash_key1,
+            hash_key2,
+            hash_key3,
             scheduler_epoch: AtomicU32::new(0),
             cores: available_parallelism().map(|v| v.get()).unwrap_or(1) as i64,
             scheduler,
@@ -157,6 +160,8 @@ mod tests {
         // them.
         assert_eq!(offset_of!(State, hash_key0), 0);
         assert_eq!(offset_of!(State, hash_key1), 8);
-        assert_eq!(offset_of!(State, cores), 24);
+        assert_eq!(offset_of!(State, hash_key2), 16);
+        assert_eq!(offset_of!(State, hash_key3), 24);
+        assert_eq!(offset_of!(State, cores), 40);
     }
 }

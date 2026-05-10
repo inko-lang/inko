@@ -1281,23 +1281,11 @@ impl CastType {
             CastType::Pointer
         } else {
             match typ.as_type_enum(db) {
-                Ok(TypeEnum::Foreign(ForeignType::Int(8, sign))) => {
-                    CastType::Int(8, sign)
+                Ok(TypeEnum::Foreign(ForeignType::Int(size, sign))) => {
+                    CastType::Int(size, sign)
                 }
-                Ok(TypeEnum::Foreign(ForeignType::Int(16, sign))) => {
-                    CastType::Int(16, sign)
-                }
-                Ok(TypeEnum::Foreign(ForeignType::Int(32, sign))) => {
-                    CastType::Int(32, sign)
-                }
-                Ok(TypeEnum::Foreign(ForeignType::Int(64, sign))) => {
-                    CastType::Int(64, sign)
-                }
-                Ok(TypeEnum::Foreign(ForeignType::Float(32))) => {
-                    CastType::Float(32)
-                }
-                Ok(TypeEnum::Foreign(ForeignType::Float(64))) => {
-                    CastType::Float(64)
+                Ok(TypeEnum::Foreign(ForeignType::Float(size))) => {
+                    CastType::Float(size)
                 }
                 Ok(TypeEnum::TypeInstance(ins)) => match ins.instance_of().0 {
                     BOOL_ID | NIL_ID => CastType::Int(1, Sign::Unsigned),

@@ -35,18 +35,6 @@ fn pub inline check_slice_range(start: Int, end: Int, size: Int) {
   }
 }
 
-fn hash_bytes[T: Bytes, H: mut + Hasher](bytes: ref T, hasher: mut H) {
-  let mut len = bytes.size
-  let mut start = bytes.pointer
-  let mut i = 0
-
-  hasher.write_int(len)
-
-  while i < len {
-    hasher.write_byte(ptr.add(start, i := i.wrapping_add(1)).0 as Int)
-  }
-}
-
 # A type from which a new `ByteArray` can be created.
 trait pub ToByteArray {
   fn pub to_byte_array -> ByteArray
@@ -654,7 +642,7 @@ impl ToString for Slice {
 
 impl Hash for Slice {
   fn pub hash[H: mut + Hasher](hasher: mut H) {
-    hash_bytes(self, hasher)
+    hasher.write_bytes(self)
   }
 }
 
@@ -1352,7 +1340,7 @@ impl Clone for ByteArray {
 
 impl Hash for ByteArray {
   fn pub hash[H: mut + Hasher](hasher: mut H) {
-    hash_bytes(self, hasher)
+    hasher.write_bytes(self)
   }
 }
 
