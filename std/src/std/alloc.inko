@@ -48,9 +48,9 @@ fn copy[T](from: Pointer[T], to: Pointer[T], size: Int) {
 
 # Writes `size` zeroes to `pointer`.
 fn zero(pointer: Pointer[Uint8], size: Int) {
-  libc.memset(pointer, byte: 0 as Int32, size: size as Uint64)
+  _INKO.memset(pointer, 0 as Uint8, size)
 }
 
 fn write(byte: Int, to: Pointer[Uint8], size: Int) {
-  libc.memset(to, byte: byte as Int32, size: size as Uint64)
+  _INKO.memset(to, byte as Uint8, size)
 }

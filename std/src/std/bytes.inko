@@ -1127,9 +1127,9 @@ type pub ByteArray {
 
   # Overwrites all bytes in `self` with zero bytes.
   #
-  # Note that until [this issue](https://github.com/inko-lang/inko/issues/833)
-  # is resolved, the compiler _might_ optimize code such that the writing of the
-  # zero bytes is optimized away.
+  # After returning from this method the bytes stored in `self` are guaranteed
+  # to be zero. This only affects the _buffer_ in `self`, i.e. the `size` of
+  # `self` remains as it was before.
   #
   # # Examples
   #

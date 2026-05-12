@@ -1713,6 +1713,43 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
+                    Intrinsic::Memset => {
+                        let reg_var = self.variables[&ins.register];
+                        let ptr_var = self.variables[&ins.arguments[0]];
+                        let val_var = self.variables[&ins.arguments[1]];
+                        let len_var = self.variables[&ins.arguments[2]];
+
+                        // We just use the regular memset intrinsic because the
+                        // inline one seems to crash LLVM when used with large
+                        // enough sizes:
+                        // https://github.com/llvm/llvm-project/issues/189161.
+                        let func = self.module.intrinsic(
+                            "llvm.memset",
+                            &[
+                                self.builder.context.pointer_type().into(),
+                                self.builder.context.i64_type().into(),
+                            ],
+                        );
+
+                        let ptr = self.builder.load_pointer(ptr_var);
+                        let val = self
+                            .builder
+                            .load(self.builder.context.i8_type(), val_var);
+                        let len = self.builder.load_int64(len_var);
+
+                        // The use of the volatile argument should prevent LLVM
+                        // from ever optimizing away the memset call.
+                        let vol = self.builder.bool_literal(true);
+
+                        self.builder.direct_call(
+                            func,
+                            &[ptr.into(), val.into(), len.into(), vol.into()],
+                        );
+
+                        let nil = self.builder.bool_literal(NIL_VALUE);
+
+                        self.builder.store(reg_var, nil);
+                    }
                     Intrinsic::Moved
                     | Intrinsic::RefMove
                     | Intrinsic::MutMove => unreachable!(),
