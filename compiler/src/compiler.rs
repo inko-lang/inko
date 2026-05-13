@@ -91,6 +91,12 @@ pub(crate) fn module_debug_path(module: &ModuleName) -> PathBuf {
             head.replace(SEPARATOR, MAIN_SEPARATOR_STR),
             hash(tail.as_bytes()),
         ))
+    } else if let Some((head, tail)) = name.split_once('[') {
+        PathBuf::from(format!(
+            "{}[{}",
+            head.replace(SEPARATOR, MAIN_SEPARATOR_STR),
+            tail.replace(SEPARATOR, "_"),
+        ))
     } else {
         PathBuf::from(name.replace(SEPARATOR, MAIN_SEPARATOR_STR))
     }
@@ -623,7 +629,10 @@ LLVM module timings:
             });
 
             measure(&mut self.timings.optimize.method_local, || {
-                mir.apply_method_local_optimizations(self.state.config.threads);
+                mir.apply_method_local_optimizations(
+                    &self.state.db,
+                    self.state.config.threads,
+                );
             });
 
             mir.remove_unused_constants(&self.state.db);
@@ -813,6 +822,23 @@ mod tests {
             PathBuf::from(
                 "a/b/c<closure>bd2fd1bac3b67b10585aa5ae8a79f359ec15d969c2962765799cf957ff40f468"
             )
+        );
+        assert_eq!(
+            module_debug_path(&ModuleName::new(
+                "std.option.Option[ref main.Person.Person]"
+            )),
+            PathBuf::from("std/option/Option[ref main_Person_Person]")
+        );
+
+        let mut with_ext = module_debug_path(&ModuleName::new(
+            "std.option.Option[ref main.Person.Person]",
+        ));
+
+        with_ext.set_extension("txt");
+
+        assert_eq!(
+            with_ext,
+            PathBuf::from("std/option/Option[ref main_Person_Person].txt")
         );
     }
 }
