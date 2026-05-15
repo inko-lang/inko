@@ -2333,10 +2333,7 @@ impl Method {
                     (
                         Some(Instruction::MoveRegister(a)),
                         Some(Instruction::MoveRegister(b)),
-                    ) if a.target == b.source
-                        && counts[a.target.0] == 1
-                        && counts[b.target.0] == 1 =>
-                    {
+                    ) if a.target == b.source && counts[a.target.0] == 1 => {
                         b.target
                     }
                     // a = allocate ...
