@@ -147,14 +147,14 @@ start = b{}, blocks = {}, instructions = {}, inline weight = {}
             method_weight(db, method),
         );
 
-        method.body.each_block_in_order(|id| {
+        for id in method.body.iter() {
             let blk = &method.body.block(id);
             let _ = writeln!(buffer, "b{}:", id.0);
 
             for ins in &blk.instructions {
                 let _ = writeln!(buffer, "  {}", ins.format(db, names));
             }
-        });
+        }
 
         buffer.push('\n');
     }

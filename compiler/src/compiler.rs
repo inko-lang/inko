@@ -92,11 +92,24 @@ pub(crate) fn module_debug_path(module: &ModuleName) -> PathBuf {
             hash(tail.as_bytes()),
         ))
     } else if let Some((head, tail)) = name.split_once('[') {
-        PathBuf::from(format!(
-            "{}[{}",
+        let (tail, _) = tail.split_once(']').unwrap();
+        let mut path = PathBuf::from(format!(
+            "{}[{}]",
             head.replace(SEPARATOR, MAIN_SEPARATOR_STR),
-            tail.replace(SEPARATOR, "_"),
-        ))
+            tail.replace(SEPARATOR, "_")
+        ));
+
+        let name = path.file_name().unwrap();
+
+        // File names may be long especially for generic types. For such cases
+        // we fall back to just hashing the entire file name as that's the only
+        // reliable way to guarantee an upper bound without running into file
+        // name conflicts.
+        if name.len() > 255 {
+            path.set_file_name(hash(name.as_encoded_bytes()).to_string());
+        }
+
+        path
     } else {
         PathBuf::from(name.replace(SEPARATOR, MAIN_SEPARATOR_STR))
     }
@@ -839,6 +852,16 @@ mod tests {
         assert_eq!(
             with_ext,
             PathBuf::from("std/option/Option[ref main_Person_Person].txt")
+        );
+
+        assert_eq!(
+            module_debug_path(&ModuleName::new(format!(
+                "std.option.Option[{}]",
+                "m".repeat(255)
+            ))),
+            PathBuf::from(
+                "std/option/30d729869940d429d4abcf924cda8a0da64c3b360009266abfb17bc0c0fa3800"
+            )
         );
     }
 }

@@ -340,7 +340,8 @@ impl CallSite {
                     }
                     Instruction::IncrementAtomic(ins) => {
                         ins.location.set_inlined_call_id(inline_offset);
-                        ins.register += reg_start;
+                        ins.target += reg_start;
+                        ins.source += reg_start;
                     }
                     Instruction::DecrementAtomic(ins) => {
                         ins.location.set_inlined_call_id(inline_offset);
@@ -398,6 +399,9 @@ impl CallSite {
                     }
                     Instruction::Finish(ins) => {
                         ins.location.set_inlined_call_id(inline_offset);
+                    }
+                    Instruction::Nop(loc) => {
+                        loc.set_inlined_call_id(inline_offset);
                     }
                 }
             }

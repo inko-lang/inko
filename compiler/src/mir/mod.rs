@@ -7,6 +7,7 @@ pub(crate) mod inline;
 pub(crate) mod passes;
 pub(crate) mod pattern_matching;
 pub(crate) mod printer;
+pub(crate) mod refs;
 pub(crate) mod specialize;
 
 use crate::state::State;
@@ -52,7 +53,7 @@ impl Registers {
     pub(crate) fn alloc(&mut self, value_type: types::TypeRef) -> RegisterId {
         let id = self.values.len() as _;
 
-        self.values.push(Register { value_type });
+        self.values.push(Register { value_type, variable: false });
         RegisterId(id)
     }
 
@@ -70,6 +71,14 @@ impl Registers {
         value_type: types::TypeRef,
     ) {
         self.values[register.0].value_type = value_type;
+    }
+
+    pub(crate) fn is_variable(&self, register: RegisterId) -> bool {
+        self.get(register).variable
+    }
+
+    pub(crate) fn set_variable(&mut self, register: RegisterId) {
+        self.values[register.0].variable = true;
     }
 
     pub(crate) fn len(&self) -> usize {
@@ -181,25 +190,42 @@ impl Graph {
         self.blocks.append(&mut other.blocks);
     }
 
-    pub(crate) fn each_block_in_order<F: FnMut(BlockId)>(&self, mut func: F) {
+    pub(crate) fn iter<'a>(&'a self) -> BlocksIter<'a> {
         let mut visit = VecDeque::new();
-        let mut visited = HashSet::new();
-        let start = self.start_id;
+        let mut visited = vec![false; self.blocks.len()];
 
-        visit.push_back(start);
-        visited.insert(start);
+        visit.push_back(self.start_id);
+        visited[self.start_id.0] = true;
 
-        while let Some(id) = visit.pop_front() {
-            func(id);
+        BlocksIter { graph: self, visit, visited }
+    }
+}
 
-            for &id in &self.block(id).successors {
-                if visited.contains(&id) {
+pub(crate) struct BlocksIter<'a> {
+    graph: &'a Graph,
+    visit: VecDeque<BlockId>,
+    visited: Vec<bool>,
+}
+
+impl<'a> Iterator for BlocksIter<'a> {
+    type Item = BlockId;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(id) = self.visit.pop_front() {
+            let ret = Some(id);
+
+            for &id in &self.graph.block(id).successors {
+                if self.visited[id.0] {
                     continue;
                 }
 
-                visit.push_back(id);
-                visited.insert(id);
+                self.visit.push_back(id);
+                self.visited[id.0] = true;
             }
+
+            ret
+        } else {
+            None
         }
     }
 }
@@ -489,11 +515,12 @@ impl Block {
 
     pub(crate) fn increment_atomic(
         &mut self,
-        value: RegisterId,
+        target: RegisterId,
+        source: RegisterId,
         location: InstructionLocation,
     ) {
         self.instructions.push(Instruction::IncrementAtomic(Box::new(
-            IncrementAtomic { register: value, location },
+            IncrementAtomic { target, source, location },
         )));
     }
 
@@ -934,7 +961,11 @@ impl fmt::Display for Constant {
 /// they're not always directly tied to variables in the source code.
 #[derive(Clone)]
 pub(crate) struct Register {
+    /// The type of the value stored in this register.
     pub(crate) value_type: types::TypeRef,
+
+    /// If the register is produced by a local variable.
+    pub(crate) variable: bool,
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
@@ -1091,7 +1122,8 @@ pub(crate) struct Decrement {
 
 #[derive(Clone)]
 pub(crate) struct IncrementAtomic {
-    pub(crate) register: RegisterId,
+    pub(crate) target: RegisterId,
+    pub(crate) source: RegisterId,
     pub(crate) location: InstructionLocation,
 }
 
@@ -1390,6 +1422,7 @@ pub(crate) enum Instruction {
     FieldPointer(Box<FieldPointer>),
     MethodPointer(Box<MethodPointer>),
     SizeOf(Box<SizeOf>),
+    Nop(InstructionLocation),
 }
 
 impl Instruction {
@@ -1435,6 +1468,7 @@ impl Instruction {
             Instruction::FieldPointer(v) => v.location,
             Instruction::MethodPointer(v) => v.location,
             Instruction::SizeOf(v) => v.location,
+            Instruction::Nop(v) => *v,
         }
     }
 
@@ -1600,7 +1634,7 @@ impl Instruction {
                 format!("decrement r{}", v.register.0)
             }
             Instruction::IncrementAtomic(v) => {
-                format!("increment_atomic r{}", v.register.0)
+                format!("r{} = increment_atomic r{}", v.target.0, v.source.0)
             }
             Instruction::DecrementAtomic(v) => {
                 format!(
@@ -1653,6 +1687,7 @@ impl Instruction {
                     types::format::format_type(db, v.argument)
                 )
             }
+            Instruction::Nop(_) => "nop".to_string(),
         }
     }
 }
@@ -1744,6 +1779,10 @@ pub(crate) struct Method {
     pub(crate) id: types::MethodId,
     pub(crate) registers: Registers,
     pub(crate) body: Graph,
+
+    /// The argument registers of this method.
+    ///
+    /// For instance methods the first argument is the receiver register.
     pub(crate) arguments: Vec<RegisterId>,
     pub(crate) inlined_calls: Vec<InlinedCalls>,
 }
@@ -1835,7 +1874,7 @@ impl Method {
                         uses[i.register.0] += 1;
                     }
                     Instruction::IncrementAtomic(i) => {
-                        uses[i.register.0] += 1;
+                        uses[i.source.0] += 1;
                     }
                     Instruction::DecrementAtomic(i) => {
                         uses[i.register.0] += 1;
@@ -2029,6 +2068,7 @@ impl Method {
     /// other methods).
     fn apply_local_optimizations(
         &mut self,
+        db: &Database,
         constants: &IndexMap<types::ConstantId, Constant>,
     ) {
         self.merge_switch_blocks();
@@ -2041,6 +2081,53 @@ impl Method {
         self.remove_unused_instructions();
         self.inline_constants(constants);
         self.merge_redundant_moves();
+
+        // This may produce unreachable blocks or blocks that can be merged
+        // using the "merge goto blocks" optimization, so we run it first.
+        //
+        // TODO: move back to the start
+        self.optimize_reference_counts(db);
+    }
+
+    fn reconnect_blocks(&mut self) {
+        for block in &mut self.body.blocks {
+            block.predecessors.clear();
+            block.successors.clear();
+        }
+
+        let mut edges = IndexSet::new();
+
+        for (idx, block) in self.body.blocks.iter().enumerate() {
+            let cur = BlockId(idx);
+
+            match block.instructions.last() {
+                Some(Instruction::Goto(i)) => {
+                    edges.insert((cur, i.block));
+                }
+                Some(Instruction::Branch(ins)) => {
+                    edges.insert((cur, ins.if_true));
+                    edges.insert((cur, ins.if_false));
+                }
+                Some(Instruction::Switch(ins)) => {
+                    for (_, id) in &ins.blocks {
+                        edges.insert((cur, *id));
+                    }
+
+                    if let Some(id) = &ins.fallback {
+                        edges.insert((cur, *id));
+                    }
+                }
+                Some(Instruction::DecrementAtomic(ins)) => {
+                    edges.insert((cur, ins.if_true));
+                    edges.insert((cur, ins.if_false));
+                }
+                _ => {}
+            }
+        }
+
+        for (from, to) in edges {
+            self.body.add_edge(from, to);
+        }
     }
 
     /// Modifies switch instructions such that branches to blocks that just
@@ -2051,7 +2138,6 @@ impl Method {
     /// variables or registers to drop.
     fn merge_switch_blocks(&mut self) {
         let mut map = IndexMap::new();
-        let mut links = IndexSet::new();
 
         for (idx, src) in self.body.blocks.iter().enumerate() {
             let src_id = BlockId(idx);
@@ -2074,7 +2160,6 @@ impl Method {
                     _ => continue,
                 };
 
-                links.insert((src_id, new_target));
                 map.insert((src_id, *target_id), new_target);
             }
         }
@@ -2086,30 +2171,18 @@ impl Method {
                 _ => continue,
             };
 
-            let mut succ = Vec::new();
-
             for target_id in ins.blocks_mut() {
                 if let Some(&new) = map.get(&(src_id, *target_id)) {
                     *target_id = new;
                 }
-
-                succ.push(*target_id);
             }
-
-            src.successors = succ;
         }
 
         for (_, id) in map.into_keys() {
-            let blk = self.body.block_mut(id);
-
-            blk.predecessors.clear();
-            blk.successors.clear();
-            blk.instructions.clear();
+            self.body.block_mut(id).instructions.clear();
         }
 
-        for (from, to) in links {
-            self.body.add_edge(from, to);
-        }
+        self.reconnect_blocks();
     }
 
     /// Compacts switch instructions by merging branches that all jump to the
@@ -2167,14 +2240,13 @@ impl Method {
             let block = &self.body.blocks[idx];
             let merge =
                 if let Some(Instruction::Goto(_)) = block.instructions.last() {
+                    let succ = block.successors[0];
+
                     // We need to make sure the target block isn't the start of
                     // a loop, as in that case we can't merge the blocks.
                     block.successors.len() == 1
-                        && self.body.blocks[block.successors[0].0]
-                            .predecessors
-                            .len()
-                            == 1
-                        && block.successors[0] != self.body.start_id
+                        && self.body.blocks[succ.0].predecessors.len() == 1
+                        && succ != self.body.start_id
                 } else {
                     false
                 };
@@ -2232,6 +2304,7 @@ impl Method {
             for block in &mut self.body.blocks {
                 block.instructions.retain(|ins| {
                     let (reg, src) = match ins {
+                        Instruction::Nop(_) => return false,
                         Instruction::Float(i) => (i.register, None),
                         Instruction::Int(i) => (i.register, None),
                         Instruction::Nil(i) => (i.register, None),
@@ -2362,6 +2435,26 @@ impl Method {
                     {
                         mov.target
                     }
+                    // a = string "foo"
+                    // b = move a
+                    (
+                        Some(Instruction::String(lit)),
+                        Some(Instruction::MoveRegister(mov)),
+                    ) if mov.source == lit.register
+                        && counts[lit.register.0] == 1 =>
+                    {
+                        mov.target
+                    }
+                    // a = increment_atomic x
+                    // b = move a
+                    (
+                        Some(Instruction::IncrementAtomic(inc)),
+                        Some(Instruction::MoveRegister(mov)),
+                    ) if mov.source == inc.target
+                        && counts[inc.target.0] == 1 =>
+                    {
+                        mov.target
+                    }
                     (None, _) => break,
                     _ => {
                         i += 1;
@@ -2370,16 +2463,25 @@ impl Method {
                 };
 
                 match &mut block.instructions[i] {
-                    Instruction::MoveRegister(ins) => ins.target = new_target,
-                    Instruction::Allocate(ins) => ins.register = new_target,
-                    Instruction::Int(ins) => ins.register = new_target,
-                    Instruction::Float(ins) => ins.register = new_target,
+                    Instruction::MoveRegister(i) => i.target = new_target,
+                    Instruction::Allocate(i) => i.register = new_target,
+                    Instruction::Int(i) => i.register = new_target,
+                    Instruction::Float(i) => i.register = new_target,
+                    Instruction::String(i) => i.register = new_target,
+                    Instruction::IncrementAtomic(i) => i.target = new_target,
                     _ => {}
                 }
 
                 block.instructions.remove(i + 1);
             }
         }
+    }
+
+    fn optimize_reference_counts(&mut self, db: &Database) {
+        // The logic is sufficiently complex that it's factored out into
+        // separate types and a module, making it a little easier to keep things
+        // organized.
+        refs::OptimizeStrings::new(db, self).run();
     }
 }
 
@@ -2725,7 +2827,11 @@ impl Mir {
     ///
     /// The optimizations are applied in parallel as they don't rely on any
     /// shared (mutable) state.
-    pub(crate) fn apply_method_local_optimizations(&mut self, threads: usize) {
+    pub(crate) fn apply_method_local_optimizations(
+        &mut self,
+        db: &Database,
+        threads: usize,
+    ) {
         let queue = Mutex::new(self.methods.values_mut().collect::<Vec<_>>());
         let consts = &self.constants;
 
@@ -2737,7 +2843,7 @@ impl Mir {
                             break;
                         };
 
-                        m.apply_local_optimizations(consts);
+                        m.apply_local_optimizations(db, consts);
                     }
                 });
             }
@@ -2881,6 +2987,15 @@ mod tests {
 
         assert_eq!(method.body.start_id, BlockId(2));
         assert_eq!(method.body.blocks.len(), 3);
+
+        assert_eq!(&method.body.blocks[2].predecessors, &[]);
+        assert_eq!(&method.body.blocks[2].successors, &[BlockId(1)]);
+
+        assert_eq!(&method.body.blocks[1].predecessors, &[BlockId(2)]);
+        assert_eq!(&method.body.blocks[1].successors, &[BlockId(0)]);
+
+        assert_eq!(&method.body.blocks[0].predecessors, &[BlockId(1)]);
+        assert_eq!(&method.body.blocks[0].successors, &[]);
     }
 
     #[test]
@@ -3014,8 +3129,16 @@ mod tests {
         };
 
         assert_eq!(ins.blocks, [(0, b2), (1, b2)]);
-        assert!(method.body.block(b1).predecessors.is_empty());
-        assert!(method.body.block(b1).successors.is_empty());
+
+        assert_eq!(method.body.block(b0).predecessors, []);
+        assert_eq!(method.body.block(b0).successors, [b2]);
+
+        assert!(method.body.block(b1).instructions.is_empty());
+        assert_eq!(method.body.block(b1).predecessors, []);
+        assert_eq!(method.body.block(b1).successors, []);
+
+        assert_eq!(method.body.block(b2).predecessors, [b0]);
+        assert_eq!(method.body.block(b2).successors, []);
     }
 
     #[test]
@@ -3042,6 +3165,8 @@ mod tests {
         assert!(method.body.block(b1).predecessors.is_empty());
         assert!(method.body.block(b1).successors.is_empty());
         assert!(method.body.block(b2).instructions.is_empty());
+        assert!(method.body.block(b2).predecessors.is_empty());
+        assert!(method.body.block(b2).successors.is_empty());
     }
 
     #[test]
@@ -3110,6 +3235,61 @@ mod tests {
     }
 
     #[test]
+    fn test_method_reconnect_blocks() {
+        let mut method = Method::new(MethodId(0));
+
+        let b0 = method.body.add_block();
+        let b1 = method.body.add_block();
+        let b2 = method.body.add_block();
+        let b3 = method.body.add_block();
+        let location = InstructionLocation::new(Location::default());
+        let ins = vec![
+            Instruction::Goto(Box::new(Goto { block: b1, location })),
+            Instruction::Branch(Box::new(Branch {
+                condition: RegisterId(0),
+                if_true: b1,
+                if_false: b1,
+                location,
+            })),
+            Instruction::Switch(Box::new(Switch {
+                register: RegisterId(0),
+                blocks: vec![(0, b1)],
+                fallback: None,
+                location,
+            })),
+            Instruction::Switch(Box::new(Switch {
+                register: RegisterId(0),
+                blocks: Vec::new(),
+                fallback: Some(b1),
+                location,
+            })),
+            Instruction::DecrementAtomic(Box::new(DecrementAtomic {
+                register: RegisterId(0),
+                if_true: b1,
+                if_false: b1,
+                location,
+            })),
+        ];
+
+        for ins in ins {
+            method.body.add_edge(b0, b1);
+            method.body.add_edge(b1, b2);
+            method.body.add_edge(b2, b3);
+            method.body.block_mut(b0).instructions = vec![ins];
+            method.reconnect_blocks();
+
+            assert_eq!(method.body.block(b0).predecessors, []);
+            assert_eq!(method.body.block(b0).successors, [b1]);
+            assert_eq!(method.body.block(b1).predecessors, [b0]);
+            assert_eq!(method.body.block(b1).successors, []);
+            assert_eq!(method.body.block(b2).predecessors, []);
+            assert_eq!(method.body.block(b2).successors, []);
+            assert_eq!(method.body.block(b3).predecessors, []);
+            assert_eq!(method.body.block(b3).successors, []);
+        }
+    }
+
+    #[test]
     fn test_block_map_edges() {
         let mut block = Block::new();
 
@@ -3138,5 +3318,20 @@ mod tests {
 
         assert_eq!(&block.successors, &[BlockId(1), BlockId(2)]);
         assert_eq!(&block.predecessors, &[BlockId(1), BlockId(2)]);
+    }
+
+    #[test]
+    fn test_graph_iter() {
+        let mut graph = Graph::new();
+        let b1 = graph.add_block();
+        let b2 = graph.add_block();
+        let b3 = graph.add_block();
+
+        graph.start_id = b3;
+        graph.add_edge(b3, b1);
+        graph.add_edge(b1, b2);
+        graph.add_edge(b1, b2);
+
+        assert_eq!(graph.iter().collect::<Vec<_>>(), [b3, b1, b2]);
     }
 }
