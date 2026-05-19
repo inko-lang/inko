@@ -826,9 +826,10 @@ impl Map if V: mut {
 
   # Tries to insert the new key and value into `self`.
   #
-  # If the key isn't already set, a `Result.Ok(nil)` is returned. If the key is
-  # already set, a `Result.Error` is returned containing the provided key, a
-  # mutable borrow of the _existing_ value, and the new value.
+  # If the key isn't already set, a `Result.Ok` is returned containing a
+  # mutable borrow of the newly inserted value. If the key is already set, a
+  # `Result.Error` is returned containing the provided key, a mutable borrow
+  # of the _existing_ value, and the new value.
   #
   # Using this method it's possible to insert a new entry or update the value of
   # an existing entry (provided it's a mutable value), without the need for
@@ -840,21 +841,28 @@ impl Map if V: mut {
   # ```inko
   # let map: Map[String, Array[Int]] = Map.new
   #
-  # map.try_set('numbers', [10]) # => Result.Ok(nil)
-  # map.try_set('numbers', [50]) # => Result.Error(('numbers', mut [20], [50]))
+  # map.try_set('numbers', [10]) # => Result.Ok(mut [10])
+  # map.try_set('numbers', [50]) # => Result.Error(('numbers', mut [10], [50]))
   #
   # match map.try_set('numbers', [50]) {
   #   case Ok(_) -> {}
   #   case Error((_, old, new)) -> old.append(new)
   # }
+  #
+  # let array = match map.try_set('numbers', [70]) {
+  #   case Ok(new) -> new
+  #   case Error((_, old, _)) -> old
+  # }
+  #
+  # array.append([90])
   # ```
-  fn pub mut try_set(key: K, value: V) -> Result[Nil, (K, mut V, V)] {
+  fn pub mut try_set(key: K, value: V) -> Result[mut V, (K, mut V, V)] {
     if size >= @resize_at { resize }
 
     try_insert_entry(Entry(hash: hash_key(key), key: key, value: value))
   }
 
-  fn mut try_insert_entry(insert: Entry[K, V]) -> Result[Nil, (K, mut V, V)] {
+  fn mut try_insert_entry(insert: Entry[K, V]) -> Result[mut V, (K, mut V, V)] {
     let mut idx = index_for(insert.hash)
     let mut dist = 0
 
@@ -862,8 +870,10 @@ impl Map if V: mut {
       let slot = @slots.get(idx).or_panic
 
       if slot.empty? {
+        let value = mut insert.value
+
         insert_new(insert, idx, dist)
-        return Result.Ok(nil)
+        return Result.Ok(value)
       }
 
       let ex = @entries.get_mut(slot.entry).or_panic
@@ -875,8 +885,10 @@ impl Map if V: mut {
       }
 
       if slot.distance < dist {
+        let value = mut insert.value
+
         insert_and_steal(insert, idx, dist, slot)
-        return Result.Ok(nil)
+        return Result.Ok(value)
       }
 
       idx = index_for(idx + 1)

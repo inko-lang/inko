@@ -218,7 +218,7 @@ fn pub tests(t: mut Tests) {
     map.set('a', [10, 20])
 
     t.equal(map.try_set('a', [30]), Result.Error(('a', mut [10, 20], [30])))
-    t.equal(map.try_set('b', [50]), Result.Ok(nil))
+    t.equal(map.try_set('b', [50]), Result.Ok(mut [50]))
   })
 
   t.test('Map.hash', fn (t) {
