@@ -12,6 +12,7 @@ following:
 
 ```inko
 import std.fs.file (ReadWriteFile)
+import std.io (SeekFrom)
 import std.stdio (Stdout)
 
 type async Main {
@@ -21,7 +22,7 @@ type async Main {
     let bytes = ByteArray.new
 
     file.write('Hello, world!').get
-    file.seek(0).get
+    file.seek(SeekFrom.Start(0)).get
     file.read_all(bytes).get
     out.write(bytes).get
   }
