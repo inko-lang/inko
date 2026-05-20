@@ -160,48 +160,92 @@ impl<'a> OptimizeStrings<'a> {
             }
         }
 
-        let mut escapes = vec![false; self.method.registers.len()];
+        let mut keep_all = vec![false; self.method.registers.len()];
+        let mut keep_dec = vec![false; self.method.registers.len()];
+        let mut assigned = vec![0_u8; self.method.registers.len()];
 
         for block in &self.method.body.blocks {
             for ins in &block.instructions {
                 match ins {
+                    // If the source is an expression (other than a local
+                    // variable reference) assigned to a variable, we need to
+                    // keep the decrements for when that variable goes out of
+                    // scope.
+                    //
+                    // However, borrowing the variable doesn't mandate an
+                    // increment _unless_ the borrow escapes.
+                    //
+                    // TODO: we need to reliably detect the difference between
+                    // "a move to define a variable" and "a move that just
+                    // moves" (e.g. a branch).
+                    Instruction::MoveRegister(i) => {
+                        let is_var =
+                            self.method.registers.is_variable(i.target);
+
+                        if is_var && assigned[i.target.0] < 2 {
+                            assigned[i.target.0] += 1;
+                        }
+
+                        if assigned[i.target.0] > 1 {
+                            keep_all[i.target.0] = true;
+                            continue;
+                        }
+
+                        if is_var && keep_all[i.source.0] {
+                            keep_dec[i.target.0] = true;
+                        }
+                    }
+                    Instruction::CallBuiltin(i) => {
+                        i.arguments.iter().for_each(|r| keep_all[r.0] = true);
+                        keep_all[i.register.0] = true;
+                    }
                     Instruction::CallDynamic(i) => {
-                        i.arguments.iter().for_each(|r| escapes[r.0] = true);
+                        i.arguments.iter().for_each(|r| keep_all[r.0] = true);
+                        keep_all[i.register.0] = true;
                     }
                     Instruction::CallStatic(i) => {
-                        i.arguments.iter().for_each(|r| escapes[r.0] = true);
+                        i.arguments.iter().for_each(|r| keep_all[r.0] = true);
+                        keep_all[i.register.0] = true;
                     }
                     Instruction::CallInstance(i) => {
                         if i.method.is_moving(self.db) {
-                            escapes[i.receiver.0] = true;
+                            keep_all[i.receiver.0] = true;
                         }
 
-                        i.arguments.iter().for_each(|r| escapes[r.0] = true);
+                        i.arguments.iter().for_each(|r| keep_all[r.0] = true);
+                        keep_all[i.register.0] = true;
                     }
                     Instruction::CallExtern(i) => {
-                        i.arguments.iter().for_each(|r| escapes[r.0] = true);
+                        i.arguments.iter().for_each(|r| keep_all[r.0] = true);
+                        keep_all[i.register.0] = true;
                     }
                     Instruction::CallClosure(i) => {
-                        i.arguments.iter().for_each(|r| escapes[r.0] = true);
+                        i.arguments.iter().for_each(|r| keep_all[r.0] = true);
+                        keep_all[i.register.0] = true;
                     }
                     Instruction::Send(i) => {
-                        i.arguments.iter().for_each(|r| escapes[r.0] = true);
+                        i.arguments.iter().for_each(|r| keep_all[r.0] = true);
                     }
-                    Instruction::SetField(i) => {
-                        escapes[i.value.0] = true;
+                    Instruction::SetField(i) => keep_all[i.value.0] = true,
+                    Instruction::WritePointer(i) => keep_all[i.value.0] = true,
+                    Instruction::ReadPointer(i) => {
+                        keep_all[i.register.0] = true
                     }
-                    Instruction::WritePointer(i) => {
-                        escapes[i.value.0] = true;
-                    }
-                    Instruction::Return(i) => {
-                        escapes[i.register.0] = true;
-                    }
+                    Instruction::Return(i) => keep_all[i.register.0] = true,
+                    Instruction::GetField(i) => keep_all[i.register.0] = true,
+                    Instruction::Cast(i) => keep_all[i.register.0] = true,
                     _ => {}
                 }
             }
         }
 
-        let mut updated = false;
+        for (i, &keep) in keep_all.iter().enumerate() {
+            if keep {
+                keep_dec[i] = true;
+            }
+        }
+
+        let mut reconnect = false;
 
         for block in &mut self.method.body.blocks {
             for ins in &mut block.instructions {
@@ -223,7 +267,7 @@ impl<'a> OptimizeStrings<'a> {
                         let after_blk = i.if_false;
                         let loc = i.location;
 
-                        updated = true;
+                        reconnect = true;
                         *ins = Instruction::Goto(Box::new(Goto {
                             block: after_blk,
                             location: loc,
@@ -243,32 +287,44 @@ impl<'a> OptimizeStrings<'a> {
         // TODO: this causes shost to respond with 404s, so we probably still
         // drop strings prematurely
 
-        let mut pending = vec![None; self.method.registers.len()];
         let mut remove_incr = Vec::new();
         let mut remove_decr = Vec::new();
 
+        // TODO: at the MIR level we can't detect if variable A was assigned
+        // variable B or some _expression_ B.
+        //
+        // I think we need the "this is a variable register" flag for this.
+        //
+        // Akshually: given `let a = b` if `b` is an expression that returns a
+        // string, the IR is `a = move b`. If on the other hand it's e.g. a
+        // variable it will be `a = increment_atomic b`. Is that reliably
+        // though? We may still end up eliminating unrelated decrements.
+        //
+        // More precisely, given register R I think we can remove _all_
+        // increments and decrements while keeping decrements when:
+        //
+        // 1. R stores a method argument
+        // 2. R is assigned the result of a non-local variable expression
+        // 3. R escapes
         for bid in self.method.body.iter() {
             for (iid, ins) in
                 self.method.body.block(bid).instructions.iter().enumerate()
             {
                 match ins {
                     Instruction::IncrementAtomic(i)
-                        if self.method.registers.is_variable(i.target)
-                            && !merged[i.source.0]
-                            && !merged[i.target.0] =>
+                        if !keep_all[i.source.0] && !keep_all[i.target.0] =>
                     {
-                        // TODO: verify we don't overwrite prior values
                         // TODO: don't clone the entire instruction
-                        pending[i.target.0] = Some((bid, iid, (*i).clone()));
+                        // TODO: determine if we need a stack or just a single
+                        // slot
+                        reconnect = true;
+                        remove_incr.push((bid, iid, (*i).clone()));
                     }
                     Instruction::DecrementAtomic(i)
-                        if self.method.registers.is_variable(i.register) =>
+                        if !keep_dec[i.register.0] =>
                     {
-                        if let Some(v) = pending[i.register.0].take() {
-                            updated = true;
-                            remove_incr.push(v);
-                            remove_decr.push((bid, iid, (*i).clone()));
-                        }
+                        reconnect = true;
+                        remove_decr.push((bid, iid, (*i).clone()));
                     }
                     _ => continue,
                 }
@@ -293,7 +349,7 @@ impl<'a> OptimizeStrings<'a> {
                 }));
         }
 
-        if updated {
+        if reconnect {
             self.method.reconnect_blocks();
             self.method.remove_unreachable_blocks();
         }

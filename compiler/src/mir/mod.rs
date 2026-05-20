@@ -61,6 +61,10 @@ impl Registers {
         &self.values[register.0]
     }
 
+    pub(crate) fn get_mut(&mut self, register: RegisterId) -> &mut Register {
+        &mut self.values[register.0]
+    }
+
     pub(crate) fn value_type(&self, register: RegisterId) -> types::TypeRef {
         self.get(register).value_type
     }
@@ -70,7 +74,7 @@ impl Registers {
         register: RegisterId,
         value_type: types::TypeRef,
     ) {
-        self.values[register.0].value_type = value_type;
+        self.get_mut(register).value_type = value_type;
     }
 
     pub(crate) fn is_variable(&self, register: RegisterId) -> bool {
@@ -78,7 +82,7 @@ impl Registers {
     }
 
     pub(crate) fn set_variable(&mut self, register: RegisterId) {
-        self.values[register.0].variable = true;
+        self.get_mut(register).variable = true;
     }
 
     pub(crate) fn len(&self) -> usize {
@@ -961,10 +965,7 @@ impl fmt::Display for Constant {
 /// they're not always directly tied to variables in the source code.
 #[derive(Clone)]
 pub(crate) struct Register {
-    /// The type of the value stored in this register.
     pub(crate) value_type: types::TypeRef,
-
-    /// If the register is produced by a local variable.
     pub(crate) variable: bool,
 }
 
