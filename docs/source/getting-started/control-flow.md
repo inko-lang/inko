@@ -108,7 +108,7 @@ let __iter = [10, 20, 30].into_iter
 
 loop {
   match __iter.next {
-    case Some(num) -> print(num)
+    case Some(num) -> out.print(num.to_string)
     case _ -> break
   }
 }
