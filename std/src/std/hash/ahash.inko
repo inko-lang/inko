@@ -153,10 +153,6 @@ impl Hasher for Ahasher {
     }
   }
 
-  fn pub inline mut write_byte(value: Int) {
-    write_int(value)
-  }
-
   fn pub inline mut write_int(value: Int) {
     @buffer = folded_multiply(value ^ @buffer, MULTIPLE)
   }

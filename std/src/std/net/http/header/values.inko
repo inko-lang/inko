@@ -244,7 +244,7 @@ impl Hash for Parameter {
     for byte in @value.bytes {
       let byte = if upper?(byte) { to_lower(byte) } else { byte }
 
-      hasher.write_byte(byte)
+      hasher.write_int(byte)
     }
   }
 }

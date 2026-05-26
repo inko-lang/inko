@@ -107,7 +107,7 @@ fn pub tests(t: mut Tests) {
 
       hasher.write_int(key.size)
 
-      for byte in key.bytes { hasher.write_byte(byte) }
+      for byte in key.bytes { hasher.write_int(byte) }
 
       t.equal(hasher.finish, hash)
     }
@@ -125,7 +125,7 @@ fn pub tests(t: mut Tests) {
 
       hasher.write_int(key.size)
 
-      for byte in key.bytes { hasher.write_byte(byte) }
+      for byte in key.bytes { hasher.write_int(byte) }
 
       t.equal(hasher.finish, hash)
     }
