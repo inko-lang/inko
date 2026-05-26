@@ -2433,7 +2433,8 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 self.builder.store_field(header, val, idx, new_refs);
             }
             Instruction::IncrementAtomic(ins) => {
-                let var = self.variables[&ins.register];
+                let res = self.variables[&ins.target];
+                let var = self.variables[&ins.source];
                 let val = self.builder.load_pointer(var);
                 let one = self.builder.u32_literal(1);
                 let field = self.builder.field_address(
@@ -2443,6 +2444,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 );
 
                 self.builder.atomic_add(field, one);
+                self.builder.store(res, val);
             }
             Instruction::DecrementAtomic(ins) => {
                 let var = self.variables[&ins.register];
@@ -2660,6 +2662,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
 
                 self.builder.store(reg_var, typ.size_of().unwrap());
             }
+            Instruction::Nop(_) => {}
             Instruction::Borrow(_) => unreachable!(),
             Instruction::Drop(_) => unreachable!(),
         }

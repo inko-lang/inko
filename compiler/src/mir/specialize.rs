@@ -1320,19 +1320,21 @@ impl<'a> ExpandBorrow<'a> {
         match typ.shape(self.db) {
             Shape::Copy => {
                 // These values should be left as-is.
+                self.block_mut(block_id).move_register(reg, val, loc);
             }
             Shape::Borrow | Shape::Owned => {
                 self.block_mut(block_id).increment(val, loc);
+                self.block_mut(block_id).move_register(reg, val, loc);
             }
             Shape::Atomic => {
-                self.block_mut(block_id).increment_atomic(val, loc);
+                self.block_mut(block_id).increment_atomic(reg, val, loc);
             }
             Shape::Inline | Shape::InlineBorrow => {
                 self.borrow_inline_type(block_id, val, loc);
+                self.block_mut(block_id).move_register(reg, val, loc);
             }
         }
 
-        self.block_mut(block_id).move_register(reg, val, loc);
         self.block_mut(block_id).goto(after_id, loc);
         self.method.body.add_edge(block_id, after_id);
     }

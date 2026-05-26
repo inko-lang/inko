@@ -1335,18 +1335,24 @@ impl<'a> LowerToMir<'a> {
             .current_block_mut()
             .set_field(ins_reg, type_id, tag_field, tag_reg, loc);
 
+        // We borrow here if necessary so the generated code is the same as if
+        // it were written by hand. This in turn is required so optimization
+        // passes don't have to special-case the code we generate here.
         for (arg, field) in
             id.arguments(lower.db()).into_iter().zip(fields.into_iter())
         {
             let reg = *lower.variable_mapping.get(&arg.variable).unwrap();
+            let typ = lower.register_type(reg);
+            let inp = lower.input_register(reg, typ, None, node.location);
 
             lower
                 .current_block_mut()
-                .set_field(ins_reg, type_id, field, reg, loc);
-            lower.mark_register_as_moved(reg);
+                .set_field(ins_reg, type_id, field, inp, loc);
+            lower.mark_register_as_moved(inp);
         }
 
         lower.mark_register_as_moved(ins_reg);
+        lower.drop_scope_registers(loc);
         lower.current_block_mut().return_value(ins_reg, loc);
         method
     }
@@ -1564,7 +1570,7 @@ impl<'a> LowerMethod<'a> {
         let self_reg = if self.method.id.is_instance(self.db()) {
             let reg = self.new_self(self.method.id.receiver(self.db()));
 
-            self.method.arguments.push(reg);
+            self.method.add_argument(reg);
             Some(reg)
         } else {
             None
@@ -1581,8 +1587,8 @@ impl<'a> LowerMethod<'a> {
             // apply to the implementation), without the ability to prefix them
             // with an underscore. As such, we consider arguments as used.
             self.used_variables.insert(arg.variable);
-            self.method.arguments.push(reg);
             self.variable_mapping.insert(arg.variable, reg);
+            self.method.add_argument(reg);
             args.push(reg);
         }
 
@@ -1943,9 +1949,8 @@ impl<'a> LowerMethod<'a> {
     fn string_literal(&mut self, node: hir::StringLiteral) -> RegisterId {
         let loc = InstructionLocation::new(node.location);
         let reg = self.new_register(TypeRef::string());
-        let block = self.current_block;
 
-        self.permanent_string(reg, node.value, block, loc);
+        self.current_block_mut().string_literal(reg, node.value, loc);
         reg
     }
 
@@ -2152,11 +2157,18 @@ impl<'a> LowerMethod<'a> {
         let targs = self.mir.add_type_arguments(info.type_arguments);
 
         if info.id.is_async(self.db()) {
+            // We use a new untracked register so we can keep the IR in _mostly_
+            // SSA form, and so we don't try to decrement the receiver twice (=
+            // once for the initial register and once for this new one).
+            let rec_typ = self.register_type(rec);
+            let msg_rec = self.new_untracked_register(rec_typ);
+
             // When sending messages we must increment the reference count,
             // otherwise we may end up scheduling the async dropper prematurely
             // (e.g. if new references are created before it runs).
-            self.current_block_mut().increment_atomic(rec, ins_loc);
-            self.current_block_mut().send(rec, info.id, args, targs, ins_loc);
+            self.current_block_mut().increment_atomic(msg_rec, rec, ins_loc);
+            self.current_block_mut()
+                .send(msg_rec, info.id, args, targs, ins_loc);
             self.current_block_mut().nil_literal(res, ins_loc);
         } else if info.dynamic {
             self.current_block_mut()
@@ -3458,7 +3470,7 @@ impl<'a> LowerMethod<'a> {
                 self.mir.add_type_arguments(args)
             };
 
-            self.permanent_string(pat_reg, pat, pat_block, loc);
+            self.block_mut(pat_block).string_literal(pat_reg, pat, loc);
             self.block_mut(pat_block).borrow(ref_reg, test_reg, loc);
             self.block_mut(pat_block).call_instance(
                 res_reg,
@@ -4975,28 +4987,6 @@ impl<'a> LowerMethod<'a> {
         location: InstructionLocation,
     ) {
         self.current_block_mut().get_constant(register, id, location);
-
-        // We don't need to handle Array here as it's exposed through a
-        // reference, and we never drop the underlying owned value.
-        if id.value_type(self.db()).is_string(self.db()) {
-            self.current_block_mut().increment_atomic(register, location);
-        }
-    }
-
-    fn permanent_string(
-        &mut self,
-        register: RegisterId,
-        value: String,
-        block: BlockId,
-        location: InstructionLocation,
-    ) {
-        self.block_mut(block).string_literal(register, value, location);
-
-        // This ensures that when the last reference to a string literal goes
-        // out of scope, the reference count remains 1, ensuring we don't
-        // accidentally drop a permanent string that may be referred to again
-        // later.
-        self.block_mut(block).increment_atomic(register, location);
     }
 
     fn mark_variable_as_used(&mut self, id: types::VariableId) {
