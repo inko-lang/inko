@@ -9,7 +9,6 @@ fn pub tests(t: mut Tests) {
 
     t.equal(range.start, 1)
     t.equal(range.end, 10)
-    t.true(range.inclusive?)
   })
 
   t.test('ExclusiveRange.new', fn (t) {
@@ -17,7 +16,6 @@ fn pub tests(t: mut Tests) {
 
     t.equal(range.start, 1)
     t.equal(range.end, 10)
-    t.false(range.inclusive?)
   })
 
   t.test('InclusiveRange.contains?', fn (t) {

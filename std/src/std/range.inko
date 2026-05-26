@@ -26,22 +26,18 @@ import std.fmt (Format, Formatter)
 import std.hash (Hash, Hasher)
 import std.iter (Stream)
 
-# A range of integers.
-trait pub Range: Hash + Format {
-  # Returns the first value in the range.
-  fn pub start -> Int
+# An inclusive range of integers.
+type pub copy InclusiveRange {
+  # The start value of the range.
+  let pub @start: Int
 
-  # Returns the last value in the range.
-  fn pub end -> Int
+  # The end value of the range.
+  let pub @end: Int
 
-  # Returns `true` if the range is an inclusive range.
-  fn pub inclusive? -> Bool
-
-  # Returns the number of values in this range.
-  fn pub size -> Int
-
-  # Returns an iterator over the values in `self`.
-  fn pub iter -> Stream[Int]
+  # Returns a new `InclusiveRange` over the given values.
+  fn pub inline static new(start: Int, end: Int) -> InclusiveRange {
+    InclusiveRange(start: start, end: end)
+  }
 
   # Returns `true` if the given argument resides in the range of `self`.
   #
@@ -51,52 +47,21 @@ trait pub Range: Hash + Format {
   # 1.to(10).contains?(5)  # => true
   # 1.to(10).contains?(10) # => true
   # ```
-  fn pub contains?(value: Int) -> Bool
+  fn pub inline contains?(value: Int) -> Bool {
+    @start <= value and value <= @end
+  }
+
+  # Returns the number of values in this range.
+  fn pub inline size -> Int {
+    if @end >= @start { @end - @start + 1 } else { 0 }
+  }
 
   # Moves `self` into an iterator.
   fn pub move into_iter -> Stream[Int] {
     iter
   }
-}
 
-# An inclusive range of integers.
-type pub copy InclusiveRange {
-  let @start: Int
-  let @end: Int
-
-  # Returns a new `InclusiveRange` over the given values.
-  fn pub inline static new(start: Int, end: Int) -> InclusiveRange {
-    InclusiveRange(start: start, end: end)
-  }
-
-  fn pub inline contains?(value: Int) -> Bool {
-    @start <= value and value <= @end
-  }
-}
-
-impl Clone for InclusiveRange {
-  fn pub inline clone -> InclusiveRange {
-    InclusiveRange(start: @start, end: @end)
-  }
-}
-
-impl Range for InclusiveRange {
-  fn pub inline start -> Int {
-    @start
-  }
-
-  fn pub inline end -> Int {
-    @end
-  }
-
-  fn pub inline inclusive? -> Bool {
-    true
-  }
-
-  fn pub inline size -> Int {
-    if @end >= @start { @end - @start + 1 } else { 0 }
-  }
-
+  # Returns an iterator over the values in `self`.
   fn pub iter -> Stream[Int] {
     let mut current = @start
     let end = @end
@@ -108,6 +73,12 @@ impl Range for InclusiveRange {
         Option.None
       }
     })
+  }
+}
+
+impl Clone for InclusiveRange {
+  fn pub inline clone -> InclusiveRange {
+    InclusiveRange(start: @start, end: @end)
   }
 }
 
@@ -152,40 +123,27 @@ impl Format for InclusiveRange {
 # An exclusive range of integers.
 type pub copy ExclusiveRange {
   # The start value of the range.
-  let @start: Int
+  let pub @start: Int
 
   # The end value of the range.
-  let @end: Int
+  let pub @end: Int
 
   # Returns a new `ExclusiveRange` over the given values.
   fn pub inline static new(start: Int, end: Int) -> ExclusiveRange {
     ExclusiveRange(start: start, end: end)
   }
-}
 
-impl Clone for ExclusiveRange {
-  fn pub inline clone -> ExclusiveRange {
-    ExclusiveRange(start: @start, end: @end)
-  }
-}
-
-impl Range for ExclusiveRange {
-  fn pub inline start -> Int {
-    @start
-  }
-
-  fn pub inline end -> Int {
-    @end
-  }
-
-  fn pub inline inclusive? -> Bool {
-    false
-  }
-
+  # Returns the number of values in this range.
   fn pub inline size -> Int {
     if @end >= @start { @end - @start } else { 0 }
   }
 
+  # Moves `self` into an iterator.
+  fn pub move into_iter -> Stream[Int] {
+    iter
+  }
+
+  # Returns an iterator over the values in `self`.
   fn pub iter -> Stream[Int] {
     let mut current = @start
     let end = @end
@@ -199,8 +157,22 @@ impl Range for ExclusiveRange {
     })
   }
 
+  # Returns `true` if the given argument resides in the range of `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # 1.to(10).contains?(5)  # => true
+  # 1.to(10).contains?(10) # => true
+  # ```
   fn pub inline contains?(value: Int) -> Bool {
     @start <= value and value < @end
+  }
+}
+
+impl Clone for ExclusiveRange {
+  fn pub inline clone -> ExclusiveRange {
+    ExclusiveRange(start: @start, end: @end)
   }
 }
 
