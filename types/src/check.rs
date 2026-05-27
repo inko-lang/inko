@@ -2826,6 +2826,25 @@ mod tests {
     }
 
     #[test]
+    fn test_rigid_type_parameter_with_intermediate_ownership() {
+        let mut db = Database::new();
+        let p1 = new_parameter(&mut db, "A");
+        let p2 = new_parameter(&mut db, "B");
+        let p3 = new_parameter(&mut db, "B");
+        let args = type_arguments(vec![
+            (p1, immutable(parameter(p2))),
+            (p2, any(rigid(p3))),
+        ]);
+        let mut env = Environment::new(args.clone(), args);
+
+        assert!(TypeChecker::new(&db).run(
+            immutable(rigid(p3)),
+            any(parameter(p1)),
+            &mut env,
+        ));
+    }
+
+    #[test]
     fn test_rigid_type_parameter_with_requirements_with_placeholder() {
         let mut db = Database::new();
         let equal = new_trait(&mut db, "Equal");

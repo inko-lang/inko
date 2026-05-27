@@ -639,23 +639,56 @@ impl TypeArguments {
         db: &Database,
         parameter: TypeParameterId,
     ) -> Option<TypeRef> {
+        use Ownership::*;
+
         let mut found = self.get(parameter);
+        let mut owner = Any;
 
         while let Some(typ) = found {
+            // If somewhere in the chain of `A -> B -> C` the ownership changes,
+            // we need to take this into account for the final returned value.
+            owner = match (owner, typ.ownership(db)) {
+                (Any, new) => new,
+                (_, Pointer) => Pointer,
+                (old, Any) => old,
+                (Owned, new) => new,
+                (Ref, _) => Ref,
+                (Mut, Ref) => Ref,
+                (Mut, _) => Mut,
+                (old, _) => old,
+            };
+
             let id = if let Some(id) = typ.as_type_parameter(db) {
                 id
             } else {
-                return Some(typ);
+                found = Some(typ);
+                break;
             };
 
             match self.get(id) {
-                Some(new) if new == typ => return Some(typ),
+                Some(new) if new == typ => {
+                    found = Some(typ);
+                    break;
+                }
                 Some(new) => found = Some(new),
-                None => return Some(typ),
+                None => {
+                    found = Some(typ);
+                    break;
+                }
             }
         }
 
-        None
+        let typ = found?;
+        let new = match owner {
+            Any | UniRef | UniMut => typ,
+            Owned => typ.as_owned(db),
+            Uni => typ.as_uni(db),
+            Ref => typ.as_ref(db),
+            Mut => typ.as_mut(db),
+            Pointer => typ.as_pointer(db),
+        };
+
+        Some(new)
     }
 
     pub fn pairs(&self) -> Vec<(TypeParameterId, TypeRef)> {
@@ -5962,6 +5995,25 @@ impl TypeRef {
     fn is_instance_of(self, db: &Database, id: TypeId) -> bool {
         self.type_id(db) == Some(id)
     }
+
+    fn ownership(self, db: &Database) -> Ownership {
+        match self {
+            TypeRef::Owned(_)
+            | TypeRef::Never
+            | TypeRef::Error
+            | TypeRef::Unknown => Ownership::Owned,
+            TypeRef::Uni(_) => Ownership::Uni,
+            TypeRef::Ref(_) => Ownership::Ref,
+            TypeRef::Mut(_) => Ownership::Mut,
+            TypeRef::UniRef(_) => Ownership::UniRef,
+            TypeRef::UniMut(_) => Ownership::UniMut,
+            TypeRef::Any(_) => Ownership::Any,
+            TypeRef::Placeholder(v) => {
+                v.value(db).map_or(Ownership::Any, |v| v.ownership(db))
+            }
+            TypeRef::Pointer(_) => Ownership::Pointer,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
@@ -6446,11 +6498,84 @@ mod tests {
             targs.get_recursive(&db, param6),
             Some(owned(rigid(param6)))
         );
-
         assert_eq!(
             targs.get_recursive(&db, param7),
             Some(owned(rigid(param8)))
         );
+    }
+
+    #[test]
+    fn test_type_arguments_get_recursive_with_ownership() {
+        let mut db = Database::new();
+        let p1 = new_parameter(&mut db, "A");
+        let p2 = new_parameter(&mut db, "B");
+        let p3 = new_parameter(&mut db, "C");
+        let p4 = new_parameter(&mut db, "D");
+        let p5 = new_parameter(&mut db, "E");
+
+        p3.set_mutable(&mut db);
+        p4.set_mutable(&mut db);
+
+        let tests = [
+            (
+                vec![
+                    (p1, any(parameter(p2))),
+                    (p2, immutable(parameter(p3))),
+                    (p3, any(parameter(p4))),
+                ],
+                immutable(parameter(p4)),
+            ),
+            (
+                vec![
+                    (p1, any(parameter(p2))),
+                    (p2, mutable(parameter(p3))),
+                    (p3, any(parameter(p4))),
+                ],
+                mutable(parameter(p4)),
+            ),
+            (
+                vec![
+                    (p1, any(parameter(p2))),
+                    (p2, mutable(parameter(p3))),
+                    (p3, any(parameter(p5))),
+                ],
+                immutable(parameter(p5)),
+            ),
+            (
+                vec![
+                    (p1, any(parameter(p2))),
+                    (p2, mutable(parameter(p3))),
+                    (p3, immutable(parameter(p4))),
+                ],
+                immutable(parameter(p4)),
+            ),
+            (
+                vec![
+                    (p1, any(parameter(p2))),
+                    (p2, uni(parameter(p3))),
+                    (p3, any(parameter(p4))),
+                ],
+                uni(parameter(p4)),
+            ),
+            (
+                vec![
+                    (p1, any(parameter(p2))),
+                    (p2, owned(parameter(p3))),
+                    (p3, uni(parameter(p4))),
+                ],
+                uni(parameter(p4)),
+            ),
+        ];
+
+        for (inputs, exp) in tests {
+            let mut targs = TypeArguments::new();
+
+            for (par, val) in inputs {
+                targs.assign(par, val);
+            }
+
+            assert_eq!(targs.get_recursive(&db, p1), Some(exp));
+        }
     }
 
     #[test]
