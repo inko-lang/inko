@@ -3,7 +3,7 @@
 import std.cmp (min)
 import std.drop (Drop)
 import std.io (Error)
-import std.iter (Stream)
+import std.iter (Iter)
 import std.net.ip (IpAddress)
 import std.net.socket (TcpClient)
 import std.sync (Channel)
@@ -11,39 +11,6 @@ import std.time (Duration, Instant)
 
 # The amount of milliseconds to wait for a socket to connect.
 let TIMEOUT = 250
-
-# Returns an iterator that yields IP addresses in alternating order, starting
-# with an IPv6 address.
-fn interleave(ips: ref Array[IpAddress]) -> Stream[IpAddress] {
-  let mut v6_idx = 0
-  let mut v4_idx = 0
-  let mut v6 = true
-
-  Stream.new(fn move {
-    if v6 {
-      loop {
-        match ips.get(v6_idx := v6_idx + 1) {
-          case Ok(V6(ip)) -> return Option.Some(IpAddress.V6(ip))
-          case Ok(_) -> v6 = false
-          case _ -> break
-        }
-      }
-    }
-
-    loop {
-      match ips.get(v4_idx := v4_idx + 1) {
-        case Ok(V4(ip)) -> {
-          # If we find an IPv4 address and there may be IPv6 addresses left, we
-          # need to process those on the next call.
-          v6 = v6_idx < ips.size
-          return Option.Some(IpAddress.V4(ip))
-        }
-        case Ok(_) -> {}
-        case _ -> return Option.None
-      }
-    }
-  })
-}
 
 fn connect(
   ips: ref Array[IpAddress],
@@ -65,7 +32,7 @@ fn connect(
     case _ -> {}
   }
 
-  let ips = interleave(ips)
+  let ips = Interleave.new(ips)
   let cons = Connections.new(port, timeout_after)
   let mut pending = 0
 
@@ -238,5 +205,45 @@ type inline Connections {
 impl Drop for Connections {
   fn mut drop {
     for c in @connections.iter_mut { c.cancel }
+  }
+}
+
+type Interleave {
+  let @ips: ref Array[IpAddress]
+  let mut @v6_idx: Int
+  let mut @v4_idx: Int
+  let mut @v6: Bool
+
+  # Returns an iterator that yields IP addresses in alternating order, starting
+  # with an IPv6 address.
+  fn static new(ips: ref Array[IpAddress]) -> Self {
+    Self(ips: ips, v6_idx: 0, v4_idx: 0, v6: true)
+  }
+}
+
+impl Iter[IpAddress] for Interleave {
+  fn pub mut next -> Option[IpAddress] {
+    if @v6 {
+      loop {
+        match @ips.get(@v6_idx := @v6_idx + 1) {
+          case Ok(V6(ip)) -> return Option.Some(IpAddress.V6(ip))
+          case Ok(_) -> @v6 = false
+          case _ -> break
+        }
+      }
+    }
+
+    loop {
+      match @ips.get(@v4_idx := @v4_idx + 1) {
+        case Ok(V4(ip)) -> {
+          # If we find an IPv4 address and there may be IPv6 addresses left, we
+          # need to process those on the next call.
+          @v6 = @v6_idx < @ips.size
+          return Option.Some(IpAddress.V4(ip))
+        }
+        case Ok(_) -> {}
+        case _ -> return Option.None
+      }
+    }
   }
 }

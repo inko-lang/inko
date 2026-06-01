@@ -2,7 +2,8 @@
 import std.cmp (Equal)
 import std.fmt (Format, Formatter)
 import std.hash (Hash)
-import std.iter (Stream)
+import std.iter (Iter as IterTrait)
+import std.map (Keys)
 
 # A hash set implemented using a Map.
 #
@@ -104,8 +105,8 @@ type pub inline Set[V: Equal + Hash] {
   #
   # set.iter.next # => 10
   # ```
-  fn pub iter -> Stream[ref V] {
-    @map.keys
+  fn pub iter -> Iter[V] {
+    Iter(@map.keys)
   }
 
   # Returns the number of values in this `Set`.
@@ -188,5 +189,16 @@ impl Format for Set if V: Format {
     }
 
     formatter.write('}')
+  }
+}
+
+# An iterator over immutable borrows of values in a `Set`.
+type pub inline Iter[V: Equal + Hash] {
+  let mut @iter: Keys[V, Bool]
+}
+
+impl IterTrait[ref V] for Iter {
+  fn pub mut next -> Option[ref V] {
+    @iter.next
   }
 }

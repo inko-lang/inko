@@ -1,0 +1,5 @@
+trait pub TraitA {}
+
+trait pub TraitB {
+  fn required_method[T: TraitA](value: T)
+}

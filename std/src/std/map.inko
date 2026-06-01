@@ -1,10 +1,11 @@
 # A hash map using linear probing and Robin Hood entry stealing.
+import std.array (IntoIter as ArrayIntoIter)
 import std.clone (Clone)
 import std.cmp (Equal)
 import std.fmt (Format, Formatter)
 import std.hash (Hash, Hasher)
 import std.hash.ahash (Ahasher)
-import std.iter (Stream)
+import std.iter (Iter as IterTrait)
 import std.string (ToString)
 
 fn invalid_capacity(size: Int) -> Never {
@@ -343,18 +344,8 @@ type pub Map[K: Equal + Hash, V] {
   #   entry.value # => 'Alice'
   # }
   # ```
-  fn pub iter -> Stream[(ref K, ref V)] {
-    let mut idx = 0
-
-    Stream(fn move {
-      match @entries.get(idx) {
-        case Ok(e) -> {
-          idx += 1
-          Option.Some((e.key, e.value))
-        }
-        case _ -> Option.None
-      }
-    })
+  fn pub iter -> Iter[K, V] {
+    Iter(map: self, index: 0)
   }
 
   # Returns an `Iter` that iterates over all key-value pairs in this
@@ -372,15 +363,8 @@ type pub Map[K: Equal + Hash, V] {
   #   entry.value # => 'Alice'
   # }
   # ```
-  fn pub move into_iter -> Stream[(K, V)] {
-    let iter = @entries.into_iter
-
-    Stream(fn move {
-      match iter.next {
-        case Some({ @key = k, @value = v }) -> Option.Some((k, v))
-        case _ -> Option.None
-      }
-    })
+  fn pub move into_iter -> IntoIter[K, V] {
+    IntoIter(@entries.into_iter)
   }
 
   # Returns an `Iter` visiting all the keys in this `Map`.
@@ -398,18 +382,8 @@ type pub Map[K: Equal + Hash, V] {
   #   key # => 'name'
   # }
   # ```
-  fn pub keys -> Stream[ref K] {
-    let mut idx = 0
-
-    Stream(fn move {
-      match @entries.get(idx) {
-        case Ok(e) -> {
-          idx += 1
-          Option.Some(e.key)
-        }
-        case _ -> Option.None
-      }
-    })
+  fn pub keys -> Keys[K, V] {
+    Keys(map: self, index: 0)
   }
 
   # Returns an iterator that yields immutable references to the values in
@@ -428,18 +402,8 @@ type pub Map[K: Equal + Hash, V] {
   #   value # => 'Alice'
   # }
   # ```
-  fn pub values -> Stream[ref V] {
-    let mut idx = 0
-
-    Stream(fn move {
-      match @entries.get(idx) {
-        case Ok(e) -> {
-          idx += 1
-          Option.Some(e.value)
-        }
-        case _ -> Option.None
-      }
-    })
+  fn pub values -> Values[K, V] {
+    Values(map: self, index: 0)
   }
 
   # Returns an immutable borrow of the key's value.
@@ -780,18 +744,8 @@ impl Map if V: mut {
   #   value # => 'Alice'
   # }
   # ```
-  fn pub mut values_mut -> Stream[mut V] {
-    let mut idx = 0
-
-    Stream(fn move {
-      match @entries.get_mut(idx) {
-        case Ok(e) -> {
-          idx += 1
-          Option.Some(e.value)
-        }
-        case _ -> Option.None
-      }
-    })
+  fn pub mut values_mut -> ValuesMut[K, V] {
+    ValuesMut(map: self, index: 0)
   }
 
   # Returns an iterator of mutable key-value pairs.
@@ -810,18 +764,8 @@ impl Map if V: mut {
   #   entry.value # => 'Alice'
   # }
   # ```
-  fn pub mut iter_mut -> Stream[(ref K, mut V)] {
-    let mut idx = 0
-
-    Stream(fn move {
-      match @entries.get_mut(idx) {
-        case Ok(e) -> {
-          idx += 1
-          Option.Some((e.key, e.value))
-        }
-        case _ -> Option.None
-      }
-    })
+  fn pub mut iter_mut -> IterMut[K, V] {
+    IterMut(map: self, index: 0)
   }
 
   # Tries to insert the new key and value into `self`.
@@ -957,5 +901,109 @@ impl Format for Map if K: Format, V: Format {
 impl Clone for Map if K: Clone, V: Clone {
   fn pub clone -> Map[K, V] {
     Map(slots: @slots.clone, entries: @entries.clone, resize_at: @resize_at)
+  }
+}
+
+# An iterator over immutable borrows of the keys in a `Map`.
+type pub Keys[K: Equal + Hash, V] {
+  let @map: ref Map[K, V]
+  let mut @index: Int
+}
+
+impl IterTrait[ref K] for Keys {
+  fn pub mut next -> Option[ref K] {
+    match @map.entries.get(@index) {
+      case Ok(e) -> {
+        @index += 1
+        Option.Some(e.key)
+      }
+      case _ -> Option.None
+    }
+  }
+}
+
+# An iterator over immutable key-value pairs in a `Map`.
+type pub Iter[K: Equal + Hash, V] {
+  let @map: ref Map[K, V]
+  let mut @index: Int
+}
+
+impl IterTrait[(ref K, ref V)] for Iter {
+  fn pub mut next -> Option[(ref K, ref V)] {
+    match @map.entries.get(@index) {
+      case Ok(e) -> {
+        @index += 1
+        Option.Some((e.key, e.value))
+      }
+      case _ -> Option.None
+    }
+  }
+}
+
+# An iterator over mutable key-value pairs in a `Map`.
+type pub IterMut[K: Equal + Hash, V: mut] {
+  let @map: mut Map[K, V]
+  let mut @index: Int
+}
+
+impl IterTrait[(ref K, mut V)] for IterMut {
+  fn pub mut next -> Option[(ref K, mut V)] {
+    match @map.entries.get_mut(@index) {
+      case Ok(e) -> {
+        @index += 1
+        Option.Some((e.key, e.value))
+      }
+      case _ -> Option.None
+    }
+  }
+}
+
+# An iterator over owned key-value pairs in a `Map`.
+type pub IntoIter[K: Equal + Hash, V] {
+  let @iter: ArrayIntoIter[Entry[K, V]]
+}
+
+impl IterTrait[(K, V)] for IntoIter {
+  fn pub mut next -> Option[(K, V)] {
+    match @iter.next {
+      case Some({ @key = k, @value = v }) -> Option.Some((k, v))
+      case _ -> Option.None
+    }
+  }
+}
+
+# An iterator over immutable borrows of the values in a `Map`.
+type pub Values[K: Equal + Hash, V] {
+  let @map: ref Map[K, V]
+  let mut @index: Int
+}
+
+impl IterTrait[ref V] for Values {
+  fn pub mut next -> Option[ref V] {
+    match @map.entries.get(@index) {
+      case Ok(e) -> {
+        @index += 1
+        Option.Some(e.value)
+      }
+      case _ -> Option.None
+    }
+  }
+}
+
+# An iterator over mutable borrows of the values in a `Map`.
+type pub ValuesMut[K: Equal + Hash, V: mut] {
+  let @map: mut Map[K, V]
+  let mut @index: Int
+}
+
+impl IterTrait[mut V] for ValuesMut {
+  fn pub mut next -> Option[mut V] {
+    match @map.entries.get_mut(@index) {
+      case Ok(e) -> {
+        @index += 1
+        Option.Some(e.value)
+      }
+      case _ -> Option.None
+    }
   }
 }

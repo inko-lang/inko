@@ -350,18 +350,18 @@ mod tests {
     #[test]
     fn test_owned() {
         let mut db = Database::new();
-        let string = TypeId::string();
+        let typ = new_type(&mut db, "A");
         let args = TypeArguments::new();
         let bounds = TypeBounds::new();
 
         assert_eq!(
-            resolve(&mut db, &args, &bounds, owned(instance(string))),
-            owned(instance(string))
+            resolve(&mut db, &args, &bounds, owned(instance(typ))),
+            owned(instance(typ))
         );
 
         assert_eq!(
-            resolve_immutable(&mut db, &args, &bounds, owned(instance(string))),
-            immutable(instance(string))
+            resolve_immutable(&mut db, &args, &bounds, owned(instance(typ))),
+            immutable(instance(typ))
         );
     }
 
@@ -548,17 +548,17 @@ mod tests {
     #[test]
     fn test_placeholder() {
         let mut db = Database::new();
-        let string = TypeId::string();
+        let typ = new_type(&mut db, "A");
         let args = TypeArguments::new();
         let bounds = TypeBounds::new();
         let var1 = TypePlaceholder::alloc(&mut db, None);
         let var2 = TypePlaceholder::alloc(&mut db, None);
 
-        var1.assign(&mut db, owned(instance(string)));
+        var1.assign(&mut db, owned(instance(typ)));
 
         assert_eq!(
             resolve(&mut db, &args, &bounds, placeholder(var1)),
-            owned(instance(string))
+            owned(instance(typ))
         );
 
         assert_eq!(
@@ -568,36 +568,36 @@ mod tests {
 
         assert_eq!(
             resolve_immutable(&mut db, &args, &bounds, placeholder(var1)),
-            immutable(instance(string))
+            immutable(instance(typ))
         );
     }
 
     #[test]
     fn test_type_parameter() {
         let mut db = Database::new();
-        let string = TypeId::string();
-        let thing = new_type(&mut db, "Thing");
+        let typ1 = new_type(&mut db, "A");
+        let typ2 = new_type(&mut db, "B");
         let param1 = new_parameter(&mut db, "A");
         let param2 = new_parameter(&mut db, "B");
         let param3 = new_parameter(&mut db, "C");
         let args = type_arguments(vec![
-            (param1, owned(instance(string))),
-            (param3, immutable(instance(thing))),
+            (param1, owned(instance(typ1))),
+            (param3, immutable(instance(typ2))),
         ]);
         let bounds = TypeBounds::new();
 
         assert_eq!(
             resolve(&mut db, &args, &bounds, owned(parameter(param1))),
-            owned(instance(string))
+            owned(instance(typ1))
         );
         assert_eq!(
             resolve(&mut db, &args, &bounds, owned(parameter(param3))),
-            owned(instance(thing))
+            owned(instance(typ2))
         );
 
         assert_eq!(
             resolve(&mut db, &args, &bounds, pointer(parameter(param1))),
-            pointer(instance(string))
+            pointer(instance(typ1))
         );
 
         assert_eq!(
@@ -607,12 +607,12 @@ mod tests {
 
         assert_eq!(
             resolve(&mut db, &args, &bounds, any(parameter(param1))),
-            owned(instance(string))
+            owned(instance(typ1))
         );
 
         assert_eq!(
             resolve_immutable(&mut db, &args, &bounds, any(parameter(param1))),
-            immutable(instance(string))
+            immutable(instance(typ1))
         );
 
         assert_eq!(

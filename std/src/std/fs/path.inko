@@ -7,7 +7,7 @@ import std.fmt (Format, Formatter)
 import std.fs (DirectoryEntry, Metadata)
 import std.hash (Hash, Hasher)
 import std.io (Error)
-import std.iter (Iter, Stream)
+import std.iter (Iter)
 import std.string (IntoString, ToString)
 import std.sys.unix.fs (self as sys) if unix
 
@@ -607,32 +607,8 @@ type pub inline Path {
   # Path.new('/tmp').list_all.get.next
   # # => Option.Some(Result.Ok(DirectoryEntry(...)))
   # ```
-  fn pub list_all -> Result[Stream[Result[DirectoryEntry, Error]], Error] {
-    list.map(fn (iter) {
-      let dirs = []
-      let mut current = iter
-
-      Stream.new(fn move {
-        loop {
-          match current.next {
-            case Some(Ok({ @path = p, @type = Directory })) -> dirs.push(p)
-            case Some(Ok(entry)) -> return Option.Some(Result.Ok(entry))
-            case Some(Error(e)) -> return Option.Some(Result.Error(e))
-            case None -> {
-              match dirs.pop {
-                case Some(dir) -> {
-                  match dir.list {
-                    case Ok(iter) -> current = iter
-                    case Error(e) -> return Option.Some(Result.Error(e))
-                  }
-                }
-                case _ -> return Option.None
-              }
-            }
-          }
-        }
-      })
-    })
+  fn pub list_all -> Result[ListAll, Error] {
+    list.map(fn (iter) { ListAll(current: iter, dirs: []) })
   }
 
   # Removes the file `self` points to.
@@ -999,5 +975,35 @@ impl Format for Path {
 impl Hash for Path {
   fn pub hash[H: mut + Hasher](hasher: mut H) {
     @path.hash(hasher)
+  }
+}
+
+# An iterator over the non-directory entries in a `Path` and any sub
+# directories.
+type pub ListAll {
+  let mut @current: ReadDirectory
+  let @dirs: Array[Path]
+}
+
+impl Iter[Result[DirectoryEntry, Error]] for ListAll {
+  fn pub mut next -> Option[Result[DirectoryEntry, Error]] {
+    loop {
+      match @current.next {
+        case Some(Ok({ @path = p, @type = Directory })) -> @dirs.push(p)
+        case Some(Ok(entry)) -> return Option.Some(Result.Ok(entry))
+        case Some(Error(e)) -> return Option.Some(Result.Error(e))
+        case None -> {
+          match @dirs.pop {
+            case Some(dir) -> {
+              match dir.list {
+                case Ok(iter) -> @current = iter
+                case Error(e) -> return Option.Some(Result.Error(e))
+              }
+            }
+            case _ -> return Option.None
+          }
+        }
+      }
+    }
   }
 }

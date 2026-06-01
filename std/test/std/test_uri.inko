@@ -490,6 +490,7 @@ fn pub tests(t: mut Tests) {
       ['Alice', 'Bob'],
     )
     t.equal(map.get_all('age').map(fn (v) { v.to_string }).to_array, ['42'])
+    t.equal(map.get_all('missing').to_array, [])
   })
 
   t.test('Values.remove', fn (t) {

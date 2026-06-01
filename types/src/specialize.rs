@@ -3,7 +3,7 @@ use crate::{
     SpecializationKey, TraitId, TraitInstance, TypeArguments, TypeEnum, TypeId,
     TypeInstance, TypeParameterId, TypeRef,
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Hash, Eq, PartialEq, Debug)]
 pub struct ClosureKey {
@@ -57,6 +57,9 @@ pub struct TypeSpecializer<'a> {
 
     /// The type `self` is an instance of.
     self_type: TypeEnum,
+
+    /// Types assigned to parameters that are in the process of being resolved.
+    resolved: HashSet<TypeRef>,
 }
 
 impl<'a> TypeSpecializer<'a> {
@@ -77,6 +80,7 @@ impl<'a> TypeSpecializer<'a> {
             surrounding_arguments: surrounding_type_arguments,
             types,
             self_type,
+            resolved: HashSet::new(),
         }
     }
 
@@ -124,7 +128,6 @@ impl<'a> TypeSpecializer<'a> {
             TypeRef::UniMut(TypeEnum::RigidTypeParameter(p)) => {
                 self.specialize_rigid_parameter(p).as_uni_mut(self.db)
             }
-
             TypeRef::Owned(TypeEnum::TypeParameter(p))
             | TypeRef::Any(TypeEnum::TypeParameter(p)) => {
                 self.specialize_parameter(p)
@@ -144,13 +147,11 @@ impl<'a> TypeSpecializer<'a> {
             TypeRef::UniMut(TypeEnum::TypeParameter(p)) => {
                 self.specialize_parameter(p).as_uni_mut(self.db)
             }
-
-            // For other types (e.g. `Array[String]`) we need to intern the
+            // For other types (e.g. `Array[String]`) we need to specialize the
             // generic type arguments.
             TypeRef::Owned(t) | TypeRef::Any(t) => {
                 TypeRef::Owned(self.specialize_type_enum(t))
             }
-
             // Value types should always be specialized as owned types, even
             // when using e.g. `ref Int`.
             TypeRef::Uni(TypeEnum::TypeInstance(ins))
@@ -184,6 +185,32 @@ impl<'a> TypeSpecializer<'a> {
     }
 
     fn specialize_rigid_parameter(&mut self, pid: TypeParameterId) -> TypeRef {
+        if let Some(v) = self.rigid_parameter_value(pid) {
+            return if self.resolved.insert(v) {
+                self.specialize(v)
+            } else {
+                v
+            };
+        }
+
+        // We never reach this point unless there's a bug in the compiler.
+        unreachable!(
+            "the rigid parameter {} (ID: {}) must be assigned a type
+call arguments:
+  {:?}
+surrounding arguments:
+  {:?}",
+            pid.name(self.db),
+            pid.0,
+            self.arguments,
+            self.surrounding_arguments,
+        );
+    }
+
+    fn rigid_parameter_value(
+        &mut self,
+        pid: TypeParameterId,
+    ) -> Option<TypeRef> {
         if let Some(init) = self
             .arguments
             .get(pid)
@@ -208,10 +235,10 @@ impl<'a> TypeSpecializer<'a> {
                     .as_type_parameter(self.db)
                     .and_then(|t| self.surrounding_arguments.get(t))
                 {
-                    return outer;
+                    return Some(outer);
                 }
 
-                return val;
+                return Some(val);
             }
 
             // If the initial parameter is assigned another type parameter then
@@ -221,24 +248,13 @@ impl<'a> TypeSpecializer<'a> {
                 .as_type_parameter(self.db)
                 .and_then(|p| self.surrounding_arguments.get(p))
             {
-                return v;
+                return Some(v);
             }
 
-            return init;
+            return Some(init);
         }
 
-        // We never reach this point unless there's a bug in the compiler.
-        unreachable!(
-            "the rigid parameter {} (ID: {}) must be assigned a type
-call arguments:
-  {:?}
-surrounding arguments:
-  {:?}",
-            pid.name(self.db),
-            pid.0,
-            self.arguments,
-            self.surrounding_arguments,
-        );
+        None
     }
 
     fn specialize_parameter(&mut self, pid: TypeParameterId) -> TypeRef {
@@ -317,7 +333,7 @@ call arguments:
             *typ = self.specialize(*typ);
         }
 
-        let ins = ins.with_new_type_arguments(self.db, args);
+        let ins = ins.with_new_type_arguments(self.db, args.clone());
         let ins = ins.interned(self.db, self.interned);
         let key = SpecializationKey::new(ins.type_arguments(self.db).unwrap());
         let new = typ
@@ -446,6 +462,7 @@ call arguments:
 
         new.set_specialization_source(self.db, old);
         old.add_specialization(self.db, key, new);
+
         self.types.push(new);
 
         // We just copy over the type parameters as-is, as there's nothing
@@ -575,7 +592,8 @@ mod test {
     use crate::test::{
         any, generic_instance, immutable, immutable_uni, instance, mutable,
         mutable_uni, new_closure_type, new_enum_type, new_parameter, new_trait,
-        new_type, owned, parameter, placeholder, pointer, trait_instance, uni,
+        new_type, owned, parameter, placeholder, pointer, rigid,
+        trait_instance, uni,
     };
     use crate::{Location, ModuleId, TypePlaceholder, Visibility};
 
@@ -1053,5 +1071,42 @@ mod test {
 
         assert_ne!(new, old);
         assert_eq!(new.fields(&db)[0].value_type(&db), TypeRef::int());
+    }
+
+    #[test]
+    fn test_specialize_recursive_rigid_type() {
+        let mut db = Database::new();
+        let mut interned = InternedTypeArguments::new();
+        let mut closures = Closures::new();
+        let mut types = Vec::new();
+        let stype = instance(TypeId::int());
+        let mut targs = TypeArguments::new();
+        let tid = TypeId::array();
+
+        tid.new_type_parameter(&mut db, "T".to_string());
+
+        let par2 = new_parameter(&mut db, "A");
+        let old =
+            owned(generic_instance(&mut db, tid, vec![owned(rigid(par2))]));
+
+        targs.assign(par2, old);
+
+        let mut spec = TypeSpecializer::new(
+            &mut db,
+            &mut closures,
+            &mut interned,
+            &targs,
+            &targs,
+            &mut types,
+            stype,
+        );
+
+        let new = spec.specialize(old);
+
+        // For this test we don't really care what the exact result is, just
+        // that we don't get stuck in an infinite loop.
+        assert!(matches!(new, TypeRef::Owned(TypeEnum::TypeInstance(_))));
+        assert_eq!(spec.resolved.len(), 1);
+        assert!(spec.resolved.contains(&old));
     }
 }

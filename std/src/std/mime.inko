@@ -2,7 +2,7 @@
 import std.bytes (Bytes, Slice, ToSlice)
 import std.cmp (Equal)
 import std.fmt (Format, Formatter)
-import std.iter (Stream)
+import std.iter (Iter)
 import std.map (MissingKey)
 import std.mime.data
 import std.mime.phf
@@ -98,23 +98,8 @@ type pub Mime {
   #   .parse_list('text/plain, text/html')
   #   .to_array # => [Mime('text/plain'), Mime('text/html')]
   # ```
-  fn pub static parse_list[S: ToSlice[String]](value: ref S) -> Stream[Mime] {
-    let items = Items.new(value)
-
-    Stream.new(fn move {
-      let (name, pars) = match items.next {
-        case Some((name, Some(map))) -> (name, map)
-        case Some((name, _)) -> (name, Map.new)
-        case _ -> return Option.None
-      }
-
-      match name.split_once('/') {
-        case Some((typ, sub)) -> {
-          Option.Some(Self(type: typ, subtype: sub, parameters: pars))
-        }
-        case _ -> Option.None
-      }
-    })
+  fn pub static parse_list[S: ToSlice[String]](value: ref S) -> Mimes {
+    Mimes(Items.new(value))
   }
 
   # Returns the value of the given parameter.
@@ -205,5 +190,27 @@ impl ToString for Mime {
     }
 
     buf.into_string
+  }
+}
+
+# An iterator over a list of `Mime` values.
+type pub inline Mimes {
+  let @items: Items[String]
+}
+
+impl Iter[Mime] for Mimes {
+  fn pub mut next -> Option[Mime] {
+    let (name, pars) = match @items.next {
+      case Some((name, Some(map))) -> (name, map)
+      case Some((name, _)) -> (name, Map.new)
+      case _ -> return Option.None
+    }
+
+    match name.split_once('/') {
+      case Some((typ, sub)) -> {
+        Option.Some(Mime(type: typ, subtype: sub, parameters: pars))
+      }
+      case _ -> Option.None
+    }
   }
 }

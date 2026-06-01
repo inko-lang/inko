@@ -3,7 +3,7 @@ import std.alloc
 import std.array (OutOfBounds, check_bounds)
 import std.cmp (max)
 import std.drop (Drop, drop as drop_value)
-import std.iter (Iter, Stream)
+import std.iter (Iter as IterTrait)
 import std.ptr
 import std.reflect (size_of)
 
@@ -249,16 +249,8 @@ type pub Deque[T] {
   #
   # q.iter.to_array # => [20, 10, 30]
   # ```
-  fn pub iter -> Stream[ref T] {
-    let mut idx = 0
-
-    Stream.new(fn move {
-      if idx < @size {
-        Option.Some(get_unchecked(to_buffer_index(idx := idx + 1)))
-      } else {
-        Option.None
-      }
-    })
+  fn pub iter -> Iter[T] {
+    Iter(deque: self, index: 0)
   }
 
   # Returns an iterator that moves the values out of `self`, yielding from the
@@ -386,16 +378,8 @@ impl Deque if T: mut {
   #
   # q.iter_mut.to_array # => [20, 10, 30]
   # ```
-  fn pub mut iter_mut -> Stream[mut T] {
-    let mut idx = 0
-
-    Stream.new(fn move {
-      if idx < @size {
-        Option.Some(get_unchecked_mut(to_buffer_index(idx := idx + 1)))
-      } else {
-        Option.None
-      }
-    })
+  fn pub mut iter_mut -> IterMut[T] {
+    IterMut(deque: self, index: 0)
   }
 
   fn inline mut get_unchecked_mut(index: Int) -> mut T {
@@ -407,6 +391,42 @@ impl Drop for Deque {
   fn mut drop {
     clear
     alloc.free(@buffer)
+  }
+}
+
+# An iterator over immutable borrows of values in a `Deque`.
+type pub Iter[T] {
+  let @deque: ref Deque[T]
+  let mut @index: Int
+}
+
+impl IterTrait[ref T] for Iter {
+  fn pub inline mut next -> Option[ref T] {
+    if @index < @deque.size {
+      let idx = @deque.to_buffer_index(@index := @index + 1)
+
+      Option.Some(@deque.get_unchecked(idx))
+    } else {
+      Option.None
+    }
+  }
+}
+
+# An iterator over mutable borrows of values in a `Deque`.
+type pub IterMut[T: mut] {
+  let @deque: mut Deque[T]
+  let mut @index: Int
+}
+
+impl IterTrait[ref T] for IterMut {
+  fn pub inline mut next -> Option[ref T] {
+    if @index < @deque.size {
+      let idx = @deque.to_buffer_index(@index := @index + 1)
+
+      Option.Some(@deque.get_unchecked_mut(idx))
+    } else {
+      Option.None
+    }
   }
 }
 
@@ -432,7 +452,7 @@ impl Drop for IntoIter {
   }
 }
 
-impl Iter[T] for IntoIter {
+impl IterTrait[T] for IntoIter {
   fn pub mut next -> Option[T] {
     if @index < @deque.size { Option.Some(take_next) } else { Option.None }
   }

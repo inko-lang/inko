@@ -8,7 +8,7 @@ import std.drop (Drop)
 import std.fmt (Format, Formatter)
 import std.hash (Hash, Hasher)
 import std.io (Error as IoError, Write)
-import std.iter (Iter as IterTrait, Stream)
+import std.iter (Iter as IterTrait)
 import std.option (Option)
 import std.ptr
 import std.string (
@@ -377,18 +377,14 @@ type pub inline Slice[T: Bytes] {
   #   .to_array                     # Collect the results in an Array
   # # => ['foo', 'bar']
   # ```
-  fn pub split[B: Bytes](separator: ref B) -> Stream[Slice[T]] {
-    let mut off = 0
-    let sep_len = separator.size
-    let len = size
-
-    Stream.new(fn move {
-      match index_of(separator, starting_at: off) {
-        case Some(i) -> Option.Some(slice(off := i + sep_len, i))
-        case _ if off <= len -> Option.Some(slice(off := len + 1, len))
-        case _ -> Option.None
-      }
-    })
+  fn pub split[B: Bytes](separator: ref B) -> Split[ref B, T] {
+    Split(
+      slice: self,
+      separator: separator,
+      separator_size: separator.size,
+      size: size,
+      offset: 0,
+    )
   }
 
   # Splits `self` on the first occurrence of `separator`.
@@ -643,6 +639,41 @@ impl ToString for Slice {
 impl Hash for Slice {
   fn pub hash[H: mut + Hasher](hasher: mut H) {
     hasher.write_bytes(self)
+  }
+}
+
+# An iterator over subslices separated by a sequence of bytes.
+type pub Split[S: Bytes, T: Bytes] {
+  # The slice we're splitting into subslices.
+  let @slice: ref Slice[T]
+
+  # The separator sequence to split by.
+  let @separator: S
+
+  # The cached size of the separator.
+  #
+  # We cache this in case the separator is a slice itself, removing the need for
+  # dynamically calculating its size in such cases.
+  let @separator_size: Int
+
+  # The size of the slice we're splitting.
+  let @size: Int
+
+  # The offset into the slice we're splitting.
+  let mut @offset: Int
+}
+
+impl IterTrait[Slice[T]] for Split {
+  fn pub mut next -> Option[Slice[T]] {
+    match @slice.index_of(@separator, starting_at: @offset) {
+      case Some(i) -> {
+        Option.Some(@slice.slice(@offset := i + @separator_size, i))
+      }
+      case _ if @offset <= @size -> {
+        Option.Some(@slice.slice(@offset := @size + 1, @size))
+      }
+      case _ -> Option.None
+    }
   }
 }
 

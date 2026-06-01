@@ -24,7 +24,7 @@ import std.clone (Clone)
 import std.cmp (Equal)
 import std.fmt (Format, Formatter)
 import std.hash (Hash, Hasher)
-import std.iter (Stream)
+import std.iter (Iter)
 
 # An inclusive range of integers.
 type pub copy InclusiveRange {
@@ -57,22 +57,13 @@ type pub copy InclusiveRange {
   }
 
   # Moves `self` into an iterator.
-  fn pub move into_iter -> Stream[Int] {
+  fn pub inline move into_iter -> InclusiveRangeIter {
     iter
   }
 
   # Returns an iterator over the values in `self`.
-  fn pub iter -> Stream[Int] {
-    let mut current = @start
-    let end = @end
-
-    Stream.new(fn move {
-      if current <= end {
-        Option.Some(current := current + 1)
-      } else {
-        Option.None
-      }
-    })
+  fn pub inline iter -> InclusiveRangeIter {
+    InclusiveRangeIter(current: @start, end: @end)
   }
 }
 
@@ -139,22 +130,13 @@ type pub copy ExclusiveRange {
   }
 
   # Moves `self` into an iterator.
-  fn pub move into_iter -> Stream[Int] {
+  fn pub inline move into_iter -> ExclusiveRangeIter {
     iter
   }
 
   # Returns an iterator over the values in `self`.
-  fn pub iter -> Stream[Int] {
-    let mut current = @start
-    let end = @end
-
-    Stream.new(fn move {
-      if current < end {
-        Option.Some(current := current + 1)
-      } else {
-        Option.None
-      }
-    })
+  fn pub inline iter -> ExclusiveRangeIter {
+    ExclusiveRangeIter(current: @start, end: @end)
   }
 
   # Returns `true` if the given argument resides in the range of `self`.
@@ -162,8 +144,8 @@ type pub copy ExclusiveRange {
   # # Examples
   #
   # ```inko
-  # 1.to(10).contains?(5)  # => true
-  # 1.to(10).contains?(10) # => true
+  # 1.until(10).contains?(5)  # => true
+  # 1.until(10).contains?(10) # => false
   # ```
   fn pub inline contains?(value: Int) -> Bool {
     @start <= value and value < @end
@@ -211,5 +193,37 @@ impl Format for ExclusiveRange {
     formatter.write(' until ')
     @end.fmt(formatter)
     formatter.write(']')
+  }
+}
+
+# An iterator over the values in an `ExclusiveRange`.
+type pub ExclusiveRangeIter {
+  let mut @current: Int
+  let @end: Int
+}
+
+impl Iter[Int] for ExclusiveRangeIter {
+  fn pub inline mut next -> Option[Int] {
+    if @current < @end {
+      Option.Some(@current := @current + 1)
+    } else {
+      Option.None
+    }
+  }
+}
+
+# An iterator over the values in an `InclusiveRange`.
+type pub InclusiveRangeIter {
+  let mut @current: Int
+  let @end: Int
+}
+
+impl Iter[Int] for InclusiveRangeIter {
+  fn pub inline mut next -> Option[Int] {
+    if @current <= @end {
+      Option.Some(@current := @current + 1)
+    } else {
+      Option.None
+    }
   }
 }

@@ -16,10 +16,7 @@
 # External iterators can be composed together, suspended, and later resumed.
 # External iterators can also be turned into internal iterators, while the
 # inverse is not possible unless a language supports some form of coroutines or
-# generators.
-#
-# Inko uses external iteration. To make it easier to write such iterators, it
-# provides the `Stream` type, which can create iterators from a closure.
+# generators. Inko uses external iteration.
 import std.option (Option)
 
 # A generic iterator over a sequence of values of type `T`.
@@ -48,10 +45,8 @@ trait pub Iter[T] {
   # iter.next # => Option.Some((0, 10))
   # iter.next # => Option.Some((1, 20))
   # ```
-  fn pub move with_index -> Stream[(Int, T)] {
-    let mut index = 0
-
-    map(fn move (val) { (index := index + 1, val) })
+  fn pub move with_index -> WithIndex[T, Self] {
+    WithIndex(iter: self, index: 0)
   }
 
   # Returns an `Iter` that transforms values of type `T` to values of type
@@ -66,8 +61,8 @@ trait pub Iter[T] {
   #
   # values.iter.map fn (n) { n * 2 }.to_array # => [2, 4, 6]
   # ```
-  fn pub move map[R](func: fn (T) -> R) -> Stream[R] {
-    Stream.new(fn move { self.next.map(fn (v) { func.call(v) }) })
+  fn pub move map[R](func: fn (T) -> R) -> Map[T, Self, R] {
+    Map(iter: self, mapper: func)
   }
 
   # Returns the first value for which the supplied `Block` returns `true`.
@@ -156,15 +151,8 @@ trait pub Iter[T] {
   #   .select fn (value) { value > 10 }
   #   .to_array # => [20, 30]
   # ```
-  fn pub move select(func: fn (ref T) -> Bool) -> Stream[T] {
-    Stream.new(fn move {
-      loop {
-        match self.next {
-          case Some(v) -> if func.call(v) { return Option.Some(v) }
-          case _ -> return Option.None
-        }
-      }
-    })
+  fn pub move select(func: fn (ref T) -> Bool) -> Select[T, Self] {
+    Select(iter: self, func: func)
   }
 
   # Returns an `Iter` that both filters and maps at the same time.
@@ -182,20 +170,10 @@ trait pub Iter[T] {
   # iter.next # => Option.Some(30)
   # iter.next # => Option.None
   # ```
-  fn pub move select_map[R](func: fn (T) -> Option[R]) -> Stream[R] {
-    Stream.new(fn move {
-      loop {
-        match self.next {
-          case Some(v) -> {
-            match func.call(v) {
-              case Some(r) -> return Option.Some(r)
-              case _ -> next
-            }
-          }
-          case _ -> return Option.None
-        }
-      }
-    })
+  fn pub move select_map[R](
+    func: fn (T) -> Option[R],
+  ) -> SelectMap[T, Self, R] {
+    SelectMap(iter: self, mapper: func)
   }
 
   # Returns an `Iter` that maps every value into a new `Iter` and flattens these
@@ -213,27 +191,10 @@ trait pub Iter[T] {
   #   .flat_map(fn (str) { str.chars })
   #   .to_array # => ['f', 'o', 'o', 'b', 'a', 'r']
   # ```
-  fn pub move flat_map[V, I: mut + Iter[V]](func: fn (T) -> I) -> Stream[V] {
-    let mut iter_opt: Option[I] = Option.None
-
-    Stream.new(fn move {
-      loop {
-        match iter_opt.as_mut {
-          case Some(v) -> {
-            match v.next {
-              case Some(v) -> return Option.Some(v)
-              case _ -> {}
-            }
-          }
-          case _ -> {}
-        }
-
-        match self.next {
-          case Some(v) -> iter_opt = Option.Some(func.call(v))
-          case _ -> return Option.None
-        }
-      }
-    })
+  fn pub move flat_map[V, I: mut + Iter[V]](
+    func: fn (T) -> I,
+  ) -> FlatMap[T, V, Self, I] {
+    FlatMap(iter: self, mapper: func, iter_opt: Option.None)
   }
 
   # Partitions the `Iter` into a tuple of two `Array` objects.
@@ -293,18 +254,8 @@ trait pub Iter[T] {
   # let b = [40, 50, 60]
   # a.iter.chain(b.iter).to_array == [10, 20, 30, 40, 50, 60] # => true
   # ```
-  fn pub move chain[I: mut + Iter[T]](other: I) -> Stream[T] {
-    let mut iter_left = true
-
-    Stream.new(fn move {
-      if iter_left {
-        let item = self.next
-
-        if item.some? { return item } else { iter_left = false }
-      }
-
-      other.next
-    })
+  fn pub move chain[I: mut + Iter[T]](other: I) -> Chain[T, Self, I] {
+    Chain(a: self, b: other, iter_left: true)
   }
 
   # Zips two `Iter` objects together, producing a new `Iter` that produces a
@@ -334,8 +285,8 @@ trait pub Iter[T] {
   #
   # zip.next # => (10, 40)
   # ```
-  fn pub move zip[U, I: mut + Iter[U]](other: I) -> Stream[(T, U)] {
-    Stream.new(fn move { self.next.zip(other.next) })
+  fn pub move zip[U, I: mut + Iter[U]](other: I) -> Zip[T, U, Self, I] {
+    Zip(iter: self, other: other)
   }
 
   # Combines all values in the iterator into the specified accumulator.
@@ -440,19 +391,8 @@ trait pub Iter[T] {
   # Each chunk is up to the amount specified by the `size` argument. If the
   # number of values can't be evenly divided, the last chunk may contain fewer
   # than `size` elements.
-  fn pub move chunks(size: Int) -> Stream[Array[T]] {
-    Stream.new(fn move {
-      let chunk = []
-
-      while chunk.size < size {
-        match self.next {
-          case Some(val) -> chunk.push(val)
-          case _ -> break
-        }
-      }
-
-      if chunk.empty? { Option.None } else { Option.Some(chunk) }
-    })
+  fn pub move chunks(size: Int) -> Chunks[T, Self] {
+    Chunks(iter: self, size: size)
   }
 
   # Collects all values in the `Iter` in an `Array`.
@@ -528,19 +468,8 @@ trait pub Iter[T] {
   # [1, 2, 3].into_iter.skip(1).to_array # => [2, 3]
   # [1].into_iter.skip(10).to_array      # => []
   # ```
-  fn pub move skip(amount: Int) -> Stream[T] {
-    let mut pending = amount
-
-    Stream.new(fn move {
-      while pending > 0 {
-        match self.next {
-          case Some(_) -> pending -= 1
-          case _ -> break
-        }
-      }
-
-      self.next
-    })
+  fn pub move skip(amount: Int) -> Skip[T, Self] {
+    Skip(iter: self, pending: amount)
   }
 
   # Returns a new iterator that yields the first `amount` items, or fewer if
@@ -552,12 +481,8 @@ trait pub Iter[T] {
   # [1, 2, 3].into_iter.take(2).to_array # => [1, 2]
   # [1].into_iter.take(2).to_array       # => [1]
   # ```
-  fn pub move take(amount: Int) -> Stream[T] {
-    let mut pending = amount
-
-    Stream.new(fn move {
-      if (pending := pending - 1) > 0 { self.next } else { Option.None }
-    })
+  fn pub move take(amount: Int) -> Take[T, Self] {
+    Take(iter: self, pending: amount)
   }
 
   # Returns a new iterator that skips values for which `func` returns `true`.
@@ -570,23 +495,8 @@ trait pub Iter[T] {
   # ```inko
   # [1, 2, 3].into_iter.skip_while fn (v) { v <= 2 }.to_array # => [3]
   # ```
-  fn pub move skip_while(func: fn (ref T) -> Bool) -> Stream[T] {
-    let mut skip = true
-
-    Stream.new(fn move {
-      while skip {
-        match self.next {
-          case Some(v) if func.call(v) -> {}
-          case Some(v) -> {
-            skip = false
-            return Option.Some(v)
-          }
-          case _ -> return Option.None
-        }
-      }
-
-      self.next
-    })
+  fn pub move skip_while(func: fn (ref T) -> Bool) -> SkipWhile[T, Self] {
+    SkipWhile(iter: self, predicate: func, skip: true)
   }
 
   # Returns a new iterator that yields values for which `func` returns `true`.
@@ -599,68 +509,8 @@ trait pub Iter[T] {
   # ```inko
   # [1, 2, 3].into_iter.take_while fn (v) { v <= 2 }.to_array # => [1, 2]
   # ```
-  fn pub move take_while(func: fn (ref T) -> Bool) -> Stream[T] {
-    let mut take = true
-
-    Stream.new(fn move {
-      if take {
-        match self.next {
-          case Some(v) if func.call(v) -> Option.Some(v)
-          case Some(_) -> {
-            take = false
-            Option.None
-          }
-          case _ -> Option.None
-        }
-      } else {
-        Option.None
-      }
-    })
-  }
-}
-
-# A type for easily creating iterators using closures.
-#
-# A `Stream` wraps a closure that feeds it values, which are then returned by
-# the implementation of `Iter.next`. This makes it easy to create custom
-# iterators, without unnecessary boilerplate.
-#
-# # Examples
-#
-# ```inko
-# import std.iter (Stream)
-#
-# fn example(max: Int) -> Stream[Int] {
-#   let mut index = 0
-#
-#   Stream.new fn move {
-#     if index < max {
-#       Option.Some(index := index + 1)
-#     } else {
-#       Option.None
-#     }
-#   }
-# }
-#
-# fn main {
-#   let nums = example(4)
-#
-#   nums.next # => Option.Some(0)
-#   nums.next # => Option.Some(1)
-# }
-# ```
-type pub inline Stream[T] {
-  let @func: fn -> Option[T]
-
-  # Returns a new iterator using the closure.
-  fn pub inline static new(func: fn -> Option[T]) -> Stream[T] {
-    Stream(func)
-  }
-}
-
-impl Iter[T] for Stream {
-  fn pub inline mut next -> Option[T] {
-    @func.call
+  fn pub move take_while(func: fn (ref T) -> Bool) -> TakeWhile[T, Self] {
+    TakeWhile(iter: self, predicate: func, take: true)
   }
 }
 
@@ -712,6 +562,234 @@ impl Iter[T] for Peekable {
     match @peeked := Option.None {
       case Some(opt) -> opt
       case _ -> @iter.next
+    }
+  }
+}
+
+# An iterator over the values and indexes of another iterator.
+type pub WithIndex[T, I: mut + Iter[T]] {
+  let @iter: I
+  let mut @index: Int
+}
+
+impl Iter[(Int, T)] for WithIndex {
+  fn pub mut next -> Option[(Int, T)] {
+    match @iter.next {
+      case Some(v) -> Option.Some((@index := @index + 1, v))
+      case _ -> Option.None
+    }
+  }
+}
+
+# An iterator maps values from type `T` to `R`.
+type pub inline Map[T, I: mut + Iter[T], R] {
+  let @iter: I
+  let @mapper: fn (T) -> R
+}
+
+impl Iter[R] for Map {
+  fn pub mut next -> Option[R] {
+    match @iter.next {
+      case Some(v) -> Option.Some(@mapper.call(v))
+      case _ -> Option.None
+    }
+  }
+}
+
+# An iterator that only yields values for which a predicate is true.
+type pub inline Select[T, I: mut + Iter[T]] {
+  let @iter: I
+  let @func: fn (ref T) -> Bool
+}
+
+impl Iter[T] for Select {
+  fn pub mut next -> Option[T] {
+    loop {
+      match @iter.next {
+        case Some(v) -> if @func.call(v) { return Option.Some(v) }
+        case _ -> return Option.None
+      }
+    }
+  }
+}
+
+# An iterator that combines selecting/filtering and mapping.
+type pub inline SelectMap[T, I: mut + Iter[T], R] {
+  let @iter: I
+  let @mapper: fn (T) -> Option[R]
+}
+
+impl Iter[R] for SelectMap {
+  fn pub mut next -> Option[R] {
+    loop {
+      match @iter.next {
+        case Some(v) -> {
+          match @mapper.call(v) {
+            case Some(r) -> return Option.Some(r)
+            case _ -> next
+          }
+        }
+        case _ -> return Option.None
+      }
+    }
+  }
+}
+
+# An iterator that maps and flattens values.
+type pub FlatMap[V, R, I: mut + Iter[V], M: mut + Iter[R]] {
+  let @iter: I
+  let @mapper: fn (V) -> M
+  let mut @iter_opt: Option[M]
+}
+
+impl Iter[R] for FlatMap {
+  fn pub mut next -> Option[R] {
+    loop {
+      match @iter_opt.as_mut {
+        case Some(v) -> {
+          match v.next {
+            case Some(v) -> return Option.Some(v)
+            case _ -> {}
+          }
+        }
+        case _ -> {}
+      }
+
+      match @iter.next {
+        case Some(v) -> @iter_opt = Option.Some(@mapper.call(v))
+        case _ -> return Option.None
+      }
+    }
+  }
+}
+
+# An iterator that chains two iterators together.
+type pub Chain[T, A: mut + Iter[T], B: mut + Iter[T]] {
+  let @a: A
+  let @b: B
+  let mut @iter_left: Bool
+}
+
+impl Iter[T] for Chain {
+  fn pub mut next -> Option[T] {
+    if @iter_left {
+      let item = @a.next
+
+      if item.some? { return item } else { @iter_left = false }
+    }
+
+    @b.next
+  }
+}
+
+# An iterator that zips two iterators together.
+type pub inline Zip[T, U, A: mut + Iter[T], B: mut + Iter[U]] {
+  let @iter: A
+  let @other: B
+}
+
+impl Iter[(T, U)] for Zip {
+  fn pub mut next -> Option[(T, U)] {
+    @iter.next.zip(@other.next)
+  }
+}
+
+# An iterator that produces chunks of values.
+type pub inline Chunks[T, I: mut + Iter[T]] {
+  let @iter: I
+  let @size: Int
+}
+
+impl Iter[Array[T]] for Chunks {
+  fn pub mut next -> Option[Array[T]] {
+    let chunk = []
+
+    while chunk.size < @size {
+      match @iter.next {
+        case Some(val) -> chunk.push(val)
+        case _ -> break
+      }
+    }
+
+    if chunk.empty? { Option.None } else { Option.Some(chunk) }
+  }
+}
+
+# An iterator that skips the first N values.
+type pub Skip[T, I: mut + Iter[T]] {
+  let @iter: I
+  let mut @pending: Int
+}
+
+impl Iter[T] for Skip {
+  fn pub mut next -> Option[T] {
+    while @pending > 0 {
+      match @iter.next {
+        case Some(_) -> @pending -= 1
+        case _ -> break
+      }
+    }
+
+    @iter.next
+  }
+}
+
+# An iterator that yields the first N values.
+type pub Take[T, I: mut + Iter[T]] {
+  let @iter: I
+  let mut @pending: Int
+}
+
+impl Iter[T] for Take {
+  fn pub mut next -> Option[T] {
+    if (@pending := @pending - 1) > 0 { @iter.next } else { Option.None }
+  }
+}
+
+# An iterator that skips values while a predicate is true.
+type pub SkipWhile[T, I: mut + Iter[T]] {
+  let @iter: I
+  let @predicate: fn (ref T) -> Bool
+  let mut @skip: Bool
+}
+
+impl Iter[T] for SkipWhile {
+  fn pub mut next -> Option[T] {
+    while @skip {
+      match @iter.next {
+        case Some(v) if @predicate.call(v) -> {}
+        case Some(v) -> {
+          @skip = false
+          return Option.Some(v)
+        }
+        case _ -> return Option.None
+      }
+    }
+
+    @iter.next
+  }
+}
+
+# An iterator that yields values while a predicate is true.
+type pub TakeWhile[T, I: mut + Iter[T]] {
+  let @iter: I
+  let @predicate: fn (ref T) -> Bool
+  let mut @take: Bool
+}
+
+impl Iter[T] for TakeWhile {
+  fn pub mut next -> Option[T] {
+    if @take {
+      match @iter.next {
+        case Some(v) if @predicate.call(v) -> Option.Some(v)
+        case Some(_) -> {
+          @take = false
+          Option.None
+        }
+        case _ -> Option.None
+      }
+    } else {
+      Option.None
     }
   }
 }

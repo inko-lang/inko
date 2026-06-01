@@ -5,17 +5,19 @@ import std.test (Tests)
 import std.time (Duration)
 
 fn pub tests(t: mut Tests) {
-  t.test('happy.interleave', fn (t) {
-    t.equal(happy.interleave([]).to_array, [])
+  t.test('Interleave.new', fn (t) {
+    t.equal(happy.Interleave.new([]).to_array, [])
     t.equal(
       happy
-        .interleave([IpAddress.v4(127, 0, 0, 1), IpAddress.v4(127, 0, 0, 2)])
+        .Interleave
+        .new([IpAddress.v4(127, 0, 0, 1), IpAddress.v4(127, 0, 0, 2)])
         .to_array,
       [IpAddress.v4(127, 0, 0, 1), IpAddress.v4(127, 0, 0, 2)],
     )
     t.equal(
       happy
-        .interleave(
+        .Interleave
+        .new(
           [
             IpAddress.v6(0, 0, 0, 0, 0, 0, 0, 1),
             IpAddress.v6(0, 0, 0, 0, 0, 0, 1, 1),
@@ -29,7 +31,8 @@ fn pub tests(t: mut Tests) {
     )
     t.equal(
       happy
-        .interleave(
+        .Interleave
+        .new(
           [
             IpAddress.v6(0, 0, 0, 0, 0, 0, 0, 1),
             IpAddress.v6(0, 0, 0, 0, 0, 0, 1, 1),
@@ -45,7 +48,8 @@ fn pub tests(t: mut Tests) {
     )
     t.equal(
       happy
-        .interleave(
+        .Interleave
+        .new(
           [
             IpAddress.v4(127, 0, 0, 1),
             IpAddress.v4(127, 0, 0, 2),
@@ -63,7 +67,8 @@ fn pub tests(t: mut Tests) {
     )
     t.equal(
       happy
-        .interleave(
+        .Interleave
+        .new(
           [
             IpAddress.v4(127, 0, 0, 1),
             IpAddress.v4(127, 0, 0, 2),

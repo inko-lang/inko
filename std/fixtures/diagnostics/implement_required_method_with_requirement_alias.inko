@@ -1,0 +1,7 @@
+import trait_def (TraitA as TraitAlias, TraitB)
+
+type A {}
+
+impl TraitB for A {
+  fn required_method[T: TraitAlias](value: T) {}
+}

@@ -2434,7 +2434,7 @@ pub struct TypeInstance {
     ///
     /// After type specialization takes place, this value shouldn't be used any
     /// more as specialized types won't have their type arguments set.
-    type_arguments: u32,
+    pub type_arguments: u32,
 }
 
 impl TypeInstance {
@@ -5186,7 +5186,7 @@ impl TypeRef {
                 TypeRef::Pointer(TypeEnum::TypeInstance(ins))
             }
             TypeRef::Owned(TypeEnum::TypeInstance(ins))
-                if ins.instance_of().is_copy_type(db) =>
+                if ins.instance_of().is_value_type(db) =>
             {
                 TypeRef::Owned(TypeEnum::TypeInstance(ins))
             }
@@ -7364,6 +7364,7 @@ mod tests {
     fn test_type_ref_as_ref() {
         let mut db = Database::new();
         let int = TypeId::int();
+        let string = TypeId::string();
         let thing = new_type(&mut db, "Thing");
         let ext = new_extern_type(&mut db, "Extern");
         let p1 = new_parameter(&mut db, "A");
@@ -7389,12 +7390,17 @@ mod tests {
         assert_eq!(mutable(parameter(p2)).as_ref(&db), owned(parameter(p2)));
         assert_eq!(owned(rigid(p2)).as_ref(&db), owned(rigid(p2)));
         assert_eq!(owned(int32).as_ref(&db), owned(int32));
+        assert_eq!(
+            owned(instance(string)).as_ref(&db),
+            owned(instance(string))
+        );
     }
 
     #[test]
     fn test_type_ref_as_mut() {
         let mut db = Database::new();
         let int = TypeId::int();
+        let string = TypeId::string();
         let ext = new_extern_type(&mut db, "Extern");
         let p1 = new_parameter(&mut db, "A");
         let p2 = new_parameter(&mut db, "A");
@@ -7420,6 +7426,10 @@ mod tests {
         assert_eq!(uni(parameter(p3)).as_mut(&db), owned(parameter(p3)));
         assert_eq!(owned(rigid(p3)).as_mut(&db), owned(rigid(p3)));
         assert_eq!(owned(int32).as_mut(&db), owned(int32));
+        assert_eq!(
+            owned(instance(string)).as_mut(&db),
+            owned(instance(string))
+        );
     }
 
     #[test]

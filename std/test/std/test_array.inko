@@ -234,6 +234,11 @@ fn pub tests(t: mut Tests) {
     t.equal(iter.next, Option.Some(30))
     t.equal(iter.next, Option.Some(20))
     t.equal(iter.next, Option.None)
+
+    let iter = inp.reverse_iter
+
+    inp.clear
+    t.equal(iter.next, Option.None)
   })
 
   t.test('Array.append', fn (t) {

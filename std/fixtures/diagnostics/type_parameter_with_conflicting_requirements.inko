@@ -1,0 +1,11 @@
+trait A {
+  fn foo {}
+}
+
+trait B {
+  fn foo {}
+}
+
+fn example[T: A + B](value: T) {}
+
+# type_parameter_with_conflicting_requirements.inko:9:19 error(duplicate-symbol): the traits 'A' and 'B' both define a method with the same name

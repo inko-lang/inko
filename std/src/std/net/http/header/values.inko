@@ -6,12 +6,12 @@
 # This code resides in a standalone module such that modules (e.g. `std.mime`)
 # can reuse this code without having to depend on the (much larger)
 # `std.net.http` module.
-import std.bytes (Bytes, Slice, ToSlice)
+import std.bytes (Bytes, Slice, Split as SplitIter, ToSlice)
 import std.bytes.parsers (digit?, lower?, to_lower, upper?)
 import std.clone (Clone)
 import std.cmp (Equal)
 import std.hash (Hash, Hasher)
-import std.iter (Iter, Stream)
+import std.iter (Iter)
 import std.net.http.parsers (token?, tokens?)
 import std.string (ToString)
 
@@ -26,15 +26,27 @@ let EQ = 61
 let BSLASH = 92
 let UNDER = 95
 
+type inline Tokens {
+  let @iter: SplitIter[String, String]
+
+  fn static new(value: String) -> Self {
+    Self(value.split(','))
+  }
+}
+
+impl Iter[Slice[String]] for Tokens {
+  fn pub mut next -> Option[Slice[String]] {
+    let val = (try @iter.next).trim
+
+    if tokens?(val) { Option.Some(val) } else { Option.None }
+  }
+}
+
 fn split_item[B: Bytes](input: Slice[B]) -> (Slice[B], Option[Slice[B]]) {
   match input.split_once(';') {
     case Some((item, pars)) -> (item.trim, Option.Some(pars.trim))
     case _ -> (input, Option.None)
   }
-}
-
-fn tokens(value: String) -> Stream[Slice[String]] {
-  value.split(',').map(fn (v) { v.trim }).take_while(fn (v) { tokens?(v) })
 }
 
 # An iterator over the items and their parameters.

@@ -32,8 +32,8 @@ import std.fs (Metadata)
 import std.hash (Hash, Hasher)
 import std.int (Format as IntFormat, MAX, ToInt)
 import std.io (Buffer, BufferedRead, Error as IoError, Read, Write)
-import std.iter (Stream as IterStream)
-import std.map (MissingKey)
+import std.iter (Iter as IterTrait)
+import std.map (Keys as MapKeys, MissingKey)
 import std.net.http.header
 import std.net.http.header.values (Items, Parameter)
 import std.net.http.method
@@ -414,20 +414,8 @@ type pub inline HeaderMap {
   # iter.next # => Option.Some('20')
   # iter.next # => Option.None
   # ```
-  fn pub get_all(header: ref Header) -> IterStream[String] {
-    let val = @map.get(header)
-
-    match val {
-      case Ok(Single(v)) -> {
-        let mut done = false
-
-        IterStream.new(fn move {
-          if done := true { Option.None } else { Option.Some(v) }
-        })
-      }
-      case Ok(Multiple(v)) -> v.iter
-      case _ -> IterStream.new(fn move { Option.None })
-    }
+  fn pub get_all(header: ref Header) -> HeaderValues {
+    HeaderValues(value: @map.get(header).ok, index: 0)
   }
 
   # Removes all values of the header.
@@ -440,7 +428,7 @@ type pub inline HeaderMap {
   # ```inko
   # import std.net.http (Header, HeaderMap)
   #
-  # let map = Map.new
+  # let map = HeaderMap.new
   #
   # map.add(Header.content_length, '10')
   # map.add(Header.content_length, '20')
@@ -470,30 +458,8 @@ type pub inline HeaderMap {
   # iter.next # => Option.Some((Header.content_length, '20'))
   # iter.next # => Option.None
   # ```
-  fn pub iter -> IterStream[(Header, String)] {
-    let mut entry_idx = 0
-    let mut val_idx = 0
-
-    IterStream.new(fn move {
-      loop {
-        match @map.entries.get(entry_idx) {
-          case Ok({ @key = name, @value = Single(val) }) -> {
-            entry_idx += 1
-            return Option.Some((name.clone, val))
-          }
-          case Ok({ @key = name, @value = Multiple(vals) }) -> {
-            match vals.get(val_idx := val_idx + 1) {
-              case Ok(val) -> return Option.Some((name.clone, val))
-              case _ -> {
-                val_idx = 0
-                entry_idx += 1
-              }
-            }
-          }
-          case _ -> return Option.None
-        }
-      }
-    })
+  fn pub iter -> Iter {
+    Iter(map: self, entry_index: 0, value_index: 0)
   }
 
   # Returns an iterator over the header names.
@@ -511,8 +477,8 @@ type pub inline HeaderMap {
   # iter.next # => Option.Some(Header.content_length)
   # iter.next # => Option.None
   # ```
-  fn pub keys -> IterStream[Header] {
-    @map.keys.map(fn (v) { v.clone })
+  fn pub keys -> Keys {
+    Keys(@map.keys)
   }
 
   # Returns the number of headers in `self`.
@@ -593,6 +559,138 @@ impl Format for HeaderMap {
     }
 
     formatter.write('}')
+  }
+}
+
+# An iterator over headers and their values in a `HeaderMap`.
+type pub Iter {
+  let @map: ref HeaderMap
+  let mut @entry_index: Int
+  let mut @value_index: Int
+}
+
+impl IterTrait[(Header, String)] for Iter {
+  fn pub mut next -> Option[(Header, String)] {
+    loop {
+      match @map.map.entries.get(@entry_index) {
+        case Ok({ @key = name, @value = Single(val) }) -> {
+          @entry_index += 1
+          return Option.Some((name.clone, val))
+        }
+        case Ok({ @key = name, @value = Multiple(vals) }) -> {
+          match vals.get(@value_index := @value_index + 1) {
+            case Ok(val) -> return Option.Some((name.clone, val))
+            case _ -> {
+              @value_index = 0
+              @entry_index += 1
+            }
+          }
+        }
+        case _ -> return Option.None
+      }
+    }
+  }
+}
+
+# An iterator over the keys in a `HeaderMap`.
+type pub inline Keys {
+  let @iter: MapKeys[Header, HeaderValue]
+}
+
+impl IterTrait[Header] for Keys {
+  fn pub mut next -> Option[Header] {
+    @iter.next.clone
+  }
+}
+
+# An iterator over the values of an HTTP header.
+type pub HeaderValues {
+  let @value: Option[ref HeaderValue]
+  let mut @index: Int
+}
+
+impl IterTrait[String] for HeaderValues {
+  fn pub mut next -> Option[String] {
+    match @value {
+      case Some(Single(v)) if @index == 0 -> {
+        @index += 1
+        Option.Some(v)
+      }
+      case Some(Multiple(v)) if @index < v.size -> {
+        Option.Some(v.get_unchecked(@index := @index + 1))
+      }
+      case _ -> Option.None
+    }
+  }
+}
+
+# An iterator over parsed `Etag` values.
+type pub Etags {
+  let @input: String
+  let mut @index: Int
+}
+
+impl IterTrait[Etag] for Etags {
+  fn pub mut next -> Option[Etag] {
+    if @index == @input.size { return Option.None }
+
+    while @index < @input.size {
+      match @input.get(@index).or_panic {
+        case SPC or COM -> @index += 1
+        case _ -> break
+      }
+    }
+
+    match Etag.parse(@input.slice(@index, @input.size)) {
+      case Some(t) -> {
+        @index += t.size
+        Option.Some(t)
+      }
+      case _ -> {
+        @index = @input.size
+        Option.None
+      }
+    }
+  }
+}
+
+# An iterator over parsed `Encoding` values.
+type inline Encodings {
+  let @items: Items[String]
+}
+
+impl IterTrait[Encoding] for Encodings {
+  fn pub mut next -> Option[Encoding] {
+    let (name, qpar) = match @items.next {
+      case Some((name, Some(map))) -> {
+        (name, map.get(Parameter('q'.to_slice)).ok)
+      }
+      case Some((name, _)) -> (name, Option.None)
+      case _ -> return Option.None
+    }
+
+    # The "q" parameter may only contain digits, so we don't need to do any
+    # decoding/unescaping here.
+    let qval = match qpar {
+      case Some({ @value = val }) -> quality_value(Option.Some(val))
+      case _ -> 1.0
+    }
+
+    Option.Some(Encoding(name: name, quality: qval))
+  }
+}
+
+# An iterator over values produced by `Encoding.parse_simple_list`
+type inline EncodingsSimple {
+  let @items: Items[String]
+}
+
+impl IterTrait[Encoding] for EncodingsSimple {
+  fn pub mut next -> Option[Encoding] {
+    match @items.next {
+      case Some((name, _)) -> Option.Some(Encoding(name: name, quality: 1.0))
+      case _ -> Option.None
+    }
   }
 }
 
@@ -2047,30 +2145,8 @@ type pub inline Etag {
   # Etag.parse_list('W/"foo", "bar"').to_array
   # # => [Etag(strong: false, value: "foo"), Etag(strong: true, value: "bar")]
   # ```
-  fn pub static parse_list(input: String) -> IterStream[Etag] {
-    let mut idx = 0
-
-    IterStream.new(fn move {
-      if idx == input.size { return Option.None }
-
-      while idx < input.size {
-        match input.get(idx).or_panic {
-          case SPC or COM -> idx += 1
-          case _ -> break
-        }
-      }
-
-      match parse(input.slice(idx, input.size)) {
-        case Some(t) -> {
-          idx += t.size
-          Option.Some(t)
-        }
-        case _ -> {
-          idx = input.size
-          Option.None
-        }
-      }
-    })
+  fn pub static parse_list(input: String) -> Etags {
+    Etags(input: input, index: 0)
   }
 
   # Returns the byte size of `self`.
@@ -2109,38 +2185,12 @@ type pub inline Encoding {
   # The value of the "q"/quality parameter, if any.
   let pub @quality: Float
 
-  fn static parse_list(value: String) -> IterStream[Encoding] {
-    let items = Items.new(value)
-
-    IterStream.new(fn move {
-      let (name, qpar) = match items.next {
-        case Some((name, Some(map))) -> {
-          (name, map.get(Parameter('q'.to_slice)).ok)
-        }
-        case Some((name, _)) -> (name, Option.None)
-        case _ -> return Option.None
-      }
-
-      # The "q" parameter may only contain digits, so we don't need to do any
-      # decoding/unescaping here.
-      let qval = match qpar {
-        case Some({ @value = val }) -> quality_value(Option.Some(val))
-        case _ -> 1.0
-      }
-
-      Option.Some(Encoding(name: name, quality: qval))
-    })
+  fn static parse_list(value: String) -> Encodings {
+    Encodings(Items.new(value))
   }
 
-  fn static parse_simple_list(value: String) -> IterStream[Encoding] {
-    let items = Items.new(value)
-
-    IterStream.new(fn move {
-      match items.next {
-        case Some((name, _)) -> Option.Some(Encoding(name: name, quality: 1.0))
-        case _ -> Option.None
-      }
-    })
+  fn static parse_simple_list(value: String) -> EncodingsSimple {
+    EncodingsSimple(Items.new(value))
   }
 }
 

@@ -7,7 +7,7 @@
 # Unicode scalar values or bytes.
 import std.alloc
 import std.array (OutOfBounds, check_bounds)
-import std.bytes (Bytes, IntoByteArray, Slice, ToByteArray, ToSlice)
+import std.bytes (Bytes, IntoByteArray, Slice, Split, ToByteArray, ToSlice)
 import std.clone (Clone)
 import std.cmp (Compare, Equal, Ordering, min)
 import std.drop (Drop)
@@ -15,7 +15,7 @@ import std.fmt (Format, Formatter)
 import std.fs.path (Path)
 import std.hash (Hash, Hasher)
 import std.int (ToInt)
-import std.iter (Iter, Stream)
+import std.iter (Iter)
 import std.ops (Add)
 import std.ptr
 import std.reflect (size_of)
@@ -394,8 +394,8 @@ type builtin String {
   # iter.next.get.to_string # => 'foo'
   # iter.next.get.to_string # => 'bar'
   # ```
-  fn pub split(separator: String) -> Stream[Slice[String]] {
-    Slice.new(self, 0, size).split(separator)
+  fn pub split(separator: String) -> Split[String, String] {
+    to_slice.split(separator)
   }
 
   # Splits `self` on the first occurrence of `separator`.

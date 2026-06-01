@@ -385,16 +385,16 @@ import std.io (
   BufferedRead, BufferedReader, BufferedWriter, Error as IoError, LimitReader,
   Read, SeekFrom, Write, copy_using,
 )
-import std.iter (Iter, Stream)
+import std.iter (FlatMap, Iter, Take)
 import std.log (self as slog)
 import std.mime (Mime)
 import std.multipart
 import std.net.http (
-  Body as RequestBody, CHUNKED, ChunkedWriter, Encoding, Etag, Header,
-  HeaderMap, Limits, Method, ParseError, Parser, Reader, Request as RawRequest,
-  Status, Version, quality_value,
+  Body as RequestBody, CHUNKED, ChunkedWriter, Encoding, EncodingsSimple, Etag,
+  Header, HeaderMap, HeaderValues, Limits, Method, ParseError, Parser, Reader,
+  Request as RawRequest, Status, Version, quality_value,
 )
-import std.net.http.header.values (tokens)
+import std.net.http.header.values (Tokens)
 import std.net.http.websocket (WEBSOCKET_KEY, WEBSOCKET_VERSION, Websocket)
 import std.net.ip (IpAddress)
 import std.net.socket (
@@ -3383,7 +3383,7 @@ type pub inline WebsocketResponse {
     let protocol = @request
       .headers
       .get_all(Header.sec_websocket_protocol)
-      .flat_map(fn (v) { tokens(v) })
+      .flat_map(fn (v) { Tokens.new(v) })
       .take(@max_protocols)
       .find(fn (v) { @protocols.contains?(v) })
 
@@ -3622,7 +3622,9 @@ type pub inline Event[B: Bytes] {
 
 # An iterator over the values in the `Accept-Encoding` header.
 type pub inline enum AcceptEncodings {
-  case Lazy(Stream[Encoding])
+  case Lazy(
+    Take[Encoding, FlatMap[String, Encoding, HeaderValues, EncodingsSimple]],
+  )
   case Eager(array.IntoIter[Encoding])
 }
 

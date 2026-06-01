@@ -143,11 +143,12 @@
 #       --example
 #   -x                   Foo
 # ```
+import std.array (Iter as ArrayIter)
 import std.bytes (Slice)
 import std.clone (Clone)
 import std.cmp (Equal)
 import std.fmt (Format, Formatter)
-import std.iter (Iter, Stream)
+import std.iter (Iter)
 import std.string (StringBuffer, ToString)
 
 let INDENT = '  '
@@ -210,7 +211,7 @@ type inline enum State {
 # A type that breaks up a list of command-line arguments into a series of
 # tokens.
 type Lexer {
-  let @input: Stream[String]
+  let @input: ArrayIter[String]
   let mut @state: State
 
   fn static new(input: ref Array[String]) -> Lexer {

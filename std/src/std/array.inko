@@ -6,7 +6,7 @@ import std.cmp (Compare, Equal, Ordering, max)
 import std.drop (Drop, drop as drop_value)
 import std.fmt (Format, Formatter)
 import std.hash (Hash, Hasher)
-import std.iter (Iter, Stream)
+import std.iter (Iter as IterTrait)
 import std.option (Option)
 import std.ptr
 import std.rand (Random)
@@ -218,7 +218,7 @@ type pub inline Slice[T] {
   # ```inko
   # [10, 20, 30].slice(1, 2).into_iter.next # => Option.Some(20)
   # ```
-  fn pub move into_iter -> Stream[ref T] {
+  fn pub move into_iter -> SliceIter[T] {
     iter
   }
 
@@ -229,12 +229,8 @@ type pub inline Slice[T] {
   # ```inko
   # [10, 20, 30].slice(1, 2).iter.next # => Option.Some(20)
   # ```
-  fn pub iter -> Stream[ref T] {
-    let mut idx = 0
-
-    Stream.new(fn move {
-      if idx < size { get(idx := idx + 1).ok } else { Option.None }
-    })
+  fn pub iter -> SliceIter[T] {
+    SliceIter(slice: self, index: 0)
   }
 
   # Returns a tuple containing the first value in `self` and a slice of all the
@@ -617,16 +613,14 @@ type builtin Array[T] {
 
   # Returns an iterator that yields immutable references to the values in
   # `self`.
-  fn pub iter -> Stream[ref T] {
-    let mut idx = 0
-
-    Stream.new(fn move {
-      if idx < @size {
-        Option.Some(get_unchecked(idx := idx + 1))
-      } else {
-        Option.None
-      }
-    })
+  #
+  # # Examples
+  #
+  # ```inko
+  # [10, 20].iter.next # => Option.Some(10)
+  # ```
+  fn pub iter -> Iter[T] {
+    Iter(array: self, index: 0)
   }
 
   # Returns an iterator that moves the values out of `self`.
@@ -662,12 +656,8 @@ type builtin Array[T] {
   # iter.next # => Option.Some(10)
   # iter.next # => Option.None
   # ```
-  fn pub reverse_iter -> Stream[ref T] {
-    let mut index = size - 1
-
-    Stream.new(fn move {
-      if index > -1 { get(index := index - 1).ok } else { Option.None }
-    })
+  fn pub reverse_iter -> ReverseIter[T] {
+    ReverseIter(array: self, index: size - 1)
   }
 
   # Appends the values of the given `Array` to `self`.
@@ -997,16 +987,14 @@ impl Array if T: mut {
   }
 
   # Returns an iterator that yields mutable references to the values in `self`.
-  fn pub mut iter_mut -> Stream[mut T] {
-    let mut idx = 0
-
-    Stream.new(fn move {
-      if idx < @size {
-        Option.Some(get_unchecked_mut(idx := idx + 1))
-      } else {
-        Option.None
-      }
-    })
+  #
+  # # Examples
+  #
+  # ```inko
+  # [10, 20].iter_mut.next # => Option.Some(10)
+  # ```
+  fn pub mut iter_mut -> IterMut[T] {
+    IterMut(array: self, index: 0)
   }
 
   # Returns a mutable reference to the first value in `self`.
@@ -1172,6 +1160,71 @@ impl Array if T: Compare[T] {
   }
 }
 
+# An iterator over immutable borrows of values in an `Array`.
+type pub Iter[T] {
+  let @array: ref Array[T]
+  let mut @index: Int
+}
+
+impl IterTrait[ref T] for Iter {
+  fn pub inline mut next -> Option[ref T] {
+    if @index < @array.size {
+      Option.Some(@array.get_unchecked(@index := @index + 1))
+    } else {
+      Option.None
+    }
+  }
+}
+
+# An iterator over mutable borrows of values in an `Array`.
+type pub IterMut[T: mut] {
+  let @array: mut Array[T]
+  let mut @index: Int
+}
+
+impl IterTrait[mut T] for IterMut {
+  fn pub inline mut next -> Option[mut T] {
+    if @index < @array.size {
+      Option.Some(@array.get_unchecked_mut(@index := @index + 1))
+    } else {
+      Option.None
+    }
+  }
+}
+
+# An iterator over immutable borrows of values in an `Array` that yields values
+# in reverse order.
+type pub ReverseIter[T] {
+  let @array: ref Array[T]
+  let mut @index: Int
+}
+
+impl IterTrait[ref T] for ReverseIter {
+  fn pub inline mut next -> Option[ref T] {
+    if @index >= 0 and @index < @array.size {
+      Option.Some(@array.get_unchecked(@index := @index - 1))
+    } else {
+      Option.None
+    }
+  }
+}
+
+# An iterator over immutable borrows of values in an `Slice[T]`.
+type pub SliceIter[T] {
+  let @slice: ref Slice[T]
+  let mut @index: Int
+}
+
+impl IterTrait[ref T] for SliceIter {
+  fn pub inline mut next -> Option[ref T] {
+    if @index < @slice.size {
+      @slice.get(@index := @index + 1).ok
+    } else {
+      Option.None
+    }
+  }
+}
+
 # An iterator that moves values out of an `Array`.
 #
 # When this iterator is dropped, any values not yet moved out of the `Array` are
@@ -1195,7 +1248,7 @@ impl Drop for IntoIter {
   }
 }
 
-impl Iter[T] for IntoIter {
+impl IterTrait[T] for IntoIter {
   fn pub mut next -> Option[T] {
     if @index < @array.size { Option.Some(take_next) } else { Option.None }
   }

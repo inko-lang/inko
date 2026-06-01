@@ -38,8 +38,8 @@ import std.clone (Clone)
 import std.cmp (Equal)
 import std.fmt (Format, Formatter)
 import std.hash (Hash, Hasher)
-import std.iter (Iter, Stream)
-import std.map (MissingKey)
+import std.iter (Iter)
+import std.map (Keys as MapKeys, MissingKey)
 import std.net.ip (IpAddress, Ipv4Address, Ipv6Address)
 import std.string (ToString)
 import std.uri.tables
@@ -1710,18 +1710,8 @@ type pub inline Values {
   # iter.next.map(fn (v) { v.to_string }) # => Option.Some('Alice')
   # iter.next.map(fn (v) { v.to_string }) # => Option.Some('Bob')
   # ```
-  fn pub get_all(name: String) -> Stream[ref ByteArray] {
-    match @map.get(name) {
-      case Ok(Single(v)) -> {
-        let mut done = false
-
-        Stream.new(fn move {
-          if done := true { Option.None } else { Option.Some(v) }
-        })
-      }
-      case Ok(Multiple(v)) -> v.iter
-      case _ -> Stream.new(fn move { Option.None })
-    }
+  fn pub get_all(name: String) -> KeyValues {
+    KeyValues(value: @map.get(name).ok, index: 0)
   }
 
   # Removes all key-value pairs that match the given key and value.
@@ -1889,8 +1879,8 @@ type pub inline Values {
   # iter.next # => Option.Some(('name'))
   # iter.next # => Option.None
   # ```
-  fn pub keys -> Stream[String] {
-    @map.keys
+  fn pub keys -> Keys {
+    Keys(@map.keys)
   }
 }
 
@@ -1920,6 +1910,38 @@ impl ToString for Values {
 
     encode(buf)
     buf.into_string
+  }
+}
+
+# An iterator over the keys in a `Values`.
+type pub inline Keys {
+  let @iter: MapKeys[String, QueryValue]
+}
+
+impl Iter[String] for Keys {
+  fn pub mut next -> Option[String] {
+    @iter.next
+  }
+}
+
+# An iterator over the values of a key-value pair.
+type pub KeyValues {
+  let @value: Option[ref QueryValue]
+  let mut @index: Int
+}
+
+impl Iter[ref ByteArray] for KeyValues {
+  fn pub mut next -> Option[ref ByteArray] {
+    match @value {
+      case Some(Single(v)) if @index == 0 -> {
+        @index += 1
+        Option.Some(v)
+      }
+      case Some(Multiple(v)) if @index < v.size -> {
+        Option.Some(v.get_unchecked(@index := @index + 1))
+      }
+      case _ -> Option.None
+    }
   }
 }
 

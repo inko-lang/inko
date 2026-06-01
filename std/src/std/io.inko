@@ -2,11 +2,11 @@
 #
 # The IO module provides the basic building blocks for IO operations such as
 # reading from and writing to a file.
-import std.bytes (Bytes, Slice)
+import std.bytes (Bytes as BytesTrait, Slice)
 import std.cmp (Equal, min)
 import std.drop (Drop)
 import std.fmt (Format, Formatter)
-import std.iter (Stream)
+import std.iter (Iter)
 import std.libc
 import std.ptr
 import std.string (ToString)
@@ -631,11 +631,11 @@ trait pub Write[E] {
   # Types implementing this method must guarantee that upon returning from this
   # method, either all of the data is written and a `Ok(Nil)` is returned, _or_
   # an `Error` is returned.
-  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, E]
+  fn pub mut write[B: BytesTrait](bytes: ref B) -> Result[Nil, E]
 
   # Writes the entirety of `bytes` to the underlying stream, followed by
   # a Unix newline.
-  fn pub mut print[B: Bytes](bytes: ref B) -> Result[Nil, E] {
+  fn pub mut print[B: BytesTrait](bytes: ref B) -> Result[Nil, E] {
     try write(bytes)
     write('\n')
   }
@@ -850,14 +850,23 @@ trait pub BufferedRead[E]: Read[E] {
   #
   # reader.bytes.next # => Option.Some(Result.Ok(35))
   # ```
-  fn pub move bytes -> Stream[Result[Int, E]] {
-    Stream.new(fn move {
-      match read_byte {
-        case Ok(Some(num)) -> Option.Some(Result.Ok(num))
-        case Ok(None) -> Option.None
-        case Error(err) -> Option.Some(Result.Error(err))
-      }
-    })
+  fn pub move bytes -> Bytes[Self, E] {
+    Bytes(self)
+  }
+}
+
+# An iterator over the bytes in a `BufferedRead`.
+type pub inline Bytes[T: mut + BufferedRead[E], E] {
+  let @reader: T
+}
+
+impl Iter[Result[Int, E]] for Bytes {
+  fn pub mut next -> Option[Result[Int, E]] {
+    match @reader.read_byte {
+      case Ok(Some(num)) -> Option.Some(Result.Ok(num))
+      case Ok(None) -> Option.None
+      case Error(err) -> Option.Some(Result.Error(err))
+    }
   }
 }
 
@@ -1123,7 +1132,7 @@ impl Write[E] for BufferedWriter {
   #
   # This method returns a `std.io.Error` if the data can't be written to the
   # underlying stream.
-  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, E] {
+  fn pub mut write[B: BytesTrait](bytes: ref B) -> Result[Nil, E] {
     let len = bytes.size
 
     # If the data size is the same as the buffer size we might as well just
@@ -1202,7 +1211,7 @@ impl Drop for BufferedWriter {
 #
 # read_string(reader) # => "hello"
 # ```
-type pub Buffer[T: Bytes] {
+type pub Buffer[T: BytesTrait] {
   let @bytes: T
   let mut @offset: Int
 
@@ -1332,7 +1341,7 @@ type pub Writer[T: mut + Write[E], E] {
 }
 
 impl Write[E] for Writer {
-  fn pub mut write[B: Bytes](bytes: ref B) -> Result[Nil, E] {
+  fn pub mut write[B: BytesTrait](bytes: ref B) -> Result[Nil, E] {
     @inner.write(bytes)
   }
 

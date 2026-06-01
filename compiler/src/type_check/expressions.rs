@@ -17,9 +17,9 @@ use types::{
     Closure, ClosureCallInfo, ClosureId, ConstantKind, ConstantPatternKind,
     DEREF_POINTER_FIELD, Database, FieldId, FieldInfo, IGNORE_VARIABLE,
     IdentifierKind, IntrinsicCall, MethodId, MethodLookup, ModuleId, Receiver,
-    SELF_TYPE, SLICE_TYPE, Sendability, Sign, Symbol, ThrowKind, TraitId,
-    TraitInstance, TypeArguments, TypeBounds, TypeEnum, TypeId, TypeInstance,
-    TypeRef, Variable, VariableId,
+    SELF_TYPE, SLICE_TYPE, Sendability, Sign, Symbol, ThrowKind, TraitInstance,
+    TypeArguments, TypeBounds, TypeEnum, TypeId, TypeInstance, TypeRef,
+    Variable, VariableId,
 };
 
 /// The maximum number of methods that a single type can define.
@@ -805,10 +805,7 @@ impl<'a> Expressions<'a> {
 
     fn define_trait(&mut self, node: &mut hir::DefineTrait) {
         self.verify_type_parameter_requirements(&node.type_parameters);
-        self.verify_required_traits(
-            &node.requirements,
-            node.trait_id.unwrap().required_traits(self.db()),
-        );
+        self.verify_required_traits(&node.requirements);
 
         for node in &mut node.body {
             if let hir::TraitExpression::InstanceMethod(n) = node {
@@ -953,29 +950,20 @@ impl<'a> Expressions<'a> {
         nodes: &[hir::TypeParameter],
     ) {
         for param in nodes {
-            self.verify_required_traits(
-                &param.requirements,
-                param.type_parameter_id.unwrap().requirements(self.db()),
-            );
+            self.verify_required_traits(&param.requirements);
         }
     }
 
-    fn verify_required_traits(
-        &mut self,
-        nodes: &Vec<hir::TypeName>,
-        required_traits: Vec<TraitInstance>,
-    ) {
+    fn verify_required_traits(&mut self, nodes: &Vec<hir::TypeName>) {
         let mut all_methods = HashMap::new();
-        let reqs: HashMap<String, TraitId> = required_traits
-            .into_iter()
-            .map(|ins| {
-                (ins.instance_of().name(self.db()).clone(), ins.instance_of())
-            })
-            .collect();
 
         for req in nodes {
             let mut conflicts_with = None;
-            let req_id = *reqs.get(&req.name.name).unwrap();
+            let req_id = req
+                .resolved_type
+                .as_trait_instance(self.db())
+                .unwrap()
+                .instance_of();
             let methods = req_id
                 .required_methods(self.db())
                 .into_iter()
@@ -987,7 +975,6 @@ impl<'a> Expressions<'a> {
 
                 if let Some(id) = all_methods.get(name).cloned() {
                     conflicts_with = Some(id);
-
                     break;
                 } else {
                     all_methods.insert(name.clone(), req_id);
