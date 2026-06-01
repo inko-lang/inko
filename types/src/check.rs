@@ -12,6 +12,12 @@ enum Subtyping {
     Strict,
 }
 
+impl Subtyping {
+    fn is_strict(self) -> bool {
+        matches!(self, Self::Strict)
+    }
+}
+
 #[derive(Copy, Clone)]
 enum Kind {
     /// A regular type check.
@@ -322,7 +328,7 @@ impl<'a> TypeChecker<'a> {
             &lhs.arguments,
             &rhs.arguments,
             env,
-            rules,
+            rules.with_strict_subtyping(),
             true,
         ) {
             return false;
@@ -578,7 +584,7 @@ impl<'a> TypeChecker<'a> {
                 TypeRef::Any(right_id) if !rules.kind.is_return() => {
                     self.check_type_enum(left_id, right_id, env, rules)
                 }
-                TypeRef::Ref(right_id) => {
+                TypeRef::Ref(right_id) if !rules.subtyping.is_strict() => {
                     self.check_type_enum(left_id, right_id, env, rules)
                 }
                 TypeRef::Mut(right_id) => self.check_type_enum(
