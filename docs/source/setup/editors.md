@@ -41,3 +41,9 @@ ext install inko-lang.inko
 ```
 
 [ts-grammar]: https://github.com/inko-lang/tree-sitter-inko/
+
+## Zed
+
+[An official extension](https://github.com/inko-lang/zed) is available for Zed.
+To install it, open the Extension Gallery ("Zed > Extensions" in the menu bar)
+and search for `id:inko`.
