@@ -21,11 +21,11 @@ let MILLIS_PER_SEC = 1_000
 
 # The number of days since the start of the year for each month, for a leap
 # year.
-let LEAP_DAYS = [0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 205, 335]
+let LEAP_DAYS = [0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335]
 
 # The number of days since the start of the year for each month, for a regular
 # year.
-let NORMAL_DAYS = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 204, 334]
+let NORMAL_DAYS = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]
 
 let COLON = 58
 let DOT = 46
