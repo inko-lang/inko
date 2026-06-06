@@ -1,4 +1,4 @@
-import std.reflect (size_of)
+import std.reflect (enum_tag, size_of)
 import std.test (Tests)
 
 type copy CopyType {
@@ -316,5 +316,17 @@ fn pub tests(t: mut Tests) {
     t.equal(size_of[Nil], 1)
     t.equal(size_of[EmptyCopyType], 0)
     t.equal(size_of[EmptyInlineType], 0)
+  })
+
+  t.test('reflect.enum_tag', fn (t) {
+    t.equal(enum_tag(InlineEnum.A), 0)
+    t.equal(enum_tag(ref InlineEnum.A), 0)
+    t.equal(enum_tag(InlineEnum.B(10)), 1)
+    t.equal(enum_tag(LargeEnum.V0), 0)
+    t.equal(enum_tag(LargeEnum.V1), 1)
+    t.equal(enum_tag(LargeEnum.V256), 256)
+    t.equal(enum_tag('foo'), 0)
+    t.equal(enum_tag(CopyType(a: 1, b: 2)), 0)
+    t.equal(enum_tag(InlineType(a: 1, b: 2)), 0)
   })
 }

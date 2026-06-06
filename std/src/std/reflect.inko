@@ -8,16 +8,39 @@
 # # Examples
 #
 # ```inko
-# import std.reflect
+# import std.reflect (size_of)
 #
 # type copy Pair {
 #   let @a: Int
 #   let @b: Int
 # }
 #
-# mem.size_of[String] # => 8
-# mem.size_of[Pair]   # => 16
+# size_of[String] # => 8
+# size_of[Pair]   # => 16
 # ```
-fn pub size_of[T] -> Int {
+fn pub inline size_of[T] -> Int {
   _INKO.size_of_type_name(T)
+}
+
+# Returns the value of the tag of an enum.
+#
+# If the value is not an enum, `0` is returned instead.
+#
+# # Examples
+#
+# ```inko
+# import std.reflect (enum_tag)
+#
+# type enum Letter {
+#   case A
+#   case B
+#   case C
+# }
+#
+# enum_tag(Letter.A) # => 0
+# enum_tag(Letter.B) # => 1
+# enum_tag('foo')    # => 0
+# ```
+fn pub inline enum_tag[T](value: ref T) -> Int {
+  _INKO.enum_tag(value)
 }

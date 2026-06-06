@@ -1,7 +1,7 @@
 use crate::mir::{
-    Block, BlockId, Borrow, CallDynamic, CallInstance, CastType, Constant,
-    Drop, Instruction, InstructionLocation, Method, Mir, RegisterId,
-    Type as MirType,
+    Block, BlockId, Borrow, CallDynamic, CallInstance, Cast, CastType,
+    Constant, Drop, GetField, Instruction, InstructionLocation, IntLiteral,
+    Method, Mir, RegisterId, Type as MirType,
 };
 use crate::state::State;
 use indexmap::{IndexMap, IndexSet};
@@ -11,8 +11,9 @@ use types::format::format_type;
 use types::specialize::{Closures, TypeSpecializer};
 use types::{
     Block as _, CALL_METHOD, DECREMENT_METHOD, DROPPER_METHOD, Database,
-    INCREMENT_METHOD, InternedTypeArguments, MethodId, Shape, TraitId,
-    TypeArguments, TypeEnum, TypeId, TypeInstance, TypeRef,
+    ENUM_TAG_INDEX, INCREMENT_METHOD, InternedTypeArguments, Intrinsic,
+    MethodId, Shape, TraitId, TypeArguments, TypeEnum, TypeId, TypeInstance,
+    TypeRef,
 };
 
 fn specialize_constants(
@@ -52,6 +53,62 @@ fn specialize_constants(
         let mod_id = typ.module(db);
 
         mir.modules.get_mut(&mod_id).unwrap().types.push(typ);
+    }
+}
+
+fn expand_enum_tag(db: &Database, method: &mut Method) {
+    for block in &mut method.body.blocks {
+        for idx in 0..(block.instructions.len()) {
+            let ins = &mut block.instructions[idx];
+            let call = match ins {
+                Instruction::CallBuiltin(i) if i.name == Intrinsic::EnumTag => {
+                    i
+                }
+                _ => continue,
+            };
+
+            let arg = call.arguments[0];
+            let Some(typ) = method.registers.value_type(arg).type_id(db) else {
+                continue;
+            };
+
+            let loc = call.location;
+            let reg = call.register;
+
+            if typ.kind(db).is_enum() {
+                let fid = typ.field_by_index(db, ENUM_TAG_INDEX).unwrap();
+                let fty = fid.value_type(db);
+                let tmp = method.registers.alloc(fty);
+
+                *ins = Instruction::GetField(Box::new(GetField {
+                    type_id: typ,
+                    register: tmp,
+                    receiver: arg,
+                    field: fid,
+                    location: loc,
+                }));
+
+                // Tags are either 8 bits or 16 bits unsigned values, so we need
+                // to explicitly cast them to a 64 bits integers.
+                block.instructions.insert(
+                    idx + 1,
+                    Instruction::Cast(Box::new(Cast {
+                        register: reg,
+                        source: tmp,
+                        from: CastType::from(db, fty),
+                        to: CastType::from(db, TypeRef::int()),
+                        location: loc,
+                    })),
+                );
+            } else {
+                *ins = Instruction::Int(Box::new(IntLiteral {
+                    value: 0,
+                    bits: 64,
+                    register: reg,
+                    location: loc,
+                }));
+            }
+        }
     }
 }
 
@@ -486,6 +543,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
 
         ExpandDrop { db: &self.state.db, method }.run();
         ExpandBorrow { db: &self.state.db, method }.run();
+        expand_enum_tag(&self.state.db, method);
     }
 
     fn process_specialized_types(&mut self, mir: &mut Mir) {

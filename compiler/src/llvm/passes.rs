@@ -1752,7 +1752,8 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                     }
                     Intrinsic::Moved
                     | Intrinsic::RefMove
-                    | Intrinsic::MutMove => unreachable!(),
+                    | Intrinsic::MutMove
+                    | Intrinsic::EnumTag => unreachable!(),
                 }
             }
             Instruction::Goto(ins) => {

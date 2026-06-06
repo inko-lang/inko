@@ -2720,6 +2720,7 @@ pub enum Intrinsic {
     IntLeadingZeros,
     IntTrailingZeros,
     Memset,
+    EnumTag,
 }
 
 impl Intrinsic {
@@ -2783,6 +2784,7 @@ impl Intrinsic {
             Intrinsic::IntLeadingZeros,
             Intrinsic::IntTrailingZeros,
             Intrinsic::Memset,
+            Intrinsic::EnumTag,
         ]
         .into_iter()
         .fold(HashMap::new(), |mut map, func| {
@@ -2851,6 +2853,7 @@ impl Intrinsic {
             Intrinsic::IntLeadingZeros => "int_leading_zeros",
             Intrinsic::IntTrailingZeros => "int_trailing_zeros",
             Intrinsic::Memset => "memset",
+            Intrinsic::EnumTag => "enum_tag",
         }
     }
 
@@ -2929,6 +2932,7 @@ impl Intrinsic {
             Intrinsic::IntLeadingZeros => TypeRef::int(),
             Intrinsic::IntTrailingZeros => TypeRef::int(),
             Intrinsic::Memset => TypeRef::nil(),
+            Intrinsic::EnumTag => TypeRef::int(),
         }
     }
 }
