@@ -27,7 +27,7 @@ jobs:
     uses: ./.github/workflows/container.yml
     with:
       name: fedora-arm64
-      dockerfile: fedora
+      dockerfile: fedora-arm64
       runner: ubuntu-24.04-arm
   alpine:
     uses: ./.github/workflows/container.yml

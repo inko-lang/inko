@@ -8,8 +8,10 @@ ENV PATH=/opt/cargo/bin:$PATH
 ENV RUSTUP_HOME=/opt/rustup
 ENV CARGO_HOME=/opt/cargo
 
-RUN sudo dnf copr enable --assumeyes mczernek/vale && \
-    sudo dnf install --assumeyes --quiet rclone vale cargo-deny
+# This is set such that when we compile the runtimes for ARM64 we just use the
+# host musl-gcc, which is for ARM64 anyway (since the build process runs on an
+# ARM64 host).
+ENV CC_aarch64_unknown_linux_musl=musl-gcc
 
 RUN sudo dnf install --assumeyes --quiet gcc make tar git rustup \
     musl-gcc llvm$LLVM_VERSION llvm$LLVM_VERSION-devel \
@@ -19,9 +21,3 @@ RUN sudo dnf install --assumeyes --quiet gcc make tar git rustup \
 RUN rustup-init --quiet -y --no-modify-path --profile minimal \
     --component clippy,rustfmt --default-toolchain $RUST_VERSION \
     && rustup toolchain install $MIN_RUST_VERSION
-
-# idoc targets the latest stable release of Inko, but our tests run against a
-# newer version. This allows us to use an existing idoc executable without
-# having to compile it ourselves.
-COPY --from=ghcr.io/inko-lang/idoc:latest ["/usr/bin/idoc", "/usr/bin/idoc"]
-COPY --from=ghcr.io/inko-lang/idoc:latest ["/usr/share/idoc/assets", "/usr/share/idoc/assets"]

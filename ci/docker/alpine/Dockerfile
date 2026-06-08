@@ -1,11 +1,11 @@
 FROM alpine:3
 
-ENV LLVM_VERSION 18
-ENV RUST_VERSION 1.94
+ENV LLVM_VERSION=18
+ENV RUST_VERSION=1.94
 
-ENV PATH /opt/cargo/bin:$PATH
-ENV RUSTUP_HOME /opt/rustup
-ENV CARGO_HOME /opt/cargo
+ENV PATH=/opt/cargo/bin:$PATH
+ENV RUSTUP_HOME=/opt/rustup
+ENV CARGO_HOME=/opt/cargo
 
 RUN apk add --update build-base tar git rustup \
     llvm$LLVM_VERSION llvm$LLVM_VERSION-dev llvm$LLVM_VERSION-static \
