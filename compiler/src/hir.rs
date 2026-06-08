@@ -2157,16 +2157,23 @@ impl<'a> LowerToHir<'a> {
             input = input.replace('_', "");
         }
 
-        let hex_prefix = if input.starts_with('-') { "-0x" } else { "0x" };
-        let result = if let Some(slice) = input.strip_prefix(hex_prefix) {
-            i64::from_str_radix(slice, 16).map(|v| {
-                if input.starts_with('-') { 0_i64.wrapping_sub(v) } else { v }
-            })
+        let (neg, slice) = if let Some(rem) = input.strip_prefix('-') {
+            (true, rem)
+        } else {
+            (false, input.as_str())
+        };
+
+        let res = if let Some(v) = slice.strip_prefix("0x") {
+            i64::from_str_radix(v, 16)
+                .map(|v| if neg { 0_i64.wrapping_sub(v) } else { v })
+        } else if let Some(v) = slice.strip_prefix("0b") {
+            i64::from_str_radix(v, 2)
+                .map(|v| if neg { 0_i64.wrapping_sub(v) } else { v })
         } else {
             i64::from_str(&input)
         };
 
-        let value = match result {
+        let value = match res {
             Ok(val) => val,
             Err(e) => {
                 self.state.diagnostics.error(
@@ -5843,6 +5850,20 @@ mod tests {
             hir,
             Expression::Int(Box::new(IntLiteral {
                 value: 0xff,
+                resolved_type: types::TypeRef::Unknown,
+                location: cols(8, 11)
+            }))
+        );
+    }
+
+    #[test]
+    fn test_lower_binary_int() {
+        let hir = lower_expr("fn a { 0b11 }").0;
+
+        assert_eq!(
+            hir,
+            Expression::Int(Box::new(IntLiteral {
+                value: 0b11,
                 resolved_type: types::TypeRef::Unknown,
                 location: cols(8, 11)
             }))

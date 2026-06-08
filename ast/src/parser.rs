@@ -6528,7 +6528,6 @@ mod tests {
                 location: cols(1, 2)
             }))
         );
-
         assert_eq!(
             expr("1_0"),
             Expression::Int(Box::new(IntLiteral {
@@ -6536,12 +6535,18 @@ mod tests {
                 location: cols(1, 3)
             }))
         );
-
         assert_eq!(
             expr("-10"),
             Expression::Int(Box::new(IntLiteral {
                 value: "-10".to_string(),
                 location: cols(1, 3)
+            }))
+        );
+        assert_eq!(
+            expr("0b11_11"),
+            Expression::Int(Box::new(IntLiteral {
+                value: "0b11_11".to_string(),
+                location: cols(1, 7)
             }))
         );
     }

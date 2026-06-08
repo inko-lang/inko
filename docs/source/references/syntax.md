@@ -607,6 +607,7 @@ The syntax for integers is as follows:
 ```inko
 10
 0x123
+0b101
 ```
 
 Underscores in integer literals are ignored, and are useful to make large

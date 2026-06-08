@@ -24,6 +24,7 @@ const MINUS: u8 = 45;
 const DOT: u8 = 46;
 const SLASH: u8 = 47;
 const ZERO: u8 = 48;
+const ONE: u8 = 49;
 const NINE: u8 = 57;
 const COLON: u8 = 58;
 const LESS: u8 = 60;
@@ -42,6 +43,7 @@ const BRACKET_CLOSE: u8 = 93;
 const CARET: u8 = 94;
 const UNDERSCORE: u8 = 95;
 const LOWER_A: u8 = 97;
+const LOWER_B: u8 = 98;
 const LOWER_E: u8 = 101;
 const LOWER_F: u8 = 102;
 const LOWER_N: u8 = 110;
@@ -693,19 +695,32 @@ impl Lexer {
         let second = self.next_byte();
         let mut kind = TokenKind::Integer;
 
-        if first == ZERO && (second == LOWER_X || second == UPPER_X) {
-            // Advance 2 for "0x"
-            self.position += 2;
+        match (first, second) {
+            (ZERO, LOWER_X | UPPER_X) => {
+                // Advance 2 for "0x"
+                self.position += 2;
 
-            while let ZERO..=NINE
-            | LOWER_A..=LOWER_F
-            | UPPER_A..=UPPER_F
-            | UNDERSCORE = self.current_byte()
-            {
-                self.position += 1;
+                while let ZERO..=NINE
+                | LOWER_A..=LOWER_F
+                | UPPER_A..=UPPER_F
+                | UNDERSCORE = self.current_byte()
+                {
+                    self.position += 1;
+                }
+
+                return self.token(kind, start, line);
             }
+            (ZERO, LOWER_B) => {
+                // Advance 2 for "0b"
+                self.position += 2;
 
-            return self.token(kind, start, line);
+                while let ZERO | ONE | UNDERSCORE = self.current_byte() {
+                    self.position += 1;
+                }
+
+                return self.token(kind, start, line);
+            }
+            _ => {}
         }
 
         loop {
@@ -1409,6 +1424,7 @@ mod tests {
         assert_token!("10x", Integer, "10", 1..=1, 1..=2);
         assert_token!("10_20_30", Integer, "10_20_30", 1..=1, 1..=8);
         assert_token!("0xaf", Integer, "0xaf", 1..=1, 1..=4);
+        assert_token!("0b111", Integer, "0b111", 1..=1, 1..=5);
         assert_token!("0xFF", Integer, "0xFF", 1..=1, 1..=4);
         assert_token!("0xF_F", Integer, "0xF_F", 1..=1, 1..=5);
         assert_token!("10Ea", Integer, "10", 1..=1, 1..=2);
