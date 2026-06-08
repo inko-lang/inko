@@ -9,7 +9,7 @@ ENV RUSTUP_HOME=/opt/rustup
 ENV CARGO_HOME=/opt/cargo
 
 RUN sudo dnf copr enable --assumeyes mczernek/vale && \
-    sudo dnf install --assumeyes --quiet rclone vale cargo-deny
+    sudo dnf install --assumeyes --quiet rclone vale
 
 RUN sudo dnf install --assumeyes --quiet gcc make tar git rustup \
     musl-gcc llvm$LLVM_VERSION llvm$LLVM_VERSION-devel \

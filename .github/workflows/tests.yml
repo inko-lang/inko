@@ -21,7 +21,7 @@ jobs:
   cargo-deny:
     runs-on: ubuntu-24.04
     container:
-      image: ghcr.io/inko-lang/ci:fedora-amd64
+      image: ghcr.io/inko-lang/ci:alpine
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       - name: Run cargo-deny
