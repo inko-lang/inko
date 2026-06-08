@@ -11,21 +11,21 @@ env:
 jobs:
   vale:
     runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/inko-lang/ci:fedora-amd64
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
-      - uses: errata-ai/vale-action@d89dee975228ae261d22c15adcd03578634d429c
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          version: 3.9.3
-          reporter: github-check
-          vale_flags: '--no-wrap --sort'
+      - name: Run vale
+        run: vale --no-wrap --sort .
 
   cargo-deny:
     runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/inko-lang/ci:fedora-amd64
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
-      - uses: EmbarkStudios/cargo-deny-action@91bf2b620e09e18d6eb78b92e7861937469acedb
+      - name: Run cargo-deny
+        run: cargo deny check
 
   cargo-clippy:
     runs-on: ubuntu-24.04

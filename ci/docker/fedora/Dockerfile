@@ -13,7 +13,10 @@ ENV CARGO_HOME /opt/cargo
 # ARM64 host).
 ENV CC_aarch64_unknown_linux_musl=musl-gcc
 
-RUN sudo dnf install --assumeyes --quiet gcc make tar git rustup rclone \
+RUN sudo dnf copr enable --assumeyes mczernek/vale && \
+    sudo dnf install --assumeyes --quiet rustup rclone vale cargo-deny
+
+RUN sudo dnf install --assumeyes --quiet gcc make tar git \
     musl-gcc llvm$LLVM_VERSION llvm$LLVM_VERSION-devel \
     llvm$LLVM_VERSION-static libstdc++-devel libstdc++-static \
     libffi-devel zlib-devel
