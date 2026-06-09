@@ -1,0 +1,265 @@
+# The BLAKE2 hash function.
+#
+# This module provides an implementation of the BLAKE2b hash function as
+# specified in [RFC 7693](https://www.rfc-editor.org/rfc/rfc7693.html), using
+# the C implementation provided by the RFC as its reference.
+#
+# Unlike the implementation of the RFC, the `Blake2b` type provided by this
+# module always produced digests of 64 bytes. An implementation of BLAKE2s is
+# not provided nor planned.
+#
+# For more information, refer to the documentation of the `Blake2b` type.
+import std.alloc
+import std.bytes (Bytes)
+import std.crypto.hash (Hash, Hasher)
+import std.ptr
+
+let OUT_LEN = 64
+let IV = [
+  7640891576956012808, -4942790177534073029, 4354685564936845355,
+  -6534734903238641935, 5840696475078001361, -7276294671716946913,
+  2270897969802886507, 6620516959819538809,
+]
+
+let SIGMA = [
+  [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+  [14, 10, 4, 8, 9, 15, 13, 6, 1, 12, 0, 2, 11, 7, 5, 3],
+  [11, 8, 12, 0, 5, 2, 15, 13, 10, 14, 3, 6, 7, 1, 9, 4],
+  [7, 9, 3, 1, 13, 12, 11, 14, 2, 6, 5, 10, 4, 0, 15, 8],
+  [9, 0, 5, 7, 2, 4, 10, 15, 14, 1, 11, 12, 6, 8, 3, 13],
+  [2, 12, 6, 10, 0, 11, 8, 3, 4, 13, 7, 5, 15, 14, 1, 9],
+  [12, 5, 1, 15, 14, 13, 4, 10, 0, 7, 6, 3, 9, 2, 8, 11],
+  [13, 11, 7, 14, 12, 1, 3, 9, 5, 0, 15, 4, 8, 6, 2, 10],
+  [6, 15, 14, 9, 11, 3, 0, 8, 12, 2, 13, 7, 1, 4, 10, 5],
+  [10, 2, 8, 4, 7, 6, 1, 5, 15, 11, 9, 14, 3, 12, 13, 0],
+  [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+  [14, 10, 4, 8, 9, 15, 13, 6, 1, 12, 0, 2, 11, 7, 5, 3],
+]
+
+fn invalid_key_size -> Never {
+  panic('the secret key must not be greater than 64 bytes')
+}
+
+fn inline rotate(x: Int, y: Int) -> Int {
+  x.rotate_right(y)
+}
+
+fn inline g(v: BufPtr, a: Int, b: Int, c: Int, d: Int, x: Int, y: Int) {
+  v.set(a, v.get(a).wrapping_add(v.get(b)).wrapping_add(x))
+  v.set(d, rotate(v.get(d) ^ v.get(a), 32))
+  v.set(c, v.get(c).wrapping_add(v.get(d)))
+  v.set(b, rotate(v.get(b) ^ v.get(c), 24))
+
+  v.set(a, v.get(a).wrapping_add(v.get(b)).wrapping_add(y))
+  v.set(d, rotate(v.get(d) ^ v.get(a), 16))
+  v.set(c, v.get(c).wrapping_add(v.get(d)))
+  v.set(b, rotate(v.get(b) ^ v.get(c), 63))
+}
+
+# A pointer to the work variables.
+type copy BufPtr {
+  let @inner: Pointer[Int]
+
+  fn inline mut set(index: Int, value: Int) {
+    ptr.add(@inner, index).0 = value
+  }
+
+  fn inline mut get(index: Int) -> Int {
+    ptr.add(@inner, index).0
+  }
+}
+
+# The 128 byte buffer used by Blake2.
+#
+# We use a type of 16 integers so we don't have to manually define 128 byte
+# fields, and so we don't need to allocate extra memory at runtime.
+type extern Buf {
+  let @v0: Int
+  let @v1: Int
+  let @v2: Int
+  let @v3: Int
+  let @v4: Int
+  let @v5: Int
+  let @v6: Int
+  let @v7: Int
+  let @v8: Int
+  let @v9: Int
+  let @v10: Int
+  let @v11: Int
+  let @v12: Int
+  let @v13: Int
+  let @v14: Int
+  let @v15: Int
+}
+
+type extern Chained {
+  let @v0: Int
+  let @v1: Int
+  let @v2: Int
+  let @v3: Int
+  let @v4: Int
+  let @v5: Int
+  let @v6: Int
+  let @v7: Int
+}
+
+# A Blake2b hasher.
+#
+# To create a hasher without a secret key, use `Blake2b.new`. If a custom secret
+# key _is_ desired you should use `Blake2b.with_key` instead.
+#
+# The size of the produced digest is always 64 bytes (= 512 bits).
+type pub Blake2b {
+  let @b: Buf
+  let @h: Chained
+  let mut @lo: Int
+  let mut @hi: Int
+  let mut @c: Int
+
+  # Generates a hash for the given bytes.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.crypto.blake2 (Blake2b)
+  #
+  # Blake2b.hash('abc').to_string.size # => 128
+  # ```
+  fn pub static hash[B: Bytes](bytes: ref B) -> Hash {
+    let hasher = new
+
+    hasher.write(bytes)
+    hasher.finish
+  }
+
+  # Returns a new hasher without a secret key.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.crypto.blake2 (Blake2b)
+  #
+  # let hasher = Blake2b.new
+  #
+  # hasher.write('abc')
+  # hasher.finish.to_string.size # => 128
+  # ```
+  fn pub static new -> Self {
+    with_key('')
+  }
+
+  # Returns a new hasher using the given secret key.
+  #
+  # # Panics
+  #
+  # This method panics if `key` is greater than 64 bytes.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.crypto.blake2 (Blake2b)
+  #
+  # let hasher = Blake2b.with_key('hello')
+  #
+  # hasher.write('abc')
+  # hasher.finish.to_string.size # => 128
+  # ```
+  fn pub static with_key[B: Bytes](key: ref B) -> Self {
+    let len = key.size
+
+    if len > 64 { invalid_key_size }
+
+    let ins = Self(b: Buf(), h: Chained(), lo: 0, hi: 0, c: 0)
+
+    alloc.copy(from: IV.pointer, to: ins.h as Pointer[Int], size: 8)
+    ins.h.v0 ^= 0x01010000 ^ (len << 8) ^ OUT_LEN
+
+    if len > 0 {
+      ins.write(key)
+      ins.c = 128
+    }
+
+    ins
+  }
+
+  fn mut compress(last: Bool) {
+    let v_buf = Buf()
+    let v = BufPtr((mut v_buf) as Pointer[Int])
+    let m_buf = Buf()
+    let m = BufPtr((mut m_buf) as Pointer[Int])
+
+    alloc.copy(from: @h as Pointer[Int], to: v.inner, size: 8)
+    alloc.copy(from: IV.pointer, to: ptr.add(v.inner, 8), size: 8)
+
+    v_buf.v12 ^= @lo
+    v_buf.v13 ^= @hi
+
+    if last { v_buf.v14 = v_buf.v14.not }
+
+    alloc.copy(from: @b as Pointer[Int], to: m.inner, size: 16)
+
+    12.times(fn (i) {
+      let s = SIGMA.get_unchecked(i)
+
+      g(v, 0, 4, 8, 12, m.get(s.get_unchecked(0)), m.get(s.get_unchecked(1)))
+      g(v, 1, 5, 9, 13, m.get(s.get_unchecked(2)), m.get(s.get_unchecked(3)))
+      g(v, 2, 6, 10, 14, m.get(s.get_unchecked(4)), m.get(s.get_unchecked(5)))
+      g(v, 3, 7, 11, 15, m.get(s.get_unchecked(6)), m.get(s.get_unchecked(7)))
+      g(v, 0, 5, 10, 15, m.get(s.get_unchecked(8)), m.get(s.get_unchecked(9)))
+      g(v, 1, 6, 11, 12, m.get(s.get_unchecked(10)), m.get(s.get_unchecked(11)))
+      g(v, 2, 7, 8, 13, m.get(s.get_unchecked(12)), m.get(s.get_unchecked(13)))
+      g(v, 3, 4, 9, 14, m.get(s.get_unchecked(14)), m.get(s.get_unchecked(15)))
+    })
+
+    @h.v0 ^= v.get(0) ^ v.get(8)
+    @h.v1 ^= v.get(1) ^ v.get(9)
+    @h.v2 ^= v.get(2) ^ v.get(10)
+    @h.v3 ^= v.get(3) ^ v.get(11)
+    @h.v4 ^= v.get(4) ^ v.get(12)
+    @h.v5 ^= v.get(5) ^ v.get(13)
+    @h.v6 ^= v.get(6) ^ v.get(14)
+    @h.v7 ^= v.get(7) ^ v.get(15)
+  }
+}
+
+impl Hasher for Blake2b {
+  fn pub mut write[B: Bytes](bytes: ref B) {
+    let inp = bytes.pointer
+    let buf = @b as Pointer[Uint8]
+
+    bytes.size.times(fn (i) {
+      if @c == 128 {
+        @lo = @lo.wrapping_add(@c)
+
+        if @lo < @c { @hi = @hi.wrapping_add(1) }
+
+        compress(last: false)
+        @c = 0
+      }
+
+      ptr.add(buf, @c := @c.wrapping_add(1)).0 = ptr.add(inp, i).0
+    })
+  }
+
+  fn pub move finish -> Hash {
+    @lo = @lo.wrapping_add(@c)
+
+    if @lo < @c { @hi = @hi.wrapping_add(1) }
+
+    let buf = @b as Pointer[Uint8]
+    let out = ByteArray.filled(with: 0, times: OUT_LEN)
+
+    if @c < 128 {
+      alloc.zero(pointer: ptr.add(buf, @c), size: 128 - @c)
+      @c = 128
+    }
+
+    compress(last: true)
+
+    OUT_LEN.times(fn (i) {
+      out.set(i, ptr.add(@h as Pointer[Int], i >> 3).0 >>> (8 * (i & 7)) & 0xFF)
+    })
+
+    Hash.new(out)
+  }
+}

@@ -1,0 +1,129 @@
+import std.crypto.blake2 (Blake2b)
+import std.int
+import std.test (Tests)
+
+fn decode(input: String) -> ByteArray {
+  let mut idx = 0
+  let mut buf = ByteArray.new
+
+  while idx < input.size {
+    let chunk = input.slice(idx, idx + 2)
+
+    buf.push(Int.parse(chunk, int.Format.Hex).get)
+    idx += 2
+  }
+
+  buf
+}
+
+fn pub tests(t: mut Tests) {
+  t.test('Blake2b.hash', fn (t) {
+    t.equal(
+      Blake2b.hash('abc').to_string,
+      'ba80a53f981c4d0d6a2797b69f12f6e94c212f14685ac4b74b12bb6fdbffa2d17d87c5392aab792dc252d5de4533cc9518d38aa8dbf1925ab92386edd4009923',
+    )
+  })
+
+  t.test('Blake2b.new', fn (t) {
+    let h = Blake2b.new
+
+    t.equal(h.b.v0, 0)
+    t.equal(h.b.v1, 0)
+    t.equal(h.b.v2, 0)
+    t.equal(h.b.v3, 0)
+    t.equal(h.b.v4, 0)
+    t.equal(h.b.v5, 0)
+    t.equal(h.b.v6, 0)
+    t.equal(h.b.v7, 0)
+
+    t.equal(h.h.v0, 7640891576939301192)
+    t.equal(h.h.v1, -4942790177534073029)
+    t.equal(h.h.v2, 4354685564936845355)
+    t.equal(h.h.v3, -6534734903238641935)
+    t.equal(h.h.v4, 5840696475078001361)
+    t.equal(h.h.v5, -7276294671716946913)
+    t.equal(h.h.v6, 2270897969802886507)
+    t.equal(h.h.v7, 6620516959819538809)
+
+    t.equal(h.c, 0)
+  })
+
+  t.panic('Blake2b.with_key with an invalid key size', fn {
+    Blake2b.with_key('m'.repeat(128))
+  })
+
+  t.test('Blake2b.write', fn (t) {
+    let exp = 'ba80a53f981c4d0d6a2797b69f12f6e94c212f14685ac4b74b12bb6fdbffa2d17d87c5392aab792dc252d5de4533cc9518d38aa8dbf1925ab92386edd4009923'
+    let h1 = Blake2b.new
+    let h2 = Blake2b.new
+    let h3 = Blake2b.new
+
+    h1.write('a')
+    h1.write('b')
+    h1.write('c')
+    h2.write('ab')
+    h2.write('c')
+    h3.write('abc')
+
+    t.equal(h1.finish.to_string, exp)
+    t.equal(h2.finish.to_string, exp)
+    t.equal(h3.finish.to_string, exp)
+  })
+
+  t.test('Blake2b.finish', fn (t) {
+    let tests = [
+      (
+        '616263',
+        '',
+        'ba80a53f981c4d0d6a2797b69f12f6e94c212f14685ac4b74b12bb6fdbffa2d17d87c5392aab792dc252d5de4533cc9518d38aa8dbf1925ab92386edd4009923',
+      ),
+      (
+        '',
+        '',
+        '786a02f742015903c6c6fd852552d272912f4740e15847618a86e217f71f5419d25e1031afee585313896444934eb04b903a685b1448b755d56f701afe9be2ce',
+      ),
+      (
+        '00',
+        '',
+        '2fa3f686df876995167e7c2e5d74c4c7b6e48f8068fe0e44208344d480f7904c36963e44115fe3eb2a3ac8694c28bcb4f5a0f3276f2e79487d8219057a506e4b',
+      ),
+      (
+        '0001',
+        '',
+        '1c08798dc641aba9dee435e22519a4729a09b2bfe0ff00ef2dcd8ed6f8a07d15eaf4aee52bbf18ab5608a6190f70b90486c8a7d4873710b1115d3debbb4327b5',
+      ),
+      (
+        '000102',
+        '',
+        '40a374727302d9a4769c17b5f409ff32f58aa24ff122d7603e4fda1509e919d4107a52c57570a6d94e50967aea573b11f86f473f537565c66f7039830a85d186',
+      ),
+      (
+        '00010203',
+        '',
+        '77ddf4b14425eb3d053c1e84e3469d92c4cd910ed20f92035e0c99d8a7a86cecaf69f9663c20a7aa230bc82f60d22fb4a00b09d3eb8fc65ef547fe63c8d3ddce',
+      ),
+      (
+        '000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a',
+        '',
+        '1e5c62e7e9bfa1b118747a2de08b3ca10112af96a46e4b22c3fc06f9bfee4eb5c49e057a4a4886234324572576bb9b5ecfde0d99b0de4f98ec16e4d1b85fa947',
+      ),
+      (
+        '000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfe',
+        '',
+        '5b21c5fd8868367612474fa2e70e9cfa2201ffeee8fafab5797ad58fefa17c9b5b107da4a3db6320baaf2c8617d5a51df914ae88da3867c2d41f0cc14fa67928',
+      ),
+      (
+        '0001',
+        '000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f',
+        'da2cfbe2d8409a0f38026113884f84b50156371ae304c4430173d08a99d9fb1b983164a3770706d537f49e0c916d9f32b95cc37a95b99d857436f0232c88a965',
+      ),
+    ]
+
+    for (inp, key, exp) in tests {
+      let h = Blake2b.with_key(decode(key))
+
+      h.write(decode(inp))
+      t.equal(h.finish.to_string, exp)
+    }
+  })
+}

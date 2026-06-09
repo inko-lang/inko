@@ -365,12 +365,11 @@ type builtin Int {
   #   i # => 0, 1, 2, 3
   # }
   # ```
-  fn pub times(block: fn (Int)) {
+  fn pub inline times(block: fn (Int)) {
     let mut index = 0
 
     while index < self {
       block.call(index)
-
       index += 1
     }
   }
@@ -481,9 +480,6 @@ type builtin Int {
   }
 
   # Returns the result of performing a bitwise `NOT` on `self`.
-  #
-  # As Inko doesn't support unary operators besides `not` (which only supports
-  # booleans), this is just a regular method.
   #
   # # Examples
   #

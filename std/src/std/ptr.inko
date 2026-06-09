@@ -129,10 +129,10 @@ fn equal(left: Pointer[Uint8], right: Pointer[Uint8], size: Int) -> Bool {
 }
 
 # Takes a pointer and increments it offset by `amount` _values_.
-fn add[T](pointer: Pointer[T], amount: Int) -> Pointer[T] {
+fn inline add[T](pointer: Pointer[T], amount: Int) -> Pointer[T] {
   pointer as Int + (amount * size_of[T]) as Pointer[T]
 }
 
-fn null -> Pointer[Uint8] {
+fn inline null -> Pointer[Uint8] {
   0x0 as Pointer[Uint8]
 }
