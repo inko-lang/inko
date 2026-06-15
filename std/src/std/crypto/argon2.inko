@@ -1,0 +1,190 @@
+import std.alloc
+import std.bytes (Bytes)
+import std.crypto.blake2 (Blake2b)
+import std.crypto.hash (Hash)
+import std.endian.little
+import std.ptr
+
+let U32_MAX = 2 ** 32 - 1
+
+# The Argon2 version.
+let VERSION = 0x13
+
+# The type tag to use for Argon2id.
+let TYPE_2ID = 2
+
+# The size of a single block in bytes.
+let BLOCK_SIZE = 1024
+
+fn invalid_memory_size(value: Int) -> Never {
+  panic('the memory size ${value} bytes is invalid')
+}
+
+fn invalid_iterations(value: Int) -> Never {
+  panic('the iteration count ${value} is invalid')
+}
+
+fn invalid_output_size(value: Int) -> Never {
+  panic('the output size ${value} is invalid')
+}
+
+fn invalid_secret_size(value: Int) -> Never {
+  panic('the secret key size ${value} is invalid')
+}
+
+# The Argon2 password function.
+#
+# This module provides an implementation of Argon2id as specified in
+# [RFC 9106](https://www.rfc-editor.org/rfc/rfc9106.html).
+#
+# This module _does not_ provide an implementation of Argon2d or Argon2i, only
+# Argon2id is implemented.
+
+# The Argon2id password function.
+type pub Argon2id {
+  let mut @secret: Option[ref ByteArray]
+  let @buf: ByteArray
+
+  # The memory size in _kilobytes_/_kibibytes_.
+  let @mem: Int
+
+  # The amount of iterations/passes to perform.
+  let @iters: Int
+
+  # The desired output size.
+  let @size: Int
+
+  # Returns a new `Argon2id` using the default settings.
+  #
+  # The default settings are as follows and are based on the [OWASP
+  # cheatsheet](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#argon2id),
+  # with memory rounded up to 16 MiB to make capacity planning a little easier:
+  #
+  # - 16 MiB of memory
+  # - 3 iterations
+  # - 32 bytes of output
+  #
+  # In other words, calling this method is the same as calling `Argon2id.with`
+  # as follows:
+  #
+  # ```inko
+  # import std.crypto.argon2 (Argon2id)
+  #
+  # Argon2id.with(memory: 16 * 1024 * 1024, iterations: 3, size: 32)
+  # ```
+  fn pub static new -> Self {
+    with(memory: 16 * 1024 * 1024, iterations: 3, size: 32)
+  }
+
+  # Returns a new `Argon2id` using the given custom settings.
+  #
+  # The `memory` argument specifies the amount of memory to use in _bytes_,
+  # increasing the memory cost as this value increases.
+  #
+  # The `iterations` argument specifies the number of iterations to perform,
+  # increasing the CPU cost as this value increases.
+  #
+  # The `size` argument specifies the size (in bytes) of the produced password
+  # hash.
+  #
+  # To specify the secret key (also known as a "pepper"), create an `Argon2id`
+  # instance then use `Argon2id.secret=` to set the secret key.
+  #
+  # # Panics
+  #
+  # This method panics if any of the following is true:
+  #
+  # - `memory` is less than 0 or greater than 2³²-1
+  # - `iterations` is less than 1 or greater than 2³²-1
+  # - `size` is less than 8 or greater than 2³²-1
+  fn pub static with(memory: Int, iterations: Int, size: Int) -> Self {
+    if memory < 0 or memory > U32_MAX { invalid_memory_size(memory) }
+
+    if iterations < 1 or iterations > U32_MAX { invalid_iterations(iterations) }
+
+    if size < 0 or size > U32_MAX { invalid_output_size(size) }
+
+    Self(
+      buf: ByteArray.filled(with: 0, times: 4),
+      mem: memory / 1024,
+      iters: iterations,
+      size: size,
+      secret: Option.None,
+    )
+  }
+
+  # Sets the secret key (= a "pepper") to use for hashing passwords.
+  #
+  # # Panics
+  #
+  # This method panics if `value` is greater than 2³²-1 bytes.
+  fn pub mut secret=(value: ref ByteArray) {
+    if value.size > U32_MAX { invalid_secret_size(value.size) }
+
+    @secret = Option.Some(value)
+  }
+
+  # Hashes the password and salt and returns the hashed password as a `String`.
+  #
+  # The `password` argument is the raw password to hash. The `salt` argument
+  # _must_ be a salt that is randomly generated using a cryptographically secure
+  # random number generator such as `std.rand.Random`. It _must_ be unique for
+  # each password.
+  #
+  # # Panics
+  #
+  # This method panics if any of the following is true:
+  #
+  # - `password` is greater than 2³²-1 bytes
+  # - `salt` is greater than 2³²-1 bytes
+  fn pub mut hash[B: Bytes, S: Bytes](password: ref B, salt: ref S) -> String {
+    let h0 = init(password, salt)
+    let m_ = @mem - (@mem % 4)
+    let b: Pointer[Uint8] = alloc.allocate(m_ * BLOCK_SIZE)
+    let rows = 1
+    let q = m_
+
+    for i in 0.until(rows) {
+      # TODO
+    }
+
+    'TODO'
+  }
+
+  fn mut init[B: Bytes, S: Bytes](password: ref B, salt: ref S) -> Hash {
+    let h = Blake2b.new
+
+    # Parallelism is always set to 1 so we don't need to spawn a bunch of
+    # processes when hashing passwords. While doing so _could_ speed things up,
+    # it's not really necessary for a password hashing function and complicates
+    # the implementation too much.
+    hash_i32(h, 1)
+    hash_i32(h, @size)
+    hash_i32(h, @mem)
+    hash_i32(h, @iters)
+    hash_i32(h, VERSION)
+    hash_i32(h, TYPE_2ID)
+    hash_i32(h, password.size)
+    h.write(password)
+    hash_i32(h, salt.size)
+    h.write(salt)
+
+    match @secret {
+      case Some(v) -> {
+        hash_i32(h, v.size)
+        h.write(v)
+      }
+      case _ -> hash_i32(h, value: 0)
+    }
+
+    # The optional associated data. It's unclear what the actual use is of this
+    # so we don't support specifying a custom value.
+    hash_i32(h, value: 0)
+    h.finish
+  }
+
+  fn inline mut hash_i32(hasher: mut Blake2b, value: Int) {
+    little.write_i32(value, into: @buf, at: 0)
+    hasher.write(@buf)
+  }
+}
