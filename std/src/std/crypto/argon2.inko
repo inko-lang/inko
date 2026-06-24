@@ -1,0 +1,870 @@
+# The Argon2id password function.
+#
+# This module provides an implementation of Argon2id as specified in
+# [RFC 9106](https://www.rfc-editor.org/rfc/rfc9106.html), and using the
+# following sources as an additional reference:
+#
+# - <https://git.sr.ht/~sircmpwn/hare/tree/master/item/crypto/argon2/argon2.ha>
+# - <https://github.com/odin-lang/Odin/blob/master/core/crypto/argon2id/argon2id.odin>
+# - <https://github.com/bwesterb/argon2pure/blob/master/argon2pure.py>
+# - <https://en.wikipedia.org/wiki/Argon2#Algorithm>
+#
+# This module _does not_ provide an implementation of Argon2d or Argon2i, only
+# Argon2id is implemented.
+#
+# For more information refer to the documentation of the `Argon2` type.
+import std.alloc
+import std.base64 (Decoder, Encoder)
+import std.bytes (Bytes, Slice, ToSlice)
+import std.cmp (Equal, min)
+import std.crypto.blake2 (Blake2b, DIGEST_SIZE)
+import std.crypto.math (U64, to_u32)
+import std.drop (Drop)
+import std.endian.little
+import std.fmt (Format, Formatter)
+import std.int
+import std.ptr
+import std.string (ToString)
+
+let U32_MAX = 2 ** 32 - 1
+
+# The Argon2 version.
+let VERSION = 0x13
+
+# The type tag to use for Argon2id.
+let TYPE_2ID = 2
+
+# The size (in bytes) of a single block.
+let BLOCK_SIZE = 1024
+let BLOCK_INTS = 128
+let SLICES = 4
+
+fn invalid_memory_size(value: Int) -> Never {
+  panic('the memory size ${value} bytes is invalid')
+}
+
+fn invalid_iterations(value: Int) -> Never {
+  panic('the iteration count ${value} is invalid')
+}
+
+fn invalid_output_size(value: Int) -> Never {
+  panic('the output size ${value} is invalid')
+}
+
+fn invalid_secret_size(value: Int) -> Never {
+  panic('the secret key size ${value} is invalid')
+}
+
+fn invalid_associated_data_size(value: Int) -> Never {
+  panic('the associated data size ${value} is invalid')
+}
+
+fn invalid_parallel(value: Int) -> Never {
+  panic('the amount of parallel processes ${value} is invalid')
+}
+
+fn invalid_password_or_salt_size -> Never {
+  panic('passwords and salts must not be larger than ${U32_MAX} bytes')
+}
+
+fn hash_into[B: Bytes](hasher: Blake2b, buffer: ref B) {
+  let hash = hasher.finish.into_byte_array
+
+  alloc.copy(from: hash.pointer, to: buffer.pointer, size: hash.size)
+}
+
+fn perm(
+  x0: Pointer[U64],
+  x1: Pointer[U64],
+  x2: Pointer[U64],
+  x3: Pointer[U64],
+  x4: Pointer[U64],
+  x5: Pointer[U64],
+  x6: Pointer[U64],
+  x7: Pointer[U64],
+  x8: Pointer[U64],
+  x9: Pointer[U64],
+  x10: Pointer[U64],
+  x11: Pointer[U64],
+  x12: Pointer[U64],
+  x13: Pointer[U64],
+  x14: Pointer[U64],
+  x15: Pointer[U64],
+) {
+  mix(x0, x4, x8, x12)
+  mix(x1, x5, x9, x13)
+  mix(x2, x6, x10, x14)
+  mix(x3, x7, x11, x15)
+
+  mix(x0, x5, x10, x15)
+  mix(x1, x6, x11, x12)
+  mix(x2, x7, x8, x13)
+  mix(x3, x4, x9, x14)
+}
+
+fn mix(a: Pointer[U64], b: Pointer[U64], c: Pointer[U64], d: Pointer[U64]) {
+  a.0 = a.0 + b.0 + (U64(2) * a.0.to_u32 * b.0.to_u32)
+  d.0 = (d.0 ^ a.0).rotate_right(32)
+  c.0 = c.0 + d.0 + (U64(2) * c.0.to_u32 * d.0.to_u32)
+  b.0 = (b.0 ^ c.0).rotate_right(24)
+
+  a.0 = a.0 + b.0 + (U64(2) * a.0.to_u32 * b.0.to_u32)
+  d.0 = (d.0 ^ a.0).rotate_right(16)
+  c.0 = c.0 + d.0 + (U64(2) * c.0.to_u32 * d.0.to_u32)
+  b.0 = (b.0 ^ c.0).rotate_right(63)
+}
+
+fn compress(dest: BlockPtr, x: BlockPtr, y: BlockPtr, xor: Bool) {
+  let r_buf = Block()
+  let r = BlockPtr(mut r_buf)
+
+  xor_block(r, x, y)
+
+  let z_buf = r_buf
+  let z = BlockPtr(mut z_buf)
+
+  for i in 0.until(128).step_by(16) {
+    perm(
+      z.at(i),
+      z.at(i + 1),
+      z.at(i + 2),
+      z.at(i + 3),
+      z.at(i + 4),
+      z.at(i + 5),
+      z.at(i + 6),
+      z.at(i + 7),
+      z.at(i + 8),
+      z.at(i + 9),
+      z.at(i + 10),
+      z.at(i + 11),
+      z.at(i + 12),
+      z.at(i + 13),
+      z.at(i + 14),
+      z.at(i + 15),
+    )
+  }
+
+  for i in 0.until(16).step_by(2) {
+    perm(
+      z.at(i),
+      z.at(i + 1),
+      z.at(i + 16),
+      z.at(i + 17),
+      z.at(i + 32),
+      z.at(i + 33),
+      z.at(i + 48),
+      z.at(i + 49),
+      z.at(i + 64),
+      z.at(i + 65),
+      z.at(i + 80),
+      z.at(i + 81),
+      z.at(i + 96),
+      z.at(i + 97),
+      z.at(i + 112),
+      z.at(i + 113),
+    )
+  }
+
+  if xor { xor_block(r, r, dest) }
+
+  xor_block(dest, z, r)
+}
+
+fn xor_block(dest: BlockPtr, x: BlockPtr, y: BlockPtr) {
+  for i in 0.until(BLOCK_INTS) { dest.set(i, x.get(i) ^ y.get(i)) }
+}
+
+fn xor_bytes(dest: BlockPtr, x: BlockPtr, y: BlockPtr) {
+  for i in 0.until(BLOCK_SIZE) { dest.set_u8(i, x.u8(i) ^ y.u8(i)) }
+}
+
+fn zero_block(pointer: Pointer[Block]) {
+  alloc.zero(pointer as Pointer[Uint8], BLOCK_SIZE)
+}
+
+# Until https://github.com/inko-lang/inko/issues/975 is resolved we have to
+# manually define array-like types as extern structs with many individual
+# fields.
+type extern Block {
+  let @v0: U64
+  let @v1: U64
+  let @v2: U64
+  let @v3: U64
+  let @v4: U64
+  let @v5: U64
+  let @v6: U64
+  let @v7: U64
+  let @v8: U64
+  let @v9: U64
+  let @v10: U64
+  let @v11: U64
+  let @v12: U64
+  let @v13: U64
+  let @v14: U64
+  let @v15: U64
+  let @v16: U64
+  let @v17: U64
+  let @v18: U64
+  let @v19: U64
+  let @v20: U64
+  let @v21: U64
+  let @v22: U64
+  let @v23: U64
+  let @v24: U64
+  let @v25: U64
+  let @v26: U64
+  let @v27: U64
+  let @v28: U64
+  let @v29: U64
+  let @v30: U64
+  let @v31: U64
+  let @v32: U64
+  let @v33: U64
+  let @v34: U64
+  let @v35: U64
+  let @v36: U64
+  let @v37: U64
+  let @v38: U64
+  let @v39: U64
+  let @v40: U64
+  let @v41: U64
+  let @v42: U64
+  let @v43: U64
+  let @v44: U64
+  let @v45: U64
+  let @v46: U64
+  let @v47: U64
+  let @v48: U64
+  let @v49: U64
+  let @v50: U64
+  let @v51: U64
+  let @v52: U64
+  let @v53: U64
+  let @v54: U64
+  let @v55: U64
+  let @v56: U64
+  let @v57: U64
+  let @v58: U64
+  let @v59: U64
+  let @v60: U64
+  let @v61: U64
+  let @v62: U64
+  let @v63: U64
+  let @v64: U64
+  let @v65: U64
+  let @v66: U64
+  let @v67: U64
+  let @v68: U64
+  let @v69: U64
+  let @v70: U64
+  let @v71: U64
+  let @v72: U64
+  let @v73: U64
+  let @v74: U64
+  let @v75: U64
+  let @v76: U64
+  let @v77: U64
+  let @v78: U64
+  let @v79: U64
+  let @v80: U64
+  let @v81: U64
+  let @v82: U64
+  let @v83: U64
+  let @v84: U64
+  let @v85: U64
+  let @v86: U64
+  let @v87: U64
+  let @v88: U64
+  let @v89: U64
+  let @v90: U64
+  let @v91: U64
+  let @v92: U64
+  let @v93: U64
+  let @v94: U64
+  let @v95: U64
+  let @v96: U64
+  let @v97: U64
+  let @v98: U64
+  let @v99: U64
+  let @v100: U64
+  let @v101: U64
+  let @v102: U64
+  let @v103: U64
+  let @v104: U64
+  let @v105: U64
+  let @v106: U64
+  let @v107: U64
+  let @v108: U64
+  let @v109: U64
+  let @v110: U64
+  let @v111: U64
+  let @v112: U64
+  let @v113: U64
+  let @v114: U64
+  let @v115: U64
+  let @v116: U64
+  let @v117: U64
+  let @v118: U64
+  let @v119: U64
+  let @v120: U64
+  let @v121: U64
+  let @v122: U64
+  let @v123: U64
+  let @v124: U64
+  let @v125: U64
+  let @v126: U64
+  let @v127: U64
+}
+
+type copy BlockPtr {
+  let @inner: Pointer[Block]
+
+  fn inline get(index: Int) -> U64 {
+    at(index).0
+  }
+
+  fn inline mut set(index: Int, value: U64) {
+    at(index).0 = value
+  }
+
+  fn inline mut set_i64(index: Int, value: Int) {
+    set(index, U64(value))
+  }
+
+  fn inline mut set_u8(index: Int, value: Int) {
+    at_u8(index).0 = value as Uint8
+  }
+
+  fn inline mut u8(index: Int) -> Int {
+    at_u8(index).0 as Int
+  }
+
+  fn inline at(index: Int) -> Pointer[U64] {
+    ptr.add(@inner as Pointer[U64], index)
+  }
+
+  fn inline at_u8(index: Int) -> Pointer[Uint8] {
+    ptr.add(@inner as Pointer[Uint8], index)
+  }
+}
+
+# A hashed password.
+type pub inline PasswordHash {
+  # The amount of memory used in _kilobytes_/_kibibytes_.
+  let pub mut @mem: Int
+
+  # The amount of iterations performed.
+  let pub mut @iters: Int
+
+  # The amount of parallelism.
+  let pub mut @parallel: Int
+
+  # The salt that belongs to the password.
+  let pub @salt: ByteArray
+
+  # The generated password digest.
+  let pub @hash: ByteArray
+}
+
+impl ToString for PasswordHash {
+  # Encodes `self` as a
+  # [PHC](https://github.com/C2SP/C2SP/blob/main/phc-strings.md) password
+  # string.
+  fn pub to_string -> String {
+    let enc = Encoder.new
+    let b64 = ByteArray.new
+
+    enc.padding = false
+    enc.encode(@salt, into: b64)
+    b64.append('$')
+    enc.encode(@hash, into: b64)
+
+    '$argon2id$v=${VERSION}$m=${@mem},t=${@iters},p=${@parallel}$${b64}'
+  }
+}
+
+impl Equal for PasswordHash {
+  fn pub ==(other: ref Self) -> Bool {
+    @mem == other.mem
+      and @iters == other.iters
+      and @parallel == other.parallel
+      and @salt == other.salt
+      and @hash == other.hash
+  }
+}
+
+impl Format for PasswordHash {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter
+      .object('PasswordHash')
+      .field('mem', @mem)
+      .field('iters', @iters)
+      .field('parallel', @parallel)
+      .field('salt', @salt)
+      .field('hash', @hash)
+      .finish
+  }
+}
+
+# The Argon2id password function.
+#
+# Hashing a password and salt is done using `Argon2.hash` while parsing an
+# existing hash is done using `Argon2.parse`. Refer to the documentation of
+# these methods for more details.
+#
+# # Examples
+#
+# Hashing a password and salt:
+#
+# ```inko
+# import std.crypto.argon2 (Argon2)
+# import std.rand (Random)
+#
+# let rng = Random.new
+# let salt = ByteArray.new
+#
+# rng.bytes(into: salt, size: 16)
+# Argon2
+#   .new
+#   .hash(password: 'hunter2', salt: salt)
+#   .to_string # => '$argon2id$v=19$m=16384,t=3,p=1$...'
+# ```
+#
+# Parsing an existing hash:
+#
+# ```inko
+# import std.crypto.argon2 (Argon2)
+#
+# let hash = Argon2
+#   .parse('$argon2id$v=19$m=16384,t=3,p=1$HL0oZJGzBF3NSAN0+xjCAA$99xstIiiqdEp3TujLncQ878sYPEG87knWQFbdUjUvio')
+#   .or_panic_with('the hash is invalid')
+#
+# hash.iters    # => 3
+# hash.parallel # => 1
+# ```
+type pub Argon2 {
+  let mut @secret: Option[ref ByteArray]
+  let mut @associated: Option[ref ByteArray]
+  let @buf: ByteArray
+  let @blocks: ByteArray
+  let @seed_init: Block
+  let @seed_block: Block
+  let @zero_block: Block
+
+  # The amount of parallel "processes".
+  let @parallel: Int
+
+  # The amount of columns.
+  let @columns: Int
+
+  # The memory size in _kilobytes_/_kibibytes_.
+  let @mem: Int
+
+  # The amount of iterations/passes to perform.
+  let @iters: Int
+
+  # The desired output size.
+  let @size: Int
+
+  # Parses a [PHC](https://github.com/C2SP/C2SP/blob/main/phc-strings.md)
+  # password string into a `PasswordHash`.
+  #
+  # This method only supports hashes produced using Argon2id and _requires_ that
+  # the `m`, `t` and `p` parameters are present and non-zero.
+  #
+  # # Errors
+  #
+  # If the input is invalid, such as when the number of iterations is too great,
+  # an `Option.None` is returned.
+  #
+  # # Examples
+  #
+  # ```inko
+  # import std.crypto.argon2 (Argon2)
+  #
+  # let hash = Argon2
+  #   .parse('$argon2id$v=19$m=32,t=3,p=1$c3VwZXJzZWNyZXRzYWx0$aujvpFzwyDVli1CIBOr1PAzZGNfvx4phOEQQ7Z7EYJQ')
+  #   .or_panic_with('the password hash is invalid')
+  #
+  # hash.salt.to_string # => 'supersecretsalt'
+  # ```
+  fn pub static parse[B: Bytes, S: ToSlice[B]](
+    input: ref S,
+  ) -> Option[PasswordHash] {
+    let input = input.to_slice
+    let input = try input.strip_prefix('$argon2id$v=${VERSION}$')
+    let hash = PasswordHash(
+      mem: 0,
+      iters: 0,
+      parallel: 0,
+      salt: ByteArray.new,
+      hash: ByteArray.new,
+    )
+    let chunks = input.split('$')
+    let params = try chunks.next
+
+    for param in params.split(',') {
+      let (k, v) = try param.split_once('=')
+      let val = try Int.parse(v, int.Format.Decimal)
+
+      if k.equals?('m') {
+        hash.mem = val
+      } else if k.equals?('t') {
+        hash.iters = val
+      } else if k.equals?('p') {
+        hash.parallel = val
+      } else {
+        return Option.None
+      }
+    }
+
+    if hash.mem <= 0 or hash.iters <= 0 or hash.parallel <= 0 {
+      return Option.None
+    }
+
+    let dec = Decoder.new
+
+    dec.padding = false
+    try dec.decode(try chunks.next, into: hash.salt).ok
+    try dec.decode(try chunks.next, into: hash.hash).ok
+    Option.Some(hash)
+  }
+
+  # Returns a new `Argon2` using the default settings.
+  #
+  # The default settings are as follows and are based on the [OWASP
+  # cheatsheet](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#argon2id),
+  # with memory rounded up to 16 MiB to make capacity planning a little easier:
+  #
+  # - 16 MiB of memory
+  # - 3 iterations
+  # - 32 bytes of output
+  #
+  # In other words, calling this method is the same as calling `Argon2.with`
+  # as follows:
+  #
+  # ```inko
+  # import std.crypto.argon2 (Argon2)
+  #
+  # Argon2.with(memory: 16 * 1024 * 1024, iterations: 3, size: 32)
+  # ```
+  fn pub static new -> Self {
+    with(memory: 16 * 1024 * 1024, iterations: 3, parallel: 1, size: 32)
+  }
+
+  # Returns a new `Argon2` using the given custom settings.
+  #
+  # The `memory` argument specifies the amount of memory to use in _bytes_,
+  # increasing the memory cost as this value increases.
+  #
+  # The `iterations` argument specifies the number of iterations to perform,
+  # increasing the CPU cost as this value increases.
+  #
+  # The `parallel` argument specifies the number of parallel "processes". The
+  # `Argon2` type doesn't actually perform any work in parallel but still
+  # supports (and honors) this value such that resulting hashes may be compared
+  # with those generated by programs that _do_ support and use parallelism.
+  #
+  # The `size` argument specifies the size (in bytes) of the produced password
+  # hash.
+  #
+  # To specify the secret key (also known as a "pepper"), create an `Argon2`
+  # instance then use `Argon2.secret=` to set the secret key.
+  #
+  # # Panics
+  #
+  # This method panics if any of the following is true:
+  #
+  # - `memory` is less than 0 or greater than 2³²-1
+  # - `iterations` is less than 1 or greater than 2³²-1
+  # - `parallel` is less than 1 or greater than 2²⁴-1
+  # - `size` is less than 8 or greater than 2³²-1
+  fn pub static with(
+    memory: Int,
+    iterations: Int,
+    parallel: Int,
+    size: Int,
+  ) -> Self {
+    if memory < (8 * parallel) or memory > U32_MAX {
+      invalid_memory_size(memory)
+    }
+
+    if iterations < 1 or iterations > U32_MAX { invalid_iterations(iterations) }
+
+    if size < 4 or size > U32_MAX { invalid_output_size(size) }
+
+    if parallel < 1 or parallel > (2 ** 24 - 1) { invalid_parallel(parallel) }
+
+    let mem = memory / 1024
+    let mem = mem - (mem % (4 * parallel))
+
+    Self(
+      buf: ByteArray.filled(with: 0, times: 4),
+      blocks: ByteArray.filled(with: 0, times: mem * BLOCK_SIZE),
+      mem: mem,
+      parallel: parallel,
+      iters: iterations,
+      size: size,
+      secret: Option.None,
+      associated: Option.None,
+      columns: 4 * (mem / (4 * parallel)),
+      seed_init: Block(),
+      seed_block: Block(),
+      zero_block: Block(),
+    )
+  }
+
+  # Sets the secret key (= a "pepper") to use for hashing passwords.
+  #
+  # # Panics
+  #
+  # This method panics if `value` is greater than 2³²-1 bytes.
+  fn pub mut secret=(value: ref ByteArray) {
+    if value.size > U32_MAX { invalid_secret_size(value.size) }
+
+    @secret = Option.Some(value)
+  }
+
+  # Sets the extra associated data to use for hashing passwords.
+  #
+  # Per the RFC the exact use/meaning of this data is unclear, other than that
+  # its presence changes the resulting hash. We support it anyway as this is
+  # necessary to make use of the test vectors provided by the RFC.
+  #
+  # # Panics
+  #
+  # This method panics if `value` is greater than 2³²-1 bytes.
+  fn pub mut associated_data=(value: ref ByteArray) {
+    if value.size > U32_MAX { invalid_associated_data_size(value.size) }
+
+    @associated = Option.Some(value)
+  }
+
+  # Hashes the password and salt and returns the hashed password as a `String`.
+  #
+  # The `password` argument is the raw password to hash. The `salt` argument
+  # _must_ be a salt that is randomly generated using a cryptographically secure
+  # random number generator such as `std.rand.Random`. It _must_ be unique for
+  # each password.
+  #
+  # The salt size _should_ be at least 16 bytes whenever possible.
+  #
+  # # Panics
+  #
+  # This method panics if any of the following is true:
+  #
+  # - `password` is greater than 2³²-1 bytes
+  # - `salt` is greater than 2³²-1 bytes
+  fn pub move hash[B: Bytes](password: ref B, salt: ByteArray) -> PasswordHash {
+    if password.size > U32_MAX or salt.size > U32_MAX {
+      invalid_password_or_salt_size
+    }
+
+    let h0 = init(password, salt)
+
+    # Hash the first two blocks.
+    h0.resize(size: h0.size + 8, value: 0)
+
+    for row in 0.until(@parallel) {
+      little.write_i32(0, into: h0, at: 64)
+      little.write_i32(row, into: h0, at: 68)
+      variable_hash(h0.to_slice, bytes(row, column: 0))
+
+      little.write_i32(1, into: h0, at: 64)
+      little.write_i32(row, into: h0, at: 68)
+      variable_hash(h0.to_slice, bytes(row, column: 1))
+    }
+
+    for pass in 0.until(@iters) {
+      for slice in 0.until(SLICES) {
+        for row in 0.until(@parallel) { segment(pass, row, slice) }
+      }
+    }
+
+    let b = bytes(0, @columns - 1)
+    let b_ptr = BlockPtr(b.pointer as Pointer[Block])
+
+    for i in 1.until(@parallel) {
+      xor_bytes(b_ptr, b_ptr, block(i, @columns - 1))
+    }
+
+    let hash = ByteArray.filled(with: 0, times: @size)
+
+    variable_hash(b, hash.to_slice)
+
+    h0.zero
+    PasswordHash(
+      mem: @mem,
+      iters: @iters,
+      parallel: @parallel,
+      salt: salt,
+      hash: hash,
+    )
+  }
+
+  fn mut init[B: Bytes, S: Bytes](password: ref B, salt: ref S) -> ByteArray {
+    let h = Blake2b.new
+
+    hash_i32(h, @parallel)
+    hash_i32(h, @size)
+    hash_i32(h, @mem)
+    hash_i32(h, @iters)
+    hash_i32(h, VERSION)
+    hash_i32(h, TYPE_2ID)
+    hash_val(h, password)
+    hash_val(h, salt)
+    hash_opt(h, @secret)
+    hash_opt(h, @associated)
+    h.finish.into_byte_array
+  }
+
+  fn inline mut hash_i32(hasher: mut Blake2b, value: Int) {
+    little.write_i32(value, into: @buf, at: 0)
+    hasher.write(@buf)
+  }
+
+  fn mut hash_opt(hasher: mut Blake2b, value: ref Option[ref ByteArray]) {
+    match value {
+      case Some(v) -> hash_val(hasher, v)
+      case _ -> hash_i32(hasher, value: 0)
+    }
+  }
+
+  fn mut hash_val[B: Bytes](hasher: mut Blake2b, value: ref B) {
+    hash_i32(hasher, value.size)
+    hasher.write(value)
+  }
+
+  fn mut variable_hash(block: Slice[ByteArray], dest: Slice[ByteArray]) {
+    let t = dest.size
+    let h = Blake2b.with(key: '', size: min(t, DIGEST_SIZE))
+
+    hash_i32(h, t)
+    h.write(block)
+    hash_into(h, dest)
+
+    if t <= 64 { return }
+
+    # ceil(T / 32) - 2 but without the need for float math.
+    let r = t + 31 >> 5 - 2
+    let add = 32
+    let mut i_idx = 0
+    let mut o_idx = add
+
+    for _ in 1.until(r) {
+      let h = Blake2b.new
+
+      h.write(dest.slice(i_idx, i_idx + DIGEST_SIZE))
+      hash_into(h, dest.slice(o_idx, t))
+      i_idx += add
+      o_idx += add
+    }
+
+    let h = Blake2b.with(key: '', size: t - (add * r))
+
+    h.write(dest.slice(i_idx, i_idx + DIGEST_SIZE))
+    hash_into(h, dest.slice(o_idx, t))
+  }
+
+  fn bytes(row: Int, column: Int) -> Slice[ByteArray] {
+    let idx = (@columns * row + column) * BLOCK_SIZE
+
+    @blocks.slice(idx, idx + BLOCK_SIZE)
+  }
+
+  fn block(row: Int, column: Int) -> BlockPtr {
+    BlockPtr(bytes(row, column).pointer as Pointer[Block])
+  }
+
+  fn mut segment(pass: Int, i: Int, slice: Int) {
+    let init = BlockPtr(@seed_init)
+    let seed = BlockPtr(@seed_block)
+    let zero = BlockPtr(@zero_block)
+
+    if pass == 0 and slice < 2 {
+      init.set_i64(0, pass)
+      init.set_i64(1, i)
+      init.set_i64(2, slice)
+      init.set_i64(3, @mem)
+      init.set_i64(4, @iters)
+      init.set_i64(5, TYPE_2ID)
+      init.set_i64(6, 0)
+
+      if pass == 0 and slice == 0 {
+        init.set(6, init.get(6) + U64(1))
+        compress(seed, init, zero, xor: false)
+        compress(seed, seed, zero, xor: false)
+      }
+    }
+
+    let slice_blocks = @columns / 4
+
+    for b in 0.until(slice_blocks) {
+      let j = slice * slice_blocks + b
+
+      if pass == 0 and j < 2 { next }
+
+      let pj = if j == 0 { @columns - 1 } else { j - 1 }
+      let prev = block(i, pj)
+      let seed = if pass > 0 or slice > 1 {
+        prev.get(0)
+      } else {
+        let idx = b % BLOCK_INTS
+
+        if idx == 0 {
+          init.set(6, init.get(6) + U64(1))
+          compress(seed, init, zero, xor: false)
+          compress(seed, seed, zero, xor: false)
+        }
+
+        seed.get(idx)
+      }
+
+      let refb = ref_block(pass, seed.to_int, i, j)
+
+      compress(block(i, j), prev, refb, xor: pass > 0)
+    }
+  }
+
+  fn mut ref_block(pass: Int, seed: Int, i: Int, j: Int) -> BlockPtr {
+    let slice_blocks = @columns / 4
+    let seg_start = (j - (j % slice_blocks)) / slice_blocks
+    let index = j % slice_blocks
+    let l = if seg_start == 0 and pass == 0 {
+      i
+    } else {
+      seed >>> 32 % @parallel
+    }
+
+    let mut pool_start = seg_start + 1 % SLICES * slice_blocks
+    let mut pool_size = 3 * slice_blocks
+
+    if i == l { pool_size += index }
+
+    if pass == 0 {
+      pool_start = 0
+      pool_size = seg_start * slice_blocks
+
+      if seg_start == 0 or i == l { pool_size += index }
+    }
+
+    if index == 0 or i == l { pool_size -= 1 }
+
+    let j1 = to_u32(seed)
+    let x = j1.wrapping_mul(j1) >>> 32
+    let y = pool_size * x >>> 32
+    let z = pool_start + pool_size - (y + 1) % @columns
+
+    block(l, z)
+  }
+}
+
+impl Drop for Argon2 {
+  fn mut drop {
+    @buf.zero
+    @blocks.zero
+    zero_block(@seed_init)
+    zero_block(@seed_block)
+    zero_block(@zero_block)
+  }
+}

@@ -4,17 +4,18 @@
 # specified in [RFC 7693](https://www.rfc-editor.org/rfc/rfc7693.html), using
 # the C implementation provided by the RFC as its reference.
 #
-# Unlike the implementation of the RFC, the `Blake2b` type provided by this
-# module always produced digests of 64 bytes. An implementation of BLAKE2s is
-# not provided nor planned.
+# An implementation of BLAKE2s is not provided nor planned.
 #
 # For more information, refer to the documentation of the `Blake2b` type.
 import std.alloc
 import std.bytes (Bytes)
 import std.crypto.hash (Hash, Hasher)
+import std.crypto.math (U64)
 import std.ptr
 
-let OUT_LEN = 64
+# The default digest output size in bytes.
+let pub DIGEST_SIZE = 64
+
 let IV = [
   7640891576956012808, -4942790177534073029, 4354685564936845355,
   -6534734903238641935, 5840696475078001361, -7276294671716946913,
@@ -40,32 +41,36 @@ fn invalid_key_size -> Never {
   panic('the secret key must not be greater than 64 bytes')
 }
 
-fn inline rotate(x: Int, y: Int) -> Int {
-  x.rotate_right(y)
+fn invalid_digest_size -> Never {
+  panic('the digest size must be between 1 and 64 bytes')
 }
 
 fn inline g(v: BufPtr, a: Int, b: Int, c: Int, d: Int, x: Int, y: Int) {
-  v.set(a, v.get(a).wrapping_add(v.get(b)).wrapping_add(x))
-  v.set(d, rotate(v.get(d) ^ v.get(a), 32))
-  v.set(c, v.get(c).wrapping_add(v.get(d)))
-  v.set(b, rotate(v.get(b) ^ v.get(c), 24))
+  v.set(a, v.u64(a) + v.u64(b) + U64(x))
+  v.set(d, (v.u64(d) ^ v.u64(a)).rotate_right(32))
+  v.set(c, v.u64(c) + v.u64(d))
+  v.set(b, (v.u64(b) ^ v.u64(c)).rotate_right(24))
 
-  v.set(a, v.get(a).wrapping_add(v.get(b)).wrapping_add(y))
-  v.set(d, rotate(v.get(d) ^ v.get(a), 16))
-  v.set(c, v.get(c).wrapping_add(v.get(d)))
-  v.set(b, rotate(v.get(b) ^ v.get(c), 63))
+  v.set(a, v.u64(a) + v.u64(b) + U64(y))
+  v.set(d, (v.u64(d) ^ v.u64(a)).rotate_right(16))
+  v.set(c, v.u64(c) + v.u64(d))
+  v.set(b, (v.u64(b) ^ v.u64(c)).rotate_right(63))
 }
 
 # A pointer to the work variables.
 type copy BufPtr {
   let @inner: Pointer[Int]
 
-  fn inline mut set(index: Int, value: Int) {
-    ptr.add(@inner, index).0 = value
+  fn inline mut set(index: Int, value: U64) {
+    ptr.add(@inner, index.to_int).0 = value.to_int
   }
 
   fn inline mut get(index: Int) -> Int {
     ptr.add(@inner, index).0
+  }
+
+  fn inline mut u64(index: Int) -> U64 {
+    U64(ptr.add(@inner, index).0)
   }
 }
 
@@ -112,6 +117,7 @@ type extern Chained {
 type pub Blake2b {
   let @b: Buf
   let @h: Chained
+  let @size: Int
   let mut @lo: Int
   let mut @hi: Int
   let mut @c: Int
@@ -145,34 +151,42 @@ type pub Blake2b {
   # hasher.finish.to_string.size # => 128
   # ```
   fn pub static new -> Self {
-    with_key('')
+    with(key: '', size: DIGEST_SIZE)
   }
 
-  # Returns a new hasher using the given secret key.
+  # Returns a new hasher using the given secret key and a custom digest size.
+  #
+  # If you only wish to specify a custom size and not a key, simply set the key
+  # to an empty `String` and it won't be used.
   #
   # # Panics
   #
-  # This method panics if `key` is greater than 64 bytes.
+  # This method panics if any of the following is true:
+  #
+  # - `key` is greater than 64 bytes.
+  # - `size` is less than 1 or greater than 64
   #
   # # Examples
   #
   # ```inko
-  # import std.crypto.blake2 (Blake2b)
+  # import std.crypto.blake2 (Blake2b, DIGEST_SIZE)
   #
-  # let hasher = Blake2b.with_key('hello')
+  # let hasher = Blake2b.with(key: 'hello', size: DIGEST_SIZE)
   #
   # hasher.write('abc')
   # hasher.finish.to_string.size # => 128
   # ```
-  fn pub static with_key[B: Bytes](key: ref B) -> Self {
+  fn pub static with[B: Bytes](key: ref B, size: Int) -> Self {
     let len = key.size
 
     if len > 64 { invalid_key_size }
 
-    let ins = Self(b: Buf(), h: Chained(), lo: 0, hi: 0, c: 0)
+    if size < 1 or size > 64 { invalid_digest_size }
+
+    let ins = Self(b: Buf(), h: Chained(), lo: 0, hi: 0, c: 0, size: size)
 
     alloc.copy(from: IV.pointer, to: ins.h as Pointer[Int], size: 8)
-    ins.h.v0 ^= 0x01010000 ^ (len << 8) ^ OUT_LEN
+    ins.h.v0 ^= 0x01010000 ^ (len << 8) ^ size
 
     if len > 0 {
       ins.write(key)
@@ -247,7 +261,7 @@ impl Hasher for Blake2b {
     if @lo < @c { @hi = @hi.wrapping_add(1) }
 
     let buf = @b as Pointer[Uint8]
-    let out = ByteArray.filled(with: 0, times: OUT_LEN)
+    let out = ByteArray.filled(with: 0, times: @size)
 
     if @c < 128 {
       alloc.zero(pointer: ptr.add(buf, @c), size: 128 - @c)
@@ -256,7 +270,7 @@ impl Hasher for Blake2b {
 
     compress(last: true)
 
-    OUT_LEN.times(fn (i) {
+    out.size.times(fn (i) {
       out.set(i, ptr.add(@h as Pointer[Int], i >> 3).0 >>> (8 * (i & 7)) & 0xFF)
     })
 

@@ -1,4 +1,4 @@
-import std.crypto.blake2 (Blake2b)
+import std.crypto.blake2 (Blake2b, DIGEST_SIZE)
 import std.int
 import std.test (Tests)
 
@@ -48,8 +48,16 @@ fn pub tests(t: mut Tests) {
     t.equal(h.c, 0)
   })
 
-  t.panic('Blake2b.with_key with an invalid key size', fn {
-    Blake2b.with_key('m'.repeat(128))
+  t.panic('Blake2b.with with an invalid key size', fn {
+    Blake2b.with(key: 'm'.repeat(128), size: DIGEST_SIZE)
+  })
+
+  t.panic('Blake2b.with with a digest size that is too small', fn {
+    Blake2b.with(key: 'abc', size: 0)
+  })
+
+  t.panic('Blake2b.with with a digest size that is too large', fn {
+    Blake2b.with(key: 'abc', size: 65)
   })
 
   t.test('Blake2b.write', fn (t) {
@@ -120,7 +128,7 @@ fn pub tests(t: mut Tests) {
     ]
 
     for (inp, key, exp) in tests {
-      let h = Blake2b.with_key(decode(key))
+      let h = Blake2b.with(key: decode(key), size: DIGEST_SIZE)
 
       h.write(decode(inp))
       t.equal(h.finish.to_string, exp)

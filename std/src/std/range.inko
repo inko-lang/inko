@@ -26,6 +26,10 @@ import std.fmt (Format, Formatter)
 import std.hash (Hash, Hasher)
 import std.iter (Iter)
 
+fn invalid_step_size(size: Int) -> Never {
+  panic('the step size ${size} is invalid')
+}
+
 # An inclusive range of integers.
 type pub copy InclusiveRange {
   # The start value of the range.
@@ -63,7 +67,24 @@ type pub copy InclusiveRange {
 
   # Returns an iterator over the values in `self`.
   fn pub inline iter -> InclusiveRangeIter {
-    InclusiveRangeIter(current: @start, end: @end)
+    InclusiveRangeIter(current: @start, end: @end, step: 1)
+  }
+
+  # Returns an iterator over `self`, with a step/increment size of `amount`.
+  #
+  # # Panics
+  #
+  # This method panics if `amount` is less than or equal to zero.
+  #
+  # # Examples
+  #
+  # ```inko
+  # 0.to(10).step_by(2).to_array # => [0, 2, 4, 6, 8, 10]
+  # ```
+  fn pub inline step_by(amount: Int) -> InclusiveRangeIter {
+    if amount <= 0 { invalid_step_size(amount) }
+
+    InclusiveRangeIter(current: @start, end: @end, step: amount)
   }
 }
 
@@ -136,7 +157,24 @@ type pub copy ExclusiveRange {
 
   # Returns an iterator over the values in `self`.
   fn pub inline iter -> ExclusiveRangeIter {
-    ExclusiveRangeIter(current: @start, end: @end)
+    ExclusiveRangeIter(current: @start, end: @end, step: 1)
+  }
+
+  # Returns an iterator over `self`, with a step/increment size of `amount`.
+  #
+  # # Panics
+  #
+  # This method panics if `amount` is less than or equal to zero.
+  #
+  # # Examples
+  #
+  # ```inko
+  # 0.until(10).step_by(2).to_array # => [0, 2, 4, 6, 8]
+  # ```
+  fn pub inline step_by(amount: Int) -> ExclusiveRangeIter {
+    if amount <= 0 { invalid_step_size(amount) }
+
+    ExclusiveRangeIter(current: @start, end: @end, step: amount)
   }
 
   # Returns `true` if the given argument resides in the range of `self`.
@@ -200,12 +238,13 @@ impl Format for ExclusiveRange {
 type pub ExclusiveRangeIter {
   let mut @current: Int
   let @end: Int
+  let @step: Int
 }
 
 impl Iter[Int] for ExclusiveRangeIter {
   fn pub inline mut next -> Option[Int] {
     if @current < @end {
-      Option.Some(@current := @current + 1)
+      Option.Some(@current := @current + @step)
     } else {
       Option.None
     }
@@ -216,12 +255,13 @@ impl Iter[Int] for ExclusiveRangeIter {
 type pub InclusiveRangeIter {
   let mut @current: Int
   let @end: Int
+  let @step: Int
 }
 
 impl Iter[Int] for InclusiveRangeIter {
   fn pub inline mut next -> Option[Int] {
     if @current <= @end {
-      Option.Some(@current := @current + 1)
+      Option.Some(@current := @current + @step)
     } else {
       Option.None
     }

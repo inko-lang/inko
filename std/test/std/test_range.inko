@@ -32,8 +32,26 @@ fn pub tests(t: mut Tests) {
     t.equal(InclusiveRange.new(1, 3).iter.to_array, [1, 2, 3])
   })
 
+  t.test('InclusiveRange.step_by', fn (t) {
+    t.equal(InclusiveRange.new(1, 10).step_by(2).to_array, [1, 3, 5, 7, 9])
+    t.equal(InclusiveRange.new(0, 10).step_by(2).to_array, [0, 2, 4, 6, 8, 10])
+  })
+
+  t.panic('InclusiveRange.step_by with an invalid step size', fn {
+    InclusiveRange.new(0, 10).step_by(0)
+  })
+
   t.test('ExclusiveRange.iter', fn (t) {
     t.equal(ExclusiveRange.new(1, 3).iter.to_array, [1, 2])
+  })
+
+  t.test('ExclusiveRange.step_by', fn (t) {
+    t.equal(ExclusiveRange.new(1, 10).step_by(2).to_array, [1, 3, 5, 7, 9])
+    t.equal(ExclusiveRange.new(0, 10).step_by(2).to_array, [0, 2, 4, 6, 8])
+  })
+
+  t.panic('ExclusiveRange.step_by with an invalid step size', fn {
+    ExclusiveRange.new(0, 10).step_by(0)
   })
 
   t.test('InclusiveRange.==', fn (t) {

@@ -83,4 +83,10 @@ fn pub tests(t: mut Tests) {
 
     t.equal(fmt(hash), '5d41402abc4b2a76b9719d911017c592')
   })
+
+  t.test('Hash.into_byte_array', fn (t) {
+    let h = Hash.new(ByteArray.from_array([1, 2, 3]))
+
+    t.equal(h.into_byte_array, ByteArray.from_array([1, 2, 3]))
+  })
 }

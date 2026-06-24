@@ -1,4 +1,11 @@
 # Mathematical operations for cryptographic algorithms.
+import std.cmp (Equal)
+import std.fmt (Format, Formatter)
+import std.int (ToInt)
+import std.int.release
+import std.ops (Add, BitXor, Divide, Multiply, ShiftLeft, ShiftRight, Subtract)
+
+let U32_MASK = 0xFFFFFFFF
 
 # Rotates a 32-bits unsigned integer to the left.
 #
@@ -38,5 +45,87 @@ fn pub inline shift_right_u32(value: Int, amount: Int) -> Int {
 
 # Converts an `Int` to an unsigned 32-bits `Int`.
 fn pub inline to_u32(value: Int) -> Int {
-  value & 0xFFFFFFFF
+  value & U32_MASK
+}
+
+# An 64-bits integer that uses wrapping arithmetic and unsigned bit shifts.
+#
+# This is not a general-purpose integer type, instead it's meant exclusively for
+# implementing cryptographic algorithms. These typically rely on unsigned shifts
+# and wrapping operations, and having to use methods such as `Int.wrapping_add`
+# for such cases gets tedious.
+#
+# This type is currently private as it's not (yet) meant for public consumption,
+# at least not until a decision is made on
+# https://github.com/inko-lang/inko/issues/834.
+type copy U64 {
+  let @inner: Int
+
+  fn inline to_u32 -> U64 {
+    U64(@inner & U32_MASK)
+  }
+
+  fn inline rotate_right(amount: Int) -> Self {
+    Self(@inner.rotate_right(amount))
+  }
+}
+
+impl ToInt for U64 {
+  fn pub inline to_int -> Int {
+    @inner
+  }
+}
+
+impl Add[U64, U64] for U64 {
+  fn pub inline +(other: Self) -> Self {
+    Self(release.add(@inner, other.inner))
+  }
+}
+
+impl Multiply[U64, U64] for U64 {
+  fn pub inline *(other: Self) -> Self {
+    Self(release.mul(@inner, other.inner))
+  }
+}
+
+impl Subtract[U64, U64] for U64 {
+  fn pub inline -(other: Self) -> Self {
+    Self(release.sub(@inner, other.inner))
+  }
+}
+
+impl ShiftLeft[U64, U64] for U64 {
+  fn pub inline <<(other: Self) -> Self {
+    Self(release.shl(@inner, other.inner))
+  }
+}
+
+impl ShiftRight[U64, U64] for U64 {
+  fn pub inline >>(other: Self) -> Self {
+    Self(release.ushr(@inner, other.inner))
+  }
+}
+
+impl Divide[U64, U64] for U64 {
+  fn pub inline /(other: Self) -> Self {
+    Self(@inner / other.inner)
+  }
+}
+
+impl BitXor[U64, U64] for U64 {
+  fn pub inline ^(other: Self) -> Self {
+    Self(_INKO.int_bit_xor(@inner, other.inner))
+  }
+}
+
+impl Equal for U64 {
+  fn pub inline ==(other: Self) -> Bool {
+    @inner == other.inner
+  }
+}
+
+impl Format for U64 {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter.tuple('U64').field(@inner).finish
+  }
 }

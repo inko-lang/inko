@@ -1,5 +1,5 @@
 # Types for cryptographic hash functions.
-import std.bytes (Bytes)
+import std.bytes (Bytes, IntoByteArray)
 import std.cmp (Equal)
 import std.endian.big
 import std.endian.little
@@ -143,6 +143,12 @@ impl ToString for Hash {
     }
 
     hex.into_string
+  }
+}
+
+impl IntoByteArray for Hash {
+  fn pub move into_byte_array -> ByteArray {
+    @bytes
   }
 }
 

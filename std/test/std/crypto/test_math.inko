@@ -1,4 +1,6 @@
-import std.crypto.math
+import std.crypto.math (self, U64)
+import std.fmt (fmt)
+import std.int (MAX, MIN)
 import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
@@ -33,4 +35,30 @@ fn pub tests(t: mut Tests) {
     t.equal(math.to_u32(4294967297), 1)
     t.equal(math.to_u32(-1), 4294967295)
   })
+
+  t.test('U64.+', fn (t) { t.equal(U64(MAX) + U64(1), U64(MIN)) })
+  t.test('U64.*', fn (t) { t.equal(U64(MAX) * U64(2), U64(-2)) })
+  t.test('U64.-', fn (t) { t.equal(U64(MIN) - U64(1), U64(MAX)) })
+  t.test('U64.<<', fn (t) { t.equal(U64(1) << U64(64), U64(1)) })
+
+  t.test('U64.>>', fn (t) {
+    t.equal(U64(1) >> U64(64), U64(1))
+    t.equal(U64(1) >> U64(16), U64(0))
+    t.equal(U64(65_536) >> U64(16), U64(1))
+  })
+
+  t.test('U64./', fn (t) { t.equal(U64(10) / U64(2), U64(5)) })
+
+  t.test('U64.^', fn (t) { t.equal(U64(1) ^ U64(2), U64(3)) })
+
+  t.test('U64.rotate_right', fn (t) {
+    t.equal(U64(0x6E10AA).rotate_right(12), U64(0xAA00000000006E1))
+  })
+
+  t.test('U64.==', fn (t) {
+    t.true(U64(10) == U64(10))
+    t.false(U64(10) == U64(20))
+  })
+
+  t.test('U64.fmt', fn (t) { t.equal(fmt(U64(10)), 'U64(10)') })
 }

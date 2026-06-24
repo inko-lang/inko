@@ -1,0 +1,234 @@
+import std.crypto.argon2 (Argon2, PasswordHash)
+import std.int
+import std.test (Tests)
+
+fn pub tests(t: mut Tests) {
+  t.panic('Argon2.with with a memory size that is too small', fn {
+    Argon2.with(memory: 4, iterations: 3, parallel: 4, size: 32)
+  })
+
+  t.panic('Argon2.with with a memory size that is too large', fn {
+    Argon2.with(memory: int.MAX, iterations: 3, parallel: 4, size: 32)
+  })
+
+  t.panic('Argon2.with with too few iterations', fn {
+    Argon2.with(memory: 32 * 1024, iterations: 0, parallel: 1, size: 32)
+  })
+
+  t.panic('Argon2.with with too many iterations', fn {
+    Argon2.with(memory: 32 * 1024, iterations: int.MAX, parallel: 1, size: 32)
+  })
+
+  t.panic('Argon2.with with an output size that is too small', fn {
+    Argon2.with(memory: 32 * 1024, iterations: 3, parallel: 1, size: 3)
+  })
+
+  t.panic('Argon2.with with an output size that is too large', fn {
+    Argon2.with(memory: 32 * 1024, iterations: 3, parallel: 1, size: int.MAX)
+  })
+
+  t.panic('Argon2.with with too little parallelism', fn {
+    Argon2.with(memory: 32 * 1024, iterations: 1, parallel: 0, size: 32)
+  })
+
+  t.panic('Argon2.with with too much parallelism', fn {
+    Argon2.with(
+      memory: 32 * 1024,
+      iterations: 1,
+      parallel: 2 ** 24 - 1 + 1,
+      size: 32,
+    )
+  })
+
+  t.test('Argon2.secret=', fn (t) {
+    let buf = ByteArray.new
+    let pw = Argon2.with(
+      memory: 32 * 1024,
+      iterations: 1,
+      parallel: 1,
+      size: 32,
+    )
+
+    pw.secret = buf
+    t.true(pw.secret.some?)
+  })
+
+  t.panic('Argon2.secret= with a value that is too large', fn {
+    let buf = ByteArray.new
+    let pw = Argon2.with(
+      memory: 32 * 1024,
+      iterations: 1,
+      parallel: 1,
+      size: 32,
+    )
+
+    buf.size = int.MAX
+    pw.secret = buf
+  })
+
+  t.test('Argon2.associated_data=', fn (t) {
+    let buf = ByteArray.new
+    let pw = Argon2.with(
+      memory: 32 * 1024,
+      iterations: 1,
+      parallel: 1,
+      size: 32,
+    )
+
+    pw.associated_data = buf
+    t.true(pw.associated.some?)
+  })
+
+  t.panic('Argon2.associated_data= with a value that is too large', fn {
+    let buf = ByteArray.new
+    let pw = Argon2.with(
+      memory: 32 * 1024,
+      iterations: 1,
+      parallel: 1,
+      size: 32,
+    )
+
+    buf.size = int.MAX
+    pw.associated_data = buf
+  })
+
+  t.test('Argon2.parse', fn (t) {
+    let tests = [
+      # Valid inputs
+      (
+        '$argon2id$v=19$m=32,t=3,p=1$c3VwZXJzZWNyZXRzYWx0$aujvpFzwyDVli1CIBOr1PAzZGNfvx4phOEQQ7Z7EYJQ',
+        Option.Some(
+          PasswordHash(
+            mem: 32,
+            iters: 3,
+            parallel: 1,
+            salt: 'supersecretsalt'.to_byte_array,
+            hash: ByteArray.from_array(
+              [
+                106, 232, 239, 164, 92, 240, 200, 53, 101, 139, 80, 136, 4, 234,
+                245, 60, 12, 217, 24, 215, 239, 199, 138, 97, 56, 68, 16, 237,
+                158, 196, 96, 148,
+              ],
+            ),
+          ),
+        ),
+      ),
+
+      # Invalid inputs
+      ('foo', Option.None),
+      (
+        '$argon2$v=19$m=32,t=3,p=1$c3VwZXJzZWNyZXRzYWx0$aujvpFzwyDVli1CIBOr1PAzZGNfvx4phOEQQ7Z7EYJQ',
+        Option.None,
+      ),
+      (
+        '$argon2id$v=20$m=32,t=3,p=1$c3VwZXJzZWNyZXRzYWx0$aujvpFzwyDVli1CIBOr1PAzZGNfvx4phOEQQ7Z7EYJQ',
+        Option.None,
+      ),
+      (
+        '$argon2id$v=19$m=0,t=0,p=0$c3VwZXJzZWNyZXRzYWx0$aujvpFzwyDVli1CIBOr1PAzZGNfvx4phOEQQ7Z7EYJQ',
+        Option.None,
+      ),
+      (
+        '$argon2id$v=19$m=-1,t=-1,p=-1$c3VwZXJzZWNyZXRzYWx0$aujvpFzwyDVli1CIBOr1PAzZGNfvx4phOEQQ7Z7EYJQ',
+        Option.None,
+      ),
+      (
+        '$argon2id$v=19$p=1$c3VwZXJzZWNyZXRzYWx0$aujvpFzwyDVli1CIBOr1PAzZGNfvx4phOEQQ7Z7EYJQ',
+        Option.None,
+      ),
+      (
+        '$argon2id$v=19$c3VwZXJzZWNyZXRzYWx0$aujvpFzwyDVli1CIBOr1PAzZGNfvx4phOEQQ7Z7EYJQ',
+        Option.None,
+      ),
+      (
+        '$argon2id$v=19$m=foo,t=3,p=1$c3VwZXJzZWNyZXRzYWx0$aujvpFzwyDVli1CIBOr1PAzZGNfvx4phOEQQ7Z7EYJQ',
+        Option.None,
+      ),
+      (
+        '$argon2id$v=19$m=32,t=3,p=1$--$aujvpFzwyDVli1CIBOr1PAzZGNfvx4phOEQQ7Z7EYJQ',
+        Option.None,
+      ),
+      ('$argon2id$v=19$m=32,t=3,p=1$c3VwZXJzZWNyZXRzYWx0$--', Option.None),
+      (
+        '$argon2id$v=19$m-32,t=3,p=1$c3VwZXJzZWNyZXRzYWx0$aujvpFzwyDVli1CIBOr1PAzZGNfvx4phOEQQ7Z7EYJQ',
+        Option.None,
+      ),
+      (
+        '$argon2id$v=19$m=32 , t=3,p=1$c3VwZXJzZWNyZXRzYWx0$aujvpFzwyDVli1CIBOr1PAzZGNfvx4phOEQQ7Z7EYJQ',
+        Option.None,
+      ),
+      (
+        '$argon2id$v=19 $ m=32,t=3,p=1$c3VwZXJzZWNyZXRzYWx0$aujvpFzwyDVli1CIBOr1PAzZGNfvx4phOEQQ7Z7EYJQ',
+        Option.None,
+      ),
+    ]
+
+    for (inp, exp) in tests { t.equal(Argon2.parse(inp), exp) }
+  })
+
+  t.test('Argon2.hash with the RFC test vector', fn (t) {
+    let pw = ByteArray.filled(with: 1, times: 32)
+    let salt = ByteArray.filled(with: 2, times: 16)
+    let secret = ByteArray.filled(with: 3, times: 8)
+    let assoc = ByteArray.filled(with: 4, times: 12)
+    let h = Argon2.with(memory: 32 * 1024, iterations: 3, parallel: 4, size: 32)
+
+    h.secret = secret
+    h.associated_data = assoc
+
+    t.equal(
+      h.hash(pw, salt).hash,
+      ByteArray.from_array(
+        [
+          0x0d, 0x64, 0x0d, 0xf5, 0x8d, 0x78, 0x76, 0x6c, 0x08, 0xc0, 0x37,
+          0xa3, 0x4a, 0x8b, 0x53, 0xc9, 0xd0, 0x1e, 0xf0, 0x45, 0x2d, 0x75,
+          0xb6, 0x5e, 0xb5, 0x25, 0x20, 0xe9, 0x6b, 0x01, 0xe6, 0x59,
+        ],
+      ),
+    )
+  })
+
+  t.test('Argon2.hash', fn (t) {
+    let tests = [
+      (
+        'a',
+        32,
+        '$argon2id$v=19$m=32,t=3,p=1$c3VwZXJzZWNyZXRzYWx0$XBxYbtdYPBlvD+6zlHv9ZrWWgWQWxdhzjnSJc+zQQGQ',
+      ),
+      (
+        'aa',
+        32,
+        '$argon2id$v=19$m=32,t=3,p=1$c3VwZXJzZWNyZXRzYWx0$d2PYhdFys6nUl7HVGt9dFHv9NCFUk3DF846dGTeI/kg',
+      ),
+      (
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        32,
+        '$argon2id$v=19$m=32,t=3,p=1$c3VwZXJzZWNyZXRzYWx0$aujvpFzwyDVli1CIBOr1PAzZGNfvx4phOEQQ7Z7EYJQ',
+      ),
+      (
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        65,
+        '$argon2id$v=19$m=32,t=3,p=1$c3VwZXJzZWNyZXRzYWx0$QG50m7AkB5VeMiyP2T6PUdSZFwreJsXCZTZZXRRg1hE/dWxblBHuIqKSos3K9Ivo0T1FToorHsWCqIuPT3irRho',
+      ),
+      (
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        128,
+        '$argon2id$v=19$m=32,t=3,p=1$c3VwZXJzZWNyZXRzYWx0$fcCL8RpQuQIm94N8n5t+RQXwQ8o1DP7kzv9ONq5iwDXjv/aml5GH7/4pUslOp2lkmN/IoetjWRjWuj4SIQxJq6/qEf47gS3fVE0BlCh8YOltGWAWgKNP5CZu79F6p+QBizxKUF46/trO6yOshT9W0GXV/kRg8XG5N0xnrg1OVAs',
+      ),
+      (
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        256,
+        '$argon2id$v=19$m=32,t=3,p=1$c3VwZXJzZWNyZXRzYWx0$lPPdOhZqTRYe//k8ahfcmmNd0/4JhEkW6vcuSRcSOtK3mFubM6RMEesvBvvimGnLFqixV5ps+N/o9TApBq/BWd8udScN+Hnpf9FnxxG6jrtSoAncL409dOpeaYIgN53PufiwRWeVHrD2WNhqHArFBcfvhxCIisBlcNuYwjpE+AxagBV1o1JcSK01kmZLQ4wUfAOdR7L7jKCd+NRjlRXoYKKbLth0oSeoOutqVFGQw/pct4JilsSmKk8HIHWMDKfQGMoe8u87Wao0H/y4/GpoRhS+qEFpK/S3/ITLg/La3WL7RJg9MeJagZxvz/Aaxkcyr1OBV81qP9WCEtLEAx/qoA',
+      ),
+    ]
+
+    for (inp, len, exp) in tests {
+      let got = Argon2
+        .with(memory: 32 * 1024, iterations: 3, parallel: 1, size: len)
+        .hash(inp, 'supersecretsalt'.to_byte_array)
+        .to_string
+
+      t.equal(got, exp)
+    }
+  })
+}
