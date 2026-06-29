@@ -166,7 +166,11 @@ type builtin String {
     # String values are NULL terminated _in addition_ to storing a length, such
     # that we can pass pointers to C functions as-is, so we have to make sure
     # the NULL byte is indeed present.
-    let len = size_of[Int] + size_of[Uint32] + size + 1
+    #
+    # We don't need to take this into account for the size calculation as the
+    # last field is a single byte that we treat as a variable sized field, i.e.
+    # the `+ 1` otherwise necessary is already taken into account.
+    let len = size_of[StringLayout] + size
     let val = alloc.allocate(len) as Pointer[StringLayout]
 
     # Based on some rough measurements it seems a malloc/realloc and a write is

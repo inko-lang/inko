@@ -2,8 +2,8 @@
 import std.libc
 import std.reflect (size_of)
 
-fn resize_error -> Never {
-  panic('std.alloc.resize() failed as not enough memory is available')
+fn allocation_error -> Never {
+  panic('failed to allocate memory')
 }
 
 # Allocates or resizes a chunk of raw memory such that it can fit `size`
@@ -26,13 +26,18 @@ fn noinline resize[T](buffer: Pointer[T], size: Int) -> Pointer[T] {
   let ptr = libc.realloc(buffer as Pointer[Uint8], bytes)
 
   # In this case there's nothing we can do but abort.
-  if ptr as Int == 0 and size != 0 { resize_error }
+  if ptr as Int == 0 and size != 0 { allocation_error }
 
   ptr as Pointer[T]
 }
 
-fn allocate[T](size: Int) -> Pointer[T] {
-  resize(buffer: 0 as Pointer[T], size: size)
+# Allocates `size` _bytes_ of memory
+fn noinline allocate(size: Int) -> Pointer[Uint8] {
+  let ptr = libc.malloc(size)
+
+  if ptr as Int == 0 { allocation_error }
+
+  ptr
 }
 
 fn free[T](pointer: Pointer[T]) {
