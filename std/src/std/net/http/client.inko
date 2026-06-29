@@ -1550,7 +1550,7 @@ type pub inline Request {
 
       match writer.start(@method, @uri, @headers).flush {
         case Ok(_) -> {}
-        case Error(ConnectionReset or BrokenPipe) if existing -> next
+        case Error(Closed) if existing -> next
         case Error(e) -> throw Error.WriteFailed(e)
       }
 
@@ -1621,7 +1621,7 @@ type pub inline Request {
 
           match writer.start(@method, @uri, @headers).flush {
             case Ok(_) -> {}
-            case Error(ConnectionReset or BrokenPipe) if existing -> next
+            case Error(Closed) if existing -> next
             case Error(e) -> throw CopyError.Write(Error.WriteFailed(e))
           }
 
@@ -1660,7 +1660,7 @@ type pub inline Request {
 
       match writer.start(@method, @uri, @headers).body(bytes) {
         case Ok(_) -> {}
-        case Error(ConnectionReset or BrokenPipe) if existing -> next
+        case Error(Closed) if existing -> next
         case Error(e) -> throw Error.WriteFailed(e)
       }
 
@@ -1675,9 +1675,7 @@ type pub inline Request {
           next
         }
         case Ok(v) -> return Result.Ok((v, raw_con))
-        case
-          Error(EndOfInput or Read(ConnectionReset or BrokenPipe)) if existing
-        -> {}
+        case Error(EndOfInput or Read(Closed)) if existing -> {}
         case Error(e) -> throw Error.InvalidResponse(e)
       }
     }

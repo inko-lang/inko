@@ -90,8 +90,8 @@ fn pub tests(t: mut Tests) {
     t.equal(Error.InvalidFrame, Error.InvalidFrame)
     t.equal(Error.MessageTooLarge, Error.MessageTooLarge)
     t.equal(Error.InvalidUtf8, Error.InvalidUtf8)
-    t.equal(Error.Other(IoError.BrokenPipe), Error.Other(IoError.BrokenPipe))
-    t.not_equal(Error.Other(IoError.BrokenPipe), Error.Other(IoError.NotFound))
+    t.equal(Error.Other(IoError.Closed), Error.Other(IoError.Closed))
+    t.not_equal(Error.Other(IoError.Closed), Error.Other(IoError.NotFound))
   })
 
   t.test('Error.fmt', fn (t) {
@@ -100,7 +100,7 @@ fn pub tests(t: mut Tests) {
     t.equal(fmt(Error.InvalidFrame), 'InvalidFrame')
     t.equal(fmt(Error.MessageTooLarge), 'MessageTooLarge')
     t.equal(fmt(Error.InvalidUtf8), 'InvalidUtf8')
-    t.equal(fmt(Error.Other(IoError.BrokenPipe)), 'Other(BrokenPipe)')
+    t.equal(fmt(Error.Other(IoError.Closed)), 'Other(Closed)')
   })
 
   t.test('Error.to_string', fn (t) {
@@ -109,10 +109,7 @@ fn pub tests(t: mut Tests) {
     t.equal(Error.InvalidFrame.to_string, 'the frame contains invalid data')
     t.equal(Error.MessageTooLarge.to_string, 'the message is too large')
     t.equal(Error.InvalidUtf8.to_string, 'the message contains invalid UTF-8')
-    t.equal(
-      Error.Other(IoError.BrokenPipe).to_string,
-      IoError.BrokenPipe.to_string,
-    )
+    t.equal(Error.Other(IoError.Closed).to_string, IoError.Closed.to_string)
   })
 
   t.test('State.default?', fn (t) {

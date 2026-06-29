@@ -2531,7 +2531,7 @@ type inline enum SocketServer {
             recover {
               match tls.Server.new(recover sock, c.clone) {
                 case Ok(v) -> Socket.secure(v)
-                case _ -> throw IoError.ConnectionAborted
+                case _ -> throw IoError.Closed
               }
             }
           }
@@ -2541,17 +2541,17 @@ type inline enum SocketServer {
             let pending = recover {
               match tls.PendingServer.new(recover sock) {
                 case Ok(v) -> v
-                case _ -> throw IoError.ConnectionAborted
+                case _ -> throw IoError.Closed
               }
             }
 
             let name = pending.server_name
-            let Some(conf) = fun.call(name) else throw IoError.ConnectionAborted
+            let Some(conf) = fun.call(name) else throw IoError.Closed
 
             recover {
               match pending.into_server(recover conf) {
                 case Ok(v) -> Socket.secure(v)
-                case _ -> throw IoError.ConnectionAborted
+                case _ -> throw IoError.Closed
               }
             }
           }
@@ -2811,9 +2811,9 @@ type pub Server[H: mut + Handle] {
     loop {
       let client = match socket.accept(@tls, @read_timeout) {
         case Ok(v) -> v
-        # ConnectionAborted may be produced if a connection is established and
-        # then aborted _just_ before we get to accept it.
-        case Error(ConnectionAborted) -> next
+        # Closed may be produced if a connection is established and then aborted
+        # _just_ before we get to accept it.
+        case Error(Closed) -> next
         # Interrupted is produced when we need to shut down.
         case Error(Interrupted) -> break
         case Error(e) -> throw e

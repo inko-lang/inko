@@ -836,27 +836,24 @@ fn pub tests(t: mut Tests) {
     t.false(ServerError.InvalidHandshake.to_string.empty?)
     t.false(ServerError.TimedOut.to_string.empty?)
     t.false(ServerError.InvalidHandshake.to_string.empty?)
-    t.false(ServerError.Read(IoError.BrokenPipe).to_string.empty?)
+    t.false(ServerError.Read(IoError.Closed).to_string.empty?)
   })
 
   t.test('ServerError.fmt', fn (t) {
     t.equal(fmt(ServerError.TimedOut), 'TimedOut')
     t.equal(fmt(ServerError.InvalidHandshake), 'InvalidHandshake')
-    t.equal(fmt(ServerError.Read(IoError.BrokenPipe)), 'Read(BrokenPipe)')
+    t.equal(fmt(ServerError.Read(IoError.Closed)), 'Read(Closed)')
   })
 
   t.test('ServerError.==', fn (t) {
     t.equal(ServerError.TimedOut, ServerError.TimedOut)
     t.equal(ServerError.InvalidHandshake, ServerError.InvalidHandshake)
-    t.equal(
-      ServerError.Read(IoError.BrokenPipe),
-      ServerError.Read(IoError.BrokenPipe),
-    )
+    t.equal(ServerError.Read(IoError.Closed), ServerError.Read(IoError.Closed))
 
     t.not_equal(ServerError.TimedOut, ServerError.InvalidHandshake)
     t.not_equal(ServerError.InvalidHandshake, ServerError.TimedOut)
     t.not_equal(
-      ServerError.Read(IoError.BrokenPipe),
+      ServerError.Read(IoError.Closed),
       ServerError.Read(IoError.NotFound),
     )
   })

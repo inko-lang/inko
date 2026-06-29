@@ -21,7 +21,7 @@
 # produced.
 #
 # When receiving a `close_notify` message during or after an IO operation (e.g.
-# a write), a `Error.InvalidData` or `Error.BrokenPipe` error may be produced.
+# a write), a `Error.InvalidData` or `Error.Closed` error may be produced.
 import std.bytes (Bytes)
 import std.clone (Clone)
 import std.cmp (Equal)

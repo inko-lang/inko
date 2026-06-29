@@ -465,7 +465,7 @@ fn pub tests(t: mut Tests) {
     )
 
     con.shutdown
-    t.equal(con.socket.write('a'), Result.Error(IoError.BrokenPipe))
+    t.equal(con.socket.write('a'), Result.Error(IoError.Closed))
 
     Result.Ok(nil)
   })
@@ -1154,12 +1154,12 @@ fn pub tests(t: mut Tests) {
       'failed to resolve the host: ${DnsError.InvalidHost}',
     )
     t.equal(
-      Error.ConnectionFailed(IoError.BrokenPipe).to_string,
-      'failed to connect: ${IoError.BrokenPipe}',
+      Error.ConnectionFailed(IoError.Closed).to_string,
+      'failed to connect: ${IoError.Closed}',
     )
     t.equal(
-      Error.WriteFailed(IoError.BrokenPipe).to_string,
-      'failed to write the request: ${IoError.BrokenPipe}',
+      Error.WriteFailed(IoError.Closed).to_string,
+      'failed to write the request: ${IoError.Closed}',
     )
     t.equal(
       Error.InvalidResponse(ParseError.InvalidHeader).to_string,
@@ -1175,17 +1175,14 @@ fn pub tests(t: mut Tests) {
       'LookupFailed(InvalidHost)',
     )
     t.equal(
-      fmt(Error.ConnectionFailed(IoError.BrokenPipe)),
-      'ConnectionFailed(BrokenPipe)',
+      fmt(Error.ConnectionFailed(IoError.Closed)),
+      'ConnectionFailed(Closed)',
     )
     t.equal(
       fmt(Error.InvalidResponse(ParseError.InvalidHeader)),
       'InvalidResponse(InvalidHeader)',
     )
-    t.equal(
-      fmt(Error.WriteFailed(IoError.BrokenPipe)),
-      'WriteFailed(BrokenPipe)',
-    )
+    t.equal(fmt(Error.WriteFailed(IoError.Closed)), 'WriteFailed(Closed)')
     t.equal(fmt(Error.InvalidHandshake), 'InvalidHandshake')
   })
 
@@ -1195,16 +1192,16 @@ fn pub tests(t: mut Tests) {
       Error.LookupFailed(DnsError.InvalidHost),
     )
     t.equal(
-      Error.ConnectionFailed(IoError.BrokenPipe),
-      Error.ConnectionFailed(IoError.BrokenPipe),
+      Error.ConnectionFailed(IoError.Closed),
+      Error.ConnectionFailed(IoError.Closed),
     )
     t.equal(
       Error.InvalidResponse(ParseError.InvalidHeader),
       Error.InvalidResponse(ParseError.InvalidHeader),
     )
     t.equal(
-      Error.WriteFailed(IoError.BrokenPipe),
-      Error.WriteFailed(IoError.BrokenPipe),
+      Error.WriteFailed(IoError.Closed),
+      Error.WriteFailed(IoError.Closed),
     )
     t.equal(Error.InvalidHandshake, Error.InvalidHandshake)
 
@@ -1213,7 +1210,7 @@ fn pub tests(t: mut Tests) {
       Error.LookupFailed(DnsError.ServerError),
     )
     t.not_equal(
-      Error.ConnectionFailed(IoError.BrokenPipe),
+      Error.ConnectionFailed(IoError.Closed),
       Error.ConnectionFailed(IoError.InvalidArgument),
     )
     t.not_equal(
@@ -1221,7 +1218,7 @@ fn pub tests(t: mut Tests) {
       Error.InvalidResponse(ParseError.InvalidMethod),
     )
     t.not_equal(
-      Error.WriteFailed(IoError.BrokenPipe),
+      Error.WriteFailed(IoError.Closed),
       Error.WriteFailed(IoError.InvalidArgument),
     )
   })
@@ -1672,7 +1669,7 @@ fn pub tests(t: mut Tests) {
 
     t.true(
       match client.post(uri.clone).read(reader, size: 1).error {
-        case Some(Write(WriteFailed(BrokenPipe or ConnectionReset))) -> true
+        case Some(Write(WriteFailed(Closed))) -> true
         case _ -> false
       },
     )

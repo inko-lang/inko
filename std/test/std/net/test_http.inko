@@ -508,10 +508,7 @@ fn pub tests(t: mut Tests) {
       ParseError.InvalidUri(UriError.InvalidScheme).to_string,
       'the request URI is invalid: the scheme is invalid',
     )
-    t.equal(
-      ParseError.Read(IoError.BrokenPipe).to_string,
-      IoError.BrokenPipe.to_string,
-    )
+    t.equal(ParseError.Read(IoError.Closed).to_string, IoError.Closed.to_string)
   })
 
   t.test('ParseError.fmt', fn (t) {
@@ -531,7 +528,7 @@ fn pub tests(t: mut Tests) {
     t.equal(fmt(ParseError.InvalidTransferEncoding), 'InvalidTransferEncoding')
     t.equal(fmt(ParseError.EndOfInput), 'EndOfInput')
     t.equal(fmt(ParseError.InvalidStatus), 'InvalidStatus')
-    t.equal(fmt(ParseError.Read(IoError.BrokenPipe)), 'Read(BrokenPipe)')
+    t.equal(fmt(ParseError.Read(IoError.Closed)), 'Read(Closed)')
   })
 
   t.test('ParseError.==', fn (t) {
@@ -554,10 +551,7 @@ fn pub tests(t: mut Tests) {
     )
     t.equal(ParseError.EndOfInput, ParseError.EndOfInput)
     t.equal(ParseError.InvalidStatus, ParseError.InvalidStatus)
-    t.equal(
-      ParseError.Read(IoError.BrokenPipe),
-      ParseError.Read(IoError.BrokenPipe),
-    )
+    t.equal(ParseError.Read(IoError.Closed), ParseError.Read(IoError.Closed))
 
     t.not_equal(ParseError.InvalidMethod, ParseError.MissingUri)
     t.not_equal(ParseError.MissingUri, ParseError.InvalidMethod)
@@ -576,7 +570,7 @@ fn pub tests(t: mut Tests) {
     t.not_equal(ParseError.EndOfInput, ParseError.MissingUri)
     t.not_equal(ParseError.InvalidStatus, ParseError.MissingUri)
     t.not_equal(
-      ParseError.Read(IoError.BrokenPipe),
+      ParseError.Read(IoError.Closed),
       ParseError.Read(IoError.NotConnected),
     )
   })

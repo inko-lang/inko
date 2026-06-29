@@ -13,7 +13,7 @@
 # Just like sockets pipes don't reach the end of their stream until one of the
 # halves is dropped. This means that e.g. `Pipe.read_all` will block until the
 # corresponding `PipeWriter` is dropped. `PipeWriter.write` will return a
-# `std.io.Error.BrokenPipe` error if the corresponding `Pipe` is dropped.
+# `std.io.Error.Closed` error if the corresponding `Pipe` is dropped.
 #
 # The capacity of a pipe depends on the underlying platform and can't be
 # adjusted.

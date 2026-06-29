@@ -20,11 +20,11 @@ fn pub tests(t: mut Tests) {
 
     t.not_equal(
       ParseError.Read(io.Error.NotFound),
-      ParseError.Read(io.Error.BrokenPipe),
+      ParseError.Read(io.Error.Closed),
     )
     t.not_equal(
       ParseError.Invalid(pem.ParseError.Read(io.Error.NotFound)),
-      ParseError.Invalid(pem.ParseError.Read(io.Error.BrokenPipe)),
+      ParseError.Invalid(pem.ParseError.Read(io.Error.Closed)),
     )
   })
 

@@ -44,7 +44,7 @@ fn pub tests(t: mut Tests) {
     t.equal(Error.MissingName as Error[Nil], Error.MissingName)
     t.equal(Error.HeaderTooLarge as Error[Nil], Error.HeaderTooLarge)
     t.equal(Error.EndOfInput as Error[Nil], Error.EndOfInput)
-    t.equal(Error.Read(IoError.BrokenPipe), Error.Read(IoError.BrokenPipe))
+    t.equal(Error.Read(IoError.Closed), Error.Read(IoError.Closed))
   })
 
   t.test('Error.fmt', fn (t) {
@@ -53,14 +53,11 @@ fn pub tests(t: mut Tests) {
     t.equal(fmt(Error.MissingName as Error[Nil]), 'MissingName')
     t.equal(fmt(Error.HeaderTooLarge as Error[Nil]), 'HeaderTooLarge')
     t.equal(fmt(Error.EndOfInput as Error[Nil]), 'EndOfInput')
-    t.equal(fmt(Error.Read(IoError.BrokenPipe)), 'Read(BrokenPipe)')
+    t.equal(fmt(Error.Read(IoError.Closed)), 'Read(Closed)')
   })
 
   t.test('Error.to_string', fn (t) {
-    t.equal(
-      Error.Read(IoError.BrokenPipe).to_string,
-      IoError.BrokenPipe.to_string,
-    )
+    t.equal(Error.Read(IoError.Closed).to_string, IoError.Closed.to_string)
   })
 
   t.test('Multipart.move_to_first_boundary', fn (t) {

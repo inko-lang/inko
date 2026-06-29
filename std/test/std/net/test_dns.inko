@@ -8,23 +8,20 @@ fn pub tests(t: mut Tests) {
   t.test('Error.to_string', fn (t) {
     t.equal(Error.InvalidHost.to_string, "the hostname can't be resolved")
     t.equal(Error.ServerError.to_string, 'the DNS server returned an error')
-    t.equal(
-      Error.Other(IoError.BrokenPipe).to_string,
-      IoError.BrokenPipe.to_string,
-    )
+    t.equal(Error.Other(IoError.Closed).to_string, IoError.Closed.to_string)
   })
 
   t.test('Error.fmt', fn (t) {
     t.equal(fmt(Error.InvalidHost), 'InvalidHost')
     t.equal(fmt(Error.ServerError), 'ServerError')
-    t.equal(fmt(Error.Other(IoError.BrokenPipe)), 'Other(BrokenPipe)')
+    t.equal(fmt(Error.Other(IoError.Closed)), 'Other(Closed)')
   })
 
   t.test('Error.==', fn (t) {
     t.equal(Error.InvalidHost, Error.InvalidHost)
     t.equal(Error.ServerError, Error.ServerError)
-    t.equal(Error.Other(IoError.BrokenPipe), Error.Other(IoError.BrokenPipe))
-    t.not_equal(Error.Other(IoError.BrokenPipe), Error.Other(IoError.NotFound))
+    t.equal(Error.Other(IoError.Closed), Error.Other(IoError.Closed))
+    t.not_equal(Error.Other(IoError.Closed), Error.Other(IoError.NotFound))
     t.not_equal(Error.InvalidHost, Error.ServerError)
     t.not_equal(Error.ServerError, Error.InvalidHost)
   })

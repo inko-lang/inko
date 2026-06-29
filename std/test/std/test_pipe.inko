@@ -50,7 +50,7 @@ fn pub tests(t: mut Tests) {
     let (r, w) = try Pipe.new
 
     drop(r)
-    t.equal(w.write('hello'), Result.Error(Error.BrokenPipe))
+    t.equal(w.write('hello'), Result.Error(Error.Closed))
 
     Result.Ok(nil)
   })

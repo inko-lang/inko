@@ -15,7 +15,7 @@ type BrokenReader {}
 
 impl Read[IoError] for BrokenReader {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, IoError] {
-    throw IoError.BrokenPipe
+    throw IoError.Closed
   }
 }
 
@@ -116,8 +116,8 @@ fn pub tests(t: mut Tests) {
       'failed to decompress the input: test',
     )
     t.equal(
-      (DecodeError.Read(IoError.BrokenPipe) as DecodeError[IoError]).to_string,
-      'failed to read the input: ${IoError.BrokenPipe}',
+      (DecodeError.Read(IoError.Closed) as DecodeError[IoError]).to_string,
+      'failed to read the input: ${IoError.Closed}',
     )
   })
 
@@ -127,8 +127,8 @@ fn pub tests(t: mut Tests) {
       'Generic("test")',
     )
     t.equal(
-      fmt((DecodeError.Read(IoError.BrokenPipe) as DecodeError[IoError])),
-      'Read(BrokenPipe)',
+      fmt((DecodeError.Read(IoError.Closed) as DecodeError[IoError])),
+      'Read(Closed)',
     )
   })
 
@@ -138,8 +138,8 @@ fn pub tests(t: mut Tests) {
       DecodeError.Generic('a'),
     )
     t.equal(
-      DecodeError.Read(IoError.BrokenPipe) as DecodeError[IoError],
-      DecodeError.Read(IoError.BrokenPipe),
+      DecodeError.Read(IoError.Closed) as DecodeError[IoError],
+      DecodeError.Read(IoError.Closed),
     )
 
     t.not_equal(
@@ -147,7 +147,7 @@ fn pub tests(t: mut Tests) {
       DecodeError.Generic('5'),
     )
     t.not_equal(
-      DecodeError.Read(IoError.BrokenPipe) as DecodeError[IoError],
+      DecodeError.Read(IoError.Closed) as DecodeError[IoError],
       DecodeError.Read(IoError.NotFound),
     )
   })
@@ -197,7 +197,7 @@ fn pub tests(t: mut Tests) {
 
     t.equal(
       dec.read(into: buf, size: 5),
-      Result.Error(DecodeError.Read(IoError.BrokenPipe)),
+      Result.Error(DecodeError.Read(IoError.Closed)),
     )
   })
 
