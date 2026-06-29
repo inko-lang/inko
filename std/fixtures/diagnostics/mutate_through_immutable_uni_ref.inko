@@ -1,0 +1,21 @@
+type A {
+  fn mut mutate {}
+}
+
+type B {
+  let @a: A
+}
+
+type C {
+  let @b: uni B
+
+  fn example1 {
+    @b.a.mutate
+  }
+
+  fn mut example2 {
+    @b.a.mutate
+  }
+}
+
+# mutate_through_immutable_uni_ref.inko:13:10 error(invalid-call): the method 'mutate' requires a mutable receiver, but 'uni ref A' isn't mutable

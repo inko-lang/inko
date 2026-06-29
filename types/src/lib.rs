@@ -4936,7 +4936,7 @@ impl TypeRef {
         match self {
             TypeRef::Mut(_) => true,
             TypeRef::Placeholder(id) => {
-                id.value(db).is_some_and(|v| v.is_ref(db))
+                id.value(db).is_some_and(|v| v.is_mut(db))
             }
             _ => false,
         }
@@ -7874,6 +7874,44 @@ mod tests {
         assert!(immutable(instance(int)).is_assignable(&db));
         assert!(!mutable_uni(instance(int)).is_assignable(&db));
         assert!(!immutable_uni(instance(int)).is_assignable(&db));
+    }
+
+    #[test]
+    fn test_type_ref_is_ref() {
+        let mut db = Database::new();
+        let thing = new_type(&mut db, "A");
+        let p1 = TypePlaceholder::alloc(&mut db, None);
+        let p2 = TypePlaceholder::alloc(&mut db, None);
+
+        p1.assign(&mut db, owned(instance(thing)));
+        p2.assign(&mut db, immutable(instance(thing)));
+
+        assert!(immutable(instance(thing)).is_ref(&db));
+        assert!(placeholder(p2).is_ref(&db));
+
+        assert!(!owned(instance(thing)).is_ref(&db));
+        assert!(!mutable(instance(thing)).is_ref(&db));
+        assert!(!immutable_uni(instance(thing)).is_ref(&db));
+        assert!(!placeholder(p1).is_ref(&db));
+    }
+
+    #[test]
+    fn test_type_ref_is_mut() {
+        let mut db = Database::new();
+        let thing = new_type(&mut db, "A");
+        let p1 = TypePlaceholder::alloc(&mut db, None);
+        let p2 = TypePlaceholder::alloc(&mut db, None);
+
+        p1.assign(&mut db, owned(instance(thing)));
+        p2.assign(&mut db, mutable(instance(thing)));
+
+        assert!(mutable(instance(thing)).is_mut(&db));
+        assert!(placeholder(p2).is_mut(&db));
+
+        assert!(!owned(instance(thing)).is_mut(&db));
+        assert!(!immutable(instance(thing)).is_mut(&db));
+        assert!(!mutable_uni(instance(thing)).is_mut(&db));
+        assert!(!placeholder(p1).is_mut(&db));
     }
 
     #[test]

@@ -4166,7 +4166,7 @@ impl<'a> CheckMethodBody<'a> {
         let (ins, field) =
             self.lookup_field_with_receiver(receiver_id, &node.name)?;
         let raw_type = field.value_type(self.db_mut());
-        let immutable = receiver.is_ref(self.db_mut());
+        let immutable = !receiver.allow_mutating(self.db_mut());
         let args = ins.type_arguments(self.db_mut()).unwrap().clone();
         let bounds = self.bounds;
         let returns = TypeResolver::new(self.db_mut(), &args, bounds)
