@@ -5013,10 +5013,6 @@ impl TypeRef {
     pub fn allow_moving(self, db: &Database) -> bool {
         match self {
             TypeRef::Owned(_) | TypeRef::Uni(_) => true,
-            TypeRef::UniRef(TypeEnum::TypeInstance(i))
-            | TypeRef::UniMut(TypeEnum::TypeInstance(i)) => {
-                i.instance_of.is_stack_allocated(db)
-            }
             TypeRef::Placeholder(id) => {
                 id.value(db).is_some_and(|v| v.allow_moving(db))
             }
@@ -5031,13 +5027,13 @@ impl TypeRef {
             }
             TypeRef::Mut(TypeEnum::TypeInstance(ins))
             | TypeRef::Uni(TypeEnum::TypeInstance(ins))
-            | TypeRef::UniMut(TypeEnum::TypeInstance(ins))
-            | TypeRef::Pointer(TypeEnum::TypeInstance(ins)) => {
+            | TypeRef::UniMut(TypeEnum::TypeInstance(ins)) => {
                 ins.instance_of.allow_field_assignments(db, false)
             }
             TypeRef::Placeholder(id) => {
                 id.value(db).is_some_and(|v| v.allow_field_assignments(db))
             }
+            TypeRef::Pointer(_) => true,
             _ => false,
         }
     }
@@ -7684,8 +7680,8 @@ mod tests {
         assert!(uni(instance(heap)).allow_moving(&db));
         assert!(owned(instance(stack)).allow_moving(&db));
         assert!(uni(instance(stack)).allow_moving(&db));
-        assert!(immutable_uni(instance(stack)).allow_moving(&db));
-        assert!(mutable_uni(instance(stack)).allow_moving(&db));
+        assert!(!immutable_uni(instance(stack)).allow_moving(&db));
+        assert!(!mutable_uni(instance(stack)).allow_moving(&db));
         assert!(!mutable(instance(heap)).allow_moving(&db));
         assert!(!immutable(instance(heap)).allow_moving(&db));
     }

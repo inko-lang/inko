@@ -3,7 +3,7 @@ import std.fmt (fmt)
 import std.process (sleep)
 import std.sync (AtomicBool, AtomicInt, Channel, Future, Promise)
 import std.test (Tests)
-import std.time (Duration)
+import std.time (Duration, Instant)
 
 type async AsyncWriter {
   fn async write(writer: uni Promise[Int]) {
@@ -11,6 +11,11 @@ type async AsyncWriter {
     # the closest we can get to that.
     sleep(Duration.from_millis(10))
     writer.set(42)
+  }
+
+  fn async dispose(promise: uni Promise[Int]) {
+    sleep(Duration.from_millis(10))
+    drop(promise)
   }
 }
 
@@ -20,86 +25,96 @@ fn int_future -> (uni Future[Int], uni Promise[Int]) {
 
 fn pub tests(t: mut Tests) {
   t.test('Future.get', fn (t) {
-    match Future.new {
-      case (r, w) -> {
-        t.true(w.set(42).none?)
-        t.equal(r.get, 42)
-      }
-    }
+    let (r, w) = Future.new
+
+    t.true(w.set(42).none?)
+    t.equal(r.get, 42)
+  })
+
+  t.panic('Future.get with a Promise dropped before a Future.get call', fn {
+    let (fut, prom) = int_future
+
+    drop(prom)
+    fut.get
+  })
+
+  t.panic('Future.get with a Promise dropped during a Future.get call', fn {
+    let (fut, prom) = int_future
+
+    AsyncWriter().dispose(prom)
+    fut.get
   })
 
   t.test('Future.get_until', fn (t) {
-    match int_future {
-      case (r, _w) -> t.equal(r.get_until(Duration.from_millis(1)), Option.None)
-    }
+    let (r, _w) = int_future
 
-    match int_future {
-      case (r, w) -> {
-        t.true(w.set(42).none?)
-        t.equal(r.get_until(Duration.from_millis(1)), Option.Some(42))
-      }
-    }
+    t.equal(r.get_until(Duration.from_millis(1)), Option.None)
+
+    let (r, w) = int_future
+
+    t.true(w.set(42).none?)
+    t.equal(r.get_until(Duration.from_millis(1)), Option.Some(42))
+  })
+
+  t.test('Future.get_until with a dropped Promise', fn (t) {
+    let (fut, prom) = int_future
+
+    drop(prom)
+
+    let start = Instant.new
+    let res = fut.get_until(Duration.from_secs(1))
+    let dur = start.elapsed
+
+    t.equal(res, Option.None)
+    t.true(dur < Duration.from_secs(1))
   })
 
   t.ok('Future.try_get', fn (t) {
-    match int_future {
-      case (r, w) -> {
-        let r = match r.try_get {
-          case Ok(_) -> throw 'expected an Error'
-          case Error(r) -> r
-        }
-
-        t.true(w.set(42).none?)
-        t.equal(r.try_get.ok, Option.Some(42))
-      }
+    let (r, w) = int_future
+    let r = match r.try_get {
+      case Ok(_) -> throw 'expected an Error'
+      case Error(r) -> r
     }
+
+    t.true(w.set(42).none?)
+    t.equal(r.try_get.ok, Option.Some(42))
 
     Result.Ok(nil)
   })
 
   t.test('Future.get_until with a dropped Promise', fn (t) {
-    match int_future {
-      case (r, w) -> {
-        drop(w)
-        t.true(r.get_until(Duration.from_millis(1)).none?)
-      }
-    }
+    let (r, w) = int_future
+
+    drop(w)
+    t.true(r.get_until(Duration.from_millis(1)).none?)
   })
 
   t.test('Future.try_get with a dropped Promise', fn (t) {
-    match int_future {
-      case (r, w) -> {
-        drop(w)
-        t.true(r.try_get.error?)
-      }
-    }
+    let (r, w) = int_future
+
+    drop(w)
+    t.true(r.try_get.error?)
   })
 
   t.test('Promise.set', fn (t) {
-    match int_future {
-      case (r, w) -> {
-        t.equal(w.set(42), Option.None)
-        t.equal(r.get, 42)
-      }
-    }
+    let (r, w) = int_future
+
+    t.equal(w.set(42), Option.None)
+    t.equal(r.get, 42)
   })
 
   t.test('Promise.set with a dropped Future', fn (t) {
-    match int_future {
-      case (r, w) -> {
-        drop(r)
-        t.equal(w.set(42), Option.Some(42))
-      }
-    }
+    let (r, w) = int_future
+
+    drop(r)
+    t.equal(w.set(42), Option.Some(42))
   })
 
   t.test('Promise.set wakes up a Future', fn (t) {
-    match int_future {
-      case (r, w) -> {
-        AsyncWriter().write(w)
-        t.equal(r.get, 42)
-      }
-    }
+    let (r, w) = int_future
+
+    AsyncWriter().write(w)
+    t.equal(r.get, 42)
   })
 
   t.test('Channel.receive', fn (t) {

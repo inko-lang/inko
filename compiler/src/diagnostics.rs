@@ -1140,6 +1140,20 @@ impl Diagnostics {
         );
     }
 
+    pub(crate) fn invalid_pointer_value(
+        &mut self,
+        name: &str,
+        file: PathBuf,
+        location: Location,
+    ) {
+        self.error(
+            DiagnosticId::InvalidType,
+            format!("'{}' is not an owned value", name),
+            file,
+            location,
+        );
+    }
+
     pub(crate) fn unused_symbol(
         &mut self,
         name: &str,

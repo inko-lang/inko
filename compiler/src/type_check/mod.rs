@@ -389,7 +389,7 @@ impl<'a> DefineTypeSignature<'a> {
                     if let Some(ctype) = self.resolve_foreign_type(
                         None,
                         name,
-                        &node.arguments,
+                        &mut node.arguments,
                         node.location,
                     ) {
                         ctype
@@ -551,7 +551,7 @@ impl<'a> DefineTypeSignature<'a> {
         &mut self,
         source: Option<ModuleId>,
         name: &str,
-        arguments: &[hir::Type],
+        arguments: &mut [hir::Type],
         location: Location,
     ) -> Option<TypeRef> {
         match name {
@@ -579,39 +579,13 @@ impl<'a> DefineTypeSignature<'a> {
                     return None;
                 }
 
-                let arg = if let hir::Type::Named(n) = &arguments[0] {
-                    let src = if let Some(src) = n.source.as_ref() {
-                        if let Some(Symbol::Module(m)) =
-                            self.scope.symbol(self.db_mut(), &src.name)
-                        {
-                            Some(m)
-                        } else {
-                            self.state.diagnostics.not_a_module(
-                                &src.name,
-                                self.file(),
-                                src.location,
-                            );
-
-                            return None;
-                        }
-                    } else {
-                        None
-                    };
-
-                    self.resolve_foreign_type(
-                        src,
-                        &n.name.name,
-                        &n.arguments,
-                        n.location,
-                    )
-                } else {
-                    None
-                }?;
-
-                match arg {
-                    TypeRef::Owned(v) => Some(TypeRef::Pointer(v)),
-                    _ => {
-                        self.state.diagnostics.invalid_c_type(
+                match self.define_type(&mut arguments[0]) {
+                    TypeRef::Owned(v) | TypeRef::Any(v) => {
+                        Some(TypeRef::Pointer(v))
+                    }
+                    TypeRef::Error => None,
+                    arg => {
+                        self.state.diagnostics.invalid_pointer_value(
                             &format_type(self.db(), arg),
                             self.file(),
                             location,

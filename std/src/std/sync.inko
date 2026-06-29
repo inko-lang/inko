@@ -25,10 +25,12 @@
 #   }
 # }
 # ```
+import std.alloc
 import std.clone (Clone)
 import std.deque (Deque)
 import std.drop (Drop, drop as drop_value)
 import std.fmt (Format, Formatter)
+import std.reflect (size_of)
 import std.time (ToInstant)
 
 fn extern inko_process_wait_for_value(
@@ -57,14 +59,41 @@ let NO_WAITER = 0
 let UNLOCKED = 0
 let LOCKED = 1
 
+fn reschedule(waiter: Pointer[Uint8]) {
+  if waiter as Int != NO_WAITER {
+    inko_process_reschedule_for_value(_INKO.state, _INKO.process, waiter)
+  }
+}
+
 type copy enum Status {
   case Connected
   case NoFuture
   case NoPromise
+
+  fn no_promise? -> Bool {
+    match self {
+      case NoPromise -> true
+      case _ -> false
+    }
+  }
 }
 
 # The state shared between a `Future` and a `Promise`.
-type FutureState[T] {
+#
+# This type is an `inline` type so we avoid the need for an unused object
+# header. Instances of this type are used through raw pointers to allow for
+# shared ownership and as such no methods should be defined on this type
+# directly (as they'll expect borrows/stack copies as their receivers instead of
+# pointers).
+type inline FutureState[T] {
+  # The process waiting for a value to be written to the future.
+  #
+  # A value of NULL means no process is waiting.
+  let mut @waiter: Pointer[Uint8]
+
+  # The value the future resolves to, if any.
+  let mut @value: Option[T]
+
   # A spinlock used to restrict access to the state to a single thread/process
   # at a time.
   #
@@ -83,19 +112,55 @@ type FutureState[T] {
 
   # The status of the `Future` and `Promise`.
   let mut @status: Status
+}
 
-  # The process waiting for a value to be written to the future.
-  #
-  # A value of NULL means no process is waiting.
-  let mut @waiter: Pointer[Uint8]
+# An exclusive lock of the shared state.
+type inline Lock[T] {
+  let @state: Pointer[FutureState[uni T]]
 
-  # The value the future resolves to, if any.
-  let mut @value: Option[T]
+  fn inline mut value=(value: Option[uni T]) {
+    @state.value = value
+  }
 
-  fn mut lock {
+  fn inline mut get -> Option[uni T] {
+    @state.value := Option.None
+  }
+
+  fn inline mut wait {
+    @state.waiter = _INKO.process
+  }
+
+  fn inline mut locked -> Pointer[Uint8] {
+    mut @state.locked
+  }
+
+  fn inline status -> Status {
+    @state.status
+  }
+
+  fn inline status=(value: Status) {
+    @state.status = value
+  }
+
+  fn mut take_waiter -> Pointer[Uint8] {
+    @state.waiter := NO_WAITER as Pointer[Uint8]
+  }
+}
+
+impl Drop for Lock {
+  fn mut drop {
+    _INKO.int_atomic_compare_swap(locked, LOCKED as Uint8, UNLOCKED as Uint8)
+  }
+}
+
+# A synchronized/locked pointer to the shared state.
+type inline Shared[T] {
+  let @state: Pointer[FutureState[uni T]]
+
+  fn mut lock -> Lock[T] {
     while
       !_INKO.int_atomic_compare_swap(
-        mut @locked,
+        mut @state.locked,
         UNLOCKED as Uint8,
         LOCKED as Uint8,
       )
@@ -110,14 +175,16 @@ type FutureState[T] {
       # automatically if we spin for too long.
       _INKO.spin_loop_hint
     }
+
+    Lock(@state)
   }
 
-  fn mut unlock {
-    _INKO.int_atomic_compare_swap(
-      mut @locked,
-      LOCKED as Uint8,
-      UNLOCKED as Uint8,
-    )
+  fn mut deallocate {
+    # The state is allocated manually and we don't have a way of dropping values
+    # in-place through pointers, so we have to take out the value (if any) and
+    # drop it explicitly.
+    drop_value(@state.value := Option.None)
+    alloc.free(@state)
   }
 }
 
@@ -130,8 +197,8 @@ type FutureState[T] {
 # - `Future.get`
 # - `Future.try_get`
 # - `Future.get_until`
-type pub Future[T] {
-  let @state: Uint64
+type pub inline Future[T] {
+  let @shared: Shared[T]
 
   # Returns a new `Future` along with its corresponding `Promise`.
   #
@@ -148,24 +215,24 @@ type pub Future[T] {
   # promise.set(42)
   # future.get # => 42
   # ```
-  fn pub static new -> (uni Future[uni T], uni Promise[uni T]) {
-    let fut: FutureState[uni T] = FutureState(
+  fn pub static new -> (uni Future[T], uni Promise[T]) {
+    # The `Future` and `Promise` need shared access of the underlying data. This
+    # technically violates Inko's single-ownership rules, so to allow that we
+    # use a raw pointer.
+    #
+    # This is of course highly unsafe, but it's how this particular sausage is
+    # made.
+    let ptr = alloc.allocate(size_of[FutureState[uni T]])
+      as Pointer[FutureState[uni T]]
+
+    ptr.0 = FutureState(
       waiter: NO_WAITER as Pointer[Uint8],
       locked: UNLOCKED as Uint8,
       status: Status.Connected,
       value: Option.None,
     )
 
-    # The `Future` and `Promise` need shared access of the underlying data. This
-    # technically violates Inko's single-ownership rules, so to allow that we
-    # cast the state reference to an address, then cast that back where
-    # necessary.
-    #
-    # This is of course highly unsafe, but it's how this particular sausage is
-    # made.
-    let fut = fut as Uint64
-
-    (recover Future(fut), recover Promise(fut))
+    (recover Future(Shared(ptr)), recover Promise(Shared(ptr)))
   }
 
   # Returns the value of the `Future`, blocking the calling process until a
@@ -174,15 +241,15 @@ type pub Future[T] {
   # This method consumes the `Future`, ensuring a value can only be resolved
   # once.
   #
-  # # Deadlocks
+  # # Panics
   #
-  # If a `Promise` is dropped before a call to `Future.get` or while the
-  # `Future` waits for a value to be written, the calling process of
-  # `Future.get` will deadlock. This method makes no attempt at detecting such
-  # cases as doing so is notoriously difficult.
+  # If this method is called and the corresponding `Promise` is dropped without
+  # first calling `Promise.set`, this method panics as to prevent `Future.get`
+  # from blocking the calling process forever.
   #
-  # To avoid a deadlock, make sure to always write a value to a `Promise`
-  # _before_ discarding it, or use `Future.get_until` to wait using a deadline.
+  # To avoid such a panic, make sure to _always_ call `Promise.set` before
+  # disposing of the `Promise` _or_ use `Future.get_until` or `Future.try_get`
+  # instead of `Future.get`.
   #
   # # Examples
   #
@@ -196,30 +263,24 @@ type pub Future[T] {
   # ```
   fn pub move get -> uni T {
     loop {
-      let fut = lock
+      let state = @shared.lock
 
-      match fut.value := Option.None {
-        case Some(val) -> {
-          fut.unlock
-
-          # Ensure the shared state isn't dropped.
-          _INKO.moved(fut)
-          return val
+      match state.get {
+        case Some(val) -> return val
+        case _ if state.status.no_promise? -> {
+          panic("can't call Future.get on a disconnected Future")
         }
         case _ -> {
-          fut.waiter = _INKO.process
+          state.wait
 
           # This atomically changes the process status, unlocks the future lock
           # and yields back to the scheduler.
           inko_process_wait_for_value(
             _INKO.process,
-            mut fut.locked,
+            state.locked,
             LOCKED as Uint8,
             UNLOCKED as Uint8,
           )
-
-          # Ensure the shared state isn't dropped.
-          _INKO.moved(fut)
         }
       }
     }
@@ -246,12 +307,9 @@ type pub Future[T] {
   # `Promise.set` is called _after_ returning from this method the value passed
   # to `Promise.set` is returned to its caller.
   #
-  # # Deadlocks
-  #
-  # Unlike `Future.get`, this method can't deadlock a calling process forever
-  # due to the use of a deadline. However, if the `Promise` is dropped before or
-  # during a call to `Future.get_until`, the calling process will be suspended
-  # until the deadline expires.
+  # Unlike `Future.get`, this method won't panic if the corresponding `Promise`
+  # is dropped without a call to `Promise.set`. However, in such a case the will
+  # may be suspended until the deadline expires.
   #
   # # Examples
   #
@@ -268,32 +326,24 @@ type pub Future[T] {
     let nanos = deadline.to_instant.to_int as Uint64
 
     loop {
-      let fut = lock
+      let state = @shared.lock
 
-      match fut.value := Option.None {
-        case Some(val) -> {
-          fut.unlock
-
-          # Ensure the shared state isn't dropped.
-          _INKO.moved(fut)
-          return Option.Some(val)
-        }
+      match state.get {
+        case Some(val) -> return Option.Some(val)
+        case _ if state.status.no_promise? -> return Option.None
         case _ -> {
-          fut.waiter = _INKO.process
+          state.wait
 
           # This atomically changes the process status, unlocks the future lock
           # and yields back to the scheduler.
           let timed_out = inko_process_wait_for_value_until(
             _INKO.state,
             _INKO.process,
-            mut fut.locked,
+            state.locked,
             LOCKED as Uint8,
             UNLOCKED as Uint8,
             nanos,
           )
-
-          # Ensure the shared state isn't dropped.
-          _INKO.moved(fut)
 
           if timed_out { break }
         }
@@ -309,20 +359,14 @@ type pub Future[T] {
     # perform a final check to see if a value is present. This ensures that
     # beyond this point any values written using `Promise.set` are returned to
     # the caller, instead of just being dropped.
-    let fut = lock
+    let state = @shared.lock
 
-    match fut.status {
-      case Connected -> fut.status = Status.NoFuture
+    match state.status {
+      case Connected -> state.status = Status.NoFuture
       case _ -> {}
     }
 
-    let val = fut.value := Option.None
-
-    fut.unlock
-
-    # Ensure the shared state isn't dropped.
-    _INKO.moved(fut)
-    val
+    state.get
   }
 
   # Returns the value of the future if one is present, without blocking the
@@ -332,9 +376,8 @@ type pub Future[T] {
   # value is present, a `Result.Error` is returned containing a new `Future` to
   # use for resolving the value.
   #
-  # # Deadlocks
-  #
-  # This method never deadlocks.
+  # If the corresponding `Promise` is dropped without ever writing a value using
+  # `Promise.set`, this method always returns a `Result.Error`.
   #
   # # Examples
   #
@@ -347,52 +390,28 @@ type pub Future[T] {
   # future.try_get # => Result.Ok(42)
   # ```
   fn pub move try_get -> Result[uni T, Future[T]] {
-    let fut = lock
-    let val = fut.value := Option.None
-
-    fut.unlock
-
-    # Ensure the shared state isn't dropped.
-    _INKO.moved(fut)
-
-    match val {
+    match @shared.lock.get {
       case Some(v) -> Result.Ok(v)
       case _ -> Result.Error(self)
     }
-  }
-
-  fn lock -> FutureState[uni T] {
-    let fut = @state as FutureState[uni T]
-
-    fut.lock
-    fut
   }
 }
 
 impl Drop for Future {
   fn mut drop {
-    let fut = lock
+    let state = @shared.lock
 
-    match fut.status {
-      case Connected -> {
-        fut.status = Status.NoFuture
-        fut.unlock
-
-        # Ensure the shared state isn't dropped.
-        _INKO.moved(fut)
-      }
+    match state.status {
+      case Connected -> state.status = Status.NoFuture
       case NoPromise -> {
         # The `Promise` is already dropped, so it's our job to clean up the
         # shared state.
-        drop_value(fut)
+        drop_value(state)
+        @shared.deallocate
       }
       case _ -> {
         # We can encounter this branch if Future.get_until times out because it
         # sets the status to NoFuture.
-        fut.unlock
-
-        # Ensure the shared state isn't dropped.
-        _INKO.moved(fut)
       }
     }
   }
@@ -402,8 +421,8 @@ impl Drop for Future {
 #
 # A `Promise` is used to write a value to a future, such that a corresponding
 # `Future` can be resolved into this value.
-type pub Promise[T] {
-  let @state: Uint64
+type pub inline Promise[T] {
+  let @shared: Shared[T]
 
   # Sets the value of the `Future` that belongs to this `Promise` to the given
   # value.
@@ -444,66 +463,42 @@ type pub Promise[T] {
   # ```
   fn pub move set(value: uni T) -> Option[uni T] {
     let val = Option.Some(value)
-    let fut = lock
 
-    match fut.status {
-      case NoFuture -> {
-        fut.unlock
+    let state = @shared.lock
 
-        # Ensure the shared state isn't dropped.
-        _INKO.moved(fut)
-        return val
-      }
+    match state.status {
+      case NoFuture -> return val
       case _ -> {}
     }
 
-    let waiter = fut.waiter := NO_WAITER as Pointer[Uint8]
+    let waiter = state.take_waiter
 
-    fut.value = val
-    fut.unlock
-
-    # Ensure the shared state isn't dropped.
-    _INKO.moved(fut)
-
-    # If the waiter is waiting for a value, we have to reschedule it.
-    if waiter as Int != NO_WAITER {
-      inko_process_reschedule_for_value(_INKO.state, _INKO.process, waiter)
-    }
-
+    state.value = val
+    drop_value(state)
+    reschedule(waiter)
     Option.None
-  }
-
-  fn lock -> FutureState[uni T] {
-    let fut = @state as FutureState[uni T]
-
-    fut.lock
-    fut
   }
 }
 
 impl Drop for Promise {
   fn mut drop {
-    let fut = lock
+    let state = @shared.lock
 
-    match fut.status {
+    match state.status {
       case Connected -> {
-        fut.status = Status.NoPromise
-        fut.unlock
+        let waiter = state.take_waiter
 
-        # Ensure the shared state isn't dropped.
-        _INKO.moved(fut)
-        return
+        state.status = Status.NoPromise
+        drop_value(state)
+        reschedule(waiter)
       }
       case NoFuture -> {
         # The `Future` is already dropped, so it's our job to clean up the
         # shared state.
-        drop_value(fut)
+        drop_value(state)
+        @shared.deallocate
       }
-      case _ -> {
-        # This ensures `fut` is moved in all branches, such that we don't try to
-        # double drop it outside the match.
-        _INKO.moved(fut)
-      }
+      case _ -> {}
     }
   }
 }
