@@ -5,7 +5,7 @@
 # This method drops the value simply by taking ownership of it, and dropping it
 # before returning. This allows one to drop a value before reaching the end of a
 # scope.
-fn pub drop[T](_value: T) {
+fn pub inline drop[T](_value: T) {
   # _value dropped implicitly
 }
 
