@@ -1,0 +1,15 @@
+fn example {
+  {
+
+  }
+
+  {}
+
+  {10}
+  {10
+  20}
+  {'fooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo'}
+  {'foooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo'}
+
+  {{{{{{{{{{{{{{{{'foooooooooooooooooooooooooooooooooooooooooooooooo'}}}}}}}}}}}}}}}}
+}

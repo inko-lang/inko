@@ -29,13 +29,17 @@ fn pub tests(t: mut Tests) {
 
   t.fork(
     'Stdout.write',
-    child: fn { let _ = Stdout.new.write('hello'.to_byte_array) },
+    child: fn {
+      let _ = Stdout.new.write('hello'.to_byte_array)
+    },
     test: fn (test, process) { test.equal(process.spawn.stdout, 'hello') },
   )
 
   t.fork(
     'Stdout.print',
-    child: fn { let _ = Stdout.new.print('hello') },
+    child: fn {
+      let _ = Stdout.new.print('hello')
+    },
     test: fn (test, process) { test.equal(process.spawn.stdout, 'hello\n') },
   )
 
@@ -60,13 +64,17 @@ fn pub tests(t: mut Tests) {
 
   t.fork(
     'Stderr.write',
-    child: fn { let _ = Stderr.new.write('hello'.to_byte_array) },
+    child: fn {
+      let _ = Stderr.new.write('hello'.to_byte_array)
+    },
     test: fn (test, process) { test.equal(process.spawn.stderr, 'hello') },
   )
 
   t.fork(
     'Stderr.print',
-    child: fn { let _ = Stderr.new.print('hello') },
+    child: fn {
+      let _ = Stderr.new.print('hello')
+    },
     test: fn (test, process) { test.equal(process.spawn.stderr, 'hello\n') },
   )
 

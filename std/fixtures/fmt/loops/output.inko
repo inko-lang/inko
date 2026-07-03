@@ -1,0 +1,22 @@
+fn example {
+  loop {}
+
+  loop { 10 }
+
+  loop {
+    10
+    20
+  }
+
+  loop {
+    # foo
+  }
+
+  loop {
+    'fooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo'
+  }
+
+  loop {
+    let num = 10
+  }
+}

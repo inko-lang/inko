@@ -28,6 +28,21 @@ const INDENT: char = ' ';
 /// 3. At least for prose it's generally considered the ideal line limit
 const LIMIT: usize = 80;
 
+fn place_on_dedicated_line(node: &Expression) -> bool {
+    matches!(
+        node,
+        Expression::Closure(_)
+            | Expression::Comment(_)
+            | Expression::DefineVariable(_)
+            | Expression::For(_)
+            | Expression::If(_)
+            | Expression::Loop(_)
+            | Expression::Match(_)
+            | Expression::Scope(_)
+            | Expression::While(_)
+    )
+}
+
 enum Order<'a> {
     Position(usize),
     Name(&'a str),
@@ -1209,16 +1224,24 @@ impl Document {
     }
 
     fn body(&mut self, nodes: &[Expression]) -> Vec<Node> {
-        if nodes.is_empty() {
-            vec![Node::Line, Node::text("}")]
-        } else {
-            vec![
-                Node::SpaceOrLine,
-                Node::Indent(self.expressions(nodes)),
-                Node::SpaceOrLine,
-                Node::text("}"),
-            ]
-        }
+        let sep = match nodes.len() {
+            0 => return vec![Node::Line, Node::text("}")],
+            1 => {
+                if place_on_dedicated_line(&nodes[0]) {
+                    Node::HardLine
+                } else {
+                    Node::SpaceOrLine
+                }
+            }
+            _ => Node::HardLine,
+        };
+
+        vec![
+            sep.clone(),
+            Node::Indent(self.expressions(nodes)),
+            sep,
+            Node::text("}"),
+        ]
     }
 
     fn expressions(&mut self, nodes: &[Expression]) -> Vec<Node> {
@@ -1259,9 +1282,7 @@ impl Document {
                         (Expression::Comment(_), _) => Node::HardLine,
                         // Conditionals are surrounded by an empty line as to
                         // make them stand out more.
-                        _ if expr.is_conditional_or_loop()
-                            || next.is_conditional_or_loop() =>
-                        {
+                        _ if expr.has_body() || next.has_body() => {
                             Node::EmptyLine
                         }
                         // `let` and comments are grouped together.
@@ -1279,7 +1300,7 @@ impl Document {
                 };
 
                 vals.push(sep);
-            } else if nodes.len() == 1 && expr.is_conditional_or_loop() {
+            } else if nodes.len() == 1 && expr.has_body() {
                 // Conditionals inside bodies are a bit difficult to read due to
                 // all the curly braces, so for expressions such as
                 // `if foo { loop { ... } }` we force wrapping across lines.
@@ -1894,10 +1915,19 @@ impl Document {
     }
 
     fn scope(&mut self, node: &nodes::Scope) -> Node {
-        let body = self.body(&node.body.values);
-        let group = vec![Node::text("{"), self.group(body)];
+        let body = if node.body.values.is_empty() {
+            vec![Node::text("{"), Node::Line, Node::text("}")]
+        } else {
+            vec![
+                Node::text("{"),
+                Node::HardLine,
+                Node::Indent(self.expressions(&node.body.values)),
+                Node::HardLine,
+                Node::text("}"),
+            ]
+        };
 
-        Node::Nodes(group)
+        self.group(body)
     }
 
     fn type_cast(&mut self, node: &nodes::TypeCast) -> Node {

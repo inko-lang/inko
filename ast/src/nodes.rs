@@ -803,7 +803,7 @@ impl Expression {
         }
     }
 
-    pub fn is_conditional_or_loop(&self) -> bool {
+    pub fn has_body(&self) -> bool {
         matches!(
             self,
             Expression::While(_)
@@ -811,6 +811,7 @@ impl Expression {
                 | Expression::If(_)
                 | Expression::Match(_)
                 | Expression::For(_)
+                | Expression::Scope(_)
         )
     }
 

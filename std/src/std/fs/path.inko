@@ -90,7 +90,7 @@ type pub ReadDirectory {
 
 impl Iter[Result[DirectoryEntry, Error]] for ReadDirectory {
   fn pub mut next -> Option[Result[DirectoryEntry, Error]] {
-    let ret = match try { @inner.next } {
+    let ret = match try @inner.next {
       case Ok((path, typ)) -> {
         Result.Ok(
           DirectoryEntry(

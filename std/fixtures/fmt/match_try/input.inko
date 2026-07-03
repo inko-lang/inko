@@ -1,0 +1,17 @@
+fn example {
+  match
+    try {
+      foo
+    }
+  {
+    case a -> {}
+  }
+
+
+  match
+    try
+      foo
+  {
+    case a -> {}
+  }
+}
