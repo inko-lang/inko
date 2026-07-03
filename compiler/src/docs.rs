@@ -2,7 +2,6 @@ use crate::config::BuildDirectories;
 use crate::hir;
 use crate::json::{Json, Object};
 use crate::state::State;
-use blake3::Hasher;
 use location::Location;
 use std::fs::{read_to_string, write};
 use std::mem::take;
@@ -279,7 +278,6 @@ pub(crate) struct GenerateDocumentation<'a> {
     directory: &'a Path,
     module: ModuleId,
     config: &'a Config,
-    hasher: &'a mut Hasher,
 }
 
 impl<'a> GenerateDocumentation<'a> {
@@ -288,8 +286,6 @@ impl<'a> GenerateDocumentation<'a> {
         directories: &BuildDirectories,
         config: &'a Config,
     ) -> Result<(), String> {
-        let mut hasher = Hasher::new();
-
         for idx in 0..state.db.number_of_modules() {
             let id = ModuleId(idx as _);
             let file = id.file(&state.db);
@@ -307,12 +303,11 @@ impl<'a> GenerateDocumentation<'a> {
                 directory: &directories.documentation,
                 module: id,
                 config,
-                hasher: &mut hasher,
             }
             .run()?;
         }
 
-        generate_metadata(state, directories, hasher)?;
+        generate_metadata(state, directories)?;
         Ok(())
     }
 
@@ -334,7 +329,6 @@ impl<'a> GenerateDocumentation<'a> {
             self.directory.join(format!("{}.json", name.normalized_name()));
         let json = Json::Object(doc).to_string();
 
-        self.hasher.update(json.as_bytes());
         write(&path, json)
             .map_err(|e| format!("failed to write {}: {}", path.display(), e))
     }
@@ -660,7 +654,6 @@ impl<'a> GenerateDocumentation<'a> {
 fn generate_metadata(
     state: &State,
     directories: &BuildDirectories,
-    hasher: Hasher,
 ) -> Result<(), String> {
     let project =
         state.config.source.parent().unwrap_or_else(|| Path::new("."));
@@ -677,10 +670,8 @@ fn generate_metadata(
     } else {
         String::new()
     };
-    let hash = hasher.finalize().to_string();
 
     meta.add("readme", Json::String(readme_data));
-    meta.add("hash", Json::String(hash));
 
     write(&output, Json::Object(meta).to_string())
         .map_err(|e| format!("failed to write {}: {}", output.display(), e))
