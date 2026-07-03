@@ -122,6 +122,10 @@ impl Rules {
         self.implicit_root_ref = false;
         self
     }
+
+    fn allow_any(self) -> bool {
+        !self.kind.is_return() && !self.subtyping.is_strict()
+    }
 }
 
 /// The type-checking environment.
@@ -443,7 +447,7 @@ impl<'a> TypeChecker<'a> {
             },
             TypeRef::Owned(left_id) => match right {
                 TypeRef::Any(TypeEnum::RigidTypeParameter(_)) => false,
-                TypeRef::Any(right_id) if !rules.kind.is_return() => {
+                TypeRef::Any(right_id) if rules.allow_any() => {
                     self.check_type_enum(left_id, right_id, env, rules)
                 }
                 TypeRef::Owned(right_id) => {
@@ -495,7 +499,7 @@ impl<'a> TypeChecker<'a> {
                 {
                     self.check_type_enum(left_id, right_id, env, rules)
                 }
-                TypeRef::Any(right_id) if !rules.kind.is_return() => {
+                TypeRef::Any(right_id) if rules.allow_any() => {
                     self.check_type_enum(left_id, right_id, env, rules)
                 }
                 TypeRef::Uni(right_id) => {
@@ -551,7 +555,7 @@ impl<'a> TypeChecker<'a> {
                 {
                     false
                 }
-                TypeRef::Any(right_id) if !rules.kind.is_return() => {
+                TypeRef::Any(right_id) if rules.allow_any() => {
                     self.check_type_enum(left_id, right_id, env, rules)
                 }
                 TypeRef::Ref(right_id) => {
@@ -581,7 +585,7 @@ impl<'a> TypeChecker<'a> {
             },
             TypeRef::Mut(left_id) => match right {
                 TypeRef::Any(TypeEnum::RigidTypeParameter(_)) => false,
-                TypeRef::Any(right_id) if !rules.kind.is_return() => {
+                TypeRef::Any(right_id) if rules.allow_any() => {
                     self.check_type_enum(left_id, right_id, env, rules)
                 }
                 TypeRef::Ref(right_id) if !rules.subtyping.is_strict() => {
@@ -651,7 +655,7 @@ impl<'a> TypeChecker<'a> {
                         res
                     }
                     (Any, _) => true,
-                    (Owned, TypeRef::Any(_)) => !rules.kind.is_return(),
+                    (Owned, TypeRef::Any(_)) => rules.allow_any(),
                     (Owned, TypeRef::Owned(_)) => true,
                     (Owned, TypeRef::Ref(_) | TypeRef::Mut(_)) => {
                         allow_ref || rval
@@ -664,13 +668,13 @@ impl<'a> TypeChecker<'a> {
                     (Ref, TypeRef::Any(TypeEnum::TypeParameter(pid))) => {
                         !pid.is_mutable(self.db) || rval
                     }
-                    (Ref, TypeRef::Any(_)) => !rules.kind.is_return(),
+                    (Ref, TypeRef::Any(_)) => rules.allow_any(),
                     (Ref, TypeRef::Ref(_)) => true,
                     (
                         Ref,
                         TypeRef::Owned(_) | TypeRef::Uni(_) | TypeRef::Mut(_),
                     ) => rval,
-                    (Mut, TypeRef::Any(_)) => !rules.kind.is_return(),
+                    (Mut, TypeRef::Any(_)) => rules.allow_any(),
                     (Mut, TypeRef::Ref(_) | TypeRef::Mut(_)) => true,
                     (Mut, TypeRef::Owned(_) | TypeRef::Uni(_)) => rval,
                     (Pointer, TypeRef::Pointer(_)) => true,
@@ -719,7 +723,7 @@ impl<'a> TypeChecker<'a> {
     ) -> bool {
         let trait_rules = rules;
 
-        if let Subtyping::Strict = rules.subtyping {
+        if rules.subtyping.is_strict() {
             rules.subtyping = Subtyping::No;
         }
 

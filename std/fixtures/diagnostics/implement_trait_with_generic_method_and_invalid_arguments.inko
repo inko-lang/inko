@@ -1,0 +1,11 @@
+trait Trait {
+  fn example[T](value: T)
+}
+
+type Type {}
+
+impl Trait for Type {
+  fn example[T](value: String) {}
+}
+
+# implement_trait_with_generic_method_and_invalid_arguments.inko:8:3 error(invalid-method): the method 'fn example[T](value: String)' isn't compatible with 'fn example[T](value: T)'

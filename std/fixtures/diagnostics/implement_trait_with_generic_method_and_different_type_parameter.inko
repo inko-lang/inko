@@ -1,0 +1,13 @@
+trait Foo {}
+
+trait Trait {
+  fn example[A: Foo, B](value: A)
+}
+
+type Type {}
+
+impl Trait for Type {
+  fn example[A: Foo, B](value: B) {}
+}
+
+# implement_trait_with_generic_method_and_different_type_parameter.inko:10:3 error(invalid-method): the method 'fn example[A: Foo, B](value: B)' isn't compatible with 'fn example[A: Foo, B](value: A)'
