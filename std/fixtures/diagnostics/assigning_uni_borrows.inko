@@ -1,0 +1,17 @@
+fn example1(value: uni Array[Int]) {
+  let a = ref value
+}
+
+fn example2(value: uni Array[Int]) {
+  let a = mut value
+}
+
+fn example3(value: uni Array[Int]) {
+  match ref value {
+    case a -> {}
+  }
+}
+
+# assigning_uni_borrows.inko:2:7 error(invalid-type): values of type 'uni ref Array[Int]' can't be assigned to variables
+# assigning_uni_borrows.inko:6:7 error(invalid-type): values of type 'uni mut Array[Int]' can't be assigned to variables
+# assigning_uni_borrows.inko:11:10 error(invalid-type): values of type 'uni ref Array[Int]' can't be assigned to variables

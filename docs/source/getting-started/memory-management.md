@@ -325,7 +325,7 @@ If you try to compile this program you will be presented with the following
 compile-time error:
 
 ```
-src/hello.inko:8:18 error(invalid-type): values of type 'uni ref Array[Cat]' can't be assigned to variables
+src/hello.inko:8:9 error(invalid-type): values of type 'uni ref Array[Cat]' can't be assigned to variables
 ```
 
 What happened is the following: using the `recover` keyword we turned the array

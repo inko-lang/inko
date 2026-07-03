@@ -172,7 +172,7 @@ fn pub tests(t: mut Tests) {
     }
 
     t.true(
-      match event.fields.get('group') {
+      match event.fields.remove('group') {
         case Ok(Group(v)) -> v.size == 1
         case _ -> false
       },
@@ -204,7 +204,7 @@ fn pub tests(t: mut Tests) {
     }
 
     t.true(
-      match event.fields.get('group') {
+      match event.fields.remove('group') {
         case Ok(Group(v)) -> v.size == 1
         case _ -> false
       },

@@ -1681,6 +1681,18 @@ impl<'a> CheckMethodBody<'a> {
         value_type: TypeRef,
         pattern: &mut Pattern,
     ) {
+        if !value_type.is_assignable(self.db()) {
+            self.state.diagnostics.error(
+                DiagnosticId::InvalidType,
+                format!(
+                    "values of type '{}' can't be assigned to variables",
+                    format_type(self.db(), value_type)
+                ),
+                self.file(),
+                node.location,
+            );
+        }
+
         let var_type = if let Some(tnode) = node.value_type.as_mut() {
             let exp_type = self.type_signature(tnode);
 
