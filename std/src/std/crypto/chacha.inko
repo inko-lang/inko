@@ -346,10 +346,8 @@ type pub inline ChaCha {
   #
   # ChaCha.eight_rounds(key, nonce)
   # ```
-  fn pub static eight_rounds(
-    key: ref ByteArray,
-    nonce: ref ByteArray,
-  ) -> ChaCha {
+  fn pub static eight_rounds(key: ref ByteArray, nonce: ref ByteArray) -> ChaCha
+  {
     with_iterations(CHACHA8_ITERS, key, nonce)
   }
 

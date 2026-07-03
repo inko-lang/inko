@@ -39,19 +39,15 @@ type pub copy Locale {
 }
 
 impl LocaleTrait for Locale {
-  fn parse_short_month[T: Bytes](
-    input: ref T,
-    start: Int,
-  ) -> Option[(Int, Int)] {
+  fn parse_short_month[T: Bytes](input: ref T, start: Int) -> Option[(Int, Int)]
+  {
     # Japanese doesn't use abbreviations for the names of the months, so we
     # treat both abbreviations and the full names the same way.
     name_index_at(input, start, FULL_MONTHS)
   }
 
-  fn parse_full_month[T: Bytes](
-    input: ref T,
-    start: Int,
-  ) -> Option[(Int, Int)] {
+  fn parse_full_month[T: Bytes](input: ref T, start: Int) -> Option[(Int, Int)]
+  {
     name_index_at(input, start, FULL_MONTHS)
   }
 

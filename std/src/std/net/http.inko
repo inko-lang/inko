@@ -362,9 +362,8 @@ type pub inline HeaderMap {
   # map.add(Header.content_length, '128')
   # map.value(Header.content_length) # => Result.Ok(HeaderValue.Single('128'))
   # ```
-  fn pub value(
-    name: ref Header,
-  ) -> Result[ref HeaderValue, MissingKey[Header]] {
+  fn pub value(name: ref Header) -> Result[ref HeaderValue, MissingKey[Header]]
+  {
     @map.get(name)
   }
 

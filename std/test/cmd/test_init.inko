@@ -13,10 +13,8 @@ fn read(path: ref Path) -> Result[String, String] {
   Result.Ok(buf.into_string)
 }
 
-fn init(
-  directory: ref Path,
-  arguments: Array[String],
-) -> Result[String, String] {
+fn init(directory: ref Path, arguments: Array[String]) -> Result[String, String]
+{
   let cmd = Command.new(compiler_path)
 
   cmd.stdout = Stream.Piped

@@ -663,11 +663,8 @@ type pub copy DateTime {
   #
   # DateTime.new(date, time, utc_offset: 3600)
   # ```
-  fn pub inline static new(
-    date: Date,
-    time: Time,
-    utc_offset: Int,
-  ) -> DateTime {
+  fn pub inline static new(date: Date, time: Time, utc_offset: Int) -> DateTime
+  {
     DateTime(date: date, time: time, utc_offset: utc_offset)
   }
 

@@ -51,11 +51,8 @@ fn close_file(file: Int32) {
   stop_blocking
 }
 
-fn read_file(
-  file: Int32,
-  into: mut ByteArray,
-  size: Int,
-) -> Result[Int, Error] {
+fn read_file(file: Int32, into: mut ByteArray, size: Int) -> Result[Int, Error]
+{
   into.reserve_exact(size)
 
   let len = into.size
@@ -177,10 +174,8 @@ fn expand_path(path: String) -> Result[String, Error] {
   Result.Ok(str)
 }
 
-fn copy_file_fallback(
-  from: ReadOnlyFile,
-  to_path: String,
-) -> Result[Int, Error] {
+fn copy_file_fallback(from: ReadOnlyFile, to_path: String) -> Result[Int, Error]
+{
   # To provide a balance between performance and memory usage, we've chosen the
   # arbitrary buffer size of 1 MiB.
   let buffer = ByteArray.with_capacity(1024 * 1024)

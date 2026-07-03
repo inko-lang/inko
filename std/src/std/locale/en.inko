@@ -85,10 +85,8 @@ type pub copy Locale {
 }
 
 impl LocaleTrait for Locale {
-  fn parse_short_month[T: Bytes](
-    input: ref T,
-    start: Int,
-  ) -> Option[(Int, Int)] {
+  fn parse_short_month[T: Bytes](input: ref T, start: Int) -> Option[(Int, Int)]
+  {
     if input.size - start < 3 { return Option.None }
 
     match month_prefix_index(input, start) {
@@ -97,10 +95,8 @@ impl LocaleTrait for Locale {
     }
   }
 
-  fn parse_full_month[T: Bytes](
-    input: ref T,
-    start: Int,
-  ) -> Option[(Int, Int)] {
+  fn parse_full_month[T: Bytes](input: ref T, start: Int) -> Option[(Int, Int)]
+  {
     let len = input.size - start
 
     # "May" is the shortest month and consists of 3 bytes, so anything shorter

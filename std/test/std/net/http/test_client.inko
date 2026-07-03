@@ -33,9 +33,8 @@ fn raw_deadline(socket: mut Socket) -> Int {
   }
 }
 
-fn tls_client(
-  address: SocketAddress,
-) -> Result[tls.Client[TcpClient], IoError] {
+fn tls_client(address: SocketAddress) -> Result[tls.Client[TcpClient], IoError]
+{
   let client_sock = try TcpClient.new([address.ip], address.port)
   let client_conf = tls.ClientConfig.builder.with_certificate(certificate).get
   let tls_client = tls

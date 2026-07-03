@@ -828,9 +828,8 @@ type pub inline ServerConfigBuilder {
     new(certs, key)
   }
 
-  fn move build(
-    config: ServerConfig,
-  ) -> Result[ServerConfig, ServerConfigError] {
+  fn move build(config: ServerConfig) -> Result[ServerConfig, ServerConfigError]
+  {
     match @alpn {
       case Some(names) -> {
         for v in names.iter {

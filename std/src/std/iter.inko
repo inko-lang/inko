@@ -170,9 +170,8 @@ trait pub Iter[T] {
   # iter.next # => Option.Some(30)
   # iter.next # => Option.None
   # ```
-  fn pub move select_map[R](
-    func: fn (T) -> Option[R],
-  ) -> SelectMap[T, Self, R] {
+  fn pub move select_map[R](func: fn (T) -> Option[R]) -> SelectMap[T, Self, R]
+  {
     SelectMap(iter: self, mapper: func)
   }
 

@@ -307,9 +307,8 @@ fn inline unix_local_address(
   Result.Ok(sys.parse_unix_address(mut addr, size as Int))
 }
 
-fn inline unix_peer_address(
-  socket: Pointer[poll.Poll],
-) -> Result[String, Error] {
+fn inline unix_peer_address(socket: Pointer[poll.Poll]) -> Result[String, Error]
+{
   let size = sys_libc.sockaddr_un_size as Uint32
   let addr = sys_libc.SockAddrUn()
   let addr_ptr = (mut addr) as Pointer[Uint8]

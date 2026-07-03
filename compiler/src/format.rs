@@ -1159,19 +1159,17 @@ impl Document {
             });
 
             header.push(Node::Nodes(self.argument_list(vals)));
+        }
 
-            if let Some(rnode) = &node.return_type {
-                header.push(self.return_type(rnode));
-            }
-        } else if let Some(rnode) = &node.return_type {
+        if let Some(rnode) = &node.return_type {
             header.push(self.return_type(rnode));
         }
 
-        if node.body.is_some() {
-            header.push(Node::text(" {"));
-        }
-
         let mut method = vec![Node::Group(header_id, header)];
+
+        if node.body.is_some() {
+            method.push(self.group(vec![Node::SpaceOrLine, Node::text("{")]));
+        }
 
         if let Some(node) = &node.body {
             let body = self.method_body(&node.values);

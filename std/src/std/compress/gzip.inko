@@ -498,10 +498,8 @@ type pub Decoder[R: mut + Read[E], E] {
 }
 
 impl Read[DecodeError[E]] for Decoder {
-  fn pub mut read(
-    into: mut ByteArray,
-    size: Int,
-  ) -> Result[Int, DecodeError[E]] {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, DecodeError[E]]
+  {
     let mut total = 0
 
     loop {

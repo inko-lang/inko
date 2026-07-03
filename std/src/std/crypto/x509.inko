@@ -73,9 +73,8 @@ type pub inline Certificate {
   #
   # Certificate.from_pem_file('cacert.pem').or_panic # => Result.Ok(Certificate(...))
   # ```
-  fn pub static from_pem_file(
-    path: ref Path,
-  ) -> Result[Certificate, ParseError] {
+  fn pub static from_pem_file(path: ref Path) -> Result[Certificate, ParseError]
+  {
     let file = match ReadOnlyFile.new(path) {
       case Ok(v) -> pem.PemFile.new(v)
       case Error(e) -> throw ParseError.Read(e)
@@ -172,9 +171,8 @@ type pub inline PrivateKey {
   #
   # PrivateKey.from_pem_file('key.pem').or_panic # => Result.Ok(PrivateKey(...))
   # ```
-  fn pub static from_pem_file(
-    path: ref Path,
-  ) -> Result[PrivateKey, ParseError] {
+  fn pub static from_pem_file(path: ref Path) -> Result[PrivateKey, ParseError]
+  {
     let file = match ReadOnlyFile.new(path) {
       case Ok(v) -> pem.PemFile.new(v)
       case Error(e) -> throw ParseError.Read(e)

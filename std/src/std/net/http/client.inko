@@ -1060,11 +1060,8 @@ type inline RequestWriter[W: mut + Write[IoError]] {
     crlf
   }
 
-  fn mut start(
-    method: Method,
-    uri: ref Uri,
-    headers: ref HeaderMap,
-  ) -> mut Self {
+  fn mut start(method: Method, uri: ref Uri, headers: ref HeaderMap) -> mut Self
+  {
     status(method, uri)
     headers(headers)
     self
@@ -1726,9 +1723,8 @@ type pub inline Request {
     }
   }
 
-  fn mut follow_redirect(
-    response: Response,
-  ) -> Result[Option[Response], Error] {
+  fn mut follow_redirect(response: Response) -> Result[Option[Response], Error]
+  {
     let new_uri = match response.headers.get(Header.location) {
       case Ok(v) -> {
         try Uri.parse(v).map_error(fn (e) { Error.InvalidLocation(e) })

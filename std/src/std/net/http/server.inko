@@ -495,10 +495,8 @@ fn pub inline Delete -> Method {
 #   }
 # }
 # ```
-fn pub conditional_request(
-  request: ref Request,
-  response: Response,
-) -> Response {
+fn pub conditional_request(request: ref Request, response: Response) -> Response
+{
   if !request.method.safe? { return response }
 
   let meta = match response.body {
@@ -2057,7 +2055,8 @@ type pub inline Path {
 
   # Returns a tuple containing two values: the first component, and a slice
   # containing all remaining components.
-  fn pub split_first -> Option[(ref Slice[String], array.Slice[Slice[String]])] {
+  fn pub split_first -> Option[(ref Slice[String], array.Slice[Slice[String]])]
+  {
     @components.split_first
   }
 

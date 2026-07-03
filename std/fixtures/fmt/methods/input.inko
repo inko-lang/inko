@@ -16,3 +16,35 @@ fn inline example {
 fn noinline example {
   # foo
 }
+
+fn pub aaaaaaaaaaaaaaa -> Foo[AAAAAAAAAAAAAAAAAA, BBBBBBBBBBBBBBBBBB, CCCCCCC] {
+  # foo
+}
+
+fn pub bbbbbbbbbbbbbbb -> Foo[AAAAAAAAAAAAAAAAAA, BBBBBBBBBBBBBBBBBB, CCCCCCCC] {
+  # foo
+}
+
+fn pub ccccccccccccccc(c: Int) -> Foo[AAAAAAAAAAAAAAAAAA, BBBBBBBBBBBBBBBBBB, CCCCCCCC] {
+  # foo
+}
+
+fn pub ddddddddddddddd(c: Int) -> Foo[AAAAAAAAAAAAAAAAAA, BBBBBBBBBBBBB, CCCCC] {
+  # foo
+}
+
+fn pub ddddddddddddddd[AAAAAAAAAAAAAAAAAAAAAAA, BBBBBBBBBBBBBBBBB] -> CCCCCCCCC {
+  # foo
+}
+
+fn pub eeeeeeeeeeeeeee[AAAAAAAAAAAAAAAAAAAAAAA, BBBBBBBBBBBBBBBBB] -> CCCCCCCCCCC[AAAA] {
+  # foo
+}
+
+fn pub fffffffffffffff -> AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA[BBBBB, CCCCCCCCC] {
+  # foo
+}
+
+fn pub ggggggggggggggg -> AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA[BBBBB, CCCCCCCCC, DDDDDDDDDDDDDDDDDD, EEEEEEEEEEEEEEEEE] {
+  # foo
+}

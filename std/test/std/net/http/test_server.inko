@@ -203,10 +203,8 @@ fn with_https_server(
   body.call(port.get)
 }
 
-fn accept(
-  server: mut SocketServer,
-  config: Tls,
-) -> Result[uni Socket, IoError] {
+fn accept(server: mut SocketServer, config: Tls) -> Result[uni Socket, IoError]
+{
   server.accept(config, timeout: Duration.from_secs(5))
 }
 

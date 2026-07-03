@@ -254,9 +254,8 @@ type async SharedState {
     result.set(@counts.get(id).or_panic_with('invalid matcher ID'))
   }
 
-  fn async mut unmatched_requests(
-    result: uni Promise[Array[UnmatchedRequest]],
-  ) {
+  fn async mut unmatched_requests(result: uni Promise[Array[UnmatchedRequest]])
+  {
     result.set(@unmatched := recover [])
   }
 

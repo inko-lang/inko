@@ -414,9 +414,8 @@ type builtin String {
   # left_right.0.to_string # => 'key'
   # left_right.1.to_string # => 'value'
   # ```
-  fn pub split_once(
-    separator: String,
-  ) -> Option[(Slice[String], Slice[String])] {
+  fn pub split_once(separator: String) -> Option[(Slice[String], Slice[String])]
+  {
     Slice.new(self, 0, size).split_once(separator)
   }
 

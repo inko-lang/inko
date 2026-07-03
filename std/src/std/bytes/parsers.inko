@@ -94,11 +94,8 @@ fn inline four_digits[T: Bytes](input: ref T, start: Int) -> Option[Int] {
 }
 
 # Parses up to N base 10 digits into an `Int`.
-fn digits[T: Bytes](
-  input: ref T,
-  start: Int,
-  limit: Int,
-) -> Option[(Int, Int)] {
+fn digits[T: Bytes](input: ref T, start: Int, limit: Int) -> Option[(Int, Int)]
+{
   let mut idx = start
   let mut num = 0
   let max = min(start + limit, input.size)

@@ -365,7 +365,8 @@ if
   F: Clone,
   G: Clone,
 {
-  fn pub clone -> Tuple7[move A, move B, move C, move D, move E, move F, move G] {
+  fn pub clone -> Tuple7[move A, move B, move C, move D, move E, move F, move G]
+  {
     (@0.clone, @1.clone, @2.clone, @3.clone, @4.clone, @5.clone, @6.clone)
   }
 }

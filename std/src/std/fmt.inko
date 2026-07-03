@@ -85,10 +85,8 @@ type pub ObjectFormatter {
   let mut @fields: Int
 
   # Adds a new formatted field to the output.
-  fn pub mut field[T: Format](
-    name: String,
-    value: ref T,
-  ) -> mut ObjectFormatter {
+  fn pub mut field[T: Format](name: String, value: ref T) -> mut ObjectFormatter
+  {
     let start = match @fields {
       case 0 if @named -> '('
       case 0 -> '('
