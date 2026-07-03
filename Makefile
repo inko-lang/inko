@@ -42,9 +42,9 @@ else
 	VERSION != cargo pkgid -p inko | cut -d\# -f2 | cut -d: -f2
 endif
 
-RCLONE_DOCS_TARGET     := /var/lib/shost/docs.inko-lang.org
-RCLONE_RELEASES_TARGET := /var/lib/shost/releases.inko-lang.org
-DOCS_SERVER            := web.hetzner.yorickpeterse.com
+DOCS_TARGET     := /var/lib/shost/docs.inko-lang.org
+RELEASES_TARGET := /var/lib/shost/releases.inko-lang.org
+SERVER          := web.hetzner.yorickpeterse.com
 
 # The folder to put the documentation in, allowing for branch specific
 # documentation.
@@ -84,14 +84,13 @@ ${SOURCE_TAR}: ${TMP_DIR}
 		| gzip > "${@}"
 
 release/source: ${SOURCE_TAR}
-	scripts/rclone.sh copy "${SOURCE_TAR}" ":sftp:${RCLONE_RELEASES_TARGET}"
+	scripts/scp.sh "${SOURCE_TAR}" "${SERVER}:${RELEASES_TARGET}/${SOURCE_TAR}"
 
 release/manifest: ${TMP_DIR}
-	scripts/rclone.sh copyto \
-		":sftp:${RCLONE_RELEASES_TARGET}/${MANIFEST_NAME}" "${MANIFEST}"
+	scripts/scp.sh "${SERVER}:${RELEASES_TARGET}/${MANIFEST_NAME}" "${MANIFEST}"
 	echo "${VERSION}" >> "${MANIFEST}"
 	sort --version-sort "${MANIFEST}"
-	scripts/rclone.sh copy "${MANIFEST}" ":sftp:${RCLONE_RELEASES_TARGET}"
+	scripts/scp.sh "${MANIFEST}" "${SERVER}:${RELEASES_TARGET}/${MANIFEST_NAME}"
 
 release/changelog:
 	clogs "${VERSION}"
@@ -149,7 +148,7 @@ docs/watch:
 	cd docs && DOCS_REF=${DOCS_REF} ./scripts/watch.sh
 
 docs/publish: docs/setup docs/build
-	scripts/docs.sh docs/public "${RCLONE_DOCS_TARGET}/manual" "${DOCS_REF}"
+	scripts/docs.sh docs/public "${DOCS_TARGET}/manual" "${DOCS_REF}"
 
 std-docs/build:
 	rm -rf std/build
@@ -157,10 +156,10 @@ std-docs/build:
 	cd std && idoc --compiler ../target/debug/inko
 
 std-docs/publish: std-docs/build
-	scripts/docs.sh std/build/idoc/public "${RCLONE_DOCS_TARGET}/std" "${DOCS_REF}"
+	scripts/docs.sh std/build/idoc/public "${DOCS_TARGET}/std" "${DOCS_REF}"
 
 known_hosts:
-	ssh-keyscan -q -p 2222 "${DOCS_SERVER}" > scripts/known_hosts
+	ssh-keyscan -q -p 2222 "${SERVER}" > scripts/known_hosts
 
 .PHONY: release/source release/manifest release/changelog release/versions
 .PHONY: release/commit release/publish release/tag

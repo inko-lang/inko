@@ -54,7 +54,7 @@ jobs:
       SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
     steps:
       - name: Install dependencies
-        run: microdnf install --quiet --assumeyes rclone git tar make
+        run: microdnf install --quiet --assumeyes git tar make
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
         with:

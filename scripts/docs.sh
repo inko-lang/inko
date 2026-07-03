@@ -16,6 +16,7 @@ HOSTS="scripts/known_hosts"
 if [[ -v SSH_PRIVATE_KEY ]]
 then
     echo -e "${SSH_PRIVATE_KEY}" > deploy_key
+    chmod 600 deploy_key
     KEY="deploy_key"
 fi
 
