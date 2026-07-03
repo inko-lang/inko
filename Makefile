@@ -148,7 +148,7 @@ docs/watch:
 	cd docs && DOCS_REF=${DOCS_REF} ./scripts/watch.sh
 
 docs/publish: docs/setup docs/build
-	scripts/rclone.sh sync docs/public ":sftp:${RCLONE_DOCS_TARGET}/manual/${DOCS_REF}"
+	scripts/docs.sh docs/public "${RCLONE_DOCS_TARGET}/manual" "${DOCS_REF}"
 
 std-docs/build:
 	rm -rf std/build
@@ -156,7 +156,7 @@ std-docs/build:
 	cd std && idoc --compiler ../target/debug/inko
 
 std-docs/publish: std-docs/build
-	scripts/rclone.sh sync std/build/idoc/public ":sftp:${RCLONE_DOCS_TARGET}/std/${DOCS_REF}"
+	scripts/docs.sh std/build/idoc/public "${RCLONE_DOCS_TARGET}/std" "${DOCS_REF}"
 
 .PHONY: release/source release/manifest release/changelog release/versions
 .PHONY: release/commit release/publish release/tag
