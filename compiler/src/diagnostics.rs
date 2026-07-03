@@ -372,6 +372,23 @@ impl Diagnostics {
         );
     }
 
+    pub(crate) fn public_type_required(
+        &mut self,
+        name: &str,
+        file: PathBuf,
+        location: Location,
+    ) {
+        self.error(
+            DiagnosticId::InvalidSymbol,
+            format!(
+                "'{}' is private type, but a public type is required",
+                name
+            ),
+            file,
+            location,
+        );
+    }
+
     pub(crate) fn public_field_private_type(
         &mut self,
         file: PathBuf,

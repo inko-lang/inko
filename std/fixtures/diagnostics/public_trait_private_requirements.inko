@@ -1,0 +1,5 @@
+trait Private {}
+
+trait pub Public: Private {}
+
+# public_trait_private_requirements.inko:3:19 error(invalid-symbol): 'Private' is private type, but a public type is required

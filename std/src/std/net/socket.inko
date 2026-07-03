@@ -109,7 +109,8 @@ fn pub try_ips[R, E](
   Result.Error(last.or_panic_with('at least one IP address must be specified'))
 }
 
-trait RawSocketOperations {
+# A socket which supports raw operations such as getting the raw socket pointer.
+trait pub RawSocketOperations {
   fn mut raw_socket -> Pointer[poll.Poll]
 
   fn raw_deadline -> Int
@@ -170,7 +171,8 @@ trait SendFile[E] {
   ) -> Result[Int, E]
 }
 
-trait Deadline {
+# A socket type that supports deadlines.
+trait pub Deadline {
   # Sets the point in time after which socket operations must time out, known as
   # a "deadline".
   #
@@ -216,7 +218,8 @@ trait Deadline {
   fn pub mut reset_deadline
 }
 
-trait Shutdown {
+# A socket which can be shut down.
+trait pub Shutdown {
   # Shuts down both the reading and writing half of this socket.
   fn pub mut shutdown -> Result[Nil, Error]
 

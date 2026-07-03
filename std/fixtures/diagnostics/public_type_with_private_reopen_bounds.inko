@@ -1,0 +1,7 @@
+type pub Public[T] {}
+
+trait Private {}
+
+impl Public if T: Private {}
+
+# public_type_with_private_reopen_bounds.inko:5:19 error(invalid-symbol): 'Private' is private type, but a public type is required

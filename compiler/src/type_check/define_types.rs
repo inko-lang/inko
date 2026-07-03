@@ -398,7 +398,8 @@ impl<'a> DefineTraitRequirements<'a> {
         let trait_id = node.trait_id.unwrap();
         let scope =
             TypeScope::new(self.module, TypeEnum::Trait(trait_id), None);
-        let rules = Rules::default();
+        let rules =
+            Rules { allow_private_types: !node.public, ..Default::default() };
 
         for req in &mut node.requirements {
             if let Some(ins) =
@@ -893,23 +894,27 @@ impl<'a> DefineTypeParameterRequirements<'a> {
 
     fn define_type(&mut self, node: &mut hir::DefineType) {
         let self_type = TypeEnum::Type(node.type_id.unwrap());
+        let public = node.public;
 
-        self.define_requirements(&mut node.type_parameters, self_type);
+        self.define_requirements(&mut node.type_parameters, self_type, public);
     }
 
     fn define_trait(&mut self, node: &mut hir::DefineTrait) {
         let self_type = TypeEnum::Trait(node.trait_id.unwrap());
+        let public = node.public;
 
-        self.define_requirements(&mut node.type_parameters, self_type);
+        self.define_requirements(&mut node.type_parameters, self_type, public);
     }
 
     fn define_requirements(
         &mut self,
         parameters: &mut Vec<hir::TypeParameter>,
         self_type: TypeEnum,
+        public: bool,
     ) {
         let scope = TypeScope::new(self.module, self_type, None);
-        let rules = Rules::default();
+        let rules =
+            Rules { allow_private_types: !public, ..Default::default() };
 
         for param in parameters {
             let param_id = param.type_parameter_id.unwrap();

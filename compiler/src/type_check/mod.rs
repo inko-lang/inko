@@ -272,12 +272,8 @@ impl<'a> DefineTypeSignature<'a> {
 
         node.resolved_type = if let Some(symbol) = symbol {
             if !self.rules.allow_private_types && symbol.is_private(self.db()) {
-                self.state.diagnostics.error(
-                    DiagnosticId::InvalidSymbol,
-                    format!(
-                        "'{}' is private type, but a public type is required",
-                        name
-                    ),
+                self.state.diagnostics.public_type_required(
+                    name,
                     self.file(),
                     node.name.location,
                 );
@@ -987,7 +983,10 @@ pub(crate) fn define_type_bounds(
         let new_param = param.clone_for_bound(&mut state.db);
 
         for req in &mut bound.requirements {
-            let rules = Rules::default();
+            let rules = Rules {
+                allow_private_types: type_id.is_private(&state.db),
+                ..Default::default()
+            };
             let scope = TypeScope::new(module, TypeEnum::Type(type_id), None);
             let mut definer =
                 DefineTypeSignature::new(state, module, &scope, rules);

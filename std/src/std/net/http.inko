@@ -1359,7 +1359,7 @@ impl Read[ParseError] for Body {
 
 # A stream data can be read from, and optionally marked for reuse by some sort
 # of connection pool.
-trait Stream: Read[ParseError] {
+trait pub Stream: Read[ParseError] {
   fn mut reuse
 
   fn mut maximum_size=(value: Int)

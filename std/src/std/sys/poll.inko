@@ -21,7 +21,7 @@ fn extern inko_poll(
 ) -> Bool
 
 # A type which can be polled by the runtime.
-type extern Poll {
+type pub extern Poll {
   # The file descriptor of the socket.
   let @fd: Int32
 
