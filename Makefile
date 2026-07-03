@@ -44,6 +44,7 @@ endif
 
 RCLONE_DOCS_TARGET     := /var/lib/shost/docs.inko-lang.org
 RCLONE_RELEASES_TARGET := /var/lib/shost/releases.inko-lang.org
+DOCS_SERVER            := web.hetzner.yorickpeterse.com
 
 # The folder to put the documentation in, allowing for branch specific
 # documentation.
@@ -158,8 +159,11 @@ std-docs/build:
 std-docs/publish: std-docs/build
 	scripts/docs.sh std/build/idoc/public "${RCLONE_DOCS_TARGET}/std" "${DOCS_REF}"
 
+known_hosts:
+	ssh-keyscan -q -p 2222 "${DOCS_SERVER}" > scripts/known_hosts
+
 .PHONY: release/source release/manifest release/changelog release/versions
 .PHONY: release/commit release/publish release/tag
 .PHONY: build install clean
 .PHONY: docs/setup docs/build docs/watch docs/publish
-.PHONY: std-docs/build std-docs/publish
+.PHONY: std-docs/build std-docs/publish known_hosts
