@@ -20,7 +20,7 @@ FROM registry.fedoraproject.org/fedora-minimal:44
 #
 # We also install tar and Git such that GitHub Actions jobs can use this image
 # without having to install these packages themselves.
-RUN microdnf install --assumeyes gcc tar git
+RUN microdnf install --assumeyes gcc tar git && microdnf clean all
 
 COPY --from=builder ["/usr/bin/inko", "/usr/bin/inko"]
 COPY --from=builder ["/usr/lib/inko", "/usr/lib/inko/"]
