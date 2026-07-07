@@ -1373,12 +1373,11 @@ impl<'a> LowerToMir<'a> {
     }
 
     fn type_depends_on_current_module(&mut self, type_id: TypeId) {
-        let tmod_name = type_id.module(&self.state.db).name(&self.state.db);
-        let smod_name = self.module.name(&self.state.db);
-        let tmod_id = self.state.dependency_graph.add_module(tmod_name);
-        let smod_id = self.state.dependency_graph.add_module(smod_name);
+        let db = &self.state.db;
+        let tmod = type_id.module(db);
+        let smod = self.module;
 
-        self.state.dependency_graph.module_mut(smod_id).add_depending(tmod_id);
+        self.state.dependency_graph.add_module_id_dependency(db, tmod, smod);
     }
 }
 

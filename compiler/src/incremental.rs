@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use types::module_name::ModuleName;
+use types::{Database, ModuleId};
 
 pub(crate) struct Node {
     /// The ID of this node.
@@ -72,5 +73,19 @@ impl DependencyGraph {
 
     pub(crate) fn module_changed(&self, name: &ModuleName) -> bool {
         self.mapping.get(name).is_none_or(|&i| self.nodes[i].changed)
+    }
+
+    pub(crate) fn add_module_id_dependency(
+        &mut self,
+        db: &Database,
+        source: ModuleId,
+        target: ModuleId,
+    ) {
+        let src_name = source.name(db);
+        let src_id = self.add_module(src_name);
+        let target_name = target.name(db);
+        let target_id = self.add_module(target_name);
+
+        self.module_mut(target_id).add_depending(src_id);
     }
 }

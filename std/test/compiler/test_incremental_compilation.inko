@@ -1,0 +1,95 @@
+import helpers (compiler_path)
+import std.env
+import std.fs.path (Path)
+import std.sys (Command, Stream)
+import std.test (Tests)
+
+fn build(
+  compiler: ref Path,
+  directory: ref Path,
+  file: ref Path,
+) -> Result[Path, String] {
+  let cmd = Command.new(compiler)
+
+  cmd.stdout = Stream.Null
+  cmd.stdin = Stream.Null
+  cmd.stderr = Stream.Null
+  cmd.directory = directory.clone
+  cmd.arguments = ['build', '--threads=1', file.to_string]
+
+  let child = match cmd.spawn {
+    case Ok(v) -> v
+    case Error(e) -> throw 'failed to start the compiler: ${e}'
+  }
+
+  match child.wait {
+    case Ok(_) -> {}
+    case Error(e) -> throw 'failed to wait for the compiler: ${e}'
+  }
+
+  let Some((base, _)) = file.tail.split_once('.') else {
+    throw 'failed to derive executable name from ${file}'
+  }
+
+  Result.Ok(directory.join('build').join('debug').join(base))
+}
+
+fn run(exe: Path) -> Result[String, String] {
+  let cmd = Command.new(exe)
+
+  cmd.stdout = Stream.Piped
+  cmd.stdin = Stream.Null
+  cmd.stderr = Stream.Null
+
+  let child = match cmd.spawn {
+    case Ok(v) -> v
+    case Error(e) -> throw 'failed to run ${exe}: ${e}'
+  }
+
+  match child.wait {
+    case Ok(_) -> {}
+    case Error(e) -> throw 'failed to wait for the executable: ${e}'
+  }
+
+  let buf = ByteArray.new
+  let Ok(_) = child.stdout.as_mut.get.read_all(buf) else {
+    throw 'failed to read STDOUT'
+  }
+
+  Result.Ok(buf.into_string)
+}
+
+fn pub tests(t: mut Tests) {
+  t.ok(
+    'A method with explicit type arguments depends on the modules of its type arguments',
+    fn (t) {
+      let dir = env.temporary_directory.join('inko-incremental-${t.id}')
+      let _ = try dir.create_directory.map_error(fn (e) { e.to_string })
+      let Ok(pwd) = env.working_directory else {
+        throw 'failed to get the working directory'
+      }
+      let base = pwd.join('fixtures').join(
+        'incremental_compilation/explicit_type_arguments',
+      )
+
+      let src1 = base.join('a.inko')
+      let src2 = base.join('b.inko')
+      let src = dir.join('main.inko')
+      let inko = compiler_path
+
+      let _ = try src1.copy(src).map_error(fn (e) { e.to_string })
+      let exe1 = try build(inko, dir, src)
+
+      t.equal(run(exe1), Result.Ok('8'))
+
+      let _ = try src2.copy(src).map_error(fn (e) { e.to_string })
+      let exe2 = try build(inko, dir, src)
+
+      t.equal(run(exe2), Result.Ok('16'))
+
+      let _ = dir.remove_directory_all
+
+      Result.Ok(nil)
+    },
+  )
+}

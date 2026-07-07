@@ -2627,14 +2627,11 @@ impl Mir {
                 // We have to record the new module in the dependency graph,
                 // that way a change to the original module also affects these
                 // generated modules.
-                let new_node_id = state.dependency_graph.add_module(&name);
-                let old_node_id =
-                    state.dependency_graph.module_id(&orig_name).unwrap();
-
-                state
-                    .dependency_graph
-                    .module_mut(old_node_id)
-                    .add_depending(new_node_id);
+                state.dependency_graph.add_module_id_dependency(
+                    &state.db,
+                    new_mod_id,
+                    old_module.id,
+                );
 
                 // Closure modules need to be updated if either their source
                 // module changes _or_ the module of the closure's `self` type,
@@ -2643,14 +2640,11 @@ impl Mir {
                 if let Some(ClosureSelfType::TypeInstance(stype)) =
                     tid.self_type_for_closure(&state.db)
                 {
-                    let self_node = state.dependency_graph.add_module(
-                        stype.instance_of().module(&state.db).name(&state.db),
-                    );
+                    let sid = stype.instance_of().module(&state.db);
 
                     state
                         .dependency_graph
-                        .module_mut(self_node)
-                        .add_depending(new_node_id);
+                        .add_module_id_dependency(&state.db, new_mod_id, sid);
                 }
 
                 let mut new_module = Module::new(new_mod_id);

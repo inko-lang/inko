@@ -1,0 +1,12 @@
+import std.reflect (size_of)
+import std.stdio (Stdout)
+
+type inline A {
+  let @a: Int
+}
+
+type async Main {
+  fn async main {
+    Stdout.new.write(size_of[A].to_string)
+  }
+}

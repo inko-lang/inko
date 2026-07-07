@@ -531,6 +531,20 @@ impl<'a, 'b> Specialize<'a, 'b> {
                             self.self_type,
                         )
                         .specialize(ins.argument);
+
+                        // We need to record a dependency on the source module
+                        // so that if that module changes the current module has
+                        // its cache flushed, otherwise the returned size may be
+                        // stale.
+                        let db = &self.state.db;
+
+                        if let Some(dep) = ins.argument.source_module_id(db) {
+                            let this = self.method.source_module(db);
+
+                            self.state
+                                .dependency_graph
+                                .add_module_id_dependency(db, this, dep);
+                        }
                     }
                     _ => {}
                 }

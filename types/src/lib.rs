@@ -5992,6 +5992,17 @@ impl TypeRef {
         }
     }
 
+    pub fn source_module_id(self, db: &Database) -> Option<ModuleId> {
+        match self.as_type_enum(db) {
+            Ok(TypeEnum::Type(i)) => Some(i.module(db)),
+            Ok(TypeEnum::Trait(i)) => Some(i.module(db)),
+            Ok(TypeEnum::TypeInstance(i)) => Some(i.instance_of.module(db)),
+            Ok(TypeEnum::TraitInstance(i)) => Some(i.instance_of.module(db)),
+            Ok(TypeEnum::Module(i)) => Some(i),
+            _ => None,
+        }
+    }
+
     fn is_instance_of(self, db: &Database, id: TypeId) -> bool {
         self.type_id(db) == Some(id)
     }
@@ -6379,7 +6390,7 @@ mod tests {
         immutable_uni, instance, mutable, mutable_uni, new_async_type,
         new_enum_type, new_extern_type, new_module, new_parameter, new_trait,
         new_type, owned, parameter, placeholder, pointer, rigid,
-        trait_instance, uni,
+        trait_instance, trait_instance_id, uni,
     };
     use std::mem::size_of;
 
@@ -8152,5 +8163,23 @@ mod tests {
             TypeRef::foreign_unsigned_int(16).integer_size_in_bits(&db),
             16
         );
+    }
+
+    #[test]
+    fn test_type_ref_source_module_id() {
+        let mut db = Database::new();
+        let typ = new_type(&mut db, "A");
+        let trt = new_trait(&mut db, "B");
+        let exp = Some(ModuleId(0));
+
+        assert_eq!(owned(TypeEnum::Type(typ)).source_module_id(&db), exp);
+        assert_eq!(owned(instance(typ)).source_module_id(&db), exp);
+        assert_eq!(owned(TypeEnum::Trait(trt)).source_module_id(&db), exp);
+        assert_eq!(owned(trait_instance_id(trt)).source_module_id(&db), exp);
+        assert_eq!(
+            owned(TypeEnum::Module(ModuleId(0))).source_module_id(&db),
+            exp
+        );
+        assert_eq!(TypeRef::foreign_signed_int(32).source_module_id(&db), None);
     }
 }
