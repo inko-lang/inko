@@ -10528,4 +10528,35 @@ mod tests {
 
         assert!(parser(&input).parse().is_err());
     }
+
+    #[test]
+    fn test_nested_tuple() {
+        assert_eq!(
+            expr("a.1.2"),
+            Expression::Call(Box::new(Call {
+                receiver: Some(Expression::Call(Box::new(Call {
+                    receiver: Some(Expression::Identifier(Box::new(
+                        Identifier {
+                            name: "a".to_string(),
+                            location: location(1..=1, 1..=1),
+                        }
+                    ))),
+                    name: Identifier {
+                        name: "1".to_string(),
+                        location: location(1..=1, 3..=3),
+                    },
+                    type_arguments: None,
+                    arguments: None,
+                    location: location(1..=1, 1..=3),
+                }))),
+                name: Identifier {
+                    name: "2".to_string(),
+                    location: location(1..=1, 5..=5)
+                },
+                type_arguments: None,
+                arguments: None,
+                location: location(1..=1, 1..=5),
+            }))
+        );
+    }
 }

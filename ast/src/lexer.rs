@@ -444,6 +444,8 @@ pub struct Lexer {
 
     /// The current (starting) column number.
     column: u32,
+
+    in_dot: bool,
 }
 
 impl Lexer {
@@ -458,6 +460,7 @@ impl Lexer {
             states: vec![State::Default],
             line: 1,
             column: 1,
+            in_dot: false,
         }
     }
 
@@ -612,7 +615,12 @@ impl Lexer {
     }
 
     fn next_regular_token(&mut self) -> Token {
+        let in_dot = self.in_dot;
+
+        self.in_dot = false;
+
         match self.current_byte() {
+            ZERO..=NINE if in_dot => self.digits(),
             ZERO..=NINE => self.number(false),
             AT_SIGN => self.field(),
             HASH => self.comment(),
@@ -748,6 +756,17 @@ impl Lexer {
         }
 
         self.token(kind, start, line)
+    }
+
+    fn digits(&mut self) -> Token {
+        let start = self.position;
+        let line = self.line;
+
+        while let ZERO..=NINE | UNDERSCORE = self.current_byte() {
+            self.position += 1;
+        }
+
+        self.token(TokenKind::Integer, start, line)
     }
 
     fn field(&mut self) -> Token {
@@ -952,7 +971,7 @@ impl Lexer {
         let line = self.line;
 
         self.position += 1;
-
+        self.in_dot = true;
         self.token(TokenKind::Dot, start, line)
     }
 
@@ -2099,5 +2118,17 @@ mod tests {
 
         assert_eq!(lexer.next_token(), tok(Identifier, "a?", 1..=1, 1..=2));
         assert_eq!(lexer.next_token(), tok(Identifier, "b", 1..=1, 3..=3));
+    }
+
+    #[test]
+    fn test_lexer_nested_tuple() {
+        assert_tokens!(
+            "a.1.2",
+            tok(Identifier, "a", 1..=1, 1..=1),
+            tok(Dot, ".", 1..=1, 2..=2),
+            tok(Integer, "1", 1..=1, 3..=3),
+            tok(Dot, ".", 1..=1, 4..=4),
+            tok(Integer, "2", 1..=1, 5..=5)
+        );
     }
 }
