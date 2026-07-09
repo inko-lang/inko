@@ -3782,6 +3782,37 @@ impl<'a> LowerMethod<'a> {
             RegisterState::Available | RegisterState::PartiallyMoved => {
                 self.check_if_moved(reg, name, check_loc);
             }
+            // Issue #962: when a field is conditionally moved, the remaining
+            // fields could no longer be used.
+            //
+            // A conditional such as:
+            //
+            //     if x { drop(@some_field) }
+            //     @other_field
+            //
+            // splits the control flow into separate blocks that are later
+            // joined back together. At the join, the state of `self` is the
+            // merge of its state in each predecessor: on the branch that moved
+            // the field `self` is `PartiallyMoved`, on the other it's still
+            // `Available`, and merging the two yields `MaybeMoved`.
+            //
+            // `MaybeMoved` is ambiguous: it's produced both when `self` is
+            // moved as a whole on some path (e.g. `drop(self)`) and when only a
+            // field is moved. In the latter case `self` itself is still valid,
+            // so reading a *different* field is fine. To tell the two apart we
+            // walk the predecessor blocks and only report an error if `self`
+            // was actually moved as a whole on one of them.
+            RegisterState::MaybeMoved => {
+                if self.self_fully_moved_on_any_path() {
+                    self.state.diagnostics.implicit_receiver_moved(
+                        name,
+                        self.file(),
+                        node.location,
+                    );
+                } else {
+                    self.check_if_moved(reg, name, check_loc);
+                }
+            }
             _ => {
                 self.state.diagnostics.implicit_receiver_moved(
                     name,
@@ -3798,6 +3829,29 @@ impl<'a> LowerMethod<'a> {
         }
 
         reg
+    }
+
+    fn self_fully_moved_on_any_path(&mut self) -> bool {
+        let mut stack = self.method.body.predecessors(self.current_block);
+        let mut visited = HashSet::new();
+
+        while let Some(block) = stack.pop() {
+            if let Some(v) = self.register_states.get(block, self.self_register)
+                && let RegisterState::Moved = v
+            {
+                return true;
+            }
+
+            visited.insert(block);
+
+            for block in self.method.body.predecessors(block) {
+                if !visited.contains(&block) {
+                    stack.push(block);
+                }
+            }
+        }
+
+        return false;
     }
 
     fn constant(&mut self, node: hir::ConstantRef) -> RegisterId {

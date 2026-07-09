@@ -1,0 +1,35 @@
+import std.drop (Drop, drop)
+import std.stdio (Stdout)
+
+type Inner {}
+
+impl Drop for Inner {
+  fn mut drop {
+    Stdout.new.print('Inner.drop')
+  }
+}
+
+type Foo {}
+
+impl Drop for Foo {
+  fn mut drop {
+    Stdout.new.print('Foo.drop')
+  }
+}
+
+type inline Outer {
+  let @inner: Inner
+  let @foo: Foo
+
+  fn move submit {
+    if true { drop(@inner) }
+
+    drop(@foo)
+  }
+}
+
+type async Main {
+  fn async main {
+    Outer(inner: Inner(), foo: Foo()).submit
+  }
+}
