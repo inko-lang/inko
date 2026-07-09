@@ -208,7 +208,7 @@ type async Runner {
     shared: SharedState,
     matchers: uni Matchers,
   ) {
-    let server = Http.new(fn move { recover Handler(shared, matchers.clone) })
+    let server = Http.new(fn move { Handler(shared, matchers.clone) })
     let mut address = Option.Some(address)
 
     # Signal handling is disabled for tests as we don't want random Unix signals
@@ -234,7 +234,7 @@ type async Runner {
 # The mock/matching state shared between the tests and the requests handler.
 type async SharedState {
   # A mapping of mock IDs to their response generators.
-  let @responses: Map[Int, fn -> Response]
+  let @responses: Map[Int, fn -> uni Response]
 
   # An array of requests for which no matching mock is found.
   let mut @unmatched: uni Array[UnmatchedRequest]
@@ -244,7 +244,7 @@ type async SharedState {
   # This array is indexed using the mock/matcher IDs.
   let @counts: Array[Int]
 
-  fn static new(responses: uni Map[Int, fn -> Response]) -> Self {
+  fn static new(responses: uni Map[Int, fn -> uni Response]) -> Self {
     let counts = recover Array.filled(with: 0, times: responses.size)
 
     Self(responses: responses, unmatched: recover [], counts: counts)
@@ -291,7 +291,7 @@ type async SharedState {
 type pub Server {
   let mut @id: Int
   let @matchers: uni Matchers
-  let @responses: uni Map[Int, fn -> Response]
+  let @responses: uni Map[Int, fn -> uni Response]
   let @locations: Array[StackFrame]
 
   # Returns and starts a new `Server`.
@@ -339,7 +339,9 @@ type pub Server {
   #
   #     tests.test('Example test', fn (t) {
   #       let _server = Server.new(t, fn (srv) {
-  #         srv.request(Method.Get, '/').then(fn { Response.new.string('hello') })
+  #         srv.request(Method.Get, '/').then(fn {
+  #           Response.new.string('hello')
+  #         })
   #       })
   #     })
   #
@@ -619,15 +621,13 @@ type UnmatchedRequest {
   let @body: String
 
   fn static for_request(request: ref Request, body: ref ByteArray) -> uni Self {
-    recover {
-      UnmatchedRequest(
-        method: request.method,
-        path: request.data.uri.path.clone,
-        query: request.data.uri.query.clone,
-        headers: request.data.headers.clone,
-        body: body.to_string,
-      )
-    }
+    UnmatchedRequest(
+      method: request.method,
+      path: request.data.uri.path.clone,
+      query: request.data.uri.query.clone,
+      headers: request.data.headers.clone,
+      body: body.to_string,
+    )
   }
 }
 
@@ -931,7 +931,9 @@ type pub inline Mock {
   #
   #     tests.test('Example test', fn (t) {
   #       let _server = Server.new(t, fn (srv) {
-  #         srv.get('/').string('hello').then(fn { Response.new.string('hello') })
+  #         srv.get('/').string('hello').then(fn {
+  #           Response.new.string('hello')
+  #         })
   #       })
   #     })
   #
@@ -1196,7 +1198,7 @@ type pub inline Mock {
   #   }
   # }
   # ```
-  fn pub move then(response: uni fn -> Response) {
+  fn pub move then(response: uni fn -> uni Response) {
     let id = @server.next_id
     let mat = recover {
       Matcher(

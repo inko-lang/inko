@@ -373,6 +373,92 @@ type async Main {
 }
 ```
 
+## Returning unique values
+
+To make returning unique values a little easier, the compiler is able to infer
+the use of a `recover` expression when it's returned in a method or closure that
+expects a unique return value. Take this code for example:
+
+```inko
+type Person {
+  let @name: String
+  let @age: Int
+
+  fn static new(name: String, age: Int) -> uni Person {
+    recover Person(name: name, age: age)
+  }
+}
+```
+
+Here `Person.new` is defined as returning a `uni Person` instead of a regular
+`Person` and creating such a value requires the use of the `recover` expression.
+Because the compiler is able to infer that _without_ the use of an explicit
+`recover` expression the returned `Person` can still be inferred to a `uni
+Person`, the use of an explicit `recover` expression is not necessary and you
+can instead write this:
+
+```inko
+type Person {
+  let @name: String
+  let @age: Int
+
+  fn static new(name: String, age: Int) -> uni Person {
+    Person(name: name, age: age)
+  }
+}
+```
+
+`recover` inference is only applied when:
+
+1. The surrounding method or closure returns a value of type `uni T`
+1. The returned expression is _not_ a `recover`, `loop` or `match`
+
+`recover` inference _doesn't_ turn an existing `uni T` value into a `T` as an
+explicit `recover` does and instead leaves it as-is. This means that both the
+above examples are effectively the same.
+
+The reason `recover`, `loop` and `match` expressions don't trigger `recover`
+inference is because that could change the behavior of those expressions. For
+example, a `recover` containing a `match` is different from a `match` where the
+different `case` bodies contain a `recover`.
+
+Another scenario where you'll need an explicit `recover` is when you want to
+break the return value up into separate local variables (e.g. to keep things
+readable) as in such a case `recover` inference only applies to the final
+expression and not those local variables. In other words, given this expression:
+
+```inko
+let a = [10, 20]
+let b = 30
+
+Thing(a, b)
+```
+
+`recover` inference interprets it as follows:
+
+```inko
+let a = [10, 20]
+let b = 30
+
+recover Thing(a, b)
+```
+
+In this particular case what you probably want is this, which requires an
+explicit `recover`:
+
+```inko
+recover {
+  let a = [10, 20]
+  let b = 30
+
+  Thing(a, b)
+}
+```
+
+In short: if you return value that is essentially a combination of multiple
+expressions (such as the above), you'll want to use an explicit `recover`
+instead.
+
 ## Spawning processes with fields
 
 When spawning a process, the values assigned to its fields must be sendable:

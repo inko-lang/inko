@@ -25,7 +25,7 @@ import std.net.http.server (Handle, Request, Response, Server)
 
 type async Main {
   fn async main {
-    Server.new(fn { recover App() }).start(8_000).or_panic
+    Server.new(fn { App() }).start(8_000).or_panic
   }
 }
 
@@ -82,7 +82,7 @@ import std.net.http.server (Handle, Request, Response, Server)
 
 type async Main {
   fn async main {
-    Server.new(fn { recover App() }).start(8_000).or_panic
+    Server.new(fn { App() }).start(8_000).or_panic
   }
 }
 
@@ -116,7 +116,7 @@ import std.net.http.server (Handle, Request, Response, Server)
 
 type async Main {
   fn async main {
-    Server.new(fn { recover App() }).start(8_000).or_panic
+    Server.new(fn { App() }).start(8_000).or_panic
   }
 }
 
@@ -151,7 +151,7 @@ import std.net.http.server (Get, Handle, Head, Request, Response, Server)
 
 type async Main {
   fn async main {
-    Server.new(fn { recover App() }).start(8_000).or_panic
+    Server.new(fn { App() }).start(8_000).or_panic
   }
 }
 
@@ -208,7 +208,7 @@ import std.net.http.server (Handle, Request, Response, Server)
 
 type async Main {
   fn async main {
-    Server.new(fn { recover App() }).start(8_000).or_panic
+    Server.new(fn { App() }).start(8_000).or_panic
   }
 }
 
@@ -253,7 +253,7 @@ import std.net.http.server (Handle, Request, Response, Server)
 
 type async Main {
   fn async main {
-    Server.new(fn { recover App() }).start(8_000).or_panic
+    Server.new(fn { App() }).start(8_000).or_panic
   }
 }
 
@@ -298,7 +298,7 @@ import std.net.http.server (Handle, Request, Response, Server)
 
 type async Main {
   fn async main {
-    Server.new(fn { recover App() }).start(8_000).or_panic
+    Server.new(fn { App() }).start(8_000).or_panic
   }
 }
 
@@ -357,7 +357,7 @@ import std.net.http.server (Get, Handle, Head, Request, Response, Server)
 
 type async Main {
   fn async main {
-    Server.new(fn { recover App() }).start(8_000).or_panic
+    Server.new(fn { App() }).start(8_000).or_panic
   }
 }
 
@@ -461,7 +461,7 @@ import std.net.http.server (Get, Handle, Head, Request, Response, Server)
 
 type async Main {
   fn async main {
-    Server.new(fn { recover App() }).start(8_000).or_panic
+    Server.new(fn { App() }).start(8_000).or_panic
   }
 }
 
@@ -613,7 +613,7 @@ import std.time (DateTime, Duration)
 
 type async Main {
   fn async main {
-    Server.new(fn { recover App() }).start(8_000).or_panic
+    Server.new(fn { App() }).start(8_000).or_panic
   }
 }
 
@@ -701,7 +701,7 @@ import std.stdio (Stderr)
 
 type async Main {
   fn async main {
-    Server.new(fn { recover App() }).start(8_000).or_panic
+    Server.new(fn { App() }).start(8_000).or_panic
   }
 }
 
@@ -770,7 +770,7 @@ type async Main {
     let pwd = env.working_directory.or_panic
 
     Server
-      .new(fn { recover App(directory: Directory.new(pwd.clone)) })
+      .new(fn { App(directory: Directory.new(pwd.clone)) })
       .start(8_000)
       .or_panic
   }
@@ -951,7 +951,7 @@ impl Handle for Handler {
 
 type async Main {
   fn async main {
-    let srv = Server.new(fn { recover Handler() })
+    let srv = Server.new(fn { Handler() })
 
     srv.shutdown_wait_time = Duration.from_secs(0)
     srv.start(8_000).or_panic
@@ -991,7 +991,7 @@ impl Handle for App {
 
 type async Main {
   fn async main {
-    Server.new(fn { recover App() }).start(8_000).or_panic
+    Server.new(fn { App() }).start(8_000).or_panic
   }
 }
 ```
@@ -1015,7 +1015,7 @@ type async Main {
   fn async main {
     let logger = Logger.new
 
-    Server.new(fn { recover App(logger.clone) }).start(8_000).or_panic
+    Server.new(fn { App(logger.clone) }).start(8_000).or_panic
   }
 }
 

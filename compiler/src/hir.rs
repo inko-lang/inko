@@ -588,6 +588,17 @@ pub(crate) enum Expression {
 }
 
 impl Expression {
+    pub(crate) fn infer_recover(node: Expression) -> Self {
+        let loc = node.location();
+
+        Expression::Recover(Box::new(Recover {
+            resolved_type: types::TypeRef::Unknown,
+            body: vec![node],
+            location: loc,
+            infer: true,
+        }))
+    }
+
     fn call_static(
         type_name: &str,
         method_name: &str,
@@ -733,6 +744,16 @@ impl Expression {
 
     pub(crate) fn is_recover(&self) -> bool {
         matches!(self, Expression::Recover(_))
+    }
+
+    pub(crate) fn allow_implicit_recover(&self) -> bool {
+        !matches!(
+            self,
+            Expression::Recover(_)
+                | Expression::Return(_)
+                | Expression::Loop(_)
+                | Expression::Match(_)
+        )
     }
 
     pub(crate) fn set_usage(&mut self, usage: Usage) {
@@ -1075,6 +1096,7 @@ pub(crate) struct Recover {
     pub(crate) resolved_type: types::TypeRef,
     pub(crate) body: Vec<Expression>,
     pub(crate) location: Location,
+    pub(crate) infer: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -3086,6 +3108,7 @@ impl<'a> LowerToHir<'a> {
             resolved_type: types::TypeRef::Unknown,
             body: self.expressions(node.body),
             location: node.location,
+            infer: false,
         })
     }
 
@@ -6963,6 +6986,7 @@ mod tests {
                     resolved_type: types::TypeRef::Unknown,
                     location: cols(16, 17)
                 }))],
+                infer: false,
                 location: cols(8, 17)
             }))
         );
@@ -7388,6 +7412,7 @@ mod tests {
         let recover = Expression::Recover(Box::new(Recover {
             resolved_type: types::TypeRef::Unknown,
             body: vec![int.clone()],
+            infer: false,
             location: cols(1, 1),
         }));
 

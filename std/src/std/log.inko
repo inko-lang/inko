@@ -144,31 +144,31 @@ trait pub ToLogValue {
 
 impl ToLogValue for Bool {
   fn pub to_log_value -> uni Value {
-    recover Value.Bool(self)
+    Value.Bool(self)
   }
 }
 
 impl ToLogValue for Int {
   fn pub to_log_value -> uni Value {
-    recover Value.Int(self)
+    Value.Int(self)
   }
 }
 
 impl ToLogValue for Float {
   fn pub to_log_value -> uni Value {
-    recover Value.Float(self)
+    Value.Float(self)
   }
 }
 
 impl ToLogValue for String {
   fn pub to_log_value -> uni Value {
-    recover Value.String(self)
+    Value.String(self)
   }
 }
 
 impl ToLogValue for Duration {
   fn pub to_log_value -> uni Value {
-    recover Value.Float(to_secs)
+    Value.Float(to_secs)
   }
 }
 

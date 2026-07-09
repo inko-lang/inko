@@ -118,7 +118,7 @@ type pub Test {
   let pub @failures: Array[Failure]
 
   # A closure containing the assertions to perform.
-  let @code: uni fn (mut Test)
+  let @code: fn (mut Test)
 
   # Returns a new `Test`.
   fn pub static new(

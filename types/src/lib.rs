@@ -4490,6 +4490,12 @@ pub enum Sendability {
     NotSendable,
 }
 
+impl Sendability {
+    pub fn is_sendable(self) -> bool {
+        matches!(self, Self::Sendable)
+    }
+}
+
 /// A reference to a type.
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum TypeRef {
@@ -4844,9 +4850,10 @@ impl TypeRef {
     pub fn is_uni_value(self, db: &Database) -> bool {
         match self {
             TypeRef::Uni(_) => true,
-            TypeRef::Placeholder(id) => {
-                id.value(db).is_some_and(|v| v.is_uni_value(db))
-            }
+            TypeRef::Placeholder(id) => id
+                .value(db)
+                .map(|v| v.is_uni_value(db))
+                .unwrap_or_else(|| matches!(id.ownership, Ownership::Uni)),
             _ => false,
         }
     }
@@ -8181,5 +8188,19 @@ mod tests {
             exp
         );
         assert_eq!(TypeRef::foreign_signed_int(32).source_module_id(&db), None);
+    }
+
+    #[test]
+    fn test_type_ref_is_uni_value() {
+        let mut db = Database::new();
+        let a = new_type(&mut db, "A");
+        let p1 = TypePlaceholder::alloc(&mut db, None).as_uni();
+        let p2 = TypePlaceholder::alloc(&mut db, None);
+
+        p2.assign(&mut db, uni(instance(a)));
+
+        assert!(uni(instance(a)).is_uni_value(&db));
+        assert!(placeholder(p1).is_uni_value(&db));
+        assert!(placeholder(p2).is_uni_value(&db));
     }
 }

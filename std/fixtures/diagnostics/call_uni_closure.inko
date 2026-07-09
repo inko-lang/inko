@@ -1,0 +1,23 @@
+type A {}
+
+fn example1 {
+  let f = recover fn move (v) {}
+
+  f.call(mut A())
+}
+
+fn example2(f: uni fn (mut A)) {
+  f.call(mut A())
+}
+
+fn example3(f: uni fn -> ref Array[Int]) {
+  f.call
+}
+
+fn example4(f: uni fn -> ref Array[Int]) {
+  let x = f.call
+}
+
+# call_uni_closure.inko:6:10 error(invalid-type): the receiver of this call requires sendable arguments, but 'mut A' isn't sendable
+# call_uni_closure.inko:10:10 error(invalid-type): the receiver of this call requires sendable arguments, but 'mut A' isn't sendable
+# call_uni_closure.inko:18:11 error(invalid-call): the receiver of this call requires a sendable return type, but 'ref Array[Int]' isn't sendable

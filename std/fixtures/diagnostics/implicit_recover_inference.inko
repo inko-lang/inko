@@ -1,0 +1,86 @@
+type A {}
+
+type B {
+  let @a: ref A
+}
+
+fn generic[T](f: fn -> uni T) {}
+
+fn concrete(f: fn -> uni A) {}
+
+fn example1 {
+  generic(fn { A() })
+}
+
+fn example2 {
+  concrete(fn { A() })
+}
+
+fn example3 {
+  generic(fn { mut A() })
+}
+
+fn example4 {
+  generic(fn {
+    let a = A()
+
+    B(ref a)
+  })
+}
+
+fn example5 {
+  generic(fn { return A() })
+}
+
+fn example6 {
+  generic(fn {
+    if true { return A() }
+
+    return A()
+  })
+}
+
+fn example7 -> uni A {
+  if true { return A() }
+
+  return A()
+}
+
+fn example8 -> uni A {
+  {
+    A()
+  }
+}
+
+fn example9 -> uni A {
+  match 10 {
+    case _ -> A()
+  }
+}
+
+fn example10 -> uni A {
+  recover A()
+}
+
+fn example11 -> uni A {
+  loop {}
+}
+
+fn example12 -> uni A {
+  return A()
+}
+
+fn example13 -> uni Array[Int] {
+  [10, 20]
+}
+
+fn example14 -> uni Array[A] {
+  let a = A()
+
+  [a]
+}
+
+# implicit_recover_inference.inko:20:16 error(invalid-type): expected a value of type 'uni T', found 'mut A'
+# implicit_recover_inference.inko:27:7 error(invalid-type): values of type 'uni mut A' can't be borrowed
+# implicit_recover_inference.inko:56:3 error(invalid-type): expected a value of type 'uni A', found 'A'
+# implicit_recover_inference.inko:80:4 error(invalid-type): expected a value of type 'T', found 'uni mut A'

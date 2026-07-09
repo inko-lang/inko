@@ -112,6 +112,12 @@ enum ScopeKind {
     Recover,
 }
 
+impl ScopeKind {
+    fn is_return_scope(self) -> bool {
+        matches!(self, Self::Closure(_) | Self::Method)
+    }
+}
+
 struct LexicalScope<'a> {
     kind: ScopeKind,
 
@@ -1320,11 +1326,20 @@ impl<'a> CheckMethodBody<'a> {
 
     fn expressions(
         &mut self,
-        nodes: &mut [hir::Expression],
+        nodes: &mut Vec<hir::Expression>,
         scope: &mut LexicalScope,
     ) -> Vec<TypeRef> {
         let mut types = Vec::with_capacity(nodes.len());
         let max = nodes.len().saturating_sub(1);
+
+        if scope.kind.is_return_scope()
+            && scope.return_type.is_uni_value(self.db())
+            && nodes.last().is_some_and(|v| v.allow_implicit_recover())
+        {
+            let old = nodes.pop().unwrap();
+
+            nodes.push(hir::Expression::infer_recover(old));
+        }
 
         for (idx, node) in nodes.iter_mut().enumerate() {
             let usage = if idx == max
@@ -1355,7 +1370,7 @@ impl<'a> CheckMethodBody<'a> {
 
     fn last_expression_type(
         &mut self,
-        nodes: &mut [hir::Expression],
+        nodes: &mut Vec<hir::Expression>,
         scope: &mut LexicalScope,
     ) -> TypeRef {
         self.expressions(nodes, scope)
@@ -1367,7 +1382,7 @@ impl<'a> CheckMethodBody<'a> {
     fn method_body(
         &mut self,
         returns: TypeRef,
-        nodes: &mut [hir::Expression],
+        nodes: &mut Vec<hir::Expression>,
         scope: &mut LexicalScope,
         fallback_location: Location,
     ) {
@@ -3004,6 +3019,14 @@ impl<'a> CheckMethodBody<'a> {
         node: &mut hir::Return,
         scope: &mut LexicalScope,
     ) -> TypeRef {
+        if scope.return_type.is_uni_value(self.db())
+            && node.value.as_ref().is_some_and(|v| v.allow_implicit_recover())
+        {
+            let old = node.value.take().unwrap();
+
+            node.value = Some(hir::Expression::infer_recover(old));
+        }
+
         let mut returned = node
             .value
             .as_mut()
@@ -3250,8 +3273,14 @@ impl<'a> CheckMethodBody<'a> {
         }
 
         let db = self.db();
-
-        let result = if last_type.is_owned(db) {
+        let result = if node.infer {
+            // For implicit recovers we keep the value `uni` if it already is.
+            if last_type.is_owned(db) {
+                last_type.as_uni(db)
+            } else {
+                last_type
+            }
+        } else if last_type.is_owned(db) {
             last_type.as_uni(db)
         } else if last_type.is_uni_value(db) {
             last_type.as_owned(db)
@@ -3644,6 +3673,7 @@ impl<'a> CheckMethodBody<'a> {
         }
 
         let targs = TypeArguments::new();
+        let req_sendable = receiver.require_sendable_arguments(self.db());
 
         for (index, arg_node) in node.arguments.iter_mut().enumerate() {
             let exp = closure
@@ -3682,6 +3712,19 @@ impl<'a> CheckMethodBody<'a> {
                 );
             }
 
+            // The `call` method is always mutable and closures themselves are
+            // not sendable output values, so we don't allow any borrows unlike
+            // we may at times allow for regular method calls.
+            if req_sendable
+                && !given.sendability(self.db(), false).is_sendable()
+            {
+                self.state.diagnostics.unsendable_argument(
+                    format_type(self.db(), given),
+                    self.file(),
+                    pos_node.value.location(),
+                );
+            }
+
             pos_node.expected_type = exp;
         }
 
@@ -3691,6 +3734,17 @@ impl<'a> CheckMethodBody<'a> {
             TypeResolver::new(&mut self.state.db, &targs, self.bounds)
                 .resolve(raw)
         };
+
+        if req_sendable
+            && node.usage.is_used()
+            && !returns.is_sendable(self.db())
+        {
+            self.state.diagnostics.unsendable_return_type(
+                format_type(self.db(), returns),
+                self.file(),
+                node.location,
+            );
+        }
 
         node.kind =
             CallKind::CallClosure(ClosureCallInfo { id: closure, returns });

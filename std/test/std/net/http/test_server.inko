@@ -252,7 +252,7 @@ type async AsyncServer {
   fn static new(path: uni Path, secure: Bool) -> ServerWaiter {
     let (not_fut, not_prom) = Future.new
     let srv = recover {
-      let srv = Server.new(fn { recover Hello() })
+      let srv = Server.new(fn { Hello() })
 
       configure_server(srv)
 
@@ -287,7 +287,7 @@ type async AsyncSecureServer {
   fn static new(port: uni Promise[Int], dynamic: Bool) -> ServerWaiter {
     let (not_fut, not_prom) = Future.new
     let srv = recover {
-      let srv = Server.new(fn { recover Hello() })
+      let srv = Server.new(fn { Hello() })
 
       configure_server(srv)
 
@@ -2488,7 +2488,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('Server.tls', fn (t) {
-    let srv = Server.new(fn { recover Hello() })
+    let srv = Server.new(fn { Hello() })
     let cfg = try tls.ServerConfig.builder.new([certificate], private_key)
 
     srv.tls(cfg)
@@ -2503,14 +2503,14 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Server.before_shutdown', fn (t) {
-    let srv = Server.new(fn { recover Hello() })
+    let srv = Server.new(fn { Hello() })
 
     srv.before_shutdown(fn {})
     t.true(srv.before_shutdown.some?)
   })
 
   t.test('Server.before_start', fn (t) {
-    let srv = Server.new(fn { recover Hello() })
+    let srv = Server.new(fn { Hello() })
 
     srv.before_start(fn (_addr, _notifier) {})
     t.true(srv.before_start.some?)
