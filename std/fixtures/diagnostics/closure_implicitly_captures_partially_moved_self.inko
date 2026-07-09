@@ -1,0 +1,21 @@
+import std.drop (drop)
+
+type Inner {}
+
+type inline Outer {
+  let @a: Inner
+  let @b: Inner
+
+  fn move submit {
+    drop(@a)
+    fn { helper }.call
+  }
+
+  fn helper {}
+}
+
+type async Main {
+  fn async main {
+    Outer(a: Inner(), b: Inner()).submit
+  }
+}

@@ -1,0 +1,26 @@
+import std.drop (drop)
+
+type Inner {}
+
+type Foo {}
+
+type inline Outer {
+  let @inner: Inner
+  let @foo: Foo
+
+  fn move submit {
+    if true {
+      drop(self)
+    }
+
+    drop(@foo)
+  }
+}
+
+type async Main {
+  fn async main {
+    Outer(inner: Inner(), foo: Foo()).submit
+  }
+}
+
+# field_used_after_conditional_self_move.inko:16:10 error(moved): 'foo' can't be used as it has been moved
