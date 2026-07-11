@@ -75,7 +75,7 @@ import std.cmp (Equal)
 import std.fmt (Format as FormatTrait, Formatter)
 import std.int (Format)
 import std.io (BufferedReader, Read)
-import std.string (IntoString, StringBuffer, ToString)
+import std.string (ESCAPE_TABLE as STRING_ESCAPE_TABLE, IntoString, ToString)
 import std.utf8
 
 let BRACKET_OPEN = 0x5B
@@ -129,9 +129,49 @@ let ESCAPE_TABLE = [
   -1, -1,
 ]
 
+# The replacements for the control characters.
+let CONTROL_REPLACE = [
+  '\\u0000',
+  '\\u0001',
+  '\\u0002',
+  '\\u0003',
+  '\\u0004',
+  '\\u0005',
+  '\\u0006',
+  '\\u0007',
+  '\\u0008',
+  '\\u0009',
+  '\\u000A',
+  '\\u000B',
+  '\\u000C',
+  '\\u000D',
+  '\\u000E',
+  '\\u000F',
+  '\\u0010',
+  '\\u0011',
+  '\\u0012',
+  '\\u0013',
+  '\\u0014',
+  '\\u0015',
+  '\\u0016',
+  '\\u0017',
+  '\\u0018',
+  '\\u0019',
+  '\\u001A',
+  '\\u001B',
+  '\\u001C',
+  '\\u001D',
+  '\\u001E',
+  '\\u001F',
+]
+
 # The default amount of spaces to use for indentation when pretty-printing JSON
 # objects.
 let DEFAULT_PRETTY_INDENT = 2
+
+fn control?(byte: Int) -> Bool {
+  byte >= 0x0 and byte <= 0x001F
+}
 
 fn exponent?(byte: Int) -> Bool {
   byte == LOWER_E or byte == UPPER_E
@@ -1229,7 +1269,7 @@ type pub PullParser[T: mut + Read[E], E] {
           }
         }
         case Some(DQUOTE) -> break
-        case Some(val) if val >= 0x0 and val <= 0x001F -> {
+        case Some(val) if control?(val) -> {
           throw Error(ErrorKind.InvalidControl, previous_offset)
         }
         case Some(byte) -> @buffer.push(byte)
@@ -1780,7 +1820,7 @@ type pub Generator {
   let @pretty: Bool
   let @spaces: String
   let mut @depth: Int
-  let @buffer: StringBuffer
+  let @buffer: ByteArray
 
   # Returns a new `Generator` using the given indentation level.
   #
@@ -1792,7 +1832,7 @@ type pub Generator {
       pretty: indent > 0,
       spaces: ' '.repeat(indent),
       depth: 0,
-      buffer: StringBuffer.new,
+      buffer: ByteArray.new,
     )
   }
 
@@ -1812,15 +1852,11 @@ type pub Generator {
 
   fn mut generate_value(value: ref Json) {
     match value {
-      case Int(val) -> @buffer.push(val.to_string)
-      case Float(val) -> @buffer.push(val.to_string)
-      case String(val) -> {
-        @buffer.push('"')
-        @buffer.push(val.escaped)
-        @buffer.push('"')
-      }
+      case Int(val) -> @buffer.append(val.to_string)
+      case Float(val) -> @buffer.append(val.to_string)
+      case String(val) -> string(val)
       case Array(vals) -> {
-        @buffer.push('[')
+        @buffer.append('[')
 
         if vals.size > 0 {
           enter(fn {
@@ -1835,10 +1871,10 @@ type pub Generator {
           indent
         }
 
-        @buffer.push(']')
+        @buffer.append(']')
       }
       case Object(vals) -> {
-        @buffer.push('{')
+        @buffer.append('{')
 
         if vals.size > 0 {
           enter(fn {
@@ -1846,9 +1882,8 @@ type pub Generator {
               if index > 0 { separator }
 
               indent
-              @buffer.push('"')
-              @buffer.push(k.escaped)
-              @buffer.push('": ')
+              string(k)
+              @buffer.append(': ')
               generate_value(v)
             }
           })
@@ -1856,11 +1891,43 @@ type pub Generator {
           indent
         }
 
-        @buffer.push('}')
+        @buffer.append('}')
       }
-      case Bool(val) -> @buffer.push(val.to_string)
-      case Null -> @buffer.push('null')
+      case Bool(val) -> @buffer.append(val.to_string)
+      case Null -> @buffer.append('null')
     }
+  }
+
+  fn mut string(value: String) {
+    @buffer.append('"')
+
+    if value.size > 0 {
+      let mut start = 0
+      let max = value.size
+
+      for i in 0.until(max) {
+        let byte = value.byte_unchecked(i)
+
+        match STRING_ESCAPE_TABLE.get(byte) {
+          case Ok(-1) or Error(_) if control?(byte) -> {
+            @buffer.append(value.slice(start, i))
+            @buffer.append(CONTROL_REPLACE.get_unchecked(byte))
+            start = i + 1
+          }
+          case Ok(-1) or Error(_) -> {}
+          case Ok(v) -> {
+            @buffer.append(value.slice(start, i))
+            @buffer.push(BSLASH)
+            @buffer.push(v)
+            start = i + 1
+          }
+        }
+      }
+
+      if start < max { @buffer.append(value.slice(start, max)) }
+    }
+
+    @buffer.append('"')
   }
 
   fn mut enter(block: fn) {
@@ -1872,14 +1939,14 @@ type pub Generator {
   }
 
   fn mut indent {
-    if @pretty { @depth.times(fn (_) { @buffer.push(@spaces) }) }
+    if @pretty { @depth.times(fn (_) { @buffer.append(@spaces) }) }
   }
 
   fn mut newline {
-    if @pretty { @buffer.push('\n') }
+    if @pretty { @buffer.append('\n') }
   }
 
   fn mut separator {
-    @buffer.push(if @pretty { ',\n' } else { ', ' })
+    @buffer.append(if @pretty { ',\n' } else { ', ' })
   }
 }

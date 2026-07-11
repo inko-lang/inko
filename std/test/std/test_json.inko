@@ -480,10 +480,12 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Json.to_string', fn (t) {
-    let map = Map.new
+    let m1 = Map.new
+    let m2 = Map.new
 
-    map.set('a', Json.Int(1))
-    map.set('b', Json.Int(2))
+    m1.set('a', Json.Int(1))
+    m1.set('b', Json.Int(2))
+    m2.set('a\u{1E}b', Json.Int(1))
 
     t.equal(Json.Int(42).to_string, '42')
     t.equal(Json.Float(1.2).to_string, '1.2')
@@ -493,10 +495,16 @@ fn pub tests(t: mut Tests) {
     t.equal(Json.String('a\tb').to_string, '"a\\tb"')
     t.equal(Json.String('a\u{C}b').to_string, '"a\\fb"')
     t.equal(Json.String('a\u{8}b').to_string, '"a\\bb"')
+    t.equal(Json.String('a\u{3}b').to_string, '"a\\u0003b"')
+    t.equal(Json.String('a\u{1E}b').to_string, '"a\\u001Eb"')
+    t.equal(Json.String('a\u{1E}\u{1E}b').to_string, '"a\\u001E\\u001Eb"')
+    t.equal(Json.String('\u{1E}').to_string, '"\\u001E"')
+    t.equal(Json.String('123').to_string, '"123"')
     t.equal(Json.String('a\\b').to_string, '"a\\\\b"')
     t.equal(Json.Array([]).to_string, '[]')
     t.equal(Json.Array([Json.Int(1), Json.Int(2)]).to_string, '[1, 2]')
-    t.equal(Json.Object(map).to_string, '{"a": 1, "b": 2}')
+    t.equal(Json.Object(m1).to_string, '{"a": 1, "b": 2}')
+    t.equal(Json.Object(m2).to_string, '{"a\\u001Eb": 1}')
     t.equal(Json.Object(Map.new).to_string, '{}')
     t.equal(Json.Bool(true).to_string, 'true')
     t.equal(Json.Bool(false).to_string, 'false')
