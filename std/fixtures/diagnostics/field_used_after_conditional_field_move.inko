@@ -1,21 +1,8 @@
-import std.drop (Drop, drop)
-import std.stdio (Stdout)
+import std.drop (drop)
 
 type Inner {}
 
-impl Drop for Inner {
-  fn mut drop {
-    Stdout.new.print('Inner.drop')
-  }
-}
-
 type Foo {}
-
-impl Drop for Foo {
-  fn mut drop {
-    Stdout.new.print('Foo.drop')
-  }
-}
 
 type inline Outer {
   let @inner: Inner

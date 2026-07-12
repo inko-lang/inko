@@ -1428,9 +1428,6 @@ pub(crate) struct LowerMethod<'a> {
     /// Variables to remap to field reads, and the types to expose the fields
     /// as.
     variable_fields: HashMap<types::VariableId, types::FieldId>,
-
-    /// The number of fields that are moved.
-    moved_fields: usize,
 }
 
 impl<'a> LowerMethod<'a> {
@@ -1458,7 +1455,6 @@ impl<'a> LowerMethod<'a> {
             self_register: RegisterId(SELF_ID),
             variable_fields: HashMap::new(),
             used_variables: HashSet::new(),
-            moved_fields: 0,
         }
     }
 
@@ -1553,7 +1549,6 @@ impl<'a> LowerMethod<'a> {
         location: InstructionLocation,
     ) {
         self.mark_register_as_moved(register);
-        self.partially_move_self_if_field(register);
         self.drop_all_registers(location);
         self.check_for_unused_variables();
         self.return_register(register, location);
@@ -2099,7 +2094,9 @@ impl<'a> LowerMethod<'a> {
             types::Receiver::Implicit => {
                 let reg = self.self_register;
 
-                if !self.register_is_available(self.self_register) {
+                if !self.register_is_available(reg)
+                    || self.self_has_moved_field()
+                {
                     let name = info.id.name(self.db()).clone();
 
                     self.state.diagnostics.implicit_receiver_moved(
@@ -2472,16 +2469,6 @@ impl<'a> LowerMethod<'a> {
 
                 self.current_block_mut().get_field(old, rec, tid, id, loc);
                 self.drop_register(old, loc);
-            }
-
-            // We allow the use of `self` again once all moved fields are
-            // assigned a new value.
-            if is_moved {
-                self.moved_fields -= 1;
-
-                if self.moved_fields == 0 {
-                    self.mark_register_as_available(self.self_register);
-                }
             }
 
             self.update_register_state(reg, RegisterState::Available);
@@ -3778,49 +3765,7 @@ impl<'a> LowerMethod<'a> {
         let name = &node.name;
         let check_loc = node.location;
 
-        match self.register_state(rec) {
-            RegisterState::Available | RegisterState::PartiallyMoved => {
-                self.check_if_moved(reg, name, check_loc);
-            }
-            // Issue #962: when a field is conditionally moved, the remaining
-            // fields could no longer be used.
-            //
-            // A conditional such as:
-            //
-            //     if x { drop(@some_field) }
-            //     @other_field
-            //
-            // splits the control flow into separate blocks that are later
-            // joined back together. At the join, the state of `self` is the
-            // merge of its state in each predecessor: on the branch that moved
-            // the field `self` is `PartiallyMoved`, on the other it's still
-            // `Available`, and merging the two yields `MaybeMoved`.
-            //
-            // `MaybeMoved` is ambiguous: it's produced both when `self` is
-            // moved as a whole on some path (e.g. `drop(self)`) and when only a
-            // field is moved. In the latter case `self` itself is still valid,
-            // so reading a *different* field is fine. To tell the two apart we
-            // walk the predecessor blocks and only report an error if `self`
-            // was actually moved as a whole on one of them.
-            RegisterState::MaybeMoved => {
-                if self.self_fully_moved_on_any_path() {
-                    self.state.diagnostics.implicit_receiver_moved(
-                        name,
-                        self.file(),
-                        node.location,
-                    );
-                } else {
-                    self.check_if_moved(reg, name, check_loc);
-                }
-            }
-            _ => {
-                self.state.diagnostics.implicit_receiver_moved(
-                    name,
-                    self.file(),
-                    node.location,
-                );
-            }
-        }
+        self.check_if_moved(reg, name, check_loc);
 
         if info.as_pointer {
             self.current_block_mut().field_pointer(reg, rec, tid, id, loc);
@@ -3829,29 +3774,6 @@ impl<'a> LowerMethod<'a> {
         }
 
         reg
-    }
-
-    fn self_fully_moved_on_any_path(&mut self) -> bool {
-        let mut stack = self.method.body.predecessors(self.current_block);
-        let mut visited = HashSet::new();
-
-        while let Some(block) = stack.pop() {
-            if let Some(v) = self.register_states.get(block, self.self_register)
-                && let RegisterState::Moved = v
-            {
-                return true;
-            }
-
-            visited.insert(block);
-
-            for block in self.method.body.predecessors(block) {
-                if !visited.contains(&block) {
-                    stack.push(block);
-                }
-            }
-        }
-
-        return false;
     }
 
     fn constant(&mut self, node: hir::ConstantRef) -> RegisterId {
@@ -3882,7 +3804,18 @@ impl<'a> LowerMethod<'a> {
 
         let reg = self.self_register;
 
-        self.check_if_moved(reg, SELF_NAME, node.location);
+        if self.register_is_available(reg) {
+            if self.self_has_moved_field() {
+                self.state.diagnostics.moved_variable(
+                    SELF_NAME,
+                    self.file(),
+                    node.location,
+                );
+            }
+        } else {
+            self.check_if_moved(reg, SELF_NAME, node.location);
+        }
+
         reg
     }
 
@@ -4178,7 +4111,6 @@ impl<'a> LowerMethod<'a> {
 
         if typ.is_owned_or_uni(self.db()) {
             self.mark_register_as_moved(reg);
-            self.partially_move_self_if_field(reg);
 
             if let Some(flag) = self.drop_flags.get(&reg).cloned() {
                 self.current_block_mut().bool_literal(flag, false, ins_loc);
@@ -4283,12 +4215,7 @@ impl<'a> LowerMethod<'a> {
 
         self.check_field_move(register, location);
         self.mark_register_as_moved(register);
-        self.partially_move_self_if_field(register);
         self.record_loop_move(register, location);
-
-        if self.register_kind(register).is_field() {
-            self.mark_register_as_partially_moved(self.self_register);
-        }
 
         if let Some(flag) = self.drop_flags.get(&register).cloned() {
             self.current_block_mut().bool_literal(flag, false, ins_loc);
@@ -4354,7 +4281,6 @@ impl<'a> LowerMethod<'a> {
             }
 
             self.record_loop_move(register, location);
-            self.partially_move_self_if_field(register);
             self.mark_register_as_moved(register);
 
             if let Some(flag) = self.drop_flags.get(&register).cloned() {
@@ -4380,15 +4306,6 @@ impl<'a> LowerMethod<'a> {
 
         self.mark_register_as_moved(register);
         register
-    }
-
-    fn partially_move_self_if_field(&mut self, register: RegisterId) {
-        if !self.register_kind(register).is_field() {
-            return;
-        }
-
-        self.moved_fields += 1;
-        self.mark_register_as_partially_moved(self.self_register);
     }
 
     fn clone_value_type(
@@ -4546,22 +4463,22 @@ impl<'a> LowerMethod<'a> {
         });
 
         match self.register_state(self_reg) {
-            RegisterState::PartiallyMoved => {
+            // Fully moved: its fields are moved too, so there's nothing to drop.
+            RegisterState::Moved => {}
+            // Maybe moved as a whole: `drop_register` drops it conditionally.
+            RegisterState::MaybeMoved => {
+                self.drop_register(self_reg, location);
+            }
+            // Available but with some fields moved out: drop the remaining
+            // fields and free self's memory without running its dropper.
+            RegisterState::Available if partially_moved => {
                 self.drop_remaining_fields(&fields, location);
                 self.current_block_mut()
                     .drop_without_dropper(self_reg, location);
             }
-            // Parts of self may be moved conditionally, such as for code like
-            // `if foo { drop(field) }`. In this case we need to determine at
-            // runtime if `self` is to be dropped as a whole or only its memory
-            // should be deallocated.
-            RegisterState::MaybeMoved if partially_moved => {
-                self.drop_partial_self(&fields, location);
-            }
-            RegisterState::Available | RegisterState::MaybeMoved => {
+            RegisterState::Available | RegisterState::PartiallyMoved => {
                 self.drop_register(self_reg, location);
             }
-            RegisterState::Moved => {}
         }
     }
 
@@ -4580,37 +4497,6 @@ impl<'a> LowerMethod<'a> {
 
             self.drop_field(rec, *id, reg, location);
         }
-    }
-
-    fn drop_partial_self(
-        &mut self,
-        fields: &[(FieldId, TypeRef)],
-        location: InstructionLocation,
-    ) {
-        let self_reg = self.surrounding_type_register;
-        let before_block = self.current_block;
-        let drop_block = self.add_block();
-        let after_block = self.add_block();
-        let drop_flag = self.drop_flags.get(&self_reg).cloned().unwrap();
-
-        self.current_block_mut().branch(
-            drop_flag,
-            drop_block,
-            after_block,
-            location,
-        );
-
-        self.add_edge(before_block, drop_block);
-        self.add_edge(before_block, after_block);
-        self.add_edge(drop_block, after_block);
-
-        self.current_block = drop_block;
-        self.drop_remaining_fields(fields, location);
-        self.current_block_mut().drop_without_dropper(self_reg, location);
-        self.current_block_mut().goto(after_block, location);
-
-        self.current_block = after_block;
-        self.mark_register_as_moved(self_reg);
     }
 
     fn drop_loop_registers(&mut self, location: InstructionLocation) {
@@ -4991,6 +4877,24 @@ impl<'a> LowerMethod<'a> {
 
     fn mark_register_as_moved(&mut self, register: RegisterId) {
         self.update_register_state(register, RegisterState::Moved);
+
+        // Moving `self` as a whole also moves all of its fields.
+        if register == self.self_register {
+            let fields: Vec<RegisterId> =
+                self.field_mapping.values().cloned().collect();
+
+            for field in fields {
+                self.update_register_state(field, RegisterState::Moved);
+            }
+        }
+    }
+
+    /// Returns `true` if any field of `self` has been (possibly) moved.
+    fn self_has_moved_field(&mut self) -> bool {
+        let fields: Vec<RegisterId> =
+            self.field_mapping.values().cloned().collect();
+
+        fields.into_iter().any(|reg| !self.register_is_available(reg))
     }
 
     fn mark_register_as_available(&mut self, register: RegisterId) {
