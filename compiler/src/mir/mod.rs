@@ -40,6 +40,30 @@ fn join(initial: Option<RegisterId>, values: &[RegisterId]) -> String {
         .join(", ")
 }
 
+struct MethodStack {
+    stack: Vec<MethodId>,
+    done: Vec<bool>,
+}
+
+impl MethodStack {
+    fn new(size: usize) -> Self {
+        Self { stack: Vec::with_capacity(1024), done: vec![false; size] }
+    }
+
+    fn push(&mut self, id: MethodId) {
+        let idx = id.0 as usize;
+
+        if !self.done[idx] {
+            self.done[idx] = true;
+            self.stack.push(id);
+        }
+    }
+
+    fn pop(&mut self) -> Option<MethodId> {
+        self.stack.pop()
+    }
+}
+
 #[derive(Clone)]
 pub(crate) struct Registers {
     values: Vec<Register>,
@@ -2716,29 +2740,43 @@ impl Mir {
     }
 
     pub(crate) fn remove_unused_methods(&mut self, db: &Database) {
+        let main = db.main_method().unwrap();
         let mut used = vec![false; db.number_of_methods()];
+        let mut stack = MethodStack::new(db.number_of_methods());
 
         // `Main.main` is always used because it's the entry point.
-        used[db.main_method().unwrap().0 as usize] = true;
+        stack.push(main);
 
         for method in self.methods.values() {
+            // Closure `call` methods may be called through an indirect call if
+            // the extact receiver type isn't known statically, so we must keep
+            // these methods. The same is true for dropper methods.
+            if method
+                .id
+                .receiver(db)
+                .type_id(db)
+                .is_some_and(|v| v.is_closure(db))
+                || method.id.name(db) == DROPPER_METHOD
+            {
+                stack.push(method.id);
+            }
+        }
+
+        while let Some(id) = stack.pop() {
+            used[id.0 as usize] = true;
+
+            // We may push an `extern` method without a body into the stack, in
+            // which case there's nothing we need to do here.
+            let Some(method) = self.methods.get(&id) else { continue };
+
             for block in &method.body.blocks {
                 for ins in &block.instructions {
                     match ins {
-                        Instruction::CallStatic(i) => {
-                            used[i.method.0 as usize] = true;
-                        }
-                        Instruction::CallInstance(i) => {
-                            used[i.method.0 as usize] = true;
-                        }
-                        Instruction::Send(i) => {
-                            used[i.method.0 as usize] = true;
-                        }
-                        // Extern methods with a body shouldn't be removed if we
-                        // create pointers to them.
-                        Instruction::MethodPointer(i) => {
-                            used[i.method.0 as usize] = true;
-                        }
+                        Instruction::CallStatic(i) => stack.push(i.method),
+                        Instruction::CallInstance(i) => stack.push(i.method),
+                        Instruction::Send(i) => stack.push(i.method),
+                        Instruction::CallExtern(i) => stack.push(i.method),
+                        Instruction::MethodPointer(i) => stack.push(i.method),
                         Instruction::CallDynamic(i) => {
                             let id = i.method;
                             let tid = id
@@ -2762,7 +2800,7 @@ impl Mir {
                                 }
 
                                 for id in methods {
-                                    used[id.0 as usize] = true;
+                                    stack.push(id);
                                 }
                             }
                         }
@@ -2772,45 +2810,14 @@ impl Mir {
             }
         }
 
-        // If all methods are used (unlikely but certainly possible) then
-        // there's nothing else to do.
-        if used.iter().filter(|&&v| v).count() == self.methods.len() {
-            return;
-        }
-
-        let mut removed = vec![false; db.number_of_methods()];
-        let mut methods = IndexMap::new();
-
-        swap(&mut methods, &mut self.methods);
-
-        for method in methods.into_values() {
-            // We don't inline closures at this stage, so any methods defined on
-            // closures are kept.
-            //
-            // Dropper methods are never inlined but called through a dedicated
-            // instruction with the exact receiver type not always being known,
-            // so these too we must always keep.
-            let keep = method
-                .id
-                .receiver(db)
-                .type_id(db)
-                .is_some_and(|v| v.is_closure(db))
-                || used[method.id.0 as usize]
-                || method.id.name(db) == DROPPER_METHOD;
-
-            if keep {
-                self.methods.insert(method.id, method);
-            } else {
-                removed[method.id.0 as usize] = true;
-            }
-        }
+        self.methods.retain(|id, _| used[id.0 as usize]);
 
         for module in self.modules.values_mut() {
-            module.methods.retain(|i| !removed[i.0 as usize]);
+            module.methods.retain(|i| used[i.0 as usize]);
         }
 
         for typ in self.types.values_mut() {
-            typ.methods.retain(|i| !removed[i.0 as usize]);
+            typ.methods.retain(|i| used[i.0 as usize]);
         }
     }
 
