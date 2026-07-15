@@ -22,7 +22,6 @@ import std.crypto.math (U64, to_u32)
 import std.drop (Drop)
 import std.endian.little
 import std.fmt (Format, Formatter)
-import std.int
 import std.ptr
 import std.string (ToString)
 
@@ -505,7 +504,7 @@ type pub Argon2 {
 
     for param in params.split(',') {
       let (k, v) = try param.split_once('=')
-      let val = try Int.parse(v, int.Format.Decimal)
+      let val = try Int.parse(v, base: 10)
 
       if k.equals?('m') {
         hash.mem = val

@@ -3,9 +3,8 @@ import std.bytes (Bytes, Slice)
 import std.bytes.parsers (digit?)
 import std.clone (Clone)
 import std.cmp (Equal)
-import std.fmt (Format as FormatTrait, Formatter)
+import std.fmt (Format, Formatter)
 import std.hash (Hash, Hasher)
-import std.int (Format)
 import std.string (IntoString, StringBuffer, ToString)
 
 let PLUS = 43
@@ -214,7 +213,7 @@ impl Clone for IpAddress {
   }
 }
 
-impl FormatTrait for IpAddress {
+impl Format for IpAddress {
   fn pub fmt(formatter: mut Formatter) {
     formatter.write(to_string)
   }
@@ -262,7 +261,7 @@ type pub copy Ipv6Address {
     let mut compressed = false
     let mut ipv4_mode = false
     let mut max_hextet_value = IPV6_HEXTET_MAXIMUM
-    let mut format = Format.Hex
+    let mut base = 16
 
     # No point in parsing the input if we're certain it's not a valid address.
     if max > IPV6_STRING_MAXIMUM_LENGTH { return Option.None }
@@ -287,14 +286,14 @@ type pub copy Ipv6Address {
       # must be at the end of an IPv6 address.
       if !ipv4_mode and idx < max and bytes.get(idx).or_panic == DOT {
         ipv4_mode = true
-        format = Format.Decimal
+        base = 10
         max_hextet_value = IPV4_OCTET_MAXIMUM
       }
 
       # When the IP starts with a "::" we won't be able to read input, so the
       # byte buffer is empty.
       if idx - start > 0 {
-        let int = try Int.parse(Slice.new(bytes, start, idx), format)
+        let int = try Int.parse(Slice.new(bytes, start, idx), base)
 
         if int < IP_MINIMUM_VALUE or int > max_hextet_value {
           return Option.None
@@ -508,7 +507,7 @@ type pub copy Ipv6Address {
   }
 }
 
-impl FormatTrait for Ipv6Address {
+impl Format for Ipv6Address {
   fn pub fmt(formatter: mut Formatter) {
     formatter.write(to_string)
   }
@@ -610,7 +609,7 @@ impl ToString for Ipv6Address {
       index += 1
     }
 
-    let format = Format.Hex
+    let base = 16
 
     if compression_len > 0 {
       let buffer = StringBuffer.new
@@ -620,27 +619,27 @@ impl ToString for Ipv6Address {
         if index < compression_start {
           if index > 0 { buffer.push(':') }
 
-          buffer.push(hextet.format(format))
+          buffer.push(hextet.format(base))
         } else if index == compression_start {
           buffer.push('::')
         } else if index >= compression_end {
           if index > compression_end { buffer.push(':') }
 
-          buffer.push(hextet.format(format))
+          buffer.push(hextet.format(base))
         }
       }
 
       return buffer.into_string
     }
 
-    let a = @a.format(format)
-    let b = @b.format(format)
-    let c = @c.format(format)
-    let d = @d.format(format)
-    let e = @e.format(format)
-    let f = @f.format(format)
-    let g = @g.format(format)
-    let h = @h.format(format)
+    let a = @a.format(base)
+    let b = @b.format(base)
+    let c = @c.format(base)
+    let d = @d.format(base)
+    let e = @e.format(base)
+    let f = @f.format(base)
+    let g = @g.format(base)
+    let h = @h.format(base)
 
     '${a}:${b}:${c}:${d}:${e}:${f}:${g}:${h}'
   }
@@ -937,7 +936,7 @@ type pub copy Ipv4Address {
   }
 }
 
-impl FormatTrait for Ipv4Address {
+impl Format for Ipv4Address {
   fn pub fmt(formatter: mut Formatter) {
     formatter.write(to_string)
   }

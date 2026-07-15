@@ -1,4 +1,3 @@
-import std.int (Format)
 import std.net.http.client (Client)
 import std.net.http.websocket (Error)
 import std.stdio (Stdout)
@@ -13,7 +12,7 @@ fn get_case_count(client: mut Client) -> Int {
   let msg = sock.receive
 
   match msg.or_panic {
-    case Text(v) -> Int.parse(v, Format.Decimal).get
+    case Text(v) -> Int.parse(v, base: 10).get
     case _ -> panic('expected a text message')
   }
 }

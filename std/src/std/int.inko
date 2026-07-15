@@ -59,24 +59,12 @@ fn overflow_error -> Never {
   panic('Int operation overflowed')
 }
 
-# The format to use for parsing and formatting an `Int`.
-type pub copy enum Format {
-  # The `Int` is to be parsed or formatted as a binary number.
-  case Binary
+fn invalid_base_error -> Never {
+  panic('the base/radix must be between 2 and 36')
+}
 
-  # The `Int` is to be parsed or formatted as a decimal number.
-  case Decimal
-
-  # The `Int` is to be parsed or formatted as a hexadecimal number.
-  case Hex
-
-  fn pub inline to_base -> Int {
-    match self {
-      case Binary -> 2
-      case Decimal -> 10
-      case Hex -> 16
-    }
-  }
+fn inline check_int_base(value: Int) {
+  if value < 2 or value > 36 { invalid_base_error }
 }
 
 # A buffer used for formatting an `Int`.
@@ -86,7 +74,7 @@ type pub copy enum Format {
 # least messy workaround.
 #
 # The size of this buffer is 65 bytes, which is the maximum size needed for the
-# supported formats (64 bytes for base 10, plus one byte for the sign).
+# supported formats (64 bytes for binary, plus one byte for the sign).
 type extern FormatBuffer {
   let @0: Uint8
   let @1: Uint8
@@ -169,8 +157,9 @@ type extern FormatBuffer {
 # while still allowing for efficient code generation when using the release
 # mode.
 type builtin Int {
-  # Parses a `Bytes` into an `Int` in the format specified in `format`,
-  # returning a `Some` if the value is valid, and a `None` otherwise.
+  # Parses a `Bytes` into an `Int` using the base specified in `base` (e.g.
+  # `base: 10` for base 10), returning a `Some` if the value is valid, and a
+  # `None` otherwise.
   #
   # For numbers in binary, the valid digits are `0` and `1`. For decimal numbers,
   # the valid digits are in the range `0-9`. For hexadecimal numbers, the valid
@@ -182,40 +171,39 @@ type builtin Int {
   #
   # Leading and/or trailing whitespace is considered invalid.
   #
+  # # Panics
+  #
+  # This method panics if `base` is not between 2 and 36 (inclusive).
+  #
   # # Examples
   #
   # Parsing a binary number:
   #
   # ```inko
-  # import std.int (Format)
-  #
-  # Int.parse('11', Format.Binary)  # => Option.Some(3)
-  # Int.parse('-11', Format.Binary) # => Option.Some(-3)
-  # Int.parse('ff', Format.Binary)  # => Option.None
+  # Int.parse('11', base: 2)  # => Option.Some(3)
+  # Int.parse('-11', base: 2) # => Option.Some(-3)
+  # Int.parse('ff', base: 2)  # => Option.None
   # ```
   #
   # Parsing a decimal number:
   #
   # ```inko
-  # import std.int (Format)
-  #
-  # Int.parse('123', Format.Decimal)  # => Option.Some(123)
-  # Int.parse('-123', Format.Decimal) # => Option.Some(-123)
-  # Int.parse('abc', Format.Decimal)  # => Option.None
+  # Int.parse('123', base: 10)  # => Option.Some(123)
+  # Int.parse('-123', base: 10) # => Option.Some(-123)
+  # Int.parse('abc', base: 10)  # => Option.None
   # ```
   #
   # Parsing a hexadecimal number:
   #
   # ```inko
-  # import std.int (Format)
-  #
-  # Int.parse('ef', Format.Hex)    # => Option.Some(239)
-  # Int.parse('0xef', Format.Hex)  # => Option.Some(239)
-  # Int.parse('-0xef', Format.Hex) # => Option.Some(-239)
-  # Int.parse('zz', Format.Hex)    # => Option.None
+  # Int.parse('ef', base: 16)    # => Option.Some(239)
+  # Int.parse('0xef', base: 16)  # => Option.Some(239)
+  # Int.parse('-0xef', base: 16) # => Option.Some(-239)
+  # Int.parse('zz', base: 16)    # => Option.None
   # ```
-  fn pub static parse[T: Bytes](bytes: ref T, format: Format) -> Option[Int] {
-    let base = format.to_base
+  fn pub static parse[T: Bytes](bytes: ref T, base: Int) -> Option[Int] {
+    check_int_base(base)
+
     let len = bytes.size
     let mut idx = 0
     let pos = match bytes.get(idx) {
@@ -292,33 +280,36 @@ type builtin Int {
     iterator.reduce(0, fn (acc, val) { acc + val })
   }
 
-  # Formats `self` as a `String` in the given format.
+  # Formats `self` as a `String` using the given base/radix.
+  #
+  # # Panics
+  #
+  # This method panics if `base` is not between 2 and 36 (inclusive).
   #
   # # Examples
   #
   # Formatting an `Int` as binary number:
   #
   # ```inko
-  # import std.int (Format)
-  #
-  # 3.format(Format.Binary)  # => '11'
-  # -1.format(Format.Binary) # => '-11'
+  # 3.format(base: 2)  # => '11'
+  # -1.format(base: 2) # => '-11'
   # ```
   #
   # Formatting an `Int` as a a decimal number:
   #
   # ```inko
-  # 123.format(Format.Decimal) # => '123'
-  # 123.format(Format.Hex)     # => '7b'
+  # 123.format(base: 10)  # => '123'
+  # -123.format(base: 10) # => '-123'
   # ```
   #
   # Formatting an `Int` as a hexadecimal number:
   #
   # ```inko
-  # -123.format(Format.Hex) # => '-7b'
+  # 123.format(base: 16)  # => '7b'
+  # -123.format(base: 16) # => '-7b'
   # ```
-  fn pub format(format: Format) -> String {
-    let base = format.to_base
+  fn pub format(base: Int) -> String {
+    check_int_base(base)
 
     match self {
       case 0 -> return '0'
@@ -950,7 +941,7 @@ impl Clone for Int {
 
 impl ToString for Int {
   fn pub to_string -> String {
-    format(Format.Decimal)
+    format(base: 10)
   }
 }
 

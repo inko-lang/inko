@@ -4,7 +4,6 @@ import std.env
 import std.fmt (Format, Formatter)
 import std.fs.file (ReadOnlyFile)
 import std.fs.path (Path)
-import std.int
 import std.io (Buffer, BufferedReader)
 import std.json (Json)
 import std.sys (Command, Stream)
@@ -190,7 +189,7 @@ type Parser {
   }
 
   fn mut read_number_until(byte: Int) -> Option[Int] {
-    read_until(byte).then(fn (v) { Int.parse(v, int.Format.Decimal) })
+    read_until(byte).then(fn (v) { Int.parse(v, base: 10) })
   }
 }
 

@@ -2,21 +2,29 @@ import helpers (debug?, hash)
 import std.cmp (Ordering)
 import std.fmt (fmt)
 import std.hash.ahash (Ahasher)
-import std.int (Format, MAX, MIN)
+import std.int (MAX, MIN)
 import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
+  t.panic('Int.parse with a base that is too low', fn {
+    Int.parse('1234', base: 1)
+  })
+
+  t.panic('Int.parse with a base that is too high', fn {
+    Int.parse('1234', base: 37)
+  })
+
   t.test('Int.parse with binary numbers', fn (t) {
-    t.equal(Int.parse('1', Format.Binary), Option.Some(1))
-    t.equal(Int.parse('11', Format.Binary), Option.Some(3))
-    t.equal(Int.parse('1010', Format.Binary), Option.Some(10))
-    t.equal(Int.parse('+11', Format.Binary), Option.Some(3))
-    t.equal(Int.parse('-11', Format.Binary), Option.Some(-3))
-    t.equal(Int.parse('1111111111111111', Format.Binary), Option.Some(65_535))
+    t.equal(Int.parse('1', base: 2), Option.Some(1))
+    t.equal(Int.parse('11', base: 2), Option.Some(3))
+    t.equal(Int.parse('1010', base: 2), Option.Some(10))
+    t.equal(Int.parse('+11', base: 2), Option.Some(3))
+    t.equal(Int.parse('-11', base: 2), Option.Some(-3))
+    t.equal(Int.parse('1111111111111111', base: 2), Option.Some(65_535))
     t.equal(
       Int.parse(
         '111111111111111111111111111111111111111111111111111111111111111',
-        Format.Binary,
+        base: 2,
       ),
       Option.Some(9_223_372_036_854_775_807),
     )
@@ -24,107 +32,111 @@ fn pub tests(t: mut Tests) {
     t.equal(
       Int.parse(
         '-1000000000000000000000000000000000000000000000000000000000000000',
-        Format.Binary,
+        base: 2,
       ),
       Option.Some(-9_223_372_036_854_775_808),
     )
 
-    t.equal(Int.parse('ef', Format.Binary), Option.None)
-    t.equal(Int.parse(' 11', Format.Binary), Option.None)
-    t.equal(Int.parse('11 ', Format.Binary), Option.None)
-    t.equal(Int.parse('1'.repeat(times: 70), Format.Binary), Option.None)
-    t.equal(Int.parse('', Format.Binary), Option.None)
-    t.equal(Int.parse('1_1', Format.Binary), Option.None)
-    t.equal(Int.parse('a', Format.Binary), Option.None)
-    t.equal(Int.parse('f', Format.Binary), Option.None)
-    t.equal(Int.parse('A', Format.Binary), Option.None)
-    t.equal(Int.parse('F', Format.Binary), Option.None)
-    t.equal(Int.parse('2', Format.Binary), Option.None)
-    t.equal(Int.parse('9', Format.Binary), Option.None)
+    t.equal(Int.parse('ef', base: 2), Option.None)
+    t.equal(Int.parse(' 11', base: 2), Option.None)
+    t.equal(Int.parse('11 ', base: 2), Option.None)
+    t.equal(Int.parse('1'.repeat(times: 70), base: 2), Option.None)
+    t.equal(Int.parse('', base: 2), Option.None)
+    t.equal(Int.parse('1_1', base: 2), Option.None)
+    t.equal(Int.parse('a', base: 2), Option.None)
+    t.equal(Int.parse('f', base: 2), Option.None)
+    t.equal(Int.parse('A', base: 2), Option.None)
+    t.equal(Int.parse('F', base: 2), Option.None)
+    t.equal(Int.parse('2', base: 2), Option.None)
+    t.equal(Int.parse('9', base: 2), Option.None)
   })
 
   t.test('Int.parse with decimal numbers', fn (t) {
-    t.equal(Int.parse('42', Format.Decimal), Option.Some(42))
-    t.equal(Int.parse('11', Format.Decimal), Option.Some(11))
-    t.equal(Int.parse('+11', Format.Decimal), Option.Some(11))
-    t.equal(Int.parse('-11', Format.Decimal), Option.Some(-11))
+    t.equal(Int.parse('42', base: 10), Option.Some(42))
+    t.equal(Int.parse('11', base: 10), Option.Some(11))
+    t.equal(Int.parse('+11', base: 10), Option.Some(11))
+    t.equal(Int.parse('-11', base: 10), Option.Some(-11))
     t.equal(
-      Int.parse('123456789123456789', Format.Decimal),
+      Int.parse('123456789123456789', base: 10),
       Option.Some(123_456_789_123_456_789),
     )
 
     t.equal(
-      Int.parse('-9223372036854775808', Format.Decimal),
+      Int.parse('-9223372036854775808', base: 10),
       Option.Some(-9_223_372_036_854_775_808),
     )
 
     t.equal(
-      Int.parse('9223372036854775807', Format.Decimal),
+      Int.parse('9223372036854775807', base: 10),
       Option.Some(9_223_372_036_854_775_807),
     )
 
-    t.equal(Int.parse(' 11', Format.Decimal), Option.None)
-    t.equal(Int.parse('11 ', Format.Decimal), Option.None)
-    t.equal(Int.parse('f', Format.Decimal), Option.None)
-    t.equal(Int.parse('1'.repeat(times: 100), Format.Decimal), Option.None)
-    t.equal(Int.parse('', Format.Decimal), Option.None)
-    t.equal(Int.parse('1_1', Format.Decimal), Option.None)
-    t.equal(Int.parse('+', Format.Decimal), Option.None)
-    t.equal(Int.parse('-', Format.Decimal), Option.None)
-    t.equal(Int.parse('a', Format.Decimal), Option.None)
-    t.equal(Int.parse('f', Format.Decimal), Option.None)
-    t.equal(Int.parse('A', Format.Decimal), Option.None)
-    t.equal(Int.parse('F', Format.Decimal), Option.None)
+    t.equal(Int.parse(' 11', base: 10), Option.None)
+    t.equal(Int.parse('11 ', base: 10), Option.None)
+    t.equal(Int.parse('f', base: 10), Option.None)
+    t.equal(Int.parse('1'.repeat(times: 100), base: 10), Option.None)
+    t.equal(Int.parse('', base: 10), Option.None)
+    t.equal(Int.parse('1_1', base: 10), Option.None)
+    t.equal(Int.parse('+', base: 10), Option.None)
+    t.equal(Int.parse('-', base: 10), Option.None)
+    t.equal(Int.parse('a', base: 10), Option.None)
+    t.equal(Int.parse('f', base: 10), Option.None)
+    t.equal(Int.parse('A', base: 10), Option.None)
+    t.equal(Int.parse('F', base: 10), Option.None)
   })
 
   t.test('Int.parse with hexadecimal numbers', fn (t) {
-    t.equal(Int.parse('42', Format.Hex), Option.Some(66))
-    t.equal(Int.parse('11', Format.Hex), Option.Some(17))
-    t.equal(Int.parse('ef', Format.Hex), Option.Some(239))
-    t.equal(Int.parse('0xef', Format.Hex), Option.Some(239))
-    t.equal(Int.parse('-0xef', Format.Hex), Option.Some(-239))
-    t.equal(Int.parse('+ef', Format.Hex), Option.Some(239))
-    t.equal(Int.parse('-ef', Format.Hex), Option.Some(-239))
-    t.equal(Int.parse(' 11', Format.Hex), Option.None)
-    t.equal(Int.parse('11 ', Format.Hex), Option.None)
-    t.equal(Int.parse('zz', Format.Hex), Option.None)
+    t.equal(Int.parse('42', base: 16), Option.Some(66))
+    t.equal(Int.parse('11', base: 16), Option.Some(17))
+    t.equal(Int.parse('ef', base: 16), Option.Some(239))
+    t.equal(Int.parse('0xef', base: 16), Option.Some(239))
+    t.equal(Int.parse('-0xef', base: 16), Option.Some(-239))
+    t.equal(Int.parse('+ef', base: 16), Option.Some(239))
+    t.equal(Int.parse('-ef', base: 16), Option.Some(-239))
+    t.equal(Int.parse(' 11', base: 16), Option.None)
+    t.equal(Int.parse('11 ', base: 16), Option.None)
+    t.equal(Int.parse('zz', base: 16), Option.None)
     t.equal(
-      Int.parse('-0x4a3f043013b2c4d1', Format.Hex),
+      Int.parse('-0x4a3f043013b2c4d1', base: 16),
       Option.Some(-5349999486874862801),
     )
-    t.equal(Int.parse('a', Format.Hex), Option.Some(10))
-    t.equal(Int.parse('f', Format.Hex), Option.Some(15))
-    t.equal(Int.parse('A', Format.Hex), Option.Some(10))
-    t.equal(Int.parse('F', Format.Hex), Option.Some(15))
+    t.equal(Int.parse('a', base: 16), Option.Some(10))
+    t.equal(Int.parse('f', base: 16), Option.Some(15))
+    t.equal(Int.parse('A', base: 16), Option.Some(10))
+    t.equal(Int.parse('F', base: 16), Option.Some(15))
 
-    t.equal(Int.parse('0x', Format.Hex), Option.None)
-    t.equal(Int.parse('f'.repeat(times: 100), Format.Hex), Option.None)
-    t.equal(Int.parse('', Format.Hex), Option.None)
-    t.equal(Int.parse('f_f', Format.Hex), Option.None)
-    t.equal(Int.parse('g', Format.Hex), Option.None)
+    t.equal(Int.parse('0x', base: 16), Option.None)
+    t.equal(Int.parse('f'.repeat(times: 100), base: 16), Option.None)
+    t.equal(Int.parse('', base: 16), Option.None)
+    t.equal(Int.parse('f_f', base: 16), Option.None)
+    t.equal(Int.parse('g', base: 16), Option.None)
   })
 
+  t.panic('Int.format with a base that is too low', fn { 123.format(base: 1) })
+
+  t.panic('Int.format with a base that is too high', fn { 123.format(base: 37) })
+
   t.test('Int.format when formatting as binary', fn (t) {
-    t.equal(0.format(Format.Binary), '0')
-    t.equal(123.format(Format.Binary), '1111011')
-    t.equal(-123.format(Format.Binary), '-1111011')
+    t.equal(0.format(base: 2), '0')
+    t.equal(123.format(base: 2), '1111011')
+    t.equal(-123.format(base: 2), '-1111011')
     t.equal(
-      -9223372036854775808.format(Format.Binary),
+      -9223372036854775808.format(base: 2),
       '-1000000000000000000000000000000000000000000000000000000000000000',
     )
   })
 
   t.test('Int.format when formatting as decimal', fn (t) {
-    t.equal(42.format(Format.Decimal), '42')
-    t.equal(-42.format(Format.Decimal), '-42')
-    t.equal(-9223372036854775808.format(Format.Decimal), '-9223372036854775808')
+    t.equal(42.format(base: 10), '42')
+    t.equal(-42.format(base: 10), '-42')
+    t.equal(-9223372036854775808.format(base: 10), '-9223372036854775808')
   })
 
   t.test('Int.format when formatting as hexadecimal', fn (t) {
-    t.equal(0.format(Format.Hex), '0')
-    t.equal(123.format(Format.Hex), '7b')
-    t.equal(-123.format(Format.Hex), '-7b')
-    t.equal(-9223372036854775808.format(Format.Hex), '-8000000000000000')
+    t.equal(0.format(base: 16), '0')
+    t.equal(123.format(base: 16), '7b')
+    t.equal(-123.format(base: 16), '-7b')
+    t.equal(-9223372036854775808.format(base: 16), '-8000000000000000')
   })
 
   t.test('Int.to_string', fn (t) {

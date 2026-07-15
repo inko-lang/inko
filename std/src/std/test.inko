@@ -66,7 +66,6 @@ import std.debug
 import std.env
 import std.fmt (Format, Formatter, fmt)
 import std.fs.path (Path)
-import std.int (Format as IntFormat)
 import std.io (Error, Write)
 import std.process
 import std.rand (Random)
@@ -724,9 +723,7 @@ type pub Tests {
   }
 
   fn pub move run_child(id: String) {
-    match
-      Int.parse(id, IntFormat.Decimal).then(fn (v) { @children.get_mut(v).ok })
-    {
+    match Int.parse(id, base: 10).then(fn (v) { @children.get_mut(v).ok }) {
       case Some(block) -> block.call
       case _ -> process.panic("The child ID '${id}' is invalid")
     }

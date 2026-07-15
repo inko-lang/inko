@@ -73,7 +73,6 @@
 import std.bytes.parsers (digit?)
 import std.cmp (Equal)
 import std.fmt (Format as FormatTrait, Formatter)
-import std.int (Format)
 import std.io (BufferedReader, Read)
 import std.string (ESCAPE_TABLE as STRING_ESCAPE_TABLE, IntoString, ToString)
 import std.utf8
@@ -1395,7 +1394,7 @@ type pub PullParser[T: mut + Read[E], E] {
       #
       # If the number is too big to fit in an Int, we'll promote it to a Float.
       case _ -> {
-        match Int.parse(@buffer, Format.Decimal) {
+        match Int.parse(@buffer, base: 10) {
           case Some(val) -> {
             @buffer.clear
             return Result.Ok(Number.Int(val))

@@ -380,7 +380,6 @@ import std.fs (Metadata)
 import std.fs.file (ReadOnlyFile)
 import std.fs.path
 import std.hash (Hash, Hasher)
-import std.int (Format as IntFormat)
 import std.io (
   BufferedRead, BufferedReader, BufferedWriter, Error as IoError, LimitReader,
   Read, SeekFrom, Write, copy_using,
@@ -2164,7 +2163,7 @@ type pub Request {
     let raw = headers.get(Header.host).get
 
     match raw.split_once(':') {
-      case Some((host, port)) -> (host, Int.parse(port, IntFormat.Decimal))
+      case Some((host, port)) -> (host, Int.parse(port, base: 10))
       case _ -> (raw.to_slice, Option.None)
     }
   }

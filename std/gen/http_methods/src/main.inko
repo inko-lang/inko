@@ -1,6 +1,5 @@
 import std.bytes (Bytes, Slice)
 import std.fs.file (ReadOnlyFile, WriteOnlyFile)
-import std.int (Format)
 import std.string (StringBuffer)
 
 let DATA_PATH = 'data/http_methods.txt'
@@ -166,7 +165,7 @@ type async Main {
       let cons = to_pascal_case(ref method)
       let len = method.size
       let head = method.get(0).or_panic
-      let ival = string_to_int(method).format(Format.Hex)
+      let ival = string_to_int(method).format(base: 16)
 
       if len > max { max = len }
 

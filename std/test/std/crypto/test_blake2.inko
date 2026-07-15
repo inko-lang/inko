@@ -1,5 +1,4 @@
 import std.crypto.blake2 (Blake2b, DIGEST_SIZE)
-import std.int
 import std.test (Tests)
 
 fn decode(input: String) -> ByteArray {
@@ -9,7 +8,7 @@ fn decode(input: String) -> ByteArray {
   while idx < input.size {
     let chunk = input.slice(idx, idx + 2)
 
-    buf.push(Int.parse(chunk, int.Format.Hex).get)
+    buf.push(Int.parse(chunk, base: 16).get)
     idx += 2
   }
 
