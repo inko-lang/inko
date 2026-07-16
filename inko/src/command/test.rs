@@ -43,7 +43,7 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         return Ok(0);
     }
 
-    let mut config = Config::default();
+    let mut config = Config::new()?;
 
     if let Some(val) = matches.opt_str("target") {
         config.set_target(&val)?;

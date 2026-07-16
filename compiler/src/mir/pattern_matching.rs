@@ -1093,7 +1093,7 @@ mod tests {
     }
 
     fn state() -> State {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let bmod = Module::alloc(
             &mut state.db,
             ModuleName::new(BYTES_MODULE),

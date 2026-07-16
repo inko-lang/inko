@@ -11,6 +11,7 @@ Print compiler details, such as the target, to STDOUT.
 Available values:
 
     target   # Print the host's target triple (e.g. amd64-linux-gnu)
+    std      # Print the path to the standard library
     runtimes # Print the paths to search for the runtime library
 
 Examples:
@@ -34,13 +35,16 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
             println!("{}", Target::native());
             Ok(0)
         }
+        Some("std") => {
+            println!("{}", Config::new()?.std.display());
+            Ok(0)
+        }
         Some("runtimes") => {
             if let Some(dir) = local_runtimes_directory() {
                 println!("{}", dir.display());
             }
 
-            println!("{}", Config::default().runtime.display());
-
+            println!("{}", Config::new()?.runtime.display());
             Ok(0)
         }
         Some(val) => {

@@ -243,7 +243,7 @@ mod tests {
 
     #[test]
     fn test_import_module() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let mut modules = vec![hir_module(
             &mut state,
             ModuleName::new("foo"),
@@ -277,7 +277,7 @@ mod tests {
 
     #[test]
     fn test_import_duplicate_module() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let mut modules = vec![hir_module(
             &mut state,
             ModuleName::new("foo"),
@@ -314,7 +314,7 @@ mod tests {
 
     #[test]
     fn test_import_self() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let mut modules = vec![hir_module(
             &mut state,
             ModuleName::new("foo"),
@@ -359,7 +359,7 @@ mod tests {
     #[test]
     fn test_import_self_with_alias() {
         let symbol = "bla".to_string();
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let mut modules = vec![hir_module(
             &mut state,
             ModuleName::new("foo"),
@@ -403,7 +403,7 @@ mod tests {
 
     #[test]
     fn test_import_duplicate_self() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let mut modules = vec![hir_module(
             &mut state,
             ModuleName::new("foo"),
@@ -454,7 +454,7 @@ mod tests {
     #[test]
     fn test_import_symbol() {
         let symbol = "Foo".to_string();
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let mut modules = vec![hir_module(
             &mut state,
             ModuleName::new("foo"),
@@ -504,7 +504,7 @@ mod tests {
     #[test]
     fn test_import_symbol_with_alias() {
         let symbol = "Bar".to_string();
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let mut modules = vec![hir_module(
             &mut state,
             ModuleName::new("foo"),
@@ -554,7 +554,7 @@ mod tests {
 
     #[test]
     fn test_import_duplicate_symbol() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let mut modules = vec![hir_module(
             &mut state,
             ModuleName::new("foo"),
@@ -620,7 +620,7 @@ mod tests {
 
     #[test]
     fn test_import_duplicate_symbol_with_alias() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let mut modules = vec![hir_module(
             &mut state,
             ModuleName::new("foo"),
@@ -680,7 +680,7 @@ mod tests {
 
     #[test]
     fn test_import_undefined_symbol() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let mut modules = vec![hir_module(
             &mut state,
             ModuleName::new("foo"),
@@ -718,7 +718,7 @@ mod tests {
     #[test]
     fn test_import_private_symbol() {
         let symbol = "_foo".to_string();
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let mut modules = vec![hir_module(
             &mut state,
             ModuleName::new("foo"),
@@ -771,7 +771,7 @@ mod tests {
     #[test]
     fn test_import_symbol_from_another_module() {
         let symbol = "fizz".to_string();
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let mut modules = vec![
             hir_module(
                 &mut state,

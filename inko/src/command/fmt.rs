@@ -39,7 +39,7 @@ pub(crate) fn run(args: &[String]) -> Result<i32, Error> {
         return Ok(0);
     }
 
-    let config = Config::default();
+    let config = Config::new()?;
     let input = match matches.free.first().map(|v| v.as_str()) {
         Some("-") => Input::Stdin,
         Some(_) => {

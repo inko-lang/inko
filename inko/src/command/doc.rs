@@ -45,7 +45,7 @@ pub(crate) fn run(args: &[String]) -> Result<i32, Error> {
         return Ok(0);
     }
 
-    let mut config = Config::default();
+    let mut config = Config::new()?;
 
     if let Some(val) = matches.opt_str("f") {
         config.set_presenter(&val)?;

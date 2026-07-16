@@ -204,9 +204,15 @@ You can then compile Inko as follows:
 | `./target/release/inko`
 | `./target/release/libinko.a`
 
-In both cases the standard library in `std/src` is used. You can customise the
-standard library and runtime library paths by setting these environment
-variables when running `cargo` build:
+By default the compiler tries to find the standard library and runtime library
+based on the compiler executable's path. If the compiler is located at
+`/example/bin/inko`, the following directories are used:
+
+- Standard library: `/example/lib/inko/std`
+- Runtime library: `/example/lib/inko/runtime`
+
+You can change these paths by setting the following environments when compiling
+the compiler using `cargo build`:
 
 - `INKO_STD`: the full path to the directory containing the standard library
   modules, defaults to `./std/src`.
@@ -233,6 +239,12 @@ make install DESTDIR=./package-root PREFIX=/usr/local
 
 The `PREFIX` variable must be set for both the `make` and `make install`
 commands, but `DESTDIR` is only necessary for `make install`.
+
+You can also set the `INKO_STD` and `INKO_RT` variables when using `make`:
+
+```bash
+make PREFIX=/usr/local INKO_STD=/example/lib/inko/std INKO_RT=/example/lib/inko/runtime
+```
 
 ## Dependencies
 

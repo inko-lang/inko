@@ -1037,7 +1037,7 @@ mod tests {
 
     #[test]
     fn test_type_scope_new() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let int = Type::alloc(
             &mut state.db,
             "Int".to_string(),
@@ -1057,7 +1057,7 @@ mod tests {
 
     #[test]
     fn test_type_scope_symbol() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let module = module_type(&mut state, "foo");
         let method = Method::alloc(
             &mut state.db,
@@ -1107,7 +1107,7 @@ mod tests {
 
     #[test]
     fn test_define_type_signature_as_trait_instance_with_trait() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let int = Type::alloc(
             &mut state.db,
             "Int".to_string(),
@@ -1145,7 +1145,7 @@ mod tests {
 
     #[test]
     fn test_define_type_signature_as_trait_instance_with_invalid_type() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let int = Type::alloc(
             &mut state.db,
             "Int".to_string(),
@@ -1183,7 +1183,7 @@ mod tests {
 
     #[test]
     fn test_define_type_signature_with_owned_type() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let module = module_type(&mut state, "foo");
         let type_id = Type::alloc(
             &mut state.db,
@@ -1222,7 +1222,7 @@ mod tests {
 
     #[test]
     fn test_define_type_signature_with_namespaced_type() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let foo_mod = module_type(&mut state, "foo");
         let bar_mod = module_type(&mut state, "bar");
         let type_id = Type::alloc(
@@ -1275,7 +1275,7 @@ mod tests {
 
     #[test]
     fn test_define_type_signature_with_private_type() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let module = module_type(&mut state, "foo");
         let type_id = Type::alloc(
             &mut state.db,
@@ -1313,7 +1313,7 @@ mod tests {
 
     #[test]
     fn test_define_type_signature_with_ref_type() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let module = module_type(&mut state, "foo");
         let type_id = Type::alloc(
             &mut state.db,
@@ -1358,7 +1358,7 @@ mod tests {
 
     #[test]
     fn test_define_type_signature_with_closure_type() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let int = Type::alloc(
             &mut state.db,
             "Int".to_string(),
@@ -1391,7 +1391,7 @@ mod tests {
 
     #[test]
     fn test_check_type_signature_with_incorrect_number_of_arguments() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let module = module_type(&mut state, "foo");
         let type_a = Type::alloc(
             &mut state.db,
@@ -1443,7 +1443,7 @@ mod tests {
 
     #[test]
     fn test_check_type_signature_with_incompatible_type_arguments() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let module = module_type(&mut state, "foo");
         let to_string = Trait::alloc(
             &mut state.db,

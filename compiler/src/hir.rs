@@ -3701,7 +3701,7 @@ mod tests {
 
     #[track_caller]
     fn lower(input: &str) -> (Module, usize) {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let ast = parse(input);
         let mut hir = LowerToHir::run_all(&mut state, vec![ast]);
 
@@ -3710,7 +3710,7 @@ mod tests {
 
     #[track_caller]
     fn lower_with_comments(input: &str) -> (Module, usize) {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let ast = parse_with_comments(input);
         let mut hir = LowerToHir::run_all(&mut state, vec![ast]);
 
@@ -6451,7 +6451,7 @@ mod tests {
                 .expect("Failed to parse the module");
 
         let ast = ParsedModule { ast, name };
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
 
         LowerToHir::run_all(&mut state, vec![ast]);
 

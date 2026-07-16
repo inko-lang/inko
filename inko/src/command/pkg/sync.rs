@@ -25,7 +25,7 @@ pub(crate) fn run(args: &[String]) -> Result<i32, Error> {
         return Ok(0);
     }
 
-    let config = Config::default();
+    let config = Config::new()?;
 
     sync_if_needed(&config.dependencies)?;
 

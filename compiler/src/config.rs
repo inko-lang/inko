@@ -60,6 +60,56 @@ fn create_directory(path: &Path) -> Result<(), String> {
         .map_err(|err| format!("Failed to create {}: {}", path.display(), err))
 }
 
+fn compiler_directories() -> Result<(PathBuf, PathBuf), String> {
+    // When determining the compiler path we _have_ to resolve it to the true
+    // path, otherwise if it contains e.g. `/../` components we won't be able to
+    // find the correct directories.
+    let mut base = env::current_exe()
+        .and_then(|p| p.canonicalize())
+        .map_err(|e| format!("failed to determine the compiler path: {}", e))?;
+
+    // Remove the executable name from the path.
+    base.pop();
+
+    let prefix = base.parent().unwrap_or(base.as_path());
+    let (mut rt, mut std) = match Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .map(|p| p.join("target"))
+    {
+        // During development the directory structure is a little different so
+        // we account for that here.
+        Some(target) if target == prefix && target.is_dir() => {
+            let std = prefix
+                .parent()
+                .unwrap_or(prefix)
+                .join("std")
+                .join("src")
+                .to_path_buf();
+
+            (base, std)
+        }
+        _ => {
+            let lib = base.join("lib").join("inko");
+
+            (lib.join("runtime"), lib.join("std"))
+        }
+    };
+
+    // Depending on the platform Inko is compiled for, the desired paths may be
+    // different. As such if these environment variables are specified when
+    // compiling the compiler, we use these instead of the paths derived from
+    // the compiler's executable runtime path.
+    if let Some(v) = option_env!("INKO_RT") {
+        rt = PathBuf::from(v);
+    }
+
+    if let Some(v) = option_env!("INKO_STD") {
+        std = PathBuf::from(v);
+    }
+
+    Ok((rt, std))
+}
+
 /// A type storing the various build directories to use.
 pub(crate) struct BuildDirectories {
     /// The base build directory.
@@ -210,7 +260,7 @@ impl Linker {
 /// search for modules.
 pub struct Config {
     /// The directory containing the Inko's standard library.
-    pub(crate) std: PathBuf,
+    pub std: PathBuf,
 
     /// The path to the global runtime directory.
     pub runtime: PathBuf,
@@ -296,17 +346,17 @@ pub struct Config {
 }
 
 impl Config {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn empty() -> Result<Self, String> {
+        let (rt, std) = compiler_directories()?;
         let cwd = env::current_dir().unwrap_or_else(|_| PathBuf::new());
-        let std = PathBuf::from(env!("INKO_STD"));
         let compiled_at = env::current_exe()
             .and_then(|p| p.metadata())
             .and_then(|m| m.modified())
             .unwrap_or_else(|_| SystemTime::now());
 
-        Self {
+        Ok(Self {
             std,
-            runtime: PathBuf::from(env!("INKO_RT")),
+            runtime: rt,
             source: cwd.join(SOURCE),
             tests: cwd.join(TESTS),
             build: cwd.join(BUILD),
@@ -331,7 +381,14 @@ impl Config {
             escape_stats: false,
             escapes: None,
             generate_code: true,
-        }
+        })
+    }
+
+    pub fn new() -> Result<Self, String> {
+        let mut cfg = Config::empty()?;
+
+        cfg.add_default_source_directories();
+        Ok(cfg)
     }
 
     fn add_default_source_directories(&mut self) {
@@ -388,15 +445,6 @@ impl Config {
         }
 
         Ok(paths)
-    }
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        let mut cfg = Config::new();
-
-        cfg.add_default_source_directories();
-        cfg
     }
 }
 

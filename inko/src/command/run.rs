@@ -86,7 +86,7 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         return Ok(0);
     }
 
-    let mut config = Config::default();
+    let mut config = Config::new()?;
     let arguments =
         if matches.free.len() > 1 { &matches.free[1..] } else { &[] };
 

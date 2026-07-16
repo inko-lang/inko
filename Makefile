@@ -23,14 +23,8 @@ INSTALL_INKO := ${INSTALL_PREFIX}/bin/inko
 # The directory to place the standard library in.
 INSTALL_STD := ${INSTALL_PREFIX}/${LIB}/inko/std
 
-# The directory the standard library is located at at runtime.
-RUNTIME_STD := ${PREFIX}/${LIB}/inko/std
-
 # The directory to place runtime library files in.
 INSTALL_RT := ${INSTALL_PREFIX}/${LIB}/inko/runtime/${RUNTIME_NAME}
-
-# The directory the runtime library is located at at runtime.
-RUNTIME_RT := ${PREFIX}/${LIB}/inko/runtime
 
 # The install path of the license file.
 INSTALL_LICENSE := ${INSTALL_PREFIX}/share/licenses/inko/LICENSE
@@ -61,7 +55,7 @@ MANIFEST_NAME := manifest.txt
 MANIFEST := ${TMP_DIR}/${MANIFEST_NAME}
 
 build:
-	INKO_STD=${RUNTIME_STD} INKO_RT=${RUNTIME_RT} cargo build --release
+	cargo build --release
 
 ${TMP_DIR}:
 	mkdir -p "${@}"

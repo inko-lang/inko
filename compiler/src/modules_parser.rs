@@ -225,7 +225,7 @@ mod tests {
         write(file2.path(), "let A = 10").unwrap();
         write(file3.path(), "").unwrap();
 
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
 
         state.config.std = temp_dir();
         state.config.add_source_directory(temp_dir());
@@ -253,7 +253,7 @@ mod tests {
         write(file2.path(), "10").unwrap();
         write(file3.path(), "").unwrap();
 
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
 
         state.config.add_source_directory(temp_dir());
         state.config.std = temp_dir();
@@ -276,7 +276,7 @@ mod tests {
         write(file1.path(), "import parsing2c").unwrap();
         write(file2.path(), "").unwrap();
 
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
 
         state.config.add_source_directory(temp_dir());
         state.config.std = temp_dir();

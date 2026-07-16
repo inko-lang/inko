@@ -1377,7 +1377,7 @@ mod tests {
 
     #[test]
     fn test_define_constant() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let mut modules = parse(&mut state, "let A = 1");
 
         assert!(DefineTypes::run_all(&mut state, &mut modules));
@@ -1392,7 +1392,7 @@ mod tests {
 
     #[test]
     fn test_define_type() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let mut modules = parse(&mut state, "type A {}");
 
         assert!(DefineTypes::run_all(&mut state, &mut modules));
@@ -1412,7 +1412,7 @@ mod tests {
 
     #[test]
     fn test_define_async_type() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let mut modules = parse(&mut state, "type async A {}");
 
         assert!(DefineTypes::run_all(&mut state, &mut modules));
@@ -1432,7 +1432,7 @@ mod tests {
 
     #[test]
     fn test_define_empty_enum_type() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let mut modules = parse(&mut state, "type enum A {}");
 
         assert!(DefineTypes::run_all(&mut state, &mut modules));
@@ -1442,7 +1442,7 @@ mod tests {
 
     #[test]
     fn test_define_trait() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let mut modules = parse(&mut state, "trait A {}");
 
         assert!(DefineTypes::run_all(&mut state, &mut modules));
@@ -1460,7 +1460,7 @@ mod tests {
 
     #[test]
     fn test_implement_trait() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let mut modules = parse(&mut state, "impl ToString for String {}");
         let module = ModuleId(0);
         let to_string = Trait::alloc(
@@ -1501,7 +1501,7 @@ mod tests {
 
     #[test]
     fn test_implement_generic_trait() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let mut modules =
             parse(&mut state, "impl ToString[String] for String {}");
         let module = ModuleId(0);
@@ -1552,7 +1552,7 @@ mod tests {
 
     #[test]
     fn test_implement_trait_with_bounds() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let mut modules =
             parse(&mut state, "impl ToString for Array if T: ToString {}");
         let module = ModuleId(0);
@@ -1596,7 +1596,7 @@ mod tests {
 
     #[test]
     fn test_implement_trait_with_invalid_bounds() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let mut modules =
             parse(&mut state, "impl ToString for Array if T: ToString {}");
         let module = ModuleId(0);
@@ -1638,7 +1638,7 @@ mod tests {
 
     #[test]
     fn test_implement_trait_with_undefined_type() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let mut modules = parse(&mut state, "impl ToString for String {}");
         let module = ModuleId(0);
         let to_string = Trait::alloc(
@@ -1666,7 +1666,7 @@ mod tests {
 
     #[test]
     fn test_implement_trait_with_invalid_type() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let mut modules = parse(&mut state, "impl ToString for String {}");
         let module = ModuleId(0);
         let to_string = Trait::alloc(
@@ -1700,7 +1700,7 @@ mod tests {
 
     #[test]
     fn test_define_trait_requirements() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let module = ModuleId(0);
         let to_string = Trait::alloc(
             &mut state.db,
@@ -1730,7 +1730,7 @@ mod tests {
 
     #[test]
     fn test_check_valid_trait_implementation() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let module = ModuleId(0);
         let to_str = Trait::alloc(
             &mut state.db,
@@ -1788,7 +1788,7 @@ mod tests {
 
     #[test]
     fn test_check_invalid_trait_implementation() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let module = ModuleId(0);
         let to_string = Trait::alloc(
             &mut state.db,
@@ -1844,7 +1844,7 @@ mod tests {
 
     #[test]
     fn test_define_field() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let string = Type::alloc(
             &mut state.db,
             "String".to_string(),
@@ -1879,7 +1879,7 @@ mod tests {
 
     #[test]
     fn test_define_duplicate_field() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let string = Type::alloc(
             &mut state.db,
             "String".to_string(),
@@ -1931,7 +1931,7 @@ mod tests {
 
     #[test]
     fn test_define_trait_type_parameter() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let mut modules = parse(&mut state, "trait A[T] {}");
         let module = ModuleId(0);
 
@@ -1956,7 +1956,7 @@ mod tests {
 
     #[test]
     fn test_define_duplicate_trait_type_parameter() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let mut modules = parse(&mut state, "trait A[T, T] {}");
 
         DefineTypes::run_all(&mut state, &mut modules);
@@ -1972,7 +1972,7 @@ mod tests {
 
     #[test]
     fn test_define_type_type_parameter() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let mut modules = parse(&mut state, "type A[T] {}");
         let module = ModuleId(0);
 
@@ -1996,7 +1996,7 @@ mod tests {
 
     #[test]
     fn test_define_duplicate_type_type_parameter() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let mut modules = parse(&mut state, "type A[T, T] {}");
 
         DefineTypes::run_all(&mut state, &mut modules);
@@ -2012,7 +2012,7 @@ mod tests {
 
     #[test]
     fn test_define_type_type_parameter_requirements() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let module = ModuleId(0);
         let debug = Trait::alloc(
             &mut state.db,
@@ -2045,7 +2045,7 @@ mod tests {
 
     #[test]
     fn test_define_trait_type_parameter_requirements() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let module = ModuleId(0);
         let debug = Trait::alloc(
             &mut state.db,
@@ -2078,7 +2078,7 @@ mod tests {
 
     #[test]
     fn test_check_type_parameters_with_trait() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let module = ModuleId(0);
         let debug = Trait::alloc(
             &mut state.db,
@@ -2112,7 +2112,7 @@ mod tests {
 
     #[test]
     fn test_check_type_parameters_with_type() {
-        let mut state = State::new(Config::new());
+        let mut state = State::new(Config::empty().unwrap());
         let module = ModuleId(0);
         let debug = Trait::alloc(
             &mut state.db,
