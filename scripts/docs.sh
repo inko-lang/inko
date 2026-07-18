@@ -3,7 +3,7 @@
 set -e
 
 USER=root
-SERVER=web.hetzner.yorickpeterse.com
+SERVER=web.srv.yorickpeterse.com
 PORT=2222
 SRC="${1}"
 DEST="${2}"

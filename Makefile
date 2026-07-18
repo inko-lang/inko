@@ -38,7 +38,7 @@ endif
 
 DOCS_TARGET     := /var/lib/shost/docs.inko-lang.org
 RELEASES_TARGET := /var/lib/shost/releases.inko-lang.org
-SERVER          := web.hetzner.yorickpeterse.com
+SERVER          := web.srv.yorickpeterse.com
 
 # The folder to put the documentation in, allowing for branch specific
 # documentation.

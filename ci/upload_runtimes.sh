@@ -2,7 +2,7 @@
 
 set -e
 
-SERVER=web.hetzner.yorickpeterse.com
+SERVER=web.srv.yorickpeterse.com
 VERSION="$(cargo pkgid -p inko | cut -d\# -f2 | cut -d: -f2)"
 DIR="tmp/runtimes"
 
