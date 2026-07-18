@@ -1,0 +1,23 @@
+import std.drop (drop)
+
+type Inner {}
+
+type inline Outer {
+  let @a: Inner
+  let @b: Inner
+
+  fn move submit {
+    drop(@a)
+    helper
+  }
+
+  fn move helper {}
+}
+
+type async Main {
+  fn async main {
+    Outer(a: Inner(), b: Inner()).submit
+  }
+}
+
+# implicit_method_call_after_field_move.inko:11:5 error(moved): 'helper' can't be used, as 'self' has been moved

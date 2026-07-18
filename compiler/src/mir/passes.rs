@@ -1420,7 +1420,7 @@ pub(crate) struct LowerMethod<'a> {
     /// a register. We map fields to registers here so that for field A we
     /// always write to register R, removing the need for tracking field states
     /// separately.
-    field_mapping: HashMap<types::FieldId, RegisterId>,
+    field_mapping: IndexMap<types::FieldId, RegisterId>,
 
     /// The registers to write to when a register is moved.
     drop_flags: HashMap<RegisterId, RegisterId>,
@@ -1447,7 +1447,7 @@ impl<'a> LowerMethod<'a> {
             current_block,
             scope: Scope::root_scope(),
             variable_mapping: IndexMap::new(),
-            field_mapping: HashMap::new(),
+            field_mapping: IndexMap::new(),
             drop_flags: HashMap::new(),
             register_states: RegisterStates::new(),
             register_kinds: Vec::new(),
@@ -3803,17 +3803,12 @@ impl<'a> LowerMethod<'a> {
         self.verify_type(node.resolved_type, node.location);
 
         let reg = self.self_register;
-
-        if self.register_is_available(reg) {
-            if self.self_has_moved_field() {
-                self.state.diagnostics.moved_variable(
-                    SELF_NAME,
-                    self.file(),
-                    node.location,
-                );
-            }
-        } else {
-            self.check_if_moved(reg, SELF_NAME, node.location);
+        if !self.register_is_available(reg) || self.self_has_moved_field() {
+            self.state.diagnostics.moved_variable(
+                SELF_NAME,
+                self.file(),
+                node.location,
+            );
         }
 
         reg
@@ -4463,20 +4458,21 @@ impl<'a> LowerMethod<'a> {
         });
 
         match self.register_state(self_reg) {
-            // Fully moved: its fields are moved too, so there's nothing to drop.
             RegisterState::Moved => {}
-            // Maybe moved as a whole: `drop_register` drops it conditionally.
             RegisterState::MaybeMoved => {
                 self.drop_register(self_reg, location);
             }
-            // Available but with some fields moved out: drop the remaining
-            // fields and free self's memory without running its dropper.
+            RegisterState::PartiallyMoved => {
+                self.drop_remaining_fields(&fields, location);
+                self.current_block_mut()
+                    .drop_without_dropper(self_reg, location);
+            }
             RegisterState::Available if partially_moved => {
                 self.drop_remaining_fields(&fields, location);
                 self.current_block_mut()
                     .drop_without_dropper(self_reg, location);
             }
-            RegisterState::Available | RegisterState::PartiallyMoved => {
+            RegisterState::Available => {
                 self.drop_register(self_reg, location);
             }
         }
@@ -4880,21 +4876,20 @@ impl<'a> LowerMethod<'a> {
 
         // Moving `self` as a whole also moves all of its fields.
         if register == self.self_register {
-            let fields: Vec<RegisterId> =
-                self.field_mapping.values().cloned().collect();
-
-            for field in fields {
-                self.update_register_state(field, RegisterState::Moved);
+            for &field in self.field_mapping.values() {
+                self.register_states.set(
+                    self.current_block,
+                    field,
+                    RegisterState::Moved,
+                );
             }
         }
     }
 
     /// Returns `true` if any field of `self` has been (possibly) moved.
     fn self_has_moved_field(&mut self) -> bool {
-        let fields: Vec<RegisterId> =
-            self.field_mapping.values().cloned().collect();
-
-        fields.into_iter().any(|reg| !self.register_is_available(reg))
+        (0..self.field_mapping.len())
+            .any(|i| !self.register_is_available(self.field_mapping[i]))
     }
 
     fn mark_register_as_available(&mut self, register: RegisterId) {
