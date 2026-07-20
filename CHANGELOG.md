@@ -4,6 +4,12 @@
 Entries from before version 0.10.0 are no longer included, but can be viewed
 [here](https://github.com/inko-lang/inko/blob/f9c01b86af70596021e649be5d43ec2a22b6d298/CHANGELOG.md).
 
+## 0.21.1 (2026-07-20)
+
+### Fixed
+
+- [Fix resolving compiler paths for release builds](https://github.com/inko-lang/inko/commit/37d88041d43a3c9b997d95e4a809932dfc697d0e)
+
 ## 0.21.0 (2026-07-20)
 
 ### Added
