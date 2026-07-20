@@ -4,6 +4,68 @@
 Entries from before version 0.10.0 are no longer included, but can be viewed
 [here](https://github.com/inko-lang/inko/blob/f9c01b86af70596021e649be5d43ec2a22b6d298/CHANGELOG.md).
 
+## 0.21.0 (2026-07-20)
+
+### Added
+
+- [Add implementation of Argon2id](https://github.com/inko-lang/inko/commit/06faf11f68b7bfabd23b5152fdeb9135e0672075)
+- [Add an implementation of BLAKE2b](https://github.com/inko-lang/inko/commit/69257f1439bc557fb6c46dc4b747f908a4c65aca)
+- [Add support for binary integer literals](https://github.com/inko-lang/inko/commit/d36eb479ad4bf65f582d802d0e8da612ebe74726)
+- [Add reflect.enum_tag for getting enum tag values](https://github.com/inko-lang/inko/commit/865c614a4096da68b55342d707003765b7897da5)
+
+### Fixed
+
+- [Allow field use after a conditional field move](https://github.com/inko-lang/inko/commit/44310e7c071ebfa86e8f9d11778e92ee5b985f7f)
+- [Escape all control characters when generating JSON](https://github.com/inko-lang/inko/commit/919eae27623d62acbf06fd4b1c28b3c1bfbf6416)
+- [Enforce sendability when calling closures](https://github.com/inko-lang/inko/commit/0980dc0cfdf0785d1884d8db5bba37ddc1ee0108)
+- [Support parsing of nested tuple access expressions](https://github.com/inko-lang/inko/commit/9831291f9d00d59c22147546158ffadb76549d1a)
+- [Update dependency graph for std.reflect.size_of](https://github.com/inko-lang/inko/commit/d9c23b8de55bc58cb0c493f4e4fea7f8c309893b)
+- [Don't allow unsound subtyping in implementations](https://github.com/inko-lang/inko/commit/91ff1a64715a080b32a3608b33d3afafa6d58adb)
+- [Require public requirements for public types](https://github.com/inko-lang/inko/commit/59aff1948d344613ce04c571cd92dfc62d2fc9fb)
+- [Improve formatting of methods with long signatures](https://github.com/inko-lang/inko/commit/c82bdc5722b8a9e9444d65d664d95c9b71630be0)
+- [Fix formatting of scope expressions](https://github.com/inko-lang/inko/commit/5812878fb34b141b24703ee2147b8f0b34f35af9)
+- [Fix assigning unique borrows to variables](https://github.com/inko-lang/inko/commit/059e55fc7fa92ed4aa43e846c1efc4052a035895)
+- [Fix mutating fields through immutable unique refs](https://github.com/inko-lang/inko/commit/091121fe95def3175c2ea4072cc1e4f2a80768f0)
+- [Fix allocating memory for string layouts](https://github.com/inko-lang/inko/commit/a5d7c405d1236e9ef7438a44e246820cb476af78)
+- [Fix DateTime.day_of_year for November](https://github.com/inko-lang/inko/commit/58dbe8b300de54119834187892384155540cdb61)
+- [Stricter ownership for trait implementations](https://github.com/inko-lang/inko/commit/9a1247894a121a3d03c6074203da600180ac4032)
+- [Fix resolving type parameter chains with ownership](https://github.com/inko-lang/inko/commit/5f739e3f1a9f1aab5097ef9615a0de23f8e5d91f)
+- [Fix merging certain redundant move instructions](https://github.com/inko-lang/inko/commit/70da90e444541151e65f9488e78568baae0b7edf)
+- [Fix generating MIR/dot file paths](https://github.com/inko-lang/inko/commit/19fcc1df225285fc22330a8acdd717381fb5be11)
+- [Don't flag value types as escaping](https://github.com/inko-lang/inko/commit/d8415e216fae54a794e468b4a5e37e8479de92cc)
+- [Fix Random.int when there's not enough space](https://github.com/inko-lang/inko/commit/6882602fbb9811506b688d554cd7851cce214191)
+- [Fix formatting of long case statements](https://github.com/inko-lang/inko/commit/8da17fd6aac8b50f5e86aeb0101e59462d802e76)
+- [Make two links in std.log render as actual links](https://github.com/inko-lang/inko/commit/48318ef72ee4fd1f566218af88a3898b3a68d02c)
+
+### Changed
+
+- [Resolve std and runtime directories at runtime](https://github.com/inko-lang/inko/commit/c8901be925cb451d3571e3b2544681fcac4d994d)
+- [Remove Format for Int parsing and formatting](https://github.com/inko-lang/inko/commit/33c114a7b179ac47e3633e5b7b51c5a260d97b2f)
+- [Decouple removing unused methods from their order](https://github.com/inko-lang/inko/commit/f24df4497cc960df018645e7f1185d114fce6f53)
+- [Always inline std.drop.drop](https://github.com/inko-lang/inko/commit/de03c9224bf3153be2ef527a97d3d34c904f813a)
+- [Improve layout and API of Future and Promise](https://github.com/inko-lang/inko/commit/ce1a31e9975600238000e67803cb8a3e3c888f01)
+- [Update anyhow version](https://github.com/inko-lang/inko/commit/9c03213c00ecb554b1b81ad5d19010756bac8ee3)
+- [Unify several std.io.Error constructors](https://github.com/inko-lang/inko/commit/16f54228f47936344db2127c906037ba0d533162)
+- [Remove the std.iter.Stream type](https://github.com/inko-lang/inko/commit/3a24d4c9b6e0abaaa64bcdcec8918469114430a6)
+- [Remove the Range trait](https://github.com/inko-lang/inko/commit/d43a81d5dd4aa7a22230c43333b880659bf264e5)
+- [Remove the Hasher.write_byte method](https://github.com/inko-lang/inko/commit/57cd70fd0022939e7c0752b9681fd7f530947a61)
+- [Make Map.try_set return Ok(mut V)](https://github.com/inko-lang/inko/commit/2b6bd554e6793fc7f0271f382269bf4acdc5480b)
+- [Use llvm.memset intrinsic instead of libc memset](https://github.com/inko-lang/inko/commit/f498bb5b49d6bdfa35d90da99f16fac2e0273ddb)
+- [Lock the dep/ and packages/ directories](https://github.com/inko-lang/inko/commit/83e707045819e70b8c3d9535cf1c6ab542f98221)
+- [Lock build directories when building executables](https://github.com/inko-lang/inko/commit/e1094d23aa533530dd57d3fc6048a645f525eaf4)
+- [Make String.split/Slice.split more consistent](https://github.com/inko-lang/inko/commit/e703d6bc70db03d792eb5b94563bb42529adc253)
+- [Update rustls-webpki crate](https://github.com/inko-lang/inko/commit/833f9cd5118e6e50e99bf1c1d3e8bef5ec7ad2fe)
+
+### Performance improvements
+
+- [Remove redundant String reference counts](https://github.com/inko-lang/inko/commit/d240af853004a1e71d785fbfc65b632807915048)
+- [Replace the use of SipHash with aHash](https://github.com/inko-lang/inko/commit/f45d24a87a43c28e58a778c860225a234c947243)
+- [Improve performance of Int.format](https://github.com/inko-lang/inko/commit/06b6cfaaa4ae67beecb168703c0991d263438bd7)
+
+### Other
+
+- [Add the Zed extension to the manual](https://github.com/inko-lang/inko/commit/ac37d2248cc0752b79451ff4ed22ad8817f65fa1)
+
 ## 0.20.0 (2026-04-20)
 
 ### Added
