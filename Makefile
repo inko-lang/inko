@@ -78,7 +78,7 @@ ${SOURCE_TAR}: ${TMP_DIR}
 		| gzip > "${@}"
 
 release/source: ${SOURCE_TAR}
-	scripts/scp.sh "${SOURCE_TAR}" "${SERVER}:${RELEASES_TARGET}/${SOURCE_TAR}"
+	scripts/scp.sh "${SOURCE_TAR}" "${SERVER}:${RELEASES_TARGET}/${VERSION}.tar.gz"
 
 release/manifest: ${TMP_DIR}
 	scripts/scp.sh "${SERVER}:${RELEASES_TARGET}/${MANIFEST_NAME}" "${MANIFEST}"
