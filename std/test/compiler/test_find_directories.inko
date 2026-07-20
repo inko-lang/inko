@@ -1,0 +1,74 @@
+import helpers (compiler_path)
+import std.env (temporary_directory, working_directory)
+import std.fs.path (Path)
+import std.sys (Command, Stream)
+import std.test (Tests)
+
+fn print(compiler: ref Path, what: String) -> Result[String, String] {
+  let cmd = Command.new(compiler)
+
+  cmd.stdin = Stream.Null
+  cmd.stdout = Stream.Piped
+  cmd.stderr = Stream.Null
+  cmd.arguments = ['print', what]
+
+  let child = match cmd.spawn {
+    case Ok(v) -> v
+    case Error(e) -> throw 'failed to start the compiler: ${e}'
+  }
+
+  match child.wait {
+    case Ok(_) -> {}
+    case Error(e) -> throw 'failed to wait for the compiler: ${e}'
+  }
+
+  let buf = ByteArray.new
+  let Ok(_) = child.stdout.as_mut.get.read_all(buf) else {
+    throw 'failed to read STDOUT'
+  }
+
+  Result.Ok(buf.into_string.trim)
+}
+
+fn pub tests(t: mut Tests) {
+  t.ok('Resolve the compiler directories for a release build', fn (t) {
+    let base = temporary_directory.join('inko-test-find-directories-${t.id}')
+    let inko = base.join('inko')
+
+    try base.create_directory
+    try compiler_path.copy(to: inko)
+
+    t.equal(
+      print(inko, 'std'),
+      Result.Ok(
+        temporary_directory.join('lib').join('inko').join('std').to_string,
+      ),
+    )
+    t.equal(
+      print(inko, 'runtimes').map(fn (o) {
+        let rt = temporary_directory.join('lib').join('inko').join('runtime')
+
+        o.contains?(rt.to_string)
+      }),
+      Result.Ok(true),
+    )
+
+    base.remove_directory_all
+  })
+
+  t.ok('Resolve the compiler directories for a development build', fn (t) {
+    let cwd = try working_directory
+
+    t.equal(print(compiler_path, 'std'), Result.Ok(cwd.join('src').to_string))
+    t.equal(
+      print(compiler_path, 'runtimes').map(fn (o) {
+        let rt = cwd.join('..').join('target')
+        let rt = rt.expand.or(rt)
+
+        o.contains?(rt.to_string)
+      }),
+      Result.Ok(true),
+    )
+    Result.Ok(nil)
+  })
+}

@@ -89,7 +89,7 @@ fn compiler_directories() -> Result<(PathBuf, PathBuf), String> {
             (base, std)
         }
         _ => {
-            let lib = base.join("lib").join("inko");
+            let lib = prefix.join("lib").join("inko");
 
             (lib.join("runtime"), lib.join("std"))
         }
