@@ -1,0 +1,12 @@
+import std.ptr
+import std.test (Tests)
+
+fn pub tests(t: mut Tests) {
+  t.test('ptr.add', fn (t) {
+    t.equal(ptr.add(ptr.null as Pointer[Int], amount: 0) as Int, 0)
+    t.equal(ptr.add(ptr.null as Pointer[Int], amount: 1) as Int, 8)
+    t.equal(ptr.add(ptr.null as Pointer[Int], amount: 2) as Int, 16)
+  })
+
+  t.test('ptr.null', fn (t) { t.equal(ptr.null as Int, 0) })
+}

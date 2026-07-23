@@ -129,10 +129,32 @@ fn equal(left: Pointer[Uint8], right: Pointer[Uint8], size: Int) -> Bool {
 }
 
 # Takes a pointer and increments it offset by `amount` _values_.
-fn inline add[T](pointer: Pointer[T], amount: Int) -> Pointer[T] {
+#
+# # Examples
+#
+# ```inko
+# import std.ptr
+#
+# ptr.add(ptr.null as Pointer[Int], amount: 1) as Int # => 8
+# ptr.add(ptr.null as Pointer[Int], amount: 2) as Int # => 16
+# ```
+fn pub inline add[T](pointer: Pointer[T], amount: Int) -> Pointer[T] {
   pointer as Int + (amount * size_of[T]) as Pointer[T]
 }
 
-fn inline null -> Pointer[Uint8] {
+# Returns a `NULL` pointer.
+#
+# When interacting with C code it's preferred to use this method over a cast
+# (e.g. `0 as Pointer[Uint8]`) as in the future Inko may support platforms where
+# pointers aren't necessarily integers (e.g. CHERI).
+#
+# # Examples
+#
+# ```inko
+# import std.ptr
+#
+# ptr.null as Int # => 0
+# ```
+fn pub inline null -> Pointer[Uint8] {
   0x0 as Pointer[Uint8]
 }
