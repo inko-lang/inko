@@ -23,7 +23,12 @@ type Item {
   let @url: String
 
   fn parent_url -> String {
-    let chunks = @url.split('/').to_array
+    let chunks = @url
+      .to_slice
+      .strip_suffix('/')
+      .or(@url.to_slice)
+      .split('/')
+      .to_array
 
     chunks.pop
     String.join(chunks.into_iter, '/')

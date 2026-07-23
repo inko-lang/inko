@@ -69,8 +69,13 @@ type RelativeLinks {
   fn update(element: mut Element) {
     if element.name != 'a' { return }
 
-    let href = match element.attributes.get('href') {
-      case Ok(v) if relative?(v) -> v
+    let (href, frag) = match element.attributes.get('href') {
+      case Ok(v) if relative?(v) -> {
+        match v.split_once('#') {
+          case Some((a, b)) -> (a.to_string, b.to_string)
+          case _ -> (v, '')
+        }
+      }
       case _ -> return
     }
 
@@ -80,6 +85,8 @@ type RelativeLinks {
       case Some(v) if element.nodes.empty? -> element.text(v)
       case _ -> {}
     }
+
+    let rel = if frag.size > 0 { '${rel}#${frag}' } else { rel.to_string }
 
     element.attributes.set('href', rel)
   }
