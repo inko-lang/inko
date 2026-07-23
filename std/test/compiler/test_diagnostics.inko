@@ -218,7 +218,7 @@ type Diagnostic {
     # debugging failing tests is a little less annoying due to noisy output.
     let mut file = try string(map, 'file')
 
-    file = file.strip_prefix('${directory}/').or(file)
+    file = file.strip_prefix('${directory}/').or(file.to_slice).to_string
 
     let line = try location(map, 'lines')
     let column = try location(map, 'columns')
@@ -279,7 +279,7 @@ fn pub tests(t: mut Tests) {
       case Error(e) -> panic('failed to read the diagnostics directory: ${e}')
     }
 
-    let name = test_file.tail.to_string.strip_suffix('.inko').get
+    let name = test_file.tail.to_string.strip_suffix('.inko').get.to_string
     let test_file = recover test_file.clone
 
     t.test('inko check ${name}', fn move (t) {

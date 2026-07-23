@@ -534,7 +534,7 @@ type pub inline Path {
     match @path.strip_prefix(HOME_WITH_SEPARATOR) {
       case Some(tail) -> {
         target = match home_directory {
-          case Some(v) -> join_strings(v.path, tail)
+          case Some(v) -> join_strings(v.path, tail.to_string)
           case _ -> throw Error.NotFound
         }
       }

@@ -27,7 +27,7 @@ fn print(compiler: ref Path, what: String) -> Result[String, String] {
     throw 'failed to read STDOUT'
   }
 
-  Result.Ok(buf.into_string.trim)
+  Result.Ok(buf.into_string.trim.to_string)
 }
 
 fn pub tests(t: mut Tests) {
