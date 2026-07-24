@@ -64,12 +64,18 @@ fn pub tests(t: mut Tests) {
       t.true(root.join('.gitignore').file?)
       t.true(root.join('inko.pkg').file?)
       t.true(root.join('README.md').file?)
+      t.true(root.join('LICENSE').file?)
       t.true(readme.contains?('# hello'))
       t.true(readme.contains?('Inko ${version} or newer'))
       t.true(readme.contains?('inko pkg add URI/OF/OWNER/hello 0.1.0'))
       t.true(
         readme.contains?(
           'All source code in this repository is licensed under the Mozilla Public License',
+        ),
+      )
+      t.true(
+        (try read(root.join('LICENSE'))).contains?(
+          'Mozilla Public License, version 2.0',
         ),
       )
 
@@ -90,6 +96,7 @@ fn pub tests(t: mut Tests) {
       t.true(root.join('.gitignore').file?)
       t.true(root.join('inko.pkg').file?)
       t.true(root.join('README.md').file?)
+      t.true(root.join('LICENSE').file?)
 
       Result.Ok(nil)
     })
@@ -109,6 +116,7 @@ fn pub tests(t: mut Tests) {
       t.true(root.join('.gitignore').file?)
       t.true(root.join('inko.pkg').file?)
       t.true(root.join('README.md').file?)
+      t.true(root.join('LICENSE').file?)
 
       Result.Ok(nil)
     })

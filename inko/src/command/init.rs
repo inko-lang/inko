@@ -89,6 +89,8 @@ version 2.0, unless stated otherwise. A copy of this license is found in the
 file \"LICENSE\".
 ";
 
+const LICENSE: &str = include_str!("../../../LICENSE");
+
 pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     let mut options = Options::new();
 
@@ -149,6 +151,7 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     create_file(&test.join(".gitkeep"), "")?;
     create_file(&main, if bin { BIN } else { "" })?;
     create_file(&root.join(".gitignore"), GITIGNORE)?;
+    create_file(&root.join("LICENSE"), LICENSE)?;
     create_file(
         &root.join("README.md"),
         &README
