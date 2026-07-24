@@ -28,7 +28,6 @@
 # When normalizing an international URI, multi-byte character sequences are
 # _not_ converted to their lowercase equivalent due to this being locale
 # specific.
-import std.array (Slice as ArraySlice)
 import std.bytes (Bytes, Slice, ToByteArray)
 import std.bytes.parsers (
   LOWER_A, UPPER_A, alpha?, digit?, hex?, lower?, lower_hex_char?, to_lower,
@@ -1173,7 +1172,7 @@ type pub inline Path {
     }
   }
 
-  # Returns a new `Path` from a `std.array.Slice` of percent-decoded path
+  # Returns a new `Path` from a `std.iter.Iter` of percent-decoded path
   # components.
   #
   # This method is useful when you've previously parsed a `Path` using e.g.
@@ -1187,13 +1186,13 @@ type pub inline Path {
   # let path = Path.new('a/b/%20/c').get
   # let comp = path.components.to_array
   #
-  # Path.from_slice(comp.slice(0, comp.size - 1)) # => Path('a/b/%20')
+  # Path.from_slice(comp.slice(0, comp.size - 1).iter) # => Path('a/b/%20')
   # ```
-  fn pub static from_slice[B: Bytes](slice: ArraySlice[B]) -> Path {
+  fn pub static from_iter[B: Bytes, I: Iter[B]](iter: move I) -> Path {
     let buf = ByteArray.new
     let mut len = 0
 
-    for val in slice {
+    for val in iter {
       if len > 0 { buf.push(SLS) }
 
       encode_into(val, buf, tables.ENCODE_PATH)

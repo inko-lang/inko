@@ -3247,7 +3247,7 @@ type pub inline Directory {
   fn redirect_to_parent(components: array.Slice[Slice[String]]) -> Response {
     let dir = match components.split_last {
       case Some((_, head)) -> {
-        UriPath.root.join(UriPath.from_slice(head)).with_trailing_separator
+        UriPath.root.join(UriPath.from_iter(head.iter)).with_trailing_separator
       }
       case _ -> UriPath.root
     }
