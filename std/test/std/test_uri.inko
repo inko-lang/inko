@@ -342,11 +342,19 @@ fn pub tests(t: mut Tests) {
     t.equal(Path.new('/%ff'), Option.Some(Path('/%ff')))
   })
 
-  t.test('Path.from_slice', fn (t) {
-    t.equal(Path.from_slice(([] as Array[String]).to_slice), Path(''))
-    t.equal(Path.from_slice(['a'].to_slice), Path('a'))
-    t.equal(Path.from_slice(['a', 'b'].to_slice), Path('a/b'))
-    t.equal(Path.from_slice(['a', 'b', '..', 'c'].to_slice), Path('a/b/../c'))
+  t.test('Path.from_iter', fn (t) {
+    t.equal(Path.from_iter(([] as Array[String]).iter), Path(''))
+    t.equal(Path.from_iter(['a'].iter), Path('a'))
+    t.equal(Path.from_iter(['a', 'b'].into_iter), Path('a/b'))
+    t.equal(Path.from_iter(['a', 'b', '..', 'c'].iter), Path('a/b/../c'))
+    t.equal(
+      Path.from_iter(Path.new('foo/bar/baz').get.components),
+      Path('foo/bar/baz'),
+    )
+    t.equal(
+      Path.from_iter('foo/bar/baz'.split('/').map(fn (v) { v })),
+      Path('foo/bar/baz'),
+    )
   })
 
   t.test('Path.join', fn (t) {
