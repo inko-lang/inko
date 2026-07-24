@@ -49,12 +49,29 @@ fn pub tests(t: mut Tests) {
       let out = try init(dir, ['hello'])
       let root = dir.join('hello')
       let main = root.join('src').join('hello.inko')
+      let readme = try read(root.join('README.md'))
+      let pkg = try read(root.join('inko.pkg'))
+      let version = pkg
+        .trim
+        .to_string
+        .strip_prefix('require inko ')
+        .get
+        .to_string
 
       t.true(out.empty?)
       t.true(main.file?)
       t.true((try read(main)).contains?('type async Main'))
       t.true(root.join('.gitignore').file?)
       t.true(root.join('inko.pkg').file?)
+      t.true(root.join('README.md').file?)
+      t.true(readme.contains?('# hello'))
+      t.true(readme.contains?('Inko ${version} or newer'))
+      t.true(readme.contains?('inko pkg add URI/OF/OWNER/hello 0.1.0'))
+      t.true(
+        readme.contains?(
+          'All source code in this repository is licensed under the Mozilla Public License',
+        ),
+      )
 
       Result.Ok(nil)
     })
@@ -72,6 +89,7 @@ fn pub tests(t: mut Tests) {
       t.true((try read(main)).empty?)
       t.true(root.join('.gitignore').file?)
       t.true(root.join('inko.pkg').file?)
+      t.true(root.join('README.md').file?)
 
       Result.Ok(nil)
     })
@@ -90,6 +108,7 @@ fn pub tests(t: mut Tests) {
       t.true((try read(main)).contains?('type async Main'))
       t.true(root.join('.gitignore').file?)
       t.true(root.join('inko.pkg').file?)
+      t.true(root.join('README.md').file?)
 
       Result.Ok(nil)
     })

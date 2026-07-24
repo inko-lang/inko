@@ -66,6 +66,29 @@ jobs:
       - run: inko test
 ";
 
+const README: &str = "\
+# ${NAME}
+
+TODO
+
+# Requirements
+
+- Inko ${VERSION} or newer
+
+# Installation
+
+```bash
+inko pkg add URI/OF/OWNER/${NAME} 0.1.0
+inko pkg sync
+```
+
+# License
+
+All source code in this repository is licensed under the Mozilla Public License
+version 2.0, unless stated otherwise. A copy of this license is found in the
+file \"LICENSE\".
+";
+
 pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     let mut options = Options::new();
 
@@ -126,6 +149,12 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     create_file(&test.join(".gitkeep"), "")?;
     create_file(&main, if bin { BIN } else { "" })?;
     create_file(&root.join(".gitignore"), GITIGNORE)?;
+    create_file(
+        &root.join("README.md"),
+        &README
+            .replace("${NAME}", &name)
+            .replace("${VERSION}", &Version::inko().to_string()),
+    )?;
 
     let mut manifest = Manifest::new();
 
