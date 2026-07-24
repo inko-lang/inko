@@ -8,6 +8,25 @@ Before you continue reading this document, please familiarise yourself with our
 [Code of Conduct](https://inko-lang.org/code-of-conduct/). All contributors are
 expected to adhere to this code of conduct.
 
+## Usage of AI/LLMs
+
+Just like
+[Zig](https://codeberg.org/ziglang/zig/src/commit/8b2d0ce218db8d874cec1c11b3f186955af620c1/README.md#strict-no-llm-no-ai-policy)
+we have a strict no LLM/AI policy. This means we _do not_ accept any output
+(issues, documentation, code, etc) produced using an LLM.
+
+Besides the ethical issues surrounding LLMs that we have a problem with, LLMs
+tend to add a lot of unnecessary noise that serves no purpose other than to
+waste the time of maintainers. The time it takes to deal with this is often
+greater than the time it would take for maintainers to implement the changes
+themselves.
+
+Part of the goal of contributing to Inko should be to learn about the project
+and help it grow over time, and this requires _actually_ doing the work yourself
+so you _actually_ understand what your work does. This isn't possible when you
+instead act as a [meat-based
+proxy](https://not-an-llm.com/meat-based-llm-proxies).
+
 ## Creating issues
 
 ### Reporting bugs
