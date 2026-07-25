@@ -149,23 +149,24 @@ you'll need to find a way to resolve such conflicts yourself.
 ## Conditional trait implementations
 
 Sometimes we want to implement a trait, but only if additional requirements are
-met. For example, we want to implement [](std.cmp.Equal) for `Array` but only
-if its sub values also implement [](std.cmp.Equal). This is done as follows:
+met. For example, we want to implement [](std.cmp.Equal) for `Array` but only if
+the values stored in the `Array` also implement [](std.cmp.Equal). This is done
+as follows:
 
 ```inko
 import std.cmp (Equal)
 
-impl Equal[ref Array[T]] for Array if T: Equal[ref T] {
-  fn pub ==(other: ref Array[T]) -> Bool {
+impl Equal for Array if T: Equal {
+  fn pub ==(other: ref Self) -> Bool {
     ...
   }
 }
 ```
 
-What happens here is that we implement `Equal` over `ref Array[T]`, for any
-`Array[T]` _provided_ that whatever is assigned to `T` also implements
-`Equal[ref T]`. For example, given an `Array[User]`, the `Array.==` method is
-only available if `User` implements `Equal[ref User]`.
+What happens here is that we implement `Equal` for any `Array[T]` _provided_
+that whatever is assigned to `T` also implements `Equal`. For example, given an
+`Array[User]`, the `Array.==` method is only available if `User` implements
+`Equal`.
 
 
 ## Traits, self, and Self

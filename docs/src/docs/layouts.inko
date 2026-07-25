@@ -7,8 +7,6 @@ import docs.menu (Item)
 import docs.url (link_from)
 import markdown
 import markdown.html (Filter)
-import std.fmt (fmt)
-import std.stdio (Stdout)
 import wobsite (Page)
 import wobsite.markdown (Admonitions, SyntaxHighlight)
 
