@@ -51,11 +51,18 @@
 #
 # # TLS support
 #
-# By default a `Server` starts in plain-text mode. To use TLS, create a `Server`
-# using `Server.new` as usual then call `Server.tls` to configure it for TLS
-# connections. A single `Server` can't handle _both_ plain-text and TLS requests
-# at the same time. If this is required, you'll need to create a dedicated
-# `Server` for plain-text requests and a dedicated `Server` for TLS requests.
+# By default a `Server` starts in plain-text mode. To use TLS, you must:
+#
+# 1. Set `Server.tls` to `true`
+# 1. Provide a custom implementation of `Handle.configure_tls` for your `Handle`
+#    type
+#
+# A single `Server` can't handle _both_ plain-text and TLS requests at the same
+# time. If this is required, you'll need to create a dedicated `Server` for
+# plain-text requests and a dedicated `Server` for TLS requests.
+#
+# For more details, refer to the documentation of the `Handle.configure_tls`
+# method.
 #
 # # Keep-alive support
 #
@@ -1598,6 +1605,46 @@ impl Read[IoError] for SocketKind {
   }
 }
 
+type inline enum PartialSocket {
+  case Plain(TcpClient)
+  case Secure(TcpClient)
+  case Unix(UnixClient)
+
+  fn address -> Result[Address, IoError] {
+    let addr = match self {
+      case Plain(v) or Secure(v) -> Address.Ip(try v.socket.peer_address)
+      case Unix(v) -> Address.Unix(try v.socket.local_address)
+    }
+
+    Result.Ok(addr)
+  }
+
+  fn move into_socket[H: mut + Handle](
+    handler: mut H,
+    timeout: Duration,
+  ) -> Result[Socket, IoError] {
+    let sock = match self {
+      case Plain(v) -> Socket.plain(v)
+      case Secure(sock) -> {
+        sock.timeout_after = timeout
+
+        # If we encounter any TLS errors we'll drop the socket and move on to
+        # the next one, as there's nothing we can do about such errors.
+        let Ok(pending) = tls.PendingServer.new(sock) else throw IoError.Closed
+        let name = pending.server_name
+        let Some(conf) = handler.configure_tls(name) else throw IoError.Closed
+        let Ok(sock) = pending.into_server(conf) else throw IoError.Closed
+
+        sock.reset_deadline
+        Socket.secure(sock)
+      }
+      case Unix(v) -> Socket.unix(v)
+    }
+
+    Result.Ok(sock)
+  }
+}
+
 # A socket for reading requests and writing responses.
 #
 # A `Socket` supports plain TCP, TLS over TCP and Unix domain socket
@@ -1629,16 +1676,6 @@ type pub inline Socket {
 
   fn static unix(socket: UnixClient) -> Self {
     new(BufferedReader.new(SocketKind.Unix(socket)))
-  }
-
-  fn address -> Result[Address, IoError] {
-    let addr = match @reader.inner {
-      case Plain(v) -> Address.Ip(try v.socket.peer_address)
-      case Secure(v) -> Address.Ip(try v.socket.peer_address)
-      case Unix(v) -> Address.Unix(try v.socket.local_address)
-    }
-
-    Result.Ok(addr)
   }
 
   fn server_name_equals_host?(host: String) -> Bool {
@@ -1853,25 +1890,29 @@ type inline enum ParseResult {
   case Close
 }
 
-type async Connection[H: mut + Handle] {
+type copy ConnectionLimits {
+  let @parser: Limits
+  let @read: Duration
+  let @idle: Duration
+  let @write: Duration
+  let @close: Duration
+}
+
+type inline EstablishedConnection[H: mut + Handle] {
   let @pool: Pool
   let @shared: SharedState
   let @socket: Socket
   let @address: Address
-  let @limits: Limits
   let @handler: H
-  let @read_timeout: Duration
-  let @idle_timeout: Duration
-  let @write_timeout: Duration
-  let @close_timeout: Duration
+  let @limits: ConnectionLimits
 
-  fn async mut run {
+  fn mut run {
     @shared.add_active
 
     while @shared.alive? {
       match parse_request {
         case Ok(raw_req, keep) -> {
-          let req = Request.new(@address.clone, raw_req, @limits)
+          let req = Request.new(@address.clone, raw_req, @limits.parser)
           let resp = @handler.response(req, @handler.handle(req))
 
           # HEAD requests are always supported.
@@ -1880,7 +1921,7 @@ type async Connection[H: mut + Handle] {
           let hijacker = resp.hijacker := Option.None
           let keep = keep and req.body.consumed? and hijacker.none?
 
-          match resp.write(@socket, @write_timeout, keep) {
+          match resp.write(@socket, @limits.write, keep) {
             case Ok if keep -> next
             case Error -> {}
             case Ok or Close -> {
@@ -1894,7 +1935,7 @@ type async Connection[H: mut + Handle] {
         case Error(resp) -> {
           let resp = @handler.invalid_request(resp)
 
-          resp.write(@socket, @write_timeout, keep: false)
+          resp.write(@socket, @limits.write, keep: false)
         }
         case Close -> {}
       }
@@ -1908,11 +1949,11 @@ type async Connection[H: mut + Handle] {
   }
 
   fn mut parse_request -> ParseResult {
-    let parser = Parser.new(Reader.new(@socket), @socket.buffer, @limits)
+    let parser = Parser.new(Reader.new(@socket), @socket.buffer, @limits.parser)
 
     # Wait until the first byte arrives. This way we don't also apply the idle
     # timeout to parsing of the request.
-    @socket.timeout_after = @idle_timeout
+    @socket.timeout_after = @limits.idle
 
     # Flag the connection is inactive so that we don't wait for it as part of
     # the shutdown sequence.
@@ -1931,7 +1972,7 @@ type async Connection[H: mut + Handle] {
     # Make the connection active again so we _do_ wait for it as part of the
     # shutdown sequence.
     @shared.add_active
-    @socket.timeout_after = @read_timeout
+    @socket.timeout_after = @limits.read
 
     let parsed = parser.request
 
@@ -2040,11 +2081,43 @@ type async Connection[H: mut + Handle] {
 
     # If we close immediately then the client might not have a chance to read
     # the response.
-    @socket.timeout_after = @close_timeout
+    @socket.timeout_after = @limits.close
 
     # We don't care about the actual return value here as we just use the
     # read() to wait for some sort of acknowledgement from the network stack.
     let _ = @socket.read(into: @socket.buffer, size: 0)
+  }
+}
+
+type async Connection {
+  fn async mut start[H: mut + Handle](
+    pool: Pool,
+    shared: uni SharedState,
+    limits: ConnectionLimits,
+    socket: uni PartialSocket,
+    handler: uni H,
+  ) {
+    let handler = recover handler
+
+    # Not being able to obtain the peer address is pretty much unheard of at
+    # this point, but _just_ in case it happens we simply skip the connection
+    # and close it.
+    let Ok(address) = socket.address else return
+
+    # When using TLS it may take some time to complete the handshake and this
+    # could block the server's accept() loop. To ensure that this doesn't happen
+    # we perform the handshake here instead.
+    let Ok(socket) = socket.into_socket(handler, limits.read) else return
+
+    EstablishedConnection(
+      pool: pool,
+      shared: shared,
+      socket: socket,
+      address: address,
+      handler: handler,
+      limits: limits,
+    )
+      .run
   }
 }
 
@@ -2474,6 +2547,37 @@ trait pub Handle {
   # Handles an incoming request and produces its response.
   fn pub mut handle(request: mut Request) -> Response
 
+  # Returns the TLS server configuration to use if TLS is enabled.
+  #
+  # This method is _only_ called when `Server.tls` is set to `true`.
+  #
+  # When a connection is established a new process is spawned to handle requests
+  # and responses for that connection. This method is called within the context
+  # of that process, so anything expensive/slow that's performed as part of
+  # setting up TLS only affects this new connection and not others.
+  #
+  # The `name` argument is the server name indicator. This value may be absent
+  # if the client doesn't specify it (e.g. when they connect using an IP address
+  # instead of a DNS name). Given that SNI is more or less always supported,
+  # though SNI isn't _required_ by the standard library in case you want to
+  # implement an HTTP server that doesn't mandate support for SNI.
+  #
+  # If the return value is an `Option.Some`, the wrapped
+  # `std.net.tls.ServerConfig` object is used as the TLS configuration. If an
+  # `Option.None` is returned the connection is closed without writing a
+  # response.
+  #
+  # # Panics
+  #
+  # This method panics by default when TLS is enabled as it's expected for types
+  # implementing `Handle` to provide a custom configuration, instead of the
+  # connection being terminated silently.
+  fn pub mut configure_tls(name: Option[String]) -> Option[tls.ServerConfig] {
+    panic(
+      'an implementation of Handle.configure_tls must be provided when TLS is enabled',
+    )
+  }
+
   # A method called when a request can't be parsed, such as when its syntax is
   # invalid.
   #
@@ -2512,54 +2616,11 @@ type inline enum SocketServer {
     }
   }
 
-  fn mut accept(
-    config: mut Tls,
-    timeout: Duration,
-  ) -> Result[uni Socket, IoError] {
+  fn mut accept(secure: Bool) -> Result[uni PartialSocket, IoError] {
     let sock = match self {
-      case Tcp(s) -> {
-        let sock = recover try s.accept
-
-        # If we encounter any TLS errors we'll drop the socket and move on to
-        # the next one, as there's nothing we can do about such errors.
-        let sock = match config {
-          case Static(c) -> {
-            sock.timeout_after = timeout
-
-            recover {
-              match tls.Server.new(recover sock, c.clone) {
-                case Ok(v) -> Socket.secure(v)
-                case _ -> throw IoError.Closed
-              }
-            }
-          }
-          case Dynamic(fun) -> {
-            sock.timeout_after = timeout
-
-            let pending = recover {
-              match tls.PendingServer.new(recover sock) {
-                case Ok(v) -> v
-                case _ -> throw IoError.Closed
-              }
-            }
-
-            let name = pending.server_name
-            let Some(conf) = fun.call(name) else throw IoError.Closed
-
-            recover {
-              match pending.into_server(recover conf) {
-                case Ok(v) -> Socket.secure(v)
-                case _ -> throw IoError.Closed
-              }
-            }
-          }
-          case _ -> recover Socket.plain(sock)
-        }
-
-        sock.reset_deadline
-        sock
-      }
-      case Unix(s) -> recover Socket.unix(try s.accept)
+      case Tcp(s) if secure -> recover PartialSocket.Secure(try s.accept)
+      case Tcp(s) -> recover PartialSocket.Plain(try s.accept)
+      case Unix(s) -> recover PartialSocket.Unix(try s.accept)
     }
 
     Result.Ok(sock)
@@ -2616,12 +2677,6 @@ type async SignalWaiter[H: mut + Handle] {
   }
 }
 
-type pub inline enum Tls {
-  case None
-  case Static(tls.ServerConfig)
-  case Dynamic(fn (Option[String]) -> Option[tls.ServerConfig])
-}
-
 # An HTTP server that handles incoming requests.
 type pub Server[H: mut + Handle] {
   let @handler: fn -> uni H
@@ -2669,11 +2724,14 @@ type pub Server[H: mut + Handle] {
   # This defaults to 10 seconds.
   let pub mut @shutdown_wait_time: Duration
 
-  # The TLS/HTTPS configuration to use, if any.
+  # If the use of TLS is enabled (`true`) or disabled (`false`).
   #
-  # By default this configuration is absent and the protocol is plain HTTP. When
-  # this value _is_ present, the protocol is automatically turned into HTTPS.
-  let mut @tls: Tls
+  # This defaults to `false`, meaning to TLS/HTTPS by default.
+  #
+  # When set to `true`, the method `Handle.configure_tls` is called on the
+  # server's handler to obtain the TLS configuration. If TLS is disabled, this
+  # method is not called.
+  let pub mut @tls: Bool
 
   # If the server should shut down in response to certain Unix signals.
   let pub mut @handle_signals: Bool
@@ -2704,7 +2762,7 @@ type pub Server[H: mut + Handle] {
       waiter: waiter,
       handler: handler,
       limits: Limits.new,
-      tls: Tls.None,
+      tls: false,
       idle_timeout: Duration.from_secs(60),
       read_timeout: Duration.from_secs(5),
       write_timeout: Duration.from_secs(5),
@@ -2714,34 +2772,6 @@ type pub Server[H: mut + Handle] {
       before_shutdown: Option.None,
       before_start: Option.None,
     )
-  }
-
-  # Enables the use of TLS using the given `std.net.tls.ServerConfig`.
-  #
-  # The configuration is used for all connections, regardless of the server name
-  # indicator value used as part of the TLS handshake. To use different
-  # configurations per server name, configure TLS using `Server.dynamic_tls`
-  # instead.
-  fn pub mut tls(config: tls.ServerConfig) {
-    @tls = Tls.Static(config)
-  }
-
-  # Enables the use of TLS using a configuration based on the server name
-  # indicator.
-  #
-  # The provided closure is called every time a new TLS connection is
-  # established and is given the name of the server as specified by the client's
-  # hello message.
-  #
-  # Note that the server name indicator may be left out by the client (e.g. when
-  # they connect using an IP address instead of a DNS name), so the closure
-  # should take this into account and provide some sort of fallback
-  # configuration for such cases.
-  #
-  # The return value is an optional `uni std.net.tls.ServerConfig` to use for
-  # the connection. If an `Option.None` is returned the connection is aborted.
-  fn pub mut dynamic_tls(fun: fn (Option[String]) -> Option[tls.ServerConfig]) {
-    @tls = Tls.Dynamic(fun)
   }
 
   # Stores the given closure to be called before the server shuts down
@@ -2807,7 +2837,7 @@ type pub Server[H: mut + Handle] {
     }
 
     loop {
-      let client = match socket.accept(@tls, @read_timeout) {
+      let client = match socket.accept(secure: @tls) {
         case Ok(v) -> v
         # Closed may be produced if a connection is established and then aborted
         # _just_ before we get to accept it.
@@ -2817,17 +2847,7 @@ type pub Server[H: mut + Handle] {
         case Error(e) -> throw e
       }
 
-      # Not being able to obtain the peer address is pretty much unheard of at
-      # this point, but _just_ in case it happens we simply skip the connection
-      # and close it.
-      let addr = recover {
-        match client.address {
-          case Ok(v) -> v
-          case _ -> next
-        }
-      }
-
-      handle(client, addr)
+      handle(client)
     }
 
     # Drop the socket as soon as possible so the backlog doesn't fill up with
@@ -2843,20 +2863,22 @@ type pub Server[H: mut + Handle] {
     Result.Ok(nil)
   }
 
-  fn mut handle(socket: uni Socket, address: uni Address) {
-    Connection(
-      shared: recover @shared.clone,
-      pool: @pool,
-      socket: socket,
-      address: address,
-      limits: recover @limits.clone,
-      handler: recover @handler.call,
-      idle_timeout: @idle_timeout,
-      read_timeout: @read_timeout,
-      write_timeout: @write_timeout,
-      close_timeout: @close_timeout,
+  fn mut handle(socket: uni PartialSocket) {
+    let limits = ConnectionLimits(
+      parser: @limits,
+      idle: @idle_timeout,
+      read: @read_timeout,
+      write: @write_timeout,
+      close: @close_timeout,
     )
-      .run
+
+    Connection().start(
+      pool: @pool,
+      shared: recover @shared.clone,
+      limits: limits,
+      socket: socket,
+      handler: @handler.call,
+    )
   }
 }
 
@@ -2870,7 +2892,8 @@ type pub Server[H: mut + Handle] {
 # connections use the same underlying writer, preventing concurrent writes from
 # messing up the STDOUT output.
 type pub inline Logger {
-  let @logger: slog.Logger
+  # The `std.log.Logger` to use for logging messages.
+  let pub @logger: slog.Logger
 
   # Returns a `Logger` using its default settings.
   #

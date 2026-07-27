@@ -16,10 +16,11 @@ import std.net.http (
 import std.net.http.client (Client)
 import std.net.http.server (
   Address, CacheControl, Delete, Directory, Event, Events, FileRanges,
-  FormError, Get, Handle, Head, Logger, Notifier, Path as RequestPath, Post,
-  Put, RangeRequest, Request, Response, Server, SharedState, Socket,
-  SocketServer, Tls, WebsocketResponse, compress_response, conditional_request,
-  copy_file_range, head_request, parse_accept_range, parse_accept_ranges,
+  FormError, Get, Handle, Head, Logger, Notifier, PartialSocket,
+  Path as RequestPath, Post, Put, RangeRequest, Request, Response, Server,
+  SharedState, Socket, SocketServer, WebsocketResponse, compress_response,
+  conditional_request, copy_file_range, head_request, parse_accept_range,
+  parse_accept_ranges,
 )
 import std.net.http.websocket (WEBSOCKET_VERSION)
 import std.net.ip (IpAddress)
@@ -194,18 +195,12 @@ fn with_http_server(
 
 fn with_https_server(
   id: Int,
-  dynamic: Bool,
   body: fn (Int) -> Result[Nil, String],
 ) -> Result[Nil, String] {
   let (port, port_prom) = Future.new
-  let _waiter = AsyncSecureServer.new(port_prom, dynamic)
+  let _waiter = AsyncSecureServer.new(port_prom)
 
   body.call(port.get)
-}
-
-fn accept(server: mut SocketServer, config: Tls) -> Result[uni Socket, IoError]
-{
-  server.accept(config, timeout: Duration.from_secs(5))
 }
 
 type Writer {
@@ -230,6 +225,12 @@ impl Write[IoError] for Writer {
 type Hello {}
 
 impl Handle for Hello {
+  fn pub mut configure_tls(name: Option[String]) -> Option[tls.ServerConfig] {
+    Option.Some(
+      tls.ServerConfig.builder.new([certificate], private_key).or_panic,
+    )
+  }
+
   fn pub mut handle(request: mut Request) -> Response {
     # Wait for the client to write the body before we proceed (and potentially
     # close the connection)
@@ -284,32 +285,13 @@ type async AsyncServer {
 }
 
 type async AsyncSecureServer {
-  fn static new(port: uni Promise[Int], dynamic: Bool) -> ServerWaiter {
+  fn static new(port: uni Promise[Int]) -> ServerWaiter {
     let (not_fut, not_prom) = Future.new
     let srv = recover {
       let srv = Server.new(fn { Hello() })
 
       configure_server(srv)
-
-      if dynamic {
-        srv.dynamic_tls(fn (name) {
-          recover {
-            Option.Some(
-              recover {
-                tls
-                  .ServerConfig
-                  .builder
-                  .new([certificate], private_key)
-                  .or_panic
-              },
-            )
-          }
-        })
-      } else {
-        srv.tls(
-          tls.ServerConfig.builder.new([certificate], private_key).or_panic,
-        )
-      }
+      srv.tls = true
 
       let mut not_prom = Option.Some(not_prom)
       let mut port = Option.Some(port)
@@ -1602,36 +1584,37 @@ fn pub tests(t: mut Tests) {
     t.equal(a3.clone.to_string, a3.to_string)
   })
 
-  t.ok('Socket.address with a TCP socket', fn (t) {
+  t.ok('PartialSocket.address with a TCP socket', fn (t) {
     let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     let addr = try server.local_address
     let client = try TcpClient.new([addr.ip], addr.port)
-    let sock_addr = try Socket.plain(client).address
+    let sock_addr = try PartialSocket.Plain(client).address
 
     t.equal(sock_addr.host, '127.0.0.1')
-
     Result.Ok(nil)
   })
 
-  t.ok('Socket.address with a TLS socket', fn (t) {
-    let conf = tls.ServerConfig.builder.new([certificate], private_key).or_panic
+  t.ok('PartialSocket.address with a TLS socket', fn (t) {
     let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
-    let addr = recover try server.local_address
-    let _client = async TlsClient().connect(addr)
-    let tls_srv = tls.Server.new(try server.accept, conf).get
-    let sock_addr = try Socket.secure(tls_srv).address
+    let addr = try server.local_address
+    let client = try TcpClient.new([addr.ip], addr.port)
+    let sock_addr = try PartialSocket.Secure(client).address
 
     t.equal(sock_addr.host, '127.0.0.1')
     Result.Ok(nil)
   })
 
-  t.ok('Socket.address with a Unix socket', fn (t) {
+  t.ok('PartialSocket.address with a Unix socket', fn (t) {
     with_directory(t.id, fn (dir) -> Result[Nil, IoError] {
-      let (_server, _writer, reader) = try unix_pair(dir)
+      try dir.create_directory
+
+      let path = dir.join('server.sock')
+      let server = try UnixServer.new(path)
+      let _writer = try UnixClient.new(path)
+      let reader = PartialSocket.Unix(try server.accept)
       let sock_addr = try reader.address
 
       t.equal(sock_addr.to_string, dir.join('server.sock').to_string)
-
       Result.Ok(nil)
     })
   })
@@ -2401,10 +2384,10 @@ fn pub tests(t: mut Tests) {
     let addr = try server.local_address
     let _client = try TcpClient.new([addr.ip], addr.port)
     let server = SocketServer.Tcp(server)
-    let sock: Socket = try accept(server, Tls.None)
+    let sock = recover try server.accept(secure: false)
 
     t.true(
-      match sock.reader.inner {
+      match sock {
         case Plain(_) -> true
         case _ -> false
       },
@@ -2414,15 +2397,14 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('SocketServer.accept with a TLS socket', fn (t) {
-    let conf = tls.ServerConfig.builder.new([certificate], private_key).or_panic
     let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
     let addr = recover try server.local_address
     let _client = async TlsClient().connect(addr)
     let server = SocketServer.Tcp(server)
-    let sock: Socket = try accept(server, Tls.Static(conf))
+    let sock = recover try server.accept(secure: true)
 
     t.true(
-      match sock.reader.inner {
+      match sock {
         case Secure(_) -> true
         case _ -> false
       },
@@ -2439,10 +2421,10 @@ fn pub tests(t: mut Tests) {
       let server = try UnixServer.new(path)
       let _client = try UnixClient.new(path)
       let server = SocketServer.Unix(server)
-      let sock: Socket = try accept(server, Tls.None)
+      let sock = recover try server.accept(secure: false)
 
       t.true(
-        match sock.reader.inner {
+        match sock {
           case Unix(_) -> true
           case _ -> false
         },
@@ -2487,19 +2469,11 @@ fn pub tests(t: mut Tests) {
     })
   })
 
-  t.ok('Server.tls', fn (t) {
+  t.test('Server.tls=', fn (t) {
     let srv = Server.new(fn { Hello() })
-    let cfg = try tls.ServerConfig.builder.new([certificate], private_key)
 
-    srv.tls(cfg)
-    t.true(
-      match srv.tls {
-        case Static(_) -> true
-        case _ -> false
-      },
-    )
-
-    Result.Ok(nil)
+    srv.tls = true
+    t.true(srv.tls)
   })
 
   t.test('Server.before_shutdown', fn (t) {
@@ -3011,7 +2985,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('An HTTPS request with a SNI that matches the Host header', fn (t) {
-    with_https_server(t.id, false, fn (port) {
+    with_https_server(t.id, fn (port) {
       let client = Client.new
 
       client.tls = Option.Some(
@@ -3030,30 +3004,7 @@ fn pub tests(t: mut Tests) {
   t.ok(
     "An HTTPS request with a SNI that doesn't match the Host header",
     fn (t) {
-      with_https_server(t.id, false, fn (port) {
-        let client = Client.new
-
-        client.tls = Option.Some(
-          tls.ClientConfig.builder.with_certificate(certificate).get,
-        )
-
-        let uri = https_uri(port, '/')
-        let req = client.get(uri)
-
-        req.headers.set(Header.host, 'example.com')
-
-        let res = try req.send.map_error(fn (e) { e.to_string })
-
-        t.equal(res.status, Status.misdirected_request)
-        Result.Ok(nil)
-      })
-    },
-  )
-
-  t.ok(
-    "An HTTPS request with a SNI that doesn't match the Host header using dynamic TLS configuration",
-    fn (t) {
-      with_https_server(t.id, true, fn (port) {
+      with_https_server(t.id, fn (port) {
         let client = Client.new
 
         client.tls = Option.Some(
