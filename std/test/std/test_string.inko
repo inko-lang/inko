@@ -58,6 +58,15 @@ fn pub tests(t: mut Tests) {
     t.equal(a, b)
   })
 
+  t.test('String.from_pointer_and_size', fn (t) {
+    let a = 'hello\0world'
+    let b = String.from_pointer_and_size(a.pointer, a.size)
+    let c = String.from_pointer_and_size(a.pointer, 2)
+
+    t.equal(b, 'hello\0world')
+    t.equal(c, 'he')
+  })
+
   t.test('String.from_pointer with a NULL pointer', fn (t) {
     let a = String.from_pointer(0 as Pointer[Uint8])
 

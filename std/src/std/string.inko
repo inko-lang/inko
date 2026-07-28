@@ -226,6 +226,45 @@ type builtin String {
     from_primitive(inko_string_from_pointer(pointer))
   }
 
+  # Returns a `String` containing the first `size` bytes of the given raw
+  # pointer.
+  #
+  # When encountering an invalid UTF-8 sequence, the sequence is replaced with a
+  # `U+FFFD REPLACEMENT CHARACTER`.
+  #
+  # This method differs from `String.from_pointer` in that it doesn't stop at
+  # the first NULL character it encounters, instead it reads exactly `size`
+  # bytes from the pointer into the new `String`.
+  #
+  # # Safety
+  #
+  # If the pointer points to invalid memory or `size` is greater than the amount
+  # of memory allocated which the pointer points to, the behavior is undefined
+  # and almost certainly will result in a crash.
+  #
+  # This method should only be used when you have a raw pointer to some memory
+  # that _may_ contain NULL bytes but you want to include data after those NULL
+  # bytes as well. When creating a `String` from a regular NULL terminated C
+  # string, use `String.from_pointer` instead.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let a = 'hello'
+  # let b = String.from_pointer_and_size(a.pointer, a.size)
+  #
+  # b # => 'hello'
+  # ```
+  fn pub static from_pointer_and_size(
+    pointer: Pointer[Uint8],
+    size: Int,
+  ) -> String {
+    match inko_string_from_bytes(pointer, size) {
+      case { @value = ptr, @owned = true } -> String.from_primitive(ptr)
+      case { @value = ptr } -> String.from_borrowed_primitive(ptr)
+    }
+  }
+
   # Returns a new `String` created from the given `Bytes`.
   #
   # If the bytes contain invalid UTF-8 sequences, an `Option.None` is returned.
