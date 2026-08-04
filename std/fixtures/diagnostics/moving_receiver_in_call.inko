@@ -1,0 +1,52 @@
+type User {
+  fn move_owned(user: User) {}
+
+  fn move_borrow(user: ref User) {}
+}
+
+type A {
+  let @b: B
+
+  fn move move_self {
+    @b.move_argument(self)
+  }
+}
+
+type B {
+  let @c: C
+
+  fn move_argument(a: A) {}
+}
+
+type C {}
+
+fn example1(user: User) {
+  user.move_owned(user)
+}
+
+fn example2(user: uni User) {
+  user.move_owned(user)
+}
+
+fn example3(user: ref User) {
+  user.move_borrow(user)
+}
+
+fn example4(user: mut User) {
+  user.move_borrow(user)
+}
+
+fn example5(user: User) -> User {
+  user.move_owned(return user)
+  user
+}
+
+fn example6(a: A) {
+  a.b.move_argument(a)
+}
+
+# moving_receiver_in_call.inko:11:22 error(invalid-call): can't move 'self' because it's borrowed as part of a method call
+# moving_receiver_in_call.inko:24:19 error(invalid-call): can't move 'user' because it's borrowed as part of a method call
+# moving_receiver_in_call.inko:28:19 error(invalid-call): can't move 'user' because it's borrowed as part of a method call
+# moving_receiver_in_call.inko:41:3 warning(unreachable): this code is unreachable
+# moving_receiver_in_call.inko:45:21 error(invalid-call): can't move 'a' because it's borrowed as part of a method call

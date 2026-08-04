@@ -34,5 +34,5 @@ fn example3(ex: Extern) {
 
 # assign_immutable_field.inko:6:5 error(invalid-assign): the field 'immutable' is immutable and can't be assigned a new value
 # assign_immutable_field.inko:11:5 error(invalid-assign): the field 'immutable' is immutable and can't be assigned a new value
-# assign_immutable_field.inko:21:3 error(invalid-assign): the field 'immutable' is immutable and can't be assigned a new value
-# assign_immutable_field.inko:26:3 error(invalid-assign): the field 'immutable' is immutable and can't be assigned a new value
+# assign_immutable_field.inko:21:6 error(invalid-assign): the field 'immutable' is immutable and can't be assigned a new value
+# assign_immutable_field.inko:26:6 error(invalid-assign): the field 'immutable' is immutable and can't be assigned a new value

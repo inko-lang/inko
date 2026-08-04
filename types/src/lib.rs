@@ -2404,7 +2404,7 @@ impl TypeId {
         match obj.kind {
             TypeKind::Extern => true,
             _ => match obj.storage {
-                Storage::Heap => true,
+                Storage::Heap | Storage::Inline => true,
                 Storage::Atomic => false,
                 _ => owned,
             },
@@ -3274,6 +3274,22 @@ impl MethodId {
 
     pub fn is_mutable(self, db: &Database) -> bool {
         matches!(self.kind(db), MethodKind::Mutable | MethodKind::AsyncMutable)
+    }
+
+    pub fn inline_receiver_as_pointer(self, db: &Database) -> bool {
+        let m = self.get(db);
+
+        // We don't consider moving methods here because their receivers are
+        // always passed by value.
+        matches!(
+            m.kind,
+            MethodKind::Instance | MethodKind::Mutable | MethodKind::Destructor
+        ) && m
+            .receiver
+            .as_type_enum(db)
+            .ok()
+            .and_then(|v| v.as_type_instance())
+            .is_some_and(|v| v.instance_of.is_inline_type(db))
     }
 
     pub fn is_immutable(self, db: &Database) -> bool {
@@ -5337,6 +5353,7 @@ impl TypeRef {
                     TypeRef::Placeholder(id.as_mut())
                 }
             }
+            TypeRef::Pointer(v) => TypeRef::Mut(v),
             _ => self,
         }
     }
@@ -5347,7 +5364,9 @@ impl TypeRef {
             | TypeRef::Uni(id)
             | TypeRef::Any(id)
             | TypeRef::Mut(id)
-            | TypeRef::Ref(id) => TypeRef::Pointer(id),
+            | TypeRef::Ref(id)
+            | TypeRef::UniMut(id)
+            | TypeRef::UniRef(id) => TypeRef::Pointer(id),
             TypeRef::Placeholder(id) => {
                 if let Some(v) = id.value(db) {
                     v.as_pointer(db)
@@ -7456,6 +7475,7 @@ mod tests {
         let int = TypeId::int();
         let ext = new_extern_type(&mut db, "Extern");
         let param = new_parameter(&mut db, "A");
+        let thing = new_type(&mut db, "Thing");
         let var = TypePlaceholder::alloc(&mut db, None);
 
         assert_eq!(
@@ -7472,6 +7492,18 @@ mod tests {
             placeholder(var).as_pointer(&db),
             placeholder(var.as_pointer())
         );
+        assert_eq!(
+            mutable(instance(thing)).as_pointer(&db),
+            pointer(instance(thing))
+        );
+        assert_eq!(
+            mutable_uni(instance(thing)).as_pointer(&db),
+            pointer(instance(thing))
+        );
+        assert_eq!(
+            immutable_uni(instance(thing)).as_pointer(&db),
+            pointer(instance(thing))
+        );
     }
 
     #[test]
@@ -7479,7 +7511,7 @@ mod tests {
         let mut db = Database::new();
         let func1 = Closure::alloc(&mut db, false);
         let func2 = Closure::alloc(&mut db, false);
-        let thing = new_type(&mut db, "Thing");
+        let thing = new_type(&mut db, "A");
         let var_type = immutable(instance(thing));
         let loc = Location::default();
         let var =
@@ -7540,6 +7572,7 @@ mod tests {
         let p1 = new_parameter(&mut db, "A");
         let p2 = new_parameter(&mut db, "A");
         let int32 = TypeEnum::Foreign(ForeignType::Int(32, Sign::Signed));
+        let thing = new_type(&mut db, "A");
 
         p2.set_copy(&mut db);
 
@@ -7560,6 +7593,10 @@ mod tests {
         assert_eq!(uni(parameter(p2)).force_as_mut(&db), owned(parameter(p2)));
         assert_eq!(owned(rigid(p2)).force_as_mut(&db), owned(rigid(p2)));
         assert_eq!(owned(int32).force_as_mut(&db), owned(int32));
+        assert_eq!(
+            pointer(instance(thing)).force_as_mut(&db),
+            mutable(instance(thing))
+        );
     }
 
     #[test]
@@ -7857,6 +7894,47 @@ mod tests {
             );
 
             assert_eq!(method.is_mutable_or_moving(&db), exp);
+        }
+    }
+
+    #[test]
+    fn test_method_id_inline_receiver_as_pointer() {
+        let mut db = Database::new();
+        let heap_type = new_type(&mut db, "A");
+        let inline_type = new_type(&mut db, "B");
+        let copy_type = new_type(&mut db, "C");
+
+        inline_type.set_inline_storage(&mut db);
+        copy_type.set_copy_storage(&mut db);
+
+        let tests = [
+            (heap_type, MethodKind::Instance, false),
+            (heap_type, MethodKind::Mutable, false),
+            (heap_type, MethodKind::Moving, false),
+            (heap_type, MethodKind::Static, false),
+            (inline_type, MethodKind::Instance, true),
+            (inline_type, MethodKind::Mutable, true),
+            (inline_type, MethodKind::Moving, false),
+            (inline_type, MethodKind::Static, false),
+            (copy_type, MethodKind::Instance, false),
+            (copy_type, MethodKind::Mutable, false),
+            (copy_type, MethodKind::Moving, false),
+            (copy_type, MethodKind::Static, false),
+        ];
+
+        for (typ, kind, exp) in tests {
+            let method = Method::alloc(
+                &mut db,
+                ModuleId(0),
+                Location::default(),
+                "a".to_string(),
+                Visibility::Private,
+                kind,
+            );
+
+            // The ownership doesn't matter here, as long as we set a receiver.
+            method.set_receiver(&mut db, owned(instance(typ)));
+            assert_eq!(method.inline_receiver_as_pointer(&db), exp);
         }
     }
 

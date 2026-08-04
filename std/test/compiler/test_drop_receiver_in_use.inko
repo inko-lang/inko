@@ -1,0 +1,79 @@
+import std.drop (drop)
+import std.test (Tests)
+
+type Inner {
+  let mut @outer: Option[mut Outer]
+
+  fn mut assign_inner {
+    @outer.as_mut.get.inner = Inner(Option.None)
+  }
+
+  fn mutable_argument(outer: mut Outer) {
+    outer.inner = Inner(Option.None)
+  }
+}
+
+type Outer {
+  let mut @inner: Inner
+
+  fn mut assign_inner {
+    @inner.assign_inner
+  }
+}
+
+type A {
+  let @b: B
+}
+
+type B {
+  let @c: C
+
+  fn drop_argument(a: A) {
+    drop(a)
+  }
+}
+
+type C {}
+
+type inline InlineA {
+  let @b: InlineB
+}
+
+type inline InlineB {
+  let @c: C
+
+  fn drop_argument(a: InlineA) {
+    drop(a)
+  }
+}
+
+fn pub tests(t: mut Tests) {
+  t.panic(
+    'Dropping a receiver indirectly through a mutable field storing a borrow',
+    fn {
+      let inner = Inner(Option.None)
+      let outer = Outer(inner)
+
+      outer.inner.outer = Option.Some(mut outer)
+      outer.inner.assign_inner
+    },
+  )
+
+  t.panic('Dropping a receiver indirectly through a mutable argument', fn {
+    let inner = Inner(Option.None)
+    let outer = Outer(inner)
+
+    outer.inner.mutable_argument(outer)
+  })
+
+  t.panic(
+    'Dropping a receiver directly through a mutable field storing a borrow',
+    fn {
+      let inner = Inner(Option.None)
+      let outer = Outer(inner)
+
+      outer.inner.outer = Option.Some(mut outer)
+      outer.assign_inner
+    },
+  )
+}

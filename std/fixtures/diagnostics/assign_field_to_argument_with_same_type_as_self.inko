@@ -1,0 +1,18 @@
+type Thing {
+  let mut @value: Int
+
+  fn example1(thing: mut Thing) {
+    thing.value = 42
+  }
+
+  fn example2(thing: ref Thing) {
+    thing.value = 42
+  }
+
+  fn mut example3(thing: ref Thing) {
+    thing.value = 42
+  }
+}
+
+# assign_field_to_argument_with_same_type_as_self.inko:9:11 error(invalid-assign): can't assign 'value' a new value as it's receiver ('ref Thing') doesn't allow fields to be assigned new values
+# assign_field_to_argument_with_same_type_as_self.inko:13:11 error(invalid-assign): can't assign 'value' a new value as it's receiver ('ref Thing') doesn't allow fields to be assigned new values

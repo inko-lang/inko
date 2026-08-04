@@ -10,4 +10,8 @@ fn example2(value: mut Example) {
   value.number = 42
 }
 
-# inline_type_with_mutable_field.inko:10:3 error(invalid-assign): values of type 'mut Example' don't allow fields to be assigned new values
+fn example3(value: ref Example) {
+  value.number = 42
+}
+
+# inline_type_with_mutable_field.inko:14:9 error(invalid-assign): can't assign 'number' a new value as it's receiver ('ref Example') doesn't allow fields to be assigned new values

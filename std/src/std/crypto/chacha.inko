@@ -276,7 +276,7 @@ type pub inline ChaCha {
   # # Panics
   #
   # This method panics if `key` isn't exactly 32 bytes, or if `nonce` isn't
-  # exactly 8 bytes.
+  # exactly 12 bytes.
   #
   # # Examples
   #
