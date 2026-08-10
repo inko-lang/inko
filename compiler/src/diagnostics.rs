@@ -340,15 +340,16 @@ impl Diagnostics {
     pub(crate) fn invalid_field_assignment(
         &mut self,
         name: &str,
+        receiver: &str,
         file: PathBuf,
         location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidAssign,
             format!(
-                "values of type '{}' don't allow fields to be assigned \
-                new values",
-                name,
+                "can't assign '{}' a new value as it's receiver ('{}') \
+                doesn't allow fields to be assigned new values",
+                name, receiver,
             ),
             file,
             location,
@@ -862,7 +863,21 @@ impl Diagnostics {
         );
     }
 
-    pub(crate) fn call_moves_receiver_as_argument(
+    pub(crate) fn cant_move_pinned_value(
+        &mut self,
+        name: &str,
+        file: PathBuf,
+        location: Location,
+    ) {
+        self.error(
+            DiagnosticId::InvalidCall,
+            format!("can't move '{}' because it's borrowed", name),
+            file,
+            location,
+        );
+    }
+
+    pub(crate) fn cant_assign_pinned_variable(
         &mut self,
         name: &str,
         file: PathBuf,
@@ -871,8 +886,7 @@ impl Diagnostics {
         self.error(
             DiagnosticId::InvalidCall,
             format!(
-                "the method '{}' can't be called because it borrows its \
-                receiver while also moving it as part of an argument",
+                "can't assign '{}' a new value because it's borrowed",
                 name
             ),
             file,

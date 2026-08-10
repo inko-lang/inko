@@ -1,0 +1,18 @@
+type A {
+  let @name: String
+}
+
+type B {
+  let @name: String
+  let @a: A
+}
+
+fn example1(a: A) {
+  B(name: a.name, a: a)
+}
+
+fn example2(a: A) {
+  B(a: a, name: a.name)
+}
+
+# moving_receiver_in_type_instance.inko:15:17 error(moved): 'a' can't be used as it has been moved

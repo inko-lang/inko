@@ -2846,7 +2846,7 @@ impl<'a> CheckMethodBody<'a> {
                 self.state.diagnostics.unsendable_old_value(
                     &node.field.name,
                     self.file(),
-                    node.location,
+                    node.field.location,
                 );
             }
 
@@ -2896,6 +2896,7 @@ impl<'a> CheckMethodBody<'a> {
 
         if !scope.surrounding_type.allow_field_assignments(self.db()) {
             self.state.diagnostics.invalid_field_assignment(
+                name,
                 &format_type(self.db(), scope.surrounding_type),
                 self.file(),
                 location,
@@ -3342,9 +3343,9 @@ impl<'a> CheckMethodBody<'a> {
                 return TypeRef::Error;
             }
             MethodLookup::None => {
-                if self.assign_field_with_receiver(
-                    node, receiver, rec_id, value, scope,
-                ) {
+                if self
+                    .assign_field_with_receiver(node, receiver, rec_id, value)
+                {
                     return TypeRef::nil();
                 }
 
@@ -3442,7 +3443,7 @@ impl<'a> CheckMethodBody<'a> {
             self.state.diagnostics.immutable_field_assignment(
                 &node.name.name,
                 self.file(),
-                node.location,
+                node.name.location,
             );
 
             return TypeRef::Error;
@@ -3450,9 +3451,10 @@ impl<'a> CheckMethodBody<'a> {
 
         if !rec.allow_field_assignments(self.db()) {
             self.state.diagnostics.invalid_field_assignment(
+                &node.name.name,
                 &format_type(self.db(), rec),
                 self.module.file(self.db()),
-                node.location,
+                node.name.location,
             );
 
             return TypeRef::Error;
@@ -3471,7 +3473,7 @@ impl<'a> CheckMethodBody<'a> {
                 self.fmt(value),
                 self.fmt(var_type),
                 self.file(),
-                node.location,
+                node.value.location(),
             );
 
             return TypeRef::Error;
@@ -3484,7 +3486,7 @@ impl<'a> CheckMethodBody<'a> {
                 &node.name.name,
                 self.fmt(value),
                 self.file(),
-                node.location,
+                node.value.location(),
             );
 
             return TypeRef::Error;
@@ -3494,7 +3496,7 @@ impl<'a> CheckMethodBody<'a> {
             self.state.diagnostics.unsendable_old_value(
                 &node.name.name,
                 self.file(),
-                node.location,
+                node.name.location,
             );
         }
 
@@ -3509,7 +3511,6 @@ impl<'a> CheckMethodBody<'a> {
         receiver: TypeRef,
         receiver_id: TypeEnum,
         value: TypeRef,
-        scope: &mut LexicalScope,
     ) -> bool {
         let name = &node.name.name;
         let Some((ins, field)) =
@@ -3518,33 +3519,11 @@ impl<'a> CheckMethodBody<'a> {
             return false;
         };
 
-        // When using `self.field = value`, none of the below is applicable, nor
-        // do we need to calculate the field type as it's already cached.
-        if receiver_id == self.self_type {
-            return if let Some((field, typ)) = self.check_field_assignment(
-                name,
-                &mut node.value,
-                node.name.location,
-                scope,
-            ) {
-                node.kind = CallKind::SetField(FieldInfo {
-                    type_id: receiver.type_id(self.db()).unwrap(),
-                    id: field,
-                    variable_type: typ,
-                    as_pointer: false,
-                });
-
-                true
-            } else {
-                false
-            };
-        }
-
         if !field.is_mutable(self.db()) {
             self.state.diagnostics.immutable_field_assignment(
                 name,
                 self.file(),
-                node.location,
+                node.name.location,
             );
 
             return true;
@@ -3552,9 +3531,10 @@ impl<'a> CheckMethodBody<'a> {
 
         if !receiver.allow_field_assignments(self.db()) {
             self.state.diagnostics.invalid_field_assignment(
+                &node.name.name,
                 &format_type(self.db(), receiver),
                 self.module.file(self.db()),
-                node.location,
+                node.name.location,
             );
         }
 
@@ -3571,7 +3551,7 @@ impl<'a> CheckMethodBody<'a> {
                 self.fmt(value),
                 self.fmt(var_type),
                 self.file(),
-                node.location,
+                node.value.location(),
             );
         }
 
@@ -3582,7 +3562,7 @@ impl<'a> CheckMethodBody<'a> {
                 name,
                 self.fmt(value),
                 self.file(),
-                node.location,
+                node.value.location(),
             );
         }
 

@@ -37,13 +37,13 @@ pair.1 # => 'hello'
 
 ## Tuples are inline types
 
-Tuples are `inline` types and thus are stored on the stack. This means it's not
-possible to assign a new value to a tuple:
+Tuples are `inline` types and thus are stored on the stack. Tuple fields can't
+be assigned new values:
 
 ```inko
 let pair = (10, 'hello')
 
-pair.0 = 20 # => not valid, resulting in a compile-time error
+pair.0 = 20 # compile-time error: the field '0' is immutable and can't be assigned a new value
 ```
 
 ## Limitations

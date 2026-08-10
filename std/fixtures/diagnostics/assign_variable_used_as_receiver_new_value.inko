@@ -1,0 +1,38 @@
+type A {
+  let @b: B
+
+  fn nil_argument(value: Nil) {}
+
+  fn a_argument(value: A) {}
+}
+
+type B {}
+
+fn example1 {
+  let mut a = A(B())
+
+  a.nil_argument(a = A(B()))
+}
+
+fn example2 {
+  let mut a = A(B())
+
+  a.a_argument(a := A(B()))
+}
+
+fn example3 {
+  let mut a = A(B())
+
+  fn move { a.nil_argument(a = A(B())) }
+}
+
+fn example4 {
+  let mut a = A(B())
+
+  fn move { a.a_argument(a := A(B())) }
+}
+
+# assign_variable_used_as_receiver_new_value.inko:14:18 error(invalid-call): can't assign 'a' a new value because it's borrowed
+# assign_variable_used_as_receiver_new_value.inko:20:16 error(invalid-call): can't assign 'a' a new value because it's borrowed
+# assign_variable_used_as_receiver_new_value.inko:26:28 error(invalid-call): can't assign 'a' a new value because it's borrowed
+# assign_variable_used_as_receiver_new_value.inko:32:26 error(invalid-call): can't assign 'a' a new value because it's borrowed

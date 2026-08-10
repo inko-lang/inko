@@ -124,6 +124,12 @@ enum RegisterState {
     MaybeMoved,
 }
 
+impl RegisterState {
+    fn is_moved(self) -> bool {
+        matches!(self, Self::Moved)
+    }
+}
+
 /// The states of MIR registers, grouped per basic block.
 ///
 /// The state is grouped per block as it may change between blocks. For example,
@@ -253,6 +259,9 @@ struct Scope {
     /// has been moved, only to be moved _again_. Using a Vec would result in
     /// outdated entries.
     moved_in_loop: IndexMap<RegisterId, Location>,
+
+    /// Registers that _may_ be borrowed but can't be moved.
+    pinned: HashSet<RegisterId>,
 }
 
 impl Scope {
@@ -264,6 +273,7 @@ impl Scope {
             depth: 1,
             loop_depth: 0,
             moved_in_loop: IndexMap::new(),
+            pinned: HashSet::new(),
         })
     }
 
@@ -275,6 +285,7 @@ impl Scope {
             depth: parent.depth + 1,
             loop_depth: parent.loop_depth,
             moved_in_loop: IndexMap::new(),
+            pinned: HashSet::new(),
         })
     }
 
@@ -286,6 +297,7 @@ impl Scope {
             depth: parent.depth + 1,
             loop_depth: parent.loop_depth,
             moved_in_loop: IndexMap::new(),
+            pinned: HashSet::new(),
         })
     }
 
@@ -303,6 +315,7 @@ impl Scope {
             depth,
             loop_depth: depth,
             moved_in_loop: IndexMap::new(),
+            pinned: HashSet::new(),
         })
     }
 
@@ -1971,9 +1984,14 @@ impl<'a> LowerMethod<'a> {
 
                 let typ = info.variable_type;
                 let rec = self.expression(node.receiver.unwrap());
-                let reg = self.new_register(typ);
+
+                if self.scope.is_call() {
+                    self.pin_register(rec);
+                }
 
                 if info.as_pointer {
+                    let reg = self.new_register(typ);
+
                     self.current_block_mut().field_pointer(
                         reg,
                         rec,
@@ -1981,7 +1999,10 @@ impl<'a> LowerMethod<'a> {
                         info.id,
                         loc,
                     );
+                    reg
                 } else {
+                    let reg = self.new_field(info.id, typ);
+
                     self.current_block_mut().get_field(
                         reg,
                         rec,
@@ -1989,25 +2010,7 @@ impl<'a> LowerMethod<'a> {
                         info.id,
                         loc,
                     );
-                }
-
-                // When returning a field using the syntax `x.y`, we _must_ copy
-                // or create a reference, otherwise it's possible to drop `x`
-                // while the result of `y` is still in use.
-                if info.as_pointer || typ.is_copy_type(self.db()) {
                     reg
-                } else if typ.is_value_type(self.db()) {
-                    let copy = self.clone_value_type(reg, typ, true, loc);
-
-                    self.mark_register_as_moved(reg);
-                    self.mark_register_as_available(copy);
-                    copy
-                } else {
-                    let ref_reg = self.new_register(typ);
-
-                    self.current_block_mut().borrow(ref_reg, reg, loc);
-                    self.mark_register_as_moved(reg);
-                    ref_reg
                 }
             }
             types::CallKind::CallClosure(info) => {
@@ -2054,7 +2057,11 @@ impl<'a> LowerMethod<'a> {
                     .into_iter()
                     .zip(info.fields)
                     .map(|(arg, (id, exp))| {
-                        (id, self.input_expression(arg.into_value(), Some(exp)))
+                        let reg = self.pinned_registers_scope(move |this| {
+                            this.input_expression(arg.into_value(), Some(exp))
+                        });
+
+                        (id, reg)
                     })
                     .collect();
 
@@ -2135,7 +2142,6 @@ impl<'a> LowerMethod<'a> {
             }
         };
 
-        let rec_avail = self.register_is_available(rec);
         let moving = info.id.is_moving(self.db());
 
         // We must handle moving methods _before_ processing arguments, that way
@@ -2145,8 +2151,35 @@ impl<'a> LowerMethod<'a> {
             rec = self.receiver_for_moving_method(rec, location);
         }
 
-        // Argument registers must be defined _before_ the receiver register,
-        // ensuring we drop them _after_ dropping the receiver (i.e in
+        self.pin_register(rec);
+
+        // If the method is called on a mutable field directly, the call may
+        // end up invalidating that field's value _before_ returning (e.g.
+        // by assigning it a new value).
+        //
+        // To prevent this from happening we have to explicitly borrow the
+        // receiver first.
+        if let RegisterKind::Field(id) = self.register_kind(rec) {
+            if !moving && id.is_mutable(self.db()) {
+                // The method may be called on a field that is typed as an owned
+                // value (e.g. when we're inside a moving method), so we need to
+                // make sure the register type is always a borrow.
+                let typ = self.register_type(rec);
+                let typ = if info.id.is_mutable(self.db()) {
+                    typ.as_mut(self.db())
+                } else {
+                    typ.as_ref(self.db())
+                };
+
+                let reg = self.new_register(typ);
+
+                self.current_block_mut().borrow(reg, rec, ins_loc);
+                rec = reg;
+            }
+        }
+
+        // Argument registers must be defined _before_ the return register,
+        // ensuring we drop them _after_ dropping the return (i.e in
         // reverse-lexical order).
         let args = self.call_arguments(info.id, arguments);
         let res = self.new_register(info.returns);
@@ -2174,24 +2207,9 @@ impl<'a> LowerMethod<'a> {
                 .call_instance(res, rec, info.id, args, targs, ins_loc);
         }
 
-        // If the receiver is a `uni T` value that is moved as an argument and
-        // the callee moves the data to another process, then it's possible for
-        // the calling process and that new process to have access to the same
-        // data, such as when the callee returns a value from within the `uni T`
-        // value.
-        //
-        // To prevent such cases from happening, we reject such calls. We also
-        // do this for owned values because the pattern in general is confusing
-        // at best and potentially buggy at worst.
-        if !moving && rec_avail && self.register_is_moved(rec) {
-            let name = info.id.name(self.db()).clone();
-            let file = self.file();
-
-            self.state
-                .diagnostics
-                .call_moves_receiver_as_argument(&name, file, location);
-        }
-
+        // Pinned registers are only relevant until the end of each method call,
+        // even in a chain of method calls.
+        self.scope.pinned.clear();
         self.after_call(info.returns);
         res
     }
@@ -2203,29 +2221,49 @@ impl<'a> LowerMethod<'a> {
     ) -> Vec<RegisterId> {
         let mut args = vec![RegisterId(0); nodes.len()];
 
-        for (index, arg) in nodes.into_iter().enumerate() {
-            match arg {
+        for (idx, arg) in nodes.into_iter().enumerate() {
+            self.pinned_registers_scope(|this| match arg {
                 Argument::Regular(hir::Argument::Positional(n)) => {
-                    args[index] = self.argument_expression(
+                    args[idx] = this.argument_expression(
                         method,
                         n.value,
                         Some(n.expected_type),
                     );
                 }
                 Argument::Regular(hir::Argument::Named(n)) => {
-                    args[n.index] = self.argument_expression(
+                    args[n.index] = this.argument_expression(
                         method,
                         n.value,
                         Some(n.expected_type),
                     );
                 }
                 Argument::Input(n, exp) => {
-                    args[index] = self.input_expression(n, Some(exp));
+                    args[idx] = this.input_expression(n, Some(exp));
                 }
-            }
+            });
         }
 
         args
+    }
+
+    /// Creates a new temporary scope for pinned registers, meant to be used
+    /// when processing method and type initialization arguments.
+    ///
+    /// This ensures that any registers pinned by a receiver _are_ applied to
+    /// each argument, but the registers pinned by each argument expression only
+    /// apply to that argument.
+    fn pinned_registers_scope<F: FnOnce(&mut Self) -> R, R>(
+        &mut self,
+        func: F,
+    ) -> R {
+        let mut pinned = self.scope.pinned.clone();
+
+        swap(&mut pinned, &mut self.scope.pinned);
+
+        let ret = func(self);
+
+        self.scope.pinned = pinned;
+        ret
     }
 
     fn after_call(&mut self, returns: TypeRef) {
@@ -2392,16 +2430,17 @@ impl<'a> LowerMethod<'a> {
         let exp = id.value_type(self.db());
         let loc = InstructionLocation::new(node.location);
         let val = self.input_expression(node.value, Some(exp));
-
-        if let Some(&reg) = self.variable_mapping.get(&id) {
+        let reg = if let Some(&reg) = self.variable_mapping.get(&id) {
             if self.should_drop_register(reg) {
                 self.drop_register(reg, loc);
             }
 
             self.mark_register_as_available(reg);
             self.current_block_mut().move_volatile_register(reg, val, loc);
+            reg
         } else {
             let &field = self.variable_fields.get(&id).unwrap();
+            let &reg = self.field_mapping.get(&field).unwrap();
             let rec = self.surrounding_type_register;
             let tid = self.register_type(rec).type_id(self.db()).unwrap();
 
@@ -2416,8 +2455,10 @@ impl<'a> LowerMethod<'a> {
             }
 
             self.current_block_mut().set_field(rec, tid, field, val, loc);
-        }
+            reg
+        };
 
+        self.check_if_pinned_variable(reg, node.location);
         self.get_nil(loc)
     }
 
@@ -2427,8 +2468,7 @@ impl<'a> LowerMethod<'a> {
         let exp = node.resolved_type;
         let new_val = self.input_expression(node.value, Some(exp));
         let old_val = self.new_register(exp);
-
-        if let Some(&reg) = self.variable_mapping.get(&id) {
+        let var_reg = if let Some(&reg) = self.variable_mapping.get(&id) {
             self.check_if_moved(
                 reg,
                 &node.variable.name,
@@ -2437,15 +2477,19 @@ impl<'a> LowerMethod<'a> {
 
             self.current_block_mut().move_register(old_val, reg, loc);
             self.current_block_mut().move_volatile_register(reg, new_val, loc);
+            reg
         } else {
             let &field = self.variable_fields.get(&id).unwrap();
+            let &var_reg = self.field_mapping.get(&field).unwrap();
             let rec = self.surrounding_type_register;
             let tid = self.register_type(rec).type_id(self.db()).unwrap();
 
             self.current_block_mut().get_field(old_val, rec, tid, field, loc);
             self.current_block_mut().set_field(rec, tid, field, new_val, loc);
-        }
+            var_reg
+        };
 
+        self.check_if_pinned_variable(var_reg, node.location);
         old_val
     }
 
@@ -3751,15 +3795,19 @@ impl<'a> LowerMethod<'a> {
         let info = node.info.unwrap();
         let id = info.id;
         let typ = info.variable_type;
+        let rec = self.self_register;
         let reg = if self.in_closure() {
             self.new_field(id, typ)
         } else if info.as_pointer {
             self.new_register(typ)
         } else {
+            if self.scope.is_call() {
+                self.pin_register(rec);
+            }
+
             self.field_mapping.get(&id).cloned().unwrap()
         };
 
-        let rec = self.self_register;
         let tid = info.type_id;
         let name = &node.name;
         let check_loc = node.location;
@@ -4106,6 +4154,7 @@ impl<'a> LowerMethod<'a> {
 
         if typ.is_owned_or_uni(self.db()) {
             self.mark_register_as_moved(reg);
+            self.check_if_pinned(reg, loc);
 
             if let Some(flag) = self.drop_flags.get(&reg).cloned() {
                 self.current_block_mut().bool_literal(flag, false, ins_loc);
@@ -4141,6 +4190,45 @@ impl<'a> LowerMethod<'a> {
         }
 
         self.state.diagnostics.moved_variable(name, self.file(), location);
+    }
+
+    fn check_if_pinned_variable(
+        &mut self,
+        register: RegisterId,
+        location: Location,
+    ) {
+        let Some(name) = self.pinned_register_name(register) else { return };
+
+        let file = self.file();
+
+        self.state
+            .diagnostics
+            .cant_assign_pinned_variable(&name, file, location);
+    }
+
+    fn check_if_pinned(&mut self, register: RegisterId, location: Location) {
+        if !self.register_is_available(register) {
+            return;
+        }
+
+        let Some(name) = self.pinned_register_name(register) else { return };
+        let file = self.file();
+
+        self.state.diagnostics.cant_move_pinned_value(&name, file, location);
+    }
+
+    fn pin_register(&mut self, register: RegisterId) {
+        if !self.register_type(register).is_value_type(self.db()) {
+            self.scope.pinned.insert(register);
+        }
+    }
+
+    fn pinned_register_name(&self, register: RegisterId) -> Option<String> {
+        if self.scope.pinned.contains(&register) {
+            self.register_kind(register).name(&self.state.db)
+        } else {
+            None
+        }
     }
 
     fn record_loop_move(&mut self, register: RegisterId, location: Location) {
@@ -4275,6 +4363,7 @@ impl<'a> LowerMethod<'a> {
                 );
             }
 
+            self.check_if_pinned(register, location);
             self.record_loop_move(register, location);
             self.mark_register_as_moved(register);
 
@@ -4746,7 +4835,7 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn register_is_moved(&mut self, register: RegisterId) -> bool {
-        self.register_state(register) == RegisterState::Moved
+        self.register_state(register).is_moved()
     }
 
     fn register_might_be_moved(&mut self, register: RegisterId) -> bool {
@@ -4769,6 +4858,12 @@ impl<'a> LowerMethod<'a> {
             self.register_kind(register),
             RegisterKind::Regular | RegisterKind::Variable(_, _)
         )
+    }
+
+    fn register_state(&mut self, register: RegisterId) -> RegisterState {
+        let block = self.current_block;
+
+        self.register_state_in_block(block, register)
     }
 
     /// Computes the state for a given register.
@@ -4795,9 +4890,11 @@ impl<'a> LowerMethod<'a> {
     /// - moved: if it's moved in both A and B
     /// - maybe moved: if it's moved in either A or B, while still available in
     ///   the other (or if it's already "maybe moved" in either)
-    fn register_state(&mut self, register: RegisterId) -> RegisterState {
-        let block = self.current_block;
-
+    fn register_state_in_block(
+        &mut self,
+        block: BlockId,
+        register: RegisterId,
+    ) -> RegisterState {
         if let Some(state) = self.register_states.get(block, register) {
             return state;
         }

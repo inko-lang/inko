@@ -287,8 +287,6 @@ borrow count for any interior heap values.
 This approach does mean that `inline` types come with some restrictions and
 caveats:
 
-- Fields can only be assigned new values through owned references, and such
-  assignments are only visible to borrows created _after_ the assignment
 - Borrowing interior heap data means that if an `inline` type stores 8 heap
   allocated values, borrowing the `inline` type results in 8 borrow count
   increments.
@@ -299,6 +297,60 @@ caveats:
 - Since instances of `inline` types are stored on the stack, programs may
   consume more stack space, though this is unlikely to pose an actual problem.
 - `inline` types can't be cast to traits.
+- Fields _can_ be assigned new values (provided they are defined using `let
+  mut`), but if the `inline` value isn't located in a stable location you'll end
+  up mutating a copy instead
+
+That last limitation is worth discussing a bit more. When an inline type resides
+in a stable location, such as a local variable or a field that _can't_ be
+assigned a new value, `fn mut` methods are able to mutate the value in-place:
+
+```inko
+type inline Person {
+  let mut @name: String
+
+  fn mut update_name(name: String) {
+    @name = name
+  }
+}
+
+type async Main {
+  fn async main {
+    let v = (10, Person('Alice'))
+
+    v.1.update_name('Bob')
+    v.1.name # => 'Bob'
+  }
+}
+```
+
+If the `inline` type resides in a field that _can_ be assigned a new value or
+some other unstable location (e.g. in an `Array`), then mutations act upon a
+copy of the `inline` value, otherwise the method call may invalidate the value
+while it's still in use:
+
+```inko
+type Container {
+  let mut @person: Person
+}
+
+type inline Person {
+  let mut @name: String
+
+  fn mut update_name(name: String) {
+    @name = name
+  }
+}
+
+type async Main {
+  fn async main {
+    let v = Container(Person('Alice'))
+
+    v.person.update_name('Bob')
+    v.person.name # => 'Alice'
+  }
+}
+```
 
 ## Value types
 

@@ -32,4 +32,4 @@ fn example4(value: uni Thing) {
 # pass_uni_to_mut.inko:18:14 error(invalid-type): expected a value of type 'T: mut', found 'uni Thing'
 # pass_uni_to_mut.inko:22:33 error(invalid-type): expected a value of type 'T: mut', found 'uni Thing'
 # pass_uni_to_mut.inko:22:16 error(invalid-type): 'uni Thing' can't be assigned to type parameter 'T: mut'
-# pass_uni_to_mut.inko:28:3 error(invalid-type): expected a value of type 'Option[T: mut]', found 'Option[uni Thing]'
+# pass_uni_to_mut.inko:28:15 error(invalid-type): expected a value of type 'Option[T: mut]', found 'Option[uni Thing]'

@@ -126,12 +126,18 @@ impl<'ctx> Method<'ctx> {
             Vec::new()
         };
 
-        for &typ in method
-            .is_instance(db)
-            .then(|| method.receiver(db))
-            .iter()
-            .chain(method.argument_types(db))
-        {
+        // For `inline` types, `self` is always passed as a pointer.
+        if method.inline_receiver_as_pointer(db) {
+            let typ = context.pointer_type().as_basic_type_enum();
+
+            args.push(ArgumentType::Regular(typ));
+        } else if method.is_instance(db) {
+            let typ = method.receiver(db);
+
+            args.push(context.argument_type(state, layouts, typ));
+        }
+
+        for &typ in method.argument_types(db) {
             args.push(context.argument_type(state, layouts, typ));
         }
 
