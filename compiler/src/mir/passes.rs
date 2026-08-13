@@ -1961,12 +1961,18 @@ impl<'a> LowerMethod<'a> {
         reg
     }
 
-    fn call(&mut self, node: hir::Call) -> RegisterId {
+    fn call(&mut self, mut node: hir::Call) -> RegisterId {
         let entered = self.enter_call_scope();
         let loc = InstructionLocation::new(node.name.location);
         let reg = match node.kind {
             types::CallKind::Call(info) => {
                 self.verify_call(&info, node.location);
+
+                if let Some(hir::Expression::FieldRef(n)) =
+                    node.receiver.as_mut()
+                {
+                    n.as_borrowed_receiver = !info.id.is_moving(self.db());
+                }
 
                 let rec = if info.receiver.is_explicit() {
                     node.receiver.map(|expr| self.expression(expr))
@@ -3805,7 +3811,15 @@ impl<'a> LowerMethod<'a> {
                 self.pin_register(rec);
             }
 
-            self.field_mapping.get(&id).cloned().unwrap()
+            // If we are borrowed as the receiver of a method we'll produce a
+            // new register that won't be dropped at the end of the scope. This
+            // makes certain IR rewrites (e.g. those used for allowing in-place
+            // field updates of `inline` values) a little easier to implement.
+            if node.as_borrowed_receiver {
+                self.new_field(id, typ)
+            } else {
+                self.field_mapping.get(&id).cloned().unwrap()
+            }
         };
 
         let tid = info.type_id;

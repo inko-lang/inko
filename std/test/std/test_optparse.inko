@@ -247,75 +247,68 @@ fn pub tests(t: mut Tests) {
     t.equal(opts.parse(['foo']).get.remaining, ['foo'])
   })
 
-  t.test('Options.parse with a short flag', fn (t) {
+  t.ok('Options.parse with a short flag', fn (t) {
     let opts = Options.new('test')
 
     opts.flag('h', 'help', 'Show this help message')
 
-    let matches = opts.parse(['-h']).get
+    let matches = try opts.parse(['-h'])
 
     t.true(matches.contains?('h'))
     t.true(matches.contains?('help'))
+
+    Result.Ok(nil)
   })
 
-  t.test('Options.parse with a long flag', fn (t) {
+  t.ok('Options.parse with a long flag', fn (t) {
     let opts = Options.new('test')
 
     opts.flag('h', 'help', 'Show this help message')
 
-    let matches = opts.parse(['--help']).get
+    let matches = try opts.parse(['--help'])
 
     t.true(matches.contains?('h'))
     t.true(matches.contains?('help'))
+
+    Result.Ok(nil)
   })
 
-  t.test('Options.parse with a short option with a single value', fn (t) {
+  t.ok('Options.parse with a short option with a single value', fn (t) {
     let opts = Options.new('test')
 
     opts.single('c', 'config', 'PATH', description: '')
 
-    let matches = opts.parse(['-c', 'foo']).get
+    let matches = try opts.parse(['-c', 'foo'])
 
     t.true(matches.contains?('c'))
     t.true(matches.contains?('config'))
     t.equal(matches.value('c'), Option.Some('foo'))
     t.equal(matches.value('config'), Option.Some('foo'))
+
+    Result.Ok(nil)
   })
 
-  t.test('Options.parse with a long option with a single value', fn (t) {
+  t.ok('Options.parse with a long option with a single value', fn (t) {
     let opts = Options.new('test')
 
     opts.single('c', 'config', 'PATH', description: '')
 
-    let matches = opts.parse(['--config', 'foo']).get
+    let matches = try opts.parse(['--config', 'foo'])
 
     t.true(matches.contains?('c'))
     t.true(matches.contains?('config'))
     t.equal(matches.value('c'), Option.Some('foo'))
     t.equal(matches.value('config'), Option.Some('foo'))
+
+    Result.Ok(nil)
   })
 
-  t.test('Options.parse with a short option with multiple values', fn (t) {
+  t.ok('Options.parse with a short option with multiple values', fn (t) {
     let opts = Options.new('test')
 
     opts.multiple('c', 'config', 'PATH', description: '')
 
-    let matches = opts.parse(['-c', 'foo', '-c', 'bar']).get
-
-    t.true(matches.contains?('c'))
-    t.true(matches.contains?('config'))
-    t.equal(matches.value('c'), Option.Some('foo'))
-    t.equal(matches.value('config'), Option.Some('foo'))
-    t.equal(matches.values('c'), ['foo', 'bar'])
-    t.equal(matches.values('config'), ['foo', 'bar'])
-  })
-
-  t.test('Options.parse with a long option with multiple values', fn (t) {
-    let opts = Options.new('test')
-
-    opts.multiple('c', 'config', 'PATH', description: '')
-
-    let matches = opts.parse(['--config', 'foo', '--config', 'bar']).get
+    let matches = try opts.parse(['-c', 'foo', '-c', 'bar'])
 
     t.true(matches.contains?('c'))
     t.true(matches.contains?('config'))
@@ -323,104 +316,136 @@ fn pub tests(t: mut Tests) {
     t.equal(matches.value('config'), Option.Some('foo'))
     t.equal(matches.values('c'), ['foo', 'bar'])
     t.equal(matches.values('config'), ['foo', 'bar'])
+
+    Result.Ok(nil)
   })
 
-  t.test('Options.parse with mixed options with multiple values', fn (t) {
+  t.ok('Options.parse with a long option with multiple values', fn (t) {
     let opts = Options.new('test')
 
     opts.multiple('c', 'config', 'PATH', description: '')
 
-    let matches = opts.parse(['--config', 'foo', '-c', 'bar']).get
+    let matches = try opts.parse(['--config', 'foo', '--config', 'bar'])
+
+    t.true(matches.contains?('c'))
+    t.true(matches.contains?('config'))
+    t.equal(matches.value('c'), Option.Some('foo'))
+    t.equal(matches.value('config'), Option.Some('foo'))
+    t.equal(matches.values('c'), ['foo', 'bar'])
+    t.equal(matches.values('config'), ['foo', 'bar'])
+
+    Result.Ok(nil)
+  })
+
+  t.ok('Options.parse with mixed options with multiple values', fn (t) {
+    let opts = Options.new('test')
+
+    opts.multiple('c', 'config', 'PATH', description: '')
+
+    let matches = try opts.parse(['--config', 'foo', '-c', 'bar'])
 
     t.true(matches.contains?('c'))
     t.true(matches.contains?('config'))
     t.equal(matches.values('c'), ['foo', 'bar'])
     t.equal(matches.values('config'), ['foo', 'bar'])
+
+    Result.Ok(nil)
   })
 
-  t.test('Options.parse with a flag followed by an argument', fn (t) {
+  t.ok('Options.parse with a flag followed by an argument', fn (t) {
     let opts = Options.new('test')
 
     opts.flag('h', 'help', 'Show this help message')
 
-    let matches = opts.parse(['-h', 'foo']).get
+    let matches = try opts.parse(['-h', 'foo'])
 
     t.true(matches.contains?('h'))
     t.true(matches.contains?('help'))
     t.equal(matches.remaining, ['foo'])
+
+    Result.Ok(nil)
   })
 
-  t.test('Options.parse with a short flag using the -K=V syntax', fn (t) {
+  t.ok('Options.parse with a short flag using the -K=V syntax', fn (t) {
     let opts = Options.new('test')
 
     opts.flag('h', 'help', 'Show this help message')
 
-    let matches = opts.parse(['-h=foo']).get
+    let matches = try opts.parse(['-h=foo'])
 
     t.true(matches.contains?('h'))
     t.equal(matches.remaining, ['=foo'])
+
+    Result.Ok(nil)
   })
 
-  t.test('Options.parse with a separator', fn (t) {
+  t.ok('Options.parse with a separator', fn (t) {
     let opts = Options.new('test')
 
     opts.flag('h', 'help', 'Show this help message')
 
-    let matches = opts.parse(['-h', '--', '-h', '-a']).get
+    let matches = try opts.parse(['-h', '--', '-h', '-a'])
 
     t.true(matches.contains?('h'))
     t.equal(matches.remaining, ['-h', '-a'])
+
+    Result.Ok(nil)
   })
 
-  t.test('Options.parse with a separator and a long option pair', fn (t) {
+  t.ok('Options.parse with a separator and a long option pair', fn (t) {
     let opts = Options.new('test')
 
     opts.flag('h', 'help', 'Show this help message')
 
-    let matches = opts.parse(['-h', '--', '--foo=bar']).get
+    let matches = try opts.parse(['-h', '--', '--foo=bar'])
 
     t.true(matches.contains?('h'))
     t.equal(matches.remaining, ['--foo=bar'])
+
+    Result.Ok(nil)
   })
 
-  t.test('Options.parse with a long option pair', fn (t) {
+  t.ok('Options.parse with a long option pair', fn (t) {
     let opts = Options.new('test')
 
     opts.single('c', 'config', 'PATH', description: '')
 
-    let result = opts.parse(['--config=a']).get
+    let result = try opts.parse(['--config=a'])
 
     t.equal(result.value('c'), Option.Some('a'))
     t.equal(result.value('config'), Option.Some('a'))
+
+    Result.Ok(nil)
   })
 
-  t.test('Options.parse with multiple long option pairs', fn (t) {
+  t.ok('Options.parse with multiple long option pairs', fn (t) {
     let opts = Options.new('test')
 
     opts.multiple('c', 'config', 'PATH', description: '')
 
-    let result = opts.parse(['--config=a', '--config=b']).get
+    let result = try opts.parse(['--config=a', '--config=b'])
 
     t.equal(result.values('c'), ['a', 'b'])
     t.equal(result.values('config'), ['a', 'b'])
+
+    Result.Ok(nil)
   })
 
-  t.test(
-    'Options.parse when stopping at the first non-option argument',
-    fn (t) {
-      let opts = Options.new('test')
+  t.ok('Options.parse when stopping at the first non-option argument', fn (t) {
+    let opts = Options.new('test')
 
-      opts.stop_at_first_non_option = true
-      opts.flag('e', 'example', 'Description')
+    opts.stop_at_first_non_option = true
+    opts.flag('e', 'example', 'Description')
 
-      let result = opts
-        .parse(['--example', 'foo', '--bar', '--foo=bar', '-c', '--'])
-        .get
+    let result = try opts.parse(
+      ['--example', 'foo', '--bar', '--foo=bar', '-c', '--'],
+    )
 
-      t.true(result.contains?('example'))
-      t.equal(result.remaining, ['foo', '--bar', '--foo=bar', '-c', '--'])
-    },
-  )
+    t.true(result.contains?('example'))
+    t.equal(result.remaining, ['foo', '--bar', '--foo=bar', '-c', '--'])
+
+    Result.Ok(nil)
+  })
 
   t.test('Options.parse with a long flag that is given a value', fn (t) {
     let opts = Options.new('test')

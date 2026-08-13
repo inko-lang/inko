@@ -1011,6 +1011,7 @@ pub(crate) struct FieldRef {
     pub(crate) name: String,
     pub(crate) location: Location,
     pub(crate) in_mut: bool,
+    pub(crate) as_borrowed_receiver: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -2632,6 +2633,7 @@ impl<'a> LowerToHir<'a> {
             info: None,
             name: node.name,
             in_mut: false,
+            as_borrowed_receiver: false,
             location: node.location,
         })
     }
@@ -2886,6 +2888,7 @@ impl<'a> LowerToHir<'a> {
             info: None,
             name: field.name.clone(),
             in_mut: false,
+            as_borrowed_receiver: false,
             location: field.location,
         }));
 
@@ -6222,6 +6225,7 @@ mod tests {
                 info: None,
                 name: "a".to_string(),
                 in_mut: false,
+                as_borrowed_receiver: false,
                 location: cols(8, 9)
             }))
         );
@@ -6728,6 +6732,7 @@ mod tests {
                         info: None,
                         name: "a".to_string(),
                         in_mut: false,
+                        as_borrowed_receiver: false,
                         location: cols(8, 9)
                     }))),
                     parens: true,

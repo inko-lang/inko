@@ -23,6 +23,20 @@ type copy enum Enum[A, B] {
 
 type inline Inline {
   let mut @value: Int
+
+  fn mut update(value: Int) {
+    @value = value
+  }
+}
+
+type InlineContainer {
+  let @inner: Inline
+
+  fn mut update -> Int {
+    @inner.update(10)
+    @inner.update(20)
+    @inner.value
+  }
 }
 
 fn pub tests(t: mut Tests) {
@@ -97,4 +111,14 @@ fn pub tests(t: mut Tests) {
     t.equal(b.value, 42)
     t.equal(c.value, 10)
   })
+
+  t.test(
+    'Updating an inline value in-place when the field is used multiple times',
+    fn (t) {
+      let outer = InlineContainer(Inline(0))
+
+      t.equal(outer.update, 20)
+      t.equal(outer.inner.value, 20)
+    },
+  )
 }
