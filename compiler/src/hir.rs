@@ -179,6 +179,7 @@ pub(crate) struct IdentifierRef {
     pub(crate) name: String,
     pub(crate) kind: types::IdentifierKind,
     pub(crate) usage: Usage,
+    pub(crate) as_borrowed_receiver: bool,
     pub(crate) location: Location,
 }
 
@@ -673,6 +674,7 @@ impl Expression {
             name: name.to_string(),
             kind: types::IdentifierKind::Unknown,
             usage: Usage::Used,
+            as_borrowed_receiver: false,
             location,
         }))
     }
@@ -762,6 +764,14 @@ impl Expression {
             Expression::IdentifierRef(c) => c.usage = usage,
             Expression::ConstantRef(c) => c.usage = usage,
             Expression::AssignSetter(c) => c.usage = usage,
+            _ => {}
+        }
+    }
+
+    pub(crate) fn mark_as_borrowed_receiver(&mut self) {
+        match self {
+            Expression::FieldRef(n) => n.as_borrowed_receiver = true,
+            Expression::IdentifierRef(n) => n.as_borrowed_receiver = true,
             _ => {}
         }
     }
@@ -2654,6 +2664,7 @@ impl<'a> LowerToHir<'a> {
             kind: types::IdentifierKind::Unknown,
             name: node.name,
             usage: Usage::Used,
+            as_borrowed_receiver: false,
             location: node.location,
         })
     }
@@ -2848,6 +2859,7 @@ impl<'a> LowerToHir<'a> {
             kind: types::IdentifierKind::Unknown,
             name: variable.name.clone(),
             usage: Usage::Used,
+            as_borrowed_receiver: false,
             location: variable.location,
         }));
 
@@ -3440,6 +3452,7 @@ impl<'a> LowerToHir<'a> {
                             name: ITER_VAR.to_string(),
                             kind: types::IdentifierKind::Unknown,
                             usage: Usage::Used,
+                            as_borrowed_receiver: false,
                             location: iter_loc,
                         },
                     ))),
@@ -6123,6 +6136,7 @@ mod tests {
                         name: ARRAY_LIT_VAR.to_string(),
                         kind: types::IdentifierKind::Unknown,
                         usage: Usage::Used,
+                        as_borrowed_receiver: false,
                         location: loc(2, 4, 15, 15),
                     })),
                 ],
@@ -6261,6 +6275,7 @@ mod tests {
                         kind: types::IdentifierKind::Unknown,
                         name: "a".to_string(),
                         usage: Usage::Used,
+                        as_borrowed_receiver: false,
                         location: cols(8, 8)
                     }
                 ))),
@@ -6288,6 +6303,7 @@ mod tests {
                 kind: types::IdentifierKind::Unknown,
                 name: "a".to_string(),
                 usage: Usage::Used,
+                as_borrowed_receiver: false,
                 location: cols(8, 8)
             }))
         );
@@ -6374,6 +6390,7 @@ mod tests {
                         kind: types::IdentifierKind::Unknown,
                         name: "a".to_string(),
                         usage: Usage::Used,
+                        as_borrowed_receiver: false,
                         location: cols(8, 8)
                     }
                 ))),
@@ -6590,6 +6607,7 @@ mod tests {
                             kind: types::IdentifierKind::Unknown,
                             name: "a".to_string(),
                             usage: Usage::Used,
+                            as_borrowed_receiver: false,
                             location: cols(8, 8)
                         }
                     ))),
@@ -6631,6 +6649,7 @@ mod tests {
                     kind: types::IdentifierKind::Unknown,
                     name: "a".to_string(),
                     usage: Usage::Used,
+                    as_borrowed_receiver: false,
                     location: cols(8, 8)
                 })),
                 name: Identifier {
@@ -6661,6 +6680,7 @@ mod tests {
                     kind: types::IdentifierKind::Unknown,
                     name: "a".to_string(),
                     usage: Usage::Used,
+                    as_borrowed_receiver: false,
                     location: cols(8, 8)
                 })),
                 name: Identifier {
@@ -6676,6 +6696,7 @@ mod tests {
                                 kind: types::IdentifierKind::Unknown,
                                 name: "a".to_string(),
                                 usage: Usage::Used,
+                                as_borrowed_receiver: false,
                                 location: cols(8, 8)
                             }
                         ))),

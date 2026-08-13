@@ -121,4 +121,25 @@ fn pub tests(t: mut Tests) {
       t.equal(outer.inner.value, 20)
     },
   )
+
+  t.test('Updating an owned captured inline value in-place', fn (t) {
+    let inner = Inline(0)
+    let fun = fn move {
+      inner.update(20)
+      inner.value
+    }
+
+    t.equal(fun.call, 20)
+  })
+
+  t.test('Updating a borrowed captured inline value in-place', fn (t) {
+    let inner = Inline(0)
+    let fun = fn {
+      inner.update(20)
+      inner.value
+    }
+
+    t.equal(fun.call, 20)
+    t.equal(inner.value, 0)
+  })
 }

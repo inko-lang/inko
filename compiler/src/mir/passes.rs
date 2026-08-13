@@ -184,7 +184,11 @@ pub(crate) enum RegisterKind {
     /// We store the field ID as part of this so we can mark it as moved. Field
     /// move states are stored separately, as field reads always produce new
     /// registers.
-    Field(types::FieldId),
+    ///
+    /// The second argument is a register to use for tracking state (e.g. the
+    /// pinned state). This is only present if the field is used directly as the
+    /// receiver of a method call.
+    Field(types::FieldId, Option<RegisterId>),
 
     /// A register introduced for `self`.
     ///
@@ -194,13 +198,13 @@ pub(crate) enum RegisterKind {
 
 impl RegisterKind {
     pub(crate) fn is_field(self) -> bool {
-        matches!(self, RegisterKind::Field(_))
+        matches!(self, RegisterKind::Field(_, _))
     }
 
     pub(crate) fn new_reference_on_return(self) -> bool {
         matches!(
             self,
-            RegisterKind::Field(_)
+            RegisterKind::Field(_, _)
                 | RegisterKind::SelfObject
                 | RegisterKind::Variable(_, _)
         )
@@ -213,7 +217,7 @@ impl RegisterKind {
     fn name(self, db: &types::Database) -> Option<String> {
         match self {
             RegisterKind::Variable(id, _) => Some(id.name(db).clone()),
-            RegisterKind::Field(id) => Some(id.name(db).clone()),
+            RegisterKind::Field(id, _) => Some(id.name(db).clone()),
             RegisterKind::SelfObject => Some(SELF_NAME.to_string()),
             _ => None,
         }
@@ -1968,10 +1972,10 @@ impl<'a> LowerMethod<'a> {
             types::CallKind::Call(info) => {
                 self.verify_call(&info, node.location);
 
-                if let Some(hir::Expression::FieldRef(n)) =
-                    node.receiver.as_mut()
-                {
-                    n.as_borrowed_receiver = !info.id.is_moving(self.db());
+                if !info.id.is_moving(self.db()) {
+                    if let Some(n) = node.receiver.as_mut() {
+                        n.mark_as_borrowed_receiver();
+                    }
                 }
 
                 let rec = if info.receiver.is_explicit() {
@@ -2165,7 +2169,7 @@ impl<'a> LowerMethod<'a> {
         //
         // To prevent this from happening we have to explicitly borrow the
         // receiver first.
-        if let RegisterKind::Field(id) = self.register_kind(rec) {
+        if let RegisterKind::Field(id, _) = self.register_kind(rec) {
             if !moving && id.is_mutable(self.db()) {
                 // The method may be called on a field that is typed as an owned
                 // value (e.g. when we're inside a moving method), so we need to
@@ -3775,7 +3779,8 @@ impl<'a> LowerMethod<'a> {
 
         match node.kind {
             types::IdentifierKind::Variable(id) => {
-                let reg = self.get_local(id, ins_loc);
+                let reg =
+                    self.get_local(id, node.as_borrowed_receiver, ins_loc);
                 let typ = self.register_type(reg);
 
                 self.verify_type(typ, node.location);
@@ -3811,15 +3816,17 @@ impl<'a> LowerMethod<'a> {
                 self.pin_register(rec);
             }
 
+            let mut reg = self.field_mapping.get(&id).cloned().unwrap();
+
             // If we are borrowed as the receiver of a method we'll produce a
             // new register that won't be dropped at the end of the scope. This
             // makes certain IR rewrites (e.g. those used for allowing in-place
             // field updates of `inline` values) a little easier to implement.
             if node.as_borrowed_receiver {
-                self.new_field(id, typ)
-            } else {
-                self.field_mapping.get(&id).cloned().unwrap()
+                reg = self.new_field_as_receiver(id, reg);
             }
+
+            reg
         };
 
         let tid = info.type_id;
@@ -4001,7 +4008,7 @@ impl<'a> LowerMethod<'a> {
                 field_loc,
             );
 
-            let raw = self.get_local(var, ins_loc);
+            let raw = self.get_local(var, false, ins_loc);
 
             if !self.register_is_available(raw) {
                 self.state.diagnostics.moved_while_captured(
@@ -4088,6 +4095,7 @@ impl<'a> LowerMethod<'a> {
     fn get_local(
         &mut self,
         id: types::VariableId,
+        as_receiver: bool,
         location: InstructionLocation,
     ) -> RegisterId {
         self.mark_variable_as_used(id);
@@ -4096,7 +4104,12 @@ impl<'a> LowerMethod<'a> {
             reg
         } else {
             let &field = self.variable_fields.get(&id).unwrap();
-            let &reg = self.field_mapping.get(&field).unwrap();
+            let mut reg = *self.field_mapping.get(&field).unwrap();
+
+            if as_receiver {
+                reg = self.new_field_as_receiver(field, reg);
+            }
+
             let rec = self.surrounding_type_register;
             let tid = self.register_type(rec).type_id(self.db()).unwrap();
 
@@ -4232,6 +4245,14 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn pin_register(&mut self, register: RegisterId) {
+        let register = if let RegisterKind::Field(_, Some(v)) =
+            self.register_kind(register)
+        {
+            v
+        } else {
+            register
+        };
+
         if !self.register_type(register).is_value_type(self.db()) {
             self.scope.pinned.insert(register);
         }
@@ -4253,7 +4274,7 @@ impl<'a> LowerMethod<'a> {
         match self.register_kind(register) {
             RegisterKind::Variable(_, depth)
                 if depth < self.scope.loop_depth => {}
-            RegisterKind::Field(_) | RegisterKind::SelfObject => {}
+            RegisterKind::Field(_, _) | RegisterKind::SelfObject => {}
             _ => return,
         }
 
@@ -4792,7 +4813,17 @@ impl<'a> LowerMethod<'a> {
     ) -> RegisterId {
         // We don't track these registers in a scope, as fields are dropped at
         // the end of the surrounding method, unless they are moved.
-        self.add_register(RegisterKind::Field(id), value_type)
+        self.add_register(RegisterKind::Field(id, None), value_type)
+    }
+
+    fn new_field_as_receiver(
+        &mut self,
+        id: types::FieldId,
+        source: RegisterId,
+    ) -> RegisterId {
+        let typ = self.register_type(source);
+
+        self.add_register(RegisterKind::Field(id, Some(source)), typ)
     }
 
     fn new_self(&mut self, value_type: TypeRef) -> RegisterId {
