@@ -2,8 +2,7 @@
 
 set -e
 
-USER=root
-PORT=2222
+USER=web
 KEY="~/.ssh/id_ed25519"
 HOSTS="scripts/known_hosts"
 
@@ -17,7 +16,6 @@ fi
 scp -o "User=${USER}" \
     -o "UserKnownHostsFile=${HOSTS}" \
     -i "${KEY}" \
-    -P "${PORT}" \
     $@
 
 if [[ -v SSH_PRIVATE_KEY ]]

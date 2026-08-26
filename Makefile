@@ -36,8 +36,8 @@ else
 	VERSION != cargo pkgid -p inko | cut -d\# -f2 | cut -d: -f2
 endif
 
-DOCS_TARGET     := /var/lib/shost/docs.inko-lang.org
-RELEASES_TARGET := /var/lib/shost/releases.inko-lang.org
+DOCS_TARGET     := /var/lib/shost/sites/docs.inko-lang.org
+RELEASES_TARGET := /var/lib/shost/sites/releases.inko-lang.org
 SERVER          := web.srv.yorickpeterse.com
 
 # The folder to put the documentation in, allowing for branch specific
@@ -153,7 +153,7 @@ std-docs/publish: std-docs/build
 	scripts/docs.sh std/build/idoc/public "${DOCS_TARGET}/std" "${DOCS_REF}"
 
 known_hosts:
-	ssh-keyscan -q -p 2222 "${SERVER}" > scripts/known_hosts
+	ssh-keyscan -q "${SERVER}" > scripts/known_hosts
 
 .PHONY: release/source release/manifest release/changelog release/versions
 .PHONY: release/commit release/publish release/tag
