@@ -95,6 +95,13 @@ fn unit_test_stack_frame -> debug.StackFrame {
   )
 }
 
+fn panic_message(output: String) -> String {
+  match output.trim.split('\n').last {
+    case Some(v) -> v.to_string
+    case _ -> 'the process panicked'
+  }
+}
+
 # A single unit test.
 type pub Test {
   # The unique ID of this test.
@@ -656,10 +663,7 @@ type pub Tests {
 
       if code != 101 { return }
 
-      let got = match output.stderr.split('\n').last {
-        case Some(v) -> v.to_string
-        case _ -> 'the process panicked'
-      }
+      let got = panic_message(output.stderr)
 
       test.failures.push(
         Failure(

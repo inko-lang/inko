@@ -751,6 +751,25 @@ impl Block {
             register,
             receiver,
             field,
+            moving: false,
+            location,
+        })));
+    }
+
+    pub(crate) fn move_field(
+        &mut self,
+        register: RegisterId,
+        receiver: RegisterId,
+        type_id: types::TypeId,
+        field: types::FieldId,
+        location: InstructionLocation,
+    ) {
+        self.instructions.push(Instruction::GetField(Box::new(GetField {
+            type_id,
+            register,
+            receiver,
+            field,
+            moving: true,
             location,
         })));
     }
@@ -815,9 +834,8 @@ impl Block {
         pointer: RegisterId,
         location: InstructionLocation,
     ) {
-        self.instructions.push(Instruction::ReadPointer(Box::new(
-            ReadPointer { register, pointer, location },
-        )));
+        self.instructions
+            .push(Instruction::read_pointer(register, pointer, location));
     }
 
     pub(crate) fn write_pointer(
@@ -1269,6 +1287,7 @@ pub(crate) struct GetField {
     pub(crate) register: RegisterId,
     pub(crate) receiver: RegisterId,
     pub(crate) field: types::FieldId,
+    pub(crate) moving: bool,
     pub(crate) location: InstructionLocation,
 }
 
@@ -1451,6 +1470,18 @@ pub(crate) enum Instruction {
 }
 
 impl Instruction {
+    pub(crate) fn read_pointer(
+        register: RegisterId,
+        pointer: RegisterId,
+        location: InstructionLocation,
+    ) -> Self {
+        Instruction::ReadPointer(Box::new(ReadPointer {
+            register,
+            pointer,
+            location,
+        }))
+    }
+
     pub(crate) fn location(&self) -> InstructionLocation {
         match self {
             Instruction::Branch(v) => v.location,
@@ -1635,8 +1666,9 @@ impl Instruction {
             }
             Instruction::GetField(v) => {
                 format!(
-                    "r{} = get_field r{}.{}",
+                    "r{} = {} r{}.{}",
                     v.register.0,
+                    if v.moving { "move_field" } else { "get_field" },
                     v.receiver.0,
                     v.field.name(db)
                 )
@@ -2343,6 +2375,9 @@ impl Method {
                         Instruction::GetConstant(i) => (i.register, None),
                         Instruction::MethodPointer(i) => (i.register, None),
                         Instruction::SizeOf(i) => (i.register, None),
+                        Instruction::ReadPointer(i) => {
+                            (i.register, Some(i.pointer))
+                        }
                         Instruction::MoveRegister(i) => {
                             (i.target, Some(i.source))
                         }

@@ -45,6 +45,26 @@ impl Drop for ValueRef {
   }
 }
 
+type DummyContainer {
+  let mut @a: Dummy
+
+  fn mut replace_field_during_match {
+    match self {
+      case { @a = _a } -> @a = Dummy()
+    }
+  }
+
+  fn just_match {
+    match self {
+      case { @a = _a } -> {}
+    }
+  }
+
+  fn just_match_let {
+    let { @a = _a } = self
+  }
+}
+
 fn pub tests(t: mut Tests) {
   # https://github.com/inko-lang/inko/issues/363
   t.test('match with OR patterns and a guard', fn (t) {
@@ -225,4 +245,62 @@ fn pub tests(t: mut Tests) {
       },
     )
   })
+
+  t.panic(
+    'Assigning a matched field a new value during a match triggers a borrow panic',
+    fn { DummyContainer(Dummy()).replace_field_during_match },
+  )
+
+  t.no_panic(
+    'Borrows created for mutable fields matched against bindings using a `match` are dropped correctly',
+    fn { DummyContainer(Dummy()).just_match },
+  )
+
+  t.no_panic(
+    'Borrows created for mutable fields matched against bindings using a `let` are dropped correctly',
+    fn { DummyContainer(Dummy()).just_match_let },
+  )
+
+  t.panic(
+    'Array values matched against bindings always create a new borrow',
+    fn {
+      let vals = [Dummy(), Dummy()]
+
+      match ref vals {
+        case [_a, _b] -> vals.set(1, Dummy())
+        case _ -> {}
+      }
+    },
+  )
+
+  t.panic(
+    'Pattern matching against a borrow of a mutable field and assigning it a new value',
+    fn {
+      let val = DummyContainer(Dummy())
+
+      match val.a {
+        case _a -> val.a = Dummy()
+      }
+    },
+  )
+
+  t.panic(
+    'Pattern matching against a borrow of a mutable variable and assigning it a new value',
+    fn {
+      let mut a = Dummy()
+      let mut b = mut a
+
+      match b {
+        case _v -> {
+          let new = Dummy()
+
+          # We have to first update the borrow so that the outer `b` doesn't
+          # prevent the assignment, as the goal here is to test if the `match`
+          # increments `b` or not.
+          b = mut new
+          a = new
+        }
+      }
+    },
+  )
 }

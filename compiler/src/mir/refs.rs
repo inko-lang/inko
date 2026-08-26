@@ -601,6 +601,7 @@ mod tests {
                     register: RegisterId(0),
                     receiver: RegisterId(1),
                     field: FieldId(0),
+                    moving: false,
                     location: loc(),
                 })),
                 Some((false, RegisterId(0))),

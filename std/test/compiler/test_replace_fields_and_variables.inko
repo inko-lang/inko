@@ -1,0 +1,99 @@
+import std.test (Tests)
+
+type inline Inline {
+  let mut @value: Heap
+
+  fn mut replace(with: Heap) -> Heap {
+    @value := with
+  }
+}
+
+type Heap {
+  let @value: Int
+}
+
+type inline enum Optional {
+  case Some(Inline)
+  case None
+
+  fn replace(with: ref Inline) -> (Int, Int) {
+    match self {
+      case Some(mut v) -> {
+        let old = v := with
+
+        (old.value.value, v.value.value)
+      }
+      case _ -> panic('unreachable')
+    }
+  }
+
+  fn replace_let(with: ref Inline) -> (Int, Int) {
+    let Some(mut v) = self else panic('unreachable')
+    let old = v := with
+
+    (old.value.value, v.value.value)
+  }
+}
+
+fn pub tests(t: mut Tests) {
+  t.test('Replacing the value of a local variable', fn (t) {
+    let mut val = Inline(Heap(10))
+    let old = val := Inline(Heap(20))
+
+    t.equal(val.value.value, 20)
+    t.equal(old.value.value, 10)
+  })
+
+  t.test('Replacing a pattern matching variable', fn (t) {
+    let Some(mut val) = Option.Some(Inline(Heap(10))) else panic('unreachable')
+    let old = val := Inline(Heap(20))
+
+    t.equal(val.value.value, 20)
+    t.equal(old.value.value, 10)
+  })
+
+  t.test('Replacing a pattern matching variable containing a borrow', fn (t) {
+    let new = Inline(Heap(20))
+    let res = Optional.Some(Inline(Heap(10))).replace(new)
+
+    t.equal(res, (10, 20))
+  })
+
+  t.test(
+    'Replacing a pattern matching variable using a `let` containing a borrow',
+    fn (t) {
+      let new = Inline(Heap(20))
+      let res = Optional.Some(Inline(Heap(10))).replace_let(new)
+
+      t.equal(res, (10, 20))
+    },
+  )
+
+  t.test('Replacing the value of a field using a mutating method', fn (t) {
+    let mut val = Inline(Heap(10))
+    let old = val.replace(Heap(20))
+
+    t.equal(val.value.value, 20)
+    t.equal(old.value, 10)
+  })
+
+  t.test('Replacing the value of a field using a setter', fn (t) {
+    let mut val = Inline(Heap(10))
+    let old = val.value := Heap(20)
+
+    t.equal(val.value.value, 20)
+    t.equal(old.value, 10)
+  })
+
+  t.test('Replacing the value of a captured local variable', fn (t) {
+    let mut val = Inline(Heap(10))
+    let res = fn move {
+      let old = val := Inline(Heap(20))
+
+      (old.value.value, val.value.value)
+    }
+      .call
+
+    t.equal(res, (10, 20))
+  })
+}

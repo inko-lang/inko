@@ -1,7 +1,8 @@
 use crate::mir::{
     Block, BlockId, Borrow, CallDynamic, CallInstance, Cast, CastType,
     Constant, Drop, FieldPointer, GetField, Instruction, InstructionLocation,
-    IntLiteral, Method, Mir, Pointer, RegisterId, SELF_ID, Type as MirType,
+    IntLiteral, Method, Mir, Pointer, ReadPointer, RegisterId, Registers,
+    SELF_ID, Type as MirType,
 };
 use crate::state::State;
 use indexmap::{IndexMap, IndexSet};
@@ -15,10 +16,6 @@ use types::{
     MethodId, Shape, TraitId, TypeArguments, TypeEnum, TypeId, TypeInstance,
     TypeRef,
 };
-
-fn read_on_use(db: &Database, method: MethodId, register: RegisterId) -> bool {
-    register.0 == SELF_ID && method.inline_receiver_as_pointer(db)
-}
 
 fn specialize_constants(
     db: &mut Database,
@@ -60,6 +57,104 @@ fn specialize_constants(
     }
 }
 
+fn update_inline_type_registers(
+    db: &Database,
+    method: &mut Method,
+) -> Vec<Option<TypeRef>> {
+    // For inline types `self` is a pointer and may be moved between
+    // registers (e.g. when pattern matching against `self`). We need to
+    // update the register types for all such registers for `fn` and `fn
+    // mut` methods defined on inline types.
+    let mut regs = vec![None; method.registers.len()];
+    let mut updated = false;
+
+    if method.id.inline_receiver_as_pointer(db) {
+        let reg = RegisterId(SELF_ID);
+        let orig = method.registers.value_type(reg);
+        let typ = orig.as_pointer(db);
+
+        updated = true;
+        regs[SELF_ID] = Some(orig);
+        method.registers.set_value_type(reg, typ);
+    }
+
+    // When reading a field containing an inline type, and we are not moving
+    // out of the field, we should use pointers to that field whenever
+    // possible so that it may be updated in-place.
+    for block in &mut method.body.blocks {
+        for ins in &mut block.instructions {
+            let Instruction::GetField(op) = ins else { continue };
+
+            // When moving values out of fields we should leave the
+            // instruction/result as-is.
+            if op.moving {
+                continue;
+            }
+
+            let typ = method.registers.value_type(op.register);
+            let key = op.register.0;
+
+            // We may encounter a GetField writing to the same register
+            // multiple times. In this case the first occurrence updates the
+            // type, but we still need to replace the instruction.
+            //
+            // If the field value already is a pointer, even if it's a
+            // pointer to an inline type, we read it as normal instead of
+            // creating a pointer to that pointer.
+            if regs[key].is_none()
+                && (op.field.is_mutable(db)
+                    || typ.is_pointer(db)
+                    || !typ.type_id(db).is_some_and(|v| v.is_inline_type(db)))
+            {
+                continue;
+            }
+
+            if regs[key].is_none() {
+                let new_typ = typ.as_pointer(db);
+
+                method.registers.set_value_type(op.register, new_typ);
+                updated = true;
+                regs[key] = Some(typ);
+            }
+
+            *ins = Instruction::FieldPointer(Box::new(FieldPointer {
+                type_id: op.type_id,
+                register: op.register,
+                receiver: op.receiver,
+                field: op.field,
+                location: op.location,
+            }));
+        }
+    }
+
+    while updated {
+        updated = false;
+
+        for block in &mut method.body.blocks {
+            for ins in &mut block.instructions {
+                let Instruction::MoveRegister(op) = ins else { continue };
+                let Some(orig) = regs[op.source.0] else { continue };
+                let ttyp = method.registers.value_type(op.target);
+
+                if ttyp.is_pointer(db) || ttyp.is_owned_or_uni(db) {
+                    continue;
+                }
+
+                // We inherit the source type so we can handle both `self`
+                // being moved around and any fields containing inline types
+                // (of possibly different types than `self`).
+                let typ = method.registers.value_type(op.source);
+
+                regs[op.target.0] = Some(orig);
+                updated = true;
+                method.registers.set_value_type(op.target, typ);
+            }
+        }
+    }
+
+    regs
+}
+
 fn expand_enum_tag(db: &Database, method: &mut Method) {
     for block in &mut method.body.blocks {
         for idx in 0..(block.instructions.len()) {
@@ -89,6 +184,7 @@ fn expand_enum_tag(db: &Database, method: &mut Method) {
                     register: tmp,
                     receiver: arg,
                     field: fid,
+                    moving: false,
                     location: loc,
                 }));
 
@@ -116,51 +212,162 @@ fn expand_enum_tag(db: &Database, method: &mut Method) {
     }
 }
 
-/// Replaces `GetField` instructions with `FieldPointer` instructions for inline
-/// types whenever this is safe to do so.
-///
-/// This allows in-place updating of `inline` values stored in fields.
-fn update_fields_in_place(db: &Database, method: &mut Method) {
-    let counts = method.register_use_counts();
-    let mut as_rec = vec![false; counts.len()];
+fn read_inline_arguments(
+    registers: &mut Registers,
+    read: &[Option<TypeRef>],
+    add: &mut Vec<Instruction>,
+    arguments: &mut [RegisterId],
+    location: InstructionLocation,
+) -> usize {
+    let mut inc = 0;
 
-    for block in &mut method.body.blocks {
-        for ins in &block.instructions {
-            let Instruction::CallInstance(op) = ins else {
-                continue;
-            };
+    for reg in arguments {
+        let Some(op) = read_inline_argument(registers, read, reg, location)
+        else {
+            continue;
+        };
 
-            if op.method.inline_receiver_as_pointer(db) {
-                as_rec[op.receiver.0] = true;
-            }
-        }
+        add.push(op);
+        inc += 1;
     }
 
+    inc
+}
+
+fn read_inline_argument(
+    registers: &mut Registers,
+    read: &[Option<TypeRef>],
+    register: &mut RegisterId,
+    location: InstructionLocation,
+) -> Option<Instruction> {
+    let typ = read[register.0]?;
+    let val = registers.alloc(typ);
+    let op = Instruction::read_pointer(val, *register, location);
+
+    *register = val;
+    Some(op)
+}
+
+fn read_inline_before_move(
+    db: &Database,
+    method: &mut Method,
+    read: &[Option<TypeRef>],
+) {
+    let regs = &mut method.registers;
+    let mut add = Vec::new();
+
     for block in &mut method.body.blocks {
-        for ins in &mut block.instructions {
-            let Instruction::GetField(op) = ins else {
-                continue;
-            };
+        let mut idx = 0;
 
-            let reg_typ = method.registers.value_type(op.register);
+        while idx < block.instructions.len() {
+            let mut inc = 1;
 
-            if reg_typ.type_id(db).is_none_or(|v| !v.is_inline_type(db))
-                || counts[op.register.0] > 1
-                || !as_rec[op.register.0]
-            {
-                continue;
+            match &mut block.instructions[idx] {
+                Instruction::CallInstance(op) => {
+                    let args = &mut op.arguments;
+                    let loc = op.location;
+
+                    inc +=
+                        read_inline_arguments(regs, read, &mut add, args, loc);
+
+                    if op.method.is_moving(db) {
+                        let rec = &mut op.receiver;
+
+                        if let Some(op) =
+                            read_inline_argument(regs, read, rec, loc)
+                        {
+                            inc += 1;
+                            add.push(op);
+                        }
+                    }
+                }
+                Instruction::CallDynamic(op) => {
+                    let args = &mut op.arguments;
+                    let loc = op.location;
+
+                    inc +=
+                        read_inline_arguments(regs, read, &mut add, args, loc);
+                }
+                Instruction::CallStatic(op) => {
+                    let args = &mut op.arguments;
+                    let loc = op.location;
+
+                    inc +=
+                        read_inline_arguments(regs, read, &mut add, args, loc);
+                }
+                Instruction::CallExtern(op) => {
+                    let args = &mut op.arguments;
+                    let loc = op.location;
+
+                    inc +=
+                        read_inline_arguments(regs, read, &mut add, args, loc);
+                }
+                Instruction::CallClosure(op) => {
+                    let args = &mut op.arguments;
+                    let loc = op.location;
+
+                    inc +=
+                        read_inline_arguments(regs, read, &mut add, args, loc);
+                }
+                Instruction::Send(op) => {
+                    let args = &mut op.arguments;
+                    let loc = op.location;
+
+                    inc +=
+                        read_inline_arguments(regs, read, &mut add, args, loc);
+                }
+                Instruction::MoveRegister(op)
+                    if read[op.source.0].is_some()
+                        && regs.value_type(op.target).is_owned_or_uni(db) =>
+                {
+                    block.instructions[idx] =
+                        Instruction::ReadPointer(Box::new(ReadPointer {
+                            register: op.target,
+                            pointer: op.source,
+                            location: op.location,
+                        }));
+                }
+                Instruction::SetField(op) => {
+                    if let Some(op) = read_inline_argument(
+                        regs,
+                        read,
+                        &mut op.value,
+                        op.location,
+                    ) {
+                        inc += 1;
+                        add.push(op);
+                    }
+                }
+                Instruction::WritePointer(op) => {
+                    if let Some(op) = read_inline_argument(
+                        regs,
+                        read,
+                        &mut op.value,
+                        op.location,
+                    ) {
+                        inc += 1;
+                        add.push(op);
+                    }
+                }
+                Instruction::Return(op) => {
+                    if let Some(op) = read_inline_argument(
+                        regs,
+                        read,
+                        &mut op.register,
+                        op.location,
+                    ) {
+                        inc += 1;
+                        add.push(op);
+                    }
+                }
+                _ => {}
             }
 
-            let new_typ = reg_typ.as_pointer(db);
+            while let Some(ins) = add.pop() {
+                block.instructions.insert(idx, ins);
+            }
 
-            method.registers.set_value_type(op.register, new_typ);
-            *ins = Instruction::FieldPointer(Box::new(FieldPointer {
-                type_id: op.type_id,
-                register: op.register,
-                receiver: op.receiver,
-                field: op.field,
-                location: op.location,
-            }));
+            idx += inc;
         }
     }
 }
@@ -169,7 +376,7 @@ fn update_fields_in_place(db: &Database, method: &mut Method) {
 ///
 /// For `inline` types the receiver is always passed as a pointer, even if that
 /// pointer points to a new copy as part of a borrow.
-fn update_calls_for_inline_types(db: &Database, method: &mut Method) {
+fn update_inline_call_receivers(db: &Database, method: &mut Method) {
     for block in &mut method.body.blocks {
         let mut idx = 0;
 
@@ -474,16 +681,6 @@ impl<'a, 'b> Specialize<'a, 'b> {
             .specialize(reg.value_type);
         }
 
-        // For methods of inline types we pass the receiver as a pointer and
-        // read it upon borrowing it.
-        if method.id.inline_receiver_as_pointer(&self.state.db) {
-            let reg = RegisterId(SELF_ID);
-            let typ =
-                method.registers.value_type(reg).as_pointer(&self.state.db);
-
-            method.registers.set_value_type(reg, typ);
-        }
-
         for block in &mut method.body.blocks {
             for instruction in &mut block.instructions {
                 match instruction {
@@ -664,15 +861,16 @@ impl<'a, 'b> Specialize<'a, 'b> {
 
     fn expand_instructions(&mut self, mir: &mut Mir) {
         let method = mir.methods.get_mut(&self.method).unwrap();
+        let regs = update_inline_type_registers(&self.state.db, method);
 
-        ExpandDrop { db: &self.state.db, method }.run();
-        ExpandBorrow { db: &self.state.db, method }.run();
+        ExpandDrop { db: &self.state.db, method, read_on_use: &regs }.run();
+        ExpandBorrow { db: &self.state.db, method, read_on_use: &regs }.run();
         expand_enum_tag(&self.state.db, method);
-        update_fields_in_place(&self.state.db, method);
 
-        // This must come last so it can modify any call instructions generated
-        // by the methods called above.
-        update_calls_for_inline_types(&self.state.db, method);
+        // These must come last so that they can modify any call instructions
+        // generated by the previous passes.
+        read_inline_before_move(&self.state.db, method, &regs);
+        update_inline_call_receivers(&self.state.db, method);
     }
 
     fn process_specialized_types(&mut self, mir: &mut Mir) {
@@ -1271,6 +1469,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
 struct ExpandDrop<'a> {
     db: &'a Database,
     method: &'a mut Method,
+    read_on_use: &'a [Option<TypeRef>],
 }
 
 impl<'a> ExpandDrop<'a> {
@@ -1306,16 +1505,17 @@ impl<'a> ExpandDrop<'a> {
 
     fn insert(&mut self, ins: Drop, block_id: BlockId, after_id: BlockId) {
         let loc = ins.location;
-        let mut val = ins.register;
+        let val = ins.register;
         let mut typ = self.method.registers.value_type(val);
 
-        if read_on_use(self.db, self.method.id, ins.register) {
-            let read_typ = typ.force_as_mut(self.db);
-            let read_reg = self.method.registers.alloc(read_typ);
-
-            self.block_mut(block_id).read_pointer(read_reg, val, loc);
-            val = read_reg;
-            typ = read_typ;
+        // We may be acting on a pointer to a field containing an inline type.
+        // In this case we need to drop the value according to its original
+        // type, which can be _either_ owned or a borrow at this point.
+        //
+        // For pointers to inline values we don't need to read the pointer first
+        // as the dropper takes its receiver by pointer, not by value.
+        if let Some(orig) = self.read_on_use[ins.register.0] {
+            typ = orig;
         }
 
         match typ.shape(self.db) {
@@ -1474,6 +1674,7 @@ impl<'a> ExpandDrop<'a> {
 struct ExpandBorrow<'a> {
     db: &'a types::Database,
     method: &'a mut Method,
+    read_on_use: &'a [Option<TypeRef>],
 }
 
 impl<'a> ExpandBorrow<'a> {
@@ -1510,33 +1711,29 @@ impl<'a> ExpandBorrow<'a> {
     fn insert(&mut self, ins: Borrow, block_id: BlockId, after_id: BlockId) {
         let loc = ins.location;
         let reg = ins.register;
-        let mut val = ins.value;
-        let mut typ = self.method.registers.value_type(val);
+        let val = ins.value;
+        let typ = self.method.registers.value_type(val);
 
-        if read_on_use(self.db, self.method.id, ins.value) {
-            let read_typ = typ.force_as_mut(self.db);
-            let read_reg = self.method.registers.alloc(read_typ);
-
-            self.block_mut(block_id).read_pointer(read_reg, val, loc);
-            val = read_reg;
-            typ = read_typ;
-        }
-
-        match typ.shape(self.db) {
-            Shape::Copy => {
-                // These values should be left as-is.
-                self.block_mut(block_id).move_register(reg, val, loc);
-            }
-            Shape::Borrow | Shape::Owned => {
-                self.block_mut(block_id).increment(val, loc);
-                self.block_mut(block_id).move_register(reg, val, loc);
-            }
-            Shape::Atomic => {
-                self.block_mut(block_id).increment_atomic(reg, val, loc);
-            }
-            Shape::Inline | Shape::InlineBorrow => {
-                self.borrow_inline_type(block_id, val, loc);
-                self.block_mut(block_id).move_register(reg, val, loc);
+        if self.read_on_use[ins.value.0].is_some() {
+            self.borrow_inline_type(block_id, val, loc);
+            self.block_mut(block_id).read_pointer(reg, val, loc);
+        } else {
+            match typ.shape(self.db) {
+                Shape::Copy => {
+                    // These values should be left as-is.
+                    self.block_mut(block_id).move_register(reg, val, loc);
+                }
+                Shape::Borrow | Shape::Owned => {
+                    self.block_mut(block_id).increment(val, loc);
+                    self.block_mut(block_id).move_register(reg, val, loc);
+                }
+                Shape::Atomic => {
+                    self.block_mut(block_id).increment_atomic(reg, val, loc);
+                }
+                Shape::Inline | Shape::InlineBorrow => {
+                    self.borrow_inline_type(block_id, val, loc);
+                    self.block_mut(block_id).move_register(reg, val, loc);
+                }
             }
         }
 

@@ -39,6 +39,37 @@ type InlineContainer {
   }
 }
 
+type inline enum InlineEnum {
+  case A(Inline)
+  case B
+
+  fn mut update_match(with: Int) {
+    match self {
+      case A(v) -> v.value = with
+      case _ -> {}
+    }
+  }
+
+  fn mut update_match_mutable(with: Int) {
+    match self {
+      case A(mut v) -> v.value = with
+      case _ -> {}
+    }
+  }
+
+  fn mut update_let(with: Int) {
+    let A(v) = self else return
+
+    v.value = with
+  }
+
+  fn mut update_let_mutable(with: Int) {
+    let A(mut v) = self else return
+
+    v.value = with
+  }
+}
+
 fn pub tests(t: mut Tests) {
   t.test('inline types can be used in generic contexts', fn (t) {
     t.true(
@@ -141,5 +172,88 @@ fn pub tests(t: mut Tests) {
 
     t.equal(fun.call, 20)
     t.equal(inner.value, 0)
+  })
+
+  t.test(
+    'Updating an inline value stored in an enum using a `match` with self',
+    fn (t) {
+      let a = InlineEnum.A(Inline(0))
+
+      a.update_match(10)
+
+      let res = match a {
+        case A(v) -> v.value
+        case _ -> 0
+      }
+
+      t.equal(res, 10)
+    },
+  )
+
+  t.test(
+    'Updating an inline value stored in an enum using a `match` and a mutable binding',
+    fn (t) {
+      let a = InlineEnum.A(Inline(0))
+
+      a.update_match_mutable(10)
+
+      let res = match a {
+        case A(v) -> v.value
+        case _ -> -1
+      }
+
+      t.equal(res, 0)
+    },
+  )
+
+  t.test(
+    'Updating an inline value stored in an enum using a `let` with self',
+    fn (t) {
+      let a = InlineEnum.A(Inline(0))
+
+      a.update_let(10)
+
+      let res = match a {
+        case A(v) -> v.value
+        case _ -> -1
+      }
+
+      t.equal(res, 10)
+    },
+  )
+
+  t.test(
+    'Updating an inline value stored in an enum using a `let` and a mutable binding',
+    fn (t) {
+      let a = InlineEnum.A(Inline(0))
+
+      a.update_let_mutable(10)
+
+      let res = match a {
+        case A(v) -> v.value
+        case _ -> -1
+      }
+
+      t.equal(res, 0)
+    },
+  )
+
+  t.test('Updating an inline value using a `match` with a borrow', fn (t) {
+    let a = InlineContainer(Inline(0))
+
+    match a.inner {
+      case v -> v.value = 10
+    }
+
+    t.equal(a.inner.value, 10)
+  })
+
+  t.test('Updating an inline value using a `let` with a borrow', fn (t) {
+    let a = InlineContainer(Inline(0))
+    let x = a.inner
+
+    x.value = 10
+
+    t.equal(a.inner.value, 10)
   })
 }

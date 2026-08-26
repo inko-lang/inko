@@ -4,7 +4,7 @@ import std.fmt (fmt)
 import std.fs.path (Path)
 import std.io (Error, Write)
 import std.sys
-import std.test (Filter, Plain, Test, Tests)
+import std.test (Filter, Plain, Test, Tests, panic_message)
 import std.time (Duration)
 
 type Buffer {
@@ -27,6 +27,18 @@ impl Write[Error] for Buffer {
 }
 
 fn pub tests(t: mut Tests) {
+  t.test('test.panic_message', fn (t) {
+    let inp = "Stack trace (the most recent call comes last):
+  foo.inko:1 in main.Main.main
+Process 'Main' (0x3f653870) panicked: message goes here
+"
+
+    t.equal(
+      panic_message(inp),
+      "Process 'Main' (0x3f653870) panicked: message goes here",
+    )
+  })
+
   t.test('Plain.passed without colors', fn (t) {
     let buff = ByteArray.new
     let plain = Plain.new(out: Buffer.new(buff), colors: false)

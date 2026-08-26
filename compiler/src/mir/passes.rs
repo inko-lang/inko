@@ -168,9 +168,6 @@ pub(crate) enum RegisterKind {
     Regular,
 
     /// A temporary register introduced by pattern matching.
-    ///
-    /// These differ from regular registers in that if they are a value type,
-    /// they should still be copied instead of used as-is.
     MatchVariable,
 
     /// A register introduced using a local variable.
@@ -345,7 +342,13 @@ enum RegisterAction {
     /// register.
     ///
     /// The wrapped value is the register that owned the field.
-    Increment(RegisterId),
+    ///
+    /// The arguments are:
+    ///
+    /// - The register the field value is stored in
+    /// - A boolean that when set to `true` forces a new borrow, even if this
+    ///   wouldn't otherwise be necessary.
+    Increment(RegisterId, bool),
 }
 
 struct DecisionState {
@@ -388,6 +391,22 @@ struct DecisionState {
 
     /// If the result of a match arm should be written to a register or ignored.
     write_result: bool,
+
+    /// If lazy borrowing of bindings is enabled.
+    ///
+    /// When enabled, the input and values bound to bindings as part of patterns
+    /// are _not_ immediately borrowed nor is the borrow count reduced at the
+    /// end of the scope.
+    ///
+    /// If a value is bound to a mutable binding then it _is_ immediately
+    /// borrowed, and dropped at the end of the scope.
+    lazy_borrowing: bool,
+
+    /// Registers that are explicitly borrowed when lazy borrowing is enabled.
+    ///
+    /// These registers _do_ need to be recorded in a scope and disposed of at
+    /// the end of said scope.
+    lazy_borrowed: HashSet<RegisterId>,
 }
 
 impl DecisionState {
@@ -408,6 +427,8 @@ impl DecisionState {
             location,
             keep_alive: Vec::new(),
             write_result,
+            lazy_borrowing: false,
+            lazy_borrowed: HashSet::new(),
         }
     }
 
@@ -710,9 +731,9 @@ impl<'a> GenerateInlineMethods<'a> {
         let rec = lower.self_register;
 
         for field in cls.fields(lower.db()).into_iter() {
-            let typ = field.value_type(lower.db());
+            let typ = field.value_type(lower.db()).as_ref(lower.db());
             let val = lower.new_register(typ);
-            let reg = lower.new_register(typ.as_ref(lower.db()));
+            let reg = lower.new_register(typ);
 
             lower.current_block_mut().get_field(val, rec, cls, field, loc);
             lower.current_block_mut().borrow(reg, val, loc);
@@ -736,8 +757,9 @@ impl<'a> GenerateInlineMethods<'a> {
         lower.prepare(loc);
         lower.each_enum_constructer_field(cls, loc, |this, field, typ| {
             let rec = this.self_register;
+            let typ = typ.as_ref(this.db());
             let val = this.new_register(typ);
-            let reg = this.new_register(typ.as_ref(this.db()));
+            let reg = this.new_register(typ);
 
             this.current_block_mut().get_field(val, rec, cls, field, loc);
             this.current_block_mut().borrow(reg, val, loc);
@@ -2430,7 +2452,7 @@ impl<'a> LowerMethod<'a> {
         let rec = self.expression(node.receiver);
         let tid = self.register_type(rec).type_id(self.db()).unwrap();
 
-        self.current_block_mut().get_field(old_val, rec, tid, id, loc);
+        self.current_block_mut().move_field(old_val, rec, tid, id, loc);
         self.current_block_mut().set_field(rec, tid, id, new_val, loc);
         old_val
     }
@@ -2485,7 +2507,7 @@ impl<'a> LowerMethod<'a> {
                 node.variable.location,
             );
 
-            self.current_block_mut().move_register(old_val, reg, loc);
+            self.current_block_mut().move_volatile_register(old_val, reg, loc);
             self.current_block_mut().move_volatile_register(reg, new_val, loc);
             reg
         } else {
@@ -2494,7 +2516,7 @@ impl<'a> LowerMethod<'a> {
             let rec = self.surrounding_type_register;
             let tid = self.register_type(rec).type_id(self.db()).unwrap();
 
-            self.current_block_mut().get_field(old_val, rec, tid, field, loc);
+            self.current_block_mut().move_field(old_val, rec, tid, field, loc);
             self.current_block_mut().set_field(rec, tid, field, new_val, loc);
             var_reg
         };
@@ -2559,7 +2581,7 @@ impl<'a> LowerMethod<'a> {
         let tid = self.register_type(rec).type_id(self.db()).unwrap();
 
         self.check_if_moved(check_reg, &node.field.name, node.field.location);
-        self.current_block_mut().get_field(old_val, rec, tid, id, loc);
+        self.current_block_mut().move_field(old_val, rec, tid, id, loc);
         self.current_block_mut().set_field(rec, tid, id, new_val, loc);
         old_val
     }
@@ -2615,7 +2637,7 @@ impl<'a> LowerMethod<'a> {
 
     fn try_expression(&mut self, node: hir::Try) -> RegisterId {
         let loc = InstructionLocation::new(node.location);
-        let reg = self.expression(node.expression);
+        let reg = self.input_expression(node.expression, None);
         let tid = self.register_type(reg).type_id(self.db()).unwrap();
         let tag_field = tid.field_by_index(self.db(), ENUM_TAG_INDEX).unwrap();
         let tag_typ = tag_field.value_type(self.db());
@@ -2655,7 +2677,7 @@ impl<'a> LowerMethod<'a> {
 
                 // The block to jump to for a Some.
                 self.block_mut(ok_block)
-                    .get_field(ok_reg, reg, tid, val_field, loc);
+                    .move_field(ok_reg, reg, tid, val_field, loc);
                 self.block_mut(ok_block).drop_without_dropper(reg, loc);
                 self.block_mut(ok_block).goto(after_block, loc);
 
@@ -2692,7 +2714,7 @@ impl<'a> LowerMethod<'a> {
 
                 // The block to jump to for an Ok.
                 self.block_mut(ok_block)
-                    .get_field(ok_reg, reg, tid, val_field, loc);
+                    .move_field(ok_reg, reg, tid, val_field, loc);
                 self.block_mut(ok_block).drop_without_dropper(reg, loc);
                 self.block_mut(ok_block).goto(after_block, loc);
 
@@ -2703,7 +2725,7 @@ impl<'a> LowerMethod<'a> {
                 self.current_block_mut()
                     .int_literal(err_tag, tag_bits, err_id, loc);
                 self.current_block_mut()
-                    .get_field(err_val, reg, tid, val_field, loc);
+                    .move_field(err_val, reg, tid, val_field, loc);
                 self.current_block_mut()
                     .set_field(ret_reg, tid, tag_field, err_tag, loc);
                 self.current_block_mut()
@@ -2732,7 +2754,7 @@ impl<'a> LowerMethod<'a> {
 
     fn throw_expression(&mut self, node: hir::Throw) -> RegisterId {
         let loc = InstructionLocation::new(node.location);
-        let reg = self.expression(node.value);
+        let reg = self.input_expression(node.value, None);
         let tid = self.db().type_in_module(RESULT_MODULE, RESULT_TYPE);
         let err_id =
             tid.constructor(self.db(), RESULT_ERROR).unwrap().id(self.db())
@@ -2904,7 +2926,7 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn define_variable(&mut self, node: hir::DefineVariable) -> RegisterId {
-        let input_reg = self.input_expression(node.value, None);
+        let (input_reg, lazy) = self.match_input(node.value);
         let input_typ = self.register_type(input_reg);
         let output_reg = self.new_untracked_register(node.resolved_type);
 
@@ -2921,6 +2943,7 @@ impl<'a> LowerMethod<'a> {
         // For `let` we "leak" the bindings/registers into the surrounding
         // scope.
         state.keep_alive = var_regs.clone();
+        state.lazy_borrowing = lazy;
 
         let ok_block = self.add_block();
         let ok_pat =
@@ -2964,11 +2987,15 @@ impl<'a> LowerMethod<'a> {
             state.registers.push(self.new_untracked_match_variable(typ));
         }
 
-        self.current_block_mut().move_register(
+        self.current_block_mut().move_volatile_register(
             state.input_register(),
             input_reg,
             loc,
         );
+
+        if state.lazy_borrowing {
+            self.mark_register_as_moved(state.input_register());
+        }
 
         self.decision(&mut state, result.tree, self.current_block, Vec::new());
 
@@ -2981,14 +3008,17 @@ impl<'a> LowerMethod<'a> {
 
         for reg in state.keep_alive {
             self.mark_register_as_available(reg);
-            self.scope.created.push(reg);
+
+            if !state.lazy_borrowing || state.lazy_borrowed.contains(&reg) {
+                self.scope.created.push(reg);
+            }
         }
 
         output_reg
     }
 
     fn match_expression(&mut self, node: hir::Match) -> RegisterId {
-        let input_reg = self.input_expression(node.expression, None);
+        let (input_reg, lazy) = self.match_input(node.expression);
         let input_typ = self.register_type(input_reg);
 
         // The result is untracked as otherwise an explicit return may drop it
@@ -3001,6 +3031,8 @@ impl<'a> LowerMethod<'a> {
         let loc = InstructionLocation::new(node.location);
         let mut state =
             DecisionState::new(output_reg, after_block, node.write_result, loc);
+
+        state.lazy_borrowing = lazy;
 
         for case in node.cases {
             let var_regs = self.match_binding_registers(case.variable_ids);
@@ -3043,11 +3075,15 @@ impl<'a> LowerMethod<'a> {
             state.registers.push(self.new_untracked_match_variable(typ));
         }
 
-        self.current_block_mut().move_register(
+        self.current_block_mut().move_volatile_register(
             state.input_register(),
             input_reg,
             loc,
         );
+
+        if state.lazy_borrowing {
+            self.mark_register_as_moved(state.input_register());
+        }
 
         self.decision(&mut state, result.tree, self.current_block, Vec::new());
 
@@ -3063,6 +3099,27 @@ impl<'a> LowerMethod<'a> {
 
         self.scope.created.push(output_reg);
         output_reg
+    }
+
+    fn match_input(&mut self, node: hir::Expression) -> (RegisterId, bool) {
+        let loc = node.location();
+        let reg = self.expression(node);
+        let typ = self.register_type(reg);
+
+        // If the match input can't be assigned a new value during the match,
+        // it's safe to enable lazy borrowing of that value.
+        let lazy = match self.register_kind(reg) {
+            RegisterKind::Field(id, _) => !id.is_mutable(self.db()),
+            RegisterKind::Variable(id, _) => !id.is_mutable(self.db()),
+            RegisterKind::SelfObject => true,
+            _ => false,
+        };
+
+        if lazy && self.register_type(reg).is_ref_or_mut(self.db()) {
+            (reg, true)
+        } else {
+            (self.input_register(reg, typ, None, loc), false)
+        }
     }
 
     fn decision(
@@ -3251,22 +3308,22 @@ impl<'a> LowerMethod<'a> {
                             self.current_block_mut()
                                 .move_register(target, source, loc);
                         }
-                        Some(&RegisterAction::Increment(_)) => {
-                            let typ = self.register_type(source);
-
-                            if typ.is_value_type(self.db()) {
-                                let copy = self
-                                    .clone_value_type(source, typ, false, loc);
-
-                                self.mark_local_register_as_moved(copy);
-                                self.current_block_mut()
-                                    .move_register(target, copy, loc);
-                            } else {
-                                self.current_block_mut()
-                                    .borrow(target, source, loc);
+                        Some(&RegisterAction::Increment(_, force))
+                            if !state.lazy_borrowing
+                                || id.is_mutable(self.db())
+                                || force =>
+                        {
+                            // Only recording these registers when strictly
+                            // necessary spares us some hashing and
+                            // re-allocations of the set.
+                            if state.lazy_borrowing {
+                                state.lazy_borrowed.insert(target);
                             }
+
+                            self.current_block_mut()
+                                .borrow(target, source, loc);
                         }
-                        None => {
+                        _ => {
                             self.current_block_mut()
                                 .move_register(target, source, loc);
                         }
@@ -3275,7 +3332,7 @@ impl<'a> LowerMethod<'a> {
                 pmatch::Binding::Ignored(pvar) => {
                     let reg = state.registers[pvar.0];
 
-                    if self.register_contains_copy_type(reg) {
+                    if self.register_is_moved_or_permanent(reg) {
                         continue;
                     }
 
@@ -3314,13 +3371,20 @@ impl<'a> LowerMethod<'a> {
                 // Don't forget to exit the scope here, since we entered a new
                 // one before calling this method.
                 self.exit_scope(state.location);
-
                 return start_block;
             };
 
         self.current_block = start_block;
 
-        self.scope.created.append(&mut var_regs);
+        if state.lazy_borrowing {
+            for reg in var_regs {
+                if state.lazy_borrowed.contains(&reg) {
+                    self.scope.created.push(reg);
+                }
+            }
+        } else {
+            self.scope.created.append(&mut var_regs);
+        }
 
         let loc = InstructionLocation::new(body_loc);
         let reg = self.body(exprs, loc);
@@ -3371,11 +3435,11 @@ impl<'a> LowerMethod<'a> {
             match state.actions.get(&reg) {
                 Some(
                     &RegisterAction::Move(parent)
-                    | &RegisterAction::Increment(parent),
+                    | &RegisterAction::Increment(parent, _),
                 ) if self.register_is_moved(parent) => {
                     continue;
                 }
-                Some(&RegisterAction::Increment(_)) => {
+                Some(&RegisterAction::Increment(_, _)) => {
                     // Registers are only incremented when bound. If we reach
                     // this point it means the register is never bound, and thus
                     // no dropping is needed.
@@ -3598,12 +3662,18 @@ impl<'a> LowerMethod<'a> {
             let action = if owned {
                 RegisterAction::Move(test_reg)
             } else {
-                RegisterAction::Increment(test_reg)
+                RegisterAction::Increment(test_reg, field.is_mutable(self.db()))
             };
 
             state.load_child(reg, test_reg, action);
-            self.block_mut(parent_block)
-                .get_field(reg, test_reg, tid, field, loc);
+
+            if owned {
+                self.block_mut(parent_block)
+                    .move_field(reg, test_reg, tid, field, loc);
+            } else {
+                self.block_mut(parent_block)
+                    .get_field(reg, test_reg, tid, field, loc);
+            }
         }
 
         self.decision(state, case.node, parent_block, registers)
@@ -3650,11 +3720,18 @@ impl<'a> LowerMethod<'a> {
                 let action = if owned {
                     RegisterAction::Move(test_reg)
                 } else {
-                    RegisterAction::Increment(test_reg)
+                    RegisterAction::Increment(test_reg, false)
                 };
 
                 state.load_child(reg, test_reg, action);
-                self.block_mut(block).get_field(reg, test_reg, tid, field, loc);
+
+                if owned {
+                    self.block_mut(block)
+                        .move_field(reg, test_reg, tid, field, loc);
+                } else {
+                    self.block_mut(block)
+                        .get_field(reg, test_reg, tid, field, loc);
+                }
             }
 
             self.decision(state, case.node, block, case_registers);
@@ -3742,7 +3819,7 @@ impl<'a> LowerMethod<'a> {
                 let action = if owned {
                     RegisterAction::Move(test_reg)
                 } else {
-                    RegisterAction::Increment(test_reg)
+                    RegisterAction::Increment(test_reg, true)
                 };
 
                 let idx_reg = self.new_untracked_register(TypeRef::int());
@@ -4400,12 +4477,12 @@ impl<'a> LowerMethod<'a> {
 
             self.check_if_pinned(register, location);
             self.record_loop_move(register, location);
-            self.mark_register_as_moved(register);
 
             if let Some(flag) = self.drop_flags.get(&register).cloned() {
                 self.current_block_mut().bool_literal(flag, false, ins_loc);
             }
 
+            self.mark_register_as_moved(register);
             return register;
         }
 

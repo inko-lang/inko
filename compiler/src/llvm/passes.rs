@@ -2664,8 +2664,7 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 self.builder.store(reg_var, typ.size_of().unwrap());
             }
             Instruction::Nop(_) => {}
-            Instruction::Borrow(_) => unreachable!(),
-            Instruction::Drop(_) => unreachable!(),
+            Instruction::Borrow(_) | Instruction::Drop(_) => unreachable!(),
         }
     }
 
