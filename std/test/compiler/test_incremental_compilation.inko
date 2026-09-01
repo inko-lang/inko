@@ -5,6 +5,20 @@ import std.fs.path (Path)
 import std.sys (Command, Stream)
 import std.test (Tests)
 
+fn with[R](
+  id: Int,
+  body: fn (Path, Path, Path, Path) -> Result[R, String],
+) -> Result[R, String] {
+  let dir = env.temporary_directory.join('inko-incremental-${id}')
+  let _ = try dir.create_directory.map_error(fn (e) { e.to_string })
+  let src = dir.join('main.inko')
+  let exe = dir.join('build').join('debug').join('main')
+  let res = body.call(dir.clone, compiler_path, src, exe)
+  let _ = dir.remove_directory_all
+
+  res
+}
+
 fn build(
   compiler: ref Path,
   directory: ref Path,
@@ -14,7 +28,7 @@ fn build(
 
   cmd.stdout = Stream.Null
   cmd.stdin = Stream.Null
-  cmd.stderr = Stream.Null
+  cmd.stderr = Stream.Piped
   cmd.directory = directory.clone
   cmd.arguments = ['build', '--threads=1', file.to_string]
 
@@ -23,9 +37,18 @@ fn build(
     case Error(e) -> throw 'failed to start the compiler: ${e}'
   }
 
-  match child.wait {
-    case Ok(_) -> {}
+  let status = match child.wait {
+    case Ok(v) -> v
     case Error(e) -> throw 'failed to wait for the compiler: ${e}'
+  }
+
+  if !status.success? {
+    let buf = ByteArray.new
+    let Ok(_) = child.stderr.as_mut.get.read_all(buf) else {
+      throw 'failed to read STDERR'
+    }
+
+    throw buf.into_string
   }
 
   Result.Ok(nil)
@@ -34,26 +57,35 @@ fn build(
 fn run(exe: ref Path) -> Result[String, String] {
   let cmd = Command.new(exe)
 
-  cmd.stdout = Stream.Piped
   cmd.stdin = Stream.Null
-  cmd.stderr = Stream.Null
+  cmd.stdout = Stream.Piped
+  cmd.stderr = Stream.Piped
 
   let child = match cmd.spawn {
     case Ok(v) -> v
     case Error(e) -> throw 'failed to run ${exe}: ${e}'
   }
 
-  match child.wait {
-    case Ok(_) -> {}
+  let status = match child.wait {
+    case Ok(v) -> v
     case Error(e) -> throw 'failed to wait for the executable: ${e}'
   }
 
   let buf = ByteArray.new
-  let Ok(_) = child.stdout.as_mut.get.read_all(buf) else {
-    throw 'failed to read STDOUT'
-  }
 
-  Result.Ok(buf.into_string)
+  if status.success? {
+    let Ok(_) = child.stdout.as_mut.get.read_all(buf) else {
+      throw 'failed to read STDOUT'
+    }
+
+    Result.Ok(buf.into_string)
+  } else {
+    let Ok(_) = child.stderr.as_mut.get.read_all(buf) else {
+      throw 'failed to read STDERR'
+    }
+
+    Result.Error(buf.into_string)
+  }
 }
 
 fn write(value: String, to: ref Path) -> Result[Nil, String] {
@@ -66,14 +98,9 @@ fn pub tests(t: mut Tests) {
   t.ok(
     'A method with explicit type arguments depends on the modules of its type arguments',
     fn (t) {
-      let dir = env.temporary_directory.join('inko-incremental-${t.id}')
-      let _ = try dir.create_directory.map_error(fn (e) { e.to_string })
-      let src = dir.join('main.inko')
-      let exe = dir.join('build').join('debug').join('main')
-      let inko = compiler_path
-
-      try write(
-        '
+      with(t.id, fn (dir, inko, src, exe) {
+        try write(
+          '
 import std.reflect (size_of)
 import std.stdio (Stdout)
 
@@ -87,14 +114,14 @@ type async Main {
   }
 }
         ',
-        to: src,
-      )
+          to: src,
+        )
 
-      let _ = try build(inko, dir, src)
-      let res1 = run(exe)
+        let _ = try build(inko, dir, src)
+        let res1 = run(exe)
 
-      try write(
-        '
+        try write(
+          '
 import std.reflect (size_of)
 import std.stdio (Stdout)
 
@@ -109,18 +136,85 @@ type async Main {
   }
 }
         ',
-        to: src,
-      )
+          to: src,
+        )
 
-      let _ = try build(inko, dir, src)
-      let res2 = run(exe)
+        let _ = try build(inko, dir, src)
+        let res2 = run(exe)
 
-      t.equal(res1, Result.Ok('8'))
-      t.equal(res2, Result.Ok('16'))
+        t.equal(res1, Result.Ok('8'))
+        t.equal(res2, Result.Ok('16'))
 
-      let _ = dir.remove_directory_all
+        Result.Ok(nil)
+      })
+    },
+  )
 
-      Result.Ok(nil)
+  t.ok(
+    'The storage semantics of a type are taken into account for incremental caches',
+    fn (t) {
+      with(t.id, fn (dir, inko, src, exe) {
+        try write(
+          '
+import std.reflect (size_of)
+import std.stdio (Stdout)
+
+type inline Person {
+  let mut @name: String
+  let @age: Int
+}
+
+type Box {
+  let @person: Person
+}
+
+type async Main {
+  fn async main {
+    let _tup = (10, Person(name: "Alice", age: 42))
+
+    Stdout.new.write(size_of[(Int, Person)].to_string)
+  }
+}
+        ',
+          to: src,
+        )
+
+        let _ = try build(inko, dir, src)
+        let res1 = run(exe)
+
+        try write(
+          '
+import std.reflect (size_of)
+import std.stdio (Stdout)
+
+type Person {
+  let mut @name: String
+  let @age: Int
+}
+
+type Box {
+  let @person: Person
+}
+
+type async Main {
+  fn async main {
+    let _tup = (10, Person(name: "Alice", age: 42))
+
+    Stdout.new.write(size_of[(Int, Person)].to_string)
+  }
+}
+        ',
+          to: src,
+        )
+
+        let _ = try build(inko, dir, src)
+        let res2 = run(exe)
+
+        t.equal(res1, Result.Ok('24'))
+        t.equal(res2, Result.Ok('16'))
+
+        Result.Ok(nil)
+      })
     },
   )
 }

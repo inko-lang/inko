@@ -909,19 +909,6 @@ impl Block {
         })));
     }
 
-    pub(crate) fn size_of(
-        &mut self,
-        register: RegisterId,
-        argument: TypeRef,
-        location: InstructionLocation,
-    ) {
-        self.instructions.push(Instruction::SizeOf(Box::new(SizeOf {
-            register,
-            argument,
-            location,
-        })));
-    }
-
     fn split_when<R, W: Fn(&Instruction) -> bool, T: Fn(Instruction) -> R>(
         &mut self,
         when: W,
@@ -2734,6 +2721,28 @@ impl Mir {
 
         for module in new_modules {
             self.modules.insert(module.id, module);
+        }
+    }
+
+    /// Records dependencies of generic types on their type arguments.
+    ///
+    /// Given some generic type instance of `A[B]` we need to record that `A`
+    /// depends on `B`, even if `A` or `B` (or neither) are imported explicitly
+    /// into a particular module. If we fail to do so, certain changes (e.g. the
+    /// storage) made to a type may result in the use of outdated incremental
+    /// caches.
+    pub(crate) fn record_type_dependencies(&mut self, state: &mut State) {
+        let db = &state.db;
+
+        for &tid in self.types.keys() {
+            let this = tid.module(db);
+            let Some(targs) = tid.type_arguments(db) else { continue };
+
+            for arg in targs.values() {
+                let Some(dep) = arg.source_module_id(db) else { continue };
+
+                state.dependency_graph.add_module_id_dependency(db, this, dep);
+            }
         }
     }
 

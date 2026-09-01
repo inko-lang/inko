@@ -335,6 +335,7 @@ impl Compiler {
         // Splitting is done _after_ specialization, since specialization
         // introduces new types and methods.
         mir.split_modules(&mut self.state);
+        mir.record_type_dependencies(&mut self.state);
 
         // Symbol names are needed to ensure certain passes can operate on data
         // in a stable order, which in turn is needed to ensure incremental

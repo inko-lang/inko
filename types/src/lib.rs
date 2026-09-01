@@ -105,6 +105,8 @@ pub const STRING_BUFFER_INTERNAL_NAME: &str = "$StringBuffer";
 pub const STRING_BUFFER_INTO_STRING: &str = "into_string";
 pub const BYTE_ARRAY_READ: &str = "get_unchecked";
 pub const SYNC_MODULE: &str = "std.sync";
+pub const REFLECT_MODULE: &str = "std.reflect";
+pub const REFLECT_SIZE_OF: &str = "size_of";
 pub const FUTURE_TYPE: &str = "Future";
 pub const FUTURE_INTERNAL_NAME: &str = "$Future";
 pub const FUTURE_NEW: &str = "new";
@@ -1615,6 +1617,7 @@ impl ConstructorId {
 
 /// A type describing where something should be allocated.
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
+#[repr(u8)]
 pub enum Storage {
     /// The value must be allocated on the heap.
     Heap,

@@ -189,6 +189,13 @@ fn check_object_cache(
             hasher.update(name.as_bytes());
         }
 
+        // If the storage of a type changes (e.g. it goes from heap to inline),
+        // we also need to flush the cache as we may need to include newly
+        // generated methods (e.g. those used for borrowing inline types).
+        for id in &module.types {
+            hasher.update(&(id.storage(&state.db) as u8).to_le_bytes());
+        }
+
         // We include the list of inlined methods in the hash such that if this
         // changes, we flush the cache.
         let mut inlined: Vec<_> = module

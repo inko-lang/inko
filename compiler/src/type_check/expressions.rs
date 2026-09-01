@@ -1456,7 +1456,6 @@ impl<'a> CheckMethodBody<'a> {
             hir::Expression::Tuple(n) => self.tuple_literal(n, scope),
             hir::Expression::TypeCast(n) => self.type_cast(n, scope),
             hir::Expression::Try(n) => self.try_expression(n, scope),
-            hir::Expression::SizeOf(n) => self.size_of(n),
         }
     }
 
@@ -4306,12 +4305,6 @@ impl<'a> CheckMethodBody<'a> {
 
         node.resolved_type = cast_type;
         node.resolved_type
-    }
-
-    fn size_of(&mut self, node: &mut hir::SizeOf) -> TypeRef {
-        node.resolved_type = self.type_signature(&mut node.argument);
-
-        TypeRef::int()
     }
 
     fn try_expression(

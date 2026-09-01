@@ -19,7 +19,9 @@
 # size_of[Pair]   # => 16
 # ```
 fn pub inline size_of[T] -> Int {
-  _INKO.size_of_type_name(T)
+  # Calls to this method are always compiled into inline intrinsics at
+  # compile-time.
+  0
 }
 
 # Returns the value of the tag of an enum.

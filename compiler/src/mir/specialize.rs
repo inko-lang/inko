@@ -13,8 +13,8 @@ use types::specialize::{Closures, TypeSpecializer};
 use types::{
     Block as _, CALL_METHOD, DECREMENT_METHOD, DROPPER_METHOD, Database,
     ENUM_TAG_INDEX, INCREMENT_METHOD, InternedTypeArguments, Intrinsic,
-    MethodId, Shape, TraitId, TypeArguments, TypeEnum, TypeId, TypeInstance,
-    TypeRef,
+    MethodId, REFLECT_MODULE, REFLECT_SIZE_OF, Shape, TraitId, TypeArguments,
+    TypeEnum, TypeId, TypeInstance, TypeRef,
 };
 
 fn specialize_constants(
@@ -528,6 +528,7 @@ pub(crate) struct Specialize<'a, 'b> {
     work: &'b mut Work,
     interned: &'b mut InternedTypeArguments,
     closures: &'b mut Closures,
+    size_of: MethodId,
 
     /// The type of the `self` and `Self`.
     self_type: TypeEnum,
@@ -586,6 +587,12 @@ impl<'a, 'b> Specialize<'a, 'b> {
         mir.types.get_mut(&main_type).unwrap().methods.push(main_method);
         mir.modules.get_mut(&main_mod).unwrap().methods.push(main_method);
 
+        let size_of = state
+            .db
+            .module(REFLECT_MODULE)
+            .method(&state.db, REFLECT_SIZE_OF)
+            .unwrap();
+
         while let Some(job) = work.pop() {
             Specialize {
                 state,
@@ -597,6 +604,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
                 work: &mut work,
                 specialized_methods: Vec::new(),
                 types: Vec::new(),
+                size_of,
             }
             .run(mir, &mut dynamic);
         }
@@ -686,6 +694,37 @@ impl<'a, 'b> Specialize<'a, 'b> {
                 match instruction {
                     Instruction::CallExtern(ins) => {
                         mir.extern_methods.insert(ins.method);
+                    }
+                    // We always specialize these calls to an intrinsic (instead
+                    // of relying on the inliner) so that during both debug and
+                    // release builds we automatically flush incremental caches
+                    // when needed, without having to maintain complex
+                    // dependency relations (that will likely hinder incremental
+                    // compilation) between `std.reflect` and other modules.
+                    Instruction::CallStatic(ins)
+                        if ins.method == self.size_of =>
+                    {
+                        let targs = ins
+                            .type_arguments
+                            .and_then(|i| mir.type_arguments.get(i))
+                            .unwrap();
+                        let arg = TypeSpecializer::new(
+                            &mut self.state.db,
+                            self.closures,
+                            self.interned,
+                            &self.type_arguments,
+                            &self.type_arguments,
+                            &mut self.types,
+                            self.self_type,
+                        )
+                        .specialize(targs.values().next().unwrap());
+
+                        *instruction =
+                            Instruction::SizeOf(Box::new(super::SizeOf {
+                                register: ins.register,
+                                argument: arg,
+                                location: ins.location,
+                            }));
                     }
                     Instruction::CallStatic(ins) => {
                         let rec = ins.method.receiver(&self.state.db);
@@ -827,31 +866,8 @@ impl<'a, 'b> Specialize<'a, 'b> {
 
                         self.cast_type(from, to, &mir.type_arguments, dynamic);
                     }
-                    Instruction::SizeOf(ins) => {
-                        ins.argument = TypeSpecializer::new(
-                            &mut self.state.db,
-                            self.closures,
-                            self.interned,
-                            &self.type_arguments,
-                            &self.type_arguments,
-                            &mut self.types,
-                            self.self_type,
-                        )
-                        .specialize(ins.argument);
-
-                        // We need to record a dependency on the source module
-                        // so that if that module changes the current module has
-                        // its cache flushed, otherwise the returned size may be
-                        // stale.
-                        let db = &self.state.db;
-
-                        if let Some(dep) = ins.argument.source_module_id(db) {
-                            let this = self.method.source_module(db);
-
-                            self.state
-                                .dependency_graph
-                                .add_module_id_dependency(db, this, dep);
-                        }
+                    Instruction::SizeOf(_) => {
+                        panic!("the size_of intrinsic can't be used directly");
                     }
                     _ => {}
                 }

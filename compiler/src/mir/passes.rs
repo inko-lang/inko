@@ -1727,7 +1727,6 @@ impl<'a> LowerMethod<'a> {
             hir::Expression::TypeCast(n) => self.type_cast(*n),
             hir::Expression::Recover(n) => self.recover_expression(*n),
             hir::Expression::Try(n) => self.try_expression(*n),
-            hir::Expression::SizeOf(n) => self.size_of(*n),
         }
     }
 
@@ -2742,14 +2741,6 @@ impl<'a> LowerMethod<'a> {
         self.current_block = after_block;
         self.scope.created.push(out_reg);
         out_reg
-    }
-
-    fn size_of(&mut self, node: hir::SizeOf) -> RegisterId {
-        let loc = InstructionLocation::new(node.location);
-        let reg = self.new_register(TypeRef::int());
-
-        self.current_block_mut().size_of(reg, node.resolved_type, loc);
-        reg
     }
 
     fn throw_expression(&mut self, node: hir::Throw) -> RegisterId {

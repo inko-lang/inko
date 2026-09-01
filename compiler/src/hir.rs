@@ -542,13 +542,6 @@ pub(crate) struct Try {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct SizeOf {
-    pub(crate) argument: Type,
-    pub(crate) resolved_type: types::TypeRef,
-    pub(crate) location: Location,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Expression {
     And(Box<And>),
     AssignField(Box<AssignField>),
@@ -585,7 +578,6 @@ pub(crate) enum Expression {
     TypeCast(Box<TypeCast>),
     Recover(Box<Recover>),
     Try(Box<Try>),
-    SizeOf(Box<SizeOf>),
 }
 
 impl Expression {
@@ -724,7 +716,6 @@ impl Expression {
             Expression::TypeCast(n) => n.location,
             Expression::Recover(n) => n.location,
             Expression::Try(n) => n.location,
-            Expression::SizeOf(n) => n.location,
         }
     }
 
@@ -2677,13 +2668,6 @@ impl<'a> LowerToHir<'a> {
                     .intrinsic_not_available(self.file(), node.location);
             }
 
-            // We special-case this instruction because we need to attach extra
-            // type information, but don't want to introduce a dedicated
-            // `size_of` keyword just for this.
-            if node.name.name == "size_of_type_name" {
-                return self.size_of(node);
-            }
-
             return Expression::BuiltinCall(Box::new(BuiltinCall {
                 info: None,
                 name: self.identifier(node.name),
@@ -2703,39 +2687,6 @@ impl<'a> LowerToHir<'a> {
             arguments: self.optional_call_arguments(node.arguments),
             location: node.location,
         }))
-    }
-
-    fn size_of(&mut self, node: ast::Call) -> Expression {
-        if let Some(ast::Argument::Positional(ast::Expression::Constant(n))) =
-            node.arguments.and_then(|mut v| v.values.pop())
-        {
-            let argument = Type::Named(Box::new(TypeName {
-                source: None,
-                resolved_type: types::TypeRef::Unknown,
-                name: Constant { name: n.name, location: n.location },
-                arguments: Vec::new(),
-                location: n.location,
-                self_type: false,
-            }));
-
-            Expression::SizeOf(Box::new(SizeOf {
-                argument,
-                resolved_type: types::TypeRef::Unknown,
-                location: node.location,
-            }))
-        } else {
-            self.state.diagnostics.error(
-                DiagnosticId::InvalidCall,
-                "this builtin function call is invalid",
-                self.file(),
-                node.name.location,
-            );
-
-            Expression::Nil(Box::new(Nil {
-                resolved_type: types::TypeRef::Unknown,
-                location: node.location,
-            }))
-        }
     }
 
     fn optional_builtin_call_arguments(
