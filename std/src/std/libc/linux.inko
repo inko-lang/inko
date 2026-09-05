@@ -432,19 +432,9 @@ type extern AddrInfo {
   let @ai_next: Pointer[AddrInfo]
 }
 
-type extern EpollEvent {
-  let @__val0: Uint8
-  let @__val1: Uint8
-  let @__val2: Uint8
-  let @__val3: Uint8
-  let @__val4: Uint8
-  let @__val5: Uint8
-  let @__val6: Uint8
-  let @__val7: Uint8
-  let @__val8: Uint8
-  let @__val9: Uint8
-  let @__val10: Uint8
-  let @__val11: Uint8
+type extern(packed) EpollEvent {
+  let @events: Uint32
+  let @data: Uint64
 }
 
 fn extern fchmod(fd: Int32, mode: Uint16) -> Int32
@@ -546,14 +536,6 @@ fn inline pipes(nonblocking: Bool) -> Result[(Int32, Int32), Error] {
   if pipe2(mut pipes, flags as Int32) as Int != 0 { throw Error.last_os_error }
 
   Result.Ok((pipes.reader, pipes.writer))
-}
-
-fn inline new_epoll_event(id: Int, flags: Int) -> EpollEvent {
-  let event = EpollEvent()
-
-  ((mut event) as Pointer[Uint32]).0 = flags as Uint32
-  ((mut event) as Int + 4 as Pointer[Uint64]).0 = id as Uint64
-  event
 }
 
 fn inline errno_location -> Pointer[Int32] {
