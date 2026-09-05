@@ -156,6 +156,10 @@ impl<'a> DefineTypes<'a> {
             self.module.new_symbol(self.db_mut(), name, Symbol::Type(id));
         }
 
+        if node.packed {
+            id.set_packed(self.db_mut());
+        }
+
         node.type_id = Some(id);
     }
 

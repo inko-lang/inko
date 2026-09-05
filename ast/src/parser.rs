@@ -1070,6 +1070,26 @@ impl Parser {
             }
             _ => TypeKind::Regular,
         };
+        let mut packed = false;
+
+        if let TypeKind::Extern = kind {
+            if self.peek().kind == TokenKind::ParenOpen {
+                self.next();
+
+                let attr = self.expect(TokenKind::Identifier)?;
+
+                if attr.value == "packed" {
+                    packed = true;
+                } else {
+                    error!(
+                        attr.location,
+                        "only the 'packed' attribute is supported"
+                    );
+                }
+
+                self.expect(TokenKind::ParenClose)?;
+            }
+        }
 
         let name = Constant::from(self.expect(TokenKind::Constant)?);
         let type_parameters = if let TypeKind::Extern = kind {
@@ -1093,6 +1113,7 @@ impl Parser {
             name,
             type_parameters,
             body,
+            packed,
             location,
         })))
     }
@@ -4778,6 +4799,7 @@ mod tests {
                     values: Vec::new(),
                     location: cols(8, 9)
                 },
+                packed: false,
                 location: cols(1, 9)
             }))
         );
@@ -4798,6 +4820,7 @@ mod tests {
                     values: Vec::new(),
                     location: cols(12, 13)
                 },
+                packed: false,
                 location: cols(1, 13)
             }))
         );
@@ -4821,7 +4844,28 @@ mod tests {
                     values: Vec::new(),
                     location: cols(15, 16)
                 },
+                packed: false,
                 location: cols(1, 16)
+            }))
+        );
+        assert_eq!(
+            top(parse("type extern(packed) A {}")),
+            TopLevelExpression::DefineType(Box::new(DefineType {
+                public: false,
+                semantics: TypeSemantics::Default,
+                name: Constant {
+                    source: None,
+                    name: "A".to_string(),
+                    location: cols(21, 21)
+                },
+                kind: TypeKind::Extern,
+                type_parameters: None,
+                body: TypeExpressions {
+                    values: Vec::new(),
+                    location: cols(23, 24)
+                },
+                packed: true,
+                location: cols(1, 24)
             }))
         );
     }
@@ -4844,6 +4888,7 @@ mod tests {
                     values: Vec::new(),
                     location: cols(13, 14)
                 },
+                packed: false,
                 location: cols(1, 14)
             }))
         );
@@ -4867,6 +4912,7 @@ mod tests {
                     values: Vec::new(),
                     location: cols(12, 13)
                 },
+                packed: false,
                 location: cols(1, 13)
             }))
         );
@@ -4890,6 +4936,7 @@ mod tests {
                     values: Vec::new(),
                     location: cols(14, 15)
                 },
+                packed: false,
                 location: cols(1, 15)
             }))
         );
@@ -4932,6 +4979,7 @@ mod tests {
                     ))],
                     location: cols(8, 26)
                 },
+                packed: false,
                 location: cols(1, 26)
             }))
         );
@@ -4971,6 +5019,7 @@ mod tests {
                     ))],
                     location: cols(8, 30)
                 },
+                packed: false,
                 location: cols(1, 30)
             }))
         );
@@ -5027,6 +5076,7 @@ mod tests {
                     values: Vec::new(),
                     location: cols(17, 18)
                 },
+                packed: false,
                 location: cols(1, 18)
             }))
         );
@@ -5072,6 +5122,7 @@ mod tests {
                     values: Vec::new(),
                     location: cols(16, 17)
                 },
+                packed: false,
                 location: cols(1, 17)
             }))
         );
@@ -5114,6 +5165,7 @@ mod tests {
                     ))],
                     location: cols(8, 20)
                 },
+                packed: false,
                 location: cols(1, 20)
             }))
         );
@@ -5153,6 +5205,7 @@ mod tests {
                     ))],
                     location: cols(8, 24)
                 },
+                packed: false,
                 location: cols(1, 24)
             }))
         );
@@ -5195,6 +5248,7 @@ mod tests {
                     ))],
                     location: cols(8, 25)
                 },
+                packed: false,
                 location: cols(1, 25)
             }))
         )
@@ -5237,6 +5291,7 @@ mod tests {
                     ))],
                     location: cols(8, 27)
                 },
+                packed: false,
                 location: cols(1, 27)
             }))
         );
@@ -5276,6 +5331,7 @@ mod tests {
                     ))],
                     location: cols(8, 29)
                 },
+                packed: false,
                 location: cols(1, 29)
             }))
         );
@@ -5318,6 +5374,7 @@ mod tests {
                     ))],
                     location: cols(8, 24)
                 },
+                packed: false,
                 location: cols(1, 24)
             }))
         )
@@ -5360,6 +5417,7 @@ mod tests {
                     ))],
                     location: cols(8, 27)
                 },
+                packed: false,
                 location: cols(1, 27)
             }))
         )
@@ -5402,6 +5460,7 @@ mod tests {
                     ))],
                     location: cols(8, 22)
                 },
+                packed: false,
                 location: cols(1, 22)
             }))
         );
@@ -5441,6 +5500,7 @@ mod tests {
                     ))],
                     location: cols(8, 26)
                 },
+                packed: false,
                 location: cols(1, 26)
             }))
         );
@@ -5480,6 +5540,7 @@ mod tests {
                     ))],
                     location: cols(8, 26)
                 },
+                packed: false,
                 location: cols(1, 26)
             }))
         );
@@ -5492,6 +5553,7 @@ mod tests {
         assert_error!("type A {", cols(8, 8));
         assert_error!("type extern A[T] {", cols(14, 14));
         assert_error!("type extern A { fn foo {  } }", cols(17, 18));
+        assert_error!("type extern(foo) A {}", cols(13, 15));
     }
 
     #[test]
@@ -6514,6 +6576,7 @@ mod tests {
                     values: Vec::new(),
                     location: cols(16, 17)
                 },
+                packed: false,
                 location: cols(1, 17)
             }))
         );
@@ -10372,6 +10435,7 @@ mod tests {
                     ],
                     location: cols(21, 46)
                 },
+                packed: false,
                 location: cols(1, 46)
             }))
         );
@@ -10426,6 +10490,7 @@ mod tests {
                     }))],
                     location: location(1..=3, 8..=1)
                 },
+                packed: false,
                 location: location(1..=3, 1..=1)
             }))
         );

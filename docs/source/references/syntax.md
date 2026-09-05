@@ -355,6 +355,15 @@ type extern Timespec {
 }
 ```
 
+Such types also support a "packed" attribute that reduces alignment to one byte:
+
+```inko
+type extern(packed) Timespec {
+  let @tv_sec: Int64
+  let @tv_nsec: Int64
+}
+```
+
 ### Methods
 
 Types can define static methods, instance methods, and async methods (in case

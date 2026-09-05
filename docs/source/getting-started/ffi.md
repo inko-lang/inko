@@ -303,7 +303,7 @@ type extern Timespec {
 }
 ```
 
-Like types, we can create instances of these structs:
+Like regular types, we can create instances of these structs:
 
 ```inko
 type extern Timespec {
@@ -401,6 +401,19 @@ Exposing nested `extern` types as pointers means that it's possible to overwrite
 them while a pointer to the structure is still in use. As such, you need to be
 careful when working with nested `extern` types.
 :::
+
+Structure packing (`__attribute__((packed))` in C) is supported using the
+`packed` attribute:
+
+```inko
+type extern(packed) Timespec {
+  let @tv_sec: Int64
+  let @tv_nsec: Int64
+}
+```
+
+Attributes other than "packed" are not supported, nor is it possible to specify
+a custom alignment (e.g. two bytes instead of one byte).
 
 ## Pointers
 

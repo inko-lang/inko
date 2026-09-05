@@ -512,6 +512,7 @@ pub struct DefineType {
     pub public: bool,
     pub kind: TypeKind,
     pub name: Constant,
+    pub packed: bool,
     pub type_parameters: Option<TypeParameters>,
     pub body: TypeExpressions,
     pub location: Location,

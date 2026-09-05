@@ -301,6 +301,12 @@ type inline enum LargeEnum {
   case V256
 }
 
+
+type extern(packed) Packed {
+  let @a: Uint32
+  let @b: Uint8
+}
+
 fn pub tests(t: mut Tests) {
   t.test('reflect.size_of', fn (t) {
     t.equal(size_of[CopyType], 16)
@@ -308,6 +314,7 @@ fn pub tests(t: mut Tests) {
     t.equal(size_of[HeapType], 8)
     t.equal(size_of[RefType], 8)
     t.equal(size_of[ExternType], 3)
+    t.equal(size_of[Packed], 5)
     t.equal(size_of[InlineEnum], 9)
     t.equal(size_of[LargeEnum], 2)
     t.equal(size_of[TypeContainingInlineEnum], 24)

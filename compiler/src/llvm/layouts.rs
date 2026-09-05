@@ -449,7 +449,7 @@ impl<'ctx> Layouts<'ctx> {
                 types.push(context.llvm_type(db, self, field.value_type(db)));
             }
 
-            layout.set_body(&types, false);
+            layout.set_body(&types, id.is_packed(db));
             sized.set_has_size(id);
         }
     }

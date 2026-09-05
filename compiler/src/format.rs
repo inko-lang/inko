@@ -766,6 +766,9 @@ impl Document {
             nodes::TypeKind::Async => header.push(Node::text("async ")),
             nodes::TypeKind::Builtin => header.push(Node::text("builtin ")),
             nodes::TypeKind::Enum => header.push(Node::text("enum ")),
+            nodes::TypeKind::Extern if node.packed => {
+                header.push(Node::text("extern(packed) "))
+            }
             nodes::TypeKind::Extern => header.push(Node::text("extern ")),
             nodes::TypeKind::Regular => {}
         }

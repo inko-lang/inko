@@ -442,6 +442,7 @@ pub(crate) struct DefineType {
 pub(crate) struct DefineExternType {
     pub(crate) documentation: String,
     pub(crate) public: bool,
+    pub(crate) packed: bool,
     pub(crate) type_id: Option<types::TypeId>,
     pub(crate) name: Constant,
     pub(crate) fields: Vec<DefineField>,
@@ -1545,6 +1546,7 @@ impl<'a> LowerToHir<'a> {
         TopLevelExpression::ExternType(Box::new(DefineExternType {
             documentation,
             public: node.public,
+            packed: node.packed,
             type_id: None,
             name: self.constant(node.name),
             fields,
@@ -4407,6 +4409,7 @@ mod tests {
             TopLevelExpression::ExternType(Box::new(DefineExternType {
                 documentation: String::new(),
                 public: false,
+                packed: false,
                 type_id: None,
                 name: Constant {
                     name: "A".to_string(),
@@ -4435,6 +4438,27 @@ mod tests {
                     location: cols(17, 25),
                 }],
                 location: cols(1, 27)
+            })),
+        );
+    }
+
+    #[test]
+    fn test_lower_packed_extern_type() {
+        let hir = lower_top_expr("type extern(packed) A {}").0;
+
+        assert_eq!(
+            hir,
+            TopLevelExpression::ExternType(Box::new(DefineExternType {
+                documentation: String::new(),
+                public: false,
+                packed: true,
+                type_id: None,
+                name: Constant {
+                    name: "A".to_string(),
+                    location: cols(21, 21)
+                },
+                fields: Vec::new(),
+                location: cols(1, 24)
             })),
         );
     }

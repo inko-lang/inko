@@ -57,3 +57,5 @@ type inline N {
 type inline enum O {
   case A
 }
+
+type extern ( packed ) P {}

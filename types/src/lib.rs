@@ -1750,11 +1750,16 @@ pub struct Type {
     name: String,
     documentation: String,
 
-    // A flag indicating the presence of a custom destructor.
-    //
-    // We store a flag for this so we can check for the presence of a destructor
-    // without having to look up traits.
+    /// A flag indicating the presence of a custom destructor.
+    ///
+    /// We store a flag for this so we can check for the presence of a destructor
+    /// without having to look up traits.
     destructor: bool,
+
+    /// If the type is packed or not.
+    ///
+    /// This is only used for extern types.
+    packed: bool,
 
     /// A type describing how instances of this type should be stored.
     storage: Storage,
@@ -1827,6 +1832,7 @@ impl Type {
             visibility,
             storage,
             destructor: false,
+            packed: false,
             fields: IndexMap::new(),
             type_parameters: IndexMap::new(),
             methods: IndexMap::new(),
@@ -2412,6 +2418,14 @@ impl TypeId {
                 _ => owned,
             },
         }
+    }
+
+    pub fn set_packed(self, db: &mut Database) {
+        self.get_mut(db).packed = true;
+    }
+
+    pub fn is_packed(self, db: &Database) -> bool {
+        self.get(db).packed
     }
 
     fn get(self, db: &Database) -> &Type {
