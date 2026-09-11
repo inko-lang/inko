@@ -1,0 +1,106 @@
+# Sandboxing of applications.
+import std.io (Error)
+import std.ops (Add)
+import std.string (ToString)
+import std.sys.linux.sandbox (self as sys) if linux
+import std.sys.sandbox (self as sys) if freebsd
+import std.sys.sandbox (self as sys) if mac
+
+let READ = 0b0001
+let WRITE = 0b0010
+let EXEC = 0b0100
+let CON = 0b01
+let BIND = 0b10
+
+fn pub read -> PathPermissions {
+  PathPermissions(Bits(READ))
+}
+
+fn pub write -> PathPermissions {
+  PathPermissions(Bits(WRITE))
+}
+
+fn pub execute -> PathPermissions {
+  PathPermissions(Bits(EXEC))
+}
+
+fn pub connect -> PortPermissions {
+  PortPermissions(Bits(CON))
+}
+
+fn pub bind -> PortPermissions {
+  PortPermissions(Bits(BIND))
+}
+
+type copy Bits {
+  let @bits: Int
+
+  fn inline set?(mask: Int) -> Bool {
+    @bits & mask == mask
+  }
+
+  fn inline move with(bits: Int) -> Self {
+    Self(@bits | bits)
+  }
+}
+
+impl Add[Self, Self] for Bits {
+  fn pub inline +(other: Self) -> Self {
+    Self(@bits | other.bits)
+  }
+}
+
+type pub copy PathPermissions {
+  let @bits: Bits
+}
+
+impl Add[Self, Self] for PathPermissions {
+  fn pub inline +(other: Self) -> Self {
+    Self(@bits + other.bits)
+  }
+}
+
+type pub copy PortPermissions {
+  let @bits: Bits
+}
+
+impl Add[Self, Self] for PortPermissions {
+  fn pub inline +(other: Self) -> Self {
+    Self(@bits + other.bits)
+  }
+}
+
+type pub inline Sandbox {
+  let @inner: Option[sys.Sandbox]
+
+  fn pub static new -> Result[Self, Error] {
+    Result.Ok(Self(try sys.Sandbox.new))
+  }
+
+  fn pub mut path[S: ToString](path: ref S, permissions: PathPermissions) {
+    let Some(inner) = @inner else return
+    let bits = permissions.bits
+    let read = bits.set?(READ)
+    let write = bits.set?(WRITE)
+    let exec = bits.set?(EXEC)
+
+    inner.path(path.to_string, read, write, exec).or_panic
+  }
+
+  fn pub mut tcp(port: Int, permissions: PortPermissions) {
+    if port < 0 or port > 65_535 { panic('the port number is invalid') }
+
+    let bits = permissions.bits
+    let bind = bits.set?(BIND)
+    let con = bits.set?(CON)
+    let Some(inner) = @inner else return
+
+    inner.tcp(port, bind, con).or_panic
+  }
+
+  fn pub move apply {
+    let Some(inner) = @inner else return
+
+    inner.apply.or_panic
+  }
+}

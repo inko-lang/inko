@@ -242,6 +242,7 @@ fn pub tests(t: mut Tests) {
     t.equal(Error.from_os_error(libc.ENOTSUP), Error.NotSupported)
     t.equal(Error.from_os_error(libc.EOPNOTSUPP), Error.NotSupported)
     t.equal(Error.from_os_error(libc.EBADF), Error.InvalidFileDescriptor)
+    t.equal(Error.from_os_error(libc.E2BIG), Error.TooManyArguments)
   })
 
   t.test('Error.fmt', fn (t) {
@@ -276,6 +277,7 @@ fn pub tests(t: mut Tests) {
     t.equal(fmt(Error.NotSupported), 'NotSupported')
     t.equal(fmt(Error.Closed), 'Closed')
     t.equal(fmt(Error.InvalidFileDescriptor), 'InvalidFileDescriptor')
+    t.equal(fmt(Error.TooManyArguments), 'TooManyArguments')
   })
 
   t.test('ReadExactError.fmt', fn (t) {

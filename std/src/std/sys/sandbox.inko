@@ -1,0 +1,24 @@
+import std.io (Error)
+
+type copy Sandbox {
+  fn static new -> Result[Option[Self], Error] {
+    Result.Ok(Option.None)
+  }
+
+  fn mut path(
+    path: String,
+    read: Bool,
+    write: Bool,
+    execute: Bool,
+  ) -> Result[Nil, Error] {
+    Result.Ok(nil)
+  }
+
+  fn mut tcp(port: Int, bind: Bool, connect: Bool) -> Result[Nil, Error] {
+    Result.Ok(nil)
+  }
+
+  fn move apply -> Result[Nil, Error] {
+    Result.Ok(nil)
+  }
+}

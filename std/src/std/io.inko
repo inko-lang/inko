@@ -235,6 +235,9 @@ type pub copy enum Error {
   # One or more arguments are invalid.
   case InvalidArgument
 
+  # Too many arguments are given.
+  case TooManyArguments
+
   # The file name is invalid.
   case InvalidFileName
 
@@ -338,8 +341,11 @@ type pub copy enum Error {
       case libc.EINPROGRESS -> Error.InProgress
       case libc.EFAULT -> Error.BadAddress
       case libc.EXDEV -> Error.CrossDeviceLink
-      case libc.ENOTSUP or libc.EOPNOTSUPP -> Error.NotSupported
+      case libc.ENOTSUP or libc.EOPNOTSUPP or libc.EAFNOSUPPORT -> {
+        Error.NotSupported
+      }
       case libc.EBADF -> Error.InvalidFileDescriptor
+      case libc.E2BIG -> Error.TooManyArguments
       case val -> Error.Other(val)
     }
   }
@@ -386,6 +392,7 @@ impl ToString for Error {
       case NotSupported -> "the operation isn't supported"
       case InvalidFileDescriptor -> 'the file descriptor is invalid'
       case Closed -> 'the stream is closed'
+      case TooManyArguments -> 'too many arguments are given'
       case Other(code) -> 'an other error with code ${code} occurred'
     }
   }
@@ -425,6 +432,7 @@ impl Format for Error {
       case NotSupported -> 'NotSupported'
       case InvalidFileDescriptor -> 'InvalidFileDescriptor'
       case Closed -> 'Closed'
+      case TooManyArguments -> 'TooManyArguments'
       case Other(code) -> {
         formatter.tuple('Other').field(code).finish
         return

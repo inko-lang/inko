@@ -15,9 +15,11 @@ let CLOCK_REALTIME = 0
 let DT_DIR = 4
 let DT_LNK = 10
 let DT_REG = 8
+let E2BIG = 7
 let EACCES = 13
 let EADDRINUSE = 98
 let EADDRNOTAVAIL = 99
+let EAFNOSUPPORT = 97
 let EAGAIN = 11
 let EAI_ADDRFAMILY = -9
 let EAI_AGAIN = -3
@@ -78,12 +80,14 @@ let O_APPEND = 0x400
 let O_CLOEXEC = 0x80000
 let O_CREAT = 0x40
 let O_NONBLOCK = 0x800
+let O_PATH = 0x200000
 let O_RDONLY = 0
 let O_RDWR = 0x2
 let O_TRUNC = 0x200
 let O_WRONLY = 0x1
 let POSIX_SPAWN_SETSIGDEF = 0x04
 let POSIX_SPAWN_SETSIGMASK = 0x08
+let PR_SET_NO_NEW_PRIVS = 38
 let SEEK_CUR = 1
 let SEEK_END = 2
 let SEEK_SET = 0
@@ -129,6 +133,36 @@ let TCP_KEEPIDLE = 4
 let TCP_KEEPINTVL = 5
 let TCP_NODELAY = 1
 let WNOHANG = 0x00000001
+
+let LANDLOCK_ACCESS_FS_EXECUTE = 0b1
+let LANDLOCK_ACCESS_FS_IOCTL_DEV = 0b1_0000_0000_0000000
+let LANDLOCK_ACCESS_FS_MAKE_BLOCK = 0b1_0000_0000000
+let LANDLOCK_ACCESS_FS_MAKE_CHAR = 0b1_000000
+let LANDLOCK_ACCESS_FS_MAKE_DIR = 0b1_0000000
+let LANDLOCK_ACCESS_FS_MAKE_FIFO = 0b1_0000_000000
+let LANDLOCK_ACCESS_FS_MAKE_REG = 0b1_0000_0000
+let LANDLOCK_ACCESS_FS_MAKE_SOCK = 0b1_0000_00000
+let LANDLOCK_ACCESS_FS_MAKE_SYM = 0b1_0000_0000_0000
+let LANDLOCK_ACCESS_FS_READ_DIR = 0b1000
+let LANDLOCK_ACCESS_FS_READ_FILE = 0b100
+let LANDLOCK_ACCESS_FS_REFER = 0b1_0000_0000_00000
+let LANDLOCK_ACCESS_FS_REMOVE_DIR = 0b1_0000
+let LANDLOCK_ACCESS_FS_REMOVE_FILE = 0b1_00000
+let LANDLOCK_ACCESS_FS_RESOLVE_UNIX = 0b1_0000_0000_0000_0000
+let LANDLOCK_ACCESS_FS_TRUNCATE = 0b1_0000_0000_000000
+let LANDLOCK_ACCESS_FS_WRITE_FILE = 0b10
+let LANDLOCK_ACCESS_NET_BIND_TCP = 0b1
+let LANDLOCK_ACCESS_NET_CONNECT_TCP = 0b10
+let LANDLOCK_CREATE_RULESET_ERRATA = 0b10
+let LANDLOCK_CREATE_RULESET_VERSION = 0b1
+let LANDLOCK_RESTRICT_SELF_LOG_NEW_EXEC_ON = 0b10
+let LANDLOCK_RESTRICT_SELF_LOG_SAME_EXEC_OFF = 0b1
+let LANDLOCK_RESTRICT_SELF_LOG_SUBDOMAINS_OFF = 0b100
+let LANDLOCK_RESTRICT_SELF_TSYNC = 0b1000
+let LANDLOCK_RULE_NET_PORT = 2
+let LANDLOCK_RULE_PATH_BENEATH = 1
+let LANDLOCK_SCOPE_ABSTRACT_UNIX_SOCKET = 0b1
+let LANDLOCK_SCOPE_SIGNAL = 0b10
 
 type extern Dirent {
   let @d_ino: Uint64
@@ -437,6 +471,22 @@ type extern(packed) EpollEvent {
   let @data: Uint64
 }
 
+type extern LandlockRulesetAttr {
+  let @handled_access_fs: Uint64
+  let @handled_access_net: Uint64
+  let @scoped: Uint64
+}
+
+type extern(packed) LandlockPathBeneathAttr {
+  let @allowed_access: Uint64
+  let @parent_fd: Int32
+}
+
+type extern LandlockNetPortAttr {
+  let @allowed_access: Uint64
+  let @port: Uint64
+}
+
 fn extern fchmod(fd: Int32, mode: Uint16) -> Int32
 
 fn extern syscall(number: Int32, ...) -> Int32
@@ -491,6 +541,8 @@ fn extern epoll_wait(
   max: Int32,
   timeout: Int32,
 ) -> Int32
+
+fn extern prctl(op: Int32, ...) -> Int32
 
 fn inline flush(fd: Int32) -> Int32 {
   fsync(fd)
@@ -564,4 +616,37 @@ fn inline unix_socket_path_limit -> Int {
 
 fn inline sockaddr_storage_size -> Int {
   size_of[SockAddrStorage]
+}
+
+fn inline landlock_create_ruleset(
+  attr: Pointer[LandlockRulesetAttr],
+  size: Int,
+  flags: Int,
+) -> Result[Int32, Error] {
+  let op = arch.SYS_landlock_create_ruleset as Int32
+  let res = syscall(op, attr, size as Uint64, flags as Uint32)
+
+  if res as Int == -1 { throw Error.last_os_error } else { Result.Ok(res) }
+}
+
+fn inline landlock_restrict_self(
+  ruleset: Int32,
+  flags: Int,
+) -> Result[Nil, Error] {
+  let op = arch.SYS_landlock_restrict_self as Int32
+  let res = syscall(op, ruleset, flags as Int32) as Int
+
+  if res == -1 { throw Error.last_os_error } else { Result.Ok(nil) }
+}
+
+fn inline landlock_add_rule(
+  ruleset: Int32,
+  rule_type: Int,
+  rule_attr: Pointer[Uint8],
+) -> Result[Nil, Error] {
+  let op = arch.SYS_landlock_add_rule as Int32
+  let res = syscall(op, ruleset, rule_type as Int32, rule_attr, 0 as Int32)
+    as Int
+
+  if res == -1 { throw Error.last_os_error } else { Result.Ok(nil) }
 }

@@ -1,0 +1,173 @@
+import std.drop (Drop)
+import std.io (Error, start_blocking, stop_blocking)
+import std.libc
+import std.libc.linux (self as sys_libc)
+import std.ptr
+import std.reflect (size_of)
+
+let READ_DIR = sys_libc.LANDLOCK_ACCESS_FS_READ_DIR
+  | sys_libc.LANDLOCK_ACCESS_FS_READ_FILE
+  | sys_libc.LANDLOCK_ACCESS_FS_RESOLVE_UNIX
+
+let WRITE_DIR = sys_libc.LANDLOCK_ACCESS_FS_WRITE_FILE
+  | sys_libc.LANDLOCK_ACCESS_FS_TRUNCATE
+  | sys_libc.LANDLOCK_ACCESS_FS_MAKE_BLOCK
+  | sys_libc.LANDLOCK_ACCESS_FS_MAKE_CHAR
+  | sys_libc.LANDLOCK_ACCESS_FS_MAKE_DIR
+  | sys_libc.LANDLOCK_ACCESS_FS_MAKE_FIFO
+  | sys_libc.LANDLOCK_ACCESS_FS_MAKE_REG
+  | sys_libc.LANDLOCK_ACCESS_FS_MAKE_SOCK
+  | sys_libc.LANDLOCK_ACCESS_FS_MAKE_SYM
+  | sys_libc.LANDLOCK_ACCESS_FS_REMOVE_DIR
+  | sys_libc.LANDLOCK_ACCESS_FS_REMOVE_FILE
+  | sys_libc.LANDLOCK_ACCESS_FS_REFER
+
+let EXEC_DIR = sys_libc.LANDLOCK_ACCESS_FS_EXECUTE
+
+let READ_FILE = sys_libc.LANDLOCK_ACCESS_FS_READ_FILE
+  | sys_libc.LANDLOCK_ACCESS_FS_RESOLVE_UNIX
+
+let WRITE_FILE = sys_libc.LANDLOCK_ACCESS_FS_WRITE_FILE
+  | sys_libc.LANDLOCK_ACCESS_FS_TRUNCATE
+
+let EXEC_FILE = sys_libc.LANDLOCK_ACCESS_FS_EXECUTE
+
+let BIND = sys_libc.LANDLOCK_ACCESS_NET_BIND_TCP
+let CON = sys_libc.LANDLOCK_ACCESS_NET_CONNECT_TCP
+
+# The minimum ABI version that is required.
+let MIN_VERSION = 8
+
+fn abi_version -> Int {
+  let Ok(v) = sys_libc.landlock_create_ruleset(
+    ptr.null as Pointer[sys_libc.LandlockRulesetAttr],
+    size: 0,
+    flags: sys_libc.LANDLOCK_CREATE_RULESET_VERSION,
+  )
+  else {
+    return 0
+  }
+
+  v as Int
+}
+
+fn inline default_rules -> sys_libc.LandlockRulesetAttr {
+  let attr = sys_libc.LandlockRulesetAttr()
+
+  attr.handled_access_fs = (
+    READ_DIR | WRITE_DIR | EXEC_DIR | READ_FILE | WRITE_FILE | EXEC_FILE
+  )
+    as Uint64
+  attr.handled_access_net = (BIND | CON) as Uint64
+  attr
+}
+
+type inline Sandbox {
+  let @rules: Int32
+
+  fn static new -> Result[Option[Self], Error] {
+    if abi_version < MIN_VERSION { return Result.Ok(Option.None) }
+
+    let attr = default_rules
+    let size = size_of[sys_libc.LandlockRulesetAttr]
+
+    match sys_libc.landlock_create_ruleset(mut attr, size, flags: 0) {
+      case Ok(v) -> Result.Ok(Option.Some(Self(v)))
+      case Error(NotSupported or TooManyArguments or InvalidArgument) -> {
+        return Result.Ok(Option.None)
+      }
+      case Error(e) -> throw e
+    }
+  }
+
+  fn mut path(
+    path: String,
+    read: Bool,
+    write: Bool,
+    execute: Bool,
+  ) -> Result[Nil, Error] {
+    let mut bits = 0
+    let dir = path.to_path.directory?
+
+    if read { bits |= if dir { READ_DIR } else { READ_FILE } }
+
+    if write { bits |= if dir { WRITE_DIR } else { WRITE_FILE } }
+
+    if execute { bits |= if dir { EXEC_DIR } else { EXEC_FILE } }
+
+    start_blocking
+
+    let flags = sys_libc.O_PATH | sys_libc.O_CLOEXEC as Int32
+    let fd = libc.open(path.pointer, flags)
+    let err = stop_blocking
+
+    if fd as Int == -1 { throw Error.from_os_error(err) }
+
+    let rule = sys_libc.LandlockPathBeneathAttr(
+      allowed_access: bits as Uint64,
+      parent_fd: fd,
+    )
+    let res = sys_libc.landlock_add_rule(
+      @rules,
+      sys_libc.LANDLOCK_RULE_PATH_BENEATH,
+      (mut rule) as Pointer[Uint8],
+    )
+
+    libc.close(fd)
+
+    match res {
+      case Ok(_) or Error(NotSupported) -> Result.Ok(nil)
+      case Error(e) -> throw e
+    }
+  }
+
+  fn mut tcp(port: Int, bind: Bool, connect: Bool) -> Result[Nil, Error] {
+    let mut bits = 0
+
+    if bind { bits |= BIND }
+
+    if connect { bits |= CON }
+
+    let rule = sys_libc.LandlockNetPortAttr(
+      allowed_access: bits as Uint64,
+      port: port as Uint64,
+    )
+
+    match
+      sys_libc.landlock_add_rule(
+        @rules,
+        sys_libc.LANDLOCK_RULE_NET_PORT,
+        (mut rule) as Pointer[Uint8],
+      )
+    {
+      case Ok(_) or Error(NotSupported) -> Result.Ok(nil)
+      case Error(e) -> throw e
+    }
+  }
+
+  fn move apply -> Result[Nil, Error] {
+    sys_libc.prctl(
+      sys_libc.PR_SET_NO_NEW_PRIVS as Int32,
+      1 as Int32,
+      0 as Int32,
+      0 as Int32,
+      0 as Int32,
+    )
+
+    match
+      sys_libc.landlock_restrict_self(
+        @rules,
+        sys_libc.LANDLOCK_RESTRICT_SELF_TSYNC,
+      )
+    {
+      case Ok(_) or Error(NotSupported or PermissionDenied) -> Result.Ok(nil)
+      case Error(e) -> throw e
+    }
+  }
+}
+
+impl Drop for Sandbox {
+  fn mut drop {
+    libc.close(@rules)
+  }
+}
