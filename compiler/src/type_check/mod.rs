@@ -371,11 +371,10 @@ impl<'a> DefineTypeSignature<'a> {
                         return TypeRef::Error;
                     }
 
-                    if self.rules.mark_trait_for_self {
-                        if let TypeEnum::TraitInstance(i) = self.scope.self_type
-                        {
-                            i.instance_of().set_not_cast_safe(self.db_mut());
-                        }
+                    if self.rules.mark_trait_for_self
+                        && let TypeEnum::TraitInstance(i) = self.scope.self_type
+                    {
+                        i.instance_of().set_not_cast_safe(self.db_mut());
                     }
 
                     node.self_type = true;
@@ -483,16 +482,16 @@ impl<'a> DefineTypeSignature<'a> {
             TypeEnum::TypeParameter(param_id)
         };
 
-        if let RefKind::Mut = kind {
-            if !param_id.is_mutable(self.db()) {
-                let name = id.name(self.db()).clone();
+        if let RefKind::Mut = kind
+            && !param_id.is_mutable(self.db())
+        {
+            let name = id.name(self.db()).clone();
 
-                self.state.diagnostics.invalid_mut_type(
-                    &name,
-                    self.file(),
-                    node.location,
-                );
-            }
+            self.state.diagnostics.invalid_mut_type(
+                &name,
+                self.file(),
+                node.location,
+            );
         }
 
         kind.into_type_ref(self.db(), type_id)
@@ -698,19 +697,18 @@ impl<'a> CheckTypeSignature<'a> {
         }
 
         if let hir::Type::Ref(n) | hir::Type::Mut(n) | hir::Type::Uni(n) = node
+            && let hir::ReferrableType::Named(n) = &n.type_reference
         {
-            if let hir::ReferrableType::Named(n) = &n.type_reference {
-                let typ = n.resolved_type;
+            let typ = n.resolved_type;
 
-                if typ.is_value_type(self.db()) && !typ.is_pointer(self.db()) {
-                    self.state.diagnostics.warn(
-                        DiagnosticId::BorrowValueType,
-                        "borrows of value types are redundant, as value types \
+            if typ.is_value_type(self.db()) && !typ.is_pointer(self.db()) {
+                self.state.diagnostics.warn(
+                    DiagnosticId::BorrowValueType,
+                    "borrows of value types are redundant, as value types \
                         always use owned references",
-                        self.file(),
-                        node.location(),
-                    );
-                }
+                    self.file(),
+                    node.location(),
+                );
             }
         }
     }

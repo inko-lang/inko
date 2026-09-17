@@ -600,15 +600,16 @@ impl Lexer {
 
         let location = self.source_location(line, column);
 
-        if closed && !value.is_empty() && value.len() <= 6 {
-            if let Some(parsed) = u32::from_str_radix(&value, 16)
+        if closed
+            && !value.is_empty()
+            && value.len() <= 6
+            && let Some(parsed) = u32::from_str_radix(&value, 16)
                 .ok()
                 .and_then(char::from_u32)
                 .map(|chr| chr.to_string())
-            {
-                kind = TokenKind::StringEscape;
-                value = parsed;
-            }
+        {
+            kind = TokenKind::StringEscape;
+            value = parsed;
         }
 
         Token::new(kind, value, location)

@@ -1008,10 +1008,10 @@ impl<'a> DefineConstants<'a> {
             Constant::String(ref lhs) => {
                 let mut res = None;
 
-                if let Constant::String(ref rhs) = right {
-                    if node.operator == hir::Operator::Add {
-                        res = Some(format!("{}{}", lhs, rhs))
-                    }
+                if let Constant::String(ref rhs) = right
+                    && node.operator == hir::Operator::Add
+                {
+                    res = Some(format!("{}{}", lhs, rhs))
                 }
 
                 if let Some(val) = res {
@@ -1993,10 +1993,10 @@ impl<'a> LowerMethod<'a> {
             types::CallKind::Call(info) => {
                 self.verify_call(&info, node.location);
 
-                if !info.id.is_moving(self.db()) {
-                    if let Some(n) = node.receiver.as_mut() {
-                        n.mark_as_borrowed_receiver();
-                    }
+                if !info.id.is_moving(self.db())
+                    && let Some(n) = node.receiver.as_mut()
+                {
+                    n.mark_as_borrowed_receiver();
                 }
 
                 let rec = if info.receiver.is_explicit() {
@@ -2190,23 +2190,24 @@ impl<'a> LowerMethod<'a> {
         //
         // To prevent this from happening we have to explicitly borrow the
         // receiver first.
-        if let RegisterKind::Field(id, _) = self.register_kind(rec) {
-            if !moving && id.is_mutable(self.db()) {
-                // The method may be called on a field that is typed as an owned
-                // value (e.g. when we're inside a moving method), so we need to
-                // make sure the register type is always a borrow.
-                let typ = self.register_type(rec);
-                let typ = if info.id.is_mutable(self.db()) {
-                    typ.as_mut(self.db())
-                } else {
-                    typ.as_ref(self.db())
-                };
+        if let RegisterKind::Field(id, _) = self.register_kind(rec)
+            && !moving
+            && id.is_mutable(self.db())
+        {
+            // The method may be called on a field that is typed as an owned
+            // value (e.g. when we're inside a moving method), so we need to
+            // make sure the register type is always a borrow.
+            let typ = self.register_type(rec);
+            let typ = if info.id.is_mutable(self.db()) {
+                typ.as_mut(self.db())
+            } else {
+                typ.as_ref(self.db())
+            };
 
-                let reg = self.new_register(typ);
+            let reg = self.new_register(typ);
 
-                self.current_block_mut().borrow(reg, rec, ins_loc);
-                rec = reg;
-            }
+            self.current_block_mut().borrow(reg, rec, ins_loc);
+            rec = reg;
         }
 
         // Argument registers must be defined _before_ the return register,

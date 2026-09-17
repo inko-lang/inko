@@ -1287,10 +1287,10 @@ impl<'a, 'b> Specialize<'a, 'b> {
             .map(|p| type_arguments.get(p).unwrap())
             .collect();
 
-        if !key.is_empty() {
-            if let Some(new) = method.specialization(&self.state.db, &key) {
-                return new;
-            }
+        if !key.is_empty()
+            && let Some(new) = method.specialization(&self.state.db, &key)
+        {
+            return new;
         }
 
         let new =

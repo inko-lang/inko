@@ -500,11 +500,10 @@ impl Document {
                     // followed by e.g. a type, without that comment being
                     // turned into a comment for the _type_ instead of the
                     // module.
-                    if let Some(node) = iter.peek() {
-                        if node.location().line_start - c.location.line_end > 1
-                        {
-                            self.generator.new_line();
-                        }
+                    if let Some(node) = iter.peek()
+                        && node.location().line_start - c.location.line_end > 1
+                    {
+                        self.generator.new_line();
                     }
                 }
                 TopLevelExpression::DefineConstant(n) => {

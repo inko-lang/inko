@@ -1072,23 +1072,23 @@ impl Parser {
         };
         let mut packed = false;
 
-        if let TypeKind::Extern = kind {
-            if self.peek().kind == TokenKind::ParenOpen {
-                self.next();
+        if let TypeKind::Extern = kind
+            && self.peek().kind == TokenKind::ParenOpen
+        {
+            self.next();
 
-                let attr = self.expect(TokenKind::Identifier)?;
+            let attr = self.expect(TokenKind::Identifier)?;
 
-                if attr.value == "packed" {
-                    packed = true;
-                } else {
-                    error!(
-                        attr.location,
-                        "only the 'packed' attribute is supported"
-                    );
-                }
-
-                self.expect(TokenKind::ParenClose)?;
+            if attr.value == "packed" {
+                packed = true;
+            } else {
+                error!(
+                    attr.location,
+                    "only the 'packed' attribute is supported"
+                );
             }
+
+            self.expect(TokenKind::ParenClose)?;
         }
 
         let name = Constant::from(self.expect(TokenKind::Constant)?);

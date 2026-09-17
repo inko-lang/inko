@@ -307,10 +307,10 @@ impl TypePlaceholderId {
     pub(crate) fn assign_internal(self, db: &Database, value: TypeRef) {
         // Assigning placeholders to themselves isn't useful and results in
         // resolve() getting stuck.
-        if let TypeRef::Placeholder(id) = value {
-            if id.id == self.id {
-                return;
-            }
+        if let TypeRef::Placeholder(id) = value
+            && id.id == self.id
+        {
+            return;
         }
 
         self.get(db).value.set(value);

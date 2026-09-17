@@ -216,10 +216,10 @@ impl<'a> LexicalScope<'a> {
         let mut scope = Some(self);
 
         while let Some(current) = scope {
-            if let ScopeKind::Closure(id) = current.kind {
-                if let Some(parent) = current.parent {
-                    id.set_captured_self_type(db, parent.surrounding_type);
-                }
+            if let ScopeKind::Closure(id) = current.kind
+                && let Some(parent) = current.parent
+            {
+                id.set_captured_self_type(db, parent.surrounding_type);
             }
 
             scope = current.parent;
@@ -302,16 +302,15 @@ impl MethodCall {
 
         // Static methods may use/return type parameters of the surrounding
         // type, so we also need to create placeholders for those.
-        if method.is_static(&state.db) {
-            if let TypeEnum::Type(typ) = receiver_id {
-                if typ.is_generic(&state.db) {
-                    for param in typ.type_parameters(&state.db) {
-                        type_arguments.assign(
-                            param,
-                            TypeRef::placeholder(&mut state.db, Some(param)),
-                        );
-                    }
-                }
+        if method.is_static(&state.db)
+            && let TypeEnum::Type(typ) = receiver_id
+            && typ.is_generic(&state.db)
+        {
+            for param in typ.type_parameters(&state.db) {
+                type_arguments.assign(
+                    param,
+                    TypeRef::placeholder(&mut state.db, Some(param)),
+                );
             }
         }
 
@@ -2100,14 +2099,13 @@ impl<'a> CheckMethodBody<'a> {
 
         // This allows comparing of string patterns against both String and
         // Slice[String].
-        if let Some(ins) = input_type.as_type_instance(self.db()) {
-            if ins.instance_of()
+        if let Some(ins) = input_type.as_type_instance(self.db())
+            && ins.instance_of()
                 == self.db().type_in_module(BYTES_MODULE, SLICE_TYPE)
-                && ins.type_arguments(self.db()).and_then(|a| a.values().next())
-                    == Some(typ)
-            {
-                return;
-            }
+            && ins.type_arguments(self.db()).and_then(|a| a.values().next())
+                == Some(typ)
+        {
+            return;
         }
 
         self.expression_pattern_error(typ, input_type, node.location);
@@ -2521,14 +2519,13 @@ impl<'a> CheckMethodBody<'a> {
         // We can't allow capturing of 'self' borrows in default methods as for
         // inline types it could result in mutations taking place on a copy when
         // the user expects the original value to be mutated instead.
-        if let Some(stype) = closure.captured_self_type(self.db()) {
-            if stype.is_trait_instance(self.db())
-                && stype.is_ref_or_mut(self.db())
-            {
-                self.state
-                    .diagnostics
-                    .default_method_capturing_self(self.file(), node.location);
-            }
+        if let Some(stype) = closure.captured_self_type(self.db())
+            && stype.is_trait_instance(self.db())
+            && stype.is_ref_or_mut(self.db())
+        {
+            self.state
+                .diagnostics
+                .default_method_capturing_self(self.file(), node.location);
         }
 
         node.closure_id = Some(closure);
@@ -3221,17 +3218,16 @@ impl<'a> CheckMethodBody<'a> {
         node: &mut hir::Mut,
         scope: &mut LexicalScope,
     ) -> TypeRef {
-        if let hir::Expression::IdentifierRef(n) = &mut node.value {
-            if let Some(m) = self.module.method(self.db(), &n.name) {
-                if m.uses_c_calling_convention(self.db()) {
-                    node.pointer_to_method = Some(m);
-                    node.resolved_type = TypeRef::pointer(TypeEnum::Foreign(
-                        types::ForeignType::Int(8, Sign::Unsigned),
-                    ));
+        if let hir::Expression::IdentifierRef(n) = &mut node.value
+            && let Some(m) = self.module.method(self.db(), &n.name)
+            && m.uses_c_calling_convention(self.db())
+        {
+            node.pointer_to_method = Some(m);
+            node.resolved_type = TypeRef::pointer(TypeEnum::Foreign(
+                types::ForeignType::Int(8, Sign::Unsigned),
+            ));
 
-                    return node.resolved_type;
-                }
-            }
+            return node.resolved_type;
         }
 
         let expr = self.expression(&mut node.value, scope);
@@ -3840,12 +3836,11 @@ impl<'a> CheckMethodBody<'a> {
                 };
             }
             MethodLookup::None => {
-                if let TypeEnum::Module(mod_id) = rec_id {
-                    if let Some(Symbol::Type(id)) =
+                if let TypeEnum::Module(mod_id) = rec_id
+                    && let Some(Symbol::Type(id)) =
                         mod_id.use_symbol(self.db_mut(), name)
-                    {
-                        return self.new_type_instance(node, scope, id);
-                    }
+                {
+                    return self.new_type_instance(node, scope, id);
                 }
 
                 self.state.diagnostics.undefined_method(

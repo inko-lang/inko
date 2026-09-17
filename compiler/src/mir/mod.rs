@@ -2005,10 +2005,10 @@ impl Method {
                             }
                         }
 
-                        if let Some(id) = &mut ins.fallback {
-                            if *id == cur_id {
-                                *id = succ;
-                            }
+                        if let Some(id) = &mut ins.fallback
+                            && *id == cur_id
+                        {
+                            *id = succ;
                         }
                     }
                     Some(Instruction::DecrementAtomic(ins)) => {

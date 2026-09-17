@@ -165,13 +165,12 @@ impl Methods {
                 // We track collisions so we can generate more optimal dynamic
                 // dispatch code if we statically know one method never collides
                 // with another method in the same type.
-                if collision {
-                    if let Some(orig) = method.original_method(db) {
-                        if let Some(calls) = mir.dynamic_calls.get(&orig) {
-                            for (id, _) in calls {
-                                info[id.0 as usize].collision = true;
-                            }
-                        }
+                if collision
+                    && let Some(orig) = method.original_method(db)
+                    && let Some(calls) = mir.dynamic_calls.get(&orig)
+                {
+                    for (id, _) in calls {
+                        info[id.0 as usize].collision = true;
                     }
                 }
 

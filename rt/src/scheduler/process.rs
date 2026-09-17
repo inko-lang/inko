@@ -503,10 +503,10 @@ impl Thread {
             // We don't want to steal from the main thread as it only ever runs
             // the main process, and we can't steal from ourselves because our
             // queue is empty.
-            if idx != self.id {
-                if let Some(p) = self.pool.threads[idx].queue.pop() {
-                    return Some(p);
-                }
+            if idx != self.id
+                && let Some(p) = self.pool.threads[idx].queue.pop()
+            {
+                return Some(p);
             }
 
             idx = (idx + 1) % len;
@@ -588,10 +588,10 @@ impl Thread {
 
         match self.action.take() {
             Action::Terminate => {
-                if let Some(stack) = process.take_stack() {
-                    if self.stacks.len() < self.stacks.capacity() {
-                        self.stacks.push(stack);
-                    }
+                if let Some(stack) = process.take_stack()
+                    && self.stacks.len() < self.stacks.capacity()
+                {
+                    self.stacks.push(stack);
                 }
 
                 // Process termination can't be safely done on the process'
