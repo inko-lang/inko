@@ -31,8 +31,8 @@ backtrace = "^0.3"
 # 4. We don't care about FIPS compliance at the time of writing
 # 5. ring's maintenance is spotty/uncertain in the future
 #   (https://github.com/briansmith/ring/discussions/2414)
-rustls = { version = "^0.23", features = ["tls12", "std"], default-features = false }
-rustls-graviola = "^0.2"
+rustls = { version = "^0.23.45", features = ["tls12", "std"], default-features = false }
+rustls-graviola = "^0.4"
 
 # ------------------------------------------------------------------------------
 #
