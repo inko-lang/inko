@@ -1,7 +1,5 @@
-use libc::{LOCK_EX, LOCK_UN, flock};
 use std::fs::File;
 use std::io;
-use std::os::fd::AsRawFd;
 use std::path::Path;
 
 pub struct FileLock {
@@ -16,23 +14,14 @@ impl FileLock {
             .truncate(false)
             .open(path)?;
 
-        // We support Rust 1.85 or newer so we can't use `File::lock` as that
-        // was first introduced in Rust 1.89.
-        unsafe {
-            let res = flock(file.as_raw_fd(), LOCK_EX);
-
-            if res == -1 {
-                return Err(io::Error::last_os_error());
-            }
-        }
-
+        file.lock()?;
         Ok(Self { file })
     }
 }
 
 impl Drop for FileLock {
     fn drop(&mut self) {
-        unsafe { flock(self.file.as_raw_fd(), LOCK_UN) };
+        let _ = self.file.unlock();
     }
 }
 

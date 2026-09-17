@@ -70,8 +70,8 @@ jobs:
       matrix:
         target:
           - image: fedora-amd64
-            name: amd64-linux-gnu-1.85
-            version: 1.85
+            name: amd64-linux-gnu-1.89
+            version: 1.89
           - image: fedora-amd64
             name: amd64-linux-gnu
             version: 1.94
