@@ -1,0 +1,29 @@
+import std.fs.path (Path)
+import std.io (Error)
+
+type Sandbox {
+  fn static new -> Option[Self] {
+    Option.None
+  }
+
+  fn mut path(
+    path: Path,
+    read: Bool,
+    write: Bool,
+    execute: Bool,
+  ) -> Result[Nil, Error] {
+    Result.Ok(nil)
+  }
+
+  fn mut tcp(port: Int, bind: Bool, connect: Bool) -> Result[Nil, Error] {
+    Result.Ok(nil)
+  }
+
+  fn mut udp(port: Int, bind: Bool, connect: Bool) -> Result[Nil, Error] {
+    Result.Ok(nil)
+  }
+
+  fn move enable -> Result[Nil, Error] {
+    Result.Ok(nil)
+  }
+}

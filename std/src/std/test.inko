@@ -126,6 +126,9 @@ type pub Test {
   # A closure containing the assertions to perform.
   let @code: fn (mut Test)
 
+  # The reason this test is skipped for, if any.
+  let mut @skipped: String
+
   # Returns a new `Test`.
   fn pub static new(
     id: Int,
@@ -134,7 +137,15 @@ type pub Test {
     line: Int,
     code: uni fn (mut Test),
   ) -> Test {
-    Test(id: id, name: name, path: path, line: line, failures: [], code: code)
+    Test(
+      id: id,
+      name: name,
+      path: path,
+      line: line,
+      failures: [],
+      code: code,
+      skipped: '',
+    )
   }
 
   # Asserts that the given arguments are equal to each other.
@@ -179,6 +190,11 @@ type pub Test {
     @failures.push(Failure.new('true', 'false'))
   }
 
+  # Marks this test as skipped.
+  fn pub mut skip(reason: String) {
+    @skipped = reason
+  }
+
   fn matches?(filter: ref Filter) -> Bool {
     match filter {
       case Pattern(pat) -> @name.contains?(pat)
@@ -192,6 +208,9 @@ type pub Test {
 trait pub Reporter {
   # Reports a test that passed.
   fn pub mut passed(test: Test)
+
+  # Reports a test that is skipped.
+  fn pub mut skipped(test: Test)
 
   # Reports a test that failed.
   fn pub mut failed(test: Test)
@@ -211,11 +230,12 @@ type pub Plain[T: mut + Write[Error]] {
   let @out: T
   let mut @tests: Int
   let @failed: Array[Test]
+  let @skipped: Array[Test]
   let @colors: Bool
 
   # Returns a new reporter that writes to the given output stream.
   fn pub static new(out: T, colors: Bool) -> Plain[T] {
-    Plain(out: out, tests: 0, failed: [], colors: colors)
+    Plain(out: out, tests: 0, failed: [], skipped: [], colors: colors)
   }
 
   fn red(value: String) -> String {
@@ -225,48 +245,72 @@ type pub Plain[T: mut + Write[Error]] {
   fn green(value: String) -> String {
     if @colors { '\e[32m${value}\e[0m' } else { value }
   }
-}
 
-impl Reporter for Plain {
-  fn pub mut passed(test: Test) {
-    @tests += 1
-    @out.write(green('.')).get
-    @out.flush.get
+  fn yellow(value: String) -> String {
+    if @colors { '\e[33m${value}\e[0m' } else { value }
   }
 
-  fn pub mut failed(test: Test) {
-    @tests += 1
-    @failed.push(test)
-    @out.write(red('F')).get
-    @out.flush.get
+  fn bold(value: String) -> String {
+    if @colors { '\e[1m${value}\e[0m' } else { value }
   }
 
-  fn pub move finished(duration: Duration, seed: Int) -> Bool {
-    if @failed.size > 0 {
-      @out.print('\n\nFailures:').get
+  fn mut title(value: String) {
+    @out.write('\n').get
+    @out.print(bold(value)).get
+  }
 
-      for (test_index, test) in @failed.iter.with_index {
-        for (failure_index, fail) in test.failures.iter.with_index {
-          let num = '${test_index + failure_index + 1}.'
-          let indent = ' '.repeat(num.chars.count)
-          let lf = '\n${indent}             '
-          let exp = fail.expected.replace('\n', lf)
-          let got = fail.got.replace('\n', lf)
+  fn mut show_failed {
+    if @failed.empty? { return }
 
-          @out
-            .print(
-              '
+    if @skipped.empty? { @out.write('\n').get }
+
+    title('Failures:')
+
+    for (test_index, test) in @failed.iter.with_index {
+      for (failure_index, fail) in test.failures.iter.with_index {
+        let num = '${test_index + failure_index + 1}.'
+        let indent = ' '.repeat(num.chars.count)
+        let lf = '\n${indent}             '
+        let exp = fail.expected.replace('\n', lf)
+        let got = fail.got.replace('\n', lf)
+
+        @out
+          .print(
+            '
 ${num} Test: ${test.name}
 ${indent} Line: ${fail.path}:${fail.line}
 
 ${indent}   ${green('expected:')} ${exp}
 ${indent}        ${red('got:')} ${got}',
-            )
-            .get
-        }
+          )
+          .get
       }
     }
+  }
 
+  fn mut show_skipped {
+    if @skipped.empty? { return }
+
+    @out.write('\n').get
+    title('Skipped:')
+
+    for (idx, test) in @skipped.iter.with_index {
+      let num = '${idx + 1}.'
+      let indent = ' '.repeat(num.chars.count)
+
+      @out
+        .print(
+          '
+${num} Test: ${test.name}
+${indent} Line: ${test.path}:${test.line}
+
+${indent}   ${yellow(test.skipped)}',
+        )
+        .get
+    }
+  }
+
+  fn mut show_summary(duration: Duration, seed: Int) {
     let decimals = 4
     let dur = if duration.to_secs >= 1.0 {
       '${duration.to_secs.round(decimals)} seconds'
@@ -281,13 +325,45 @@ ${indent}        ${red('got:')} ${got}',
     } else {
       green('0 failures')
     }
+    let skipped = if @skipped.size > 0 {
+      yellow('${@skipped.size} skipped')
+    } else {
+      '0 skipped'
+    }
 
     @out
       .print(
-        '\nFinished running ${@tests} tests in ${dur}, ${failures}, seed: ${seed}',
+        '\nFinished running ${@tests} tests in ${dur}, ${failures}, ${skipped}, seed: ${seed}',
       )
       .get
+  }
+}
 
+impl Reporter for Plain {
+  fn pub mut passed(test: Test) {
+    @tests += 1
+    @out.write(green('.')).get
+    @out.flush.get
+  }
+
+  fn pub mut skipped(test: Test) {
+    @tests += 1
+    @skipped.push(test)
+    @out.write(yellow('S')).get
+    @out.flush.get
+  }
+
+  fn pub mut failed(test: Test) {
+    @tests += 1
+    @failed.push(test)
+    @out.write(red('F')).get
+    @out.flush.get
+  }
+
+  fn pub move finished(duration: Duration, seed: Int) -> Bool {
+    show_skipped
+    show_failed
+    show_summary(duration, seed)
     @failed.empty?
   }
 }
@@ -716,7 +792,11 @@ type pub Tests {
     size.times(fn (_) {
       let test = recover output.receive
 
-      if test.failures.empty? { rep.passed(test) } else { rep.failed(test) }
+      if test.failures.empty? {
+        if test.skipped.size > 0 { rep.skipped(test) } else { rep.passed(test) }
+      } else {
+        rep.failed(test)
+      }
     })
 
     if rep.finished(start.elapsed, seed) {

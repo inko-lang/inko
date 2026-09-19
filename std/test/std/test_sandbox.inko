@@ -1,0 +1,548 @@
+import helpers (compiler_path)
+import std.env
+import std.fmt (fmt)
+import std.fs.file (ReadOnlyFile, WriteOnlyFile)
+import std.fs.path (Path)
+import std.net.ip (IpAddress)
+import std.net.socket (TcpClient, TcpServer, UdpSocket)
+import std.sandbox (
+  Bits, PathPermissions, PortPermissions, Sandbox, bind, connect, execute, read,
+  write,
+)
+import std.stdio (Stdout)
+import std.sys (Command, Stream)
+import std.test (Tests)
+import std.time (Duration)
+
+fn create(path: ref Path) {
+  let _ = WriteOnlyFile.new(path)
+}
+
+fn pub tests(t: mut Tests) {
+  t.test('Bits.set?', fn (t) {
+    let bits = Bits(0b0110)
+
+    t.false(bits.set?(0b0001))
+    t.false(bits.set?(0b1000))
+    t.true(bits.set?(0b0100))
+    t.true(bits.set?(0b0110))
+    t.true(bits.set?(0b0010))
+  })
+
+  t.test('Bits.with', fn (t) {
+    let bits = Bits(0b0000).with(0b0100).with(0b0010)
+
+    t.equal(bits.bits, 0b0110)
+  })
+
+  t.test('Bits.+', fn (t) {
+    t.equal((Bits(0b0100) + Bits(0b0010)).bits, 0b0110)
+  })
+
+  t.test('PathPermissions.+', fn (t) {
+    let p = PathPermissions(Bits(0b0100)) + PathPermissions(Bits(0b0010))
+
+    t.equal(p.bits.bits, 0b0110)
+  })
+
+  t.test('PortPermissions.+', fn (t) {
+    let p = PortPermissions(Bits(0b0100)) + PortPermissions(Bits(0b0010))
+
+    t.equal(p.bits.bits, 0b0110)
+  })
+
+  let enable = Sandbox.supported?
+  let reason = "sandboxing isn't supported on this platform"
+  let udp = env.OS == 'mac'
+  let udp_reason = "UDP sandboxing isn't supported on this platform"
+
+  t.fork(
+    'Sandbox.enable rejects file system access by default',
+    child: fn {
+      Sandbox.new.enable
+
+      let res = ReadOnlyFile.new('README.md'.to_path).error
+      let _ = Stdout.new.write(fmt(res))
+    },
+    test: fn (t, p) {
+      if !enable { return t.skip(reason) }
+
+      t.equal(p.spawn.stdout, 'Some(PermissionDenied)')
+    },
+  )
+
+  t.fork(
+    'Sandbox.enable rejects outgoing TCP connections by default',
+    child: fn {
+      Sandbox.new.enable
+
+      let ip = IpAddress.parse(env.get('INKO_IP').or_panic).get
+      let port = Int.parse(env.get('INKO_PORT').or_panic, base: 10).get
+      let res = TcpClient.new([ip], port: port).error
+      let _ = Stdout.new.write(fmt(res))
+    },
+    test: fn (t, p) {
+      if !enable { return t.skip(reason) }
+
+      let sock = TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0).or_panic
+      let addr = sock.local_address.or_panic
+
+      p.variable('INKO_IP', addr.ip.to_string)
+      p.variable('INKO_PORT', addr.port.to_string)
+      t.equal(p.spawn.stdout, 'Some(PermissionDenied)')
+    },
+  )
+
+  t.fork(
+    'Sandbox.enable rejects incoming TCP connections by default',
+    child: fn {
+      Sandbox.new.enable
+
+      let res = TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0).error
+      let _ = Stdout.new.write(fmt(res))
+    },
+    test: fn (t, p) {
+      if !enable { return t.skip(reason) }
+
+      t.equal(p.spawn.stdout, 'Some(PermissionDenied)')
+    },
+  )
+
+  t.fork(
+    'Sandbox.enable rejects incoming UDP connections by default',
+    child: fn {
+      Sandbox.new.enable
+
+      let res = UdpSocket.new(IpAddress.v4(127, 0, 0, 1), port: 0).error
+      let _ = Stdout.new.write(fmt(res))
+    },
+    test: fn (t, p) {
+      if !enable { return t.skip(reason) }
+
+      if !udp { return t.skip(udp_reason) }
+
+      t.equal(p.spawn.stdout, 'Some(PermissionDenied)')
+    },
+  )
+
+  t.fork(
+    'Sandbox.enable rejects outgoing UDP connections by default',
+    child: fn {
+      let ip = IpAddress.parse(env.get('INKO_IP').or_panic).get
+      let port = Int.parse(env.get('INKO_PORT').or_panic, base: 10).get
+      let s = Sandbox.new
+
+      s.udp(0, bind)
+      s.enable
+
+      let con = UdpSocket.new(IpAddress.v4(0, 0, 0, 0), port: 0).or_panic
+      let res = con.send_to('hello', ip, port)
+      let _ = Stdout.new.write(fmt(res))
+    },
+    test: fn (t, p) {
+      if !enable { return t.skip(reason) }
+
+      if !udp { return t.skip(udp_reason) }
+
+      let sock = UdpSocket.new(IpAddress.v4(127, 0, 0, 1), port: 0).or_panic
+      let addr = sock.local_address.or_panic
+
+      p.variable('INKO_IP', addr.ip.to_string)
+      p.variable('INKO_PORT', addr.port.to_string)
+
+      let child = p.spawn
+
+      t.equal(child.stdout, 'Error(PermissionDenied)')
+      t.equal(child.stderr, '')
+      t.equal(child.status.to_int, 0)
+    },
+  )
+
+  t.fork(
+    "Sandbox.enable doesn't affect existing files",
+    child: fn {
+      let file = ReadOnlyFile.new('README.md'.to_path).or_panic
+
+      Sandbox.new.enable
+
+      let buf = ByteArray.new
+      let res = file.read(into: buf, size: 8)
+      let _ = Stdout.new.write(fmt(res))
+    },
+    test: fn (t, p) {
+      if !enable { return t.skip(reason) }
+
+      t.equal(p.spawn.stdout, 'Ok(8)')
+    },
+  )
+
+  t.fork(
+    "Sandbox.enable doesn't allow spawning of processes by default",
+    child: fn {
+      Sandbox.new.enable
+
+      let path = env.get('INKO_PATH').or_panic.to_path
+      let cmd = Command.new(path)
+
+      cmd.arguments = ['--help']
+
+      let res = cmd.spawn.error
+      let _ = Stdout.new.write(fmt(res))
+    },
+    test: fn (t, p) {
+      if !enable { return t.skip(reason) }
+
+      p.variable('INKO_PATH', compiler_path.to_string)
+
+      let child = p.spawn
+
+      t.equal(child.status.to_int, 0)
+      t.equal(child.stdout, 'Some(PermissionDenied)')
+      t.equal(child.stderr, '')
+    },
+  )
+
+  t.fork(
+    'Sandbox.enable with an allowed read-only file',
+    child: fn {
+      let s = Sandbox.new
+
+      s.path('README.md', read)
+      s.enable
+
+      let buf = ByteArray.new
+      let res = ReadOnlyFile.new('README.md'.to_path).then(fn (f) {
+        f.read(into: buf, size: 8)
+      })
+
+      let _ = Stdout.new.write(fmt(res))
+    },
+    test: fn (t, p) {
+      if !enable { return t.skip(reason) }
+
+      t.equal(p.spawn.stdout, 'Ok(8)')
+    },
+  )
+
+  t.fork(
+    'Sandbox.enable with an allowed absolute read-only directory',
+    child: fn {
+      let s = Sandbox.new
+
+      s.path(env.working_directory.or_panic, read)
+      s.enable
+
+      let buf = ByteArray.new
+      let res = ReadOnlyFile.new('README.md'.to_path).then(fn (f) {
+        f.read(into: buf, size: 8)
+      })
+
+      let _ = Stdout.new.write(fmt(res))
+    },
+    test: fn (t, p) {
+      if !enable { return t.skip(reason) }
+
+      t.equal(p.spawn.stdout, 'Ok(8)')
+    },
+  )
+
+  t.fork(
+    'Sandbox.enable with an allowed relative read-only directory',
+    child: fn {
+      let s = Sandbox.new
+
+      s.path('.', read)
+      s.enable
+
+      let buf = ByteArray.new
+      let res = ReadOnlyFile.new('README.md'.to_path).then(fn (f) {
+        f.read(into: buf, size: 8)
+      })
+
+      let _ = Stdout.new.write(fmt(res))
+    },
+    test: fn (t, p) {
+      if !enable { return t.skip(reason) }
+
+      t.equal(p.spawn.stdout, 'Ok(8)')
+    },
+  )
+
+  t.fork(
+    'Sandbox.enable with an allowed write-only file',
+    child: fn {
+      let s = Sandbox.new
+      let p = env.get('INKO_PATH').or_panic.to_path
+
+      s.path(p, write)
+      s.enable
+
+      let res = WriteOnlyFile.new(p).then(fn (f) { f.write('hello') })
+      let _ = Stdout.new.write(fmt(res))
+    },
+    test: fn (t, p) {
+      if !enable { return t.skip(reason) }
+
+      let path = env.temporary_directory.join('inko-test-sandbox-${t.id}')
+
+      create(path)
+      p.variable('INKO_PATH', path.to_string)
+
+      let child = p.spawn
+
+      t.equal(child.stdout, 'Ok(nil)')
+      t.equal(child.stderr, '')
+      t.equal(child.status.to_int, 0)
+
+      let _ = path.remove_file
+    },
+  )
+
+  t.fork(
+    'Sandbox.enable with an allowed write-only directory',
+    child: fn {
+      let s = Sandbox.new
+      let p = env.get('INKO_PATH').or_panic.to_path
+
+      s.path(env.temporary_directory, write)
+      s.enable
+
+      let res = WriteOnlyFile.new(p).then(fn (f) { f.write('hello') })
+      let _ = Stdout.new.write(fmt(res))
+    },
+    test: fn (t, p) {
+      if !enable { return t.skip(reason) }
+
+      let path = env.temporary_directory.join('inko-test-sandbox-${t.id}')
+
+      p.variable('INKO_PATH', path.to_string)
+      t.equal(p.spawn.stdout, 'Ok(nil)')
+
+      let _ = path.remove_file
+    },
+  )
+
+  t.fork(
+    'Sandbox.enable with an allowed read-write path',
+    child: fn {
+      let s = Sandbox.new
+      let p = env.get('INKO_PATH').or_panic.to_path
+
+      s.path(p, read + write)
+      s.enable
+
+      let buf = ByteArray.new
+      let a = WriteOnlyFile.new(p).then(fn (f) { f.write('hello') })
+      let b = ReadOnlyFile.new(p).then(fn (f) { f.read(into: buf, size: 5) })
+      let _ = Stdout.new.write(fmt((a, b)))
+    },
+    test: fn (t, p) {
+      if !enable { return t.skip(reason) }
+
+      let path = env.temporary_directory.join('inko-test-sandbox-${t.id}')
+
+      create(path)
+
+      p.variable('INKO_PATH', path.to_string)
+      t.equal(p.spawn.stdout, '(Ok(nil), Ok(5))')
+
+      let _ = path.remove_file
+    },
+  )
+
+  t.fork(
+    'Sandbox.enable with an allowed executable file',
+    child: fn {
+      let s = Sandbox.new
+      let path = env.get('INKO_PATH').or_panic.to_path
+
+      s.path(path, execute)
+      s.enable
+
+      let cmd = Command.new(path)
+      let buf = ByteArray.new
+
+      cmd.arguments = ['--help']
+      cmd.stdout = Stream.Piped
+      cmd.stderr = Stream.Null
+
+      match cmd.spawn {
+        case Ok(child) -> {
+          let a = child.wait
+          let b = child.stdout.as_mut.get.read(into: buf, size: 8)
+
+          Stdout.new.write(fmt((a, b)))
+        }
+        case Error(e) -> Stdout.new.write(fmt(e))
+      }
+    },
+    test: fn (t, p) {
+      if !enable { return t.skip(reason) }
+
+      p.variable('INKO_PATH', compiler_path.to_string)
+
+      let child = p.spawn
+
+      t.equal(child.status.to_int, 0)
+      t.equal(child.stdout, '(Ok(ExitStatus(0)), Ok(8))')
+      t.equal(child.stderr, '')
+    },
+  )
+
+  t.fork(
+    'Sandbox.enable with an allowed incoming TCP connection',
+    child: fn {
+      let s = Sandbox.new
+      let ip = IpAddress.parse(env.get('INKO_IP').or_panic).get
+      let port = Int.parse(env.get('INKO_PORT').or_panic, base: 10).get
+
+      s.tcp(port, bind)
+      s.enable
+
+      let res = TcpServer.new(ip, port).error
+
+      Stdout.new.write(fmt(res))
+    },
+    test: fn (t, p) {
+      if !enable { return t.skip(reason) }
+
+      # We use this approach so the child process is guaranteed a random port
+      # that won't conflict with other tests or programs.
+      let sock = TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0).or_panic
+      let addr = sock.local_address.or_panic
+
+      p.variable('INKO_IP', addr.ip.to_string)
+      p.variable('INKO_PORT', addr.port.to_string)
+
+      let child = p.spawn_only.or_panic
+      let out = ByteArray.new
+      let err = ByteArray.new
+      let _ = child.stdout.as_mut.get.read_all(out)
+      let _ = child.stderr.as_mut.get.read_all(err)
+
+      t.equal(out.into_string, 'None')
+      t.equal(err.into_string, '')
+      t.equal(child.wait.or_panic.to_int, 0)
+    },
+  )
+
+  t.fork(
+    'Sandbox.enable with an allowed incoming TCP connection using port 0',
+    child: fn {
+      let s = Sandbox.new
+
+      s.tcp(0, bind)
+      s.enable
+
+      let res = TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0).error
+
+      Stdout.new.write(fmt(res))
+    },
+    test: fn (t, p) {
+      if !enable { return t.skip(reason) }
+
+      let child = p.spawn
+
+      t.equal(child.stdout, 'None')
+      t.equal(child.stderr, '')
+      t.equal(child.status.to_int, 0)
+    },
+  )
+
+  t.fork(
+    'Sandbox.enable with an allowed outgoing TCP connection',
+    child: fn {
+      let s = Sandbox.new
+      let ip = IpAddress.parse(env.get('INKO_IP').or_panic).get
+      let port = Int.parse(env.get('INKO_PORT').or_panic, base: 10).get
+
+      s.tcp(port, connect)
+      s.enable
+
+      let res = TcpClient
+        .with_timeout([ip], port, timeout_after: Duration.from_secs(1))
+        .error
+
+      Stdout.new.write(fmt(res))
+    },
+    test: fn (t, p) {
+      if !enable { return t.skip(reason) }
+
+      let sock = TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0).or_panic
+      let addr = sock.local_address.or_panic
+
+      p.variable('INKO_IP', addr.ip.to_string)
+      p.variable('INKO_PORT', addr.port.to_string)
+
+      let child = p.spawn
+
+      t.equal(child.stdout, 'None')
+      t.equal(child.stderr, '')
+      t.equal(child.status.to_int, 0)
+    },
+  )
+
+  t.panic('Sandbox.tcp with port 0 and the connect permission', fn {
+    Sandbox.new.tcp(0, connect)
+  })
+
+  t.fork(
+    'Sandbox.enable with an allowed outgoing UDP connection',
+    child: fn {
+      let s = Sandbox.new
+      let ip = IpAddress.parse(env.get('INKO_IP').or_panic).get
+      let port = Int.parse(env.get('INKO_PORT').or_panic, base: 10).get
+
+      s.udp(0, bind)
+      s.udp(port, connect)
+      s.enable
+
+      let sock = UdpSocket.new(ip, port: 0).or_panic
+      let res = sock.send_to('hello', ip, port)
+
+      Stdout.new.write(fmt(res))
+    },
+    test: fn (t, p) {
+      if !enable { return t.skip(reason) }
+
+      let sock = UdpSocket.new(IpAddress.v4(127, 0, 0, 1), port: 0).or_panic
+      let addr = sock.local_address.or_panic
+
+      p.variable('INKO_IP', addr.ip.to_string)
+      p.variable('INKO_PORT', addr.port.to_string)
+
+      let child = p.spawn
+      let buf = ByteArray.new
+
+      t.equal(child.stdout, 'Ok(5)')
+      t.equal(child.stderr, '')
+      t.equal(child.status.to_int, 0)
+      t.true(sock.receive_from(buf, size: 32).ok?)
+      t.equal(buf.into_string, 'hello')
+    },
+  )
+
+  t.fork(
+    'Sandbox.enable gives read-write access to the null device',
+    child: fn {
+      Sandbox.new.enable
+
+      let read = ReadOnlyFile.new('/dev/null'.to_path).or_panic
+      let write = WriteOnlyFile.new('/dev/null'.to_path).or_panic
+      let buf = ByteArray.new
+      let a = read.read(into: buf, size: 1)
+      let b = write.write('1')
+
+      Stdout.new.write(fmt((a, b)))
+    },
+    test: fn (t, p) {
+      if !enable { return t.skip(reason) }
+
+      let child = p.spawn
+
+      t.equal(child.stdout, '(Ok(0), Ok(nil))')
+      t.equal(child.stderr, '')
+      t.equal(child.status.to_int, 0)
+    },
+  )
+}

@@ -110,7 +110,7 @@ Process 'Main' (0x3f653870) panicked: message goes here
     t.equal(plain.finished(duration: Duration.from_secs(1), seed: 42), true)
     t.equal(
       buff.to_string,
-      '\nFinished running 0 tests in 1.0 seconds, 0 failures, seed: 42\n',
+      '\nFinished running 0 tests in 1.0 seconds, 0 failures, 0 skipped, seed: 42\n',
     )
   })
 
@@ -130,7 +130,7 @@ Process 'Main' (0x3f653870) panicked: message goes here
     t.equal(plain.finished(duration: Duration.from_secs(1), seed: 42), true)
     t.equal(
       buff.to_string,
-      '.\nFinished running 1 tests in 1.0 seconds, 0 failures, seed: 42\n',
+      '.\nFinished running 1 tests in 1.0 seconds, 0 failures, 0 skipped, seed: 42\n',
     )
   })
 
@@ -157,7 +157,34 @@ Process 'Main' (0x3f653870) panicked: message goes here
     t.true(out.contains?('Test: foo'))
     t.true(
       out.contains?(
-        'Finished running 1 tests in 1.0 seconds, 2 failures, seed: 42',
+        'Finished running 1 tests in 1.0 seconds, 2 failures, 0 skipped, seed: 42',
+      ),
+    )
+  })
+
+  t.test('Plain.finished with skipped tests', fn (t) {
+    let buff = ByteArray.new
+    let plain = Plain.new(out: Buffer.new(buff), colors: false)
+    let test = Test.new(
+      id: 1,
+      name: 'foo',
+      path: Path.new('foo.inko'),
+      line: 42,
+      code: fn (t) {},
+    )
+
+    test.skipped = 'foo'
+    plain.skipped(test)
+
+    t.equal(plain.finished(duration: Duration.from_secs(1), seed: 42), true)
+
+    let out = buff.to_string
+
+    t.true(out.contains?('Skipped:'))
+    t.true(out.contains?('Test: foo'))
+    t.true(
+      out.contains?(
+        'Finished running 1 tests in 1.0 seconds, 0 failures, 1 skipped, seed: 42',
       ),
     )
   })

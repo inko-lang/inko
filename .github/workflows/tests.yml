@@ -10,7 +10,7 @@ env:
 
 jobs:
   vale:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     container:
       image: ghcr.io/inko-lang/ci:fedora-amd64
     steps:
@@ -19,7 +19,7 @@ jobs:
         run: vale --no-wrap --sort .
 
   cargo-deny:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     container:
       image: ghcr.io/inko-lang/ci:alpine
     steps:
@@ -28,7 +28,7 @@ jobs:
         run: cargo deny check
 
   cargo-clippy:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     container:
       image: ghcr.io/inko-lang/ci:fedora-amd64
     steps:
@@ -41,7 +41,7 @@ jobs:
         run: 'cargo clippy -- -D warnings'
 
   cargo-fmt:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     container:
       image: ghcr.io/inko-lang/ci:fedora-amd64
     steps:
@@ -50,7 +50,7 @@ jobs:
         run: 'cargo fmt --all --check'
 
   inko-fmt:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     container:
       image: ghcr.io/inko-lang/ci:fedora-amd64
     steps:
@@ -80,7 +80,7 @@ jobs:
             version: 1.94
     name: ${{ matrix.target.name }} compiler
     timeout-minutes: 15
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     container:
       image: ghcr.io/inko-lang/ci:${{ matrix.target.image }}
     steps:
@@ -106,7 +106,7 @@ jobs:
             name: amd64-linux-musl
     name: ${{ matrix.target.name }} std ${{ matrix.flags }}
     timeout-minutes: 15
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     container:
       image: ghcr.io/inko-lang/ci:${{ matrix.target.image }}
     steps:
@@ -115,6 +115,8 @@ jobs:
         with:
           path: '${{ env.CARGO_HOME }}'
           key: ${{ matrix.target.name }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+      - name: Kernel version
+        run: uname -a
       - name: Run tests
         run: 'cd std && cargo run -- test --verify ${{ matrix.flags }}'
 
@@ -172,13 +174,15 @@ jobs:
           key: ${{ matrix.target.name }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
       - name: Install dependencies
         run: ./ci/mac.sh
+      - name: Kernel version
+        run: uname -a
       - name: Run tests
         run: 'cd std && cargo run -- test --verify ${{ matrix.flags }}'
 
   compiler-freebsd:
     name: amd64-freebsd-native compiler
     timeout-minutes: 15
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     env:
       RUSTUP_HOME: ${{ github.workspace }}/.rustup-home
     steps:
@@ -204,7 +208,7 @@ jobs:
   std-freebsd:
     name: amd64-freebsd-native std
     timeout-minutes: 15
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     env:
       RUSTUP_HOME: ${{ github.workspace }}/.rustup-home
     steps:

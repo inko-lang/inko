@@ -1,0 +1,136 @@
+import std.fs.path (Path)
+import std.io (Error)
+import std.libc.mac (self as sys_libc)
+import std.ptr
+import std.string (StringBuffer)
+
+# The basic profile regardless of the rules added to the sandbox.
+#
+# We only restrict file system and network access to match the behavior on other
+# platforms.
+#
+# For more information, refer to
+# https://reverse.put.as/wp-content/uploads/2011/09/Apple-Sandbox-Guide-v1.0.pdf.
+let BASE_PROFILE = '
+(version 1)
+(import "bsd.sb")       ; Not much works without this (e.g. spawning processes)
+(deny network*)
+(deny file*)
+(deny process-exec*)
+'
+
+# Paths that may directly or indirectly contain shared libraries that we need to
+# have read access to in order to execute files.
+let LIB_PATHS = ['/opt/homebrew', '/usr/local/Cellar']
+
+type Sandbox {
+  let @buf: StringBuffer
+  let mut @exec: Bool
+
+  fn static new -> Option[Self] {
+    let buf = StringBuffer.new
+
+    buf.push(BASE_PROFILE)
+    Option.Some(Self(buf: buf, exec: false))
+  }
+
+  fn mut path(
+    path: Path,
+    read: Bool,
+    write: Bool,
+    execute: Bool,
+  ) -> Result[Nil, Error] {
+    # We use Path.metadata here so that if the path doesn't exist we produce an
+    # error, keeping the behavior for missing paths consistent with other
+    # platforms.
+    let meta = try path.metadata
+    let dir = meta.type.directory?
+    let pval = path.to_string.escaped
+    let val = if dir { '(subpath "${pval}")' } else { '(literal "${pval}")' }
+
+    if read { add('(allow file-read* ${val})') }
+
+    if write { add('(allow file-write* ${val})') }
+
+    if execute {
+      @exec = true
+      add('(allow process-exec* ${val})')
+    }
+
+    Result.Ok(nil)
+  }
+
+  fn mut tcp(port: Int, bind: Bool, connect: Bool) -> Result[Nil, Error] {
+    socket('tcp', port, bind, connect)
+    Result.Ok(nil)
+  }
+
+  fn mut udp(port: Int, bind: Bool, connect: Bool) -> Result[Nil, Error] {
+    socket('udp', port, bind, connect)
+    Result.Ok(nil)
+  }
+
+  fn move enable -> Result[Nil, Error] {
+    add_defaults
+
+    let prof = @buf.into_string
+    let err = ptr.null
+    let res = sys_libc.sandbox_init(
+      prof.pointer,
+      flags: 0 as Uint64,
+      error: mut err,
+    )
+
+    # sandbox_init doesn't set errno and our `Error` type doesn't have a generic
+    # error string case. The manual page doesn't make it clear _when_
+    # sandbox_init may produce an error, other than the obvious "the profile is
+    # broken" case.
+    #
+    # As such, we throw an `InvalidArgument` here based on the assumption an
+    # error should only be produced if we generate an invalid profile.
+    if res as Int == -1 {
+      sys_libc.sandbox_free_error(err)
+      throw Error.InvalidArgument
+    }
+
+    Result.Ok(nil)
+  }
+
+  fn mut add_shared_libraries {
+    for path in LIB_PATHS.iter {
+      # We ignore errors as not all these directories may exist.
+      let _ = path(path.to_path, read: true, write: false, execute: false)
+    }
+  }
+
+  fn mut add_defaults {
+    if @exec {
+      # Executing processes also requires the ability to fork, at least when using
+      # `std.sys.Command`, so we have to add this whenever necessary (but only
+      # once).
+      add('(allow process-fork)')
+      add_shared_libraries
+    }
+
+    path('/dev/null'.to_path, read: true, write: true, execute: false)
+  }
+
+  fn mut socket(protocol: String, port: Int, bind: Bool, connect: Bool) {
+    if connect {
+      add('(allow network-outbound (remote ${protocol} "*:${port}"))')
+      add('(allow network-outbound (local ${protocol} "*:${port}"))')
+    }
+
+    if bind {
+      let port = if port == 0 { '*' } else { port.to_string }
+
+      add('(allow network-bind (local ${protocol} "*:${port}"))')
+      add('(allow network-inbound (local ${protocol} "*:${port}"))')
+    }
+  }
+
+  fn mut add(value: String) {
+    @buf.push('\n')
+    @buf.push(value)
+  }
+}

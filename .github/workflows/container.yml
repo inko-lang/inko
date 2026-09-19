@@ -10,7 +10,7 @@ on:
       runner:
         description: 'The host runner to use'
         required: false
-        default: ubuntu-24.04
+        default: ubuntu-26.04
         type: string
       dockerfile:
         description: 'The directory of the Dockerfile to use'

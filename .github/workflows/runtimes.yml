@@ -10,7 +10,7 @@ env:
 
 jobs:
   amd64-linux:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     container:
       image: ghcr.io/inko-lang/ci:fedora-amd64
     steps:
@@ -26,7 +26,7 @@ jobs:
           compression-level: 0
 
   arm64-linux:
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     container:
       image: ghcr.io/inko-lang/ci:fedora-arm64
     steps:
@@ -74,7 +74,7 @@ jobs:
           compression-level: 0
 
   amd64-freebsd:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       - name: Build runtimes
@@ -96,7 +96,7 @@ jobs:
 
   upload:
     name: Upload runtimes
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     container:
       image: ghcr.io/inko-lang/ci:fedora-amd64
     env:
