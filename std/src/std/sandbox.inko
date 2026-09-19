@@ -1,0 +1,341 @@
+# Transparent sandboxing of applications.
+#
+# This module provides the `Sandbox` type for transparent sandboxing of an Inko
+# application. Transparent means you don't need to make drastic changes to your
+# program in order to sandbox it, instead you use the `Sandbox` type to specify
+# what is allowed (e.g. what files can be read) and the rest of your program
+# will continue to work, without requiring further changes.
+#
+# For more information, refer to the documentation of the `Sandbox` type.
+import std.ops (Add)
+import std.string (ToString)
+import std.sys.linux.sandbox (self as sys) if linux
+import std.sys.mac.sandbox (self as sys) if mac
+import std.sys.sandbox (self as sys) if freebsd
+
+let READ = 0b0001
+let WRITE = 0b0010
+let EXEC = 0b0100
+let CON = 0b01
+let BIND = 0b10
+
+fn check_port(port: Int, connect: Bool) {
+  if port < 0 or port > 65_535 { panic('the port number is invalid') }
+
+  if connect and port == 0 {
+    panic("the connect permission can't be combined with port 0")
+  }
+}
+
+# Allows reading of files and directories.
+fn pub read -> PathPermissions {
+  PathPermissions(Bits(READ))
+}
+
+# Allows writing to existing files or creating them.
+fn pub write -> PathPermissions {
+  PathPermissions(Bits(WRITE))
+}
+
+# Allows the execution of files.
+fn pub execute -> PathPermissions {
+  PathPermissions(Bits(EXEC))
+}
+
+# Allows connecting a socket to a remote port.
+fn pub connect -> PortPermissions {
+  PortPermissions(Bits(CON))
+}
+
+# Allows binding a socket to a local port.
+fn pub bind -> PortPermissions {
+  PortPermissions(Bits(BIND))
+}
+
+type copy Bits {
+  let @bits: Int
+
+  fn inline set?(mask: Int) -> Bool {
+    @bits & mask == mask
+  }
+
+  fn inline move with(bits: Int) -> Self {
+    Self(@bits | bits)
+  }
+}
+
+impl Add[Self, Self] for Bits {
+  fn pub inline +(other: Self) -> Self {
+    Self(@bits | other.bits)
+  }
+}
+
+type pub copy PathPermissions {
+  let @bits: Bits
+}
+
+impl Add[Self, Self] for PathPermissions {
+  fn pub inline +(other: Self) -> Self {
+    Self(@bits + other.bits)
+  }
+}
+
+type pub copy PortPermissions {
+  let @bits: Bits
+}
+
+impl Add[Self, Self] for PortPermissions {
+  fn pub inline +(other: Self) -> Self {
+    Self(@bits + other.bits)
+  }
+}
+
+# A sandbox to apply to the current program.
+#
+# A newly created `Sandbox` severely restricts access to the host. For example,
+# access to the file system and network is denied by default. How strict exactly
+# a default sandbox is depends on the underlying platform and its sandboxing
+# capabilities, which is discussed in more detail below.
+#
+# To allow certain operations, such as reading a file or connecting to a socket,
+# use the following methods:
+#
+# - `std.sandbox.Sandbox.path`: to allow access to file and directory paths
+# - `std.sandbox.Sandbox.tcp`: to allow access to the network using TCP sockets
+# - `std.sandbox.Sandbox.udp`: to allow access to the network using UDP sockets
+#
+# Once a set of rules is added, the sandbox is enabled using
+# `std.sandbox.Sandbox.enable`.
+#
+# # Platform differences
+#
+# Different platforms have different techniques for sandboxing applications
+# (referred to as "backends" from now on), and some don't have any at all. There
+# may also be differences in their capabilities. For example, on macOS we use
+# Seatbelt and this supports restricting (or allowing) access to both TCP and
+# UDP sockets. On Linux we use Landlock and at the time of writing (late 2026),
+# UDP sockets are ignored by Landlock.
+#
+# The approach taken by the `Sandbox` type is that _if_ a backend doesn't
+# support something (e.g. restricting UDP access) then it's _allowed_. This
+# means the worst-case scenario is a sandbox that doesn't do anything on certain
+# platforms.
+#
+# The backends per platform are as follows:
+#
+# - FreeBSD: none
+# - Linux: [Landlock](https://docs.kernel.org/userspace-api/landlock.html),
+#   requiring ABI version 8 or newer
+# - macOS: Seatbelt/`sandbox_init`
+#
+# For platforms that don't support sandboxing a "null" sandbox is used that
+# turns all operations into a no-op.
+#
+# While FreeBSD technically supports sandboxing through
+# [Capsicum](https://wiki.freebsd.org/Capsicum), using Capsicum requires you to
+# write your program in a fundamentally different way and (through the use of
+# libcasper) make use of FreeBSD specific system/library calls. This
+# unfortunately makes transparent sandboxing impossible.
+#
+# # Examples
+#
+# A sandbox that restricts access as much as possible:
+#
+# ```inko
+# import std.sandbox (Sandbox)
+#
+# let s = Sandbox.new
+#
+# s.enable
+# ```
+#
+# A sandbox that allows reading of files and directories from `/etc`:
+#
+# ```inko
+# import std.sandbox (Sandbox, read)
+#
+# let s = Sandbox.new
+#
+# s.path('/etc', read)
+# s.enable
+# ```
+#
+# A sandbox that allows binding and connecting to TCP port 443:
+#
+# ```inko
+# import std.sandbox (Sandbox, bind, connect)
+#
+# let s = Sandbox.new
+#
+# s.tcp(443, bind + connect)
+# s.enable
+# ```
+type pub inline Sandbox {
+  # The platform specific sandboxer, if sandboxing is supported.
+  let @inner: Option[sys.Sandbox]
+
+  # Returns `true` if the current platform supports sandboxing, `false`
+  # otherwise.
+  fn pub static supported? -> Bool {
+    sys.Sandbox.new.some?
+  }
+
+  # Returns a new `Sandbox` that restricts access to the underlying system as
+  # much as possible.
+  fn pub static new -> Self {
+    Self(sys.Sandbox.new)
+  }
+
+  # Allow an operation for a file or directory, such as creating files or
+  # reading them.
+  #
+  # The `path` argument may be relative or absolute, and this method tries to
+  # automatically expand the path to an absolute path using
+  # `std.fs.path.Path.expand`.
+  #
+  # Because the path must point to an existing resource, it's generally best to
+  # add rules for directories instead of individual files as this allows the
+  # application to create those files if necessary, such as for automatically
+  # generated configuration files when an application first starts up.
+  #
+  # If `path` points to a directory then the permissions recursively apply to
+  # the entire directory tree.
+  #
+  # # Available permissions
+  #
+  # The available permissions are:
+  #
+  # - `std.sandbox.read`
+  # - `std.sandbox.write`
+  # - `std.sandbox.execute`
+  #
+  # # Executing paths
+  #
+  # If the list of permissions includes the ability to execute a file, this
+  # method tries to add the necessary dependencies automatically. This does not
+  # happen when adding a _directory_ with the executable permission, requiring
+  # you to do so yourself. For this reason it's recommended to use paths to
+  # executable _files_ whenever possible, instead of using directories.
+  #
+  # ## Linux
+  #
+  # On Linux the following extra rules are added:
+  #
+  # - read-only access for `/lib64`, `/lib` and `/nix/store`, skipping those
+  #   that don't exist
+  # - read-only and executable access to the ELF program interpreter (typically
+  #   `/lib64/ld-linux-x86-64.so.2`)
+  # - read and write access is given to `/dev/null`
+  #
+  # If the executable added depends on additional shared libraries not in the
+  # above library directories, you'll need to manually add rules (with at least
+  # the read permission) for those libraries or their parent directories.
+  #
+  # For systems using Nix we give read-only access to the entire `/nix/store`
+  # directory as it's not feasible to _only_ give access to the relevant
+  # libraries, as the directory structure of the Nix store doesn't use a common
+  # top-level directory for all library files.
+  #
+  # ## macOS
+  #
+  # On macOS the following extra rules are added:
+  #
+  # - read-only access for `/opt/homebrew` and `/usr/local/Cellar`, skipping
+  #   those that don't exist
+  # - forking of processes is explicitly allowed, which is necessary to allow
+  #   executing of programs through `std.sys.Command`
+  # - read and write access is given to `/dev/null`
+  #
+  # # Panics
+  #
+  # This method panics if `path` points to a non-existing resource, as different
+  # backends handle missing paths in different incompatible ways.
+  fn pub mut path[S: ToString](path: ref S, permissions: PathPermissions) {
+    let bits = permissions.bits
+    let read = bits.set?(READ)
+    let write = bits.set?(WRITE)
+    let exec = bits.set?(EXEC)
+
+    # Different backends may handle relative paths or symbolic links
+    # differently. To ensure consistent behavior, we try to expand the path
+    # first if it exists.
+    let path = path.to_string.to_path
+    let path = path.expand.or(path)
+    let Some(inner) = @inner else return
+
+    inner.path(path, read, write, exec).or_panic
+  }
+
+  # Allow an operation for a TCP socket, such as binding or connecting to a TCP
+  # socket.
+  #
+  # # Available permissions
+  #
+  # The available permissions are:
+  #
+  # - `std.sandbox.bind`
+  # - `std.sandbox.connect`
+  #
+  # # Binding or connecting to port 0
+  #
+  # Sockets may be bound to port zero, in which case the operating system binds
+  # the socket to a randomly chosen available port number.
+  #
+  # The behavior of different sandboxing backends when using port zero differs
+  # slightly:
+  #
+  # - On Linux, the rule `tcp(0, bind)` means you can _only_ explicitly bind to
+  #   port 0, not just any port
+  # - On macOS, the same rule means you can bind to _any_ port as Seatbelt has
+  #   no way of _only_ allowing one to bind against some ephemeral port
+  #
+  # Because of these differences it's recommended to _only_ use this method in
+  # combination with port 0 if you in fact intend to explicitly bind against
+  # port 0, instead of using it as a way of allowing binding of sockets to _any_
+  # port.
+  #
+  # Panics
+  #
+  # This method panics if `port` is not in the inclusive range of 0 to 65 535,
+  # or if `port` is 0 and `permissions` includes the connect permission.
+  fn pub mut tcp(port: Int, permissions: PortPermissions) {
+    let bits = permissions.bits
+    let bind = bits.set?(BIND)
+    let con = bits.set?(CON)
+
+    check_port(port, con)
+
+    let Some(inner) = @inner else return
+
+    inner.tcp(port, bind, con).or_panic
+  }
+
+  # Allow an operation for a UDP socket, such as binding or connecting to a UDP
+  # socket.
+  #
+  # UDP sockets created using `std.net.socket.UdpSocket.new` always bind to a
+  # given port. This means that in order to use UDP sockets when sandboxing is
+  # enabled you'll need at minimum a rule that allows binding of UDP sockets to
+  # either an explicit port or port 0.
+  #
+  # For more information, refer to the documentation of
+  # `std.sandbox.Sandbox.tcp`.
+  fn pub mut udp(port: Int, permissions: PortPermissions) {
+    let bits = permissions.bits
+    let bind = bits.set?(BIND)
+    let con = bits.set?(CON)
+
+    check_port(port, con)
+
+    let Some(inner) = @inner else return
+
+    inner.udp(port, bind, con).or_panic
+  }
+
+  # Enables the rules added to the sandbox and consumes it.
+  fn pub move enable {
+    let Some(inner) = @inner else return
+
+    inner.enable.or_panic
+  }
+}

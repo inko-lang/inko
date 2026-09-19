@@ -2,6 +2,7 @@
 import std.bytes (Bytes)
 import std.drop (drop)
 import std.env
+import std.fmt (Format, Formatter)
 import std.fs.path (Path)
 import std.int (ToInt)
 import std.io (Error, Read, Write)
@@ -270,6 +271,12 @@ type pub copy ExitStatus {
 impl ToInt for ExitStatus {
   fn pub to_int -> Int {
     @code
+  }
+}
+
+impl Format for ExitStatus {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter.tuple('ExitStatus').field(@code).finish
   }
 }
 

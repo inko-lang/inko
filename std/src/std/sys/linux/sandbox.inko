@@ -1,0 +1,289 @@
+import std.drop (Drop)
+import std.endian.little
+import std.fs.file (ReadOnlyFile)
+import std.fs.path (Path)
+import std.io (Error, SeekFrom, start_blocking, stop_blocking)
+import std.libc
+import std.libc.linux (self as sys_libc)
+import std.ptr
+import std.reflect (size_of)
+import std.set (Set)
+
+let READ_DIR = sys_libc.LANDLOCK_ACCESS_FS_READ_DIR
+  | sys_libc.LANDLOCK_ACCESS_FS_READ_FILE
+  | sys_libc.LANDLOCK_ACCESS_FS_RESOLVE_UNIX
+
+let WRITE_DIR = sys_libc.LANDLOCK_ACCESS_FS_WRITE_FILE
+  | sys_libc.LANDLOCK_ACCESS_FS_TRUNCATE
+  | sys_libc.LANDLOCK_ACCESS_FS_MAKE_BLOCK
+  | sys_libc.LANDLOCK_ACCESS_FS_MAKE_CHAR
+  | sys_libc.LANDLOCK_ACCESS_FS_MAKE_DIR
+  | sys_libc.LANDLOCK_ACCESS_FS_MAKE_FIFO
+  | sys_libc.LANDLOCK_ACCESS_FS_MAKE_REG
+  | sys_libc.LANDLOCK_ACCESS_FS_MAKE_SOCK
+  | sys_libc.LANDLOCK_ACCESS_FS_MAKE_SYM
+  | sys_libc.LANDLOCK_ACCESS_FS_REMOVE_DIR
+  | sys_libc.LANDLOCK_ACCESS_FS_REMOVE_FILE
+  | sys_libc.LANDLOCK_ACCESS_FS_REFER
+
+let EXEC_DIR = sys_libc.LANDLOCK_ACCESS_FS_EXECUTE
+
+let READ_FILE = sys_libc.LANDLOCK_ACCESS_FS_READ_FILE
+  | sys_libc.LANDLOCK_ACCESS_FS_RESOLVE_UNIX
+
+let WRITE_FILE = sys_libc.LANDLOCK_ACCESS_FS_WRITE_FILE
+  | sys_libc.LANDLOCK_ACCESS_FS_TRUNCATE
+
+let EXEC_FILE = sys_libc.LANDLOCK_ACCESS_FS_EXECUTE
+
+let BIND = sys_libc.LANDLOCK_ACCESS_NET_BIND_TCP
+let CON = sys_libc.LANDLOCK_ACCESS_NET_CONNECT_TCP
+
+# Paths that may directly or indirectly contain shared libraries that we need to
+# have read access to in order to execute files.
+#
+# For Nix we don't really have a choice but to allow full read access to the
+# store as the necessary paths can't be reliably determined ahead of time.
+let LIB_PATHS = ['/lib64', '/lib', '/nix/store']
+
+# The minimum ABI version that is required.
+let MIN_VERSION = 8
+
+fn elf_interpreter(path: ref Path) -> Option[Path] {
+  let Ok(reader) = ReadOnlyFile.new(path) else return Option.None
+  let data = ByteArray.with_capacity(1024)
+  let Ok(_) = reader.read_exact(into: data, size: 64) else return Option.None
+
+  # The ELF magic word.
+  if little.read_i32(data, at: 0) != 0x464C457F { return Option.None }
+
+  # We only support 64 bits little-endian systems.
+  if little.read_i16(data, at: 4) != 0x102 { return Option.None }
+
+  let e_phoff = little.read_i64(data, at: 32)
+  let e_phentsize = little.read_i16(data, at: 54)
+  let e_phnum = little.read_i16(data, at: 56)
+
+  # If this is zero there's no program table header.
+  if e_phoff == 0 { return Option.None }
+
+  # e_phnum may be 0xFFFF, but this is probably not common (if at all) in the
+  # wild, and PT_INTERP is probably almost always somewhere at the beginning, so
+  # we don't handle this case.
+  for _ in 0.until(e_phnum) {
+    data.clear
+
+    let Ok(_) = reader.read_exact(data, e_phentsize) else return Option.None
+
+    # We're only interested in PT_INTERP.
+    if little.read_i32(data, at: 0) != 3 { next }
+
+    let p_offset = little.read_i64(data, at: 8)
+    let p_filesz = little.read_i64(data, at: 32)
+    let end = p_offset + p_filesz
+
+    data.clear
+
+    let Ok(_) = reader.seek(SeekFrom.Start(p_offset)) else return Option.None
+    let Ok(_) = reader.read(into: data, size: end - p_offset - 1) else {
+      return Option.None
+    }
+
+    return Option.Some(data.into_string.to_path)
+  }
+
+  Option.None
+}
+
+fn abi_version -> Int {
+  let Ok(v) = sys_libc.landlock_create_ruleset(
+    ptr.null as Pointer[sys_libc.LandlockRulesetAttr],
+    size: 0,
+    flags: sys_libc.LANDLOCK_CREATE_RULESET_VERSION,
+  )
+  else {
+    return 0
+  }
+
+  v as Int
+}
+
+fn inline default_rules -> sys_libc.LandlockRulesetAttr {
+  let attr = sys_libc.LandlockRulesetAttr()
+
+  attr.handled_access_fs = (
+    READ_DIR | WRITE_DIR | EXEC_DIR | READ_FILE | WRITE_FILE | EXEC_FILE
+  )
+    as Uint64
+  attr.handled_access_net = (BIND | CON) as Uint64
+  attr
+}
+
+type Sandbox {
+  let @rules: Int32
+  let @added: Set[Path]
+  let mut @exec: Bool
+
+  fn static new -> Option[Self] {
+    if abi_version < MIN_VERSION { return Option.None }
+
+    let attr = default_rules
+    let size = size_of[sys_libc.LandlockRulesetAttr]
+    let fd = try sys_libc.landlock_create_ruleset(mut attr, size, flags: 0).ok
+
+    Option.Some(Self(rules: fd, added: Set.new, exec: false))
+  }
+
+  fn mut path(
+    path: Path,
+    read: Bool,
+    write: Bool,
+    execute: Bool,
+  ) -> Result[Nil, Error] {
+    add_path(path, read, write, execute, dependencies: true)
+  }
+
+  fn mut add_path(
+    path: Path,
+    read: Bool,
+    write: Bool,
+    execute: Bool,
+    dependencies: Bool,
+  ) -> Result[Nil, Error] {
+    let mut bits = 0
+    let meta = try path.metadata
+    let dir = meta.type.directory?
+
+    # To execute something we also need to be able to read it.
+    if read or execute { bits |= if dir { READ_DIR } else { READ_FILE } }
+
+    if write { bits |= if dir { WRITE_DIR } else { WRITE_FILE } }
+
+    if execute { bits |= if dir { EXEC_DIR } else { EXEC_FILE } }
+
+    # On Linux we also need to add the ELF interpreter as executable, and any
+    # shared libraries with read access.
+    if execute and dependencies and meta.type.file? {
+      @exec = true
+
+      match elf_interpreter(path) {
+        case Some(v) if @added.insert(v.clone) -> {
+          add_path(
+            v,
+            read: true,
+            write: false,
+            execute: true,
+            dependencies: false,
+          )
+        }
+        case _ -> {}
+      }
+    }
+
+    start_blocking
+
+    let flags = sys_libc.O_PATH | sys_libc.O_CLOEXEC as Int32
+    let fd = libc.open(path.to_string.pointer, flags)
+    let err = stop_blocking
+
+    if fd as Int == -1 { throw Error.from_os_error(err) }
+
+    let rule = sys_libc.LandlockPathBeneathAttr(
+      allowed_access: bits as Uint64,
+      parent_fd: fd,
+    )
+    let res = sys_libc.landlock_add_rule(
+      @rules,
+      sys_libc.LANDLOCK_RULE_PATH_BENEATH,
+      (mut rule) as Pointer[Uint8],
+    )
+
+    libc.close(fd)
+
+    match res {
+      case Ok(_) or Error(NotSupported) -> Result.Ok(nil)
+      case Error(e) -> throw e
+    }
+  }
+
+  fn mut tcp(port: Int, bind: Bool, connect: Bool) -> Result[Nil, Error] {
+    let mut bits = 0
+
+    if bind { bits |= BIND }
+
+    if connect { bits |= CON }
+
+    let rule = sys_libc.LandlockNetPortAttr(
+      allowed_access: bits as Uint64,
+      port: port as Uint64,
+    )
+
+    match
+      sys_libc.landlock_add_rule(
+        @rules,
+        sys_libc.LANDLOCK_RULE_NET_PORT,
+        (mut rule) as Pointer[Uint8],
+      )
+    {
+      case Ok(_) or Error(NotSupported) -> Result.Ok(nil)
+      case Error(e) -> throw e
+    }
+  }
+
+  fn mut udp(port: Int, bind: Bool, connect: Bool) -> Result[Nil, Error] {
+    # UDP sandboxing is not yet supported as of ABI version 8.
+    Result.Ok(nil)
+  }
+
+  fn move enable -> Result[Nil, Error] {
+    add_defaults
+    sys_libc.prctl(
+      sys_libc.PR_SET_NO_NEW_PRIVS as Int32,
+      1 as Int32,
+      0 as Int32,
+      0 as Int32,
+      0 as Int32,
+    )
+
+    match
+      sys_libc.landlock_restrict_self(
+        @rules,
+        sys_libc.LANDLOCK_RESTRICT_SELF_TSYNC,
+      )
+    {
+      case Ok(_) or Error(NotSupported or PermissionDenied) -> Result.Ok(nil)
+      case Error(e) -> throw e
+    }
+  }
+
+  fn mut add_shared_libraries {
+    for path in LIB_PATHS.iter {
+      # We ignore errors as not all these directories may exist.
+      let _ = add_path(
+        path.to_path,
+        read: true,
+        write: false,
+        execute: false,
+        dependencies: false,
+      )
+    }
+  }
+
+  fn mut add_defaults {
+    if @exec { add_shared_libraries }
+
+    add_path(
+      '/dev/null'.to_path,
+      read: true,
+      write: true,
+      execute: false,
+      dependencies: false,
+    )
+  }
+}
+
+impl Drop for Sandbox {
+  fn mut drop {
+    libc.close(@rules)
+  }
+}

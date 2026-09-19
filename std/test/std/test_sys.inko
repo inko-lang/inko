@@ -1,5 +1,6 @@
 import helpers (compiler_path)
 import std.env
+import std.fmt (fmt)
 import std.signal (Signal)
 import std.stdio (Stdout)
 import std.sys (self, Command, ExitStatus, Stream)
@@ -127,5 +128,9 @@ fn pub tests(t: mut Tests) {
   t.test('ExitStatus.success?', fn (t) {
     t.true(ExitStatus.new(0).success?)
     t.false(ExitStatus.new(4).success?)
+  })
+
+  t.test('ExitStatus.fmt', fn (t) {
+    t.equal(fmt(ExitStatus.new(4)), 'ExitStatus(4)')
   })
 }
