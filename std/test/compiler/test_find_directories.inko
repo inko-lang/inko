@@ -12,20 +12,12 @@ fn print(compiler: ref Path, what: String) -> Result[String, String] {
   cmd.stderr = Stream.Null
   cmd.arguments = ['print', what]
 
-  let child = match cmd.spawn {
-    case Ok(v) -> v
-    case Error(e) -> throw 'failed to start the compiler: ${e}'
-  }
-
-  match child.wait {
-    case Ok(_) -> {}
-    case Error(e) -> throw 'failed to wait for the compiler: ${e}'
-  }
-
+  let child = try cmd.spawn.or_error('failed to start the compiler')
+  let _ = try child.wait.or_error('failed to wait for the compiler')
   let buf = ByteArray.new
-  let Ok(_) = child.stdout.as_mut.get.read_all(buf) else {
-    throw 'failed to read STDOUT'
-  }
+  let _ = child.stdout.as_mut.get.read_all(buf).or_error(
+    'failed to read STDOUT',
+  )
 
   Result.Ok(buf.into_string.trim.to_string)
 }

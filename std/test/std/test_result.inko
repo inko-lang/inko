@@ -78,6 +78,14 @@ fn pub tests(t: mut Tests) {
     res.or_panic
   })
 
+  t.test('Result.or_error', fn (t) {
+    let a: Result[Int, Float] = Result.Ok(10)
+    let b: Result[Int, Float] = Result.Error(10.5)
+
+    t.equal(a.or_error('foo'), Result.Ok(10))
+    t.equal(b.or_error('foo'), Result.Error('foo: 10.5'))
+  })
+
   t.test('Result.or', fn (t) {
     let foo: Result[Int, String] = Result.Ok(42)
     let bar: Result[Int, String] = Result.Error('oops!')

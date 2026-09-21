@@ -32,21 +32,14 @@ fn build(
   cmd.directory = directory.clone
   cmd.arguments = ['build', '--threads=1', file.to_string]
 
-  let child = match cmd.spawn {
-    case Ok(v) -> v
-    case Error(e) -> throw 'failed to start the compiler: ${e}'
-  }
-
-  let status = match child.wait {
-    case Ok(v) -> v
-    case Error(e) -> throw 'failed to wait for the compiler: ${e}'
-  }
+  let child = try cmd.spawn.or_error('failed to start the compiler')
+  let status = try child.wait.or_error('failed to wait for the compiler')
 
   if !status.success? {
     let buf = ByteArray.new
-    let Ok(_) = child.stderr.as_mut.get.read_all(buf) else {
-      throw 'failed to read STDERR'
-    }
+    let _ = try child.stderr.as_mut.get.read_all(buf).or_error(
+      'failed to read STDERR',
+    )
 
     throw buf.into_string
   }
@@ -66,23 +59,19 @@ fn run(exe: ref Path) -> Result[String, String] {
     case Error(e) -> throw 'failed to run ${exe}: ${e}'
   }
 
-  let status = match child.wait {
-    case Ok(v) -> v
-    case Error(e) -> throw 'failed to wait for the executable: ${e}'
-  }
-
+  let status = try child.wait.or_error('failed to wait for the executable')
   let buf = ByteArray.new
 
   if status.success? {
-    let Ok(_) = child.stdout.as_mut.get.read_all(buf) else {
-      throw 'failed to read STDOUT'
-    }
+    let _ = try child.stdout.as_mut.get.read_all(buf).or_error(
+      'failed to read STDOUT',
+    )
 
     Result.Ok(buf.into_string)
   } else {
-    let Ok(_) = child.stderr.as_mut.get.read_all(buf) else {
-      throw 'failed to read STDERR'
-    }
+    let _ = child.stderr.as_mut.get.read_all(buf).or_error(
+      'failed to read STDERR',
+    )
 
     Result.Error(buf.into_string)
   }

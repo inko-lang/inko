@@ -294,6 +294,31 @@ impl Result if E: ToString {
       case Error(e) -> panic(e.to_string)
     }
   }
+
+  # Converts a `Result[T, E]` to a `Result[T, String]` where the error value is
+  # prefixed with the `with` argument.
+  #
+  # The format of the error value is `with: error` where `with` is the value of
+  # the `with` argument and `error` is the result of converting the error value
+  # to a `String` through an implementation of the `std.string.ToString` trait.
+  #
+  # Wrapping of errors using this method is useful if you have many `Result`
+  # types where the error value is of a different type and you want to easily
+  # convert all those to a `Result[T, String]`, without the need for explicit
+  # pattern matching.
+  #
+  # # Examples
+  #
+  # ```inko
+  # Result.Ok(10).or_error('example')           # => Result.Ok(10)
+  # Result.Error('message').or_error('example') # => Result.Error('example: message')
+  # ```
+  fn pub inline move or_error(with: String) -> Result[T, String] {
+    match self {
+      case Ok(v) -> Result.Ok(v)
+      case Error(e) -> Result.Error('${with}: ${e}')
+    }
+  }
 }
 
 impl Clone for Result if T: Clone, E: Clone {
