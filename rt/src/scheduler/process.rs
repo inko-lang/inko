@@ -1013,26 +1013,7 @@ impl Scheduler {
                 .expect("failed to start the epoch thread");
         }
 
-        for id in 0..self.primary {
-            let state = state.clone();
-            let pool = self.pool.clone();
-
-            ThreadBuilder::new()
-                .name(format!("proc {}", id))
-                .spawn(move || Thread::new(id, pool, &state.config).run(&state))
-                .expect("failed to start a process thread");
-        }
-
-        for id in 0..self.backup {
-            let state = state.clone();
-            let pool = self.pool.clone();
-
-            ThreadBuilder::new()
-                .name(format!("backup {}", id))
-                .spawn(move || Thread::backup(pool, &state.config).run(&state))
-                .expect("failed to start a backup thread");
-        }
-
+        self.spawn_worker_threads(state.clone());
         self.pool.schedule_main(process);
 
         // The current thread is used for running the main process. This
@@ -1041,6 +1022,44 @@ impl Scheduler {
         // most GUI libraries).
         Thread::new(MAIN_THREAD, self.pool.clone(), &state.config)
             .run_main(state);
+    }
+
+    fn spawn_worker_threads(&self, state: RcState) {
+        let prim = self.primary;
+        let back = self.backup;
+        let pool = self.pool.clone();
+
+        // The number of threads to spawn may vary. To ensure the startup time
+        // is always consistent, we spawn these threads in a separate thread and
+        // _don't_ wait for that thread to finish.
+        ThreadBuilder::new()
+            .name("spawner".to_string())
+            .spawn(move || {
+                for id in 0..prim {
+                    let state = state.clone();
+                    let pool = pool.clone();
+
+                    ThreadBuilder::new()
+                        .name(format!("proc {}", id))
+                        .spawn(move || {
+                            Thread::new(id, pool, &state.config).run(&state)
+                        })
+                        .expect("failed to start a process thread");
+                }
+
+                for id in 0..back {
+                    let state = state.clone();
+                    let pool = pool.clone();
+
+                    ThreadBuilder::new()
+                        .name(format!("backup {}", id))
+                        .spawn(move || {
+                            Thread::backup(pool, &state.config).run(&state)
+                        })
+                        .expect("failed to start a backup thread");
+                }
+            })
+            .expect("failed to start the spawner thread");
     }
 }
 
