@@ -184,7 +184,7 @@ type pub inline Slice[T] {
     let new_start = @start + start
     let new_end = @start + end
 
-    check_slice_range(start, end, size: @end + @start)
+    check_slice_range(start, end, size: @end - @start)
     Self(source: @source, start: new_start, end: new_end)
   }
 
@@ -913,7 +913,8 @@ type builtin Array[T] {
   # # Examples
   #
   # ```inko
-  # [10, 20, 30].slice(1, 2).to_array # => [20, 30]
+  # [10, 20, 30].slice(1, 2).to_array # => [20]
+  # [10, 20, 30].slice(1, 3).to_array # => [20, 30]
   # ```
   fn pub slice(start: Int, end: Int) -> Slice[T] {
     check_slice_range(start, end, size: size)

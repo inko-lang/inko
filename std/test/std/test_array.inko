@@ -593,6 +593,12 @@ fn pub tests(t: mut Tests) {
     t.equal(slice3.to_array, [20, 30, 40])
   })
 
+  t.panic('Slice.slice with an out of bounds range', fn {
+    let a = [10, 20, 30]
+
+    a.slice(1, 2).slice(1, 2)
+  })
+
   t.test('Slice.get', fn (t) {
     let vals = [10, 20, 30]
     let slice1 = vals.slice(0, 3)
