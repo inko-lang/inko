@@ -187,7 +187,7 @@ trait pub Iter[T] {
   # ```inko
   # ['foo', 'bar']
   #   .into_iter
-  #   .flat_map(fn (str) { str.chars })
+  #   .flat_map(fn (str) { str.chars.map(fn (v) { v.to_string }) })
   #   .to_array # => ['f', 'o', 'o', 'b', 'a', 'r']
   # ```
   fn pub move flat_map[V, I: mut + Iter[V]](

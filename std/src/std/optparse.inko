@@ -274,7 +274,7 @@ impl Iter[Token] for Lexer {
               case Some(_) -> {
                 let chars = val.chars
                 let _ = chars.next # Skip the '-'
-                let name = chars.next.get
+                let name = chars.next.get.to_string
                 let offset = name.size + 1
 
                 buffer(val.slice(start: offset, end: val.size))
@@ -295,7 +295,7 @@ impl Iter[Token] for Lexer {
               case _ -> {
                 let chars = val.chars
                 let _ = chars.next # Skip the '-'
-                let name = chars.next.get
+                let name = chars.next.get.to_string
                 let offset = name.size + 1
 
                 if offset < val.size {

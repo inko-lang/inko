@@ -5,7 +5,13 @@ use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::slice;
 use std::str;
-use unicode_segmentation::{Graphemes, UnicodeSegmentation};
+use unicode_segmentation::{GraphemeIndices, UnicodeSegmentation};
+
+#[repr(C)]
+pub struct Grapheme {
+    pub start: i64,
+    pub size: i64,
+}
 
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_string_is_valid_utf8(
@@ -102,24 +108,24 @@ pub unsafe extern "system" fn inko_string_chars(
     //
     // Graphemes isn't FFI safe, so we have to work around this by casting it to
     // a regular raw pointer.
-    Box::into_raw(Box::new(string.as_str().graphemes(true))) as _
+    Box::into_raw(Box::new(string.as_str().grapheme_indices(true))) as _
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_string_chars_next(
     iter: *mut u8,
-) -> PrimitiveString {
-    let iter = unsafe { &mut *(iter as *mut Graphemes) };
+) -> Grapheme {
+    let iter = unsafe { &mut *(iter as *mut GraphemeIndices) };
 
     iter.next()
-        .map(PrimitiveString::borrowed)
-        .unwrap_or_else(PrimitiveString::empty)
+        .map(|(i, v)| Grapheme { start: i as _, size: v.len() as _ })
+        .unwrap_or(Grapheme { start: 0, size: 0 })
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn inko_string_chars_drop(iter: *mut u8) {
     unsafe {
-        drop(Box::from_raw(iter as *mut Graphemes));
+        drop(Box::from_raw(iter as *mut GraphemeIndices));
     }
 }
 

@@ -13,6 +13,10 @@ fn split(string: String, on: String) -> Array[String] {
   string.split(on).map(fn (s) { s.to_string }).to_array
 }
 
+fn chars(string: String) -> Array[String] {
+  string.chars.map(fn (v) { v.to_string }).to_array
+}
+
 fn pub tests(t: mut Tests) {
   t.test('StringLayout type size', fn (t) { t.equal(size_of[StringLayout], 16) })
 
@@ -261,11 +265,11 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('String.chars', fn (t) {
-    t.equal('foo'.chars.to_array, ['f', 'o', 'o'])
-    t.equal('fóó'.chars.to_array, ['f', 'ó', 'ó'])
-    t.equal('😀😃'.chars.to_array, ['😀', '😃'])
-    t.equal('😀x😃'.chars.to_array, ['😀', 'x', '😃'])
-    t.equal('🤦🏼‍♂️'.chars.to_array, ['🤦🏼‍♂️'])
+    t.equal(chars('foo'), ['f', 'o', 'o'])
+    t.equal(chars('fóó'), ['f', 'ó', 'ó'])
+    t.equal(chars('😀😃'), ['😀', '😃'])
+    t.equal(chars('😀x😃'), ['😀', 'x', '😃'])
+    t.equal(chars('🤦🏼‍♂️'), ['🤦🏼‍♂️'])
   })
 
   t.test('String.scalars', fn (t) {

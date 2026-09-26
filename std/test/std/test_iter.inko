@@ -1,4 +1,3 @@
-import std.string (Chars)
 import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
@@ -199,7 +198,9 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Iter.flat_map', fn (t) {
-    let iter = ['foo', 'bar'].into_iter.flat_map(fn (v) -> Chars { v.chars })
+    let iter = ['foo', 'bar'].into_iter.flat_map(fn (v) {
+      v.chars.map(fn (v) { v.to_string })
+    })
 
     t.equal(iter.to_array, ['f', 'o', 'o', 'b', 'a', 'r'])
   })
