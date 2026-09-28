@@ -1138,7 +1138,7 @@ impl ToInt for Scalar {
 # CHARACTER` is returned.
 #
 # For more information, refer to the documentation of `String.codepoints`.
-type pub Scalars[B: Bytes] {
+type pub inline Scalars[B: Bytes] {
   let @input: B
   let mut @idx: Int
   let mut @state: Int
