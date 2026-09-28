@@ -137,3 +137,39 @@ pub unsafe extern "system" fn inko_string_from_pointer(
         unsafe { CStr::from_ptr(ptr) }.to_string_lossy().into_owned(),
     )
 }
+
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn inko_string_scalar_is_alphabetic(
+    value: i64,
+) -> bool {
+    // Safety: the standard library only passes in valid values.
+    unsafe { char::from_u32_unchecked(value as u32) }.is_alphabetic()
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn inko_string_scalar_is_numeric(
+    value: i64,
+) -> bool {
+    // Safety: the standard library only passes in valid values.
+    unsafe { char::from_u32_unchecked(value as u32) }.is_numeric()
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn inko_string_scalar_is_whitespace(
+    value: i64,
+) -> bool {
+    // Safety: the standard library only passes in valid values.
+    unsafe { char::from_u32_unchecked(value as u32) }.is_whitespace()
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn inko_string_scalar_is_lower(value: i64) -> bool {
+    // Safety: the standard library only passes in valid values.
+    unsafe { char::from_u32_unchecked(value as u32) }.is_lowercase()
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn inko_string_scalar_is_upper(value: i64) -> bool {
+    // Safety: the standard library only passes in valid values.
+    unsafe { char::from_u32_unchecked(value as u32) }.is_uppercase()
+}

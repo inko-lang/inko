@@ -67,13 +67,30 @@ fn extern inko_string_try_from_bytes(
   size: Int,
 ) -> PrimitiveString
 
+fn extern inko_string_scalar_is_alphabetic(value: Int) -> Bool
+
+fn extern inko_string_scalar_is_numeric(value: Int) -> Bool
+
+fn extern inko_string_scalar_is_whitespace(value: Int) -> Bool
+
+fn extern inko_string_scalar_is_lower(value: Int) -> Bool
+
+fn extern inko_string_scalar_is_upper(value: Int) -> Bool
+
 let DQUOTE = 0x22
 let BSLASH = 0x5C
+let ZERO = 0x30
+let NINE = 0x39
+let UPPER_A = 0x41
+let UPPER_F = 0x46
+let UPPER_Z = 0x5A
+let LOWER_A = 0x61
 let LOWER_B = 0x62
 let LOWER_N = 0x6e
 let LOWER_F = 0x66
 let LOWER_R = 0x72
 let LOWER_T = 0x74
+let LOWER_Z = 0x7A
 
 # A table mapping bytes to their replacements for `String.escaped`.
 let ESCAPE_TABLE = [
@@ -961,16 +978,135 @@ type pub copy Scalar {
   # ```inko
   # import std.string (Scalar)
   #
-  # Scalar.new()
+  # let buf = ByteArray.new
+  # let scalar = Scalar.new(0x1F600).get
+  #
+  # scalar.encode_into(buf)
+  # buf.to_string # => '😀'
   # ```
   fn pub encode_into(buffer: mut ByteArray) {
     utf8.encode_scalar(@value, buffer)
+  }
+
+  # Returns `true` if `self` is an alphabetic letter (e.g. "a" or "Z").
+  #
+  # # Examples
+  #
+  # ```inko
+  # 'a'.scalars.next.get.alphabetic? # => true
+  # '9'.scalars.next.get.alphabetic? # => false
+  # ```
+  fn pub alphabetic? -> Bool {
+    (@value >= UPPER_A and @value <= UPPER_Z)
+      or (@value >= LOWER_A and @value <= LOWER_Z)
+      or inko_string_scalar_is_alphabetic(@value)
+  }
+
+  # Returns `true` if `self` is a numeric symbol (e.g. "0" or "9").
+  #
+  # # Examples
+  #
+  # ```inko
+  # 'a'.scalars.next.get.numeric? # => false
+  # '9'.scalars.next.get.numeric? # => true
+  # ```
+  fn pub numeric? -> Bool {
+    (@value >= ZERO and @value <= NINE) or inko_string_scalar_is_numeric(@value)
+  }
+
+  # Returns `true` if `self` is a control character (e.g. '\t').
+  #
+  # # Examples
+  #
+  # ```inko
+  # '\t'.scalars.next.get.control? # => true
+  # ```
+  fn pub control? -> Bool {
+    (@value >= 0 and @value <= 0x1F) or (@value >= 0x7F and @value <= 0x9F)
+  }
+
+  # Returns `true` if `self` is a whitespace character (e.g. a single space).
+  #
+  # # Examples
+  #
+  # ```inko
+  # ' '.scalars.next.get.whitespace? # => true
+  # ```
+  fn pub whitespace? -> Bool {
+    @value == 0x20
+      or (@value >= 0x09 and @value <= 0x0D)
+      or inko_string_scalar_is_whitespace(@value)
+  }
+
+  # Returns `true` if `self` is a lowercase character.
+  #
+  # # Examples
+  #
+  # ```inko
+  # 'a'.scalars.next.get.lower? # => true
+  # '中'.scalars.next.get.lower? # => false
+  # ```
+  fn pub lower? -> Bool {
+    (@value >= LOWER_A and @value <= LOWER_Z)
+      or inko_string_scalar_is_lower(@value)
+  }
+
+  # Returns `true` if `self` is an uppercase character.
+  #
+  # # Examples
+  #
+  # ```inko
+  # 'A'.scalars.next.get.upper? # => true
+  # '中'.scalars.next.get.upper? # => false
+  # ```
+  fn pub upper? -> Bool {
+    (@value >= UPPER_A and @value <= UPPER_Z)
+      or inko_string_scalar_is_upper(@value)
+  }
+
+  # Returns `true` if `self` is an ASCII hexadecimal digit.
+  #
+  # # Examples
+  #
+  # ```inko
+  # 'a'.scalars.next.get.hex? # => true
+  # '1'.scalars.next.get.hex? # => true
+  # ```
+  fn pub hex? -> Bool {
+    (@value >= ZERO and @value <= NINE)
+      or (@value >= LOWER_A and @value <= LOWER_F)
+      or (@value >= UPPER_A and @value <= UPPER_F)
+  }
+
+  # Returns `true` if `self` is an ASCII punctuation character.
+  #
+  # # Examples
+  #
+  # ```inko
+  # '/'.scalars.next.get.punctuation? # => true
+  # '}'.scalars.next.get.punctuation? # => true
+  # ```
+  fn pub punctuation? -> Bool {
+    (@value >= 0x21 and @value <= 0x2F)
+      or (@value >= 0x3A and @value <= 0x40)
+      or (@value >= 0x5B and @value <= 0x60)
+      or (@value >= 0x7B and @value <= 0x7E)
   }
 }
 
 impl Format for Scalar {
   fn pub fmt(formatter: mut Formatter) {
-    formatter.tuple('Scalar').field(@value).finish
+    formatter.write('"')
+
+    match ESCAPE_TABLE.get(@value) {
+      case Ok(-1) or Error(_) -> encode_into(formatter.buffer.bytes)
+      case Ok(v) -> {
+        formatter.buffer.bytes.push(BSLASH)
+        formatter.buffer.bytes.push(v)
+      }
+    }
+
+    formatter.write('"')
   }
 }
 

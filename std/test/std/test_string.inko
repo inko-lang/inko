@@ -626,7 +626,10 @@ fn pub tests(t: mut Tests) {
     t.equal(buf, '😀'.to_byte_array)
   })
 
-  t.test('Scalar.fmt', fn (t) { t.equal(fmt(Scalar(10)), 'Scalar(10)') })
+  t.test('Scalar.fmt', fn (t) {
+    t.equal(fmt(Scalar(10)), '"\\n"')
+    t.equal(fmt(Scalar(0x1F600)), '"😀"')
+  })
 
   t.test('Scalar.==', fn (t) {
     t.equal(Scalar(10), Scalar(10))
@@ -636,4 +639,283 @@ fn pub tests(t: mut Tests) {
   t.test('Scalar.hash', fn (t) { t.equal(hash(Scalar(10)), hash(Scalar(10))) })
 
   t.test('Scalar.to_int', fn (t) { t.equal(Scalar(10).to_int, 10) })
+
+  t.test('Scalar.alphabetic?', fn (t) {
+    let tests = [
+      # Letters
+      ('a', true),
+      ('b', true),
+      ('z', true),
+      ('A', true),
+      ('B', true),
+      ('Z', true),
+      ('อ', true),
+      ('ß', true),
+
+      # Symbols
+      ('-', false),
+      ('$', false),
+
+      # Digits
+      ('0', false),
+      ('9', false),
+      ('๐', false),
+      ('๑', false),
+    ]
+
+    for (val, exp) in tests { t.equal(val.scalars.next.get.alphabetic?, exp) }
+  })
+
+  t.test('Scalar.numeric?', fn (t) {
+    let tests = [
+      # Letters
+      ('a', false),
+      ('b', false),
+      ('z', false),
+      ('A', false),
+      ('B', false),
+      ('Z', false),
+      ('อ', false),
+      ('ß', false),
+
+      # Symbols
+      ('-', false),
+      ('$', false),
+
+      # Digits
+      ('0', true),
+      ('9', true),
+      ('๐', true),
+      ('๑', true),
+    ]
+
+    for (val, exp) in tests { t.equal(val.scalars.next.get.numeric?, exp) }
+  })
+
+  t.test('Scalar.control?', fn (t) {
+    let tests = [
+      # Letters
+      ('a', false),
+      ('b', false),
+      ('z', false),
+      ('A', false),
+      ('B', false),
+      ('Z', false),
+      ('อ', false),
+      ('ß', false),
+
+      # Symbols
+      ('-', false),
+      ('+', false),
+
+      # Digits
+      ('0', false),
+      ('9', false),
+      ('๐', false),
+      ('๑', false),
+
+      # Control characters
+      ('\t', true),
+      ('\n', true),
+      ('\u{9C}', true),
+    ]
+
+    for (val, exp) in tests { t.equal(val.scalars.next.get.control?, exp) }
+  })
+
+  t.test('Scalar.whitespace?', fn (t) {
+    let tests = [
+      # Letters
+      ('a', false),
+      ('b', false),
+      ('z', false),
+      ('A', false),
+      ('B', false),
+      ('Z', false),
+      ('อ', false),
+      ('ß', false),
+
+      # Symbols
+      ('-', false),
+      ('$', false),
+
+      # Digits
+      ('0', false),
+      ('9', false),
+      ('๐', false),
+      ('๑', false),
+
+      # Whitespace
+      (' ', true),
+      ('\t', true),
+      ('\n', true),
+
+      # Control characters
+      ('\u{9C}', false),
+    ]
+
+    for (val, exp) in tests { t.equal(val.scalars.next.get.whitespace?, exp) }
+  })
+
+  t.test('Scalar.lower?', fn (t) {
+    let tests = [
+      # Letters
+      ('a', true),
+      ('b', true),
+      ('z', true),
+      ('A', false),
+      ('B', false),
+      ('Z', false),
+      ('ß', true),
+
+      # Letters without any specific casing.
+      ('อ', false),
+      ('中', false),
+
+      # Symbols
+      ('-', false),
+      ('$', false),
+
+      # Digits
+      ('0', false),
+      ('9', false),
+      ('๐', false),
+      ('๑', false),
+
+      # Whitespace
+      (' ', false),
+      ('\t', false),
+      ('\n', false),
+
+      # Control characters
+      ('\u{9C}', false),
+    ]
+
+    for (val, exp) in tests { t.equal(val.scalars.next.get.lower?, exp) }
+  })
+
+  t.test('Scalar.upper?', fn (t) {
+    let tests = [
+      # Letters
+      ('a', false),
+      ('b', false),
+      ('z', false),
+      ('A', true),
+      ('B', true),
+      ('Z', true),
+      ('ß', false),
+
+      # Letters without any specific casing.
+      ('อ', false),
+      ('中', false),
+
+      # Symbols
+      ('-', false),
+      ('$', false),
+
+      # Digits
+      ('0', false),
+      ('9', false),
+      ('๐', false),
+      ('๑', false),
+
+      # Whitespace
+      (' ', false),
+      ('\t', false),
+      ('\n', false),
+
+      # Control characters
+      ('\u{9C}', false),
+    ]
+
+    for (val, exp) in tests { t.equal(val.scalars.next.get.upper?, exp) }
+  })
+
+  t.test('Scalar.hex?', fn (t) {
+    let tests = [
+      # Lower
+      ('a', true),
+      ('b', true),
+      ('f', true),
+      ('g', false),
+      ('z', false),
+
+      # Upper
+      ('A', true),
+      ('B', true),
+      ('F', true),
+      ('G', false),
+      ('Z', false),
+      ('ß', false),
+
+      # Digits
+      ('0', true),
+      ('9', true),
+      ('๐', false),
+      ('๑', false),
+    ]
+
+    for (val, exp) in tests { t.equal(val.scalars.next.get.hex?, exp) }
+  })
+
+  t.test('Scalar.punctuatio?', fn (t) {
+    let tests = [
+      # Lower
+      ('a', false),
+      ('b', false),
+      ('f', false),
+      ('g', false),
+      ('z', false),
+
+      # Upper
+      ('A', false),
+      ('B', false),
+      ('F', false),
+      ('G', false),
+      ('Z', false),
+      ('ß', false),
+
+      # Digits
+      ('0', false),
+      ('9', false),
+      ('๐', false),
+      ('๑', false),
+
+      # Punctuation
+      ('!', true),
+      ('"', true),
+      ('#', true),
+      ('$', true),
+      ('%', true),
+      ('&', true),
+      ("'", true),
+      ('(', true),
+      (')', true),
+      ('*', true),
+      ('+', true),
+      (',', true),
+      ('-', true),
+      ('.', true),
+      ('/', true),
+      (':', true),
+      (';', true),
+      ('<', true),
+      ('=', true),
+      ('>', true),
+      ('?', true),
+      ('@', true),
+      ('[', true),
+      ('\\', true),
+      (']', true),
+      ('^', true),
+      ('_', true),
+      ('`', true),
+      ('{', true),
+      ('|', true),
+      ('}', true),
+      ('~', true),
+    ]
+
+    for (val, exp) in tests { t.equal(val.scalars.next.get.punctuation?, exp) }
+  })
 }
