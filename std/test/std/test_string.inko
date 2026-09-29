@@ -114,17 +114,17 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('String.substring', fn (t) {
-    t.equal('hello_world'.substring(start: 0, end: 5), 'hello')
-    t.equal('hello_world'.substring(start: -1, end: 5), 'hello')
-    t.equal('hello_world'.substring(start: 3, end: 8), 'lo_wo')
-    t.equal('hello_world'.substring(start: 0, end: 20), 'hello_world')
-    t.equal('🇳🇱'.substring(start: 0, end: 1), '🇳🇱')
+    t.equal('hello_world'.substring(start: 0, end: 5).to_string, 'hello')
+    t.equal('hello_world'.substring(start: -1, end: 5).to_string, 'hello')
+    t.equal('hello_world'.substring(start: 3, end: 8).to_string, 'lo_wo')
+    t.equal('hello_world'.substring(start: 0, end: 20).to_string, 'hello_world')
+    t.equal('🇳🇱'.substring(start: 0, end: 1).to_string, '🇳🇱')
 
-    t.equal('hello_world'.substring(start: 11, end: 13), '')
-    t.equal('hello_world'.substring(start: 12, end: 13), '')
-    t.equal('hello_world'.substring(start: 0, end: 0), '')
-    t.equal('hello_world'.substring(start: 0, end: -1), '')
-    t.equal('hello_world'.substring(start: 5, end: 0), '')
+    t.equal('hello_world'.substring(start: 11, end: 13).to_string, '')
+    t.equal('hello_world'.substring(start: 12, end: 13).to_string, '')
+    t.equal('hello_world'.substring(start: 0, end: 0).to_string, '')
+    t.equal('hello_world'.substring(start: 0, end: -1).to_string, '')
+    t.equal('hello_world'.substring(start: 5, end: 0).to_string, '')
   })
 
   t.test('String.to_slice', fn (t) {

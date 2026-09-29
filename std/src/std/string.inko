@@ -115,7 +115,7 @@ fn padding(string: String, chars: Int, pad_to: Int) -> String {
   if pad.chars.count > pad_size {
     # In case the `string` value contains multiple characters, we may need to
     # truncate the padding to produce the correct final size.
-    pad.substring(start: 0, end: pad_size)
+    pad.substring(start: 0, end: pad_size).to_string
   } else {
     pad
   }
@@ -423,11 +423,11 @@ type builtin String {
   # # Examples
   #
   # ```inko
-  # 'hello_world'.substring(start: 0, end: 5)  # => 'hello'
-  # 'hello_world'.substring(start: 0, end: 50) # => 'hello'
-  # '😊'.substring(start: 0, end: 1)           # => '😊'
+  # 'hello_world'.substring(start: 0, end: 5).to_string  # => 'hello'
+  # 'hello_world'.substring(start: 0, end: 50).to_string # => 'hello'
+  # '😊'.substring(start: 0, end: 1).to_string           # => '😊'
   # ```
-  fn pub substring(start: Int, end: Int) -> String {
+  fn pub substring(start: Int, end: Int) -> Slice[Self] {
     let mut off = 0
     let mut len = 0
 
@@ -441,7 +441,7 @@ type builtin String {
       }
     }
 
-    Slice.new(self, off, off + len).to_string
+    Slice.new(self, off, off + len)
   }
 
   # Splits `self` into an iterator of slices of the data in `self`, each

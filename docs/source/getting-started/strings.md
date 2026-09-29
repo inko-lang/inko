@@ -74,8 +74,8 @@ The `String` type offers two ways of slicing up a `String`:
 For example:
 
 ```inko
-'😊'.slice(start: 0, size: 4)      # => [240, 159, 152, 138]
-'😊'.substring(start: 0, chars: 1) # => '😊'
+'😊'.slice(start: 0, size: 4)                # => [240, 159, 152, 138]
+'😊'.substring(start: 0, chars: 1).to_string # => '😊'
 ```
 
 Slicing a `String` using `String.slice` is a constant-time operation, while
