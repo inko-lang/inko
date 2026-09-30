@@ -8,6 +8,7 @@
 import std.alloc
 import std.array (OutOfBounds, check_bounds)
 import std.bytes (Bytes, IntoByteArray, Slice, Split, ToByteArray, ToSlice)
+import std.bytes.parsers
 import std.clone (Clone)
 import std.cmp (Compare, Equal, Ordering, min)
 import std.drop (Drop)
@@ -79,18 +80,11 @@ fn extern inko_string_scalar_is_upper(value: Int) -> Bool
 
 let DQUOTE = 0x22
 let BSLASH = 0x5C
-let ZERO = 0x30
-let NINE = 0x39
-let UPPER_A = 0x41
-let UPPER_F = 0x46
-let UPPER_Z = 0x5A
-let LOWER_A = 0x61
 let LOWER_B = 0x62
 let LOWER_N = 0x6e
 let LOWER_F = 0x66
 let LOWER_R = 0x72
 let LOWER_T = 0x74
-let LOWER_Z = 0x7A
 
 # A table mapping bytes to their replacements for `String.escaped`.
 let ESCAPE_TABLE = [
@@ -997,8 +991,8 @@ type pub copy Scalar {
   # '9'.scalars.next.get.alphabetic? # => false
   # ```
   fn pub alphabetic? -> Bool {
-    (@value >= UPPER_A and @value <= UPPER_Z)
-      or (@value >= LOWER_A and @value <= LOWER_Z)
+    parsers.lower?(@value)
+      or parsers.upper?(@value)
       or inko_string_scalar_is_alphabetic(@value)
   }
 
@@ -1011,7 +1005,7 @@ type pub copy Scalar {
   # '9'.scalars.next.get.numeric? # => true
   # ```
   fn pub numeric? -> Bool {
-    (@value >= ZERO and @value <= NINE) or inko_string_scalar_is_numeric(@value)
+    parsers.digit?(@value) or inko_string_scalar_is_numeric(@value)
   }
 
   # Returns `true` if `self` is a control character (e.g. '\t').
@@ -1047,8 +1041,7 @@ type pub copy Scalar {
   # '中'.scalars.next.get.lower? # => false
   # ```
   fn pub lower? -> Bool {
-    (@value >= LOWER_A and @value <= LOWER_Z)
-      or inko_string_scalar_is_lower(@value)
+    parsers.lower?(@value) or inko_string_scalar_is_lower(@value)
   }
 
   # Returns `true` if `self` is an uppercase character.
@@ -1060,8 +1053,7 @@ type pub copy Scalar {
   # '中'.scalars.next.get.upper? # => false
   # ```
   fn pub upper? -> Bool {
-    (@value >= UPPER_A and @value <= UPPER_Z)
-      or inko_string_scalar_is_upper(@value)
+    parsers.upper?(@value) or inko_string_scalar_is_upper(@value)
   }
 
   # Returns `true` if `self` is an ASCII hexadecimal digit.
@@ -1073,9 +1065,7 @@ type pub copy Scalar {
   # '1'.scalars.next.get.hex? # => true
   # ```
   fn pub hex? -> Bool {
-    (@value >= ZERO and @value <= NINE)
-      or (@value >= LOWER_A and @value <= LOWER_F)
-      or (@value >= UPPER_A and @value <= UPPER_F)
+    parsers.hex?(@value)
   }
 
   # Returns `true` if `self` is an ASCII punctuation character.
@@ -1144,7 +1134,7 @@ type pub inline Scalars[B: Bytes] {
   let mut @state: Int
   let mut @code: Int
 
-  fn static new(input: B) -> Self {
+  fn inline static new(input: B) -> Self {
     Self(input: input, idx: 0, state: SCALARS_ACCEPT, code: 0)
   }
 
