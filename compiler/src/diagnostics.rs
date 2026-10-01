@@ -4,6 +4,7 @@ use std::env;
 use std::fmt;
 use std::io::{IsTerminal as _, Write as _, stdout};
 use std::path::PathBuf;
+use types::INLINE_ARRAY_LIMIT;
 
 pub(crate) fn enable_colors() -> bool {
     env::var_os("NO_COLOR").is_none()
@@ -567,6 +568,22 @@ impl Diagnostics {
         self.error(
             DiagnosticId::InvalidType,
             "tuples are limited to up to 8 members",
+            file,
+            location,
+        );
+    }
+
+    pub(crate) fn inline_array_size_error(
+        &mut self,
+        file: PathBuf,
+        location: Location,
+    ) {
+        self.error(
+            DiagnosticId::InvalidType,
+            format!(
+                "inline arrays are limited to up to {} elements",
+                INLINE_ARRAY_LIMIT
+            ),
             file,
             location,
         );

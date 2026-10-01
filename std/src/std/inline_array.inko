@@ -1,0 +1,4 @@
+# An ordered array of values with a fixed size, allocated on the stack.
+type builtin InlineArray[T] {
+  # TODO
+}

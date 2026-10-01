@@ -1724,6 +1724,7 @@ impl<'a> LowerMethod<'a> {
             hir::Expression::True(n) => self.true_literal(*n),
             hir::Expression::Nil(n) => self.nil_literal(*n),
             hir::Expression::Tuple(n) => self.tuple_literal(*n),
+            hir::Expression::InlineArray(n) => self.inline_array_literal(*n),
             hir::Expression::TypeCast(n) => self.type_cast(*n),
             hir::Expression::Recover(n) => self.recover_expression(*n),
             hir::Expression::Try(n) => self.try_expression(*n),
@@ -1938,6 +1939,32 @@ impl<'a> LowerMethod<'a> {
         }
 
         tup
+    }
+
+    fn inline_array_literal(
+        &mut self,
+        node: hir::InlineArrayLiteral,
+    ) -> RegisterId {
+        self.verify_type(node.resolved_type, node.location);
+        let regs: Vec<_> = node
+            .values
+            .into_iter()
+            .map(|v| self.input_expression(v, Some(node.value_type)))
+            .collect();
+        let ary = self.new_register(node.resolved_type);
+        let idx_reg = self.new_register(TypeRef::int());
+        let id = node.type_id.unwrap();
+        let loc = InstructionLocation::new(node.location);
+
+        self.current_block_mut().allocate(ary, id, loc);
+
+        for (idx, reg) in regs.into_iter().enumerate() {
+            self.current_block_mut().i64_literal(idx_reg, idx as _, loc);
+            self.current_block_mut()
+                .set_array_index(ary, id, idx_reg, reg, loc);
+        }
+
+        ary
     }
 
     fn true_literal(&mut self, node: hir::True) -> RegisterId {

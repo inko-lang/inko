@@ -2309,6 +2309,65 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                     self.builder.store_field(layout, rec_var, index, val);
                 }
             }
+            Instruction::SetArrayIndex(ins) => {
+                let rec_var = self.variables[&ins.receiver];
+                let rec_typ = self.variable_types[&ins.receiver];
+                let val_var = self.variables[&ins.value];
+                let val_typ = self.variable_types[&ins.value];
+                let idx_var = self.variables[&ins.index];
+                let idx = self.builder.load_int64(idx_var);
+                let val = self.builder.load(val_typ, val_var);
+                let (vtyp, len) = ins
+                    .type_id
+                    .inline_array_layout(&self.shared.state.db)
+                    .unwrap();
+                // TODO: do this when defining the layouts
+                let layout = self
+                    .builder
+                    .context
+                    .llvm_type(&self.shared.state.db, self.layouts, vtyp)
+                    .array_type(len as _);
+
+                if rec_typ.is_pointer_type() {
+                    let rec = self
+                        .builder
+                        .load(rec_typ, rec_var)
+                        .into_pointer_value();
+
+                    self.builder.set_array_index(layout, rec, idx, val);
+                } else {
+                    self.builder.set_array_index(layout, rec_var, idx, val);
+                }
+            }
+            Instruction::GetArrayIndex(ins) => {
+                let reg_var = self.variables[&ins.register];
+                let rec_var = self.variables[&ins.receiver];
+                let rec_typ = self.variable_types[&ins.receiver];
+                let idx_var = self.variables[&ins.index];
+                let idx = self.builder.load_int64(idx_var);
+                let (vtyp, len) = ins
+                    .type_id
+                    .inline_array_layout(&self.shared.state.db)
+                    .unwrap();
+                // TODO: do this when defining the layouts
+                let layout = self
+                    .builder
+                    .context
+                    .llvm_type(&self.shared.state.db, self.layouts, vtyp)
+                    .array_type(len as _);
+                let val = if rec_typ.is_pointer_type() {
+                    let rec = self
+                        .builder
+                        .load(rec_typ, rec_var)
+                        .into_pointer_value();
+
+                    self.builder.get_array_index(layout, rec, idx)
+                } else {
+                    self.builder.get_array_index(layout, rec_var, idx)
+                };
+
+                self.builder.store(reg_var, val);
+            }
             Instruction::FieldPointer(ins)
                 if ins.type_id.is_heap_allocated(&self.shared.state.db) =>
             {

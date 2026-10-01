@@ -313,6 +313,18 @@ impl CallSite {
                         ins.receiver += reg_start;
                         ins.value += reg_start;
                     }
+                    Instruction::SetArrayIndex(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
+                        ins.receiver += reg_start;
+                        ins.index += reg_start;
+                        ins.value += reg_start;
+                    }
+                    Instruction::GetArrayIndex(ins) => {
+                        ins.location.set_inlined_call_id(inline_offset);
+                        ins.register += reg_start;
+                        ins.receiver += reg_start;
+                        ins.index += reg_start;
+                    }
                     Instruction::CheckRefs(ins) => {
                         ins.location.set_inlined_call_id(inline_offset);
                         ins.register += reg_start;

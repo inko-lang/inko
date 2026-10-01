@@ -460,6 +460,9 @@ impl Parser {
             TokenKind::ParenOpen => {
                 Type::Tuple(Box::new(self.tuple_type(start)?))
             }
+            TokenKind::BracketOpen => {
+                Type::Array(Box::new(self.array_type(start)?))
+            }
             _ => error!(
                 start.location,
                 "expected a type name, 'fn', 'ref', 'mut', 'uni' \
@@ -641,6 +644,9 @@ impl Parser {
             TokenKind::ParenOpen => {
                 ReferrableType::Tuple(Box::new(self.tuple_type(type_token)?))
             }
+            TokenKind::BracketOpen => {
+                ReferrableType::Array(Box::new(self.array_type(type_token)?))
+            }
             _ => error!(
                 type_token.location,
                 "expected a type name or 'fn'; found a '{}' instead",
@@ -680,6 +686,19 @@ impl Parser {
                 self.next();
             }
         }
+    }
+
+    fn array_type(&mut self, start: Token) -> Result<ArrayType, ParseError> {
+        let tok = self.require()?;
+        let typ = self.type_reference(tok)?;
+
+        self.expect(TokenKind::Comma)?;
+
+        let size = self.expect(TokenKind::Integer)?.value;
+        let end = self.expect(TokenKind::BracketClose)?;
+        let location = Location::start_end(&start.location, &end.location);
+
+        Ok(ArrayType { value_type: typ, size, location })
     }
 
     fn closure_type(
@@ -1563,8 +1582,14 @@ impl Parser {
     }
 
     fn expressions(&mut self, start: Token) -> Result<Expressions, ParseError> {
-        let mut values = Vec::new();
+        self.expressions_with(start, Vec::new())
+    }
 
+    fn expressions_with(
+        &mut self,
+        start: Token,
+        mut values: Vec<Expression>,
+    ) -> Result<Expressions, ParseError> {
         loop {
             let token = self.require()?;
 
@@ -1729,7 +1754,7 @@ impl Parser {
             TokenKind::BracketOpen => self.array_literal(start)?,
             TokenKind::Break => self.break_loop(start),
             TokenKind::Constant => self.constant(start)?,
-            TokenKind::CurlyOpen => self.scope(start)?,
+            TokenKind::CurlyOpen => self.scope_or_inline_array(start)?,
             TokenKind::Fn => self.closure(start)?,
             TokenKind::SingleStringOpen => {
                 self.string_value(start, TokenKind::SingleStringClose, true)?
@@ -1894,6 +1919,34 @@ impl Parser {
                     Location::start_end(&start.location, &token.location);
 
                 return Ok(Expression::Array(Box::new(Array {
+                    values,
+                    location,
+                })));
+            }
+
+            values.push(self.expression(token)?);
+
+            if self.peek().kind == TokenKind::Comma {
+                self.next();
+            }
+        }
+    }
+
+    fn inline_array_literal(
+        &mut self,
+        start: Token,
+        first_value: Expression,
+    ) -> Result<Expression, ParseError> {
+        let mut values = vec![first_value];
+
+        loop {
+            let token = self.require()?;
+
+            if token.kind == TokenKind::CurlyClose {
+                let location =
+                    Location::start_end(&start.location, &token.location);
+
+                return Ok(Expression::InlineArray(Box::new(InlineArray {
                     values,
                     location,
                 })));
@@ -2378,11 +2431,22 @@ impl Parser {
         })))
     }
 
-    fn scope(&mut self, start: Token) -> Result<Expression, ParseError> {
-        let body = self.expressions(start)?;
-        let location = body.location;
+    fn scope_or_inline_array(
+        &mut self,
+        start: Token,
+    ) -> Result<Expression, ParseError> {
+        let first_tok = self.require()?;
+        let first_exp = self.expression(first_tok)?;
 
-        Ok(Expression::Scope(Box::new(Scope { body, location })))
+        if self.peek().kind == TokenKind::Comma {
+            self.next();
+            self.inline_array_literal(start, first_exp)
+        } else {
+            let body = self.expressions_with(start, vec![first_exp])?;
+            let location = body.location;
+
+            Ok(Expression::Scope(Box::new(Scope { body, location })))
+        }
     }
 
     fn closure(&mut self, start: Token) -> Result<Expression, ParseError> {
@@ -4219,6 +4283,29 @@ mod tests {
     }
 
     #[test]
+    fn test_type_reference_with_array_type() {
+        let mut parser = parser("[A, 10]");
+        let start = parser.require().unwrap();
+
+        assert_eq!(
+            parser.type_reference(start).unwrap(),
+            Type::Array(Box::new(ArrayType {
+                value_type: Type::Named(Box::new(TypeName {
+                    name: Constant {
+                        source: None,
+                        name: "A".to_string(),
+                        location: cols(2, 2)
+                    },
+                    arguments: None,
+                    location: cols(2, 2)
+                })),
+                size: "10".to_string(),
+                location: cols(1, 7)
+            }))
+        );
+    }
+
+    #[test]
     fn test_type_reference_with_reference_tuple_type() {
         let mut parser = parser("ref (A, B)");
         let start = parser.require().unwrap();
@@ -4250,6 +4337,32 @@ mod tests {
                     location: cols(5, 10)
                 })),
                 location: cols(1, 10)
+            }))
+        );
+    }
+
+    #[test]
+    fn test_type_reference_with_reference_array_type() {
+        let mut parser = parser("ref [A, 10]");
+        let start = parser.require().unwrap();
+
+        assert_eq!(
+            parser.type_reference(start).unwrap(),
+            Type::Ref(Box::new(ReferenceType {
+                type_reference: ReferrableType::Array(Box::new(ArrayType {
+                    value_type: Type::Named(Box::new(TypeName {
+                        name: Constant {
+                            source: None,
+                            name: "A".to_string(),
+                            location: cols(6, 6)
+                        },
+                        arguments: None,
+                        location: cols(6, 6)
+                    })),
+                    size: "10".to_string(),
+                    location: cols(5, 11)
+                })),
+                location: cols(1, 11)
             }))
         );
     }
@@ -6968,6 +7081,37 @@ mod tests {
         assert_eq!(
             expr("[10, 20,]"),
             Expression::Array(Box::new(Array {
+                values: vec![
+                    Expression::Int(Box::new(IntLiteral {
+                        value: "10".to_string(),
+                        location: cols(2, 3)
+                    })),
+                    Expression::Int(Box::new(IntLiteral {
+                        value: "20".to_string(),
+                        location: cols(6, 7)
+                    })),
+                ],
+                location: cols(1, 9)
+            }))
+        );
+    }
+
+    #[test]
+    fn test_inline_array_expression() {
+        assert_eq!(
+            expr("{10,}"),
+            Expression::InlineArray(Box::new(InlineArray {
+                values: vec![Expression::Int(Box::new(IntLiteral {
+                    value: "10".to_string(),
+                    location: cols(2, 3)
+                })),],
+                location: cols(1, 5)
+            }))
+        );
+
+        assert_eq!(
+            expr("{10, 20,}"),
+            Expression::InlineArray(Box::new(InlineArray {
                 values: vec![
                     Expression::Int(Box::new(IntLiteral {
                         value: "10".to_string(),

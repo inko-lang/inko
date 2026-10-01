@@ -791,6 +791,32 @@ impl Block {
         })));
     }
 
+    pub(crate) fn set_array_index(
+        &mut self,
+        receiver: RegisterId,
+        type_id: types::TypeId,
+        index: RegisterId,
+        value: RegisterId,
+        location: InstructionLocation,
+    ) {
+        self.instructions.push(Instruction::SetArrayIndex(Box::new(
+            SetArrayIndex { receiver, type_id, index, value, location },
+        )));
+    }
+
+    pub(crate) fn get_array_index(
+        &mut self,
+        register: RegisterId,
+        receiver: RegisterId,
+        type_id: types::TypeId,
+        index: RegisterId,
+        location: InstructionLocation,
+    ) {
+        self.instructions.push(Instruction::GetArrayIndex(Box::new(
+            GetArrayIndex { register, receiver, type_id, index, location },
+        )));
+    }
+
     pub(crate) fn pointer(
         &mut self,
         register: RegisterId,
@@ -1288,6 +1314,24 @@ pub(crate) struct SetField {
 }
 
 #[derive(Clone)]
+pub(crate) struct SetArrayIndex {
+    pub(crate) type_id: types::TypeId,
+    pub(crate) receiver: RegisterId,
+    pub(crate) index: RegisterId,
+    pub(crate) value: RegisterId,
+    pub(crate) location: InstructionLocation,
+}
+
+#[derive(Clone)]
+pub(crate) struct GetArrayIndex {
+    pub(crate) type_id: types::TypeId,
+    pub(crate) register: RegisterId,
+    pub(crate) receiver: RegisterId,
+    pub(crate) index: RegisterId,
+    pub(crate) location: InstructionLocation,
+}
+
+#[derive(Clone)]
 pub(crate) struct GetConstant {
     pub(crate) register: RegisterId,
     pub(crate) id: types::ConstantId,
@@ -1433,6 +1477,8 @@ pub(crate) enum Instruction {
     Send(Box<Send>),
     GetField(Box<GetField>),
     SetField(Box<SetField>),
+    SetArrayIndex(Box<SetArrayIndex>),
+    GetArrayIndex(Box<GetArrayIndex>),
     CheckRefs(Box<CheckRefs>),
     Drop(Box<Drop>),
     Free(Box<Free>),
@@ -1511,6 +1557,8 @@ impl Instruction {
             Instruction::FieldPointer(v) => v.location,
             Instruction::MethodPointer(v) => v.location,
             Instruction::SizeOf(v) => v.location,
+            Instruction::SetArrayIndex(v) => v.location,
+            Instruction::GetArrayIndex(v) => v.location,
             Instruction::Nop(v) => *v,
         }
     }
@@ -1667,6 +1715,12 @@ impl Instruction {
                     v.field.name(db),
                     v.value.0
                 )
+            }
+            Instruction::SetArrayIndex(v) => {
+                format!("r{}[{}] = r{}", v.receiver.0, v.index.0, v.value.0)
+            }
+            Instruction::GetArrayIndex(v) => {
+                format!("r{} = r{}[{}]", v.register.0, v.receiver.0, v.index.0)
             }
             Instruction::Borrow(v) => {
                 format!("r{} = borrow r{}", v.register.0, v.value.0)

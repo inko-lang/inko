@@ -29,18 +29,19 @@ pub const STRING_ID: u32 = 0;
 pub const INT_ID: u32 = 1;
 pub const FLOAT_ID: u32 = 2;
 pub const BOOL_ID: u32 = 3;
-pub const NIL_ID: u32 = 4;
+pub const INLINE_ARRAY_ID: u32 = 4;
+pub const NIL_ID: u32 = 5;
 
-const TUPLE1_ID: u32 = 5;
-const TUPLE2_ID: u32 = 6;
-const TUPLE3_ID: u32 = 7;
-const TUPLE4_ID: u32 = 8;
-const TUPLE5_ID: u32 = 9;
-const TUPLE6_ID: u32 = 10;
-const TUPLE7_ID: u32 = 11;
-const TUPLE8_ID: u32 = 12;
-pub const ARRAY_ID: u32 = 13;
-const CHECKED_INT_RESULT_ID: u32 = 14;
+const TUPLE1_ID: u32 = 6;
+const TUPLE2_ID: u32 = 7;
+const TUPLE3_ID: u32 = 8;
+const TUPLE4_ID: u32 = 9;
+const TUPLE5_ID: u32 = 10;
+const TUPLE6_ID: u32 = 11;
+const TUPLE7_ID: u32 = 12;
+const TUPLE8_ID: u32 = 13;
+pub const ARRAY_ID: u32 = 14;
+const CHECKED_INT_RESULT_ID: u32 = 15;
 
 pub const FIRST_USER_TYPE_ID: u32 = CHECKED_INT_RESULT_ID + 1;
 
@@ -54,6 +55,7 @@ const FLOAT_NAME: &str = "Float";
 const STRING_NAME: &str = "String";
 const ARRAY_NAME: &str = "Array";
 const BOOL_NAME: &str = "Bool";
+const INLINE_ARRAY_NAME: &str = "InlineArray";
 const NIL_NAME: &str = "Nil";
 const TUPLE1_NAME: &str = "Tuple1";
 const TUPLE2_NAME: &str = "Tuple2";
@@ -135,6 +137,15 @@ pub const IMPORT_MODULE_ITSELF_NAME: &str = "self";
 
 /// The maximum nesting to allow when verifying types.
 const MAX_VERIFY_DEPTH: usize = 64;
+
+/// The maximum number of elements allowed in a fixed array.
+///
+/// We restrict the number of values as the backend may misbehave when given
+/// very large arrays (e.g. LLVM has historically struggled with such arrays).
+///
+/// The limit here is arbitrary but should be more than sufficient for 99.99% of
+/// scenarios.
+pub const INLINE_ARRAY_LIMIT: usize = 1024;
 
 /// The requirement of a type inference placeholder.
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
@@ -576,6 +587,10 @@ pub struct TypeArguments {
     ///    e.g. a Vec.
     /// 2. To ensure a stable iteration order.
     mapping: IndexMap<TypeParameterId, TypeRef>,
+
+    /// The size of the array, if these type arguments belong to a fixed array
+    /// instance.
+    pub array_size: usize,
 }
 
 impl TypeArguments {
@@ -625,7 +640,7 @@ impl TypeArguments {
     }
 
     pub fn new() -> Self {
-        Self { mapping: IndexMap::default() }
+        Self { mapping: IndexMap::default(), array_size: 0 }
     }
 
     pub fn assign(&mut self, parameter: TypeParameterId, value: TypeRef) {
@@ -1661,6 +1676,9 @@ pub enum TypeKind {
 
     /// The type is a N-arity tuple.
     Tuple,
+
+    /// The type is a fixed-size array.
+    Array,
 }
 
 impl TypeKind {
@@ -1870,6 +1888,19 @@ impl Type {
         cls
     }
 
+    fn array_type(name: String) -> Self {
+        let mut cls = Self::new(
+            name,
+            TypeKind::Array,
+            Visibility::Public,
+            ModuleId(DEFAULT_BUILTIN_MODULE_ID),
+            Location::default(),
+        );
+
+        cls.storage = Storage::Inline;
+        cls
+    }
+
     fn atomic(name: String) -> Self {
         let mut typ = Self::new(
             name,
@@ -1919,6 +1950,10 @@ impl TypeId {
 
     pub fn boolean() -> TypeId {
         TypeId(BOOL_ID)
+    }
+
+    pub fn fixed_array() -> TypeId {
+        TypeId(INLINE_ARRAY_ID)
     }
 
     pub fn nil() -> TypeId {
@@ -2248,6 +2283,18 @@ impl TypeId {
 
     pub fn type_arguments(self, db: &Database) -> Option<&TypeArguments> {
         self.get(db).type_arguments.as_ref()
+    }
+
+    // TODO: is this what we want?
+    pub fn inline_array_layout(
+        self,
+        db: &Database,
+    ) -> Option<(TypeRef, usize)> {
+        let args = self.get(db).type_arguments.as_ref()?;
+        let val = args.mapping.get_index(0).map(|(_, &v)| v)?;
+        let len = args.array_size;
+
+        Some((val, len))
     }
 
     pub(crate) fn add_specialization(
@@ -6185,6 +6232,24 @@ impl TypeEnum {
         if let TypeEnum::TypeInstance(i) = self { Some(i) } else { None }
     }
 
+    pub fn inline_array(
+        db: &mut Database,
+        of: TypeRef,
+        size: usize,
+    ) -> Option<TypeEnum> {
+        if size > INLINE_ARRAY_LIMIT {
+            return None;
+        }
+
+        let typ = TypeId::fixed_array();
+        let par = typ.type_parameter_by_index(db, 0).unwrap();
+        let mut args = TypeArguments::new();
+
+        args.assign(par, of);
+        args.array_size = size;
+        Some(TypeEnum::TypeInstance(TypeInstance::generic(db, typ, args)))
+    }
+
     fn can_call(
         self,
         db: &Database,
@@ -6281,6 +6346,7 @@ impl Database {
                 Type::value_type(INT_NAME.to_string()),
                 Type::value_type(FLOAT_NAME.to_string()),
                 Type::value_type(BOOL_NAME.to_string()),
+                Type::array_type(INLINE_ARRAY_NAME.to_string()),
                 Type::value_type(NIL_NAME.to_string()),
                 Type::tuple(TUPLE1_NAME.to_string()),
                 Type::tuple(TUPLE2_NAME.to_string()),
@@ -6329,6 +6395,7 @@ impl Database {
             STRING_NAME => Some(TypeId::string()),
             ARRAY_NAME => Some(TypeId::array()),
             BOOL_NAME => Some(TypeId::boolean()),
+            INLINE_ARRAY_NAME => Some(TypeId::fixed_array()),
             NIL_NAME => Some(TypeId::nil()),
             TUPLE1_NAME => Some(TypeId::tuple1()),
             TUPLE2_NAME => Some(TypeId::tuple2()),

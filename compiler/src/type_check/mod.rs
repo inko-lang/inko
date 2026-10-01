@@ -225,6 +225,9 @@ impl<'a> DefineTypeSignature<'a> {
                 self.define_closure_type(n, RefKind::Owned)
             }
             hir::Type::Tuple(n) => self.define_tuple_type(n, RefKind::Owned),
+            hir::Type::InlineArray(n) => {
+                self.define_inline_array_type(n, RefKind::Owned)
+            }
         }
     }
 
@@ -242,6 +245,9 @@ impl<'a> DefineTypeSignature<'a> {
             }
             hir::ReferrableType::Tuple(ref mut n) => {
                 self.define_tuple_type(n, kind)
+            }
+            hir::ReferrableType::Array(ref mut n) => {
+                self.define_inline_array_type(n, kind)
             }
         }
     }
@@ -418,6 +424,23 @@ impl<'a> DefineTypeSignature<'a> {
             typ,
             types,
         ));
+
+        kind.into_type_ref(self.db(), ins)
+    }
+
+    fn define_inline_array_type(
+        &mut self,
+        node: &mut hir::InlineArrayType,
+        kind: RefKind,
+    ) -> TypeRef {
+        let val = self.define_type(&mut node.value_type);
+        let Some(ins) = TypeEnum::inline_array(self.db_mut(), val, node.size)
+        else {
+            self.state
+                .diagnostics
+                .inline_array_size_error(self.file(), node.location);
+            return TypeRef::Error;
+        };
 
         kind.into_type_ref(self.db(), ins)
     }
@@ -694,6 +717,7 @@ impl<'a> CheckTypeSignature<'a> {
             hir::Type::Owned(n) => self.check_reference_type(n),
             hir::Type::Closure(n) => self.check_closure_type(n),
             hir::Type::Tuple(n) => self.check_tuple_type(n),
+            hir::Type::InlineArray(n) => self.check_inline_array_type(n),
         }
 
         if let hir::Type::Ref(n) | hir::Type::Mut(n) | hir::Type::Uni(n) = node
@@ -736,6 +760,9 @@ impl<'a> CheckTypeSignature<'a> {
             hir::ReferrableType::Named(ref n) => self.check_type_name(n),
             hir::ReferrableType::Closure(ref n) => self.check_closure_type(n),
             hir::ReferrableType::Tuple(ref n) => self.check_tuple_type(n),
+            hir::ReferrableType::Array(ref n) => {
+                self.check_inline_array_type(n)
+            }
         }
     }
 
@@ -874,6 +901,10 @@ impl<'a> CheckTypeSignature<'a> {
         for node in &node.values {
             self.check(node);
         }
+    }
+
+    fn check_inline_array_type(&mut self, node: &hir::InlineArrayType) {
+        self.check(&node.value_type);
     }
 
     fn file(&self) -> PathBuf {

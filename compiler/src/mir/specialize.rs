@@ -837,6 +837,20 @@ impl<'a, 'b> Specialize<'a, 'b> {
                             .field_by_index(db, ins.field.index(db))
                             .unwrap();
                     }
+                    Instruction::SetArrayIndex(ins) => {
+                        ins.type_id = method
+                            .registers
+                            .value_type(ins.receiver)
+                            .type_id(&mut self.state.db)
+                            .unwrap();
+                    }
+                    Instruction::GetArrayIndex(ins) => {
+                        ins.type_id = method
+                            .registers
+                            .value_type(ins.receiver)
+                            .type_id(&mut self.state.db)
+                            .unwrap();
+                    }
                     Instruction::FieldPointer(ins) => {
                         let db = &mut self.state.db;
 

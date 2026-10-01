@@ -1318,7 +1318,8 @@ impl Document {
             Expression::True(_) => Node::text("true"),
             Expression::False(_) => Node::text("false"),
             Expression::String(n) => self.string_literal(n),
-            Expression::Array(n) => self.array(n),
+            Expression::Array(n) => self.heap_array(n),
+            Expression::InlineArray(n) => self.inline_array(n),
             Expression::Binary(_) => self.binary(node),
             Expression::And(_) => self.and_or(node),
             Expression::Or(_) => self.and_or(node),
@@ -1454,8 +1455,21 @@ impl Document {
         self.group(vec![head, Node::SpaceOrLine, Node::Indent(tail)])
     }
 
-    fn array(&mut self, node: &nodes::Array) -> Node {
-        let mut nodes = vec![Node::text("["), Node::Line];
+    fn heap_array(&mut self, node: &nodes::Array) -> Node {
+        self.array(&node.values, "[", "]")
+    }
+
+    fn inline_array(&mut self, node: &nodes::InlineArray) -> Node {
+        self.array(&node.values, "{", "}")
+    }
+
+    fn array(
+        &mut self,
+        values: &[nodes::Expression],
+        open: &str,
+        close: &str,
+    ) -> Node {
+        let mut nodes = vec![Node::text(open), Node::Line];
         let gid = self.new_group_id();
 
         // For these sort of arrays we fit as many values on a single line as
@@ -1469,7 +1483,7 @@ impl Document {
         //       'really long string value here ......',
         //       'foo', 'bar',
         //     ]
-        let fill = node.values.iter().all(|expr| {
+        let fill = values.iter().all(|expr| {
             matches!(
                 expr,
                 Expression::Int(_)
@@ -1481,8 +1495,8 @@ impl Document {
             )
         });
 
-        let mut list = List::new(gid, node.values.len());
-        let mut iter = node.values.iter().peekable();
+        let mut list = List::new(gid, values.len());
+        let mut iter = values.iter().peekable();
 
         while let Some(n) = iter.next() {
             let id = self.new_group_id();
@@ -1512,7 +1526,7 @@ impl Document {
 
         nodes.push(result);
         nodes.push(Node::Line);
-        nodes.push(Node::text("]"));
+        nodes.push(Node::text(close));
         Node::Group(gid, nodes)
     }
 
@@ -2375,6 +2389,9 @@ impl Document {
                 nodes::ReferrableType::Tuple(n) => {
                     self.tuple_type(n, Some("ref"))
                 }
+                nodes::ReferrableType::Array(n) => {
+                    self.array_type(n, Some("ref"))
+                }
             },
             nodes::Type::Mut(n) => match &n.type_reference {
                 nodes::ReferrableType::Named(n) => {
@@ -2385,6 +2402,9 @@ impl Document {
                 }
                 nodes::ReferrableType::Tuple(n) => {
                     self.tuple_type(n, Some("mut"))
+                }
+                nodes::ReferrableType::Array(n) => {
+                    self.array_type(n, Some("mut"))
                 }
             },
             nodes::Type::Uni(n) => match &n.type_reference {
@@ -2397,6 +2417,9 @@ impl Document {
                 nodes::ReferrableType::Tuple(n) => {
                     self.tuple_type(n, Some("uni"))
                 }
+                nodes::ReferrableType::Array(n) => {
+                    self.array_type(n, Some("uni"))
+                }
             },
             nodes::Type::Owned(n) => match &n.type_reference {
                 nodes::ReferrableType::Named(n) => {
@@ -2408,9 +2431,13 @@ impl Document {
                 nodes::ReferrableType::Tuple(n) => {
                     self.tuple_type(n, Some("move"))
                 }
+                nodes::ReferrableType::Array(n) => {
+                    self.array_type(n, Some("move"))
+                }
             },
             nodes::Type::Closure(n) => self.closure_type(n, None),
             nodes::Type::Tuple(n) => self.tuple_type(n, None),
+            nodes::Type::Array(n) => self.array_type(n, None),
         }
     }
 
@@ -2505,6 +2532,36 @@ impl Document {
             Node::Indent(vals),
             Node::Line,
             Node::text(")"),
+        ];
+
+        Node::Group(gid, nodes)
+    }
+
+    fn array_type(
+        &mut self,
+        node: &nodes::ArrayType,
+        ownership: Option<&str>,
+    ) -> Node {
+        let gid = self.new_group_id();
+        let open = if let Some(kw) = ownership {
+            Node::text(&format!("{} [", kw))
+        } else {
+            Node::text("[")
+        };
+
+        let mut list = List::new(gid, 2);
+        let typ = self.type_reference(&node.value_type);
+        let len = Node::text(&node.size);
+
+        list.push(self.new_group_id(), typ, true, Node::SpaceOrLine);
+        list.push(self.new_group_id(), len, true, Node::SpaceOrLine);
+
+        let nodes = vec![
+            open,
+            Node::Line,
+            Node::Indent(list.into_nodes()),
+            Node::Line,
+            Node::text("]"),
         ];
 
         Node::Group(gid, nodes)

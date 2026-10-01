@@ -1453,6 +1453,9 @@ impl<'a> CheckMethodBody<'a> {
             hir::Expression::True(n) => self.true_literal(n),
             hir::Expression::Nil(n) => self.nil_literal(n),
             hir::Expression::Tuple(n) => self.tuple_literal(n, scope),
+            hir::Expression::InlineArray(n) => {
+                self.inline_array_literal(n, scope)
+            }
             hir::Expression::TypeCast(n) => self.type_cast(n, scope),
             hir::Expression::Try(n) => self.try_expression(n, scope),
         }
@@ -1554,6 +1557,42 @@ impl<'a> CheckMethodBody<'a> {
         node.type_id = Some(typ);
         node.resolved_type = tuple;
         node.value_types = types;
+        node.resolved_type
+    }
+
+    fn inline_array_literal(
+        &mut self,
+        node: &mut hir::InlineArrayLiteral,
+        scope: &mut LexicalScope,
+    ) -> TypeRef {
+        let vals = self.expressions(&mut node.values, scope);
+        let first = vals[0];
+
+        if vals.len() > 1 {
+            for (&t, n) in vals[1..].iter().zip(&node.values[1..]) {
+                if !TypeChecker::check(self.db(), t, first) {
+                    self.state.diagnostics.type_error(
+                        format_type(self.db(), t),
+                        format_type(self.db(), first),
+                        self.file(),
+                        n.location(),
+                    );
+                }
+            }
+        }
+
+        let Some(ins) =
+            TypeEnum::inline_array(self.db_mut(), first, vals.len())
+        else {
+            self.state
+                .diagnostics
+                .inline_array_size_error(self.file(), node.location);
+            return TypeRef::Error;
+        };
+
+        node.type_id = Some(ins.as_type_instance().unwrap().instance_of());
+        node.value_type = first;
+        node.resolved_type = TypeRef::Owned(ins);
         node.resolved_type
     }
 

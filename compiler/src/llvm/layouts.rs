@@ -9,8 +9,8 @@ use inkwell::types::{
 };
 use std::collections::VecDeque;
 use types::{
-    BOOL_ID, CallConvention, Database, ENUM_TAG_INDEX, FLOAT_ID, INT_ID,
-    MethodId, NIL_ID, STRING_ID, TypeId, TypeRef,
+    BOOL_ID, CallConvention, Database, ENUM_TAG_INDEX, FLOAT_ID,
+    INLINE_ARRAY_ID, INT_ID, MethodId, NIL_ID, STRING_ID, TypeId, TypeRef,
 };
 
 /// The size of an object header.
@@ -276,6 +276,7 @@ impl<'ctx> Layouts<'ctx> {
                     context.i32_type().into(),
                     context.i8_type().array_type(0).into(),
                 ]),
+                INLINE_ARRAY_ID => continue,
                 _ => {
                     // First we forward-declare the structures, as fields may
                     // need to refer to other types regardless of ordering.

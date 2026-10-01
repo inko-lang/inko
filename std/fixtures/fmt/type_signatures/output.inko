@@ -1,0 +1,11 @@
+fn example1(a: (Int, Int)) {}
+
+fn example2(a: [Int, 10]) {}
+
+fn example2(
+  a: [
+    AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA,
+    10,
+  ],
+) {
+}
