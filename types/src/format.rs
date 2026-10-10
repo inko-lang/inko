@@ -374,9 +374,10 @@ impl FormatType for TypeInstance {
 
                 let params: Vec<_> =
                     ins_of.type_parameters.values().cloned().collect();
+                let targs = self.type_arguments(buffer.db);
 
                 buffer.write(open);
-                buffer.type_arguments(&params, self.type_arguments(buffer.db));
+                buffer.type_arguments(&params, targs);
                 buffer.write(close);
             }
         });
@@ -504,6 +505,7 @@ impl FormatType for TypeRef {
                 typ.format_type(buffer);
                 buffer.write("]");
             }
+            TypeRef::Int(v) => buffer.write(&v.to_string()),
         };
     }
 }
@@ -541,8 +543,9 @@ impl FormatType for TypeEnum {
 mod tests {
     use super::*;
     use crate::test::{
-        any, immutable, immutable_uni, instance, mutable, mutable_uni,
-        new_parameter, new_type, owned, parameter, placeholder, uni,
+        any, immutable, immutable_uni, inline_array, instance, mutable,
+        mutable_uni, new_parameter, new_type, owned, parameter, placeholder,
+        uni,
     };
     use crate::{
         Block, Closure, Database, Inline, Location, Method, MethodKind, Module,
@@ -964,6 +967,21 @@ mod tests {
             TypeEnum::TypeInstance(TypeInstance::generic(&mut db, id, args));
 
         assert_eq!(format_type(&db, ins), "(Int, Never)");
+    }
+
+    #[test]
+    fn test_type_id_format_type_with_inline_array_instance() {
+        let mut db = Database::new();
+        let id = TypeId::inline_array();
+
+        id.new_type_parameter(&mut db, "T".to_string());
+        id.new_type_parameter(&mut db, "N".to_string()).set_int(&mut db);
+
+        let ary1 = owned(inline_array(&mut db, TypeRef::int(), 1));
+        let ary10 = owned(inline_array(&mut db, TypeRef::int(), 10));
+
+        assert_eq!(format_type(&db, ary1), "InlineArray[Int, 1]");
+        assert_eq!(format_type(&db, ary10), "InlineArray[Int, 10]");
     }
 
     #[test]

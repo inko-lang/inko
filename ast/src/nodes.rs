@@ -111,6 +111,18 @@ impl Node for Array {
 }
 
 #[derive(Debug, PartialEq, Eq)]
+pub struct InlineArray {
+    pub values: Vec<Expression>,
+    pub location: Location,
+}
+
+impl Node for InlineArray {
+    fn location(&self) -> &Location {
+        &self.location
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub struct Tuple {
     pub values: Vec<Expression>,
     pub location: Location,
@@ -778,6 +790,7 @@ pub enum Expression {
     Nil(Box<Nil>),
     Scope(Box<Scope>),
     Array(Box<Array>),
+    InlineArray(Box<InlineArray>),
     Tuple(Box<Tuple>),
     Comment(Box<Comment>),
     For(Box<For>),
@@ -826,6 +839,7 @@ impl Node for Expression {
         match self {
             Expression::And(n) => n.location(),
             Expression::Array(n) => n.location(),
+            Expression::InlineArray(n) => n.location(),
             Expression::AssignField(n) => n.location(),
             Expression::ReplaceField(n) => n.location(),
             Expression::AssignSetter(n) => n.location(),
@@ -1078,6 +1092,7 @@ pub enum Type {
     Owned(Box<ReferenceType>),
     Closure(Box<ClosureType>),
     Tuple(Box<TupleType>),
+    Int(Box<IntLiteral>),
 }
 
 impl Node for Type {
@@ -1090,6 +1105,7 @@ impl Node for Type {
             Type::Owned(typ) => typ.location(),
             Type::Closure(typ) => typ.location(),
             Type::Tuple(typ) => typ.location(),
+            Type::Int(typ) => typ.location(),
         }
     }
 }

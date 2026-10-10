@@ -19,9 +19,23 @@
 # size_of[Pair]   # => 16
 # ```
 fn pub inline size_of[T] -> Int {
-  # Calls to this method are always compiled into inline intrinsics at
-  # compile-time.
+  # Calls to this method are always compiled into compiler intrinsics.
   0
+}
+
+# Returns `true` if `T` is a `copy` type, `false` otherwise.
+#
+# # Examples
+#
+# ```inko
+# import std.reflect (copy?)
+#
+# copy?[String] # => false
+# copy?[Int]    # => true
+# ```
+fn pub inline copy?[T] -> Bool {
+  # Calls to this method are always compiled into compiler intrinsics.
+  false
 }
 
 # Returns the value of the tag of an enum.

@@ -132,6 +132,10 @@ pub(crate) struct Rules {
 
     /// If the `Self` type can be used.
     pub(crate) allow_self: bool,
+
+    /// If constant values are allowed as the outer-most types (e.g. as the
+    /// return type of a method).
+    pub(crate) allow_constants: bool,
 }
 
 impl Rules {
@@ -155,6 +159,7 @@ impl Default for Rules {
             allow_never: false,
             mark_trait_for_self: false,
             allow_self: true,
+            allow_constants: false,
         }
     }
 }
@@ -190,10 +195,9 @@ impl<'a> DefineTypeSignature<'a> {
         match self.define_type_name(node, RefKind::Owned) {
             TypeRef::Owned(TypeEnum::TraitInstance(instance)) => Some(instance),
             TypeRef::Error => None,
-            _ => {
-                self.state.diagnostics.error(
-                    DiagnosticId::InvalidType,
-                    format!("'{}' isn't a trait", node.name.name),
+            typ => {
+                self.state.diagnostics.not_a_trait(
+                    &format_type(&self.state.db, typ),
                     self.file(),
                     node.location,
                 );
@@ -225,6 +229,7 @@ impl<'a> DefineTypeSignature<'a> {
                 self.define_closure_type(n, RefKind::Owned)
             }
             hir::Type::Tuple(n) => self.define_tuple_type(n, RefKind::Owned),
+            hir::Type::Int(n) => TypeRef::Int(n.value),
         }
     }
 
@@ -242,6 +247,42 @@ impl<'a> DefineTypeSignature<'a> {
             }
             hir::ReferrableType::Tuple(ref mut n) => {
                 self.define_tuple_type(n, kind)
+            }
+        }
+    }
+
+    fn define_type_parameter_requirement(
+        &mut self,
+        parameter: TypeParameterId,
+        node: &mut hir::TypeName,
+    ) -> Option<TraitInstance> {
+        match self.define_type_name(node, RefKind::Owned) {
+            TypeRef::Owned(TypeEnum::TraitInstance(i)) => Some(i),
+            TypeRef::Error => None,
+            typ if typ.is_int(self.db()) => {
+                if parameter.is_int(self.db()) {
+                    let name = parameter.name(&self.state.db);
+                    let req = format_type(self.db(), typ);
+                    let file = self.file();
+                    let loc = node.location;
+
+                    self.state
+                        .diagnostics
+                        .duplicate_type_parameter_requirement(
+                            name, &req, file, loc,
+                        );
+                }
+
+                parameter.set_int(self.db_mut());
+                None
+            }
+            typ => {
+                let name = format_type(self.db(), typ);
+                let file = self.file();
+                let loc = node.location;
+
+                self.state.diagnostics.not_a_trait(&name, file, loc);
+                None
             }
         }
     }
@@ -419,7 +460,8 @@ impl<'a> DefineTypeSignature<'a> {
             types,
         ));
 
-        kind.into_type_ref(self.db(), ins)
+        node.resolved_type = kind.into_type_ref(self.db(), ins);
+        node.resolved_type
     }
 
     fn define_type_instance(
@@ -694,6 +736,9 @@ impl<'a> CheckTypeSignature<'a> {
             hir::Type::Owned(n) => self.check_reference_type(n),
             hir::Type::Closure(n) => self.check_closure_type(n),
             hir::Type::Tuple(n) => self.check_tuple_type(n),
+            hir::Type::Int(_) => {
+                // This is just a literal so there's nothing to check.
+            }
         }
 
         if let hir::Type::Ref(n) | hir::Type::Mut(n) | hir::Type::Uni(n) = node
@@ -705,7 +750,7 @@ impl<'a> CheckTypeSignature<'a> {
                 self.state.diagnostics.warn(
                     DiagnosticId::BorrowValueType,
                     "borrows of value types are redundant, as value types \
-                        always use owned references",
+                    always use owned references",
                     self.file(),
                     node.location(),
                 );
@@ -748,16 +793,10 @@ impl<'a> CheckTypeSignature<'a> {
             instance.instance_of().number_of_type_parameters(self.db());
 
         if self.check_type_argument_count(node, required) {
-            // Classes can't allow Any types as type arguments, as this results
-            // in a loss of type information at runtime. This means that if a
-            // type stores a type parameter T in a field, and it's assigned to
-            // Any, we have no idea how to drop that value, and the value might
-            // not even be managed by Inko (e.g. when using the FFI).
-            self.check_argument_types(
-                node,
-                instance.instance_of().type_parameters(self.db()),
-                instance.type_arguments(self.db()).unwrap().clone(),
-            );
+            let pars = instance.instance_of().type_parameters(self.db());
+            let args = instance.type_arguments(self.db()).unwrap().clone();
+
+            self.check_argument_types(node.arguments.iter(), pars, args);
         }
     }
 
@@ -770,15 +809,10 @@ impl<'a> CheckTypeSignature<'a> {
             instance.instance_of().number_of_type_parameters(self.db());
 
         if self.check_type_argument_count(node, required) {
-            // Traits do allow Any types as type arguments, as traits don't
-            // dictate how a value is stored. If we end up dropping a trait we
-            // do so by calling the dropper of the underlying type, which in
-            // turn already disallows storing Any in generic contexts.
-            self.check_argument_types(
-                node,
-                instance.instance_of().type_parameters(self.db()),
-                instance.type_arguments(self.db()).unwrap().clone(),
-            );
+            let pars = instance.instance_of().type_parameters(self.db());
+            let args = instance.type_arguments(self.db()).unwrap().clone();
+
+            self.check_argument_types(node.arguments.iter(), pars, args);
         }
     }
 
@@ -820,9 +854,9 @@ impl<'a> CheckTypeSignature<'a> {
         true
     }
 
-    fn check_argument_types(
+    fn check_argument_types<'v>(
         &mut self,
-        node: &hir::TypeName,
+        nodes: impl Iterator<Item = &'v hir::Type>,
         parameters: Vec<TypeParameterId>,
         arguments: TypeArguments,
     ) {
@@ -832,7 +866,7 @@ impl<'a> CheckTypeSignature<'a> {
                 args
             });
 
-        for (param, node) in parameters.into_iter().zip(node.arguments.iter()) {
+        for (param, node) in parameters.into_iter().zip(nodes) {
             let arg = arguments.get(param).unwrap();
             let exp = TypeRef::Any(TypeEnum::TypeParameter(param));
             let mut env = Environment::new(
@@ -874,6 +908,24 @@ impl<'a> CheckTypeSignature<'a> {
         for node in &node.values {
             self.check(node);
         }
+
+        let typ = node.resolved_type;
+        let Some((pars, args)) = self.parameters_and_arguments(typ) else {
+            return;
+        };
+
+        self.check_argument_types(node.values.iter(), pars, args);
+    }
+
+    fn parameters_and_arguments(
+        &self,
+        typ: TypeRef,
+    ) -> Option<(Vec<TypeParameterId>, TypeArguments)> {
+        let ins = typ.as_type_instance(self.db())?;
+        let pars = ins.instance_of().type_parameters(self.db());
+        let args = ins.type_arguments(self.db()).cloned()?;
+
+        Some((pars, args))
     }
 
     fn file(&self) -> PathBuf {
@@ -917,11 +969,24 @@ impl<'a> DefineAndCheckTypeSignature<'a> {
         .define_type(node);
 
         CheckTypeSignature::new(self.state, self.module).check(node);
-        typ
+
+        if typ.is_compile_time_int(&self.state.db)
+            && !self.rules.allow_constants
+        {
+            let name = format_type(&self.state.db, typ);
+            let file = self.module.file(&self.state.db);
+            let loc = node.location();
+
+            self.state.diagnostics.value_not_a_type(&name, file, loc);
+            TypeRef::Error
+        } else {
+            typ
+        }
     }
 
-    pub(crate) fn as_trait_instance(
+    fn define_type_parameter_requirement(
         &mut self,
+        parameter: TypeParameterId,
         node: &mut hir::TypeName,
     ) -> Option<TraitInstance> {
         let ins = DefineTypeSignature::new(
@@ -930,7 +995,7 @@ impl<'a> DefineAndCheckTypeSignature<'a> {
             self.scope,
             self.rules,
         )
-        .as_trait_instance(node);
+        .define_type_parameter_requirement(parameter, node);
 
         if ins.is_some() {
             CheckTypeSignature::new(self.state, self.module)

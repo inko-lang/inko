@@ -108,6 +108,10 @@ pub(crate) fn format_type(db: &Database, typ: TypeRef, buf: &mut String) {
             buf.push_str("Never");
             return;
         }
+        TypeRef::Int(v) => {
+            buf.push_str(&v.to_string());
+            return;
+        }
         // Other types can't be present at this point, outside of any compiler
         // bugs. Most notably, placeholders are replaced with the types they're
         // assigned to.

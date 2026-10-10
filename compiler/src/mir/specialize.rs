@@ -13,8 +13,8 @@ use types::specialize::{Closures, TypeSpecializer};
 use types::{
     Block as _, CALL_METHOD, DECREMENT_METHOD, DROPPER_METHOD, Database,
     ENUM_TAG_INDEX, INCREMENT_METHOD, InternedTypeArguments, Intrinsic,
-    MethodId, REFLECT_MODULE, REFLECT_SIZE_OF, Shape, TraitId, TypeArguments,
-    TypeEnum, TypeId, TypeInstance, TypeRef,
+    MethodId, REFLECT_IS_COPY, REFLECT_MODULE, REFLECT_SIZE_OF, Shape, TraitId,
+    TypeArguments, TypeEnum, TypeId, TypeInstance, TypeRef,
 };
 
 fn specialize_constants(
@@ -208,6 +208,38 @@ fn expand_enum_tag(db: &Database, method: &mut Method) {
                     location: loc,
                 }));
             }
+        }
+    }
+}
+
+fn expand_constant_type_parameters(
+    db: &Database,
+    type_arguments: &TypeArguments,
+    method: &mut Method,
+) {
+    for block in &mut method.body.blocks {
+        for ins in &mut block.instructions {
+            let Instruction::GetConstantTypeParameter(op) = ins else {
+                continue;
+            };
+
+            let Some(TypeRef::Int(val)) = type_arguments.get(op.id) else {
+                panic!(
+                    "type parameter {} (ID: {}) doesn't map to a constant value",
+                    op.id.name(db),
+                    op.id.0,
+                );
+            };
+
+            let reg = op.register;
+            let loc = op.location;
+
+            *ins = Instruction::Int(Box::new(IntLiteral {
+                value: val,
+                bits: 64,
+                register: reg,
+                location: loc,
+            }));
         }
     }
 }
@@ -521,6 +553,12 @@ impl Dynamic {
     }
 }
 
+#[derive(Copy, Clone)]
+struct IntrinsicCalls {
+    size_of: MethodId,
+    is_copy: MethodId,
+}
+
 /// A compiler pass that specializes generic types.
 pub(crate) struct Specialize<'a, 'b> {
     method: MethodId,
@@ -528,7 +566,7 @@ pub(crate) struct Specialize<'a, 'b> {
     work: &'b mut Work,
     interned: &'b mut InternedTypeArguments,
     closures: &'b mut Closures,
-    size_of: MethodId,
+    intrinsic_calls: IntrinsicCalls,
 
     /// The type of the `self` and `Self`.
     self_type: TypeEnum,
@@ -587,11 +625,11 @@ impl<'a, 'b> Specialize<'a, 'b> {
         mir.types.get_mut(&main_type).unwrap().methods.push(main_method);
         mir.modules.get_mut(&main_mod).unwrap().methods.push(main_method);
 
-        let size_of = state
-            .db
-            .module(REFLECT_MODULE)
-            .method(&state.db, REFLECT_SIZE_OF)
-            .unwrap();
+        let reflect = state.db.module(REFLECT_MODULE);
+        let intrinsic_calls = IntrinsicCalls {
+            size_of: reflect.method(&state.db, REFLECT_SIZE_OF).unwrap(),
+            is_copy: reflect.method(&state.db, REFLECT_IS_COPY).unwrap(),
+        };
 
         while let Some(job) = work.pop() {
             Specialize {
@@ -604,7 +642,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
                 work: &mut work,
                 specialized_methods: Vec::new(),
                 types: Vec::new(),
-                size_of,
+                intrinsic_calls,
             }
             .run(mir, &mut dynamic);
         }
@@ -702,7 +740,8 @@ impl<'a, 'b> Specialize<'a, 'b> {
                     // dependency relations (that will likely hinder incremental
                     // compilation) between `std.reflect` and other modules.
                     Instruction::CallStatic(ins)
-                        if ins.method == self.size_of =>
+                        if ins.method == self.intrinsic_calls.size_of
+                            || ins.method == self.intrinsic_calls.is_copy =>
                     {
                         let targs = ins
                             .type_arguments
@@ -719,12 +758,22 @@ impl<'a, 'b> Specialize<'a, 'b> {
                         )
                         .specialize(targs.values().next().unwrap());
 
-                        *instruction =
+                        let new = if ins.method == self.intrinsic_calls.size_of
+                        {
                             Instruction::SizeOf(Box::new(super::SizeOf {
                                 register: ins.register,
                                 argument: arg,
                                 location: ins.location,
-                            }));
+                            }))
+                        } else {
+                            Instruction::Bool(Box::new(super::BoolLiteral {
+                                value: arg.is_copy_type(&self.state.db),
+                                register: ins.register,
+                                location: ins.location,
+                            }))
+                        };
+
+                        *instruction = new;
                     }
                     Instruction::CallStatic(ins) => {
                         let rec = ins.method.receiver(&self.state.db);
@@ -837,6 +886,20 @@ impl<'a, 'b> Specialize<'a, 'b> {
                             .field_by_index(db, ins.field.index(db))
                             .unwrap();
                     }
+                    Instruction::SetArrayIndex(ins) => {
+                        ins.type_id = method
+                            .registers
+                            .value_type(ins.receiver)
+                            .type_id(&self.state.db)
+                            .unwrap();
+                    }
+                    Instruction::GetArrayIndex(ins) => {
+                        ins.type_id = method
+                            .registers
+                            .value_type(ins.receiver)
+                            .type_id(&self.state.db)
+                            .unwrap();
+                    }
                     Instruction::FieldPointer(ins) => {
                         let db = &mut self.state.db;
 
@@ -881,7 +944,16 @@ impl<'a, 'b> Specialize<'a, 'b> {
 
         ExpandDrop { db: &self.state.db, method, read_on_use: &regs }.run();
         ExpandBorrow { db: &self.state.db, method, read_on_use: &regs }.run();
+
+        // Certain intrinsic calls need to be changed to something else _after_
+        // specialization as their inputs may not yet be known prior to
+        // specialization.
         expand_enum_tag(&self.state.db, method);
+        expand_constant_type_parameters(
+            &self.state.db,
+            &self.type_arguments,
+            method,
+        );
 
         // These must come last so that they can modify any call instructions
         // generated by the previous passes.
@@ -1532,6 +1604,11 @@ impl<'a> ExpandDrop<'a> {
         // as the dropper takes its receiver by pointer, not by value.
         if let Some(orig) = self.read_on_use[ins.register.0] {
             typ = orig;
+        }
+
+        if !typ.is_droppable(self.db) {
+            self.ignore_value(block_id, after_id);
+            return;
         }
 
         match typ.shape(self.db) {

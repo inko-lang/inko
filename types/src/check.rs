@@ -463,7 +463,10 @@ impl<'a> TypeChecker<'a> {
 
                     self.check_type_enum(left_id, right_id, env, rules)
                 }
-                TypeRef::Uni(right_id) | TypeRef::UniRef(right_id)
+                TypeRef::Uni(right_id)
+                | TypeRef::UniRef(right_id)
+                | TypeRef::UniMut(right_id)
+                | TypeRef::Mut(right_id)
                     if is_val =>
                 {
                     self.check_type_enum(left_id, right_id, env, rules)
@@ -540,10 +543,26 @@ impl<'a> TypeChecker<'a> {
                     self.check_type_enum(left_id, right_id, env, rules)
                 }
                 TypeRef::Placeholder(id) => {
-                    matches!(id.ownership, Ownership::Any | Ownership::Ref)
+                    let allow = match id.ownership {
+                        Ownership::Any | Ownership::Ref => true,
+                        Ownership::Pointer => false,
+                        _ if is_val => true,
+                        _ => false,
+                    };
+
+                    allow
                         && self.check_type_enum_with_placeholder(
                             left, left_id, orig_right, id, env, rules,
                         )
+                }
+                TypeRef::Owned(right_id)
+                | TypeRef::Uni(right_id)
+                | TypeRef::Mut(right_id)
+                | TypeRef::UniRef(right_id)
+                | TypeRef::UniMut(right_id)
+                    if is_val =>
+                {
+                    self.check_type_enum(left_id, right_id, env, rules)
                 }
                 TypeRef::Error => true,
                 _ => false,
@@ -708,6 +727,24 @@ impl<'a> TypeChecker<'a> {
                         left, left_id, orig_right, right_id, env, rules,
                     )
                 }
+                _ => false,
+            },
+            // TODO: clean up
+            // TODO: handle the other way around as well?
+            TypeRef::Int(l) => match right {
+                TypeRef::Int(r) => l == r,
+                v if v.is_int(self.db) => true,
+                TypeRef::Placeholder(p) => {
+                    let Some(r) = p.required(self.db) else { return false };
+
+                    if r.is_int(self.db) {
+                        p.assign_internal(self.db, left);
+                        true
+                    } else {
+                        false
+                    }
+                }
+                TypeRef::Error => true,
                 _ => false,
             },
             _ => false,
@@ -1288,6 +1325,11 @@ impl<'a> TypeChecker<'a> {
                         // an unassigned placeholder.
                         TypeRef::Placeholder(id.as_owned())
                     }
+                    TypeRef::Any(TypeEnum::RigidTypeParameter(p))
+                        if p.is_value_type(self.db) =>
+                    {
+                        TypeRef::Owned(TypeEnum::RigidTypeParameter(p))
+                    }
                     _ => TypeRef::Unknown,
                 }
             }
@@ -1378,9 +1420,10 @@ mod tests {
     use crate::test::{
         any, closure, generic_instance, generic_trait_instance,
         generic_trait_instance_id, immutable, immutable_uni, implement,
-        instance, mutable, mutable_uni, new_extern_type, new_parameter,
-        new_trait, new_type, owned, parameter, placeholder, pointer, rigid,
-        trait_instance, trait_instance_id, type_arguments, type_bounds, uni,
+        inline_array, instance, mutable, mutable_uni, new_extern_type,
+        new_parameter, new_trait, new_type, owned, parameter, placeholder,
+        pointer, rigid, trait_instance, trait_instance_id, type_arguments,
+        type_bounds, uni,
     };
     use crate::{
         Block, Closure, Location, ModuleId, Sign, TraitImplementation, Type,
@@ -1522,9 +1565,9 @@ mod tests {
         check_ok(&db, owned(instance(int)), immutable_uni(instance(int)));
         check_ok(&db, owned(instance(foo)), TypeRef::Error);
         check_ok(&db, owned(instance(int)), owned(parameter(p2)));
+        check_ok(&db, owned(instance(int)), mutable(instance(int)));
+        check_ok(&db, owned(instance(int)), mutable_uni(instance(int)));
 
-        check_err(&db, owned(instance(int)), mutable(instance(int)));
-        check_err(&db, owned(instance(int)), mutable_uni(instance(int)));
         check_err(&db, owned(instance(foo)), immutable(instance(foo)));
         check_err(&db, owned(instance(foo)), mutable(instance(foo)));
         check_err(&db, owned(instance(foo)), owned(instance(bar)));
@@ -3246,5 +3289,54 @@ mod tests {
         check_err_return(&db, placeholder(uni_var), any(instance(thing)));
         check_err_return(&db, placeholder(ref_var), any(instance(thing)));
         check_err_return(&db, placeholder(mut_var), any(instance(thing)));
+    }
+
+    #[test]
+    fn test_inline_array_with_different_sizes() {
+        let mut db = Database::new();
+        let ary = TypeId::inline_array();
+
+        ary.new_type_parameter(&mut db, "T".to_string());
+        ary.new_type_parameter(&mut db, "N".to_string()).set_int(&mut db);
+
+        let ins1 = owned(inline_array(&mut db, TypeRef::int(), 1));
+        let ins2 = owned(inline_array(&mut db, TypeRef::int(), 1));
+        let ins3 = owned(inline_array(&mut db, TypeRef::int(), 2));
+
+        check_ok(&db, ins1, ins2);
+        check_err(&db, ins1, ins3);
+    }
+
+    #[test]
+    fn test_copy_type_parameter() {
+        let mut db = Database::new();
+        let par = new_parameter(&mut db, "T");
+        let var1 = TypePlaceholder::alloc(&mut db, Some(par)).as_owned();
+        let var2 = TypePlaceholder::alloc(&mut db, Some(par));
+        let var3 = TypePlaceholder::alloc(&mut db, Some(par)).as_ref();
+
+        par.set_copy(&mut db);
+
+        check_ok(&db, any(rigid(par)), placeholder(var1));
+        check_ok(&db, any(rigid(par)), placeholder(var2));
+        check_ok(&db, any(rigid(par)), placeholder(var3));
+
+        check_ok(&db, any(rigid(par)), any(rigid(par)));
+        check_ok(&db, any(rigid(par)), owned(rigid(par)));
+        check_ok(&db, any(rigid(par)), uni(rigid(par)));
+        check_ok(&db, any(rigid(par)), immutable_uni(rigid(par)));
+        check_ok(&db, any(rigid(par)), mutable_uni(rigid(par)));
+    }
+
+    #[test]
+    fn test_owned_value_type_with_borrows() {
+        let db = Database::new();
+        let int = TypeId::int();
+
+        check_ok(&db, owned(instance(int)), mutable(instance(int)));
+        check_ok(&db, owned(instance(int)), immutable(instance(int)));
+        check_ok(&db, owned(instance(int)), uni(instance(int)));
+        check_ok(&db, owned(instance(int)), immutable_uni(instance(int)));
+        check_ok(&db, owned(instance(int)), mutable_uni(instance(int)));
     }
 }

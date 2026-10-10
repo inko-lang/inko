@@ -5,7 +5,8 @@ use crate::state::State;
 use crate::target::OperatingSystem;
 use inkwell::targets::TargetData;
 use inkwell::types::{
-    BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType, StructType,
+    ArrayType, BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType,
+    StructType,
 };
 use std::collections::VecDeque;
 use types::{
@@ -197,6 +198,11 @@ pub(crate) struct Layouts<'ctx> {
     /// This `Vec` is indexed using `TypeId` values.
     pub(crate) instances: Vec<StructType<'ctx>>,
 
+    /// The layouts for array types.
+    ///
+    /// This `Vec` is indexed using `TypeId` values.
+    pub(crate) arrays: Vec<ArrayType<'ctx>>,
+
     /// The structure layout of the runtime's `State` type.
     pub(crate) state: StructType<'ctx>,
 
@@ -222,6 +228,7 @@ impl<'ctx> Layouts<'ctx> {
     ) -> Self {
         let db = &state.db;
         let empty_struct = context.struct_type(&[]);
+        let empty_array = context.bool_type().array_type(0);
         let num_types = db.number_of_types();
 
         // Instead of using a HashMap, we use a Vec that's indexed using a
@@ -232,6 +239,7 @@ impl<'ctx> Layouts<'ctx> {
         // are removed through optimizations, but at worst we'd waste a few KiB.
         let mut types = vec![empty_struct; num_types];
         let mut instances = vec![empty_struct; num_types];
+        let arrays = vec![empty_array; num_types];
         let header = context.struct_type(&[
             context.pointer_type().into(), // Type
             context.i32_type().into(),     // References
@@ -276,6 +284,11 @@ impl<'ctx> Layouts<'ctx> {
                     context.i32_type().into(),
                     context.i8_type().array_type(0).into(),
                 ]),
+                _ if id.is_inline_array(db) => {
+                    // The layouts for array instances are handled separately,
+                    // and we don't need layouts for the _types_ either.
+                    continue;
+                }
                 _ => {
                     // First we forward-declare the structures, as fields may
                     // need to refer to other types regardless of ordering.
@@ -299,6 +312,7 @@ impl<'ctx> Layouts<'ctx> {
             method,
             types,
             instances,
+            arrays,
             state: state_layout,
             header,
             methods: vec![Method::new(); num_methods],
@@ -357,9 +371,21 @@ impl<'ctx> Layouts<'ctx> {
                 continue;
             }
 
-            // If the type we're checking is _not_ a type instance then we
-            // default to _true_ instead of false, since this means we can
-            // trivially calculate the size of that field (e.g. it's a pointer).
+            // We can't treat arrays and structures the same as LLVM requires
+            // constant/compile-time indexes for indexing structures.
+            if let Some((val, len)) = id.inline_array_layout(db) {
+                if !sized.has_size(db, val) {
+                    queue.push_back(id);
+                    continue;
+                }
+
+                let typ = context.llvm_type(db, self, val).array_type(len);
+
+                sized.set_has_size(id);
+                self.arrays[id.0 as usize] = typ;
+                continue;
+            }
+
             let size_known = if kind.is_enum() {
                 id.constructors(db).into_iter().all(|c| {
                     c.arguments(db).iter().all(|&t| sized.has_size(db, t))

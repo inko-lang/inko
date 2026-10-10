@@ -139,11 +139,22 @@ trait MethodDefiner {
                     scope,
                     rules,
                 )
-                .as_trait_instance(req);
+                .define_type_parameter_requirement(param, req);
 
-                if let Some(instance) = result {
-                    requirements.push(instance);
+                if let Some(i) = result {
+                    requirements.push(i);
                 }
+            }
+
+            if param.is_int(self.db()) && !requirements.is_empty() {
+                let file = self.file();
+
+                self.state_mut()
+                    .diagnostics
+                    .conflicting_type_and_trait_requirement(
+                        file,
+                        param_node.location,
+                    );
             }
 
             param.add_requirements(self.db_mut(), requirements);

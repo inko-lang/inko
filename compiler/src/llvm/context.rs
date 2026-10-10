@@ -238,6 +238,9 @@ impl Context {
                     BOOL_ID | NIL_ID => self.bool_type().as_basic_type_enum(),
                     INT_ID => self.i64_type().as_basic_type_enum(),
                     FLOAT_ID => self.f64_type().as_basic_type_enum(),
+                    _ if cls.is_inline_array(db) => {
+                        layouts.arrays[cls.0 as usize].as_basic_type_enum()
+                    }
                     _ if cls.is_stack_allocated(db) => {
                         layouts.instances[cls.0 as usize].as_basic_type_enum()
                     }

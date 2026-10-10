@@ -337,6 +337,16 @@ impl<'a> AnalyzeMethod<'a> {
                         self.fields[i.register.0] = true;
                         (i.register, i.receiver)
                     }
+                    Instruction::GetArrayIndex(i)
+                        if self
+                            .method
+                            .registers
+                            .value_type(i.register)
+                            .is_owned_or_uni(self.db) =>
+                    {
+                        self.fields[i.register.0] = true;
+                        (i.register, i.receiver)
+                    }
                     Instruction::SetField(i)
                         if self
                             .method

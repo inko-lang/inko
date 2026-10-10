@@ -279,17 +279,12 @@ impl Diagnostics {
 
     pub(crate) fn not_a_copy_type(
         &mut self,
-        name: &str,
         file: PathBuf,
         location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidType,
-            format!(
-                "a 'copy' or 'extern' type is expected, but '{}' is a heap \
-                type",
-                name
-            ),
+            "a 'copy' or 'extern' type is expected",
             file,
             location,
         );
@@ -297,13 +292,12 @@ impl Diagnostics {
 
     pub(crate) fn not_a_value_type(
         &mut self,
-        name: &str,
         file: PathBuf,
         location: Location,
     ) {
         self.error(
             DiagnosticId::InvalidType,
-            format!("a value type is expected, but '{}' is a heap type", name),
+            "a value type is expected",
             file,
             location,
         );
@@ -426,6 +420,20 @@ impl Diagnostics {
         self.error(
             DiagnosticId::InvalidType,
             format!("'{}' isn't a type", name),
+            file,
+            location,
+        );
+    }
+
+    pub(crate) fn value_not_a_type(
+        &mut self,
+        name: &str,
+        file: PathBuf,
+        location: Location,
+    ) {
+        self.error(
+            DiagnosticId::InvalidType,
+            format!("'{}' is a constant, but a type is expected", name),
             file,
             location,
         );
@@ -1060,6 +1068,20 @@ impl Diagnostics {
         );
     }
 
+    pub(crate) fn conflicting_type_and_trait_requirement(
+        &mut self,
+        file: PathBuf,
+        location: Location,
+    ) {
+        self.error(
+            DiagnosticId::InvalidType,
+            "type parameters can't define both a type \
+            requirement and one or more trait requirements",
+            file,
+            location,
+        );
+    }
+
     pub(crate) fn mutable_copy_type_parameter(
         &mut self,
         file: PathBuf,
@@ -1233,6 +1255,20 @@ impl Diagnostics {
         self.warn(
             DiagnosticId::UnusedResult,
             "the result of this expression is unused",
+            file,
+            location,
+        );
+    }
+
+    pub(crate) fn not_a_trait(
+        &mut self,
+        name: &str,
+        file: PathBuf,
+        location: Location,
+    ) {
+        self.error(
+            DiagnosticId::InvalidType,
+            format!("'{}' isn't a trait", name),
             file,
             location,
         );

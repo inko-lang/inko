@@ -1,0 +1,7 @@
+type A[T: copy] {
+  fn foo(value: T) {
+    bar(value)
+  }
+
+  fn bar(value: T) {}
+}

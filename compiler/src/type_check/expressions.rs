@@ -964,11 +964,17 @@ impl<'a> Expressions<'a> {
 
         for req in nodes {
             let mut conflicts_with = None;
-            let req_id = req
+
+            // If the requirement is a concrete type we can skip the logic below
+            // because we don't allow mixing those with trait requirements.
+            let Some(req_id) = req
                 .resolved_type
                 .as_trait_instance(self.db())
-                .unwrap()
-                .instance_of();
+                .map(|t| t.instance_of())
+            else {
+                continue;
+            };
+
             let methods = req_id
                 .required_methods(self.db())
                 .into_iter()
@@ -1453,6 +1459,9 @@ impl<'a> CheckMethodBody<'a> {
             hir::Expression::True(n) => self.true_literal(n),
             hir::Expression::Nil(n) => self.nil_literal(n),
             hir::Expression::Tuple(n) => self.tuple_literal(n, scope),
+            hir::Expression::InlineArray(n) => {
+                self.inline_array_literal(n, scope)
+            }
             hir::Expression::TypeCast(n) => self.type_cast(n, scope),
             hir::Expression::Try(n) => self.try_expression(n, scope),
         }
@@ -1554,6 +1563,48 @@ impl<'a> CheckMethodBody<'a> {
         node.type_id = Some(typ);
         node.resolved_type = tuple;
         node.value_types = types;
+        node.resolved_type
+    }
+
+    fn inline_array_literal(
+        &mut self,
+        node: &mut hir::InlineArrayLiteral,
+        scope: &mut LexicalScope,
+    ) -> TypeRef {
+        // Inline arrays without values are useless, so rather than support that
+        // we just produce an error.
+        if node.values.is_empty() {
+            self.state.diagnostics.error(
+                DiagnosticId::InvalidType,
+                "inline arrays must contain at least a single value",
+                self.file(),
+                node.location,
+            );
+
+            return TypeRef::Error;
+        }
+
+        let vals = self.input_expressions(&mut node.values, scope);
+        let first = vals[0];
+
+        if vals.len() > 1 {
+            for (&t, n) in vals[1..].iter().zip(&node.values[1..]) {
+                if !TypeChecker::check(self.db(), t, first) {
+                    self.state.diagnostics.type_error(
+                        format_type(self.db(), t),
+                        format_type(self.db(), first),
+                        self.file(),
+                        n.location(),
+                    );
+                }
+            }
+        }
+
+        let ins = TypeEnum::inline_array(self.db_mut(), first, vals.len());
+
+        node.type_id = Some(ins.as_type_instance().unwrap().instance_of());
+        node.value_type = first;
+        node.resolved_type = TypeRef::Owned(ins);
         node.resolved_type
     }
 
@@ -1707,7 +1758,7 @@ impl<'a> CheckMethodBody<'a> {
         }
 
         let var_type = if let Some(tnode) = node.value_type.as_mut() {
-            let exp_type = self.type_signature(tnode);
+            let exp_type = self.type_signature(tnode, false);
 
             if !TypeChecker::check(self.db(), value_type, exp_type) {
                 self.state.diagnostics.pattern_type_error(
@@ -1956,12 +2007,29 @@ impl<'a> CheckMethodBody<'a> {
 
         let val_typ = match value_type.as_type_instance(self.db()) {
             Some(ins) if ins.instance_of() == TypeId::array() => ins
-                .type_arguments(self.db())
-                .unwrap()
-                .values()
-                .next()
-                .unwrap()
+                .first_type_argument(self.db())
                 .cast_according_to(self.db(), value_type),
+            Some(ins) if ins.instance_of() == TypeId::inline_array() => {
+                let exp = ins.inline_array_size(self.db()) as usize;
+
+                if exp != node.values.len() {
+                    self.state.diagnostics.error(
+                        DiagnosticId::InvalidType,
+                        format!(
+                            "this pattern requires an 'InlineArray' with {} \
+                            values, but the 'InlineArray' matched against \
+                            always has {} values",
+                            node.values.len(),
+                            exp
+                        ),
+                        self.file(),
+                        node.location,
+                    );
+                }
+
+                ins.first_type_argument(self.db())
+                    .cast_according_to(self.db(), value_type)
+            }
             Some(ins)
                 if ins.instance_of()
                     == self
@@ -1974,8 +2042,8 @@ impl<'a> CheckMethodBody<'a> {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidType,
                     format!(
-                        "this pattern expects an 'Array' or 'ByteArray', \
-                        but the input type is '{}'",
+                        "this pattern expects an 'Array', 'InlineArray' \
+                        or 'ByteArray', but the input type is '{}'",
                         format_type(self.db(), value_type),
                     ),
                     self.file(),
@@ -2422,7 +2490,7 @@ impl<'a> CheckMethodBody<'a> {
         for (idx, arg) in node.arguments.iter_mut().enumerate() {
             let name = arg.name.name.clone();
             let typ = if let Some(n) = arg.value_type.as_mut() {
-                self.type_signature(n)
+                self.type_signature(n, false)
             } else if let Some(exp) = expected.as_ref() {
                 let db = self.db_mut();
 
@@ -2450,7 +2518,7 @@ impl<'a> CheckMethodBody<'a> {
         }
 
         let return_type = if let Some(n) = node.return_type.as_mut() {
-            self.type_signature(n)
+            self.type_signature(n, false)
         } else if let Some(exp) = expected.as_ref() {
             match exp.id.return_type(self.db()) {
                 // In the closure's body we won't have access to all the type
@@ -2565,45 +2633,61 @@ impl<'a> CheckMethodBody<'a> {
 
                     return TypeRef::Error;
                 }
-                _ => match module.use_symbol(self.db_mut(), &node.name) {
-                    Some(Symbol::Constant(id)) => {
-                        node.resolved_type = id.value_type(self.db());
-                        node.kind = ConstantKind::Constant(id);
-
+                _ => {
+                    if let Some(Symbol::TypeParameter(id)) = rec_id
+                        .named_type(self.db_mut(), &node.name)
+                        .or_else(|| {
+                            self.method.named_type(self.db_mut(), &node.name)
+                        })
+                        && id.is_int(self.db())
+                    {
+                        node.resolved_type = TypeRef::int();
+                        node.kind = ConstantKind::Parameter(id);
                         return node.resolved_type;
                     }
-                    Some(Symbol::Type(id)) if receiver => {
-                        return TypeRef::Owned(TypeEnum::Type(id));
-                    }
-                    Some(Symbol::Type(_) | Symbol::Trait(_)) if !receiver => {
-                        self.state.diagnostics.symbol_not_a_value(
-                            &node.name,
-                            self.file(),
-                            node.location,
-                        );
 
-                        return TypeRef::Error;
-                    }
-                    Some(Symbol::Method(method)) => {
-                        let id = method.module(self.db());
+                    match module.use_symbol(self.db_mut(), &node.name) {
+                        Some(Symbol::Constant(id)) => {
+                            node.resolved_type = id.value_type(self.db());
+                            node.kind = ConstantKind::Constant(id);
 
-                        (
-                            TypeRef::module(id),
-                            TypeEnum::Module(id),
-                            Receiver::with_module(self.db(), method),
-                            method,
-                        )
-                    }
-                    _ => {
-                        self.state.diagnostics.undefined_symbol(
-                            &node.name,
-                            self.file(),
-                            node.location,
-                        );
+                            return node.resolved_type;
+                        }
+                        Some(Symbol::Type(id)) if receiver => {
+                            return TypeRef::Owned(TypeEnum::Type(id));
+                        }
+                        Some(Symbol::Type(_) | Symbol::Trait(_))
+                            if !receiver =>
+                        {
+                            self.state.diagnostics.symbol_not_a_value(
+                                &node.name,
+                                self.file(),
+                                node.location,
+                            );
 
-                        return TypeRef::Error;
+                            return TypeRef::Error;
+                        }
+                        Some(Symbol::Method(method)) => {
+                            let id = method.module(self.db());
+
+                            (
+                                TypeRef::module(id),
+                                TypeEnum::Module(id),
+                                Receiver::with_module(self.db(), method),
+                                method,
+                            )
+                        }
+                        _ => {
+                            self.state.diagnostics.undefined_symbol(
+                                &node.name,
+                                self.file(),
+                                node.location,
+                            );
+
+                            return TypeRef::Error;
+                        }
                     }
-                },
+                }
             }
         };
 
@@ -4253,7 +4337,7 @@ impl<'a> CheckMethodBody<'a> {
             return TypeRef::Error;
         };
 
-        let returns = id.return_type(self.db(), &args);
+        let returns = id.return_type(self.db_mut(), &args);
 
         node.info = Some(IntrinsicCall { id, returns });
         returns
@@ -4514,7 +4598,7 @@ impl<'a> CheckMethodBody<'a> {
         }
 
         for (idx, node) in nodes.iter_mut().enumerate() {
-            let typ = self.type_signature(node);
+            let typ = self.type_signature(node, true);
             let Some(par) = call.method.type_parameter_by_index(self.db(), idx)
             else {
                 break;
@@ -4644,7 +4728,11 @@ impl<'a> CheckMethodBody<'a> {
         );
     }
 
-    fn type_signature(&mut self, node: &mut hir::Type) -> TypeRef {
+    fn type_signature(
+        &mut self,
+        node: &mut hir::Type,
+        allow_constants: bool,
+    ) -> TypeRef {
         // Within the bodies of static and module methods, the meaning of `Self`
         // is either unclear or there simply is no type to replace it with.
         let allow_self = matches!(
@@ -4654,6 +4742,7 @@ impl<'a> CheckMethodBody<'a> {
         let rules = Rules {
             type_parameters_as_rigid: true,
             allow_self,
+            allow_constants,
             ..Default::default()
         };
         let type_scope = TypeScope::with_bounds(

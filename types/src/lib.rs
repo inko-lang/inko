@@ -29,20 +29,22 @@ pub const STRING_ID: u32 = 0;
 pub const INT_ID: u32 = 1;
 pub const FLOAT_ID: u32 = 2;
 pub const BOOL_ID: u32 = 3;
-pub const NIL_ID: u32 = 4;
+pub const INLINE_ARRAY_ID: u32 = 4;
+pub const NIL_ID: u32 = 5;
 
-const TUPLE1_ID: u32 = 5;
-const TUPLE2_ID: u32 = 6;
-const TUPLE3_ID: u32 = 7;
-const TUPLE4_ID: u32 = 8;
-const TUPLE5_ID: u32 = 9;
-const TUPLE6_ID: u32 = 10;
-const TUPLE7_ID: u32 = 11;
-const TUPLE8_ID: u32 = 12;
-pub const ARRAY_ID: u32 = 13;
-const CHECKED_INT_RESULT_ID: u32 = 14;
+const TUPLE1_ID: u32 = 6;
+const TUPLE2_ID: u32 = 7;
+const TUPLE3_ID: u32 = 8;
+const TUPLE4_ID: u32 = 9;
+const TUPLE5_ID: u32 = 10;
+const TUPLE6_ID: u32 = 11;
+const TUPLE7_ID: u32 = 12;
+const TUPLE8_ID: u32 = 13;
+pub const ARRAY_ID: u32 = 14;
+const CHECKED_INT_RESULT_ID: u32 = 15;
+const MANUALLY_DROP_ID: u32 = 16;
 
-pub const FIRST_USER_TYPE_ID: u32 = CHECKED_INT_RESULT_ID + 1;
+pub const FIRST_USER_TYPE_ID: u32 = MANUALLY_DROP_ID + 1;
 
 /// The default module ID to assign to builtin types.
 ///
@@ -54,6 +56,7 @@ const FLOAT_NAME: &str = "Float";
 const STRING_NAME: &str = "String";
 const ARRAY_NAME: &str = "Array";
 const BOOL_NAME: &str = "Bool";
+const INLINE_ARRAY_NAME: &str = "InlineArray";
 const NIL_NAME: &str = "Nil";
 const TUPLE1_NAME: &str = "Tuple1";
 const TUPLE2_NAME: &str = "Tuple2";
@@ -64,6 +67,7 @@ const TUPLE6_NAME: &str = "Tuple6";
 const TUPLE7_NAME: &str = "Tuple7";
 const TUPLE8_NAME: &str = "Tuple8";
 const CHECKED_INT_RESULT_NAME: &str = "CheckedIntResult";
+const MANUALLY_DROP_NAME: &str = "ManuallyDrop";
 
 pub const STRING_MODULE: &str = "std.string";
 pub const TO_STRING_TRAIT: &str = "ToString";
@@ -89,7 +93,7 @@ pub const RESULT_OK: &str = "Ok";
 pub const RESULT_ERROR: &str = "Error";
 pub const ARRAY_WITH_CAPACITY: &str = "with_capacity";
 pub const ARRAY_PUSH: &str = "push";
-pub const ARRAY_SIZE_FIELD: &str = "size";
+pub const ARRAY_SIZE: &str = "size";
 pub const ARRAY_READ: &str = "read_from";
 pub const ARRAY_INTERNAL_NAME: &str = "$Array";
 pub const SELF_TYPE: &str = "Self";
@@ -107,6 +111,7 @@ pub const BYTE_ARRAY_READ: &str = "get_unchecked";
 pub const SYNC_MODULE: &str = "std.sync";
 pub const REFLECT_MODULE: &str = "std.reflect";
 pub const REFLECT_SIZE_OF: &str = "size_of";
+pub const REFLECT_IS_COPY: &str = "copy?";
 pub const FUTURE_TYPE: &str = "Future";
 pub const FUTURE_INTERNAL_NAME: &str = "$Future";
 pub const FUTURE_NEW: &str = "new";
@@ -118,6 +123,11 @@ pub const DEREF_POINTER_FIELD: &str = "0";
 
 pub const ENUM_TAG_FIELD: &str = "tag";
 pub const ENUM_TAG_INDEX: usize = 0;
+
+pub const INLINE_ARRAY_VALUE_INDEX: usize = 0;
+pub const INLINE_ARRAY_SIZE_INDEX: usize = 1;
+pub const INLINE_ARRAY_INCREMENT_METHOD: &str = "increment_values";
+pub const INLINE_ARRAY_DECREMENT_METHOD: &str = "decrement_values";
 
 /// The maximum number of enum constructors that can be defined in a single
 /// type.
@@ -362,6 +372,9 @@ enum TypeParameterKind {
     /// A type parameter that requires any value (copy, async, atomic, etc)
     /// type.
     Value,
+
+    /// A type parameter that's assigned a compile-time integer.
+    Int,
 }
 
 /// A type parameter for a method or type.
@@ -401,6 +414,10 @@ impl TypeParameter {
             kind: TypeParameterKind::Regular,
             original: None,
         }
+    }
+
+    fn is_int(&self) -> bool {
+        matches!(self.kind, TypeParameterKind::Int)
     }
 
     fn is_copy(&self) -> bool {
@@ -476,10 +493,22 @@ impl TypeParameterId {
         self.get_mut(db).kind = TypeParameterKind::Value;
     }
 
+    pub fn set_int(self, db: &mut Database) {
+        self.get_mut(db).kind = TypeParameterKind::Int;
+    }
+
+    pub fn is_int(self, db: &Database) -> bool {
+        self.get(db).is_int()
+    }
+
     pub(crate) fn allow_type(self, db: &Database, typ: TypeRef) -> bool {
         let kind = self.get(db).kind;
 
         match kind {
+            TypeParameterKind::Int => typ.is_compile_time_int(db),
+            // Compile-time values can't be assigned to regular type parameters,
+            // regardless of what kind of parameter we're dealing with.
+            _ if typ.is_compile_time_int(db) => false,
             TypeParameterKind::Mutable => typ.allow_mutating(db),
             TypeParameterKind::Copy => typ.is_copy_type(db),
             TypeParameterKind::Value => typ.is_value_type(db),
@@ -1661,6 +1690,9 @@ pub enum TypeKind {
 
     /// The type is a N-arity tuple.
     Tuple,
+
+    /// The type is an inline array of a fixed size.
+    Array,
 }
 
 impl TypeKind {
@@ -1686,6 +1718,10 @@ impl TypeKind {
 
     pub fn is_extern(self) -> bool {
         matches!(self, TypeKind::Extern)
+    }
+
+    pub fn is_array(self) -> bool {
+        matches!(self, TypeKind::Array)
     }
 
     fn allow_pattern_matching(self) -> bool {
@@ -1752,14 +1788,17 @@ pub struct Type {
 
     /// A flag indicating the presence of a custom destructor.
     ///
-    /// We store a flag for this so we can check for the presence of a destructor
-    /// without having to look up traits.
+    /// We store a flag for this so we can check for the presence of a
+    /// destructor without having to look up traits.
     destructor: bool,
 
     /// If the type is packed or not.
     ///
     /// This is only used for extern types.
     packed: bool,
+
+    /// If values of this type should be dropped or not.
+    droppable: bool,
 
     /// A type describing how instances of this type should be stored.
     storage: Storage,
@@ -1844,6 +1883,7 @@ impl Type {
             specialization_source: None,
             type_arguments: None,
             self_type_for_closure: None,
+            droppable: true,
         }
     }
 
@@ -1867,6 +1907,33 @@ impl Type {
         );
 
         cls.storage = Storage::Copy;
+        cls
+    }
+
+    fn array_type(name: String) -> Self {
+        let mut cls = Self::new(
+            name,
+            TypeKind::Array,
+            Visibility::Public,
+            ModuleId(DEFAULT_BUILTIN_MODULE_ID),
+            Location::default(),
+        );
+
+        cls.storage = Storage::Inline;
+        cls
+    }
+
+    fn no_drop_type(name: String) -> Self {
+        let mut cls = Self::new(
+            name,
+            TypeKind::Regular,
+            Visibility::Private,
+            ModuleId(DEFAULT_BUILTIN_MODULE_ID),
+            Location::default(),
+        );
+
+        cls.storage = Storage::Inline;
+        cls.droppable = false;
         cls
     }
 
@@ -1921,6 +1988,10 @@ impl TypeId {
         TypeId(BOOL_ID)
     }
 
+    pub fn inline_array() -> TypeId {
+        TypeId(INLINE_ARRAY_ID)
+    }
+
     pub fn nil() -> TypeId {
         TypeId(NIL_ID)
     }
@@ -1965,6 +2036,10 @@ impl TypeId {
         TypeId(CHECKED_INT_RESULT_ID)
     }
 
+    pub fn manually_drop() -> TypeId {
+        TypeId(MANUALLY_DROP_ID)
+    }
+
     pub fn tuple(len: usize) -> Option<TypeId> {
         match len {
             1 => Some(TypeId::tuple1()),
@@ -1997,14 +2072,6 @@ impl TypeId {
 
     pub fn type_parameters(self, db: &Database) -> Vec<TypeParameterId> {
         self.get(db).type_parameters.values().cloned().collect()
-    }
-
-    pub fn type_parameter_by_index(
-        self,
-        db: &Database,
-        index: usize,
-    ) -> Option<TypeParameterId> {
-        self.get(db).type_parameters.get_index(index).map(|(_, v)| *v)
     }
 
     pub fn add_trait_implementation(
@@ -2062,6 +2129,14 @@ impl TypeId {
         name: &str,
     ) -> Option<TypeParameterId> {
         self.get(db).type_parameters.get(name).cloned()
+    }
+
+    pub fn type_parameter_by_index(
+        self,
+        db: &Database,
+        index: usize,
+    ) -> Option<TypeParameterId> {
+        self.get(db).type_parameters.get_index(index).map(|(_, v)| *v)
     }
 
     pub fn field(self, db: &Database, name: &str) -> Option<FieldId> {
@@ -2250,6 +2325,35 @@ impl TypeId {
         self.get(db).type_arguments.as_ref()
     }
 
+    pub fn is_inline_array(self, db: &Database) -> bool {
+        self.kind(db).is_array()
+    }
+
+    pub fn inline_array_layout(self, db: &Database) -> Option<(TypeRef, u32)> {
+        let obj = self.get(db);
+
+        if !obj.kind.is_array() {
+            return None;
+        }
+
+        let targs = obj.type_arguments.as_ref().unwrap();
+        let (_, &val_par) =
+            obj.type_parameters.get_index(INLINE_ARRAY_VALUE_INDEX).unwrap();
+        let (_, &len_par) =
+            obj.type_parameters.get_index(INLINE_ARRAY_SIZE_INDEX).unwrap();
+        let val = targs.get(val_par).unwrap();
+        let len = match targs.get(len_par) {
+            Some(TypeRef::Int(v)) => v,
+            v => panic!(
+                "expected a Some(TypeRef::Int(_)), found {:?} instead",
+                v
+            ),
+        };
+
+        // LLVM limits array sizes to 32 bits.
+        Some((val, len as u32))
+    }
+
     pub(crate) fn add_specialization(
         self,
         db: &mut Database,
@@ -2404,6 +2508,8 @@ impl TypeId {
         );
 
         new.storage = src.storage;
+        new.packed = src.packed;
+        new.droppable = src.droppable;
         Type::add(db, new)
     }
 
@@ -2426,6 +2532,10 @@ impl TypeId {
 
     pub fn is_packed(self, db: &Database) -> bool {
         self.get(db).packed
+    }
+
+    fn is_droppable(self, db: &Database) -> bool {
+        self.get(db).droppable
     }
 
     fn get(self, db: &Database) -> &Type {
@@ -2588,6 +2698,29 @@ impl TypeInstance {
         TypeInstance { instance_of: self.instance_of, type_arguments: targs }
     }
 
+    pub fn first_type_argument(self, db: &Database) -> TypeRef {
+        let par = self.instance_of.type_parameter_by_index(db, 0).unwrap();
+        let args = self.type_arguments(db).unwrap();
+
+        args.get(par).unwrap()
+    }
+
+    pub fn inline_array_size(self, db: &Database) -> u32 {
+        let par = self
+            .instance_of
+            .type_parameter_by_index(db, INLINE_ARRAY_SIZE_INDEX)
+            .unwrap();
+        let args = self.type_arguments(db).unwrap();
+
+        match args.get(par) {
+            Some(TypeRef::Int(v)) => v as u32,
+            v => panic!(
+                "expected a Some(TypeRef::Int(_)), found {:?} instead",
+                v
+            ),
+        }
+    }
+
     fn named_type(self, db: &Database, name: &str) -> Option<Symbol> {
         self.instance_of.named_type(db, name)
     }
@@ -2738,6 +2871,12 @@ pub enum Intrinsic {
     IntTrailingZeros,
     Memset,
     EnumTag,
+    ArrayGet,
+    ArraySet,
+    ArrayClone,
+    ArrayPointer,
+    Increment,
+    Decrement,
 }
 
 impl Intrinsic {
@@ -2802,6 +2941,12 @@ impl Intrinsic {
             Intrinsic::IntTrailingZeros,
             Intrinsic::Memset,
             Intrinsic::EnumTag,
+            Intrinsic::ArrayGet,
+            Intrinsic::ArraySet,
+            Intrinsic::ArrayClone,
+            Intrinsic::ArrayPointer,
+            Intrinsic::Increment,
+            Intrinsic::Decrement,
         ]
         .into_iter()
         .fold(HashMap::new(), |mut map, func| {
@@ -2871,10 +3016,20 @@ impl Intrinsic {
             Intrinsic::IntTrailingZeros => "int_trailing_zeros",
             Intrinsic::Memset => "memset",
             Intrinsic::EnumTag => "enum_tag",
+            Intrinsic::ArrayGet => "array_get",
+            Intrinsic::ArraySet => "array_set",
+            Intrinsic::ArrayClone => "array_clone",
+            Intrinsic::ArrayPointer => "array_pointer",
+            Intrinsic::Increment => "increment",
+            Intrinsic::Decrement => "decrement",
         }
     }
 
-    pub fn return_type(self, db: &Database, arguments: &[TypeRef]) -> TypeRef {
+    pub fn return_type(
+        self,
+        db: &mut Database,
+        arguments: &[TypeRef],
+    ) -> TypeRef {
         match self {
             Intrinsic::FloatAdd => TypeRef::float(),
             Intrinsic::FloatCeil => TypeRef::float(),
@@ -2950,6 +3105,32 @@ impl Intrinsic {
             Intrinsic::IntTrailingZeros => TypeRef::int(),
             Intrinsic::Memset => TypeRef::nil(),
             Intrinsic::EnumTag => TypeRef::int(),
+            Intrinsic::ArrayGet => arguments[0]
+                .as_type_instance(db)
+                .and_then(|i| i.type_arguments(db))
+                .and_then(|a| a.values().next())
+                .unwrap(),
+            Intrinsic::ArraySet => TypeRef::nil(),
+            Intrinsic::ArrayClone => {
+                let ary = arguments[0];
+                let id = TypeId::inline_array();
+                let par = id
+                    .type_parameter_by_index(db, INLINE_ARRAY_VALUE_INDEX)
+                    .unwrap();
+                let mut targs = ary.type_arguments(db);
+                let new = targs.get(par).unwrap().as_owned(db);
+
+                targs.assign(par, new);
+                TypeRef::Owned(TypeEnum::TypeInstance(TypeInstance::generic(
+                    db, id, targs,
+                )))
+            }
+            Intrinsic::ArrayPointer => {
+                let ary = arguments[0].as_type_instance(db).unwrap();
+
+                ary.first_type_argument(db).as_pointer(db)
+            }
+            Intrinsic::Increment | Intrinsic::Decrement => TypeRef::nil(),
         }
     }
 }
@@ -3779,6 +3960,7 @@ pub enum ConstantKind {
     Unknown,
     Constant(ConstantId),
     Method(CallInfo),
+    Parameter(TypeParameterId),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -4578,6 +4760,9 @@ pub enum TypeRef {
 
     /// A pointer to a value.
     Pointer(TypeEnum),
+
+    /// A compile-time integer.
+    Int(i64),
 }
 
 impl TypeRef {
@@ -4696,16 +4881,6 @@ impl TypeRef {
         }
     }
 
-    pub fn allow_in_array(self, db: &Database) -> bool {
-        match self {
-            TypeRef::UniRef(_) | TypeRef::UniMut(_) => false,
-            TypeRef::Placeholder(id) => {
-                id.value(db).is_none_or(|v| v.allow_in_array(db))
-            }
-            _ => !self.is_foreign_type(db),
-        }
-    }
-
     pub fn is_foreign_type(self, db: &Database) -> bool {
         match self {
             TypeRef::Owned(TypeEnum::TypeInstance(ins))
@@ -4749,16 +4924,6 @@ impl TypeRef {
                 id.value(db).is_some_and(|v| v.is_error(db))
             }
             _ => false,
-        }
-    }
-
-    pub fn is_present(self, db: &Database) -> bool {
-        match self {
-            TypeRef::Never => false,
-            TypeRef::Placeholder(id) => {
-                id.value(db).is_some_and(|v| v.is_present(db))
-            }
-            _ => true,
         }
     }
 
@@ -5684,6 +5849,7 @@ impl TypeRef {
             Placeholder(id) => {
                 id.value(db).is_some_and(|v| v.is_value_type(db))
             }
+            Int(_) => true,
             _ => false,
         }
     }
@@ -5710,6 +5876,7 @@ impl TypeRef {
                 id.value(db).is_some_and(|v| v.is_copy_type(db))
             }
             TypeRef::Never | TypeRef::Unknown => false,
+            TypeRef::Int(_) => true,
         }
     }
 
@@ -5931,6 +6098,10 @@ impl TypeRef {
         )))
     }
 
+    pub fn is_droppable(self, db: &Database) -> bool {
+        self.as_type_instance(db).is_none_or(|v| v.instance_of.is_droppable(db))
+    }
+
     pub fn shape(self, db: &Database) -> Shape {
         match self {
             TypeRef::Any(TypeEnum::TypeInstance(i))
@@ -6046,6 +6217,11 @@ impl TypeRef {
         }
     }
 
+    pub fn is_compile_time_int(self, db: &Database) -> bool {
+        matches!(self, TypeRef::Int(_))
+            || self.as_type_parameter(db).is_some_and(|v| v.is_int(db))
+    }
+
     fn is_instance_of(self, db: &Database, id: TypeId) -> bool {
         self.type_id(db) == Some(id)
     }
@@ -6066,6 +6242,7 @@ impl TypeRef {
                 v.value(db).map_or(Ownership::Any, |v| v.ownership(db))
             }
             TypeRef::Pointer(_) => Ownership::Pointer,
+            TypeRef::Int(_) => Ownership::Owned,
         }
     }
 }
@@ -6185,6 +6362,18 @@ impl TypeEnum {
         if let TypeEnum::TypeInstance(i) = self { Some(i) } else { None }
     }
 
+    pub fn inline_array(
+        db: &mut Database,
+        of: TypeRef,
+        size: usize,
+    ) -> TypeEnum {
+        TypeEnum::TypeInstance(TypeInstance::with_types(
+            db,
+            TypeId::inline_array(),
+            vec![of, TypeRef::Int(size as i64)],
+        ))
+    }
+
     fn can_call(
         self,
         db: &Database,
@@ -6281,6 +6470,7 @@ impl Database {
                 Type::value_type(INT_NAME.to_string()),
                 Type::value_type(FLOAT_NAME.to_string()),
                 Type::value_type(BOOL_NAME.to_string()),
+                Type::array_type(INLINE_ARRAY_NAME.to_string()),
                 Type::value_type(NIL_NAME.to_string()),
                 Type::tuple(TUPLE1_NAME.to_string()),
                 Type::tuple(TUPLE2_NAME.to_string()),
@@ -6298,6 +6488,7 @@ impl Database {
                     ModuleId(DEFAULT_BUILTIN_MODULE_ID),
                     Location::default(),
                 ),
+                Type::no_drop_type(MANUALLY_DROP_NAME.to_string()),
             ],
             type_parameters: Vec::new(),
             type_arguments: Vec::new(),
@@ -6329,6 +6520,7 @@ impl Database {
             STRING_NAME => Some(TypeId::string()),
             ARRAY_NAME => Some(TypeId::array()),
             BOOL_NAME => Some(TypeId::boolean()),
+            INLINE_ARRAY_NAME => Some(TypeId::inline_array()),
             NIL_NAME => Some(TypeId::nil()),
             TUPLE1_NAME => Some(TypeId::tuple1()),
             TUPLE2_NAME => Some(TypeId::tuple2()),
@@ -6339,6 +6531,7 @@ impl Database {
             TUPLE7_NAME => Some(TypeId::tuple7()),
             TUPLE8_NAME => Some(TypeId::tuple8()),
             CHECKED_INT_RESULT_NAME => Some(TypeId::checked_int_result()),
+            MANUALLY_DROP_NAME => Some(TypeId::manually_drop()),
             _ => None,
         }
     }

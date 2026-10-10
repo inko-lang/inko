@@ -180,7 +180,10 @@ impl<'a> TypeSpecializer<'a> {
             TypeRef::Placeholder(t) => t
                 .value(self.db)
                 .map_or(TypeRef::Unknown, |v| self.specialize(v)),
-            TypeRef::Never | TypeRef::Error | TypeRef::Unknown => value,
+            TypeRef::Never
+            | TypeRef::Error
+            | TypeRef::Unknown
+            | TypeRef::Int(_) => value,
         }
     }
 

@@ -1,0 +1,176 @@
+import helpers (hash)
+import std.array (OutOfBounds)
+import std.drop (Drop, drop)
+import std.test (Tests)
+
+type Counter {
+  let mut @value: Int
+}
+
+type Dropper {
+  let @dropped: mut Counter
+}
+
+impl Drop for Dropper {
+  fn mut drop {
+    @dropped.value += 1
+  }
+}
+
+type Thing {}
+
+fn pub tests(t: mut Tests) {
+  t.test('InlineArray.size', fn (t) {
+    t.equal(inline [10, 20].size, 2)
+    t.equal(inline [10, 20, 30].size, 3)
+  })
+
+  t.test('InlineArray.get', fn (t) {
+    t.equal(inline [10, 20].get(0), Result.Ok(10))
+    t.equal(inline [10.5, 20.0].get(0), Result.Ok(10.5))
+    t.equal(inline ['foo', 'bar'].get(0), Result.Ok('foo'))
+    t.equal(
+      inline [10, 20].get(10),
+      Result.Error(OutOfBounds(index: 10, size: 2)),
+    )
+  })
+
+  t.test('InlineArray.get_mut', fn (t) {
+    t.equal(inline [(1, 2), (3, 4)].get_mut(0), Result.Ok(mut (1, 2)))
+    t.equal(
+      inline [(1, 2), (3, 4)].get_mut(10),
+      Result.Error(OutOfBounds(index: 10, size: 2)),
+    )
+  })
+
+  t.test('InlineArray.set', fn (t) {
+    let a = inline [10, 20]
+
+    a.set(0, 100)
+    t.equal(a.get(0), Result.Ok(100))
+    t.equal(a.get(1), Result.Ok(20))
+  })
+
+  t.test('InlineArray.swap', fn (t) {
+    let a = inline [10, 20, 30]
+
+    t.equal(a.swap(1, 40), 20)
+    t.equal(a.get(1), Result.Ok(40))
+  })
+
+  t.test('InlineArray.swap_indexes', fn (t) {
+    let a = inline [10, 20, 30]
+
+    a.swap_indexes(index: 0, with: 2)
+
+    t.equal(a.get(0), Result.Ok(30))
+    t.equal(a.get(2), Result.Ok(10))
+  })
+
+  t.test('InlineArray.indexes', fn (t) {
+    t.equal(inline [10, 20, 30].indexes.to_array, [0, 1, 2])
+  })
+
+  t.test('InlineArray.into_iter', fn (t) {
+    t.equal(inline [10, 20, 30].into_iter.to_array, [10, 20, 30])
+
+    let a = Counter(0)
+    let b = Counter(0)
+    let dummies = inline [Dropper(a), Dropper(b)].into_iter
+
+    # This is to make sure values aren't dropped twice when the IntoIter is
+    # partially consumed.
+    t.true(dummies.next.some?)
+    drop(dummies)
+
+    t.equal(a.value, 1)
+    t.equal(b.value, 1)
+  })
+
+  t.test('InlineArray.contains?', fn (t) {
+    t.true(inline [10, 20, 30].contains?(10))
+    t.false(inline [10, 20, 30].contains?(50))
+  })
+
+  t.test('InlineArray.index_of', fn (t) {
+    t.equal(inline [10, 20, 30].index_of(20), Option.Some(1))
+    t.equal(inline [10, 20, 30].index_of(50), Option.None)
+  })
+
+  t.test('InlineArray.==', fn (t) {
+    let a = inline [10, 20, 30]
+    let b = inline [10, 20, 30]
+    let c = inline [30, 40, 50]
+
+    t.equal(a, b)
+    t.equal(b, a)
+    t.not_equal(a, c)
+  })
+
+  t.test('InlineArray.clone', fn (t) {
+    let a = inline [[10, 20], [30, 40]]
+    let b = a.clone
+
+    t.equal(a, b)
+  })
+
+  t.test('InlineArray.hash', fn (t) {
+    let vals = inline [10, 20, 30]
+
+    t.equal(hash(vals), hash(vals))
+  })
+
+  t.test('InlineArray.first', fn (t) {
+    t.equal(inline [10, 20].first, Option.Some(10))
+  })
+
+  t.test('InlineArray.first_mut', fn (t) {
+    t.equal(inline [10, 20].first_mut, Option.Some(10))
+  })
+
+  t.test('InlineArray.last', fn (t) {
+    t.equal(inline [10, 20].last, Option.Some(20))
+  })
+
+  t.test('InlineArray.last_mut', fn (t) {
+    t.equal(inline [10, 20].last_mut, Option.Some(20))
+  })
+
+  t.test('InlineArray.pointer', fn (t) {
+    let a = inline [10, 20, 30]
+
+    a.pointer.0 = 100
+    t.equal(a, inline [100, 20, 30])
+  })
+
+  t.panic('Borrowing an InlineArray also borrows its values', fn {
+    let a = inline [Thing(), Thing()]
+    let _b = ref a
+
+    drop(a)
+  })
+
+  t.no_panic(
+    'Dropping an InlineArray borrow also drops borrows of its values',
+    fn {
+      let a = inline [Thing(), Thing()]
+
+      {
+        ref a
+        nil
+      }
+
+      drop(a)
+    },
+  )
+
+  t.test('Dropping an InlineArray also drops its values', fn (t) {
+    let a = Counter(0)
+    let b = Counter(0)
+
+    drop(inline [Dropper(a), Dropper(b)])
+
+    t.equal(a.value, 1)
+    t.equal(b.value, 1)
+  })
+}

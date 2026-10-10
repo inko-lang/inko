@@ -153,6 +153,15 @@ pub(crate) struct TupleLiteral {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct InlineArrayLiteral {
+    pub(crate) type_id: Option<types::TypeId>,
+    pub(crate) value_type: types::TypeRef,
+    pub(crate) resolved_type: types::TypeRef,
+    pub(crate) values: Vec<Expression>,
+    pub(crate) location: Location,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Identifier {
     pub(crate) name: String,
     pub(crate) location: Location,
@@ -576,6 +585,7 @@ pub(crate) enum Expression {
     True(Box<True>),
     Nil(Box<Nil>),
     Tuple(Box<TupleLiteral>),
+    InlineArray(Box<InlineArrayLiteral>),
     TypeCast(Box<TypeCast>),
     Recover(Box<Recover>),
     Try(Box<Try>),
@@ -714,6 +724,7 @@ impl Expression {
             Expression::True(n) => n.location,
             Expression::Nil(n) => n.location,
             Expression::Tuple(n) => n.location,
+            Expression::InlineArray(n) => n.location,
             Expression::TypeCast(n) => n.location,
             Expression::Recover(n) => n.location,
             Expression::Try(n) => n.location,
@@ -897,6 +908,7 @@ pub(crate) enum Type {
     Owned(Box<ReferenceType>),
     Closure(Box<ClosureType>),
     Tuple(Box<TupleType>),
+    Int(Box<IntLiteral>),
 }
 
 impl Type {
@@ -909,6 +921,7 @@ impl Type {
             Type::Owned(node) => node.location,
             Type::Closure(node) => node.location,
             Type::Tuple(node) => node.location,
+            Type::Int(node) => node.location,
         }
     }
 }
@@ -1455,7 +1468,7 @@ impl<'a> LowerToHir<'a> {
     }
 
     fn optional_method_arguments(
-        &self,
+        &mut self,
         node: Option<ast::MethodArguments>,
     ) -> Vec<MethodArgument> {
         if let Some(types) = node {
@@ -1465,7 +1478,7 @@ impl<'a> LowerToHir<'a> {
         }
     }
 
-    fn method_argument(&self, node: ast::MethodArgument) -> MethodArgument {
+    fn method_argument(&mut self, node: ast::MethodArgument) -> MethodArgument {
         MethodArgument {
             name: self.identifier(node.name),
             value_type: self.type_reference(node.value_type),
@@ -1590,7 +1603,7 @@ impl<'a> LowerToHir<'a> {
     }
 
     fn define_field(
-        &self,
+        &mut self,
         node: ast::DefineField,
         documentation: String,
     ) -> DefineField {
@@ -2006,21 +2019,20 @@ impl<'a> LowerToHir<'a> {
         values
     }
 
-    fn type_reference(&self, node: ast::Type) -> Type {
+    fn type_reference(&mut self, node: ast::Type) -> Type {
         match node {
-            ast::Type::Named(node) => {
-                Type::Named(Box::new(self.type_name(*node)))
-            }
-            ast::Type::Ref(node) => Type::Ref(self.reference_type(*node)),
-            ast::Type::Mut(node) => Type::Mut(self.reference_type(*node)),
-            ast::Type::Owned(node) => Type::Owned(self.reference_type(*node)),
-            ast::Type::Uni(node) => Type::Uni(self.reference_type(*node)),
-            ast::Type::Closure(node) => Type::Closure(self.closure_type(*node)),
-            ast::Type::Tuple(node) => Type::Tuple(self.tuple_type(*node)),
+            ast::Type::Named(n) => Type::Named(Box::new(self.type_name(*n))),
+            ast::Type::Ref(n) => Type::Ref(self.reference_type(*n)),
+            ast::Type::Mut(n) => Type::Mut(self.reference_type(*n)),
+            ast::Type::Owned(n) => Type::Owned(self.reference_type(*n)),
+            ast::Type::Uni(n) => Type::Uni(self.reference_type(*n)),
+            ast::Type::Closure(n) => Type::Closure(self.closure_type(*n)),
+            ast::Type::Tuple(n) => Type::Tuple(self.tuple_type(*n)),
+            ast::Type::Int(n) => Type::Int(Box::new(self.int_literal(*n))),
         }
     }
 
-    fn type_name(&self, node: ast::TypeName) -> TypeName {
+    fn type_name(&mut self, node: ast::TypeName) -> TypeName {
         let source = self.optional_identifier(node.name.source);
         let name =
             Constant { name: node.name.name, location: node.name.location };
@@ -2060,7 +2072,10 @@ impl<'a> LowerToHir<'a> {
         Constant { name: node.name, location: node.location }
     }
 
-    fn reference_type(&self, node: ast::ReferenceType) -> Box<ReferenceType> {
+    fn reference_type(
+        &mut self,
+        node: ast::ReferenceType,
+    ) -> Box<ReferenceType> {
         Box::new(ReferenceType {
             type_reference: match node.type_reference {
                 ast::ReferrableType::Named(node) => {
@@ -2077,7 +2092,7 @@ impl<'a> LowerToHir<'a> {
         })
     }
 
-    fn closure_type(&self, node: ast::ClosureType) -> Box<ClosureType> {
+    fn closure_type(&mut self, node: ast::ClosureType) -> Box<ClosureType> {
         Box::new(ClosureType {
             arguments: self.optional_types(node.arguments),
             return_type: node.return_type.map(|n| self.type_reference(n)),
@@ -2086,7 +2101,7 @@ impl<'a> LowerToHir<'a> {
         })
     }
 
-    fn tuple_type(&self, node: ast::TupleType) -> Box<TupleType> {
+    fn tuple_type(&mut self, node: ast::TupleType) -> Box<TupleType> {
         Box::new(TupleType {
             resolved_type: types::TypeRef::Unknown,
             values: node
@@ -2109,7 +2124,7 @@ impl<'a> LowerToHir<'a> {
         }
     }
 
-    fn optional_types(&self, node: Option<ast::Types>) -> Vec<Type> {
+    fn optional_types(&mut self, node: Option<ast::Types>) -> Vec<Type> {
         if let Some(types) = node {
             types.values.into_iter().map(|n| self.type_reference(n)).collect()
         } else {
@@ -2137,13 +2152,13 @@ impl<'a> LowerToHir<'a> {
     }
 
     fn optional_type_names(
-        &self,
+        &mut self,
         node: Option<ast::TypeNames>,
     ) -> Vec<TypeName> {
         if let Some(types) = node { self.type_names(types) } else { Vec::new() }
     }
 
-    fn type_names(&self, node: ast::TypeNames) -> Vec<TypeName> {
+    fn type_names(&mut self, node: ast::TypeNames) -> Vec<TypeName> {
         node.values.into_iter().map(|n| self.type_name(n)).collect()
     }
 
@@ -2385,6 +2400,19 @@ impl<'a> LowerToHir<'a> {
         }))
     }
 
+    fn inline_array_literal(
+        &mut self,
+        node: ast::InlineArray,
+    ) -> Box<InlineArrayLiteral> {
+        Box::new(InlineArrayLiteral {
+            type_id: None,
+            value_type: types::TypeRef::Unknown,
+            resolved_type: types::TypeRef::Unknown,
+            values: self.values(node.values),
+            location: node.location,
+        })
+    }
+
     fn tuple_literal(&mut self, node: ast::Tuple) -> Box<TupleLiteral> {
         Box::new(TupleLiteral {
             type_id: None,
@@ -2596,6 +2624,9 @@ impl<'a> LowerToHir<'a> {
                 Expression::Match(self.match_expression(*node))
             }
             ast::Expression::Array(node) => self.array_literal(*node),
+            ast::Expression::InlineArray(node) => {
+                Expression::InlineArray(self.inline_array_literal(*node))
+            }
             ast::Expression::Tuple(node) => {
                 Expression::Tuple(self.tuple_literal(*node))
             }
@@ -2973,7 +3004,7 @@ impl<'a> LowerToHir<'a> {
     }
 
     fn optional_block_arguments(
-        &self,
+        &mut self,
         node: Option<ast::BlockArguments>,
     ) -> Vec<BlockArgument> {
         if let Some(types) = node {
@@ -2983,7 +3014,7 @@ impl<'a> LowerToHir<'a> {
         }
     }
 
-    fn block_argument(&self, node: ast::BlockArgument) -> BlockArgument {
+    fn block_argument(&mut self, node: ast::BlockArgument) -> BlockArgument {
         BlockArgument {
             variable_id: None,
             name: self.identifier(node.name),

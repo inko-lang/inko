@@ -791,6 +791,32 @@ impl Block {
         })));
     }
 
+    pub(crate) fn set_array_index(
+        &mut self,
+        receiver: RegisterId,
+        type_id: types::TypeId,
+        index: RegisterId,
+        value: RegisterId,
+        location: InstructionLocation,
+    ) {
+        self.instructions.push(Instruction::SetArrayIndex(Box::new(
+            SetArrayIndex { receiver, type_id, index, value, location },
+        )));
+    }
+
+    pub(crate) fn get_array_index(
+        &mut self,
+        register: RegisterId,
+        receiver: RegisterId,
+        type_id: types::TypeId,
+        index: RegisterId,
+        location: InstructionLocation,
+    ) {
+        self.instructions.push(Instruction::GetArrayIndex(Box::new(
+            GetArrayIndex { register, receiver, type_id, index, location },
+        )));
+    }
+
     pub(crate) fn pointer(
         &mut self,
         register: RegisterId,
@@ -885,6 +911,17 @@ impl Block {
         self.instructions.push(Instruction::GetConstant(Box::new(
             GetConstant { register, id, location },
         )));
+    }
+
+    pub(crate) fn get_constant_type_parameter(
+        &mut self,
+        register: RegisterId,
+        id: types::TypeParameterId,
+        location: InstructionLocation,
+    ) {
+        self.instructions.push(Instruction::GetConstantTypeParameter(
+            Box::new(GetConstantTypeParameter { register, id, location }),
+        ));
     }
 
     pub(crate) fn preempt(&mut self, location: InstructionLocation) {
@@ -1288,9 +1325,34 @@ pub(crate) struct SetField {
 }
 
 #[derive(Clone)]
+pub(crate) struct SetArrayIndex {
+    pub(crate) type_id: types::TypeId,
+    pub(crate) receiver: RegisterId,
+    pub(crate) index: RegisterId,
+    pub(crate) value: RegisterId,
+    pub(crate) location: InstructionLocation,
+}
+
+#[derive(Clone)]
+pub(crate) struct GetArrayIndex {
+    pub(crate) type_id: types::TypeId,
+    pub(crate) register: RegisterId,
+    pub(crate) receiver: RegisterId,
+    pub(crate) index: RegisterId,
+    pub(crate) location: InstructionLocation,
+}
+
+#[derive(Clone)]
 pub(crate) struct GetConstant {
     pub(crate) register: RegisterId,
     pub(crate) id: types::ConstantId,
+    pub(crate) location: InstructionLocation,
+}
+
+#[derive(Clone)]
+pub(crate) struct GetConstantTypeParameter {
+    pub(crate) register: RegisterId,
+    pub(crate) id: types::TypeParameterId,
     pub(crate) location: InstructionLocation,
 }
 
@@ -1433,6 +1495,8 @@ pub(crate) enum Instruction {
     Send(Box<Send>),
     GetField(Box<GetField>),
     SetField(Box<SetField>),
+    SetArrayIndex(Box<SetArrayIndex>),
+    GetArrayIndex(Box<GetArrayIndex>),
     CheckRefs(Box<CheckRefs>),
     Drop(Box<Drop>),
     Free(Box<Free>),
@@ -1444,6 +1508,7 @@ pub(crate) enum Instruction {
     Allocate(Box<Allocate>),
     Spawn(Box<Spawn>),
     GetConstant(Box<GetConstant>),
+    GetConstantTypeParameter(Box<GetConstantTypeParameter>),
     Preempt(Box<Preempt>),
     Finish(Box<Finish>),
     Cast(Box<Cast>),
@@ -1502,6 +1567,7 @@ impl Instruction {
             Instruction::Allocate(v) => v.location,
             Instruction::Spawn(v) => v.location,
             Instruction::GetConstant(v) => v.location,
+            Instruction::GetConstantTypeParameter(v) => v.location,
             Instruction::Preempt(v) => v.location,
             Instruction::Finish(v) => v.location,
             Instruction::Cast(v) => v.location,
@@ -1511,6 +1577,8 @@ impl Instruction {
             Instruction::FieldPointer(v) => v.location,
             Instruction::MethodPointer(v) => v.location,
             Instruction::SizeOf(v) => v.location,
+            Instruction::SetArrayIndex(v) => v.location,
+            Instruction::GetArrayIndex(v) => v.location,
             Instruction::Nop(v) => *v,
         }
     }
@@ -1668,6 +1736,12 @@ impl Instruction {
                     v.value.0
                 )
             }
+            Instruction::SetArrayIndex(v) => {
+                format!("r{}[{}] = r{}", v.receiver.0, v.index.0, v.value.0)
+            }
+            Instruction::GetArrayIndex(v) => {
+                format!("r{} = r{}[{}]", v.register.0, v.receiver.0, v.index.0)
+            }
             Instruction::Borrow(v) => {
                 format!("r{} = borrow r{}", v.register.0, v.value.0)
             }
@@ -1693,6 +1767,9 @@ impl Instruction {
                     v.id.module(db).name(db),
                     v.id.name(db)
                 )
+            }
+            Instruction::GetConstantTypeParameter(v) => {
+                format!("r{} = const {}", v.register.0, v.id.name(db))
             }
             Instruction::Preempt(_) => "preempt".to_string(),
             Instruction::Finish(v) => {
@@ -1902,6 +1979,15 @@ impl Method {
                     }
                     Instruction::SetField(i) => {
                         uses[i.receiver.0] += 1;
+                        uses[i.value.0] += 1;
+                    }
+                    Instruction::GetArrayIndex(i) => {
+                        uses[i.receiver.0] += 1;
+                        uses[i.index.0] += 1;
+                    }
+                    Instruction::SetArrayIndex(i) => {
+                        uses[i.receiver.0] += 1;
+                        uses[i.index.0] += 1;
                         uses[i.value.0] += 1;
                     }
                     Instruction::CheckRefs(i) => {
@@ -2372,6 +2458,9 @@ impl Method {
                             (i.register, Some(i.receiver))
                         }
                         Instruction::FieldPointer(i) => {
+                            (i.register, Some(i.receiver))
+                        }
+                        Instruction::GetArrayIndex(i) => {
                             (i.register, Some(i.receiver))
                         }
                         Instruction::Cast(i) => (i.register, Some(i.source)),

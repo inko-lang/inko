@@ -615,19 +615,11 @@ impl<'a> DefineFields<'a> {
             .define_type(&mut fnode.value_type);
 
             if is_copy && !typ.is_copy_type(self.db()) {
-                self.state.diagnostics.not_a_copy_type(
-                    &format_type(self.db(), typ),
-                    self.file(),
-                    tloc,
-                );
+                self.state.diagnostics.not_a_copy_type(self.file(), tloc);
             }
 
             if req_val && !typ.is_value_type(self.db()) {
-                self.state.diagnostics.not_a_value_type(
-                    &format_type(self.db(), typ),
-                    self.file(),
-                    tloc,
-                )
+                self.state.diagnostics.not_a_value_type(self.file(), tloc)
             }
 
             if !type_id.is_public(self.db()) && vis == Visibility::Public {
@@ -712,11 +704,9 @@ impl<'a> DefineFields<'a> {
             // We can't allow heap values in external types, as that would allow
             // violating their single ownership constraints.
             if !typ.is_copy_type(self.db()) {
-                self.state.diagnostics.not_a_copy_type(
-                    &format_type(self.db(), typ),
-                    self.file(),
-                    node.value_type.location(),
-                );
+                self.state
+                    .diagnostics
+                    .not_a_copy_type(self.file(), node.value_type.location());
             }
 
             if !type_id.is_public(self.db()) && vis == Visibility::Public {
@@ -925,20 +915,38 @@ impl<'a> DefineTypeParameterRequirements<'a> {
             let mut requirements = Vec::new();
 
             for req_node in &mut param.requirements {
-                if let Some(instance) = DefineTypeSignature::new(
+                let req = DefineTypeSignature::new(
                     self.state,
                     self.module,
                     &scope,
                     rules,
                 )
-                .as_trait_instance(req_node)
-                {
-                    requirements.push(instance);
+                .define_type_parameter_requirement(param_id, req_node);
+
+                if let Some(i) = req {
+                    requirements.push(i);
                 }
+            }
+
+            if param_id.is_int(self.db()) && !requirements.is_empty() {
+                let file = self.file();
+
+                self.state.diagnostics.conflicting_type_and_trait_requirement(
+                    file,
+                    param.location,
+                );
             }
 
             param_id.add_requirements(self.db_mut(), requirements);
         }
+    }
+
+    fn file(&self) -> PathBuf {
+        self.module.file(self.db())
+    }
+
+    fn db(&self) -> &Database {
+        &self.state.db
     }
 
     fn db_mut(&mut self) -> &mut Database {
@@ -1014,6 +1022,7 @@ impl<'a> InsertPrelude<'a> {
         self.add_type(TypeId::array());
         self.add_type(TypeId::boolean());
         self.add_type(TypeId::nil());
+        self.add_type(TypeId::inline_array());
 
         self.import_type(BYTES_MODULE, BYTE_ARRAY_TYPE);
         self.import_type(OPTION_MODULE, OPTION_TYPE);
@@ -1171,19 +1180,15 @@ impl<'a> DefineConstructors<'a> {
                 .define_type(n);
 
                 if req_copy && !typ.is_copy_type(self.db()) {
-                    self.state.diagnostics.not_a_copy_type(
-                        &format_type(self.db(), typ),
-                        self.file(),
-                        n.location(),
-                    );
+                    self.state
+                        .diagnostics
+                        .not_a_copy_type(self.file(), n.location());
                 }
 
                 if req_val && !typ.is_value_type(self.db()) {
-                    self.state.diagnostics.not_a_value_type(
-                        &format_type(self.db(), typ),
-                        self.file(),
-                        n.location(),
-                    )
+                    self.state
+                        .diagnostics
+                        .not_a_value_type(self.file(), n.location())
                 }
 
                 args.push(typ);

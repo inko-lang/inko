@@ -1760,7 +1760,13 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                     Intrinsic::Moved
                     | Intrinsic::RefMove
                     | Intrinsic::MutMove
-                    | Intrinsic::EnumTag => unreachable!(),
+                    | Intrinsic::EnumTag
+                    | Intrinsic::ArrayGet
+                    | Intrinsic::ArraySet
+                    | Intrinsic::ArrayClone
+                    | Intrinsic::ArrayPointer
+                    | Intrinsic::Increment
+                    | Intrinsic::Decrement => unreachable!(),
                 }
             }
             Instruction::Goto(ins) => {
@@ -2309,6 +2315,47 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                     self.builder.store_field(layout, rec_var, index, val);
                 }
             }
+            Instruction::SetArrayIndex(ins) => {
+                let rec_var = self.variables[&ins.receiver];
+                let rec_typ = self.variable_types[&ins.receiver];
+                let val_var = self.variables[&ins.value];
+                let val_typ = self.variable_types[&ins.value];
+                let idx_var = self.variables[&ins.index];
+                let idx = self.builder.load_int64(idx_var);
+                let val = self.builder.load(val_typ, val_var);
+                let layout = self.layouts.arrays[ins.type_id.0 as usize];
+
+                if rec_typ.is_pointer_type() {
+                    let rec = self
+                        .builder
+                        .load(rec_typ, rec_var)
+                        .into_pointer_value();
+
+                    self.builder.store_array_index(layout, rec, idx, val);
+                } else {
+                    self.builder.store_array_index(layout, rec_var, idx, val);
+                }
+            }
+            Instruction::GetArrayIndex(ins) => {
+                let reg_var = self.variables[&ins.register];
+                let rec_var = self.variables[&ins.receiver];
+                let rec_typ = self.variable_types[&ins.receiver];
+                let idx_var = self.variables[&ins.index];
+                let idx = self.builder.load_int64(idx_var);
+                let layout = self.layouts.arrays[ins.type_id.0 as usize];
+                let val = if rec_typ.is_pointer_type() {
+                    let rec = self
+                        .builder
+                        .load(rec_typ, rec_var)
+                        .into_pointer_value();
+
+                    self.builder.load_array_index(layout, rec, idx)
+                } else {
+                    self.builder.load_array_index(layout, rec_var, idx)
+                };
+
+                self.builder.store(reg_var, val);
+            }
             Instruction::FieldPointer(ins)
                 if ins.type_id.is_heap_allocated(&self.shared.state.db) =>
             {
@@ -2671,7 +2718,9 @@ impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
                 self.builder.store(reg_var, typ.size_of().unwrap());
             }
             Instruction::Nop(_) => {}
-            Instruction::Borrow(_) | Instruction::Drop(_) => unreachable!(),
+            Instruction::Borrow(_)
+            | Instruction::Drop(_)
+            | Instruction::GetConstantTypeParameter(_) => unreachable!(),
         }
     }
 
