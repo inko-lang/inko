@@ -3,4 +3,4 @@ type ref Atomic {
   let @invalid: Array[Int]
 }
 
-# atomic_type_with_fields.inko:3:17 error(invalid-type): a value type is expected, but 'Array[Int]' is a heap type
+# atomic_type_with_fields.inko:3:17 error(invalid-type): a value type is expected

@@ -17,12 +17,13 @@ use std::str::FromStr;
 use types::format::format_type;
 use types::module_name::ModuleName;
 use types::{
-    self, ARRAY_READ, ARRAY_SIZE_FIELD, ASYNC_DROPPER_METHOD, BOOL_ID,
+    self, ARRAY_READ, ARRAY_SIZE, ASYNC_DROPPER_METHOD, BOOL_ID,
     BYTE_ARRAY_READ, BYTE_ARRAY_TYPE, BYTES_MODULE, Block as _, ConstantId,
-    DROPPER_METHOD, ENUM_TAG_INDEX, EQUALS_METHOD, FieldId, INT_ID, Inline,
-    MethodId, ModuleId, OPTION_NONE, OPTION_SOME, RESULT_ERROR, RESULT_MODULE,
-    RESULT_OK, RESULT_TYPE, STRING_ID, Symbol, TypeArguments, TypeBounds,
-    TypeId, TypeRef, VerificationError,
+    DROPPER_METHOD, ENUM_TAG_INDEX, EQUALS_METHOD, FieldId,
+    INLINE_ARRAY_DECREMENT_METHOD, INLINE_ARRAY_INCREMENT_METHOD, INT_ID,
+    Inline, MethodId, ModuleId, OPTION_NONE, OPTION_SOME, RESULT_ERROR,
+    RESULT_MODULE, RESULT_OK, RESULT_TYPE, STRING_ID, Symbol, TypeArguments,
+    TypeBounds, TypeId, TypeRef, VerificationError,
 };
 
 const SELF_NAME: &str = "self";
@@ -703,6 +704,7 @@ impl<'a> GenerateInlineMethods<'a> {
     pub(crate) fn run(mut self) {
         match self.type_id.kind(&self.state.db) {
             types::TypeKind::Enum => self.enum_type(),
+            types::TypeKind::Array => self.inline_array_type(),
             _ => self.regular_type(),
         };
     }
@@ -715,6 +717,11 @@ impl<'a> GenerateInlineMethods<'a> {
     fn enum_type(&mut self) {
         self.enum_increment();
         self.enum_decrement();
+    }
+
+    fn inline_array_type(&mut self) {
+        self.inline_array_increment();
+        self.inline_array_decrement();
     }
 
     fn regular_increment(&mut self) {
@@ -771,6 +778,28 @@ impl<'a> GenerateInlineMethods<'a> {
         self.add_method(name, mtype, method);
     }
 
+    fn inline_array_increment(&mut self) {
+        let cls = self.type_id;
+        let name = types::INCREMENT_METHOD;
+        let mtype = self.method_type(name);
+        let mut method = Method::new(mtype);
+        let loc = InstructionLocation::new(self.location);
+        let mut lower =
+            LowerMethod::new(self.state, self.mir, self.module, &mut method);
+
+        lower.prepare(loc);
+
+        let rec = lower.self_register;
+        let nil = lower.new_register(TypeRef::nil());
+        let mid =
+            cls.method(lower.db(), INLINE_ARRAY_INCREMENT_METHOD).unwrap();
+        let args = Vec::new();
+
+        lower.current_block_mut().call_instance(nil, rec, mid, args, None, loc);
+        lower.current_block_mut().return_value(nil, loc);
+        self.add_method(name, mtype, method);
+    }
+
     fn regular_decrement(&mut self) {
         let cls = self.type_id;
         let name = types::DECREMENT_METHOD;
@@ -818,6 +847,28 @@ impl<'a> GenerateInlineMethods<'a> {
 
         let nil = lower.get_nil(loc);
 
+        lower.current_block_mut().return_value(nil, loc);
+        self.add_method(name, mtype, method);
+    }
+
+    fn inline_array_decrement(&mut self) {
+        let cls = self.type_id;
+        let name = types::DECREMENT_METHOD;
+        let mtype = self.method_type(name);
+        let mut method = Method::new(mtype);
+        let loc = InstructionLocation::new(self.location);
+        let mut lower =
+            LowerMethod::new(self.state, self.mir, self.module, &mut method);
+
+        lower.prepare(loc);
+
+        let rec = lower.self_register;
+        let nil = lower.new_register(TypeRef::nil());
+        let mid =
+            cls.method(lower.db(), INLINE_ARRAY_DECREMENT_METHOD).unwrap();
+        let args = Vec::new();
+
+        lower.current_block_mut().call_instance(nil, rec, mid, args, None, loc);
         lower.current_block_mut().return_value(nil, loc);
         self.add_method(name, mtype, method);
     }
@@ -1724,6 +1775,7 @@ impl<'a> LowerMethod<'a> {
             hir::Expression::True(n) => self.true_literal(*n),
             hir::Expression::Nil(n) => self.nil_literal(*n),
             hir::Expression::Tuple(n) => self.tuple_literal(*n),
+            hir::Expression::InlineArray(n) => self.inline_array_literal(*n),
             hir::Expression::TypeCast(n) => self.type_cast(*n),
             hir::Expression::Recover(n) => self.recover_expression(*n),
             hir::Expression::Try(n) => self.try_expression(*n),
@@ -1938,6 +1990,33 @@ impl<'a> LowerMethod<'a> {
         }
 
         tup
+    }
+
+    fn inline_array_literal(
+        &mut self,
+        node: hir::InlineArrayLiteral,
+    ) -> RegisterId {
+        self.verify_type(node.resolved_type, node.location);
+
+        let regs: Vec<_> = node
+            .values
+            .into_iter()
+            .map(|v| self.input_expression(v, Some(node.value_type)))
+            .collect();
+        let ary = self.new_register(node.resolved_type);
+        let idx_reg = self.new_register(TypeRef::int());
+        let id = node.type_id.unwrap();
+        let loc = InstructionLocation::new(node.location);
+
+        self.current_block_mut().allocate(ary, id, loc);
+
+        for (idx, reg) in regs.into_iter().enumerate() {
+            self.current_block_mut().i64_literal(idx_reg, idx as _, loc);
+            self.current_block_mut()
+                .set_array_index(ary, id, idx_reg, reg, loc);
+        }
+
+        ary
     }
 
     fn true_literal(&mut self, node: hir::True) -> RegisterId {
@@ -2609,6 +2688,64 @@ impl<'a> LowerMethod<'a> {
                 self.current_block_mut().borrow(reg, val, loc);
                 self.mark_register_as_moved(val);
                 reg
+            }
+            types::Intrinsic::ArrayGet => {
+                let reg = self.new_register(info.returns);
+                let ary = args[0];
+                let idx = args[1];
+                let tid = self.register_type(ary).type_id(self.db()).unwrap();
+
+                self.current_block_mut()
+                    .get_array_index(reg, ary, tid, idx, loc);
+                reg
+            }
+            types::Intrinsic::ArraySet => {
+                let reg = self.new_register(info.returns);
+                let ary = args[0];
+                let idx = args[1];
+                let val = args[2];
+                let tid = self.register_type(ary).type_id(self.db()).unwrap();
+
+                self.mark_register_as_moved(val);
+                self.current_block_mut()
+                    .set_array_index(ary, tid, idx, val, loc);
+                self.current_block_mut().nil_literal(reg, loc);
+                reg
+            }
+            types::Intrinsic::ArrayClone => {
+                let reg = self.new_register(info.returns);
+                let ary = args[0];
+
+                self.current_block_mut().read_pointer(reg, ary, loc);
+                reg
+            }
+            types::Intrinsic::ArrayPointer => {
+                let ary = args[0];
+                let reg = self.new_register(info.returns);
+
+                self.current_block_mut().move_register(reg, ary, loc);
+                reg
+            }
+            types::Intrinsic::Increment => {
+                let val = args[0];
+                let typ = self.register_type(val).as_ref(self.db());
+                let reg = self.new_register(typ);
+
+                self.mark_register_as_moved(val);
+                self.mark_register_as_moved(reg);
+                self.current_block_mut().borrow(reg, val, loc);
+                self.get_nil(loc)
+            }
+            types::Intrinsic::Decrement => {
+                let val = args[0];
+                let typ = self.register_type(val).as_ref(self.db());
+                let reg = self.new_register(typ);
+
+                self.mark_register_as_moved(val);
+                self.mark_register_as_moved(reg);
+                self.current_block_mut().move_register(reg, val, loc);
+                self.current_block_mut().drop(reg, loc);
+                self.get_nil(loc)
             }
             name => {
                 let reg = self.new_register(returns);
@@ -3764,8 +3901,7 @@ impl<'a> LowerMethod<'a> {
         let owned = test_type.is_owned_or_uni(self.db());
         let ins = test_type.as_type_instance(self.db()).unwrap();
         let tid = ins.instance_of();
-        let targs = if tid.is_generic(self.db()) {
-            // We're matching against an Array.
+        let targs = if tid == TypeId::array() || tid == TypeId::inline_array() {
             self.mir.add_type_arguments(
                 ins.type_arguments(self.db()).unwrap().clone(),
             )
@@ -3773,8 +3909,9 @@ impl<'a> LowerMethod<'a> {
             // We're matching against a ByteArray.
             None
         };
-        let len_field = tid.field(self.db(), ARRAY_SIZE_FIELD).unwrap();
-        let get_name = if tid == TypeId::array() {
+        let get_name = if tid == TypeId::array()
+            || tid == TypeId::inline_array()
+        {
             ARRAY_READ
         } else if tid == self.db().type_in_module(BYTES_MODULE, BYTE_ARRAY_TYPE)
         {
@@ -3791,8 +3928,10 @@ impl<'a> LowerMethod<'a> {
         // buffer of the array is still deallocated.
         //
         // This state _must_ be set before processing the child branches/trees.
-        if owned {
-            state.drop_with_zero_size.insert(test_reg, (tid, len_field));
+        if let Some(f) = tid.field(self.db(), ARRAY_SIZE)
+            && owned
+        {
+            state.drop_with_zero_size.insert(test_reg, (tid, f));
         }
 
         for case in cases {
@@ -3815,17 +3954,12 @@ impl<'a> LowerMethod<'a> {
                 };
 
                 let idx_reg = self.new_untracked_register(TypeRef::int());
+                let args = vec![idx_reg];
 
                 state.load_child(reg, test_reg, action);
                 self.block_mut(block).i64_literal(idx_reg, idx as _, loc);
-                self.block_mut(block).call_instance(
-                    reg,
-                    test_reg,
-                    get_meth,
-                    vec![idx_reg],
-                    targs,
-                    loc,
-                );
+                self.block_mut(block)
+                    .call_instance(reg, test_reg, get_meth, args, targs, loc);
             }
 
             self.decision(state, case.node, block, case_registers);
@@ -3833,9 +3967,13 @@ impl<'a> LowerMethod<'a> {
 
         let else_block = self.decision(state, fallback, test_block, registers);
 
-        self.block_mut(test_block)
-            .get_field(len_reg, test_reg, tid, len_field, loc);
+        // InlineArray doesn't have a size field, so we just use the `size`
+        // method for all types.
+        let ary_len = tid.method(self.db(), ARRAY_SIZE).unwrap();
+        let args = Vec::new();
 
+        self.block_mut(test_block)
+            .call_instance(len_reg, test_reg, ary_len, args, None, loc);
         self.block_mut(test_block)
             .switch_with_fallback(len_reg, blocks, else_block, loc);
 
@@ -3930,6 +4068,13 @@ impl<'a> LowerMethod<'a> {
                 let unused = node.usage.is_unused();
 
                 self.exit_call_scope(entered, unused, reg, ins_loc);
+                reg
+            }
+            types::ConstantKind::Parameter(id) => {
+                let reg = self.new_register(node.resolved_type);
+
+                self.current_block_mut()
+                    .get_constant_type_parameter(reg, id, ins_loc);
                 reg
             }
             _ => unreachable!(),

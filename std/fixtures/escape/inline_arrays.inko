@@ -1,0 +1,10 @@
+type A {}
+
+type async Main {
+  fn async main {
+    let a = A()
+    let _b = inline [a]
+  }
+}
+
+# 5:13 A heap

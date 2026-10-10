@@ -647,6 +647,13 @@ Arrays are created using flat brackets:
 [10, 20]
 ```
 
+Inline arrays use the same syntax but start with the `inline` keyword:
+
+```inko
+inline [10, 20] # => InlineArray[Int, 2]
+inline [3 * 10] # => InlineArray[Int, 3]
+```
+
 ## Booleans
 
 Booleans are created using `true` and `false`. A boolean is negated using the

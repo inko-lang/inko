@@ -14,7 +14,9 @@ use inkwell::debug_info::{
 };
 use inkwell::module::{FlagBehavior, Module as InkwellModule};
 use inkwell::targets::TargetData;
-use inkwell::types::{BasicType, BasicTypeEnum, FunctionType, StructType};
+use inkwell::types::{
+    ArrayType, BasicType, BasicTypeEnum, FunctionType, StructType,
+};
 use inkwell::values::{
     AggregateValue, BasicMetadataValueEnum, BasicValue, BasicValueEnum,
     CallSiteValue, FloatValue, FunctionValue, InstructionOpcode, IntValue,
@@ -136,6 +138,40 @@ impl<'ctx> Builder<'ctx> {
         let field_ptr = self.field_address(receiver_type, receiver, index);
 
         self.store(field_ptr, value);
+    }
+
+    pub(crate) fn store_array_index<V: BasicValue<'ctx>>(
+        &self,
+        receiver_type: ArrayType<'ctx>,
+        receiver: PointerValue<'ctx>,
+        index: IntValue<'ctx>,
+        value: V,
+    ) {
+        let zero = self.context.i64_literal(0);
+        let addr = unsafe {
+            self.inner
+                .build_gep(receiver_type, receiver, &[zero, index], "")
+                .unwrap()
+        };
+
+        self.store(addr, value);
+    }
+
+    pub(crate) fn load_array_index(
+        &self,
+        receiver_type: ArrayType<'ctx>,
+        receiver: PointerValue<'ctx>,
+        index: IntValue<'ctx>,
+    ) -> BasicValueEnum<'ctx> {
+        let zero = self.context.i64_literal(0);
+        let addr = unsafe {
+            self.inner
+                .build_gep(receiver_type, receiver, &[zero, index], "")
+                .unwrap()
+        };
+        let typ = receiver_type.get_element_type();
+
+        self.load(typ, addr)
     }
 
     pub(crate) fn memcpy(

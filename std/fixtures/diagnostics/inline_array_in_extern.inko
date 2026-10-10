@@ -1,0 +1,6 @@
+type extern A {
+  let @a: InlineArray[Int, 2]
+  let @b: InlineArray[String, 2]
+}
+
+# inline_array_in_extern.inko:3:11 error(invalid-type): 'extern' types don't allow fields of type 'InlineArray[String, 2]'

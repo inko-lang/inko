@@ -1,0 +1,34 @@
+fn example1 {
+  let a: InlineArray[Int, 4] = inline [1, 2, 3]
+}
+
+fn example2 -> InlineArray[Int, 4] {
+  inline [1, 2, 3]
+}
+
+fn example3 {
+  let a: InlineArray[Int, 0] = inline []
+}
+
+fn example4 {
+  inline [10, 20] == inline [1]
+}
+
+fn example5(value: InlineArray[Int, 2]) {
+  value.set(0, 'foo')
+}
+
+fn example6(value: InlineArray[Int, 2]) {
+  match value {
+    case [1, 2] -> 10
+    case [1, 2, 3] -> 20
+    case _ -> 30
+  }
+}
+
+# inline_arrays.inko:2:7 error(invalid-type): this pattern expects a value of type 'InlineArray[Int, 4]', but the value's type is 'InlineArray[Int, 3]'
+# inline_arrays.inko:6:3 error(invalid-type): expected a value of type 'InlineArray[Int, 4]', found 'InlineArray[Int, 3]'
+# inline_arrays.inko:10:32 error(invalid-type): inline arrays must contain at least a single value
+# inline_arrays.inko:14:22 error(invalid-type): expected a value of type 'ref InlineArray[T, 2]', found 'ref InlineArray[Int, 1]'
+# inline_arrays.inko:18:16 error(invalid-type): expected a value of type 'Int', found 'String'
+# inline_arrays.inko:24:10 error(invalid-type): this pattern requires an 'InlineArray' with 3 values, but the 'InlineArray' matched against always has 2 values

@@ -1,0 +1,31 @@
+type A[T] {}
+
+type B[T: Trait] {}
+
+type C {}
+
+trait Trait {}
+
+fn example1 {
+  let _a: A[Int] = A()
+}
+
+fn example2 {
+  let _a = A[Int]
+}
+
+fn example3 {
+  let _a = A[Int, Int]
+}
+
+fn example4 {
+  let _a = B[Int]
+}
+
+fn example5 {
+  let _a = C[Int]
+}
+
+# type_instances_with_type_arguments.inko:18:12 error(invalid-type): incorrect number of type arguments: expected 1, found 2
+# type_instances_with_type_arguments.inko:22:14 error(invalid-type): expected a value of type 'T', found 'Int'
+# type_instances_with_type_arguments.inko:26:12 error(invalid-type): incorrect number of type arguments: expected 0, found 1

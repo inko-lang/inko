@@ -460,9 +460,10 @@ impl Parser {
             TokenKind::ParenOpen => {
                 Type::Tuple(Box::new(self.tuple_type(start)?))
             }
+            TokenKind::Integer => Type::Int(Box::new(self.integer(start))),
             _ => error!(
                 start.location,
-                "expected a type name, 'fn', 'ref', 'mut', 'uni' \
+                "expected a type name, 'fn', 'ref', 'mut', 'uni', an integer \
                 or a tuple; found a '{}' instead",
                 start.value
             ),
@@ -473,7 +474,7 @@ impl Parser {
 
     fn type_name(&mut self, start: Token) -> Result<TypeName, ParseError> {
         let name = Constant::from(start);
-        let arguments = self.optional_type_parameters()?;
+        let arguments = self.optional_type_arguments()?;
         let end_loc = arguments
             .as_ref()
             .map(|a| &a.location)
@@ -491,7 +492,7 @@ impl Parser {
 
         let source = Identifier::from(start);
         let name_token = self.expect(TokenKind::Constant)?;
-        let arguments = self.optional_type_parameters()?;
+        let arguments = self.optional_type_arguments()?;
         let end_loc = arguments
             .as_ref()
             .map(|a| &a.location)
@@ -523,9 +524,7 @@ impl Parser {
         }
     }
 
-    fn optional_type_parameters(
-        &mut self,
-    ) -> Result<Option<Types>, ParseError> {
+    fn optional_type_arguments(&mut self) -> Result<Option<Types>, ParseError> {
         if self.peek().kind != TokenKind::BracketOpen {
             return Ok(None);
         }
@@ -1763,6 +1762,7 @@ impl Parser {
             TokenKind::For => self.for_expression(start)?,
             TokenKind::Comment => Expression::Comment(self.comment(start)),
             TokenKind::Not => self.not_expression(start)?,
+            TokenKind::Inline => self.inline_array_literal(start)?,
             _ => {
                 error!(start.location, "'{}' can't be used here", start.value)
             }
@@ -1772,10 +1772,11 @@ impl Parser {
     }
 
     fn int_literal(&self, start: Token) -> Expression {
-        Expression::Int(Box::new(IntLiteral {
-            value: start.value,
-            location: start.location,
-        }))
+        Expression::Int(Box::new(self.integer(start)))
+    }
+
+    fn integer(&self, start: Token) -> IntLiteral {
+        IntLiteral { value: start.value, location: start.location }
     }
 
     fn float_literal(&mut self, start: Token) -> Expression {
@@ -1904,6 +1905,57 @@ impl Parser {
             if self.peek().kind == TokenKind::Comma {
                 self.next();
             }
+        }
+    }
+
+    fn inline_array_literal(
+        &mut self,
+        start: Token,
+    ) -> Result<Expression, ParseError> {
+        self.expect(TokenKind::BracketOpen)?;
+
+        let mut values = Vec::new();
+
+        if self.peek().kind == TokenKind::Integer {
+            let int = self.next();
+
+            if self.peek().kind == TokenKind::Mul {
+                self.next();
+
+                let rep = self.integer(int);
+                let tok = self.require()?;
+                let val = self.expression(tok)?;
+                let close = self.expect(TokenKind::BracketClose)?;
+                let location =
+                    Location::start_end(&start.location, &close.location);
+
+                return Ok(Expression::InlineArray(Box::new(InlineArray {
+                    values: vec![val],
+                    repeat: Some(rep),
+                    location,
+                })));
+            } else {
+                values.push(self.expression(int)?);
+                self.next_if_comma();
+            }
+        }
+
+        loop {
+            let token = self.require()?;
+
+            if token.kind == TokenKind::BracketClose {
+                let location =
+                    Location::start_end(&start.location, &token.location);
+
+                return Ok(Expression::InlineArray(Box::new(InlineArray {
+                    values,
+                    repeat: None,
+                    location,
+                })));
+            }
+
+            values.push(self.expression(token)?);
+            self.next_if_comma();
         }
     }
 
@@ -3102,6 +3154,12 @@ impl Parser {
         }
     }
 
+    fn next_if_comma(&mut self) {
+        if self.peek().kind == TokenKind::Comma {
+            self.next();
+        }
+    }
+
     fn peek(&mut self) -> &Token {
         if self.peeked.is_none() {
             self.peeked = Some(self.next());
@@ -4214,6 +4272,20 @@ mod tests {
                     })),
                 ],
                 location: cols(1, 6)
+            }))
+        );
+    }
+
+    #[test]
+    fn test_type_reference_with_int_type() {
+        let mut parser = parser("10");
+        let start = parser.require().unwrap();
+
+        assert_eq!(
+            parser.type_reference(start).unwrap(),
+            Type::Int(Box::new(IntLiteral {
+                value: "10".to_string(),
+                location: cols(1, 2)
             }))
         );
     }
@@ -6981,6 +7053,60 @@ mod tests {
                 location: cols(1, 9)
             }))
         );
+    }
+
+    #[test]
+    fn test_inline_array_expression() {
+        assert_eq!(
+            expr("inline [10]"),
+            Expression::InlineArray(Box::new(InlineArray {
+                values: vec![Expression::Int(Box::new(IntLiteral {
+                    value: "10".to_string(),
+                    location: cols(9, 10)
+                }))],
+                repeat: None,
+                location: cols(1, 11)
+            }))
+        );
+
+        assert_eq!(
+            expr("inline [10, 20]"),
+            Expression::InlineArray(Box::new(InlineArray {
+                values: vec![
+                    Expression::Int(Box::new(IntLiteral {
+                        value: "10".to_string(),
+                        location: cols(9, 10)
+                    })),
+                    Expression::Int(Box::new(IntLiteral {
+                        value: "20".to_string(),
+                        location: cols(13, 14)
+                    })),
+                ],
+                repeat: None,
+                location: cols(1, 15)
+            }))
+        );
+
+        assert_eq!(
+            expr("inline [2 * 10]"),
+            Expression::InlineArray(Box::new(InlineArray {
+                values: vec![Expression::Int(Box::new(IntLiteral {
+                    value: "10".to_string(),
+                    location: cols(13, 14)
+                }))],
+                repeat: Some(IntLiteral {
+                    value: "2".to_string(),
+                    location: cols(9, 9)
+                }),
+                location: cols(1, 15)
+            }))
+        );
+    }
+
+    #[test]
+    fn test_invalid_inline_arrays() {
+        assert_error_expr!("inline [10 *]", cols(13, 13));
+        assert_error_expr!("inline [10 * 2, 3]", cols(15, 15));
     }
 
     #[test]

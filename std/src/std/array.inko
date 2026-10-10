@@ -192,7 +192,7 @@ type pub inline Slice[T] {
   #
   # # Errors
   #
-  # If the index is out of bounds, a `std.bounds.OutOfBounds` error is returned.
+  # If the index is out of bounds, a `std.array.OutOfBounds` error is returned.
   #
   # # Examples
   #
@@ -462,7 +462,7 @@ type builtin Array[T] {
   #
   # Values to the right of the index are shifted to the left.
   #
-  # If the index is out of bounds, a `std.bounds.OutOfBounds` error is returned.
+  # If the index is out of bounds, a `std.array.OutOfBounds` error is returned.
   #
   # # Examples
   #
@@ -524,7 +524,7 @@ type builtin Array[T] {
 
   # Returns an immutable borrow of the value at the given index.
   #
-  # If the index is out of bounds, a `std.bounds.OutOfBounds` error is returned.
+  # If the index is out of bounds, a `std.arary.OutOfBounds` error is returned.
   #
   # # Examples
   #
@@ -541,9 +541,6 @@ type builtin Array[T] {
 
   # Stores a value at the given index.
   #
-  # If a value is already present at the given index, it's dropped before the
-  # new value overwrites it.
-  #
   # # Panics
   #
   # This method panics if the index is out of bounds.
@@ -551,10 +548,10 @@ type builtin Array[T] {
   # # Examples
   #
   # ```inko
-  # let array = []
+  # let array = [10, 20]
   #
-  # array.set(0, 10)
-  # array # => [10]
+  # array.set(0, 100)
+  # array # => [100, 20]
   # ```
   fn pub mut set(index: Int, value: T) {
     check_bounds(index, @size).or_panic
@@ -793,7 +790,6 @@ type builtin Array[T] {
   # # Examples
   #
   # ```inko
-  # [].first       # => Option.None
   # [10, 20].first # => Option.Some(10)
   # ```
   fn pub first -> Option[ref T] {
@@ -805,7 +801,6 @@ type builtin Array[T] {
   # # Examples
   #
   # ```inko
-  # [].last       # => Option.None
   # [10, 20].last # => Option.Some(20)
   # ```
   fn pub last -> Option[ref T] {
@@ -941,7 +936,11 @@ type builtin Array[T] {
   # Returns a raw pointer to the buffer of `self`.
   #
   # If `self` is empty, this returns `NULL`.
-  fn inline pointer -> Pointer[T] {
+  #
+  # This method should only be used for FFI purposes, and `self` should not be
+  # resized for the duration of the pointer's lifetime as doing so invalidates
+  # it.
+  fn pub inline pointer -> Pointer[T] {
     @buffer
   }
 
@@ -949,6 +948,10 @@ type builtin Array[T] {
     _INKO.ref_move(read_from(index))
   }
 
+  # Performs a raw read of an index.
+  #
+  # The compiler expects this method to be called `read_from` just as with
+  # `InlineArray.read_from`.
   fn inline read_from(index: Int) -> T {
     address_of(index).0
   }
@@ -972,7 +975,7 @@ type builtin Array[T] {
 impl Array if T: mut {
   # Returns a mutable borrow of the value at the given index.
   #
-  # If the index is out of bounds, a `std.bounds.OutOfBounds` error is returned.
+  # If the index is out of bounds, a `std.array.OutOfBounds` error is returned.
   #
   # # Examples
   #
@@ -1003,7 +1006,6 @@ impl Array if T: mut {
   # # Examples
   #
   # ```inko
-  # [].first_mut       # => Option.None
   # [10, 20].first_mut # => Option.Some(10)
   # ```
   fn pub mut first_mut -> Option[mut T] {
@@ -1015,7 +1017,6 @@ impl Array if T: mut {
   # # Examples
   #
   # ```inko
-  # [].last_mut       # => Option.None
   # [10, 20].last_mut # => Option.Some(20)
   # ```
   fn pub mut last_mut -> Option[mut T] {
@@ -1044,6 +1045,27 @@ impl Array if T: Equal {
   # ```
   fn pub contains?(value: ref T) -> Bool {
     iter.any?(fn (ours) { ours == value })
+  }
+
+  # Returns the index of `value` as a `Some` if present, otherwise it returns a
+  # `None`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # [10, 20, 30].index_of(20) # => Option.Some(1)
+  # [10, 20, 30].index_of(50) # => Option.None
+  # ```
+  fn pub index_of(value: ref T) -> Option[Int] {
+    let mut idx = 0
+
+    while idx < @size {
+      if get_unchecked(idx) == value { return Option.Some(idx) }
+
+      idx += 1
+    }
+
+    Option.None
   }
 }
 
@@ -1116,29 +1138,6 @@ impl Format for Array if T: Format {
     for value in iter { fmt.value(value) }
 
     fmt.finish
-  }
-}
-
-impl Array if T: Equal[ref T] {
-  # Returns the index of `value` as a `Some` if present, otherwise it returns a
-  # `None`.
-  #
-  # # Examples
-  #
-  # ```inko
-  # [10, 20, 30].index_of(20) # => Option.Some(1)
-  # [10, 20, 30].index_of(50) # => Option.None
-  # ```
-  fn pub index_of(value: ref T) -> Option[Int] {
-    let mut idx = 0
-
-    while idx < @size {
-      if get_unchecked(idx) == value { return Option.Some(idx) }
-
-      idx += 1
-    }
-
-    Option.None
   }
 }
 

@@ -1,0 +1,394 @@
+# An ordered, integer-indexed generic collection of values allocated inline.
+import std.array (OutOfBounds, check_bounds)
+import std.clone (Clone)
+import std.cmp (Equal)
+import std.drop (Drop, ManuallyDrop, drop as drop_value)
+import std.fmt (Format, Formatter)
+import std.hash (Hash, Hasher)
+import std.iter (Iter as IterTrait)
+import std.reflect (copy?)
+
+# An ordered array of values with a fixed size, allocated on the stack.
+#
+# Accessing values in an `InlineArray` is a constant-time operation.
+#
+# Instances of `InlineArray` are created using `inline [...]` similar to how
+# regular arrays use _just_ `[...]`:
+#
+# ```inko
+# [10, 20]        # => Array[Int]
+# inline [10, 20] # => InlineArray[Int, 2]
+# ```
+#
+# All values in an `InlineArray` are of the same type `T`. The size is known at
+# compile-time and assigned to the type parameter `N`. Empty inline arrays are
+# not supported as they are of no use.
+#
+# An `InlineArray` is an `inline` type and thus borrowing it will also borrow
+# each individual value. This means that borrowing an `InlineArray[Foo, 10]`
+# will borrow 10 `Foo` values. As such, borrowing large `InlineArray` values is
+# expensive and best avoided as much as possible.
+#
+# Because `InlineArray` is an `inline` type, borrowing it will also create a
+# copy of the `InlineArray` itself (but not the values within). This means that
+# if you have a `InlineArray[Foo, 10]` and borrow it, you'll end up with twice
+# the space necessary: once for the owned reference and once for the borrow.
+#
+# Because of this, `InlineArray` lacks certain methods compared to `Array` such
+# as the ability to slice an `InlineArray`, as such operations could be
+# potentially expensive when this isn't expected.
+type builtin InlineArray[T, N: Int] {
+  # Returns the number of values in `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let numbers = inline [10, 20]
+  #
+  # numbers.size # => 2
+  # ```
+  fn pub inline size -> Int {
+    N
+  }
+
+  # Returns an immutable borrow of the value at the given index.
+  #
+  # If the index is out of bounds, a `std.array.OutOfBounds` error is returned.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let numbers = inline [10, 20]
+  #
+  # numbers.get(0)  # => Result.Ok(10)
+  # numbers.get(10) # => Result.Error(OutOfBounds(index: 10, size: 2))
+  # ```
+  fn pub inline get(index: Int) -> Result[ref T, OutOfBounds] {
+    try check_bounds(index, size)
+    Result.Ok(get_unchecked(index))
+  }
+
+  # Stores a value at the given index.
+  #
+  # # Panics
+  #
+  # This method panics if the index is out of bounds.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let array = inline [10, 20]
+  #
+  # array.set(0, 100)
+  # array # => inline [100, 20]
+  # ```
+  fn pub mut set(index: Int, value: T) {
+    check_bounds(index, size).or_panic
+
+    if !copy?[T] { drop_value(read_from(index)) }
+
+    write_to(index, value)
+  }
+
+  # Inserts the value at the given index, returning the old value.
+  #
+  # # Panics
+  #
+  # This method panics if the index is out of bounds.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let numbers = inline [10, 20, 30]
+  #
+  # numbers.swap(index: 1, with: 40) # => 20
+  # numbers                          # => inline [10, 40, 30]
+  # ```
+  fn pub mut swap(index: Int, with: T) -> T {
+    check_bounds(index, size).or_panic
+
+    let old = read_from(index)
+
+    write_to(index, with)
+    old
+  }
+
+  # Swaps the values at the given indexes.
+  #
+  # # Panics
+  #
+  # This method panics if `index` or `with` is out of bounds.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let numbers = inline [10, 20, 30]
+  #
+  # numbers.swap_indexes(index: 0, with: 2)
+  #
+  # numbers # => inline [30, 20, 10]
+  # ```
+  fn pub mut swap_indexes(index: Int, with: Int) {
+    check_bounds(index, size).or_panic
+    check_bounds(with, size).or_panic
+
+    let a = read_from(index)
+    let b = read_from(with)
+
+    write_to(index, b)
+    write_to(with, a)
+  }
+
+  # Returns an immutable reference to the first value in `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # inline [10, 20].first # => Option.Some(10)
+  # ```
+  fn pub first -> Option[ref T] {
+    get(0).ok
+  }
+
+  # Returns an immutable reference to the last value in `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # inline [10, 20].last # => Option.Some(20)
+  # ```
+  fn pub last -> Option[ref T] {
+    get(size - 1).ok
+  }
+
+  # Returns a raw pointer to `self`.
+  #
+  # This method should only be used for FFI purposes, and `self` should reside
+  # in a stable location for the duration of the pointer's lifetime.
+  fn pub inline pointer -> Pointer[T] {
+    _INKO.array_pointer(self)
+  }
+
+  # Returns an iterator over the indexes in `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let numbers = inline [10, 20, 30]
+  #
+  # numbers.indexes.to_array # => [0, 1, 2]
+  # ```
+  fn pub indexes -> Indexes {
+    Indexes(index: 0, size: size)
+  }
+
+  # Returns an iterator that moves the values out of `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let numbers = inline [10, 20, 30]
+  # let iter = numbers.into_iter
+  #
+  # iter.next # => Option.Some(10)
+  # iter.next # => Option.Some(20)
+  # iter.next # => Option.Some(30)
+  # iter.next # => Option.None
+  # ```
+  fn pub move into_iter -> IntoIter[T, N] {
+    IntoIter(array: ManuallyDrop.new(self), index: 0)
+  }
+
+  fn inline get_unchecked(index: Int) -> ref T {
+    _INKO.ref_move(read_from(index))
+  }
+
+  # Performs a raw read of an index.
+  #
+  # The compiler expects this method to be called `read_from` just as with
+  # `Array.read_from`.
+  fn inline read_from(index: Int) -> T {
+    _INKO.array_get(self, index)
+  }
+
+  fn inline mut write_to(index: Int, value: T) {
+    _INKO.array_set(self, index, value)
+  }
+
+  # Increments the borrow counts of all values.
+  #
+  # This method is called automatically every time an `InlineArray` is borrowed.
+  fn inline increment_values {
+    if copy?[T] { return }
+
+    for i in indexes { _INKO.increment(read_from(i)) }
+  }
+
+  # Decrements the borrow counts of all values.
+  #
+  # This method is called automatically every time a borrow of an `InlineArray`
+  # is dropped.
+  fn inline decrement_values {
+    if copy?[T] { return }
+
+    for i in indexes { _INKO.decrement(read_from(i)) }
+  }
+}
+
+impl InlineArray if T: mut {
+  # Returns a mutable borrow of the value at the given index.
+  #
+  # If the index is out of bounds, a `std.array.OutOfBounds` error is returned.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let numbers = inline [10, 20]
+  #
+  # numbers.get_mut(0)  # => Result.Ok(10)
+  # numbers.get_mut(10) # => Result.Error(OutOfBounds(index: 10, size: 2))
+  # ```
+  fn pub inline mut get_mut(index: Int) -> Result[mut T, OutOfBounds] {
+    try check_bounds(index, size)
+    Result.Ok(get_unchecked_mut(index))
+  }
+
+  # Returns a mutable reference to the first value in `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # inline [10, 20].first_mut # => Option.Some(10)
+  # ```
+  fn pub mut first_mut -> Option[mut T] {
+    get_mut(0).ok
+  }
+
+  # Returns a mutable reference to the last value in `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # inline [10, 20].last_mut # => Option.Some(20)
+  # ```
+  fn pub mut last_mut -> Option[mut T] {
+    get_mut(size - 1).ok
+  }
+
+  fn inline mut get_unchecked_mut(index: Int) -> mut T {
+    _INKO.mut_move(read_from(index))
+  }
+}
+
+impl Drop for InlineArray {
+  fn mut drop {
+    if copy?[T] { return }
+
+    for idx in indexes { drop_value(read_from(idx)) }
+  }
+}
+
+impl InlineArray if T: Equal {
+  # Returns `true` if `self` contains the given value.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let numbers = inline [10, 20, 30]
+  #
+  # numbers.contains?(10) # => true
+  # numbers.contains?(50) # => false
+  # ```
+  fn pub contains?(value: T) -> Bool {
+    indexes.any?(fn (i) { get_unchecked(i) == value })
+  }
+
+  # Returns the index of `value` as a `Some` if present, otherwise it returns a
+  # `None`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # let numbers = inline [10, 20, 30]
+  #
+  # numbers.index_of(20) # => Option.Some(1)
+  # numbers.index_of(50) # => Option.None
+  # ```
+  fn pub index_of(value: ref T) -> Option[Int] {
+    indexes.find(fn (i) { get_unchecked(i) == value })
+  }
+}
+
+impl Equal for InlineArray if T: Equal {
+  fn pub ==(other: ref Self) -> Bool {
+    indexes.all?(fn (i) { get_unchecked(i) == other.get_unchecked(i) })
+  }
+}
+
+impl Hash for InlineArray if T: Hash {
+  fn pub hash[H: mut + Hasher](hasher: mut H) {
+    for i in indexes { get_unchecked(i).hash(hasher) }
+  }
+}
+
+impl Clone for InlineArray if T: Clone {
+  fn pub clone -> InlineArray[move T, N] {
+    let new = _INKO.array_clone(self)
+
+    if !copy?[T] {
+      for idx in indexes { new.write_to(idx, get_unchecked(idx).clone) }
+    }
+
+    new
+  }
+}
+
+impl Format for InlineArray if T: Format {
+  fn pub fmt(formatter: mut Formatter) {
+    let fmt = formatter.array
+
+    for i in indexes { fmt.value(get_unchecked(i)) }
+
+    fmt.finish
+  }
+}
+
+# An iterator over the indexes in an `InlineArray`.
+type pub inline Indexes {
+  let mut @index: Int
+  let @size: Int
+}
+
+impl IterTrait[Int] for Indexes {
+  fn pub inline mut next -> Option[Int] {
+    if @index < @size { Option.Some(@index := @index + 1) } else { Option.None }
+  }
+}
+
+# An iterator that moves values out of an `InlineArray`.
+type pub inline IntoIter[T, N: Int] {
+  let @array: ManuallyDrop[InlineArray[T, N]]
+  let mut @index: Int
+
+  fn inline mut take_next -> T {
+    @array.inner.read_from(@index := @index + 1)
+  }
+}
+
+impl IterTrait[T] for IntoIter {
+  fn pub inline mut next -> Option[T] {
+    if @index < @array.inner.size {
+      Option.Some(take_next)
+    } else {
+      Option.None
+    }
+  }
+}
+
+impl Drop for IntoIter {
+  fn mut drop {
+    if copy?[T] { return }
+
+    while @index < @array.inner.size { take_next }
+  }
+}

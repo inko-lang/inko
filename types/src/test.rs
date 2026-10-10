@@ -158,6 +158,14 @@ pub(crate) fn generic_instance(
     TypeEnum::TypeInstance(TypeInstance::generic(db, type_id, args))
 }
 
+pub(crate) fn inline_array(
+    db: &mut Database,
+    of: TypeRef,
+    size: usize,
+) -> TypeEnum {
+    TypeEnum::inline_array(db, of, size)
+}
+
 pub(crate) fn generic_trait_instance_id(
     db: &mut Database,
     trait_id: TraitId,

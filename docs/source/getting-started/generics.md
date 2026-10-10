@@ -257,3 +257,45 @@ impl Array if T: mut {
   }
 }
 ```
+
+## Value generics
+
+Inko has a limited form of support for "value generics", sometimes also known as
+"constant generics". This allows the use of values as type arguments. For
+example:
+
+```inko
+fn example[T: Int] -> Int {
+  T
+}
+```
+
+This defines a method that requires a single generic type argument `T` which
+must be an `Int` (as in the type, not a trait), it then returns whatever that
+value is:
+
+```inko
+example[10] # => 10
+```
+
+The main use case for value generics is the fixed-size `InlineArray` type that
+is defined like so:
+
+```inko
+type InlineArray[T, N: Int] { ... }
+```
+
+Here `T` specifies the type of each value, and `N` specifies the size known at
+compile-time.
+
+Note that value generics are _values_ and not _types_, thus the following is
+invalid:
+
+```inko
+type Example[N: Int] {
+  let @value: N # => N is a value but a type is required here
+}
+```
+
+In the future we may add support for additional types such as `Float` and
+`Bool`, but for the time being only `Int` is supported.

@@ -337,6 +337,16 @@ impl<'a> AnalyzeMethod<'a> {
                         self.fields[i.register.0] = true;
                         (i.register, i.receiver)
                     }
+                    Instruction::GetArrayIndex(i)
+                        if self
+                            .method
+                            .registers
+                            .value_type(i.register)
+                            .is_owned_or_uni(self.db) =>
+                    {
+                        self.fields[i.register.0] = true;
+                        (i.register, i.receiver)
+                    }
                     Instruction::SetField(i)
                         if self
                             .method
@@ -461,6 +471,11 @@ impl<'a> AnalyzeMethod<'a> {
                     // written to a pointer outlives the allocation frame or
                     // not, so we assume such data escapes.
                     Instruction::WritePointer(i)
+                        if self.is_escape_candidate(i.value) =>
+                    {
+                        self.state.escapes(i.value);
+                    }
+                    Instruction::SetArrayIndex(i)
                         if self.is_escape_candidate(i.value) =>
                     {
                         self.state.escapes(i.value);

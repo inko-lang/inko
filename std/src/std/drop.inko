@@ -18,3 +18,21 @@ trait pub Drop {
   # multiple times.
   fn mut drop
 }
+
+# A type which must be dropped manually.
+#
+# Use of this type is extremely unsafe as the inner value may be dropped while
+# the `ManuallyDrop` container is still in use. As such it's currently also not
+# part of the public API.
+#
+# Note that while this type ensures the inner value isn't dropped, borrow count
+# changes may still be generated when accessing the `inner` field. As such it's
+# extremely important to be careful to _not_ use this value any more after
+# dropping it.
+type builtin ManuallyDrop[T] {
+  let @inner: T
+
+  fn static new(value: T) -> Self {
+    Self(value)
+  }
+}

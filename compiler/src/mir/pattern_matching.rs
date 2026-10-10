@@ -25,8 +25,8 @@ use std::collections::{HashMap, HashSet};
 use types::resolve::TypeResolver;
 use types::{
     ARRAY_ID, BOOL_ID, BYTE_ARRAY_TYPE, BYTES_MODULE, ConstructorId, Database,
-    FieldId, INT_ID, SLICE_TYPE, STRING_ID, TypeArguments, TypeBounds,
-    TypeEnum, TypeInstance, TypeKind, TypeRef, VariableId,
+    FieldId, INLINE_ARRAY_ID, INT_ID, SLICE_TYPE, STRING_ID, TypeArguments,
+    TypeBounds, TypeEnum, TypeInstance, TypeKind, TypeRef, VariableId,
 };
 
 fn add_constructor_pattern(
@@ -996,15 +996,15 @@ impl<'a> Compiler<'a> {
                 RawCase::new(Constructor::False, Vec::new()),
                 RawCase::new(Constructor::True, Vec::new()),
             ]),
-            ARRAY_ID => {
+            ARRAY_ID | INLINE_ARRAY_ID => {
                 let args = type_ins.type_arguments(self.db()).unwrap().clone();
-                let raw_type = args.values().next().unwrap();
-                let val_type =
+                let raw = type_ins.first_type_argument(self.db());
+                let new =
                     TypeResolver::new(&mut self.state.db, &args, &self.bounds)
-                        .resolve(raw_type)
+                        .resolve(raw)
                         .cast_according_to(self.db(), typ);
 
-                Type::Array(val_type)
+                Type::Array(new)
             }
             _ if type_id
                 == self.db().type_in_module(BYTES_MODULE, BYTE_ARRAY_TYPE) =>

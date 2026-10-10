@@ -136,8 +136,78 @@ value, while `iter_mut` yields mutable borrows. `reverse_iter` yields immutable
 borrows but in reverse order. The `into_iter` method in turn yields the values
 as-is and takes over ownership of the underlying array.
 
+## Inline arrays
+
+Regular arrays (values of type `Array`) are allocated on the heap and support
+resizing, such as by using the `Array.push` method. While this is what you want
+most of the time, sometimes the cost of these heap allocations is too great. For
+example, cryptographic algorithms often create large arrays as part of some
+tight loop such that allocating those arrays on the heap can become a
+bottleneck.
+
+For such scenarios one can use the `InlineArray` type instead. Unlike `Array`,
+an `InlineArray` is allocated on the stack and _doesn't_ support resizing. Such
+arrays are created using the syntax `inline [...]`, for example:
+
+```inko
+[10, 20, 30]        # => Array[Int]
+inline [10, 20, 30] # => InlineArray[Int, 3]
+```
+
+To create an `InlineArray` that repeats a value N times, use the syntax
+`inline [N * expr]` like so:
+
+```inko
+inline [3 * 'developers'] # => inline ['developers', 'developers', 'developers']
+```
+
+This syntax is lowered as if the expression (`'developers'` in this case) is
+repeated explicitly, meaning the above is lowered into this:
+
+```inko
+inline ['developers', 'developers', 'developers']
+```
+
+Because an `InlineArray` is allocated on the stack, its semantics are the same
+as regular [`inline` types](types/#inline-types). For example, borrowing an
+`InlineArray` also borrows each individual value and is thus best avoided. If an
+`InlineArray` stores other `inline` values that need to be mutated in-place,
+this typically requires you to somehow swap the value instead as methods such as
+`InlineArray.get` will create copies of such values upon borrowing them, just as
+is the case when storing them in a regular `Array`.
+
+Because borrowing an `InlineArray` copies the array itself and borrows each
+value individually, methods such as `Array.slice` aren't also implemented for
+`InlineArray` as they could cause unexpected performance problems.
+
+Iterating over an `InlineArray` is done using one of two methods:
+
+- `InlineArray.into_iter` consumes the array and allows you to move values out
+  of it
+- `InlineArray.indexes` returns an iterator that yields the indexes of the array
+  without borrowing it
+
+For example:
+
+```inko
+let a = inline [10, 20, 30]
+let b = inline [10, 20, 30]
+
+for num in a.into_iter {
+  num # => 10, 20, ...
+}
+
+for idx in b.indexes {
+  b.get(idx) # => Result.Ok(10), Result.Ok(20), ...
+}
+```
+
+As a rule of thumb, start with using `Array` and only switch to using
+`InlineArray` if the use of `Array` becomes a bottleneck, and only if you can
+actually measure an improvement by using `InlineArray` instead.
+
 ## Drop order
 
-When an `Array` is dropped, any remaining values are dropped in the order in
-which they are stored in the `Array`. For example, for `[foo, bar]`, `foo` is
-dropped before `bar`.
+When an `Array` or `InlineArray` is dropped, any remaining values are dropped in
+the order in which they are stored in the array. For example, for `[foo, bar]`,
+`foo` is dropped before `bar`.

@@ -1,0 +1,23 @@
+let A = 10
+
+type Example[T: Int] {
+  fn pass_parameter {
+    foo(T)
+  }
+
+  fn foo(value: Int) {}
+}
+
+fn example1 {
+  let _a = Example[A]
+}
+
+fn example2 {
+  let _a = Example[10]
+}
+
+fn example3[T: Int] {
+  let _a = Example[T]
+}
+
+# value_generics.inko:12:20 error(invalid-type): 'A' isn't a type

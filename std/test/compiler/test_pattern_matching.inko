@@ -246,6 +246,43 @@ fn pub tests(t: mut Tests) {
     )
   })
 
+  t.test('Pattern matching against an InlineArray', fn (t) {
+    let res = match inline [10, 20] {
+      case [10, 20] -> true
+      case _ -> false
+    }
+
+    t.true(res)
+
+    let val = Value.new
+    let owned = inline [ValueRef.new(val)]
+
+    match ref owned {
+      case [_] -> {}
+      case _ -> {}
+    }
+
+    match mut owned {
+      case [_] -> {}
+      case _ -> {}
+    }
+
+    match owned {
+      case [_] -> {}
+      case _ -> {}
+    }
+
+    t.equal(val.dropped, 1)
+    val.dropped = 0
+
+    match inline [ValueRef.new(val)] {
+      case [_] if false -> {}
+      case _ignore -> {}
+    }
+
+    t.equal(val.dropped, 1)
+  })
+
   t.panic(
     'Assigning a matched field a new value during a match triggers a borrow panic',
     fn { DummyContainer(Dummy()).replace_field_during_match },
