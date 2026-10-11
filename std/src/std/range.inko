@@ -235,7 +235,7 @@ impl Format for ExclusiveRange {
 }
 
 # An iterator over the values in an `ExclusiveRange`.
-type pub ExclusiveRangeIter {
+type pub inline ExclusiveRangeIter {
   let mut @current: Int
   let @end: Int
   let @step: Int
@@ -252,7 +252,7 @@ impl Iter[Int] for ExclusiveRangeIter {
 }
 
 # An iterator over the values in an `InclusiveRange`.
-type pub InclusiveRangeIter {
+type pub inline InclusiveRangeIter {
   let mut @current: Int
   let @end: Int
   let @step: Int
