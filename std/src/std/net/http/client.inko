@@ -1359,19 +1359,17 @@ type pub inline Request {
   let pub @headers: HeaderMap
 
   fn static new(client: mut Client, method: Method, uri: Uri) -> Self {
-    let query = uri.query.parse
-    let headers = HeaderMap.new
-
-    headers.set(Header.host, uri.host_and_port)
-    headers.set(Header.user_agent, client.user_agent)
-
-    Self(
+    let req = Self(
       client: client,
       method: method,
+      query: uri.query.parse,
       uri: uri,
-      query: query,
-      headers: headers,
+      headers: HeaderMap.new,
     )
+
+    req.update_host_header
+    req.headers.set(Header.user_agent, client.user_agent)
+    req
   }
 
   # Adds the header with the given value.
@@ -1699,12 +1697,16 @@ type pub inline Request {
 
         # If the base URI is present we need to update the Host header
         # accordingly.
-        @headers.set(Header.host, @uri.host_and_port)
+        update_host_header
       }
       case _ -> {}
     }
 
     apply_basic_authentication
+  }
+
+  fn mut update_host_header {
+    @headers.set(Header.host, @uri.host_and_port)
   }
 
   fn mut apply_basic_authentication {
@@ -1752,6 +1754,7 @@ type pub inline Request {
 
     try response.body.clear.map_error(fn (e) { Error.InvalidResponse(e) })
     @uri.merge(new_uri)
+    update_host_header
     Result.Ok(Option.None)
   }
 }

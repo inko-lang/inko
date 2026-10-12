@@ -1785,6 +1785,29 @@ fn pub tests(t: mut Tests) {
     }
   })
 
+  t.test('Request.follow_redirect updates the Host header', fn (t) {
+    let client = Client.new
+    let uri = Uri.parse('http://example.com').or_panic
+    let builder = Request.new(client, Method.Get, uri)
+    let resp = Response(
+      version: Version.v11,
+      status: Status.new(301),
+      headers: HeaderMap.new,
+      body: Body.bounded(Reader.new(Buffer.new('')), size: 0, limit: 0),
+    )
+
+    t.equal(builder.headers.get(Header.host), Result.Ok('example.com'))
+    resp.headers.set(Header.location, 'http://foo.com:1234/example')
+
+    let res = match builder.follow_redirect(resp) {
+      case Ok(None) -> true
+      case _ -> false
+    }
+
+    t.true(res)
+    t.equal(builder.headers.get(Header.host), Result.Ok('foo.com:1234'))
+  })
+
   t.test('Request.prepare', fn (t) {
     let client = Client.new
 
