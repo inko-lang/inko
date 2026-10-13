@@ -1,4 +1,5 @@
 # Mathematical operations for cryptographic algorithms.
+import std.clone (Clone)
 import std.cmp (Equal)
 import std.fmt (Format, Formatter)
 import std.int (ToInt)
@@ -127,5 +128,11 @@ impl Equal for U64 {
 impl Format for U64 {
   fn pub fmt(formatter: mut Formatter) {
     formatter.tuple('U64').field(@inner).finish
+  }
+}
+
+impl Clone for U64 {
+  fn pub clone -> Self {
+    Self(@inner)
   }
 }

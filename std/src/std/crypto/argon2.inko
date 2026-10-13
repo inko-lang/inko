@@ -16,6 +16,7 @@
 import std.alloc
 import std.base64 (Decoder, Encoder)
 import std.bytes (Bytes, Slice, ToSlice)
+import std.clone (Clone)
 import std.cmp (Equal, min)
 import std.crypto.blake2 (Blake2b, DIGEST_SIZE)
 import std.crypto.math (U64, to_u32)
@@ -114,13 +115,13 @@ fn mix(a: Pointer[U64], b: Pointer[U64], c: Pointer[U64], d: Pointer[U64]) {
 }
 
 fn compress(dest: BlockPtr, x: BlockPtr, y: BlockPtr, xor: Bool) {
-  let r_buf = Block()
-  let r = BlockPtr(mut r_buf)
+  let r_buf = Block.new
+  let r = r_buf.pointer
 
   xor_block(r, x, y)
 
-  let z_buf = r_buf
-  let z = BlockPtr(mut z_buf)
+  let z_buf = r_buf.clone
+  let z = z_buf.pointer
 
   for i in 0.until(128).step_by(16) {
     perm(
@@ -177,146 +178,30 @@ fn xor_bytes(dest: BlockPtr, x: BlockPtr, y: BlockPtr) {
   for i in 0.until(BLOCK_SIZE) { dest.set_u8(i, x.u8(i) ^ y.u8(i)) }
 }
 
-fn zero_block(pointer: Pointer[Block]) {
-  alloc.zero(pointer as Pointer[Uint8], BLOCK_SIZE)
+type inline Block {
+  let @values: InlineArray[U64, 128]
+
+  fn static new -> Self {
+    Self(inline [128 * U64(0)])
+  }
+
+  fn pointer -> BlockPtr {
+    BlockPtr(@values.pointer)
+  }
+
+  fn mut zero {
+    alloc.zero(@values.pointer as Pointer[Uint8], BLOCK_SIZE)
+  }
 }
 
-# Until https://github.com/inko-lang/inko/issues/975 is resolved we have to
-# manually define array-like types as extern structs with many individual
-# fields.
-type extern Block {
-  let @v0: U64
-  let @v1: U64
-  let @v2: U64
-  let @v3: U64
-  let @v4: U64
-  let @v5: U64
-  let @v6: U64
-  let @v7: U64
-  let @v8: U64
-  let @v9: U64
-  let @v10: U64
-  let @v11: U64
-  let @v12: U64
-  let @v13: U64
-  let @v14: U64
-  let @v15: U64
-  let @v16: U64
-  let @v17: U64
-  let @v18: U64
-  let @v19: U64
-  let @v20: U64
-  let @v21: U64
-  let @v22: U64
-  let @v23: U64
-  let @v24: U64
-  let @v25: U64
-  let @v26: U64
-  let @v27: U64
-  let @v28: U64
-  let @v29: U64
-  let @v30: U64
-  let @v31: U64
-  let @v32: U64
-  let @v33: U64
-  let @v34: U64
-  let @v35: U64
-  let @v36: U64
-  let @v37: U64
-  let @v38: U64
-  let @v39: U64
-  let @v40: U64
-  let @v41: U64
-  let @v42: U64
-  let @v43: U64
-  let @v44: U64
-  let @v45: U64
-  let @v46: U64
-  let @v47: U64
-  let @v48: U64
-  let @v49: U64
-  let @v50: U64
-  let @v51: U64
-  let @v52: U64
-  let @v53: U64
-  let @v54: U64
-  let @v55: U64
-  let @v56: U64
-  let @v57: U64
-  let @v58: U64
-  let @v59: U64
-  let @v60: U64
-  let @v61: U64
-  let @v62: U64
-  let @v63: U64
-  let @v64: U64
-  let @v65: U64
-  let @v66: U64
-  let @v67: U64
-  let @v68: U64
-  let @v69: U64
-  let @v70: U64
-  let @v71: U64
-  let @v72: U64
-  let @v73: U64
-  let @v74: U64
-  let @v75: U64
-  let @v76: U64
-  let @v77: U64
-  let @v78: U64
-  let @v79: U64
-  let @v80: U64
-  let @v81: U64
-  let @v82: U64
-  let @v83: U64
-  let @v84: U64
-  let @v85: U64
-  let @v86: U64
-  let @v87: U64
-  let @v88: U64
-  let @v89: U64
-  let @v90: U64
-  let @v91: U64
-  let @v92: U64
-  let @v93: U64
-  let @v94: U64
-  let @v95: U64
-  let @v96: U64
-  let @v97: U64
-  let @v98: U64
-  let @v99: U64
-  let @v100: U64
-  let @v101: U64
-  let @v102: U64
-  let @v103: U64
-  let @v104: U64
-  let @v105: U64
-  let @v106: U64
-  let @v107: U64
-  let @v108: U64
-  let @v109: U64
-  let @v110: U64
-  let @v111: U64
-  let @v112: U64
-  let @v113: U64
-  let @v114: U64
-  let @v115: U64
-  let @v116: U64
-  let @v117: U64
-  let @v118: U64
-  let @v119: U64
-  let @v120: U64
-  let @v121: U64
-  let @v122: U64
-  let @v123: U64
-  let @v124: U64
-  let @v125: U64
-  let @v126: U64
-  let @v127: U64
+impl Clone for Block {
+  fn pub clone -> Self {
+    Self(@values.clone)
+  }
 }
 
 type copy BlockPtr {
-  let @inner: Pointer[Block]
+  let @inner: Pointer[U64]
 
   fn inline get(index: Int) -> U64 {
     at(index).0
@@ -339,7 +224,7 @@ type copy BlockPtr {
   }
 
   fn inline at(index: Int) -> Pointer[U64] {
-    ptr.add(@inner as Pointer[U64], index)
+    ptr.add(@inner, index)
   }
 
   fn inline at_u8(index: Int) -> Pointer[Uint8] {
@@ -607,9 +492,9 @@ type pub Argon2 {
       secret: Option.None,
       associated: Option.None,
       columns: 4 * (mem / (4 * parallel)),
-      seed_init: Block(),
-      seed_block: Block(),
-      zero_block: Block(),
+      seed_init: Block.new,
+      seed_block: Block.new,
+      zero_block: Block.new,
     )
   }
 
@@ -681,7 +566,7 @@ type pub Argon2 {
     }
 
     let b = bytes(0, @columns - 1)
-    let b_ptr = BlockPtr(b.pointer as Pointer[Block])
+    let b_ptr = BlockPtr(b.pointer as Pointer[U64])
 
     for i in 1.until(@parallel) {
       xor_bytes(b_ptr, b_ptr, block(i, @columns - 1))
@@ -772,13 +657,13 @@ type pub Argon2 {
   }
 
   fn block(row: Int, column: Int) -> BlockPtr {
-    BlockPtr(bytes(row, column).pointer as Pointer[Block])
+    BlockPtr(bytes(row, column).pointer as Pointer[U64])
   }
 
   fn mut segment(pass: Int, i: Int, slice: Int) {
-    let init = BlockPtr(@seed_init)
-    let seed = BlockPtr(@seed_block)
-    let zero = BlockPtr(@zero_block)
+    let init = @seed_init.pointer
+    let seed = @seed_block.pointer
+    let zero = @zero_block.pointer
 
     if pass == 0 and slice < 2 {
       init.set_i64(0, pass)
@@ -862,8 +747,8 @@ impl Drop for Argon2 {
   fn mut drop {
     @buf.zero
     @blocks.zero
-    zero_block(@seed_init)
-    zero_block(@seed_block)
-    zero_block(@zero_block)
+    @seed_init.zero
+    @seed_block.zero
+    @zero_block.zero
   }
 }

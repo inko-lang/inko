@@ -61,4 +61,6 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('U64.fmt', fn (t) { t.equal(fmt(U64(10)), 'U64(10)') })
+
+  t.test('U64.clone', fn (t) { t.equal(U64(42).clone, U64(42)) })
 }
