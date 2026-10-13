@@ -26,11 +26,11 @@ type pub extern Poll {
   let @fd: Int32
 
   # The ID of the poller the source is registered with.
-  let @registered: Uint8
+  let @registered: Int8
 }
 
 fn inline new(fd: Int32) -> Poll {
-  Poll(fd: fd, registered: NOT_REGISTERED as Uint8)
+  Poll(fd: fd, registered: NOT_REGISTERED as Int8)
 }
 
 fn inline poll_raw(poll: Pointer[Poll], deadline: Int, write: Bool) -> Bool {
