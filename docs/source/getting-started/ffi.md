@@ -124,6 +124,17 @@ example(a)                 # => invalid
 example(a as Pointer[Cat]) # => valid
 ```
 
+### C Arrays
+
+For C arrays (e.g. `int[128]`) you can use the `InlineArray` type, which is
+allowed in `extern` types _only_ if it contains values of a type that itself is
+allowed in an `extern` type. An `InlineArray[T, N]` has the same layout as `N`
+values of type `T` and is thus compatible with the memory layout of C arrays.
+
+When passing such arrays to C functions, use `InlineArray.pointer` to get a raw
+pointer to the underlying memory and pass that instead of the `InlineArray`
+itself.
+
 ## Importing libraries
 
 Libraries to link against are specified using the `import extern "NAME"` syntax.
@@ -171,7 +182,7 @@ extra "foo-static" package to be installed to also get the static library.
 
 If you happen to have all the necessary static libraries installed, you can
 instruct the compiler to link them statically using `inko build --static`. This
-flag applies to all libraries, meaning we either link _all_ of them dynamically
+flag applies to all libraries, meaning we either link _all_ them dynamically
 _or_ statically. Inko doesn't support dynamically linking some libraries while
 statically linking others.
 
