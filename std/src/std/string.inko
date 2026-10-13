@@ -102,7 +102,7 @@ fn padding(string: String, chars: Int, pad_to: Int) -> String {
   let pad_size = pad_to - chars
   let pad_buf = StringBuffer.new
 
-  pad_size.times(fn (_) { pad_buf.push(string) })
+  for _ in 0.until(pad_size) { pad_buf.push(string) }
 
   let mut pad = pad_buf.into_string
 
@@ -525,7 +525,8 @@ type builtin String {
       case _ -> {
         let buf = StringBuffer.new
 
-        times.times(fn (_) { buf.push(clone) })
+        for _ in 0.until(times) { buf.push(clone) }
+
         buf.into_string
       }
     }

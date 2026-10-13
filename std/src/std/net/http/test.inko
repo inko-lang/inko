@@ -766,14 +766,14 @@ impl Clone for Matcher {
 #
 #       let body = ByteArray.new
 #
-#       2.times(fn (_) {
+#       for _ in 0.until(2) {
 #         let resp = client
 #           .get(Uri.parse('http://example.com').or_panic)
 #           .send
 #           .or_panic
 #
 #         resp.body.read_all(body).or_panic
-#       })
+#       }
 #
 #       t.equal(body.to_string, 'helloworld')
 #     })

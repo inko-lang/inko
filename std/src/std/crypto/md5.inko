@@ -112,7 +112,7 @@ type pub Md5 {
   fn mut compress {
     let words = @words
 
-    16.times(fn (i) { words.set(i, @block.read_i32_le(i * 4)) })
+    for i in 0.until(16) { words.set(i, @block.read_i32_le(i * 4)) }
 
     let mut a = @a
     let mut b = @b

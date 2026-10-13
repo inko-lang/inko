@@ -145,14 +145,6 @@ fn pub tests(t: mut Tests) {
     t.equal(-9223372036854775808.to_string, '-9223372036854775808')
   })
 
-  t.test('Int.times', fn (t) {
-    let vals = []
-
-    3.times(fn (v) { vals.push(v) })
-
-    t.equal(vals, [0, 1, 2])
-  })
-
   t.test('Int.sign', fn (t) {
     t.equal(42.sign, 1)
     t.equal(-42.sign, -1)

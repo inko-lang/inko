@@ -53,11 +53,11 @@ fn pub tests(t: mut Tests) {
     let counts = Array.filled(with: 0, times: 10)
     let rng = Random.from_int(42)
 
-    10_000.times(fn (_) {
+    for _ in 0.until(10_000) {
       let val = rng.int_between(0, 10)
 
       counts.set(val, counts.get(val).or_panic + 1)
-    })
+    }
 
     let total = Int.sum(counts.iter).to_float
 

@@ -787,9 +787,11 @@ type pub Tests {
     let jobs = Jobs(tests)
     let output = Channel.new
 
-    @concurrency.times(fn (_) { Runner(jobs, recover output.clone).schedule })
+    for _ in 0.until(@concurrency) {
+      Runner(jobs, recover output.clone).schedule
+    }
 
-    size.times(fn (_) {
+    for _ in 0.until(size) {
       let test = recover output.receive
 
       if test.failures.empty? {
@@ -797,7 +799,7 @@ type pub Tests {
       } else {
         rep.failed(test)
       }
-    })
+    }
 
     if rep.finished(start.elapsed, seed) {
       exit(status: 0)

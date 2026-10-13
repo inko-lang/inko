@@ -1938,7 +1938,9 @@ type pub Generator {
   }
 
   fn mut indent {
-    if @pretty { @depth.times(fn (_) { @buffer.append(@spaces) }) }
+    if @pretty {
+      for _ in 0.until(@depth) { @buffer.append(@spaces) }
+    }
   }
 
   fn mut newline {

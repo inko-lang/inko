@@ -32,7 +32,7 @@ fn inline stable_sort[T](
   # values. This works because merge_sort() doesn't perform any bounds checking.
   let tmp: Array[T] = Array.with_capacity(len)
 
-  len.times(fn (i) { tmp.write_to(i, array.read_from(i)) })
+  for i in 0.until(len) { tmp.write_to(i, array.read_from(i)) }
 
   merge_sort(tmp, array, start: 0, end: len, compare: compare)
 }
@@ -358,7 +358,8 @@ type builtin Array[T] {
     let array = with_capacity(times)
     let temp = ref with
 
-    (times - 1).times(fn (_) { array.push(temp.clone) })
+    for _ in 0.until(times - 1) { array.push(temp.clone) }
+
     array.push(with)
     array
   }

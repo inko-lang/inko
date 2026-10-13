@@ -272,24 +272,6 @@ type builtin Int {
     String.from_borrowed_primitive(PrimitiveString(bytes: start, size: len))
   }
 
-  # Calls the supplied closure `self` times.
-  #
-  # # Examples
-  #
-  # ```inko
-  # 4.times fn (i) {
-  #   i # => 0, 1, 2, 3
-  # }
-  # ```
-  fn pub inline times(block: fn (Int)) {
-    let mut index = 0
-
-    while index < self {
-      block.call(index)
-      index += 1
-    }
-  }
-
   # Returns the value -1 or 1 based on the sign of the given number,
   # 0 if the value is zero.
   #
