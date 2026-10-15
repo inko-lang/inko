@@ -1,7 +1,19 @@
-use crate::llvm::context::{Context, size_in_bits};
+use crate::llvm::abi::generic::{classify, single_word_class};
+use crate::llvm::context::Context;
 use crate::llvm::layouts::{ArgumentType, ReturnType};
 use inkwell::targets::TargetData;
-use inkwell::types::{BasicType, StructType};
+use inkwell::types::{BasicType, BasicTypeEnum, StructType};
+
+pub(crate) fn single_word_value<'ctx>(
+    ctx: &'ctx Context,
+    tdata: &TargetData,
+    typ: StructType<'ctx>,
+) -> BasicTypeEnum<'ctx> {
+    let mut classes = Vec::new();
+
+    classify(tdata, typ.as_basic_type_enum(), &mut classes);
+    single_word_class(classes).to_llvm_type(ctx)
+}
 
 pub(crate) fn struct_argument<'ctx>(
     ctx: &'ctx Context,
@@ -11,9 +23,7 @@ pub(crate) fn struct_argument<'ctx>(
     let bytes = tdata.get_abi_size(&typ) as u32;
 
     if bytes <= 8 {
-        let bits = ctx.custom_int(size_in_bits(bytes));
-
-        ArgumentType::Regular(bits.as_basic_type_enum())
+        ArgumentType::Regular(single_word_value(ctx, tdata, typ))
     } else if bytes <= 16 {
         ArgumentType::Regular(
             ctx.binary_struct(tdata, typ).as_basic_type_enum(),
@@ -31,9 +41,7 @@ pub(crate) fn struct_return<'ctx>(
     let bytes = tdata.get_abi_size(&typ) as u32;
 
     if bytes <= 8 {
-        let bits = ctx.custom_int(size_in_bits(bytes));
-
-        ReturnType::Regular(bits.as_basic_type_enum())
+        ReturnType::Regular(single_word_value(ctx, tdata, typ))
     } else if bytes <= 16 {
         ReturnType::Regular(ctx.binary_struct(tdata, typ).as_basic_type_enum())
     } else {
@@ -85,6 +93,32 @@ mod tests {
             (vec![ctx.i64_type().into()], ArgumentType::Regular(int64)),
             (
                 vec![ctx.i32_type().into(), ctx.i32_type().into()],
+                ArgumentType::Regular(int64),
+            ),
+        ];
+
+        for (in_fields, exp) in tests {
+            let inp = ctx.struct_type(in_fields.as_slice());
+
+            assert_eq!(struct_argument(&ctx, &tdata, inp), exp);
+        }
+    }
+
+    #[test]
+    fn test_struct_argument_with_struct() {
+        let machine = setup();
+        let tdata = machine.get_target_data();
+        let ctx = Context::new();
+        let int32 = ctx.i32_type().as_basic_type_enum();
+        let int64 = ctx.i64_type().as_basic_type_enum();
+        let float32 = ctx.f32_type().as_basic_type_enum();
+        let tests = [
+            (
+                vec![ctx.struct_type(&[float32.into()]).into()],
+                ArgumentType::Regular(float32),
+            ),
+            (
+                vec![ctx.struct_type(&[float32.into(), int32.into()]).into()],
                 ArgumentType::Regular(int64),
             ),
         ];
@@ -161,6 +195,32 @@ mod tests {
             (vec![ctx.i64_type().into()], ReturnType::Regular(int64)),
             (
                 vec![ctx.i32_type().into(), ctx.i32_type().into()],
+                ReturnType::Regular(int64),
+            ),
+        ];
+
+        for (in_fields, exp) in tests {
+            let inp = ctx.struct_type(in_fields.as_slice());
+
+            assert_eq!(struct_return(&ctx, &tdata, inp), exp);
+        }
+    }
+
+    #[test]
+    fn test_struct_return_with_struct() {
+        let machine = setup();
+        let tdata = machine.get_target_data();
+        let ctx = Context::new();
+        let int32 = ctx.i32_type().as_basic_type_enum();
+        let int64 = ctx.i64_type().as_basic_type_enum();
+        let float32 = ctx.f32_type().as_basic_type_enum();
+        let tests = [
+            (
+                vec![ctx.struct_type(&[float32.into()]).into()],
+                ReturnType::Regular(float32),
+            ),
+            (
+                vec![ctx.struct_type(&[float32.into(), int32.into()]).into()],
                 ReturnType::Regular(int64),
             ),
         ];

@@ -313,10 +313,9 @@ impl Context {
 
         classify(target_data, typ.as_basic_type_enum(), &mut classes);
 
-        let (a, b) = combine_classes(
-            classes,
-            target_data.get_abi_alignment(&typ) as u64,
-        );
+        let size = target_data.get_abi_size(&typ);
+        let align = target_data.get_abi_alignment(&typ) as u64;
+        let (a, b) = combine_classes(classes, size, align);
 
         self.struct_type(&[a.to_llvm_type(self), b.to_llvm_type(self)])
     }
