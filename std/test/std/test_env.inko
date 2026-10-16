@@ -1,3 +1,4 @@
+import helpers (compiler_path)
 import std.env (self, MissingVariable)
 import std.fmt (fmt)
 import std.stdio (Stdout)
@@ -124,4 +125,71 @@ fn pub tests(t: mut Tests) {
 
     t.true(path.file?)
   })
+
+  t.test('env.find_executable', fn (t) {
+    t.true(env.find_executable('ls').some?)
+    t.true(env.find_executable('true').some?)
+    t.false(env.find_executable('kitten-mittens').some?)
+  })
+
+  t.fork(
+    'env.find_executable with a name that matches a directory',
+    child: fn { Stdout.new.write(fmt(env.find_executable('test'))) },
+    test: fn (t, p) {
+      p.variable('PATH', env.working_directory.or_panic.to_string)
+
+      let child = p.spawn
+
+      t.equal(child.status.to_int, 0)
+      t.equal(child.stdout, 'None')
+      t.equal(child.stderr, '')
+    },
+  )
+
+  t.fork(
+    'env.find_executable with the PATH variable set to a single entry',
+    child: fn { Stdout.new.write(fmt(env.find_executable('inko'))) },
+    test: fn (t, p) {
+      let inko = compiler_path
+
+      p.variable('PATH', inko.directory.to_string)
+
+      let child = p.spawn
+
+      t.equal(child.status.to_int, 0)
+      t.equal(child.stdout, fmt(Option.Some(inko.expand.or(inko))))
+      t.equal(child.stderr, '')
+    },
+  )
+
+  t.fork(
+    'env.find_executable with the PATH variable set multiple entries',
+    child: fn { Stdout.new.write(fmt(env.find_executable('inko'))) },
+    test: fn (t, p) {
+      let inko = compiler_path
+      let path = env.get('PATH').or('')
+
+      p.variable('PATH', inko.directory.to_string + ':${path}')
+
+      let child = p.spawn
+
+      t.equal(child.status.to_int, 0)
+      t.equal(child.stdout, fmt(Option.Some(inko.expand.or(inko))))
+      t.equal(child.stderr, '')
+    },
+  )
+
+  t.fork(
+    'env.find_executable without the PATH variable set',
+    child: fn { Stdout.new.write(fmt(env.find_executable('ls'))) },
+    test: fn (t, p) {
+      p.variable('PATH', '')
+
+      let child = p.spawn
+
+      t.equal(child.status.to_int, 0)
+      t.equal(child.stdout, 'None')
+      t.equal(child.stderr, '')
+    },
+  )
 }
