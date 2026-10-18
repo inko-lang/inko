@@ -210,6 +210,17 @@ trait pub Bytes: ToString + ToByteArray {
     Option.None
   }
 
+  # Returns an iterator that yields all _byte_ indexes of `value` in `self`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # 'hello'.indexes_of('l').to_array # => [2, 3]
+  # ```
+  fn pub indexes_of[B: Bytes](value: ref B) -> IndexesOf[Self, B] {
+    IndexesOf(source: self, pattern: value, start: 0)
+  }
+
   # Returns `true` if `self` contains the given byte sequence.
   #
   # # Examples
@@ -684,6 +695,25 @@ type pub Iter[T: Bytes] {
 impl IterTrait[Int] for Iter {
   fn pub inline mut next -> Option[Int] {
     @source.get(@index := @index.wrapping_add(1)).ok
+  }
+}
+
+# An iterator over all the indexes of a value in a sequence of bytes.
+type pub inline IndexesOf[S: Bytes, P: Bytes] {
+  let @source: ref S
+  let @pattern: ref P
+  let mut @start: Int
+}
+
+impl IterTrait[Int] for IndexesOf {
+  fn pub mut next -> Option[Int] {
+    match @source.index_of(@pattern, @start) {
+      case Some(i) -> {
+        @start = i + @pattern.size
+        Option.Some(i)
+      }
+      case _ -> Option.None
+    }
   }
 }
 

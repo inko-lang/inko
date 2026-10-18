@@ -924,6 +924,11 @@ fn pub tests(t: mut Tests) {
     t.equal(value.index_of('e', starting_at: 10), Option.None)
   })
 
+  t.test('ByteArray.indexes_of', fn (t) {
+    t.equal('hello'.to_byte_array.indexes_of('l').to_array, [2, 3])
+    t.equal('😀😀'.to_byte_array.indexes_of('😀').to_array, [0, 4])
+  })
+
   t.test('ByteArray.contains_bytes?', fn (t) {
     let value = 'hello'.to_byte_array
 
