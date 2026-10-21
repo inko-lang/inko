@@ -1857,6 +1857,12 @@ impl Module {
             inlined_methods: IndexSet::new(),
         }
     }
+
+    fn is_empty(&self) -> bool {
+        self.types.is_empty()
+            && self.constants.is_empty()
+            && self.methods.is_empty()
+    }
 }
 
 #[derive(Copy, Clone)]
@@ -2742,6 +2748,7 @@ impl Mir {
         for old_module in self.modules.values_mut() {
             let mut moved_types = HashSet::new();
             let mut moved_methods = HashSet::new();
+            let new_start = new_modules.len();
 
             for &tid in &old_module.types {
                 let file = old_module.id.file(&state.db);
@@ -2789,6 +2796,7 @@ impl Mir {
                 // really belong to a type (i.e. they're basically scoped
                 // module methods).
                 new_module.methods = self.types[&tid].methods.clone();
+                new_module.inlined_methods = old_module.inlined_methods.clone();
                 new_module.types.push(tid);
                 moved_types.insert(tid);
 
@@ -2806,11 +2814,74 @@ impl Mir {
 
             old_module.methods.retain(|id| !moved_methods.contains(id));
             old_module.types.retain(|i| !moved_types.contains(i));
+
+            let new_end = new_modules.len();
+
+            // Static/module methods are moved into a dedicated module as they
+            // may depend on the layout/storage of types now moved into a
+            // separate module.
+            //
+            // If we instead kept them in the source module we'd have to record
+            // a circular dependency to flush caches, causing a change to a
+            // split module to also flush the original module and everything
+            // that depends on it. In the case of the standard library this
+            // will almost always trigger a full rebuild of the entire standard
+            // library, which is not what we want.
+            //
+            // So instead we move static methods into a new module and record
+            // these as depending on not just the original module but also all
+            // the modules we split the original module into. While this means a
+            // change to the split modules also flushes the methods module
+            // (which may be redundant), we at least avoid a cascade of flushes.
+            if !old_module.methods.is_empty() {
+                let file = old_module.id.file(&state.db);
+                let orig_name = old_module.id.name(&state.db).clone();
+                let name = ModuleName::new(format!("{}.$methods", orig_name));
+                let new_mod_id =
+                    ModuleType::alloc(&mut state.db, name.clone(), file);
+                let mut new_module = Module::new(new_mod_id);
+
+                swap(&mut new_module.methods, &mut old_module.methods);
+                swap(
+                    &mut new_module.inlined_methods,
+                    &mut old_module.inlined_methods,
+                );
+                new_mod_id
+                    .set_method_symbol_name(&mut state.db, orig_name.clone());
+
+                for &id in &new_module.methods {
+                    id.set_module(&mut state.db, new_mod_id);
+                }
+
+                // The new module must change if the original/source module
+                // changes.
+                state.dependency_graph.add_module_id_dependency(
+                    &state.db,
+                    new_mod_id,
+                    old_module.id,
+                );
+
+                // The module for the module/static methods must depend on each
+                // split module in case any types change their layout/storage.
+                for split_idx in new_start..new_end {
+                    let dep = new_modules[split_idx].id;
+
+                    state
+                        .dependency_graph
+                        .add_module_id_dependency(&state.db, new_mod_id, dep);
+                }
+
+                new_modules.push(new_module);
+            }
         }
 
         for module in new_modules {
             self.modules.insert(module.id, module);
         }
+    }
+
+    pub(crate) fn remove_empty_modules(&mut self) {
+        self.modules.retain(|_, m| !m.is_empty());
     }
 
     /// Records dependencies of generic types on their type arguments.
@@ -3464,5 +3535,23 @@ mod tests {
         graph.add_edge(b1, b2);
 
         assert_eq!(graph.iter().collect::<Vec<_>>(), [b3, b1, b2]);
+    }
+
+    #[test]
+    fn test_module_is_empty() {
+        let mut module = Module::new(types::ModuleId(0));
+
+        assert!(module.is_empty());
+
+        module.types.push(types::TypeId(0));
+        assert!(!module.is_empty());
+        module.types.clear();
+
+        module.constants.push(types::ConstantId(0));
+        assert!(!module.is_empty());
+        module.constants.clear();
+
+        module.methods.push(types::MethodId(0));
+        assert!(!module.is_empty());
     }
 }

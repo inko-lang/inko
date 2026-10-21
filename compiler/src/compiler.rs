@@ -349,6 +349,10 @@ impl Compiler {
         mir.sort(&self.state.db, &symbols);
         self.optimise_mir(&mut mir);
 
+        // After splitting modules and running optimizations we may end up with
+        // one or more empty modules that serve no purpose.
+        mir.remove_empty_modules();
+
         if self.state.config.verify {
             mir.verify(&self.state.db, &symbols)?;
         }
