@@ -1,0 +1,23 @@
+fn example1(value: InlineArray[Int, 2]) {
+  match value {
+    case [_a, _b] -> {}
+  }
+}
+
+fn example2(value: InlineArray[Int, 2]) {
+  match value {
+    case [_a, _b] -> {}
+    case _ -> {}
+  }
+}
+
+fn example3(value: InlineArray[Int, 2]) {
+  match value {
+    case [100, 200] -> {}
+    case [_a, _b] -> {}
+    case _ -> {}
+  }
+}
+
+# inline_array_patterns.inko:10:5 warning(unreachable): this code is unreachable
+# inline_array_patterns.inko:18:5 warning(unreachable): this code is unreachable

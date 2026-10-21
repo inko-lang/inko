@@ -259,17 +259,14 @@ fn pub tests(t: mut Tests) {
 
     match ref owned {
       case [_] -> {}
-      case _ -> {}
     }
 
     match mut owned {
       case [_] -> {}
-      case _ -> {}
     }
 
     match owned {
       case [_] -> {}
-      case _ -> {}
     }
 
     t.equal(val.dropped, 1)

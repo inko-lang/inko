@@ -3391,7 +3391,7 @@ impl<'a> LowerMethod<'a> {
                     state,
                     test,
                     cases,
-                    *fallback,
+                    fallback,
                     parent_block,
                     registers,
                 )
@@ -3895,7 +3895,7 @@ impl<'a> LowerMethod<'a> {
         state: &mut DecisionState,
         test_reg: RegisterId,
         cases: Vec<pmatch::Case>,
-        fallback: pmatch::Decision,
+        fallback: Option<Box<pmatch::Decision>>,
         parent_block: BlockId,
         mut registers: Vec<RegisterId>,
     ) -> BlockId {
@@ -3912,28 +3912,26 @@ impl<'a> LowerMethod<'a> {
         let tid = ins.instance_of();
         let is_array_slice =
             tid == self.db().type_in_module(ARRAY_MODULE, ARRAY_SLICE_TYPE);
-        let targs = if tid == TypeId::array()
-            || tid == TypeId::inline_array()
-            || is_array_slice
-        {
-            self.mir.add_type_arguments(
-                ins.type_arguments(self.db()).unwrap().clone(),
-            )
-        } else {
-            // We're matching against a ByteArray.
-            None
-        };
-        let get_name = if tid == TypeId::array()
-            || tid == TypeId::inline_array()
-            || is_array_slice
-        {
-            ARRAY_READ
-        } else if tid == self.db().type_in_module(BYTES_MODULE, BYTE_ARRAY_TYPE)
-        {
-            BYTE_ARRAY_READ
-        } else {
-            unreachable!()
-        };
+        let is_inline_array = tid == TypeId::inline_array();
+        let targs =
+            if tid == TypeId::array() || is_inline_array || is_array_slice {
+                self.mir.add_type_arguments(
+                    ins.type_arguments(self.db()).unwrap().clone(),
+                )
+            } else {
+                // We're matching against a ByteArray.
+                None
+            };
+        let get_name =
+            if tid == TypeId::array() || is_inline_array || is_array_slice {
+                ARRAY_READ
+            } else if tid
+                == self.db().type_in_module(BYTES_MODULE, BYTE_ARRAY_TYPE)
+            {
+                BYTE_ARRAY_READ
+            } else {
+                unreachable!()
+            };
 
         let get_meth = tid.method(self.db(), get_name).unwrap();
         let len_reg = self.new_untracked_register(TypeRef::int());
@@ -3982,17 +3980,22 @@ impl<'a> LowerMethod<'a> {
             self.decision(state, case.node, block, case_registers);
         }
 
-        let else_block = self.decision(state, fallback, test_block, registers);
+        // For inline arrays the pattern size must match the input size at
+        // compile-time, so we can/should always dispatch to the first block as
+        // all other ones are redundant.
+        if is_inline_array {
+            self.block_mut(test_block).goto(blocks[0].1, loc);
+        } else {
+            let ary_len = tid.method(self.db(), ARRAY_SIZE).unwrap();
+            let args = Vec::new();
+            let else_block =
+                self.decision(state, *fallback.unwrap(), test_block, registers);
 
-        // InlineArray doesn't have a size field, so we just use the `size`
-        // method for all types.
-        let ary_len = tid.method(self.db(), ARRAY_SIZE).unwrap();
-        let args = Vec::new();
-
-        self.block_mut(test_block)
-            .call_instance(len_reg, test_reg, ary_len, args, None, loc);
-        self.block_mut(test_block)
-            .switch_with_fallback(len_reg, blocks, else_block, loc);
+            self.block_mut(test_block)
+                .call_instance(len_reg, test_reg, ary_len, args, None, loc);
+            self.block_mut(test_block)
+                .switch_with_fallback(len_reg, blocks, else_block, loc);
+        }
 
         test_block
     }

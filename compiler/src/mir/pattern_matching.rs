@@ -126,7 +126,9 @@ fn add_missing_patterns(
                 terms.pop();
             }
 
-            add_missing_patterns(db, fallback, terms, missing);
+            if let Some(node) = fallback {
+                add_missing_patterns(db, node, terms, missing);
+            }
         }
     }
 }
@@ -226,6 +228,9 @@ enum Type {
 
     /// An array of some type T.
     Array(TypeRef),
+
+    /// A fixed-size, inline array of some type T.
+    InlineArray(TypeRef),
 
     /// An enum.
     Enum(Vec<RawCase>),
@@ -514,7 +519,7 @@ pub(crate) enum Decision {
     ///    `Constructor::Array` with the corresponding number of values as its
     ///    argument
     /// 3. A fallback decision to take for inputs of an unknown size
-    SwitchArray(Variable, Vec<Case>, Box<Decision>),
+    SwitchArray(Variable, Vec<Case>, Option<Box<Decision>>),
 }
 
 /// Information about a single constructor/value (aka term) being tested, used
@@ -687,7 +692,12 @@ impl<'a> Compiler<'a> {
 
                 Decision::Switch(branch_var, cases, Some(fallback))
             }
-            Type::Array(t) => self.compile_array_cases(t, rows, branch_var),
+            Type::Array(t) => {
+                self.compile_array_cases(t, rows, branch_var, true)
+            }
+            Type::InlineArray(t) => {
+                self.compile_array_cases(t, rows, branch_var, false)
+            }
             Type::Regular(cases) => Decision::Switch(
                 branch_var,
                 self.compile_regular_type_cases(rows, branch_var, cases),
@@ -871,6 +881,7 @@ impl<'a> Compiler<'a> {
         value_type: TypeRef,
         rows: Vec<Row>,
         branch_var: Variable,
+        infinite: bool,
     ) -> Decision {
         let mut raw_cases: Vec<(Constructor, Vec<Variable>, Vec<Row>)> =
             Vec::new();
@@ -886,7 +897,10 @@ impl<'a> Compiler<'a> {
                     rows.push(row.clone());
                 }
 
-                fallback_rows.push(row);
+                if infinite {
+                    fallback_rows.push(row);
+                }
+
                 continue;
             };
 
@@ -905,8 +919,10 @@ impl<'a> Compiler<'a> {
             } else {
                 let idx = raw_cases.len();
                 let cvars = vars[0..args.len()].to_vec();
+                let fallback =
+                    if infinite { fallback_rows.clone() } else { Vec::new() };
 
-                raw_cases.push((cons, cvars, fallback_rows.clone()));
+                raw_cases.push((cons, cvars, fallback));
                 indexes.insert(key, idx);
                 &mut raw_cases[idx]
             };
@@ -924,7 +940,12 @@ impl<'a> Compiler<'a> {
             .into_iter()
             .map(|(c, v, r)| Case::new(c, v, self.compile_rows(r)))
             .collect();
-        let fallback = Box::new(self.compile_rows(fallback_rows));
+
+        let fallback = if infinite {
+            Some(Box::new(self.compile_rows(fallback_rows)))
+        } else {
+            None
+        };
 
         Decision::SwitchArray(branch_var, cases, fallback)
     }
@@ -1005,7 +1026,11 @@ impl<'a> Compiler<'a> {
                         .resolve(raw)
                         .cast_according_to(self.db(), typ);
 
-                Type::Array(new)
+                if type_id.0 == INLINE_ARRAY_ID {
+                    Type::InlineArray(new)
+                } else {
+                    Type::Array(new)
+                }
             }
             _ if type_id
                 == self.db().type_in_module(BYTES_MODULE, BYTE_ARRAY_TYPE) =>
@@ -2656,10 +2681,148 @@ mod tests {
                         )
                     ),
                 ],
-                Box::new(success_with_bindings(
+                Some(Box::new(success_with_bindings(
                     vec![Binding::Ignored(input)],
                     BlockId(10)
-                ))
+                )))
+            )
+        );
+    }
+
+    #[test]
+    fn test_simple_inline_array_pattern() {
+        let mut state = state();
+        let mut compiler = compiler(&mut state);
+
+        // The input of type InlineArray[Bool].
+        let vpar = TypeId::inline_array()
+            .new_type_parameter(compiler.db_mut(), "T".to_string());
+        let lpar = TypeId::inline_array()
+            .new_type_parameter(compiler.db_mut(), "N".to_string());
+
+        lpar.set_int(compiler.db_mut());
+
+        let mut targs = TypeArguments::new();
+
+        targs.assign(vpar, TypeRef::boolean());
+        targs.assign(lpar, TypeRef::Int(2));
+
+        let ints =
+            TypeRef::Owned(TypeEnum::TypeInstance(TypeInstance::generic(
+                compiler.db_mut(),
+                TypeId::inline_array(),
+                targs,
+            )));
+        let input = compiler.new_variable(ints);
+        let result = compiler.compile(rules(
+            input,
+            vec![
+                (Pattern::Array(vec![tt(), tt()]), BlockId(2)),
+                (Pattern::Wildcard, BlockId(10)),
+            ],
+        ));
+
+        assert_eq!(result.missing, false);
+        assert_eq!(
+            result.tree,
+            Decision::SwitchArray(
+                input,
+                vec![Case::new(
+                    Constructor::Array(2),
+                    vec![Variable(1), Variable(2)],
+                    Decision::Switch(
+                        Variable(2),
+                        vec![
+                            Case::new(
+                                Constructor::False,
+                                Vec::new(),
+                                success_with_bindings(
+                                    vec![Binding::Ignored(input)],
+                                    BlockId(10)
+                                ),
+                            ),
+                            Case::new(
+                                Constructor::True,
+                                Vec::new(),
+                                Decision::Switch(
+                                    Variable(1),
+                                    vec![
+                                        Case::new(
+                                            Constructor::False,
+                                            Vec::new(),
+                                            success_with_bindings(
+                                                vec![Binding::Ignored(input)],
+                                                BlockId(10)
+                                            ),
+                                        ),
+                                        Case::new(
+                                            Constructor::True,
+                                            Vec::new(),
+                                            success(BlockId(2)),
+                                        ),
+                                    ],
+                                    None
+                                ),
+                            ),
+                        ],
+                        None,
+                    )
+                ),],
+                None
+            )
+        );
+    }
+
+    #[test]
+    fn test_inline_array_pattern_without_fallback() {
+        let mut state = state();
+        let mut compiler = compiler(&mut state);
+
+        // The input of type InlineArray[Bool].
+        let vpar = TypeId::inline_array()
+            .new_type_parameter(compiler.db_mut(), "T".to_string());
+        let lpar = TypeId::inline_array()
+            .new_type_parameter(compiler.db_mut(), "N".to_string());
+
+        lpar.set_int(compiler.db_mut());
+
+        let mut targs = TypeArguments::new();
+
+        targs.assign(vpar, TypeRef::boolean());
+        targs.assign(lpar, TypeRef::Int(2));
+
+        let ints =
+            TypeRef::Owned(TypeEnum::TypeInstance(TypeInstance::generic(
+                compiler.db_mut(),
+                TypeId::inline_array(),
+                targs,
+            )));
+        let input = compiler.new_variable(ints);
+        let result = compiler.compile(rules(
+            input,
+            vec![(
+                Pattern::Array(vec![Pattern::Wildcard, Pattern::Wildcard]),
+                BlockId(10),
+            )],
+        ));
+
+        assert_eq!(result.missing, false);
+        assert_eq!(
+            result.tree,
+            Decision::SwitchArray(
+                input,
+                vec![Case::new(
+                    Constructor::Array(2),
+                    vec![Variable(1), Variable(2)],
+                    success_with_bindings(
+                        vec![
+                            Binding::Ignored(Variable(1)),
+                            Binding::Ignored(Variable(2))
+                        ],
+                        BlockId(10)
+                    )
+                )],
+                None
             )
         );
     }
