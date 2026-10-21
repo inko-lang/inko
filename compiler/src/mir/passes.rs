@@ -17,13 +17,14 @@ use std::str::FromStr;
 use types::format::format_type;
 use types::module_name::ModuleName;
 use types::{
-    self, ARRAY_READ, ARRAY_SIZE, ASYNC_DROPPER_METHOD, BOOL_ID,
-    BYTE_ARRAY_READ, BYTE_ARRAY_TYPE, BYTES_MODULE, Block as _, ConstantId,
-    DROPPER_METHOD, ENUM_TAG_INDEX, EQUALS_METHOD, FieldId,
-    INLINE_ARRAY_DECREMENT_METHOD, INLINE_ARRAY_INCREMENT_METHOD, INT_ID,
-    Inline, MethodId, ModuleId, OPTION_NONE, OPTION_SOME, RESULT_ERROR,
-    RESULT_MODULE, RESULT_OK, RESULT_TYPE, STRING_ID, Symbol, TypeArguments,
-    TypeBounds, TypeId, TypeRef, VerificationError,
+    self, ARRAY_MODULE, ARRAY_READ, ARRAY_SIZE, ARRAY_SLICE_TYPE,
+    ASYNC_DROPPER_METHOD, BOOL_ID, BYTE_ARRAY_READ, BYTE_ARRAY_TYPE,
+    BYTES_MODULE, Block as _, ConstantId, DROPPER_METHOD, ENUM_TAG_INDEX,
+    EQUALS_METHOD, FieldId, INLINE_ARRAY_DECREMENT_METHOD,
+    INLINE_ARRAY_INCREMENT_METHOD, INT_ID, Inline, MethodId, ModuleId,
+    OPTION_NONE, OPTION_SOME, RESULT_ERROR, RESULT_MODULE, RESULT_OK,
+    RESULT_TYPE, STRING_ID, Symbol, TypeArguments, TypeBounds, TypeId, TypeRef,
+    VerificationError,
 };
 
 const SELF_NAME: &str = "self";
@@ -352,6 +353,11 @@ enum RegisterAction {
     Increment(RegisterId, bool),
 }
 
+enum DropMatchArray {
+    Size(TypeId, FieldId),
+    Drop,
+}
+
 struct DecisionState {
     /// The register to write the results of a case body to.
     output: RegisterId,
@@ -363,12 +369,8 @@ struct DecisionState {
     /// the variables.
     registers: Vec<RegisterId>,
 
-    /// Match values for which the size should be set to zero, and the value
-    /// should be dropped using the regular dropper.
-    ///
-    /// This is used for e.g. matching against arrays as we still need to
-    /// deallocate the array's buffer.
-    drop_with_zero_size: HashMap<RegisterId, (TypeId, FieldId)>,
+    /// How arrays matched against should be dropped.
+    drop_array: HashMap<RegisterId, DropMatchArray>,
 
     /// The action to take per register when destructuring a value.
     actions: HashMap<RegisterId, RegisterAction>,
@@ -421,7 +423,7 @@ impl DecisionState {
             output,
             after_block,
             registers: Vec::new(),
-            drop_with_zero_size: HashMap::new(),
+            drop_array: HashMap::new(),
             child_registers: HashMap::new(),
             actions: HashMap::new(),
             bodies: IndexMap::new(),
@@ -3580,14 +3582,21 @@ impl<'a> LowerMethod<'a> {
 
             self.mark_register_as_moved(reg);
 
-            if let Some(&(typ, field)) = state.drop_with_zero_size.get(&reg) {
-                let zero = self.new_untracked_register(TypeRef::int());
+            match state.drop_array.get(&reg) {
+                Some(&DropMatchArray::Size(typ, field)) => {
+                    let zero = self.new_untracked_register(TypeRef::int());
 
-                self.current_block_mut().i64_literal(zero, 0, loc);
-                self.current_block_mut().set_field(reg, typ, field, zero, loc);
-                self.current_block_mut().drop(reg, loc);
-            } else {
-                self.current_block_mut().drop_without_dropper(reg, loc);
+                    self.current_block_mut().i64_literal(zero, 0, loc);
+                    self.current_block_mut()
+                        .set_field(reg, typ, field, zero, loc);
+                    self.current_block_mut().drop(reg, loc);
+                }
+                Some(DropMatchArray::Drop) => {
+                    self.current_block_mut().drop(reg, loc);
+                }
+                _ => {
+                    self.current_block_mut().drop_without_dropper(reg, loc);
+                }
             }
         }
     }
@@ -3901,7 +3910,12 @@ impl<'a> LowerMethod<'a> {
         let owned = test_type.is_owned_or_uni(self.db());
         let ins = test_type.as_type_instance(self.db()).unwrap();
         let tid = ins.instance_of();
-        let targs = if tid == TypeId::array() || tid == TypeId::inline_array() {
+        let is_array_slice =
+            tid == self.db().type_in_module(ARRAY_MODULE, ARRAY_SLICE_TYPE);
+        let targs = if tid == TypeId::array()
+            || tid == TypeId::inline_array()
+            || is_array_slice
+        {
             self.mir.add_type_arguments(
                 ins.type_arguments(self.db()).unwrap().clone(),
             )
@@ -3911,6 +3925,7 @@ impl<'a> LowerMethod<'a> {
         };
         let get_name = if tid == TypeId::array()
             || tid == TypeId::inline_array()
+            || is_array_slice
         {
             ARRAY_READ
         } else if tid == self.db().type_in_module(BYTES_MODULE, BYTE_ARRAY_TYPE)
@@ -3931,7 +3946,9 @@ impl<'a> LowerMethod<'a> {
         if let Some(f) = tid.field(self.db(), ARRAY_SIZE)
             && owned
         {
-            state.drop_with_zero_size.insert(test_reg, (tid, f));
+            state.drop_array.insert(test_reg, DropMatchArray::Size(tid, f));
+        } else if is_array_slice && owned {
+            state.drop_array.insert(test_reg, DropMatchArray::Drop);
         }
 
         for case in cases {
@@ -3947,7 +3964,7 @@ impl<'a> LowerMethod<'a> {
 
             for (idx, arg) in case.arguments.into_iter().enumerate() {
                 let reg = state.registers[arg.0];
-                let action = if owned {
+                let action = if owned && !is_array_slice {
                     RegisterAction::Move(test_reg)
                 } else {
                     RegisterAction::Increment(test_reg, true)

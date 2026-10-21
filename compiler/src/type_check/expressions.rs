@@ -13,13 +13,13 @@ use types::check::{Environment, TypeChecker};
 use types::format::{TypeFormatter, format_type, format_type_with_arguments};
 use types::resolve::TypeResolver;
 use types::{
-    BYTE_ARRAY_TYPE, BYTES_MODULE, Block, CALL_METHOD, CallInfo, CallKind,
-    Closure, ClosureCallInfo, ClosureId, ConstantKind, ConstantPatternKind,
-    DEREF_POINTER_FIELD, Database, FieldId, FieldInfo, IGNORE_VARIABLE,
-    IdentifierKind, IntrinsicCall, MethodId, MethodLookup, ModuleId, Receiver,
-    SELF_TYPE, SLICE_TYPE, Sendability, Sign, Symbol, ThrowKind, TraitInstance,
-    TypeArguments, TypeBounds, TypeEnum, TypeId, TypeInstance, TypeRef,
-    Variable, VariableId,
+    ARRAY_MODULE, ARRAY_SLICE_TYPE, BYTE_ARRAY_TYPE, BYTES_MODULE, Block,
+    CALL_METHOD, CallInfo, CallKind, Closure, ClosureCallInfo, ClosureId,
+    ConstantKind, ConstantPatternKind, DEREF_POINTER_FIELD, Database, FieldId,
+    FieldInfo, IGNORE_VARIABLE, IdentifierKind, IntrinsicCall, MethodId,
+    MethodLookup, ModuleId, Receiver, SELF_TYPE, SLICE_TYPE, Sendability, Sign,
+    Symbol, ThrowKind, TraitInstance, TypeArguments, TypeBounds, TypeEnum,
+    TypeId, TypeInstance, TypeRef, Variable, VariableId,
 };
 
 /// The maximum number of methods that a single type can define.
@@ -2038,12 +2038,21 @@ impl<'a> CheckMethodBody<'a> {
             {
                 TypeRef::int()
             }
+            Some(ins)
+                if ins.instance_of()
+                    == self
+                        .db()
+                        .type_in_module(ARRAY_MODULE, ARRAY_SLICE_TYPE) =>
+            {
+                ins.first_type_argument(self.db()).as_ref(self.db())
+            }
             _ => {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidType,
                     format!(
-                        "this pattern expects an 'Array', 'InlineArray' \
-                        or 'ByteArray', but the input type is '{}'",
+                        "this pattern expects an 'Array', 'InlineArray', \
+                        'ByteArray or an 'Array' slice, but the input type \
+                        is '{}'",
                         format_type(self.db(), value_type),
                     ),
                     self.file(),

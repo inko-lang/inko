@@ -24,9 +24,10 @@ use crate::state::State;
 use std::collections::{HashMap, HashSet};
 use types::resolve::TypeResolver;
 use types::{
-    ARRAY_ID, BOOL_ID, BYTE_ARRAY_TYPE, BYTES_MODULE, ConstructorId, Database,
-    FieldId, INLINE_ARRAY_ID, INT_ID, SLICE_TYPE, STRING_ID, TypeArguments,
-    TypeBounds, TypeEnum, TypeInstance, TypeKind, TypeRef, VariableId,
+    ARRAY_ID, ARRAY_MODULE, ARRAY_SLICE_TYPE, BOOL_ID, BYTE_ARRAY_TYPE,
+    BYTES_MODULE, ConstructorId, Database, FieldId, INLINE_ARRAY_ID, INT_ID,
+    SLICE_TYPE, STRING_ID, TypeArguments, TypeBounds, TypeEnum, TypeInstance,
+    TypeKind, TypeRef, VariableId,
 };
 
 fn add_constructor_pattern(
@@ -1011,6 +1012,22 @@ impl<'a> Compiler<'a> {
             {
                 Type::Array(TypeRef::int())
             }
+            // `std.array.Slice` is treated the same as regular arrays.
+            _ if type_id
+                == self.db().type_in_module(ARRAY_MODULE, ARRAY_SLICE_TYPE) =>
+            {
+                let args = type_ins.type_arguments(self.db()).unwrap().clone();
+                let raw = type_ins.first_type_argument(self.db());
+
+                // `std.array.Slice` always borrows upon indexing and doesn't
+                // support moving out of the underlying array.
+                let new =
+                    TypeResolver::new(&mut self.state.db, &args, &self.bounds)
+                        .resolve(raw)
+                        .as_ref(&self.state.db);
+
+                Type::Array(new)
+            }
             // Slice[String] is treated as a String for the purpose of pattern
             // matching.
             _ if type_id
@@ -1099,6 +1116,11 @@ mod tests {
             ModuleName::new(BYTES_MODULE),
             "bytes.inko".into(),
         );
+        let amod = Module::alloc(
+            &mut state.db,
+            ModuleName::new(ARRAY_MODULE),
+            "array.inko".into(),
+        );
 
         for name in [BYTE_ARRAY_TYPE, SLICE_TYPE] {
             let vis = Visibility::Public;
@@ -1108,6 +1130,18 @@ mod tests {
             let typ =
                 Type::alloc(&mut state.db, name.clone(), kind, vis, bmod, loc);
             bmod.new_symbol(&mut state.db, name, Symbol::Type(typ));
+        }
+
+        // Set up the `std.array.Slice` type.
+        {
+            let vis = Visibility::Public;
+            let kind = TypeKind::Regular;
+            let loc = Location::default();
+            let name = ARRAY_SLICE_TYPE.to_string();
+            let typ =
+                Type::alloc(&mut state.db, name.clone(), kind, vis, bmod, loc);
+
+            amod.new_symbol(&mut state.db, name, Symbol::Type(typ));
         }
 
         state

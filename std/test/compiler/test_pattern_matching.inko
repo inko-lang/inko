@@ -340,4 +340,30 @@ fn pub tests(t: mut Tests) {
       }
     },
   )
+
+  t.test('Pattern matching against owned array slices', fn (t) {
+    let a = [Value(10), Value(20), Value(30), Value(40)]
+    let res = match a.slice(1, 3) {
+      case [] -> 0
+      case [_] -> 1
+      case [{ @dropped = 20 }, { @dropped = 30 }] -> 2
+      case [_, _, _] -> 3
+      case _ -> 4
+    }
+
+    t.equal(res, 2)
+  })
+
+  t.test('Pattern matching against borrowed array slices', fn (t) {
+    let a = [Value(10), Value(20), Value(30), Value(40)]
+    let res = match ref a.slice(1, 3) {
+      case [] -> 0
+      case [_] -> 1
+      case [{ @dropped = 20 }, { @dropped = 30 }] -> 2
+      case [_, _, _] -> 3
+      case _ -> 4
+    }
+
+    t.equal(res, 2)
+  })
 }

@@ -204,7 +204,7 @@ type pub inline Slice[T] {
     let off = @start + index
 
     if index >= 0 and index < size and off >= 0 and off < @source.size {
-      Result.Ok(@source.get_unchecked(off))
+      Result.Ok(get_unchecked(off))
     } else {
       Result.Error(OutOfBounds.new(index, size))
     }
@@ -282,6 +282,15 @@ type pub inline Slice[T] {
   fn pub last -> Option[ref T] {
     get(size - 1).ok
   }
+
+  fn inline get_unchecked(index: Int) -> ref T {
+    @source.get_unchecked(index)
+  }
+
+  # This method is used when pattern matching against slices.
+  fn inline read_from(index: Int) -> T {
+    @source.read_from(@start + index)
+  }
 }
 
 impl Slice if T: Clone {
@@ -298,7 +307,7 @@ impl Slice if T: Clone {
     let max = size
 
     while idx < max {
-      vals.push(@source.get_unchecked(@start + (idx := idx + 1)).clone)
+      vals.push(get_unchecked(@start + (idx := idx + 1)).clone)
     }
 
     vals
