@@ -398,7 +398,7 @@ fn pub tests(t: mut Tests) {
     let rng = Random.from_int(42)
     let input = ByteArray.filled(with: 0, times: 2)
 
-    big.write_i16(9999, into: input, at: 0)
+    big.write_u16(9999, into: input, at: 0)
 
     let io = Stream.new(input)
     let sock = Websocket.server(mut io, rng, protocol: Option.None)
@@ -418,7 +418,7 @@ fn pub tests(t: mut Tests) {
     let rng = Random.from_int(42)
     let input = ByteArray.filled(with: 0, times: 2)
 
-    big.write_i16(1000, into: input, at: 0)
+    big.write_u16(1000, into: input, at: 0)
     input.push(255)
     input.push(255)
 

@@ -718,7 +718,7 @@ type pub Websocket[
     if payload.size == 1 {
       err = Option.Some(Close.protocol_error)
     } else if payload.size >= 2 {
-      match big.read_i16(from: payload, at: 0) {
+      match big.read_u16(from: payload, at: 0) {
         case n if n >= 1000 and n <= 1003 -> {}
         case n if n >= 1007 and n <= 1011 -> {}
         case n if n >= 3000 and n <= 4999 -> {}
@@ -792,7 +792,7 @@ type pub Websocket[
     let key = build_frame_header(Opcode.Close, len)
 
     @buffer.resize(@buffer.size + len, value: 0)
-    big.write_i16(code.value, into: @buffer, at: @buffer.size - len)
+    big.write_u16(code.value, into: @buffer, at: @buffer.size - len)
 
     # We do this so we can avoid allocating a ByteArray just to encode the
     # closing code.
@@ -825,17 +825,17 @@ type pub Websocket[
     } else if size <= 65_535 {
       @buffer.push(126 | masked)
       @buffer.resize(@buffer.size + 2, value: 0)
-      big.write_i16(size, into: @buffer, at: @buffer.size - 2)
+      big.write_u16(size, into: @buffer, at: @buffer.size - 2)
     } else {
       @buffer.push(127 | masked)
       @buffer.resize(@buffer.size + 8, value: 0)
-      big.write_i64(size, into: @buffer, at: @buffer.size - 8)
+      big.write_u64(size, into: @buffer, at: @buffer.size - 8)
     }
 
     if @role.client? {
       @random.bytes(into: @buffer, size: 4)
 
-      let key = big.read_i32(from: @buffer, at: @buffer.size - 4)
+      let key = big.read_u32(from: @buffer, at: @buffer.size - 4)
 
       key
     } else {
@@ -1006,12 +1006,12 @@ type inline FrameHeader {
       case 126 -> {
         let _ = try read_exact_from(input, into: buffer, size: 2)
 
-        big.read_i16(buffer, at: 2)
+        big.read_u16(buffer, at: 2)
       }
       case 127 -> {
         let _ = try read_exact_from(input, into: buffer, size: 8)
 
-        big.read_i64(buffer, at: 2)
+        big.read_u64(buffer, at: 2)
       }
       case len -> len
     }
@@ -1025,7 +1025,7 @@ type inline FrameHeader {
     let key = if masked {
       try read_exact_from(input, into: buffer, size: 4)
 
-      let key = big.read_i32(from: buffer, at: 0)
+      let key = big.read_u32(from: buffer, at: 0)
 
       buffer.clear
       key

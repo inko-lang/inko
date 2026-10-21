@@ -73,7 +73,7 @@ type pub Random {
   fn pub static from_int(value: Int) -> Self {
     let seed = ByteArray.filled(with: 0, times: SEED_SIZE)
 
-    little.write_i64(value, into: seed, at: 0)
+    little.write_u64(value, into: seed, at: 0)
     with_seed(seed)
   }
 
@@ -140,7 +140,7 @@ type pub Random {
     if BUFFER_SIZE - @index < 8 { refill }
 
     let idx = @index := @index.wrapping_add(8)
-    let val = little.read_i64(@buffer, at: idx)
+    let val = little.read_u64(@buffer, at: idx)
 
     zero(idx, size: 8)
     val
@@ -257,7 +257,7 @@ type pub Random {
       for i in 4.until(12) {
         let idx = i.wrapping_sub(4).wrapping_mul(4)
 
-        @cipher.matrix.words.set(i, little.read_i32(from: @buffer, at: idx))
+        @cipher.matrix.words.set(i, little.read_u32(from: @buffer, at: idx))
       }
 
       zero(index: 0, size: SEED_SIZE)

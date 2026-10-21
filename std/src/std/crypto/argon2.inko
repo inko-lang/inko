@@ -550,12 +550,12 @@ type pub Argon2 {
     h0.resize(size: h0.size + 8, value: 0)
 
     for row in 0.until(@parallel) {
-      little.write_i32(0, into: h0, at: 64)
-      little.write_i32(row, into: h0, at: 68)
+      little.write_u32(0, into: h0, at: 64)
+      little.write_u32(row, into: h0, at: 68)
       variable_hash(h0.to_slice, bytes(row, column: 0))
 
-      little.write_i32(1, into: h0, at: 64)
-      little.write_i32(row, into: h0, at: 68)
+      little.write_u32(1, into: h0, at: 64)
+      little.write_u32(row, into: h0, at: 68)
       variable_hash(h0.to_slice, bytes(row, column: 1))
     }
 
@@ -603,7 +603,7 @@ type pub Argon2 {
   }
 
   fn inline mut hash_i32(hasher: mut Blake2b, value: Int) {
-    little.write_i32(value, into: @buf, at: 0)
+    little.write_u32(value, into: @buf, at: 0)
     hasher.write(@buf)
   }
 

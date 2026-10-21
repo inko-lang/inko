@@ -77,31 +77,31 @@ fn pub hchacha20(key: ref ByteArray, nonce: ref ByteArray) -> ByteArray {
       0x3320646E,
       0x79622D32,
       0x6B206574,
-      little.read_i32(from: key, at: 0),
-      little.read_i32(from: key, at: 4),
-      little.read_i32(from: key, at: 8),
-      little.read_i32(from: key, at: 12),
-      little.read_i32(from: key, at: 16),
-      little.read_i32(from: key, at: 20),
-      little.read_i32(from: key, at: 24),
-      little.read_i32(from: key, at: 28),
-      little.read_i32(from: nonce, at: 0),
-      little.read_i32(from: nonce, at: 4),
-      little.read_i32(from: nonce, at: 8),
-      little.read_i32(from: nonce, at: 12),
+      little.read_u32(from: key, at: 0),
+      little.read_u32(from: key, at: 4),
+      little.read_u32(from: key, at: 8),
+      little.read_u32(from: key, at: 12),
+      little.read_u32(from: key, at: 16),
+      little.read_u32(from: key, at: 20),
+      little.read_u32(from: key, at: 24),
+      little.read_u32(from: key, at: 28),
+      little.read_u32(from: nonce, at: 0),
+      little.read_u32(from: nonce, at: 4),
+      little.read_u32(from: nonce, at: 8),
+      little.read_u32(from: nonce, at: 12),
     ],
     iters: CHACHA20_ITERS,
   )
 
   matrix.perform_rounds
-  little.write_i32(matrix.words.get(0).or_panic, into: out, at: 0)
-  little.write_i32(matrix.words.get(1).or_panic, into: out, at: 4)
-  little.write_i32(matrix.words.get(2).or_panic, into: out, at: 8)
-  little.write_i32(matrix.words.get(3).or_panic, into: out, at: 12)
-  little.write_i32(matrix.words.get(12).or_panic, into: out, at: 16)
-  little.write_i32(matrix.words.get(13).or_panic, into: out, at: 20)
-  little.write_i32(matrix.words.get(14).or_panic, into: out, at: 24)
-  little.write_i32(matrix.words.get(15).or_panic, into: out, at: 28)
+  little.write_u32(matrix.words.get(0).or_panic, into: out, at: 0)
+  little.write_u32(matrix.words.get(1).or_panic, into: out, at: 4)
+  little.write_u32(matrix.words.get(2).or_panic, into: out, at: 8)
+  little.write_u32(matrix.words.get(3).or_panic, into: out, at: 12)
+  little.write_u32(matrix.words.get(12).or_panic, into: out, at: 16)
+  little.write_u32(matrix.words.get(13).or_panic, into: out, at: 20)
+  little.write_u32(matrix.words.get(14).or_panic, into: out, at: 24)
+  little.write_u32(matrix.words.get(15).or_panic, into: out, at: 28)
   out
 }
 
@@ -242,18 +242,18 @@ type pub inline ChaCha {
           0x3320646E,
           0x79622D32,
           0x6B206574,
-          little.read_i32(from: key, at: 0),
-          little.read_i32(from: key, at: 4),
-          little.read_i32(from: key, at: 8),
-          little.read_i32(from: key, at: 12),
-          little.read_i32(from: key, at: 16),
-          little.read_i32(from: key, at: 20),
-          little.read_i32(from: key, at: 24),
-          little.read_i32(from: key, at: 28),
+          little.read_u32(from: key, at: 0),
+          little.read_u32(from: key, at: 4),
+          little.read_u32(from: key, at: 8),
+          little.read_u32(from: key, at: 12),
+          little.read_u32(from: key, at: 16),
+          little.read_u32(from: key, at: 20),
+          little.read_u32(from: key, at: 24),
+          little.read_u32(from: key, at: 28),
           DEFAULT_COUNTER,
-          little.read_i32(from: nonce, at: 0),
-          little.read_i32(from: nonce, at: 4),
-          little.read_i32(from: nonce, at: 8),
+          little.read_u32(from: nonce, at: 0),
+          little.read_u32(from: nonce, at: 4),
+          little.read_u32(from: nonce, at: 8),
         ],
         iters: iterations,
       ),
@@ -378,7 +378,7 @@ type pub inline ChaCha {
 
       while i < MATRIX_SIZE {
         @tmp.set(i, to_u32(@tmp.get(i).wrapping_add(@matrix.get(i))))
-        little.write_i32(@tmp.get(i), into: @buffer, at: i.wrapping_mul(4))
+        little.write_u32(@tmp.get(i), into: @buffer, at: i.wrapping_mul(4))
         i = i.wrapping_add(1)
       }
 
@@ -487,18 +487,18 @@ type pub inline XChaCha {
             0x3320646E,
             0x79622D32,
             0x6B206574,
-            little.read_i32(from: sub_key, at: 0),
-            little.read_i32(from: sub_key, at: 4),
-            little.read_i32(from: sub_key, at: 8),
-            little.read_i32(from: sub_key, at: 12),
-            little.read_i32(from: sub_key, at: 16),
-            little.read_i32(from: sub_key, at: 20),
-            little.read_i32(from: sub_key, at: 24),
-            little.read_i32(from: sub_key, at: 28),
+            little.read_u32(from: sub_key, at: 0),
+            little.read_u32(from: sub_key, at: 4),
+            little.read_u32(from: sub_key, at: 8),
+            little.read_u32(from: sub_key, at: 12),
+            little.read_u32(from: sub_key, at: 16),
+            little.read_u32(from: sub_key, at: 20),
+            little.read_u32(from: sub_key, at: 24),
+            little.read_u32(from: sub_key, at: 28),
             DEFAULT_COUNTER,
             0,
-            little.read_i32(from: nonce, at: 16),
-            little.read_i32(from: nonce, at: 20),
+            little.read_u32(from: nonce, at: 16),
+            little.read_u32(from: nonce, at: 20),
           ],
           iters: CHACHA20_ITERS,
         ),

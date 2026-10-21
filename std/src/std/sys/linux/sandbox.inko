@@ -55,14 +55,14 @@ fn elf_interpreter(path: ref Path) -> Option[Path] {
   let Ok(_) = reader.read_exact(into: data, size: 64) else return Option.None
 
   # The ELF magic word.
-  if little.read_i32(data, at: 0) != 0x464C457F { return Option.None }
+  if little.read_u32(data, at: 0) != 0x464C457F { return Option.None }
 
   # We only support 64 bits little-endian systems.
-  if little.read_i16(data, at: 4) != 0x102 { return Option.None }
+  if little.read_u16(data, at: 4) != 0x102 { return Option.None }
 
-  let e_phoff = little.read_i64(data, at: 32)
-  let e_phentsize = little.read_i16(data, at: 54)
-  let e_phnum = little.read_i16(data, at: 56)
+  let e_phoff = little.read_u64(data, at: 32)
+  let e_phentsize = little.read_u16(data, at: 54)
+  let e_phnum = little.read_u16(data, at: 56)
 
   # If this is zero there's no program table header.
   if e_phoff == 0 { return Option.None }
@@ -76,10 +76,10 @@ fn elf_interpreter(path: ref Path) -> Option[Path] {
     let Ok(_) = reader.read_exact(data, e_phentsize) else return Option.None
 
     # We're only interested in PT_INTERP.
-    if little.read_i32(data, at: 0) != 3 { next }
+    if little.read_u32(data, at: 0) != 3 { next }
 
-    let p_offset = little.read_i64(data, at: 8)
-    let p_filesz = little.read_i64(data, at: 32)
+    let p_offset = little.read_u64(data, at: 8)
+    let p_filesz = little.read_u64(data, at: 32)
     let end = p_offset + p_filesz
 
     data.clear

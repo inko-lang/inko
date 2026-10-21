@@ -125,7 +125,7 @@ type pub Sha256 {
   fn mut compress {
     let words = @words
 
-    for i in 0.until(16) { words.set(i, @block.read_i32_be(i * 4)) }
+    for i in 0.until(16) { words.set(i, @block.read_u32_be(i * 4)) }
 
     for i in 16.until(64) {
       let w15 = words.get(i - 15).or_panic
@@ -224,14 +224,14 @@ impl Hasher for Sha256 {
 
     let out = ByteArray.filled(with: 0, times: 32)
 
-    big.write_i32(@a, into: out, at: 0)
-    big.write_i32(@b, into: out, at: 4)
-    big.write_i32(@c, into: out, at: 8)
-    big.write_i32(@d, into: out, at: 12)
-    big.write_i32(@e, into: out, at: 16)
-    big.write_i32(@f, into: out, at: 20)
-    big.write_i32(@g, into: out, at: 24)
-    big.write_i32(@h, into: out, at: 28)
+    big.write_u32(@a, into: out, at: 0)
+    big.write_u32(@b, into: out, at: 4)
+    big.write_u32(@c, into: out, at: 8)
+    big.write_u32(@d, into: out, at: 12)
+    big.write_u32(@e, into: out, at: 16)
+    big.write_u32(@f, into: out, at: 20)
+    big.write_u32(@g, into: out, at: 24)
+    big.write_u32(@h, into: out, at: 28)
     Hash.new(out)
   }
 }
@@ -286,7 +286,7 @@ type pub Sha512 {
   fn mut compress {
     let words = @words
 
-    for i in 0.until(16) { words.set(i, @block.read_i64_be(i * 8)) }
+    for i in 0.until(16) { words.set(i, @block.read_u64_be(i * 8)) }
 
     for i in 16.until(80) {
       let w15 = words.get(i - 15).or_panic
@@ -368,14 +368,14 @@ impl Hasher for Sha512 {
 
     let out = ByteArray.filled(with: 0, times: 64)
 
-    big.write_i64(@a, into: out, at: 0)
-    big.write_i64(@b, into: out, at: 8)
-    big.write_i64(@c, into: out, at: 16)
-    big.write_i64(@d, into: out, at: 24)
-    big.write_i64(@e, into: out, at: 32)
-    big.write_i64(@f, into: out, at: 40)
-    big.write_i64(@g, into: out, at: 48)
-    big.write_i64(@h, into: out, at: 56)
+    big.write_u64(@a, into: out, at: 0)
+    big.write_u64(@b, into: out, at: 8)
+    big.write_u64(@c, into: out, at: 16)
+    big.write_u64(@d, into: out, at: 24)
+    big.write_u64(@e, into: out, at: 32)
+    big.write_u64(@f, into: out, at: 40)
+    big.write_u64(@g, into: out, at: 48)
+    big.write_u64(@h, into: out, at: 56)
     Hash.new(out)
   }
 }

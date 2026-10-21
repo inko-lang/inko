@@ -22,10 +22,10 @@ fn size_error(min: Int) -> Never {
 #
 # let bytes = ByteArray.filled(with: 0, times: 2)
 #
-# little.write_i16(65_000, into: bytes, at: 0)
+# little.write_u16(65_000, into: bytes, at: 0)
 # bytes # => ByteArray.from_array([232, 253])
 # ```
-fn pub write_i16(value: Int, into: mut ByteArray, at: Int) {
+fn pub write_u16(value: Int, into: mut ByteArray, at: Int) {
   if into.size - at < 2 { size_error(2) }
 
   (into.pointer as Int + at as Pointer[Uint16]).0 = value as Uint16
@@ -49,17 +49,17 @@ fn pub write_i16(value: Int, into: mut ByteArray, at: Int) {
 #
 # let bytes = ByteArray.filled(with: 0, times: 4)
 #
-# little.write_i32(123456789, into: bytes, at: 0)
+# little.write_u32(123456789, into: bytes, at: 0)
 # bytes # => ByteArray.from_array([21, 205, 91, 7])
 # ```
-fn pub write_i32(value: Int, into: mut ByteArray, at: Int) {
+fn pub write_u32(value: Int, into: mut ByteArray, at: Int) {
   if into.size - at < 4 { size_error(4) }
 
   (into.pointer as Int + at as Pointer[Uint32]).0 = value as Uint32
 }
 
-# Writes a value interpreted as a 64-bits signed integer into `into` as a series
-# of bytes, starting at the index `at`.
+# Writes a value interpreted as a 64-bits unsigned integer into `into` as a
+# series of bytes, starting at the index `at`.
 #
 # # Panics
 #
@@ -73,16 +73,16 @@ fn pub write_i32(value: Int, into: mut ByteArray, at: Int) {
 #
 # let bytes = ByteArray.filled(with: 0, times: 8)
 #
-# little.write_i64(123456789, into: bytes, at: 0)
+# little.write_u64(123456789, into: bytes, at: 0)
 # bytes # => ByteArray.from_array([21, 205, 91, 7])
 # ```
-fn pub write_i64(value: Int, into: mut ByteArray, at: Int) {
+fn pub write_u64(value: Int, into: mut ByteArray, at: Int) {
   if into.size - at < 8 { size_error(8) }
 
   (into.pointer as Int + at as Pointer[Uint64]).0 = value as Uint64
 }
 
-# Reads four bytes starting at `at` as a 16-bits signed integer.
+# Reads four bytes starting at `at` as a 16-bits unsigned integer.
 #
 # # Panics
 #
@@ -96,16 +96,16 @@ fn pub write_i64(value: Int, into: mut ByteArray, at: Int) {
 #
 # let bytes = ByteArray.filled(with: 0, times: 2)
 #
-# little.write_i16(65_000, into: bytes, at: 0)
-# little.read_i16(from: bytes, at: 0) # => 65_000
+# little.write_u16(65_000, into: bytes, at: 0)
+# little.read_u16(from: bytes, at: 0) # => 65_000
 # ```
-fn pub read_i16(from: ref ByteArray, at: Int) -> Int {
+fn pub read_u16(from: ref ByteArray, at: Int) -> Int {
   if from.size - at < 2 { size_error(2) }
 
   (from.pointer as Int + at as Pointer[Uint16]).0 as Int
 }
 
-# Reads four bytes starting at `at` as a 32-bits signed integer.
+# Reads four bytes starting at `at` as a 32-bits unsigned integer.
 #
 # # Panics
 #
@@ -119,16 +119,16 @@ fn pub read_i16(from: ref ByteArray, at: Int) -> Int {
 #
 # let bytes = ByteArray.filled(with: 0, times: 4)
 #
-# little.write_i32(123456789, into: bytes, at: 0)
-# little.read_i32(from: bytes, at: 0) # => 123456789
+# little.write_u32(123456789, into: bytes, at: 0)
+# little.read_u32(from: bytes, at: 0) # => 123456789
 # ```
-fn pub read_i32(from: ref ByteArray, at: Int) -> Int {
+fn pub read_u32(from: ref ByteArray, at: Int) -> Int {
   if from.size - at < 4 { size_error(4) }
 
   (from.pointer as Int + at as Pointer[Uint32]).0 as Int
 }
 
-# Reads eight bytes starting at `at` as a 64-bits signed integer.
+# Reads eight bytes starting at `at` as a 64-bits unsigned integer.
 #
 # # Panics
 #
@@ -142,10 +142,10 @@ fn pub read_i32(from: ref ByteArray, at: Int) -> Int {
 #
 # let bytes = ByteArray.filled(with: 0, times: 8)
 #
-# little.write_i64(123456789, into: bytes, at: 0)
-# little.read_i64(from: bytes, at: 0) # => 123456789
+# little.write_u64(123456789, into: bytes, at: 0)
+# little.read_u64(from: bytes, at: 0) # => 123456789
 # ```
-fn pub read_i64(from: ref ByteArray, at: Int) -> Int {
+fn pub read_u64(from: ref ByteArray, at: Int) -> Int {
   if from.size - at < 8 { size_error(8) }
 
   (from.pointer as Int + at as Pointer[Uint64]).0 as Int
