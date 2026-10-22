@@ -8,30 +8,31 @@
   --font: sans-serif;
   --media-wide: 830px;
 
-  --black: #000;
-  --blue: #0c52bb;
-  --border: #bbb;
-  --comment: #666;
-  --dblue: #95b4e1;
-  --dgreen: #b2ca96;
-  --dred: #ca8766;
-  --dyellow: #e1c05e;
-  --green: #436023;
-  --grey: #ddd;
-  --lblue: #eaf2ff;
-  --lgreen: #f4fbf4;
-  --lgrey: #f7f7f7;
-  --lred: #ffe7d9;
-  --orange: #a55000;
-  --purple: #5c21a5;
-  --quote: #555;
+  --fg-primary: #000;
+  --fg-blue: #0c52bb;
+  --fg-comment: #666;
+  --fg-green: #436023;
+  --fg-orange: #a55000;
+  --fg-purple: #5c21a5;
+  --fg-quote: #555;
+  --border-primary: #bbb;
+  --border-blue: #95b4e1;
+  --border-green: #b2ca96;
+  --border-red: #ca8766;
+  --border-yellow: #e1c05e;
+  --border-alt: #ddd;
+  --bg-primary: #fff;
+  --bg-blue: #eaf2ff;
+  --bg-green: #f4fbf4;
+  --bg-purple: #eee0ff;
+  --bg-low-contrast: #f7f7f7;
+  --bg-red: #ffe7d9;
+  --bg-yellow: #fff3bb;
   --shadow: #f7f7f7;
-  --white: #fff;
-  --yellow: #fff3bb;
 }
 
 html {
-  color: var(--black);
+  color: var(--fg-primary);
   font-family: var(--font);
   font-size: var(--font-size);
   line-height: 1.5;
@@ -91,10 +92,10 @@ ol li {
 }
 
 blockquote {
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-primary);
   border-radius: var(--border-radius);
   box-shadow: var(--shadow-size) var(--shadow-size) var(--shadow);
-  color: var(--quote);
+  color: var(--fg-quote);
   font-style: italic;
   margin: 0 0 var(--margin) 0;
   padding: 10px;
@@ -105,9 +106,9 @@ blockquote > *:last-child {
 }
 
 pre {
-  background: var(--white);
+  background: var(--bg-primary);
   border-radius: var(--border-radius);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-primary);
   box-shadow: var(--shadow-size) var(--shadow-size) var(--shadow);
   font-family: var(--code-font);
   font-size: var(--font-size-small);
@@ -119,9 +120,9 @@ pre {
 }
 
 p code, li code, td code, h1 code, h2 code, h3 code, h4 code, h5 code, h6 code {
-  background: var(--lgrey);
+  background: var(--bg-low-contrast);
   border-radius: var(--border-radius);
-  border: 1px solid var(--grey);
+  border: 1px solid var(--border-alt);
   box-decoration-break: clone;
   font-family: var(--code-font);
   font-size: .8rem;
@@ -134,7 +135,7 @@ p code, li code, td code {
 }
 
 a {
-  color: var(--blue);
+  color: var(--fg-blue);
   font-weight: 500;
   text-decoration: none;
 }
@@ -147,7 +148,7 @@ table {
   border-collapse: separate;
   border-radius: var(--border-radius);
   border-spacing: 0;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-primary);
   box-shadow: var(--shadow-size) var(--shadow-size) var(--shadow);
   font-size: 0.8rem;
   margin-bottom: var(--margin);
@@ -156,13 +157,13 @@ table {
 
 table th,
 table td {
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-primary);
   padding: 5px;
   text-align: left;
 }
 
 table th {
-  background: var(--lgrey);
+  background: var(--bg-low-contrast);
 }
 
 table tr:last-child td {
@@ -174,10 +175,10 @@ div.highlight {
 }
 
 div.highlight .copy {
-  background: var(--white);
+  background: var(--bg-primary);
   display: none;
   border-radius: var(--border-radius);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-primary);
   cursor: pointer;
   font-size: var(--font-size-small);
   padding: 5px;
@@ -207,23 +208,23 @@ div.highlight:hover .copy {
 }
 
 .highlight .s, .highlight .s1, .highlight .s2 {
-  color: var(--green);
+  color: var(--fg-green);
 }
 
 .highlight .ss {
-  color: var(--orange);
+  color: var(--fg-orange);
 }
 
 .highlight .mf, .highlight .mh, .highlight .mi, .highlight .mo, .highlight .il {
-  color: var(--blue);
+  color: var(--fg-blue);
 }
 
 .highlight .c, .highlight .cp, .highlight .cm, .highlight .cs, .highlight .c1 {
-  color: var(--comment);
+  color: var(--fg-comment);
 }
 
 .highlight .vi {
-  color: var(--purple);
+  color: var(--fg-purple);
 }
 
 .grid {
@@ -239,8 +240,8 @@ div.highlight:hover .copy {
 }
 
 #nightly-notice {
-  background: var(--yellow);
-  border-bottom: 1px solid var(--grey);
+  background: var(--bg-yellow);
+  border-bottom: 1px solid var(--border-alt);
   font-size: var(--font-size-small);
   padding: 3px 0;
   text-align: center;
@@ -251,7 +252,7 @@ div.highlight:hover .copy {
 }
 
 #top-bar {
-  border-bottom: 1px solid var(--grey);
+  border-bottom: 1px solid var(--border-alt);
 }
 
 #top-bar .grid {
@@ -307,17 +308,17 @@ div.highlight:hover .copy {
 }
 
 #top-bar nav a {
-  color: var(--black);
+  color: var(--fg-primary);
   font-weight: normal;
   text-decoration: none;
 }
 
 #top-bar nav a:hover {
-  color: var(--blue);
+  color: var(--fg-blue);
 }
 
 #top-bar nav a.current {
-  color: var(--blue);
+  color: var(--fg-blue);
 }
 
 .page {
@@ -353,16 +354,16 @@ div.highlight:hover .copy {
 }
 
 .page aside a {
-  color: var(--black);
+  color: var(--fg-primary);
   font-weight: normal;
 }
 
 .page aside a:hover {
-  color: var(--blue);
+  color: var(--fg-blue);
 }
 
 .page aside .current {
-  color: var(--blue);
+  color: var(--fg-blue);
 }
 
 .page aside h1 {
@@ -396,7 +397,7 @@ div.highlight:hover .copy {
 }
 
 .admonition {
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-primary);
   border-radius: var(--border-radius);
   box-shadow: var(--shadow-size) var(--shadow-size) var(--shadow);
   display: flex;
@@ -411,23 +412,23 @@ div.highlight:hover .copy {
 }
 
 .admonition.info {
-  background: var(--lblue);
-  border-color: var(--dblue);
+  background: var(--bg-blue);
+  border-color: var(--border-blue);
 }
 
 .admonition.warn {
-  background: var(--lred);
-  border-color: var(--dred);
+  background: var(--bg-red);
+  border-color: var(--border-red);
 }
 
 .admonition.note {
-  background: var(--yellow);
-  border-color: var(--dyellow);
+  background: var(--bg-yellow);
+  border-color: var(--border-yellow);
 }
 
 .admonition.tip {
-  background: var(--lgreen);
-  border-color: var(--dgreen);
+  background: var(--bg-green);
+  border-color: var(--border-green);
 }
 
 .admonition.discuss .icon:before {
@@ -465,8 +466,8 @@ div.highlight:hover .copy {
 }
 
 .footnotes {
-  border-top: 1px solid var(--border);
-  color: var(--quote);
+  border-top: 1px solid var(--border-primary);
+  color: var(--fg-quote);
   font-size: 0.8rem;
   padding-top: var(--margin);
 }
