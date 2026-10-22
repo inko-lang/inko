@@ -31,8 +31,37 @@
   --shadow: #f7f7f7;
 }
 
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    /* a11y-syntax-highlighting color scheme Copyright (c) 2017 Eric Bailey, MIT License */
+    --fg-primary: #F8F8F2;
+    --fg-blue: #6BBEFF;
+    --fg-comment: #D4D0AB;
+    --fg-green: #ABE338;
+    --fg-orange: #F5AB32;
+    --fg-purple: #DCC6E0;
+    --fg-quote: #D4D0AB;
+    --border-primary: #626262;
+    --border-blue: #6BBEFF;
+    --border-green: #ABE338;
+    --border-red: #FFA07A;
+    --border-yellow: #FFD700;
+    --border-alt: #696969;
+    --bg-primary: #2B2B2B;
+    --bg-blue: #002A59;
+    --bg-green: #335100;
+    --bg-purple: #52165D;
+    --bg-low-contrast: #313131;
+    --bg-red: #812D00;
+    --bg-yellow: #584600;
+    --shadow: #242424;
+  }
+}
+
 html {
   color: var(--fg-primary);
+  background: var(--bg-primary);
   font-family: var(--font);
   font-size: var(--font-size);
   line-height: 1.5;
