@@ -18,9 +18,9 @@ FROM registry.fedoraproject.org/fedora-minimal:44
 # gcc is needed to link object files. This also pulls in libgcc, which the
 # generated code links against dynamically.
 #
-# We also install tar and Git such that GitHub Actions jobs can use this image
-# without having to install these packages themselves.
-RUN microdnf install --assumeyes gcc tar git && microdnf clean all
+# We also install tar, Git and Node such that GitHub Actions jobs can use this
+# image without having to install these packages themselves.
+RUN microdnf install --assumeyes gcc tar git nodejs && microdnf clean all
 
 COPY --from=builder ["/usr/bin/inko", "/usr/bin/inko"]
 COPY --from=builder ["/usr/lib/inko", "/usr/lib/inko/"]
