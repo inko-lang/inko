@@ -48,11 +48,9 @@ impl Url {
             return None;
         }
 
-        // GitLab and GitHub URLs will be the most common, so we allow using
-        // these URLs in a slightly shorter form, making them a bit easier to
-        // work with from the CLI.
         let value = if input.starts_with("gitlab.com")
             || input.starts_with("github.com")
+            || input.starts_with("codeberg.org")
         {
             format!("https://{}", input)
         } else {
@@ -395,6 +393,15 @@ mod tests {
         assert_eq!(
             Url::parse("git@gitlab.com:foo/bar.git"),
             Some(Url::new("git@gitlab.com:foo/bar.git"))
+        );
+
+        assert_eq!(
+            Url::parse("https://codeberg.org/foo/bar"),
+            Some(Url::new("https://codeberg.org/foo/bar"))
+        );
+        assert_eq!(
+            Url::parse("codeberg.org/foo/bar"),
+            Some(Url::new("https://codeberg.org/foo/bar"))
         );
 
         assert_eq!(Url::parse(""), None);
