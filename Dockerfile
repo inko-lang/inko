@@ -4,7 +4,7 @@ FROM registry.fedoraproject.org/fedora-minimal:44 AS builder
 # LLVM the build will fail if libffi-devel isn't installed, hence we include it
 # here. See https://gitlab.com/taricorp/llvm-sys.rs/-/issues/41 for some extra
 # details.
-RUN microdnf install --assumeyes gcc make rust cargo \
+RUN dnf install --assumeyes gcc make rust cargo \
     llvm llvm-devel llvm-static libstdc++-devel libstdc++-static \
     libffi-devel zlib-devel libxml2-devel
 ADD . /inko/
@@ -20,7 +20,8 @@ FROM registry.fedoraproject.org/fedora-minimal:44
 #
 # We also install tar, Git and Node such that GitHub Actions jobs can use this
 # image without having to install these packages themselves.
-RUN microdnf install --assumeyes gcc tar git nodejs && microdnf clean all
+RUN --mount=type=tmpfs,target=/var/log \
+    dnf install --no-docs --assumeyes gcc tar git nodejs && dnf clean all
 
 COPY --from=builder ["/usr/bin/inko", "/usr/bin/inko"]
 COPY --from=builder ["/usr/lib/inko", "/usr/lib/inko/"]
