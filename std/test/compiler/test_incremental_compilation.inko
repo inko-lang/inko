@@ -1,5 +1,4 @@
-import helpers (compiler_path)
-import std.env
+import helpers (compiler_path, unique_path)
 import std.fs.file (WriteOnlyFile)
 import std.fs.path (Path)
 import std.sys (Command, Stream)
@@ -9,7 +8,7 @@ fn with[R](
   id: Int,
   body: fn (Path, Path, Path, Path) -> Result[R, String],
 ) -> Result[R, String] {
-  let dir = env.temporary_directory.join('inko-incremental-${id}')
+  let dir = unique_path(id)
   let _ = try dir.create_directory.map_error(fn (e) { e.to_string })
   let src = dir.join('main.inko')
   let exe = dir.join('build').join('debug').join('main')

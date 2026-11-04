@@ -1,4 +1,4 @@
-import helpers (compiler_path)
+import helpers (compiler_path, unique_path)
 import std.env
 import std.fmt (fmt)
 import std.fs.file (ReadOnlyFile, WriteOnlyFile)
@@ -283,7 +283,7 @@ fn pub tests(t: mut Tests) {
     test: fn (t, p) {
       if !enable { return t.skip(reason) }
 
-      let path = env.temporary_directory.join('inko-test-sandbox-${t.id}')
+      let path = unique_path(t.id)
 
       create(path)
       p.variable('INKO_PATH', path.to_string)
@@ -313,7 +313,7 @@ fn pub tests(t: mut Tests) {
     test: fn (t, p) {
       if !enable { return t.skip(reason) }
 
-      let path = env.temporary_directory.join('inko-test-sandbox-${t.id}')
+      let path = unique_path(t.id)
 
       p.variable('INKO_PATH', path.to_string)
       t.equal(p.spawn.stdout, 'Ok(nil)')
@@ -339,7 +339,7 @@ fn pub tests(t: mut Tests) {
     test: fn (t, p) {
       if !enable { return t.skip(reason) }
 
-      let path = env.temporary_directory.join('inko-test-sandbox-${t.id}')
+      let path = unique_path(t.id)
 
       create(path)
 

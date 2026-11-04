@@ -1,4 +1,4 @@
-import helpers (hash)
+import helpers (hash, unique_path)
 import std.env
 import std.fmt (fmt)
 import std.net.socket (UnixClient, UnixServer)
@@ -104,7 +104,7 @@ fn pub tests(t: mut Tests) {
       let _ = sock.write(buf)
     },
     test: fn (t, p) {
-      let path = env.temporary_directory.join('inko_signals.${t.id}.sock')
+      let path = unique_path(t.id)
       let sock = UnixServer.new(path).or_panic
 
       p.variable('SOCKET_PATH', path.to_string)

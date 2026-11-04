@@ -1,10 +1,13 @@
 import std.crypto.pem
 import std.crypto.x509
+import std.endian.little
 import std.env
 import std.fs.path (Path)
 import std.hash (Hash)
 import std.hash.ahash (Ahasher)
 import std.io (Buffer)
+import std.rand
+import std.time (Instant)
 
 # A valid private key. Do not actually use this key outside of this test suite.
 #
@@ -139,8 +142,21 @@ fn pub hash[T: Hash](value: ref T) -> Int {
   hasher.finish
 }
 
+fn pub unique_path(id: Int) -> Path {
+  let buf = ByteArray.new
+
+  rand.bytes(buf, size: 8)
+
+  let seq = little.read_u64(buf, at: 0)
+  let now = Instant.new.to_int
+
+  env.temporary_directory.join(
+    'inko-test-${env.process_identifier}${id}${now}${seq}',
+  )
+}
+
 fn pub with_directory[R](id: Int, func: fn (ref Path) -> R) -> R {
-  let path = env.temporary_directory.join('inko-test-directory-${id}')
+  let path = unique_path(id)
   let ret = func.call(path)
   let _ = path.remove_directory_all
 

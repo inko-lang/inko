@@ -127,6 +127,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Int.format when formatting as decimal', fn (t) {
+    t.equal(0.format(base: 10), '0')
     t.equal(42.format(base: 10), '42')
     t.equal(-42.format(base: 10), '-42')
     t.equal(-9223372036854775808.format(base: 10), '-9223372036854775808')
@@ -140,6 +141,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Int.to_string', fn (t) {
+    t.equal(0.to_string, '0')
     t.equal(42.to_string, '42')
     t.equal(-42.to_string, '-42')
     t.equal(-9223372036854775808.to_string, '-9223372036854775808')
