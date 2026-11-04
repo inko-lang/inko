@@ -66,8 +66,8 @@ the default approach.
 ### A simple package manager
 
 Inko's package manager aims to be simple and easy to use. To achieve this, it
-won't support features found elsewhere such as complex version requirements. In
-addition, it will only support [minimal version
+won't support features found elsewhere such as complex version requirements. For
+version selection, it only supports [minimal version
 selection](https://research.swtch.com/vgo-mvs) rather than using a complex SAT
 solver.
 

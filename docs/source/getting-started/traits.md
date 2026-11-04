@@ -163,7 +163,7 @@ impl Equal for Array if T: Equal {
 }
 ```
 
-What happens here is that we implement `Equal` for any `Array[T]` _provided_
+What happens here is that we implement `Equal` for any `Array[T]` _given_
 that whatever is assigned to `T` also implements `Equal`. For example, given an
 `Array[User]`, the `Array.==` method is only available if `User` implements
 `Equal`.
