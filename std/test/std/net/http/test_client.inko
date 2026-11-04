@@ -889,8 +889,10 @@ fn pub tests(t: mut Tests) {
   })
 
   t.ok('Client.connect with valid HTTP URIs', fn (t) {
-    let server = try TcpServer.new(IpAddress.v4(127, 0, 0, 1), port: 0)
-    let addr = try server.local_address
+    let server = try TcpServer
+      .new(IpAddress.v4(127, 0, 0, 1), port: 0)
+      .or_error('failed to set up the TCP server')
+    let addr = try server.local_address.or_error('failed to get the address')
     let tests = [
       uri(http, ip(addr.ip), port(addr.port)),
       uri(http, named('localhost'), port(addr.port)),
@@ -898,15 +900,11 @@ fn pub tests(t: mut Tests) {
 
     for uri in tests {
       let client = Client.new
-      let con = client.connect(uri)
-
-      # Make sure we don't end up filling the listen backlog, as unlikely as
-      # that may be.
-      drop(try server.accept)
+      let con = try client.connect(uri).map_error(fn (e) { e.to_string })
 
       t.true(
         match mut con {
-          case Ok((sock, false)) -> {
+          case (sock, false) -> {
             raw_deadline(sock.connection.socket) != NO_DEADLINE
           }
           case _ -> false

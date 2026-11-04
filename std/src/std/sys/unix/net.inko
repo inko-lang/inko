@@ -212,7 +212,17 @@ fn inline connect(
       }
       # We may run into an EISCONN if a previous connect(2) attempt would block.
       # In this case we can just continue.
-      case libc.EISCONN -> break
+      case libc.EISCONN -> {
+        # When connecting to an unused address, macOS may initially return
+        # EINPROGRESS followed by EISCONN, even if the actual connection was
+        # refused. While this doesn't seem to happen for Linux and FreeBSD, it's
+        # not clear if that's by design or if this is sensitive to the timing of
+        # operations, so we just handle it here for all Unix systems.
+        match get_int32_option(socket.fd, libc.SOL_SOCKET, libc.SO_ERROR) {
+          case 0 -> break
+          case e -> throw Error.from_os_error(e)
+        }
+      }
       case e -> throw Error.from_os_error(e)
     }
   }
