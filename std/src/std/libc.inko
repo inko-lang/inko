@@ -369,6 +369,8 @@ fn extern chdir(path: Pointer[Uint8]) -> Int32
 
 fn extern kill(pid: Int32, signal: Int32) -> Int32
 
+fn extern getpid -> Int32
+
 # Returns the type of a directory entry.
 fn inline dirent_type(pointer: Pointer[sys.Dirent]) -> Int {
   sys.dirent_type(pointer)

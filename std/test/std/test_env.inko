@@ -192,4 +192,6 @@ fn pub tests(t: mut Tests) {
       t.equal(child.stderr, '')
     },
   )
+
+  t.test('env.process_identifier', fn (t) { t.true(env.process_identifier > 0) })
 }
