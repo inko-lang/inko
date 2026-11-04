@@ -24,7 +24,7 @@ jobs:
   cargo-clippy:
     runs-on: home-linux-amd64
     container:
-      image: codeberg.org/yorickpeterse/base-images/rust:latest
+      image: ghcr.io/inko-lang/ci:fedora-amd64
     steps:
       - uses: actions/checkout@v7
       - uses: actions/cache@v5
