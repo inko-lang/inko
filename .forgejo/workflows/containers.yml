@@ -6,31 +6,29 @@ on:
     branches:
       - main
     paths:
-      - '.github/workflows/container.yml'
-      - '.github/workflows/containers.yml'
+      - '.forgejo/workflows/container.yml'
+      - '.forgejo/workflows/containers.yml'
       - 'ci/docker/*/*'
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ forge.workflow }}-${{ forge.ref }}
+  cancel-in-progress: ${{ forge.event_name == 'pull_request' }}
 
-permissions:
-  contents: read
-  packages: write
-
+  # TODO: update
 jobs:
-  fedora-amd64:
-    uses: ./.github/workflows/container.yml
-    with:
-      name: fedora-amd64
-      dockerfile: fedora
-  fedora-arm64:
-    uses: ./.github/workflows/container.yml
-    with:
-      name: fedora-arm64
-      dockerfile: fedora-arm64
-      runner: ubuntu-26.04-arm
-  alpine:
-    uses: ./.github/workflows/container.yml
-    with:
-      name: alpine
-      dockerfile: alpine
+  # fedora-amd64:
+  #   uses: ./.github/workflows/container.yml
+  #   with:
+  #     name: fedora-amd64
+  #     dockerfile: fedora
+  # fedora-arm64:
+  #   uses: ./.github/workflows/container.yml
+  #   with:
+  #     name: fedora-arm64
+  #     dockerfile: fedora-arm64
+  #     runner: ubuntu-26.04-arm
+  # alpine:
+  #   uses: ./.github/workflows/container.yml
+  #   with:
+  #     name: alpine
+  #     dockerfile: alpine
