@@ -304,7 +304,7 @@ fn pub tests(t: mut Tests) {
       let s = Sandbox.new
       let p = env.get('INKO_PATH').or_panic.to_path
 
-      s.path(env.temporary_directory, write)
+      s.path(p.directory, write)
       s.enable
 
       let res = WriteOnlyFile.new(p).then(fn (f) { f.write('hello') })
@@ -316,7 +316,12 @@ fn pub tests(t: mut Tests) {
       let path = unique_path(t.id)
 
       p.variable('INKO_PATH', path.to_string)
-      t.equal(p.spawn.stdout, 'Ok(nil)')
+
+      let child = p.spawn
+
+      t.equal(child.stdout, 'Ok(nil)')
+      t.equal(child.stderr, '')
+      t.equal(child.status.to_int, 0)
 
       let _ = path.remove_file
     },

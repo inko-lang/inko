@@ -1,4 +1,6 @@
-import helpers (certificate, private_key, with_directory)
+import helpers (
+  certificate, private_key, strip_working_directory, with_directory,
+)
 import std.bytes (Bytes)
 import std.drop (Drop)
 import std.drop (drop)
@@ -74,7 +76,7 @@ fn unix_pair(
 ) -> Result[(UnixServer, Socket, Socket), IoError] {
   try directory.create_directory
 
-  let path = directory.join('server.sock')
+  let path = strip_working_directory(directory.join('server.sock'))
   let server = try UnixServer.new(path)
   let writer = Socket.unix(try UnixClient.new(path))
   let reader = Socket.unix(try server.accept)
@@ -143,6 +145,7 @@ fn hello_txt -> Path {
 }
 
 fn unix_uri(host: ref Path, path: String) -> Uri {
+  let host = strip_working_directory(host)
   let uri = Uri.new
   let buf = ByteArray.new
 
@@ -186,7 +189,7 @@ fn with_http_server(
   with_directory(id, fn (dir) {
     try dir.create_directory.map_error(fn (e) { e.to_string })
 
-    let path = dir.join('server.sock')
+    let path = strip_working_directory(dir.join('server.sock'))
     let _waiter = AsyncServer.new(recover path.clone, secure: false)
 
     body.call(path)
@@ -1608,13 +1611,13 @@ fn pub tests(t: mut Tests) {
     with_directory(t.id, fn (dir) -> Result[Nil, IoError] {
       try dir.create_directory
 
-      let path = dir.join('server.sock')
+      let path = strip_working_directory(dir.join('server.sock'))
       let server = try UnixServer.new(path)
       let _writer = try UnixClient.new(path)
       let reader = PartialSocket.Unix(try server.accept)
       let sock_addr = try reader.address
 
-      t.equal(sock_addr.to_string, dir.join('server.sock').to_string)
+      t.equal(sock_addr.to_string, path.to_string)
       Result.Ok(nil)
     })
   })
@@ -2417,7 +2420,7 @@ fn pub tests(t: mut Tests) {
     with_directory(t.id, fn (dir) {
       try dir.create_directory
 
-      let path = dir.join('server.sock')
+      let path = strip_working_directory(dir.join('server.sock'))
       let server = try UnixServer.new(path)
       let _client = try UnixClient.new(path)
       let server = SocketServer.Unix(server)
@@ -2449,11 +2452,11 @@ fn pub tests(t: mut Tests) {
     Result.Ok(nil)
   })
 
-  t.ok('SocketServer.address with a TCP socket', fn (t) {
+  t.ok('SocketServer.address with a Unix socket', fn (t) {
     with_directory(t.id, fn (dir) {
       try dir.create_directory
 
-      let path = dir.join('server.sock')
+      let path = strip_working_directory(dir.join('server.sock'))
       let server = try UnixServer.new(path)
       let addr = try server.local_address
       let _client = try UnixClient.new(path)

@@ -1,12 +1,10 @@
 import std.crypto.pem
 import std.crypto.x509
-import std.endian.little
 import std.env
 import std.fs.path (Path)
 import std.hash (Hash)
 import std.hash.ahash (Ahasher)
 import std.io (Buffer)
-import std.rand
 import std.time (Instant)
 
 # A valid private key. Do not actually use this key outside of this test suite.
@@ -142,16 +140,25 @@ fn pub hash[T: Hash](value: ref T) -> Int {
   hasher.finish
 }
 
+fn pub local_temporary_directory -> Path {
+  env.working_directory.or_panic.join('tmp')
+}
+
+# Strips the working directory from the given path.
+#
+# This is mainly meant for working with Unix sockets, as Unix socket paths are
+# limited to roughly 100 bytes. To avoid hitting this limit (as we don't control
+# where the source code resides) we strip the path down to a relative path.
+fn pub strip_working_directory(path: ref Path) -> Path {
+  match path.strip_prefix(env.working_directory.or_panic) {
+    case Some(v) -> v
+    case _ -> path.clone
+  }
+}
+
 fn pub unique_path(id: Int) -> Path {
-  let buf = ByteArray.new
-
-  rand.bytes(buf, size: 8)
-
-  let seq = little.read_u64(buf, at: 0)
-  let now = Instant.new.to_int
-
-  env.temporary_directory.join(
-    'inko-test-${env.process_identifier}${id}${now}${seq}',
+  local_temporary_directory.join(
+    'inko-test-${env.process_identifier}-${id}-${Instant.new.to_int}',
   )
 }
 

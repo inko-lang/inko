@@ -5,6 +5,8 @@
 /docs/public
 /std/build
 /std/dep
+/std/tmp
+!/std/tmp/.gitkeep
 /std/fixtures/diagnostics/dep
 /target
 /tmp

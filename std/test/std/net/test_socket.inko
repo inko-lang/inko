@@ -1,4 +1,4 @@
-import helpers (unique_path)
+import helpers (strip_working_directory, unique_path)
 import std.drop (Drop)
 import std.env
 import std.fmt (fmt)
@@ -19,8 +19,8 @@ type SocketPath {
   let @path: Path
 
   fn static pair(id: Int) -> (SocketPath, SocketPath) {
-    let p1 = unique_path(id)
-    let p2 = unique_path(id)
+    let p1 = strip_working_directory(unique_path(id))
+    let p2 = strip_working_directory(unique_path(id))
     let _ = p1.remove_file
     let _ = p2.remove_file
 
@@ -28,7 +28,7 @@ type SocketPath {
   }
 
   fn static new(id: Int) -> SocketPath {
-    let path = unique_path(id)
+    let path = strip_working_directory(unique_path(id))
     let _ = path.remove_file
 
     SocketPath(path)
