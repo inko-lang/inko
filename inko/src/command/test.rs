@@ -34,6 +34,12 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         "TARGET",
     );
     options.optflag("", "release", "Perform a release build");
+    options.optopt(
+        "",
+        "threads",
+        "The number of threads to use for parallel compilation and running tests",
+        "NUM",
+    );
     options.optflag("", "verify", "Verify build output at various stages");
 
     let matches = options.parse(arguments)?;
@@ -57,6 +63,19 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         config.verify = true;
     }
 
+    if let Some(val) = matches.opt_str("threads") {
+        match val.parse::<usize>() {
+            Ok(0) | Err(_) => {
+                return Err(Error::from(format!(
+                    "'{}' isn't a valid number of threads",
+                    val
+                )));
+            }
+            Ok(n) => config.threads = n,
+        };
+    }
+
+    let threads = config.threads;
     let main_file = config.main_test_module();
 
     if !config.tests.is_dir() {
@@ -101,6 +120,8 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         Ok((exe, _build_lock)) => {
             let status = Command::new(exe)
                 .args(matches.free)
+                .env("INKO_PROCESS_THREADS", threads.to_string())
+                .env("INKO_BACKUP_THREADS", threads.to_string())
                 .spawn()
                 .and_then(|mut child| child.wait())
                 .map_err(|err| {
