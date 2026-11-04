@@ -44,20 +44,6 @@ function build {
     rm -rf "${target_dir}"
 }
 
-function install_rust {
-    curl --proto '=https' \
-        --tlsv1.2 \
-        --retry 10 \
-        --retry-connrefused \
-        --location \
-        --silent \
-        --show-error \
-        --fail "https://sh.rustup.rs" | \
-        sh -s -- --profile minimal -y --default-toolchain "${RUST_VERSION}"
-
-    export PATH="${CARGO_HOME}/bin:${PATH}"
-}
-
 mkdir -p "${DIR}"
 
 case "$1" in
@@ -69,15 +55,14 @@ case "$1" in
         build "aarch64-unknown-linux-gnu" "arm64-linux-gnu"
         build "aarch64-unknown-linux-musl" "arm64-linux-musl"
     ;;
-    "amd64-mac")
-        build "x86_64-apple-darwin" "amd64-mac-native"
-    ;;
     "arm64-mac")
         build "aarch64-apple-darwin" "arm64-mac-native"
     ;;
     "amd64-freebsd")
-        install_rust
         build "x86_64-unknown-freebsd" "amd64-freebsd-native"
+    ;;
+    "arm64-freebsd")
+        build "aarch64-unknown-freebsd" "arm64-freebsd-native"
     ;;
     *)
         echo "the architecture '$1' is invalid"

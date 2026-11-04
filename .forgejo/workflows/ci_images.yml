@@ -1,0 +1,25 @@
+---
+name: Build CI images
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.forgejo/workflows/container.yml'
+      - '.forgejo/workflows/containers.yml'
+      - 'ci/**'
+
+concurrency:
+  group: ${{ forge.workflow }}-${{ forge.ref }}
+
+jobs:
+  fedora:
+    uses: ./.forgejo/workflows/ci_image.yml
+    with:
+      name: fedora
+
+  alpine:
+    uses: ./.forgejo/workflows/ci_image.yml
+    with:
+      name: alpine

@@ -10,7 +10,6 @@ on:
 
 concurrency:
   group: ${{ forge.workflow }}-${{ forge.ref }}
-  cancel-in-progress: ${{ forge.event_name == 'pull_request' }}
 
 jobs:
   tests:

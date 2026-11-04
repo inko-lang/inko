@@ -1,0 +1,47 @@
+name: Build CI image
+
+on:
+  workflow_call:
+    inputs:
+      name:
+        description: 'The image to build'
+        required: true
+        type: string
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        target:
+          - amd64
+          - arm64
+    name: ${{ inputs.name }} ${{ matrix.target }}
+    runs-on: home-linux-${{ matrix.target }}
+    container:
+      volumes:
+        - /var/lib/forgejo-runner/containers:/var/lib/containers/storage:z
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Log in to the registry
+        run: just ci login ${{ secrets.REGISTRY_TOKEN }}
+      - name: Build the image
+        run: just ci build ${{ inputs.name }} latest-${{ matrix.target }}
+      - name: Push the image
+        run: just ci push ${{ inputs.name }} latest-${{ matrix.target }}
+
+  manifest:
+    runs-on: home-linux-amd64
+    name: ${{ inputs.name }} manifest
+    container:
+      volumes:
+        - /var/lib/forgejo-runner/containers:/var/lib/containers/storage:z
+    needs:
+      - build
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Log in to the registry
+        run: just ci login ${{ secrets.REGISTRY_TOKEN }}
+      - name: Create and push manifest
+        run: just ci manifest ${{ inputs.name }} latest

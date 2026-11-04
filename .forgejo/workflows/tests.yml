@@ -24,7 +24,7 @@ jobs:
   cargo-clippy:
     runs-on: home-linux-amd64
     container:
-      image: ghcr.io/inko-lang/ci:fedora-amd64
+      image: ghcr.io/inko-lang/ci/fedora:latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/cache@v5
@@ -48,7 +48,7 @@ jobs:
   inko-fmt:
     runs-on: home-linux-amd64
     container:
-      image: ghcr.io/inko-lang/ci:fedora-amd64
+      image: ghcr.io/inko-lang/ci/fedora:latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/cache@v5
@@ -63,27 +63,43 @@ jobs:
       fail-fast: false
       matrix:
         target:
-          - image: fedora-amd64
+          - image: fedora
             name: amd64-linux-gnu-1.89
+            runner: home-linux-amd64
             version: 1.89
-          - image: fedora-amd64
+          - image: fedora
             name: amd64-linux-gnu
+            runner: home-linux-amd64
             version: 1.94
           - image: alpine
             name: amd64-linux-musl
+            runner: home-linux-amd64
+            version: 1.94
+          - image: fedora
+            name: arm64-linux-gnu-1.89
+            runner: home-linux-arm64
+            version: 1.89
+          - image: fedora
+            name: arm64-linux-gnu
+            runner: home-linux-arm64
+            version: 1.94
+          - image: alpine
+            name: arm64-linux-musl
+            runner: home-linux-arm64
             version: 1.94
     name: ${{ matrix.target.name }} compiler
     timeout-minutes: 15
-    runs-on: home-linux-amd64
+    runs-on: ${{ matrix.target.runner }}
     container:
-      image: ghcr.io/inko-lang/ci:${{ matrix.target.image }}
+      image: ghcr.io/inko-lang/ci/${{ matrix.target.image }}:latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/cache@v5
         with:
           path: '~/.cargo'
           key: ${{ matrix.target.name }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
-      - run: cargo +${{ matrix.target.version }} test
+      - name: Run tests
+        run: cargo +${{ matrix.target.version }} test
 
   std-linux:
     strategy:
@@ -93,17 +109,25 @@ jobs:
           - ''
           - '--release'
         target:
-          - image: fedora-amd64
+          - image: fedora
             name: amd64-linux-gnu
             runner: home-linux-amd64
           - image: alpine
             name: amd64-linux-musl
             runner: home-linux-amd64
+          - image: fedora
+            name: arm64-linux-gnu
+            runner: home-linux-arm64
+          - image: alpine
+            name: arm64-linux-musl
+            runner: home-linux-arm64
+    needs:
+      - compiler-linux
     name: ${{ matrix.target.name }} std ${{ matrix.flags }}
     timeout-minutes: 15
     runs-on: ${{ matrix.target.runner }}
     container:
-      image: ghcr.io/inko-lang/ci:${{ matrix.target.image }}
+      image: ghcr.io/inko-lang/ci/${{ matrix.target.image }}:latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/cache@v5
@@ -112,7 +136,8 @@ jobs:
           key: ${{ matrix.target.name }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
       - run: uname -a
       - run: cargo --version
-      - run: 'cargo run -- test --verify ${{ matrix.flags }}'
+      - name: Run tests
+        run: 'cargo run -- test --verify ${{ matrix.flags }}'
         working-directory: std
 
   compiler-mac:
@@ -126,7 +151,8 @@ jobs:
           path: '~/.cargo'
           key: arm64-mac-native-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
       - run: cargo --version
-      - run: cargo test
+      - name: Run tests
+        run: cargo test
 
   std-mac:
     strategy:
@@ -135,6 +161,8 @@ jobs:
         flags:
           - ''
           - '--release'
+    needs:
+      - compiler-mac
     name: arm64-mac-native std ${{ matrix.flags }}
     timeout-minutes: 15
     runs-on: home-macos-arm64
@@ -145,7 +173,8 @@ jobs:
           path: '~/.cargo'
           key: arm64-mac-native-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
       - run: cargo --version
-      - run: 'cargo run -- test --verify ${{ matrix.flags }}'
+      - name: Run tests
+        run: 'cargo run -- test --threads=2 --verify ${{ matrix.flags }}'
         working-directory: 'std'
 
   compiler-freebsd:
@@ -157,7 +186,7 @@ jobs:
             runner: home-freebsd-amd64
           - name: arm64-freebsd-native
             runner: home-freebsd-arm64
-    name: ${{ matrix.name }} compiler
+    name: ${{ matrix.target.name }} compiler
     timeout-minutes: 15
     runs-on: ${{ matrix.target.runner }}
     steps:
@@ -167,7 +196,8 @@ jobs:
           path: '~/.cargo'
           key: ${{ matrix.target.name }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
       - run: cargo --version
-      - run: cargo test
+      - name: Run tests
+        run: cargo test
 
   std-freebsd:
     strategy:
@@ -181,6 +211,8 @@ jobs:
             runner: home-freebsd-amd64
           - name: arm64-freebsd-native
             runner: home-freebsd-arm64
+    needs:
+      - compiler-freebsd
     name: ${{ matrix.target.name }} std ${{ matrix.flags }}
     timeout-minutes: 15
     runs-on: ${{ matrix.target.runner }}
@@ -191,5 +223,6 @@ jobs:
           path: '~/.cargo'
           key: ${{ matrix.target.name }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
       - run: cargo --version
-      - run: 'cargo run -- test --verify ${{ matrix.flags }}'
+      - name: Run tests
+        run: 'cargo run -- test --verify ${{ matrix.flags }}'
         working-directory: std
