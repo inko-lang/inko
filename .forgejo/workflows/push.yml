@@ -1,0 +1,110 @@
+---
+name: Push
+
+on:
+  push:
+    branches:
+      - '**'
+  workflow_dispatch:
+  pull_request:
+
+concurrency:
+  group: ${{ forge.workflow }}-${{ forge.ref }}
+  cancel-in-progress: ${{ forge.event_name == 'pull_request' }}
+
+jobs:
+  tests:
+    name: Tests
+    uses: ./.github/workflows/tests.yml
+
+# TODO: remove
+# env:
+#   REGISTRY: ghcr.io
+#   IMAGE_NAME: ${{ forge.repository }}
+#   CARGO_HOME: ${{ forge.workspace }}/.cargo-home
+#   # We set an explicit version to only install the components we need for CI.
+#   RUSTUP_TOOLCHAIN: '1.89'
+#
+# jobs:
+#   tests:
+#     name: Tests
+#     uses: ./.github/workflows/tests.yml
+#
+#   nightly-container:
+#     name: Nightly container
+#     runs-on: ubuntu-26.04
+#     permissions:
+#       contents: read
+#       packages: write
+#     needs:
+#       - tests
+#     if: forge.ref_name == 'main'
+#     steps:
+#       - uses: actions/checkout@v7
+#       - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121
+#         with:
+#           registry: ${{ env.REGISTRY }}
+#           username: ${{ forge.actor }}
+#           password: ${{ secrets.GITHUB_TOKEN }}
+#       - uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf
+#         id: meta
+#         with:
+#           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+#       - uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f
+#         with:
+#           context: .
+#           push: true
+#           tags: ${{ steps.meta.outputs.tags }}
+#           labels: ${{ steps.meta.outputs.labels }}
+#
+#   docs:
+#     name: Documentation
+#     runs-on: ubuntu-26.04
+#     container:
+#       image: ghcr.io/inko-lang/inko:latest
+#     needs:
+#       - tests
+#     steps:
+#       - name: Install dependencies
+#         run: microdnf install --quiet --assumeyes make
+#       - uses: actions/checkout@v7
+#       - uses: actions/cache@v5
+#         with:
+#           path: '~/.local/share/inko/packages'
+#           key: docs-main-${{ hashFiles('docs/inko.pkg') }}
+#       - run: git config --global --add safe.directory $PWD
+#       - name: Build the documentation
+#         env:
+#           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+#         run: >
+#           if [[ ${{ forge.ref_name }} = 'main' ]]
+#           then
+#             make docs/publish
+#           else
+#             make docs/build
+#           fi
+#
+#   std-docs:
+#     name: Standard library documentation
+#     runs-on: ubuntu-26.04
+#     container:
+#       image: ghcr.io/inko-lang/ci:fedora-amd64
+#     needs:
+#       - tests
+#     steps:
+#       - uses: actions/checkout@v7
+#       - uses: actions/cache@v5
+#         with:
+#           path: '${{ env.CARGO_HOME }}'
+#           key: std-docs-main-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+#       - run: git config --global --add safe.directory $PWD
+#       - name: Deploy the documentation
+#         env:
+#           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+#         run: >
+#           if [[ ${{ forge.ref_name }} = 'main' ]]
+#           then
+#             make std-docs/publish
+#           else
+#             make std-docs/build
+#           fi

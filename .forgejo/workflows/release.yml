@@ -27,7 +27,7 @@ jobs:
     env:
       SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: actions/checkout@v7
       - run: git config --global --add safe.directory $PWD
       - name: Upload source archive
         run: make release/source
@@ -55,8 +55,8 @@ jobs:
     steps:
       - name: Install dependencies
         run: microdnf install --quiet --assumeyes git tar make
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
-      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
+      - uses: actions/checkout@v7
+      - uses: actions/cache@v5
         with:
           path: '~/.local/share/inko/packages'
           key: docs-release-${{ hashFiles('docs/inko.pkg') }}
@@ -82,8 +82,8 @@ jobs:
       - source
       - runtimes
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
-      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
+      - uses: actions/checkout@v7
+      - uses: actions/cache@v5
         with:
           path: '${{ env.CARGO_HOME }}'
           key: std-docs-release-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
@@ -110,7 +110,7 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: actions/checkout@v7
       - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121
         with:
           registry: ${{ env.REGISTRY }}
