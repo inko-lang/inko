@@ -118,6 +118,7 @@ fn pub tests(t: mut Tests) {
       t.equal(client.read(into: ByteArray.new, size: 32), Result.Ok(0))
 
       let _ = path.remove_file
+      let _ = child.wait
     },
   )
 }
