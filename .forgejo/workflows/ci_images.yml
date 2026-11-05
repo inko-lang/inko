@@ -16,10 +16,12 @@ concurrency:
 jobs:
   fedora:
     uses: ./.forgejo/workflows/ci_image.yml
+    secrets: inherit
     with:
       name: fedora
 
   alpine:
     uses: ./.forgejo/workflows/ci_image.yml
+    secrets: inherit
     with:
       name: alpine
