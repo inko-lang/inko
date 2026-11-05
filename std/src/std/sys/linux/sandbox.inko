@@ -44,7 +44,7 @@ let CON = sys_libc.LANDLOCK_ACCESS_NET_CONNECT_TCP
 #
 # For Nix we don't really have a choice but to allow full read access to the
 # store as the necessary paths can't be reliably determined ahead of time.
-let LIB_PATHS = ['/lib64', '/lib', '/nix/store']
+let LIB_PATHS = ['/lib64', '/lib', '/usr/lib64', '/usr/lib', '/nix/store']
 
 # The minimum ABI version that is required.
 let MIN_VERSION = 8
