@@ -21,10 +21,11 @@ type Poller {
   }
 
   fn mut add(source: Pointer[sys.Poll], id: Int) -> Result[Nil, Error] {
-    let event = libc.EpollEvent(
-      events: (libc.EPOLLIN | libc.EPOLLET) as Uint32,
-      data: id as Uint64,
-    )
+    let event = libc.EpollEvent()
+
+    event.inner.events = (libc.EPOLLIN | libc.EPOLLET) as Uint32
+    event.inner.data = id as Uint64
+
     let op = libc.EPOLL_CTL_ADD as Int32
     let res = libc.epoll_ctl(@poll.fd, op, source.fd, mut event) as Int
 
@@ -46,9 +47,7 @@ type Poller {
 
     match len as Int {
       case -1 or 0 -> throw Error.last_os_error
-      case n -> {
-        Result.Ok((n, (events.a as Int + 4 as Pointer[Uint64]).0 as Int))
-      }
+      case n -> Result.Ok((n, events.a.inner.data as Int))
     }
   }
 }

@@ -2,3 +2,8 @@ let SYS_landlock_add_rule = 445
 let SYS_landlock_create_ruleset = 444
 let SYS_landlock_restrict_self = 446
 let SYS_statx = 291
+
+type extern EpollEvent {
+  let @events: Uint32
+  let @data: Uint64
+}

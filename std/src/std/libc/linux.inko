@@ -466,9 +466,8 @@ type extern AddrInfo {
   let @ai_next: Pointer[AddrInfo]
 }
 
-type extern(packed) EpollEvent {
-  let @events: Uint32
-  let @data: Uint64
+type extern EpollEvent {
+  let @inner: arch.EpollEvent
 }
 
 type extern LandlockRulesetAttr {
