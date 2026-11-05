@@ -616,11 +616,17 @@ type pub Tests {
       case Ok(v) if v.size > 0 -> false
       case _ -> out.terminal?
     }
+    let conc = match
+      env.get('INKO_PROCESS_THREADS').ok.then(fn (v) { Int.parse(v, base: 10) })
+    {
+      case Some(v) if v > 0 -> v
+      case _ -> cpu_cores
+    }
 
     Tests(
       tests: [],
       children: [],
-      concurrency: cpu_cores,
+      concurrency: conc,
       reporter: Plain.new(out, colors) as Reporter,
       filter: Filter.None,
       seed: Option.None,

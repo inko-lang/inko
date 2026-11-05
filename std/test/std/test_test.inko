@@ -191,8 +191,14 @@ Process 'Main' (0x3f653870) panicked: message goes here
 
   t.test('Tests.new', fn (t) {
     let tests = Tests.new
+    let exp = match
+      env.get('INKO_PROCESS_THREADS').ok.then(fn (v) { Int.parse(v, base: 10) })
+    {
+      case Some(v) if v > 0 -> v
+      case _ -> sys.cpu_cores
+    }
 
-    t.equal(tests.concurrency, sys.cpu_cores)
+    t.equal(tests.concurrency, exp)
   })
 
   t.test('Filter.from_string', fn (t) {
