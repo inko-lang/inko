@@ -137,7 +137,7 @@ jobs:
       - run: uname -a
       - run: cargo --version
       - name: Run tests
-        run: 'cargo run -- test --verify ${{ matrix.flags }}'
+        run: 'cargo run -- test --threads=2 --verify ${{ matrix.flags }}'
         working-directory: std
 
   compiler-mac:
@@ -224,5 +224,5 @@ jobs:
           key: ${{ matrix.target.name }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
       - run: cargo --version
       - name: Run tests
-        run: 'cargo run -- test --verify ${{ matrix.flags }}'
+        run: 'cargo run -- test --threads=2 --verify ${{ matrix.flags }}'
         working-directory: std
