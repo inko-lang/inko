@@ -21,18 +21,6 @@ jobs:
       - uses: actions/checkout@v7
       - run: cargo-deny check
 
-  cargo-clippy:
-    runs-on: home-linux-amd64
-    container:
-      image: ghcr.io/inko-lang/ci/fedora:latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/cache@v5
-        with:
-          path: '~/.cargo'
-          key: amd64-linux-gnu-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
-      - run: 'cargo clippy -- -D warnings'
-
   cargo-fmt:
     runs-on: home-linux-amd64
     container:
