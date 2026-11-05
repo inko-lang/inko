@@ -73,7 +73,7 @@ fn pub tests(t: mut Tests) {
         out.write('b')
       },
       test: fn (t, proc) {
-        let child = proc.cmd.spawn.or_panic
+        let child = proc.spawn_only.or_panic
         let buf = ByteArray.new
         let stdout = child.stdout.as_mut.get
 
@@ -89,6 +89,8 @@ fn pub tests(t: mut Tests) {
         t.equal(child.signal(sig), Result.Ok(nil))
         t.equal(stdout.read(into: buf, size: 1), Result.Ok(1))
         t.equal(buf.to_string, 'ab')
+
+        let _ = child.wait
       },
     )
   }
