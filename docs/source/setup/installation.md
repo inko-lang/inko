@@ -260,7 +260,7 @@ sudo pacman -Sy llvm rust git base-devel
 ### Alpine
 
 ```bash
-sudo apk add build-base rust cargo llvm18 llvm18-dev llvm18-static libstdc++-dev zlib-static zstd-static libxml2-static git
+sudo apk add build-base rust cargo llvm18 llvm18-dev llvm18-static libstdc++-dev zlib-static zstd-static libxml2-static git libgcc
 ```
 
 ### Debian
