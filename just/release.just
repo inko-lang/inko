@@ -1,5 +1,9 @@
 set no-cd
 
+# Enabled to unrelated tasks don't trigger the evaluation of `VERSION` and thus
+# a potential "cargo not found" command error.
+set lazy
+
 # The server to deploy to.
 SERVER := "web.srv.yorickpeterse.com"
 
