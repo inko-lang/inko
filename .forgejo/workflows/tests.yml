@@ -64,29 +64,17 @@ jobs:
       matrix:
         target:
           - image: fedora
-            name: amd64-linux-gnu-1.89
-            runner: home-linux-amd64
-            version: 1.89
-          - image: fedora
             name: amd64-linux-gnu
             runner: home-linux-amd64
-            version: 1.94
           - image: alpine
             name: amd64-linux-musl
             runner: home-linux-amd64
-            version: 1.94
-          - image: fedora
-            name: arm64-linux-gnu-1.89
-            runner: home-linux-arm64
-            version: 1.89
           - image: fedora
             name: arm64-linux-gnu
             runner: home-linux-arm64
-            version: 1.94
           - image: alpine
             name: arm64-linux-musl
             runner: home-linux-arm64
-            version: 1.94
     name: ${{ matrix.target.name }} compiler
     timeout-minutes: 15
     runs-on: ${{ matrix.target.runner }}
@@ -99,7 +87,7 @@ jobs:
           path: '~/.cargo'
           key: ${{ matrix.target.name }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
       - name: Run tests
-        run: cargo +${{ matrix.target.version }} test
+        run: cargo test
 
   std-linux:
     strategy:
