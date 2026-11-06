@@ -3,9 +3,20 @@ name: Run tests
 on:
   workflow_call:
 
+env:
+  # All runners are restricted to 2 CPU cores and roughly 4 GiB of memory.
+  # However, the macOS runner runs on the host and macOS has no way of limiting
+  # the number of CPU cores on a per-process basis (that we know of at least).
+  #
+  # We set this option here such that this runner (and potentially other ones in
+  # the future) limit the number of cargo jobs to 2 as well, such that this
+  # work doesn't interfere too much with other concurrently running jobs, such
+  # as the FreeBSD ARM64 VM that runs on the same host as the macOS runner.
+  CARGO_BUILD_JOBS: 2
+
 jobs:
   vale:
-    name: Vale
+    name: vale
     runs-on: home-linux-amd64
     container:
       image: codeberg.org/yorickpeterse/base-images/vale:latest
