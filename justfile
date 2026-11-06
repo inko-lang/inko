@@ -7,8 +7,11 @@ mod man 'just/man.just'
 # Generating and deploying of the stdlib documentation
 mod std 'just/std.just'
 
-# Building of CI container images
+# Building of CI OCI images
 mod ci 'just/ci.just'
+
+# Building of the OCI image
+mod image 'just/image.just'
 
 # The server to deploy to.
 SERVER := "web.srv.yorickpeterse.com"

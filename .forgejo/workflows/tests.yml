@@ -3,17 +3,6 @@ name: Run tests
 on:
   workflow_call:
 
-env:
-  # All runners are restricted to 2 CPU cores and roughly 4 GiB of memory.
-  # However, the macOS runner runs on the host and macOS has no way of limiting
-  # the number of CPU cores on a per-process basis (that we know of at least).
-  #
-  # We set this option here such that this runner (and potentially other ones in
-  # the future) limit the number of cargo jobs to 2 as well, such that this
-  # work doesn't interfere too much with other concurrently running jobs, such
-  # as the FreeBSD ARM64 VM that runs on the same host as the macOS runner.
-  CARGO_BUILD_JOBS: 2
-
 jobs:
   vale:
     name: vale
@@ -91,8 +80,8 @@ jobs:
             ~/.cargo
             target
           key: ${{ matrix.target.name }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
-      - name: Run tests
-        run: cargo test
+      - run: cargo --version
+      - run: cargo test
 
   std-linux:
     strategy:
@@ -132,13 +121,15 @@ jobs:
       - run: uname -a
       - run: cargo --version
       - name: Run tests
-        run: 'cargo run -- test --threads=2 --verify ${{ matrix.flags }}'
+        run: 'cargo run -- test --verify ${{ matrix.flags }}'
         working-directory: std
 
   compiler-mac:
     name: arm64-mac-native compiler
     timeout-minutes: 15
     runs-on: home-macos-arm64
+    env:
+      CARGO_BUILD_JOBS: 2
     steps:
       - uses: actions/checkout@v7
       - uses: actions/cache@v5
@@ -148,8 +139,7 @@ jobs:
             target
           key: arm64-mac-native-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
       - run: cargo --version
-      - name: Run tests
-        run: cargo test
+      - run: cargo test -- --test-threads=2
 
   std-mac:
     strategy:
@@ -163,6 +153,8 @@ jobs:
     name: arm64-mac-native std ${{ matrix.flags }}
     timeout-minutes: 15
     runs-on: home-macos-arm64
+    env:
+      CARGO_BUILD_JOBS: 2
     steps:
       - uses: actions/checkout@v7
       - uses: actions/cache@v5
@@ -197,8 +189,7 @@ jobs:
             target
           key: ${{ matrix.target.name }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
       - run: cargo --version
-      - name: Run tests
-        run: cargo test
+      - run: cargo test
 
   std-freebsd:
     strategy:
@@ -227,5 +218,5 @@ jobs:
           key: ${{ matrix.target.name }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
       - run: cargo --version
       - name: Run tests
-        run: 'cargo run -- test --threads=2 --verify ${{ matrix.flags }}'
+        run: 'cargo run -- test --verify ${{ matrix.flags }}'
         working-directory: std

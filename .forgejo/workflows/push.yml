@@ -16,46 +16,14 @@ jobs:
     name: Tests
     uses: ./.forgejo/workflows/tests.yml
 
+  image:
+    if: forge.ref_name == 'main'
+    name: Image
+    uses: ./.forgejo/workflows/image.yml
+    with:
+      tag: main
+
 # TODO: remove
-# env:
-#   REGISTRY: ghcr.io
-#   IMAGE_NAME: ${{ forge.repository }}
-#   CARGO_HOME: ${{ forge.workspace }}/.cargo-home
-#   # We set an explicit version to only install the components we need for CI.
-#   RUSTUP_TOOLCHAIN: '1.89'
-#
-# jobs:
-#   tests:
-#     name: Tests
-#     uses: ./.github/workflows/tests.yml
-#
-#   nightly-container:
-#     name: Nightly container
-#     runs-on: ubuntu-26.04
-#     permissions:
-#       contents: read
-#       packages: write
-#     needs:
-#       - tests
-#     if: forge.ref_name == 'main'
-#     steps:
-#       - uses: actions/checkout@v7
-#       - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121
-#         with:
-#           registry: ${{ env.REGISTRY }}
-#           username: ${{ forge.actor }}
-#           password: ${{ secrets.GITHUB_TOKEN }}
-#       - uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf
-#         id: meta
-#         with:
-#           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-#       - uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f
-#         with:
-#           context: .
-#           push: true
-#           tags: ${{ steps.meta.outputs.tags }}
-#           labels: ${{ steps.meta.outputs.labels }}
-#
 #   docs:
 #     name: Documentation
 #     runs-on: ubuntu-26.04

@@ -1,0 +1,51 @@
+---
+name: Build OCI image
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: 'The name of the tag'
+        required: false
+        type: string
+        default: main
+
+jobs:
+  build:
+    name: ${{ matrix.target }} OCI image
+    strategy:
+      matrix:
+        target:
+          - amd64
+          - arm64
+    runs-on: home-linux-${{ matrix.runner }}
+    container:
+      volumes:
+        - /var/lib/forgejo-runner/containers:/var/lib/containers/storage:z
+    needs:
+      - tests
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Log in to the registry
+        run: just image login ${{ secrets.REGISTRY_TOKEN }}
+      - name: Build the image
+        run: just image build ${{ inputs.tag }}-${{ matrix.target }}
+      - name: Push the image
+        run: just image push ${{ inputs.tag }}-${{ matrix.target }}
+
+  manifest:
+    name: OCI manifest
+    runs-on: home-linux-amd64
+    container:
+      volumes:
+        - /var/lib/forgejo-runner/containers:/var/lib/containers/storage:z
+    needs:
+      - build
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Log in to the registry
+        run: just image login ${{ secrets.REGISTRY_TOKEN }}
+      - name: Create and push manifest
+        run: just image manifest ${{ inputs.tag }} latest
