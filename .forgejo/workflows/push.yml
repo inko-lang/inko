@@ -19,6 +19,8 @@ jobs:
   image:
     if: forge.ref_name == 'main'
     name: Image
+    needs:
+      - tests
     uses: ./.forgejo/workflows/image.yml
     with:
       tag: main

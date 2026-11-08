@@ -22,8 +22,6 @@ jobs:
     container:
       volumes:
         - /var/lib/forgejo-runner/containers:/var/lib/containers/storage:z
-    needs:
-      - tests
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
