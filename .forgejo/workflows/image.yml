@@ -18,7 +18,7 @@ jobs:
         target:
           - amd64
           - arm64
-    runs-on: home-linux-${{ matrix.runner }}
+    runs-on: home-linux-${{ matrix.target }}
     container:
       volumes:
         - /var/lib/forgejo-runner/containers:/var/lib/containers/storage:z
