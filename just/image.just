@@ -22,11 +22,11 @@ login pass:
     @buildah login {{ HOST }} --username "{{ USER }}" --password "{{ pass }}"
 
 # Push the container to the registry
-push name tag:
+push tag:
     buildah push "{{ fqn(tag) }}"
 
 # Create and push a manifest of multi-arch tags
-manifest name tag:
+manifest tag:
     buildah manifest create \
         --all "{{ fqn('manifest') }}" \
         "{{ fqn(f'{{ tag }}-amd64') }}" \
