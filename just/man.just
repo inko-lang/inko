@@ -5,7 +5,7 @@ TARGET := "/var/lib/shost/sites/docs.inko-lang.org"
 
 # Build or publish the manual
 ci ref="main":
-    just {{ if ref == "main" { "publish" } else { "build" } }} {{ ref }}
+    just man {{ if ref == "main" { "publish" } else { "build" } }} {{ ref }}
 
 # Build the manual
 build ref="main":
