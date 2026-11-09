@@ -1,117 +1,55 @@
 ---
-name: Build runtimes
+name: Build cross-compilation runtimes
 on:
   workflow_call:
 
-env:
-  CARGO_HOME: ${{ github.workspace }}/.cargo-home
-  # We set an explicit version to only install the components we need for CI.
-  RUSTUP_TOOLCHAIN: '1.89'
-
 jobs:
-  amd64-linux:
-    runs-on: ubuntu-26.04
+  linux:
+    strategy:
+      matrix:
+        target:
+          - image: fedora
+            name: amd64-linux-gnu
+            runner: home-linux-amd64
+          - image: alpine
+            name: amd64-linux-musl
+            runner: home-linux-amd64
+          - image: fedora
+            name: arm64-linux-gnu
+            runner: home-linux-arm64
+          - image: alpine
+            name: arm64-linux-musl
+            runner: home-linux-arm64
+    name: ${{ matrix.target.name }} runtimes
+    runs-on: ${{ matrix.target.runner }}
     container:
-      image: ghcr.io/inko-lang/ci:fedora-amd64
+      image: ghcr.io/inko-lang/ci/${{ matrix.target.image }}:latest
     steps:
       - uses: actions/checkout@v7
-      - name: Build runtimes
-        run: bash ci/runtimes.sh amd64-linux
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: amd64-linux
-          path: tmp/runtimes/*.tar.gz
-          overwrite: true
-          retention-days: 2
-          compression-level: 0
+      - run: just release runtimes ${{ matrix.target.name }}
 
-  arm64-linux:
-    runs-on: ubuntu-26.04-arm
-    container:
-      image: ghcr.io/inko-lang/ci:fedora-arm64
+  freebsd:
+    strategy:
+      matrix:
+        target:
+          - name: amd64-freebsd-native
+            runner: home-freebsd-amd64
+          - name: arm64-freebsd-native
+            runner: netcup-freebsd-arm64
+    name: ${{ matrix.target.name }} runtimes
+    runs-on: ${{ matrix.target.runner }}
     steps:
       - uses: actions/checkout@v7
-      - name: Build runtimes
-        run: bash ci/runtimes.sh arm64-linux
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: arm64-linux
-          path: tmp/runtimes/*.tar.gz
-          overwrite: true
-          retention-days: 2
-          compression-level: 0
+      - run: just release runtimes ${{ matrix.target.name }}
 
-  amd64-mac:
-    runs-on: macos-15-intel
+  macos:
+    strategy:
+      matrix:
+        target:
+          - name: arm64-macos-native
+            runner: home-macos-arm64
+    name: ${{ matrix.target.name }} runtimes
+    runs-on: ${{ matrix.target.runner }}
     steps:
       - uses: actions/checkout@v7
-      - name: Install dependencies
-        run: ./ci/mac.sh
-      - name: Build runtimes
-        run: bash ci/runtimes.sh amd64-mac
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: amd64-mac
-          path: tmp/runtimes/*.tar.gz
-          overwrite: true
-          retention-days: 2
-          compression-level: 0
-
-  arm64-mac:
-    runs-on: macos-15
-    steps:
-      - uses: actions/checkout@v7
-      - name: Install dependencies
-        run: ./ci/mac.sh
-      - name: Build runtimes
-        run: bash ci/runtimes.sh arm64-mac
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: arm64-mac
-          path: tmp/runtimes/*.tar.gz
-          overwrite: true
-          retention-days: 2
-          compression-level: 0
-
-  amd64-freebsd:
-    runs-on: ubuntu-26.04
-    steps:
-      - uses: actions/checkout@v7
-      - name: Build runtimes
-        uses: cross-platform-actions/action@233156312992f3f169d8d0c633c21d12a5d30455
-        with:
-          operating_system: freebsd
-          version: '14.0'
-          memory: 8G
-          environment_variables: 'CARGO_HOME RUSTUP_HOME'
-          image_url: 'https://github.com/inko-lang/freebsd-builder/releases/download/v0.8.0/freebsd-14.0-x86-64.qcow2'
-          run: bash ci/runtimes.sh amd64-freebsd
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: amd64-freebsd
-          path: tmp/runtimes/*.tar.gz
-          overwrite: true
-          retention-days: 2
-          compression-level: 0
-
-  upload:
-    name: Upload runtimes
-    runs-on: ubuntu-26.04
-    container:
-      image: ghcr.io/inko-lang/ci:fedora-amd64
-    env:
-      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-    needs:
-      - amd64-linux
-      - arm64-linux
-      - amd64-mac
-      - arm64-mac
-      - amd64-freebsd
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
-        with:
-          path: tmp/runtimes
-          merge-multiple: true
-      - name: Upload runtimes
-        run: just release runtimes
+      - run: just release runtimes ${{ matrix.target.name }}

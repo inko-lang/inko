@@ -2,17 +2,7 @@
 
 set -e
 
-RUST_VERSION='1.94'
 DIR="tmp/runtimes"
-
-function rustup_lib {
-    local home
-    local toolchain
-    home="$(rustup show home)"
-    toolchain="$(rustup show active-toolchain | awk '{print $1}')"
-
-    echo "${home}/toolchains/${toolchain}/lib/rustlib/${1}/lib/"
-}
 
 function build {
     local rust_target
@@ -24,22 +14,9 @@ function build {
     out="${DIR}/${inko_target}.tar.gz"
     target_dir="${DIR}/${inko_target}"
 
-    if [[ -f "${out}" ]]
-    then
-        return 0
-    fi
-
-    rustup target add "${rust_target}"
-    cargo build -p rt --release --target="${rust_target}"
+    cargo build -p rt --release
     mkdir -p "${target_dir}"
     cp "target/${rust_target}/release/libinko.a" "${target_dir}"
-
-    if [[ "${rust_target}" == *-musl ]]
-    then
-        cp "$(rustup_lib "${rust_target}")/self-contained/libunwind.a" \
-            "${target_dir}"
-    fi
-
     tar --directory "${DIR}" --create --gzip --file "${out}" "${inko_target}"
     rm -rf "${target_dir}"
 }

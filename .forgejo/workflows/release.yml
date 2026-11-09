@@ -4,130 +4,49 @@ on:
   push:
     tags:
       - 'v*'
-
-# TODO: remove?
-# env:
-#   REGISTRY: ghcr.io
-#   IMAGE_NAME: ${{ github.repository }}
-#   CARGO_HOME: ${{ github.workspace }}/.cargo-home
-#   # We set an explicit version to only install the components we need for CI.
-#   RUSTUP_TOOLCHAIN: '1.89'
+  workflow_dispatch:
 
 jobs:
   tests:
     name: Tests
     uses: ./.forgejo/workflows/tests.yml
 
-  # TODO: update
-  # source:
-  #   name: Source archive
-  #   runs-on: ubuntu-26.04
-  #   container:
-  #     image: ghcr.io/inko-lang/ci:fedora-amd64
-  #   needs:
-  #     - tests
-  #   env:
-  #     SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-  #   steps:
-  #     - uses: actions/checkout@v7
-  #     - run: git config --global --add safe.directory $PWD
-  #     - name: Upload source archive
-  #       run: make release/source
-  #     - name: Update manifest
-  #       run: make release/manifest
-  #
-  # runtimes:
-  #   name: Runtimes
-  #   needs:
-  #     - tests
-  #   uses: ./.github/workflows/runtimes.yml
-  #   secrets: inherit
-  #
-  # docs:
-  #   name: Documentation
-  #   runs-on: ubuntu-26.04
-  #   container:
-  #     image: ghcr.io/inko-lang/inko:latest
-  #   needs:
-  #     - tests
-  #     - source
-  #     - runtimes
-  #   env:
-  #     SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-  #   steps:
-  #     - name: Install dependencies
-  #       run: microdnf install --quiet --assumeyes git tar make
-  #     - uses: actions/checkout@v7
-  #     - uses: actions/cache@v5
-  #       with:
-  #         path: '~/.local/share/inko/packages'
-  #         key: docs-release-${{ hashFiles('docs/inko.pkg') }}
-  #     - run: git config --global --add safe.directory $PWD
-  #     - name: Deploy the documentation
-  #       run: make docs/publish DOCS_REF=${{ github.ref_name }}
-  #     - name: Update the latest tag
-  #       run: >
-  #         if [[ ${{ github.ref_name }} = $(git tag -l --sort=-v:refname | head -n1) ]]
-  #         then
-  #           make docs/publish DOCS_REF=latest
-  #         fi
-  #
-  # std-docs:
-  #   name: Standard library documentation
-  #   runs-on: ubuntu-26.04
-  #   container:
-  #     image: ghcr.io/inko-lang/ci:fedora-amd64
-  #   env:
-  #     SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-  #   needs:
-  #     - tests
-  #     - source
-  #     - runtimes
-  #   steps:
-  #     - uses: actions/checkout@v7
-  #     - uses: actions/cache@v5
-  #       with:
-  #         path: '${{ env.CARGO_HOME }}'
-  #         key: std-docs-release-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
-  #     - run: git config --global --add safe.directory $PWD
-  #     - name: Deploy the documentation
-  #       run: make std-docs/publish DOCS_REF=${{ github.ref_name }}
-  #     - name: Update the latest tag
-  #       run: >
-  #         if [[ ${{ github.ref_name }} = $(git tag -l --sort=-v:refname | head -n1) ]]
-  #         then
-  #           make std-docs/publish DOCS_REF=latest
-  #         fi
-  #
-  # container:
-  #   name: Container
-  #   runs-on: ubuntu-26.04
-  #   needs:
-  #     - docs
-  #     - runtimes
-  #     - source
-  #     - std-docs
-  #     - tests
-  #   permissions:
-  #     contents: read
-  #     packages: write
-  #   steps:
-  #     - uses: actions/checkout@v7
-  #     - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121
-  #       with:
-  #         registry: ${{ env.REGISTRY }}
-  #         username: ${{ github.actor }}
-  #         password: ${{ secrets.GITHUB_TOKEN }}
-  #     - uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf
-  #       id: meta
-  #       with:
-  #         images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-  #         tags: |
-  #           type=semver,pattern={{version}}
-  #           type=semver,pattern={{major}}.{{minor}}
-  #     - uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f
-  #       with:
-  #         context: .
-  #         push: true
-  #         tags: ${{ steps.meta.outputs.tags }}
-  #         labels: ${{ steps.meta.outputs.labels }}
+  source:
+    name: Source archive
+    runs-on: home-linux-amd64
+    container:
+      image: ghcr.io/inko-lang/ci/fedora:latest
+    needs:
+      - tests
+    env:
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+      - run: git config --global --add safe.directory $PWD
+      - run: just release source
+      - run: just release manifest
+
+  runtimes:
+    name: Runtimes
+    needs:
+      - tests
+    uses: ./.forgejo/workflows/runtimes.yml
+    secrets: inherit
+
+  docs:
+    name: Documentation
+    needs:
+      - tests
+    uses: ./.forgejo/workflows/docs.yml
+    secrets: inherit
+    with:
+      release: true
+
+  image:
+    name: Image
+    needs:
+      - tests
+    uses: ./.forgejo/workflows/image.yml
+    secrets: inherit
+    with:
+      tag: ${{ forge.ref_name }}

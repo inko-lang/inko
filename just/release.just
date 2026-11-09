@@ -28,6 +28,9 @@ MANIFEST := f"{{ TMP_DIR }}/{{ MANIFEST_NAME }}"
 # The local path to the directory containing cross-compilation runtimes
 RUNTIMES := "tmp/runtimes"
 
+# The directory to upload runtime libraries to.
+RUNTIMES_TARGET := f"/var/lib/shost/sites/releases.inko-lang.org/runtimes/{{ VERSION }}"
+
 # Create the files and directories necessary for a release
 prepare:
     mkdir -p "{{ TMP_DIR }}"
@@ -50,10 +53,16 @@ archive: prepare
     	location \
     	| gzip > "{{ ARCHIVE }}"
 
-# Upload the cross-compilation runtimes
-runtimes:
-    scripts/scp.sh -r "{{ RUNTIMES }}" \
-        "{{ SERVER }}:/var/lib/shost/sites/releases.inko-lang.org/runtimes/{{ VERSION }}"
+# Build and upload a cross-compilation runtime.
+runtime target:
+    mkdir -p "{{ RUNTIMES }}/{{ target }}"
+    cargo build -p rt --release
+    cp target/release/libinko.a "{{ RUNTIMES }}/{{ target }}"
+    tar --directory "{{ RUNTIMES }}" --create --gzip \
+        --file "{{ RUNTIMES }}/{{ target }}.tar.gz" \
+        "{{ target }}"
+    scripts/scp.sh "{{ RUNTIMES }}/{{ target }}.tar.gz" \
+        "{{ SERVER }}:{{ RUNTIMES_TARGET }}"
 
 # Upload the source archive
 source:

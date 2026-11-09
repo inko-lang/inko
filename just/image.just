@@ -38,4 +38,4 @@ manifest tag:
 clean:
     buildah prune --all --force
 
-fqn(tag) := f"{{ HOST }}/{{ NAMESPACE }}/{{ REPO }}:{{ tag }}"
+fqn(tag) := f"{{ HOST }}/{{ NAMESPACE }}/{{ REPO }}:{{ replace_regex(tag, 'v(\d+\.\d+\.\d+)', '$1') }}"
