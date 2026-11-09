@@ -38,4 +38,4 @@ manifest tag:
 clean:
     buildah prune --all --force
 
-fqn(tag) := f"{{ HOST }}/{{ NAMESPACE }}/{{ REPO }}/inko:{{ tag }}"
+fqn(tag) := f"{{ HOST }}/{{ NAMESPACE }}/{{ REPO }}:{{ tag }}"
