@@ -46,4 +46,4 @@ jobs:
       - name: Log in to the registry
         run: just image login ${{ secrets.REGISTRY_TOKEN }}
       - name: Create and push manifest
-        run: just image manifest ${{ inputs.tag }} latest
+        run: just image manifest ${{ inputs.tag }}
