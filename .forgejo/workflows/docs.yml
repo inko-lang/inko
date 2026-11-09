@@ -1,0 +1,42 @@
+---
+name: Build documentation
+
+on:
+  workflow_call:
+
+jobs:
+  manual:
+    name: Build manual
+    runs-on: home-linux-amd64
+    container:
+      image: ghcr.io/inko-lang/inko:latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/cache@v5
+        with:
+          path: '~/.local/share/inko/packages'
+          key: manual-${{ hashFiles('docs/inko.pkg') }}
+      - run: git config --global --add safe.directory $PWD
+      - name: Build the documentation
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: just man ci ${{ forge.ref_name }}
+
+  std:
+    name: Build stdlib documentation
+    runs-on: home-linux-amd64
+    container:
+      image: ghcr.io/inko-lang/ci/fedora:latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo
+            target
+          key: amd64-linux-gnu-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+      - run: git config --global --add safe.directory $PWD
+      - name: Build the documentation
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: just std ci ${{ forge.ref_name }}

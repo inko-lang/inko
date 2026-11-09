@@ -3,6 +3,10 @@ set working-directory := "../docs"
 # The base directory/site to deploy to.
 TARGET := "/var/lib/shost/sites/docs.inko-lang.org"
 
+# Build or publish the manual
+ci ref="main":
+    just {{ if ref == "main" { "publish" } else { "build" } }} {{ ref }}
+
 # Build the manual
 build ref="main":
     rm -rf public

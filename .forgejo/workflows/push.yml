@@ -26,55 +26,9 @@ jobs:
     with:
       tag: main
 
-# TODO: remove
-#   docs:
-#     name: Documentation
-#     runs-on: ubuntu-26.04
-#     container:
-#       image: ghcr.io/inko-lang/inko:latest
-#     needs:
-#       - tests
-#     steps:
-#       - name: Install dependencies
-#         run: microdnf install --quiet --assumeyes make
-#       - uses: actions/checkout@v7
-#       - uses: actions/cache@v5
-#         with:
-#           path: '~/.local/share/inko/packages'
-#           key: docs-main-${{ hashFiles('docs/inko.pkg') }}
-#       - run: git config --global --add safe.directory $PWD
-#       - name: Build the documentation
-#         env:
-#           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-#         run: >
-#           if [[ ${{ forge.ref_name }} = 'main' ]]
-#           then
-#             make docs/publish
-#           else
-#             make docs/build
-#           fi
-#
-#   std-docs:
-#     name: Standard library documentation
-#     runs-on: ubuntu-26.04
-#     container:
-#       image: ghcr.io/inko-lang/ci:fedora-amd64
-#     needs:
-#       - tests
-#     steps:
-#       - uses: actions/checkout@v7
-#       - uses: actions/cache@v5
-#         with:
-#           path: '${{ env.CARGO_HOME }}'
-#           key: std-docs-main-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
-#       - run: git config --global --add safe.directory $PWD
-#       - name: Deploy the documentation
-#         env:
-#           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-#         run: >
-#           if [[ ${{ forge.ref_name }} = 'main' ]]
-#           then
-#             make std-docs/publish
-#           else
-#             make std-docs/build
-#           fi
+  docs:
+    name: Documentation
+    needs:
+      - tests
+    uses: ./.forgejo/workflows/docs.yml
+    secrets: inherit
