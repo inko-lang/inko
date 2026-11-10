@@ -1,4 +1,4 @@
-set working-directory := "../docs"
+set no-cd
 
 # The base directory/site to deploy to.
 TARGET := "/var/lib/shost/sites/docs.inko-lang.org"
@@ -10,18 +10,18 @@ ci ref="main":
 
 # Build the manual
 build ref="main":
-    rm -rf public
-    inko build --release
-    env DOCS_REF="{{ ref }}" ./build/release/main
+    rm -rf docs/public
+    cd docs && inko build --release
+    cd docs && env DOCS_REF="{{ ref }}" ./build/release/main
 
 # Watch and automatically rebuild the manual
 watch ref="main":
-    env DOCS_REF="{{ ref }}" scripts/watch.sh
+    cd docs && env DOCS_REF="{{ ref }}" scripts/watch.sh
 
 # Publish the manual
 publish ref="main": (build ref)
-    ../scripts/docs.sh public "{{ TARGET }}/manual" "{{ ref }}"
+    scripts/docs.sh docs/public "{{ TARGET }}/manual" "{{ ref }}"
 
 # Update the "latest" tag.
 latest ref:
-    ../scripts/latest.sh "{{ TARGET }}/manual" "{{ ref }}"
+    scripts/latest.sh "{{ TARGET }}/manual" "{{ ref }}"
