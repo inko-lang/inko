@@ -6,8 +6,8 @@ on:
     branches:
       - main
     paths:
-      - '.forgejo/workflows/container.yml'
-      - '.forgejo/workflows/containers.yml'
+      - '.forgejo/workflows/ci_image.yml'
+      - '.forgejo/workflows/ci_images.yml'
       - 'ci/**'
 
 concurrency:
