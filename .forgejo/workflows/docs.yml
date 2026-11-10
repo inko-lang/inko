@@ -28,7 +28,7 @@ jobs:
     name: Build stdlib documentation
     runs-on: home-linux-amd64
     container:
-      image: ghcr.io/inko-lang/ci/fedora:latest
+      image: ghcr.io/inko-lang/ci/idoc:latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/cache@v5
