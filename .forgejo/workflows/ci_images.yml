@@ -25,3 +25,19 @@ jobs:
     secrets: inherit
     with:
       name: alpine
+
+  idoc:
+    name: idoc amd64
+    runs-on: home-linux-amd64
+    container:
+      volumes:
+        - /var/lib/forgejo-runner/containers:/var/lib/containers/storage:z
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Log in to the registry
+        run: just ci login ${{ secrets.REGISTRY_TOKEN }}
+      - name: Build the image
+        run: just ci build idoc latest
+      - name: Push the image
+        run: just ci push idoc latest
