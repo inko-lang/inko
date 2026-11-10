@@ -35,7 +35,7 @@ jobs:
           - name: amd64-freebsd-native
             runner: home-freebsd-amd64
           - name: arm64-freebsd-native
-            runner: netcup-freebsd-arm64
+            runner: home-freebsd-arm64
     name: ${{ matrix.target.name }} runtimes
     runs-on: ${{ matrix.target.runner }}
     steps:
