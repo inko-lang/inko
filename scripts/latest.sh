@@ -10,7 +10,6 @@ REF="${2}"
 
 if [[ "${REF}" != $(git tag -l --sort=-v:refname | head -n1) ]]
 then
-    echo 'Nothing to update'
     exit 0
 fi
 
