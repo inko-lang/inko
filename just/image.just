@@ -25,6 +25,10 @@ login pass:
 push tag:
     buildah push "{{ fqn(tag) }}"
 
+# Tag an image as the latest image.
+latest tag:
+    buildah tag "{{ fqn(tag) }}" "{{ fqn('latest') }}"
+
 # Create and push a manifest of multi-arch tags
 manifest tag:
     buildah manifest create \
