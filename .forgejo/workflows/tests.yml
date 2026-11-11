@@ -129,7 +129,7 @@ jobs:
     timeout-minutes: 15
     runs-on: home-macos-arm64
     env:
-      CARGO_BUILD_JOBS: 2
+      CARGO_BUILD_JOBS: 4
     steps:
       - uses: actions/checkout@v7
       - uses: actions/cache@v5
@@ -139,7 +139,7 @@ jobs:
             target
           key: arm64-mac-native-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
       - run: cargo --version
-      - run: cargo test -- --test-threads=2
+      - run: cargo test -- --test-threads=4
 
   std-mac:
     strategy:
@@ -154,7 +154,7 @@ jobs:
     timeout-minutes: 15
     runs-on: home-macos-arm64
     env:
-      CARGO_BUILD_JOBS: 2
+      CARGO_BUILD_JOBS: 4
     steps:
       - uses: actions/checkout@v7
       - uses: actions/cache@v5
@@ -165,7 +165,7 @@ jobs:
           key: arm64-mac-native-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
       - run: cargo --version
       - name: Run tests
-        run: 'cargo run -- test --threads=2 --verify ${{ matrix.flags }}'
+        run: 'cargo run -- test --threads=4 --verify ${{ matrix.flags }}'
         working-directory: 'std'
 
   compiler-freebsd:
