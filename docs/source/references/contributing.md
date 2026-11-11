@@ -33,9 +33,9 @@ proxy](https://not-an-llm.com/meat-based-llm-proxies).
 
 Bugs should be reported at the appropriate issue tracker. For example, bugs for
 Inko itself should be reported in the project
-[inko-lang/inko](https://github.com/inko-lang/inko/issues), while bugs
+[inko-lang/inko](https://codeberg.org/inko-lang/inko/issues), while bugs
 specific to Inko's version manager should be reported in the project
-[inko-lang/ivm](https://github.com/inko-lang/ivm/issues). Here are a few of
+[inko-lang/ivm](https://codeberg.org/inko-lang/ivm/issues). Here are a few of
 our projects:
 
 |=
@@ -45,22 +45,28 @@ our projects:
 |-
 | inko-lang/inko
 | The main project for Inko
-| <https://github.com/inko-lang/inko/issues>
+| <https://codeberg.org/inko-lang/inko/issues>
 |-
 | inko-lang/ivm
 | Inko's version manager
-| <https://github.com/inko-lang/ivm/issues>
+| <https://codeberg.org/inko-lang/ivm/issues>
 |-
 | inko-lang/inko.vim
 | Vim integration for Inko
-| <https://github.com/inko-lang/inko.vim/issues>
+| <https://codeberg.org/inko-lang/inko.vim/issues>
 |-
 | inko-lang/website
 | The Inko website
-| <https://github.com/inko-lang/website/issues>
+| <https://codeberg.org/inko-lang/website/issues>
 
-For an up to date list, take a look at the [inko-lang GitHub
-group](https://github.com/inko-lang).
+For an up to date list, take a look at the [inko-lang Codeberg
+organisation](https://codeberg.org/inko-lang).
+
+::: note
+In the past Inko's development took place on
+[GitHub](https://github.com/inko-lang/). The Inko repository is now a read-only
+mirror and other repositories are archived.
+:::
 
 Before reporting a bug, please make sure an issue doesn't already exist for the
 bug. To find all reported bugs, filter the list of issues using the `Bug` type.
@@ -252,7 +258,7 @@ characters _unless_ they exceed this limit due to a URL.
 ```
 
 Another example can be seen in commit
-[b64323](https://github.com/inko-lang/inko/commit/b64323fe288e2c21aeff268ca27fa47b0ed8732d).
+[b64323](https://codeberg.org/inko-lang/inko/commit/b64323fe288e2c21aeff268ca27fa47b0ed8732d).
 
 When writing commit messages, please refrain from including tags like "feat:",
 "bug:", and others recommended by projects such as [Conventional

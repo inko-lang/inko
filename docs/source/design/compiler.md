@@ -196,7 +196,7 @@ only results in a single specialization.
 ::: note
 In the past we used to group types together into "shapes", but this changed
 with pull request ["Specialize over individual types instead of specializing over
-groups of types"](https://github.com/inko-lang/inko/pull/870).
+groups of types"](https://codeberg.org/inko-lang/inko/pulls/870).
 :::
 
 

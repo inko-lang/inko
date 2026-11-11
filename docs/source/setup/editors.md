@@ -18,7 +18,7 @@ support for syntax highlighting and code formatting, thanks to the official
 ## (Neo)Vim
 
 For Vim and Neovim we provide [an official
-plugin](https://github.com/inko-lang/inko.vim). This plugin adds support for
+plugin](https://codeberg.org/inko-lang/inko.vim). This plugin adds support for
 syntax highlighting, file type detection, folding, and indentation.
 
 Users of NeoVim can also use
@@ -40,10 +40,10 @@ install it, open VS Code's Quick Open window (Ctrl+P) and run the following:
 ext install inko-lang.inko
 ```
 
-[ts-grammar]: https://github.com/inko-lang/tree-sitter-inko/
+[ts-grammar]: https://codeberg.org/inko-lang/tree-sitter-inko/
 
 ## Zed
 
-[An official extension](https://github.com/inko-lang/zed) is available for Zed.
-To install it, open the Extension Gallery ("Zed > Extensions" in the menu bar)
-and search for `id:inko`.
+[An official extension](https://codeberg.org/inko-lang/zed) is available for
+Zed. To install it, open the Extension Gallery ("Zed > Extensions" in the menu
+bar) and search for `id:inko`.

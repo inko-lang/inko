@@ -380,5 +380,5 @@ The reason for this is that while the captured variables are moved into the
 closure, closures can still be called multiple times and thus the variables have
 to be exposed as borrows. The ability to define closures that can only be called
 once (and thus allow moving captured variables out of closures) is something
-that [we looked into in past](https://github.com/inko-lang/inko/issues/347), but
-support for this isn't planned for the foreseeable future.
+that [we looked into in past](https://codeberg.org/inko-lang/inko/issues/347),
+but support for this isn't planned for the foreseeable future.

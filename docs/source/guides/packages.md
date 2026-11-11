@@ -6,7 +6,8 @@
 
 Inko has a built-in package manager, available using the `inko pkg` command and
 its subcommands (e.g. `inko pkg add`). Packages are just Git repositories hosted
-on a platform such as GitLab or GitHub. There's no central package registry.
+on a platform such as Codeberg, GitHub or GitLab. There's no central package
+registry.
 
 ## Manifest format
 
@@ -95,7 +96,7 @@ package version. This is done for the following reasons:
 
 ::: info
 You can find some additional details about this choice in [this
-issue](https://github.com/inko-lang/inko/issues/738)
+issue](https://codeberg.org/inko-lang/inko/issues/738)
 :::
 
 ## Handling security updates
@@ -119,7 +120,7 @@ Adding a package is done using `inko pkg add`, which takes the package URL and
 version to add. For example:
 
 ```bash
-inko pkg add github.com/inko-lang/example-package 1.2.3
+inko pkg add codeberg.org/inko-lang/example-package 1.2.3
 ```
 
 This command only adds the package to your `inko.pkg` file, it doesn't install
@@ -141,7 +142,7 @@ The inverse of `inko pkg add` is the `inko pkg remove` command, which takes a
 package URL and removes it from your `inko.pkg`. For example:
 
 ```bash
-inko pkg remove github.com/inko-lang/example-package
+inko pkg remove codeberg.org/inko-lang/example-package
 ```
 
 This command only removes the entry from the package manifest. To remove the

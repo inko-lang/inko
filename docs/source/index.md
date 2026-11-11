@@ -15,7 +15,7 @@ The manual assumes you have prior experience working with programming languages,
 and that you are familiar with terminal emulators.
 
 You can contribute to the manual by submitting changes or bug reports to the
-[Inko repository](https://github.com/inko-lang/inko).
+[Inko repository](https://codeberg.org/inko-lang/inko).
 
 ## Structure
 

@@ -128,4 +128,4 @@ Maps preserve the order in which keys are inserted, meaning the order of
 iteration is stable.
 
 For more information, refer to the [source
-code](https://github.com/inko-lang/inko/blob/main/std/src/std/map.inko).
+code](https://codeberg.org/inko-lang/inko/src/branch/main/std/src/std/map.inko).

@@ -4,7 +4,7 @@
 }
 ---
 
-[ivm](https://github.com/inko-lang/ivm) is a tool used to install and manage
+[ivm](https://codeberg.org/inko-lang/ivm) is a tool used to install and manage
 different versions of Inko, independent from your system's package manager. ivm
 is written in Rust.
 
@@ -46,7 +46,7 @@ nix-shell -p ivm
 Clone the repository:
 
 ```bash
-git clone https://github.com/inko-lang/ivm.git
+git clone https://codeberg.org/inko-lang/ivm.git
 cd ivm
 cargo build --release
 ```

@@ -127,7 +127,7 @@ in the `uni T` value.
 
 ::: tip
 For more details about this limitation refer to [this
-issue](https://github.com/inko-lang/inko/issues/840).
+issue](https://codeberg.org/inko-lang/inko/issues/840).
 :::
 
 ## Unique values and method calls

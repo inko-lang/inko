@@ -400,7 +400,7 @@ The output is as follows:
 
 ::: note
 Support for client cookie jars is not yet provided. Refer to [this
-issue](https://github.com/inko-lang/inko/issues/877) for more details.
+issue](https://codeberg.org/inko-lang/inko/issues/877) for more details.
 :::
 
 ## WebSockets

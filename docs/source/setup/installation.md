@@ -171,7 +171,7 @@ nix-shell -p inko
 When building from Git, first clone the repository:
 
 ```bash
-git clone https://github.com/inko-lang/inko.git
+git clone https://codeberg.org/inko-lang/inko.git
 cd inko
 ```
 

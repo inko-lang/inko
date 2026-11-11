@@ -50,7 +50,7 @@ never yielding back to the scheduler (i.e. when running an infinite loop).
 
 Past versions used a fuel/reduction based approach similar to Erlang, but the
 overhead was too great, see [this
-issue](https://github.com/inko-lang/inko/issues/522) for more details.
+issue](https://codeberg.org/inko-lang/inko/issues/522) for more details.
 
 ## Timeouts
 
