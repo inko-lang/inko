@@ -46,7 +46,7 @@ jobs:
     strategy:
       matrix:
         target:
-          - name: arm64-macos-native
+          - name: arm64-mac-native
             runner: home-macos-arm64
     name: ${{ matrix.target.name }} runtimes
     runs-on: ${{ matrix.target.runner }}
