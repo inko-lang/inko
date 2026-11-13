@@ -5,7 +5,7 @@ TARGET := "/var/lib/shost/sites/docs.inko-lang.org"
 
 # Build or publish the documentation
 ci ref="main":
-    just std {{ if ref == "main" { "publish" } else { "build" } }} {{ ref }}
+    just std {{ if ref == "main" { f"publish {{ ref }}" } else { "build" } }}
     just std latest {{ ref }}
 
 # Build the documentation
