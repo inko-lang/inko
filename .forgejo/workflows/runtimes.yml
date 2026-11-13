@@ -33,7 +33,7 @@ jobs:
       matrix:
         target:
           - name: amd64-freebsd-native
-            runner: home-freebsd-amd64
+            runner: netcup-freebsd-amd64
           - name: arm64-freebsd-native
             runner: home-freebsd-arm64
     name: ${{ matrix.target.name }} runtimes
