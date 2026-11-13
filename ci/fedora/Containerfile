@@ -3,7 +3,7 @@ FROM registry.fedoraproject.org/fedora-minimal:latest
 ENV LLVM_VERSION=18
 
 RUN dnf install --no-docs --assumeyes --setopt=install_weak_deps=False \
-    gcc just tar git node cargo rust rustfmt \
+    gcc just tar git node cargo rust rustfmt gzip \
     llvm$LLVM_VERSION llvm$LLVM_VERSION-devel \
     libstdc++-devel libstdc++-static libffi-devel zlib-devel
 
