@@ -12,13 +12,23 @@ on:
 
 jobs:
   build:
-    name: ${{ matrix.target }} OCI image
     strategy:
       matrix:
         target:
-          - amd64
-          - arm64
-    runs-on: home-linux-${{ matrix.target }}
+          - arch: amd64
+            image: fedora
+            suffix: ''
+          - arch: arm64
+            image: fedora
+            suffix: ''
+          - arch: amd64
+            image: alpine
+            suffix: '-alpine'
+          - arch: arm64
+            image: alpine
+            suffix: '-alpine'
+    name: ${{ matrix.target.image }}:${{ inputs.tag }} ${{ matrix.target.arch }} image
+    runs-on: home-linux-${{ matrix.target.arch }}
     container:
       volumes:
         - /var/lib/forgejo-runner/containers:/var/lib/containers/storage:z
@@ -28,12 +38,17 @@ jobs:
       - name: Log in to the registry
         run: just image login ${{ secrets.REGISTRY_TOKEN }}
       - name: Build the image
-        run: just image build ${{ inputs.tag }}-${{ matrix.target }}
+        run: just image build ${{ matrix.target.image }} ${{ inputs.tag }}${{ matrix.target.suffix }}-${{ matrix.target.arch }}
       - name: Push the image
-        run: just image push ${{ inputs.tag }}-${{ matrix.target }}
+        run: just image push ${{ inputs.tag }}${{ matrix.target.suffix }}-${{ matrix.target.arch }}
 
   manifest:
-    name: OCI manifest
+    strategy:
+      matrix:
+        suffix:
+          - ''
+          - '-alpine'
+    name: ${{ inputs.tag }}${{ matrix.suffix }} manifest
     runs-on: home-linux-amd64
     container:
       volumes:
@@ -46,7 +61,7 @@ jobs:
       - name: Log in to the registry
         run: just image login ${{ secrets.REGISTRY_TOKEN }}
       - name: Create and push manifest
-        run: just image manifest ${{ inputs.tag }}
+        run: just image manifest ${{ inputs.tag }}${{ matrix.suffix }}
       - name: Update the latest tag
         if: ${{ forge.ref_type == 'tag' }}
-        run: just image latest ${{ inputs.tag }} image push latest
+        run: just image latest ${{ inputs.tag }}${{ matrix.suffix }} image push latest${{ matrix.suffix }}

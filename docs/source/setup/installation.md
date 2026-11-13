@@ -81,6 +81,43 @@ If you are using [Docker](https://www.docker.com/) or
 These images are published on
 [GitHub.com](https://github.com/inko-lang/inko/pkgs/container/inko).
 
+We publish the following tags:
+
+|=
+| Tag
+| Distribution
+|
+|-
+| `inko:X.Y.Z`
+| Fedora Linux
+| A specific stable release
+|-
+| `inko:latest`
+| Fedora Linux
+| The latest stable release
+|-
+| `inko:main`
+| Fedora Linux
+| The latest build from the `main` branch, unstable
+|-
+| `inko:X.Y.Z-alpine`
+| Alpine Linux
+| A specific stable release
+|-
+| `inko:latest-alpine`
+| Alpine Linux
+| The latest stable release
+|-
+| `inko:main-alpine`
+| Alpine Linux
+| The latest build from the `main` branch, unstable
+
+::: tip
+While the sizes of these images are similar, using the Alpine Linux based images
+allows you to build smaller derived images compared to using a Fedora based base
+image.
+:::
+
 To install a specific version, run the following (replacing `X.Y.Z` with the
 version you want to install):
 
@@ -94,20 +131,6 @@ You can then run Inko as follows:
 ```bash
 docker run inko-lang/inko:X.Y.Z inko --version # Using Docker
 podman run inko-lang/inko:X.Y.Z inko --version # Using Podman
-```
-
-We also build a container for every commit on the `main` branch, provided the
-tests are passing. If you like to live dangerously, you can use these as
-follows:
-
-```bash
-# Using Docker:
-docker pull ghcr.io/inko-lang/inko:main
-docker run inko-lang/inko:main inko --version
-
-# Using Podman:
-podman pull ghcr.io/inko-lang/inko:main
-podman run inko-lang/inko:main inko --version
 ```
 
 ## Alpine Linux

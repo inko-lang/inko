@@ -14,8 +14,9 @@ NAMESPACE := "inko-lang"
 REPO := "inko"
 
 # Build an image
-build tag="latest":
-    buildah build --pull=newer --isolation=chroot --layers --tag "{{ fqn(tag) }}"
+build image="fedora" tag="latest":
+    buildah build --pull=newer --isolation=chroot --layers \
+        --file "oci/{{ image }}/Containerfile" --tag "{{ fqn(tag) }}"
 
 # Log in to the container registry
 login pass:

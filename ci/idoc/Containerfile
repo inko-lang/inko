@@ -1,4 +1,4 @@
-FROM ghcr.io/inko-lang/ci/fedora:latest
+FROM ghcr.io/inko-lang/ci/fedora-minimal:latest
 
 # idoc targets the latest stable release of Inko, but our tests run against a
 # newer version. This allows us to use an existing idoc executable without

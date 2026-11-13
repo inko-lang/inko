@@ -1,0 +1,18 @@
+FROM alpine:latest AS builder
+
+RUN apk add --update build-base git rust cargo llvm-dev libstdc++-dev
+ADD . /inko/
+WORKDIR /inko
+RUN make build PREFIX='/usr'
+RUN strip target/release/inko
+RUN make install PREFIX='/usr'
+
+FROM alpine:latest
+
+# Extra packages such as tar, git and Node are installed so that GitHub and
+# Forgejo Actions can use the image directly.
+RUN apk add --update tar git build-base lld libffi nodejs && apk cache clean
+
+COPY --from=builder ["/usr/bin/inko", "/usr/bin/inko"]
+COPY --from=builder ["/usr/lib/inko", "/usr/lib/inko/"]
+COPY --from=builder ["/usr/share/licenses/inko", "/usr/share/licenses/inko/"]
