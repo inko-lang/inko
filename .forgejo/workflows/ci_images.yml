@@ -29,6 +29,8 @@ jobs:
   idoc:
     name: idoc amd64
     runs-on: home-linux-amd64
+    needs:
+      - fedora
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
