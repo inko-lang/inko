@@ -29,9 +29,6 @@ jobs:
   idoc:
     name: idoc amd64
     runs-on: home-linux-amd64
-    container:
-      volumes:
-        - /var/lib/forgejo-runner/containers:/var/lib/containers/storage:z
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7

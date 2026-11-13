@@ -17,9 +17,6 @@ jobs:
           - arm64
     name: ${{ inputs.name }} ${{ matrix.target }}
     runs-on: home-linux-${{ matrix.target }}
-    container:
-      volumes:
-        - /var/lib/forgejo-runner/containers:/var/lib/containers/storage:z
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -33,9 +30,6 @@ jobs:
   manifest:
     runs-on: home-linux-amd64
     name: ${{ inputs.name }} manifest
-    container:
-      volumes:
-        - /var/lib/forgejo-runner/containers:/var/lib/containers/storage:z
     needs:
       - build
     steps:

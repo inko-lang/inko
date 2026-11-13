@@ -29,9 +29,6 @@ jobs:
             suffix: '-alpine'
     name: ${{ matrix.target.image }}:${{ inputs.tag }} ${{ matrix.target.arch }} image
     runs-on: home-linux-${{ matrix.target.arch }}
-    container:
-      volumes:
-        - /var/lib/forgejo-runner/containers:/var/lib/containers/storage:z
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -50,9 +47,6 @@ jobs:
           - '-alpine'
     name: ${{ inputs.tag }}${{ matrix.suffix }} manifest
     runs-on: home-linux-amd64
-    container:
-      volumes:
-        - /var/lib/forgejo-runner/containers:/var/lib/containers/storage:z
     needs:
       - build
     steps:
