@@ -13,7 +13,7 @@ jobs:
 
   source:
     name: Source archive
-    runs-on: home-linux-amd64
+    runs-on: netcup-linux-amd64
     container:
       image: ghcr.io/inko-lang/ci/fedora:latest
     needs:

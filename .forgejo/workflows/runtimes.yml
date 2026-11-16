@@ -10,7 +10,7 @@ jobs:
         target:
           - image: fedora
             name: amd64-linux-gnu
-            runner: home-linux-amd64
+            runner: netcup-linux-amd64
           - image: alpine
             name: amd64-linux-musl
             runner: home-linux-amd64
