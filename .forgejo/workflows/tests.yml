@@ -6,7 +6,7 @@ on:
 jobs:
   vale:
     name: vale
-    runs-on: netcup-linux-amd64-small
+    runs-on: home-linux-amd64
     container:
       image: codeberg.org/yorickpeterse/base-images/vale:latest
     steps:
@@ -14,7 +14,7 @@ jobs:
       - run: vale --no-wrap --sort .
 
   cargo-deny:
-    runs-on: netcup-linux-amd64-small
+    runs-on: home-linux-amd64
     container:
       image: codeberg.org/yorickpeterse/base-images/rust:latest
     steps:
@@ -22,7 +22,7 @@ jobs:
       - run: cargo-deny check
 
   cargo-fmt:
-    runs-on: netcup-linux-amd64-small
+    runs-on: home-linux-amd64
     container:
       image: codeberg.org/yorickpeterse/base-images/rust:latest
     steps:
@@ -36,7 +36,7 @@ jobs:
       - run: 'cargo fmt --all --check'
 
   inko-fmt:
-    runs-on: netcup-linux-amd64-small
+    runs-on: home-linux-amd64
     container:
       image: ghcr.io/inko-lang/ci/fedora:latest
     steps:
@@ -57,10 +57,10 @@ jobs:
         target:
           - image: fedora
             name: amd64-linux-gnu
-            runner: home-linux-amd64
+            runner: netcup-linux-amd64
           - image: alpine
             name: amd64-linux-musl
-            runner: home-linux-amd64
+            runner: netcup-linux-amd64
           - image: fedora
             name: arm64-linux-gnu
             runner: home-linux-arm64
@@ -93,10 +93,10 @@ jobs:
         target:
           - image: fedora
             name: amd64-linux-gnu
-            runner: home-linux-amd64
+            runner: netcup-linux-amd64
           - image: alpine
             name: amd64-linux-musl
-            runner: home-linux-amd64
+            runner: netcup-linux-amd64
           - image: fedora
             name: arm64-linux-gnu
             runner: home-linux-arm64
