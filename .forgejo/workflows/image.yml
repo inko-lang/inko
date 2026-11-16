@@ -18,17 +18,21 @@ jobs:
           - arch: amd64
             image: fedora
             suffix: ''
-          - arch: arm64
-            image: fedora
-            suffix: ''
+            runner: netcup-linux-amd64
           - arch: amd64
             image: alpine
             suffix: '-alpine'
+            runner: home-linux-amd64
+          - arch: arm64
+            image: fedora
+            suffix: ''
+            runner: home-linux-arm64
           - arch: arm64
             image: alpine
             suffix: '-alpine'
+            runner: home-linux-arm64
     name: ${{ matrix.target.image }}:${{ inputs.tag }} ${{ matrix.target.arch }} image
-    runs-on: home-linux-${{ matrix.target.arch }}
+    runs-on: ${{ matrix.target.runner }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
