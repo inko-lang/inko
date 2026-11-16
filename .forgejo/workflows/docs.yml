@@ -7,7 +7,7 @@ on:
 jobs:
   manual:
     name: Build manual
-    runs-on: netcup-linux-amd64-small
+    runs-on: netcup-linux-amd64
     container:
       image: ghcr.io/inko-lang/inko:latest
     steps:
