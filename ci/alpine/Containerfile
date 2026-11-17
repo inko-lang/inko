@@ -3,6 +3,6 @@ FROM alpine:latest
 ENV LLVM_VERSION=18
 
 RUN apk add --update build-base just tar git cargo rust nodejs \
-    llvm$LLVM_VERSION-dev libstdc++-dev
+    llvm$LLVM_VERSION-dev libstdc++-dev zstd
 
 RUN apk cache clean && rm -rf /var/log/*
