@@ -30,6 +30,7 @@ const GITIGNORE: &str = include_str!("../../templates/gitignore");
 const GITHUB_WORKFLOW: &str = include_str!("../../templates/github.yml");
 const CODEBERG_WORKFLOW: &str = include_str!("../../templates/forgejo.yml");
 const LICENSE: &str = include_str!("../../templates/LICENSE");
+const README: &str = include_str!("../../templates/README.md");
 
 pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     let mut options = Options::new();
@@ -93,6 +94,12 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     create_file(&main, if bin { BIN } else { "" })?;
     create_file(&root.join(".gitignore"), GITIGNORE)?;
     create_file(&root.join("LICENSE"), LICENSE)?;
+    create_file(
+        &root.join("README.md"),
+        &README
+            .replace("${NAME}", &name)
+            .replace("${VERSION}", env!("CARGO_PKG_VERSION")),
+    )?;
 
     let mut manifest = Manifest::new();
 

@@ -1,4 +1,5 @@
 import helpers (compiler_path, with_directory)
+import std.env
 import std.fs.file (ReadOnlyFile)
 import std.fs.path (Path)
 import std.sys (Command, Stream)
@@ -56,6 +57,12 @@ fn pub tests(t: mut Tests) {
       t.true(root.join('.gitignore').file?)
       t.true(root.join('inko.pkg').file?)
       t.true(root.join('LICENSE').file?)
+
+      let readme = try read(root.join('README.md'))
+
+      t.true(readme.contains?('# hello'))
+      t.true(readme.contains?('Inko ${env.VERSION} or newer'))
+      t.true(readme.contains?('inko pkg add https://HOST/OWNER/hello'))
 
       Result.Ok(nil)
     })
