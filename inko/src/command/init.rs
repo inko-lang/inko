@@ -25,77 +25,11 @@ Examples:
     inko init .           # Create a project in the current working directory
     inko init hello --lib # Create a project that's an Inko library";
 
-const BIN: &str = "type async Main {
-  fn async main {}
-}
-";
-
-const GITIGNORE: &str = "\
-/build
-/dep
-";
-
-const GITHUB_WORKFLOW: &str = "\
----
-name: Push
-on:
-  push:
-  pull_request:
-  workflow_dispatch:
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-
-jobs:
-  fmt:
-    runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/inko-lang/inko:latest
-    steps:
-      - uses: actions/checkout@v7
-      - run: inko --version
-      - run: inko fmt --check
-
-  test:
-    runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/inko-lang/inko:latest
-    steps:
-      - uses: actions/checkout@v7
-      - run: inko --version
-      - run: inko test
-";
-
-const CODEBERG_WORKFLOW: &str = "\
----
-name: Push
-on:
-  push:
-  workflow_dispatch:
-  pull_request:
-
-concurrency:
-  group: ${{ forge.workflow }}-${{ forge.ref }}
-
-jobs:
-  fmt:
-    runs-on: codeberg-tiny
-    container:
-      image: ghcr.io/inko-lang/inko:latest
-    steps:
-      - uses: actions/checkout@v7
-      - run: inko --version
-      - run: inko fmt --check
-
-  test:
-    runs-on: codeberg-tiny
-    container:
-      image: ghcr.io/inko-lang/inko:latest
-    steps:
-      - uses: actions/checkout@v7
-      - run: inko --version
-      - run: inko test
-";
+const BIN: &str = include_str!("../../templates/main.inko");
+const GITIGNORE: &str = include_str!("../../templates/gitignore");
+const GITHUB_WORKFLOW: &str = include_str!("../../templates/github.yml");
+const CODEBERG_WORKFLOW: &str = include_str!("../../templates/forgejo.yml");
+const LICENSE: &str = include_str!("../../templates/LICENSE");
 
 pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     let mut options = Options::new();
@@ -158,6 +92,7 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     create_file(&test.join(".gitkeep"), "")?;
     create_file(&main, if bin { BIN } else { "" })?;
     create_file(&root.join(".gitignore"), GITIGNORE)?;
+    create_file(&root.join("LICENSE"), LICENSE)?;
 
     let mut manifest = Manifest::new();
 

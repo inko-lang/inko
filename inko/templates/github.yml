@@ -1,0 +1,28 @@
+---
+name: Push
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/inko-lang/inko:latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: inko --version
+      - run: inko fmt --check
+
+  test:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/inko-lang/inko:latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: inko --version
+      - run: inko test

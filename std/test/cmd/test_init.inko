@@ -55,6 +55,7 @@ fn pub tests(t: mut Tests) {
       t.true((try read(main)).contains?('type async Main'))
       t.true(root.join('.gitignore').file?)
       t.true(root.join('inko.pkg').file?)
+      t.true(root.join('LICENSE').file?)
 
       Result.Ok(nil)
     })

@@ -1,0 +1,28 @@
+---
+name: Push
+on:
+  push:
+  workflow_dispatch:
+  pull_request:
+
+concurrency:
+  group: ${{ forge.workflow }}-${{ forge.ref }}
+
+jobs:
+  fmt:
+    runs-on: codeberg-tiny
+    container:
+      image: ghcr.io/inko-lang/inko:latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: inko --version
+      - run: inko fmt --check
+
+  test:
+    runs-on: codeberg-tiny
+    container:
+      image: ghcr.io/inko-lang/inko:latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: inko --version
+      - run: inko test

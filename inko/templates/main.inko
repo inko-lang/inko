@@ -1,0 +1,7 @@
+import std.stdio (Stdout)
+
+type async Main {
+  fn async main {
+    Stdout.new.print('Hello, world!')
+  }
+}
