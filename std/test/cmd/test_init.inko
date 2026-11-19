@@ -57,6 +57,9 @@ fn pub tests(t: mut Tests) {
       t.true(root.join('.gitignore').file?)
       t.true(root.join('inko.pkg').file?)
       t.true(root.join('LICENSE').file?)
+      t.true(root.join('justfile').file?)
+      t.true(root.join('just/release.just').file?)
+      t.true((try read(root.join('clogs.json'))).contains?('HOST/OWNER/hello'))
 
       let readme = try read(root.join('README.md'))
 

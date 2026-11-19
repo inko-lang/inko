@@ -1,0 +1,2 @@
+# Publishing of releases
+mod release 'just/release.just'

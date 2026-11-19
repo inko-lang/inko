@@ -31,6 +31,9 @@ const GITHUB_WORKFLOW: &str = include_str!("../../templates/github.yml");
 const CODEBERG_WORKFLOW: &str = include_str!("../../templates/forgejo.yml");
 const LICENSE: &str = include_str!("../../templates/LICENSE");
 const README: &str = include_str!("../../templates/README.md");
+const JUSTFILE: &str = include_str!("../../templates/justfile");
+const RELEASE_JUST: &str = include_str!("../../templates/release.just");
+const CLOGS: &str = include_str!("../../templates/clogs.json");
 
 pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     let mut options = Options::new();
@@ -100,6 +103,10 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
             .replace("${NAME}", &name)
             .replace("${VERSION}", env!("CARGO_PKG_VERSION")),
     )?;
+    create_file(&root.join("clogs.json"), &CLOGS.replace("${NAME}", &name))?;
+    create_file(&root.join("justfile"), JUSTFILE)?;
+    create_dir(&root.join("just"))?;
+    create_file(&root.join("just/release.just"), RELEASE_JUST)?;
 
     let mut manifest = Manifest::new();
 

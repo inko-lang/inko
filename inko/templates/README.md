@@ -3,6 +3,9 @@
 TODO:
 
 1. Replace `HOST/OWNER` with the correct value, such as `codeberg.org/alice`
+1. In `clogs.json` do the same, or remove it (and adjust `just/release.just`
+   accordingly) if you don't want to use
+   [clogs](https://codeberg.org/yorickpeterse/clogs) for changelog management
 1. Replace this section with a description of your project
 
 ## Requirements
