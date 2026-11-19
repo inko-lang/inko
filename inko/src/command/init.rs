@@ -41,10 +41,10 @@ name: Push
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   fmt:
@@ -52,7 +52,7 @@ jobs:
     container:
       image: ghcr.io/inko-lang/inko:latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - run: inko --version
       - run: inko fmt --check
 
@@ -61,7 +61,38 @@ jobs:
     container:
       image: ghcr.io/inko-lang/inko:latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
+      - run: inko --version
+      - run: inko test
+";
+
+const CODEBERG_WORKFLOW: &str = "\
+---
+name: Push
+on:
+  push:
+  workflow_dispatch:
+  pull_request:
+
+concurrency:
+  group: ${{ forge.workflow }}-${{ forge.ref }}
+
+jobs:
+  fmt:
+    runs-on: codeberg-tiny
+    container:
+      image: ghcr.io/inko-lang/inko:latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: inko --version
+      - run: inko fmt --check
+
+  test:
+    runs-on: codeberg-tiny
+    container:
+      image: ghcr.io/inko-lang/inko:latest
+    steps:
+      - uses: actions/checkout@v7
       - run: inko --version
       - run: inko test
 ";
@@ -71,7 +102,8 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
 
     options.optflag("h", "help", "Show this help message");
     options.optflag("", "lib", "Create a new library");
-    options.optflag("", "github", "Create a basic workflow for GitHub Actions");
+    options.optflag("", "github", "Generate CI configuration for GitHub");
+    options.optflag("", "codeberg", "Generate CI configuration for Codeberg");
 
     let matches = options.parse(arguments)?;
 
@@ -137,6 +169,13 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
 
         create_dir_all(&dir)?;
         create_file(&dir.join("push.yml"), GITHUB_WORKFLOW)?;
+    }
+
+    if matches.opt_present("codeberg") {
+        let dir = root.join(".forgejo").join("workflows");
+
+        create_dir_all(&dir)?;
+        create_file(&dir.join("push.yml"), CODEBERG_WORKFLOW)?;
     }
 
     Ok(0)

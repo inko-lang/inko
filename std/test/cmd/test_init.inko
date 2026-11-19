@@ -94,4 +94,34 @@ fn pub tests(t: mut Tests) {
       Result.Ok(nil)
     })
   })
+
+  t.ok('inko init hello --github', fn (t) {
+    with_directory(t.id, fn (dir) -> Result[Nil, String] {
+      let _ = dir.create_directory
+      let out = try init(dir, ['hello', '--github'])
+      let root = dir.join('hello')
+      let yml = root.join('.github/workflows/push.yml')
+
+      t.true(out.empty?)
+      t.true(yml.file?)
+      t.true((try read(yml)).contains?('ubuntu-latest'))
+
+      Result.Ok(nil)
+    })
+  })
+
+  t.ok('inko init hello --codeberg', fn (t) {
+    with_directory(t.id, fn (dir) -> Result[Nil, String] {
+      let _ = dir.create_directory
+      let out = try init(dir, ['hello', '--codeberg'])
+      let root = dir.join('hello')
+      let yml = root.join('.forgejo/workflows/push.yml')
+
+      t.true(out.empty?)
+      t.true(yml.file?)
+      t.true((try read(yml)).contains?('codeberg-tiny'))
+
+      Result.Ok(nil)
+    })
+  })
 }
