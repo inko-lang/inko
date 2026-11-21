@@ -19,3 +19,9 @@ SERVER := "web.srv.yorickpeterse.com"
 # Update the list of known server hosts.
 hosts:
     ssh-keyscan -q "{{ SERVER }}" > scripts/known_hosts
+
+# Run all unit tests and clippy
+test:
+    cargo test --quiet
+    cargo clippy
+    cd std && cargo run -- test

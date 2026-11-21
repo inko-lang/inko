@@ -270,6 +270,7 @@ fn pub tests(t: mut Tests) {
     t.equal(chars('😀😃'), ['😀', '😃'])
     t.equal(chars('😀x😃'), ['😀', 'x', '😃'])
     t.equal(chars('🤦🏼‍♂️'), ['🤦🏼‍♂️'])
+    t.equal(chars('🇷🇸🇮🇴'), ['🇷🇸', '🇮🇴'])
   })
 
   t.test('String.scalars', fn (t) {

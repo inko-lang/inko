@@ -5,7 +5,7 @@ use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::slice;
 use std::str;
-use unicode_segmentation::{GraphemeIndices, UnicodeSegmentation};
+use unicode_segmentation::GraphemeCursor;
 
 #[repr(C)]
 pub struct Grapheme {
@@ -98,35 +98,20 @@ pub unsafe extern "system" fn inko_string_to_float(
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "system" fn inko_string_chars(
+pub unsafe extern "system" fn inko_string_next_grapheme(
     string: PrimitiveString,
-) -> *mut u8 {
-    // Safety: a Graphemes takes a reference to a slice of bytes. The standard
-    // library implements a wrapper around this native type that holds on to the
-    // string we're iterating over, preventing the slice from being invalidated
-    // while this iterator still exists.
-    //
-    // Graphemes isn't FFI safe, so we have to work around this by casting it to
-    // a regular raw pointer.
-    Box::into_raw(Box::new(string.as_str().grapheme_indices(true))) as _
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "system" fn inko_string_chars_next(
-    iter: *mut u8,
+    start: i64,
 ) -> Grapheme {
-    let iter = unsafe { &mut *(iter as *mut GraphemeIndices) };
-
-    iter.next()
-        .map(|(i, v)| Grapheme { start: i as _, size: v.len() as _ })
-        .unwrap_or(Grapheme { start: 0, size: 0 })
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "system" fn inko_string_chars_drop(iter: *mut u8) {
-    unsafe {
-        drop(Box::from_raw(iter as *mut GraphemeIndices));
+    if start == string.size {
+        return Grapheme { start: 0, size: 0 };
     }
+
+    let end = GraphemeCursor::new(start as _, string.size as _, true)
+        .next_boundary(string.as_str(), 0)
+        .unwrap()
+        .unwrap();
+
+    Grapheme { start, size: end as i64 - start }
 }
 
 #[unsafe(no_mangle)]

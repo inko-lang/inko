@@ -543,7 +543,7 @@ impl<'a> Worker<'a> {
         GenerateMain::new(&self.shared.state.db, self.shared.names, &main)
             .run();
 
-        let path = object_path(self.shared.directories, &name, &path);
+        let path = object_path(self.shared.directories, &name, path);
         let res = self.process_module(&main, layouts, path);
 
         self.timings.insert(name, start.elapsed());

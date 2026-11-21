@@ -11,7 +11,6 @@ import std.bytes (Bytes, IntoByteArray, Slice, Split, ToByteArray, ToSlice)
 import std.bytes.parsers
 import std.clone (Clone)
 import std.cmp (Compare, Equal, Ordering, min)
-import std.drop (Drop)
 import std.fmt (Format, Formatter)
 import std.fs.path (Path, ToPath)
 import std.hash (Hash, Hasher)
@@ -50,11 +49,10 @@ fn extern inko_string_to_lower(string: PrimitiveString) -> PrimitiveString
 
 fn extern inko_string_to_upper(string: PrimitiveString) -> PrimitiveString
 
-fn extern inko_string_chars(string: PrimitiveString) -> Pointer[Uint8]
-
-fn extern inko_string_chars_next(iter: Pointer[Uint8]) -> PrimitiveGrapheme
-
-fn extern inko_string_chars_drop(iter: Pointer[Uint8])
+fn extern inko_string_next_grapheme(
+  string: PrimitiveString,
+  start: Int,
+) -> PrimitiveGrapheme
 
 fn extern inko_string_from_pointer(pointer: Pointer[Uint8]) -> PrimitiveString
 
@@ -544,7 +542,7 @@ type builtin String {
   # '😀😃'.chars.map(fn (v) { v.to_string }).to_array # => ['😀', '😃']
   # ```
   fn pub inline chars -> Chars {
-    Chars(string: self, iter: inko_string_chars(to_primitive))
+    Chars(string: self, offset: 0)
   }
 
   # Returns an iterator over the UTF-8 scalars in `self`.
@@ -1188,30 +1186,19 @@ impl Iter[Scalar] for Scalars {
 # a stable way, it's best to calculate the character index, then translate that
 # to a more stable index such as the code point index, or the byte index.
 type pub Chars {
-  # The String we're iterating over.
-  #
-  # We need to maintain a reference to the String, otherwise the underlying
-  # native iterator would be invalidated.
   let @string: String
-
-  # The native iterator provided by the runtime.
-  let @iter: Pointer[Uint8]
+  let mut @offset: Int
 }
 
 impl Iter[Slice[String]] for Chars {
   fn pub mut next -> Option[Slice[String]] {
-    match inko_string_chars_next(@iter) {
+    match inko_string_next_grapheme(@string.to_primitive, @offset) {
       case { @size = 0 } -> Option.None
       case { @start = idx, @size = len } -> {
+        @offset += len
         Option.Some(Slice.new(@string, idx, idx + len))
       }
     }
-  }
-}
-
-impl Drop for Chars {
-  fn mut drop {
-    inko_string_chars_drop(@iter)
   }
 }
 
