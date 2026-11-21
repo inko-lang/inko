@@ -22,7 +22,7 @@ use crate::mir::{
 use crate::state::State;
 use crate::symbol_names::{STACK_MASK_GLOBAL, STATE_GLOBAL, SymbolNames};
 use crate::target::Architecture;
-use blake3::{Hasher, hash};
+use blake3::Hasher;
 use inkwell::OptimizationLevel;
 use inkwell::attributes::AttributeLoc;
 use inkwell::basic_block::BasicBlock;
@@ -50,8 +50,21 @@ use types::{Database, Intrinsic, TypeId, TypeRef};
 
 const NIL_VALUE: bool = false;
 
-fn object_path(directories: &BuildDirectories, name: &ModuleName) -> PathBuf {
-    let hash = hash(name.as_str().as_bytes()).to_string();
+fn object_path(
+    directories: &BuildDirectories,
+    name: &ModuleName,
+    path: &Path,
+) -> PathBuf {
+    let mut hasher = Hasher::new();
+
+    // We hash both name and file path so that if the module name stays the same
+    // but the source file changes (as may be the case for the `main` module
+    // when using the same base directory for different projects), we
+    // automatically flush the object cache.
+    hasher.update(name.as_str().as_bytes());
+    hasher.update(path.as_os_str().as_encoded_bytes());
+
+    let hash = hasher.finalize().to_string();
 
     directories.objects.join(format!("{}.o", hash))
 }
@@ -290,7 +303,11 @@ pub(crate) fn lower_all(
     let obj_paths: Vec<PathBuf> = mir
         .modules
         .values()
-        .map(|m| object_path(directories, m.id.name(&state.db)))
+        .map(|m| {
+            let id = m.id;
+
+            object_path(directories, id.name(&state.db), &id.file(&state.db))
+        })
         .collect();
 
     check_object_cache(state, names, &methods, directories, &obj_paths, &mir)?;
@@ -526,7 +543,7 @@ impl<'a> Worker<'a> {
         GenerateMain::new(&self.shared.state.db, self.shared.names, &main)
             .run();
 
-        let path = object_path(self.shared.directories, &name);
+        let path = object_path(self.shared.directories, &name, &path);
         let res = self.process_module(&main, layouts, path);
 
         self.timings.insert(name, start.elapsed());
