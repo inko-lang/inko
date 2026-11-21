@@ -13,7 +13,7 @@ import std.clone (Clone)
 import std.cmp (Compare, Equal, Ordering, min)
 import std.drop (Drop)
 import std.fmt (Format, Formatter)
-import std.fs.path (Path)
+import std.fs.path (Path, ToPath)
 import std.hash (Hash, Hasher)
 import std.int (ToInt)
 import std.iter (Iter)
@@ -713,17 +713,6 @@ type builtin String {
     buf.into_string
   }
 
-  # Converts `self` to a `Path`
-  #
-  # # Examples
-  #
-  # ```inko
-  # '/tmp/test.txt'.to_path # => Path.new('/tmp/test.txt')
-  # ```
-  fn pub inline to_path -> Path {
-    Path.new(self)
-  }
-
   # Returns `true` if `self` contains the given `String`.
   #
   # If you instead want to use a `ByteArray` or `Slice` as the argument, use
@@ -761,6 +750,12 @@ type builtin String {
 
   fn inline layout -> Pointer[StringLayout] {
     (self as Uint64 as Pointer[StringLayout])
+  }
+}
+
+impl ToPath for String {
+  fn pub inline to_path -> Path {
+    Path.new(self)
   }
 }
 

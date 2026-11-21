@@ -33,13 +33,15 @@ fn pub inline check_slice_range(start: Int, end: Int, size: Int) {
   }
 }
 
-# A type from which a new `ByteArray` can be created.
+# A type which can be converted to a `ByteArray`.
 trait pub ToByteArray {
+  # Converts `self` to a `ByteArray`.
   fn pub to_byte_array -> ByteArray
 }
 
 # A type which can be moved into a `ByteArray`.
 trait pub IntoByteArray {
+  # Moves `self` to a `ByteArray`.
   fn pub move into_byte_array -> ByteArray
 }
 

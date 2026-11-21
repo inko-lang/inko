@@ -188,6 +188,18 @@ impl Iter[Slice[String]] for Components {
   }
 }
 
+# A type which can be converted to a `Path`.
+trait pub ToPath {
+  # Converts `self` to a `Path`.
+  #
+  # # Examples
+  #
+  # ```inko
+  # '/tmp/test.txt'.to_path # => Path.new('/tmp/test.txt')
+  # ```
+  fn pub to_path -> Path
+}
+
 # A path to a file or directory.
 #
 # A `Path` can be used to retrieve information about a path to a file or
@@ -912,6 +924,12 @@ type pub inline Path {
   # ```
   fn pub ends_with?[T: ToString](path: ref T) -> Bool {
     @path.ends_with?(path.to_string)
+  }
+}
+
+impl ToPath for Path {
+  fn pub to_path -> Self {
+    clone
   }
 }
 

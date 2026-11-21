@@ -503,4 +503,11 @@ fn pub tests(t: mut Tests) {
 
     Result.Ok(nil)
   })
+
+  t.test('Path.to_path', fn (t) {
+    let p1 = Path.new('foo')
+    let p2 = p1.to_path
+
+    t.equal(p1, p2)
+  })
 }

@@ -26,7 +26,7 @@
 import std.bytes (Bytes)
 import std.drop (Drop)
 import std.fs (Metadata)
-import std.fs.path (Path)
+import std.fs.path (ToPath)
 import std.io (Error, Read, Seek, SeekFrom, Write, WriteInternal)
 import std.sys.unix.fs (self as sys) if unix
 
@@ -45,12 +45,12 @@ type pub inline ReadOnlyFile {
   # ```inko
   # import std.fs.file (ReadOnlyFile)
   #
-  # ReadOnlyFile.new('/dev/null'.to_path)
+  # ReadOnlyFile.new('/dev/null')
   # ```
-  fn pub static new(path: ref Path) -> Result[ReadOnlyFile, Error] {
+  fn pub static new[P: ToPath](path: ref P) -> Result[ReadOnlyFile, Error] {
     match
       sys.open_file(
-        path.to_string,
+        path.to_path.to_string,
         read: true,
         write: false,
         append: false,
@@ -116,12 +116,12 @@ type pub inline WriteOnlyFile {
   # ```inko
   # import std.fs.file (WriteOnlyFile)
   #
-  # WriteOnlyFile.new('/dev/null'.to_path)
+  # WriteOnlyFile.new('/dev/null')
   # ```
-  fn pub static new(path: ref Path) -> Result[WriteOnlyFile, Error] {
+  fn pub static new[P: ToPath](path: ref P) -> Result[WriteOnlyFile, Error] {
     match
       sys.open_file(
-        path.to_string,
+        path.to_path.to_string,
         read: false,
         write: true,
         append: false,
@@ -140,12 +140,12 @@ type pub inline WriteOnlyFile {
   # ```inko
   # import std.fs.file (WriteOnlyFile)
   #
-  # WriteOnlyFile.append('/dev/null'.to_path)
+  # WriteOnlyFile.append('/dev/null')
   # ```
-  fn pub static append(path: Path) -> Result[WriteOnlyFile, Error] {
+  fn pub static append[P: ToPath](path: ref P) -> Result[WriteOnlyFile, Error] {
     match
       sys.open_file(
-        path.to_string,
+        path.to_path.to_string,
         read: false,
         write: true,
         append: true,
@@ -221,12 +221,12 @@ type pub inline ReadWriteFile {
   # ```inko
   # import std.fs.file (ReadWriteFile)
   #
-  # ReadWriteFile.new('/dev/null'.to_path)
+  # ReadWriteFile.new('/dev/null')
   # ```
-  fn pub static new(path: ref Path) -> Result[ReadWriteFile, Error] {
+  fn pub static new[P: ToPath](path: ref P) -> Result[ReadWriteFile, Error] {
     match
       sys.open_file(
-        path.to_string,
+        path.to_path.to_string,
         read: true,
         write: true,
         append: false,
@@ -245,12 +245,12 @@ type pub inline ReadWriteFile {
   # ```inko
   # import std.fs.file (ReadWriteFile)
   #
-  # ReadWriteFile.append('/dev/null'.to_path)
+  # ReadWriteFile.append('/dev/null')
   # ```
-  fn pub static append(path: ref Path) -> Result[ReadWriteFile, Error] {
+  fn pub static append[P: ToPath](path: ref P) -> Result[ReadWriteFile, Error] {
     match
       sys.open_file(
-        path.to_string,
+        path.to_path.to_string,
         read: true,
         write: true,
         append: true,

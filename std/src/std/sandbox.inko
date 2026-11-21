@@ -7,8 +7,8 @@
 # will continue to work, without requiring further changes.
 #
 # For more information, refer to the documentation of the `Sandbox` type.
+import std.fs.path (ToPath)
 import std.ops (Add)
-import std.string (ToString)
 import std.sys.linux.sandbox (self as sys) if linux
 import std.sys.mac.sandbox (self as sys) if mac
 import std.sys.sandbox (self as sys) if freebsd
@@ -250,7 +250,7 @@ type pub inline Sandbox {
   #
   # This method panics if `path` points to a non-existing resource, as different
   # backends handle missing paths in different incompatible ways.
-  fn pub mut path[S: ToString](path: ref S, permissions: PathPermissions) {
+  fn pub mut path[B: ToPath](path: ref B, permissions: PathPermissions) {
     let bits = permissions.bits
     let read = bits.set?(READ)
     let write = bits.set?(WRITE)
@@ -259,7 +259,7 @@ type pub inline Sandbox {
     # Different backends may handle relative paths or symbolic links
     # differently. To ensure consistent behavior, we try to expand the path
     # first if it exists.
-    let path = path.to_string.to_path
+    let path = path.to_path
     let path = path.expand.or(path)
     let Some(inner) = @inner else return
 
