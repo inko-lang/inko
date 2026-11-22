@@ -8,7 +8,7 @@ labels:
 
 Prepare the release:
 
-- [ ] Run `make release/publish VERSION=X` in `main`
+- [ ] Run `just release::VERSION=X.Y.Z release publish` in `main`
 - [ ] Make sure the tag pipeline passes
 - [ ] Run `ivm install X` to make sure the release artifacts are present
 - [ ] Run the [AUR](https://github.com/inko-lang/aur/actions/workflows/release.yml) pipeline
