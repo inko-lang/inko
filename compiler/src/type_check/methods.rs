@@ -175,8 +175,8 @@ trait MethodDefiner {
         if nodes.len() > max {
             let file = self.file();
             let location = Location::start_end(
-                &nodes[0].location,
-                &nodes.last().unwrap().location,
+                nodes[0].location,
+                nodes.last().unwrap().location,
             );
 
             self.state_mut().diagnostics.error(

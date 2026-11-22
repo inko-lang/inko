@@ -185,15 +185,7 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     }
 
     if let Some(val) = matches.opt_str("threads") {
-        match val.parse::<usize>() {
-            Ok(0) | Err(_) => {
-                return Err(Error::from(format!(
-                    "'{}' isn't a valid number of threads",
-                    val
-                )));
-            }
-            Ok(n) => config.threads = n,
-        };
+        config.parse_threads(&val)?;
     }
 
     if let Some(val) = matches.opt_str("linker") {

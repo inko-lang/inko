@@ -446,6 +446,18 @@ impl Config {
 
         Ok(paths)
     }
+
+    pub fn parse_threads(&mut self, value: &str) -> Result<(), String> {
+        match value.parse::<usize>() {
+            Ok(0) | Err(_) => {
+                Err(format!("'{}' isn't a valid number of threads", value))
+            }
+            Ok(n) => {
+                self.threads = n;
+                Ok(())
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -466,5 +478,25 @@ mod tests {
         assert!(Linker::Mold.supports_static_lib_flag());
         assert!(Linker::Custom("foo".to_string()).supports_static_lib_flag());
         assert!(!Linker::Zig.supports_static_lib_flag());
+    }
+
+    #[test]
+    fn test_parse_threads() {
+        let mut cfg = Config::empty().unwrap();
+
+        assert_eq!(cfg.parse_threads("10"), Ok(()));
+        assert_eq!(cfg.threads, 10);
+
+        assert_eq!(
+            cfg.parse_threads("0"),
+            Err("'0' isn't a valid number of threads".to_string())
+        );
+        assert_eq!(cfg.threads, 10);
+
+        assert_eq!(
+            cfg.parse_threads("-10"),
+            Err("'-10' isn't a valid number of threads".to_string())
+        );
+        assert_eq!(cfg.threads, 10);
     }
 }

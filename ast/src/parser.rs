@@ -58,22 +58,22 @@ const MAX_DEPTH: u32 = 64;
 /// The AST is not a lossless AST. For example, whitespace and comments are not
 /// preserved. Reconstructing source code from an AST should be possible, but
 /// you wouldn't be able to reproduce the exact same source code.
-pub struct Parser {
+pub struct Parser<'a> {
     file: PathBuf,
-    lexer: Lexer,
+    lexer: Lexer<'a>,
     peeked: Option<Token>,
     comments: bool,
     depth: u32,
 }
 
-impl Parser {
-    pub fn new(input: Vec<u8>, file: PathBuf) -> Self {
+impl<'a> Parser<'a> {
+    pub fn new(input: &'a [u8], file: PathBuf) -> Self {
         let lexer = Lexer::new(input);
 
         Self { file, lexer, comments: false, peeked: None, depth: 0 }
     }
 
-    pub fn with_comments(input: Vec<u8>, file: PathBuf) -> Self {
+    pub fn with_comments(input: &'a [u8], file: PathBuf) -> Self {
         let mut parser = Parser::new(input, file);
 
         parser.comments = true;
@@ -89,7 +89,7 @@ impl Parser {
 
             if token.kind == TokenKind::Null {
                 let file = self.file.clone();
-                let location = Location::start_end(&start_loc, &token.location);
+                let location = Location::start_end(start_loc, token.location);
 
                 return Ok(Module { expressions, file, location });
             }
@@ -136,10 +136,10 @@ impl Parser {
         let symbols = self.import_symbols()?;
         let tags = self.build_tags()?;
         let location = Location::start_end(
-            &start.location,
+            start.location,
             location!(tags)
                 .or_else(|| location!(symbols))
-                .unwrap_or(&path.location),
+                .unwrap_or(path.location),
         );
 
         Ok(TopLevelExpression::Import(Box::new(Import {
@@ -170,8 +170,8 @@ impl Parser {
             self.next();
         }
 
-        let start_loc = steps.first().map(|s| &s.location).unwrap();
-        let end_loc = steps.last().map(|s| &s.location).unwrap();
+        let start_loc = steps.first().map(|s| s.location).unwrap();
+        let end_loc = steps.last().map(|s| s.location).unwrap();
         let location = Location::start_end(start_loc, end_loc);
 
         Ok(ImportPath { steps, location })
@@ -261,8 +261,8 @@ impl Parser {
         }
 
         let location = Location::start_end(
-            &start.location,
-            location!(values.last()).unwrap_or_else(|| &start.location),
+            start.location,
+            location!(values.last()).unwrap_or_else(|| start.location),
         );
 
         Ok(Some(BuildTags { values, location }))
@@ -277,7 +277,7 @@ impl Parser {
 
         let path_start = self.require()?;
         let path = self.extern_import_path(path_start)?;
-        let location = Location::start_end(&start.location, &path.location);
+        let location = Location::start_end(start.location, path.location);
 
         Ok(TopLevelExpression::ExternImport(Box::new(ExternImport {
             path,
@@ -303,7 +303,7 @@ impl Parser {
 
         let text = self.expect(TokenKind::StringText)?;
         let close = self.expect(close)?;
-        let location = Location::start_end(&start.location, &close.location);
+        let location = Location::start_end(start.location, close.location);
 
         Ok(ExternImportPath { path: text.value, location })
     }
@@ -319,7 +319,7 @@ impl Parser {
 
         let value_start = self.require()?;
         let value = self.const_expression(value_start)?;
-        let location = Location::start_end(&start.location, value.location());
+        let location = Location::start_end(start.location, value.location());
 
         Ok(TopLevelExpression::DefineConstant(Box::new(DefineConstant {
             public,
@@ -374,7 +374,7 @@ impl Parser {
                 let source = Identifier::from(start);
                 let const_tok = self.expect(TokenKind::Constant)?;
                 let location =
-                    Location::start_end(&source.location, &const_tok.location);
+                    Location::start_end(source.location, const_tok.location);
 
                 Expression::Constant(Box::new(Constant {
                     source: Some(source),
@@ -401,7 +401,7 @@ impl Parser {
         let value_token = self.require()?;
         let value = self.const_expression(value_token)?;
         let end = self.expect(TokenKind::ParenClose)?;
-        let location = Location::start_end(&start.location, &end.location);
+        let location = Location::start_end(start.location, end.location);
 
         Ok(Expression::Group(Box::new(Group { value, location })))
     }
@@ -414,7 +414,7 @@ impl Parser {
 
             if token.kind == TokenKind::BracketClose {
                 let location =
-                    Location::start_end(&start.location, &token.location);
+                    Location::start_end(start.location, token.location);
 
                 return Ok(Expression::Array(Box::new(Array {
                     values,
@@ -477,7 +477,7 @@ impl Parser {
         let arguments = self.optional_type_arguments()?;
         let end_loc = arguments
             .as_ref()
-            .map(|a| &a.location)
+            .map(|a| a.location)
             .unwrap_or_else(|| name.location());
         let location = Location::start_end(name.location(), end_loc);
 
@@ -495,8 +495,8 @@ impl Parser {
         let arguments = self.optional_type_arguments()?;
         let end_loc = arguments
             .as_ref()
-            .map(|a| &a.location)
-            .unwrap_or(&name_token.location);
+            .map(|a| a.location)
+            .unwrap_or(name_token.location);
         let location = Location::start_end(source.location(), end_loc);
         let name = Constant {
             source: Some(source),
@@ -648,7 +648,7 @@ impl Parser {
         };
 
         let location =
-            Location::start_end(&start.location, type_reference.location());
+            Location::start_end(start.location, type_reference.location());
 
         Ok(ReferenceType { type_reference, location })
     }
@@ -668,7 +668,7 @@ impl Parser {
                 }
 
                 let location =
-                    Location::start_end(&start.location, &token.location);
+                    Location::start_end(start.location, token.location);
 
                 return Ok(TupleType { values, location });
             }
@@ -689,8 +689,8 @@ impl Parser {
         let return_type = self.optional_return_type()?;
         let end_loc = location!(return_type)
             .or_else(|| location!(arguments))
-            .unwrap_or(&start.location);
-        let location = Location::start_end(&start.location, end_loc);
+            .unwrap_or(start.location);
+        let location = Location::start_end(start.location, end_loc);
 
         Ok(ClosureType { arguments, return_type, location })
     }
@@ -740,7 +740,7 @@ impl Parser {
 
             if token.kind == TokenKind::ParenClose {
                 let location =
-                    Location::start_end(&open_token.location, &token.location);
+                    Location::start_end(open_token.location, token.location);
 
                 return Ok(Some(MethodArguments {
                     values,
@@ -771,7 +771,7 @@ impl Parser {
         let name = Identifier::from(start);
         let type_token = self.require()?;
         let value_type = self.type_reference(type_token)?;
-        let location = Location::start_end(&start_loc, value_type.location());
+        let location = Location::start_end(start_loc, value_type.location());
 
         Ok(MethodArgument { name, value_type, location })
     }
@@ -812,7 +812,7 @@ impl Parser {
         };
 
         let end_loc = location!(value_type).unwrap_or_else(|| name.location());
-        let location = Location::start_end(&start_loc, end_loc);
+        let location = Location::start_end(start_loc, end_loc);
 
         Ok(BlockArgument { name, value_type, location })
     }
@@ -881,11 +881,11 @@ impl Parser {
         };
 
         let location = Location::start_end(
-            &start.location,
+            start.location,
             location!(body)
                 .or_else(|| location!(return_type))
                 .or_else(|| location!(arguments))
-                .unwrap_or(&name.location),
+                .unwrap_or(name.location),
         );
 
         Ok(TopLevelExpression::DefineMethod(Box::new(DefineMethod {
@@ -940,7 +940,7 @@ impl Parser {
         let return_type = self.optional_return_type()?;
         let body_token = self.expect(TokenKind::CurlyOpen)?;
         let body = self.expressions(body_token)?;
-        let location = Location::start_end(&start.location, &body.location);
+        let location = Location::start_end(start.location, body.location);
 
         Ok(DefineMethod {
             inline,
@@ -980,7 +980,7 @@ impl Parser {
         let return_type = self.optional_return_type()?;
         let body_token = self.expect(TokenKind::CurlyOpen)?;
         let body = self.expressions(body_token)?;
-        let location = Location::start_end(&start.location, &body.location);
+        let location = Location::start_end(start.location, body.location);
 
         Ok(DefineMethod {
             inline,
@@ -1016,8 +1016,7 @@ impl Parser {
                 let assign = self.next();
 
                 name.push('=');
-
-                location = Location::start_end(&location, &assign.location);
+                location = Location::start_end(location, assign.location);
             }
 
             Ok((Identifier { name, location }, false))
@@ -1103,7 +1102,7 @@ impl Parser {
             self.type_expressions()?
         };
 
-        let location = Location::start_end(&start.location, &body.location);
+        let location = Location::start_end(start.location, body.location);
 
         Ok(TopLevelExpression::DefineType(Box::new(DefineType {
             public,
@@ -1135,8 +1134,8 @@ impl Parser {
         };
 
         let end_loc =
-            members.as_ref().map(|n| &n.location).unwrap_or(&start.location);
-        let location = Location::start_end(&start.location, end_loc);
+            members.as_ref().map(|n| n.location).unwrap_or(start.location);
+        let location = Location::start_end(start.location, end_loc);
 
         Ok(DefineConstructor { name, members, location })
     }
@@ -1150,7 +1149,7 @@ impl Parser {
 
             if token.kind == TokenKind::CurlyClose {
                 let location =
-                    Location::start_end(&start.location, &token.location);
+                    Location::start_end(start.location, token.location);
 
                 return Ok(TypeExpressions { values, location });
             }
@@ -1170,7 +1169,7 @@ impl Parser {
 
             if token.kind == TokenKind::CurlyClose {
                 let location =
-                    Location::start_end(&start.location, &token.location);
+                    Location::start_end(start.location, token.location);
 
                 return Ok(TypeExpressions { values, location });
             }
@@ -1239,7 +1238,7 @@ impl Parser {
         let value_type_token = self.require()?;
         let value_type = self.type_reference(value_type_token)?;
         let location =
-            Location::start_end(&start.location, value_type.location());
+            Location::start_end(start.location, value_type.location());
 
         Ok(DefineField { name, public, mutable, value_type, location })
     }
@@ -1272,7 +1271,7 @@ impl Parser {
         let type_name = Constant::from(self.expect(TokenKind::Constant)?);
         let bounds = self.optional_type_bounds()?;
         let body = self.trait_implementation_expressions()?;
-        let location = Location::start_end(&start.location, body.location());
+        let location = Location::start_end(start.location, body.location());
 
         Ok(TopLevelExpression::ImplementTrait(Box::new(ImplementTrait {
             trait_name,
@@ -1381,7 +1380,7 @@ impl Parser {
         let bounds = self.optional_type_bounds()?;
         let body = self.reopen_type_expressions()?;
         let end_loc = location!(bounds).unwrap_or_else(|| body.location());
-        let location = Location::start_end(&start.location, end_loc);
+        let location = Location::start_end(start.location, end_loc);
 
         Ok(TopLevelExpression::ReopenType(Box::new(ReopenType {
             type_name,
@@ -1402,7 +1401,7 @@ impl Parser {
 
             if token.kind == TokenKind::CurlyClose {
                 let location =
-                    Location::start_end(&start.location, &token.location);
+                    Location::start_end(start.location, token.location);
 
                 return Ok(ImplementationExpressions { values, location });
             }
@@ -1435,7 +1434,7 @@ impl Parser {
 
             if token.kind == TokenKind::CurlyClose {
                 let location =
-                    Location::start_end(&start.location, &token.location);
+                    Location::start_end(start.location, token.location);
 
                 return Ok(ImplementationExpressions { values, location });
             }
@@ -1466,7 +1465,7 @@ impl Parser {
         let type_parameters = self.optional_type_parameter_definitions()?;
         let requirements = self.optional_trait_requirements()?;
         let body = self.trait_expressions()?;
-        let location = Location::start_end(&start.location, &body.location);
+        let location = Location::start_end(start.location, body.location);
 
         Ok(TopLevelExpression::DefineTrait(Box::new(DefineTrait {
             public,
@@ -1487,7 +1486,7 @@ impl Parser {
 
             if token.kind == TokenKind::CurlyClose {
                 let location =
-                    Location::start_end(&start.location, &token.location);
+                    Location::start_end(start.location, token.location);
 
                 return Ok(TraitExpressions { values, location });
             }
@@ -1545,7 +1544,7 @@ impl Parser {
             .or_else(|| location!(arguments))
             .or_else(|| location!(type_parameters))
             .unwrap_or_else(|| name.location());
-        let location = Location::start_end(&start.location, end_loc);
+        let location = Location::start_end(start.location, end_loc);
 
         Ok(DefineMethod {
             inline,
@@ -1569,7 +1568,7 @@ impl Parser {
 
             if token.kind == TokenKind::CurlyClose {
                 let location =
-                    Location::start_end(&start.location, &token.location);
+                    Location::start_end(start.location, token.location);
 
                 return Ok(Expressions { values, location });
             }
@@ -1587,7 +1586,7 @@ impl Parser {
             self.expressions(start)
         } else {
             let expr = self.expression(start)?;
-            let location = *expr.location();
+            let location = expr.location();
 
             Ok(Expressions { values: vec![expr], location })
         }
@@ -1824,7 +1823,7 @@ impl Parser {
                     let value = self.expression(value_token)?;
                     let close = self.expect(TokenKind::StringExprClose)?;
                     let location =
-                        Location::start_end(&token.location, &close.location);
+                        Location::start_end(token.location, close.location);
 
                     values.push(StringValue::Expression(Box::new(
                         StringExpression { value, location },
@@ -1844,7 +1843,7 @@ impl Parser {
                 }
                 kind if kind == close => {
                     let location =
-                        Location::start_end(&start.location, &token.location);
+                        Location::start_end(start.location, token.location);
 
                     return Ok(StringLiteral { values, location });
                 }
@@ -1872,7 +1871,7 @@ impl Parser {
             end_loc = token.location;
         }
 
-        let location = Location::start_end(&start.location, &end_loc);
+        let location = Location::start_end(start.location, end_loc);
 
         StringText { value, location }
     }
@@ -1892,7 +1891,7 @@ impl Parser {
 
             if token.kind == TokenKind::BracketClose {
                 let location =
-                    Location::start_end(&start.location, &token.location);
+                    Location::start_end(start.location, token.location);
 
                 return Ok(Expression::Array(Box::new(Array {
                     values,
@@ -1927,7 +1926,7 @@ impl Parser {
                 let val = self.expression(tok)?;
                 let close = self.expect(TokenKind::BracketClose)?;
                 let location =
-                    Location::start_end(&start.location, &close.location);
+                    Location::start_end(start.location, close.location);
 
                 return Ok(Expression::InlineArray(Box::new(InlineArray {
                     values: vec![val],
@@ -1945,7 +1944,7 @@ impl Parser {
 
             if token.kind == TokenKind::BracketClose {
                 let location =
-                    Location::start_end(&start.location, &token.location);
+                    Location::start_end(start.location, token.location);
 
                 return Ok(Expression::InlineArray(Box::new(InlineArray {
                     values,
@@ -2007,7 +2006,7 @@ impl Parser {
     }
 
     fn constant(&mut self, start: Token) -> Result<Expression, ParseError> {
-        let (targs, args) = self.arguments(&start.location)?;
+        let (targs, args) = self.arguments(start.location)?;
 
         if targs.is_some() || args.is_some() {
             self.call_from_identifier(start, targs, args)
@@ -2062,7 +2061,7 @@ impl Parser {
             _ => {}
         }
 
-        let (targs, args) = self.arguments(&start.location)?;
+        let (targs, args) = self.arguments(start.location)?;
 
         if targs.is_some() || args.is_some() {
             self.call_from_identifier(start, targs, args)
@@ -2095,7 +2094,7 @@ impl Parser {
 
     fn arguments(
         &mut self,
-        start_location: &Location,
+        start_location: Location,
     ) -> Result<(Option<Types>, Option<Arguments>), ParseError> {
         let mut targs = None;
         let mut args = None;
@@ -2448,7 +2447,7 @@ impl Parser {
         let return_type = self.optional_return_type()?;
         let body_token = self.expect(TokenKind::CurlyOpen)?;
         let body = self.expressions(body_token)?;
-        let location = Location::start_end(&start.location, &body.location);
+        let location = Location::start_end(start.location, body.location);
         let closure =
             Closure { moving, body, arguments, return_type, location };
 
@@ -2510,7 +2509,7 @@ impl Parser {
             let start = self.next();
             let tok = self.next();
             let expr = self.expression(tok)?;
-            let loc = Location::start_end(&start.location, expr.location());
+            let loc = Location::start_end(start.location, expr.location());
 
             Some(DefineElse { expression: expr, location: loc })
         } else {
@@ -2518,7 +2517,7 @@ impl Parser {
         };
 
         let location = Location::start_end(
-            &start.location,
+            start.location,
             location!(else_body).unwrap_or_else(|| value.location()),
         );
 
@@ -2565,7 +2564,7 @@ impl Parser {
 
                 if token.kind == TokenKind::ParenClose {
                     let location =
-                        Location::start_end(&start.location, &token.location);
+                        Location::start_end(start.location, token.location);
 
                     return Ok(Expression::Tuple(Box::new(Tuple {
                         values,
@@ -2582,7 +2581,7 @@ impl Parser {
         }
 
         let end = self.expect(TokenKind::ParenClose)?;
-        let location = Location::start_end(&start.location, &end.location);
+        let location = Location::start_end(start.location, end.location);
 
         Ok(Expression::Group(Box::new(Group { value, location })))
     }
@@ -2598,7 +2597,7 @@ impl Parser {
     fn reference(&mut self, start: Token) -> Result<Expression, ParseError> {
         let value_token = self.require()?;
         let value = self.expression(value_token)?;
-        let location = Location::start_end(&start.location, value.location());
+        let location = Location::start_end(start.location, value.location());
 
         Ok(Expression::Ref(Box::new(Ref { value, location })))
     }
@@ -2608,7 +2607,7 @@ impl Parser {
         start: Token,
     ) -> Result<Expression, ParseError> {
         let body = self.expressions_with_optional_curly_braces()?;
-        let location = Location::start_end(&start.location, &body.location);
+        let location = Location::start_end(start.location, body.location);
 
         Ok(Expression::Recover(Box::new(Recover { body, location })))
     }
@@ -2619,7 +2618,7 @@ impl Parser {
     ) -> Result<Expression, ParseError> {
         let value_token = self.require()?;
         let value = self.expression(value_token)?;
-        let location = Location::start_end(&start.location, value.location());
+        let location = Location::start_end(start.location, value.location());
 
         Ok(Expression::Mut(Box::new(Mut { value, location })))
     }
@@ -2630,7 +2629,7 @@ impl Parser {
     ) -> Result<Expression, ParseError> {
         let value_token = self.require()?;
         let value = self.expression(value_token)?;
-        let location = Location::start_end(&start.location, value.location());
+        let location = Location::start_end(start.location, value.location());
 
         Ok(Expression::Throw(Box::new(Throw { value, location })))
     }
@@ -2684,8 +2683,8 @@ impl Parser {
             _ => None,
         };
 
-        let end_loc = location!(value).unwrap_or(&start.location);
-        let location = Location::start_end(&start.location, end_loc);
+        let end_loc = location!(value).unwrap_or(start.location);
+        let location = Location::start_end(start.location, end_loc);
 
         Ok(Expression::Return(Box::new(Return { value, location })))
     }
@@ -2697,7 +2696,7 @@ impl Parser {
         let expr_token = self.require()?;
         let expression = self.expression(expr_token)?;
         let end_loc = expression.location();
-        let location = Location::start_end(&start.location, end_loc);
+        let location = Location::start_end(start.location, end_loc);
 
         Ok(Expression::Try(Box::new(Try { value: expression, location })))
     }
@@ -2709,7 +2708,7 @@ impl Parser {
         let expr_token = self.require()?;
         let expression = self.expression(expr_token)?;
         let end_loc = expression.location();
-        let location = Location::start_end(&start.location, end_loc);
+        let location = Location::start_end(start.location, end_loc);
 
         Ok(Expression::Async(Box::new(Async { value: expression, location })))
     }
@@ -2721,7 +2720,7 @@ impl Parser {
         let expr_token = self.require()?;
         let expression = self.expression(expr_token)?;
         let end_loc = expression.location();
-        let location = Location::start_end(&start.location, end_loc);
+        let location = Location::start_end(start.location, end_loc);
 
         Ok(Expression::Await(Box::new(Await { value: expression, location })))
     }
@@ -2751,7 +2750,7 @@ impl Parser {
         let end_loc = location!(else_body)
             .or_else(|| location!(else_if.last()))
             .unwrap_or_else(|| if_true.location());
-        let location = Location::start_end(&start.location, end_loc);
+        let location = Location::start_end(start.location, end_loc);
 
         Ok(Expression::If(Box::new(If {
             if_true,
@@ -2796,7 +2795,7 @@ impl Parser {
         }
 
         let close = self.expect(TokenKind::CurlyClose)?;
-        let location = Location::start_end(&start.location, &close.location);
+        let location = Location::start_end(start.location, close.location);
 
         Ok(Expression::Match(Box::new(Match {
             expression,
@@ -2812,7 +2811,7 @@ impl Parser {
         self.expect(TokenKind::Arrow)?;
 
         let body = self.match_case_body()?;
-        let location = Location::start_end(&start.location, body.location());
+        let location = Location::start_end(start.location, body.location());
 
         Ok(MatchCase { pattern, guard, body, location })
     }
@@ -2881,7 +2880,7 @@ impl Parser {
 
                 let name_token = self.expect(TokenKind::Constant)?;
                 let location =
-                    Location::start_end(&source.location, &name_token.location);
+                    Location::start_end(source.location, name_token.location);
 
                 Pattern::Constant(Box::new(Constant {
                     source: Some(source),
@@ -2899,7 +2898,7 @@ impl Parser {
                 let values = self.patterns()?;
                 let close = self.expect(TokenKind::ParenClose)?;
                 let location =
-                    Location::start_end(&name.location, &close.location);
+                    Location::start_end(name.location, close.location);
 
                 Pattern::Constructor(Box::new(ConstructorPattern {
                     name,
@@ -2930,7 +2929,7 @@ impl Parser {
                 let values = self.patterns()?;
                 let close = self.expect(TokenKind::ParenClose)?;
                 let location =
-                    Location::start_end(&token.location, &close.location);
+                    Location::start_end(token.location, close.location);
 
                 Pattern::Tuple(Box::new(TuplePattern { values, location }))
             }
@@ -2941,7 +2940,7 @@ impl Parser {
                 let values = self.patterns()?;
                 let close = self.expect(TokenKind::BracketClose)?;
                 let location =
-                    Location::start_end(&token.location, &close.location);
+                    Location::start_end(token.location, close.location);
 
                 Pattern::Array(Box::new(ArrayPattern { values, location }))
             }
@@ -2975,7 +2974,7 @@ impl Parser {
             let value_type = self.optional_type_annotation()?;
             let end_loc =
                 location!(value_type).unwrap_or_else(|| name.location());
-            let location = Location::start_end(&start.location, end_loc);
+            let location = Location::start_end(start.location, end_loc);
 
             return Ok(IdentifierPattern {
                 name,
@@ -3019,7 +3018,7 @@ impl Parser {
 
             let pattern = self.pattern()?;
             let location =
-                Location::start_end(&field.location, pattern.location());
+                Location::start_end(field.location, pattern.location());
 
             values.push(FieldPattern { field, pattern, location });
 
@@ -3031,7 +3030,7 @@ impl Parser {
         }
 
         let close = self.expect(TokenKind::CurlyClose)?;
-        let location = Location::start_end(&start.location, &close.location);
+        let location = Location::start_end(start.location, close.location);
 
         Ok(TypePattern { values, location })
     }
@@ -3059,7 +3058,7 @@ impl Parser {
             self.expressions(start)?
         } else {
             let expr = self.expression(start)?;
-            let loc = *expr.location();
+            let loc = expr.location();
 
             Expressions { values: vec![expr], location: loc }
         };
@@ -3073,7 +3072,7 @@ impl Parser {
     ) -> Result<Expression, ParseError> {
         let body_token = self.expect(TokenKind::CurlyOpen)?;
         let body = self.expressions(body_token)?;
-        let location = Location::start_end(&start.location, body.location());
+        let location = Location::start_end(start.location, body.location());
 
         Ok(Expression::Loop(Box::new(Loop { body, location })))
     }
@@ -3086,7 +3085,7 @@ impl Parser {
         // We use binary() here such that `!a and b` is parsed as `(!a) and (b)`
         // instead of `!(a and b)`.
         let expr = self.binary(expr_start)?;
-        let loc = Location::start_end(&start.location, expr.location());
+        let loc = Location::start_end(start.location, expr.location());
 
         Ok(Expression::Not(Box::new(Not { expression: expr, location: loc })))
     }
@@ -3099,7 +3098,7 @@ impl Parser {
         let condition = self.expression(cond_start)?;
         let body_token = self.expect(TokenKind::CurlyOpen)?;
         let body = self.expressions(body_token)?;
-        let location = Location::start_end(&start.location, body.location());
+        let location = Location::start_end(start.location, body.location());
 
         Ok(Expression::While(Box::new(While { condition, body, location })))
     }
@@ -3116,7 +3115,7 @@ impl Parser {
         let iter = self.expression(iter_tok)?;
         let body_tok = self.expect(TokenKind::CurlyOpen)?;
         let body = self.expressions(body_tok)?;
-        let location = Location::start_end(&start.location, body.location());
+        let location = Location::start_end(start.location, body.location());
 
         Ok(Expression::For(Box::new(For {
             pattern,
@@ -3234,7 +3233,7 @@ impl Parser {
             if token.kind == close {
                 return Ok((
                     values,
-                    Location::start_end(&open_token.location, &token.location),
+                    Location::start_end(open_token.location, token.location),
                 ));
             }
 
@@ -3280,8 +3279,8 @@ mod tests {
         Location::new(&line_range, &column_range)
     }
 
-    fn parser(input: &str) -> Parser {
-        Parser::new(input.into(), "test.inko".into())
+    fn parser(input: &'_ str) -> Parser<'_> {
+        Parser::new(input.as_bytes(), "test.inko".into())
     }
 
     #[track_caller]
@@ -3331,7 +3330,7 @@ mod tests {
     macro_rules! assert_error {
         ($input: expr, $location: expr) => {{
             let loc = $location;
-            let ast = Parser::new($input.into(), "test.inko".into())
+            let ast = Parser::new($input.as_bytes(), "test.inko".into())
                 .parse();
 
             if let Err(e) = ast {
@@ -3354,7 +3353,7 @@ mod tests {
     macro_rules! assert_error_expr {
         ($input: expr, $location: expr) => {{
             let loc = $location;
-            let mut parser = Parser::new($input.into(), "test.inko".into());
+            let mut parser = Parser::new($input.as_bytes(), "test.inko".into());
             let start = parser.require().unwrap();
             let result = parser.expression(start);
 

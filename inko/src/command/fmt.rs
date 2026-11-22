@@ -31,6 +31,12 @@ pub(crate) fn run(args: &[String]) -> Result<i32, Error> {
 
     options.optflag("h", "help", "Show this help message");
     options.optflag("c", "check", "Only check for formatting differences");
+    options.optopt(
+        "",
+        "threads",
+        "The number of threads to use when checking multiple files",
+        "NUM",
+    );
 
     let matches = options.parse(args)?;
 
@@ -39,7 +45,12 @@ pub(crate) fn run(args: &[String]) -> Result<i32, Error> {
         return Ok(0);
     }
 
-    let config = Config::new()?;
+    let mut config = Config::new()?;
+
+    if let Some(val) = matches.opt_str("threads") {
+        config.parse_threads(&val)?;
+    }
+
     let input = match matches.free.first().map(|v| v.as_str()) {
         Some("-") => Input::Stdin,
         Some(_) => {

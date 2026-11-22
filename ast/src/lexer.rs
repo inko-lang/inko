@@ -419,9 +419,9 @@ enum State {
 }
 
 /// A lexer for Inko source code.
-pub struct Lexer {
+pub struct Lexer<'a> {
     /// The stream of bytes to process.
-    input: Vec<u8>,
+    input: &'a [u8],
 
     /// The maximum position in the input stream.
     max_position: usize,
@@ -448,8 +448,8 @@ pub struct Lexer {
     in_dot: bool,
 }
 
-impl Lexer {
-    pub fn new(input: Vec<u8>) -> Self {
+impl<'a> Lexer<'a> {
+    pub fn new(input: &'a [u8]) -> Self {
         let max = input.len();
         Self {
             input,
@@ -1305,8 +1305,8 @@ mod tests {
     use super::*;
     use std::ops::RangeInclusive;
 
-    fn lexer(input: &str) -> Lexer {
-        Lexer::new(Vec::from(input))
+    fn lexer(input: &'_ str) -> Lexer<'_> {
+        Lexer::new(input.as_bytes())
     }
 
     fn location(

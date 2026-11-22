@@ -27,7 +27,7 @@ fn imported_modules(
                     continue;
                 }
 
-                (&node.path, *node.location())
+                (&node.path, node.location())
             }
             _ => continue,
         };
@@ -167,9 +167,9 @@ impl<'a> ModulesParser<'a> {
         };
 
         let mut parser = if self.comments {
-            Parser::with_comments(input, file.clone())
+            Parser::with_comments(&input, file.clone())
         } else {
-            Parser::new(input, file.clone())
+            Parser::new(&input, file.clone())
         };
 
         match parser.parse() {

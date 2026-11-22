@@ -1376,8 +1376,8 @@ mod tests {
         }
     }
 
-    fn parse<S: Into<String>>(state: &mut State, input: S) -> Vec<hir::Module> {
-        let ast = Parser::new(input.into().into(), "test.inko".into())
+    fn parse<S: AsRef<[u8]>>(state: &mut State, input: S) -> Vec<hir::Module> {
+        let ast = Parser::new(input.as_ref(), "test.inko".into())
             .parse()
             .expect("failed to parse the input");
         let name = ModuleName::new("test");

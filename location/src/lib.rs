@@ -27,7 +27,7 @@ impl Location {
         }
     }
 
-    pub fn start_end(start: &Location, end: &Location) -> Location {
+    pub fn start_end(start: Location, end: Location) -> Location {
         Location {
             line_start: start.line_start,
             line_end: end.line_end,
@@ -36,7 +36,7 @@ impl Location {
         }
     }
 
-    pub fn is_trailing(&self, other: &Location) -> bool {
+    pub fn is_trailing(&self, other: Location) -> bool {
         self.line_start == other.line_start || self.line_start == other.line_end
     }
 }

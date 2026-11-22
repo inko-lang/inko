@@ -7,11 +7,15 @@ use ast::nodes::{
     TopLevelExpression, TraitExpression, TypeExpression,
 };
 use ast::parser::Parser;
+use location::Location;
 use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::fs::{read, write};
 use std::io::{Error as IoError, Read as _, Write as _, stdin, stdout};
 use std::path::PathBuf;
+use std::rc::Rc;
+use std::sync::Mutex;
+use std::thread;
 use unicode_width::UnicodeWidthStr;
 
 /// The characters to use for indentation.
@@ -88,6 +92,9 @@ enum Node {
     /// A chunk of ASCII text to display, such as "type" or "async".
     Text(String),
 
+    /// An ASCII string literal.
+    Literal(&'static str),
+
     /// A chunk of text (potentially including Unicode symbols) to display, such
     /// as strings or comments.
     ///
@@ -141,8 +148,8 @@ enum Node {
     /// A node of which the width should be reported as zero.
     ZeroWidth(Box<Node>),
 
-    /// Indent the given nodes recursively, but only starting the next line.
-    IndentNext(Vec<Node>),
+    /// Indent the given node recursively, but only starting the next line.
+    IndentNext(Box<Node>),
 
     /// A node that represents a method call chain.
     ///
@@ -156,11 +163,17 @@ enum Node {
     /// 4. The "tail", which includes the arguments of the last call in the
     ///    chain
     Call(usize, Box<Node>, Box<Node>, Option<Box<Node>>),
+
+    /// A node that has multiple owners.
+    ///
+    /// This allows other nodes such as `IfWrap` to use the same base node
+    /// across branches, without the need for cloning the node.
+    Shared(Rc<Node>),
 }
 
 impl Node {
-    fn text(value: &str) -> Node {
-        Node::Text(value.to_string())
+    fn shared(node: Node) -> Node {
+        Node::Shared(Rc::new(node))
     }
 
     fn unicode(text: String) -> Node {
@@ -182,11 +195,11 @@ impl Node {
             Node::Fill(n) => n.iter().map(|n| n.width(wrapped, force)).sum(),
             Node::Unwrapped(n) => n.width(wrapped, force),
             Node::Indent(n) => n.iter().map(|n| n.width(wrapped, force)).sum(),
-            Node::IndentNext(n) => {
-                n.iter().map(|n| n.width(wrapped, force)).sum()
-            }
+            Node::IndentNext(n) => n.width(wrapped, force),
             Node::Text(v) | Node::Unicode(v, _) if v.contains('\n') => LIMIT,
             Node::Text(v) => v.len(),
+            Node::Literal(v) if v.contains('\n') => LIMIT,
+            Node::Literal(v) => v.len(),
             Node::Unicode(_, w) => *w,
             Node::SpaceOrLine => 1,
             Node::IfWrap(id, n, _) if wrapped.contains(id) => {
@@ -201,6 +214,7 @@ impl Node {
                     + tail.as_ref().map_or(0, |n| n.width(wrapped, true))
             }
             Node::ZeroWidth(n) if force => n.width(wrapped, force),
+            Node::Shared(n) => n.width(wrapped, force),
             _ => 0,
         }
     }
@@ -287,41 +301,69 @@ impl Formatter {
     }
 
     pub fn check(&mut self, input: Input) -> Result<Vec<PathBuf>, Error> {
+        let inp = Mutex::new(input.into_iter());
+        let out = Mutex::new(Vec::new());
+
+        thread::scope(|s| {
+            for _ in 0..self.config.threads {
+                s.spawn(|| {
+                    loop {
+                        // We use this pattern so we don't hold on to the lock
+                        // for the entire loop body.
+                        let Some(res) = inp.lock().unwrap().next() else {
+                            break;
+                        };
+                        let (path, data, _) = match res {
+                            Ok(v) => v,
+                            Err((p, e)) => {
+                                out.lock().unwrap().push(Err((
+                                    DiagnosticId::InvalidFile,
+                                    e.to_string(),
+                                    p,
+                                    Location::default(),
+                                )));
+                                continue;
+                            }
+                        };
+
+                        let mut parser =
+                            Parser::with_comments(&data, path.clone());
+                        let res = match parser.parse() {
+                            Ok(v) => {
+                                if Document::new().format(v).as_bytes() == data
+                                {
+                                    continue;
+                                } else {
+                                    Ok(path)
+                                }
+                            }
+                            Err(e) => Err((
+                                DiagnosticId::InvalidSyntax,
+                                e.message,
+                                path,
+                                e.location,
+                            )),
+                        };
+
+                        out.lock().unwrap().push(res);
+                    }
+                });
+            }
+        });
+
         let mut incorrect = Vec::new();
 
-        for result in input.into_iter() {
-            let (path, data, _) = result.map_err(|(path, e)| {
-                Error::Internal(format!(
-                    "failed to read {}: {}",
-                    path.display(),
-                    e
-                ))
-            })?;
-
-            let orig = String::from_utf8_lossy(&data).into_owned();
-            let mut parser = Parser::with_comments(data, path.clone());
-            let ast = match parser.parse() {
-                Ok(v) => v,
-                Err(e) => {
-                    self.diagnostics.error(
-                        DiagnosticId::InvalidSyntax,
-                        e.message,
-                        path.clone(),
-                        e.location,
-                    );
-
-                    continue;
-                }
-            };
-
-            if Document::new().format(ast) != orig {
-                incorrect.push(path);
+        for res in out.into_inner().unwrap() {
+            match res {
+                Ok(path) => incorrect.push(path),
+                Err((id, e, p, loc)) => self.diagnostics.error(id, e, p, loc),
             }
         }
 
         if self.diagnostics.has_errors() {
             Err(Error::Diagnostics)
         } else {
+            incorrect.sort();
             Ok(incorrect)
         }
     }
@@ -336,7 +378,7 @@ impl Formatter {
                 ))
             })?;
 
-            let mut parser = Parser::with_comments(data, path.clone());
+            let mut parser = Parser::with_comments(&data, path.clone());
             let ast = match parser.parse() {
                 Ok(v) => v,
                 Err(e) => {
@@ -384,10 +426,10 @@ impl Formatter {
     }
 }
 
-struct Import<'a> {
+struct Import {
     path: String,
-    symbols: Option<Vec<(&'a String, Option<&'a String>)>>,
-    tags: Option<Vec<&'a String>>,
+    symbols: Option<Vec<(String, Option<String>)>>,
+    tags: Option<Vec<String>>,
 }
 
 struct List {
@@ -399,7 +441,12 @@ struct List {
 
 impl List {
     fn new(group_id: usize, capacity: usize) -> List {
-        List { group_id, capacity, size: 0, nodes: Vec::new() }
+        List {
+            group_id,
+            capacity,
+            size: 0,
+            nodes: Vec::with_capacity(capacity),
+        }
     }
 
     fn add(&mut self, node: Node) {
@@ -412,18 +459,20 @@ impl List {
         // If the group as a whole (including the separator) doesn't fit on a
         // single line, we need to force wrapping of the value, even if the
         // value itself fits on the line.
-        let mut group = vec![Node::WrapIf(id, Box::new(node))];
+        let mut group = Vec::with_capacity(2);
         let remaining = self.size < self.capacity;
+
+        group.push(Node::WrapIf(id, Box::new(node)));
 
         // The separator needs to be grouped together with the expression such
         // that the width calculation takes the separator into account.
         if comma && remaining {
-            group.push(Node::text(","));
+            group.push(Node::Literal(","));
         } else if comma && self.size == self.capacity {
             group.push(Node::IfWrap(
                 self.group_id,
-                Box::new(Node::text(",")),
-                Box::new(Node::text("")),
+                Box::new(Node::Literal(",")),
+                Box::new(Node::Literal("")),
             ));
         }
 
@@ -450,24 +499,28 @@ impl Document {
     }
 
     fn format(mut self, ast: nodes::Module) -> String {
-        self.top_level(&ast);
+        self.top_level(ast);
         self.generator.buf
     }
 
-    fn top_level(&mut self, ast: &nodes::Module) {
-        let mut iter = ast.expressions.iter().peekable();
+    fn top_level(&mut self, ast: nodes::Module) {
+        let mut iter = ast.expressions.into_iter().peekable();
 
         while let Some(node) = iter.next() {
             match node {
                 TopLevelExpression::Import(n) => {
-                    let mut imports = vec![&**n];
+                    let mut imports = vec![*n];
 
                     // This groups consecutive imports together so we can sort
                     // them.
-                    while let Some(TopLevelExpression::Import(n)) = iter.peek()
+                    while let Some(TopLevelExpression::Import(_)) = iter.peek()
                     {
-                        imports.push(n);
-                        iter.next();
+                        let Some(TopLevelExpression::Import(n)) = iter.next()
+                        else {
+                            unreachable!()
+                        };
+
+                        imports.push(*n);
                     }
 
                     self.imports(imports);
@@ -477,13 +530,18 @@ impl Document {
                     }
                 }
                 TopLevelExpression::ExternImport(n) => {
-                    let mut imports = vec![&**n];
+                    let mut imports = vec![*n];
 
-                    while let Some(TopLevelExpression::ExternImport(n)) =
+                    while let Some(TopLevelExpression::ExternImport(_)) =
                         iter.peek()
                     {
-                        imports.push(n);
-                        iter.next();
+                        let Some(TopLevelExpression::ExternImport(n)) =
+                            iter.next()
+                        else {
+                            unreachable!()
+                        };
+
+                        imports.push(*n);
                     }
 
                     self.extern_imports(imports);
@@ -493,7 +551,9 @@ impl Document {
                     }
                 }
                 TopLevelExpression::Comment(c) => {
-                    self.top_level_comment(c);
+                    let end = c.location.line_end;
+
+                    self.top_level_comment(*c);
 
                     // If a comment is followed by an empty line we retain the
                     // empty line. This allows one to create a module comment
@@ -501,23 +561,24 @@ impl Document {
                     // turned into a comment for the _type_ instead of the
                     // module.
                     if let Some(node) = iter.peek()
-                        && node.location().line_start - c.location.line_end > 1
+                        && node.location().line_start - end > 1
                     {
                         self.generator.new_line();
                     }
                 }
                 TopLevelExpression::DefineConstant(n) => {
-                    self.define_constant(n);
+                    let loc = n.location;
+
+                    self.define_constant(*n);
 
                     match iter.peek() {
                         Some(TopLevelExpression::Comment(c))
-                            if c.location.is_trailing(&n.location) =>
+                            if c.location.is_trailing(loc) =>
                         {
                             self.generator.single_space();
                         }
                         Some(TopLevelExpression::DefineConstant(node))
-                            if node.location().line_start
-                                - n.location.line_end
+                            if node.location().line_start - loc.line_end
                                 > 1 =>
                         {
                             self.generator.new_line();
@@ -533,9 +594,9 @@ impl Document {
                     }
                 }
                 TopLevelExpression::DefineMethod(n) => {
-                    let node = self.define_method(n);
+                    let node = self.define_method(*n);
 
-                    self.generator.generate(node);
+                    self.generator.generate(&node);
                     self.generator.new_line();
 
                     if iter.peek().is_some() {
@@ -543,28 +604,28 @@ impl Document {
                     }
                 }
                 TopLevelExpression::DefineType(n) => {
-                    self.define_type(n);
+                    self.define_type(*n);
 
                     if iter.peek().is_some() {
                         self.generator.new_line();
                     }
                 }
                 TopLevelExpression::DefineTrait(n) => {
-                    self.define_trait(n);
+                    self.define_trait(*n);
 
                     if iter.peek().is_some() {
                         self.generator.new_line();
                     }
                 }
                 TopLevelExpression::ReopenType(n) => {
-                    self.reopen_type(n);
+                    self.reopen_type(*n);
 
                     if iter.peek().is_some() {
                         self.generator.new_line();
                     }
                 }
                 TopLevelExpression::ImplementTrait(n) => {
-                    self.implement_trait(n);
+                    self.implement_trait(*n);
 
                     if iter.peek().is_some() {
                         self.generator.new_line();
@@ -574,29 +635,28 @@ impl Document {
         }
     }
 
-    fn imports(&mut self, nodes: Vec<&nodes::Import>) {
+    fn imports(&mut self, nodes: Vec<nodes::Import>) {
         let mut imports = Vec::new();
 
         for node in nodes {
             let path = node
                 .path
                 .steps
-                .iter()
-                .map(|i| i.name.clone())
+                .into_iter()
+                .map(|i| i.name)
                 .collect::<Vec<_>>()
                 .join(".");
 
-            let symbols = node.symbols.as_ref().map(|v| {
+            let symbols = node.symbols.map(|v| {
                 v.values
-                    .iter()
-                    .map(|s| (&s.name, s.alias.as_ref().map(|v| &v.name)))
+                    .into_iter()
+                    .map(|s| (s.name, s.alias.map(|v| v.name)))
                     .collect::<Vec<_>>()
             });
 
-            let tags = node
-                .tags
-                .as_ref()
-                .map(|v| v.values.iter().map(|t| &t.name).collect::<Vec<_>>());
+            let tags = node.tags.map(|v| {
+                v.values.into_iter().map(|t| t.name).collect::<Vec<_>>()
+            });
 
             imports.push(Import { path, symbols, tags });
         }
@@ -623,7 +683,7 @@ impl Document {
 
         for (idx, import) in imports.into_iter().enumerate() {
             let mut nodes =
-                vec![Node::text("import "), Node::Text(import.path)];
+                vec![Node::Literal("import "), Node::Text(import.path)];
             let syms_id = self.new_group_id();
 
             // Symbols are formatted in one of three ways:
@@ -633,33 +693,33 @@ impl Document {
             //    line
             // 3. Each symbol is placed on its own line
             if let Some(pairs) = import.symbols {
-                let vals = self.list(&pairs, syms_id, |_, (name, alias)| {
+                let vals = self.list(pairs, syms_id, |_, (name, alias)| {
                     let val = if let Some(alias) = alias {
                         vec![
-                            Node::text(name),
-                            Node::text(" as "),
-                            Node::text(alias),
+                            Node::Text(name),
+                            Node::Literal(" as "),
+                            Node::Text(alias),
                         ]
                     } else {
-                        vec![Node::text(name)]
+                        vec![Node::Text(name)]
                     };
 
                     Node::Nodes(val)
                 });
 
                 let group = vec![
-                    Node::text(" ("),
+                    Node::Literal(" ("),
                     Node::Line,
                     Node::Indent(vec![Node::Fill(vals)]),
                     Node::Line,
-                    Node::text(")"),
+                    Node::Literal(")"),
                 ];
 
                 nodes.push(Node::Group(syms_id, group));
             }
 
             if let Some(tag_names) = import.tags {
-                let mut group = vec![Node::SpaceOrLine, Node::text("if")];
+                let mut group = vec![Node::SpaceOrLine, Node::Literal("if")];
                 let mut tags = vec![Node::SpaceOrLine];
 
                 for (idx, tag) in tag_names.into_iter().enumerate() {
@@ -667,10 +727,10 @@ impl Document {
 
                     if idx > 0 {
                         tags.push(Node::SpaceOrLine);
-                        pair.push(Node::text("and "));
+                        pair.push(Node::Literal("and "));
                     }
 
-                    pair.push(Node::text(tag));
+                    pair.push(Node::Text(tag));
 
                     if idx > 0 {
                         tags.push(Node::Indent(pair))
@@ -694,95 +754,97 @@ impl Document {
                 nodes.push(Node::WrapIf(syms_id, Box::new(self.group(group))));
             }
 
-            self.generator.generate(Node::Nodes(nodes));
+            self.generator.generate(&Node::Nodes(nodes));
             self.generator.new_line();
         }
     }
 
-    fn extern_imports(&mut self, mut nodes: Vec<&nodes::ExternImport>) {
+    fn extern_imports(&mut self, mut nodes: Vec<nodes::ExternImport>) {
         nodes.sort_by(|a, b| a.path.path.cmp(&b.path.path));
 
         for import in nodes {
             let path = format!("\"{}\"", import.path.path);
             let node = Node::Nodes(vec![
-                Node::text("import extern "),
+                Node::Literal("import extern "),
                 Node::unicode(path),
             ]);
 
-            self.generator.generate(node);
+            self.generator.generate(&node);
             self.generator.new_line();
         }
     }
 
-    fn top_level_comment(&mut self, node: &nodes::Comment) {
+    fn top_level_comment(&mut self, node: nodes::Comment) {
         let group = self.comment(node);
 
-        self.generator.generate(group);
+        self.generator.generate(&group);
         self.generator.new_line();
     }
 
-    fn comment(&mut self, node: &nodes::Comment) -> Node {
-        let mut nodes = vec![Node::text("#")];
+    fn comment(&mut self, node: nodes::Comment) -> Node {
+        let mut nodes = vec![Node::Literal("#")];
 
         if !node.value.is_empty() {
-            nodes.push(Node::text(" "));
-            nodes.push(Node::unicode(node.value.clone()));
+            nodes.push(Node::Literal(" "));
+            nodes.push(Node::unicode(node.value));
         }
 
         nodes.push(Node::WrapParent);
         Node::Nodes(nodes)
     }
 
-    fn define_constant(&mut self, node: &nodes::DefineConstant) {
+    fn define_constant(&mut self, node: nodes::DefineConstant) {
         let kw = if node.public { "let pub " } else { "let " };
-        let val = self.expression(&node.value);
+        let val = self.expression(node.value);
         let nodes = Node::Nodes(vec![
-            Node::Text(kw.to_string()),
-            Node::Text(node.name.name.clone()),
-            Node::text(" = "),
+            Node::Literal(kw),
+            Node::Text(node.name.name),
+            Node::Literal(" = "),
             val,
         ]);
 
-        self.generator.generate(nodes);
+        self.generator.generate(&nodes);
     }
 
-    fn define_type(&mut self, node: &nodes::DefineType) {
+    fn define_type(&mut self, node: nodes::DefineType) {
         let header_id = self.new_group_id();
-        let mut header = vec![Node::text("type ")];
+        let mut header = vec![Node::Literal("type ")];
 
         if node.public {
-            header.push(Node::text("pub "));
+            header.push(Node::Literal("pub "));
         }
 
         match node.semantics {
-            nodes::TypeSemantics::Inline => header.push(Node::text("inline ")),
-            nodes::TypeSemantics::Copy => header.push(Node::text("copy ")),
-            nodes::TypeSemantics::Atomic => header.push(Node::text("ref ")),
+            nodes::TypeSemantics::Inline => {
+                header.push(Node::Literal("inline "))
+            }
+            nodes::TypeSemantics::Copy => header.push(Node::Literal("copy ")),
+            nodes::TypeSemantics::Atomic => header.push(Node::Literal("ref ")),
             _ => {}
         }
 
         match node.kind {
-            nodes::TypeKind::Async => header.push(Node::text("async ")),
-            nodes::TypeKind::Builtin => header.push(Node::text("builtin ")),
-            nodes::TypeKind::Enum => header.push(Node::text("enum ")),
+            nodes::TypeKind::Async => header.push(Node::Literal("async ")),
+            nodes::TypeKind::Builtin => header.push(Node::Literal("builtin ")),
+            nodes::TypeKind::Enum => header.push(Node::Literal("enum ")),
             nodes::TypeKind::Extern if node.packed => {
-                header.push(Node::text("extern(packed) "))
+                header.push(Node::Literal("extern(packed) "))
             }
-            nodes::TypeKind::Extern => header.push(Node::text("extern ")),
+            nodes::TypeKind::Extern => header.push(Node::Literal("extern ")),
             nodes::TypeKind::Regular => {}
         }
 
-        header.push(Node::text(&node.name.name));
+        header.push(Node::Text(node.name.name));
 
         if let Some(nodes) =
-            node.type_parameters.as_ref().filter(|v| !v.values.is_empty())
+            node.type_parameters.filter(|v| !v.values.is_empty())
         {
-            header.push(self.type_parameters(&nodes.values));
+            header.push(self.type_parameters(nodes.values));
         }
 
-        header.push(Node::text(" {"));
+        header.push(Node::Literal(" {"));
 
-        let mut iter = node.body.values.iter().peekable();
+        let mut iter = node.body.values.into_iter().peekable();
         let mut exprs = Vec::new();
 
         while let Some(expr) = iter.next() {
@@ -790,8 +852,12 @@ impl Document {
                 Some(TypeExpression::Comment(next))
                     if next.location.is_trailing(expr.location()) =>
                 {
-                    iter.next();
-                    Some(self.comment(next))
+                    let Some(TypeExpression::Comment(next)) = iter.next()
+                    else {
+                        unreachable!()
+                    };
+
+                    Some(self.comment(*next))
                 }
                 _ => None,
             };
@@ -799,23 +865,23 @@ impl Document {
             let next = iter.peek();
             let (node, tight) = match expr {
                 TypeExpression::DefineMethod(n) => {
-                    (self.define_method(n), false)
+                    (self.define_method(*n), false)
                 }
                 TypeExpression::DefineField(n) => (
-                    self.define_field(n),
+                    self.define_field(*n),
                     matches!(next, Some(TypeExpression::DefineField(_))),
                 ),
                 TypeExpression::DefineConstructor(n) => (
-                    self.define_constructor(n),
+                    self.define_constructor(*n),
                     matches!(next, Some(TypeExpression::DefineConstructor(_))),
                 ),
-                TypeExpression::Comment(n) => (self.comment(n), true),
+                TypeExpression::Comment(n) => (self.comment(*n), true),
             };
 
             exprs.push(node);
 
             if let Some(node) = trailing {
-                exprs.push(Node::text(" "));
+                exprs.push(Node::Literal(" "));
                 exprs.push(node);
             }
 
@@ -829,13 +895,13 @@ impl Document {
         }
 
         let body = if exprs.is_empty() {
-            vec![Node::Line, Node::text("}")]
+            vec![Node::Line, Node::Literal("}")]
         } else {
             vec![
                 Node::HardLine,
                 Node::Indent(exprs),
                 Node::HardLine,
-                Node::text("}"),
+                Node::Literal("}"),
             ]
         };
 
@@ -844,35 +910,35 @@ impl Document {
             Node::WrapIf(header_id, Box::new(self.group(body))),
         ];
 
-        self.generator.generate(Node::Nodes(typ));
+        self.generator.generate(&Node::Nodes(typ));
         self.generator.new_line();
     }
 
-    fn define_trait(&mut self, node: &nodes::DefineTrait) {
+    fn define_trait(&mut self, node: nodes::DefineTrait) {
         let header_id = self.new_group_id();
-        let mut header = vec![Node::text("trait ")];
+        let mut header = vec![Node::Literal("trait ")];
 
         if node.public {
-            header.push(Node::text("pub "));
+            header.push(Node::Literal("pub "));
         }
 
-        header.push(Node::text(&node.name.name));
+        header.push(Node::Text(node.name.name));
 
         if let Some(nodes) =
-            node.type_parameters.as_ref().filter(|v| !v.values.is_empty())
+            node.type_parameters.filter(|v| !v.values.is_empty())
         {
-            header.push(self.type_parameters(&nodes.values));
+            header.push(self.type_parameters(nodes.values));
         }
 
-        if let Some(nodes) = &node.requirements {
+        if let Some(nodes) = node.requirements {
             let mut reqs = Vec::new();
 
-            for (idx, node) in nodes.values.iter().enumerate() {
+            for (idx, node) in nodes.values.into_iter().enumerate() {
                 let mut pair = Vec::new();
 
                 if idx > 0 {
                     reqs.push(Node::SpaceOrLine);
-                    pair.push(Node::text("+ "));
+                    pair.push(Node::Literal("+ "));
                 }
 
                 pair.push(self.type_name(node, None));
@@ -884,14 +950,14 @@ impl Document {
                 }
             }
 
-            header.push(Node::text(": "));
+            header.push(Node::Literal(": "));
             header.push(Node::Nodes(reqs));
         }
 
         header.push(Node::SpaceOrLine);
-        header.push(Node::text("{"));
+        header.push(Node::Literal("{"));
 
-        let mut iter = node.body.values.iter().peekable();
+        let mut iter = node.body.values.into_iter().peekable();
         let mut exprs = Vec::new();
 
         while let Some(expr) = iter.next() {
@@ -899,23 +965,27 @@ impl Document {
                 Some(TraitExpression::Comment(next))
                     if next.location.is_trailing(expr.location()) =>
                 {
-                    iter.next();
-                    Some(self.comment(next))
+                    let Some(TraitExpression::Comment(next)) = iter.next()
+                    else {
+                        unreachable!()
+                    };
+
+                    Some(self.comment(*next))
                 }
                 _ => None,
             };
 
             let (node, tight) = match expr {
                 TraitExpression::DefineMethod(n) => {
-                    (self.define_method(n), false)
+                    (self.define_method(*n), false)
                 }
-                TraitExpression::Comment(n) => (self.comment(n), true),
+                TraitExpression::Comment(n) => (self.comment(*n), true),
             };
 
             exprs.push(node);
 
             if let Some(node) = trailing {
-                exprs.push(Node::text(" "));
+                exprs.push(Node::Literal(" "));
                 exprs.push(node);
             }
 
@@ -929,13 +999,13 @@ impl Document {
         }
 
         let body = if exprs.is_empty() {
-            vec![Node::Line, Node::text("}")]
+            vec![Node::Line, Node::Literal("}")]
         } else {
             vec![
                 Node::HardLine,
                 Node::Indent(exprs),
                 Node::HardLine,
-                Node::text("}"),
+                Node::Literal("}"),
             ]
         };
 
@@ -944,74 +1014,74 @@ impl Document {
             Node::WrapIf(header_id, Box::new(self.group(body))),
         ];
 
-        self.generator.generate(Node::Nodes(group));
+        self.generator.generate(&Node::Nodes(group));
         self.generator.new_line();
     }
 
-    fn reopen_type(&mut self, node: &nodes::ReopenType) {
+    fn reopen_type(&mut self, node: nodes::ReopenType) {
         let header_id = self.new_group_id();
         let mut header =
-            vec![Node::text("impl "), Node::text(&node.type_name.name)];
+            vec![Node::Literal("impl "), Node::Text(node.type_name.name)];
 
-        if let Some(node) = &node.bounds {
+        if let Some(node) = node.bounds {
             header.push(self.type_bounds(node));
         }
 
         header.push(Node::SpaceOrLine);
-        header.push(Node::text("{"));
+        header.push(Node::Literal("{"));
 
-        let body = self.implementation(&node.body);
+        let body = self.implementation(node.body);
         let group = vec![
             Node::Group(header_id, header),
             Node::WrapIf(header_id, Box::new(self.group(body))),
         ];
 
-        self.generator.generate(Node::Nodes(group));
+        self.generator.generate(&Node::Nodes(group));
         self.generator.new_line();
     }
 
-    fn implement_trait(&mut self, node: &nodes::ImplementTrait) {
+    fn implement_trait(&mut self, node: nodes::ImplementTrait) {
         let header_id = self.new_group_id();
         let start = vec![
-            Node::text("impl "),
-            self.type_name(&node.trait_name, None),
+            Node::Literal("impl "),
+            self.type_name(node.trait_name, None),
             Node::SpaceOrLine,
-            Node::text("for "),
-            Node::text(&node.type_name.name),
+            Node::Literal("for "),
+            Node::Text(node.type_name.name),
         ];
         let mut header = vec![self.group(start)];
 
-        if let Some(node) = &node.bounds {
+        if let Some(node) = node.bounds {
             header.push(self.type_bounds(node));
         }
 
         header.push(Node::SpaceOrLine);
-        header.push(Node::text("{"));
+        header.push(Node::Literal("{"));
 
-        let body = self.implementation(&node.body);
+        let body = self.implementation(node.body);
         let group = vec![
             Node::Group(header_id, header),
             Node::WrapIf(header_id, Box::new(self.group(body))),
         ];
 
-        self.generator.generate(Node::Nodes(group));
+        self.generator.generate(&Node::Nodes(group));
         self.generator.new_line();
     }
 
-    fn type_bounds(&mut self, node: &nodes::TypeBounds) -> Node {
+    fn type_bounds(&mut self, node: nodes::TypeBounds) -> Node {
         let gid = self.new_group_id();
-        let vals = self.list(&node.values, gid, |this, node| {
+        let vals = self.list(node.values, gid, |this, node| {
             let pair = vec![
-                Node::text(&node.name.name),
-                Node::text(": "),
-                this.type_parameter_requirements(&node.requirements),
+                Node::Text(node.name.name),
+                Node::Literal(": "),
+                this.type_parameter_requirements(node.requirements),
             ];
 
             Node::Nodes(pair)
         });
         let group = vec![
             Node::SpaceOrLine,
-            Node::text("if"),
+            Node::Literal("if"),
             Node::SpaceOrLine,
             Node::Indent(vals),
         ];
@@ -1021,9 +1091,9 @@ impl Document {
 
     fn implementation(
         &mut self,
-        nodes: &nodes::ImplementationExpressions,
+        nodes: nodes::ImplementationExpressions,
     ) -> Vec<Node> {
-        let mut iter = nodes.values.iter().peekable();
+        let mut iter = nodes.values.into_iter().peekable();
         let mut exprs = Vec::new();
 
         while let Some(expr) = iter.next() {
@@ -1031,23 +1101,30 @@ impl Document {
                 Some(ImplementationExpression::Comment(next))
                     if next.location.is_trailing(expr.location()) =>
                 {
-                    iter.next();
-                    Some(self.comment(next))
+                    let Some(ImplementationExpression::Comment(next)) =
+                        iter.next()
+                    else {
+                        unreachable!()
+                    };
+
+                    Some(self.comment(*next))
                 }
                 _ => None,
             };
 
             let (node, tight) = match expr {
                 ImplementationExpression::DefineMethod(n) => {
-                    (self.define_method(n), false)
+                    (self.define_method(*n), false)
                 }
-                ImplementationExpression::Comment(n) => (self.comment(n), true),
+                ImplementationExpression::Comment(n) => {
+                    (self.comment(*n), true)
+                }
             };
 
             exprs.push(node);
 
             if let Some(node) = trailing {
-                exprs.push(Node::text(" "));
+                exprs.push(Node::Literal(" "));
                 exprs.push(node);
             }
 
@@ -1061,43 +1138,42 @@ impl Document {
         }
 
         if exprs.is_empty() {
-            vec![Node::Line, Node::text("}")]
+            vec![Node::Line, Node::Literal("}")]
         } else {
             vec![
                 Node::HardLine,
                 Node::Indent(exprs),
                 Node::HardLine,
-                Node::text("}"),
+                Node::Literal("}"),
             ]
         }
     }
 
-    fn define_field(&mut self, node: &nodes::DefineField) -> Node {
-        let mut group = vec![Node::text("let ")];
+    fn define_field(&mut self, node: nodes::DefineField) -> Node {
+        let mut group = vec![Node::Literal("let ")];
 
         if node.public {
-            group.push(Node::text("pub "));
+            group.push(Node::Literal("pub "));
         }
 
         if node.mutable {
-            group.push(Node::text("mut "));
+            group.push(Node::Literal("mut "));
         }
 
-        group.push(Node::text(&format!("@{}", node.name.name)));
-        group.push(Node::text(": "));
-        group.push(self.type_reference(&node.value_type));
+        group.push(Node::Literal("@"));
+        group.push(Node::Text(node.name.name));
+        group.push(Node::Literal(": "));
+        group.push(self.type_reference(node.value_type));
         Node::Nodes(group)
     }
 
-    fn define_constructor(&mut self, node: &nodes::DefineConstructor) -> Node {
-        let mut group = vec![Node::text("case "), Node::text(&node.name.name)];
+    fn define_constructor(&mut self, node: nodes::DefineConstructor) -> Node {
+        let mut group =
+            vec![Node::Literal("case "), Node::Text(node.name.name)];
 
-        if let Some(nodes) =
-            node.members.as_ref().filter(|v| !v.values.is_empty())
-        {
+        if let Some(nodes) = node.members.filter(|v| !v.values.is_empty()) {
             let gid = self.new_group_id();
-            let vals =
-                self.list(&nodes.values, gid, |s, n| s.type_reference(n));
+            let vals = self.list(nodes.values, gid, |s, n| s.type_reference(n));
             let args = self.argument_list(vals);
 
             group.push(Node::Group(gid, args));
@@ -1106,7 +1182,7 @@ impl Document {
         Node::Nodes(group)
     }
 
-    fn define_method(&mut self, node: &nodes::DefineMethod) -> Node {
+    fn define_method(&mut self, node: nodes::DefineMethod) -> Node {
         let header_id = self.new_group_id();
         let kind = match node.kind {
             nodes::MethodKind::Instance => " ",
@@ -1124,36 +1200,34 @@ impl Document {
             nodes::Inline::Never => " noinline",
         };
         let mut header = vec![
-            Node::text(kw),
-            Node::text(inline),
-            Node::text(kind),
-            Node::text(&node.name.name),
+            Node::Literal(kw),
+            Node::Literal(inline),
+            Node::Literal(kind),
+            Node::Text(node.name.name),
         ];
 
         if let Some(nodes) =
-            node.type_parameters.as_ref().filter(|v| !v.values.is_empty())
+            node.type_parameters.filter(|v| !v.values.is_empty())
         {
-            header.push(self.type_parameters(&nodes.values));
+            header.push(self.type_parameters(nodes.values));
         }
 
-        if let Some(nodes) =
-            node.arguments.as_ref().filter(|v| !v.values.is_empty())
-        {
+        if let Some(nodes) = node.arguments.filter(|v| !v.values.is_empty()) {
             let mut args = nodes
                 .values
-                .iter()
-                .map(|n| (n.name.name.as_str(), Some(&n.value_type)))
+                .into_iter()
+                .map(|n| (Node::Text(n.name.name), Some(n.value_type)))
                 .collect::<Vec<_>>();
 
             if nodes.variadic {
-                args.push(("...", None));
+                args.push((Node::Literal("..."), None));
             }
 
-            let vals = self.list(&args, header_id, |this, (name, typ)| {
-                let mut pair = vec![Node::text(name)];
+            let vals = self.list(args, header_id, |this, (name, typ)| {
+                let mut pair = vec![name];
 
                 if let Some(typ) = typ {
-                    pair.push(Node::text(": "));
+                    pair.push(Node::Literal(": "));
                     pair.push(this.type_reference(typ));
                 }
 
@@ -1163,18 +1237,19 @@ impl Document {
             header.push(Node::Nodes(self.argument_list(vals)));
         }
 
-        if let Some(rnode) = &node.return_type {
+        if let Some(rnode) = node.return_type {
             header.push(self.return_type(rnode));
         }
 
         let mut method = vec![Node::Group(header_id, header)];
 
         if node.body.is_some() {
-            method.push(self.group(vec![Node::SpaceOrLine, Node::text("{")]));
+            method
+                .push(self.group(vec![Node::SpaceOrLine, Node::Literal("{")]));
         }
 
-        if let Some(node) = &node.body {
-            let body = self.method_body(&node.values);
+        if let Some(node) = node.body {
+            let body = self.method_body(node.values);
 
             method.push(Node::WrapIf(header_id, Box::new(self.group(body))));
         }
@@ -1184,48 +1259,48 @@ impl Document {
 
     fn argument_list(&mut self, nodes: Vec<Node>) -> Vec<Node> {
         vec![
-            Node::text("("),
+            Node::Literal("("),
             Node::Line,
             Node::Indent(nodes),
             Node::Line,
-            Node::text(")"),
+            Node::Literal(")"),
         ]
     }
 
-    fn type_parameters(&mut self, nodes: &[nodes::TypeParameter]) -> Node {
+    fn type_parameters(&mut self, nodes: Vec<nodes::TypeParameter>) -> Node {
         let gid = self.new_group_id();
         let vals = self.list(nodes, gid, |s, n| s.type_parameter(n));
         let group = vec![
-            Node::text("["),
+            Node::Literal("["),
             Node::Line,
             Node::Indent(vals),
             Node::Line,
-            Node::text("]"),
+            Node::Literal("]"),
         ];
 
         Node::Group(gid, group)
     }
 
-    fn return_type(&mut self, node: &nodes::Type) -> Node {
-        Node::Nodes(vec![Node::text(" -> "), self.type_reference(node)])
+    fn return_type(&mut self, node: nodes::Type) -> Node {
+        Node::Nodes(vec![Node::Literal(" -> "), self.type_reference(node)])
     }
 
-    fn method_body(&mut self, nodes: &[Expression]) -> Vec<Node> {
+    fn method_body(&mut self, nodes: Vec<Expression>) -> Vec<Node> {
         if nodes.is_empty() {
-            vec![Node::Line, Node::text("}")]
+            vec![Node::Line, Node::Literal("}")]
         } else {
             vec![
                 Node::HardLine,
                 Node::Indent(self.expressions(nodes)),
                 Node::HardLine,
-                Node::text("}"),
+                Node::Literal("}"),
             ]
         }
     }
 
-    fn body(&mut self, nodes: &[Expression]) -> Vec<Node> {
+    fn body(&mut self, nodes: Vec<Expression>) -> Vec<Node> {
         let sep = match nodes.len() {
-            0 => return vec![Node::Line, Node::text("}")],
+            0 => return vec![Node::Line, Node::Literal("}")],
             1 => {
                 if place_on_dedicated_line(&nodes[0]) {
                     Node::HardLine
@@ -1240,37 +1315,32 @@ impl Document {
             sep.clone(),
             Node::Indent(self.expressions(nodes)),
             sep,
-            Node::text("}"),
+            Node::Literal("}"),
         ]
     }
 
-    fn expressions(&mut self, nodes: &[Expression]) -> Vec<Node> {
+    fn expressions(&mut self, nodes: Vec<Expression>) -> Vec<Node> {
+        let len = nodes.len();
         let mut vals = Vec::new();
-        let mut iter = nodes.iter().peekable();
+        let mut iter = nodes.into_iter().peekable();
 
         while let Some(expr) = iter.next() {
             let trailing = match iter.peek() {
                 Some(Expression::Comment(next))
                     if next.location.is_trailing(expr.location()) =>
                 {
-                    iter.next();
-                    Some(self.comment(next))
+                    let Some(Expression::Comment(next)) = iter.next() else {
+                        unreachable!()
+                    };
+
+                    Some(self.comment(*next))
                 }
                 _ => None,
             };
 
-            vals.push(self.expression(expr));
-
-            if let Some(node) = trailing {
-                vals.push(Node::text(" "));
-                vals.push(node);
-            }
-
-            if let Some(next) = iter.peek() {
-                let sep = if next.location().line_start
-                    - expr.location().line_end
-                    > 1
-                {
+            let loc = expr.location();
+            let tail = if let Some(next) = iter.peek() {
+                let sep = if next.location().line_start - loc.line_end > 1 {
                     // Multiple empty lines are condensed into a single empty
                     // line. This keeps the code style consistent, while still
                     // giving users some option to group code together in a way
@@ -1278,11 +1348,11 @@ impl Document {
                     // with an empty line).
                     Node::EmptyLine
                 } else {
-                    match (expr, next) {
+                    match (&expr, next) {
                         (Expression::Comment(_), _) => Node::HardLine,
                         // Conditionals are surrounded by an empty line as to
                         // make them stand out more.
-                        _ if expr.has_body() || next.has_body() => {
+                        (expr, next) if expr.has_body() || next.has_body() => {
                             Node::EmptyLine
                         }
                         // `let` and comments are grouped together.
@@ -1299,90 +1369,103 @@ impl Document {
                     }
                 };
 
-                vals.push(sep);
-            } else if nodes.len() == 1 && expr.has_body() {
+                Some(sep)
+            } else if len == 1 && expr.has_body() {
                 // Conditionals inside bodies are a bit difficult to read due to
                 // all the curly braces, so for expressions such as
                 // `if foo { loop { ... } }` we force wrapping across lines.
-                vals.push(Node::WrapParent);
+                Some(Node::WrapParent)
+            } else {
+                None
+            };
+
+            vals.push(self.expression(expr));
+
+            if let Some(node) = trailing {
+                vals.push(Node::Literal(" "));
+                vals.push(node);
+            }
+
+            if let Some(n) = tail {
+                vals.push(n);
             }
         }
 
         vals
     }
 
-    fn expression(&mut self, node: &Expression) -> Node {
+    fn expression(&mut self, node: Expression) -> Node {
         match node {
-            Expression::Int(n) => Node::text(&n.value),
-            Expression::Float(n) => Node::text(&n.value),
-            Expression::True(_) => Node::text("true"),
-            Expression::False(_) => Node::text("false"),
-            Expression::String(n) => self.string_literal(n),
-            Expression::Array(n) => self.heap_array(n),
-            Expression::InlineArray(n) => self.inline_array(n),
+            Expression::Int(n) => Node::Text(n.value),
+            Expression::Float(n) => Node::Text(n.value),
+            Expression::True(_) => Node::Literal("true"),
+            Expression::False(_) => Node::Literal("false"),
+            Expression::String(n) => self.string_literal(*n),
+            Expression::Array(n) => self.heap_array(*n),
+            Expression::InlineArray(n) => self.inline_array(*n),
             Expression::Binary(_) => self.binary(node),
             Expression::And(_) => self.and_or(node),
             Expression::Or(_) => self.and_or(node),
-            Expression::Constant(n) => self.constant(n),
-            Expression::Comment(n) => self.comment(n),
-            Expression::DefineVariable(n) => self.define_variable(n),
-            Expression::While(n) => self.conditional_loop(n),
-            Expression::If(n) => self.if_else(n),
-            Expression::Group(n) => self.grouped_expression(n),
-            Expression::Field(n) => Node::text(&format!("@{}", n.name)),
-            Expression::Identifier(n) => Node::text(&n.name),
-            Expression::AssignVariable(n) => self.assign_variable(n),
-            Expression::ReplaceVariable(n) => self.replace_variable(n),
-            Expression::AssignField(n) => self.assign_field(n),
-            Expression::ReplaceField(n) => self.replace_field(n),
-            Expression::AssignSetter(n) => self.assign_setter(n),
-            Expression::ReplaceSetter(n) => self.replace_setter(n),
+            Expression::Constant(n) => self.constant(*n),
+            Expression::Comment(n) => self.comment(*n),
+            Expression::DefineVariable(n) => self.define_variable(*n),
+            Expression::While(n) => self.conditional_loop(*n),
+            Expression::If(n) => self.if_else(*n),
+            Expression::Group(n) => self.grouped_expression(*n),
+            Expression::Field(n) => self.field(*n),
+            Expression::Identifier(n) => Node::Text(n.name),
+            Expression::AssignVariable(n) => self.assign_variable(*n),
+            Expression::ReplaceVariable(n) => self.replace_variable(*n),
+            Expression::AssignField(n) => self.assign_field(*n),
+            Expression::ReplaceField(n) => self.replace_field(*n),
+            Expression::AssignSetter(n) => self.assign_setter(*n),
+            Expression::ReplaceSetter(n) => self.replace_setter(*n),
             Expression::BinaryAssignVariable(n) => {
-                self.binary_assign_variable(n)
+                self.binary_assign_variable(*n)
             }
-            Expression::BinaryAssignField(n) => self.binary_assign_field(n),
-            Expression::BinaryAssignSetter(n) => self.binary_assign_setter(n),
-            Expression::SelfObject(_) => Node::text("self"),
-            Expression::Next(_) => Node::text("next"),
-            Expression::Break(_) => Node::text("break"),
-            Expression::Ref(n) => self.reference("ref", &n.value),
-            Expression::Mut(n) => self.reference("mut", &n.value),
-            Expression::Recover(n) => self.recover(n),
-            Expression::Throw(n) => self.throw_value(n),
-            Expression::Return(n) => self.return_value(n),
-            Expression::Loop(n) => self.unconditional_loop(n),
-            Expression::Nil(_) => Node::text("nil"),
-            Expression::Tuple(n) => self.tuple(n),
+            Expression::BinaryAssignField(n) => self.binary_assign_field(*n),
+            Expression::BinaryAssignSetter(n) => self.binary_assign_setter(*n),
+            Expression::SelfObject(_) => Node::Literal("self"),
+            Expression::Next(_) => Node::Literal("next"),
+            Expression::Break(_) => Node::Literal("break"),
+            Expression::Ref(n) => self.reference("ref", n.value),
+            Expression::Mut(n) => self.reference("mut", n.value),
+            Expression::Recover(n) => self.recover(*n),
+            Expression::Throw(n) => self.throw_value(*n),
+            Expression::Return(n) => self.return_value(*n),
+            Expression::Loop(n) => self.unconditional_loop(*n),
+            Expression::Nil(_) => Node::Literal("nil"),
+            Expression::Tuple(n) => self.tuple(*n),
             Expression::Call(_) => self.call(node),
-            Expression::Closure(n) => self.closure(n, false),
-            Expression::TypeCast(n) => self.type_cast(n),
-            Expression::Try(n) => self.try_value(n),
-            Expression::Async(n) => self.async_expression(n),
-            Expression::Await(n) => self.await_expression(n),
-            Expression::Match(n) => self.match_value(n),
-            Expression::Scope(n) => self.scope(n),
-            Expression::For(n) => self.for_loop(n),
-            Expression::Not(n) => self.not(n),
+            Expression::Closure(n) => self.closure(*n, false),
+            Expression::TypeCast(n) => self.type_cast(*n),
+            Expression::Try(n) => self.try_value(*n),
+            Expression::Async(n) => self.async_expression(*n),
+            Expression::Await(n) => self.await_expression(*n),
+            Expression::Match(n) => self.match_value(*n),
+            Expression::Scope(n) => self.scope(*n),
+            Expression::For(n) => self.for_loop(*n),
+            Expression::Not(n) => self.not(*n),
         }
     }
 
-    fn constant(&mut self, node: &nodes::Constant) -> Node {
+    fn constant(&mut self, node: nodes::Constant) -> Node {
         self.group(self.constant_name(node))
     }
 
-    fn constant_name(&self, node: &nodes::Constant) -> Vec<Node> {
-        if let Some(src) = &node.source {
+    fn constant_name(&self, node: nodes::Constant) -> Vec<Node> {
+        if let Some(src) = node.source {
             vec![
-                Node::text(&src.name),
+                Node::Text(src.name),
                 Node::Line,
-                Node::Indent(vec![Node::text("."), Node::text(&node.name)]),
+                Node::Indent(vec![Node::Literal("."), Node::Text(node.name)]),
             ]
         } else {
-            vec![Node::text(&node.name)]
+            vec![Node::Text(node.name)]
         }
     }
 
-    fn binary(&mut self, node: &Expression) -> Node {
+    fn binary(&mut self, node: Expression) -> Node {
         let mut ops = Vec::new();
         let mut first_node = node;
 
@@ -1390,8 +1473,8 @@ impl Document {
         loop {
             match first_node {
                 Expression::Binary(n) => {
-                    first_node = &n.left;
-                    ops.push((n.operator.kind, &n.right));
+                    first_node = n.left;
+                    ops.push((n.operator.kind, n.right));
                 }
                 node => {
                     first_node = node;
@@ -1410,27 +1493,27 @@ impl Document {
                 tail.push(Node::SpaceOrLine);
             }
 
-            tail.push(Node::text(sym));
-            tail.push(Node::text(" "));
+            tail.push(Node::Literal(sym));
+            tail.push(Node::Literal(" "));
             tail.push(self.expression(expr));
         }
 
         self.group(vec![head, Node::SpaceOrLine, Node::Indent(tail)])
     }
 
-    fn and_or(&mut self, node: &nodes::Expression) -> Node {
+    fn and_or(&mut self, node: nodes::Expression) -> Node {
         let mut ops = Vec::new();
         let mut first_node = node;
 
         loop {
             match first_node {
                 Expression::And(n) => {
-                    first_node = &n.left;
-                    ops.push(("and", &n.right));
+                    first_node = n.left;
+                    ops.push(("and", n.right));
                 }
                 Expression::Or(n) => {
-                    first_node = &n.left;
-                    ops.push(("or", &n.right));
+                    first_node = n.left;
+                    ops.push(("or", n.right));
                 }
                 node => {
                     first_node = node;
@@ -1447,43 +1530,43 @@ impl Document {
                 tail.push(Node::SpaceOrLine);
             }
 
-            tail.push(Node::text(op));
-            tail.push(Node::text(" "));
+            tail.push(Node::Literal(op));
+            tail.push(Node::Literal(" "));
             tail.push(self.expression(expr));
         }
 
         self.group(vec![head, Node::SpaceOrLine, Node::Indent(tail)])
     }
 
-    fn heap_array(&mut self, node: &nodes::Array) -> Node {
-        self.array(&node.values, "[", "]")
+    fn heap_array(&mut self, node: nodes::Array) -> Node {
+        self.array(node.values, "[", "]")
     }
 
-    fn inline_array(&mut self, node: &nodes::InlineArray) -> Node {
-        if let Some(rep) = node.repeat.as_ref() {
-            let expr = self.expression(&node.values[0]);
-            let body = vec![Node::text(&rep.value), Node::text(" * "), expr];
+    fn inline_array(&mut self, mut node: nodes::InlineArray) -> Node {
+        if let Some(rep) = node.repeat {
+            let expr = self.expression(node.values.pop().unwrap());
+            let body = vec![Node::Text(rep.value), Node::Literal(" * "), expr];
             let nodes = vec![
-                Node::text("inline ["),
+                Node::Literal("inline ["),
                 Node::Line,
                 Node::Indent(body),
                 Node::Line,
-                Node::text("]"),
+                Node::Literal("]"),
             ];
 
             self.group(nodes)
         } else {
-            self.array(&node.values, "inline [", "]")
+            self.array(node.values, "inline [", "]")
         }
     }
 
     fn array(
         &mut self,
-        values: &[nodes::Expression],
-        open: &str,
-        close: &str,
+        values: Vec<nodes::Expression>,
+        open: &'static str,
+        close: &'static str,
     ) -> Node {
-        let mut nodes = vec![Node::text(open), Node::Line];
+        let mut nodes = vec![Node::Literal(open), Node::Line];
         let gid = self.new_group_id();
 
         // For these sort of arrays we fit as many values on a single line as
@@ -1510,7 +1593,7 @@ impl Document {
         });
 
         let mut list = List::new(gid, values.len());
-        let mut iter = values.iter().peekable();
+        let mut iter = values.into_iter().peekable();
 
         while let Some(n) = iter.next() {
             let id = self.new_group_id();
@@ -1520,7 +1603,7 @@ impl Document {
                 .is_some_and(|v| v.is_trailing_comment(n.location()));
 
             let sep = if trailing_comment {
-                Node::text(" ")
+                Node::Literal(" ")
             } else if comment {
                 Node::HardLine
             } else if matches!(iter.peek(), Some(Expression::Comment(_))) {
@@ -1540,44 +1623,46 @@ impl Document {
 
         nodes.push(result);
         nodes.push(Node::Line);
-        nodes.push(Node::text(close));
+        nodes.push(Node::Literal(close));
         Node::Group(gid, nodes)
     }
 
-    fn string_literal(&mut self, node: &nodes::StringLiteral) -> Node {
-        let mut vals = Vec::new();
+    fn string_literal(&mut self, node: nodes::StringLiteral) -> Node {
+        let mut vals = Vec::with_capacity(node.values.len());
         let dquote = node.values.iter().any(|n| match n {
             nodes::StringValue::Text(n) => n.value.contains('\''),
             _ => false,
         });
 
-        for n in &node.values {
+        for n in node.values {
             match n {
                 nodes::StringValue::Text(n) => {
-                    vals.push(Node::unicode(n.value.clone()));
+                    vals.push(Node::unicode(n.value));
                 }
                 nodes::StringValue::Escape(n) => {
-                    let text = match n.value.chars().next().unwrap() {
-                        '\t' => "\\t".to_string(),
-                        '\r' => "\\r".to_string(),
-                        '\n' => "\\n".to_string(),
-                        '\0' => "\\0".to_string(),
-                        '\u{1b}' => "\\e".to_string(),
-                        '\\' => "\\\\".to_string(),
-                        '\'' => if dquote { "'" } else { "\\'" }.to_string(),
-                        '"' => if dquote { "\\\"" } else { "\"" }.to_string(),
-                        '$' => "\\$".to_string(),
-                        char => format!("\\u{{{:X}}}", char as u32),
+                    let val = match n.value.chars().next().unwrap() {
+                        '\t' => Node::Literal("\\t"),
+                        '\r' => Node::Literal("\\r"),
+                        '\n' => Node::Literal("\\n"),
+                        '\0' => Node::Literal("\\0"),
+                        '\u{1b}' => Node::Literal("\\e"),
+                        '\\' => Node::Literal("\\\\"),
+                        '\'' if dquote => Node::Literal("'"),
+                        '\'' => Node::Literal("\\'"),
+                        '"' if dquote => Node::Literal("\\\""),
+                        '"' => Node::Literal("\""),
+                        '$' => Node::Literal("\\$"),
+                        char => Node::Text(format!("\\u{{{:X}}}", char as u32)),
                     };
 
-                    vals.push(Node::Text(text));
+                    vals.push(val);
                 }
                 nodes::StringValue::Expression(n) => {
-                    vals.push(Node::text("${"));
+                    vals.push(Node::Literal("${"));
                     vals.push(Node::Unwrapped(Box::new(
-                        self.expression(&n.value),
+                        self.expression(n.value),
                     )));
-                    vals.push(Node::text("}"));
+                    vals.push(Node::Literal("}"));
                 }
             }
         }
@@ -1585,45 +1670,47 @@ impl Document {
         let quote = if dquote { "\"" } else { "'" };
 
         Node::Nodes(vec![
-            Node::text(quote),
+            Node::Literal(quote),
             Node::Nodes(vals),
-            Node::text(quote),
+            Node::Literal(quote),
         ])
     }
 
-    fn define_variable(&mut self, node: &nodes::DefineVariable) -> Node {
+    fn define_variable(&mut self, node: nodes::DefineVariable) -> Node {
         let gid = self.new_group_id();
         let hid = self.new_group_id();
         let mut head = vec![
-            Node::text("let "),
-            self.pattern(&node.pattern),
-            Node::text(" = "),
-            self.expression(&node.value),
+            Node::Literal("let "),
+            self.pattern(node.pattern),
+            Node::Literal(" = "),
+            self.expression(node.value),
         ];
 
-        let nodes = if let Some(n) = node.else_body.as_ref() {
-            let (else_expr, curly) = match &n.expression {
-                nodes::Expression::Scope(n) if n.body.values.len() == 1 => {
-                    let expr = n.body.values.first().unwrap();
-                    let node = self.expression(expr);
+        let nodes = if let Some(n) = node.else_body {
+            let (else_expr, curly) = match n.expression {
+                nodes::Expression::Scope(mut n) if n.body.values.len() == 1 => {
+                    let expr = n.body.values.pop().unwrap();
+                    let curl = !matches!(expr, nodes::Expression::Scope(_));
 
-                    (node, !matches!(expr, nodes::Expression::Scope(_)))
+                    (self.expression(expr), curl)
                 }
-                nodes::Expression::Scope(n) => (self.scope(n), false),
+                nodes::Expression::Scope(n) => (self.scope(*n), false),
                 n => (self.expression(n), true),
             };
 
             head.push(Node::SpaceOrLine);
-            head.push(Node::text("else "));
+            head.push(Node::Literal("else "));
 
             let mut nodes = Vec::new();
 
             if curly {
                 head.push(Node::IfWrap(
                     gid,
-                    Box::new(Node::text("{")),
-                    Box::new(Node::text("")),
+                    Box::new(Node::Literal("{")),
+                    Box::new(Node::Literal("")),
                 ));
+
+                let else_expr = Node::shared(else_expr);
 
                 nodes.push(Node::IfWrap(
                     gid,
@@ -1631,7 +1718,7 @@ impl Document {
                         Node::SpaceOrLine,
                         Node::Indent(vec![else_expr.clone()]),
                         Node::SpaceOrLine,
-                        Node::text("}"),
+                        Node::Literal("}"),
                     ])),
                     Box::new(else_expr),
                 ));
@@ -1647,18 +1734,18 @@ impl Document {
         Node::Group(gid, nodes)
     }
 
-    fn conditional_loop(&mut self, node: &nodes::While) -> Node {
+    fn conditional_loop(&mut self, node: nodes::While) -> Node {
         let gid = self.new_group_id();
-        let group = self.conditional("while", gid, &node.condition, &node.body);
+        let group = self.conditional("while", gid, node.condition, node.body);
 
         Node::Group(gid, group)
     }
 
-    fn unconditional_loop(&mut self, node: &nodes::Loop) -> Node {
+    fn unconditional_loop(&mut self, node: nodes::Loop) -> Node {
         let gid = self.new_group_id();
         let header =
-            vec![Node::text("loop"), Node::SpaceOrLine, Node::text("{")];
-        let body = self.body(&node.body.values);
+            vec![Node::Literal("loop"), Node::SpaceOrLine, Node::Literal("{")];
+        let body = self.body(node.body.values);
         let group = vec![
             self.group(header),
             Node::WrapIf(gid, Box::new(self.group(body))),
@@ -1667,22 +1754,22 @@ impl Document {
         Node::Group(gid, group)
     }
 
-    fn for_loop(&mut self, node: &nodes::For) -> Node {
+    fn for_loop(&mut self, node: nodes::For) -> Node {
         let gid = self.new_group_id();
-        let pat = self.pattern(&node.pattern);
-        let col = self.expression(&node.iterator);
+        let pat = self.pattern(node.pattern);
+        let col = self.expression(node.iterator);
         let header = vec![
-            Node::text("for"),
+            Node::Literal("for"),
             Node::SpaceOrLine,
             Node::Indent(vec![pat]),
             Node::SpaceOrLine,
-            Node::text("in"),
+            Node::Literal("in"),
             Node::SpaceOrLine,
             Node::Indent(vec![col]),
             Node::SpaceOrLine,
-            Node::text("{"),
+            Node::Literal("{"),
         ];
-        let body = self.body(&node.body.values);
+        let body = self.body(node.body.values);
         let group = vec![
             self.group(header),
             Node::WrapIf(gid, Box::new(self.group(body))),
@@ -1691,28 +1778,28 @@ impl Document {
         Node::Group(gid, group)
     }
 
-    fn if_else(&mut self, node: &nodes::If) -> Node {
+    fn if_else(&mut self, node: nodes::If) -> Node {
         let gid = self.new_group_id();
         let mut group = vec![Node::Nodes(self.conditional(
             "if",
             gid,
-            &node.if_true.condition,
-            &node.if_true.body,
+            node.if_true.condition,
+            node.if_true.body,
         ))];
 
-        for cond in &node.else_if {
+        for cond in node.else_if {
             group.push(Node::Nodes(self.conditional(
                 " else if",
                 gid,
-                &cond.condition,
-                &cond.body,
+                cond.condition,
+                cond.body,
             )));
         }
 
-        if let Some(body) = &node.else_body {
-            let body = self.body(&body.values);
+        if let Some(body) = node.else_body {
+            let body = self.body(body.values);
             let nodes = vec![
-                Node::text(" else {"),
+                Node::Literal(" else {"),
                 Node::WrapIf(gid, Box::new(self.group(body))),
             ];
 
@@ -1722,268 +1809,283 @@ impl Document {
         Node::Group(gid, group)
     }
 
-    fn grouped_expression(&mut self, node: &nodes::Group) -> Node {
+    fn grouped_expression(&mut self, node: nodes::Group) -> Node {
         let group = vec![
-            Node::text("("),
+            Node::Literal("("),
             Node::Line,
-            Node::Indent(vec![self.expression(&node.value)]),
+            Node::Indent(vec![self.expression(node.value)]),
             Node::Line,
-            Node::text(")"),
+            Node::Literal(")"),
         ];
 
         self.group(group)
     }
 
-    fn assign_variable(&mut self, node: &nodes::AssignVariable) -> Node {
+    fn field(&self, node: nodes::Field) -> Node {
+        Node::Text(format!("@{}", node.name))
+    }
+
+    fn assign_variable(&mut self, node: nodes::AssignVariable) -> Node {
         Node::Nodes(vec![
-            Node::text(&node.variable.name),
-            Node::text(" = "),
-            self.expression(&node.value),
+            Node::Text(node.variable.name),
+            Node::Literal(" = "),
+            self.expression(node.value),
         ])
     }
 
-    fn replace_variable(&mut self, node: &nodes::ReplaceVariable) -> Node {
+    fn replace_variable(&mut self, node: nodes::ReplaceVariable) -> Node {
         Node::Nodes(vec![
-            Node::text(&node.variable.name),
-            Node::text(" := "),
-            self.expression(&node.value),
+            Node::Text(node.variable.name),
+            Node::Literal(" := "),
+            self.expression(node.value),
         ])
     }
 
     fn binary_assign_variable(
         &mut self,
-        node: &nodes::BinaryAssignVariable,
+        node: nodes::BinaryAssignVariable,
     ) -> Node {
         let op = Operator::from_ast(node.operator.kind).method_name();
 
         Node::Nodes(vec![
-            Node::text(&node.variable.name),
-            Node::text(&format!(" {}= ", op)),
-            self.expression(&node.value),
+            Node::Text(node.variable.name),
+            Node::Literal(" "),
+            Node::Literal(op),
+            Node::Literal("= "),
+            self.expression(node.value),
         ])
     }
 
-    fn assign_field(&mut self, node: &nodes::AssignField) -> Node {
+    fn assign_field(&mut self, node: nodes::AssignField) -> Node {
         Node::Nodes(vec![
-            Node::text(&format!("@{}", node.field.name)),
-            Node::text(" = "),
-            self.expression(&node.value),
+            Node::Literal("@"),
+            Node::Text(node.field.name),
+            Node::Literal(" = "),
+            self.expression(node.value),
         ])
     }
 
-    fn replace_field(&mut self, node: &nodes::ReplaceField) -> Node {
+    fn replace_field(&mut self, node: nodes::ReplaceField) -> Node {
         Node::Nodes(vec![
-            Node::text(&format!("@{}", node.field.name)),
-            Node::text(" := "),
-            self.expression(&node.value),
+            Node::Literal("@"),
+            Node::Text(node.field.name),
+            Node::Literal(" := "),
+            self.expression(node.value),
         ])
     }
 
-    fn binary_assign_field(&mut self, node: &nodes::BinaryAssignField) -> Node {
+    fn binary_assign_field(&mut self, node: nodes::BinaryAssignField) -> Node {
         let op = Operator::from_ast(node.operator.kind).method_name();
 
         Node::Nodes(vec![
-            Node::text(&format!("@{}", node.field.name)),
-            Node::text(&format!(" {}= ", op)),
-            self.expression(&node.value),
+            Node::Literal("@"),
+            Node::Text(node.field.name),
+            Node::Literal(" "),
+            Node::Literal(op),
+            Node::Literal("= "),
+            self.expression(node.value),
         ])
     }
 
-    fn assign_setter(&mut self, node: &nodes::AssignSetter) -> Node {
+    fn assign_setter(&mut self, node: nodes::AssignSetter) -> Node {
         self.field_with_receiver(
-            &node.receiver,
-            &node.name.name,
+            node.receiver,
+            node.name.name,
             "=",
-            &node.value,
+            node.value,
+            false,
         )
     }
 
-    fn replace_setter(&mut self, node: &nodes::ReplaceSetter) -> Node {
+    fn replace_setter(&mut self, node: nodes::ReplaceSetter) -> Node {
         self.field_with_receiver(
-            &node.receiver,
-            &node.name.name,
+            node.receiver,
+            node.name.name,
             ":=",
-            &node.value,
+            node.value,
+            false,
         )
     }
 
     fn binary_assign_setter(
         &mut self,
-        node: &nodes::BinaryAssignSetter,
+        node: nodes::BinaryAssignSetter,
     ) -> Node {
         let op = Operator::from_ast(node.operator.kind).method_name();
 
         self.field_with_receiver(
-            &node.receiver,
-            &node.name.name,
-            &format!("{}=", op),
-            &node.value,
+            node.receiver,
+            node.name.name,
+            op,
+            node.value,
+            true,
         )
     }
 
     fn field_with_receiver(
         &mut self,
-        receiver: &Expression,
-        name: &str,
-        operator: &str,
-        value: &Expression,
+        receiver: Expression,
+        name: String,
+        operator: &'static str,
+        value: Expression,
+        assign: bool,
     ) -> Node {
         let hid = self.new_group_id();
         let head = vec![
             self.expression(receiver),
             Node::Line,
-            Node::Indent(vec![Node::text("."), Node::text(name)]),
+            Node::Indent(vec![Node::Literal("."), Node::Text(name)]),
         ];
 
-        let val = self.expression(value);
+        let val = Node::shared(self.expression(value));
 
         Node::Nodes(vec![
             Node::Group(hid, head),
-            Node::Text(format!(" {} ", operator)),
+            Node::Literal(" "),
+            Node::Literal(operator),
+            if assign { Node::Literal("= ") } else { Node::Literal(" ") },
             Node::IfWrap(
                 hid,
-                Box::new(Node::IndentNext(vec![val.clone()])),
+                Box::new(Node::IndentNext(Box::new(val.clone()))),
                 Box::new(val),
             ),
         ])
     }
 
-    fn reference(&mut self, keyword: &str, node: &Expression) -> Node {
+    fn reference(&mut self, keyword: &'static str, node: Expression) -> Node {
         Node::Nodes(vec![
-            Node::text(&format!("{} ", keyword)),
+            Node::Literal(keyword),
+            Node::Literal(" "),
             self.expression(node),
         ])
     }
 
-    fn recover(&mut self, node: &nodes::Recover) -> Node {
+    fn recover(&mut self, mut node: nodes::Recover) -> Node {
         let gid = self.new_group_id();
-        let mut header = vec![Node::text("recover ")];
+        let mut header = vec![Node::Literal("recover ")];
         let body = if node.body.values.len() == 1 {
-            let expr = self.expression(&node.body.values[0]);
+            let expr =
+                Node::shared(self.expression(node.body.values.pop().unwrap()));
 
             Node::IfWrap(
                 gid,
                 Box::new(Node::Nodes(vec![
-                    Node::text("{"),
+                    Node::Literal("{"),
                     Node::Line,
                     Node::Indent(vec![expr.clone()]),
                     Node::Line,
-                    Node::text("}"),
+                    Node::Literal("}"),
                 ])),
                 Box::new(expr),
             )
         } else {
-            let body = self.body(&node.body.values);
+            let body = self.body(node.body.values);
 
-            header.push(Node::text("{"));
+            header.push(Node::Literal("{"));
             self.group(body)
         };
 
         Node::Group(gid, vec![self.group(header), body])
     }
 
-    fn throw_value(&mut self, node: &nodes::Throw) -> Node {
-        Node::Nodes(vec![Node::text("throw "), self.expression(&node.value)])
+    fn throw_value(&mut self, node: nodes::Throw) -> Node {
+        Node::Nodes(vec![Node::Literal("throw "), self.expression(node.value)])
     }
 
-    fn try_value(&mut self, node: &nodes::Try) -> Node {
-        Node::Nodes(vec![Node::text("try "), self.expression(&node.value)])
+    fn try_value(&mut self, node: nodes::Try) -> Node {
+        Node::Nodes(vec![Node::Literal("try "), self.expression(node.value)])
     }
 
-    fn async_expression(&mut self, node: &nodes::Async) -> Node {
-        Node::Nodes(vec![Node::text("async "), self.expression(&node.value)])
+    fn async_expression(&mut self, node: nodes::Async) -> Node {
+        Node::Nodes(vec![Node::Literal("async "), self.expression(node.value)])
     }
 
-    fn await_expression(&mut self, node: &nodes::Await) -> Node {
-        Node::Nodes(vec![Node::text("await "), self.expression(&node.value)])
+    fn await_expression(&mut self, node: nodes::Await) -> Node {
+        Node::Nodes(vec![Node::Literal("await "), self.expression(node.value)])
     }
 
-    fn not(&mut self, node: &nodes::Not) -> Node {
-        Node::Nodes(vec![Node::text("!"), self.expression(&node.expression)])
+    fn not(&mut self, node: nodes::Not) -> Node {
+        Node::Nodes(vec![Node::Literal("!"), self.expression(node.expression)])
     }
 
-    fn return_value(&mut self, node: &nodes::Return) -> Node {
-        let mut group = vec![Node::text("return")];
+    fn return_value(&mut self, node: nodes::Return) -> Node {
+        let mut group = vec![Node::Literal("return")];
 
-        if let Some(expr) = &node.value {
-            group.push(Node::text(" "));
+        if let Some(expr) = node.value {
+            group.push(Node::Literal(" "));
             group.push(self.expression(expr));
         }
 
         Node::Nodes(group)
     }
 
-    fn tuple(&mut self, node: &nodes::Tuple) -> Node {
+    fn tuple(&mut self, mut node: nodes::Tuple) -> Node {
         let id = self.new_group_id();
 
         // Tuples with a length of 1 always need a trailing comma, so we
         // special-case them here as to not complicate the List type more.
         let vals = if node.values.len() == 1 {
             let id = self.new_group_id();
-            let expr = self.expression(&node.values[0]);
+            let expr = self.expression(node.values.pop().unwrap());
 
             Node::Indent(vec![Node::Group(
                 id,
-                vec![Node::WrapIf(id, Box::new(expr)), Node::text(",")],
+                vec![Node::WrapIf(id, Box::new(expr)), Node::Literal(",")],
             )])
         } else {
-            Node::Indent(self.list(&node.values, id, |s, n| s.expression(n)))
+            Node::Indent(self.list(node.values, id, |s, n| s.expression(n)))
         };
 
         Node::Group(
             id,
             vec![
-                Node::text("("),
+                Node::Literal("("),
                 Node::Line,
                 vals,
                 Node::Line,
-                Node::text(")"),
+                Node::Literal(")"),
             ],
         )
     }
 
-    fn scope(&mut self, node: &nodes::Scope) -> Node {
+    fn scope(&mut self, node: nodes::Scope) -> Node {
         let body = if node.body.values.is_empty() {
-            vec![Node::text("{"), Node::Line, Node::text("}")]
+            vec![Node::Literal("{"), Node::Line, Node::Literal("}")]
         } else {
             vec![
-                Node::text("{"),
+                Node::Literal("{"),
                 Node::HardLine,
-                Node::Indent(self.expressions(&node.body.values)),
+                Node::Indent(self.expressions(node.body.values)),
                 Node::HardLine,
-                Node::text("}"),
+                Node::Literal("}"),
             ]
         };
 
         self.group(body)
     }
 
-    fn type_cast(&mut self, node: &nodes::TypeCast) -> Node {
+    fn type_cast(&mut self, node: nodes::TypeCast) -> Node {
         let group = vec![
-            self.expression(&node.value),
+            self.expression(node.value),
             Node::SpaceOrLine,
             Node::Indent(vec![
-                Node::text("as "),
-                self.type_reference(&node.cast_to),
+                Node::Literal("as "),
+                self.type_reference(node.cast_to),
             ]),
         ];
 
         self.group(group)
     }
 
-    fn call(&mut self, node: &Expression) -> Node {
+    fn call(&mut self, node: Expression) -> Node {
         let mut calls = Vec::new();
         let mut start = Some(node);
 
         loop {
             match start {
                 Some(Expression::Call(n)) => {
-                    start = n.receiver.as_ref();
-                    calls.push((
-                        &n.name.name,
-                        n.type_arguments.as_ref(),
-                        n.arguments.as_ref(),
-                    ));
+                    start = n.receiver;
+                    calls.push((n.name.name, n.type_arguments, n.arguments));
                 }
                 Some(node) => {
                     start = Some(node);
@@ -1993,7 +2095,7 @@ impl Document {
             }
         }
 
-        let mut head = Vec::new();
+        let mut head = Vec::with_capacity(2);
         let mut mid = Vec::new();
         let mut tail = Vec::new();
 
@@ -2004,22 +2106,23 @@ impl Document {
         let gid = self.new_group_id();
 
         while let Some((name, tnode, anode)) = calls.pop() {
+            let is_upper =
+                name.chars().next().is_some_and(|v| v.is_uppercase());
             let mut header = if head.is_empty() {
-                vec![Node::text(name)]
+                vec![Node::Text(name)]
             } else {
-                vec![Node::text("."), Node::text(name)]
+                vec![Node::Literal("."), Node::Text(name)]
             };
 
             if let Some(v) = tnode.filter(|n| !n.values.is_empty()) {
-                let vals =
-                    self.list(&v.values, gid, |s, n| s.type_reference(n));
+                let vals = self.list(v.values, gid, |s, n| s.type_reference(n));
 
                 header.push(Node::Nodes(vec![
-                    Node::text("["),
+                    Node::Literal("["),
                     Node::Line,
                     Node::Indent(vals),
                     Node::Line,
-                    Node::text("]"),
+                    Node::Literal("]"),
                 ]));
             }
 
@@ -2029,27 +2132,27 @@ impl Document {
             // `User()` and `foo.User()`, we retain the parentheses as they
             // might be used to create an instance of a new type.
             if anode.is_some()
-                && anode.is_some_and(|v| v.values.is_empty())
-                && name.chars().next().is_some_and(|v| v.is_uppercase())
+                && anode.as_ref().is_some_and(|v| v.values.is_empty())
+                && is_upper
             {
-                header.push(Node::text("()"));
+                header.push(Node::Literal("()"));
             } else if let Some(node) = anode {
                 let list_id = self.new_group_id();
                 let mut list = List::new(list_id, node.values.len());
                 let max = node.values.len().saturating_sub(1);
 
-                for (idx, node) in node.values.iter().enumerate() {
+                for (idx, node) in node.values.into_iter().enumerate() {
                     let arg_id = self.new_group_id();
                     let expr = match node {
                         nodes::Argument::Positional(
                             nodes::Expression::Closure(n),
-                        ) => self.closure(n, idx == max),
+                        ) => self.closure(*n, idx == max),
                         nodes::Argument::Positional(n) => self.expression(n),
                         nodes::Argument::Named(n) => {
                             let pair = vec![
-                                Node::text(&n.name.name),
-                                Node::text(": "),
-                                self.expression(&n.value),
+                                Node::Text(n.name.name),
+                                Node::Literal(": "),
+                                self.expression(n.value),
                             ];
 
                             Node::Nodes(pair)
@@ -2059,13 +2162,13 @@ impl Document {
                     list.push(arg_id, expr, true, Node::SpaceOrLine);
                 }
 
-                header.push(Node::text("("));
+                header.push(Node::Literal("("));
 
                 let group = vec![
                     Node::Line,
                     Node::Indent(list.into_nodes()),
                     Node::Line,
-                    Node::text(")"),
+                    Node::Literal(")"),
                 ];
 
                 args.push(Node::Group(list_id, group));
@@ -2080,10 +2183,12 @@ impl Document {
                 mid.push(Node::Nodes(vec![Node::Line, Node::Indent(header)]));
 
                 if !args.is_empty() {
+                    let args = Node::shared(Node::Nodes(args));
+
                     tail.push(Node::IfWrap(
                         gid,
-                        Box::new(Node::IndentNext(args.clone())),
-                        Box::new(Node::Nodes(args)),
+                        Box::new(Node::IndentNext(Box::new(args.clone()))),
+                        Box::new(args),
                     ));
                 }
             } else {
@@ -2108,36 +2213,34 @@ impl Document {
         )
     }
 
-    fn closure(&mut self, node: &nodes::Closure, zero_width: bool) -> Node {
+    fn closure(&mut self, node: nodes::Closure, zero_width: bool) -> Node {
         let kw = if node.moving { "fn move" } else { "fn" };
-        let mut header = vec![Node::text(kw)];
+        let mut header = vec![Node::Literal(kw)];
         let header_id = self.new_group_id();
 
-        if let Some(args) =
-            node.arguments.as_ref().filter(|v| !v.values.is_empty())
-        {
-            let vals = self.list(&args.values, header_id, |this, node| {
-                let mut pair = vec![Node::text(&node.name.name)];
+        if let Some(args) = node.arguments.filter(|v| !v.values.is_empty()) {
+            let vals = self.list(args.values, header_id, |this, node| {
+                let mut pair = vec![Node::Text(node.name.name)];
 
-                if let Some(typ) = &node.value_type {
-                    pair.push(Node::text(": "));
+                if let Some(typ) = node.value_type {
+                    pair.push(Node::Literal(": "));
                     pair.push(this.type_reference(typ));
                 }
 
                 Node::Nodes(pair)
             });
 
-            header.push(Node::text(" "));
+            header.push(Node::Literal(" "));
             header.push(Node::Nodes(self.argument_list(vals)));
         }
 
-        if let Some(rnode) = &node.return_type {
+        if let Some(rnode) = node.return_type {
             header.push(self.return_type(rnode));
         }
 
-        header.push(Node::text(" {"));
+        header.push(Node::Literal(" {"));
 
-        let body_nodes = self.body(&node.body.values);
+        let body_nodes = self.body(node.body.values);
         let mut body = self.group(body_nodes);
 
         if zero_width {
@@ -2150,32 +2253,37 @@ impl Document {
         ])
     }
 
-    fn match_value(&mut self, node: &nodes::Match) -> Node {
+    fn match_value(&mut self, node: nodes::Match) -> Node {
         let mut cases = Vec::with_capacity(node.expressions.len());
-        let mut iter = node.expressions.iter().peekable();
+        let mut iter = node.expressions.into_iter().peekable();
 
         while let Some(expr) = iter.next() {
             match expr {
                 nodes::MatchExpression::Case(n) => {
                     let trailing = match iter.peek() {
                         Some(nodes::MatchExpression::Comment(next))
-                            if next.location.is_trailing(&n.location) =>
+                            if next.location.is_trailing(n.location) =>
                         {
-                            iter.next();
-                            Some(self.comment(next))
+                            let Some(nodes::MatchExpression::Comment(next)) =
+                                iter.next()
+                            else {
+                                unreachable!()
+                            };
+
+                            Some(self.comment(*next))
                         }
                         _ => None,
                     };
 
-                    cases.push(self.match_case(n));
+                    cases.push(self.match_case(*n));
 
                     if let Some(node) = trailing {
-                        cases.push(Node::text(" "));
+                        cases.push(Node::Literal(" "));
                         cases.push(node);
                     }
                 }
                 nodes::MatchExpression::Comment(n) => {
-                    cases.push(self.comment(n));
+                    cases.push(self.comment(*n));
                 }
             }
 
@@ -2184,65 +2292,65 @@ impl Document {
             }
         }
 
-        let expr = self.expression(&node.expression);
+        let expr = self.expression(node.expression);
         let header = vec![
-            Node::text("match"),
+            Node::Literal("match"),
             Node::SpaceOrLine,
             Node::Indent(vec![expr]),
             Node::SpaceOrLine,
-            Node::text("{"),
+            Node::Literal("{"),
         ];
         let group = if cases.is_empty() {
-            vec![self.group(header), Node::text("}")]
+            vec![self.group(header), Node::Literal("}")]
         } else {
             vec![
                 self.group(header),
                 Node::HardLine,
                 Node::Indent(cases),
                 Node::HardLine,
-                Node::text("}"),
+                Node::Literal("}"),
             ]
         };
 
         self.group(group)
     }
 
-    fn match_case(&mut self, node: &nodes::MatchCase) -> Node {
+    fn match_case(&mut self, mut node: nodes::MatchCase) -> Node {
         let head_id = self.new_group_id();
         let body_id = self.new_group_id();
 
-        let pat = self.pattern(&node.pattern);
-        let pat_id =
-            if let Node::Group(v, _) = &pat { *v } else { unreachable!() };
-        let mut head = vec![
-            Node::text("case"),
-            Node::SpaceOrLine,
-            Node::Indent(vec![pat]),
-        ];
-
-        if let Some(node) = &node.guard {
-            let guard = vec![
-                Node::IfWrap(
-                    pat_id,
-                    Box::new(Node::Line),
-                    Box::new(Node::SpaceOrLine),
-                ),
-                Node::text("if "),
-                self.expression(node),
-            ];
-
-            head.push(self.group(guard))
-        }
-
-        let arrow_sep = if matches!(
+        let wrap_arrow = matches!(
             node.pattern,
             nodes::Pattern::Or(_)
                 | nodes::Pattern::Type(_)
                 | nodes::Pattern::Tuple(_)
                 | nodes::Pattern::Array(_)
                 | nodes::Pattern::Identifier(_)
-        ) || node.guard.is_some()
-        {
+        ) || node.guard.is_some();
+        let pat = self.pattern(node.pattern);
+        let pat_id =
+            if let Node::Group(v, _) = &pat { *v } else { unreachable!() };
+        let mut head = vec![
+            Node::Literal("case"),
+            Node::SpaceOrLine,
+            Node::Indent(vec![pat]),
+        ];
+
+        if let Some(node) = node.guard {
+            let guard = vec![
+                Node::IfWrap(
+                    pat_id,
+                    Box::new(Node::Line),
+                    Box::new(Node::SpaceOrLine),
+                ),
+                Node::Literal("if "),
+                self.expression(node),
+            ];
+
+            head.push(self.group(guard))
+        }
+
+        let arrow_sep = if wrap_arrow {
             Node::IfWrap(
                 head_id,
                 Box::new(Node::HardLine),
@@ -2251,20 +2359,20 @@ impl Document {
         } else {
             Node::SpaceOrLine
         };
-        let arrow = self.group(vec![arrow_sep, Node::text("-> {")]);
+        let arrow = self.group(vec![arrow_sep, Node::Literal("-> {")]);
         let body = if node.body.values.is_empty() {
-            vec![arrow, Node::text("}")]
+            vec![arrow, Node::Literal("}")]
         } else if node.body.values.len() == 1 {
-            let expr = self.expression(&node.body.values[0]);
+            let expr = self.expression(node.body.values.pop().unwrap());
             let wrapped = vec![
                 arrow,
                 Node::HardLine,
                 Node::Indent(vec![expr.clone()]),
                 Node::HardLine,
-                Node::text("}"),
+                Node::Literal("}"),
             ];
             let unwrapped_arrow =
-                self.group(vec![Node::SpaceOrLine, Node::text("-> ")]);
+                self.group(vec![Node::SpaceOrLine, Node::Literal("-> ")]);
             let unwrapped = vec![Node::IfWrap(
                 head_id,
                 Box::new(self.group(wrapped.clone())),
@@ -2280,26 +2388,26 @@ impl Document {
             vec![
                 arrow,
                 Node::SpaceOrLine,
-                Node::Indent(self.expressions(&node.body.values)),
+                Node::Indent(self.expressions(node.body.values)),
                 Node::SpaceOrLine,
-                Node::text("}"),
+                Node::Literal("}"),
             ]
         };
 
         self.group(vec![Node::Group(head_id, head), Node::Group(body_id, body)])
     }
 
-    fn pattern(&mut self, node: &nodes::Pattern) -> Node {
+    fn pattern(&mut self, node: nodes::Pattern) -> Node {
         let group = match node {
             nodes::Pattern::Constant(n) => {
-                vec![self.constant(n)]
+                vec![self.constant(*n)]
             }
             nodes::Pattern::Constructor(n) => {
-                let mut group = vec![Node::text(&n.name.name)];
+                let mut group = vec![Node::Text(n.name.name)];
 
                 if !n.values.is_empty() {
                     let gid = self.new_group_id();
-                    let vals = self.list(&n.values, gid, |s, n| s.pattern(n));
+                    let vals = self.list(n.values, gid, |s, n| s.pattern(n));
                     let args = self.argument_list(vals);
 
                     group.push(Node::Group(gid, args));
@@ -2309,39 +2417,40 @@ impl Document {
             }
             nodes::Pattern::Type(n) => {
                 let gid = self.new_group_id();
-                let vals = self.list(&n.values, gid, |this, pat| {
+                let vals = self.list(n.values, gid, |this, pat| {
                     let group = vec![
-                        Node::text(&format!("@{}", pat.field.name)),
-                        Node::text(" = "),
-                        this.pattern(&pat.pattern),
+                        Node::Literal("@"),
+                        Node::Text(pat.field.name),
+                        Node::Literal(" = "),
+                        this.pattern(pat.pattern),
                     ];
 
                     this.group(group)
                 });
                 let args = vec![
-                    Node::text("{"),
+                    Node::Literal("{"),
                     Node::SpaceOrLine,
                     Node::Indent(vals),
                     Node::SpaceOrLine,
-                    Node::text("}"),
+                    Node::Literal("}"),
                 ];
 
                 vec![Node::Group(gid, args)]
             }
-            nodes::Pattern::Int(n) => vec![Node::text(&n.value)],
-            nodes::Pattern::True(_) => vec![Node::text("true")],
-            nodes::Pattern::False(_) => vec![Node::text("false")],
+            nodes::Pattern::Int(n) => vec![Node::Text(n.value)],
+            nodes::Pattern::True(_) => vec![Node::Literal("true")],
+            nodes::Pattern::False(_) => vec![Node::Literal("false")],
             nodes::Pattern::Identifier(n) => {
                 let mut nodes = Vec::new();
 
                 if n.mutable {
-                    nodes.push(Node::text("mut "));
+                    nodes.push(Node::Literal("mut "));
                 }
 
-                nodes.push(Node::text(&n.name.name));
+                nodes.push(Node::Text(n.name.name));
 
-                if let Some(typ) = &n.value_type {
-                    nodes.push(Node::text(": "));
+                if let Some(typ) = n.value_type {
+                    nodes.push(Node::Literal(": "));
                     nodes.push(self.type_reference(typ));
                 }
 
@@ -2349,27 +2458,27 @@ impl Document {
             }
             nodes::Pattern::Tuple(n) => {
                 let gid = self.new_group_id();
-                let vals = self.list(&n.values, gid, |s, n| s.pattern(n));
+                let vals = self.list(n.values, gid, |s, n| s.pattern(n));
                 let args = self.argument_list(vals);
 
                 vec![Node::Group(gid, args)]
             }
             nodes::Pattern::Array(n) => {
                 let gid = self.new_group_id();
-                let vals = self.list(&n.values, gid, |s, n| s.pattern(n));
+                let vals = self.list(n.values, gid, |s, n| s.pattern(n));
                 let args = vec![
-                    Node::text("["),
+                    Node::Literal("["),
                     Node::Line,
                     Node::Indent(vals),
                     Node::Line,
-                    Node::text("]"),
+                    Node::Literal("]"),
                 ];
 
                 vec![Node::Group(gid, args)]
             }
-            nodes::Pattern::Wildcard(_) => vec![Node::text("_")],
+            nodes::Pattern::Wildcard(_) => vec![Node::Literal("_")],
             nodes::Pattern::Or(n) => {
-                let mut iter = n.patterns.iter();
+                let mut iter = n.patterns.into_iter();
                 let head = self.pattern(iter.next().unwrap());
                 let mut tail = Vec::new();
 
@@ -2378,97 +2487,97 @@ impl Document {
                         tail.push(Node::SpaceOrLine);
                     }
 
-                    tail.push(Node::text("or "));
+                    tail.push(Node::Literal("or "));
                     tail.push(self.pattern(pat));
                 }
 
                 vec![head, Node::SpaceOrLine, Node::Indent(tail)]
             }
-            nodes::Pattern::String(n) => vec![self.string_literal(n)],
+            nodes::Pattern::String(n) => vec![self.string_literal(*n)],
         };
 
         self.group(group)
     }
 
-    fn type_reference(&mut self, node: &nodes::Type) -> Node {
+    fn type_reference(&mut self, node: nodes::Type) -> Node {
         match node {
-            nodes::Type::Named(n) => self.type_name(n, None),
-            nodes::Type::Ref(n) => match &n.type_reference {
+            nodes::Type::Named(n) => self.type_name(*n, None),
+            nodes::Type::Ref(n) => match n.type_reference {
                 nodes::ReferrableType::Named(n) => {
-                    self.type_name(n, Some("ref"))
+                    self.type_name(*n, Some("ref"))
                 }
                 nodes::ReferrableType::Closure(n) => {
-                    self.closure_type(n, Some("ref"))
+                    self.closure_type(*n, Some("ref"))
                 }
                 nodes::ReferrableType::Tuple(n) => {
-                    self.tuple_type(n, Some("ref"))
+                    self.tuple_type(*n, Some("ref"))
                 }
             },
-            nodes::Type::Mut(n) => match &n.type_reference {
+            nodes::Type::Mut(n) => match n.type_reference {
                 nodes::ReferrableType::Named(n) => {
-                    self.type_name(n, Some("mut"))
+                    self.type_name(*n, Some("mut"))
                 }
                 nodes::ReferrableType::Closure(n) => {
-                    self.closure_type(n, Some("mut"))
+                    self.closure_type(*n, Some("mut"))
                 }
                 nodes::ReferrableType::Tuple(n) => {
-                    self.tuple_type(n, Some("mut"))
+                    self.tuple_type(*n, Some("mut"))
                 }
             },
-            nodes::Type::Uni(n) => match &n.type_reference {
+            nodes::Type::Uni(n) => match n.type_reference {
                 nodes::ReferrableType::Named(n) => {
-                    self.type_name(n, Some("uni"))
+                    self.type_name(*n, Some("uni"))
                 }
                 nodes::ReferrableType::Closure(n) => {
-                    self.closure_type(n, Some("uni"))
+                    self.closure_type(*n, Some("uni"))
                 }
                 nodes::ReferrableType::Tuple(n) => {
-                    self.tuple_type(n, Some("uni"))
+                    self.tuple_type(*n, Some("uni"))
                 }
             },
-            nodes::Type::Owned(n) => match &n.type_reference {
+            nodes::Type::Owned(n) => match n.type_reference {
                 nodes::ReferrableType::Named(n) => {
-                    self.type_name(n, Some("move"))
+                    self.type_name(*n, Some("move"))
                 }
                 nodes::ReferrableType::Closure(n) => {
-                    self.closure_type(n, Some("move"))
+                    self.closure_type(*n, Some("move"))
                 }
                 nodes::ReferrableType::Tuple(n) => {
-                    self.tuple_type(n, Some("move"))
+                    self.tuple_type(*n, Some("move"))
                 }
             },
-            nodes::Type::Closure(n) => self.closure_type(n, None),
-            nodes::Type::Tuple(n) => self.tuple_type(n, None),
-            nodes::Type::Int(n) => Node::text(&n.value),
+            nodes::Type::Closure(n) => self.closure_type(*n, None),
+            nodes::Type::Tuple(n) => self.tuple_type(*n, None),
+            nodes::Type::Int(n) => Node::Text(n.value),
         }
     }
 
     fn type_name(
         &mut self,
-        node: &nodes::TypeName,
-        ownership: Option<&str>,
+        node: nodes::TypeName,
+        ownership: Option<&'static str>,
     ) -> Node {
         let gid = self.new_group_id();
         let name = if let Some(kw) = ownership {
             Node::Nodes(vec![
-                Node::text(kw),
-                Node::text(" "),
-                Node::Nodes(self.constant_name(&node.name)),
+                Node::Literal(kw),
+                Node::Literal(" "),
+                Node::Nodes(self.constant_name(node.name)),
             ])
         } else {
-            Node::Nodes(self.constant_name(&node.name))
+            Node::Nodes(self.constant_name(node.name))
         };
 
-        let nodes = if let Some(args) = &node.arguments {
-            let vals = self.list(&args.values, gid, |s, n| s.type_reference(n));
+        let nodes = if let Some(args) = node.arguments {
+            let vals = self.list(args.values, gid, |s, n| s.type_reference(n));
 
             vec![
                 name,
-                Node::text("["),
+                Node::Literal("["),
                 Node::Line,
                 Node::Indent(vals),
                 Node::Line,
-                Node::text("]"),
+                Node::Literal("]"),
             ]
         } else {
             vec![name]
@@ -2479,36 +2588,32 @@ impl Document {
 
     fn closure_type(
         &mut self,
-        node: &nodes::ClosureType,
-        ownership: Option<&str>,
+        node: nodes::ClosureType,
+        ownership: Option<&'static str>,
     ) -> Node {
-        let open = if let Some(kw) = ownership {
-            Node::text(&format!("{} fn", kw))
+        let mut closure = if let Some(kw) = ownership {
+            vec![Node::Literal(kw), Node::Literal(" fn")]
         } else {
-            Node::text("fn")
+            vec![Node::Literal("fn")]
         };
-        let mut closure = vec![open];
 
-        if let Some(nodes) =
-            node.arguments.as_ref().filter(|v| !v.values.is_empty())
-        {
+        if let Some(nodes) = node.arguments.filter(|v| !v.values.is_empty()) {
             let gid = self.new_group_id();
-            let vals =
-                self.list(&nodes.values, gid, |s, n| s.type_reference(n));
+            let vals = self.list(nodes.values, gid, |s, n| s.type_reference(n));
             let mut group = vec![
-                Node::text(" ("),
+                Node::Literal(" ("),
                 Node::Line,
                 Node::Indent(vals),
                 Node::Line,
-                Node::text(")"),
+                Node::Literal(")"),
             ];
 
-            if let Some(rnode) = &node.return_type {
+            if let Some(rnode) = node.return_type {
                 group.push(self.return_type(rnode));
             }
 
             closure.push(Node::Group(gid, group));
-        } else if let Some(rnode) = &node.return_type {
+        } else if let Some(rnode) = node.return_type {
             closure.push(self.return_type(rnode));
         }
 
@@ -2517,33 +2622,33 @@ impl Document {
 
     fn tuple_type(
         &mut self,
-        node: &nodes::TupleType,
+        node: nodes::TupleType,
         ownership: Option<&str>,
     ) -> Node {
         let gid = self.new_group_id();
         let open = if let Some(kw) = ownership {
-            Node::text(&format!("{} (", kw))
+            Node::Text(format!("{} (", kw))
         } else {
-            Node::text("(")
+            Node::Literal("(")
         };
 
-        let vals = self.list(&node.values, gid, |s, n| s.type_reference(n));
+        let vals = self.list(node.values, gid, |s, n| s.type_reference(n));
         let nodes = vec![
             open,
             Node::Line,
             Node::Indent(vals),
             Node::Line,
-            Node::text(")"),
+            Node::Literal(")"),
         ];
 
         Node::Group(gid, nodes)
     }
 
-    fn type_parameter(&mut self, node: &nodes::TypeParameter) -> Node {
-        let mut group = vec![Node::text(&node.name.name)];
+    fn type_parameter(&mut self, node: nodes::TypeParameter) -> Node {
+        let mut group = vec![Node::Text(node.name.name)];
 
-        if let Some(nodes) = &node.requirements {
-            group.push(Node::text(": "));
+        if let Some(nodes) = node.requirements {
+            group.push(Node::Literal(": "));
             group.push(self.type_parameter_requirements(nodes));
         }
 
@@ -2552,10 +2657,10 @@ impl Document {
 
     fn type_parameter_requirements(
         &mut self,
-        nodes: &nodes::Requirements,
+        nodes: nodes::Requirements,
     ) -> Node {
         let mut pairs = Vec::new();
-        let mut reqs = nodes.values.iter().collect::<Vec<_>>();
+        let mut reqs = nodes.values.into_iter().collect::<Vec<_>>();
 
         reqs.sort_by(|a, b| {
             match (Order::for_requirement(a), Order::for_requirement(b)) {
@@ -2571,13 +2676,13 @@ impl Document {
 
             if idx > 0 {
                 pairs.push(Node::SpaceOrLine);
-                pair.push(Node::text("+ "));
+                pair.push(Node::Literal("+ "));
             }
 
             let val = match node {
                 nodes::Requirement::Trait(n) => self.type_name(n, None),
-                nodes::Requirement::Mutable(_) => Node::text("mut"),
-                nodes::Requirement::Copy(_) => Node::text("copy"),
+                nodes::Requirement::Mutable(_) => Node::Literal("mut"),
+                nodes::Requirement::Copy(_) => Node::Literal("copy"),
             };
 
             pair.push(val);
@@ -2599,9 +2704,9 @@ impl Document {
         id
     }
 
-    fn list<T, F: FnMut(&mut Document, &T) -> Node>(
+    fn list<T, F: FnMut(&mut Document, T) -> Node>(
         &mut self,
-        nodes: &[T],
+        nodes: Vec<T>,
         group: usize,
         mut func: F,
     ) -> Vec<Node> {
@@ -2625,21 +2730,21 @@ impl Document {
 
     fn conditional(
         &mut self,
-        keyword: &str,
+        keyword: &'static str,
         group_id: usize,
-        condition: &nodes::Expression,
-        body: &nodes::Expressions,
+        condition: nodes::Expression,
+        body: nodes::Expressions,
     ) -> Vec<Node> {
         let expr = self.expression(condition);
         let header = vec![
-            Node::text(keyword),
+            Node::Literal(keyword),
             Node::SpaceOrLine,
             Node::Indent(vec![expr]),
             Node::SpaceOrLine,
-            Node::text("{"),
+            Node::Literal("{"),
         ];
 
-        let body = self.body(&body.values);
+        let body = self.body(body.values);
 
         vec![
             self.group(header),
@@ -2703,11 +2808,11 @@ impl Generator {
         }
     }
 
-    fn generate(&mut self, node: Node) {
+    fn generate(&mut self, node: &Node) {
         self.node(node, Wrap::Detect);
     }
 
-    fn node(&mut self, node: Node, wrap: Wrap) {
+    fn node(&mut self, node: &Node, wrap: Wrap) {
         match node {
             Node::Nodes(nodes) => {
                 for n in nodes {
@@ -2725,7 +2830,7 @@ impl Generator {
                 let wrap = if let Wrap::Disable = wrap {
                     Wrap::Disable
                 } else if wrap.is_force() || (self.size + width) > LIMIT {
-                    self.wrapped.insert(id);
+                    self.wrapped.insert(*id);
                     Wrap::Enable
                 } else {
                     Wrap::Detect
@@ -2736,7 +2841,7 @@ impl Generator {
                 }
             }
             Node::Fill(nodes) => {
-                let mut iter = nodes.into_iter().peekable();
+                let mut iter = nodes.iter().peekable();
                 let mut wrap = wrap;
 
                 while let Some(node) = iter.next() {
@@ -2772,44 +2877,48 @@ impl Generator {
                     let wrap = wrap.enable();
 
                     if wrap.is_enabled() {
-                        self.wrapped.insert(id);
+                        self.wrapped.insert(*id);
                     }
 
-                    self.node(*head, wrap);
-                    self.node(*mid, wrap);
+                    self.node(head, wrap);
+                    self.node(mid, wrap);
 
                     if let Some(n) = tail {
-                        self.node(*n, wrap);
+                        self.node(n, wrap);
                     }
                 } else {
                     let wrap = wrap.detect();
 
-                    self.node(*head, wrap);
-                    self.node(*mid, wrap);
+                    self.node(head, wrap);
+                    self.node(mid, wrap);
 
                     if let Some(n) = tail {
-                        self.node(*n, wrap);
+                        self.node(n, wrap);
                     }
                 }
             }
-            Node::Unwrapped(n) => self.node(*n, Wrap::Disable),
-            Node::IfWrap(id, n, _) if self.wrapped.contains(&id) => {
-                self.node(*n, Wrap::Enable);
+            Node::Unwrapped(n) => self.node(n, Wrap::Disable),
+            Node::IfWrap(id, n, _) if self.wrapped.contains(id) => {
+                self.node(n, Wrap::Enable);
             }
-            Node::IfWrap(_, _, n) => self.node(*n, wrap),
+            Node::IfWrap(_, _, n) => self.node(n, wrap),
             Node::WrapIf(id, n) => {
                 let wrap =
-                    if self.wrapped.contains(&id) { Wrap::Force } else { wrap };
+                    if self.wrapped.contains(id) { Wrap::Force } else { wrap };
 
-                self.node(*n, wrap);
+                self.node(n, wrap);
             }
             Node::Text(v) => {
                 self.size += v.len();
-                self.buf.push_str(&v);
+                self.buf.push_str(v);
+            }
+            Node::Literal(v) => {
+                self.size += v.len();
+                self.buf.push_str(v);
             }
             Node::Unicode(v, w) => {
                 self.size += w;
-                self.buf.push_str(&v);
+                self.buf.push_str(v);
             }
             Node::Line if wrap.is_enabled() => self.new_line(),
             Node::HardLine => self.new_line(),
@@ -2836,14 +2945,12 @@ impl Generator {
                     self.node(n, wrap);
                 }
             }
-            Node::IndentNext(nodes) if wrap.is_enabled() => {
+            Node::IndentNext(n) if wrap.is_enabled() => {
                 self.pending_indents += 1;
 
                 let before = self.pending_indents;
 
-                for n in nodes {
-                    self.node(n, wrap);
-                }
+                self.node(n, wrap);
 
                 // If we didn't encounter a new line, reset the state. If we do,
                 // we have to dedent the lines that follow.
@@ -2853,14 +2960,9 @@ impl Generator {
                     self.indent -= 2;
                 }
             }
-            Node::IndentNext(nodes) => {
-                for n in nodes {
-                    self.node(n, wrap);
-                }
-            }
-            Node::ZeroWidth(n) => {
-                self.node(*n, wrap);
-            }
+            Node::IndentNext(n) => self.node(n, wrap),
+            Node::ZeroWidth(n) => self.node(n, wrap),
+            Node::Shared(n) => self.node(n, wrap),
             _ => {}
         }
     }

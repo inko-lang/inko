@@ -2010,7 +2010,7 @@ impl<'a> LowerToHir<'a> {
                 };
 
                 let location =
-                    Location::start_end(&name.location, &import_as.location);
+                    Location::start_end(name.location, import_as.location);
 
                 values.push(ImportSymbol { name, import_as, location });
             }
@@ -2295,7 +2295,7 @@ impl<'a> LowerToHir<'a> {
 
             if let Some(text) = text_node.as_mut() {
                 text.value.push_str(&val);
-                text.location = Location::start_end(&text.location, &loc);
+                text.location = Location::start_end(text.location, loc);
             } else {
                 text_node = Some(StringLiteral {
                     value: val,
@@ -2962,7 +2962,7 @@ impl<'a> LowerToHir<'a> {
         let name = self.identifier(node.name);
         let setter_rec = self.expression(node.receiver);
         let getter_loc =
-            Location::start_end(&setter_rec.location(), &name.location);
+            Location::start_end(setter_rec.location(), name.location);
         let getter_rec = Expression::Call(Box::new(Call {
             kind: types::CallKind::Unknown,
             receiver: Some(setter_rec.clone()),
@@ -3193,7 +3193,7 @@ impl<'a> LowerToHir<'a> {
         value: ast::Expression,
         location: Location,
     ) -> Expression {
-        let vloc = *value.location();
+        let vloc = value.location();
         let (rec, name, args, nloc) = match value {
             ast::Expression::Call(n) => {
                 (n.receiver, n.name.name, n.arguments, n.name.location)
@@ -3205,7 +3205,7 @@ impl<'a> LowerToHir<'a> {
                     DiagnosticId::InvalidSyntax,
                     "this expression must be a method call",
                     self.file(),
-                    *val.location(),
+                    val.location(),
                 );
 
                 return Expression::Nil(Box::new(Nil {
@@ -3298,7 +3298,7 @@ impl<'a> LowerToHir<'a> {
             variable_ids: Vec::new(),
             pattern: Pattern::True(Box::new(True {
                 resolved_type: types::TypeRef::Unknown,
-                location: *node.if_true.condition.location(),
+                location: node.if_true.condition.location(),
             })),
             guard: None,
             body: self.expressions(node.if_true.body),
@@ -3382,7 +3382,7 @@ impl<'a> LowerToHir<'a> {
     ///       }
     ///     }
     fn while_expression(&mut self, node: ast::While) -> Box<Loop> {
-        let location = *node.condition.location();
+        let location = node.condition.location();
         let condition = self.expression(node.condition);
         let cond_body = self.expressions(node.body);
         let body = vec![Expression::Match(Box::new(Match {
@@ -3417,8 +3417,8 @@ impl<'a> LowerToHir<'a> {
     }
 
     fn for_expression(&mut self, node: ast::For) -> Box<Scope> {
-        let pat_loc = *node.pattern.location();
-        let iter_loc = *node.iterator.location();
+        let pat_loc = node.pattern.location();
+        let iter_loc = node.iterator.location();
         let def_var = Expression::define_variable(
             ITER_VAR,
             Expression::Call(Box::new(Call {
@@ -3695,7 +3695,7 @@ mod tests {
     #[track_caller]
     fn parse(input: &str) -> ParsedModule {
         let name = ModuleName::new("std.foo");
-        let ast = Parser::new(input.into(), "test.inko".into())
+        let ast = Parser::new(input.as_bytes(), "test.inko".into())
             .parse()
             .expect("failed to parse the module");
 
@@ -3705,7 +3705,7 @@ mod tests {
     #[track_caller]
     fn parse_with_comments(input: &str) -> ParsedModule {
         let name = ModuleName::new("std.foo");
-        let ast = Parser::with_comments(input.into(), "test.inko".into())
+        let ast = Parser::with_comments(input.as_bytes(), "test.inko".into())
             .parse()
             .expect("failed to parse the module");
 
@@ -6537,10 +6537,12 @@ mod tests {
     #[test]
     fn test_lower_builtin_call_outside_stdlib() {
         let name = ModuleName::new("foo");
-        let ast =
-            Parser::new("fn a { _INKO.foo(10) }".into(), "test.inko".into())
-                .parse()
-                .expect("Failed to parse the module");
+        let ast = Parser::new(
+            "fn a { _INKO.foo(10) }".as_bytes(),
+            "test.inko".into(),
+        )
+        .parse()
+        .expect("Failed to parse the module");
 
         let ast = ParsedModule { ast, name };
         let mut state = State::new(Config::empty().unwrap());

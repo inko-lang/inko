@@ -4,7 +4,7 @@ use std::cmp::{Eq, PartialEq};
 use std::path::PathBuf;
 
 pub trait Node {
-    fn location(&self) -> &Location;
+    fn location(&self) -> Location;
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -14,8 +14,8 @@ pub struct Comment {
 }
 
 impl Node for Comment {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -32,8 +32,8 @@ impl From<Token> for IntLiteral {
 }
 
 impl Node for IntLiteral {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -44,8 +44,8 @@ pub struct FloatLiteral {
 }
 
 impl Node for FloatLiteral {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -56,8 +56,8 @@ pub struct StringText {
 }
 
 impl Node for StringText {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -68,8 +68,8 @@ pub struct StringExpression {
 }
 
 impl Node for StringExpression {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -93,8 +93,8 @@ pub struct StringLiteral {
 }
 
 impl Node for StringLiteral {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -105,8 +105,8 @@ pub struct Array {
 }
 
 impl Node for Array {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -118,8 +118,8 @@ pub struct InlineArray {
 }
 
 impl Node for InlineArray {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -130,8 +130,8 @@ pub struct Tuple {
 }
 
 impl Node for Tuple {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -148,8 +148,8 @@ impl From<Token> for Identifier {
 }
 
 impl Node for Identifier {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -167,8 +167,8 @@ impl From<Token> for Constant {
 }
 
 impl Node for Constant {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -182,8 +182,8 @@ pub struct Call {
 }
 
 impl Node for Call {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -195,8 +195,8 @@ pub struct AssignVariable {
 }
 
 impl Node for AssignVariable {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -208,8 +208,8 @@ pub struct ReplaceVariable {
 }
 
 impl Node for ReplaceVariable {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -221,8 +221,8 @@ pub struct AssignField {
 }
 
 impl Node for AssignField {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -234,8 +234,8 @@ pub struct ReplaceField {
 }
 
 impl Node for ReplaceField {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -248,8 +248,8 @@ pub struct AssignSetter {
 }
 
 impl Node for AssignSetter {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -262,8 +262,8 @@ pub struct ReplaceSetter {
 }
 
 impl Node for ReplaceSetter {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -276,8 +276,8 @@ pub struct BinaryAssignVariable {
 }
 
 impl Node for BinaryAssignVariable {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -290,8 +290,8 @@ pub struct BinaryAssignField {
 }
 
 impl Node for BinaryAssignField {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -305,8 +305,8 @@ pub struct BinaryAssignSetter {
 }
 
 impl Node for BinaryAssignSetter {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -317,8 +317,8 @@ pub struct ImportAlias {
 }
 
 impl Node for ImportAlias {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -330,8 +330,8 @@ pub struct ImportSymbol {
 }
 
 impl Node for ImportSymbol {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -342,8 +342,8 @@ pub struct ImportSymbols {
 }
 
 impl Node for ImportSymbols {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -354,8 +354,8 @@ pub struct ImportPath {
 }
 
 impl Node for ImportPath {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -366,8 +366,8 @@ pub struct BuildTags {
 }
 
 impl Node for BuildTags {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -381,8 +381,8 @@ pub struct Import {
 }
 
 impl Node for Import {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -399,8 +399,8 @@ pub struct ExternImport {
 }
 
 impl Node for ExternImport {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -413,8 +413,8 @@ pub struct DefineConstant {
 }
 
 impl Node for DefineConstant {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -451,8 +451,8 @@ pub struct DefineMethod {
 }
 
 impl Node for DefineMethod {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -466,8 +466,8 @@ pub struct DefineField {
 }
 
 impl Node for DefineField {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -480,12 +480,12 @@ pub enum TypeExpression {
 }
 
 impl Node for TypeExpression {
-    fn location(&self) -> &Location {
+    fn location(&self) -> Location {
         match self {
-            TypeExpression::DefineMethod(n) => &n.location,
-            TypeExpression::DefineField(n) => &n.location,
-            TypeExpression::DefineConstructor(n) => &n.location,
-            TypeExpression::Comment(n) => &n.location,
+            TypeExpression::DefineMethod(n) => n.location,
+            TypeExpression::DefineField(n) => n.location,
+            TypeExpression::DefineConstructor(n) => n.location,
+            TypeExpression::Comment(n) => n.location,
         }
     }
 }
@@ -497,8 +497,8 @@ pub struct TypeExpressions {
 }
 
 impl Node for TypeExpressions {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -532,8 +532,8 @@ pub struct DefineType {
 }
 
 impl Node for DefineType {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -558,10 +558,10 @@ pub enum TraitExpression {
 }
 
 impl Node for TraitExpression {
-    fn location(&self) -> &Location {
+    fn location(&self) -> Location {
         match self {
-            TraitExpression::DefineMethod(n) => &n.location,
-            TraitExpression::Comment(n) => &n.location,
+            TraitExpression::DefineMethod(n) => n.location,
+            TraitExpression::Comment(n) => n.location,
         }
     }
 }
@@ -573,8 +573,8 @@ pub struct TraitExpressions {
 }
 
 impl Node for TraitExpressions {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -589,8 +589,8 @@ pub struct DefineTrait {
 }
 
 impl Node for DefineTrait {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -608,7 +608,7 @@ pub enum TopLevelExpression {
 }
 
 impl Node for TopLevelExpression {
-    fn location(&self) -> &Location {
+    fn location(&self) -> Location {
         match self {
             TopLevelExpression::DefineConstant(n) => n.location(),
             TopLevelExpression::DefineMethod(n) => n.location(),
@@ -630,10 +630,10 @@ pub enum ImplementationExpression {
 }
 
 impl Node for ImplementationExpression {
-    fn location(&self) -> &Location {
+    fn location(&self) -> Location {
         match self {
-            ImplementationExpression::DefineMethod(n) => &n.location,
-            ImplementationExpression::Comment(n) => &n.location,
+            ImplementationExpression::DefineMethod(n) => n.location,
+            ImplementationExpression::Comment(n) => n.location,
         }
     }
 }
@@ -645,8 +645,8 @@ pub struct ImplementationExpressions {
 }
 
 impl Node for ImplementationExpressions {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -659,8 +659,8 @@ pub struct ReopenType {
 }
 
 impl Node for ReopenType {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -673,11 +673,11 @@ pub enum Requirement {
 }
 
 impl Node for Requirement {
-    fn location(&self) -> &Location {
+    fn location(&self) -> Location {
         match self {
-            Requirement::Trait(n) => &n.location,
-            Requirement::Mutable(loc) => loc,
-            Requirement::Copy(loc) => loc,
+            Requirement::Trait(n) => n.location,
+            Requirement::Mutable(loc) => *loc,
+            Requirement::Copy(loc) => *loc,
         }
     }
 }
@@ -689,8 +689,8 @@ pub struct Requirements {
 }
 
 impl Node for Requirements {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -702,8 +702,8 @@ pub struct TypeBound {
 }
 
 impl Node for TypeBound {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -714,8 +714,8 @@ pub struct TypeBounds {
 }
 
 impl Node for TypeBounds {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -729,8 +729,8 @@ pub struct ImplementTrait {
 }
 
 impl Node for ImplementTrait {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -741,8 +741,8 @@ pub struct Scope {
 }
 
 impl Node for Scope {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -811,7 +811,7 @@ impl Expression {
         Expression::Or(Box::new(Or { left, right, location }))
     }
 
-    pub fn is_trailing_comment(&self, location: &Location) -> bool {
+    pub fn is_trailing_comment(&self, location: Location) -> bool {
         match self {
             Expression::Comment(c) => c.location.is_trailing(location),
             _ => false,
@@ -836,7 +836,7 @@ impl Expression {
 }
 
 impl Node for Expression {
-    fn location(&self) -> &Location {
+    fn location(&self) -> Location {
         match self {
             Expression::And(n) => n.location(),
             Expression::Array(n) => n.location(),
@@ -897,8 +897,8 @@ pub struct Types {
 }
 
 impl Node for Types {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -909,8 +909,8 @@ pub struct TypeNames {
 }
 
 impl Node for TypeNames {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -922,8 +922,8 @@ pub struct TypeParameter {
 }
 
 impl Node for TypeParameter {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -934,8 +934,8 @@ pub struct TypeParameters {
 }
 
 impl Node for TypeParameters {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -947,8 +947,8 @@ pub struct MethodArgument {
 }
 
 impl Node for MethodArgument {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -960,8 +960,8 @@ pub struct NamedArgument {
 }
 
 impl Node for NamedArgument {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -972,7 +972,7 @@ pub enum Argument {
 }
 
 impl Node for Argument {
-    fn location(&self) -> &Location {
+    fn location(&self) -> Location {
         match self {
             Argument::Positional(typ) => typ.location(),
             Argument::Named(typ) => typ.location(),
@@ -987,8 +987,8 @@ pub struct Arguments {
 }
 
 impl Node for Arguments {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1000,8 +1000,8 @@ pub struct MethodArguments {
 }
 
 impl Node for MethodArguments {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1013,8 +1013,8 @@ pub struct TypeName {
 }
 
 impl Node for TypeName {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1025,8 +1025,8 @@ pub struct ReferenceType {
 }
 
 impl Node for ReferenceType {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1037,8 +1037,8 @@ pub struct RcType {
 }
 
 impl Node for RcType {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1050,7 +1050,7 @@ pub enum ReferrableType {
 }
 
 impl Node for ReferrableType {
-    fn location(&self) -> &Location {
+    fn location(&self) -> Location {
         match self {
             ReferrableType::Named(node) => node.location(),
             ReferrableType::Closure(node) => node.location(),
@@ -1067,8 +1067,8 @@ pub struct ClosureType {
 }
 
 impl Node for ClosureType {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1079,8 +1079,8 @@ pub struct TupleType {
 }
 
 impl Node for TupleType {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1097,7 +1097,7 @@ pub enum Type {
 }
 
 impl Node for Type {
-    fn location(&self) -> &Location {
+    fn location(&self) -> Location {
         match self {
             Type::Named(typ) => typ.location(),
             Type::Ref(typ) => typ.location(),
@@ -1118,8 +1118,8 @@ pub struct Expressions {
 }
 
 impl Node for Expressions {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1160,8 +1160,8 @@ pub struct Binary {
 }
 
 impl Node for Binary {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1178,8 +1178,8 @@ impl From<Token> for Field {
 }
 
 impl Node for Field {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1191,8 +1191,8 @@ pub struct BlockArgument {
 }
 
 impl Node for BlockArgument {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1203,8 +1203,8 @@ pub struct BlockArguments {
 }
 
 impl Node for BlockArguments {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1218,8 +1218,8 @@ pub struct Closure {
 }
 
 impl Node for Closure {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1230,8 +1230,8 @@ pub struct DefineElseBlock {
 }
 
 impl Node for DefineElseBlock {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1242,8 +1242,8 @@ pub struct DefineElse {
 }
 
 impl Node for DefineElse {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1256,8 +1256,8 @@ pub struct DefineVariable {
 }
 
 impl Node for DefineVariable {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1267,8 +1267,8 @@ pub struct SelfObject {
 }
 
 impl Node for SelfObject {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1278,8 +1278,8 @@ pub struct True {
 }
 
 impl Node for True {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1289,8 +1289,8 @@ pub struct Nil {
 }
 
 impl Node for Nil {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1300,8 +1300,8 @@ pub struct False {
 }
 
 impl Node for False {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1311,8 +1311,8 @@ pub struct Next {
 }
 
 impl Node for Next {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1322,8 +1322,8 @@ pub struct Break {
 }
 
 impl Node for Break {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1334,8 +1334,8 @@ pub struct Group {
 }
 
 impl Node for Group {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1346,8 +1346,8 @@ pub struct Ref {
 }
 
 impl Node for Ref {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1358,8 +1358,8 @@ pub struct Mut {
 }
 
 impl Node for Mut {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1370,8 +1370,8 @@ pub struct Recover {
 }
 
 impl Node for Recover {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1382,8 +1382,8 @@ pub struct RcRef {
 }
 
 impl Node for RcRef {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1395,8 +1395,8 @@ pub struct And {
 }
 
 impl Node for And {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1408,8 +1408,8 @@ pub struct Or {
 }
 
 impl Node for Or {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1421,8 +1421,8 @@ pub struct TypeCast {
 }
 
 impl Node for TypeCast {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1433,8 +1433,8 @@ pub struct Throw {
 }
 
 impl Node for Throw {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1445,8 +1445,8 @@ pub struct Return {
 }
 
 impl Node for Return {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1457,8 +1457,8 @@ pub struct Try {
 }
 
 impl Node for Try {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1469,8 +1469,8 @@ pub struct Async {
 }
 
 impl Node for Async {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1481,8 +1481,8 @@ pub struct Await {
 }
 
 impl Node for Await {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1494,8 +1494,8 @@ pub struct IfCondition {
 }
 
 impl Node for IfCondition {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1508,8 +1508,8 @@ pub struct If {
 }
 
 impl Node for If {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1587,20 +1587,20 @@ pub enum Pattern {
 }
 
 impl Pattern {
-    pub fn location(&self) -> &Location {
+    pub fn location(&self) -> Location {
         match self {
-            Pattern::Constant(n) => &n.location,
-            Pattern::Constructor(n) => &n.location,
-            Pattern::Type(n) => &n.location,
+            Pattern::Constant(n) => n.location,
+            Pattern::Constructor(n) => n.location,
+            Pattern::Type(n) => n.location,
             Pattern::Int(n) => n.location(),
             Pattern::True(n) => n.location(),
             Pattern::False(n) => n.location(),
-            Pattern::Identifier(n) => &n.location,
-            Pattern::Tuple(n) => &n.location,
-            Pattern::Wildcard(n) => &n.location,
-            Pattern::Or(n) => &n.location,
-            Pattern::String(n) => &n.location,
-            Pattern::Array(n) => &n.location,
+            Pattern::Identifier(n) => n.location,
+            Pattern::Tuple(n) => n.location,
+            Pattern::Wildcard(n) => n.location,
+            Pattern::Or(n) => n.location,
+            Pattern::String(n) => n.location,
+            Pattern::Array(n) => n.location,
         }
     }
 }
@@ -1620,10 +1620,10 @@ pub enum MatchExpression {
 }
 
 impl Node for MatchExpression {
-    fn location(&self) -> &Location {
+    fn location(&self) -> Location {
         match self {
-            MatchExpression::Case(n) => &n.location,
-            MatchExpression::Comment(n) => &n.location,
+            MatchExpression::Case(n) => n.location,
+            MatchExpression::Comment(n) => n.location,
         }
     }
 }
@@ -1636,8 +1636,8 @@ pub struct Match {
 }
 
 impl Node for Match {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1648,8 +1648,8 @@ pub struct Loop {
 }
 
 impl Node for Loop {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1661,8 +1661,8 @@ pub struct While {
 }
 
 impl Node for While {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1674,8 +1674,8 @@ pub struct Module {
 }
 
 impl Node for Module {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1688,8 +1688,8 @@ pub struct For {
 }
 
 impl Node for For {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
 
@@ -1700,7 +1700,7 @@ pub struct Not {
 }
 
 impl Node for Not {
-    fn location(&self) -> &Location {
-        &self.location
+    fn location(&self) -> Location {
+        self.location
     }
 }
