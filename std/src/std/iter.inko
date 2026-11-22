@@ -190,10 +190,10 @@ trait pub Iter[T] {
   #   .flat_map(fn (str) { str.chars.map(fn (v) { v.to_string }) })
   #   .to_array # => ['f', 'o', 'o', 'b', 'a', 'r']
   # ```
-  fn pub move flat_map[V, I: mut + Iter[V]](
+  fn pub move flat_map[R, I: mut + Iter[R]](
     func: fn (T) -> I,
-  ) -> FlatMap[T, V, Self, I] {
-    FlatMap(iter: self, mapper: func, iter_opt: Option.None)
+  ) -> FlatMap[T, Self, R, I] {
+    FlatMap(iter: map(func), mapped: Option.None)
   }
 
   # Partitions the `Iter` into a tuple of two `Array` objects.
@@ -635,29 +635,30 @@ impl Iter[R] for SelectMap {
 }
 
 # An iterator that maps and flattens values.
-type pub FlatMap[V, R, I: mut + Iter[V], M: mut + Iter[R]] {
-  let @iter: I
-  let @mapper: fn (V) -> M
-  let mut @iter_opt: Option[M]
+type pub FlatMap[In, Unmapped: mut + Iter[In], Out, Mapped: mut + Iter[Out]] {
+  let @iter: Map[In, Unmapped, Mapped]
+  let mut @mapped: Option[Mapped]
 }
 
-impl Iter[R] for FlatMap {
-  fn pub mut next -> Option[R] {
+impl Iter[Out] for FlatMap {
+  fn pub mut next -> Option[Out] {
     loop {
-      match @iter_opt.as_mut {
-        case Some(v) -> {
-          match v.next {
-            case Some(v) -> return Option.Some(v)
+      # We use this pattern so the mapped iterator is in a stable/safe location,
+      # allowing for in-place updates should `Mapped` be an `inline` iterator.
+      match @mapped := Option.None {
+        case Some(i) -> {
+          match i.next {
+            case Some(v) -> {
+              @mapped = Option.Some(i)
+              return Option.Some(v)
+            }
             case _ -> {}
           }
         }
         case _ -> {}
       }
 
-      match @iter.next {
-        case Some(v) -> @iter_opt = Option.Some(@mapper.call(v))
-        case _ -> return Option.None
-      }
+      @mapped = Option.Some(try @iter.next)
     }
   }
 }

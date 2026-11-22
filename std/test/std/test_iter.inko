@@ -1,4 +1,15 @@
+import std.iter (Iter)
 import std.test (Tests)
+
+type inline InlineIter {
+  let mut @index: Int
+}
+
+impl Iter[Int] for InlineIter {
+  fn pub mut next -> Option[Int] {
+    if @index < 3 { Option.Some(@index := @index + 1) } else { Option.None }
+  }
+}
 
 fn pub tests(t: mut Tests) {
   t.test('Iter.with_index', fn (t) {
@@ -203,6 +214,17 @@ fn pub tests(t: mut Tests) {
     })
 
     t.equal(iter.to_array, ['f', 'o', 'o', 'b', 'a', 'r'])
+  })
+
+  t.test('Iter.flat_map with an inline iterator', fn (t) {
+    let iter = [0, 1].into_iter.flat_map(fn (i) { InlineIter(i) })
+
+    t.equal(iter.next, Option.Some(0))
+    t.equal(iter.next, Option.Some(1))
+    t.equal(iter.next, Option.Some(2))
+    t.equal(iter.next, Option.Some(1))
+    t.equal(iter.next, Option.Some(2))
+    t.equal(iter.next, Option.None)
   })
 
   t.test('Peekable.peek with an empty iterator', fn (t) {

@@ -3644,7 +3644,7 @@ type pub inline Event[B: Bytes] {
 # An iterator over the values in the `Accept-Encoding` header.
 type pub inline enum AcceptEncodings {
   case Lazy(
-    Take[Encoding, FlatMap[String, Encoding, HeaderValues, EncodingsSimple]],
+    Take[Encoding, FlatMap[String, HeaderValues, Encoding, EncodingsSimple]],
   )
   case Eager(array.IntoIter[Encoding])
 }
