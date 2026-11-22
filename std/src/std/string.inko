@@ -1185,7 +1185,7 @@ impl Iter[Scalar] for Scalars {
 # as the Unicode specification changes. If you want to index into a `String` in
 # a stable way, it's best to calculate the character index, then translate that
 # to a more stable index such as the code point index, or the byte index.
-type pub Chars {
+type pub inline Chars {
   let @string: String
   let mut @offset: Int
 }
