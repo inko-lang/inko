@@ -1,6 +1,8 @@
 use crate::config;
 use crate::file_lock::FileLock;
+use std::fmt::Display;
 use std::fs::{copy, create_dir_all, read_dir};
+use std::io::{IsTerminal, Write, stderr};
 use std::path::{Path, PathBuf};
 
 /// Returns the path to the data directory and its exclusive access lock.
@@ -66,6 +68,50 @@ pub fn cp_r(source: &Path, target: &Path) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+pub struct Status {
+    wrote: bool,
+    color: bool,
+}
+
+impl Status {
+    pub fn new() -> Self {
+        Self { wrote: false, color: stderr().is_terminal() }
+    }
+
+    pub fn set<T: Display>(&mut self, title: &T, msg: &str) {
+        let mut out = stderr();
+
+        if self.color {
+            self.wrote = true;
+
+            let _ = write!(out, "\x1B[2K\r\x1B[1m{}\x1B[0m: {}", title, msg);
+            let _ = out.flush();
+        } else {
+            let _ = writeln!(out, "{}: {}", title, msg);
+        };
+    }
+
+    pub fn reset(&mut self) {
+        let mut out = stderr();
+
+        if self.color && self.wrote {
+            self.wrote = false;
+
+            let _ = write!(out, "\x1B[2K\r");
+            let _ = out.flush();
+        }
+    }
+}
+
+impl Drop for Status {
+    fn drop(&mut self) {
+        if self.wrote {
+            let mut out = stderr();
+            let _ = writeln!(out);
+        }
+    }
 }
 
 #[cfg(test)]

@@ -2,11 +2,11 @@ use crate::error::Error;
 use crate::options::print_usage;
 use compiler::pkg::git::Repository;
 use compiler::pkg::manifest::{Checksum, MANIFEST_FILE, Manifest, Url};
-use compiler::pkg::util::data_dir;
+use compiler::pkg::util::{Status, data_dir};
 use compiler::pkg::version::Version;
 use getopts::Options;
 
-const USAGE: &str = "inko pkg add [OPTIONS] [URL | \"inko\"] [VERSION]
+const USAGE: &str = "inko pkg add [OPTIONS] [URI | \"inko\"] [VERSION]
 
 Add a dependency to the current project.
 
@@ -18,8 +18,10 @@ version to [VERSION], instead of adding a dependency.
 
 Examples:
 
-    inko pkg add github.com/inko-lang/example 1.2.3 # Adds a dependency
-    inko pkg add inko 1.2.3                         # Sets the required version to 1.2.3";
+    inko pkg add github.com/inko-lang/example 1.2.3 # Add a dependency using a specific version
+    inko pkg add github.com/inko-lang/example       # Add a dependency using the latest version
+    inko pkg add inko 1.2.3                         # Set the required Inko version to 1.2.3
+    inko pkg add inko                               # Set the required Inko version to the current version";
 
 pub(crate) fn run(args: &[String]) -> Result<i32, Error> {
     let mut options = Options::new();
@@ -28,76 +30,94 @@ pub(crate) fn run(args: &[String]) -> Result<i32, Error> {
 
     let matches = options.parse(args)?;
 
-    if matches.opt_present("h") || matches.free.is_empty() {
+    if matches.opt_present("h") {
         print_usage(&options, USAGE);
         return Ok(0);
     }
 
-    if matches.free.len() != 2 {
-        return Err(Error::from(
-            "You must specify a package and version to add".to_string(),
-        ));
+    match matches.free.first().map(String::as_str) {
+        Some("inko") if matches.free.len() <= 2 => {
+            let ver = matches
+                .free
+                .get(1)
+                .map(String::as_str)
+                .unwrap_or(env!("CARGO_PKG_VERSION"));
+
+            add_inko_version(ver)
+        }
+        Some("inko") => {
+            print_usage(&options, USAGE);
+            Ok(1)
+        }
+        Some(uri) if matches.free.len() <= 2 => {
+            add_package_version(uri, matches.free.get(1).map(String::as_str))
+        }
+        _ => {
+            print_usage(&options, USAGE);
+            Ok(1)
+        }
     }
+}
 
-    if matches.free.first().map(String::as_ref) == Some("inko") {
-        let version = matches
-            .free
-            .get(1)
-            .and_then(|version| Version::parse(version))
-            .ok_or_else(|| {
-                Error::from("The Inko version is invalid".to_string())
-            })?;
+fn add_inko_version(version: &str) -> Result<i32, Error> {
+    let version = Version::parse(version)
+        .ok_or_else(|| Error::from("the version is invalid".to_string()))?;
+    let mut manifest = Manifest::load(&MANIFEST_FILE)
+        .map_err(|e| format!("failed to load the manifest: {}", e))?;
 
-        let mut manifest = Manifest::load(&MANIFEST_FILE)
-            .map_err(|e| format!("Failed to load the manifest: {}", e))?;
+    manifest.set_inko_version(version);
+    manifest.save(&MANIFEST_FILE)?;
+    Ok(0)
+}
 
-        manifest.set_inko_version(version);
-        manifest.save(&MANIFEST_FILE)?;
-
-        return Ok(0);
-    }
-
-    let url =
-        matches.free.first().and_then(|uri| Url::parse(uri)).ok_or_else(
-            || Error::from("The package URL is invalid".to_string()),
-        )?;
-
-    let name = url.import_name();
-    let version =
-        matches.free.get(1).and_then(|uri| Version::parse(uri)).ok_or_else(
-            || Error::from("The package version is invalid".to_string()),
-        )?;
-    let tag_name = version.tag_name();
-
+fn add_package_version(uri: &str, version: Option<&str>) -> Result<i32, Error> {
+    let url = Url::parse(uri)
+        .ok_or_else(|| Error::from("the package URL is invalid".to_string()))?;
     let (data, _data_lock) = data_dir()?;
     let dir = data.join(url.directory_name());
+    let mut status = Status::new();
     let (mut repo, fetch) = if dir.is_dir() {
         (Repository::open(&dir)?, true)
     } else {
-        (Repository::clone(&url.to_string(), &dir, &tag_name)?, false)
+        status.set(&url, "downloading");
+        (Repository::full_clone(&url.to_string(), &dir)?, false)
     };
 
-    if fetch {
-        repo.fetch()?;
-    }
+    let version = match version {
+        // inko pkg add foo 1.2.3
+        Some(v) => Version::parse(v).ok_or_else(|| {
+            Error::from(format!("the version '{}' is invalid", v))
+        })?,
+        // inko pkg add foo
+        _ => {
+            if fetch {
+                status.set(&url, "updating");
+                repo.fetch()?;
+            }
 
+            repo.latest_version().ok_or_else(|| {
+                Error::from("the package doesn't have any versions".to_string())
+            })?
+        }
+    };
+
+    let name = url.import_name();
+    let tag_name = version.tag_name();
     let tag = if let Some(tag) = repo.tag(&tag_name) {
         Some(tag)
     } else if fetch {
-        println!("Updating {}", url);
+        status.set(&url, "updating");
         repo.fetch()?;
         repo.tag(&tag_name)
     } else {
         None
     };
-
-    let hash = tag.map(|t| t.target).ok_or_else(|| {
-        Error::from(format!("Version {} doesn't exist", version))
+    let tag = tag.ok_or_else(|| {
+        Error::from(format!("version {} doesn't exist", version))
     })?;
-
-    let checksum = Checksum::new(hash);
+    let checksum = Checksum::new(tag.target);
     let mut manifest = Manifest::load(&MANIFEST_FILE)
-        .map_err(|e| format!("Failed to load the manifest: {}", e))?;
+        .map_err(|e| format!("failed to load the manifest: {}", e))?;
 
     if let Some(existing) = manifest.find_dependency(&url) {
         existing.version = version;

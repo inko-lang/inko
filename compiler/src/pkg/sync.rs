@@ -1,9 +1,8 @@
 use crate::pkg::git::Repository;
 use crate::pkg::manifest::{Dependency, MANIFEST_FILE, Manifest, Url};
-use crate::pkg::util::{cp_r, data_dir};
+use crate::pkg::util::{Status, cp_r, data_dir};
 use crate::pkg::version::{Version, select};
-use std::collections::HashMap;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs::{
     copy, create_dir_all, read, read_to_string, remove_dir_all, write,
 };
@@ -50,6 +49,7 @@ fn download_packages(data_dir: &Path) -> Result<Vec<Package>, String> {
     let mut manifests = vec![Manifest::load(&MANIFEST_FILE)?];
     let mut packages = Vec::new();
     let mut downloaded = HashSet::new();
+    let mut status = Status::new();
 
     while let Some(manifest) = manifests.pop() {
         for dep in manifest.into_dependencies() {
@@ -61,7 +61,7 @@ fn download_packages(data_dir: &Path) -> Result<Vec<Package>, String> {
                 downloaded.insert(key);
             }
 
-            match download_dependency(data_dir, dep)? {
+            match download_dependency(data_dir, &mut status, dep)? {
                 (package, Some(manifest)) => {
                     manifests.push(manifest);
                     packages.push(package);
@@ -76,6 +76,7 @@ fn download_packages(data_dir: &Path) -> Result<Vec<Package>, String> {
 
 fn download_dependency(
     cache_dir: &Path,
+    status: &mut Status,
     dependency: Dependency,
 ) -> Result<(Package, Option<Manifest>), String> {
     let dir = cache_dir.join(dependency.url.directory_name());
@@ -84,14 +85,17 @@ fn download_dependency(
     let (mut repo, fetch) = if dir.is_dir() {
         (Repository::open(&dir)?, true)
     } else {
-        println!("Downloading {} v{}", dependency.url, dependency.version);
-        (Repository::clone(&url, &dir, &tag_name)?, false)
+        status.set(
+            &dependency.url,
+            &format!("downloading version {}", dependency.version),
+        );
+        (Repository::partial_clone(&url, &dir, &tag_name)?, false)
     };
 
     let tag = if let Some(tag) = repo.tag(&tag_name) {
         Some(tag)
     } else if fetch {
-        println!("Updating {}", dependency.url);
+        status.set(&dependency.url, "updating");
         repo.fetch()?;
         repo.tag(&tag_name)
     } else {
@@ -138,6 +142,8 @@ changes.",
 
     let package = Package { repository: repo, dependency };
     let manifest_path = dir.join(MANIFEST_FILE);
+
+    status.reset();
 
     if manifest_path.is_file() {
         Ok((package, Some(Manifest::load(&manifest_path)?)))

@@ -4,7 +4,7 @@ use compiler::pkg::git::Repository;
 use compiler::pkg::manifest::{
     Checksum, Dependency, MANIFEST_FILE, Manifest, Url,
 };
-use compiler::pkg::util::data_dir;
+use compiler::pkg::util::{Status, data_dir};
 use compiler::pkg::version::Version;
 use getopts::Options;
 
@@ -37,7 +37,7 @@ pub(crate) fn run(args: &[String]) -> Result<i32, Error> {
 
     let major = matches.opt_present("m");
     let mut manifest = Manifest::load(&MANIFEST_FILE)
-        .map_err(|e| format!("Failed to load the manifest: {}", e))?;
+        .map_err(|e| format!("failed to load the manifest: {}", e))?;
     let update = if let Some(url) =
         matches.free.first().and_then(|uri| Url::parse(uri))
     {
@@ -45,7 +45,7 @@ pub(crate) fn run(args: &[String]) -> Result<i32, Error> {
             vec![dep]
         } else {
             return Err(Error::from(format!(
-                "The package {} isn't listed in {}",
+                "the package {} isn't listed in {}",
                 url, MANIFEST_FILE
             )));
         }
@@ -56,14 +56,15 @@ pub(crate) fn run(args: &[String]) -> Result<i32, Error> {
     let (data, _data_lock) = data_dir()?;
 
     for dep in update {
+        let mut status = Status::new();
         let dir = data.join(dep.url.directory_name());
         let repo = if dir.is_dir() {
-            let mut repo = Repository::open(&dir)?;
-
-            repo.fetch()?;
-            repo
+            status.set(&dep.url, "downloading");
+            Repository::open_and_fetch(&dir)?
         } else {
-            Repository::clone(
+            status
+                .set(&dep.url, &format!("downloading version {}", dep.version));
+            Repository::partial_clone(
                 &dep.url.to_string(),
                 &dir,
                 &dep.version.tag_name(),
@@ -74,7 +75,7 @@ pub(crate) fn run(args: &[String]) -> Result<i32, Error> {
 
         if tag_names.is_empty() {
             return Err(Error::from(format!(
-                "The package {} doesn't have any versions",
+                "the package {} doesn't have any versions",
                 dep.url
             )));
         }
@@ -88,13 +89,9 @@ pub(crate) fn run(args: &[String]) -> Result<i32, Error> {
             _ => continue,
         };
 
-        println!(
-            "Updating {} from version {} to version {}",
-            dep.url, dep.version, version
-        );
-
         let tag = repo.tag(&version.tag_name()).unwrap();
 
+        status.set(&dep.url, &format!("{} -> {}", dep.version, version));
         dep.version = version;
         dep.checksum = Checksum::new(tag.target);
     }

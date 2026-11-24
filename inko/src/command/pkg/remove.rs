@@ -31,10 +31,10 @@ pub(crate) fn run(args: &[String]) -> Result<i32, Error> {
         .free
         .first()
         .and_then(|uri| Url::parse(uri))
-        .ok_or_else(|| "The package URL is invalid".to_string())?;
+        .ok_or_else(|| "the package URL is invalid".to_string())?;
 
     let mut manifest = Manifest::load(&MANIFEST_FILE)
-        .map_err(|e| format!("Failed to load the manifest: {}", e))?;
+        .map_err(|e| format!("failed to load the manifest: {}", e))?;
 
     manifest.remove_dependency(&url);
     manifest.save(&MANIFEST_FILE)?;

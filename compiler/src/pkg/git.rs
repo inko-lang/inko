@@ -1,3 +1,4 @@
+use crate::pkg::version::Version;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -20,13 +21,31 @@ impl Repository {
             Ok(Self { path: path.to_path_buf() })
         } else {
             Err(format!(
-                "The Git repository at {} doesn't exist",
+                "the Git repository at {} doesn't exist",
                 path.display()
             ))
         }
     }
 
-    pub fn clone(url: &str, path: &Path, branch: &str) -> Result<Self, String> {
+    pub fn open_and_fetch(path: &Path) -> Result<Self, String> {
+        let mut repo = Self::open(path)?;
+
+        repo.fetch()?;
+        Ok(repo)
+    }
+
+    pub fn full_clone(url: &str, path: &Path) -> Result<Self, String> {
+        run("clone", None, &[OsStr::new(url), path.as_os_str()])
+            .map_err(|err| format!("failed to clone {}: {}", url, err))?;
+
+        Ok(Self { path: path.to_path_buf() })
+    }
+
+    pub fn partial_clone(
+        url: &str,
+        path: &Path,
+        branch: &str,
+    ) -> Result<Self, String> {
         run(
             "clone",
             None,
@@ -38,7 +57,7 @@ impl Repository {
                 path.as_os_str(),
             ],
         )
-        .map_err(|err| format!("Failed to clone {}: {}", url, err))?;
+        .map_err(|err| format!("failed to clone {}: {}", url, err))?;
 
         Ok(Self { path: path.to_path_buf() })
     }
@@ -50,7 +69,7 @@ impl Repository {
             &[OsStr::new(REMOTE), OsStr::new("--tags")],
         )
         .map_err(|err| {
-            format!("Failed to update {}: {}", self.path.display(), err)
+            format!("failed to update {}: {}", self.path.display(), err)
         })?;
 
         Ok(())
@@ -76,6 +95,20 @@ impl Repository {
         } else {
             Vec::new()
         }
+    }
+
+    pub fn latest_version(&self) -> Option<Version> {
+        let mut latest = None;
+
+        for tag in self.version_tag_names() {
+            let ver = Version::parse(&tag[1..]);
+
+            if ver.is_some() && ver > latest {
+                latest = ver;
+            }
+        }
+
+        latest
     }
 
     pub fn checkout(&self, name: &str) -> Result<(), String> {
@@ -104,7 +137,7 @@ fn run(
 
     let child = cmd
         .spawn()
-        .map_err(|err| format!("Failed to spawn 'git {}': {}", command, err))?;
+        .map_err(|err| format!("failed to spawn 'git {}': {}", command, err))?;
     let output = child.wait_with_output().map_err(|err| format!("{}", err))?;
 
     if output.status.success() {

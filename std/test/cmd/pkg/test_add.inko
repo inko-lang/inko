@@ -1,0 +1,141 @@
+import helpers (compiler_path, with_directory)
+import std.env
+import std.fs.file (ReadOnlyFile)
+import std.fs.path (Path)
+import std.string (ToString)
+import std.sys (Command, Stream)
+import std.test (Tests)
+
+fn read(path: ref Path) -> Result[String, String] {
+  let buf = ByteArray.new
+
+  try ReadOnlyFile.new(path).then(fn (v) { v.read_all(buf) }).map_error(
+    fn (e) { e.to_string },
+  )
+  Result.Ok(buf.into_string)
+}
+
+fn run[S: ToString](
+  directory: ref Path,
+  command: ref S,
+  arguments: Array[String],
+) -> Result[Nil, String] {
+  let cmd = Command.new(command)
+
+  cmd.stdout = Stream.Null
+  cmd.stdin = Stream.Null
+  cmd.stderr = Stream.Piped
+  cmd.arguments = arguments
+  cmd.directory = directory.clone
+
+  let child = try cmd.spawn.or_error('failed to start the command')
+  let stderr = ByteArray.new
+  let status = try child.wait.or_error('failed to wait')
+
+  if status.success? {
+    Result.Ok(nil)
+  } else {
+    let _ = try child.stderr.as_mut.get.read_all(stderr).or_error(
+      'failed to read STDERR',
+    )
+
+    Result.Error(stderr.into_string)
+  }
+}
+
+fn setup(root: ref Path) -> Result[(Path, Path), String] {
+  let prj = root.join('project')
+  let dep = root.join('dependency')
+
+  try prj.create_directory_all.or_error('failed to create ${prj}')
+  try dep.create_directory_all.or_error('failed to create ${dep}')
+
+  try run(dep, 'git', ['init'])
+  try run(dep, 'git', ['commit', '--allow-empty', '--message', 'commit 1'])
+  try run(dep, 'git', ['tag', 'v0.1.0'])
+  try run(dep, 'git', ['commit', '--allow-empty', '--message', 'commit 2'])
+  try run(dep, 'git', ['tag', 'v0.2.0'])
+  try run(dep, 'git', ['commit', '--allow-empty', '--message', 'commit 3'])
+  try run(dep, 'git', ['tag', 'not-a-version-tag'])
+
+  Result.Ok((prj, dep))
+}
+
+fn pub tests(t: mut Tests) {
+  t.ok('inko pkg add URI VERSION', fn (t) {
+    with_directory(t.id, fn (dir) -> Result[Nil, String] {
+      let (prj, dep) = try setup(dir)
+
+      try run(prj, compiler_path, ['pkg', 'add', dep.to_string, '0.1.0'])
+
+      let manifest = try read(prj.join('inko.pkg'))
+
+      t.true(manifest.contains?(dep.to_string))
+      t.true(manifest.contains?('0.1.0'))
+      Result.Ok(nil)
+    })
+  })
+
+  t.ok('inko pkg add URI', fn (t) {
+    with_directory(t.id, fn (dir) -> Result[Nil, String] {
+      let (prj, dep) = try setup(dir)
+
+      try run(prj, compiler_path, ['pkg', 'add', dep.to_string])
+
+      let manifest = try read(prj.join('inko.pkg'))
+
+      t.true(manifest.contains?(dep.to_string))
+      t.true(manifest.contains?('0.2.0'))
+      Result.Ok(nil)
+    })
+  })
+
+  t.ok('inko pkg add URI VERSION foo', fn (t) {
+    with_directory(t.id, fn (dir) -> Result[Nil, String] {
+      let (prj, dep) = try setup(dir)
+      let res = run(
+        prj,
+        compiler_path,
+        ['pkg', 'add', dep.to_string, '0.1.0', 'foo'],
+      )
+
+      t.true(res.error?)
+      Result.Ok(nil)
+    })
+  })
+
+  t.ok('inko pkg add inko 1.2.3', fn (t) {
+    with_directory(t.id, fn (dir) -> Result[Nil, String] {
+      try dir.create_directory_all.or_error('failed to create the directory')
+      try run(dir, compiler_path, ['pkg', 'add', 'inko', '1.2.3'])
+
+      let manifest = try read(dir.join('inko.pkg'))
+
+      t.true(manifest.contains?('inko 1.2.3'))
+      Result.Ok(nil)
+    })
+  })
+
+  t.ok('inko pkg add inko', fn (t) {
+    with_directory(t.id, fn (dir) -> Result[Nil, String] {
+      try dir.create_directory_all.or_error('failed to create the directory')
+      try run(dir, compiler_path, ['pkg', 'add', 'inko'])
+
+      let manifest = try read(dir.join('inko.pkg'))
+
+      t.true(manifest.contains?('inko ${env.VERSION}'))
+      Result.Ok(nil)
+    })
+  })
+
+  t.ok('inko pkg add inko 1.2.3 foo', fn (t) {
+    with_directory(t.id, fn (dir) -> Result[Nil, String] {
+      try dir.create_directory_all.or_error('failed to create the directory')
+
+      let res = run(dir, compiler_path, ['pkg', 'add', 'inko', '1.2.3', 'foo'])
+
+      t.true(res.error?)
+      Result.Ok(nil)
+    })
+  })
+}
