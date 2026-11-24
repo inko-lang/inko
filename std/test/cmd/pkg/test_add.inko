@@ -51,6 +51,8 @@ fn setup(root: ref Path) -> Result[(Path, Path), String] {
   try dep.create_directory_all.or_error('failed to create ${dep}')
 
   try run(dep, 'git', ['init'])
+  try run(dep, 'git', ['config', '--local', 'user.email', 'foo@example.com'])
+  try run(dep, 'git', ['config', '--local', 'user.name', 'Example'])
   try run(dep, 'git', ['commit', '--allow-empty', '--message', 'commit 1'])
   try run(dep, 'git', ['tag', 'v0.1.0'])
   try run(dep, 'git', ['commit', '--allow-empty', '--message', 'commit 2'])
