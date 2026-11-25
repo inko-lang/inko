@@ -2,7 +2,7 @@
 name: Bug
 description: Report a new bug
 labels:
-  - bug
+  - type/bug
 body:
   - type: textarea
     id: description

@@ -98,7 +98,7 @@ how other languages implement the feature (if applicable), and so on.
 
 ::: note
 Before submitting code changes, please note that we only accept merge requests
-for issues labelled as "Accepting contributions".
+for issues labelled as "accepting contributions".
 :::
 
 To submit changes to Inko, you'll need a local Git clone of the repository. If

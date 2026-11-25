@@ -2,7 +2,7 @@
 name: Feature
 description: Request or propose a new feature
 labels:
-  - feature
+  - type/feature
 body:
   - type: textarea
     id: description
