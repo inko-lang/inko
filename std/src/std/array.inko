@@ -10,7 +10,7 @@ import std.iter (Iter as IterTrait)
 import std.option (Option)
 import std.ptr
 import std.rand (Random)
-import std.reflect (size_of)
+import std.reflect (copy?, size_of)
 import std.string (ToString)
 
 # The capacity to use when resizing an array for the first time.
@@ -410,12 +410,13 @@ type builtin Array[T] {
   # array.empty? # => true
   # ```
   fn pub mut clear {
+    let max = @size := 0
+
+    if copy?[T] { return }
+
     let mut index = 0
-    let max = @size
 
-    while index < max { read_from(index := index + 1) }
-
-    @size = 0
+    while index < max { drop_value(read_from(index := index + 1)) }
   }
 
   # Pushes a value to the back of the Array.
@@ -565,7 +566,9 @@ type builtin Array[T] {
   # ```
   fn pub mut set(index: Int, value: T) {
     check_bounds(index, @size).or_panic
-    drop_value(read_from(index))
+
+    if !copy?[T] { drop_value(read_from(index)) }
+
     write_to(index, value)
   }
 
@@ -1082,7 +1085,14 @@ impl Array if T: Equal {
 impl Clone for Array if T: Clone {
   fn pub clone -> Array[move T] {
     let len = @size
-    let new = Array.with_capacity(len)
+    let new: Array[move T] = Array.with_capacity(len)
+
+    if copy?[T] {
+      alloc.copy(from: pointer, to: new.pointer, size: len)
+      new.size = len
+      return new
+    }
+
     let mut index = 0
 
     while index < len { new.push(get_unchecked(index := index + 1).clone) }
