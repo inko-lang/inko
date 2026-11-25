@@ -78,7 +78,7 @@ fn check(compiler: String, name: String, file: Path) -> Array[Diagnostic] {
   # Given a test called `foo.inko`, if the directory `foo` exists we add it to
   # the include path. This way you can move separate files that are imported
   # (e.g. when testing importing of private symbols) into such a sub directory.
-  let extra_src = dir.join(name)
+  let extra_src = dir / name
 
   if extra_src.directory? {
     cmd.arguments.push('--include')
@@ -265,11 +265,9 @@ impl Format for Diagnostic {
 }
 
 fn pub tests(t: mut Tests) {
-  let base = env
-    .working_directory
-    .or_else(fn (_) { '.'.to_path })
-    .join('fixtures')
-    .join('diagnostics')
+  let base = env.working_directory.or_else(fn (_) { '.'.to_path })
+    / 'fixtures'
+    / 'diagnostics'
   let compiler = compiler_path.to_string
 
   for e in base.list.or_panic_with("fixtures/diagnostics doesn't exist") {

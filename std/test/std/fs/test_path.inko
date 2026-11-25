@@ -79,12 +79,12 @@ fn pub tests(t: mut Tests) {
     t.false(Path.new('/foo').relative?)
   })
 
-  t.test('Path.join', fn (t) {
-    t.equal(Path.new('foo').join('bar'), Path.new('foo/bar'))
-    t.equal(Path.new('foo').join('/').join('bar'), Path.new('/bar'))
-    t.equal(Path.new('foo').join(''), Path.new('foo'))
-    t.equal(Path.new('').join('foo'), Path.new('foo'))
-    t.equal(Path.new('').join('/foo'), Path.new('/foo'))
+  t.test('Path./', fn (t) {
+    t.equal(Path.new('foo') / 'bar', Path.new('foo/bar'))
+    t.equal(Path.new('foo') / '/' / 'bar', Path.new('/bar'))
+    t.equal(Path.new('foo') / '', Path.new('foo'))
+    t.equal(Path.new('') / 'foo', Path.new('foo'))
+    t.equal(Path.new('') / '/foo', Path.new('/foo'))
   })
 
   t.test('Path.directory', fn (t) {
@@ -129,11 +129,11 @@ fn pub tests(t: mut Tests) {
 
   t.ok('Path.expand', fn (t) {
     try with_directory(t.id, fn (temp) {
-      let bar = temp.join('foo').join('bar')
+      let bar = temp / 'foo' / 'bar'
 
       try bar.create_directory_all
 
-      let expanded = bar.join('..').join('..').expand
+      let expanded = (bar / '..' / '..').expand
 
       t.equal(expanded, Result.Ok(temp.clone))
       Result.Ok(nil)
@@ -183,7 +183,7 @@ fn pub tests(t: mut Tests) {
 
   t.ok('Path.list with a valid directory', fn (t) {
     with_directory(t.id, fn (root) {
-      let foo = root.join('foo')
+      let foo = root / 'foo'
 
       try root.create_directory
       try foo.create_directory
@@ -206,15 +206,15 @@ fn pub tests(t: mut Tests) {
 
   t.ok('Path.list_recursive with a valid directory', fn (t) {
     with_directory(t.id, fn (root) {
-      let foo = root.join('foo')
-      let bar = foo.join('bar')
-      let baz = bar.join('baz')
+      let foo = root / 'foo'
+      let bar = foo / 'bar'
+      let baz = bar / 'baz'
 
       try baz.create_directory_all
-      write('a', foo.join('a.txt'))
-      write('b', foo.join('b.txt'))
-      write('c', bar.join('c.txt'))
-      write('d', baz.join('d.txt'))
+      write('a', foo / 'a.txt')
+      write('b', foo / 'b.txt')
+      write('c', bar / 'c.txt')
+      write('d', baz / 'd.txt')
 
       let paths = root
         .list_all
@@ -231,10 +231,10 @@ fn pub tests(t: mut Tests) {
         .or_else(fn (_) { [] })
 
       t.equal(paths.size, 4)
-      t.true(paths.contains?(foo.join('a.txt')))
-      t.true(paths.contains?(foo.join('b.txt')))
-      t.true(paths.contains?(bar.join('c.txt')))
-      t.true(paths.contains?(baz.join('d.txt')))
+      t.true(paths.contains?(foo / 'a.txt'))
+      t.true(paths.contains?(foo / 'b.txt'))
+      t.true(paths.contains?(bar / 'c.txt'))
+      t.true(paths.contains?(baz / 'd.txt'))
       Result.Ok(nil)
     })
   })
@@ -276,7 +276,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('Path.create_directory_all', fn (t) {
     with_directory(t.id, fn (root) {
-      let path = root.join('foo').join('bar')
+      let path = root / 'foo' / 'bar'
 
       t.true(path.create_directory_all.ok?)
       t.true(path.directory?)
@@ -297,7 +297,7 @@ fn pub tests(t: mut Tests) {
 
   t.ok('Path.remove_directory_all', fn (t) {
     with_directory(t.id, fn (root) {
-      let path = root.join('foo').join('bar')
+      let path = root / 'foo' / 'bar'
 
       try path.create_directory_all
 
@@ -488,18 +488,14 @@ fn pub tests(t: mut Tests) {
     t.false(Path.new('/foo/bar').ends_with?('baz'))
   })
 
-  t.ok('Path.join_strict', fn (t) {
+  t.ok('Path.join', fn (t) {
     let pwd = try env.working_directory
 
-    t.equal(
-      Path.new('src').join_strict('std'),
-      Option.Some(pwd.join('src').join('std')),
-    )
-
-    t.equal(Path.new('src').join_strict('/etc/shadow'), Option.None)
-    t.equal(Path.new('src').join_strict('../../'), Option.None)
-    t.equal(Path.new('src').join_strict('non-existing'), Option.None)
-    t.equal(Path.new('non-existing').join_strict('path'), Option.None)
+    t.equal(Path.new('src').join('std'), Option.Some(pwd / 'src' / 'std'))
+    t.equal(Path.new('src').join('/etc/shadow'), Option.None)
+    t.equal(Path.new('src').join('../../'), Option.None)
+    t.equal(Path.new('src').join('non-existing'), Option.None)
+    t.equal(Path.new('non-existing').join('path'), Option.None)
 
     Result.Ok(nil)
   })

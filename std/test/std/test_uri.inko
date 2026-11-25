@@ -349,14 +349,14 @@ fn pub tests(t: mut Tests) {
     t.equal(Path.from_iter(['a', 'b', '..', 'c'].iter), Path('a/b/../c'))
   })
 
-  t.test('Path.join', fn (t) {
-    t.equal(Path.empty.join(Path.empty), Path.empty)
-    t.equal(Path.empty.join(Path('a')), Path('a'))
-    t.equal(Path('a').join(Path.empty), Path('a'))
-    t.equal(Path('a/b').join(Path('/c/d')), Path('/c/d'))
-    t.equal(Path('a/').join(Path('b/c')), Path('a/b/c'))
-    t.equal(Path('a').join(Path('b')), Path('a/b'))
-    t.equal(Path('a').join(Path('/')), Path('/'))
+  t.test('Path./', fn (t) {
+    t.equal(Path.empty / Path.empty, Path.empty)
+    t.equal(Path.empty / Path('a'), Path('a'))
+    t.equal(Path('a') / Path.empty, Path('a'))
+    t.equal(Path('a/b') / Path('/c/d'), Path('/c/d'))
+    t.equal(Path('a/') / Path('b/c'), Path('a/b/c'))
+    t.equal(Path('a') / Path('b'), Path('a/b'))
+    t.equal(Path('a') / Path('/'), Path('/'))
   })
 
   t.test('Path.with_trailing_separator', fn (t) {

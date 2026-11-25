@@ -983,7 +983,7 @@ fn pub tests(t: mut Tests) {
     with_directory(t.id, fn (dir) {
       try dir.create_directory_all
 
-      let path = strip_working_directory(dir.join('test.sock'))
+      let path = strip_working_directory(dir / 'test.sock')
       let _server = try UnixServer.new(path)
       let client = Client.new
       let con = client.connect(uri(unix, named(path.to_string), Option.None))
@@ -1008,7 +1008,7 @@ fn pub tests(t: mut Tests) {
     with_directory(t.id, fn (dir) {
       try dir.create_directory_all
 
-      let path = strip_working_directory(dir.join('test.sock'))
+      let path = strip_working_directory(dir / 'test.sock')
       let _server = try UnixServer.new(path)
       let client = Client.new
       let uri = uri(unix, named(path.to_string), Option.None)

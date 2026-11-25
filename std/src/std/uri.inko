@@ -1209,10 +1209,10 @@ type pub inline Path {
   # ```inko
   # import std.uri (Path)
   #
-  # Path.root.join(Path.new('foo/bar').get)         # => Path('/foo/bar')
-  # Path.new('/foo').get.join(Path.new('/bar').get) # => Path('/foo/bar')
+  # Path.root / Path.new('foo/bar').get         # => Path('/foo/bar')
+  # Path.new('/foo').get / Path.new('/bar').get # => Path('/foo/bar')
   # ```
-  fn pub join(with: ref Path) -> Path {
+  fn pub /(with: ref Path) -> Path {
     if empty? { return with.clone }
 
     if with.empty? { return clone }

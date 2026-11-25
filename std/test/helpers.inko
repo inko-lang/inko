@@ -141,7 +141,7 @@ fn pub hash[T: Hash](value: ref T) -> Int {
 }
 
 fn pub local_temporary_directory -> Path {
-  env.working_directory.or_panic.join('tmp')
+  env.working_directory.or_panic / 'tmp'
 }
 
 # Strips the working directory from the given path.
@@ -157,9 +157,8 @@ fn pub strip_working_directory(path: ref Path) -> Path {
 }
 
 fn pub unique_path(id: Int) -> Path {
-  local_temporary_directory.join(
-    'inko-test-${env.process_identifier}-${id}-${Instant.new.to_int}',
-  )
+  local_temporary_directory
+    / 'inko-test-${env.process_identifier}-${id}-${Instant.new.to_int}'
 }
 
 fn pub with_directory[R](id: Int, func: fn (ref Path) -> R) -> R {
@@ -178,16 +177,16 @@ fn pub compiler_path -> Path {
     }
   }
 
-  let target = if base.join('test').directory? {
-    base.join('..').join('target')
-  } else if base.join('std').directory? {
-    base.join('target')
+  let target = if (base / 'test').directory? {
+    base / '..' / 'target'
+  } else if (base / 'std').directory? {
+    base / 'target'
   } else {
     panic('Tests must be run in either the project root, or the std/ directory')
   }
 
-  let debug = target.join('debug').join('inko')
-  let release = target.join('release').join('inko')
+  let debug = target / 'debug' / 'inko'
+  let release = target / 'release' / 'inko'
 
   match
     (

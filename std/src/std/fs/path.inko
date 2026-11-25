@@ -288,7 +288,9 @@ type pub inline Path {
   # ```inko
   # import std.fs.path (Path)
   #
-  # Path.new('foo/bar').join('baz').to_string # => 'foo/bar/baz'
+  # let path = Path.new('foo/bar') / 'baz'
+  #
+  # path.to_string # => 'foo/bar/baz'
   # ```
   #
   # Joining a `Path` with another `Path`:
@@ -296,9 +298,11 @@ type pub inline Path {
   # ```inko
   # import std.fs.path (Path)
   #
-  # Path.new('foo/bar').join(Path.new('bar')).to_string # => 'foo/bar/baz'
+  # let path = Path.new('foo/bar') / Path.new('bar')
+  #
+  # path.to_string # => 'foo/bar/baz'
   # ```
-  fn pub join[T: ToString](path: ref T) -> Path {
+  fn pub /[T: ToString](path: ref T) -> Path {
     Path.new(join_strings(@path, with: path.to_string))
   }
 
@@ -317,12 +321,12 @@ type pub inline Path {
   # ```inko
   # import std.fs.path (Path)
   #
-  # Path.new('/foo').join_strict('bar')    # => Option.Some(Path.new('/foo/bar'))
-  # Path.new('/foo').join_strict('../baz') # => Option.None
+  # Path.new('/foo').join('bar')    # => Option.Some(Path.new('/foo/bar'))
+  # Path.new('/foo').join('../baz') # => Option.None
   # ```
-  fn pub join_strict[T: ToString](path: ref T) -> Option[Self] {
+  fn pub join[T: ToString](path: ref T) -> Option[Self] {
     let Ok(this) = expand else return Option.None
-    let Ok(joined) = this.join(path).expand else return Option.None
+    let Ok(joined) = (this / path).expand else return Option.None
 
     if joined.starts_with?(this) { Option.Some(joined) } else { Option.None }
   }

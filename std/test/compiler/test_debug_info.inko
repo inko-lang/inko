@@ -50,11 +50,9 @@ fn run(compiler: String, file: ref Path, id: Int, release: Bool) -> String {
 }
 
 fn pub tests(t: mut Tests) {
-  let base = env
-    .working_directory
-    .or_else(fn (_) { '.'.to_path })
-    .join('fixtures')
-    .join('debug_info')
+  let base = env.working_directory.or_else(fn (_) { '.'.to_path })
+    / 'fixtures'
+    / 'debug_info'
   let compiler = compiler_path.to_string
 
   for e in base.list.or_panic_with("fixtures/debug_info doesn't exist") {

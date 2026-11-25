@@ -54,7 +54,7 @@ fn pub tests(t: mut Tests) {
 
   t.ok('Certificate.from_pem_file', fn (t) {
     try with_directory(t.id, fn (dir) {
-      let path = dir.join('cert.pem')
+      let path = dir / 'cert.pem'
 
       try dir.create_directory_all
       try file.WriteOnlyFile.new(path).then(fn (f) { f.write(VALID_CERT) })
@@ -64,7 +64,7 @@ fn pub tests(t: mut Tests) {
     })
 
     try with_directory(t.id, fn (dir) {
-      let path = dir.join('cert.pem')
+      let path = dir / 'cert.pem'
 
       try dir.create_directory_all
 
@@ -76,7 +76,7 @@ fn pub tests(t: mut Tests) {
     })
 
     try with_directory(t.id, fn (dir) {
-      let path = dir.join('cert.pem')
+      let path = dir / 'cert.pem'
 
       try dir.create_directory_all
       try file.WriteOnlyFile.new(path).then(fn (f) { f.write(VALID_KEY) })
@@ -89,7 +89,7 @@ fn pub tests(t: mut Tests) {
     })
 
     try with_directory(t.id, fn (dir) {
-      let path = dir.join('cert.pem')
+      let path = dir / 'cert.pem'
 
       try dir.create_directory_all
       try file.WriteOnlyFile.new(path).then(fn (f) {
@@ -108,7 +108,7 @@ fn pub tests(t: mut Tests) {
 
   t.ok('Certificate.chain_from_pem_file', fn (t) {
     try with_directory(t.id, fn (dir) {
-      let path = dir.join('cert.pem')
+      let path = dir / 'cert.pem'
 
       try dir.create_directory_all.map_error(fn (e) { e.to_string })
       try file
@@ -129,7 +129,7 @@ fn pub tests(t: mut Tests) {
     })
 
     try with_directory(t.id, fn (dir) {
-      let path = dir.join('cert.pem')
+      let path = dir / 'cert.pem'
 
       try dir.create_directory_all.map_error(fn (e) { e.to_string })
       try file.WriteOnlyFile.new(path).map_error(fn (e) { e.to_string })
@@ -143,7 +143,7 @@ fn pub tests(t: mut Tests) {
     })
 
     try with_directory(t.id, fn (dir) {
-      let path = dir.join('cert.pem')
+      let path = dir / 'cert.pem'
 
       try dir.create_directory_all.map_error(fn (e) { e.to_string })
 
@@ -155,7 +155,7 @@ fn pub tests(t: mut Tests) {
     })
 
     try with_directory(t.id, fn (dir) {
-      let path = dir.join('cert.pem')
+      let path = dir / 'cert.pem'
 
       try dir.create_directory_all.map_error(fn (e) { e.to_string })
       try file
@@ -173,7 +173,7 @@ fn pub tests(t: mut Tests) {
     })
 
     try with_directory(t.id, fn (dir) {
-      let path = dir.join('cert.pem')
+      let path = dir / 'cert.pem'
 
       try dir.create_directory_all.map_error(fn (e) { e.to_string })
       try file
@@ -219,7 +219,7 @@ fn pub tests(t: mut Tests) {
 
   t.ok('PrivateKey.from_pem_file', fn (t) {
     try with_directory(t.id, fn (dir) -> Result[Nil, io.Error] {
-      let path = dir.join('key.pem')
+      let path = dir / 'key.pem'
 
       try dir.create_directory_all
       try file.WriteOnlyFile.new(path).then(fn (f) { f.write(VALID_KEY) })
@@ -229,7 +229,7 @@ fn pub tests(t: mut Tests) {
     })
 
     try with_directory(t.id, fn (dir) -> Result[Nil, io.Error] {
-      let path = dir.join('key.pem')
+      let path = dir / 'key.pem'
 
       try dir.create_directory_all
 
@@ -241,7 +241,7 @@ fn pub tests(t: mut Tests) {
     })
 
     try with_directory(t.id, fn (dir) -> Result[Nil, io.Error] {
-      let path = dir.join('key.pem')
+      let path = dir / 'key.pem'
 
       try dir.create_directory_all
       try file.WriteOnlyFile.new(path).then(fn (f) { f.write(VALID_CERT) })
@@ -254,7 +254,7 @@ fn pub tests(t: mut Tests) {
     })
 
     try with_directory(t.id, fn (dir) -> Result[Nil, io.Error] {
-      let path = dir.join('key.pem')
+      let path = dir / 'key.pem'
 
       try dir.create_directory_all
       try file.WriteOnlyFile.new(path).then(fn (f) {

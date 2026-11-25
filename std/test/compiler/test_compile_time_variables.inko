@@ -53,13 +53,13 @@ fn compile(
 fn run(id: Int, define: Option[String]) -> Result[String, String] {
   let cwd = env.working_directory.or_else(fn (_) { '.'.to_path })
   let name = 'compile_time_variables'
-  let src = cwd.join('fixtures').join('${name}.inko')
+  let src = cwd / 'fixtures' / '${name}.inko'
 
   with_directory(id, fn (dir) -> Result[String, String] {
     dir.create_directory_all.get
 
-    let input = dir.join('${name}.inko')
-    let output = dir.join('build').join('debug').join(name)
+    let input = dir / '${name}.inko'
+    let output = dir / 'build' / 'debug' / name
 
     try src.copy(input).map_error(fn (e) {
       'failed to copy ${src} to ${input}: ${e}'

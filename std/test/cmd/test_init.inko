@@ -48,20 +48,20 @@ fn pub tests(t: mut Tests) {
     with_directory(t.id, fn (dir) -> Result[Nil, String] {
       let _ = dir.create_directory
       let out = try init(dir, ['hello'])
-      let root = dir.join('hello')
-      let main = root.join('src').join('hello.inko')
+      let root = dir / 'hello'
+      let main = root / 'src' / 'hello.inko'
 
       t.true(out.empty?)
       t.true(main.file?)
       t.true((try read(main)).contains?('type async Main'))
-      t.true(root.join('.gitignore').file?)
-      t.true(root.join('inko.pkg').file?)
-      t.true(root.join('LICENSE').file?)
-      t.true(root.join('justfile').file?)
-      t.true(root.join('just/release.just').file?)
-      t.true((try read(root.join('clogs.json'))).contains?('HOST/OWNER/hello'))
+      t.true((root / '.gitignore').file?)
+      t.true((root / 'inko.pkg').file?)
+      t.true((root / 'LICENSE').file?)
+      t.true((root / 'justfile').file?)
+      t.true((root / 'just/release.just').file?)
+      t.true((try read(root / 'clogs.json')).contains?('HOST/OWNER/hello'))
 
-      let readme = try read(root.join('README.md'))
+      let readme = try read(root / 'README.md')
 
       t.true(readme.contains?('# hello'))
       t.true(readme.contains?('Inko ${env.VERSION} or newer'))
@@ -75,14 +75,14 @@ fn pub tests(t: mut Tests) {
     with_directory(t.id, fn (dir) -> Result[Nil, String] {
       let _ = dir.create_directory
       let out = try init(dir, ['hello', '--lib'])
-      let root = dir.join('hello')
-      let main = root.join('src').join('hello.inko')
+      let root = dir / 'hello'
+      let main = root / 'src' / 'hello.inko'
 
       t.true(out.empty?)
       t.true(main.file?)
       t.true((try read(main)).empty?)
-      t.true(root.join('.gitignore').file?)
-      t.true(root.join('inko.pkg').file?)
+      t.true((root / '.gitignore').file?)
+      t.true((root / 'inko.pkg').file?)
 
       Result.Ok(nil)
     })
@@ -90,17 +90,17 @@ fn pub tests(t: mut Tests) {
 
   t.ok('inko init .', fn (t) {
     with_directory(t.id, fn (dir) -> Result[Nil, String] {
-      let dir = dir.join('hello')
+      let dir = dir / 'hello'
       let _ = dir.create_directory_all
       let out = try init(dir, ['hello'])
-      let root = dir.join('hello')
-      let main = root.join('src').join('hello.inko')
+      let root = dir / 'hello'
+      let main = root / 'src' / 'hello.inko'
 
       t.true(out.empty?)
       t.true(main.file?)
       t.true((try read(main)).contains?('type async Main'))
-      t.true(root.join('.gitignore').file?)
-      t.true(root.join('inko.pkg').file?)
+      t.true((root / '.gitignore').file?)
+      t.true((root / 'inko.pkg').file?)
 
       Result.Ok(nil)
     })
@@ -110,8 +110,8 @@ fn pub tests(t: mut Tests) {
     with_directory(t.id, fn (dir) -> Result[Nil, String] {
       let _ = dir.create_directory
       let out = try init(dir, ['hello', '--github'])
-      let root = dir.join('hello')
-      let yml = root.join('.github/workflows/push.yml')
+      let root = dir / 'hello'
+      let yml = root / '.github/workflows/push.yml'
 
       t.true(out.empty?)
       t.true(yml.file?)
@@ -125,8 +125,8 @@ fn pub tests(t: mut Tests) {
     with_directory(t.id, fn (dir) -> Result[Nil, String] {
       let _ = dir.create_directory
       let out = try init(dir, ['hello', '--codeberg'])
-      let root = dir.join('hello')
-      let yml = root.join('.forgejo/workflows/push.yml')
+      let root = dir / 'hello'
+      let yml = root / '.forgejo/workflows/push.yml'
 
       t.true(out.empty?)
       t.true(yml.file?)

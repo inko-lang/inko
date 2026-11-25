@@ -44,8 +44,8 @@ fn run[S: ToString](
 }
 
 fn setup(root: ref Path) -> Result[(Path, Path), String] {
-  let prj = root.join('project')
-  let dep = root.join('dependency')
+  let prj = root / 'project'
+  let dep = root / 'dependency'
 
   try prj.create_directory_all.or_error('failed to create ${prj}')
   try dep.create_directory_all.or_error('failed to create ${dep}')
@@ -70,7 +70,7 @@ fn pub tests(t: mut Tests) {
 
       try run(prj, compiler_path, ['pkg', 'add', dep.to_string, '0.1.0'])
 
-      let manifest = try read(prj.join('inko.pkg'))
+      let manifest = try read(prj / 'inko.pkg')
 
       t.true(manifest.contains?(dep.to_string))
       t.true(manifest.contains?('0.1.0'))
@@ -84,7 +84,7 @@ fn pub tests(t: mut Tests) {
 
       try run(prj, compiler_path, ['pkg', 'add', dep.to_string])
 
-      let manifest = try read(prj.join('inko.pkg'))
+      let manifest = try read(prj / 'inko.pkg')
 
       t.true(manifest.contains?(dep.to_string))
       t.true(manifest.contains?('0.2.0'))
@@ -111,7 +111,7 @@ fn pub tests(t: mut Tests) {
       try dir.create_directory_all.or_error('failed to create the directory')
       try run(dir, compiler_path, ['pkg', 'add', 'inko', '1.2.3'])
 
-      let manifest = try read(dir.join('inko.pkg'))
+      let manifest = try read(dir / 'inko.pkg')
 
       t.true(manifest.contains?('inko 1.2.3'))
       Result.Ok(nil)
@@ -123,7 +123,7 @@ fn pub tests(t: mut Tests) {
       try dir.create_directory_all.or_error('failed to create the directory')
       try run(dir, compiler_path, ['pkg', 'add', 'inko'])
 
-      let manifest = try read(dir.join('inko.pkg'))
+      let manifest = try read(dir / 'inko.pkg')
 
       t.true(manifest.contains?('inko ${env.VERSION}'))
       Result.Ok(nil)

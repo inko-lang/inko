@@ -24,21 +24,19 @@ fn print(compiler: ref Path, what: String) -> Result[String, String] {
 
 fn pub tests(t: mut Tests) {
   t.ok('Resolve the compiler directories for a release build', fn (t) {
-    let base = temporary_directory.join('inko-test-find-directories-${t.id}')
-    let inko = base.join('inko')
+    let base = temporary_directory / 'inko-test-find-directories-${t.id}'
+    let inko = base / 'inko'
 
     try base.create_directory
     try compiler_path.copy(to: inko)
 
     t.equal(
       print(inko, 'std'),
-      Result.Ok(
-        temporary_directory.join('lib').join('inko').join('std').to_string,
-      ),
+      Result.Ok((temporary_directory / 'lib' / 'inko' / 'std').to_string),
     )
     t.equal(
       print(inko, 'runtimes').map(fn (o) {
-        let rt = temporary_directory.join('lib').join('inko').join('runtime')
+        let rt = temporary_directory / 'lib' / 'inko' / 'runtime'
 
         o.contains?(rt.to_string)
       }),
@@ -51,10 +49,10 @@ fn pub tests(t: mut Tests) {
   t.ok('Resolve the compiler directories for a development build', fn (t) {
     let cwd = try working_directory
 
-    t.equal(print(compiler_path, 'std'), Result.Ok(cwd.join('src').to_string))
+    t.equal(print(compiler_path, 'std'), Result.Ok((cwd / 'src').to_string))
     t.equal(
       print(compiler_path, 'runtimes').map(fn (o) {
-        let rt = cwd.join('..').join('target')
+        let rt = cwd / '..' / 'target'
         let rt = rt.expand.or(rt)
 
         o.contains?(rt.to_string)

@@ -78,11 +78,9 @@ fn run(id: Int, compiler: String, file: Path) -> Array[String] {
 }
 
 fn pub tests(t: mut Tests) {
-  let base = env
-    .working_directory
-    .or_else(fn (_) { '.'.to_path })
-    .join('fixtures')
-    .join('escape')
+  let base = env.working_directory.or_else(fn (_) { '.'.to_path })
+    / 'fixtures'
+    / 'escape'
   let compiler = compiler_path.to_string
 
   for e in base.list.or_panic {

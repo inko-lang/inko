@@ -10,8 +10,8 @@ fn with[R](
 ) -> Result[R, String] {
   let dir = unique_path(id)
   let _ = try dir.create_directory.map_error(fn (e) { e.to_string })
-  let src = dir.join('main.inko')
-  let exe = dir.join('build').join('debug').join('main')
+  let src = dir / 'main.inko'
+  let exe = dir / 'build' / 'debug' / 'main'
   let res = body.call(dir.clone, compiler_path, src, exe)
   let _ = dir.remove_directory_all
 

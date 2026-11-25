@@ -3205,14 +3205,14 @@ type pub inline Directory {
     request: mut Request,
     components: array.Slice[Slice[String]],
   ) -> Response {
-    let rel = components.iter.reduce(@path.clone, fn (p, c) { p.join(c) })
+    let rel = components.iter.reduce(@path.clone, fn (p, c) { p / c })
 
     # This ensures we can't read files outside of the directory.
-    let Some(mut path) = @path.join_strict(rel) else return Response.not_found
+    let Some(mut path) = @path.join(rel) else return Response.not_found
 
     if path.directory? {
       if request.uri.path.value.ends_with?('/') {
-        path = path.join('index.html')
+        path = path / 'index.html'
       } else {
         # When requesting e.g. `/foo/bar` we want to redirect to `/foo/bar/`
         # such that relative URLs are evaluated against `/foo/bar` and not
@@ -3270,7 +3270,7 @@ type pub inline Directory {
   fn redirect_to_parent(components: array.Slice[Slice[String]]) -> Response {
     let dir = match components.split_last {
       case Some((_, head)) -> {
-        UriPath.root.join(UriPath.from_iter(head.iter)).with_trailing_separator
+        (UriPath.root / UriPath.from_iter(head.iter)).with_trailing_separator
       }
       case _ -> UriPath.root
     }

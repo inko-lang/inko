@@ -364,8 +364,8 @@ fn pub tests(t: mut Tests) {
       with_directory(t.id, fn (dir) {
         try dir.create_directory
 
-        let cert = dir.join('cert.pem')
-        let key = dir.join('key.pem')
+        let cert = dir / 'cert.pem'
+        let key = dir / 'key.pem'
 
         try WriteOnlyFile.new(cert).then(fn (f) { f.write(VALID_CERT) })
         try WriteOnlyFile.new(key).then(fn (f) { f.write(VALID_KEY) })
@@ -380,8 +380,8 @@ fn pub tests(t: mut Tests) {
     with_directory(t.id, fn (dir) {
       try dir.create_directory
 
-      let cert = dir.join('cert.pem')
-      let key = dir.join('key.pem')
+      let cert = dir / 'cert.pem'
+      let key = dir / 'key.pem'
 
       try WriteOnlyFile.new(cert).then(fn (f) { f.write('wat') })
       try WriteOnlyFile.new(key).then(fn (f) { f.write(VALID_KEY) })
@@ -398,8 +398,8 @@ fn pub tests(t: mut Tests) {
     with_directory(t.id, fn (dir) {
       try dir.create_directory
 
-      let cert = dir.join('cert.pem')
-      let key = dir.join('key.pem')
+      let cert = dir / 'cert.pem'
+      let key = dir / 'key.pem'
 
       try WriteOnlyFile.new(cert).then(fn (f) { f.write(VALID_CERT) })
       try WriteOnlyFile.new(key).then(fn (f) { f.write('wat') })
