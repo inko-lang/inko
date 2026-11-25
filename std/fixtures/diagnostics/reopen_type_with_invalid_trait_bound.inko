@@ -1,0 +1,7 @@
+trait Trait {}
+
+type Type[T] {}
+
+impl Type if T: Trait[ThisShouldNotCompile] {}
+
+# reopen_type_with_invalid_trait_bound.inko:5:17 error(invalid-type): incorrect number of type arguments: expected 0, found 1

@@ -3,7 +3,8 @@ use crate::diagnostics::DiagnosticId;
 use crate::hir;
 use crate::state::State;
 use crate::type_check::{
-    DefineAndCheckTypeSignature, Rules, TypeScope, define_type_bounds,
+    CheckTypeSignature, DefineAndCheckTypeSignature, Rules, TypeScope,
+    define_type_bounds,
 };
 use location::Location;
 use std::path::PathBuf;
@@ -541,6 +542,14 @@ impl<'a> DefineMethods<'a> {
             type_id,
             &mut node.bounds,
         );
+
+        let mut checker = CheckTypeSignature::new(self.state, self.module);
+
+        for bound in &node.bounds {
+            for req in &bound.requirements {
+                checker.check_type_name(req);
+            }
+        }
 
         for expr in &mut node.body {
             match expr {

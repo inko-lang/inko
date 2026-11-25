@@ -1151,7 +1151,7 @@ impl Format for Array if T: Format {
   }
 }
 
-impl Array if T: Compare[T] {
+impl Array if T: Compare {
   # Sorts the values in `self` in ascending order.
   #
   # This method performs a stable sort, meaning it maintains the relative order
